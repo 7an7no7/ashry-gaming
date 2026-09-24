@@ -725,15 +725,22 @@ const stopAction = (room, playerId, action, payload) => {
     const pid = String((payload && payload.playerId) || '');
     const cat = String((payload && payload.cat) || '');
     const pts = Number(payload && payload.pts);
-    const row = s.results && s.results[pid];
-    if (!row || !row[cat] || STOP_POINT_STEPS.indexOf(pts) === -1) return;
+    // Only a player and a category of this round: a name like '__proto__' must
+    // never reach an object's prototype (it is shared by every room in the isolate).
+    const own = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+    const row = own(s.results, pid) ? s.results[pid] : null;
+    if (!row || (s.cats || []).indexOf(cat) === -1 || !own(row, cat) || !row[cat] ||
+        STOP_POINT_STEPS.indexOf(pts) === -1) return;
     const prevPts = row[cat].pts;
     const cellWord = row[cat].word;
     const cellText = row[cat].text;
     row[cat].pts = pts;
     row[cat].manual = true;
     s.roundTotals[pid] = s.cats.reduce((sum, c) => sum + (row[c] ? row[c].pts : 0), 0);
-    if ((cellWord === 'unknown' || cellWord === 'shared') && prevPts === 0 && pts > 0) {
+    // Logged once a cell: a host cycling it through 0 and back is one table's
+    // one decision, not several.
+    if ((cellWord === 'unknown' || cellWord === 'shared') && prevPts === 0 && pts > 0 && !row[cat].logged) {
+      row[cat].logged = true;
       room._stopTaps = room._stopTaps || [];
       room._stopTaps.push({ lang: s.lang || 'ar', cat: cat, word: cellText });
     }
@@ -2084,6 +2091,9 @@ const codenamesAction = (room, playerId, action, payload) => {
     // quiet before the clue, or a team that won't pass.
     requireHost(room, playerId);
     if (room.phase !== 'playing' || s.winner) return;
+    // The team the host meant to pass: a double tap would otherwise pass the
+    // other team's turn straight back.
+    if (staleTap(payload, 'turn', s.turn)) return;
     endCodenamesTurn(room);
     return;
   }
@@ -2470,7 +2480,13 @@ const wouldYouRatherAction = (room, playerId, action, payload) => {
     return;
   }
 
-  if (action === 'vote') { castVote(room, playerId, String(payload.option || '')); return; }
+  if (action === 'vote') {
+    // The option ids are 'a' and 'b' every round: a tap from the last round's
+    // ballot must not count in this one.
+    if (staleTap(payload, 'round', (room.shared || {}).round)) return;
+    castVote(room, playerId, String(payload.option || ''));
+    return;
+  }
   if (action === 'closeVote') { requireHost(room, playerId); closeVote(room); return; }
 
   throw new Error('إجراء غير معروف');
@@ -2500,6 +2516,9 @@ const mostLikelyAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'vote') {
+    // The options are the players, the same every round: a tap from the last
+    // round's ballot must not count in this one.
+    if (staleTap(payload, 'round', (room.shared || {}).round)) return;
     if (castVote(room, playerId, String(payload.option || ''))) scoreMostLikely(room);
     return;
   }
@@ -3265,6 +3284,8 @@ const triviaAction = (room, playerId, action, payload) => {
   const s = room.shared;
 
   if (action === 'answer') {
+    // Aimed at an earlier question: dropped, or it would land on this one.
+    if (staleTap(payload, 'qIndex', s.qIndex)) return;
     if (s.phase !== 'answering') throw new Error('انتهى وقت الإجابة');
     if ((s.roster || []).indexOf(playerId) === -1) throw new Error('لست ضمن هذه الجولة');
     const choice = Number(payload && payload.choice);
@@ -3626,7 +3647,13 @@ const gamePlayerLeft = (room, playerId, name) => {
     });
     return;
   }
-  if (room.phase === 'lobby') return;
+  if (room.phase === 'lobby') {
+    // The lobby's seats are the room's (shared.lobby): a leaver comes off them
+    // now, so every phone's lobby shows who is really here.
+    if (room.game === 'votechess') vcPlayerLeft(room, playerId);
+    else if (room.game === 'handbrain') hbPlayerLeft(room, playerId, name);
+    return;
+  }
   // A tournament: their match is lost by forfeit, and so is any they would have played (RoomTournament.js).
   if (isTourRoom(room)) { tourPlayerLeft(room, playerId); return; }
 
@@ -3761,6 +3788,7 @@ const gamePlayerLeft = (room, playerId, name) => {
     case 'handbrain':
       // A computer player takes the seat for the rest of the game (RoomHandBrain.js).
       hbPlayerLeft(room, playerId, name);
+      return;
     case 'bughouse':
       // A computer player takes their board for the rest of the game (RoomBughouse.js).
       bughousePlayerLeft(room, playerId, name);
@@ -3899,6 +3927,9 @@ const twoTruthsAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'vote') {
+    // Every storyteller's statements are 'i0'..'i2': a tap on the last one's
+    // ballot must not count for this one's.
+    if (staleTap(payload, 'turn', s.turn)) return;
     if (s.phase !== 'voting') throw new Error('لا يوجد تصويت الآن');
     if (castVote(room, playerId, String((payload && payload.option) || ''))) resolveTwoTruths(room);
     return;
@@ -4174,6 +4205,8 @@ const fiveSecondsAction = (room, playerId, action, payload) => {
   if (action === 'skipTurn') {
     requireHost(room, playerId);
     if (s.phase !== 'ready') return;
+    // The player the host meant to skip: a double tap must not skip the next one too.
+    if (staleTap(payload, 'turnId', s.turnId)) return;
     advanceFive(room);
     return;
   }
@@ -4292,6 +4325,9 @@ const telephoneAction = (room, playerId, action, payload) => {
     requireHost(room, playerId);
     if (s.phase !== 'reveal') return;
     const r = s.reveal;
+    // The step the host was looking at: a double tap must not flash a drawing
+    // past every screen (or end the reveal) with its second press.
+    if (staleTap(payload, 'at', r.chain + ':' + r.step)) return;
     const last = room._chains[r.chain].steps.length - 1;
     if (action === 'revealBack') {
       if (r.step > 0) r.step -= 1;
@@ -4539,6 +4575,9 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
   if (action === 'undo') {
     requireHost(room, playerId);
     if (s.mode !== 'letters') return;
+    // The letters the host saw: a double tap must not take back the letter
+    // before it too (someone else's, and right).
+    if (staleTap(payload, 'n', s.letters.length)) return;
     const l = s.letters.pop();
     if (!l) return;
     s.verdict = null;
@@ -4956,6 +4995,9 @@ const mindAction = (room, playerId, action, payload) => {
     if (!mine.length) throw new Error('مفيش ورق معاك');
     // Sorted on the deal, so the first is always the lowest this phone holds.
     const card = mine[0];
+    // The phone says which card it meant; a double tap's second press names
+    // the card already down, and must not play the next one.
+    if (staleTap(payload, 'card', card)) return;
     room.secrets[playerId] = { cards: mine.slice(1) };
     s.pile.push(card);
     s.last = { by: playerId, name: roomPlayerName(room, playerId), card: card };
@@ -5191,6 +5233,9 @@ const timelineAction = (room, playerId, action, payload) => {
   if (action === 'skipTurn') {
     requireHost(room, playerId);
     if (s.phase !== 'play') return;
+    // The player the host meant to skip: a double tap, or a skip crossing the
+    // player's own move, must not skip the next one too.
+    if (staleTap(payload, 'turnId', s.turnId)) return;
     timelineAdvance(room);
     return;
   }

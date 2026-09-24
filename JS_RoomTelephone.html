@@ -232,8 +232,8 @@ ROOM_GAMES.telephone = {
         ${teleStepHtml(step, t)}
         ${state.youAreHost
           ? `<div class="btn-row" style="margin-top: var(--sp-3)">
-               <button class="btn btn--ghost" onclick="roomAct('revealBack')" ${r.chain === 0 && r.step === 0 ? 'disabled' : ''}>${escapeHTML(t.tele_back || '')}</button>
-               <button class="btn btn--primary" onclick="roomAct('revealNext')">${escapeHTML(t.tele_next || '')}</button>
+               <button class="btn btn--ghost" onclick="roomAct('revealBack', { at: '${r.chain}:${r.step}' })" ${r.chain === 0 && r.step === 0 ? 'disabled' : ''}>${escapeHTML(t.tele_back || '')}</button>
+               <button class="btn btn--primary" onclick="roomAct('revealNext', { at: '${r.chain}:${r.step}' })">${escapeHTML(t.tele_next || '')}</button>
              </div>`
           : `<div class="waiting-note">${t.room_wait_host}</div>`}
         ${renderRoomPlayerStrip(state)}`);
@@ -295,7 +295,7 @@ TV_GAMES.telephone = {
           ${step.kind === 'text'
             ? `<div class="tv-center"><div class="tv-eyebrow">${escapeHTML(step.byName ? (t.tele_wrote || '').replace('{name}', step.byName) : (t.tele_started_with || ''))}</div><div class="tv-title">${escapeHTML(step.text || '') || '—'}</div></div>`
             : `<div class="tv-eyebrow tv-center-text">${escapeHTML((t.tele_drew || '').replace('{name}', step.byName || '…'))}</div><div class="tv-canvas"><canvas id="draw-canvas" width="512" height="512"></canvas></div>`}
-          ${host(tvBtn(t.tele_back, "roomAct('revealBack')", 'ghost') + tvBtn(t.tele_next, "roomAct('revealNext')"))}
+          ${host(tvBtn(t.tele_back, `roomAct('revealBack', { at: '${r.chain}:${r.step}' })`, 'ghost') + tvBtn(t.tele_next, `roomAct('revealNext', { at: '${r.chain}:${r.step}' })`))}
         </div>`;
     }
     return `

@@ -85,16 +85,17 @@ function fakeArtistFrame(state, t, myTurn, drawerAway) {
       </div>` : '';
 
   // Your card: the word, or the news that you haven't got one. Gone at the end,
-  // when the word is on everyone's screen anyway.
+  // when the word is on everyone's screen anyway. One card, the same shape and
+  // colour for the fake and the painters (like مافيا's night): it stays up
+  // through the drawing and the vote, and a red card said who the fake was.
+  const roleCard = (label, value, hint) => `<div class="card card--accent" style="text-align:center">
+         <div class="eyebrow">${label}</div>
+         <div class="metric metric--md metric--accent">${value}</div>
+         <p class="field__hint" style="margin:0">${hint}</p>
+       </div>`;
   const role = s.phase === 'results' ? '' : (you.isFake
-    ? `<div class="card plate-danger" style="text-align:center">
-         <div class="card__title" style="margin:0">🦹 ${t.fake_artist_role || ''}</div>
-         <p style="margin:0">${t.fake_artist_hint || ''}</p>
-       </div>`
-    : (you.word ? `<div class="card card--accent" style="text-align:center">
-         <div class="eyebrow">${t.real_artist_word || ''}</div>
-         <div class="metric metric--md metric--accent">${escapeHTML(you.word)}</div>
-       </div>` : ''));
+    ? roleCard('🦹 ' + escapeHTML(t.fake_artist_role || ''), '❓', escapeHTML(t.fake_artist_hint || ''))
+    : (you.word ? roleCard(escapeHTML(t.real_artist_word || ''), escapeHTML(you.word), escapeHTML(t.real_artist_hint || '')) : ''));
 
   const legend = `
       <div class="chip-set fa-legend">

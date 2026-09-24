@@ -104,8 +104,11 @@ function spyfallFrame(state, t) {
       <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
       ${s.phase === 'play' && s.endsAt ? `<span id="spy-room-timer" class="badge badge--accent metric">${spyfallClockText(s.endsAt)}</span>` : ''}
     </div>`;
+  // The same card, shape and colour for the spy and everyone else (like مافيا's
+  // night): it stays up through play and the vote, and a red card with no place
+  // on it told the table who the spy was. Only the words differ.
   const card = !inRound ? `<div class="waiting-note">${escapeHTML(t.vote_spectating || '')}</div>` : (iAmSpy
-    ? `<div class="role-card role-card--spy"><div class="role-card__label">🕵️ ${escapeHTML(t.spy_you_are || '')}</div><div class="role-card__hint">${escapeHTML(t.spy_you_hint || '')}</div></div>`
+    ? `<div class="role-card"><div class="role-card__label">🕵️ ${escapeHTML(t.spy_you_are || '')}</div><div class="role-card__value">❓</div><div class="role-card__hint">${escapeHTML(t.spy_you_hint || '')}</div></div>`
     : `<div class="role-card"><div class="role-card__label">📍 ${escapeHTML(t.spy_location || '')}</div><div class="role-card__value">${escapeHTML(you.location || '')}</div><div class="role-card__hint">🧑‍💼 ${escapeHTML(t.spy_your_job || '')}: <b>${escapeHTML(you.job || '')}</b></div></div>`);
 
   if (s.phase === 'play') {

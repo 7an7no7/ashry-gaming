@@ -59,9 +59,16 @@ function chameleonFrame(state, t) {
       <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
       <span class="badge badge--accent">${escapeHTML(s.category || '')}</span>
     </div>`;
-  const role = !inRound ? '' : (iAmCham
-    ? `<div class="role-card role-card--spy"><div class="role-card__label">🦎 ${escapeHTML(t.cham_you_are || '')}</div><div class="role-card__hint">${escapeHTML(t.cham_you_hint || '')}</div></div>`
-    : `<p class="field__hint" style="text-align:center">${escapeHTML(t.cham_your_word_hint || '')}</p>`);
+  // One card, the same shape and colour for every role (like مافيا's night):
+  // phones lie on the table while the clues go round, and a red card on one of
+  // them used to say who the chameleon was. Only the words differ.
+  const secretWord = !iAmCham && typeof you.secret === 'number' ? (s.words || [])[you.secret] : '';
+  const role = !inRound ? '' : `<div class="role-card">
+      <div class="role-card__label">${iAmCham
+        ? '🦎 ' + escapeHTML(t.cham_you_are || '')
+        : '🔑 ' + escapeHTML(secretWord || '')}</div>
+      <div class="role-card__hint">${escapeHTML((iAmCham ? t.cham_you_hint : t.cham_your_word_hint) || '')}</div>
+    </div>`;
 
   if (s.phase === 'clues') {
     return head + role + chameleonGridHtml(s, { mine: iAmCham ? -1 : you.secret }) + `

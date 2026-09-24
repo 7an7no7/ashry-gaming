@@ -25,8 +25,12 @@ function setFiveRounds(n) {
 
 /** The ring: five seconds counting down, ticking on the player's own phone and the TV. */
 function armFiveClock(endsAt, loud, onEnd) {
+  // Help or the exit sheet pauses the clock on one phone (pauseClocksForSheet):
+  // the ring stands still with it, and carries on from there, by the time the
+  // clock was paused (`shift`), so it and the alarm agree.
+  let pausedAt = 0, shift = 0;
   const paint = () => {
-    const left = Math.max(0, (endsAt - Date.now()) / 1000);
+    const left = Math.max(0, (endsAt + shift - (pausedAt || Date.now())) / 1000);
     const ring = document.getElementById('five-ring');
     const num = document.getElementById('five-num');
     if (ring) ring.style.setProperty('--five-p', String(Math.max(0, Math.min(1, left / 5))));
@@ -39,9 +43,20 @@ function armFiveClock(endsAt, loud, onEnd) {
   stopFiveClock();
   five.clockKey = endsAt;
   let raf = null;
-  // The ring only animates while its clock runs: it used to go on at 60 frames a
-  // second on whatever screen came next.
-  const smooth = () => { paint(); if (five.clockKey === endsAt && (!five.clock || five.clock.isRunning())) raf = requestAnimationFrame(smooth); };
+  // The ring animates while its clock is alive, a paused one included (it used to
+  // stop at the pause and never start again); leaving the screen stops the clock
+  // (stopFiveClock), which ends the loop, so it never runs on the next screen.
+  const smooth = () => {
+    const c = five.clock;
+    if (c && !c.isRunning()) { if (!pausedAt) pausedAt = Date.now(); }
+    else if (pausedAt) { shift += Date.now() - pausedAt; pausedAt = 0; }
+    paint();
+    if (five.clockKey !== endsAt || !c) return;
+    // A clock stopped without its end (setView stops every clock) with no ring
+    // left on the page: nothing to draw.
+    if (c && !c.isRunning() && !document.getElementById('five-ring')) return;
+    raf = requestAnimationFrame(smooth);
+  };
   raf = requestAnimationFrame(smooth);
   five.clock = createClock({
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
@@ -119,7 +134,7 @@ ROOM_GAMES.fiveseconds = {
         </div>
         ${last}
         ${renderScoreboard(s.board)}
-        ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn')">${escapeHTML(t.five_skip || '')}</button>` : ''}
+        ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })">${escapeHTML(t.five_skip || '')}</button>` : ''}
         ${renderRoomPlayerStrip(state)}`);
       refreshRoomPlayerStrip(el, state);
       return;
@@ -174,7 +189,7 @@ TV_GAMES.fiveseconds = {
             <div class="tv-eyebrow">${escapeHTML(t.five_turn || '')}</div>
             <div class="tv-title">${escapeHTML(s.turnName || '')}</div>
             ${s.lastName ? `<div class="tv-note">${escapeHTML(s.lastName)} ${s.verdict ? '✅' : '❌'} · ${escapeHTML(s.lastPrompt || '')}</div>` : ''}
-            ${host(tvBtn((t.five_go_for || '').replace('{name}', s.turnName || ''), "roomAct('go')") + tvBtn(t.five_skip, "roomAct('skipTurn')", 'ghost'))}
+            ${host(tvBtn((t.five_go_for || '').replace('{name}', s.turnName || ''), "roomAct('go')") + tvBtn(t.five_skip, `roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })`, 'ghost'))}
           </div>
           <div class="tv-scale">${renderScoreboard(s.board)}</div>
         </div>`;

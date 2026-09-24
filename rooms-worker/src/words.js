@@ -3,6 +3,8 @@ import { DurableObject } from 'cloudflare:workers';
 const MAX_KEYS = 5000;
 const MAX_BATCH = 20;
 const MAX_WORD_LEN = 40;
+// How many words are kept. It has no '|', so it can never be a word's key.
+const COUNT_KEY = '#count';
 
 /**
  * Words accepted by host adjustments in Stop the bus, shared across all rooms.
@@ -36,15 +38,30 @@ export class WordLog extends DurableObject {
 
     if (!updates.size) return;
 
+    let added = 0;
     for (const [key, item] of updates) {
       const existing = await this.ctx.storage.get(key);
+      if (!existing) added++;
       const prevN = existing ? (typeof existing === 'number' ? existing : Number(existing.n) || 0) : 0;
       await this.ctx.storage.put(key, { lang: item.lang, cat: item.cat, word: item.word, n: prevN + item.n });
     }
+    // A word counted again adds no key, so the cap can't have been passed.
+    if (!added) return;
 
-    // Keep at most 5,000 keys (drop lowest counts)
-    const all = await this.ctx.storage.list();
-    if (all.size > MAX_KEYS) {
+    // Keep at most 5,000 keys (drop lowest counts). The number of keys is kept
+    // under COUNT_KEY rather than learnt by reading the whole table on every
+    // add: rows read are what the free plan meters. A log from before the count
+    // existed is counted once, the first time.
+    let count = await this.ctx.storage.get(COUNT_KEY);
+    if (typeof count !== 'number') {
+      const all = await this.ctx.storage.list();
+      count = all.size - (all.has(COUNT_KEY) ? 1 : 0);
+    } else {
+      count += added;
+    }
+    if (count > MAX_KEYS) {
+      const all = await this.ctx.storage.list();
+      all.delete(COUNT_KEY);
       const sorted = [...all.entries()].sort((a, b) => {
         const na = a[1] && typeof a[1] === 'object' ? a[1].n : Number(a[1]) || 0;
         const nb = b[1] && typeof b[1] === 'object' ? b[1].n : Number(b[1]) || 0;
@@ -55,7 +72,10 @@ export class WordLog extends DurableObject {
       for (let i = 0; i < dropKeys.length; i += 128) {
         await this.ctx.storage.delete(dropKeys.slice(i, i + 128));
       }
+      // The count is exact again after a trim: what the table held, less what went.
+      count = all.size - dropKeys.length;
     }
+    await this.ctx.storage.put(COUNT_KEY, count);
   }
 
   /**
@@ -65,7 +85,7 @@ export class WordLog extends DurableObject {
     const all = await this.ctx.storage.list();
     const out = [];
     for (const [key, val] of all) {
-      if (!val) continue;
+      if (!val || key === COUNT_KEY) continue;
       if (typeof val === 'object' && val.word) {
         out.push({
           lang: String(val.lang || 'ar'),

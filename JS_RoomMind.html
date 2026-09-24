@@ -78,7 +78,11 @@ function mindPlay(btn) {
     mindLocal.from = { rect: r, font: parseFloat(getComputedStyle(btn).fontSize) || 24, text: btn.textContent.trim() };
   }
   haptic('light');
-  roomAct('play');
+  // The number on the button goes with the tap: the second tap of a double
+  // tap is aimed at a card already down, and the server drops it rather than
+  // playing the next one.
+  const mine = ((Room.state && Room.state.you) || {}).cards || [];
+  roomAct('play', mine.length ? { card: mine[0] } : {});
 }
 
 /** The card the table just saw, flying from this phone's hand onto the pile. */

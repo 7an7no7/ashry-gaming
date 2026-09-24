@@ -184,7 +184,8 @@ function chooseTriviaAnswer(choice) {
   });
   playSound('click');
   haptic('light');
-  Room.act('answer', { choice: choice }).catch(err => {
+  // The question it was aimed at: a slow answer must not land on the next one.
+  Room.act('answer', { choice: choice, qIndex: s.qIndex }).catch(err => {
     trivia.picked = null;
     showToast(err.message || 'تعذر الإرسال', 'error');
     const el = document.getElementById('view-room-trivia');

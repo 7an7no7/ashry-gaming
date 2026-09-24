@@ -240,7 +240,7 @@ Choices made by Claude (the owner may change them; each one place in the code):
   `arrows` / `marks`, and the flat board's SVG), on one phone, in a room
   (your own screen only, never sent), and in the review.
 
-### T2C.9 - Board styles
+### T2C.9 - Board styles (MOVED to Phase 2D, T2D.1 - skip it here)
 - Settings of the chess setup: «شكل الرقعة» with the four styles, a small
   swatch each; applied to the 3D board (materials and the board canvas colours;
   rebuild or recolour) and the flat board (CSS custom properties per style on
@@ -264,6 +264,85 @@ Choices made by Claude (the owner may change them; each one place in the code):
   `chessWinPct`), and a legend line «فوزك لو لعبت: ♞f3 64% · e4 61% · d4
   58%». Drawn on the overlay canvas (3D) and SVG (flat). Makes the game unrated
   (the setup says so).
+
+
+## Phase 2D - the 2D board, and the 3D board polished (the owner, 24 Sep 2026)
+
+Decisions (the owner): a real **2D board like chess.com** is a choice beside the
+3D one, **2D by default on a phone**, a button on every chess screen switches
+(«▦ 2D» / «🧊 3D»), remembered on the phone (`appState.shatranj.view` or its own
+key); **the TV keeps 3D**. The 3D board gets better animations, a finer look and
+camera controls. T2C.9 (board styles) is done here, for both boards.
+
+### T2D.1 - The 2D board
+- Replace the fallback flat board (`chMakeFlat`, `chFlatBoardHtml`, the flat
+  styles in `Style.html`) with a proper 2D board used everywhere a board is drawn:
+  one phone, the room's phones, watchers, the review, the puzzles (batch 3 reuses
+  it), the tournament's mini boards (keep those small and static). It stays the
+  fallback where WebGL can't draw.
+- Look: squares as a CSS grid; the default style green `#769656`-ish and cream
+  `#eeeed2`-ish (define as tokens `--ch2-dark` / `--ch2-light` per style, not
+  literals in rules); coordinates small in the corner of the edge squares (files on
+  the bottom row, ranks on the left column, in the other square's colour); the last
+  move's two squares tinted yellow (`--ch2-last`); the picked piece's square tinted;
+  legal moves as a soft dark dot, a capture as a ring round the square; check as a
+  red radial glow under the king; arrows and marks (T2C.8) drawn in an SVG layer.
+- Pieces: a new set of drawn SVG pieces in the clean modern style players know from
+  chess.com / Lichess (flat colour, a dark outline, subtle shading; white pieces
+  ivory with a dark outline, black pieces near-black with a light inner line), our
+  own drawings (do NOT copy any existing set's paths), as `<symbol>`s defined once
+  in the page and used with `<use>`; readable at 34 px.
+- Motion: a move slides the piece in 150 ms (Web Animations, transform only, from
+  the old square to the new, `chMotion` / `motionOff()` respected); a capture fades
+  the taken piece under the arriving one; castling slides king and rook together;
+  a promotion pops the new piece; a drag follows the finger with the piece lifted
+  (scale 1.1, a shadow) and snaps back when refused; an illegal drop shakes.
+- Sounds (made with the app's `fxTone` / `fxNoise`, no files): a wooden tock for a
+  move, a sharper knock for a capture, a double tock for castling, a ping for
+  check, a low chord for the end.
+- Board styles (T2C.9 moved here): «أخضر» (default), «خشب», «أزرق», «رخام»; each a
+  pair of square colours + last-move tint for 2D, and board/piece materials for
+  3D; picked in the chess setup (and a small ⚙ on the board screen), remembered.
+
+### T2D.2 - The view switch
+- A small button on every chess board screen (one phone, room phone, review,
+  puzzles): «🧊 3D» when in 2D and «▦ 2D» when in 3D; switching keeps the game,
+  the selection, the arrows. Default 2D on a phone (first visit), 3D on the TV
+  (the TV has no switch). On a device without WebGL the button is hidden and 2D is
+  used. Remembered on the phone; a 3D load failure falls back to 2D silently.
+- Three.js is not loaded at all while the phone stays in 2D (only when switching to
+  3D or on the TV) - a chess game in 2D costs no 3D download.
+
+### T2D.3 - The 3D board polished
+- Animations (`chMake3D`): a moving piece lifts, travels in an arc (higher for a
+  longer move; a knight hops higher) and settles with a small bounce; a capture:
+  the taken piece is knocked over away from the attacker, slides/rolls a little,
+  a puff of dust particles, then goes to its place beside the board; check: a red
+  pulse under the king (not only a glow); checkmate: the king topples slowly
+  (~1.2 s) with a thud and the camera eases toward it; castling: king and rook move
+  together; promotion: the pawn sinks and the new piece rises with a sparkle.
+- Look: finer Staunton pieces (smoother lathe profiles with more segments, a
+  felt-green base ring, a better carved knight with a mane, ears and eyes, the
+  king's cross and queen's coronet cleaner), richer wood (the board's canvas with
+  real grain, a varnish sheen, a bevelled frame with inlaid coordinates), better
+  reflections (environment map), softer contact shadows. Keep the draw-only-when-
+  something-changes loop and pixel ratio ≤ 2; a phone must still hold 60 fps while
+  moving and use no CPU at rest.
+- Camera: pinch to zoom (clamped), drag with two fingers (or right/middle mouse) to
+  turn around the board (clamped angles), a «⬇ من فوق» button for a top-down view
+  and «↺» to reset; a small ease toward a capture square and back. One-finger
+  input stays for moving pieces.
+
+### Accept when
+- A new phone opens chess in 2D; the switch goes to 3D and back mid-game with the
+  position, selection and arrows kept; a reload keeps the choice.
+- In 2D every move slides, a drag works, legal dots and the last move show, the four
+  styles apply, coordinates read correctly for both colours (Black at the bottom
+  flips them), RTL doesn't mirror the board (`dir="ltr"`).
+- The 3D animations play once per move, never replay on a redraw, and the TV
+  keeps 3D.
+- `npm run check`, `npm run test:rules` pass; no three.js request while in 2D (check
+  the page's network in your report as UNVERIFIED if you can't run a browser).
 
 ## Report
 `notes/phase-reports/batch2.md` as in batch 1.

@@ -108,6 +108,7 @@
   two phones, the bracket on the TV, a podium (*The duels' tournament*).
 - 🚢 **Battleship (حرب السفن)**: the classic 10×10 with five ships, in real 3D (three.js): against the phone at three levels, or a room where two play and the rest watch, winner stays on (*حرب السفن*).
 - ♞ **Chess (شطرنج)**: the full rules in real 3D (three.js) - a wooden board and Staunton pieces: two on one phone, against the computer at a rating from 400 to 2000 with a coach (a warning before a blunder, hints, a word on every move, the pieces in danger), or a room where two play and the rest watch, winner stays on; a chess clock; every game reviewed move by move (*شطرنج*).
+- **شطرنج الأربعة (Four-Player Chess)**: four on one 14×14 board without its corners, in a room with the TV: two teams (red and yellow against blue and green) or everyone for themselves on chess.com's points, where a player out stays on the board as grey walls; computer players, easy and hard, for the empty colours; the 2D chess board's look with the pieces in four colours, turned so your colour is at the bottom (*شطرنج الأربعة*).
 - **Cards, in rooms:** **كدّاب (I Doubt It):** lay cards face down and say what they are; anyone can call «كدّاب!», the first tap wins; computer players (*كدّاب*). **الشايب (Old Maid):** draw a card blind from the next hand, pair up, and don't be left holding the drawn old man; drag your cards about while someone is lifting one (*الشايب*).
 - **Sports, in real 3D (three.js):** 🎳 **Bowling (بولينج):** swipe the ball down a
   wooden lane, a curve in the swipe hooks it; solo for a best score, or a
@@ -137,6 +138,64 @@ or AI: what the owner has decided, what is waiting, and what each batch of
 work changed. Add to it when a decision is made or a batch ships.
 
 ### The owner's specs, as built
+
+- **شطرنج الأربعة (Four-Player Chess)** - the owner's decisions of 24 Sep
+  2026, every rule asked first (`notes/BATCH5_RUNBOOK.md`), look أ «بطولة»
+  picked from a design sheet of three (*شطرنج الأربعة*):
+  - **Rooms only**, every player on their own phone, the TV optional.
+  - **Two ways, a lobby choice: teams (the default) and everyone for
+    themselves.** Teams: 2 against 2, partners opposite (red + yellow against
+    blue + green); a team wins when **either** opponent is mated (or resigns,
+    or runs out of time). Everyone for themselves: **chess.com's points** - a
+    pawn 1, a knight 3, a bishop 5, a rook 5, a queen 9 (a promoted queen 1), a
+    mate +20 to whoever's move gave it, a stalemated player out with +20 for
+    themselves; **a player mated, stalemated, resigning or out of time is out,
+    their pieces grey walls** (they neither move, attack nor can be taken); the
+    game ends when one is left and the highest score wins (ties share it).
+  - **Computer players, easy and hard**, fill the empty colours, so 1 to 3
+    people can play.
+  - **The look**: the 2D chess board's green `#769656` and cream `#eeeed2`, the
+    four 3 × 3 corners cut away, the pieces in four bright colours - red
+    `#d6453d`, blue `#3f73d6`, yellow `#e9b52a`, green `#35a35a`, each with a
+    darker outline - grey `#9a9a9a` for a player out; red at the bottom, blue on
+    the left, yellow at the top, green on the right; **on your phone the board
+    turns so your colour is at the bottom** (the TV: red at the bottom).
+  - Decided here, standard four-player chess as on chess.com (each in one
+    place): the order red, blue, yellow, green, red first; pawns toward the far
+    side, one or two from their first row, no en passant; **promotion to a
+    queen on the 8th row from its side (everyone for themselves) or the 11th
+    (teams)**; castling both ways, the usual conditions; check from any
+    opponent, never a partner; **a mate or a stalemate is judged on the
+    player's own turn** (someone left in check by one player's move still gets
+    to answer it, so a king is never taken); in teams a player with no move and
+    not in check passes (all four passing in a row is a draw); a clock off by
+    default, 1, 3 or 5 minutes each plus 5 seconds a move; the host's "play
+    for" a quiet phone (an easy computer move, marked); leaving: out (everyone
+    for themselves), a computer player takes the seat (teams); the host seats
+    everyone in a colour, bots fill the empty ones, play again keeps the table
+    and turns it by one (so red, who starts, is someone else).
+  - Decided while building (open to change, each in one place):
+    - **The kings and queens stand as on the owner's sheet**: red Q g1 K h1,
+      yellow K g14 Q h14, blue Q a7 K a8, green K n7 Q n8 - every king faces
+      the queen across the board (`chess4StartBoard`).
+    - **Fifty moves each with no capture or pawn move end the game** (everyone
+      for themselves: the highest score wins; teams: a draw), and so does a
+      game of 600 moves (`CHESS4_QUIET`, `CHESS4_MAX_PLIES`): whole games of
+      easy computer players ran past 700.
+    - **The points of a mate go to whoever's move gave the check** (for a
+      discovered check, the player who moved), kept per king in `g.giver`;
+      failing that, a player attacking the king.
+    - **A player's first move is free on the clock** (the table finds its
+      seats); after it the clock runs on their turn.
+    - **A colour still empty at the start gets an easy computer player**, named
+      in the host's language; a leaver's seat in teams gets a hard one, under
+      their name.
+    - **The TV shows the large 2D board, not 3D**: the chess 3D engine is built
+      for 8 × 8 (its board texture, camera and picking), and a 14 × 14 3D board
+      was more than this batch could do well.
+    - **Each player's chip sits in the cut corner at their left hand** (the one
+      at the bottom in the bottom-left, and round the board clockwise), so the
+      board keeps the whole width.
 
 - **One sets, everyone solves** - the owner's decisions of 23 Sep 2026,
   asked one by one (*One sets, everyone solves*):
@@ -2273,6 +2332,19 @@ the word search), `countUp` for streaks and scores.
   room game reviewed from the standard start; and in 960 a king step and
   castling can share a square, which the tap took for a promotion.
 
+- **24 Sep 2026, شطرنج الأربعة** (batch 5) - four-player chess to the owner's
+  rules asked first (*The owner's specs*, *شطرنج الأربعة*): teams or everyone
+  for themselves on chess.com's points, grey walls, computer players easy and
+  hard, the look أ «بطولة» with the app's own pieces in four colours, turned so
+  your colour is at the bottom, the TV's big 2D board. `Chess4.js`,
+  `RoomChess4.js`, `JS_RoomChess4.html`, section 34 of `Style.html`, a drawn
+  icon (the cross-shaped board with a pawn of each colour). Rules tests: 62
+  new, among them 80 whole games of bots and six through the room's door;
+  the leak check and a play-all round each way. Found on the way (*Traps*): a
+  size container as a grid item gives its `auto` column no width, and one
+  class name used for two things (the log's colour dot and the legal-move
+  dot) put a legal-move dot over every move in the log.
+
 ## Building and Running
 
 ### Development Requirements
@@ -2330,8 +2402,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Chess.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, and the game files bundled after
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -2491,6 +2563,8 @@ is nowhere to hide the key card.
 | `RoomBattleship.js` | `battleshipAction`: the duels' seats and line (`duelSeatNext`, `duelEnd` from `RoomDuels.js`, bundled before it), placing and ready, the fleets in `room._bs`, the shots, the clock (`bsDeadline` / `bsTimeout`), leaving (`bsPlayerLeft`). |
 | `Chess.js` | شطرنج's rules (every one, perft-checked), the clock, the rated computer, the coach's analysis and the review, and a tournament match's next game (`chessMatchNext`, Armageddon): shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `chess` / `CHESS_`. |
 | `RoomChess.js` | `chessAction`: one board per game made and played through `chessBoard*` (the adapter a bracket uses), winner stays on (`duelSeatNext`, `duelEnd`), the clock on the server (`chessDeadline` / `chessTimeout`), a draw offered and answered, resigning, a forfeit (`chessPlayerLeft`). |
+| `Chess4.js` | شطرنج الأربعة's rules (the 160-square board, every piece, castling, promotion by mode, check from any opponent, mate and stalemate judged on the player's turn, grey walls, FFA points, the fifty-move rule) and the computer players: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `chess4` / `CHESS4_`. |
+| `RoomChess4.js` | `chess4Action`: the lobby (the way to play, the clock, the colours), bots in the empty colours, moves with `seq`, the clock on the server (`chess4Deadline` / `chess4Timeout`), the host's "play for", resigning, leaving (`chess4PlayerLeft`: FFA out, teams a bot in the seat), play again turning the table. |
 | `PlayingCards.js` | The playing cards كدّاب and الشايب deal: the deck (one or two), a card's rank and suit, a hand sorted, what makes a pair in الشايب (same rank, same colour), the ranks' names: shared by the page and the Worker, every name prefixed `pc` / `PC_`. |
 | `RoomDoubt.js` | `doubtAction`: كدّاب's claims, the call (first tap wins), the pile, passing and the pile going out, the places, the clock, leaving and the computer players; every hand in `room._doubt`. |
 | `RoomOldMaid.js` | `oldMaidAction`: الشايب's deal (the deck grows with the table), the lift and the draw, dragging or shuffling a hand, pairs, the loser and the tally, the clock, leaving; every hand in `room._om`. |
@@ -2576,7 +2650,7 @@ compared on join with the same fold as everywhere else (`sameRoomName`), so
 أحمد and احمد can't both sit in one room.
 
 **Computer players** (the owner, 21 Sep 2026: optional, easy and hard). In
-the games that register them - أونو, الدومينو, لودو, بنك الحظ and خمّن مين - the host can seat a bot in
+the games that register them - أونو, الدومينو, لودو, بنك الحظ, خمّن مين and شطرنج الأربعة - the host can seat a bot in
 the lobby, to play alone or to make up a table of four for teams. A bot is an
 ordinary entry in `room.players` with `bot` set to its level (`'easy'` or
 `'hard'`): it holds a seat, is dealt like anyone, and its hand is in
@@ -4979,6 +5053,108 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
   takes the height beside a column; the TV is the board with the pills, the
   status, the moves and the line beside it.
 
+### شطرنج الأربعة
+
+The owner's rules are in *The owner's specs*. Rooms only: the game id is
+`chess4` everywhere (`ROOM_GAME_IDS`, `room-chess4`, `ROOM_GAMES.chess4`,
+`TV_GAMES.chess4`, the catalog, the help). `c4` is Connect 4's prefix, so the
+rules are named `chess4` / `CHESS4_` and the page's code `ch4`.
+
+- **`Chess4.js`** (shared, no DOM; inlined into the page through
+  `SHARED_LISTS` and bundled into the Worker before `RoomGames.js`):
+  - **A game** is one plain object (`board` 196 numbers, i = y × 14 + x from
+    a1, 0 on a cut corner; a piece its kind 1-6 + 8 × its seat, + 32 for a
+    queen that was a pawn; `turn`, `castle` two bits a seat, `out`, `why`,
+    `points`, `giver`, `quiet`, `ply`, `passes`, `over`, `result`). Seats: 0
+    red, 1 blue, 2 yellow, 3 green, which is the order of play; teams are
+    `seat % 2`.
+  - **Inside**, a mailbox of 18 × 18 (`chess4Pos`: two squares of border, the
+    corners marked off), so no jump wraps an edge; `chess4Pseudo` the moves,
+    `chess4Make` / `chess4Unmake`, `chess4Attacked(b, m, mask)` by any seats in
+    a mask (`chess4Foes`: the other team, or everyone else; never an out
+    player, whose pieces are walls that block but never attack and can't be
+    taken - `chess4CanTake`), `chess4LegalPos`. Kings are never taken.
+  - **`chess4Play(g, { from, to })`** plays the move of the player up (null if
+    it isn't legal) and says what happened (`san`, `cap`, `pts`, `castle`,
+    `promo`, `events`); `chess4Settle` then judges whoever is up: out players
+    skipped, no move and in check is a mate (FFA: out and +20 to `giver`;
+    teams: the other team wins), no move and not in check is a stalemate (FFA:
+    out, +20 to themselves) or a pass (teams), the fifty-move rule and the
+    600-move cap. `chess4Eliminate(g, seat, why)` is resigning, the clock and
+    leaving (FFA: out and the turn moves on, judged again; teams: the loss).
+  - **The computer** (`chess4BotMove(g, level, { nodes, rnd })`): easy is one
+    move deep - a capture if there is one, bigger more likely, with chance in
+    it; hard a paranoid alpha-beta (the bot, and in teams its partner, against
+    everyone else) deepening a ply at a time up to a whole round of the table
+    inside a node budget (`CHESS4_BOT_NODES`, 20,000; a node ceiling, never a
+    clock), captures first; its judgement is material, the points (FFA),
+    pieces left hanging (`chess4LeastAttacker`), development toward the middle,
+    pawns on their way and the pawns round the king; it picks at random among
+    moves within 8 centipawns of the best. Measured on this PC: about 11 ms a
+    move, the worst about 30 ms.
+- **`RoomChess4.js`** (bundled after `RoomChess.js`): `shared.lobby` holds the
+  host's way to play, clock and colours (`options`, `seats { order, watch }`),
+  so every phone sees them; `chess4LobbyOrder` fills the empty colours from the
+  room (people first) and is mirrored on the page by `ch4RoomOrder`. `start`
+  seats bots in any colour left empty; the game is `shared.g` with `seats`,
+  `names`, `replaced`, `clock { left, at, moved }` (the server's time; the
+  first move of each player free), `last`, `log` (the last 80: `mv` with the
+  SAN, the squares, what was taken, the points, the castling rook, `auto`;
+  `out`, `pass`, `mate`, `lost`, `bot`, `start`, `over`, each numbered), `turnSeq`
+  (every move carries it as `seq`: a stale tap is dropped), `wins` and
+  `board`. `skipTurn` (host) plays an easy move marked `auto: 'host'`;
+  `resign`; `chess4Deadline` / `chess4Timeout` the flag; `chess4PlayerLeft`
+  (FFA out; teams: a hard bot under the leaver's name takes the seat,
+  `replaced`). Play again turns the table by one. `ROOM_BOT_GAMES.chess4`
+  (max 4); no forced moves (a move is always a choice).
+- **`JS_RoomChess4.html`** (section 34 of `Style.html`):
+  - **The board** is a grid of 14 × 14 spans (the corners empty) with the
+    pieces a layer over it, each placed by transform (`--x`, `--y`), turned by
+    quarter turns so your colour is at the bottom (`ch4Cell`, `ch4SqAt`: seat
+    = the number of turns; a watcher and the TV see red at the bottom). The
+    squares use the chess board's own tokens (`--ch2-light`, `--ch2-dark`,
+    `--ch2-last`, `--ch2-hint`, `--ch2-check`). The pieces are the chess set's
+    drawings (`CH2_SHAPES` in `JS_Chess.html`) as a second set of `<symbol>`s,
+    `ch4pc-{r,b,y,g,x}{kind}`, filled from the `--ch4-*` tokens (a gradient and
+    an outline per colour, `x` grey).
+  - **Playing**: a tap on your piece shows its moves (`ch4-hint` a dot,
+    `ch4-ring` round a capture), a tap on a square plays; or drag. Your move is
+    played on a copy with `chess4Play` and drawn at once (`ch4Local.early`);
+    the server's log entry for it is then not slid again; refused, the room's
+    board comes back.
+  - **Motion**: every new log entry since the last drawn (`ch4Local.seen`)
+    plays - a move slides 150 ms, a capture fades under it, a castling rook
+    follows, a promotion pops, the points fly to the scorer's chip
+    (`flyPoints`) and count up; a mate topples the king (it stays toppled),
+    and a player out turns grey piece by piece from the king outward. A reload,
+    a new game or the TV coming on draws the board as it is.
+  - **The chips** sit in the cut corners (`ch4-corner--bl` for the one at the
+    bottom, round the board clockwise), sized from the board (a size
+    container), with the colour, the name, the points (FFA), the clock, a
+    pulsing ring for the one to move, «برّه» and why for a player out, a gold
+    ring for the winners.
+  - The lobby is the four colours round a cross (`.ch4-seats`, laid out left
+    to right in every language, like the board); the host taps two to swap, a
+    watcher then a colour to seat them, ✕ to take someone off.
+  - The end: a podium by points (FFA, `renderPodium`) or the winning team's
+    banner, with confetti for the winners and on the TV.
+  - Upright: the status, the board, resign / the host's "play for", the log,
+    the room strip (the end card on top). A phone on its side and from 900 px:
+    the board beside a column. The TV: the board as tall as the stage, the
+    column (the sides, the status, the end, the log, the host's buttons)
+    beside it.
+- Tests: `rules.mjs` (the board and the start, the order, castling both ways
+  and through an attacked square, promotion rows per mode and per colour,
+  check from two players, a partner never checks, a mate judged on the turn
+  with its +20, grey walls, stalemate out / pass, the points, teams won by
+  either mate, resigning, the fifty-move rule, 80 whole bot games, the room:
+  the lobby, bots in empty colours, turns, stale taps, the clock, "play for",
+  resigning, leaving both ways, play again, six whole room games of bots);
+  `leaks.mjs` (a game each way with two people and bots); `play-all.mjs`
+  (`--only=chess4`: teams with two people, two bots and a TV, a leaver
+  replaced, resigning, play again; FFA with one person and three bots on the
+  clock).
+
 ### حرب السفن
 
 The owner's rules are in *The owner's specs*. Three files and a stylesheet
@@ -5979,6 +6155,17 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A size container gives its grid column no width.** شطرنج الأربعة's board
+sits in `.ch4-stage`, a `container-type: size` box (its pieces and chips are
+sized in `cqw`), and on a phone on its side and a laptop that box was in an
+`auto` grid column. Size containment means the box has no size from its
+content, so the column came out narrower than the board and the column beside
+it slid under the board's right side. Put the width on the grid item itself
+(`.ch4-game__stage`, `.ch4-tv__stage`) and let the container fill it. And a
+class name is one name in the whole page: `.ch4-dot` was first the legal-move
+dot (absolute, a third of a square) and then the log's colour dot, and the
+second rule inherited the first's `position: absolute`.
 
 **A headless Chrome shows no animation unless told to.** It reports
 `prefers-reduced-motion: reduce`, so `motionOff()` is true and every move

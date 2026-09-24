@@ -106,7 +106,7 @@
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260924131155";
+      window.BUILD_ID = "20260924154603";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -20890,6 +20890,30 @@ function chessHandicapFen(kind, side) {
 }
 
 /**
+ * Any start without the giver's piece: the standard start through
+ * chessHandicapFen; a 960 row the same way - the f-pawn, or the knight, the
+ * rook (castling that side lost with it) or the queen nearest the a-file.
+ * kind: 'none' | 'pawn' | 'knight' | 'rook' | 'queen' | 'time' (time takes no piece)
+ * side: 'w' | 'b' (or 0 | 1)
+ */
+function chessOddsFen(fen, kind, side) {
+  if (!kind || kind === 'none' || kind === 'time') return fen || CHESS_START_FEN;
+  const s = (side === 'b' || side === 1) ? 1 : 0;
+  if (!fen || fen === CHESS_START_FEN) return chessHandicapFen(kind, s);
+  const g = chessFromFen(fen);
+  if (!g) return fen;
+  const rank = s ? 56 : 0, own = s ? 8 : 0;
+  const find = (k) => { for (let f = 0; f < 8; f++) if (g.board[rank + f] === (k | own)) return rank + f; return -1; };
+  let sq = -1;
+  if (kind === 'pawn') sq = (s ? 48 : 8) + 5;
+  else if (kind === 'knight') sq = find(2);
+  else if (kind === 'queen') sq = find(5);
+  else if (kind === 'rook') { sq = find(4); g.castle &= ~(s ? 8 : 2); }
+  if (sq >= 0) g.board[sq] = 0;
+  return chessFen(g);
+}
+
+/**
  * The position for threefold repetition: the pieces, the side to move, the
  * castling rights and an en passant square only when a pawn could really take
  * there (FIDE: a position is "the same" only if the same moves are possible).
@@ -23386,6 +23410,10 @@ const ludoRemovePlayer = (g, pid) => {
     g.turn = { pid: next, stage: 'roll', dice: null, sixes: 0 };
     if (g.places.indexOf(next) !== -1) ludoNextTurn(g);
     else { g.movable = []; g.turnSeq = (g.turnSeq || 0) + 1; }
+  } else if (g.turn.stage === 'move' && g.turn.pid) {
+    // Their wall may have been in the way of the player up: what can move now
+    // is worked out again, so the pieces lit match the board.
+    g.movable = ludoMovable(g, g.turn.pid, g.turn.dice);
   }
 };
 
@@ -24378,6 +24406,11 @@ const bankGoBankrupt = (g, priv, pid, to) => {
 /** The player whose turn it is gives up the debt they can't pay. */
 const bankBankrupt = (g, priv, pid, now) => {
   bankMustTurn(g, pid, ['debt']);
+  // Classic bankruptcy: only when selling back and mortgaging can't cover the
+  // debt. A tap beside "pay" must never put someone out who could still pay.
+  // (The bots, the clock and the forced move raise first, so they only get
+  // here once nothing is left to raise.)
+  if (g.debt && bankLiquid(g, pid) >= g.debt.amount) throw new Error('لسه تقدر تدفع: بيع أو ارهن');
   const d = g.debt;
   g.debt = null;
   bankGoBankrupt(g, priv, pid, d ? d.to : 'bank');
@@ -33560,6 +33593,7 @@ const CHESS_PUZZLES = [
      game's clocks while it is read, and "carry on" starts them again. A room's
      clocks belong to the server, so they are left alone. */
   let sheetPausedClocks = [];
+  let sheetPausedSolo = null;   // the solo board's state a sheet paused
   function pauseClocksForSheet() {
       const view = String(appState.currentView || '');
       // The bomb's fuse is a secret: stopping it on a popup would tell the table.
@@ -33569,10 +33603,26 @@ const CHESS_PUZZLES = [
           c.pause();
           sheetPausedClocks.push(c);
       });
+      // A timed solo board counts its time from `startedAt`, not from the
+      // ticker: stop that too, or the minutes spent reading land in the result.
+      const g = typeof soloGameOnScreen === 'function' ? soloGameOnScreen() : null;
+      if (g && g.timed && g.state && !sheetPausedSolo) {
+          const s = g.state();
+          if (s && s.phase === 'play' && !s.pausedAt) { soloPause(s); sheetPausedSolo = s; }
+      }
   }
   function resumeClocksAfterSheet() {
       const clocks = sheetPausedClocks;
       sheetPausedClocks = [];
+      const s = sheetPausedSolo;
+      sheetPausedSolo = null;
+      // Only while its board is still on screen: a sheet that led away (another
+      // game, the setup) leaves it paused, as leaving the board always does.
+      const g = s && typeof soloGameOnScreen === 'function' ? soloGameOnScreen() : null;
+      if (g && g.state && g.state() === s) {
+          soloResume(s);
+          if (typeof soloClockRefresh === 'function') soloClockRefresh();
+      }
       clocks.forEach(c => { if (activeClocks.has(c)) c.resume(); });
   }
 
@@ -36333,6 +36383,7 @@ const CHESS_PUZZLES = [
       fake_artist_role: "أنت الفنان المزيف!",
       fake_artist_hint: "أنت لا تعرف الكلمة! ارسم خطاً مقنعاً ولا تجعلهم يكتشفوك!",
       real_artist_word: "الكلمة السرية للرسم:",
+      real_artist_hint: "ارسم خط واحد يلمّح للكلمة من غير ما تفضحها للمزيف.",
       your_stroke_turn: "دورك في رسم خط واحد!",
       send_stroke_btn: "إرسال الخط ✍️",
       fake_guess_prompt: "تم كشفك! خمن الكلمة لسرقة الفوز:",
@@ -39700,6 +39751,7 @@ const CHESS_PUZZLES = [
       fake_artist_role: "You are the Fake Artist!",
       fake_artist_hint: "You don't know the word! Draw a believable stroke and don't get caught!",
       real_artist_word: "Secret word to draw:",
+      real_artist_hint: "Draw one stroke that hints at the word without giving it away to the fake.",
       your_stroke_turn: "Your turn to draw ONE stroke!",
       send_stroke_btn: "Submit Stroke ✍️",
       fake_guess_prompt: "You were caught! Guess the word to steal the win:",
@@ -41240,7 +41292,14 @@ const CHESS_PUZZLES = [
         if (appState.currentView === 'together' && typeof renderTogether === 'function') renderTogether();
         else if (appState.currentView === 'tools' && typeof renderTools === 'function') renderTools();
         else if (appState.currentView === 'play-screw') renderScrewBoard();
-        else if (appState.currentView === 'play-monkey') { renderMonkeyBoard(); updateTimerUI(); }
+        else if (appState.currentView === 'play-monkey') {
+            renderMonkeyBoard(); updateTimerUI();
+            // A game that had ended: its result comes back (initializeApp closes
+            // every popup after this, hence the tick), with its play-again.
+            if (appState.monkey && appState.monkey.phase === 'done') {
+                setTimeout(() => { if (appState.currentView === 'play-monkey' && appState.monkey.phase === 'done') checkWinCondition(true); }, 0);
+            }
+        }
         else if (appState.currentView === 'imposter-reveal') showRevealStep();
         else if (appState.currentView === 'play-imposter') { renderImposterBoard(); isPaused = true; updateImposterTimerUI(); }
         else if (appState.currentView === 'play-domino') {
@@ -41279,10 +41338,10 @@ const CHESS_PUZZLES = [
             updateChessUI(); 
         }
         else if (appState.currentView === 'play-reaction') {
-            setTimeout(() => setView('setup-reaction'), 50); 
+            setTimeout(() => { setView('setup-reaction'); toastRoundLost(); }, 50);
         }
         else if (appState.currentView === 'play-whoami' || appState.currentView === 'input-whoami') {
-            setTimeout(() => setView('setup-whoami'), 50);
+            setTimeout(() => { setView('setup-whoami'); toastRoundLost(); }, 50);
         }
         // Fully restorable: the whole game is in appState, it just needs drawing.
         else if (appState.currentView === 'play-wordle' && typeof renderWordleBoard === 'function') {
@@ -42459,6 +42518,16 @@ const CHESS_PUZZLES = [
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
     if (id === 'exit-modal' || id === 'help-modal') resumeClocksAfterSheet();
+    // The coach's blunder warning closed some other way than its own buttons
+    // (the phone's back, the edge swipe): the game would stay frozen on the
+    // warning. The buttons clear `pending` right after closing it, so wait a
+    // tick and only act if it is still the same warning.
+    if (id === 'ch-warn-modal' && typeof chLocal !== 'undefined' && chLocal && chLocal.pending) {
+      const p = chLocal.pending;
+      setTimeout(() => {
+        if (chLocal.pending === p && typeof chCoachDismissed === 'function') chCoachDismissed();
+      }, 0);
+    }
     // The help sheet lights its nav item while it is open.
     if (id === 'help-modal') {
       const nav = document.getElementById('nav-help');
@@ -46501,6 +46570,10 @@ const Room = (() => {
   // When each projection reached this phone, beside the server's time on it (serverNow): the
   // two together are the network's delay, whenever the screen gets round to drawing it.
   const arrived = (s) => { if (s && typeof s === 'object') s.receivedAt = Date.now(); return s; };
+  // An HTTP answer can land after the socket (opened meanwhile) already brought
+  // something newer: never step back to an older version of the same room.
+  const notOlder = (s) => !state || !s || state.code !== s.code ||
+    typeof s.version !== 'number' || typeof state.version !== 'number' || s.version >= state.version;
   let heardAt = 0;         // when the server last answered, over either path
   let listeners = [];
   let liveListeners = [];
@@ -46882,7 +46955,7 @@ const Room = (() => {
             throw new Error(res.gone ? DROPPED.gone : DROPPED.kicked);
           }
           if (!res.ok) throw new Error(res.error || 'تعذر تنفيذ الإجراء');
-          if (res.state && session) { state = arrived(res.state); emit(false); }
+          if (res.state && session && notOlder(res.state)) { state = arrived(res.state); emit(false); }
           connect();
           return state;
         });
@@ -46926,8 +46999,10 @@ const Room = (() => {
           remember();
           return false;
         }
-        state = arrived(res.state);
-        emit(true);
+        if (notOlder(res.state)) {
+          state = arrived(res.state);
+          emit(true);
+        }
         connect();
         return true;
       } catch (err) {
@@ -48674,11 +48749,12 @@ function addPlayerFromSetup(btn) {
   }
   function onCustomConfirm() {
     playSound('click');
-    if (confirmCallback) {
-        confirmCallback();
-        confirmCallback = null;
-    }
+    // Closed first: a callback that throws must not leave the confirm up, or
+    // keep its callback for the next Yes.
+    const cb = confirmCallback;
+    confirmCallback = null;
     closeModal('custom-confirm-modal');
+    if (cb) cb();
   }
 
   /* --- MONKEY UTILS --- */
@@ -48922,13 +48998,16 @@ function toggleResults() {
         // 2. Clear Local Storage. The room session lives under its own key, so
         // without this a "reset everything" still silently rejoined the old room
         // on the next load.
-        localStorage.removeItem('gameTrackerState_v1');
+        // Each in its own try: a browser that blocks storage throws here, and
+        // the reset below (and closing the confirm) must still happen.
+        const drop = (k) => { try { localStorage.removeItem(k); } catch (e) {} };
+        drop('gameTrackerState_v1');
         try { if (typeof Room !== 'undefined' && Room.isIn) Room.leave(); } catch (e) {}
-        localStorage.removeItem('ashryRoom_v1');
+        drop('ashryRoom_v1');
         // The saved names and groups are this phone's too, and "start from
         // scratch" has to mean it.
-        localStorage.removeItem(PLAYER_LIBRARY_KEY);
-        localStorage.removeItem('ashry_saved_groups');
+        drop(PLAYER_LIBRARY_KEY);
+        drop('ashry_saved_groups');
         if (typeof forgetSeenLists === 'function') forgetSeenLists();
 
         // 4. Reset Global Variables (Clean Slate)
@@ -49174,17 +49253,19 @@ function toggleResults() {
   function checkIconBanner(force) {
       const current = Number(window.ICON_VERSION || 0);
       if (!force && (!current || !isIOSDevice() || !isStandaloneApp())) return;
-      let installed = Number(localStorage.getItem(ICON_INSTALLED_KEY) || 0);
+      // Runs while the app starts: storage that is blocked must not stop it.
+      const read = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+      let installed = Number(read(ICON_INSTALLED_KEY) || 0);
       if (!installed) {
           // No marker yet. A copy that already holds names or a saved game was
           // added before the marker existed, so with the old icon; a fresh
           // install carries the current one.
-          const usedBefore = !!(localStorage.getItem('gameTrackerState_v1') || localStorage.getItem(PLAYER_LIBRARY_KEY));
+          const usedBefore = !!(read('gameTrackerState_v1') || read(PLAYER_LIBRARY_KEY));
           installed = usedBefore ? 1 : current;
           try { localStorage.setItem(ICON_INSTALLED_KEY, String(installed)); } catch (e) {}
       }
       if (!force && installed >= current) return;
-      if (!force && Number(localStorage.getItem(ICON_SNOOZE_KEY) || 0) > Date.now()) return;
+      if (!force && Number(read(ICON_SNOOZE_KEY) || 0) > Date.now()) return;
       const el = document.getElementById('icon-banner');
       if (el) el.classList.remove('hidden');
   }
@@ -49687,13 +49768,23 @@ let wakeLockWatching = false;
    the tabs and the setup screens. setView calls syncWakeLock on every change. */
 const wantsWakeLock = (view) => /^(play-|room-|reveal-|imposter-reveal$|input-|results-)/.test(view || '') && view !== 'room-join';
 
+// A request still on its way: a second call in that moment would ask again,
+// and the first lock would be overwritten and never released.
+let wakeLockPending = false;
 async function requestWakeLock() {
     if (!('wakeLock' in navigator) || !wantsWakeLock(appState.currentView)) return;
-    if (wakeLock && !wakeLock.released) return;
+    if (wakeLockPending || (wakeLock && !wakeLock.released)) return;
+    wakeLockPending = true;
     try {
-        wakeLock = await navigator.wakeLock.request('screen');
+        const lock = await navigator.wakeLock.request('screen');
+        // Granted after the game was left (the menu): let it go at once, or
+        // the screen never sleeps on the home.
+        if (!wantsWakeLock(appState.currentView)) { lock.release().catch(() => {}); return; }
+        wakeLock = lock;
     } catch (err) {
         return;   // denied, or the tab isn't visible yet - not worth surfacing
+    } finally {
+        wakeLockPending = false;
     }
 
     // Registered once. It used to be added inside requestWakeLock, so every
@@ -54787,12 +54878,12 @@ function submitWordleGuess() {
         appState.wordle.currentGuess = "";   // don't leave a half-row in state
         playSound('success');
         confetti({ particleCount: 200, spread: 100 });
-        setTimeout(() => showWordleResult(true), 1000);
+        wordleResultSoon(true);
     } else if(appState.wordle.guesses.length >= appState.wordle.maxTries) {
         appState.wordle.status = "lost";
         appState.wordle.currentGuess = "";
         playSound('alarm');
-        setTimeout(() => showWordleResult(false), 1000);
+        wordleResultSoon(false);
     } else {
         playSound('click');
         appState.wordle.currentGuess = "";
@@ -54848,14 +54939,29 @@ function getKeyboardState() {
     return state;
 }
 
-function showWordleResult(win) {
+/**
+ * The result a second after the last row: only for the game that ended, and
+ * only on its board. A new game dealt in that second (back, then a length)
+ * would otherwise have its own word shown.
+ */
+function wordleResultSoon(win) {
+    const word = appState.wordle.displayWord || appState.wordle.targetWord;
+    const dealt = appState.wordle.targetWord;
+    setTimeout(() => {
+        if (appState.currentView !== 'play-wordle' || appState.wordle.targetWord !== dealt) return;
+        showWordleResult(win, word);
+    }, 1000);
+}
+
+function showWordleResult(win, shown) {
+    const word = escapeHTML(String(shown || appState.wordle.displayWord || appState.wordle.targetWord || ''));
     const title = win 
         ? (appState.lang === 'ar' ? "🎉 مبروك!" : "🎉 You Won!") 
         : (appState.lang === 'ar' ? "حظ أوفر!" : "Game Over!");
     
     const msg = appState.lang === 'ar' 
-        ? `الكلمة كانت: <br><b class="text-3xl tx-accent">${appState.wordle.displayWord || appState.wordle.targetWord}</b>` 
-        : `The word was: <br><b class="text-3xl tx-accent">${appState.wordle.displayWord || appState.wordle.targetWord}</b>`;
+        ? `الكلمة كانت: <br><b class="text-3xl tx-accent">${word}</b>` 
+        : `The word was: <br><b class="text-3xl tx-accent">${word}</b>`;
 
     document.getElementById('alert-title').innerText = title;
     document.getElementById('alert-msg').innerHTML = msg;
@@ -57588,7 +57694,8 @@ function exitReactionGame(event) {
   /** The current player says the letter before theirs leads nowhere. */
   function liarButton() {
     const m = monkeyState();
-    if (m.config.mode !== 'letters') return;
+    // A finished game (a reload on it brings the result back) takes no more quarters.
+    if (m.phase === 'done' || m.config.mode !== 'letters') return;
     if (!m.letters.length) { showToast(TRANSLATIONS[appState.lang].mk_no_letters || ''); return; }
     const last = m.letters[m.letters.length - 1];
     const author = monkeyPlayerByRow(last.by) || monkeyPlayer();
@@ -57633,6 +57740,16 @@ function exitReactionGame(event) {
     v.loser = other.name;
     v.kind = 'flipped';
     haptic('light');
+    // In play (not from the winner popup, which moves the turn itself): the
+    // quarter may have made a monkey, announced like any other, and a monkey
+    // can't hold the turn - after a right liar call it is the caller's turn.
+    if (m.phase === 'play') {
+      if (monkeyMaybeMonkey(other)) return;
+      const up = monkeyPlayer();
+      if (up && up.isMonkey) { nextTurn(); return; }
+      renderMonkeyBoard();
+      return;
+    }
     checkWinCondition();
     renderMonkeyBoard();
   }
@@ -57652,6 +57769,7 @@ function exitReactionGame(event) {
   /* --- chain and names --------------------------------------------------------- */
   function monkeySubmitName() {
     const m = monkeyState();
+    if (m.phase === 'done') return;
     const t = TRANSLATIONS[appState.lang];
     const input = document.getElementById('monkey-name-input');
     const text = (input && input.value || '').trim();
@@ -57741,6 +57859,7 @@ function exitReactionGame(event) {
 
   function monkeyGiveUp() {
     const m = monkeyState();
+    if (m.phase === 'done') return;
     const p = monkeyPlayer();
     if (!p) return;
     monkeySnapshot();
@@ -57787,7 +57906,8 @@ function exitReactionGame(event) {
     return Math.max(1, Math.min(Number(m.config.winners) || 1, m.players.length - 1));
   }
 
-  function checkWinCondition() {
+  /** `quiet`: showing an ended game again after a reload, with no fanfare. */
+  function checkWinCondition(quiet) {
     const m = monkeyState();
     const total = m.players.length;
     const monkeys = m.players.filter(p => p.isMonkey).length;
@@ -57797,8 +57917,10 @@ function exitReactionGame(event) {
 
     stopTimer();
     m.phase = 'done';
-    playSound('success');
-    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    if (quiet !== true) {
+      playSound('success');
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    }
     const t = TRANSLATIONS[appState.lang];
     const winners = m.players.filter(p => !p.isMonkey).map(p => p.name);
     const stagesMap = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];
@@ -58720,7 +58842,30 @@ ROOM_GAMES.codenames = {
       state.youAreHost, s.wins ? s.wins.red + '-' + s.wins.blue : '', appState.lang
     ].join('|');
 
+    // A word swapped, or a card marked, rebuilds the frame while the spymaster
+    // may be typing a clue: keep what they typed, the count and the focus.
+    const clueIn = el.querySelector('#cn-clue-word');
+    const countIn = el.querySelector('#cn-clue-count');
+    const sameBoard = el.dataset.cnDeal === String(s.dealtAt);
+    el.dataset.cnDeal = String(s.dealtAt);
+    const kept = clueIn && sameBoard ? {
+      word: clueIn.value, count: countIn ? countIn.value : '',
+      focus: document.activeElement === clueIn,
+      caret: clueIn.selectionStart
+    } : null;
     const rebuilt = renderRoomFrame(el, sig, () => cnFrame(state, v, t, fresh));
+    if (rebuilt && kept) {
+      const i = el.querySelector('#cn-clue-word');
+      const c = el.querySelector('#cn-clue-count');
+      if (i && !i.value && kept.word) {
+        i.value = kept.word;
+        if (kept.focus) {
+          i.focus({ preventScroll: true });
+          try { i.setSelectionRange(kept.caret, kept.caret); } catch (e) {}
+        }
+      }
+      if (c && kept.count && [...c.options].some(o => o.value === kept.count)) c.value = kept.count;
+    }
     refreshRoomPlayerStrip(el, state);
     refreshCodenamesHostTools(el, state, t);
     if (rebuilt) cnFeedback(state, v, fresh);
@@ -58927,7 +59072,8 @@ function refreshCodenamesHostTools(root, state, t) {
 function cnHostTools(state, t, L) {
   const s = state.shared || {};
   if (!state.youAreHost || s.winner || !s.board || !s.board.length) return '';
-  const buttons = [[cnPassTurnLabel(t), "roomAct('passTurn')"]];
+  // The team whose turn it is goes with the tap, so a double tap passes one turn, not two.
+  const buttons = [[cnPassTurnLabel(t), `roomAct('passTurn', { turn: '${jsStringAttr(s.turn || '')}' })`]];
   ['red', 'blue'].forEach(team => {
     const sm = cnSpymasterOf(state, team);
     if (sm.here && cnLocal.smPick !== team) return;
@@ -59584,11 +59730,20 @@ function renderBallot(state, opts) {
          + renderVoteProgress(state);
   }
 
+  // The round (and the storyteller's turn) the ballot was drawn for goes with
+  // the tap: option ids repeat from round to round, so a vote that lands after
+  // the host closed it and dealt the next must not count there.
+  const stamp = ['round', 'turn'].map(k => {
+    const x = state.shared[k];
+    if (typeof x === 'number') return `, ${k}: ${x}`;
+    if (typeof x === 'string' && x) return `, ${k}: '${jsStringAttr(x)}'`;
+    return '';
+  }).join('');
   return `<div class="btn-stack">
       ${v.options.map(o => {
         const mine = isOwnVoteOption(state, o);
         return `<button class="ballot-option ${mine ? 'is-own' : ''}" ${mine ? 'disabled' : ''}
-                        onclick="roomAct('vote', { option: '${jsStringAttr(o.id)}' })">
+                        onclick="roomAct('vote', { option: '${jsStringAttr(o.id)}'${stamp} })">
                   <span class="ballot-option__label">${escapeHTML(o.label)}</span>
                   ${mine ? `<span class="badge">${escapeHTML((opts && opts.ownLabel) || t.vote_your_answer || 'إجابتك')}</span>` : ''}
                 </button>`;
@@ -59855,6 +60010,7 @@ const draw = {
   onRedo: null,
   local: false,         // ارسم واكتب: strokes stay here until the player is done
   painted: 0,           // how many server strokes we've already drawn
+  paintedMark: null,    // { n, sig } of the last stroke paintStrokes drew
   colour: DRAW_COLOURS[0],
   width: 5,
   tool: 'p',
@@ -60113,7 +60269,14 @@ function paintStrokes(strokes) {
   // A shrinking list means the drawer cleared or undid: start again. Replaying
   // from the beginning also keeps fills correct, since a fill depends on
   // everything painted before it.
-  if (strokes.length < draw.painted) {
+  // The same goes for a list whose painted part changed under us: a phone that
+  // missed a clear or an undo (asleep, on the HTTP fallback) gets back a list
+  // as long as or longer than what it painted, and would only add to the old
+  // picture. The last stroke it painted is checked against the list's.
+  const mark = draw.paintedMark;
+  const changed = !!(mark && mark.n === draw.painted && draw.painted > 0 &&
+    (strokes.length < mark.n || strokeMark(strokes[mark.n - 1]) !== mark.sig));
+  if (strokes.length < draw.painted || changed) {
     clearSurface();
     draw.painted = 0;
     draw.live = null;
@@ -60131,6 +60294,7 @@ function paintStrokes(strokes) {
 
   for (let i = draw.painted; i < strokes.length; i++) drawStroke(ctx, strokes[i], c.width);
   draw.painted = strokes.length;
+  draw.paintedMark = strokes.length ? { n: strokes.length, sig: strokeMark(strokes[strokes.length - 1]) } : null;
 
   // A line the drawer is still drawing goes back on top.
   if (draw.live && draw.live.n >= strokes.length) {
@@ -60141,6 +60305,11 @@ function paintStrokes(strokes) {
   }
   // The snapshot the shape preview restores from is now stale.
   draw.snapshot = null;
+}
+
+/** A stroke as a string, to tell whether the painted list is still the room's. */
+function strokeMark(st) {
+  try { return JSON.stringify(st); } catch (e) { return ''; }
 }
 
 /** Draws one stroke. `t` picks the tool; absent means freehand. */
@@ -60746,16 +60915,17 @@ function fakeArtistFrame(state, t, myTurn, drawerAway) {
       </div>` : '';
 
   // Your card: the word, or the news that you haven't got one. Gone at the end,
-  // when the word is on everyone's screen anyway.
+  // when the word is on everyone's screen anyway. One card, the same shape and
+  // colour for the fake and the painters (like مافيا's night): it stays up
+  // through the drawing and the vote, and a red card said who the fake was.
+  const roleCard = (label, value, hint) => `<div class="card card--accent" style="text-align:center">
+         <div class="eyebrow">${label}</div>
+         <div class="metric metric--md metric--accent">${value}</div>
+         <p class="field__hint" style="margin:0">${hint}</p>
+       </div>`;
   const role = s.phase === 'results' ? '' : (you.isFake
-    ? `<div class="card plate-danger" style="text-align:center">
-         <div class="card__title" style="margin:0">🦹 ${t.fake_artist_role || ''}</div>
-         <p style="margin:0">${t.fake_artist_hint || ''}</p>
-       </div>`
-    : (you.word ? `<div class="card card--accent" style="text-align:center">
-         <div class="eyebrow">${t.real_artist_word || ''}</div>
-         <div class="metric metric--md metric--accent">${escapeHTML(you.word)}</div>
-       </div>` : ''));
+    ? roleCard('🦹 ' + escapeHTML(t.fake_artist_role || ''), '❓', escapeHTML(t.fake_artist_hint || ''))
+    : (you.word ? roleCard(escapeHTML(t.real_artist_word || ''), escapeHTML(you.word), escapeHTML(t.real_artist_hint || '')) : ''));
 
   const legend = `
       <div class="chip-set fa-legend">
@@ -61346,7 +61516,8 @@ function chooseTriviaAnswer(choice) {
   });
   playSound('click');
   haptic('light');
-  Room.act('answer', { choice: choice }).catch(err => {
+  // The question it was aimed at: a slow answer must not land on the next one.
+  Room.act('answer', { choice: choice, qIndex: s.qIndex }).catch(err => {
     trivia.picked = null;
     showToast(err.message || 'تعذر الإرسال', 'error');
     const el = document.getElementById('view-room-trivia');
@@ -68802,6 +68973,11 @@ function armStopClock() {
   stopClock = createClock({
     seconds: left,
     onTick: (v) => {
+      // A sheet over the round (Help, leave this game?) pauses this clock; the
+      // saved deadline follows it, or a reload afterwards would cut the round
+      // short. Only a real gap moves it (a tick is late by a few ms anyway).
+      const due = Date.now() + v * 1000;
+      if (s.phase === 'play' && s.endsAt && Math.abs(due - s.endsAt) > 1500) { s.endsAt = due; saveToLocal(); }
       const el = document.getElementById('stop-clock');
       if (el) { el.textContent = v; el.classList.toggle('is-low', v <= 10); }
       if (v <= 5 && v > 0) playSound('tick');
@@ -68989,6 +69165,17 @@ function replayStop() {
   s.totals = {};
   s.players.forEach(p => { s.totals[p] = 0; });
   nextStopLetter();
+}
+
+// The round and the scoring table are built in JS: redraw them in the new
+// language (nothing typed lives on them, so a redraw loses nothing).
+if (typeof onLanguageChange === 'function') {
+  onLanguageChange((view) => {
+    if (view !== 'play-stop') return;
+    const s = stopState();
+    if (s.phase === 'play') paintStopPlay();
+    else if (s.phase === 'score' || s.phase === 'done') paintStopScore();
+  });
 }
 
 /** After a reload: the round, the scoring table or the result, as it was. */
@@ -69447,9 +69634,21 @@ function xoMaybePhone() {
   if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
   xoPhoneTimer = setTimeout(() => {
     xoPhoneTimer = null;
+    // Not while its board is off screen (it plays when the board comes back),
+    // nor on a game that has been replaced meanwhile.
+    if (appState.currentView !== 'play-xo' || xoState() !== x) return;
     if (x.phase !== 'play' || x.turn === x.human) return;
     xoPlace(xoPhoneMove(x));
   }, 420);
+}
+
+// Leaving the board by the back arrow or a tab: the phone's move waits, as in
+// كونكت ٤ and نقط ومربعات, and comes when the board is back.
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-xo' && xoPhoneTimer) { clearTimeout(xoPhoneTimer); xoPhoneTimer = null; }
+    if (to === 'play-xo') setTimeout(() => { if (appState.currentView === 'play-xo') xoMaybePhone(); }, 0);
+  });
 }
 
 /*
@@ -70043,6 +70242,9 @@ function soloPauseOnScreen(hidden) {
     soloPause(s);
     saveToLocal();
   } else {
+    // Back from the lock screen with Help or the exit sheet still open: the
+    // board stays paused until the sheet is closed.
+    if (typeof sheetPausedSolo !== 'undefined' && sheetPausedSolo === s) return;
     soloResume(s);
     soloClockRefresh();
   }
@@ -70512,7 +70714,11 @@ function setSudokuLevel(level) {
   paintSudokuSetup();
 }
 
-function startSudoku(daily) {
+// A grid with numbers or notes in it: a new one asks first (soloConfirmNew).
+const sudokuHasWork = (s) => s.cells !== s.puzzle || (s.notes || []).some(Boolean);
+
+function startSudoku(daily, sure) {
+  if (!sure && soloConfirmNew('sudoku', sudokuHasWork, () => startSudoku(daily, true))) return;
   if (daily && soloDailyResume('sudoku')) return;
   soloDailySetAside('sudoku');
   soloNewGame('sudoku');
@@ -71246,7 +71452,12 @@ function minesLay(s, safe, rnd) {
   s.mines = soloShuffle(cells, rnd).slice(0, s.count).sort((a, b) => a - b);
 }
 
-function startMines(daily) {
+// A minefield with cells opened: a new one asks first (soloConfirmNew), as
+// Queens and Tango do. An untouched one (phase 'ready') just goes.
+const minesHasWork = (s) => (s.open || []).some(Boolean);
+
+function startMines(daily, sure) {
+  if (!sure && soloConfirmNew('mines', minesHasWork, () => startMines(daily, true))) return;
   if (daily && soloDailyResume('mines')) return;
   soloDailySetAside('mines');
   soloNewGame('mines');
@@ -75698,6 +75909,8 @@ function csChangeRules(id) {
     s.phase = 'setup';
     s.rounds = [];
     s.draft = {};
+    delete s.editing;
+    delete s.newDraft;
     delete s.winTeam;
     saveToLocal();
     paintCardScoreSetup(id);
@@ -75728,6 +75941,7 @@ function csBegin(id, names) {
   s.seats = g.seats(names, s.opts, csT());
   s.rounds = [];
   s.draft = {};
+  delete s.newDraft;
   delete s.winTeam;
   s.phase = 'play';
   s.startedAt = Date.now();
@@ -76131,10 +76345,13 @@ function saveCardScoreRound(id) {
     s.rounds[s.editing] = roundObj;
     s.rounds = csReplay(g, s, s.rounds, s.editing + 1);
     delete s.editing;
+    // Back to the new round's card as it was being typed before the fix.
+    s.draft = s.newDraft || {};
   } else {
     s.rounds.push(roundObj);
+    s.draft = {};
   }
-  s.draft = {};
+  delete s.newDraft;
   delete s.winTeam;
   const end = !!g.ended(s, csTotals(id));
   s.phase = end ? 'over' : 'play';
@@ -76160,6 +76377,7 @@ function undoCardScoreRound(id) {
   const s = csState(id);
   if (!s.rounds.length) return;
   delete s.editing;
+  delete s.newDraft;
   const last = s.rounds.pop();
   s.draft = last.draft || {};
   delete s.winTeam;
@@ -76172,6 +76390,8 @@ function undoCardScoreRound(id) {
 function csEditRound(id, n) {
   const s = csState(id);
   if (!s.rounds || !s.rounds[n]) return;
+  // What was typed for the next round waits while an old one is fixed.
+  if (typeof s.editing !== 'number') s.newDraft = s.draft || {};
   s.draft = Object.assign({}, s.rounds[n].draft || {});
   s.editing = n;
   s.phase = 'play';
@@ -76185,7 +76405,8 @@ function csCancelEdit(id) {
   const s = csState(id);
   const g = CS_GAMES[id];
   delete s.editing;
-  s.draft = {};
+  s.draft = s.newDraft || {};
+  delete s.newDraft;
   if (g && g.ended) s.phase = g.ended(s, csTotals(id)) ? 'over' : 'play';
   saveToLocal();
   paintCardScore(id);
@@ -76196,6 +76417,7 @@ function restartCardScore(id) {
   s.rounds = [];
   s.draft = {};
   delete s.editing;
+  delete s.newDraft;
   delete s.winTeam;
   s.phase = 'play';
   s.startedAt = Date.now();
@@ -77855,9 +78077,16 @@ function chameleonFrame(state, t) {
       <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
       <span class="badge badge--accent">${escapeHTML(s.category || '')}</span>
     </div>`;
-  const role = !inRound ? '' : (iAmCham
-    ? `<div class="role-card role-card--spy"><div class="role-card__label">🦎 ${escapeHTML(t.cham_you_are || '')}</div><div class="role-card__hint">${escapeHTML(t.cham_you_hint || '')}</div></div>`
-    : `<p class="field__hint" style="text-align:center">${escapeHTML(t.cham_your_word_hint || '')}</p>`);
+  // One card, the same shape and colour for every role (like مافيا's night):
+  // phones lie on the table while the clues go round, and a red card on one of
+  // them used to say who the chameleon was. Only the words differ.
+  const secretWord = !iAmCham && typeof you.secret === 'number' ? (s.words || [])[you.secret] : '';
+  const role = !inRound ? '' : `<div class="role-card">
+      <div class="role-card__label">${iAmCham
+        ? '🦎 ' + escapeHTML(t.cham_you_are || '')
+        : '🔑 ' + escapeHTML(secretWord || '')}</div>
+      <div class="role-card__hint">${escapeHTML((iAmCham ? t.cham_you_hint : t.cham_your_word_hint) || '')}</div>
+    </div>`;
 
   if (s.phase === 'clues') {
     return head + role + chameleonGridHtml(s, { mine: iAmCham ? -1 : you.secret }) + `
@@ -78051,8 +78280,11 @@ function spyfallFrame(state, t) {
       <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
       ${s.phase === 'play' && s.endsAt ? `<span id="spy-room-timer" class="badge badge--accent metric">${spyfallClockText(s.endsAt)}</span>` : ''}
     </div>`;
+  // The same card, shape and colour for the spy and everyone else (like مافيا's
+  // night): it stays up through play and the vote, and a red card with no place
+  // on it told the table who the spy was. Only the words differ.
   const card = !inRound ? `<div class="waiting-note">${escapeHTML(t.vote_spectating || '')}</div>` : (iAmSpy
-    ? `<div class="role-card role-card--spy"><div class="role-card__label">🕵️ ${escapeHTML(t.spy_you_are || '')}</div><div class="role-card__hint">${escapeHTML(t.spy_you_hint || '')}</div></div>`
+    ? `<div class="role-card"><div class="role-card__label">🕵️ ${escapeHTML(t.spy_you_are || '')}</div><div class="role-card__value">❓</div><div class="role-card__hint">${escapeHTML(t.spy_you_hint || '')}</div></div>`
     : `<div class="role-card"><div class="role-card__label">📍 ${escapeHTML(t.spy_location || '')}</div><div class="role-card__value">${escapeHTML(you.location || '')}</div><div class="role-card__hint">🧑‍💼 ${escapeHTML(t.spy_your_job || '')}: <b>${escapeHTML(you.job || '')}</b></div></div>`);
 
   if (s.phase === 'play') {
@@ -79305,7 +79537,7 @@ ROOM_GAMES.twotruths = {
               <label class="field__label" for="tt-s${i}">${escapeHTML(t.tt_statement || '')} ${i + 1}</label>
               <div class="tt-row">
                 <input type="text" id="tt-s${i}" maxlength="80" autocomplete="off" placeholder="${escapeHTML(t.tt_placeholder || '')}">
-                <button type="button" class="tt-lie ${i === 0 ? 'is-on' : ''}" data-i="${i}" onclick="ttPickLie(${i})" aria-pressed="${i === 0}">${escapeHTML(t.tt_this_is_lie || '')}</button>
+                <button type="button" class="tt-lie ${i === ttLie ? 'is-on' : ''}" data-i="${i}" onclick="ttPickLie(${i})" aria-pressed="${i === ttLie}">${escapeHTML(t.tt_this_is_lie || '')}</button>
               </div>
             </div>`).join('')}
           <button class="btn btn--primary btn--lg" onclick="ttSubmit()">${escapeHTML(t.send || '')}</button>
@@ -79462,7 +79694,7 @@ const QUIZ_UI = {
   proverbs: { view: 'room-proverbs', ph: 'prov_guess_ph',  hint: 'prov_lobby_hint',  key: 'ashryQuizCount_proverbs' }
 };
 const QUIZ_COUNT_CHOICES = [5, 10, 15, 20];
-const quiz = { clock: null, clockKey: null, myScore: 0, scoreKey: '' };
+const quiz = { clock: null, clockKey: null };
 
 function quizCount(game) {
   try {
@@ -79618,15 +79850,15 @@ function quizGame(game) {
         if (fresh && gotIt) playSound('success');
         // The points you just won float from the answer card onto your own row.
         // Only this phone's own win: a number leaving someone else's answer
-        // means nothing. The gain is the difference from the board before it.
+        // means nothing. The gain is what the server says this card gave
+        // (s.gained), once per card: every card is a new deal (a new dealId),
+        // so a difference from the last card's board was never taken on the
+        // same key and nothing ever flew; a redraw of the same results (a
+        // language change) must not fly it again either.
         if (fresh) {
-          const key = state.code + '|' + (s.dealId || '');
-          const mine = (s.board || []).find(r => r.id === Room.me);
-          const now = mine ? Number(mine.score) || 0 : 0;
-          const gain = quiz.scoreKey === key ? now - quiz.myScore : 0;
-          quiz.scoreKey = key;
-          quiz.myScore = now;
-          if (gotIt && gain > 0 && typeof flyPoints === 'function') {
+          const gain = Number((s.gained || {})[Room.me]) || 0;
+          if (gotIt && gain > 0 && typeof flyPoints === 'function' &&
+              motionFirst(['quiz-gain', state.code, s.dealId || '', s.qIndex].join('|'))) {
             const card = el.querySelector('.card--accent');
             const row = el.querySelector(`[data-pid="${CSS.escape(Room.me)}"]`);
             if (card && row) flyPoints('+' + gain, card.getBoundingClientRect(), row);
@@ -79736,8 +79968,12 @@ function setFiveRounds(n) {
 
 /** The ring: five seconds counting down, ticking on the player's own phone and the TV. */
 function armFiveClock(endsAt, loud, onEnd) {
+  // Help or the exit sheet pauses the clock on one phone (pauseClocksForSheet):
+  // the ring stands still with it, and carries on from there, by the time the
+  // clock was paused (`shift`), so it and the alarm agree.
+  let pausedAt = 0, shift = 0;
   const paint = () => {
-    const left = Math.max(0, (endsAt - Date.now()) / 1000);
+    const left = Math.max(0, (endsAt + shift - (pausedAt || Date.now())) / 1000);
     const ring = document.getElementById('five-ring');
     const num = document.getElementById('five-num');
     if (ring) ring.style.setProperty('--five-p', String(Math.max(0, Math.min(1, left / 5))));
@@ -79750,9 +79986,20 @@ function armFiveClock(endsAt, loud, onEnd) {
   stopFiveClock();
   five.clockKey = endsAt;
   let raf = null;
-  // The ring only animates while its clock runs: it used to go on at 60 frames a
-  // second on whatever screen came next.
-  const smooth = () => { paint(); if (five.clockKey === endsAt && (!five.clock || five.clock.isRunning())) raf = requestAnimationFrame(smooth); };
+  // The ring animates while its clock is alive, a paused one included (it used to
+  // stop at the pause and never start again); leaving the screen stops the clock
+  // (stopFiveClock), which ends the loop, so it never runs on the next screen.
+  const smooth = () => {
+    const c = five.clock;
+    if (c && !c.isRunning()) { if (!pausedAt) pausedAt = Date.now(); }
+    else if (pausedAt) { shift += Date.now() - pausedAt; pausedAt = 0; }
+    paint();
+    if (five.clockKey !== endsAt || !c) return;
+    // A clock stopped without its end (setView stops every clock) with no ring
+    // left on the page: nothing to draw.
+    if (c && !c.isRunning() && !document.getElementById('five-ring')) return;
+    raf = requestAnimationFrame(smooth);
+  };
   raf = requestAnimationFrame(smooth);
   five.clock = createClock({
     seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
@@ -79830,7 +80077,7 @@ ROOM_GAMES.fiveseconds = {
         </div>
         ${last}
         ${renderScoreboard(s.board)}
-        ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn')">${escapeHTML(t.five_skip || '')}</button>` : ''}
+        ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })">${escapeHTML(t.five_skip || '')}</button>` : ''}
         ${renderRoomPlayerStrip(state)}`);
       refreshRoomPlayerStrip(el, state);
       return;
@@ -79885,7 +80132,7 @@ TV_GAMES.fiveseconds = {
             <div class="tv-eyebrow">${escapeHTML(t.five_turn || '')}</div>
             <div class="tv-title">${escapeHTML(s.turnName || '')}</div>
             ${s.lastName ? `<div class="tv-note">${escapeHTML(s.lastName)} ${s.verdict ? '✅' : '❌'} · ${escapeHTML(s.lastPrompt || '')}</div>` : ''}
-            ${host(tvBtn((t.five_go_for || '').replace('{name}', s.turnName || ''), "roomAct('go')") + tvBtn(t.five_skip, "roomAct('skipTurn')", 'ghost'))}
+            ${host(tvBtn((t.five_go_for || '').replace('{name}', s.turnName || ''), "roomAct('go')") + tvBtn(t.five_skip, `roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })`, 'ghost'))}
           </div>
           <div class="tv-scale">${renderScoreboard(s.board)}</div>
         </div>`;
@@ -80150,8 +80397,8 @@ ROOM_GAMES.telephone = {
         ${teleStepHtml(step, t)}
         ${state.youAreHost
           ? `<div class="btn-row" style="margin-top: var(--sp-3)">
-               <button class="btn btn--ghost" onclick="roomAct('revealBack')" ${r.chain === 0 && r.step === 0 ? 'disabled' : ''}>${escapeHTML(t.tele_back || '')}</button>
-               <button class="btn btn--primary" onclick="roomAct('revealNext')">${escapeHTML(t.tele_next || '')}</button>
+               <button class="btn btn--ghost" onclick="roomAct('revealBack', { at: '${r.chain}:${r.step}' })" ${r.chain === 0 && r.step === 0 ? 'disabled' : ''}>${escapeHTML(t.tele_back || '')}</button>
+               <button class="btn btn--primary" onclick="roomAct('revealNext', { at: '${r.chain}:${r.step}' })">${escapeHTML(t.tele_next || '')}</button>
              </div>`
           : `<div class="waiting-note">${t.room_wait_host}</div>`}
         ${renderRoomPlayerStrip(state)}`);
@@ -80213,7 +80460,7 @@ TV_GAMES.telephone = {
           ${step.kind === 'text'
             ? `<div class="tv-center"><div class="tv-eyebrow">${escapeHTML(step.byName ? (t.tele_wrote || '').replace('{name}', step.byName) : (t.tele_started_with || ''))}</div><div class="tv-title">${escapeHTML(step.text || '') || '—'}</div></div>`
             : `<div class="tv-eyebrow tv-center-text">${escapeHTML((t.tele_drew || '').replace('{name}', step.byName || '…'))}</div><div class="tv-canvas"><canvas id="draw-canvas" width="512" height="512"></canvas></div>`}
-          ${host(tvBtn(t.tele_back, "roomAct('revealBack')", 'ghost') + tvBtn(t.tele_next, "roomAct('revealNext')"))}
+          ${host(tvBtn(t.tele_back, `roomAct('revealBack', { at: '${r.chain}:${r.step}' })`, 'ghost') + tvBtn(t.tele_next, `roomAct('revealNext', { at: '${r.chain}:${r.step}' })`))}
         </div>`;
     }
     return `
@@ -80795,7 +81042,7 @@ ROOM_GAMES.monkey = {
     const monkeyNote = amMonkey ? `<div class="mk-verdict mk-verdict--monkey">${escapeHTML(t.mk_you_monkey || '')}</div>` : '';
     const hostRow = state.youAreHost ? `
       <div class="btn-row" style="margin-bottom: var(--sp-4)">
-        ${s.mode === 'letters' ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('undo')" ${word ? '' : 'disabled'}>↶ ${escapeHTML(t.draw_undo || '')}</button>` : ''}
+        ${s.mode === 'letters' ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('undo', { n: ${(s.letters || []).length} })" ${word ? '' : 'disabled'}>↶ ${escapeHTML(t.draw_undo || '')}</button>` : ''}
         <button class="btn btn--ghost btn--sm" onclick="${mkHostCall('skip', s)}">${escapeHTML(t.mk_skip || '')}</button>
         <button class="btn btn--ghost btn--sm" onclick="${mkHostCall('penalty', s)}">${escapeHTML(t.mk_penalty || '')}</button>
       </div>` : '';
@@ -80884,7 +81131,7 @@ TV_GAMES.monkey = {
         ${verdict}
       </div>
       ${boardStrip}
-      ${host((s.mode === 'letters' ? tvBtn('↶ ' + (t.draw_undo || ''), "roomAct('undo')", 'ghost') : '') + tvBtn(t.mk_skip, mkHostCall('skip', s), 'ghost') + tvBtn(t.mk_penalty, mkHostCall('penalty', s), 'danger-soft'))}
+      ${host((s.mode === 'letters' ? tvBtn('↶ ' + (t.draw_undo || ''), `roomAct('undo', { n: ${(s.letters || []).length} })`, 'ghost') : '') + tvBtn(t.mk_skip, mkHostCall('skip', s), 'ghost') + tvBtn(t.mk_penalty, mkHostCall('penalty', s), 'danger-soft'))}
       ${swapRow}
     </div>`;
   },
@@ -85829,7 +86076,11 @@ function mindPlay(btn) {
     mindLocal.from = { rect: r, font: parseFloat(getComputedStyle(btn).fontSize) || 24, text: btn.textContent.trim() };
   }
   haptic('light');
-  roomAct('play');
+  // The number on the button goes with the tap: the second tap of a double
+  // tap is aimed at a card already down, and the server drops it rather than
+  // playing the next one.
+  const mine = ((Room.state && Room.state.you) || {}).cards || [];
+  roomAct('play', mine.length ? { card: mine[0] } : {});
 }
 
 /** The card the table just saw, flying from this phone's hand onto the pile. */
@@ -86144,7 +86395,7 @@ ROOM_GAMES.timeline = {
       <div class="card">${tlMyCardsHtml(state, s, t)}</div>
       ${tlHandsHtml(state, s)}
       ${state.youAreHost && s.turnId !== Room.me
-        ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn')">${escapeHTML(t.tl_skip || '')}</button>`
+        ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })">${escapeHTML(t.tl_skip || '')}</button>`
         : ''}
       ${renderRoomPlayerStrip(state)}`);
 
@@ -86187,7 +86438,7 @@ TV_GAMES.timeline = {
         <div class="tv-scale">${tlLineHtml(s, t, false)}</div>
         ${s.last ? `<div class="tv-note">${s.last.right ? '✅' : '❌'} ${escapeHTML(s.last.name || '')} · ${escapeHTML(s.last.text || '')} · ${s.last.y}</div>` : ''}
         <div class="tv-scale">${tlHandsHtml(state, s)}</div>
-        ${host(tvBtn(t.tl_skip, "roomAct('skipTurn')", 'ghost'))}
+        ${host(tvBtn(t.tl_skip, `roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })`, 'ghost'))}
       </div>`;
   }
 };
@@ -87633,7 +87884,10 @@ function unoPlay(root, state, list, delay, handWas) {
       }
       case 'play': {
         const from = mineIn(A) && e.card ? 'card:' + e.card.i : seatKey(A);
-        unoHold(root, 'pile');
+        // The pile goes blank only once this card is on its way: held from the start of a batch, it
+        // was empty through the earlier moves a screen that fell behind still had to play.
+        // (At once when it is the first thing to play, so the new top never shows for a frame.)
+        if (t > 0) at(t, () => unoHold(root, 'pile')); else unoHold(root, 'pile');
         const spin = ((Number(e.card && e.card.i) * 53) % 30) - 15;
         if (e.jump) at(t, () => unoPop(root, seatKey(A), '⚡', { big: true }));
         at(t, () => unoFly(root, from, 'pile', e.card && e.card.k, { arc: 34, spin: spin, duration: 460, color: e.color, hold: ['pile'], width: tv ? 80 : 56 }));
@@ -90720,15 +90974,20 @@ ROOM_GAMES.connect4 = {
           </div>
         </div>
       </div>`);
+    const key = ['c4', roomDealKey(state), s.round].join('|');
+    const dropKey = s.last ? key + '|' + s.moves : '';
+    const endKey = s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '';
+    // (Never over this phone's own move drawn early: that one is still falling. A look, not
+    // duelRoomEarlyFor, which would take it from c4AfterPaint.)
+    const earlyHere = !!(dropKey && duelRoomLocal.early && duelRoomLocal.early.key === dropKey);
+    if (!earlyHere) duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey] });
     if (rebuilt) {
-      const key = ['c4', roomDealKey(state), s.round].join('|');
-      const dropKey = s.last ? key + '|' + s.moves : '';
       c4AfterPaint(el, {
         onDrop: c4RoomDrop,
         dropKey: dropKey,
         early: duelRoomEarlyFor(dropKey),
         win: s.win, draw: !!(s.result && s.result.draw),
-        endKey: s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '',
+        endKey: endKey,
         sound: duelRoomLoud(state)
       });
       duelPillsAfter(el, 'c4r|' + state.code, {
@@ -90743,6 +91002,28 @@ ROOM_GAMES.connect4 = {
   // A move is not a new step to scroll to: the board is what everyone is watching.
   actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
 };
+
+/**
+ * The first time this page draws a game (a reload, someone joining late, a TV
+ * coming on), what is already on the board is marked as seen - the last move
+ * and its sound, the winning line, the cheer of a game already over - instead
+ * of played again. Moves made after it animate as ever. `key` is the game's
+ * own key (the deal and the round); `o.motion` the motionFirst keys and
+ * `o.once` the duelOnce keys its screen would play. Call it on every render,
+ * before the screen's after-paint. True on that first sight.
+ */
+const duelFirstSeen = new Set();
+function duelRoomFirstSight(state, key, o) {
+  if (!key || duelFirstSeen.has(key)) return false;
+  if (duelFirstSeen.size > 300) duelFirstSeen.clear();
+  duelFirstSeen.add(key);
+  o = o || {};
+  (o.motion || []).forEach(k => { if (k && typeof motionFirst === 'function') motionFirst(k); });
+  (o.once || []).forEach(k => { if (k) duelOnce(k); });
+  // A game still being played keeps its cheer for when it ends.
+  if ((state.shared || {}).phase === 'over') duelOnce(key + '|cheer');
+  return true;
+}
 
 /**
  * The end of a game in a room: confetti on the winner's own phone (and the
@@ -90810,10 +91091,13 @@ TV_GAMES.connect4 = {
     const s = state.shared || {};
     if (!el || !s.grid) return;
     const key = ['c4', roomDealKey(state), s.round].join('|');
+    const dropKey = s.last ? key + '|' + s.moves : '';
+    const endKey = s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '';
+    duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey] });
     c4AfterPaint(el, {
-      dropKey: s.last ? key + '|' + s.moves : '',
+      dropKey: dropKey,
       win: s.win, draw: !!(s.result && s.result.draw),
-      endKey: s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '',
+      endKey: endKey,
       sound: true
     });
     duelPillsAfter(el, 'c4tv|' + state.code, {
@@ -90927,9 +91211,14 @@ ROOM_GAMES.dots = {
           </div>
         </div>
       </div>`);
+    const key = ['dots', roomDealKey(state), s.round].join('|');
+    const lineKey = s.last ? key + '|' + s.moves : '';
+    // A reload or a late join shows the board as it is: the last line, its sound and the cheer
+    // are marked seen (never over this phone's own line drawn early, which is still drawing).
+    if (!(lineKey && duelRoomLocal.early && duelRoomLocal.early.key === lineKey)) {
+      duelRoomFirstSight(state, key, { motion: [lineKey], once: [lineKey && 'snd|' + lineKey] });
+    }
     if (rebuilt) {
-      const key = ['dots', roomDealKey(state), s.round].join('|');
-      const lineKey = s.last ? key + '|' + s.moves : '';
       dotsAfterPaint(el, board, {
         onDraw: dotsRoomDraw,
         lineKey: lineKey,
@@ -90975,8 +91264,10 @@ TV_GAMES.dots = {
     if (!el || !s.lines) return;
     const key = ['dots', roomDealKey(state), s.round].join('|');
     const again = dotsRoomAgain(s);
+    const lineKey = s.last ? key + '|' + s.moves : '';
+    duelRoomFirstSight(state, key, { motion: [lineKey], once: [lineKey && 'snd|' + lineKey] });
     dotsAfterPaint(el, dotsRoomBoard(s), {
-      lineKey: s.last ? key + '|' + s.moves : '',
+      lineKey: lineKey,
       ending: s.phase === 'over',
       sound: true
     });
@@ -91129,6 +91420,10 @@ ROOM_GAMES.xo = {
     const sig = ['xor', s.round, s.phase, s.moves, s.turn, seat, JSON.stringify(s.line || []), s.champ,
                  JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name).join(','),
                  state.youAreHost, appState.lang].join('|');
+    // A reload or a late join shows the board as it is (never over this phone's own mark drawn early).
+    if (!(moveKey && duelRoomLocal.early && duelRoomLocal.early.key === moveKey)) {
+      duelRoomFirstSight(state, key, { motion: [moveKey, key + '|light'], once: [moveKey && 'snd|' + moveKey] });
+    }
     // The move this phone already drew as the finger lifted: the room's board is the same, and doesn't pop again.
     duelRoomEarlyFor(moveKey);
     const rebuilt = renderRoomFrame(el, sig, () => `
@@ -91176,6 +91471,9 @@ TV_GAMES.xo = {
     const s = state.shared || {};
     if (!Array.isArray(s.cells)) return tvLookAtPhones(t);
     const key = ['xo', roomDealKey(state), s.round].join('|');
+    const moveKey = s.last ? key + '|' + s.moves : '';
+    // A TV coming on shows the board as it is: nothing already played pops or sounds again.
+    duelRoomFirstSight(state, key, { motion: [moveKey, key + '|light'], once: [moveKey && 'snd|' + moveKey] });
     return `
       <div class="duel-tv xo-game" data-accent="blue">
         <div class="duel-tv__board" style="--duel-aspect:1">
@@ -91623,12 +91921,27 @@ function gwOverlay(html, cls, ms) {
  * big bubble; a guess gets the drum roll, then right or wrong. `loud`: this
  * screen plays the sound (the TV when there is one, else the two playing).
  */
+const gwMomentSeen = {};
 function gwMoments(state, loud) {
   const s = state.shared || {};
+  const seq = gwLogSeq(s);
+  // The first sight of a game on this page (a reload, a late join, the TV coming on) plays nothing:
+  // the last answer or the whole drum roll came back with its sound. Seen on every render, a game's
+  // own first state included, so its first answer still plays when it comes.
+  const gameKey = [roomDealKey(state), s.tourMid || '', s.round].join('|');
+  if (gwMomentSeen[gameKey] === undefined) {
+    gwMomentSeen[gameKey] = seq;
+    // Its cheer and its secret faces turning, if it is already over.
+    duelRoomFirstSight(state, ['gw', roomDealKey(state), s.round].join('|'),
+      { motion: [s.phase === 'over' && ['gw-reveal', roomDealKey(state), s.round].join('|')] });
+    return;
+  }
+  if (seq <= gwMomentSeen[gameKey]) return;
+  gwMomentSeen[gameKey] = seq;
   const log = s.log || [];
   const last = log[log.length - 1];
   if (!last || s.phase === 'pick') return;
-  const key = ['gw-moment', roomDealKey(state), s.round, gwLogSeq(s)].join('|');
+  const key = ['gw-moment', roomDealKey(state), s.round, seq].join('|');
   if (!duelOnce(key)) return;
   const quiet = typeof motionOff === 'function' && motionOff();
   const names = duelRoomNames(state);
@@ -91794,7 +92107,11 @@ function gwHostRow(state, tv) {
   const s = state.shared || {};
   if (!state.youAreHost || (s.phase !== 'play' && s.phase !== 'pick')) return '';
   const key = [state.code, s.round, s.turnSeq].join('|');
-  if (gwLocal.turnKey !== key) { gwLocal.turnKey = key; gwLocal.turnSince = Date.now(); }
+  if (gwLocal.turnKey !== key) {
+    gwLocal.turnKey = key; gwLocal.turnSince = Date.now();
+    // The 40 s come round with nothing pushed: a redraw for them (roomQuietRedraw, JS_Hangman.html).
+    roomQuietRedraw(gwLocal, 'guesswho');
+  }
   const waitingOn = s.phase === 'pick' ? (s.seats || []).filter((id, k) => !s.picked[k])
     : [s.stage === 'answer' ? s.seats[1 - s.turn] : s.seats[s.turn]];
   const quiet = waitingOn.some(id => {
@@ -91942,6 +92259,8 @@ ROOM_GAMES.guesswho = {
 
 onRoomClocksReset(() => {
   gwStopClock();
+  roomQuietStop(gwLocal);
+  gwLocal.turnKey = '';
   gwLocal.typed = '';
   gwLocal.panel = null;
   gwLocal.guess = null;
@@ -91988,7 +92307,8 @@ TV_GAMES.guesswho = {
       turn: state.shared.phase === 'play' ? state.shared.turn : -1,
       scores: [(state.shared.scores || {})[state.shared.seats[0]] || 0, (state.shared.scores || {})[state.shared.seats[1]] || 0]
     });
-    if (state.shared.phase === 'over') duelRoomCheer(view, state, ['gw', state.code, state.shared.round].join('|'));
+    // Keyed on the deal: a new game from the hub starts at round 1 again.
+    if (state.shared.phase === 'over') duelRoomCheer(view, state, ['gw', roomDealKey(state), state.shared.round].join('|'));
   }
 };
 </script>
@@ -92488,12 +92808,37 @@ function hmTickClock(state) {
   });
 }
 
+/**
+ * The host's "move on" button waits 40 seconds for a phone that is there but
+ * quiet, and with no clock nothing is pushed meanwhile: so when a wait starts
+ * (`local.since`), a redraw is set for when it ends. The TV's frame is rebuilt
+ * only on a new signature, so its signature is dropped first. Shared by
+ * المشنقة, the solve rooms and خمّن مين; cleared with the room's clocks.
+ */
+function roomQuietRedraw(local, game) {
+  clearTimeout(local.quietTimer);
+  local.quietTimer = setTimeout(() => {
+    const st = typeof Room !== 'undefined' ? Room.state : null;
+    if (!st || st.game !== game || !st.youAreHost) return;
+    if (st.youAreScreen) {
+      if (appState.currentView !== 'room-tv') return;
+      const tv = document.getElementById('view-room-tv');
+      if (tv) delete tv.dataset.sig;
+    } else if (!onRoomView()) return;
+    routeRoomState(st);
+  }, 40500);
+}
+function roomQuietStop(local) { clearTimeout(local.quietTimer); local.quietTimer = null; }
+
 /** The host's buttons: close the word early; move on from a writer whose phone went quiet. */
 function hmHostButtons(state) {
   const s = state.shared || {};
   if (!state.youAreHost) return [];
   const key = [state.code, s.round, s.phase].join('|');
-  if (hmRoom.sinceKey !== key) { hmRoom.sinceKey = key; hmRoom.since = Date.now(); }
+  if (hmRoom.sinceKey !== key) {
+    hmRoom.sinceKey = key; hmRoom.since = Date.now();
+    if (s.phase === 'writing') roomQuietRedraw(hmRoom, 'hangman'); else roomQuietStop(hmRoom);
+  }
   if (s.phase === 'guessing') return [['⏹️ ' + hmT('hm_close_word'), `roomAct('closeWord', { round: ${Number(s.round) || 0} })`]];
   if (s.phase === 'writing' && s.setter !== Room.me) {
     const p = (state.players || []).find(x => x.id === s.setter);
@@ -92645,7 +92990,7 @@ ROOM_GAMES.hangman = {
 const HM_ROUNDS_ROOM = [3, 5, 10];
 const HM_CLOCKS_ROOM = [0, 60, 90];
 
-onRoomClocksReset(() => { hmStopClock(); });
+onRoomClocksReset(() => { hmStopClock(); roomQuietStop(hmRoom); hmRoom.sinceKey = ''; });
 
 /* --- the TV: everyone's man, the word and the points ------------------------------ */
 
@@ -93301,7 +93646,7 @@ function svStopClock() {
   svRoom.clock = null;
   svRoom.clockKey = null;
 }
-onRoomClocksReset(() => { svStopClock(); });
+onRoomClocksReset(() => { svStopClock(); roomQuietStop(svRoom); svRoom.sinceKey = ''; });
 
 function svTickClock(state) {
   const s = state.shared || {};
@@ -93335,7 +93680,11 @@ function svHostButtons(state) {
   const s = state.shared || {};
   if (!state.youAreHost) return [];
   const key = [state.code, s.round, s.phase].join('|');
-  if (svRoom.sinceKey !== key) { svRoom.sinceKey = key; svRoom.since = Date.now(); }
+  if (svRoom.sinceKey !== key) {
+    svRoom.sinceKey = key; svRoom.since = Date.now();
+    // The 40 s below come round with nothing pushed: a redraw for them (roomQuietRedraw, JS_Hangman.html).
+    if (s.phase === 'setting') roomQuietRedraw(svRoom, state.game); else roomQuietStop(svRoom);
+  }
   if (s.phase === 'solving') return [['⏹️ ' + svT('sv_close_round'), `roomAct('closeRound', { round: ${svRound(s)} })`]];
   if (s.phase === 'setting' && s.setter !== Room.me) {
     const p = (state.players || []).find(x => x.id === s.setter);
@@ -95028,7 +95377,7 @@ const OM_OPTS_KEY = 'oldmaid';
 const OM_OPTS_DEFAULT = { mode: 'drag', turnClock: 0 };
 const OM_CLOCK_CHOICES = [0, 15, 30];
 
-const omLocal = { clock: null, clockKey: null, turnMine: false, handInView: '', shownHand: null, shownKey: '', moveSeq: 0, pending: 0, drag: null, lifting: null };
+const omLocal = { clock: null, clockKey: null, turnMine: false, handInView: '', shownHand: null, shownKey: '', moveSeq: 0, moveKey: '', pending: 0, drag: null, lifting: null };
 const omFx = Object.assign(pcFx(), { tvSig: '', tvEnding: false, tvState: null });
 
 /* --- the host's options --------------------------------------------------------- */
@@ -95364,8 +95713,13 @@ function omLive(root, state, rebuilt) {
   const aim = s.phase === 'play' && s.aim ? s.aim.pos : -1;
   const backs = root.querySelector('.om-backs');
   // A back that moved: from its old place to its new one, sliding (the drawer sees the hand move).
+  // Counted per deal: a new game from the hub starts its events at 1 again, and a count carried
+  // over from the last game hid every move of the new one.
+  const topSeq = (s.events || []).reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
+  const dealKey = roomDealKey(state);
+  if (omLocal.moveKey !== dealKey) { omLocal.moveKey = dealKey; omLocal.moveSeq = topSeq; }
   const moves = (s.events || []).filter(e => e && e.type === 'move' && (Number(e.seq) || 0) > omLocal.moveSeq);
-  omLocal.moveSeq = Math.max(omLocal.moveSeq, (s.events || []).reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0));
+  omLocal.moveSeq = Math.max(omLocal.moveSeq, topSeq);
   if (backs && !rebuilt && s.turn) {
     moves.filter(e => e.pid === s.turn.from).forEach(e => {
       const kids = Array.from(backs.children);
@@ -99723,7 +100077,7 @@ function bsWireInput(root) {
       const i = bsOccupancy(fleet)[p.cell] - 1;
       if (i >= 0) {
         const cells = bsShipCells(fleet[i], BS_SHIPS[i].len);
-        press.drag = { i: i, k: Math.max(0, cells.indexOf(p.cell)), from: fleet[i], pos: fleet[i], ok: true };
+        press.drag = { side: m.input.side, i: i, k: Math.max(0, cells.indexOf(p.cell)), from: fleet[i], pos: fleet[i], ok: true };
         try { root.setPointerCapture(e.pointerId); } catch (x) {}
         e.preventDefault();
       }
@@ -99735,6 +100089,8 @@ function bsWireInput(root) {
     const d = press.drag;
     const m = bsView.model, r = bsView.r;
     if (!d || !press.moved || !m || !r || !m.input) return;
+    // Placing ended under the finger (the 90 s clock, the host's "play for"): nothing more to move.
+    if (m.input.mode !== 'place' || m.input.side !== d.side) return;
     const p = r.pick(e.clientX, e.clientY);
     if (!p || p.side !== m.input.side) return;
     const len = BS_SHIPS[d.i].len, dir = d.from.d;
@@ -99751,11 +100107,14 @@ function bsWireInput(root) {
     const pr = press;
     press = null;
     const m = bsView.model, r = bsView.r;
+    const d = pr.drag;
+    // A drag always lets go of its ghost, even when placing ended while it was held: left set, the
+    // ghost stayed on the sea and the loop drew every frame for the rest of the game.
+    if (d && r) r.endDrag(d.side, d.i);
     if (!m || !r || !m.input) return;
     const side = m.input.side;
-    const d = pr.drag;
     if (d) {
-      r.endDrag(side, d.i);
+      if (m.input.mode !== 'place' || side !== d.side) return;
       if (cancel) { r.settleShip(side, d.i, d.from); return; }
       if (!pr.moved) { bsTurnShip(m, d.i); return; }
       if (d.ok && (d.pos.x !== d.from.x || d.pos.y !== d.from.y)) {
@@ -100563,7 +100922,7 @@ ROOM_GAMES.battleship = {
       scores: [0, 1].map(k => bsScoreShown((s.scores || {})[s.seats[k]], k, s.last, flying, s.phase === 'over'))
     });
     if (myTurn && !flying && duelOnce(['bs-turn', state.code, s.round, s.turnSeq].join('|'))) haptic('medium');
-    if (s.phase === 'over' && !flying) duelRoomCheer(el, state, ['bs', state.code, s.round].join('|'));
+    if (s.phase === 'over' && !flying) duelRoomCheer(el, state, ['bs', roomDealKey(state), s.round].join('|'));
   },
   // A shot is not a new step to scroll to; placing, playing and the end of a game are.
   actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
@@ -100618,7 +100977,7 @@ TV_GAMES.battleship = {
       turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1,
       scores: [0, 1].map(k => bsScoreShown((s.scores || {})[s.seats[k]], k, s.last, flying, s.phase === 'over'))
     });
-    if (s.phase === 'over' && !flying) duelRoomCheer(view, state, ['bs', state.code, s.round].join('|'));
+    if (s.phase === 'over' && !flying) duelRoomCheer(view, state, ['bs', roomDealKey(state), s.round].join('|'));
   }
 };
 </script>
@@ -103059,19 +103418,8 @@ const chOddsGiver = (s, me) => (s.vs === 'phone' ? (s.oddsBy === 'cpu' ? 1 - me 
  * way - the f-pawn, the knight, the rook or the queen nearest the a-file (castling that side lost with it).
  */
 function chOddsFen(fen, kind, side) {
-  if (!kind || kind === 'none' || kind === 'time') return fen || CHESS_START_FEN;
-  if (!fen || fen === CHESS_START_FEN) return chessHandicapFen(kind, side ? 'b' : 'w');
-  const g = chessFromFen(fen);
-  if (!g) return fen;
-  const rank = side ? 56 : 0, own = side ? 8 : 0;
-  const find = (k) => { for (let f = 0; f < 8; f++) if (g.board[rank + f] === (k | own)) return rank + f; return -1; };
-  let sq = -1;
-  if (kind === 'pawn') sq = (side ? 48 : 8) + 5;
-  else if (kind === 'knight') sq = find(2);
-  else if (kind === 'queen') sq = find(5);
-  else if (kind === 'rook') { sq = find(4); g.castle &= ~(side ? 8 : 2); }
-  if (sq >= 0) g.board[sq] = 0;
-  return chessFen(g);
+  // One copy of the rule, in Chess.js, so a room's server takes the same piece (a truthy side is Black here).
+  return chessOddsFen(fen, kind, side ? 1 : 0);
 }
 
 /** Is this a 960 game (castling rooks or king off their standard files)? */
@@ -103271,6 +103619,10 @@ function startShatranj() {
 }
 
 function chContinue() {
+  // The game in progress goes on the way it was started: a "vs" picked in the setup since is for
+  // the next Start (otherwise you would move the computer's pieces yourself in a game still rated).
+  const s = chState();
+  if (s.gameVs && s.vs !== s.gameVs) { s.vs = s.gameVs; saveToLocal(); }
   setView('play-shatranj');
   chPaint({ still: true });
   chAfterMove();
@@ -103319,6 +103671,7 @@ function chNewGame(opts) {
   s.ratingChange = null;
   s.clk = chessClockNew(s.clock, s.gameOdds && s.gameOdds.kind === 'time' ? { odds: s.gameOdds.giver } : undefined);
   s.phase = 'play';
+  s.gameVs = s.vs;
   s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   chLocal.sel = '';
   chLocal.coachBefore = null; chLocal.coachKey = '';
@@ -103335,6 +103688,15 @@ function chNewGame(opts) {
 /** The next game of the match. */
 function chNextGame() {
   const s = chState();
+  // A "try the better move" game is over: back to the setup as it was chosen, not a real game
+  // against the computer that would count in the match (and for the rating).
+  if (s.practice) {
+    if (s.vsBefore) { s.vs = s.vsBefore; s.vsBefore = null; }
+    s.practice = false;
+    saveToLocal();
+    setupShatranj();
+    return;
+  }
   if (s.vs === 'friend') s.firstWhite = 1 - (s.firstWhite || 0);
   // A set-up position is played again from the same place, the same side yours.
   if (s.help && s.help.setup && s.start) { chNewGame({ fen: s.start, setup: true, eg: s.setupEg, me: s.vs === 'phone' ? s.me : undefined }); return; }
@@ -103574,6 +103936,8 @@ function chCoachJudge(before, beforeLost, info, beforeClk) {
   if (s.coachOpts.warn !== false && verdict.cls === 'blunder' && s.phase !== 'done') {
     chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: beforeClk || null };
     if (s.help) s.help.warn = true;
+    // Kept at once: a reload now drops the warning but keeps the move, and the game must stay unrated.
+    saveToLocal();
     // Nobody's clock runs while the warning is read: the computer's is stopped where it is, and it
     // runs again on "play it anyway" (chAfterMove); a take back puts yours back as it was.
     chStopTimers();
@@ -103609,6 +103973,8 @@ function chCoachWarn(verdict) {
 function chCoachTakeBack() {
   const s = chState();
   const p = chLocal.pending;
+  // Cleared before the modal closes, so closeModal's chCoachDismissed sees nothing waiting.
+  chLocal.pending = null;
   closeModal('ch-warn-modal');
   if (!p) return;
   s.g = p.before;
@@ -103635,8 +104001,18 @@ function chCoachTakeBack() {
   chAfterMove();
 }
 
+/** The warning closed without its buttons (✕, the backdrop, the phone's back): the move stands,
+    as "play it anyway" (JS_Core's closeModal calls this). */
+function chCoachDismissed() {
+  const p = chLocal.pending;
+  if (!p) return;
+  chCoachAccept(p.verdict);
+}
+
 function chCoachPlayAnyway() {
   const p = chLocal.pending;
+  // Cleared before the modal closes, so closeModal's chCoachDismissed sees nothing waiting.
+  chLocal.pending = null;
   closeModal('ch-warn-modal');
   if (!p) return;
   chCoachAccept(p.verdict);
@@ -104134,6 +104510,11 @@ const CH_OPENINGS = [
 ];
 
 let CH_OPENING_BY_POS = null;
+// The longest line in the book, in plies: past it (and a small margin for a transposition that
+// lost a tempo) no position can be in the book, so a long game isn't replayed on every paint.
+let CH_OPENING_MAX = 0;
+// Matches already worked out, by the moves looked at (a paint happens on every piece picked up).
+const CH_OPENING_CACHE = new Map();
 
 function chInitOpenings() {
   if (CH_OPENING_BY_POS) return;
@@ -104149,6 +104530,7 @@ function chInitOpenings() {
       chessPlay(g, mv);
     }
     if (legal) {
+      CH_OPENING_MAX = Math.max(CH_OPENING_MAX, moves.length);
       CH_OPENING_BY_POS.set(chessPlacement(g.board), {
         ar: op.ar,
         en: op.en,
@@ -104186,20 +104568,30 @@ function chOpeningMatch(sans, opts) {
   const o = opts || {};
   if (o.variant === '960' || (o.start && o.start !== CHESS_START_FEN)) return null;
   chInitOpenings();
-  const g = chessNew();
   const limit = typeof o.limit === 'number' ? Math.min(o.limit, sans.length) : sans.length;
-  let deepest = null;
-  let lastPly = 0;
-  for (let ply = 0; ply < limit; ply++) {
-    const mv = chFindSan(g, sans[ply]);
-    if (!mv) break;
-    chessPlay(g, mv);
-    const placement = chessPlacement(g.board);
-    if (CH_OPENING_BY_POS.has(placement)) {
-      deepest = CH_OPENING_BY_POS.get(placement);
-      lastPly = ply + 1;
+  const upTo = Math.min(limit, CH_OPENING_MAX + 2);
+  const key = sans.slice(0, upTo).join(' ');
+  let hit = CH_OPENING_CACHE.get(key);
+  if (!hit) {
+    const g = chessNew();
+    let deepest = null;
+    let lastPly = 0;
+    for (let ply = 0; ply < upTo; ply++) {
+      const mv = chFindSan(g, sans[ply]);
+      if (!mv) break;
+      chessPlay(g, mv);
+      const placement = chessPlacement(g.board);
+      if (CH_OPENING_BY_POS.has(placement)) {
+        deepest = CH_OPENING_BY_POS.get(placement);
+        lastPly = ply + 1;
+      }
     }
+    hit = { deepest: deepest, lastPly: lastPly };
+    if (CH_OPENING_CACHE.size > 200) CH_OPENING_CACHE.clear();
+    CH_OPENING_CACHE.set(key, hit);
   }
+  const deepest = hit.deepest;
+  const lastPly = hit.lastPly;
   if (!deepest) return null;
   const curLang = (typeof appState !== 'undefined' && appState.lang) || 'ar';
   return {
@@ -105606,6 +105998,12 @@ function chPzDailyPuzzle(day) {
 
 /** «لغز اليوم»: carries on with it if it was begun, else puts it on the board. */
 function chPzStartDaily() {
+  // Resuming a daily that was set aside puts its board back without going through
+  // chPzBegin, so a streak puzzle on the board is put aside here first (as chPzBegin would).
+  const s0 = chPzState();
+  if (s0.mode === 'streak' && s0.streak && !s0.streak.over && s0.p && !s0.result && s0.phase === 'play') {
+    s0.streak.saved = { p: s0.p, hist: s0.hist.slice(), uid: s0.uid };
+  }
   if (soloDailyResume('chesspuzzle')) return;
   // Played once: today's is done (a past day from the archive is played there, soloArchiveDay set).
   if (!soloArchiveDay && soloDailyResult('chesspuzzle')) { showToast(chT('daily_done_today'), 'info'); return; }
@@ -105989,7 +106387,9 @@ function chPzMistakeWayHtml(s) {
 soloRegister('chesspuzzle', {
   setup: 'setup-chesspuzzles', play: 'play-chesspuzzle',
   paintSetup: paintChessPuzzlesSetup, restore: restoreChessPuzzle,
-  state: chPzState, resume: chPzContinue, prefs: ['level', 'done', 'nonce'],
+  state: chPzState, resume: chPzContinue, prefs: ['level', 'done', 'nonce', 'streak', 'streakRecent', 'mSolved'],
+  // (the streak run, its recent puzzles and the solved mistakes are kept too: a daily
+  // brought back must not roll back what was played while it was set aside)
   repaint: () => chPzPaint({ still: true })
 });
 
@@ -106867,11 +107267,18 @@ function bhWireHand(root) {
     press = { id: e.pointerId, x: e.clientX, y: e.clientY, l: btn.dataset.bhDrop, btn: btn, ghost: null };
     try { btn.setPointerCapture(e.pointerId); } catch (x) {}
   });
-  root.addEventListener('pointermove', (e) => {
+  // Move and let go are heard on the document: the button that held the
+  // pointer capture is replaced by the redraw at pick-up, and a finger let go
+  // over the header or the bar must still end the drag.
+  document.addEventListener('pointermove', (e) => {
     if (!press || press.id !== e.pointerId) return;
     if (!press.ghost && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) {
       // Picked up: its squares light, and the piece follows the finger.
-      if (bhLocal.drop !== press.l) { bhLocal.drop = press.l; bhLocal.sel = ''; bhRedraw(); }
+      if (bhLocal.drop !== press.l) {
+        bhLocal.drop = press.l; bhLocal.sel = ''; bhRedraw();
+        // The redraw replaced the hand's buttons: keep hold of the new one.
+        press.btn = root.querySelector(`[data-bh-drop="${press.l}"]`) || press.btn;
+      }
       const svg = press.btn.querySelector('svg');
       const r = press.btn.getBoundingClientRect();
       const g = document.createElement('div');
@@ -106904,15 +107311,18 @@ function bhWireHand(root) {
       return;
     }
     // Not a square it can go to: it flies back to the hand.
-    const r = pr.btn.getBoundingClientRect();
+    const btn = root.querySelector(`[data-bh-drop="${pr.l}"]`) || pr.btn;
+    const r = btn.getBoundingClientRect();
+    // The piece is gone from the hand (or the screen moved on): nowhere to fly back to.
+    if (!r.width) { pr.ghost.remove(); if (sq) chSound('refuse'); return; }
     if (pr.ghost.animate && !motionOff()) {
       const a = pr.ghost.animate([{ transform: pr.ghost.style.transform }, { transform: `translate(${r.left + r.width / 2 - pr.size / 2}px, ${r.top + r.height / 2 - pr.size / 2}px) scale(0.8)`, opacity: 0.4 }], { duration: 220, easing: 'ease-in' });
       a.onfinish = a.oncancel = () => pr.ghost.remove();
     } else pr.ghost.remove();
     if (sq) chSound('refuse');
   };
-  root.addEventListener('pointerup', (e) => end(e, false));
-  root.addEventListener('pointercancel', (e) => end(e, true));
+  document.addEventListener('pointerup', (e) => end(e, false));
+  document.addEventListener('pointercancel', (e) => end(e, true));
 }
 
 /* --- motion: a captured piece flies to the partner's hand, a dropped one from the hand to its square --- */
@@ -107062,6 +107472,8 @@ function bhHostRow(state, tv) {
   const s = bhShared(state);
   if (!state.youAreHost || s.phase !== 'play' || !s.boards) return '';
   const btns = [];
+  // One timer for the sooner of the two boards (a timer each would cancel the other's).
+  let soonest = Infinity;
   s.boards.forEach((bd, b) => {
     const k = bhSeatAt(b, bd.g.turn);
     const id = s.seats[k];
@@ -107070,13 +107482,11 @@ function bhHostRow(state, tv) {
     const key = [roomDealKey(state), s.round, b, bd.moves].join('|');
     if (bhLocal.turnSince[b] === undefined || bhLocal.turnSince[b].key !== key) bhLocal.turnSince[b] = { key: key, at: Date.now() };
     const wait = 40000 - (Date.now() - bhLocal.turnSince[b].at);
-    if (p.online && wait > 0) {
-      clearTimeout(bhLocal.hostTimer);
-      bhLocal.hostTimer = setTimeout(() => bhRedraw(true), wait + 300);
-      return;
-    }
+    if (p.online && wait > 0) { soonest = Math.min(soonest, wait); return; }
     btns.push(['⏭️ ' + chT('ch_play_for', { name: duelIso(s.names[k] || '') }), `roomAct('skipTurn', { board: ${b}, move: ${Number(bd.moves) || 0} })`]);
   });
+  clearTimeout(bhLocal.hostTimer);
+  if (soonest < Infinity) bhLocal.hostTimer = setTimeout(() => bhRedraw(true), soonest + 300);
   if (!btns.length) return '';
   return tv ? `<div class="tv-actions">${btns.map(x => tvBtn(x[0], x[1], 'ghost')).join('')}</div>` : roomHostRow(btns);
 }
@@ -107949,6 +108359,9 @@ function ch4Update(root, state, tv) {
   boardEl.dataset.rot = rot;
   ch4NoteClock(state);
   const key = state.code + '|' + (s.dealId || '') + '|' + rot + '|' + (tv ? 'tv' : 'ph');
+  // Read before ch4Game, which lets go of this phone's own move once the server
+  // has it: the echo of that move must know it was ours (no second slide or sound).
+  const e0 = ch4Local.early;
   const g = ch4Game(state);
   const log = s.log || [];
   const lastN = log.length ? log[log.length - 1].n : 0;
@@ -107964,7 +108377,6 @@ function ch4Update(root, state, tv) {
   } else {
     const fresh = log.filter(e => e.n > ch4Local.seen);
     ch4Local.seen = Math.max(ch4Local.seen, lastN);
-    const e0 = ch4Local.early;
     // This phone's own move, already drawn when the finger lifted.
     if (e0 && !e0.drawn && g === e0.g) { ch4PlayMove(root, { from: e0.from, to: e0.to, castle: e0.castle }, rot, false); e0.drawn = true; }
     const animate = !motionOff() && fresh.length <= 8;
@@ -108327,6 +108739,21 @@ const TOUR_CLIENT = {
 // the last time it was drawn; filled: the bracket slots already drawn, per tournament; dealt: the draws flown.
 const tourLocal = { view: null, autoKey: '', filled: {}, dealt: {}, loop: null };
 
+/**
+ * The server's time as this phone best knows it: a match's startAt is the
+ * server's clock, and a phone's own clock can be seconds off. The smallest
+ * gap seen between a state's serverNow and its arrival is the network's share
+ * (as the chess clocks read it).
+ */
+function tourNow() {
+  const st = typeof Room !== 'undefined' && Room.state;
+  if (st && typeof st.serverNow === 'number') {
+    const gap = (st.receivedAt || Date.now()) - st.serverNow;
+    if (tourLocal.offset === undefined || gap < tourLocal.offset) tourLocal.offset = gap;
+  }
+  return Date.now() - (tourLocal.offset || 0);
+}
+
 const tourOn = (state) => !!(state && state.shared && state.shared.tour);
 const tourT = (key, vars) => {
   const t = TRANSLATIONS[appState.lang] || {};
@@ -108455,7 +108882,7 @@ const tourNameHtml = (state, id) => `<bdi>${escapeHTML(tourName(state, id))}</bd
 
 /** A countdown to the server's moment `at` ("starts in 5"), kept counting by tourCountLoop. */
 function tourCountHtml(at, key) {
-  const left = Math.max(0, Math.ceil(((Number(at) || 0) - Date.now()) / 1000));
+  const left = Math.max(0, Math.ceil(((Number(at) || 0) - tourNow()) / 1000));
   return `<span class="tour-count" data-tour-at="${Number(at) || 0}" data-tour-key="${key || 'tour_starts_in'}">${escapeHTML(tourT(key || 'tour_starts_in', { n: left }))}</span>`;
 }
 
@@ -108463,10 +108890,10 @@ function tourCountLoop() {
   if (tourLocal.loop) return;
   const tick = () => {
     // Only countdowns still running on a screen being shown: a room view left behind keeps its old markup.
-    const els = [...document.querySelectorAll('[data-tour-at]')].filter(el => el.offsetParent !== null && Number(el.dataset.tourAt) > Date.now() - 1000);
+    const els = [...document.querySelectorAll('[data-tour-at]')].filter(el => el.offsetParent !== null && Number(el.dataset.tourAt) > tourNow() - 1000);
     if (!els.length) { tourLocal.loop = null; return; }
     els.forEach(el => {
-      const left = Math.max(0, Math.ceil((Number(el.dataset.tourAt) - Date.now()) / 1000));
+      const left = Math.max(0, Math.ceil((Number(el.dataset.tourAt) - tourNow()) / 1000));
       const text = tourT(el.dataset.tourKey || 'tour_starts_in', { n: left });
       if (el.textContent !== text) el.textContent = text;
     });
@@ -108781,7 +109208,7 @@ function tourDealDraw(root, state) {
   if (tourLocal.dealt[key]) return;
   tourLocal.dealt[key] = true;
   // Only a draw just made: a reload or a phone arriving later sees the bracket as it is.
-  if (motionOff() || tr.gameSeq > 0 || tr.matches.some(m => m.state === 'play' || (m.state === 'ready' && m.startAt - Date.now() < 1500))) return;
+  if (motionOff() || tr.gameSeq > 0 || tr.matches.some(m => m.state === 'play' || (m.state === 'ready' && m.startAt - tourNow() < 1500))) return;
   const wrap = root.querySelector('.tour-bracket');
   if (!wrap) return;
   const r = wrap.getBoundingClientRect();
@@ -109561,8 +109988,10 @@ function hbBoard(state) {
   const s = hbShared(state);
   const bd = s.chess;
   const e = hbLocal.early;
-  if (e && e.key === roomDealKey(state) && e.n === bd.moves + 1) return e;
-  if (e && (e.key !== roomDealKey(state) || bd.moves >= e.n)) hbLocal.early = null;
+  // A finished game never shows a move on top: the server drops a move that
+  // raced a flag or a resignation without an error.
+  if (e && e.key === roomDealKey(state) && e.n === bd.moves + 1 && !bd.result) return e;
+  if (e && (e.key !== roomDealKey(state) || bd.moves >= e.n || bd.result)) hbLocal.early = null;
   return { g: bd.g, last: bd.last, lost: bd.lost, n: bd.moves, sans: bd.sans };
 }
 
@@ -109635,7 +110064,15 @@ function hbPlay(from, to, promo) {
   hbLocal.sel = '';
   haptic('light');
   hbRedraw();
-  Promise.resolve(Room.act('move', { from: from, to: to, promo: promo, move: bd.moves })).catch((err) => {
+  Promise.resolve(Room.act('move', { from: from, to: to, promo: promo, move: bd.moves })).then(() => {
+    // Answered without taking the move (dropped quietly, as a stale one is):
+    // the room's own board comes back.
+    const e = hbLocal.early;
+    if (!e || e.n !== n) return;
+    const st = Room.state;
+    const b2 = st && st.game === 'handbrain' && hbShared(st).chess;
+    if (!b2 || e.key !== roomDealKey(st) || b2.moves < n) { hbLocal.early = null; hbRedraw(true); }
+  }, (err) => {
     hbLocal.early = null;
     showToast((err && err.message) || '', 'error');
     hbRedraw(true);
@@ -110197,11 +110634,16 @@ function mg3Mount(host) {
     }).catch(() => false).then(ok => { MG3.loading = null; return ok; });
   }
   return MG3.loading.then(ok => {
+    if (!ok) return false;
     // The screen may have closed while three.js loaded: then the course lets go at once, rather than
     // drawing into a hidden view until the next visit.
-    if (ok && (!host.isConnected || !mgOnCourseScreen(appState.currentView))) { mg3Dispose(); return false; }
-    if (ok) mg3Attach(host);
-    return ok;
+    if (!mgOnCourseScreen(appState.currentView)) { mg3Dispose(); return false; }
+    // A host left behind by a frame rebuilt meanwhile: the newer host waits on the same load and
+    // mounts it, so this one must not dispose the engine under it.
+    if (!host.isConnected) return false;
+    if (!mg3Ready()) return mg3Mount(host);
+    mg3Attach(host);
+    return true;
   });
 }
 
@@ -110220,7 +110662,19 @@ function mg3Create() {
   renderer.toneMappingExposure = 1.05;
   MG3.renderer = renderer;
   MG3.canvas = canvas;
-  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); mg3Dispose(); });
+  // The GPU took the context back (a phone short of memory, iOS in the background): build the course
+  // again where one is showing. Only for the canvas in use - mg3Dispose loses its own context on
+  // purpose, and that event arrives later, maybe after a new engine was built (bowling's trap).
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    if (MG3.canvas !== canvas) return;
+    mg3Dispose();
+    setTimeout(() => {
+      if (mg3Ready()) return;
+      if (appState.currentView === 'play-minigolf') mgSoloPaint();
+      else if (mgOnCourseScreen(appState.currentView) && Room.state && Room.state.game === 'minigolf') routeRoomState(Room.state);
+    }, 400);
+  });
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfe3f2);
@@ -115495,7 +115949,9 @@ function bankBarHtml(c) {
     const to = g.debt.to === 'bank' ? bankT('bank_the_bank') : g.debt.to === 'each' ? bankT('bank_everyone') : (c.names[g.debt.to] || '');
     line = bankT('bank_you_owe', { n: bankFmt(g.debt.amount), to: to });
     sub = (g.cash[c.me] || 0) < g.debt.amount ? bankT('bank_raise_hint') : '';
-    buttons = btn(bankT('bank_pay'), 'payDebt', null, 'primary', (g.cash[c.me] || 0) < g.debt.amount) + btn(bankT('bank_bankrupt'), 'bankrupt', null, 'danger');
+    // Bankrupt only when nothing can cover the debt (the server refuses it otherwise).
+    buttons = btn(bankT('bank_pay'), 'payDebt', null, 'primary', (g.cash[c.me] || 0) < g.debt.amount) +
+      (bankLiquid(g, c.me) < g.debt.amount ? btn(bankT('bank_bankrupt'), 'bankrupt', null, 'danger') : '');
   } else if (tn.stage === 'act') {
     line = bankT('bank_your_turn');
     sub = bankCanBuyYet(g, c.me) ? bankT('bank_act_hint') : bankT('bank_first_lap_hint');
@@ -115770,9 +116226,22 @@ function bankSendOffer() {
     give: { cash: tr.give.cash, sqs: tr.give.sqs.slice(), cards: cardsOf(me, tr.give.cards) },
     get: { cash: tr.get.cash, sqs: tr.get.sqs.slice(), cards: cardsOf(tr.to, tr.get.cards) }
   };
-  bankDo('offer', payload);
+  // Close the panel before sending, so a game against the phone (which paints
+  // straight away) draws the table without it.
+  const saved = JSON.parse(JSON.stringify(tr));
   bankUi.panel = null;
   bankResetTrade();
+  bankDo('offer', payload);
+  // Against the phone a refused offer leaves none waiting: give back what was
+  // composed, so the player can fix it instead of starting over.
+  if (appState.currentView === 'play-bank') {
+    const g2 = bankState().g;
+    if (!(g2 && g2.offer && g2.offer.from === 'me')) {
+      bankUi.trade = saved;
+      bankUi.panel = 'trade';
+      bankRepaint();
+    }
+  }
 }
 
 /** The game on screen and who "me" is in it: a game against the phone, or a room. */
@@ -117529,8 +117998,16 @@ const motionSeen = new Set();
 
 /** True the first time `key` is drawn on this phone with motion on. */
 function motionFirst(key) {
-  if (motionOff() || motionSeen.has(key)) return false;
-  if (motionSeen.size > 300) motionSeen.clear();
+  if (motionSeen.has(key)) {
+    // Drawn again: it is in use, so it moves to the newest end.
+    motionSeen.delete(key);
+    motionSeen.add(key);
+    return false;
+  }
+  if (motionOff()) return false;
+  // Forget the oldest key only (a Set keeps insertion order): clearing them all
+  // would also forget the reveal on screen, and its next redraw would replay it.
+  if (motionSeen.size >= 300) motionSeen.delete(motionSeen.values().next().value);
   motionSeen.add(key);
   return true;
 }

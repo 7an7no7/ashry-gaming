@@ -137,6 +137,11 @@ function armStopClock() {
   stopClock = createClock({
     seconds: left,
     onTick: (v) => {
+      // A sheet over the round (Help, leave this game?) pauses this clock; the
+      // saved deadline follows it, or a reload afterwards would cut the round
+      // short. Only a real gap moves it (a tick is late by a few ms anyway).
+      const due = Date.now() + v * 1000;
+      if (s.phase === 'play' && s.endsAt && Math.abs(due - s.endsAt) > 1500) { s.endsAt = due; saveToLocal(); }
       const el = document.getElementById('stop-clock');
       if (el) { el.textContent = v; el.classList.toggle('is-low', v <= 10); }
       if (v <= 5 && v > 0) playSound('tick');
@@ -324,6 +329,17 @@ function replayStop() {
   s.totals = {};
   s.players.forEach(p => { s.totals[p] = 0; });
   nextStopLetter();
+}
+
+// The round and the scoring table are built in JS: redraw them in the new
+// language (nothing typed lives on them, so a redraw loses nothing).
+if (typeof onLanguageChange === 'function') {
+  onLanguageChange((view) => {
+    if (view !== 'play-stop') return;
+    const s = stopState();
+    if (s.phase === 'play') paintStopPlay();
+    else if (s.phase === 'score' || s.phase === 'done') paintStopScore();
+  });
 }
 
 /** After a reload: the round, the scoring table or the result, as it was. */

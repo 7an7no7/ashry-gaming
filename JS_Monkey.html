@@ -330,7 +330,8 @@
   /** The current player says the letter before theirs leads nowhere. */
   function liarButton() {
     const m = monkeyState();
-    if (m.config.mode !== 'letters') return;
+    // A finished game (a reload on it brings the result back) takes no more quarters.
+    if (m.phase === 'done' || m.config.mode !== 'letters') return;
     if (!m.letters.length) { showToast(TRANSLATIONS[appState.lang].mk_no_letters || ''); return; }
     const last = m.letters[m.letters.length - 1];
     const author = monkeyPlayerByRow(last.by) || monkeyPlayer();
@@ -375,6 +376,16 @@
     v.loser = other.name;
     v.kind = 'flipped';
     haptic('light');
+    // In play (not from the winner popup, which moves the turn itself): the
+    // quarter may have made a monkey, announced like any other, and a monkey
+    // can't hold the turn - after a right liar call it is the caller's turn.
+    if (m.phase === 'play') {
+      if (monkeyMaybeMonkey(other)) return;
+      const up = monkeyPlayer();
+      if (up && up.isMonkey) { nextTurn(); return; }
+      renderMonkeyBoard();
+      return;
+    }
     checkWinCondition();
     renderMonkeyBoard();
   }
@@ -394,6 +405,7 @@
   /* --- chain and names --------------------------------------------------------- */
   function monkeySubmitName() {
     const m = monkeyState();
+    if (m.phase === 'done') return;
     const t = TRANSLATIONS[appState.lang];
     const input = document.getElementById('monkey-name-input');
     const text = (input && input.value || '').trim();
@@ -483,6 +495,7 @@
 
   function monkeyGiveUp() {
     const m = monkeyState();
+    if (m.phase === 'done') return;
     const p = monkeyPlayer();
     if (!p) return;
     monkeySnapshot();
@@ -529,7 +542,8 @@
     return Math.max(1, Math.min(Number(m.config.winners) || 1, m.players.length - 1));
   }
 
-  function checkWinCondition() {
+  /** `quiet`: showing an ended game again after a reload, with no fanfare. */
+  function checkWinCondition(quiet) {
     const m = monkeyState();
     const total = m.players.length;
     const monkeys = m.players.filter(p => p.isMonkey).length;
@@ -539,8 +553,10 @@
 
     stopTimer();
     m.phase = 'done';
-    playSound('success');
-    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    if (quiet !== true) {
+      playSound('success');
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    }
     const t = TRANSLATIONS[appState.lang];
     const winners = m.players.filter(p => !p.isMonkey).map(p => p.name);
     const stagesMap = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];

@@ -41,6 +41,10 @@ const Room = (() => {
   // When each projection reached this phone, beside the server's time on it (serverNow): the
   // two together are the network's delay, whenever the screen gets round to drawing it.
   const arrived = (s) => { if (s && typeof s === 'object') s.receivedAt = Date.now(); return s; };
+  // An HTTP answer can land after the socket (opened meanwhile) already brought
+  // something newer: never step back to an older version of the same room.
+  const notOlder = (s) => !state || !s || state.code !== s.code ||
+    typeof s.version !== 'number' || typeof state.version !== 'number' || s.version >= state.version;
   let heardAt = 0;         // when the server last answered, over either path
   let listeners = [];
   let liveListeners = [];
@@ -422,7 +426,7 @@ const Room = (() => {
             throw new Error(res.gone ? DROPPED.gone : DROPPED.kicked);
           }
           if (!res.ok) throw new Error(res.error || 'تعذر تنفيذ الإجراء');
-          if (res.state && session) { state = arrived(res.state); emit(false); }
+          if (res.state && session && notOlder(res.state)) { state = arrived(res.state); emit(false); }
           connect();
           return state;
         });
@@ -466,8 +470,10 @@ const Room = (() => {
           remember();
           return false;
         }
-        state = arrived(res.state);
-        emit(true);
+        if (notOlder(res.state)) {
+          state = arrived(res.state);
+          emit(true);
+        }
         connect();
         return true;
       } catch (err) {

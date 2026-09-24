@@ -72,7 +72,12 @@ function minesLay(s, safe, rnd) {
   s.mines = soloShuffle(cells, rnd).slice(0, s.count).sort((a, b) => a - b);
 }
 
-function startMines(daily) {
+// A minefield with cells opened: a new one asks first (soloConfirmNew), as
+// Queens and Tango do. An untouched one (phase 'ready') just goes.
+const minesHasWork = (s) => (s.open || []).some(Boolean);
+
+function startMines(daily, sure) {
+  if (!sure && soloConfirmNew('mines', minesHasWork, () => startMines(daily, true))) return;
   if (daily && soloDailyResume('mines')) return;
   soloDailySetAside('mines');
   soloNewGame('mines');

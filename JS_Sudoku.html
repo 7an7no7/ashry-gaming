@@ -190,7 +190,11 @@ function setSudokuLevel(level) {
   paintSudokuSetup();
 }
 
-function startSudoku(daily) {
+// A grid with numbers or notes in it: a new one asks first (soloConfirmNew).
+const sudokuHasWork = (s) => s.cells !== s.puzzle || (s.notes || []).some(Boolean);
+
+function startSudoku(daily, sure) {
+  if (!sure && soloConfirmNew('sudoku', sudokuHasWork, () => startSudoku(daily, true))) return;
   if (daily && soloDailyResume('sudoku')) return;
   soloDailySetAside('sudoku');
   soloNewGame('sudoku');

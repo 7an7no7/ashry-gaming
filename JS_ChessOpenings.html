@@ -184,6 +184,11 @@ const CH_OPENINGS = [
 ];
 
 let CH_OPENING_BY_POS = null;
+// The longest line in the book, in plies: past it (and a small margin for a transposition that
+// lost a tempo) no position can be in the book, so a long game isn't replayed on every paint.
+let CH_OPENING_MAX = 0;
+// Matches already worked out, by the moves looked at (a paint happens on every piece picked up).
+const CH_OPENING_CACHE = new Map();
 
 function chInitOpenings() {
   if (CH_OPENING_BY_POS) return;
@@ -199,6 +204,7 @@ function chInitOpenings() {
       chessPlay(g, mv);
     }
     if (legal) {
+      CH_OPENING_MAX = Math.max(CH_OPENING_MAX, moves.length);
       CH_OPENING_BY_POS.set(chessPlacement(g.board), {
         ar: op.ar,
         en: op.en,
@@ -236,20 +242,30 @@ function chOpeningMatch(sans, opts) {
   const o = opts || {};
   if (o.variant === '960' || (o.start && o.start !== CHESS_START_FEN)) return null;
   chInitOpenings();
-  const g = chessNew();
   const limit = typeof o.limit === 'number' ? Math.min(o.limit, sans.length) : sans.length;
-  let deepest = null;
-  let lastPly = 0;
-  for (let ply = 0; ply < limit; ply++) {
-    const mv = chFindSan(g, sans[ply]);
-    if (!mv) break;
-    chessPlay(g, mv);
-    const placement = chessPlacement(g.board);
-    if (CH_OPENING_BY_POS.has(placement)) {
-      deepest = CH_OPENING_BY_POS.get(placement);
-      lastPly = ply + 1;
+  const upTo = Math.min(limit, CH_OPENING_MAX + 2);
+  const key = sans.slice(0, upTo).join(' ');
+  let hit = CH_OPENING_CACHE.get(key);
+  if (!hit) {
+    const g = chessNew();
+    let deepest = null;
+    let lastPly = 0;
+    for (let ply = 0; ply < upTo; ply++) {
+      const mv = chFindSan(g, sans[ply]);
+      if (!mv) break;
+      chessPlay(g, mv);
+      const placement = chessPlacement(g.board);
+      if (CH_OPENING_BY_POS.has(placement)) {
+        deepest = CH_OPENING_BY_POS.get(placement);
+        lastPly = ply + 1;
+      }
     }
+    hit = { deepest: deepest, lastPly: lastPly };
+    if (CH_OPENING_CACHE.size > 200) CH_OPENING_CACHE.clear();
+    CH_OPENING_CACHE.set(key, hit);
   }
+  const deepest = hit.deepest;
+  const lastPly = hit.lastPly;
   if (!deepest) return null;
   const curLang = (typeof appState !== 'undefined' && appState.lang) || 'ar';
   return {

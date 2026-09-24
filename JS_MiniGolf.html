@@ -153,11 +153,16 @@ function mg3Mount(host) {
     }).catch(() => false).then(ok => { MG3.loading = null; return ok; });
   }
   return MG3.loading.then(ok => {
+    if (!ok) return false;
     // The screen may have closed while three.js loaded: then the course lets go at once, rather than
     // drawing into a hidden view until the next visit.
-    if (ok && (!host.isConnected || !mgOnCourseScreen(appState.currentView))) { mg3Dispose(); return false; }
-    if (ok) mg3Attach(host);
-    return ok;
+    if (!mgOnCourseScreen(appState.currentView)) { mg3Dispose(); return false; }
+    // A host left behind by a frame rebuilt meanwhile: the newer host waits on the same load and
+    // mounts it, so this one must not dispose the engine under it.
+    if (!host.isConnected) return false;
+    if (!mg3Ready()) return mg3Mount(host);
+    mg3Attach(host);
+    return true;
   });
 }
 
@@ -176,7 +181,19 @@ function mg3Create() {
   renderer.toneMappingExposure = 1.05;
   MG3.renderer = renderer;
   MG3.canvas = canvas;
-  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); mg3Dispose(); });
+  // The GPU took the context back (a phone short of memory, iOS in the background): build the course
+  // again where one is showing. Only for the canvas in use - mg3Dispose loses its own context on
+  // purpose, and that event arrives later, maybe after a new engine was built (bowling's trap).
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    if (MG3.canvas !== canvas) return;
+    mg3Dispose();
+    setTimeout(() => {
+      if (mg3Ready()) return;
+      if (appState.currentView === 'play-minigolf') mgSoloPaint();
+      else if (mgOnCourseScreen(appState.currentView) && Room.state && Room.state.game === 'minigolf') routeRoomState(Room.state);
+    }, 400);
+  });
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfe3f2);

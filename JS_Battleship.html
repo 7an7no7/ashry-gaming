@@ -1651,7 +1651,7 @@ function bsWireInput(root) {
       const i = bsOccupancy(fleet)[p.cell] - 1;
       if (i >= 0) {
         const cells = bsShipCells(fleet[i], BS_SHIPS[i].len);
-        press.drag = { i: i, k: Math.max(0, cells.indexOf(p.cell)), from: fleet[i], pos: fleet[i], ok: true };
+        press.drag = { side: m.input.side, i: i, k: Math.max(0, cells.indexOf(p.cell)), from: fleet[i], pos: fleet[i], ok: true };
         try { root.setPointerCapture(e.pointerId); } catch (x) {}
         e.preventDefault();
       }
@@ -1663,6 +1663,8 @@ function bsWireInput(root) {
     const d = press.drag;
     const m = bsView.model, r = bsView.r;
     if (!d || !press.moved || !m || !r || !m.input) return;
+    // Placing ended under the finger (the 90 s clock, the host's "play for"): nothing more to move.
+    if (m.input.mode !== 'place' || m.input.side !== d.side) return;
     const p = r.pick(e.clientX, e.clientY);
     if (!p || p.side !== m.input.side) return;
     const len = BS_SHIPS[d.i].len, dir = d.from.d;
@@ -1679,11 +1681,14 @@ function bsWireInput(root) {
     const pr = press;
     press = null;
     const m = bsView.model, r = bsView.r;
+    const d = pr.drag;
+    // A drag always lets go of its ghost, even when placing ended while it was held: left set, the
+    // ghost stayed on the sea and the loop drew every frame for the rest of the game.
+    if (d && r) r.endDrag(d.side, d.i);
     if (!m || !r || !m.input) return;
     const side = m.input.side;
-    const d = pr.drag;
     if (d) {
-      r.endDrag(side, d.i);
+      if (m.input.mode !== 'place' || side !== d.side) return;
       if (cancel) { r.settleShip(side, d.i, d.from); return; }
       if (!pr.moved) { bsTurnShip(m, d.i); return; }
       if (d.ok && (d.pos.x !== d.from.x || d.pos.y !== d.from.y)) {
@@ -2491,7 +2496,7 @@ ROOM_GAMES.battleship = {
       scores: [0, 1].map(k => bsScoreShown((s.scores || {})[s.seats[k]], k, s.last, flying, s.phase === 'over'))
     });
     if (myTurn && !flying && duelOnce(['bs-turn', state.code, s.round, s.turnSeq].join('|'))) haptic('medium');
-    if (s.phase === 'over' && !flying) duelRoomCheer(el, state, ['bs', state.code, s.round].join('|'));
+    if (s.phase === 'over' && !flying) duelRoomCheer(el, state, ['bs', roomDealKey(state), s.round].join('|'));
   },
   // A shot is not a new step to scroll to; placing, playing and the end of a game are.
   actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
@@ -2546,7 +2551,7 @@ TV_GAMES.battleship = {
       turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1,
       scores: [0, 1].map(k => bsScoreShown((s.scores || {})[s.seats[k]], k, s.last, flying, s.phase === 'over'))
     });
-    if (s.phase === 'over' && !flying) duelRoomCheer(view, state, ['bs', state.code, s.round].join('|'));
+    if (s.phase === 'over' && !flying) duelRoomCheer(view, state, ['bs', roomDealKey(state), s.round].join('|'));
   }
 };
 </script>

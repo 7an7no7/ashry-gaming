@@ -603,7 +603,7 @@ function svStopClock() {
   svRoom.clock = null;
   svRoom.clockKey = null;
 }
-onRoomClocksReset(() => { svStopClock(); });
+onRoomClocksReset(() => { svStopClock(); roomQuietStop(svRoom); svRoom.sinceKey = ''; });
 
 function svTickClock(state) {
   const s = state.shared || {};
@@ -637,7 +637,11 @@ function svHostButtons(state) {
   const s = state.shared || {};
   if (!state.youAreHost) return [];
   const key = [state.code, s.round, s.phase].join('|');
-  if (svRoom.sinceKey !== key) { svRoom.sinceKey = key; svRoom.since = Date.now(); }
+  if (svRoom.sinceKey !== key) {
+    svRoom.sinceKey = key; svRoom.since = Date.now();
+    // The 40 s below come round with nothing pushed: a redraw for them (roomQuietRedraw, JS_Hangman.html).
+    if (s.phase === 'setting') roomQuietRedraw(svRoom, state.game); else roomQuietStop(svRoom);
+  }
   if (s.phase === 'solving') return [['⏹️ ' + svT('sv_close_round'), `roomAct('closeRound', { round: ${svRound(s)} })`]];
   if (s.phase === 'setting' && s.setter !== Room.me) {
     const p = (state.players || []).find(x => x.id === s.setter);

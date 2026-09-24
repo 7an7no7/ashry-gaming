@@ -1438,7 +1438,10 @@ function unoPlay(root, state, list, delay, handWas) {
       }
       case 'play': {
         const from = mineIn(A) && e.card ? 'card:' + e.card.i : seatKey(A);
-        unoHold(root, 'pile');
+        // The pile goes blank only once this card is on its way: held from the start of a batch, it
+        // was empty through the earlier moves a screen that fell behind still had to play.
+        // (At once when it is the first thing to play, so the new top never shows for a frame.)
+        if (t > 0) at(t, () => unoHold(root, 'pile')); else unoHold(root, 'pile');
         const spin = ((Number(e.card && e.card.i) * 53) % 30) - 15;
         if (e.jump) at(t, () => unoPop(root, seatKey(A), '⚡', { big: true }));
         at(t, () => unoFly(root, from, 'pile', e.card && e.card.k, { arc: 34, spin: spin, duration: 460, color: e.color, hold: ['pile'], width: tv ? 80 : 56 }));

@@ -34,7 +34,7 @@ const OM_OPTS_KEY = 'oldmaid';
 const OM_OPTS_DEFAULT = { mode: 'drag', turnClock: 0 };
 const OM_CLOCK_CHOICES = [0, 15, 30];
 
-const omLocal = { clock: null, clockKey: null, turnMine: false, handInView: '', shownHand: null, shownKey: '', moveSeq: 0, pending: 0, drag: null, lifting: null };
+const omLocal = { clock: null, clockKey: null, turnMine: false, handInView: '', shownHand: null, shownKey: '', moveSeq: 0, moveKey: '', pending: 0, drag: null, lifting: null };
 const omFx = Object.assign(pcFx(), { tvSig: '', tvEnding: false, tvState: null });
 
 /* --- the host's options --------------------------------------------------------- */
@@ -370,8 +370,13 @@ function omLive(root, state, rebuilt) {
   const aim = s.phase === 'play' && s.aim ? s.aim.pos : -1;
   const backs = root.querySelector('.om-backs');
   // A back that moved: from its old place to its new one, sliding (the drawer sees the hand move).
+  // Counted per deal: a new game from the hub starts its events at 1 again, and a count carried
+  // over from the last game hid every move of the new one.
+  const topSeq = (s.events || []).reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
+  const dealKey = roomDealKey(state);
+  if (omLocal.moveKey !== dealKey) { omLocal.moveKey = dealKey; omLocal.moveSeq = topSeq; }
   const moves = (s.events || []).filter(e => e && e.type === 'move' && (Number(e.seq) || 0) > omLocal.moveSeq);
-  omLocal.moveSeq = Math.max(omLocal.moveSeq, (s.events || []).reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0));
+  omLocal.moveSeq = Math.max(omLocal.moveSeq, topSeq);
   if (backs && !rebuilt && s.turn) {
     moves.filter(e => e.pid === s.turn.from).forEach(e => {
       const kids = Array.from(backs.children);

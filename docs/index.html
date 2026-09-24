@@ -106,7 +106,7 @@
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260924203814";
+      window.BUILD_ID = "20260924211651";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -13930,15 +13930,18 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 :root {
   /* The best-move arrows' colours (green, light green, yellow), the same as on the board. */
   --ch-best-0: rgba(22, 163, 74, 0.9); --ch-best-1: rgba(110, 231, 150, 0.9); --ch-best-2: rgba(250, 204, 21, 0.92);
-  --ch2-w-hi: #fffdf7; --ch2-w-mid: #f1e8d6; --ch2-w-lo: #d4c5a8; --ch2-w-edge: #2c2620; --ch2-w-line: #2c2620;
-  --ch2-b-hi: #5e5953; --ch2-b-mid: #37332f; --ch2-b-lo: #1c1a18; --ch2-b-edge: #0c0b0a; --ch2-b-line: #d8cfc1;
+  /* White near-white with a charcoal outline, Black near-black with a lighter rim inside its outline
+     (the owner, 24 Sep 2026: "like chess.com"). */
+  --ch2-w-hi: #ffffff; --ch2-w-mid: #f6f4ef; --ch2-w-lo: #d6d0c5; --ch2-w-edge: #262421; --ch2-w-line: #262421;
+  --ch2-b-hi: #5b5752; --ch2-b-mid: #2f2c29; --ch2-b-lo: #161514; --ch2-b-edge: #050505; --ch2-b-line: #bdb6ac;
+  --ch2-b-rim: rgba(255, 255, 255, 0.3);
   /* The board's own colours: «أخضر» by default, the other three below. */
   --ch2-light: #eeeed2; --ch2-dark: #769656;
   --ch2-light-img: none; --ch2-dark-img: none;
   --ch2-last: rgba(255, 255, 51, 0.5);
   --ch2-sel: rgba(255, 255, 51, 0.62);
-  --ch2-hint: rgba(0, 0, 0, 0.15);
-  --ch2-hover: rgba(255, 255, 255, 0.75);
+  --ch2-hint: rgba(0, 0, 0, 0.14);
+  --ch2-hover: rgba(255, 255, 255, 0.72);
   --ch2-check: rgba(236, 34, 24, 0.95);
   /* Arrows and marks drawn by hand (green, as on every chess site). */
   --ch2-anno: rgba(21, 128, 61, 0.82);
@@ -13986,16 +13989,21 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 .ch2-sq.is-danger::after { box-shadow: inset 0 0 0 0.45cqw rgba(239, 68, 68, 0.95); }
 .ch2-sq.is-chance::after { box-shadow: inset 0 0 0 0.45cqw rgba(34, 197, 94, 0.95); }
 .ch2-sq.is-anno::after { box-shadow: inset 0 0 0 0.7cqw var(--ch2-anno); border-radius: 50%; }
-.ch2-sq.is-hover::after { box-shadow: inset 0 0 0 0.6cqw var(--ch2-hover); }
-.ch2-dot { position: absolute; z-index: 1; width: 33%; height: 33%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
+.ch2-sq.is-hover::after { box-shadow: inset 0 0 0 0.55cqw var(--ch2-hover); }
+/* A mouse over a square on your move: the same subtle white inner outline as a piece dragged over it. */
+@media (hover: hover) and (pointer: fine) {
+  .ch-view.is-live .ch2-sq:hover::after { box-shadow: inset 0 0 0 0.45cqw var(--ch2-hover); }
+}
+.ch2-dot { position: absolute; z-index: 1; width: 30%; height: 30%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
 /* الوزير المستخبي: its gold crown in the square's corner, over the pawn (the pieces' layer is z-index 2), on its owner's board only. */
 .ch2-sq.is-hq::after { box-shadow: inset 0 0 0 0.5cqmin rgba(234, 179, 8, 0.95); background: radial-gradient(circle, rgba(250, 204, 21, 0.28), rgba(250, 204, 21, 0) 70%); }
 .ch2-hq { position: absolute; z-index: 3; top: 2%; inset-inline-end: 4%; font-size: 4cqmin; line-height: 1; font-style: normal; pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
 .ch2-board.is-mini .ch2-hq { display: none; }
-.ch2-cap { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 79%, var(--ch2-hint) 81% 100%, transparent 101%); pointer-events: none; }
-.ch2-co { position: absolute; z-index: 1; font-style: normal; font-size: 2.5cqw; font-weight: var(--fw-bold); line-height: 1; pointer-events: none; direction: ltr; }
-.ch2-co--r { top: 0.45cqw; left: 0.55cqw; }
-.ch2-co--f { bottom: 0.35cqw; right: 0.6cqw; }
+.ch2-cap { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 77%, var(--ch2-hint) 79% 100%, transparent 101%); pointer-events: none; }
+/* The coordinates, bold, in the edge squares' corners in the other square's colour (as chess.com). */
+.ch2-co { position: absolute; z-index: 1; font-style: normal; font-size: 2.9cqw; font-weight: 800; line-height: 1; pointer-events: none; direction: ltr; }
+.ch2-co--r { top: 0.4cqw; left: 0.5cqw; }
+.ch2-co--f { bottom: 0.3cqw; right: 0.55cqw; }
 .ch2-sq.is-l .ch2-co { color: var(--ch2-dark); }
 .ch2-sq.is-d .ch2-co { color: var(--ch2-light); }
 .ch2-pcs { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
@@ -14011,7 +14019,7 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 .ch2-pc.is-moving { z-index: 2; }
 .ch2-pc.is-taken { z-index: 0; }
 .ch2-pc.is-drag { z-index: 4; }
-.ch2-pc.is-drag > .ch-svg { transform: scale(1.14) translateY(-4%); filter: drop-shadow(0 0.35rem 0.3rem rgba(0, 0, 0, 0.35)); }
+.ch2-pc.is-drag > .ch-svg { transform: scale(1.18) translateY(-5%); filter: drop-shadow(0 0.45rem 0.35rem rgba(0, 0, 0, 0.38)); }
 .ch2-pc.is-mated > .ch-svg { transform: rotate(-18deg) translateY(4%); filter: grayscale(0.4); transition: transform 700ms var(--ease-spring), filter 700ms; }
 .ch2-arrows { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
 .ch2-board.is-mini { border-radius: 0.4vmin; box-shadow: none; }
@@ -14037,6 +14045,26 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 }
 .ch-tool:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .ch-tool.is-on { background: var(--accent-soft); border-color: var(--accent); }
+/* «2D | 3D»: a small segmented switch in the board's row of buttons (none where 3D can't draw). */
+.ch-seg { display: inline-flex; padding: 0.15rem; gap: 0.1rem; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-solid); box-shadow: var(--sh-1); direction: ltr; }
+.ch-seg__item {
+  min-width: 2.35rem;
+  height: 2.2rem;
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: calc(var(--r-sm) - 0.15rem);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+.ch-seg__item.is-active { background: var(--accent); color: var(--accent-on); }
+.ch-seg__item:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.ch-view.is-3d .ch-seg { background: color-mix(in srgb, var(--surface-solid) 86%, transparent); }
+/* The premove switch in the board's ⚙. */
+.ch-lookpop__switch { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); font-size: var(--fs-sm); font-weight: var(--fw-bold); gap: var(--sp-3); }
 /* The 3D board: two fingers turn and zoom it, so the page doesn't take them for a scroll. */
 .ch-view.is-3d { touch-action: none; }
 .ch-view.is-3d .ch-tool { background: color-mix(in srgb, var(--surface-solid) 86%, transparent); }
@@ -14053,6 +14081,7 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 }
 .ch-lookpop[hidden] { display: none; }
 .ch-lookpop__title { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+.ch-view-seg { margin-bottom: var(--sp-3); }
 .ch-swatches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); }
 .ch-swatch {
   display: flex;
@@ -14081,6 +14110,7 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 @container chview (min-aspect-ratio: 5 / 4) {
   .ch-view:not(.is-tv) .ch-flat { inset: 0; inset-inline-end: 3.1rem; }
   .ch-tools { flex-direction: column; }
+  .ch-seg { flex-direction: column; }
   .ch-lookpop { top: 0.2rem; inset-inline-end: 3.1rem; }
 }
 
@@ -14446,7 +14476,35 @@ input.ch-elo[type="range"]:focus-visible { outline: 3px solid var(--accent); out
   .ch-stage--tv { height: 60vh; }
 }
 
+/* --- Looking back at the moves: ⏮ ◀ ▶ ⏭ under the board, the line over it, the board quiet --- */
+.ch-browse-slot:empty { display: none; }
+.ch-browse { display: flex; justify-content: center; gap: var(--sp-2); }
+.ch-browse__btn { min-width: 3rem; font-size: var(--fs-h3); }
+.ch-browse-note {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: var(--sp-2) auto 0;
+  padding: 0.3rem var(--sp-3);
+  border-radius: var(--r-full);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  text-align: center;
+  cursor: pointer;
+}
+.ch-browse-note u { text-underline-offset: 0.2em; }
+.ch-browse-note.is-pulse { animation: chBrowsePulse 1.3s var(--ease-out) infinite; }
+@keyframes chBrowsePulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 60% { box-shadow: 0 0 0 0.45rem color-mix(in srgb, var(--accent) 0%, transparent); } }
+/* The board while an earlier move is shown: a frame in the screen's colour, so it isn't taken for the game. */
+.ch-view.is-browse .ch2-board { box-shadow: 0 0 0 0.2rem var(--accent), 0 0.2rem 0.9rem rgba(20, 14, 6, 0.28); }
+.ch-view.is-browse.is-3d { box-shadow: inset 0 0 0 0.2rem var(--accent); border-radius: var(--r-xl); }
+
 @media (prefers-reduced-motion: reduce) {
+  .ch-browse-note.is-pulse { animation: none; text-decoration: underline; }
   .ch-loading span { animation: none; }
   .ch2-pc > .ch-svg { transition: none; }
   .ch-progress__bar { transition: none; }
@@ -30559,6 +30617,13 @@ const CHESS_PUZZLES = [
                 <button type="button" class="segmented__item" data-value="none" onclick="setShatranjOption('helpLimit', 'none')" data-i18n="ch_help_none">ممنوع</button>
               </div>
             </div>
+            <div class="field" id="shatranj-premove-field">
+              <label class="switch-row" for="shatranj-premove">
+                <span class="field__label">⏩ <span data-i18n="ch_premove_label">الحركات المسبقة</span></span>
+                <span class="switch"><input type="checkbox" id="shatranj-premove" role="switch" checked onchange="chLookSet({ premove: this.checked })"><span class="switch__track" aria-hidden="true"></span></span>
+              </label>
+              <p class="field__hint" data-i18n="ch_premove_hint">وهو بيفكر تقدر تجهّز نقلتك الجاية، وتتلعب أول ما ييجي دورك. وفي الغرفة كمان.</p>
+            </div>
             <div class="field" id="shatranj-coach-field">
               <label class="switch-row" for="shatranj-coach">
                 <span class="field__label">🎓 <span data-i18n="ch_coach_label">المدرب</span></span>
@@ -30578,6 +30643,10 @@ const CHESS_PUZZLES = [
             </div>
             <div class="field" id="shatranj-look-field">
               <label class="field__label" data-i18n="ch_look_label">شكل الرقعة</label>
+              <div class="segmented ch-view-seg" id="shatranj-view" role="group">
+                <button type="button" class="segmented__item is-active" data-value="2d" onclick="chViewSet('2d')">2D</button>
+                <button type="button" class="segmented__item" data-value="3d" onclick="chViewSet('3d')">3D</button>
+              </div>
               <div class="ch-swatches ch-swatches--setup" id="shatranj-looks" role="group"></div>
             </div>
             <div class="field hidden" id="shatranj-names-field">
@@ -35039,6 +35108,16 @@ const CHESS_PUZZLES = [
       ch_cam_reset: "رجّع الكاميرا",
       ch_pen: "ارسم أسهم وعلامات",
       ch_pen_clear: "امسح الأسهم",
+      ch_premove_label: "الحركات المسبقة",
+      ch_premove_hint: "وهو بيفكر تقدر تجهّز نقلتك الجاية، وتتلعب أول ما ييجي دورك. وفي الغرفة كمان.",
+      ch_browse_label: "النقلات اللي فاتت",
+      ch_browse_first: "أول الدور",
+      ch_browse_back: "نقلة لورا",
+      ch_browse_next: "نقلة لقدام",
+      ch_browse_live: "ارجع للعبة",
+      ch_browse_start: "بتتفرج على أول الدور",
+      ch_browse_at: "بتتفرج على الحركة {n}",
+      ch_browse_return: "ارجع للعبة",
       ch_share: "ابعت الدور",
       ch_share_pic: "صورة",
       ch_share_video: "فيديو",
@@ -38450,6 +38529,16 @@ const CHESS_PUZZLES = [
       ch_cam_reset: "Reset the view",
       ch_pen: "Draw arrows and marks",
       ch_pen_clear: "Clear the arrows",
+      ch_premove_label: "Premoves",
+      ch_premove_hint: "While the other side thinks, queue your next move; it is played the moment it is your turn. In rooms too.",
+      ch_browse_label: "Earlier moves",
+      ch_browse_first: "The start",
+      ch_browse_back: "One move back",
+      ch_browse_next: "One move on",
+      ch_browse_live: "Back to the game",
+      ch_browse_start: "Looking at the start",
+      ch_browse_at: "Looking at move {n}",
+      ch_browse_return: "back to the game",
       ch_share: "Send the game",
       ch_share_pic: "Picture",
       ch_share_video: "Video",
@@ -43672,8 +43761,8 @@ const GAME_RULES = {
                 <li>اختار خصمك من <b>6 شخصيات</b>: نونو (400) لسه بيتعلّم، عم حسن (800) بيحب الهجوم على الملك، ميرا (1100) هادية وبتبدّل، الكابتن (1400) متوازن، الأستاذ (1700) دقيق، والجنرال (2000) أقواهم. تحتهم اقتراح على قد تقييمك.</li>
                 <li>أو <b>مخصص</b>: اختار قوته من <b>400 لـ 2000</b>: عند 400 بيسيب حجارته تتاكل وبيغلط زي المبتدئ، وكل ما الرقم يعلى بيفكر أعمق وبيغلط أقل، وعند 2000 بيلعب زي خبير. اختيارك بيتحفظ على موبايلك.</li>
                 <li>اختار تلعب بالأبيض أو الأسود أو عشوائي؛ حجارتك دايماً تحت.</li>
-                <li><b>نقلة مقدّمة</b>: وهو بيفكر، تقدر تختار نقلتك الجاية (حجر ومربع)، تبان بسهم أزرق، وتتلعب أول ما ييجي دورك لو لسه ممكنة؛ لو مش ممكنة الحجر بيتهز وتختار تاني. أي لمسة تانية على الرقعة بتلغيها. ونفس الكلام في الغرفة على موبايلك.</li>
-                <li><b>↶ تراجع</b> بيرجّع نقلتك ونقلة الكمبيوتر، و<b>💡 تلميح</b> بيوريك أحسن نقلة بسهم على الرقعة وليه. تختار قبل ما تبدأ: <b>بلا حدود</b> أو <b>3</b> من كل واحد في الدور أو <b>ممنوع</b>.</li>
+                <li><b>نقلة مقدّمة</b>: وهو بيفكر، تقدر تختار نقلتك الجاية (حجر ومربع)، تبان بسهم أزرق، وتتلعب أول ما ييجي دورك لو لسه ممكنة؛ لو مش ممكنة الحجر بيتهز وتختار تاني. أي لمسة تانية على الرقعة بتلغيها. ونفس الكلام في الغرفة على موبايلك. تقدر تقفلها من صفحة الشطرنج أو من ⚙ على الرقعة (<b>الحركات المسبقة</b>).</li>
+                <li><b>↶ تراجع</b> بيرجّع نقلتك ونقلة الكمبيوتر، و<b>💡 تلميح</b> بيوريك أحسن نقلة بسهم على الرقعة وليه. تختار قبل ما تبدأ: <b>بلا حدود</b> أو <b>3</b> من كل واحد في الدور أو <b>ممنوع</b> (ساعتها الزرارين مش بيظهروا خالص).</li>
                 <li><b>تقييمك</b> بيبدأ من 800 وبيطلع وينزل على حسب قوة الكمبيوتر اللي كسبته أو خسرت منه. بيتحسب بس الماتش اللي من غير أي مساعدة (التراجع والتلميح ممنوعين وتنبيه المدرب مقفول، ومش من وضع مخصوص)، وصفحة الشطرنج بتقولك قبل ما تبدأ. لو سبت ماتش محسوب وبدأت غيره، أو استسلمت، بيتحسب خسارة.</li>
             </ul>
             <p class="help-sub">👥 اتنين على موبايل</p>
@@ -43687,6 +43776,11 @@ const GAME_RULES = {
                 <li><b>بيعلّم الحجارة اللي في خطر</b> (متهاجمة ومش محمية): الأحمر حجارتك، والأخضر حجارة التاني اللي تقدر تاكلها.</li>
                 <li><b>أفضل الحركات</b> (مقفولة من الأول): في دورك بتظهر أحسن 3 نقلات كأسهم (أخضر، أخضر فاتح، أصفر) وعلى كل سهم فرصة فوزك لو لعبتها، وتحت الرقعة سطر بيقولها. لو فتحتها الماتش مش بيتحسب في تقييمك.</li>
                 <li>تقدر تقفل أي حاجة من دول لوحدها.</li>
+            </ul>
+            <p class="help-sub">👀 الرقعة والنقلات اللي فاتت</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li><b>2D ولا 3D</b>: من الزرار «2D | 3D» فوق الرقعة أو من صفحة الشطرنج (شكل الرقعة)، وموبايلك بيفتكر اختيارك. الـ2D زي مواقع الشطرنج، والـ3D رقعة خشب بحجارة مجسّمة.</li>
+                <li><b>فاتتك نقلة؟</b> ⏮ ◀ ▶ ⏭ تحت الرقعة (أو الأسهم ← → على الكمبيوتر، أو دوس على أي نقلة في القايمة) بيورّوك الرقعة زي ما كانت. ده تفرّج بس: مش بيغيّر الدور ولا الساعة (الساعة شغالة) ولا تقييمك، ومش هتقدر تحرّك وانت بتتفرج. السطر اللي فوق الرقعة أو ⏭ أو لمسة على الرقعة بيرجّعوك للعبة، ولو اتلعبت نقلة وانت بتتفرج السطر بينوّر. شغال ضد الكمبيوتر، واتنين على موبايل، وفي الغرفة للي بيلعبوا واللي بيتفرجوا.</li>
             </ul>
             <p class="help-sub">✏️ الأسهم والعلامات</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -45164,8 +45258,8 @@ const GAME_RULES = {
                 <li>Pick an opponent from <b>6 characters</b>: Nono (400) is just learning, Uncle Hassan (800) loves attacking the king, Mira (1100) is solid and trades, The Captain (1400) is balanced, The Professor (1700) is precise, and The General (2000) is the strongest. Under them, a suggestion for your rating.</li>
                 <li>Or <b>Custom</b>: pick its rating from <b>400 to 2000</b>: at 400 it leaves pieces hanging and slips like a beginner; the higher, the deeper it thinks and the less it slips; at 2000 it plays like an expert. Your choice is remembered.</li>
                 <li>Play White, Black or at random; your pieces are always at the bottom.</li>
-                <li><b>Premove</b>: while it thinks, pick your next move (a piece and a square); it shows as a blue arrow and is played the moment it is your turn, if it is still legal - if not, the piece shakes and you choose again. Any other tap on the board cancels it. The same works in a room, on your own phone.</li>
-                <li><b>↶ Undo</b> takes back your move and the computer's, and <b>💡 Hint</b> shows the best move as an arrow on the board, and why. Choose before you start: <b>unlimited</b>, <b>3</b> of each a game, or <b>none</b>.</li>
+                <li><b>Premove</b>: while it thinks, pick your next move (a piece and a square); it shows as a blue arrow and is played the moment it is your turn, if it is still legal - if not, the piece shakes and you choose again. Any other tap on the board cancels it. The same works in a room, on your own phone. Switch them off on the chess page or in the board's ⚙ (<b>Premoves</b>).</li>
+                <li><b>↶ Undo</b> takes back your move and the computer's, and <b>💡 Hint</b> shows the best move as an arrow on the board, and why. Choose before you start: <b>unlimited</b>, <b>3</b> of each a game, or <b>none</b> (then neither button is shown at all).</li>
                 <li><b>Your rating</b> starts at 800 and moves up or down with the strength of the computer you beat or lose to. Only a game with no help counts (undo and hints set to none, the coach's warning off, not a set-up position), and the chess page tells you before you start. Leaving a rated game for a new one, or resigning, counts as a loss.</li>
             </ul>
             <p class="help-sub">👥 Two on one phone</p>
@@ -45179,6 +45273,11 @@ const GAME_RULES = {
                 <li><b>It marks the pieces in danger</b> (attacked and not defended): red for yours, green for the other side's you could take.</li>
                 <li><b>Best moves</b> (off to start with): on your turn the three best moves show as arrows (green, light green, yellow), each with your chance to win if you play it, and a line under the board names them. With it on, the game doesn't count for your rating.</li>
                 <li>Each of these can be switched off on its own.</li>
+            </ul>
+            <p class="help-sub">👀 The board and earlier moves</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li><b>2D or 3D</b>: the «2D | 3D» switch over the board, or the chess page (Board look); your phone remembers it. 2D is like the chess sites, 3D a wooden board with real pieces.</li>
+                <li><b>Missed a move?</b> ⏮ ◀ ▶ ⏭ under the board (or ← → on a computer, or a tap on any move in the list) show the board as it was. It is only looking: it doesn't change the game, the clock (which keeps running) or your rating, and nothing can be moved while you look. The line over the board, ⏭ or a tap on the board brings you back; if a move is played meanwhile, the line lights up. Against the computer, two on one phone, and in rooms for players and watchers.</li>
             </ul>
             <p class="help-sub">✏️ Arrows and marks</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -101795,43 +101894,70 @@ function chT(key, vars) {
 
 /* --- the pieces as drawings ----------------------------------------------------- */
 
-// The 2D set (the owner, 24 Sep 2026: "the same look as chess.com" - a clean flat set, drawn for this
-// app): Staunton silhouettes in a 45 × 45 box, each a few shapes with a dark outline and a soft
-// two-tone shading - a king with its cross, a queen with a coronet of balls, a rook's battlements, the
-// slit in a bishop's mitre, a knight's head with its mane and eye, a pawn. White is ivory with a dark
-// line, Black near-black with a light inner line. Defined once in the page as <symbol>s (ch2pc-w1 …
-// ch2pc-b6) and drawn with <use>, so a board of 32 pieces is 32 tiny elements. The colours are the
-// --ch2-w-* / --ch2-b-* tokens (Style.html), the same in both themes.
+// The 2D set (the owner, 24 Sep 2026: "the 2D board must look like chess.com" - a modern chess site's
+// set, drawn for this app, never copied): classic Staunton silhouettes in a 45 × 45 box that fill the
+// square - the king about 90% of its height, the queen, bishop and knight 88%, the rook 85%, the pawn
+// three quarters - each a few shapes with a bold dark outline. White is near-white with a charcoal
+// outline and a light-to-shade gradient; Black near-black with a thin lighter rim inside its outline
+// (clipped to the shape), so its shape reads on a dark square. A soft small shadow under every piece.
+// Defined once in the page as <symbol>s (ch2pc-w1 … ch2pc-b6) and drawn with <use>, so a board of 32
+// pieces is 32 tiny elements. The colours are the --ch2-w-* / --ch2-b-* tokens (Style.html), the same
+// in both themes. شطرنج الأربعة draws the same shapes in its own colours (ch4PieceDefs).
 // 'b' a body (filled, outlined), 'c' a round body (cx cy r), 'l' a detail line, 'd' a detail dot, 'dc' a round one.
-const CH2_BASE = (x0, x1) => { const w = x1 - x0; return `M${x0 + 1.6} 40h${(w - 3.2).toFixed(1)}c.9 0 1.6-.7 1.6-1.6v-.6c0-1.5-1.2-2.8-2.8-2.8h-${(w - 5.6).toFixed(1)}c-1.6 0-2.8 1.3-2.8 2.8v.6c0 .9.7 1.6 1.6 1.6z`; };
+const CH2_BASE = (x0, x1) => `M${x0 + 0.8} 42.6H${x1 - 0.8}Q${x1} 42.6 ${x1} 41.8V40.2C${x1} 38.8 ${x1 - 1.2} 37.8 ${x1 - 2.6} 37.8H${x0 + 2.6}C${x0 + 1.2} 37.8 ${x0} 38.8 ${x0} 40.2V41.8Q${x0} 42.6 ${x0 + 0.8} 42.6z`;
+// A band (a collar, the crown's ring): a rounded bar from x0 to x1 between y0 and y1.
+const CH2_BAND = (x0, x1, y0, y1) => { const r = (y1 - y0) / 2; return `M${x0 + r} ${y1}H${x1 - r}A${r} ${r} 0 0 0 ${x1 - r} ${y0}H${x0 + r}A${r} ${r} 0 0 0 ${x0 + r} ${y1}z`; };
+const CH2_SKIRT = 'M12.4 37.8C13.6 34.4 15.2 31.4 15.8 28.6H29.2C29.8 31.4 31.4 34.4 32.6 37.8z';
 const CH2_SHAPES = {
-  1: [['b', CH2_BASE(11.5, 33.5)], ['b', 'M14.2 35C15.4 30.2 17.8 27.4 20.4 26.2h4.2C27.2 27.4 29.6 30.2 30.8 35z'], ['b', 'M17.2 26.6h10.6c1 0 1.7-.7 1.7-1.6s-.7-1.6-1.7-1.6H17.2c-1 0-1.7.7-1.7 1.6s.7 1.6 1.7 1.6z'], ['c', '22.5 17.3 6.2']],
-  2: [['b', CH2_BASE(11, 34)], ['b', 'M14.2 35C14.8 30.8 16.4 27.8 19 25.8C16.6 25.6 13.8 26 11.6 25.6C9.7 25.2 8.5 23.7 8.7 21.8C8.9 20 10 18.7 11.4 17.3L16.2 11.6C17 10.5 18 9.6 19 9L19.9 4.8L23 8.3C28.6 8.6 33.2 12.8 34.2 19.6C35 25.4 33.6 30.4 32.4 35z'],
-    ['l', 'M24.4 10.4C28.9 11.3 31.7 15 32.3 20.1C32.8 25 31.9 30 30.8 34.4'], ['l', 'M19 25.8c1.6-1.7 2.2-4.2 1.4-6.4'], ['l', 'M9.3 23.4c1.1.4 2.1.4 3.1 0'], ['d', 'M16.8 14c.9-.9 2.1-1 3-.3-.9.9-2.1 1-3 .3z'], ['dc', '11.4 20.9 .8']],
-  3: [['b', CH2_BASE(11, 34)], ['b', 'M14.4 35C15.6 31.2 17.6 29 19.8 28.2h5.4C27.4 29 29.4 31.2 30.6 35z'], ['b', 'M17 28.6h11c.9 0 1.6-.7 1.6-1.5s-.7-1.5-1.6-1.5H17c-.9 0-1.6.7-1.6 1.5s.7 1.5 1.6 1.5z'],
-    ['c', '22.5 6.6 2.3'], ['b', 'M22.5 8.4C17.4 11.8 15 16.4 15 20.2c0 3 2.6 5.5 7.5 5.5s7.5-2.5 7.5-5.5c0-3.8-2.4-8.4-7.5-11.8z'], ['l', 'M25.3 12.9l-4.5 6.2']],
-  4: [['b', CH2_BASE(10.5, 34.5)], ['b', 'M12.6 35h19.8l-1.6-3.6H14.2z'], ['b', 'M15.4 31.4h14.2l-1.1-12.2H16.5z'], ['b', 'M14 19.4h17c.8 0 1.2-.5 1.2-1.2v-.9H12.8v.9c0 .7.4 1.2 1.2 1.2z'], ['b', 'M12.8 17.3V10.4h4.1v3h3.2v-3h4.8v3h3.2v-3h4.1v6.9z']],
-  5: [['b', CH2_BASE(10, 35)], ['b', 'M13.8 35c1.4-3.4 2.4-6.6 2.6-9.8h12.2c.2 3.2 1.2 6.4 2.6 9.8z'], ['b', 'M15.6 25.6h13.8c.8 0 1.4-.6 1.4-1.4s-.6-1.4-1.4-1.4H15.6c-.8 0-1.4.6-1.4 1.4s.6 1.4 1.4 1.4z'],
-    ['b', 'M15 22.8L11 12.6l5.6 4.6.8-7.6 3.4 6.8 1.7-8.6 1.7 8.6 3.4-6.8.8 7.6 5.6-4.6-4 10.2z'], ['c', '11 11.6 1.9'], ['c', '17.4 8.4 1.9'], ['c', '22.5 6.4 1.9'], ['c', '27.6 8.4 1.9'], ['c', '34 11.6 1.9'], ['l', 'M15.8 20.2c4.5 1 8.9 1 13.4 0']],
-  6: [['b', CH2_BASE(10, 35)], ['b', 'M13.8 35c1.4-3.4 2.4-6.6 2.6-9.8h12.2c.2 3.2 1.2 6.4 2.6 9.8z'], ['b', 'M15.6 25.6h13.8c.8 0 1.4-.6 1.4-1.4s-.6-1.4-1.4-1.4H15.6c-.8 0-1.4.6-1.4 1.4s.6 1.4 1.4 1.4z'],
-    ['b', 'M21.2 2.4h2.6v2.7h2.7v2.6h-2.7v2.8h-2.6V7.7h-2.7V5.1h2.7z'], ['b', 'M17.2 14.2c.8-2.6 2.9-4.2 5.3-4.2s4.5 1.6 5.3 4.2z'], ['b', 'M15.2 22.8l-1.6-7.6c2.8-1.5 5.8-2.2 8.9-2.2s6.1.7 8.9 2.2l-1.6 7.6z'], ['l', 'M15 19.2c5 1 10 1 15 0']]
+  // The pawn: a round head on a collar, a flared skirt, the base.
+  1: [['c', '22.5 16.6 7.9'], ['b', 'M13.4 37.8C14 32.8 16.5 29.2 19.4 27.6H25.6C28.5 29.2 31 32.8 31.6 37.8z'], ['b', CH2_BAND(15, 30, 24.4, 27.8)], ['b', CH2_BASE(10.5, 34.5)]],
+  // The knight: a horse's head and neck facing left, its mane, eye and nostril.
+  2: [['b', 'M14.2 37.8H33.4C34.8 29 34.6 20 31.4 13.4C29.8 10 27.4 8 25 7.2L24.2 2.8L20.8 6.4C16.8 7.6 13.4 10.4 11.2 14.2C9.6 17 8.4 20 7.8 22.6C7.4 24.4 8.6 26.2 10.6 26.2C12.4 26.2 13.6 25.2 15 24.6C16.8 23.8 18.8 24 20.4 24.8C17.2 28.4 14.4 32.6 14.2 37.8z'],
+    ['l', 'M26.2 8.8C30.2 12.2 32 18.6 31.6 26.4'], ['l', 'M28.4 12.6l2.3-1'], ['l', 'M30.2 17.2l2.4-.5'], ['l', 'M30.9 22l2.4 0'], ['l', 'M15 24.6C16.6 22.8 17.2 20.8 16.6 18.8'],
+    ['d', 'M14.8 13.8c1.2-1.2 2.9-1.3 4-.4-1.2 1.2-2.9 1.3-4 .4z'], ['dc', '10.4 22.4 .95'], ['b', CH2_BASE(9, 36)]],
+  // The bishop: the ball on top, the mitre with its slit, the collar, the skirt.
+  3: [['b', 'M22.5 7.4C16.6 11.6 13.9 17 14.2 21.6C14.5 25.4 17.8 28.2 22.5 28.2C27.2 28.2 30.5 25.4 30.8 21.6C31.1 17 28.4 11.6 22.5 7.4z'], ['c', '22.5 5.4 2.6'],
+    ['l', 'M25.8 13.2L20.6 20.6'], ['b', 'M13 37.8C13.8 34 16.6 31.6 19.6 30.6H25.4C28.4 31.6 31.2 34 32 37.8z'], ['b', CH2_BAND(14.8, 30.2, 27.8, 31)], ['b', CH2_BASE(9.5, 35.5)]],
+  // The rook: its battlements, a tapered tower, the plinth.
+  4: [['b', 'M14.6 34L15.8 16.6H29.2L30.4 34z'], ['b', 'M11.5 17V6C11.5 5.3 12 4.6 12.7 4.6H16.3C17 4.6 17.5 5.3 17.5 6V8.6H20V6C20 5.3 20.5 4.6 21.2 4.6H23.8C24.5 4.6 25 5.3 25 6V8.6H27.5V6C27.5 5.3 28 4.6 28.7 4.6H32.3C33 4.6 33.5 5.3 33.5 6V17z'],
+    ['l', 'M12.2 13.2H32.8'], ['l', 'M15.4 20.6H29.6'], ['l', 'M15 30.2H30'], ['b', 'M12 37.8L13.2 33.6H31.8L33 37.8z'], ['b', CH2_BASE(9, 36)]],
+  // The queen: a coronet of five balls on its points, the ring, the skirt.
+  5: [['c', '9.4 11.4 2.2'], ['c', '16.2 7.9 2.2'], ['c', '22.5 5.4 2.4'], ['c', '28.8 7.9 2.2'], ['c', '35.6 11.4 2.2'],
+    ['b', 'M14.8 25.8L9.6 12.6L15.4 18.4L16.2 8.8L20.2 16.6L22.5 6.8L24.8 16.6L28.8 8.8L29.6 18.4L35.4 12.6L30.2 25.8z'], ['l', 'M15.6 22.2C20 23.2 25 23.2 29.4 22.2'],
+    ['b', CH2_SKIRT], ['b', CH2_BAND(14.4, 30.6, 25.6, 28.8)], ['b', CH2_BASE(8.5, 36.5)]],
+  // The king: its cross, a small dome, the two-lobed crown, the ring, the skirt.
+  6: [['b', 'M21.2 2H23.8V5H26.8V7.6H23.8V11.4H21.2V7.6H18.2V5H21.2z'], ['b', 'M18.2 13.4C18.6 11.2 20.4 10 22.5 10S26.4 11.2 26.8 13.4z'],
+    ['b', 'M14.8 25.8C13 22.4 10.4 19.4 10.8 16.2C11.2 13.2 14.6 11.8 17.8 12.6C20 13.2 21.6 14.4 22.5 15.8C23.4 14.4 25 13.2 27.2 12.6C30.4 11.8 33.8 13.2 34.2 16.2C34.6 19.4 32 22.4 30.2 25.8z'],
+    ['l', 'M22.5 15.8V25.2'], ['l', 'M15.4 22.2C20 23.2 25 23.2 29.6 22.2'], ['b', CH2_SKIRT], ['b', CH2_BAND(14.4, 30.6, 25.6, 28.8)], ['b', CH2_BASE(8.5, 36.5)]]
 };
 
-/** The <symbol>s of both colours and their shading, as markup (one hidden <svg> holds them). */
+/** The <symbol>s of both colours, their shading, Black's rims and the shadow, as markup (one hidden <svg> holds them). */
 function chPieceSymbols() {
-  let out = '<defs>' + ['w', 'b'].map(c => `<linearGradient id="ch2g-${c}" x1="0" y1="0" x2="1" y2="0.35"><stop offset="0" style="stop-color:var(--ch2-${c}-hi)"/><stop offset="0.55" style="stop-color:var(--ch2-${c}-mid)"/><stop offset="1" style="stop-color:var(--ch2-${c}-lo)"/></linearGradient>`).join('') + '</defs>';
+  let defs = ['w', 'b'].map(c => `<linearGradient id="ch2g-${c}" x1="0" y1="0" x2="1" y2="0.45"><stop offset="0" style="stop-color:var(--ch2-${c}-hi)"/><stop offset="0.5" style="stop-color:var(--ch2-${c}-mid)"/><stop offset="1" style="stop-color:var(--ch2-${c}-lo)"/></linearGradient>`).join('') +
+    '<radialGradient id="ch2sh"><stop offset="0" stop-color="#000" stop-opacity="0.34"/><stop offset="0.6" stop-color="#000" stop-opacity="0.14"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>';
+  let syms = '';
   ['w', 'b'].forEach(c => {
-    const body = `style="fill:url(#ch2g-${c});stroke:var(--ch2-${c}-edge);stroke-width:1.5;stroke-linejoin:round"`;
-    const line = `style="fill:none;stroke:var(--ch2-${c}-line);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round"`;
+    const fill = `style="fill:url(#ch2g-${c});stroke:none"`;
+    const edge = `style="fill:none;stroke:var(--ch2-${c}-edge);stroke-width:1.9;stroke-linejoin:round"`;
+    const body = `style="fill:url(#ch2g-${c});stroke:var(--ch2-${c}-edge);stroke-width:1.9;stroke-linejoin:round"`;
+    const line = `style="fill:none;stroke:var(--ch2-${c}-line);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"`;
     const dot = `style="fill:var(--ch2-${c}-line);stroke:none"`;
     for (let k = 1; k <= 6; k++) {
-      out += `<symbol id="ch2pc-${c}${k}" viewBox="0 0 45 45">` + CH2_SHAPES[k].map(([t, d]) => {
-        if (t === 'c' || t === 'dc') { const p = d.split(' '); return `<circle cx="${p[0]}" cy="${p[1]}" r="${p[2]}" ${t === 'c' ? body : dot}/>`; }
-        return `<path d="${d}" ${t === 'b' ? body : t === 'l' ? line : dot}/>`;
+      syms += `<symbol id="ch2pc-${c}${k}" viewBox="0 0 45 45"><ellipse cx="22.5" cy="42.5" rx="14.5" ry="2.3" fill="url(#ch2sh)"/>` + CH2_SHAPES[k].map(([t, d], j) => {
+        const round = t === 'c' || t === 'dc';
+        const p = round ? d.split(' ') : null;
+        const shape = (st) => (round ? `<circle cx="${p[0]}" cy="${p[1]}" r="${p[2]}" ${st}/>` : `<path d="${d}" ${st}/>`);
+        if (t === 'l') return shape(line);
+        if (t === 'd' || t === 'dc') return shape(dot);
+        if (c === 'w') return shape(body);
+        // Black: the fill, a lighter rim inside the outline (the shape clips it), then the outline over it.
+        const id = `ch2k-${k}-${j}`;
+        defs += `<clipPath id="${id}">${shape('')}</clipPath>`;
+        return shape(fill) + shape(`style="fill:none;stroke:var(--ch2-b-rim);stroke-width:3.4" clip-path="url(#${id})"`) + shape(edge);
       }).join('') + '</symbol>';
     }
   });
-  return out;
+  return '<defs>' + defs + '</defs>' + syms;
 }
 
 /** The symbols in the page, once (before the first piece is drawn). */
@@ -103068,16 +103194,27 @@ function chMake3D(THREE, root) {
 // in Style.html ([data-ch2-style]); the 3D board's are in CH3_STYLES.
 const CH2_STYLES = ['green', 'wood', 'blue', 'marble'];
 
-/** This phone's board: { view: '2d' | '3d', style }. 2D until the phone asks for 3D (remembered). */
+/**
+ * This phone's board: { view: '2d' | '3d', style, premove }. 2D until the phone asks for 3D; premoves on
+ * until switched off (the owner, 24 Sep 2026: «الحركات المسبقة», against the computer and on your own
+ * phone in a room). Remembered on the phone, one place for the setup, the board's ⚙ and the rooms.
+ */
 function chLook() {
-  const o = typeof recallOptions === 'function' ? recallOptions('chessLook', { view: '2d', style: 'green' }) : { view: '2d', style: 'green' };
-  return { view: o.view === '3d' ? '3d' : '2d', style: CH2_STYLES.indexOf(o.style) === -1 ? 'green' : o.style };
+  const o = typeof recallOptions === 'function' ? recallOptions('chessLook', { view: '2d', style: 'green', premove: true }) : { view: '2d', style: 'green', premove: true };
+  return { view: o.view === '3d' ? '3d' : '2d', style: CH2_STYLES.indexOf(o.style) === -1 ? 'green' : o.style, premove: o.premove !== false };
 }
 
 /** Remembers a change of the look and shows it on the board and the setup screen at once. */
 function chLookSet(patch) {
   if (typeof rememberOptions === 'function') rememberOptions('chessLook', patch);
+  if (patch && 'premove' in patch) {
+    // Switched off: a move already queued goes, and the screen is drawn again (whether a tap queues one).
+    if (!patch.premove) { chLocal.pre = null; chLocal.presel = ''; if (typeof chRoomLocal !== 'undefined') { chRoomLocal.pre = null; chRoomLocal.presel = ''; } }
+    if (appState.currentView === 'play-shatranj' && appState.shatranj && appState.shatranj.g) chPaint({ still: true });
+    else if (appState.currentView === 'room-chess' && typeof chRoomRedraw === 'function') chRoomRedraw(true);
+  }
   if (chView.root && chView.root.parentNode && chView.model) chViewShow(chView.root.parentNode, chView.model);
+  if (chView.root && !chView.root.querySelector('[data-ch-pop]').hidden) chToolsPop(true, true);
   if (appState.currentView === 'setup-shatranj') paintShatranjSetup();
   if (appState.currentView === 'pos-shatranj' && typeof chPosPaint === 'function') chPosPaint();
 }
@@ -103394,6 +103531,7 @@ function chViewShow(host, model) {
   const annoKey = model.key + '|' + (model.anim ? model.anim.key : '');
   if (chView.anno.key !== annoKey) chView.anno = { key: annoKey, arrows: [], marks: [] };
   root.classList.toggle('is-live', !!(model.input && model.input.canMove));
+  root.classList.toggle('is-browse', !!model.browse);
   root.classList.toggle('is-pen', chView.pen && !model.tv);
   // A promotion being chosen belongs to a move this board can still make: once it can't (the
   // other side resigned, a flag fell, the review took the board), the picker goes, unchosen.
@@ -103452,8 +103590,21 @@ function chViewLoad3D() {
 
 /** The switch on the board: 2D ↔ 3D, the game, the piece picked up and the arrows kept (remembered). */
 function chViewToggle() {
+  chViewSet(chLook().view === '3d' ? '2d' : '3d');
+}
+
+/** «2D | 3D»: the board as a flat one or in 3D - on the board and on the setup screen alike. */
+function chViewSet(v) {
   chToolsPop(false);
-  chLookSet({ view: chLook().view === '3d' ? '2d' : '3d' });
+  if (chLook().view !== v) chLookSet({ view: v === '3d' ? '3d' : '2d' });
+}
+
+/** The segmented «2D | 3D» (none where 3D can't draw). cls: 'ch-seg' on the board, 'segmented' on the setup. */
+function chViewSegHtml() {
+  if (!chCan3D()) return '';
+  const cur = chLook().view;
+  return `<span class="ch-seg" role="group" aria-label="${escapeHTML(chT('ch_view_label'))}">` + ['2d', '3d'].map(v =>
+    `<button type="button" class="ch-seg__item ${cur === v ? 'is-active' : ''}" aria-pressed="${cur === v}" onclick="chViewSet('${v}')" title="${escapeHTML(chT(v === '3d' ? 'ch_view_to3d' : 'ch_view_to2d'))}">${v === '3d' ? '3D' : '2D'}</button>`).join('') + '</span>';
 }
 
 function chViewDrop() {
@@ -103537,10 +103688,7 @@ function chLookPickerHtml(cls) {
 function chViewTools(root, model) {
   const box = root.querySelector('[data-ch-tools]');
   if (!box) return;
-  const is3d = chLook().view === '3d';
-  const view = !chCan3D() ? '' : is3d
-    ? `<button type="button" class="ch-tool" onclick="chViewToggle()" aria-label="${escapeHTML(chT('ch_view_to2d'))}" title="${escapeHTML(chT('ch_view_to2d'))}">▦ 2D</button>`
-    : `<button type="button" class="ch-tool" onclick="chViewToggle()" aria-label="${escapeHTML(chT('ch_view_to3d'))}" title="${escapeHTML(chT('ch_view_to3d'))}">🧊 3D</button>`;
+  const view = chViewSegHtml();
   // In 3D: from above (a toggle) and, once the camera has been turned or zoomed, back to the start.
   const r3 = chView.r && chView.r.kind === '3d' && chView.r.camera ? chView.r : null;
   const cam = !r3 ? '' : `<button type="button" class="ch-tool ${r3.camTop() ? 'is-on' : ''}" onclick="chViewCam('top')" aria-pressed="${r3.camTop()}" aria-label="${escapeHTML(chT('ch_cam_top'))}">⬇ ${escapeHTML(chT('ch_cam_top'))}</button>` +
@@ -103552,13 +103700,17 @@ function chViewTools(root, model) {
   if (box._chHtml !== html) { box.innerHTML = html; box._chHtml = html; }
 }
 
-/** Opens (or closes, or toggles with no argument) the styles over the board. */
-function chToolsPop(open) {
+/** Opens (or closes, or toggles with no argument) the board's ⚙: its styles, and the premove switch where one can be queued. */
+function chToolsPop(open, redraw) {
   const pop = chView.root && chView.root.querySelector('[data-ch-pop]');
   if (!pop) return;
   const show = open === undefined ? pop.hidden : !!open;
-  if (show === !pop.hidden) return;
-  if (show) pop.innerHTML = `<p class="ch-lookpop__title">${escapeHTML(chT('ch_look_label'))}</p><div class="ch-swatches">${chLookPickerHtml()}</div>`;
+  if (show === !pop.hidden && !redraw) return;
+  if (show) {
+    const pre = chView.model && chView.model.preable
+      ? `<label class="switch-row ch-lookpop__switch"><span>⏩ ${escapeHTML(chT('ch_premove_label'))}</span><span class="switch"><input type="checkbox" role="switch" ${chLook().premove ? 'checked' : ''} onchange="chLookSet({ premove: this.checked })"><span class="switch__track" aria-hidden="true"></span></span></label>` : '';
+    pop.innerHTML = `<p class="ch-lookpop__title">${escapeHTML(chT('ch_look_label'))}</p><div class="ch-swatches">${chLookPickerHtml()}</div>${pre}`;
+  }
   pop.hidden = !show;
 }
 
@@ -103867,6 +104019,137 @@ function chPremoveDropped(sq) {
   chSound('refuse');
   if (chView.r && chView.r.nudge) chView.r.nudge(sq);
 }
+
+/* --- looking back at the moves (the owner, 24 Sep 2026: "it shows me what happened in case I
+   missed it, it doesn't affect the real game") -------------------------------------------------
+   Wherever a game is played on a phone (one phone, a room's players and watchers - not the TV):
+   ⏮ ◀ ▶ ⏭ under the board, ← / → on a computer, a tap on a move in the list. While an earlier
+   position is shown nothing can be moved, the clock runs on, and a line over the board says so
+   («👀 بتتفرج على الحركة 12 · ارجع للعبة»); ⏭, that line or a tap on the board is live again. A
+   move that arrives meanwhile leaves you where you are, the line pulsing. Nothing here touches the
+   game, the saved game, the clock or the rating: the positions are the game's own history played
+   again from its start (960 and الوزير المستخبي's '*' moves included), cached per history.
+   chBrowse.ply is the position shown (0 the start … n-1), -1 live. */
+
+const chBrowse = { key: '', ply: -1, seen: 0, pulse: false, total: 0, paint: null };
+const chReplayMemo = { start: null, hist: [], g: null, pos: [], stuck: false };
+
+/** Every position of a game from its start: [{ board, last, check, lost }], built once and extended as moves come. */
+function chReplayPositions(start, hist, lostStart) {
+  const c = chReplayMemo;
+  const k = start || '';
+  const list = hist || [];
+  const same = c.start === k && c.hist.length <= list.length && c.hist.every((u, i) => u === list[i]);
+  if (!same) {
+    const g = k ? chessFromFen(k) : chessNew();
+    const lost = lostStart ? [lostStart[0].slice(), lostStart[1].slice()] : [[], []];
+    c.start = k; c.hist = []; c.g = g; c.stuck = false;
+    c.pos = [{ board: g.board.slice(), last: null, check: chessCheckSq(g), lost: lost }];
+  }
+  for (let i = c.hist.length; i < list.length && !c.stuck; i++) {
+    const mover = c.g.turn;
+    const info = chessPlay(c.g, chessFromUci(list[i]));
+    if (!info) { c.stuck = true; break; }
+    c.hist.push(list[i]);
+    const prev = c.pos[c.pos.length - 1].lost;
+    const lost = [prev[0].slice(), prev[1].slice()];
+    if (info.capture) lost[1 - mover].push(info.capture);
+    c.pos.push({ board: c.g.board.slice(), last: { from: info.from, to: info.to }, check: info.check ? chessCheckSq(c.g) : '', lost: lost });
+  }
+  return c.pos;
+}
+
+/**
+ * A screen's game, drawn now: key (the game), total (moves played), paint (draws the screen again).
+ * Returns the position being looked at, or -1 for the live game.
+ */
+function chBrowseSync(key, total, paint) {
+  const b = chBrowse;
+  b.paint = paint;
+  if (b.key !== key) { b.key = key; b.ply = -1; b.seen = total; b.pulse = false; }
+  if (b.ply >= 0 && total > b.seen) b.pulse = true;
+  b.seen = total;
+  b.total = total;
+  if (b.ply >= total) { b.ply = -1; b.pulse = false; }
+  return b.ply;
+}
+
+/** Shows position `ply` (0 the start); -1, or the last position, is the live game. */
+function chBrowseGo(ply) {
+  const b = chBrowse;
+  const n = b.total;
+  let p = ply < 0 || ply >= n ? -1 : Math.max(0, ply);
+  if (p === b.ply) return;
+  b.ply = p;
+  if (p < 0) b.pulse = false;
+  chToolsPop(false);
+  if (typeof haptic === 'function') haptic('light');
+  if (b.paint) b.paint();
+}
+
+/** ◀ and ▶: one move back or on (on from the last one is the live game). */
+function chBrowseStep(d) {
+  const b = chBrowse;
+  const cur = b.ply < 0 ? b.total : b.ply;
+  const next = cur + d;
+  if (next < 0 || (d > 0 && b.ply < 0)) return;
+  chBrowseGo(next >= b.total ? -1 : next);
+}
+
+/** A tap on move k in the list: the position after it. */
+const chBrowseMove = (k) => chBrowseGo(k + 1 >= chBrowse.total ? -1 : k + 1);
+
+/** The move list's current move: the one just shown while looking back, else the last. */
+const chBrowseCurrent = (n) => (chBrowse.ply >= 0 ? chBrowse.ply - 1 : n - 1);
+
+/** ⏮ ◀ ▶ ⏭ under the board (left to right in both languages, so ◀ is back). */
+function chBrowseNavHtml(total) {
+  if (!total) return '';
+  const ply = chBrowse.ply;
+  const back = ply !== 0, on = ply >= 0;
+  const btn = (label, aria, fn, ok) => `<button type="button" class="btn btn--ghost btn--sm btn--auto ch-browse__btn" onclick="${fn}" ${ok ? '' : 'disabled'} aria-label="${escapeHTML(chT(aria))}" title="${escapeHTML(chT(aria))}">${label}</button>`;
+  return `<div class="ch-browse" dir="ltr" role="group" aria-label="${escapeHTML(chT('ch_browse_label'))}">` +
+    btn('⏮', 'ch_browse_first', 'chBrowseGo(0)', back) + btn('◀', 'ch_browse_back', 'chBrowseStep(-1)', back) +
+    btn('▶', 'ch_browse_next', 'chBrowseStep(1)', on) + btn('⏭', 'ch_browse_live', 'chBrowseGo(-1)', on) + '</div>';
+}
+
+/** The line over the board while looking back (a tap goes back to the game); it pulses once the game has moved on. */
+function chBrowseNoteHtml(sans) {
+  const ply = chBrowse.ply;
+  if (ply < 0) return '';
+  const where = ply === 0 ? escapeHTML(chT('ch_browse_start'))
+    : escapeHTML(chT('ch_browse_at', { n: Math.ceil(ply / 2) })) + ` <b dir="ltr">${escapeHTML(chFigurine((sans || [])[ply - 1] || ''))}</b>`;
+  return `<button type="button" class="ch-browse-note ${chBrowse.pulse ? 'is-pulse' : ''}" onclick="chBrowseGo(-1)">👀 ${where} · <u>${escapeHTML(chT('ch_browse_return'))}</u></button>`;
+}
+
+/** The board's model for position `ply`: nothing to move, no marks; a tap goes back to the game. */
+function chBrowseModel(model, pos, ply) {
+  const p = pos[Math.min(ply, pos.length - 1)];
+  return Object.assign({}, model, {
+    board: p.board, last: p.last, check: p.check, lost: p.lost, anim: null, mate: '', sel: '', targets: [], marks: [], arrows: [], browse: true,
+    input: { canMove: false, side: model.input ? model.input.side : 0, onPick: () => chBrowseGo(-1), onDrop: () => false }
+  });
+}
+
+/** Keeps the move list's current move in sight without scrolling the page. */
+function chBrowseScrollList(root) {
+  const list = root && root.querySelector('.ch-moves');
+  if (!list) return;
+  const cur = list.querySelector('.ch-mv.is-current');
+  if (chBrowse.ply < 0 || !cur) { list.scrollTop = list.scrollHeight; return; }
+  const top = cur.offsetTop - list.offsetTop;
+  if (top < list.scrollTop || top > list.scrollTop + list.clientHeight - cur.offsetHeight) list.scrollTop = Math.max(0, top - list.clientHeight / 2);
+}
+
+// ← / → on a computer, on a game's screen (the review has its own).
+document.addEventListener('keydown', (e) => {
+  const v = appState.currentView;
+  if ((v !== 'play-shatranj' && v !== 'room-chess') || !chBrowse.paint || !chBrowse.total || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (typeof soloKeyBlocked === 'function' && soloKeyBlocked(e)) return;
+  if (e.target && e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') { chBrowseStep(-1); e.preventDefault(); }
+  else if (e.key === 'ArrowRight') { chBrowseStep(1); e.preventDefault(); }
+});
 
 /* ============================================================================
    What every chess screen shows beside the board
@@ -104491,7 +104774,12 @@ function paintShatranjSetup() {
     rated.classList.toggle('is-rated', !why);
     rated.textContent = why ? chT('ch_rated_no', { why: chT(why) }) : chT('ch_rated_yes');
   }
-  // The board's look (its style; its 2D or 3D is a button on the board itself).
+  // The board's look: 2D or 3D (the same switch as on the board; none where 3D can't draw), its style, premoves.
+  duelPaintSegmented('shatranj-view', chLook().view);
+  show('shatranj-view', chCan3D());
+  const preSw = document.getElementById('shatranj-premove');
+  if (preSw) preSw.checked = chLook().premove;
+  show('shatranj-premove-field', phone);
   const looks = document.getElementById('shatranj-looks');
   if (looks) { const html = chLookPickerHtml(); if (looks._chHtml !== html) { looks.innerHTML = html; looks._chHtml = html; } }
   if (typeof chPaintHistory === 'function') chPaintHistory();
@@ -105030,6 +105318,7 @@ function chLayoutHtml(prefix) {
         <div class="ch-layout__stage"><div class="ch-stage" data-ch-host></div></div>
         <div class="ch-layout__side">
           <div class="duel-head ch-head" data-ch-head></div>
+          <div class="ch-browse-slot" data-ch-browse></div>
           <div class="ch-bar" data-ch-bar></div>
           <div class="ch-side" data-ch-side></div>
         </div>
@@ -105078,8 +105367,8 @@ function chPaint(opts) {
   const hint = chLocal.hint && chLocal.hint.key === s.gameId + '|' + s.hist.length ? chLocal.hint : null;
   const best = chBestNow(s);
   const ended = s.phase === 'done' && s.result;
-  // The computer thinking: your next move can be queued (a premove).
-  const preOn = s.vs === 'phone' && s.phase === 'play' && s.g.turn !== s.me && !chLocal.pending;
+  // The computer thinking: your next move can be queued (a premove) - unless premoves are switched off.
+  const preOn = s.vs === 'phone' && s.phase === 'play' && s.g.turn !== s.me && !chLocal.pending && chLook().premove;
   if (!preOn && s.phase !== 'play') { chLocal.pre = null; chLocal.presel = ''; }
   const pctx = {
     board: s.g.board, side: s.me, sel: chLocal.presel, pre: chLocal.pre,
@@ -105103,7 +105392,7 @@ function chPaint(opts) {
   };
   const model = {
     key: 'local|' + s.gameId,
-    board: s.g.board, orient: chOrient(s), loud: true,
+    board: s.g.board, orient: chOrient(s), loud: true, preable: s.vs === 'phone',
     last: s.last ? { from: s.last.from, to: s.last.to } : null,
     // The undo count is in the key: after ↶ the same move number is another move (else the piece snaps).
     anim: s.last ? chAnimOf(s.last, s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n, o.still) : null,
@@ -105118,7 +105407,9 @@ function chPaint(opts) {
       : humanTurn ? { canMove: true, side: side, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
       : preOn ? { canMove: true, side: s.me, premove: true, onPick: (sq, fromDrag) => chPreTapLogic(pctx, sq, fromDrag), onDrop: (from, to) => chPreDropLogic(pctx, from, to) } : null
   };
-  chViewShow(el.querySelector('[data-ch-host]'), model);
+  // Looking back at an earlier move: that position, nothing to move (the game itself goes on).
+  const bply = chBrowseSync('local|' + s.gameId, s.hist.length, () => chPaint({ still: true }));
+  chViewShow(el.querySelector('[data-ch-host]'), bply >= 0 ? chBrowseModel(model, chReplayPositions(s.start, s.hist, s.lostStart), bply) : model);
   if (hq && s.last && s.last.hq && !o.still) {
     const k = s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n;
     if (s.last.hq.reveal) chHqMoment('reveal', k + '|r');
@@ -105134,9 +105425,10 @@ function chPaint(opts) {
   const subs = char ? [0, 1].map(k => (k === cpuSide ? `<span class="ch-pill-elo metric" dir="ltr">${chOppElo(s)}</span>` : '')) : null;
   const faces = char ? [0, 1].map(k => (k === cpuSide ? chCharFaceSvg(char) : '')) : null;
   chSetHtml(el, '[data-ch-head]', chPillsHtml(names, s.phase === 'play' ? s.g.turn : -1, byColour, s.clk, s.lost, subs, faces) + chLocalTagHtml(s, names) +
-    `<p class="duel-status ${ended ? 'is-done' : ''} ${chLocal.thinking ? 'is-thinking' : ''}">${escapeHTML(chLocalStatus(s, names))}</p>`);
+    (bply >= 0 ? chBrowseNoteHtml(s.sans) : `<p class="duel-status ${ended ? 'is-done' : ''} ${chLocal.thinking ? 'is-thinking' : ''}">${escapeHTML(chLocalStatus(s, names))}</p>`));
+  chSetHtml(el, '[data-ch-browse]', chBrowseNavHtml(s.hist.length));
   chSetHtml(el, '[data-ch-bar]', chLocalBarHtml(s, hint));
-  chSetHtml(el, '[data-ch-side]', chLocalSideHtml(s, names));
+  if (chSetHtml(el, '[data-ch-side]', chLocalSideHtml(s, names))) chBrowseScrollList(el);
   duelPillsAfter(el, 'ch-local', { turn: s.phase === 'play' ? s.g.turn : -1, scores: byColour });
   chPaintClocks();
   if (ended && duelOnce('ch|' + s.gameId + '|cheer') && !o.still) {
@@ -105206,7 +105498,7 @@ function chLocalSideHtml(s, names) {
   if (s.comment && s.vs === 'phone' && s.coach) out.push(chCommentHtml(s.comment));
   const hqEnd = chHqOf(s);
   if (hqEnd && s.phase === 'done') out.push(chHqEndHtml(chHqLocalEnds(hqEnd), names));
-  out.push(chMovesHtml(s.sans, { current: s.sans.length - 1, start: s.start || (s.practice ? 'practice' : ''), variant: s.gameVariant }));
+  out.push(chMovesHtml(s.sans, { current: chBrowseCurrent(s.sans.length), onClick: 'chBrowseMove', start: s.start || (s.practice ? 'practice' : ''), variant: s.gameVariant }));
   if (s.practice) out.push(`<p class="field__hint">🎯 ${escapeHTML(chT('ch_practice_note'))}</p>`);
   if (s.help && s.help.setup) {
     out.push(`<p class="field__hint">🧩 ${s.setupEg ? `<b>${escapeHTML(chT('ch_eg_' + s.setupEg))}</b> · ${escapeHTML(chT('ch_eg_' + s.setupEg + '_line'))}` : escapeHTML(chT('ch_pos_title'))}</p>`);
@@ -105649,7 +105941,7 @@ function chBoardColours() {
   const cs = getComputedStyle(el);
   const v = (n, d) => (cs.getPropertyValue(n) || '').trim() || d;
   const out = { light: v('--ch2-light', '#eeeed2'), dark: v('--ch2-dark', '#769656'), last: v('--ch2-last', 'rgba(255, 255, 51, 0.5)'), pieces: {} };
-  ['w', 'b'].forEach(c => ['hi', 'mid', 'lo', 'edge', 'line'].forEach(k => { out.pieces[c + '-' + k] = v('--ch2-' + c + '-' + k, c === 'w' ? '#f1e8d6' : '#37332f'); }));
+  ['w', 'b'].forEach(c => ['hi', 'mid', 'lo', 'edge', 'line', 'rim'].forEach(k => { out.pieces[c + '-' + k] = v('--ch2-' + c + '-' + k, k === 'rim' ? 'rgba(255, 255, 255, 0.3)' : c === 'w' ? '#f6f4ef' : '#2f2c29'); }));
   el.remove();
   return out;
 }
@@ -107575,7 +107867,7 @@ function chRoomModel(state, tv, still) {
   // The other side to move (or your own move still on its way): a premove can be queued.
   const preKey = [roomDealKey(state), s.round].join('|');
   if (chRoomLocal.preKey !== preKey) { chRoomLocal.preKey = preKey; chRoomLocal.pre = null; chRoomLocal.presel = ''; }
-  const preOn = !tv && (seat === 0 || seat === 1) && s.phase === 'play' && !bd.result && !mine && !(bd.hq && bd.hq.picking);
+  const preOn = !tv && (seat === 0 || seat === 1) && s.phase === 'play' && !bd.result && !mine && !(bd.hq && bd.hq.picking) && chLook().premove;
   if (!preOn && !mine) { chRoomLocal.pre = null; chRoomLocal.presel = ''; }
   const pctx = {
     board: view.g.board, side: seat, sel: chRoomLocal.presel, pre: chRoomLocal.pre,
@@ -107584,7 +107876,7 @@ function chRoomModel(state, tv, still) {
   };
   return {
     key: ['room', roomDealKey(state), s.round, tv ? 'tv' : 'p'].join('|'),
-    board: view.g.board, orient: seat === 1 ? 1 : 0, tv: !!tv,
+    board: view.g.board, orient: seat === 1 ? 1 : 0, tv: !!tv, preable: !tv && (seat === 0 || seat === 1),
     loud: duelRoomLoud(state) || !!chRoomLocal.early,
     last: view.last ? { from: view.last.from, to: view.last.to } : null,
     anim: view.last ? chAnimOf(view.last, [roomDealKey(state), s.round, view.last.n].join('|'), still) : null,
@@ -107858,13 +108150,16 @@ function chRoomRender(state, still) {
     }
   }
   const model = chRoomModel(state, false, still);
-  chViewShow(el.querySelector('[data-ch-host]'), model);
   const bd = s.chess;
+  // Looking back at an earlier move (players and watchers alike): that position, nothing to move; the room plays on.
+  const bply = chBrowseSync(['room', roomDealKey(state), s.round, s.tourMid || ''].join('|'), (bd.hist || []).length, () => chRoomRedraw(true));
+  chViewShow(el.querySelector('[data-ch-host]'), bply >= 0 ? chBrowseModel(model, chReplayPositions(bd.start || '', bd.hist || []), bply) : model);
   const seat = chRoomSeat(state);
   const view = chRoomBoard(state);
   const myTurn = s.phase === 'play' && !bd.result && seat === view.g.turn;
   const over = s.phase === 'over';
-  chSetHtml(el, '[data-ch-head]', `${chRoomPills(state)}${chRoomTagHtml(state)}<p class="duel-status ${over ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(chRoomStatus(state))}</p>`);
+  chSetHtml(el, '[data-ch-head]', `${chRoomPills(state)}${chRoomTagHtml(state)}${bply >= 0 ? chBrowseNoteHtml(bd.sans) : `<p class="duel-status ${over ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(chRoomStatus(state))}</p>`}`);
+  chSetHtml(el, '[data-ch-browse]', chBrowseNavHtml((bd.hist || []).length));
   chSetHtml(el, '[data-ch-bar]', chRoomBarHtml(state) + chRoomHostRow(state));
   const side = [];
   if (over) {
@@ -107876,14 +108171,13 @@ function chRoomRender(state, still) {
     if (seat !== -1) side.push(chShareRowHtml(chRoomGameKey(state)));
   }
   const rSet = s.settings || {};
-  side.push(chMovesHtml(view.sans, { current: view.sans.length - 1, start: view.start || (s.chess && s.chess.start) || '', variant: rSet.variant || 'standard' }));
+  side.push(chMovesHtml(view.sans, { current: chBrowseCurrent(view.sans.length), onClick: 'chBrowseMove', start: view.start || (s.chess && s.chess.start) || '', variant: rSet.variant || 'standard' }));
   side.push(duelRoomLineHtml(state, t));
   if ((state.players || []).length > 2 && !s.tourMid) side.push(renderScoreboard(s.board));
   if (over && !s.tourMid) side.push(roomShareBtnHtml(state, s.board));
   side.push(renderRoomPlayerStrip(state));
   chSetHtml(el, '[data-ch-side]', side.join(''));
-  const mv = el.querySelector('.ch-moves');
-  if (mv) mv.scrollTop = mv.scrollHeight;
+  chBrowseScrollList(el);
   // A tournament's places in this screen (the round, the other matches, what comes next).
   if (s.tourMid && typeof tourAfterMatch === 'function') tourAfterMatch(el, Room.state, s.tourMid);
   chRoomPaintClocks(state);

@@ -405,6 +405,7 @@ async function teamChessRobots() {
     await H.waitFor((s) => s.shared.chess.moves === 3, 'votechess: the 20-second clock runs out on the server', 30000);
     check(H.state.shared.tallies[2].how === 'random', 'votechess: nobody voted - a random legal move, said as such');
     // Black: the host closes a vote that waits on a quiet phone.
+    await J.waitFor((s) => s.shared.chess.moves === 3 && s.shared.vote && s.shared.vote.team === 1, 'votechess: the turn reaches Jana too');
     await J.must('vote', { ...CHM.chessLegalMoves(J.state.shared.chess.g)[0], n: 3 });
     check((await J.act('closeVote', { n: 3 })).ok === false, 'votechess: only the host closes a vote');
     await H.must('closeVote', { n: 3 });

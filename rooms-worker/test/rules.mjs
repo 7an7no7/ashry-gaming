@@ -5976,6 +5976,14 @@ Date.now = duelTestClock;
     check(th.w.join() === 'e4' && th.b.sort().join() === 'e5,h4', 'chess coach: the pieces in danger, each side (attacked and not defended, or by something cheaper)');
     const pins = CH.chessPins(CH.chessFromFen('4k3/8/8/8/1b6/8/3N4/4K3 w - - 0 1').board, 0);
     check(pins.length === 1 && pins[0].sq === 'd2' && pins[0].to === 'k', 'chess coach: a knight pinned to its king by a bishop is seen');
+    // Multi-line analysis and computer styles
+    const gMulti = CH.chessFromFen('r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R b KQkq - 0 5');
+    const a1 = CH.chessAnalyse(gMulti, { depth: 3, lines: 1 });
+    const a3 = CH.chessAnalyse(gMulti, { depth: 3, lines: 3 });
+    check(a3.lines && a3.lines.length === 3 && a3.lines[0].from === a1.move.from && a3.lines[0].to === a1.move.to, 'chess coach: lines: 3 returns top 3 lines, first matching lines: 1');
+    check(a3.lines[0].score >= a3.lines[1].score && a3.lines[1].score >= a3.lines[2].score, 'chess coach: lines: 3 lines sorted descending by score');
+    const mStyle = CH.chessBestMove(gMulti, { elo: 1200, style: 'attack', depth: 2 });
+    check(CH.chessLegalMoves(gMulti).some(m => m.from === mStyle.from && m.to === mStyle.to), 'chess AI: style attack plays a legal move');
   }
 
   // The room: two sit down, White moves first, winner stays on.

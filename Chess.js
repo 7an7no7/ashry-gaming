@@ -999,6 +999,45 @@ const CHESS_LEVEL_ELO = { easy: 600, medium: 1200, hard: 1800 };
  * it for ever; see Traps), keeping the best move of the last depth it finished.
  * opts: { elo (or level), ms, nodes, depth, rnd, now } - the rating's numbers, overridden.
  */
+function chessStyleBonus(p, m, style, g, side) {
+  if (!style) return 0;
+  const from = chessMFrom(m), to = chessMTo(m), flags = chessMFlags(m);
+  const pc = p.b[to];
+  const kind = pc & 7;
+  let bonus = 0;
+
+  if (style === 'attack') {
+    if (chessInCheckPos(p)) bonus += 50;
+    const enemyKing = p.kings[side ^ 1];
+    if (enemyKing >= 0) {
+      const ring = CHESS_KING[enemyKing];
+      const attacks = chessAttacksFrom(p.b, to);
+      for (let i = 0; i < ring.length; i++) {
+        if (attacks.indexOf(ring[i]) !== -1) bonus += 15;
+      }
+    }
+  } else if (style === 'solid') {
+    const isEarly = (g && g.full ? g.full <= 8 : true);
+    if (isEarly && kind === 5) bonus -= 40;
+    const mat = chessMaterial(p.b);
+    const wVal = mat.w.reduce((s, k) => s + CHESS_VALUE[k], 0);
+    const bVal = mat.b.reduce((s, k) => s + CHESS_VALUE[k], 0);
+    const diff = side === 0 ? (wVal - bVal) : (bVal - wVal);
+    if (diff >= -50 && (flags & CHESS_F_CAP)) bonus += 30;
+    const myKing = p.kings[side];
+    if (myKing >= 0 && kind === 1) {
+      const kFile = myKing & 7;
+      const pFile = from & 7;
+      if (Math.abs(pFile - kFile) <= 1) {
+        const homeRank = side === 0 ? 1 : 6;
+        if ((from >> 3) === homeRank) bonus -= 25;
+      }
+    }
+    if (flags & CHESS_F_CASTLE) bonus += 25;
+  }
+  return bonus;
+}
+
 function chessBestMove(g, opts) {
   const o = opts || {};
   const L = chessEloSettings(o.elo !== undefined ? o.elo : (CHESS_LEVEL_ELO[o.level] || 1200));
@@ -1012,7 +1051,7 @@ function chessBestMove(g, opts) {
   if (L.blunder && rnd() < L.blunder) return out(root[Math.floor(rnd() * root.length)]);
   const res = chessSearch(p, g, {
     depth: o.depth || L.depth, ms: o.ms || L.ms, nodes: o.nodes || L.nodes, noise: o.noise !== undefined ? o.noise : L.noise,
-    qdepth: L.qdepth, rnd: rnd, now: clockNow
+    qdepth: L.qdepth, rnd: rnd, now: clockNow, style: o.style
   });
   return out(res.move || root[0]);
 }
@@ -1173,16 +1212,20 @@ function chessSearch(p, g, o) {
   const noise = {};
   if (o.noise) rootMoves.forEach(m => { noise[m] = Math.round((o.rnd() * 2 - 1) * o.noise); });
   const rootKey = p.lo + ':' + p.hi;
+  let lastCompletedScores = [], currentScores = [];
+  const side = p.side;
   for (let depth = 1; depth <= o.depth; depth++) {
     S.must = depth === 1;
     const scores = [];
+    currentScores = scores;
     let alpha = -CHESS_INF, iterBest = 0, iterScore = -CHESS_INF;
     S.path = [rootKey];
     for (let i = 0; i < rootMoves.length; i++) {
       const m = rootMoves[i];
       chessDo(p, m);
-      // With a wobble, every root move gets its real score (a full window); without, alpha-beta.
-      const sc = -negamax(depth - 1, -CHESS_INF, o.noise ? CHESS_INF : -alpha, 1, true) + (noise[m] || 0);
+      const sBonus = o.style ? chessStyleBonus(p, m, o.style, g, side) : 0;
+      const fullWin = !!(o.noise || (o.lines && i < o.lines));
+      const sc = -negamax(depth - 1, -CHESS_INF, fullWin ? CHESS_INF : -alpha, 1, true) + (noise[m] || 0) + sBonus;
       chessUndo(p);
       if (S.stop) break;
       scores.push([sc, m]);
@@ -1196,8 +1239,18 @@ function chessSearch(p, g, o) {
     }
     bestMove = iterBest; bestScore = iterScore; done = depth;
     scores.sort((a, b) => b[0] - a[0]);
+    lastCompletedScores = scores.slice();
     rootMoves = scores.map(x => x[1]).concat(rootMoves.filter(m => !scores.some(x => x[1] === m)));
     if (Math.abs(bestScore) > CHESS_MATE - 1000) break;       // a mate found: no need to look deeper
+  }
+  let ranked = lastCompletedScores;
+  if (!ranked.length || (currentScores.length >= Math.min(rootMoves.length, o.lines || 1) && currentScores.length > ranked.length)) {
+    currentScores.sort((a, b) => b[0] - a[0]);
+    ranked = currentScores.slice();
+  }
+  const seenRoot = new Set(ranked.map(x => x[1]));
+  for (let i = 0; i < rootMoves.length; i++) {
+    if (!seenRoot.has(rootMoves[i])) ranked.push([-CHESS_INF, rootMoves[i]]);
   }
   // The line it expects: the best move, then the table's best move from each position after it.
   const pv = [];
@@ -1216,7 +1269,7 @@ function chessSearch(p, g, o) {
     while (steps--) chessUndo(p);
     walk.forEach(m => pv.push(m));
   }
-  return { move: bestMove, score: bestScore, depth: done, nodes: S.nodes, ms: o.now() - start, pv: pv };
+  return { move: bestMove, score: bestScore, depth: done, nodes: S.nodes, ms: o.now() - start, pv: pv, ranked: ranked };
 }
 
 /* ============================================================================
@@ -1276,15 +1329,19 @@ const chessMateIn = (score) => (Math.abs(score) > CHESS_MATE - 1000 ? Math.sign(
  */
 function chessAnalyse(g, opts) {
   const o = opts || {};
+  const numLines = Math.max(1, Number(o.lines) || 1);
   const st = chessStatus(g);
   if (st.over) {
     const mated = st.reason === 'mate';
-    return { over: true, move: null, san: '', score: mated ? -CHESS_MATE : 0, mate: 0, mated: mated, pv: [] };
+    const base = { over: true, move: null, san: '', score: mated ? -CHESS_MATE : 0, mate: 0, mated: mated, pv: [] };
+    if (numLines > 1) base.lines = [];
+    return base;
   }
   const p = chessPos(g);
   const res = chessSearch(p, g, {
     depth: o.depth || 30, ms: o.ms || 60000, nodes: o.nodes || CHESS_ANALYSE_NODES, noise: 0, qdepth: 8,
-    rnd: () => 0.5, now: typeof o.now === 'function' ? o.now : () => Date.now(), pv: true
+    rnd: () => 0.5, now: typeof o.now === 'function' ? o.now : () => Date.now(), pv: true,
+    lines: numLines
   });
   const pv = [];
   res.pv.forEach(m => {
@@ -1294,8 +1351,32 @@ function chessAnalyse(g, opts) {
   });
   for (let i = 0; i < res.pv.length; i++) chessUndo(p);
   const first = pv[0] || null;
-  return { over: false, move: first ? { from: first.from, to: first.to, promo: first.promo } : null, san: first ? first.san : '',
-    score: res.score, mate: chessMateIn(res.score), pv: pv, depth: res.depth };
+  const out = {
+    over: false, move: first ? { from: first.from, to: first.to, promo: first.promo } : null, san: first ? first.san : '',
+    score: res.score, mate: chessMateIn(res.score), pv: pv, depth: res.depth
+  };
+  if (numLines > 1) {
+    const legalAll = chessLegalPos(p);
+    const ranked = res.ranked || [];
+    out.lines = ranked.slice(0, numLines).map(entry => {
+      const m = entry[1];
+      const sc = entry[0];
+      const from = chessSqName(chessMFrom(m));
+      const to = chessSqName(chessMTo(m));
+      const promo = chessPromoLetter(chessMPromo(m));
+      const san = chessSanPos(p, m, legalAll);
+      return {
+        move: { from, to, promo },
+        from: from,
+        to: to,
+        promo: promo,
+        san: san,
+        score: sc,
+        mate: chessMateIn(sc)
+      };
+    });
+  }
+  return out;
 }
 
 /* --- what the board shows: attacks, hanging pieces, forks, pins ----------------------- */

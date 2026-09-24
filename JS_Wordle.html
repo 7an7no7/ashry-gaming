@@ -174,12 +174,12 @@ function submitWordleGuess() {
         appState.wordle.currentGuess = "";   // don't leave a half-row in state
         playSound('success');
         confetti({ particleCount: 200, spread: 100 });
-        setTimeout(() => showWordleResult(true), 1000);
+        wordleResultSoon(true);
     } else if(appState.wordle.guesses.length >= appState.wordle.maxTries) {
         appState.wordle.status = "lost";
         appState.wordle.currentGuess = "";
         playSound('alarm');
-        setTimeout(() => showWordleResult(false), 1000);
+        wordleResultSoon(false);
     } else {
         playSound('click');
         appState.wordle.currentGuess = "";
@@ -235,14 +235,29 @@ function getKeyboardState() {
     return state;
 }
 
-function showWordleResult(win) {
+/**
+ * The result a second after the last row: only for the game that ended, and
+ * only on its board. A new game dealt in that second (back, then a length)
+ * would otherwise have its own word shown.
+ */
+function wordleResultSoon(win) {
+    const word = appState.wordle.displayWord || appState.wordle.targetWord;
+    const dealt = appState.wordle.targetWord;
+    setTimeout(() => {
+        if (appState.currentView !== 'play-wordle' || appState.wordle.targetWord !== dealt) return;
+        showWordleResult(win, word);
+    }, 1000);
+}
+
+function showWordleResult(win, shown) {
+    const word = escapeHTML(String(shown || appState.wordle.displayWord || appState.wordle.targetWord || ''));
     const title = win 
         ? (appState.lang === 'ar' ? "🎉 مبروك!" : "🎉 You Won!") 
         : (appState.lang === 'ar' ? "حظ أوفر!" : "Game Over!");
     
     const msg = appState.lang === 'ar' 
-        ? `الكلمة كانت: <br><b class="text-3xl tx-accent">${appState.wordle.displayWord || appState.wordle.targetWord}</b>` 
-        : `The word was: <br><b class="text-3xl tx-accent">${appState.wordle.displayWord || appState.wordle.targetWord}</b>`;
+        ? `الكلمة كانت: <br><b class="text-3xl tx-accent">${word}</b>` 
+        : `The word was: <br><b class="text-3xl tx-accent">${word}</b>`;
 
     document.getElementById('alert-title').innerText = title;
     document.getElementById('alert-msg').innerHTML = msg;

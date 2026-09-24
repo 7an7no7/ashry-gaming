@@ -666,6 +666,7 @@
      game's clocks while it is read, and "carry on" starts them again. A room's
      clocks belong to the server, so they are left alone. */
   let sheetPausedClocks = [];
+  let sheetPausedSolo = null;   // the solo board's state a sheet paused
   function pauseClocksForSheet() {
       const view = String(appState.currentView || '');
       // The bomb's fuse is a secret: stopping it on a popup would tell the table.
@@ -675,10 +676,26 @@
           c.pause();
           sheetPausedClocks.push(c);
       });
+      // A timed solo board counts its time from `startedAt`, not from the
+      // ticker: stop that too, or the minutes spent reading land in the result.
+      const g = typeof soloGameOnScreen === 'function' ? soloGameOnScreen() : null;
+      if (g && g.timed && g.state && !sheetPausedSolo) {
+          const s = g.state();
+          if (s && s.phase === 'play' && !s.pausedAt) { soloPause(s); sheetPausedSolo = s; }
+      }
   }
   function resumeClocksAfterSheet() {
       const clocks = sheetPausedClocks;
       sheetPausedClocks = [];
+      const s = sheetPausedSolo;
+      sheetPausedSolo = null;
+      // Only while its board is still on screen: a sheet that led away (another
+      // game, the setup) leaves it paused, as leaving the board always does.
+      const g = s && typeof soloGameOnScreen === 'function' ? soloGameOnScreen() : null;
+      if (g && g.state && g.state() === s) {
+          soloResume(s);
+          if (typeof soloClockRefresh === 'function') soloClockRefresh();
+      }
       clocks.forEach(c => { if (activeClocks.has(c)) c.resume(); });
   }
 
@@ -8346,7 +8363,14 @@
         if (appState.currentView === 'together' && typeof renderTogether === 'function') renderTogether();
         else if (appState.currentView === 'tools' && typeof renderTools === 'function') renderTools();
         else if (appState.currentView === 'play-screw') renderScrewBoard();
-        else if (appState.currentView === 'play-monkey') { renderMonkeyBoard(); updateTimerUI(); }
+        else if (appState.currentView === 'play-monkey') {
+            renderMonkeyBoard(); updateTimerUI();
+            // A game that had ended: its result comes back (initializeApp closes
+            // every popup after this, hence the tick), with its play-again.
+            if (appState.monkey && appState.monkey.phase === 'done') {
+                setTimeout(() => { if (appState.currentView === 'play-monkey' && appState.monkey.phase === 'done') checkWinCondition(true); }, 0);
+            }
+        }
         else if (appState.currentView === 'imposter-reveal') showRevealStep();
         else if (appState.currentView === 'play-imposter') { renderImposterBoard(); isPaused = true; updateImposterTimerUI(); }
         else if (appState.currentView === 'play-domino') {
@@ -8385,10 +8409,10 @@
             updateChessUI(); 
         }
         else if (appState.currentView === 'play-reaction') {
-            setTimeout(() => setView('setup-reaction'), 50); 
+            setTimeout(() => { setView('setup-reaction'); toastRoundLost(); }, 50);
         }
         else if (appState.currentView === 'play-whoami' || appState.currentView === 'input-whoami') {
-            setTimeout(() => setView('setup-whoami'), 50);
+            setTimeout(() => { setView('setup-whoami'); toastRoundLost(); }, 50);
         }
         // Fully restorable: the whole game is in appState, it just needs drawing.
         else if (appState.currentView === 'play-wordle' && typeof renderWordleBoard === 'function') {
@@ -9565,6 +9589,16 @@
     const el = document.getElementById(id);
     if (el) el.classList.add('hidden');
     if (id === 'exit-modal' || id === 'help-modal') resumeClocksAfterSheet();
+    // The coach's blunder warning closed some other way than its own buttons
+    // (the phone's back, the edge swipe): the game would stay frozen on the
+    // warning. The buttons clear `pending` right after closing it, so wait a
+    // tick and only act if it is still the same warning.
+    if (id === 'ch-warn-modal' && typeof chLocal !== 'undefined' && chLocal && chLocal.pending) {
+      const p = chLocal.pending;
+      setTimeout(() => {
+        if (chLocal.pending === p && typeof chCoachDismissed === 'function') chCoachDismissed();
+      }, 0);
+    }
     // The help sheet lights its nav item while it is open.
     if (id === 'help-modal') {
       const nav = document.getElementById('nav-help');

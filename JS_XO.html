@@ -132,9 +132,21 @@ function xoMaybePhone() {
   if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
   xoPhoneTimer = setTimeout(() => {
     xoPhoneTimer = null;
+    // Not while its board is off screen (it plays when the board comes back),
+    // nor on a game that has been replaced meanwhile.
+    if (appState.currentView !== 'play-xo' || xoState() !== x) return;
     if (x.phase !== 'play' || x.turn === x.human) return;
     xoPlace(xoPhoneMove(x));
   }, 420);
+}
+
+// Leaving the board by the back arrow or a tab: the phone's move waits, as in
+// كونكت ٤ and نقط ومربعات, and comes when the board is back.
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from, to) => {
+    if (from === 'play-xo' && xoPhoneTimer) { clearTimeout(xoPhoneTimer); xoPhoneTimer = null; }
+    if (to === 'play-xo') setTimeout(() => { if (appState.currentView === 'play-xo') xoMaybePhone(); }, 0);
+  });
 }
 
 /*

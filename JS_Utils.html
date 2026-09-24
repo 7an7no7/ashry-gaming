@@ -775,11 +775,12 @@ function addPlayerFromSetup(btn) {
   }
   function onCustomConfirm() {
     playSound('click');
-    if (confirmCallback) {
-        confirmCallback();
-        confirmCallback = null;
-    }
+    // Closed first: a callback that throws must not leave the confirm up, or
+    // keep its callback for the next Yes.
+    const cb = confirmCallback;
+    confirmCallback = null;
     closeModal('custom-confirm-modal');
+    if (cb) cb();
   }
 
   /* --- MONKEY UTILS --- */
@@ -1023,13 +1024,16 @@ function toggleResults() {
         // 2. Clear Local Storage. The room session lives under its own key, so
         // without this a "reset everything" still silently rejoined the old room
         // on the next load.
-        localStorage.removeItem('gameTrackerState_v1');
+        // Each in its own try: a browser that blocks storage throws here, and
+        // the reset below (and closing the confirm) must still happen.
+        const drop = (k) => { try { localStorage.removeItem(k); } catch (e) {} };
+        drop('gameTrackerState_v1');
         try { if (typeof Room !== 'undefined' && Room.isIn) Room.leave(); } catch (e) {}
-        localStorage.removeItem('ashryRoom_v1');
+        drop('ashryRoom_v1');
         // The saved names and groups are this phone's too, and "start from
         // scratch" has to mean it.
-        localStorage.removeItem(PLAYER_LIBRARY_KEY);
-        localStorage.removeItem('ashry_saved_groups');
+        drop(PLAYER_LIBRARY_KEY);
+        drop('ashry_saved_groups');
         if (typeof forgetSeenLists === 'function') forgetSeenLists();
 
         // 4. Reset Global Variables (Clean Slate)
@@ -1275,17 +1279,19 @@ function toggleResults() {
   function checkIconBanner(force) {
       const current = Number(window.ICON_VERSION || 0);
       if (!force && (!current || !isIOSDevice() || !isStandaloneApp())) return;
-      let installed = Number(localStorage.getItem(ICON_INSTALLED_KEY) || 0);
+      // Runs while the app starts: storage that is blocked must not stop it.
+      const read = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+      let installed = Number(read(ICON_INSTALLED_KEY) || 0);
       if (!installed) {
           // No marker yet. A copy that already holds names or a saved game was
           // added before the marker existed, so with the old icon; a fresh
           // install carries the current one.
-          const usedBefore = !!(localStorage.getItem('gameTrackerState_v1') || localStorage.getItem(PLAYER_LIBRARY_KEY));
+          const usedBefore = !!(read('gameTrackerState_v1') || read(PLAYER_LIBRARY_KEY));
           installed = usedBefore ? 1 : current;
           try { localStorage.setItem(ICON_INSTALLED_KEY, String(installed)); } catch (e) {}
       }
       if (!force && installed >= current) return;
-      if (!force && Number(localStorage.getItem(ICON_SNOOZE_KEY) || 0) > Date.now()) return;
+      if (!force && Number(read(ICON_SNOOZE_KEY) || 0) > Date.now()) return;
       const el = document.getElementById('icon-banner');
       if (el) el.classList.remove('hidden');
   }
@@ -1788,13 +1794,23 @@ let wakeLockWatching = false;
    the tabs and the setup screens. setView calls syncWakeLock on every change. */
 const wantsWakeLock = (view) => /^(play-|room-|reveal-|imposter-reveal$|input-|results-)/.test(view || '') && view !== 'room-join';
 
+// A request still on its way: a second call in that moment would ask again,
+// and the first lock would be overwritten and never released.
+let wakeLockPending = false;
 async function requestWakeLock() {
     if (!('wakeLock' in navigator) || !wantsWakeLock(appState.currentView)) return;
-    if (wakeLock && !wakeLock.released) return;
+    if (wakeLockPending || (wakeLock && !wakeLock.released)) return;
+    wakeLockPending = true;
     try {
-        wakeLock = await navigator.wakeLock.request('screen');
+        const lock = await navigator.wakeLock.request('screen');
+        // Granted after the game was left (the menu): let it go at once, or
+        // the screen never sleeps on the home.
+        if (!wantsWakeLock(appState.currentView)) { lock.release().catch(() => {}); return; }
+        wakeLock = lock;
     } catch (err) {
         return;   // denied, or the tab isn't visible yet - not worth surfacing
+    } finally {
+        wakeLockPending = false;
     }
 
     // Registered once. It used to be added inside requestWakeLock, so every

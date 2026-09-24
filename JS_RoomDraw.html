@@ -51,6 +51,7 @@ const draw = {
   onRedo: null,
   local: false,         // ارسم واكتب: strokes stay here until the player is done
   painted: 0,           // how many server strokes we've already drawn
+  paintedMark: null,    // { n, sig } of the last stroke paintStrokes drew
   colour: DRAW_COLOURS[0],
   width: 5,
   tool: 'p',
@@ -309,7 +310,14 @@ function paintStrokes(strokes) {
   // A shrinking list means the drawer cleared or undid: start again. Replaying
   // from the beginning also keeps fills correct, since a fill depends on
   // everything painted before it.
-  if (strokes.length < draw.painted) {
+  // The same goes for a list whose painted part changed under us: a phone that
+  // missed a clear or an undo (asleep, on the HTTP fallback) gets back a list
+  // as long as or longer than what it painted, and would only add to the old
+  // picture. The last stroke it painted is checked against the list's.
+  const mark = draw.paintedMark;
+  const changed = !!(mark && mark.n === draw.painted && draw.painted > 0 &&
+    (strokes.length < mark.n || strokeMark(strokes[mark.n - 1]) !== mark.sig));
+  if (strokes.length < draw.painted || changed) {
     clearSurface();
     draw.painted = 0;
     draw.live = null;
@@ -327,6 +335,7 @@ function paintStrokes(strokes) {
 
   for (let i = draw.painted; i < strokes.length; i++) drawStroke(ctx, strokes[i], c.width);
   draw.painted = strokes.length;
+  draw.paintedMark = strokes.length ? { n: strokes.length, sig: strokeMark(strokes[strokes.length - 1]) } : null;
 
   // A line the drawer is still drawing goes back on top.
   if (draw.live && draw.live.n >= strokes.length) {
@@ -337,6 +346,11 @@ function paintStrokes(strokes) {
   }
   // The snapshot the shape preview restores from is now stale.
   draw.snapshot = null;
+}
+
+/** A stroke as a string, to tell whether the painted list is still the room's. */
+function strokeMark(st) {
+  try { return JSON.stringify(st); } catch (e) { return ''; }
 }
 
 /** Draws one stroke. `t` picks the tool; absent means freehand. */

@@ -143,6 +143,8 @@ function csChangeRules(id) {
     s.phase = 'setup';
     s.rounds = [];
     s.draft = {};
+    delete s.editing;
+    delete s.newDraft;
     delete s.winTeam;
     saveToLocal();
     paintCardScoreSetup(id);
@@ -173,6 +175,7 @@ function csBegin(id, names) {
   s.seats = g.seats(names, s.opts, csT());
   s.rounds = [];
   s.draft = {};
+  delete s.newDraft;
   delete s.winTeam;
   s.phase = 'play';
   s.startedAt = Date.now();
@@ -576,10 +579,13 @@ function saveCardScoreRound(id) {
     s.rounds[s.editing] = roundObj;
     s.rounds = csReplay(g, s, s.rounds, s.editing + 1);
     delete s.editing;
+    // Back to the new round's card as it was being typed before the fix.
+    s.draft = s.newDraft || {};
   } else {
     s.rounds.push(roundObj);
+    s.draft = {};
   }
-  s.draft = {};
+  delete s.newDraft;
   delete s.winTeam;
   const end = !!g.ended(s, csTotals(id));
   s.phase = end ? 'over' : 'play';
@@ -605,6 +611,7 @@ function undoCardScoreRound(id) {
   const s = csState(id);
   if (!s.rounds.length) return;
   delete s.editing;
+  delete s.newDraft;
   const last = s.rounds.pop();
   s.draft = last.draft || {};
   delete s.winTeam;
@@ -617,6 +624,8 @@ function undoCardScoreRound(id) {
 function csEditRound(id, n) {
   const s = csState(id);
   if (!s.rounds || !s.rounds[n]) return;
+  // What was typed for the next round waits while an old one is fixed.
+  if (typeof s.editing !== 'number') s.newDraft = s.draft || {};
   s.draft = Object.assign({}, s.rounds[n].draft || {});
   s.editing = n;
   s.phase = 'play';
@@ -630,7 +639,8 @@ function csCancelEdit(id) {
   const s = csState(id);
   const g = CS_GAMES[id];
   delete s.editing;
-  s.draft = {};
+  s.draft = s.newDraft || {};
+  delete s.newDraft;
   if (g && g.ended) s.phase = g.ended(s, csTotals(id)) ? 'over' : 'play';
   saveToLocal();
   paintCardScore(id);
@@ -641,6 +651,7 @@ function restartCardScore(id) {
   s.rounds = [];
   s.draft = {};
   delete s.editing;
+  delete s.newDraft;
   delete s.winTeam;
   s.phase = 'play';
   s.startedAt = Date.now();

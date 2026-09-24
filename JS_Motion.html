@@ -355,8 +355,16 @@ const motionSeen = new Set();
 
 /** True the first time `key` is drawn on this phone with motion on. */
 function motionFirst(key) {
-  if (motionOff() || motionSeen.has(key)) return false;
-  if (motionSeen.size > 300) motionSeen.clear();
+  if (motionSeen.has(key)) {
+    // Drawn again: it is in use, so it moves to the newest end.
+    motionSeen.delete(key);
+    motionSeen.add(key);
+    return false;
+  }
+  if (motionOff()) return false;
+  // Forget the oldest key only (a Set keeps insertion order): clearing them all
+  // would also forget the reveal on screen, and its next redraw would replay it.
+  if (motionSeen.size >= 300) motionSeen.delete(motionSeen.values().next().value);
   motionSeen.add(key);
   return true;
 }

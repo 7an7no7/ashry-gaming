@@ -106,7 +106,7 @@
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260924120303";
+      window.BUILD_ID = "20260924123017";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -14741,6 +14741,305 @@ button.tour-live { cursor: pointer; }
   .xo-cell.is-new, .xo-board.is-lighting .xo-cell.is-win, .tour-dot, .tour-m__live i, .tour-m__crown, .tour-over-card { animation: none; }
 }
 
+/* ==========================================================================
+   34. CHESS FOR TEAMS: شطرنج بالتصويت · المخ والإيد (24 Sep 2026)
+   JS_RoomVoteChess.html and JS_RoomHandBrain.html, on the chess screen of
+   section 30 (the board, the duels' pills, the moves). What they add: the
+   members of a team under its pill (a dot fills as each votes, never what
+   for), the vote's clock as a ring, the tally that flies in once the move is
+   played; the Brain's six pieces, its word said big to the table, the seats
+   of the lobby. The piece colours are the board's own, the same in both
+   themes; everything else is the tokens.
+   ========================================================================== */
+.vc-mems, .hb-whos { display: inline-flex; flex-wrap: wrap; gap: 0.15rem 0.5rem; margin-inline-end: 0.25rem; }
+.vc-mem, .hb-who { display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--fs-xs); font-weight: var(--fw-med); color: var(--text-2); }
+.vc-mem__dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--border-strong); flex: none; }
+.vc-mem.is-wait .vc-mem__dot { background: none; box-shadow: inset 0 0 0 1.5px var(--text-3); }
+.vc-mem.is-in .vc-mem__dot { background: var(--success); animation: vcDotIn var(--dur-3) var(--ease-spring); }
+.vc-mem.is-in { color: var(--text-strong); }
+.hb-who.is-up { color: var(--accent-ink); font-weight: var(--fw-bold); }
+.vc-mem.is-me, .hb-who.is-me { text-decoration: underline; text-underline-offset: 0.2em; text-decoration-thickness: 2px; }
+@keyframes vcDotIn { from { transform: scale(0.2); } to { transform: scale(1); } }
+
+/* The vote's clock: a ring that runs down (--p, 1 → 0) round the seconds left. */
+.vc-clockrow { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); margin-top: var(--sp-2); }
+.vc-clockrow__txt { font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--text-2); }
+.vc-clock { --p: 1; position: relative; display: inline-grid; place-items: center; width: 2.6rem; height: 2.6rem; flex: none; }
+.vc-clock__ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--p) * 360deg), var(--surface-sunken) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.3rem), #000 calc(100% - 0.28rem));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 0.3rem), #000 calc(100% - 0.28rem));
+}
+.vc-clock__n { position: relative; font-size: var(--fs-body); font-weight: var(--fw-bold); color: var(--text-strong); }
+.vc-clock.is-low .vc-clock__ring { background: conic-gradient(var(--danger) calc(var(--p) * 360deg), var(--surface-sunken) 0); }
+.vc-clock.is-low .vc-clock__n { color: var(--danger-ink); }
+
+/* The tally: what the team played, then how it voted, the winning move on top. */
+.vc-tally { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3); border-radius: var(--r-lg); background: var(--accent-soft); border: 1px solid var(--accent-border); }
+.vc-tally__head { margin: 0 0 var(--sp-1); font-weight: var(--fw-semi); color: var(--text); text-align: center; }
+.vc-tally__head b { font-family: var(--font-display); font-size: var(--fs-h3); color: var(--accent-ink); }
+.vc-tally__row { --w: 1; display: grid; grid-template-columns: 4.5rem minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); }
+.vc-tally__move { font-weight: var(--fw-bold); color: var(--text-strong); text-align: start; }
+.vc-tally__bar { display: block; height: 0.55rem; border-radius: var(--r-full); background: var(--border-strong); transform-origin: left center; transform: scaleX(var(--w)); }
+.vc-tally__row.is-pick .vc-tally__bar { background: var(--accent); }
+[dir="rtl"] .vc-tally__bar { transform-origin: right center; }
+.vc-tally__row.is-pick .vc-tally__move { color: var(--accent-ink); }
+.vc-tally__n { color: var(--text-2); }
+.vc-tally__how { margin: var(--sp-1) 0 0; font-size: var(--fs-xs); color: var(--text-2); text-align: center; }
+.vc-tally.is-fresh { animation: vcTallyIn var(--dur-4) var(--ease-out) both; }
+.vc-tally.is-fresh .vc-tally__row { animation: vcRowIn var(--dur-3) var(--ease-out) both; animation-delay: calc(180ms + var(--i) * 110ms); }
+.vc-tally.is-fresh .vc-tally__bar { animation: vcBarIn 520ms var(--ease-out) both; animation-delay: calc(240ms + var(--i) * 110ms); }
+@keyframes vcTallyIn { from { opacity: 0; transform: translateY(-0.6rem) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes vcRowIn { from { opacity: 0; transform: translateY(0.4rem); } to { opacity: 1; transform: none; } }
+@keyframes vcBarIn { from { transform: scaleX(0); } to { transform: scaleX(var(--w)); } }
+
+/* The lobby: the two teams side by side; a name tapped goes to the other side. */
+.vc-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); margin-block: var(--sp-2); }
+.vc-side { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2); border-radius: var(--r-lg); background: var(--surface-sunken); border: 1px solid var(--border); min-width: 0; }
+.vc-side__head { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-weight: var(--fw-bold); color: var(--text-strong); }
+.vc-side__head .ch-mark { width: 1.5rem; height: 1.5rem; }
+.vc-side__chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.vc-side__chip {
+  display: inline-flex; align-items: center; gap: 0.3rem; min-height: 2.25rem; max-width: 100%;
+  padding: 0 var(--sp-3); border-radius: var(--r-full); border: 1px solid var(--border-strong);
+  background: var(--surface-solid); color: var(--text-strong); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-semi);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+button.vc-side__chip { cursor: pointer; }
+button.vc-side__chip span { color: var(--text-3); }
+
+/* المخ والإيد: the Brain's six pieces (only those that can move lit). */
+/* Six in a row where they fit, else as many as keep each name whole (a phone on its side: a narrow column). */
+.hb-kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(3.1rem, 1fr)); gap: var(--sp-1); }
+.hb-kind {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem;
+  min-height: 3.6rem; padding: var(--sp-1) 0; border-radius: var(--r-md); border: 1px solid var(--accent-border);
+  background: var(--surface-solid); color: var(--text-strong); font: inherit; cursor: pointer;
+  box-shadow: var(--sh-1); transition: transform var(--dur-1) var(--ease-out), background var(--dur-2);
+}
+.hb-kind:active:not(:disabled) { transform: scale(0.94); }
+.hb-kind:disabled { opacity: 0.32; box-shadow: none; cursor: default; }
+.hb-kind__pc { width: 2rem; height: 2rem; }
+.hb-kind__name { font-size: var(--fs-xs); font-weight: var(--fw-semi); line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The Brain's word, said to the table: big, and popping in the first time a screen shows it. */
+.hb-call {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-xl);
+  background: var(--accent-soft); border: 1px solid var(--accent-border); color: var(--text-strong);
+}
+.hb-call__pc { width: 2.6rem; height: 2.6rem; flex: none; }
+.hb-call__txt { font-weight: var(--fw-semi); }
+.hb-call__txt b { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--accent-ink); }
+.hb-call.is-fresh { animation: hbCallIn 520ms var(--ease-spring) both; }
+.hb-call.is-fresh .hb-call__pc { animation: hbPcIn 640ms var(--ease-spring) 120ms both; }
+@keyframes hbCallIn { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: none; } }
+@keyframes hbPcIn { 0% { transform: scale(0.3) rotate(-18deg); } 70% { transform: scale(1.18) rotate(6deg); } 100% { transform: none; } }
+
+.hb-log { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-3); font-size: var(--fs-xs); color: var(--text-2); }
+.hb-log .field__label { width: 100%; margin: 0; }
+.hb-log__row { display: inline-flex; align-items: center; gap: 0.2rem; }
+.hb-log__pc { width: 1.1rem; height: 1.1rem; }
+
+/* The lobby's four seats: a team's Brain and Hand under its colour. */
+.hb-seats { display: flex; flex-direction: column; gap: var(--sp-1); }
+.hb-seat {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.05rem; width: 100%; min-height: 2.9rem;
+  padding: var(--sp-1) var(--sp-2); border-radius: var(--r-md); border: 1px solid var(--border-strong);
+  background: var(--surface-solid); color: var(--text-strong); font: inherit; text-align: start;
+}
+button.hb-seat { cursor: pointer; }
+.hb-seat.is-picked { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+.hb-seat__role { font-size: var(--fs-xs); color: var(--text-3); font-weight: var(--fw-semi); }
+.hb-seat__who { font-size: var(--fs-sm); font-weight: var(--fw-bold); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-seat__empty { color: var(--text-3); font-weight: var(--fw-med); }
+
+/* The TV: the same pieces, sized from the screen. */
+.is-tv-view .vc-clockrow__txt { font-size: 2.1vmin; }
+.is-tv-view .vc-clock { width: 6vmin; height: 6vmin; }
+.is-tv-view .vc-clock__n { font-size: 2.6vmin; }
+.is-tv-view .vc-mem, .is-tv-view .hb-who { font-size: 1.8vmin; }
+.is-tv-view .hb-call { padding: 1.2vmin 2vmin; }
+.is-tv-view .hb-call__pc { width: 7vmin; height: 7vmin; }
+.is-tv-view .hb-call__txt { font-size: 2.4vmin; }
+.is-tv-view .hb-call__txt b { font-size: 4.2vmin; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vc-mem.is-in .vc-mem__dot, .vc-tally.is-fresh, .vc-tally.is-fresh .vc-tally__row, .vc-tally.is-fresh .vc-tally__bar,
+  .hb-call.is-fresh, .hb-call.is-fresh .hb-call__pc { animation: none; }
+   35. باغ هاوس (BUGHOUSE in rooms, JS_RoomBughouse.html, 24 Sep 2026)
+   Four on two boards. On a phone your own board is big (chess's board view,
+   section 30), the player over it and you under it each a line of name,
+   clock and hand; your partner's board is a small 2D board beside it (under
+   it upright) that swaps places with a tap. On the TV both boards side by
+   side. Team A's names carry the blue team line, team B's the red.
+   ========================================================================== */
+.bh-game { display: flex; flex-direction: column; gap: var(--sp-2); }
+.bh-status { margin: 0; }
+.bh-note { margin: 0; text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--accent-ink); }
+.bh-layout { display: flex; flex-direction: column; gap: var(--sp-3); }
+.bh-big { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.bh-side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.bh-stage { aspect-ratio: 1 / 1.08; max-height: calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 17rem); min-height: 16rem; }
+
+/* A player's line: the colour, the name, the clock; the hand under it. */
+.bh-player {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-inline-start: 0.25rem solid var(--bh-team, var(--border-strong));
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.bh-team--A { --bh-team: var(--team-blue); --bh-team-ink: var(--team-blue-ink); }
+.bh-team--B { --bh-team: var(--team-red); --bh-team-ink: var(--team-red-ink); }
+.bh-player.is-turn { border-color: var(--accent); border-inline-start-color: var(--bh-team); box-shadow: 0 0 0 1px var(--accent), 0 6px 18px -12px var(--accent-glow); }
+.bh-player.is-away { opacity: 0.65; }
+.bh-player__row { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.bh-player .ch-mark { flex: none; width: 1.6rem; height: 1.6rem; }
+.bh-player__name { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--text-strong); font-size: var(--fs-sm); font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.bh-you { display: inline-block; margin-inline-start: 0.25rem; padding: 0 0.4rem; border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent-ink); font-size: var(--fs-xs); font-weight: 800; }
+.bh-you--partner { background: var(--surface-2); color: var(--bh-team-ink, var(--text-2)); }
+.bh-sub { flex: none; font-size: var(--fs-sm); }
+.bh-clock { flex: none; }
+
+/* The hand: a row of pieces with their counts, left to right in every language. */
+.bh-hand { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; min-height: 2rem; }
+.bh-hand__none { color: var(--text-3); font-size: var(--fs-xs); font-weight: 700; }
+.bh-hand__pc {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0.1rem;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.bh-hand__pc > svg { width: 100%; height: 100%; }
+.bh-hand.is-live .bh-hand__pc {
+  width: 2.75rem;
+  height: 2.75rem;
+  cursor: grab;
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+  touch-action: none;
+  transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.bh-hand.is-live .bh-hand__pc.is-picked { transform: translateY(-0.2rem); background: var(--surface-solid); box-shadow: 0 0 0 3px var(--accent), 0 8px 16px -8px var(--accent-glow); }
+.bh-hand__n {
+  position: absolute;
+  inset-block-end: -0.25rem;
+  inset-inline-end: -0.25rem;
+  min-width: 1.05rem;
+  padding: 0 0.2rem;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: 0 0 0 1px var(--border), var(--sh-1);
+  color: var(--text-strong);
+  font-size: 0.6875rem;
+  font-weight: 900;
+  line-height: 1.35;
+  text-align: center;
+}
+.bh-landed { animation: bh-land 460ms var(--ease-out); }
+@keyframes bh-land { 0% { transform: scale(1); } 35% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+/* A piece in flight (a capture to the partner's hand, a drop onto its square) or carried by the finger. */
+.bh-ghost { position: fixed; left: 0; top: 0; z-index: var(--z-fx-ghost); pointer-events: none; filter: drop-shadow(0 0.35rem 0.35rem rgba(0, 0, 0, 0.35)); }
+.bh-ghost > svg { width: 100%; height: 100%; }
+
+/* The small board: the other board, its two players, a tap to swap. */
+.bh-mini {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 100%;
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.bh-mini.is-mine { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), var(--sh-2); }
+.bh-mini__tag { color: var(--text-2); font-size: var(--fs-xs); font-weight: 800; text-align: center; }
+.bh-mini__hint { color: var(--text-3); font-size: var(--fs-xs); font-weight: 700; text-align: center; }
+.bh-mini__board { width: min(100%, 15rem); aspect-ratio: 1; margin-inline: auto; container-type: size; display: grid; place-items: center; }
+.bh-mini .bh-player { padding: 0.15rem var(--sp-2); }
+.bh-mini .bh-hand { min-height: 1.5rem; }
+.bh-mini .bh-hand__pc { width: 1.5rem; height: 1.5rem; }
+.bh-bar { display: flex; flex-direction: column; gap: var(--sp-2); }
+.bh-bar:empty { display: none; }
+.bh-extra { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.bh-over { display: flex; flex-direction: column; gap: var(--sp-3); align-items: stretch; text-align: center; }
+.bh-over__line { margin: 0; color: var(--text-strong); font-family: var(--font-display); font-size: var(--fs-h3, 1.15rem); font-weight: 800; }
+.bh-moves__title { margin: 0 0 var(--sp-1); color: var(--text-2); font-size: var(--fs-xs); font-weight: 800; }
+.bh-moves .ch-moves { max-height: 7rem; }
+
+/* The lobby: two boards and who sits at them. */
+.bh-lobby__pic { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); margin-bottom: var(--sp-2); }
+.bh-lobby__board { display: inline-flex; flex-direction: column; align-items: center; justify-content: space-between; width: 3.4rem; height: 3.4rem; padding: 0.2rem; border-radius: var(--r-sm); background: repeating-conic-gradient(var(--accent) 0 25%, var(--accent-soft) 0 50%) 0 0 / 50% 50%; }
+.bh-lobby__board i { font-style: normal; font-size: 1.1rem; line-height: 1; padding: 0 0.25rem; border-radius: var(--r-full); background: var(--surface-solid); box-shadow: 0 0 0 2px var(--bh-team); }
+.bh-lobby__arrow { color: var(--accent-ink); font-size: 1.5rem; font-weight: 900; }
+
+/* A phone on its side, and every wide screen: the big board takes the height, the rest a column beside it. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .bh-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 18rem); gap: var(--sp-3); align-items: start; }
+  .bh-big { position: sticky; top: 0; }
+  .bh-stage { aspect-ratio: auto; height: calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 10rem); max-height: none; min-height: 12rem; }
+  .bh-mini__board { width: min(100%, 13rem); }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .bh-game { gap: var(--sp-1); }
+  .bh-stage { height: calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 7.5rem); }
+  .bh-player { flex-direction: row; align-items: center; flex-wrap: wrap; padding: 0.1rem var(--sp-2); }
+  .bh-player__row { flex: 1 1 auto; }
+  .bh-hand { min-height: 0; }
+  .bh-hand.is-live .bh-hand__pc { width: 2.5rem; height: 2.5rem; }
+  .bh-mini__board { width: min(100%, 9.5rem); }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-room-bughouse { max-width: 84rem; }
+  .bh-layout { grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem); gap: var(--sp-5); }
+  .bh-mini__board { width: min(100%, 18rem); }
+}
+
+/* --- The TV: both boards side by side, team A at the bottom of both --- */
+.bh-tv { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--tv-gap); min-height: 0; height: 100%; }
+.bh-tv__status { font-size: var(--tv-md); }
+.bh-tv__boards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--tv-gap) * 3); min-height: 0; align-items: center; }
+.bh-tv__board { display: flex; flex-direction: column; gap: var(--tv-gap); min-width: 0; align-items: center; }
+.bh-tv__title { margin: 0; color: var(--text-2); font-size: var(--tv-sm); font-weight: 800; }
+.bh-tv__board .bh-player { width: min(100%, 60vh); padding: 0.6vmin 1.2vmin; border-radius: var(--tv-r); }
+.bh-tv__board .bh-player__name { font-size: var(--tv-sm); }
+.bh-tv__board .ch-mark { width: 4vmin; height: 4vmin; }
+.bh-tv__board .ch-clock { font-size: var(--tv-sm); min-width: 5em; }
+.bh-tv__board .bh-hand { min-height: 4.4vmin; gap: 0.6vmin; }
+.bh-tv__board .bh-hand__pc { width: 4.4vmin; height: 4.4vmin; }
+.bh-tv__board .bh-hand__n { font-size: 1.6vmin; }
+.bh-tv__board .bh-hand__none { font-size: var(--tv-xs); }
+.bh-tv__board .bh-mini__board { width: min(100%, calc(var(--app-h, 100vh) - 50vmin), 52vh); }
+.bh-tv__foot:empty { display: none; }
+.bh-tv__foot { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); }
+@media (orientation: portrait) {
+  .bh-tv__boards { grid-template-columns: minmax(0, 1fr); }
+  .bh-tv__board .bh-mini__board { width: min(100%, 36vh); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bh-landed { animation: none; }
+  .bh-hand.is-live .bh-hand__pc { transition: none; }
+}
+
 </style>
 
     
@@ -21453,6 +21752,247 @@ function chessReview(record, opts) {
   const rv = chessReviewBegin(record);
   while (!chessReviewStep(rv, opts)) { /* next position */ }
   return chessReviewResult(rv);
+}
+
+/* --- باغ هاوس — BUGHOUSE: two boards, the hands, drops --------------------------------
+   The owner's rules (24 Sep 2026): four players on two boards, partners on
+   different boards with opposite colours. What you take goes to your partner's
+   hand; on your move you may drop a piece from your hand onto an empty square
+   instead of moving - a pawn never on the first or last row, a drop may give
+   check or mate, and a promoted piece taken goes over as a pawn.
+
+   A bughouse board is an ordinary game (everything above plays it: the moves,
+   check, castling, en passant, promotion) plus two fields:
+     hand      { w: { q, r, b, n, p }, b: { ... } } - what each side can drop
+     promoted  the squares (indices) of pieces that were pawns
+   A drop is { drop: 'n', to: 'f3' }; its SAN is 'N@f3' ('P@e4' for a pawn).
+
+   Only these functions know about drops, so standard chess (and every perft
+   number) is exactly what it was. In bughouse the game ends on a mate only:
+   no repetition, fifty moves or "too little to mate" - a piece can always
+   arrive - and a side with no move and nothing to drop, not in check, waits
+   for its partner to send one (stuck), its clock running. A mate is judged
+   with the hand as it is: a piece that might come later doesn't save it.
+   What a capture gives is returned (info.gives), and the room puts it in the
+   partner's hand on the other board (chessBugGive).
+   ========================================================================= */
+
+const CHESS_BUG_KINDS = ['q', 'r', 'b', 'n', 'p'];
+const chessBugSideHand = () => ({ q: 0, r: 0, b: 0, n: 0, p: 0 });
+const chessBugHandNew = () => ({ w: chessBugSideHand(), b: chessBugSideHand() });
+
+/** A bughouse board: the start (or a FEN), empty hands, nothing promoted. */
+function chessBugNew(fen) {
+  const g = chessFromFen(fen || CHESS_START_FEN);
+  g.hand = chessBugHandNew();
+  g.promoted = [];
+  return g;
+}
+
+/** A copy of a bughouse board (chessCloneGame, the hands and the promoted squares too). */
+function chessBugClone(g) {
+  const c = chessCloneGame(g);
+  const h = g.hand || chessBugHandNew();
+  c.hand = { w: Object.assign(chessBugSideHand(), h.w), b: Object.assign(chessBugSideHand(), h.b) };
+  c.promoted = (g.promoted || []).slice();
+  return c;
+}
+
+/** Every legal drop of the side to move: [{ drop: 'n', to: 'f3' }]. */
+function chessBugDrops(g) {
+  const side = g.turn ? 1 : 0;
+  const mine = ((g.hand || {})[side ? 'b' : 'w']) || {};
+  const kinds = CHESS_BUG_KINDS.filter(l => (mine[l] | 0) > 0);
+  if (!kinds.length) return [];
+  const b = g.board.slice();
+  let king = -1;
+  for (let sq = 0; sq < 64; sq++) if (b[sq] === ((side << 3) | 6)) king = sq;
+  const out = [];
+  kinds.forEach(l => {
+    const k = CHESS_LETTERS.indexOf(l);
+    const pc = (side << 3) | k;
+    for (let sq = 0; sq < 64; sq++) {
+      if (b[sq]) continue;
+      if (k === 1 && (sq < 8 || sq >= 56)) continue;
+      b[sq] = pc;
+      const ok = king < 0 || !chessAttacked(b, king, side ^ 1);
+      b[sq] = 0;
+      if (ok) out.push({ drop: l, to: chessSqName(sq) });
+    }
+  });
+  return out;
+}
+
+/** Every legal move and drop, for the page: [{ from, to, promo, capture } | { drop, to }]. */
+const chessBugLegal = (g) => chessLegalMoves(g).concat(chessBugDrops(g));
+
+/**
+ * Is the board's game over? Mate only (with the hand as it is). stuck: no move
+ * and nothing to drop, not in check - the side waits for a piece.
+ */
+function chessBugStatus(g) {
+  const p = chessPos(g);
+  const check = chessInCheckPos(p);
+  if (chessLegalPos(p).length || chessBugDrops(g).length) return { over: false, result: '', reason: '', check: check, stuck: false };
+  if (check) return { over: true, result: p.side ? 'w' : 'b', reason: 'mate', check: true, stuck: false };
+  return { over: false, result: '', reason: '', check: false, stuck: true };
+}
+
+/**
+ * Plays a move ({ from, to, promo }) or a drop ({ drop, to }) if it is legal.
+ * Returns null when it isn't, else what chessPlay says (from, to, promo, piece,
+ * capture, captureSq, castle, san, check, status - chessBugStatus) plus drop
+ * (the letter dropped, or '') and gives (the letter the capture sends to the
+ * partner: 'p' for a promoted piece, '' when nothing was taken).
+ */
+function chessBugPlay(g, mv) {
+  if (!mv) return null;
+  if (!g.hand) g.hand = chessBugHandNew();
+  const side = g.turn ? 1 : 0;
+  let info;
+  if (mv.drop) {
+    const l = String(mv.drop).toLowerCase().slice(0, 1);
+    const to = typeof mv.to === 'number' ? chessSqName(mv.to) : String(mv.to || '');
+    if (!chessBugDrops(g).some(d => d.drop === l && d.to === to)) return null;
+    const sq = chessSq(to);
+    g.board = g.board.slice();
+    g.board[sq] = (side << 3) | CHESS_LETTERS.indexOf(l);
+    g.hand[side ? 'b' : 'w'][l]--;
+    g.ep = -1;
+    g.half = (g.half | 0) + 1;
+    if (side === 1) g.full = (g.full || 1) + 1;
+    g.turn = side ^ 1;
+    g.keys = [];
+    info = { from: '', to: to, drop: l, promo: '', piece: l, capture: '', captureSq: '', ep: false, castle: '', gives: '', san: l.toUpperCase() + '@' + to };
+  } else {
+    const p = chessPos(g);
+    const legal = chessLegalPos(p);
+    const m = chessFind(p, mv, legal);
+    if (!m) return null;
+    info = chessMoveInfo(p, m, legal);
+    const flags = chessMFlags(m);
+    const from = chessMFrom(m), to = chessMTo(m);
+    const capSq = flags & CHESS_F_EP ? (p.side ? to + 8 : to - 8) : to;
+    const taken = flags & CHESS_F_CAP ? p.b[capSq] : 0;
+    const promoted = new Set(g.promoted || []);
+    info.gives = taken ? (promoted.has(capSq) ? 'p' : CHESS_LETTERS[taken & 7]) : '';
+    promoted.delete(capSq);
+    if (promoted.has(from)) { promoted.delete(from); promoted.add(to); }
+    if (flags & CHESS_F_PROMO) promoted.add(to);
+    chessDo(p, m);
+    g.board = p.b.slice();
+    g.castle = p.castle;
+    g.ep = p.ep;
+    g.half = p.half;
+    if (side === 1) g.full = (g.full || 1) + 1;
+    g.turn = p.side;
+    g.keys = [];
+    g.promoted = Array.from(promoted).sort((a, b) => a - b);
+    info.drop = '';
+    info.capture = taken ? CHESS_LETTERS[taken & 7] : '';
+    info.captureSq = taken ? chessSqName(capSq) : '';
+    info.san = info.san.replace(/[+#]$/, '');
+  }
+  const status = chessBugStatus(g);
+  info.san += status.over ? '#' : status.check ? '+' : '';
+  info.check = status.check;
+  info.status = status;
+  return info;
+}
+
+/**
+ * What a capture on board `board` by `color` (0 white, 1 black) sends: the
+ * letter goes to the partner - the other board, the other colour.
+ */
+function chessBugGive(games, board, color, letter) {
+  if (!letter) return;
+  const g = games[1 - board];
+  if (!g.hand) g.hand = chessBugHandNew();
+  const key = color ? 'w' : 'b';
+  g.hand[key][letter] = (g.hand[key][letter] | 0) + 1;
+}
+
+/** A side's hand as a count, and its worth in hundredths of a pawn. */
+const chessBugHandCount = (h) => CHESS_BUG_KINDS.reduce((a, l) => a + ((h || {})[l] | 0), 0);
+const chessBugHandValue = (h) => CHESS_BUG_KINDS.reduce((a, l) => a + ((h || {})[l] | 0) * CHESS_VALUE[CHESS_LETTERS.indexOf(l)], 0);
+
+/** Does this move or drop mate (the board's mate, with the hands as they are)? */
+function chessBugMates(g, mv) {
+  const info = chessBugPlay(chessBugClone(g), mv);
+  return !!info && info.status.over;
+}
+
+/** Would this drop give check? (Asked before the mate test, which costs more.) */
+function chessBugDropChecks(g, d) {
+  const side = g.turn ? 1 : 0;
+  const b = g.board.slice();
+  b[chessSq(d.to)] = (side << 3) | CHESS_LETTERS.indexOf(d.drop);
+  for (let sq = 0; sq < 64; sq++) if (b[sq] === (((side ^ 1) << 3) | 6)) return chessAttacked(b, sq, side);
+  return false;
+}
+
+/**
+ * The computer's move on a bughouse board (the owner: easy and hard, a normal
+ * move choice plus sensible drops). First a drop that mates, then a move that
+ * mates; then, with something worth dropping in hand (a piece, or two pawns),
+ * a drop on a safe square near the other king (a check counts for more); else
+ * the chess engine's move, cheap enough for the server (a few thousand
+ * positions at most). Easy sees a mate most of the time, drops at random among
+ * safe squares and plays at a low rating. opts: { level: 'easy' | 'hard', rnd }.
+ * Returns { from, to, promo } or { drop, to }, or null when there is nothing.
+ */
+function chessBugBotMove(g, opts) {
+  const o = opts || {};
+  const rnd = typeof o.rnd === 'function' ? o.rnd : Math.random;
+  const hard = o.level === 'hard';
+  const side = g.turn ? 1 : 0;
+  const drops = chessBugDrops(g);
+  const moves = chessLegalMoves(g);
+  if (!drops.length && !moves.length) return null;
+  const pickOne = (list) => list[Math.floor(rnd() * list.length)];
+  if (hard || rnd() < 0.6) {
+    const mateDrops = drops.filter(d => chessBugDropChecks(g, d) && chessBugMates(g, d));
+    if (mateDrops.length) return pickOne(mateDrops);
+    const mateMoves = moves.filter(mv => {
+      const info = chessBugPlay(chessBugClone(g), mv);
+      return !!info && info.status.over;
+    });
+    if (mateMoves.length) return pickOne(mateMoves);
+  }
+  const hand = (g.hand || {})[side ? 'b' : 'w'] || {};
+  const worth = chessBugHandValue(hand);
+  const wantDrop = drops.length && (!moves.length || worth >= 300 || (hand.p | 0) >= 2 || (!hard && rnd() < 0.25));
+  if (wantDrop) {
+    let king = -1;
+    for (let sq = 0; sq < 64; sq++) if (g.board[sq] === (((side ^ 1) << 3) | 6)) king = sq;
+    const scored = drops.map(d => {
+      const sq = chessSq(d.to), k = CHESS_LETTERS.indexOf(d.drop);
+      const b = g.board.slice();
+      b[sq] = (side << 3) | k;
+      const att = chessAttackers(b, sq, side ^ 1);
+      const cheapest = att.length ? Math.min.apply(null, att.map(s => CHESS_VALUE[b[s] & 7] || 1000)) : Infinity;
+      const safe = !att.length || (chessAttacked(b, sq, side) && cheapest >= CHESS_VALUE[k]);
+      const dist = king >= 0 ? Math.max(Math.abs((sq & 7) - (king & 7)), Math.abs((sq >> 3) - (king >> 3))) : 4;
+      let score = (safe ? 100 : -400) + (8 - dist) * 12 + CHESS_VALUE[k] / 20;
+      if (chessBugDropChecks(g, d)) score += 40;
+      // A pawn does best a little way up the board.
+      if (k === 1) score += (side ? 7 - (sq >> 3) : sq >> 3) * 4;
+      return { d: d, score: score, safe: safe };
+    });
+    const safe = scored.filter(x => x.safe);
+    if (!moves.length) {
+      scored.sort((a, b) => b.score - a.score);
+      return (hard ? scored[0] : pickOne(safe.length ? safe : scored)).d;
+    }
+    if (safe.length) {
+      if (!hard) return pickOne(safe).d;
+      safe.sort((a, b) => b.score - a.score);
+      if (safe[0].score >= 150) return safe[0].d;
+    }
+  }
+  if (!moves.length) return drops[0];
+  const mv = chessBestMove(g, hard ? { elo: 1500, depth: 2, nodes: 2500, ms: 60, rnd: rnd } : { elo: 600, depth: 1, nodes: 400, ms: 30, rnd: rnd });
+  return mv || moves[0];
 }
 
 </script>
@@ -28736,6 +29276,8 @@ const CHESS_PUZZLES = [
       </div>
       <div id="view-play-chesspuzzle" class="hidden" data-accent="amber"><div id="chesspuzzle-stage"></div></div>
       <div id="view-room-chess" class="hidden" data-accent="amber"></div>
+      <div id="view-room-votechess" class="hidden" data-accent="indigo"></div>
+      <div id="view-room-handbrain" class="hidden" data-accent="teal"></div>
 
       <!-- ============ خمّن مين (a room: two duel, the room watches) · المشنقة (two on one phone, or a room) ============ -->
       <div id="view-room-guesswho" class="hidden" data-accent="teal"></div>
@@ -28825,6 +29367,7 @@ const CHESS_PUZZLES = [
       <div id="view-room-minigolf" class="hidden view--fill" data-accent="green"></div>
       <div id="view-room-doubt" class="hidden" data-accent="violet"></div>
       <div id="view-room-oldmaid" class="hidden" data-accent="amber"></div>
+      <div id="view-room-bughouse" class="hidden" data-accent="teal"></div>
 
       <!-- ============ بولينج (solo on this phone, or a room: everyone bowls in turn, everyone watches) ============ -->
       <div id="view-setup-bowling" class="hidden" data-accent="violet">
@@ -33017,6 +33560,59 @@ const CHESS_PUZZLES = [
       ch_piece_b: "الفيل",
       ch_piece_n: "الحصان",
       ch_piece_p: "العسكري",
+      // شطرنج بالتصويت and المخ والإيد (JS_RoomVoteChess.html, JS_RoomHandBrain.html).
+      setup_votechess: "شطرنج بالتصويت",
+      cat_votechess: "فريقين، وكل نقلة بتصويت الفريق.",
+      setup_handbrain: "المخ والإيد",
+      cat_handbrain: "2 ضد 2: المخ يقول القطعة والإيد تحرّكها.",
+      vc_team_w: "فريق الأبيض",
+      vc_team_b: "فريق الأسود",
+      vc_side_w: "الأبيض",
+      vc_side_b: "الأسود",
+      vc_tally_resign: "{team} استسلم بالتصويت",
+      vc_resign_short: "استسلام",
+      vc_resign_confirm: "تصوّت إن فريقك يستسلم؟ لازم الاستسلام ياخد أصوات أكتر من أي نقلة.",
+      vc_voted_count: "صوّتوا {n} من {of}",
+      vc_won: "{team} كسب!",
+      vc_voted_you: "✅ صوتك: {move} (تقدر تغيّره)",
+      vc_vote_now: "🗳️ دور فريقك: صوّت على نقلة",
+      vc_team_voting: "🗳️ {team} بيصوّت…",
+      vc_how_tie: "🎲 تعادل في الأصوات: القرعة اختارت",
+      vc_how_random: "🎲 محدش صوّت: نقلة عشوائية",
+      vc_how_host: "⏭️ المضيف قفل التصويت",
+      vc_tally_head: "{team} لعب",
+      vc_resign_vote: "صوّت نستسلم",
+      vc_watching: "انت بتتفرج دلوقتي، وهتلعب الدور الجاي.",
+      vc_close_now: "اقفل التصويت دلوقتي",
+      vc_again: "العب تاني",
+      vc_again_hint: "نفس الفرق، والألوان بتتبدّل.",
+      vc_wait_host: "استنى المضيف يبدأ دور جديد.",
+      vc_teams: "الفرق",
+      vc_shuffle: "وزّع تاني",
+      vc_sides_hint: "دوس على اسم عشان تنقله للفريق التاني.",
+      vc_lobby_hint: "كل فريق بيصوّت على نقلته، والنقلة اللي تاخد أصوات أكتر هي اللي تتلعب.",
+      vc_clock_label: "وقت التصويت",
+      vc_clock_hint: "لو الفريق كله صوّت قبل الوقت، النقلة بتتلعب على طول.",
+      hb_resign_confirm: "تستسلموا؟ الدور هيروح للفريق التاني.",
+      hb_said: "🧠 المخ ({name}) قال:",
+      hb_you_brain: "🧠 انت المخ: قول قطعة",
+      hb_brain_thinking: "🧠 المخ ({name}) بيختار قطعة…",
+      hb_you_hand: "✋ انت الإيد: حرّك {piece}",
+      hb_hand_moving: "✋ الإيد ({name}) هتحرّك {piece}…",
+      hb_watching: "انت بتتفرج: المخ بيقول القطعة، والإيد بتحرّكها.",
+      hb_brain_wait: "✋ الإيد بتاعتك بتحرّك… استنى",
+      hb_play_for: "العب بدل {name}",
+      hb_calls: "المخ قال",
+      hb_again_hint: "الأدوار بتتبدّل: المخ يبقى الإيد، والألوان كمان.",
+      hb_hand: "الإيد",
+      hb_brain: "المخ",
+      hb_seat_bot: "كمبيوتر",
+      hb_seating: "مين فين",
+      hb_seats_swap_now: "دوس على مكان تاني عشان تبدّلهم.",
+      hb_seats_hint: "دوس على مكانين عشان تبدّلهم. الأماكن الفاضية ياخدها الكمبيوتر (سهل).",
+      hb_lobby_hint: "2 ضد 2: المخ يقول القطعة، والإيد تحرّكها.",
+      hb_clock_label: "ساعة لكل فريق",
+      hb_clock_hint: "من غير ساعة من الأول.",
       ch_look_label: "شكل الرقعة",
       ch_style_green: "أخضر",
       ch_style_wood: "خشب",
@@ -33557,6 +34153,34 @@ const CHESS_PUZZLES = [
       mg_target_row: "المطلوب",
       setup_doubt: "كدّاب",
       cat_doubt: "ارمي ورقك مقلوب وقول هو إيه… صادق ولا كدّاب؟",
+      setup_bughouse: "باغ هاوس",
+      cat_bughouse: "أربعة على لوحتين: اللي تاكله شريكك ينزّله.",
+      bh_board: "لوحة {n}",
+      bh_partner: "شريكك",
+      bh_mine_board: "لوحتك",
+      bh_partner_board: "لوحة شريكك",
+      bh_swap: "دوس عشان تكبّرها",
+      bh_hand_empty: "الإيد فاضية",
+      bh_your_move: "دورك! حرّك قطعة أو نزّل واحدة من إيدك",
+      bh_turn_of: "دور {name}",
+      bh_stuck: "مفيش نقلة: استنى قطعة من شريكك (ساعتك شغالة)",
+      bh_drop_pick: "اختار مربع فاضي تنزّل فيه {piece}",
+      bh_watch: "انت بتتفرج: تلعب اللعبة الجاية",
+      bh_watch_status: "الشطرنج على لوحتين: اتفرج",
+      bh_tv_status: "اللي يتاكل يروح لإيد الشريك على اللوحة التانية",
+      bh_sub: "🤖 الكمبيوتر بيكمّل مكان {name}",
+      bh_won: "فريق {names} كسب!",
+      bh_end_mate: "كش مات على لوحة {n}",
+      bh_end_time: "وقت {name} خلص على لوحة {n}",
+      bh_end_resign: "{name} استسلم",
+      bh_again: "نلعب تاني بشركاء جداد",
+      bh_resign_confirm: "تستسلم؟ فريقك كله هيخسر.",
+      bh_lobby_hint: "أربعة على لوحتين. شريكك على اللوحة التانية باللون التاني، وكل حاجة تاكلها تروح لإيده ينزّلها.",
+      bh_lobby_fill: "فاضل {n} مكان: هياخدهم كمبيوتر سهل. عايز صعب؟ ضيفه من الزرار.",
+      bh_lobby_full: "الأربع أماكن اتملوا.",
+      bh_lobby_watch: "أول أربعة يلعبوا، و{n} يتفرجوا ويدخلوا اللعبة الجاية.",
+      bh_clock: "الساعة (لكل لاعب)",
+      bh_clock_hint: "الساعة شغالة على طول على اللوحتين. اللي وقته يخلص، فريقه يخسر.",
       setup_oldmaid: "الشايب",
       cat_oldmaid: "اسحب وقفّل أزواج، واللي يفضل بالشايب يخسر.",
       pc_old_maid: "الشايب",
@@ -36246,6 +36870,59 @@ const CHESS_PUZZLES = [
       ch_piece_b: "bishop",
       ch_piece_n: "knight",
       ch_piece_p: "pawn",
+      // Vote chess and Hand and Brain (JS_RoomVoteChess.html, JS_RoomHandBrain.html).
+      setup_votechess: "Vote chess",
+      cat_votechess: "Two teams, and every move is a team vote.",
+      setup_handbrain: "Hand and Brain",
+      cat_handbrain: "The Brain names a piece, the Hand moves it.",
+      vc_team_w: "White team",
+      vc_team_b: "Black team",
+      vc_side_w: "White",
+      vc_side_b: "Black",
+      vc_tally_resign: "The {team} resigned by vote",
+      vc_resign_short: "resign",
+      vc_resign_confirm: "Vote for your team to resign? Resigning needs more votes than any move.",
+      vc_voted_count: "{n} of {of} voted",
+      vc_won: "{team} wins!",
+      vc_voted_you: "✅ Your vote: {move} (you can change it)",
+      vc_vote_now: "🗳️ Your team's move: vote for one",
+      vc_team_voting: "🗳️ {team} is voting…",
+      vc_how_tie: "🎲 A tie: drawn at random",
+      vc_how_random: "🎲 Nobody voted: a random move",
+      vc_how_host: "⏭️ The host closed the vote",
+      vc_tally_head: "{team} played",
+      vc_resign_vote: "Vote to resign",
+      vc_watching: "You're watching now, and you'll play the next game.",
+      vc_close_now: "Close the vote now",
+      vc_again: "Play again",
+      vc_again_hint: "The same teams, the colours swapped.",
+      vc_wait_host: "Waiting for the host to start another game.",
+      vc_teams: "Teams",
+      vc_shuffle: "Shuffle",
+      vc_sides_hint: "Tap a name to move them to the other team.",
+      vc_lobby_hint: "Each team votes on its move; the move with the most votes is played.",
+      vc_clock_label: "Voting time",
+      vc_clock_hint: "If the whole team votes sooner, the move is played at once.",
+      hb_resign_confirm: "Resign? The game goes to the other team.",
+      hb_said: "🧠 The Brain ({name}) says:",
+      hb_you_brain: "🧠 You're the Brain: name a piece",
+      hb_brain_thinking: "🧠 The Brain ({name}) is picking a piece…",
+      hb_you_hand: "✋ You're the Hand: move a {piece}",
+      hb_hand_moving: "✋ The Hand ({name}) moves a {piece}…",
+      hb_watching: "You're watching: the Brain names the piece, the Hand moves it.",
+      hb_brain_wait: "✋ Your Hand is moving… wait",
+      hb_play_for: "Play for {name}",
+      hb_calls: "The Brains said",
+      hb_again_hint: "Roles swap: the Brain becomes the Hand, and the colours swap too.",
+      hb_hand: "Hand",
+      hb_brain: "Brain",
+      hb_seat_bot: "computer",
+      hb_seating: "Seats",
+      hb_seats_swap_now: "Tap another seat to swap them.",
+      hb_seats_hint: "Tap two seats to swap them. Empty seats go to the computer (easy).",
+      hb_lobby_hint: "2 v 2: the Brain names the piece, the Hand moves it.",
+      hb_clock_label: "A clock per team",
+      hb_clock_hint: "Off by default.",
       ch_look_label: "Board look",
       ch_style_green: "Green",
       ch_style_wood: "Wood",
@@ -36786,6 +37463,34 @@ const CHESS_PUZZLES = [
       mg_target_row: "Target",
       setup_doubt: "I Doubt It",
       cat_doubt: "Lay cards face down and say what they are. Lie?",
+      setup_bughouse: "Bughouse",
+      cat_bughouse: "Four on two boards: what you take, your partner drops.",
+      bh_board: "Board {n}",
+      bh_partner: "partner",
+      bh_mine_board: "yours",
+      bh_partner_board: "your partner's",
+      bh_swap: "Tap to make it big",
+      bh_hand_empty: "Empty hand",
+      bh_your_move: "Your move: play a piece or drop one from your hand",
+      bh_turn_of: "{name} to move",
+      bh_stuck: "No move: wait for a piece from your partner (your clock runs)",
+      bh_drop_pick: "Pick an empty square for the {piece}",
+      bh_watch: "You're watching: you play the next game",
+      bh_watch_status: "Chess on two boards: watch",
+      bh_tv_status: "What is taken goes to the partner's hand on the other board",
+      bh_sub: "🤖 The computer plays on for {name}",
+      bh_won: "{names} win!",
+      bh_end_mate: "Checkmate on board {n}",
+      bh_end_time: "{name} ran out of time on board {n}",
+      bh_end_resign: "{name} resigned",
+      bh_again: "Play again with new partners",
+      bh_resign_confirm: "Resign? Your whole team loses.",
+      bh_lobby_hint: "Four on two boards. Your partner plays the other colour on the other board, and whatever you take goes to their hand to drop.",
+      bh_lobby_fill: "{n} seat(s) left: an easy computer player takes each. Want a hard one? Add it with the button.",
+      bh_lobby_full: "All four seats are taken.",
+      bh_lobby_watch: "The first four play; {n} watch and play the next game.",
+      bh_clock: "Clock (each player)",
+      bh_clock_hint: "Both boards' clocks always run. Whoever runs out loses for their team.",
       setup_oldmaid: "Old Maid",
       cat_oldmaid: "Draw, pair up, don't be left with the Old Maid.",
       pc_old_maid: "Old Maid",
@@ -39274,7 +39979,7 @@ const CHESS_PUZZLES = [
         'setup-bomb', 'play-bomb',
         'setup-emoji', 'play-emoji', 'setup-proverbs', 'play-proverbs', 'setup-fiveseconds', 'play-fiveseconds',
         'room-twotruths', 'room-emoji', 'room-proverbs', 'room-fiveseconds', 'room-telephone', 'room-monkey', 'room-herd', 'room-mafia', 'room-mind', 'room-timeline', 'room-uno', 'room-domino',
-        'room-connect4', 'room-dots', 'room-xo', 'room-battleship', 'room-chess', 'room-ludo', 'room-bank', 'room-guesswho', 'room-hangman', 'room-bowling', 'room-doubt', 'room-oldmaid', 'room-minigolf',
+        'room-connect4', 'room-dots', 'room-xo', 'room-battleship', 'room-chess', 'room-votechess', 'room-handbrain', 'room-bughouse', 'room-ludo', 'room-bank', 'room-guesswho', 'room-hangman', 'room-bowling', 'room-doubt', 'room-oldmaid', 'room-minigolf',
         // One sets, everyone solves (JS_RoomSolve.html).
         'room-wordle', 'room-guessnum', 'room-flags',
         'setup-stop', 'play-stop',
@@ -39747,6 +40452,8 @@ const CHESS_PUZZLES = [
     'room-dots':         { title: 'setup_dots',         up: 'menu',               accent: 'indigo' },
     'room-battleship':   { title: 'setup_battleship',   up: 'menu',               accent: 'teal' },
     'room-chess':        { title: 'setup_shatranj',     up: 'menu',               accent: 'amber' },
+    'room-votechess':    { title: 'setup_votechess',    up: 'menu',               accent: 'indigo' },
+    'room-handbrain':    { title: 'setup_handbrain',    up: 'menu',               accent: 'teal' },
     'room-ludo':         { title: 'setup_ludo',         up: 'menu',               accent: 'amber' },
     'room-bank':         { title: 'setup_bank',         up: 'menu',               accent: 'green' },
     'room-guesswho':     { title: 'setup_guesswho',     up: 'menu',               accent: 'teal' },
@@ -39757,6 +40464,7 @@ const CHESS_PUZZLES = [
     'room-flags':        { title: 'setup_flags',        up: 'menu',               accent: 'blue' },
     'room-bowling':      { title: 'setup_bowling',      up: 'menu',               accent: 'violet' },
     'room-doubt':        { title: 'setup_doubt',        up: 'menu',               accent: 'violet' },
+    'room-bughouse':     { title: 'setup_bughouse',     up: 'menu',               accent: 'teal' },
     'room-oldmaid':      { title: 'setup_oldmaid',      up: 'menu',               accent: 'amber' },
     'room-minigolf':     { title: 'setup_minigolf',     up: 'menu',               accent: 'green' }
   };
@@ -39869,6 +40577,21 @@ const CHESS_PUZZLES = [
       '<circle cx="28.6" cy="30.4" r="1.3" fill="#1f1814"/>' +
       '<circle cx="46" cy="18" r="10.5" fill="#f5b400" stroke="#fff" stroke-width="2.2"/>' +
       '<path d="M46 11.6l1.9 4 4.3.5-3.2 2.9.9 4.3-3.9-2.2-3.9 2.2.9-4.3-3.2-2.9 4.3-.5z" fill="#fff"/>',
+    // شطرنج بالتصويت: a ballot with a pawn on it going into the box.
+    votechess: '<g transform="rotate(-8 32 18)"><rect x="21" y="3" width="22" height="30" rx="2.5" fill="#fffdf8" stroke="#a5b4fc" stroke-width="1.2"/>' +
+      '<circle cx="32" cy="10.5" r="3.4" fill="#1f1814"/><path d="M27 26.5h10c0-3.4-1.8-5.6-3.4-6.8 1-.6 1.6-1.7 1.6-2.9h-6.4c0 1.2.6 2.3 1.6 2.9-1.6 1.2-3.4 3.4-3.4 6.8z" fill="#1f1814"/></g>' +
+      '<rect x="8" y="30" width="48" height="29" rx="6" fill="#000" opacity=".18"/>' +
+      '<rect x="8" y="28" width="48" height="29" rx="6" fill="#4f46e5"/><rect x="8" y="28" width="48" height="8" rx="4" fill="#4338ca"/>' +
+      '<rect x="20" y="30.6" width="24" height="2.6" rx="1.3" fill="#1e1b4b"/>' +
+      '<path d="M25 45.5l5 4.6 9.5-10" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>',
+    // المخ والإيد: the Brain, and the pawn it names.
+    handbrain: '<path d="M14 27c-4 0-6.5-3-6.5-6.2 0-2.8 1.8-4.9 4.1-5.5C12 11 15.6 7.8 19.8 8.4c1.6-2.6 5.2-3.7 8.1-2.1 3.2-1.6 7.3 0 8.3 3.1 3.6.6 5.8 3.7 5.2 6.8 2.6 1.6 3.1 5.2 1 7.7-1.6 2.1-4.1 2.6-6.2 2.1-1 2.6-4.1 3.7-6.7 2.6-2.1 2.1-5.7 2.1-7.8 0-2.6 1-5.7 0-6.7-1.7z" fill="#f9a8d4" stroke="#be185d" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<path d="M20 12.5c2 1 2 4 0 5M28.2 9.4c-1.5 2-1 4 1 5M34 16.5c-2 0-3 2-2 4M16.4 20.4c2 0 3 1.5 2.5 3.5M25 18.6c1 2 3 2.5 4.6 1.5" fill="none" stroke="#be185d" stroke-width="1.4" stroke-linecap="round"/>' +
+      '<path d="M26 33.5q3.5 6 9.5 7.2" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="2.6 3"/>' +
+      '<path d="M32.4 37.6l3.3 3.2-4.4 1.4" fill="none" stroke="#0f766e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<rect x="36" y="54" width="23" height="5" rx="2.2" fill="#000" opacity=".2"/>' +
+      '<path d="M39.2 53.5c0-6 3-9.3 5.6-10.8-2-1.2-3.4-3.3-3.4-5.7 0-3.7 3-6.7 6.3-6.7s6.3 3 6.3 6.7c0 2.4-1.4 4.5-3.4 5.7 2.6 1.5 5.6 4.8 5.6 10.8z" fill="#2a211c" stroke="#fbf4e6" stroke-width="1.5" stroke-linejoin="round"/>' +
+      '<rect x="36" y="52" width="23" height="5" rx="2.2" fill="#2a211c" stroke="#fbf4e6" stroke-width="1.3"/>',
     // لودو: the board, four yards round the cross, a piece in each.
     ludo: '<rect x="6" y="8" width="52" height="52" rx="8" fill="#000" opacity=".18"/>' +
       '<rect x="6" y="6" width="52" height="52" rx="8" fill="#fff" stroke="#2b2733" stroke-width="1.6"/>' +
@@ -39898,6 +40621,13 @@ const CHESS_PUZZLES = [
     hangman: '<rect x="4" y="4" width="56" height="56" rx="14" fill="#fff3ea"/>' +
       '<g fill="none" stroke="#6b5a4a" stroke-width="3.4" stroke-linecap="round"><path d="M13 53h24M20 53V12h22M20 21l9-9"/></g>' +
       '<g fill="none" stroke="#c2410c" stroke-width="3.4" stroke-linecap="round"><path d="M42 12v7"/><circle cx="42" cy="24.5" r="5.5"/><path d="M42 30v12M42 33l-6 6M42 33l6 6M42 42l-5 8M42 42l5 8"/></g>',
+    // باغ هاوس: two boards, and a piece taken on one flying to the other.
+    bughouse: '<rect x="3" y="8" width="30" height="30" rx="6" fill="#000" opacity=".18"/>' +
+      '<rect x="3" y="6" width="30" height="30" rx="6" fill="#ccfbf1"/><path d="M18 6h9a6 6 0 0 1 6 6v9H18zM3 21h15v15H9a6 6 0 0 1-6-6z" fill="#0f766e"/>' +
+      '<rect x="31" y="30" width="30" height="30" rx="6" fill="#000" opacity=".18"/>' +
+      '<rect x="31" y="28" width="30" height="30" rx="6" fill="#ccfbf1"/><path d="M46 28h9a6 6 0 0 1 6 6v9H46zM31 43h15v15h-9a6 6 0 0 1-6-6z" fill="#0f766e"/>' +
+      '<path d="M35 11.5c9.5-1.2 16.5 3.2 18 11" fill="none" stroke="#f59e0b" stroke-width="3.4" stroke-linecap="round"/><path d="M48.3 21.2l5.4 6 3.2-7.4z" fill="#f59e0b"/>' +
+      '<circle cx="46" cy="38.5" r="3.8" fill="#fff" stroke="#1f2937" stroke-width="1.4"/><path d="M41.2 52h9.6l-2-9.5h-5.6z" fill="#fff" stroke="#1f2937" stroke-width="1.4" stroke-linejoin="round"/>',
     // كدّاب: three cards face down in a fan, a red question mark over them.
     doubt: '<g transform="rotate(-18 32 46)"><rect x="12" y="12" width="24" height="35" rx="4" fill="#4c1d95"/></g>' +
       '<g transform="rotate(-2 32 46)"><rect x="20" y="9" width="24" height="35" rx="4" fill="#6d28d9"/></g>' +
@@ -41582,6 +42312,35 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>الملعب كبير وكل الكور بألوانها، والكارت بتاع الكل.</li>
             </ul>`,
+        bughouse: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>أربعة على <b>لوحتين</b>، فريقين. شريكك على اللوحة التانية <b>باللون التاني</b>: لو انت أبيض على لوحة ١، هو أسود على لوحة ٢.</li>
+                <li>كل لوحة شطرنج عادي: نفس النقلات، والكش، والتبييت، والترقية.</li>
+                <li>أي قطعة <b>تاكلها</b> بتطير <b>لإيد شريكك</b> على اللوحة التانية.</li>
+                <li>في دورك: يا <b>تحرّك</b> قطعة، يا <b>تنزّل</b> قطعة من إيدك على أي مربع فاضي. العسكري ماينزلش في الصف الأول ولا الأخير.</li>
+                <li>التنزيل ممكن يعمل كش، وممكن يعمل <b>كش مات</b>. ولو ملكك في كش، التنزيل لازم يسدّ الكش.</li>
+                <li>العسكري اللي اترقى لو اتاكل، بيروح للشريك <b>عسكري</b> تاني.</li>
+                <li>أول <b>كش مات</b> على أي لوحة يكسّب فريقه كله.</li>
+                <li>الساعة <b>شغالة على طول</b> (دقيقتين، 3 أو 5 لكل لاعب)، على اللوحتين في نفس الوقت. اللي وقته يخلص، فريقه يخسر.</li>
+                <li>لو مفيش عندك نقلة ولا حاجة في إيدك، <b>استنى</b> قطعة من شريكك: ساعتك شغالة.</li>
+            </ol>
+            <p class="help-sub">📱 كل واحد من موبايله</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>لوحتك كبيرة، واللي قدامك فوقها وانت تحتها، وكل واحد جنبه ساعته وإيده.</li>
+                <li>دوس على قطعة في إيدك والمربعات اللي تنفع تنور، ودوس على مربع. أو اسحبها وحطها على اللوحة.</li>
+                <li>لوحة شريكك صغيرة جنبها، بإيدينهم وساعاتهم. دوس عليها عشان تكبّرها، ودوس تاني ترجّع.</li>
+                <li>ناقصين؟ الأماكن الفاضية بياخدها <b>كمبيوتر</b> (سهل أو صعب). ولو حد خرج في النص، الكمبيوتر يكمّل لوحته لحد آخر اللعبة.</li>
+                <li>«نلعب تاني» بتغيّر الشركاء. ولو أكتر من أربعة، اللي اتفرج يلعب الجاية.</li>
+            </ul>
+            <p class="help-sub">📺 على التلفزيون</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>اللوحتين جنب بعض، والأربع أسامي والأربع ساعات والإيدين، وكل قطعة بتتاكل تطير لإيد الشريك.</li>
+            </ul>
+            <p class="help-sub">💡 نصايح</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>كلّم شريكك! "هات حصان" أو "ماتاكلش الوزير" بتفرق جامد.</li>
+                <li>حصان ينزل جنب الملك بيعمل كش مات كتير.</li>
+            </ul>`,
         doubt: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>الورق كله بيتوزع، وكل واحد ورقه على موبايله. الهدف: تخلّص ورقك.</li>
@@ -41637,6 +42396,53 @@ const GAME_RULES = {
             <p class="help-sub">🏆 العدّاد</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>كل دور له خسران واحد. ولو لعبتوا تاني بتتعد مرات الشايب، والأقل هو الأول.</li>
+            </ul>`,
+        votechess: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>المضيف بيقسّمكم <b>فريقين</b>: الأبيض والأسود (بالقرعة، ويقدر ينقل أي حد للفريق التاني). من 2 لاعبين: واحد ضد واحد يبقى شطرنج عادي.</li>
+                <li>في دور فريقك، <b>كل واحد يصوّت على نقلة</b> من موبايله: دوس على قطعة وبعدين المكان (أو اسحبها). القطعة مابتتحركش، سهم أزرق بيوريك صوتك، وتقدر تغيّره لحد ما التصويت يقفل.</li>
+                <li>النقلة اللي تاخد <b>أصوات أكتر</b> بتتلعب لما وقت التصويت يخلص (30 ثانية من الأول، أو 20 أو 60)، أو على طول لو الفريق كله صوّت.</li>
+                <li><b>تعادل في الأصوات؟</b> القرعة بتختار واحدة من النقلات المتعادلة. <b>محدش صوّت؟</b> نقلة عشوائية، والكل بيعرف.</li>
+                <li>الأصوات <b>سرية</b> لحد ما النقلة تتلعب: الكل شايف مين صوّت، بس مش على إيه. بعدها الكل بيشوف الفريق صوّت إزاي (♞f3 ×3، e4 ×1).</li>
+                <li>الكش مات بيكسب زي الشطرنج العادي، وكل واحد في الفريق الكسبان ياخد نقطة.</li>
+            </ol>
+            <p class="help-sub">🏳️ الاستسلام</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>الاستسلام تصويت كمان (زرار «صوّت نستسلم»): لازم ياخد أصوات <b>أكتر من أي نقلة</b>؛ لو اتعادل مع نقلة، النقلة هي اللي تتلعب.</li>
+            </ul>
+            <p class="help-sub">📱 كل واحد من موبايله</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>💬 في الشات فيه قناة لفريقك بس: اتفقوا على النقلة من غير ما الفريق التاني يعرف.</li>
+                <li>اللي يخرج من الغرفة بيخرج من العد؛ والفريق اللي ميفضلش فيه حد بيخسر. اللي يدخل في النص بيتفرج ويلعب الدور الجاي.</li>
+                <li>المضيف يقدر يقفل التصويت بدري لو موبايل فصل: الأصوات اللي اتحطت هي اللي بتحكم.</li>
+                <li>«العب تاني»: نفس الفرق، والألوان بتتبدّل.</li>
+            </ul>
+            <p class="help-sub">📺 على التلفزيون</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>الرقعة كبيرة (3D)، الفريقين ومين صوّت، ووقت التصويت، وإزاي الفريق صوّت بعد كل نقلة.</li>
+            </ul>`,
+        handbrain: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li><b>2 ضد 2</b>: كل فريق فيه <b>مخ</b> و<b>إيد</b>. الأماكن الفاضية ياخدها الكمبيوتر.</li>
+                <li>في دور فريقك، <b>المخ يقول قطعة</b>: الملك، الوزير، الطابية، الفيل، الحصان أو العسكري (القطع اللي مالهاش نقلة بتبقى باهتة). الكل بيسمع اللي قاله.</li>
+                <li><b>الإيد تحرّك أي قطعة من النوع ده</b>: القطع دي بتنوّر على الرقعة، والإيد تختار النقلة. المخ مايقدرش يحرّك.</li>
+                <li>الكش مات بيكسب زي الشطرنج العادي، وكل واحد في الفريق الكسبان ياخد نقطة.</li>
+            </ol>
+            <p class="help-sub">🔁 الأدوار</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>الأدوار ثابتة طول الدور، وفي «العب تاني» بتتبدّل: المخ يبقى الإيد، والألوان كمان.</li>
+                <li>المضيف بيرتّب الأماكن قبل البداية: دوس على مكانين عشان تبدّلهم، أو 🔀 من جديد.</li>
+            </ul>
+            <p class="help-sub">📱 كل واحد من موبايله</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>🤖 <b>لاعبين كمبيوتر</b> سهل أو صعب: المخ الصعب بيقول قطعة أحسن نقلة، والإيد الصعبة بتلاقي أحسن نقلة للقطعة اللي اتقالت.</li>
+                <li>ساعة لكل فريق لو المضيف حطها (5+0 أو 10+0): اللي وقته يخلص يخسر.</li>
+                <li>اللي يخرج في النص، الكمبيوتر بيكمّل مكانه. والمضيف يقدر يلعب بدل موبايل فصل.</li>
+                <li>أي حد في الفريق يقدر يستسلم للفريق كله.</li>
+            </ul>
+            <p class="help-sub">📺 على التلفزيون</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>الرقعة كبيرة (3D)، والفريقين، واللي المخ قاله كبير على الشاشة، والساعات.</li>
             </ul>`,
         bowling: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -42958,6 +43764,35 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The course big, every ball in its colour, and everyone's scorecard.</li>
             </ul>`,
+        bughouse: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Four players on <b>two boards</b>, two teams. Your partner plays <b>the other colour</b> on the other board: White on board 1, Black on board 2.</li>
+                <li>Each board is ordinary chess: the same moves, check, castling and promotion.</li>
+                <li>Every piece you <b>take</b> flies to <b>your partner's hand</b> on the other board.</li>
+                <li>On your move: <b>move</b> a piece, or <b>drop</b> one from your hand onto any empty square. A pawn is never dropped on the first or last row.</li>
+                <li>A drop may give check, and may give <b>checkmate</b>. In check, a drop has to block it.</li>
+                <li>A promoted pawn that is taken goes over as a <b>pawn</b> again.</li>
+                <li>The first <b>checkmate</b> on either board wins for that whole team.</li>
+                <li>The clock <b>always runs</b> (2, 3 or 5 minutes each), on both boards at once. Whoever runs out loses for their team.</li>
+                <li>No move and nothing in your hand? <b>Wait</b> for a piece from your partner: your clock runs.</li>
+            </ol>
+            <p class="help-sub">📱 Each on their own phone</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Your board is big, your opponent above it and you below, each with a clock and a hand.</li>
+                <li>Tap a piece in your hand and the squares it can go to light up, then tap one. Or drag it onto the board.</li>
+                <li>Your partner's board is small beside it, with its hands and clocks. Tap it to make it big, tap again to swap back.</li>
+                <li>Short of four? <b>Computer players</b> (easy or hard) take the empty seats. If someone leaves mid-game, the computer plays on for them until the end.</li>
+                <li>"Play again" changes the partners. With more than four, whoever watched plays next.</li>
+            </ul>
+            <p class="help-sub">📺 On the TV</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Both boards side by side, four names, four clocks and the hands; every piece taken flies to the partner's hand.</li>
+            </ul>
+            <p class="help-sub">💡 Tips</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Talk to your partner! "I need a knight" or "don't take the queen" changes everything.</li>
+                <li>A knight dropped next to the king mates more often than you'd think.</li>
+            </ul>`,
         doubt: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Every card is dealt, each hand on its own phone. The aim: get rid of your cards.</li>
@@ -43013,6 +43848,53 @@ const GAME_RULES = {
             <p class="help-sub">🏆 The tally</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>One loser a game. Play again and the times each was left with the Old Maid are counted, fewest first.</li>
+            </ul>`,
+        votechess: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>The host splits you into <b>two teams</b>, White and Black (at random, and can move anyone across). From 2 players: one against one is plain chess.</li>
+                <li>On your team's move <b>everyone votes for a move</b> on their own phone: tap a piece, then a square (or drag it). The piece stays put; a blue arrow shows your vote, and you can change it until the vote closes.</li>
+                <li>The move with <b>the most votes</b> is played when the voting time is up (30 seconds by default, or 20 or 60), or at once when the whole team has voted.</li>
+                <li><b>A tie?</b> One of the tied moves is drawn at random. <b>Nobody voted?</b> A random move, and everyone is told.</li>
+                <li>Votes are <b>secret</b> until the move is played: everyone sees who has voted, not for what. Then everyone sees how the team voted (♞f3 ×3, e4 ×1).</li>
+                <li>Checkmate wins as in plain chess, and each member of the winning team scores a point.</li>
+            </ol>
+            <p class="help-sub">🏳️ Resigning</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Resigning is a vote too («Vote to resign»): it needs <b>more votes than any move</b>; tied with a move, the move is played.</li>
+            </ul>
+            <p class="help-sub">📱 On your own phones</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>💬 The chat has a channel for your team only: agree on a move without the other team hearing.</li>
+                <li>Someone who leaves drops out of the count; a team with nobody left loses. Someone who joins mid-game watches and plays the next one.</li>
+                <li>The host can close a vote early for a phone that went quiet: the votes cast so far decide it.</li>
+                <li>«Play again»: the same teams, the colours swapped.</li>
+            </ul>
+            <p class="help-sub">📺 On the TV</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The board big (3D), both teams and who has voted, the voting time, and how the team voted after every move.</li>
+            </ul>`,
+        handbrain: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li><b>2 against 2</b>: each team has a <b>Brain</b> and a <b>Hand</b>. Computer players take the empty seats.</li>
+                <li>On your team's move <b>the Brain names a piece</b>: king, queen, rook, bishop, knight or pawn (the ones with no move are faded). The whole table hears it.</li>
+                <li><b>The Hand moves any piece of that kind</b>: those pieces light up on the board, and the Hand picks the move. The Brain can't move.</li>
+                <li>Checkmate wins as in plain chess, and each member of the winning team scores a point.</li>
+            </ol>
+            <p class="help-sub">🔁 Roles</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Roles stay for the whole game and swap on «Play again»: the Brain becomes the Hand, and the colours swap too.</li>
+                <li>The host arranges the seats before the start: tap two seats to swap them, or 🔀 to draw again.</li>
+            </ul>
+            <p class="help-sub">📱 On your own phones</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>🤖 <b>Computer players</b>, easy or hard: a hard Brain names the piece of its best move, and a hard Hand finds the best move of the piece named.</li>
+                <li>A clock per team if the host sets one (5+0 or 10+0): the team that runs out loses.</li>
+                <li>Someone who leaves mid-game: the computer takes their seat. The host can play for a phone that went quiet.</li>
+                <li>Either member can resign for the team.</li>
+            </ul>
+            <p class="help-sub">📺 On the TV</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The board big (3D), both teams, what the Brain said in big letters, and the clocks.</li>
             </ul>`,
         bowling: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -43494,6 +44376,10 @@ const GAME_CATALOG = [
   { id: 'bank',       icon: 'art:bank',  title: 'setup_bank',       desc: 'cat_bank',       accent: 'green',  players: [1, 6],  mins: 45, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-bank',      open: () => setupBank() },
   { id: 'doubt',      icon: 'art:doubt', title: 'setup_doubt',      desc: 'cat_doubt',      accent: 'violet', players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('doubt') },
   { id: 'oldmaid',    icon: 'art:oldmaid', title: 'setup_oldmaid',  desc: 'cat_oldmaid',    accent: 'amber',  players: [2, 8],  mins: 10, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('oldmaid') },
+  // Chess for teams: a board game at the table, on everyone's phone (RoomVoteChess.js, RoomHandBrain.js).
+  { id: 'votechess',  icon: 'art:votechess', title: 'setup_votechess', desc: 'cat_votechess', accent: 'indigo', players: [2, 12], mins: 25, modes: ['room', 'tv'],          group: 'table', open: () => roomCreateFor('votechess') },
+  { id: 'handbrain',  icon: 'art:handbrain', title: 'setup_handbrain', desc: 'cat_handbrain', accent: 'teal',   players: [1, 4],  mins: 20, modes: ['room', 'tv'],          group: 'table', open: () => roomCreateFor('handbrain') },
+  { id: 'bughouse',   icon: 'art:bughouse', title: 'setup_bughouse', desc: 'cat_bughouse', accent: 'teal', players: [1, 4],  mins: 10, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('bughouse') },
 
   /* --- لاتنين على موبايل: two people, one phone --- */
   { id: 'memory',     icon: '🎴',   title: 'setup_memory',     desc: 'cat_memory',     accent: 'violet', players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-memory',      open: () => setupMemory() },
@@ -45083,6 +45969,11 @@ const ROOM_HUB_GAMES = [
   { id: 'xo',         icon: '⭕', key: 'setup_xo',         accent: 'blue',   min: 2 },
   { id: 'battleship', icon: '🚢', key: 'setup_battleship', accent: 'teal',   min: 2 },
   { id: 'chess',      icon: 'art:chess', key: 'setup_shatranj', accent: 'amber', min: 2 },
+  // Chess for teams: two people for a vote; one for المخ والإيد (computer players fill the seats).
+  { id: 'votechess',  icon: 'art:votechess', key: 'setup_votechess', accent: 'indigo', min: 2 },
+  { id: 'handbrain',  icon: 'art:handbrain', key: 'setup_handbrain', accent: 'teal',   min: 1 },
+  // باغ هاوس: computer players fill the four seats, so one person is enough to open it.
+  { id: 'bughouse',   icon: 'art:bughouse', key: 'setup_bughouse', accent: 'teal', min: 1 },
   // A computer player can take the other seat.
   { id: 'guesswho',   icon: 'art:guesswho', key: 'setup_guesswho', accent: 'teal', min: 1 },
   { id: 'hangman',    icon: 'art:hangman', key: 'setup_hangman',  accent: 'orange', min: 2 },
@@ -47223,6 +48114,9 @@ const HELP_ENTRIES = [
   { key: 'bowling',     title: 'setup_bowling',     icon: '🎳', accent: 'violet', group: 'games', room: true },
   { key: 'doubt',       title: 'setup_doubt',       icon: 'art:doubt', accent: 'violet', group: 'games', roomOnly: true },
   { key: 'oldmaid',     title: 'setup_oldmaid',     icon: 'art:oldmaid', accent: 'amber', group: 'games', roomOnly: true },
+  { key: 'votechess',   title: 'setup_votechess',   icon: 'art:votechess', accent: 'indigo', group: 'games', roomOnly: true },
+  { key: 'handbrain',   title: 'setup_handbrain',   icon: 'art:handbrain', accent: 'teal', group: 'games', roomOnly: true },
+  { key: 'bughouse',    title: 'setup_bughouse',    icon: 'art:bughouse', accent: 'teal', group: 'games', roomOnly: true },
   { key: 'minigolf',    title: 'setup_minigolf',    icon: '⛳', accent: 'green',  group: 'games', room: true },
   { key: 'sudoku',      title: 'setup_sudoku',      icon: '#️⃣', accent: 'indigo', group: 'games' },
   { key: 'g2048',       title: 'setup_g2048',       icon: '🔷', accent: 'orange', group: 'games' },
@@ -47325,6 +48219,7 @@ const HELP_FOR_VIEW = {
   'setup-hangman': 'hangman', 'play-hangman': 'hangman', 'room-hangman': 'hangman',
   'setup-bowling': 'bowling', 'play-bowling': 'bowling', 'room-bowling': 'bowling',
   'room-doubt': 'doubt', 'room-oldmaid': 'oldmaid',
+  'room-votechess': 'votechess', 'room-handbrain': 'handbrain', 'room-bughouse': 'bughouse',
   'setup-minigolf': 'minigolf', 'play-minigolf': 'minigolf', 'room-minigolf': 'minigolf'
 };
 
@@ -101843,7 +102738,8 @@ if (typeof onLeaveScreen === 'function') {
     if (from === 'play-shatranj') { chStopTimers(); chPauseClock(); }
     if (to === 'play-shatranj') setTimeout(chAfterMove, 0);
     // One board per page: gone as soon as no screen shows one.
-    const keep = to === 'play-shatranj' || to === 'review-shatranj' || to === 'play-chesspuzzle' || to === 'room-chess' || (to === 'room-tv' && typeof Room !== 'undefined' && Room.state && Room.state.game === 'chess');
+    const keep = to === 'play-shatranj' || to === 'review-shatranj' || to === 'play-chesspuzzle' || to === 'room-chess' || to === 'room-votechess' || to === 'room-handbrain' ||
+      (to === 'room-tv' && typeof Room !== 'undefined' && Room.state && ['chess', 'votechess', 'handbrain'].indexOf(Room.state.game) !== -1);
     if (!keep) chViewDrop();
   });
 }
@@ -104430,7 +105326,8 @@ onRoomClocksReset(() => {
   chRoomLocal.sel = '';
   chRoomLocal.early = null;
   const st = Room.state;
-  if (!st || st.game !== 'chess' || st.phase === 'lobby') {
+  // The team games (JS_RoomVoteChess.html, JS_RoomHandBrain.html) keep the one board too.
+  if (!st || ['chess', 'votechess', 'handbrain'].indexOf(st.game) === -1 || st.phase === 'lobby') {
     if (appState.currentView === 'room-chess' || appState.currentView === 'room-tv' || appState.currentView === 'room-lobby') chViewDrop();
   }
 });
@@ -104479,6 +105376,742 @@ TV_GAMES.chess = {
     if (bd.clock) chRoomTickStart(); else chRoomTickStop();
     duelPillsAfter(view, 'chtv|' + state.code, { turn: s.phase === 'play' && !bd.result ? bd.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
     if (over) duelRoomCheer(view, state, ['ch', roomDealKey(state), s.round].join('|'));
+  }
+};
+</script>
+
+    <script>
+/* ============================================================================
+   باغ هاوس in rooms and on the TV (RoomBughouse.js): four on two boards
+   ----------------------------------------------------------------------------
+   Partners sit on different boards with opposite colours; what you take flies
+   to your partner's hand, and on your move you may drop a piece from your own
+   hand onto an empty square instead of moving. The rules are Chess.js's
+   (chessBugPlay), the same file the server judges with.
+
+   On a phone: your own board big (chess's one board view, chView - 2D by
+   default, 3D a tap away), your opponent over it and you under it, each with
+   their clock and their hand as a row of pieces; tap a piece of your hand and
+   the squares it can go to light up, then tap one - or drag the piece onto the
+   board. Your partner's board is small beside it (under it upright), with
+   their hands and clocks; a tap on it swaps the two sizes. A watcher sees
+   board 1 big and board 2 small, the same way.
+
+   On the TV: both boards side by side (2D: one 3D view per page, and two
+   boards want two), team A at the bottom of both, four names, four clocks,
+   the hands.
+
+   Your own move is drawn as your finger lifts (the duels' rule): played on a
+   copy with the very rules the server uses; the server's board comes back
+   with the same animation key, so nothing moves twice. Refused, the room's
+   own board is drawn back.
+
+   The clocks are the server's (a board's clock: each side's time and when
+   the side to move's started, in the server's time), read through the
+   smallest gap seen between the server's time and hearing of it, as chess
+   reads its clock.
+   ========================================================================= */
+
+// drop: the piece of your hand picked up (a letter); sel: the board piece picked up; early: your
+// move drawn before the server answers; swap: the partner's board big; seenGive: captures already flown.
+const bhLocal = { drop: '', sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, swap: false, seenGive: {}, seenDrop: {}, lastTick: 0, turnSince: {}, hostTimer: null, handSeen: '' };
+
+const BH_KINDS = ['q', 'r', 'b', 'n', 'p'];
+
+const bhShared = (state) => (state && state.shared) || {};
+const bhSeat = (state) => (state.youAreScreen ? -1 : (bhShared(state).seats || []).indexOf(Room.me));
+const bhTeamOf = (k) => (k === 0 || k === 3 ? 'A' : 'B');
+const bhSeatAt = (b, color) => b * 2 + color;
+
+/** The board this phone shows as board b: the room's, or its own move on top until the server has it. */
+function bhBoardView(state, b) {
+  const s = bhShared(state);
+  const bd = s.boards[b];
+  const e = bhLocal.early;
+  if (e && e.code === state.code && e.round === s.round && e.b === b && e.n === bd.moves + 1) return e;
+  if (e && e.b === b && (e.code !== state.code || e.round !== s.round || bd.moves >= e.n)) bhLocal.early = null;
+  return { g: bd.g, last: bd.last, n: bd.moves, sans: bd.sans, b: b };
+}
+
+/* --- the clocks: the server's, read on this phone ------------------------------------ */
+
+function bhNoteClock(state) {
+  if (typeof state.serverNow !== 'number' || bhLocal.seenAt === 'n' + state.serverNow) return;
+  bhLocal.seenAt = 'n' + state.serverNow;
+  const gap = (state.receivedAt || Date.now()) - state.serverNow;
+  bhLocal.offset = bhLocal.offset === null ? gap : Math.min(bhLocal.offset, gap);
+}
+
+function bhClockLeft(state, b, side) {
+  const s = bhShared(state);
+  const bd = s.boards && s.boards[b];
+  const c = bd && bd.clock;
+  if (!c) return Infinity;
+  if (c.at === null || c.at === undefined || bd.g.turn !== side || s.phase !== 'play') return c.left[side];
+  return c.left[side] - Math.max(0, Date.now() - (bhLocal.offset || 0) - c.at);
+}
+
+function bhPaintClocks(state) {
+  const s = bhShared(state);
+  document.querySelectorAll('[data-bh-clock]').forEach(el => {
+    const [b, side] = el.dataset.bhClock.split(':').map(Number);
+    const bd = s.boards && s.boards[b];
+    if (!bd) return;
+    const left = bhClockLeft(state, b, side);
+    const text = chClockText(left);
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle('is-running', s.phase === 'play' && bd.g.turn === side && !!(bd.clock && bd.clock.at));
+    el.classList.toggle('is-low', left < 20000);
+  });
+}
+
+function bhTickStart() {
+  if (bhLocal.tick) return;
+  bhLocal.tick = setInterval(() => {
+    const st = Room.state;
+    if (!st || st.game !== 'bughouse' || !bhShared(st).boards) { bhTickStop(); return; }
+    bhPaintClocks(st);
+    const s = bhShared(st);
+    const seat = bhSeat(st);
+    if (s.phase !== 'play' || seat < 0) return;
+    const b = seat >> 1;
+    if (s.boards[b].g.turn !== (seat & 1)) return;
+    const left = bhClockLeft(st, b, seat & 1);
+    if (left < 10000 && left > 0) {
+      const sec = Math.ceil(left / 1000);
+      if (bhLocal.lastTick !== sec) { bhLocal.lastTick = sec; playSound('tick'); }
+    }
+  }, 200);
+}
+
+function bhTickStop() {
+  if (bhLocal.tick) clearInterval(bhLocal.tick);
+  bhLocal.tick = null;
+}
+
+/* --- the hands ------------------------------------------------------------------ */
+
+/** A side's hand as letters, strongest first ('q', 'n', 'n', 'p'…): what the 3D board sets beside itself. */
+const bhHandLetters = (h) => BH_KINDS.reduce((a, l) => a.concat(Array((h && h[l]) | 0).fill(l)), []);
+
+/**
+ * A side's hand as a row of pieces with their counts. Live (your own, on your move): each is a
+ * button - a tap picks it up, a drag carries it onto the board.
+ */
+function bhHandHtml(g, b, side, live) {
+  const h = (g.hand || {})[side ? 'b' : 'w'] || {};
+  const list = BH_KINDS.filter(l => (h[l] | 0) > 0);
+  const pcs = list.map(l => {
+    const code = CH_LETTER_KIND[l] | (side ? 8 : 0);
+    const n = h[l] | 0;
+    const inner = `${chPieceSvg(code)}${n > 1 ? `<b class="bh-hand__n metric">${n}</b>` : ''}`;
+    return live
+      ? `<button type="button" class="bh-hand__pc ${bhLocal.drop === l ? 'is-picked' : ''}" data-bh-drop="${l}" aria-pressed="${bhLocal.drop === l}" aria-label="${escapeHTML(chPieceName(l))}${n > 1 ? ' ×' + n : ''}">${inner}</button>`
+      : `<span class="bh-hand__pc" data-bh-kind="${l}" title="${escapeHTML(chPieceName(l))}">${inner}</span>`;
+  }).join('');
+  return `<div class="bh-hand ${live ? 'is-live' : ''} ${list.length ? '' : 'is-empty'}" data-bh-hand="${b}:${side}" dir="ltr">${pcs || `<span class="bh-hand__none">${escapeHTML(chT('bh_hand_empty'))}</span>`}</div>`;
+}
+
+/** One player's line: the colour, the name (and whose board it was), the team, the clock, the hand. */
+function bhPlayerHtml(state, b, side, opts) {
+  const o = opts || {};
+  const s = bhShared(state);
+  const k = bhSeatAt(b, side);
+  const view = bhBoardView(state, b);
+  const seat = bhSeat(state);
+  const pid = s.seats[k];
+  const p = (state.players || []).find(x => x.id === pid);
+  const bot = p && p.bot;
+  const away = p && !p.bot && !p.online;
+  const sub = s.subs && s.subs[k] !== undefined;
+  const you = k === seat ? ` <span class="bh-you">${escapeHTML(chT('xo_you'))}</span>` : (seat >= 0 && k === 3 - seat ? ` <span class="bh-you bh-you--partner">${escapeHTML(chT('bh_partner'))}</span>` : '');
+  const turn = s.phase === 'play' && view.g.turn === side;
+  return `<div class="bh-player ${turn ? 'is-turn' : ''} ${away ? 'is-away' : ''} bh-team--${bhTeamOf(k)}" data-bh-seat="${k}">
+      <div class="bh-player__row">
+        <span class="ch-mark ${side ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (side ? 8 : 0))}</span>
+        <span class="bh-player__name">${bot ? '<span aria-hidden="true">🤖</span> ' : ''}${escapeHTML(s.names[k] || '')}${you}</span>
+        ${sub ? `<span class="bh-sub" title="${escapeHTML(chT('bh_sub', { name: s.subs[k] }))}">🤖</span>` : ''}
+        <b class="ch-clock metric bh-clock" data-bh-clock="${b}:${side}"></b>
+      </div>
+      ${bhHandHtml(view.g, b, side, !!o.live)}
+    </div>`;
+}
+
+/* --- your move: a board move, or a drop ------------------------------------------------- */
+
+/** The squares the piece picked up from your hand can go to. */
+function bhDropTargets(g, l) {
+  return l ? chessBugDrops(g).filter(d => d.drop === l).map(d => ({ to: d.to, capture: false })) : [];
+}
+
+/** Your move (a board move or a drop): drawn now, sent to the server, and taken back if the server says no. */
+function bhPlay(mv) {
+  const state = Room.state;
+  if (!state || state.game !== 'bughouse') return false;
+  const s = bhShared(state);
+  const seat = bhSeat(state);
+  if (seat < 0 || s.phase !== 'play' || bhLocal.early) return false;
+  const b = seat >> 1, color = seat & 1;
+  const bd = s.boards[b];
+  if (bd.g.turn !== color) return false;
+  const g = chessBugClone(bd.g);
+  const info = chessBugPlay(g, mv);
+  if (!info) { chSound('refuse'); return false; }
+  const n = bd.moves + 1;
+  bhLocal.early = { code: state.code, round: s.round, b: b, n: n, g: g, sans: bd.sans.concat([info.san]),
+    last: { from: info.from, to: info.to, drop: info.drop, capture: info.capture, captureSq: info.captureSq, castle: info.castle, promo: info.promo, check: info.check, gives: info.gives, seat: seat, n: n } };
+  bhLocal.drop = '';
+  bhLocal.sel = '';
+  haptic('light');
+  bhRedraw();
+  const payload = mv.drop ? { drop: mv.drop, to: mv.to, move: bd.moves } : { from: mv.from, to: mv.to, promo: mv.promo || '', move: bd.moves };
+  Promise.resolve(Room.act(mv.drop ? 'drop' : 'move', payload)).catch(err => {
+    if (err && err.message) showToast(err.message, 'error');
+  }).then(() => {
+    const st = Room.state;
+    const e = bhLocal.early;
+    if (!e || e.n !== n || e.b !== b) return;
+    const sh = st && bhShared(st);
+    if (!sh || !sh.boards || sh.round !== e.round || sh.boards[b].moves < n) {
+      bhLocal.early = null;
+      bhRedraw(true);
+    }
+  });
+  return true;
+}
+
+function bhRedraw(still) {
+  const st = Room.state;
+  if (!st || st.game !== 'bughouse') return;
+  if (st.youAreScreen) { if (appState.currentView === 'room-tv') TV_GAMES.bughouse.after(st, false); return; }
+  if (appState.currentView !== 'room-bughouse') return;
+  bhRender(st, still);
+}
+
+/** A tap on a piece of your hand: picked up (the squares light), or put back. */
+function bhPickDrop(l) {
+  const st = Room.state;
+  if (!st) return;
+  bhLocal.drop = bhLocal.drop === l ? '' : l;
+  bhLocal.sel = '';
+  if (bhLocal.drop) chSound('pick');
+  bhRedraw();
+}
+
+/** Which board is big on this phone: your own (or board 1 for a watcher), or the other after a tap. */
+function bhBigBoard(state) {
+  const seat = bhSeat(state);
+  const mine = seat >= 0 ? seat >> 1 : 0;
+  return bhLocal.swap ? 1 - mine : mine;
+}
+
+/** Which colour sits at the bottom of board b on this screen: yours; your partner's on theirs; team A's on the TV. */
+function bhOrient(state, b) {
+  const seat = bhSeat(state);
+  if (seat < 0) return b === 1 ? 1 : 0;
+  return b === (seat >> 1) ? (seat & 1) : 1 - (seat & 1);
+}
+
+/** The model the big board draws (chView). */
+function bhModel(state, b, still) {
+  const s = bhShared(state);
+  const view = bhBoardView(state, b);
+  const seat = bhSeat(state);
+  const mine = seat >= 0 && (seat >> 1) === b && s.phase === 'play' && view.g.turn === (seat & 1) && !bhLocal.early;
+  const selKey = [roomDealKey(state), s.round, b, view.n].join('|');
+  if (bhLocal.selKey !== selKey) { bhLocal.selKey = selKey; bhLocal.sel = ''; bhLocal.drop = ''; }
+  if (!mine) { bhLocal.sel = ''; bhLocal.drop = ''; }
+  const ctx = {
+    g: view.g, side: seat & 1, sel: bhLocal.sel,
+    setSel: (sq) => { bhLocal.sel = sq; bhLocal.drop = ''; bhRedraw(); },
+    play: (from, to, promo) => bhPlay({ from: from, to: to, promo: promo }),
+    redraw: () => bhRedraw()
+  };
+  const over = s.phase === 'over' && s.result;
+  const last = view.last;
+  const hands = view.g.hand || {};
+  return {
+    key: ['bh', roomDealKey(state), s.round, b].join('|'),
+    board: view.g.board, orient: bhOrient(state, b), tv: false,
+    loud: true,
+    last: last ? { from: last.from || last.to, to: last.to } : null,
+    anim: last ? Object.assign({ key: [roomDealKey(state), s.round, b, last.n].join('|'), still: !!still }, last) : null,
+    check: chessCheckSq(view.g),
+    mate: over && s.result.reason === 'mate' && s.result.board === b ? chMateKing(view.g) : '',
+    sel: mine ? bhLocal.sel : '',
+    targets: mine ? (bhLocal.drop ? bhDropTargets(view.g, bhLocal.drop) : chTargets(view.g, bhLocal.sel)) : [],
+    marks: [], arrows: [],
+    lost: [bhHandLetters(hands.w), bhHandLetters(hands.b)],
+    input: mine ? {
+      canMove: true, side: seat & 1,
+      onPick: (sq, fromDrag) => {
+        if (bhLocal.drop && !fromDrag) {
+          const l = bhLocal.drop;
+          if (bhDropTargets(view.g, l).some(x => x.to === sq)) { bhFlyDrop(l, seat & 1, sq); bhPlay({ drop: l, to: sq }); return true; }
+          bhLocal.drop = '';
+          const code = view.g.board[chSqIndex(sq)];
+          if (!(code && (code >> 3) === (seat & 1))) { chSound('refuse'); bhRedraw(); return false; }
+        }
+        return chTapLogic(ctx, sq, fromDrag);
+      },
+      onDrop: (from, to) => chDropLogic(ctx, from, to)
+    } : null
+  };
+}
+
+/* --- carrying a piece from your hand onto the board ------------------------------------------ */
+
+/** A drag from the hand row: a ghost follows the finger, and letting go over a square drops it there. */
+function bhWireHand(root) {
+  if (root._bhWired) return;
+  root._bhWired = true;
+  let press = null;
+  root.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('[data-bh-drop]');
+    if (!btn || e.button > 0) return;
+    press = { id: e.pointerId, x: e.clientX, y: e.clientY, l: btn.dataset.bhDrop, btn: btn, ghost: null };
+    try { btn.setPointerCapture(e.pointerId); } catch (x) {}
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (!press || press.id !== e.pointerId) return;
+    if (!press.ghost && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) {
+      // Picked up: its squares light, and the piece follows the finger.
+      if (bhLocal.drop !== press.l) { bhLocal.drop = press.l; bhLocal.sel = ''; bhRedraw(); }
+      const svg = press.btn.querySelector('svg');
+      const r = press.btn.getBoundingClientRect();
+      const g = document.createElement('div');
+      g.className = 'bh-ghost';
+      g.innerHTML = svg ? svg.outerHTML : '';
+      const size = Math.max(r.width, 40) * 1.25;
+      g.style.width = size + 'px';
+      g.style.height = size + 'px';
+      document.body.appendChild(g);
+      press.ghost = g;
+      press.size = size;
+    }
+    if (press.ghost) {
+      e.preventDefault();
+      press.ghost.style.transform = `translate(${e.clientX - press.size / 2}px, ${e.clientY - press.size * 0.8}px)`;
+    }
+  });
+  const end = (e, cancel) => {
+    if (!press || press.id !== e.pointerId) return;
+    const pr = press;
+    press = null;
+    if (!pr.ghost) { if (!cancel) bhPickDrop(pr.l); return; }
+    const sq = !cancel && chView.r && chView.r.pick ? chView.r.pick(e.clientX, e.clientY - pr.size * 0.3) || chView.r.pick(e.clientX, e.clientY) : '';
+    const st = Room.state;
+    const seat = st ? bhSeat(st) : -1;
+    const ok = sq && st && seat >= 0 && bhDropTargets(bhBoardView(st, seat >> 1).g, pr.l).some(x => x.to === sq);
+    if (ok) {
+      pr.ghost.remove();
+      bhPlay({ drop: pr.l, to: sq });
+      return;
+    }
+    // Not a square it can go to: it flies back to the hand.
+    const r = pr.btn.getBoundingClientRect();
+    if (pr.ghost.animate && !motionOff()) {
+      const a = pr.ghost.animate([{ transform: pr.ghost.style.transform }, { transform: `translate(${r.left + r.width / 2 - pr.size / 2}px, ${r.top + r.height / 2 - pr.size / 2}px) scale(0.8)`, opacity: 0.4 }], { duration: 220, easing: 'ease-in' });
+      a.onfinish = a.oncancel = () => pr.ghost.remove();
+    } else pr.ghost.remove();
+    if (sq) chSound('refuse');
+  };
+  root.addEventListener('pointerup', (e) => end(e, false));
+  root.addEventListener('pointercancel', (e) => end(e, true));
+}
+
+/* --- motion: a captured piece flies to the partner's hand, a dropped one from the hand to its square --- */
+
+/** A piece drawn at fromRect flies onto `target` (a hand's row, a square) and pops there. */
+function bhFly(code, fromRect, target, opts) {
+  const o = opts || {};
+  if (!fromRect || !target || motionOff() || !document.body.animate) return;
+  const to = target.getBoundingClientRect ? target.getBoundingClientRect() : target;
+  if (!to.width) return;
+  const size = Math.max(28, Math.min(64, o.size || fromRect.width || 40));
+  const g = document.createElement('div');
+  g.className = 'bh-ghost bh-ghost--fly';
+  g.innerHTML = chPieceSvg(code);
+  g.style.width = size + 'px';
+  g.style.height = size + 'px';
+  document.body.appendChild(g);
+  const x0 = fromRect.left + fromRect.width / 2 - size / 2, y0 = fromRect.top + fromRect.height / 2 - size / 2;
+  const x1 = to.left + to.width / 2 - size / 2, y1 = to.top + to.height / 2 - size / 2;
+  const lift = Math.min(90, Math.hypot(x1 - x0, y1 - y0) * 0.3);
+  const a = g.animate([
+    { transform: `translate(${x0}px, ${y0}px) scale(1)`, opacity: 1 },
+    { transform: `translate(${(x0 + x1) / 2}px, ${(y0 + y1) / 2 - lift}px) scale(1.15)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(${x1}px, ${y1}px) scale(${o.endScale || 0.8})`, opacity: 0.9 }
+  ], { duration: o.duration || 620, delay: o.delay || 0, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'both' });
+  const done = () => {
+    g.remove();
+    if (target.classList) {
+      target.classList.remove('bh-landed');
+      void target.offsetWidth;
+      target.classList.add('bh-landed');
+      setTimeout(() => target.classList && target.classList.remove('bh-landed'), 500);
+    }
+  };
+  a.onfinish = a.oncancel = done;
+  setTimeout(done, (o.duration || 620) + (o.delay || 0) + 900);
+}
+
+/** Your own drop by tap: the piece flies from your hand to the square as it is played. */
+function bhFlyDrop(l, side, sq) {
+  const src = document.querySelector(`#view-room-bughouse [data-bh-drop="${l}"]`);
+  if (!src || !chView.r || !chView.r.screenOf) return;
+  const at = chView.r.screenOf(sq);
+  if (!at) return;
+  const r = src.getBoundingClientRect();
+  bhFly(CH_LETTER_KIND[l] | (side ? 8 : 0), r, { left: at.x - 18, top: at.y - 18, width: 36, height: 36 }, { duration: 320, endScale: 1 });
+}
+
+/** Where square sq of board b is on this screen: the big board, or a small one's square. */
+function bhSquareRect(root, b, sq, bigB) {
+  if (b === bigB && chView.r && chView.r.screenOf && chView.root && root.contains(chView.root)) {
+    const at = chView.r.screenOf(sq);
+    return at ? { left: at.x - 20, top: at.y - 20, width: 40, height: 40 } : null;
+  }
+  const el = root.querySelector(`[data-bh-mini="${b}"] [data-sq="${sq}"]`);
+  return el ? el.getBoundingClientRect() : null;
+}
+
+/**
+ * The moves this screen hasn't shown yet: a capture's piece flies from its square to the partner's
+ * hand on the other board (once per capture, per phone); another player's drop flies from their hand.
+ */
+function bhPlayMotion(root, state, bigB) {
+  const s = bhShared(state);
+  if (!s.boards) return;
+  const deal = roomDealKey(state) + '|' + s.round;
+  s.boards.forEach((bd, b) => {
+    const last = bd.last;
+    if (!last) return;
+    const key = deal + '|' + b + '|' + last.n;
+    if (last.gives && !bhLocal.seenGive[key]) {
+      bhLocal.seenGive[key] = true;
+      const color = last.seat & 1;
+      const toSide = 1 - color;
+      const target = root.querySelector(`[data-bh-hand="${1 - b}:${toSide}"]`);
+      const from = bhSquareRect(root, b, last.captureSq || last.to, bigB);
+      const code = CH_LETTER_KIND[last.gives] | (toSide ? 8 : 0);
+      if (target && from && motionFirst('bhgive|' + key)) bhFly(code, from, target, { delay: 160 });
+      // A piece arriving in your own hand: a tick and a buzz.
+      const seat = bhSeat(state);
+      if (seat >= 0 && (seat >> 1) === 1 - b && (seat & 1) === toSide) { setTimeout(() => chSound('pick'), 700); haptic('light'); }
+    }
+    if (last.drop && !bhLocal.seenDrop[key]) {
+      bhLocal.seenDrop[key] = true;
+      if (last.seat === bhSeat(state)) return;      // your own: flown from your hand as you played it
+      const src = root.querySelector(`[data-bh-hand="${b}:${last.seat & 1}"]`);
+      const to = bhSquareRect(root, b, last.to, bigB);
+      if (src && to && motionFirst('bhdrop|' + key)) bhFly(CH_LETTER_KIND[last.drop] | ((last.seat & 1) ? 8 : 0), src.getBoundingClientRect(), to, { duration: 360, endScale: 1, size: to.width });
+    }
+  });
+  // Keep the memory small: this deal only.
+  Object.keys(bhLocal.seenGive).forEach(k => { if (k.indexOf(deal + '|') !== 0) delete bhLocal.seenGive[k]; });
+  Object.keys(bhLocal.seenDrop).forEach(k => { if (k.indexOf(deal + '|') !== 0) delete bhLocal.seenDrop[k]; });
+}
+
+/* --- the screen -------------------------------------------------------------------------- */
+
+function bhSetHtml(root, sel, html) {
+  const el = root && root.querySelector(sel);
+  if (!el || el._bhHtml === html) return false;
+  el.innerHTML = html;
+  el._bhHtml = html;
+  return true;
+}
+
+/** Board n as people say it (1 and 2), in the page's digits. */
+const bhBoardName = (b) => chT('bh_board', { n: String(b + 1) });
+
+/** The line under the heads: whose move, your move, waiting for a piece, the result. */
+function bhStatus(state, forTv) {
+  const s = bhShared(state);
+  if (s.phase === 'over' && s.result) return bhResultLine(state);
+  const seat = forTv ? -1 : bhSeat(state);
+  if (seat < 0) return chT('bh_watch_status');
+  const b = seat >> 1;
+  const view = bhBoardView(state, b);
+  if (bhLocal.early) return chT('ch_sent');
+  if (view.g.turn !== (seat & 1)) return chT('bh_turn_of', { name: duelIso(s.names[bhSeatAt(b, view.g.turn)] || '') });
+  const st = chessBugStatus(view.g);
+  if (st.stuck) return chT('bh_stuck');
+  if (bhLocal.drop) return chT('bh_drop_pick', { piece: chPieceName(bhLocal.drop) });
+  return chT('bh_your_move') + (st.check ? ' · ' + chT('ch_check') : '');
+}
+
+function bhResultLine(state) {
+  const s = bhShared(state);
+  const r = s.result;
+  if (!r) return '';
+  const names = s.seats.map((id, k) => (bhTeamOf(k) === r.team ? s.names[k] : null)).filter(Boolean).map(duelIso).join(' + ');
+  const loser = duelIso(s.names[r.seat] || '');
+  const why = r.reason === 'mate' ? chT('bh_end_mate', { n: String(r.board + 1) })
+    : r.reason === 'time' ? chT('bh_end_time', { name: loser, n: String(r.board + 1) })
+      : chT('bh_end_resign', { name: loser });
+  return '🏆 ' + chT('bh_won', { names: names }) + ' · ' + why;
+}
+
+/** The note about a computer player playing for someone who left, said on screen. */
+function bhSubsHtml(state) {
+  const s = bhShared(state);
+  const list = Object.keys(s.subs || {});
+  if (!list.length || s.phase !== 'play') return '';
+  return list.map(k => `<p class="bh-note">${escapeHTML(chT('bh_sub', { name: s.subs[k] }))}</p>`).join('');
+}
+
+/** The host's way on for a quiet phone on either board: the easy computer plays one move for it. */
+function bhHostRow(state, tv) {
+  const s = bhShared(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.boards) return '';
+  const btns = [];
+  s.boards.forEach((bd, b) => {
+    const k = bhSeatAt(b, bd.g.turn);
+    const id = s.seats[k];
+    const p = (state.players || []).find(x => x.id === id);
+    if (!p || p.bot || id === Room.me) return;
+    const key = [roomDealKey(state), s.round, b, bd.moves].join('|');
+    if (bhLocal.turnSince[b] === undefined || bhLocal.turnSince[b].key !== key) bhLocal.turnSince[b] = { key: key, at: Date.now() };
+    const wait = 40000 - (Date.now() - bhLocal.turnSince[b].at);
+    if (p.online && wait > 0) {
+      clearTimeout(bhLocal.hostTimer);
+      bhLocal.hostTimer = setTimeout(() => bhRedraw(true), wait + 300);
+      return;
+    }
+    btns.push(['⏭️ ' + chT('ch_play_for', { name: duelIso(s.names[k] || '') }), `roomAct('skipTurn', { board: ${b}, move: ${Number(bd.moves) || 0} })`]);
+  });
+  if (!btns.length) return '';
+  return tv ? `<div class="tv-actions">${btns.map(x => tvBtn(x[0], x[1], 'ghost')).join('')}</div>` : roomHostRow(btns);
+}
+
+function bhResign() {
+  const st = Room.state;
+  if (!st) return;
+  const round = bhShared(st).round;
+  showConfirmModal(chT('bh_resign_confirm'), () => roomAct('resign', { round: round }));
+}
+
+function bhPlayAgain() {
+  const st = Room.state;
+  if (!st) return;
+  roomAct('playAgain', { round: bhShared(st).round, botNames: bhBotNames() });
+}
+
+const bhBotNames = () => (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).slice().sort(() => Math.random() - 0.5);
+
+/** The small board: the other one, with both players and their hands; a tap makes it big. */
+function bhMiniHtml(state, b, tv) {
+  const s = bhShared(state);
+  const view = bhBoardView(state, b);
+  const o = bhOrient(state, b);
+  const top = 1 - o, bottom = o;
+  const last = view.last;
+  const m = { board: view.g.board, orient: o, mini: !tv, last: last ? { from: last.from || last.to, to: last.to } : null, check: chessCheckSq(view.g), sel: '', targets: [], marks: [], arrows: [] };
+  const seat = bhSeat(state);
+  const tag = tv ? '' : `<span class="bh-mini__tag">${escapeHTML(bhBoardName(b))}${seat >= 0 && (seat >> 1) === b ? ' · ' + escapeHTML(chT('bh_mine_board')) : seat >= 0 ? ' · ' + escapeHTML(chT('bh_partner_board')) : ''}</span>`;
+  return `${tag}${bhPlayerHtml(state, b, top)}<div class="bh-mini__board" data-bh-mini="${b}">${chFlatBoardHtml(m)}</div>${bhPlayerHtml(state, b, bottom)}`;
+}
+
+function bhLayoutHtml() {
+  return `<div class="bh-game">
+      <div class="bh-head" data-bh-head></div>
+      <div class="bh-layout">
+        <div class="bh-big">
+          <div data-bh-top></div>
+          <div class="ch-stage bh-stage" data-ch-host></div>
+          <div data-bh-bottom></div>
+        </div>
+        <div class="bh-side">
+          <button type="button" class="bh-mini" data-bh-swap onclick="bhSwap()" aria-label="${escapeHTML(chT('bh_swap'))}"></button>
+          <div class="bh-bar" data-bh-bar></div>
+          <div class="bh-extra" data-bh-extra></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/** A tap on the small board: the two boards change places. */
+function bhSwap() {
+  bhLocal.swap = !bhLocal.swap;
+  bhLocal.drop = '';
+  bhLocal.sel = '';
+  haptic('light');
+  bhRedraw(true);
+}
+
+function bhRender(state, still) {
+  const el = document.getElementById('view-room-bughouse');
+  const s = bhShared(state);
+  if (!el || !s.boards) return;
+  bhNoteClock(state);
+  const big = bhBigBoard(state);
+  const small = 1 - big;
+  renderRoomFrame(el, ['bh', state.code, appState.lang].join('|'), () => bhLayoutHtml());
+  bhWireHand(el);
+  const seat = bhSeat(state);
+  const o = bhOrient(state, big);
+  const liveMe = seat >= 0 && (seat >> 1) === big && s.phase === 'play' && bhBoardView(state, big).g.turn === (seat & 1) && !bhLocal.early;
+  chViewShow(el.querySelector('[data-ch-host]'), bhModel(state, big, still));
+  const myTurn = liveMe;
+  bhSetHtml(el, '[data-bh-head]', `<p class="duel-status bh-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(bhStatus(state))}</p>${bhSubsHtml(state)}`);
+  const bigTag = seat >= 0 ? ' · ' + ((seat >> 1) === big ? chT('bh_mine_board') : chT('bh_partner_board')) : '';
+  bhSetHtml(el, '[data-bh-top]', `<p class="bh-mini__tag">${escapeHTML(bhBoardName(big) + bigTag)}</p>` + bhPlayerHtml(state, big, 1 - o));
+  bhSetHtml(el, '[data-bh-bottom]', bhPlayerHtml(state, big, o, { live: liveMe }));
+  const mini = el.querySelector('[data-bh-swap]');
+  if (mini) {
+    const html = bhMiniHtml(state, small, false) + `<span class="bh-mini__hint">${escapeHTML(chT('bh_swap'))}</span>`;
+    if (mini._bhHtml !== html) { mini.innerHTML = html; mini._bhHtml = html; }
+    // Swapped while it is your move: your own board (small now) says so.
+    mini.classList.toggle('is-mine', seat >= 0 && (seat >> 1) === small && s.phase === 'play' && bhBoardView(state, small).g.turn === (seat & 1));
+  }
+  const bar = [];
+  if (s.phase === 'play') {
+    if (seat >= 0) bar.push(`<div class="ch-bar__row"><button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="bhResign()">🏳️ ${escapeHTML(chT('ch_resign'))}</button></div>`);
+    else bar.push(`<p class="field__hint" style="text-align:center">${escapeHTML(chT('bh_watch'))}</p>`);
+    bar.push(bhHostRow(state));
+  }
+  bhSetHtml(el, '[data-bh-bar]', bar.join(''));
+  const extra = [];
+  if (s.phase === 'over' && s.result) {
+    const inRoom = (state.players || []).some(p => p.id === Room.me);
+    extra.push(`<div class="card card--tight bh-over"><p class="bh-over__line">${escapeHTML(bhResultLine(state))}</p>
+      ${inRoom ? `<button type="button" class="btn btn--primary" onclick="bhPlayAgain()">🔁 ${escapeHTML(chT('bh_again'))}</button>` : ''}</div>`);
+    extra.push(renderScoreboard(s.board));
+    extra.push(roomShareBtnHtml(state, s.board));
+  }
+  const bigView = bhBoardView(state, big), smallView = bhBoardView(state, small);
+  extra.push(`<div class="bh-moves"><p class="bh-moves__title">${escapeHTML(bhBoardName(big))}</p>${chMovesHtml(bigView.sans, { current: bigView.sans.length - 1, opening: false })}</div>`);
+  extra.push(`<div class="bh-moves"><p class="bh-moves__title">${escapeHTML(bhBoardName(small))}</p>${chMovesHtml(smallView.sans, { current: smallView.sans.length - 1, opening: false })}</div>`);
+  if (s.phase !== 'over' && (s.board || []).some(x => x.score > 0)) extra.push(renderScoreboard(s.board));
+  extra.push(renderRoomPlayerStrip(state));
+  bhSetHtml(el, '[data-bh-extra]', extra.join(''));
+  el.querySelectorAll('.ch-moves').forEach(mv => { mv.scrollTop = mv.scrollHeight; });
+  bhPaintClocks(state);
+  if (s.phase === 'play') bhTickStart(); else bhTickStop();
+  bhPlayMotion(el, state, big);
+  if (myTurn && duelOnce(['bhturn', roomDealKey(state), s.round, bhBoardView(state, big).n].join('|'))) haptic('medium');
+  if (s.phase === 'over' && s.result && motionFirst('bhover|' + roomDealKey(state) + '|' + s.round)) {
+    const won = seat >= 0 && bhTeamOf(seat) === s.result.team;
+    if (won && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } }));
+    else if (seat >= 0) chSound('end');
+  }
+}
+
+/* --- the lobby: the clock, the host's choice, remembered on their phone ---------- */
+
+const BH_CLOCK_CHOICES = ['2+0', '3+0', '5+0'];
+const bhOpts = () => {
+  const o = recallOptions('bughouse', { clock: '3+0' });
+  return { clock: BH_CLOCK_CHOICES.indexOf(o.clock) === -1 ? '3+0' : o.clock };
+};
+
+function setBhClock(v) {
+  rememberOptions('bughouse', { clock: BH_CLOCK_CHOICES.indexOf(v) === -1 ? '3+0' : v });
+  duelLobbyRedraw();
+}
+
+/** Who sits where: two small boards and the four seats, partners in one colour. */
+function bhLobbyPictureHtml() {
+  return `<div class="bh-lobby__pic" aria-hidden="true" dir="ltr">
+      <span class="bh-lobby__board"><i class="bh-team--A">♔</i><i class="bh-team--B">♚</i></span>
+      <span class="bh-lobby__arrow">⇄</span>
+      <span class="bh-lobby__board"><i class="bh-team--B">♔</i><i class="bh-team--A">♚</i></span>
+    </div>`;
+}
+
+ROOM_GAMES.bughouse = {
+  bots: { max: 4 },
+  // Someone who joins mid-game watches both boards, and plays the next game.
+  lateJoin: true,
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    const people = (state.players || []).filter(p => !p.bot).length;
+    const bots = (state.players || []).filter(p => p.bot).length;
+    const fill = Math.max(0, 4 - people - bots);
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(chT('bh_lobby_hint'))}</p>`;
+    const seats = people >= 4
+      ? (people > 4 ? `<p class="field__hint" style="text-align:center">👀 ${escapeHTML(chT('bh_lobby_watch', { n: String(people - 4) }))}</p>` : '')
+      : `<p class="field__hint" style="text-align:center">🤖 ${escapeHTML(fill ? chT('bh_lobby_fill', { n: String(fill) }) : chT('bh_lobby_full'))}</p>`;
+    if (!state.youAreHost) return `<div class="card card--tight bh-lobby">${bhLobbyPictureHtml()}${hint}${seats}<p class="field__hint" style="text-align:center">${escapeHTML(t.room_wait_host || '')}</p></div>`;
+    const o = bhOpts();
+    return `<div class="card card--tight bh-lobby">
+        ${bhLobbyPictureHtml()}
+        ${hint}
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(chT('bh_clock'))}</label>
+          <div class="segmented" role="group">
+            ${BH_CLOCK_CHOICES.map(v => `<button type="button" class="segmented__item ${v === o.clock ? 'is-active' : ''}" onclick="setBhClock('${v}')">${escapeHTML(v)}</button>`).join('')}
+          </div>
+          <p class="field__hint">${escapeHTML(chT('bh_clock_hint'))}</p>
+        </div>
+        ${seats}
+      </div>`;
+  },
+  startPayload() {
+    return { clock: bhOpts().clock, botNames: bhBotNames() };
+  },
+  render(state) {
+    if (appState.currentView !== 'room-bughouse') setView('room-bughouse');
+    bhRender(state);
+  },
+  // A move is not a new step to scroll to: the boards are what everyone is watching.
+  actionKey: (state) => [state.code, bhShared(state).round, bhShared(state).phase].join('|')
+};
+
+onRoomClocksReset(() => {
+  bhTickStop();
+  bhLocal.sel = '';
+  bhLocal.drop = '';
+  bhLocal.early = null;
+  bhLocal.swap = false;
+  const st = Room.state;
+  if (!st || st.game !== 'bughouse' || st.phase === 'lobby') {
+    if (appState.currentView === 'room-bughouse' || appState.currentView === 'room-tv' || appState.currentView === 'room-lobby') chViewDrop();
+  }
+});
+
+/* --- the TV: both boards side by side, four names, four clocks, the hands --- */
+
+TV_GAMES.bughouse = {
+  sig: (state) => ['bh', state.code].join('|'),
+  frame(state, t) {
+    const s = bhShared(state);
+    if (!s.boards) return tvLookAtPhones(t);
+    return `<div class="bh-tv">
+        <div class="bh-tv__head" data-bh-tvhead></div>
+        <div class="bh-tv__boards">
+          <div class="bh-tv__board" data-bh-tvboard="0"></div>
+          <div class="bh-tv__board" data-bh-tvboard="1"></div>
+        </div>
+        <div class="bh-tv__foot" data-bh-tvfoot></div>
+      </div>`;
+  },
+  after(state) {
+    const view = document.getElementById('view-room-tv');
+    const s = bhShared(state);
+    if (!view || !s.boards) return;
+    bhNoteClock(state);
+    [0, 1].forEach(b => {
+      const box = view.querySelector(`[data-bh-tvboard="${b}"]`);
+      if (!box) return;
+      const title = `<p class="bh-tv__title">${escapeHTML(bhBoardName(b))}</p>`;
+      const html = title + bhMiniHtml(state, b, true);
+      if (box._bhHtml !== html) { box.innerHTML = html; box._bhHtml = html; }
+    });
+    const over = s.phase === 'over' && s.result;
+    bhSetHtml(view, '[data-bh-tvhead]', `<div class="tv-title tv-center-text bh-tv__status">${escapeHTML(over ? bhResultLine(state) : chT('bh_tv_status'))}</div>${bhSubsHtml(state)}`);
+    const foot = [];
+    foot.push(bhHostRow(state, true));
+    if (over && state.youAreHost) foot.push(`<div class="tv-actions">${tvBtn('🔁 ' + chT('bh_again'), 'bhPlayAgain()', 'primary')}</div>`);
+    bhSetHtml(view, '[data-bh-tvfoot]', foot.join(''));
+    bhPaintClocks(state);
+    if (s.phase === 'play') bhTickStart(); else bhTickStop();
+    bhPlayMotion(view, state, -1);
+    if (over && motionFirst('bhtvover|' + roomDealKey(state) + '|' + s.round)) {
+      if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 90, origin: { y: 0.55 } });
+    }
   }
 };
 </script>
@@ -105284,6 +106917,1023 @@ onRoomClocksReset(() => {
   // A new tournament, another game or the hub: this phone shows its own screen again.
   if (!st || !tourOn(st)) { tourLocal.view = null; tourLocal.autoKey = ''; }
 });
+</script>
+
+    <script>
+/* ============================================================================
+   شطرنج بالتصويت on the phones and the TV (RoomVoteChess.js)
+   ----------------------------------------------------------------------------
+   Two teams, one board. On a team's move every member taps a move on their
+   own board (the chess board of JS_Chess.html: 2D on a phone, 3D a tap away,
+   3D on the TV) - a vote, not a move: the piece stays where it is and a blue
+   arrow shows this phone's vote, changeable until the vote closes. The vote
+   clock runs down on every screen, a dot fills beside each member who has
+   voted (never what for), and when the move is played the table sees how
+   the team voted: the tally flies in, the winning move on top.
+
+   The vote clock is the server's (shared.vote.endsAt, in the server's time):
+   the phone keeps the smallest gap it has seen between the server's time and
+   hearing it (serverNow and receivedAt), as the chess room does.
+   ========================================================================= */
+
+// sel: the piece picked up for a vote; mine: this phone's vote sent and not yet echoed back;
+// offset: the server's clock against this phone's; tick: the vote clock's redraw.
+const vcLocal = { sel: '', selKey: '', mine: null, offset: null, seenAt: '', tick: null, lastSec: -1, sidesKey: '' };
+
+const vcShared = (state) => (state && state.shared) || {};
+
+/** This phone's team in the game (0 White, 1 Black), or -1 (watching, or the TV). */
+function vcMyTeam(state) {
+  if (!state || state.youAreScreen) return -1;
+  const t = vcShared(state).teams || [];
+  if ((t[0] || []).indexOf(Room.me) !== -1) return 0;
+  if ((t[1] || []).indexOf(Room.me) !== -1) return 1;
+  return -1;
+}
+
+function vcName(state, pid) {
+  const p = (state.players || []).find(x => x.id === pid);
+  return p ? p.name : ((vcShared(state).names || {})[pid] || '');
+}
+
+const vcTeamLabel = (k) => chT(k ? 'vc_team_b' : 'vc_team_w');
+const vcKeyOfVote = (v) => (!v ? '' : v.resign ? 'resign' : v.from + v.to + (v.promo || ''));
+const vcVoteKey = (state) => [roomDealKey(state), (vcShared(state).chess || {}).moves].join('|');
+
+/** The move a vote names, as the table writes it (♞f3), or 🏳️. */
+function vcVoteText(g, v) {
+  if (!v) return '';
+  if (v.resign) return '🏳️ ' + chT('vc_resign_short');
+  const info = chessPlay(chessCloneGame(g), { from: v.from, to: v.to, promo: v.promo });
+  return info ? chFigurine(info.san) : v.from + '-' + v.to;
+}
+
+/** This phone's vote for the move on the board: the one it just sent, or the server's copy of it. */
+function vcMyVote(state) {
+  const s = vcShared(state);
+  if (!s.vote) return null;
+  const l = vcLocal.mine;
+  if (l && l.key === vcVoteKey(state)) return l.v;
+  const y = state.you;
+  return y && y.vote && y.n === s.chess.moves ? y.vote : null;
+}
+
+const vcCanVote = (state) => {
+  const s = vcShared(state);
+  return s.phase === 'play' && !!s.vote && !s.chess.result && vcMyTeam(state) === s.vote.team;
+};
+
+/* --- the vote clock, in the server's time ------------------------------------------ */
+
+function vcNoteClock(state) {
+  if (typeof state.serverNow !== 'number') return;
+  const k = 'n' + state.serverNow;
+  if (vcLocal.seenAt === k) return;
+  vcLocal.seenAt = k;
+  const gap = (state.receivedAt || Date.now()) - state.serverNow;
+  vcLocal.offset = vcLocal.offset === null ? gap : Math.min(vcLocal.offset, gap);
+}
+
+function vcLeft(state) {
+  const v = vcShared(state).vote;
+  if (!v || !v.endsAt) return 0;
+  return Math.max(0, v.endsAt - (Date.now() - (vcLocal.offset || 0)));
+}
+
+function vcPaintClock() {
+  const st = Room.state;
+  if (!st || st.game !== 'votechess' || !vcShared(st).vote) { vcTickStop(); return; }
+  const s = vcShared(st);
+  const left = vcLeft(st);
+  const secs = Math.ceil(left / 1000);
+  const total = ((s.settings || {}).secs || 30) * 1000;
+  document.querySelectorAll('[data-vc-clock]').forEach(el => {
+    const num = el.querySelector('.vc-clock__n');
+    if (num && num.textContent !== String(secs)) num.textContent = String(secs);
+    el.style.setProperty('--p', String(Math.max(0, Math.min(1, left / total))));
+    el.classList.toggle('is-low', left < 6000);
+  });
+  if (secs !== vcLocal.lastSec) {
+    vcLocal.lastSec = secs;
+    // The last seconds tick where they matter: on a voter's phone that hasn't voted, and on the TV.
+    const loud = st.youAreScreen || (vcCanVote(st) && !vcMyVote(st));
+    if (secs > 0 && secs <= 5 && loud) playSound('tick');
+  }
+}
+
+function vcTickStart() {
+  if (vcLocal.tick) return;
+  vcLocal.tick = setInterval(vcPaintClock, 200);
+}
+
+function vcTickStop() {
+  if (vcLocal.tick) clearInterval(vcLocal.tick);
+  vcLocal.tick = null;
+}
+
+/* --- voting -------------------------------------------------------------------------------- */
+
+/** A vote from this phone: shown at once (the arrow), sent, and taken back if the server says no. */
+function vcVote(v) {
+  const state = Room.state;
+  if (!state || state.game !== 'votechess' || !vcCanVote(state)) return;
+  const s = vcShared(state);
+  const key = vcVoteKey(state);
+  vcLocal.mine = { key: key, v: v };
+  vcLocal.sel = '';
+  haptic('light');
+  if (!v.resign) chSound('pick');
+  vcRedraw();
+  Promise.resolve(Room.act('vote', Object.assign({ n: s.chess.moves }, v))).catch((err) => {
+    if (vcLocal.mine && vcLocal.mine.key === key) vcLocal.mine = null;
+    showToast((err && err.message) || '', 'error');
+    vcRedraw();
+  });
+}
+
+function vcVoteResign() {
+  const state = Room.state;
+  if (!state || !vcCanVote(state)) return;
+  const my = vcMyVote(state);
+  if (my && my.resign) return;
+  showConfirmModal(chT('vc_resign_confirm'), () => vcVote({ resign: true }));
+}
+
+function vcCloseNow() {
+  const state = Room.state;
+  if (!state || !state.youAreHost || !vcShared(state).vote) return;
+  roomAct('closeVote', { n: vcShared(state).chess.moves });
+}
+
+function vcRedraw() {
+  const st = Room.state;
+  if (!st || st.game !== 'votechess') return;
+  if (st.youAreScreen) { if (appState.currentView === 'room-tv') TV_GAMES.votechess.after(st, false); return; }
+  if (appState.currentView === 'room-votechess') vcRender(st);
+}
+
+/** The board's model: a voter's board takes taps as a vote, and shows this phone's vote as an arrow. */
+function vcModel(state, tv, still) {
+  const s = vcShared(state);
+  const bd = s.chess;
+  const team = tv ? -1 : vcMyTeam(state);
+  const canVote = !tv && vcCanVote(state);
+  const selKey = vcVoteKey(state);
+  if (vcLocal.selKey !== selKey) { vcLocal.selKey = selKey; vcLocal.sel = ''; }
+  const ctx = {
+    g: bd.g, side: team, sel: vcLocal.sel,
+    setSel: (sq) => { vcLocal.sel = sq; vcRedraw(); },
+    play: (from, to, promo) => vcVote({ from: from, to: to, promo: promo || '' }),
+    redraw: () => vcRedraw()
+  };
+  const my = tv ? null : vcMyVote(state);
+  const over = s.phase === 'over' && bd.result;
+  return {
+    key: ['vc', roomDealKey(state), tv ? 'tv' : 'p'].join('|'),
+    board: bd.g.board, orient: team === 1 ? 1 : 0, tv: !!tv,
+    loud: duelRoomLoud(state),
+    last: bd.last ? { from: bd.last.from, to: bd.last.to } : null,
+    anim: bd.last ? Object.assign({ key: [roomDealKey(state), bd.last.n].join('|'), still: !!still }, bd.last) : null,
+    check: chessCheckSq(bd.g),
+    mate: over && bd.result.reason === 'mate' ? chMateKing(bd.g) : '',
+    sel: canVote ? vcLocal.sel : '',
+    targets: canVote ? chTargets(bd.g, vcLocal.sel) : [],
+    marks: [],
+    arrows: my && !my.resign ? [{ from: my.from, to: my.to, color: CH_PRE_COLOR }] : [],
+    lost: bd.lost,
+    // A drop is a vote: the piece goes back to its square ('pre'), only the arrow stays.
+    input: canVote ? {
+      canMove: true, side: team,
+      onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag),
+      onDrop: (from, to) => (chDropLogic(ctx, from, to) ? 'pre' : false)
+    } : null
+  };
+}
+
+/* --- what the screens show beside the board ------------------------------------------ */
+
+/** The two teams as the duels' pills: the colour, the members (a dot for each who has voted), games won. */
+function vcPills(state, tv) {
+  const s = vcShared(state);
+  const bd = s.chess;
+  const v = s.vote;
+  const pill = (k) => {
+    const members = ((s.teams || [])[k] || []).map(pid => {
+      const voted = v && v.team === k && v.voted.indexOf(pid) !== -1;
+      const cls = v && v.team === k ? (voted ? 'vc-mem is-in' : 'vc-mem is-wait') : 'vc-mem';
+      return `<span class="${cls}${pid === Room.me && !tv ? ' is-me' : ''}"><i class="vc-mem__dot" aria-hidden="true"></i>${escapeHTML(vcName(state, pid))}</span>`;
+    }).join('');
+    return {
+      name: chT(k ? 'vc_side_b' : 'vc_side_w'),
+      score: (s.tw || [])[k] || 0,
+      mark: `<span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>`,
+      sub: `<span class="vc-mems">${members}</span>` + chTakenHtml(bd.lost[1 - k], chLead(bd.lost, k))
+    };
+  };
+  return duelPillsHtml({ players: [pill(0), pill(1)], turn: s.phase === 'play' && !bd.result ? bd.g.turn : -1, draws: null });
+}
+
+/** The vote's clock: seconds and a ring, painted in place. */
+function vcClockHtml(state) {
+  const v = vcShared(state).vote;
+  if (!v) return '';
+  const done = v.voted.length;
+  const of = ((vcShared(state).teams || [])[v.team] || []).length;
+  return `<div class="vc-clockrow">
+      <span class="vc-clock" data-vc-clock><span class="vc-clock__ring" aria-hidden="true"></span><b class="vc-clock__n metric"></b></span>
+      <span class="vc-clockrow__txt">🗳️ ${escapeHTML(chT('vc_voted_count', { n: done, of: of }))}</span>
+    </div>`;
+}
+
+function vcStatus(state, tv) {
+  const s = vcShared(state);
+  const bd = s.chess;
+  if (s.phase === 'over' && s.result) {
+    const how = chT('ch_end_' + s.result.reason) || '';
+    if (s.result.winner === 0 || s.result.winner === 1) return '🏆 ' + chT('vc_won', { team: vcTeamLabel(s.result.winner) }) + (how ? ' · ' + how : '');
+    return '🤝 ' + chT('ch_draw') + (how ? ' · ' + how : '');
+  }
+  const check = chessCheckSq(bd.g) ? ' · ' + chT('ch_check') : '';
+  const v = s.vote;
+  if (!v) return '';
+  if (!tv && vcCanVote(state)) {
+    const my = vcMyVote(state);
+    return (my ? chT('vc_voted_you', { move: vcVoteText(bd.g, my) }) : chT('vc_vote_now')) + check;
+  }
+  return chT('vc_team_voting', { team: vcTeamLabel(v.team) }) + check;
+}
+
+/** The last vote's tally: what was played and how the team voted, the winning move on top. */
+function vcTallyHtml(state, tv) {
+  const s = vcShared(state);
+  const tl = (s.tallies || [])[(s.tallies || []).length - 1];
+  if (!tl) return '';
+  const fresh = motionFirst(['vctally', roomDealKey(state), tl.n, tv ? 'tv' : 'p'].join('|'));
+  const top = Math.max(1, ...tl.list.map(x => x.count));
+  const played = tl.pick === 'resign' ? '🏳️ ' + chT('vc_resign_short')
+    : chFigurine((tl.list.find(x => x.k === tl.pick) || {}).san || tl.san || '');
+  // The move played first, then the rest by their votes.
+  const list = tl.list.slice().sort((x, y) => (y.k === tl.pick) - (x.k === tl.pick) || y.count - x.count);
+  const rows = list.map((x, i) => `
+      <div class="vc-tally__row ${x.k === tl.pick ? 'is-pick' : ''}" style="--i:${i};--w:${(x.count / top).toFixed(3)}">
+        <span class="vc-tally__move" dir="ltr">${escapeHTML(x.resign ? '🏳️' : chFigurine(x.san || ''))}</span>
+        <span class="vc-tally__bar" aria-hidden="true"></span>
+        <b class="vc-tally__n metric">×${x.count}</b>
+      </div>`).join('');
+  const how = tl.how === 'tie' ? chT('vc_how_tie') : tl.how === 'random' ? chT('vc_how_random') : tl.how === 'host' ? chT('vc_how_host') : '';
+  return `<div class="vc-tally ${fresh ? 'is-fresh' : ''}" ${fresh ? 'data-reveal-ms="900"' : ''}>
+      <p class="vc-tally__head">${tl.pick === 'resign' ? `🏳️ ${escapeHTML(chT('vc_tally_resign', { team: vcTeamLabel(tl.team) }))}` : `🗳️ ${escapeHTML(chT('vc_tally_head', { team: vcTeamLabel(tl.team) }))} <b dir="ltr">${escapeHTML(played)}</b>`}</p>
+      ${rows}
+      ${how ? `<p class="vc-tally__how">${escapeHTML(how)}</p>` : ''}
+    </div>`;
+}
+
+/** What a voter can do beside tapping the board, and the host's way on. */
+function vcBarHtml(state) {
+  const s = vcShared(state);
+  if (s.phase !== 'play' || !s.vote) return '';
+  const parts = [];
+  if (vcCanVote(state)) {
+    const my = vcMyVote(state);
+    parts.push(`<div class="ch-bar__row">
+        <button type="button" class="btn btn--ghost btn--sm btn--auto" ${my && my.resign ? 'disabled' : ''} onclick="vcVoteResign()">🏳️ ${escapeHTML(chT('vc_resign_vote'))}</button>
+      </div>`);
+  } else if (vcMyTeam(state) === -1) {
+    parts.push(`<p class="field__hint" style="text-align:center">${escapeHTML(chT('vc_watching'))}</p>`);
+  }
+  if (state.youAreHost) parts.push(roomHostRow([['⏭️ ' + chT('vc_close_now'), 'vcCloseNow()']]));
+  return parts.join('');
+}
+
+function vcOverHtml(state) {
+  const s = vcShared(state);
+  if (s.phase !== 'over') return '';
+  return state.youAreHost
+    ? `<button type="button" class="btn btn--primary" onclick="roomAct('playAgain', {})">🔁 ${escapeHTML(chT('vc_again'))}</button>
+       <p class="field__hint" style="text-align:center">${escapeHTML(chT('vc_again_hint'))}</p>`
+    : `<p class="field__hint" style="text-align:center">${escapeHTML(chT('vc_wait_host'))}</p>`;
+}
+
+function vcRender(state, still) {
+  const el = document.getElementById('view-room-votechess');
+  const s = vcShared(state);
+  if (!el || !s.chess) return;
+  renderRoomFrame(el, ['vc', state.code, appState.lang].join('|'), () => chLayoutHtml());
+  vcNoteClock(state);
+  // The echo of this phone's vote has come back (or the move was played): the local copy goes.
+  const echo = state.you && state.you.vote;
+  if (vcLocal.mine && (vcLocal.mine.key !== vcVoteKey(state) || (echo && vcKeyOfVote(echo) === vcKeyOfVote(vcLocal.mine.v)))) vcLocal.mine = null;
+  chViewShow(el.querySelector('[data-ch-host]'), vcModel(state, false, still));
+  const bd = s.chess;
+  const over = s.phase === 'over';
+  const mineUp = vcCanVote(state) && !vcMyVote(state);
+  chSetHtml(el, '[data-ch-head]', `${vcPills(state)}${vcClockHtml(state)}<p class="duel-status ${over ? 'is-done' : ''} ${mineUp ? 'is-mine' : ''}">${escapeHTML(vcStatus(state))}</p>`);
+  chSetHtml(el, '[data-ch-bar]', vcBarHtml(state));
+  const side = [];
+  if (over) side.push(vcOverHtml(state));
+  side.push(vcTallyHtml(state));
+  side.push(chMovesHtml(bd.sans, { current: bd.sans.length - 1, start: bd.start || '' }));
+  if ((state.players || []).length > 2) side.push(renderScoreboard(s.board));
+  if (over) side.push(roomShareBtnHtml(state, s.board));
+  side.push(renderRoomPlayerStrip(state));
+  chSetHtml(el, '[data-ch-side]', side.join(''));
+  const mv = el.querySelector('.ch-moves');
+  if (mv) mv.scrollTop = mv.scrollHeight;
+  vcPaintClock();
+  if (s.vote) vcTickStart(); else vcTickStop();
+  duelPillsAfter(el, 'vc|' + state.code, { turn: s.phase === 'play' && !bd.result ? bd.g.turn : -1, scores: (s.tw || [0, 0]).slice(0, 2) });
+  if (mineUp && duelOnce(['vcturn', vcVoteKey(state)].join('|'))) haptic('medium');
+  if (over) vcCheer(el, state);
+  if (typeof animateScoreboards === 'function') animateScoreboards(state);
+}
+
+/** The end: the winning team's phones (and the TV) cheer, the others hear the low chord. */
+function vcCheer(el, state) {
+  const s = vcShared(state);
+  if (!s.result || !duelOnce(['vccheer', roomDealKey(state)].join('|'))) return;
+  const mine = vcMyTeam(state);
+  afterReveal(el, () => {
+    if ((mine !== -1 && mine === s.result.winner) || (state.youAreScreen && s.result.winner !== null)) {
+      duelSound('win');
+      if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+    } else if (mine !== -1) chSound('end');
+  });
+}
+
+/* --- the lobby: the host's split, the vote clock -------------------------------------------- */
+
+const vcOpts = () => recallOptions('voteChess', { secs: 30 });
+
+function setVcSecs(v) {
+  rememberOptions('voteChess', { secs: [20, 30, 60].indexOf(Number(v)) !== -1 ? Number(v) : 30 });
+  duelLobbyRedraw();
+}
+
+/** The host's phone keeps the room's split in step with who is here (the server draws it the first time). */
+function vcLobbySync(state) {
+  if (!state || !state.youAreHost || state.phase !== 'lobby' || state.game !== 'votechess') return;
+  const ids = (state.players || []).filter(p => !p.bot).map(p => p.id);
+  const sides = (vcShared(state).lobby || {}).sides || null;
+  const fits = !!sides && ids.every(id => sides[id] === 0 || sides[id] === 1) && Object.keys(sides).every(id => ids.indexOf(id) !== -1);
+  if (fits) { vcLocal.sidesKey = ''; return; }
+  const key = [state.code, ids.join(',')].join('|');
+  if (vcLocal.sidesKey === key) return;
+  vcLocal.sidesKey = key;
+  setTimeout(() => roomAct('sides', {}), 0);
+}
+
+function vcSideTap(pid) {
+  const state = Room.state;
+  if (!state || !state.youAreHost) return;
+  haptic('light');
+  roomAct('sides', { move: pid });
+}
+
+function vcSidesHtml(state) {
+  const sides = (vcShared(state).lobby || {}).sides;
+  if (!sides) return '';
+  const host = !!state.youAreHost;
+  const col = (k) => {
+    const chips = (state.players || []).filter(p => sides[p.id] === k).map(p => host
+      ? `<button type="button" class="vc-side__chip" onclick="vcSideTap('${jsStringAttr(p.id)}')">${escapeHTML(p.name)} <span aria-hidden="true">⇄</span></button>`
+      : `<span class="vc-side__chip">${escapeHTML(p.name)}</span>`).join('');
+    return `<div class="vc-side vc-side--${k ? 'b' : 'w'}">
+        <p class="vc-side__head"><span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>${escapeHTML(vcTeamLabel(k))}</p>
+        <div class="vc-side__chips">${chips}</div>
+      </div>`;
+  };
+  return `<div class="field vc-sides-field">
+      <div class="dom-seating__head">
+        <span class="field__label">👥 ${escapeHTML(chT('vc_teams'))}</span>
+        ${host ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="haptic('light'); roomAct('sides', { shuffle: true })">🔀 ${escapeHTML(chT('vc_shuffle'))}</button>` : ''}
+      </div>
+      <div class="vc-sides">${col(0)}${col(1)}</div>
+      ${host ? `<p class="field__hint">${escapeHTML(chT('vc_sides_hint'))}</p>` : ''}
+    </div>`;
+}
+
+ROOM_GAMES.votechess = {
+  // Someone who joins mid-game watches the board and plays the next game.
+  lateJoin: true,
+  lobbyOptions(state) {
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(chT('vc_lobby_hint'))}</p>`;
+    if (!state.youAreHost) return `<div class="card card--tight">${vcSidesHtml(state)}${hint}</div>`;
+    vcLobbySync(state);
+    const o = vcOpts();
+    return `<div class="card card--tight">
+        ${vcSidesHtml(state)}
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(chT('vc_clock_label'))}</label>
+          <div class="segmented" role="group">
+            ${[20, 30, 60].map(v => `<button type="button" class="segmented__item ${v === o.secs ? 'is-active' : ''}" onclick="setVcSecs(${v})">${v}″</button>`).join('')}
+          </div>
+          <p class="field__hint">${escapeHTML(chT('vc_clock_hint'))}</p>
+        </div>
+        ${hint}
+      </div>`;
+  },
+  startPayload() { return { secs: vcOpts().secs }; },
+  render(state) {
+    if (appState.currentView !== 'room-votechess') setView('room-votechess');
+    vcRender(state);
+  },
+  // A vote closing is not a new step to scroll to: the board is what everyone watches.
+  actionKey: (state) => [state.code, vcShared(state).round, vcShared(state).phase].join('|')
+};
+
+onRoomClocksReset(() => {
+  vcTickStop();
+  vcLocal.sel = '';
+  vcLocal.mine = null;
+});
+
+/* --- the TV: the board big (3D), both teams with their vote dots, the clock, the tally ----------- */
+
+TV_GAMES.votechess = {
+  sig: (state) => ['vc', state.code].join('|'),
+  frame(state, t) {
+    if (!vcShared(state).chess) return tvLookAtPhones(t);
+    return `<div class="ch-tv duel">
+        <div class="ch-tv__stage"><div class="ch-stage ch-stage--tv" data-ch-host></div></div>
+        <div class="ch-tv__side" data-ch-tvside></div>
+      </div>`;
+  },
+  after(state) {
+    const view = document.getElementById('view-room-tv');
+    const s = vcShared(state);
+    if (!view || !s.chess) return;
+    const host = view.querySelector('[data-ch-host]');
+    if (!host) return;
+    vcNoteClock(state);
+    chViewShow(host, vcModel(state, true));
+    const over = s.phase === 'over';
+    const html = `
+      <div class="tv-scale">${vcPills(state, true)}</div>
+      ${vcClockHtml(state)}
+      <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(vcStatus(state, true))}</div>
+      <div class="tv-scale">${vcTallyHtml(state, true)}</div>
+      ${over ? '' : `<div class="ch-tv__moves">${chMovesHtml(s.chess.sans, { current: s.chess.sans.length - 1, start: s.chess.start || '' })}</div>`}
+      ${state.youAreHost && s.vote ? `<div class="tv-actions">${tvBtn('⏭️ ' + chT('vc_close_now'), 'vcCloseNow()', 'ghost')}</div>` : ''}
+      ${over && state.youAreHost ? `<div class="tv-actions">${tvBtn('🔁 ' + chT('vc_again'), "roomAct('playAgain', {})", 'primary')}</div>` : ''}`;
+    const side = view.querySelector('[data-ch-tvside]');
+    if (side && side._chHtml !== html) {
+      side.innerHTML = html;
+      side._chHtml = html;
+      const mv = side.querySelector('.ch-moves');
+      if (mv) mv.scrollTop = mv.scrollHeight;
+    }
+    vcPaintClock();
+    if (s.vote) vcTickStart(); else vcTickStop();
+    duelPillsAfter(view, 'vctv|' + state.code, { turn: s.phase === 'play' && !s.chess.result ? s.chess.g.turn : -1, scores: (s.tw || [0, 0]).slice(0, 2) });
+    if (over) vcCheer(view, state);
+  }
+};
+</script>
+
+    <script>
+/* ============================================================================
+   المخ والإيد on the phones and the TV (RoomHandBrain.js)
+   ----------------------------------------------------------------------------
+   Two teams of two on one board (the chess board of JS_Chess.html: 2D on a
+   phone, 3D a tap away, 3D on the TV). On a team's move its Brain taps one of
+   six pieces - only the kinds that can move are lit - and the whole table
+   hears it: «🧠 منى قالت: الحصان!», big, with a chime. Then its Hand plays any
+   move of that kind: the named pieces glow on every board, and the Hand's
+   board takes only them. Computer players fill the empty seats.
+
+   The Hand's own move is drawn as the finger lifts (the duels' rule): the
+   phone plays it on a copy with the very rules the server uses, and the
+   server's board, when it comes back with that move, is the same board.
+   ========================================================================= */
+
+// sel: the piece picked up; early: the Hand's move drawn before the server answers;
+// offset: the server's clock against this phone's; tick: the clocks' redraw; swap: a seat picked in the lobby.
+const hbLocal = { sel: '', selKey: '', early: null, offset: null, seenAt: '', tick: null, swap: null, seatsKey: '', turnKey: '', turnSince: 0, hostTimer: null, hostTimerKey: '', lastTick: -1 };
+
+// The six pieces the Brain names, as Chess.js numbers them (6 king … 1 pawn), and their letters.
+const HB_NAME_ORDER = [6, 5, 4, 3, 2, 1];
+const HB_LETTER = { 1: 'p', 2: 'n', 3: 'b', 4: 'r', 5: 'q', 6: 'k' };
+
+const hbShared = (state) => (state && state.shared) || {};
+const hbPieceName = (kind) => chPieceName(HB_LETTER[kind] || 'p');
+
+/** Where this phone sits: { team, role: 0 brain | 1 hand }, or null (watching, the TV). */
+function hbMine(state) {
+  if (!state || state.youAreScreen) return null;
+  const t = hbShared(state).teams || [];
+  for (let k = 0; k < 2; k++) {
+    const r = (t[k] || []).indexOf(Room.me);
+    if (r !== -1) return { team: k, role: r };
+  }
+  return null;
+}
+
+function hbName(state, pid) {
+  const p = (state.players || []).find(x => x.id === pid);
+  return p ? p.name : ((hbShared(state).names || {})[pid] || '');
+}
+
+const hbIsBot = (state, pid) => (state.players || []).some(p => p.id === pid && p.bot);
+const hbTeamLabel = (k) => chT(k ? 'vc_team_b' : 'vc_team_w');
+
+/** The kinds of piece that have a legal move now (the Brain's lit buttons). */
+function hbKindsOf(g) {
+  const have = {};
+  chessLegalMoves(g).forEach(m => { have[g.board[chSqIndex(m.from)] & 7] = true; });
+  return HB_NAME_ORDER.filter(k => have[k]);
+}
+
+/** Who acts now (the Brain naming, or the Hand moving), or ''. */
+function hbActorOf(state) {
+  const s = hbShared(state);
+  if (s.phase !== 'play' || !s.chess || s.chess.result) return '';
+  return ((s.teams || [])[s.chess.g.turn] || [])[s.stage === 'name' ? 0 : 1] || '';
+}
+
+/** The board this phone shows: the room's, or the Hand's own move on top of it until the server has it. */
+function hbBoard(state) {
+  const s = hbShared(state);
+  const bd = s.chess;
+  const e = hbLocal.early;
+  if (e && e.key === roomDealKey(state) && e.n === bd.moves + 1) return e;
+  if (e && (e.key !== roomDealKey(state) || bd.moves >= e.n)) hbLocal.early = null;
+  return { g: bd.g, last: bd.last, lost: bd.lost, n: bd.moves, sans: bd.sans };
+}
+
+/* --- the clocks (a team's chess clock, the server's) ------------------------------------- */
+
+function hbNoteClock(state) {
+  if (typeof state.serverNow !== 'number') return;
+  const k = 'n' + state.serverNow;
+  if (hbLocal.seenAt === k) return;
+  hbLocal.seenAt = k;
+  const gap = (state.receivedAt || Date.now()) - state.serverNow;
+  hbLocal.offset = hbLocal.offset === null ? gap : Math.min(hbLocal.offset, gap);
+}
+
+function hbClockLeft(state, side) {
+  const bd = hbShared(state).chess;
+  const c = bd && bd.clock;
+  if (!c) return Infinity;
+  if (c.at === null || c.at === undefined || bd.g.turn !== side || bd.result) return c.left[side];
+  return c.left[side] - Math.max(0, Date.now() - (hbLocal.offset || 0) - c.at);
+}
+
+function hbPaintClocks() {
+  const st = Room.state;
+  if (!st || st.game !== 'handbrain' || !hbShared(st).chess) { hbTickStop(); return; }
+  const bd = hbShared(st).chess;
+  document.querySelectorAll('[data-hb-clock]').forEach(el => {
+    const side = Number(el.dataset.hbClock);
+    const left = hbClockLeft(st, side);
+    el.textContent = chClockText(left);
+    el.classList.toggle('is-running', !bd.result && bd.g.turn === side && !!(bd.clock && bd.clock.at));
+    el.classList.toggle('is-low', left < 20000);
+  });
+  const mine = hbMine(st);
+  const left = hbClockLeft(st, bd.g.turn);
+  if (bd.clock && bd.clock.at && !bd.result && left < 10000 && left > 0 && ((mine && mine.team === bd.g.turn) || st.youAreScreen)) {
+    const sec = Math.ceil(left / 1000);
+    if (hbLocal.lastTick !== sec) { hbLocal.lastTick = sec; playSound('tick'); }
+  }
+}
+
+function hbTickStart() { if (!hbLocal.tick) hbLocal.tick = setInterval(hbPaintClocks, 200); }
+function hbTickStop() { if (hbLocal.tick) clearInterval(hbLocal.tick); hbLocal.tick = null; }
+
+/* --- the Brain and the Hand ------------------------------------------------------------------- */
+
+function hbNameKind(kind) {
+  const state = Room.state;
+  const s = hbShared(state);
+  if (!state || s.phase !== 'play' || s.stage !== 'name' || hbActorOf(state) !== Room.me) return;
+  if (hbKindsOf(s.chess.g).indexOf(kind) === -1) { chSound('refuse'); return; }
+  haptic('light');
+  roomAct('name', { kind: kind, n: s.chess.moves });
+}
+
+/** The Hand's move: drawn now, sent, and taken back if the server says no. */
+function hbPlay(from, to, promo) {
+  const state = Room.state;
+  const s = hbShared(state);
+  const bd = s.chess;
+  if (!state || s.phase !== 'play' || s.stage !== 'move' || bd.result || hbActorOf(state) !== Room.me || hbLocal.early) return;
+  const g = chessCloneGame(bd.g);
+  const info = chessPlay(g, { from: from, to: to, promo: promo });
+  if (!info) { chSound('refuse'); return; }
+  const lost = [bd.lost[0].slice(), bd.lost[1].slice()];
+  if (info.capture) lost[1 - bd.g.turn].push(info.capture);
+  const n = bd.moves + 1;
+  hbLocal.early = { key: roomDealKey(state), n: n, g: g, lost: lost, sans: bd.sans.concat([info.san]),
+    last: { from: info.from, to: info.to, capture: info.capture, captureSq: info.captureSq, castle: info.castle, promo: info.promo, check: info.check, n: n } };
+  hbLocal.sel = '';
+  haptic('light');
+  hbRedraw();
+  Promise.resolve(Room.act('move', { from: from, to: to, promo: promo, move: bd.moves })).catch((err) => {
+    hbLocal.early = null;
+    showToast((err && err.message) || '', 'error');
+    hbRedraw(true);
+  });
+}
+
+function hbResign() {
+  const st = Room.state;
+  if (!st || !hbMine(st) || hbShared(st).phase !== 'play') return;
+  const round = hbShared(st).round;
+  showConfirmModal(chT('hb_resign_confirm'), () => roomAct('resign', { round: round }));
+}
+
+function hbRedraw(still) {
+  const st = Room.state;
+  if (!st || st.game !== 'handbrain') return;
+  if (st.youAreScreen) { if (appState.currentView === 'room-tv') TV_GAMES.handbrain.after(st, false); return; }
+  if (appState.currentView === 'room-handbrain') hbRender(st, still);
+}
+
+/** The board's model: the named pieces glow; the Hand on its move can pick up only those. */
+function hbModel(state, tv, still) {
+  const s = hbShared(state);
+  const bd = s.chess;
+  const mine = tv ? null : hbMine(state);
+  const view = hbBoard(state);
+  const named = s.stage === 'move' && s.named ? s.named.kind : 0;
+  const handUp = !tv && !!mine && mine.role === 1 && named && hbActorOf(state) === Room.me && !hbLocal.early && s.phase === 'play';
+  const selKey = [roomDealKey(state), view.n, named].join('|');
+  if (hbLocal.selKey !== selKey) { hbLocal.selKey = selKey; hbLocal.sel = ''; }
+  const side = view.g.turn;
+  const wrongKind = (sq) => { const c = view.g.board[chSqIndex(sq)]; return !!c && (c >> 3) === side && (c & 7) !== named; };
+  const ctx = {
+    g: view.g, side: side, sel: hbLocal.sel,
+    setSel: (sq) => { hbLocal.sel = sq; hbRedraw(); },
+    play: (from, to, promo) => hbPlay(from, to, promo),
+    redraw: () => hbRedraw()
+  };
+  // Every piece of the named kind that has a move, lit on every board.
+  const marks = [];
+  if (named && !hbLocal.early) {
+    const seen = {};
+    chessLegalMoves(view.g).forEach(m => { if ((view.g.board[chSqIndex(m.from)] & 7) === named && !seen[m.from]) { seen[m.from] = true; marks.push({ sq: m.from, kind: 'chance' }); } });
+  }
+  const over = s.phase === 'over' && bd.result;
+  const orient = mine ? mine.team : 0;
+  return {
+    key: ['hb', roomDealKey(state), tv ? 'tv' : 'p'].join('|'),
+    board: view.g.board, orient: orient, tv: !!tv,
+    loud: duelRoomLoud(state) || !!hbLocal.early,
+    last: view.last ? { from: view.last.from, to: view.last.to } : null,
+    anim: view.last ? Object.assign({ key: [roomDealKey(state), view.last.n].join('|'), still: !!still }, view.last) : null,
+    check: chessCheckSq(view.g),
+    mate: over && bd.result.reason === 'mate' ? chMateKing(view.g) : '',
+    sel: handUp ? hbLocal.sel : '',
+    targets: handUp && hbLocal.sel ? chTargets(view.g, hbLocal.sel) : [],
+    marks: marks, arrows: [],
+    lost: view.lost,
+    input: handUp ? {
+      canMove: true, side: side,
+      onPick: (sq, fromDrag) => {
+        if (wrongKind(sq)) { chSound('refuse'); if (hbLocal.sel) { hbLocal.sel = ''; hbRedraw(); } return false; }
+        return chTapLogic(ctx, sq, fromDrag);
+      },
+      onDrop: (from, to) => (wrongKind(from) ? (chSound('refuse'), false) : chDropLogic(ctx, from, to))
+    } : null
+  };
+}
+
+/* --- what the screens show beside the board ---------------------------------------------- */
+
+/** The two teams as the duels' pills: the colour, the Brain and the Hand, the clock, what they took, games won. */
+function hbPills(state, tv) {
+  const s = hbShared(state);
+  const bd = s.chess;
+  const view = hbBoard(state);
+  const up = hbActorOf(state);
+  const who = (pid, icon) => `<span class="hb-who ${pid === up ? 'is-up' : ''} ${pid === Room.me && !tv ? 'is-me' : ''}">${icon} ${hbIsBot(state, pid) ? '🤖 ' : ''}${escapeHTML(hbName(state, pid))}</span>`;
+  const pill = (k) => {
+    const t = (s.teams || [])[k] || [];
+    return {
+      name: chT(k ? 'vc_side_b' : 'vc_side_w'),
+      score: (s.tw || [])[k] || 0,
+      mark: `<span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>`,
+      sub: `<span class="hb-whos">${who(t[0], '🧠')}${who(t[1], '✋')}</span>` + (bd.clock ? `<b class="ch-clock metric" data-hb-clock="${k}"></b>` : '') + chTakenHtml(view.lost[1 - k], chLead(view.lost, k))
+    };
+  };
+  return duelPillsHtml({ players: [pill(0), pill(1)], turn: s.phase === 'play' && !bd.result ? view.g.turn : -1, draws: null });
+}
+
+/** The Brain's word, big: «🧠 منى قالت: الحصان!» - with a chime the first time a screen shows it. */
+function hbCallHtml(state, tv) {
+  const s = hbShared(state);
+  if (s.phase !== 'play' || s.stage !== 'move' || !s.named) return '';
+  const k = s.named.kind;
+  const team = s.chess.g.turn;
+  const fresh = motionFirst(['hbcall', roomDealKey(state), s.named.n, tv ? 'tv' : 'p'].join('|'));
+  return `<div class="hb-call ${fresh ? 'is-fresh' : ''}">
+      <span class="hb-call__pc" aria-hidden="true">${chPieceSvg(k | (team ? 8 : 0))}</span>
+      <span class="hb-call__txt">${escapeHTML(chT('hb_said', { name: hbName(state, s.named.by) }))} <b>${escapeHTML(hbPieceName(k))}!</b></span>
+    </div>`;
+}
+
+function hbStatus(state, tv) {
+  const s = hbShared(state);
+  const bd = s.chess;
+  if (s.phase === 'over' && s.result) {
+    const how = chT('ch_end_' + s.result.reason) || '';
+    if (s.result.winner === 0 || s.result.winner === 1) return '🏆 ' + chT('vc_won', { team: hbTeamLabel(s.result.winner) }) + (how ? ' · ' + how : '');
+    return '🤝 ' + chT('ch_draw') + (how ? ' · ' + how : '');
+  }
+  if (hbLocal.early && !tv) return chT('ch_sent');
+  const view = hbBoard(state);
+  const check = chessCheckSq(view.g) ? ' · ' + chT('ch_check') : '';
+  const up = hbActorOf(state);
+  if (s.stage === 'name') {
+    if (!tv && up === Room.me) return chT('hb_you_brain') + check;
+    return chT('hb_brain_thinking', { name: duelIso(hbName(state, up)) }) + check;
+  }
+  const piece = s.named ? hbPieceName(s.named.kind) : '';
+  if (!tv && up === Room.me) return chT('hb_you_hand', { piece: piece }) + check;
+  return chT('hb_hand_moving', { name: duelIso(hbName(state, up)), piece: piece }) + check;
+}
+
+/** The Brain's six buttons (the kinds that can't move faded), or the Hand's line, and resigning. */
+function hbBarHtml(state) {
+  const s = hbShared(state);
+  const bd = s.chess;
+  if (s.phase !== 'play' || bd.result) return '';
+  const mine = hbMine(state);
+  const parts = [];
+  if (!mine) parts.push(`<p class="field__hint" style="text-align:center">${escapeHTML(chT('hb_watching'))}</p>`);
+  else if (s.stage === 'name' && hbActorOf(state) === Room.me) {
+    const kinds = hbKindsOf(bd.g);
+    const side = bd.g.turn ? 8 : 0;
+    parts.push(`<div class="hb-kinds" role="group" aria-label="${escapeHTML(chT('hb_you_brain'))}">${HB_NAME_ORDER.map(k => {
+      const on = kinds.indexOf(k) !== -1;
+      return `<button type="button" class="hb-kind" ${on ? '' : 'disabled'} onclick="hbNameKind(${k})">
+          <span class="hb-kind__pc" aria-hidden="true">${chPieceSvg(k | side)}</span><span class="hb-kind__name">${escapeHTML(hbPieceName(k))}</span>
+        </button>`;
+    }).join('')}</div>`);
+  } else if (mine.role === 0 && mine.team === bd.g.turn && s.stage === 'move') {
+    parts.push(`<p class="field__hint" style="text-align:center">${escapeHTML(chT('hb_brain_wait'))}</p>`);
+  }
+  if (mine) parts.push(`<div class="ch-bar__row"><button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="hbResign()">🏳️ ${escapeHTML(chT('ch_resign'))}</button></div>`);
+  return parts.join('') + hbHostRow(state);
+}
+
+/**
+ * The host's way on for a phone gone quiet (40 seconds on one step, or at once
+ * for one that's away): it names, or plays a move of the kind named, as an easy
+ * computer player would.
+ */
+function hbHostRow(state, tv) {
+  const s = hbShared(state);
+  const bd = s.chess;
+  if (!state.youAreHost || s.phase !== 'play' || !bd || bd.result) return '';
+  const up = hbActorOf(state);
+  const p = (state.players || []).find(x => x.id === up);
+  if (!p || p.bot || up === Room.me) return '';
+  const key = [roomDealKey(state), bd.moves, s.stage].join('|');
+  if (hbLocal.turnKey !== key) { hbLocal.turnKey = key; hbLocal.turnSince = Date.now(); }
+  const wait = 40000 - (Date.now() - hbLocal.turnSince);
+  if (p.online && wait > 0) {
+    if (hbLocal.hostTimerKey !== key) {
+      hbLocal.hostTimerKey = key;
+      clearTimeout(hbLocal.hostTimer);
+      hbLocal.hostTimer = setTimeout(() => hbRedraw(true), wait + 300);
+    }
+    return '';
+  }
+  const label = '⏭️ ' + chT('hb_play_for', { name: duelIso(p.name) });
+  const press = `roomAct('skipTurn', { move: ${Number(bd.moves) || 0}, stage: '${s.stage}' })`;
+  return tv ? `<div class="tv-actions">${tvBtn(label, press, 'ghost')}</div>` : roomHostRow([[label, press]]);
+}
+
+/** The Brains' words so far, newest first: "♞ منى" - a small log under the moves. */
+function hbCallsHtml(state) {
+  const calls = (hbShared(state).calls || []).slice(-6).reverse();
+  if (!calls.length) return '';
+  return `<div class="hb-log"><p class="field__label">🧠 ${escapeHTML(chT('hb_calls'))}</p>${calls.map(c =>
+    `<span class="hb-log__row"><span class="hb-log__pc" aria-hidden="true">${chPieceSvg(c.kind | (c.team ? 8 : 0))}</span>${escapeHTML(hbName(state, c.by))}: ${escapeHTML(hbPieceName(c.kind))}</span>`).join('')}</div>`;
+}
+
+function hbOverHtml(state) {
+  const s = hbShared(state);
+  if (s.phase !== 'over') return '';
+  return state.youAreHost
+    ? `<button type="button" class="btn btn--primary" onclick="roomAct('playAgain', {})">🔁 ${escapeHTML(chT('vc_again'))}</button>
+       <p class="field__hint" style="text-align:center">${escapeHTML(chT('hb_again_hint'))}</p>`
+    : `<p class="field__hint" style="text-align:center">${escapeHTML(chT('vc_wait_host'))}</p>`;
+}
+
+function hbRender(state, still) {
+  const el = document.getElementById('view-room-handbrain');
+  const s = hbShared(state);
+  if (!el || !s.chess) return;
+  renderRoomFrame(el, ['hb', state.code, appState.lang].join('|'), () => chLayoutHtml());
+  hbNoteClock(state);
+  chViewShow(el.querySelector('[data-ch-host]'), hbModel(state, false, still));
+  const bd = s.chess;
+  const over = s.phase === 'over';
+  const myUp = hbActorOf(state) === Room.me;
+  chSetHtml(el, '[data-ch-head]', `${hbPills(state)}${hbCallHtml(state)}<p class="duel-status ${over ? 'is-done' : ''} ${myUp ? 'is-mine' : ''}">${escapeHTML(hbStatus(state))}</p>`);
+  chSetHtml(el, '[data-ch-bar]', hbBarHtml(state));
+  const view = hbBoard(state);
+  const side = [];
+  if (over) side.push(hbOverHtml(state));
+  side.push(chMovesHtml(view.sans, { current: view.sans.length - 1, start: bd.start || '' }));
+  side.push(hbCallsHtml(state));
+  side.push(renderScoreboard(s.board));
+  if (over) side.push(roomShareBtnHtml(state, s.board));
+  side.push(renderRoomPlayerStrip(state));
+  chSetHtml(el, '[data-ch-side]', side.join(''));
+  const mv = el.querySelector('.ch-moves');
+  if (mv) mv.scrollTop = mv.scrollHeight;
+  hbPaintClocks();
+  if (bd.clock) hbTickStart(); else hbTickStop();
+  duelPillsAfter(el, 'hb|' + state.code, { turn: s.phase === 'play' && !bd.result ? view.g.turn : -1, scores: (s.tw || [0, 0]).slice(0, 2) });
+  hbCue(state);
+  if (myUp && duelOnce(['hbturn', roomDealKey(state), bd.moves, s.stage].join('|'))) haptic('medium');
+  if (over) hbCheer(el, state);
+  if (typeof animateScoreboards === 'function') animateScoreboards(state);
+}
+
+/** The Brain's word is heard once per move on each screen that speaks for the table. */
+function hbCue(state) {
+  const s = hbShared(state);
+  if (s.phase !== 'play' || s.stage !== 'move' || !s.named) return;
+  const mine = hbMine(state);
+  const loud = duelRoomLoud(state) || (mine && mine.team === s.chess.g.turn);
+  if (duelOnce(['hbcue', roomDealKey(state), s.named.n].join('|')) && loud) chSound('hint');
+}
+
+function hbCheer(el, state) {
+  const s = hbShared(state);
+  if (!s.result || !duelOnce(['hbcheer', roomDealKey(state)].join('|'))) return;
+  const mine = hbMine(state);
+  afterReveal(el, () => {
+    if ((mine && mine.team === s.result.winner) || (state.youAreScreen && s.result.winner !== null)) {
+      duelSound('win');
+      if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+    } else if (mine) chSound('end');
+  });
+}
+
+/* --- the lobby: the seats (the host's, like الدومينو's), the clock --------------------------- */
+
+const hbOpts = () => recallOptions('handBrain', { clock: 'off' });
+
+function setHbClock(v) {
+  rememberOptions('handBrain', { clock: ['off', '5+0', '10+0'].indexOf(String(v)) !== -1 ? String(v) : 'off' });
+  duelLobbyRedraw();
+}
+
+/** Four seats as the room stands, the way the server fits them (anyone here without a seat takes an empty one). */
+function hbLobbyFits(state) {
+  const order = (hbShared(state).lobby || {}).order;
+  const ids = (state.players || []).map(p => p.id);
+  if (!Array.isArray(order) || order.length !== 4) return false;
+  if (order.some(id => id && ids.indexOf(id) === -1)) return false;
+  const seated = order.filter(Boolean);
+  return seated.length === Math.min(4, ids.length);
+}
+
+/** The host's phone keeps the room's seats in step with who is here (the server draws them the first time). */
+function hbLobbySync(state) {
+  if (!state || !state.youAreHost || state.phase !== 'lobby' || state.game !== 'handbrain') return;
+  if (hbLobbyFits(state)) { hbLocal.seatsKey = ''; return; }
+  const key = [state.code, (state.players || []).map(p => p.id).join(',')].join('|');
+  if (hbLocal.seatsKey === key) return;
+  hbLocal.seatsKey = key;
+  setTimeout(() => roomAct('seats', {}), 0);
+}
+
+/** Two taps swap two seats (an empty one too); 🔀 draws them again. */
+function hbSeatTap(i) {
+  const state = Room.state;
+  const order = (hbShared(state).lobby || {}).order;
+  if (!state || !state.youAreHost || !Array.isArray(order)) return;
+  haptic('light');
+  if (hbLocal.swap === null || hbLocal.swap === i) {
+    hbLocal.swap = hbLocal.swap === i ? null : i;
+    duelLobbyRedraw();
+    return;
+  }
+  const next = order.slice();
+  const a = hbLocal.swap;
+  hbLocal.swap = null;
+  next[a] = order[i];
+  next[i] = order[a];
+  roomAct('seats', { order: next });
+}
+
+function hbSeatsHtml(state) {
+  const order = (hbShared(state).lobby || {}).order;
+  if (!Array.isArray(order)) return '';
+  const host = !!state.youAreHost;
+  const seat = (i) => {
+    const pid = order[i];
+    const p = pid ? (state.players || []).find(x => x.id === pid) : null;
+    const role = i % 2 ? '✋ ' + chT('hb_hand') : '🧠 ' + chT('hb_brain');
+    const who = p ? (p.bot ? '🤖 ' : '') + escapeHTML(p.name) : `<span class="hb-seat__empty">🤖 ${escapeHTML(chT('hb_seat_bot'))}</span>`;
+    const inner = `<span class="hb-seat__role">${escapeHTML(role)}</span><span class="hb-seat__who">${who}</span>`;
+    return host
+      ? `<button type="button" class="hb-seat ${hbLocal.swap === i ? 'is-picked' : ''}" onclick="hbSeatTap(${i})" aria-pressed="${hbLocal.swap === i}">${inner}</button>`
+      : `<span class="hb-seat">${inner}</span>`;
+  };
+  const team = (k) => `<div class="vc-side vc-side--${k ? 'b' : 'w'}">
+      <p class="vc-side__head"><span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>${escapeHTML(hbTeamLabel(k))}</p>
+      <div class="hb-seats">${seat(2 * k)}${seat(2 * k + 1)}</div>
+    </div>`;
+  return `<div class="field">
+      <div class="dom-seating__head">
+        <span class="field__label">🪑 ${escapeHTML(chT('hb_seating'))}</span>
+        ${host ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="hbLocal.swap = null; haptic('light'); roomAct('seats', { shuffle: true })">🔀 ${escapeHTML(chT('vc_shuffle'))}</button>` : ''}
+      </div>
+      <div class="vc-sides">${team(0)}${team(1)}</div>
+      ${host ? `<p class="field__hint">${escapeHTML(hbLocal.swap !== null ? chT('hb_seats_swap_now') : chT('hb_seats_hint'))}</p>` : ''}
+    </div>`;
+}
+
+ROOM_GAMES.handbrain = {
+  bots: { max: 4 },
+  // Someone who joins mid-game watches the board.
+  lateJoin: true,
+  lobbyOptions(state) {
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(chT('hb_lobby_hint'))}</p>`;
+    if (!state.youAreHost) return `<div class="card card--tight">${hbSeatsHtml(state)}${hint}</div>`;
+    hbLobbySync(state);
+    const o = hbOpts();
+    return `<div class="card card--tight">
+        ${hbSeatsHtml(state)}
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(chT('hb_clock_label'))}</label>
+          <div class="segmented" role="group">
+            ${['off', '5+0', '10+0'].map(v => `<button type="button" class="segmented__item ${v === o.clock ? 'is-active' : ''}" onclick="setHbClock('${v}')">${escapeHTML(v === 'off' ? chT('gw_clock_off') : v)}</button>`).join('')}
+          </div>
+          <p class="field__hint">${escapeHTML(chT('hb_clock_hint'))}</p>
+        </div>
+        ${hint}
+      </div>`;
+  },
+  startPayload() {
+    // The computer players that fill the empty seats get names in the host's language.
+    const st = Room.state;
+    const names = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).filter(n => !((st && st.players) || []).some(p => samePlayer(p.name, n)));
+    return { clock: hbOpts().clock, botNames: shuffleArray(names.slice()).slice(0, 3) };
+  },
+  render(state) {
+    if (appState.currentView !== 'room-handbrain') setView('room-handbrain');
+    hbRender(state);
+  },
+  actionKey: (state) => [state.code, hbShared(state).round, hbShared(state).phase].join('|')
+};
+
+onRoomClocksReset(() => {
+  hbTickStop();
+  hbLocal.sel = '';
+  hbLocal.early = null;
+  hbLocal.swap = null;
+});
+
+/* --- the TV: the board big (3D), both teams, the Brain's word, the clocks, the moves ---------- */
+
+TV_GAMES.handbrain = {
+  sig: (state) => ['hb', state.code].join('|'),
+  frame(state, t) {
+    if (!hbShared(state).chess) return tvLookAtPhones(t);
+    return `<div class="ch-tv duel">
+        <div class="ch-tv__stage"><div class="ch-stage ch-stage--tv" data-ch-host></div></div>
+        <div class="ch-tv__side" data-ch-tvside></div>
+      </div>`;
+  },
+  after(state) {
+    const view = document.getElementById('view-room-tv');
+    const s = hbShared(state);
+    if (!view || !s.chess) return;
+    const host = view.querySelector('[data-ch-host]');
+    if (!host) return;
+    hbNoteClock(state);
+    chViewShow(host, hbModel(state, true));
+    const over = s.phase === 'over';
+    const html = `
+      <div class="tv-scale">${hbPills(state, true)}</div>
+      ${hbCallHtml(state, true)}
+      <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(hbStatus(state, true))}</div>
+      ${over ? '' : `<div class="ch-tv__moves">${chMovesHtml(s.chess.sans, { current: s.chess.sans.length - 1, start: s.chess.start || '' })}</div>`}
+      ${hbHostRow(state, true)}
+      ${over && state.youAreHost ? `<div class="tv-actions">${tvBtn('🔁 ' + chT('vc_again'), "roomAct('playAgain', {})", 'primary')}</div>` : ''}`;
+    const side = view.querySelector('[data-ch-tvside]');
+    if (side && side._chHtml !== html) {
+      side.innerHTML = html;
+      side._chHtml = html;
+      const mv = side.querySelector('.ch-moves');
+      if (mv) mv.scrollTop = mv.scrollHeight;
+    }
+    hbPaintClocks();
+    if (s.chess.clock) hbTickStart(); else hbTickStop();
+    duelPillsAfter(view, 'hbtv|' + state.code, { turn: s.phase === 'play' && !s.chess.result ? s.chess.g.turn : -1, scores: (s.tw || [0, 0]).slice(0, 2) });
+    hbCue(state);
+    if (over) hbCheer(view, state);
+  }
+};
 </script>
 
     <script>
@@ -111952,8 +114602,12 @@ function roomChatTime(at) {
   try { return new Date(at).toLocaleTimeString(appState.lang === 'ar' ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
 }
 
-/** This phone's side in أسماء الرموز, or null in any other game. */
+/** This phone's side in أسماء الرموز (or its colour's team in شطرنج بالتصويت), or null in any other game. */
 function chatTeamOf(state) {
+  if (state && state.game === 'votechess' && state.phase !== 'lobby') {
+    const k = typeof vcMyTeam === 'function' ? vcMyTeam(state) : -1;
+    return k === -1 ? null : { team: k ? 'b' : 'w' };
+  }
   if (!state || state.game !== 'codenames') return null;
   const mine = ((state.shared || {}).teams || {})[Room.me];
   return mine && (mine.team === 'red' || mine.team === 'blue') ? mine : null;
@@ -111962,7 +114616,7 @@ function chatTeamOf(state) {
 /** A spymaster mid-game hears the team channel and can't talk into it. */
 const chatTeamMuted = (state, mine) => !!mine && mine.role === 'spymaster' && state.phase === 'playing';
 
-const CHAT_TEAM_ICON = { red: '🔴', blue: '🔵' };
+const CHAT_TEAM_ICON = { red: '🔴', blue: '🔵', w: '⚪', b: '⚫' };
 
 /* Up to three emoji and nothing else are drawn big, the way a messenger does. */
 const CHAT_EMOJI_ONLY = /^(?:\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|\p{Emoji_Modifier})*\s*){1,3}$/u;
@@ -112261,6 +114915,24 @@ function roomTurnOf(state) {
       if (!Array.isArray(s.seats) || s.seats.indexOf(me) === -1 || s.phase !== 'play' || !s.chess || s.chess.result) return null;
       if (s.chess.offer && s.seats[s.chess.offer.seat] !== me) return 'turn_up';
       return s.seats[s.chess.g.turn] === me ? 'turn_up' : null;
+    case 'votechess': {
+      // Your team's vote, not cast yet (RoomVoteChess.js).
+      const v = s.vote;
+      const team = (s.teams || []).findIndex(t => (t || []).indexOf(me) !== -1);
+      return s.phase === 'play' && v && team === v.team && (v.voted || []).indexOf(me) === -1 ? 'turn_vote' : null;
+    }
+    case 'handbrain': {
+      // The Brain to name a piece, or the Hand to move it (RoomHandBrain.js).
+      if (s.phase !== 'play' || !s.chess || s.chess.result) return null;
+      const team = (s.teams || [])[s.chess.g.turn] || [];
+      return team[s.stage === 'name' ? 0 : 1] === me ? 'turn_up' : null;
+    }
+    case 'bughouse': {
+      // Your move on your own board (RoomBughouse.js): seat k plays board k >> 1 with colour k & 1.
+      const k = Array.isArray(s.seats) ? s.seats.indexOf(me) : -1;
+      if (k === -1 || s.phase !== 'play' || !Array.isArray(s.boards)) return null;
+      return s.boards[k >> 1].g.turn === (k & 1) ? 'turn_up' : null;
+    }
     case 'battleship':
       // Your fleet to place, or your shot (RoomBattleship.js).
       if (!Array.isArray(s.seats) || s.seats.indexOf(me) === -1) return null;

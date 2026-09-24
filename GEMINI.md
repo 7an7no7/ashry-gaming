@@ -6638,6 +6638,13 @@ keys carry `roomDealKey(state)` now, خمّن مين a counter that only goes up
 mistake kept only the first chess game of a room for review (`chRoomGameKey`
 has the deal in it now).
 
+**A translation key built from parts is invisible to the "never referenced"
+warning.** `check:i18n` finds `t.together_how`, not `t['together_step' + n]`,
+so the clean-up of 20 Sep 2026 removed the three «إزاي بتشتغل؟» steps of the
+مع بعض tab as unused, and the tab showed 1, 2, 3 with no words until the
+owner noticed on 24 Sep. Before removing a "never referenced" key, grep for
+its prefix followed by `' +` or `${`.
+
 **A play-once memory is empty after a reload.** `motionFirst` and `duelOnce`
 live in the page, so a reloaded phone, a late joiner and a TV coming on used
 to replay the last disc, its sound, the win line and the confetti. A room

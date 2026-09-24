@@ -106,7 +106,7 @@
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260924174833";
+      window.BUILD_ID = "20260924191609";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -12006,7 +12006,19 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .hm-write { display: flex; flex-direction: column; gap: var(--sp-2); }
 .hm-write__row { display: flex; gap: var(--sp-2); }
 .hm-write__row input { flex: 1 1 auto; min-width: 0; font-size: 1.125rem; }
-.hm-write__row input.is-hidden { -webkit-text-security: disc; text-security: disc; }
+/* A secret typed as dots: the letters are invisible and .secret-field__dots draws
+   one dot a letter over them. Not -webkit-text-security: Safari takes such a field
+   for a password and offers to save it when the game is left. */
+.secret-field { position: relative; flex: 1 1 auto; min-width: 0; display: flex; }
+.secret-field input { flex: 1 1 auto; min-width: 0; font-size: 1.125rem; }
+.secret-field input.is-hidden { color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--text); }
+.secret-field input.is-hidden::placeholder { color: var(--text-3); -webkit-text-fill-color: var(--text-3); }
+.secret-field__dots {
+  position: absolute; inset-block: 0; inset-inline: calc(var(--sp-4) + 1.5px);
+  display: flex; align-items: center; overflow: hidden; white-space: nowrap;
+  pointer-events: none; font-size: 1.125rem; font-weight: 800; letter-spacing: 0.12em; color: var(--text);
+}
+.secret-field input:not(.is-hidden) + .secret-field__dots { display: none; }
 .hm-write__err:empty { display: none; }
 .hm-hint { font-size: 0.875rem; font-weight: 700; color: var(--accent-ink); background: var(--accent-soft); border-radius: var(--r-full); padding: 0.125rem 0.625rem; }
 .hm-board__who { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; min-width: 0; }
@@ -13687,7 +13699,6 @@ span.om-back { cursor: default; }
 .sv-form, .sv-set-flags { display: flex; flex-direction: column; gap: var(--sp-2); }
 .sv-hidden { display: flex; gap: var(--sp-2); }
 .sv-hidden input { flex: 1 1 auto; min-width: 0; font-size: 1.125rem; }
-.sv-hidden input.is-hidden { -webkit-text-security: disc; text-security: disc; }
 .sv-err:empty { display: none; }
 .sv-kinds { justify-content: center; }
 .sv-emoji-input { font-size: 1.5rem; text-align: center; }
@@ -43771,7 +43782,7 @@ const GAME_RULES = {
             </ul>
             <p class="help-sub">👥 كل واحد من موبايله</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li><b>واحد يكتب</b>: كل واحد يخمّن الكلمة على لوحته، واللي بيكتب بيتغيّر كل كلمة. اللي يحلّها ياخد 10، واللي كتبها ياخد 5 عن كل واحد اتشنق.</li>
+                <li><b>واحد يكتب</b>: كل واحد يخمّن الكلمة على لوحته، واللي بيكتب بيتغيّر كل كلمة. اللي يحلّها ياخد 10، والأول +5، التاني +4… واللي كتبها ياخد 5 عن كل واحد اتشنق.</li>
                 <li><b>سباق</b>: التطبيق بيدّي الكل نفس الكلمة (أو اسم ممثل أو لاعب أو فيلم) ونوعها. اللي يحلّها ياخد 10، والأول +5، التاني +4… وهكذا.</li>
                 <li>المضيف بيختار 3 أو 5 أو 10 كلمات، ووقت للكلمة لو حابب (60 أو 90 ثانية).</li>
             </ul>
@@ -45261,7 +45272,7 @@ const GAME_RULES = {
             </ul>
             <p class="help-sub">👥 Everyone on their own phone</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li><b>One writes</b>: everyone guesses the word on their own board, and the writer changes every word. A solve scores 10; the writer scores 5 for everyone hanged.</li>
+                <li><b>One writes</b>: everyone guesses the word on their own board, and the writer changes every word. A solve scores 10, the first +5, the second +4, and so on; the writer scores 5 for everyone hanged.</li>
                 <li><b>A race</b>: the app gives everyone the same word (or an actor, a footballer, a film) and its kind. A solve scores 10, the first +5, the second +4, and so on.</li>
                 <li>The host picks 3, 5 or 10 words, and a clock for each word if they like (60 or 90 seconds).</li>
             </ul>
@@ -92890,15 +92901,18 @@ function hmWriteError(text) {
 
 /**
  * The field a word is written in: the letters hidden until the eye is pressed.
- * A text field drawn as dots (-webkit-text-security), never type="password":
- * an iPhone gives a password field only its English keyboard, and the word
- * could not be written in Arabic.
+ * A plain text field whose letters are invisible, with dots drawn over it
+ * (.secret-field, secretDotsPaint): never type="password" (an iPhone gives a
+ * password field only its English keyboard, and the word could not be written
+ * in Arabic), and never -webkit-text-security either (Safari takes a dotted
+ * field for a password and offers to save the word when the game is left -
+ * the owner, 24 Sep 2026).
  */
 function hmWriteFormHtml(submit, placeholderName) {
   return `<form class="hm-write" onsubmit="event.preventDefault(); ${submit}(this)">
       <div class="hm-write__row">
-        <input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="28" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          placeholder="${escapeHTML(hmT('hm_write_ph'))}" aria-label="${escapeHTML(hmT('hm_write_ph'))}">
+        <span class="secret-field"><input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="28" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          placeholder="${escapeHTML(hmT('hm_write_ph'))}" aria-label="${escapeHTML(hmT('hm_write_ph'))}"><span class="secret-field__dots" aria-hidden="true"></span></span>
         <button type="button" class="btn btn--ghost btn--auto hm-write__eye" onclick="hmToggleEye(this)" aria-label="${escapeHTML(hmT('hm_show_word'))}" title="${escapeHTML(hmT('hm_show_word'))}">👁️</button>
       </div>
       <p class="field__hint">${escapeHTML(hmT('hm_write_hint'))}</p>
@@ -92938,7 +92952,21 @@ function hmRestoreTyping(el, kept) {
       if (k.sel) { try { inp.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} }
     }
   });
+  secretDotsPaint(el);
 }
+
+/** The dots over every secret field in root: one a letter typed, drawn over the invisible text. */
+function secretDotsPaint(root) {
+  (root || document).querySelectorAll('.secret-field').forEach(box => {
+    const inp = box.querySelector('input');
+    const dots = box.querySelector('.secret-field__dots');
+    if (inp && dots) dots.textContent = '•'.repeat(Array.from(inp.value || '').length);
+  });
+}
+document.addEventListener('input', (e) => {
+  const box = e.target && e.target.closest && e.target.closest('.secret-field');
+  if (box) secretDotsPaint(box.parentNode);
+});
 
 function hmToggleEye(btn) {
   const input = btn.closest('form').querySelector('input[name="w"]');
@@ -93566,11 +93594,11 @@ function svStartPayload(kind) {
 const svName = (state, id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
 const svRound = (s) => Number(s.round) || 0;
 
-/** The dotted field a secret is typed in (never type="password": an iPhone gives that only its English keyboard). */
+/** The field a secret is typed in, drawn as dots (.secret-field in JS_Hangman.html: never a password field, or Safari offers to save it). */
 function svHiddenInput(name, ph, extra) {
   return `<div class="sv-hidden">
-      <input type="text" class="is-hidden" name="${name}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" ${extra || ''}
-        placeholder="${escapeHTML(ph)}" aria-label="${escapeHTML(ph)}">
+      <span class="secret-field"><input type="text" class="is-hidden" name="${name}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" ${extra || ''}
+        placeholder="${escapeHTML(ph)}" aria-label="${escapeHTML(ph)}"><span class="secret-field__dots" aria-hidden="true"></span></span>
       <button type="button" class="btn btn--ghost btn--auto" onclick="svToggleEye(this)" aria-label="${escapeHTML(svT('sv_show_secret'))}" title="${escapeHTML(svT('sv_show_secret'))}">👁️</button>
     </div>`;
 }

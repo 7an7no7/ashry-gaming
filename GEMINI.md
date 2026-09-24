@@ -108,6 +108,7 @@
   two phones, the bracket on the TV, a podium (*The duels' tournament*).
 - 🚢 **Battleship (حرب السفن)**: the classic 10×10 with five ships, in real 3D (three.js): against the phone at three levels, or a room where two play and the rest watch, winner stays on (*حرب السفن*).
 - ♞ **Chess (شطرنج)**: the full rules in real 3D (three.js) - a wooden board and Staunton pieces: two on one phone, against the computer at a rating from 400 to 2000 with a coach (a warning before a blunder, hints, a word on every move, the pieces in danger), or a room where two play and the rest watch, winner stays on; a chess clock; every game reviewed move by move (*شطرنج*).
+- **Bughouse (باغ هاوس)**: chess for four on two boards, in rooms: partners on different boards with opposite colours, what you take goes to your partner's hand to drop; clocks always running, a mate or a flag on either board decides it; computer players fill the seats (*باغ هاوس*).
 - **Cards, in rooms:** **كدّاب (I Doubt It):** lay cards face down and say what they are; anyone can call «كدّاب!», the first tap wins; computer players (*كدّاب*). **الشايب (Old Maid):** draw a card blind from the next hand, pair up, and don't be left holding the drawn old man; drag your cards about while someone is lifting one (*الشايب*).
 - **Sports, in real 3D (three.js):** 🎳 **Bowling (بولينج):** swipe the ball down a
   wooden lane, a curve in the swipe hooks it; solo for a best score, or a
@@ -137,6 +138,60 @@ or AI: what the owner has decided, what is waiting, and what each batch of
 work changed. Add to it when a decision is made or a batch ships.
 
 ### The owner's specs, as built
+
+- **باغ هاوس (Bughouse)** - the owner's decision of 24 Sep 2026 (batch 4,
+  Decision 3 of `notes/BATCH4_RUNBOOK.md`) (*باغ هاوس*):
+  - **4 players on two boards**, partners on different boards with
+    opposite colours (A White on board 1, their partner Black on board 2).
+  - **What you capture goes to your partner's hand**; on your move you may
+    **drop** a piece from your hand onto an empty square instead of moving -
+    no pawn on the first or last row, a drop may give check or mate, **a
+    promoted piece captured goes over as a pawn**.
+  - **The clock is always on, 3+0 by default** (2+0 / 3+0 / 5+0); a flag
+    loses for the team; **a mate on either board wins for that team**.
+  - **Computer players fill empty seats**, easy and hard: a normal move
+    choice plus sensible drops - a drop that mates first, otherwise a drop on
+    a good square near the enemy king when there is something worth
+    dropping.
+  - **Both boards on every phone**: your own big, your partner's small beside
+    or under it (a tap swaps the sizes); the TV shows both side by side.
+  - Rooms only (each on their own phone, the TV optional).
+  - Decided here (open to change, each in one place):
+    - **The game ends on a mate only** (`chessBugStatus`): no repetition,
+      fifty moves or "too little to mate" - a piece can always arrive. **No
+      move and nothing to drop is not stalemate: the side waits** for its
+      partner to send a piece, its clock running (chess.com's way). **A mate
+      is judged with the hand as it is**: a piece that might arrive later
+      doesn't save it (FICS's way).
+    - **The clocks start together, 3 seconds after the deal**
+      (`BUG_START_MS`), White to move on both boards; there is no free
+      first move as in the chess room. A move reaching the server up to 0.6 s
+      after the time ran out still counts (chess's `CHESS_GRACE_MS`); a flag
+      always loses (no "can't mate, so a draw": pieces can be dropped).
+    - **Empty seats at the start get easy computer players** named from the
+      host's phone (`botNames`); the host adds hard ones with the lobby's
+      buttons. With more than four people the first four of a random order
+      play and the rest watch (no computer players then).
+    - **A leaver's board is played on by a hard computer player** for the
+      rest of that game (`s.subs`, said on every screen), named after them
+      with 🤖; it stays for play again like any computer player.
+    - **Play again turns the partners round**: the first of the line keeps
+      their place and the other three move on one, so three games in a row
+      are the three pairings; with more than four, whoever watched plays
+      first. A person who joined takes a computer player's seat.
+    - **Resigning** loses for your team (a confirm first); **no draws** are
+      offered. The host's "play for" on a quiet board plays the easy
+      computer's move (40 seconds, or at once for a phone that's away).
+    - **No forced moves**: a single legal move is never played for you (the
+      chess rule).
+    - Scores: each winner gets a point; the board is the room's scoreboard.
+    - The TV draws both boards in 2D (chess's 3D view is one per page, and
+      two boards would want two), team A at the bottom of both; a phone's big
+      board is chess's own view (2D by default, 3D a tap away), the small one
+      2D.
+    - The home: **ورق وطاولة** (`group: 'table'`, a board game for four),
+      teal, a drawn icon (two boards and a piece flying between them),
+      `players: [1, 4]`; in the hub from one person (computer players).
 
 - **One sets, everyone solves** - the owner's decisions of 23 Sep 2026,
   asked one by one (*One sets, everyone solves*):
@@ -2273,6 +2328,19 @@ the word search), `countUp` for streaks and scores.
   room game reviewed from the standard start; and in 960 a king step and
   castling can share a square, which the tap took for a promotion.
 
+- **24 Sep 2026, باغ هاوس** - batch 4's bughouse (Decision 3, T4.1 and
+  T4.4): the rules as `chessBug*` at the end of `Chess.js` (standard chess
+  and perft untouched), the room in `RoomBughouse.js` (two boards, two
+  always-running clocks each, a mate or a flag deciding it, computer
+  players filling seats and taking over a leaver's board, play again
+  turning the partners), the phones and the TV in `JS_RoomBughouse.html`
+  and section 34 of `Style.html`, a drawn icon. Rules tests, a leak-check
+  driver and a robot round. Checked in headless Chrome: two people, two
+  computer players and a TV, whole games to a mate and to a flag, board
+  moves and drops by tap and by drag, a reload mid-game, Help, 375x812
+  Arabic, 667x375, 1280x720 English dark and the TV at 1280x720, no console
+  errors. A deploy is needed for the rooms server.
+
 ## Building and Running
 
 ### Development Requirements
@@ -2331,7 +2399,7 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
   `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Chess.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -2491,6 +2559,7 @@ is nowhere to hide the key card.
 | `RoomBattleship.js` | `battleshipAction`: the duels' seats and line (`duelSeatNext`, `duelEnd` from `RoomDuels.js`, bundled before it), placing and ready, the fleets in `room._bs`, the shots, the clock (`bsDeadline` / `bsTimeout`), leaving (`bsPlayerLeft`). |
 | `Chess.js` | شطرنج's rules (every one, perft-checked), the clock, the rated computer, the coach's analysis and the review, and a tournament match's next game (`chessMatchNext`, Armageddon): shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `chess` / `CHESS_`. |
 | `RoomChess.js` | `chessAction`: one board per game made and played through `chessBoard*` (the adapter a bracket uses), winner stays on (`duelSeatNext`, `duelEnd`), the clock on the server (`chessDeadline` / `chessTimeout`), a draw offered and answered, resigning, a forfeit (`chessPlayerLeft`). |
+| `RoomBughouse.js` | `bughouseAction`: four seats on two boards (seat k plays board k >> 1 with colour k & 1; partners k and 3 - k), the moves and drops through `chessBugPlay`, a capture sent to the partner's hand (`chessBugGive`), both clocks on the server (`bughouseDeadline` / `bughouseTimeout`), the computer players (`ROOM_BOT_GAMES.bughouse`), a leaver replaced by one (`bughousePlayerLeft`), play again turning the partners. Bundled after `RoomChess.js`. |
 | `PlayingCards.js` | The playing cards كدّاب and الشايب deal: the deck (one or two), a card's rank and suit, a hand sorted, what makes a pair in الشايب (same rank, same colour), the ranks' names: shared by the page and the Worker, every name prefixed `pc` / `PC_`. |
 | `RoomDoubt.js` | `doubtAction`: كدّاب's claims, the call (first tap wins), the pile, passing and the pile going out, the places, the clock, leaving and the computer players; every hand in `room._doubt`. |
 | `RoomOldMaid.js` | `oldMaidAction`: الشايب's deal (the deck grows with the table), the lift and the draw, dragging or shuffling a hand, pairs, the loser and the tally, the clock, leaving; every hand in `room._om`. |
@@ -2576,7 +2645,7 @@ compared on join with the same fold as everywhere else (`sameRoomName`), so
 أحمد and احمد can't both sit in one room.
 
 **Computer players** (the owner, 21 Sep 2026: optional, easy and hard). In
-the games that register them - أونو, الدومينو, لودو, بنك الحظ and خمّن مين - the host can seat a bot in
+the games that register them - أونو, الدومينو, لودو, بنك الحظ, خمّن مين and باغ هاوس - the host can seat a bot in
 the lobby, to play alone or to make up a table of four for teams. A bot is an
 ordinary entry in `room.players` with `bot` set to its level (`'easy'` or
 `'hard'`): it holds a seat, is dealt like anyone, and its hand is in
@@ -4978,6 +5047,82 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
   coach's word, the moves; on a phone on its side and from 900px the board
   takes the height beside a column; the TV is the board with the pills, the
   status, the moves and the line beside it.
+
+### باغ هاوس
+
+The owner's rules are in *The owner's specs*. Rooms only; the room's id and
+the client's are both **`bughouse`** (`room-bughouse`, `ROOM_GAMES.bughouse`,
+`TV_GAMES.bughouse`, the help entry).
+
+- **`Chess.js`** (the end of the file, every name `chessBug` /
+  `CHESS_BUG_`): a bughouse board is an ordinary game plus `hand` (`{ w: { q,
+  r, b, n, p }, b: {…} }`) and `promoted` (the square indices of pieces
+  that were pawns). `chessBugNew`, `chessBugClone`, `chessBugDrops` (every
+  legal drop: an empty square, no pawn on rows 1 and 8, not leaving the king
+  in check - so in check only a blocking drop), `chessBugLegal`,
+  `chessBugStatus` (mate only; `stuck` for a side with nothing to do),
+  `chessBugPlay` (a move or a drop `{ drop: 'n', to }`; the SAN `N@f3`,
+  `P@e4`; the promoted marks travel with their piece; `info.gives` is what
+  the capture sends - `'p'` for a promoted piece), `chessBugGive` (into the
+  other board's hand, the other colour), `chessBugBotMove` (a drop that
+  mates, then a move that mates - easy sees them 60% of the time - then,
+  with a piece or two pawns in hand, a safe drop near the other king, a
+  check counting for more; else `chessBestMove` at 1500 / depth 2 / 2,500
+  positions for hard, 600 / depth 1 / 400 for easy: cheap enough for the
+  server). Nothing above them changed: standard chess, Chess960 and every
+  perft number are as they were (`rules.mjs` still runs them all).
+- **`RoomBughouse.js`**: `shared` holds everything (nothing is hidden - the
+  hands are on the table): `phase`, `round`, `settings.clock`, `seats`
+  (four ids; team A is seats 0 and 3, team B 1 and 2), `names`, `subs`,
+  `line`, `startAt`, `boards` (`{ g, moves, sans, last, clock }`; the clock
+  is chess's shape `{ base, inc, left, at }`, read with `chessClockLeft`,
+  its `at` set at the deal so it always runs), `result` (`{ team, board,
+  seat, reason, winners }`), `scores` / `board`. Actions: `start`, `move` /
+  `drop` (each carrying `move`, the board's move count the phone saw),
+  `resign` (`round`), `skipTurn` (host; `board`, `move`), `playAgain`
+  (`round`). `bughouseDeadline` is the sooner of the two boards' flags.
+  Computer players: `pending` picks, of the two boards, the bot whose
+  moment comes first - its thinking time (`BUG_THINK_MS`, steady for one
+  key) counted from when its turn began - so both boards keep moving; a bot
+  with nothing to do waits and is asked again after the next move anywhere.
+- **`JS_RoomBughouse.html`** (section 34 of `Style.html`, prefix `bh`):
+  - **Your board big** through chess's one board view (`chViewShow`,
+    `bhModel`): its `lost` is the two hands, so the 3D board sets them
+    beside itself; `input.onPick` drops the piece picked from the hand
+    (`bhLocal.drop`, its squares as `targets`) or falls through to chess's
+    `chTapLogic` / `chDropLogic`. Your move is drawn at once on a copy
+    (`bhLocal.early`, the same animation key as the server's, so nothing
+    moves twice) and taken back if refused.
+  - **Each player a line** (`bhPlayerHtml`): the colour, the name (🤖 for a
+    computer player, "you" / "partner"), the team's line (blue A, red B),
+    the clock (`data-bh-clock`, painted every 200 ms from the server's time
+    as chess reads its clock), the hand (`bhHandHtml`; live buttons of 44 px
+    on your move).
+  - **Dragging from the hand** (`bhWireHand`): pointer events on the hand's
+    buttons; past 8 px a ghost follows the finger and letting go asks the
+    board's own `pick` (2D and 3D alike) for the square; a square it can't
+    go to sends it flying back. A tap picks it up instead.
+  - **The partner's board small** (`bhMiniHtml`, a static `chFlatBoardHtml`
+    in a square container), a button: a tap swaps the two
+    (`bhLocal.swap`); your own board, small while it is your move, is
+    outlined.
+  - **Motion** (`bhPlayMotion`, once per capture per phone): a captured
+    piece flies from its square to the partner's hand on the other board
+    (`bhFly`, a Web Animation of a ghost, the hand popping as it lands);
+    another player's drop flies from their hand to its square; your own drop
+    by tap flies from your hand as you play it. A piece arriving in your
+    hand ticks and buzzes.
+  - **The TV** (`TV_GAMES.bughouse`): both boards side by side (2D), each
+    with its two players, clocks and hands, team A at the bottom of both;
+    the host's "play for" and play again.
+  - `roomTurnOf`: your move on your own board.
+- Tests: `rules.mjs` (the drops, the hands, the promoted pawn, a drop mate,
+  a check a hand can block, six bot games on two boards with every move
+  legal; the room: seats, stale taps, a capture sent and dropped, the flag,
+  the mate, play again's three pairings, one person and three bots to the
+  end, a leaver replaced, five people, the host's "play for"), `leaks.mjs`
+  (`DRIVERS.bughouse`: no slice sent, both boards and hands everywhere),
+  `play-all.mjs` (two people and two computer players on a live server).
 
 ### حرب السفن
 

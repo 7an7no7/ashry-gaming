@@ -250,6 +250,7 @@ function chPzAutoMove(showing) {
 function chPzSolved(s) {
   s.result = 'solved';
   if (s.mode === 'free' && s.p.level) s.done[s.p.level] = (s.done[s.p.level] || 0) + 1;
+  chPzMarkDaily(s, true);
   if (typeof chPzSolvedMode === 'function') chPzSolvedMode(s);
   chPzStageFlash('good');
   const uid = s.uid;
@@ -260,6 +261,7 @@ function chPzSolved(s) {
       duelSound('win');
       if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 110, spread: 75, origin: { y: 0.6 } });
     });
+    if (s.mode === 'daily') setTimeout(() => { if (appState.currentView === 'play-chesspuzzle' && chPzState().uid === uid) chPzDailySheet(chPzState()); }, 1100);
     if (typeof chPzSolvedAfter === 'function') chPzSolvedAfter(s);
   }, chViewBusyLeft() + 450);
 }
@@ -294,6 +296,7 @@ function chPzGiveUp(s) {
   s.shown = true;
   s.showing = true;
   chPzLocal.sel = '';
+  chPzMarkDaily(s, false);
   if (typeof chPzFailedMode === 'function') chPzFailedMode(s);
   saveToLocal();
   chPzPaint();
@@ -302,6 +305,7 @@ function chPzGiveUp(s) {
 
 /** The solution has been shown to its end. */
 function chPzShowDone(s) {
+  if (s.mode === 'daily') { const uid = s.uid; soloLater('chesspuzzle', 900, () => { if (chPzState().uid === uid) chPzDailySheet(chPzState()); }); }
   if (typeof chPzShowDoneMode === 'function') chPzShowDoneMode(s);
 }
 
@@ -333,6 +337,7 @@ function chPzStatus(s, pos) {
 /** The chips over the board: which kind of puzzle, its level and rating. */
 function chPzTagsHtml(s) {
   const tags = [];
+  if (s.mode === 'daily') tags.push(`<span class="chpz-tag chpz-tag--mode">📅 ${escapeHTML(s.archive ? s.archive : chT('chpz_daily_title'))}</span>`);
   if (typeof chPzModeTag === 'function') { const x = chPzModeTag(s); if (x) tags.push(x); }
   if (s.p.level) tags.push(`<span class="chpz-tag">${escapeHTML(chT(['', 'solo_lvl_easy', 'solo_lvl_medium', 'solo_lvl_hard'][s.p.level]))}</span>`);
   if (s.p.rating) tags.push(`<span class="chpz-tag chpz-tag--rating"><span aria-hidden="true">⭐</span> <b class="metric" dir="ltr">${s.p.rating}</b></span>`);
@@ -455,6 +460,92 @@ function restoreChessPuzzle() {
   chPzPaint({ still: true });
   setTimeout(chPzAfter, 0);
   return true;
+}
+
+/* ============================================================================
+   لغز اليوم - the puzzle of the day (تحدي اليوم)
+   ----------------------------------------------------------------------------
+   One puzzle a day, the same on every phone: medium on most days, easy on
+   Saturday and hard on Friday, picked with the day's seed from its level. It
+   is played once, as every daily (JS_Solo.html): started again it comes back
+   to where it was left, and a free puzzle dealt over it sets it aside. Its
+   result is { solved, tries, hint }: tries is 1 + the wrong moves, and a
+   solution shown is a puzzle given up.
+   ========================================================================= */
+
+/** Today's level: 1 on Saturday, 3 on Friday, 2 otherwise (the day of the archive when one is played). */
+function chPzDailyLevel(day) {
+  const p = String(day || soloToday()).split('-').map(Number);
+  const wd = new Date(p[0], p[1] - 1, p[2]).getDay();
+  return wd === 6 ? 1 : wd === 5 ? 3 : 2;
+}
+
+/** Today's puzzle from the bank (the seed and the level from the day). */
+function chPzDailyPuzzle(day) {
+  const bank = chPzBank(chPzDailyLevel(day));
+  const rnd = soloRng(soloDaySeed('chesspuzzle', day));
+  return bank[Math.floor(rnd() * bank.length)] || null;
+}
+
+/** «لغز اليوم»: carries on with it if it was begun, else puts it on the board. */
+function chPzStartDaily() {
+  if (soloDailyResume('chesspuzzle')) return;
+  // Played once: today's is done (a past day from the archive is played there, soloArchiveDay set).
+  if (!soloArchiveDay && soloDailyResult('chesspuzzle')) { showToast(chT('daily_done_today'), 'info'); return; }
+  const go = () => {
+    const p = chPzDailyPuzzle();
+    if (p) chPzBegin({ mode: 'daily', p: chPzCopy(p), daily: soloToday() });
+  };
+  if (chPzAsk(go)) return;
+  go();
+}
+
+/** The day's result as the hub and the share say it. */
+function chPzDailyLine(r) {
+  if (!r || !r.solved) return '♟️ ❌';
+  if (r.hint) return '♟️ 💡';
+  return r.tries > 1 ? '♟️ ✅ ' + r.tries : '♟️ ✅';
+}
+
+/** The result kept (the first one only), under the day the daily was started. */
+function chPzMarkDaily(s, solved) {
+  if (s.mode !== 'daily' || !s.daily) return;
+  soloMarkDaily('chesspuzzle', { solved: !!solved, tries: (s.wrong || 0) + 1, hint: s.hint >= 0 }, s.daily);
+}
+
+/** The result sheet of the daily (and of a past day from the archive), once the board has had its moment. */
+function chPzDailySheet(s) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const day = s.daily || s.archive || '';
+  const r = { solved: s.result === 'solved', tries: (s.wrong || 0) + 1, hint: s.hint >= 0 };
+  const line = chPzDailyLine(r);
+  const lines = [escapeHTML(r.solved ? (r.hint ? chT('chpz_daily_hint') : r.tries > 1 ? chT('chpz_daily_tries', { n: r.tries }) : chT('chpz_daily_first')) : chT('chpz_daily_gaveup'))];
+  soloResult({
+    icon: '♟️', title: chT('chpz_daily_title'), valueText: line, lines: lines, win: r.solved,
+    share: s.daily ? `${soloShareHeader(t, s.daily)}\n♟️ ${chT('chpz_daily_title')}: ${line}` : '',
+    again: () => chPzDealFree(), againLabel: '🧩 ' + chT('chpz_next'), exit: setupChessPuzzles
+  });
+}
+
+/** The ways in at the top of the setup screen: the puzzle of the day (and the others as they come). */
+function chPzWaysHtml(s) {
+  const rows = [];
+  const done = soloDailyResult('chesspuzzle');
+  const going = !done && soloDailyInProgress('chesspuzzle');
+  rows.push(chPzWayHtml('📅', chT('chpz_daily_title'), done ? chT('daily_done_today') : chT('chpz_daily_desc_' + chPzDailyLevel()),
+    done ? `<b class="metric">${escapeHTML(chPzDailyLine(done))}</b>` : `<span class="badge">${escapeHTML(chT(going ? 'daily_continue' : 'daily_play'))}</span>`,
+    done ? '' : 'chPzStartDaily()', !!done));
+  if (typeof chPzMoreWaysHtml === 'function') rows.push(chPzMoreWaysHtml(s));
+  return rows.join('');
+}
+
+/** One way in, as a row of the tools' kind. */
+function chPzWayHtml(icon, name, desc, status, onclick, disabled) {
+  return `<button type="button" class="tool-item chpz-way${disabled ? ' is-done' : ''}" ${onclick ? `onclick="${onclick}"` : ''} ${disabled ? 'disabled' : ''}>
+      <span class="tool-icon" aria-hidden="true">${icon}</span>
+      <span class="tool-info"><span class="tool-name">${escapeHTML(name)}</span><span class="tool-desc">${escapeHTML(desc)}</span></span>
+      <span class="chpz-way__status">${status}</span>
+    </button>`;
 }
 
 soloRegister('chesspuzzle', {

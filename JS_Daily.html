@@ -17,6 +17,9 @@
 
 const dailyHints = (r) => (r.hints ? ' 💡' + r.hints : '');
 
+/** A game's icon in a line of text: an emoji and a space, a drawn icon nothing (its line carries its own emoji). */
+const dailyIconText = (icon) => { const x = typeof iconText === 'function' ? iconText(icon) : icon; return x ? x + ' ' : ''; };
+
 const DAILY_GAMES = [
   { id: 'flags',     start: () => startFlags(true),     line: (r) => r.won ? `✅ ${r.guesses}/6` : '❌ X/6' },
   { id: 'streak',    start: () => startStreak(true),    line: (r) => `${r.score >= 7 ? '✅' : '☑️'} ${r.score}/10` },
@@ -28,7 +31,8 @@ const DAILY_GAMES = [
   { id: 'tango',     start: () => startTango(true),     line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'nonogram',  start: () => startNonogram(true),  line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'mines',     start: () => startMines(true),     line: (r) => r.lost ? '💥' : `✅ ${soloTime(r.seconds)}` },
-  { id: 'minigolf',  start: () => startMiniGolf(true),  line: (r) => `${r.strokes <= r.par ? '🟢 ' : ''}⛳ ${r.strokes} · 🎯 ${r.par}` }
+  { id: 'minigolf',  start: () => startMiniGolf(true),  line: (r) => `${r.strokes <= r.par ? '🟢 ' : ''}⛳ ${r.strokes} · 🎯 ${r.par}` },
+  { id: 'chesspuzzle', start: () => chPzStartDaily(),  line: (r) => chPzDailyLine(r) }
 ];
 
 let soloHubReturn = false;
@@ -91,7 +95,7 @@ function renderDaily() {
         const going = !result && soloDailyInProgress(g.id);
         return `
           <button type="button" class="tool-item daily-row${result ? ' is-done' : ''}" data-accent="${cat.accent}" data-game="${g.id}" onclick="playDaily('${g.id}')" ${result ? 'disabled' : ''}>
-            <span class="tool-icon" aria-hidden="true">${cat.icon}</span>
+            <span class="tool-icon" aria-hidden="true">${typeof iconHtml === 'function' ? iconHtml(cat.icon) : cat.icon}</span>
             <span class="tool-info">
               <span class="tool-name">${escapeHTML(t[cat.title] || g.id)}</span>
               <span class="tool-desc">${escapeHTML(result ? (t.daily_done_today || '') : (t[cat.desc] || ''))}</span>
@@ -122,7 +126,7 @@ function shareDaily() {
   // Each game by its name as well as its icon: a column of emoji means little to the family group.
   const lines = done.map(g => {
     const cat = CATALOG_BY_ID[g.id];
-    return `${cat.icon} ${t[cat.title] || g.id}: ${g.line(soloDailyResult(g.id))}`;
+    return `${dailyIconText(cat.icon)}${t[cat.title] || g.id}: ${g.line(soloDailyResult(g.id))}`;
   });
   // "3 من 11" rather than "3/11", which reads as a date next to the day's date.
   const count = (t.daily_progress || '{n} من {m}').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length);
@@ -134,7 +138,7 @@ function shareDaily() {
     icon: '📅',
     rows: done.map(g => {
       const cat = CATALOG_BY_ID[g.id];
-      return { name: `${cat.icon} ${t[cat.title] || g.id}`, value: g.line(soloDailyResult(g.id)) };
+      return { name: `${dailyIconText(cat.icon)}${t[cat.title] || g.id}`, value: g.line(soloDailyResult(g.id)) };
     }),
     maxRows: DAILY_GAMES.length,
     footer: `${soloShareHeader(t)} · ${count}${streak > 1 ? ` · 🔥 ${streak} ${t.daily_days || ''}` : ''}`,
@@ -150,7 +154,7 @@ function shareDailyText() {
   const streak = soloStreak();
   const lines = done.map(g => {
     const cat = CATALOG_BY_ID[g.id];
-    return `${cat.icon} ${t[cat.title] || g.id}: ${g.line(soloDailyResult(g.id))}`;
+    return `${dailyIconText(cat.icon)}${t[cat.title] || g.id}: ${g.line(soloDailyResult(g.id))}`;
   });
   const count = (t.daily_progress || '{n} من {m}').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length);
   shareOrCopy(appLink(), `${soloShareHeader(t)} · ${count}\n${streak > 1 ? `🔥 ${streak} ${t.daily_days || ''}\n` : ''}${lines.join('\n')}`, t.solo_copied || '');
@@ -300,7 +304,7 @@ function renderDailyArchive() {
         const result = selectedResults[g.id];
         return `
           <div class="tool-item daily-row${result ? ' is-done' : ''}" data-accent="${cat.accent || 'amber'}" data-game="${g.id}">
-            <span class="tool-icon" aria-hidden="true">${cat.icon || '🎮'}</span>
+            <span class="tool-icon" aria-hidden="true">${typeof iconHtml === 'function' ? iconHtml(cat.icon || '🎮') : (cat.icon || '🎮')}</span>
             <span class="tool-info">
               <span class="tool-name">${escapeHTML(t[cat.title] || g.id)}</span>
               <span class="tool-desc">${result ? escapeHTML(g.line(result)) : escapeHTML(t.daily_archive_not_done || 'لم يُحل في يومه')}</span>

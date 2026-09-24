@@ -223,7 +223,7 @@ function chRoomModel(state, tv, still) {
   // The other side to move (or your own move still on its way): a premove can be queued.
   const preKey = [roomDealKey(state), s.round].join('|');
   if (chRoomLocal.preKey !== preKey) { chRoomLocal.preKey = preKey; chRoomLocal.pre = null; chRoomLocal.presel = ''; }
-  const preOn = !tv && (seat === 0 || seat === 1) && s.phase === 'play' && !bd.result && !mine && !(bd.hq && bd.hq.picking);
+  const preOn = !tv && (seat === 0 || seat === 1) && s.phase === 'play' && !bd.result && !mine && !(bd.hq && bd.hq.picking) && chLook().premove;
   if (!preOn && !mine) { chRoomLocal.pre = null; chRoomLocal.presel = ''; }
   const pctx = {
     board: view.g.board, side: seat, sel: chRoomLocal.presel, pre: chRoomLocal.pre,
@@ -232,7 +232,7 @@ function chRoomModel(state, tv, still) {
   };
   return {
     key: ['room', roomDealKey(state), s.round, tv ? 'tv' : 'p'].join('|'),
-    board: view.g.board, orient: seat === 1 ? 1 : 0, tv: !!tv,
+    board: view.g.board, orient: seat === 1 ? 1 : 0, tv: !!tv, preable: !tv && (seat === 0 || seat === 1),
     loud: duelRoomLoud(state) || !!chRoomLocal.early,
     last: view.last ? { from: view.last.from, to: view.last.to } : null,
     anim: view.last ? chAnimOf(view.last, [roomDealKey(state), s.round, view.last.n].join('|'), still) : null,
@@ -506,13 +506,16 @@ function chRoomRender(state, still) {
     }
   }
   const model = chRoomModel(state, false, still);
-  chViewShow(el.querySelector('[data-ch-host]'), model);
   const bd = s.chess;
+  // Looking back at an earlier move (players and watchers alike): that position, nothing to move; the room plays on.
+  const bply = chBrowseSync(['room', roomDealKey(state), s.round, s.tourMid || ''].join('|'), (bd.hist || []).length, () => chRoomRedraw(true));
+  chViewShow(el.querySelector('[data-ch-host]'), bply >= 0 ? chBrowseModel(model, chReplayPositions(bd.start || '', bd.hist || []), bply) : model);
   const seat = chRoomSeat(state);
   const view = chRoomBoard(state);
   const myTurn = s.phase === 'play' && !bd.result && seat === view.g.turn;
   const over = s.phase === 'over';
-  chSetHtml(el, '[data-ch-head]', `${chRoomPills(state)}${chRoomTagHtml(state)}<p class="duel-status ${over ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(chRoomStatus(state))}</p>`);
+  chSetHtml(el, '[data-ch-head]', `${chRoomPills(state)}${chRoomTagHtml(state)}${bply >= 0 ? chBrowseNoteHtml(bd.sans) : `<p class="duel-status ${over ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(chRoomStatus(state))}</p>`}`);
+  chSetHtml(el, '[data-ch-browse]', chBrowseNavHtml((bd.hist || []).length));
   chSetHtml(el, '[data-ch-bar]', chRoomBarHtml(state) + chRoomHostRow(state));
   const side = [];
   if (over) {
@@ -524,14 +527,13 @@ function chRoomRender(state, still) {
     if (seat !== -1) side.push(chShareRowHtml(chRoomGameKey(state)));
   }
   const rSet = s.settings || {};
-  side.push(chMovesHtml(view.sans, { current: view.sans.length - 1, start: view.start || (s.chess && s.chess.start) || '', variant: rSet.variant || 'standard' }));
+  side.push(chMovesHtml(view.sans, { current: chBrowseCurrent(view.sans.length), onClick: 'chBrowseMove', start: view.start || (s.chess && s.chess.start) || '', variant: rSet.variant || 'standard' }));
   side.push(duelRoomLineHtml(state, t));
   if ((state.players || []).length > 2 && !s.tourMid) side.push(renderScoreboard(s.board));
   if (over && !s.tourMid) side.push(roomShareBtnHtml(state, s.board));
   side.push(renderRoomPlayerStrip(state));
   chSetHtml(el, '[data-ch-side]', side.join(''));
-  const mv = el.querySelector('.ch-moves');
-  if (mv) mv.scrollTop = mv.scrollHeight;
+  chBrowseScrollList(el);
   // A tournament's places in this screen (the round, the other matches, what comes next).
   if (s.tourMid && typeof tourAfterMatch === 'function') tourAfterMatch(el, Room.state, s.tourMid);
   chRoomPaintClocks(state);

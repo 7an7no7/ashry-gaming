@@ -13664,15 +13664,18 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 :root {
   /* The best-move arrows' colours (green, light green, yellow), the same as on the board. */
   --ch-best-0: rgba(22, 163, 74, 0.9); --ch-best-1: rgba(110, 231, 150, 0.9); --ch-best-2: rgba(250, 204, 21, 0.92);
-  --ch2-w-hi: #fffdf7; --ch2-w-mid: #f1e8d6; --ch2-w-lo: #d4c5a8; --ch2-w-edge: #2c2620; --ch2-w-line: #2c2620;
-  --ch2-b-hi: #5e5953; --ch2-b-mid: #37332f; --ch2-b-lo: #1c1a18; --ch2-b-edge: #0c0b0a; --ch2-b-line: #d8cfc1;
+  /* White near-white with a charcoal outline, Black near-black with a lighter rim inside its outline
+     (the owner, 24 Sep 2026: "like chess.com"). */
+  --ch2-w-hi: #ffffff; --ch2-w-mid: #f6f4ef; --ch2-w-lo: #d6d0c5; --ch2-w-edge: #262421; --ch2-w-line: #262421;
+  --ch2-b-hi: #5b5752; --ch2-b-mid: #2f2c29; --ch2-b-lo: #161514; --ch2-b-edge: #050505; --ch2-b-line: #bdb6ac;
+  --ch2-b-rim: rgba(255, 255, 255, 0.3);
   /* The board's own colours: «أخضر» by default, the other three below. */
   --ch2-light: #eeeed2; --ch2-dark: #769656;
   --ch2-light-img: none; --ch2-dark-img: none;
   --ch2-last: rgba(255, 255, 51, 0.5);
   --ch2-sel: rgba(255, 255, 51, 0.62);
-  --ch2-hint: rgba(0, 0, 0, 0.15);
-  --ch2-hover: rgba(255, 255, 255, 0.75);
+  --ch2-hint: rgba(0, 0, 0, 0.14);
+  --ch2-hover: rgba(255, 255, 255, 0.72);
   --ch2-check: rgba(236, 34, 24, 0.95);
   /* Arrows and marks drawn by hand (green, as on every chess site). */
   --ch2-anno: rgba(21, 128, 61, 0.82);
@@ -13720,16 +13723,21 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 .ch2-sq.is-danger::after { box-shadow: inset 0 0 0 0.45cqw rgba(239, 68, 68, 0.95); }
 .ch2-sq.is-chance::after { box-shadow: inset 0 0 0 0.45cqw rgba(34, 197, 94, 0.95); }
 .ch2-sq.is-anno::after { box-shadow: inset 0 0 0 0.7cqw var(--ch2-anno); border-radius: 50%; }
-.ch2-sq.is-hover::after { box-shadow: inset 0 0 0 0.6cqw var(--ch2-hover); }
-.ch2-dot { position: absolute; z-index: 1; width: 33%; height: 33%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
+.ch2-sq.is-hover::after { box-shadow: inset 0 0 0 0.55cqw var(--ch2-hover); }
+/* A mouse over a square on your move: the same subtle white inner outline as a piece dragged over it. */
+@media (hover: hover) and (pointer: fine) {
+  .ch-view.is-live .ch2-sq:hover::after { box-shadow: inset 0 0 0 0.45cqw var(--ch2-hover); }
+}
+.ch2-dot { position: absolute; z-index: 1; width: 30%; height: 30%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
 /* الوزير المستخبي: its gold crown in the square's corner, over the pawn (the pieces' layer is z-index 2), on its owner's board only. */
 .ch2-sq.is-hq::after { box-shadow: inset 0 0 0 0.5cqmin rgba(234, 179, 8, 0.95); background: radial-gradient(circle, rgba(250, 204, 21, 0.28), rgba(250, 204, 21, 0) 70%); }
 .ch2-hq { position: absolute; z-index: 3; top: 2%; inset-inline-end: 4%; font-size: 4cqmin; line-height: 1; font-style: normal; pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
 .ch2-board.is-mini .ch2-hq { display: none; }
-.ch2-cap { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 79%, var(--ch2-hint) 81% 100%, transparent 101%); pointer-events: none; }
-.ch2-co { position: absolute; z-index: 1; font-style: normal; font-size: 2.5cqw; font-weight: var(--fw-bold); line-height: 1; pointer-events: none; direction: ltr; }
-.ch2-co--r { top: 0.45cqw; left: 0.55cqw; }
-.ch2-co--f { bottom: 0.35cqw; right: 0.6cqw; }
+.ch2-cap { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 77%, var(--ch2-hint) 79% 100%, transparent 101%); pointer-events: none; }
+/* The coordinates, bold, in the edge squares' corners in the other square's colour (as chess.com). */
+.ch2-co { position: absolute; z-index: 1; font-style: normal; font-size: 2.9cqw; font-weight: 800; line-height: 1; pointer-events: none; direction: ltr; }
+.ch2-co--r { top: 0.4cqw; left: 0.5cqw; }
+.ch2-co--f { bottom: 0.3cqw; right: 0.55cqw; }
 .ch2-sq.is-l .ch2-co { color: var(--ch2-dark); }
 .ch2-sq.is-d .ch2-co { color: var(--ch2-light); }
 .ch2-pcs { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
@@ -13745,7 +13753,7 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 .ch2-pc.is-moving { z-index: 2; }
 .ch2-pc.is-taken { z-index: 0; }
 .ch2-pc.is-drag { z-index: 4; }
-.ch2-pc.is-drag > .ch-svg { transform: scale(1.14) translateY(-4%); filter: drop-shadow(0 0.35rem 0.3rem rgba(0, 0, 0, 0.35)); }
+.ch2-pc.is-drag > .ch-svg { transform: scale(1.18) translateY(-5%); filter: drop-shadow(0 0.45rem 0.35rem rgba(0, 0, 0, 0.38)); }
 .ch2-pc.is-mated > .ch-svg { transform: rotate(-18deg) translateY(4%); filter: grayscale(0.4); transition: transform 700ms var(--ease-spring), filter 700ms; }
 .ch2-arrows { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
 .ch2-board.is-mini { border-radius: 0.4vmin; box-shadow: none; }
@@ -13771,6 +13779,26 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 }
 .ch-tool:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .ch-tool.is-on { background: var(--accent-soft); border-color: var(--accent); }
+/* «2D | 3D»: a small segmented switch in the board's row of buttons (none where 3D can't draw). */
+.ch-seg { display: inline-flex; padding: 0.15rem; gap: 0.1rem; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-solid); box-shadow: var(--sh-1); direction: ltr; }
+.ch-seg__item {
+  min-width: 2.35rem;
+  height: 2.2rem;
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: calc(var(--r-sm) - 0.15rem);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+.ch-seg__item.is-active { background: var(--accent); color: var(--accent-on); }
+.ch-seg__item:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.ch-view.is-3d .ch-seg { background: color-mix(in srgb, var(--surface-solid) 86%, transparent); }
+/* The premove switch in the board's ⚙. */
+.ch-lookpop__switch { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); font-size: var(--fs-sm); font-weight: var(--fw-bold); gap: var(--sp-3); }
 /* The 3D board: two fingers turn and zoom it, so the page doesn't take them for a scroll. */
 .ch-view.is-3d { touch-action: none; }
 .ch-view.is-3d .ch-tool { background: color-mix(in srgb, var(--surface-solid) 86%, transparent); }
@@ -13787,6 +13815,7 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 }
 .ch-lookpop[hidden] { display: none; }
 .ch-lookpop__title { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+.ch-view-seg { margin-bottom: var(--sp-3); }
 .ch-swatches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); }
 .ch-swatch {
   display: flex;
@@ -13815,6 +13844,7 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 @container chview (min-aspect-ratio: 5 / 4) {
   .ch-view:not(.is-tv) .ch-flat { inset: 0; inset-inline-end: 3.1rem; }
   .ch-tools { flex-direction: column; }
+  .ch-seg { flex-direction: column; }
   .ch-lookpop { top: 0.2rem; inset-inline-end: 3.1rem; }
 }
 
@@ -14180,7 +14210,35 @@ input.ch-elo[type="range"]:focus-visible { outline: 3px solid var(--accent); out
   .ch-stage--tv { height: 60vh; }
 }
 
+/* --- Looking back at the moves: ⏮ ◀ ▶ ⏭ under the board, the line over it, the board quiet --- */
+.ch-browse-slot:empty { display: none; }
+.ch-browse { display: flex; justify-content: center; gap: var(--sp-2); }
+.ch-browse__btn { min-width: 3rem; font-size: var(--fs-h3); }
+.ch-browse-note {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: var(--sp-2) auto 0;
+  padding: 0.3rem var(--sp-3);
+  border-radius: var(--r-full);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  text-align: center;
+  cursor: pointer;
+}
+.ch-browse-note u { text-underline-offset: 0.2em; }
+.ch-browse-note.is-pulse { animation: chBrowsePulse 1.3s var(--ease-out) infinite; }
+@keyframes chBrowsePulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 60% { box-shadow: 0 0 0 0.45rem color-mix(in srgb, var(--accent) 0%, transparent); } }
+/* The board while an earlier move is shown: a frame in the screen's colour, so it isn't taken for the game. */
+.ch-view.is-browse .ch2-board { box-shadow: 0 0 0 0.2rem var(--accent), 0 0.2rem 0.9rem rgba(20, 14, 6, 0.28); }
+.ch-view.is-browse.is-3d { box-shadow: inset 0 0 0 0.2rem var(--accent); border-radius: var(--r-xl); }
+
 @media (prefers-reduced-motion: reduce) {
+  .ch-browse-note.is-pulse { animation: none; text-decoration: underline; }
   .ch-loading span { animation: none; }
   .ch2-pc > .ch-svg { transition: none; }
   .ch-progress__bar { transition: none; }

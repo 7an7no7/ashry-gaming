@@ -1,0 +1,735 @@
+<script>
+/* ============================================================================
+   باغ هاوس in rooms and on the TV (RoomBughouse.js): four on two boards
+   ----------------------------------------------------------------------------
+   Partners sit on different boards with opposite colours; what you take flies
+   to your partner's hand, and on your move you may drop a piece from your own
+   hand onto an empty square instead of moving. The rules are Chess.js's
+   (chessBugPlay), the same file the server judges with.
+
+   On a phone: your own board big (chess's one board view, chView - 2D by
+   default, 3D a tap away), your opponent over it and you under it, each with
+   their clock and their hand as a row of pieces; tap a piece of your hand and
+   the squares it can go to light up, then tap one - or drag the piece onto the
+   board. Your partner's board is small beside it (under it upright), with
+   their hands and clocks; a tap on it swaps the two sizes. A watcher sees
+   board 1 big and board 2 small, the same way.
+
+   On the TV: both boards side by side (2D: one 3D view per page, and two
+   boards want two), team A at the bottom of both, four names, four clocks,
+   the hands.
+
+   Your own move is drawn as your finger lifts (the duels' rule): played on a
+   copy with the very rules the server uses; the server's board comes back
+   with the same animation key, so nothing moves twice. Refused, the room's
+   own board is drawn back.
+
+   The clocks are the server's (a board's clock: each side's time and when
+   the side to move's started, in the server's time), read through the
+   smallest gap seen between the server's time and hearing of it, as chess
+   reads its clock.
+   ========================================================================= */
+
+// drop: the piece of your hand picked up (a letter); sel: the board piece picked up; early: your
+// move drawn before the server answers; swap: the partner's board big; seenGive: captures already flown.
+const bhLocal = { drop: '', sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, swap: false, seenGive: {}, seenDrop: {}, lastTick: 0, turnSince: {}, hostTimer: null, handSeen: '' };
+
+const BH_KINDS = ['q', 'r', 'b', 'n', 'p'];
+
+const bhShared = (state) => (state && state.shared) || {};
+const bhSeat = (state) => (state.youAreScreen ? -1 : (bhShared(state).seats || []).indexOf(Room.me));
+const bhTeamOf = (k) => (k === 0 || k === 3 ? 'A' : 'B');
+const bhSeatAt = (b, color) => b * 2 + color;
+
+/** The board this phone shows as board b: the room's, or its own move on top until the server has it. */
+function bhBoardView(state, b) {
+  const s = bhShared(state);
+  const bd = s.boards[b];
+  const e = bhLocal.early;
+  if (e && e.code === state.code && e.round === s.round && e.b === b && e.n === bd.moves + 1) return e;
+  if (e && e.b === b && (e.code !== state.code || e.round !== s.round || bd.moves >= e.n)) bhLocal.early = null;
+  return { g: bd.g, last: bd.last, n: bd.moves, sans: bd.sans, b: b };
+}
+
+/* --- the clocks: the server's, read on this phone ------------------------------------ */
+
+function bhNoteClock(state) {
+  if (typeof state.serverNow !== 'number' || bhLocal.seenAt === 'n' + state.serverNow) return;
+  bhLocal.seenAt = 'n' + state.serverNow;
+  const gap = (state.receivedAt || Date.now()) - state.serverNow;
+  bhLocal.offset = bhLocal.offset === null ? gap : Math.min(bhLocal.offset, gap);
+}
+
+function bhClockLeft(state, b, side) {
+  const s = bhShared(state);
+  const bd = s.boards && s.boards[b];
+  const c = bd && bd.clock;
+  if (!c) return Infinity;
+  if (c.at === null || c.at === undefined || bd.g.turn !== side || s.phase !== 'play') return c.left[side];
+  return c.left[side] - Math.max(0, Date.now() - (bhLocal.offset || 0) - c.at);
+}
+
+function bhPaintClocks(state) {
+  const s = bhShared(state);
+  document.querySelectorAll('[data-bh-clock]').forEach(el => {
+    const [b, side] = el.dataset.bhClock.split(':').map(Number);
+    const bd = s.boards && s.boards[b];
+    if (!bd) return;
+    const left = bhClockLeft(state, b, side);
+    const text = chClockText(left);
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle('is-running', s.phase === 'play' && bd.g.turn === side && !!(bd.clock && bd.clock.at));
+    el.classList.toggle('is-low', left < 20000);
+  });
+}
+
+function bhTickStart() {
+  if (bhLocal.tick) return;
+  bhLocal.tick = setInterval(() => {
+    const st = Room.state;
+    if (!st || st.game !== 'bughouse' || !bhShared(st).boards) { bhTickStop(); return; }
+    bhPaintClocks(st);
+    const s = bhShared(st);
+    const seat = bhSeat(st);
+    if (s.phase !== 'play' || seat < 0) return;
+    const b = seat >> 1;
+    if (s.boards[b].g.turn !== (seat & 1)) return;
+    const left = bhClockLeft(st, b, seat & 1);
+    if (left < 10000 && left > 0) {
+      const sec = Math.ceil(left / 1000);
+      if (bhLocal.lastTick !== sec) { bhLocal.lastTick = sec; playSound('tick'); }
+    }
+  }, 200);
+}
+
+function bhTickStop() {
+  if (bhLocal.tick) clearInterval(bhLocal.tick);
+  bhLocal.tick = null;
+}
+
+/* --- the hands ------------------------------------------------------------------ */
+
+/** A side's hand as letters, strongest first ('q', 'n', 'n', 'p'…): what the 3D board sets beside itself. */
+const bhHandLetters = (h) => BH_KINDS.reduce((a, l) => a.concat(Array((h && h[l]) | 0).fill(l)), []);
+
+/**
+ * A side's hand as a row of pieces with their counts. Live (your own, on your move): each is a
+ * button - a tap picks it up, a drag carries it onto the board.
+ */
+function bhHandHtml(g, b, side, live) {
+  const h = (g.hand || {})[side ? 'b' : 'w'] || {};
+  const list = BH_KINDS.filter(l => (h[l] | 0) > 0);
+  const pcs = list.map(l => {
+    const code = CH_LETTER_KIND[l] | (side ? 8 : 0);
+    const n = h[l] | 0;
+    const inner = `${chPieceSvg(code)}${n > 1 ? `<b class="bh-hand__n metric">${n}</b>` : ''}`;
+    return live
+      ? `<button type="button" class="bh-hand__pc ${bhLocal.drop === l ? 'is-picked' : ''}" data-bh-drop="${l}" aria-pressed="${bhLocal.drop === l}" aria-label="${escapeHTML(chPieceName(l))}${n > 1 ? ' ×' + n : ''}">${inner}</button>`
+      : `<span class="bh-hand__pc" data-bh-kind="${l}" title="${escapeHTML(chPieceName(l))}">${inner}</span>`;
+  }).join('');
+  return `<div class="bh-hand ${live ? 'is-live' : ''} ${list.length ? '' : 'is-empty'}" data-bh-hand="${b}:${side}" dir="ltr">${pcs || `<span class="bh-hand__none">${escapeHTML(chT('bh_hand_empty'))}</span>`}</div>`;
+}
+
+/** One player's line: the colour, the name (and whose board it was), the team, the clock, the hand. */
+function bhPlayerHtml(state, b, side, opts) {
+  const o = opts || {};
+  const s = bhShared(state);
+  const k = bhSeatAt(b, side);
+  const view = bhBoardView(state, b);
+  const seat = bhSeat(state);
+  const pid = s.seats[k];
+  const p = (state.players || []).find(x => x.id === pid);
+  const bot = p && p.bot;
+  const away = p && !p.bot && !p.online;
+  const sub = s.subs && s.subs[k] !== undefined;
+  const you = k === seat ? ` <span class="bh-you">${escapeHTML(chT('xo_you'))}</span>` : (seat >= 0 && k === 3 - seat ? ` <span class="bh-you bh-you--partner">${escapeHTML(chT('bh_partner'))}</span>` : '');
+  const turn = s.phase === 'play' && view.g.turn === side;
+  return `<div class="bh-player ${turn ? 'is-turn' : ''} ${away ? 'is-away' : ''} bh-team--${bhTeamOf(k)}" data-bh-seat="${k}">
+      <div class="bh-player__row">
+        <span class="ch-mark ${side ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (side ? 8 : 0))}</span>
+        <span class="bh-player__name">${bot ? '<span aria-hidden="true">🤖</span> ' : ''}${escapeHTML(s.names[k] || '')}${you}</span>
+        ${sub ? `<span class="bh-sub" title="${escapeHTML(chT('bh_sub', { name: s.subs[k] }))}">🤖</span>` : ''}
+        <b class="ch-clock metric bh-clock" data-bh-clock="${b}:${side}"></b>
+      </div>
+      ${bhHandHtml(view.g, b, side, !!o.live)}
+    </div>`;
+}
+
+/* --- your move: a board move, or a drop ------------------------------------------------- */
+
+/** The squares the piece picked up from your hand can go to. */
+function bhDropTargets(g, l) {
+  return l ? chessBugDrops(g).filter(d => d.drop === l).map(d => ({ to: d.to, capture: false })) : [];
+}
+
+/** Your move (a board move or a drop): drawn now, sent to the server, and taken back if the server says no. */
+function bhPlay(mv) {
+  const state = Room.state;
+  if (!state || state.game !== 'bughouse') return false;
+  const s = bhShared(state);
+  const seat = bhSeat(state);
+  if (seat < 0 || s.phase !== 'play' || bhLocal.early) return false;
+  const b = seat >> 1, color = seat & 1;
+  const bd = s.boards[b];
+  if (bd.g.turn !== color) return false;
+  const g = chessBugClone(bd.g);
+  const info = chessBugPlay(g, mv);
+  if (!info) { chSound('refuse'); return false; }
+  const n = bd.moves + 1;
+  bhLocal.early = { code: state.code, round: s.round, b: b, n: n, g: g, sans: bd.sans.concat([info.san]),
+    last: { from: info.from, to: info.to, drop: info.drop, capture: info.capture, captureSq: info.captureSq, castle: info.castle, promo: info.promo, check: info.check, gives: info.gives, seat: seat, n: n } };
+  bhLocal.drop = '';
+  bhLocal.sel = '';
+  haptic('light');
+  bhRedraw();
+  const payload = mv.drop ? { drop: mv.drop, to: mv.to, move: bd.moves } : { from: mv.from, to: mv.to, promo: mv.promo || '', move: bd.moves };
+  Promise.resolve(Room.act(mv.drop ? 'drop' : 'move', payload)).catch(err => {
+    if (err && err.message) showToast(err.message, 'error');
+  }).then(() => {
+    const st = Room.state;
+    const e = bhLocal.early;
+    if (!e || e.n !== n || e.b !== b) return;
+    const sh = st && bhShared(st);
+    if (!sh || !sh.boards || sh.round !== e.round || sh.boards[b].moves < n) {
+      bhLocal.early = null;
+      bhRedraw(true);
+    }
+  });
+  return true;
+}
+
+function bhRedraw(still) {
+  const st = Room.state;
+  if (!st || st.game !== 'bughouse') return;
+  if (st.youAreScreen) { if (appState.currentView === 'room-tv') TV_GAMES.bughouse.after(st, false); return; }
+  if (appState.currentView !== 'room-bughouse') return;
+  bhRender(st, still);
+}
+
+/** A tap on a piece of your hand: picked up (the squares light), or put back. */
+function bhPickDrop(l) {
+  const st = Room.state;
+  if (!st) return;
+  bhLocal.drop = bhLocal.drop === l ? '' : l;
+  bhLocal.sel = '';
+  if (bhLocal.drop) chSound('pick');
+  bhRedraw();
+}
+
+/** Which board is big on this phone: your own (or board 1 for a watcher), or the other after a tap. */
+function bhBigBoard(state) {
+  const seat = bhSeat(state);
+  const mine = seat >= 0 ? seat >> 1 : 0;
+  return bhLocal.swap ? 1 - mine : mine;
+}
+
+/** Which colour sits at the bottom of board b on this screen: yours; your partner's on theirs; team A's on the TV. */
+function bhOrient(state, b) {
+  const seat = bhSeat(state);
+  if (seat < 0) return b === 1 ? 1 : 0;
+  return b === (seat >> 1) ? (seat & 1) : 1 - (seat & 1);
+}
+
+/** The model the big board draws (chView). */
+function bhModel(state, b, still) {
+  const s = bhShared(state);
+  const view = bhBoardView(state, b);
+  const seat = bhSeat(state);
+  const mine = seat >= 0 && (seat >> 1) === b && s.phase === 'play' && view.g.turn === (seat & 1) && !bhLocal.early;
+  const selKey = [roomDealKey(state), s.round, b, view.n].join('|');
+  if (bhLocal.selKey !== selKey) { bhLocal.selKey = selKey; bhLocal.sel = ''; bhLocal.drop = ''; }
+  if (!mine) { bhLocal.sel = ''; bhLocal.drop = ''; }
+  const ctx = {
+    g: view.g, side: seat & 1, sel: bhLocal.sel,
+    setSel: (sq) => { bhLocal.sel = sq; bhLocal.drop = ''; bhRedraw(); },
+    play: (from, to, promo) => bhPlay({ from: from, to: to, promo: promo }),
+    redraw: () => bhRedraw()
+  };
+  const over = s.phase === 'over' && s.result;
+  const last = view.last;
+  const hands = view.g.hand || {};
+  return {
+    key: ['bh', roomDealKey(state), s.round, b].join('|'),
+    board: view.g.board, orient: bhOrient(state, b), tv: false,
+    loud: true,
+    last: last ? { from: last.from || last.to, to: last.to } : null,
+    anim: last ? Object.assign({ key: [roomDealKey(state), s.round, b, last.n].join('|'), still: !!still }, last) : null,
+    check: chessCheckSq(view.g),
+    mate: over && s.result.reason === 'mate' && s.result.board === b ? chMateKing(view.g) : '',
+    sel: mine ? bhLocal.sel : '',
+    targets: mine ? (bhLocal.drop ? bhDropTargets(view.g, bhLocal.drop) : chTargets(view.g, bhLocal.sel)) : [],
+    marks: [], arrows: [],
+    lost: [bhHandLetters(hands.w), bhHandLetters(hands.b)],
+    input: mine ? {
+      canMove: true, side: seat & 1,
+      onPick: (sq, fromDrag) => {
+        if (bhLocal.drop && !fromDrag) {
+          const l = bhLocal.drop;
+          if (bhDropTargets(view.g, l).some(x => x.to === sq)) { bhFlyDrop(l, seat & 1, sq); bhPlay({ drop: l, to: sq }); return true; }
+          bhLocal.drop = '';
+          const code = view.g.board[chSqIndex(sq)];
+          if (!(code && (code >> 3) === (seat & 1))) { chSound('refuse'); bhRedraw(); return false; }
+        }
+        return chTapLogic(ctx, sq, fromDrag);
+      },
+      onDrop: (from, to) => chDropLogic(ctx, from, to)
+    } : null
+  };
+}
+
+/* --- carrying a piece from your hand onto the board ------------------------------------------ */
+
+/** A drag from the hand row: a ghost follows the finger, and letting go over a square drops it there. */
+function bhWireHand(root) {
+  if (root._bhWired) return;
+  root._bhWired = true;
+  let press = null;
+  root.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('[data-bh-drop]');
+    if (!btn || e.button > 0) return;
+    press = { id: e.pointerId, x: e.clientX, y: e.clientY, l: btn.dataset.bhDrop, btn: btn, ghost: null };
+    try { btn.setPointerCapture(e.pointerId); } catch (x) {}
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (!press || press.id !== e.pointerId) return;
+    if (!press.ghost && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) {
+      // Picked up: its squares light, and the piece follows the finger.
+      if (bhLocal.drop !== press.l) { bhLocal.drop = press.l; bhLocal.sel = ''; bhRedraw(); }
+      const svg = press.btn.querySelector('svg');
+      const r = press.btn.getBoundingClientRect();
+      const g = document.createElement('div');
+      g.className = 'bh-ghost';
+      g.innerHTML = svg ? svg.outerHTML : '';
+      const size = Math.max(r.width, 40) * 1.25;
+      g.style.width = size + 'px';
+      g.style.height = size + 'px';
+      document.body.appendChild(g);
+      press.ghost = g;
+      press.size = size;
+    }
+    if (press.ghost) {
+      e.preventDefault();
+      press.ghost.style.transform = `translate(${e.clientX - press.size / 2}px, ${e.clientY - press.size * 0.8}px)`;
+    }
+  });
+  const end = (e, cancel) => {
+    if (!press || press.id !== e.pointerId) return;
+    const pr = press;
+    press = null;
+    if (!pr.ghost) { if (!cancel) bhPickDrop(pr.l); return; }
+    const sq = !cancel && chView.r && chView.r.pick ? chView.r.pick(e.clientX, e.clientY - pr.size * 0.3) || chView.r.pick(e.clientX, e.clientY) : '';
+    const st = Room.state;
+    const seat = st ? bhSeat(st) : -1;
+    const ok = sq && st && seat >= 0 && bhDropTargets(bhBoardView(st, seat >> 1).g, pr.l).some(x => x.to === sq);
+    if (ok) {
+      pr.ghost.remove();
+      bhPlay({ drop: pr.l, to: sq });
+      return;
+    }
+    // Not a square it can go to: it flies back to the hand.
+    const r = pr.btn.getBoundingClientRect();
+    if (pr.ghost.animate && !motionOff()) {
+      const a = pr.ghost.animate([{ transform: pr.ghost.style.transform }, { transform: `translate(${r.left + r.width / 2 - pr.size / 2}px, ${r.top + r.height / 2 - pr.size / 2}px) scale(0.8)`, opacity: 0.4 }], { duration: 220, easing: 'ease-in' });
+      a.onfinish = a.oncancel = () => pr.ghost.remove();
+    } else pr.ghost.remove();
+    if (sq) chSound('refuse');
+  };
+  root.addEventListener('pointerup', (e) => end(e, false));
+  root.addEventListener('pointercancel', (e) => end(e, true));
+}
+
+/* --- motion: a captured piece flies to the partner's hand, a dropped one from the hand to its square --- */
+
+/** A piece drawn at fromRect flies onto `target` (a hand's row, a square) and pops there. */
+function bhFly(code, fromRect, target, opts) {
+  const o = opts || {};
+  if (!fromRect || !target || motionOff() || !document.body.animate) return;
+  const to = target.getBoundingClientRect ? target.getBoundingClientRect() : target;
+  if (!to.width) return;
+  const size = Math.max(28, Math.min(64, o.size || fromRect.width || 40));
+  const g = document.createElement('div');
+  g.className = 'bh-ghost bh-ghost--fly';
+  g.innerHTML = chPieceSvg(code);
+  g.style.width = size + 'px';
+  g.style.height = size + 'px';
+  document.body.appendChild(g);
+  const x0 = fromRect.left + fromRect.width / 2 - size / 2, y0 = fromRect.top + fromRect.height / 2 - size / 2;
+  const x1 = to.left + to.width / 2 - size / 2, y1 = to.top + to.height / 2 - size / 2;
+  const lift = Math.min(90, Math.hypot(x1 - x0, y1 - y0) * 0.3);
+  const a = g.animate([
+    { transform: `translate(${x0}px, ${y0}px) scale(1)`, opacity: 1 },
+    { transform: `translate(${(x0 + x1) / 2}px, ${(y0 + y1) / 2 - lift}px) scale(1.15)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(${x1}px, ${y1}px) scale(${o.endScale || 0.8})`, opacity: 0.9 }
+  ], { duration: o.duration || 620, delay: o.delay || 0, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'both' });
+  const done = () => {
+    g.remove();
+    if (target.classList) {
+      target.classList.remove('bh-landed');
+      void target.offsetWidth;
+      target.classList.add('bh-landed');
+      setTimeout(() => target.classList && target.classList.remove('bh-landed'), 500);
+    }
+  };
+  a.onfinish = a.oncancel = done;
+  setTimeout(done, (o.duration || 620) + (o.delay || 0) + 900);
+}
+
+/** Your own drop by tap: the piece flies from your hand to the square as it is played. */
+function bhFlyDrop(l, side, sq) {
+  const src = document.querySelector(`#view-room-bughouse [data-bh-drop="${l}"]`);
+  if (!src || !chView.r || !chView.r.screenOf) return;
+  const at = chView.r.screenOf(sq);
+  if (!at) return;
+  const r = src.getBoundingClientRect();
+  bhFly(CH_LETTER_KIND[l] | (side ? 8 : 0), r, { left: at.x - 18, top: at.y - 18, width: 36, height: 36 }, { duration: 320, endScale: 1 });
+}
+
+/** Where square sq of board b is on this screen: the big board, or a small one's square. */
+function bhSquareRect(root, b, sq, bigB) {
+  if (b === bigB && chView.r && chView.r.screenOf && chView.root && root.contains(chView.root)) {
+    const at = chView.r.screenOf(sq);
+    return at ? { left: at.x - 20, top: at.y - 20, width: 40, height: 40 } : null;
+  }
+  const el = root.querySelector(`[data-bh-mini="${b}"] [data-sq="${sq}"]`);
+  return el ? el.getBoundingClientRect() : null;
+}
+
+/**
+ * The moves this screen hasn't shown yet: a capture's piece flies from its square to the partner's
+ * hand on the other board (once per capture, per phone); another player's drop flies from their hand.
+ */
+function bhPlayMotion(root, state, bigB) {
+  const s = bhShared(state);
+  if (!s.boards) return;
+  const deal = roomDealKey(state) + '|' + s.round;
+  s.boards.forEach((bd, b) => {
+    const last = bd.last;
+    if (!last) return;
+    const key = deal + '|' + b + '|' + last.n;
+    if (last.gives && !bhLocal.seenGive[key]) {
+      bhLocal.seenGive[key] = true;
+      const color = last.seat & 1;
+      const toSide = 1 - color;
+      const target = root.querySelector(`[data-bh-hand="${1 - b}:${toSide}"]`);
+      const from = bhSquareRect(root, b, last.captureSq || last.to, bigB);
+      const code = CH_LETTER_KIND[last.gives] | (toSide ? 8 : 0);
+      if (target && from && motionFirst('bhgive|' + key)) bhFly(code, from, target, { delay: 160 });
+      // A piece arriving in your own hand: a tick and a buzz.
+      const seat = bhSeat(state);
+      if (seat >= 0 && (seat >> 1) === 1 - b && (seat & 1) === toSide) { setTimeout(() => chSound('pick'), 700); haptic('light'); }
+    }
+    if (last.drop && !bhLocal.seenDrop[key]) {
+      bhLocal.seenDrop[key] = true;
+      if (last.seat === bhSeat(state)) return;      // your own: flown from your hand as you played it
+      const src = root.querySelector(`[data-bh-hand="${b}:${last.seat & 1}"]`);
+      const to = bhSquareRect(root, b, last.to, bigB);
+      if (src && to && motionFirst('bhdrop|' + key)) bhFly(CH_LETTER_KIND[last.drop] | ((last.seat & 1) ? 8 : 0), src.getBoundingClientRect(), to, { duration: 360, endScale: 1, size: to.width });
+    }
+  });
+  // Keep the memory small: this deal only.
+  Object.keys(bhLocal.seenGive).forEach(k => { if (k.indexOf(deal + '|') !== 0) delete bhLocal.seenGive[k]; });
+  Object.keys(bhLocal.seenDrop).forEach(k => { if (k.indexOf(deal + '|') !== 0) delete bhLocal.seenDrop[k]; });
+}
+
+/* --- the screen -------------------------------------------------------------------------- */
+
+function bhSetHtml(root, sel, html) {
+  const el = root && root.querySelector(sel);
+  if (!el || el._bhHtml === html) return false;
+  el.innerHTML = html;
+  el._bhHtml = html;
+  return true;
+}
+
+/** Board n as people say it (1 and 2), in the page's digits. */
+const bhBoardName = (b) => chT('bh_board', { n: String(b + 1) });
+
+/** The line under the heads: whose move, your move, waiting for a piece, the result. */
+function bhStatus(state, forTv) {
+  const s = bhShared(state);
+  if (s.phase === 'over' && s.result) return bhResultLine(state);
+  const seat = forTv ? -1 : bhSeat(state);
+  if (seat < 0) return chT('bh_watch_status');
+  const b = seat >> 1;
+  const view = bhBoardView(state, b);
+  if (bhLocal.early) return chT('ch_sent');
+  if (view.g.turn !== (seat & 1)) return chT('bh_turn_of', { name: duelIso(s.names[bhSeatAt(b, view.g.turn)] || '') });
+  const st = chessBugStatus(view.g);
+  if (st.stuck) return chT('bh_stuck');
+  if (bhLocal.drop) return chT('bh_drop_pick', { piece: chPieceName(bhLocal.drop) });
+  return chT('bh_your_move') + (st.check ? ' · ' + chT('ch_check') : '');
+}
+
+function bhResultLine(state) {
+  const s = bhShared(state);
+  const r = s.result;
+  if (!r) return '';
+  const names = s.seats.map((id, k) => (bhTeamOf(k) === r.team ? s.names[k] : null)).filter(Boolean).map(duelIso).join(' + ');
+  const loser = duelIso(s.names[r.seat] || '');
+  const why = r.reason === 'mate' ? chT('bh_end_mate', { n: String(r.board + 1) })
+    : r.reason === 'time' ? chT('bh_end_time', { name: loser, n: String(r.board + 1) })
+      : chT('bh_end_resign', { name: loser });
+  return '🏆 ' + chT('bh_won', { names: names }) + ' · ' + why;
+}
+
+/** The note about a computer player playing for someone who left, said on screen. */
+function bhSubsHtml(state) {
+  const s = bhShared(state);
+  const list = Object.keys(s.subs || {});
+  if (!list.length || s.phase !== 'play') return '';
+  return list.map(k => `<p class="bh-note">${escapeHTML(chT('bh_sub', { name: s.subs[k] }))}</p>`).join('');
+}
+
+/** The host's way on for a quiet phone on either board: the easy computer plays one move for it. */
+function bhHostRow(state, tv) {
+  const s = bhShared(state);
+  if (!state.youAreHost || s.phase !== 'play' || !s.boards) return '';
+  const btns = [];
+  s.boards.forEach((bd, b) => {
+    const k = bhSeatAt(b, bd.g.turn);
+    const id = s.seats[k];
+    const p = (state.players || []).find(x => x.id === id);
+    if (!p || p.bot || id === Room.me) return;
+    const key = [roomDealKey(state), s.round, b, bd.moves].join('|');
+    if (bhLocal.turnSince[b] === undefined || bhLocal.turnSince[b].key !== key) bhLocal.turnSince[b] = { key: key, at: Date.now() };
+    const wait = 40000 - (Date.now() - bhLocal.turnSince[b].at);
+    if (p.online && wait > 0) {
+      clearTimeout(bhLocal.hostTimer);
+      bhLocal.hostTimer = setTimeout(() => bhRedraw(true), wait + 300);
+      return;
+    }
+    btns.push(['⏭️ ' + chT('ch_play_for', { name: duelIso(s.names[k] || '') }), `roomAct('skipTurn', { board: ${b}, move: ${Number(bd.moves) || 0} })`]);
+  });
+  if (!btns.length) return '';
+  return tv ? `<div class="tv-actions">${btns.map(x => tvBtn(x[0], x[1], 'ghost')).join('')}</div>` : roomHostRow(btns);
+}
+
+function bhResign() {
+  const st = Room.state;
+  if (!st) return;
+  const round = bhShared(st).round;
+  showConfirmModal(chT('bh_resign_confirm'), () => roomAct('resign', { round: round }));
+}
+
+function bhPlayAgain() {
+  const st = Room.state;
+  if (!st) return;
+  roomAct('playAgain', { round: bhShared(st).round, botNames: bhBotNames() });
+}
+
+const bhBotNames = () => (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).slice().sort(() => Math.random() - 0.5);
+
+/** The small board: the other one, with both players and their hands; a tap makes it big. */
+function bhMiniHtml(state, b, tv) {
+  const s = bhShared(state);
+  const view = bhBoardView(state, b);
+  const o = bhOrient(state, b);
+  const top = 1 - o, bottom = o;
+  const last = view.last;
+  const m = { board: view.g.board, orient: o, mini: !tv, last: last ? { from: last.from || last.to, to: last.to } : null, check: chessCheckSq(view.g), sel: '', targets: [], marks: [], arrows: [] };
+  const seat = bhSeat(state);
+  const tag = tv ? '' : `<span class="bh-mini__tag">${escapeHTML(bhBoardName(b))}${seat >= 0 && (seat >> 1) === b ? ' · ' + escapeHTML(chT('bh_mine_board')) : seat >= 0 ? ' · ' + escapeHTML(chT('bh_partner_board')) : ''}</span>`;
+  return `${tag}${bhPlayerHtml(state, b, top)}<div class="bh-mini__board" data-bh-mini="${b}">${chFlatBoardHtml(m)}</div>${bhPlayerHtml(state, b, bottom)}`;
+}
+
+function bhLayoutHtml() {
+  return `<div class="bh-game">
+      <div class="bh-head" data-bh-head></div>
+      <div class="bh-layout">
+        <div class="bh-big">
+          <div data-bh-top></div>
+          <div class="ch-stage bh-stage" data-ch-host></div>
+          <div data-bh-bottom></div>
+        </div>
+        <div class="bh-side">
+          <button type="button" class="bh-mini" data-bh-swap onclick="bhSwap()" aria-label="${escapeHTML(chT('bh_swap'))}"></button>
+          <div class="bh-bar" data-bh-bar></div>
+          <div class="bh-extra" data-bh-extra></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/** A tap on the small board: the two boards change places. */
+function bhSwap() {
+  bhLocal.swap = !bhLocal.swap;
+  bhLocal.drop = '';
+  bhLocal.sel = '';
+  haptic('light');
+  bhRedraw(true);
+}
+
+function bhRender(state, still) {
+  const el = document.getElementById('view-room-bughouse');
+  const s = bhShared(state);
+  if (!el || !s.boards) return;
+  bhNoteClock(state);
+  const big = bhBigBoard(state);
+  const small = 1 - big;
+  renderRoomFrame(el, ['bh', state.code, appState.lang].join('|'), () => bhLayoutHtml());
+  bhWireHand(el);
+  const seat = bhSeat(state);
+  const o = bhOrient(state, big);
+  const liveMe = seat >= 0 && (seat >> 1) === big && s.phase === 'play' && bhBoardView(state, big).g.turn === (seat & 1) && !bhLocal.early;
+  chViewShow(el.querySelector('[data-ch-host]'), bhModel(state, big, still));
+  const myTurn = liveMe;
+  bhSetHtml(el, '[data-bh-head]', `<p class="duel-status bh-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(bhStatus(state))}</p>${bhSubsHtml(state)}`);
+  const bigTag = seat >= 0 ? ' · ' + ((seat >> 1) === big ? chT('bh_mine_board') : chT('bh_partner_board')) : '';
+  bhSetHtml(el, '[data-bh-top]', `<p class="bh-mini__tag">${escapeHTML(bhBoardName(big) + bigTag)}</p>` + bhPlayerHtml(state, big, 1 - o));
+  bhSetHtml(el, '[data-bh-bottom]', bhPlayerHtml(state, big, o, { live: liveMe }));
+  const mini = el.querySelector('[data-bh-swap]');
+  if (mini) {
+    const html = bhMiniHtml(state, small, false) + `<span class="bh-mini__hint">${escapeHTML(chT('bh_swap'))}</span>`;
+    if (mini._bhHtml !== html) { mini.innerHTML = html; mini._bhHtml = html; }
+    // Swapped while it is your move: your own board (small now) says so.
+    mini.classList.toggle('is-mine', seat >= 0 && (seat >> 1) === small && s.phase === 'play' && bhBoardView(state, small).g.turn === (seat & 1));
+  }
+  const bar = [];
+  if (s.phase === 'play') {
+    if (seat >= 0) bar.push(`<div class="ch-bar__row"><button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="bhResign()">🏳️ ${escapeHTML(chT('ch_resign'))}</button></div>`);
+    else bar.push(`<p class="field__hint" style="text-align:center">${escapeHTML(chT('bh_watch'))}</p>`);
+    bar.push(bhHostRow(state));
+  }
+  bhSetHtml(el, '[data-bh-bar]', bar.join(''));
+  const extra = [];
+  if (s.phase === 'over' && s.result) {
+    const inRoom = (state.players || []).some(p => p.id === Room.me);
+    extra.push(`<div class="card card--tight bh-over"><p class="bh-over__line">${escapeHTML(bhResultLine(state))}</p>
+      ${inRoom ? `<button type="button" class="btn btn--primary" onclick="bhPlayAgain()">🔁 ${escapeHTML(chT('bh_again'))}</button>` : ''}</div>`);
+    extra.push(renderScoreboard(s.board));
+    extra.push(roomShareBtnHtml(state, s.board));
+  }
+  const bigView = bhBoardView(state, big), smallView = bhBoardView(state, small);
+  extra.push(`<div class="bh-moves"><p class="bh-moves__title">${escapeHTML(bhBoardName(big))}</p>${chMovesHtml(bigView.sans, { current: bigView.sans.length - 1, opening: false })}</div>`);
+  extra.push(`<div class="bh-moves"><p class="bh-moves__title">${escapeHTML(bhBoardName(small))}</p>${chMovesHtml(smallView.sans, { current: smallView.sans.length - 1, opening: false })}</div>`);
+  if (s.phase !== 'over' && (s.board || []).some(x => x.score > 0)) extra.push(renderScoreboard(s.board));
+  extra.push(renderRoomPlayerStrip(state));
+  bhSetHtml(el, '[data-bh-extra]', extra.join(''));
+  el.querySelectorAll('.ch-moves').forEach(mv => { mv.scrollTop = mv.scrollHeight; });
+  bhPaintClocks(state);
+  if (s.phase === 'play') bhTickStart(); else bhTickStop();
+  bhPlayMotion(el, state, big);
+  if (myTurn && duelOnce(['bhturn', roomDealKey(state), s.round, bhBoardView(state, big).n].join('|'))) haptic('medium');
+  if (s.phase === 'over' && s.result && motionFirst('bhover|' + roomDealKey(state) + '|' + s.round)) {
+    const won = seat >= 0 && bhTeamOf(seat) === s.result.team;
+    if (won && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } }));
+    else if (seat >= 0) chSound('end');
+  }
+}
+
+/* --- the lobby: the clock, the host's choice, remembered on their phone ---------- */
+
+const BH_CLOCK_CHOICES = ['2+0', '3+0', '5+0'];
+const bhOpts = () => {
+  const o = recallOptions('bughouse', { clock: '3+0' });
+  return { clock: BH_CLOCK_CHOICES.indexOf(o.clock) === -1 ? '3+0' : o.clock };
+};
+
+function setBhClock(v) {
+  rememberOptions('bughouse', { clock: BH_CLOCK_CHOICES.indexOf(v) === -1 ? '3+0' : v });
+  duelLobbyRedraw();
+}
+
+/** Who sits where: two small boards and the four seats, partners in one colour. */
+function bhLobbyPictureHtml() {
+  return `<div class="bh-lobby__pic" aria-hidden="true" dir="ltr">
+      <span class="bh-lobby__board"><i class="bh-team--A">♔</i><i class="bh-team--B">♚</i></span>
+      <span class="bh-lobby__arrow">⇄</span>
+      <span class="bh-lobby__board"><i class="bh-team--B">♔</i><i class="bh-team--A">♚</i></span>
+    </div>`;
+}
+
+ROOM_GAMES.bughouse = {
+  bots: { max: 4 },
+  // Someone who joins mid-game watches both boards, and plays the next game.
+  lateJoin: true,
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    const people = (state.players || []).filter(p => !p.bot).length;
+    const bots = (state.players || []).filter(p => p.bot).length;
+    const fill = Math.max(0, 4 - people - bots);
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(chT('bh_lobby_hint'))}</p>`;
+    const seats = people >= 4
+      ? (people > 4 ? `<p class="field__hint" style="text-align:center">👀 ${escapeHTML(chT('bh_lobby_watch', { n: String(people - 4) }))}</p>` : '')
+      : `<p class="field__hint" style="text-align:center">🤖 ${escapeHTML(fill ? chT('bh_lobby_fill', { n: String(fill) }) : chT('bh_lobby_full'))}</p>`;
+    if (!state.youAreHost) return `<div class="card card--tight bh-lobby">${bhLobbyPictureHtml()}${hint}${seats}<p class="field__hint" style="text-align:center">${escapeHTML(t.room_wait_host || '')}</p></div>`;
+    const o = bhOpts();
+    return `<div class="card card--tight bh-lobby">
+        ${bhLobbyPictureHtml()}
+        ${hint}
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(chT('bh_clock'))}</label>
+          <div class="segmented" role="group">
+            ${BH_CLOCK_CHOICES.map(v => `<button type="button" class="segmented__item ${v === o.clock ? 'is-active' : ''}" onclick="setBhClock('${v}')">${escapeHTML(v)}</button>`).join('')}
+          </div>
+          <p class="field__hint">${escapeHTML(chT('bh_clock_hint'))}</p>
+        </div>
+        ${seats}
+      </div>`;
+  },
+  startPayload() {
+    return { clock: bhOpts().clock, botNames: bhBotNames() };
+  },
+  render(state) {
+    if (appState.currentView !== 'room-bughouse') setView('room-bughouse');
+    bhRender(state);
+  },
+  // A move is not a new step to scroll to: the boards are what everyone is watching.
+  actionKey: (state) => [state.code, bhShared(state).round, bhShared(state).phase].join('|')
+};
+
+onRoomClocksReset(() => {
+  bhTickStop();
+  bhLocal.sel = '';
+  bhLocal.drop = '';
+  bhLocal.early = null;
+  bhLocal.swap = false;
+  const st = Room.state;
+  if (!st || st.game !== 'bughouse' || st.phase === 'lobby') {
+    if (appState.currentView === 'room-bughouse' || appState.currentView === 'room-tv' || appState.currentView === 'room-lobby') chViewDrop();
+  }
+});
+
+/* --- the TV: both boards side by side, four names, four clocks, the hands --- */
+
+TV_GAMES.bughouse = {
+  sig: (state) => ['bh', state.code].join('|'),
+  frame(state, t) {
+    const s = bhShared(state);
+    if (!s.boards) return tvLookAtPhones(t);
+    return `<div class="bh-tv">
+        <div class="bh-tv__head" data-bh-tvhead></div>
+        <div class="bh-tv__boards">
+          <div class="bh-tv__board" data-bh-tvboard="0"></div>
+          <div class="bh-tv__board" data-bh-tvboard="1"></div>
+        </div>
+        <div class="bh-tv__foot" data-bh-tvfoot></div>
+      </div>`;
+  },
+  after(state) {
+    const view = document.getElementById('view-room-tv');
+    const s = bhShared(state);
+    if (!view || !s.boards) return;
+    bhNoteClock(state);
+    [0, 1].forEach(b => {
+      const box = view.querySelector(`[data-bh-tvboard="${b}"]`);
+      if (!box) return;
+      const title = `<p class="bh-tv__title">${escapeHTML(bhBoardName(b))}</p>`;
+      const html = title + bhMiniHtml(state, b, true);
+      if (box._bhHtml !== html) { box.innerHTML = html; box._bhHtml = html; }
+    });
+    const over = s.phase === 'over' && s.result;
+    bhSetHtml(view, '[data-bh-tvhead]', `<div class="tv-title tv-center-text bh-tv__status">${escapeHTML(over ? bhResultLine(state) : chT('bh_tv_status'))}</div>${bhSubsHtml(state)}`);
+    const foot = [];
+    foot.push(bhHostRow(state, true));
+    if (over && state.youAreHost) foot.push(`<div class="tv-actions">${tvBtn('🔁 ' + chT('bh_again'), 'bhPlayAgain()', 'primary')}</div>`);
+    bhSetHtml(view, '[data-bh-tvfoot]', foot.join(''));
+    bhPaintClocks(state);
+    if (s.phase === 'play') bhTickStart(); else bhTickStop();
+    bhPlayMotion(view, state, -1);
+    if (over && motionFirst('bhtvover|' + roomDealKey(state) + '|' + s.round)) {
+      if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 90, origin: { y: 0.55 } });
+    }
+  }
+};
+</script>

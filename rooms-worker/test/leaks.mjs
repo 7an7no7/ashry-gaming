@@ -538,7 +538,19 @@ const PROBES = {
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
   connect4: () => [], dots: () => [], xo: () => [], ludo: () => [], bowling: () => [],
   // شطرنج: the whole game is on the table.
-  chess: () => []
+  chess: () => [],
+  // باغ هاوس: nothing is hidden - the hands are on the table - but check anyway: no phone is sent
+  // a slice of its own, and every phone and the screen see both boards and all four hands.
+  bughouse(room) {
+    const s = room.shared || {};
+    return [
+      probe('bughouse: no phone is dealt anything in secret', true, (view) => (view.you ? 'you' : null)),
+      probe('bughouse: both boards and both hands of each on every phone', Array.isArray(s.boards), (view) => {
+        const b = (view.shared || {}).boards || [];
+        return b.length === 2 && b.every((x) => x.g && x.g.hand && x.g.hand.w && x.g.hand.b) ? null : 'shared.boards';
+      })
+    ];
+  }
 };
 
 /*
@@ -1215,6 +1227,30 @@ const DRIVERS = {
     must(T, s.seats[0], 'move', { from: first.from, to: first.to, promo: first.promo, move: 0 });
     runClock(T, (r) => r.shared.phase === 'over', 50);
     return S(T).phase === 'over';
+  },
+  bughouse() {
+    // Two people and two computer players: random moves and drops on both boards, the host playing for
+    // someone, the game to its end (a mate or a flag), and play again on a clock that runs out.
+    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
+    const T = table('bughouse', 2);
+    must(T, T.host, 'start', { clock: '2+0', botNames: ['زيزو', 'بندق'] });
+    const people = () => T.ids.filter((id) => S(T).seats.indexOf(id) !== -1);
+    for (let guard = 0; guard < 400 && S(T).phase === 'play'; guard++) {
+      const s = S(T);
+      if (guard === 40) { must(T, T.host, 'skipTurn', { board: 1, move: s.boards[1].moves }); continue; }
+      const mine = people().map((id) => ({ id, k: s.seats.indexOf(id) })).filter((x) => s.boards[x.k >> 1].g.turn === (x.k & 1));
+      if (!mine.length || guard % 4 === 3) { runClock(T, (r) => r.shared.phase !== 'play' || r.shared.boards.some((b, i) => b.moves !== s.boards[i].moves), 3); continue; }
+      const { id, k } = pick(mine);
+      const bd = s.boards[k >> 1];
+      const drops = CH.chessBugDrops(bd.g), moves = CH.chessLegalMoves(bd.g);
+      if (drops.length && (Math.random() < 0.5 || !moves.length)) { const d = pick(drops); act(T, id, 'drop', { drop: d.drop, to: d.to, move: bd.moves }); continue; }
+      if (moves.length) { const m = pick(moves); act(T, id, 'move', { from: m.from, to: m.to, promo: m.promo, move: bd.moves }); }
+    }
+    runClock(T, (r) => r.shared.phase === 'over');
+    if (S(T).phase !== 'over') return false;
+    must(T, T.host, 'playAgain', { round: S(T).round });
+    runClock(T, (r) => r.shared.phase === 'over');
+    return S(T).phase === 'over' && !!S(T).result;
   },
   xo() {
     const T = table('xo', 3);

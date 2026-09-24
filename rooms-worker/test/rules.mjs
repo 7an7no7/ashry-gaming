@@ -6257,6 +6257,143 @@ Date.now = duelTestClock;
     check(!illegal && plies > 300 && dropped > 10 && mates >= 3,
       `bughouse computer: six games of bots on two boards - every move and drop legal (${plies} plies, ${dropped} drops, ${mates} mates)`);
   }
+
+  /* The room (RoomBughouse.js): four seats, two boards, the clocks, the computer players, leaving. */
+  const bhRoom = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'bughouse' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({ botNames: ['Zizo', 'Bondo', 'Loza'] }, payload || {}));
+    return r;
+  };
+  const bhMove = (r, pid, m) => {
+    const k = r.shared.seats.indexOf(pid);
+    const bd = r.shared.boards[k >> 1];
+    const drop = /@/.test(m);
+    const payload = drop ? { drop: m[0].toLowerCase(), to: m.slice(2), move: bd.moves } : { from: m.slice(0, 2), to: m.slice(3, 5), promo: m.slice(6), move: bd.moves };
+    applyRoomAction(r, pid, drop ? 'drop' : 'move', payload);
+  };
+  const threwB = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  {
+    const r = bhRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    check(s.phase === 'play' && s.seats.length === 4 && new Set(s.seats).size === 4 && !r.players.some(p => p.bot) && s.settings.clock === '3+0' &&
+      s.boards.length === 2 && s.boards[0].clock.left[0] === 180000 && s.boards[1].clock.at === s.startAt,
+      'bughouse room: four people, four seats, two boards, the 3+0 clock by default, running from the start on both boards');
+    const [w1, b1, w2, b2] = s.seats;
+    check(roomDeadline(r) === s.startAt + 180000 + 601, 'bughouse room: the server watches both clocks (White\'s, on both boards)');
+    check(threwB(() => bhMove(r, b1, 'e7-e5')) && threwB(() => bhMove(r, w1, 'e2-e5')), 'bughouse room: Black can\'t move first, an illegal move is refused');
+    clock += 4000;
+    bhMove(r, w1, 'e2-e4');
+    bhMove(r, w2, 'd2-d4');
+    check(s.boards[0].moves === 1 && s.boards[1].moves === 1 && s.boards[0].g.turn === 1 && s.boards[1].g.turn === 1, 'bughouse room: the two boards move on their own');
+    applyRoomAction(r, w1, 'move', { from: 'd2', to: 'd4', move: 0 });
+    check(s.boards[0].moves === 1, 'bughouse room: a second tap drawn for the board before is dropped');
+    bhMove(r, b1, 'd7-d5');
+    bhMove(r, w1, 'e4-d5');
+    check(s.boards[0].last.gives === 'p' && s.boards[1].g.hand.b.p === 1 && s.boards[0].g.hand.w.p === 0,
+      'bughouse room: White takes on board 1, and the pawn goes to their partner, Black on board 2');
+    bhMove(r, b2, 'P@e3');
+    check(s.boards[1].g.board[20] === 9 && s.boards[1].g.hand.b.p === 0 && s.boards[1].sans[1] === 'P@e3', 'bughouse room: the partner drops it');
+    check(threwB(() => bhMove(r, b2, 'P@e6')), 'bughouse room: nothing more to drop');
+    check(threwB(() => bhMove(r, 'x', 'e2-e4')), 'bughouse room: someone not in the game can\'t move');
+    // The clock: Black on board 1 has been thinking since White's capture.
+    const due = roomDeadline(r);
+    check(due === Math.min(s.boards[0].clock.at + s.boards[0].clock.left[1], s.boards[1].clock.at + s.boards[1].clock.left[0]) + 601,
+      'bughouse room: the next flag is the sooner of the two boards');
+    clock = due;
+    roomTimeout(r, clock);
+    check(s.phase === 'over' && s.result.reason === 'time' && s.result.board === 1 && s.result.seat === 2 && s.result.team === 'A' &&
+      s.scores[w1] === 1 && s.scores[b2] === 1 && !s.scores[b1] && !s.scores[w2],
+      'bughouse room: White on board 2 (a second spent on the first move) runs out first - their team loses, the other two score');
+    check(s.boards.every(bd => bd.clock.at === null), 'bughouse room: the clocks stop when the game is over');
+    // Play again: the partners turn round.
+    const pairs = (x) => [[x.seats[0], x.seats[3]], [x.seats[1], x.seats[2]]].map(p => p.slice().sort().join('+')).sort().join(' / ');
+    const before = pairs(s);
+    applyRoomAction(r, 'a', 'playAgain', { round: 1 });
+    check(s.phase === 'play' && s.round === 2 && pairs(s) !== before && s.boards[0].moves === 0, 'bughouse room: play again - new partners, new boards');
+    applyRoomAction(r, 'a', 'playAgain', { round: 1 });
+    check(s.round === 2, 'bughouse room: a play again drawn for the game before is dropped');
+    const p2 = pairs(s);
+    s.phase = 'over'; r.phase = 'over';
+    applyRoomAction(r, 'a', 'playAgain', { round: 2 });
+    const p3 = pairs(s);
+    check(new Set([before, p2, p3]).size === 3, 'bughouse room: three games in a row, three different pairings');
+  }
+  {
+    // A mate on either board wins for the team that gave it.
+    const r = bhRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    const [w1, b1] = s.seats;
+    clock += 4000;
+    ['f2-f3', 'e7-e5', 'g2-g4'].forEach((m, i) => bhMove(r, i % 2 ? b1 : w1, m));
+    bhMove(r, b1, 'd8-h4');
+    check(s.phase === 'over' && s.result.reason === 'mate' && s.result.team === 'B' && s.result.board === 0 && s.boards[0].sans[3] === 'Qh4#' &&
+      s.scores[b1] === 1 && s.scores[s.seats[2]] === 1 && roomDeadline(r) === null, 'bughouse room: a mate on board 1 wins for Black\'s team, the clocks stop');
+    check(threwB(() => bhMove(r, s.seats[2], 'e2-e4')) || s.boards[1].moves === 0, 'bughouse room: nothing moves once it is over');
+  }
+  {
+    // One person: three computer players fill the seats and play; the host resigns in the end.
+    const r = bhRoom(['a']);
+    let s = r.shared;
+    check(r.players.filter(p => p.bot).length === 3 && s.seats.indexOf('a') !== -1 && s.names.every(Boolean), 'bughouse room: one person - three computer players take the other seats');
+    let steps = 0, aMoves = 0;
+    // A computer player's move replaces room.shared (it is played on a copy): read it afresh each time.
+    while ((s = r.shared).phase === 'play' && steps < 3000) {
+      steps++;
+      const k = s.seats.indexOf('a');
+      const bd = s.boards[k >> 1];
+      if (bd.g.turn === (k & 1) && steps % 3 === 0) {
+        const mv = BG.chessBugBotMove(bd.g, { level: 'easy' });
+        if (mv) { clock += 200; applyRoomAction(r, 'a', mv.drop ? 'drop' : 'move', Object.assign({ move: bd.moves }, mv)); aMoves++; continue; }
+      }
+      if (typeof r._botAt === 'number') { clock = Math.max(clock, r._botAt); roomTimeout(r, clock); continue; }
+      const due = roomDeadline(r);
+      if (due) { clock = Math.max(clock + 50, Math.min(due, clock + 800)); roomTimeout(r, clock); } else break;
+    }
+    const total = s.boards[0].moves + s.boards[1].moves;
+    check(s.phase === 'over' && total >= 4 && aMoves >= 1 && !r._botFails,
+      `bughouse room: a person and three computer players play a whole game (${total} moves, ended by ${s.result && s.result.reason})`);
+  }
+  {
+    // Someone leaves mid-game: a computer player takes their board and the others finish.
+    const r = bhRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    const who = s.seats[1];
+    r.players = r.players.filter(p => p.id !== who);
+    roomPlayerLeft(r, who, who.toUpperCase());
+    const sub = s.seats[1];
+    check(s.phase === 'play' && sub !== who && r.players.some(p => p.id === sub && p.bot === 'hard') && s.subs[1] === who.toUpperCase() && s.names[1].indexOf(who.toUpperCase()) === 0,
+      'bughouse room: a player who leaves is replaced on their board by a computer player, and the table is told whose board it is');
+    clock += 4000;
+    bhMove(r, s.seats[0], 'e2-e4');
+    check(r._botPid === sub && typeof r._botAt === 'number', 'bughouse room: and the computer player takes its turn');
+    clock = r._botAt; roomTimeout(r, clock);
+    check(r.shared.boards[0].moves === 2, 'bughouse room: it moves for them');
+  }
+  {
+    // Five people: four play and one watches; play again brings the watcher in.
+    const r = bhRoom(['a', 'b', 'c', 'd', 'e']);
+    const s = r.shared;
+    const out = ['a', 'b', 'c', 'd', 'e'].find(id => s.seats.indexOf(id) === -1);
+    check(!!out && !r.players.some(p => p.bot), 'bughouse room: five people - four play, one watches, no computer players');
+    applyRoomAction(r, s.seats[0], 'resign', { round: 1 });
+    check(s.phase === 'over' && s.result.reason === 'resign' && s.result.team === 'B', 'bughouse room: resigning loses for your team');
+    applyRoomAction(r, 'a', 'playAgain', { round: 1 });
+    check(s.seats.indexOf(out) !== -1, 'bughouse room: play again - whoever watched plays');
+  }
+  {
+    // The host's "play for", and the clock options.
+    const r = bhRoom(['a', 'b', 'c', 'd'], { clock: '5+0' });
+    const s = r.shared;
+    check(s.settings.clock === '5+0' && s.boards[0].clock.left[1] === 300000, 'bughouse room: the host\'s clock (5+0)');
+    clock += 4000;
+    applyRoomAction(r, 'a', 'skipTurn', { board: 1, move: 0 });
+    check(s.boards[1].moves === 1 && s.boards[1].last.auto === 'host', 'bughouse room: the host plays one move for a quiet board');
+    applyRoomAction(r, 'a', 'skipTurn', { board: 1, move: 0 });
+    check(s.boards[1].moves === 1, 'bughouse room: a second tap for the same move is dropped');
+    const notHost = s.seats.find(id => id !== 'a');
+    check(threwB(() => applyRoomAction(r, notHost, 'skipTurn', { board: 0, move: 0 })), 'bughouse room: only the host plays for someone');
+  }
 }
 
 

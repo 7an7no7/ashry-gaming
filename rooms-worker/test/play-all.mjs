@@ -34,8 +34,8 @@ const BANK = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta
 const GW = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') +
   ';return { gwBotQuestion, gwAnswer, gwUp, gwRuledOut };')();
 
-// شطرنج's legal moves, for the robots of a chess tournament.
-const CHM = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+// شطرنج's legal moves (and باغ هاوس's drops), for the robots of a chess tournament and of bughouse.
+const CHM = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
 
 const ARGS = process.argv.slice(2);
 const BASE = (ARGS.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8787').replace(/\/$/, '');
@@ -3806,6 +3806,69 @@ async function main() {
                          'chess: a seated player who leaves loses by forfeit');
     await H.must('backToHub');
     chBots.concat([S]).forEach((b) => b.close());
+  }
+
+  /* --- باغ هاوس: four on two boards, the hands, drops, computer players --------------- */
+  console.log('• bughouse (two people and two computer players, two boards, a capture sent to the partner and dropped, the bots on their own, a leaver taken over, resigning, play again)');
+  {
+    const H = await Bot.host('منى', null);
+    const J = await Bot.join(H.code, 'Joe');
+    const S = await Bot.join(H.code, '', true);
+    const people = [H, J];
+    await H.must('chooseGame', { game: 'bughouse' });
+    check((await J.act('start', {})).ok === false, 'bughouse: only the host starts');
+    await H.must('start', { clock: '5+0', botNames: ['زيزو', 'بندق'] });
+    await all(people.concat([S]), (s) => s.game === 'bughouse' && s.shared.phase === 'play' && s.shared.seats.length === 4 && s.shared.boards.length === 2 &&
+                                        s.players.filter((p) => p.bot).length === 2 && s.shared.boards[0].clock.left[0] === 300000,
+              'bughouse: two people and two computer players take the four seats, two boards, the host\'s 5+0 on both');
+    const seatOf = (b) => H.state.shared.seats.indexOf(b.pid);
+    const bs = () => H.state.shared;
+    check((await S.act('move', { from: 'e2', to: 'e4', move: 0 })).ok === false, 'bughouse: the TV can\'t move');
+    // Each person moves on their own board whenever it is their turn; the bots answer on the server's clock.
+    const played = { moves: 0, drops: 0, captures: 0 };
+    let refused = 0;
+    const deadline = Date.now() + 45000;
+    while (Date.now() < deadline && bs().phase === 'play' && (played.moves < 12 || !played.drops)) {
+      let moved = false;
+      for (const b of people) {
+        const s = b.state.shared;
+        const k = s.seats.indexOf(b.pid);
+        const bd = s.boards[k >> 1];
+        if (s.phase !== 'play' || bd.g.turn !== (k & 1)) continue;
+        const drops = CHM.chessBugDrops(bd.g), moves = CHM.chessLegalMoves(bd.g);
+        const caps = moves.filter((m) => m.capture);
+        let r;
+        if (drops.length) { const d = drops[Math.floor(Math.random() * drops.length)]; r = await b.act('drop', { drop: d.drop, to: d.to, move: bd.moves }); if (r.ok) played.drops++; }
+        else if (moves.length) { const m = (caps.length ? caps : moves)[Math.floor(Math.random() * (caps.length || moves.length))]; r = await b.act('move', { from: m.from, to: m.to, promo: m.promo, move: bd.moves }); if (r.ok && m.capture) played.captures++; }
+        if (r && r.ok) { played.moves++; moved = true; } else if (r) refused++;
+      }
+      if (!moved) await new Promise((res) => setTimeout(res, 250));
+    }
+    check(!refused && played.moves >= 6, `bughouse: every move and drop the phones made by the rules was taken (${played.moves} moves, ${played.drops} drops, ${played.captures} captures)`);
+    const s1 = bs();
+    const botSeats = s1.seats.map((id, k) => (H.state.players.some((p) => p.id === id && p.bot) ? k : -1)).filter((k) => k >= 0);
+    check(botSeats.some((k) => s1.boards[k >> 1].sans.length > (k & 1)), 'bughouse: the computer players move on their own, on the server');
+    check(!played.drops || s1.boards.some((bd) => bd.sans.some((x) => x.indexOf('@') !== -1)), 'bughouse: a drop is written with @ (N@f3)');
+    await all(people.concat([S]), (s) => JSON.stringify(s.shared.boards.map((bd) => bd.g.hand)) === JSON.stringify(bs().boards.map((bd) => bd.g.hand)) || s.shared.phase === 'over',
+              'bughouse: every phone and the TV see the same hands');
+    if (bs().phase === 'play') {
+      // Joe leaves: a computer player takes his board, and the game goes on.
+      const k = seatOf(J);
+      await api('/leave', { code: H.code, pid: J.pid, key: J.key });
+      J.close();
+      await H.waitFor((s) => s.shared.phase !== 'play' || (s.shared.seats[k] !== J.pid && s.shared.subs && s.shared.subs[k] === 'Joe' &&
+                             s.players.some((p) => p.id === s.shared.seats[k] && p.bot === 'hard')),
+                      'bughouse: a player who leaves is replaced on their board by a computer player');
+    }
+    if (bs().phase === 'play') await H.must('resign', { round: bs().round });
+    await all([H, S], (s) => s.shared.phase === 'over' && !!s.shared.result && s.shared.board.length >= 1, 'bughouse: the game ends (a mate, a flag or a resignation) on every screen, with the scores');
+    const pairs = (s) => [[s.seats[0], s.seats[3]], [s.seats[1], s.seats[2]]].map((p) => p.slice().sort().join('+')).sort().join('/');
+    const before = pairs(bs());
+    await H.must('playAgain', { round: bs().round });
+    await all([H, S], (s) => s.shared.phase === 'play' && s.shared.round === 2 && s.shared.boards[0].moves === 0, 'bughouse: play again deals two new boards');
+    check(pairs(bs()) !== before, 'bughouse: play again turns the partners round');
+    await H.must('backToHub');
+    [H, S].forEach((b) => b.close());
   }
 
   /* --- المشنقة: one writes and the rest guess, then a race ------------------------ */

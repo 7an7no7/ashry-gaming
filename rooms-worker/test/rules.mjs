@@ -5688,7 +5688,8 @@ Date.now = duelTestClock;
   const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
     '\nreturn { chessNew, chessFromFen, chessFen, chessPerft, chessPlay, chessStatus, chessLegalMoves, chessBestMove, chessInsufficient, chessCanMate,' +
     ' chessClockNew, chessClockPress, chessClockFlagged, chessClockLeft, chessFlagResult, chessMatchNext, chessArmageddonResult, chessKey, chessCheckSq,' +
-    ' chessEloSettings, chessEloBand, chessElo, chessClassify, chessMoveAccuracy, chessAnalyse, chessMoveGood, chessReview, chessThreats, chessPins, chessUci, chess960Start, chess960Random };')();
+    ' chessEloSettings, chessEloBand, chessElo, chessClassify, chessMoveAccuracy, chessAnalyse, chessMoveGood, chessReview, chessThreats, chessPins, chessUci, chess960Start, chess960Random,' +
+    ' chessHandicapFen, CHESS_CLOCK_IDS, CHESS_CLOCK_SPEC };')();
   const threwC = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const perft = (fen, depth) => CH.chessPerft(CH.chessFromFen(fen), depth);
   // The standard perft positions (chessprogramming.org): every legal move counted, deep.
@@ -5861,6 +5862,23 @@ Date.now = duelTestClock;
     check(CH.chessFlagResult(b('4k3/8/8/8/8/8/8/Q3K3 w - - 0 1'), 0) === 'd', 'chess clock: White runs out with the queen, Black has only the king: a draw');
     check(CH.chessFlagResult(b('4k3/8/8/8/8/8/8/1N2K3 w - - 0 1'), 1) === 'd' && CH.chessFlagResult(b('4k3/4p3/8/8/8/8/8/1N2K3 w - - 0 1'), 1) === 'w',
       'chess clock: a lone knight can\'t mate a bare king (draw), but can with a pawn to block (a win)');
+    check(CH.CHESS_CLOCK_IDS.join(',') === 'off,1+0,3+0,3+2,5+0,10+0,15+10', 'chess clock: ids list matches new clock choices');
+    check(CH.chessClockNew('1+0').base === 60000 && CH.chessClockNew('1+0').inc === 0, 'chess clock: 1+0 is 1 minute, 0 inc');
+    check(CH.chessClockNew('3+0').base === 180000 && CH.chessClockNew('3+0').inc === 0, 'chess clock: 3+0 is 3 minutes, 0 inc');
+    check(CH.chessClockNew('15+10').base === 900000 && CH.chessClockNew('15+10').inc === 10000, 'chess clock: 15+10 is 15 minutes, 10 inc');
+    const cOddsW = CH.chessClockNew('3+2', { odds: 'w' });
+    check(cOddsW.left[0] === 90000 && cOddsW.left[1] === 180000, 'chess clock: odds w gets half base time for White');
+    const cOddsB = CH.chessClockNew('3+2', { odds: 'b' });
+    check(cOddsB.left[0] === 180000 && cOddsB.left[1] === 90000, 'chess clock: odds b gets half base time for Black');
+    // Handicap FENs
+    check(CH.chessHandicapFen('pawn', 'w') === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPP1PP/RNBQKBNR w KQkq - 0 1', 'chess handicap: white pawn removes f2');
+    check(CH.chessHandicapFen('pawn', 'b') === 'rnbqkbnr/ppppp1pp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'chess handicap: black pawn removes f7');
+    check(CH.chessHandicapFen('knight', 'w') === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R1BQKBNR w KQkq - 0 1', 'chess handicap: white knight removes b1');
+    check(CH.chessHandicapFen('knight', 'b') === 'r1bqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'chess handicap: black knight removes b8');
+    check(CH.chessHandicapFen('rook', 'w') === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/1NBQKBNR w Kkq - 0 1', 'chess handicap: white rook removes a1 and Q castle');
+    check(CH.chessHandicapFen('rook', 'b') === '1nbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQk - 0 1', 'chess handicap: black rook removes a8 and q castle');
+    check(CH.chessHandicapFen('queen', 'w') === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1', 'chess handicap: white queen removes d1');
+    check(CH.chessHandicapFen('queen', 'b') === 'rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'chess handicap: black queen removes d8');
   }
   // Armageddon and the match in a bracket: replay once with the colours swapped, then Armageddon.
   {

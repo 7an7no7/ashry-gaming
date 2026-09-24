@@ -595,6 +595,30 @@ function chessFen(g) {
 }
 
 /**
+ * Start FEN with one piece removed as odds (and castling right lost with the rook).
+ * kind: 'pawn' (f-pawn) | 'knight' (b-knight) | 'rook' (a-rook) | 'queen'
+ * side: 'w' | 'b' (or 0 | 1)
+ */
+function chessHandicapFen(kind, side) {
+  const g = chessFromFen(CHESS_START_FEN);
+  const s = (side === 'b' || side === 1) ? 1 : 0;
+  let sq = -1;
+  if (kind === 'pawn') {
+    sq = s === 0 ? chessSq('f2') : chessSq('f7');
+  } else if (kind === 'knight') {
+    sq = s === 0 ? chessSq('b1') : chessSq('b8');
+  } else if (kind === 'rook') {
+    sq = s === 0 ? chessSq('a1') : chessSq('a8');
+    if (s === 0) g.castle &= ~2;
+    else g.castle &= ~8;
+  } else if (kind === 'queen') {
+    sq = s === 0 ? chessSq('d1') : chessSq('d8');
+  }
+  if (sq >= 0) g.board[sq] = 0;
+  return chessFen(g);
+}
+
+/**
  * The position for threefold repetition: the pieces, the side to move, the
  * castling rights and an en passant square only when a pawn could really take
  * there (FIDE: a position is "the same" only if the same moves are possible).
@@ -814,9 +838,16 @@ function chessCheckSq(g) {
 
 /* --- the clock --------------------------------------------------------------------- */
 
-// The owner's choices: off, 3+2, 5+0 or 10+0 (minutes + seconds added after every move).
-const CHESS_CLOCK_IDS = ['off', '3+2', '5+0', '10+0'];
-const CHESS_CLOCK_SPEC = { '3+2': [3, 2], '5+0': [5, 0], '10+0': [10, 0] };
+// The owner's choices: off, 1+0, 3+0, 3+2, 5+0, 10+0 or 15+10 (minutes + seconds added after every move).
+const CHESS_CLOCK_IDS = ['off', '1+0', '3+0', '3+2', '5+0', '10+0', '15+10'];
+const CHESS_CLOCK_SPEC = {
+  '1+0': [1, 0],
+  '3+0': [3, 0],
+  '3+2': [3, 2],
+  '5+0': [5, 0],
+  '10+0': [10, 0],
+  '15+10': [15, 10]
+};
 
 const chessClockId = (v) => (CHESS_CLOCK_IDS.indexOf(String(v)) !== -1 ? String(v) : 'off');
 
@@ -824,11 +855,18 @@ const chessClockId = (v) => (CHESS_CLOCK_IDS.indexOf(String(v)) !== -1 ? String(
  * A clock for a new game, or null (off). left: each side's time in ms; at: when
  * the side to move's time started running (null until White's first move - the
  * first move is free, the clock starts with Black's).
+ * If opts.odds is 'w' or 'b', the side giving odds starts with half the base time.
  */
-function chessClockNew(id) {
+function chessClockNew(id, opts) {
   const spec = CHESS_CLOCK_SPEC[chessClockId(id)];
   if (!spec) return null;
-  return { id: chessClockId(id), base: spec[0] * 60000, inc: spec[1] * 1000, left: [spec[0] * 60000, spec[0] * 60000], at: null };
+  const o = typeof opts === 'string' ? { odds: opts } : (opts || {});
+  const base = spec[0] * 60000;
+  const inc = spec[1] * 1000;
+  const left = [base, base];
+  if (o.odds === 'w' || o.odds === 0) left[0] = Math.round(base / 2);
+  else if (o.odds === 'b' || o.odds === 1) left[1] = Math.round(base / 2);
+  return { id: chessClockId(id), base: base, inc: inc, left: left, at: null };
 }
 
 /** How much time side `side` has at `now`. */

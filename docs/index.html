@@ -106,7 +106,7 @@
       // Which icon this build ships (tools/site.config.json, iconVersion).
       window.ICON_VERSION = 3;
       // This build's id, the same as the offline cache's name in sw.js.
-      window.BUILD_ID = "20260924164916";
+      window.BUILD_ID = "20260924174833";
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
@@ -13940,6 +13940,10 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 .ch2-sq.is-anno::after { box-shadow: inset 0 0 0 0.7cqw var(--ch2-anno); border-radius: 50%; }
 .ch2-sq.is-hover::after { box-shadow: inset 0 0 0 0.6cqw var(--ch2-hover); }
 .ch2-dot { position: absolute; z-index: 1; width: 33%; height: 33%; border-radius: 50%; background: var(--ch2-hint); pointer-events: none; }
+/* الوزير المستخبي: its gold crown in the square's corner, over the pawn (the pieces' layer is z-index 2), on its owner's board only. */
+.ch2-sq.is-hq::after { box-shadow: inset 0 0 0 0.5cqmin rgba(234, 179, 8, 0.95); background: radial-gradient(circle, rgba(250, 204, 21, 0.28), rgba(250, 204, 21, 0) 70%); }
+.ch2-hq { position: absolute; z-index: 3; top: 2%; inset-inline-end: 4%; font-size: 4cqmin; line-height: 1; font-style: normal; pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
+.ch2-board.is-mini .ch2-hq { display: none; }
 .ch2-cap { position: absolute; z-index: 1; inset: 0; border-radius: 50%; background: radial-gradient(circle closest-side, transparent 0 79%, var(--ch2-hint) 81% 100%, transparent 101%); pointer-events: none; }
 .ch2-co { position: absolute; z-index: 1; font-style: normal; font-size: 2.5cqw; font-weight: var(--fw-bold); line-height: 1; pointer-events: none; direction: ltr; }
 .ch2-co--r { top: 0.45cqw; left: 0.55cqw; }
@@ -14716,6 +14720,32 @@ button.tour-live { cursor: pointer; }
 /* A tournament's replay or Armageddon game, over the status line (phones and the TV). */
 .ch-tag { margin: 0; text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--accent-ink); }
 .ch-tag--arma { color: var(--danger-ink); }
+.ch-tag--hq { color: var(--warning-ink, var(--accent-ink)); }
+/* الوزير المستخبي: the pick's line, the words of a reveal over the board, both picks at the end. */
+.ch-hq-note { margin: 0 0 var(--sp-2); text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+.ch-hq-note .ch-clock { margin-inline-start: var(--sp-1); }
+.ch-hq-pop {
+  position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; pointer-events: none;
+}
+.ch-hq-pop span {
+  padding: 0.5em 1em; border-radius: 999px; font-family: var(--font-display); font-weight: var(--fw-black); font-size: clamp(1.1rem, 7cqmin, 2.6rem);
+  color: #422006; background: linear-gradient(180deg, #fde68a, #f5b400); box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.35), inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+  animation: chHqPop 1.9s var(--ease-out, ease-out) both;
+}
+.ch-hq-pop--was span { color: #fff; background: linear-gradient(180deg, #7c3aed, #4c1d95); }
+@keyframes chHqPop {
+  0% { opacity: 0; transform: scale(0.4) rotate(-6deg); }
+  18% { opacity: 1; transform: scale(1.12) rotate(2deg); }
+  30% { transform: scale(1) rotate(0); }
+  82% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.96) translateY(-0.4em); }
+}
+@media (prefers-reduced-motion: reduce) { .ch-hq-pop span { animation: none; } }
+.ch-hqend { margin: var(--sp-2) 0 var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); text-align: center; }
+.ch-hqend__list { display: flex; flex-direction: column; gap: var(--sp-1); align-items: center; margin-bottom: var(--sp-2); font-size: var(--fs-sm); }
+.ch-hqend__row { display: inline-flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; justify-content: center; }
+.ch-hqend__row .ch-mark { width: 1.3em; height: 1.3em; }
+.is-tv-view .ch-hqend, .is-tv-view .ch-hqend__list { font-size: 2.2vmin; }
 .is-tv-view .ch-tag { font-size: 2.2vmin; }
 .tour-tv__soon { display: flex; flex-direction: column; gap: 1vmin; }
 .tour-soon { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1vmin; padding: 1vmin 1.4vmin; border: 1px dashed var(--border-strong); border-radius: var(--tv-r); font-size: 2vmin; }
@@ -21109,6 +21139,9 @@ function chessStatus(g) {
  * after the move.
  */
 function chessPlay(g, mv) {
+  // A hidden queen's move from a stored game ('e2e5*', chessFromUci's hq): the pawn on its square is
+  // a queen from here on (الوزير المستخبي below). Nothing else ever passes hq, so standard chess is untouched.
+  if (mv && mv.hq) return chessHqReveal(g, mv);
   const p = chessPos(g);
   const legal = chessLegalPos(p);
   const m = chessFind(p, mv, legal);
@@ -21387,14 +21420,21 @@ function chessBestMove(g, opts) {
   const rnd = typeof o.rnd === 'function' ? o.rnd : Math.random;
   const clockNow = typeof o.now === 'function' ? o.now : () => Date.now();
   const p = chessPos(g);
-  const root = chessLegalPos(p);
+  // A hidden queen of its own (الوزير المستخبي): its queen moves are considered at the root only;
+  // deeper, every hidden queen is the pawn it looks like.
+  const extra = typeof o.hq === 'number' && o.hq >= 0 ? chessHqEngine(p, o.hq) : [];
+  const root = chessLegalPos(p).concat(extra);
   if (!root.length) return null;
-  const out = (m) => ({ from: chessSqName(chessMFrom(m)), to: chessSqName(chessMTo(m)), promo: chessPromoLetter(chessMPromo(m)) });
+  const out = (m) => {
+    const mv = { from: chessSqName(chessMFrom(m)), to: chessSqName(chessMTo(m)), promo: chessPromoLetter(chessMPromo(m)) };
+    if (m & CHESS_HQ_BIT) mv.hq = true;
+    return mv;
+  };
   if (root.length === 1) return out(root[0]);
   if (L.blunder && rnd() < L.blunder) return out(root[Math.floor(rnd() * root.length)]);
   const res = chessSearch(p, g, {
     depth: o.depth || L.depth, ms: o.ms || L.ms, nodes: o.nodes || L.nodes, noise: o.noise !== undefined ? o.noise : L.noise,
-    qdepth: L.qdepth, rnd: rnd, now: clockNow, style: o.style
+    qdepth: L.qdepth, rnd: rnd, now: clockNow, style: o.style, extra: extra
   });
   return out(res.move || root[0]);
 }
@@ -21550,7 +21590,23 @@ function chessSearch(p, g, o) {
   };
 
   // The root: every legal move, in the order the last depth ranked them.
-  let rootMoves = order(chessLegalPos(p), 0, 0);
+  let rootMoves = order(chessLegalPos(p).concat(o.extra || []), 0, 0);
+  // A hidden queen's move at the root: the pawn becomes a queen first (and back after), the hash with it.
+  const doRoot = (m) => {
+    if (!(m & CHESS_HQ_BIT)) { chessDo(p, m); return; }
+    const from = chessMFrom(m), pawn = p.b[from], queen = (pawn & 8) | 5;
+    p.hqSave = [from, pawn, p.lo, p.hi];
+    p.lo ^= CHESS_Z[0].piece[pawn * 64 + from] ^ CHESS_Z[0].piece[queen * 64 + from];
+    p.hi ^= CHESS_Z[1].piece[pawn * 64 + from] ^ CHESS_Z[1].piece[queen * 64 + from];
+    p.b[from] = queen;
+    chessDo(p, m);
+  };
+  const undoRoot = (m) => {
+    chessUndo(p);
+    if (!(m & CHESS_HQ_BIT)) return;
+    const sv = p.hqSave;
+    p.b[sv[0]] = sv[1]; p.lo = sv[2]; p.hi = sv[3];
+  };
   let bestMove = rootMoves[0], bestScore = -CHESS_INF, done = 0;
   const noise = {};
   if (o.noise) rootMoves.forEach(m => { noise[m] = Math.round((o.rnd() * 2 - 1) * o.noise); });
@@ -21565,11 +21621,11 @@ function chessSearch(p, g, o) {
     S.path = [rootKey];
     for (let i = 0; i < rootMoves.length; i++) {
       const m = rootMoves[i];
-      chessDo(p, m);
+      doRoot(m);
       const sBonus = o.style ? chessStyleBonus(p, m, o.style, g, side) : 0;
       const fullWin = !!(o.noise || (o.lines && i < o.lines));
       const sc = -negamax(depth - 1, -CHESS_INF, fullWin ? CHESS_INF : -alpha, 1, true) + (noise[m] || 0) + sBonus;
-      chessUndo(p);
+      undoRoot(m);
       if (S.stop) break;
       scores.push([sc, m]);
       if (sc > iterScore) { iterScore = sc; iterBest = m; }
@@ -21597,7 +21653,7 @@ function chessSearch(p, g, o) {
   }
   // The line it expects: the best move, then the table's best move from each position after it.
   const pv = [];
-  if (o.pv && bestMove) {
+  if (o.pv && bestMove && !(bestMove & CHESS_HQ_BIT)) {
     let steps = 0;
     const walk = [bestMove];
     chessDo(p, bestMove); steps++;
@@ -21995,8 +22051,14 @@ function chessJudge(gBefore, played, before, after) {
 /* --- the review of a whole game, in slices ------------------------------------------ */
 
 /** 'e2e4', 'e7e8q' - a move as four or five letters, for a stored game. */
-const chessUci = (m) => (m ? m.from + m.to + (m.promo || '') : '');
-const chessFromUci = (s) => ({ from: String(s).slice(0, 2), to: String(s).slice(2, 4), promo: String(s).slice(4, 5) });
+const chessUci = (m) => (m ? m.from + m.to + (m.promo || '') + (m.hq ? '*' : '') : '');
+// 'e2e5*' is a hidden queen's revealing move (الوزير المستخبي): the pawn on e2 turns into a queen, then goes to e5.
+const chessFromUci = (s) => {
+  const t = String(s);
+  const out = { from: t.slice(0, 2), to: t.slice(2, 4), promo: /[qrbn]/.test(t.slice(4, 5)) ? t.slice(4, 5) : '' };
+  if (t.slice(-1) === '*') out.hq = true;
+  return out;
+};
 
 /**
  * A review to work through a position at a time (so the page never freezes):
@@ -22012,8 +22074,8 @@ function chessReviewBegin(record) {
     const mv = chessFromUci(u);
     const info = chessPlay(g, mv);
     if (!info) return true;
-    moves.push({ from: info.from, to: info.to, promo: info.promo });
-    sans.push(info.san);
+    moves.push(mv.hq ? { from: info.from, to: info.to, promo: info.promo, hq: true } : { from: info.from, to: info.to, promo: info.promo });
+    sans.push(info.san + (mv.hq ? CHESS_HQ_MARK : ''));
     positions.push(chessCloneGame(g));
     return false;
   });
@@ -22072,6 +22134,170 @@ function chessReview(record, opts) {
   const rv = chessReviewBegin(record);
   while (!chessReviewStep(rv, opts)) { /* next position */ }
   return chessReviewResult(rv);
+}
+
+/* --- الوزير المستخبي — HIDDEN QUEEN: a pawn that is secretly a queen ----------------------
+   The owner's rules (24 Sep 2026): before the first move each player picks one of their own
+   pawns. Until it is revealed it is a pawn for everything the other side can see or be affected
+   by - it attacks only as a pawn, never gives check, and the other side's legal moves never
+   depend on it - so the game object g stays an ordinary chess game in which it IS a pawn. Its
+   owner may move it like a pawn (it stays hidden, the secret following it: a double step, a
+   capture, en passant) or like a queen from its square: any queen move a pawn couldn't make,
+   never onto a king. That move reveals it: the pawn becomes a queen and the queen move is played
+   through chessPlay, capturing or checking like any queen move. Reaching the last rank still
+   hidden it promotes like any pawn and the secret is gone; captured while hidden it is revealed
+   ("👑 كان الوزير!") and counts as a queen for material.
+
+   The secret is one small object per game, kept where each side's secrets live (the server's
+   room._chq, the one-phone game's state) and never in g:
+     { sq: [White's square, Black's] (-1 once revealed, captured, promoted, or none picked),
+       pick: [the squares first picked], how: ['' hidden | 'reveal' | 'captured' | 'promoted', …],
+       at: [the square where it was revealed, captured or promoted, or -1] }
+   A revealing move is stored as 'e2e5*' (chessUci / chessFromUci), and chessPlay given
+   { hq: true } turns the pawn into a queen first, so a stored game replays (the review, the PGN,
+   the share card) with nothing else knowing about the variant.
+
+   Decided here: a mate or a stalemate is judged with the hidden queen's moves too - a side whose
+   only way out is its hidden queen is not mated (the game going on is then a tell; the rules
+   can't be otherwise). The computer considers its own hidden queen's moves at the root only
+   (chessBestMove's opts.hq).
+   ========================================================================= */
+
+const CHESS_HQ_BIT = 1 << 22;          // an engine move of a hidden queen (above every flag)
+const CHESS_HQ_MARK = '👑';            // after a revealing move's SAN in a move list
+
+/** A fresh secret: nobody has picked yet. */
+const chessHqNew = () => ({ sq: [-1, -1], pick: [-1, -1], how: ['', ''], at: [-1, -1] });
+const chessHqClone = (h) => ({ sq: h.sq.slice(), pick: h.pick.slice(), how: h.how.slice(), at: h.at.slice() });
+
+/** The squares of a side's pawns (indices): what it may pick from. */
+function chessHqPawns(g, color) {
+  const out = [];
+  for (let sq = 0; sq < 64; sq++) if (g.board[sq] === ((color << 3) | 1)) out.push(sq);
+  return out;
+}
+
+/** Picks `sq` (an index or a name) for `color`: false when it isn't one of that side's pawns, or a pick is made already. */
+function chessHqPick(h, g, color, sq) {
+  const i = typeof sq === 'number' ? sq : chessSq(sq);
+  if (i < 0 || g.board[i] !== ((color << 3) | 1) || h.pick[color] >= 0) return false;
+  h.sq[color] = i; h.pick[color] = i; h.how[color] = ''; h.at[color] = -1;
+  return true;
+}
+
+/** A random pawn of `color` (the computer's pick, the clock's, the host's): the square, or -1. */
+function chessHqRandom(g, color, rnd) {
+  const list = chessHqPawns(g, color);
+  return list.length ? list[Math.floor((rnd || Math.random)() * list.length)] : -1;
+}
+
+/**
+ * The hidden queen's extra moves on the engine's position, as engine numbers with CHESS_HQ_BIT:
+ * the queen moves from `s` that a pawn there couldn't make, that don't leave the king in check and
+ * never go onto a king. Empty unless `s` holds a pawn of the side to move.
+ */
+function chessHqEngine(p, s) {
+  const pawn = s >= 0 && s < 64 ? p.b[s] : 0;
+  if ((pawn & 7) !== 1 || (pawn >> 3) !== p.side) return [];
+  // Where the pawn itself could go (before asking about its king): those are pawn moves.
+  const pawnTos = new Set(chessGen(p, []).filter(m => chessMFrom(m) === s).map(chessMTo));
+  p.b[s] = (pawn & 8) | 5;
+  const out = chessLegalPos(p).filter(m => chessMFrom(m) === s && !pawnTos.has(chessMTo(m)) && (p.b[chessMTo(m)] & 7) !== 6);
+  p.b[s] = pawn;
+  return out.map(m => m | CHESS_HQ_BIT);
+}
+
+/** The hidden queen's extra moves for the page: [{ from, to, promo: '', capture, hq: true }]. */
+function chessHqMoves(g, sq) {
+  const s = typeof sq === 'number' ? sq : chessSq(sq);
+  if (s < 0) return [];
+  const p = chessPos(g);
+  return chessHqEngine(p, s).map(m => ({
+    from: chessSqName(chessMFrom(m)), to: chessSqName(chessMTo(m)), promo: '', capture: !!(chessMFlags(m) & CHESS_F_CAP), hq: true
+  }));
+}
+
+/** Every move the side to move has, its hidden queen's included (`sq`: its square, or -1). */
+const chessHqLegal = (g, sq) => chessLegalMoves(g).concat(chessHqMoves(g, sq));
+
+/** A stored revealing move replayed (chessPlay's { hq: true }): the pawn turned into a queen, then its move. */
+function chessHqReveal(g, mv) {
+  const from = typeof mv.from === 'number' ? mv.from : chessSq(mv.from);
+  const pawn = from >= 0 ? g.board[from] : 0;
+  if ((pawn & 7) !== 1 || (pawn >> 3) !== g.turn) return null;
+  const to = typeof mv.to === 'number' ? mv.to : chessSq(mv.to);
+  if (to < 0 || (g.board[to] & 7) === 6) return null;
+  g.board[from] = (pawn & 8) | 5;
+  const info = chessPlay(g, { from: mv.from, to: mv.to });
+  if (!info) { g.board[from] = pawn; return null; }
+  info.hq = true;
+  return info;
+}
+
+/**
+ * Plays a move of the side to move on g with the secret h (both changed). Returns null when it
+ * isn't legal, else chessPlay's info plus hq: { reveal (this move revealed the mover's hidden
+ * queen), captured (the other side's hidden queen was taken), promoted (the mover's hidden pawn
+ * promoted: the secret is gone) }, and uci - the move as stored ('e2e5*' for a reveal). A captured
+ * hidden queen counts as a queen (info.capture 'q'); the game's end is judged with the next
+ * side's hidden queen too.
+ */
+function chessHqPlay(g, h, mv) {
+  if (!mv) return null;
+  const side = g.turn;
+  const own = h.sq[side], opp = h.sq[side ^ 1];
+  const from = typeof mv.from === 'number' ? mv.from : chessSq(mv.from);
+  const to = typeof mv.to === 'number' ? mv.to : chessSq(mv.to);
+  let info = null, reveal = false, promoted = false;
+  if (own >= 0 && from === own && chessHqEngine(chessPos(g), own).some(m => chessMTo(m) === to)) {
+    info = chessHqReveal(g, { from: from, to: to });
+    if (!info) return null;
+    reveal = true;
+    h.sq[side] = -1; h.how[side] = 'reveal'; h.at[side] = to;
+  } else {
+    info = chessPlay(g, { from: mv.from, to: mv.to, promo: mv.promo });
+    if (!info) return null;
+    if (own >= 0 && from === own) {
+      if (info.promo) { h.sq[side] = -1; h.how[side] = 'promoted'; h.at[side] = to; promoted = true; }
+      else h.sq[side] = to;
+    }
+  }
+  let captured = false;
+  if (opp >= 0 && info.captureSq && chessSq(info.captureSq) === opp) {
+    h.sq[side ^ 1] = -1; h.how[side ^ 1] = 'captured'; h.at[side ^ 1] = opp;
+    info.capture = 'q';
+    captured = true;
+  }
+  // "No move" is judged with the hidden queen's moves as well: a way out is a way out.
+  const st = info.status;
+  const next = h.sq[g.turn];
+  if (st && st.over && (st.reason === 'mate' || st.reason === 'stalemate') && next >= 0 && chessHqEngine(chessPos(g), next).length) {
+    info.status = { over: false, result: '', reason: '', check: st.check };
+    if (/#$/.test(info.san)) info.san = info.san.slice(0, -1) + '+';
+  }
+  info.hq = { reveal: reveal, captured: captured, promoted: promoted };
+  info.uci = info.from + info.to + (info.promo || '') + (reveal ? '*' : '');
+  return info;
+}
+
+/** A hidden-queen game again from its start, its picks and its stored moves: { g, h, sans, lost, last, infos }. */
+function chessHqReplay(start, picks, hist) {
+  const g = start ? chessFromFen(start) : chessNew();
+  const h = chessHqNew();
+  [0, 1].forEach(c => { if (picks && picks[c] >= 0) chessHqPick(h, g, c, picks[c]); });
+  const sans = [], lost = [[], []], infos = [];
+  let last = null;
+  (hist || []).some(u => {
+    const mover = g.turn;
+    const info = chessHqPlay(g, h, chessFromUci(u));
+    if (!info) return true;
+    infos.push(info);
+    sans.push(info.san + (info.hq.reveal ? CHESS_HQ_MARK : ''));
+    if (info.capture) lost[1 - mover].push(info.capture);
+    last = info;
+    return false;
+  });
+  return { g: g, h: h, sans: sans, lost: lost, last: last, infos: infos };
 }
 
 /* --- باغ هاوس — BUGHOUSE: two boards, the hands, drops --------------------------------
@@ -30252,8 +30478,10 @@ const CHESS_PUZZLES = [
               <div class="segmented" id="shatranj-variant" role="group">
                 <button type="button" class="segmented__item is-active" data-value="standard" onclick="setShatranjOption('variant', 'standard')" data-i18n="ch_var_standard">عادي</button>
                 <button type="button" class="segmented__item" data-value="960" onclick="setShatranjOption('variant', '960')" data-i18n="ch_var_960">960</button>
+                <button type="button" class="segmented__item" data-value="hq" onclick="setShatranjOption('variant', 'hq')">👑 <span data-i18n="ch_var_hq_short">مستخبي</span></button>
               </div>
               <p class="field__hint hidden" id="shatranj-variant-hint" data-i18n="ch_variant_hint_local">كل دور رقعة بداية جديدة: الحجارة اللي ورا متلخبطة والعساكر زي ما هي. التبييت: دوس على الملك وبعدين على الطابية.</p>
+              <p class="field__hint hidden" id="shatranj-variant-hint-hq" data-i18n="ch_variant_hint_hq">قبل أول نقلة كل واحد يختار عسكري من عساكره يبقى وزير مستخبي: يتحرك زي العسكري، أو زي الوزير فيتكشف. الماتش ده مش بيتحسب في تقييمك.</p>
             </div>
             <div class="field" id="shatranj-odds-field">
               <label class="field__label">⚖️ <span data-i18n="ch_odds_label">الحسبة (هانديكاب)</span></label>
@@ -30604,7 +30832,7 @@ const CHESS_PUZZLES = [
                 <button type="button" class="segmented__item" data-value="60" onclick="setBankOption('length', 60)" data-i18n="bank_len_60">60 دقيقة</button>
                 <button type="button" class="segmented__item" data-value="0" onclick="setBankOption('length', 0)" data-i18n="bank_until_one">لحد ما يفضل واحد</button>
               </div>
-              <p class="field__hint" data-i18n="bank_length_hint">لما الوقت يخلص اللفة بتكمل، والأغنى يكسب.</p>
+              <p class="field__hint" id="bank-length-hint" data-i18n="bank_length_hint">لما الوقت يخلص اللفة بتكمل، والأغنى يكسب.</p>
             </div>
             <div class="field">
               <label class="switch-row" for="bank-firstlap">
@@ -30639,6 +30867,7 @@ const CHESS_PUZZLES = [
                 <span class="field__label" data-i18n="bank_opt_go400">٤٠٠ للي يقف على البداية</span>
                 <span class="switch"><input type="checkbox" id="bank-go400" role="switch" onchange="setBankOption('go400', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
               </label>
+              <p class="field__hint" data-i18n="bank_opt_go400_hint">اللي يقف على البداية بالظبط ياخد الضعف.</p>
             </div>
             <button type="button" id="bank-continue" class="btn btn--secondary hidden duel-continue" onclick="bankContinue()" data-i18n="solo_continue">كمّل اللعبة</button>
             <button onclick="startBank()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
@@ -31289,12 +31518,12 @@ const CHESS_PUZZLES = [
                 <span class="switch__track" aria-hidden="true"></span>
               </span>
             </label>
+            <p class="field__hint" data-i18n="director_hint">الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = كلام حر.</p>
             <div id="imposter-director-choices" class="hidden">
               <div class="segmented" id="imposter-director-mode" role="group">
                 <button type="button" class="segmented__item is-active" data-value="order" onclick="setDirectorMode('imposter', 'order')" data-i18n="director_order">بالترتيب</button>
                 <button type="button" class="segmented__item" data-value="random" onclick="setDirectorMode('imposter', 'random')" data-i18n="director_random">عشوائي</button>
               </div>
-              <p class="field__hint" data-i18n="director_hint">الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = وقت حر بالمؤقت بس.</p>
             </div>
           </div>
 
@@ -32509,12 +32738,12 @@ const CHESS_PUZZLES = [
                 <span class="switch__track" aria-hidden="true"></span>
               </span>
             </label>
+            <p class="field__hint" data-i18n="director_hint">الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = كلام حر.</p>
             <div id="whoami-director-choices" class="hidden">
               <div class="segmented" id="whoami-director-mode" role="group">
                 <button type="button" class="segmented__item is-active" data-value="order" onclick="setDirectorMode('whoami', 'order')" data-i18n="director_order">بالترتيب</button>
                 <button type="button" class="segmented__item" data-value="random" onclick="setDirectorMode('whoami', 'random')" data-i18n="director_random">عشوائي</button>
               </div>
-              <p class="field__hint" data-i18n="director_hint">الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = وقت حر بالمؤقت بس.</p>
             </div>
           </div>
             <div class="field">
@@ -33941,7 +34170,7 @@ const CHESS_PUZZLES = [
       stop_room_check_wait: "كلمات مش في القاموس خدت صفر لحد ما المضيف يراجعها",
       stop_room_check_wait_lenient: "كلمات مش في القاموس خدت نقاطها لحد ما المضيف يراجعها",
       stop_lenient: "متسامح: الكلمة اللي مش في القاموس تاخد نقطها",
-      stop_lenient_hint: "الكلمات غير المعروفة تاخد 10 نقاط تلقائياً، والمضيف يقدر ينزل الغلط لصفر",
+      stop_lenient_hint: "الكلمة اللي مش في القاموس تاخد 10 بدل 0، والمضيف يقدر ينزّلها لصفر.",
       stop_pts_check: "مش في القاموس",
       stop_room_collecting: "بنجمع الإجابات…",
       stop_room_stopped_by: "وقّف الجولة",
@@ -33950,7 +34179,7 @@ const CHESS_PUZZLES = [
       director_label: "مين يسأل مين؟",
       director_order: "بالترتيب",
       director_random: "عشوائي",
-      director_hint: "الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = وقت حر بالمؤقت بس.",
+      director_hint: "الموبايل يقول مين يسأل مين كل مرة، عشان محدش يسأل أكتر من غيره ومحدش يستخبى. مقفول = كلام حر.",
       director_turn: "الدور",
       director_asks_verb: "يسأل",
       director_asks: "سؤال واحد، وبعدين التالي",
@@ -34534,7 +34763,27 @@ const CHESS_PUZZLES = [
       ch_variant_label: "نوع اللعبة",
       ch_var_standard: "عادي",
       ch_var_960: "960",
-      ch_variant_hint: "الشطرنج العادي أو شطرنج 960 (فيشر) برقعة بداية عشوائية.",
+      ch_variant_hint: "شطرنج 960 (فيشر): كل دور رقعة بداية جديدة، الحجارة اللي ورا متلخبطة والعساكر زي ما هي.",
+      ch_var_hq: "الوزير المستخبي",
+      ch_var_hq_short: "مستخبي",
+      ch_variant_hint_hq: "قبل أول نقلة كل واحد يختار عسكري من عساكره يبقى وزير مستخبي: يتحرك زي العسكري، أو زي الوزير فيتكشف. الماتش ده مش بيتحسب في تقييمك.",
+      ch_variant_hint_hq_room: "قبل أول نقلة كل لاعب يختار عسكري من عساكره يبقى وزير مستخبي: يتحرك زي العسكري، أو زي الوزير فيتكشف. محدش يعرفه غير صاحبه.",
+      ch_hq_no_tour: "الوزير المستخبي مش في البطولة: اقفل البطولة عشان تختاره.",
+      ch_unrated_hq: "الوزير المستخبي",
+      ch_hq_pick: "اختار العسكري اللي هيبقى وزيرك المستخبي",
+      ch_hq_pick_hint: "دوس على عسكري من عساكرك، ودوس عليه تاني أو على الزرار. محدش هيعرفه غيرك.",
+      ch_hq_pick_ok: "ده وزيري",
+      ch_hq_picked: "اخترت {sq}. مستنيين التاني يختار.",
+      ch_hq_waiting: "مستنيين {name} يختار الوزير المستخبي",
+      ch_hq_pick_for: "اختار عسكري بدل {name}",
+      ch_hq_reveal: "👑 وزير مستخبي!",
+      ch_hq_was: "👑 كان الوزير!",
+      ch_hq_end: "الوزير المستخبي كان:",
+      ch_hq_how_hidden: "فضل مستخبي ({sq})",
+      ch_hq_how_reveal: "اتكشف على {sq}",
+      ch_hq_how_captured: "اتاكل وهو مستخبي على {sq}",
+      ch_hq_how_promoted: "وصل الآخر واترقّى على {sq}",
+      ch_odds_hint_friend: "اللي بيدّي الحسبة بيبدأ ناقص الحجر ده (أو بنص الوقت).",
       ch_odds_label: "الحسبة (هانديكاب)",
       ch_odds_none: "بدون",
       ch_odds_pawn: "عسكري",
@@ -34695,7 +34944,7 @@ const CHESS_PUZZLES = [
       hb_seats_hint: "دوس على مكانين عشان تبدّلهم. الأماكن الفاضية ياخدها الكمبيوتر (سهل).",
       hb_lobby_hint: "2 ضد 2: المخ يقول القطعة، والإيد تحرّكها.",
       hb_clock_label: "ساعة لكل فريق",
-      hb_clock_hint: "من غير ساعة من الأول.",
+      hb_clock_hint: "الفريق اللي وقته يخلص يخسر.",
       ch_look_label: "شكل الرقعة",
       ch_style_green: "أخضر",
       ch_style_wood: "خشب",
@@ -35697,7 +35946,7 @@ const CHESS_PUZZLES = [
       mafia_reveal_night: "الصبح طلع… مين خرج؟",
       mafia_reveal_voted: "المدينة قررت…",
       mafia_narrate: "الراوي يقرأ بصوت عالي",
-      mafia_narrate_hint: "شاشة العرض (أو موبايل المضيف لو مفيش شاشة) تقرا سطر قصير أول كل مرحلة. محتاج صوت عربي على الجهاز.",
+      mafia_narrate_hint: "شاشة العرض (أو موبايل المضيف لو مفيش شاشة) تقرا سطر قصير أول كل مرحلة. محتاج صوت بلغتك على الجهاز ده.",
       mafia_say_roles: "كل واحد يبص على دوره في السر.",
       mafia_say_night: "المدينة نامت. اقفلوا عينيكم.",
       mafia_say_day: "صبح الصبح. اتكلموا.",
@@ -36673,7 +36922,7 @@ const CHESS_PUZZLES = [
       bot_title: "لاعبين كمبيوتر",
       bot_easy: "سهل",
       bot_hard: "صعب",
-      bot_hint: "العب لوحدك أو كمّل العدد. الكمبيوتر بيلعب من غير ما يشوف ورق حد.",
+      bot_hint: "العب لوحدك أو كمّل العدد. الكمبيوتر بيلعب من غير ما يشوف حاجة مخفية.",
       bot_full: "مفيش أماكن تانية في اللعبة دي",
       bot_remove: "شيل لاعب الكمبيوتر",
       bot_level_change: "غيّر المستوى",
@@ -37321,7 +37570,7 @@ const CHESS_PUZZLES = [
       stop_room_check_wait: "Words the dictionary doesn't know scored 0 until the host checks them",
       stop_room_check_wait_lenient: "Words not in the dictionary kept their points until the host checks them",
       stop_lenient: "Lenient: words not in the dictionary keep their points",
-      stop_lenient_hint: "Words not in the dictionary get 10 points; the host can tap any wrong word down to 0",
+      stop_lenient_hint: "A word not in the dictionary gets 10 instead of 0, and the host can tap it down to 0.",
       stop_pts_check: "not in the dictionary",
       stop_room_collecting: "Collecting the answers…",
       stop_room_stopped_by: "stopped the round",
@@ -37330,7 +37579,7 @@ const CHESS_PUZZLES = [
       director_label: "Who asks whom?",
       director_order: "In order",
       director_random: "Random",
-      director_hint: "The phone names who asks whom each turn, so nobody asks more than the rest and nobody hides. Off = free talk against the clock.",
+      director_hint: "The phone names who asks whom each turn, so nobody asks more than the rest and nobody hides. Off = free talk.",
       director_turn: "Turn",
       director_asks_verb: "asks",
       director_asks: "One question, then next",
@@ -37914,7 +38163,27 @@ const CHESS_PUZZLES = [
       ch_variant_label: "Game type",
       ch_var_standard: "Standard",
       ch_var_960: "960",
-      ch_variant_hint: "Standard chess or Chess960 (Fischer Random) with a randomized starting position.",
+      ch_variant_hint: "Chess960 (Fischer Random): a new start every game, the back pieces shuffled, the pawns as usual.",
+      ch_var_hq: "Hidden queen",
+      ch_var_hq_short: "Hidden",
+      ch_variant_hint_hq: "Before the first move each side picks one of its pawns to be a hidden queen: it moves like a pawn, or like a queen - and that reveals it. Not rated.",
+      ch_variant_hint_hq_room: "Before the first move each player picks one of their pawns to be a hidden queen: it moves like a pawn, or like a queen - and that reveals it. Only its owner knows which.",
+      ch_hq_no_tour: "The hidden queen isn't played in a tournament: switch the tournament off to choose it.",
+      ch_unrated_hq: "the hidden queen",
+      ch_hq_pick: "Pick the pawn that will be your hidden queen",
+      ch_hq_pick_hint: "Tap one of your pawns, then tap it again or the button. Nobody else will know.",
+      ch_hq_pick_ok: "That's my queen",
+      ch_hq_picked: "You picked {sq}. Waiting for the other to pick.",
+      ch_hq_waiting: "Waiting for {name} to pick a hidden queen",
+      ch_hq_pick_for: "Pick a pawn for {name}",
+      ch_hq_reveal: "👑 A hidden queen!",
+      ch_hq_was: "👑 That was the queen!",
+      ch_hq_end: "The hidden queens were:",
+      ch_hq_how_hidden: "still hidden ({sq})",
+      ch_hq_how_reveal: "revealed on {sq}",
+      ch_hq_how_captured: "taken while hidden on {sq}",
+      ch_hq_how_promoted: "promoted on {sq}",
+      ch_odds_hint_friend: "Whoever gives it starts without that piece (or with half the clock).",
       ch_odds_label: "Handicap (odds)",
       ch_odds_none: "None",
       ch_odds_pawn: "Pawn",
@@ -38075,7 +38344,7 @@ const CHESS_PUZZLES = [
       hb_seats_hint: "Tap two seats to swap them. Empty seats go to the computer (easy).",
       hb_lobby_hint: "2 v 2: the Brain names the piece, the Hand moves it.",
       hb_clock_label: "A clock per team",
-      hb_clock_hint: "Off by default.",
+      hb_clock_hint: "A team that runs out of time loses.",
       ch_look_label: "Board look",
       ch_style_green: "Green",
       ch_style_wood: "Wood",
@@ -38409,7 +38678,7 @@ const CHESS_PUZZLES = [
       sv_race_hint_guessnum: "The app picks a number for everyone; the first to find it scores most.",
       sv_race_hint_flags: "The app picks a country for everyone; the first to find it scores most.",
       sv_race_hint_emoji: "The app's riddles for everyone, each guessing on their own phone where nobody sees their tries. The fastest scores most.",
-      sv_quiz_hint_emoji: "The quiz as it always was: one riddle for all, and wrong guesses show to everyone.",
+      sv_quiz_hint_emoji: "The quiz as it always was: one riddle for all, wrong guesses show to everyone, and you try again.",
       sv_wordle_len: "How many letters?",
       sv_wordle_len_hint: "The race's words come from the game's own lists.",
       sv_num_range: "Range",
@@ -38761,7 +39030,7 @@ const CHESS_PUZZLES = [
       bowl_solo_desc: "Play on your own and try to beat your best score.",
       bowl_frames: "How many frames?",
       bowl_guide: "Aim guide",
-      bowl_guide_hint: "A line shows where the ball will go while you swipe.",
+      bowl_guide_hint: "A line shows where the ball will go while you swing.",
       bowl_clock: "Throw clock",
       bowl_clock_hint: "When it runs out, the phone rolls a gentle straight ball for the player.",
       bowl_lobby_hint: "The host picks the frames, the aim guide and the throw clock.",
@@ -40053,7 +40322,7 @@ const CHESS_PUZZLES = [
       bot_title: "Computer players",
       bot_easy: "Easy",
       bot_hard: "Hard",
-      bot_hint: "Play alone or fill the table. The computer never sees anyone's hand.",
+      bot_hint: "Play alone or fill the table. The computer never sees anything hidden.",
       bot_full: "No seats left in this game",
       bot_remove: "Remove the computer player",
       bot_level_change: "Change the level",
@@ -43340,6 +43609,14 @@ const GAME_RULES = {
                 <li><b>960</b>: الحجارة اللي في الصف الأخير بتتلخبط كل دور (الفيلين على لونين مختلفين والملك بين الطابيتين)، والعساكر زي ما هي. التبييت: <b>دوس على الملك وبعدين على الطابية</b> (أو على المربع اللي الملك رايحه)، والملك بيقف مكانه العادي (g أو c) والطابية جنبه. الـ960 بيتحسب في تقييمك.</li>
                 <li><b>الحسبة</b>: اللي أقوى بيبدأ ناقص حجر (عسكري f، حصان، طابية a، أو الوزير) أو بنص الوقت. ضد الكمبيوتر تختار مين يدّيها: إنت ولا هو؛ واتنين على موبايل: الأبيض ولا الأسود. في الغرفة البطل هو اللي بيدّيها، وفي البطولة مفيش حسبة. الماتش اللي فيه حسبة مش بيتحسب في تقييمك.</li>
             </ul>
+            <p class="help-sub">👑 الوزير المستخبي</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>قبل أول نقلة كل واحد يختار <b>عسكري من عساكره</b> يبقى وزير مستخبي، ومحدش يعرفه غيره (على موبايلك عليه تاج دهبي). ضد الكمبيوتر أو في الغرفة (كل واحد من موبايله)، مش اتنين على موبايل ولا في البطولة.</li>
+                <li>طول ما هو مستخبي هو <b>عسكري</b> بالنسبة للتاني: بياكل زي العسكري بس، مابيعملش كش، ومابيمنعش الملك التاني من أي مربع.</li>
+                <li>في دورك تحركه <b>زي العسكري</b> (ويفضل مستخبي)، أو <b>زي الوزير</b> من مكانه نقلة العسكري مايقدرش يعملها: ساعتها <b>بيتكشف</b> ويبقى وزير على الرقعة («👑 وزير مستخبي!»)، ويقدر ياكل ويعمل كش زي أي وزير، بس عمره ما ياكل الملك.</li>
+                <li>لو وصل آخر صف وهو مستخبي بيترقّى زي أي عسكري والسر بيروح. ولو اتاكل وهو مستخبي بيتكشف («👑 كان الوزير!») ويتحسب وزير.</li>
+                <li>في آخر الدور بيبان العسكري اللي كل واحد اختاره. مع الساعة في الغرفة، الاختيار ليه دقيقة، واللي مايختارش بياخد عسكري عشوائي. الدور ده مش بيتحسب في تقييمك، ومن غير حسبة.</li>
+            </ul>
             <p class="help-sub">📱 كل واحد من موبايله</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>اتنين بس بيلعبوا والباقي بيتفرج، وحجارتك دايماً تحت على موبايلك. <b>اللي يكسب يفضل قاعد</b>، واللي عليه الدور في الطابور يقعد قصاده بالأبيض. في التعادل البطل يفضل قاعد.</li>
@@ -44821,6 +45098,14 @@ const GAME_RULES = {
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>960</b>: the back row is shuffled every game (the bishops on different colours, the king between the rooks); the pawns stay as usual. To castle, <b>tap the king and then the rook</b> (or the king's square): the king lands where it always does (g or c) with the rook beside it. 960 games count for your rating.</li>
                 <li><b>Handicap</b>: the stronger player starts without a piece (the f-pawn, a knight, the a-rook or the queen) or with half the clock. Against the computer choose who gives it, you or it; two on one phone, White or Black. In a room the champion gives it, and a tournament has none. A handicap game doesn't count for your rating.</li>
+            </ul>
+            <p class="help-sub">👑 Hidden queen</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Before the first move each side picks <b>one of its own pawns</b> to be a hidden queen, and only its owner knows which (a gold crown on your own phone). Against the computer or in a room (each on their own phone); not two on one phone, and not in a tournament.</li>
+                <li>While hidden it is a <b>pawn</b> to the other side: it takes only as a pawn, never gives check, and never keeps the other king off a square.</li>
+                <li>On your turn move it <b>like a pawn</b> (it stays hidden), or <b>like a queen</b> from its square, a move a pawn couldn't make: that <b>reveals</b> it and it becomes a queen on the board ("👑 A hidden queen!"), taking and checking like any queen, but never taking a king.</li>
+                <li>Reaching the last rank still hidden, it promotes like any pawn and the secret is gone. Taken while hidden, it is revealed ("👑 That was the queen!") and counts as a queen.</li>
+                <li>At the end of the game both picks are shown. With a clock in a room, picking has a minute of its own, and whoever hasn't picked gets a random pawn. These games are not rated, and have no handicap.</li>
             </ul>
             <p class="help-sub">📱 Separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -59421,7 +59706,7 @@ function cnHostOptions(t, settings) {
             <button type="button" class="segmented__item ${settings.timer === n ? 'is-active' : ''}"
                     onclick="cnSetOption({ timer: ${n} })">${n || (t.cn_timer_off || '—')}</button>`).join('')}
         </div>
-        <p class="field__hint">${t.cn_timer_hint || ''}</p>
+        ${settings.timer ? `<p class="field__hint">${t.cn_timer_hint || ''}</p>` : ''}
       </div>
 
       <div class="field">
@@ -77680,11 +77965,13 @@ ROOM_GAMES.stop = {
           <label class="field__label">${escapeHTML(t.stop_rounds_label || '')}</label>
           ${seg('rounds', [3, 5, 7, 10], o.rounds, v => v)}
         </div>
-        <label class="switch-row" for="stop-opt-lenient">
-          <span class="field__label">${escapeHTML(t.stop_lenient || '')}</span>
-          <span class="switch"><input type="checkbox" id="stop-opt-lenient" role="switch" ${o.lenient ? 'checked' : ''} onchange="setStopRoomOpt('lenient', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
-        </label>
-        <p class="field__hint" style="text-align:center">${escapeHTML(t.stop_lenient_hint || '')}</p>
+        <div class="field">
+          <label class="switch-row" for="stop-opt-lenient">
+            <span class="field__label">${escapeHTML(t.stop_lenient || '')}</span>
+            <span class="switch"><input type="checkbox" id="stop-opt-lenient" role="switch" ${o.lenient ? 'checked' : ''} onchange="setStopRoomOpt('lenient', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(t.stop_lenient_hint || '')}</p>
+        </div>
         <p class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_hint || '')}</p>
       </div>`;
   },
@@ -81107,6 +81394,7 @@ ROOM_GAMES.monkey = {
         <div class="field">
           <label class="field__label">${escapeHTML(t.mk_mode_label || '')}</label>
           ${seg('mode', [['letters', t.mk_mode_letters], ['chain', t.mk_mode_chain], ['names', t.mk_mode_names]], o.mode)}
+          <p class="field__hint">${escapeHTML(t['mk_mode_' + o.mode + '_hint'] || '')}</p>
         </div>
         <div class="field">
           <label class="field__label">${escapeHTML(t.mk_category_label || '')}</label>
@@ -87373,7 +87661,7 @@ ROOM_GAMES.uno = {
         <div class="field">
           <label class="field__label">⏱️ ${escapeHTML(unoT('uno_clock'))}</label>
           ${seg('turnClock', UNO_CLOCK_CHOICES, v => (v ? v + '″' : escapeHTML(unoT('uno_clock_off'))))}
-          <p class="field__hint">${escapeHTML(unoT('uno_clock_hint'))}</p>
+          ${o.turnClock ? `<p class="field__hint">${escapeHTML(unoT('uno_clock_hint'))}</p>` : ''}
         </div>
         ${hint}
       </div>`;
@@ -89229,7 +89517,7 @@ ROOM_GAMES.domino = {
         <div class="field">
           <label class="field__label">⏱️ ${escapeHTML(domT('dom_clock'))}</label>
           ${seg('turnClock', DOMINO_CLOCKS, v => (v ? v + '″' : escapeHTML(domT('dom_clock_off'))), o.turnClock)}
-          <p class="field__hint">${escapeHTML(domT('dom_clock_hint'))}</p>
+          ${o.turnClock ? `<p class="field__hint">${escapeHTML(domT('dom_clock_hint'))}</p>` : ''}
         </div>
         ${hint}
       </div>`;
@@ -92274,10 +92562,10 @@ ROOM_GAMES.guesswho = {
     return `<div class="card card--tight">
         ${gwLobbySeg(gwT('gw_lobby_size'), 'size', GW_SIZES.map(n => [n, String(n)]), o.size)}
         ${gwLobbySeg(gwT('gw_lobby_pick'), 'pick', [['random', gwT('gw_pick_random')], ['choose', gwT('gw_pick_choose')]], o.pick)}
-        ${gwLobbySeg(gwT('gw_lobby_flip'), 'autoFlip', [[false, gwT('gw_flip_hand')], [true, gwT('gw_flip_auto')]], o.autoFlip, gwT('gw_flip_hint'))}
+        ${gwLobbySeg(gwT('gw_lobby_flip'), 'autoFlip', [[false, gwT('gw_flip_hand')], [true, gwT('gw_flip_auto')]], o.autoFlip, o.autoFlip ? gwT('gw_flip_hint') : '')}
         ${gwLobbySeg(gwT('gw_lobby_wrong'), 'wrong', [['lose', gwT('gw_wrong_lose')], ['turn', gwT('gw_wrong_turn')]], o.wrong)}
         ${gwLobbySeg('⏱️ ' + gwT('gw_lobby_clock'), 'turnClock', GW_CLOCKS.map(v => [v, v ? v + '″' : gwT('gw_clock_off')]), o.turnClock)}
-        <p class="field__hint" style="text-align:center">${escapeHTML(gwT('gw_lobby_hint'))}</p>
+        ${typeof tourModeOf === 'function' && tourModeOf(state.game) === 'tour' && tourCanStart(state) ? '' : `<p class="field__hint" style="text-align:center">${escapeHTML(gwT('gw_lobby_hint'))}</p>`}
       </div>`;
   },
   startPayload() {
@@ -93012,7 +93300,7 @@ ROOM_GAMES.hangman = {
     return `<div class="card card--tight">
         ${seg(hmT('hm_lobby_mode'), 'mode', [['setter', hmT('hm_mode_setter')], ['race', hmT('hm_mode_race')]], o.mode, o.mode === 'race' ? hmT('hm_mode_race_hint') : hmT('hm_mode_setter_hint'))}
         ${seg(hmT('hm_lobby_rounds'), 'rounds', HM_ROUNDS_ROOM.map(n => [n, String(n)]), o.rounds)}
-        ${seg('⏱️ ' + hmT('hm_lobby_clock'), 'clock', HM_CLOCKS_ROOM.map(v => [v, v ? v + '″' : hmT('gw_clock_off')]), o.clock, hmT('hm_clock_hint'))}
+        ${seg('⏱️ ' + hmT('hm_lobby_clock'), 'clock', HM_CLOCKS_ROOM.map(v => [v, v ? v + '″' : hmT('gw_clock_off')]), o.clock, o.clock ? hmT('hm_clock_hint') : '')}
       </div>`;
   },
   startPayload() {
@@ -93251,7 +93539,7 @@ function svLobbyFields(kind, o) {
   }[kind];
   return `${extra}
     ${svSeg(svT('sv_lobby_rounds'), kind, 'rounds', SV_ROUNDS.map(n => [n, String(n)]), o.rounds)}
-    ${svSeg('⏱️ ' + svT('sv_lobby_clock'), kind, 'clock', SV_CLOCKS[kind].map(v => [v, v ? v + '″' : svT('gw_clock_off')]), o.clock, svT('sv_clock_hint'))}`;
+    ${svSeg('⏱️ ' + svT('sv_lobby_clock'), kind, 'clock', SV_CLOCKS[kind].map(v => [v, v ? v + '″' : svT('gw_clock_off')]), o.clock, o.clock ? svT('sv_clock_hint') : '')}`;
 }
 
 function svLobbyHtml(kind, state) {
@@ -94044,7 +94332,7 @@ ROOM_GAMES.emoji = {
     if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(svT('sv_emoji_lobby_hint'))}</p>`;
     const o = svRoomOpts('emoji');
     const ways = svSeg(svT('sv_lobby_mode'), 'emoji', 'way', [['setter', svT('sv_mode_setter')], ['race', svT('sv_mode_race')], ['quiz', svT('sv_mode_quiz')]], way,
-      svT(way === 'quiz' ? 'sv_quiz_hint_emoji' : way === 'race' ? 'sv_race_hint_emoji' : 'sv_setter_hint_emoji'));
+      way === 'quiz' ? '' : svT(way === 'race' ? 'sv_race_hint_emoji' : 'sv_setter_hint_emoji'));
     if (way === 'quiz') return `<div class="card card--tight">${ways}</div>${SV_EMOJI_QUIZ.lobbyOptions(state)}`;
     return `<div class="card card--tight">${ways}${svLobbyFields('emoji', o)}</div>`;
   },
@@ -95065,7 +95353,7 @@ ROOM_GAMES.doubt = {
         <div class="field">
           <label class="field__label">⏱️ ${escapeHTML(pcT('db_clock'))}</label>
           ${seg('turnClock', DB_CLOCK_CHOICES, v => (v ? v + '″' : escapeHTML(pcT('db_clock_off'))))}
-          <p class="field__hint">${escapeHTML(pcT('db_clock_hint'))}</p>
+          ${o.turnClock ? `<p class="field__hint">${escapeHTML(pcT('db_clock_hint'))}</p>` : ''}
         </div>
         ${hint}
       </div>`;
@@ -96009,7 +96297,7 @@ ROOM_GAMES.oldmaid = {
         <div class="field">
           <label class="field__label">⏱️ ${escapeHTML(pcT('om_clock'))}</label>
           ${seg('turnClock', OM_CLOCK_CHOICES, v => (v ? v + '″' : escapeHTML(pcT('db_clock_off'))))}
-          <p class="field__hint">${escapeHTML(pcT('om_clock_hint'))}</p>
+          ${o.turnClock ? `<p class="field__hint">${escapeHTML(pcT('om_clock_hint'))}</p>` : ''}
         </div>
         ${hint}
       </div>`;
@@ -98473,7 +98761,7 @@ ROOM_GAMES.bowling = {
           </label>
           <p class="field__hint">${escapeHTML(bowlT('bowl_guide_hint'))}</p>
         </div>
-        ${seg('⏱️ ' + bowlT('bowl_clock'), 'clock', BOWL_CLOCK_OPTIONS.map(v => [v, v ? v + '″' : bowlT('gw_clock_off')]), o.clock, bowlT('bowl_clock_hint'))}
+        ${seg('⏱️ ' + bowlT('bowl_clock'), 'clock', BOWL_CLOCK_OPTIONS.map(v => [v, v ? v + '″' : bowlT('gw_clock_off')]), o.clock, o.clock ? bowlT('bowl_clock_hint') : '')}
       </div>`;
   },
 
@@ -101010,7 +101298,7 @@ ROOM_GAMES.battleship = {
     const t = TRANSLATIONS[appState.lang] || {};
     const o = bsRoomOpts();
     return duelLobbyHtml(state, t, '⏱️ ' + bsT('bs_lobby_clock'),
-      BS_CLOCKS.map(v => [v, v ? v + '″' : bsT('gw_clock_off')]), o.turnClock, 'setBsRoomClock', bsT('bs_lobby_clock_hint'));
+      BS_CLOCKS.map(v => [v, v ? v + '″' : bsT('gw_clock_off')]), o.turnClock, 'setBsRoomClock', o.turnClock ? bsT('bs_lobby_clock_hint') : '');
   },
   startPayload() { return { turnClock: bsRoomOpts().turnClock }; },
 
@@ -102074,6 +102362,15 @@ function chMake3D(THREE, root) {
     (m.marks || []).forEach(mk => {
       const p = at(mk.sq);
       if (!p) return;
+      if (mk.kind === 'hq') {
+        // The hidden queen (its owner's phone, or everyone's once the game is over): a gold glow and ring.
+        const grd = og.createRadialGradient(p.x + u / 2, p.y + u / 2, 4, p.x + u / 2, p.y + u / 2, u * 0.5);
+        grd.addColorStop(0, 'rgba(250, 204, 21, 0.55)'); grd.addColorStop(1, 'rgba(250, 204, 21, 0)');
+        og.fillStyle = grd; og.fillRect(p.x, p.y, u, u);
+        og.strokeStyle = 'rgba(234, 179, 8, 0.98)'; og.lineWidth = 10;
+        og.beginPath(); og.arc(p.x + u / 2, p.y + u / 2, u * 0.44, 0, Math.PI * 2); og.stroke();
+        return;
+      }
       og.strokeStyle = mk.kind === 'mine' ? 'rgba(239, 68, 68, 0.95)' : mk.kind === 'user' ? CH_ANNO_COLOR : 'rgba(34, 197, 94, 0.95)';
       og.lineWidth = mk.kind === 'user' ? 12 : 9;
       og.setLineDash(mk.kind === 'user' ? [] : [16, 10]);
@@ -102449,7 +102746,12 @@ function ch2SquareParts(m, i, o, extra) {
   if (m.last && (m.last.from === name || m.last.to === name)) cls.push('is-last');
   if (m.sel === name) cls.push('is-sel');
   if (m.check === name) cls.push('is-check');
-  (m.marks || []).forEach(x => { if (x.sq === name) cls.push(x.kind === 'mine' ? 'is-danger' : x.kind === 'user' ? 'is-anno' : 'is-chance'); });
+  let crown = false;
+  (m.marks || []).forEach(x => {
+    if (x.sq !== name) return;
+    if (x.kind === 'hq') { cls.push('is-hq'); crown = true; return; }
+    cls.push(x.kind === 'mine' ? 'is-danger' : x.kind === 'user' ? 'is-anno' : 'is-chance');
+  });
   if (extra && extra.hover === name) cls.push('is-hover');
   const tg = (m.targets || []).find(x => x.to === name);
   let inner = '';
@@ -102458,6 +102760,8 @@ function ch2SquareParts(m, i, o, extra) {
     if (row === 7) inner += `<i class="ch2-co ch2-co--f">${CH_FILES[i & 7]}</i>`;
   }
   if (tg) inner += `<b class="${tg.capture ? 'ch2-cap' : 'ch2-dot'}"></b>`;
+  // The hidden queen's badge: a small gold crown in the square's corner, over the pawn.
+  if (crown) inner += '<i class="ch2-hq" aria-hidden="true">👑</i>';
   return { cls: cls.join(' '), inner: inner };
 }
 
@@ -103068,12 +103372,15 @@ function chAskPromotion(to, color, onPick) {
   if (typeof haptic === 'function') haptic('light');
 }
 
+/** The moves this phone may make: the game's, and its own hidden queen's (hq: its square, in الوزير المستخبي). */
+const chMovesFor = (g, hq) => (hq ? chessHqLegal(g, hq) : chessLegalMoves(g));
+
 /** A tap on the board, the same wherever it happens: pick a piece of your own, then a square it can go to. */
 function chTapLogic(ctx, sq, fromDrag) {
-  // ctx: { g, side, sel, setSel(sq), play(from, to, promo) }
+  // ctx: { g, side, sel, setSel(sq), play(from, to, promo), hq (your hidden queen's square, or '') }
   const i = chSqIndex(sq);
   const code = ctx.g.board[i];
-  const legal = chessLegalMoves(ctx.g);
+  const legal = chMovesFor(ctx.g, ctx.hq);
   if (ctx.sel && ctx.sel !== sq) {
     const moves = legal.filter(mv => mv.from === ctx.sel && mv.to === sq);
     if (moves.length) {
@@ -103103,9 +103410,9 @@ function chTapLogic(ctx, sq, fromDrag) {
 }
 
 /** The targets of the piece picked up; in 960 a king's castling shows as a ring round its rook (and never on the king's own square). */
-function chTargets(g, sel) {
+function chTargets(g, sel, hq) {
   if (!sel) return [];
-  const out = chessLegalMoves(g).filter(m => m.from === sel && m.to !== sel).map(m => ({ to: m.to, capture: m.capture }))
+  const out = chMovesFor(g, hq).filter(m => m.from === sel && m.to !== sel).map(m => ({ to: m.to, capture: m.capture }))
     .filter((x, k, arr) => arr.findIndex(y => y.to === x.to) === k);
   const ki = chSqIndex(sel);
   if (ki >= 0 && (g.board[ki] & 7) === 6 && chIs960(g)) {
@@ -103120,7 +103427,7 @@ function chTargets(g, sel) {
 
 /** A drop: a move if it is legal (asking for the promotion piece), false (the piece goes back) if not. */
 function chDropLogic(ctx, from, to) {
-  const moves = chessLegalMoves(ctx.g).filter(mv => mv.from === from && mv.to === to);
+  const moves = chMovesFor(ctx.g, ctx.hq).filter(mv => mv.from === from && mv.to === to);
   // The king dropped on its own rook: castling (960's way, and it works in standard chess too).
   if (!moves.length && chCastleByRook(ctx.g, from, to)) { ctx.setSel(''); ctx.play(from, to, ''); return true; }
   if (!moves.length) { chSound('refuse'); ctx.setSel(''); return false; }
@@ -103297,7 +103604,7 @@ function chResultLine(result, reason, names) {
 // busy: a second tap too soon; thinking: the computer's timer; tick: the clock's.
 // pre / presel: a premove queued against the computer, and the piece picked up for one;
 // best / bestKey: the best-move arrows worked out for a position (and the one being worked out).
-const chLocal = { sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', hint: null, hintKey: '', pending: null, commentKey: '', pre: null, presel: '', best: null, bestKey: '' };
+const chLocal = { hqSel: '', sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', hint: null, hintKey: '', pending: null, commentKey: '', pre: null, presel: '', best: null, bestKey: '' };
 
 function chState() {
   if (!appState.shatranj) {
@@ -103321,7 +103628,7 @@ function chState() {
   if (s.char !== 'custom' && !chCharById(s.char)) s.char = 'custom';
   // Chess960, the handicap and the clock (T2C.6): a phone from before them plays standard, no odds.
   s.clock = chessClockId(s.clock);
-  if (s.variant !== '960') s.variant = 'standard';
+  if (s.variant !== '960' && s.variant !== 'hq') s.variant = 'standard';
   if (CH_ODDS.indexOf(s.odds) === -1) s.odds = 'none';
   if (s.oddsBy !== 'cpu') s.oddsBy = 'me';
   if (s.oddsColor !== 'b') s.oddsColor = 'w';
@@ -103433,6 +103740,7 @@ function chUnratedReason(s, o) {
   if (s.vs !== 'phone') return 'ch_unrated_friend';
   if (x.practice) return 'ch_unrated_practice';
   if (x.setup) return 'ch_unrated_setup';
+  if (s.variant === 'hq') return 'ch_unrated_hq';
   if (s.helpLimit !== 'none') return 'ch_unrated_help';
   if (s.coach && s.coachOpts.warn !== false) return 'ch_unrated_warn';
   if (s.coach && s.coachOpts.best) return 'ch_unrated_best';
@@ -103494,6 +103802,19 @@ const chCanUndo = (s) => s.vs === 'phone' && s.phase === 'play' && !chLocal.pend
 
 /** The game again from its start and the moves in `hist`: the position (repetition keys too), the moves, what was taken. */
 function chRebuildLocal(s, hist) {
+  const h = chHqOf(s);
+  if (h) {
+    // The hidden queen's game: its picks and its moves again, the secret following them.
+    const r = chessHqReplay(s.start, h.pick, hist);
+    const lostH = s.lostStart ? [s.lostStart[0].slice(), s.lostStart[1].slice()] : [[], []];
+    r.lost.forEach((l, k) => l.forEach(x => lostH[k].push(x)));
+    const n = r.infos.length;
+    const li = r.last;
+    s.g = r.g; s.hq = r.h; s.hist = hist.slice(0, n); s.sans = r.sans; s.lost = lostH;
+    s.last = li ? { from: li.from, to: li.to, capture: li.capture, captureSq: li.captureSq, castle: li.castle, promo: li.promo, check: li.check, n: n,
+      hq: li.hq && (li.hq.reveal || li.hq.captured) ? { reveal: li.hq.reveal, captured: li.hq.captured, by: r.g.turn ^ 1 } : undefined } : null;
+    return;
+  }
   const g = s.start ? chessFromFen(s.start) : chessNew();
   const lost = s.lostStart ? [s.lostStart[0].slice(), s.lostStart[1].slice()] : [[], []];
   const kept = [], sans = [];
@@ -103538,7 +103859,97 @@ function chUndoLocal() {
 const CH_ODDS = ['none', 'pawn', 'knight', 'rook', 'queen', 'time'];
 
 /** The handicap a new game would really get: half the time needs a clock. */
-const chOddsNow = (s) => (s.odds === 'time' && chessClockId(s.clock) === 'off' ? 'none' : (CH_ODDS.indexOf(s.odds) === -1 ? 'none' : s.odds));
+const chOddsNow = (s) => (chHqChosen(s) || (s.odds === 'time' && chessClockId(s.clock) === 'off') ? 'none' : (CH_ODDS.indexOf(s.odds) === -1 ? 'none' : s.odds));
+
+/* --- الوزير المستخبي on one phone: against the computer only (the owner, 24 Sep 2026) ---------
+   Two on one phone can't hide a secret, so the choice isn't offered there (a phone that had it
+   chosen plays standard). Never rated, and no handicap with it. You pick a pawn before the first
+   move (the computer picks at random); s.hq is the secret of both sides (Chess.js's chessHqNew),
+   kept on this phone - the computer's own is read only by its search, never shown. */
+
+/** Is the hidden queen what a new game from the setup would be? */
+const chHqChosen = (s) => s.variant === 'hq' && s.vs === 'phone';
+
+/** The hidden queen's secret of the game on the board (null in any other game). */
+const chHqOf = (s) => (s.gameVariant === 'hq' && s.hq && Array.isArray(s.hq.sq) ? s.hq : null);
+
+/** Still picking your pawn? */
+const chHqPicking = (s) => { const h = chHqOf(s); return !!h && s.phase === 'play' && h.pick[s.me] < 0; };
+
+/** Your hidden queen's square ('' once it is gone, or in another game). */
+const chHqMine = (s) => { const h = chHqOf(s); return h && h.sq[s.me] >= 0 ? chSqName(h.sq[s.me]) : ''; };
+
+/** The pick: your pawn becomes the hidden queen, and the game begins (the computer as White moves first). */
+function chHqPickLocal(sq) {
+  const s = chState();
+  const h = chHqOf(s);
+  if (!h || !chHqPicking(s) || !chessHqPick(h, s.g, s.me, sq)) return;
+  chLocal.hqSel = '';
+  saveToLocal();
+  haptic('medium');
+  chSound('hint');
+  chPaint();
+  chAfterMove();
+}
+
+/** A tap while picking: a pawn of yours is chosen, a second tap on it (or the button) confirms. */
+function chHqTapLocal(sq, fromDrag) {
+  const s = chState();
+  const i = chSqIndex(sq);
+  if (!chHqPicking(s) || i < 0 || s.g.board[i] !== ((s.me << 3) | 1)) { if (chLocal.hqSel) { chLocal.hqSel = ''; chPaint(); } return false; }
+  if (chLocal.hqSel === sq) { if (!fromDrag) chHqPickLocal(sq); return false; }
+  chLocal.hqSel = sq;
+  chSound('pick');
+  chPaint();
+  return false;
+}
+
+/** The words of a hidden queen's moment: its reveal, or its capture while still hidden. */
+const chHqWord = (kind) => chT(kind === 'captured' ? 'ch_hq_was' : 'ch_hq_reveal');
+
+/**
+ * The moment on the board (every screen): the pawn turning into a queen, or a hidden one taken, with
+ * the words over the board once the move has landed. Played once per move (motionFirst on `key`), so a
+ * redraw doesn't replay it; the move list and the status keep the words.
+ */
+function chHqMoment(kind, key) {
+  const root = chView.root;
+  if (!root || typeof motionFirst !== 'function' || !motionFirst('chhq|' + key)) return;
+  setTimeout(() => {
+    if (!chView.root || !chView.root.isConnected) return;
+    const el = document.createElement('div');
+    el.className = 'ch-hq-pop' + (kind === 'captured' ? ' ch-hq-pop--was' : '');
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = `<span>${escapeHTML(chHqWord(kind))}</span>`;
+    chView.root.appendChild(el);
+    chSound('hint');
+    if (typeof haptic === 'function') haptic('double');
+    setTimeout(() => el.remove(), 2000);
+  }, chViewBusyLeft() + 120);
+}
+
+/** The end: which pawn each side had picked, and what became of it («الأبيض: e2 · اتكشف»). ends: [{ pick, how, at }]. */
+function chHqEndHtml(ends, names) {
+  if (!ends || !ends.some(e => e && e.pick)) return '';
+  const row = (e, k) => {
+    if (!e || !e.pick) return '';
+    const how = chT('ch_hq_how_' + (e.how || 'hidden'), { sq: e.at || e.pick });
+    return `<span class="ch-hqend__row"><span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(1 | (k ? 8 : 0))}</span><bdi>${escapeHTML(names[k] || '')}</bdi> <b dir="ltr">${escapeHTML(e.pick)}</b> · ${escapeHTML(how)}</span>`;
+  };
+  return `<p class="ch-hqend">👑 ${escapeHTML(chT('ch_hq_end'))}</p><div class="ch-hqend__list">${row(ends[0], 0)}${row(ends[1], 1)}</div>`;
+}
+
+/** The one-phone game's secrets at the end, as the room shows them. */
+function chHqLocalEnds(h) {
+  return [0, 1].map(c => ({
+    pick: h.pick[c] >= 0 ? chSqName(h.pick[c]) : '',
+    how: h.pick[c] >= 0 ? (h.how[c] || 'hidden') : '',
+    at: h.sq[c] >= 0 ? chSqName(h.sq[c]) : (h.at[c] >= 0 ? chSqName(h.at[c]) : '')
+  }));
+}
+
+/** The move's animation for a board: a reveal draws as the pawn becoming a queen (a promotion's pop). */
+const chAnimOf = (last, key, still) => (last ? Object.assign({ key: key, still: !!still }, last, last.hq && last.hq.reveal ? { promo: 'q' } : {}) : null);
 
 /** The colour that gives the handicap (0 White, 1 Black): you or the computer; two on one phone, as chosen. */
 const chOddsGiver = (s, me) => (s.vs === 'phone' ? (s.oddsBy === 'cpu' ? 1 - me : me) : (s.oddsColor === 'b' ? 1 : 0));
@@ -103593,6 +104004,7 @@ function chCastleRookSquares(a, before, after) {
 function chLocalTagHtml(s, names) {
   const tags = [];
   if (s.gameVariant === '960') tags.push(`<p class="ch-tag ch-tag--960">🎲 ${escapeHTML(chT('ch_pill_960'))}</p>`);
+  if (s.gameVariant === 'hq') tags.push(`<p class="ch-tag ch-tag--hq">👑 ${escapeHTML(chT('ch_var_hq'))}</p>`);
   const o = s.gameOdds;
   if (o && o.kind && o.kind !== 'none') {
     const label = o.kind === 'time' ? chT('ch_pill_odds_time') : chT('ch_pill_odds', { piece: chT('ch_odds_' + o.kind) });
@@ -103637,12 +104049,20 @@ function paintShatranjSetup() {
   }
   duelPaintSegmented('shatranj-clock', s.clock);
   duelPaintSegmented('shatranj-help', s.helpLimit);
-  duelPaintSegmented('shatranj-variant', s.variant);
-  // The hint explains 960 only: it shows when 960 is picked.
-  const varHint = document.getElementById('shatranj-variant-hint');
-  if (varHint) varHint.classList.toggle('hidden', s.variant !== '960');
   const phone = s.vs === 'phone';
+  // The hidden queen is against the computer only: two on one phone see standard and 960.
+  const variantNow = !phone && s.variant === 'hq' ? 'standard' : s.variant;
+  duelPaintSegmented('shatranj-variant', variantNow);
+  const hqBtn = document.querySelector('#shatranj-variant [data-value="hq"]');
+  if (hqBtn) hqBtn.classList.toggle('hidden', !phone);
+  // Each hint explains its own choice, shown only when it is picked.
+  const varHint = document.getElementById('shatranj-variant-hint');
+  if (varHint) varHint.classList.toggle('hidden', variantNow !== '960');
+  const hqHint = document.getElementById('shatranj-variant-hint-hq');
+  if (hqHint) hqHint.classList.toggle('hidden', variantNow !== 'hq');
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+  // No handicap with the hidden queen.
+  show('shatranj-odds-field', variantNow !== 'hq');
   // The handicap: which piece (or half the clock), then who gives it - you or the computer; White or Black.
   const odds = document.getElementById('shatranj-odds');
   if (odds) {
@@ -103658,8 +104078,13 @@ function paintShatranjSetup() {
     duelPaintSegmented('shatranj-oddsby', cur);
   }
   show('shatranj-oddsby-field', s.odds !== 'none');
+  // The line under the handicap: only when one is chosen - half the time with no clock warns; two on one
+  // phone is never rated, so its line says nothing about the rating.
   const oddsHint = document.getElementById('shatranj-odds-hint');
-  if (oddsHint) oddsHint.textContent = s.odds === 'time' && chessClockId(s.clock) === 'off' ? chT('ch_odds_time_noclock') : chT('ch_odds_hint_local');
+  if (oddsHint) {
+    oddsHint.classList.toggle('hidden', s.odds === 'none');
+    oddsHint.textContent = s.odds === 'time' && chessClockId(s.clock) === 'off' ? chT('ch_odds_time_noclock') : chT(phone ? 'ch_odds_hint_local' : 'ch_odds_hint_friend');
+  }
 
   show('shatranj-color-field', phone);
   show('shatranj-coach-field', phone);
@@ -103782,6 +104207,15 @@ function chNewGame(opts) {
   }
   s.g = fen ? chessFromFen(fen) : chessNew();
   s.start = fen;
+  // The hidden queen (against the computer, from the setup): the computer picks a pawn at random now, you before your first move.
+  s.hq = null;
+  chLocal.hqSel = '';
+  if (!o.fen && !o.practice && chHqChosen(s)) {
+    s.gameVariant = 'hq';
+    s.hq = chessHqNew();
+    const cpu = 1 - (s.me || 0);
+    chessHqPick(s.hq, s.g, cpu, chessHqRandom(s.g, cpu));
+  }
   s.hist = [];
   s.sans = [];
   // A game from a position (try the better move) keeps what had been taken by then.
@@ -103845,8 +104279,9 @@ const chOrient = (s) => (s.vs === 'phone' ? s.me : (s.flip ? 1 : 0));
 
 function chPlayLocal(from, to, promo) {
   const s = chState();
-  if (!chHumanTurn(s) || Date.now() < chLocal.busy || chLocal.pending) return;
+  if (!chHumanTurn(s) || Date.now() < chLocal.busy || chLocal.pending || chHqPicking(s)) return;
   const before = chessCloneGame(s.g);
+  const beforeHq = chHqOf(s) ? chessHqClone(s.hq) : null;
   const beforeLost = [s.lost[0].slice(), s.lost[1].slice()];
   // The clock as it was before this move (and when it was made), for a take back.
   const beforeClk = s.clk ? { clk: JSON.parse(JSON.stringify(s.clk)), side: s.g.turn, at: Date.now() } : null;
@@ -103860,7 +104295,7 @@ function chPlayLocal(from, to, promo) {
     chPaint();
     // Not if the board was left meanwhile (a warning would open over another screen), or the move taken back.
     const n = s.hist.length;
-    setTimeout(() => { if (appState.currentView === 'play-shatranj' && chState().phase === 'play' && chState().hist.length === n) chCoachJudge(before, beforeLost, info, beforeClk); }, 40);
+    setTimeout(() => { if (appState.currentView === 'play-shatranj' && chState().phase === 'play' && chState().hist.length === n) chCoachJudge(before, beforeLost, info, beforeClk, beforeHq); }, 40);
     return;
   }
   chPaint();
@@ -103872,13 +104307,16 @@ function chApplyMove(s, mv) {
   const mover = s.g.turn;
   const now = Date.now();
   if (s.clk && chessClockFlagged(s.clk, mover, now, 0)) { chFlag(s, mover); return null; }
-  const info = chessPlay(s.g, mv);
+  const h = chHqOf(s);
+  const info = h ? chessHqPlay(s.g, h, mv) : chessPlay(s.g, mv);
   if (!info) return null;
   if (s.clk) chessClockPress(s.clk, mover, now, 0, s.hist.length === 0);
-  s.hist.push(info.from + info.to + (info.promo || ''));
-  s.sans.push(info.san);
+  const seen = h ? info.hq : null;
+  s.hist.push(h ? info.uci : info.from + info.to + (info.promo || ''));
+  s.sans.push(info.san + (seen && seen.reveal ? CHESS_HQ_MARK : ''));
   if (info.capture) s.lost[1 - mover].push(info.capture);
   s.last = { from: info.from, to: info.to, capture: info.capture, captureSq: info.captureSq, castle: info.castle, promo: info.promo, check: info.check, n: s.hist.length };
+  if (seen && (seen.reveal || seen.captured)) s.last.hq = { reveal: seen.reveal, captured: seen.captured, by: mover };
   chLocal.hint = null;
   if (info.status.over) chEnd(s, info.status.result, info.status.reason);
   saveToLocal();
@@ -103940,7 +104378,7 @@ function chEnd(s, result, reason) {
     chStoreGame({ mode: s.vs === 'phone' ? 'phone' : 'friend', names: names, elo: s.vs === 'phone' ? chOppElo(s) : null, me: s.vs === 'phone' ? s.me : null,
       result: result, reason: reason, start: s.start || '', moves: s.hist.slice(), key: 'local|' + s.gameId,
       help: s.vs === 'phone' ? chHelpNew(s.help) : null, rated: !!rating, rating: rating,
-      variant: s.gameVariant === '960' ? '960' : '', odds: s.gameOdds || null });
+      variant: s.gameVariant === '960' ? '960' : s.gameVariant === 'hq' ? 'hq' : '', odds: s.gameOdds || null });
   }
 }
 
@@ -103950,6 +104388,8 @@ function chAfterMove() {
   if (appState.currentView !== 'play-shatranj' || !s.g) return;
   chTickStart();
   if (s.phase !== 'play') return;
+  // The hidden queen: nobody moves before your pawn is picked.
+  if (chHqPicking(s)) return;
   if (s.vs === 'phone' && s.g.turn !== s.me) chComputerSoon();
   else if (s.vs === 'phone' && chLocal.pre && !chLocal.pending) {
     // Your turn, and a move queued: played now if it still is one, else dropped with a shake.
@@ -103977,7 +104417,8 @@ function chComputerSoon() {
     let ms = settings.ms;
     if (st.clk && st.clk.at) ms = Math.min(ms, Math.max(80, chessClockLeft(st.clk, st.g.turn, st.g.turn, Date.now()) / 25));
     const t0 = Date.now();
-    const mv = chessBestMove(st.g, { elo: chOppElo(st), ms: ms, style: (st.opp && st.opp.style) || undefined });
+    const hqs = chHqOf(st);
+    const mv = chessBestMove(st.g, { elo: chOppElo(st), ms: ms, style: (st.opp && st.opp.style) || undefined, hq: hqs ? hqs.sq[st.g.turn] : -1 });
     // A move found at once still waits a human moment, so it can be seen coming.
     const pause = Math.max(0, 450 - (Date.now() - t0));
     chLocal.thinking = setTimeout(() => {
@@ -104059,15 +104500,16 @@ function chCoachPrepare() {
 }
 
 /** Your move against the computer, judged: a blunder waits for you to take it back or play it anyway. */
-function chCoachJudge(before, beforeLost, info, beforeClk) {
+function chCoachJudge(before, beforeLost, info, beforeClk, beforeHq) {
   const s = chState();
   const key = s.gameId + '|' + (s.hist.length - 1);
   const pre = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : chessAnalyse(before, { nodes: CH_COACH_NODES, ms: 900 });
   const after = chessAnalyse(s.g, { nodes: CH_COACH_NODES, ms: 900 });
   const mv = { from: info.from, to: info.to, promo: info.promo || '' };
+  if (info.hq && info.hq.reveal) mv.hq = true;
   const verdict = chessJudge(before, mv, pre, after);
   if (s.coachOpts.warn !== false && verdict.cls === 'blunder' && s.phase !== 'done') {
-    chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: beforeClk || null };
+    chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: beforeClk || null, hq: beforeHq || null };
     if (s.help) s.help.warn = true;
     // Kept at once: a reload now drops the warning but keeps the move, and the game must stay unrated.
     saveToLocal();
@@ -104112,6 +104554,7 @@ function chCoachTakeBack() {
   if (!p) return;
   s.g = p.before;
   s.lost = p.lost;
+  if (p.hq) s.hq = p.hq;
   s.hist = s.hist.slice(0, p.hist - 1);
   s.sans = s.sans.slice(0, p.hist - 1);
   if (p.clk) {
@@ -104296,8 +104739,17 @@ function chPaint(opts) {
     setSel: (sq) => { chLocal.presel = sq; chPaint(); },
     setPre: (mv) => { chLocal.pre = mv; chPaint(); }
   };
+  // The hidden queen: your pawns lit while you pick; afterwards its crown on your board only (both once it is over).
+  const hq = chHqOf(s);
+  const picking = chHqPicking(s);
+  const hqMine = chHqMine(s);
+  if (hq) {
+    if (picking) chessHqPawns(s.g, s.me).forEach(i => marks.push({ sq: chSqName(i), kind: chSqName(i) === chLocal.hqSel ? 'hq' : 'chance' }));
+    else if (ended) hq.sq.forEach(i => { if (i >= 0) marks.push({ sq: chSqName(i), kind: 'hq' }); });
+    else if (hqMine) marks.push({ sq: hqMine, kind: 'hq' });
+  }
   const ctx = {
-    g: s.g, side: side, sel: chLocal.sel,
+    g: s.g, side: side, sel: chLocal.sel, hq: hqMine,
     setSel: (sq) => { chLocal.sel = sq; chPaint(); },
     play: (from, to, promo) => chPlayLocal(from, to, promo),
     redraw: () => chPaint()
@@ -104307,18 +104759,24 @@ function chPaint(opts) {
     board: s.g.board, orient: chOrient(s), loud: true,
     last: s.last ? { from: s.last.from, to: s.last.to } : null,
     // The undo count is in the key: after ↶ the same move number is another move (else the piece snaps).
-    anim: s.last ? Object.assign({ key: s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n, still: !!o.still }, s.last) : null,
+    anim: s.last ? chAnimOf(s.last, s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n, o.still) : null,
     check: chessCheckSq(s.g),
     mate: ended && s.result.reason === 'mate' ? chMateKing(s.g) : '',
-    sel: humanTurn ? chLocal.sel : preOn ? chLocal.presel : '',
-    targets: humanTurn ? chTargets(s.g, chLocal.sel) : preOn && chLocal.presel ? chPremoveTargets(s.g.board, chLocal.presel) : [],
+    sel: picking ? '' : humanTurn ? chLocal.sel : preOn ? chLocal.presel : '',
+    targets: picking ? [] : humanTurn ? chTargets(s.g, chLocal.sel, hqMine) : preOn && chLocal.presel ? chPremoveTargets(s.g.board, chLocal.presel) : [],
     marks: marks,
     arrows: (hint ? [{ from: hint.move.from, to: hint.move.to }] : []).concat(best ? best.lines.map((b, k) => ({ from: b.from, to: b.to, color: CH_BEST_COLORS[k][0], label: b.pct + '%', ink: CH_BEST_COLORS[k][1] })) : [], chLocal.pre && s.phase === 'play' ? [{ from: chLocal.pre.from, to: chLocal.pre.to, color: CH_PRE_COLOR }] : []),
     lost: s.lost,
-    input: humanTurn ? { canMove: true, side: side, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
+    input: picking ? { canMove: true, side: s.me, onPick: (sq, fromDrag) => chHqTapLocal(sq, fromDrag), onDrop: () => false }
+      : humanTurn ? { canMove: true, side: side, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
       : preOn ? { canMove: true, side: s.me, premove: true, onPick: (sq, fromDrag) => chPreTapLogic(pctx, sq, fromDrag), onDrop: (from, to) => chPreDropLogic(pctx, from, to) } : null
   };
   chViewShow(el.querySelector('[data-ch-host]'), model);
+  if (hq && s.last && s.last.hq && !o.still) {
+    const k = s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n;
+    if (s.last.hq.reveal) chHqMoment('reveal', k + '|r');
+    if (s.last.hq.captured) chHqMoment('captured', k + '|c');
+  }
   const scores = s.scores || [0, 0, 0];
   // The pills are by colour; the tally is by player.
   const p1Colour = s.vs === 'phone' ? s.me : (s.firstWhite === 0 ? 0 : 1);
@@ -104356,7 +104814,8 @@ function chMateKing(g) {
 function chLocalStatus(s, names) {
   if (s.phase === 'done' && s.result) return chResultLine(s.result.result, s.result.reason, names);
   if (chLocal.pending) return chT('ch_coach_wait');
-  const check = chessCheckSq(s.g) ? ' · ' + chT('ch_check') : '';
+  if (chHqPicking(s)) return chT('ch_hq_pick');
+  const check = (chessCheckSq(s.g) ? ' · ' + chT('ch_check') : '') + (s.last && s.last.hq && s.last.n === s.hist.length ? ' · ' + chHqWord(s.last.hq.captured && !s.last.hq.reveal ? 'captured' : 'reveal') : '');
   if (s.vs === 'phone') return (s.g.turn === s.me ? chT('duel_your_turn') : chT('xo_thinking')) + check;
   return chT('duel_turn_of', { name: duelIso(names[s.g.turn]) }) + check;
 }
@@ -104367,6 +104826,12 @@ function chLocalBarHtml(s, hint) {
         <button type="button" class="btn btn--primary btn--lg" onclick="chNextGame()">${escapeHTML(chT('duel_next_game'))}</button>
         <button type="button" class="btn btn--secondary" onclick="chOpenLastReview()">📊 ${escapeHTML(chT('ch_review'))}</button>
       </div>${!s.practice && typeof chShareRowHtml === 'function' ? chShareRowHtml('local|' + s.gameId) : ''}`;
+  }
+  if (chHqPicking(s)) {
+    return `<p class="ch-hq-note">👑 ${escapeHTML(chT('ch_hq_pick_hint'))}</p><div class="ch-bar__row">
+        <button type="button" class="btn btn--primary btn--auto" ${chLocal.hqSel ? '' : 'disabled'} onclick="chHqPickLocal(chLocal.hqSel)">👑 ${escapeHTML(chT('ch_hq_pick_ok'))}${chLocal.hqSel ? ` <b dir="ltr">${escapeHTML(chLocal.hqSel)}</b>` : ''}</button>
+        <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chResignLocal()">🏳️ ${escapeHTML(chT('ch_resign'))}</button>
+      </div>`;
   }
   const parts = [];
   if (s.vs === 'phone' && (s.gameHelp || s.helpLimit) !== 'none') {
@@ -104392,6 +104857,8 @@ function chLocalSideHtml(s, names) {
     out.push(`<p class="ch-rating-result ${rc.delta > 0 ? 'is-up' : rc.delta < 0 ? 'is-down' : ''}">⭐ ${escapeHTML(chT('ch_rating_now', { r: rc.after }))} <b dir="ltr">${chDeltaText(rc.delta)}</b></p>`);
   }
   if (s.comment && s.vs === 'phone' && s.coach) out.push(chCommentHtml(s.comment));
+  const hqEnd = chHqOf(s);
+  if (hqEnd && s.phase === 'done') out.push(chHqEndHtml(chHqLocalEnds(hqEnd), names));
   out.push(chMovesHtml(s.sans, { current: s.sans.length - 1, start: s.start || (s.practice ? 'practice' : ''), variant: s.gameVariant }));
   if (s.practice) out.push(`<p class="field__hint">🎯 ${escapeHTML(chT('ch_practice_note'))}</p>`);
   if (s.help && s.help.setup) {
@@ -104908,6 +105375,8 @@ function chPgn(rec) {
   const out = [tag('Event', 'Ashry'), tag('Site', typeof appLink === 'function' ? appLink() : ''), tag('Date', d.getFullYear() + '.' + two(d.getMonth() + 1) + '.' + two(d.getDate())),
     tag('Round', '-'), tag('White', names[0]), tag('Black', names[1]), tag('Result', res)];
   if (rec.variant === '960') out.push(tag('Variant', 'Chess960'));
+  // الوزير المستخبي: a revealing move is written as the queen's (a chess site reads the moves as far as it can).
+  if (rec.variant === 'hq') out.push(tag('Variant', 'Hidden Queen'));
   if (start) { out.push(tag('SetUp', '1')); out.push(tag('FEN', start)); }
   if (rec.reason === 'time') out.push(tag('Termination', 'time forfeit'));
   const g = start ? chessFromFen(start) : chessNew();
@@ -105056,7 +105525,7 @@ function chShareCardData(rec) {
   const acc = rec.review && rec.review.accuracy ? rec.review.accuracy : null;
   const line = chResultLine(rec.result, rec.reason, names) + (acc ? ' · ' + chT('ch_share_acc') + ' ' + acc.map(a => (a === null ? '-' : Math.round(a) + '%')).join(' / ') : '');
   return {
-    title: chT('setup_shatranj') + (rec.variant === '960' ? ' 960' : ''),
+    title: chT('setup_shatranj') + (rec.variant === '960' ? ' 960' : rec.variant === 'hq' ? ' · 👑 ' + chT('ch_var_hq') : ''),
     icon: (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID.shatranj && CATALOG_BY_ID.shatranj.icon) || '♞',
     rows: [{ name: '⚪ ' + (names[0] || ''), value: pair[0] }, { name: '⚫ ' + (names[1] || ''), value: pair[1] }, line],
     board: { board: end.board, last: end.last, orient: rec.me === 1 ? 1 : 0 },
@@ -105122,7 +105591,7 @@ function chOpenRoomReview(state) {
   const r = bd.result || {};
   const seat = state.youAreScreen ? -1 : (s.seats || []).indexOf(Room.me);
   const rec = chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: seat, result: r.result || 'd', reason: r.reason || '',
-    start: bd.start || '', moves: bd.hist.slice(), key: chRoomGameKey(state), variant: (s.settings || {}).variant === '960' ? '960' : '' });
+    start: bd.start || '', moves: bd.hist.slice(), key: chRoomGameKey(state), variant: bd.hq ? 'hq' : (s.settings || {}).variant === '960' ? '960' : '' });
   if (rec) chReviewShow(rec);
 }
 
@@ -106561,12 +107030,20 @@ if (typeof onLeaveScreen === 'function') {
    which carries the match. A tournament's replay and its Armageddon game say
    so above the status (chRoomTagHtml); the TV's live cards are small flat
    boards with their clocks (TOUR_CLIENT.chess in JS_RoomTournament.html).
+
+   الوزير المستخبي (the hidden queen, winner stays only): before the first move
+   each seated phone picks one of its own pawns (hqPick); its square is on this
+   phone only (state.you.hq, the server's room.secrets), wearing a gold crown;
+   the other phone, the watchers and the TV see plain pawns. shared.chess.hq
+   says who has picked, the pick clock, the reveals and captures the table saw
+   (each played once as a moment on every screen, chHqMoment), and both picks
+   once the game is over.
    ========================================================================= */
 
 // sel: the piece picked up; early: this phone's move, drawn before the server answers;
 // offset: the server's clock against this phone's; tick: the clocks' redraw.
 // pre / presel / preKey: your premove (one, on this phone only, never sent until it is played), for this game.
-const chRoomLocal = { sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, turnKey: '', stored: '', pre: null, presel: '', preKey: '' };
+const chRoomLocal = { hqSel: '', hqSeen: null, sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, turnKey: '', stored: '', pre: null, presel: '', preKey: '' };
 
 const chRoomSeat = (state) => (state.youAreScreen ? -1 : ((state.shared || {}).seats || []).indexOf(Room.me));
 
@@ -106655,6 +107132,8 @@ function chRoomTickStart() {
     const st = chRoomLiveState();
     if (!st) { if (!minis) chRoomTickStop(); return; }
     chRoomPaintClocks(st);
+    const pl = chRoomHqPickLeft(st);
+    if (pl !== null) document.querySelectorAll('[data-ch-hqclock]').forEach(el => { if (el.textContent !== String(pl)) el.textContent = String(pl); });
     const bd = st.shared.chess;
     const seat = chRoomSeat(st);
     const left = chRoomClockLeft(st, bd.g.turn);
@@ -106677,15 +107156,21 @@ function chRoomPlay(from, to, promo) {
   const s = state.shared;
   const bd = s.chess;
   const seat = chRoomSeat(state);
-  if (s.phase !== 'play' || bd.result || seat !== bd.g.turn || chRoomLocal.early) return;
+  if (s.phase !== 'play' || bd.result || seat !== bd.g.turn || chRoomLocal.early || (bd.hq && bd.hq.picking)) return;
   const g = chessCloneGame(bd.g);
-  const info = chessPlay(g, { from: from, to: to, promo: promo });
+  // The hidden queen: this phone knows only its own (the server judges the move with both).
+  const mine = chRoomHqMine(state);
+  let h = null;
+  if (bd.hq) { h = chessHqNew(); h.sq[seat] = chSqIndex(mine); }
+  const info = h ? chessHqPlay(g, h, { from: from, to: to, promo: promo }) : chessPlay(g, { from: from, to: to, promo: promo });
   if (!info) { chSound('refuse'); return; }
   const lost = [bd.lost[0].slice(), bd.lost[1].slice()];
   if (info.capture) lost[1 - seat].push(info.capture);
   const n = bd.moves + 1;
-  chRoomLocal.early = { code: state.code, round: s.round, n: n, g: g, lost: lost, sans: bd.sans.concat([info.san]),
+  const reveal = !!(h && info.hq && info.hq.reveal);
+  chRoomLocal.early = { code: state.code, round: s.round, n: n, g: g, lost: lost, sans: bd.sans.concat([info.san + (reveal ? CHESS_HQ_MARK : '')]),
     last: { from: info.from, to: info.to, capture: info.capture, captureSq: info.captureSq, castle: info.castle, promo: info.promo, check: info.check, n: n } };
+  if (reveal) chRoomLocal.early.last.hq = { reveal: true, captured: false };
   chRoomLocal.sel = '';
   haptic('light');
   chRoomRedraw();
@@ -106721,20 +107206,29 @@ function chRoomModel(state, tv, still) {
   const bd = s.chess;
   const seat = tv ? -1 : chRoomSeat(state);
   const view = chRoomBoard(state);
-  const mine = !tv && s.phase === 'play' && !bd.result && seat === view.g.turn && !chRoomLocal.early;
+  const mine = !tv && s.phase === 'play' && !bd.result && seat === view.g.turn && !chRoomLocal.early && !(bd.hq && bd.hq.picking);
   const selKey = [roomDealKey(state), s.round, view.n].join('|');
   if (chRoomLocal.selKey !== selKey) { chRoomLocal.selKey = selKey; chRoomLocal.sel = ''; }
+  const hqMine = tv ? '' : chRoomHqMine(state);
   const ctx = {
-    g: view.g, side: seat, sel: chRoomLocal.sel,
+    g: view.g, side: seat, sel: chRoomLocal.sel, hq: hqMine,
     setSel: (sq) => { chRoomLocal.sel = sq; chRoomRedraw(); },
     play: (from, to, promo) => chRoomPlay(from, to, promo),
     redraw: () => chRoomRedraw()
   };
   const over = s.phase === 'over' && bd.result;
+  // The hidden queen: your pawns lit while you pick, then its crown on your board only; both shown once it is over.
+  const marks = [];
+  const picking = chRoomHqPicking(state, tv);
+  if (bd.hq) {
+    if (picking) chessHqPawns(view.g, seat).forEach(i => marks.push({ sq: chSqName(i), kind: chSqName(i) === chRoomLocal.hqSel ? 'hq' : 'chance' }));
+    else if (bd.hq.end) bd.hq.end.forEach(e => { if (e && e.how === 'hidden' && e.at) marks.push({ sq: e.at, kind: 'hq' }); });
+    else if (hqMine) marks.push({ sq: hqMine, kind: 'hq' });
+  }
   // The other side to move (or your own move still on its way): a premove can be queued.
   const preKey = [roomDealKey(state), s.round].join('|');
   if (chRoomLocal.preKey !== preKey) { chRoomLocal.preKey = preKey; chRoomLocal.pre = null; chRoomLocal.presel = ''; }
-  const preOn = !tv && (seat === 0 || seat === 1) && s.phase === 'play' && !bd.result && !mine;
+  const preOn = !tv && (seat === 0 || seat === 1) && s.phase === 'play' && !bd.result && !mine && !(bd.hq && bd.hq.picking);
   if (!preOn && !mine) { chRoomLocal.pre = null; chRoomLocal.presel = ''; }
   const pctx = {
     board: view.g.board, side: seat, sel: chRoomLocal.presel, pre: chRoomLocal.pre,
@@ -106746,16 +107240,76 @@ function chRoomModel(state, tv, still) {
     board: view.g.board, orient: seat === 1 ? 1 : 0, tv: !!tv,
     loud: duelRoomLoud(state) || !!chRoomLocal.early,
     last: view.last ? { from: view.last.from, to: view.last.to } : null,
-    anim: view.last ? Object.assign({ key: [roomDealKey(state), s.round, view.last.n].join('|'), still: !!still }, view.last) : null,
+    anim: view.last ? chAnimOf(view.last, [roomDealKey(state), s.round, view.last.n].join('|'), still) : null,
     check: chessCheckSq(view.g),
     mate: over && bd.result.reason === 'mate' ? chMateKing(view.g) : '',
-    sel: mine ? chRoomLocal.sel : preOn ? chRoomLocal.presel : '',
-    targets: mine ? chTargets(view.g, chRoomLocal.sel) : preOn && chRoomLocal.presel ? chPremoveTargets(view.g.board, chRoomLocal.presel) : [],
-    marks: [], arrows: preOn && chRoomLocal.pre ? [{ from: chRoomLocal.pre.from, to: chRoomLocal.pre.to, color: CH_PRE_COLOR }] : [],
+    sel: picking ? '' : mine ? chRoomLocal.sel : preOn ? chRoomLocal.presel : '',
+    targets: picking ? [] : mine ? chTargets(view.g, chRoomLocal.sel, hqMine) : preOn && chRoomLocal.presel ? chPremoveTargets(view.g.board, chRoomLocal.presel) : [],
+    marks: marks, arrows: preOn && chRoomLocal.pre && !picking ? [{ from: chRoomLocal.pre.from, to: chRoomLocal.pre.to, color: CH_PRE_COLOR }] : [],
     lost: view.lost,
-    input: mine ? { canMove: true, side: seat, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
+    input: picking ? { canMove: true, side: seat, onPick: (sq, fromDrag) => chRoomHqTap(sq, fromDrag), onDrop: () => false }
+      : mine ? { canMove: true, side: seat, onPick: (sq, fromDrag) => chTapLogic(ctx, sq, fromDrag), onDrop: (from, to) => chDropLogic(ctx, from, to) }
       : preOn ? { canMove: true, side: seat, premove: true, onPick: (sq, fromDrag) => chPreTapLogic(pctx, sq, fromDrag), onDrop: (from, to) => chPreDropLogic(pctx, from, to) } : null
   };
+}
+
+/* --- الوزير المستخبي in the room ------------------------------------------------------- */
+
+/** Your hidden queen's square in this room's game ('' when none: gone, not yours, another variant). */
+function chRoomHqMine(state) {
+  const bd = ((state || {}).shared || {}).chess;
+  const you = (state || {}).you || {};
+  return bd && bd.hq && typeof you.hq === 'string' ? you.hq : '';
+}
+
+/** Is this phone still to pick its pawn? */
+function chRoomHqPicking(state, tv) {
+  const s = state.shared || {};
+  const bd = s.chess;
+  const seat = tv ? -1 : chRoomSeat(state);
+  return !!(bd && bd.hq && bd.hq.picking && s.phase === 'play' && !bd.result && (seat === 0 || seat === 1) && !bd.hq.picked[seat]);
+}
+
+/** A tap while picking: a pawn of yours is chosen; a second tap on it (or the button) sends it. */
+function chRoomHqTap(sq, fromDrag) {
+  const state = duelRoomState();
+  if (!state || !chRoomHqPicking(state)) return false;
+  const seat = chRoomSeat(state);
+  const i = chSqIndex(sq);
+  if (i < 0 || state.shared.chess.g.board[i] !== ((seat << 3) | 1)) { if (chRoomLocal.hqSel) { chRoomLocal.hqSel = ''; chRoomRedraw(); } return false; }
+  if (chRoomLocal.hqSel === sq) { if (!fromDrag) chRoomHqPick(sq); return false; }
+  chRoomLocal.hqSel = sq;
+  chSound('pick');
+  chRoomRedraw();
+  return false;
+}
+
+function chRoomHqPick(sq) {
+  const state = duelRoomState();
+  if (!sq || !state || !chRoomHqPicking(state)) return;
+  chRoomLocal.hqSel = '';
+  haptic('medium');
+  chSound('hint');
+  duelAct('hqPick', { sq: sq, round: state.shared.round });
+}
+
+/** The pick clock's seconds left (the server's time), or null. */
+function chRoomHqPickLeft(state) {
+  const hq = (((state || {}).shared || {}).chess || {}).hq;
+  if (!hq || !hq.picking || !hq.pickEnds) return null;
+  return Math.max(0, Math.ceil((hq.pickEnds - (Date.now() - (chRoomLocal.offset || 0))) / 1000));
+}
+
+/** The reveals and captures the table saw, each played once as a moment - never replayed after a reload or a late join. */
+function chRoomHqMoments(state) {
+  const bd = (state.shared || {}).chess;
+  if (!bd || !bd.hq) return;
+  const key = [roomDealKey(state), state.shared.round].join('|');
+  const evs = bd.hq.events || [];
+  const top = evs.reduce((a, e) => Math.max(a, e.n || 0), 0);
+  if (!chRoomLocal.hqSeen || chRoomLocal.hqSeen.key !== key) { chRoomLocal.hqSeen = { key: key, n: top }; return; }
+  evs.forEach(e => { if (e.n > chRoomLocal.hqSeen.n) chHqMoment(e.kind, key + '|' + e.n + '|' + e.kind); });
+  chRoomLocal.hqSeen.n = Math.max(chRoomLocal.hqSeen.n, top);
 }
 
 function chRoomPills(state, tv) {
@@ -106791,7 +107345,13 @@ function chRoomStatus(state, tv) {
   }
   const view = chRoomBoard(state);
   const seat = tv ? -1 : chRoomSeat(state);
-  const check = chessCheckSq(view.g) ? ' · ' + chT('ch_check') : '';
+  if (bd.hq && bd.hq.picking) {
+    if (chRoomHqPicking(state, tv)) return chT('ch_hq_pick');
+    const waiting = [0, 1].filter(k => !bd.hq.picked[k]).map(k => duelIso(names[k] || ''));
+    return chT('ch_hq_waiting', { name: waiting.join(' · ') });
+  }
+  const lastHq = view.last && view.last.hq;
+  const check = (chessCheckSq(view.g) ? ' · ' + chT('ch_check') : '') + (lastHq ? ' · ' + chHqWord(lastHq.captured && !lastHq.reveal ? 'captured' : 'reveal') : '');
   if (chRoomLocal.early && seat !== -1) return chT('ch_sent') + check;
   if (bd.offer) {
     if (seat !== -1 && seat !== bd.offer.seat) return chT('ch_offer_to_you', { name: duelIso(names[bd.offer.seat]) });
@@ -106808,6 +107368,15 @@ function chRoomBarHtml(state) {
   const t = TRANSLATIONS[appState.lang] || {};
   if (s.phase !== 'play' || bd.result) return '';
   if (seat === -1) return duelRoomWatchNote(state, t);
+  if (bd.hq && bd.hq.picking) {
+    const left = chRoomHqPickLeft(state);
+    const clock = left === null ? '' : ` <b class="ch-clock metric" data-ch-hqclock>${left}</b>`;
+    if (!chRoomHqPicking(state)) return `<p class="ch-hq-note">👑 ${escapeHTML(chT('ch_hq_picked', { sq: chRoomHqMine(state) }))}${clock}</p>`;
+    const sel = chRoomLocal.hqSel;
+    return `<p class="ch-hq-note">👑 ${escapeHTML(chT('ch_hq_pick_hint'))}${clock}</p><div class="ch-bar__row">
+        <button type="button" class="btn btn--primary btn--auto" ${sel ? '' : 'disabled'} onclick="chRoomHqPick(chRoomLocal.hqSel)">👑 ${escapeHTML(chT('ch_hq_pick_ok'))}${sel ? ` <b dir="ltr">${escapeHTML(sel)}</b>` : ''}</button>
+      </div>`;
+  }
   if (bd.offer && bd.offer.seat !== seat) {
     return `<div class="ch-offer"><p>½ ${escapeHTML(chT('ch_offer_to_you', { name: duelIso(duelRoomNames(state)[bd.offer.seat]) }))}</p>
       <div class="btn-row">
@@ -106845,6 +107414,7 @@ function chRoomTagHtml(state) {
   if (set.variant === '960') {
     tags.push(`<p class="ch-tag ch-tag--960">🎲 ${escapeHTML(chT('ch_pill_960') || '960')}</p>`);
   }
+  if (bd.hq) tags.push(`<p class="ch-tag ch-tag--hq">👑 ${escapeHTML(chT('ch_var_hq'))}</p>`);
   if (!s.tourMid && set.odds && set.odds !== 'none' && s.champ && (s.seats || []).indexOf(s.champ) !== -1) {
     let label = '';
     if (set.odds === 'time') {
@@ -106868,9 +107438,13 @@ function chRoomHostRow(state, tv) {
   const s = state.shared || {};
   const bd = s.chess;
   if (!state.youAreHost || s.phase !== 'play' || !bd || bd.result) return '';
-  const key = [roomDealKey(state), s.round, bd.moves].join('|');
+  const picking = !!(bd.hq && bd.hq.picking);
+  const key = [roomDealKey(state), s.round, bd.moves, picking ? 'pick' : ''].join('|');
   if (chRoomLocal.turnKey !== key) { chRoomLocal.turnKey = key; chRoomLocal.turnSince = Date.now(); }
-  const id = (s.seats || [])[bd.g.turn];
+  // The hidden queen's pick waiting on a phone: the host picks a random pawn for whoever hasn't.
+  const upSeat = picking ? [0, 1].find(k => !bd.hq.picked[k]) : bd.g.turn;
+  if (upSeat === undefined) return '';
+  const id = (s.seats || [])[upSeat];
   const p = (state.players || []).find(x => x.id === id);
   if (!p || id === Room.me) return '';
   const wait = 40000 - (Date.now() - chRoomLocal.turnSince);
@@ -106883,7 +107457,8 @@ function chRoomHostRow(state, tv) {
     }
     return '';
   }
-  const label = '⏭️ ' + chT('ch_play_for', { name: duelIso(duelRoomNames(state)[bd.g.turn] || '') });
+  const label = picking ? '🎲 ' + chT('ch_hq_pick_for', { name: duelIso(duelRoomNames(state)[upSeat] || '') })
+    : '⏭️ ' + chT('ch_play_for', { name: duelIso(duelRoomNames(state)[bd.g.turn] || '') });
   const press = `duelAct('skipTurn', { move: ${Number(bd.moves) || 0} })`;
   return tv ? `<div class="tv-actions">${tvBtn(label, press, 'ghost')}</div>` : roomHostRow([[label, press]]);
 }
@@ -106913,7 +107488,7 @@ function chRoomKeepGame(state) {
   if (chRoomLocal.storedKeys[key]) return;
   chRoomLocal.storedKeys[key] = true;
   const names = duelRoomNames(state);
-  chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: chRoomSeat(state), result: bd.result.result || 'd', reason: bd.result.reason || '', start: bd.start || '', moves: bd.hist.slice(), key: key, variant: (s.settings || {}).variant === '960' ? '960' : '' });
+  chStoreGame({ mode: 'room', names: [names[0] || '', names[1] || ''], me: chRoomSeat(state), result: bd.result.result || 'd', reason: bd.result.reason || '', start: bd.start || '', moves: bd.hist.slice(), key: key, variant: bd.hq ? 'hq' : (s.settings || {}).variant === '960' ? '960' : '' });
 }
 
 function chRoomRender(state, still) {
@@ -106948,7 +107523,9 @@ function chRoomRender(state, still) {
   if (over) {
     // Kept first, so the share row below finds the game (a watcher keeps none, and has no row).
     chRoomKeepGame(state);
-    side.push(duelRoomOverHtml(state, t), `<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(duelRoomState())">📊 ${escapeHTML(chT('ch_review'))}</button>`);
+    side.push(duelRoomOverHtml(state, t));
+    if (bd.hq && bd.hq.end) side.push(chHqEndHtml(bd.hq.end, duelRoomNames(state)));
+    side.push(`<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(duelRoomState())">📊 ${escapeHTML(chT('ch_review'))}</button>`);
     if (seat !== -1) side.push(chShareRowHtml(chRoomGameKey(state)));
   }
   const rSet = s.settings || {};
@@ -106966,6 +107543,7 @@ function chRoomRender(state, still) {
   if (bd.clock) chRoomTickStart(); else chRoomTickStop();
   duelPillsAfter(el, 'chr|' + state.code, { turn: s.phase === 'play' && !bd.result ? view.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
   if (myTurn && duelOnce(['chturn', roomDealKey(state), s.round, bd.moves].join('|'))) haptic('medium');
+  chRoomHqMoments(state);
   if (preDropped) chPremoveDropped(preDropped);
   if (over) { chRoomKeepGame(state); duelRoomCheer(el, state, ['ch', roomDealKey(state), s.round].join('|')); }
 }
@@ -106980,7 +107558,7 @@ function setChRoomClock(v) {
 }
 
 function setChRoomVariant(v) {
-  rememberOptions('chessRoom', { variant: v === '960' ? '960' : 'standard' });
+  rememberOptions('chessRoom', { variant: v === '960' || v === 'hq' ? v : 'standard' });
   duelLobbyRedraw();
 }
 
@@ -107003,16 +107581,22 @@ ROOM_GAMES.chess = {
         <div class="segmented" role="group">
           ${CHESS_CLOCK_IDS.map(v => `<button type="button" class="segmented__item ${v === o.clock ? 'is-active' : ''}" onclick="setChRoomClock('${v}')">${escapeHTML(v === 'off' ? chT('gw_clock_off') : v)}</button>`).join('')}
         </div>
-        <p class="field__hint">${escapeHTML(chT('ch_clock_hint'))}</p>
+        ${o.clock !== 'off' ? `<p class="field__hint">${escapeHTML(chT('ch_clock_hint'))}</p>` : ''}
       </div>`;
+    // The hidden queen is winner stays only: while the tournament switch is on it isn't offered (and a
+    // remembered choice plays standard there). Each hint line explains only the choice made.
+    const variant = isTour && o.variant === 'hq' ? 'standard' : (o.variant === '960' || o.variant === 'hq' ? o.variant : 'standard');
+    const varHint = variant === '960' ? chT('ch_variant_hint') : variant === 'hq' ? chT('ch_variant_hint_hq_room') : '';
     const varHtml = `
       <div class="field">
         <label class="field__label">🎲 ${escapeHTML(chT('ch_variant_label'))}</label>
         <div class="segmented" role="group">
-          <button type="button" class="segmented__item ${o.variant !== '960' ? 'is-active' : ''}" onclick="setChRoomVariant('standard')">${escapeHTML(chT('ch_var_standard'))}</button>
-          <button type="button" class="segmented__item ${o.variant === '960' ? 'is-active' : ''}" onclick="setChRoomVariant('960')">${escapeHTML(chT('ch_var_960'))}</button>
+          <button type="button" class="segmented__item ${variant === 'standard' ? 'is-active' : ''}" onclick="setChRoomVariant('standard')">${escapeHTML(chT('ch_var_standard'))}</button>
+          <button type="button" class="segmented__item ${variant === '960' ? 'is-active' : ''}" onclick="setChRoomVariant('960')">${escapeHTML(chT('ch_var_960'))}</button>
+          ${isTour ? '' : `<button type="button" class="segmented__item ${variant === 'hq' ? 'is-active' : ''}" onclick="setChRoomVariant('hq')">👑 ${escapeHTML(chT('ch_var_hq_short'))}</button>`}
         </div>
-        <p class="field__hint">${escapeHTML(chT('ch_variant_hint'))}</p>
+        ${varHint ? `<p class="field__hint">${escapeHTML(varHint)}</p>` : ''}
+        ${isTour ? `<p class="field__hint">${escapeHTML(chT('ch_hq_no_tour'))}</p>` : ''}
       </div>`;
     const oddsValues = [
       ['none', chT('ch_odds_none')],
@@ -107022,13 +107606,16 @@ ROOM_GAMES.chess = {
       ['queen', chT('ch_odds_queen')],
       ['time', chT('ch_odds_time')]
     ];
-    const oddsHtml = isTour ? '' : `
+    // No handicap in a tournament, nor with the hidden queen. Its line only once one is chosen; half the time with no clock warns.
+    const odds = o.odds || 'none';
+    const oddsLine = odds === 'none' ? '' : odds === 'time' && o.clock === 'off' ? chT('ch_odds_time_noclock') : chT('ch_odds_hint');
+    const oddsHtml = isTour || variant === 'hq' ? '' : `
       <div class="field">
         <label class="field__label">⚖️ ${escapeHTML(chT('ch_odds_label'))}</label>
         <div class="segmented" role="group">
-          ${oddsValues.map(v => `<button type="button" class="segmented__item ${v[0] === (o.odds || 'none') ? 'is-active' : ''}" onclick="setChRoomOdds('${v[0]}')">${escapeHTML(v[1])}</button>`).join('')}
+          ${oddsValues.map(v => `<button type="button" class="segmented__item ${v[0] === odds ? 'is-active' : ''}" onclick="setChRoomOdds('${v[0]}')">${escapeHTML(v[1])}</button>`).join('')}
         </div>
-        <p class="field__hint">${escapeHTML(chT('ch_odds_hint'))}</p>
+        ${oddsLine ? `<p class="field__hint">${escapeHTML(oddsLine)}</p>` : ''}
       </div>`;
     return `<div class="card card--tight">
         ${clockHtml}
@@ -107039,7 +107626,10 @@ ROOM_GAMES.chess = {
   },
   startPayload() {
     const o = chRoomOpts();
-    return { clock: o.clock, variant: o.variant || 'standard', odds: o.odds || 'none' };
+    // A tournament has no hidden queen: a remembered one starts it standard.
+    const isTour = typeof tourModeOf === 'function' && tourModeOf('chess') === 'tour';
+    const variant = o.variant === 'hq' && isTour ? 'standard' : (o.variant || 'standard');
+    return { clock: o.clock, variant: variant, odds: variant === 'hq' ? 'none' : (o.odds || 'none') };
   },
   render(state) {
     if (appState.currentView !== 'room-chess') setView('room-chess');
@@ -107052,6 +107642,7 @@ ROOM_GAMES.chess = {
 onRoomClocksReset(() => {
   chRoomTickStop();
   chRoomLocal.sel = '';
+  chRoomLocal.hqSel = '';
   chRoomLocal.early = null;
   const st = Room.state;
   // The team games (JS_RoomVoteChess.html, JS_RoomHandBrain.html) keep the one board too.
@@ -107089,7 +107680,7 @@ TV_GAMES.chess = {
       <div class="tv-scale">${chRoomPills(state, true)}</div>
       ${chRoomTagHtml(state)}
       <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(chRoomStatus(state, true))}</div>
-      ${over ? duelRoomOverHtml(state, t, true) : moves}
+      ${over ? duelRoomOverHtml(state, t, true) + (bd.hq && bd.hq.end ? `<div class="tv-scale">${chHqEndHtml(bd.hq.end, duelRoomNames(state))}</div>` : '') : moves}
       ${chRoomHostRow(state, true)}
       <div class="tv-scale">${duelRoomLineHtml(state, t, true)}</div>`;
     const side = view.querySelector('[data-ch-tvside]');
@@ -107103,6 +107694,7 @@ TV_GAMES.chess = {
     chRoomPaintClocks(state);
     if (bd.clock) chRoomTickStart(); else chRoomTickStop();
     duelPillsAfter(view, 'chtv|' + state.code, { turn: s.phase === 'play' && !bd.result ? bd.g.turn : -1, scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0] });
+    chRoomHqMoments(state);
     if (over) duelRoomCheer(view, state, ['ch', roomDealKey(state), s.round].join('|'));
   }
 };
@@ -108715,7 +109307,7 @@ ROOM_GAMES.chess4 = {
         <div class="field">
           <label class="field__label">⏱️ ${escapeHTML(chT('ch4_clock_label'))}</label>
           ${seg(CHESS4_CLOCKS.map(v => [v, v ? chT('ch4_minutes', { n: v }) : chT('ch4_clock_off')]), clock, 'clock')}
-          <p class="field__hint">${escapeHTML(chT('ch4_clock_hint'))}</p>
+          ${clock ? `<p class="field__hint">${escapeHTML(chT('ch4_clock_hint'))}</p>` : ''}
         </div>
         ${ch4SeatsHtml(state)}
         <p class="field__hint" style="text-align:center">${escapeHTML(chT('ch4_lobby_hint'))}</p>
@@ -110544,7 +111136,7 @@ ROOM_GAMES.handbrain = {
           <div class="segmented" role="group">
             ${['off', '5+0', '10+0'].map(v => `<button type="button" class="segmented__item ${v === o.clock ? 'is-active' : ''}" onclick="setHbClock('${v}')">${escapeHTML(v === 'off' ? chT('gw_clock_off') : v)}</button>`).join('')}
           </div>
-          <p class="field__hint">${escapeHTML(chT('hb_clock_hint'))}</p>
+          ${o.clock !== 'off' ? `<p class="field__hint">${escapeHTML(chT('hb_clock_hint'))}</p>` : ''}
         </div>
         ${hint}
       </div>`;
@@ -114514,7 +115106,7 @@ ROOM_GAMES.minigolf = {
           </label>
           <p class="field__hint">${escapeHTML(mgT('mg_guide_hint'))}</p>
         </div>
-        ${seg('⏱️ ' + mgT('mg_lobby_clock'), 'clock', [0, 20, 40].map(v => [v, v ? v + '″' : mgT('gw_clock_off')]), o.clock, mgT('mg_clock_hint'))}
+        ${seg('⏱️ ' + mgT('mg_lobby_clock'), 'clock', [0, 20, 40].map(v => [v, v ? v + '″' : mgT('gw_clock_off')]), o.clock, o.clock ? mgT('mg_clock_hint') : '')}
       </div>`;
   },
   startPayload() {
@@ -115697,7 +116289,7 @@ ROOM_GAMES.ludo = {
     const clock = state.youAreHost ? `<div class="field">
           <label class="field__label">⏱️ ${escapeHTML(ludoT('ludo_clock'))}</label>
           <div class="segmented" role="group">${LUDO_CLOCKS.map(v => `<button type="button" class="segmented__item ${Number(o.turnClock) === v ? 'is-active' : ''}" onclick="setLudoRoomOpt('turnClock', ${v})">${v ? v + '″' : escapeHTML(ludoT('ludo_clock_off'))}</button>`).join('')}</div>
-          <p class="field__hint">${escapeHTML(ludoT('ludo_clock_hint'))}</p>
+          ${Number(o.turnClock) ? `<p class="field__hint">${escapeHTML(ludoT('ludo_clock_hint'))}</p>` : ''}
         </div>` : '';
     return `<div class="card card--tight ludo-lobby">
         ${ludoColorPickerHtml(state)}
@@ -116637,6 +117229,12 @@ function paintBankSetup() {
   seg('bank-opp', s.opp);
   seg('bank-level', s.level);
   seg('bank-length', s.length);
+  const lenHint = document.getElementById('bank-length-hint');
+  if (lenHint) {
+    const key = s.length ? 'bank_length_hint' : 'bank_until_one_hint';
+    lenHint.setAttribute('data-i18n', key);
+    lenHint.textContent = bankT(key);
+  }
   const tokens = document.getElementById('bank-token');
   if (tokens) {
     tokens.innerHTML = BANK_TOKENS.map(tk => `<button type="button" class="bank-tokpick ${tk === s.token ? 'is-active' : ''}" onclick="setBankOption('token', '${tk}')" aria-pressed="${tk === s.token}" aria-label="${escapeHTML(bankT('bank_token_' + tk))}">${BANK_TOKEN_ICON[tk]}</button>`).join('');
@@ -117040,7 +117638,7 @@ function bankOptionsHtml(state) {
       <div class="field">
         <label class="field__label">⏱️ ${escapeHTML(bankT('bank_clock'))}</label>
         ${seg('turnClock', BANK_CLOCKS, v => (v ? v + '″' : escapeHTML(bankT('bank_clock_off'))), o.turnClock)}
-        <p class="field__hint">${escapeHTML(bankT('bank_clock_hint'))}</p>
+        ${o.turnClock ? `<p class="field__hint">${escapeHTML(bankT('bank_clock_hint'))}</p>` : ''}
       </div>`;
 }
 
@@ -117621,6 +118219,8 @@ function roomTurnOf(state) {
     case 'chess':
       // Your move, or a draw offered to you (RoomChess.js).
       if (!Array.isArray(s.seats) || s.seats.indexOf(me) === -1 || s.phase !== 'play' || !s.chess || s.chess.result) return null;
+      // الوزير المستخبي: your pawn to pick before the first move.
+      if (s.chess.hq && s.chess.hq.picking) return s.chess.hq.picked[s.seats.indexOf(me)] ? null : 'turn_up';
       if (s.chess.offer && s.seats[s.chess.offer.seat] !== me) return 'turn_up';
       return s.seats[s.chess.g.turn] === me ? 'turn_up' : null;
     case 'votechess': {

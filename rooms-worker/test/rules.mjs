@@ -6132,6 +6132,133 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- باغ هاوس: drops, the hands, promoted pieces, the computer's drops (Chess.js, 24 Sep 2026) --- */
+{
+  const BG = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
+    '\nreturn { chessBugNew, chessBugClone, chessBugDrops, chessBugLegal, chessBugStatus, chessBugPlay, chessBugGive, chessBugBotMove, chessBugHandCount, chessFromFen, chessPerft, chessPlay, chessLegalMoves };')();
+  const bug = (fen, hands) => {
+    const g = BG.chessBugNew(fen);
+    Object.keys(hands || {}).forEach(side => Object.assign(g.hand[side], hands[side]));
+    return g;
+  };
+  const dropsTo = (g, l) => BG.chessBugDrops(g).filter(d => d.drop === l).map(d => d.to);
+
+  // Standard chess is untouched: a bughouse board with empty hands has the same moves.
+  const g0 = BG.chessBugNew();
+  check(BG.chessBugDrops(g0).length === 0 && BG.chessBugLegal(g0).length === 20 && BG.chessPerft(BG.chessFromFen(), 3) === 8902,
+    'bughouse: empty hands - no drops, the start has its 20 moves, perft unchanged');
+
+  // A pawn never on the first or last row; never onto a piece.
+  const gp = bug('4k3/8/8/8/8/8/8/4K3 w - - 0 1', { w: { p: 1 } });
+  const pawnTo = dropsTo(gp, 'p');
+  check(pawnTo.length === 62 - 14 && !pawnTo.some(t => /[18]$/.test(t)), 'bughouse: a pawn drop is refused on the first and last rows');
+  check(BG.chessBugPlay(BG.chessBugClone(gp), { drop: 'p', to: 'e8' }) === null && BG.chessBugPlay(BG.chessBugClone(gp), { drop: 'p', to: 'a1' }) === null,
+    'bughouse: P@e8 and P@a1 are refused');
+  const gn = bug('4k3/8/8/8/8/8/8/4K3 w - - 0 1', { w: { n: 1 } });
+  check(BG.chessBugPlay(BG.chessBugClone(gn), { drop: 'n', to: 'e8' }) === null && dropsTo(gn, 'n').length === 62,
+    'bughouse: a drop onto an occupied square is refused (a knight may go anywhere empty, rows 1 and 8 too)');
+  check(BG.chessBugPlay(BG.chessBugClone(gn), { drop: 'q', to: 'd4' }) === null, 'bughouse: nothing is dropped that is not in the hand');
+
+  // In check: only a drop that blocks.
+  const gc = bug('4r1k1/8/8/8/8/8/8/4K3 w - - 0 1', { w: { n: 1 } });
+  const blocks = dropsTo(gc, 'n');
+  check(blocks.slice().sort().join() === 'e2,e3,e4,e5,e6,e7', 'bughouse: in check, a drop is allowed only between the rook and the king');
+  check(BG.chessBugPlay(BG.chessBugClone(gc), { drop: 'n', to: 'a3' }) === null, 'bughouse: a drop that leaves the king in check is refused');
+
+  // A drop that mates, and the SAN of a drop.
+  const gm = bug('7k/6pp/8/8/8/8/8/4K3 w - - 0 1', { w: { r: 1 } });
+  const cm = BG.chessBugClone(gm);
+  const im = BG.chessBugPlay(cm, { drop: 'r', to: 'e8' });
+  check(im && im.san === 'R@e8#' && im.status.over && im.status.result === 'w' && im.status.reason === 'mate' && cm.hand.w.r === 0 && cm.board[60] === 4,
+    'bughouse: R@e8 is mate, written R@e8#, and the rook leaves the hand');
+  // The same check with a knight in Black's hand is only check: it can be blocked by a drop.
+  const gb = bug('7k/6pp/8/8/8/8/8/4K3 w - - 0 1', { w: { r: 1 }, b: { n: 1 } });
+  const ib = BG.chessBugPlay(BG.chessBugClone(gb), { drop: 'r', to: 'e8' });
+  check(ib && ib.san === 'R@e8+' && !ib.status.over, 'bughouse: a check that a piece in hand can block is not mate');
+  const gnd = bug('4k3/8/8/8/8/8/8/4K3 w - - 0 1', { w: { n: 1 } });
+  check(BG.chessBugPlay(BG.chessBugClone(gnd), { drop: 'n', to: 'f3' }).san === 'N@f3', 'bughouse: a knight dropped on f3 is written N@f3');
+  // Mate by a contact check: no drop blocks a knight.
+  const gk = bug('6rk/6pp/8/8/8/8/8/4K3 w - - 0 1', { w: { n: 1 }, b: { q: 1 } });
+  const ik = BG.chessBugPlay(BG.chessBugClone(gk), { drop: 'n', to: 'f7' });
+  check(ik && ik.status.over && ik.san === 'N@f7#', 'bughouse: a smothered mate by a dropped knight - a queen in hand can\'t block a knight');
+
+  // A promoted queen taken goes over as a pawn; the mark travels with the piece.
+  const gq = bug('4k3/1P6/8/8/8/8/1r6/4K3 w - - 0 1');
+  const iq = BG.chessBugPlay(gq, { from: 'b7', to: 'b8', promo: 'q' });
+  check(iq && iq.san === 'b8=Q+' && JSON.stringify(gq.promoted) === '[57]', 'bughouse: a pawn promoted on b8 is marked');
+  const ix = BG.chessBugPlay(BG.chessBugClone(gq), { from: 'b2', to: 'b8' });
+  check(ix && ix.capture === 'q' && ix.gives === 'p', 'bughouse: the promoted queen taken goes to the partner as a pawn');
+  BG.chessBugPlay(gq, { from: 'e8', to: 'e7' });
+  const iy = BG.chessBugPlay(gq, { from: 'b8', to: 'b2' });
+  check(iy && iy.gives === 'r' && JSON.stringify(gq.promoted) === '[9]', 'bughouse: the promoted queen takes a rook (it goes over as a rook) and its mark moves with it');
+  const iz = BG.chessBugPlay(BG.chessBugClone(gq), { from: 'e7', to: 'd7' });
+  check(iz && !iz.gives, 'bughouse: a move that takes nothing gives nothing');
+
+  // The hands after a sequence on two boards: what one side takes, its partner can drop.
+  {
+    const boards = [BG.chessBugNew(), BG.chessBugNew()];
+    const play = (b, mv) => {
+      const g = boards[b];
+      const color = g.turn;
+      const info = BG.chessBugPlay(g, mv);
+      if (info && info.gives) BG.chessBugGive(boards, b, color, info.gives);
+      return info;
+    };
+    play(0, { from: 'e2', to: 'e4' }); play(0, { from: 'd7', to: 'd5' });
+    const t1 = play(0, { from: 'e4', to: 'd5' });
+    check(t1.gives === 'p' && boards[1].hand.b.p === 1 && BG.chessBugHandCount(boards[1].hand.w) === 0 && BG.chessBugHandCount(boards[0].hand.w) === 0,
+      'bughouse: White takes on board 1 - the pawn goes to Black\'s hand on board 2 (the partner)');
+    play(0, { from: 'd8', to: 'd5' });
+    check(boards[1].hand.w.p === 1, 'bughouse: Black takes back on board 1 - the pawn goes to White\'s hand on board 2');
+    play(1, { from: 'e2', to: 'e4' });
+    const d1 = play(1, { drop: 'p', to: 'e3' });
+    check(d1 && d1.san === 'P@e3' && boards[1].hand.b.p === 0 && boards[1].board[20] === 9 && boards[1].turn === 0,
+      'bughouse: Black on board 2 drops the pawn it was sent (P@e3), and it is White\'s move');
+    const d2 = play(1, { drop: 'p', to: 'e5' });
+    check(d2 && boards[1].hand.w.p === 0 && boards[1].board[36] === 1, 'bughouse: White on board 2 drops its pawn too');
+    check(BG.chessBugPlay(BG.chessBugClone(boards[1]), { drop: 'p', to: 'd4' }) === null, 'bughouse: an empty hand drops nothing');
+  }
+
+  // A side with no move and nothing to drop waits (not a stalemate).
+  const gs = bug('k7/2Q5/1K6/8/8/8/8/8 b - - 0 1');
+  const ss = BG.chessBugStatus(gs);
+  check(!ss.over && ss.stuck, 'bughouse: no move and nothing in hand, not in check: the side waits for a piece');
+  gs.hand.b.n = 1;
+  check(!BG.chessBugStatus(gs).stuck && BG.chessBugDrops(gs).length > 0, 'bughouse: a piece arrives, and the side can drop it');
+
+  // The computer: a drop that mates first, and every move it makes is legal.
+  const botMate = BG.chessBugBotMove(gm, { level: 'hard' });
+  check(botMate && botMate.drop === 'r' && /[a-f]8/.test(botMate.to) && BG.chessBugPlay(BG.chessBugClone(gm), botMate).status.over,
+    'bughouse computer (hard): a drop that mates is played first');
+  const gd = bug('r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3', { w: { n: 1, b: 1 } });
+  const botDrop = BG.chessBugBotMove(gd, { level: 'hard' });
+  check(botDrop && BG.chessBugPlay(BG.chessBugClone(gd), botDrop) !== null, 'bughouse computer: with pieces in hand it plays a legal move or drop');
+  {
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    let illegal = 0, mates = 0, plies = 0, dropped = 0;
+    for (let game = 0; game < 6; game++) {
+      const boards = [BG.chessBugNew(), BG.chessBugNew()];
+      let over = false;
+      for (let n = 0; n < 240 && !over; n++) {
+        const b = rnd() < 0.5 ? 0 : 1;
+        const g = boards[b];
+        const color = g.turn;
+        const mv = BG.chessBugBotMove(g, { level: (game + b + color) % 2 ? 'hard' : 'easy', rnd: rnd });
+        if (!mv) continue;              // waiting for a piece
+        const info = BG.chessBugPlay(g, mv);
+        if (!info) { illegal++; break; }
+        plies++;
+        if (info.drop) dropped++;
+        if (info.gives) BG.chessBugGive(boards, b, color, info.gives);
+        if (info.status.over) { over = true; mates++; }
+      }
+    }
+    check(!illegal && plies > 300 && dropped > 10 && mates >= 3,
+      `bughouse computer: six games of bots on two boards - every move and drop legal (${plies} plies, ${dropped} drops, ${mates} mates)`);
+  }
+}
+
 
 /* --- إكس أو in rooms, and the duels' tournament (RoomTournament.js, 23 Sep 2026) ----- */
 {

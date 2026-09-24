@@ -2809,6 +2809,13 @@ npm run check        # content + i18n
     kept, and Settings → الإصدار says latest, then newer.
   `ONLY=screens,rooms,fixes,site` runs some parts; `CHROME=` points at Chrome.
   About 15 minutes whole.
+- **How long each takes**, and which to run (CLAUDE.md step 5): `npm test`
+  about 9 minutes (the robots wait out the games' real clocks), `test:ui`
+  about 15, `test:live` about 16 (every move crosses the internet). A small
+  change runs the parts it touches; the three in a row are for big releases.
+  Running `npm test` and `test:ui` side by side saves about 9 minutes but makes
+  the timing checks flakier on a busy PC (a mini golf "next hole" wait failed
+  once that way).
 - Everything else is exercised in the local preview.
 
 Client-side logs are in the browser console; the rooms server's are

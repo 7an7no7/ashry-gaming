@@ -57,7 +57,15 @@ The full guide is GEMINI.md — read it before changing anything:
 5. **The screen test**: with `npm run dev` running in `rooms-worker/`,
    `cd tools && npm run test:ui` (every screen at three sizes, every room game on
    five phones and a TV, the offline copy and its updates; about 15 minutes, or
-   `ONLY=rooms` etc. for a part). Every check must pass. Then
+   `ONLY=rooms` etc. for a part). Every check must pass. **Test what changed**
+   (the owner, 25 Sep 2026: the three suites in a row take 35-40 minutes): a
+   small change runs `npm run check`, `test:rules` and only the parts it touches
+   (`ONLY=screens` for a screen or a setup, `ONLY=rooms` for a room client,
+   `ONLY=site` for the offline copy; `npm test` and `test:live` only when step 4
+   applies); the full run is for big releases (an audit's fixes, a new game, a
+   change to many games). When the owner wants to play something now, publish
+   after the quick checks and the browser look, run the full tests afterwards,
+   and put any fixes in a separate push. Then
    **look at it in the browser.** `cd tools && npm run build:preview`, then start
    `rooms-worker` and `preview` from `.claude/launch.json` (http://localhost:4321).
    At phone width, sideways and on a big screen (375×667, 667×375 and

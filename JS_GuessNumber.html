@@ -39,7 +39,7 @@ function startGuessNumber() {
         max = parseInt(document.getElementById('gn-max').value);
 
         if (isNaN(min) || isNaN(max) || min >= max) {
-            showToast(appState.lang === 'ar' ? "المدى غير صحيح!" : "Invalid Range!");
+            showToast(appState.lang === 'ar' ? "المدى مش مظبوط: أول رقم لازم يبقى أصغر" : "Check the range: the first number must be smaller");
             return;
         }
         target = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -54,7 +54,7 @@ function startGuessNumber() {
         target = parseInt(secretInput.value);
         
         if (isNaN(target)) {
-            showToast(appState.lang === 'ar' ? "أدخل الرقم السري!" : "Enter Secret Number!");
+            showToast(appState.lang === 'ar' ? "اكتب الرقم السري الأول!" : "Type the secret number first!");
             return;
         }
         
@@ -75,7 +75,7 @@ function startGuessNumber() {
 
     // UI Reset
     document.getElementById('gn-input').value = '';
-    document.getElementById('gn-feedback').innerHTML = appState.lang === 'ar' ? 'ابدأ التخمين!' : 'Start Guessing!';
+    document.getElementById('gn-feedback').innerHTML = appState.lang === 'ar' ? 'يلا خمّن!' : 'Start guessing!';
     document.getElementById('gn-history').innerHTML = '';
     document.getElementById('gn-attempts').innerText = '0';
 
@@ -91,6 +91,14 @@ function checkNumberGuess() {
     const guess = parseInt(inputEl.value);
 
     if (isNaN(guess)) return;
+    // Outside the range on the screen: not a try, just a nudge (the friend's
+    // way has no range to show, so any number goes there).
+    const gn = appState.guessnum;
+    if (gn.min != null && gn.max != null && (guess < gn.min || guess > gn.max)) {
+        showToast(appState.lang === 'ar' ? `الرقم ما بين ${gn.min} و ${gn.max}` : `The number is between ${gn.min} and ${gn.max}`);
+        inputEl.value = '';
+        return;
+    }
 
     appState.guessnum.attempts++;
     document.getElementById('gn-attempts').innerText = appState.guessnum.attempts;
@@ -104,7 +112,7 @@ function checkNumberGuess() {
         confetti({ particleCount: 150, spread: 70 });
         
         const winMsg = appState.lang === 'ar' 
-            ? `🎉 صحيح! الرقم هو ${guess}` 
+            ? `🎉 صح! الرقم هو ${guess}`
             : `🎉 Correct! Number is ${guess}`;
             
         document.getElementById('gn-feedback').innerHTML = `<span class="tx-success font-black text-2xl">${winMsg}</span>`;
@@ -128,7 +136,7 @@ function checkNumberGuess() {
         playSound('click');
         // التغيير هنا: بدلاً من "منخفض جداً" نقول "أعلى"
         feedback = appState.lang === 'ar' ? "أعلى! ⬆️" : "Higher! ⬆️";
-        colorClass = "text-blue-500";
+        colorClass = "tx-accent";
         addToHistory(guess, "⬆️", "low");
     }
 

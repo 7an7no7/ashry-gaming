@@ -3574,9 +3574,13 @@ function chPaint(opts) {
   // Against a character: its face and its rating on the computer's pill.
   const cpuSide = s.me ? 0 : 1;
   const char = s.vs === 'phone' && s.opp && s.opp.char ? s.opp.char : '';
-  const subs = char ? [0, 1].map(k => (k === cpuSide ? `<span class="ch-pill-elo metric" dir="ltr">${chOppElo(s)}</span>` : '')) : null;
+  // The computer's rating goes under its name, as a character's does: "الكمبيوتر (800)" on one line
+  // was cut off on a phone.
+  const cpuElo = s.vs === 'phone';
+  const subs = cpuElo ? [0, 1].map(k => (k === cpuSide ? `<span class="ch-pill-elo metric" dir="ltr">${chOppElo(s)}</span>` : '')) : null;
   const faces = char ? [0, 1].map(k => (k === cpuSide ? chCharFaceSvg(char) : '')) : null;
-  chSetHtml(el, '[data-ch-head]', chPillsHtml(names, s.phase === 'play' ? s.g.turn : -1, byColour, s.clk, s.lost, subs, faces) + chLocalTagHtml(s, names) +
+  const pillNames = cpuElo && !char ? names.map((n, k) => (k === cpuSide ? chT('ch_cpu_plain') : n)) : names;
+  chSetHtml(el, '[data-ch-head]', chPillsHtml(pillNames,s.phase === 'play' ? s.g.turn : -1, byColour, s.clk, s.lost, subs, faces) + chLocalTagHtml(s, names) +
     (bply >= 0 ? chBrowseNoteHtml(s.sans) : `<p class="duel-status ${ended ? 'is-done' : ''} ${chLocal.thinking ? 'is-thinking' : ''}">${escapeHTML(chLocalStatus(s, names))}</p>`));
   chSetHtml(el, '[data-ch-browse]', chBrowseNavHtml(s.hist.length));
   chSetHtml(el, '[data-ch-bar]', chLocalBarHtml(s, hint));

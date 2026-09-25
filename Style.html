@@ -13910,6 +13910,9 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 }
 .ch-opening__icon { font-size: 0.85em; opacity: 0.85; }
 .ch-opening__name { font-weight: var(--fw-bold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* On the TV the moves are sized from the screen (vmin) and the root stays 16px: the opening's
+   line follows the moves, or it was a 12px caption nobody on the sofa could read. */
+.ch-tv__moves .ch-opening, .ch-tv__moves .ch-moves__empty { font-size: 0.8em; }
 .ch-rv-theory { margin-top: var(--sp-1); color: var(--accent); font-weight: var(--fw-bold); }
 
 .ch-moves {
@@ -14139,7 +14142,7 @@ input.ch-elo[type="range"]:focus-visible { outline: 3px solid var(--accent); out
 /* --- The review --- */
 .ch-rv-players { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-2); }
 .ch-rv-player { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-lg); border: 1px solid var(--border); background: var(--surface-solid); min-width: 0; }
-.ch-rv-player__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-semi); }
+.ch-rv-player__name { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.2; font-weight: var(--fw-semi); }
 .ch-rv-player__acc b { font-family: var(--font-display); font-size: var(--fs-h3, 1.3rem); color: var(--accent-ink); }
 .ch-rv-player__acc small { color: var(--text-3); }
 .ch-progress { height: 0.5rem; margin-top: var(--sp-2); border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
@@ -14173,7 +14176,7 @@ input.ch-elo[type="range"]:focus-visible { outline: 3px solid var(--accent); out
   background: var(--surface-solid);
   font-size: var(--fs-sm);
 }
-.ch-counts__who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-weight: var(--fw-semi); color: var(--text-2); }
+.ch-counts__who { overflow-wrap: anywhere; line-height: 1.2; text-align: center; font-weight: var(--fw-semi); color: var(--text-2); }
 .ch-counts__k { display: flex; align-items: center; gap: var(--sp-2); color: var(--text-2); }
 .ch-counts > b { text-align: center; }
 
@@ -14692,6 +14695,8 @@ button.vc-side__chip span { color: var(--text-3); }
 .hb-kind:disabled { opacity: 0.32; box-shadow: none; cursor: default; }
 .hb-kind__pc { width: 2rem; height: 2rem; }
 .hb-kind__name { font-size: var(--fs-xs); font-weight: var(--fw-semi); line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A button's label, not a word in a sentence: "King", not "king" (the name is the sentences' lower-case one). */
+.hb-kind__name::first-letter { text-transform: uppercase; }
 
 /* The Brain's word, said to the table: big, and popping in the first time a screen shows it. */
 .hb-call {
@@ -14738,6 +14743,9 @@ button.hb-seat { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .vc-mem.is-in .vc-mem__dot, .vc-tally.is-fresh, .vc-tally.is-fresh .vc-tally__row, .vc-tally.is-fresh .vc-tally__bar,
   .hb-call.is-fresh, .hb-call.is-fresh .hb-call__pc { animation: none; }
+}
+
+/* ==========================================================================
    35. باغ هاوس (BUGHOUSE in rooms, JS_RoomBughouse.html, 24 Sep 2026)
    Four on two boards. On a phone your own board is big (chess's board view,
    section 30), the player over it and you under it each a line of name,

@@ -109,6 +109,9 @@ function memoryStopClock() {
   memoryClock = null;
   if (memoryFlipTimer) clearTimeout(memoryFlipTimer);
   memoryFlipTimer = null;
+  // The last pair's own turn-over belongs to the board it was set for: a new
+  // board dealt within its beat must not have a card turned by it.
+  if (typeof memoryLastTimer !== 'undefined' && memoryLastTimer) { clearTimeout(memoryLastTimer); memoryLastTimer = null; }
 }
 
 function paintMemory() {
@@ -231,7 +234,9 @@ function memoryFinish() {
   if (m.mode === 'duo') {
     const [x, y] = m.scores;
     title = x === y ? (t.mem_tie || '') : `🏆 ${x > y ? (t.mem_player1 || '') : (t.mem_player2 || '')}`;
-    detail = `<div class="metric metric--md">${x} – ${y}</div>`;
+    // Each score beside its player: a bare "6 – 0" reads either way round in an Arabic line.
+    const side = (name, n) => `<span class="flex items-center gap-2"><bdi>${escapeHTML(name || '')}</bdi><b class="metric metric--md">${n}</b></span>`;
+    detail = `<div class="flex justify-center gap-4">${side(t.mem_player1, x)}${side(t.mem_player2, y)}</div>`;
   } else {
     const best = memoryBest();
     const prev = best[m.size];

@@ -14,6 +14,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { transform } from 'esbuild';
 
 const here = fileURLToPath(new URL('./', import.meta.url));
 const root = path.join(here, '..');
@@ -107,6 +108,53 @@ html = html.replace(listsMark, () => sharedListsHtml);
 
 const leftover = html.match(/<\?!?=?[\s\S]{0,40}\?>/);
 if (leftover) throw new Error(`unresolved template tag: ${leftover[0]}`);
+
+/* The published page is minified (notes/IMPROVEMENT_PLAN.md, Phase 2: the page
+   was 7 MB, most of it comments and indentation). Whitespace and comments go and
+   the syntax is tightened; names are kept, because every script on the page shares
+   one scope and the markup calls functions by name. A script that is ES5 stays
+   ES5 (the browser gate must run where nothing else does); the rest never goes
+   past ES2017, the page's floor. MINIFY=0 leaves the page as written. */
+if (process.env.MINIFY !== '0') {
+  const before = html.length;
+  const parts = html.split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>)/i);
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (i % 2 === 0) {
+      // Markup: HTML comments go (none of them is read by the page), and indentation.
+      parts[i] = part.replace(/<!--(?!\[)[\s\S]*?-->/g, '').replace(/\n[ \t]+/g, '\n').replace(/\n{2,}/g, '\n');
+      continue;
+    }
+    const m = /^(<(script|style)\b[^>]*>)([\s\S]*?)(<\/\2>)$/i.exec(part);
+    if (!m || !m[3].trim()) continue;
+    const [, open, tag, code, close] = m;
+    if (tag.toLowerCase() === 'script') {
+      if (/\bsrc=/.test(open) || (/\btype=/.test(open) && !/javascript|module/.test(open))) continue;
+      let res = null;
+      for (const target of ['es5', 'es2017']) {
+        try { res = await transform(code, { loader: 'js', target, minifyWhitespace: true, minifySyntax: true, legalComments: 'none', charset: 'utf8' }); break; }
+        catch (e) { if (target === 'es2017') throw new Error(`minify: ${e.message.slice(0, 300)}`); }
+      }
+      parts[i] = open + res.code.trim() + close;
+    } else {
+      const res = await transform(code, { loader: 'css', minify: true, charset: 'utf8', target: ['chrome88', 'safari14', 'firefox78'] });
+      parts[i] = open + res.code.trim() + close;
+    }
+  }
+  html = parts.join('');
+  console.log(`minified: ${(before / 1e6).toFixed(2)} MB -> ${(html.length / 1e6).toFixed(2)} MB`);
+}
+
+/* The size budget (notes/IMPROVEMENT_PLAN.md, Phase 2). What a first visit
+   downloads is the page compressed; a build past the budget fails, so the page
+   can't creep back up a game at a time. Raise it on purpose, not by accident. */
+{
+  const { gzipSync } = await import('node:zlib');
+  const BUDGET_KB = 1600;
+  const kb = Math.round(gzipSync(Buffer.from(html, 'utf8'), { level: 9 }).length / 1024);
+  console.log(`first visit: ${kb} KB compressed (budget ${BUDGET_KB} KB)`);
+  if (kb > BUDGET_KB && process.env.MINIFY !== '0') throw new Error(`the page is ${kb} KB compressed, over the ${BUDGET_KB} KB budget`);
+}
 
 await mkdir(out, { recursive: true });
 await writeFile(path.join(out, 'index.html'), html, 'utf8');

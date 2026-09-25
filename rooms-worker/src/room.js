@@ -492,6 +492,13 @@ export class Room extends DurableObject {
     if (stopTaps && this.env.WORDS) {
       this.wordsStub().add(stopTaps).catch(() => {});
     }
+    // How often each game is played (the improvement plan's numbers): a game
+    // dealt from the lobby counts once, by the month, as a room or on a TV.
+    if (action === 'start' && before.phase === 'lobby' && next.phase !== 'lobby' && next.game && this.env.WORDS) {
+      const mode = (next.screens || []).length ? 'tv' : 'room';
+      this.env.WORDS.get(this.env.WORDS.idFromName('plays'))
+        .add([{ lang: mode, cat: new Date().toISOString().slice(0, 7), word: String(next.game) }]).catch(() => {});
+    }
     if (!quick) await this.scheduleAlarm();
 
     // New strokes go out as just the strokes: resending a whole drawing to every

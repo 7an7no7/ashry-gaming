@@ -346,6 +346,32 @@ function roomShareBtnHtml(state, board) {
   return `<div class="btn-row" style="justify-content:center">${shareCardBtnHtml('shareRoomResult()', t.share_card || '')}</div>`;
 }
 
+/**
+ * The night's card (the improvement plan, Phase 4: end-of-night awards): the
+ * room's leaderboard of the night, its champion crowned, how many games the
+ * evening played - the picture a family sends to the group chat at the end.
+ */
+function shareRoomNight() {
+  const state = Room && Room.state;
+  if (!state) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const night = state.night || {};
+  const rows = state.players
+    .map(p => ({ name: p.name, value: Number(night[p.id]) || 0 }))
+    .filter(r => r.value > 0)
+    .sort((a, b) => b.value - a.value);
+  if (!rows.length) return;
+  const top = rows[0];
+  const title = '🌙 ' + (t.room_night_title || '');
+  return shareResultCard({
+    title: title,
+    icon: '🏆',
+    rows: rows,
+    footer: (t.night_champion || '🏆 {name}').replace('{name}', top.name),
+    text: title + ' · ' + (t.night_champion || '🏆 {name}').replace('{name}', top.name)
+  });
+}
+
 /** Builds that card from the room as it stands when the button is pressed. */
 function shareRoomResult() {
   const state = Room && Room.state;

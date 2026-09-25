@@ -2734,6 +2734,16 @@ the word search), `countUp` for streaks and scores.
   dark, the four styles, White and Black at the bottom, 3D; the screen test
   (screens, rooms, fixes) and the rules tests pass. Nothing the rooms server
   runs changed.
+- **25 Sep 2026, the improvement plan** - the owner asked for a rating (8/10)
+  and then for a plan from what the big party apps do (Jackbox, Plato,
+  Jawaker, Gartic Phone, Kahoot), and said "apply all" (`notes/IMPROVEMENT_PLAN.md`,
+  with the owner's answers: speed and numbers first, rare games behind «كل
+  الألعاب» rather than removed, إستميشن the first card game in rooms with every
+  rule asked first, no seasonal packs for now). Shipped first: **the play
+  counter** (*How often each game is played*), **the minified page with a size
+  budget** (*The static site*: 6.97 MB → 4.6 MB, a first visit 1.83 → 1.35 MB
+  gzipped) and **«الليلة دي؟» and «ابدأوا بدول»** on the home (*The catalog
+  and the home screen*).
 
 ## Building and Running
 
@@ -4096,6 +4106,33 @@ rules push `{ lang, cat, word }` onto `room._stopTaps` (never projected);
 stop-words` prints them by category, most-tapped first, saying which are
 already in `StopWords.js`. Words that come up often go into the lists by hand.
 
+**How often each game is played** (the improvement plan, Phase 0, the owner's
+yes of 25 Sep 2026). The same `WordLog` class keeps a second instance,
+"plays": a count per mode, month and game id (`lang` is `device`, `room` or
+`tv`, `cat` the month `2026-09`, `word` the game). A room counts when a game
+is dealt from the lobby (`act` in `room.js`: `start` taking the room out of
+`lobby`; `tv` when a screen is in the room). A game on one phone counts when
+it is started from its setup screen: `countPlay` in `JS_Catalog.html` (an
+`onLeaveScreen` hook from a `setup-*` view to a view whose `exitGameOf` is a
+game) sends `navigator.sendBeacon(ROOMS_URL + '/count', { game })`, never
+while offline. `POST /count` keeps the id and the month and nothing else - no
+name, no address - and takes 120 an hour from one address (`COUNT_LIMIT`).
+Opening the app still touches no server. `GET /plays` (the admin key, as
+`/stop-words`) and `cd tools && ASHRY_ADMIN_KEY=… npm run plays [-- --month=2026-09]`
+print every game by how often it was started, split phone / room / TV. What
+it is for: the owner's rule that rarely played games go behind «كل الألعاب»
+(still there and searchable), never removed.
+
+**«في غلطة؟» reports** (the improvement plan, Phase 3, 25 Sep 2026). Under a
+revealed answer - the trivia board's card, the emoji riddle and the proverb on
+one phone - a quiet button (`reportBtnHtml(game, text)` in `JS_Catalog.html`)
+sends the item to `POST /report` (the game, the content language and up to 160
+characters of the item; no name, no address), kept by a third `WordLog`
+instance, "reports" (`long: true` lifts the 40-letter cap for these). `GET
+/reports` and `npm run reports` list them by game, most-reported first; they
+are fixed in the bank by hand, then `npm run check`. A new content game puts
+the button under its revealed answer too.
+
 **Trivia, two modes.** The room version deals from `TRIVIA_QUESTIONS` on the
 server. The host picks 5, 10, 15 or 20 questions (`TRIVIA_COUNTS`). A right
 answer is `TRIVIA_POINTS` (10) plus a speed bonus: +5 for the first right
@@ -4424,6 +4461,19 @@ wrangler for the second address from `site-worker/` only.)
 
 The rooms server also serves a copy of `docs/` at its own address, uploaded on
 every deploy — a third address for the app if `github.io` is ever blocked.
+
+**The published page is minified, and has a size budget** (the improvement
+plan, Phase 2, 25 Sep 2026). `build-site.mjs` runs every inline script and
+style through esbuild (`transform`: whitespace and syntax, **names kept** -
+every script shares one scope and the markup calls functions by name), drops
+HTML comments and indentation, and fails the build when the page is over
+`BUDGET_KB` (1,600 KB gzipped; 1,347 at the start). A script that parses as
+ES5 is kept ES5 (it tries `target: 'es5'` first), so the browser gate still
+runs where nothing else does; everything else stays within ES2017, the page's
+floor. `charset: 'utf8'` matters: without it esbuild writes every Arabic
+letter as `\uXXXX` and the page *grows* (*Traps*). `MINIFY=0` builds the page
+as written; the preview (`build-preview.mjs`) is never minified, so debugging
+reads the source. Raise the budget on purpose, never to get a build through.
 
 **New builds reach an open app.** When a new build's worker takes over a page
 (`controllerchange`) that is older than it (the build writes its id into the
@@ -6600,6 +6650,19 @@ the host's phone per game (`recallOptions('tourMode')`).
 
 ### The catalog and the home screen
 
+**«الليلة دي؟» and «ابدأوا بدول»** (the improvement plan, Phase 1, 25 Sep 2026):
+the hero's 🎲 button (and the returning phone's fourth tile) opens
+`#tonight-modal` (`tonightOpen`, `tonightPaint` in `JS_Catalog.html`): how many
+are you (لوحدي / 2 / 3-5 / 6+) and, for more than one, how you're playing (one
+phone / own phones / TV), then three games that fit, the ones a first evening
+goes best with first (`TONIGHT_ORDER`; the three dealt through `freshPick`
+from the best nine, «غيرهم» deals again). The answers are remembered
+(`recallOptions('tonight')`). It replaced "pick for us", which picked any one
+game at random. A phone with no recent games gets «ابدأوا بدول» in the recent
+row's place (`STARTER_SHELF`, eight games), so a new table isn't handed 68
+cards to read first. A new game that belongs among the first a table should
+try goes into `TONIGHT_ORDER`.
+
 `GAME_CATALOG` in `JS_Catalog.html` is the registry of everything the app can
 play: id, icon, title and description keys, accent, `players: [min, max]`,
 `mins`, `modes` (`device` = pass one phone, `room` = everyone on their own
@@ -6848,6 +6911,11 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A minifier can make a page bigger.** esbuild escapes every character outside
+ASCII by default, so the first minified build turned each Arabic letter (two
+bytes) into `\u0627` (six): whitespace went and the page barely shrank. Pass
+`charset: 'utf8'`, and measure the gzipped size, not the character count.
 
 **A size container gives its grid column no width.** شطرنج الأربعة's board
 sits in `.ch4-stage`, a `container-type: size` box (its pieces and chips are

@@ -493,11 +493,13 @@ function paintTriviaAnswer() {
   const t = tbText();
   const s = appState.triviaBoard;
   document.getElementById('tb-q-answer').classList.remove('hidden');
+  const report = typeof reportBtnHtml === 'function'
+    ? reportBtnHtml('triviaboard', (document.getElementById('tb-q-text') || {}).textContent || '') : '';
   // The steal missed too: the answer for the table, and no points for anyone.
   if (s && s.open && s.open.missed) {
     document.getElementById('tb-q-actions').innerHTML = `
       <div class="tb-steal tb-steal--none" role="status"><span class="tb-steal__title">${escapeHTML(t.tb_steal_missed || 'محدش خد النقط')}</span></div>
-      <button class="btn btn--primary btn--lg" onclick="awardTriviaCell(-1)">${t.next || 'التالي'}</button>`;
+      <button class="btn btn--primary btn--lg" onclick="awardTriviaCell(-1)">${t.next || 'التالي'}</button>${report}`;
     return;
   }
   document.getElementById('tb-q-actions').innerHTML = `
@@ -506,7 +508,7 @@ function paintTriviaAnswer() {
       <button class="btn btn--lg tb-award tb-award--a" onclick="awardTriviaCell(0)">${escapeHTML(tbTeamName(0))}</button>
       <button class="btn btn--lg tb-award tb-award--b" onclick="awardTriviaCell(1)">${escapeHTML(tbTeamName(1))}</button>
     </div>
-    <button class="btn btn--ghost" onclick="awardTriviaCell(-1)">${t.tb_nobody || 'محدش جاوب'}</button>`;
+    <button class="btn btn--ghost" onclick="awardTriviaCell(-1)">${t.tb_nobody || 'محدش جاوب'}</button>${report}`;
 }
 
 /** Closes the card without playing it - the host opened the wrong one. */

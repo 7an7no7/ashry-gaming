@@ -240,6 +240,47 @@ function forgetRecent() {
 }
 
 /** Every card and every recent tile goes through here. `fromEl` is what was tapped, for the icon's flight. */
+/* How often each game is played, the improvement plan's numbers (25 Sep 2026):
+   a game started from a setup screen on this phone sends its id to the rooms
+   server, which keeps a count per game and month - no name, nothing else.
+   Rooms are counted on the server when a game is dealt. */
+function countPlay(id) {
+  try {
+    const base = String(window.ROOMS_URL || '').replace(/\/+$/, '');
+    if (!base || !navigator.sendBeacon || navigator.onLine === false) return;
+    navigator.sendBeacon(base + '/count', JSON.stringify({ game: id }));
+  } catch (e) { /* a count is never worth an error */ }
+}
+/* «في غلطة؟» (the improvement plan, Phase 3): a small button under a revealed
+   answer sends the item to the rooms server's list of reports (`/report`: the
+   game, the language and the item's text, nothing else), which is read with
+   `npm run reports` and fixed in the bank by hand. One tap per item a visit. */
+const reportedItems = new Set();
+function reportBtnHtml(game, text) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const key = game + '|' + text;
+  const done = reportedItems.has(key);
+  return `<button type="button" class="report-btn" ${done ? 'disabled' : ''}
+            onclick="reportItem(this, '${jsStringAttr(game)}', '${jsStringAttr(String(text).slice(0, 160))}')">${escapeHTML(done ? (t.report_thanks || '') : '⚑ ' + (t.report_btn || ''))}</button>`;
+}
+function reportItem(btn, game, text) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  reportedItems.add(game + '|' + text);
+  try {
+    const base = String(window.ROOMS_URL || '').replace(/\/+$/, '');
+    if (base && navigator.sendBeacon) navigator.sendBeacon(base + '/report', JSON.stringify({ game, text, lang: contentLang() }));
+  } catch (e) { /* a report is never worth an error */ }
+  if (btn) { btn.disabled = true; btn.textContent = t.report_thanks || ''; }
+  showToast(t.report_toast || '', 'success');
+  haptic('light');
+}
+
+if (typeof onLeaveScreen === 'function') onLeaveScreen((from, to) => {
+  if (!from || from.indexOf('setup-') !== 0 || typeof exitGameOf !== 'function') return;
+  const g = exitGameOf(to || '');
+  if (g && g.id) countPlay(g.id);
+});
+
 function catalogOpen(id, fromEl) {
   const g = CATALOG_BY_ID[id];
   if (!g) return;
@@ -443,6 +484,102 @@ function homeVisibleGameIds() {
   return cards.map(c => c.dataset.game).filter(Boolean);
 }
 
+/* --- «الليلة دي؟» (notes/IMPROVEMENT_PLAN.md, Phase 1) ----------------------
+   The door for a table that doesn't know the app: two questions - how many are
+   you, and how are you playing - and three games that fit, the ones a first
+   evening goes best with first (TONIGHT_ORDER). The answers are remembered.
+   -------------------------------------------------------------------------- */
+const TONIGHT_ORDER = ['imposter', 'bomb', 'charades', 'headsup', 'trivia', 'uno', 'codenames', 'drawguess',
+  'spyfall', 'fiveseconds', 'stop', 'whoami', 'screw', 'wouldyou', 'mostlikely', 'justone', 'emoji', 'proverbs',
+  'herd', 'domino', 'ludo', 'mafia', 'describe', 'bowling', 'minigolf', 'connect4', 'xo', 'shatranj', 'battleship',
+  'wordle', 'daily', 'sudoku', 'streak', 'connections'];
+const TONIGHT_COUNTS = ['1', '2', '3-5', '6+'];
+const TONIGHT_HOWS = ['device', 'room', 'tv'];
+let tonightPrefs = recallOptions('tonight', { count: '', how: '' });
+
+/** The games that fit the answers, best first. */
+function tonightCandidates(count, how) {
+  const fitsCount = (g) => {
+    if (!g.players) return false;
+    const [min, max] = g.players;
+    if (count === '1') return min === 1;
+    if (count === '2') return min <= 2 && max >= 2;
+    if (count === '3-5') return min <= 5 && max >= 3;
+    return max >= 6;
+  };
+  const mode = count === '1' ? 'device' : how;
+  const rank = (id) => { const i = TONIGHT_ORDER.indexOf(id); return i === -1 ? 999 : i; };
+  return GAME_CATALOG
+    .filter(g => g.group !== 'tools' && !g.hub && fitsCount(g) && (g.modes || []).indexOf(mode) !== -1)
+    .sort((a, b) => rank(a.id) - rank(b.id));
+}
+
+function tonightOpen() {
+  tonightPaint();
+  const el = document.getElementById('tonight-modal');
+  if (el) el.classList.remove('hidden');
+  haptic('light');
+}
+
+function tonightSet(key, value) {
+  tonightPrefs = Object.assign({}, tonightPrefs, { [key]: value });
+  rememberOptions('tonight', tonightPrefs);
+  tonightPaint();
+  haptic('light');
+}
+
+function tonightGo(id) {
+  closeModal('tonight-modal');
+  const view = document.getElementById('view-menu');
+  const card = view ? view.querySelector(`.gcard[data-game="${id}"]`) : null;
+  catalogOpen(id, card);
+}
+
+function tonightPaint() {
+  const body = document.getElementById('tonight-body');
+  if (!body) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const { count, how } = tonightPrefs;
+  const chip = (key, value, label, icon) => {
+    const on = tonightPrefs[key] === value;
+    return `<button type="button" class="filter-chip ${on ? 'is-active' : ''}" aria-pressed="${on}" onclick="tonightSet('${key}', '${value}')">` +
+      (icon ? `<span aria-hidden="true">${icon}</span>` : '') + (/^[0-9+-]+$/.test(label) ? `<bdi dir="ltr" class="metric">${escapeHTML(label)}</bdi>` : escapeHTML(label)) + '</button>';
+  };
+  const needHow = count && count !== '1';
+  const ready = count && (!needHow || how);
+  let picks = '';
+  if (ready) {
+    const all = tonightCandidates(count, how).map(g => g.id);
+    const ids = all.length > 3 ? freshPick(`tonight_${count}_${needHow ? how : 'device'}`, all.slice(0, 9), 3) : all;
+    picks = ids.length
+      ? `<div class="eyebrow">${escapeHTML(t.tonight_picks || '')}</div><div class="tonight-picks">${ids.map(id => {
+          const g = CATALOG_BY_ID[id];
+          return `<button type="button" class="tonight-pick" data-accent="${g.accent}" onclick="tonightGo('${g.id}')">
+            <span class="tonight-pick__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
+            <span class="tonight-pick__text"><b>${escapeHTML(catalogTitle(g, t))}</b><span>${escapeHTML(catalogDesc(g, t))}</span></span>
+            <span class="tool-chev" aria-hidden="true">›</span></button>`;
+        }).join('')}</div>`
+      : `<p class="sheet__subtitle">${escapeHTML(t.tonight_none || '')}</p>`;
+  }
+  body.innerHTML = `
+    <div class="modal-icon" aria-hidden="true">🌙</div>
+    <div class="sheet__title">${escapeHTML(t.tonight_title || '')}</div>
+    <div class="eyebrow">${escapeHTML(t.tonight_count || '')}</div>
+    <div class="tonight-row">${TONIGHT_COUNTS.map(v => chip('count', v, v === '1' ? (t.tonight_solo || '1') : v, v === '1' ? '🧘' : '👥')).join('')}</div>
+    ${needHow ? `<div class="eyebrow">${escapeHTML(t.tonight_how || '')}</div>
+    <div class="tonight-row">${TONIGHT_HOWS.map(v => chip('how', v, t['mode_short_' + v] || v, PLAY_MODES[v].icon)).join('')}</div>` : ''}
+    ${picks}
+    <div class="modal-actions">
+      ${ready && picks.indexOf('tonight-pick') !== -1 ? `<button type="button" class="btn btn--secondary" onclick="tonightPaint()">🎲 ${escapeHTML(t.tonight_more || '')}</button>` : ''}
+      <button type="button" class="btn btn--ghost" onclick="closeModal('tonight-modal')">${escapeHTML(t.close || '')}</button>
+    </div>`;
+}
+
+/* «ابدأوا بدول»: on a phone that has played nothing yet, the recent row's place
+   holds the games a first evening goes best with, so 68 cards are not the first
+   thing a new table has to read. */
+const STARTER_SHELF = ['imposter', 'bomb', 'charades', 'trivia', 'uno', 'headsup', 'codenames', 'screw'];
+
 /** One tap random game picker: picks from visible games on the home screen. */
 function homePickForUs(btnEl) {
   const ids = homeVisibleGameIds();
@@ -479,7 +616,7 @@ function renderHome() {
           <h2 class="home-hero__title">${escapeHTML(t.home_title || '')}</h2>
           <p class="home-hero__sub">${escapeHTML((t.home_tagline || '').replace('{n}', String(GAME_CATALOG.filter(g => g.group !== 'tools' && !g.hub).length)))}</p>
         </div>
-        <button type="button" class="home-hero__pick" onclick="homePickForUs(this)"
+        <button type="button" class="home-hero__pick" onclick="tonightOpen()"
                 title="${escapeHTML(t.home_pick_btn || '')}">
           <span aria-hidden="true">🎲</span>
           <span>${escapeHTML(t.home_pick_btn || '')}</span>
@@ -502,7 +639,7 @@ function renderHome() {
           <span class="together__desc">${escapeHTML(t.together_tv_desc || '')}</span>
         </button>
         ${compact ? `
-        <button type="button" class="together__tile together__tile--pick" onclick="homePickForUs(this)">
+        <button type="button" class="together__tile together__tile--pick" onclick="tonightOpen()">
           <span class="together__icon" aria-hidden="true">🎲</span>
           <span class="together__name">${escapeHTML(t.home_pick_btn || '')}</span>
           <span class="together__desc">${escapeHTML(t.home_pick_desc || '')}</span>
@@ -563,6 +700,20 @@ function renderHome() {
     </button>`;
   })() : '';
 
+  const shelf = recent.length ? '' : `
+    <section class="section" id="home-starters">
+      <div class="section__head">
+        <span class="section__emoji" aria-hidden="true">⭐</span>
+        <h2 class="section__title">${escapeHTML(t.home_starters || '')}</h2>
+        <span class="section__rule"></span>
+      </div>
+      <div class="recent-row hscroll-fade">
+        ${STARTER_SHELF.map(id => CATALOG_BY_ID[id]).filter(Boolean).map(g => `<button type="button" class="recent-tile" data-accent="${g.accent}" onclick="catalogOpen('${g.id}', this)">
+                    <span class="recent-tile__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
+                    <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>
+                  </button>`).join('')}
+      </div>
+    </section>`;
   const recentRow = recent.length ? `
     <section class="section" id="home-recent">
       <div class="section__head">
@@ -601,7 +752,7 @@ function renderHome() {
       </section>`;
   }).join('');
 
-  view.innerHTML = together + search + dailyStrip + recentRow + groups +
+  view.innerHTML = together + search + dailyStrip + shelf + recentRow + groups +
     `<div class="empty hidden" id="home-empty"><span class="empty__icon" aria-hidden="true">🔍</span>${escapeHTML(t.home_empty || '')}</div>`;
   homeRenderedLang = appState.lang;
   applyHomeFilter({ animate: false });
@@ -708,6 +859,8 @@ function applyHomeFilter(opts) {
     // The recent row is a shortcut, not a search result.
     const recent = document.getElementById('home-recent');
     if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all' || homePlayers !== 'off' || homeLocation !== 'together');
+    const starters = document.getElementById('home-starters');
+    if (starters) starters.classList.toggle('hidden', searching || homeFilter !== 'all' || homePlayers !== 'off' || homeLocation !== 'together');
     const daily = document.getElementById('home-daily');
     if (daily) daily.classList.toggle('hidden', searching || (homeFilter !== 'all' && homeFilter !== 'solo') || homePlayers !== 'off' || homeLocation !== 'together');
     const empty = document.getElementById('home-empty');

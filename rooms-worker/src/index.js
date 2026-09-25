@@ -10,6 +10,8 @@
  *   POST /leave   { code, pid, key }
  *   GET  /ws?code=&pid=&key=                     the live connection
  *   GET  /live                                    -> { players, rooms } playing right now
+ *   POST /count   { game }                        a game started on one phone (counted, nothing else kept)
+ *   POST /report  { game, text, lang }            «في غلطة؟»: an item a player says is wrong
  *   GET  /test                                    connection test page
  *
  * Bodies are JSON sent as text/plain, which browsers send without a CORS
@@ -72,6 +74,24 @@ const createAllowed = (request) => {
   if (!seen || now - seen.since > CREATE_WINDOW_MS) { createdBy.set(ip, { n: 1, since: now }); return true; }
   seen.n++;
   return seen.n <= CREATE_LIMIT;
+};
+
+// A phone starts a game every few minutes; 120 counts an hour from one address
+// is a whole busy household, and a script can't fill the count.
+const COUNT_LIMIT = 120;
+const COUNT_WINDOW_MS = 60 * 60 * 1000;
+const countedBy = new Map();
+const countAllowed = (request) => {
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+  if (!ip) return true;
+  const now = Date.now();
+  if (countedBy.size > 5000) {
+    for (const [k, v] of countedBy) if (now - v.since > COUNT_WINDOW_MS) countedBy.delete(k);
+  }
+  const seen = countedBy.get(ip);
+  if (!seen || now - seen.since > COUNT_WINDOW_MS) { countedBy.set(ip, { n: 1, since: now }); return true; }
+  seen.n++;
+  return seen.n <= COUNT_LIMIT;
 };
 
 const randomCode = () => {
@@ -152,6 +172,51 @@ export default {
         }
       }
       return json(liveCache.body);
+    }
+
+    // A game started on one phone: its id and the month, no name, no address kept.
+    if (url.pathname === '/count') {
+      if (request.method !== 'POST') return json({ ok: false }, 405);
+      try {
+        const text = await request.text();
+        const body = JSON.parse(text.length < 200 ? text : '{}') || {};
+        const game = String(body.game || '');
+        if (/^[a-z0-9-]{2,30}$/.test(game) && countAllowed(request)) {
+          await env.WORDS.get(env.WORDS.idFromName('plays'))
+            .add([{ lang: 'device', cat: new Date().toISOString().slice(0, 7), word: game }]);
+        }
+      } catch (err) { /* a count is never worth an error */ }
+      return json({ ok: true });
+    }
+
+    // «في غلطة؟»: a question, a riddle or a card a player says is wrong. The game,
+    // the language and the item's text; no name, no address kept.
+    if (url.pathname === '/report') {
+      if (request.method !== 'POST') return json({ ok: false }, 405);
+      try {
+        const text = await request.text();
+        const body = JSON.parse(text.length < 2000 ? text : '{}') || {};
+        const game = String(body.game || '');
+        const item = String(body.text || '').trim();
+        const lang = body.lang === 'en' ? 'en' : 'ar';
+        if (/^[a-z0-9-]{2,30}$/.test(game) && item && countAllowed(request)) {
+          await env.WORDS.get(env.WORDS.idFromName('reports')).add([{ lang, cat: game, word: item, long: true }]);
+        }
+      } catch (err) { /* a report is never worth an error */ }
+      return json({ ok: true });
+    }
+
+    if (url.pathname === '/plays' || url.pathname === '/reports') {
+      if (request.method !== 'GET') return new Response('not found', { status: 404 });
+      const auth = request.headers.get('Authorization') || '';
+      if (!env.ADMIN_KEY || auth !== `Bearer ${env.ADMIN_KEY}`) return new Response('not found', { status: 404 });
+      try {
+        const list = await env.WORDS.get(env.WORDS.idFromName(url.pathname.slice(1))).list();
+        list.sort((a, b) => b.n - a.n);
+        return json(list);
+      } catch (err) {
+        return json({ ok: false, error: 'unavailable' }, 500);
+      }
     }
 
     if (url.pathname === '/stop-words') {

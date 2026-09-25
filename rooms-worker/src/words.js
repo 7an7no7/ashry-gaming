@@ -3,6 +3,7 @@ import { DurableObject } from 'cloudflare:workers';
 const MAX_KEYS = 5000;
 const MAX_BATCH = 20;
 const MAX_WORD_LEN = 40;
+const MAX_LONG_LEN = 160;
 // How many words are kept. It has no '|', so it can never be a word's key.
 const COUNT_KEY = '#count';
 
@@ -25,7 +26,8 @@ export class WordLog extends DurableObject {
       if (!item) continue;
       const lang = String(item.lang || 'ar').trim();
       const cat = String(item.cat || '').trim();
-      const word = String(item.word || '').trim().slice(0, MAX_WORD_LEN);
+      // A reported question is longer than a word (the improvement plan's «في غلطة؟»).
+      const word = String(item.word || '').trim().slice(0, item.long ? MAX_LONG_LEN : MAX_WORD_LEN);
       if (!cat || !word) continue;
       const key = `${lang}|${cat}|${word}`;
       const cur = updates.get(key);

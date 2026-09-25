@@ -99,7 +99,7 @@ if (html.indexOf('</head>') === -1) throw new Error('Controller.html: no </head>
 html = html.replace('</head>', () => RUNTIME);
 
 // Word lists the page shares with the rooms server: one file, both sides.
-const SHARED_LISTS = ['ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'BankAlhaz.js', 'GuessWho.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'ChessPuzzles.js'];
+const SHARED_LISTS = ['ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'BankAlhaz.js', 'GuessWho.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Estimation.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'ChessPuzzles.js'];
 const sharedListsHtml = (await Promise.all(SHARED_LISTS.map(async (name) =>
   `<script>\n${await readFile(path.join(root, name), 'utf8')}\n</script>`))).join('\n    ');
 const listsMark = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline the word lists[^\n]*-->/;

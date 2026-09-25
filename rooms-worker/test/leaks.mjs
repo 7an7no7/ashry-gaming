@@ -515,6 +515,28 @@ const PROBES = {
       })
     ];
   },
+  // إستميشن: a card still in a hand is on that seat's phone only; the table sees a face once it is played.
+  estimation(room) {
+    const s = room.shared || {};
+    const g = room._est || { hands: [[], [], [], []] };
+    const live = ['dash', 'bid', 'call', 'play'].indexOf(s.phase) !== -1;
+    const holder = {};
+    (g.hands || []).forEach((h, k) => h.forEach((c) => { holder[c] = (s.seats || [])[k]; }));
+    const FACES = /"((?:A|[2-9]|10|J|Q|K)[shdc])"/g;
+    return [
+      probe('a card in a hand is on its own phone only - never the table, another phone or the screen', live, (view, pid) => {
+        const text = JSON.stringify({ shared: view.shared, you: view.you });
+        for (const m of text.matchAll(FACES)) if (holder[m[1]] && holder[m[1]] !== pid) return 'a card of ' + holder[m[1]] + '\'s hand (' + m[1] + ')';
+        return null;
+      }),
+      probe('a phone\'s hand is its own seat\'s, whole', live, (view, pid) => {
+        const k = (s.seats || []).indexOf(pid);
+        if (k === -1) return view.you && view.you.hand ? 'you.hand (a phone not seated)' : null;
+        const mine = (view.you && view.you.hand) || [];
+        return mine.slice().sort().join() === g.hands[k].slice().sort().join() ? null : 'you.hand (not its own)';
+      })
+    ];
+  },
   oldmaid(room) {
     const s = room.shared || {};
     const g = room._om || { hands: {} };
@@ -1118,6 +1140,8 @@ const DRIVERS = {
     return S(T).phase === 'gameover' && !!S(T).loser;
   },
   // The four with computer players: one person, bots for the rest, the turn clock for the person.
+  // One person and three computer players, 13 rounds, the clock playing for the person.
+  estimation: () => DRIVERS.withBots('estimation', 3, { turnClock: 30, rounds: 13 }),
   uno: () => DRIVERS.withBots('uno', 3, { turnClock: 30 }),
   domino: () => DRIVERS.withBots('domino', 3, { turnClock: 30 }),
   ludo: () => DRIVERS.withBots('ludo', 3, { turnClock: 15 }),

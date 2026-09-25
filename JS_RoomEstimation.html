@@ -1,0 +1,1103 @@
+<script>
+/* ============================================================================
+   إستميشن — ESTIMATION (rooms and the TV)
+   ----------------------------------------------------------------------------
+   The rules are estimationAction in RoomEstimation.js and Estimation.js (this
+   page has the second too: it lights the cards you may play and keeps a call
+   off 13); the cards are PlayingCards.js, drawn by JS_Cards.html. What only
+   this phone may know is state.you: its seat and its own hand. Everything
+   else - the dashes, the bids, the calls, the trick on the table, the last
+   trick taken - is the table's.
+
+   The table is the green felt with the four seats round it, laid out left to
+   right in every language (a physical table): you at the bottom, the next to
+   play on your left (the auction starts on the dealer's left), the one after
+   across, the last on your right. A watcher and the TV see seat 1 at the
+   bottom. Every seat shows its name, the dealer 🃏, the caller 👑, a dash ⚡,
+   its last bid in the auction and, from the calls on, took / called ("3/5").
+   The middle holds the four places a trick's cards land in, and the trumps.
+
+   The owner's three helpers: the cards you may play are lit (the rest dim,
+   and refused on the phone without a round trip); every seat's took / called;
+   and «آخر لمّة» shows the last trick taken.
+
+   Your card is picked with a tap and played with a second (or the button):
+   a mis-tap in a trick game is a trick. Every move is an event and plays once
+   per device (pcEventsToPlay): the deal, a dash, a bid, a pass, the auction
+   won, a call, a card flying to its place, the trick flying to whoever took
+   it. The round's last trick plays out on the table before the round's
+   points come up (esPlayEnding).
+   ========================================================================= */
+
+const ES_OPTS_KEY = 'estimation';
+const ES_OPTS_DEFAULT = { rounds: 18, base: 10, dash: 'jawaker', turnClock: 0 };
+const ES_CLOCK_CHOICES = [0, 30, 60];
+const ES_POS = ['bottom', 'left', 'top', 'right'];
+const ES_ROW_MAX = 7;
+const esWide = () => window.innerWidth > window.innerHeight;
+/** The page's own direction, for the words inside the table (which is laid out left to right). */
+const esDir = () => (appState.lang === 'en' ? 'ltr' : 'rtl');
+
+const esLocal = { card: null, bidN: null, bidS: null, callN: null, pickKey: '', clock: null, clockKey: null, turnMine: false,
+  handInView: '', shownHand: null, shownKey: '', lastOpen: false, sheetOpen: false, hideTrickNo: '' };
+const esFx = Object.assign(pcFx(), { tvSig: '', tvEnding: false, tvState: null });
+
+/* --- the host's options -------------------------------------------------------------- */
+
+function esOpts() {
+  const o = recallOptions(ES_OPTS_KEY, ES_OPTS_DEFAULT);
+  return {
+    rounds: EST_ROUND_CHOICES.indexOf(Number(o.rounds)) !== -1 ? Number(o.rounds) : 18,
+    base: EST_BASES.indexOf(Number(o.base)) !== -1 ? Number(o.base) : 10,
+    dash: EST_DASH_WAYS.indexOf(o.dash) !== -1 ? o.dash : 'jawaker',
+    turnClock: ES_CLOCK_CHOICES.indexOf(Number(o.turnClock)) !== -1 ? Number(o.turnClock) : 0
+  };
+}
+
+function setEsOpt(key, value) {
+  const patch = {};
+  patch[key] = key === 'dash' ? value : Number(value);
+  rememberOptions(ES_OPTS_KEY, patch);
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/* --- who and where ------------------------------------------------------------------- */
+
+const esShared = (state) => state.shared || {};
+const esSeats = (state) => esShared(state).seats || [];
+/** This phone's seat, or -1 (a watcher, the TV). */
+const esMine = (state) => {
+  if (state.youAreScreen) return -1;
+  const you = state.you || {};
+  if (typeof you.seat === 'number') return you.seat;
+  return esSeats(state).indexOf(Room.me);
+};
+/** The seat drawn at the bottom: yours, or the first seat's. */
+const esBase = (state) => Math.max(0, esMine(state));
+const esPosOf = (state, k) => ES_POS[(k - esBase(state) + 4) % 4];
+const esHand = (state) => ((state.you || {}).hand || []);
+const esNameOf = (state, k) => {
+  const pid = esSeats(state)[k];
+  const p = (state.players || []).find(x => x.id === pid);
+  return p ? p.name : ((esShared(state).names || {})[pid] || '—');
+};
+const esMyTurn = (state, stage) => {
+  const s = esShared(state);
+  return !!s.turn && s.turn.k === esMine(state) && esMine(state) !== -1 && (!stage || s.turn.stage === stage);
+};
+
+/** A value isolated in a line of the other direction ("⁨5⁩"). */
+function esT(key, vars) {
+  return pcT(key, vars);
+}
+
+/** A suit as drawn (never a glyph: ♥ and ♦ turn into emoji on an iPhone), or «صن» for no trumps. */
+function esSuitHtml(s, extra) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (s === 'n') return `<span class="es-nt ${extra || ''}">${escapeHTML(t.es_nt || 'صن')}</span>`;
+  const red = s === 'h' || s === 'd';
+  return `<span class="es-suit ${red ? 'es-suit--red' : 'es-suit--ink'} ${extra || ''}" role="img" aria-label="${escapeHTML(esSuitWord(s))}">${pcSuitSvg(s, 'es-suit__svg')}</span>`;
+}
+
+/** A suit in words, for a line of text: «بستوني», «صن». */
+function esSuitWord(s) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (s === 'n') return t.es_nt_word || 'صن';
+  return (PC_SUIT_NAMES[pcLang()] || {})[s] || '';
+}
+
+/** A bid as a chip: the number and its suit. */
+const esBidHtml = (b, extra) => (b ? `<span class="es-bidchip ${extra || ''}" dir="ltr"><b class="metric">${Number(b.n)}</b>${esSuitHtml(b.s)}</span>` : '');
+/** A bid in words: "6 كبة". */
+const esBidWords = (b) => (b ? b.n + ' ' + esSuitWord(b.s) : '');
+
+/* --- this phone's taps ----------------------------------------------------------------- */
+
+function esAct(btn, action, extra) {
+  const st = Room.state;
+  if (!st || st.game !== 'estimation') return;
+  if (btn && 'disabled' in btn) btn.disabled = true;
+  haptic('light');
+  const s = esShared(st);
+  roomAct(action, Object.assign({ seq: s.turnSeq, deal: s.deal, round: s.round }, extra || {}));
+}
+
+function esRedraw() {
+  if (Room.state && Room.state.game === 'estimation') routeRoomState(Room.state);
+}
+
+/** Picks belong to the turn they were made in. */
+function esSyncPick(state) {
+  const s = esShared(state);
+  const key = [state.code, s.dealId || '', s.deal || 0, s.turnSeq || 0].join('|');
+  if (esLocal.pickKey === key) return;
+  esLocal.pickKey = key;
+  esLocal.card = null;
+  esLocal.callN = null;
+  esLocal.bidN = null;
+  esLocal.bidS = null;
+}
+
+/** A card of your hand: the first tap lifts it, the second plays it. */
+function esTapCard(c) {
+  const st = Room.state;
+  if (!st || st.game !== 'estimation') return;
+  const s = esShared(st);
+  if (!esMyTurn(st, 'play')) {
+    if (s.phase === 'play' && esMine(st) !== -1) { haptic('light'); showToast(esT('es_not_turn'), 'info'); }
+    return;
+  }
+  if (estLegal(esHand(st), s.trick || []).indexOf(c) === -1) {
+    haptic('heavy');
+    const el = document.querySelector('#view-room-estimation [data-pc-at="card:' + c + '"]');
+    if (el && el.animate && !motionOff()) el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }], { duration: 300 });
+    showToast(esT('es_follow_suit', { suit: esSuitWord(pcSuit(s.trick[0].c)) }), 'error');
+    return;
+  }
+  if (esLocal.card === c) { esPlayPicked(); return; }
+  esLocal.card = c;
+  haptic('light');
+  esRedraw();
+}
+
+function esPlayPicked() {
+  const st = Room.state;
+  if (!st || !esMyTurn(st, 'play') || !esLocal.card) return;
+  const card = esLocal.card;
+  haptic('medium');
+  // The card rises at once (an iPhone has no buzz to say the tap landed) and flies from there.
+  const el = document.querySelector('#view-room-estimation [data-pc-at="card:' + card + '"]');
+  if (el) el.classList.add('is-sent');
+  const sent = roomAct('play', { card: card, seq: esShared(st).turnSeq });
+  Promise.resolve(sent).then(() => {
+    document.querySelectorAll('#view-room-estimation .es-hcard.is-sent').forEach(x => x.classList.remove('is-sent'));
+  });
+}
+
+function esPickBid(key, value) {
+  if (key === 'n') esLocal.bidN = esLocal.bidN === value ? null : value;
+  else esLocal.bidS = esLocal.bidS === value ? null : value;
+  // A number too low for the suit picked (or the other way round) is dropped.
+  const s = esShared(Room.state || {});
+  if (esLocal.bidN && esLocal.bidS && !estBidBeats({ n: esLocal.bidN, s: esLocal.bidS }, s.high)) {
+    if (key === 'n') esLocal.bidS = null; else esLocal.bidN = null;
+  }
+  haptic('light');
+  esRedraw();
+}
+
+function esSendBid(btn) {
+  const st = Room.state;
+  if (!st || !esMyTurn(st, 'bid') || !esLocal.bidN || !esLocal.bidS) return;
+  esAct(btn, 'bid', { n: esLocal.bidN, s: esLocal.bidS });
+}
+
+function esPickCall(n) {
+  esLocal.callN = esLocal.callN === n ? null : n;
+  haptic('light');
+  esRedraw();
+}
+
+function esSendCall(btn) {
+  const st = Room.state;
+  if (!st || !esMyTurn(st, 'call') || esLocal.callN === null) return;
+  esAct(btn, 'call', { n: esLocal.callN });
+}
+
+function esToggleLast() {
+  esLocal.lastOpen = !esLocal.lastOpen;
+  haptic('light');
+  esRedraw();
+}
+
+function esToggleSheet() {
+  esLocal.sheetOpen = !esLocal.sheetOpen;
+  haptic('light');
+  esRedraw();
+}
+
+/** What the seat may call now, as the server works it out. */
+function esCallChoicesFor(s, k) {
+  const order = s.callOrder || [];
+  const last = order[order.length - 1] === k;
+  const sum = estSum((s.calls || []).filter((c, i) => i !== k && c !== null));
+  return estCallChoices(s.callMax, sum, last);
+}
+
+/* --- the table, piece by piece ------------------------------------------------------- */
+
+function esHeadHtml(state) {
+  const s = esShared(state);
+  const set = s.settings || {};
+  const bits = [`<span class="badge">${escapeHTML(esT('es_round_of', { n: s.round || 1, m: set.rounds || 18 }))}</span>`];
+  if (s.speed) bits.push(`<span class="badge badge--accent">⚡ ${escapeHTML(esT('es_speed'))}</span>`);
+  if ((s.mult || 1) > 1) bits.push(`<span class="badge badge--danger" dir="ltr">${escapeHTML(esT('es_mult', { n: s.mult }))}</span>`);
+  if (s.trump && (s.phase === 'call' || s.phase === 'play' || s.speed)) bits.push(`<span class="badge es-trumpbadge">${escapeHTML(esT('es_trump'))} ${esSuitHtml(s.trump)}</span>`);
+  if (s.endsAt && ['dash', 'bid', 'call', 'play'].indexOf(s.phase) !== -1) bits.push(`<span class="badge badge--accent metric" data-es-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  return `<div class="es-head">${bits.join('')}</div>`;
+}
+
+/** The line under a seat's name: its dash, its bid in the auction, or took / called. */
+function esSeatLine(state, k) {
+  const s = esShared(state);
+  const dash = (s.dash || [])[k];
+  if (s.phase === 'dash') {
+    if (dash === true) return `<span class="es-tag es-tag--dash">⚡ ${escapeHTML(esT('es_dash'))}</span>`;
+    return dash === false ? `<span class="es-tag">✓</span>` : `<span class="es-tag es-tag--wait">…</span>`;
+  }
+  if (dash) {
+    if (s.phase === 'bid') return `<span class="es-tag es-tag--dash">⚡ ${escapeHTML(esT('es_dash'))}</span>`;
+  }
+  if (s.phase === 'bid') {
+    const mine = (s.bids || []).filter(b => b.k === k);
+    const last = mine[mine.length - 1];
+    if (!last) return '';
+    if (last.pass) return `<span class="es-tag">${escapeHTML(esT('es_pass'))}</span>`;
+    return esBidHtml(last, s.high && s.high.k === k ? 'is-high' : '');
+  }
+  const call = (s.calls || [])[k];
+  const took = (s.took || [])[k] || 0;
+  if (call === null || call === undefined) return `<span class="es-tag es-tag--wait">${escapeHTML(esT('es_calling'))}</span>`;
+  const state2 = took === call ? 'is-made' : took > call ? 'is-over' : '';
+  const withC = s.caller !== null && s.caller !== undefined && k !== s.caller && s.bid && call === s.bid.n;
+  return `<span class="es-took ${state2}" data-es-took="${k}" dir="ltr"><b class="metric">${took}</b><i>/</i><span class="metric">${call}</span></span>` +
+    (dash ? `<span class="es-tag es-tag--dash">⚡</span>` : '') + (withC ? `<span class="es-tag es-tag--with">${escapeHTML(esT('es_with'))}</span>` : '');
+}
+
+function esSeatHtml(state, k, tv) {
+  const s = esShared(state);
+  const pid = esSeats(state)[k];
+  const p = (state.players || []).find(x => x.id === pid);
+  const cls = ['es-seat', 'es-seat--' + esPosOf(state, k)];
+  if (s.turn && s.turn.k === k) cls.push('is-turn');
+  if (s.phase === 'dash' && (s.dash || [])[k] === null) cls.push('is-turn');
+  if (p && !p.online && !p.bot) cls.push('is-away');
+  if (k === esMine(state)) cls.push('is-me');
+  const tags = [];
+  if (s.dealer === k) tags.push(`<span class="es-mark" title="${escapeHTML(esT('es_dealer'))}" aria-label="${escapeHTML(esT('es_dealer'))}">🃏</span>`);
+  if (s.caller === k) tags.push(`<span class="es-mark" title="${escapeHTML(esT('es_caller'))}" aria-label="${escapeHTML(esT('es_caller'))}">👑</span>`);
+  if (s.risk === k && (s.phase === 'call' || s.phase === 'play')) tags.push(`<span class="es-mark es-mark--risk" title="${escapeHTML(esT('es_risk'))}">${escapeHTML(esT('es_risk_short'))}</span>`);
+  const name = k === esMine(state) ? esT('es_you') : esNameOf(state, k);
+  return `<div class="${cls.join(' ')}" data-pc-seat="${escapeHTML(pid || '')}">
+      <span class="es-avatar" data-pc-at="seat:${k}" aria-hidden="true">${pcInitial(state, pid)}</span>
+      <span class="es-seat__body" dir="${esDir()}">
+        <span class="es-seat__who"><bdi class="es-seat__name">${escapeHTML(name)}</bdi>${tags.join('')}</span>
+        <span class="es-seat__line">${esSeatLine(state, k)}</span>
+      </span>
+    </div>`;
+}
+
+/** The cards on the table: the trick being played, or the one just taken until it is gathered. */
+function esCenterCards(state) {
+  const s = esShared(state);
+  if ((s.trick || []).length) return s.trick;
+  const lt = s.lastTrick;
+  if (lt && (s.phase === 'play' || s.phase === 'roundOver') && esLocal.hideTrickNo !== [s.deal, lt.no].join('|')) return lt.cards;
+  return [];
+}
+
+function esMidInfoHtml(state, tv) {
+  const s = esShared(state);
+  if (s.phase === 'dash') {
+    const n = (s.dash || []).filter(x => x !== null).length;
+    return `<div class="es-mid__title">⚡ ${escapeHTML(esT('es_dash_q'))}</div><div class="es-mid__sub metric">${n}/4</div>`;
+  }
+  if (s.phase === 'bid') {
+    if (!s.high) return `<div class="es-mid__title">🔨 ${escapeHTML(esT('es_auction'))}</div><div class="es-mid__sub">${escapeHTML(esT('es_min_bid'))}</div>`;
+    return `<div class="es-mid__sub">${escapeHTML(esT('es_high_by', { name: esNameOf(state, s.high.k) }))}</div>${esBidHtml(s.high, 'es-bidchip--big')}`;
+  }
+  const trump = s.trump ? `<div class="es-mid__trump" data-pc-at="trump">${esSuitHtml(s.trump, 'es-suit--big')}</div>` : '';
+  const sum = estSum((s.calls || []).filter(c => c !== null));
+  const allIn = (s.calls || []).every(c => c !== null);
+  const sumLine = allIn ? `<div class="es-mid__sub">${escapeHTML(esT(sum > EST_TRICKS ? 'es_sum_over' : 'es_sum_under', { n: sum }))}</div>` : '';
+  const who = s.caller !== null && s.caller !== undefined && s.bid ? `<div class="es-mid__sub">👑 <bdi>${escapeHTML(esNameOf(state, s.caller))}</bdi> ${esBidHtml(s.bid)}</div>` : '';
+  return trump + (s.phase === 'call' ? who : '') + sumLine;
+}
+
+function esTableHtml(state, tv) {
+  const s = esShared(state);
+  const cards = esCenterCards(state);
+  const at = {};
+  cards.forEach(x => { at[x.k] = x.c; });
+  const lt = s.lastTrick;
+  const winnerK = !(s.trick || []).length && lt && cards === lt.cards ? lt.k : -1;
+  const slots = [0, 1, 2, 3].map(k => `<span class="es-slot es-slot--${esPosOf(state, k)} ${winnerK === k ? 'is-win' : ''}" data-pc-at="slot:${k}">${at[k] ? pcCardHtml(at[k], { size: tv ? 'lg' : 'md' }) : ''}</span>`).join('');
+  const lastBtn = lt && s.phase === 'play' && !tv ? `<button type="button" class="es-lastbtn ${esLocal.lastOpen ? 'is-on' : ''}" onclick="esToggleLast()" aria-pressed="${esLocal.lastOpen}">👀 ${escapeHTML(esT('es_last_trick'))}</button>` : '';
+  const lastPanel = esLocal.lastOpen && lt && !tv ? `<div class="es-lastpanel" dir="${esDir()}" onclick="esToggleLast()">
+      <div class="es-lastpanel__title">${escapeHTML(esT('es_last_took', { name: esNameOf(state, lt.k), n: lt.no }))}</div>
+      <div class="es-lastpanel__cards" dir="ltr">${lt.cards.map(x => `<span class="es-lastpanel__one ${x.k === lt.k ? 'is-win' : ''}">${pcCardHtml(x.c, { size: 'sm' })}<bdi>${escapeHTML(x.k === esMine(state) ? esT('es_you') : esNameOf(state, x.k))}</bdi></span>`).join('')}</div>
+    </div>` : '';
+  const seat = (pos) => [0, 1, 2, 3].find(k => esPosOf(state, k) === pos);
+  return `<div class="es-table ${tv ? 'es-table--tv' : ''}" dir="ltr">
+      ${esSeatHtml(state, seat('top'), tv)}
+      ${esSeatHtml(state, seat('left'), tv)}
+      <div class="es-mid" data-pc-at="mid">
+        ${slots}
+        <div class="es-mid__info" dir="${esDir()}">${esMidInfoHtml(state, tv)}</div>
+      </div>
+      ${esSeatHtml(state, seat('right'), tv)}
+      ${esSeatHtml(state, seat('bottom'), tv)}
+      ${lastBtn}${lastPanel}
+    </div>`;
+}
+
+/** Your hand in rows of at most ES_ROW_MAX upright, one overlapping row on a phone's side and wider. */
+function esHandHtml(state) {
+  const s = esShared(state);
+  const hand = esHand(state);
+  const playing = esMyTurn(state, 'play');
+  const legal = playing ? estLegal(hand, s.trick || []) : hand;
+  const rows = esWide() ? 1 : Math.max(1, Math.ceil(hand.length / ES_ROW_MAX));
+  const per = Math.ceil(hand.length / rows) || 1;
+  const cardBtn = (c) => {
+    const ok = legal.indexOf(c) !== -1;
+    const sel = esLocal.card === c;
+    const cls = ['es-hcard'];
+    if (playing) cls.push(ok ? 'is-legal' : 'is-dim');
+    if (sel) cls.push('is-sel');
+    return `<button type="button" class="${cls.join(' ')}" data-pc-at="card:${c}" onclick="esTapCard('${c}')" aria-pressed="${sel}" aria-label="${escapeHTML(pcCardName(c))}">${pcCardHtml(c, { size: 'md' })}</button>`;
+  };
+  let body = '';
+  for (let r = 0; r < rows; r++) body += `<div class="es-hand__row pc-row" dir="ltr">${hand.slice(r * per, (r + 1) * per).map(cardBtn).join('')}</div>`;
+  const view = document.getElementById('view-room-estimation');
+  if (view) view._esWide = esWide();
+  return `<div class="es-mine ${playing ? 'is-turn' : ''}">
+      <div class="es-hand" data-pc-at="hand">${body || `<span class="es-hand__empty">${escapeHTML(esT('es_no_cards'))}</span>`}</div>
+    </div>`;
+}
+
+/* --- the bar: what to do now --------------------------------------------------------- */
+
+function esBidPickerHtml(state) {
+  const s = esShared(state);
+  const high = s.high;
+  const nums = [];
+  for (let n = EST_MIN_BID; n <= EST_TRICKS; n++) {
+    const can = EST_BID_SUITS.some(x => estBidBeats({ n: n, s: x }, high));
+    nums.push(`<button type="button" class="es-chip ${esLocal.bidN === n ? 'is-on' : ''}" onclick="esPickBid('n', ${n})" ${can ? '' : 'disabled'} aria-pressed="${esLocal.bidN === n}">${n}</button>`);
+  }
+  const suits = EST_BID_SUITS.slice().reverse().map(x => {
+    const can = esLocal.bidN ? estBidBeats({ n: esLocal.bidN, s: x }, high) : true;
+    return `<button type="button" class="es-chip es-chip--suit ${esLocal.bidS === x ? 'is-on' : ''}" onclick="esPickBid('s', '${x}')" ${can ? '' : 'disabled'} aria-pressed="${esLocal.bidS === x}" aria-label="${escapeHTML(esSuitWord(x))}">${esSuitHtml(x)}</button>`;
+  }).join('');
+  const ready = esLocal.bidN && esLocal.bidS && estBidBeats({ n: esLocal.bidN, s: esLocal.bidS }, high);
+  const label = ready ? esT('es_bid_btn', { bid: esBidWords({ n: esLocal.bidN, s: esLocal.bidS }) }) : esT('es_bid_pick');
+  return `<p class="es-prompt is-mine">⭐ ${escapeHTML(esT('es_your_bid'))}</p>
+    <p class="es-hint">${escapeHTML(high ? esT('es_bid_beat', { bid: esBidWords(high), name: esNameOf(state, high.k) }) : esT('es_bid_first'))}</p>
+    <div class="es-chips" dir="ltr">${nums.join('')}</div>
+    <div class="es-chips es-chips--suits" dir="ltr">${suits}</div>
+    <div class="es-actrow">
+      <button type="button" class="btn btn--primary" onclick="esSendBid(this)" ${ready ? '' : 'disabled'}>${escapeHTML(label)}</button>
+      <button type="button" class="btn btn--secondary" onclick="esAct(this, 'pass')">${escapeHTML(esT('es_pass'))}</button>
+    </div>`;
+}
+
+function esCallPickerHtml(state) {
+  const s = esShared(state);
+  const k = esMine(state);
+  const choices = esCallChoicesFor(s, k);
+  const order = s.callOrder || [];
+  const last = order[order.length - 1] === k;
+  const others = estSum((s.calls || []).filter((c, i) => i !== k && c !== null));
+  const chips = [];
+  for (let n = 0; n <= s.callMax; n++) {
+    const ok = choices.indexOf(n) !== -1;
+    chips.push(`<button type="button" class="es-chip ${esLocal.callN === n ? 'is-on' : ''} ${ok ? '' : 'is-banned'}" onclick="esPickCall(${n})" ${ok ? '' : 'disabled'} aria-pressed="${esLocal.callN === n}">${n}</button>`);
+  }
+  const n = esLocal.callN;
+  const after = n === null ? null : others + n;
+  const hint = n !== null ? esT(after > EST_TRICKS ? 'es_call_makes_over' : 'es_call_makes_under', { n: after })
+    : last ? esT('es_call_last', { n: EST_TRICKS - others }) : s.speed ? esT('es_call_hint_speed') : esT('es_call_hint', { n: s.callMax });
+  return `<p class="es-prompt is-mine">⭐ ${escapeHTML(esT('es_your_call'))}</p>
+    <p class="es-hint">${escapeHTML(hint)}</p>
+    <div class="es-chips" dir="ltr">${chips.join('')}</div>
+    <button type="button" class="btn btn--primary btn--lg" onclick="esSendCall(this)" ${n === null ? 'disabled' : ''}>${escapeHTML(n === null ? esT('es_call_pick') : esT('es_call_btn', { n: n }))}</button>`;
+}
+
+function esActionsHtml(state) {
+  const s = esShared(state);
+  const t = TRANSLATIONS[appState.lang] || {};
+  const bar = (inner) => `<div class="es-actbar">${inner}</div>`;
+  const note = (inner) => `<div class="es-note">${inner}</div>`;
+  const k = esMine(state);
+  if (k === -1) return note(`<p class="es-hint">${escapeHTML(t.vote_spectating || '')}</p>`);
+  if (s.phase === 'dash') {
+    const mine = (s.dash || [])[k];
+    if (mine !== null && mine !== undefined) {
+      const n = (s.dash || []).filter(x => x !== null).length;
+      return note(`<p class="es-prompt">${escapeHTML(mine ? esT('es_you_dashed') : esT('es_you_no_dash'))}</p><p class="es-hint">${escapeHTML(esT('es_dash_waiting', { n: n }))}</p>`);
+    }
+    const full = (s.dash || []).filter(x => x === true).length >= EST_MAX_DASH;
+    return bar(`<p class="es-prompt is-mine">⚡ ${escapeHTML(esT('es_dash_q'))}</p>
+      <p class="es-hint">${escapeHTML(esT(full ? 'es_dash_full' : 'es_dash_hint'))}</p>
+      <div class="es-actrow">
+        <button type="button" class="btn btn--secondary" onclick="esAct(this, 'dash', { yes: true })" ${full ? 'disabled' : ''}>⚡ ${escapeHTML(esT('es_dash_yes'))}</button>
+        <button type="button" class="btn btn--primary" onclick="esAct(this, 'dash', { yes: false })">${escapeHTML(esT('es_dash_no'))}</button>
+      </div>`);
+  }
+  if (!s.turn) return '';
+  if (esMyTurn(state, 'bid')) return bar(esBidPickerHtml(state));
+  if (esMyTurn(state, 'call')) return bar(esCallPickerHtml(state));
+  if (esMyTurn(state, 'play')) {
+    const c = esLocal.card;
+    const lead = !(s.trick || []).length;
+    const need = ((s.calls || [])[k] || 0) - ((s.took || [])[k] || 0);
+    const hint = need > 0 ? esT('es_need_more', { n: need }) : need === 0 ? esT('es_need_none') : esT('es_need_over', { n: -need });
+    return bar(`<p class="es-prompt is-mine">⭐ ${escapeHTML(esT(lead ? 'es_your_lead' : 'es_your_play'))}</p>
+      <p class="es-hint">${escapeHTML(hint)}</p>
+      <button type="button" class="btn btn--primary btn--lg" onclick="esPlayPicked()" ${c ? '' : 'disabled'}>${escapeHTML(c ? esT('es_play_btn', { card: pcCardName(c) }) : esT('es_play_pick'))}</button>`);
+  }
+  const who = esNameOf(state, s.turn.k);
+  const words = { bid: 'es_waiting_bid', call: 'es_waiting_call', play: 'es_waiting_play' };
+  return note(`<p class="es-prompt">${escapeHTML(esT(words[s.turn.stage] || 'es_waiting_play', { name: who }))}</p>`);
+}
+
+/* --- what happened ------------------------------------------------------------------- */
+
+function esEventText(state, e) {
+  if (!e) return '';
+  const name = (k) => esNameOf(state, k);
+  switch (e.type) {
+    case 'deal': return e.again ? esT('es_ev_redealt') : esT(e.speed ? 'es_ev_deal_speed' : 'es_ev_deal', { n: e.round, name: name(e.dealer), suit: e.trump ? esSuitWord(e.trump) : '' });
+    case 'dash': return e.yes ? esT('es_ev_dash', { name: name(e.k) }) : '';
+    case 'bid': return esT('es_ev_bid', { name: name(e.k), bid: esBidWords(e) });
+    case 'pass': return esT('es_ev_pass', { name: name(e.k) });
+    case 'won': return esT('es_ev_won', { name: name(e.k), bid: esBidWords(e), suit: esSuitWord(e.s) });
+    case 'call': return esT(e.with ? 'es_ev_call_with' : 'es_ev_call', { name: name(e.k), n: e.n });
+    case 'called': return esT(e.over ? 'es_ev_called_over' : 'es_ev_called_under', { n: e.sum });
+    case 'play': return esT('es_ev_play', { name: name(e.k), card: pcCardName(e.c) });
+    case 'trick': return esT('es_ev_trick', { name: name(e.k), n: e.no });
+    case 'round': return e.allMissed ? esT('es_ev_all_missed') : esT('es_ev_round', { n: e.round });
+    case 'auto': return e.why === 'host' ? esT('es_ev_auto_host', { name: name(e.k) }) : esT('es_ev_auto_clock', { name: name(e.k) });
+    case 'took': return esT('es_ev_took', { name: e.name || name(e.k) });
+    case 'over': return '';
+    default: return '';
+  }
+}
+
+const esMoves = (state) => (esShared(state).events || []).filter(e => e && e.type !== 'auto' && esEventText(state, e));
+
+function esLatestHtml(state, tv) {
+  const list = esMoves(state);
+  const e = list[list.length - 1];
+  if (!e) return '';
+  const fresh = motionFirst(['es-latest', roomDealKey(state), e.seq, tv ? 'tv' : 'phone'].join('|'));
+  return `<p class="es-latest ${fresh ? 'is-new' : ''}">${escapeHTML(esEventText(state, e))}</p>`;
+}
+
+function esLogHtml(state, count) {
+  const list = esMoves(state).filter(e => e.type !== 'play').slice(0, -1).slice(-count).reverse();
+  if (!list.length) return '';
+  return `<ul class="es-log">${list.map(e => `<li>${escapeHTML(esEventText(state, e))}</li>`).join('')}</ul>`;
+}
+
+/* --- the scores ------------------------------------------------------------------------ */
+
+/** Every seat's total, best first: the night's board with its rows kept for animateScoreboards. */
+function esBoardHtml(state, title) {
+  const s = esShared(state);
+  return renderScoreboard(s.board || [], title || esT('es_scores'));
+}
+
+/** Every round so far, as a score sheet: a row a round, a column a seat. */
+function esSheetHtml(state) {
+  const s = esShared(state);
+  const hist = s.history || [];
+  if (!hist.length) return '';
+  const seats = [0, 1, 2, 3];
+  const head = `<tr><th>#</th>${seats.map(k => `<th><bdi>${escapeHTML(esNameOf(state, k))}</bdi></th>`).join('')}</tr>`;
+  const rows = hist.map(h => `<tr class="${h.allMissed ? 'is-missed' : ''}"><td class="metric">${h.round}${h.speed ? '⚡' : ''}</td>${seats.map(k => {
+    const p = h.points[k];
+    return `<td class="metric ${p > 0 ? 'tx-success' : p < 0 ? 'tx-danger' : ''}" dir="ltr">${h.dash[k] ? '⚡' : ''}${h.took[k]}/${h.calls[k]} <b>${p > 0 ? '+' + p : p}</b></td>`;
+  }).join('')}</tr>`).join('');
+  const total = `<tr class="es-sheet__total"><td>Σ</td>${seats.map(k => `<td class="metric" dir="ltr"><b>${s.totals[k]}</b></td>`).join('')}</tr>`;
+  return `<div class="es-sheet"><table><thead>${head}</thead><tbody>${rows}${total}</tbody></table></div>`;
+}
+
+/** A round's result: every seat's call, what it took and its points, the round's word. */
+function esResultHtml(state, h, tv) {
+  if (!h) return '';
+  const s = esShared(state);
+  const fresh = motionFirst(['es-result', roomDealKey(state), s.deal, h.round, tv ? 'tv' : 'p'].join('|'));
+  const sum = estSum(h.calls);
+  const bits = [h.speed ? '⚡ ' + esT('es_speed') : esBidWords(h.bid) ? '👑 ' + esNameOf(state, h.caller) + ' · ' + esBidWords(h.bid) : '',
+    esT(h.over ? 'es_sum_over' : 'es_sum_under', { n: sum })];
+  // "×2" held left to right inside a line of either direction.
+  const ltr = (x) => String.fromCharCode(0x2066) + x + String.fromCharCode(0x2069);
+  if (h.levels) bits.push(esT('es_risk_levels', { x: '×' + h.levels }));
+  if (h.mult > 1) bits.push(ltr(esT('es_mult', { n: h.mult })));
+  const rows = [0, 1, 2, 3].map(k => {
+    const p = h.points[k];
+    const made = h.calls[k] === h.took[k];
+    const tag = h.dash[k] ? '⚡' : h.caller === k ? '👑' : h.risk === k && h.levels ? '🎯' : '';
+    return `<div class="es-res__row ${made ? 'is-made' : 'is-miss'}" style="--at:${fresh ? 200 + k * 180 : 0}ms">
+        <span class="es-res__name"><bdi>${escapeHTML(esNameOf(state, k))}</bdi> ${tag}</span>
+        <span class="es-res__ct metric" dir="ltr">${h.took[k]}<i>/</i>${h.calls[k]}</span>
+        <b class="es-res__pts metric ${p > 0 ? 'tx-success' : p < 0 ? 'tx-danger' : ''}" dir="ltr" data-es-pts="${p}">${p > 0 ? '+' + p : p}</b>
+      </div>`;
+  }).join('');
+  return `<div class="card es-res ${fresh ? 'is-fresh' : ''}" ${fresh ? 'data-reveal-ms="1100"' : ''}>
+      <div class="card__title">${escapeHTML(h.allMissed ? esT('es_all_missed') : esT('es_round_done', { n: h.round }))}</div>
+      <p class="es-hint">${escapeHTML(bits.filter(Boolean).join(' · '))}</p>
+      ${h.allMissed ? `<p class="es-hint tx-warning">${escapeHTML(esT('es_all_missed_hint'))}</p>` : ''}
+      <div class="es-res__rows">${rows}</div>
+    </div>`;
+}
+
+function esRoundFrame(state) {
+  const s = esShared(state);
+  const t = TRANSLATIONS[appState.lang] || {};
+  const next = state.youAreHost
+    ? `<div class="btn-stack"><button type="button" class="btn btn--primary btn--lg" onclick="esAct(this, 'nextRound')">${escapeHTML(esT('es_next_round', { n: (s.round || 0) + 1 }))}</button></div>`
+    : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`;
+  return `<div class="es es--round">
+      ${esHeadHtml(state)}
+      ${esResultHtml(state, s.results, false)}
+      ${next}
+      ${esBoardHtml(state)}
+      <button type="button" class="btn btn--ghost btn--sm btn--auto es-sheetbtn" onclick="esToggleSheet()">📋 ${escapeHTML(esT(esLocal.sheetOpen ? 'es_sheet_hide' : 'es_sheet_show'))}</button>
+      ${esLocal.sheetOpen ? esSheetHtml(state) : ''}
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+function esOverFrame(state) {
+  const s = esShared(state);
+  const t = TRANSLATIONS[appState.lang] || {};
+  const w = s.winners || [];
+  const title = w.length > 1 ? esT('es_won_shared', { names: w.map(id => esNameOf(state, esSeats(state).indexOf(id))).join(' · ') })
+    : esT('es_won', { name: esNameOf(state, esSeats(state).indexOf(w[0])) });
+  const hostNext = state.youAreHost ? `<div class="btn-stack">
+      <button type="button" class="btn btn--primary btn--lg" onclick="esAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
+      <button type="button" class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+    </div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`;
+  return `<div class="es es--over">
+      <div class="card card--accent es-won"><div class="es-won__icon" aria-hidden="true">🏆</div><div class="card__title">${escapeHTML(title)}</div></div>
+      ${renderPodium(state, s.board || [])}
+      ${esBoardHtml(state, esT('es_final'))}
+      ${esResultHtml(state, s.results, false)}
+      ${esSheetHtml(state)}
+      ${roomShareBtnHtml(state, s.board || [])}
+      ${hostNext}
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+/* --- the host's way past a phone that went quiet ------------------------------------ */
+
+function esHostButtons(state) {
+  const s = esShared(state);
+  if (!state.youAreHost || ['dash', 'bid', 'call', 'play'].indexOf(s.phase) === -1) return [];
+  const quiet = (k) => {
+    const p = (state.players || []).find(x => x.id === esSeats(state)[k]);
+    return p && !p.online && !p.bot;
+  };
+  if (s.phase === 'dash') {
+    const waiting = [0, 1, 2, 3].filter(k => (s.dash || [])[k] === null && quiet(k));
+    return waiting.length ? [['⏭️ ' + esT('es_skip_dash'), "esAct(this, 'skipTurn')"]] : [];
+  }
+  if (!s.turn || !quiet(s.turn.k)) return [];
+  return [['⏭️ ' + esT('es_skip_turn', { name: esNameOf(state, s.turn.k) }), "esAct(this, 'skipTurn')"]];
+}
+
+function esRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  const box = root.querySelector('[data-es-host]');
+  if (box) {
+    const buttons = esHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._esHtml !== html) { box.innerHTML = html; box._esHtml = html; }
+  }
+  root.querySelectorAll('.es-seat[data-pc-seat]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-pc-seat'));
+    el.classList.toggle('is-away', !!p && !p.online && !p.bot);
+  });
+}
+
+/* --- the phone's frame ---------------------------------------------------------------- */
+
+function esServerSig(state) {
+  const s = esShared(state);
+  const ev = s.events || [];
+  return [s.dealId || '', s.deal, s.phase, s.round, s.turnSeq, JSON.stringify(s.turn || null), JSON.stringify(s.dash || []), JSON.stringify(s.bids || []),
+    JSON.stringify(s.calls || []), JSON.stringify(s.took || []), JSON.stringify(s.trick || []), JSON.stringify(s.lastTrick || null),
+    ev.length ? ev[ev.length - 1].seq : 0, s.endsAt || '', JSON.stringify(s.board || []), JSON.stringify((state.you || {}).hand || null),
+    (s.seats || []).join(','), JSON.stringify(s.settings || {}), (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(',')].join('|');
+}
+
+function esPhoneFrame(state) {
+  const s = esShared(state);
+  if (s.phase === 'gameover') return esOverFrame(state);
+  if (s.phase === 'roundOver') return esRoundFrame(state);
+  const mine = esMine(state) !== -1;
+  return `<div class="es ${esMyTurn(state) ? 'is-turn' : ''}">
+      ${esHeadHtml(state)}
+      ${esLatestHtml(state, false)}
+      <div class="es-layout">
+        <div class="es-layout__table">${esTableHtml(state, false)}</div>
+        <div class="es-layout__mine">${mine ? esHandHtml(state) : ''}</div>
+        <div class="es-layout__act">${esActionsHtml(state)}<div data-es-host></div></div>
+        <div class="es-layout__side">
+          ${esBoardHtml(state)}
+          <button type="button" class="btn btn--ghost btn--sm btn--auto es-sheetbtn" onclick="esToggleSheet()">📋 ${escapeHTML(esT(esLocal.sheetOpen ? 'es_sheet_hide' : 'es_sheet_show'))}</button>
+          ${esLocal.sheetOpen ? esSheetHtml(state) : ''}
+          ${esLogHtml(state, 3)}
+        </div>
+      </div>
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+ROOM_GAMES.estimation = {
+  bots: { max: 4 },
+  // A watcher (a fifth person, a latecomer) sees the table too.
+  lateJoin: true,
+  // The table keeps your hand in view itself; a round's result and the end are drawn from the top.
+  actionKey(state) {
+    const s = esShared(state);
+    return s.phase === 'roundOver' || s.phase === 'gameover' ? [state.code, s.dealId, s.phase, s.round].join('|') : '';
+  },
+  lobbyOptions(state) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    const people = (state.players || []).filter(p => !p.bot).length;
+    const fan = `<div class="pc-lobby__cards" aria-hidden="true" dir="ltr">${['As', 'Kh', null, 'Qd', 'Jc'].map(c => pcCardHtml(c, { size: 'sm' })).join('')}</div>`;
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(esT('es_lobby_hint'))}</p>`;
+    const seats = `<p class="field__hint" style="text-align:center">🤖 ${escapeHTML(esT(people > 4 ? 'es_lobby_watch' : people < 4 ? 'es_lobby_bots' : 'es_lobby_four'))}</p>`;
+    if (!state.youAreHost) return `${fan}${hint}${seats}<p class="field__hint" style="text-align:center">${escapeHTML(t.room_wait_host || '')}</p>`;
+    const o = esOpts();
+    const seg = (key, values, labelOf) => `<div class="segmented" role="group">${values.map(v =>
+      `<button type="button" class="segmented__item ${o[key] === v ? 'is-active' : ''}" onclick="setEsOpt('${key}', ${typeof v === 'string' ? `'${v}'` : v})">${labelOf(v)}</button>`).join('')}</div>`;
+    return `<div class="card card--tight pc-lobby">
+        ${fan}
+        ${seats}
+        <div class="field">
+          <label class="field__label">🔁 ${escapeHTML(esT('es_rounds'))}</label>
+          ${seg('rounds', EST_ROUND_CHOICES, v => escapeHTML(esT(v === 18 ? 'es_rounds_18' : 'es_rounds_13')))}
+          <p class="field__hint">${escapeHTML(esT(o.rounds === 18 ? 'es_rounds_18_hint' : 'es_rounds_13_hint'))}</p>
+        </div>
+        <div class="field">
+          <label class="field__label">⚡ ${escapeHTML(t.cs_est_dash || '')}</label>
+          ${seg('dash', EST_DASH_WAYS, v => escapeHTML(t['cs_est_dash_' + v] || v))}
+        </div>
+        <div class="field">
+          <label class="field__label">🎯 ${escapeHTML(t.cs_est_base || '')}</label>
+          ${seg('base', EST_BASES, v => String(v))}
+          <p class="field__hint">${escapeHTML(esT('es_base_hint', { n: o.base }))}</p>
+        </div>
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(esT('es_clock'))}</label>
+          ${seg('turnClock', ES_CLOCK_CHOICES, v => (v ? v + '″' : escapeHTML(esT('es_clock_off'))))}
+          ${o.turnClock ? `<p class="field__hint">${escapeHTML(esT('es_clock_hint'))}</p>` : ''}
+        </div>
+        ${hint}
+      </div>`;
+  },
+  startPayload() {
+    // The computer players that fill the empty seats get names in the host's language.
+    const st = Room.state;
+    const names = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).filter(n => !((st && st.players) || []).some(p => samePlayer(p.name, n)));
+    return Object.assign(esOpts(), { botNames: shuffleArray(names.slice()).slice(0, 3) });
+  },
+  render(state) {
+    if (appState.currentView !== 'room-estimation') setView('room-estimation');
+    const el = document.getElementById('view-room-estimation');
+    if (!el) return;
+    const s = esShared(state);
+    esSyncPick(state);
+    const server = esServerSig(state);
+    const changed = !!(el.dataset.sig && el._esServer && el._esServer !== server);
+    const busy = esFx.busyUntil > Date.now();
+    const own = changed && busy && esOwnMoveWaiting(state);
+    if (changed && ((busy && !own) || esPlayEnding(el, state))) {
+      pcDeferRedraw(esFx, 'estimation');
+      esRefreshInPlace(el, state, false);
+      return;
+    }
+    const local = [esLocal.card || '', esLocal.bidN || '', esLocal.bidS || '', esLocal.callN === null ? '' : esLocal.callN, esLocal.lastOpen, esLocal.sheetOpen,
+      esLocal.hideTrickNo, state.youAreHost, appState.lang].join('|');
+    const handWas = esLocal.shownKey === state.code + '|' + (s.deal || '') ? esLocal.shownHand : null;
+    const serverChanged = el._esServer !== server;
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => { if (serverChanged) pcSnapshot(esFx, el); return esPhoneFrame(state); });
+    el._esServer = server;
+    esRefreshInPlace(el, state, false);
+    esTickClock(s);
+    if (!rebuilt) return;
+    el._esTable = ['dash', 'bid', 'call', 'play'].indexOf(s.phase) !== -1;
+    pcFitRows(el, '.es-hand__row');
+    if (serverChanged) {
+      esLocal.shownHand = esHand(state).slice();
+      esLocal.shownKey = state.code + '|' + (s.deal || '');
+      esAfterDraw(el, state, handWas);
+      if (s.phase === 'roundOver' || s.phase === 'gameover') { esCountResult(el); animateScoreboards(state); }
+    }
+    esTurnCue(state);
+    if (s.phase === 'gameover' && typeof confetti === 'function' && (s.winners || []).indexOf(Room.me) !== -1 &&
+        motionFirst('es-over|' + state.code + '|' + (s.dealId || ''))) {
+      afterReveal(el, () => confetti({ particleCount: 150, spread: 90 }));
+    }
+  }
+};
+
+/** A round's points count up, row by row, once. */
+function esCountResult(root) {
+  const box = root && root.querySelector('.es-res.is-fresh');
+  if (!box || motionOff()) return;
+  box.querySelectorAll('[data-es-pts]').forEach((el, i) => {
+    const to = Number(el.getAttribute('data-es-pts')) || 0;
+    setTimeout(() => {
+      countUp(el, 0, to);
+      if (to > 0) setTimeout(() => { el.textContent = '+' + to; }, 1000);
+    }, 200 + i * 180);
+  });
+}
+
+/* --- the clock and the cues ------------------------------------------------------------ */
+
+function esStopClock() {
+  if (esLocal.clock) esLocal.clock.stop();
+  esLocal.clock = null;
+  esLocal.clockKey = null;
+}
+
+function esTickClock(s) {
+  const endsAt = s && ['dash', 'bid', 'call', 'play'].indexOf(s.phase) !== -1 ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-es-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 10);
+      el.classList.toggle('badge--accent', left > 10);
+    });
+    return left;
+  };
+  if (!endsAt) { esStopClock(); return; }
+  paint();
+  if (esLocal.clockKey === endsAt && esLocal.clock) return;
+  esStopClock();
+  esLocal.clockKey = endsAt;
+  esLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      const ss = st && st.game === 'estimation' ? st.shared || {} : null;
+      const mine = ss && st && (esMyTurn(st) || (ss.phase === 'dash' && (ss.dash || [])[esMine(st)] === null));
+      if (left > 0 && left <= 5 && ss && ss.endsAt === endsAt && (st.youAreScreen || mine)) playSound('tick');
+    },
+    onEnd: () => { esLocal.clock = null; paint(); }
+  });
+}
+
+function esTurnCue(state) {
+  const s = esShared(state);
+  const mine = esMyTurn(state) || (s.phase === 'dash' && esMine(state) !== -1 && (s.dash || [])[esMine(state)] === null);
+  const was = esLocal.turnMine;
+  esLocal.turnMine = mine;
+  if (mine && !was && esFx.watched === state.code) { playSound('tick'); haptic('medium'); }
+  esHandInView(state);
+}
+
+/** On your turn the page keeps your hand and the bar in sight. */
+function esHandInView(state) {
+  const s = esShared(state);
+  const wants = esMyTurn(state);
+  const key = wants ? [state.code, s.deal, s.turnSeq].join('|') : '';
+  if (!wants || esLocal.handInView === key) return;
+  esLocal.handInView = key;
+  requestAnimationFrame(() => {
+    const main = document.getElementById('shell-main');
+    const root = document.getElementById('view-room-estimation');
+    const bar = root && root.querySelector('.es-actbar');
+    if (!main || !bar || appState.currentView !== 'room-estimation') return;
+    const b = bar.getBoundingClientRect();
+    const m = main.getBoundingClientRect();
+    const over = b.bottom + 8 - m.bottom;
+    if (over > 0) main.scrollBy({ top: over, behavior: motionOff() ? 'auto' : 'smooth' });
+  });
+}
+
+onRoomClocksReset(() => {
+  esStopClock();
+  esLocal.card = null;
+  esLocal.lastOpen = false;
+  pcFxCancel(esFx);
+});
+
+let esFitTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(esFitTimer);
+  esFitTimer = setTimeout(() => {
+    const el = document.getElementById('view-room-estimation');
+    // Turned on its side (or back): the hand is laid out again, one row or two.
+    if (el && el._esWide !== undefined && el._esWide !== esWide() && Room.state && Room.state.game === 'estimation') { delete el.dataset.sig; esRedraw(); }
+    pcFitRows(el, '.es-hand__row');
+  }, 120);
+});
+
+/* --- the flights ------------------------------------------------------------------------ */
+
+const ES_OWN_MOVES = ['play', 'bid', 'pass', 'call', 'dash'];
+
+/** Your own move is drawn the moment the server takes it, not after the table's motion. */
+function esOwnMoveWaiting(state) {
+  const s = esShared(state);
+  const k = esMine(state);
+  if (k === -1 || esFx.deal !== state.code + '|' + (s.dealId || '')) return false;
+  return (s.events || []).some(e => e && (Number(e.seq) || 0) > esFx.lastSeq && e.k === k && ES_OWN_MOVES.indexOf(e.type) !== -1);
+}
+
+function esAfterDraw(root, state, handWas) {
+  const s = esShared(state);
+  const evs = pcEventsToPlay(esFx, state);
+  if (document.hidden || pcWokeRecently(esFx) || !root.getClientRects().length || !evs.length) return;
+  esEventSounds(state, evs);
+  if (['dash', 'bid', 'call', 'play'].indexOf(s.phase) === -1 || evs.length > 12 || !pcCanMove()) return;
+  esPlay(root, state, evs, esFx.prevPhase === 'lobby' ? 900 : 0, handWas, false);
+}
+
+/** The round's last trick plays out on the table before its points come up. */
+function esPlayEnding(root, state) {
+  const s = esShared(state);
+  if (!root || !root._esTable || (s.phase !== 'roundOver' && s.phase !== 'gameover')) return false;
+  if (document.hidden || pcWokeRecently(esFx) || !pcCanMove() || !root.getClientRects().length) return false;
+  const evs = pcEventsToPlay(esFx, state).filter(e => e.type === 'play' || e.type === 'trick');
+  if (!evs.length || evs.length > 6) return false;
+  pcSnapshot(esFx, root);
+  esEventSounds(state, evs);
+  esPlay(root, state, evs, 0, null, true);
+  return esFx.busyUntil > Date.now();
+}
+
+function esEventSounds(state, evs) {
+  if (document.hidden || !evs.length) return;
+  const mine = evs.some(e => e.k === esMine(state) && !state.youAreScreen);
+  const has = (fn) => evs.some(fn);
+  if (has(e => e.type === 'over')) { playRoomFx('success'); return; }
+  if (has(e => e.type === 'won')) { pcSound('pcTrue', mine); return; }
+  if (has(e => e.type === 'play')) { pcSound('pcCard', mine); return; }
+  if (has(e => e.type === 'trick' || e.type === 'deal')) pcSound('pcSlide', mine);
+  else if (has(e => e.type === 'dash' && e.yes)) pcSound('pcCall', mine);
+}
+
+/** A sign over a seat that can hold a drawn suit (pcPop only takes text). */
+function esPopHtml(root, where, html, delay) {
+  const r = pcRect(esFx, root, where);
+  if (!r || !r.width || !pcCanMove()) return;
+  const el = pcLayer(root, null, 'pc-pop es-pop', html);
+  el.style.left = (r.left + r.width / 2) + 'px';
+  el.style.top = (r.top + r.height / 2) + 'px';
+  pcAnimate(el, [
+    { transform: 'translate(-50%, -50%) scale(0.4)', opacity: 0 },
+    { transform: 'translate(-50%, -95%) scale(1.15)', opacity: 1, offset: 0.25 },
+    { transform: 'translate(-50%, -105%) scale(1)', opacity: 1, offset: 0.75 },
+    { transform: 'translate(-50%, -135%) scale(0.9)', opacity: 0 }
+  ], { duration: 1200, delay: delay || 0, easing: 'ease-out' }, () => el.remove());
+}
+
+function esPlay(root, state, list, delay, handWas, ending) {
+  const s = esShared(state);
+  const fx = esFx;
+  const tv = pcIsTv(root);
+  const me = esMine(state);
+  const steps = [];
+  const at = (ms, fn) => steps.push([ms, fn]);
+  let t = delay || 0;
+  const seatKey = (k) => 'seat:' + k;
+  const cardW = tv ? 96 : 52;
+  list.forEach((e) => {
+    const k = e.k;
+    switch (e.type) {
+      case 'deal': {
+        at(t, () => pcPop(fx, root, 'mid', e.again ? '🔀' : '🃏', { big: true, duration: 700 }));
+        t += 260;
+        for (let c = 0; c < 3; c++) [0, 1, 2, 3].forEach((x, i) => {
+          if (x === me) return;
+          at(t + (c * 4 + i) * 45, () => pcFly(fx, root, 'mid', seatKey(x), null, { arc: 16, duration: 360, width: tv ? 54 : 30 }));
+        });
+        if (me !== -1) {
+          esHand(state).forEach((c, j) => {
+            const key = 'card:' + c;
+            pcHold(fx, root, key);
+            at(t + j * 45, () => pcFly(fx, root, 'mid', key, c, { flip: 'up', arc: 22, duration: 420, hold: [key] }));
+          });
+        }
+        t += Math.max(12 * 45, esHand(state).length * 45) + 420;
+        break;
+      }
+      case 'dash':
+        if (e.yes) at(t, () => { pcRing(fx, root, seatKey(k), { tone: 'gold', scale: 2.2 }); pcPop(fx, root, seatKey(k), '⚡ ' + esT('es_dash')); });
+        t += e.yes ? 300 : 0;
+        break;
+      case 'bid':
+        at(t, () => esPopHtml(root, seatKey(k), esBidHtml(e)));
+        t += 320;
+        break;
+      case 'pass':
+        at(t, () => pcPop(fx, root, seatKey(k), esT('es_pass')));
+        t += 240;
+        break;
+      case 'won':
+        at(t, () => { pcRing(fx, root, seatKey(k), { tone: 'gold', scale: 2.6 }); esPopHtml(root, seatKey(k), '👑 ' + esBidHtml(e)); });
+        at(t + 350, () => pcRing(fx, root, 'trump', { tone: 'gold', scale: 1.8 }));
+        t += 600;
+        break;
+      case 'call':
+        at(t, () => pcPop(fx, root, seatKey(k), (e.with ? esT('es_with') + ' ' : '') + String(e.n)));
+        t += 260;
+        break;
+      case 'play': {
+        const slot = 'slot:' + k;
+        const mine = k === me && Array.isArray(handWas) && handWas.indexOf(e.c) !== -1 && !state.youAreScreen;
+        const from = mine ? 'card:' + e.c : seatKey(k);
+        if (!ending) pcHold(fx, root, slot);
+        at(t, () => pcFly(fx, root, from, slot, e.c, { arc: 26, spin: (k - 1.5) * 6, duration: 420, width: cardW, hold: ending ? [] : [slot] }));
+        if (ending) at(t + 430, () => { const el = pcEl(root, slot); if (el && !el.firstElementChild) el.innerHTML = pcCardHtml(e.c, { size: tv ? 'lg' : 'md' }); });
+        t += 440;
+        break;
+      }
+      case 'trick': {
+        // The four cards stay a moment where they fell, then go to whoever took them.
+        const hold = tv ? 900 : 650;
+        const cards = e.cards || [];
+        at(t + hold, () => {
+          esLocal.hideTrickNo = [s.deal, e.no].join('|');
+          cards.forEach((x, i) => {
+            const slot = pcEl(root, 'slot:' + x.k);
+            const r = pcRect(fx, root, 'slot:' + x.k);
+            if (slot) slot.classList.add('is-gone');
+            if (r) pcFly(fx, root, r, seatKey(e.k), x.c, { flip: 'down', arc: 10, duration: 460, delay: i * 50, width: cardW });
+          });
+          pcRing(fx, root, seatKey(e.k), { tone: 'success', scale: 2 });
+        });
+        at(t + hold + 520, () => { pcPop(fx, root, seatKey(e.k), '⁦+1⁩', { big: true, duration: 900 }); esBumpTook(root, e.k); });
+        t += hold + 720;
+        break;
+      }
+      case 'auto':
+        at(t, () => pcPop(fx, root, seatKey(k), e.why === 'host' ? '⏭️' : '⏱️', { big: true }));
+        t += 240;
+        break;
+      case 'took':
+        at(t, () => pcPop(fx, root, seatKey(k), '🤖', { big: true }));
+        t += 300;
+        break;
+      default:
+        break;
+    }
+  });
+  let end = 0;
+  steps.forEach(([ms, fn]) => {
+    end = Math.max(end, ms);
+    fx.timers.push(setTimeout(fn, ms));
+  });
+  fx.busyUntil = Math.max(fx.busyUntil, Date.now() + Math.max(t, end + 460));
+}
+
+/** The seat's took / called pops as the trick reaches it. */
+function esBumpTook(root, k) {
+  const el = root && root.querySelector('[data-es-took="' + k + '"]');
+  if (!el || motionOff()) return;
+  el.classList.remove('motion-landed');
+  void el.offsetWidth;
+  el.classList.add('motion-landed');
+}
+
+Room.onChange((state) => {
+  if (!state) { esFx.watched = ''; esFx.prevPhase = ''; return; }
+  if (state.game === 'estimation' && state.phase !== 'lobby') {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : onRoomView();
+    if (!showing) pcEventsToPlay(esFx, state);
+  }
+  esFx.watched = state.code;
+  esFx.prevPhase = state.phase;
+});
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) esFx.wokeAt = Date.now(); });
+
+/* --- the TV ----------------------------------------------------------------------------- */
+
+function esTvTurnWords(state) {
+  const s = esShared(state);
+  if (s.phase === 'dash') return esT('es_dash_q');
+  if (!s.turn) return '';
+  const words = { bid: 'es_waiting_bid', call: 'es_waiting_call', play: 'es_waiting_play' };
+  return esT(words[s.turn.stage] || 'es_waiting_play', { name: esNameOf(state, s.turn.k) });
+}
+
+function esTvTable(state) {
+  const host = state.youAreHost ? '<span data-es-host class="es-tv__host"></span>' : '';
+  return `<div class="es-tv">
+      <div class="es-tv__table">${esTableHtml(state, true)}</div>
+      <div class="es-tv__side">
+        ${esHeadHtml(state)}
+        <div class="es-tv__turn">${escapeHTML(esTvTurnWords(state))}</div>
+        ${esLatestHtml(state, true)}
+        <div class="tv-actions">${host}</div>
+        <div class="tv-scale">${esBoardHtml(state)}</div>
+        ${esLogHtml(state, 3)}
+      </div>
+    </div>`;
+}
+
+TV_GAMES.estimation = {
+  sig(state) {
+    const cur = esServerSig(Object.assign({}, state, { you: null }));
+    const view = document.getElementById('view-room-tv');
+    if (esFx.tvSig && cur !== esFx.tvSig) {
+      if (esFx.busyUntil > Date.now()) { pcDeferRedraw(esFx, 'estimation'); return esFx.tvSig; }
+      if (view && esPlayEnding(view, state)) { esFx.tvEnding = true; pcDeferRedraw(esFx, 'estimation'); return esFx.tvSig; }
+    }
+    return cur + '|' + esLocal.hideTrickNo;
+  },
+  frame(state, t) {
+    const view = document.getElementById('view-room-tv');
+    pcSnapshot(esFx, view);
+    const s = esShared(state);
+    if (esFx.tvEnding && esFx.busyUntil > Date.now() && esFx.tvState) {
+      if (view) view._esTable = true;
+      return esTvTable(esFx.tvState);
+    }
+    esFx.tvEnding = false;
+    esFx.tvSig = esServerSig(Object.assign({}, state, { you: null }));
+    if (view) view._esTable = ['dash', 'bid', 'call', 'play'].indexOf(s.phase) !== -1;
+    if (s.phase === 'roundOver' || s.phase === 'gameover') {
+      const over = s.phase === 'gameover';
+      const w = s.winners || [];
+      const host = state.youAreHost ? `<div class="tv-actions">${over
+        ? tvBtn(t.play_again || '', "esAct(this, 'playAgain')") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')
+        : tvBtn(esT('es_next_round', { n: (s.round || 0) + 1 }), "esAct(this, 'nextRound')")}</div>` : '';
+      return `<div class="es-tvres">
+          ${over ? `<div class="tv-big-icon" aria-hidden="true">🏆</div><div class="tv-title tv-center-text">${escapeHTML(w.length > 1
+            ? esT('es_won_shared', { names: w.map(id => esNameOf(state, esSeats(state).indexOf(id))).join(' · ') })
+            : esT('es_won', { name: esNameOf(state, esSeats(state).indexOf(w[0])) }))}</div>` : ''}
+          <div class="es-tvres__grid">
+            <div class="tv-scale">${over ? renderPodium(state, s.board || []) : ''}${esResultHtml(state, s.results, true)}</div>
+            <div class="tv-scale">${esBoardHtml(state, over ? esT('es_final') : '')}${esSheetHtml(state)}</div>
+          </div>
+          ${host}
+        </div>`;
+    }
+    esFx.tvState = state;
+    return esTvTable(state);
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    const s = esShared(state);
+    esTickClock(s);
+    esRefreshInPlace(view, state, true);
+    if (esFx.tvSig !== esServerSig(Object.assign({}, state, { you: null }))) { pcDeferRedraw(esFx, 'estimation'); return; }
+    if (!rebuilt || !view) return;
+    esAfterDraw(view, state, null);
+    if (s.phase === 'roundOver' || s.phase === 'gameover') { esCountResult(view); animateScoreboards(state); }
+    if (s.phase === 'gameover' && typeof confetti === 'function' && motionFirst('es-tv-over|' + state.code + '|' + (s.dealId || ''))) {
+      afterReveal(view, () => confetti({ particleCount: 220, spread: 110, origin: { y: 0.6 } }));
+    }
+  }
+};
+</script>

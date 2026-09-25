@@ -8021,6 +8021,308 @@ Date.now = duelTestClock;
   }
 }
 
+
+/* --- إستميشن: the auction, the calls, the tricks, the score keeper's arithmetic, whole games ------ */
+{
+  const EST = new Function(readFileSync(new URL('../../PlayingCards.js', import.meta.url), 'utf8') + '\n' +
+    readFileSync(new URL('../../Estimation.js', import.meta.url), 'utf8') +
+    '\nreturn { estBidOk, estBidBeats, estLowestBid, estCallChoices, estLegal, estTrickWinner, estScoreRound, estMult, estLevels, estSpeedTrump, estHandTricks, estBotCard, pcDeck };')();
+  // The score keeper, as the page runs it: CS_GAMES.estimation from JS_CardRules.html.
+  const rulesHtml = readFileSync(new URL('../../JS_CardRules.html', import.meta.url), 'utf8').replace(/<\/?script>/g, '');
+  const CS = new Function('const CS_GAMES = {}; const csSum = (arr) => arr.reduce((a, b) => a + (Number(b) || 0), 0);\n' + rulesHtml + '\nreturn CS_GAMES;')();
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+
+  check(EST.estBidBeats({ n: 4, s: 'c' }, null) && !EST.estBidBeats({ n: 3, s: 'n' }, null) && !EST.estBidBeats({ n: 14, s: 's' }, null),
+    'estimation: a bid is 4 to 13 tricks');
+  check(EST.estBidBeats({ n: 5, s: 's' }, { n: 5, s: 'h' }) && EST.estBidBeats({ n: 5, s: 'n' }, { n: 5, s: 's' }) && EST.estBidBeats({ n: 6, s: 'c' }, { n: 5, s: 'n' }) &&
+    !EST.estBidBeats({ n: 5, s: 'd' }, { n: 5, s: 'h' }) && !EST.estBidBeats({ n: 5, s: 'h' }, { n: 5, s: 'h' }),
+    'estimation: the same tricks beat with a higher suit - no trumps > ♠ > ♥ > ♦ > ♣ - or more tricks beat any');
+  check(JSON.stringify(EST.estLowestBid('d', { n: 6, s: 'h' })) === '{"n":7,"s":"d"}' && EST.estLowestBid('c', { n: 13, s: 'n' }) === null,
+    'estimation: the lowest bid in a suit that beats the table');
+  check(EST.estCallChoices(5, 0, false).join() === '0,1,2,3,4,5' && EST.estCallChoices(6, 9, true).indexOf(4) === -1 && EST.estCallChoices(6, 9, true).length === 6,
+    'estimation: nobody calls more than the caller, and the last may not make the total 13');
+  check(EST.estLevels(13) === 0 && EST.estLevels(12) === 0 && EST.estLevels(15) === 1 && EST.estLevels(10) === 1 && EST.estLevels(9) === 2,
+    'estimation: the risk levels: 2-3 off 13 one, 4-5 two');
+  check(EST.estLegal(['7h', '2s', 'Kh'], [{ k: 0, c: '9h' }]).join() === '7h,Kh' && EST.estLegal(['7d', '2s'], [{ k: 0, c: '9h' }]).length === 2,
+    'estimation: follow the suit led if you can, anything if you can\'t');
+  const tw = (cards, trump) => EST.estTrickWinner(cards.map((c, k) => ({ k, c })), trump);
+  check(tw(['9h', 'Kh', '2h', 'Ah'], 's') === 3 && tw(['9h', 'Kh', '2s', 'Ah'], 's') === 2 && tw(['9h', 'As', 'Kh', '3c'], 'd') === 2 &&
+    tw(['9h', 'As', 'Kh', '3c'], 'n') === 2 && tw(['2c', '3s', '4s', 'Ac'], 's') === 2,
+    'estimation: the highest trump takes the trick, else the highest of the suit led (another suit never)');
+  check(['s', 'h', 'd', 'c', 'n'].every((x, i) => EST.estSpeedTrump(14 + i) === x), 'estimation: the speed rounds\' trumps: 14 ♠, 15 ♥, 16 ♦, 17 ♣, 18 no trumps');
+
+  // The score keeper's arithmetic, round for round.
+  {
+    const est = CS.estimation;
+    let same = 0, n = 0;
+    const R = (k) => Math.floor(Math.random() * k);
+    for (let t = 0; t < 4000; t++) {
+      const tricks = [0, 0, 0, 0];
+      for (let x = 0; x < 13; x++) tricks[R(4)]++;
+      const dash = [false, false, false, false];
+      const ndash = R(3);
+      for (let d = 0; d < ndash; d++) dash[R(4)] = true;
+      let calls;
+      do {
+        calls = [0, 1, 2, 3].map((k) => (dash[k] ? 0 : Math.random() < 0.5 ? tricks[k] : R(9)));
+      } while (calls.reduce((a, b) => a + b, 0) === 13);
+      const speedRound = Math.random() < 0.3;
+      const caller = speedRound ? null : [0, 1, 2, 3].filter((k) => !dash[k])[0];
+      const risk = Math.random() < 0.2 ? '' : R(4);
+      const base = Math.random() < 0.5 ? 10 : 13;
+      const way = Math.random() < 0.5 ? 'jawaker' : 'egypt';
+      const history = Array.from({ length: R(3) }, () => ({ allMissed: Math.random() < 0.5 }));
+      // The keeper reads its multiplier from its own list of rounds; the room from its history.
+      const sk = { opts: { base, dash: way, rounds: 18 }, seats: [{}, {}, {}, {}], rounds: history.slice() };
+      const keeper = est.score({ calls, tricks, dash, caller: caller === null ? null : String(caller), risk: risk === '' ? '' : String(risk) }, sk);
+      const ours = EST.estScoreRound({ calls, tricks, dash, caller, risk: risk === '' ? null : risk }, { base, dash: way }, EST.estMult(history));
+      n++;
+      if (JSON.stringify(keeper.points) === JSON.stringify(ours.points) && !!keeper.allMissed === ours.allMissed) same++;
+    }
+    check(same === n, `estimation: the room scores 4000 random rounds exactly as the score keeper does (${same}/${n})`);
+  }
+  check(EST.estMult([{ allMissed: false }, { allMissed: true }]) === 2 && EST.estMult([{ allMissed: true }, { allMissed: true }]) === 4 && EST.estMult([{ allMissed: true }, { allMissed: false }]) === 1,
+    'estimation: صعايدة: the next round ×2, ×4 after two');
+
+  /* The room. */
+  const estStart = (ids, opts, bots) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'estimation' });
+    (bots || []).forEach((lv) => applyRoomAction(r, ids[0], 'addBot', { level: lv, name: 'زيزو' }));
+    applyRoomAction(r, ids[0], 'start', Object.assign({ botNames: ['بندق', 'سمسم', 'فلفل'] }, opts || {}));
+    return r;
+  };
+  const E = (r, k, action, payload = {}) => applyRoomAction(r, r.shared.seats[k], action, Object.assign({ seq: r.shared.turnSeq, deal: r.shared.deal }, payload));
+  const up = (r) => r.shared.turn && r.shared.turn.k;
+  const noDash = (r) => [0, 1, 2, 3].forEach((k) => { if (r.shared.phase === 'dash' && r.shared.dash[k] === null) E(r, k, 'dash', { yes: false }); });
+  const callFor = (r, k) => {
+    const s = r.shared;
+    const last = s.callOrder[s.callOrder.length - 1] === k;
+    return EST.estCallChoices(s.callMax, s.calls.filter((c, i) => i !== k && c !== null).reduce((a, b) => a + b, 0), last)[0];
+  };
+  {
+    const r = estStart(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    check(s.phase === 'dash' && s.seats.length === 4 && s.counts.every((x) => x === 13) && r.players.every((p) => !p.bot) &&
+      Object.keys(r.secrets).length === 4 && s.seats.every((id, k) => r.secrets[id].hand.length === 13 && r.secrets[id].seat === k),
+      'estimation: four people, 13 each on their own phone, the dash asked first');
+    check(!/"(?:A|[2-9]|10|J|Q|K)[shdc]"/.test(JSON.stringify(s)), 'estimation: no card face in what the table sees');
+    check(s.settings.rounds === 18 && s.settings.base === 10 && s.settings.dash === 'jawaker' && s.settings.turnClock === 0, 'estimation: the defaults: 18 rounds, 10, Jawaker\'s dash, no clock');
+    const k1 = (s.dealer + 1) % 4, k2 = (s.dealer + 2) % 4, k3 = (s.dealer + 3) % 4, k0 = s.dealer;
+    E(r, k1, 'dash', { yes: true });
+    E(r, k2, 'dash', { yes: true });
+    check(threw(() => E(r, k3, 'dash', { yes: true })), 'estimation: two dash calls at most');
+    const deal = s.deal;
+    E(r, k3, 'dash', { yes: false });
+    E(r, k0, 'dash', { yes: false, deal: deal - 1 });
+    check(s.dash[k0] === null, 'estimation: a dash answer for an older deal is dropped');
+    E(r, k0, 'dash', { yes: false });
+    check(s.phase === 'bid' && up(r) === k3 && s.calls[k1] === 0 && s.calls[k2] === 0, 'estimation: the dashers\' calls are 0 and they don\'t bid: the auction starts at the first other seat left of the dealer');
+    check(threw(() => E(r, k3, 'bid', { n: 3, s: 's' })), 'estimation: a bid under 4 is refused');
+    check(threw(() => E(r, k0, 'bid', { n: 5, s: 's' })), 'estimation: only the player up bids');
+    E(r, k3, 'bid', { n: 5, s: 'h' });
+    check(up(r) === k0 && threw(() => E(r, k0, 'bid', { n: 5, s: 'd' })), 'estimation: a bid must beat the last (5♦ under 5♥)');
+    const seq = r.shared.turnSeq;
+    E(r, k0, 'bid', { n: 5, s: 's' });
+    E(r, k0, 'bid', { n: 7, s: 'n', seq });
+    check(s.high.k === k0 && s.high.n === 5 && s.high.s === 's' && up(r) === k3, 'estimation: 5♠ beats 5♥; the second tap of a double tap is dropped');
+    E(r, k3, 'pass');
+    check(s.phase === 'call' && s.caller === k0 && s.trump === 's' && s.calls[k0] === 5 && s.callOrder.join() === [k3].join() && s.risk === k3,
+      'estimation: everyone else passed after a bid: the caller\'s bid is their call and trumps; the other callers in turn after the caller');
+    check(threw(() => E(r, k3, 'call', { n: 6 })), 'estimation: nobody calls more than the caller');
+    E(r, k3, 'call', { n: 5 });
+    check(s.phase === 'play' && up(r) === k0 && s.events.some((e) => e.type === 'call' && e.with === true), 'estimation: a call equal to the caller\'s is مع; the caller leads the first trick');
+    // Following suit.
+    const hand = (k) => r._est.hands[k];
+    const lead = hand(k0)[0];
+    E(r, k0, 'play', { card: lead });
+    const nx = (k0 + 1) % 4;
+    const off = hand(nx).find((c) => c.slice(-1) !== lead.slice(-1));
+    const on = hand(nx).some((c) => c.slice(-1) === lead.slice(-1));
+    check(!on || threw(() => E(r, nx, 'play', { card: off })), 'estimation: a card of another suit is refused while you hold the suit led');
+    check(threw(() => E(r, nx, 'play', { card: hand((nx + 1) % 4)[0] })), 'estimation: a card you don\'t hold is refused');
+  }
+  {
+    // The last caller can't make 13.
+    const r = estStart(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    noDash(r);
+    E(r, up(r), 'bid', { n: 6, s: 'd' });
+    while (s.phase === 'bid') E(r, up(r), 'pass');
+    const [c1, c2, c3] = s.callOrder;
+    E(r, c1, 'call', { n: 4 });
+    E(r, c2, 'call', { n: 2 });
+    check(up(r) === c3 && threw(() => E(r, c3, 'call', { n: 1 })) && !threw(() => E(r, c3, 'call', { n: 0 })),
+      'estimation: the risk (the last to call) can\'t bring the total to 13 (6 + 4 + 2 + 1)');
+  }
+  {
+    // Everyone passes: the same dealer deals again.
+    const r = estStart(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    noDash(r);
+    const dealer = s.dealer, deal = s.deal, round = s.round;
+    for (let i = 0; i < 4; i++) E(r, up(r), 'pass');
+    check(s.phase === 'dash' && s.deal === deal + 1 && s.dealer === dealer && s.round === round && s.events.some((e) => e.type === 'deal' && e.again),
+      'estimation: all four pass: the cards are dealt again by the same dealer');
+  }
+  // A whole round by hand.
+  const playRound = (r) => {
+    const s = r.shared;
+    for (let guard = 0; guard < 200 && (s.phase === 'play' || s.phase === 'call' || s.phase === 'bid' || s.phase === 'dash'); guard++) {
+      if (s.phase === 'dash') { noDash(r); continue; }
+      const k = up(r);
+      if (s.phase === 'bid') { if (!s.high) E(r, k, 'bid', { n: 4, s: 'c' }); else E(r, k, 'pass'); continue; }
+      if (s.phase === 'call') { E(r, k, 'call', { n: callFor(r, k) }); continue; }
+      E(r, k, 'play', { card: EST.estLegal(r._est.hands[k], s.trick)[0] });
+    }
+  };
+  {
+    const r = estStart(['a', 'b', 'c', 'd'], { rounds: 13, base: 13, dash: 'egypt' });
+    const s = r.shared;
+    const dealer = s.dealer;
+    playRound(r);
+    const h = s.history[0];
+    check(s.phase === 'roundOver' && s.took.reduce((a, b) => a + b, 0) === 13 && r._est.gone.length === 52 && h && h.calls.join() === s.calls.join(),
+      'estimation: a round is 13 tricks and every card played');
+    const keeper = CS.estimation.score({ calls: h.calls, tricks: h.took, dash: h.dash, caller: String(h.caller), risk: String(h.risk) }, { opts: { base: 13, dash: 'egypt' }, seats: [{}, {}, {}, {}], rounds: [] });
+    check(JSON.stringify(keeper.points) === JSON.stringify(h.points) && s.totals.join() === h.points.join(), 'estimation: the round is scored as the score keeper would, and banked');
+    check(threw(() => applyRoomAction(r, s.seats.find((id) => id !== 'a'), 'nextRound', { round: 1 })), 'estimation: only the host deals the next round');
+    applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+    applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+    check(s.round === 2 && s.dealer === (dealer + 1) % 4 && s.phase === 'dash', 'estimation: the next round: the dealer moves on one; a second tap is dropped');
+    for (let k = 2; k <= 13; k++) { playRound(r); if (s.phase === 'roundOver') applyRoomAction(r, 'a', 'nextRound', { round: s.round }); }
+    check(s.phase === 'gameover' && r.phase === 'gameover' && s.history.length === 13 && s.winners.length >= 1 &&
+      s.winners.every((id) => s.totals[s.seats.indexOf(id)] === Math.max(...s.totals)) && s.board[0].score === Math.max(...s.totals),
+      'estimation: a game of 13 rounds ends: the highest total wins, the board best first');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(s !== r.shared && r.shared.phase === 'dash' && r.shared.round === 1 && r.shared.settings.rounds === 13 && Object.values(r.shared.wins).reduce((a, b) => a + b, 0) >= 1,
+      'estimation: play again keeps the settings and counts the wins');
+  }
+  {
+    // A speed round: no auction, fixed trumps, calls from the left of the dealer, the first to call leads.
+    const r = estStart(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    for (let k = 1; k <= 13; k++) { playRound(r); applyRoomAction(r, 'a', 'nextRound', { round: s.round }); }
+    check(s.round === 14 && s.speed && s.trump === 's', 'estimation: round 14 is a speed round, spades trumps');
+    const d = s.dealer;
+    noDash(r);
+    check(s.phase === 'call' && s.caller === null && s.callMax === 13 && up(r) === (d + 1) % 4 && s.risk === d, 'estimation: a speed round: no auction, everyone calls from the left of the dealer, 0 to 13');
+    const first = up(r);
+    while (s.phase === 'call') E(r, up(r), 'call', { n: callFor(r, up(r)) });
+    check(s.phase === 'play' && up(r) === first, 'estimation: the first to call leads');
+    playRound(r);
+    check(s.history[13].caller === null && s.history[13].trump === 's', 'estimation: a speed round has no caller to be مع');
+    applyRoomAction(r, 'a', 'nextRound', { round: s.round });
+    check(s.trump === 'h', 'estimation: 15 hearts');
+  }
+  {
+    // The clock, the host's "play for", leaving.
+    const r = estStart(['a', 'b', 'c', 'd'], { turnClock: 30 });
+    const s = r.shared;
+    check(roomDeadline(r) === s.endsAt + 1500, 'estimation: the clock is a server deadline');
+    clock = s.endsAt + 1600;
+    roomTimeout(r, clock);
+    check(s.phase === 'bid' && s.dash.every((x) => x === false), 'estimation: the clock answers the dash for whoever didn\'t: no dash');
+    const k = up(r);
+    clock = s.endsAt + 1600;
+    roomTimeout(r, clock);
+    check(s.passed[k] && s.events.some((e) => e.type === 'auto' && e.k === k), 'estimation: the clock passes in the auction');
+    check(threw(() => applyRoomAction(r, s.seats.find((id) => id !== 'a'), 'skipTurn', { seq: s.turnSeq })), 'estimation: only the host plays for someone');
+    const k2 = up(r);
+    applyRoomAction(r, 'a', 'skipTurn', { seq: s.turnSeq });
+    check(s.passed[k2] || s.phase !== 'bid', 'estimation: the host\'s "play for" passes too');
+    const leaver = s.seats.find((id) => id !== 'a');
+    const at = s.seats.indexOf(leaver);
+    const handWas = r._est.hands[at].join();
+    leave(r, leaver);
+    const bot = r.players.find((p) => p.id === s.seats[at]);
+    check(bot && bot.bot === 'hard' && /^🤖/.test(bot.name) && r._est.hands[at].join() === handWas && r.secrets[bot.id] && s.events.some((e) => e.type === 'took' && e.k === at),
+      'estimation: a player who leaves: a hard computer player takes the seat, hand and all');
+  }
+  {
+    // A person with one card they may play has it played for them after a beat.
+    const r = estStart(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    noDash(r);
+    E(r, up(r), 'bid', { n: 4, s: 's' });
+    while (s.phase === 'bid') E(r, up(r), 'pass');
+    while (s.phase === 'call') E(r, up(r), 'call', { n: callFor(r, up(r)) });
+    const k = up(r);
+    const nx = (k + 1) % 4;
+    const others = [0, 1, 2, 3].filter((x) => x !== k && x !== nx);
+    const all = EST.pcDeck(1).filter((c) => c !== '2c');
+    const clubs = all.filter((c) => c.endsWith('c'));
+    const rest = all.filter((c) => !c.endsWith('c'));
+    r._est.hands[k] = ['2c'].concat(rest.slice(0, 12));
+    r._est.hands[nx] = [clubs[0]].concat(rest.slice(12, 24));
+    r._est.hands[others[0]] = clubs.slice(1, 7).concat(rest.slice(24, 31));
+    r._est.hands[others[1]] = clubs.slice(7).concat(rest.slice(31));
+    E(r, k, 'play', { card: '2c' });
+    const f = roomForcedMove(r);
+    check(f && f.pid === s.seats[nx] && f.move.payload.card === clubs[0], 'estimation: one card you may play is played for you');
+    check(r._botPid === s.seats[nx], 'estimation: …on the server\'s clock, after a beat');
+  }
+  {
+    // Computer players: one person and three, whole games on the clock.
+    const errors = [];
+    const errorWas = console.error;
+    console.error = (...args) => { errors.push(args.join(' ')); };
+    let ended = 0, conserved = true, legal = true, scored = true, bids = 0, dashes = 0;
+    const runBots = (r) => { if (typeof r._botAt === 'number') { clock = Math.max(clock, r._botAt) + 1; roomTimeout(r, clock); return true; } return false; };
+    for (let n = 0; n < 24; n++) {
+      const levels = n % 3 === 0 ? ['hard', 'hard', 'hard'] : n % 3 === 1 ? ['easy', 'easy', 'easy'] : ['hard', 'easy'];
+      const r = estStart(['a'], { turnClock: 30, rounds: n % 2 ? 13 : 18, dash: n % 4 < 2 ? 'jawaker' : 'egypt' }, levels);
+      const s = () => r.shared;
+      let seen = s().eventSeq;
+      for (let step = 0; step < 20000 && s().phase !== 'gameover'; step++) {
+        if (s().phase === 'roundOver') { applyRoomAction(r, 'a', 'nextRound', { round: s().round }); continue; }
+        if (!runBots(r)) {
+          const due = roomDeadline(r);
+          if (due === null) break;
+          clock = due + 1;
+          roomTimeout(r, clock);
+        }
+        const held = r._est.hands.reduce((a, h) => a + h.length, 0) + r._est.gone.length;
+        if (held !== 52) conserved = false;
+        (s().events || []).filter((e) => e.seq > seen).forEach((e) => { if (e.type === 'bid') bids++; if (e.type === 'dash' && e.yes) dashes++; });
+        seen = s().eventSeq;
+      }
+      const g = s();
+      if (g.phase === 'gameover') ended++;
+      if (g.history.some((h) => h.took.reduce((a, b) => a + b, 0) !== 13 || h.calls.reduce((a, b) => a + b, 0) === 13)) legal = false;
+      const sums = [0, 1, 2, 3].map((k) => g.history.reduce((a, h) => a + h.points[k], 0));
+      if (sums.join() !== g.totals.join()) scored = false;
+    }
+    console.error = errorWas;
+    check(ended === 24, `estimation bots: 24 whole games of one person on the clock and three computer players (easy, hard, mixed; 13 and 18 rounds) all end (${ended})`);
+    check(!errors.length, 'estimation bots: no computer player\'s move was ever refused' + (errors.length ? ': ' + errors[0] : ''));
+    check(conserved, 'estimation: no card is lost or made up: every hand and every card played add up to 52, after every move');
+    check(legal, 'estimation: every round is 13 tricks, and no round\'s calls add up to 13');
+    check(scored, 'estimation: the totals are the rounds\' points added up');
+    check(bids > 100 && dashes > 0, `estimation bots: the computer players bid (${bids}) and dash now and then (${dashes})`);
+  }
+  {
+    // A hard bot makes its call more often than an easy one.
+    const rate = (level) => {
+      let made = 0, all = 0;
+      for (let n = 0; n < 6; n++) {
+        const r = estStart(['a'], { turnClock: 30, rounds: 13 }, [level, level, level]);
+        for (let step = 0; step < 20000 && r.shared.phase !== 'gameover'; step++) {
+          if (r.shared.phase === 'roundOver') { applyRoomAction(r, 'a', 'nextRound', { round: r.shared.round }); continue; }
+          if (typeof r._botAt === 'number') { clock = Math.max(clock, r._botAt) + 1; roomTimeout(r, clock); continue; }
+          const due = roomDeadline(r);
+          if (due === null) break;
+          clock = due + 1;
+          roomTimeout(r, clock);
+        }
+        r.shared.history.forEach((h) => h.calls.forEach((c, k) => { if (r.shared.seats[k] !== 'a') { all++; if (c === h.took[k]) made++; } }));
+      }
+      return made / Math.max(1, all);
+    };
+    const hard = rate('hard'), easy = rate('easy');
+    check(hard > easy, `estimation bots: a hard computer player makes its call more often than an easy one (${Math.round(hard * 100)}% against ${Math.round(easy * 100)}%)`);
+  }
+}
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

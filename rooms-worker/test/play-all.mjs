@@ -597,6 +597,61 @@ async function hiddenQueenRobots() {
   two.concat([S]).forEach((b) => b.close());
 }
 
+/* --- إستميشن: one person and three computer players, a whole round on the server (run alone with --only=estimation) --- */
+async function estimationRobots() {
+  console.log('• estimation (one person, three computer players and the TV: the hand on its own phone, the dash, the auction, the calls, 13 tricks on the server clock, the round scored, the next round, leaving)');
+  const EST = new Function(readFileSync(new URL('../../PlayingCards.js', import.meta.url), 'utf8') + '\n' +
+    readFileSync(new URL('../../Estimation.js', import.meta.url), 'utf8') + ';return { estLegal, estCallChoices, estSum };')();
+  const H = await Bot.host('ريم', null);
+  const TV = await Bot.join(H.code, '', true);
+  await H.must('chooseGame', { game: 'estimation' });
+  await H.must('addBot', { level: 'hard', name: 'زيزو' });
+  check((await TV.act('start', {})).ok === false, 'estimation: only the host starts');
+  await H.must('start', { rounds: 13, turnClock: 0, botNames: ['بندق', 'سمسم'] });
+  await all([H, TV], (s) => s.game === 'estimation' && s.shared.phase === 'dash' && Array.isArray(s.shared.seats) && s.shared.seats.length === 4,
+    'estimation: dealt to four: the empty seats computer players, the dash asked first');
+  const seatsOf = () => H.state.shared.seats;
+  check(H.state.players.filter((p) => p.bot).length === 3 && seatsOf().indexOf(H.pid) !== -1, 'estimation: one person and three computer players at the table');
+  check(H.state.you && H.state.you.hand.length === 13 && TV.state.you === null && !/"(?:A|[2-9]|10|J|Q|K)[shdc]"/.test(JSON.stringify(TV.state)),
+    'estimation: 13 cards on the phone, none on the TV');
+  const me = () => H.state.you.seat;
+  // The person answers and plays at once; the computer players on the server's clock.
+  const moves = { dash: 0, bid: 0, call: 0, play: 0 };
+  const until = Date.now() + 240000;
+  while (Date.now() < until && H.state.shared.phase !== 'roundOver') {
+    const s = H.state.shared;
+    const k = me();
+    if (s.phase === 'dash' && s.dash[k] === null) { await H.act('dash', { yes: false, deal: s.deal }); moves.dash++; }
+    else if (s.turn && s.turn.k === k) {
+      if (s.turn.stage === 'bid') { await H.act(s.high ? 'pass' : 'bid', s.high ? { seq: s.turnSeq } : { n: 4, s: 'c', seq: s.turnSeq }); moves.bid++; }
+      else if (s.turn.stage === 'call') {
+        const last = s.callOrder[s.callOrder.length - 1] === k;
+        const n = EST.estCallChoices(s.callMax, EST.estSum(s.calls.filter((c, i) => i !== k && c !== null)), last)[0];
+        await H.act('call', { n, seq: s.turnSeq }); moves.call++;
+      } else {
+        const card = EST.estLegal(H.state.you.hand, s.trick)[0];
+        const other = H.state.you.hand.find((c) => EST.estLegal(H.state.you.hand, s.trick).indexOf(c) === -1);
+        if (other && moves.play === 0) check((await H.act('play', { card: other, seq: s.turnSeq })).ok === false, 'estimation: a card that doesn\'t follow suit is refused');
+        await H.act('play', { card, seq: s.turnSeq }); moves.play++;
+      }
+    }
+    await sleep(150);
+  }
+  const s = H.state.shared;
+  check(s.phase === 'roundOver' && s.history.length === 1 && s.took.reduce((a, b) => a + b, 0) === 13, 'estimation: a whole round of 13 tricks is played through, the computer players on the server\'s clock');
+  check(moves.dash === 1 && moves.play >= 1, 'estimation: the person answered the dash and played their cards (' + JSON.stringify(moves) + ')');
+  await TV.waitFor((x) => x.shared.phase === 'roundOver' && x.shared.results && x.shared.results.points.length === 4, 'estimation: the TV sees the round scored');
+  const h = s.history[0];
+  check(EST.estSum(h.calls) !== 13 && s.totals.join() === h.points.join(), 'estimation: the calls never add up to 13, and the round is banked');
+  check((await TV.act('nextRound', { round: 1 })).ok === false || H.state.shared.round === 1, 'estimation: only the host deals the next round');
+  await H.must('nextRound', { round: 1 });
+  await all([H, TV], (x) => x.shared.round === 2 && x.shared.phase === 'dash' && x.shared.dealer === (h.dealer + 1) % 4, 'estimation: the next round: the dealer moves on one');
+  await H.must('backToHub');
+  await H.waitFor((x) => x.phase === 'lobby', 'estimation: back in the hub');
+  H.close();
+  TV.close();
+}
+
 async function main() {
   console.log('rooms server:', BASE);
   const t0 = Date.now();
@@ -614,6 +669,12 @@ async function main() {
   }
   if (ONLY === 'chess4') {
     await chess4Robots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'estimation') {
+    await estimationRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -4434,6 +4495,7 @@ async function main() {
   }
 
   await chess4Robots();
+  await estimationRobots();
 
   /* --- كدّاب: claims face down, a call, the pile out, the end; computer players ------------ */
   console.log('• doubt (hands on their own phones, a claim, a call turned over, passes and the pile out, first out, bots on the server clock)');

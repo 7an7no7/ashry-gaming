@@ -159,6 +159,13 @@ function roomTurnOf(state) {
     case 'oldmaid':
       // The one who draws from the next hand.
       return s.phase === 'play' && s.turn && s.turn.pid === me ? 'turn_up' : null;
+    case 'estimation': {
+      // A dash to answer, or your bid, call or card (RoomEstimation.js).
+      const k = Array.isArray(s.seats) ? s.seats.indexOf(me) : -1;
+      if (k === -1) return null;
+      if (s.phase === 'dash') return Array.isArray(s.dash) && s.dash[k] === null ? 'turn_up' : null;
+      return ['bid', 'call', 'play'].indexOf(s.phase) !== -1 && s.turn && s.turn.k === k ? 'turn_up' : null;
+    }
     case 'connect4':
     case 'dots':
     case 'xo':

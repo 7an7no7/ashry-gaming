@@ -149,8 +149,10 @@ const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
    (an emoji that floats up on every screen) and, in the first minute and a half
    of a game, says who will win. Right guesses are said in the chat when the
    room goes back to the hub. Players may cheer and guess too; the phone only
-   offers it to those watching. */
-const AUDIENCE_CHEERS = ['👏', '😂', '🔥', '😱', '❤️', '🎉'];
+   offers it to those watching. Our own take (the owner: never a copy of another
+   app): the cheers are what an Egyptian living room shouts - برافو، جامد،
+   هههه، يا نهار، يا رب - and a زغروطة that trills on the TV. */
+const AUDIENCE_CHEERS = ['bravo', 'fire', 'haha', 'yanhar', 'yarab', 'zaghrouta'];
 const PREDICT_OPEN_MS = 90000;
 const CHEER_BURST = 4;          // a person's taps in CHEER_WINDOW_MS; more is a stuck finger
 const CHEER_WINDOW_MS = 3000;
@@ -486,7 +488,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
 
   if (action === 'cheer') {
     const e = String((payload && payload.e) || '');
-    if (AUDIENCE_CHEERS.indexOf(e) === -1) throw new Error('مش موجودة');
+    if (AUDIENCE_CHEERS.indexOf(e) === -1) throw new Error('مش موجودة');   // one of the six shouts
     const who = room.players.find(p => p.id === playerId && !p.bot);
     if (!who || !room.game || room.phase === 'lobby') return;
     const now = Date.now();

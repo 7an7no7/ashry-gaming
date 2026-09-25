@@ -8033,13 +8033,13 @@ Date.now = duelTestClock;
   let refused = false;
   try { applyRoomAction(r, 'd', 'predict', { target: 'zz' }); } catch (e) { refused = true; }
   check(refused && r.predict.picks.d === 'c', 'audience: a guess must name someone in the game');
-  applyRoomAction(r, 'c', 'cheer', { e: '👏' });
-  check(r.cheer && r.cheer.e === '👏' && r.cheer.seq === 1 && r.cheer.name === 'C', 'audience: a cheer is public, with who sent it');
-  for (let k = 0; k < 6; k++) applyRoomAction(r, 'c', 'cheer', { e: '🔥' });
+  applyRoomAction(r, 'c', 'cheer', { e: 'zaghrouta' });
+  check(r.cheer && r.cheer.e === 'zaghrouta' && r.cheer.seq === 1 && r.cheer.name === 'C', 'audience: a cheer is public, with who sent it');
+  for (let k = 0; k < 6; k++) applyRoomAction(r, 'c', 'cheer', { e: 'fire' });
   check(r.cheer.seq === 4, 'audience: four cheers in three seconds from one phone, then the rest are dropped');
   refused = false;
-  try { applyRoomAction(r, 'c', 'cheer', { e: '💩' }); } catch (e) { refused = true; }
-  check(refused, 'audience: only the six cheers');
+  try { applyRoomAction(r, 'c', 'cheer', { e: '👏' }); } catch (e) { refused = true; }
+  check(refused, 'audience: only the six shouts');
   applyRoomAction(r, 'b', 'buzz', {});
   applyRoomAction(r, 'a', 'correct', { id: 'b' });
   clock += 91000;

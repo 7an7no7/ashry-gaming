@@ -233,6 +233,16 @@ const FX = {
   }
 };
 
+/* The audience's زغروطة (JS_RoomAudience.html): a high voice trilling between
+   two notes about fifteen times a second for a second and a half, rising a
+   little and fading - not on the soundboard. */
+FX.zaghrouta = (at) => {
+  const freqs = [[0, 1150]];
+  for (let k = 1; k <= 24; k++) freqs.push([k * 0.065, (k % 2 ? 1450 : 1150) * (1 + k * 0.004)]);
+  fxTone('triangle', freqs, [[0, 0], [0.05, 0.16], [1.3, 0.14], [1.6, 0.001]], at);
+  fxTone('sine', freqs.map(([t, hz]) => [t, hz * 2]), [[0, 0], [0.05, 0.04], [1.3, 0.03], [1.6, 0.001]], at);
+};
+
 function playFx(name) {
   const fn = FX[name];
   if (!fn) return;

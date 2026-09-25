@@ -1665,6 +1665,14 @@ the word search), `countUp` for streaks and scores.
 
 ### Decided, and why
 
+- **An idea from another app is rebuilt our way, never copied** (the owner, 25
+  Sep 2026: "we just got the idea and built it with our style ... with special
+  things that would be in our app only"). Before building anything borrowed,
+  name its own touch: Egyptian words and sayings, the family at a party, the
+  app's drawn art and motion, the TV and phones together. The same for the
+  games already here (proposals in `notes/IMPROVEMENT_PLAN.md`, *Our own touch*).
+  First done: the audience's Egyptian shouts and the زغروطة.
+
 - **Nothing is waiting on the owner** (23 Sep 2026): the two old questions
   were closed as built - سكرو deals 62 cards for Classic + الحرامي (the
   owner's "66-card" table adds up to 62), and طرنيب ٤١ scores a failed 13 as
@@ -4145,7 +4153,9 @@ the button under its revealed answer too.
 **The audience** (the improvement plan, Phase 4, Jackbox's idea; 25 Sep
 2026). Whoever is watching a room game gets a bar at the foot of the screen
 (`#room-audience`, `JS_RoomAudience.html`): six cheers
-(`AUDIENCE_CHEERS`) that float up on every phone and big, with the name, on
+(`AUDIENCE_CHEERS`, `AUDIENCE_SHOUTS`: برافو، جامد!، هههه، يا نهار!، يا رب
+and a زغروطة, each an emoji and its word in a bubble; on the TV برافو claps and
+the زغروطة trills, `FX.zaghrouta`) that float up on every phone and big, with the name, on
 the TV, and for the first 90 seconds of a game (`PREDICT_OPEN_MS`) "مين
 هيكسب؟" with the players' names and how many picked each. Watching is
 `audienceWatching`: not in the game's roster (`inGame` false), or not in a

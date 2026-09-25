@@ -154,3 +154,17 @@ Each phase is one release, tested the targeted way (CLAUDE.md step 5).
 - The look: the playing cards of كدّاب and الشايب (بلوكات), every trick animated to its winner.
 - Helpers: the cards you may play lit; each seat's taken / called; the last trick on a tap.
 - Scoring: the score keeper's rules as built (JS_CardRules.html).
+
+## Our own touch, never a copy (the owner, 25 Sep 2026)
+
+The owner: an idea from another app is only a starting point; it is rebuilt in the app's style with something only this app has - for new features and for the games we already have. Done so far: the audience's cheers are Egyptian shouts (برافو، جامد!، هههه، يا نهار!، يا رب، and a زغروطة that trills on the TV); a right guess is «عينهم صح»; the night card says «القعدة كانت لـ…».
+
+Proposals for the games we have (the owner picks; each is asked before building):
+
+1. **المعلّق (the commentator)**: one bank of short Egyptian lines for the big moments of every game - a comeback, a last-second win, a draw, a streak («يا سلام يا سلام!»، «رجعت من بعيد!») - on the TV and the phones, in the app's own voice (text, and the narrator's speech on the TV where there is a voice).
+2. **عقاب الخسران (the loser's forfeit)**: at the end of a night the host can deal the night's last place a family forfeit from a clean list (يعمل الشاي، يغني مقطع، يقلد حد من القعدة...), turned over like the spy card.
+3. **خمن الكلمة بالعامية**: a switch for Egyptian colloquial words (not only Fus-ha), and the day's word with a line about where it is said.
+4. **أونو / كدّاب / الشايب table talk**: the phones shout the table's own words at the moment (أونو! as «واحدة!», كدّاب! with a stamp «بتكدب!», الشايب turning up with «يا خسارة»).
+5. **Trivia «سؤال التيتة»**: a category of old Egyptian life (أفلام الأبيض والإسود، أغاني زمان، إعلانات التلفزيون القديمة) that the grandparents win.
+6. **على راسك / بدون كلام «من القعدة»**: before a round, each person secretly adds a word about the family (a nickname, a joke of the family) into the deck.
+7. **مافيا بصوت مصري**: the narrator's lines rewritten as an Egyptian storyteller (حكواتي), with a few lines picked at random each night.

@@ -11,7 +11,20 @@
    back to the hub (settlePredictions in RoomGames.js). Players are never
    shown the bar: their screen is the game.
    ========================================================================= */
-const AUDIENCE_CHEER_SET = ['👏', '😂', '🔥', '😱', '❤️', '🎉'];
+/* Our own take (the owner, 25 Sep 2026: an idea from elsewhere, rebuilt our way):
+   not emoji reactions but what an Egyptian living room shouts, each floating up
+   as a bubble with its word; the زغروطة trills and برافو claps on the TV, the
+   room's one voice. The server keeps only the id (AUDIENCE_CHEERS). */
+const AUDIENCE_SHOUTS = {
+  bravo:     { e: '👏', key: 'aud_bravo', sound: 'applause' },
+  fire:      { e: '🔥', key: 'aud_fire' },
+  haha:      { e: '😂', key: 'aud_haha' },
+  yanhar:    { e: '😱', key: 'aud_yanhar' },
+  yarab:     { e: '🤲', key: 'aud_yarab' },
+  zaghrouta: { e: '🎉', key: 'aud_zaghrouta', sound: 'zaghrouta' }
+};
+const AUDIENCE_CHEER_SET = Object.keys(AUDIENCE_SHOUTS);
+let audienceSoundAt = 0;
 const audience = { seenCheer: null, room: '' };
 
 /** Is this phone watching rather than playing? */
@@ -57,8 +70,10 @@ function audienceBarHtml(state, t) {
     ${predict}
     <div class="audience__row audience__row--cheer">
       <span class="audience__label" title="${escapeHTML(t.aud_cheer || '')}" aria-label="${escapeHTML(t.aud_cheer || '')}">📣</span>
-      <div class="audience__cheers">${AUDIENCE_CHEER_SET.map(e =>
-        `<button type="button" class="audience__cheer" onclick="audienceCheer('${e}')" aria-label="${e}">${e}</button>`).join('')}</div>
+      <div class="audience__cheers">${AUDIENCE_CHEER_SET.map(id => {
+        const sh = AUDIENCE_SHOUTS[id];
+        return `<button type="button" class="audience__cheer" onclick="audienceCheer('${id}')" title="${escapeHTML(t[sh.key] || '')}" aria-label="${escapeHTML(t[sh.key] || '')}">${sh.e}</button>`;
+      }).join('')}</div>
     </div>`;
 }
 
@@ -72,12 +87,20 @@ function audiencePredict(id) {
   haptic('light');
 }
 
-/** A cheer floats up from the foot of the screen; bigger on the TV. */
-function audienceFloat(e, name, big) {
+/** A shout floats up from the foot of the screen as a bubble with its word; bigger, with the name, on the TV. */
+function audienceFloat(id, name, big) {
+  const sh = AUDIENCE_SHOUTS[id];
+  if (!sh) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  // The TV is the room's voice: the زغروطة trills and برافو claps there, one at a time.
+  if (big && sh.sound && Date.now() - audienceSoundAt > 1500 && typeof playFx === 'function') {
+    audienceSoundAt = Date.now();
+    playFx(sh.sound);
+  }
   const el = document.createElement('div');
   el.className = 'audience-float' + (big ? ' audience-float--big' : '');
-  el.innerHTML = `<span class="audience-float__e">${escapeHTML(e)}</span>${name ? `<span class="audience-float__name"><bdi>${escapeHTML(name)}</bdi></span>` : ''}`;
-  el.style.insetInlineStart = (10 + Math.random() * 75) + '%';
+  el.innerHTML = `<span class="audience-float__e">${sh.e}</span><span class="audience-float__word">${escapeHTML(t[sh.key] || '')}</span>${name ? `<span class="audience-float__name"><bdi>${escapeHTML(name)}</bdi></span>` : ''}`;
+  el.style.insetInlineStart = (12 + Math.random() * 50) + '%';   // a bubble is about a quarter of a phone wide: never past the edge
   document.body.appendChild(el);
   // Motion off: the cheer shows where it is for a moment, and goes.
   if (typeof motionOff === 'function' && motionOff()) { setTimeout(() => el.remove(), 1500); return; }

@@ -5928,8 +5928,16 @@ Date.now = duelTestClock;
     const a = CH.chessBestMove(CH.chessFromFen(KIWI), { elo: 2000, nodes: 20000, rnd: seeded(3) });
     const b = CH.chessBestMove(CH.chessFromFen(KIWI), { elo: 2000, nodes: 20000, rnd: seeded(3) });
     check(a.from === b.from && a.to === b.to, 'chess AI: the same position and ceiling give the same move');
-    check((() => { const m = CH.chessBestMove(CH.chessFromFen('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1'), { elo: 1200 }); return m.from === 'a1' && m.to === 'a8'; })(),
-      'chess AI: 1200 finds a mate in one (Ra8#)');
+    // 1200 slips a random move now and then (chessEloSettings' `blunder`, about 3%), so one call
+    // could miss the mate: twenty fixed seeds, the mate in nearly all of them - the same every run.
+    check((() => {
+      let found = 0;
+      for (let k = 1; k <= 20; k++) {
+        const m = CH.chessBestMove(CH.chessFromFen('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1'), { elo: 1200, rnd: seeded(k) });
+        if (m.from === 'a1' && m.to === 'a8') found++;
+      }
+      return found >= 17;
+    })(), 'chess AI: 1200 finds a mate in one (Ra8#), with twenty fixed seeds');
     check((() => { const m = CH.chessBestMove(CH.chessFromFen('4k3/8/8/8/8/8/3q4/3QK3 w - - 0 1'), { elo: 2000, nodes: 20000 }); return m.to === 'd2'; })(),
       'chess AI: 2000 takes a queen left en prise');
     let hardWins = 0, hardLost = 0;

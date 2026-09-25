@@ -8021,6 +8021,36 @@ Date.now = duelTestClock;
   }
 }
 
+// --- The audience (the improvement plan, Phase 4): cheers and guessing who wins ---
+{
+  console.log('\nAudience');
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'buzzer' });
+  applyRoomAction(r, 'a', 'start', {});
+  check(r.predict && r.predict.game === 'buzzer' && r.predict.until > clock, 'audience: a game dealt opens the guessing');
+  applyRoomAction(r, 'c', 'predict', { target: 'b' });
+  applyRoomAction(r, 'd', 'predict', { target: 'c' });
+  let refused = false;
+  try { applyRoomAction(r, 'd', 'predict', { target: 'zz' }); } catch (e) { refused = true; }
+  check(refused && r.predict.picks.d === 'c', 'audience: a guess must name someone in the game');
+  applyRoomAction(r, 'c', 'cheer', { e: '👏' });
+  check(r.cheer && r.cheer.e === '👏' && r.cheer.seq === 1 && r.cheer.name === 'C', 'audience: a cheer is public, with who sent it');
+  for (let k = 0; k < 6; k++) applyRoomAction(r, 'c', 'cheer', { e: '🔥' });
+  check(r.cheer.seq === 4, 'audience: four cheers in three seconds from one phone, then the rest are dropped');
+  refused = false;
+  try { applyRoomAction(r, 'c', 'cheer', { e: '💩' }); } catch (e) { refused = true; }
+  check(refused, 'audience: only the six cheers');
+  applyRoomAction(r, 'b', 'buzz', {});
+  applyRoomAction(r, 'a', 'correct', { id: 'b' });
+  clock += 91000;
+  refused = false;
+  try { applyRoomAction(r, 'a', 'predict', { target: 'b' }); } catch (e) { refused = true; }
+  check(refused, 'audience: the guessing closes after a minute and a half');
+  applyRoomAction(r, 'a', 'backToHub', {});
+  const line = (r.chat || []).find((m) => m.sys === 'predicted');
+  check(line && line.p.names === 'C' && line.p.n === 2 && !r.predict, 'audience: back at the hub the chat says who called the winner');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

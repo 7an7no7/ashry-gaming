@@ -142,6 +142,7 @@ Each phase is one release, tested the targeted way (CLAUDE.md step 5).
 ## Progress
 
 - 25 Sep 2026: Phase 0 (the play counter, `npm run plays`), Phase 2 (the minified page, 6.97 → 4.6 MB, a 1,600 KB gzipped budget) and the first part of Phase 1 («الليلة دي؟», «ابدأوا بدول»). Still to do in Phase 1: the picture walkthroughs, and hiding rare games once a month of numbers is in. Cloudflare Web Analytics needs a token from the owner's dashboard.
+- 25 Sep 2026, second batch: «في غلطة؟» reports (Phase 3: trivia board, emoji riddles, proverbs; `npm run reports`), the audience - cheers and "who'll win?" for watchers - and the night's share card (Phase 4), «ليالينا» in أرقامي (Phase 6), Settings → رموز للألوان (Phase 7). Left for later: the room-wide extra time (a change to each game's clock), lazy-loading the heavy games (Phase 2b), picture walkthroughs, hiding rare games (after a month of numbers), splitting GEMINI.md (Phase 8, after إستميشن merges).
 
 ## إستميشن in rooms: the owner's answers (25 Sep 2026)
 

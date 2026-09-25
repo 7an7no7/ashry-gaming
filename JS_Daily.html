@@ -552,6 +552,8 @@ function renderStats() {
       </div>
     </div>
 
+    ${statsNightsHtml(t)}
+
     <div class="section__head" style="margin-bottom:var(--sp-2);margin-top:var(--sp-4)">
       <span class="section__emoji" aria-hidden="true">🏆</span>
       <h2 class="section__title">${escapeHTML(t.stats_sec_solo || 'أفضل أرقام الألعاب')}</h2>
@@ -559,6 +561,38 @@ function renderStats() {
 
     <div class="stats-games-list">
       ${gamesHtml}
+    </div>`;
+}
+
+/** «ليالينا»: the room evenings this phone was at, added up by name (rememberNight in JS_Room.html). */
+function statsNightsHtml(t) {
+  const nights = typeof readNights === 'function' ? readNights() : [];
+  if (!nights.length) return '';
+  const table = {};
+  nights.forEach(n => {
+    const top = n.board[0] ? n.board[0].score : 0;
+    n.board.forEach(r => {
+      const key = typeof foldWord === 'function' ? foldWord(r.name) : r.name;
+      const row = table[key] || (table[key] = { name: r.name, score: 0, won: 0 });
+      row.score += r.score;
+      if (r.score === top) row.won++;
+    });
+  });
+  const rows = Object.values(table).sort((a, b) => b.won - a.won || b.score - a.score).slice(0, 10);
+  const recent = nights.slice(-5).reverse();
+  return `
+    <div class="section__head" style="margin-bottom:var(--sp-2);margin-top:var(--sp-4)">
+      <span class="section__emoji" aria-hidden="true">🌙</span>
+      <h2 class="section__title">${escapeHTML(t.stats_nights || '')}</h2>
+    </div>
+    <div class="card">
+      <p class="field__hint">${escapeHTML((t.stats_nights_hint || '').replace('{n}', nights.length))}</p>
+      ${rows.map((r, i) => `<div class="status-row"><span>${i === 0 ? '👑 ' : ''}<bdi>${escapeHTML(r.name)}</bdi></span>
+        <span class="metric">${escapeHTML((t.stats_nights_won || '{n}').replace('{n}', r.won))} · ${escapeHTML((t.stats_nights_pts || '{n}').replace('{n}', r.score))}</span></div>`).join('')}
+    </div>
+    <div class="card" style="margin-top:var(--sp-2)">
+      ${recent.map(n => `<div class="status-row"><span class="metric">${escapeHTML(n.day)}</span>
+        <span>🏆 <bdi>${escapeHTML(n.board[0].name)}</bdi></span></div>`).join('')}
     </div>`;
 }
 

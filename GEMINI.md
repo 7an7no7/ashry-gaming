@@ -2744,6 +2744,15 @@ the word search), `countUp` for streaks and scores.
   budget** (*The static site*: 6.97 MB → 4.6 MB, a first visit 1.83 → 1.35 MB
   gzipped) and **«الليلة دي؟» and «ابدأوا بدول»** on the home (*The catalog
   and the home screen*).
+  Then **«في غلطة؟»** reports, **the night's share card**, **the audience**
+  (cheers and "who'll win?" for whoever watches a room game) and
+  **«ليالينا»** in أرقامي (*Multiplayer rooms*), and Settings → **رموز للألوان**
+  (`toggleColorShapes` in `JS_Core.html`, off by default: `html.cb-shapes` puts
+  ● ▲ ■ ◆ on أونو's red, yellow, green and blue cards and colour buttons, for
+  colour-blind players, without changing the cards' look for anyone else). The room-wide "extra time"
+  switch was left: every room clock is set in its own game (most are already
+  the host's choice and off by default), so it is a change to twenty games one
+  at a time. إستميشن in rooms, every rule asked first, is being built.
 
 ## Building and Running
 
@@ -4132,6 +4141,31 @@ instance, "reports" (`long: true` lifts the 40-letter cap for these). `GET
 /reports` and `npm run reports` list them by game, most-reported first; they
 are fixed in the bank by hand, then `npm run check`. A new content game puts
 the button under its revealed answer too.
+
+**The audience** (the improvement plan, Phase 4, Jackbox's idea; 25 Sep
+2026). Whoever is watching a room game gets a bar at the foot of the screen
+(`#room-audience`, `JS_RoomAudience.html`): six cheers
+(`AUDIENCE_CHEERS`) that float up on every phone and big, with the name, on
+the TV, and for the first 90 seconds of a game (`PREDICT_OPEN_MS`) "مين
+هيكسب؟" with the players' names and how many picked each. Watching is
+`audienceWatching`: not in the game's roster (`inGame` false), or not in a
+table's `shared.seats` / `shared.order` (the fifth person at لودو, the line of
+a duel). Players are never shown the bar. The server keeps `room.cheer` (the
+last one, `seq` rising; four a phone in three seconds) and `room.predict`
+(`{ game, until, picks }`, opened when a game is dealt, public), both room-level
+actions before a game's own (`cheer`, `predict`), projected by `view.js`.
+`settlePredictions` runs at `backToHub` beside `bankNightPoints`: the board's top
+score (ties all count) against the picks, said in the chat as a `predicted`
+event («توقعوا الكسبان صح: …»). A cheer with motion off shows still for 1.5 s.
+
+**«ليالينا»** (the improvement plan, Phase 6, Plato's groups without accounts).
+Every phone in a room keeps that evening's leaderboard of the night
+(`rememberNight` in `JS_Room.html`, a `Room.onChange` listener; one entry per
+room code and day, the last 60, `ashryNights_v1`), and أرقامي adds them up by
+name, folded so أحمد and احمد are one person (`statsNightsHtml` in
+`JS_Daily.html`): nights won, points, and the last five nights' champions. The
+hub's night board has «ابعت صورة الليلة» (`shareRoomNight`, the share card of
+the night with its champion crowned).
 
 **Trivia, two modes.** The room version deals from `TRIVIA_QUESTIONS` on the
 server. The host picks 5, 10, 15 or 20 questions (`TRIVIA_COUNTS`). A right

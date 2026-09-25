@@ -144,6 +144,17 @@ const ROOM_GAME_IDS = [
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
+/* The audience (the improvement plan, Phase 4, Jackbox's idea): whoever is
+   watching a game - a latecomer, the fifth person at a table of four - cheers
+   (an emoji that floats up on every screen) and, in the first minute and a half
+   of a game, says who will win. Right guesses are said in the chat when the
+   room goes back to the hub. Players may cheer and guess too; the phone only
+   offers it to those watching. */
+const AUDIENCE_CHEERS = ['👏', '😂', '🔥', '😱', '❤️', '🎉'];
+const PREDICT_OPEN_MS = 90000;
+const CHEER_BURST = 4;          // a person's taps in CHEER_WINDOW_MS; more is a stuck finger
+const CHEER_WINDOW_MS = 3000;
+
 const ROOM_CHAT_MAX_LEN = 200;  // characters in one
 
 /**
@@ -473,6 +484,30 @@ const applyRoomAction = (room, playerId, action, payload) => {
     return;
   }
 
+  if (action === 'cheer') {
+    const e = String((payload && payload.e) || '');
+    if (AUDIENCE_CHEERS.indexOf(e) === -1) throw new Error('مش موجودة');
+    const who = room.players.find(p => p.id === playerId && !p.bot);
+    if (!who || !room.game || room.phase === 'lobby') return;
+    const now = Date.now();
+    room._cheers = (room._cheers || []).filter(c => now - c.at < CHEER_WINDOW_MS);
+    if (room._cheers.filter(c => c.from === playerId).length >= CHEER_BURST) return;
+    room._cheers.push({ from: playerId, at: now });
+    room.cheer = { seq: ((room.cheer && room.cheer.seq) || 0) + 1, e: e, name: who.name };
+    return;
+  }
+
+  if (action === 'predict') {
+    const p = room.predict;
+    const target = String((payload && payload.target) || '');
+    const who = room.players.find(x => x.id === playerId && !x.bot);
+    if (!p || !who || p.game !== room.game || Date.now() > p.until) throw new Error('التوقع اتقفل');
+    const roster = (room.shared && room.shared.roster) || [];
+    if (roster.indexOf(target) === -1) throw new Error('مش في اللعبة');
+    p.picks[playerId] = target;
+    return;
+  }
+
   // The host sits a computer player down, takes one out, or changes its level.
   if (roomBotAction(room, playerId, action, payload)) return;
 
@@ -501,6 +536,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     const had = room.game;
     // The night's table, taken from the game's own board before it is cleared.
     if (had) bankNightPoints(room, (room.shared || {}).board);
+    if (had) settlePredictions(room);
     clearGameState(room);
     room.game = null;
     room.phase = 'lobby';
@@ -580,7 +616,11 @@ const applyRoomAction = (room, playerId, action, payload) => {
     default: throw new Error('لعبة غير معروفة');
   }
 
-  if (action === 'start' && room.phase !== 'lobby') roomEvent(room, 'started', { game: room.game });
+  if (action === 'start' && room.phase !== 'lobby') {
+    roomEvent(room, 'started', { game: room.game });
+    room.predict = { game: room.game, until: Date.now() + PREDICT_OPEN_MS, picks: {} };
+    room.cheer = null;
+  }
 
   // Whoever is present when a game is dealt is in it. This can't be inferred
   // from secrets — a Codenames operative and a Just One guesser both have none.
@@ -2345,6 +2385,23 @@ const scoreboardOf = (room) =>
   room.players
     .map(p => ({ name: p.name, id: p.id, score: (room.shared.scores || {})[p.id] || 0 }))
     .sort((a, b) => b.score - a.score);
+
+/** The audience's guesses, checked against the board the game ended on (top score, ties all count). */
+function settlePredictions(room) {
+  const p = room.predict;
+  room.predict = null;
+  if (!p || p.game !== room.game) return;
+  const voters = Object.keys(p.picks || {});
+  if (!voters.length) return;
+  const board = ((room.shared || {}).board || []).filter(r => r && r.id);
+  if (!board.length) return;
+  const top = Math.max.apply(null, board.map(r => Number(r.score) || 0));
+  if (!(top > 0) && board.every(r => (Number(r.score) || 0) === top)) return;
+  const winners = board.filter(r => (Number(r.score) || 0) === top).map(r => r.id);
+  const nameOf = (id) => ((room.players.find(x => x.id === id) || {}).name || '');
+  const right = voters.filter(v => winners.indexOf(p.picks[v]) !== -1).map(nameOf).filter(Boolean);
+  roomEvent(room, 'predicted', { names: right.join('، '), n: voters.length });
+}
 
 /* --- the leaderboard of the night --------------------------------------------
    Placement points rather than each game's own score: a trivia score and a

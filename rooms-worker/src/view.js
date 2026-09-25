@@ -31,6 +31,9 @@ export const roomView = (room, pid, online) => {
     // The leaderboard of the night: room-level like the chat, so it survives
     // every deal and the trip back to the hub.
     night: room.night || {},
+    // The audience (RoomGames.js): the last cheer, and the guesses of who will win.
+    cheer: room.cheer || null,
+    predict: room.predict ? { game: room.predict.game, until: room.predict.until, picks: room.predict.picks || {} } : null,
     // Less any other team's channel (أسماء الرموز); a screen reads no team's.
     chat: chatFor(room, pid),
     // A screen faces everyone, so it never receives a secret.

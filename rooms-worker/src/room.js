@@ -40,7 +40,7 @@ const IDLE_RECHECK_MS = 10 * 60 * 1000;
 const ALARM_FLOOR_MS = 1000;
 // Rapid moves (drawing, the dial) are saved at most this often; the phones get them at once.
 const QUICK_SAVE_MS = 1000;
-const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial']);
+const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer']);
 // The actions that deal prompts, which need the shared prompt memory.
 const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap']);
 const MAX_MESSAGE = 64 * 1024;

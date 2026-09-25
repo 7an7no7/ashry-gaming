@@ -4571,6 +4571,57 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 }
 .tonight-pick:active { transform: scale(0.98); }
 
+/* --- The audience (JS_RoomAudience.html): a bar for whoever watches a room game --- */
+.audience {
+  position: fixed;
+  inset-inline: var(--sp-3);
+  bottom: 5rem;
+  z-index: var(--z-float);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: 34rem;
+  margin-inline: auto;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-3);
+}
+.audience[hidden] { display: none; }
+.audience__row { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.audience__label { flex: none; font-size: var(--fs-xs); font-weight: 800; color: var(--accent-ink); white-space: nowrap; }
+.audience__chips, .audience__cheers { display: flex; gap: var(--sp-1); overflow-x: auto; scrollbar-width: none; min-width: 0; }
+.audience__chips::-webkit-scrollbar, .audience__cheers::-webkit-scrollbar { display: none; }
+.audience__cheer {
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.audience__cheer:active { transform: scale(0.85); }
+/* The page scrolls clear of the bar: its foot padding grows by the bar's height. */
+body.has-audience .shell__main { --main-pb: 9rem; }
+
+.audience-float {
+  position: fixed;
+  bottom: 22vh;
+  z-index: var(--z-points);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+.audience-float__e { font-size: 2.25rem; line-height: 1; filter: drop-shadow(0 4px 8px rgba(0,0,0,.2)); }
+.audience-float--big .audience-float__e { font-size: 6vmin; }
+.audience-float__name { margin-top: 2px; padding: 0 0.5em; border-radius: var(--r-full); background: rgba(0,0,0,.45); color: #fff; font-size: 1.8vmin; font-weight: 800; }
+
 /* «في غلطة؟» (reportBtnHtml in JS_Catalog.html): quiet, under a revealed answer. */
 .report-btn {
   align-self: center;
@@ -9666,6 +9717,25 @@ body.dark .uno-card--face.uno-c--k { box-shadow: inset 0 0 0 1px rgba(255, 255, 
 }
 .uno-card__art { position: relative; z-index: 1; display: grid; place-items: center; }
 .uno-card__art > * { grid-area: 1 / 1; }
+/* Settings → رموز للألوان (colorShapesOn in JS_Core.html): a shape in each colour's corner. */
+.cb-shapes .uno-card--face .uno-card__art::after {
+  position: absolute;
+  top: -0.9em;
+  inset-inline-end: -0.9em;
+  font-size: calc(var(--uno-w, 4rem) * 0.16);
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.cb-shapes .uno-c--r .uno-card__art::after, .cb-shapes .uno-chosen--r .uno-card__art::after { content: '●'; }
+.cb-shapes .uno-c--y .uno-card__art::after, .cb-shapes .uno-chosen--y .uno-card__art::after { content: '▲'; color: #3a2a00; text-shadow: none; }
+.cb-shapes .uno-c--g .uno-card__art::after, .cb-shapes .uno-chosen--g .uno-card__art::after { content: '■'; }
+.cb-shapes .uno-c--b .uno-card__art::after, .cb-shapes .uno-chosen--b .uno-card__art::after { content: '◆'; }
+.cb-shapes .uno-colorbtn.uno-c--r .uno-colorbtn__dot::after { content: '●'; }
+.cb-shapes .uno-colorbtn.uno-c--y .uno-colorbtn__dot::after { content: '▲'; }
+.cb-shapes .uno-colorbtn.uno-c--g .uno-colorbtn__dot::after { content: '■'; }
+.cb-shapes .uno-colorbtn.uno-c--b .uno-colorbtn__dot::after { content: '◆'; }
+.cb-shapes .uno-colorbtn__dot { width: auto; height: auto; background: none; opacity: 1; font-size: 0.9rem; line-height: 1; }
 .uno-card__big {
   font-size: calc(var(--uno-w, 3.4rem) * 0.62);
   line-height: 1;

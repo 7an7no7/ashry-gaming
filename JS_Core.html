@@ -1303,6 +1303,10 @@
       chat_sys_left: "مع السلامة يا {name}",
       chat_sys_host: "المضيف دلوقتي: {name}",
       chat_sys_hub: "رجعنا نختار لعبة",
+      chat_sys_predicted: "توقعوا الكسبان صح: {names}",
+      chat_sys_predicted_none: "محدش توقع الكسبان صح",
+      aud_predict: "مين هيكسب؟",
+      aud_cheer: "شجّع",
       chat_sys_started: "بدأنا {game}",
       turn_title: "دورك!",
       turn_bomb: "القنبلة معاك: قول ومرّر",
@@ -2664,6 +2668,14 @@
       daily_archive_selected: "تحديات {day}",
       daily_archive_solved_count: "اتحل {n} من {m}",
       stats_title: "أرقامي",
+      stats_nights: "ليالينا",
+      color_shapes: "رموز للألوان",
+      color_shapes_hint: "شكل جنب كل لون في كروت أونو، للي بيلخبط بين الألوان",
+      shapes_on: "شغّالة",
+      shapes_off: "مقفولة",
+      stats_nights_hint: "السهرات اللي اتلعبت في غرف على الموبايل ده: {n}. مين كسب أكتر؟",
+      stats_nights_pts: "{n} نقطة",
+      stats_nights_won: "كسب {n}",
       stats_desc: "أحسن أرقامك في كل لعبة لوحدك، وإحصائيات تحدي اليوم.",
       stats_sec_solo: "أفضل أرقام الألعاب",
       stats_sec_daily: "إحصائيات تحدي اليوم",
@@ -4737,6 +4749,10 @@
       chat_sys_left: "Bye, {name}",
       chat_sys_host: "{name} is the host now",
       chat_sys_hub: "Back to picking a game",
+      chat_sys_predicted: "Called the winner: {names}",
+      chat_sys_predicted_none: "Nobody called the winner",
+      aud_predict: "Who'll win?",
+      aud_cheer: "Cheer",
       chat_sys_started: "{game} started",
       turn_title: "Your turn!",
       turn_bomb: "The bomb is with you: say it and pass",
@@ -6098,6 +6114,14 @@
       daily_archive_selected: "Challenges for {day}",
       daily_archive_solved_count: "{n} of {m} solved",
       stats_title: "My Stats",
+      stats_nights: "Our nights",
+      color_shapes: "Colour shapes",
+      color_shapes_hint: "A shape beside each colour on Uno cards, for colour-blind players",
+      shapes_on: "On",
+      shapes_off: "Off",
+      stats_nights_hint: "{n} evenings played in rooms on this phone. Who won the most?",
+      stats_nights_won: "won {n}",
+      stats_nights_pts: "{n} pts",
       stats_desc: "Your personal bests across solo games and daily challenges.",
       stats_sec_solo: "Solo Games Bests",
       stats_sec_daily: "Daily Challenge Stats",
@@ -9495,6 +9519,25 @@
   applyUiScale();
   applyMotionPref();
 
+  /* Shapes beside the colours (the improvement plan, Phase 7): for a player who
+     can't tell red from green, أونو's cards carry ● red, ▲ yellow, ■ green,
+     ◆ blue. A Settings switch, off by default, on this phone (the owner keeps
+     the cards' look as picked). */
+  const COLOR_SHAPES_KEY = 'ashryColorShapes';
+  function colorShapesOn() {
+    try { return localStorage.getItem(COLOR_SHAPES_KEY) === '1'; } catch (e) { return false; }
+  }
+  function applyColorShapes() {
+    document.documentElement.classList.toggle('cb-shapes', colorShapesOn());
+  }
+  function toggleColorShapes() {
+    try { localStorage.setItem(COLOR_SHAPES_KEY, colorShapesOn() ? '0' : '1'); } catch (e) {}
+    applyColorShapes();
+    updateSettingsLabels();
+    haptic('light');
+  }
+  applyColorShapes();
+
   function syncAppHeight() {
     document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
   }
@@ -9706,6 +9749,8 @@
       if (nameVal) nameVal.innerText = (typeof roomName !== 'undefined' && roomName.get()) || t.name_not_set || '';
       const scaleVal = document.getElementById('settings-scale-value');
       if (scaleVal) scaleVal.innerText = uiScale() === 'auto' ? (t.ui_scale_auto || '') : uiScale() + '%';
+      const shapesVal = document.getElementById('settings-shapes-value');
+      if (shapesVal) shapesVal.innerText = colorShapesOn() ? (t.shapes_on || '') : (t.shapes_off || '');
       const motionVal = document.getElementById('settings-motion-value');
       if (motionVal) motionVal.innerText = t['motion_' + motionPref()] || '';
   }

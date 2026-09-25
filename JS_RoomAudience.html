@@ -1,0 +1,130 @@
+<script>
+/* =========================================================================
+   The audience (notes/IMPROVEMENT_PLAN.md, Phase 4 - Jackbox's idea).
+
+   Whoever is watching a room game - someone who joined after the deal, the
+   fifth person at a table of four, the line waiting for a duel - gets a bar at
+   the foot of the screen: six cheers that float up on every phone and big on
+   the TV, and, for the first minute and a half of a game, "who will win?"
+   with the players' names. The guesses are public (a chip shows how many
+   picked each), and the room's chat says who was right when the game goes
+   back to the hub (settlePredictions in RoomGames.js). Players are never
+   shown the bar: their screen is the game.
+   ========================================================================= */
+const AUDIENCE_CHEER_SET = ['👏', '😂', '🔥', '😱', '❤️', '🎉'];
+const audience = { seenCheer: null, room: '' };
+
+/** Is this phone watching rather than playing? */
+function audienceWatching(state) {
+  if (!state || state.youAreScreen || !state.game || state.phase === 'lobby') return false;
+  if (state.inGame === false) return true;
+  const s = state.shared || {};
+  // A table with seats: the ones not sitting at it watch.
+  for (const key of ['seats', 'order']) {
+    const list = s[key];
+    if (Array.isArray(list) && list.length && list.every(x => typeof x === 'string')) {
+      return list.indexOf(Room.me) === -1;
+    }
+  }
+  return false;
+}
+
+function audiencePredictOpen(state) {
+  const p = state && state.predict;
+  if (!p || p.game !== state.game) return false;
+  const now = (state.serverNow && state.receivedAt) ? state.serverNow + (Date.now() - state.receivedAt) : Date.now();
+  return now < p.until;
+}
+
+function audienceBarHtml(state, t) {
+  const p = state.predict || {};
+  const roster = ((state.shared || {}).roster || []).filter(id => id !== Room.me);
+  const counts = {};
+  Object.values(p.picks || {}).forEach(id => { counts[id] = (counts[id] || 0) + 1; });
+  const mine = (p.picks || {})[Room.me];
+  const predict = audiencePredictOpen(state) && roster.length > 1 ? `
+    <div class="audience__row">
+      <span class="audience__label">🔮 ${escapeHTML(t.aud_predict || '')}</span>
+      <div class="audience__chips">${roster.map(id => {
+        const pl = state.players.find(x => x.id === id);
+        if (!pl) return '';
+        const on = mine === id;
+        return `<button type="button" class="filter-chip filter-chip--sm ${on ? 'is-active' : ''}" aria-pressed="${on}"
+                  onclick="audiencePredict('${jsStringAttr(id)}')"><bdi>${escapeHTML(pl.name)}</bdi>${counts[id] ? ` <span class="metric">${counts[id]}</span>` : ''}</button>`;
+      }).join('')}</div>
+    </div>` : '';
+  return `
+    ${predict}
+    <div class="audience__row audience__row--cheer">
+      <span class="audience__label" title="${escapeHTML(t.aud_cheer || '')}" aria-label="${escapeHTML(t.aud_cheer || '')}">📣</span>
+      <div class="audience__cheers">${AUDIENCE_CHEER_SET.map(e =>
+        `<button type="button" class="audience__cheer" onclick="audienceCheer('${e}')" aria-label="${e}">${e}</button>`).join('')}</div>
+    </div>`;
+}
+
+function audienceCheer(e) {
+  if (typeof roomAct === 'function') roomAct('cheer', { e: e });
+  haptic('light');
+}
+
+function audiencePredict(id) {
+  if (typeof roomAct === 'function') roomAct('predict', { target: id });
+  haptic('light');
+}
+
+/** A cheer floats up from the foot of the screen; bigger on the TV. */
+function audienceFloat(e, name, big) {
+  const el = document.createElement('div');
+  el.className = 'audience-float' + (big ? ' audience-float--big' : '');
+  el.innerHTML = `<span class="audience-float__e">${escapeHTML(e)}</span>${name ? `<span class="audience-float__name"><bdi>${escapeHTML(name)}</bdi></span>` : ''}`;
+  el.style.insetInlineStart = (10 + Math.random() * 75) + '%';
+  document.body.appendChild(el);
+  // Motion off: the cheer shows where it is for a moment, and goes.
+  if (typeof motionOff === 'function' && motionOff()) { setTimeout(() => el.remove(), 1500); return; }
+  const anim = el.animate([
+    { transform: 'translateY(0) scale(0.6)', opacity: 0 },
+    { transform: 'translateY(-12vh) scale(1)', opacity: 1, offset: 0.15 },
+    { transform: 'translateY(-55vh) scale(1.1)', opacity: 0 }
+  ], { duration: 2200, easing: 'cubic-bezier(.2,.7,.3,1)' });
+  const done = () => el.remove();
+  anim.onfinish = done;
+  setTimeout(done, 2600);   // an animation that never ends (a hidden tab) still goes
+}
+
+function paintAudience(state) {
+  const bar = document.getElementById('room-audience');
+  const t = TRANSLATIONS[appState.lang] || {};
+  // A new room, or the first state this page sees: nothing old floats up.
+  if (!state || state.code !== audience.room) {
+    audience.room = state ? state.code : '';
+    audience.seenCheer = state && state.cheer ? state.cheer.seq : 0;
+  }
+  const c = state && state.cheer;
+  if (c && c.seq > (audience.seenCheer || 0)) {
+    audience.seenCheer = c.seq;
+    const onTv = appState.currentView === 'room-tv';
+    if (onTv || (appState.currentView || '').indexOf('room-') === 0) audienceFloat(c.e, onTv ? c.name : '', onTv);
+  }
+  if (!bar) return;
+  const inRoomGame = (appState.currentView || '').indexOf('room-') === 0 &&
+    ['room-lobby', 'room-join', 'room-tv'].indexOf(appState.currentView) === -1;
+  const show = inRoomGame && audienceWatching(state);
+  bar.hidden = !show;
+  document.body.classList.toggle('has-audience', show);
+  if (!show) return;
+  const sig = JSON.stringify([appState.lang, state.game, (state.shared || {}).roster, state.predict && state.predict.picks,
+    audiencePredictOpen(state), state.players.map(p => p.name)]);
+  if (bar.dataset.sig !== sig) {
+    bar.dataset.sig = sig;
+    bar.innerHTML = audienceBarHtml(state, t);
+  }
+  // The bar sits just above the bottom tabs (or at the foot when they are a side rail).
+  const nav = document.querySelector('.shell__nav');
+  const r = nav && nav.getBoundingClientRect();
+  bar.style.bottom = (r && r.top > window.innerHeight / 2 ? Math.round(window.innerHeight - r.top + 8) : 12) + 'px';
+}
+
+if (typeof Room !== 'undefined') Room.onChange(paintAudience);
+if (typeof onLeaveScreen === 'function') onLeaveScreen(() => setTimeout(() => paintAudience(Room && Room.isIn ? Room.state : null), 0));
+// The guessing closes on the server's clock; a chip tapped late is refused there.
+</script>

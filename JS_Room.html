@@ -1170,6 +1170,37 @@ function roomNightBoardHtml(state, t) {
     </div>`;
 }
 
+/* «ليالينا» (the improvement plan, Phase 6 - Plato's groups, with no accounts):
+   every phone in a room keeps that evening's leaderboard of the night, one
+   entry per room and day, updated as the night goes on. أرقامي adds them up by
+   name (JS_Daily.html). Kept on the phone only, the last NIGHTS_KEEP nights. */
+const NIGHTS_KEY = 'ashryNights_v1';
+const NIGHTS_KEEP = 60;
+
+function readNights() {
+  try { return JSON.parse(localStorage.getItem(NIGHTS_KEY) || '[]') || []; } catch (e) { return []; }
+}
+
+function rememberNight(state) {
+  if (!state || state.youAreScreen || !state.night) return;
+  const board = state.players
+    .filter(p => !p.bot)
+    .map(p => ({ name: p.name, score: Number(state.night[p.id]) || 0 }))
+    .filter(r => r.score > 0)
+    .sort((a, b) => b.score - a.score);
+  if (!board.length) return;
+  const d = new Date();
+  const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const list = readNights();
+  const same = list.findIndex(n => n.code === state.code && n.day === day);
+  const sig = JSON.stringify(board);
+  if (same !== -1 && JSON.stringify(list[same].board) === sig) return;
+  const entry = { code: state.code, day: day, board: board };
+  if (same !== -1) list[same] = entry; else list.push(entry);
+  try { localStorage.setItem(NIGHTS_KEY, JSON.stringify(list.slice(-NIGHTS_KEEP))); } catch (e) {}
+}
+if (typeof Room !== 'undefined') Room.onChange(rememberNight);
+
 /** The game picker. Everyone sees it; only the host can act on it. */
 function renderRoomHub(state) {
   const t = TRANSLATIONS[appState.lang];

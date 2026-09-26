@@ -138,40 +138,42 @@ const BANK_SQUARES = [
  */
 const BANK_CARDS = {
   luck: [
-    { go: 0, ar: 'اتقدّم لنقطة البداية وخد ٢٠٠', en: 'Advance to Start and collect 200' },
+    { go: 0, ar: 'اتقدّم لنقطة البداية وخد 200', en: 'Advance to Start and collect 200' },
     { go: 39, ar: 'روح القاهرة', en: 'Go to Cairo' },
-    { go: 29, ar: 'روح الإسكندرية، ولو عدّيت على البداية خد ٢٠٠', en: 'Go to Alexandria; if you pass Start, collect 200' },
-    { go: 23, ar: 'روح الأقصر، ولو عدّيت على البداية خد ٢٠٠', en: 'Go to Luxor; if you pass Start, collect 200' },
-    { go: 5, ar: 'روح محطة رمسيس، ولو عدّيت على البداية خد ٢٠٠', en: 'Go to Ramses Station; if you pass Start, collect 200' },
+    { go: 29, ar: 'روح الإسكندرية، ولو عدّيت على البداية خد 200', en: 'Go to Alexandria; if you pass Start, collect 200' },
+    { go: 23, ar: 'روح الأقصر، ولو عدّيت على البداية خد 200', en: 'Go to Luxor; if you pass Start, collect 200' },
+    { go: 5, ar: 'روح محطة رمسيس، ولو عدّيت على البداية خد 200', en: 'Go to Ramses Station; if you pass Start, collect 200' },
     { near: 'st', ar: 'روح لأقرب محطة، ولو ليها صاحب ادفعله الإيجار مرتين', en: 'Go to the next station; if someone owns it, pay them twice the rent' },
-    { near: 'co', ar: 'روح لأقرب شركة، ولو ليها صاحب ارمي النرد وادفعله ١٠ أضعاف الرقم', en: 'Go to the next company; if someone owns it, roll and pay them 10 times the dice' },
+    { near: 'co', ar: 'روح لأقرب شركة، ولو ليها صاحب ارمي الزهر وادفعله 10 أضعاف الرقم', en: 'Go to the next company; if someone owns it, roll and pay them 10 times the dice',
+      // With one die the card pays the die x 20 (bankRentOf), and says so.
+      one: { ar: 'روح لأقرب شركة، ولو ليها صاحب ارمي الزهرة وادفعله 20 ضعف الرقم', en: 'Go to the next company; if someone owns it, roll and pay them 20 times the die' } },
     { go: 20, ar: 'اركب الأتوبيس السريع: روح خانته', en: 'Take the Express Bus: go to its square' },
-    { back: 3, ar: 'ارجع ٣ خانات', en: 'Go back 3 squares' },
+    { back: 3, ar: 'ارجع 3 خانات', en: 'Go back 3 squares' },
     { jail: 1, ar: 'روح السجن على طول، ومن غير ما تعدّي على البداية', en: 'Go straight to jail, without passing Start' },
     { free: 1, ar: 'كارت خروج من السجن: احتفظ بيه أو بيعه', en: 'Get out of jail free: keep it or sell it' },
-    { cash: 50, ar: 'البنك صرفلك أرباح: خد ٥٠', en: 'The bank pays you a dividend: collect 50' },
-    { cash: 150, ar: 'قسط الشقة خلص: خد ١٥٠', en: 'Your flat is paid off: collect 150' },
-    { cash: -15, ar: 'مخالفة سرعة: ادفع ١٥', en: 'Speeding fine: pay 15' },
-    { repair: [25, 100], ar: 'صيانة: ادفع ٢٥ عن كل جراج أو استراحة، و١٠٠ عن كل سوق', en: 'Upkeep: pay 25 for each garage or rest stop, 100 for each market' },
-    { each: -50, ar: 'عزومة على حسابك: ادفع لكل لاعب ٥٠', en: 'Dinner is on you: pay every player 50' }
+    { cash: 50, ar: 'البنك صرفلك أرباح: خد 50', en: 'The bank pays you a dividend: collect 50' },
+    { cash: 150, ar: 'قسط الشقة خلص: خد 150', en: 'Your flat is paid off: collect 150' },
+    { cash: -15, ar: 'مخالفة سرعة: ادفع 15', en: 'Speeding fine: pay 15' },
+    { repair: [25, 100], ar: 'صيانة: ادفع 25 عن كل جراج أو استراحة، و100 عن كل سوق', en: 'Upkeep: pay 25 for each garage or rest stop, 100 for each market' },
+    { each: -50, ar: 'عزومة على حسابك: ادفع لكل لاعب 50', en: 'Dinner is on you: pay every player 50' }
   ],
   court: [
-    { go: 0, ar: 'اتقدّم لنقطة البداية وخد ٢٠٠', en: 'Advance to Start and collect 200' },
-    { cash: 200, ar: 'غلطة في حساب البنك لصالحك: خد ٢٠٠', en: 'Bank error in your favour: collect 200' },
-    { cash: -50, ar: 'كشف عند الدكتور: ادفع ٥٠', en: "Doctor's visit: pay 50" },
-    { cash: 50, ar: 'بعت حاجة قديمة: خد ٥٠', en: 'You sold something old: collect 50' },
+    { go: 0, ar: 'اتقدّم لنقطة البداية وخد 200', en: 'Advance to Start and collect 200' },
+    { cash: 200, ar: 'غلطة في حساب البنك لصالحك: خد 200', en: 'Bank error in your favour: collect 200' },
+    { cash: -50, ar: 'كشف عند الدكتور: ادفع 50', en: "Doctor's visit: pay 50" },
+    { cash: 50, ar: 'بعت حاجة قديمة: خد 50', en: 'You sold something old: collect 50' },
     { free: 1, ar: 'كارت خروج من السجن: احتفظ بيه أو بيعه', en: 'Get out of jail free: keep it or sell it' },
     { jail: 1, ar: 'روح السجن على طول، ومن غير ما تعدّي على البداية', en: 'Go straight to jail, without passing Start' },
-    { each: 10, ar: 'عيد ميلادك: كل لاعب يديك ١٠', en: "It's your birthday: every player gives you 10" },
-    { cash: 100, ar: 'عيدية: خد ١٠٠', en: 'Eid money: collect 100' },
-    { cash: 20, ar: 'استرداد ضرايب: خد ٢٠', en: 'Tax refund: collect 20' },
-    { cash: 100, ar: 'التأمين صرفلك: خد ١٠٠', en: 'The insurance pays out: collect 100' },
-    { cash: -100, ar: 'مصاريف مستشفى: ادفع ١٠٠', en: 'Hospital bills: pay 100' },
-    { cash: -50, ar: 'مصاريف المدرسة: ادفع ٥٠', en: 'School fees: pay 50' },
-    { cash: 25, ar: 'أتعاب شغل: خد ٢٥', en: 'Consulting fee: collect 25' },
-    { repair: [40, 115], ar: 'تصليح الشارع: ادفع ٤٠ عن كل جراج أو استراحة، و١١٥ عن كل سوق', en: 'Street repairs: pay 40 for each garage or rest stop, 115 for each market' },
-    { cash: 10, ar: 'كسبت المركز التاني في مسابقة: خد ١٠', en: 'Second prize in a contest: collect 10' },
-    { cash: 100, ar: 'ورثت من قريب: خد ١٠٠', en: 'You inherit from a relative: collect 100' }
+    { each: 10, ar: 'عيد ميلادك: كل لاعب يديك 10', en: "It's your birthday: every player gives you 10" },
+    { cash: 100, ar: 'عيدية: خد 100', en: 'Eid money: collect 100' },
+    { cash: 20, ar: 'استرداد ضرايب: خد 20', en: 'Tax refund: collect 20' },
+    { cash: 100, ar: 'التأمين صرفلك: خد 100', en: 'The insurance pays out: collect 100' },
+    { cash: -100, ar: 'مصاريف مستشفى: ادفع 100', en: 'Hospital bills: pay 100' },
+    { cash: -50, ar: 'مصاريف المدرسة: ادفع 50', en: 'School fees: pay 50' },
+    { cash: 25, ar: 'أتعاب شغل: خد 25', en: 'Consulting fee: collect 25' },
+    { repair: [40, 115], ar: 'تصليح الشارع: ادفع 40 عن كل جراج أو استراحة، و115 عن كل سوق', en: 'Street repairs: pay 40 for each garage or rest stop, 115 for each market' },
+    { cash: 10, ar: 'كسبت المركز التاني في مسابقة: خد 10', en: 'Second prize in a contest: collect 10' },
+    { cash: 100, ar: 'ورثت من قريب: خد 100', en: 'You inherit from a relative: collect 100' }
   ]
 };
 

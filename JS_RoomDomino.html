@@ -704,7 +704,10 @@ function domResultLine(state) {
   if (r.tie) return domT('dom_res_tie');
   if (!r.winner) return '';
   const who = domUnitName(state, r.winner);
-  const from = (r.from || []).map(k => domUnitName(state, k)).join(appState.lang === 'en' ? ', ' : '، ');
+  // Each name held on its own, the list in the line's direction: "Robo، Sara، كريم" mixed
+  // Latin and Arabic names and read as "كريم ،Robo ،Sara".
+  const en = appState.lang === 'en';
+  const from = (en ? '\u2066' : '\u2067') + (r.from || []).map(k => '\u2068' + domUnitName(state, k) + '\u2069').join(en ? ', ' : '، ') + '\u2069';
   const head = r.how === 'out'
     ? domT(Array.isArray(s.teams) ? 'dom_res_out_team' : 'dom_res_out', { name: domName(state, r.by), team: who, from: from, n: r.raw })
     : domT(Array.isArray(s.teams) ? 'dom_res_blocked_team' : 'dom_res_blocked', { name: who, from: from, n: r.raw });

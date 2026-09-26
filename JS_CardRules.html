@@ -75,8 +75,8 @@ CS_GAMES.trix = {
     const played = s.rounds.filter((r, n) => Math.floor(n / per) === kingdom).map(r => r.input.contract);
     const left = TRIX_CONTRACTS[s.opts.game].filter(c => played.indexOf(c) === -1);
     const contract = csDraft(s, 'pick-contract', left[0]);
-    const king = () => g.cardHtml(s, t, 'k', 'K♥');
-    const queens = () => TRIX_QUEENS.map((q, k) => g.cardHtml(s, t, 'q' + k, 'Q' + q)).join('');
+    const king = () => g.cardHtml(s, t, 'k', t.cs_trix_card_king || 'K♥');
+    const queens = () => TRIX_QUEENS.map((q, k) => g.cardHtml(s, t, 'q' + k, t['cs_trix_card_q' + 'shdc'.charAt(k)] || 'Q' + q)).join('');
     let body = '';
     if (contract === 'king' || contract === 'complex') body += king();
     if (contract === 'queens' || contract === 'complex') body += queens();
@@ -196,7 +196,7 @@ CS_GAMES.tarneeb = {
       ${csPickHtml('team', csSeatItems(s), csDraft(s, 'pick-team', ''))}
       <div class="cs-seat-row"><span class="cs-seat-row__name">${escapeHTML(t.cs_tarneeb_bid || '')}</span>${csStepperHtml('bid', csDraft(s, 'bid', 7), 7, 13)}</div>
       <div class="cs-seat-row"><span class="cs-seat-row__name">${escapeHTML(t.cs_tarneeb_took || '')}</span>${csStepperHtml('took', csDraft(s, 'took', ''), 0, 13)}</div>
-      ${s.opts.mode === 'egypt' ? `<span class="cs-label">${escapeHTML(t.cs_tarneeb_double || '')}</span>${csPickHtml('mult', [1, 2, 4].map(m => ({ v: m, label: m === 1 ? (t.cs_tarneeb_no_double || '') : '×' + m })), csDraft(s, 'pick-mult', 1))}` : ''}`;
+      ${s.opts.mode === 'egypt' ? `<span class="cs-label">${escapeHTML(t.cs_tarneeb_double || '')}</span>${csPickHtml('mult', [1, 2, 4].map(m => ({ v: m, label: m === 1 ? (t.cs_tarneeb_no_double || '') : '\u2066×' + m + '\u2069' })), csDraft(s, 'pick-mult', 1))}` : ''}`;
   },
   read(s) {
     if (s.opts.mode === 'fortyone') return { bids: s.seats.map((_, i) => csVal('b' + i)), made: s.seats.map((_, i) => csToggled('m' + i)) };
@@ -403,8 +403,8 @@ CS_GAMES.basra = {
       ${csQuickSlot()}
       <span class="cs-label">${escapeHTML(t.cs_basra_most || '')}</span>
       ${csPickHtml('most', seats.concat([{ v: 'tie', label: t.cs_basra_tie || '' }]), csDraft(s, 'pick-most', ''))}
-      <span class="cs-label">2♣</span>${csPickHtml('two', seats, csDraft(s, 'pick-two', ''))}
-      <span class="cs-label">10♦</span>${csPickHtml('ten', seats, csDraft(s, 'pick-ten', ''))}`;
+      <span class="cs-label">${escapeHTML(t.cs_basra_card_two || '2♣')}</span>${csPickHtml('two', seats, csDraft(s, 'pick-two', ''))}
+      <span class="cs-label">${escapeHTML(t.cs_basra_card_ten || '10♦')}</span>${csPickHtml('ten', seats, csDraft(s, 'pick-ten', ''))}`;
   },
   /** Four aces and four jacks in every deck. */
   quick: (s, t) => [{ kind: 'rest', keys: s.seats.map((_, i) => 'a' + i), total: 8, max: 8, label: t.cs_basra_aj || '' }],

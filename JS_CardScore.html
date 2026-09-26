@@ -737,7 +737,7 @@ function csStepperHtml(key, value, min, max) {
   return `
     <span class="cs-step" data-key="${key}" dir="ltr">
       <button type="button" class="cs-step__btn" onclick="csStep('${key}', -1, ${min}, ${max})" aria-label="−">−</button>
-      <input type="number" inputmode="numeric" class="cs-step__val metric" id="cs-in-${key}" value="${value === undefined || value === null ? '' : value}" min="${min}" max="${max}" oninput="csKeep(this)">
+      <input type="number" inputmode="numeric" class="cs-step__val metric" id="cs-in-${key}" value="${value === undefined || value === null ? '' : value}" placeholder="${min}" min="${min}" max="${max}" oninput="csKeep(this)">
       <button type="button" class="cs-step__btn" onclick="csStep('${key}', 1, ${min}, ${max})" aria-label="+">+</button>
     </span>`;
 }
@@ -745,7 +745,10 @@ function csStepperHtml(key, value, min, max) {
 function csStep(key, delta, min, max) {
   const input = document.getElementById('cs-in-' + key);
   if (!input) return;
-  const now = input.value === '' ? (delta > 0 ? min - 1 : min + 1) : Number(input.value);
+  // An untouched count shows its lowest value as a placeholder (0 for tricks
+  // taken), so + from there counts on from it; it stays blank until touched,
+  // so a round can't be saved on a number nobody entered.
+  const now = input.value === '' ? min : Number(input.value);
   input.value = Math.max(min, Math.min(max, now + delta));
   csKeep(input);
   haptic('light');

@@ -3088,6 +3088,31 @@ the word search), `countUp` for streaks and scores.
   filled to 0 bytes mid-wave (the owner's own videos and downloads hold most
   of it; my Chrome profiles and stale scratch folders were what could go):
   the owner then freed space on C: and the tests run there as before.
+- **26 Sep 2026, the arcade look's design review: the shell, solo boards and
+  tools** (the one-phone party games and the room games in parallel
+  branches). The home's chips two rows at most on a phone (smaller, the ways
+  and «مين وكام؟» one wrapped flow, no emoji on a phone); Help's first card
+  no longer promises mode icons on the posters; Settings 30rem wide with each
+  value a pill and a chevron; «الليلة دي؟»'s chips at the tap floor; 2048's
+  empty card hidden; the solo tool rows one line each; Minesweeper's closed
+  cells on the violet neutrals; the nonogram's clues 12px at least; Word
+  Wheel's levels two-line segments (`wheel_lvl_*_n`) and its board sized from
+  the height on a laptop; pinpoint's choices two by two on a phone's side;
+  the streak's hearts wrap; the chess puzzles' «العب» a chevron, not a pill;
+  every Start bar a solid ground; a phone upright keeps 1.75rem clear under
+  the raised «افتح غرفة» (`--main-pb`, and a stuck Start bar's padding);
+  count rows in a `.grid-2` stack full width; the score keepers' steppers the
+  setup's (placeholder 0, `csStep` counts on from the lowest); the team
+  generator's two ways and Wordle's four lengths are the amber Start bar
+  (`.view-actions--row`); the spin wheel's names 14px at least, cut to their
+  slice; the random picker, teams, tournament and counter ask «مين بيلعب؟»
+  (the counter has the usual picker now); the archive's dates in Western
+  digits and a readable title; the result sheet's number and label apart;
+  the solo stats in the game's colour; on a phone's side the setup hero is a
+  6rem tile beside its text. Found on the way (*Traps*-worthy): a setup card
+  whose first child is a label was styled as an option row by section 39's
+  `div:has(> .field__label:first-child)` (the team generator's whole card
+  went grey) - that selector now skips `.card`.
 
 ## Building and Running
 

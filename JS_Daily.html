@@ -232,8 +232,11 @@ function renderDailyArchive() {
 
   const curMonthDate = new Date(now.getFullYear(), now.getMonth(), 1);
   const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const curMonthLabel = curMonthDate.toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' });
-  const prevMonthLabel = prevMonthDate.toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { month: 'long', year: 'numeric' });
+  // Western digits in both languages, as the calendar and every number in the
+  // app (ar-EG alone writes the year in Arabic-Indic digits).
+  const dateLocale = isAr ? 'ar-EG-u-nu-latn' : 'en-GB';
+  const curMonthLabel = curMonthDate.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' });
+  const prevMonthLabel = prevMonthDate.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' });
 
   if (!archiveSelectedDay || !archiveSelectedDay.startsWith(year + '-' + String(month + 1).padStart(2, '0'))) {
     if (archiveMonthOffset === 1) {
@@ -276,6 +279,10 @@ function renderDailyArchive() {
 
   const selectedResults = allDailies[archiveSelectedDay] || {};
   const selectedDoneCount = Object.keys(selectedResults).length;
+  // The day's title as a date a person reads («الجمعة، 25 سبتمبر»), not 2026-09-25.
+  const [sy, sm, sd] = archiveSelectedDay.split('-').map(Number);
+  let selectedLabel = archiveSelectedDay;
+  try { selectedLabel = new Date(sy, sm - 1, sd).toLocaleDateString(dateLocale, { weekday: 'long', day: 'numeric', month: 'long' }); } catch (e) {}
 
   el.innerHTML = `
     <div class="archive-cal-wrap card">
@@ -295,7 +302,7 @@ function renderDailyArchive() {
 
     <div class="section__head" style="margin-bottom:var(--sp-2)">
       <span class="section__emoji" aria-hidden="true">📅</span>
-      <h2 class="section__title">${escapeHTML((t.daily_archive_selected || 'تحديات {day}').replace('{day}', archiveSelectedDay))}</h2>
+      <h2 class="section__title">${escapeHTML((t.daily_archive_selected || 'تحديات {day}').replace('{day}', selectedLabel))}</h2>
     </div>
 
     <div class="daily-list">
@@ -309,7 +316,7 @@ function renderDailyArchive() {
               <span class="tool-name">${escapeHTML(t[cat.title] || g.id)}</span>
               <span class="tool-desc">${result ? escapeHTML(g.line(result)) : escapeHTML(t.daily_archive_not_done || 'لم يُحل في يومه')}</span>
             </span>
-            <button type="button" class="btn btn--secondary btn--sm" onclick="playArchive('${g.id}', '${archiveSelectedDay}')">
+            <button type="button" class="btn btn--secondary btn--sm btn--auto daily-row__play" onclick="playArchive('${g.id}', '${archiveSelectedDay}')">
               ${result ? '🔄 ' + escapeHTML(t.daily_archive_replay || 'العب تاني') : '▶ ' + escapeHTML(t.daily_archive_play || 'العب')}
             </button>
           </div>`;

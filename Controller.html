@@ -562,9 +562,9 @@
           <div class="field">
             <label class="field__label" data-i18n="solo_level">المستوى</label>
             <div class="segmented" id="wordwheel-level" role="group">
-              <button type="button" class="segmented__item is-active" data-value="easy" onclick="setWordWheelLevel('easy')" data-i18n="wheel_lvl_easy">سهل · 5 حروف</button>
-              <button type="button" class="segmented__item" data-value="medium" onclick="setWordWheelLevel('medium')" data-i18n="wheel_lvl_medium">متوسط · 6 حروف</button>
-              <button type="button" class="segmented__item" data-value="hard" onclick="setWordWheelLevel('hard')" data-i18n="wheel_lvl_hard">صعب · 7 حروف</button>
+              <button type="button" class="segmented__item is-active" data-value="easy" onclick="setWordWheelLevel('easy')"><span data-i18n="wheel_lvl_easy">سهل</span><small class="segmented__sub" data-i18n="wheel_lvl_easy_n">5 حروف</small></button>
+              <button type="button" class="segmented__item" data-value="medium" onclick="setWordWheelLevel('medium')"><span data-i18n="wheel_lvl_medium">متوسط</span><small class="segmented__sub" data-i18n="wheel_lvl_medium_n">6 حروف</small></button>
+              <button type="button" class="segmented__item" data-value="hard" onclick="setWordWheelLevel('hard')"><span data-i18n="wheel_lvl_hard">صعب</span><small class="segmented__sub" data-i18n="wheel_lvl_hard_n">7 حروف</small></button>
             </div>
             <p class="field__hint" id="wordwheel-best"></p>
           </div>
@@ -1968,13 +1968,22 @@
 
       <div id="view-setup-universal" class="hidden">
         <div class="card">
+           <!-- The same player picker as every setup (renderActiveChips fills
+                universal-player-list from the names this phone knows). -->
+           <div class="group-picker">
+    <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختار مجموعة محفوظة">
+        <option value="">-- اختار مجموعة --</option>
+    </select>
+    <button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات">📂</button>
+</div>
+
            <label class="field__label" data-i18n="players">اللاعبين</label>
-           
+
            <div class="input-group" style="margin-bottom: var(--sp-4)">
-                <input type="text" id="univ-new-player" data-i18n-ph="placeholder_name" placeholder="اسم.." autocomplete="off">
-                <button onclick="addUniversalPlayer()" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
+                <input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+                <button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب">+</button>
            </div>
-           <div id="universal-setup-list" class="flex flex-wrap gap-2 mb-6"></div>
+           <div id="universal-player-list" class="mb-6"></div>
            <button onclick="startUniversal()" class="btn btn--primary" data-i18n="start_counter">ابدأ العداد</button>
         </div>
       </div>
@@ -2516,12 +2525,11 @@
           
           <div id="teams-player-list" class="mb-6"></div>
           
-          <div class="grid grid-cols-2 gap-2 mt-4">
-              <button onclick="generateTeams()" class="btn btn--primary" data-i18n="random_teams">🎲 عشوائي</button>
-              <button onclick="openSkillBalancer()" class="btn btn--primary" data-i18n="fair_teams">⚖️ مهارة</button>
+          <!-- The two ways to deal are this screen's Start: amber, side by side in the Start bar. -->
+          <div class="view-actions view-actions--start view-actions--row">
+              <button onclick="teamsNeedPlayers(generateTeams)" class="btn btn--primary btn--lg" data-i18n="random_teams">🎲 عشوائي</button>
+              <button onclick="teamsNeedPlayers(openSkillBalancer)" class="btn btn--primary btn--lg" data-i18n="fair_teams">⚖️ بالمهارة</button>
           </div>
-
-          <button onclick="setView('menu')" class="btn btn--ghost mt-3" data-i18n="back">رجوع</button>
         </div>
       </div>
 
@@ -2911,9 +2919,10 @@
               </div>
             </div>
             <div class="mode-device-panel">
-            <p class="field__hint mb-6" data-i18n="word_length">اختر عدد أحرف الكلمة</p>
+            <p class="field__hint" data-i18n="word_length">اختر عدد أحرف الكلمة</p>
             
-            <div class="grid grid-cols-2 gap-3 mb-6">
+            <!-- The length is this screen's Start: four amber buttons side by side in the Start bar. -->
+            <div class="view-actions view-actions--start view-actions--row">
                 <button onclick="startWordleGame(5)" class="btn btn--primary btn--lg">5</button>
                 <button onclick="startWordleGame(6)" class="btn btn--primary btn--lg">6</button>
                 <button onclick="startWordleGame(7)" class="btn btn--primary btn--lg">7</button>

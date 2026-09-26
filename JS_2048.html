@@ -36,6 +36,10 @@ function paint2048Setup() {
   if (el) el.textContent = best ? `${t.solo_best || ''}: ${best.score} · ${best.tile}` : '';
   const cont = document.getElementById('g2048-continue');
   if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  // With no best and nothing to continue the card is empty (Start is in the
+  // bar): hide it rather than leave a blank rounded box under the hero.
+  const card = el && el.closest('.card');
+  if (card) card.classList.toggle('hidden', !best && s.phase !== 'play');
 }
 
 function start2048() {

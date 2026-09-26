@@ -7177,8 +7177,10 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   padding: 0;
   border: 0;
   border-radius: 6px;
-  background: color-mix(in oklab, var(--accent) 24%, var(--surface-2));
-  box-shadow: inset 0 -2px 0 rgba(15, 23, 42, 0.12);
+  /* A closed cell is a raised violet-neutral tile (it was the teal accent
+     mixed into slate - the one board off the app's palette, 26 Sep 2026). */
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--border), inset 0 -3px 0 var(--border-strong);
   color: var(--text-strong);
   font-family: var(--font);
   font-size: clamp(0.85rem, 4.6vw, 1.2rem);
@@ -7188,6 +7190,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   touch-action: manipulation;
 }
 .mines-cell.is-open { background: var(--surface-solid); box-shadow: inset 0 0 0 1px var(--border); cursor: default; }
+body.dark .mines-cell.is-open { background: var(--surface-sunken); }
 .mines-cell.n1 { color: var(--accent-ink); }
 .mines-cell.n2 { color: var(--success-ink); }
 .mines-cell.n3 { color: var(--danger); }
@@ -7289,7 +7292,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   user-select: none;
   -webkit-user-select: none;
 }
-.nono-clue { display: flex; gap: 3px; color: var(--text-strong); font-size: clamp(0.6rem, 2.7vw, 0.85rem); font-weight: 800; line-height: 1.05; }
+.nono-clue { display: flex; gap: 3px; color: var(--text-strong); font-size: clamp(0.75rem, 3.2vw, 0.95rem); font-weight: 800; line-height: 1.05; }
 .nono-clue--col { flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 3px; }
 .nono-clue--row { align-items: center; justify-content: flex-end; padding-right: 5px; white-space: nowrap; }
 .nono-clue.is-done { color: var(--text-3); }
@@ -16638,13 +16641,13 @@ body.dark .home-start { background: linear-gradient(150deg, #5b21b6 0%, #4c1d95 
   text-transform: none;
   letter-spacing: 0;
 }
-[id^="view-setup-"] :is(.field, div:has(> .field__label:first-child):not(:has(.field, .card))) {
+[id^="view-setup-"] :is(.field, div:has(> .field__label:first-child):not(.card):not(:has(.field, .card))) {
   margin-bottom: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--r-lg);
   background: var(--surface-2);
 }
-[id^="view-setup-"] .setup-more :is(.field, div:has(> .field__label:first-child):not(:has(.field, .card))) { background: var(--surface-solid); }
+[id^="view-setup-"] .setup-more :is(.field, div:has(> .field__label:first-child):not(.card):not(:has(.field, .card))) { background: var(--surface-solid); }
 [id^="view-setup-"] .setup-more { border-color: var(--hairline); }
 [id^="view-setup-"] .setup-more__head { font-family: var(--font-display); }
 /* A count: the label at the start of the row, − n + at its end. */
@@ -16788,6 +16791,202 @@ body.dark .home-start { background: linear-gradient(150deg, #5b21b6 0%, #4c1d95 
 @media (prefers-reduced-motion: reduce) {
   .nav-room__btn, .home-feat__btn { transition: none; }
   .gcard.home-feat--in { animation: none; }
+}
+
+/* --- The design review of the arcade look (26 Sep 2026) ----------------------
+   What the review found across the shell, the solo boards and the tools,
+   fixed on the shared pieces so every screen gets them. */
+
+/* The home's chips on a phone: at most two rows (they wrapped to four, ~200px,
+   and pushed the first poster down). Shorter chips with small labels, the row
+   of ways and the pinned «مين وكام؟» one wrapped flow (the row is `contents`,
+   so its chips and the pinned one share the bar's lines); the emoji go, the
+   words stay - two rows can't hold seven chips with them at 375px. */
+@media (max-width: 899px) {
+  .home-tools .filter-bar { flex-wrap: wrap; gap: 6px; }
+  .home-tools .filter-bar > .filter-row:not(.filter-row--players) { display: contents; }
+  .home-tools .filter-bar .filter-chip {
+    height: 2.25rem;
+    padding-inline: 0.625rem;
+    gap: 0.25rem;
+    font-size: var(--fs-xs);
+  }
+  .home-tools .filter-bar .filter-chip > span[aria-hidden="true"]:first-child { display: none; }
+}
+
+/* Settings on a laptop: a sheet of a readable width (a value sat 500px from
+   its label), and each value a small pill with a chevron, so it reads as
+   something that changes when tapped. */
+#settings-modal .modal-content { max-width: 30rem; }
+.setting-row__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.75rem;
+  padding: 0 0.625rem;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+}
+.setting-row__value:empty { display: none; }
+.setting-row__value::after {
+  content: '';
+  width: 0.375rem;
+  height: 0.375rem;
+  border-inline-end: 2px solid currentColor;
+  border-block-end: 2px solid currentColor;
+  transform: rotate(-45deg);
+  opacity: 0.8;
+}
+[dir="rtl"] .setting-row__value::after { transform: rotate(45deg); }
+
+/* «الليلة دي؟»: the count and the way chips at the tap floor. */
+.tonight-row .filter-chip { height: var(--tap); min-width: var(--tap); justify-content: center; }
+
+/* A solo board's row of tools (↶ ⌫ ✏️ 💡): one line each, the label smaller,
+   and the row wraps to equal buttons when a language's words are long - never
+   a label broken over two lines, which made one button taller than the rest. */
+.sdk-tools .btn {
+  flex: 1 1 calc(25% - var(--sp-2));
+  min-width: 0;
+  gap: 0.25rem;
+  padding-inline: var(--sp-1);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+/* The solo stats (level, time, mistakes) in the game's own colour, not white
+   boxes with a hairline. */
+.solo-stat { border: 0; background: var(--accent-soft); }
+.solo-stat__label { color: var(--accent-ink); opacity: 0.8; }
+.solo-stat .metric { color: var(--accent-ink); font-family: var(--font-display); }
+/* The streak's three hearts fit their box: they wrap, never clip. */
+.solo-stat .metric:has(.streak-hearts) { overflow: visible; white-space: normal; }
+.streak-hearts { flex-wrap: wrap; justify-content: center; }
+
+/* A phone upright: the raised «افتح غرفة» stands 1.75rem into the page, so the
+   page ends that much higher (the Word Wheel's ✓ row and the dice's «ارمي
+   النرد» sat under it), and a stuck Start bar keeps its button clear of it. */
+@media (max-width: 899px) and (min-height: 501px) {
+  body:not(.is-fullscreen-view):not(.is-tv-view):not(.has-audience) .shell__main { --main-pb: calc(var(--sp-6) + 1.75rem); }
+  body:not(.is-fullscreen-view) .view-actions--start { padding-bottom: calc(var(--sp-3) + 1.75rem); }
+}
+
+/* The Start bar has a ground: the page's own colour with a short fade above,
+   so a hint scrolled under it never shows between the button and the bar (a
+   Start bar in a card stands on the card). */
+.view-actions--start { background: linear-gradient(to top, var(--bg) calc(100% - var(--sp-3)), transparent); }
+.card .view-actions--start { background: linear-gradient(to top, var(--surface) calc(100% - var(--sp-3)), transparent); }
+/* A screen whose Start is a choice (Wordle's length, the teams' two ways):
+   the buttons side by side, one line each. */
+.view-actions--row { display: flex; gap: var(--sp-2); }
+.view-actions--row > .btn { flex: 1 1 0; min-width: 0; padding-inline: var(--sp-2); white-space: nowrap; }
+
+/* A count row (a label, then − n +) inside a two-column grid got half the
+   width, and its label was cut to «عد / الج»: those rows stack, each the
+   whole width, and the label always keeps its room. */
+[id^="view-setup-"] .grid-2:has(> :is(.field, div) > .field__label:first-child + .stepper) { grid-template-columns: minmax(0, 1fr); gap: 0; }
+[id^="view-setup-"] :is(.field, div):has(> .field__label:first-child + .stepper) > .field__label { min-width: 0; }
+
+/* The score keepers' round card: its counts are the setup's steppers - a pill
+   track, round accent buttons, the value in the display face. */
+.cs-step {
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  overflow: visible;
+}
+.cs-step__btn {
+  width: 2.5rem;
+  min-height: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font-display);
+}
+.cs-step__btn:active { background: var(--accent-border); }
+.cs-step__val { min-height: 2.5rem; font-family: var(--font-display); font-weight: 800; }
+.cs-step__val::placeholder { color: var(--text-3); opacity: 1; }
+
+/* A level segment with its count of letters under it (كلمات من حروف). */
+.segmented__item:has(> .segmented__sub) { gap: 0; padding-block: 3px; line-height: 1.15; }
+.segmented__sub { display: block; font-size: 0.66rem; font-weight: 600; opacity: 0.8; }
+
+/* The chess puzzles' ways: the whole row is the button, so its «العب» is
+   plain words and a chevron, not a pill that looked like a small button. */
+.chpz-way__status .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+}
+.chpz-way__status .badge::after { content: '›'; font-size: 1.25rem; line-height: 1; }
+[dir="rtl"] .chpz-way__status .badge::after { content: '‹'; }
+
+/* The daily archive's rows: the name and its line take the room, «▶ العب» only
+   what it needs. */
+.daily-row > .tool-info { flex: 1 1 auto; min-width: 0; }
+.daily-row > .daily-row__play { flex: none; }
+
+/* The result sheet: the number and its label never touch, however tall the
+   sheet grows with its buttons. */
+.solo-result-value { flex: none; gap: var(--sp-1); }
+.solo-result-value .metric { line-height: 1.1; }
+
+/* Word Wheel on a laptop or a TV: the crossword and the wheel sized from the
+   screen's height like every other board (they were ~200px in a big stage). */
+@media (min-width: 900px) and (min-height: 501px) {
+  .solo-layout__board:has(.wheel-grid) { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 3rem), 44vw); }
+  .solo-layout__board .wheel-grid { max-width: min(calc(var(--ww-cols) * 4.5rem), calc((var(--app-h, 100vh) - var(--header-h) - 3rem) * var(--ww-cols) / var(--ww-rows, 5))); }
+  .solo-layout__board .wheel-cell { font-size: clamp(1.1rem, 2.4vh, 1.9rem); }
+  .solo-layout__side .wheel-ring { width: clamp(14rem, calc(var(--app-h, 100vh) - 22rem), 21rem); }
+  .solo-layout__side .wheel-letter { width: 4.25rem; height: 4.25rem; font-size: 1.9rem; }
+}
+
+/* A phone on its side. */
+@media (orientation: landscape) and (max-height: 500px) {
+  /* What links them?: a narrower list, so its six choices sit two by two. */
+  .solo-layout__board:has(.pin-clues) { width: min(36vw, 20rem); }
+  .solo-choices:has(> :nth-child(5)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .streak-hearts { font-size: 0.8rem; }
+
+  /* The setup hero is compact: the art a 6rem tile beside the text, the rules
+     button at the end, so the options are on the first screen. */
+  .game-hero {
+    display: grid;
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+    grid-template-areas: "art text rules" "art card card";
+    align-items: center;
+    column-gap: var(--sp-3);
+    padding: var(--sp-3);
+  }
+  .game-hero__art { grid-area: art; height: 6rem; border-radius: var(--r-lg); overflow: hidden; }
+  .game-hero__art::after { display: none; }
+  .game-hero__icon { padding-bottom: 0; font-size: 3.4rem; }
+  .game-hero__text { grid-area: text; margin-top: 0; padding: 0; }
+  .game-hero__title { font-size: var(--fs-h2); }
+  .game-hero__rules {
+    grid-area: rules;
+    position: static;
+    align-self: start;
+    border-color: var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .game-hero__rules:active { background: var(--surface-3); }
+  .game-hero .first-play-card { grid-area: card; margin: var(--sp-2) 0 0; }
+  .game-hero:not(:has(.first-play-card)) { grid-template-areas: "art text rules"; }
 }
 
 /* ==========================================================================

@@ -30,6 +30,11 @@ function startTournament() {
     if (!players.length) players = (appState.activePlayers || []).slice();
 
     const t = tourneyT();
+    // Short of names (and none typed in the old boxes): «مين بيلعب؟» asks for them.
+    if (players.length < TOURNEY_MIN && !Array.from(inputs).some(i => i.value.trim())) {
+        askPlayers(TOURNEY_MIN, () => startTournament(), { max: TOURNEY_MAX });
+        return;
+    }
     if (players.length < TOURNEY_MIN || players.length > TOURNEY_MAX) {
         showToast((t.tourney_need || 'اختار من {min} لـ {max} لاعب').replace('{min}', TOURNEY_MIN).replace('{max}', TOURNEY_MAX), 'error');
         return;

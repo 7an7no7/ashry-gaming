@@ -508,10 +508,7 @@ function setupMoreToggled(el) {
   let pickerInterval = null;
   function runStartSpin() {
       const selected = appState.activePlayers || [];
-      if(selected.length < 2) {
-          const msg = appState.lang === 'ar' ? 'اختار اتنين على الأقل' : 'Select at least 2 players';
-          return showToast(msg, 'warn');
-      }
+      if (selected.length < 2) return askPlayers(2, () => runStartSpin());
       appState.spin.players = [...selected];
       setView('play-spin');
       wheelRotation = 0;
@@ -551,7 +548,13 @@ function setupMoreToggled(el) {
       const R = 50;                 // viewBox is 100x100
       const CX = 50, CY = 50;
       const slice = 360 / players.length;
-      const textR = R * 0.66;       // how far out the names sit
+      const textR = R * 0.62;       // how far out the names sit: between the hub and the rim
+      // The names are at least 14px on screen however small the wheel is drawn
+      // (they were ~11px, turned, on a phone), and a long one is cut with an
+      // ellipsis to the room its slice has between the hub and the rim.
+      const px = wheel.clientWidth || 280;
+      const fontSize = Math.max(5.4, 14 * 100 / px);
+      const maxChars = Math.max(3, Math.floor(34 / (fontSize * 0.6)));
 
       // Polar -> cartesian, 0deg at twelve o'clock, going clockwise.
       const pt = (angle, radius) => {
@@ -589,14 +592,14 @@ function setupMoreToggled(el) {
           // those the other way up.
           const flip = mid > 90 && mid < 270;
           const rot = flip ? mid + 90 : mid - 90;
-          const short = name.length > 11 ? name.slice(0, 10) + '\u2026' : name;
+          const chars = Array.from(name);
+          const short = chars.length > maxChars ? chars.slice(0, maxChars - 1).join('') + '\u2026' : name;
 
           svg += '<text x="' + fmt(tx) + '" y="' + fmt(ty) + '"' +
                  ' transform="rotate(' + fmt(rot) + ' ' + fmt(tx) + ' ' + fmt(ty) + ')"' +
                  ' text-anchor="middle" dominant-baseline="central"' +
-                 ' fill="#fff" font-size="5.4" font-weight="800"' +
-                 ' font-family="Cairo, sans-serif"' +
-                 ' style="paint-order: stroke; stroke: rgba(0,0,0,.28); stroke-width: 1.1px">' +
+                 ' fill="#fff" font-size="' + fmt(fontSize) + '" font-weight="800"' +
+                 ' style="font-family: var(--font); paint-order: stroke; stroke: rgba(0,0,0,.28); stroke-width: 1.1px">' +
                  escapeHTML(short) + '</text>';
       });
 
@@ -674,6 +677,15 @@ function setupMoreToggled(el) {
       if (btn) btn.disabled = false;
   }
 
+  /* The team generator's two Starts: short of names for the teams chosen,
+     «مين بيلعب؟» asks for them first (its dealing lives in JS_NewGames.html). */
+  function teamsNeedPlayers(then) {
+      const need = Math.max(2, (appState.teams && appState.teams.count) || 2);
+      const have = typeof getSelectedPlayers === 'function' ? getSelectedPlayers().length : (appState.activePlayers || []).length;
+      if (have < need) return askPlayers(need, then);
+      then();
+  }
+
   /* --- UNIVERSAL COUNTER --- */
   function addUniversalPlayer() {
       const input = document.getElementById('univ-new-player');
@@ -695,10 +707,7 @@ function setupMoreToggled(el) {
           players = appState.activePlayers.map(name => ({ name: name, score: 0 }));
       }
 
-      if(players.length === 0) {
-          const msg = appState.lang === 'ar' ? 'أضف لاعبين أولاً' : 'Add players first';
-          return showToast(msg);
-      }
+      if (players.length === 0) return askPlayers(1, () => startUniversal());
       appState.universal.players = players;
       renderUniversalBoard();
       setView('play-universal');

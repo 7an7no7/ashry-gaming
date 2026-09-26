@@ -289,7 +289,15 @@ const PROBES = {
       for (const alt of card.alt || []) out.push(secret('the other spellings of the answer too', alt, []));
     }
     const deck = room._deck || [];
-    for (let k = (room._qIdx || 0) + 1; k < deck.length; k++) out.push(secret('cards to come stay on the server', deck[k].a, []));
+    // Two cards of a deck can end in the same word (several proverbs do): once the card
+    // on the table is revealed, its answer is public, and a card to come with the same
+    // answer gives nothing away. It failed about one run in forty before this.
+    const shown = String(card.a || '').trim();
+    for (let k = (room._qIdx || 0) + 1; k < deck.length; k++) {
+      const next = String(deck[k].a || '').trim();
+      if (s.phase !== 'answering' && shown && next && (shown.indexOf(next) !== -1 || next.indexOf(shown) !== -1)) continue;
+      out.push(secret('cards to come stay on the server', deck[k].a, []));
+    }
     return out;
   },
   fiveseconds(room) {

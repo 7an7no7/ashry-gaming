@@ -47,9 +47,23 @@ function audienceWatching(state) {
   return false;
 }
 
+/* Is the game over - its result on the screens? Then the bar goes and «مين
+   هيكسب؟» is closed (the owner, 26 Sep 2026), not only after its 90 seconds.
+   roomGameIsOver in RoomGames.js is the server's same test (it refuses a late
+   pick): keep the two in step. */
+const AUDIENCE_ONE_ROUND = { imposter: true, chameleon: true, spyfall: true, fakeartist: true };
+function audienceGameOver(state) {
+  if (!state) return false;
+  const s = state.shared || {};
+  const phases = [state.phase, s.phase];
+  if (phases.some(p => p === 'gameover' || p === 'over')) return true;
+  if (s.tour && s.tour.phase === 'over') return true;
+  return !!AUDIENCE_ONE_ROUND[state.game] && phases.some(p => p === 'result' || p === 'results');
+}
+
 function audiencePredictOpen(state) {
   const p = state && state.predict;
-  if (!p || p.game !== state.game) return false;
+  if (!p || p.game !== state.game || audienceGameOver(state)) return false;
   const now = (state.serverNow && state.receivedAt) ? state.serverNow + (Date.now() - state.receivedAt) : Date.now();
   return now < p.until;
 }
@@ -136,7 +150,7 @@ function paintAudience(state) {
   if (!bar) return;
   const inRoomGame = (appState.currentView || '').indexOf('room-') === 0 &&
     ['room-lobby', 'room-join', 'room-tv'].indexOf(appState.currentView) === -1;
-  const show = inRoomGame && audienceWatching(state);
+  const show = inRoomGame && audienceWatching(state) && !audienceGameOver(state);
   bar.hidden = !show;
   document.body.classList.toggle('has-audience', show);
   if (!show) return;

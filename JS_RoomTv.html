@@ -41,8 +41,8 @@ const tvBtn = (label, onclick, kind) =>
  * (renderAward), inside .tv-scale like every other phone piece the TV reuses -
  * and nothing at all, not an empty box, when there is no title to give.
  */
-const tvAwardHtml = (icon, label, winner, delay) => {
-  const row = renderAward(icon, label, winner, delay);
+const tvAwardHtml = (icon, label, winner, delay, countHtml) => {
+  const row = renderAward(icon, label, winner, delay, countHtml);
   return row ? `<div class="tv-scale">${row}</div>` : '';
 };
 
@@ -313,6 +313,7 @@ function tvLobbySig(state) {
   return [
     state.code,
     state.players.map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','),
+    state.game || '',
     (state.screens || []).length,
     JSON.stringify(state.shared || {}),
     // The night's table changes as games are banked, and it is drawn in the lobby.
@@ -328,7 +329,27 @@ function tvLobby(state, t) {
   let control;
 
   if (!state.youAreHost) {
-    control = `<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
+    // A TV that is not the host has nothing to press: its side shows who is in
+    // (a tile each, the newest popping in) and the game chosen, from the top, so
+    // a 1080p screen isn't a heading and a line floating in the middle of an
+    // empty half (the owner, 26 Sep 2026).
+    const cat = state.game && typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[state.game] : null;
+    const chosen = entry ? `
+      <div class="tv-lobby__game" data-accent="${entry.accent}">
+        <span class="tv-lobby__game-icon" aria-hidden="true">${iconHtml(entry.icon)}</span>
+        <span class="tv-lobby__game-text">
+          <b>${escapeHTML(t[entry.key] || entry.id)}</b>
+          ${cat && t[cat.desc] ? `<span>${escapeHTML(t[cat.desc])}</span>` : ''}
+        </span>
+      </div>` : '';
+    const people = `
+      <div class="tv-lobby__players">${state.players.map(p => `
+        <div class="tv-lobby__player${typeof motionFirst === 'function' && motionFirst('tvlp|' + state.code + '|' + p.id) ? ' is-new' : ''}">
+          <span class="tv-lobby__avatar" aria-hidden="true">${p.bot ? '🤖' : escapeHTML(Array.from(String(p.name || '?').trim())[0] || '?')}</span>
+          <span class="tv-lobby__name"><bdi>${escapeHTML(p.name)}</bdi></span>
+        </div>`).join('')}
+      </div>`;
+    control = `${chosen}${people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
   } else if (!state.game) {
     const count = state.players.length;
     control = `
@@ -553,7 +574,7 @@ TV_GAMES.trivia = {
                 <span class="tv-podium__score">${p.score}</span>
               </div>`).join('')}
           </div>
-          ${tvAwardHtml('⚡', t.title_fastest, s.fastest, rise ? AWARD_AFTER_PODIUM_MS : 200)}
+          ${tvAwardHtml('⚡', t.title_fastest, s.fastest, rise ? AWARD_AFTER_PODIUM_MS : 200, s.fastest && awardFirstTimes(s.fastest.n))}
           ${state.youAreHost ? `<div class="tv-actions">${
             tvBtn(t.play_again, `roomAct('playAgain', { lang: '${VOTE_LANG()}' })`) +
             tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}

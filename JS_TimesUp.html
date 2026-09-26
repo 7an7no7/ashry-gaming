@@ -725,6 +725,51 @@ function setupTimesUp() {
   setView('setup-timesup');
 }
 
+/*
+   A reload comes back to the game (the owner's decision of 26 Sep 2026): the
+   deck, the round, the teams, whose turn it is and the scores live in
+   appState.timesup, written after every move. A turn in the middle of its clock
+   comes back to its own "ready" card - the cards already guessed stay guessed
+   and scored, the time that was left is not kept (بدون كلام's relay does the
+   same with its handover card). The game over, the slot is emptied.
+*/
+function timesUpSave() {
+  if (typeof appState === 'undefined') return;
+  const s = timesUpState;
+  appState.timesup = {
+    deck: s.deck.slice(), currentRoundDeck: s.currentRoundDeck.slice(), round: s.round,
+    scores: { 1: s.scores[1], 2: s.scores[2] }, teams: { 1: s.teams[1].slice(), 2: s.teams[2].slice() },
+    activeTeam: s.activeTeam, activePlayerIndex: { 1: s.activePlayerIndex[1], 2: s.activePlayerIndex[2] },
+    turnTimerSeconds: s.turnTimerSeconds, carrySeconds: s.readyCarry || 0
+  };
+  if (typeof saveToLocal === 'function') saveToLocal();
+}
+
+function timesUpClearSave() {
+  if (typeof appState === 'undefined') return;
+  appState.timesup = null;
+  if (typeof saveToLocal === 'function') saveToLocal();
+}
+
+/** Called by restoreView for play-timesup: back to the current turn's ready card, or false. */
+function restoreTimesUp() {
+  const g = typeof appState !== 'undefined' ? appState.timesup : null;
+  if (!g || !Array.isArray(g.deck) || !g.deck.length || !Array.isArray(g.currentRoundDeck) || !g.currentRoundDeck.length
+    || !g.teams || !Array.isArray(g.teams[1]) || !Array.isArray(g.teams[2]) || !g.teams[1].length || !g.teams[2].length
+    || !(g.round >= 1 && g.round <= 3)) return false;
+  if (timesUpState.turnClock) timesUpState.turnClock.stop();
+  Object.assign(timesUpState, {
+    deck: g.deck.slice(), currentRoundDeck: g.currentRoundDeck.slice(), round: g.round,
+    scores: { 1: g.scores[1] || 0, 2: g.scores[2] || 0 }, teams: { 1: g.teams[1].slice(), 2: g.teams[2].slice() },
+    activeTeam: g.activeTeam === 2 ? 2 : 1, activePlayerIndex: { 1: g.activePlayerIndex[1] || 0, 2: g.activePlayerIndex[2] || 0 },
+    turnTimerSeconds: g.turnTimerSeconds || 40, carrySeconds: g.carrySeconds || 0,
+    turnClock: null, currentCard: '', turnProcessing: false, judged: []
+  });
+  setView('play-timesup');
+  prepareTimesUpTurn();
+  return true;
+}
+
 function startTimesUpGame() {
   const selected = appState.activePlayers ? [...appState.activePlayers] : [];
   saveActivePlayers(selected);
@@ -780,6 +825,8 @@ const timesUpTeamLabel = (team) => {
 function prepareTimesUpTurn() {
   timesUpState.turnProcessing = false;
   timesUpState.judged = [];
+  timesUpState.currentCard = '';
+  timesUpState.readyCarry = timesUpState.carrySeconds || 0;
   const team = timesUpState.activeTeam;
   const playerList = timesUpState.teams[team];
   const pIdx = timesUpState.activePlayerIndex[team] % playerList.length;
@@ -805,6 +852,7 @@ function prepareTimesUpTurn() {
     rule.textContent = ([t.timesup_r1, t.timesup_r2, t.timesup_r3][timesUpState.round - 1] || '')
       + (carry ? ' · ⏱️ ' + (t.timesup_carry || '').replace('{n}', carry) : '');
   }
+  timesUpSave();
 }
 
 function beginTimesUpLiveTurn() {
@@ -901,6 +949,7 @@ function timesUpAction(action) {
     }
 
     drawNextTimesUpCard();
+    timesUpSave();
     setTimeout(() => { timesUpState.turnProcessing = false; }, 200);
   } else if (action === 'pass') {
     playSound('click');
@@ -909,6 +958,7 @@ function timesUpAction(action) {
     timesUpState.currentRoundDeck.push(passed);
     timesUpState.judged.push({ card: passed, action: 'pass' });
     drawNextTimesUpCard();
+    timesUpSave();
   }
 }
 
@@ -932,6 +982,7 @@ function undoTimesUpCard() {
   deck.unshift(last.card);
   timesUpState.turnProcessing = false;
   drawNextTimesUpCard();
+  timesUpSave();
   playSound('tick');
   haptic('light');
   showToast(t.undo_done || '', 'success');
@@ -985,6 +1036,7 @@ function finishTimesUpGrandFinale() {
 
   // The last card is gone: ✅ behind the result sheet must not score again.
   timesUpState.currentCard = '';
+  timesUpClearSave();
   const score1 = timesUpState.scores[1];
   const score2 = timesUpState.scores[2];
 

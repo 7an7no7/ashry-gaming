@@ -1998,6 +1998,43 @@ the word search), `countUp` for streaks and scores.
   folded; الدومينو's four in teams are the picker's order (first two against
   last two).
 
+- **The owner's app decisions of 26 Sep 2026** (from the night's review,
+  `notes/review-2026-09-25/`), each built the same day:
+  - **Chess's handicap is «فرق قوة»** in Arabic everywhere it shows (the
+    setup, «مين بيدّي فرق القوة؟», the pill «فرق قوة: بدون …», the rating's
+    reason, Help); «الحسبة (هانديكاب)» is gone. English keeps "Handicap".
+  - **أتوبيس كومبليت's total column says «المجموع» / "Total"** (it was Σ), and
+    is pinned to the far edge of the table like the names to the near one, so a
+    phone scrolls the categories between them and the total stays in sight.
+  - **«ادخل غرفة», not «انضم لغرفة»**, everywhere (the tiles, the join screen,
+    the TV's hint, Help); English keeps "Join a room".
+  - **Philidor's line says the rook stays on "your third rank"** («الصف التالت
+    من ناحيتك»; in English "your third rank (the attacker's sixth)"): the
+    defender's third rank is the attacker's sixth, and the old «الصف السادس»
+    read as the defender's own sixth.
+  - **A room game computer players can fill starts at 1 in `GAME_CATALOG`**
+    (أونو, الدومينو, خمّن مين, كدّاب joined لودو, بنك الحظ, إستميشن, شطرنج
+    الأربعة, المخ والإيد, باغ هاوس), so the "1" filter and «لوحدي» in «الليلة
+    دي؟» find every one of them; «لوحدي» now offers a room game too (`fitsMode`
+    in `tonightCandidates`: a game on this phone, or a room opened alone with
+    computer players). كدّاب's Help says "3 to 12 at the table … even on your
+    own".
+  - **من أنا؟ starts on a real category**, not «إدخال يدوي» (`whoamiFillCategories`:
+    a phone that never picked gets the first category) - confirmed as built.
+  - **ثلاث جولات survives a reload** (*Reloading mid-game*): back to the current
+    turn's ready card, the deck, round, teams and scores kept.
+  - **The audience's bar goes, and «مين هيكسب؟» closes, once the game is over**
+    (*The audience*), not only after its 90 seconds.
+  - **Room trivia's title says what its number is**: «أسرع إجابة: منى · في 3
+    أسئلة» ("Fastest: Mona · on 3 questions"), not «أسرع واحد منى 3», which read
+    as a score (`awardFirstTimes`).
+  - **The TV's lobby is laid out from the top** (*Big screens*): on a 1080p TV
+    the players' side of a TV that isn't the host was a heading and a line in
+    the middle of an empty half; it now shows the game chosen and a tile for
+    everyone in, level with the QR.
+  - **Every popup fades out when it closes** (*The design system*): the seven
+    that were hidden directly go through `closeModal` now.
+
 - **A table game's score keeper lives inside the game, with a shortcut in the
   tools** (owner, 21 Sep 2026). The domino score keeper became the "على
   الطاولة" side of the Domino setup screen, like سكرو's, and الأدوات → حاسبات
@@ -2924,6 +2961,20 @@ the word search), `countUp` for streaks and scores.
   `test:rules` (1,824 checks, the leak check clean), the robots 2,319 passed,
   `test:ui` screens and rooms 70 passed. Found on the way (*Traps*): a `<details>` drawn
   open fires its `toggle`.
+- **26 Sep 2026, the owner's app decisions** (*Decided, and why*): «فرق قوة»,
+  «المجموع» pinned in Stop's table, «ادخل غرفة», Philidor's third rank, a
+  minimum of 1 for every room game computer players fill (and «لوحدي» finding
+  them), من أنا؟'s category confirmed, ثلاث جولات back after a reload, the
+  audience gone at the game's end (on the server too: `roomGameIsOver` refuses
+  a late pick), trivia's «أسرع إجابة: … · في N أسئلة», the TV lobby from the
+  top with the players as tiles, and every popup through the fading close.
+  Tests: `npm run check`, `test:rules` (1,771 checks and the leak check clean;
+  a new one: the guessing is closed at a game's result; the estimation bots'
+  "hard calls more than easy" check is a coin toss and failed one run in three),
+  the robots 2,340 passed, `test:ui` screens and rooms 70 passed. Looked at in
+  headless Chrome at 375×812, 667×375, 1280×720 and the TV at 1920×1080 and
+  1280×720, Arabic light and English dark; ثلاث جولات reloaded mid-turn, on a
+  ready card and in round 2.
 
 ## Building and Running
 
@@ -4242,7 +4293,9 @@ with the letter; in a round on ا itself a bare "ال…" is kept, because أل�
 typed without its hamza is indistinguishable from an article, and only
 "ال" + a hamza letter is stripped there): 10 for an
 answer nobody else had, 5 for a shared one, 0 for a blank or a wrong initial.
-The table is `shared.results`; the host taps a cell to cycle its points
+The table is `shared.results` (its last column «المجموع» / "Total", pinned to
+the far edge like the names to the near one, `.stop-td--total`, the same on one
+phone); the host taps a cell to cycle its points
 (`adjust`, marked `manual`), and `nextRound` banks `roundTotals` into the
 totals as corrected. A timer, when the host set one, is a server clock like
 the trivia one (`roomDeadline` / `roomTimeout` move `writing` to `collecting`
@@ -4322,7 +4375,13 @@ the button under its revealed answer too.
 and a زغروطة, each an emoji and its word in a bubble; on the TV برافو claps and
 the زغروطة trills, `FX.zaghrouta`) that float up on every phone and big, with the name, on
 the TV, and for the first 90 seconds of a game (`PREDICT_OPEN_MS`) "مين
-هيكسب؟" with the players' names and how many picked each. Watching is
+هيكسب؟" with the players' names and how many picked each. **Once the game is
+over the bar goes and the guessing closes** (the owner, 26 Sep 2026), however
+much of the 90 seconds is left: `audienceGameOver` on the page and
+`roomGameIsOver` in `RoomGames.js` (which refuses a late `predict`) - keep the
+two in step - read `phase` 'gameover' or 'over' (the room's or `shared`'s), a
+tournament's end, or the result of a game of one round (الجاسوس, الحرباء,
+الموقع السري, الفنان المزيف). Watching is
 `audienceWatching`: not in the game's roster (`inGame` false), or not in a
 table's `shared.seats` / `shared.order` (the fifth person at لودو, the line of
 a duel). Players are never shown the bar. The server keeps `room.cheer` (the
@@ -4348,6 +4407,9 @@ answer is `TRIVIA_POINTS` (10) plus a speed bonus: +5 for the first right
 answer, +4 for the second, down to nothing from the sixth. The order is the
 time the server received each answer, ties going to whoever arrived first
 (`seq`), and `shared.order` publishes it so every phone can show its place.
+The title at the end (`shared.fastest`, who was first right most often) says
+what its number is: «⚡ أسرع إجابة: منى · في 3 أسئلة» (`renderAward`'s
+`countHtml`, `awardFirstTimes`; the number held left to right).
 
 The team board (*دوري المعرفة*) is single-screen: `JS_TriviaBoard.html`, with its
 own bank in `JS_TriviaBoardBank.html` — ten categories, sixteen or more questions
@@ -4406,6 +4468,15 @@ Every renderer draws the host's buttons too, because a room hosted from a laptop
 has no phone to press them on. Rules that let the table act from the screen check
 `isRoomScreen`: a Codenames guess or pass counts for the team whose turn it is.
 The Wavelength dial accepts anyone except the psychic.
+
+**The lobby** (`tvLobby`): the QR and the code on one side, the players on the
+other, both columns from the top and the pair in the middle of the stage's
+height while it fits (`align-items: start; align-content: safe center`). A TV
+that is the host has the game list or the chosen game's options there; one that
+isn't shows the game chosen (its icon, name and line) and a tile for everyone in
+(`.tv-lobby__players`, a new one popping in once, `motionFirst`), then the
+waiting line - it used to be a heading and a line centred in an empty half of a
+1080p screen (the owner, 26 Sep 2026).
 
 The view is `room-tv`: full screen, with `body.is-tv-view` and sizes from `vmin`
 in the BIG SCREEN block at the end of `Style.html`. Phone components reused there
@@ -7006,7 +7077,9 @@ The icon flies to the setup's hero only if the game stops there; back from
 the game it flies home to the recent tile (`catalogReturn.kind` 'start').
 
 `GAME_CATALOG` in `JS_Catalog.html` is the registry of everything the app can
-play: id, icon, title and description keys, accent, `players: [min, max]`,
+play: id, icon, title and description keys, accent, `players: [min, max]` (a
+room game that computer players fill says 1, since you can play it alone - the
+owner, 26 Sep 2026),
 `mins`, `modes` (`device` = pass one phone, `room` = everyone on their own
 phone, `tv` = a room shown on a big screen), `group` (one of
 `CATALOG_GROUPS`: deduce, words, party, quiz, table, duo, tools), the `setup`
@@ -8036,11 +8109,17 @@ Two shapes:
 - **Restorable** (Wordle, Guess the Number, Screw, Monkey, Domino, the counter,
   the bracket, the trivia board, and the Bomb, Stop the Bus, Memory and Tic Tac
   Toe through their `restoreX()` functions; كونكت ٤ and نقط ومربعات through
-  `soloRegister`, the phone's move started again if it was its turn): the whole game is in `appState`,
+  `soloRegister`, the phone's move started again if it was its turn; ثلاث
+  جولات through `restoreTimesUp`, since 26 Sep 2026): the whole game is in `appState`,
   so the branch just redraws it. The Bomb's fuse and a Stop round's clock are
   deadlines, so they come back with the time they really had left.
   Anything that renders from state needs a `render…()` that rebuilds from
   `appState` alone — not one that only appends as events happen.
+- **ثلاث جولات** keeps its deck, round, teams, whose turn it is and the scores in
+  `appState.timesup` (`timesUpSave` after every move, emptied at the end), and a
+  reload comes back to **the current turn's ready card**, not the middle of its
+  clock: the cards already guessed stay guessed and scored, the time that was
+  left is not kept - as بدون كلام's relay comes back to its handover card.
 - **Not restorable** (Charades, Describe It, Just One, Who Am I, the reaction
   test): these are timed, and the remaining time is not persisted. Resuming would
   be a lie, so the branch returns to that game's setup screen and calls
@@ -8412,8 +8491,13 @@ popup opened next, the history (`navReconcile` counts
 `.modal-overlay:not(.hidden)`) and the clocks all see it closed - and
 `modalExitGhost` lays a copy over it that scales down and fades
 (`.modal-overlay--ghost`: no ids, no taps, not a `.modal-overlay`), removed by
-its animation and by a timer. Nothing when motion is off. A popup hidden by
-adding `hidden` directly just vanishes, as before.
+its animation and by a timer. Nothing when motion is off. **Every popup closes
+through them** (26 Sep 2026): the seven that were hidden by adding `hidden`
+directly (the reorder list, the switch and its confirm, the mid-game player, the
+status edit, the timeout sheet, the countries list) call `closeModal` now, and
+the edge swipe's close of a popup with no id lays the ghost itself. Only the
+start-up sweep in `initializeApp` hides them plainly (nothing is on screen yet).
+A new popup is closed with `closeModal(id)`, never `classList.add('hidden')`.
 
 **Popups are centred dialogs, and live under `<body>`.** `hoistModals()` in
 `JS_Core.html` moves every `.modal-overlay` there at start-up: most are written

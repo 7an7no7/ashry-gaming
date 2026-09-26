@@ -43,7 +43,7 @@ const GAME_CATALOG = [
   { id: 'mafia',      icon: '🕴️',  title: 'setup_mafia',      desc: 'cat_mafia',      accent: 'rose',   players: [5, 12], mins: 25, modes: ['room', 'tv'], faceToFace: true, group: 'deduce', open: () => roomCreateFor('mafia') },
   { id: 'twotruths',  icon: '🙊',   title: 'setup_twotruths',  desc: 'cat_twotruths',  accent: 'rose',   players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('twotruths') },
   { id: 'mind',       icon: '💯',   title: 'setup_mind',       desc: 'cat_mind',       accent: 'teal',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', open: () => roomCreateFor('mind') },
-  { id: 'guesswho',   icon: 'art:guesswho', title: 'setup_guesswho', desc: 'cat_guesswho', accent: 'teal', players: [2, 12], mins: 10, modes: ['room', 'tv'],       group: 'deduce', open: () => roomCreateFor('guesswho') },
+  { id: 'guesswho',   icon: 'art:guesswho', title: 'setup_guesswho', desc: 'cat_guesswho', accent: 'teal', players: [1, 12], mins: 10, modes: ['room', 'tv'],       group: 'deduce', open: () => roomCreateFor('guesswho') },
   { id: 'timeline',   icon: '🕰️',  title: 'setup_timeline',   desc: 'cat_timeline',   accent: 'amber',  players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'quiz',   open: () => roomCreateFor('timeline') },
 
   /* --- كلمات، رسم وتمثيل --- */
@@ -78,11 +78,11 @@ const GAME_CATALOG = [
 
   /* --- ورق وطاولة --- */
   { id: 'screw',      icon: '🃏',   title: 'setup_screw',      desc: 'cat_screw',      accent: 'blue',   players: [2, 12], mins: 30, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-screw',     open: () => setView('setup-screw') },
-  { id: 'uno',        icon: 'art:uno',   title: 'setup_uno',        desc: 'cat_uno',        accent: 'rose',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('uno') },
-  { id: 'domino',     icon: 'art:domino',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [2, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
+  { id: 'uno',        icon: 'art:uno',   title: 'setup_uno',        desc: 'cat_uno',        accent: 'rose',   players: [1, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('uno') },
+  { id: 'domino',     icon: 'art:domino',   title: 'setup_domino',     desc: 'cat_domino',     accent: 'green',  players: [1, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-domino',    open: () => setView('setup-domino') },
   { id: 'ludo',       icon: 'art:ludo',  title: 'setup_ludo',       desc: 'cat_ludo',       accent: 'amber',  players: [1, 4],  mins: 20, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-ludo',      open: () => setupLudo() },
   { id: 'bank',       icon: 'art:bank',  title: 'setup_bank',       desc: 'cat_bank',       accent: 'green',  players: [1, 6],  mins: 45, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-bank',      open: () => setupBank() },
-  { id: 'doubt',      icon: 'art:doubt', title: 'setup_doubt',      desc: 'cat_doubt',      accent: 'violet', players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('doubt') },
+  { id: 'doubt',      icon: 'art:doubt', title: 'setup_doubt',      desc: 'cat_doubt',      accent: 'violet', players: [1, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('doubt') },
   { id: 'chess4',     icon: 'art:chess4', title: 'setup_chess4',   desc: 'cat_chess4',     accent: 'green',  players: [1, 4],  mins: 30, modes: ['room', 'tv'],           group: 'table', hub: 'shatranj', open: () => roomCreateFor('chess4') },
   { id: 'estimation', icon: 'art:estimation', title: 'setup_estimation', desc: 'cat_estimation', accent: 'green',  players: [1, 4],  mins: 45, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('estimation') },
   { id: 'oldmaid',    icon: 'art:oldmaid', title: 'setup_oldmaid',  desc: 'cat_oldmaid',    accent: 'amber',  players: [2, 8],  mins: 10, modes: ['room', 'tv'],           group: 'table', open: () => roomCreateFor('oldmaid') },
@@ -515,10 +515,16 @@ function tonightCandidates(count, how) {
     if (count === '3-5') return min <= 5 && max >= 3;
     return max >= 6;
   };
-  const mode = count === '1' ? 'device' : how;
+  // Alone: a game on this phone, or a room game that computer players fill
+  // (its catalog minimum is 1 exactly when they can, 26 Sep 2026).
+  const fitsMode = (g) => {
+    const modes = g.modes || [];
+    if (count === '1') return modes.indexOf('device') !== -1 || modes.indexOf('room') !== -1;
+    return modes.indexOf(how) !== -1;
+  };
   const rank = (id) => { const i = TONIGHT_ORDER.indexOf(id); return i === -1 ? 999 : i; };
   return GAME_CATALOG
-    .filter(g => g.group !== 'tools' && !g.hub && fitsCount(g) && (g.modes || []).indexOf(mode) !== -1)
+    .filter(g => g.group !== 'tools' && !g.hub && fitsCount(g) && fitsMode(g))
     .sort((a, b) => rank(a.id) - rank(b.id));
 }
 

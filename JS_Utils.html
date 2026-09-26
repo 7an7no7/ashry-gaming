@@ -478,7 +478,7 @@ function setupMoreToggled(el) {
   
   function saveNewOrder() {
       selectedReorderIndex = null; // Clean up memory
-      document.getElementById('reorder-modal').classList.add('hidden');
+      closeModal('reorder-modal');
       
       if (reorderContext === 'active-order') {
           // «↕ رتّب» on a setup screen: the order the round is played in.
@@ -1075,7 +1075,7 @@ function setupMoreToggled(el) {
   function confirmSwitch(targetRow, targetCol, targetName) {
     switchData.targetRow = targetRow;
     switchData.targetCol = targetCol;
-    document.getElementById('switch-modal').classList.add('hidden');
+    closeModal('switch-modal');
     document.getElementById('confirm-monkey-name').innerText = switchData.monkeyName;
     document.getElementById('confirm-target-name').innerText = targetName;
     
@@ -1091,7 +1091,7 @@ function setupMoreToggled(el) {
     document.getElementById('switch-confirm-modal').classList.remove('hidden');
   }
   function executeSwitch() {
-    document.getElementById('switch-confirm-modal').classList.add('hidden');
+    closeModal('switch-confirm-modal');
     const monkeyIdx = appState.monkey.players.findIndex(p => p.row == switchData.monkeyRow);
     const targetIdx = appState.monkey.players.findIndex(p => p.row == switchData.targetRow);
     if (monkeyIdx > -1 && targetIdx > -1) {
@@ -1120,7 +1120,7 @@ function setupMoreToggled(el) {
             chip.className = 'bg-slate-100 dark:bg-slate-800 p-2 px-4 rounded-full text-xs font-bold cursor-pointer';
             chip.innerText = name;
             chip.onclick = () => {
-                document.getElementById('add-midgame-modal').classList.add('hidden');
+                closeModal('add-midgame-modal');
                 addLocalPlayer(name);
             };
             listContainer.appendChild(chip);
@@ -1142,7 +1142,7 @@ function setupMoreToggled(el) {
     const name = document.getElementById('midgame-player-name').value.trim();
     if(!name) return;
     document.getElementById('midgame-player-name').value = '';
-    document.getElementById('add-midgame-modal').classList.add('hidden');
+    closeModal('add-midgame-modal');
     // Local and instant. This used to wait on a spreadsheet write before the
     // name was usable anywhere else.
     addLocalPlayer(addToPlayerLibrary(name));
@@ -1153,7 +1153,7 @@ function setupMoreToggled(el) {
       document.getElementById('edit-status-modal').classList.remove('hidden');
   }
   function submitStatusUpdate(newCol) {
-      document.getElementById('edit-status-modal').classList.add('hidden');
+      closeModal('edit-status-modal');
       const player = appState.monkey.players.find(p => p.row == editPlayerData.row);
       if (player) {
           player.col = newCol;
@@ -1171,7 +1171,7 @@ function setupMoreToggled(el) {
 
   function handleTimeoutAction(action) {
     // 1. Hide the modal
-    document.getElementById('timeout-modal').classList.add('hidden');
+    closeModal('timeout-modal');
     
     // 2. Decide what to do based on the button clicked
     if (action === 'liar') {
@@ -1194,7 +1194,7 @@ function setupMoreToggled(el) {
           if (searchInput) searchInput.value = '';
           modal.classList.remove('hidden');
       } else {
-          modal.classList.add('hidden');
+          closeModal('countries-modal');
       }
   }
   function renderCountriesList() {

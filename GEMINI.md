@@ -3087,7 +3087,7 @@ the word search), `countUp` for streaks and scores.
   passed each), the rooms and fixes test after the lobby merge. The C: drive
   filled to 0 bytes mid-wave (the owner's own videos and downloads hold most
   of it; my Chrome profiles and stale scratch folders were what could go):
-  the tests run with their temp files on E: now (below).
+  the owner then freed space on C: and the tests run there as before.
 
 ## Building and Running
 
@@ -3219,11 +3219,6 @@ npm run check        # content + i18n
     kept, and Settings → الإصدار says latest, then newer.
   `ONLY=screens,rooms,fixes,site` runs some parts; `CHROME=` points at Chrome.
   About 15 minutes whole.
-- **The C: drive is nearly full on the owner's PC** (26 Sep 2026: 0 bytes free
-  at one point). `test:ui` makes a temp copy of the site and a Chrome profile
-  under `os.tmpdir()`; run it with `TEMP="E:\\ashry-tmp" TMP="E:\\ashry-tmp"`
-  (E: has hundreds of GB free), and point any headless Chrome profile of your
-  own there too. Delete Chrome profiles after every run.
 - **How long each takes**, and which to run (CLAUDE.md step 5): `npm test`
   about 9 minutes (the robots wait out the games' real clocks), `test:ui`
   about 15, `test:live` about 16 (every move crosses the internet). A small

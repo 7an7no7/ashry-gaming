@@ -691,6 +691,15 @@ function roomBotControlsHtml(state, tv) {
     </div>`;
 }
 
+/**
+ * A lobby row's avatar: the name's first letter on the screen's accent (or an
+ * emoji for a computer player or a screen), with the presence dot on its corner.
+ */
+function lobbyAvatarHtml(name, online, emoji) {
+  const letter = emoji || escapeHTML(Array.from(String(name || '?').trim())[0] || '?');
+  return `<span class="lobby-avatar${emoji ? ' lobby-avatar--emoji' : ''}" aria-hidden="true">${letter}<span class="presence-dot ${online ? 'is-online' : ''}"></span></span>`;
+}
+
 /** A computer player's row in the lobby: always here; the host can change its level or take it out. */
 function roomBotRowHtml(state, p, isNew) {
   const t = TRANSLATIONS[appState.lang] || {};
@@ -702,8 +711,8 @@ function roomBotRowHtml(state, p, isNew) {
     ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('removeBot', { playerId: '${jsStringAttr(p.id)}' })" title="${escapeHTML(t.bot_remove || '')}" aria-label="${escapeHTML(t.bot_remove || '')}">✕</button>`
     : '';
   return `
-      <div class="status-row status-row--bot ${isNew ? 'status-row--new' : ''}">
-        <span class="status-row__bot" aria-hidden="true">🤖</span>
+      <div class="status-row status-row--bot lobby-row ${isNew ? 'status-row--new' : ''}">
+        ${lobbyAvatarHtml('', true, '🤖')}
         <div class="status-row__body">
           <div class="status-row__name">${escapeHTML(p.name)}</div>
         </div>
@@ -1057,7 +1066,9 @@ function renderRoomLobby(state) {
   // A new code drops in letter by letter; the same code is left alone.
   if (codeEl && (codeEl.dataset.code !== state.code || codeEl.textContent !== state.code)) {
     codeEl.dataset.code = state.code;
-    codeEl.innerHTML = String(state.code).split('').map((ch, i) => '<span style="--i:' + i + '">' + escapeHTML(ch) + '</span>').join('');
+    const chars = String(state.code).split('');
+    // --n: how many letters, so each letter's slice of the code's gradient (section 40) lines up.
+    codeEl.innerHTML = chars.map((ch, i) => '<span style="--i:' + i + ';--n:' + chars.length + '">' + escapeHTML(ch) + '</span>').join('');
   }
   if (lobbySeen.code !== state.code) { lobbySeen.code = state.code; lobbySeen.ids = null; }
   const joined = lobbySeen.ids ? state.players.filter(p => !lobbySeen.ids.has(p.id)).map(p => p.id) : [];
@@ -1083,14 +1094,14 @@ function renderRoomLobby(state) {
     const hostLabel = appState.lang === 'ar' ? 'المضيف' : 'Host';
     const youLabel = appState.lang === 'ar' ? 'أنت' : 'You';
     list.innerHTML = state.players.map(p => p.bot ? roomBotRowHtml(state, p, joined.indexOf(p.id) !== -1) : `
-      <div class="status-row ${p.online ? '' : 'status-row--out'} ${joined.indexOf(p.id) !== -1 ? 'status-row--new' : ''}">
-        <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
+      <div class="status-row lobby-row ${p.online ? '' : 'status-row--out'} ${joined.indexOf(p.id) !== -1 ? 'status-row--new' : ''} ${p.id === state.hostId ? 'is-host' : ''}">
+        ${lobbyAvatarHtml(p.name, p.online)}
         <div class="status-row__body">
           <div class="status-row__name">${roomNameHtml(state, p)}</div>
         </div>
         <div class="status-row__actions">
           ${p.id === Room.me ? `<span class="badge badge--accent">${youLabel}</span>` : ''}
-          ${p.id === state.hostId ? `<span class="badge">${hostLabel}</span>` : ''}
+          ${p.id === state.hostId ? `<span class="badge lobby-row__host"><span aria-hidden="true">👑</span> ${hostLabel}</span>` : ''}
           ${roomKickButton(state, p, 'btn btn--ghost btn--xs btn--auto')}
         </div>
       </div>`).join('');
@@ -1100,13 +1111,13 @@ function renderRoomLobby(state) {
   if (list && (state.screens || []).length) {
     const tt = TRANSLATIONS[appState.lang] || {};
     list.insertAdjacentHTML('beforeend', state.screens.map(sc => `
-      <div class="status-row ${sc.online ? '' : 'status-row--out'}">
-        <span class="presence-dot ${sc.online ? 'is-online' : ''}" aria-hidden="true"></span>
+      <div class="status-row lobby-row lobby-row--screen ${sc.online ? '' : 'status-row--out'} ${sc.id === state.hostId ? 'is-host' : ''}">
+        ${lobbyAvatarHtml('', sc.online, '📺')}
         <div class="status-row__body">
-          <div class="status-row__name">📺 ${tt.tv_screen_badge || ''}</div>
+          <div class="status-row__name">${tt.tv_screen_badge || ''}</div>
         </div>
         <div class="status-row__actions">
-          ${sc.id === state.hostId ? `<span class="badge">${appState.lang === 'ar' ? 'المضيف' : 'Host'}</span>` : ''}
+          ${sc.id === state.hostId ? `<span class="badge lobby-row__host"><span aria-hidden="true">👑</span> ${appState.lang === 'ar' ? 'المضيف' : 'Host'}</span>` : ''}
         </div>
       </div>`).join(''));
   }
@@ -1347,7 +1358,7 @@ function renderRoomHub(state) {
         <span class="section__rule"></span>
       </div>
       ${roomHubGroup ? roomHubBackHtml(t, false) : chips}
-      <div class="game-grid">
+      <div class="game-grid room-posters">
         ${roomHubTiles().map(tile => {
           const g = tile.g;
           const enough = count >= tile.min;
@@ -1355,14 +1366,16 @@ function renderRoomHub(state) {
           const isF2F = !!(cat && cat.faceToFace);
           const showHint = roomHubLocation === 'apart' && isF2F;
           const hint = showHint ? (t.room_hub_facetoface || 'أحسن وانتوا مع بعض') : '';
-          const need = !enough ? `${tile.min}+` : '';
-          const badgeText = hint ? (need ? `${need} · ${hint}` : hint) : need;
-          const badge = badgeText ? `<div class="game-card__need">${badgeText}</div>` : '';
+          // A tile the room can't start yet says how many more it needs, in words.
+          const need = !enough ? (t.room_need_more ? t.room_need_more.replace('{n}', String(tile.min - count)) : `${tile.min}+`) : '';
+          const badge = need ? `<div class="game-card__need">${escapeHTML(need)}</div>` : '';
+          const hintEl = hint ? `<div class="game-card__hint">${escapeHTML(hint)}</div>` : '';
           return `
-            <div class="game-card ${enough ? '' : 'is-disabled'}" data-accent="${g.accent}"
+            <div class="game-card room-poster ${enough ? '' : 'is-disabled'} ${tile.open ? 'room-poster--family' : ''}" data-accent="${g.accent}"
                  ${enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomAct('chooseGame', { game: '${g.id}' })"`) : ''}>
               <div class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</div>
               <div class="game-title">${escapeHTML(roomHubTileName(tile, t))}</div>
+              ${hintEl}
               ${badge}
             </div>`;
         }).join('')}

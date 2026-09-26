@@ -218,6 +218,7 @@ function renderRoomTv(state) {
   if (lobby) {
     tvClock(null);
     if (rebuilt) renderJoinQR('tv-qr', roomJoinUrl(state.code));
+    tvHubFit();
   } else if (game && game.after) {
     game.after(state, rebuilt);
   }
@@ -309,6 +310,33 @@ function tvClock(id, endsAt) {
 
 /* --- lobby ------------------------------------------------------------------- */
 
+/** The section of the home a room game sits in (chess's room id is the clock tool's in the catalog). */
+function tvHubGroupOf(id) {
+  const cat = typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[id === 'chess' ? 'shatranj' : id] : null;
+  return cat ? cat.group : '';
+}
+
+/**
+ * The host TV's list of games is posters (section 40 of Style.html), never
+ * narrower than 7rem so a name reads from the sofa. When they don't all fit,
+ * the list scrolls in its own box while the QR, the code and the players stay
+ * put; this marks the box while there is more below, which draws a fade.
+ */
+function tvHubFit() {
+  const box = document.querySelector('#view-room-tv .tv-hub-box');
+  if (!box) return;
+  const sc = box.querySelector('.tv-hub-scroll');
+  if (!sc) return;
+  const mark = () => box.classList.toggle('has-more', sc.scrollHeight - sc.scrollTop - sc.clientHeight > 2);
+  if (!sc.dataset.fitWatched) { sc.dataset.fitWatched = '1'; sc.addEventListener('scroll', mark, { passive: true }); }
+  mark();
+}
+let tvHubFitFrame = 0;
+window.addEventListener('resize', () => {
+  cancelAnimationFrame(tvHubFitFrame);
+  tvHubFitFrame = requestAnimationFrame(tvHubFit);
+});
+
 function tvLobbySig(state) {
   return [
     state.code,
@@ -352,21 +380,39 @@ function tvLobby(state, t) {
     control = `${chosen}${people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
   } else if (!state.game) {
     const count = state.players.length;
-    control = `
-      ${roomHubBackHtml(t, true)}
-      <div class="tv-hub">
-        ${roomHubTiles().map(tile => {
-          const g = tile.g;
-          const enough = count >= tile.min;
-          const act = tile.open ? `roomHubOpen('${tile.open}')` : `roomAct('chooseGame', { game: '${g.id}' })`;
-          return `
-            <button class="tv-hub__game" data-accent="${g.accent}" ${enough ? `onclick="${act}"` : 'disabled'}>
+    const tileHtml = (tile) => {
+      const g = tile.g;
+      const enough = count >= tile.min;
+      const act = tile.open ? `roomHubOpen('${tile.open}')` : `roomAct('chooseGame', { game: '${g.id}' })`;
+      return `
+            <button class="tv-hub__game${tile.open ? ' tv-hub__game--family' : ''}" data-accent="${g.accent}" ${enough ? `onclick="${act}"` : 'disabled'}>
               <span class="tv-hub__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
               <span class="tv-hub__name">${escapeHTML(roomHubTileName(tile, t))}</span>
-              ${enough ? '' : `<span class="tv-hub__need">${tile.min}+</span>`}
+              ${enough ? '' : `<span class="tv-hub__need">${escapeHTML(t.room_need_more ? t.room_need_more.replace('{n}', String(tile.min - count)) : tile.min + '+')}</span>`}
             </button>`;
-        }).join('')}
-      </div>`;
+    };
+    // Under the home's section heads (CATALOG_GROUPS), so a host finds a game
+    // by kind; a family opened (chess's ways) is one list of its own.
+    const tiles = roomHubTiles();
+    let list;
+    if (roomHubGroup || typeof CATALOG_GROUPS === 'undefined') {
+      list = `<div class="tv-hub">${tiles.map(tileHtml).join('')}</div>`;
+    } else {
+      const groups = CATALOG_GROUPS.map(gr => ({ gr: gr, tiles: [] }));
+      const more = { gr: null, tiles: [] };
+      tiles.forEach(tile => {
+        const found = groups.find(x => x.gr.id === tvHubGroupOf(tile.g.id));
+        (found || more).tiles.push(tile);
+      });
+      list = groups.concat([more]).filter(x => x.tiles.length).map(x => `
+        <section class="tv-hub__sec">
+          ${x.gr ? `<h3 class="tv-hub__head"><span aria-hidden="true">${x.gr.icon}</span> ${escapeHTML(t[x.gr.title] || x.gr.id)}</h3>` : ''}
+          <div class="tv-hub">${x.tiles.map(tileHtml).join('')}</div>
+        </section>`).join('');
+    }
+    control = `
+      ${roomHubBackHtml(t, true)}
+      <div class="tv-hub-box"><div class="tv-hub-scroll">${list}</div></div>`;
   } else {
     const game = ROOM_GAMES[state.game];
     control = `

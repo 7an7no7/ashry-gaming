@@ -75,8 +75,8 @@ function openSkillBalancer() {
         }
 
         list.innerHTML += `
-        <div class="flex justify-between items-center bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-            <span class="font-bold text-slate-700 dark:text-white truncate w-24">${escapeHTML(p)}</span>
+        <div class="flex justify-between items-center plate-well">
+            <span class="font-bold tx-strong truncate w-24">${escapeHTML(p)}</span>
             <div class="flex gap-1" id="stars-${escapeHTML(p)}">${starsHtml}</div>
         </div>`;
     });
@@ -1083,7 +1083,7 @@ function joPaintResult() {
     const t = TRANSLATIONS[appState.lang] || {};
     const total = jo.total || joRoundsOf();
     const round = Math.min(jo.round || 1, total);
-    const tally = `<div class="cn-score"><span class="cn-score__role">${escapeHTML(t.round || '')} ${ltrFrac(round, total)}</span><span class="badge badge--accent">✅ <span class="metric">${jo.score || 0}</span></span></div>`;
+    const tally = playChipsHtml([{ label: t.round || '', value: ltrFrac(round, total) }, { label: '✅', value: jo.score || 0, plain: true }]);
 
     if (jo.phase === 'final') {
         el.innerHTML = `
@@ -1091,7 +1091,7 @@ function joPaintResult() {
             <div class="metric metric--lg metric--accent" dir="ltr"><span id="jo-final-score">${jo.score || 0}</span> / ${total}</div>
             <p class="sheet__subtitle">${escapeHTML(joRating(jo.score || 0, total, t))}</p>
             <div class="btn-stack" style="margin-top: var(--sp-4)">
-                <button onclick="startJustOneGame(true)" class="btn btn--primary btn--lg">${escapeHTML(t.play_again || '')}</button>
+                <button onclick="startJustOneGame(true)" class="btn btn--primary btn--go btn--lg">${escapeHTML(t.play_again || '')}</button>
                 <button onclick="setView('setup-justone')" class="btn btn--ghost">${escapeHTML(t.exit || '')}</button>
             </div>`;
         const scoreEl = document.getElementById('jo-final-score');
@@ -1117,9 +1117,9 @@ function joPaintResult() {
     }
 
     el.innerHTML = `${tally}${word}
-        <div class="grid grid-cols-2 gap-3">
-            <button onclick="joFinishRound(true)" class="btn btn--primary">${escapeHTML(t.got_it_btn || '')}</button>
-            <button onclick="joFinishRound(false)" class="btn btn--danger">${escapeHTML(t.missed_it_btn || '')}</button>
+        <div class="btn-row btn-row--fit">
+            <button onclick="joFinishRound(true)" class="btn btn--success btn--lg">${escapeHTML(t.got_it_btn || '')}</button>
+            <button onclick="joFinishRound(false)" class="btn btn--danger btn--lg">${escapeHTML(t.missed_it_btn || '')}</button>
         </div>`;
 }
 

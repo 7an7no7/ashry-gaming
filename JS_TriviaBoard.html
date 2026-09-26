@@ -144,7 +144,7 @@ function paintTriviaSetup() {
     <label class="field__label">⏸️ ${escapeHTML(t.tb_unfinished || 'لعبة لسه ما خلصتش')}</label>
     <div class="tb-scores tb-scores--final">
       <div class="tb-team tb-team--a"><div class="tb-team__name">${escapeHTML(tbTeamName(0))}</div><div class="tb-team__score">${s.teams[0].score}</div></div>
-      <div class="tb-round"><span class="eyebrow">${escapeHTML(t.tb_round || '')}</span><span class="tb-round__value">${s.round} / ${s.rounds}</span></div>
+      <div class="tb-round"><span class="eyebrow">${escapeHTML(t.tb_round || '')}</span><span class="tb-round__value">${ltrFrac(s.round, s.rounds)}</span></div>
       <div class="tb-team tb-team--b"><div class="tb-team__name">${escapeHTML(tbTeamName(1))}</div><div class="tb-team__score">${s.teams[1].score}</div></div>
     </div>
     <button type="button" class="btn btn--secondary" onclick="resumeTriviaBoard()">▶ ${escapeHTML(t.solo_continue || 'كمّل اللعبة')}</button>`;
@@ -298,7 +298,7 @@ function renderTriviaBoard() {
         ${team(0)}
         <div class="tb-round">
           <span class="eyebrow">${t.tb_round || 'الجولة'}</span>
-          <span class="tb-round__value">${s.round} / ${s.rounds}</span>
+          <span class="tb-round__value">${ltrFrac(s.round, s.rounds)}</span>
         </div>
         ${team(1)}
       </div>
@@ -388,7 +388,7 @@ function paintTriviaActions() {
     return;
   }
   const judge = `
-    <div class="btn-row">
+    <div class="btn-row btn-row--fit">
       <button class="btn btn--success btn--lg" onclick="judgeTriviaCell(true)">✅ ${t.tb_right || 'صح'}</button>
       <button class="btn btn--danger-soft btn--lg" onclick="judgeTriviaCell(false)">❌ ${t.tb_wrong || 'غلط'}</button>
     </div>`;
@@ -411,7 +411,7 @@ function paintTriviaActions() {
       <span class="eyebrow">${escapeHTML(t.tb_answering || 'بيجاوب:')}</span>
       <div class="segmented" role="group">${chip(0)}${chip(1)}</div>
     </div>${judge}
-    <div class="btn-row">
+    <div class="btn-row btn-row--fit">
       <button class="btn btn--ghost" onclick="revealTriviaAnswer()">👁️ ${t.tb_show_answer || 'إظهار الإجابة'}</button>
       <button class="btn btn--ghost" onclick="closeTriviaCell()">${t.tb_back || 'رجوع'}</button>
     </div>`;

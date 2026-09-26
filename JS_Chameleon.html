@@ -165,10 +165,10 @@ function revealChameleonSecret() {
   const t = TRANSLATIONS[appState.lang] || {};
 
   if (isChameleon) {
-    cardTitle.innerText = '🦎 ' + (t.cham_you_are || '');
+    cardTitle.innerHTML = '<span class="hold-card__art">' + iconHtml('art:chameleon') + '</span> ' + escapeHTML(t.cham_you_are || '');
     cardDetail.innerHTML = `<p class="text-sm font-semibold opacity-90">${escapeHTML(t.cham_you_hint || '')}</p>`;
   } else {
-    cardTitle.innerText = '🕵️ ' + (t.cham_civilian || 'مواطن عادي');
+    cardTitle.textContent = (t.cham_civilian || 'مواطن عادي');
     cardDetail.innerHTML = `
       <div class="space-y-2">
         <div class="eyebrow">${escapeHTML(t.cham_coord_word || 'الإحداثيات والكلمة السرية')}</div>
@@ -196,7 +196,7 @@ function startChameleonTablePlay() {
   const turnsList = document.getElementById('chameleon-turn-order');
   if (turnsList) {
     turnsList.innerHTML = chameleonState.players.map((p, idx) => `
-      <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold ${idx === 0 ? 'bg-amber-500 text-black shadow' : 'bg-black/10 dark:bg-white/10'}">
+      <div class="chip play-chip ${idx === 0 ? 'play-chip--on' : 'chip--plain'}">
         <bdi>${idx + 1}.</bdi>
         <span>${escapeHTML(p)}</span>
       </div>
@@ -317,23 +317,26 @@ function finishChameleonGame(wasCaught, chameleonGuessedWord) {
 
   if (chameleonWon) {
     playSound('alarm');
-    titleEl.innerText = '🦎 ' + (t.cham_wins || 'الحرباء كسبت!');
+    titleEl.innerHTML = '<span class="title-art">' + iconHtml('art:chameleon') + '</span> ' + escapeHTML(t.cham_wins || 'الحرباء كسبت!');
     titleEl.className = "sheet__title tx-warning";
   } else {
     playSound('success');
-    confetti({ particleCount: 150 });
+    afterReveal(detailEl, () => confetti({ particleCount: 150 }));
     titleEl.innerText = '🎉 ' + (t.table_wins || 'الطاولة كسبت!');
     titleEl.className = "sheet__title tx-success";
   }
 
   const board = chameleonState.players.map(p => ({ id: p, name: p, score: chameleonState.scores[p] || 0 }))
     .sort((a, b) => b.score - a.score);
+  const cover = spyRevealParts(['cham1', chameleonState.scoreId, cham, chameleonState.accusedPlayer, chameleonState.secretWord].join('|'), t.reveal_chameleon_was);
   detailEl.innerHTML = `
+    <div class="result-reveal ${cover.cls}" ${cover.attrs}>${cover.cover}
     <p class="text-base mb-4">${escapeHTML(summary)}</p>
-    <div class="p-4 rounded-xl bg-black/5 dark:bg-white/5 space-y-1 text-sm">
+    <div class="plate-well space-y-1 text-sm">
       ${!wasCaught ? `<div><b>${escapeHTML(t.cham_accused || '')}:</b> ${escapeHTML(chameleonState.accusedPlayer)}</div>` : ''}
       <div><b>${escapeHTML(t.secret_word || '')}:</b> ${escapeHTML(chameleonState.secretWord)} (<span dir="ltr">${chameleonState.secretCoord}</span>)</div>
       <div><b>${escapeHTML(t.setup_chameleon || '')}:</b> ${escapeHTML(cham)}</div>
+    </div>
     </div>
     <div class="modal-section">${renderScoreboard(board)}</div>
   `;

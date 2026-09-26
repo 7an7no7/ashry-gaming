@@ -194,11 +194,12 @@
       const spy = !undercover && player.role === 'Imposter';
       wordDiv.innerText = undercover
           ? (player.role === 'Imposter' ? appState.imposter.pairOther : appState.imposter.secretWord)
-          : (spy ? (appState.lang === 'ar' ? "🕵️‍♂️ أنت الجاسوس!" : "🕵️‍♂️ You are the Imposter!")
+          : (spy ? (appState.lang === 'ar' ? "أنت الجاسوس!" : "You are the Imposter!")
                  : appState.imposter.secretWord);
+      if (spy) wordDiv.insertAdjacentHTML('afterbegin', '<span class="hold-card__art">' + iconHtml('art:imposter') + '</span> ');
       // Tokens, not palette classes: green-700 on the dark card was 2.6:1, and
       // overwriting className also dropped the card's own sizing.
-      wordDiv.className = 'metric metric--lg ' + (spy ? 'tx-danger' : 'tx-success');
+      wordDiv.className = 'hold-card__word ' + (spy ? 'tx-danger' : 'tx-success');
       if (card) card.classList.toggle('is-spy', spy);
   }
 
@@ -306,19 +307,25 @@
       const pairOtherHtml = undercover && appState.imposter.pairOther ? `
         <div class="mb-4">
             <div class="eyebrow">${appState.lang === 'ar' ? 'كلمة المختلف' : 'Undercover Word'}</div>
-            <div class="metric metric--md tx-danger">${escapeHTML(appState.imposter.pairOther)}</div>
+            <div class="result-word tx-danger">${escapeHTML(appState.imposter.pairOther)}</div>
         </div>
       ` : '';
 
+      const t = TRANSLATIONS[appState.lang] || {};
+      const spyCount = appState.imposter.players.filter(p => p.role === 'Imposter').length;
+      const cover = spyRevealParts(['imp1', appState.imposter.secretWord, imposters, appState.imposter.revealIndex].join('|'),
+          spyCount > 1 ? t.reveal_spies_were : t.reveal_spy_was);
       document.getElementById('winners-list').innerHTML = `
+        <div class="result-reveal ${cover.cls}" ${cover.attrs}>${cover.cover}
         <div class="mb-4">
             <div class="eyebrow">${wordTitle}</div>
-            <div class="metric metric--md tx-success">${escapeHTML(appState.imposter.secretWord)}</div>
+            <div class="result-word tx-success">${escapeHTML(appState.imposter.secretWord)}</div>
         </div>
         ${pairOtherHtml}
         <div>
             <div class="eyebrow">${impTitle}</div>
-            <div class="metric metric--md tx-danger">${imposters}</div>
+            <div class="result-word tx-danger">${imposters}</div>
+        </div>
         </div>
       `;
       

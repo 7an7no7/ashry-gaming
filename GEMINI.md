@@ -3113,6 +3113,31 @@ the word search), `countUp` for streaks and scores.
   whose first child is a label was styled as an option row by section 39's
   `div:has(> .field__label:first-child)` (the team generator's whole card
   went grey) - that selector now skips `.card`.
+- **26 Sep 2026, the arcade look's design review: the one-phone party games**
+  (section 42 of `Style.html`, "ARCADE: ONE-PHONE GAMES"). The face-down role
+  card of الجاسوس, الحرباء and الموقع السري is a poster in the game's colour
+  (`.hold-card--poster`: the drawn icon big, the instruction in white over a
+  fade; the back the card's paper with a band of the colour, the one height
+  for every role kept), and من أنا؟ / كلمة واحدة's pass screens the same
+  poster (`.pass-poster`, icon beside the name on a phone's side). The
+  one-phone results of the three spy games turn over with `spyRevealParts`
+  as the rooms' do (keys `cham1`, `spy1`, `imp1`; confetti through
+  `afterReveal`). Every slate box of these screens is a token class now
+  (`.plate-well` for options and summaries, `.card--party` for the
+  بدون كلام / أوصف لي card, `.btn--neutral` / `.btn--success` for تخطي / صح,
+  `.metric` timers); the night stages (مين يبدأ, على راسك, رد الفعل) are
+  `--night`, the dark theme's ground. `.btn--go` is the Start bar's amber
+  (section 39) for the buttons that start play again (لعبة جديدة, جولة
+  جديدة, ماتش كمان, ابدأ الدور); `.btn-row--fit` keeps a row's buttons one
+  line each; `playChipsHtml` (`JS_TeamRelay.html`) is the round / score
+  strip as pill chips. أوصف لي starts from two amber Start buttons (60 / 90)
+  and its card fits a phone's side; دوري المعرفة's round is `ltrFrac`; the
+  podium never puts a 0 on a step once someone scored, and its place number
+  inherits the step's ink; a choice of six or more on a setup wraps into
+  boxes at 375 (شطرنج's clocks); ربع قرد's Arabic keys are four rows of 8
+  (`monkeyKeyRows`); no confetti on a turn that guessed nothing; drawn icons
+  on the spy buttons and cards (`btn__art`, new keys `*_btn` without the
+  emoji, since `data-i18n` rewrites a button's whole text).
 
 ## Building and Running
 

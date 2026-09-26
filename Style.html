@@ -5165,7 +5165,7 @@ body.has-audience .shell__main { --main-pb: 9rem; }
   z-index: var(--z-full-top);
   display: flex;
   flex-direction: column;
-  background: #0f172a;
+  background: var(--night);
   color: #ffffff;
   touch-action: none;
   user-select: none;
@@ -5189,7 +5189,7 @@ body.has-audience .shell__main { --main-pb: 9rem; }
   position: relative;
   flex: 1;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 40%, #1e293b, #0f172a 70%);
+  background: radial-gradient(circle at 50% 40%, var(--night-3), var(--night) 70%);
   touch-action: none;
 }
 .chooser__hint {
@@ -7753,7 +7753,7 @@ button.herd-group { cursor: pointer; }
   padding: var(--safe-top) 0 var(--safe-bottom);
   transition: background-color 180ms ease-out;
 }
-.hu-stage[data-phase="countdown"], .hu-stage[data-phase="play"] { background: #0f172a; color: #ffffff; touch-action: none; user-select: none; -webkit-user-select: none; }
+.hu-stage[data-phase="countdown"], .hu-stage[data-phase="play"] { background: var(--night); color: #ffffff; touch-action: none; user-select: none; -webkit-user-select: none; }
 /* The table sees a flash of green for right and amber for pass, in both themes. */
 .hu-stage[data-flash="right"] { background: #15803d; color: #ffffff; }
 .hu-stage[data-flash="pass"] { background: #b45309; color: #ffffff; }
@@ -16267,7 +16267,7 @@ body.dark::before {
 /* --- Buttons: the primary glows; Start is amber --- */
 .btn { font-family: var(--font-display); }
 .btn--primary { box-shadow: 0 10px 24px -8px var(--accent-glow), var(--sh-inset); }
-.view-actions--start .btn--primary,
+.view-actions--start .btn--primary, .btn--go,
 .lobby-start .btn--primary,
 .home-start__room {
   background: linear-gradient(180deg, var(--pop), var(--pop-hover));
@@ -16275,7 +16275,7 @@ body.dark::before {
   border-color: transparent;
   box-shadow: 0 12px 28px -8px var(--pop-glow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
-.view-actions--start .btn--primary:active,
+.view-actions--start .btn--primary:active, .btn--go:active,
 .lobby-start .btn--primary:active,
 .home-start__room:active { box-shadow: 0 4px 12px -6px var(--pop-glow); background: linear-gradient(180deg, var(--pop-hover), var(--pop-hover)); }
 .filter-chip { height: 2.5rem; border-radius: var(--r-md); }
@@ -17393,5 +17393,214 @@ body.dark .arb__badge { background: rgba(167, 139, 250, 0.18); border-color: rgb
   text-align: center;
 }
 @media (prefers-reduced-motion: reduce) { .tv-hub-box::after { transition: none; } }
+
+/* ==========================================================================
+   42. ARCADE: ONE-PHONE GAMES - the design review of 26 Sep 2026 went through
+   the games played on one phone in the arcade look and found the pieces the
+   look had not reached: slate boxes, cards that still looked like forms, a
+   counter reading backwards, buttons that wrapped. What each game shares is
+   here; a game's own board keeps its own section.
+   ========================================================================== */
+/* The night stage of the full-screen games (مين يبدأ, على راسك, رد الفعل):
+   the dark theme's ground in both themes, never the old slate navy. */
+:root { --night: #0d0b16; --night-2: #1a1630; --night-3: #241e42; }
+#view-play-reaction, #view-play-reaction .bg-gray-900 { background-color: var(--night); }
+
+/* A well: a quiet box of the page's own paper for options and summaries
+   (it replaces the slate boxes of من أنا؟'s options, كلمة واحدة's clues, the
+   results' summaries and ربع قرد's log). */
+.plate-well { padding: var(--sp-4); border-radius: var(--r-lg); background: var(--surface-3); border: 1px solid var(--border); }
+.plate-well--flush { padding: 0; overflow: hidden; }
+.plate-well__head { background: var(--surface-2); }
+.plate-well__rows > tr + tr, .gn-history { border-top: 1px solid var(--border); }
+
+/* A face-down role card is a poster in the game's colour: its drawn icon big,
+   what to do in white over a fade. Its back is the card's paper with a band of
+   the colour. The card keeps its one height for every role (.hold-card). */
+.hold-card--poster .hold-card__front {
+  position: relative;
+  overflow: hidden;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+  padding: var(--sp-5) var(--sp-4);
+  border: 0;
+  border-radius: var(--r-xl);
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+  color: #ffffff;
+  box-shadow: var(--poster-shadow);
+}
+.hold-card--poster .hold-card__front::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.12), transparent 34%, transparent 46%, var(--poster-fade));
+  pointer-events: none;
+}
+.hold-card--poster .hold-card__icon {
+  position: absolute;
+  inset: 0 0 34%;
+  display: grid;
+  place-items: center;
+  font-size: 5.75rem;
+  filter: drop-shadow(0 16px 22px rgba(0, 0, 0, 0.38));
+}
+.hold-card--poster .hold-card__icon .art-icon { width: 1.2em; height: 1.2em; }
+.hold-card--poster .hold-card__label,
+.hold-card--poster .hold-card__hint { position: relative; z-index: 1; color: #ffffff; text-align: center; }
+.hold-card--poster .hold-card__label { font-family: var(--font-display); }
+.hold-card--poster .hold-card__hint { color: rgba(255, 255, 255, 0.82); }
+.hold-card--poster .hold-card__back {
+  align-items: center;
+  padding: var(--sp-4);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: inset 0 0.625rem 0 var(--accent), var(--sh-3);
+  text-align: center;
+}
+.hold-card--poster .hold-card__back > * { width: 100%; }
+.hold-card--poster .reveal-plate { padding: var(--sp-4); border: 0; background: transparent; box-shadow: none; }
+.hold-card--poster .reveal-plate.is-spy { background: var(--danger-soft); }
+.hold-card__detail { padding: var(--sp-4); border-radius: var(--r-lg); background: var(--surface-2); border: 1px solid var(--border); }
+.hold-card__word { font-family: var(--font-display); font-size: 2rem; font-weight: 900; line-height: 1.2; }
+.hold-card__art, .title-art { display: inline-block; font-size: 1.25em; line-height: 1; vertical-align: -0.2em; }
+.hold-card__art .art-icon, .title-art .art-icon { width: 1.2em; height: 1.2em; }
+
+/* A pass-the-phone screen (من أنا؟, كلمة واحدة) is the same poster, with the
+   name on it. */
+.pass-poster {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+  min-height: 13rem;
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-5) var(--sp-4);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+  color: #ffffff;
+  box-shadow: var(--poster-shadow);
+  text-align: center;
+}
+.pass-poster::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.12), transparent 34%, transparent 46%, var(--poster-fade));
+  pointer-events: none;
+}
+.pass-poster__icon {
+  position: absolute;
+  inset: 0 0 36%;
+  display: grid;
+  place-items: center;
+  font-size: 5.25rem;
+  filter: drop-shadow(0 16px 22px rgba(0, 0, 0, 0.38));
+}
+.pass-poster__icon .art-icon { width: 1.2em; height: 1.2em; }
+.pass-poster__label, .pass-poster__name { position: relative; z-index: 1; margin: 0; color: #ffffff; }
+.pass-poster__label { font-size: var(--fs-sm); font-weight: 700; color: rgba(255, 255, 255, 0.85); }
+.pass-poster__name { font-family: var(--font-display); font-size: 2rem; font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
+#jo-phase-pass > .pass-poster { margin-bottom: 0; }
+
+/* A drawn icon leading a button's words (كشف الجواسيس, اتهام الحرباء). */
+.btn__art { display: inline-flex; font-size: 1.4em; line-height: 1; }
+.btn__art .art-icon { width: 1em; height: 1em; }
+
+/* The card of بدون كلام and أوصف لي: the game's colour as its frame, not a
+   Tailwind palette (slate in the dark). */
+.card--party {
+  border: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-solid));
+  box-shadow: 0 16px 34px -14px var(--accent-glow);
+}
+.party-end-icon { font-size: 4.5rem; line-height: 1; margin: 0 auto var(--sp-3); filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.25)); }
+.party-end-icon .art-icon { width: 1.2em; height: 1.2em; }
+
+/* Buttons sharing a row stay one line each, however long the other's label
+   (دوري المعرفة's «إظهار الإجابة», كلمة واحدة's verdict, خمس ثواني's judge). */
+.btn-row--fit > .btn { flex: 1 1 0; min-width: 0; padding-inline: var(--sp-2); white-space: nowrap; }
+
+/* The small strip over a play screen: pill chips, the number in .metric. */
+.play-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.play-chip { height: 2rem; gap: var(--sp-1); padding-inline: var(--sp-3); font-size: var(--fs-xs); }
+.play-chip .metric { font-size: var(--fs-sm); color: inherit; }
+.play-chip--on { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+
+/* Words at the end of a round are words, not numbers (.metric is for numbers). */
+.result-word { font-family: var(--font-display); font-size: 1.75rem; font-weight: 900; line-height: 1.2; }
+.result-line { font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 800; color: var(--text-strong); }
+.result-line .metric { font-size: 1.75rem; }
+.result-reveal { margin-bottom: var(--sp-4); border-radius: var(--r-lg); }
+
+/* «الترتيب» never touches what is above it. */
+:is(#chameleon-result-detail, #spyfall-result-detail) > .modal-section:not(:first-child),
+[id^="view-play-"] .scoreboard:not(:first-child) { margin-top: var(--sp-4); }
+
+/* A podium's place number on its own ink: .metric's strong text on the
+   winner's accent step was about 3:1. */
+.podium__block .metric { color: inherit; }
+
+/* A choice of six or more (شطرنج's seven clocks) was 35px a box at 375: it
+   wraps into rows of boxes, each at least a finger tall and 3rem wide, the
+   chosen one filled in place of the sliding thumb. */
+@media (max-width: 559px) {
+  [id^="view-setup-"] .segmented:has(> .segmented__item:nth-child(6)) { display: grid; grid-template-columns: repeat(3, minmax(3rem, 1fr)); }
+  [id^="view-setup-"] .segmented:has(> .segmented__item:nth-child(7)) { grid-template-columns: repeat(4, minmax(3rem, 1fr)); }
+  [id^="view-setup-"] .segmented:has(> .segmented__item:nth-child(6))::before { display: none; }
+  [id^="view-setup-"] .segmented:has(> .segmented__item:nth-child(6)) > .segmented__item { min-height: var(--tap); }
+  [id^="view-setup-"] .segmented.has-thumb:has(> .segmented__item:nth-child(6)) > .segmented__item.is-active {
+    background: var(--accent);
+    color: var(--accent-on);
+    box-shadow: 0 6px 14px -6px var(--accent-glow);
+  }
+}
+
+/* ربع قرد's keys: never under 28px wide (the rows are rebalanced to 8). */
+.mk-keypad .key { min-width: 1.75rem; }
+
+/* A sticky bar over a long list (الموقع السري's places, الحرباء's grid)
+   stands on the page, so the cards scrolling under it never show through. */
+#view-play-spyfall > .view-actions,
+#view-play-chameleon > .view-actions { background: linear-gradient(to top, var(--bg) calc(100% - var(--sp-3)), transparent); }
+
+/* أتوبيس كومبليت's table: the column half under the pinned «المجموع» fades
+   into it, so it reads as scrolling, not as a cut. */
+#view-play-stop .stop-td--total::before,
+#view-play-stop .stop-th--total::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 100%;
+  width: 1.75rem;
+  background: linear-gradient(to left, var(--surface-solid), transparent);
+  pointer-events: none;
+}
+html[dir="rtl"] #view-play-stop .stop-td--total::before,
+html[dir="rtl"] #view-play-stop .stop-th--total::before { background: linear-gradient(to right, var(--surface-solid), transparent); }
+
+/* أوصف لي on a phone on its side: the card and its two buttons fit the screen -
+   the target word smaller, the forbidden words side by side. They ran 44px
+   past the foot at 667x375. */
+@media (orientation: landscape) and (max-height: 500px) {
+  #view-play-describe .play-stage__card { padding: var(--sp-3) var(--sp-4); }
+  #desc-main-word { margin-bottom: var(--sp-2); font-size: 1.875rem; }
+  #view-play-describe .play-stage__card .plate-danger { padding: var(--sp-2) var(--sp-3); }
+  #view-play-describe .play-stage__card .plate-danger > .eyebrow { margin-bottom: var(--sp-2); }
+  #desc-forbidden-list { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+  #desc-forbidden-list > * { flex: 1 1 auto; margin: 0; padding: var(--sp-1) var(--sp-3); }
+}
+/* A pass-the-phone poster on a phone on its side: the icon beside the name, so
+   the button stays on the screen. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .pass-poster { display: grid; grid-template-columns: auto minmax(0, auto); justify-content: center; align-items: center; column-gap: var(--sp-4); min-height: 0; margin-bottom: var(--sp-3); padding: var(--sp-3) var(--sp-5); text-align: start; }
+  .pass-poster__icon { position: relative; z-index: 1; inset: auto; grid-row: 1 / span 2; font-size: 3.5rem; }
+  .pass-poster__label { align-self: end; }
+  .pass-poster__name { align-self: start; }
+  .pass-poster::after { background: linear-gradient(180deg, transparent 20%, var(--poster-fade)); }
+}
+@media (prefers-reduced-motion: reduce) { .btn--go { transition: none; } }
 
 </style>

@@ -435,7 +435,8 @@ function spyRevealParts(key, label) {
  */
 function renderPodium(state, board) {
   const all = board || [];
-  const top = all.slice(0, 3);
+  // Nobody stands on a step with 0 once somebody scored.
+  const top = (all[0] && Number(all[0].score) > 0 ? all.filter((p) => Number(p.score) > 0) : all).slice(0, 3);
   if (top.length < 2 || !(Number(top[0].score) > 0)) return '';
   const rankOf = (p) => 1 + all.filter((x) => Number(x.score) > Number(p.score)).length;
   const rise = motionFirst(['podium', roomDealKey(state), state && state.game, JSON.stringify(top)].join('|'));

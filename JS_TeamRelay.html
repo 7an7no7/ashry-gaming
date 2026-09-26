@@ -25,6 +25,13 @@
  * separate runs; only a bare "3/5" stays together). Used by the party games'
  * turn and round counters.
  */
+/** A strip of small pill chips over a play screen: a word, then its number. */
+function playChipsHtml(items) {
+  return '<div class="play-chips">' + items.map((it) =>
+    '<span class="chip ' + (it.plain ? 'chip--plain ' : '') + 'play-chip">' + (it.label ? '<span>' + escapeHTML(it.label) + '</span> ' : '') +
+    '<b class="metric">' + it.value + '</b></span>').join('') + '</div>';
+}
+
 function ltrFrac(a, b) { return String.fromCharCode(0x2066) + a + ' / ' + b + String.fromCharCode(0x2069); }
 
 function relayStart(store, names, turns) {
@@ -58,7 +65,7 @@ function relayHandoverHtml(store, t, startFn) {
         <div class="relay__team relay__team--${team}">${escapeHTML(r.names[team])}</div>
         <p class="field__hint">📱 ${escapeHTML(t.relay_pass_to || '')}</p>
       </div>
-      <button type="button" class="btn btn--primary btn--lg" onclick="${startFn}">${escapeHTML(t.relay_start_turn || '')}</button>
+      <button type="button" class="btn btn--primary btn--go btn--lg" onclick="${startFn}">${escapeHTML(t.relay_start_turn || '')}</button>
     </div>`;
 }
 
@@ -87,7 +94,7 @@ function relaySummaryHtml(store, t, nextFn, exitFn) {
           <div class="metric metric--md metric--accent">${escapeHTML(title)}</div>
         </div>
         ${relayScoresHtml(store, -1)}
-        <button type="button" class="btn btn--primary btn--lg" onclick="${nextFn}">${escapeHTML(t.play_again || '')}</button>
+        <button type="button" class="btn btn--primary btn--go btn--lg" onclick="${nextFn}">${escapeHTML(t.play_again || '')}</button>
         <button type="button" class="btn btn--ghost" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>
       </div>`;
   }
@@ -105,7 +112,7 @@ function relaySummaryHtml(store, t, nextFn, exitFn) {
         <div class="relay__team relay__team--${team}">${escapeHTML(r.names[team])}</div>
         <p class="field__hint">📱 ${escapeHTML(t.relay_pass_to || '')}</p>
       </div>
-      <button type="button" class="btn btn--primary btn--lg" onclick="${nextFn}">${escapeHTML(t.relay_start_turn || '')}</button>
+      <button type="button" class="btn btn--primary btn--go btn--lg" onclick="${nextFn}">${escapeHTML(t.relay_start_turn || '')}</button>
       <button type="button" class="btn btn--ghost btn--sm" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>
     </div>`;
 }

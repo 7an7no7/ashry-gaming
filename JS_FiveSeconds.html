@@ -150,10 +150,10 @@ function paintFive() {
   const t = TRANSLATIONS[appState.lang];
   const who = f.order[f.turn] || '';
   const total = fiveTotalRounds(f);
-  const round = `<div class="cn-score"><span class="cn-score__role">${escapeHTML(t.five_round || '')} ${ltrFrac(Math.min(f.round, total), total)}</span></div>`;
+  const round = playChipsHtml([{ label: t.five_round || '', value: ltrFrac(Math.min(f.round, total), total) }]);
   const last = f.lastName ? `<p class="field__hint" style="text-align:center">${escapeHTML(f.lastName)} ${f.verdict ? '✅' : '❌'} · ${escapeHTML(f.lastPrompt || '')}</p>` : '';
   const judge = `
-    <div class="btn-row" style="margin-top: var(--sp-3)">
+    <div class="btn-row btn-row--fit" style="margin-top: var(--sp-3)">
       <button class="btn btn--success" onclick="fiveJudge(true)">✅ ${escapeHTML(t.five_ok || '')}</button>
       <button class="btn btn--danger-soft" onclick="fiveJudge(false)">❌ ${escapeHTML(t.five_fail || '')}</button>
     </div>`;
@@ -166,7 +166,7 @@ function paintFive() {
         <div class="eyebrow">${escapeHTML(t.five_turn || '')}</div>
         <div class="metric metric--md">${escapeHTML(who)}</div>
         <p class="sheet__subtitle">${escapeHTML(t.five_device_ready || '')}</p>
-        <button class="btn btn--primary btn--lg" onclick="fiveGo()">${escapeHTML(t.five_go || '')}</button>
+        <button class="btn btn--primary btn--go btn--lg" onclick="fiveGo()">${escapeHTML(t.five_go || '')}</button>
       </div>
       ${last}
       ${renderScoreboard(fiveBoard())}
@@ -193,7 +193,7 @@ function paintFive() {
     </div>
     ${renderScoreboard(board)}
     <div class="btn-stack">
-      <button class="btn btn--primary btn--lg" onclick="fiveMoreRound()">➕ ${escapeHTML(t.five_more_round || 'جولة كمان بنفس النقط')}</button>
+      <button class="btn btn--primary btn--go btn--lg" onclick="fiveMoreRound()">➕ ${escapeHTML(t.five_more_round || 'جولة كمان بنفس النقط')}</button>
       <button class="btn btn--secondary" onclick="startFiveGame()">${escapeHTML(t.play_again || '')}</button>
       <button class="btn btn--ghost" onclick="setupFiveSeconds()">${escapeHTML(t.exit || '')}</button>
     </div>`;

@@ -3025,6 +3025,19 @@ the word search), `countUp` for streaks and scores.
   headless Chrome at 375×812, 667×375, 1280×720 and the TV at 1920×1080 and
   1280×720, Arabic light and English dark; ثلاث جولات reloaded mid-turn, on a
   ready card and in round 2.
+- **26 Sep 2026, the arcade look's follow-ups** - the owner approved five:
+  no mode icons on the posters; the setup screens' options in the poster
+  look (rows, a pill track, round steppers, the accent chevron); no blur on
+  the posters' badges, and Baloo Bhaijaan 2 loaded only by the card games;
+  sections as shelves on a laptop with «الكل ›»; a poster that lifts under a
+  mouse, the featured poster fading in when its game changes, tool rows as
+  one line with a poster thumb (*The design system*, "The arcade look").
+  Found on the way: every poster was near-black in dark mode (a heavier
+  `body.dark .gcard` from section 17). Looked at in headless Chrome at
+  375×812, 667×375 and 1280×720, Arabic light and English dark: the home, a
+  search and an opened shelf on a laptop, مع بعض, الأدوات, and the setups of
+  الجاسوس, القنبلة, سودوكو, شطرنج (with «خيارات أكتر»), بنك الحظ, بدون كلام
+  and الدومينو (both sides).
 - **26 Sep 2026, the arcade look** - the owner asked for the whole UI style
   rebuilt ("more premium, easy to use"). A first design sheet (three
   re-skins of the same layout) was sent back: "the same design, just
@@ -8241,9 +8254,12 @@ boards keep their own sections untouched. What it is:
 
 - **Every game is a poster** (`catalogCard`, `.gcard`): the game's own colour
   as the ground (a gradient of `--accent` to `--accent-hover`), its icon big,
-  its name at the foot over a dark fade, the players as a badge, the mode
-  icons in the other corner; three across on a phone (`auto-fill`, 6.5rem),
-  more on a laptop. The description is the card's `title` (a tooltip) and no
+  its name at the foot over a dark fade, the players as a badge (no mode
+  icons since 26 Sep 2026: the owner's word; the setup hero says how a game
+  plays); three across on a phone (`auto-fill`, 6.5rem), more on a laptop.
+  Under a real mouse a poster lifts (`translate` and `scale`, not
+  `transform`, which the rise-in holds for the first visit) with
+  `--poster-shadow-hover`. The description is the card's `title` (a tooltip) and no
   longer drawn - the "two lines" rule below is history. A section of one game
   is a wide poster (`.gcard--spotlight`, the same markup as before).
 - **A featured poster on the home** (`catalogFeatured`, `.home-feat`): «★
@@ -8254,6 +8270,20 @@ boards keep their own sections untouched. What it is:
   are on `.gcard.home-feat` (two classes: `.gcard` sets both later in the
   section). On a phone the art sits above the text; sideways and on a laptop
   the art sits at the inline end with the fade coming from the text's side.
+  When the home is drawn again with another day's game, the new poster fades
+  and rises in (`home-feat--in`, `featLastId` in `JS_Catalog.html`); never on
+  the first paint of a visit, never with motion off.
+- **Sections are shelves on a laptop and a TV** (from 900px wide and 501px
+  tall): each section's grid (`.gcard-grid--shelf`, marked by `renderHome`
+  and `renderTogether`; a section of one game keeps its spotlight) is one row
+  of 9.5rem posters that scrolls sideways with snap and `hscroll-fade`'s
+  edges. «الكل ›» at the end of the head (`.section__all`, `toggleShelf`,
+  `home_shelf_all` / `home_shelf_less`) opens it back into a wrapping grid
+  (`.section.is-open`, kept for the visit in `shelfOpen`); it shows only when
+  the row runs past the edge or the section is open (`syncShelves`, run after
+  the screen shows, on resize and after every filter). A search lays every
+  shelf out as a grid (`#view-menu.is-searching`), so no result is scrolled
+  out of sight. Phones keep the wrapping grid.
 - **The bar has a raised centre button, «افتح غرفة»** (`#nav-room`,
   `.nav-item--room`, `.nav-room__btn`, in `Controller.html` between مع بعض and
   الأدوات): the most important action, under the thumb. In the landscape
@@ -8265,6 +8295,24 @@ boards keep their own sections untouched. What it is:
   rules button as a glass pill in its corner, then the title, the line and
   the meta as pills. The `.game-hero__icon` is still what the icon flights
   land on. The tab heads of مع بعض and الأدوات are the same kind of band.
+- **The options under a setup hero** (26 Sep 2026, CSS only, scoped to
+  `[id^="view-setup-"]` so the lobbies, Settings and the boards keep theirs):
+  every `.field` - and a `<div>` whose first child is its `.field__label` and
+  that holds no field or card - is a calm rounded row (`--surface-2`,
+  `--r-lg`; `--surface-solid` inside «خيارات أكتر»); a label is `--fs-sm`
+  700 in `--text-2`, no capitals or tracking; a count sits at the end of its
+  label's row (`:has(> .field__label:first-child + .stepper)`, the stepper
+  9.5rem) with round accent-soft − and + and the number in the display face;
+  a segmented is a pill track with the accent thumb (`--accent-on` on it),
+  but six options or more (شطرنج's seven clocks) keep rounded boxes, or the
+  pill's ends cut their words; a switch glows when on; a list has the accent
+  chevron (the saved-groups list's `background` shorthand had dropped it, so
+  the chevron's size, repeat and place are set again). The segmented's words
+  stay in the reading face: Kufi is too wide for seven clocks. بدون كلام's
+  category and clock were loose labels in the card and are `.field`s now.
+- **Tool rows** (the الأدوات tab, the score keepers too): one line of a 3rem
+  poster thumb (the recents' gradient, the shadow on the glyph through
+  `text-shadow`), the name over its line, the chevron.
 - **Start is amber** (`--pop`, `--pop-on`, `--pop-glow`: the one colour that
   is no game's), on the Start bars (`.view-actions--start`, `.lobby-start`)
   and the featured poster's play; every other primary button keeps its
@@ -8272,8 +8320,12 @@ boards keep their own sections untouched. What it is:
 - **The type**: Noto Kufi Arabic (`--font-display`) on what names a screen
   (`.shell__title`, section titles, card titles, sheet titles, the posters'
   names, the room code, `.btn`), IBM Plex Sans Arabic (`--font`) for reading.
-  Baloo Bhaijaan 2 stays loaded for the card games' numerals, which name it
-  by name. Cairo is gone from the page; the share card and the chess canvas
+  Baloo Bhaijaan 2 draws only the card games' numerals (سكرو, أونو, the
+  playing cards, كدّاب's rank chips), so it is not in the page's font link:
+  `ensureBalooFont()` in `JS_Core.html` adds its stylesheet the first time a
+  view in `BALOO_VIEWS` opens (the five card rooms and `room-tv`), and the
+  worker's `warm` fetches it and its font files after a first visit so it
+  is there offline. A new rule that names Baloo puts its view in the list. Cairo is gone from the page; the share card and the chess canvas
   draw with Plex. Plex Arabic stops at 700, so the scale's 800 and 900 fall
   to it (the headings are Kufi, which goes to 900).
 - **The tokens**: a violet-white ground with a still violet glow at the top
@@ -8283,9 +8335,7 @@ boards keep their own sections untouched. What it is:
   cards 24px, sheets 28px. Every `[data-accent]` palette is as it was, so the
   game boards' colours didn't move.
 - Decided while building (each one place): the featured game rotates by the
-  day, not the phone's recents, so a table sees something new; the mode
-  icons stay on the posters (the filters need nothing, but a glance says how
-  a game plays); tool rows keep their shape with a gradient icon tile; the
+  day, not the phone's recents, so a table sees something new; tool rows keep their shape with a gradient icon tile; the
   room hub's tiles and every game screen are untouched.
 
 Traps met (each also in *Traps*): a rule on `.gcard > *:not(.ripple)`
@@ -8294,7 +8344,13 @@ or it stays in the flow; `.home-feat` written before `.gcard` in the same
 section loses `aspect-ratio` and `min-height` to it; `body.dark .home-hero`
 outweighs `.home-hero--compact`, so the compact row's `background: none`
 needs the dark selector too; the first-play `<details>` is `width: 100%`
-and needs `width: auto` when given side margins.
+and needs `width: auto` when given side margins; and `body.dark .gcard`
+(section 17's corner wash, and `body.dark .gcard--spotlight`) outweighs a
+plain `.gcard`, so every dark poster was near-black until the gradient was
+written with the dark selector too (found 26 Sep 2026). The
+posters' badge and the setup hero's rules pill have no `backdrop-filter`
+(a darker solid tint instead): thirty blurred badges over a scrolling grid
+cost a phone frames.
 
 **Calm by default.** The backdrop is one still wash (the two cross-fading
 gradient layers were a screen that never sat still); cards are white with a

@@ -947,6 +947,8 @@
       together_tv_desc: "على التلفزيون أو اللابتوب",
       home_search_ph: "ابحث عن لعبة…",
       home_recent: "لعبتوها مؤخراً",
+      home_shelf_all: "الكل ›",
+      home_shelf_less: "أقل",
       home_empty: "مفيش لعبة بالاسم ده. جرّب كلمة تانية.",
       home_pick_btn: "الليلة دي؟",
       home_feat_other: "غيرها",
@@ -4544,6 +4546,8 @@
       together_tv_desc: "On a TV or a laptop",
       home_search_ph: "Search games…",
       home_recent: "Played recently",
+      home_shelf_all: "All ›",
+      home_shelf_less: "Less",
       home_empty: "Nothing matches that. Try another word.",
       home_pick_btn: "Tonight?",
       home_feat_other: "Another",
@@ -8300,6 +8304,12 @@
         const pinned = /^https:\/\/(cdn\.jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com)\//;
         performance.getEntriesByType('resource').map(e => e.name).filter(u => pinned.test(u))
           .forEach(u => fetch(u, { mode: 'cors', credentials: 'omit' }).catch(() => {}));
+        // Baloo is loaded only when a card game opens (ensureBalooFont), so a phone
+        // may never have asked for it: keep its stylesheet and its files too.
+        fetch(BALOO_URL, { mode: 'cors', credentials: 'omit' }).then(r => r.text()).then(css => {
+          (css.match(/https:\/\/fonts\.gstatic\.com\/[^)\s'"]+/g) || [])
+            .forEach(u => fetch(u, { mode: 'cors', credentials: 'omit' }).catch(() => {}));
+        }).catch(() => {});
       } catch (e) {}
     }, 5000);
     if (hadController) warm();
@@ -10079,7 +10089,26 @@
 
   const viewScroll = {};   // where each screen was scrolled to when it was left
 
+  /* Baloo Bhaijaan 2 draws the card games' numerals only (سكرو, أونو, the
+     playing cards of كدّاب, الشايب and إستميشن, كدّاب's rank chips: every rule
+     in Style.html that names it by name). Since the arcade look it is no one's
+     --font-display, so it is not in the page's font link: it is asked for the
+     first time one of these screens opens. room-tv draws the same games. A new
+     rule that names Baloo puts its view here. */
+  const BALOO_URL = 'https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@400..800&display=swap';
+  const BALOO_VIEWS = ['room-screw', 'room-uno', 'room-doubt', 'room-oldmaid', 'room-estimation', 'room-tv'];
+  let balooAsked = false;
+  function ensureBalooFont() {
+    if (balooAsked) return;
+    balooAsked = true;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = BALOO_URL;
+    document.head.appendChild(link);
+  }
+
   function setView(viewId) {
+    if (BALOO_VIEWS.indexOf(viewId) !== -1) ensureBalooFont();
     if (typeof syncFxButton === 'function') syncFxButton(viewId);
     const previous = appState.currentView;
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(viewId) !== -1);

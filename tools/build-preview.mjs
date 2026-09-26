@@ -27,6 +27,10 @@ const SPY_WORDS = new Function(
 const SPY_PAIRS = new Function(
   (await readFile(path.join(root, 'SpyWords.js'), 'utf8')) + '\nreturn SPY_PAIRS;'
 )();
+// The English game's words and pairs, dealt when the games' language is English.
+const [SPY_WORDS_EN, SPY_PAIRS_EN] = new Function(
+  (await readFile(path.join(root, 'SpyWords.js'), 'utf8')) + '\nreturn [SPY_WORDS_EN, SPY_PAIRS_EN];'
+)();
 
 const STUB = `<script>window.ROOMS_URL = ${JSON.stringify(ROOMS_URL)};</script>`;
 
@@ -49,6 +53,8 @@ const previewRoom = process.argv.includes('--room')
 html = html
   .replace('<?!= initialSpyData ?>', () => JSON.stringify(SPY_WORDS))
   .replace('<?!= initialSpyPairs ?>', () => JSON.stringify(SPY_PAIRS))
+  .replace('<?!= initialSpyDataEn ?>', () => JSON.stringify(SPY_WORDS_EN))
+  .replace('<?!= initialSpyPairsEn ?>', () => JSON.stringify(SPY_PAIRS_EN))
   .replace('<?!= initialRoom ?>', () => JSON.stringify(previewRoom))
   // Wherever the preview is served (port 4321 by the launch config): room links,
   // the QR and the share button pointed at a port nothing served.

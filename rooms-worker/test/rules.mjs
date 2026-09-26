@@ -443,6 +443,36 @@ const leave = (r, id, hook = true) => {
 }
 
 {
+  // The English spy words (the owner, 26 Sep 2026): an English category deals
+  // English words and a guess from six English words; المختلف with lang 'en'
+  // deals an English pair; the Arabic game is as it was.
+  const isAr = (w) => /[؀-ۿ]/.test(String(w));
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(r, 'a', 'start', { category: 'Animals', spies: 1, lang: 'en' });
+  const spy = r._impSpies[0];
+  const word = r.secrets[['a', 'b', 'c', 'd'].find((id) => id !== spy)].word;
+  check(!!word && !isAr(word) && r.shared.category === 'Animals', 'imposter en: an English category deals an English word');
+  applyRoomAction(r, 'a', 'beginDiscussion', {});
+  applyRoomAction(r, 'a', 'startVote', {});
+  ['a', 'b', 'c', 'd'].filter((id) => id !== spy).forEach((id) => applyRoomAction(r, id, 'vote', { option: spy }));
+  applyRoomAction(r, spy, 'vote', { option: ['a', 'b', 'c', 'd'].find((id) => id !== spy) });
+  check(r.phase === 'guess' && (r.shared.options || []).length === 6 && r.shared.options.every((w) => !isAr(w)),
+    'imposter en: the caught spy picks from six English words');
+
+  const u = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(u, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(u, 'a', 'start', { undercover: true, spies: 1, lang: 'en' });
+  const words = Object.values(u.secrets).map((x) => x.word);
+  check(words.every((w) => !!w && !isAr(w)) && new Set(words).size === 2, 'undercover en: an English pair is dealt');
+
+  const ar = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(ar, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(ar, 'a', 'start', { undercover: true, spies: 1 });
+  check(Object.values(ar.secrets).every((x) => isAr(x.word)), 'undercover: with no language the Arabic pairs, as before');
+}
+
+{
   // كلمة واحدة: a removed clue stays on the server until the guess, and nobody waits on a leaver.
   const r = newRoom(['a', 'b', 'c', 'd']);
   applyRoomAction(r, 'a', 'chooseGame', { game: 'justone' });

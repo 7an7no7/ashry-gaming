@@ -39,6 +39,9 @@ const spySource = await readFile(path.join(root, 'SpyWords.js'), 'utf8');
 const SPY_WORDS = new Function(spySource + '\nreturn SPY_WORDS;')();
 // المختلف's close pairs: the one-phone game deals them too (JS_Imposter.html).
 const SPY_PAIRS = new Function(spySource + '\nreturn SPY_PAIRS;')();
+// The English game's words and pairs, dealt when the games' language is English.
+const SPY_WORDS_EN = new Function(spySource + '\nreturn SPY_WORDS_EN;')();
+const SPY_PAIRS_EN = new Function(spySource + '\nreturn SPY_PAIRS_EN;')();
 
 // JSON inside a <script>: "</script>" in a word would end the tag early.
 const scriptJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
@@ -70,6 +73,8 @@ html = html.replace(iconNote, () => HEAD);
 html = html
   .replace('<?!= initialSpyData ?>', () => scriptJson(SPY_WORDS))
   .replace('<?!= initialSpyPairs ?>', () => scriptJson(SPY_PAIRS))
+  .replace('<?!= initialSpyDataEn ?>', () => scriptJson(SPY_WORDS_EN))
+  .replace('<?!= initialSpyPairsEn ?>', () => scriptJson(SPY_PAIRS_EN))
   .replace('<?!= initialRoom ?>',
     "(function () { var m = /[?&]room=([A-Za-z0-9]{1,8})/.exec(location.search); return m ? m[1].toUpperCase() : ''; })()")
   // Every link the app shares (the app, a room's link and QR) goes to the main address, from

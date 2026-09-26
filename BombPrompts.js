@@ -24,10 +24,10 @@ const BOMB_PROMPTS = {
     'أندية كورة مصرية', 'أندية كورة أوروبية', 'لاعيبة كورة', 'منتخبات كورة',
     'أفلام مصرية', 'أفلام أجنبية', 'أفلام كرتون', 'أفلام ديزني', 'مسلسلات', 'برامج أطفال', 'شخصيات كرتون', 'أبطال خارقين',
     'مطربين ومطربات', 'ممثلين وممثلات', 'آلات موسيقية', 'ألعاب أطفال', 'ألعاب فيديو', 'ألعاب طاولة وورق',
-    'أدوات مدرسية', 'مواد دراسية', 'أدوات شغل', 'وسائل مواصلات', 'حاجات ليها عجل', 'حاجات ليها زراير',
+    'أدوات مدرسية', 'مواد دراسية', 'أدوات شغل', 'وسائل مواصلات', 'أجزاء العربية', 'أدوات مطبخ',
     'قطع ملابس', 'إكسسوارات', 'حاجات بتتلبس في الرجل', 'أعياد ومناسبات', 'حاجات بتتعمل في الأجازة',
-    'حاجات بتطير', 'حاجات بتعوم', 'حاجات بتنور', 'حاجات مدورة', 'حاجات باردة', 'حاجات سخنة',
-    'حاجات لونها أحمر', 'حاجات لونها أصفر', 'حاجات لونها أخضر', 'حاجات معمولة من ورق', 'حاجات معمولة من خشب',
+    'حيوانات أليفة', 'مدن عالمية', 'أنواع محلات', 'أدوات تنضيف', 'حلويات شرقية', 'أنواع شوربة',
+    'شخصيات تاريخية', 'اختراعات', 'أدوات مكياج وتجميل', 'ألعاب الملاهي', 'ماركات حاجة ساقعة',
     'أنواع ورد وزهور', 'أشجار ونباتات', 'حاجات في محل اللعب'
   ],
   en: [
@@ -47,10 +47,10 @@ const BOMB_PROMPTS = {
     'Football clubs', 'National football teams', 'Footballers', 'Olympic sports',
     'Movies', 'Cartoon movies', 'Disney movies', 'TV series', "Kids' shows", 'Cartoon characters', 'Superheroes',
     'Singers', 'Actors', 'Musical instruments', "Kids' games", 'Video games', 'Board and card games',
-    'School supplies', 'School subjects', 'Tools', 'Means of transport', 'Things with wheels', 'Things with buttons',
+    'School supplies', 'School subjects', 'Tools', 'Means of transport', 'Car parts', 'Kitchen utensils',
     'Clothes', 'Accessories', 'Things you wear on your feet', 'Holidays and celebrations', 'Holiday activities',
-    'Things that fly', 'Things that float', 'Things that glow', 'Round things', 'Cold things', 'Hot things',
-    'Red things', 'Yellow things', 'Green things', 'Things made of paper', 'Things made of wood',
+    'Pets', 'World cities', 'Kinds of shops', 'Cleaning products', 'Middle Eastern sweets', 'Soups',
+    'Historical figures', 'Inventions', 'Make-up and beauty products', 'Theme park rides', 'Soft drink brands',
     'Flowers', 'Trees and plants', 'Things in a toy shop'
   ]
 };

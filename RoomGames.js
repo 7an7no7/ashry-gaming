@@ -1412,7 +1412,10 @@ const buzzerAction = (room, playerId, action, payload) => {
  * room layer did not, so the password could be dealt as the secret word.
  */
 const spyWords = (category) => {
-  const words = (getSpyData()[String(category || '')] || []).slice();
+  // An English category (SPY_WORDS_EN) is found by its own name: the two lists'
+  // names never meet, so the Arabic game deals exactly as before.
+  const en = typeof SPY_WORDS_EN !== 'undefined' ? SPY_WORDS_EN : {};
+  const words = (getSpyData()[String(category || '')] || en[String(category || '')] || []).slice();
   if (String(category).indexOf('🔒') !== -1) words.shift();
   return words;
 };
@@ -1433,12 +1436,15 @@ const imposterAction = (room, playerId, action, payload) => {
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
 
     const undercover = !!payload.undercover;
+    // المختلف's pairs in the games' language the host's phone sent.
+    const pairsEn = payload.lang === 'en' && typeof SPY_PAIRS_EN !== 'undefined';
+    const pairList = pairsEn ? SPY_PAIRS_EN : (typeof SPY_PAIRS !== 'undefined' ? SPY_PAIRS : []);
     const category = undercover ? '' : String(payload.category || '');
-    const words = undercover ? (typeof SPY_PAIRS !== 'undefined' ? SPY_PAIRS.map(p => p[0]) : []) : spyWords(category);
+    const words = undercover ? pairList.map(p => p[0]) : spyWords(category);
     if (!undercover && !words.length) throw new Error('اختر مجموعة كلمات');
 
     // PromptMemory keys on the dealt value, so deal the pair as one string.
-    const pair = undercover ? nextPrompt(room, SPY_PAIRS.map(p => p[0] + '|' + p[1]), 'imppair').split('|') : null;
+    const pair = undercover ? nextPrompt(room, pairList.map(p => p[0] + '|' + p[1]), pairsEn ? 'imppair_en' : 'imppair').split('|') : null;
     // Either word can be the odd one: always the second of a list the page ships
     // meant holding "نسكافيه" told you you were the odd one out.
     if (pair && Math.random() < 0.5) pair.reverse();

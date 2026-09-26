@@ -313,6 +313,33 @@ for (const [cat, words] of Object.entries(SPY_WORDS)) {
 }
 console.log(`spy: ${Object.keys(SPY_WORDS).length} categories, ${Object.values(SPY_WORDS).reduce((n, w) => n + w.length, 0)} words`);
 
+// The English game (SPY_WORDS_EN): the same checks, a category for every
+// Arabic one, no name shared with an Arabic category (the rooms server finds a
+// category in either list by its name), and no Arabic letters in it.
+const SPY_WORDS_EN = load(G + 'SpyWords.js', 'SPY_WORDS_EN');
+for (const [cat, words] of Object.entries(SPY_WORDS_EN)) {
+  if (!Array.isArray(words) || words.length < 10) note(`spy.en "${cat}": ${words && words.length} words, wants 10+`);
+  const dup = repeats(words || []);
+  if (dup.length) note(`spy.en "${cat}": duplicates ${JSON.stringify(dup)}`);
+  if (SPY_WORDS[cat]) note(`spy.en "${cat}": the same name as an Arabic category`);
+  const arabic = (words || []).filter(w => /[؀-ۿ]/.test(w));
+  if (arabic.length || /[؀-ۿ]/.test(cat)) note(`spy.en "${cat}": Arabic in the English list ${JSON.stringify(arabic)}`);
+}
+if (Object.keys(SPY_WORDS_EN).length !== Object.keys(SPY_WORDS).filter(k => k.indexOf('🔒') === -1).length) {
+  note(`spy.en: ${Object.keys(SPY_WORDS_EN).length} categories vs ${Object.keys(SPY_WORDS).length} Arabic`);
+}
+console.log(`spy.en: ${Object.keys(SPY_WORDS_EN).length} categories, ${Object.values(SPY_WORDS_EN).reduce((n, w) => n + w.length, 0)} words`);
+
+// المختلف: two different words a pair, no pair twice, in both languages.
+for (const [name, pairs] of [['SPY_PAIRS', load(G + 'SpyWords.js', 'SPY_PAIRS')], ['SPY_PAIRS_EN', load(G + 'SpyWords.js', 'SPY_PAIRS_EN')]]) {
+  pairs.forEach((p, i) => {
+    if (!Array.isArray(p) || p.length !== 2 || !p[0] || !p[1] || fold(p[0]) === fold(p[1])) note(`${name}[${i}]: not two different words`);
+  });
+  const dup = repeats(pairs.map(p => [...p].map(fold).sort().join('|')));
+  if (dup.length) note(`${name}: pairs twice ${JSON.stringify(dup)}`);
+  console.log(`${name}: ${pairs.length} pairs`);
+}
+
 // القنبلة: a category is listed once, and there are enough to last an evening.
 const BOMB = load(G + 'BombPrompts.js', 'BOMB_PROMPTS');
 for (const [lang, list] of Object.entries(BOMB)) {

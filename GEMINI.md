@@ -1754,6 +1754,30 @@ the word search), `countUp` for streaks and scores.
   games already here (proposals in `notes/IMPROVEMENT_PLAN.md`, *Our own touch*).
   First done: the audience's Egyptian shouts and the زغروطة.
 
+- **The owner's content decisions of 26 Sep 2026** (the review of 25 Sep,
+  `notes/review-2026-09-25/`, asked each question; the owner answered):
+  - **Cut**: prompts about height («أطول/أقصر واحد في العيلة» in لو خيروك,
+    «شخص قصير ↔ طويل جداً» on the موجة dial, both languages) and romance
+    («تتفرج على فيلم رومانسي مع أبوك»), each replaced by a family item of the
+    same kind; «الراقصة والسياسي» and «الإرهاب والكباب» out of the films that
+    بدون كلام and على راسك deal (and فوازير إيموجي's), replaced by عائلة زيزي
+    and أم العروسة; الحرباء's رياضات مائية (سنوركلينج, باراسيلينج, ويك بورد)
+    and أنمي boards and جرين لانترن swapped for boards a family knows
+    (رياضات, في المدرسة, بلاك ويدو); the Arabic emoji riddles' «أفلام أجنبية»
+    trimmed to the thirteen best known in Egypt, the rest Egyptian films; the
+    bomb's categories that name a property (things with buttons, round
+    things, things that fly, float, glow, cold, hot, a colour, a material)
+    replaced by kinds of thing; إسرائيل and تل أبيب out of ربع قرد's lists
+    (Palestine stays, as in خمّن الدولة).
+  - **Kept**: الأهلي ↔ الزمالك, the wedding prompts, named celebrities, YouTube
+    and WhatsApp.
+  - **Facts made exact**: the paper question asks where the paper we write on
+    today was invented (China; papyrus made مصر arguable); Amr Shabana is the
+    first Egyptian to win the Squash World Open (2003), not "the first world
+    champion"; the White Nile out of Lake Victoria became the Blue Nile out of
+    Lake Tana. Golf's «الهرم» is «هرم سقارة المدرّج» (its name only).
+  - **الجاسوس in English**: its own words and pairs (*الجاسوس in English*).
+
 - **Nothing is waiting on the owner** (23 Sep 2026): the two old questions
   were closed as built - سكرو deals 62 cards for Classic + الحرامي (the
   owner's "66-card" table adds up to 62), and طرنيب ٤١ scores a failed 13 as
@@ -2924,6 +2948,17 @@ the word search), `countUp` for streaks and scores.
   `test:rules` (1,824 checks, the leak check clean), the robots 2,319 passed,
   `test:ui` screens and rooms 70 passed. Found on the way (*Traps*): a `<details>` drawn
   open fires its `toggle`.
+- **26 Sep 2026, the owner's content decisions** (*Decided, and why*): the
+  height and romance prompts, two films, three Chameleon boards' obscure
+  words, half the Arabic foreign-film riddles, the bomb's property
+  categories and Israel in ربع قرد replaced, every list its old size; three
+  facts made exact and the golf hole renamed; and الجاسوس in English
+  (`SPY_WORDS_EN`, 1,446 words in eleven categories, and `SPY_PAIRS_EN`, 74
+  pairs), on one phone, in rooms and for كلمة واحدة's room words. Tests:
+  `npm run check` (the English list and both pair lists checked now),
+  `test:rules` 1,828 checks (English deals, the guess from six, English and
+  Arabic pairs), the robots 2,340 passed, and the English game played in
+  headless Chrome on one phone and in a room of four (14 checks).
 
 ## Building and Running
 
@@ -3590,6 +3625,21 @@ options and the score survive "play again" and a trip to the hub (`_teamsMemo`,
 after the discussion the host opens it (`startVote`), nobody can accuse
 themselves, a tie lets the spy escape, and an accused spy picks the word from
 six (`shared.options`, the secret among five others of the same category).
+
+**الجاسوس in English** (the owner, 26 Sep 2026). `SpyWords.js` also holds
+`SPY_WORDS_EN` (the same eleven categories under English names - Animals,
+Food, Jobs, Places, Things, Brands, Famous people, Transport, Sports,
+Countries & cities, Musical instruments - about as many words each as the
+Arabic) and `SPY_PAIRS_EN` (المختلف's 74 pairs). The builds put them in the
+page (`SERVER_DATA.spyDataEn` / `spyPairsEn`, `window.SPY_WORDS_EN` /
+`SPY_PAIRS_EN`), and the page asks `spyCategories()` and `spyPairs()` in
+`JS_Core.html`, which answer in `contentLang()`: the one-phone setup, the room
+lobby's categories and كلمة واحدة's room words. The server finds a category in
+either list by its name (`spyWords`; the validator refuses an English name
+that is also an Arabic one), and المختلف's start carries `lang` for the pairs
+(memory key `imppair_en`). Nothing reads `SPY_CATEGORIES` or `SPY_PAIRS`
+directly for dealing any more; the Arabic lists and everything else built on
+them (ربع قرد, the Stop dictionary, the letter wheel) are unchanged.
 Caught and wrong, a point to every player; escaped or guessed, two to each spy.
 `revealResult` is the host's way out without a vote and scores nothing. The
 word is dealt through `nextPrompt`, and `restart` keeps the scores in
@@ -3677,7 +3727,8 @@ the switch, mid-game players, the status edit, the timeout sheet).
 **زي الكل in rooms** (`herdAction`, `JS_RoomHerd.html`). One question for
 everyone ("اكتب حاجة واحدة من: فواكه"), dealt through `nextPrompt` from the
 Chameleon categories and the bomb's (`herdPrompts`, without the bomb's
-"حاجات بتطير" kind, which name a property rather than a kind). Answers wait in
+"حاجات في …" places; the property kinds, "حاجات بتطير" and the like, left the
+bomb's list on 26 Sep 2026). Answers wait in
 `room._herd.answers` until every phone has sent or the host presses
 `closeWriting`; then `herdGroups` groups them through `normaliseClue`, so قطة
 and القطه are one answer. In `reveal` the host can `merge` two groups that

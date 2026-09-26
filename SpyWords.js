@@ -354,3 +354,262 @@ const SPY_PAIRS = [
   ['كافيه', 'مطعم'], ['فرن', 'محل حلويات']
 ];
 
+
+/* ============================================================================
+   The same game in English (the owner, 26 Sep 2026): a table playing with
+   «لغة الألعاب» in English used to be dealt the Arabic words. The same
+   categories and the same idea, in words an English-speaking family knows,
+   Egypt's own places and people among them. The page deals from these when
+   contentLang() is 'en' (spyCategories() in JS_Core.html), and the rooms
+   server finds a category in either list (spyWords in RoomGames.js), so the
+   Arabic game is exactly as it was. Checked by tools/validate-content.js.
+   ========================================================================= */
+const SPY_WORDS_EN = {
+  "Animals": [
+    "Lion", "Elephant", "Giraffe", "Cat", "Dog", "Falcon", "Whale", "Dolphin",
+    "Horse", "Tiger", "Monkey", "Crocodile", "Penguin", "Snake", "Bat", "Peacock",
+    "Tortoise", "Kangaroo", "Eagle", "Gazelle", "Bear", "Rabbit", "Wolf", "Cow",
+    "Ostrich", "Rhino", "Hippo", "Panda", "Squirrel", "Fox", "Fly", "Cockroach",
+    "Butterfly", "Scorpion", "Camel", "Sheep", "Goat", "Gorilla", "Ant", "Owl",
+    "Cheetah", "Koala", "Puppy", "Pigeon", "Hoopoe", "Worm", "Duck", "Goose",
+    "Chick", "Sparrow", "Crow", "Mosquito", "Gecko", "Rooster", "Turkey", "Calf",
+    "Dove", "Lizard", "Bee", "Catfish",
+
+    // mammals
+    "Hyena", "Polar Bear", "Zebra", "Deer", "Reindeer", "Mountain Goat",
+    "Buffalo", "Bull", "Donkey", "Mule", "Pony", "Lamb",
+    "Mouse", "Rat", "Hamster", "Hedgehog", "Chimpanzee", "Orangutan",
+    "Baboon", "Mongoose", "Weasel", "Raccoon", "Beaver", "Anteater",
+    "Sloth", "Llama", "Alpaca", "Police Dog", "Wild Boar", "Seal",
+    "Sea Lion", "Walrus", "Otter", "Mole", "Badger", "Skunk",
+    "Armadillo", "Porcupine", "Bison", "Moose", "Jaguar", "Leopard",
+    "Black Panther", "Lynx", "Meerkat", "Warthog", "Kitten", "Foal",
+    "Piglet", "Pig", "Ferret", "Guinea Pig", "Chipmunk", "Hare",
+    "Husky", "Poodle", "Bulldog", "Dalmatian", "Persian Cat", "Arabian Horse",
+    "Racehorse", "Platypus", "Wombat", "Lemur", "Yak", "Snow Leopard",
+    "Red Panda", "Blue Whale", "Humpback Whale", "Killer Whale", "Antelope", "Gerbil",
+
+    // birds
+    "Parrot", "Flamingo", "Swan", "Pelican", "Stork", "Heron",
+    "Seagull", "Vulture", "Hawk", "Kingfisher", "Woodpecker", "Canary",
+    "Hummingbird", "Toucan", "Kiwi", "Quail", "Hen", "Robin",
+    "Emu", "Budgie", "Nightingale", "Magpie", "Ibis", "Swallow",
+
+    // sea
+    "Shark", "Octopus", "Squid", "Jellyfish", "Starfish", "Crab",
+    "Lobster", "Shrimp", "Oyster", "Seahorse", "Clownfish", "Tuna",
+    "Salmon", "Sardine", "Eel", "Stingray", "Sea Turtle", "Goldfish",
+    "Swordfish", "Pufferfish", "Sea Urchin", "Mussel", "Tilapia", "Coral",
+
+    // reptiles, amphibians and bugs
+    "Frog", "Toad", "Chameleon", "Iguana", "Cobra", "Python",
+    "Viper", "Alligator", "Komodo Dragon", "Tadpole", "Spider", "Tarantula",
+    "Ladybird", "Beetle", "Grasshopper", "Cricket", "Dragonfly", "Moth",
+    "Wasp", "Hornet", "Termite", "Firefly", "Snail", "Caterpillar",
+    "Centipede", "Flea", "Praying Mantis", "Silkworm", "Scarab", "Earthworm"
+  ],
+  "Food": [
+    "Koshari", "Ful Medames", "Falafel", "Molokhia", "Stuffed Vine Leaves", "Stuffed Peppers", "Fattah", "Mahshi",
+    "Shawarma", "Kofta", "Kebab", "Grilled Chicken", "Roast Chicken", "Fried Chicken", "Chicken Nuggets", "Chicken Wings",
+    "Fish and Chips", "Grilled Fish", "Fried Fish", "Shrimp", "Calamari", "Sushi", "Tuna Sandwich", "Sardines",
+    "Pizza", "Burger", "Cheeseburger", "Hot Dog", "Sandwich", "Club Sandwich", "Toast", "Wrap",
+    "Spaghetti", "Lasagne", "Macaroni and Cheese", "Bechamel Pasta", "Ravioli", "Noodles", "Fried Rice", "White Rice",
+    "Rice Pudding", "Biryani", "Paella", "Risotto", "Couscous", "Tacos", "Burrito", "Nachos",
+    "Omelette", "Fried Egg", "Boiled Egg", "Scrambled Eggs", "Pancakes", "Waffles", "Cereal", "Porridge",
+    "Croissant", "Muffin", "Bagel", "Doughnut", "Cupcake", "Brownie", "Cookie", "Cheesecake",
+    "Chocolate Cake", "Birthday Cake", "Carrot Cake", "Apple Pie", "Ice Cream", "Frozen Yoghurt", "Jelly", "Custard",
+    "Basbousa", "Konafa", "Baklava", "Om Ali", "Qatayef", "Luqaimat", "Kahk", "Ghorayeba",
+    "Halawa", "Feteer", "Hawawshi", "Liver Sandwich", "Sausages", "Meatballs", "Steak", "Roast Beef",
+    "Lamb Chops", "Mixed Grill", "Stew", "Lentil Soup", "Tomato Soup", "Chicken Soup", "Mushroom Soup", "Vegetable Soup",
+    "Greek Salad", "Caesar Salad", "Fruit Salad", "Tabbouleh", "Fattoush", "Coleslaw", "Hummus", "Baba Ghanoush",
+    "Tahini", "Pickles", "Olives", "Cheese", "Cheddar", "Mozzarella", "Feta", "Cream Cheese",
+    "Butter", "Yoghurt", "Milk", "Honey", "Jam", "Peanut Butter", "Nutella", "Molasses",
+    "Bread", "Pitta Bread", "Baguette", "Crackers", "Breadsticks", "Rusks", "Popcorn", "Crisps",
+    "Chips", "Mashed Potatoes", "Baked Potato", "Potato Wedges", "Onion Rings", "Corn on the Cob", "Roasted Sweet Potato", "Peanuts",
+    "Apple", "Banana", "Orange", "Mango", "Strawberry", "Grapes", "Watermelon", "Melon",
+    "Pineapple", "Peach", "Apricot", "Plum", "Cherry", "Pear", "Kiwi Fruit", "Pomegranate",
+    "Guava", "Fig", "Dates", "Lemon", "Lime", "Coconut", "Blueberries", "Raspberries",
+    "Tomato", "Cucumber", "Carrot", "Potato", "Onion", "Garlic", "Pepper", "Lettuce",
+    "Cabbage", "Cauliflower", "Broccoli", "Spinach", "Aubergine", "Courgette", "Peas", "Green Beans",
+    "Okra", "Mushroom", "Sweetcorn", "Pumpkin", "Beetroot", "Celery", "Radish", "Avocado",
+    "Almonds", "Cashews", "Pistachios", "Walnuts", "Hazelnuts", "Raisins", "Sunflower Seeds", "Chestnuts",
+    "Chocolate Bar", "Lollipop", "Candy Floss", "Marshmallow", "Chewing Gum", "Toffee", "Gummy Bears", "Jelly Beans",
+    "Tea", "Coffee", "Hot Chocolate", "Milkshake", "Smoothie", "Lemonade", "Orange Juice", "Mango Juice",
+    "Sugarcane Juice", "Hibiscus Drink", "Tamarind Drink", "Sahlab", "Mint Tea", "Iced Coffee", "Cappuccino", "Sparkling Water",
+    "Ketchup", "Mayonnaise", "Mustard", "Barbecue Sauce", "Hot Sauce", "Garlic Sauce", "Salt", "Black Pepper",
+    "Cumin", "Cinnamon", "Paprika", "Vinegar", "Olive Oil", "Sugar", "Flour", "Rice",
+    "Lentils", "Chickpeas", "Beans", "Oats", "Corn Flakes", "Granola", "Protein Bar", "Iced Tea",
+    "Spring Rolls", "Dumplings", "Samosa", "Sambousek", "Kibbeh", "Manakish", "Cheese Pie", "Meat Pie",
+    "Quiche", "Fish Fingers", "Chicken Burger", "Veggie Burger", "Chicken Shawarma", "Beef Burger", "Pepperoni Pizza", "Margherita Pizza"
+  ],
+  "Jobs": [
+    "Engineer", "Petrol Station Attendant", "Carpenter", "Teacher", "Pilot", "Plumber", "Lawyer", "Cook",
+    "Mechanic", "Electrician", "Astronaut", "Police Officer", "Journalist", "Actor", "Programmer", "Painter",
+    "Pharmacist", "Photographer", "Phone Repairer", "Accountant", "Judge", "Barber", "Nurse", "Writer",
+    "Footballer", "Surgeon", "TV Presenter", "Builder", "Postman", "Security Guard", "Baker", "Chemist",
+    "Sailor", "Coach", "Sculptor", "Cowboy", "Secretary", "Lumberjack", "Estate Agent", "Detective",
+    "Diver", "Lifeguard", "Shop Assistant", "Blacksmith", "Tour Guide", "Driver", "Hairdresser", "Doorman",
+    "Delivery Driver", "Bank Clerk", "Parking Attendant", "Greengrocer", "Butcher", "Cleaner", "Private Tutor", "Author",
+    "Fisherman", "Shoemaker", "Singer", "Tyre Fitter", "Salesperson", "Civil Servant", "Doctor", "Dentist",
+    "Architect", "Professor", "Headteacher", "Soldier", "Flight Attendant", "Ship Captain", "Farmer", "Shepherd",
+    "Decorator", "Taxi Driver", "Bus Driver", "Chef", "Waiter", "Newsagent", "Grocer", "Tailor",
+    "Gardener", "Ticket Inspector", "Film Director", "Composer", "Musician", "Poet", "Translator", "Cashier",
+    "Merchant", "Scientist", "Inventor", "Archaeologist", "Firefighter", "Vet", "Referee", "Sports Commentator",
+    "Acrobat", "Magician", "Clown", "Model", "Fashion Designer", "Graphic Designer", "YouTuber", "Fighter Pilot",
+    "Army Officer", "Diplomat", "Ambassador", "Minister", "Mayor", "Imam", "Priest", "Physiotherapist",
+    "Psychologist", "Eye Doctor", "Children's Doctor", "Pastry Chef", "Watchmaker", "Jeweller", "Upholsterer", "Librarian",
+    "Receptionist", "Paramedic", "Zookeeper", "Florist", "Window Cleaner", "Bin Collector", "Train Driver", "Air Traffic Controller",
+    "Weather Forecaster", "News Reader", "Radio Presenter", "Cameraman", "Makeup Artist", "Dance Teacher", "Swimming Coach", "Personal Trainer",
+    "Optician", "Midwife", "Social Worker", "Banker", "Economist", "Politician", "Interior Designer"
+  ],
+  "Places": [
+    "School", "Hospital", "Sports Club", "Cinema", "Market", "Airport", "Park", "Restaurant",
+    "Hotel", "Bank", "Museum", "Theme Park", "Train Station", "Beach", "Gym", "Library",
+    "Submarine", "Space Station", "Circus", "Island", "Palace", "Farm", "Pharmacy", "Supermarket",
+    "Café", "University", "Mosque", "Port", "Courtroom", "Warehouse", "Tunnel", "Clinic",
+    "Tower", "Cave", "Balcony", "Prison", "Zoo", "Coffee Shop", "Theatre", "Forest",
+    "Kiosk", "Village", "Well", "Lighthouse", "Castle", "Waterfall", "Factory", "Bakery",
+    "Post Office", "Law Office", "Bridge", "Workshop", "Church", "Petrol Station", "Villa", "Police Station",
+    "Laboratory", "Language School", "Phone Shop", "Garage", "Studio", "Swimming Pool", "Wedding Hall", "Opera House",
+    "Metro Station", "Fish Restaurant", "Stadium", "Car Showroom", "Kitchen", "Spice Shop", "House", "Block of Flats",
+    "Flat", "Hut", "Tent", "Campsite", "City", "Capital City", "Street", "Alley",
+    "Square", "Pavement", "Traffic Lights", "Bus Stop", "Sweet Shop", "Travel Agency", "Car Park", "Nursery",
+    "Embassy", "Ministry", "Parliament", "Town Hall", "Fire Station", "Temple", "Cemetery", "Corner Shop",
+    "Shopping Mall", "Clothes Shop", "Shoe Shop", "Bookshop", "Butcher's", "Fruit Shop", "Juice Bar", "Koshari Shop",
+    "Chalet", "Resort", "Flower Shop", "Football Pitch", "Bowling Alley", "Exhibition", "Water Park", "Barn",
+    "Stable", "Storeroom", "Office", "Skyscraper", "Youth Centre", "Dam", "Windmill", "Fountain",
+    "Pyramid", "Obelisk", "Desert", "Oasis", "Mountain", "River", "Lake", "Valley",
+    "Barber's Shop", "Laundrette", "Beauty Salon", "Electronics Shop", "Toy Shop", "Car Wash", "Living Room", "Bedroom",
+    "Bathroom", "Roof", "Basement", "Garden", "Children's Room", "Study", "Playground", "Aquarium",
+    "Planetarium", "Ice Rink", "Car Factory", "Harbour", "Vet's Surgery", "Dentist's Surgery", "Hairdresser's", "Cable Car"
+  ],
+  "Things": [
+    "Phone", "Laptop", "Tablet", "Headphones", "Television", "Camera", "Remote Control", "Charger",
+    "Watch", "Glasses", "Sunglasses", "Wallet", "Handbag", "Backpack", "Suitcase", "Umbrella",
+    "Key", "Padlock", "Door", "Window", "Curtain", "Carpet", "Pillow", "Blanket",
+    "Bed", "Sofa", "Chair", "Table", "Desk", "Wardrobe", "Mirror", "Lamp",
+    "Light Bulb", "Candle", "Torch", "Clock", "Alarm Clock", "Calendar", "Picture Frame", "Vase",
+    "Fridge", "Freezer", "Cooker", "Oven", "Microwave", "Kettle", "Toaster", "Blender",
+    "Washing Machine", "Dishwasher", "Iron", "Vacuum Cleaner", "Air Conditioner", "Fan", "Heater", "Hair Dryer",
+    "Plate", "Bowl", "Cup", "Mug", "Glass", "Spoon", "Fork", "Knife",
+    "Frying Pan", "Saucepan", "Tray", "Chopping Board", "Tin Opener", "Grater", "Sieve", "Rolling Pin",
+    "Teapot", "Coffee Pot", "Water Bottle", "Lunchbox", "Thermos", "Jug", "Straw", "Napkin",
+    "Soap", "Shampoo", "Toothbrush", "Toothpaste", "Towel", "Comb", "Hairbrush", "Razor",
+    "Sponge", "Bucket", "Mop", "Broom", "Dustpan", "Bin", "Plastic Bag", "Tissue Box",
+    "Pen", "Pencil", "Rubber", "Ruler", "Sharpener", "Notebook", "Book", "Magazine",
+    "Newspaper", "Envelope", "Stamp", "Scissors", "Glue", "Sticky Tape", "Stapler", "Paper Clip",
+    "Calculator", "Compass", "Crayons", "Paintbrush", "Paint", "Chalk", "Whiteboard", "Globe",
+    "Map", "Dictionary", "Diary", "Pencil Case", "School Bag", "Folder", "Highlighter", "Marker",
+    "Hammer", "Screwdriver", "Saw", "Pliers", "Nail", "Screw", "Drill", "Spanner",
+    "Tape Measure", "Ladder", "Rope", "Chain", "Hose", "Shovel", "Rake", "Wheelbarrow",
+    "Ball", "Football", "Kite", "Doll", "Teddy Bear", "Toy Car", "Puzzle", "Rubik's Cube",
+    "Balloon", "Skipping Rope", "Yo-yo", "Marbles", "Dice", "Playing Cards", "Chess Set", "Backgammon Board",
+    "Shirt", "T-shirt", "Trousers", "Jeans", "Shorts", "Dress", "Skirt", "Jacket",
+    "Coat", "Jumper", "Scarf", "Gloves", "Hat", "Cap", "Socks", "Shoes",
+    "Trainers", "Sandals", "Slippers", "Boots", "Belt", "Tie", "Pyjamas", "Swimsuit",
+    "Ring", "Necklace", "Bracelet", "Earrings", "Perfume", "Lipstick", "Nail Polish", "Hair Clip",
+    "Guitar", "Drum", "Piano", "Microphone", "Speaker", "Radio", "Keyboard", "Mouse",
+    "Printer", "Router", "Memory Stick", "Power Bank", "Games Console", "Joystick", "Smartwatch", "Projector",
+    "Car", "Bicycle", "Tyre", "Steering Wheel", "Seat Belt", "Helmet", "Skateboard", "Scooter",
+    "Tree", "Flower", "Plant Pot", "Watering Can", "Bench", "Swing", "Slide", "Sandpit",
+    "Money", "Coin", "Credit Card", "Receipt", "Ticket", "Passport", "Gift", "Wrapping Paper",
+    "Trophy", "Medal", "Whistle", "Stopwatch", "Binoculars", "Telescope", "Microscope", "Magnifying Glass",
+    "Birthday Candle", "Party Hat", "Ramadan Lantern", "Prayer Mat", "Rosary Beads", "Flag", "Mailbox", "Doorbell",
+    "Fire Extinguisher", "First Aid Kit", "Thermometer", "Plaster", "Syringe", "Stethoscope", "Wheelchair", "Crutches",
+    "Tent Peg", "Sleeping Bag", "Fishing Rod", "Net", "Anchor", "Life Jacket", "Surfboard", "Sandcastle",
+    "Snow Globe", "Hourglass", "Magnet", "Battery", "Plug", "Socket", "Extension Lead", "Light Switch",
+    "Coat Hanger", "Clothes Peg", "Laundry Basket", "Ironing Board", "Sewing Machine", "Needle", "Thread", "Button",
+    "Zip", "Safety Pin", "Shoelace", "Shoe Polish", "Doormat", "Coaster", "Tablecloth", "Placemat",
+    "Salt Shaker", "Sugar Bowl", "Egg Cup", "Ice Cube Tray", "Cake Tin", "Baking Tray", "Oven Glove", "Apron",
+    "Cushion", "Bookshelf", "Drawer", "Cupboard", "Staircase", "Lift", "Roof Tile", "Brick"
+  ],
+  "Brands": [
+    "Apple", "Samsung", "McDonald's", "Nike", "Mercedes", "Google", "Pepsi", "Coca-Cola",
+    "Zara", "Adidas", "BMW", "Toyota", "Sony", "Amazon", "Netflix", "Starbucks",
+    "IKEA", "Facebook", "Disney", "Porsche", "Vodafone", "Orange", "Toshiba", "Nissan",
+    "LEGO", "Tesla", "Rolex", "Nivea", "LG", "Panasonic", "Huawei", "Lipton",
+    "Carrefour", "Kia", "Nikon", "Dell", "Visa", "Uber", "Pringles", "Persil",
+    "Ariel", "Pantene", "Nokia", "Nescafé", "KFC", "Pizza Hut", "Burger King", "Domino's",
+    "Kellogg's", "Heinz", "Colgate", "Gillette", "Puma", "H&M", "Canon", "HP",
+    "Microsoft", "PlayStation", "Nintendo", "YouTube", "WhatsApp", "Instagram", "TikTok", "Ferrari",
+    "Hyundai", "Cadbury", "KitKat", "Oreo"
+  ],
+  "Famous people": [
+    "Mohamed Salah", "Lionel Messi", "Cristiano Ronaldo", "Pelé", "Diego Maradona", "Usain Bolt", "Muhammad Ali", "Roger Federer",
+    "Albert Einstein", "Isaac Newton", "Marie Curie", "Thomas Edison", "Leonardo da Vinci", "William Shakespeare", "Mozart", "Beethoven",
+    "Cleopatra", "Tutankhamun", "Ramses II", "Napoleon", "Julius Caesar", "Neil Armstrong", "Charlie Chaplin", "Mr Bean",
+    "Walt Disney", "Michael Jackson", "Umm Kulthum", "Omar Sharif", "Naguib Mahfouz", "Ahmed Zewail", "Magdi Yacoub", "Adel Emam",
+    "Amr Diab", "Mickey Mouse", "SpongeBob", "Superman", "Batman", "Sherlock Holmes", "Santa Claus", "Harry Potter"
+  ],
+  "Transport": [
+    "Car", "Taxi", "Bus", "Minibus", "Tuk-tuk", "Motorbike", "Bicycle", "Scooter",
+    "Train", "Metro", "Tram", "Aeroplane", "Helicopter", "Rocket", "Felucca", "Ship",
+    "Yacht", "Speedboat", "Hot-air Balloon", "Ambulance", "Fire Engine", "Police Car", "Tractor", "Tow Truck",
+    "Digger", "Lorry", "Van", "Pick-up Truck", "Horse and Carriage", "Donkey Cart", "Skateboard", "Sledge",
+    "Jet Ski", "Ferry", "Cable Car", "Bullet Train", "Racing Car", "Jeep"
+  ],
+  "Sports": [
+    "Football", "Basketball", "Volleyball", "Handball", "Tennis", "Table Tennis", "Squash", "Padel",
+    "Golf", "Hockey", "Swimming", "Diving", "Water Polo", "Rowing", "Water Skiing", "Surfing",
+    "Sailing", "Running", "Marathon", "High Jump", "Long Jump", "Pole Vault", "Javelin", "Shot Put",
+    "Weightlifting", "Bodybuilding", "Gymnastics", "Boxing", "Wrestling", "Karate", "Judo", "Taekwondo",
+    "Kung Fu", "Fencing", "Shooting", "Archery", "Show Jumping", "Horse Racing", "Cycling", "Motor Racing",
+    "Ice Skating", "Skiing", "Mountain Climbing", "Yoga", "Aerobics", "Zumba", "Bowling", "Snooker",
+    "Ballet", "Cricket", "Baseball", "Rugby", "American Football", "Hurdles", "Race Walking", "Triathlon",
+    "Parkour", "Skipping"
+  ],
+  "Countries & cities": [
+    "Egypt", "Saudi Arabia", "UAE", "Kuwait", "Bahrain", "Oman", "Yemen", "Jordan",
+    "Palestine", "Lebanon", "Syria", "Iraq", "Libya", "Tunisia", "Algeria", "Morocco",
+    "Sudan", "Mauritania", "Somalia", "Djibouti", "Comoros", "Turkey", "Iran", "Pakistan",
+    "India", "China", "Japan", "South Korea", "Indonesia", "Malaysia", "Thailand", "Philippines",
+    "Vietnam", "Russia", "Germany", "France", "Italy", "Spain", "Portugal", "England",
+    "Greece", "Netherlands", "Belgium", "Switzerland", "Sweden", "Norway", "Denmark", "Finland",
+    "Poland", "Ukraine", "USA", "Canada", "Mexico", "Brazil", "Argentina", "Chile",
+    "Colombia", "Peru", "Cuba", "Australia", "New Zealand", "South Africa", "Nigeria", "Kenya",
+    "Ethiopia", "Ghana", "Senegal", "Cameroon", "Ivory Coast", "Ireland", "Scotland", "Austria",
+    "Hungary", "Czech Republic", "Croatia", "Serbia", "Romania", "Bulgaria", "Iceland", "Cairo",
+    "Alexandria", "Giza", "Aswan", "Luxor", "Port Said", "Suez", "Ismailia", "Mansoura",
+    "Tanta", "Zagazig", "Damietta", "Fayoum", "Minya", "Assiut", "Sohag", "Qena",
+    "Hurghada", "Sharm El Sheikh", "Dahab", "Marsa Matrouh", "Siwa", "Riyadh", "Jeddah", "Mecca",
+    "Medina", "Dubai", "Abu Dhabi", "Doha", "Muscat", "Beirut", "Baghdad", "Damascus",
+    "Jerusalem", "Tunis", "Rabat", "Casablanca", "Marrakesh", "Khartoum", "London", "Paris",
+    "Rome", "Madrid", "Barcelona", "Milan", "Berlin", "Munich", "Amsterdam", "Istanbul",
+    "Moscow", "Athens", "Vienna", "Geneva", "New York", "Los Angeles", "Washington", "Chicago",
+    "Toronto", "Rio de Janeiro", "Buenos Aires", "Tokyo", "Beijing", "Shanghai", "Seoul", "Bangkok",
+    "Singapore", "Mumbai", "Sydney", "Cape Town"
+  ],
+  "Musical instruments": [
+    "Oud", "Qanun", "Ney Flute", "Violin", "Cello", "Double Bass", "Guitar", "Electric Guitar",
+    "Piano", "Electric Organ", "Tabla", "Tambourine", "Riq", "Drum Kit", "Simsimiyya", "Whistle",
+    "Saxophone", "Clarinet", "Flute", "Trombone", "Mandolin", "Accordion", "Harmonica", "Mizmar",
+    "Rebab", "Banjo", "Finger Cymbals", "Triangle", "Trumpet"
+  ]
+};
+
+/* المختلف in English: the same idea as SPY_PAIRS - close enough that a clue
+   for one could pass for the other, far enough to be told apart once people
+   start talking. */
+const SPY_PAIRS_EN = [
+  ['Coffee', 'Hot Chocolate'], ['Tea', 'Herbal Tea'], ['Koshari', 'Pasta'], ['Ful Medames', 'Falafel'],
+  ['Molokhia', 'Okra'], ['Konafa', 'Basbousa'], ['Stuffed Peppers', 'Stuffed Vine Leaves'], ['Feteer', 'Pizza'],
+  ['Mango Juice', 'Guava Juice'], ['Ice Cream', 'Rice Pudding'], ['Shawarma', 'Burger'],
+  ['Cinema', 'Theatre'], ['Television', 'Radio'], ['Computer', 'Laptop'], ['Tablet', 'Phone'],
+  ['Facebook', 'Instagram'], ['WhatsApp', 'Messenger'], ['YouTube', 'TikTok'],
+  ['Sea', 'River'], ['Alexandria', 'Hurghada'], ['Cairo', 'Giza'], ['Luxor', 'Aswan'],
+  ['Bus', 'Minibus'], ['Metro', 'Train'], ['Taxi', 'Uber'], ['Bicycle', 'Motorbike'],
+  ['Aeroplane', 'Helicopter'], ['Boat', 'Speedboat'],
+  ['Doctor', 'Pharmacist'], ['Teacher', 'Headteacher'], ['Police Officer', 'Soldier'], ['Lawyer', 'Judge'],
+  ['Journalist', 'TV Presenter'], ['Actor', 'Film Director'], ['Singer', 'Composer'], ['Painter', 'Sculptor'],
+  ['Plumber', 'Electrician'], ['Carpenter', 'Blacksmith'], ['Barber', 'Hairdresser'], ['Tailor', 'Dry Cleaner'],
+  ['Doorman', 'Security Guard'], ['Driver', 'Ticket Inspector'],
+  ['Football', 'Basketball'], ['Al Ahly', 'Zamalek'], ['Stadium', 'Gym'], ['Referee', 'Coach'],
+  ['School', 'University'], ['Exam', 'Homework'], ['Book', 'Magazine'], ['Pencil', 'Pen'],
+  ['Air Conditioner', 'Fan'], ['Fridge', 'Freezer'], ['Washing Machine', 'Tumble Dryer'], ['Sofa', 'Armchair'],
+  ['Bed', 'Mattress'], ['Window', 'Balcony'], ['Block of Flats', 'Villa'], ['Kitchen', 'Bathroom'],
+  ['Eid al-Fitr', 'Eid al-Adha'], ['Wedding', 'Engagement Party'], ['Sebou', 'Birthday Party'], ['Dinner Party', 'Buffet'],
+  ['Handbag', 'Wallet'], ['Watch', 'Bracelet'], ['Sunglasses', 'Reading Glasses'], ['Shoes', 'Slippers'],
+  ['T-shirt', 'Shirt'], ['Trousers', 'Shorts'],
+  ['Pharmacy', 'Hospital'], ['Bank', 'Post Office'], ['Supermarket', 'Corner Shop'], ['Shopping Mall', 'Market'],
+  ['Café', 'Restaurant'], ['Bakery', 'Sweet Shop']
+];

@@ -8,7 +8,7 @@
       const manualLabel = appState.lang === 'ar' ? '✍️ إدخال يدوي' : '✍️ Manual Entry';
       
       let html = `<option value="countries">${countriesLabel}</option><option value="manual">${manualLabel}</option>`;
-      for(const cat in SPY_CATEGORIES) {
+      for(const cat in spyCategories()) {
           html += `<option value="${cat}">${cat}</option>`;
       }
       // Rebuilt on every visit: the pick goes back to the one last chosen on
@@ -19,6 +19,10 @@
       const container = document.getElementById('manual-word-container');
       if (container) container.classList.toggle('hidden', select.value !== 'manual');
   }
+
+  // The categories follow the games' language: switched in Settings over this
+  // screen, the list is redrawn in the new one.
+  if (typeof onLanguageChange === 'function') onLanguageChange(view => { if (view === 'setup-imposter') renderSpyCategories(); });
 
   function toggleManualWordInput() {
       const select = document.getElementById('imposter-category-select');
@@ -38,7 +42,7 @@
           const catSelect = document.getElementById('imposter-category-select');
           const category = catSelect.value;
           if (category.includes('🔒')) {
-              const expectedPw = SPY_CATEGORIES[category][0]; 
+              const expectedPw = spyCategories()[category][0]; 
               if (appState.imposter.unlockedCategories && 
                   !Array.isArray(appState.imposter.unlockedCategories) && 
                   appState.imposter.unlockedCategories[category] === expectedPw) {
@@ -62,7 +66,7 @@
       const input = document.getElementById('category-password-input').value;
       const catSelect = document.getElementById('imposter-category-select');
       const category = catSelect.value;
-      const expectedPw = SPY_CATEGORIES[category][0];
+      const expectedPw = spyCategories()[category][0];
       if (input === expectedPw) {
           playSound('success');
           if (!appState.imposter.unlockedCategories || Array.isArray(appState.imposter.unlockedCategories)) {
@@ -105,8 +109,10 @@
       const undercover = !!(undercoverSwitch && undercoverSwitch.checked);
       appState.imposter.config.undercover = undercover;
       if (undercover) {
-          const pairs = typeof SPY_PAIRS !== 'undefined' ? SPY_PAIRS : [];
-          const picked = freshPick('imppair', pairs, 1, { key: p => p[0] + '|' + p[1] })[0];
+          // The pairs in the games' language (spyPairs in JS_Core.html); the Arabic
+          // list keeps its old memory key.
+          const pairs = spyPairs();
+          const picked = freshPick(contentLang() === 'en' ? 'imppair:en' : 'imppair', pairs, 1, { key: p => p[0] + '|' + p[1] })[0];
           // Either word can be the odd one's: always the second of the pair (a list the
           // page ships) told whoever held it that they were the odd one out.
           const pair = picked && Math.random() < 0.5 ? [picked[1], picked[0]] : picked;
@@ -149,8 +155,8 @@
                   ? COUNTRIES.filter(c => c.tier === 1).map(c => contentLang() === 'en' ? c.en : c.ar) : [];
               const countries = known.length ? known : (MONKEY_LISTS[contentLang()] || MONKEY_LISTS.ar).countries;
               secretWord = freshPick('imposter:countries:' + contentLang(), countries, 1)[0];
-          } else if (SPY_CATEGORIES[category]) {
-              let list = SPY_CATEGORIES[category];
+          } else if (spyCategories()[category]) {
+              let list = spyCategories()[category];
               if (category.includes('🔒')) list = list.slice(1);
               secretWord = freshPick('imposter:' + category, list, 1)[0];
           }

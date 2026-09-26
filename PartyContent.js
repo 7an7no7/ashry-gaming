@@ -58,7 +58,7 @@ const WOULD_YOU_RATHER = {
     ['تعيش حياتك بالترتيب العكسي', 'تعيش نفس اليوم 100 مرة'],
     ['تاكل أكلتك المفضلة لوحدك', 'تاكل أكلة مش بتحبها مع العيلة كلها'],
     ['تفقد كل صورك القديمة', 'تفقد كل رسايلك القديمة'],
-    ['تبقى أطول واحد في العيلة', 'أقصر واحد'],
+    ['تبقى صاحب أحلى ضحكة في العيلة', 'صاحب أحلى نكتة في العيلة'],
     ['تشتغل مع أعز أصحابك', 'تشتغل لوحدك من البيت'],
     ['تعرف تطبخ أي حاجة', 'تعرف تصلح أي حاجة'],
     ['الشتا يبقى 9 شهور', 'الصيف يبقى 9 شهور'],
@@ -262,7 +262,7 @@ const WOULD_YOU_RATHER = {
     ['تسمع كلام جدتك في كل حاجة', 'تسمع كلام صاحبك في كل حاجة'],
     ['تلبس لبس من اختيار أصحابك أسبوع', 'تسيب أهلك يقصولك شعرك'],
     ['تحكي حكاية محرجة عنك', 'تسمع حكاية محرجة عنك من حد تاني'],
-    ['تتفرج على فيلم رعب مع العيلة', 'تتفرج على فيلم رومانسي مع أبوك'],
+    ['تتفرج على فيلم رعب مع العيلة', 'تتفرج على كرتون مع إخواتك الصغيرين'],
     ['تقعد جنب حد بيتكلم كتير في رحلة طويلة', 'تقعد جنب حد بيشخر'],
     ['تبقى مشهور في العيلة بالضحك', 'تبقى مشهور في العيلة بالأكل'],
     ['تصالح اتنين متخانقين', 'تفضل بعيد عن المشكلة'],
@@ -584,7 +584,7 @@ const WOULD_YOU_RATHER = {
     ['Live your life in reverse', 'Repeat the same day 100 times'],
     ['Eat your favourite meal alone', 'Eat a meal you dislike with the whole family'],
     ['Lose every old photo', 'Lose every old message'],
-    ['Be the tallest in the family', 'Be the shortest'],
+    ['Have the best laugh in the family', 'Tell the best jokes in the family'],
     ['Work with your best friend', 'Work alone from home'],
     ['Be able to cook anything', 'Be able to fix anything'],
     ['Nine months of winter', 'Nine months of summer'],
@@ -3489,7 +3489,7 @@ const WAVELENGTH_PAIRS = {
     {"left": "بيزعل لما يخسر", "right": "بيتقبل الخسارة"},
     {"left": "ضيف خفيف", "right": "ضيف تقيل"},
     {"left": "صغير في السن 👶", "right": "كبير في السن 👴"},
-    {"left": "شخص قصير", "right": "شخص طويل جداً 🦒"},
+    {"left": "بيت دور واحد", "right": "برج عالي أوي 🏙️"},
 
     // مواقف وحياة يومية
     {"left": "كذبة صغيرة", "right": "كذبة كبيرة جداً 🤥"},
@@ -3878,7 +3878,7 @@ const WAVELENGTH_PAIRS = {
     {"left": "Sore loser", "right": "Good loser"},
     {"left": "Easy guest", "right": "Difficult guest"},
     {"left": "Very young 👶", "right": "Very old 👴"},
-    {"left": "Short person", "right": "Very tall person 🦒"},
+    {"left": "One-storey house", "right": "Very tall tower 🏙️"},
 
     // moments and daily life
     {"left": "Small fib", "right": "Enormous lie 🤥"},

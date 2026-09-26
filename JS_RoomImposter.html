@@ -37,7 +37,7 @@ ROOM_GAMES.imposter = {
     if (!state.youAreHost) return '';
     // Locked categories are behind a password on the single-device screen and
     // there is no password step here, so they simply aren't offered.
-    const cats = Object.keys(SPY_CATEGORIES || {}).filter(c => c.indexOf('🔒') === -1);
+    const cats = Object.keys(spyCategories() || {}).filter(c => c.indexOf('🔒') === -1);
     if (!cats.length) return '';
     const maxSpies = Math.max(1, state.players.length - 2);
     const t = TRANSLATIONS[appState.lang];
@@ -75,7 +75,9 @@ ROOM_GAMES.imposter = {
     return {
       category: cat ? cat.value : (o.category || ''),
       spies: spies ? Number(spies.value) : (Number(o.spies) || 1),
-      undercover: under ? under.checked : !!o.undercover
+      undercover: under ? under.checked : !!o.undercover,
+      // المختلف's pairs come in the games' language (SPY_PAIRS_EN on the server).
+      lang: contentLang()
     };
   },
 

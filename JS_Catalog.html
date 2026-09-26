@@ -904,6 +904,8 @@ function firstPlaySteps(helpKey, lang) {
   let match;
   while ((match = liRegex.exec(olMatch[1])) !== null && items.length < 3) {
     let text = match[1]
+      // A <bdi dir="ltr"> (a "+10" or "×2" in Arabic) stays held left to right as plain text.
+      .replace(/<bdi dir="ltr">([\s\S]*?)<\/bdi>/gi, '\u2066$1\u2069')
       .replace(/<[^>]+>/g, '')
       .replace(/\s+/g, ' ')
       .trim();

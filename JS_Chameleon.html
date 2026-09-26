@@ -104,8 +104,32 @@ function startChameleonGame(again) {
 
   resetChameleonTable();
   playSound('click');
+  chameleonSave();
   showChameleonRevealStep();
   setView('reveal-chameleon');
+}
+
+/*
+   The deal is kept on the phone (the whole board and who holds which role), so a
+   reload in the middle comes back to the same card or the same board rather than
+   ending a round everyone has already looked at.
+*/
+const CHAMELEON_SAVE_KEY = 'ashryChameleonDeal_v1';
+function chameleonSave() {
+  try { localStorage.setItem(CHAMELEON_SAVE_KEY, JSON.stringify(chameleonState)); } catch (e) {}
+}
+function restoreChameleon(view) {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(CHAMELEON_SAVE_KEY) || 'null'); } catch (e) {}
+  if (!saved || !Array.isArray(saved.players) || saved.players.length < 3 || !Array.isArray(saved.words) || saved.words.length !== 16) return false;
+  Object.assign(chameleonState, saved);
+  if (view === 'reveal-chameleon' && chameleonState.revealIndex < chameleonState.players.length) {
+    showChameleonRevealStep();
+    setView('reveal-chameleon');
+  } else {
+    startChameleonTablePlay();
+  }
+  return true;
 }
 
 /**
@@ -157,6 +181,7 @@ function revealChameleonSecret() {
 
 function doneChameleonRevealStep() {
   chameleonState.revealIndex++;
+  chameleonSave();
   showChameleonRevealStep();
 }
 
@@ -172,7 +197,7 @@ function startChameleonTablePlay() {
   if (turnsList) {
     turnsList.innerHTML = chameleonState.players.map((p, idx) => `
       <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold ${idx === 0 ? 'bg-amber-500 text-black shadow' : 'bg-black/10 dark:bg-white/10'}">
-        <span>${idx + 1}.</span>
+        <bdi>${idx + 1}.</bdi>
         <span>${escapeHTML(p)}</span>
       </div>
     `).join('');

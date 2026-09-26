@@ -86,8 +86,41 @@ function startSpyfallGame(again) {
   closeModal('spyfall-result-modal');
   closeModal('spyfall-spy-guess-modal');
   playSound('click');
+  spyfallState.left = null;
+  spyfallSave();
   showSpyfallRevealStep();
   setView('reveal-spyfall');
+}
+
+/*
+   The deal is kept on the phone (the place, the spies, every job, the clock's time
+   left, the places crossed off), so a reload comes back to the same card or the same
+   discussion, its clock paused, rather than ending a round everyone has looked at.
+*/
+const SPYFALL_SAVE_KEY = 'ashrySpyfallDeal_v1';
+function spyfallSave() {
+  const st = spyfallState;
+  try {
+    localStorage.setItem(SPYFALL_SAVE_KEY, JSON.stringify({
+      players: st.players, location: st.location, spies: st.spies, playerRoles: st.playerRoles,
+      revealIndex: st.revealIndex, timerSeconds: st.timerSeconds, left: st.left,
+      crossed: [...st.crossedLocations], scores: st.scores, scoreId: st.scoreId
+    }));
+  } catch (e) {}
+}
+function restoreSpyfall(view) {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(SPYFALL_SAVE_KEY) || 'null'); } catch (e) {}
+  if (!saved || !Array.isArray(saved.players) || saved.players.length < 3 || !saved.location) return false;
+  Object.assign(spyfallState, saved, { crossedLocations: new Set(saved.crossed || []) });
+  delete spyfallState.crossed;
+  if (view === 'reveal-spyfall' && spyfallState.revealIndex < spyfallState.players.length) {
+    showSpyfallRevealStep();
+    setView('reveal-spyfall');
+  } else {
+    startSpyfallDiscussion(true);
+  }
+  return true;
 }
 
 function showSpyfallRevealStep() {
@@ -133,23 +166,27 @@ function revealSpyfallSecret() {
 
 function doneSpyfallRevealStep() {
   spyfallState.revealIndex++;
+  spyfallSave();
   showSpyfallRevealStep();
 }
 
-function startSpyfallDiscussion() {
+function startSpyfallDiscussion(resume) {
   setView('play-spyfall');
   renderSpyfallLocationBoard();
   setSpyfallPauseLabel(false);
 
   if (spyfallState.timerClock) spyfallState.timerClock.stop();
 
-  let left = spyfallState.timerSeconds;
+  // Back from a reload: the time it had left, paused until the table is ready.
+  let left = resume && spyfallState.left > 0 ? spyfallState.left : spyfallState.timerSeconds;
   updateSpyfallTimerUI(left);
 
   spyfallState.timerClock = createClock({
     seconds: left,
     onTick: (val) => {
       updateSpyfallTimerUI(val);
+      spyfallState.left = val;
+      spyfallSave();
       if (val === 60) playSound('tick');
     },
     // Only here: the tick for 0 arrives as well, and opening the vote from
@@ -159,6 +196,7 @@ function startSpyfallDiscussion() {
       openSpyfallAccuseModal();
     }
   });
+  if (resume) { spyfallState.timerClock.pause(); setSpyfallPauseLabel(true); }
 }
 
 function updateSpyfallTimerUI(sec) {
@@ -206,6 +244,7 @@ function toggleSpyfallCrossLocation(locName) {
   } else {
     spyfallState.crossedLocations.add(locName);
   }
+  spyfallSave();
   renderSpyfallLocationBoard();
 }
 

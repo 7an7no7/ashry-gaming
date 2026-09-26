@@ -328,15 +328,10 @@ function catalogMeta(g, t, withModeLabels, withModes) {
   return bits.join('');
 }
 
-/** The mode icons alone, for the corner of a card. */
-function catalogModes(g, t) {
-  return (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean)
-    .map(mode => `<span title="${escapeHTML(t[mode.label] || '')}" aria-label="${escapeHTML(t[mode.label] || '')}">${mode.icon}</span>`).join('');
-}
-
-/* One shape for every card: the icon with the mode icons beside it, the title,
-   two lines of description at most, and players and minutes on one line - so
-   two cards in a row are always the same height. */
+/* Every game is a poster (section 39 of Style.html): its icon big on its own
+   colour, the players as a badge, the name at the foot. The description is the
+   tooltip; the ways it plays are on its setup's hero (the owner, 27 Sep 2026:
+   no mode icons on the posters). */
 function catalogCard(g, t) {
   const players = g.players ? `<span class="gcard__badge"><span aria-hidden="true">👥</span><span class="metric">${g.players[0] === g.players[1] ? g.players[0] : g.players[0] + '–' + g.players[1]}</span></span>` : '';
   return `
@@ -344,7 +339,6 @@ function catalogCard(g, t) {
             title="${escapeHTML(catalogDesc(g, t))}">
       <span class="gcard__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
       ${players}
-      <span class="gcard__modes">${catalogModes(g, t)}</span>
       <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
     </button>`;
 }
@@ -353,13 +347,18 @@ function catalogCard(g, t) {
    different one each day, as a big poster with its own play button. It is a
    .gcard with data-game, so the filters and the icon flights treat it as a
    card (a search or a chip hides it like any other). */
+let featLastId = null;   // the game the featured poster last showed, this visit
 function catalogFeatured(t) {
   const shelf = (typeof STARTER_SHELF !== 'undefined' ? STARTER_SHELF : []).map(id => CATALOG_BY_ID[id]).filter(Boolean);
   if (!shelf.length) return '';
   const g = shelf[Math.floor(Date.now() / 86400000) % shelf.length];
   const modes = (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean).map(m => t[m.short] || t[m.label] || '').filter(Boolean);
+  // A new day's game fades and rises in when the home is drawn again - never on
+  // the first paint of a visit, and not with motion off.
+  const fresh = featLastId !== null && featLastId !== g.id && !motionOff();
+  featLastId = g.id;
   return `
-    <div class="gcard home-feat" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
+    <div class="gcard home-feat${fresh ? ' home-feat--in' : ''}" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
       <span class="home-feat__art" aria-hidden="true"><span class="gcard__icon">${iconHtml(g.icon)}</span></span>
       <span class="home-feat__fade" aria-hidden="true"></span>
       <span class="home-feat__text">
@@ -840,14 +839,18 @@ function renderHome() {
     if (!games.length) return '';
     const body = grp.id === 'tools'
       ? `<div class="tools-list">${games.map(g => catalogToolRow(g, t)).join('')}</div>`
-      : `<div class="gcard-grid">${games.length === 1 ? catalogSpotlight(games[0], t) : games.map(g => catalogCard(g, t)).join('')}</div>`;
+      : games.length === 1
+        ? `<div class="gcard-grid">${catalogSpotlight(games[0], t)}</div>`
+        : `<div class="gcard-grid gcard-grid--shelf hscroll-fade">${games.map(g => catalogCard(g, t)).join('')}</div>`;
+    const shelf = grp.id !== 'tools' && games.length > 1;
     return `
-      <section class="section ${grp.id === 'tools' ? 'hidden' : ''}" data-group="${grp.id}">
+      <section class="section ${grp.id === 'tools' ? 'hidden' : ''}${shelf && shelfOpen[grp.id] ? ' is-open' : ''}" data-group="${grp.id}">
         <div class="section__head">
           <span class="section__emoji" aria-hidden="true">${grp.icon}</span>
           <h2 class="section__title">${escapeHTML(t[grp.title] || grp.id)}</h2>
           <span class="section__count metric">${games.length}</span>
           <span class="section__rule"></span>
+          ${shelf ? shelfButtonHtml(t, !!shelfOpen[grp.id]) : ''}
         </div>
         ${body}
       </section>`;
@@ -898,6 +901,56 @@ function renderHome() {
   applyHomeFilter({ animate: false });
   settleStagger(view, 'menu');
   view.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
+  // Measured once the screen is showing: setView draws it while it is hidden.
+  requestAnimationFrame(() => syncShelves(view));
+  wireShelfResize();
+}
+
+/* --- Shelves (section 39, from 900px wide) -----------------------------------
+   On a laptop or a TV each section's posters are one row that scrolls sideways,
+   so the home shows every kind of game on one screen; «الكل ›» at the end of the
+   section's head opens it back into a wrapping grid. A phone keeps the grid (the
+   CSS only makes a shelf in the wide block). The button shows only where the
+   row really runs past the edge, or while the section is open. */
+const shelfOpen = {};   // group id → opened with «الكل», for this visit
+function shelfButtonHtml(t, open) {
+  return `<button type="button" class="section__all" aria-expanded="${open}" onclick="toggleShelf(this)">${escapeHTML(open ? (t.home_shelf_less || '') : (t.home_shelf_all || ''))}</button>`;
+}
+function toggleShelf(btn) {
+  const sec = btn.closest('section');
+  if (!sec) return;
+  const t = TRANSLATIONS[appState.lang];
+  const open = !sec.classList.contains('is-open');
+  const grid = sec.querySelector('.gcard-grid--shelf');
+  const flip = () => {
+    sec.classList.toggle('is-open', open);
+    if (grid) grid.scrollLeft = 0;
+  };
+  if (typeof flipGrid === 'function') flipGrid(sec, flip); else flip();
+  shelfOpen[sec.dataset.group || sec.dataset.shelf] = open;
+  btn.setAttribute('aria-expanded', open);
+  btn.textContent = open ? (t.home_shelf_less || '') : (t.home_shelf_all || '');
+  syncShelves(sec.closest('[id^="view-"]'));
+}
+function syncShelves(root) {
+  if (!root) return;
+  root.querySelectorAll('.gcard-grid--shelf').forEach(grid => {
+    const sec = grid.closest('section');
+    if (!sec) return;
+    sec.classList.toggle('has-more', sec.classList.contains('is-open') || grid.scrollWidth > grid.clientWidth + 2);
+  });
+}
+let shelfResizeWired = false;
+function wireShelfResize() {
+  if (shelfResizeWired) return;
+  shelfResizeWired = true;
+  let raf = 0;
+  window.addEventListener('resize', () => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      ['view-menu', 'view-together'].forEach(id => syncShelves(document.getElementById(id)));
+    });
+  }, { passive: true });
 }
 
 function setHomeFilter(id) {
@@ -1005,8 +1058,11 @@ function applyHomeFilter(opts) {
     if (empty) empty.classList.toggle('hidden', shown > 0);
   };
 
-  if ((opts && opts.animate === false) || typeof flipGrid !== 'function') decide();
-  else flipGrid(view, decide);
+  // A search lays every shelf out as a grid, so no result is scrolled out of sight.
+  const shelves = () => { decide(); view.classList.toggle('is-searching', searching); };
+  if ((opts && opts.animate === false) || typeof flipGrid !== 'function') shelves();
+  else flipGrid(view, shelves);
+  syncShelves(view);
 }
 
 /* --- The hero on a setup screen ---------------------------------------------
@@ -1233,14 +1289,15 @@ function renderTogether() {
       <button type="button" class="btn btn--neutral" onclick="roomOpenScreen()">📺 ${escapeHTML(t.together_tv || '')}</button>
       <button type="button" class="btn btn--ghost btn--sm" onclick="shareAppLink()">${escapeHTML(t.share_app_btn || '')}</button>
     </div>
-    <section class="section">
+    <section class="section${shelfOpen.together ? ' is-open' : ''}" data-shelf="together">
       <div class="section__head">
         <span class="section__emoji" aria-hidden="true">🎲</span>
         <h2 class="section__title">${escapeHTML(t.together_games || '')}</h2>
         <span class="section__count metric">${games.length}</span>
         <span class="section__rule"></span>
+        ${shelfButtonHtml(t, !!shelfOpen.together)}
       </div>
-      <div class="gcard-grid">${games.map(g => catalogCard(g, t)).join('')}</div>
+      <div class="gcard-grid gcard-grid--shelf hscroll-fade">${games.map(g => catalogCard(g, t)).join('')}</div>
     </section>
     <section class="card card--tight">
       <div class="eyebrow">${escapeHTML(t.together_how || '')}</div>
@@ -1254,6 +1311,10 @@ function renderTogether() {
       <button type="button" class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)" onclick="openHelpModal()">📘 ${escapeHTML(t.together_more || '')}</button>
     </section>`;
   settleStagger(view, 'together');
+  view.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
+  // Measured once the screen is showing: setView draws it while it is hidden.
+  requestAnimationFrame(() => syncShelves(view));
+  wireShelfResize();
   if (togetherLiveLast) paintTogetherLive();
   refreshTogetherLive();
 }

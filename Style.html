@@ -16200,6 +16200,7 @@ body.dark .start-card { background-image: radial-gradient(circle at var(--wash-x
   --sh-3: 0 4px 10px rgba(52, 29, 120, 0.06), 0 14px 34px -14px rgba(52, 29, 120, 0.28);
   --sh-4: 0 24px 56px -14px rgba(29, 21, 56, 0.35);
   --poster-shadow: 0 14px 30px -12px rgba(29, 21, 56, 0.45);
+  --poster-shadow-hover: 0 22px 40px -14px rgba(29, 21, 56, 0.55);
   --poster-fade: rgba(10, 6, 20, 0.86);
 }
 body.dark {
@@ -16226,6 +16227,7 @@ body.dark {
   --sh-3: 0 8px 24px -8px rgba(0, 0, 0, 0.65);
   --sh-4: 0 20px 48px -12px rgba(0, 0, 0, 0.75);
   --poster-shadow: 0 16px 36px -14px rgba(0, 0, 0, 0.7);
+  --poster-shadow-hover: 0 26px 46px -14px rgba(0, 0, 0, 0.8);
   --poster-fade: rgba(6, 4, 14, 0.9);
 }
 
@@ -16417,6 +16419,11 @@ body.dark::before {
   z-index: 0;
 }
 .gcard:active { transform: scale(0.96); box-shadow: var(--sh-2); border-color: transparent; }
+/* Dark keeps the posters' colour: section 17's `body.dark .gcard` corner wash
+   (and the spotlight's) outweighs a plain `.gcard`, and left every dark
+   poster, the featured one too, near-black (found 26 Sep 2026). */
+body.dark .gcard, body.dark .gcard--spotlight { background-image: linear-gradient(150deg, var(--accent), var(--accent-hover)); }
+body.dark .gcard.home-feat { background-image: linear-gradient(135deg, var(--accent), var(--accent-hover)); }
 .gcard > .gcard__icon {
   position: absolute;
   inset: 0;
@@ -16445,15 +16452,14 @@ body.dark::before {
   gap: 3px;
   padding: 2px 7px;
   border-radius: var(--r-full);
-  background: rgba(0, 0, 0, 0.36);
+  /* A solid tint, no blur: thirty blurred badges over a scrolling grid cost
+     a phone frames (26 Sep 2026). */
+  background: rgba(0, 0, 0, 0.44);
   color: #ffffff;
   font-size: 0.66rem;
   font-weight: 800;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 .gcard__badge .metric { font-size: inherit; color: inherit; }
-.gcard > .gcard__modes { position: absolute; top: var(--sp-2); inset-inline-end: var(--sp-2); z-index: 1; display: inline-flex; gap: 1px; padding: 0; font-size: 0.7rem; line-height: 1; opacity: 0.95; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)); }
 .gcard__title {
   position: relative;
   z-index: 1;
@@ -16534,11 +16540,9 @@ body.dark .home-start { background: linear-gradient(150deg, #5b21b6 0%, #4c1d95 
   padding: 0 var(--sp-3);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--r-md);
-  background: rgba(0, 0, 0, 0.32);
+  background: rgba(0, 0, 0, 0.42);
   color: #ffffff;
   font-size: var(--fs-xs);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }
 .game-hero__rules:active { background: rgba(0, 0, 0, 0.5); }
 .game-hero__rules span[aria-hidden] { font-size: 1rem; }
@@ -16557,7 +16561,23 @@ body.dark .home-start { background: linear-gradient(150deg, #5b21b6 0%, #4c1d95 
 .tab-hero__sub { color: rgba(255, 255, 255, 0.86); }
 .together-live { color: #ffffff; }
 .tool-item { border: 0; border-radius: var(--r-lg); box-shadow: var(--sh-2); }
-.tool-icon { border-radius: var(--r-md); background: linear-gradient(150deg, var(--accent), var(--accent-hover)); box-shadow: var(--sh-2); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25)); }
+/* A tool row is one line - the icon as a poster thumb (the recent tiles'
+   gradient), the name over its line, the chevron - at every size, the score
+   keepers' rows too. The shadow is on the glyph, not the tile. */
+.tool-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--r-md);
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+  box-shadow: var(--sh-2);
+  font-size: 1.6rem;
+  line-height: 1;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  filter: none;
+}
+.tool-icon .art-icon { width: 1em; height: 1em; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3)); }
+.tool-item > .tool-info { flex: 1 1 auto; }
+.tool-item > .tool-chev { flex: none; }
 
 /* Kufi is wider than Cairo was: a row of three buttons keeps its words (حرب السفن's placing row). */
 .bs-bar .btn-row > .btn { min-width: 0; padding-inline: var(--sp-2); font-size: var(--fs-sm); }
@@ -16591,8 +16611,172 @@ body.dark .home-start { background: linear-gradient(150deg, #5b21b6 0%, #4c1d95 
   .home-feat__text { max-width: 55%; }
 }
 
+/* --- The options under a setup hero -----------------------------------------
+   The shared form pieces every setup screen is built from, in the poster look
+   (the owner, 26 Sep 2026): each option a calm rounded row on the card, its
+   label at the start; a count at the end of that row, a switch at the end of
+   its; a choice of a few as a pill track with the accent thumb; a list with an
+   accent chevron. Scoped to the setup screens: the lobbies, the settings sheet
+   and the game boards keep their controls. Sizes stay the system's (48px
+   fields, 44px taps). A group without .field (a <div> whose first child is its
+   label) is a row too; one holding fields or a card is not. */
+[id^="view-setup-"] .field__label {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-2);
+  text-transform: none;
+  letter-spacing: 0;
+}
+[id^="view-setup-"] :is(.field, div:has(> .field__label:first-child):not(:has(.field, .card))) {
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+[id^="view-setup-"] .setup-more :is(.field, div:has(> .field__label:first-child):not(:has(.field, .card))) { background: var(--surface-solid); }
+[id^="view-setup-"] .setup-more { border-color: var(--hairline); }
+[id^="view-setup-"] .setup-more__head { font-family: var(--font-display); }
+/* A count: the label at the start of the row, − n + at its end. */
+[id^="view-setup-"] :is(.field, div):has(> .field__label:first-child + .stepper) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--sp-3);
+}
+[id^="view-setup-"] :is(.field, div):has(> .field__label:first-child + .stepper) > .field__label { margin: 0; }
+[id^="view-setup-"] :is(.field, div):has(> .field__label:first-child + .stepper) > .stepper { width: 9.5rem; }
+[id^="view-setup-"] :is(.field, div):has(> .field__label:first-child + .stepper) > :not(.field__label, .stepper) { grid-column: 1 / -1; }
+[id^="view-setup-"] .stepper {
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+}
+[id^="view-setup-"] .stepper__btn {
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  box-shadow: none;
+  font-family: var(--font-display);
+}
+[id^="view-setup-"] .stepper__btn:active { background: var(--accent-border); }
+[id^="view-setup-"] .stepper__value { font-family: var(--font-display); font-weight: 800; }
+/* A choice of a few: a pill track and the accent thumb (syncSegmented's). */
+[id^="view-setup-"] .segmented {
+  padding: 4px;
+  border-color: transparent;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+}
+/* The reading face, not Kufi: a row of seven clocks (شطرنج) has no room for
+   Kufi's width. */
+[id^="view-setup-"] .segmented__item { border-radius: var(--r-full); font-weight: 700; }
+[id^="view-setup-"] .segmented__item.is-active { background: var(--accent); color: var(--accent-on); box-shadow: 0 6px 14px -6px var(--accent-glow); }
+[id^="view-setup-"] .segmented.has-thumb .segmented__item.is-active { background: transparent; box-shadow: none; }
+[id^="view-setup-"] .segmented::before {
+  top: 4px;
+  bottom: 4px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  box-shadow: 0 6px 14px -6px var(--accent-glow);
+}
+[id^="view-setup-"] .field .segmented { background: var(--surface-solid); box-shadow: inset 0 0 0 1px var(--border); }
+/* Six options or more (شطرنج's seven clocks) are narrow: a pill's round ends
+   would cut into their words, so the track and the thumb are rounded boxes. */
+[id^="view-setup-"] .segmented:has(> .segmented__item:nth-child(6)) { padding: 3px; border-radius: var(--r-md); }
+[id^="view-setup-"] .segmented:has(> .segmented__item:nth-child(6))::before { top: 3px; bottom: 3px; border-radius: calc(var(--r-md) - 0.25rem); }
+[id^="view-setup-"] .segmented:has(> .segmented__item:nth-child(6)) > .segmented__item { border-radius: calc(var(--r-md) - 0.25rem); padding-inline: 2px; }
+/* A switch lit in the accent, with its glow. */
+[id^="view-setup-"] .switch input:checked + .switch__track { box-shadow: 0 4px 12px -4px var(--accent-glow); }
+/* A list: rounder, with the chevron in the accent - the saved-groups list
+   too, whose `background` shorthand had dropped it (so the chevron's size,
+   repeat and place are all said again here). */
+[id^="view-setup-"] select {
+  border-radius: var(--r-lg);
+  background-image: linear-gradient(45deg, transparent 50%, var(--accent-ink) 50%),
+                    linear-gradient(135deg, var(--accent-ink) 50%, transparent 50%);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+[dir="rtl"] [id^="view-setup-"] select { background-position: calc(var(--sp-5) - 3px) calc(50% + 1px), var(--sp-5) calc(50% + 1px); }
+[dir="ltr"] [id^="view-setup-"] select { background-position: calc(100% - var(--sp-5)) calc(50% + 1px), calc(100% - var(--sp-5) + 5px) calc(50% + 1px); }
+
+/* --- Hover, under a real mouse only: a poster lifts ---------------------------
+   With translate and scale, not transform: the posters' rise-in keeps its
+   transform (fill: both) through the first visit, which a hover's transform
+   can't beat. */
+@media (hover: hover) and (pointer: fine) {
+  .gcard {
+    transition: translate var(--dur-2) var(--ease-out), scale var(--dur-2) var(--ease-out),
+                box-shadow var(--dur-2) var(--ease-out), transform var(--dur-1) var(--ease-out);
+  }
+  .gcard:hover { transform: none; translate: 0 -4px; scale: 1.02; box-shadow: var(--poster-shadow-hover); }
+  .gcard.home-feat:hover, .gcard--spotlight:hover { translate: 0 -2px; scale: 1.006; }
+  .gcard:hover:active { translate: none; scale: 0.97; box-shadow: var(--sh-2); }
+}
+
+/* --- The featured poster changes with a small fade and rise (catalogFeatured) --- */
+@keyframes homeFeatIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+.gcard.home-feat--in { animation: homeFeatIn 360ms var(--ease-out) both; }
+
+/* --- «الكل ›» in a section's head: only with shelves (below) --- */
+.section__all {
+  display: none;
+  flex: none;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--accent-ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  cursor: pointer;
+}
+.section__all:active { background: var(--surface-2); }
+
+/* --- Sections as shelves on a laptop or a TV (the grids renderHome and
+   renderTogether mark .gcard-grid--shelf): one row of posters that scrolls
+   sideways and fades at the edge it can still go to; «الكل» opens a section
+   back into a wrapping grid, and so does a search (every result in sight).
+   Phones keep the wrapping grid. The padding keeps the posters' shadows and
+   the hover lift inside the scroller. */
+@media (min-width: 900px) and (min-height: 501px) {
+  .gcard-grid.gcard-grid--shelf {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 9.5rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: var(--sp-1);
+    scrollbar-width: none;
+    padding: var(--sp-2) var(--sp-1) var(--sp-6);
+    margin: calc(-1 * var(--sp-2)) calc(-1 * var(--sp-1)) calc(-1 * var(--sp-4));
+  }
+  .gcard-grid--shelf::-webkit-scrollbar { display: none; }
+  .gcard-grid--shelf > .gcard { scroll-snap-align: start; }
+  .section.is-open > .gcard-grid--shelf,
+  .is-searching .gcard-grid--shelf {
+    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    overflow: visible;
+    -webkit-mask-image: none;
+            mask-image: none;
+  }
+  .section.has-more .section__all { display: inline-flex; }
+  .is-searching .section__all { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nav-room__btn, .home-feat__btn { transition: none; }
+  .gcard.home-feat--in { animation: none; }
 }
 
 </style>

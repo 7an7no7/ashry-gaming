@@ -19,6 +19,14 @@
    while team mode is on (relayPlaying).
    ========================================================================= */
 
+/**
+ * "3 / 5" held left to right. With spaces round the slash, an Arabic line
+ * lays the two numbers out right to left and shows "5 / 3" (the numbers are
+ * separate runs; only a bare "3/5" stays together). Used by the party games'
+ * turn and round counters.
+ */
+function ltrFrac(a, b) { return String.fromCharCode(0x2066) + a + ' / ' + b + String.fromCharCode(0x2069); }
+
 function relayStart(store, names, turns) {
   store.relay = { names: [names[0], names[1]], turns: turns, i: 0, scores: [0, 0], last: null, phase: 'handover' };
   if (typeof saveToLocal === 'function') saveToLocal();
@@ -46,9 +54,9 @@ function relayHandoverHtml(store, t, startFn) {
     <div class="relay">
       ${relayScoresHtml(store, team)}
       <div class="relay__pass">
-        <div class="eyebrow">${escapeHTML(t.relay_turn_of || '')} · ${turnNo} / ${r.turns}</div>
+        <div class="eyebrow">${escapeHTML(t.relay_turn_of || '')} · ${ltrFrac(turnNo, r.turns)}</div>
         <div class="relay__team relay__team--${team}">${escapeHTML(r.names[team])}</div>
-        <p class="field__hint">📱 ${escapeHTML(t.relay_pass_to || '')} ${escapeHTML(r.names[team])}</p>
+        <p class="field__hint">📱 ${escapeHTML(t.relay_pass_to || '')}</p>
       </div>
       <button type="button" class="btn btn--primary btn--lg" onclick="${startFn}">${escapeHTML(t.relay_start_turn || '')}</button>
     </div>`;
@@ -93,9 +101,9 @@ function relaySummaryHtml(store, t, nextFn, exitFn) {
       </div>
       ${relayScoresHtml(store, team)}
       <div class="relay__pass">
-        <div class="eyebrow">${escapeHTML(t.relay_turn_of || '')} · ${turnNo} / ${r.turns}</div>
+        <div class="eyebrow">${escapeHTML(t.relay_turn_of || '')} · ${ltrFrac(turnNo, r.turns)}</div>
         <div class="relay__team relay__team--${team}">${escapeHTML(r.names[team])}</div>
-        <p class="field__hint">📱 ${escapeHTML(t.relay_pass_to || '')} ${escapeHTML(r.names[team])}</p>
+        <p class="field__hint">📱 ${escapeHTML(t.relay_pass_to || '')}</p>
       </div>
       <button type="button" class="btn btn--primary btn--lg" onclick="${nextFn}">${escapeHTML(t.relay_start_turn || '')}</button>
       <button type="button" class="btn btn--ghost btn--sm" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>
@@ -161,7 +169,7 @@ function paintRelayResume(prefix, store, resumeFn, box) {
   const r = store.relay;
   resume.classList.remove('hidden');
   resume.innerHTML = `
-    <label class="field__label">⏸️ ${escapeHTML(t.relay_unfinished || 'مباراة لسه ما خلصتش')} · ${Math.floor(r.i / 2) + 1} / ${r.turns}</label>
+    <label class="field__label">⏸️ ${escapeHTML(t.relay_unfinished || 'مباراة لسه ما خلصتش')} · ${ltrFrac(Math.floor(r.i / 2) + 1, r.turns)}</label>
     <div class="relay">
       ${relayScoresHtml(store, relayTeam(store))}
       <button type="button" class="btn btn--secondary" onclick="${resumeFn}">▶ ${escapeHTML(t.solo_continue || '')}</button>

@@ -26,7 +26,7 @@ const MONKEY_LISTS = {
     "غانا", "اليونان", "غرينادا", "غواتيمالا", "غينيا", "غينيا بيساو", "غيانا", "هايتي", "هندوراس", "المجر",
     "آيسلندا", "الهند", "إندونيسيا", "إيران", "العراق", "أيرلندا", "إسرائيل", "إيطاليا", "جامايكا", "اليابان",
     "الأردن", "كازاخستان", "كينيا", "كيريباتي", "كوريا الشمالية", "كوريا الجنوبية", "الكويت", "قيرغيزستان", "لاوس", "لاتفيا",
-    "لبنان", "ليسوتو", "ليبيريا", "ليبيا", "ليختنشتاين", "ليتوانيا", "لوتسمبورغ", "مدغشقر", "مالاوي", "ماليزيا",
+    "لبنان", "ليسوتو", "ليبيريا", "ليبيا", "ليختنشتاين", "ليتوانيا", "لوكسمبورغ", "مدغشقر", "مالاوي", "ماليزيا",
     "جزر المالديف", "مالي", "مالطا", "جزر مارشال", "موريتانيا", "موريشيوس", "المكسيك", "ميكرونيزيا", "مولدوفا", "موناكو",
     "منغوليا", "الجبل الأسود", "المغرب", "موزمبيق", "ميانمار", "بورما", "ناميبيا", "ناورو", "نيبال", "هولندا",
     "نيوزيلندا", "نيكاراغوا", "النيجر", "نيجيريا", "مقدونيا الشمالية", "مقدونيا", "النرويج", "سلطنة عمان", "باكستان", "بالاو",
@@ -38,7 +38,10 @@ const MONKEY_LISTS = {
     "أوغندا", "أوكرانيا", "الإمارات العربية المتحدة", "الامارات", "المملكة المتحدة", "الولايات المتحدة الأمريكية", "امريكا", "أوروغواي", "أوزبكستان", "فانواتو",
     "الفاتيكان", "الكرسي الرسولي", "فنزويلا", "فيتنام", "اليمن", "زامبيا", "زيمبابوي", "كوسوفو", "إنجلترا", "اسكتلندا",
     "ويلز", "أيرلندا الشمالية", "الولايات المتحدة", "بريطانيا", "روسيا الاتحادية", "عمان", "الكونغو", "التشيك", "كوريا", "هولاندا",
-    "الكوريا الجنوبية"
+    // The spellings an Egyptian table writes (ج for the hard g, as the papers here do) and other spoken forms.
+    "لوكسمبورج", "أنجولا", "بنجلاديش", "جامبيا", "الجابون", "جواتيمالا", "جرينادا", "نيكاراجوا", "باراجواي", "أوروجواي",
+    "توجو", "الكونجو", "منجوليا", "المملكة العربية السعودية", "بيلاروسيا", "روسيا البيضاء", "هنغاريا", "المالديف", "تايلند", "البهاما",
+    "نيوزلندا", "اسكوتلندا", "الدنمرك", "البيرو"
     ],
     cities: [
     "القاهرة", "الجيزة", "الإسكندرية", "أسوان", "الأقصر", "أسيوط", "سوهاج", "قنا", "المنيا", "بني سويف",
@@ -56,7 +59,21 @@ const MONKEY_LISTS = {
     "مونتريال", "فانكوفر", "ريو دي جانيرو", "ساو باولو", "بوينس آيرس", "مكسيكو سيتي", "أثينا", "فيينا", "أمستردام", "بروكسل",
     "زيورخ", "جنيف", "ستوكهولم", "أوسلو", "كوبنهاغن", "هلسنكي", "لشبونة", "دبلن", "براغ", "بودابست",
     "وارسو", "كييف", "تبليسي", "باكو", "طهران", "أصفهان", "كراتشي", "لاهور", "إسلام آباد", "كابول",
-    "عشق آباد", "طشقند", "نيروبي", "أديس أبابا", "لاغوس", "أكرا", "داكار", "كيب تاون", "جوهانسبرغ"
+    "عشق آباد", "طشقند", "نيروبي", "أديس أبابا", "لاغوس", "أكرا", "داكار", "كيب تاون", "جوهانسبرغ",
+    // Egypt's towns a table names first, and the ones the article is dropped from.
+    "إسكندرية", "العلمين", "حلوان", "إدفو", "كوم أمبو", "إسنا", "ملوي", "المحلة", "كفر الدوار", "دسوق",
+    "بلبيس", "ميت غمر", "مرسى علم", "سفاجا", "القصير", "سانت كاترين", "الطور", "العاشر من رمضان", "الشيخ زايد", "مطروح",
+    // The Arab world.
+    "الكويت", "القدس", "غزة", "رام الله", "الخليل", "نابلس", "مكة المكرمة", "الخبر", "ينبع", "رأس الخيمة",
+    "الفجيرة", "حماة", "اللاذقية", "طرطوس", "كربلاء", "النجف", "السليمانية", "تعز", "الحديدة", "بورتسودان",
+    "مصراتة", "القيروان", "بنزرت", "عنابة", "تلمسان", "مكناس", "تطوان", "إربد", "الزرقاء", "صيدا",
+    // The world, as it is written here (ج for the hard g too).
+    "ميلان", "تورنتو", "هامبورغ", "هامبورج", "فرانكفورت", "جوهانسبرج", "كوبنهاجن", "فلورنسا", "البندقية", "فينيسيا",
+    "تورينو", "إشبيلية", "فالنسيا", "بورتو", "برمنغهام", "إدنبرة", "بلغراد", "بوخارست", "صوفيا", "روتردام",
+    "سان بطرسبرغ", "سوتشي", "أنطاليا", "إزمير", "طرابزون", "سان فرانسيسكو", "لاس فيغاس", "بوسطن", "هيوستن", "دالاس",
+    "أوتاوا", "كيوتو", "هيروشيما", "كولكاتا", "دكا", "كاتماندو", "هانوي", "كانبرا", "أوكلاند", "هافانا",
+    "ليما", "بوغوتا", "كاراكاس", "سانتياغو", "كينشاسا", "أبوجا", "كمبالا", "دار السلام", "زنجبار", "بريتوريا",
+    "ديربان", "مينسك"
     ]
   },
   en: {
@@ -81,7 +98,9 @@ const MONKEY_LISTS = {
     "United Kingdom", "United Arab Emirates", "Saudi Arabia", "South Africa", "South Korea", "North Korea", "New Zealand", "Sri Lanka", "Costa Rica", "El Salvador",
     "Dominican Republic", "Papua New Guinea", "Sierra Leone", "Burkina Faso", "Cape Verde", "Ivory Coast", "Czech Republic", "South Sudan", "North Macedonia", "Trinidad and Tobago",
     "Solomon Islands", "Marshall Islands", "East Timor", "Equatorial Guinea", "Guinea-Bissau", "San Marino", "Vatican City", "Saint Lucia", "Antigua and Barbuda", "Bosnia and Herzegovina",
-    "Central African Republic", "Northern Ireland", "Hong Kong", "Macedonia", "Burma", "Swaziland", "Persia"
+    "Central African Republic", "Northern Ireland", "Macedonia", "Burma", "Swaziland",
+    "Saint Kitts and Nevis", "Saint Vincent and the Grenadines", "Sao Tome and Principe", "Democratic Republic of the Congo", "Vatican", "Emirates", "Korea", "Great Britain", "Turkiye", "USA",
+    "UK", "UAE", "Timor-Leste"
     ],
     cities: [
     "Cairo", "Giza", "Alexandria", "Aswan", "Luxor", "Hurghada", "London", "Manchester", "Liverpool", "Paris",
@@ -95,7 +114,16 @@ const MONKEY_LISTS = {
     "Nairobi", "Lagos", "Accra", "Dakar", "Johannesburg", "Havana", "Lima", "Bogota", "Santiago", "Caracas",
     "Baku", "Tehran", "Karachi", "Lahore", "Kabul", "New York", "Los Angeles", "San Francisco", "Las Vegas", "Washington",
     "Mexico City", "Rio de Janeiro", "Sao Paulo", "Buenos Aires", "Hong Kong", "Kuala Lumpur", "Abu Dhabi", "Tel Aviv", "Cape Town", "Sharm El Sheikh",
-    "Port Said", "Saint Petersburg", "New Delhi", "Ho Chi Minh City"
+    "Port Said", "Saint Petersburg", "New Delhi", "Ho Chi Minh City",
+    "Mansoura", "Tanta", "Zagazig", "Suez", "Ismailia", "Damietta", "Minya", "Asyut", "Sohag", "Qena",
+    "Fayoum", "Dahab", "Siwa", "Marsa Alam", "El Alamein", "Marsa Matruh", "Kuwait City", "Manama", "Sharjah", "Jerusalem",
+    "Gaza", "Aleppo", "Basra", "Mosul", "Erbil", "Sanaa", "Aden", "Khartoum", "Tripoli", "Benghazi",
+    "Oran", "Fes", "Agadir", "Addis Ababa", "Kinshasa", "Kampala", "Dar es Salaam", "Pretoria", "Durban", "Florence",
+    "Turin", "Seville", "Valencia", "Porto", "Lyon", "Nice", "Hamburg", "Frankfurt", "Cologne", "Dortmund",
+    "Birmingham", "Edinburgh", "Glasgow", "Belgrade", "Bucharest", "Sofia", "Zagreb", "Rotterdam", "Antalya", "Izmir",
+    "Ottawa", "Quebec", "Philadelphia", "Detroit", "Orlando", "San Diego", "Hiroshima", "Hanoi", "Taipei", "Kolkata",
+    "Bangalore", "Dhaka", "Kathmandu", "Islamabad", "Tashkent", "Tbilisi", "Canberra", "Auckland", "Wellington", "Perth",
+    "Brisbane", "Quito", "Montevideo", "Minsk", "Riga", "Bern", "Kyiv", "Bombay"
     ],
     animals: [
     "Lion", "Tiger", "Elephant", "Giraffe", "Zebra", "Monkey", "Gorilla", "Chimpanzee", "Cat", "Dog",
@@ -113,7 +141,9 @@ const MONKEY_LISTS = {
     "Grasshopper", "Cricket", "Dragonfly", "Snail", "Worm", "Slug", "Antelope", "Gazelle", "Llama", "Alpaca",
     "Yak", "Mole", "Lemur", "Sloth", "Armadillo", "Meerkat", "Mongoose", "Weasel", "Ferret", "Platypus",
     "Orca", "Manatee", "Seahorse", "Clownfish", "Swordfish", "Piranha", "Barracuda", "Anchovy", "Cod", "Herring",
-    "Mackerel", "Polar bear", "Killer whale", "Sea lion", "Guinea pig", "Praying mantis"
+    "Mackerel", "Polar bear", "Killer whale", "Sea lion", "Guinea pig", "Praying mantis",
+    "Hippopotamus", "Rhinoceros", "Mule", "Ox", "Pony", "Lamb", "Hen", "Canary", "Nightingale", "Kitten",
+    "Puppy", "Dinosaur", "Cockroach", "Flea", "Hoopoe", "Ibis", "Heron"
     ],
     foods: [
     "Pizza", "Burger", "Sandwich", "Pasta", "Spaghetti", "Lasagna", "Risotto", "Sushi", "Ramen", "Noodles",
@@ -129,7 +159,9 @@ const MONKEY_LISTS = {
     "Garlic", "Pepper", "Corn", "Peas", "Beans", "Lentils", "Spinach", "Lettuce", "Cabbage", "Broccoli",
     "Cauliflower", "Mushroom", "Eggplant", "Zucchini", "Pumpkin", "Olive", "Dates", "Figs", "Ice cream", "Hot dog",
     "Fish and chips", "Fried chicken", "Mac and cheese", "Apple pie", "French toast", "Spring rolls", "Baba ghanoush", "Baklava", "Kunafa", "Basbousa",
-    "Umm Ali", "Rice pudding", "Ful medames", "Peanut butter"
+    "Umm Ali", "Rice pudding", "Ful medames", "Peanut butter",
+    "Mahshi", "Feteer", "Taameya", "Hawawshi", "Shakshuka", "Moussaka", "Meatballs", "Omelet", "Guava", "Pomegranate",
+    "Tangerine", "Okra", "Molasses", "Tahini", "Pickles", "Liver", "Kahk", "Qatayef", "Nuggets", "Lentil soup"
     ]
   }
 };

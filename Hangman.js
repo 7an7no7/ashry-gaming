@@ -112,16 +112,40 @@ const hmDealable = (raw, lang) => {
 };
 
 /**
+ * A hint that hands over part of the answer: a word of the category that is a
+ * word of the entry («أنواع جبنة» for «جبنة كريمي», «Cheeses» for «Cream
+ * Cheese», «رمضان والعيد» for «صلاة العيد»). Compared on the keyboard's
+ * letters, the article and a leading و off; one starting the other counts from
+ * four letters (مجففة / مجفف, Breads / Bread).
+ */
+const hmHintGives = (hint, word) => {
+  const key = (w) => {
+    let k = hmLettersOf(w).map(hmFold).join('');
+    if (k.length > 4 && k.indexOf('ال') === 0) k = k.slice(2);
+    return k;
+  };
+  const words = (t) => hmClean(String(t || '').replace(/[^\p{L}\s]/gu, ' ')).split(' ').filter(Boolean);
+  const hs = [];
+  words(hint).forEach(w => {
+    hs.push(key(w));
+    if (w.length > 3 && w.charAt(0) === 'و') hs.push(key(w.slice(1)));
+  });
+  const hk = hs.filter(k => k.length >= 3);
+  return words(word).map(key).filter(k => k.length >= 3).some(a => hk.some(b =>
+    a === b || (Math.min(a.length, b.length) >= 4 && (a.indexOf(b) === 0 || b.indexOf(a) === 0))));
+};
+
+/**
  * The race's words in a language: [{ w, c }], `c` the hint. Every Chameleon
  * entry that fits, with its board's category, and the films of the emoji
- * riddles as "a film".
+ * riddles as "a film"; never one its hint gives away (hmHintGives).
  */
 const hmPool = (lang) => {
   const out = [];
   const seen = {};
   const add = (raw, hint) => {
     const w = hmDealable(raw, lang);
-    if (!w) return;
+    if (!w || hmHintGives(hint, w)) return;
     const key = hmLettersOf(w).map(hmFold).join('');
     if (seen[key]) return;
     seen[key] = true;

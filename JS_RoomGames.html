@@ -90,11 +90,11 @@ ROOM_GAMES.justone = {
       renderRoomFrame(el, sig, () => head + (amGuesser
         ? `<div class="card" style="text-align:center">
              <div class="role-card">
-               <div class="role-card__label">${t.jo_you_guess || 'أنت المخمّن هذه الجولة'}</div>
+               <div class="role-card__label">${t.jo_you_guess || 'انت المخمّن الجولة دي'}</div>
                <div class="role-card__value">🤔</div>
-               <div class="role-card__hint">${t.jo_wait_clues || 'انتظر حتى يكتب الجميع تلميحاتهم'}</div>
+               <div class="role-card__hint">${t.jo_wait_clues || 'استنى لحد ما الكل يكتب تلميحه'}</div>
              </div>
-             <div class="waiting-note">${done} / ${need}</div>
+             <div class="waiting-note">${ltrFrac(done, need)}</div>
            </div>`
         : `<div class="card" style="text-align:center">
              <div class="eyebrow">${t.secret_word || 'الكلمة السرية'}</div>
@@ -148,14 +148,14 @@ ROOM_GAMES.justone = {
           <div class="metric metric--md metric--accent">${escapeHTML(s.secretWord || '')}</div>
           ${s.phase === 'result'
             ? `<div class="badge ${right ? 'badge--success' : 'badge--danger'}" style="margin-top: var(--sp-4)">
-                 ${right ? (t.correct || 'إجابة صحيحة') : (t.wrong || 'إجابة خاطئة')}</div>`
+                 ${right ? (t.correct || 'إجابة صحيحة') : (t.wrong || 'غلط')}</div>`
             : ''}
         </div>
         ${state.youAreHost
           ? (s.phase === 'judging'
               ? `<div class="btn-row">
                    <button onclick="roomAct('judge', { correct: true })" class="btn btn--success">${t.correct || 'صحيحة'}</button>
-                   <button onclick="roomAct('judge', { correct: false })" class="btn btn--danger">${t.wrong || 'خاطئة'}</button>
+                   <button onclick="roomAct('judge', { correct: false })" class="btn btn--danger">${t.wrong || 'غلط'}</button>
                  </div>`
               : `<div class="btn-stack">
                    <button onclick="justOneNextRound(${Number(s.round) || 0})" class="btn btn--primary btn--lg">${t.next_round || 'الجولة التالية'}</button>
@@ -182,7 +182,7 @@ function justOneNextRound(round) {
 async function submitJustOneClue() {
   const input = document.getElementById('jo-clue');
   const clue = (input.value || '').trim();
-  if (!clue) return showToast(TRANSLATIONS[appState.lang].jo_need_clue || 'اكتب تلميحاً', 'error');
+  if (!clue) return showToast(TRANSLATIONS[appState.lang].jo_need_clue || 'اكتب تلميح', 'error');
   await roomAct('submitClue', { clue: clue });
 }
 
@@ -281,7 +281,7 @@ ROOM_GAMES.whoami = {
       </div>
       <div class="section">
         <div class="section__head">
-          <h2 class="section__title">${t.whoami_others || 'هويات الآخرين'}</h2>
+          <h2 class="section__title">${t.whoami_others || 'هويات الباقيين'}</h2>
           <span class="section__rule"></span>
         </div>
         ${others.map(o => {

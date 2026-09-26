@@ -4120,6 +4120,8 @@ Date.now = duelTestClock;
   check(ar.some((x) => x.w === 'محمد صلاح') && ar.some((x) => x.w === 'عادل إمام') && ar.some((x) => /🎬/.test(x.c) && x.w === 'الفيل الأزرق'),
     'hangman: famous people from the Chameleon boards and films from the emoji riddles are in the race');
   check(!ar.some((x) => /أمثال/.test(x.c)), 'hangman: the proverbs are not (they are sentences)');
+  check(!ar.some((x) => x.w === 'جبنة كريمي' || x.w === 'صلاة العيد') && !en.some((x) => x.w === 'Cream Cheese' || x.w === 'Rye Bread'),
+    'hangman: an entry its hint gives away is not dealt («أنواع جبنة» for «جبنة كريمي»)');
   const b = HM.hmNewBoard();
   check(HM.hmApply(b, 'أسوان', 'ا') === 'hit' && HM.hmPattern('أسوان', b.g).join('|') === 'أ|||ا|',
     'hangman: ا opens أ too, and the word shows as it is spelt');

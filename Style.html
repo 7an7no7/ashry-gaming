@@ -4000,9 +4000,60 @@ body.is-tv-view .shell__main > #view-room-tv { width: 100%; max-width: none; mar
 .tv-lobby {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  align-items: center;
+  /* Both columns from the top: centred, the players' side (a heading and a line
+     when this TV isn't the host) floated in the middle of an empty half on a
+     1080p screen (the owner, 26 Sep 2026). The pair stays in the middle of the
+     stage's height, as long as it fits. */
+  align-items: start;
+  align-content: center;
+  align-content: safe center;
   gap: calc(var(--tv-gap) * 2);
 }
+/* A TV that isn't the host: the game chosen, and a tile for everyone in. */
+.tv-lobby__game {
+  display: flex;
+  align-items: center;
+  gap: var(--tv-gap);
+  padding: var(--tv-gap);
+  border: 2px solid var(--accent-soft);
+  border-radius: var(--tv-r);
+  background: var(--accent-soft);
+}
+.tv-lobby__game-icon { font-size: var(--tv-xl); line-height: 1; }
+.tv-lobby__game-text { display: flex; flex-direction: column; gap: 0.2em; min-width: 0; }
+.tv-lobby__game-text b { font-size: var(--tv-md); font-weight: 900; color: var(--accent-ink); }
+.tv-lobby__game-text span { font-size: var(--tv-sm); font-weight: 700; color: var(--text-2); }
+.tv-lobby__players {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 17vmin, 280px), 1fr));
+  gap: var(--tv-gap);
+}
+.tv-lobby__player {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-width: 0;
+  padding: calc(var(--tv-gap) * 0.7) var(--tv-gap);
+  border: 2px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+}
+.tv-lobby__player.is-new { animation: tv-player-in 420ms var(--ease-out) both; }
+.tv-lobby__avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.9em;
+  height: 1.9em;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--tv-sm);
+  font-weight: 900;
+}
+.tv-lobby__name { min-width: 0; font-size: var(--tv-sm); font-weight: 800; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes tv-player-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tv-lobby__player.is-new { animation: none; } }
 .tv-join { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); text-align: center; }
 .tv-qr {
   width: min(42vmin, 520px);
@@ -4915,6 +4966,20 @@ body.has-audience .shell__main { --main-pb: 9rem; }
   background: var(--surface-solid);
 }
 .stop-td { padding: 0; text-align: center; }
+/* The round's total, «المجموع» (it was a Σ, which a family doesn't read - the
+   owner, 26 Sep 2026): pinned to the far edge like the names to the near one,
+   so on a phone the categories scroll between them and the total stays in sight. */
+.stop-th--total, .stop-td--total {
+  position: sticky;
+  /* the wrap reaches into the card's padding (its negative margin), and a
+     sticky cell stops at the wrap's padding: pinned there, a column slid past
+     it in the strip beyond */
+  inset-inline-end: calc(-1 * var(--sp-4));
+  z-index: 1;
+  padding-inline: var(--sp-2);
+  border-inline-start: 0.25rem solid var(--surface-solid);
+  background: var(--surface-solid);
+}
 .stop-td--name {
   max-width: 7rem;
   padding-inline-end: var(--sp-2);
@@ -6841,6 +6906,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   background: var(--surface-solid);
   font-weight: 900;
 }
+.award__n--words { min-width: 0; font-size: var(--fs-sm); font-weight: 800; color: var(--text-2); }
 .award--in { animation: award-in 520ms var(--ease-out) both; animation-delay: var(--at, 0ms); }
 @keyframes award-in {
   from { opacity: 0; transform: scale(0.88); }

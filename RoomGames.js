@@ -522,7 +522,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     const p = room.predict;
     const target = String((payload && payload.target) || '');
     const who = room.players.find(x => x.id === playerId && !x.bot);
-    if (!p || !who || p.game !== room.game || Date.now() > p.until) throw new Error('التوقع اتقفل');
+    if (!p || !who || p.game !== room.game || Date.now() > p.until || roomGameIsOver(room)) throw new Error('التوقع اتقفل');
     const roster = (room.shared && room.shared.roster) || [];
     if (roster.indexOf(target) === -1) throw new Error('مش في اللعبة');
     p.picks[playerId] = target;
@@ -2413,6 +2413,20 @@ const scoreboardOf = (room) =>
   room.players
     .map(p => ({ name: p.name, id: p.id, score: (room.shared.scores || {})[p.id] || 0 }))
     .sort((a, b) => b.score - a.score);
+
+/* Is the game in the room over - its result on the screens? The audience's bar
+   goes and «مين هيكسب؟» closes then, not only after PREDICT_OPEN_MS (the owner,
+   26 Sep 2026). The same test is audienceGameOver in JS_RoomAudience.html: keep
+   the two in step. A game of one round ends on its result (الجاسوس, الحرباء,
+   الموقع السري, الفنان المزيف); every other game on 'gameover' / 'over'. */
+const AUDIENCE_ONE_ROUND = { imposter: true, chameleon: true, spyfall: true, fakeartist: true };
+function roomGameIsOver(room) {
+  const s = room.shared || {};
+  const phases = [room.phase, s.phase];
+  if (phases.some(p => p === 'gameover' || p === 'over')) return true;
+  if (s.tour && s.tour.phase === 'over') return true;
+  return !!AUDIENCE_ONE_ROUND[room.game] && phases.some(p => p === 'result' || p === 'results');
+}
 
 /** The audience's guesses, checked against the board the game ended on (top score, ties all count). */
 function settlePredictions(room) {

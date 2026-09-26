@@ -8093,6 +8093,19 @@ Date.now = duelTestClock;
   const line = (r.chat || []).find((m) => m.sys === 'predicted');
   check(line && line.p.names === 'C' && line.p.n === 2 && !r.predict, 'audience: back at the hub the chat says who called the winner');
 }
+// The owner, 26 Sep 2026: the guessing closes once the game is over, not only after 90 seconds.
+{
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(r, 'a', 'start', { category: 'حيوانات', spies: 1 });
+  applyRoomAction(r, 'c', 'predict', { target: 'b' });
+  check(r.predict && r.predict.picks.c === 'b', 'audience: a guess while the game is played counts');
+  applyRoomAction(r, 'a', 'beginDiscussion', {});
+  applyRoomAction(r, 'a', 'revealResult', {});
+  let refused = false;
+  try { applyRoomAction(r, 'd', 'predict', { target: 'c' }); } catch (e) { refused = true; }
+  check(r.phase === 'result' && refused && !r.predict.picks.d, 'audience: once the game is over (its result shown) the guessing is closed, well inside its 90 seconds');
+}
 
 
 

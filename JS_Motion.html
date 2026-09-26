@@ -466,7 +466,7 @@ function renderPodium(state, board) {
  */
 const AWARD_AFTER_PODIUM_MS = 1900;
 
-function renderAward(icon, label, winner, delay) {
+function renderAward(icon, label, winner, delay, countHtml) {
   if (!winner || !winner.name) return '';
   const at = Math.max(0, Number(delay) || 0);
   const show = motionFirst(['award', label, winner.id, winner.n].join('|'));
@@ -475,8 +475,20 @@ function renderAward(icon, label, winner, delay) {
            '<span class="award__icon" aria-hidden="true">' + icon + '</span>' +
            '<span class="award__label">' + escapeHTML(label || '') + '</span>' +
            '<span class="award__name">' + escapeHTML(winner.name) + '</span>' +
-           '<span class="award__n metric">' + (Number(winner.n) || 0) + '</span>' +
+           (countHtml
+             ? '<span class="award__n award__n--words">' + countHtml + '</span>'
+             : '<span class="award__n metric">' + (Number(winner.n) || 0) + '</span>') +
          '</div>';
+}
+
+/* The trivia's title says what its number is (the owner, 26 Sep 2026: «أسرع
+   واحد منى 3» read as a score): «أسرع إجابة: منى · في 3 أسئلة», the number
+   held left to right inside the words. */
+function awardFirstTimes(n) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const k = Number(n) || 0;
+  const key = k === 1 ? 'award_first_1' : k === 2 ? 'award_first_2' : (k <= 10 ? 'award_first_few' : 'award_first_many');
+  return escapeHTML(t[key] || String(k)).replace('{n}', '<bdi dir="ltr" class="metric">' + k + '</bdi>');
 }
 
 /* --- 10. A letter spins in --------------------------------------------------- */

@@ -710,7 +710,7 @@ function setupMoreToggled(el) {
           div.innerHTML += `
           <div class="status-row">
               <div class="status-row__name w-1/3 truncate">${escapeHTML(p.name)}</div>
-              <div class="metric metric--md tx-accent w-1/3 text-center">${p.score}</div>
+              <div class="metric metric--md tx-accent w-1/3 text-center" data-univ-score="${idx}">${p.score}</div>
               <div class="status-row__actions">
                   <button onclick="modUnivScore(${idx}, 1)" class="control-btn" aria-label="+1">+</button>
                   <button onclick="modUnivScore(${idx}, -1)" class="control-btn control-btn--danger" aria-label="-1">−</button>
@@ -721,6 +721,8 @@ function setupMoreToggled(el) {
   function modUnivScore(idx, val) {
       appState.universal.players[idx].score += val;
       renderUniversalBoard();
+      // The number just changed pops (JS_Motion.html section 13).
+      if (typeof motionBump === 'function') motionBump(document.querySelector('[data-univ-score="' + idx + '"]'), 1.25);
       saveToLocal();
       playSound(val > 0 ? 'click' : 'tick');
   }
@@ -743,6 +745,7 @@ function setupMoreToggled(el) {
       tm.time += (mins * 60);
       if(tm.time < 0) tm.time = 0;
       updateGenDisplay();
+      if (typeof motionBump === 'function') motionBump(document.getElementById('gen-timer-display'), 1.08);
 
       // A clock's length is fixed when it is created, so adjusting the time while
       // it runs means restarting it from the new value.
@@ -1874,6 +1877,15 @@ function filterHelp(value) {
   const clear = document.getElementById('help-search-clear');
   if (clear) clear.classList.toggle('hidden', !value);
   renderHelpContent();
+  // A new set of results rises in (JS_Motion.html section 13); the same set stays still.
+  const box = document.getElementById('help-sections');
+  if (box && typeof motionRiseIn === 'function') {
+    const sig = [...box.querySelectorAll('.help-game-card')].map(c => c.id).join(',');
+    if (box.dataset.sig !== sig) {
+      box.dataset.sig = sig;
+      motionRiseIn(box, { step: 28, dur: 260, dist: 8, max: 6 });
+    }
+  }
 }
 
 function clearHelpSearch() {

@@ -1077,6 +1077,8 @@ function renderRoomLobby(state) {
   const list = document.getElementById('room-player-list');
   const count = document.getElementById('room-player-count');
   if (count) count.innerText = state.players.length;
+  // Whoever stays slides, whoever left fades where they stood (JS_Motion.html section 13).
+  const paintLobbyRows = () => {
   if (list) {
     const hostLabel = appState.lang === 'ar' ? 'المضيف' : 'Host';
     const youLabel = appState.lang === 'ar' ? 'أنت' : 'You';
@@ -1108,6 +1110,8 @@ function renderRoomLobby(state) {
         </div>
       </div>`).join(''));
   }
+  };
+  if (list && typeof motionRowsSwap === 'function') motionRowsSwap(list, paintLobbyRows); else paintLobbyRows();
 
   const startBtn = document.getElementById('room-start-btn');
   const waitNote = document.getElementById('room-wait-note');
@@ -1121,6 +1125,7 @@ function renderRoomLobby(state) {
   // Under the host's Start: how many more the chosen game needs, if any.
   const needEl = document.getElementById('room-start-need');
   if (needEl) {
+    const wasShort = Number(needEl.dataset.short || 0);
     const hub = !inHub && ROOM_HUB_GAMES.find(g => g.id === state.game);
     // The hub's minimum counts people (computer players make up a table later).
     const people = state.players.filter(p => !p.bot).length;
@@ -1128,6 +1133,9 @@ function renderRoomLobby(state) {
     const tt = TRANSLATIONS[appState.lang] || {};
     needEl.classList.toggle('hidden', !short);
     if (short) needEl.textContent = (tt.room_need_more || '').replace('{n}', String(short));
+    // Enough are in now: the Start that can go breathes once (JS_Motion.html section 13).
+    needEl.dataset.short = String(short);
+    if (wasShort > 0 && !short && startBtn && typeof motionNudge === 'function') motionNudge(startBtn);
   }
   // «أنت: منى ✏️» on a phone that plays (a screen has no name).
   const meBtn = document.getElementById('room-me');

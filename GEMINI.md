@@ -3038,6 +3038,17 @@ the word search), `countUp` for streaks and scores.
   light and dark: the home (first visit and returning), the setups of
   الجاسوس, سودوكو, أونو, شطرنج and بنك الحظ, a game in play, the help sheet,
   the settings, a room lobby with a game chosen, مع بعض and الأدوات.
+- **26 Sep 2026, motion everywhere** - the owner's "smooth, nice motion
+  everywhere, on every screen": the plain screens' system (*The design
+  system*, "Motion everywhere"; `JS_Motion.html` section 13, `Style.html`
+  section 41): setup screens, the score keepers, the daily hub, the timers,
+  the counter and the room lobby rise in; popups spring open with their rows
+  rising; chips, steppers and selects answer; the lobby's rows slide and fade;
+  the header's title and back chevron move. Checked in headless Chrome at
+  375×812 Arabic light and 1280×720 English dark with motion on, and with
+  Settings → الحركة → مقفولة: every screen and sheet visited ends with no
+  running animation, no `translate` left and full opacity; with motion off
+  nothing animates at all. No console errors.
 
 ## Building and Running
 
@@ -8523,6 +8534,43 @@ state without motion when it is true; transform and opacity only; start
 clocks on the first drawn frame; every end state also set by a timer, never
 only by an animation event. New CSS goes in section 14 of `Style.html`, with
 its `prefers-reduced-motion` line in the block at the end of that section.
+
+**Motion everywhere** (the owner, 26 Sep 2026: "smooth, nice motion
+everywhere, on every screen and not only in some games"). The plain screens
+share one small system, `JS_Motion.html` section 13 and `Style.html` section
+41, so a new screen gets it by being the right kind of screen, not by code of
+its own:
+- **A screen entered rises in.** `setView` calls `motionEnterView` (only when
+  the screen changed, never on a redraw or a room's state update); for the
+  screens `viewRises` allows - every `setup-*` (the daily hub, أرقامي and the
+  archive included), `play-cs-*`, and the list `RISE_VIEWS` (`room-lobby`,
+  `room-join`, `timers`, `play-universal`, `play-tourney`, `results-teams`,
+  `input-whoami`) - its first cards, and when there are only two or three of
+  them their first rows too, rise one after another (`motionRiseIn`: 12px and
+  a fade, 320ms, 40ms apart, only what is on screen). Every other `play-*` and
+  `room-*` screen is left to its game's own choreography; `RISE_SKIP` opts a
+  listed screen out. A popup opened in the same moment takes the stage.
+- **A popup opens with a spring** (`dialogSpring`, 260ms, `backwards` so an
+  open dialog carries no transform) and its rows rise under it
+  (`motionRiseModal`, called by `hoistModals`' observer when an overlay loses
+  `hidden`). The close is still `modalExitGhost`.
+- **Controls answer**: chips and segmented options give under the finger and
+  spring back (a delegated press, `PRESS_TARGETS`); a stepper's number, the
+  counter's score and the timer's display pop when they change
+  (`motionBump(el)`); a `<select>`'s label flashes when its choice changes;
+  the lobby's Start breathes once when enough people are in (`motionNudge`).
+- **Lists**: the lobby's rows go through `motionRowsSwap(list, mutate)` -
+  whoever stays slides, whoever left fades where they stood (a ghost of the
+  old row, removed by a timer); a new set of help results rises in.
+- **The header**: the title cross-fades with a 4px rise, the back chevron
+  fades and grows in.
+All of it is Web Animations of the individual `translate` / `scale` /
+`opacity` properties (they add to whatever `transform` a component uses) with
+no fill after the end, each run finished by a timer too, and nothing when
+`motionOff()`. To give a new plain screen the entrance, its view id matches
+`viewRises`; to give a changing number its pop, call `motionBump` after
+writing it; to animate a rewritten list of rows, wrap the write in
+`motionRowsSwap`.
 
 **A new way to play an existing game is not a new game** (the owner, 24 Sep
 2026). Before giving anything its own card, ask: is this the same game played

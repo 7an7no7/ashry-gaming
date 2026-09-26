@@ -2133,7 +2133,10 @@ const leave = (r, id, hook = true) => {
     const seven = tlStart('abcdefg'.split(''));
     check(seven._timeline.deck.length >= 7, 'timeline: 7 players leave at least one spare card each');
     const twelve = tlStart('abcdefghijkl'.split(''));
-    check(twelve.shared.handSize === 1 && twelve._timeline.deck.length === 22 - 1 - 12, 'timeline: 12 players get one card each and every other card is a spare');
+    // The bank is 42 cards since 25 Sep 2026: 12 players get two each and 17 spares.
+    const bank = 1 + 12 * twelve.shared.handSize + twelve._timeline.deck.length;
+    check(twelve.shared.handSize >= 1 && twelve._timeline.deck.length >= 12 && twelve._timeline.deck.length < 12 + 12 && bank <= 42,
+          'timeline: 12 players get an even hand and keep a spare card each for the rest');
   }
 
   // Only a right placement can win: a wrong one with nothing to draw ends the game on the board.

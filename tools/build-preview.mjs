@@ -23,6 +23,10 @@ const ROOMS_URL = process.env.ROOMS_URL || 'http://127.0.0.1:8787';
 const SPY_WORDS = new Function(
   (await readFile(path.join(root, 'SpyWords.js'), 'utf8')) + '\nreturn SPY_WORDS;'
 )();
+// المختلف's close pairs: the one-phone game deals them too (JS_Imposter.html).
+const SPY_PAIRS = new Function(
+  (await readFile(path.join(root, 'SpyWords.js'), 'utf8')) + '\nreturn SPY_PAIRS;'
+)();
 
 const STUB = `<script>window.ROOMS_URL = ${JSON.stringify(ROOMS_URL)};</script>`;
 
@@ -44,6 +48,7 @@ const previewRoom = process.argv.includes('--room')
 
 html = html
   .replace('<?!= initialSpyData ?>', () => JSON.stringify(SPY_WORDS))
+  .replace('<?!= initialSpyPairs ?>', () => JSON.stringify(SPY_PAIRS))
   .replace('<?!= initialRoom ?>', () => JSON.stringify(previewRoom))
   // Wherever the preview is served (port 4321 by the launch config): room links,
   // the QR and the share button pointed at a port nothing served.

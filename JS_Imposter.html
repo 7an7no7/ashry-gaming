@@ -140,7 +140,11 @@
           } else if (category === 'countries') {
               // The country list went to MonkeyWords.js with ربع قرد; this category
               // still read the old COUNTRIES_DB and threw, so Start did nothing.
-              const countries = (MONKEY_LISTS[contentLang()] || MONKEY_LISTS.ar).countries;
+              // The countries everyone knows (Countries.js tier 1): from the whole list
+              // the spy's table was asked to talk about Fiji and Honduras.
+              const known = typeof COUNTRIES !== 'undefined'
+                  ? COUNTRIES.filter(c => c.tier === 1).map(c => contentLang() === 'en' ? c.en : c.ar) : [];
+              const countries = known.length ? known : (MONKEY_LISTS[contentLang()] || MONKEY_LISTS.ar).countries;
               secretWord = freshPick('imposter:countries:' + contentLang(), countries, 1)[0];
           } else if (SPY_CATEGORIES[category]) {
               let list = SPY_CATEGORIES[category];
@@ -315,6 +319,9 @@
       
       const winnerScores = document.getElementById('winner-scores-container');
       if(winnerScores) winnerScores.classList.add('hidden');
+      // Nothing to list for the spy: the button opened another game's table.
+      const fullBtn = document.getElementById('toggle-results-btn');
+      if (fullBtn) fullBtn.classList.add('hidden');
       
       document.getElementById('winner-modal').classList.remove('hidden');
   }

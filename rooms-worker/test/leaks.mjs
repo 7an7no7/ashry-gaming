@@ -246,6 +246,10 @@ const PROBES = {
     // Where a number may be any count or score, and a word a setting ('ar' is Argentina's code too).
     const counts = ['shared.settings', 'shared.scores', 'shared.board', 'shared.tries', 'shared.progress', 'shared.round', 'shared.rounds',
       'shared.maxTries', 'shared.pub', 'shared.setterAt', 'shared.endsAt', 'you.board.hints', 'you.n', 'version',
+      // The night's leaderboard: every player's night points, a count like any other.
+      'night',
+      // The chat's message ids and times, and the audience's cheer count and guessing deadline.
+      'chat', 'cheer', 'predict',
       // Where a solver's own board has narrowed the number to: its own deduction, which may land on it.
       'you.board.lo', 'you.board.hi'];
     const words = ['shared.settings', 'you.board.hints'];

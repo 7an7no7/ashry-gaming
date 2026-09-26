@@ -4380,7 +4380,11 @@ async function main() {
     }
     await all(golfers, (s) => s.shared.phase === 'between' && s.shared.card[G1.pid][0] === max0 + 1,
               'minigolf: what the hole asks for + 3 strokes, then the ball is picked up; the hole counts ' + (max0 + 1) + ' and its card shows');
-    await all(golfers, (s) => s.shared.phase === 'play' && s.shared.hole === 1, 'minigolf: the next hole starts by itself', 15000);
+    // The card waits for every ball to stop, then 7 seconds: the strong first putt can still be
+    // rolling on a long hole, so wait for the time the server itself set, with room to spare
+    // (a fixed 15 s failed now and then on the holes where that roll is long).
+    const betweenMs = Math.max(15000, (G1.state.shared.nextAt || 0) - (G1.state.serverNow || Date.now()) + 8000);
+    await all(golfers, (s) => s.shared.phase === 'play' && s.shared.hole === 1, 'minigolf: the next hole starts by itself', betweenMs);
     await G1.must('backToHub');
 
     // In turns: one putt at a time, round the table, the balls knocking each other; nine holes.

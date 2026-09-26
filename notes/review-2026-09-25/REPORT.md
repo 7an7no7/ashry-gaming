@@ -11,25 +11,18 @@
 - **إستميشن in rooms**, built to your 8 answers.
 - **A stylesheet bug fixed**: a missing brace made باغ هاوس, شطرنج الأربعة and more lay out only on phones set to reduced motion.
 
-## Merged on this computer, NOT published yet
-Five of the seven reviews are merged: duels/chess/sports, quizzes, word games, party games, and the app shell + tools + puzzles. The card and table games review is merged too. The per-area reports in this folder list every change and every question: duels.md, quiz.md, words.md, party.md, shell.md, table.md.
+## The review of every game (all seven areas, published 26 Sep 2026)
+The per-area reports in this folder list every change and every question: duels.md, quiz.md, words.md, party.md, table.md, deduction.md, shell.md.
 
 Highlights:
-- **Wrong answers and family-unfit content fixed**:
-  - trivia: the largest living thing on land isn't the elephant;
-  - emoji films: adult films replaced;
-  - لو خيروك / مين أكثر واحد: about 100 prompts about death, gambling, weight and romance replaced;
-  - Wavelength rewritten in Egyptian, its duplicates replaced;
-  - obscure Wordle and Connections words replaced.
-- **Numbers and counters drawn backwards in Arabic**, fixed in many games: "3 / 1", "10+", "50 - 1".
-- **Help texts that contradicted their games**: about 15 corrected.
-- **Room errors**: now in English on an English phone, and the room lines in Egyptian Arabic.
-- **Chess**: opening names corrected, and the coach's sentences now fit every piece.
-- **Two flaky tests fixed**: the chess 1200 mate-in-one check and the proverbs leak check.
+- **Bugs a player would hit**: one-phone المختلف dealt blank cards (live since it shipped); مافيا's night was a navy block over the whole screen; a reload ended الحرباء, الموقع السري and تشابه; باغ هاوس had no layout; room errors were Arabic on an English phone; بنك الحظ's one-die card said ×10 instead of ×20.
+- **Wrong or unfit content**: trivia answers, adult films in the emoji riddles, about 100 لو خيروك / مين أكثر واحد prompts (death, gambling, weight, romance), the Wavelength scales, the spy words (about 55 twins), Fibbage facts, obscure Wordle / Connections / charades words; قبل ولا بعد went from 22 to 42 cards.
+- **Numbers backwards in Arabic** ("3 / 1", "10+", "50 - 1") fixed across many games; suit symbols in Arabic score keepers now words.
+- **Wording**: many lines made Egyptian and fit any name («اللي كسب: …», role-as-subject sentences); about 15 Help texts that contradicted their games corrected.
+- **Chess**: opening names, the coach's sentences, names cut off at 375.
+- **Tests**: three flaky checks fixed (chess 1200 mate-in-one, the proverbs and guessnum leak checks).
 
-## Left to do
-1. **The deduction games review was stopped by the usage limit** before it committed. Its unfinished changes are in `.claude/worktrees/agent-a7bddf4987e72a9fa`. It needs finishing, or its changes checked and merged.
-2. **One test failure after the last merge**: in `test:rules`, the leak check "guessnum … at night.p4". A secret number matched a night score of the same value. That is the known trap "a number secret is any count", so the check needs to ignore `night`; it isn't a real leak. Fix the probe, then run `test:rules`, `npm test`, `ONLY=screens,rooms npm run test:ui`, build the site, deploy the rooms server and the site, run `test:live`, push, and run `check:live`.
-3. **Mini golf's "next hole starts by itself"** failed in 2 of 4 live runs. A direct probe of the live server showed it starts on time (7.1-7.6 s), so it looks like a busy test machine.
-4. **The C: drive has about 2.2 GB free**, which is why the review ran 3 at a time.
-5. **Your questions** are at the end of each area report: named celebrities, الأهلي vs الزمالك, the property-type bomb categories, Israel in ربع قرد's lists, how player counts should count computer players, and more.
+## Still open
+- Your questions at the end of each area report (celebrities, الأهلي vs الزمالك, property-type bomb categories, Israel in ربع قرد's lists, an English spy-word list, how player counts count computer players, and more).
+- Not checked by the reviewers: a real iPhone (sound, vibration, tilt, install); كدّاب and الشايب were only read, not played; a whole room game of bowling or golf.
+- The C: drive filled up once in the night; with more space now this is no longer a problem.

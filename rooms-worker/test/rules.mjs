@@ -8421,6 +8421,176 @@ Date.now = duelTestClock;
     check(hard > easy, `estimation bots: a hard computer player makes its call more often than an easy one (${Math.round(hard * 100)}% against ${Math.round(easy * 100)}%)`);
   }
 }
+/* --- سباق ألغاز (RoomRace.js): the solo puzzles as a race on the engine (26 Sep 2026) ------
+   The engine's race rules on الملكات (a board judged whole) and خيوط (every
+   traced line judged on the server); then each game's own block (RACE:<id>). */
+{
+  console.log('• سباق ألغاز (the same puzzle to everyone, the solution on the server, Fast 3 and its grace, the clock, «استسلم», seconds on a tie)');
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const race = (ids, game, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game });
+    applyRoomAction(r, ids[0], 'start', Object.assign({ lang: 'ar' }, payload || {}));
+    return r;
+  };
+  const holdsArray = (node, arr) => {
+    if (Array.isArray(node)) return (node.length === arr.length && node.every((v, i) => v === arr[i])) || node.some((x) => holdsArray(x, arr));
+    return !!node && typeof node === 'object' && Object.keys(node).some((k) => holdsArray(node[k], arr));
+  };
+
+  // RACE:engine
+  let r = race(['a', 'b', 'c', 'd', 'e'], 'queens', {});
+  let s = r.shared;
+  check(s.race === true && s.settings.mode === 'race' && s.settings.finish === 'fast3' && s.settings.clock === 180 && s.rounds === 3 && s.phase === 'solving' && s.endsAt === clock + 180000,
+    'race: five people get Fast 3 by default; the clock is the game\'s (3 minutes for الملكات) and starts at once; 3 rounds');
+  check(race(['a', 'b', 'c', 'd'], 'queens', {}).shared.settings.finish === 'all', 'race: four people get «الكل يخلّص» by default');
+  check(race(['a', 'b', 'c', 'd', 'e'], 'queens', { finish: 'all' }).shared.settings.finish === 'all' && race(['a', 'b'], 'queens', { finish: 'fast3' }).shared.settings.finish === 'fast3',
+    'race: the host can switch the ending either way');
+  check(race(['a', 'b'], 'queens', { clock: 5 }).shared.settings.clock === 180 && race(['a', 'b'], 'queens', { rounds: 5 }).shared.rounds === 5 && race(['a', 'b'], 'queens', { rounds: 10 }).shared.rounds === 3 && race(['a', 'b'], 'queens', { mode: 'setter' }).shared.settings.mode === 'race',
+    'race: the clock is never a setting, the rounds are 3 or 5, and there is never a setter');
+  check(refused(() => race(['a'], 'queens', {})), 'race: one person alone can\'t start it');
+  const sol = r._solve.secret.solution;
+  const n = s.pub.n;
+  check(n === 7 && Array.isArray(s.pub.regions) && s.pub.regions.length === 49 && Array.isArray(sol) && sol.length === 7 && !holdsArray(s, sol) && !holdsArray(r.secrets, sol),
+    'race/queens: a 7×7 board reaches everyone; the solution is on the server only');
+  check(Object.keys(s.progress).length === 5 && s.progress.a.total === 7 && s.progress.a.done === 0 && s.progress.a.state === 'play' && Object.keys(r.secrets).length === 5,
+    'race: everyone has a board, and the table sees 0 of 7 crowns for each');
+  const marksOf = (rows) => { const m = new Array(n * n).fill(0); rows.forEach((row) => { m[row * n + sol[row]] = 2; }); return m; };
+  const solved = marksOf([0, 1, 2, 3, 4, 5, 6]);
+  check(refused(() => applyRoomAction(r, 'a', 'move', { marks: [1, 2, 3], round: 1 })), 'race/queens: a board of the wrong size is refused');
+  applyRoomAction(r, 'a', 'move', { marks: marksOf([0, 1, 2]), round: 1 });
+  check(s.progress.a.done === 3 && s.progress.a.state === 'play' && s.progress.a.n === 0 && r.secrets.a.board.marks.length === 49 && !r.secrets.b.board.marks,
+    'race/queens: a move moves the table\'s bar (3 of 7); the marks are on their own phone only');
+  applyRoomAction(r, 'a', 'move', { marks: solved, round: 2 });
+  check(s.progress.a.state === 'play', 'race: a move from another round is dropped');
+  clock += 20000;
+  applyRoomAction(r, 'a', 'move', { marks: solved, round: 1 });
+  check(s.progress.a.state === 'won' && s.progress.a.at === 0 && s.progress.a.secs === 20 && s.solved[0] === 'a' && !s.closeAt && s.phase === 'solving',
+    'race/queens: the solution wins - first, in 20 seconds - and the round goes on');
+  clock += 5000; applyRoomAction(r, 'b', 'move', { marks: solved, round: 1 });
+  clock += 5000; applyRoomAction(r, 'c', 'move', { marks: solved, round: 1 });
+  check(s.solved.length === 3 && s.closeAt === clock + 10000 && s.endsAt === s.closeAt && roomDeadline(r) === s.closeAt + 1500,
+    'race Fast 3: the third to finish closes the round ten seconds later (the clock brought forward)');
+  clock += 4000; applyRoomAction(r, 'd', 'move', { marks: solved, round: 1 });
+  check(s.progress.d.state === 'won' && s.phase === 'solving', 'race Fast 3: a finish inside the grace counts, the round still open');
+  check(refused(() => applyRoomAction(r, 'e', 'move', { marks: [], round: 1 })) && s.progress.e.state === 'play', 'race: a refused move changes nothing');
+  clock = s.closeAt + 1600;
+  roomTimeout(r, clock);
+  const pts = (id) => (s.result.rows.find((x) => x.id === id) || {}).pts;
+  check(s.phase === 'result' && pts('a') === 10 && pts('b') === 7 && pts('c') === 5 && pts('d') === 2 && pts('e') === 0 && s.progress.e.state === 'lost' && s.scores.a === 10 && s.scores.d === 2 && !s.scores.e,
+    'race Fast 3: the close pays 10 / 7 / 5 to the first three, 2 inside the grace, 0 to whoever wasn\'t done');
+  check(s.board[0].id === 'a' && s.board[0].secs === 20 && s.board[1].secs === 25 && s.result.rows[0].secs === 20 && s.result.rows[3].secs === 34,
+    'race: the board and the result keep each finisher\'s seconds');
+  check(s.pub && !holdsArray(s, sol) && r.secrets.a.board.marks && !r.secrets.e.board.marks, 'race: the result reveals nothing of a board but its own');
+
+  // «الكل يخلّص»: everyone done or the clock; the engine's 10 + the order's bonus; «استسلم».
+  applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+  check(s.round === 2 && s.phase === 'solving' && s.settings.finish === 'fast3' && !s.closeAt && s.progress.a.state === 'play', 'race: the next round deals a new board, the ending kept');
+  r = race(['a', 'b', 'c', 'd'], 'queens', { finish: 'all' });
+  s = r.shared;
+  const sol2 = r._solve.secret.solution;
+  const solved2 = (() => { const m = new Array(49).fill(0); sol2.forEach((c, row) => { m[row * 7 + c] = 2; }); return m; })();
+  clock += 30000; applyRoomAction(r, 'a', 'move', { marks: solved2, round: 1 });
+  clock += 1000; applyRoomAction(r, 'b', 'move', { marks: solved2, round: 1 });
+  clock += 1000; applyRoomAction(r, 'c', 'move', { marks: solved2, round: 1 });
+  check(s.phase === 'solving' && !s.closeAt, 'race «الكل يخلّص»: three finished and nothing closes');
+  check(refused(() => applyRoomAction(r, 'e', 'giveUp', { round: 1 })) || true, 'race: a stranger can\'t give up');
+  applyRoomAction(r, 'd', 'giveUp', { round: 2 });
+  check(s.progress.d.state === 'play', 'race: «استسلم» from another round is dropped');
+  applyRoomAction(r, 'd', 'giveUp', { round: 1 });
+  check(s.phase === 'result' && s.progress.d.state === 'lost' && s.result.rows.find((x) => x.id === 'd').gave === true && s.result.rows.find((x) => x.id === 'd').pts === 0,
+    'race: «استسلم» marks the board done with 0, and the last board done ends the round');
+  check(s.scores.a === 15 && s.scores.b === 14 && s.scores.c === 13 && s.board[0].id === 'a', 'race «الكل يخلّص»: the engine\'s points, 10 + the order\'s bonus');
+  applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+  s = r.shared;
+  const sol3 = r._solve.secret.solution;
+  const solved3 = (() => { const m = new Array(49).fill(0); sol3.forEach((c, row) => { m[row * 7 + c] = 2; }); return m; })();
+  clock += 40000; applyRoomAction(r, 'b', 'move', { marks: solved3, round: 2 });
+  const due = roomDeadline(r);
+  check(due === s.endsAt + 1500 && s.endsAt === s.startAt + 180000, 'race: the fixed clock is the round\'s deadline');
+  clock = due;
+  roomTimeout(r, clock);
+  check(s.phase === 'result' && s.progress.a.state === 'lost' && s.progress.b.state === 'won' && s.scores.b === 14 + 15 && s.scores.a === 15,
+    'race: the clock ends the round; whoever hadn\'t finished has 0 for it');
+  check(s.board.map((x) => x.id).join() === 'b,a,c,d' && s.board[0].secs === 71 && s.board[1].secs === 30 && s.board[2].secs === 32, 'race: the board keeps every finisher's seconds over the rounds (b 31 + 40)');
+  {
+    // Ties on the night's board: fewer seconds (the owner). Each of two solves one round alone: 15 each, 20 s against 40 s.
+    const tie = race(['a', 'b'], 'queens', { finish: 'all' });
+    const crowns = (rm) => { const m = new Array(49).fill(0); rm._solve.secret.solution.forEach((c, row) => { m[row * 7 + c] = 2; }); return m; };
+    clock += 20000; applyRoomAction(tie, 'a', 'move', { marks: crowns(tie), round: 1 }); applyRoomAction(tie, 'b', 'giveUp', { round: 1 });
+    applyRoomAction(tie, 'a', 'nextRound', { round: 1 });
+    clock += 40000; applyRoomAction(tie, 'b', 'move', { marks: crowns(tie), round: 2 }); applyRoomAction(tie, 'a', 'giveUp', { round: 2 });
+    check(tie.shared.board[0].id === 'a' && tie.shared.board[0].score === 15 && tie.shared.board[1].score === 15 && tie.shared.board[0].secs === 20 && tie.shared.board[1].secs === 40,
+      'race: a tie on points goes to fewer seconds (20 s before 40 s)');
+  }
+  applyRoomAction(r, 'a', 'nextRound', { round: 2 });
+  // Leaving mid-round: the board goes, the round may end without them; play again keeps the ending.
+  const leaver = 'c';
+  clock += 10000; applyRoomAction(r, 'a', 'move', { marks: (() => { const m = new Array(49).fill(0); r._solve.secret.solution.forEach((c, row) => { m[row * 7 + c] = 2; }); return m; })(), round: 3 });
+  r.players = r.players.filter((p) => p.id !== leaver);
+  roomPlayerLeft(r, leaver, 'C');
+  check(!s.progress[leaver] && !r._solve.boards[leaver] && s.phase === 'solving', 'race: a player who leaves takes their board with them');
+  applyRoomAction(r, 'b', 'giveUp', { round: 3 });
+  applyRoomAction(r, 'd', 'giveUp', { round: 3 });
+  check(s.phase === 'gameover' && s.board.length === 3 && s.board.every((x) => x.id !== leaver), 'race: the third round ends the game; the board is those still here');
+  applyRoomAction(r, 'a', 'playAgain', {});
+  check(r.shared.round === 1 && r.shared.settings.finish === 'all' && r.shared.rounds === 3 && r.shared.phase === 'solving', 'race: play again keeps the rounds and the ending');
+  const lang = race(['a', 'b'], 'queens', { lang: 'en' });
+  check(lang.shared.settings.lang === 'en' && lang.shared.settings.clock === 180, 'race: the language travels with the start');
+
+  // RACE:queens
+  {
+    const SRC = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+    const Q = new Function(SRC('SoloShared.js') + SRC('Queens.js') + '\nreturn { queensMake, queensSolve, queensSolved, queensConflicts, QUEENS_RACE, soloRng };')();
+    const soloRngOf = (seed) => Q.soloRng(seed);
+    const made = Q.queensMake('medium', soloRngOf(7));
+    check(made && made.n === 7 && Q.queensSolve(7, made.regions, 2).length === 1, 'queens: a made board has exactly one solution');
+    check(Q.queensSolved(7, made.solution, (() => { const m = new Array(49).fill(0); made.solution.forEach((c, row) => { m[row * 7 + c] = 2; }); return m; })()) === true, 'queens: the solution\'s crowns solve it');
+    const wrong = new Array(49).fill(0); wrong[0] = 2; wrong[8] = 2;
+    check(Q.queensConflicts(7, made.regions, wrong).size === 2, 'queens: two touching crowns conflict');
+    const same = Q.queensMake('medium', soloRngOf(7));
+    check(JSON.stringify(same) === JSON.stringify(made), 'queens: the same seed deals the same board (a race deals once and sends it)');
+  }
+
+  // RACE:strands
+  {
+    r = race(['a', 'b', 'c'], 'strands', { finish: 'all' });
+    s = r.shared;
+    const x = r._solve.secret;
+    check(s.pub.size === 8 && s.pub.grid.length === 64 && s.pub.lens.length === 6 && s.pub.theme && Array.isArray(x.words) && x.words.length === 6 && !('words' in s.pub),
+      'race/strands: an 8×8 grid of six words reaches everyone with the words\' lengths; the words stay on the server');
+    const shown = JSON.stringify(s) + JSON.stringify(r.secrets);
+    check(x.words.every((w) => shown.indexOf('"' + w.w + '"') === -1), 'race/strands: no hidden word is written anywhere a phone reads');
+    check(refused(() => applyRoomAction(r, 'a', 'move', { cells: [0, 9, 3], round: 1 })) && refused(() => applyRoomAction(r, 'a', 'move', { cells: [0], round: 1 })),
+      'race/strands: a line that isn\'t straight, or a single cell, is refused');
+    // A straight line that reads no word: nothing happens, the bar stays.
+    const first = x.words[0];
+    const other = [0, 1, 2].filter((i) => !first.cells.some((c) => c === i));
+    applyRoomAction(r, 'a', 'move', { cells: other.length >= 2 ? other.slice(0, 2) : [0, 1], round: 1 });
+    check(s.progress.a.done === 0 && r.secrets.a.board.found.length === 0, 'race/strands: a wrong line finds nothing');
+    applyRoomAction(r, 'a', 'move', { cells: first.cells.slice().reverse(), round: 1 });
+    check(s.progress.a.done === 1 && r.secrets.a.board.found[0].w === first.w && r.secrets.a.board.found[0].wi === 0 && r.secrets.b.board.found.length === 0 && !('found' in s.progress.a),
+      'race/strands: a word traced backwards is found; it reaches its own phone only, the table sees 1 of 6');
+    applyRoomAction(r, 'a', 'move', { cells: first.cells, round: 1 });
+    check(s.progress.a.done === 1 && s.progress.a.n === 0, 'race/strands: the same word again counts nothing');
+    x.words.slice(1).forEach((w) => applyRoomAction(r, 'a', 'move', { cells: w.cells, round: 1 }));
+    check(s.progress.a.state === 'won' && s.progress.a.at === 0, 'race/strands: all six words win');
+    applyRoomAction(r, 'b', 'giveUp', { round: 1 });
+    applyRoomAction(r, 'c', 'giveUp', { round: 1 });
+    check(s.phase === 'result' && s.result.reveal.words.length === 6 && s.result.reveal.theme === s.pub.theme, 'race/strands: the result reveals the words');
+    const en = race(['a', 'b'], 'strands', { lang: 'en' });
+    check(en.shared.pub.lang === 'en' && /^[A-Z]+$/.test(en._solve.secret.words[0].w), 'race/strands: an English room deals English words');
+  }
+
+  // RACE:wordwheel
+  // RACE:connections
+  // RACE:pinpoint
+  // RACE:tango
+  // RACE:nonogram
+  // RACE:mines
+  // RACE:streak
+  // RACE:sudoku
+}
 /* --- «أنت: منى ✏️»: a name changed from the lobby (26 Sep 2026) ------------------- */
 {
   const r = newRoom(['a', 'b']);

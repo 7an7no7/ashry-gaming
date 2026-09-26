@@ -1,0 +1,392 @@
+<script>
+/* ============================================================================
+   سباق ألغاز — the solo puzzles as a race: the phones and the TV
+   ----------------------------------------------------------------------------
+   The owner's decisions of 26 Sep 2026 (GEMINI.md, *The owner's specs*): ten
+   solo puzzles raced in a room on the engine of RoomSolve.js (RoomRace.js).
+   The same puzzle is dealt on the server to every phone; each phone solves it
+   on its own board - the game's very own board code, painted into this
+   screen's stage (soloStage / soloRaceState in JS_Solo.html, RACE_UI[kind]
+   registered by each game) - and the table sees one strip of everyone's
+   progress, never a board. Two endings (the lobby): «الكل يخلّص» or «Fast 3».
+   «استسلم» marks a phone done with 0. Every race looks the same: the puzzle,
+   the strip, a podium.
+
+   One renderer for the ten (raceRender, raceTvFrame). What a phone is doing
+   on its board is never redrawn under it: the frame's signature is the
+   phone's own state (its board's phase, the round), and the strip, the host's
+   buttons and the clock are refreshed in place (racePaintLive). A game the
+   server judges move by move (خيوط, كلمات من حروف, تشابه, إيه اللي يجمعهم؟,
+   كاسحة الألغام, سلسلة الإجابات) has its board brought up to the server's on
+   every state (RACE_UI[kind].sync); a game judged from the whole board
+   (الملكات, شمس وقمر, نونوجرام, سودوكو) sends its cells after every change
+   (raceMove) and the server counts and says when it is solved.
+
+   Motion (the toolkit): the bars grow (scaleX), a row that finishes pops with
+   its place, «⚡ 10 ثواني!» slides in when Fast 3's third finishes, the
+   result turns over (the engine's svTurn), the points fly to the row
+   (flyPoints), the board counts up (animateScoreboards), the podium rises
+   with confetti.
+   ========================================================================= */
+
+const raceRoom = { seen: {}, scoreKey: '', myScore: 0, liveHtml: {} };
+
+const raceIcon = (kind) => (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[kind] ? iconHtml(CATALOG_BY_ID[kind].icon) : '🏁');
+const raceName = (kind) => { const t = TRANSLATIONS[appState.lang] || {}; return t['setup_' + kind] || kind; };
+
+/* --- the lobby: three things - the puzzle chosen, the rounds, the ending -------------- */
+
+function raceOpts() {
+  return recallOptions('raceRoom', { rounds: 3, finish: '' });
+}
+
+/** The ending in force: the host's choice, else Fast 3 from five people (the owner). */
+function raceFinishOf(state) {
+  const o = raceOpts();
+  if (SV_RACE_FINISH.indexOf(o.finish) !== -1) return o.finish;
+  return ((state && state.players) || []).length >= SV_RACE_FAST3_FROM ? 'fast3' : 'all';
+}
+
+function setRaceOpt(key, value) {
+  rememberOptions('raceRoom', { [key]: value });
+  duelLobbyRedraw();
+}
+
+function raceLobbyHtml(kind, state) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const mins = Math.round((SV_RACE_CLOCKS[kind] || 120) / 60);
+  const clockLine = `<p class="field__hint">${escapeHTML(svT('race_clock_hint', { m: mins }))}</p>`;
+  if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.race_lobby_hint || '')}</p>${clockLine}`;
+  const o = raceOpts();
+  const finish = raceFinishOf(state);
+  const seg = (label, key, values, current, hint) => `<div class="field">
+      <label class="field__label">${escapeHTML(label)}</label>
+      <div class="segmented" role="group">${values.map(v => `<button type="button" class="segmented__item ${String(v[0]) === String(current) ? 'is-active' : ''}" onclick="setRaceOpt('${key}', ${typeof v[0] === 'string' ? `'${v[0]}'` : v[0]})">${escapeHTML(v[1])}</button>`).join('')}</div>
+      ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+  return `<div class="card card--tight">
+      ${seg(t.race_lobby_rounds || '', 'rounds', SV_RACE_ROUNDS.map(n => [n, String(n)]), SV_RACE_ROUNDS.indexOf(Number(o.rounds)) !== -1 ? o.rounds : 3)}
+      ${seg(t.race_lobby_finish || '', 'finish', [['all', t.race_finish_all || ''], ['fast3', t.race_finish_fast3 || '']], finish, t[finish === 'fast3' ? 'race_finish_fast3_hint' : 'race_finish_all_hint'] || '')}
+      ${clockLine}
+    </div>`;
+}
+
+function raceStartPayload(kind) {
+  const o = raceOpts();
+  return { rounds: SV_RACE_ROUNDS.indexOf(Number(o.rounds)) !== -1 ? o.rounds : 3, finish: raceFinishOf(Room.state), lang: contentLang() };
+}
+
+/* --- a move, and giving up ------------------------------------------------------------ */
+
+/**
+ * A board's move to the server: the game's own payload (its marks, a traced
+ * line, an answer) with the round it was made in. A game the server judges
+ * says nothing back on a miss - the board's snapshot not having moved after
+ * the answer is the miss (RACE_UI[kind].snapshot / miss).
+ */
+async function raceMove(kind, payload) {
+  const st = Room.state;
+  const s = (st && st.shared) || {};
+  if (!st || s.solve !== kind || s.phase !== 'solving' || !st.you || st.you.state !== 'play') return false;
+  const ui = RACE_UI[kind];
+  const local = soloRaceState(kind);
+  const before = ui && ui.snapshot && local ? ui.snapshot(local) : null;
+  try {
+    await Room.act('move', Object.assign({ round: Number(s.round) || 0 }, payload));
+  } catch (err) {
+    showToast(err.message || '', 'error');
+    return false;
+  }
+  const after = ui && ui.snapshot && local ? ui.snapshot(local) : null;
+  if (ui && ui.miss && before !== null && after === before && Room.state && Room.state.you && Room.state.you.state === 'play') ui.miss(local);
+  return true;
+}
+
+function raceGiveUp(sure) {
+  const st = Room.state;
+  const s = (st && st.shared) || {};
+  if (!st || !s.race || s.phase !== 'solving' || !st.you || st.you.state !== 'play') return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (!sure) { showConfirmModal(t.race_give_up_confirm || '', () => raceGiveUp(true)); return; }
+  haptic('medium');
+  roomAct('giveUp', { round: Number(s.round) || 0 });
+}
+
+/* --- the strip: everyone's progress, one row each ----------------------------------------- */
+
+function raceRowsHtml(kind, state, tv) {
+  const s = state.shared;
+  const prog = s.progress || {};
+  const ui = RACE_UI[kind] || {};
+  const t = TRANSLATIONS[appState.lang] || {};
+  const ids = Object.keys(prog).sort((a, b) => {
+    const pa = prog[a], pb = prog[b];
+    const ra = pa.state === 'won' ? 0 : pa.state === 'play' ? 1 : 2, rb = pb.state === 'won' ? 0 : pb.state === 'play' ? 1 : 2;
+    return ra - rb || (ra === 0 ? (pa.at || 0) - (pb.at || 0) : (pb.done || 0) - (pa.done || 0));
+  });
+  if (!ids.length) return '';
+  const unit = t[ui.unit || ''] || '';
+  const rows = ids.map(id => {
+    const p = prog[id];
+    const total = Math.max(1, Number(p.total) || 1);
+    const done = Math.max(0, Math.min(total, Number(p.done) || 0));
+    const won = p.state === 'won';
+    const st = won ? `✅ ${escapeHTML(svT('hm_place', { n: (p.at || 0) + 1 }))}${typeof p.secs === 'number' ? ` · <span class="metric">${escapeHTML(soloTime(p.secs))}</span>` : ''}`
+      : p.state === 'lost' ? `<span aria-hidden="true">💀</span>` : `<span class="race-row__dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
+    const pop = won && motionFirst(['race-won', state.code, s.dealId, s.round, id, tv ? 'tv' : 'p'].join('|'));
+    return `<div class="race-row is-${p.state} ${id === Room.me ? 'is-me' : ''} ${pop ? 'is-new' : ''}">
+        <span class="race-row__who">${escapeHTML(svName(state, id))}</span>
+        <span class="race-row__bar" aria-hidden="true"><i style="--p:${won ? 1 : done / total}"></i></span>
+        <span class="race-row__n metric">${won ? total : done}/${total}${unit ? ` <small>${escapeHTML(unit)}</small>` : ''}</span>
+        <span class="race-row__st">${st}</span>
+      </div>`;
+  }).join('');
+  return `<div class="race-rows ${tv ? 'race-rows--tv' : ''}">${rows}</div>`;
+}
+
+/** Fast 3: the third finished, the round closes in ten seconds. */
+function raceClosingHtml(state) {
+  const s = state.shared;
+  if (!s.closeAt || s.phase !== 'solving') return '';
+  const first = motionFirst(['race-close', state.code, s.dealId, s.round].join('|'));
+  return `<div class="race-closing ${first ? 'is-in' : ''}" role="status">⚡ ${escapeHTML(svT('race_closing'))}</div>`;
+}
+
+/* --- the end of a round: what was hidden turns over, then who took what --------------------- */
+
+function raceResultHtml(kind, state, tv) {
+  const s = state.shared;
+  const r = s.result || {};
+  const t = TRANSLATIONS[appState.lang] || {};
+  const ui = RACE_UI[kind] || {};
+  const turn = motionFirst(['race-reveal', state.code, s.dealId, s.round, tv ? 'tv' : 'phone'].join('|'));
+  const reveal = ui.revealHtml ? ui.revealHtml(r.reveal, s) : '';
+  const rows = (r.rows || []).map((x, i) => `<li class="sv-res is-${x.state}" style="--at:${(reveal ? 700 : 100) + i * 140}ms">
+      <span>${x.state === 'won' ? '✅' : (x.gave ? '🏳️' : '💀')} ${escapeHTML(x.name)}
+        ${x.state === 'won' && typeof x.secs === 'number' ? `<small class="tx-muted metric">${escapeHTML(soloTime(x.secs))}</small>` : ''}
+        ${typeof x.score === 'number' && x.score > 0 && ui.scoreLabel ? `<small class="tx-muted">${escapeHTML(ui.scoreLabel(x.score, t))}</small>` : ''}</span>
+      <b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li>`).join('');
+  return `<div class="card card--accent sv-result race-result ${tv ? 'sv-result--tv' : ''} ${turn ? 'is-turning' : ''}" ${turn ? `data-reveal-ms="${reveal ? 700 : 100}"` : ''}>
+      <p class="eyebrow">${raceIcon(kind)} ${escapeHTML(t.race_round_over || '')}</p>
+      ${reveal ? `<div class="sv-result__secret">${reveal}</div>` : ''}
+      <ul class="sv-results">${rows}</ul>
+    </div>`;
+}
+
+/* --- the host's buttons, what changes in place, the signature ------------------------------ */
+
+function raceHostButtons(state) {
+  const s = state.shared || {};
+  if (!state.youAreHost || s.phase !== 'solving') return [];
+  return [['⏹️ ' + svT('sv_close_round'), `roomAct('closeRound', { round: ${Number(s.round) || 0} })`]];
+}
+
+function racePaintLive(el, kind, state) {
+  const put = (sel, html) => {
+    const box = el.querySelector(sel);
+    if (box && box._html !== html) { box.innerHTML = html; box._html = html; }
+  };
+  put('[data-race-progress]', raceRowsHtml(kind, state, false));
+  put('[data-race-closing]', raceClosingHtml(state));
+  put('[data-sv-host]', roomHostRow(raceHostButtons(state)));
+  refreshRoomPlayerStrip(el, state);
+  svTickClock(state);
+}
+
+/** This phone's own: the round, the phase, its board's state - never the others' progress. */
+function raceSig(state) {
+  const s = state.shared || {};
+  const you = state.you || {};
+  const done = s.phase === 'result' || s.phase === 'gameover';
+  return ['race', s.solve, s.dealId || '', s.round, s.phase, you.state || '', you.board ? 'b' : '',
+    done ? JSON.stringify(s.result || null) + JSON.stringify(s.board || []) : '', state.youAreHost, appState.lang].join('|');
+}
+
+/* --- a phone ------------------------------------------------------------------------------- */
+
+function raceRender(kind, state) {
+  const view = 'room-' + kind;
+  if (appState.currentView !== view) setView(view);
+  const el = document.getElementById('view-' + view);
+  if (!el) return;
+  const s = state.shared;
+  if (!s || s.solve !== kind) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const you = state.you || {};
+  const ui = RACE_UI[kind];
+  const head = `<div class="cn-score race-head"><span class="cn-score__role">${raceIcon(kind)} ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
+      <span class="badge">${escapeHTML(t[s.settings && s.settings.finish === 'fast3' ? 'race_finish_fast3' : 'race_finish_all'] || '')}</span>
+      ${s.endsAt && s.phase === 'solving' ? '<span class="badge badge--accent" data-sv-clock></span>' : ''}</div>`;
+  const rebuilt = renderRoomFrame(el, raceSig(state), () => {
+    if (s.phase === 'gameover') {
+      const podium = renderPodium(state, s.board);
+      return `<div class="sv-room race-room">
+          ${s.result ? raceResultHtml(kind, state) : ''}
+          ${podium || renderScoreboard(s.board)}
+          ${state.youAreHost
+            ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(t.play_again || '')}</button>
+               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button></div>`
+            : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+          ${roomShareBtnHtml(state, s.board)}
+          ${renderRoomPlayerStrip(state)}
+        </div>`;
+    }
+    if (s.phase === 'result') {
+      return `<div class="sv-room race-room">${head}
+          ${raceResultHtml(kind, state)}
+          ${renderScoreboard(s.board)}
+          ${state.youAreHost
+            ? `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(t.sv_next_round || '')}</button>`
+            : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+          ${renderRoomPlayerStrip(state)}
+        </div>`;
+    }
+    // Solving: my board (the game's own, painted into the stage after this frame is in the page), or watching.
+    let mine;
+    if (you.board && ui) {
+      const won = you.state === 'won';
+      const p = (s.progress || {})[Room.me] || {};
+      const doneCard = you.state === 'play' ? '' : `<div class="card card--accent hm-end race-done ${motionFirst(['race-done', state.code, s.dealId, s.round].join('|')) ? 'is-in' : ''}">
+          <p class="sheet__title">${escapeHTML(won ? svT('race_you_done', { n: (p.at || 0) + 1 }) : (p.gave || (you.board && you.board.gave) ? (t.race_you_gave || '') : (t.race_you_lost || '')))}</p>
+          ${won && typeof p.secs === 'number' ? `<p class="metric race-done__time">${escapeHTML(soloTime(p.secs))}</p>` : ''}
+          <p class="field__hint">${escapeHTML(t.hm_done_wait || '')}</p></div>`;
+      mine = `${doneCard}<div class="race-stage ${you.state !== 'play' ? 'is-done' : ''}" data-race-stage="${ui.stage}"></div>`;
+    } else {
+      mine = `<div class="card hm-wait"><div class="hm-wait__icon" aria-hidden="true">${raceIcon(kind)}</div><p class="sheet__title">${escapeHTML(t.race_watching || '')}</p></div>`;
+    }
+    return `<div class="sv-room race-room">${head}
+        <div data-race-closing></div>
+        <div class="sv-layout race-layout">
+          <div class="sv-layout__board">${mine}</div>
+          <div class="sv-layout__side">
+            <div data-race-progress></div>
+            <div data-sv-host></div>
+            ${you.board && you.state === 'play' ? `<button type="button" class="btn btn--ghost btn--sm btn--auto race-giveup" onclick="raceGiveUp()">🏳️ ${escapeHTML(t.race_give_up || '')}</button>` : ''}
+            ${renderRoomPlayerStrip(state)}
+          </div>
+        </div>
+      </div>`;
+  });
+  racePaintLive(el, kind, state);
+  if (s.phase === 'solving' && you.board && ui) raceSyncBoard(kind, state, rebuilt);
+  if (!rebuilt) return;
+  raceAfter(el, kind, state);
+}
+
+/**
+ * The board on this phone kept in step with the server's: a reload or a late
+ * frame draws it settled (`first`), a game the server judges lands each answer
+ * as it comes. The local phase follows the server's word on the board.
+ */
+function raceSyncBoard(kind, state, rebuilt) {
+  const ui = RACE_UI[kind];
+  const s = soloRaceState(kind);
+  if (!s) return;
+  const you = state.you;
+  const key = [state.code, state.shared.dealId, state.shared.round].join('|');
+  const first = raceRoom.seen[key] === undefined;
+  const wasDone = raceRoom.seen[key] === 'done';
+  if (ui.sync) ui.sync(s, you.board, { first: first || rebuilt, fresh: !first });
+  const done = you.state !== 'play';
+  if (done && s.phase === 'play') { s.phase = 'done'; s.seconds = ((state.shared.progress || {})[Room.me] || {}).secs || 0; }
+  if (first || rebuilt) ui.paint();
+  // The board's own clock cell stands still here (the race's clock is in the head): hidden.
+  const stage = document.querySelector('#view-room-' + kind + ' [data-race-stage]');
+  if (stage) stage.querySelectorAll('.solo-stat b[id$="-time"]').forEach(b => { b.closest('.solo-stat').classList.add('hidden'); });
+  raceRoom.seen[key] = done ? 'done' : 'play';
+  if (done && !wasDone && !first) {
+    const el = document.getElementById('view-room-' + kind);
+    const won = you.state === 'won';
+    playSound(won ? 'success' : 'wrong');
+    haptic(won ? 'double' : 'medium');
+    const wait = (ui.finished && ui.finished(s, won)) || 0;
+    if (won && el) setTimeout(() => { if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 110, spread: 75, origin: { y: 0.6 } }); }, wait);
+    scrollToAction();
+  }
+}
+
+/** After a redraw: the points this phone won fly to its row, the winner's confetti at the end. */
+function raceAfter(el, kind, state) {
+  const s = state.shared;
+  const key = state.code + '|' + (s.dealId || '');
+  const mineRow = (s.board || []).find(r => r.id === Room.me);
+  const now = mineRow ? Number(mineRow.score) || 0 : 0;
+  const gain = raceRoom.scoreKey === key ? now - raceRoom.myScore : 0;
+  raceRoom.scoreKey = key;
+  raceRoom.myScore = now;
+  if (s.phase === 'result' || s.phase === 'gameover') {
+    const card = el.querySelector('.race-result');
+    const row = el.querySelector(`[data-pid="${CSS.escape(Room.me || '')}"]`);
+    if (gain > 0 && card && row && typeof flyPoints === 'function') afterReveal(el, () => flyPoints('+' + gain, card.getBoundingClientRect(), row));
+    if (s.phase === 'gameover' && (s.board || [])[0] && s.board[0].id === Room.me && duelOnce(['race-over', state.code, s.dealId].join('|'))) {
+      afterReveal(el, () => { playSound('success'); if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 85 }); });
+    }
+  }
+}
+
+/** The stage is emptied when the race leaves the screen: a board's ids must not linger before the board's own screen. */
+function raceStageClear() {
+  document.querySelectorAll('[data-race-stage]').forEach(el => { el.innerHTML = ''; });
+}
+onRoomClocksReset(() => { raceStageClear(); raceRoom.seen = {}; });
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from) => { if (String(from).indexOf('room-') === 0 && SV_RACE_IDS.indexOf(from.slice(5)) !== -1) raceStageClear(); });
+}
+
+/* --- the TV: the puzzle's name, everyone's bar, the order they finished in, the clock ----------- */
+
+function raceTvFrame(kind, state, t) {
+  const s = state.shared || {};
+  if (!s.settings) return tvLookAtPhones(t);
+  const accent = (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[kind] && CATALOG_BY_ID[kind].accent) || 'violet';
+  const host = (buttons) => (state.youAreHost && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
+  const top = `<div class="tv-top">
+      <span class="tv-pill">${raceIcon(kind)} ${escapeHTML(raceName(kind))} · ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
+      <span class="tv-pill">${escapeHTML(t[s.settings.finish === 'fast3' ? 'race_finish_fast3' : 'race_finish_all'] || '')}</span>
+      ${s.endsAt && s.phase === 'solving' ? '<span class="tv-pill" data-sv-clock></span>' : ''}
+    </div>`;
+  if (s.phase === 'gameover') {
+    return `<div class="tv-vote" data-accent="${accent}">
+        <div class="tv-title tv-center-text">🏆</div>
+        ${renderPodium(state, s.board) || `<div class="tv-scale">${renderScoreboard(s.board)}</div>`}
+        ${host([[t.play_again, "roomAct('playAgain')"], [t.room_another_game, "roomAct('backToHub')", 'ghost']])}
+      </div>`;
+  }
+  if (s.phase === 'result') {
+    return `<div class="tv-trivia" data-accent="${accent}">${top}
+        <div class="tv-center sv-tv-result">${raceResultHtml(kind, state, true)}</div>
+        ${host([[svT('sv_next_round'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`]])}
+      </div>`;
+  }
+  const ui = RACE_UI[kind] || {};
+  const line = ui.tvLine ? ui.tvLine(s.pub || {}, t) : '';
+  return `<div class="tv-trivia sv-tv race-tv" data-accent="${accent}">${top}
+      <div class="sv-tv__head">
+        <div class="tv-big-icon" aria-hidden="true">${raceIcon(kind)}</div>
+        ${line ? `<div class="tv-title">${line}</div>` : ''}
+        ${raceClosingHtml(state)}
+      </div>
+      ${raceRowsHtml(kind, state, true)}
+      ${host(raceHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
+    </div>`;
+}
+
+function raceTvSig(state) {
+  const s = state.shared || {};
+  return ['racetv', s.solve, s.dealId || '', s.round, s.phase, s.closeAt || '', JSON.stringify(s.progress || {}), JSON.stringify(s.result || null),
+    s.endsAt || '', JSON.stringify(s.board || []), state.youAreHost, appState.lang].join('|');
+}
+
+/* --- the ten rooms ---------------------------------------------------------------------------- */
+
+SV_RACE_IDS.forEach(kind => {
+  ROOM_GAMES[kind] = {
+    lobbyOptions: (state) => raceLobbyHtml(kind, state),
+    startPayload: () => raceStartPayload(kind),
+    render: (state) => raceRender(kind, state),
+    // A move is not a new step; a new puzzle, its result and the end are.
+    actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
+  };
+  TV_GAMES[kind] = { sig: raceTvSig, frame: (state, t) => raceTvFrame(kind, state, t), after: (state) => svTickClock(state) };
+});
+</script>

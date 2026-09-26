@@ -8,127 +8,27 @@
    hint gives away a word's first letter.
 
    The themes and words are CHAMELEON_DB's (kinds of things, sixteen words
-   each), in the games' language. A word goes in along the reading direction,
-   down, or diagonally (hard also backwards and up); the rest of the grid is
-   filled with letters drawn from the theme's own words, so the filler looks
-   like the words. Hamza forms and diacritics are folded so a grid letter is
-   one plain letter. The filler is drawn again when it makes a hidden word
-   readable a second time somewhere (strandsCopies), and a word traced where
-   it still repeats lights the cells that were traced. Easy 7×7 with 5 words,
-   medium 8×8 with 6, hard 9×9 with 8; the daily is medium from the seed. The
-   board is in appState.strands.
+   each), in the games' language. The grid is made in Strands.js (shared with
+   the rooms server, which deals a race's grid and judges every line traced):
+   easy 7×7 with 5 words, medium 8×8 with 6, hard 9×9 with 8; the daily is
+   medium from the seed. The board is in appState.strands.
+
+   In سباق ألغاز (RACE_UI.strands, JS_RoomRace.html) the same grid and drag
+   play the room's puzzle: the words are on the server, so every traced line
+   is sent (`move { cells }`) and the words found come back and land in their
+   slots with the same flight. No hint in a race.
    ========================================================================= */
 
-const STRANDS_LEVELS = {
-  easy:   { size: 7, words: 5, reverse: false },
-  medium: { size: 8, words: 6, reverse: false },
-  hard:   { size: 9, words: 8, reverse: true }
-};
 let strandsTimer = null;
 let strandsDrag = null;
 
 function strandsState() {
+  const race = soloRaceState('strands');
+  if (race) return race;
   if (!appState.strands) {
     appState.strands = { level: 'easy', daily: '', lang: 'ar', size: 7, theme: '', icon: '', grid: [], words: [], found: [], hints: [], startedAt: 0, pausedAt: 0, phase: 'setup' };
   }
   return appState.strands;
-}
-
-/** One plain letter per character: no diacritics, no tatweel, hamza seats folded. */
-function strandsFold(word, lang) {
-  let w = String(word || '').replace(/[ً-ْٰـ]/g, '').replace(/[أإآٱ]/g, 'ا');
-  if (lang === 'en') w = w.toUpperCase();
-  return w;
-}
-
-/**
- * How many straight lines of the grid read `word`, either way round (a
- * palindrome read both ways along one line counts once). A player can trace
- * any of them, so each hidden word should be there exactly once.
- */
-function strandsCopies(grid, size, word) {
-  const len = word.length;
-  const back = word.split('').reverse().join('');
-  let copies = 0;
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
-        const r1 = r + dr * (len - 1), c1 = c + dc * (len - 1);
-        if (r1 < 0 || r1 >= size || c1 < 0 || c1 >= size) continue;
-        let text = '';
-        for (let k = 0; k < len; k++) text += grid[(r + dr * k) * size + (c + dc * k)];
-        if (text === word || text === back) copies++;
-      }
-    }
-  }
-  return copies;
-}
-
-/** { size, theme, icon, grid, words: [{ w, cells }] } or null. */
-function strandsMake(level, lang, rnd) {
-  const L = STRANDS_LEVELS[level] || STRANDS_LEVELS.easy;
-  const letterRe = lang === 'en' ? /^[A-Z]+$/ : /^[ء-ي]+$/;
-  const themes = soloShuffle((CHAMELEON_DB[lang] || CHAMELEON_DB.ar), rnd);
-  const dirs = lang === 'en'
-    ? [[0, 1], [1, 0], [1, 1]].concat(L.reverse ? [[0, -1], [-1, 0], [1, -1]] : [])
-    : [[0, -1], [1, 0], [1, -1]].concat(L.reverse ? [[0, 1], [-1, 0], [1, 1]] : []);
-  for (const theme of themes) {
-    const pool = soloShuffle(theme.words.map(w => strandsFold(w, lang)).filter(w => letterRe.test(w) && w.length >= 3 && w.length <= L.size), rnd);
-    if (pool.length < L.words) continue;
-    let fallback = null;
-    for (let attempt = 0; attempt < 30; attempt++) {
-      const grid = new Array(L.size * L.size).fill('');
-      const placed = [];
-      for (const w of pool) {
-        if (placed.length >= L.words) break;
-        let ok = false;
-        const starts = soloShuffle(Array.from({ length: L.size * L.size }, (_, k) => k), rnd);
-        for (const start of starts) {
-          for (const [dr, dc] of soloShuffle(dirs, rnd)) {
-            const r0 = Math.floor(start / L.size), c0 = start % L.size;
-            const cells = [];
-            let fits = true;
-            for (let k = 0; k < w.length; k++) {
-              const r = r0 + dr * k, c = c0 + dc * k;
-              if (r < 0 || r >= L.size || c < 0 || c >= L.size) { fits = false; break; }
-              const i = r * L.size + c;
-              if (grid[i] && grid[i] !== w[k]) { fits = false; break; }
-              cells.push(i);
-            }
-            if (!fits) continue;
-            // A word inside another placed word (either way round) would be found twice.
-            const back = w.split('').reverse().join('');
-            if (placed.some(p => p.w.indexOf(w) !== -1 || w.indexOf(p.w) !== -1 || p.w.indexOf(back) !== -1 || back.indexOf(p.w) !== -1)) { fits = false; }
-            if (!fits) continue;
-            cells.forEach((i, k) => { grid[i] = w[k]; });
-            placed.push({ w: w, cells: cells });
-            ok = true;
-            break;
-          }
-          if (ok) break;
-        }
-      }
-      if (placed.length < L.words) continue;
-      const letters = pool.join('').split('');
-      const empty = [];
-      for (let i = 0; i < grid.length; i++) if (!grid[i]) empty.push(i);
-      // Filler drawn from the theme's letters can spell a hidden word again;
-      // draw it again until every word is there once. When the words
-      // themselves make a second copy, lay them out again; if every layout
-      // does, the first is kept (a traced copy still counts, see strandsTry).
-      let clean = false;
-      for (let fill = 0; fill < 12 && !clean; fill++) {
-        empty.forEach(i => { grid[i] = letters[Math.floor(rnd() * letters.length)]; });
-        clean = placed.every(p => strandsCopies(grid, L.size, p.w) === 1);
-      }
-      const t = soloCategory(theme.category);
-      const made = { size: L.size, theme: t.name, icon: t.icon, grid: grid, words: placed };
-      if (clean) return made;
-      fallback = fallback || made;
-    }
-    if (fallback) return fallback;
-  }
-  return null;
 }
 
 /* --- Setup and play --------------------------------------------------------------- */
@@ -203,13 +103,16 @@ function strandsStopTimer() {
   strandsTimer = null;
 }
 
+/** How long a word is: in a race the words are on the server, only their lengths here. */
+const strandsLen = (w) => (w.w ? w.w.length : (w.len || 0));
+
 function paintStrands() {
   const s = strandsState();
   const t = TRANSLATIONS[appState.lang];
-  const el = document.getElementById('strands-stage');
+  const el = soloStage('strands-stage');
   if (!el || !s.grid.length) return;
   const foundCells = {};
-  s.found.forEach((wi, n) => s.words[wi].cells.forEach(i => { foundCells[i] = (foundCells[i] || []).concat(n % 6); }));
+  s.found.forEach((wi, n) => (s.words[wi].cells || []).forEach(i => { foundCells[i] = (foundCells[i] || []).concat(n % 6); }));
   const bar = soloBarHtml([
     { label: t.strands_found || '', value: `${s.found.length}/${s.words.length}`, id: 'strands-count' },
     { label: t.solo_time || '', value: soloTime(s.phase === 'play' ? (Date.now() - s.startedAt) / 1000 : s.seconds), id: 'strands-time' }
@@ -229,28 +132,18 @@ function paintStrands() {
           ${s.words.map((w, wi) => {
             const found = s.found.indexOf(wi) !== -1;
             const hinted = s.hints.indexOf(wi) !== -1;
-            return `<span class="strands-word${found ? ' is-found' : ''}" data-w="${wi}">${found ? escapeHTML(w.w) : `${hinted ? escapeHTML(w.w[0]) : ''}${'<i></i>'.repeat(w.w.length - (hinted ? 1 : 0))}`}</span>`;
+            return `<span class="strands-word${found ? ' is-found' : ''}" data-w="${wi}">${found ? escapeHTML(w.w) : `${hinted ? escapeHTML(w.w[0]) : ''}${'<i></i>'.repeat(strandsLen(w) - (hinted ? 1 : 0))}`}</span>`;
           }).join('')}
         </div>
-        <div class="sdk-tools">
+        ${s.race ? '' : `<div class="sdk-tools">
           <button type="button" class="btn btn--neutral btn--sm" onclick="hintStrands()">💡 ${escapeHTML(t.solo_hint || '')}</button>
-        </div>
+        </div>`}
       </div>
     </div>
-    <div class="view-actions">
+    ${s.race ? '' : `<div class="view-actions">
       <button class="btn btn--ghost btn--sm" onclick="setupStrands()">${escapeHTML(t.exit || '')}</button>
-    </div>`;
+    </div>`}`;
   strandsBind();
-}
-
-/* A finger traces a straight line: the cells between where it went down and where it is. */
-function strandsLine(s, a, b) {
-  const n = s.size;
-  const r0 = Math.floor(a / n), c0 = a % n, r1 = Math.floor(b / n), c1 = b % n;
-  const dr = Math.sign(r1 - r0), dc = Math.sign(c1 - c0);
-  const len = Math.max(Math.abs(r1 - r0), Math.abs(c1 - c0));
-  if (!(r0 === r1 || c0 === c1 || Math.abs(r1 - r0) === Math.abs(c1 - c0))) return null;
-  return Array.from({ length: len + 1 }, (_, k) => (r0 + dr * k) * n + (c0 + dc * k));
 }
 
 function strandsBind() {
@@ -266,7 +159,7 @@ function strandsBind() {
     const move = (ev) => {
       const over = soloCellAt(ev.clientX, ev.clientY, '.strands-cell');
       if (!over || !strandsDrag) return;
-      const line = strandsLine(s, strandsDrag.start, Number(over.dataset.i));
+      const line = strandsLine(s.size, strandsDrag.start, Number(over.dataset.i));
       if (line) { strandsDrag.cells = line; strandsPaintDrag(); }
     };
     const up = () => {
@@ -289,28 +182,38 @@ function strandsPaintDrag() {
   document.querySelectorAll('#strands-grid .strands-cell').forEach(c => c.classList.toggle('is-tracing', on.has(Number(c.dataset.i))));
 }
 
+/** A wrong line: the grid shakes. */
+function strandsMiss() {
+  const grid = document.getElementById('strands-grid');
+  if (grid && grid.animate && !motionOff()) grid.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }], { duration: 240 });
+}
+
 function strandsTry(cells) {
   const s = strandsState();
-  const t = TRANSLATIONS[appState.lang];
-  const text = cells.map(i => s.grid[i]).join('');
-  const back = text.split('').reverse().join('');
-  const wi = s.words.findIndex((w, k) => s.found.indexOf(k) === -1 && (w.w === text || w.w === back));
-  if (wi === -1) {
-    const grid = document.getElementById('strands-grid');
-    if (grid && grid.animate && !motionOff()) grid.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }], { duration: 240 });
-    return;
-  }
-  // The word lights where it was traced, in reading order, even if it was
-  // planted somewhere else as well.
-  s.words[wi].cells = s.words[wi].w === text ? cells.slice() : cells.slice().reverse();
-  s.found.push(wi);
+  // A race: the words are on the server, which judges the line (JS_RoomRace.html).
+  if (s.race) { raceMove('strands', { cells: cells }); return; }
+  const hit = strandsTrace(s.grid, s.words, s.found, cells);
+  if (!hit) { strandsMiss(); return; }
+  strandsLand(hit.wi, hit.cells);
+  if (s.found.length === s.words.length) strandsFinish();
+}
+
+/**
+ * A word found lands in its place in the list: the letters fly from the grid
+ * (where it was traced, in reading order) into the slot. The state is written
+ * here too, so a race's found word (told by the server) lands the same way.
+ */
+function strandsLand(wi, cells, word) {
+  const s = strandsState();
+  if (word) s.words[wi].w = word;
+  s.words[wi].cells = cells.slice();
+  if (s.found.indexOf(wi) === -1) s.found.push(wi);
   saveToLocal();
   playSound('success');
   haptic('light');
   const from = cells.map(i => document.querySelector(`#strands-grid [data-i="${i}"]`)).filter(Boolean);
   const rects = from.map(c => c.getBoundingClientRect());
   paintStrands();
-  // The word's letters fly from the grid into its place in the list.
   const slot = document.querySelector(`#strands-words [data-w="${wi}"]`);
   if (slot && rects.length && !motionOff() && document.body.animate) {
     const to = slot.getBoundingClientRect();
@@ -338,12 +241,11 @@ function strandsTry(cells) {
       slot.classList.add('motion-landed');
     }, 520 + rects.length * 35);
   }
-  if (s.found.length === s.words.length) strandsFinish();
 }
 
 function hintStrands() {
   const s = strandsState();
-  if (s.phase !== 'play') return;
+  if (s.phase !== 'play' || s.race) return;
   const wi = s.words.findIndex((w, k) => s.found.indexOf(k) === -1 && s.hints.indexOf(k) === -1);
   if (wi === -1) return;
   s.hints.push(wi);
@@ -390,4 +292,30 @@ soloRegister('strands', {
   setup: 'setup-strands', play: 'play-strands', paintSetup: paintStrandsSetup, restore: restoreStrands,
   state: strandsState, resume: continueStrands, repaint: paintStrands, timed: true, prefs: ['level']
 });
+
+/* --- سباق ألغاز: the same grid, raced (JS_RoomRace.html) ------------------------------ */
+RACE_UI.strands = {
+  stage: 'strands-stage',
+  unit: 'race_unit_words',
+  fresh: (pub) => ({ level: 'medium', playLevel: 'medium', daily: '', lang: pub.lang, size: pub.size, theme: pub.theme, icon: pub.icon,
+    grid: pub.grid.slice(), words: pub.lens.map(len => ({ w: '', len: len, cells: [] })), found: [], hints: [], seconds: 0 }),
+  // The words the server says this phone has found: a new one lands with its flight (a reload
+  // draws them settled); a line that found nothing (snapshot unchanged after the move) shakes the grid.
+  sync(s, board, fx) {
+    const found = (board && board.found) || [];
+    const fresh = found.filter(f => s.found.indexOf(f.wi) === -1);
+    if (!fresh.length) return;
+    fresh.forEach(f => {
+      if (fx && fx.first) { s.words[f.wi].w = f.w; s.words[f.wi].cells = f.cells.slice(); s.found.push(f.wi); }
+      else strandsLand(f.wi, f.cells, f.w);
+    });
+    if (fx && fx.first) paintStrands();
+  },
+  snapshot: (s) => s.found.length,
+  miss: () => strandsMiss(),
+  paint: () => paintStrands(),
+  finished: () => 0,
+  revealHtml: (r) => (r && r.words ? `<div class="strands-theme"><span class="strands-theme__icon" aria-hidden="true">${r.icon || '🧵'}</span><b>${escapeHTML(r.theme || '')}</b></div>
+    <div class="strands-words">${r.words.map(w => `<span class="strands-word is-found">${escapeHTML(w)}</span>`).join('')}</div>` : '')
+};
 </script>

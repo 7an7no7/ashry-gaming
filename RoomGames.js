@@ -136,6 +136,8 @@ const ROOM_GAME_IDS = [
   'minigolf',
   // One sets, everyone solves (RoomSolve.js): خمن الكلمة, خمّن الرقم, خمّن الدولة (and فوازير إيموجي's written way).
   'wordle', 'guessnum', 'flags',
+  // سباق ألغاز (RoomRace.js): the solo puzzles as a race on the same engine.
+  'strands', 'wordwheel', 'connections', 'pinpoint', 'queens', 'tango', 'nonogram', 'mines', 'streak', 'sudoku',
   // شطرنج (RoomChess.js): the duels' line, winner stays on, a chess clock.
   'chess',
   // Chess for teams (24 Sep 2026): شطرنج بالتصويت (RoomVoteChess.js) and المخ والإيد (RoomHandBrain.js).
@@ -635,6 +637,10 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'wordle':
     case 'guessnum':
     case 'flags':      solveAction(room, playerId, action, payload); break;     // RoomSolve.js
+    // سباق ألغاز (RoomRace.js): the ten puzzles race on the same engine.
+    case 'strands': case 'wordwheel': case 'connections': case 'pinpoint': case 'queens':
+    case 'tango': case 'nonogram': case 'mines': case 'streak': case 'sudoku':
+      solveAction(room, playerId, action, payload); break;
     default: throw new Error('لعبة غير معروفة');
   }
 
@@ -3904,7 +3910,9 @@ const gamePlayerLeft = (room, playerId, name) => {
     case 'wordle':
     case 'guessnum':
     case 'flags':
-      svPlayerLeft(room, playerId);   // RoomSolve.js
+    case 'strands': case 'wordwheel': case 'connections': case 'pinpoint': case 'queens':
+    case 'tango': case 'nonogram': case 'mines': case 'streak': case 'sudoku':
+      svPlayerLeft(room, playerId);   // RoomSolve.js (and the race, RoomRace.js)
       return;
     case 'minigolf':
       // Their ball leaves the hole; the turn and the hole move on without them (RoomMiniGolf.js).

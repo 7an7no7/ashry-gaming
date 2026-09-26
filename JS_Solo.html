@@ -90,6 +90,61 @@ function soloKeyBlocked(e) {
   return !!document.querySelector('.modal-overlay:not(.hidden)');
 }
 
+/* --- سباق ألغاز: a solo board raced in a room ------------------------------------
+   (JS_RoomRace.html, on RoomSolve.js). Each game registers how its board is
+   raced in RACE_UI[id]:
+     stage      the id of its stage element ('queens-stage'); the race screen draws
+                one with data-race-stage="<stage>" and the game paints into it
+     fresh(pub, settings)  → the game's state object for the puzzle every phone
+                was dealt (shared.pub), the shape its painter and taps expect
+     sync(s, board, fx)    → the state brought up to what the server holds of this
+                phone's board (you.board): a reload, or a game the server judges
+                move by move; `fx.fresh` says the board changed since last drawn
+     paint()    draws the board (the game's own painter)
+     finished(s, won)      the celebration once the server says the board is done
+     unit       the translation key of what the table's bar counts ("كلمات", "خانات")
+     revealHtml(reveal, s) what everyone sees at the end, or nothing
+   While a phone races, its state accessor (queensState()…) answers with the
+   race board (soloRaceState), and its painter draws into the race screen's
+   stage (soloStage) - so the very same board code plays alone or in a race.
+   The board's own screen keeps its last markup, so the race screens come
+   first in the page and the stage is emptied when the race leaves the screen
+   (the ids inside a board, #queens-grid…, are found in tree order).
+   ----------------------------------------------------------------------------- */
+const RACE_UI = {};
+
+/** The race this phone is playing on screen: its kind, or ''. */
+function soloRaceKind() {
+  const st = typeof Room !== 'undefined' && Room.state;
+  if (!st || !st.shared || !st.shared.race || !st.shared.solve) return '';
+  if (appState.currentView !== 'room-' + st.game) return '';
+  return st.shared.solve;
+}
+
+/** This phone's race board of `kind` (the game's state object), or null when it isn't racing it. */
+function soloRaceState(kind) {
+  if (soloRaceKind() !== kind) return null;
+  const st = Room.state;
+  const s = st.shared;
+  const key = [st.code, s.dealId || '', s.round].join('|');
+  if (!appState.race || appState.race.key !== key || appState.race.kind !== kind) {
+    const ui = RACE_UI[kind];
+    if (!ui || !s.pub) return null;
+    appState.race = { key: key, kind: kind, s: Object.assign(ui.fresh(s.pub, s.settings), { race: true, phase: 'play', startedAt: Date.now(), pausedAt: 0 }) };
+  }
+  return appState.race.s;
+}
+
+/** The element a solo board paints into: the race screen's stage while racing, else the board's own. */
+function soloStage(id) {
+  const kind = soloRaceKind();
+  if (kind) {
+    const el = document.querySelector('#view-room-' + kind + ' [data-race-stage="' + id + '"]');
+    if (el) return el;
+  }
+  return document.getElementById(id);
+}
+
 /* --- Timers that belong to one game ------------------------------------------ */
 
 const soloEpochs = {};
@@ -116,27 +171,8 @@ function soloLater(id, ms, fn) {
 
 /* --- Randomness that can repeat ---------------------------------------------- */
 
-function soloHash(text) {
-  let h = 2166136261;
-  const s = String(text);
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-/** mulberry32: a fast seeded generator, good enough for dealing puzzles. */
-function soloRng(seed) {
-  let a = seed >>> 0;
-  return function () {
-    a = (a + 0x6D2B79F5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// soloHash, soloRng, soloRandom, soloShuffle, soloPick and soloCategory are SoloShared.js
+// (shared with the rooms server, which deals a race's puzzle with them).
 
 var soloArchiveDay = null;
 // Set while an archive day is dealt after the player already agreed to replace the board.
@@ -165,25 +201,6 @@ function soloDaySeed(id, day) {
 function soloDayIndex(day) {
   const p = String(day || soloArchiveDay || soloToday()).split('-').map(Number);
   return Math.round((Date.UTC(p[0], p[1] - 1, p[2]) - Date.UTC(2026, 0, 1)) / 86400000);
-}
-
-/** A random source: seeded when a seed is given (the daily), Math.random otherwise. */
-function soloRandom(seed) {
-  return (seed === undefined || seed === null) ? Math.random : soloRng(seed);
-}
-
-function soloShuffle(arr, rnd) {
-  const r = rnd || Math.random;
-  const out = arr.slice();
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(r() * (i + 1));
-    const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
-  }
-  return out;
-}
-
-function soloPick(arr, rnd) {
-  return arr[Math.floor((rnd || Math.random)() * arr.length)];
 }
 
 /* --- Bests --------------------------------------------------------------------- */
@@ -648,13 +665,6 @@ function soloLookAgain() {
 function soloShareHeader(t, day) {
   const p = String(day || soloToday()).split('-').map(Number);
   return `${t.title || 'عشرى جيمينج'} · ${t.daily_title || ''} ${p[2]}/${p[1]}`;
-}
-
-/** A list's category as its name and its emoji: "فواكه وخضروات 🍎" -> { name, icon }. */
-function soloCategory(category) {
-  const re = /\p{Extended_Pictographic}[️‍\p{Extended_Pictographic}]*/gu;
-  const text = String(category || '');
-  return { name: text.replace(re, '').trim(), icon: (text.match(re) || [''])[0] };
 }
 
 /* --- A finger dragging across a board ------------------------------------------ */

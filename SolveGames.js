@@ -25,6 +25,25 @@ const SV_ROUNDS = [3, 5, 10];
 // Hangman, sensible per game"): five letters six times over takes longer than a number.
 const SV_CLOCKS = { wordle: [0, 90, 120], guessnum: [0, 60, 90], flags: [0, 60, 90], emoji: [0, 60, 90] };
 
+/* --- سباق ألغاز (the owner, 26 Sep 2026) ------------------------------------------
+   The solo puzzles as a race on the engine (RoomRace.js): the same puzzle
+   dealt on the server to every phone, each solving on its own board, the table
+   seeing progress only. The clock is a backstop, fixed per game (never a
+   setting): about two minutes for the word games, three for the grids and the
+   quiz, four for an easy Sudoku. Two endings, a lobby choice: «الكل يخلّص»
+   (everyone done, or the clock; the engine's points, 10 + the order's bonus)
+   or «Fast 3» (the first three to finish score 10 / 7 / 5, anyone finishing
+   within the ten seconds after the third scores 2, then the round closes).
+   ------------------------------------------------------------------------------ */
+const SV_RACE_IDS = ['strands', 'wordwheel', 'connections', 'pinpoint', 'queens', 'tango', 'nonogram', 'mines', 'streak', 'sudoku'];
+const SV_RACE_CLOCKS = { strands: 120, wordwheel: 120, connections: 120, pinpoint: 120, queens: 180, tango: 180, nonogram: 180, mines: 180, streak: 180, sudoku: 240 };
+const SV_RACE_ROUNDS = [3, 5];
+const SV_RACE_FINISH = ['all', 'fast3'];
+const SV_RACE_FAST3_FROM = 5;          // Fast 3 is preselected with this many people or more
+const SV_RACE_POINTS = [10, 7, 5];     // Fast 3: the first three to finish
+const SV_RACE_GRACE_POINTS = 2;        // …and anyone finishing within the grace after the third
+const SV_RACE_GRACE_MS = 10000;
+
 // The Arabic marks that are not letters (the diacritics U+064B-U+065F, the
 // superscript alef U+0670, the tatweel U+0640), built from their numbers: an
 // editor that decodes escapes writes the marks themselves (GEMINI.md, Traps).

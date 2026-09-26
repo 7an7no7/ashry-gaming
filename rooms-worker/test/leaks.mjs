@@ -18,7 +18,7 @@
  * the run too, so a probe can't pass by never looking.
  */
 import { readFileSync } from 'node:fs';
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, ROOM_GAME_IDS } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, ROOM_GAME_IDS, roomPlayerLeft } from '../generated/rules.js';
 import { roomView } from '../src/view.js';
 
 // The countries, for the engine's خمّن الدولة driver to guess with (one sets, everyone solves).
@@ -93,6 +93,40 @@ const GENERIC = (room) => {
       return null;
     })
   ];
+};
+
+/* --- سباق ألغاز: what each game's solution is, and what a board holds (PROBES.race) -------
+   RACE_PROBES[id](room, secret, hidden) -> {
+     secrets: [{ value, knows: [pids], except: [paths] }]   values nobody (but `knows`) may see
+     probes:  [probe(...)]                                    anything else the game must keep
+     own(youBoard, serverBoard, pid, view) -> a problem, or null   the board on a phone is exactly its own
+   } */
+const RACE_PROBES = {
+  // RACE_PROBES:queens
+  queens: (room, x) => ({
+    secrets: [],
+    probes: [probe('queens: the solution\'s crowns are on no phone', true, (view) => {
+      const sol = x.solution;
+      const seen = (node) => (Array.isArray(node) && node.length === sol.length && node.every((v, i) => v === sol[i]))
+        || (!!node && typeof node === 'object' && Object.keys(node).some((k) => seen(node[k])));
+      return seen(view) ? 'the solution' : null;
+    })],
+    own: (yb, b) => (JSON.stringify(yb.marks || null) === JSON.stringify(b.marks || null) ? null : 'you.board.marks')
+  }),
+  // RACE_PROBES:strands
+  strands: (room, x, h) => ({
+    // A word is known to a phone once it has found it.
+    secrets: x.words.map((w, wi) => ({ value: w.w, knows: Object.keys(h.boards).filter((id) => h.boards[id].found.some((f) => f.wi === wi)), except: ['shared.pub.theme'] })),
+    own: (yb, b) => (JSON.stringify((yb.found || []).map((f) => [f.wi, f.cells])) === JSON.stringify(b.found.map((f) => [f.wi, f.cells])) ? null : 'you.board.found')
+  }),
+  // RACE_PROBES:wordwheel
+  // RACE_PROBES:connections
+  // RACE_PROBES:pinpoint
+  // RACE_PROBES:tango
+  // RACE_PROBES:nonogram
+  // RACE_PROBES:mines
+  // RACE_PROBES:streak
+  // RACE_PROBES:sudoku
 };
 
 const PROBES = {
@@ -278,6 +312,52 @@ const PROBES = {
         const bad = Object.keys(prog[id]).find((k) => ['n', 'state', 'at', 'rows', 'best'].indexOf(k) === -1);
         if (bad) return 'shared.progress.' + id + '.' + bad;
         if ((prog[id].rows || []).some((r) => !/^[cpa]+$/.test(r))) return 'shared.progress.' + id + '.rows (a letter)';
+      }
+      return null;
+    }));
+    return out;
+  },
+  // سباق ألغاز (RoomRace.js): the ten solo puzzles as a race on the engine. The puzzle reaches
+  // everyone, the solution nobody until the round is over, a board its own phone only, and the
+  // table sees progress only (done / total, state, place, seconds). Each game says what its
+  // solution is and what its board holds (RACE_PROBES).
+  strands: (room) => PROBES.race(room),
+  wordwheel: (room) => PROBES.race(room),
+  connections: (room) => PROBES.race(room),
+  pinpoint: (room) => PROBES.race(room),
+  queens: (room) => PROBES.race(room),
+  tango: (room) => PROBES.race(room),
+  nonogram: (room) => PROBES.race(room),
+  mines: (room) => PROBES.race(room),
+  streak: (room) => PROBES.race(room),
+  sudoku: (room) => PROBES.race(room),
+  race(room) {
+    const s = room.shared || {};
+    const h = room._solve || { boards: {} };
+    const x = h.secret;
+    const live = s.phase === 'solving' && !!x;
+    const out = [];
+    if (!live) return out;
+    const G = RACE_PROBES[s.solve] ? RACE_PROBES[s.solve](room, x, h) : { secrets: [], own: () => null };
+    // Where a number may be any count: the progress, the scores, the clock, the chat, the audience.
+    const counts = ['shared.settings', 'shared.scores', 'shared.board', 'shared.tries', 'shared.secs', 'shared.progress', 'shared.round', 'shared.rounds',
+      'shared.maxTries', 'shared.setterAt', 'shared.endsAt', 'shared.startAt', 'shared.closeAt', 'you.n', 'version', 'night', 'chat', 'cheer', 'predict', 'serverNow'];
+    for (const v of G.secrets) {
+      out.push(secret('the solution stays on the server until the round is over', v.value, v.knows || [], { except: (v.except || []).concat(typeof v.value === 'number' ? counts : ['shared.settings']) }));
+    }
+    for (const p of G.probes || []) out.push(p);
+    out.push(probe('a board reaches its own phone only', true, (view, pid) => {
+      const you = view.you;
+      if (!you) return null;
+      const b = h.boards[pid];
+      if (!b) return you.board ? 'you.board (not a solver)' : null;
+      return G.own(you.board || {}, b, pid, view);
+    }));
+    out.push(probe('the table sees how far each board is, never its content', true, (view) => {
+      const prog = view.shared.progress || {};
+      for (const id of Object.keys(prog)) {
+        const bad = Object.keys(prog[id]).find((k) => ['n', 'state', 'at', 'done', 'total', 'secs'].indexOf(k) === -1);
+        if (bad) return 'shared.progress.' + id + '.' + bad;
       }
       return null;
     }));
@@ -997,6 +1077,79 @@ const DRIVERS = {
     play();
     return S(T).phase === 'gameover';
   },
+  /* --- سباق ألغاز (RoomRace.js): a race of each puzzle, both endings, the clock, «استسلم», leaving ---- */
+  /** The race's engine on a game: `solve(T, pid)` plays the solution for a phone, `partly(T, pid)` a move that isn't done, `wrong(T, pid)` a move that fails (or null). */
+  raceGame(game, plays, opts = {}) {
+    const start = (T, finish) => must(T, T.host, 'start', Object.assign({ finish, rounds: 3, lang: 'ar' }, opts.start || {}));
+    // Fast 3 with five: three finish, a fourth inside the grace, the clock closes it; a stale move; a wrong move.
+    let T = table(game, 5);
+    start(T, 'fast3');
+    if (S(T).settings.finish !== 'fast3' || S(T).phase !== 'solving') return false;
+    plays.partly(T, 'p1');
+    if (plays.wrong) plays.wrong(T, 'p2');
+    act(T, 'p1', 'move', Object.assign({ round: 99 }, plays.stale ? plays.stale(T, 'p1') : { cells: [0, 1] }));
+    for (const id of ['p1', 'p2', 'p3']) { clock += 3000; plays.solve(T, id); }
+    if (!S(T).closeAt) return false;
+    clock += 2000; plays.solve(T, 'p4');
+    runClock(T, (r) => r.shared.phase !== 'solving', 30);
+    if (S(T).phase !== 'result') return false;
+    must(T, T.host, 'nextRound', { round: 1 });
+    // «استسلم» and the host's close.
+    plays.partly(T, 'p1');
+    must(T, 'p2', 'giveUp', { round: 2 });
+    must(T, T.host, 'closeRound', { round: 2 });
+    must(T, T.host, 'nextRound', { round: 2 });
+    // The clock ends the last round; play again.
+    plays.solve(T, 'p3');
+    runClock(T, (r) => r.shared.phase !== 'solving', 30);
+    if (S(T).phase !== 'gameover') return false;
+    must(T, T.host, 'playAgain', {});
+    if (S(T).round !== 1 || S(T).phase !== 'solving') return false;
+    // «الكل يخلّص» with four, one leaving mid-round, everyone done ends it.
+    must(T, T.host, 'backToHub');
+    T = table(game, 4, { gameId: game });
+    start(T, 'all');
+    plays.partly(T, 'p2');
+    plays.solve(T, 'p1');
+    T.room.players = T.room.players.filter((p) => p.id !== 'p4');
+    roomPlayerLeft(T.room, 'p4', 'Omar');
+    scan(T, 'leave');
+    plays.solve(T, 'p2');
+    must(T, 'p3', 'giveUp', { round: 1 });
+    if (S(T).phase !== 'result') return false;
+    for (let round = 2; round <= 3; round++) {
+      must(T, T.host, 'nextRound', { round: round - 1 });
+      for (const id of ['p1', 'p2', 'p3']) { clock += 1000; plays.solve(T, id); }
+    }
+    return S(T).phase === 'gameover';
+  },
+  // RACE_DRIVERS:queens
+  queens() {
+    const marks = (T, rows) => { const x = T.room._solve.secret; const n = S(T).pub.n; const m = new Array(n * n).fill(0); rows.forEach((r) => { m[r * n + x.solution[r]] = 2; }); return m; };
+    return DRIVERS.raceGame('queens', {
+      partly: (T, pid) => act(T, pid, 'move', { marks: marks(T, [0, 1]), round: S(T).round }),
+      solve: (T, pid) => act(T, pid, 'move', { marks: marks(T, [0, 1, 2, 3, 4, 5, 6]), round: S(T).round }),
+      wrong: (T, pid) => act(T, pid, 'move', { marks: [1], round: S(T).round }),
+      stale: (T) => ({ marks: marks(T, [0]) })
+    });
+  },
+  // RACE_DRIVERS:strands
+  strands() {
+    return DRIVERS.raceGame('strands', {
+      partly: (T, pid) => act(T, pid, 'move', { cells: T.room._solve.secret.words[0].cells, round: S(T).round }),
+      solve: (T, pid) => T.room._solve.secret.words.forEach((w) => act(T, pid, 'move', { cells: w.cells.slice().reverse(), round: S(T).round })),
+      wrong: (T, pid) => act(T, pid, 'move', { cells: [0, 1, 2], round: S(T).round }),
+      stale: (T) => ({ cells: T.room._solve.secret.words[1].cells })
+    });
+  },
+  // RACE_DRIVERS:wordwheel
+  // RACE_DRIVERS:connections
+  // RACE_DRIVERS:pinpoint
+  // RACE_DRIVERS:tango
+  // RACE_DRIVERS:nonogram
+  // RACE_DRIVERS:mines
+  // RACE_DRIVERS:streak
+  // RACE_DRIVERS:sudoku
   proverbs: () => DRIVERS.quizGame('proverbs'),
   quizGame(game) {
     const T = table(game, 3);

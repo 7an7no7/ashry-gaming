@@ -34,8 +34,20 @@
    board's tries, state and order - and for خمن الكلمة the colours of each row
    without its letters, for خمّن الدولة the closest a player has come.
 
+   سباق ألغاز (the owner, 26 Sep 2026) rides on the same engine: the ten solo
+   puzzles as a race, always the app's pick (never a setter), a fixed clock
+   (SV_RACE_CLOCKS), one action `move` a board plays with, «استسلم» (giveUp),
+   and a second ending, Fast 3. Their plug-ins are RoomRace.js (each game's
+   rules in its own shared file: Sudoku.js, Queens.js…); a race kind carries
+   `race: true` and `score` (a rank among the finished: most right first for
+   the quiz games, the order of finishing otherwise), and its progress holds
+   `total` (the words, cells or questions the table's bar counts to).
+
    shared:
-     solve     the game on the engine: 'wordle' | 'guessnum' | 'flags' | 'emoji'
+     solve     the game on the engine: 'wordle' | 'guessnum' | 'flags' | 'emoji', or a race kind (SV_RACE_IDS)
+     race      true for سباق ألغاز
+     startAt   when the round's puzzle was dealt (the seconds a solve took)
+     closeAt   Fast 3: the moment the round closes, set when the third finishes
      phase     'setting' | 'solving' | 'result' | 'gameover'
      settings  { mode: 'setter' | 'race', rounds, clock, lang, ...the game's }
      round · rounds · order · setterAt · setter · setterName
@@ -205,10 +217,19 @@ const svEmojiOnEngine = (room, action, payload) => (action === 'start'
   ? !!payload && (payload.way === 'setter' || payload.way === 'race')
   : !!svKindOf(room));
 
-const svOptions = (kind, payload, prev) => {
+const svOptions = (kind, payload, prev, room) => {
   const p = payload || {};
   const was = prev || {};
   const asked = p.mode || p.way;
+  if (SOLVE_KINDS[kind].race) {
+    // A race: the app's pick every time, the clock fixed per game (never a setting), 3 or 5 rounds.
+    return Object.assign({
+      mode: 'race',
+      rounds: svPick(SV_RACE_ROUNDS, p.rounds, was.rounds, 3),
+      clock: SV_RACE_CLOCKS[kind] || 120,
+      lang: p.lang === 'en' ? 'en' : (p.lang === 'ar' ? 'ar' : (was.lang === 'en' ? 'en' : 'ar'))
+    }, SOLVE_KINDS[kind].options(p, was, room));
+  }
   return Object.assign({
     mode: asked === 'race' || asked === 'setter' ? asked : (was.mode === 'race' ? 'race' : 'setter'),
     rounds: svPick(SV_ROUNDS, p.rounds, was.rounds, 5),
@@ -238,7 +259,9 @@ const svWriteSecrets = (room) => {
 /** What the table sees of one board: its tries, its state, its place, and whatever the game adds. */
 const svProgressOf = (room, b, at) => {
   const s = room.shared;
-  return Object.assign({ n: b.n, state: b.state, at: at }, SOLVE_KINDS[s.solve].progress(b, room._solve.secret, s.settings));
+  const out = Object.assign({ n: b.n, state: b.state, at: at }, SOLVE_KINDS[s.solve].progress(b, room._solve.secret, s.settings));
+  if (s.race && b.state !== 'play') out.secs = svSecs(room, b);
+  return out;
 };
 
 /** The secret is set: every solver gets a board, the clock starts. */
@@ -256,8 +279,38 @@ const svBegin = (room, secret) => {
   s.maxTries = K.tries(secret, s.settings);
   s.phase = 'solving';
   s.roster = svHere(room);
+  s.startAt = Date.now();
+  s.closeAt = null;
   s.endsAt = s.settings.clock ? Date.now() + s.settings.clock * 1000 : null;
   svWriteSecrets(room);
+};
+
+/** The seconds a finished board took, from the deal to its last move. */
+const svSecs = (room, b) => Math.max(0, Math.round(((b.at || Date.now()) - (room.shared.startAt || b.at || Date.now())) / 1000));
+
+/**
+ * Fast 3 (the owner, 26 Sep 2026): the third to finish closes the round ten
+ * seconds later - whoever finishes inside them still scores a little.
+ */
+const svRaceCheckClose = (room) => {
+  const s = room.shared;
+  if (!s.race || s.settings.finish !== 'fast3' || s.closeAt || (s.solved || []).length < SV_RACE_POINTS.length) return;
+  s.closeAt = Date.now() + SV_RACE_GRACE_MS;
+  s.endsAt = s.endsAt ? Math.min(s.endsAt, s.closeAt) : s.closeAt;
+};
+
+/**
+ * A race's finished boards ranked: by the game's own score (most right first in
+ * the quiz games) and then the order they finished in - which for every other
+ * game is the whole ranking.
+ */
+const svRaceRank = (room) => {
+  const s = room.shared;
+  const h = room._solve || { boards: {} };
+  const K = SOLVE_KINDS[s.solve];
+  return (s.solved || []).filter(pid => h.boards[pid] && h.boards[pid].state === 'won')
+    .map((pid, at) => ({ pid: pid, at: at, score: K.score ? K.score(h.boards[pid], h.secret, s.settings) : 0 }))
+    .sort((a, b) => b.score - a.score || a.at - b.at);
 };
 
 /** The setter of this secret: the next in the order who is still here (latecomers join the end). */
@@ -303,7 +356,14 @@ const svAllDone = (room) => {
 
 /** The board of the game: points, best first; on a tie, fewer tries first. */
 const svBoard = (room) => {
-  const tries = room.shared.tries || {};
+  const s = room.shared;
+  const tries = s.tries || {};
+  if (s.race) {
+    // The night's board: fewer seconds on a tie (the owner, 26 Sep 2026).
+    const secs = s.secs || {};
+    return scoreboardOf(room).map(r => Object.assign(r, { secs: secs[r.id] || 0 }))
+      .sort((a, b) => b.score - a.score || a.secs - b.secs);
+  }
   return scoreboardOf(room).map(r => Object.assign(r, { tries: tries[r.id] || 0 }))
     .sort((a, b) => b.score - a.score || a.tries - b.tries);
 };
@@ -318,27 +378,38 @@ const svEndRound = (room) => {
   const rows = [];
   let failed = 0;
   s.tries = s.tries || {};
+  s.secs = s.secs || {};
+  // A race: the finished ranked (svRaceRank); Fast 3 pays the first three 10 / 7 / 5 and the
+  // grace's finishers 2, «الكل يخلّص» the engine's 10 + the order's bonus.
+  const ranks = {};
+  if (s.race) svRaceRank(room).forEach((r, i) => { ranks[r.pid] = { at: i, score: r.score }; });
   Object.keys(h.boards).forEach(pid => {
     const b = h.boards[pid];
-    if (b.state === 'play') b.state = 'lost';
-    const at = s.solved.indexOf(pid);
+    if (b.state === 'play') { b.state = 'lost'; b.at = Date.now(); }
+    const at = s.race ? (ranks[pid] ? ranks[pid].at : -1) : s.solved.indexOf(pid);
     let pts = 0;
     if (b.state === 'won') {
-      pts = SV_SOLVE_POINTS + (at !== -1 ? (SV_SPEED_BONUS[at] || 0) : 0);
+      if (s.race && s.settings.finish === 'fast3') pts = at < SV_RACE_POINTS.length ? SV_RACE_POINTS[at] : SV_RACE_GRACE_POINTS;
+      else pts = SV_SOLVE_POINTS + (at !== -1 ? (SV_SPEED_BONUS[at] || 0) : 0);
       s.tries[pid] = (s.tries[pid] || 0) + b.n;
+      if (s.race) s.secs[pid] = (s.secs[pid] || 0) + svSecs(room, b);
     } else if (here.indexOf(pid) !== -1) {
       failed++;
     }
     if (pts) addScore(room, pid, pts);
     s.progress[pid] = svProgressOf(room, b, at === -1 ? null : at);
-    if (here.indexOf(pid) !== -1) rows.push({ id: pid, name: roomPlayerName(room, pid), state: b.state, n: b.n, pts: pts });
+    if (here.indexOf(pid) !== -1) {
+      const row = { id: pid, name: roomPlayerName(room, pid), state: b.state, n: b.n, pts: pts };
+      if (s.race) { row.secs = svSecs(room, b); row.score = ranks[pid] ? ranks[pid].score : 0; row.gave = !!b.gave; }
+      rows.push(row);
+    }
   });
   let setterPts = 0;
   if (s.settings.mode !== 'race' && s.setter && here.indexOf(s.setter) !== -1) {
     setterPts = failed * SV_SETTER_POINTS;
     if (setterPts) addScore(room, s.setter, setterPts);
   }
-  rows.sort((a, b) => b.pts - a.pts || a.n - b.n);
+  rows.sort((a, b) => b.pts - a.pts || (s.race ? (b.score || 0) - (a.score || 0) || (a.secs || 0) - (b.secs || 0) : a.n - b.n));
   s.result = { reveal: K.reveal(h.secret, s.settings), setter: s.setter || null, setterName: s.setterName || '', setterPts: setterPts, rows: rows };
   s.endsAt = null;
   s.board = svBoard(room);
@@ -354,9 +425,10 @@ const svNewGame = (room, playerId, kind, payload, again) => {
   requireHost(room, playerId);
   if (svTooFew(room)) throw new Error('اللعبة دي محتاجة لاعبين على الأقل');
   const prev = room.shared || {};
-  const settings = svOptions(kind, again ? prev.settings : payload, prev.settings);
+  const settings = svOptions(kind, again ? prev.settings : payload, prev.settings, room);
   room.shared = {
     solve: kind,
+    race: !!SOLVE_KINDS[kind].race,
     settings: settings,
     round: 1,
     rounds: settings.rounds,
@@ -364,6 +436,7 @@ const svNewGame = (room, playerId, kind, payload, again) => {
     setterAt: -1,
     scores: {},
     tries: {},
+    secs: {},
     board: []
   };
   room.phase = 'play';
@@ -392,19 +465,37 @@ const solveAction = (room, playerId, action, payload) => {
     return;
   }
 
-  if (action === 'guess') {
+  if (action === 'guess' || (action === 'move' && s.race)) {
     if (s.phase !== 'solving' || staleTap(p, 'round', s.round)) return;
     const h = room._solve;
     const b = h && h.boards[playerId];
     if (!b) throw new Error(playerId === s.setter ? 'انت اللي حاططها' : 'انت بتتفرج المرة دي');
     if (b.state !== 'play') return;
     const out = K.guess(b, h.secret, p, s.settings);
-    if (!out) return;
+    // A race's move that neither finishes nor fails still moves the table's bar.
+    if (!out) { if (s.race) { s.progress[playerId] = svProgressOf(room, b, null); svWriteSecrets(room); } return; }
     b.n++;
+    const max = K.tries(h.secret, s.settings);
     if (out === 'won') b.state = 'won';
-    else if (b.n >= K.tries(h.secret, s.settings)) b.state = 'lost';
-    if (b.state === 'won') s.solved.push(playerId);
+    else if (out === 'lost' || (max && b.n >= max)) b.state = 'lost';
+    if (b.state !== 'play') b.at = Date.now();
+    if (b.state === 'won') { s.solved.push(playerId); svRaceCheckClose(room); }
     s.progress[playerId] = svProgressOf(room, b, b.state === 'won' ? s.solved.length - 1 : null);
+    if (svAllDone(room)) { svEndRound(room); return; }
+    svWriteSecrets(room);
+    return;
+  }
+
+  if (action === 'giveUp') {
+    // «استسلم» (a race): the board is done with nothing, so the round can move on.
+    if (!s.race || s.phase !== 'solving' || staleTap(p, 'round', s.round)) return;
+    const h = room._solve;
+    const b = h && h.boards[playerId];
+    if (!b || b.state !== 'play') return;
+    b.state = 'lost';
+    b.gave = true;
+    b.at = Date.now();
+    s.progress[playerId] = svProgressOf(room, b, null);
     if (svAllDone(room)) { svEndRound(room); return; }
     svWriteSecrets(room);
     return;

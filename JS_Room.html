@@ -792,7 +792,18 @@ const ROOM_HUB_GAMES = [
   // One sets, everyone solves (JS_RoomSolve.html): a setter and a solver at least.
   { id: 'wordle',     icon: 'art:wordle', key: 'setup_wordle',   accent: 'green',  min: 2 },
   { id: 'guessnum',   icon: 'art:guessnum', key: 'setup_guessnum', accent: 'blue',   min: 2 },
-  { id: 'flags',      icon: 'art:flags', key: 'setup_flags',    accent: 'blue',   min: 2 }
+  { id: 'flags',      icon: 'art:flags', key: 'setup_flags',    accent: 'blue',   min: 2 },
+  // سباق ألغاز (JS_RoomRace.html): the ten solo puzzles as a race, one family tile in the list (ROOM_HUB_GROUPS.race).
+  { id: 'strands',     icon: 'art:strands', key: 'setup_strands',     accent: 'teal', min: 2 },
+  { id: 'wordwheel',   icon: 'art:wordwheel', key: 'setup_wordwheel',   accent: 'orange', min: 2 },
+  { id: 'connections', icon: 'art:connections', key: 'setup_connections', accent: 'teal', min: 2 },
+  { id: 'pinpoint',    icon: 'art:pinpoint', key: 'setup_pinpoint',    accent: 'violet', min: 2 },
+  { id: 'queens',      icon: 'art:queens', key: 'setup_queens',      accent: 'amber', min: 2 },
+  { id: 'tango',       icon: 'art:tango', key: 'setup_tango',       accent: 'blue', min: 2 },
+  { id: 'nonogram',    icon: 'art:nonogram', key: 'setup_nonogram',    accent: 'green', min: 2 },
+  { id: 'mines',       icon: 'art:mines', key: 'setup_mines',       accent: 'teal', min: 2 },
+  { id: 'streak',      icon: 'art:streak', key: 'setup_streak',      accent: 'rose', min: 2 },
+  { id: 'sudoku',      icon: 'art:sudoku', key: 'setup_sudoku',      accent: 'indigo', min: 2 },
 ];
 
 /** Create an empty room from the menu — no game chosen yet. */
@@ -1217,7 +1228,13 @@ let roomHubLocation = recallOptions('roomHubLocation', 'together');
 
 /* Chess is one tile in the room's list (the owner, 24 Sep 2026): a tap opens its
    room ways, the first of which is the tile itself (1 vs 1). */
-const ROOM_HUB_GROUPS = { chess: ['chess', 'votechess', 'handbrain', 'bughouse', 'chess4'] };
+const ROOM_HUB_GROUPS = {
+  chess: ['chess', 'votechess', 'handbrain', 'bughouse', 'chess4'],
+  // سباق ألغاز (the owner, 26 Sep 2026): one tile «سباق ألغاز» opens the ten puzzles, so the list keeps its size.
+  race: ["strands","wordwheel","connections","pinpoint","queens","tango","nonogram","mines","streak","sudoku"]
+};
+/* A family whose tile is not its first game: its own name, icon and colour (chess's tile is chess itself). */
+const ROOM_HUB_FAMILIES = { race: { id: 'race', icon: 'art:race', key: 'race_title', accent: 'violet', group: 'brain' } };
 let roomHubGroup = '';
 const roomHubGroupOf = (id) => Object.keys(ROOM_HUB_GROUPS).find(k => ROOM_HUB_GROUPS[k].indexOf(id) !== -1) || '';
 
@@ -1238,7 +1255,7 @@ function roomHubTiles() {
     const k = roomHubGroupOf(g.id);
     if (!k) return { g: g, min: g.min, open: '' };
     const min = Math.min.apply(null, ROOM_HUB_GROUPS[k].map(id => (byId(id) || { min: 99 }).min));
-    return { g: g, min: min, open: k };
+    return { g: ROOM_HUB_FAMILIES[k] || g, min: min, open: k };
   });
 }
 

@@ -565,6 +565,14 @@ function renderStats() {
 }
 
 /** «ليالينا»: the room evenings this phone was at, added up by name (rememberNight in JS_Room.html). */
+/** A night's date as a family reads it: 25/9 this year, 25/9/2025 before. */
+function statsNightDay(day) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || '');
+  if (!m) return day || '';
+  const thisYear = String(new Date().getFullYear()) === m[1];
+  return Number(m[3]) + '/' + Number(m[2]) + (thisYear ? '' : '/' + m[1]);
+}
+
 function statsNightsHtml(t) {
   const nights = typeof readNights === 'function' ? readNights() : [];
   if (!nights.length) return '';
@@ -588,10 +596,10 @@ function statsNightsHtml(t) {
     <div class="card">
       <p class="field__hint">${escapeHTML((t.stats_nights_hint || '').replace('{n}', nights.length))}</p>
       ${rows.map((r, i) => `<div class="status-row"><span>${i === 0 ? '👑 ' : ''}<bdi>${escapeHTML(r.name)}</bdi></span>
-        <span class="metric">${escapeHTML((t.stats_nights_won || '{n}').replace('{n}', r.won))} · ${escapeHTML((t.stats_nights_pts || '{n}').replace('{n}', r.score))}</span></div>`).join('')}
+        <span><b>${escapeHTML((t.stats_nights_won || '{n}').replace('{n}', r.won))}</b> · ${escapeHTML((t.stats_nights_pts || '{n}').replace('{n}', r.score))}</span></div>`).join('')}
     </div>
     <div class="card" style="margin-top:var(--sp-2)">
-      ${recent.map(n => `<div class="status-row"><span class="metric">${escapeHTML(n.day)}</span>
+      ${recent.map(n => `<div class="status-row"><span class="metric">${escapeHTML(statsNightDay(n.day))}</span>
         <span>🏆 <bdi>${escapeHTML(n.board[0].name)}</bdi></span></div>`).join('')}
     </div>`;
 }

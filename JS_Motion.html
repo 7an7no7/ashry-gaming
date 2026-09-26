@@ -125,7 +125,7 @@ function flyEmoji(emoji, fromRect, fromFontPx, target, opts) {
  */
 function catalogIconFlight(g, fromEl) {
   if (!g || !fromEl || motionOff()) return null;
-  const icon = fromEl.querySelector('.gcard__icon, .recent-tile__icon, .tool-icon');
+  const icon = fromEl.querySelector('.gcard__icon, .recent-tile__icon, .tool-icon, .start-card__icon');
   if (!icon) return null;
   const from = icon.getBoundingClientRect();
   const fromFont = parseFloat(getComputedStyle(icon).fontSize);
@@ -614,15 +614,20 @@ function heroHomeFlight(previous, next) {
   return () => {
     const home = document.getElementById('view-' + next);
     if (!home) return;
-    const recent = catalogReturn.id === g.id && catalogReturn.kind === 'recent';
-    const sel = recent
-      ? '.recent-tile[data-game="' + g.id + '"] .recent-tile__icon'
-      : '.gcard[data-game="' + g.id + '"] .gcard__icon, .tool-item[data-game="' + g.id + '"] .tool-icon';
+    const kind = catalogReturn.id === g.id ? catalogReturn.kind : '';
+    const recentSel = '.recent-tile[data-game="' + g.id + '"] .recent-tile__icon';
+    const cardSel = '.gcard[data-game="' + g.id + '"] .gcard__icon, .tool-item[data-game="' + g.id + '"] .tool-icon';
+    // Opened from a first visit's start card: that home is gone once a game has
+    // been opened (the recent row has it now), so the icon goes home to its tile.
+    const sels = kind === 'recent' ? [recentSel]
+      : kind === 'start' ? ['.start-card[data-start="' + g.id + '"] .start-card__icon', recentSel, cardSel]
+      : [cardSel];
     const onScreen = (el) => {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight;
     };
-    const target = [...home.querySelectorAll(sel)].find(onScreen);
+    let target = null;
+    for (const sel of sels) { target = [...home.querySelectorAll(sel)].find(onScreen); if (target) break; }
     if (target) flyEmoji(g.icon, from, fromFont, target, { duration: 520, arc: 24 });
   };
 }

@@ -27,11 +27,20 @@ function applyPlayMode(view, mode) {
   if (devicePanel) devicePanel.classList.toggle('hidden', online);
 }
 
+/* سكرو and الدومينو open on the real game, played in the app (the owner, 26 Sep
+   2026); their score keeper for real cards and tiles is the switch's other side,
+   and the tools' shortcut (openTableCalc) turns to it for that one visit. */
+const PLAY_MODE_DEFAULT = { screw: 'online', domino: 'online' };
+let playModeOnce = null;
+
 /** A setup screen with the switch opens on the side it was left on (paintSetupOptions). */
 function paintPlayMode(viewId) {
   const view = document.getElementById('view-' + viewId);
   if (!view || !view.querySelector('.mode-switch') || String(viewId).indexOf('setup-') !== 0) return;
-  applyPlayMode(view, recallOptions('playMode', {})[viewId.slice('setup-'.length)] || 'device');
+  const id = viewId.slice('setup-'.length);
+  let mode = recallOptions('playMode', {})[id] || PLAY_MODE_DEFAULT[id] || 'device';
+  if (playModeOnce && playModeOnce.id === id) { mode = playModeOnce.mode; playModeOnce = null; }
+  applyPlayMode(view, mode);
 }
 
 /* ==========================================================================

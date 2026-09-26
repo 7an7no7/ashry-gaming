@@ -8367,6 +8367,21 @@ Date.now = duelTestClock;
     check(hard > easy, `estimation bots: a hard computer player makes its call more often than an easy one (${Math.round(hard * 100)}% against ${Math.round(easy * 100)}%)`);
   }
 }
+/* --- «أنت: منى ✏️»: a name changed from the lobby (26 Sep 2026) ------------------- */
+{
+  const r = newRoom(['a', 'b']);
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  applyRoomAction(r, 'a', 'rename', { name: ' منى ' });
+  check(r.players[0].name === 'منى', 'rename: the lobby takes a new name, trimmed');
+  check(threw(() => applyRoomAction(r, 'b', 'rename', { name: 'مني' })), 'rename: a name someone else has (folded) is refused');
+  check(threw(() => applyRoomAction(r, 'b', 'rename', { name: '  ' })), 'rename: an empty name is refused');
+  applyRoomAction(r, 'a', 'rename', { name: 'منى' });
+  check(r.players[0].name === 'منى', 'rename: your own name again is fine');
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'wouldyou' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar' });
+  check(r.phase !== 'lobby' && threw(() => applyRoomAction(r, 'a', 'rename', { name: 'X' })), 'rename: not while a game is being played');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

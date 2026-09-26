@@ -1962,6 +1962,42 @@ the word search), `countUp` for streaks and scores.
   of 30, 8 of 15); a steal missed shows only «محدش خد النقط» and «التالي» (a
   wrong call is put right with «رجّع آخر سؤال», which also gives the turn
   back). Off, a card plays exactly as it always did.
+- **Simpler to start playing** (the owner, 26 Sep 2026: "people who open it
+  should not have to do a lot of clicks to start a game; I don't want them to
+  get lost; simple, without losing the things we made; cool animations all the
+  way"), after a study of every game's taps from opening the app. Four
+  decisions were the owner's own:
+  1. **The first visit only** gets a simple start (three big one-tap games,
+     one room button, «الليلة دي؟», everything else under «كل الألعاب (N) ▾»);
+     a phone that has opened a game keeps the home exactly as it was (*The
+     catalog and the home screen*).
+  2. **Rooms skip the name sheet when a name is saved**; the lobby shows «أنت:
+     منى ✏️» to change it (*Multiplayer rooms*). It used to be asked every time
+     on purpose - the owner changed that.
+  3. **The intro stays exactly as it is** (not shortened for returning phones).
+  4. **سكرو and الدومينو open on the real game** (نلعب في التطبيق, first in
+     their switch); the score keeper is the switch's other side and still in
+     الأدوات (`openTableCalc` turns to it for that one visit, `playModeOnce`;
+     `PLAY_MODE_DEFAULT` in `JS_RoomGames.html`). A table that picks «على
+     الطاولة» itself has that remembered as before.
+  Approved in principle and built the same day: «مين بيلعب؟» for a game short
+  of names, one wording for "not enough players", the order of play only when
+  asked (P1, P12, P6: *Player names live on the phone*); the lobby's Start
+  always on screen and its options folded (P3); the first-play card as one
+  line (P9); شطرنج's Start on the first screen and شطرنج / بنك الحظ's rarer
+  options under «خيارات أكتر ▾» with what they are set to (P10, P11,
+  `setupMoreSummarise`); «▶ العب تاني» on a recent tile (P7); popups that
+  close with motion, a blocked Start pointing at what is missing, a new
+  player's chip popping in (P14). Decided while building (open to change,
+  each one place): the three first-visit games are the starter shelf's first
+  three; a first-visit card presses the game's Start at once (القنبلة and بدون
+  كلام start playing, الجاسوس asks for names); the sheet fills its fields from
+  the library, newest first; a join link with a saved name goes straight in;
+  the lobby's name is changed with a server action, `rename`, in the lobby
+  only; the lobby options of the seven games that seat the table are never
+  folded; الدومينو's four in teams are the picker's order (first two against
+  last two).
+
 - **A table game's score keeper lives inside the game, with a shortcut in the
   tools** (owner, 21 Sep 2026). The domino score keeper became the "على
   الطاولة" side of the Domino setup screen, like سكرو's, and الأدوات → حاسبات
@@ -2864,6 +2900,30 @@ the word search), `countUp` for streaks and scores.
   section 34 of `Style.html` had put every rule after it (باغ هاوس, شطرنج
   الأربعة, the chess hub, the host's name menu) inside a
   `prefers-reduced-motion: reduce` block since 24 Sep 2026.
+- **26 Sep 2026, simpler to start playing** - a read-only study counted every
+  game's taps from opening the app (15 proposals), and the owner decided four
+  of them and approved the rest in principle (*Decided, and why*). Built: the
+  first visit's simple start and «كل الألعاب (N) ▾» (`renderHome`,
+  `catalogQuickStart`, `toggleHomeAll`); «▶ العب تاني» on recent tiles; rooms
+  that open and join under the saved name, «أنت: منى ✏️» on the join screen
+  and in the lobby, and the room-level `rename` (lobby only); the lobby's
+  Start always on screen, with "N more needed" under it, and the host's
+  options folded with a line of what is chosen; «مين بيلعب؟» (`askPlayers`)
+  for ten one-phone games and the card score keepers, one wording for "not
+  enough players", «↕ رتّب» in the picker, الجاسوس without the order before
+  every round, الدومينو's teams in its question; سكرو and الدومينو opening on
+  the game in the app; the first-play card as one line; شطرنج's Start on the
+  first screen and «خيارات أكتر ▾» on شطرنج and بنك الحظ; popups that close
+  with motion (`modalExitGhost`), a blocked Start that scrolls to and shakes
+  what is missing (`blockStartAt`), a new player's chip popping in. Taps from
+  opening the app, a first visit: الجاسوس 6 + a 450px scroll + the order →
+  2 (and the names typed); القنبلة and بدون كلام 2 → 1; a room 5 → 4 on a
+  first visit (3 from «افتح غرفة» with a name saved, 2 from «▶ العب تاني» on a
+  game left on "own phones"), and the lobby's Start never scrolled to; joining
+  by a link with a name saved 1 + typing → 0. Tests: `npm run check`,
+  `test:rules` (1,824 checks, the leak check clean), the robots 2,319 passed,
+  `test:ui` screens and rooms 70 passed. Found on the way (*Traps*): a `<details>` drawn
+  open fires its `toggle`.
 
 ## Building and Running
 
@@ -4409,13 +4469,36 @@ its first screen.
    host a way forward (on the phone and the TV) wherever the round waits on
    one phone.
 
-Ask for the player's name with `promptForName()`, which opens the name sheet.
-Never use `window.prompt` — it is blocked in some embedded browsers. The sheet
-always opens, filled in with the name last used (`roomName`, localStorage
-`ashryName`), so keeping it is one tap and a new name replaces the old one; the
-join screen and Settings → your name read and write the same value. On tablets
-and desktop every sheet is a centred dialog (the `min-width: 640px` block in
-*Sheets, modals, toasts*); phones keep the bottom sheet.
+**A room is opened and joined under the name the phone used last time,
+without asking** (the owner, 26 Sep 2026; it used to be asked on every room,
+one tap more each time). `roomNameOrAsk()` gives the saved name (`roomName`,
+localStorage `ashryName`) and opens the name sheet (`promptForName()`) only
+for a phone that has none; `roomCreateFor` goes through it. The join screen
+folds its name field into «أنت: منى ✏️» (`roomJoinPaintName`, a tap brings the
+field back), and a join link with its code goes straight into the room
+(`roomOpenJoin`); a name someone in the room already has brings the field back
+with the error. In the lobby «أنت: منى ✏️» (`#room-me`, `roomRenameMe`) opens
+the name sheet and sends `rename { name }` - a room-level action in
+`applyRoomAction`, lobby only (a game in play keeps its players' names), a
+person only, refused for a name someone else has (`sameRoomName`). Becoming a
+player from a screen still asks. Never use `window.prompt` — it is blocked in
+some embedded browsers. The join screen and Settings → your name read and write
+the same value. Every sheet is a centred dialog.
+
+**The lobby's Start is always on screen** (the owner, 26 Sep 2026): the host's
+Start, the "how many more" line (`#room-start-need`, the hub's `min` against
+the people here) and a player's "waiting for the host" sit in a sticky
+`.view-actions--start` bar (`.lobby-start`) under the game's options, like a
+setup screen's. **The host's options are folded** under «⚙️ إعدادات اللعبة
+(محفوظة) ▾» (`lobbyOptionsFold`), with a line of what is chosen read off the
+controls themselves (`lobbyOptsSummarise`: the active segments, the lists'
+picks, the switches that are on); they open by themselves the first time this
+phone hosts that game (`recallOptions('lobbyOptsSeen')`, set when the host
+starts it) and stay as the host left them while the lobby is redrawn
+(`lobbyOptsOpen`). The games whose options are where the table is seated -
+أسماء الرموز, الدومينو, لودو, شطرنج الأربعة, المخ والإيد, شطرنج بالتصويت,
+بنك الحظ - are never folded (`LOBBY_OPTS_UNFOLDED`). The TV's lobby is as it
+was.
 
 **A result you can send as a picture** (`JS_ShareCard.html`). A result told as
 text is a wall of characters in WhatsApp. `shareResultCard({ title, icon, rows,
@@ -4557,7 +4640,32 @@ height Start still lands on the first screen for six of the seven setup
 screens), and whoever is in the round is floated to the top so you can see who
 is playing without scrolling. That re-sort happens on arrival and when you add
 someone, **never on a toggle** — chips that move under your finger are worse
-than chips in a stale order. `pickerOrder` is what holds them still.
+than chips in a stale order. `pickerOrder` is what holds them still. A name
+put in the round pops in (`pickerJustAdded`, `.pick-chip--pop`).
+
+**«مين بيلعب؟» instead of a toast** (the owner, 26 Sep 2026, P1 and P12). A
+one-phone game that needs names and hasn't enough used to say so in a toast
+that went away (in four different wordings) while the name field sat 450px
+down the screen. Its Start now calls `askPlayers(min, then, { max })` in
+`JS_Utils.html`: a centred sheet (`#players-modal`) with a field for each
+player it needs, filled in with who is in the round and then the names this
+phone knows (newest first), the other saved names as chips (one tap fills the
+first empty field), «+ لاعب», ✕ on a row, and one big «يلا» that adds them to
+the library and the round (`playersSheetGo`) and calls the game's own start.
+Too few names shake the empty field and turn the line red (`blockStartAt`,
+which any Start that can't go uses: it scrolls to what is missing, shakes it
+and focuses it). One wording for the line everywhere: `playersNeedText`
+(«محتاجين 3 لاعبين على الأقل», or «من 2 لـ 4 لاعبين» with a range). Used by
+الجاسوس, الحرباء, الموقع السري, كلمة واحدة, ثلاث جولات, ربع قرد, أتوبيس
+كومبليت, خمس ثواني, سكرو and الدومينو on the table, and the card score
+keepers. On a phone on its side the fields go two a row.
+
+**The order of play is changed only when asked** (P6): «↕ رتّب» in the
+picker's head (`openActiveOrder`, the reorder sheet with context
+`active-order`) reorders the players in the round. الجاسوس no longer opens the
+order before every round, and الدومينو's four in teams say who is with whom
+in the question itself (`paintDominoTeamsLine`: the first two against the
+last two), with «↕ رتّب الفرق» there.
 
 ### The static site (docs/)
 
@@ -6874,10 +6982,28 @@ phone / own phones / TV), then three games that fit, the ones a first evening
 goes best with first (`TONIGHT_ORDER`; the three dealt through `freshPick`
 from the best nine, «غيرهم» deals again). The answers are remembered
 (`recallOptions('tonight')`). It replaced "pick for us", which picked any one
-game at random. A phone with no recent games gets «ابدأوا بدول» in the recent
-row's place (`STARTER_SHELF`, eight games), so a new table isn't handed 68
-cards to read first. A new game that belongs among the first a table should
-try goes into `TONIGHT_ORDER`.
+game at random. A new game that belongs among the first a table should try
+goes into `TONIGHT_ORDER`.
+
+**The first visit is a simple start** (the owner, 26 Sep 2026: "people who
+open it should not have to do a lot of clicks to start a game; I don't want
+them to get lost"). A phone whose recent row is empty (`readRecent()`) gets,
+in `renderHome`, «يلا نلعب!» and three big cards (`START_CARDS`, the first
+three of `STARTER_SHELF`: الجاسوس, القنبلة, بدون كلام), one button «نلعب كل
+واحد بموبايله» (`roomCreateEmpty`) and «الليلة دي؟»; everything else - the
+ways in, search, the filters, تحدي اليوم and every section - is folded under
+«كل الألعاب (N) ▾» (`#home-all`, `toggleHomeAll`), which opens in place, its
+parts rising one after another, scrolled to the top. It replaced «ابدأوا
+بدول». Once any game has been opened the phone gets the home as it always
+was (the compact hero, recents, sections). A card is `catalogQuickStart`:
+the game's setup is drawn (so its remembered options are on it), then its
+Start is pressed (`QUICK_START`, the one-phone games whose start works from
+their remembered options): الجاسوس asks «مين بيلعب؟» for names it hasn't got,
+القنبلة and بدون كلام go straight to playing. A setup left on "own phones"
+opens its room instead. The same function is **«▶ العب تاني»** beside a
+recent tile (`.recent-item`, `.recent-play`), for the games in `QUICK_START`.
+The icon flies to the setup's hero only if the game stops there; back from
+the game it flies home to the recent tile (`catalogReturn.kind` 'start').
 
 `GAME_CATALOG` in `JS_Catalog.html` is the registry of everything the app can
 play: id, icon, title and description keys, accent, `players: [min, max]`,
@@ -6938,7 +7064,8 @@ target, and the first card sits at 445px now, a whole row above the fold:
 - a phone that has played before gets **only the ways in** - the four tiles,
   اختارلنا among them, on one row (`home-hero--compact`, 67px against 141).
   The mark and the name are in the header on this screen, so nothing is lost;
-  a first visit still gets the whole hero with its title and tagline. How
+  a first visit gets the simple start instead (since 26 Sep 2026, above),
+  with the three ways in folded under «كل الألعاب». How
   much a tile says follows **the hero's own width** (it is a container,
   `container-type: inline-size`), not the screen's: icon over name on a phone
   upright, icon beside name from 34rem (a phone on its side, a tablet
@@ -7054,13 +7181,16 @@ hear across a table, on the holder's phone and the TV only.
 ### The first-play card
 
 The first time a phone opens a game's setup screen, or has that game chosen in
-a room lobby (never on a big screen), a card under the hero says how to play
-in three steps: the first three `<li>` of the game's `GAME_RULES` list, as
-plain text, cut at 140 characters (`firstPlaySteps`, `firstPlayCardHtml` in
-`JS_Catalog.html`). «فهمت» or «📘 القواعد كاملة» marks the game seen in
-`ashryFirstPlay_v1` (cleared by "delete all data"). A game whose rules have no
-ordered list gets no card, so a new game's rules should keep the shape the
-Help sheet asks for.
+a room lobby (never on a big screen), a line under the hero says «📘 أول مرة؟
+إزاي نلعب ▾», and a tap opens how to play in three steps in place: the first
+three `<li>` of the game's `GAME_RULES` list, as plain text, cut at 140
+characters (`firstPlaySteps`, `firstPlayCardHtml` in `JS_Catalog.html`). It was
+a card of 230-350px on top of every first setup until 26 Sep 2026 (P9), which
+pushed the options and Start down; it is a `<details>` now, kept open across a
+lobby's redraws (`firstPlayOpen`). «فهمت» or «📘 القواعد كاملة» marks the game
+seen in `ashryFirstPlay_v1` (cleared by "delete all data"). A game whose rules
+have no ordered list gets no line, so a new game's rules should keep the shape
+the Help sheet asks for.
 
 ### The Help sheet
 
@@ -7127,6 +7257,13 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A `<details>` drawn open fires its `toggle` too.** The lobby's folded
+options remembered "the host opened it" from the toggle event, and a details
+written into the page with `open` fires that event by itself - so the options
+never folded again. The handlers (`lobbyOptsToggled`, `firstPlayToggled`)
+compare with the state the markup was drawn in (`data-r`) and only count a
+change.
 
 **A minifier can make a page bigger.** esbuild escapes every character outside
 ASCII by default, so the first minified build turned each Arabic letter (two
@@ -8268,6 +8405,15 @@ points and وقف's slam, and confetti on top (`JS_Sounds.html` reads that one).
 The values are the numbers each layer always had (22 Sep 2026: forty rules on
 twenty-five numbers from 20 to 100,040, now names); a new popup picks a name,
 never a number. Small numbers inside a component stay local.
+
+**A popup closes with motion, and still closes at once** (26 Sep 2026, P14).
+`closeModal` and `closeAllModals` hide the real overlay straight away - so a
+popup opened next, the history (`navReconcile` counts
+`.modal-overlay:not(.hidden)`) and the clocks all see it closed - and
+`modalExitGhost` lays a copy over it that scales down and fades
+(`.modal-overlay--ghost`: no ids, no taps, not a `.modal-overlay`), removed by
+its animation and by a timer. Nothing when motion is off. A popup hidden by
+adding `hidden` directly just vanishes, as before.
 
 **Popups are centred dialogs, and live under `<body>`.** `hoistModals()` in
 `JS_Core.html` moves every `.modal-overlay` there at start-up: most are written

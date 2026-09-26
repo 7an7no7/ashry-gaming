@@ -817,9 +817,10 @@ function lobbySkeleton(on) {
 
 /** Entry point from a game's setup screen: "play on separate phones". */
 async function roomCreateFor(gameId) {
-  // Always asked, already filled in with the name used last time: one tap to
-  // keep it, or type over it and the new one is remembered instead.
-  const name = await promptForName();
+  // The name this phone used last time goes straight in (the owner, 26 Sep
+  // 2026: it used to be asked every time, one more tap for every room); the
+  // lobby shows «أنت: منى ✏️» to change it. A phone with no name is asked.
+  const name = await roomNameOrAsk();
   if (!name) return;
   roomName.set(name);
   pendingRoomGame = gameId;
@@ -841,18 +842,85 @@ async function roomCreateFor(gameId) {
   }
 }
 
-/** Opens the join screen, pre-filled if we arrived from a scanned link. */
+/** The name this phone plays under, or the name sheet when it has none yet. */
+async function roomNameOrAsk() {
+  const saved = String(roomName.get() || '').trim();
+  if (saved) return saved;
+  return promptForName();
+}
+
+/**
+ * Opens the join screen, pre-filled if we arrived from a scanned link. With a
+ * name saved on this phone the name field folds into «أنت: منى ✏️», and a link
+ * that carries its code goes straight into the room (the owner, 26 Sep 2026).
+ */
 function roomOpenJoin(prefillCode) {
   const codeEl = document.getElementById('room-join-code');
   const nameEl = document.getElementById('room-join-name');
+  const saved = String(roomName.get() || '').trim();
   if (codeEl) codeEl.value = extractRoomCode(prefillCode);
-  if (nameEl) nameEl.value = roomName.get();
+  if (nameEl) nameEl.value = saved;
+  roomJoinPaintName(!saved);
   setView('room-join');
+  if (saved && codeEl && codeEl.value.length === 4) {
+    roomJoinFromForm();
+    return;
+  }
   // Send focus to whichever field is still empty.
   setTimeout(() => {
-    const target = (codeEl && !codeEl.value) ? codeEl : nameEl;
+    const target = (codeEl && !codeEl.value) || saved ? codeEl : nameEl;
     if (target) target.focus();
   }, 300);
+}
+
+/** The join screen's name: the field, or «أنت: منى ✏️» when the phone knows it. */
+function roomJoinPaintName(showField) {
+  const wrap = document.getElementById('room-join-name-wrap');
+  const me = document.getElementById('room-join-me');
+  const nameEl = document.getElementById('room-join-name');
+  if (wrap) wrap.classList.toggle('hidden', !showField);
+  if (me) {
+    me.classList.toggle('hidden', !!showField);
+    const t = TRANSLATIONS[appState.lang] || {};
+    me.innerHTML = roomMeHtml(t, (nameEl && nameEl.value) || roomName.get());
+  }
+}
+
+/** Enter in the code field: on to the name, or straight in when the name is folded away. */
+function roomJoinCodeEnter() {
+  const wrap = document.getElementById('room-join-name-wrap');
+  const nameEl = document.getElementById('room-join-name');
+  if (wrap && wrap.classList.contains('hidden') && nameEl && nameEl.value) roomJoinFromForm();
+  else if (nameEl) nameEl.focus();
+}
+
+function roomJoinEditName() {
+  roomJoinPaintName(true);
+  const nameEl = document.getElementById('room-join-name');
+  if (nameEl) { nameEl.focus(); nameEl.select(); }
+}
+
+/** «أنت: منى ✏️», the name a phone plays under, a tap from being changed. */
+function roomMeHtml(t, name) {
+  return `<span class="lobby-me__label">${escapeHTML(t.room_you_are || '')}</span>` +
+    ` <bdi class="lobby-me__name">${escapeHTML(name || '')}</bdi> <span class="lobby-me__edit" aria-hidden="true">✏️</span>`;
+}
+
+/** The lobby's «أنت: منى ✏️»: the name sheet, and the room hears the new name. */
+async function roomRenameMe() {
+  const name = await promptForName();
+  if (!name) return;
+  const state = Room.state;
+  const me = state && (state.players || []).find(p => p.id === Room.me);
+  if (!me) { roomName.set(name); return; }
+  if (me.name === name) { roomName.set(name); return; }
+  try {
+    await Room.act('rename', { name: name });
+    roomName.set(name);
+    haptic('light');
+  } catch (err) {
+    showToast(err.message || '', 'error');
+  }
 }
 
 /**
@@ -952,6 +1020,8 @@ async function roomJoinFromForm() {
     lobbySkeleton(false);
     setView('room-join');
     const msg = String(err.message || '');
+    // Someone in the room has this phone's name: the field comes back to change it.
+    if (msg.indexOf('الاسم') !== -1) roomJoinEditName();
     showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? roomErrText('notfound') : msg, 'error');
   }
 }
@@ -967,6 +1037,8 @@ async function roomLeave() {
 async function roomStartGame() {
   const game = ROOM_GAMES[Room.state && Room.state.game];
   if (!game) return showToast(roomErrText('game'), 'error');
+  // Its options have been set once on this phone: folded from the next lobby on.
+  rememberOptions('lobbyOptsSeen', { [Room.state.game]: 1 });
   try {
     await Room.act('start', game.startPayload ? game.startPayload() : {});
   } catch (err) {
@@ -1046,6 +1118,27 @@ function renderRoomLobby(state) {
   const inHub = !state.game;
   if (startBtn) startBtn.classList.toggle('hidden', inHub || !state.youAreHost);
   if (waitNote) waitNote.classList.toggle('hidden', !!state.youAreHost);
+  // Under the host's Start: how many more the chosen game needs, if any.
+  const needEl = document.getElementById('room-start-need');
+  if (needEl) {
+    const hub = !inHub && ROOM_HUB_GAMES.find(g => g.id === state.game);
+    // The hub's minimum counts people (computer players make up a table later).
+    const people = state.players.filter(p => !p.bot).length;
+    const short = hub && state.youAreHost ? Math.max(0, (hub.min || 0) - people) : 0;
+    const tt = TRANSLATIONS[appState.lang] || {};
+    needEl.classList.toggle('hidden', !short);
+    if (short) needEl.textContent = (tt.room_need_more || '').replace('{n}', String(short));
+  }
+  // «أنت: منى ✏️» on a phone that plays (a screen has no name).
+  const meBtn = document.getElementById('room-me');
+  const mine = state.players.find(p => p.id === Room.me);
+  if (meBtn) {
+    meBtn.classList.toggle('hidden', !mine);
+    if (mine) {
+      const html = roomMeHtml(TRANSLATIONS[appState.lang] || {}, mine.name);
+      if (meBtn.dataset.sig !== html) { meBtn.innerHTML = html; meBtn.dataset.sig = html; }
+    }
+  }
 
   if (setup) {
     const html = inHub
@@ -1062,7 +1155,15 @@ function renderRoomLobby(state) {
         setup.innerHTML = html;
         setup.dataset.sig = html;
         delete setup.dataset.stale;
+        lobbyOptsSummarise(setup);
       }
+    }
+    // An option changed in place (a switch, a list) says so in the folded line too.
+    if (!setup.dataset.sumWatched) {
+      setup.dataset.sumWatched = '1';
+      const later = () => setTimeout(() => lobbyOptsSummarise(setup), 0);
+      setup.addEventListener('change', later);
+      setup.addEventListener('click', later);
     }
   }
 }
@@ -1292,7 +1393,70 @@ function renderChosenGame(state, game) {
     </div>
     ${firstPlay}
     ${bots}
-    ${options}`;
+    ${lobbyOptionsFold(state, options, t)}`;
+}
+
+/* The host's options for the chosen game, folded under «⚙️ إعدادات اللعبة
+   (محفوظة) ▾» with a line of what is chosen (the owner, 26 Sep 2026): they are
+   remembered on the host's phone anyway, and every option above the Start was
+   scrolled past before every game. Open by default only the first time this
+   phone hosts the game; the games whose options are where the table is seated
+   (sides, seats, colours) are never folded. Nothing is removed: a tap opens it. */
+const LOBBY_OPTS_UNFOLDED = { codenames: 1, domino: 1, ludo: 1, chess4: 1, handbrain: 1, votechess: 1, bank: 1 };
+const lobbyOptsOpen = {};
+
+function lobbyOptionsFold(state, options, t) {
+  if (!options || !state.youAreHost || LOBBY_OPTS_UNFOLDED[state.game]) return options;
+  const seen = recallOptions('lobbyOptsSeen', {});
+  const open = lobbyOptsOpen[state.game] !== undefined ? lobbyOptsOpen[state.game] : !seen[state.game];
+  return `
+    <details class="lobby-opts" ${open ? 'open' : ''} data-r="${open ? 1 : 0}" ontoggle="lobbyOptsToggled(this, '${jsStringAttr(state.game)}')">
+      <summary class="lobby-opts__head">
+        <span class="lobby-opts__title">⚙️ ${escapeHTML(t.room_opts_title || '')}</span>
+        <span class="lobby-opts__sum"></span>
+        <span class="lobby-opts__chev" aria-hidden="true">▾</span>
+      </summary>
+      <div class="lobby-opts__body">${options}</div>
+    </details>`;
+}
+
+function lobbyOptsToggled(el, game) {
+  // A details drawn open fires its toggle too: only a tap on it is a choice.
+  const now = el.open ? '1' : '0';
+  if (el.dataset.r === now) return;
+  el.dataset.r = now;
+  lobbyOptsOpen[game] = !!el.open;
+  if (el.open && typeof motionOff === 'function' && !motionOff()) {
+    const body = el.querySelector('.lobby-opts__body');
+    if (body && body.animate) body.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  }
+}
+
+/** The folded options' one line: what is picked in them, read off the controls themselves. */
+function lobbyOptsSummarise(root) {
+  (root || document).querySelectorAll('.lobby-opts').forEach(box => {
+    const body = box.querySelector('.lobby-opts__body');
+    const out = box.querySelector('.lobby-opts__sum');
+    if (!body || !out) return;
+    const bits = [];
+    body.querySelectorAll('.segmented').forEach(seg => {
+      const on = seg.querySelector('.segmented__item.is-active');
+      if (on) bits.push(on.textContent.trim().replace(/\s+/g, ' '));
+    });
+    body.querySelectorAll('select').forEach(sel => {
+      const o = sel.options[sel.selectedIndex];
+      if (o) bits.push(o.textContent.trim().replace(/\s+/g, ' '));
+    });
+    body.querySelectorAll('.filter-chip.is-active, .chip.is-active').forEach(c => bits.push(c.textContent.trim().replace(/\s+/g, ' ')));
+    body.querySelectorAll('label.switch-row').forEach(row => {
+      const input = row.querySelector('input[type=checkbox]');
+      const label = row.querySelector('.switch-row__label, span');
+      if (input && input.checked && label) bits.push(label.textContent.trim().replace(/\s+/g, ' '));
+    });
+    const text = bits.filter(Boolean).slice(0, 4).join(' · ');
+    if (out.textContent !== text) out.textContent = text;
+  });
 }
 
 /** Draws whatever the room is doing now: its lobby, a spectator note, or the game. */

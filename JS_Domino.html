@@ -9,28 +9,44 @@
   function runStartDomino() {
       let selected = appState.activePlayers ? [...appState.activePlayers] : [];
       saveActivePlayers(selected)
-      if(selected.length < 2 || selected.length > 4) {
-          const msg = appState.lang === 'ar' ? 'اختر من 2 إلى 4 لاعبين' : 'Select 2 to 4 players';
-          return showToast(msg);
-      }
+      if (selected.length < 2) return askPlayers(2, () => runStartDomino(), { max: 4 });
+      if (selected.length > 4) return showToast(playersNeedText(2, 4), 'error');
       window._tempDominoPlayers = selected;
       if (selected.length === 4) {
+          paintDominoTeamsLine();
           document.getElementById('domino-mode-modal').classList.remove('hidden');
       } else {
           startDominoGame('single', selected);
       }
   }
 
+  /* Four players: the teams are the picker's order, the first two against the
+     last two, said in the question itself; «↕ رتّب الفرق» changes them there.
+     It used to open the order and an alert on top of it every game. */
+  function paintDominoTeamsLine() {
+      const el = document.getElementById('domino-mode-teams');
+      const players = (appState.activePlayers || []).slice(0, 4);
+      window._tempDominoPlayers = players.length === 4 ? players : window._tempDominoPlayers;
+      if (!el) return;
+      const t = TRANSLATIONS[appState.lang] || {};
+      const p = window._tempDominoPlayers || [];
+      el.textContent = p.length === 4
+        ? (t.domino_teams_line || '').replace('{a}', p[0]).replace('{b}', p[1]).replace('{c}', p[2]).replace('{d}', p[3])
+        : '';
+  }
+
+  let dominoOrderReturn = false;
+  function dominoTeamsOrder() {
+      closeModal('domino-mode-modal');
+      dominoOrderReturn = true;
+      openActiveOrder('domino-player-list');
+  }
+
   function setDominoMode(mode) {
       closeModal('domino-mode-modal');
       const players = window._tempDominoPlayers;
       if (mode === 'teams') {
-          const btnText = appState.lang === 'ar' ? "اعتمد الفرق (الأول والثاني فريق 1)" : "Confirm Teams (First two are Team 1)";
-          openReorderModal('domino-teams', players.map(name => ({ name: name })), btnText);
-
-          const alertMsg = appState.lang === 'ar' ? "قم بترتيب اللاعبين: أول اسمين (فريق 1) وآخر اسمين (فريق 2)" : "Order players: First two (Team 1), last two (Team 2)";
-          const alertTitle = appState.lang === 'ar' ? "ترتيب الفرق" : "Team Order";
-          showCustomAlert(alertMsg, alertTitle);
+          finalizeDominoTeams(players);
       } else {
           startDominoGame('single', players);
       }

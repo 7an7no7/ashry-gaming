@@ -90,12 +90,13 @@
       countInput.value = count;
       
       if(selected.length < 3) {
-          const msg = appState.lang === 'ar' ? 'الحد الأدنى 3 لاعبين' : 'Minimum 3 players';
-          return showToast(msg);
+          // «مين بيلعب؟»: the names in a sheet, then on to the game (JS_Utils.html).
+          return askPlayers(3, () => continuePrepImposter());
       }
       if(count >= selected.length) {
           const msg = appState.lang === 'ar' ? 'عدد الجواسيس كبير جداً' : 'Too many imposters';
-          return showToast(msg);
+          // The count that is too high, scrolled to and shaken (JS_Utils.html).
+          return blockStartAt(countInput.closest('.stepper') || countInput, msg);
       }
       
       if (!appState.imposter.config) appState.imposter.config = {};
@@ -116,8 +117,9 @@
       }
       lastSelectedPlayers = selected;
       playSound('click');
-      openReorderModal('imposter', selected.map(name => ({ name: name })),
-                       TRANSLATIONS[appState.lang].start);
+      // The order is the picker's; «↕ رتّب» there changes it (the owner, 26 Sep
+      // 2026: the order no longer pops up before every round).
+      finalizeImposterGame(selected);
   }
 
   function finalizeImposterGame(orderedNames) {
@@ -133,8 +135,9 @@
               secretWord = document.getElementById('imposter-manual-word').value.trim();
               if (!secretWord) {
                   const msg = appState.lang === 'ar' ? 'يرجى إدخال الكلمة السرية' : 'Please enter the secret word';
-                  showToast(msg);
-                  setView('setup-imposter');
+                  if (appState.currentView !== 'setup-imposter') setView('setup-imposter');
+                  // What is missing, scrolled to and shaken (JS_Utils.html).
+                  blockStartAt(document.getElementById('imposter-manual-word'), msg);
                   return;
               }
           } else if (category === 'countries') {

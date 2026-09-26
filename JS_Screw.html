@@ -476,8 +476,8 @@
     const field = document.getElementById('screw-rounds');
     const rounds = Math.max(1, Math.round(Number(roundsToUse)) || (field && parseInt(field.value, 10)) || 5);
     const selected = replay ? playersToUse.slice() : (appState.activePlayers ? appState.activePlayers.slice() : []);
-    if (!selected.length) {
-      return showToast(appState.lang === 'ar' ? 'اختر لاعبين' : 'Select players');
+    if (selected.length < 2) {
+      return askPlayers(2, () => runStartScrew());
     }
     saveActivePlayers(selected);
     const from = replay ? s.opts : s.prefs;

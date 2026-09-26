@@ -157,8 +157,12 @@ function startCardScore(id) {
   const t = csT();
   const names = (appState.activePlayers || []).slice();
   const need = g.seatCount(s.opts);
-  if (names.length < need[0] || names.length > need[1]) {
-    showToast((t.cs_need_players || '').replace('{min}', need[0]).replace('{max}', need[1]), 'error');
+  if (names.length < need[0]) {
+    askPlayers(need[0], () => startCardScore(id), { max: need[1] });
+    return;
+  }
+  if (names.length > need[1]) {
+    showToast(playersNeedText(need[0], need[1]), 'error');
     return;
   }
   if (csLive(s)) {

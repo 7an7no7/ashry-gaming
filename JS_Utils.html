@@ -24,6 +24,8 @@ let pickerEditMode = false;
  * chips that reshuffle under your finger are worse than chips in a stale order.
  */
 let pickerOrder = [];
+// The names just put in the round: their chips pop in once (P14, 26 Sep 2026).
+let pickerJustAdded = [];
 
 function renderActiveChips(containerId, resort) {
   const container = document.getElementById(containerId);
@@ -48,9 +50,14 @@ function renderActiveChips(containerId, resort) {
   }
   const known = pickerOrder;
 
+  // «↕ رتّب»: the order of play is the order they were put in; it is changed
+  // only when someone asks (the owner, 26 Sep 2026 - it used to pop up at every
+  // start of الجاسوس and of a domino game of teams).
   const head = `
     <div class="picker__head">
       <span class="eyebrow">${escapeHTML(t.picker_saved || '')}</span>
+      ${active.length >= 2 && !pickerEditMode ? `<button type="button" class="picker__edit picker__order"
+              onclick="openActiveOrder('${jsStringAttr(containerId)}')">↕ ${escapeHTML(t.picker_order || '')}</button>` : ''}
       ${known.length ? `<button type="button" class="picker__edit ${pickerEditMode ? 'is-on' : ''}"
               onclick="togglePickerEdit('${jsStringAttr(containerId)}')">
           ${escapeHTML(pickerEditMode ? (t.done || 'تم') : (t.edit || 'تعديل'))}
@@ -72,7 +79,8 @@ function renderActiveChips(containerId, resort) {
                 <span class="pick-chip__name">${escapeHTML(name)}</span>
               </button>`;
     }
-    return `<button type="button" class="pick-chip ${on ? 'is-on' : ''}" aria-pressed="${on}"
+    const pop = on && pickerJustAdded.some(n => samePlayer(n, name)) && !motionOff();
+    return `<button type="button" class="pick-chip ${on ? 'is-on' : ''} ${pop ? 'pick-chip--pop' : ''}" aria-pressed="${on}"
               onclick="togglePlayerInRound('${jsStringAttr(name)}', '${jsStringAttr(containerId)}')">
               ${on ? '<span class="pick-chip__tick" aria-hidden="true">✓</span>' : ''}
               <span class="pick-chip__name">${escapeHTML(name)}</span>
@@ -86,6 +94,7 @@ function renderActiveChips(containerId, resort) {
   container.innerHTML = head +
     `<div class="picker__chips"><div class="chip-set">${chips}</div></div>` +
     (pickerEditMode ? '' : `<div class="picker__count">${count}</div>`);
+  pickerJustAdded = [];
 
   // The fade only belongs there when something is actually cut off.
   const box = container.querySelector('.picker__chips');
@@ -105,6 +114,7 @@ function togglePlayerInRound(name, containerId) {
   appState.currentGroup = '';
   saveToLocal();
   renderSavedGroups();
+  if (!wasOn) pickerJustAdded = [name];
   renderActiveChips(containerId);
   playSound('click');
   haptic('light');
@@ -148,6 +158,7 @@ function addPlayerFromSetup(btn) {
   } else {
     appState.activePlayers.push(name);
     appState.currentGroup = '';
+    pickerJustAdded = [name];
   }
 
   saveToLocal();
@@ -162,6 +173,231 @@ function addPlayerFromSetup(btn) {
   input.focus();
 }
 
+
+/* ==========================================================================
+   «مين بيلعب؟» (the owner, 26 Sep 2026)
+   --------------------------------------------------------------------------
+   A game that needs names and hasn't enough used to say so in a toast that
+   went away, and the name field was 450px down the screen. Now Start opens
+   this centred sheet: a field for each player it needs, filled in with who
+   is in the round and then the names this phone knows (latest first), the
+   other saved names as chips to add in one tap, «+ لاعب», and one big «يلا»
+   that puts them in the picker and starts. `then` is the game's own start.
+   ========================================================================== */
+const playersSheet = { min: 0, max: 0, then: null };
+
+/** One wording everywhere for "not enough players" (the minimum, or a range). */
+function playersNeedText(min, max) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (max && max !== min) return (t.players_need_range || '').replace('{min}', min).replace('{max}', max);
+  return (t.players_need || '').replace('{n}', min);
+}
+
+function askPlayers(min, then, opts) {
+  opts = opts || {};
+  const modal = document.getElementById('players-modal');
+  if (!modal) { showToast(playersNeedText(min, opts.max), 'error'); return true; }
+  playersSheet.min = min;
+  playersSheet.max = opts.max || 0;
+  playersSheet.then = then;
+  // Who is in the round first, then the names this phone knows, newest first.
+  const names = (appState.activePlayers || []).slice();
+  const known = (typeof allPlayers !== 'undefined' ? allPlayers : []).slice().reverse();
+  for (const n of known) {
+    if (names.length >= min) break;
+    if (!names.some(x => samePlayer(x, n))) names.push(n);
+  }
+  while (names.length < min) names.push('');
+  const need = document.getElementById('players-sheet-need');
+  if (need) { need.textContent = playersNeedText(min, opts.max); need.classList.remove('is-error'); }
+  playersSheetPaint(names, true);
+  modal.classList.remove('hidden');
+  haptic('light');
+  // The first empty field, ready to type in (a phone's keyboard comes up with it).
+  setTimeout(() => {
+    const empty = [...modal.querySelectorAll('.players-sheet__row input')].find(i => !i.value);
+    if (empty) empty.focus();
+  }, 320);
+  return true;
+}
+
+function playersSheetNames() {
+  return [...document.querySelectorAll('#players-sheet-fields input')].map(i => i.value);
+}
+
+function playersSheetPaint(names, fresh) {
+  const box = document.getElementById('players-sheet-fields');
+  if (!box) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const pop = fresh && !(typeof motionOff === 'function' && motionOff());
+  box.innerHTML = names.map((n, i) => `
+    <div class="players-sheet__row ${pop ? 'is-popping' : ''}" style="--i:${i}">
+      <span class="players-sheet__n metric" aria-hidden="true">${i + 1}</span>
+      <input type="text" maxlength="24" autocomplete="off" enterkeyhint="${i === names.length - 1 ? 'go' : 'next'}"
+             value="${escapeHTML(n)}" placeholder="${escapeHTML((t.players_sheet_ph || '').replace('{n}', i + 1))}"
+             oninput="playersSheetChips()" onkeydown="playersSheetKey(event, ${i})">
+      <button type="button" class="iconbtn iconbtn--plain" aria-label="${escapeHTML(t.players_remove || '')}"
+              onclick="playersSheetRemove(${i})">✕</button>
+    </div>`).join('');
+  const add = document.getElementById('players-sheet-add');
+  if (add) add.classList.toggle('hidden', !!(playersSheet.max && names.length >= playersSheet.max));
+  playersSheetChips();
+}
+
+/** The saved names not in a field yet, as chips: one tap puts one in. */
+function playersSheetChips() {
+  const box = document.getElementById('players-sheet-chips');
+  if (!box) return;
+  const inFields = playersSheetNames().filter(n => n.trim());
+  const rest = (typeof allPlayers !== 'undefined' ? allPlayers : []).slice().reverse()
+    .filter(n => !inFields.some(x => samePlayer(x, n))).slice(0, 24);
+  box.innerHTML = rest.map(n => `<button type="button" class="pick-chip" onclick="playersSheetPick('${jsStringAttr(n)}')">
+      <span class="pick-chip__name">${escapeHTML(n)}</span></button>`).join('');
+  box.classList.toggle('hidden', !rest.length);
+}
+
+function playersSheetPick(name) {
+  const inputs = [...document.querySelectorAll('#players-sheet-fields input')];
+  const empty = inputs.find(i => !i.value.trim());
+  if (empty) {
+    empty.value = name;
+    const row = empty.closest('.players-sheet__row');
+    if (row && !(typeof motionOff === 'function' && motionOff()) && row.animate) {
+      row.animate([{ transform: 'scale(0.96)' }, { transform: 'scale(1.03)' }, { transform: 'none' }], { duration: 240, easing: 'ease-out' });
+    }
+    playersSheetChips();
+  } else {
+    if (playersSheet.max && inputs.length >= playersSheet.max) return;
+    playersSheetPaint(playersSheetNames().concat([name]));
+    const rows = document.querySelectorAll('#players-sheet-fields .players-sheet__row');
+    const last = rows[rows.length - 1];
+    if (last) last.classList.add('is-popping');
+  }
+  haptic('light');
+}
+
+function playersSheetAddField() {
+  const names = playersSheetNames();
+  if (playersSheet.max && names.length >= playersSheet.max) return;
+  playersSheetPaint(names.concat(['']));
+  const rows = document.querySelectorAll('#players-sheet-fields .players-sheet__row');
+  const last = rows[rows.length - 1];
+  if (last) { last.classList.add('is-popping'); const i = last.querySelector('input'); if (i) i.focus(); }
+  haptic('light');
+}
+
+function playersSheetRemove(i) {
+  const names = playersSheetNames();
+  if (names.length > playersSheet.min) names.splice(i, 1);
+  else names[i] = '';
+  playersSheetPaint(names);
+}
+
+function playersSheetKey(e, i) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const inputs = [...document.querySelectorAll('#players-sheet-fields input')];
+  const next = inputs.slice(i + 1).find(x => !x.value.trim()) || inputs.find(x => !x.value.trim());
+  if (next) next.focus(); else playersSheetGo();
+}
+
+function playersSheetGo() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const typed = playersSheetNames().map(n => n.trim()).filter(Boolean);
+  const names = [];
+  typed.forEach(n => { if (!names.some(x => samePlayer(x, n))) names.push(n); });
+  if (names.length < playersSheet.min) {
+    // What is missing, shaken where it is.
+    const need = document.getElementById('players-sheet-need');
+    if (need) { need.textContent = playersNeedText(playersSheet.min, playersSheet.max); need.classList.add('is-error'); }
+    const empty = [...document.querySelectorAll('#players-sheet-fields input')].find(i => !i.value.trim());
+    blockStartAt(empty || need, '');
+    return;
+  }
+  if (playersSheet.max && names.length > playersSheet.max) {
+    showToast(playersNeedText(playersSheet.min, playersSheet.max), 'error');
+    return;
+  }
+  const stored = names.map(n => addToPlayerLibrary(n));
+  appState.activePlayers = stored;
+  appState.currentGroup = '';
+  saveToLocal();
+  const activeSetup = document.querySelector('[id^="view-setup-"]:not(.hidden)');
+  const list = activeSetup && activeSetup.querySelector('[id$="-player-list"]');
+  if (list) { pickerJustAdded = stored.slice(); renderActiveChips(list.id, true); }
+  if (typeof renderSavedGroups === 'function') renderSavedGroups();
+  closeModal('players-modal');
+  const then = playersSheet.then;
+  playersSheet.then = null;
+  if (then) then(stored);
+}
+
+/**
+ * A Start that can't go yet points at what is missing: the screen scrolls to
+ * it, it shakes, and a field takes the focus. `msg`, if any, is said too.
+ */
+function blockStartAt(el, msg) {
+  if (msg) showToast(msg, 'error');
+  playSound('alarm');
+  if (!el) return;
+  const main = document.getElementById('shell-main');
+  if (main && main.contains(el)) {
+    const r = el.getBoundingClientRect(), m = main.getBoundingClientRect();
+    if (r.top < m.top + 60 || r.bottom > m.bottom - 90) {
+      main.scrollTo({ top: Math.max(0, main.scrollTop + r.top - m.top - m.height / 3), behavior: motionOff() ? 'auto' : 'smooth' });
+    }
+  }
+  if (!motionOff()) {
+    el.classList.remove('animate-shake');
+    void el.offsetWidth;
+    el.classList.add('animate-shake');
+    setTimeout(() => el.classList.remove('animate-shake'), 600);
+  }
+  if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') setTimeout(() => el.focus(), 120);
+  haptic('double');
+}
+
+/* «خيارات أكتر ▾» on a long setup (شطرنج, بنك الحظ; the owner, 26 Sep 2026):
+   the choices that change the game most stay in view, the rest fold with a
+   line saying what they are set to, read off the controls themselves. Every
+   option is still there, one tap away. */
+function setupMoreSummarise(root) {
+  (root || document).querySelectorAll('.setup-more').forEach(box => {
+    const body = box.querySelector('.setup-more__body');
+    const out = box.querySelector('.setup-more__sum');
+    if (!body || !out) return;
+    const bits = [];
+    body.querySelectorAll('.segmented').forEach(seg => {
+      if (seg.closest('.hidden')) return;
+      const on = seg.querySelector('.segmented__item.is-active');
+      if (on) bits.push(on.textContent.trim().replace(/\s+/g, ' '));
+    });
+    body.querySelectorAll('.chip-set .chip.is-active, .chip-set .is-active').forEach(c => {
+      if (!c.closest('.hidden') && !c.classList.contains('segmented__item')) bits.push(c.textContent.trim().replace(/\s+/g, ' '));
+    });
+    body.querySelectorAll('label.switch-row').forEach(row => {
+      if (row.closest('.hidden')) return;
+      const input = row.querySelector('input[type=checkbox]');
+      const label = row.querySelector('span');
+      if (input && input.checked && label) bits.push(label.textContent.trim().replace(/\s+/g, ' '));
+    });
+    const text = [...new Set(bits.filter(Boolean))].slice(0, 5).join(' · ');
+    if (out.textContent !== text) out.textContent = text;
+  });
+}
+
+function setupMoreToggled(el) {
+  if (el.open && !motionOff()) {
+    const body = el.querySelector('.setup-more__body');
+    if (body && body.animate) body.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  }
+}
+
+['click', 'change'].forEach(type => document.addEventListener(type, (e) => {
+  const view = e.target && e.target.closest && e.target.closest('[id^="view-setup-"]');
+  if (view && view.querySelector('.setup-more')) setTimeout(() => setupMoreSummarise(view), 0);
+}));
 
 /* --- REORDER LIST (TAP-TO-SWAP) --- */
   let selectedReorderIndex = null; // Tracks the first tapped player
@@ -208,6 +444,14 @@ function addPlayerFromSetup(btn) {
     document.getElementById('reorder-modal').classList.remove('hidden');
   }
 
+  /** «↕ رتّب» in a picker: the players in the round, in the order they play. */
+  let activeOrderList = '';
+  function openActiveOrder(containerId) {
+    activeOrderList = containerId || '';
+    const t = TRANSLATIONS[appState.lang] || {};
+    openReorderModal('active-order', (appState.activePlayers || []).map(name => ({ name: name })), t.reorder_save);
+  }
+
   function handleReorderTap(index) {
       if (selectedReorderIndex === null) {
           // First tap: Select the player
@@ -236,7 +480,19 @@ function addPlayerFromSetup(btn) {
       selectedReorderIndex = null; // Clean up memory
       document.getElementById('reorder-modal').classList.add('hidden');
       
-      if (reorderContext === 'imposter') {
+      if (reorderContext === 'active-order') {
+          // «↕ رتّب» on a setup screen: the order the round is played in.
+          appState.activePlayers = tempReorderList.map(p => p.name);
+          saveToLocal();
+          if (activeOrderList) renderActiveChips(activeOrderList);
+          // Ordered from domino's "which way?" question: back to it, teams redrawn.
+          if (typeof dominoOrderReturn !== 'undefined' && dominoOrderReturn) {
+              dominoOrderReturn = false;
+              paintDominoTeamsLine();
+              const m = document.getElementById('domino-mode-modal');
+              if (m) m.classList.remove('hidden');
+          }
+      } else if (reorderContext === 'imposter') {
           finalizeImposterGame(tempReorderList.map(p => p.name));
       } else if (reorderContext === 'domino-teams') {
           finalizeDominoTeams(tempReorderList.map(p => p.name));

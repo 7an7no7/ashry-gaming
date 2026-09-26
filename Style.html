@@ -15775,4 +15775,315 @@ body.dark .es-suit--ink { color: #e7e5f5; }
   .es-hcard, .es-seat { transition: none; }
   .es-latest.is-new, .es-res.is-fresh .es-res__row, .es-took.motion-landed { animation: none; }
 }
+
+/* ==========================================================================
+   39. AN EASY START (26 Sep 2026: "people who open it should not have to do a
+   lot of clicks to start a game; I don't want them to get lost")
+   The first visit's home (renderHome, JS_Catalog.html), «مين بيلعب؟»
+   (askPlayers, JS_Utils.html), the lobby's name, Start and folded options
+   (JS_Room.html), the first-play line, and popups that close with motion.
+   ========================================================================== */
+
+/* --- The first visit: «يلا نلعب!», three games, a room, and the rest folded --- */
+.home-start {
+  position: relative;
+  overflow: hidden;
+  padding: var(--sp-5) var(--sp-4) var(--sp-4);
+  margin-bottom: var(--sp-3);
+  border-radius: var(--r-xl);
+  /* The brand gradient the hero has always had: the one surface that keeps its colour in both themes. */
+  background: linear-gradient(135deg, #6c5ce7 0%, #5b4bd6 52%, #4a48c2 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 28px -14px rgba(76, 29, 149, 0.45);
+}
+body.dark .home-start { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 52%, #3b3a9c 100%); }
+.home-start::before {
+  content: '';
+  position: absolute;
+  width: 17rem; height: 17rem;
+  inset-inline-end: -6rem; top: -9rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.055);
+  pointer-events: none;
+}
+.home-start__head { position: relative; margin-bottom: var(--sp-3); }
+.home-start__title { margin: 0; font-family: var(--font-display); font-size: calc(var(--fs-h1) * 1.2); font-weight: var(--fw-black); line-height: var(--lh-tight); color: #ffffff; }
+.home-start__sub { margin: 2px 0 0; font-size: var(--fs-sm); font-weight: var(--fw-med); color: rgba(255, 255, 255, 0.86); }
+.home-start__cards { position: relative; display: flex; flex-direction: column; gap: var(--sp-2); }
+
+.start-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 4.75rem;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  background-image: radial-gradient(circle at var(--wash-x, 100%) 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%);
+  color: var(--text-strong);
+  font-family: var(--font);
+  text-align: start;
+  cursor: pointer;
+  box-shadow: var(--sh-1);
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+body.dark .start-card { background-image: radial-gradient(circle at var(--wash-x, 100%) 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 60%); }
+.start-card:active { transform: scale(0.98); }
+.start-card__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  font-size: 2.1rem;
+  line-height: 1;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.14));
+}
+.start-card__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.start-card__title { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: var(--fw-bold); line-height: 1.15; color: var(--text-strong); }
+.start-card__desc { font-size: var(--fs-xs); font-weight: var(--fw-med); line-height: var(--lh-snug); color: var(--text-2);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.start-card__meta { display: flex; flex-wrap: wrap; gap: var(--sp-2); font-size: var(--fs-xs); font-weight: var(--fw-semi); color: var(--text-3); }
+.start-card__go {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 1rem;
+  box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+/* The three rise one after another the first time the home is drawn. */
+@media (prefers-reduced-motion: no-preference) {
+  .home-start__head, .start-card, .home-start__ways { animation: startRise var(--dur-4) var(--ease-out) both; }
+  .start-card { animation-delay: calc(90ms + var(--i, 0) * 70ms); }
+  .home-start__ways { animation-delay: 330ms; }
+  .start-card__go { animation: startPulse 2.4s var(--ease-in-out) 1.2s 2; }
+}
+@keyframes startRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes startPulse { 0%, 100% { box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 22%, transparent); } }
+
+.home-start__ways { position: relative; display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-3); }
+.home-start__room {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  box-shadow: none;
+}
+.home-start__room:active { background: rgba(255, 255, 255, 0.28); }
+.home-start__tonight { margin: 0; height: 3.375rem; }
+
+.home-all-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--tap);
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.home-all-toggle:active { transform: scale(0.97); }
+.home-all-toggle__chev { display: inline-block; transition: transform var(--dur-3) var(--ease-spring); }
+.home-all-toggle.is-open .home-all-toggle__chev { transform: rotate(180deg); }
+.home-all[hidden] { display: none; }
+.home-all .home-hero--compact .together { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* «كل الألعاب» opening: everything under it rises in, section by section. */
+.home-all.is-opening > * { animation: startRise var(--dur-4) var(--ease-out) both; }
+.home-all.is-opening > :nth-child(2) { animation-delay: 50ms; }
+.home-all.is-opening > :nth-child(3) { animation-delay: 100ms; }
+.home-all.is-opening > :nth-child(4) { animation-delay: 150ms; }
+.home-all.is-opening > :nth-child(n+5) { animation-delay: 200ms; }
+
+@media (min-width: 900px), (orientation: landscape) and (max-height: 500px) {
+  .home-start__cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .start-card { flex-direction: column; align-items: flex-start; min-height: 0; }
+  .start-card__go { align-self: flex-end; margin-top: calc(-1 * var(--sp-6)); }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .home-start { padding: var(--sp-3) var(--sp-4); }
+  .home-start__head { margin-bottom: var(--sp-2); }
+  .start-card { padding: var(--sp-2) var(--sp-3); }
+  .start-card__icon { width: 2.25rem; height: 2.25rem; font-size: 1.6rem; }
+  .start-card__desc { display: none; }
+  .start-card__go { width: 2.5rem; height: 2.5rem; margin-top: calc(-1 * var(--sp-5)); }
+}
+
+/* --- «▶ العب تاني» beside a recent tile --- */
+.recent-item { flex: none; display: inline-flex; align-items: center; scroll-snap-align: start; }
+.recent-item.has-play .recent-tile { border-start-end-radius: 0; border-end-end-radius: 0; padding-inline-end: var(--sp-2); }
+.recent-play {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.75rem;
+  margin-inline-start: -1px;
+  border: 1px solid var(--accent-border);
+  border-start-end-radius: var(--r-full);
+  border-end-end-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.recent-play:active { transform: scale(0.92); }
+
+/* --- The first-play card as one line that opens in place --- */
+.first-play-card--line { display: block; padding: 0; gap: 0; }
+.first-play-card__line {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap);
+  padding: var(--sp-2) var(--sp-4);
+  cursor: pointer;
+  list-style: none;
+}
+.first-play-card__line::-webkit-details-marker { display: none; }
+.first-play-card--line .first-play-card__eyebrow { flex: 1; text-transform: none; font-size: var(--fs-sm); }
+.first-play-card__chev { color: var(--accent-ink); transition: transform var(--dur-3) var(--ease-spring); }
+.first-play-card--line[open] .first-play-card__chev { transform: rotate(180deg); }
+.first-play-card__body { display: flex; flex-direction: column; gap: var(--sp-3); padding: 0 var(--sp-4) var(--sp-4); }
+
+/* --- Rooms: «أنت: منى ✏️», the Start that stays on screen, the folded options --- */
+.lobby-me {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--tap);
+  max-width: 100%;
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  cursor: pointer;
+}
+.lobby-me.hidden { display: none; }
+.lobby-me__label { font-weight: var(--fw-med); }
+.lobby-me__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#view-room-join .lobby-me { margin-top: var(--sp-2); margin-bottom: var(--sp-4); }
+.lobby-start { display: flex; flex-direction: column; gap: var(--sp-2); }
+.lobby-start:not(:has(> :not(.hidden))) { display: none; }
+.lobby-start__need { margin: 0; text-align: center; font-size: var(--fs-xs); font-weight: var(--fw-semi); color: var(--text-3); }
+.lobby-opts { margin-bottom: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-solid); }
+.lobby-opts__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap);
+  padding: var(--sp-2) var(--sp-4);
+  cursor: pointer;
+  list-style: none;
+}
+.lobby-opts__head::-webkit-details-marker { display: none; }
+.lobby-opts__title { flex: none; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-strong); }
+.lobby-opts__sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: var(--fw-med); color: var(--text-3); text-align: end; }
+.lobby-opts[open] .lobby-opts__sum { visibility: hidden; }
+.lobby-opts__chev { flex: none; color: var(--accent-ink); transition: transform var(--dur-3) var(--ease-spring); }
+.lobby-opts[open] .lobby-opts__chev { transform: rotate(180deg); }
+.lobby-opts__body { padding: 0 var(--sp-3) var(--sp-3); }
+.lobby-opts__body > .card { margin-bottom: 0; box-shadow: none; }
+
+/* --- «مين بيلعب؟» --- */
+.players-sheet__fields { display: flex; flex-direction: column; gap: var(--sp-2); text-align: start; }
+.players-sheet__row { display: flex; align-items: center; gap: var(--sp-2); }
+.players-sheet__row input { flex: 1; min-width: 0; margin: 0; }
+.players-sheet__n {
+  flex: none;
+  width: 1.75rem; height: 1.75rem;
+  display: grid; place-items: center;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-black);
+}
+.players-sheet__add { align-self: center; }
+.players-sheet__chips { justify-content: center; max-height: 7.5rem; overflow-y: auto; }
+.players-sheet__chips.hidden { display: none; }
+#players-sheet-need.is-error { color: var(--danger); }
+.players-sheet__row.is-popping { animation: sheetRowIn var(--dur-3) var(--ease-spring) both; animation-delay: calc(var(--i, 0) * 60ms + 80ms); }
+@keyframes sheetRowIn { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* A phone on its side: two names a row, so «يلا» is on the first screen. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .players-sheet .modal-icon { display: none; }
+  .players-sheet__fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .players-sheet .modal-actions { flex-direction: row; }
+  .players-sheet .modal-actions > .btn { flex: 1; }
+}
+
+/* A name put in the round pops in (P14). */
+.pick-chip--pop { animation: chipPop 420ms var(--ease-spring) both; }
+@keyframes chipPop { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: none; } }
+
+/* --- A popup closing: the copy that fades out (modalExitGhost, JS_Core.html) --- */
+.modal-overlay--ghost {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: max(var(--sp-4), var(--safe-top)) max(var(--sp-4), var(--safe-right))
+           max(var(--sp-4), var(--safe-bottom)) max(var(--sp-4), var(--safe-left));
+  background: rgba(2, 6, 23, 0.5);
+  pointer-events: none;
+  animation: overlayOut 200ms var(--ease-out) forwards;
+}
+.modal-overlay--ghost .modal-content { animation: dialogOut 200ms var(--ease-out) forwards; }
+@keyframes overlayOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes dialogOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(10px) scale(0.95); } }
+
+/* --- A long setup: the options that matter first, the rest under «خيارات أكتر ▾» --- */
+.setup-more { margin: var(--sp-2) 0 var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-2); }
+.setup-more__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap);
+  padding: var(--sp-2) var(--sp-4);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--text-strong);
+}
+.setup-more__head::-webkit-details-marker { display: none; }
+.setup-more__sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: var(--fw-med); color: var(--text-3); text-align: end; }
+.setup-more[open] .setup-more__sum { visibility: hidden; }
+.setup-more__chev { flex: none; color: var(--accent-ink); transition: transform var(--dur-3) var(--ease-spring); }
+.setup-more[open] .setup-more__chev { transform: rotate(180deg); }
+.setup-more__body { padding: 0 var(--sp-4) var(--sp-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-start__head, .start-card, .home-start__ways, .start-card__go, .home-all.is-opening > *,
+  .players-sheet__row.is-popping, .pick-chip--pop { animation: none; }
+  .modal-overlay--ghost { display: none; }
+  .home-all-toggle__chev, .first-play-card__chev, .lobby-opts__chev, .setup-more__chev { transition: none; }
+}
 </style>

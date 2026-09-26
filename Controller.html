@@ -983,6 +983,10 @@
               <label class="field__label" data-i18n="ch_clock_label">ساعة الشطرنج</label>
               <div class="segmented ch-clock-seg" id="shatranj-clock" role="group"></div>
             </div>
+            <!-- The rest, folded with what it is set to (setupMoreSummarise, JS_Utils.html). -->
+            <details class="setup-more" ontoggle="setupMoreToggled(this)">
+            <summary class="setup-more__head"><span>⚙️ <span data-i18n="setup_more">خيارات أكتر</span></span><span class="setup-more__sum"></span><span class="setup-more__chev" aria-hidden="true">▾</span></summary>
+            <div class="setup-more__body">
             <div class="field" id="shatranj-variant-field">
               <label class="field__label">🎲 <span data-i18n="ch_variant_label">نوع اللعبة</span></label>
               <div class="segmented" id="shatranj-variant" role="group">
@@ -1042,6 +1046,9 @@
               </div>
               <div class="ch-swatches ch-swatches--setup" id="shatranj-looks" role="group"></div>
             </div>
+            <button type="button" class="btn btn--secondary" id="shatranj-pos-open" onclick="chPosOpen()">🧩 <span data-i18n="ch_pos_open">وضع مخصوص</span></button>
+            </div>
+            </details>
             <div class="field hidden" id="shatranj-names-field">
               <label class="field__label" data-i18n="duel_names_label">أسامي اللاعبين (اختياري)</label>
               <div class="grid-2">
@@ -1049,7 +1056,6 @@
                 <input type="text" id="shatranj-name2" maxlength="16" autocomplete="off" data-remember data-i18n-ph="ch_player2" placeholder="لاعب ٢">
               </div>
             </div>
-            <button type="button" class="btn btn--secondary" id="shatranj-pos-open" onclick="chPosOpen()">🧩 <span data-i18n="ch_pos_open">وضع مخصوص</span></button>
             <div class="field hidden" id="shatranj-history"></div>
             <button type="button" id="shatranj-continue" class="btn btn--secondary hidden duel-continue" onclick="chContinue()" data-i18n="solo_continue">كمّل اللعبة</button>
             <button onclick="startShatranj()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
@@ -1356,6 +1362,10 @@
               </div>
               <p class="field__hint" id="bank-length-hint" data-i18n="bank_length_hint">لما الوقت يخلص اللفة بتكمل، والأغنى يكسب.</p>
             </div>
+            <!-- The house rules, folded with what they are set to (setupMoreSummarise, JS_Utils.html). -->
+            <details class="setup-more" ontoggle="setupMoreToggled(this)">
+            <summary class="setup-more__head"><span>⚙️ <span data-i18n="setup_more">خيارات أكتر</span></span><span class="setup-more__sum"></span><span class="setup-more__chev" aria-hidden="true">▾</span></summary>
+            <div class="setup-more__body">
             <div class="field">
               <label class="switch-row" for="bank-firstlap">
                 <span class="field__label" data-i18n="bank_opt_firstlap">الشرا بعد أول لفة</span>
@@ -1391,6 +1401,8 @@
               </label>
               <p class="field__hint" data-i18n="bank_opt_go400_hint">اللي يقف على البداية بالظبط ياخد الضعف.</p>
             </div>
+            </div>
+            </details>
             <button type="button" id="bank-continue" class="btn btn--secondary hidden duel-continue" onclick="bankContinue()" data-i18n="solo_continue">كمّل اللعبة</button>
             <button onclick="startBank()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
           </div>
@@ -1681,12 +1693,16 @@
           <input type="text" id="room-join-code" class="room-code-input" maxlength="120"
                  inputmode="latin" autocapitalize="characters" autocomplete="off" enterkeyhint="next"
                  placeholder="ABCD" oninput="tidyRoomCodeInput(this)"
-                 onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('room-join-name').focus();}">
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();roomJoinCodeEnter();}">
 
-          <label class="field__label" data-i18n="your_name">اسمك</label>
-          <input type="text" id="room-join-name" autocomplete="off" maxlength="24" enterkeyhint="go"
-                 data-i18n-ph="placeholder_name" placeholder="الاسم"
-                 onkeydown="if(event.key==='Enter') roomJoinFromForm()">
+          <div id="room-join-name-wrap">
+            <label class="field__label" data-i18n="your_name">اسمك</label>
+            <input type="text" id="room-join-name" autocomplete="off" maxlength="24" enterkeyhint="go"
+                   data-i18n-ph="placeholder_name" placeholder="الاسم"
+                   onkeydown="if(event.key==='Enter') roomJoinFromForm()">
+          </div>
+          <!-- The name this phone plays under, when it has one (roomJoinPaintName). -->
+          <button type="button" id="room-join-me" class="lobby-me hidden" onclick="roomJoinEditName()"></button>
 
           <button onclick="roomJoinFromForm()" class="btn btn--primary btn--lg" data-i18n="room_join_btn">ادخل الغرفة</button>
           <!-- A TV or laptop: show the room here instead of playing in it. -->
@@ -1716,14 +1732,21 @@
             <span class="section__rule"></span>
             <span id="room-player-count" class="badge badge--accent">0</span>
           </div>
+          <!-- «أنت: منى ✏️»: the name this phone plays under, a tap from being changed. -->
+          <button type="button" id="room-me" class="lobby-me hidden" onclick="roomRenameMe()"></button>
           <div id="room-player-list"></div>
         </div>
 
         <div id="room-host-setup"></div>
 
-        <div class="btn-stack">
+        <!-- The host's Start is always on screen, like a setup screen's (the owner, 26 Sep 2026). -->
+        <div class="view-actions view-actions--start lobby-start">
           <button id="room-start-btn" onclick="roomStartGame()" class="btn btn--primary btn--lg hidden" data-i18n="start">ابدأ اللعبة</button>
+          <p id="room-start-need" class="lobby-start__need hidden"></p>
           <p id="room-wait-note" class="card__subtitle hidden" style="margin:0" data-i18n="room_wait_host">مستنيين المضيف يبدأ اللعبة…</p>
+        </div>
+
+        <div class="btn-stack">
           <button onclick="roomBecomeScreen()" class="btn btn--ghost btn--sm" data-i18n="tv_become">📺 خلّي الجهاز ده شاشة العرض</button>
           <button onclick="roomLeave()" class="btn btn--ghost" data-i18n="room_leave">اخرج من الغرفة</button>
         </div>
@@ -1732,13 +1755,13 @@
       <div id="view-setup-domino" class="hidden">
         <div class="card">
           <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
-            <button class="segmented__item is-active" data-mode="device"
-                    onclick="setPlayMode('domino', 'device')" data-i18n="domino_mode_table">على الطاولة</button>
-            <button class="segmented__item" data-mode="online"
+            <button class="segmented__item is-active" data-mode="online"
                     onclick="setPlayMode('domino', 'online')" data-i18n="domino_mode_phones">نلعب في التطبيق</button>
+            <button class="segmented__item" data-mode="device"
+                    onclick="setPlayMode('domino', 'device')" data-i18n="domino_mode_table">على الطاولة</button>
           </div>
 
-          <div class="mode-online-panel hidden">
+          <div class="mode-online-panel">
             <p class="card__subtitle" data-i18n="domino_online_desc">كل واحد حجارته على موبايله، والتطبيق يوزّع ويحسب.</p>
             <div class="btn-stack">
               <button onclick="roomCreateFor('domino')" class="btn btn--primary btn--lg" data-i18n="room_create">افتح غرفة</button>
@@ -1746,7 +1769,7 @@
             </div>
           </div>
 
-          <div class="mode-device-panel">
+          <div class="mode-device-panel hidden">
            <p class="card__subtitle" data-i18n="domino_table_desc">بتلعبوا بالحجارة الحقيقية، والتطبيق يعد النقط لحد الهدف.</p>
            <label class="field__label" data-i18n="target_score">الهدف (مثلاً 101)</label>
            <input type="number" id="domino-target" value="101" class="mb-4" data-remember>
@@ -1782,13 +1805,13 @@
       <div id="view-setup-screw" class="hidden">
         <div class="card">
           <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
-            <button class="segmented__item is-active" data-mode="device"
-                    onclick="setPlayMode('screw', 'device')" data-i18n="screw_mode_table">على الطاولة</button>
-            <button class="segmented__item" data-mode="online"
+            <button class="segmented__item is-active" data-mode="online"
                     onclick="setPlayMode('screw', 'online')" data-i18n="screw_mode_phones">نلعب في التطبيق</button>
+            <button class="segmented__item" data-mode="device"
+                    onclick="setPlayMode('screw', 'device')" data-i18n="screw_mode_table">على الطاولة</button>
           </div>
 
-          <div class="mode-online-panel hidden">
+          <div class="mode-online-panel">
             <p class="card__subtitle" data-i18n="screw_online_desc">كل واحد كروته على موبايله، والتطبيق يوزّع ويحسب. كروت الكل مقلوبة قدامك، وأي تبديل أو بصّة بتشوفها بتحصل من أنهي كارت لأنهي كارت. كل الإصدارات: كلاسيك، الحرامي، صاحب صاحبه، المسحراتي، أوسكار، أو تخلطهم.</p>
             <div class="btn-stack">
               <button onclick="roomCreateFor('screw')" class="btn btn--primary btn--lg" data-i18n="room_create">افتح غرفة</button>
@@ -1796,7 +1819,7 @@
             </div>
           </div>
 
-          <div class="mode-device-panel">
+          <div class="mode-device-panel hidden">
           <p class="card__subtitle" data-i18n="screw_table_desc">بتلعبوا بالكوتشينة الحقيقية، والتطبيق يحسب: بعد كل جولة اكتب مجموع كل واحد ومين قال سكرو.</p>
            <div class="grid-2 mb-6">
               <div>
@@ -2265,6 +2288,22 @@
       </div>
     </div>
 
+    <!-- «مين بيلعب؟»: a game that needs names asks for them here (askPlayers, JS_Utils.html). -->
+    <div id="players-modal" class="modal-overlay hidden">
+      <div class="modal-content modal-content--simple players-sheet">
+        <div class="modal-icon" aria-hidden="true">👥</div>
+        <div class="sheet__title" data-i18n="players_sheet_title">مين بيلعب؟</div>
+        <p id="players-sheet-need" class="sheet__subtitle"></p>
+        <div id="players-sheet-fields" class="players-sheet__fields"></div>
+        <button type="button" id="players-sheet-add" class="btn btn--ghost btn--sm btn--auto players-sheet__add" onclick="playersSheetAddField()">+ <span data-i18n="players_sheet_add">لاعب</span></button>
+        <div id="players-sheet-chips" class="players-sheet__chips chip-set"></div>
+        <div class="modal-actions">
+          <button type="button" onclick="playersSheetGo()" class="btn btn--primary btn--lg" data-i18n="players_sheet_go">يلا</button>
+          <button type="button" onclick="closeModal('players-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+        </div>
+      </div>
+    </div>
+
     <div id="password-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
         <div class="modal-icon" aria-hidden="true">🔒</div>
@@ -2439,6 +2478,8 @@
         <div class="modal-actions">
           <button onclick="setDominoMode('single')" class="btn btn--primary" data-i18n="domino_mode_single">فردي (كل واحد لوحده)</button>
           <button onclick="setDominoMode('teams')" class="btn btn--primary"><span data-i18n="domino_mode_teams">فرق (2 ضد 2)</span> <span aria-hidden="true">👥</span></button>
+          <p id="domino-mode-teams" class="field__hint" style="margin:0"></p>
+          <button onclick="dominoTeamsOrder()" class="btn btn--ghost btn--sm">↕ <span data-i18n="domino_teams_order">رتّب الفرق</span></button>
           <button onclick="closeModal('domino-mode-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
       </div>

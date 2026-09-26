@@ -465,6 +465,22 @@ const applyRoomAction = (room, playerId, action, payload) => {
     return;
   }
 
+  // «أنت: منى ✏️» (the owner, 26 Sep 2026): a room is opened and joined under the
+  // name the phone used last time, without asking, so the lobby is where it is
+  // changed. Between games only: a game in play keeps its players' names.
+  if (action === 'rename') {
+    if (room.phase !== 'lobby') throw new Error('غيّر اسمك بين الألعاب');
+    const me = room.players.find(p => p.id === playerId && !p.bot);
+    if (!me) throw new Error('لست في الغرفة');
+    const name = String((payload && payload.name) || '').trim().slice(0, 24);
+    if (!name) throw new Error('اكتب اسمك أولاً');
+    if (room.players.some(p => p.id !== playerId && sameRoomName(p.name, name))) {
+      throw new Error('الاسم ده مستخدم في الغرفة، اختار اسم تاني');
+    }
+    me.name = name;
+    return;
+  }
+
   if (action === 'chat') {
     // Short messages between the phones, for a table that isn't at one table.
     // Kept on the room, outside any game, so it survives the hub and every deal.

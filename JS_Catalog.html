@@ -150,7 +150,10 @@ const GAME_CATALOG = [
 
 /** A table game's score keeper, from the tools: its setup, turned to the "at the table" side. */
 function openTableCalc(gameId) {
-  rememberOptions('playMode', { [gameId]: 'device' });
+  // This visit only: from the home the game opens on the game in the app again
+  // (PLAY_MODE_DEFAULT in JS_RoomGames.html), unless the table picked a side itself.
+  if (typeof playModeOnce !== 'undefined') playModeOnce = { id: gameId, mode: 'device' };
+  else rememberOptions('playMode', { [gameId]: 'device' });
   setView('setup-' + gameId);
 }
 
@@ -291,7 +294,8 @@ function catalogOpen(id, fromEl) {
   rememberRecent(id);
   if (typeof catalogReturn !== 'undefined') {
     catalogReturn.id = id;
-    catalogReturn.kind = fromEl && fromEl.classList.contains('recent-tile') ? 'recent' : 'card';
+    catalogReturn.kind = fromEl && fromEl.classList.contains('recent-tile') ? 'recent'
+      : fromEl && fromEl.classList.contains('start-card') ? 'start' : 'card';
   }
   const fly = typeof catalogIconFlight === 'function' ? catalogIconFlight(g, fromEl) : null;
   const before = appState.currentView;
@@ -579,10 +583,91 @@ function tonightPaint() {
     </div>`;
 }
 
-/* «ابدأوا بدول»: on a phone that has played nothing yet, the recent row's place
-   holds the games a first evening goes best with, so 68 cards are not the first
-   thing a new table has to read. */
+/* The first visit (the owner, 26 Sep 2026: "people who open it should not have
+   to do a lot of clicks to start a game; I don't want them to get lost"). A
+   phone that has opened no game yet gets a simple start: «يلا نلعب!», three big
+   cards of the games a first evening goes best with, one button for a room and
+   «الليلة دي؟» - and everything else (search, filters, تحدي اليوم, every
+   section) folded under «كل الألعاب (N) ▾», which opens in place. It replaced
+   the «ابدأوا بدول» shelf; a phone that has played before keeps the home as it
+   was. STARTER_SHELF's first three are the cards. */
 const STARTER_SHELF = ['imposter', 'bomb', 'charades', 'trivia', 'uno', 'headsup', 'codenames', 'screw'];
+const START_CARDS = STARTER_SHELF.slice(0, 3);
+let homeAllOpen = false;
+
+/* A game that can start from one tap, with whatever this phone chose last time
+   (the setup screen is drawn first, so its remembered options are on it). A
+   game that needs names and hasn't enough gets «مين بيلعب؟» (askPlayers in
+   JS_Utils.html) instead of a toast. Used by the first visit's cards and by
+   «▶ العب تاني» on a recent tile. */
+const QUICK_START = {
+  imposter:    () => startImposterGame(),
+  chameleon:   () => startChameleonGame(),
+  spyfall:     () => startSpyfallGame(),
+  justone:     () => startJustOneGame(),
+  bomb:        () => startBombRound(),
+  charades:    () => startCharades(),
+  describe:    () => startDescribeGame(60),
+  fiveseconds: () => startFiveGame(),
+  stop:        () => startStopGame(),
+  monkey:      () => runStartMonkey(),
+  emoji:       () => startEmojiGame(),
+  proverbs:    () => startProverbsGame()
+};
+
+function catalogQuickStart(id, fromEl) {
+  const g = CATALOG_BY_ID[id];
+  const go = QUICK_START[id];
+  if (!g) return;
+  if (!go) { catalogOpen(id, fromEl); return; }
+  // The icon flies to the setup's hero only if the game stops there (the names
+  // sheet over it); a game that starts at once has no hero to land on.
+  const fly = typeof catalogIconFlight === 'function' ? catalogIconFlight(g, fromEl) : null;
+  catalogOpen(id, null);
+  if (typeof catalogReturn !== 'undefined' && fromEl) {
+    catalogReturn.kind = fromEl.classList.contains('recent-tile') ? 'recent' : fromEl.classList.contains('start-card') ? 'start' : 'card';
+  }
+  if (appState.currentView !== g.setup) return;
+  // The setup remembers "each on their own phone": then the room is the game.
+  const view = document.getElementById('view-' + g.setup);
+  const online = view && view.querySelector('.mode-online-panel:not(.hidden)');
+  if (online) {
+    const open = online.querySelector('button.btn--primary');
+    if (open) open.click();
+    return;
+  }
+  try { go(); } catch (e) { console.error(e); }
+  if (fly && appState.currentView === g.setup) fly();
+}
+
+/** «كل الألعاب (N) ▾» on a first visit: the whole home, opened in place. */
+function toggleHomeAll() {
+  const box = document.getElementById('home-all');
+  const btn = document.getElementById('home-all-btn');
+  if (!box) return;
+  homeAllOpen = !homeAllOpen;
+  box.hidden = !homeAllOpen;
+  if (btn) {
+    btn.setAttribute('aria-expanded', String(homeAllOpen));
+    btn.classList.toggle('is-open', homeAllOpen);
+  }
+  haptic('light');
+  if (!homeAllOpen) return;
+  box.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
+  if (typeof motionOff === 'function' && !motionOff()) {
+    // The sections rise one after another, the way the home's cards do.
+    box.classList.remove('is-opening');
+    void box.offsetWidth;
+    box.classList.add('is-opening');
+    setTimeout(() => box.classList.remove('is-opening'), 1200);
+  }
+  // The toggle to the top of the screen, so what opened is what is in view.
+  const main = document.getElementById('shell-main');
+  if (btn && main) {
+    const top = btn.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - 8;
+    main.scrollTo({ top: Math.max(0, top), behavior: (typeof motionOff === 'function' && motionOff()) ? 'auto' : 'smooth' });
+  }
+}
 
 /** One tap random game picker: picks from visible games on the home screen. */
 function homePickForUs(btnEl) {
@@ -610,24 +695,12 @@ function renderHome() {
 
   // A phone that has played before has been told what the app is. It gets the
   // ways in and nothing else - the mark and the name are in the header on this
-  // screen anyway - so the games start on the first screen instead of 570px
-  // down it. A first visit still gets the whole hero.
+  // screen anyway - so the games start on the first screen. A first visit gets
+  // the simple start instead (below), and this row folded under «كل الألعاب»
+  // without its «الليلة دي؟» tile, which the start has as a button of its own.
   const compact = recent.length > 0;
   const together = `
-    <section class="home-hero ${compact ? 'home-hero--compact' : ''}" data-accent="violet">
-      ${compact ? '' : `
-      <div class="home-hero__head">
-        <svg class="mark mark--hero" aria-hidden="true"><use href="#ashry-mark"/></svg>
-        <div class="home-hero__text">
-          <h2 class="home-hero__title">${escapeHTML(t.home_title || '')}</h2>
-          <p class="home-hero__sub">${escapeHTML((t.home_tagline || '').replace('{n}', String(GAME_CATALOG.filter(g => g.group !== 'tools' && !g.hub).length)))}</p>
-        </div>
-        <button type="button" class="home-hero__pick" onclick="tonightOpen()"
-                title="${escapeHTML(t.home_pick_btn || '')}">
-          <span aria-hidden="true">🎲</span>
-          <span>${escapeHTML(t.home_pick_btn || '')}</span>
-        </button>
-      </div>`}
+    <section class="home-hero home-hero--compact" data-accent="violet">
       <div class="together">
         <button type="button" class="together__tile" onclick="roomCreateEmpty()">
           <span class="together__icon" aria-hidden="true">🎮</span>
@@ -706,20 +779,6 @@ function renderHome() {
     </button>`;
   })() : '';
 
-  const shelf = recent.length ? '' : `
-    <section class="section" id="home-starters">
-      <div class="section__head">
-        <span class="section__emoji" aria-hidden="true">⭐</span>
-        <h2 class="section__title">${escapeHTML(t.home_starters || '')}</h2>
-        <span class="section__rule"></span>
-      </div>
-      <div class="recent-row hscroll-fade">
-        ${STARTER_SHELF.map(id => CATALOG_BY_ID[id]).filter(Boolean).map(g => `<button type="button" class="recent-tile" data-accent="${g.accent}" onclick="catalogOpen('${g.id}', this)">
-                    <span class="recent-tile__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
-                    <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>
-                  </button>`).join('')}
-      </div>
-    </section>`;
   const recentRow = recent.length ? `
     <section class="section" id="home-recent">
       <div class="section__head">
@@ -730,10 +789,15 @@ function renderHome() {
       <div class="recent-row hscroll-fade">
         ${recent.map(id => {
           const g = CATALOG_BY_ID[id];
-          return `<button type="button" class="recent-tile" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
+          // «▶ العب تاني»: straight into the game with this phone's last choices.
+          const again = QUICK_START[g.id]
+            ? `<button type="button" class="recent-play" data-accent="${g.accent}" onclick="catalogQuickStart('${g.id}', this.previousElementSibling)"
+                       title="${escapeHTML(t.home_play_again || '')}" aria-label="${escapeHTML((t.home_play_again || '') + ': ' + catalogTitle(g, t))}">▶</button>`
+            : '';
+          return `<span class="recent-item${again ? ' has-play' : ''}"><button type="button" class="recent-tile" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
                     <span class="recent-tile__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
                     <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>
-                  </button>`;
+                  </button>${again}</span>`;
         }).join('')}
       </div>
     </section>` : '';
@@ -758,8 +822,47 @@ function renderHome() {
       </section>`;
   }).join('');
 
-  view.innerHTML = together + search + dailyStrip + shelf + recentRow + groups +
-    `<div class="empty hidden" id="home-empty"><span class="empty__icon" aria-hidden="true">🔍</span>${escapeHTML(t.home_empty || '')}</div>`;
+  const empty = `<div class="empty hidden" id="home-empty"><span class="empty__icon" aria-hidden="true">🔍</span>${escapeHTML(t.home_empty || '')}</div>`;
+  if (compact) {
+    view.innerHTML = together + search + dailyStrip + recentRow + groups + empty;
+  } else {
+    // A first visit: the simple start, and the whole home folded under it.
+    const total = GAME_CATALOG.filter(g => g.group !== 'tools' && !g.hub).length;
+    const cards = START_CARDS.map(id => CATALOG_BY_ID[id]).filter(Boolean).map((g, i) => `
+      <button type="button" class="start-card" data-accent="${g.accent}" data-start="${g.id}" style="--i:${i}"
+              onclick="catalogQuickStart('${g.id}', this)">
+        <span class="start-card__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
+        <span class="start-card__text">
+          <span class="start-card__title">${escapeHTML(catalogTitle(g, t))}</span>
+          <span class="start-card__desc">${escapeHTML(catalogDesc(g, t))}</span>
+          <span class="start-card__meta">${catalogMeta(g, t, false, false)}</span>
+        </span>
+        <span class="start-card__go" aria-hidden="true">▶</span>
+      </button>`).join('');
+    const start = `
+      <section class="home-start" data-accent="violet">
+        <div class="home-start__head">
+          <h2 class="home-start__title">${escapeHTML(t.home_start_title || '')}</h2>
+          <p class="home-start__sub">${escapeHTML(t.home_start_sub || '')}</p>
+        </div>
+        <div class="home-start__cards">${cards}</div>
+        <div class="home-start__ways">
+          <button type="button" class="btn btn--primary btn--lg home-start__room" onclick="roomCreateEmpty()">
+            <span aria-hidden="true">📲</span> ${escapeHTML(t.home_start_room || '')}
+          </button>
+          <button type="button" class="home-hero__pick home-start__tonight" onclick="tonightOpen()">
+            <span aria-hidden="true">🎲</span><span>${escapeHTML(t.home_pick_btn || '')}</span>
+          </button>
+        </div>
+      </section>
+      <button type="button" id="home-all-btn" class="home-all-toggle ${homeAllOpen ? 'is-open' : ''}" aria-expanded="${homeAllOpen}"
+              aria-controls="home-all" onclick="toggleHomeAll()">
+        <span>${escapeHTML((t.home_all_games || '').replace('{n}', String(total)))}</span>
+        <span class="home-all-toggle__chev" aria-hidden="true">▾</span>
+      </button>`;
+    view.innerHTML = start +
+      `<div id="home-all" class="home-all" ${homeAllOpen ? '' : 'hidden'}>${together}${search}${dailyStrip}${groups}${empty}</div>`;
+  }
   homeRenderedLang = appState.lang;
   applyHomeFilter({ animate: false });
   settleStagger(view, 'menu');
@@ -865,8 +968,6 @@ function applyHomeFilter(opts) {
     // The recent row is a shortcut, not a search result.
     const recent = document.getElementById('home-recent');
     if (recent) recent.classList.toggle('hidden', searching || homeFilter !== 'all' || homePlayers !== 'off' || homeLocation !== 'together');
-    const starters = document.getElementById('home-starters');
-    if (starters) starters.classList.toggle('hidden', searching || homeFilter !== 'all' || homePlayers !== 'off' || homeLocation !== 'together');
     const daily = document.getElementById('home-daily');
     if (daily) daily.classList.toggle('hidden', searching || (homeFilter !== 'all' && homeFilter !== 'solo') || homePlayers !== 'off' || homeLocation !== 'together');
     const empty = document.getElementById('home-empty');
@@ -963,21 +1064,45 @@ function firstPlayCardHtml(helpKey, isRoom) {
     || (typeof helpEntry === 'function' ? helpEntry(helpKey) : null);
   const accentAttr = (entry && entry.accent) ? ` data-accent="${escapeHTML(entry.accent)}"` : '';
 
+  // One line that opens in place (the owner, 26 Sep 2026: the card was 230-350px
+  // on top of every first setup, pushing the options and Start down). Whether it
+  // is open is kept here, so a lobby redrawn by someone joining keeps it open.
+  const open = !!firstPlayOpen[helpKey];
   return `
-    <div class="first-play-card"${accentAttr}>
-      <div class="first-play-card__eyebrow">${escapeHTML(t.first_play_title || '')}</div>
-      <ol class="first-play-card__steps">
-        ${steps.map((s, idx) => `
-          <li class="first-play-card__step">
-            <span class="first-play-card__n metric" aria-hidden="true">${idx + 1}</span>
-            <span class="first-play-card__text">${escapeHTML(s)}</span>
-          </li>`).join('')}
-      </ol>
-      <div class="first-play-card__actions">
-        <button type="button" class="btn btn--sm btn--primary btn--auto" onclick="firstPlayDismiss(this, '${escapeHTML(helpKey)}')">${escapeHTML(t.first_play_dismiss || 'فهمت 👍')}</button>
-        <button type="button" class="btn btn--sm btn--ghost btn--auto" onclick="firstPlayOpenRules(this, '${escapeHTML(helpKey)}')">${escapeHTML(t.first_play_rules || '📘 القواعد كاملة')}</button>
+    <details class="first-play-card first-play-card--line"${accentAttr} ${open ? 'open' : ''} data-r="${open ? 1 : 0}"
+             ontoggle="firstPlayToggled(this, '${escapeHTML(helpKey)}')">
+      <summary class="first-play-card__line">
+        <span class="first-play-card__eyebrow">${escapeHTML(t.first_play_line || t.first_play_title || '')}</span>
+        <span class="first-play-card__chev" aria-hidden="true">▾</span>
+      </summary>
+      <div class="first-play-card__body">
+        <ol class="first-play-card__steps">
+          ${steps.map((s, idx) => `
+            <li class="first-play-card__step">
+              <span class="first-play-card__n metric" aria-hidden="true">${idx + 1}</span>
+              <span class="first-play-card__text">${escapeHTML(s)}</span>
+            </li>`).join('')}
+        </ol>
+        <div class="first-play-card__actions">
+          <button type="button" class="btn btn--sm btn--primary btn--auto" onclick="firstPlayDismiss(this, '${escapeHTML(helpKey)}')">${escapeHTML(t.first_play_dismiss || 'فهمت 👍')}</button>
+          <button type="button" class="btn btn--sm btn--ghost btn--auto" onclick="firstPlayOpenRules(this, '${escapeHTML(helpKey)}')">${escapeHTML(t.first_play_rules || '📘 القواعد كاملة')}</button>
+        </div>
       </div>
-    </div>`;
+    </details>`;
+}
+
+const firstPlayOpen = {};
+function firstPlayToggled(el, helpKey) {
+  // A details drawn open fires its toggle too: only a tap on it counts.
+  const now = el.open ? '1' : '0';
+  if (el.dataset.r === now) return;
+  el.dataset.r = now;
+  firstPlayOpen[helpKey] = !!el.open;
+  if (el.open && typeof motionOff === 'function' && !motionOff()) {
+    const body = el.querySelector('.first-play-card__body');
+    if (body && body.animate) body.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 220, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  }
 }
 
 function firstPlayDismiss(el, helpKey) {

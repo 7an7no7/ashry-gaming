@@ -8217,13 +8217,16 @@
     const tintOnOpen = new MutationObserver(records => {
       records.forEach(r => {
         const overlay = r.target;
-        if (!overlay.classList.contains('hidden')) tintModal(overlay);
+        if (overlay.classList.contains('hidden')) return;
+        tintModal(overlay);
+        // Just opened (it was hidden): its rows rise under the spring (JS_Motion.html).
+        if (/(^|\s)hidden(\s|$)/.test(r.oldValue || '') && typeof motionRiseModal === 'function') motionRiseModal(overlay);
       });
       navSoon();   // back closes an open popup (an entry of its own)
     });
     document.querySelectorAll('.modal-overlay').forEach(el => {
       if (el.parentElement !== document.body) document.body.appendChild(el);
-      tintOnOpen.observe(el, { attributes: true, attributeFilter: ['class'] });
+      tintOnOpen.observe(el, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
     });
   }
 
@@ -9581,6 +9584,7 @@
       el.value = next;
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
+      if (typeof motionBump === 'function') motionBump(el);
     }
     haptic('light');
   }
@@ -10154,6 +10158,8 @@
         viewEnterFallback = setTimeout(() => {
             viewEl.classList.remove('view-enter', 'view-enter-fwd', 'view-enter-back');
         }, 600);
+        // Its first cards rise in one after another (JS_Motion.html section 13).
+        if (!nav.uaAnimated && typeof motionEnterView === 'function') motionEnterView(viewEl, viewId, previous);
     }
 
     // A view arrives scrolled to wherever the last one was left otherwise;

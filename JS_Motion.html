@@ -772,6 +772,214 @@ function countdownClear() {
 
 onLeaveScreen(() => countdownClear());
 
+/* --- 13. Motion everywhere ----------------------------------------------------
+   The owner (26 Sep 2026): "Smooth, nice motion everywhere, on every screen and
+   not only in some games." The games keep their own choreography; this is the
+   small system the plain screens share (Style.html section 41):
+   - a screen that is entered rises in: its first cards come up one after
+     another (motionEnterView from setView, only for the screens viewRises
+     allows, and only when the screen changed - never on a redraw);
+   - a popup opens with a spring and its rows rise the same way (hoistModals'
+     observer in JS_Core.html calls motionRiseModal);
+   - chips and segmented options give under the finger and spring back;
+   - a number a control changed pops (motionBump: steppers, the counter, the
+     timer), a select's label flashes when its choice changes, and a Start
+     that has just become possible breathes once (motionNudge);
+   - a list of rows rewritten: whoever stays slides, whoever left fades
+     where they stood (motionRowsSwap: the room lobby).
+   All of it is Web Animations of `translate`, `scale` and `opacity` - the
+   individual properties, so they add to whatever `transform` a component or a
+   game already uses - with no fill after the end, so nothing is left on an
+   element; every run is also finished by a timer, never only by an event.
+   Nothing runs when motionOff() (the app's own setting, reduced motion, a
+   hidden page), nothing moves while a screen sits still, and at most eight
+   things move at once.
+   ========================================================================= */
+
+const RISE = { max: 8, step: 40, dur: 320, dist: 12, delay: 0 };
+const RISE_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';    // --ease-out
+
+/* The screens that rise in when entered: columns of cards - every setup screen
+   (the daily hub, أرقامي and the archive among them), the card score keepers'
+   tables, the room's join screen and lobby, and a few tool screens.
+   Left out on purpose: the home, مع بعض and الأدوات (.view-stagger: their own
+   sequence, first visit only, settleStagger), every other play-* and room-*
+   screen (the games' own choreography: cards flying, dice, boards, 3D, reveals
+   keyed with data-reveal-ms - a rise on top would fight it), the TV and the
+   full-screen tools. A screen listed here that later gets an entrance of its
+   own goes in RISE_SKIP. */
+const RISE_VIEW_PREFIXES = ['setup-', 'play-cs-'];
+const RISE_VIEWS = ['room-lobby', 'room-join', 'timers', 'play-universal', 'play-tourney', 'results-teams', 'input-whoami'];
+const RISE_SKIP = [];
+
+function viewRises(id) {
+  if (!id || RISE_SKIP.indexOf(id) !== -1) return false;
+  return RISE_VIEWS.indexOf(id) !== -1 || RISE_VIEW_PREFIXES.some((p) => id.indexOf(p) === 0);
+}
+
+/** Up to `max` visible children of root that are on screen; a lone wrapper is looked through. */
+function motionRiseTargets(root, max) {
+  const shown = (el) => !el.classList.contains('hidden') && el.getClientRects().length > 0;
+  let kids = [...root.children].filter(shown);
+  for (let depth = 0; kids.length === 1 && kids[0].children.length > 1 && depth < 3; depth++) {
+    kids = [...kids[0].children].filter(shown);
+  }
+  const bottom = window.innerHeight || document.documentElement.clientHeight;
+  const onScreen = (el) => el.getBoundingClientRect().top < bottom;
+  const visible = kids.filter(onScreen);
+  // More on screen than `max` (the settings sheet's rows): the ones past it rise
+  // with the last of them rather than showing first - a lower row standing
+  // before the rows above it have come in reads as a glitch. Only what is on
+  // screen, so a long list is never more than a screenful.
+  if (visible.length > max) return visible.slice(0, 16);
+  let picked = visible;
+  // Two or three big cards (a setup screen is a hero and a panel): their first
+  // rows rise inside them too, a cascade, still `max` things in all, top to bottom.
+  if (picked.length && picked.length < 4) {
+    const inner = [];
+    picked.forEach((card) => [...card.children].filter(shown).filter(onScreen).forEach((c) => inner.push(c)));
+    picked = picked.concat(inner.slice(0, max - picked.length))
+      .map((el) => ({ el, top: el.getBoundingClientRect().top }))
+      .sort((a, b) => a.top - b.top).map((x) => x.el);
+  }
+  return picked;
+}
+
+/** The first cards of root rise into place one after another. */
+function motionRiseIn(root, opts) {
+  if (!root || motionOff() || !root.animate) return [];
+  const o = Object.assign({}, RISE, opts || {});
+  const anims = motionRiseTargets(root, o.max).map((el, i) => el.animate(
+    // One keyframe at the start: the element's own opacity and place are where it ends.
+    [{ opacity: 0, translate: '0 ' + o.dist + 'px', offset: 0 }],
+    { duration: o.dur, delay: o.delay + Math.min(i, o.max - 1) * o.step, easing: RISE_EASE, fill: 'backwards' }
+  ));
+  if (anims.length) {
+    setTimeout(() => anims.forEach((a) => { try { a.finish(); } catch (e) {} }),
+      o.delay + o.max * o.step + o.dur + 300);
+  }
+  return anims;
+}
+
+/** setView's hook: a screen just entered (never the same one drawn again). */
+function motionEnterView(viewEl, id, previous) {
+  if (!viewEl || id === previous || !viewRises(id) || viewEl.classList.contains('view-stagger')) return;
+  // After whatever the caller draws into the screen in the same task.
+  // A popup opened over it in the same moment has the stage (its own rows rise).
+  queueMicrotask(() => {
+    if (appState.currentView !== id || document.querySelector('.modal-overlay:not(.hidden)')) return;
+    motionRiseIn(viewEl, { delay: 30 });
+  });
+}
+
+/** A popup just opened: its rows rise under the spring (Style.html section 41). */
+function motionRiseModal(overlay) {
+  const content = overlay && overlay.querySelector('.modal-content');
+  if (!content) return;
+  const box = content.classList.contains('modal-content--simple') ? content
+    : (content.querySelector('.sheet__body') || content);
+  motionRiseIn(box, { delay: 70, step: 32, dist: 10, max: 7 });
+}
+
+/** A number or a label that just changed gives a small pop. */
+function motionBump(el, amount) {
+  if (!el || !el.animate || motionOff()) return;
+  const k = String(amount || 1.14);
+  el.animate([{ scale: '1' }, { scale: k, offset: 0.35 }, { scale: '1' }], { duration: 320, easing: 'ease-out' });
+}
+
+/** A button that has just become possible (the lobby's Start once enough are in) breathes once. */
+function motionNudge(el) {
+  if (!el || !el.animate || motionOff() || !el.getClientRects().length) return;
+  el.animate([{ scale: '1' }, { scale: '1.06', offset: 0.3 }, { scale: '0.99', offset: 0.65 }, { scale: '1' }],
+    { duration: 620, easing: 'ease-in-out' });
+}
+
+/* Chips and segmented options give under the finger and spring back. The
+   press is the `scale` property, so it adds to whatever the chip's own look
+   does with `transform`. */
+const PRESS_TARGETS = '.filter-chip, .chip, .pick-chip, .opt-chip, .segmented__item';
+let pressHeld = null;   // { el, anim }
+function pressLetGo() {
+  if (!pressHeld) return;
+  const { el, anim } = pressHeld;
+  pressHeld = null;
+  anim.cancel();
+  if (!motionOff() && el.isConnected) {
+    el.animate([{ scale: '0.93' }, { scale: '1.04', offset: 0.55 }, { scale: '1' }], { duration: 280, easing: 'ease-out' });
+  }
+}
+document.addEventListener('pointerdown', (e) => {
+  pressLetGo();
+  const el = e.target.closest && e.target.closest(PRESS_TARGETS);
+  if (!el || el.disabled || !el.animate || motionOff()) return;
+  pressHeld = { el, anim: el.animate([{ scale: '1' }, { scale: '0.93' }], { duration: 110, easing: 'ease-out', fill: 'forwards' }) };
+}, { passive: true });
+['pointerup', 'pointercancel'].forEach((type) => document.addEventListener(type, pressLetGo, { passive: true }));
+
+/* A choice changed in a list: its label flashes once (a <select>'s own box can't animate). */
+document.addEventListener('change', (e) => {
+  const sel = e.target;
+  if (!sel || sel.tagName !== 'SELECT' || motionOff()) return;
+  const field = sel.closest('.field, .switch-row, label');
+  const prev = sel.previousElementSibling;
+  const label = (field && field.querySelector('.field__label')) || (prev && prev.tagName === 'LABEL' ? prev : null);
+  if (!label || !label.animate) return;
+  label.animate([{ opacity: 1, scale: '1' }, { opacity: 0.4, scale: '1.05', offset: 0.3 }, { opacity: 1, scale: '1' }],
+    { duration: 420, easing: 'ease-out' });
+});
+
+/**
+ * Rewrites a list of rows (mutate) so that whoever stays slides from where they
+ * were and whoever left fades out where they stood. Rows are matched by the
+ * text of their name (`.status-row__name`, unique in a room). The ghost of a
+ * row that left is the old row itself, laid over the list with no ids, and
+ * removed by a timer as well as by its animation.
+ */
+function motionRowsSwap(list, mutate) {
+  if (!list || !list.animate || motionOff() || !list.getClientRects().length) { mutate(); return; }
+  const keyOf = (r) => ((r.querySelector('.status-row__name') || r).textContent || '').trim();
+  const before = new Map();
+  [...list.children].forEach((r) => {
+    if (!r.classList.contains('motion-row-ghost')) before.set(keyOf(r), { rect: r.getBoundingClientRect(), node: r });
+  });
+  mutate();
+  if (!before.size) return;
+  const after = new Set();
+  let moved = 0;
+  [...list.children].forEach((r) => {
+    const k = keyOf(r);
+    after.add(k);
+    const b = before.get(k);
+    if (!b || moved >= RISE.max) return;
+    const dy = b.rect.top - r.getBoundingClientRect().top;
+    if (Math.abs(dy) > 1) {
+      moved++;
+      r.animate([{ translate: '0 ' + Math.round(dy) + 'px', offset: 0 }], { duration: 340, easing: RISE_EASE });
+    }
+  });
+  let gone = 0;
+  before.forEach((b, k) => {
+    if (after.has(k) || gone >= 4 || !b.rect.height) return;
+    gone++;
+    if (getComputedStyle(list).position === 'static') list.style.position = 'relative';
+    const box = list.getBoundingClientRect();
+    const g = b.node;
+    g.classList.add('motion-row-ghost');
+    g.setAttribute('aria-hidden', 'true');
+    g.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
+    g.style.top = (b.rect.top - box.top - list.clientTop + list.scrollTop) + 'px';
+    g.style.left = (b.rect.left - box.left - list.clientLeft + list.scrollLeft) + 'px';
+    g.style.width = b.rect.width + 'px';
+    g.style.height = b.rect.height + 'px';
+    list.appendChild(g);
+    const done = () => { if (g.parentNode) g.remove(); };
+    const a = g.animate([{ opacity: 1, scale: '1' }, { opacity: 0, scale: '0.96' }], { duration: 300, easing: 'ease-in', fill: 'forwards' });
+    a.onfinish = done;
+    setTimeout(done, 420);
+  });
+}
+
 // After the room has drawn itself for this state.
 Room.onChange((state) => { if (state) setTimeout(() => animateScoreboards(state), 0); });
 window.addEventListener('resize', () => requestAnimationFrame(syncNavPill));

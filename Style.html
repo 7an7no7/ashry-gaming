@@ -16780,4 +16780,64 @@ body.dark .home-start { background: linear-gradient(150deg, #5b21b6 0%, #4c1d95 
   .gcard.home-feat--in { animation: none; }
 }
 
+/* ==========================================================================
+   41. MOTION EVERYWHERE - the owner, 26 Sep 2026: "Smooth, nice motion
+   everywhere, on every screen and not only in some games." The script is
+   JS_Motion.html section 13: a screen entered rises in card by card
+   (motionEnterView, from setView), a popup's rows rise under its spring
+   (motionRiseModal, from hoistModals' observer), chips give under the finger,
+   a changed number pops (motionBump), a lobby row that leaves fades where it
+   stood (motionRowsSwap). Those are Web Animations of the individual
+   `translate` / `scale` / `opacity` properties with nothing left behind, so
+   they need no CSS; what is here is only what CSS does better: the popup's
+   spring, the header's title and back chevron, the leaving row's box. No
+   component's look is restyled (sections 39 and 40 own that). Nothing here
+   moves while a screen sits still.
+   ========================================================================== */
+
+/* A popup opens with a spring; the backdrop's fade is overlayIn (section 9),
+   the close is the ghost (modalExitGhost). */
+/* `backwards`, not `both`: once open the dialog carries no transform at all
+   (a transformed box is the containing block of its fixed children). */
+.modal-content { animation: dialogSpring 260ms var(--ease-spring) backwards; }
+@keyframes dialogSpring {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The header's title cross-fades with a 4px rise; the back chevron fades and
+   grows in rather than popping (it keeps its box, so the title never jumps). */
+.shell__title {
+  transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out);
+}
+.shell__title.is-swapping { translate: 0 4px; }
+#nav-back {
+  transition: transform var(--dur-1) var(--ease-out),
+              background-color var(--dur-2) var(--ease-out),
+              opacity var(--dur-2) var(--ease-out),
+              scale var(--dur-2) var(--ease-spring),
+              visibility 0s linear 0s;
+}
+#nav-back.is-hidden {
+  opacity: 0;
+  scale: 0.7;
+  transition: opacity var(--dur-2) var(--ease-out), scale var(--dur-2) var(--ease-out), visibility 0s linear var(--dur-2);
+}
+
+/* A lobby row that left, fading where it stood over the list (motionRowsSwap). */
+.motion-row-ghost {
+  position: absolute;
+  margin: 0;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-content { animation: none; }
+  .shell__title, #nav-back, #nav-back.is-hidden { transition: none; }
+  .shell__title.is-swapping { translate: none; }
+  .motion-row-ghost { display: none; }
+}
+
 </style>

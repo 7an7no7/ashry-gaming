@@ -16865,20 +16865,79 @@ body.dark .arb__badge { background: rgba(167, 139, 250, 0.18); border-color: rgb
 @media (orientation: landscape) and (max-height: 500px) {
   .room-code { font-size: 2.25rem; }
 }
-/* The host TV's list is the side that matters: it gets the width, the QR
-   less, and every poster is 3:4 (the columns are tvHubFit's, so nothing
-   scrolls). */
-.tv-lobby:has(.tv-hub) { grid-template-columns: minmax(0, 0.6fr) minmax(0, 1.4fr); }
-.tv-lobby:has(.tv-hub) .tv-qr { width: min(34vmin, 440px); }
-.tv-hub { gap: calc(var(--tv-gap) * 0.75); }
-.tv-hub__game { min-height: 0; aspect-ratio: 3 / 4; padding: 0.5em; }
-.tv-hub__name { font-size: calc(var(--tv-xs) * 0.8); overflow-wrap: normal; }
 @media (min-width: 900px) and (min-height: 501px) {
   .room-code { font-size: 3.25rem; }
 }
-/* A poster the size of a thumb on a 720p TV: its "N more needed" may take two lines. */
-.tv-hub__need { border-radius: 0.6em; text-align: center; inset-inline-end: 0.45em; margin-inline: auto; width: fit-content; }
-/* A 1024-wide TV: a long name breaks rather than being cut off. */
-@media (max-width: 1100px) { .tv-hub__name { overflow-wrap: anywhere; } }
+
+/* The host TV's list is the side that matters: it gets the width, the QR
+   less. A poster is never narrower than 7rem, so its name reads from the
+   sofa (the lead, 26 Sep 2026: readability wins); when they don't all fit,
+   the list scrolls in its own box, a fade at its foot while there is more,
+   and the QR, the code and the players stay where they are. The page never
+   scrolls. Under the home's section heads (tvLobby). */
+.tv-lobby:has(.tv-hub-box) {
+  height: 100%;
+  grid-template-columns: minmax(0, 0.6fr) minmax(0, 1.4fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-content: stretch;
+}
+.tv-lobby:has(.tv-hub-box) > .tv-join { align-self: center; }
+.tv-lobby:has(.tv-hub-box) > .tv-lobby__side { min-height: 0; height: 100%; }
+.tv-lobby:has(.tv-hub-box) .tv-qr { width: min(34vmin, 440px); }
+.tv-hub-box { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
+.tv-hub-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 4px 6px 0;
+  margin: -4px -6px 0;
+}
+.tv-hub-scroll::-webkit-scrollbar { display: none; }
+.tv-hub-box::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: clamp(28px, 7vmin, 90px);
+  background: linear-gradient(180deg, transparent, var(--bg));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.tv-hub-box.has-more::after { opacity: 1; }
+.tv-hub__sec + .tv-hub__sec { margin-top: calc(var(--tv-gap) * 1.2); }
+.tv-hub__head {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin: 0 0 calc(var(--tv-gap) * 0.6);
+  font-family: var(--font-display);
+  font-size: max(1rem, var(--tv-sm));
+  font-weight: 800;
+  color: var(--text-strong);
+}
+.tv-hub {
+  grid-template-columns: repeat(auto-fill, minmax(max(7rem, 12.5vmin), 1fr));
+  gap: calc(var(--tv-gap) * 0.75);
+}
+.tv-hub__game { min-height: 0; aspect-ratio: 3 / 4; padding: 0.55em; }
+.tv-hub__icon { font-size: max(2.4rem, var(--tv-lg)); }
+.tv-hub__name { font-size: max(0.875rem, 1.55vmin); overflow-wrap: anywhere; }
+/* "N more needed" on one line: a smaller pill, centred at the top. */
+.tv-hub__need {
+  inset-inline-end: 0.4em;
+  inset-inline-start: 0.4em;
+  top: 0.4em;
+  width: fit-content;
+  max-width: calc(100% - 0.8em);
+  margin-inline: auto;
+  padding: 0.15em 0.55em;
+  font-size: max(0.66rem, 1.15vmin);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+@media (prefers-reduced-motion: reduce) { .tv-hub-box::after { transition: none; } }
 
 </style>

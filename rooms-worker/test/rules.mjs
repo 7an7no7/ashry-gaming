@@ -4758,6 +4758,11 @@ Date.now = duelTestClock;
   check(Array.isArray(s.holes) && s.holes.length === 6 && new Set(s.holes).size === 6 && s.holes.map((id) => HID(id).lvl).join() === '1,1,2,2,3,3',
     'minigolf: a room\'s holes are drawn on the server and kept in the room: two easy, two medium, two hard');
   check(roomDeadline(r) === null, 'minigolf: with no clock nothing waits on the server');
+  // Pinned to the straight first hole: the easy hole drawn is random, and on 'football' the strong
+  // putt below goes straight in, so the ball was done before the t0 and pick-up checks (about one
+  // run in eight failed four checks at once). 'first' is an easy hole, so the draw above still holds.
+  s.holes[0] = 'first';
+  Object.keys(s.balls).forEach((id) => { s.balls[id].at = HID('first').tee.slice(); });
   // All at once: both putt, in any order.
   clock += 1000;
   applyRoomAction(r, 'b', 'putt', { dx: 0, dy: 1000, power: 300, t0: clock - s.startedAt, hole: 0, n: 0 });
@@ -8389,10 +8394,15 @@ Date.now = duelTestClock;
     check(bids > 100 && dashes > 0, `estimation bots: the computer players bid (${bids}) and dash now and then (${dashes})`);
   }
   {
-    // A hard bot makes its call more often than an easy one.
+    // A hard bot makes its call more often than an easy one. The deals and the bots use
+    // Math.random, so the games run on a fixed seed (six unseeded games each flipped the
+    // result about one run in three), and twenty games a level make the difference real.
+    const realRandom = Math.random;
+    const lcg = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
     const rate = (level) => {
       let made = 0, all = 0;
-      for (let n = 0; n < 6; n++) {
+      Math.random = lcg(level === 'hard' ? 101 : 202);
+      for (let n = 0; n < 20; n++) {
         const r = estStart(['a'], { turnClock: 30, rounds: 13 }, [level, level, level]);
         for (let step = 0; step < 20000 && r.shared.phase !== 'gameover'; step++) {
           if (r.shared.phase === 'roundOver') { applyRoomAction(r, 'a', 'nextRound', { round: r.shared.round }); continue; }
@@ -8404,6 +8414,7 @@ Date.now = duelTestClock;
         }
         r.shared.history.forEach((h) => h.calls.forEach((c, k) => { if (r.shared.seats[k] !== 'a') { all++; if (c === h.took[k]) made++; } }));
       }
+      Math.random = realRandom;
       return made / Math.max(1, all);
     };
     const hard = rate('hard'), easy = rate('easy');

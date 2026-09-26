@@ -17394,4 +17394,535 @@ body.dark .arb__badge { background: rgba(167, 139, 250, 0.18); border-color: rgb
 }
 @media (prefers-reduced-motion: reduce) { .tv-hub-box::after { transition: none; } }
 
+/* ==========================================================================
+   42. ARCADE: THE ROOMS' DESIGN REVIEW (26 Sep 2026) - the lobby, the room
+   games on the phones and on the TV, after a review of the arcade look found
+   them still in the old dress: the game chosen as its own poster, a Start bar
+   on a solid ground, the raised «افتح غرفة» lowered while a game is played, a
+   one-row audience bar, the TV's frames anchored to the top and in the arcade
+   cards, the answers' colours shared by the phones and the TV, a drawn card
+   back for 🂠, the night palette on the TV in مافيا, the splash as a poster.
+   ========================================================================== */
+
+:root {
+  /* The four answers of تحدي المعلومات (A-D) and the two of لو خيروك: the
+     same colours on every phone and on the TV, so a table matches by colour.
+     White reads on all six (the lightest, the amber, is 5.0:1). */
+  --quiz-a: #e11d48;
+  --quiz-b: #2563eb;
+  --quiz-c: #b45309;
+  --quiz-d: #047857;
+  --wyr-a:  #7c3aed;
+  --wyr-b:  #0e7490;
+  /* الدومينو's felt: one violet table on the phone and the TV alike. */
+  --dom-felt-1: color-mix(in srgb, #7c3aed 16%, var(--surface-2));
+  --dom-felt-2: color-mix(in srgb, #7c3aed 6%, var(--surface-2));
+}
+body.dark {
+  --dom-felt-1: color-mix(in srgb, #8b5cf6 26%, var(--surface-2));
+  --dom-felt-2: color-mix(in srgb, #8b5cf6 10%, var(--surface-2));
+}
+
+/* --- The lobby --------------------------------------------------------------- */
+
+/* The game chosen is its own poster (its data-accent, as the splash has): the
+   game's gradient, its drawn icon big, and a dark fade behind the words so the
+   name reads on any game's colour in both themes. */
+.chosen-game {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-height: 4.5rem;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-3);
+  border: 0;
+  border-radius: var(--r-xl);
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+  color: #ffffff;
+  box-shadow: var(--poster-shadow);
+}
+.chosen-game::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to left, var(--poster-fade) 0%, rgba(10, 6, 20, 0.35) 70%, transparent 100%);
+  opacity: 0.8;
+}
+[dir="ltr"] .chosen-game::before, html[dir="ltr"] .chosen-game::before {
+  background: linear-gradient(to right, var(--poster-fade) 0%, rgba(10, 6, 20, 0.35) 70%, transparent 100%);
+}
+.chosen-game__icon {
+  flex: none;
+  font-size: 2.6rem;
+  line-height: 1;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+}
+.chosen-game__name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 800;
+  line-height: 1.25;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  overflow-wrap: anywhere;
+}
+.chosen-game .btn--ghost {
+  flex: none;
+  background: rgba(0, 0, 0, 0.32);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+}
+
+/* The Start bar stands on a solid ground (a dock), so nothing scrolled under
+   it shows between its words; the waiting line is one line. */
+.lobby-start.view-actions--start,
+.lobby-start {
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  background: var(--bg);
+  box-shadow: 0 -10px 18px -10px rgba(29, 21, 56, 0.28), 0 -1px 0 var(--hairline);
+}
+body.dark .lobby-start { box-shadow: 0 -10px 18px -8px rgba(0, 0, 0, 0.7), 0 -1px 0 var(--hairline); }
+.lobby-start #room-wait-note {
+  text-align: center;
+  font-weight: 700;
+  color: var(--text-2);
+}
+/* The lobby ends with room for the dock: its last buttons scroll clear of it. */
+#view-room-lobby > .btn-stack { margin-top: var(--sp-3); }
+/* The list of games / the game chosen now comes before the players. */
+#room-host-setup:not(:empty) { margin-top: var(--sp-4); }
+#room-host-setup > .waiting-note { padding-block: var(--sp-3); }
+
+/* «ادعي حد كمان ▾»: the QR folded once two or more are in. */
+.room-invite { margin-top: var(--sp-2); }
+.room-invite > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--tap);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-full);
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.room-invite > summary::-webkit-details-marker { display: none; }
+.room-invite__chev { transition: transform var(--dur-2) var(--ease-out); }
+.room-invite[open] .room-invite__chev { transform: rotate(180deg); }
+.room-invite.is-solo > summary { display: none; }
+.room-invite[open] > .room-qr { margin-top: var(--sp-2); }
+
+/* The join card: a poster-ish head with the room's icon, and fields with
+   their own gaps (the label had touched the code field). */
+.room-join-card { display: flex; flex-direction: column; gap: var(--sp-3); }
+.room-join-card > .field { margin-bottom: 0; }
+.room-join-card > .field > .field__label { display: block; margin-bottom: var(--sp-2); }
+.room-join-card > .lobby-me { margin: 0; align-self: flex-start; }
+.room-join-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: calc(var(--sp-1) * -1) 0 var(--sp-1);
+}
+.room-join-head__icon {
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+  box-shadow: var(--poster-shadow);
+  font-size: 1.9rem;
+  line-height: 1;
+}
+.room-join-head__text { min-width: 0; }
+.room-join-head__text .card__title { margin: 0; font-family: var(--font-display); }
+.room-join-head__text .card__subtitle { margin: 2px 0 0; }
+
+/* A toast that says something (the game started in the room): the app's
+   violet, not the cold blue it had. */
+.toast.info { background: linear-gradient(150deg, #6d28d9, #5b21b6); color: #ffffff; }
+body.dark .toast.info { background: linear-gradient(150deg, #7c3aed, #6d28d9); color: #ffffff; }
+
+/* --- While a room game is played --------------------------------------------- */
+
+/* The raised «افتح غرفة» lowers into an ordinary tab: it hung 1.75rem into
+   every game's foot (Wordle's تحقق, Hangman's word field, كدّاب's play). */
+@media (max-width: 899px) and (min-height: 501px) {
+  body.in-room-game .nav-room__btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    margin-top: 0;
+    font-size: 1.4rem;
+    box-shadow: 0 4px 10px -6px var(--accent-glow);
+  }
+  body.in-room-game .nav-item--room { justify-content: center; }
+}
+
+/* The audience: one compact row - the six cheers as small round buttons and
+   «🔮 مين هيكسب؟» a chip whose names open above the bar. */
+.audience {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 6px var(--sp-2);
+  border-radius: var(--r-full);
+}
+.audience__row--cheer { flex: 1 1 auto; gap: var(--sp-2); justify-content: space-between; }
+.audience__cheers { gap: 4px; }
+.audience__cheer {
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 1.1rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.audience__pick {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 8.5rem;
+  min-height: 2.2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  cursor: pointer;
+}
+.audience__pick-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audience__pick.is-open, .audience__pick.is-picked { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+.audience__pop {
+  position: absolute;
+  bottom: calc(100% + var(--sp-2));
+  inset-inline: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-3);
+}
+.audience__pop-title { font-size: var(--fs-sm); font-weight: 800; color: var(--accent-ink); }
+.audience__pop-chips { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+body.has-audience .shell__main { --main-pb: var(--aud-h, 4.5rem); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .audience { max-width: 30rem; }
+  .audience__row { flex: 1 1 auto; }
+  body.has-audience .shell__main { --main-pb: var(--aud-h, 4rem); }
+}
+
+/* الجاسوس's card on a phone: a poster in the game's colour, its drawn icon
+   big, the role big; face down, the same poster with «اضغط لكشف دورك». */
+.room-role .role-card {
+  min-height: 15rem;
+  gap: var(--sp-3);
+  border: 0;
+  border-radius: var(--r-xl);
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+  color: #ffffff;
+  box-shadow: var(--poster-shadow);
+}
+.room-role .role-card--closed { border-style: none; }
+.room-role .role-card--spy { background: linear-gradient(150deg, #e11d48, #9f1239); }
+.room-role .role-card__art {
+  display: grid;
+  place-items: center;
+  font-size: 5.5rem;
+  line-height: 1;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.35));
+}
+.room-role .role-card__art .art-icon { width: 1em; height: 1em; }
+.room-role .role-card__value {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  color: #ffffff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.room-role .role-card__label {
+  padding: 0.25rem 0.9rem;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.28);
+  color: #ffffff;
+  font-weight: 800;
+}
+.room-role .role-card__hint { color: rgba(255, 255, 255, 0.9); }
+.room-role > .eyebrow { margin-bottom: var(--sp-3); }
+
+/* كلمة واحدة: the clues that survived, big, one card each. */
+.jo-clues { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.jo-clue-card {
+  min-width: 6rem;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-xl);
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+  color: var(--accent-on);
+  box-shadow: var(--poster-shadow);
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* ارسم وخمّن: «إرسال» has a label's width, the order after the guesses a gap. */
+.input-group > .btn.btn--send { width: auto; min-width: 5.5rem; padding-inline: var(--sp-4); }
+#draw-board:not(:empty) { margin-top: var(--sp-4); }
+#draw-board .section__head { margin-top: 0; }
+
+/* تحدي المعلومات on a phone: the TV's four colours, A to D. */
+.trivia-choice[class*="trivia-choice--"] {
+  border: 0;
+  color: #ffffff;
+  box-shadow: var(--sh-2);
+}
+.trivia-choice.trivia-choice--0 { background: var(--quiz-a); }
+.trivia-choice.trivia-choice--1 { background: var(--quiz-b); }
+.trivia-choice.trivia-choice--2 { background: var(--quiz-c); }
+.trivia-choice.trivia-choice--3 { background: var(--quiz-d); }
+.trivia-choice[class*="trivia-choice--"] .trivia-letter { background: rgba(255, 255, 255, 0.24); color: #ffffff; }
+.trivia-choice[class*="trivia-choice--"].is-picked { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--pop), var(--sh-2); }
+.trivia-choice[class*="trivia-choice--"].is-picked .trivia-letter { background: #ffffff; color: #1d1a2b; }
+.trivia-choice[class*="trivia-choice--"]:disabled:not(.is-picked) { opacity: 0.45; }
+.trivia-result--0 .result-row__bar { background: color-mix(in srgb, var(--quiz-a) 22%, transparent); }
+.trivia-result--1 .result-row__bar { background: color-mix(in srgb, var(--quiz-b) 22%, transparent); }
+.trivia-result--2 .result-row__bar { background: color-mix(in srgb, var(--quiz-c) 22%, transparent); }
+.trivia-result--3 .result-row__bar { background: color-mix(in srgb, var(--quiz-d) 22%, transparent); }
+.trivia-result.is-correct .result-row__bar { background: var(--success-soft); }
+.tv-choice--0 { background: var(--quiz-a); }
+.tv-choice--1 { background: var(--quiz-b); }
+.tv-choice--2 { background: var(--quiz-c); }
+.tv-choice--3 { background: var(--quiz-d); }
+
+/* لو خيروك on a phone: the TV's two slabs, violet and teal. */
+#view-room-wouldyou .ballot-option--i0,
+#view-room-wouldyou .ballot-option--i1 {
+  min-height: 5.5rem;
+  border: 0;
+  color: #ffffff;
+  box-shadow: var(--poster-shadow);
+  font-family: var(--font-display);
+}
+#view-room-wouldyou .ballot-option--i0 { background: linear-gradient(150deg, var(--wyr-a), color-mix(in srgb, var(--wyr-a) 70%, #000)); }
+#view-room-wouldyou .ballot-option--i1 { background: linear-gradient(150deg, var(--wyr-b), color-mix(in srgb, var(--wyr-b) 70%, #000)); }
+.tv-option--0 { background: var(--wyr-a); }
+.tv-option--1 { background: var(--wyr-b); }
+
+/* 🂠 draws as a grey box on most phones: a small drawn card back instead,
+   the height of its line (CARD_GLYPH, JS_Cards.html). */
+.card-glyph {
+  display: inline-block;
+  width: 0.72em;
+  height: 1em;
+  vertical-align: -0.14em;
+  border-radius: 0.14em;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.55) 0.07em, transparent 0.08em) 0 0 / 0.24em 0.24em,
+    linear-gradient(150deg, #7c3aed, #4c1d95);
+  box-shadow: inset 0 0 0 0.07em rgba(255, 255, 255, 0.85), 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* لودو: your own chip keeps its name - the columns share the row by what
+   each chip holds ("منى · أنت" is longer than the others), not in quarters. */
+@media (max-width: 899px) and (min-height: 501px) {
+  .ludo-strip { grid-template-columns: repeat(var(--n, 4), minmax(0, auto)); }
+}
+.ludo-chip__who { flex: 1 1 auto; }
+
+/* الدومينو: one felt token, violet, the phone as the TV. */
+.dom-felt,
+body.dark .dom-felt { background: radial-gradient(120% 90% at 50% 40%, var(--dom-felt-1), var(--dom-felt-2)); }
+
+/* ميني جولف: the white ball's dot keeps a ring on a white pill. */
+.mg-dot { box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(0, 0, 0, 0.18); }
+/* بولينج: the total's head is a word now, not Σ. */
+.bowl-fr--tot .bowl-fr__n { white-space: nowrap; font-size: 0.85em; }
+
+/* --- The game splash: the game's own poster, not a pale tint ------------------ */
+.game-splash,
+body.dark .game-splash {
+  background:
+    radial-gradient(90% 70% at 50% 42%, transparent 30%, rgba(10, 6, 20, 0.45) 100%),
+    linear-gradient(150deg, var(--accent), var(--accent-hover));
+}
+.game-splash__icon {
+  width: 11rem;
+  height: 11rem;
+  font-size: 7rem;
+  background: none;
+  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.4));
+}
+.game-splash__icon .art-icon { width: 1em; height: 1em; }
+.game-splash__name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.game-splash--tv .game-splash__icon { width: 40vmin; height: 40vmin; font-size: 26vmin; }
+
+/* --- The TV ------------------------------------------------------------------- */
+
+/* The pills at the top of a frame (the round, the score, the level) sit at
+   the top of the stage; what is under them stays in the middle of the rest. */
+.tv-trivia > .tv-top:first-child { margin-bottom: auto; }
+.tv-trivia > .tv-top:first-child ~ :last-child { margin-bottom: auto; }
+
+/* A frame's poster art: the game's drawn icon, big and faded behind it. */
+.tv-vote, .tv-center { position: relative; }
+.tv-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  font-size: 56vmin;
+  line-height: 1;
+  overflow: hidden;
+  opacity: 0.08;
+  pointer-events: none;
+  filter: saturate(1.2);
+}
+.tv-art .art-icon { width: 1em; height: 1em; }
+.tv-art ~ * { position: relative; z-index: 1; }
+.tv-big-icon .art-icon { width: 1em; height: 1em; }
+
+/* Who has voted or written: every name a chip, ✓ on the ones done. */
+.tv-wait { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--tv-gap) * 0.6); max-width: 90%; margin-inline: auto; }
+.tv-wait .tv-chip { font-size: var(--tv-sm); padding: 0.35em 1em; box-shadow: var(--sh-1); }
+.tv-wait .tv-chip.is-wait { opacity: 0.55; border-style: dashed; }
+.tv-wait .tv-chip.is-done { background: var(--success-soft); }
+
+/* كلمة واحدة on the TV: the clues as arcade cards. */
+.tv-clue {
+  padding: 0.35em 1em;
+  border: 0;
+  border-radius: calc(var(--tv-r) * 1.4);
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+  color: var(--accent-on);
+  box-shadow: var(--poster-shadow);
+  font-family: var(--font-display);
+  font-weight: 800;
+}
+
+/* ارسم وخمّن on the TV: the word's line and the guesses read from the sofa. */
+.tv-panel .draw-hint .eyebrow { font-size: max(2vmin, var(--tv-sm)); }
+.tv-panel .draw-hint .eyebrow .metric { font-size: 1em; }
+.tv-guesses .draw-guess { font-size: max(1.6vmin, var(--tv-md)); padding-block: 0.3em; }
+
+/* تحدي المعلومات's podium: the arcade card, and a fourth place. */
+.tv-podium__place {
+  border: 0;
+  border-radius: calc(var(--tv-r) * 1.4) calc(var(--tv-r) * 1.4) 0 0;
+  background: var(--surface-solid);
+  box-shadow: var(--sh-3);
+}
+.tv-podium__place--1 { background: linear-gradient(170deg, color-mix(in srgb, var(--pop) 30%, var(--surface-solid)), var(--surface-solid)); box-shadow: 0 0 0 3px var(--pop), var(--sh-3); }
+.tv-podium__place--4 { order: 4; min-height: 15vmin; }
+.tv-podium__place--4 .tv-podium__medal { font-family: var(--font-display); font-weight: 800; color: var(--text-2); }
+.tv-podium__name { font-family: var(--font-display); }
+
+/* خمّن مين on the TV: «الإجابة عند هاني» on one line, the dots after it. */
+.gw-tv { grid-template-columns: minmax(0, 1fr) minmax(0, 30rem) minmax(0, 1fr); }
+.gw-qa--tv .gw-qa__a.is-wait { font-size: var(--tv-md); white-space: nowrap; padding-inline: 0; }
+.gw-qa--tv .gw-think .gw-dots i { width: 0.8vmin; height: 0.8vmin; }
+.gw-qa--tv { box-shadow: var(--sh-2); border: 0; }
+
+/* المشنقة on the TV: bigger cards in the arcade look, the man tall. */
+.hm-rows--tv { grid-template-columns: repeat(auto-fill, minmax(26vmin, 32vmin)); }
+.hm-rows--tv .hm-row {
+  gap: 0.6vmin;
+  padding: 1.8vmin;
+  border: 0;
+  border-radius: calc(var(--tv-r) * 1.4);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-3);
+}
+.hm-rows--tv .hm-row.is-won { box-shadow: 0 0 0 3px var(--success), var(--sh-3); }
+.hm-rows--tv .hm-gallows--mini { width: 18vmin; }
+.hm-rows--tv .hm-row__who { font-family: var(--font-display); font-size: var(--tv-md); }
+.hm-rows--tv .hm-row__prog, .hm-rows--tv .hm-row__st { font-size: var(--tv-sm); }
+
+/* بنك الحظ on the TV: the board's words at the TV's size. */
+@container bankboard (min-width: 760px) {
+  .bank-sq__name { font-size: clamp(12px, 1.85cqw, 24px); }
+  .bank-sq__price { font-size: clamp(11px, 1.6cqw, 21px); }
+  .bank-corner__t { font-size: clamp(14px, 2.4cqw, 28px); }
+  .bank-corner__m { font-size: clamp(12px, 2cqw, 24px); }
+}
+.bank--tv .bank-tok { width: 4.4%; margin: -2.2% 0 0 -2.2%; }
+.bank--tv .bank-time .tv-pill,
+.bank--tv .bank-time .badge,
+.bank--tv .bank-time > * { font-size: var(--tv-sm); }
+
+/* الدومينو on the TV: «ولا حجر» at the TV's size. */
+body.is-tv-view .dom-rrow__none { font-size: var(--tv-sm); }
+
+/* مافيا's night on the TV: the night palette on the screen only. */
+#view-room-tv.tv-night {
+  color-scheme: dark;
+  --bg:            #0d0b16;
+  --surface:       rgba(26, 22, 48, 0.92);
+  --surface-solid: #1a1630;
+  --surface-2:     #161228;
+  --surface-3:     #241e42;
+  --border:        rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text:          #ece8ff;
+  --text-2:        #b6afd6;
+  --text-3:        #9a93bf;
+  --text-strong:   #ffffff;
+  --accent:        #8b5cf6;
+  --accent-hover:  #a78bfa;
+  --accent-ink:    #c4b5fd;
+  --accent-soft:   rgba(139, 92, 246, 0.16);
+  --accent-border: rgba(139, 92, 246, 0.32);
+  --accent-on:     #0b0518;
+  background:
+    radial-gradient(70% 55% at 50% 0%, rgba(124, 58, 237, 0.35), transparent 70%),
+    radial-gradient(1px 1px at 12% 18%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1px 1px at 78% 12%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1.5px 1.5px at 62% 30%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(1px 1px at 30% 40%, rgba(255, 255, 255, 0.5), transparent),
+    #0d0b16;
+  color: var(--text);
+  transition: background-color var(--dur-3) var(--ease-out);
+}
+#view-room-tv.tv-night .tv-title,
+#view-room-tv.tv-night .tv-bar__title { color: var(--text-strong); }
+
+/* A room duel's result on a phone upright comes under the board, so the board
+   and its lit line stay where they were when the game was won. */
+@media (max-width: 899px) and (min-height: 501px) {
+  :is(#view-room-connect4, #view-room-dots, #view-room-xo) .duel-layout__side > .duel-result,
+  :is(#view-room-connect4, #view-room-dots, #view-room-xo) .duel-layout__side > [data-tour-over] { order: 0; }
+}
+
+/* خمن الكلمة in a room, a phone on its side: the grid sized from the screen's
+   height (as the one-phone Wordle is), so its last row is never cut. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .sv-board--wordle > .wordle-grid {
+    width: min(100%, calc(var(--wordle-cols) * 2.6rem), calc((var(--app-h, 100vh) - 12.5rem) * var(--wordle-cols) / var(--wordle-rows, 6)));
+    justify-self: center;
+  }
+}
+
 </style>

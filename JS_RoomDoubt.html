@@ -170,7 +170,7 @@ function dbHeadHtml(state) {
   const set = s.settings || {};
   const bits = [];
   bits.push(`<span class="badge">${escapeHTML(set.end === 'places' ? pcT('db_end_places') : pcT('db_end_first'))}</span>`);
-  if ((s.decks || 1) > 1) bits.push(`<span class="badge">🂠 ×${s.decks}</span>`);
+  if ((s.decks || 1) > 1) bits.push(`<span class="badge">${CARD_GLYPH} ×${s.decks}</span>`);
   if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-db-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
   return `<div class="db-head">${bits.join('')}</div>`;
 }
@@ -279,7 +279,7 @@ function dbMineHtml(state) {
   const view = document.getElementById('view-room-doubt');
   if (view) view._dbWide = dbWide();
   return `<div class="db-mine ${mine ? 'is-turn' : ''}" data-pc-seat="${escapeHTML(Room.me)}">
-      <div class="db-mine__head"><span class="db-mine__title">🂠 ${escapeHTML(pcT('db_your_cards'))}</span><b class="metric db-mine__n">${hand.length}</b>${picked}</div>
+      <div class="db-mine__head"><span class="db-mine__title">${CARD_GLYPH} ${escapeHTML(pcT('db_your_cards'))}</span><b class="metric db-mine__n">${hand.length}</b>${picked}</div>
       <div class="db-hand" data-pc-at="seat:${escapeHTML(Room.me)}">${body || `<span class="db-hand__empty">${escapeHTML(pcT('db_no_cards'))}</span>`}</div>
     </div>`;
 }
@@ -310,13 +310,13 @@ function dbLatestHtml(state, tv) {
   const e = list[list.length - 1];
   if (!e) return '';
   const fresh = motionFirst(['db-latest', roomDealKey(state), e.seq, tv ? 'tv' : 'phone'].join('|'));
-  return `<p class="db-latest ${fresh ? 'is-new' : ''} ${e.type === 'call' ? (e.truth ? 'is-true' : 'is-lie') : ''}">${escapeHTML(dbEventText(state, e))}</p>`;
+  return `<p class="db-latest ${fresh ? 'is-new' : ''} ${e.type === 'call' ? (e.truth ? 'is-true' : 'is-lie') : ''}">${cardGlyphs(escapeHTML(dbEventText(state, e)))}</p>`;
 }
 
 function dbLogHtml(state, count) {
   const list = dbMoves(state).slice(0, -1).slice(-count).reverse();
   if (!list.length) return '';
-  return `<ul class="db-log">${list.map(e => `<li>${escapeHTML(dbEventText(state, e))}</li>`).join('')}</ul>`;
+  return `<ul class="db-log">${list.map(e => `<li>${cardGlyphs(escapeHTML(dbEventText(state, e)))}</li>`).join('')}</ul>`;
 }
 
 /* --- the bar: what to do now --------------------------------------------------------- */
@@ -478,7 +478,7 @@ ROOM_GAMES.doubt = {
       `<button type="button" class="segmented__item ${o[key] === v ? 'is-active' : ''}" onclick="setDbOpt('${key}', ${typeof v === 'string' ? `'${v}'` : v})">${labelOf(v)}</button>`).join('')}</div>`;
     return `<div class="card card--tight pc-lobby">
         ${fan}
-        <p class="field__hint" style="text-align:center">🂠 ${escapeHTML(n >= 7 ? pcT('db_deck_two') : pcT('db_deck_one'))}</p>
+        <p class="field__hint" style="text-align:center">${CARD_GLYPH} ${escapeHTML(n >= 7 ? pcT('db_deck_two') : pcT('db_deck_one'))}</p>
         ${few}
         <div class="field">
           <label class="field__label">🏁 ${escapeHTML(pcT('db_end'))}</label>

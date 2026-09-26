@@ -77,6 +77,13 @@ function pcCardName(c) {
   return lang === 'en' ? r + ' of ' + s : r + ' ' + s;
 }
 
+/* The playing-card glyph 🂠 (U+1F0A0) draws as a grey box on most phones (the
+   design review, 26 Sep 2026): a small drawn card back in its place, the size
+   of the line it sits in (section 42). cardGlyphs swaps it inside text that has
+   already been escaped (a log line from a translation). */
+const CARD_GLYPH = '<span class="card-glyph" aria-hidden="true"></span>';
+function cardGlyphs(html) { return String(html).replace(/\u{1F0A0}/gu, CARD_GLYPH); }
+
 /**
  * One card. `c` a card ('7h', 'OM'), or null for the back. opts.size: xs, sm,
  * md, lg, xl, or fly (a flight's own box).

@@ -282,7 +282,7 @@ function omMineHtml(state) {
   const cards = hand.map((c, k) => `<span class="om-hcard ${k === aim ? 'is-aimed' : ''}" data-card="${c.i}" data-pc-at="card:${c.i}">${pcCardHtml(c.c, { size: 'md' })}</span>`).join('');
   const hint = omDragging(state) ? pcT('om_hand_hint_drag') : pcT('om_hand_hint_shuffle');
   return `<div class="om-mine ${victim ? 'is-victim' : ''}" data-pc-seat="${escapeHTML(Room.me)}">
-      <div class="om-mine__head"><span class="om-mine__title">🂠 ${escapeHTML(pcT('om_your_cards'))}</span><b class="metric om-mine__n">${hand.length}</b><span class="om-mine__hint">${escapeHTML(hint)}</span></div>
+      <div class="om-mine__head"><span class="om-mine__title">${CARD_GLYPH} ${escapeHTML(pcT('om_your_cards'))}</span><b class="metric om-mine__n">${hand.length}</b><span class="om-mine__hint">${escapeHTML(hint)}</span></div>
       <div class="om-hand pc-row ${omDragging(state) ? 'is-draggable' : ''}" dir="ltr" data-pc-at="seat:${escapeHTML(Room.me)}">${cards}</div>
     </div>`;
 }
@@ -520,7 +520,7 @@ ROOM_GAMES.oldmaid = {
     const pairs = Math.min(26, 8 * Math.max(2, n));
     const fan = `<div class="pc-lobby__cards" aria-hidden="true" dir="ltr">${['7h', '7d', 'OM', 'Ks', 'Kc'].map(c => pcCardHtml(c, { size: 'sm' })).join('')}</div>`;
     const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(pcT('om_lobby_hint'))}</p>`;
-    const deck = `<p class="field__hint" style="text-align:center">🂠 ${escapeHTML(pcT('om_deck', { n: pairs * 2 + 1, pairs: pairs }))}</p>`;
+    const deck = `<p class="field__hint" style="text-align:center">${CARD_GLYPH} ${escapeHTML(pcT('om_deck', { n: pairs * 2 + 1, pairs: pairs }))}</p>`;
     const few = n > 8 ? `<p class="field__hint tx-warning" style="text-align:center">${escapeHTML(pcT('om_too_many'))}</p>` : '';
     if (!state.youAreHost) return `${fan}${deck}${hint}<p class="field__hint" style="text-align:center">${escapeHTML(t.room_wait_host || '')}</p>`;
     const o = omOpts();

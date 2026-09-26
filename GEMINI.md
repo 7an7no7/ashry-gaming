@@ -8300,7 +8300,7 @@ boards keep their own sections untouched. What it is:
   longer drawn - the "two lines" rule below is history. A section of one game
   is a wide poster (`.gcard--spotlight`, the same markup as before).
 - **A featured poster on the home** (`catalogFeatured`, `.home-feat`): «★
-  الليلة دي؟», one of `STARTER_SHELF` by the day of the year, with «▶ العب»
+  الليلة دي؟», one of `STARTER_SHELF` dealt afresh each time the home opens (`freshPick('home_feat')`, so all eight come round before one repeats; the owner, 26 Sep 2026, over a daily pick), with «▶ العب»
   and «🎲 غيرها» (the tonight sheet). It is a `.gcard` with `data-game`, so a
   search or a chip hides it like any card and the icon flight finds its
   `.gcard__icon`. Its `min-height`, `aspect-ratio` and the art's placement

@@ -351,7 +351,11 @@ let featLastId = null;   // the game the featured poster last showed, this visit
 function catalogFeatured(t) {
   const shelf = (typeof STARTER_SHELF !== 'undefined' ? STARTER_SHELF : []).map(id => CATALOG_BY_ID[id]).filter(Boolean);
   if (!shelf.length) return '';
-  const g = shelf[Math.floor(Date.now() / 86400000) % shelf.length];
+  // A different one each time the home opens (the owner, 26 Sep 2026), dealt
+  // through freshPick so all eight come round before one comes back.
+  const ids = shelf.map(x => x.id);
+  const picked = typeof freshPick === 'function' ? freshPick('home_feat', ids, 1)[0] : ids[Math.floor(Math.random() * ids.length)];
+  const g = CATALOG_BY_ID[picked] || shelf[0];
   const modes = (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean).map(m => t[m.short] || t[m.label] || '').filter(Boolean);
   // A new day's game fades and rises in when the home is drawn again - never on
   // the first paint of a visit, and not with motion off.

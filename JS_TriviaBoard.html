@@ -269,9 +269,10 @@ function renderTriviaBoard() {
       </div>
     </div>`;
 
+  if (typeof flagsEnsureFont === 'function') flagsEnsureFont();
   const headers = s.board.map(col => {
     const cat = tbCategory(col.cat) || {};
-    return `<div class="tb-cat"><span class="tb-cat__icon" aria-hidden="true">${cat.icon || ''}</span>${escapeHTML(cat[lang] || '')}</div>`;
+    return `<div class="tb-cat"><span class="tb-cat__icon flag-emoji" aria-hidden="true">${cat.icon || ''}</span>${escapeHTML(cat[lang] || '')}</div>`;
   }).join('');
 
   let cells = '';
@@ -358,7 +359,9 @@ function showTriviaCell() {
   }
   const en = tbLang() === 'en';
 
-  document.getElementById('tb-q-cat').textContent = (cat.icon ? cat.icon + ' ' : '') + (en ? cat.en : cat.ar);
+  // The Egypt category's icon is a flag: Windows draws one as two letters without the flag font.
+  if (typeof flagsEnsureFont === 'function') flagsEnsureFont();
+  document.getElementById('tb-q-cat').innerHTML = (cat.icon ? '<span class="flag-emoji">' + escapeHTML(cat.icon) + '</span> ' : '') + escapeHTML(en ? cat.en : cat.ar);
   document.getElementById('tb-q-points').textContent = cell.points;
   document.getElementById('tb-q-text').textContent = en ? item[2] : item[0];
   document.getElementById('tb-q-answer-text').textContent = en ? item[3] : item[1];

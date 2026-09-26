@@ -109,14 +109,14 @@
   --accent-glow:   rgba(109, 40, 217, 0.28);
 
   /* --- Type scale --- */
-  --font: 'Cairo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font: 'Cairo', 'Twemoji Country Flags', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   /* Titles, numerals and anything that carries a screen are set in Baloo
      Bhaijaan 2 - a rounded Arabic-and-Latin display face that was already on
      the wire for سكرو's card numerals, so it costs nothing new. Cairo stays
      the reading face. Both are asked for as variable ranges now (300-900 and
      400-800), which is fewer bytes than the six static cuts they replaced and
      is what gives the weight scale below a floor. */
-  --font-display: 'Baloo Bhaijaan 2', 'Cairo', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Baloo Bhaijaan 2', 'Cairo', 'Twemoji Country Flags', ui-sans-serif, system-ui, sans-serif;
 
   /* --- Weight scale ---
      There was no weight under 600 anywhere in the app, so nothing could read
@@ -2913,7 +2913,8 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
   background: var(--surface-solid);
   color: var(--text-strong);
   font-family: var(--font);
-  font-size: clamp(0.55rem, 2.6vw, 0.8rem);
+  /* 13px on a 375px phone: at 2.6vw a tile's word was under 10px, too small to read at arm's length. */
+  font-size: clamp(0.7rem, 3.5vw, 0.95rem);
   font-weight: 800;
   line-height: 1.1;
   text-align: center;
@@ -3753,7 +3754,8 @@ html:has(> body.is-tv-view) { font-size: 100% !important; }
   .cn-card { aspect-ratio: 4 / 3; }
   .key { height: 3.5rem; }
   .tb-cat { min-height: 3.5rem; }
-  .tb-cell { min-height: 4rem; }
+  /* The board takes the screen's height (the play area gets the space). */
+  .tb-cell { min-height: max(4rem, calc((var(--app-h, 100dvh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 10rem) / 5)); font-size: 1.375rem; }
   .room-qr { width: min(15rem, 32vh); }
 }
 
@@ -4261,7 +4263,7 @@ body.is-tv-view .scoreboard > .section__head { grid-column: 1 / -1; }
    the play area gets the space): the four answers take the height left under
    it, and read bigger for it, instead of four short tiles over an empty half. */
 .tv-trivia > .tv-question { font-size: clamp(1.4rem, 5.4vmin, 4.8rem); }
-.tv-trivia > .tv-choices { flex: 1 1 auto; grid-auto-rows: minmax(clamp(64px, 13vmin, 230px), 1fr); }
+.tv-trivia > .tv-choices { flex: 1 1 auto; grid-auto-rows: minmax(clamp(64px, 13vmin, 230px), 1fr); padding: 2.4vmin; /* room for the right answer's ring, or the stage's scroll edge clips it */ }
 .tv-trivia > .tv-choices .tv-choice { font-size: var(--tv-lg); }
 .tv-choice__count {
   flex: none;
@@ -7330,7 +7332,10 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   grid-template-columns: repeat(var(--ww-cols), calc((100% - (var(--ww-cols) - 1) * 3px) / var(--ww-cols)));
   gap: 3px;
   width: 100%;
-  max-width: calc(var(--ww-cols) * 2.8rem);
+  /* A tall crossword upright pushed the wheel below the screen (a 7-row
+     grid at 375x812 put the ring at 595px): the grid gives up height first,
+     down to cells of about 1.7rem. */
+  max-width: min(calc(var(--ww-cols) * 2.8rem), max(calc(var(--ww-cols) * 1.7rem), calc((var(--app-h, 100vh) - 34rem) * var(--ww-cols) / var(--ww-rows, 5))));
   margin: 0 auto;
   perspective: 600px;
 }
@@ -7359,7 +7364,9 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 }
 .wheel-ring {
   position: relative;
-  width: min(15rem, 70vw);
+  /* A short phone (an iPhone with Safari's bars) gives the ring less, so ✓
+     and the hint stay on the first screen. */
+  width: clamp(12rem, calc(var(--app-h, 100vh) - 32rem), min(15rem, 70vw));
   aspect-ratio: 1;
   margin: 0 auto var(--sp-3);
   border-radius: 50%;
@@ -7390,6 +7397,9 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   cursor: pointer;
 }
 .wheel-letter.is-on { background: var(--accent); color: var(--accent-on); }
+/* Upright, the sticky «خروج» bar sat over ✓, the hint and ⌫ whenever the
+   crossword made the page scroll; the exit follows the tools instead. */
+#view-play-wordwheel .view-actions { position: static; }
 
 /* --- What links them? --- */
 .pin-clues { display: grid; gap: var(--sp-2); max-width: 26rem; margin: 0 auto; perspective: 700px; }
@@ -7811,6 +7821,9 @@ button.herd-group { cursor: pointer; }
   grid-template-columns: 1fr 1fr;
   gap: var(--sp-2);
 }
+/* Three buttons in two columns: the quiet "share as text" takes its own row, so
+   الأرشيف and أرقامي sit side by side instead of one alone under a hole. */
+.daily-head__actions > :first-child { grid-column: 1 / -1; }
 .solo-archive-badge {
   display: flex;
   justify-content: center;

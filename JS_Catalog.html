@@ -232,6 +232,9 @@ function readRecent() {
 
 function rememberRecent(id) {
   id = catalogHomeId(id);
+  // Tools have their own tab and never show in the home's recent row, so they
+  // must not take a game's place in it either.
+  if (CATALOG_BY_ID[id] && CATALOG_BY_ID[id].group === 'tools') return;
   const list = [id].concat(readRecent().filter(x => x !== id)).slice(0, RECENT_MAX);
   try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) {}
 }
@@ -566,7 +569,7 @@ function tonightPaint() {
     <div class="modal-icon" aria-hidden="true">🌙</div>
     <div class="sheet__title">${escapeHTML(t.tonight_title || '')}</div>
     <div class="eyebrow">${escapeHTML(t.tonight_count || '')}</div>
-    <div class="tonight-row">${TONIGHT_COUNTS.map(v => chip('count', v, v === '1' ? (t.tonight_solo || '1') : v, v === '1' ? '🧘' : '👥')).join('')}</div>
+    <div class="tonight-row">${TONIGHT_COUNTS.map(v => chip('count', v, v === '1' ? (t.tonight_solo || '1') : v, v === '1' ? '🧘' : '')).join('')}</div>
     ${needHow ? `<div class="eyebrow">${escapeHTML(t.tonight_how || '')}</div>
     <div class="tonight-row">${TONIGHT_HOWS.map(v => chip('how', v, t['mode_short_' + v] || v, PLAY_MODES[v].icon)).join('')}</div>` : ''}
     ${picks}
@@ -601,7 +604,9 @@ function renderHome() {
   const view = document.getElementById('view-menu');
   if (!view) return;
   const t = TRANSLATIONS[appState.lang];
-  const recent = readRecent();
+  // Only games: a recent tool (kept before tools stopped being remembered) would
+  // be a hidden tile, and a row of them a heading with nothing under it.
+  const recent = readRecent().filter(id => CATALOG_BY_ID[id].group !== 'tools');
 
   // A phone that has played before has been told what the app is. It gets the
   // ways in and nothing else - the mark and the name are in the header on this
@@ -893,17 +898,42 @@ function firstPlayKey(id, isRoom) {
   return id;
 }
 
-function firstPlaySteps(helpKey, lang) {
+const FIRST_PLAY_ROOM_LIST = { imposter: 1, chameleon: 1, spyfall: 1, whoami: 1, justone: 1, emoji: 1, proverbs: 1, fiveseconds: 1, stop: 1, trivia: 1, monkey: 1 };
+
+function firstPlaySteps(helpKey, lang, isRoom) {
   const rules = (typeof GAME_RULES !== 'undefined' && GAME_RULES[lang]) ? GAME_RULES[lang] : {};
   const content = rules[helpKey];
   if (!content) return [];
-  const olMatch = content.match(/<ol[^>]*>([\s\S]*?)<\/ol>/i);
-  if (!olMatch) return [];
+  // Rules with both ways put each under a sub-head; the one marked 📱 is the
+  // room's (تحدي المعلومات: the room first, then دوري المعرفة on one screen).
+  // A setup screen opens on this device, so it takes the other list.
+  // A room lobby takes the 📱 list (an <ol> or a <ul>), after the game's own
+  // first line when that list is short (فوازير إيموجي, كمّل المثل).
+  const lists = [];
+  const listRe = /(?:<p class="help-sub">([^<]*)<\/p>\s*)?<(ol|ul)[^>]*>([\s\S]*?)<\/\2>/gi;
+  for (let m = listRe.exec(content); m; m = listRe.exec(content)) lists.push({ sub: m[1] || '', tag: m[2].toLowerCase(), body: m[3] });
+  const ols = lists.filter(l => l.tag === 'ol');
+  if (!ols.length) return [];
+  const roomList = lists.find(l => /📱/.test(l.sub) && /منفصلة|من موبايله|separate|own phone/i.test(l.sub));
+  // Only where the game's own list is the pass-the-phone way: elsewhere (the
+  // duels, the room-only games) it holds the rules and the 📱 list only extras.
+  if (isRoom && !FIRST_PLAY_ROOM_LIST[helpKey]) isRoom = false;
+  const deviceList = ols.find(l => l !== roomList) || ols[0];
+  const liOf = (body) => { const out = []; const re = /<li[^>]*>([\s\S]*?)<\/li>/gi; for (let m = re.exec(body); m; m = re.exec(body)) out.push(m[1]); return out; };
+  let raw;
+  if (isRoom && roomList) {
+    raw = liOf(roomList.body);
+    if (raw.length < 3 && roomList !== ols[0] && ols[0]) raw = liOf(ols[0].body).slice(0, 1).concat(raw);
+  } else {
+    raw = liOf(deviceList.body);
+  }
   const items = [];
-  const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
-  let match;
-  while ((match = liRegex.exec(olMatch[1])) !== null && items.length < 3) {
+  for (const one of raw) {
+    if (items.length >= 3) break;
+    const match = [null, one];
     let text = match[1]
+      // A <bdi dir="ltr"> (a "+10" or "×2" in Arabic) stays held left to right as plain text.
+      .replace(/<bdi dir="ltr">([\s\S]*?)<\/bdi>/gi, '\u2066$1\u2069')
       .replace(/<[^>]+>/g, '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -920,10 +950,12 @@ function firstPlaySteps(helpKey, lang) {
   return items;
 }
 
-function firstPlayCardHtml(helpKey) {
+function firstPlayCardHtml(helpKey, isRoom) {
   if (!helpKey || (typeof firstPlaySeen === 'function' && firstPlaySeen(helpKey))) return '';
+  // أرقامي is a page of numbers, not a game: "how to play" has nothing to say there.
+  if (helpKey === 'stats') return '';
   const lang = (typeof appState !== 'undefined' && appState.lang) || 'ar';
-  const steps = firstPlaySteps(helpKey, lang);
+  const steps = firstPlaySteps(helpKey, lang, isRoom);
   if (!steps || !steps.length) return '';
   const t = (typeof TRANSLATIONS !== 'undefined' && TRANSLATIONS[lang]) ? TRANSLATIONS[lang] : {};
   const entry = (typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES.find(g => g.id === helpKey) : null)

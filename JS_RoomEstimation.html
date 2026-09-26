@@ -505,9 +505,10 @@ function esBoardHtml(state, title) {
 }
 
 /** Every round so far, as a score sheet: a row a round, a column a seat. */
-function esSheetHtml(state) {
+function esSheetHtml(state, last) {
   const s = esShared(state);
-  const hist = s.history || [];
+  // The TV has one screen and no scroll: it shows the last few rounds, the Σ row the whole game.
+  const hist = last ? (s.history || []).slice(-last) : (s.history || []);
   if (!hist.length) return '';
   const seats = [0, 1, 2, 3];
   const head = `<tr><th>#</th>${seats.map(k => `<th><bdi>${escapeHTML(esNameOf(state, k))}</bdi></th>`).join('')}</tr>`;
@@ -570,7 +571,7 @@ function esOverFrame(state) {
   const s = esShared(state);
   const t = TRANSLATIONS[appState.lang] || {};
   const w = s.winners || [];
-  const title = w.length > 1 ? esT('es_won_shared', { names: w.map(id => esNameOf(state, esSeats(state).indexOf(id))).join(' · ') })
+  const title = w.length > 1 ? esT('es_won_shared', { names: w.map(id => '\u2068' + esNameOf(state, esSeats(state).indexOf(id)) + '\u2069').join(' · ') })
     : esT('es_won', { name: esNameOf(state, esSeats(state).indexOf(w[0])) });
   const hostNext = state.youAreHost ? `<div class="btn-stack">
       <button type="button" class="btn btn--primary btn--lg" onclick="esAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
@@ -1074,11 +1075,11 @@ TV_GAMES.estimation = {
         : tvBtn(esT('es_next_round', { n: (s.round || 0) + 1 }), "esAct(this, 'nextRound')")}</div>` : '';
       return `<div class="es-tvres">
           ${over ? `<div class="tv-big-icon" aria-hidden="true">🏆</div><div class="tv-title tv-center-text">${escapeHTML(w.length > 1
-            ? esT('es_won_shared', { names: w.map(id => esNameOf(state, esSeats(state).indexOf(id))).join(' · ') })
+            ? esT('es_won_shared', { names: w.map(id => '\u2068' + esNameOf(state, esSeats(state).indexOf(id)) + '\u2069').join(' · ') })
             : esT('es_won', { name: esNameOf(state, esSeats(state).indexOf(w[0])) }))}</div>` : ''}
           <div class="es-tvres__grid">
-            <div class="tv-scale">${over ? renderPodium(state, s.board || []) : ''}${esResultHtml(state, s.results, true)}</div>
-            <div class="tv-scale">${esBoardHtml(state, over ? esT('es_final') : '')}${esSheetHtml(state)}</div>
+            <div class="tv-scale">${over ? renderPodium(state, s.board || []) : esResultHtml(state, s.results, true)}</div>
+            <div class="tv-scale">${esBoardHtml(state, over ? esT('es_final') : '')}${over ? '' : esSheetHtml(state, 4)}</div>
           </div>
           ${host}
         </div>`;

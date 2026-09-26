@@ -7133,6 +7133,15 @@ ASCII by default, so the first minified build turned each Arabic letter (two
 bytes) into `\u0627` (six): whitespace went and the page barely shrank. Pass
 `charset: 'utf8'`, and measure the gzipped size, not the character count.
 
+**"1 / 3" with spaces reads "3 / 1" in an Arabic line.** The slash joins two
+numbers only when it touches them; with spaces round it each number is a run of
+its own, and a right-to-left line lays them out right to left (measured in the
+page: the 3 sits left of the 1). "1/3" with no spaces is safe. The party games'
+counters (the relay's turn, خبّي الموبايل عن … · 1 / 4, كلمة واحدة's round,
+ارسم واكتب's chain and step) go through `ltrFrac(a, b)` in `JS_TeamRelay.html`,
+which holds them left to right (LRI … PDI); other screens still write
+`${a} / ${b}` (the TV's trivia and vote counts, among others).
+
 **One lost brace puts the rest of the stylesheet under a media query.**
 Section 34 of `Style.html` ended its `@media (prefers-reduced-motion: reduce)`
 block without its `}` and lost the `/* ====` that opened section 35's

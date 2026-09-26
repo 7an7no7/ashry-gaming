@@ -27,6 +27,8 @@ const AUDIENCE_CHEER_SET = Object.keys(AUDIENCE_SHOUTS);
 let audienceSoundAt = 0;
 const audience = { seenCheer: null, room: '' };
 
+const AUDIENCE_ORDER_NOT_SEATS = { trivia: true, emoji: true, proverbs: true, twotruths: true };
+
 /** Is this phone watching rather than playing? */
 function audienceWatching(state) {
   if (!state || state.youAreScreen || !state.game || state.phase === 'lobby') return false;
@@ -34,6 +36,9 @@ function audienceWatching(state) {
   const s = state.shared || {};
   // A table with seats: the ones not sitting at it watch.
   for (const key of ['seats', 'order']) {
+    // In these games `order` is who answered right, fastest first, or who has
+    // written - not a seating: a player who got a question wrong still plays.
+    if (key === 'order' && AUDIENCE_ORDER_NOT_SEATS[state.game]) continue;
     const list = s[key];
     if (Array.isArray(list) && list.length && list.every(x => typeof x === 'string')) {
       return list.indexOf(Room.me) === -1;
@@ -148,6 +153,8 @@ function paintAudience(state) {
 }
 
 if (typeof Room !== 'undefined') Room.onChange(paintAudience);
+// A phone turned on its side moves the tabs to a rail (and back): place the bar again.
+window.addEventListener('resize', () => { if (typeof Room !== 'undefined' && Room.isIn) paintAudience(Room.state); });
 if (typeof onLeaveScreen === 'function') onLeaveScreen(() => setTimeout(() => paintAudience(Room && Room.isIn ? Room.state : null), 0));
 // The guessing closes on the server's clock; a chip tapped late is refused there.
 </script>

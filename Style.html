@@ -109,14 +109,14 @@
   --accent-glow:   rgba(109, 40, 217, 0.28);
 
   /* --- Type scale --- */
-  --font: 'Cairo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font: 'Cairo', 'Twemoji Country Flags', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   /* Titles, numerals and anything that carries a screen are set in Baloo
      Bhaijaan 2 - a rounded Arabic-and-Latin display face that was already on
      the wire for سكرو's card numerals, so it costs nothing new. Cairo stays
      the reading face. Both are asked for as variable ranges now (300-900 and
      400-800), which is fewer bytes than the six static cuts they replaced and
      is what gives the weight scale below a floor. */
-  --font-display: 'Baloo Bhaijaan 2', 'Cairo', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Baloo Bhaijaan 2', 'Cairo', 'Twemoji Country Flags', ui-sans-serif, system-ui, sans-serif;
 
   /* --- Weight scale ---
      There was no weight under 600 anywhere in the app, so nothing could read
@@ -2913,7 +2913,8 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
   background: var(--surface-solid);
   color: var(--text-strong);
   font-family: var(--font);
-  font-size: clamp(0.55rem, 2.6vw, 0.8rem);
+  /* 13px on a 375px phone: at 2.6vw a tile's word was under 10px, too small to read at arm's length. */
+  font-size: clamp(0.7rem, 3.5vw, 0.95rem);
   font-weight: 800;
   line-height: 1.1;
   text-align: center;
@@ -3753,7 +3754,8 @@ html:has(> body.is-tv-view) { font-size: 100% !important; }
   .cn-card { aspect-ratio: 4 / 3; }
   .key { height: 3.5rem; }
   .tb-cat { min-height: 3.5rem; }
-  .tb-cell { min-height: 4rem; }
+  /* The board takes the screen's height (the play area gets the space). */
+  .tb-cell { min-height: max(4rem, calc((var(--app-h, 100dvh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 10rem) / 5)); font-size: 1.375rem; }
   .room-qr { width: min(15rem, 32vh); }
 }
 
@@ -3894,7 +3896,8 @@ body.is-tv-view .shell__main > #view-room-tv { width: 100%; max-width: none; mar
 .tv-chip.is-away { opacity: 0.45; }
 .tv-chip.is-turn { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .tv-chip.is-done { border-color: var(--success); color: var(--success-ink); }
-.herd-tv .tv-chip { flex-direction: column; gap: 0.1em; padding: 0.4em 1em; }
+.herd-tv .tv-chip { flex-direction: column; gap: 0.1em; padding: 0.4em 1em; font-size: var(--tv-md); }
+.herd-tv { gap: var(--tv-gap); }
 .herd-tv__names { color: var(--text-2); font-size: 0.7em; font-weight: 600; }
 .tv-chip__score {
   padding: 0 0.45em;
@@ -4261,7 +4264,7 @@ body.is-tv-view .scoreboard > .section__head { grid-column: 1 / -1; }
    the play area gets the space): the four answers take the height left under
    it, and read bigger for it, instead of four short tiles over an empty half. */
 .tv-trivia > .tv-question { font-size: clamp(1.4rem, 5.4vmin, 4.8rem); }
-.tv-trivia > .tv-choices { flex: 1 1 auto; grid-auto-rows: minmax(clamp(64px, 13vmin, 230px), 1fr); }
+.tv-trivia > .tv-choices { flex: 1 1 auto; grid-auto-rows: minmax(clamp(64px, 13vmin, 230px), 1fr); padding: 2.4vmin; /* room for the right answer's ring, or the stage's scroll edge clips it */ }
 .tv-trivia > .tv-choices .tv-choice { font-size: var(--tv-lg); }
 .tv-choice__count {
   flex: none;
@@ -4617,6 +4620,17 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 .audience__cheer:active { transform: scale(0.85); }
 /* The page scrolls clear of the bar: its foot padding grows by the bar's height. */
 body.has-audience .shell__main { --main-pb: 9rem; }
+/* With the nav as a rail there is no bar at the foot to sit above: the audience
+   keeps clear of the rail, and on a phone on its side its two rows sit side by
+   side so it covers a strip of the board rather than a third of it. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .audience { inset-inline-start: calc(var(--rail-w) + var(--sp-3)); }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .audience { flex-direction: row; align-items: center; max-width: 44rem; padding-block: var(--sp-1); }
+  .audience__row { flex: 1 1 0; }
+  body.has-audience .shell__main { --main-pb: 5rem; }
+}
 
 .audience-float {
   position: fixed;
@@ -6453,6 +6467,8 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   100% { border-color: var(--border); }
 }
 .scoreboard [data-count] { font-variant-numeric: tabular-nums; }
+/* A vote's result list is followed straight by the board: give the board's title room. */
+.result-list + .scoreboard { margin-top: var(--sp-6); }
 
 /* A vote's result: the bars grow one at a time from the bottom of the list up,
    and the winner's comes last, after a beat (voteRevealTimes sets --at). */
@@ -7343,7 +7359,10 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   grid-template-columns: repeat(var(--ww-cols), calc((100% - (var(--ww-cols) - 1) * 3px) / var(--ww-cols)));
   gap: 3px;
   width: 100%;
-  max-width: calc(var(--ww-cols) * 2.8rem);
+  /* A tall crossword upright pushed the wheel below the screen (a 7-row
+     grid at 375x812 put the ring at 595px): the grid gives up height first,
+     down to cells of about 1.7rem. */
+  max-width: min(calc(var(--ww-cols) * 2.8rem), max(calc(var(--ww-cols) * 1.7rem), calc((var(--app-h, 100vh) - 34rem) * var(--ww-cols) / var(--ww-rows, 5))));
   margin: 0 auto;
   perspective: 600px;
 }
@@ -7372,7 +7391,9 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 }
 .wheel-ring {
   position: relative;
-  width: min(15rem, 70vw);
+  /* A short phone (an iPhone with Safari's bars) gives the ring less, so ✓
+     and the hint stay on the first screen. */
+  width: clamp(12rem, calc(var(--app-h, 100vh) - 32rem), min(15rem, 70vw));
   aspect-ratio: 1;
   margin: 0 auto var(--sp-3);
   border-radius: 50%;
@@ -7403,6 +7424,9 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   cursor: pointer;
 }
 .wheel-letter.is-on { background: var(--accent); color: var(--accent-on); }
+/* Upright, the sticky «خروج» bar sat over ✓, the hint and ⌫ whenever the
+   crossword made the page scroll; the exit follows the tools instead. */
+#view-play-wordwheel .view-actions { position: static; }
 
 /* --- What links them? --- */
 .pin-clues { display: grid; gap: var(--sp-2); max-width: 26rem; margin: 0 auto; perspective: 700px; }
@@ -7492,7 +7516,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .cs-seat-row > :not(.cs-seat-row__name) { flex: 0 0 auto; margin-inline-start: auto; }
 .cs-seat-row:last-child { border-bottom: 0; }
 .cs-seat-row__name { min-width: 0; overflow: hidden; color: var(--text-strong); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.cs-seat-row__cells { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--sp-2); }
+.cs-seat-row__cells { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--sp-2); max-width: 100%; }
 /* سكرو on the table: the name with its result badges under it, the stepper beside. */
 .sk-seat-row { flex-wrap: nowrap; }
 .sk-seat-row > .sk-seat-row__who { display: flex; flex: 1 1 auto; flex-direction: column; align-items: flex-start; gap: 0.25rem; min-width: 0; margin: 0; }
@@ -7824,6 +7848,9 @@ button.herd-group { cursor: pointer; }
   grid-template-columns: 1fr 1fr;
   gap: var(--sp-2);
 }
+/* Three buttons in two columns: the quiet "share as text" takes its own row, so
+   الأرشيف and أرقامي sit side by side instead of one alone under a hole. */
+.daily-head__actions > :first-child { grid-column: 1 / -1; }
 .solo-archive-badge {
   display: flex;
   justify-content: center;
@@ -15360,6 +15387,9 @@ button.ch4-seat__btn { cursor: pointer; }
   font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
   cursor: pointer; text-decoration: underline dotted; text-decoration-color: var(--text-3);
   text-underline-offset: 0.2em;
+  /* A name is ~21px tall: the padding takes the tap to the 44px floor and the
+     negative margin gives the space back, so nothing around it moves. */
+  padding: 0.75rem 0.5rem; margin: -0.75rem -0.5rem;
 }
 .room-name-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .tv-lobby .room-hub-back { margin-bottom: var(--sp-2); }

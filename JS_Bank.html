@@ -48,7 +48,7 @@ function bankT(key, vars) {
 const bankFmt = (n) => (Math.round(Number(n) || 0)).toLocaleString('en-US');
 const bankMoney = (n) => bankT('bank_money', { n: bankFmt(n) });
 const bankSqName = (i) => { const q = BANK_SQUARES[i]; return q && q.n ? q.n[appState.lang === 'en' ? 1 : 0] : ''; };
-const bankCardText = (deck, k) => { const c = (BANK_CARDS[deck] || [])[k]; return c ? (appState.lang === 'en' ? c.en : c.ar) : ''; };
+const bankCardText = (deck, k, g) => { let c = (BANK_CARDS[deck] || [])[k]; if (c && c.one && bankOneDie(g)) c = c.one; return c ? (appState.lang === 'en' ? c.en : c.ar) : ''; };
 const bankSeatHex = (g, pid) => BANK_SEAT_HEX[Math.max(0, g.seats.indexOf(pid)) % BANK_SEAT_HEX.length];
 const bankTokenOf = (g, pid) => BANK_TOKEN_ICON[(g.tokens || {})[pid]] || '●';
 const bankLevelWord = (lvl) => bankT(['bank_lvl_0', 'bank_lvl_1', 'bank_lvl_2', 'bank_lvl_3'][lvl] || 'bank_lvl_0');
@@ -196,10 +196,10 @@ function bankDeedHtml(i, g) {
     </div>`;
 }
 
-function bankCardHtml(deck, k) {
+function bankCardHtml(deck, k, g) {
   return `<div class="bank-card bank-card--${deck}">
       <div class="bank-card__head">${bankIcon(deck)}<span>${escapeHTML(bankT(deck === 'luck' ? 'bank_luck' : 'bank_court'))}</span></div>
-      <p class="bank-card__text">${escapeHTML(bankCardText(deck, k))}</p>
+      <p class="bank-card__text">${escapeHTML(bankCardText(deck, k, g))}</p>
     </div>`;
 }
 
@@ -209,7 +209,7 @@ function bankMidHtml(g, c) {
   const sel = c.sel;
   if (sel !== null && sel !== undefined && bankIsOwnable(sel)) panel = bankDeedHtml(sel, g);
   else if (sel !== null && sel !== undefined) panel = `<div class="bank-mid__note">${bankIcon(BANK_SQUARES[sel].t === 'st' ? 'train' : BANK_SQUARES[sel].t, 'bank-ic bank-ic--big')}<b>${escapeHTML(bankSqName(sel))}</b><span>${escapeHTML(bankT('bank_sq_' + BANK_SQUARES[sel].t))}</span></div>`;
-  else if (g.landed && g.landed.deck) panel = bankCardHtml(g.landed.deck, g.landed.card);
+  else if (g.landed && g.landed.deck) panel = bankCardHtml(g.landed.deck, g.landed.card, g);
   else if (g.landed && bankIsOwnable(g.landed.sq)) panel = bankDeedHtml(g.landed.sq, g);
   else if (g.landed) panel = `<div class="bank-mid__note">${bankIcon(BANK_SQUARES[g.landed.sq].t, 'bank-ic bank-ic--big')}<b>${escapeHTML(bankSqName(g.landed.sq))}</b><span>${escapeHTML(bankT('bank_sq_' + BANK_SQUARES[g.landed.sq].t))}</span></div>`;
   else panel = `<div class="bank-mid__brand">${escapeHTML(bankT('setup_bank'))}</div>${c.tv ? '' : `<p class="bank-mid__hint">${escapeHTML(bankT('bank_tap_square'))}</p>`}`;
@@ -418,7 +418,7 @@ function bankEventText(c, e) {
     case 'buy': return '🏠 ' + bankT('bank_ev_buy', { name: n(e.pid), place: bankSqName(e.sq), n: bankFmt(e.price) });
     case 'rent': return e.amount ? '💵 ' + bankT('bank_ev_rent', { name: n(e.pid), other: n(e.to), n: bankFmt(e.amount) }) : '';
     case 'tax': return '🧾 ' + bankT('bank_ev_tax', { name: n(e.pid), n: bankFmt(e.amount) });
-    case 'card': return (e.deck === 'luck' ? '❓ ' : '⚖️ ') + n(e.pid) + ': ' + bankCardText(e.deck, e.card);
+    case 'card': return (e.deck === 'luck' ? '❓ ' : '⚖️ ') + n(e.pid) + ': ' + bankCardText(e.deck, e.card, c.g);
     case 'start': return '💰 ' + bankT(e.first ? 'bank_ev_start_first' : 'bank_ev_start', { name: n(e.pid), n: bankFmt(e.amount) });
     case 'notYet': return '🔄 ' + bankT('bank_ev_not_yet', { name: n(e.pid), place: bankSqName(e.sq) });
     case 'jail': return '🔒 ' + bankT(e.why === 'three' ? (bankOneDie(c.g) ? 'bank_ev_jail_three6' : 'bank_ev_jail_three') : 'bank_ev_jail', { name: n(e.pid) });
@@ -701,6 +701,8 @@ function bankAfterPaint(root, c) {
       if (typeof was === 'number' && was !== now && moving && typeof countUp === 'function') {
         el.textContent = bankFmt(was);
         bankFx.timers.push(setTimeout(() => countUp(el, was, now), delay));
+        // countUp lands on the bare number ("1150"); the chip writes money with its comma ("1,150").
+        bankFx.timers.push(setTimeout(() => { if (el.isConnected) el.textContent = bankFmt(now); }, delay + 1100));
       }
     });
   };

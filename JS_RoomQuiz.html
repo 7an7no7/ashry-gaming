@@ -119,7 +119,7 @@ function quizGame(game) {
       const s = state.shared;
       const inRound = (s.roster || []).indexOf(Room.me) !== -1;
       const head = `<div class="cn-score">
-          <span class="cn-score__role">${s.qIndex + 1} / ${s.total}</span>
+          <span class="cn-score__role">${ltrFrac(s.qIndex + 1, s.total)}</span>
           <span id="quiz-clock" class="badge badge--accent">${s.seconds || ''}</span>
         </div>`;
 
@@ -218,7 +218,7 @@ function quizTv(game) {
     frame(state, t) {
       const s = state.shared;
       const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
-      const top = `<div class="tv-top"><span class="tv-pill">${s.qIndex + 1} / ${s.total}</span>${s.phase === 'answering' ? `<span id="quiz-clock" class="tv-pill tv-pill--clock">${s.seconds}</span>` : ''}</div>`;
+      const top = `<div class="tv-top"><span class="tv-pill">${ltrFrac(s.qIndex + 1, s.total)}</span>${s.phase === 'answering' ? `<span id="quiz-clock" class="tv-pill tv-pill--clock">${s.seconds}</span>` : ''}</div>`;
       if (s.phase === 'answering') {
         const names = (id) => ((state.players.find(p => p.id === id)) || {}).name || '';
         return `

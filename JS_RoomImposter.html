@@ -115,22 +115,22 @@ function renderImposterReveal(el, state, t) {
            </div>`
         : `<div class="role-card ${isSpy ? 'role-card--spy' : ''} animate-pop">
              <div class="role-card__label">${isSpy ? (t.you_are_spy || 'أنت الجاسوس') : (t.secret_word || 'الكلمة السرية')}</div>
-             <div class="role-card__value">${isSpy ? '🕵️‍♂️' : escapeHTML(you.word || '')}</div>
+             <div class="role-card__value">${isSpy ? `<span class="role-card__art" aria-hidden="true">${iconHtml('art:imposter')}</span>` : escapeHTML(you.word || '')}</div>
              ${isSpy ? `<div class="role-card__hint">${t.spy_hint || 'حاول أن تعرف الكلمة دون أن ينكشف أمرك'}</div>` : ''}
            </div>`)
     : `<button class="role-card role-card--closed" onclick="imposterFlipCard()">
-         <div class="role-card__value">🎴</div>
+         <div class="role-card__art" aria-hidden="true">${iconHtml('art:imposter')}</div>
          <div class="role-card__label">${t.tap_to_reveal || 'اضغط لكشف دورك'}</div>
        </button>`;
 
   renderRoomFrame(el, 'reveal|' + imposterCardOpen + '|' + isSpy + '|' + undercover + '|' + state.youAreHost, () => `
-    <div class="card" style="text-align:center">
+    <div class="card room-role" style="text-align:center">
       ${state.shared.category ? `<div class="eyebrow">${escapeHTML(state.shared.category)}</div>` : ''}
       ${face}
     </div>
     ${state.youAreHost
       ? `<button onclick="roomAct('beginDiscussion')" class="btn btn--primary btn--lg">${t.start_discussion || 'ابدأ النقاش'}</button>`
-      : `<div class="waiting-note"><span class="animate-pulse">⏳</span> ${t.room_wait_host}</div>`}
+      : `<div class="waiting-note"><span class="animate-pulse">⏳</span> ${escapeHTML(t.imp_wait_discuss || t.room_wait_host || '')}</div>`}
     ${renderRoomPlayerStrip(state)}`);
 }
 

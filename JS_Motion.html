@@ -414,10 +414,24 @@ function spyRevealParts(key, label) {
   if (!motionFirst(key)) return { cls: '', attrs: '', cover: '', ms: 0 };
   // Three soft ticks while it lies face down: a drumroll the table hears together.
   [0, 380, 760].forEach((ms) => setTimeout(() => { if (!document.hidden) playSound('tick'); }, ms));
+  // The cover is taken away by its animation; a timer takes it away too, since
+  // an animation that never runs (a hidden tab, a stalled compositor) never ends
+  // (the design review, 26 Sep 2026: every end state also set by a timer).
+  const coverId = 'sr' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  // A card whose turn is held back (سكرو's thief waits for the votes) is still
+  // running then: looked at again, up to a few seconds more.
+  const sweep = (tries) => {
+    document.querySelectorAll('[data-cover-id="' + coverId + '"]').forEach((el) => {
+      const busy = !document.hidden && el.getAnimations && el.getAnimations().some((a) => a.playState === 'running' || a.playState === 'pending');
+      if (busy && tries > 0) setTimeout(() => sweep(tries - 1), 500);
+      else el.remove();
+    });
+  };
+  setTimeout(() => sweep(12), SPY_REVEAL_MS + 250);
   return {
     cls: 'spy-reveal',
     attrs: 'data-reveal-ms="' + SPY_REVEAL_MS + '"',
-    cover: '<div class="spy-reveal__cover" aria-hidden="true">' +
+    cover: '<div class="spy-reveal__cover" data-cover-id="' + coverId + '" aria-hidden="true">' +
              '<span class="spy-reveal__q">?</span>' +
              '<span class="spy-reveal__label">' + escapeHTML(label || '') + '</span>' +
            '</div>',

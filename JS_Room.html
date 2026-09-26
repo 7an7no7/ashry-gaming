@@ -82,7 +82,7 @@ const Room = (() => {
 
   /** POSTs to the rooms server and resolves with its answer ({ ok, ... }). */
   const request = async (path, body) => {
-    if (!BASE) throw new Error('لا يوجد اتصال بالخادم');
+    if (!BASE) throw new Error(roomErrText('net'));
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     const timer = setTimeout(() => { if (controller) controller.abort(); }, REQUEST_TIMEOUT);
     let res;
@@ -95,13 +95,13 @@ const Room = (() => {
         signal: controller ? controller.signal : undefined
       });
     } catch (err) {
-      throw new Error(err && err.name === 'AbortError' ? 'انتهت مهلة الاتصال' : 'تعذر الاتصال بالخادم');
+      throw new Error(roomErrText(err && err.name === 'AbortError' ? 'timeout' : 'net'));
     } finally {
       clearTimeout(timer);
     }
     let data = null;
     try { data = await res.json(); } catch (e) {}
-    if (!data) throw new Error('تعذر الاتصال بالخادم');
+    if (!data) throw new Error(roomErrText('net'));
     return data;
   };
 
@@ -297,7 +297,7 @@ const Room = (() => {
     clearTimeout(waiter.timer);
     if (msg.ok) { waiter.resolve(state); return; }
     if (msg.gone || msg.kicked) handleDropped(msg.gone ? DROPPED.gone : DROPPED.kicked);
-    waiter.reject(new Error(msg.error || 'تعذر تنفيذ الإجراء'));
+    waiter.reject(new Error(msg.error || roomErrText('action')));
   }
 
   function failPending(message) {
@@ -384,35 +384,35 @@ const Room = (() => {
     /** `screen`: this device shows the room on a big screen instead of playing in it. */
     async create(name, gameId, screen) {
       const res = await request('/create', { name: name, game: gameId || null, screen: !!screen });
-      if (!res.ok) throw new Error(res.error || 'تعذر إنشاء الغرفة');
+      if (!res.ok) throw new Error(res.error || roomErrText('create'));
       adoptSession(res, gameId);
       return res;
     },
 
     async join(code, name, screen) {
       const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name, screen: !!screen });
-      if (!res.ok) throw new Error(res.error || 'تعذر الانضمام للغرفة');
+      if (!res.ok) throw new Error(res.error || roomErrText('join'));
       adoptSession(res, res.state.game);
       return res;
     },
 
     /** Send a move. The server is authoritative: this resolves with the state after it. */
     act(action, payload) {
-      if (!session) return Promise.reject(new Error('لست في غرفة'));
+      if (!session) return Promise.reject(new Error(roomErrText('noroom')));
 
       if (connected()) {
         return new Promise((resolve, reject) => {
           const id = nextId++;
           const timer = setTimeout(() => {
             pending.delete(id);
-            reject(new Error('انتهت مهلة الاتصال'));
+            reject(new Error(roomErrText('timeout')));
             ping(3000);
           }, ACK_TIMEOUT);
           pending.set(id, { resolve, reject, timer });
           if (!send({ t: 'act', id: id, action: action, payload: payload || {} })) {
             pending.delete(id);
             clearTimeout(timer);
-            reject(new Error('انقطع الاتصال، حاول مرة أخرى'));
+            reject(new Error(roomErrText('lost')));
           }
         });
       }
@@ -425,7 +425,7 @@ const Room = (() => {
             handleDropped(res.gone ? DROPPED.gone : DROPPED.kicked);
             throw new Error(res.gone ? DROPPED.gone : DROPPED.kicked);
           }
-          if (!res.ok) throw new Error(res.error || 'تعذر تنفيذ الإجراء');
+          if (!res.ok) throw new Error(res.error || roomErrText('action'));
           if (res.state && session && notOlder(res.state)) { state = arrived(res.state); emit(false); }
           connect();
           return state;
@@ -581,6 +581,12 @@ function roomCanMenu(state, p) {
 }
 
 /** A name, as a button that opens the host's menu when it may; plain text otherwise. */
+/** A room message the phone itself says (no connection, a missing code…), in the app's language. */
+function roomErrText(key) {
+  const k = 'room_err_' + key;
+  return (TRANSLATIONS[appState.lang] || {})[k] || TRANSLATIONS.ar[k] || key;
+}
+
 function roomNameHtml(state, p, inner) {
   const text = inner === undefined ? escapeHTML(p.name) : inner;
   if (!roomCanMenu(state, p)) return text;
@@ -831,7 +837,7 @@ async function roomCreateFor(gameId) {
     setSyncing(false);
     lobbySkeleton(false);
     setView(from);
-    showToast(err.message || 'تعذر إنشاء الغرفة', 'error');
+    showToast(err.message || roomErrText('create'), 'error');
   }
 }
 
@@ -928,8 +934,8 @@ function shareAppLink() {
 async function roomJoinFromForm() {
   const code = extractRoomCode(document.getElementById('room-join-code').value);
   const name = (document.getElementById('room-join-name').value || '').trim();
-  if (code.length < 4) return showToast('اكتب كود الغرفة', 'error');
-  if (!name) return showToast('اكتب اسمك', 'error');
+  if (code.length < 4) return showToast(roomErrText('code'), 'error');
+  if (!name) return showToast(roomErrText('name'), 'error');
 
   roomName.set(name);
   setView('room-lobby');
@@ -946,12 +952,12 @@ async function roomJoinFromForm() {
     lobbySkeleton(false);
     setView('room-join');
     const msg = String(err.message || '');
-    showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? 'لا توجد غرفة بهذا الكود' : msg, 'error');
+    showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? roomErrText('notfound') : msg, 'error');
   }
 }
 
 async function roomLeave() {
-  const msg = appState.lang === 'ar' ? 'هل تريد مغادرة الغرفة؟' : 'Leave this room?';
+  const msg = appState.lang === 'ar' ? 'هتخرج من الغرفة؟' : 'Leave this room?';
   showConfirmModal(msg, async () => {
     await Room.leave();
     setView('menu');
@@ -960,11 +966,11 @@ async function roomLeave() {
 
 async function roomStartGame() {
   const game = ROOM_GAMES[Room.state && Room.state.game];
-  if (!game) return showToast('لعبة غير مدعومة', 'error');
+  if (!game) return showToast(roomErrText('game'), 'error');
   try {
     await Room.act('start', game.startPayload ? game.startPayload() : {});
   } catch (err) {
-    showToast(err.message || 'تعذر بدء اللعبة', 'error');
+    showToast(err.message || roomErrText('start'), 'error');
   }
 }
 

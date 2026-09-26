@@ -21,7 +21,7 @@ const shuffled = (arr) => {
 };
 
 const requireHost = (room, playerId) => {
-  if (room.hostId !== playerId) throw new Error('المضيف فقط يمكنه فعل ذلك');
+  if (room.hostId !== playerId) throw new Error('دي للمضيف بس');
 };
 
 /**
@@ -3372,7 +3372,7 @@ const triviaAction = (room, playerId, action, payload) => {
   if (action === 'closeQuestion') {
     // The host can end a question early. Once time is up anyone can, so a host
     // whose phone went to sleep doesn't leave the question open for good.
-    if (room.hostId !== playerId && Date.now() < s.endsAt) throw new Error('المضيف فقط يمكنه فعل ذلك');
+    if (room.hostId !== playerId && Date.now() < s.endsAt) throw new Error('دي للمضيف بس');
     closeTriviaQuestion(room);
     return;
   }
@@ -4141,7 +4141,7 @@ const quizAction = (room, playerId, action, payload) => {
 
   if (action === 'closeQuestion') {
     // The host can end a card early. Once time is up anyone can.
-    if (room.hostId !== playerId && Date.now() < s.endsAt) throw new Error('المضيف فقط يمكنه فعل ذلك');
+    if (room.hostId !== playerId && Date.now() < s.endsAt) throw new Error('دي للمضيف بس');
     closeQuizCard(room);
     return;
   }

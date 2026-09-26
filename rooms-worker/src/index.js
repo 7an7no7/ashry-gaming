@@ -109,7 +109,7 @@ async function handle(env, path, body) {
       const res = await roomStub(env, code).create(code, body.name, body.game, !!body.screen);
       if (!res.taken) return res;
     }
-    return { ok: false, error: 'تعذر إنشاء غرفة، حاول مرة أخرى' };
+    return { ok: false, error: 'معرفناش نفتح الغرفة، جرّب تاني' };
   }
 
   const code = cleanCode(body.code);
@@ -156,7 +156,7 @@ export default {
         return json(await handle(env, url.pathname, body));
       } catch (err) {
         console.error(url.pathname, err && err.stack || err);
-        return json({ ok: false, error: 'تعذر الاتصال بالخادم' }, 500);
+        return json({ ok: false, error: 'مش قادرين نوصل للسيرفر، جرّب تاني' }, 500);
       }
     }
 

@@ -114,11 +114,12 @@ function teleToolsHtml(t) {
 }
 
 /** A finished step of a chain, for the reveal: the phrase, or the drawing. */
-function teleStepHtml(step, t, big) {
+/** A step of a chain; `first`: the phrase the app dealt, which nobody wrote. */
+function teleStepHtml(step, t, big, first) {
   if (!step) return '';
   if (step.kind === 'text') {
     return `<div class="card card--accent" style="text-align:center">
-      <div class="eyebrow">${escapeHTML(step.byName ? (t.tele_wrote || '').replace('{name}', step.byName) : (t.tele_started_with || ''))}</div>
+      <div class="eyebrow">${escapeHTML(step.byName && !first ? (t.tele_wrote || '').replace('{name}', step.byName) : (t.tele_started_with || ''))}</div>
       <div class="metric metric--md metric--accent">${escapeHTML(step.text || '') || '—'}</div>
     </div>`;
   }
@@ -146,7 +147,7 @@ ROOM_GAMES.telephone = {
       // Time's up is sent by the listener below, from what was drawn or typed.
       const key = teleStepKey(state);
       const head = `<div class="cn-score">
-          <span class="cn-score__role">${escapeHTML(t.tele_step || '')} ${s.step} / ${s.steps - 1}</span>
+          <span class="cn-score__role">${escapeHTML(t.tele_step || '')} ${ltrFrac(s.step, s.steps - 1)}</span>
           <span id="tele-clock" class="badge badge--accent">${s.seconds || ''}</span>
         </div>`;
       const fresh = renderRoomFrame(el, ['tele', s.step, s.kind, !!task, sent, appState.lang].join('|'), () => {
@@ -212,7 +213,7 @@ ROOM_GAMES.telephone = {
         }
       }
       const prog = document.getElementById('tele-progress');
-      if (prog) prog.innerHTML = `<span>${escapeHTML(t.tele_progress || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</span>`;
+      if (prog) prog.innerHTML = `<span>${escapeHTML(t.tele_progress || '')}: ${ltrFrac((s.submitted || []).length, (s.roster || []).length)}</span>`;
       if (s.endsAt) armTeleClock(s.endsAt); else stopTeleClock();
       refreshRoomPlayerStrip(el, state);
       return;
@@ -226,10 +227,10 @@ ROOM_GAMES.telephone = {
       const fresh = renderRoomFrame(el, ['tele-reveal', r.chain, r.step, state.youAreHost, appState.lang].join('|'), () => `
         <div class="cn-score">
           <span class="cn-score__role">${escapeHTML((t.tele_chain_of || '').replace('{name}', chain.ownerName || ''))}</span>
-          <span class="badge badge--accent">${r.chain + 1} / ${s.chainCount || 1} · ${r.step + 1} / ${chain.steps.length}</span>
+          <span class="badge badge--accent">🔗 ${ltrFrac(r.chain + 1, s.chainCount || 1)} · ${escapeHTML(t.tele_step || '')} ${ltrFrac(r.step + 1, chain.steps.length)}</span>
         </div>
         ${r.step > 0 && chain.steps[0] ? `<p class="field__hint" style="text-align:center">${escapeHTML(t.tele_started_with || '')}: <b>${escapeHTML(chain.steps[0].text || '')}</b></p>` : ''}
-        ${teleStepHtml(step, t)}
+        ${teleStepHtml(step, t, false, r.step === 0)}
         ${state.youAreHost
           ? `<div class="btn-row" style="margin-top: var(--sp-3)">
                <button class="btn btn--ghost" onclick="roomAct('revealBack', { at: '${r.chain}:${r.step}' })" ${r.chain === 0 && r.step === 0 ? 'disabled' : ''}>${escapeHTML(t.tele_back || '')}</button>
@@ -281,7 +282,7 @@ TV_GAMES.telephone = {
         <div class="tv-center">
           <div class="tv-big-icon" aria-hidden="true">${s.kind === 'draw' ? '🎨' : '✍️'}</div>
           <div class="tv-title">${escapeHTML(s.kind === 'draw' ? (t.tele_tv_working_draw || '') : (t.tele_tv_working_write || ''))}</div>
-          <div class="tv-note">${escapeHTML(t.tele_step || '')} ${s.step} / ${s.steps - 1} · ${escapeHTML(t.tele_progress || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</div>
+          <div class="tv-note">${escapeHTML(t.tele_step || '')} ${ltrFrac(s.step, s.steps - 1)} · ${escapeHTML(t.tele_progress || '')}: ${ltrFrac((s.submitted || []).length, (s.roster || []).length)}</div>
           <div id="tele-clock" class="tv-clock">${s.seconds || ''}</div>
         </div>`;
     }
@@ -291,9 +292,9 @@ TV_GAMES.telephone = {
       const step = chain.steps[r.step] || {};
       return `
         <div class="tv-trivia">
-          <div class="tv-top"><span class="tv-pill">${escapeHTML((t.tele_chain_of || '').replace('{name}', chain.ownerName || ''))}</span><span class="tv-pill">${r.chain + 1} / ${s.chainCount || 1} · ${r.step + 1} / ${chain.steps.length}</span></div>
+          <div class="tv-top"><span class="tv-pill">${escapeHTML((t.tele_chain_of || '').replace('{name}', chain.ownerName || ''))}</span><span class="tv-pill">🔗 ${ltrFrac(r.chain + 1, s.chainCount || 1)} · ${escapeHTML(t.tele_step || '')} ${ltrFrac(r.step + 1, chain.steps.length)}</span></div>
           ${step.kind === 'text'
-            ? `<div class="tv-center"><div class="tv-eyebrow">${escapeHTML(step.byName ? (t.tele_wrote || '').replace('{name}', step.byName) : (t.tele_started_with || ''))}</div><div class="tv-title">${escapeHTML(step.text || '') || '—'}</div></div>`
+            ? `<div class="tv-center"><div class="tv-eyebrow">${escapeHTML(step.byName && r.step > 0 ? (t.tele_wrote || '').replace('{name}', step.byName) : (t.tele_started_with || ''))}</div><div class="tv-title">${escapeHTML(step.text || '') || '—'}</div></div>`
             : `<div class="tv-eyebrow tv-center-text">${escapeHTML((t.tele_drew || '').replace('{name}', step.byName || '…'))}</div><div class="tv-canvas"><canvas id="draw-canvas" width="512" height="512"></canvas></div>`}
           ${host(tvBtn(t.tele_back, `roomAct('revealBack', { at: '${r.chain}:${r.step}' })`, 'ghost') + tvBtn(t.tele_next, `roomAct('revealNext', { at: '${r.chain}:${r.step}' })`))}
         </div>`;

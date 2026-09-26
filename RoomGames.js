@@ -2040,10 +2040,10 @@ const codenamesAction = (room, playerId, action, payload) => {
 
   if (action === 'giveClue') {
     const t = teamOf(playerId);
-    if (!t || t.role !== 'spymaster') throw new Error('القائد فقط يعطي التلميح');
-    if (t.team !== s.turn) throw new Error('ليس دور فريقك');
+    if (!t || t.role !== 'spymaster') throw new Error('القائد بس اللي يقول التلميح');
+    if (t.team !== s.turn) throw new Error('مش دور فريقك');
     if (s.winner) throw new Error('انتهت اللعبة');
-    if (s.clue) throw new Error('التلميح معطى بالفعل');
+    if (s.clue) throw new Error('التلميح اتقال خلاص');
 
     const word = String(payload.word || '').trim().slice(0, 24);
     if (!word) throw new Error('اكتب التلميح');
@@ -2069,7 +2069,7 @@ const codenamesAction = (room, playerId, action, payload) => {
     // "I think it's this one": public, so the team can see where it agrees
     // before anyone commits to a card.
     const t = teamOf(playerId);
-    if (!t || t.role !== 'operative' || t.team !== s.turn) throw new Error('ليس دور فريقك');
+    if (!t || t.role !== 'operative' || t.team !== s.turn) throw new Error('مش دور فريقك');
     if (!s.clue || s.winner) throw new Error('انتظر تلميح القائد');
     const { idx } = cardAt(payload.index);
     s.marks = s.marks || {};
@@ -2086,7 +2086,7 @@ const codenamesAction = (room, playerId, action, payload) => {
     // A big screen guesses for whichever team is up: the team gathered at the TV.
     const t = isRoomScreen(room, playerId) ? { team: s.turn, role: 'operative' } : teamOf(playerId);
     if (!t || t.role !== 'operative') throw new Error('اللاعبون فقط يخمنون');
-    if (t.team !== s.turn) throw new Error('ليس دور فريقك');
+    if (t.team !== s.turn) throw new Error('مش دور فريقك');
     if (!s.clue) throw new Error('انتظر تلميح القائد');
     if (s.winner) throw new Error('انتهت اللعبة');
 
@@ -2124,7 +2124,7 @@ const codenamesAction = (room, playerId, action, payload) => {
 
   if (action === 'endTurn') {
     const t = isRoomScreen(room, playerId) ? { team: s.turn } : teamOf(playerId);
-    if (!t || t.team !== s.turn) throw new Error('ليس دور فريقك');
+    if (!t || t.team !== s.turn) throw new Error('مش دور فريقك');
     if (s.winner) throw new Error('انتهت اللعبة');
     // Passing before the clue is given would let a team skip its whole turn.
     if (!s.clue) throw new Error('انتظر تلميح القائد');

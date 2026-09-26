@@ -218,6 +218,7 @@ function renderRoomTv(state) {
   if (lobby) {
     tvClock(null);
     if (rebuilt) renderJoinQR('tv-qr', roomJoinUrl(state.code));
+    tvHubFit();
   } else if (game && game.after) {
     game.after(state, rebuilt);
   }
@@ -309,6 +310,37 @@ function tvClock(id, endsAt) {
 
 /* --- lobby ------------------------------------------------------------------- */
 
+/**
+ * The host TV's list of games is posters (section 40 of Style.html), and a TV
+ * doesn't scroll: this picks the number of columns that shows every poster,
+ * 3:4, as big as the height left under the heading allows. With few posters
+ * (a family of games open) they stop at about a fifth of the screen's height.
+ */
+function tvHubFit() {
+  const hub = document.querySelector('#view-room-tv .tv-hub');
+  if (!hub) return;
+  const stage = hub.closest('.tv-stage');
+  const side = hub.closest('.tv-lobby__side');
+  const n = hub.children.length;
+  if (!stage || !side || !n || window.matchMedia('(orientation: portrait)').matches) { hub.style.gridTemplateColumns = ''; return; }
+  const gap = parseFloat(getComputedStyle(hub).columnGap) || 0;
+  const W = hub.clientWidth;
+  const H = stage.clientHeight - (hub.getBoundingClientRect().top - side.getBoundingClientRect().top) - 2;
+  const maxW = Math.min(window.innerWidth, window.innerHeight) * 0.19;
+  let cols = Math.max(2, Math.ceil((W + gap) / (maxW + gap)));
+  for (; cols < 16; cols++) {
+    const w = (W - (cols - 1) * gap) / cols;
+    const rows = Math.ceil(n / cols);
+    if (rows * w * 4 / 3 + (rows - 1) * gap <= H) break;
+  }
+  hub.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr))';
+}
+let tvHubFitFrame = 0;
+window.addEventListener('resize', () => {
+  cancelAnimationFrame(tvHubFitFrame);
+  tvHubFitFrame = requestAnimationFrame(tvHubFit);
+});
+
 function tvLobbySig(state) {
   return [
     state.code,
@@ -360,10 +392,10 @@ function tvLobby(state, t) {
           const enough = count >= tile.min;
           const act = tile.open ? `roomHubOpen('${tile.open}')` : `roomAct('chooseGame', { game: '${g.id}' })`;
           return `
-            <button class="tv-hub__game" data-accent="${g.accent}" ${enough ? `onclick="${act}"` : 'disabled'}>
+            <button class="tv-hub__game${tile.open ? ' tv-hub__game--family' : ''}" data-accent="${g.accent}" ${enough ? `onclick="${act}"` : 'disabled'}>
               <span class="tv-hub__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
               <span class="tv-hub__name">${escapeHTML(roomHubTileName(tile, t))}</span>
-              ${enough ? '' : `<span class="tv-hub__need">${tile.min}+</span>`}
+              ${enough ? '' : `<span class="tv-hub__need">${escapeHTML(t.room_need_more ? t.room_need_more.replace('{n}', String(tile.min - count)) : tile.min + '+')}</span>`}
             </button>`;
         }).join('')}
       </div>`;

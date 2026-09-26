@@ -422,16 +422,16 @@ export class Room extends DurableObject {
     if (screen) {
       // A big screen: no name, no seat, and never a secret.
       room.screens = room.screens || [];
-      if (room.screens.length >= MAX_SCREENS) return { ok: false, error: 'اكتمل عدد الشاشات في الغرفة' };
+      if (room.screens.length >= MAX_SCREENS) return { ok: false, error: 'الغرفة فيها شاشات كفاية' };
       room.screens.push({ id: pid });
     } else {
       const name = String(rawName || '').trim().slice(0, 24);
-      if (!name) return { ok: false, error: 'اكتب اسمك أولاً' };
-      if (room.players.length >= MAX_PLAYERS) return { ok: false, error: 'الغرفة ممتلئة' };
+      if (!name) return { ok: false, error: 'اكتب اسمك الأول' };
+      if (room.players.length >= MAX_PLAYERS) return { ok: false, error: 'الغرفة اتملت' };
       // Joining mid-game is allowed: the newcomer watches until the next round.
       // أحمد and احمد are one name, as on the phone and when a screen becomes a player.
       if (room.players.some((p) => sameRoomName(p.name, name))) {
-        return { ok: false, error: 'الاسم مستخدم بالفعل في هذه الغرفة' };
+        return { ok: false, error: 'الاسم ده مستخدم في الغرفة، اختار اسم تاني' };
       }
       room.players.push({ id: pid, name });
       roomEvent(room, 'joined', { name });
@@ -558,7 +558,7 @@ export class Room extends DurableObject {
    */
   async kick(pid, payload, ws) {
     const room = this.room;
-    if (room.hostId !== pid) return { ok: false, error: 'المضيف فقط يمكنه فعل ذلك' };
+    if (room.hostId !== pid) return { ok: false, error: 'دي للمضيف بس' };
     const target = String(payload.playerId || '');
     if (target === pid) return { ok: false, error: 'مينفعش تطلّع نفسك من الغرفة' };
     const inRoom = room.players.some((p) => p.id === target) || (room.screens || []).some((s) => s.id === target);

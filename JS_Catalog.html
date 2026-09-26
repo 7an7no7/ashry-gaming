@@ -232,6 +232,9 @@ function readRecent() {
 
 function rememberRecent(id) {
   id = catalogHomeId(id);
+  // Tools have their own tab and never show in the home's recent row, so they
+  // must not take a game's place in it either.
+  if (CATALOG_BY_ID[id] && CATALOG_BY_ID[id].group === 'tools') return;
   const list = [id].concat(readRecent().filter(x => x !== id)).slice(0, RECENT_MAX);
   try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) {}
 }
@@ -566,7 +569,7 @@ function tonightPaint() {
     <div class="modal-icon" aria-hidden="true">🌙</div>
     <div class="sheet__title">${escapeHTML(t.tonight_title || '')}</div>
     <div class="eyebrow">${escapeHTML(t.tonight_count || '')}</div>
-    <div class="tonight-row">${TONIGHT_COUNTS.map(v => chip('count', v, v === '1' ? (t.tonight_solo || '1') : v, v === '1' ? '🧘' : '👥')).join('')}</div>
+    <div class="tonight-row">${TONIGHT_COUNTS.map(v => chip('count', v, v === '1' ? (t.tonight_solo || '1') : v, v === '1' ? '🧘' : '')).join('')}</div>
     ${needHow ? `<div class="eyebrow">${escapeHTML(t.tonight_how || '')}</div>
     <div class="tonight-row">${TONIGHT_HOWS.map(v => chip('how', v, t['mode_short_' + v] || v, PLAY_MODES[v].icon)).join('')}</div>` : ''}
     ${picks}
@@ -601,7 +604,9 @@ function renderHome() {
   const view = document.getElementById('view-menu');
   if (!view) return;
   const t = TRANSLATIONS[appState.lang];
-  const recent = readRecent();
+  // Only games: a recent tool (kept before tools stopped being remembered) would
+  // be a hidden tile, and a row of them a heading with nothing under it.
+  const recent = readRecent().filter(id => CATALOG_BY_ID[id].group !== 'tools');
 
   // A phone that has played before has been told what the app is. It gets the
   // ways in and nothing else - the mark and the name are in the header on this

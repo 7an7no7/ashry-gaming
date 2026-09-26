@@ -1746,6 +1746,15 @@ the word search), `countUp` for streaks and scores.
 
 ### Decided, and why
 
+- **Everything built stays, and motion is everywhere** (the owner, 26 Sep
+  2026, while approving the arcade look's follow-ups: "Everything we built
+  stays, just less in the way" and "Smooth, nice motion everywhere, on every
+  screen and not only in some games"). A simplification folds, hides or
+  reorders (behind «كل الألعاب», «خيارات أكتر», a shelf's «الكل») and never
+  removes a game, a tool, an option or a way in; every screen and popup enters
+  with motion (*The design system*, "Motion everywhere"), transform and
+  opacity only, still under reduced motion.
+
 - **The look is «د · أركيد», a game store** (the owner, 26 Sep 2026: "I don't
   like it a lot ... more premium look and easy to use"; then "you are showing
   me almost the same design but just different colors - show me 3 or 4
@@ -3062,6 +3071,23 @@ the word search), `countUp` for streaks and scores.
   Settings → الحركة → مقفولة: every screen and sheet visited ends with no
   running animation, no `translate` left and full opacity; with motion off
   nothing animates at all. No console errors.
+- **26 Sep 2026, the second wave of the arcade look** - the owner asked for
+  all seven follow-ups at once ("run sub agents to finish the work fast and
+  review their work") and added two standing rules (*Decided, and why*:
+  everything built stays, motion everywhere). Six agents in parallel: the
+  posters, setup controls, shelves and polish (one worktree), the room lobby
+  and hub (one), the motion pass (one), and three drawing icons into scratch
+  files - 68 drawn icons, integrated by a script (`ICON_ART` in JS_Core.html,
+  `icon: 'art:<id>'` in `GAME_CATALOG` and `ROOM_HUB_GAMES`; the chess clock
+  tool's is `art:chessclock`, screw-calc reuses `art:screw`), reviewed on
+  their preview sheets (two redrawn: سكرو's cards bigger, على راسك's phone as
+  the subject). Merged in three merges; one conflict (the tool icon rule in
+  section 39), resolved by hand. Tests on the merged master: `npm run check`,
+  the screen test twice (after the first merge and after the motion pass, 20
+  passed each), the rooms and fixes test after the lobby merge. The C: drive
+  filled to 0 bytes mid-wave (the owner's own videos and downloads hold most
+  of it; my Chrome profiles and stale scratch folders were what could go):
+  the tests run with their temp files on E: now (below).
 
 ## Building and Running
 
@@ -3193,6 +3219,11 @@ npm run check        # content + i18n
     kept, and Settings → الإصدار says latest, then newer.
   `ONLY=screens,rooms,fixes,site` runs some parts; `CHROME=` points at Chrome.
   About 15 minutes whole.
+- **The C: drive is nearly full on the owner's PC** (26 Sep 2026: 0 bytes free
+  at one point). `test:ui` makes a temp copy of the site and a Chrome profile
+  under `os.tmpdir()`; run it with `TEMP="E:\\ashry-tmp" TMP="E:\\ashry-tmp"`
+  (E: has hundreds of GB free), and point any headless Chrome profile of your
+  own there too. Delete Chrome profiles after every run.
 - **How long each takes**, and which to run (CLAUDE.md step 5): `npm test`
   about 9 minutes (the robots wait out the games' real clocks), `test:ui`
   about 15, `test:live` about 16 (every move crosses the internet). A small

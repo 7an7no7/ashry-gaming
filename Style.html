@@ -3896,7 +3896,8 @@ body.is-tv-view .shell__main > #view-room-tv { width: 100%; max-width: none; mar
 .tv-chip.is-away { opacity: 0.45; }
 .tv-chip.is-turn { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .tv-chip.is-done { border-color: var(--success); color: var(--success-ink); }
-.herd-tv .tv-chip { flex-direction: column; gap: 0.1em; padding: 0.4em 1em; }
+.herd-tv .tv-chip { flex-direction: column; gap: 0.1em; padding: 0.4em 1em; font-size: var(--tv-md); }
+.herd-tv { gap: var(--tv-gap); }
 .herd-tv__names { color: var(--text-2); font-size: 0.7em; font-weight: 600; }
 .tv-chip__score {
   padding: 0 0.45em;
@@ -4610,6 +4611,17 @@ body.dark .home-hero { background: linear-gradient(135deg, #5847c4 0%, #4a3fb0 5
 .audience__cheer:active { transform: scale(0.85); }
 /* The page scrolls clear of the bar: its foot padding grows by the bar's height. */
 body.has-audience .shell__main { --main-pb: 9rem; }
+/* With the nav as a rail there is no bar at the foot to sit above: the audience
+   keeps clear of the rail, and on a phone on its side its two rows sit side by
+   side so it covers a strip of the board rather than a third of it. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .audience { inset-inline-start: calc(var(--rail-w) + var(--sp-3)); }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .audience { flex-direction: row; align-items: center; max-width: 44rem; padding-block: var(--sp-1); }
+  .audience__row { flex: 1 1 0; }
+  body.has-audience .shell__main { --main-pb: 5rem; }
+}
 
 .audience-float {
   position: fixed;
@@ -6442,6 +6454,8 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   100% { border-color: var(--border); }
 }
 .scoreboard [data-count] { font-variant-numeric: tabular-nums; }
+/* A vote's result list is followed straight by the board: give the board's title room. */
+.result-list + .scoreboard { margin-top: var(--sp-6); }
 
 /* A vote's result: the bars grow one at a time from the bottom of the list up,
    and the winner's comes last, after a beat (voteRevealTimes sets --at). */

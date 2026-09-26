@@ -153,6 +153,8 @@ function paintAudience(state) {
 }
 
 if (typeof Room !== 'undefined') Room.onChange(paintAudience);
+// A phone turned on its side moves the tabs to a rail (and back): place the bar again.
+window.addEventListener('resize', () => { if (typeof Room !== 'undefined' && Room.isIn) paintAudience(Room.state); });
 if (typeof onLeaveScreen === 'function') onLeaveScreen(() => setTimeout(() => paintAudience(Room && Room.isIn ? Room.state : null), 0));
 // The guessing closes on the server's clock; a chip tapped late is refused there.
 </script>

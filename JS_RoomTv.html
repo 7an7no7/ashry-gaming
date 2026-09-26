@@ -754,7 +754,7 @@ TV_GAMES.wavelength = {
 
     let panel;
     if (s.phase === 'clue') {
-      panel = `<div class="tv-note">🧠 ${t.wl_waiting_clue || ''} ${escapeHTML(s.psychicName || '')}…</div>` +
+      panel = `<div class="tv-note">🧠 ${t.wl_waiting_clue || ''} <bdi>${escapeHTML(s.psychicName || '')}</bdi>…</div>` +
         (state.youAreHost && !wlOnline(state, s.psychicId)
           ? `<div class="tv-actions">${tvBtn(t.wl_skip_psychic, `roomAct('nextRound', ${roomNextArgs(state, { skip: true })})`, 'ghost')}</div>` : '');
     } else if (s.phase === 'dial') {
@@ -774,7 +774,7 @@ TV_GAMES.wavelength = {
     return `
       <div class="tv-wl">
         <div class="tv-top">
-          <span class="tv-pill">🧠 ${t.wl_psychic || ''}: ${escapeHTML(s.psychicName || '')}</span>
+          <span class="tv-pill">🧠 ${t.wl_psychic || ''}: <bdi>${escapeHTML(s.psychicName || '')}</bdi></span>
           <span class="tv-pill">${t.round || ''} ${s.round} · ${t.wl_team_score || ''} ${(s.scores && s.scores.team) || 0}</span>
         </div>
         ${s.clue ? `<div class="tv-question">«${escapeHTML(s.clue)}»</div>` : ''}
@@ -1063,7 +1063,7 @@ TV_GAMES.buzzer = {
       : first
         ? `<div class="tv-center tv-buzz-first"><div class="tv-big-icon" aria-hidden="true">🥇</div><div class="tv-title">${escapeHTML(first.name)}</div><div class="tv-note">${t.bz_answer_now || ''}</div></div>`
         : `<div class="tv-center"><div class="tv-big-icon tv-pulse" aria-hidden="true">🔔</div><div class="tv-title">${t.bz_tv_armed || ''}</div></div>`;
-    const queue = buzzes.slice(1, 6).map((b, i) => `<span class="tv-chip"><b>${i + 2}.</b> ${escapeHTML(b.name)}</span>`).join('');
+    const queue = buzzes.slice(1, 6).map((b, i) => `<span class="tv-chip"><b class="metric">${i + 2}</b> <bdi>${escapeHTML(b.name)}</bdi></span>`).join('');
     const last = s.last ? `<div class="tv-note tv-center-text">${s.last.ok ? '✅' : '❌'} ${escapeHTML(s.last.name)}</div>` : '';
     const host = !state.youAreHost ? '' : `
       <div class="tv-actions">
@@ -1087,7 +1087,7 @@ TV_GAMES.stop = {
   frame(state, t) {
     const s = state.shared || {};
     const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
-    const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${s.round} / ${s.rounds}</div>`;
+    const head = `<div class="tv-eyebrow tv-center-text">${t.round || ''} ${ltrFrac(s.round, s.rounds)}</div>`;
     if (s.phase === 'writing' || s.phase === 'collecting') {
       const done = s.submitted || [];
       const chips = (s.roster || []).map(id => `<span class="tv-chip ${done.indexOf(id) !== -1 ? 'is-done' : ''}">${done.indexOf(id) !== -1 ? '✅' : '✍️'} ${escapeHTML(nameOf(id))}</span>`).join('');

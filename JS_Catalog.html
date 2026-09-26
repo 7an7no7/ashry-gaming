@@ -338,16 +338,41 @@ function catalogModes(g, t) {
    two lines of description at most, and players and minutes on one line - so
    two cards in a row are always the same height. */
 function catalogCard(g, t) {
+  const players = g.players ? `<span class="gcard__badge"><span aria-hidden="true">👥</span><span class="metric">${g.players[0] === g.players[1] ? g.players[0] : g.players[0] + '–' + g.players[1]}</span></span>` : '';
   return `
-    <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
-      <span class="gcard__top">
-        <span class="gcard__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
-        <span class="gcard__modes">${catalogModes(g, t)}</span>
-      </span>
+    <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)"
+            title="${escapeHTML(catalogDesc(g, t))}">
+      <span class="gcard__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
+      ${players}
+      <span class="gcard__modes">${catalogModes(g, t)}</span>
       <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
-      <span class="gcard__desc">${escapeHTML(catalogDesc(g, t))}</span>
-      <span class="gcard__meta">${catalogMeta(g, t, false, false)}</span>
     </button>`;
+}
+
+/* The home's featured game («★ الليلة دي»): one of the starter shelf, a
+   different one each day, as a big poster with its own play button. It is a
+   .gcard with data-game, so the filters and the icon flights treat it as a
+   card (a search or a chip hides it like any other). */
+function catalogFeatured(t) {
+  const shelf = (typeof STARTER_SHELF !== 'undefined' ? STARTER_SHELF : []).map(id => CATALOG_BY_ID[id]).filter(Boolean);
+  if (!shelf.length) return '';
+  const g = shelf[Math.floor(Date.now() / 86400000) % shelf.length];
+  const modes = (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean).map(m => t[m.short] || t[m.label] || '').filter(Boolean);
+  return `
+    <div class="gcard home-feat" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
+      <span class="home-feat__art" aria-hidden="true"><span class="gcard__icon">${iconHtml(g.icon)}</span></span>
+      <span class="home-feat__fade" aria-hidden="true"></span>
+      <span class="home-feat__text">
+        <span class="home-feat__tag">★ ${escapeHTML(t.home_pick_btn || '')}</span>
+        <span class="home-feat__title">${escapeHTML(catalogTitle(g, t))}</span>
+        <span class="home-feat__desc">${escapeHTML(catalogDesc(g, t))}</span>
+        <span class="home-feat__meta">${catalogMeta(g, t, false, false)}${modes.length ? '<span class="home-feat__modes">' + escapeHTML(modes.join(' · ')) + '</span>' : ''}</span>
+        <span class="home-feat__btns">
+          <button type="button" class="home-feat__btn home-feat__btn--play" onclick="event.stopPropagation(); catalogOpen('${g.id}', this.closest('.home-feat'))">▶ ${escapeHTML(t.cat_play || '')}</button>
+          <button type="button" class="home-feat__btn home-feat__btn--other" onclick="event.stopPropagation(); tonightOpen()">🎲 ${escapeHTML(t.home_feat_other || '')}</button>
+        </span>
+      </span>
+    </div>`;
 }
 
 /* A section that holds one game shows it as a spotlight across the whole row
@@ -708,11 +733,11 @@ function renderHome() {
   const together = `
     <section class="home-hero home-hero--compact" data-accent="violet">
       <div class="together">
-        <button type="button" class="together__tile" onclick="roomCreateEmpty()">
+        ${compact ? '' : `<button type="button" class="together__tile" onclick="roomCreateEmpty()">
           <span class="together__icon" aria-hidden="true">🎮</span>
           <span class="together__name">${escapeHTML(t.room_open || '')}</span>
           <span class="together__desc">${escapeHTML(t.together_open_desc || '')}</span>
-        </button>
+        </button>`}
         <button type="button" class="together__tile" onclick="roomOpenJoin('')">
           <span class="together__icon" aria-hidden="true">📱</span>
           <span class="together__name">${escapeHTML(t.join_room_menu || '')}</span>
@@ -830,7 +855,7 @@ function renderHome() {
 
   const empty = `<div class="empty hidden" id="home-empty"><span class="empty__icon" aria-hidden="true">🔍</span>${escapeHTML(t.home_empty || '')}</div>`;
   if (compact) {
-    view.innerHTML = together + search + dailyStrip + recentRow + groups + empty;
+    view.innerHTML = catalogFeatured(t) + together + search + dailyStrip + recentRow + groups + empty;
   } else {
     // A first visit: the simple start, and the whole home folded under it.
     const total = GAME_CATALOG.filter(g => g.group !== 'tools' && !g.hub).length;
@@ -1145,17 +1170,17 @@ function catalogHeroHtml(g, t) {
   const helpKey = firstPlayKey(g.setup || g.id, false);
   const card = firstPlayCardHtml(helpKey);
   return `
-    <span class="game-hero__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
-    <span class="game-hero__text">
-      <span class="game-hero__title">${escapeHTML(catalogTitle(g, t))}</span>
-      <span class="game-hero__desc">${escapeHTML(catalogDesc(g, t))}</span>
-    </span>
+    <span class="game-hero__art" aria-hidden="true"><span class="game-hero__icon">${iconHtml(g.icon)}</span></span>
     <button type="button" class="game-hero__rules" onclick="openHelpModal()"
             title="${escapeHTML(t.hero_rules || '')}" aria-label="${escapeHTML(t.hero_rules || '')}">
       <span aria-hidden="true">📘</span>
       <span class="game-hero__rules-label">${escapeHTML(t.hero_rules || '')}</span>
     </button>
-    <span class="game-hero__meta">${catalogMeta(g, t, true, false)}${modes}</span>
+    <span class="game-hero__text">
+      <span class="game-hero__title">${escapeHTML(catalogTitle(g, t))}</span>
+      <span class="game-hero__desc">${escapeHTML(catalogDesc(g, t))}</span>
+      <span class="game-hero__meta">${catalogMeta(g, t, true, false)}${modes}</span>
+    </span>
     ${card}`;
 }
 

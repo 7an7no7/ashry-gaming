@@ -16152,4 +16152,447 @@ body.dark .start-card { background-image: radial-gradient(circle at var(--wash-x
   .modal-overlay--ghost { display: none; }
   .home-all-toggle__chev, .first-play-card__chev, .lobby-opts__chev, .setup-more__chev { transition: none; }
 }
+
+/* ==========================================================================
+   39. ARCADE - the look the owner picked on 26 Sep 2026 («د · أركيد» from a
+   sheet of four styles in three colours: colour ١ as the light theme, ٢ as
+   the dark one). A game store: every game a poster in its own colour with
+   its icon big and its name on the art, a featured poster on the home, a
+   raised «افتح غرفة» in the middle of the bar, the setup hero as a poster,
+   the Start button in amber with a glow. The type: Noto Kufi Arabic for
+   what names a screen, IBM Plex Sans Arabic for reading (Baloo stays on the
+   card games' numerals). This section comes last on purpose: it re-tokens
+   and restyles the pieces every screen is built from, and the game boards
+   (سكرو's cards, the domino table, the chess board…) keep their own sections.
+   ========================================================================== */
+:root {
+  --font: 'IBM Plex Sans Arabic', 'Twemoji Country Flags', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Noto Kufi Arabic', 'IBM Plex Sans Arabic', 'Twemoji Country Flags', ui-sans-serif, system-ui, sans-serif;
+
+  --bg:             #f6f3ff;
+  --surface:        rgba(255, 255, 255, 0.92);
+  --surface-solid:  #ffffff;
+  --surface-2:      #f2eefc;
+  --surface-3:      #ece7fa;
+  --surface-sunken: #e9e4f7;
+  --elevated:       #ffffff;
+  --border:         rgba(52, 29, 120, 0.10);
+  --border-strong:  rgba(52, 29, 120, 0.18);
+  --hairline:       rgba(52, 29, 120, 0.07);
+  --text:           #2b2352;
+  --text-2:         #5a5080;
+  --text-3:         #6b6291;
+  --text-strong:    #1d1538;
+
+  /* The amber "play": the one colour that isn't a game's, kept for the action
+     the screen exists for (Start, the featured poster's play). */
+  --pop:        #f59e0b;
+  --pop-hover:  #d97706;
+  --pop-on:     #1c1200;
+  --pop-glow:   rgba(245, 158, 11, 0.45);
+
+  --r-lg:  1.125rem;
+  --r-xl:  1.5rem;
+  --r-2xl: 1.75rem;
+
+  --sh-1: 0 1px 2px rgba(52, 29, 120, 0.06);
+  --sh-2: 0 2px 6px rgba(52, 29, 120, 0.05), 0 8px 20px -10px rgba(52, 29, 120, 0.16);
+  --sh-3: 0 4px 10px rgba(52, 29, 120, 0.06), 0 14px 34px -14px rgba(52, 29, 120, 0.28);
+  --sh-4: 0 24px 56px -14px rgba(29, 21, 56, 0.35);
+  --poster-shadow: 0 14px 30px -12px rgba(29, 21, 56, 0.45);
+  --poster-fade: rgba(10, 6, 20, 0.86);
+}
+body.dark {
+  --bg:             #0d0b16;
+  --surface:        rgba(26, 22, 48, 0.92);
+  --surface-solid:  #1a1630;
+  --surface-2:      #161228;
+  --surface-3:      #241e42;
+  --surface-sunken: #09070f;
+  --elevated:       #241e42;
+  --border:         rgba(255, 255, 255, 0.09);
+  --border-strong:  rgba(255, 255, 255, 0.18);
+  --hairline:       rgba(255, 255, 255, 0.06);
+  --text:           #ece8ff;
+  --text-2:         #b6afd6;
+  --text-3:         #9a93bf;
+  --text-strong:    #ffffff;
+  --pop:        #fbbf24;
+  --pop-hover:  #f59e0b;
+  --pop-on:     #1c1200;
+  --pop-glow:   rgba(251, 191, 36, 0.4);
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --sh-2: 0 2px 8px -2px rgba(0, 0, 0, 0.55);
+  --sh-3: 0 8px 24px -8px rgba(0, 0, 0, 0.65);
+  --sh-4: 0 20px 48px -12px rgba(0, 0, 0, 0.75);
+  --poster-shadow: 0 16px 36px -14px rgba(0, 0, 0, 0.7);
+  --poster-fade: rgba(6, 4, 14, 0.9);
+}
+
+/* The ground: a still violet glow at the top of the page, amber low on one side. */
+body::before {
+  background:
+    radial-gradient(120% 55% at 50% -10%, rgba(124, 58, 237, 0.20), transparent 60%),
+    radial-gradient(60% 40% at 100% 100%, rgba(245, 158, 11, 0.10), transparent 60%),
+    var(--bg);
+}
+body.dark::before {
+  background:
+    radial-gradient(120% 55% at 50% -10%, rgba(124, 58, 237, 0.45), transparent 60%),
+    radial-gradient(60% 40% at 100% 100%, rgba(251, 191, 36, 0.14), transparent 60%),
+    var(--bg);
+}
+
+/* --- What names a screen is set in the display face --- */
+.shell__title, .section__title, .card__title, .sheet__title, .modal-title, .tab-hero__title,
+.home-start__title, .start-card__title, .tool-name, .daily-strip__text b, .room-code, .podium__name,
+.game-hero__title, .gcard__title, .home-feat__title, .together__name {
+  font-family: var(--font-display);
+}
+/* Plex Arabic stops at 700: the heavier steps of the scale fall to it. */
+.shell__title { font-size: var(--fs-h3); }
+
+/* --- Cards and sheets: bigger corners, no hairline, a soft lift --- */
+.card { border-radius: var(--r-xl); border-color: var(--hairline); box-shadow: var(--sh-2); }
+.modal-content { border-radius: var(--r-2xl); }
+.section__head { margin-bottom: var(--sp-3); }
+.section__count { padding: 2px 8px; border-radius: var(--r-full); background: var(--surface-2); color: var(--text-2); }
+.section__rule { opacity: 0.7; }
+
+/* --- Buttons: the primary glows; Start is amber --- */
+.btn { font-family: var(--font-display); }
+.btn--primary { box-shadow: 0 10px 24px -8px var(--accent-glow), var(--sh-inset); }
+.view-actions--start .btn--primary,
+.lobby-start .btn--primary,
+.home-start__room {
+  background: linear-gradient(180deg, var(--pop), var(--pop-hover));
+  color: var(--pop-on);
+  border-color: transparent;
+  box-shadow: 0 12px 28px -8px var(--pop-glow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.view-actions--start .btn--primary:active,
+.lobby-start .btn--primary:active,
+.home-start__room:active { box-shadow: 0 4px 12px -6px var(--pop-glow); background: linear-gradient(180deg, var(--pop-hover), var(--pop-hover)); }
+.filter-chip { height: 2.5rem; border-radius: var(--r-md); }
+.filter-chip.is-active { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+.home-search input { border-radius: var(--r-md); }
+
+/* --- The bar: four tabs and the raised centre button --- */
+.shell__nav { gap: var(--sp-1); }
+.nav-item--room { flex: 0 0 auto; width: 4.5rem; justify-content: flex-end; gap: 3px; overflow: visible; }
+.nav-item--room .ripple { display: none; }
+.nav-room__btn {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-top: -1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(160deg, var(--accent-hover), var(--accent));
+  color: var(--accent-on);
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 12px 26px -8px var(--accent-glow), 0 0 0 5px var(--bg);
+  transition: transform var(--dur-2) var(--ease-spring), box-shadow var(--dur-2) var(--ease-out);
+}
+.nav-item--room .nav-label { color: var(--accent-ink); }
+.nav-item--room:active { transform: none; }
+.nav-item--room:active .nav-room__btn { transform: scale(0.9); box-shadow: 0 6px 14px -6px var(--accent-glow), 0 0 0 5px var(--bg); }
+.nav-item--room.is-active { background: transparent; box-shadow: none; }
+@media (max-width: 899px) and (min-height: 501px) {
+  .shell__nav { overflow: visible; }
+  .nav-room__btn { box-shadow: 0 12px 26px -8px var(--accent-glow), 0 0 0 4px var(--surface-solid); }
+}
+/* The rail (a phone on its side, a laptop): a round button among the tabs. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .nav-item--room { width: auto; justify-content: center; }
+  .nav-room__btn { width: 3rem; height: 3rem; margin-top: 0; font-size: 1.75rem; box-shadow: 0 8px 20px -8px var(--accent-glow); }
+}
+
+/* --- The home ---------------------------------------------------------- */
+/* The featured poster («★ الليلة دي»). */
+.home-feat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 18rem;
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-4);
+  border: 0;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  box-shadow: var(--poster-shadow);
+  text-align: start;
+  cursor: pointer;
+  aspect-ratio: auto;
+}
+.gcard.home-feat { aspect-ratio: auto; min-height: 18rem; }
+.gcard > .home-feat__art, .gcard > .home-feat__fade { position: absolute; }
+.home-feat .gcard__icon { position: static; width: auto; height: auto; padding: 0; background: none; border: 0; font-size: inherit; filter: none; }
+.home-feat__art {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: start center;
+  padding-top: var(--sp-3);
+  font-size: 6.5rem;
+  line-height: 1;
+  filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.4));
+  pointer-events: none;
+  z-index: 0;
+}
+.home-feat__art .art-icon { width: 1em; height: 1em; }
+.home-feat__fade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 28%, var(--poster-fade) 75%); pointer-events: none; z-index: 0; }
+.home-feat__text { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 3px; }
+.home-feat__tag { font-size: var(--fs-xs); font-weight: 800; letter-spacing: 0.02em; color: var(--pop); }
+.home-feat__title { font-size: 1.9rem; font-weight: 900; line-height: 1.1; color: #ffffff; }
+.home-feat__desc { font-size: var(--fs-sm); font-weight: 500; line-height: var(--lh-snug); color: rgba(255, 255, 255, 0.9); }
+.home-feat__meta { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; font-size: var(--fs-xs); font-weight: 700; color: rgba(255, 255, 255, 0.78); }
+.home-feat__meta .meta-bit .metric { color: inherit; }
+.home-feat__btns { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.home-feat__btn {
+  height: 2.625rem;
+  padding: 0 var(--sp-4);
+  border: 0;
+  border-radius: var(--r-md);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.home-feat__btn:active { transform: scale(0.95); }
+.home-feat__btn--play { background: var(--pop); color: var(--pop-on); box-shadow: 0 0 24px var(--pop-glow); }
+.home-feat__btn--other { background: rgba(255, 255, 255, 0.16); border: 1px solid rgba(255, 255, 255, 0.3); color: #ffffff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+
+/* The three ways in, as plain pills under the poster (the bar has «افتح غرفة»). */
+.home-hero--compact, body.dark .home-hero--compact { padding: 0; margin-bottom: var(--sp-3); background: none; box-shadow: none; overflow: visible; }
+.home-hero--compact::before, .home-hero--compact::after { display: none; }
+.home-hero--compact .together { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.home-all .home-hero--compact .together { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.home-hero--compact .together__tile {
+  min-height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  box-shadow: var(--sh-1);
+}
+.home-hero--compact .together__tile:active { background: var(--surface-2); }
+.home-hero--compact .together__name { font-size: var(--fs-xs); }
+.home-hero--compact .together__icon { font-size: 1rem; }
+
+/* Recents as small accent pills. */
+.recent-tile { border: 0; background: linear-gradient(150deg, var(--accent), var(--accent-hover)); color: var(--accent-on); box-shadow: var(--sh-2); }
+.daily-strip { border-radius: var(--r-lg); }
+
+/* --- Posters: every game in the grid --- */
+.gcard-grid { grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); gap: var(--sp-2); }
+.gcard {
+  min-height: 0;
+  aspect-ratio: 3 / 4;
+  justify-content: flex-end;
+  gap: 0;
+  padding: var(--sp-2);
+  border: 0;
+  border-radius: var(--r-lg);
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+  color: #ffffff;
+  box-shadow: var(--poster-shadow);
+}
+.gcard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 42%, var(--poster-fade));
+  pointer-events: none;
+  z-index: 0;
+}
+.gcard:active { transform: scale(0.96); box-shadow: var(--sh-2); border-color: transparent; }
+.gcard > .gcard__icon {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding-bottom: 2rem;
+  display: grid;
+  place-items: center;
+  font-size: 2.9rem;
+  line-height: 1;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.35));
+  z-index: 0;
+}
+.gcard__icon .art-icon { width: 1em; height: 1em; }
+.gcard > .gcard__badge {
+  position: absolute;
+  top: var(--sp-2);
+  inset-inline-start: var(--sp-2);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.36);
+  color: #ffffff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.gcard__badge .metric { font-size: inherit; color: inherit; }
+.gcard > .gcard__modes { position: absolute; top: var(--sp-2); inset-inline-end: var(--sp-2); z-index: 1; display: inline-flex; gap: 1px; padding: 0; font-size: 0.7rem; line-height: 1; opacity: 0.95; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)); }
+.gcard__title {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1.2;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  overflow-wrap: anywhere;
+}
+.gcard__desc, .gcard__meta { display: none; }
+/* A section of one game: a wide poster with its line and its play pill. */
+.gcard--spotlight { grid-column: 1 / -1; aspect-ratio: auto; flex-direction: row; align-items: center; gap: var(--sp-3); min-height: 8.5rem; padding: var(--sp-4); }
+.gcard--spotlight::before { background: linear-gradient(90deg, rgba(10, 6, 20, 0.35), rgba(10, 6, 20, 0.6)); }
+.gcard--spotlight .gcard__icon { position: relative; inset: auto; width: 5rem; height: 5rem; padding: 0; font-size: 3.5rem; flex: none; }
+.gcard--spotlight .gcard__body { position: relative; z-index: 1; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.gcard--spotlight .gcard__title { font-size: var(--fs-h2); }
+.gcard--spotlight .gcard__desc { display: block; color: rgba(255, 255, 255, 0.88); font-size: var(--fs-sm); font-weight: 500; }
+.gcard--spotlight .gcard__meta { display: flex; color: rgba(255, 255, 255, 0.78); }
+.gcard--spotlight .gcard__meta .metric { color: inherit; }
+.gcard--spotlight .gcard__cta { position: relative; z-index: 1; background: var(--pop); color: var(--pop-on); border: 0; }
+/* The first-visit start cards keep their rows, with a poster thumb and an amber go. */
+.start-card { border: 0; box-shadow: var(--sh-2); }
+.start-card__icon { width: 3.5rem; height: 3.5rem; border-radius: var(--r-md); background: linear-gradient(150deg, var(--accent), var(--accent-hover)); filter: none; font-size: 2rem; box-shadow: var(--sh-2); }
+.start-card__go { background: var(--pop); color: var(--pop-on); box-shadow: 0 6px 16px -6px var(--pop-glow); }
+.home-start { background: linear-gradient(150deg, #6d28d9 0%, #5b21b6 55%, #3b0d8e 100%); box-shadow: var(--poster-shadow); }
+body.dark .home-start { background: linear-gradient(150deg, #5b21b6 0%, #4c1d95 55%, #2e1065 100%); }
+
+/* --- The hero on a setup screen is a poster --- */
+.game-hero {
+  position: relative;
+  display: block;
+  padding: 0;
+  margin-bottom: var(--sp-4);
+  border: 0;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+}
+.game-hero__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 11.5rem;
+  background: linear-gradient(150deg, var(--accent), var(--accent-hover));
+}
+.game-hero__art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.16), transparent 30%, transparent 58%, var(--surface-solid) 90%);
+  pointer-events: none;
+}
+.game-hero__icon {
+  position: relative;
+  width: auto;
+  height: auto;
+  padding-bottom: 1.5rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 5.25rem;
+  line-height: 1;
+  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.4));
+  z-index: 1;
+}
+.game-hero__icon .art-icon { width: 1em; height: 1em; }
+.game-hero__rules {
+  position: absolute;
+  top: var(--sp-3);
+  inset-inline-start: var(--sp-3);
+  z-index: 2;
+  flex-direction: row;
+  gap: 6px;
+  min-height: 2.5rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--r-md);
+  background: rgba(0, 0, 0, 0.32);
+  color: #ffffff;
+  font-size: var(--fs-xs);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.game-hero__rules:active { background: rgba(0, 0, 0, 0.5); }
+.game-hero__rules span[aria-hidden] { font-size: 1rem; }
+.game-hero__text { position: relative; z-index: 1; margin-top: -2.25rem; padding: 0 var(--sp-4) var(--sp-3); gap: 4px; }
+.game-hero__title { font-size: 1.75rem; font-weight: 900; line-height: 1.1; }
+.game-hero__desc { font-size: var(--fs-sm); font-weight: 500; color: var(--text-2); }
+.game-hero__meta { margin-top: 6px; gap: 6px; }
+.game-hero__meta .meta-bit { padding: 4px 9px; border-radius: var(--r-full); background: var(--surface-2); color: var(--text-2); font-size: var(--fs-xs); font-weight: 700; }
+.game-hero .first-play-card { width: auto; margin: 0 var(--sp-4) var(--sp-3); }
+.game-hero .hub-ways { margin: 0 var(--sp-4) var(--sp-3); }
+
+/* --- The Together and Tools tabs' heads, and the tool rows --- */
+.tab-hero { border: 0; color: #ffffff; background: linear-gradient(150deg, var(--accent), var(--accent-hover)); box-shadow: var(--poster-shadow); }
+.tab-hero__icon { background: rgba(255, 255, 255, 0.16); border: 1px solid rgba(255, 255, 255, 0.25); font-size: 2.2rem; }
+.tab-hero__title { color: #ffffff; }
+.tab-hero__sub { color: rgba(255, 255, 255, 0.86); }
+.together-live { color: #ffffff; }
+.tool-item { border: 0; border-radius: var(--r-lg); box-shadow: var(--sh-2); }
+.tool-icon { border-radius: var(--r-md); background: linear-gradient(150deg, var(--accent), var(--accent-hover)); box-shadow: var(--sh-2); filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25)); }
+
+/* Kufi is wider than Cairo was: a row of three buttons keeps its words (حرب السفن's placing row). */
+.bs-bar .btn-row > .btn { min-width: 0; padding-inline: var(--sp-2); font-size: var(--fs-sm); }
+
+/* --- A room's code, in the display face --- */
+.room-code { font-family: var(--font-display); letter-spacing: 0.22em; }
+
+/* --- Wide: a phone on its side, tablets, laptops and the TV --- */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .gcard-grid { grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: var(--sp-3); }
+  .gcard__icon { font-size: 3.4rem; }
+  .gcard__title { font-size: var(--fs-body); }
+  .home-feat { min-height: 17rem; }
+  .home-feat__art { font-size: 9rem; }
+  .home-feat__title { font-size: 2.4rem; }
+  .game-hero__art { height: 9.5rem; }
+  .game-hero__icon { font-size: 4.5rem; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .gcard.home-feat { min-height: 13rem; }
+  .home-feat__art { font-size: 6.5rem; place-items: center end; padding: 0 var(--sp-5); }
+  .home-feat__fade { background: linear-gradient(90deg, var(--poster-fade), transparent 70%); }
+  [dir="rtl"] .home-feat__fade { background: linear-gradient(270deg, var(--poster-fade), transparent 70%); }
+  .home-feat__text { max-width: 62%; }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .gcard.home-feat { min-height: 19rem; padding: var(--sp-6); }
+  .home-feat__art { place-items: center end; padding: 0 var(--sp-8); font-size: 11rem; }
+  .home-feat__fade { background: linear-gradient(90deg, var(--poster-fade), transparent 65%); }
+  [dir="rtl"] .home-feat__fade { background: linear-gradient(270deg, var(--poster-fade), transparent 65%); }
+  .home-feat__text { max-width: 55%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-room__btn, .home-feat__btn { transition: none; }
+}
+
 </style>

@@ -1746,6 +1746,21 @@ the word search), `countUp` for streaks and scores.
 
 ### Decided, and why
 
+- **The look is «د · أركيد», a game store** (the owner, 26 Sep 2026: "I don't
+  like it a lot ... more premium look and easy to use"; then "you are showing
+  me almost the same design but just different colors - show me 3 or 4
+  different styles, each with 3 colours"). A first sheet of three re-skins
+  was rejected for that reason; the second sheet had four styles with their
+  own structure - أ a cover-card feed with shelves, ب iOS-style grouped lists,
+  ج an icon grid like a phone's home screen, د a game store with posters and a
+  raised «افتح غرفة» in the middle of the bar - each in three colours (violet
+  on light, night with amber, cream with sea-green and coral). The owner
+  picked د; the colour wasn't named, so it is built in colour ١ as the light
+  theme and ٢ as the dark one (my recommendation, said in the reply). Built as
+  section 39 of `Style.html` (*The design system*, "The arcade look"). The
+  lesson for the next sheet: a "design direction" is a different structure,
+  not a palette; put the palettes on a second axis.
+
 - **An idea from another app is rebuilt our way, never copied** (the owner, 25
   Sep 2026: "we just got the idea and built it with our style ... with special
   things that would be in our app only"). Before building anything borrowed,
@@ -3010,6 +3025,19 @@ the word search), `countUp` for streaks and scores.
   headless Chrome at 375×812, 667×375, 1280×720 and the TV at 1920×1080 and
   1280×720, Arabic light and English dark; ثلاث جولات reloaded mid-turn, on a
   ready card and in round 2.
+- **26 Sep 2026, the arcade look** - the owner asked for the whole UI style
+  rebuilt ("more premium, easy to use"). A first design sheet (three
+  re-skins of the same layout) was sent back: "the same design, just
+  different colours". The second sheet had four styles with their own
+  structure, each in three colours (a design canvas artifact, 24 boards);
+  the owner picked «د · أركيد». Built as section 39 of `Style.html` and the
+  markup of the card, the featured poster, the setup hero and the bar's
+  centre button (*The design system*, "The arcade look"; *Decided, and
+  why*). Nothing the rooms server runs changed. Looked at in headless
+  Chrome at 375×812, 667×375, 1280×720 and 1920×1080, Arabic and English,
+  light and dark: the home (first visit and returning), the setups of
+  الجاسوس, سودوكو, أونو, شطرنج and بنك الحظ, a game in play, the help sheet,
+  the settings, a room lobby with a game chosen, مع بعض and الأدوات.
 
 ## Building and Running
 
@@ -7162,6 +7190,11 @@ Descriptions are `cat_<id>` keys: one line, what you do, no emoji (the card
 draws the icon). Titles are the game's `setup_<id>` key. A game's card, its
 hero and its help entry must all agree on the icon and accent.
 
+**Since 26 Sep 2026 the cards are posters and draw no description** (*The
+design system*, the arcade look); the rule below stood from 20 Sep to then and
+still applies to the featured poster, the spotlight and the first-visit cards,
+which do draw it.
+
 **A description has two lines and no more** (20 Sep 2026). The card clamps at
 two, and the strings had been written past it: 31 of 49 in Arabic and 43 of 49
 in English ran to three, four, even five lines, so most of the grid ended in
@@ -7818,6 +7851,17 @@ your own move from the tap to the screen. Your own move is drawn at once (the
 duels' `early`, أونو's `unoOwnMoveWaiting`); other people's may wait their
 turn to animate.
 
+**A restyle section at the end of the file still loses to a heavier
+selector above it.** Section 39 (the arcade look) restyles classes the
+earlier sections placed with heavier rules: `.gcard > *:not(.ripple)` weighs
+(0,2,0), so a poster's badge placed by `.gcard__badge` stayed in the flow
+until it was placed by `.gcard > .gcard__badge`; `body.dark .home-hero`
+outweighs `.home-hero--compact`, so the compact row kept the old gradient in
+dark mode until the dark selector was written too. And inside one section
+order still counts: `.home-feat` written before `.gcard` lost `aspect-ratio`
+and `min-height` to it (`.gcard.home-feat` now). When a later rule "doesn't
+apply", compare specificity before adding `!important`.
+
 **A custom property that doesn't exist is silently nothing.** The first-play
 card used `var(--sp-3-5)` and `var(--sp-2-5)`; the scale has only whole steps
 (`--sp-1` … `--sp-9`), so its padding and gaps were 0 and its text touched
@@ -8186,6 +8230,71 @@ A branch that reopens a popup has to wait a tick (`setTimeout(…, 0)`):
 running behind it.
 
 ### The design system
+
+**The arcade look** (the owner, 26 Sep 2026: "rebuild the whole UI style ...
+more premium look and easy to use"; picked as «د · أركيد» from a sheet of four
+styles - a cover-card feed, iOS-style grouped lists, an icon grid, a game
+store - each shown in three colours; colour ١ is the light theme, ٢ the dark
+one). It is **section 39 of `Style.html`, the last section on purpose**: it
+re-tokens and restyles the pieces every screen is built from, and the game
+boards keep their own sections untouched. What it is:
+
+- **Every game is a poster** (`catalogCard`, `.gcard`): the game's own colour
+  as the ground (a gradient of `--accent` to `--accent-hover`), its icon big,
+  its name at the foot over a dark fade, the players as a badge, the mode
+  icons in the other corner; three across on a phone (`auto-fill`, 6.5rem),
+  more on a laptop. The description is the card's `title` (a tooltip) and no
+  longer drawn - the "two lines" rule below is history. A section of one game
+  is a wide poster (`.gcard--spotlight`, the same markup as before).
+- **A featured poster on the home** (`catalogFeatured`, `.home-feat`): «★
+  الليلة دي؟», one of `STARTER_SHELF` by the day of the year, with «▶ العب»
+  and «🎲 غيرها» (the tonight sheet). It is a `.gcard` with `data-game`, so a
+  search or a chip hides it like any card and the icon flight finds its
+  `.gcard__icon`. Its `min-height`, `aspect-ratio` and the art's placement
+  are on `.gcard.home-feat` (two classes: `.gcard` sets both later in the
+  section). On a phone the art sits above the text; sideways and on a laptop
+  the art sits at the inline end with the fade coming from the text's side.
+- **The bar has a raised centre button, «افتح غرفة»** (`#nav-room`,
+  `.nav-item--room`, `.nav-room__btn`, in `Controller.html` between مع بعض and
+  الأدوات): the most important action, under the thumb. In the landscape
+  rail it is a round button among the tabs. The home's compact row of ways
+  in dropped its «افتح غرفة» tile for it (three pills: join, TV, tonight);
+  the first-visit start and the مع بعض tab keep theirs.
+- **The setup hero is a poster** (`catalogHeroHtml`): `.game-hero__art`
+  (the accent gradient with the icon big, fading into the card) with the
+  rules button as a glass pill in its corner, then the title, the line and
+  the meta as pills. The `.game-hero__icon` is still what the icon flights
+  land on. The tab heads of مع بعض and الأدوات are the same kind of band.
+- **Start is amber** (`--pop`, `--pop-on`, `--pop-glow`: the one colour that
+  is no game's), on the Start bars (`.view-actions--start`, `.lobby-start`)
+  and the featured poster's play; every other primary button keeps its
+  screen's accent, with a glow.
+- **The type**: Noto Kufi Arabic (`--font-display`) on what names a screen
+  (`.shell__title`, section titles, card titles, sheet titles, the posters'
+  names, the room code, `.btn`), IBM Plex Sans Arabic (`--font`) for reading.
+  Baloo Bhaijaan 2 stays loaded for the card games' numerals, which name it
+  by name. Cairo is gone from the page; the share card and the chess canvas
+  draw with Plex. Plex Arabic stops at 700, so the scale's 800 and 900 fall
+  to it (the headings are Kufi, which goes to 900).
+- **The tokens**: a violet-white ground with a still violet glow at the top
+  and amber low at one side (`body::before`), `--surface-*` a shade of
+  violet, violet-tinted shadows and `--poster-shadow` / `--poster-fade`;
+  dark is near-black violet (`#0d0b16`) with the same glow stronger. Radii:
+  cards 24px, sheets 28px. Every `[data-accent]` palette is as it was, so the
+  game boards' colours didn't move.
+- Decided while building (each one place): the featured game rotates by the
+  day, not the phone's recents, so a table sees something new; the mode
+  icons stay on the posters (the filters need nothing, but a glance says how
+  a game plays); tool rows keep their shape with a gradient icon tile; the
+  room hub's tiles and every game screen are untouched.
+
+Traps met (each also in *Traps*): a rule on `.gcard > *:not(.ripple)`
+weighs (0,2,0), so a poster's badge must be placed with `.gcard > .gcard__badge`
+or it stays in the flow; `.home-feat` written before `.gcard` in the same
+section loses `aspect-ratio` and `min-height` to it; `body.dark .home-hero`
+outweighs `.home-hero--compact`, so the compact row's `background: none`
+needs the dark selector too; the first-play `<details>` is `width: 100%`
+and needs `width: auto` when given side margins.
 
 **Calm by default.** The backdrop is one still wash (the two cross-fading
 gradient layers were a screen that never sat still); cards are white with a

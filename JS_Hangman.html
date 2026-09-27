@@ -67,6 +67,7 @@ function hmGallowsSvg(misses, drawLast, cls) {
   return `<svg class="hm-gallows ${cls || ''} hm-s${n} ${n >= HM_MISSES ? 'is-hanged' : ''}" viewBox="0 0 110 128" aria-hidden="true" focusable="false">
       <path class="hm-gal" d="M12 122 H70"/><path class="hm-gal" d="M26 122 V10 H80"/><path class="hm-gal" d="M26 32 L48 10"/><path class="hm-gal hm-rope" d="M80 10 V24"/>
       <g class="hm-fig">${parts}</g>
+      <text class="hm-clock" x="80" y="19" text-anchor="middle" font-size="13">⏰</text>
     </svg>`;
 }
 
@@ -158,6 +159,12 @@ function hmAfterBoard(root, o) {
     if (svg && !motionOff() && o.state === 'lost') svg.classList.add('is-dropping');
     if (typeof playFx === 'function') playFx(o.state === 'lost' ? 'fail' : 'hmBoing'); else playSound(o.state === 'lost' ? 'wrong' : 'click');
     haptic(o.state === 'lost' ? 'heavy' : 'light');
+  } else if (o.timeUp) {
+    const stage = root.querySelector('.hm-stage');
+    if (stage && !motionOff()) { stage.classList.add('animate-shake'); setTimeout(() => stage.classList.remove('animate-shake'), 700); }
+    if (svg && !motionOff()) svg.classList.add('is-timeup');
+    if (typeof playFx === 'function') playFx('buzzer'); else playSound('wrong');
+    haptic('heavy');
   } else if (o.open && svg && !motionOff()) {
     svg.classList.add('is-hop');
     setTimeout(() => svg.classList.remove('is-hop'), 700);
@@ -493,7 +500,12 @@ function hmResultHtml(state, tv) {
   const s = state.shared;
   const r = s.result || {};
   const alpha = hmAlphaOf(r.word) || 'ar';
-  const rows = (r.rows || []).map(x => `<li class="hm-res is-${x.state}"><span>${x.state === 'won' ? '✅' : '💀'} ${escapeHTML(x.name)}</span><b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li>`).join('');
+  // Each row shows its player's man as the word ended: escaped (the gallows empty, the rope cut),
+  // hanged, or frozen by the clock with fewer than six pieces. The rows rise in once (motionFirst).
+  const rise = motionFirst('hmres|' + [state.code, s.dealId, s.round].join('|'));
+  const rows = (r.rows || []).map((x, i) => `<li class="hm-res is-${x.state} ${rise ? 'is-rise' : ''}" style="--at: ${i * 90}ms">
+      ${hmGallowsSvg(x.miss, false, 'hm-gallows--mini hm-gallows--res')}
+      <span class="hm-res__who">${x.state === 'won' ? '✅' : (x.miss >= HM_MISSES ? '💀' : '⏰')} ${escapeHTML(x.name)}</span><b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li>`).join('');
   const setter = r.setter && r.setterName ? `<li class="hm-res is-setter"><span>✍️ ${escapeHTML(hmT('hm_setter_pts', { name: r.setterName }))}</span><b class="metric">${r.setterPts ? '+' + r.setterPts : '0'}</b></li>` : '';
   return `<div class="card card--accent hm-result ${tv ? 'hm-result--tv' : ''}">
       <p class="eyebrow">${escapeHTML(r.cat || hmT('hm_the_word'))}</p>
@@ -586,7 +598,9 @@ function hmRoomFx(state, you) {
   return {
     newMiss: now.miss.length > was.miss.length,
     open: found.length === 1 ? found[0] : '',
-    cheer: now.state === 'won' && was.state !== 'won'
+    cheer: now.state === 'won' && was.state !== 'won',
+    // The clock ran out, or the host closed the word, on a board still guessing: no new piece, yet lost.
+    timeUp: now.state === 'lost' && was.state === 'play' && now.miss.length === was.miss.length
   };
 }
 

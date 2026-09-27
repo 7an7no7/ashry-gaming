@@ -3260,6 +3260,10 @@ the word search), `countUp` for streaks and scores.
   for all ten, the robots' race round, and the browser look above.
 - **27 Sep 2026, the content audit** (*Decided, and why*): every list the
   games deal from read word by word by eight reviewers, about 500 changes.
+- **27 Sep 2026, المشنقة's man comes alive** (*المشنقة*): the face, the sway,
+  the wave, the flapping, the wriggle, the comic end, the escape that fits
+  his pieces, the clock's freeze, the result card's rows. Looked at with
+  four phones and a TV at 375×812 Arabic light and 1280×720 English dark.
 ## Building and Running
 
 ### Development Requirements
@@ -5675,6 +5679,25 @@ The owner's rules are in *The owner's specs*.
   `result` (the word published, the points banked) and `gameover` after the
   chosen number of words. Guesses carry the word's `round`, so a tap from
   the last word is dropped.
+- **The man is alive** (the owner, 27 Sep 2026: "moving, calling for help,
+  funny, worse with every part"). Each piece is a group pivoted at its joint
+  (`transform-box: view-box`), and `hm-s<n>` on the svg is the state: a
+  face fades in with the head and worries more (a smile, flat, a frown with
+  brows, a gasp, wide eyes with sweat drops flying); the figure sways from
+  two pieces, quicker at four, wriggles at five; the right arm waves at
+  three, both flap at four; the legs kick at five. `is-hanged` (six) is
+  still: crossed eyes, the tongue out, one shoe dropped (`is-dropping`
+  plays the drop once, from `hmAfterBoard`). A found letter is a hop
+  (`is-hop`). A solve is the escape (`is-free`): the rope snaps and he
+  leaves the way his pieces allow - a head rolls off, a body tips over and
+  slides, arms crawl, one leg hops, two legs run; afterwards a won board, a
+  TV row and a result row show the gallows empty with the rope cut. A board
+  the clock or the host's close ends still guessing is frozen grey with ⏰
+  over the head (`hmRoomFx.timeUp` jolts it once); the result card's rows
+  carry each player's man (escaped, hanged or frozen) and rise in once. A
+  boing (`FX.hmBoing`) per piece and the trombone on the sixth, on the
+  guesser's own phone only. Everything is stilled under reduced motion at
+  the end of section 25. The look driver is `notes/hangman-look.mjs.txt`.
 - **`JS_Hangman.html`**: one board builder for one phone and a room
   (`hmBoardHtml`: the gallows, the tiles, the wrong letters, the keys and the
   whole-word field) and the two on one phone (`appState.hangman`, restored

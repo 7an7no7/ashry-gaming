@@ -3289,6 +3289,12 @@ the word search), `countUp` for streaks and scores.
   no caller changed. Looked at with fake boards (three, a tie, two) at 375×812
   Arabic light and 1280×720 English dark, and a trivia room of four phones
   and a TV at 1920×1080 to its podium, a reload mid-podium.
+- **27 Sep 2026, ربع قرد's monkey** (*ربع قرد*, "The living monkey"): the
+  quarters as a cartoon monkey built tail, body, arms, head, on the one-phone
+  list, a room's rows, the verdict, a monkey's own note and the TV; a quarter
+  pops in (or out when swapped back), the fourth with a chest beat. Looked at
+  on one phone (three players to a monkey, a swap, a reload) and in a room of
+  three phones and a TV, 375×812 Arabic light and 1280×720 English dark.
 ## Building and Running
 
 ### Development Requirements
@@ -4084,6 +4090,32 @@ puts them back in someone's place. A turn clock is a server deadline; with
 `autoPenalty` it costs a quarter, otherwise it only flags `timedOut` for the
 host. One-phone Monkey keeps its old helpers in `JS_Utils.html` (the reorder,
 the switch, mid-game players, the status edit, the timeout sheet).
+
+**The living monkey** (27 Sep 2026, المشنقة's cast, section 44 of `Style.html`)
+replaced ◔ ◑ ◕ 🐵. `mkFigSvg(q, { mini, tv, moment })` in `JS_Monkey.html` draws a
+player's quarters as a flat cartoon monkey that builds itself: 1 the tail, 2 the
+body with the belly and the legs, 3 the arms, 4 the head with its big ears. The
+pieces still to come are a faint dashed outline (`.mk-ghost`; a silhouette on the
+small figures), and the head's face is on that outline from the start - cheeky
+(a tongue out, one brow up) while there is hope, worried with a sweat drop at three
+quarters, a grin once whole. Decided here: the owner's order puts the head last, so
+the face lives on its ghost until then. `mkMoments(scope, quarters, onNew)` keeps
+each player's last quarters per game (one phone: `m.deal`, set at start; a room:
+`roomDealKey`) and returns a moment for a quarter given (the piece pops in from its
+joint, `.is-new`) or taken back by a swap or an undo (it pops out over its ghost,
+`.is-lost`), with `--mk-late` so a redraw carries on; the first sight plays nothing.
+Loops: the tail twitches, the body rocks; big at three quarters it scratches where
+its head will be, hangs from the branch by one arm and throws a banana peel that
+lands beside it (one 12 s loop); whole it beats its chest and jumps, and the moment
+it becomes a monkey (`.is-became`) two big jumps and a drum roll on the chest with
+«أنا قرد خلاص!». A small whole monkey sleeps, grey (`.is-asleep`, Zzz). The speech
+bubble (`mk_bub_1..4`) is on big figures only. Where: a mini on every row (one phone,
+a room) and TV chip, with «أنا قرد خلاص!» (`mk_row_monkey`) on a monkey's row (on the
+TV only for the moment it happens); big beside the verdict (the loser's), in a
+monkey's own «إنت القرد» note, and on the TV (the verdict's loser, else the player
+up). Sounds `FX.mkBoing`, `mkChest`, `mkSlide` (registered in `JS_RoomMonkey.html`,
+which loads after `JS_Sounds.html`): one phone plays them; in a room the loser's
+phone (a buzz always, the sound when there is no TV) and the TV.
 
 **زي الكل in rooms** (`herdAction`, `JS_RoomHerd.html`). One question for
 everyone ("اكتب حاجة واحدة من: فواكه"), dealt through `nextPrompt` from the

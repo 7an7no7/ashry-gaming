@@ -27,7 +27,134 @@
      ========================================================================== */
 
   const MONKEY_MODES = ['letters', 'chain', 'names'];
-  const MONKEY_STAGE_ICONS = ['', '◔', '◑', '◕', '🐵'];
+
+  /* --- the living monkey (27 Sep 2026) ----------------------------------------
+     A player's quarters as a flat cartoon monkey that builds itself a quarter at
+     a time, the way المشنقة's man does a piece a miss (look أ: ink outlines that
+     stay dark in dark mode, flat fills, dot eyes): 1 the tail, 2 the body with
+     the belly and the legs, 3 the arms, 4 the head with its big ears - the
+     whole monkey. The pieces not yet earned are a faint dashed outline (a
+     silhouette on the small figures) waiting to be filled, and the head's face
+     is there from the start: cheeky, then worried at three quarters. One
+     builder for the one-phone list, a room's rows, the verdict and the TV;
+     every loop and one-shot is CSS (Style.html section 44). */
+  const MK_PARTS = [
+    '<g class="mk-part mk-tail"><g class="mk-pop">' +
+      '<path class="mk-tl" d="M58 86 C72 93 87 84 84 70 C81 57 69 59 71 67 C72 72 79 71 78 66"/><path class="mk-tl mk-tl--in" d="M58 86 C72 93 87 84 84 70 C81 57 69 59 71 67 C72 72 79 71 78 66"/>' +
+    '</g></g>',
+    '<g class="mk-part mk-body"><g class="mk-pop">' +
+      '<ellipse class="mk-fur mk-ink" cx="50" cy="74" rx="15" ry="17"/><ellipse class="mk-belly" cx="50" cy="78" rx="9.5" ry="11"/>' +
+      '<ellipse class="mk-fur mk-ink" cx="38.5" cy="89" rx="8.5" ry="6"/><ellipse class="mk-fur mk-ink" cx="61.5" cy="89" rx="8.5" ry="6"/>' +
+      '<ellipse class="mk-belly mk-ink" cx="32" cy="95" rx="6.5" ry="3.4"/><ellipse class="mk-belly mk-ink" cx="68" cy="95" rx="6.5" ry="3.4"/>' +
+    '</g></g>',
+    '<g class="mk-part mk-arms"><g class="mk-pop">' +
+      '<g class="mk-arm mk-arm--l"><path class="mk-fur mk-ink" d="M41 60 Q30 66 29 80 L35.5 81 Q36.5 70 44 66z"/><circle class="mk-belly mk-ink" cx="32" cy="82" r="4"/></g>' +
+      '<g class="mk-arm mk-arm--r"><path class="mk-fur mk-ink" d="M59 60 Q70 66 71 80 L64.5 81 Q63.5 70 56 66z"/><circle class="mk-belly mk-ink" cx="68" cy="82" r="4"/></g>' +
+    '</g></g>',
+    '<g class="mk-part mk-head"><g class="mk-pop">' +
+      '<circle class="mk-fur mk-ink" cx="35" cy="42" r="7"/><circle class="mk-belly" cx="35" cy="42" r="3.8"/>' +
+      '<circle class="mk-fur mk-ink" cx="65" cy="42" r="7"/><circle class="mk-belly" cx="65" cy="42" r="3.8"/>' +
+      '<circle class="mk-fur mk-ink" cx="50" cy="42" r="15"/>' +
+      '<path class="mk-fur mk-ink" d="M45 29 Q47 22 50 27.5 Q53 21.5 55.5 29"/>' +
+      '<path class="mk-belly" d="M50 36 C44 30 36.5 34 38 42 C39 48 42.5 52.5 50 55 C57.5 52.5 61 48 62 42 C63.5 34 56 30 50 36z"/>' +
+      '<g class="mk-face">' +
+        '<g class="mk-eyes"><circle class="mk-eye" cx="45" cy="41.5" r="2"/><circle class="mk-eye" cx="55" cy="41.5" r="2"/></g>' +
+        '<path class="mk-eyes-shut mk-ink" d="M42.5 41.5 Q45 43.5 47.5 41.5 M52.5 41.5 Q55 43.5 57.5 41.5"/>' +
+        '<circle class="mk-eye" cx="48.5" cy="47" r="0.8"/><circle class="mk-eye" cx="51.5" cy="47" r="0.8"/>' +
+        '<path class="mk-brows mk-brows--cheeky mk-ink" d="M41.5 36.5 Q44.5 33.5 47.5 36 M53 37 L58 37"/>' +
+        '<path class="mk-brows mk-brows--worry mk-ink" d="M41 37.5 L46.5 35 M59 37.5 L53.5 35"/>' +
+        '<path class="mk-mouth mk-mouth--cheeky mk-ink" d="M44 50 Q50 55 56 49.5"/><ellipse class="mk-tongue mk-tongue--cheeky" cx="53.2" cy="53" rx="2.1" ry="2.6"/>' +
+        '<path class="mk-mouth mk-mouth--worry mk-ink" d="M44 52 Q46.5 50 49 52 Q51.5 54 54 52 Q55.5 50.8 56.5 51.5"/>' +
+        '<path class="mk-mouth mk-mouth--grin mk-ink" d="M43 48.5 Q50 58 57 48.5z"/>' +
+        '<ellipse class="mk-mouth mk-mouth--o mk-ink" cx="50" cy="51.5" rx="1.8" ry="1.4"/>' +
+        '<path class="mk-drop" d="M63 31 q-1.8 3.4 0 4.8 q1.8 -1.4 0 -4.8z"/>' +
+      '</g>' +
+    '</g></g>'
+  ];
+  // What the monkey says now and then, a line a stage (mk_bub_1 … mk_bub_4), never on the small figures.
+  const MK_STAGES = 4;
+  // How long a new (or lost) quarter's moment lasts; a redraw inside it carries on from where it was.
+  const MK_MOMENT_MS = 3000;
+
+  /**
+   * The monkey for `q` quarters (0 … 4). o: { mini, tv, moment: { from, to, late } (a quarter
+   * just given or taken back), asleep (a small whole monkey: the player is out) }.
+   */
+  function mkFigSvg(q, o) {
+    const opt = o || {};
+    const n = Math.max(0, Math.min(MK_STAGES, Number(q) || 0));
+    const mo0 = opt.moment && !motionOff() ? opt.moment : null;
+    // Drawn again later (a letter tapped under the verdict): the moment carries on, or is over.
+    const mo = mo0 && mo0.at ? (Date.now() - mo0.at < MK_MOMENT_MS ? Object.assign({}, mo0, { late: Date.now() - mo0.at }) : null) : mo0;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const parts = MK_PARTS.map((p, k) => {
+      if (k < n) {
+        const isNew = mo && mo.to > mo.from && k >= mo.from && k < mo.to;
+        return p.replace('class="mk-pop"', `class="mk-pop ${isNew ? 'is-new' : 'is-on'}"${isNew ? ` style="--mk-i: ${k - mo.from}"` : ''}`);
+      }
+      const ghost = p.replace('class="mk-pop"', 'class="mk-pop mk-ghost"');
+      // Swapped back in (or a verdict undone): the piece pops out over its ghost.
+      const lost = mo && mo.from > mo.to && k >= n && k < mo.from ? p.replace('class="mk-pop"', 'class="mk-pop is-lost"') : '';
+      return ghost + lost;
+    }).join('');
+    const small = !!opt.mini;
+    const bub = !small && n >= 1 && n <= MK_STAGES
+      ? `<g class="mk-bub" style="--mk-bub-delay: ${(n * 1.9) % 5}s"><path class="mk-bub__box" d="M-25 -5 h66 a5 5 0 0 1 5 5 v10 a5 5 0 0 1 -5 5 h-8 l4 8 l-11 -8 h-51 a5 5 0 0 1 -5 -5 v-10 a5 5 0 0 1 5 -5z"/><text class="mk-bub__t" x="8" y="9" text-anchor="middle">${escapeHTML(t['mk_bub_' + n] || '')}</text></g>`
+      : '';
+    const became = mo && mo.to >= MK_STAGES && mo.from < MK_STAGES;
+    const cls = ['mk-monkey', small ? 'mk-monkey--mini' : 'mk-big', opt.tv ? 'mk-monkey--tv' : '', 'mk-q' + n,
+      n >= MK_STAGES && (opt.asleep || small) && !became ? 'is-asleep' : '', became && !small ? 'is-became' : '', mo ? 'is-moment' : ''].join(' ');
+    const late = mo ? ` style="--mk-late: -${Math.max(0, Math.round(mo.late || 0))}ms"` : '';
+    return `<svg class="${cls}"${late} viewBox="${small ? '10 17 80 90' : '-30 -6 130 116'}" aria-hidden="true" focusable="false">
+        ${small ? '' : '<path class="mk-branch" d="M100 11 Q78 13 54 19"/><path class="mk-leaf" d="M84 12 q4 -8 12 -7 q-4 7 -12 7z M70 15 q2 7 -4 11 q-2 -7 4 -11z"/><ellipse class="mk-ground" cx="50" cy="101" rx="27" ry="3.5"/>'}
+        <g class="mk-fig"><g class="mk-act">${parts}</g></g>
+        ${small ? '' : '<g class="mk-peel"><path class="mk-peel__skin" d="M0 0 q-5 -1 -7 5 q4 -3 6 -2 q-1 4 1 7 q2 -4 1 -8 q4 0 6 4 q0 -6 -7 -6z"/></g>'}
+        <text class="mk-zzz" x="66" y="30">z</text><text class="mk-zzz mk-zzz--2" x="72" y="22">z</text>
+        ${bub}
+      </svg>`;
+  }
+
+  /**
+   * What changed in everyone's quarters since this screen last drew them: a quarter given (a
+   * piece pops in) or taken back (it pops out), remembered with when it began so a redraw
+   * inside it carries on (--mk-late). `scope` is the game (a deal); its first sight plays
+   * nothing (a reload, a late join, the TV coming on). `onNew(id, from, to)` runs once a moment.
+   */
+  const mkLive = { scope: '', seen: null, moments: {} };
+  let mkDevMo = {};
+  function mkMoments(scope, quarters, onNew) {
+    if (mkLive.scope !== scope) { mkLive.scope = scope; mkLive.seen = null; mkLive.moments = {}; }
+    const now = Date.now();
+    const cur = {};
+    Object.keys(quarters || {}).forEach(id => { cur[id] = Math.max(0, Math.min(MK_STAGES, Number(quarters[id]) || 0)); });
+    if (mkLive.seen && !motionOff()) {
+      Object.keys(cur).forEach(id => {
+        const was = mkLive.seen[id];
+        if (was === undefined || was === cur[id]) return;
+        mkLive.moments[id] = { from: was, to: cur[id], at: now };
+        if (onNew) { try { onNew(id, was, cur[id]); } catch (e) {} }
+      });
+    }
+    mkLive.seen = cur;
+    const out = {};
+    Object.keys(mkLive.moments).forEach(id => {
+      const m = mkLive.moments[id];
+      if (now - m.at > MK_MOMENT_MS || cur[id] !== m.to) { delete mkLive.moments[id]; return; }
+      out[id] = { from: m.from, to: m.to, at: m.at, late: now - m.at };
+    });
+    return out;
+  }
+
+  /** The sound of a quarter: a boing and a chirp, or the chest beat for the fourth; a quarter back, a slide. */
+  function mkMomentSound(from, to) {
+    if (typeof playFx !== 'function') return;
+    setTimeout(() => playFx(to >= MK_STAGES && from < MK_STAGES ? 'mkChest' : to > from ? 'mkBoing' : 'mkSlide'), 180);
+  }
+
+  /** The line a monkey's row carries once the player has become one. */
+  function mkRowBubHtml(t) {
+    return `<span class="mk-row-bub">${escapeHTML((t || {}).mk_row_monkey || '')}</span>`;
+  }
 
   function monkeyState() {
     const m = appState.monkey;
@@ -122,6 +249,7 @@
     m.required = '';
     m.verdict = null;
     m.phase = 'play';
+    m.deal = Date.now(); // the monkeys' memory (mkMoments) starts over with each game
     saveToLocal();
     renderMonkeyBoard();
     setView('play-monkey');
@@ -163,17 +291,24 @@
     const switchText = t.mk_switch || 'تبديل';
     const editLabel = t.edit_status || 'تعديل الحالة';
 
+    // The monkeys: a quarter given or taken back since the board was last drawn pops in or out (one phone: it is the phone).
+    const quarters = {};
+    m.players.forEach(p => { quarters[p.row] = Math.min(Math.max((p.col || 1) - 1, 0), 4); });
+    mkDevMo = mkMoments('dev|' + (m.deal || 0), quarters, (id, from, to) => mkMomentSound(from, to));
+
     div.innerHTML = m.players.map((p, idx) => {
       const isTurn = (idx === m.turnIndex);
       const stage = Math.min(Math.max((p.col || 1) - 1, 0), 4);
+      const fig = `<span class="mk-row-fig">${mkFigSvg(stage, { mini: true, moment: mkDevMo[p.row] })}</span>`;
       const actionBtn = p.isMonkey
         ? `<button onclick="openSwitchModal('${jsStringAttr(p.row)}', '${jsStringAttr(p.name)}')" class="btn btn--secondary btn--xs btn--auto">${escapeHTML(switchText)}</button>`
         : '';
       return `
-        <div class="status-row ${isTurn ? 'status-row--turn' : ''} ${stage === 4 ? 'status-row--out' : ''}">
+        <div class="status-row mk-row ${isTurn ? 'status-row--turn' : ''} ${stage === 4 ? 'status-row--out' : ''}">
+           ${fig}
            <div class="status-row__body">
              <div class="status-row__name">${escapeHTML(p.name)}${isTurn ? ' <span aria-hidden="true">⏳</span>' : ''}</div>
-             <div><span class="badge ${stageBadge[stage]}">${MONKEY_STAGE_ICONS[stage] ? MONKEY_STAGE_ICONS[stage] + ' ' : ''}${stages[stage]}</span></div>
+             <div><span class="badge ${stageBadge[stage]}">${stages[stage]}</span>${stage === 4 ? mkRowBubHtml(t) : ''}</div>
            </div>
            <div class="status-row__actions">
              ${actionBtn}
@@ -197,8 +332,12 @@
     else if (v.kind === 'monkey') text = (t.mk_v_monkey || '').replace('{name}', v.loser);
     else if (v.kind === 'flipped') text = (t.mk_v_flipped || '').replace('{name}', v.loser);
     const bad = v.kind === 'monkey';
-    return `<div class="mk-verdict ${bad ? 'mk-verdict--monkey' : ''}">
-      <span>${escapeHTML(text)}</span>
+    // The loser's monkey beside the verdict, big enough to watch the new quarter land.
+    const who = (monkeyState().players || []).find(p => p.name === v.loser);
+    const q = who ? Math.min(Math.max((who.col || 1) - 1, 0), 4) : 0;
+    const fig = who && q ? `<span class="mk-verdict__fig">${mkFigSvg(q, { moment: mkDevMo[who.row] })}</span>` : '';
+    return `<div class="mk-verdict ${fig ? 'mk-verdict--fig' : ''} ${bad ? 'mk-verdict--monkey' : ''}">
+      ${fig}<span class="mk-verdict__text">${escapeHTML(text)}</span>
       ${v.canFlip && !v.flipped ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="monkeyFlipVerdict()">${escapeHTML(t.mk_flip || '')}</button>` : ''}
     </div>`;
   }
@@ -572,7 +711,7 @@
     const stagesMap = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];
     const rows = m.players.slice().sort((a, b) => a.col - b.col).map(p => {
       const stage = Math.min(Math.max((p.col || 1) - 1, 0), 4);
-      return `<div class="flex justify-between px-3 py-2 rounded ${p.isMonkey ? 'plate-danger' : 'plate-success'}"><span>${escapeHTML(p.name)}</span><span class="font-bold">${MONKEY_STAGE_ICONS[stage] || '✅'} ${escapeHTML(stagesMap[stage])}</span></div>`;
+      return `<div class="flex justify-between px-3 py-2 rounded ${p.isMonkey ? 'plate-danger' : 'plate-success'}"><span>${escapeHTML(p.name)}</span><span class="font-bold mk-res">${stage ? `<span class="mk-res-fig">${mkFigSvg(stage, { mini: true })}</span>` : '✅'} ${escapeHTML(stagesMap[stage])}</span></div>`;
     }).join('');
     const words = m.history.filter(h => h.kind === 'word' || h.kind === 'name').map(h => h.text);
     const summary = words.length ? `<p class="field__hint" style="margin-top: var(--sp-2)">${escapeHTML(t.mk_words_said || '')}: ${escapeHTML(words.slice(0, 12).join(appState.lang === 'en' ? ', ' : '، '))}${words.length > 12 ? '…' : ''}</p>` : '';

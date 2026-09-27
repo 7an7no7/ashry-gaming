@@ -3264,6 +3264,11 @@ the word search), `countUp` for streaks and scores.
   the wave, the flapping, the wriggle, the comic end, the escape that fits
   his pieces, the clock's freeze, the result card's rows. Looked at with
   four phones and a TV at 375×812 Arabic light and 1280×720 English dark.
+- **27 Sep 2026, the podium's cheerers** (*Reveals play once per thing*):
+  a cartoon figure on every podium step, everywhere a podium is drawn, with
+  no caller changed. Looked at with fake boards (three, a tie, two) at 375×812
+  Arabic light and 1280×720 English dark, and a trivia room of four phones
+  and a TV at 1920×1080 to its podium, a reload mid-podium.
 ## Building and Running
 
 ### Development Requirements
@@ -8874,6 +8879,26 @@ lands with the answer rather than before it. The reveals:
   Ties share a place and its height. Fewer than two players or nobody scoring,
   and it returns '' so the screen keeps its plain champion line. The TV
   trivia podium rises the same way (`tv-podium--rise`).
+  **A figure of the cast stands on every step** (the owner, 27 Sep 2026, the
+  living characters; `podCastDress` in `JS_Motion.html`, section 44 of
+  `Style.html`): the winner jumps with both arms up, a crown landing on its
+  head; the second claps and nods; the third sulks with crossed arms and a
+  pout, shrugs, then claps too (a ten-second loop). Flat cartoon, المشنقة's
+  cast (ink outlines that stay dark in dark mode, skin, a shirt in the step's
+  colour: the game's accent, silver, bronze), the name's first letter on
+  the shirt. **No caller draws them**: a MutationObserver dresses any
+  `.podium` or `.tv-podium` put into the page (renderPodium's, the card
+  games', لودو's, بنك الحظ's, the tournament's, the TV trivia's) before it
+  is painted, reading the rank from `podium__place--rankN` /
+  `tv-podium__place--N`; ties each stand on their own step side by side. They
+  hop on after their step rises only under `podium--rise` /
+  `tv-podium--rise` (the caller's `motionFirst` key), so a redraw shows them
+  settled (the third starts in its clapping, `--pod-d3`). A bubble now and
+  then (`pod_bub_*`): the winner's on its own step under its feet, so no name
+  or score is covered, the third's while it sulks; never on the TV. On
+  تحدي المعلومات's TV cards the figures stand on top of the card
+  (absolute), so the steps keep their heights. `.podium--plain` opts out.
+  No sound: the callers' confetti and fanfare are the moment's.
 - **A letter** (`spinLetter`, أتوبيس كومبليت on one phone, in rooms and on
   the TV): letters from `STOP_LETTERS` flick past, slowing, and the real one
   pops in; the cue sound plays when it lands.

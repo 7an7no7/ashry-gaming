@@ -472,6 +472,99 @@ function renderPodium(state, board) {
   '</div>';
 }
 
+/* --- 9b. The podium's little cheerers ------------------------------------------
+   The owner, 27 Sep 2026 (the living characters): a figure of the cast stands on
+   every podium step - the winner jumping with both arms up and a crown landing on
+   its head, the second clapping and nodding, the third sulking with its arms
+   crossed, then shrugging and clapping too (a ten-second loop). The first letter
+   of the name is on the shirt, so it reads as that player. Nothing calls this: any
+   .podium (renderPodium, the card games', لودو's, بنك الحظ's, the tournament's) or
+   .tv-podium put into the page is dressed by the observer below, so every caller
+   keeps its markup. The figures rise with their step only when the podium does
+   (.podium--rise / .tv-podium--rise, set by the caller's motionFirst key), so a
+   redraw shows them settled. A bubble now and then on a phone, never on the TV.
+   .podium--plain keeps the old look. Style.html section 44. */
+const POD_CAST_HAIR = ['#3b2a1e', '#1f1a17', '#7a3b1d', '#5b3a24', '#2b2320'];
+function podCastSvg(rank, letter, hair) {
+  const arm = (side) => {
+    const x = side === 'l' ? 21 : 39;
+    return `<g class="pod-arm pod-arm--${side}"><path class="pod-sleeve" d="M${x} 34 V42"/><path class="pod-sleeve pod-sleeve--in" d="M${x} 34 V42"/><circle class="pod-skin pod-ink" cx="${x}" cy="43" r="3.3"/></g>`;
+  };
+  return `<svg class="pod-fig pod-fig--r${rank}" viewBox="0 -4 60 88" aria-hidden="true" focusable="false">` +
+    '<ellipse class="pod-shadow" cx="30" cy="80" rx="15" ry="2.6"/>' +
+    '<g class="pod-jump">' +
+      '<g class="pod-legs"><path class="pod-pants pod-ink" d="M22 58 L21 74 L28.5 74 L30 58z"/><path class="pod-pants pod-ink" d="M30 58 L31.5 74 L39 74 L38 58z"/>' +
+        '<ellipse class="pod-shoe" cx="24" cy="76.5" rx="5.2" ry="2.9"/><ellipse class="pod-shoe" cx="36" cy="76.5" rx="5.2" ry="2.9"/></g>' +
+      '<rect class="pod-shirt pod-ink" x="19" y="30" width="22" height="30" rx="7"/>' +
+      `<text class="pod-letter" x="30" y="58" text-anchor="middle">${escapeHTML(letter)}</text>` +
+      arm('l') + arm('r') +
+      '<g class="pod-cross"><path class="pod-sleeve" d="M20 35 Q23 41.5 37 39.5"/><path class="pod-sleeve pod-sleeve--in" d="M20 35 Q23 41.5 37 39.5"/><path class="pod-sleeve" d="M40 35 Q37 41.5 23 39.5"/><path class="pod-sleeve pod-sleeve--in" d="M40 35 Q37 41.5 23 39.5"/>' +
+        '<circle class="pod-skin pod-ink" cx="37.5" cy="39.5" r="3.2"/><circle class="pod-skin pod-ink" cx="22.5" cy="39.5" r="3.2"/></g>' +
+      '<g class="pod-head">' +
+        '<circle class="pod-skin pod-ink" cx="30" cy="19" r="10.5"/>' +
+        `<path class="pod-hair" style="fill:${hair}" d="M19.5 17 Q21 7 30 7.5 Q39 7 40.5 17 Q36 12.5 30 13.5 Q24 12.5 19.5 17z"/>` +
+        '<g class="pod-eyes"><circle class="pod-eye" cx="26" cy="19" r="1.6"/><circle class="pod-eye" cx="34" cy="19" r="1.6"/></g>' +
+        '<path class="pod-eyes-happy pod-ink" d="M23.5 19.5 Q26 16.5 28.5 19.5 M31.5 19.5 Q34 16.5 36.5 19.5"/>' +
+        '<path class="pod-brows pod-ink" d="M23 14.5 L28 16.5 M37 14.5 L32 16.5"/>' +
+        '<path class="pod-mouth pod-mouth--grin pod-ink" d="M25 23.5 Q30 30.5 35 23.5z"/>' +
+        '<path class="pod-mouth pod-mouth--smile pod-ink" d="M26 24 Q30 27.5 34 24"/>' +
+        '<path class="pod-mouth pod-mouth--sulk pod-ink" d="M26.5 26 Q30 22.5 33.5 26"/>' +
+        '<path class="pod-mouth pod-mouth--flat pod-ink" d="M26.5 25 H33.5"/>' +
+        '<path class="pod-crown pod-ink" d="M22 10 L21.5 1.5 L26 5.5 L30 -1 L34 5.5 L38.5 1.5 L38 10z"/>' +
+      '</g>' +
+    '</g></svg>';
+}
+// What they say now and then: the winner one of three lines, the third while it sulks.
+const POD_CAST_LINES = { 1: ['pod_bub_1a', 'pod_bub_1b', 'pod_bub_1c'], 3: ['pod_bub_3'] };
+/** Dresses every podium in `root` (or `root` itself) that isn't dressed yet: a figure on each step. */
+function podCastDress(root) {
+  if (!root || !root.querySelectorAll) return;
+  const list = [];
+  if (root.matches && root.matches('.podium, .tv-podium')) list.push(root);
+  list.push(...root.querySelectorAll('.podium, .tv-podium'));
+  if (!list.length) return;
+  const tv = document.body.classList.contains('is-tv-view');
+  const t = TRANSLATIONS[appState.lang] || {};
+  list.forEach((pod) => {
+    if (pod.classList.contains('podium--plain') || pod.dataset.cast) return;
+    pod.dataset.cast = '1';
+    const small = pod.classList.contains('podium');
+    pod.querySelectorAll(small ? ':scope > .podium__place' : ':scope > .tv-podium__place').forEach((place) => {
+      const m = place.className.match(small ? /podium__place--rank(\d)/ : /tv-podium__place--(\d)/);
+      const rank = m ? Number(m[1]) : 0;
+      if (!(rank >= 1 && rank <= 3)) return;
+      const nameEl = place.querySelector(small ? '.podium__name' : '.tv-podium__name');
+      const name = ((nameEl && nameEl.textContent) || '').replace(/[⁦-⁩‎‏]/g, '').trim();
+      const first = Array.from(name)[0] || '?';
+      let h = 0;
+      for (const ch of name) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+      const keys = POD_CAST_LINES[rank];
+      const bub = !tv && small && keys ? `<span class="pod-bub pod-bub--r${rank}">${escapeHTML(t[keys[Math.floor(Math.random() * keys.length)]] || '')}</span>` : '';
+      const cast = document.createElement('div');
+      cast.className = 'pod-cast';
+      cast.setAttribute('aria-hidden', 'true');
+      cast.innerHTML = podCastSvg(rank, /[a-z]/i.test(first) ? first.toUpperCase() : first, POD_CAST_HAIR[h % POD_CAST_HAIR.length]) + bub;
+      if (small) place.insertBefore(cast, place.querySelector(':scope > .podium__block'));
+      else place.insertBefore(cast, place.firstChild);
+    });
+  });
+}
+// Any podium put into the page is dressed before it is painted (a MutationObserver runs as a microtask).
+function podCastWatch() {
+  if (typeof MutationObserver !== 'function' || !document.body) return;
+  new MutationObserver((records) => {
+    for (const r of records) {
+      for (const n of r.addedNodes) {
+        if (n.nodeType !== 1) continue;
+        if (n.classList.contains('podium') || n.classList.contains('tv-podium') ||
+            n.getElementsByClassName('podium').length || n.getElementsByClassName('tv-podium').length) podCastDress(n);
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+  podCastDress(document.body);
+}
+if (document.body) podCastWatch(); else document.addEventListener('DOMContentLoaded', podCastWatch);
+
 /**
  * A title at the end of a game: "⚡ أسرع واحد · أحمد". `winner` is what the server
  * published ({ id, name, n }) or null, and null draws nothing at all rather

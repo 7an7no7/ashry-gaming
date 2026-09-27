@@ -18365,4 +18365,225 @@ body.is-tv-view .dom-rrow__none { font-size: var(--tv-sm); }
   }
 }
 
+
+/* ==========================================================================
+   44. THE PODIUM: THE LIVING CHEERERS (27 Sep 2026) - a figure of the cast
+   on every step (podCastDress in JS_Motion.html dresses any .podium or
+   .tv-podium put into the page, so no caller changed): the winner jumping
+   with both arms up and a crown landing on its head, the second clapping and
+   nodding, the third sulking with its arms crossed, then shrugging and
+   clapping too (a ten-second loop). The first letter of the name on the
+   shirt. Flat cartoon, the same cast as المشنقة's man (section 25): ink
+   outlines that stay dark in dark mode, skin, a shirt in the step's colour.
+   They rise with their step only under .podium--rise / .tv-podium--rise (the
+   caller's motionFirst key), so a redraw shows them settled; a bubble now and
+   then on a phone, never on the TV; .podium--plain keeps the old look.
+   ========================================================================== */
+:root { --pod-ink: #23213a; --pod-skin: #f6c9a5; --pod-pants: #4b5fb0; --pod-gold: #f5b400; --pod-silver: #c3cad6; --pod-bronze: #d6955a; }
+body.dark { --pod-ink: #16142a; --pod-skin: #f0bf9a; --pod-pants: #5b6fc4; }
+.podium--plain .pod-cast { display: none; }
+.pod-cast {
+  position: relative;
+  /* Over the step (the rising step is a later layer of its own): the winner's bubble sits on it. */
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  /* The feet on the step: the place's gap taken back. */
+  margin-bottom: calc(-1 * var(--sp-2));
+  pointer-events: none;
+  --pod-d1: 3s;
+  --pod-d3: -5.4s;
+}
+.pod-fig { display: block; height: 4.5rem; width: auto; overflow: visible; }
+.pod-fig--r1 { --pod-shirt: var(--accent); }
+.pod-fig--r2 { --pod-shirt: var(--pod-silver); }
+.pod-fig--r3 { --pod-shirt: var(--pod-bronze); }
+.pod-ink { stroke: var(--pod-ink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.pod-skin { fill: var(--pod-skin); }
+.pod-pants { fill: var(--pod-pants); }
+.pod-shoe, .pod-eye { fill: var(--pod-ink); }
+.pod-shadow { fill: var(--pod-ink); opacity: 0.16; }
+.pod-shirt { fill: var(--pod-shirt); }
+.pod-sleeve { fill: none; stroke: var(--pod-ink); stroke-width: 7; stroke-linecap: round; }
+.pod-sleeve--in { stroke: var(--pod-shirt); stroke-width: 3.4; }
+.pod-letter {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  fill: #fff;
+  stroke: var(--pod-ink);
+  stroke-width: 2.6px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+.pod-crown { display: none; fill: var(--pod-gold); }
+.pod-eyes-happy, .pod-brows, .pod-mouth { display: none; fill: none; }
+.pod-mouth--grin { fill: #fff; }
+.pod-cross { opacity: 0; }
+.pod-jump, .pod-arm, .pod-head, .pod-crown, .pod-shadow, .pod-cross, .pod-mouth, .pod-brows { transform-box: view-box; }
+.pod-arm--l { transform-origin: 21px 34px; }
+.pod-arm--r { transform-origin: 39px 34px; }
+.pod-head { transform-origin: 30px 29px; }
+.pod-jump, .pod-shadow { transform-origin: 30px 80px; }
+.pod-crown { transform-origin: 30px 6px; }
+
+/* The winner: both arms up, happy eyes, a grin, the crown, jumping. */
+.pod-fig--r1 .pod-crown, .pod-fig--r1 .pod-eyes-happy, .pod-fig--r1 .pod-mouth--grin { display: block; }
+.pod-fig--r1 .pod-eyes { display: none; }
+.pod-fig--r1 .pod-arm--l { transform: rotate(143deg); animation: pod-wave-l 1.1s ease-in-out infinite; }
+.pod-fig--r1 .pod-arm--r { transform: rotate(-143deg); animation: pod-wave-r 1.1s ease-in-out infinite; }
+.pod-fig--r1 .pod-jump { animation: pod-jump 1.1s ease-in-out infinite; }
+.pod-fig--r1 .pod-shadow { animation: pod-shadow 1.1s ease-in-out infinite; }
+@keyframes pod-wave-l { 0%, 100% { transform: rotate(143deg); } 50% { transform: rotate(162deg); } }
+@keyframes pod-wave-r { 0%, 100% { transform: rotate(-143deg); } 50% { transform: rotate(-162deg); } }
+@keyframes pod-jump {
+  0%, 100% { transform: translateY(0) scale(1.07, 0.93); }
+  14% { transform: translateY(0) scale(1, 1); }
+  48% { transform: translateY(-8px) scale(0.97, 1.04); }
+  82% { transform: translateY(0) scale(1, 1); }
+}
+@keyframes pod-shadow { 0%, 14%, 82%, 100% { transform: scale(1); opacity: 0.16; } 48% { transform: scale(0.65); opacity: 0.08; } }
+
+/* The second: clapping in front of the chest, nodding along. */
+.pod-fig--r2 .pod-mouth--smile { display: block; }
+.pod-fig--r2 .pod-arm--l { transform: rotate(-38deg); animation: pod-clap-l 0.46s ease-in-out infinite; }
+.pod-fig--r2 .pod-arm--r { transform: rotate(38deg); animation: pod-clap-r 0.46s ease-in-out infinite; }
+.pod-fig--r2 .pod-head { animation: pod-nod 0.92s ease-in-out infinite; }
+@keyframes pod-clap-l { 0%, 100% { transform: rotate(-38deg); } 50% { transform: rotate(-20deg); } }
+@keyframes pod-clap-r { 0%, 100% { transform: rotate(38deg); } 50% { transform: rotate(20deg); } }
+@keyframes pod-nod { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(1.4px) rotate(3deg); } }
+
+/* The third: arms crossed and a pout, then a shrug, then clapping too, and round again (ten
+   seconds). Settled it starts in the clapping (--pod-d3), risen it starts sulking as it lands.
+   Without the loop (reduced motion) it simply claps: that is the base below. */
+.pod-fig--r3 .pod-mouth, .pod-fig--r3 .pod-brows { display: block; opacity: 0; }
+.pod-fig--r3 .pod-mouth--smile { opacity: 1; }
+.pod-fig--r3 .pod-arm--l { transform: rotate(-38deg); animation: pod-r3-arm-l 10s linear infinite; animation-delay: var(--pod-d3); }
+.pod-fig--r3 .pod-arm--r { transform: rotate(38deg); animation: pod-r3-arm-r 10s linear infinite; animation-delay: var(--pod-d3); }
+.pod-fig--r3 .pod-cross { animation: pod-r3-cross 10s linear infinite; animation-delay: var(--pod-d3); }
+.pod-fig--r3 .pod-mouth--sulk, .pod-fig--r3 .pod-brows { animation: pod-r3-sulk 10s linear infinite; animation-delay: var(--pod-d3); }
+.pod-fig--r3 .pod-mouth--flat { animation: pod-r3-flat 10s linear infinite; animation-delay: var(--pod-d3); }
+.pod-fig--r3 .pod-mouth--smile { animation: pod-r3-smile 10s linear infinite; animation-delay: var(--pod-d3); }
+.pod-fig--r3 .pod-head { animation: pod-r3-head 10s ease-in-out infinite; animation-delay: var(--pod-d3); }
+.pod-fig--r3 .pod-jump { animation: pod-r3-body 10s ease-in-out infinite; animation-delay: var(--pod-d3); }
+@keyframes pod-r3-arm-l {
+  0%, 38% { transform: rotate(-38deg); opacity: 0; }
+  40% { transform: rotate(107deg); opacity: 1; }
+  44% { transform: rotate(119deg); }
+  48% { transform: rotate(107deg); }
+  51% { transform: rotate(107deg); }
+  54% { transform: rotate(-38deg); }
+  56.5% { transform: rotate(-20deg); }
+  59% { transform: rotate(-38deg); }
+  61.5% { transform: rotate(-20deg); }
+  64% { transform: rotate(-38deg); }
+  66.5% { transform: rotate(-20deg); }
+  69% { transform: rotate(-38deg); }
+  71.5% { transform: rotate(-20deg); }
+  74% { transform: rotate(-38deg); }
+  76.5% { transform: rotate(-20deg); }
+  79% { transform: rotate(-38deg); }
+  81.5% { transform: rotate(-20deg); }
+  84% { transform: rotate(-38deg); }
+  86.5% { transform: rotate(-20deg); }
+  89% { transform: rotate(-38deg); }
+  91.5% { transform: rotate(-20deg); }
+  94% { transform: rotate(-38deg); }
+  97% { transform: rotate(-38deg); opacity: 1; }
+  99%, 100% { transform: rotate(-38deg); opacity: 0; }
+}
+@keyframes pod-r3-arm-r {
+  0%, 38% { transform: rotate(38deg); opacity: 0; }
+  40% { transform: rotate(-107deg); opacity: 1; }
+  44% { transform: rotate(-119deg); }
+  48% { transform: rotate(-107deg); }
+  51% { transform: rotate(-107deg); }
+  54% { transform: rotate(38deg); }
+  56.5% { transform: rotate(20deg); }
+  59% { transform: rotate(38deg); }
+  61.5% { transform: rotate(20deg); }
+  64% { transform: rotate(38deg); }
+  66.5% { transform: rotate(20deg); }
+  69% { transform: rotate(38deg); }
+  71.5% { transform: rotate(20deg); }
+  74% { transform: rotate(38deg); }
+  76.5% { transform: rotate(20deg); }
+  79% { transform: rotate(38deg); }
+  81.5% { transform: rotate(20deg); }
+  84% { transform: rotate(38deg); }
+  86.5% { transform: rotate(20deg); }
+  89% { transform: rotate(38deg); }
+  91.5% { transform: rotate(20deg); }
+  94% { transform: rotate(38deg); }
+  97% { transform: rotate(38deg); opacity: 1; }
+  99%, 100% { transform: rotate(38deg); opacity: 0; }
+}
+@keyframes pod-r3-cross { 0%, 38% { opacity: 1; } 39.5%, 98% { opacity: 0; } 99.5%, 100% { opacity: 1; } }
+@keyframes pod-r3-sulk { 0%, 38% { opacity: 1; } 39.5%, 98% { opacity: 0; } 99.5%, 100% { opacity: 1; } }
+@keyframes pod-r3-flat { 0%, 39% { opacity: 0; } 40%, 51% { opacity: 1; } 52.5%, 100% { opacity: 0; } }
+@keyframes pod-r3-smile { 0%, 51% { opacity: 0; } 52.5%, 97% { opacity: 1; } 98.5%, 100% { opacity: 0; } }
+@keyframes pod-r3-head {
+  0%, 36% { transform: translateX(-1px) rotate(-9deg); }
+  14% { transform: translateX(-1px) rotate(-11deg); }
+  24% { transform: translateX(-1px) rotate(-7deg); }
+  42%, 50% { transform: rotate(7deg); }
+  55%, 96% { transform: rotate(0deg); }
+  100% { transform: translateX(-1px) rotate(-9deg); }
+}
+@keyframes pod-r3-body { 0%, 40%, 50%, 100% { transform: translateY(0); } 44%, 47% { transform: translateY(-2px); } }
+
+/* The bubbles: the winner's line two seconds every nine, the third's while it sulks. */
+.pod-bub {
+  position: absolute;
+  bottom: 62%;
+  z-index: 1;
+  padding: 0.15rem 0.45rem;
+  border: 1.5px solid var(--text);
+  border-radius: 0.7rem;
+  background: var(--surface-solid);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  opacity: 0;
+}
+/* The winner speaks from its own step, under its feet (a tail up), so no name or score is covered. */
+.pod-bub--r1 { top: calc(100% + 0.45rem); bottom: auto; inset-inline: -1rem; width: max-content; max-width: calc(100% + 2rem); margin-inline: auto; white-space: normal; text-align: center; transform-origin: 50% 0%; animation: pod-bub 9s ease-in-out infinite; animation-delay: var(--pod-d1); }
+.pod-bub--r1::before { content: ""; position: absolute; top: -0.3rem; left: 50%; width: 0.5rem; height: 0.5rem; margin-left: -0.25rem; background: var(--surface-solid); border-top: 1.5px solid var(--text); border-left: 1.5px solid var(--text); transform: rotate(45deg); }
+.pod-bub--r3 { inset-inline-end: 60%; border-end-end-radius: 0.15rem; transform-origin: 100% 100%; animation: pod-bub3 10s ease-in-out infinite; animation-delay: var(--pod-d3); }
+[dir="rtl"] .pod-bub--r3, html[dir="rtl"] .pod-bub--r3 { transform-origin: 0% 100%; }
+.is-tv-view .pod-bub { display: none; }
+@keyframes pod-bub { 0%, 2% { opacity: 0; transform: scale(0.6); } 6%, 26% { opacity: 1; transform: scale(1); } 30%, 100% { opacity: 0; transform: scale(0.85); } }
+@keyframes pod-bub3 { 0%, 4% { opacity: 0; transform: scale(0.6); } 7%, 26% { opacity: 1; transform: scale(1); } 29%, 100% { opacity: 0; transform: scale(0.85); } }
+
+/* Rising with the step: the figure hops up onto it once the step is up, the crown lands after,
+   the third starts sulking and the winner's first line waits until it has landed. */
+.podium--rise .pod-cast, .tv-podium--rise .pod-cast {
+  --pod-d1: calc(var(--at, 0ms) + 2600ms);
+  --pod-d3: calc(var(--at, 0ms) + 900ms);
+  animation: pod-in 560ms cubic-bezier(0.2, 1.35, 0.35, 1) both;
+  animation-delay: calc(var(--at, 0ms) + 380ms);
+  transform-origin: 50% 100%;
+}
+.podium--rise .pod-fig--r1 .pod-crown, .tv-podium--rise .pod-fig--r1 .pod-crown {
+  animation: pod-crown 700ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+  animation-delay: calc(var(--at, 0ms) + 1150ms);
+}
+@keyframes pod-in { from { opacity: 0; transform: translateY(1.25rem) scale(0.5); } }
+@keyframes pod-crown { 0% { opacity: 0; transform: translateY(-24px) rotate(-24deg); } 55% { opacity: 1; transform: translateY(1.5px) rotate(5deg); } 100% { opacity: 1; transform: none; } }
+
+/* The TV: the figures scale with the screen. On تحدي المعلومات's cards they stand on top of the card,
+   so the steps keep their heights. */
+.is-tv-view .pod-fig { height: 9vmin; }
+.tour-podium--tv .pod-fig { height: 8vmin; }
+.tv-podium[data-cast] { padding-top: 11vmin; }
+.tv-podium__place { position: relative; }
+.tv-podium .pod-cast { position: absolute; bottom: 100%; inset-inline: 0; margin: 0; }
+.tv-podium .pod-fig { height: 11vmin; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pod-cast, .pod-cast * { animation: none !important; }
+}
 </style>

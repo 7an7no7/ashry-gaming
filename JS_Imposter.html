@@ -313,9 +313,11 @@
 
       const t = TRANSLATIONS[appState.lang] || {};
       const spyCount = appState.imposter.players.filter(p => p.role === 'Imposter').length;
-      const cover = spyRevealParts(['imp1', appState.imposter.secretWord, imposters, appState.imposter.revealIndex].join('|'),
-          spyCount > 1 ? t.reveal_spies_were : t.reveal_spy_was);
-      document.getElementById('winners-list').innerHTML = `
+      const revealKey = ['imp1', appState.imposter.secretWord, imposters, appState.imposter.revealIndex].join('|');
+      const cover = spyRevealParts(revealKey, spyCount > 1 ? t.reveal_spies_were : t.reveal_spy_was);
+      // The spy behind the card; there is no vote on one phone, so the table taps whether they caught him.
+      const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, 'ask', { kind: 'spy' }) : '';
+      document.getElementById('winners-list').innerHTML = `${cast}
         <div class="result-reveal ${cover.cls}" ${cover.attrs}>${cover.cover}
         <div class="mb-4">
             <div class="eyebrow">${wordTitle}</div>

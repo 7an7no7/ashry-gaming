@@ -439,6 +439,188 @@ function spyRevealParts(key, label) {
   };
 }
 
+/* --- 8b. The spy himself ----------------------------------------------------- */
+
+/*
+   The living spy (the owner, 27 Sep 2026, the cast of المشنقة's man): a flat
+   cartoon in a trench coat, a hat and dark glasses who stands behind the result
+   card of الجاسوس, الحرباء, الموقع السري and الفنان المزيف. While the card lies
+   face down he peeks over its top edge, peering over his glasses («مش أنا…»);
+   as it turns over he steps out and plays the verdict:
+     caught  - the handcuffs snap on (a click), the hat falls off, he sulks («يااااه»);
+     escaped - a wink and a wave («سلامو عليكو!»), then he tiptoes off the edge of
+               the screen (a whoosh), leaving his footprints;
+     ask     - one phone's الجاسوس has no vote: he stands there looking innocent and
+               the table taps «اتمسك» or «هرب» under him (spcVerdict).
+   One drawing, a `kind` for the game: 'spy', 'chameleon' (a chameleon's green coat
+   with spots), 'spyfall' (a suitcase), 'fake' (a beret, a brush and paint on the coat).
+   A layer on the card: the verdict comes from what the result already says.
+   Style.html section «the living spy» has the timelines (SPC_T below, in ms).
+*/
+const SPC_T = { caught: 4200, escaped: 6600, ask: 2200 };
+// When the verdict starts, when the stand-out finishes: a verdict tapped on the
+// «ask» figure starts from here (he is already standing).
+const SPC_AFTER_STEP = { caught: 1850, escaped: 2180 };
+const SPC_SOUND = { caught: [2200, 'spyCuffs'], escaped: [3830, 'spyWhoosh'] };
+const spcLive = new Map();
+
+/** The drawing, every moving piece a group pivoted at its joint (the drawing's own units). */
+function spcFigureSvg(kind, verdict) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const bub = (cls, text) => `<g class="spc-bub ${cls}"><path class="spc-bub__box" d="M80 44 h54 a5 5 0 0 1 5 5 v14 a5 5 0 0 1 -5 5 h-54 a5 5 0 0 1 -5 -5 v-4 l-7 -2.5 l7 -2.5 v-5 a5 5 0 0 1 5 -5z"/><text class="spc-bub__t" x="107" y="60" text-anchor="middle">${escapeHTML(text || '')}</text></g>`;
+  const spots = kind === 'chameleon'
+    ? '<g class="spc-spots"><circle cx="52" cy="72" r="2.6"/><circle cx="67" cy="69" r="2"/><circle cx="62" cy="96" r="2.4"/><circle cx="48" cy="98" r="1.8"/><circle cx="72" cy="94" r="2.2"/><path class="spc-stripe" d="M45 80 Q60 76 75 80"/></g>'
+    : kind === 'fake'
+      ? '<g class="spc-spots spc-spots--paint"><circle class="spc-paint--r" cx="51" cy="71" r="2.4"/><circle class="spc-paint--b" cx="68" cy="97" r="2.6"/><circle class="spc-paint--y" cx="49" cy="96" r="2"/><circle class="spc-paint--g" cx="69" cy="70" r="1.8"/></g>'
+      : '';
+  const hand = kind === 'spyfall'
+    ? '<g class="spc-case"><path class="spc-case__h spc-ink" d="M80 94 v-2.5 h5 v2.5"/><rect class="spc-case__b spc-ink" x="75" y="94" width="15" height="11" rx="2"/><path class="spc-case__s" d="M75.5 99 h14"/><rect class="spc-case__c" x="81" y="97.6" width="3" height="2.8" rx="0.6"/></g>'
+    : kind === 'fake'
+      ? '<g class="spc-brush"><path class="spc-brush__stick" d="M79.5 93 L88 77"/><path class="spc-brush__tip spc-ink" d="M88 77 l1.6 -4.4 l2.4 1.3 z"/></g>'
+      : '';
+  const hat = kind === 'fake'
+    ? '<g class="spc-hat"><path class="spc-beret spc-ink" d="M45 31 Q46 21 60 21 Q74 21 75 30 Q70 34 60 33 Q49 33 45 31z"/><path class="spc-beret__stalk spc-ink" d="M60 21 v-3"/></g>'
+    : '<g class="spc-hat"><path class="spc-hat__crown spc-ink" d="M49 33 Q48 22 53 19.5 Q60 23 67 19.5 Q72 22 71 33z"/><path class="spc-hat__band" d="M49.3 29 H70.7 V32.6 H49.3z"/><ellipse class="spc-hat__brim spc-ink" cx="60" cy="33.5" rx="19" ry="4"/></g>';
+  return `<svg class="spc-svg" viewBox="0 0 120 130" aria-hidden="true" focusable="false">
+      <g class="spc-prints"><ellipse cx="84" cy="127" rx="3.4" ry="1.4"/><ellipse cx="100" cy="125.6" rx="3.4" ry="1.4"/><ellipse cx="116" cy="127" rx="3.4" ry="1.4"/><ellipse cx="132" cy="125.6" rx="3.4" ry="1.4"/></g>
+      <g class="spc-fig"><g class="spc-body">
+        <g class="spc-leg spc-leg--l"><path class="spc-pants spc-ink" d="M52 100 L50.5 122 L57 122 L59 100z"/><ellipse class="spc-shoe" cx="52.5" cy="124" rx="6" ry="3"/></g>
+        <g class="spc-leg spc-leg--r"><path class="spc-pants spc-ink" d="M61 100 L63 122 L69.5 122 L68 100z"/><ellipse class="spc-shoe" cx="67.5" cy="124" rx="6" ry="3"/></g>
+        <path class="spc-coat spc-ink" d="M46 60 Q60 55 74 60 L80 104 Q60 108.5 40 104 Z"/>
+        ${spots}
+        <path class="spc-belt" d="M42.7 84 H77.3 L77.9 89 H42.1z"/><rect class="spc-buckle spc-ink" x="57" y="83.6" width="6" height="5.8" rx="1"/>
+        <path class="spc-lapel spc-ink" d="M54 59 L60 75 L66 59"/><path class="spc-collar spc-ink" d="M52.5 58 L46.5 66.5 L55.5 64z M67.5 58 L73.5 66.5 L64.5 64z"/>
+        <g class="spc-dots"><circle cx="55.5" cy="78" r="1.1"/><circle cx="64.5" cy="78" r="1.1"/><circle cx="55" cy="96" r="1.1"/><circle cx="65" cy="96" r="1.1"/></g>
+        <g class="spc-arm spc-arm--l"><path class="spc-sleeve" d="M48 63 L41 90"/><path class="spc-sleeve spc-sleeve--in" d="M48 63 L41 90"/><circle class="spc-skin spc-ink" cx="40.5" cy="92" r="3.6"/></g>
+        <g class="spc-arm spc-arm--r"><path class="spc-sleeve" d="M72 63 L79 90"/><path class="spc-sleeve spc-sleeve--in" d="M72 63 L79 90"/><circle class="spc-skin spc-ink" cx="79.5" cy="92" r="3.6"/>${hand}</g>
+        <g class="spc-cuffs"><circle class="spc-cuff" cx="56" cy="92" r="3.3"/><circle class="spc-cuff" cx="64" cy="92" r="3.3"/><path class="spc-cuff spc-chain" d="M59.3 92 h1.4"/></g>
+        <g class="spc-head">
+          <circle class="spc-skin spc-ink" cx="60" cy="44" r="12"/>
+          <path class="spc-hair" d="M48.4 41 Q48 31 60 31 Q72 31 71.6 41 Q70 36 64 35.6 Q60 37 56 35.6 Q50 36 48.4 41z"/>
+          <g class="spc-eyes"><circle class="spc-eye" cx="55" cy="41" r="1.5"/><circle class="spc-eye spc-eye--r" cx="65" cy="41" r="1.5"/></g>
+          <path class="spc-wink spc-ink" d="M62.6 41.4 Q65 39.4 67.4 41.4"/>
+          <path class="spc-brows spc-ink" d="M52 36.5 L58 38.6 M68 36.5 L62 38.6"/>
+          <g class="spc-glasses"><rect class="spc-lens spc-ink" x="50" y="40" width="9" height="6" rx="2.5"/><rect class="spc-lens spc-ink" x="61" y="40" width="9" height="6" rx="2.5"/><path class="spc-ink spc-thin" d="M59 42.3 H61 M50 42 L47.6 40.6 M70 42 L72.4 40.6"/><path class="spc-glint" d="M52 41.6 H54.6 M63 41.6 H65.6"/></g>
+          <path class="spc-mouth spc-mouth--smirk spc-ink" d="M56 51 Q61 53.6 64.6 50.4"/>
+          <path class="spc-mouth spc-mouth--sulk spc-ink" d="M55.6 53.4 Q60 49.6 64.4 53.4"/>
+          <path class="spc-mouth spc-mouth--grin spc-ink" d="M55 50 Q60 56.5 65 50z"/>
+        </g>
+        ${hat}
+      </g></g>
+      ${verdict === 'ask' || verdict === 'caught' || verdict === 'escaped' ? bub('spc-bub--peek', t.spc_bub_peek) : ''}
+      ${verdict === 'caught' ? bub('spc-bub--end', t.spc_bub_caught) : verdict === 'escaped' ? bub('spc-bub--end', t.spc_bub_escaped) : ''}
+    </svg>`;
+}
+
+/**
+ * The spy behind a result card: put it straight before the card (or above a TV's
+ * result line). `key` is the reveal's own key; `verdict` 'caught', 'escaped' or
+ * 'ask' (anything else draws nothing). o: { kind, tv, loud (this screen plays
+ * the table's sounds; true by default) }. He peeks for as long as the card lies
+ * face down (SPY_REVEAL_BEAT_MS), then plays the verdict. The first time a key is drawn he plays it through
+ * (motionFirst); drawn again while it plays, it carries on from where it was
+ * (--spc-late); afterwards, and with motion off, he is drawn settled.
+ */
+function spyCastHtml(key, verdict, o) {
+  const opt = o || {};
+  if (verdict !== 'caught' && verdict !== 'escaped' && verdict !== 'ask') return '';
+  const kind = ['chameleon', 'spyfall', 'fake'].indexOf(opt.kind) !== -1 ? opt.kind : 'spy';
+  const k = 'spc|' + (opt.tv ? 'tv|' : '') + key;
+  const total = SPC_T[verdict];
+  let late = 0, live = false;
+  if (motionFirst(k)) {
+    spcLive.set(k, Date.now());
+    if (spcLive.size > 40) spcLive.delete(spcLive.keys().next().value);
+    live = true;
+    const snd = SPC_SOUND[verdict];
+    if (snd && opt.loud !== false) spcSoundLater(snd[1], snd[0]);
+  } else if (spcLive.has(k) && Date.now() - spcLive.get(k) < total && !motionOff()) {
+    late = Date.now() - spcLive.get(k);
+    live = true;
+  }
+  return spcWrapHtml(kind, verdict, live, late, opt.tv ? 'spc--tv ' + (opt.cls || '') : (opt.cls || ''), total);
+}
+
+function spcWrapHtml(kind, verdict, live, late, extra, total) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const cls = ['spc', 'spc--' + kind, 'spc--' + verdict, live ? 'is-live' : 'is-settled', extra || '',
+    !live && verdict === 'escaped' ? 'is-gone' : ''].join(' ');
+  const ask = verdict === 'ask'
+    ? `<div class="spc-ask"><span class="spc-ask__q">${escapeHTML(t.spc_ask || '')}</span>
+         <button type="button" class="btn btn--sm btn--auto btn--danger-soft" onclick="spcVerdict(this, 'caught')">${escapeHTML(t.spc_caught_btn || '')}</button>
+         <button type="button" class="btn btn--sm btn--auto btn--ghost" onclick="spcVerdict(this, 'escaped')">${escapeHTML(t.spc_escaped_btn || '')}</button></div>`
+    : '';
+  // A settle timer too, never only the animation (a hidden tab never runs it).
+  return `<div class="${cls}" data-spc-kind="${kind}" style="--spc-late: -${Math.max(0, Math.round(late))}ms" ${live ? `data-spc-until="${Date.now() - late + total}"` : ''}>
+      ${ask}<div class="spc-stage">${spcFigureSvg(kind, verdict)}</div></div>`;
+}
+
+/** A room's outcome as the spy plays it: 'revealed' (the host showed it, no vote) and anything else, nothing. */
+function spyCastVerdict(outcome) {
+  return outcome === 'caught' ? 'caught' : (outcome === 'escaped' || outcome === 'stole') ? 'escaped' : '';
+}
+
+/** The room's one voice: the TV plays the spy's sounds where there is one, else every phone. */
+function spyCastLoud(state) {
+  return !!(state && (state.youAreScreen || typeof roomHasScreen !== 'function' || !roomHasScreen()));
+}
+
+/** The table's sound for the spy, once, if the card is still on screen then. */
+function spcSoundLater(name, ms) {
+  setTimeout(() => {
+    if (document.hidden || !document.querySelector('.spc.is-live')) return;
+    if (typeof playFx === 'function') playFx(name);
+  }, ms);
+}
+
+/** One phone's الجاسوس: the table says whether they caught the spy, and he plays it. */
+function spcVerdict(btn, verdict) {
+  const box = btn && btn.closest('.spc');
+  if (!box) return;
+  const kind = box.dataset.spcKind || 'spy';
+  const late = motionOff() ? 0 : SPC_AFTER_STEP[verdict];
+  const html = spcWrapHtml(kind, verdict, !motionOff(), late, '', SPC_T[verdict]);
+  box.outerHTML = html;
+  if (!motionOff()) {
+    const snd = SPC_SOUND[verdict];
+    if (snd) spcSoundLater(snd[1], snd[0] - late);
+  }
+  if (verdict === 'caught') haptic('double'); else haptic('light');
+}
+
+// A live figure is marked settled once its time is up (the end state is also the
+// animations' `forwards`, so this only matters where they never ran).
+setInterval(() => {
+  document.querySelectorAll('.spc.is-live[data-spc-until]').forEach((el) => {
+    if (Date.now() >= Number(el.dataset.spcUntil)) {
+      el.classList.remove('is-live');
+      el.classList.add('is-settled');
+    }
+  });
+}, 1000);
+
+/* The spy's two sounds, not on the soundboard: the handcuffs' double click and a whoosh. */
+FX.spyCuffs = (at) => {
+  fxNoise('highpass', 3800, 1.4, [[0, 0], [0.004, 0.16], [0.03, 0.001]], at);
+  fxTone('square', [[0, 2400], [0.02, 1900]], [[0, 0], [0.003, 0.05], [0.03, 0.001]], at);
+  fxNoise('highpass', 4200, 1.6, [[0, 0], [0.004, 0.13], [0.03, 0.001]], at + 0.09);
+  fxTone('square', [[0, 2600], [0.02, 2100]], [[0, 0], [0.003, 0.04], [0.03, 0.001]], at + 0.09);
+};
+FX.spyWhoosh = (at) => {
+  const ctx = fxCtx();
+  const end = 0.55;
+  const buf = fxNoiseBuffer(ctx);
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const f = ctx.createBiquadFilter();
+  f.type = 'bandpass'; f.Q.value = 1.2;
+  f.frequency.setValueAtTime(500, at); f.frequency.exponentialRampToValueAtTime(3200, at + end);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, at); g.gain.linearRampToValueAtTime(0.22, at + 0.18); g.gain.exponentialRampToValueAtTime(0.0001, at + end);
+  src.connect(f); f.connect(g); g.connect(ctx.destination);
+  src.start(at); src.stop(at + end + 0.05);
+};
+
 /* --- 9. The podium ----------------------------------------------------------- */
 
 /**

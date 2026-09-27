@@ -3264,6 +3264,14 @@ the word search), `countUp` for streaks and scores.
   the wave, the flapping, the wriggle, the comic end, the escape that fits
   his pieces, the clock's freeze, the result card's rows. Looked at with
   four phones and a TV at 375×812 Arabic light and 1280×720 English dark.
+- **27 Sep 2026, the living spy** (*Using the motion toolkit*, "The spy
+  was…"): a cartoon spy behind the result card of الجاسوس, الحرباء, الموقع
+  السري and الفنان المزيف peeks while it is down, then is cuffed and sulks or
+  winks and tiptoes off the screen; on the TV too; one phone's الجاسوس asks
+  the table «اتمسك» or «هرب». Looked at on one phone (both endings, reduced
+  motion) and in rooms of four phones and a TV (الجاسوس caught, الحرباء
+  escaped, الموقع السري caught; a reload), 375×812 Arabic light and 1280×720
+  English dark, the TV at 1920×1080, no console errors.
 ## Building and Running
 
 ### Development Requirements
@@ -8868,6 +8876,29 @@ lands with the answer rather than before it. The reveals:
   الموقع السري and الفنان المزيف results): the result card lies face down in
   the game's colour with a question mark and three soft ticks for 1.1s, then
   turns over; the cover goes when the card is edge-on.
+  **The living spy** stands behind that card (`spyCastHtml(key, verdict, { kind,
+  tv, loud, cls })` in `JS_Motion.html` 8b, section 44 of `Style.html`, the
+  cast of المشنقة's man: a trench coat, a hat, dark glasses). While the card
+  is down he peeks over its top edge, peering over his glasses («مش أنا…»);
+  as it turns he steps out and plays the verdict: `caught` - the cuffs snap
+  on (`FX.spyCuffs`), the hat falls, he sulks («يااااه», now and then after);
+  `escaped` (a wrong vote, a tie, or the word/place guessed) - a wink, a wave
+  («سلامو عليكو!»), a whoosh (`FX.spyWhoosh`) and he tiptoes off the edge the
+  way the page reads, leaving footprints; `revealed` (the host showed it with
+  no vote) draws nothing (`spyCastVerdict`). `kind`: `spy` (الجاسوس), `chameleon`
+  (a green coat with spots, الحرباء), `spyfall` (a suitcase, الموقع السري),
+  `fake` (a beret, a brush, paint on the coat, الفنان المزيف). One phone's
+  الجاسوس has no vote, so there he is `ask`: he stands there innocent and
+  «اتمسك» / «هرب» under the question let the table tell the phone
+  (`spcVerdict`, decided here). Keyed `spc|` + the card's key with
+  `motionFirst` (the TV `spc|tv|`); drawn again while it plays it carries on
+  (`spcLive`, `--spc-late`); afterwards, with motion off and in reduced motion,
+  settled (cuffed and sulking; gone, only the footprints, the strip shorter).
+  The stage clips only its bottom (`clip-path: inset(-100vh -100vw 0 -100vw)`),
+  so the card's edge is his floor and he can still walk off the screen. Sounds
+  by the room's one voice (`spyCastLoud`: the TV if there is one, else every
+  phone). The TV frames of the four games draw him big above the result line.
+  A layer on the card: the rules, the votes and the server are untouched.
 - **The podium** (`renderPodium(state, board)`, at the end of the trivia,
   emoji, proverbs, five seconds, two truths and Stop rooms): the top three,
   second on one side of the winner and third on the other, rising 3-2-1.

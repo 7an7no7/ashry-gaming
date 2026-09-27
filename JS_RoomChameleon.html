@@ -101,8 +101,10 @@ function chameleonFrame(state, t) {
   // results
   const won = s.outcome === 'caught';
   const line = s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
-  const cover = spyRevealParts(['cham', state.code, s.round, s.outcome, s.chameleonName].join('|'), t.reveal_chameleon_was);
-  return head + `
+  const revealKey = ['cham', state.code, s.round, s.outcome, s.chameleonName].join('|');
+  const cover = spyRevealParts(revealKey, t.reveal_chameleon_was);
+  const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, spyCastVerdict(s.outcome), { kind: 'chameleon', loud: spyCastLoud(state) }) : '';
+  return head + `${cast}
     <div class="card ${won ? 'card--accent' : ''} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
       <div class="metric metric--md ${won ? 'tx-success' : 'tx-warning'}">${won ? '🎉' : '🦎'} ${escapeHTML(line.replace('{name}', s.chameleonName || ''))}</div>
       <p class="sheet__subtitle">${escapeHTML(t.secret_word || '')}: <b>${escapeHTML(s.secretWord || '')}</b>${s.accusedName ? ` · ${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}` : ''}</p>
@@ -148,7 +150,10 @@ TV_GAMES.chameleon = {
         ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>` : ''}</div>`;
     }
     const line = s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
-    return `<div class="tv-vote">${head}
+    const cast = typeof spyCastHtml === 'function'
+      ? spyCastHtml(['cham', state.code, s.round, s.outcome, s.chameleonName].join('|'), spyCastVerdict(s.outcome), { kind: 'chameleon', tv: true, cls: 'spc--tv-short' })
+      : '';
+    return `<div class="tv-vote">${head}${cast}
       <div class="tv-question">${s.outcome === 'caught' ? '🎉' : '🦎'} ${escapeHTML(line.replace('{name}', s.chameleonName || ''))} · ${escapeHTML(s.secretWord || '')}</div>
       ${grid}<div class="tv-scale">${renderScoreboard(s.board)}</div>
       ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}</div>`;

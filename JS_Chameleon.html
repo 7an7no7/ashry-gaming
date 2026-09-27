@@ -328,8 +328,10 @@ function finishChameleonGame(wasCaught, chameleonGuessedWord) {
 
   const board = chameleonState.players.map(p => ({ id: p, name: p, score: chameleonState.scores[p] || 0 }))
     .sort((a, b) => b.score - a.score);
-  const cover = spyRevealParts(['cham1', chameleonState.scoreId, cham, chameleonState.accusedPlayer, chameleonState.secretWord].join('|'), t.reveal_chameleon_was);
-  detailEl.innerHTML = `
+  const revealKey = ['cham1', chameleonState.scoreId, cham, chameleonState.accusedPlayer, chameleonState.secretWord].join('|');
+  const cover = spyRevealParts(revealKey, t.reveal_chameleon_was);
+  const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, chameleonWon ? 'escaped' : 'caught', { kind: 'chameleon' }) : '';
+  detailEl.innerHTML = `${cast}
     <div class="result-reveal ${cover.cls}" ${cover.attrs}>${cover.cover}
     <p class="text-base mb-4">${escapeHTML(summary)}</p>
     <div class="plate-well space-y-1 text-sm">

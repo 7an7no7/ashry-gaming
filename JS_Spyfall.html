@@ -329,9 +329,10 @@ function finishSpyfallGame(civiliansWon, message, accused) {
 
   const board = spyfallState.players.map(p => ({ id: p, name: p, score: spyfallState.scores[p] || 0 }))
     .sort((a, b) => b.score - a.score);
-  const cover = spyRevealParts(['spy1', spyfallState.scoreId, spyfallState.location.location, spyfallState.spies.join(','), accused || '', message].join('|'),
-    spyfallState.spies.length > 1 ? t.reveal_spies_were : t.reveal_spy_was);
-  detailEl.innerHTML = `
+  const revealKey = ['spy1', spyfallState.scoreId, spyfallState.location.location, spyfallState.spies.join(','), accused || '', message].join('|');
+  const cover = spyRevealParts(revealKey, spyfallState.spies.length > 1 ? t.reveal_spies_were : t.reveal_spy_was);
+  const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, civiliansWon ? 'caught' : 'escaped', { kind: 'spyfall' }) : '';
+  detailEl.innerHTML = `${cast}
     <div class="result-reveal ${cover.cls}" ${cover.attrs}>${cover.cover}
     <p class="text-base mb-4 font-semibold">${escapeHTML(message)}</p>
     <div class="plate-well space-y-1 text-sm">

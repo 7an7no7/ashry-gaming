@@ -121,6 +121,8 @@ function bombSwapPrompt() {
   saveToLocal();
   paintBomb();
   haptic('light');
+  const svg = document.querySelector('#bomb-stage .bomb-char');
+  if (svg) bombCharHop(svg);
 }
 
 /** The clock that ends the round, and the ticking that gets faster. */
@@ -147,6 +149,8 @@ function bombTick() {
     void card.offsetWidth;
     card.classList.add('is-tick');
     card.classList.toggle('is-urgent', remaining < 8000);
+    bombCharHeat(card, bombHeatOf(total, remaining));
+    bombCharTick(card);
   }
   // A second between ticks at the start, a quarter of one at the end.
   const delay = 250 + 750 * Math.pow(frac, 1.4);
@@ -165,10 +169,13 @@ function bombExplode() {
   bombStop();
   b.phase = 'boom';
   saveToLocal();
-  playSound('alarm');
-  haptic('heavy');
+  bombFxSaw(bombOneKey(b));
   paintBomb();
+  bombBoomFx(bombOneKey(b), document.getElementById('bomb-stage'));
 }
+
+/** A one-phone round's key for the bomb's moments (the explosion plays once a round). */
+function bombOneKey(b) { return 'one|' + (b.startedAt || 0) + '|' + (b.rounds || 0); }
 
 /** Who was holding it: a strike. The same name again takes it back; another name moves it. */
 function bombPickLoser(index) {
@@ -185,6 +192,13 @@ function bombPickLoser(index) {
   saveToLocal();
   haptic('light');
   paintBomb();
+  // The strike lands on the board, and the name picked pops.
+  if (b.roundLoser === name && !motionOff() && window.CSS && CSS.escape) {
+    const badge = document.querySelector('#bomb-stage .status-row[data-bm-pid="' + CSS.escape(name) + '"] .badge');
+    if (badge) { badge.style.setProperty('--bm-late', '-700ms'); badge.classList.add('bm-strike-new'); }
+    const chip = document.querySelectorAll('#bomb-stage .pick-chip')[index];
+    if (chip) chip.classList.add('bm-landed');
+  }
 }
 
 /** Strikes, fewest first. */
@@ -264,9 +278,10 @@ function paintBomb() {
           }).join('')}
         </div>
       </div>` : '';
+    const boom = bombFxBoom(bombOneKey(b));
     el.innerHTML = `
-      <div class="bomb-card bomb-card--boom" id="bomb-card">
-        <div class="bomb-boom" aria-hidden="true">💥</div>
+      <div class="bomb-card bomb-card--boom ${boom ? 'is-exploding' : ''}" id="bomb-card" style="--bm-late: ${boom ? -boom.late : 0}ms">
+        <div class="bomb-boom" aria-hidden="true" ${boom ? `data-reveal-ms="${Math.max(0, BOMB_BOOM_MS - boom.late)}"` : ''}>${bombBoomSvg({ size: 'big', late: boom ? boom.late : 0, settled: !boom })}</div>
         <div class="bomb-card__title">${escapeHTML(t.bomb_boom || '')}</div>
         <div class="bomb-card__sub">${escapeHTML(sub)}</div>
         <div class="bomb-card__prompt-small">${escapeHTML(kindLabel)}: <b>${escapeHTML(b.prompt)}</b></div>
@@ -283,9 +298,10 @@ function paintBomb() {
     return;
   }
 
+  if (b.phase === 'ticking') bombFxSaw(bombOneKey(b));
   el.innerHTML = `
-    <div class="bomb-card" id="bomb-card">
-      <div class="bomb-fuse" aria-hidden="true"><span class="bomb-emoji">${iconHtml('art:bomb')}</span></div>
+    <div class="bomb-card ${b.phase === 'ticking' && b.endsAt - Date.now() < 8000 ? 'is-urgent' : ''}" id="bomb-card">
+      <div class="bomb-fuse bm-holder">${bombCharSvg({ heat: bombHeatOf(b.total * 1000, Math.max(0, b.endsAt - Date.now())), size: 'big', tap: 'bombCharHop(this)' })}</div>
       <div class="eyebrow">${escapeHTML(kindLabel)}</div>
       <div class="bomb-card__prompt ${b.kind === 'letter' ? 'bomb-card__prompt--letter' : ''}">${escapeHTML(b.prompt)}</div>
       <div class="bomb-card__sub">${escapeHTML(b.kind === 'letter' ? (t.bomb_letter_hint || '') : (t.bomb_category_hint || ''))}</div>
@@ -313,4 +329,270 @@ function restoreBomb() {
 }
 
 onLanguageChange((view) => { if (view === 'play-bomb') paintBomb(); });
+
+/* ============================================================================
+   THE BOMB AS A CHARACTER (27 Sep 2026, the living-characters brief)
+   ----------------------------------------------------------------------------
+   The same flat cartoon as المشنقة's man (look أ): dark ink outlines that stay
+   dark in dark mode (--bm-ink), flat fills, dot eyes and a mouth that changes
+   with the mood. A round black bomb with a highlight, a cap and a fuse: calm
+   and cheerful at first, and with each heat step (0-3: the one-phone game's own
+   time, `shared.heat` in a room) the fuse burns down a piece with its spark,
+   the eyes go wide, the smile becomes a gasp, the sweat comes and the shake
+   gets harder; every tick jolts it (bombCharTick). Now and then it says a line
+   of its heat (bomb_bub_0..3), never on the small ones.
+
+   Nothing here is a rule: it draws from what the game already has, and the
+   state is a class on the svg (bm-h0..3), switched in place (bombCharHeat) so
+   the fuse's pieces fade and the spark slides down it rather than redrawing.
+
+   The explosion (bombBoomSvg, bombBoomFx): the bomb swells and shakes, a flash,
+   a fireball, its shell bursts into pieces that fly off, smoke rolls up, then
+   the remains (a soot mark, the cap, two shards and a wisp). With it the
+   screen shakes, soot smudges cover it for a second, a boom (FX.bombBoom), the
+   holder's name chip is blown back and stays singed, and the strike pops onto
+   the board. It plays once per round on a page that saw the fuse burning (a
+   reload, a late join or the TV coming on sees the remains), and a redraw in
+   the middle carries on where it was (--bm-late, a negative delay).
+   ========================================================================= */
+
+const BOMB_BOOM_MS = 2600;                 // the whole explosion, to the remains
+const BOMB_BURST_MS = 620;                 // the shell bursts (the flash, the pieces, the strike)
+const BOMB_HEAT_AT_PAGE = [0.4, 0.65, 0.85];   // the server's BOMB_HEAT_AT, for the one-phone fuse
+
+/** The one-phone fuse's heat from the time it has burnt, the way the server steps a room's. */
+function bombHeatOf(total, remaining) {
+  const burnt = total > 0 ? 1 - remaining / total : 0;
+  return BOMB_HEAT_AT_PAGE.filter(at => burnt >= at).length;
+}
+
+/* The fuse in four pieces, from the cap outward; a heat step takes the outermost one left. */
+const BM_FUSE = ['M87 40 Q92 34 95 30', 'M95 30 Q98.5 25.5 97 21', 'M97 21 Q96 14.5 101.5 12', 'M101.5 12 Q106 9.5 111 10'];
+const BM_TIPS = [[111, 10], [101.5, 12], [97, 21], [95, 30]];
+
+/**
+ * The bomb. o: { heat 0-3, size 'big' | 'small' | 'mini', bubble (lines on, default for big),
+ * cls, tap (an onclick, one phone's hop) }.
+ */
+function bombCharSvg(o) {
+  const opt = o || {};
+  const heat = Math.max(0, Math.min(3, Number(opt.heat) || 0));
+  const size = opt.size || 'big';
+  const talk = opt.bubble !== undefined ? opt.bubble : size === 'big';
+  const t = TRANSLATIONS[appState.lang] || {};
+  const fuse = BM_FUSE.map((d, k) => `<g class="bm-fuse bm-fuse--${k}"><path class="bm-fuse__ink" d="${d}"/><path class="bm-fuse__cord" d="${d}"/></g>`).join('');
+  const bubbles = !talk ? '' : [0, 1, 2, 3].map(k => {
+    const line = t['bomb_bub_' + k] || '';
+    return `<g class="bm-bub bm-bub--${k}" style="--bm-bub-delay: ${(k * 2.3 + 1.2) % 5}s"><path class="bm-bub__box" d="M6 3 h66 a5 5 0 0 1 5 5 v13 a5 5 0 0 1 -5 5 h-20 l-2 9 l-8 -9 h-36 a5 5 0 0 1 -5 -5 v-13 a5 5 0 0 1 5 -5z"/><text class="bm-bub__t" x="39" y="18.2" text-anchor="middle">${escapeHTML(line)}</text></g>`;
+  }).join('');
+  const face = `
+    <g class="bm-face">
+      <g class="bm-f bm-f--0"><path class="bm-ink bm-line" d="M41 80 Q46.5 74 52 80 M64 80 Q69.5 74 75 80"/><path class="bm-mouth-fill bm-ink" d="M47 90 Q58 103 69 90 Z"/><circle class="bm-cheek" cx="39" cy="89" r="4.2"/><circle class="bm-cheek" cx="77" cy="89" r="4.2"/></g>
+      <g class="bm-f bm-f--1"><g class="bm-blink"><circle class="bm-eye-w bm-ink" cx="47" cy="79" r="5.2"/><circle class="bm-eye-w bm-ink" cx="69" cy="79" r="5.2"/><circle class="bm-pupil" cx="48" cy="80" r="2.4"/><circle class="bm-pupil" cx="70" cy="80" r="2.4"/></g><path class="bm-ink bm-line" d="M50 93 Q58 99 66 93"/></g>
+      <g class="bm-f bm-f--2"><path class="bm-ink bm-line" d="M40 69 L51 72 M76 69 L65 72"/><g class="bm-blink"><ellipse class="bm-eye-w bm-ink" cx="47" cy="80" rx="6" ry="7.2"/><ellipse class="bm-eye-w bm-ink" cx="69" cy="80" rx="6" ry="7.2"/><g class="bm-look"><circle class="bm-pupil" cx="47" cy="81" r="2.5"/><circle class="bm-pupil" cx="69" cy="81" r="2.5"/></g></g><path class="bm-ink bm-line" d="M48 96 q2.5 -3 5 0 q2.5 3 5 0 q2.5 -3 5 0 q2.5 3 5 0"/></g>
+      <g class="bm-f bm-f--3"><path class="bm-ink bm-line" d="M38 64 Q45 59 52 64 M64 64 Q71 59 78 64"/><ellipse class="bm-eye-w bm-ink" cx="46" cy="78" rx="8" ry="9.5"/><ellipse class="bm-eye-w bm-ink" cx="70" cy="78" rx="8" ry="9.5"/><circle class="bm-pupil" cx="46" cy="79" r="1.9"/><circle class="bm-pupil" cx="70" cy="79" r="1.9"/><ellipse class="bm-gasp bm-ink" cx="58" cy="98" rx="5.6" ry="7.4"/></g>
+      <g class="bm-sweat"><path class="bm-drop bm-drop--1" d="M28 70 q-2.2 4.2 0 5.8 q2.2 -1.6 0 -5.8z"/><path class="bm-drop bm-drop--2" d="M88 66 q2.2 4.2 0 5.8 q-2.2 -1.6 0 -5.8z"/></g>
+    </g>`;
+  const tip = BM_TIPS[heat];
+  const tap = opt.tap ? ` role="button" tabindex="0" onclick="${opt.tap}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${opt.tap}}"` : ' aria-hidden="true" focusable="false"';
+  return `<svg class="bomb-char bomb-char--${size} bm-h${heat} ${opt.cls || ''}" viewBox="0 0 120 130"${tap}>
+      <ellipse class="bm-shadow" cx="58" cy="124" rx="30" ry="4.5"/>
+      <g class="bm-jolt"><g class="bm-body">
+        <circle class="bm-glow" cx="58" cy="82" r="44"/>
+        ${fuse}
+        <g class="bm-spark" style="transform: translate(${tip[0]}px, ${tip[1]}px)"><g class="bm-spark__size"><g class="bm-spark__fl">
+          <polygon class="bm-spark__star" points="0,-8 2,-2.6 7.6,-3.4 3.4,0.6 6,6 0,3 -6,6 -3.4,0.6 -7.6,-3.4 -2,-2.6"/><circle class="bm-spark__core" r="2.6"/>
+          <circle class="bm-spark__p bm-spark__p--1" r="1.1"/><circle class="bm-spark__p bm-spark__p--2" r="1"/><circle class="bm-spark__p bm-spark__p--3" r="0.9"/>
+        </g></g></g>
+        <g transform="rotate(38 82 46)"><rect class="bm-cap bm-ink" x="73" y="38" width="18" height="13" rx="3"/><rect class="bm-cap__band" x="75" y="41" width="14" height="2.4" rx="1.2"/></g>
+        <circle class="bm-shell bm-ink" cx="58" cy="82" r="38"/>
+        <circle class="bm-rim" cx="58" cy="82" r="34.5"/>
+        <ellipse class="bm-shine" cx="42" cy="62" rx="10" ry="5.2" transform="rotate(-40 42 62)"/>
+        <circle class="bm-shine" cx="33" cy="74" r="2.2"/>
+        ${face}
+      </g></g>
+      ${bubbles}
+    </svg>`;
+}
+
+/** Switches every bomb under `root` to a heat in place: the fuse burns down, the spark follows. */
+function bombCharHeat(root, heat) {
+  if (!root) return;
+  const h = Math.max(0, Math.min(3, Number(heat) || 0));
+  root.querySelectorAll('.bomb-char').forEach(svg => {
+    if (svg.classList.contains('bm-h' + h)) return;
+    [0, 1, 2, 3].forEach(k => svg.classList.toggle('bm-h' + k, k === h));
+    const spark = svg.querySelector('.bm-spark');
+    if (spark) spark.style.transform = `translate(${BM_TIPS[h][0]}px, ${BM_TIPS[h][1]}px)`;
+    if (!motionOff()) { svg.classList.remove('is-hotter'); void svg.getBoundingClientRect(); svg.classList.add('is-hotter'); }
+  });
+}
+
+/** Every tick jolts the bombs under `root` (a squash, harder as it heats). */
+function bombCharTick(root) {
+  if (!root || motionOff()) return;
+  root.querySelectorAll('.bomb-char:not(.bomb-char--mini)').forEach(svg => {
+    svg.classList.remove('is-tick');
+    void svg.getBoundingClientRect();
+    svg.classList.add('is-tick');
+  });
+}
+
+/** One phone: a tap on the bomb as it goes round the table - it hops. */
+function bombCharHop(el) {
+  const svg = el && el.closest ? el.closest('.bomb-char') : null;
+  if (!svg || motionOff()) return;
+  svg.classList.remove('is-hop');
+  void svg.getBoundingClientRect();
+  svg.classList.add('is-hop');
+  setTimeout(() => svg.classList.remove('is-hop'), 700);
+  if (typeof playFx === 'function') { bombFxEnsure(); playFx('bombWhoosh'); }
+  haptic('light');
+}
+
+/* --- the explosion ---------------------------------------------------------- */
+
+// The pieces of the shell: where each flies (dx, dy) and how far it turns.
+const BM_SHARDS = [[-62, -48, -220], [58, -56, 260], [-74, 8, -160], [76, 14, 200], [-40, 52, -300], [46, 50, 240], [-8, -70, 180], [10, 62, -200]];
+
+/**
+ * The explosion, as it plays (late: ms already played, for a redraw mid-way) or settled
+ * (the remains only). o: { size 'big' | 'small', late, settled }.
+ */
+function bombBoomSvg(o) {
+  const opt = o || {};
+  const size = opt.size || 'big';
+  const shards = BM_SHARDS.map(([dx, dy, r], k) => `<g class="bm-x-shard" style="--dx: ${dx}px; --dy: ${dy}px; --r: ${r}deg"><path class="bm-x-shell bm-ink" d="${k % 2 ? 'M-7 -6 Q2 -10 8 -3 L3 5 Q-3 2 -7 -6z' : 'M-8 -4 Q-1 -9 7 -6 L5 4 L-5 5z'}"/></g>`).join('');
+  const smoke = [[-24, -10, 16], [22, -14, 18], [0, -30, 20], [-34, 14, 13], [32, 12, 14]].map(([x, y, r], k) =>
+    `<circle class="bm-x-smoke" cx="${80 + x}" cy="${76 + y}" r="${r}" style="--bm-sd: ${k * 90}ms"/>`).join('');
+  return `<svg class="bomb-boom-svg bomb-boom-svg--${size} ${opt.settled ? 'is-settled' : 'is-live'}" viewBox="0 0 160 140" aria-hidden="true" focusable="false" style="--bm-late: ${-(opt.late || 0)}ms">
+      <g class="bm-x-remains"><g transform="translate(80 100) scale(1.5) translate(-80 -112)">
+        <ellipse class="bm-x-soot" cx="80" cy="118" rx="44" ry="9"/>
+        <g transform="translate(58 112) rotate(-24)"><path class="bm-x-shell bm-ink" d="M-9 -4 Q0 -10 9 -5 L6 4 L-6 5z"/></g>
+        <g transform="translate(103 114) rotate(30)"><path class="bm-x-shell bm-ink" d="M-7 -6 Q2 -10 8 -3 L3 5 Q-3 2 -7 -6z"/></g>
+        <g transform="translate(80 108) rotate(-70)"><rect class="bm-cap bm-ink" x="-9" y="-6.5" width="18" height="13" rx="3"/></g>
+        <path class="bm-x-wisp" d="M80 98 q-6 -8 0 -16 q6 -8 0 -16 q-5 -7 1 -13"/>
+        <g transform="translate(40 116) rotate(50)"><path class="bm-x-shell bm-ink" d="M-5 -3 Q0 -6 5 -3 L3 3 L-3 3z"/></g>
+        <g transform="translate(121 117) rotate(-40)"><path class="bm-x-shell bm-ink" d="M-5 -3 Q0 -6 5 -3 L3 3 L-3 3z"/></g>
+      </g></g>
+      <g transform="translate(22 -6)"><g class="bm-x-swell">${bombCharSvg({ heat: 3, size: 'raw', bubble: false }).replace(/^<svg[^>]*>/, '<g class="bm-x-bomb bm-h3">').replace(/<\/svg>\s*$/, '</g>')}</g></g>
+      <circle class="bm-x-flash" cx="80" cy="76" r="66"/>
+      <polygon class="bm-x-fire" points="80,22 90,52 120,40 100,66 134,80 100,92 118,120 88,102 80,132 72,102 42,120 60,92 26,80 60,66 40,40 70,52"/>
+      <polygon class="bm-x-fire bm-x-fire--in" points="80,42 87,62 106,56 94,72 114,80 94,88 104,104 86,94 80,114 74,94 56,104 66,88 46,80 66,72 54,56 73,62"/>
+      <g class="bm-x-shards" transform="translate(80 76)">${shards}</g>
+      ${smoke}
+    </svg>`;
+}
+
+/* Which rounds this page has seen burning, and when each blew (so a redraw carries on). */
+const bombFx = { boomAt: {}, live: {}, fresh: {}, sawTicking: {}, holder: {}, soot: null };
+
+/** Remembers that this page saw the round with the fuse burning (the explosion is then played). */
+function bombFxSaw(key) { bombFx.sawTicking[key] = true; }
+
+/**
+ * The explosion's moment for a round: { late } while it plays (the ms already played), null once
+ * over, with motion off, or never seen burning here (a reload, a late join: the remains). The
+ * first call on a page that saw it burning starts it; its sound is bombBoomFx's, motion or not.
+ */
+function bombFxBoom(key) {
+  if (bombFx.boomAt[key] === undefined) {
+    const seen = !!bombFx.sawTicking[key];
+    bombFx.boomAt[key] = seen ? Date.now() : 0;
+    if (seen) { bombFx.fresh[key] = true; bombFx.live[key] = motionFirst('bomb-boom|' + key); }
+  }
+  const at = bombFx.boomAt[key];
+  if (!at || !bombFx.live[key]) return null;
+  const late = Date.now() - at;
+  return late < BOMB_BOOM_MS ? { late: late } : null;
+}
+
+/** The screen's part of the explosion, once: the boom, the shake, the soot. */
+function bombBoomFx(key, stage, o) {
+  const opt = o || {};
+  const at = bombFx.boomAt[key];
+  if (!at || !bombFx.fresh[key]) return;
+  delete bombFx.fresh[key];
+  const live = !!bombFx.live[key];
+  const wait = live ? Math.max(0, BOMB_BURST_MS - (Date.now() - at)) : 0;
+  setTimeout(() => {
+    if (opt.loud !== false) { bombFxEnsure(); if (typeof playFx === 'function' && FX.bombBoom) playFx('bombBoom'); else playSound('alarm'); }
+    haptic('heavy');
+    if (!live || motionOff()) return;
+    if (stage && stage.isConnected && stage.animate) {
+      stage.animate([
+        { translate: '0 0' }, { translate: '-14px 6px' }, { translate: '12px -8px' }, { translate: '-9px 5px' },
+        { translate: '7px -3px' }, { translate: '-4px 2px' }, { translate: '0 0' }
+      ], { duration: 560, easing: 'ease-out' });
+    }
+    bombSoot();
+  }, wait);
+}
+
+/** Soot smudges over the whole screen for a second, then gone. */
+function bombSoot() {
+  if (bombFx.soot) bombFx.soot.remove();
+  const layer = document.createElement('div');
+  layer.className = 'bm-soot';
+  layer.setAttribute('aria-hidden', 'true');
+  const spots = [[12, 22, 34], [78, 16, 26], [60, 58, 40], [22, 70, 30], [88, 80, 24], [40, 38, 20], [8, 92, 22]];
+  layer.innerHTML = spots.map(([x, y, r]) => `<span class="bm-soot__spot" style="left:${x}%; top:${y}%; width:${r}vmin; height:${r * 0.7}vmin"></span>`).join('');
+  document.body.appendChild(layer);
+  bombFx.soot = layer;
+  setTimeout(() => { layer.remove(); if (bombFx.soot === layer) bombFx.soot = null; }, 1900);
+}
+
+/* The bomb's own sounds, added to FX the first time they're wanted (JS_Sounds.html loads after this file). */
+function bombFxEnsure() {
+  if (typeof FX !== 'object' || FX.bombBoom) return;
+  FX.bombBoom = (at) => {
+    // A cartoon boom: a low thud falling away, a roar of filtered noise, a crackle of debris.
+    fxTone('sine', [[0, 140], [0.5, 32]], [[0, 0], [0.01, 0.5], [0.6, 0.001]], at);
+    fxTone('triangle', [[0, 90], [0.4, 40]], [[0, 0], [0.01, 0.22], [0.45, 0.001]], at);
+    fxNoise('lowpass', 700, 0.7, [[0, 0], [0.01, 0.42], [0.25, 0.2], [1.1, 0.001]], at);
+    fxNoise('bandpass', 2400, 0.9, [[0, 0], [0.005, 0.18], [0.12, 0.001]], at);
+    for (let i = 0; i < 7; i++) fxNoise('highpass', 3000 + i * 300, 1.2, [[0, 0], [0.004, 0.05], [0.03, 0.001]], at + 0.25 + i * 0.09 + (i % 3) * 0.02);
+  };
+  FX.bombWhoosh = (at) => {
+    // The bomb tossed to the next player: a short rising swish.
+    fxNoise('bandpass', 1400, 1.6, [[0, 0], [0.05, 0.08], [0.22, 0.001]], at);
+    fxTone('sine', [[0, 420], [0.18, 780]], [[0, 0], [0.03, 0.05], [0.2, 0.001]], at);
+  };
+}
+
+/**
+ * The bomb flies from one place to another (a pass): a small bomb in an arc, spinning, and the
+ * place it lands on pops. `toEl` is hidden until it arrives.
+ */
+function bombFlyChar(fromRect, toEl) {
+  if (!fromRect || !toEl || motionOff() || !document.body.animate) return;
+  const to = toEl.getBoundingClientRect();
+  if (!to.width || !fromRect.width) return;
+  const size = Math.max(28, Math.min(72, Math.max(to.height, fromRect.height * 0.5)));
+  const ghost = document.createElement('div');
+  ghost.className = 'bm-ghost';
+  ghost.style.width = size + 'px';
+  ghost.style.height = size + 'px';
+  ghost.innerHTML = bombCharSvg({ heat: 1, size: 'mini', bubble: false });
+  const fx = fromRect.left + fromRect.width / 2 - size / 2, fy = fromRect.top + fromRect.height / 2 - size / 2;
+  const tx = to.left + to.width / 2 - size / 2, ty = to.top + to.height / 2 - size / 2;
+  ghost.style.left = fx + 'px';
+  ghost.style.top = fy + 'px';
+  document.body.appendChild(ghost);
+  const dx = tx - fx, dy = ty - fy;
+  const lift = Math.min(160, 50 + Math.hypot(dx, dy) * 0.3);
+  toEl.classList.add('bm-waiting');
+  const done = () => {
+    ghost.remove();
+    toEl.classList.remove('bm-waiting');
+    toEl.classList.remove('bm-landed'); void toEl.getBoundingClientRect(); toEl.classList.add('bm-landed');
+  };
+  const anim = ghost.animate([
+    { transform: 'translate(0, 0) rotate(0deg) scale(1)' },
+    { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - lift}px) rotate(200deg) scale(1.25)`, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) rotate(360deg) scale(1)` }
+  ], { duration: 620, easing: 'cubic-bezier(0.3, 0.1, 0.4, 1)' });
+  anim.onfinish = done;
+  setTimeout(() => { if (ghost.isConnected) done(); }, 900);
+}
 </script>

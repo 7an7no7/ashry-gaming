@@ -5679,6 +5679,20 @@ The owner's rules are in *The owner's specs*.
   `result` (the word published, the points banked) and `gameover` after the
   chosen number of words. Guesses carry the word's `round`, so a tap from
   the last word is dropped.
+- **The man is a flat cartoon, look أ «كرتون مسطّح»** (the owner, 27 Sep 2026,
+  picked from a sheet of three - `notes/hangman-looks-sheet.html`, the run
+  improved in `notes/hangman-look-a.html`): hair, a face, the game's orange
+  shirt, blue trousers, hands and shoes (`--hm-*` tokens, the outlines the
+  page's ink), the same six pieces; a new piece pops in from its joint
+  (`.hm-pop.is-new`), the pieces not yet earned are drawn hidden (`.hm-ghost`).
+  **He talks now and then** (`.hm-bub`, `hm_bub_1..5`: a line a stage, two
+  seconds every nine, more desperate with each piece, never on the small
+  figures, gone once hanged, freed or stopped). **The escape is one run for
+  everyone**: the missing pieces pop in so he is whole, the rope snaps, he
+  drops with a squash, jumps for joy, then runs off with dust behind him
+  (`hm-run-*`, 4.4 s; the hold and the rows' memory cover it). The
+  piece-by-piece escapes of the first build (a rolling head, a log, a crawl,
+  a hop) went with the cartoon: a whole man running reads better.
 - **The man is alive** (the owner, 27 Sep 2026: "moving, calling for help,
   funny, worse with every part"). Each piece is a group pivoted at its joint
   (`transform-box: view-box`), and `hm-s<n>` on the svg is the state: a

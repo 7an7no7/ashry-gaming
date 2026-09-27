@@ -30,31 +30,37 @@ const hmT = (key, vars) => {
   return s;
 };
 
-/* The man, a piece a miss, each piece in a group the animations move (Style.html section 25):
-   the head carries a face that changes with every piece (blink, worry, a gasp, sweat, and at
-   the end the tongue and crossed eyes), the arms wave and flap, the legs kick, and a shoe
-   drops off when he is hanged. The stroke that draws itself is the .hm-man inside; the face
-   fades in with the head. The owner (27 Sep 2026): "moving, calling for help, funny, worse
-   with every part". */
+/* The man, look أ «كرتون مسطّح» (the owner, 27 Sep 2026): a flat cartoon in the same six pieces, each
+   a group the animations move (Style.html section 25) - the head with its hair and a face that changes
+   with every piece (blink, worry, a gasp, sweat, the tongue and crossed eyes at the end), the shirt,
+   two arms with hands, two trouser legs with shoes. A piece just added pops in from its joint
+   (.hm-pop.is-new); the pieces not yet earned are drawn hidden (.hm-ghost) so the escape can give him
+   the rest of himself before he runs. The colours are tokens (--hm-*), the outlines the page's ink. */
 const HM_PARTS = [
-  '<g class="hm-part hm-head"><circle class="hm-man" pathLength="1" cx="80" cy="34" r="10"/>' +
+  '<g class="hm-part hm-head"><g class="hm-pop">' +
+    '<circle class="hm-skin hm-ink" cx="80" cy="34" r="11"/>' +
+    '<path class="hm-hair" d="M69.5 31 Q72 21 80 22 Q88 21 90.5 31 Q86 27 80 28 Q74 27 69.5 31z"/>' +
     '<g class="hm-face">' +
-      '<g class="hm-eyes"><circle class="hm-eye" cx="76" cy="32" r="1.6"/><circle class="hm-eye" cx="84" cy="32" r="1.6"/></g>' +
-      '<path class="hm-eyes-x" d="M74 30 L78 34 M78 30 L74 34 M82 30 L86 34 M86 30 L82 34"/>' +
-      '<path class="hm-brows" d="M73.5 27.5 L78.5 29 M86.5 27.5 L81.5 29"/>' +
-      '<path class="hm-mouth hm-mouth--smile" d="M76 37.5 Q80 41 84 37.5"/>' +
-      '<path class="hm-mouth hm-mouth--flat" d="M76.5 38.5 H83.5"/>' +
-      '<path class="hm-mouth hm-mouth--worry" d="M76 39.5 Q80 36.5 84 39.5"/>' +
-      '<ellipse class="hm-mouth hm-mouth--o" cx="80" cy="38.5" rx="2.2" ry="2.8"/>' +
-      '<path class="hm-tongue" d="M78.5 39 Q80 44 81.5 39 Z"/>' +
-      '<g class="hm-sweat"><path class="hm-drop hm-drop--1" d="M68 28 q-1.6 3 0 4.2 q1.6 -1.2 0 -4.2z"/><path class="hm-drop hm-drop--2" d="M93 26 q1.6 3 0 4.2 q-1.6 -1.2 0 -4.2z"/></g>' +
-    '</g></g>',
-  '<g class="hm-part hm-body"><path class="hm-man" pathLength="1" d="M80 44 V78"/></g>',
-  '<g class="hm-part hm-arm hm-arm--l"><path class="hm-man" pathLength="1" d="M80 53 L66 67"/></g>',
-  '<g class="hm-part hm-arm hm-arm--r"><path class="hm-man" pathLength="1" d="M80 53 L94 67"/></g>',
-  '<g class="hm-part hm-leg hm-leg--l"><path class="hm-man" pathLength="1" d="M80 78 L68 101"/></g>',
-  '<g class="hm-part hm-leg hm-leg--r"><path class="hm-man" pathLength="1" d="M80 78 L92 101"/><path class="hm-shoe" d="M88 101 l6 0 l2 4 l-9 0 z"/></g>'
+      '<g class="hm-eyes"><circle class="hm-eye" cx="76" cy="33" r="1.7"/><circle class="hm-eye" cx="84" cy="33" r="1.7"/></g>' +
+      '<path class="hm-eyes-x hm-ink" d="M74 31 L78 35 M78 31 L74 35 M82 31 L86 35 M86 31 L82 35"/>' +
+      '<path class="hm-eyes-happy hm-ink" d="M73.5 33.5 Q76 30.5 78.5 33.5 M81.5 33.5 Q84 30.5 86.5 33.5"/>' +
+      '<path class="hm-brows hm-ink" d="M73 29 L78 30.5 M87 29 L82 30.5"/>' +
+      '<path class="hm-mouth hm-mouth--smile hm-ink" d="M76 38.5 Q80 42 84 38.5"/>' +
+      '<path class="hm-mouth hm-mouth--flat hm-ink" d="M76.5 39.5 H83.5"/>' +
+      '<path class="hm-mouth hm-mouth--worry hm-ink" d="M76 40.5 Q80 37.5 84 40.5"/>' +
+      '<ellipse class="hm-mouth hm-mouth--o hm-ink" cx="80" cy="40" rx="2.4" ry="3"/>' +
+      '<path class="hm-mouth hm-mouth--grin hm-ink" d="M75 38 Q80 45 85 38z"/>' +
+      '<path class="hm-tongue" d="M78.5 40 Q80 45 81.5 40z"/>' +
+      '<g class="hm-sweat"><path class="hm-drop hm-drop--1" d="M67 27 q-1.6 3 0 4.2 q1.6 -1.2 0 -4.2z"/><path class="hm-drop hm-drop--2" d="M94 25 q1.6 3 0 4.2 q-1.6 -1.2 0 -4.2z"/></g>' +
+    '</g></g></g>',
+  '<g class="hm-part hm-body"><g class="hm-pop"><rect class="hm-shirt hm-ink" x="72" y="45" width="16" height="30" rx="6"/></g></g>',
+  '<g class="hm-part hm-arm hm-arm--l"><g class="hm-pop"><path class="hm-sleeve hm-ink" d="M74 52 L62 66"/><circle class="hm-skin hm-ink" cx="61" cy="67.5" r="3.6"/></g></g>',
+  '<g class="hm-part hm-arm hm-arm--r"><g class="hm-pop"><path class="hm-sleeve hm-ink" d="M86 52 L98 66"/><circle class="hm-skin hm-ink" cx="99" cy="67.5" r="3.6"/></g></g>',
+  '<g class="hm-part hm-leg hm-leg--l"><g class="hm-pop"><path class="hm-pants hm-ink" d="M74 74 L70 100 L78 100 L81 74z"/><ellipse class="hm-shoe" cx="72" cy="102" rx="6" ry="3"/></g></g>',
+  '<g class="hm-part hm-leg hm-leg--r"><g class="hm-pop"><path class="hm-pants hm-ink" d="M80 74 L83 100 L91 100 L87 74z"/><ellipse class="hm-shoe hm-shoe--r" cx="88" cy="102" rx="6" ry="3"/></g></g>'
 ];
+// What the man says now and then, a line a stage (hm_bub_1 … hm_bub_5), off the TV's small figures.
+const HM_BUBBLE_STAGES = 5;
 
 /**
  * The gallows and as much of the man as `misses` has drawn. With `drawLast`
@@ -62,20 +68,26 @@ const HM_PARTS = [
  */
 function hmGallowsSvg(misses, drawLast, cls) {
   const n = Math.max(0, Math.min(HM_MISSES, Number(misses) || 0));
-  const parts = HM_PARTS.map((p, k) => (k < n ? p.replace('class="hm-man"', 'class="hm-man ' + (drawLast && k === n - 1 ? 'is-new' : 'is-on') + '"') : '')).join('');
+  const parts = HM_PARTS.map((p, k) => p.replace('class="hm-pop"', 'class="hm-pop ' + (k < n ? (drawLast && k === n - 1 ? 'is-new' : 'is-on') : 'hm-ghost') + '"')).join('');
+  const mini = /hm-gallows--mini/.test(cls || '');
+  // The bubble: a line for this stage, popping now and then (the delay staggers boards on one screen).
+  const bub = !mini && n >= 1 && n <= HM_BUBBLE_STAGES
+    ? `<g class="hm-bub" style="--hm-bub-delay: ${(n * 1.7) % 4}s"><path class="hm-bub__box" d="M40 4 h36 a4 4 0 0 1 4 4 v11 a4 4 0 0 1 -4 4 h-9 l-4 5 l-1 -5 h-22 a4 4 0 0 1 -4 -4 v-11 a4 4 0 0 1 4 -4z"/><text class="hm-bub__t" x="58" y="16.5" text-anchor="middle">${escapeHTML(hmT('hm_bub_' + n))}</text></g>`
+    : '';
   // hm-s<n> is the man's state (the face, the sway, the arms, the legs); is-hanged the end, still.
   return `<svg class="hm-gallows ${cls || ''} hm-s${n} ${n >= HM_MISSES ? 'is-hanged' : ''}" viewBox="0 0 110 128" aria-hidden="true" focusable="false">
       <path class="hm-gal" d="M12 122 H70"/><path class="hm-gal" d="M26 122 V10 H80"/><path class="hm-gal" d="M26 32 L48 10"/><path class="hm-gal hm-rope" d="M80 10 V24"/>
-      <g class="hm-fig">${parts}</g>
+      <g class="hm-fig"><g class="hm-lean">${parts}<g class="hm-dust"><circle class="hm-dust__p hm-dust__p--1" cx="70" cy="101" r="3"/><circle class="hm-dust__p hm-dust__p--2" cx="66" cy="99" r="2.4"/><circle class="hm-dust__p hm-dust__p--3" cx="74" cy="100" r="2"/></g></g></g>
       <text class="hm-clock" x="80" y="19" text-anchor="middle" font-size="13">⏰</text>
+      ${bub}
     </svg>`;
 }
 
 /** The newest piece of the man draws itself, once it is on screen. */
 function hmDrawLast(root) {
-  const el = root && root.querySelector('.hm-man.is-new');
+  const el = root && root.querySelector('.hm-pop.is-new');
   if (!el) return;
-  requestAnimationFrame(() => requestAnimationFrame(() => { el.classList.remove('is-new'); el.classList.add('is-on'); }));
+  setTimeout(() => { el.classList.remove('is-new'); el.classList.add('is-on'); }, 700);
 }
 
 /**
@@ -187,7 +199,7 @@ function hmAfterBoard(root, o) {
  * it plays carries on from there (--hm-late). Keyed on the deal and the round; the first sight of
  * a round plays nothing (a reload, a late join, the TV coming on).
  */
-const HM_MOMENT_MS = 3200;
+const HM_MOMENT_MS = 4800;
 function hmRowMoments(state, prog) {
   const s = state.shared || {};
   const key = [state.code, s.dealId, s.round].join('|');
@@ -651,7 +663,7 @@ function hmRoomFx(state, you) {
  * table's rows have a moment just begun, the guessing frame is held HM_HOLD_MS with the moment
  * on it, then the result is drawn. The board is rebuilt from the last one seen and the word.
  */
-const HM_HOLD_MS = 3000;
+const HM_HOLD_MS = 4600;
 function hmRoomHold(state, tv) {
   const s = state.shared || {};
   if (s.phase !== 'result' || motionOff()) return null;
@@ -775,7 +787,7 @@ ROOM_GAMES.hangman = {
         const b = Array.isArray(you.pattern) ? you : hold.board;
         fx = Array.isArray(you.pattern) ? hmRoomFx(state, you) : hold.fx;
         mine = hmBoardHtml({
-          pattern: b.pattern, alpha: s.alpha, g: b.g, miss: b.miss, state: b.state, word: b.state === 'won' ? s.result.word : '',
+          pattern: b.pattern, alpha: s.alpha, g: b.g, miss: b.miss, state: b.state, word: b.state === 'won' && s.result ? s.result.word : '',
           on: b.state === 'play', press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head, hint: hint
         });
         if (b.state !== 'play') mine += `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(b.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p>

@@ -180,6 +180,43 @@ function hmAfterBoard(root, o) {
   }
 }
 
+/**
+ * The moments of the table's little men (hmProgressHtml): what changed on each board since this
+ * phone last drew the rows - a solve (the escape), the sixth piece (the shoe), the clock ending a
+ * board (⏰), a letter found (a hop) - each remembered with when it began, so a row rebuilt while
+ * it plays carries on from there (--hm-late). Keyed on the deal and the round; the first sight of
+ * a round plays nothing (a reload, a late join, the TV coming on).
+ */
+const HM_MOMENT_MS = 3200;
+function hmRowMoments(state, prog) {
+  const s = state.shared || {};
+  const key = [state.code, s.dealId, s.round].join('|');
+  const mem = hmRoom.rows && hmRoom.rows.key === key ? hmRoom.rows : (hmRoom.rows = { key, seen: null, moments: {} });
+  const now = Date.now();
+  const cur = {};
+  Object.keys(prog).forEach(id => { const p = prog[id]; cur[id] = { state: p.state, miss: p.miss, n: p.n }; });
+  if (mem.seen && !motionOff()) {
+    Object.keys(cur).forEach(id => {
+      const was = mem.seen[id], is = cur[id];
+      if (!was) return;
+      let cls = '';
+      if (is.state === 'won' && was.state !== 'won') cls = 'is-free';
+      else if (is.miss >= HM_MISSES && was.miss < HM_MISSES) cls = 'is-dropping';
+      else if (is.state === 'lost' && was.state === 'play' && is.miss === was.miss) cls = 'is-timeup';
+      else if (is.n > was.n && is.state === 'play') cls = 'is-hop';
+      if (cls) mem.moments[id] = { cls, at: now };
+    });
+  }
+  mem.seen = cur;
+  const out = {};
+  Object.keys(mem.moments).forEach(id => {
+    const m = mem.moments[id];
+    if (now - m.at > HM_MOMENT_MS) { delete mem.moments[id]; return; }
+    out[id] = { cls: m.cls, late: now - m.at };
+  });
+  return out;
+}
+
 /** The word a player writes, as it will be refused: '' when it can be played. */
 function hmWriteError(text) {
   const p = hmWordProblem(text);
@@ -481,13 +518,15 @@ function hmProgressHtml(state, tv) {
   const ids = Object.keys(prog);
   if (!ids.length) return '';
   const nameOf = (id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+  const moments = hmRowMoments(state, prog);
   const rows = ids.map(id => {
     const p = prog[id];
     const st = p.state === 'won' ? ('✅ ' + (typeof p.at === 'number' ? hmT('hm_place', { n: p.at + 1 }) : hmT('hm_state_won')))
-      : (p.state === 'lost' ? hmT('hm_state_lost') : hmT('hm_state_play'));
-    return `<div class="hm-row is-${p.state} ${id === Room.me ? 'is-me' : ''}">
+      : (p.state === 'lost' ? (p.miss >= HM_MISSES ? hmT('hm_state_lost') : '⏰ ' + hmT('hm_state_lost')) : hmT('hm_state_play'));
+    const m = moments[id];
+    return `<div class="hm-row is-${p.state} ${id === Room.me ? 'is-me' : ''}" data-pid="${escapeHTML(id)}">
         <span class="hm-row__who">${escapeHTML(nameOf(id))}</span>
-        ${hmGallowsSvg(p.miss, false, 'hm-gallows--mini')}
+        ${hmGallowsSvg(p.miss, false, 'hm-gallows--mini' + (m ? ' ' + m.cls : '')).replace('<svg ', m ? `<svg style="--hm-late: -${m.late}ms" ` : '<svg ')}
         <span class="hm-row__prog">${escapeHTML(hmT('hm_found', { n: p.n, m: s.len }))}</span>
         <span class="hm-row__st">${escapeHTML(st)}</span>
       </div>`;

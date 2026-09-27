@@ -5697,7 +5697,11 @@ The owner's rules are in *The owner's specs*.
   carry each player's man (escaped, hanged or frozen) and rise in once. A
   boing (`FX.hmBoing`) per piece and the trombone on the sixth, on the
   guesser's own phone only. Everything is stilled under reduced motion at
-  the end of section 25. The look driver is `notes/hangman-look.mjs.txt`.
+  the end of section 25. The table's row of little men (the writer's
+  phone, every phone in a race, the TV) plays the moments too: `hmRowMoments`
+  compares each board with what this phone last drew and remembers a moment
+  with when it began, so a row rebuilt mid-way carries on from there
+  (`--hm-late` offsets every one-shot animation). The look driver is `notes/hangman-look.mjs.txt`.
 - **`JS_Hangman.html`**: one board builder for one phone and a room
   (`hmBoardHtml`: the gallows, the tiles, the wrong letters, the keys and the
   whole-word field) and the two on one phone (`appState.hangman`, restored

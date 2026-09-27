@@ -5818,12 +5818,13 @@ The owner's rules are in *The owner's specs*.
   (`.hm-pop.is-new`), the pieces not yet earned are drawn hidden (`.hm-ghost`).
   **He talks now and then** (`.hm-bub`, `hm_bub_1..5`: a line a stage, two
   seconds every nine, more desperate with each piece, never on the small
-  figures, gone once hanged, freed or stopped). **The escape is one run for
-  everyone**: the missing pieces pop in so he is whole, the rope snaps, he
-  drops with a squash, jumps for joy, then runs off with dust behind him
-  (`hm-run-*`, 4.4 s; the hold and the rows' memory cover it). The
-  piece-by-piece escapes of the first build (a rolling head, a log, a crawl,
-  a hop) went with the cartoon: a whole man running reads better.
+  figures, gone once hanged, freed or stopped). **The escape fits his pieces** (the owner, 28 Sep 2026,
+  putting back what the cartoon build had replaced with one run for all): the
+  rope snaps and a head alone drops, bounces and rolls off spinning; head and
+  body tip over on the body's foot and slide off like a log; arms crawl off
+  paddling, with dust; one leg hops away, higher as he goes (`hm-esc-*`,
+  3.2 s, each turning about its own point; the hold and the rows' memory
+  cover it). The pieces he never earned stay hidden.
 - **The man is alive** (the owner, 27 Sep 2026: "moving, calling for help,
   funny, worse with every part"). Each piece is a group pivoted at its joint
   (`transform-box: view-box`), and `hm-s<n>` on the svg is the state: a

@@ -3264,6 +3264,13 @@ the word search), `countUp` for streaks and scores.
   the wave, the flapping, the wriggle, the comic end, the escape that fits
   his pieces, the clock's freeze, the result card's rows. Looked at with
   four phones and a TV at 375×812 Arabic light and 1280×720 English dark.
+- **27 Sep 2026, خمّن الرقم's hot-or-cold man** (*One sets, everyone solves*,
+  "The hot-or-cold man"): a cartoon of the same cast beside the guesses on one
+  phone and on every solver's own board in a room - shivering far off, thinking,
+  sweating and fanning, on fire and hopping, a party on the hit, slumped out of
+  tries - with an arrow for higher / lower. Looked at on one phone and in a room
+  of a setter, two solvers and a TV (no man on the TV or the setter's phone), at
+  375×812 Arabic light and 1280×720 English dark, with a reload mid-game.
 ## Building and Running
 
 ### Development Requirements
@@ -5799,6 +5806,29 @@ emoji room (`room-emoji`), whose third way is the quiz.
 - Tests: `rules.mjs` (the games' rules and the engine), `leaks.mjs`
   (`DRIVERS.solveGame`, `PROBES.solve`: all four both ways), `play-all.mjs`
   (a round of each both ways on a live server).
+- **The hot-or-cold man** (خمّن الرقم, the owner, 27 Sep 2026; `gnCharHtml`
+  and friends at the end of `JS_GuessNumber.html`, section 44 of `Style.html`):
+  a flat cartoon of المشنقة's cast whose band follows the last guess - `far`
+  (a scarf, icicles, blue, chattering «برد… برد…»), `mid` (a hand on his chin),
+  `warm` (sweat, red cheeks, a fan, «سخن!»), `hot` (flames, drips, a puddle,
+  hopping, «قريييب!»), `win` (a party hat, arms up, a jump, «جبتها!») and in a
+  room `out` (slumped under a rain cloud), `idle` before a guess; an arrow
+  beside him for higher / lower (the feedback text stays). The bands are a
+  distance over the range (`gnBandOf`: 25%, 10%, 4%). On one phone the secret is
+  there, so it is the real distance (`gnLocalBands`; the friend's way, with no
+  range, counts a hundred or twice the number). In a room the phone knows only
+  higher / lower: the distance from the guess to the middle of what is still
+  possible after it, over 1..max (`gnRoomBands`, replaying the verdicts). He is
+  drawn only by `svBoardHtml` (`gnRoomCharHtml`, beside the range in `.gn-duo`),
+  so never on the TV (it would hint at a number) or the setter's phone. A change
+  of band is a moment keyed with `motionFirst` (`gnMoment`, `--gn-late` so a
+  rebuilt board carries on): `is-morph` pops him into his new self (`is-jump`
+  on the hit, whose `data-reveal-ms` holds the confetti through `afterReveal`),
+  `is-say` says the new line at once, then the bubble comes back every nine
+  seconds; `is-new` pops the arrow. A band has a short sound of its own
+  (`gnBrr`, `gnHmm`, `gnWarm`, `gnSizzle` in `FX`), on the guessing phone only.
+  Decided here: the bands' edges; the man is never shown to anyone but the one
+  guessing, and the TV keeps its progress cards as they were.
 
 ### سباق ألغاز
 

@@ -18365,4 +18365,182 @@ body.is-tv-view .dom-rrow__none { font-size: var(--tv-sm); }
   }
 }
 
+/* ==========================================================================
+   44. أتوبيس كومبليت: the living bus (27 Sep 2026, JS_StopBus.html) - a flat
+   cartoon in المشنقة's cast: ink outlines that stay dark, the game's accent
+   for the body, a destination board where the round's letter lands. The scene
+   is a physical strip (dir="ltr"); in Arabic the bus drives right to left
+   (--sbus-dir: -1, the body mirrored in the SVG). The drive in, the idle and
+   the drive off are transforms on three nested boxes (.sbus-bus moves,
+   .sbus-rock rocks, .sbus-bob bounces); the SVG's pieces inside the mirrored
+   group turn on their own box (transform-box: fill-box), so a mirror turns the
+   wheels the other way by itself. Every one-shot waits var(--sbus-late) (a
+   negative delay: a frame rebuilt mid-way carries on) and ends `both`.
+   ========================================================================== */
+:root { --sbus-ink: #23213a; --sbus-skin: #f6c9a5; --sbus-glass: #cfe6fb; --sbus-road: #dcd6e6; --sbus-kerb: #bdb5cf; --sbus-dust: #c9c2dc; --sbus-metal: #8a86a0; --sbus-led: #ffcf4a; --sbus-deep: #2f2a4a; }
+body.dark { --sbus-ink: #16142a; --sbus-skin: #f0bf9a; --sbus-glass: #3d5478; --sbus-road: #2a2640; --sbus-kerb: #3b3656; --sbus-dust: #5a5470; --sbus-metal: #6b6780; }
+
+/* Edge to edge in the card on a phone; on a laptop or a phone on its side no wider than the screen's height allows. */
+.sbus-scene { --sbus-dir: 1; --sbus-w: min(calc(100% + 2 * var(--sp-4)), 36rem, calc(var(--app-h, 100dvh) * 0.8)); position: relative; width: var(--sbus-w); margin: var(--sp-2) calc((100% - var(--sbus-w)) / 2) var(--sp-3); aspect-ratio: 100 / 47; overflow: clip; container-type: inline-size; }
+.sbus-scene.is-rtl, .sbus-left.is-rtl { --sbus-dir: -1; }
+.sbus-road { position: absolute; left: 0; right: 0; bottom: 0; height: 15%; background: var(--sbus-road); border-top: 0.35cqw solid var(--sbus-kerb);
+  background-image: linear-gradient(90deg, rgba(255,255,255,0.75) 55%, transparent 55%); background-size: 9% 0.6cqw; background-repeat: repeat-x; background-position: 0 62%; }
+body.dark .sbus-road { background-image: linear-gradient(90deg, rgba(255,255,255,0.28) 55%, transparent 55%); }
+.sbus-bus { position: absolute; left: 3%; bottom: 7%; width: 76%; container-type: inline-size; transform-origin: 50% 100%; }
+.sbus-scene.is-rtl .sbus-bus { left: 21%; }
+.sbus-rock, .sbus-bob { position: relative; transform-origin: 50% 100%; }
+.sbus-svg, .sbus-stop__svg, .sbus-walker { display: block; width: 100%; height: auto; overflow: visible; }
+.sbus-stop { position: absolute; left: 84%; bottom: 7%; width: 11.5%; }
+.sbus-scene.is-rtl .sbus-stop { left: 4.5%; }
+
+/* The drawing's colours. */
+.sbus-ink { stroke: var(--sbus-ink); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.sbus-body { fill: var(--accent); }
+.sbus-roof { fill: #fff; opacity: 0.35; }
+.sbus-skirt { fill: #000; opacity: 0.13; }
+.sbus-stripe { fill: #fff; opacity: 0.9; }
+.sbus-glass { fill: var(--sbus-glass); }
+.sbus-shine { fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; opacity: 0.55; }
+.sbus-doorway, .sbus-arch, .sbus-board__led { fill: var(--sbus-deep); }
+.sbus-dark, .sbus-tyre, .sbus-board, .sbus-eye, .sbus-shoe { fill: var(--sbus-ink); }
+.sbus-metal { fill: var(--sbus-metal); }
+.sbus-hub { fill: #d9d3e6; }
+.sbus-spoke { fill: none; stroke: var(--sbus-ink); stroke-width: 1.6; stroke-linecap: round; }
+.sbus-lamp { fill: #ffe27a; }
+.sbus-shadow { fill: #000; opacity: 0.16; }
+.sbus-skin { fill: var(--sbus-skin); }
+.sbus-mouth, .sbus-face-happy { fill: none; }
+.sbus-driver__shirt, .sbus-pants { fill: #4b5fb0; }
+.sbus-sleeve { fill: none; stroke: #4b5fb0; stroke-width: 4.2; }
+.sbus-initial { fill: #fff; font-family: var(--font-display); font-weight: 800; }
+.sbus-sign { fill: #f5b400; }
+.sbus-sign__bus { fill: #fff; }
+.sbus-sign__win { fill: var(--sbus-glass); }
+.sbus-pax .sbus-face-happy { display: none; }
+.sbus-pax.is-done .sbus-face-happy { display: block; }
+.sbus-pax.is-done .sbus-face-open { display: none; }
+
+/* The destination board: the letter spinLetter spins lands here, in amber LEDs. */
+.sbus-led { position: absolute; left: 48.33%; top: 0.8%; width: 47.5%; height: 30.6%; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.sbus-scene.is-rtl .sbus-led { left: 4.17%; }
+.sbus-led .stop-letter, .sbus-led .tv-stop-letter { font-family: var(--font-display); font-size: 14.5cqw; font-weight: 900; line-height: 1; color: var(--sbus-led); text-shadow: 0 0 0.14em rgba(255, 207, 74, 0.65); }
+.sbus-led .stop-letter.is-spinning, .sbus-led .tv-stop-letter.is-spinning { color: #b9a15e; text-shadow: none; }
+
+/* The timetable on the stop's pole: the round's clock, read from the existing element. */
+.sbus-tt { position: absolute; left: 50%; top: 30%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.1em;
+  min-width: 118%; padding: 0.35em 0.4em 0.3em; border: 0.35cqw solid var(--sbus-ink); border-radius: 0.4em; background: var(--sbus-deep); color: var(--sbus-led); font-size: 3.1cqw; line-height: 1; box-shadow: 0 0.2em 0 rgba(0, 0, 0, 0.18); }
+.sbus-scene .sbus-tt { font-size: max(3.1cqw, 0.7rem); }
+.sbus-tt__head { font-size: 0.8em; }
+.sbus-tt .metric, .sbus-tt .badge, .sbus-tt .tv-timer { all: unset; font-family: var(--font-display); font-size: 1.9em; font-weight: 900; color: var(--sbus-led); font-variant-numeric: tabular-nums; }
+.sbus-tt #stop-clock.is-low, .sbus-tt .badge--danger, .sbus-tt .tv-timer.is-low { color: #ff6b6b; }
+
+/* The drive in (1.3 s from off the screen, easing to the stop), the brake's rock, the doors opening. */
+.sbus-bus.is-arrive { animation: sbus-in 1300ms cubic-bezier(0.12, 0.72, 0.3, 1) both; animation-delay: var(--sbus-late, 0ms); }
+.sbus-bus.is-arrive .sbus-rock { animation: sbus-brake 650ms ease-out both; animation-delay: calc(1000ms + var(--sbus-late, 0ms)); }
+.sbus-wheel, .sbus-door, .sbus-puff, .sbus-arm, .sbus-pax, .sbus-bub { transform-box: fill-box; }
+.sbus-wheel { transform-origin: 50% 50%; }
+.sbus-bus.is-arrive .sbus-wheel { animation: sbus-wheel-in 1300ms cubic-bezier(0.12, 0.72, 0.3, 1) both; animation-delay: var(--sbus-late, 0ms); }
+.sbus-door--a { transform-origin: 0% 50%; }
+.sbus-door--b { transform-origin: 100% 50%; }
+.sbus-bus.is-park .sbus-door { transform: scaleX(0.18); }
+.sbus-bus.is-arrive .sbus-door { animation: sbus-door-open 380ms ease-out both; animation-delay: calc(1250ms + var(--sbus-late, 0ms)); }
+@keyframes sbus-in { 0% { transform: translateX(calc(var(--sbus-dir) * -110vw)); } 100% { transform: translateX(0); } }
+@keyframes sbus-brake { 0% { transform: rotate(0deg); } 35% { transform: rotate(calc(var(--sbus-dir) * 2.4deg)); } 70% { transform: rotate(calc(var(--sbus-dir) * -1deg)); } 100% { transform: rotate(0deg); } }
+@keyframes sbus-wheel-in { 0% { transform: rotate(-1260deg); } 100% { transform: rotate(0deg); } }
+@keyframes sbus-door-open { 0% { transform: scaleX(1); } 100% { transform: scaleX(0.18); } }
+
+/* The idle while the table writes: a bounce, a puff now and then, the driver's wave, a word. */
+.sbus-bus.is-park .sbus-bob { animation: sbus-idle 0.8s ease-in-out infinite; }
+.sbus-bus.is-arrive .sbus-bob { animation: sbus-idle 0.8s ease-in-out infinite; animation-delay: calc(1500ms + var(--sbus-late, 0ms)); }
+.sbus-puff { fill: var(--sbus-dust); opacity: 0; transform-origin: 50% 50%; }
+.sbus-bus.is-park .sbus-puff { animation: sbus-puff 2.7s ease-out infinite; }
+.sbus-bus.is-park .sbus-puff--2 { animation-delay: 0.9s; }
+.sbus-bus.is-park .sbus-puff--3 { animation-delay: 1.8s; }
+.sbus-bus.is-arrive .sbus-puff { animation: sbus-puff 900ms ease-out both; animation-delay: calc(1050ms + var(--sbus-late, 0ms)); }
+.sbus-bus.is-arrive .sbus-puff--2 { animation-delay: calc(1180ms + var(--sbus-late, 0ms)); }
+.sbus-bus.is-arrive .sbus-puff--3 { animation-delay: calc(1300ms + var(--sbus-late, 0ms)); }
+.sbus-arm { transform-origin: 0% 0%; }
+.sbus-bus.is-park .sbus-arm { animation: sbus-arm 7s ease-in-out infinite 1.2s; }
+@keyframes sbus-idle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.7%); } }
+@keyframes sbus-puff { 0% { opacity: 0; transform: translate(0, 0) scale(0.4); } 15% { opacity: 0.85; } 100% { opacity: 0; transform: translate(-14px, -9px) scale(1.7); } }
+@keyframes sbus-arm { 0%, 72%, 100% { transform: rotate(0deg); } 77% { transform: rotate(-115deg); } 81% { transform: rotate(-85deg); } 85% { transform: rotate(-115deg); } 89% { transform: rotate(-85deg); } 95% { transform: rotate(0deg); } }
+.sbus-bub { opacity: 0; transform-origin: 50% 100%; animation: sbus-bub 27s ease-in-out infinite; animation-delay: var(--sbus-bub-delay, 3s); }
+.sbus-bub__box { fill: var(--surface-solid); stroke: var(--text); stroke-width: 1.4; stroke-linejoin: round; }
+.sbus-bub__t { font-family: var(--font); font-size: 10px; font-weight: 700; fill: var(--text); }
+.sbus-bus.is-leave .sbus-bub { display: none; }
+@keyframes sbus-bub { 0%, 1% { opacity: 0; transform: scale(0.6); } 2.5%, 8.5% { opacity: 1; transform: scale(1); } 10%, 100% { opacity: 0; transform: scale(0.85); } }
+.sbus-pax { transform-origin: 50% 100%; }
+.sbus-pax.is-new { animation: sbus-pax-in 520ms cubic-bezier(0.2, 1.5, 0.4, 1) both; animation-delay: var(--sbus-pax-late, 0ms); }
+@keyframes sbus-pax-in { 0% { opacity: 0; transform: translateY(40%) scale(0.3); } 100% { opacity: 1; transform: none; } }
+
+/* وقف: the doors slam, the bus lurches, then pulls away faster and faster off the other side;
+   its dust stays on the road where it was. */
+.sbus-bus.is-leave { animation: sbus-out 2300ms linear both; animation-delay: var(--sbus-late, 0ms); }
+.sbus-bus.is-leave .sbus-rock { animation: sbus-lurch 2300ms ease-out both; animation-delay: var(--sbus-late, 0ms); }
+.sbus-bus.is-leave .sbus-door { animation: sbus-door-slam 260ms cubic-bezier(0.3, 1.7, 0.5, 1) both; animation-delay: var(--sbus-late, 0ms); }
+.sbus-bus.is-leave .sbus-wheel { animation: sbus-wheel-out 2300ms linear both; animation-delay: var(--sbus-late, 0ms); }
+.sbus-bus.is-leave .sbus-puff { animation: sbus-puff-big 1000ms ease-out both; animation-delay: calc(600ms + var(--sbus-late, 0ms)); }
+.sbus-bus.is-leave .sbus-puff--2 { animation-delay: calc(720ms + var(--sbus-late, 0ms)); }
+.sbus-bus.is-leave .sbus-puff--3 { animation-delay: calc(840ms + var(--sbus-late, 0ms)); }
+.sbus-bus.is-leave .sbus-pax { animation: sbus-pax-jolt 700ms ease-out both; animation-delay: calc(650ms + var(--sbus-late, 0ms)); }
+@keyframes sbus-out {
+  0%, 28% { transform: translateX(0); }
+  34% { transform: translateX(calc(var(--sbus-dir) * -1.2%)); animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.45); }
+  100% { transform: translateX(calc(var(--sbus-dir) * 115vw)); }
+}
+@keyframes sbus-lurch { 0%, 28% { transform: rotate(0deg); } 33% { transform: rotate(calc(var(--sbus-dir) * 1.2deg)); } 40% { transform: rotate(calc(var(--sbus-dir) * -2.6deg)); } 55%, 100% { transform: rotate(calc(var(--sbus-dir) * -0.6deg)); } }
+@keyframes sbus-door-slam { 0% { transform: scaleX(0.18); } 100% { transform: scaleX(1); } }
+@keyframes sbus-wheel-out { 0%, 30% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5); } 100% { transform: rotate(1800deg); } }
+@keyframes sbus-puff-big { 0% { opacity: 0; transform: translate(0, 0) scale(0.5); } 12% { opacity: 0.95; } 100% { opacity: 0; transform: translate(-22px, -12px) scale(2.6); } }
+@keyframes sbus-pax-jolt { 0% { transform: translateX(0); } 30% { transform: translateX(calc(var(--sbus-dir) * -3px)) rotate(calc(var(--sbus-dir) * -8deg)); } 100% { transform: translateX(0); } }
+.sbus-trail { position: absolute; left: 1%; bottom: 7%; width: 16%; height: 14%; pointer-events: none; }
+.sbus-scene.is-rtl .sbus-trail { left: 83%; }
+.sbus-trail i { position: absolute; bottom: 0; width: 42%; aspect-ratio: 1; border-radius: 50%; background: var(--sbus-dust); opacity: 0; }
+.sbus-trail i:nth-child(1) { left: 10%; } .sbus-trail i:nth-child(2) { left: 40%; bottom: 20%; } .sbus-trail i:nth-child(3) { left: 58%; } .sbus-trail i:nth-child(4) { left: 25%; bottom: 35%; width: 30%; }
+.sbus-scene.is-leave .sbus-trail i { animation: sbus-trail 1500ms ease-out both; animation-delay: calc(700ms + var(--sbus-late, 0ms)); }
+.sbus-scene.is-leave .sbus-trail i:nth-child(2) { animation-delay: calc(820ms + var(--sbus-late, 0ms)); }
+.sbus-scene.is-leave .sbus-trail i:nth-child(3) { animation-delay: calc(940ms + var(--sbus-late, 0ms)); }
+.sbus-scene.is-leave .sbus-trail i:nth-child(4) { animation-delay: calc(1060ms + var(--sbus-late, 0ms)); }
+@keyframes sbus-trail { 0% { opacity: 0; transform: scale(0.3); } 20% { opacity: 0.9; transform: scale(1); } 100% { opacity: 0; transform: translate(calc(var(--sbus-dir) * -35%), -60%) scale(1.8); } }
+
+/* Left at the stop: whoever sent nothing, waving after the bus with «استنوني!» (once), and the dust. */
+.sbus-left { --sbus-dir: 1; margin: 0 0 var(--sp-3); }
+.sbus-left__scene { position: relative; aspect-ratio: 100 / 40; overflow: clip; container-type: inline-size; border-radius: var(--r-lg); }
+.sbus-left .sbus-stop { left: 76%; width: 7.5%; }
+.sbus-left.is-rtl .sbus-stop { left: 16.5%; }
+.sbus-left__people { position: absolute; bottom: 6%; left: 22%; width: 52%; display: flex; justify-content: flex-end; align-items: flex-end; gap: 1%; }
+.sbus-left.is-rtl .sbus-left__people { left: 26%; justify-content: flex-start; }
+.sbus-left .sbus-walker { flex: none; width: 12.5%; }
+.sbus-walker__arm { transform-box: fill-box; transform-origin: 0% 100%; }
+.sbus-left.is-rtl .sbus-walker__arm { transform-origin: 100% 100%; }
+.sbus-walker__fig { transform-box: fill-box; transform-origin: 50% 100%; }
+.sbus-left.is-play .sbus-walker__arm { animation: sbus-wave 420ms ease-in-out 6 alternate both; animation-delay: calc(300ms + var(--sbus-k, 0) * 130ms); }
+.sbus-left.is-play .sbus-walker__fig { animation: sbus-hop 520ms ease-out 3 both; animation-delay: calc(300ms + var(--sbus-k, 0) * 130ms); }
+.sbus-left__bub { position: absolute; bottom: 100%; right: 0; padding: 0.25em 0.6em; border: 1.5px solid var(--text); border-radius: 0.8em; background: var(--surface-solid); color: var(--text); font-weight: 800; font-size: max(3.2cqw, 0.75rem); white-space: nowrap; }
+.sbus-left.is-rtl .sbus-left__bub { right: auto; left: 0; }
+.sbus-left.is-play .sbus-left__bub { animation: sbus-say 480ms cubic-bezier(0.2, 1.5, 0.4, 1) both; animation-delay: 450ms; }
+.sbus-left__away { position: absolute; left: 86%; bottom: 6%; width: 14%; height: 40%; }
+.sbus-left.is-rtl .sbus-left__away { left: 0; }
+.sbus-left__away .sbus-trail { left: 0; bottom: 0; width: 100%; height: 100%; }
+.sbus-left.is-play .sbus-trail i { animation: sbus-trail 1600ms ease-out both; animation-delay: calc(var(--sbus-i, 0) * 150ms); }
+.sbus-left.is-play .sbus-trail i:nth-child(2) { --sbus-i: 1; } .sbus-left.is-play .sbus-trail i:nth-child(3) { --sbus-i: 2; } .sbus-left.is-play .sbus-trail i:nth-child(4) { --sbus-i: 3; }
+.sbus-left__line { text-align: center; margin-top: var(--sp-1); }
+.sbus-left:not(.is-tv) .sbus-left__scene { max-width: 28rem; margin-inline: auto; }
+/* The road fades out at both ends rather than stopping at a line (the bus drives in out of the fade). */
+.sbus-scene:not(.is-tv), .sbus-left__scene { -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); }
+@keyframes sbus-wave { 0% { transform: rotate(calc(var(--sbus-dir) * -12deg)); } 100% { transform: rotate(calc(var(--sbus-dir) * 22deg)); } }
+@keyframes sbus-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-9%); } }
+@keyframes sbus-say { 0% { opacity: 0; transform: scale(0.4); } 100% { opacity: 1; transform: none; } }
+
+/* The TV: the bus big, crossing the whole stage (no clip, the screen is the edge). */
+.sbus-scene.is-tv { width: min(94vw, 150vmin); margin: 0 auto; aspect-ratio: 100 / 44; overflow: visible; }
+.sbus-left.is-tv { width: min(56vw, 90vmin); margin: 0 auto; }
+.sbus-left.is-tv .sbus-left__line { font-size: 2.4vmin; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sbus-bus, .sbus-rock, .sbus-bob, .sbus-wheel, .sbus-door, .sbus-puff, .sbus-arm, .sbus-bub, .sbus-pax, .sbus-trail i,
+  .sbus-walker__arm, .sbus-walker__fig, .sbus-left__bub { animation: none !important; }
+  .sbus-bub { display: none; }
+}
+
 </style>

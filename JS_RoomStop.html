@@ -139,9 +139,11 @@ ROOM_GAMES.stop = {
     // A new letter spins in, with a cue when it lands, so a table looking at its papers looks up.
     if (s.phase === 'writing' && stopRoom.letterKey !== roundKey) {
       stopRoom.letterKey = roundKey;
-      spinLetter(el.querySelector('.stop-letter'), s.letter, stopLetterPool(s.letter), () => { playRoomFx('success'); haptic('light'); });
+      stopBusWhenDriving(roundKey, () => spinLetter(el.querySelector('.stop-letter'), s.letter, stopLetterPool(s.letter), () => { playRoomFx('success'); haptic('light'); }));
     }
     refreshRoomPlayerStrip(el, state);
+    // The bus's passengers as the room is now (a join, a sheet sent), without a rebuild (JS_StopBus.html).
+    if (!rebuilt) stopBusSyncPax(el, stopBusRoomPax(state));
 
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
     if (rebuilt && s.phase === 'writing' && !iSubmitted) {
@@ -168,13 +170,18 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
   const head = `
     <div class="play-head">
       <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span> / <span class="metric">${s.rounds}</span></span>
-      ${s.phase === 'writing' && s.endsAt ? `<span id="stop-room-timer" class="badge badge--accent metric">${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>` : ''}
       ${s.phase === 'writing' && !s.endsAt ? `<span class="badge">${escapeHTML(t.stop_no_timer || '')}</span>` : ''}
     </div>`;
   const letterCard = (hint) => `
     <div class="stop-letter-card">
       <div class="eyebrow">${escapeHTML(t.stop_letter || '')}</div>
-      <div class="stop-letter">${escapeHTML(s.letter)}</div>
+      ${stopBusSceneHtml({
+        key: stopRoundKey(state), writing: s.phase === 'writing', room: true,
+        letterHtml: `<div class="stop-letter">${escapeHTML(s.letter)}</div>`,
+        // The clock is the stop's timetable board (the same element paintStopRoomTimer reads and paints).
+        clockHtml: s.phase === 'writing' && s.endsAt ? `<span id="stop-room-timer" class="badge badge--accent metric">${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>` : '',
+        pax: stopBusRoomPax(state)
+      })}
       ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
     </div>`;
 
@@ -208,9 +215,9 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
     const checkHint = state.youAreHost
       ? (s.lenient ? t.stop_room_check_host_lenient : t.stop_room_check_host)
       : (s.lenient ? t.stop_room_check_wait_lenient : t.stop_room_check_wait);
-    return head + `
+    return head + stopBusLeftHtml(stopBusLeftNames(state), motionFirst('sbus-left|' + stopRoundKey(state)) && stopBusMem.key === stopRoundKey(state) && stopBusMem.sawWrite) + `
       <div class="card card--tight">
-        <div class="card__title">${escapeHTML(t.stop_scoring || '')} · <span class="metric">${escapeHTML(s.letter)}</span></div>
+        <div class="card__title">${escapeHTML(t.stop_scoring || '')} ·<span class="metric">${escapeHTML(s.letter)}</span></div>
         ${s.stopperName ? `<p class="card__subtitle">✋ ${escapeHTML(s.stopperName)} ${escapeHTML(t.stop_room_stopped_by || '')}</p>` : ''}
         <p class="field__hint" style="text-align:center">${escapeHTML(state.youAreHost ? (t.stop_room_adjust_hint || '') : (t.stop_room_review_hint || ''))}</p>
         ${stopUnknownCount(s) ? `<p class="field__hint stop-check-hint">❓ ${escapeHTML(checkHint || '')}</p>` : ''}

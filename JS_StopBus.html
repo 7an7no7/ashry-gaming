@@ -1,0 +1,356 @@
+<script>
+/* ============================================================================
+   أتوبيس كومبليت — THE BUS (the living character, 27 Sep 2026)
+   ----------------------------------------------------------------------------
+   A flat-cartoon bus in the cast of المشنقة's man (look أ: ink outlines that
+   stay dark, flat fills, the game's accent for the body). When a round starts
+   it pulls in from the side, wheels turning, a puff from the exhaust, brakes
+   with a squeak and a rock, and the round's letter lands on its destination
+   board (spinLetter still spins it: the board is where it lands). The players
+   ride at the windows - a round head with its initial each, a new one popping
+   in when someone joins. While the table writes it idles: a bounce, the
+   driver's arm on the window, a word now and then. The clock is the stop's
+   timetable board. وقف: the doors slam, it lurches and drives off the other
+   side with a honk and dust, taking the passengers; a player who sent nothing
+   is left at the stop, waving after it.
+
+   A drawing and motion layer only: the rules, the scoring and the server are
+   untouched. The moments are remembered per round (stopBusMem) with when they
+   began, so a frame rebuilt mid-way carries on (--sbus-late); the first sight
+   of a round just after the page loaded (a reload) plays nothing.
+
+   The drawing faces right; in Arabic the bus body is mirrored (it travels
+   right to left) while the text on it - the letter, the initials, the words -
+   is laid out unmirrored at the mirrored places (stopBusX).
+   ========================================================================= */
+
+const STOP_BUS_W = 240;
+const STOP_BUS_ARRIVE_MS = 1500;   // the drive in, the brake and the rock
+const STOP_BUS_LEAVE_MS = 2300;    // the slam, the lurch and the drive off
+const STOP_BUS_FRESH_MS = 2500;
+const STOP_BUS_SPLASH_MS = 1250;   // the room's start splash (playRoomGameStart) is on screen about this long    // a round first seen this soon after the page loaded is a reload: no drive in
+const STOP_BUS_BUBBLES = 4;        // sbus_bub_1 … sbus_bub_4, the driver's lines
+const STOP_BUS_HAIR = ['#3b2a1e', '#7a4a22', '#1f1f2e', '#b5651d', '#5a3825', '#c9913a'];
+const STOP_BUS_SHIRT = ['#e5383b', '#1e6fd9', '#f5b400', '#8e44ad', '#ff7a45', '#2bb5a0', '#d6336c', '#4b5fb0'];
+
+let stopBusMem = { key: '', arriveAt: 0, leaveAt: 0, sawWrite: false, pax: {} };
+
+const stopBusT = (key) => (TRANSLATIONS[appState.lang] || {})[key] || '';
+const stopBusRtl = () => document.documentElement.getAttribute('dir') === 'rtl';
+
+/** A place on the drawing, mirrored in Arabic (the body is mirrored with a transform; text is placed here). */
+const stopBusX = (x, rtl) => (rtl ? STOP_BUS_W - x : x);
+
+/** A short hash of a player's id, for the colour of their hair and shirt. */
+function stopBusHash(id) {
+  let h = 0;
+  String(id || '').split('').forEach(c => { h = (h * 31 + c.charCodeAt(0)) | 0; });
+  return Math.abs(h);
+}
+
+/** The first letter of a name, as its initial. */
+function stopBusInitial(name) {
+  const c = Array.from(String(name || '').trim())[0] || '?';
+  return c.toUpperCase();
+}
+
+/** The bus's own sounds (FX, not on the soundboard), put in on first use: JS_Sounds loads after this file. */
+const STOP_BUS_FX = {
+  stopBusBrake(at) {
+    // The engine settling and the brakes squealing.
+    fxNoise('lowpass', 260, 0.7, [[0, 0], [0.05, 0.12], [0.5, 0.05], [0.7, 0.001]], at);
+    fxTone('sawtooth', [[0, 2300], [0.12, 2600], [0.3, 2150]], [[0, 0], [0.03, 0.035], [0.26, 0.03], [0.34, 0.001]], at + 0.28);
+    fxNoise('bandpass', 1400, 1.2, [[0, 0], [0.02, 0.06], [0.35, 0.001]], at + 0.58);
+  },
+  stopBusHonk(at) {
+    // Two honks of an old bus horn, then the door's thud (it is played on the slam).
+    fxNoise('lowpass', 500, 0.8, [[0, 0], [0.008, 0.3], [0.16, 0.001]], at);
+    const honk = (t, len) => {
+      fxTone('sawtooth', [[0, 330], [len, 322]], [[0, 0], [0.02, 0.07], [len - 0.03, 0.06], [len, 0.001]], t);
+      fxTone('square', [[0, 415], [len, 405]], [[0, 0], [0.02, 0.04], [len - 0.03, 0.035], [len, 0.001]], t);
+    };
+    honk(at + 0.35, 0.16);
+    honk(at + 0.58, 0.34);
+    fxNoise('lowpass', 180, 0.6, [[0, 0], [0.15, 0.1], [1.2, 0.001]], at + 0.5);
+  },
+  stopBusPop(at) {
+    // Someone new gets on: a small pop.
+    fxTone('sine', [[0, 620], [0.08, 900]], [[0, 0], [0.01, 0.1], [0.12, 0.001]], at);
+  }
+};
+
+/** Plays one of the bus's sounds - in a room with a TV only the TV does (the room's one voice). */
+function stopBusFx(name, room) {
+  if (room && typeof roomHasScreen === 'function' && roomHasScreen()) return;
+  if (typeof FX !== 'object' || typeof playFx !== 'function') return;
+  if (!FX.stopBusHonk) Object.assign(FX, STOP_BUS_FX);
+  playFx(name);
+}
+
+/**
+ * Where the bus is in round `key`: 'arrive' (driving in, `late` ms into it),
+ * 'park', 'leave' (`late` ms into it) or 'gone'. `writing` says the round is
+ * still open. The first time a moment starts it plays its sound (`room` keeps
+ * that to the TV when there is one).
+ */
+function stopBusMoment(key, writing, room) {
+  const now = Date.now();
+  let m = stopBusMem;
+  if (m.key !== key) {
+    m = stopBusMem = { key: key, arriveAt: 0, leaveAt: 0, sawWrite: false, pax: {} };
+    const fresh = typeof performance !== 'undefined' && performance.now() < STOP_BUS_FRESH_MS;
+    if (writing && !motionOff() && !fresh) {
+      // A game dealt from the lobby opens behind the room's start splash: the bus waits for it to go.
+      m.arriveAt = now + (document.querySelector('.game-splash') ? STOP_BUS_SPLASH_MS : 0);
+      setTimeout(() => { if (stopBusMem === m) stopBusFx('stopBusBrake', room); }, m.arriveAt - now + 950);
+    }
+  }
+  if (writing) {
+    m.sawWrite = true;
+    if (m.arriveAt && now - m.arriveAt < STOP_BUS_ARRIVE_MS) return { mode: 'arrive', late: now - m.arriveAt };
+    return { mode: 'park', late: 0 };
+  }
+  if (m.sawWrite && !m.leaveAt && !motionOff()) {
+    m.leaveAt = now;
+    stopBusFx('stopBusHonk', room);
+  }
+  if (m.leaveAt && now - m.leaveAt < STOP_BUS_LEAVE_MS) return { mode: 'leave', late: now - m.leaveAt };
+  return { mode: 'gone', late: 0 };
+}
+
+/** Runs fn (the letter's spin, which lands as the bus brakes) once the bus starts driving in - at once if it already has. */
+function stopBusWhenDriving(key, fn) {
+  const m = stopBusMem;
+  const wait = m.key === key && m.arriveAt ? m.arriveAt - Date.now() : 0;
+  if (wait > 0) setTimeout(fn, wait); else fn();
+}
+
+/**
+ * The passengers at the windows: pax [{ id, name, done }] spread along the
+ * glass, a round head (hair, dot eyes, a smile, happy eyes once done) on a
+ * shirt with the initial. A new one (not seen before in this round) pops in.
+ */
+function stopBusPaxSvg(pax, rtl) {
+  const m = stopBusMem;
+  const now = Date.now();
+  const first = !Object.keys(m.pax).length;
+  const list = (pax || []).slice(0, 16);
+  const n = Math.max(1, list.length);
+  const x0 = 22, span = 158;
+  const step = span / n;
+  const r = Math.max(4.2, Math.min(8.5, step * 0.36));
+  const cy = 60 + (8.5 - r) * 0.8;
+  return list.map((p, k) => {
+    if (!(p.id in m.pax)) m.pax[p.id] = first ? 0 : now;
+    const bornLate = m.pax[p.id] ? now - m.pax[p.id] : 9999;
+    const isNew = bornLate < 700 && !motionOff();
+    const h = stopBusHash(p.id);
+    const cx = stopBusX(x0 + step * (k + 0.5), rtl);
+    const top = cy + r * 0.75;
+    const sw = r * 1.3;
+    const hair = STOP_BUS_HAIR[h % STOP_BUS_HAIR.length];
+    const shirt = STOP_BUS_SHIRT[(h >> 3) % STOP_BUS_SHIRT.length];
+    const fs = Math.max(4.5, Math.min(7.5, r * 0.9));
+    return `<g class="sbus-pax ${isNew ? 'is-new' : ''} ${p.done ? 'is-done' : ''}" data-id="${escapeHTML(String(p.id))}" style="--sbus-pax-late: ${-(isNew ? bornLate : 0)}ms">
+        <path class="sbus-shirt sbus-ink" style="fill: ${shirt}" d="M${cx - sw} 81 V${top + r * 0.5} Q${cx - sw} ${top} ${cx - sw + r * 0.6} ${top} H${cx + sw - r * 0.6} Q${cx + sw} ${top} ${cx + sw} ${top + r * 0.5} V81 Z"/>
+        <text class="sbus-initial" x="${cx}" y="${Math.min(80, top + (81 - top) * 0.62 + fs * 0.35)}" text-anchor="middle" font-size="${fs.toFixed(1)}">${escapeHTML(stopBusInitial(p.name))}</text>
+        <circle class="sbus-skin sbus-ink" cx="${cx}" cy="${cy}" r="${r}"/>
+        <path style="fill: ${hair}" d="M${cx - r} ${cy - r * 0.1} Q${cx - r * 0.9} ${cy - r * 1.15} ${cx} ${cy - r * 1.05} Q${cx + r * 0.9} ${cy - r * 1.15} ${cx + r} ${cy - r * 0.1} Q${cx + r * 0.5} ${cy - r * 0.55} ${cx} ${cy - r * 0.5} Q${cx - r * 0.5} ${cy - r * 0.55} ${cx - r} ${cy - r * 0.1}z"/>
+        <g class="sbus-face-open"><circle class="sbus-eye" cx="${cx - r * 0.36}" cy="${cy + r * 0.05}" r="${(r * 0.15).toFixed(2)}"/><circle class="sbus-eye" cx="${cx + r * 0.36}" cy="${cy + r * 0.05}" r="${(r * 0.15).toFixed(2)}"/></g>
+        <path class="sbus-face-happy sbus-ink" style="stroke-width: ${(r * 0.18).toFixed(2)}" d="M${cx - r * 0.55} ${cy + r * 0.1} Q${cx - r * 0.36} ${cy - r * 0.2} ${cx - r * 0.17} ${cy + r * 0.1} M${cx + r * 0.17} ${cy + r * 0.1} Q${cx + r * 0.36} ${cy - r * 0.2} ${cx + r * 0.55} ${cy + r * 0.1}"/>
+        <path class="sbus-mouth sbus-ink" style="stroke-width: ${(r * 0.17).toFixed(2)}" d="M${cx - r * 0.32} ${cy + r * 0.45} Q${cx} ${cy + r * 0.75} ${cx + r * 0.32} ${cy + r * 0.45}"/>
+      </g>`;
+  }).join('');
+}
+
+/** The driver's lines, three bubbles taking turns over the roof (two seconds each, every nine or so). */
+function stopBusBubblesSvg(rtl) {
+  const start = stopBusHash(stopBusMem.key) % STOP_BUS_BUBBLES;
+  const bx = rtl ? STOP_BUS_W - 6 - 108 : 6;
+  const box = rtl ? `translate(${bx + 108} 0) scale(-1 1)` : `translate(${bx} 0)`;
+  return [0, 1, 2].map(k => {
+    const line = stopBusT('sbus_bub_' + (((start + k) % STOP_BUS_BUBBLES) + 1));
+    return `<g class="sbus-bub" style="--sbus-bub-delay: ${3 + k * 9}s">
+        <path class="sbus-bub__box" transform="${box}" d="M5 2 h98 a4 4 0 0 1 4 4 v17 a4 4 0 0 1 -4 4 h-7 l3 8 l-12 -8 h-82 a4 4 0 0 1 -4 -4 v-17 a4 4 0 0 1 4 -4z"/>
+        <text class="sbus-bub__t" x="${bx + 54}" y="18.5" text-anchor="middle" direction="${rtl ? 'rtl' : 'ltr'}">${escapeHTML(line)}</text>
+      </g>`;
+  }).join('');
+}
+
+/** The bus itself (the SVG, facing right; mirrored in Arabic) with the passengers and the bubbles. */
+function stopBusSvg(o, rtl) {
+  const mirror = rtl ? `transform="matrix(-1 0 0 1 ${STOP_BUS_W} 0)"` : '';
+  const wheel = (x) => `<g class="sbus-wheel"><circle class="sbus-tyre" cx="${x}" cy="110" r="12"/><circle class="sbus-hub" cx="${x}" cy="110" r="6"/><path class="sbus-spoke" d="M${x - 6} 110 H${x + 6} M${x} 104 V116"/><circle class="sbus-tyre" cx="${x}" cy="110" r="1.8"/></g>`;
+  return `<svg class="sbus-svg" viewBox="0 0 ${STOP_BUS_W} 124" aria-hidden="true" focusable="false">
+      <ellipse class="sbus-shadow" cx="120" cy="121" rx="112" ry="3.5"/>
+      <g ${mirror}>
+        <g class="sbus-exhaust"><circle class="sbus-puff sbus-puff--1" cx="4" cy="100" r="4"/><circle class="sbus-puff sbus-puff--2" cx="4" cy="100" r="3.2"/><circle class="sbus-puff sbus-puff--3" cx="4" cy="100" r="3.6"/></g>
+        <rect class="sbus-metal sbus-ink" x="1" y="99" width="11" height="4" rx="2"/>
+        <rect class="sbus-ink sbus-dark" x="140" y="34" width="5" height="10"/><rect class="sbus-ink sbus-dark" x="204" y="34" width="5" height="10"/>
+        <path class="sbus-body sbus-ink" d="M14 42 H204 Q220 42 226 56 L233 80 Q236 86 236 92 V104 Q236 110 230 110 H12 Q6 110 6 104 V50 Q6 42 14 42 Z"/>
+        <rect class="sbus-roof" x="14" y="45" width="186" height="3" rx="1.5"/>
+        <rect class="sbus-skirt" x="7" y="94" width="228" height="15"/>
+        <rect class="sbus-stripe" x="7" y="86" width="228" height="5"/>
+        <rect class="sbus-glass sbus-ink" x="20" y="49" width="162" height="33" rx="5"/>
+        <path class="sbus-shine" d="M30 52 L22 64 M48 52 L36 70 M104 52 L96 64 M150 52 L140 67"/>
+        <rect class="sbus-doorway sbus-ink" x="186" y="48" width="20" height="58" rx="3"/>
+        <g class="sbus-door sbus-door--a"><rect class="sbus-glass sbus-ink" x="186" y="48" width="10" height="58" rx="2"/></g>
+        <g class="sbus-door sbus-door--b"><rect class="sbus-glass sbus-ink" x="196" y="48" width="10" height="58" rx="2"/></g>
+        <path class="sbus-glass sbus-ink" d="M210 49 H222 Q227 51 229 59 L232 77 H210 Z"/>
+        <g class="sbus-driver">
+          <rect class="sbus-driver__shirt sbus-ink" x="212" y="69" width="13" height="10" rx="4"/>
+          <circle class="sbus-skin sbus-ink" cx="218" cy="63" r="6.5"/>
+          <path class="sbus-dark sbus-ink" d="M211.5 60 Q212 54 218 54 Q224 54 224.5 60 Z"/><path class="sbus-ink" d="M221 59.5 H228" style="stroke-width: 2.6"/>
+          <circle class="sbus-eye" cx="221.3" cy="63.2" r="1.1"/>
+          <path class="sbus-ink" d="M220 66.5 Q222 67.8 223.5 66.3" style="fill: none; stroke-width: 1.3"/>
+        </g>
+        <g class="sbus-arm"><path class="sbus-sleeve sbus-ink" d="M221 77 Q227 80 229 87"/><circle class="sbus-skin sbus-ink" cx="229.5" cy="89" r="3"/></g>
+        <circle class="sbus-lamp sbus-ink" cx="232" cy="96" r="3"/>
+        <rect class="sbus-metal sbus-ink" x="222" y="103" width="16" height="5" rx="2"/>
+        <rect class="sbus-metal sbus-ink" x="3" y="103" width="14" height="5" rx="2"/>
+        <path class="sbus-arch" d="M34 110 A18 18 0 0 1 70 110 Z"/><path class="sbus-arch" d="M166 110 A18 18 0 0 1 202 110 Z"/>
+        ${wheel(52)}${wheel(184)}
+        <rect class="sbus-board sbus-ink" x="116" y="1" width="114" height="38" rx="7"/>
+        <rect class="sbus-board__led" x="121" y="5" width="104" height="30" rx="3"/>
+      </g>
+      <g class="sbus-paxes">${stopBusPaxSvg(o.pax, rtl)}</g>
+      ${o.bubbles === false ? '' : stopBusBubblesSvg(rtl)}
+    </svg>`;
+}
+
+/** The stop: a pole with its round sign, and the timetable board where the clock is (when there is one). */
+function stopBusStopHtml(clockHtml) {
+  return `<div class="sbus-stop">
+      <svg class="sbus-stop__svg" viewBox="0 0 40 124" aria-hidden="true" focusable="false">
+        <rect class="sbus-metal sbus-ink" x="18" y="22" width="4" height="98" rx="1"/>
+        <rect class="sbus-dark sbus-ink" x="12" y="117" width="16" height="5" rx="1.5"/>
+        <circle class="sbus-sign sbus-ink" cx="20" cy="16" r="14"/>
+        <rect class="sbus-sign__bus" x="12" y="9" width="16" height="12" rx="3"/>
+        <rect class="sbus-sign__win" x="14" y="11" width="12" height="4.5" rx="1"/>
+        <circle class="sbus-dark" cx="15.5" cy="22" r="2"/><circle class="sbus-dark" cx="24.5" cy="22" r="2"/>
+      </svg>
+      ${clockHtml ? `<div class="sbus-tt"><span class="sbus-tt__head" aria-hidden="true">🕒</span>${clockHtml}</div>` : ''}
+    </div>`;
+}
+
+/** The dust the bus leaves on the road as it pulls away (it stays where the bus was). */
+function stopBusTrailHtml(late) {
+  return `<div class="sbus-trail" aria-hidden="true" style="--sbus-late: ${-(late || 0)}ms"><i></i><i></i><i></i><i></i></div>`;
+}
+
+/**
+ * The whole scene: the road, the stop and the bus in the mode stopBusMoment
+ * gave. o: { key, writing, room, letterHtml (the element spinLetter spins),
+ * clockHtml, pax, tv }.
+ */
+function stopBusSceneHtml(o) {
+  const rtl = stopBusRtl();
+  const mo = stopBusMoment(o.key, o.writing, o.room);
+  const bus = mo.mode === 'gone' ? '' : `
+      <div class="sbus-bus is-${mo.mode}" style="--sbus-late: ${-mo.late}ms">
+        <div class="sbus-rock"><div class="sbus-bob">
+          ${stopBusSvg(o, rtl)}
+          <div class="sbus-led">${o.letterHtml || ''}</div>
+        </div></div>
+      </div>`;
+  const dust = mo.mode === 'leave' ? stopBusTrailHtml(mo.late) : '';
+  return `<div class="sbus-scene ${rtl ? 'is-rtl' : ''} ${o.tv ? 'is-tv' : ''} is-${mo.mode}" dir="ltr">
+      <div class="sbus-road" aria-hidden="true"></div>
+      ${stopBusStopHtml(o.clockHtml)}
+      ${bus}${dust}
+    </div>`;
+}
+
+/** A room's passengers: a face per person in the room (not the computer players), smiling once their sheet is in. */
+function stopBusRoomPax(state) {
+  const s = (state && state.shared) || {};
+  const done = s.submitted || [];
+  return ((state && state.players) || []).filter(p => !p.bot).map(p => ({ id: p.id, name: p.name, done: done.indexOf(p.id) !== -1 }));
+}
+
+/** Whoever of this round's table sent nothing before the round was scored: left at the stop. */
+function stopBusLeftNames(state) {
+  const s = (state && state.shared) || {};
+  const done = s.submitted || [];
+  return (s.roster || []).filter(id => done.indexOf(id) === -1)
+    .map(id => ((state.players || []).find(p => p.id === id) || {}).name).filter(Boolean);
+}
+
+/**
+ * A redraw that didn't rebuild the frame: the passengers as they are now
+ * (someone joined, left, or sent their sheet), without touching the bus's motion.
+ */
+function stopBusSyncPax(root, pax) {
+  const layer = root && root.querySelector('.sbus-bus .sbus-paxes');
+  if (!layer) return;
+  const ids = (pax || []).map(p => p.id).join('|');
+  const had = [...layer.querySelectorAll('.sbus-pax')].map(g => g.dataset.id).join('|');
+  if (ids !== had) {
+    const grew = (pax || []).some(p => !(p.id in stopBusMem.pax));
+    layer.innerHTML = stopBusPaxSvg(pax, stopBusRtl());
+    if (grew && !motionOff()) stopBusFx('stopBusPop', true);
+    return;
+  }
+  (pax || []).forEach(p => {
+    const g = layer.querySelector(`.sbus-pax[data-id="${CSS.escape(String(p.id))}"]`);
+    if (g) g.classList.toggle('is-done', !!p.done);
+  });
+}
+
+/**
+ * وقف on one phone: the bus on screen slams its doors and drives off, then
+ * `after` (the scoring table). Straight away with motion off or no bus.
+ */
+function stopBusDriveOff(root, after) {
+  const bus = root && root.querySelector('.sbus-bus');
+  if (!bus || motionOff()) { after(); return; }
+  stopBusMem.leaveAt = Date.now();
+  bus.classList.remove('is-arrive', 'is-park');
+  bus.style.setProperty('--sbus-late', '0ms');
+  void bus.offsetWidth;
+  bus.classList.add('is-leave');
+  const scene = bus.closest('.sbus-scene');
+  if (scene) { scene.classList.remove('is-arrive', 'is-park'); scene.classList.add('is-leave'); scene.insertAdjacentHTML('beforeend', stopBusTrailHtml(0)); }
+  stopBusFx('stopBusHonk', false);
+  setTimeout(after, STOP_BUS_LEAVE_MS - 250);
+}
+
+/**
+ * The ones who sent nothing (the grace ran out), left at the stop waving
+ * after the bus: a small joke once (`play`), still afterwards.
+ */
+function stopBusLeftHtml(names, play, tv) {
+  if (!names || !names.length) return '';
+  const rtl = stopBusRtl();
+  const people = names.slice(0, 6).map((name, k) => {
+    const h = stopBusHash(name + k);
+    const shirt = STOP_BUS_SHIRT[(h >> 3) % STOP_BUS_SHIRT.length];
+    const hair = STOP_BUS_HAIR[h % STOP_BUS_HAIR.length];
+    return `<svg class="sbus-walker" viewBox="0 0 40 70" aria-hidden="true" focusable="false" style="--sbus-k: ${k}">
+        <g class="sbus-walker__fig">
+          <path class="sbus-pants sbus-ink" d="M14 46 L12 64 L19 64 L20 46z M20 46 L21 64 L28 64 L26 46z"/>
+          <ellipse class="sbus-shoe" cx="15" cy="65" rx="5" ry="2.4"/><ellipse class="sbus-shoe" cx="25" cy="65" rx="5" ry="2.4"/>
+          <rect class="sbus-ink" style="fill: ${shirt}" x="12" y="26" width="16" height="22" rx="6"/>
+          <text class="sbus-initial" x="20" y="41" text-anchor="middle" font-size="9">${escapeHTML(stopBusInitial(name))}</text>
+          <g class="sbus-walker__arm"><path class="sbus-ink" style="fill: none; stroke: ${shirt}; stroke-width: 4.5" d="M${rtl ? 13 : 27} 30 L${rtl ? 5 : 35} 16"/><circle class="sbus-skin sbus-ink" cx="${rtl ? 4 : 36}" cy="14" r="3.3"/></g>
+          <path class="sbus-ink" style="fill: none; stroke: ${shirt}; stroke-width: 4.5" d="M${rtl ? 27 : 13} 30 L${rtl ? 30 : 10} 44"/>
+          <circle class="sbus-skin sbus-ink" cx="20" cy="17" r="9"/>
+          <path style="fill: ${hair}" d="M11 16 Q12 7 20 7.5 Q28 7 29 16 Q25 12 20 12.5 Q15 12 11 16z"/>
+          <circle class="sbus-eye" cx="17" cy="17.5" r="1.3"/><circle class="sbus-eye" cx="23" cy="17.5" r="1.3"/>
+          <ellipse class="sbus-ink" style="fill: #fff" cx="20" cy="22" rx="2" ry="2.4"/>
+        </g>
+      </svg>`;
+  }).join('');
+  return `<div class="sbus-left ${play ? 'is-play' : ''} ${rtl ? 'is-rtl' : ''} ${tv ? 'is-tv' : ''}" dir="ltr">
+      <div class="sbus-left__scene">
+        <div class="sbus-road" aria-hidden="true"></div>
+        ${stopBusStopHtml('')}
+        <div class="sbus-left__people">${people}
+          <div class="sbus-left__bub" dir="${rtl ? 'rtl' : 'ltr'}">${escapeHTML(stopBusT('sbus_wait'))}</div>
+        </div>
+        <div class="sbus-left__away" aria-hidden="true"><div class="sbus-trail"><i></i><i></i><i></i><i></i></div></div>
+      </div>
+      <p class="field__hint sbus-left__line" dir="${rtl ? 'rtl' : 'ltr'}">${escapeHTML(stopBusT('sbus_missed'))} ${names.map(n => '<bdi>' + escapeHTML(n) + '</bdi>').join(rtl ? '، ' : ', ')}</p>
+    </div>`;
+}
+</script>

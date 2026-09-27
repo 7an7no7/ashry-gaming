@@ -3295,6 +3295,12 @@ the word search), `countUp` for streaks and scores.
   pops in (or out when swapped back), the fourth with a chest beat. Looked at
   on one phone (three players to a monkey, a swap, a reload) and in a room of
   three phones and a TV, 375×812 Arabic light and 1280×720 English dark.
+- **27 Sep 2026, أتوبيس كومبليت's bus** (*أتوبيس كومبليت on separate
+  phones*, "The bus"): it pulls in with the letter on its board and the
+  players at its windows, idles while they write, drives off on وقف, and
+  leaves whoever sent nothing waving at the stop. Looked at on one phone
+  (375×812 Arabic light, 667×375, 1280×720 English dark) and a room of three
+  phones, a latecomer and a TV at 1920×1080, a reload mid-round.
 ## Building and Running
 
 ### Development Requirements
@@ -4721,6 +4727,42 @@ host taps it, so add to the lists when a table keeps tapping the same word.
 **«متسامح»** (`settings.lenient` / `shared.lenient`, the host's lobby switch,
 off by default, kept in `ashryStopRoomOpts`): an `unknown` word scores 10
 instead of 0, still marked ❓, and the host can tap it down.
+
+**The bus** (the living character, 27 Sep 2026; `JS_StopBus.html`, section
+44 of `Style.html`, prefix `stopBus` / `.sbus-`), on one phone, every phone
+in a room and the TV - a drawing and motion layer only, the rules, the
+scoring and the server untouched. A flat cartoon in المشنقة's cast (ink
+outlines `--sbus-ink` that stay dark, the screen's `--accent` for the body):
+when a round starts it drives in from the side, wheels turning, brakes with a
+squeak (`FX.stopBusBrake`), a puff and a rock, and the letter lands on its
+destination board - the board holds the same `.stop-letter` /
+`.tv-stop-letter` element `spinLetter` spins, started as the bus starts in
+(`stopBusWhenDriving`, so it lands at the brake; a game dealt from the lobby
+waits `STOP_BUS_SPLASH_MS` for the room's start splash). The players ride at
+the windows, a round head with its initial each (a name on one phone, every
+person in the room in a room, happy eyes once their sheet is in, a new one
+popping in: `stopBusSyncPax` updates them without a rebuild). While the table
+writes it idles (a bounce, exhaust, the driver's wave, a bubble
+`sbus_bub_1..4` every nine seconds). The clock is the stop's timetable board:
+the existing `#stop-clock`, `#stop-room-timer` and `#tv-stop-timer`, moved
+into `.sbus-tt` and painted as before. وقف (or the clock): the doors slam,
+it lurches and drives off the other side with a honk (`FX.stopBusHonk`) and
+dust (`stopBusTrailHtml`), the slam banner as before; on one phone
+`stopBusDriveOff` holds the scoring table for the drive off (the state is
+saved at once, so a reload goes straight to the table). In the room's review
+whoever sent nothing (in the roster, not in `submitted`) is left at the stop
+waving, «استنوني!» (`stopBusLeftHtml`), played once. The moments are
+`stopBusMoment(key, writing)`: remembered per round with when they began, so
+a frame rebuilt mid-way carries on (`--sbus-late`, a negative delay); a round
+first seen within 2.5 s of the page loading (a reload) shows the bus parked.
+The drawing faces right; in Arabic the body is mirrored in the SVG (it travels
+right to left, `--sbus-dir: -1`) and its text - the letter, the initials, the
+bubble - is placed unmirrored at the mirrored x (`stopBusX`), which is why the
+pieces inside the mirror turn on `transform-box: fill-box` (a mirror then
+turns the wheels the other way by itself). In a room with a TV only the TV
+honks and squeaks. On a phone the scene is edge to edge in the letter card and
+no wider than 36rem or 0.8 of the screen's height; on the TV it crosses the
+whole stage.
 
 **The Stop word log** is how the dictionary grows from what tables accept.
 When a host's `adjust` raises an `unknown` or `shared` cell from 0, the

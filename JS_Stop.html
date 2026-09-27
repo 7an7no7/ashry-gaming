@@ -165,7 +165,14 @@ function stopRound() {
   saveToLocal();
   playSound('alarm');
   haptic('medium');
-  paintStopScore();
+  // The bus slams its doors and drives off with the table's answers, then the scoring (JS_StopBus.html).
+  const round = s.round;
+  const stage = document.getElementById('stop-stage');
+  if (stage) stage.querySelectorAll('.view-actions button').forEach(b => { b.disabled = true; });
+  stopBusDriveOff(stage, () => {
+    const st = stopState();
+    if (st.phase === 'score' && st.round === round && appState.currentView === 'play-stop') paintStopScore();
+  });
 }
 
 function paintStopPlay() {
@@ -177,13 +184,17 @@ function paintStopPlay() {
   el.innerHTML = `
     <div class="play-head">
       <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span> / <span class="metric">${s.rounds}</span></span>
-      ${left === null
-        ? `<span class="badge badge--plain">${escapeHTML(t.stop_no_timer || '')}</span>`
-        : `<span class="metric metric--md metric--accent" id="stop-clock">${left}</span>`}
+      ${left === null ? `<span class="badge badge--plain">${escapeHTML(t.stop_no_timer || '')}</span>` : ''}
     </div>
     <div class="stop-letter-card">
       <div class="eyebrow">${escapeHTML(t.stop_letter || '')}</div>
-      <div class="stop-letter">${escapeHTML(s.letter)}</div>
+      ${stopBusSceneHtml({
+        key: 'local|' + s.round + '|' + s.letter, writing: true, room: false,
+        letterHtml: `<div class="stop-letter">${escapeHTML(s.letter)}</div>`,
+        // The clock is the stop's timetable board (the same element, read by armStopClock).
+        clockHtml: left === null ? '' : `<span class="metric metric--md metric--accent" id="stop-clock">${left}</span>`,
+        pax: s.players.map(p => ({ id: p, name: p }))
+      })}
       <div class="chip-set stop-cats-row">
         ${s.cats.map(c => `<span class="chip chip--plain"><span class="chip__label">${escapeHTML(stopCatLabel(c))}</span></span>`).join('')}
       </div>

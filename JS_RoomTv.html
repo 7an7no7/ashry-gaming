@@ -1194,9 +1194,13 @@ TV_GAMES.stop = {
       return `
         <div class="tv-center">
           ${head}
-          <div class="tv-eyebrow">${t.stop_letter || ''}</div>
-          <div class="tv-stop-letter">${escapeHTML(s.letter || '')}</div>
-          ${s.phase === 'writing' && s.endsAt ? `<div class="tv-timer tv-timer--big" id="tv-stop-timer">${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</div>` : ''}
+          ${stopBusSceneHtml({
+            key: stopRoundKey(state), writing: s.phase === 'writing', room: true, tv: true,
+            letterHtml: `<div class="tv-stop-letter">${escapeHTML(s.letter || '')}</div>`,
+            // The clock is the stop's timetable board (JS_StopBus.html), the same element paintStopRoomTimer paints.
+            clockHtml: s.phase === 'writing' && s.endsAt ? `<div class="tv-timer tv-timer--big" id="tv-stop-timer">${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</div>` : '',
+            pax: stopBusRoomPax(state)
+          })}
           ${s.phase === 'collecting' ? `<div class="tv-note">⏳ ${t.stop_room_collecting || ''}${s.stopperName ? ' · ✋ ' + escapeHTML(s.stopperName) : ''}</div>` : ''}
           <div class="tv-strip-inline">${chips}</div>
         </div>`;
@@ -1207,6 +1211,7 @@ TV_GAMES.stop = {
         <div class="tv-vote">
           ${head}
           <div class="tv-question">${t.stop_scoring || ''} · ${escapeHTML(s.letter || '')}</div>
+          ${stopBusLeftHtml(stopBusLeftNames(state), motionFirst('sbus-left|tv|' + stopRoundKey(state)) && stopBusMem.key === stopRoundKey(state) && stopBusMem.sawWrite, true)}
           ${state.youAreHost && stopUnknownCount(s) ? `<div class="tv-note">❓ ${escapeHTML(t.stop_room_check_host || '')}</div>` : ''}
           <div class="tv-scale">${stopReviewTable(state, t, state.youAreHost)}</div>
           ${state.youAreHost ? `<div class="tv-actions">${tvBtn(last ? t.stop_finish : t.stop_next_letter, "roomAct('nextRound')")}</div>` : ''}
@@ -1226,8 +1231,9 @@ TV_GAMES.stop = {
   after(state) {
     const s = state.shared || {};
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
+    stopBusSyncPax(document.getElementById('view-room-tv'), stopBusRoomPax(state));
     if (s.phase === 'writing' && motionFirst(['tvstop', roomDealKey(state), s.round, s.letter].join('|'))) {
-      spinLetter(document.querySelector('#view-room-tv .tv-stop-letter'), s.letter, stopLetterPool(s.letter), () => playSound('success'));
+      stopBusWhenDriving(stopRoundKey(state), () => spinLetter(document.querySelector('#view-room-tv .tv-stop-letter'), s.letter, stopLetterPool(s.letter), () => playSound('success')));
     }
   }
 };

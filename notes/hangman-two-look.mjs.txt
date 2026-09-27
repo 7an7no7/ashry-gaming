@@ -1,0 +1,151 @@
+/**
+ * A look at سباق ألغاز in headless Chrome: three phones and a TV through a race of one game.
+ *   node race-look.mjs <game> [lang] [dark] [w h]      e.g. node race-look.mjs queens ar 0 375 812
+ * Screenshots land in ./shots/<game>-<size>-<lang>-<light|dark>-<step>.png. The preview at
+ * http://localhost:4321 and the rooms server at :8787 must be running. Motion is emulated on
+ * (prefers-reduced-motion: no-preference) so the boards animate as on a phone.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const here = fileURLToPath(new URL('./', import.meta.url));
+const [game = 'hm2', lang = 'ar', darkArg = '0', wArg = '375', hArg = '812'] = process.argv.slice(2);
+const dark = darkArg === '1';
+const W = Number(wArg), H = Number(hArg);
+const BASE = 'http://localhost:4341/';
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const shotsDir = path.join(here, 'shots');
+fs.mkdirSync(shotsDir, { recursive: true });
+const tag = `${game}-${W}x${H}-${lang}-${dark ? 'dark' : 'light'}`;
+
+const chromePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe'].find((p) => fs.existsSync(p));
+const profile = fs.mkdtempSync(path.join(here, 'chrome-'));
+const chrome = spawn(chromePath, ['--headless=new', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check',
+  '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--user-data-dir=' + profile, 'about:blank'], { stdio: 'ignore' });
+let wsUrl = null;
+for (let i = 0; i < 100 && !wsUrl; i++) {
+  await wait(100);
+  try { const [port, p] = fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split('\n'); wsUrl = `ws://127.0.0.1:${port}${p}`; } catch (e) {}
+}
+const ws = new WebSocket(wsUrl);
+await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
+let msgId = 0;
+const pending = new Map();
+const sessions = new Map();
+ws.onmessage = (e) => {
+  const m = JSON.parse(e.data);
+  if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); return; }
+  const phone = m.sessionId && sessions.get(m.sessionId);
+  if (!phone) return;
+  const skip = (text) => /navigator.vibrate|fonts\.g(oogleapis|static)\.com|cdn\.jsdelivr\.net|favicon/.test(text || '');
+  if (m.method === 'Runtime.exceptionThrown') {
+    const d = m.params.exceptionDetails;
+    phone.errors.push('exception: ' + ((d.exception && d.exception.description) || d.text || '').split('\n').slice(0, 2).join(' | '));
+  } else if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') {
+    const text = m.params.args.map((a) => a.value !== undefined ? String(a.value) : (a.description || '')).join(' ');
+    if (!skip(text)) phone.errors.push('console.error: ' + text.slice(0, 300));
+  } else if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') {
+    const text = (m.params.entry.text || '') + ' ' + (m.params.entry.url || '');
+    if (!skip(text) && !/status of 4\d\d/.test(text)) phone.errors.push('log: ' + text.slice(0, 200));
+  }
+};
+const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
+  const id = ++msgId;
+  pending.set(id, (m) => (m.error ? reject(new Error(method + ': ' + m.error.message)) : resolve(m.result)));
+  ws.send(JSON.stringify({ id, method, params, sessionId }));
+});
+async function newPhone(name, w = W, h = H, mobile = w < 768) {
+  const { browserContextId } = await send('Target.createBrowserContext', { disposeOnDetach: true });
+  const { targetId } = await send('Target.createTarget', { url: 'about:blank', browserContextId });
+  const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+  const phone = { name, sessionId, targetId, browserContextId, errors: [] };
+  sessions.set(sessionId, phone);
+  await send('Runtime.enable', {}, sessionId);
+  await send('Page.enable', {}, sessionId);
+  await send('Log.enable', {}, sessionId);
+  await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }, sessionId);
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] }, sessionId);
+  return phone;
+}
+async function ev(phone, expr) {
+  const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }, phone.sessionId);
+  if (r.exceptionDetails) throw new Error(phone.name + ': ' + ((r.exceptionDetails.exception && r.exceptionDetails.exception.description) || r.exceptionDetails.text));
+  return r.result && r.result.value;
+}
+async function open(phone) {
+  await send('Page.navigate', { url: BASE }, phone.sessionId);
+  for (let i = 0; i < 100; i++) {
+    await wait(200);
+    const ok = await ev(phone, `(() => { if (typeof appState === 'undefined' || document.readyState !== 'complete') return false; const l = document.getElementById('app-loader'); return !l || l.style.display === 'none' || l.classList.contains('hidden'); })()`).catch(() => false);
+    if (ok) return true;
+  }
+  throw new Error('app did not open');
+}
+async function fullShot(phone, step) {
+  await send('Target.activateTarget', { targetId: phone.targetId });
+  const h = await ev(phone, 'Math.min(4000, Math.max(document.documentElement.scrollHeight, document.getElementById("shell-main") ? document.getElementById("shell-main").scrollHeight + 160 : 0))');
+  const w = phone.name === 'tv' ? 1920 : W, h0 = phone.name === 'tv' ? 1080 : H;
+  await send('Emulation.setDeviceMetricsOverride', { width: w, height: Math.max(h0, h), deviceScaleFactor: 1, mobile: w < 768 }, phone.sessionId);
+  await wait(250);
+  const { data } = await send('Page.captureScreenshot', { format: 'png' }, phone.sessionId);
+  fs.writeFileSync(path.join(shotsDir, tag + '-' + phone.name + '-' + step + '-full.png'), Buffer.from(data, 'base64'));
+  await send('Emulation.setDeviceMetricsOverride', { width: w, height: h0, deviceScaleFactor: 1, mobile: w < 768 }, phone.sessionId);
+}
+async function shot(phone, step) {
+  await send('Target.activateTarget', { targetId: phone.targetId });
+  const { data } = await send('Page.captureScreenshot', { format: 'png' }, phone.sessionId);
+  fs.writeFileSync(path.join(shotsDir, `${tag}-${phone.name}-${step}.png`), Buffer.from(data, 'base64'));
+}
+const setLook = (phone) => ev(phone, `(() => { if (appState.lang !== '${lang}') toggleLanguage(); if (document.body.classList.contains('dark') !== ${dark}) toggleDarkMode(); return 1; })()`);
+const showRoom = (p) => ev(p, `(() => { if (Room.state && appState.currentView.indexOf('room-') !== 0) roomReturnToActive(); return appState.currentView; })()`);
+const errs = (list) => list.flatMap((p) => p.errors.splice(0).map((e) => p.name + ': ' + e));
+
+/* --- hangman with two: the word ends on the guesser's own move ------------------------- */
+const A = await newPhone('host');
+const B = await newPhone('p2');
+const TV = await newPhone('tv', 1920, 1080, false);
+const phones = [A, B];
+for (const p of phones.concat([TV])) { await open(p); await setLook(p); }
+const code = await ev(A, `(async () => { await Room.create('منى'); return Room.state.code; })()`);
+await ev(B, `(async () => { await Room.join(${JSON.stringify(code)}, 'Sara'); return 1; })()`);
+await ev(TV, `(async () => { await Room.join(${JSON.stringify(code)}, 'TV', true); return 1; })()`);
+await wait(600);
+await ev(A, `(async () => { await Room.act('chooseGame', { game: 'hangman' }); return 1; })()`);
+await wait(500);
+await ev(A, `(async () => { await Room.act('start', { mode: 'setter', rounds: 3, clock: 0, lang: 'ar' }); return 1; })()`);
+await wait(1200);
+const writerName = await ev(A, `(() => (Room.state.players.find(p => p.id === Room.state.shared.setter) || {}).name)()`);
+const writer = writerName === 'منى' ? A : B;
+const guesser = writer === A ? B : A;
+const say = async (l) => { await ev(guesser, `hmRoomGuess(${JSON.stringify(l)}); 1`); await wait(1300); };
+// Word 1: two misses (the body must show), then the guesser solves -> the escape held on both and the TV.
+await ev(writer, `(async () => { await Room.act('setWord', { word: 'مدرسة', hint: 'مكان', round: 1 }); return 1; })()`);
+await wait(1200);
+for (const p of phones.concat([TV])) await showRoom(p);
+await wait(500);
+await say('ث'); await say('ج'); await wait(500); await shot(guesser, '1-two-misses');
+for (const l of ['م', 'د', 'ر', 'س']) await say(l);
+await ev(guesser, `hmRoomGuess('ة'); 1`); await wait(1100);
+await shot(guesser, '2-free-held'); await shot(writer, '2-free-writer'); await shot(TV, '2-free-tv');
+await wait(3000); await shot(guesser, '3-result'); await shot(TV, '3-result-tv');
+// Word 2: hanged on the sixth miss -> the shoe held.
+await ev(A, `(async () => { await Room.act('nextRound', { round: 1 }); return 1; })()`);
+await wait(1500);
+const writer2Name = await ev(A, `(() => (Room.state.players.find(p => p.id === Room.state.shared.setter) || {}).name)()`);
+const writer2 = writer2Name === 'منى' ? A : B;
+const guesser2 = writer2 === A ? B : A;
+await ev(writer2, `(async () => { await Room.act('setWord', { word: 'قلم', round: 2 }); return 1; })()`);
+await wait(1200);
+for (const p of phones.concat([TV])) await showRoom(p);
+const say2 = async (l) => { await ev(guesser2, `hmRoomGuess(${JSON.stringify(l)}); 1`); await wait(1300); };
+for (const l of ['ث', 'ج', 'ح', 'خ', 'ذ']) await say2(l);
+await ev(guesser2, `hmRoomGuess('ز'); 1`); await wait(900);
+await shot(guesser2, '4-hanged-held'); await shot(TV, '4-hanged-tv');
+await wait(3000); await shot(guesser2, '5-result');
+const bad = errs(phones.concat([TV]));
+console.log(bad.length ? 'ERRORS:\n' + bad.join('\n') : 'no console errors');
+console.log('shots in', shotsDir, 'tag', tag);
+try { chrome.kill(); } catch (e) {}
+process.exit(bad.length ? 1 : 0);

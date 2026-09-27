@@ -5701,7 +5701,12 @@ The owner's rules are in *The owner's specs*.
   phone, every phone in a race, the TV) plays the moments too: `hmRowMoments`
   compares each board with what this phone last drew and remembers a moment
   with when it began, so a row rebuilt mid-way carries on from there
-  (`--hm-late` offsets every one-shot animation). The look driver is `notes/hangman-look.mjs.txt`.
+  (`--hm-late` offsets every one-shot animation). **A word that ends on this
+  phone's own last move** (two at the table, the last board done) used to
+  jump straight to the result card: `hmRoomHold` keeps the guessing frame
+  `HM_HOLD_MS` with the moment on it (the board rebuilt from the last one
+  seen and the result's word, the secrets being gone), on the phone and the
+  TV, then the result is drawn. The look driver is `notes/hangman-look.mjs.txt`.
 - **`JS_Hangman.html`**: one board builder for one phone and a room
   (`hmBoardHtml`: the gallows, the tiles, the wrong letters, the keys and the
   whole-word field) and the two on one phone (`appState.hangman`, restored

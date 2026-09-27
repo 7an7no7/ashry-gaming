@@ -3271,6 +3271,11 @@ the word search), `countUp` for streaks and scores.
   tries - with an arrow for higher / lower. Looked at on one phone and in a room
   of a setter, two solvers and a TV (no man on the TV or the setter's phone), at
   375×812 Arabic light and 1280×720 English dark, with a reload mid-game.
+- **27 Sep 2026, القنبلة's bomb comes alive** (*القنبلة in rooms*): a cartoon
+  bomb that heats with the fuse, a pass that flies from hand to hand, and a
+  real explosion with soot and a singed name. Looked at on one phone to the
+  boom and in a room of three phones and a TV, 375×812 Arabic light and
+  1280×720 English dark, with a reload mid-round.
 ## Building and Running
 
 ### Development Requirements
@@ -3980,6 +3985,38 @@ phone and the TV tick out loud. The strikes are the board, fewest first. `swap` 
 new category, so it is in `DEAL_ACTIONS` in `room.js`. The three phone
 renderers carry their own `TV_GAMES` entries (`JS_RoomChameleon.html`,
 `JS_RoomSpyfall.html`, `JS_RoomBomb.html`).
+
+**القنبلة's bomb is a character** (27 Sep 2026, the living-characters brief;
+the end of `JS_Bomb.html`, section 44 of `Style.html`), in المشنقة's flat
+cartoon: `bombCharSvg({ heat, size })` draws a round black bomb with a
+highlight, a cap, a fuse in four pieces and a face, `bm-h0..3` on the svg.
+Calm and grinning at 0, eyes open at 1, wide eyes, a wobbly mouth and sweat at
+2, a gasp, tiny pupils and a hard shake at 3; a heat step fades the fuse's
+outermost piece and the spark slides down to the new tip (`bombCharHeat`,
+switched in place - a room's `shared.heat` is no longer in the frame's
+signature, and the one-phone fuse steps at the server's `BOMB_HEAT_AT`, 40%,
+65% and 85% of it, `bombHeatOf`); every tick squashes it (`bombCharTick`).
+A line a heat (`bomb_bub_0..3`: «سلّم!», «بسرعة!», «مش أنا!», «هتفرقع!»)
+pops now and then on the big ones. Sizes: `big` on one phone, on the
+holder's phone and on the TV (beside the category there, so the order stays
+on screen); `small` on the other phones; `mini` on the holder's chip in the
+order row. **A pass flies** (`bombRoomCharacter`, after every draw on a phone
+and the TV): a small bomb in an arc from the last holder's chip - or from
+this phone's own big bomb when it passed - into the new holder's chip, or into
+the big bomb on the phone it was handed to (`bombFlyChar`, the place held
+until it lands, keyed with `motionFirst` on the passes); the TV's big bomb
+hops; one phone has no pass, so a tap on the bomb (and «فئة تانية») makes it
+hop. **The explosion** (`bombBoomSvg`, `bombBoomFx`): the bomb swells and
+shakes, a flash, a fireball, eight pieces of shell fly off, smoke rolls up,
+then the remains (a soot mark, the cap, shards, a wisp); at the burst the
+screen shakes, soot smudges cover it for a second (`.bm-soot`), the boom
+(`FX.bombBoom`, added on first use since `JS_Sounds.html` loads later) on
+the loser's phone and the TV (every phone when there is no TV), the loser's
+chip is blown back and stays singed (`bomb-order__loser`, shown on the boom
+screen too) and the strike pops on the board (`bm-strike-new`; on one phone
+when the name is picked). It plays once a round, only on a page that saw that
+round's fuse burning (`bombFx.sawTicking`; a reload or a late join sees the
+remains), and a redraw in the middle carries on from `--bm-late`.
 
 **The five games of 15 Sep 2026** share what was already there:
 

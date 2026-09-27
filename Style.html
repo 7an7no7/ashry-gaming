@@ -18523,4 +18523,185 @@ body.dark { --gn-ink: #16142a; --gn-skin: #f0bf9a; --gn-hair: #4a3626; --gn-pant
   .gn-drop, .gn-drip { opacity: 1; }
 }
 
+/* ==== 44. القنبلة: the living bomb (JS_Bomb.html, 27 Sep 2026) ==== */
+/* The bomb as a character in المشنقة's flat-cartoon look: ink outlines that stay dark in dark mode,
+   flat fills, a face that changes with the heat (bm-h0..3 on the svg, switched in place by
+   bombCharHeat): happy at 0, eyes open at 1, wide and sweating at 2, a gasp and a hard shake at 3.
+   The fuse is four pieces that fade as it burns and the spark slides down it (a transition on its
+   transform); every tick squashes it (.is-tick on .bm-jolt). The explosion (.bomb-boom-svg) plays
+   once a round, from --bm-late (a negative delay) so a redraw carries on; .is-settled is the
+   remains. Transform and opacity only; stilled under reduced motion at the end. */
+:root {
+  --bm-ink: #1b1a2a; --bm-shell: #2e2b3a; --bm-rim: rgba(255, 255, 255, 0.16); --bm-cap: #6c6579; --bm-cord: #d9b27c;
+  --bm-spark: #f97316; --bm-spark-core: #ffe27a; --bm-cheek: #ff8fa3; --bm-drop: #8cc2ff; --bm-mouth: #7a1e2b;
+  --bm-smoke: #a39cb2; --bm-soot: #1d1a22; --bm-face: #f6efe2; --bm-fire: #ff8a1f; --bm-fire-in: #ffd23f; --bm-flash: #fff6cf;
+}
+body.dark { --bm-ink: #0b0a14; --bm-shell: #34303f; --bm-rim: rgba(255, 255, 255, 0.22); --bm-smoke: #7b748d; }
+
+.bomb-fuse.bm-holder { line-height: 0; margin-bottom: var(--sp-2); }
+.bomb-char { display: block; margin-inline: auto; overflow: visible; }
+.bomb-char--big { width: min(10.5rem, 44vw); }
+.bomb-char--small { width: 5rem; }
+.bomb-char--mini { display: inline-block; width: 100%; height: 100%; vertical-align: middle; }
+.bomb-char[role="button"] { cursor: pointer; -webkit-tap-highlight-color: transparent; border-radius: 50%; }
+.bomb-char[role="button"]:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+@media (orientation: landscape) and (max-height: 500px) { .bomb-char--big { width: 6.5rem; } .bomb-char--small { width: 3.5rem; } }
+.tv-bomb .bomb-char--big { width: 8.5rem; }
+/* On the TV the bomb stands beside the category, so the order and the strikes stay on the screen. */
+.tv-bomb .bomb-card { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--sp-5); align-items: center; max-width: 44rem; }
+.tv-bomb .bomb-card > :is(.bomb-fuse, .bomb-boom) { grid-row: 1 / span 4; margin: 0; }
+.tv-bomb .bomb-card > :not(.bomb-fuse):not(.bomb-boom) { grid-column: 2; }
+
+.bomb-char g, .bomb-char circle, .bomb-char ellipse, .bomb-char path, .bomb-boom-svg g, .bomb-boom-svg circle, .bomb-boom-svg polygon { transform-box: view-box; }
+.bm-ink { stroke: var(--bm-ink); stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; }
+.bm-line { fill: none; }
+.bm-shell { fill: var(--bm-shell); stroke-width: 3.2; }
+.bm-rim { fill: none; stroke: var(--bm-rim); stroke-width: 1.6; }
+.bm-shine { fill: #fff; opacity: 0.38; }
+.bm-cap { fill: var(--bm-cap); }
+.bm-cap__band { fill: #fff; opacity: 0.28; }
+.bm-shadow { fill: var(--bm-ink); opacity: 0.16; }
+.bm-fuse__ink { fill: none; stroke: var(--bm-ink); stroke-width: 5.8; stroke-linecap: round; }
+.bm-fuse__cord { fill: none; stroke: var(--bm-cord); stroke-width: 3; stroke-linecap: round; }
+.bm-fuse { transition: opacity 600ms var(--ease-out); }
+.bm-h1 .bm-fuse--3, .bm-h2 .bm-fuse--3, .bm-h2 .bm-fuse--2, .bm-h3 .bm-fuse--3, .bm-h3 .bm-fuse--2, .bm-h3 .bm-fuse--1 { opacity: 0; }
+.bm-spark { transition: transform 900ms var(--ease-out); }
+.bomb-char .bm-spark__size, .bomb-char .bm-spark__fl { transform-origin: 0 0; }
+.bm-spark__size { transition: transform 600ms var(--ease-out); }
+.bm-h2 .bm-spark__size { transform: scale(1.25); }
+.bm-h3 .bm-spark__size { transform: scale(1.55); }
+.bm-spark__star { fill: var(--bm-spark); stroke: var(--bm-ink); stroke-width: 1.3; stroke-linejoin: round; }
+.bm-spark__core { fill: var(--bm-spark-core); }
+.bm-spark__fl { animation: bm-flicker 0.26s steps(2, jump-none) infinite; }
+.bm-spark__p { fill: var(--bm-spark-core); opacity: 0; }
+.bm-spark__p--1 { animation: bm-sp1 0.7s ease-out infinite; }
+.bm-spark__p--2 { animation: bm-sp2 0.7s ease-out infinite 0.23s; }
+.bm-spark__p--3 { animation: bm-sp3 0.7s ease-out infinite 0.46s; }
+@keyframes bm-flicker { 0% { transform: scale(1) rotate(0deg); } 100% { transform: scale(0.8) rotate(20deg); } }
+@keyframes bm-sp1 { 0% { opacity: 1; transform: translate(0, 0); } 100% { opacity: 0; transform: translate(-8px, -7px); } }
+@keyframes bm-sp2 { 0% { opacity: 1; transform: translate(0, 0); } 100% { opacity: 0; transform: translate(8px, -8px); } }
+@keyframes bm-sp3 { 0% { opacity: 1; transform: translate(0, 0); } 100% { opacity: 0; transform: translate(3px, 9px); } }
+
+/* The face, a set a heat. */
+.bm-f { display: none; }
+.bm-h0 .bm-f--0, .bm-h1 .bm-f--1, .bm-h2 .bm-f--2, .bm-h3 .bm-f--3 { display: inline; }
+.bm-mouth-fill, .bm-gasp { fill: var(--bm-mouth); }
+.bm-face .bm-ink { stroke: var(--bm-face); }
+.bm-face .bm-eye-w { stroke: var(--bm-ink); }
+.bm-cheek { fill: var(--bm-cheek); opacity: 0.75; }
+.bm-eye-w { fill: #fff; stroke-width: 2.2; }
+.bm-pupil { fill: var(--bm-ink); }
+.bm-blink { transform-origin: 58px 80px; animation: bm-blink 3.8s ease-in-out infinite; }
+.bm-look { animation: bm-look 1.4s ease-in-out infinite; }
+.bm-drop { fill: var(--bm-drop); stroke: var(--bm-ink); stroke-width: 0.9; opacity: 0; }
+.bm-h2 .bm-drop--2 { animation: bm-sweat 1.4s ease-in infinite; }
+.bm-h3 .bm-drop--1 { animation: bm-sweat 0.8s ease-in infinite; }
+.bm-h3 .bm-drop--2 { animation: bm-sweat 0.8s ease-in infinite 0.4s; }
+.bm-glow { fill: var(--danger); opacity: 0; transform-origin: 58px 82px; transition: opacity 600ms var(--ease-out); }
+.bm-h2 .bm-glow { opacity: 0.1; }
+.bm-h3 .bm-glow { animation: bm-pulse 0.5s ease-in-out infinite alternate; }
+@keyframes bm-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.12); } }
+@keyframes bm-look { 0%, 100% { transform: translate(-2.2px, 0); } 50% { transform: translate(2.2px, 0); } }
+@keyframes bm-sweat { 0% { opacity: 0; transform: translate(0, 0); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(0, 12px); } }
+@keyframes bm-pulse { 0% { opacity: 0.12; transform: scale(0.96); } 100% { opacity: 0.22; transform: scale(1.05); } }
+
+/* The body's loop, harder with every heat, and the jolt of every tick. */
+.bm-body { transform-origin: 58px 120px; }
+.bm-h0 .bm-body { animation: bm-bob 2.6s ease-in-out infinite; }
+.bm-h1 .bm-body { animation: bm-rock 1.3s ease-in-out infinite; }
+.bm-h2 .bm-body { animation: bm-jitter 0.42s linear infinite; }
+.bm-h3 .bm-body { animation: bm-jitter-hard 0.2s linear infinite; }
+.bm-jolt { transform-origin: 58px 122px; }
+.bomb-char.is-tick .bm-jolt { animation: bm-jolt 200ms var(--ease-out); }
+.bomb-char.bm-h3.is-tick .bm-jolt { animation-name: bm-jolt-hard; }
+.bomb-char.is-hotter .bm-glow { animation: bm-hot 700ms var(--ease-out); }
+.bomb-char.bm-h3.is-hotter .bm-glow { animation: bm-hot 700ms var(--ease-out), bm-pulse 0.5s ease-in-out 700ms infinite alternate; }
+@keyframes bm-bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-3px) rotate(2deg); } }
+@keyframes bm-rock { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+@keyframes bm-jitter { 0%, 100% { transform: translate(0, 0) rotate(-3deg); } 25% { transform: translate(1.5px, -1px) rotate(2deg); } 50% { transform: translate(-1px, 1px) rotate(-2deg); } 75% { transform: translate(1px, 0) rotate(3deg); } }
+@keyframes bm-jitter-hard { 0%, 100% { transform: translate(0, 0) rotate(-5deg); } 25% { transform: translate(2.5px, -2px) rotate(4deg); } 50% { transform: translate(-2.5px, 1px) rotate(-4deg); } 75% { transform: translate(2px, 1px) rotate(5deg); } }
+@keyframes bm-jolt { 0% { transform: scale(1); } 35% { transform: scale(1.07, 0.93); } 100% { transform: scale(1); } }
+@keyframes bm-jolt-hard { 0% { transform: scale(1); } 35% { transform: scale(1.13, 0.87); } 70% { transform: scale(0.96, 1.05); } 100% { transform: scale(1); } }
+@keyframes bm-hot { 0% { opacity: 0.55; transform: scale(1.12); } 100% { opacity: 0.12; transform: scale(1); } }
+
+/* A hop (one phone's tap, the TV on a pass), a bomb landing after a pass, the place it lands hidden until then. */
+.bomb-char.is-hop { animation: bm-hop 620ms var(--ease-out); }
+.bm-waiting { opacity: 0; }
+.bm-landed { animation: bm-land 440ms var(--ease-out); }
+@keyframes bm-hop { 0%, 100% { transform: translateY(0) rotate(0deg); } 35% { transform: translateY(-22%) rotate(-12deg); } 60% { transform: translateY(-6%) rotate(8deg); } 80% { transform: translateY(0) scale(1.08, 0.92); } }
+@keyframes bm-land { 0% { transform: scale(0.6); } 55% { transform: scale(1.25); } 100% { transform: scale(1); } }
+.bm-ghost { position: fixed; z-index: var(--z-float-hi); pointer-events: none; }
+.bm-ghost > svg { width: 100%; height: 100%; }
+.bomb-order__bomb { display: inline-flex; width: 1.5em; height: 1.5em; margin-inline-end: 0.25em; vertical-align: middle; }
+
+/* What it says now and then: the line of its heat, two seconds every nine (five at the end); never on the small ones. */
+.bm-bub { display: none; opacity: 0; transform-origin: 46px 34px; }
+.bm-h0 .bm-bub--0, .bm-h1 .bm-bub--1, .bm-h2 .bm-bub--2, .bm-h3 .bm-bub--3 { display: inline; animation: bm-bub 9s ease-in-out infinite; animation-delay: var(--bm-bub-delay, 0s); }
+.bm-h3 .bm-bub--3 { animation-duration: 5s; }
+.bm-bub__box { fill: var(--surface-solid); stroke: var(--text); stroke-width: 1.6; stroke-linejoin: round; }
+.bm-bub__t { font-family: var(--font); font-size: 10px; font-weight: 800; fill: var(--text); }
+.bm-bub--3 .bm-bub__t { fill: var(--danger-ink); }
+@keyframes bm-bub { 0%, 62%, 100% { opacity: 0; transform: scale(0.6); } 68%, 88% { opacity: 1; transform: scale(1); } 94% { opacity: 0; transform: scale(0.8); } }
+
+/* The explosion: it swells and shakes, a flash, a fireball, the shell in pieces flying off, smoke,
+   then the remains; the card shakes, the words land, the holder's chip is blown back and singed. */
+.bomb-boom { line-height: 0; }
+.bomb-boom-svg { display: block; margin-inline: auto; overflow: visible; }
+.bomb-boom-svg--big { width: min(12rem, 52vw); }
+.bomb-boom-svg--small { width: 7rem; }
+@media (orientation: landscape) and (max-height: 500px) { .bomb-boom-svg--big { width: 7.5rem; } .bomb-boom-svg--small { width: 5rem; } }
+.tv-bomb .bomb-boom-svg--big { width: 10rem; }
+.bm-x-soot { fill: var(--bm-soot); opacity: 0.3; }
+.bm-x-shell { fill: var(--bm-shell); stroke-width: 2.2; }
+.bm-x-wisp { fill: none; stroke: var(--bm-smoke); stroke-width: 3.2; stroke-linecap: round; opacity: 0.7; transform-origin: 80px 98px; animation: bm-wisp 2.6s ease-in-out infinite; }
+.bm-x-flash { fill: var(--bm-flash); opacity: 0; transform-origin: 80px 76px; }
+.bm-x-fire { fill: var(--bm-fire); stroke: var(--bm-ink); stroke-width: 2.4; stroke-linejoin: round; opacity: 0; transform-origin: 80px 76px; }
+.bm-x-fire--in { fill: var(--bm-fire-in); stroke: none; }
+.bm-x-shard { opacity: 0; }
+.bm-x-smoke { fill: var(--bm-smoke); opacity: 0; }
+.bomb-boom-svg.is-settled :is(.bm-x-swell, .bm-x-flash, .bm-x-fire, .bm-x-shards, .bm-x-smoke) { display: none; }
+.bomb-boom-svg.is-live .bm-x-swell { transform-origin: 58px 82px; animation: bm-x-swell 620ms ease-in forwards; animation-delay: var(--bm-late, 0ms); }
+.bomb-boom-svg.is-live .bm-x-flash { animation: bm-x-flash 700ms ease-out forwards; animation-delay: calc(560ms + var(--bm-late, 0ms)); }
+.bomb-boom-svg.is-live .bm-x-fire { animation: bm-x-fire 700ms ease-out forwards; animation-delay: calc(590ms + var(--bm-late, 0ms)); }
+.bomb-boom-svg.is-live .bm-x-fire--in { animation-delay: calc(640ms + var(--bm-late, 0ms)); }
+.bomb-boom-svg.is-live .bm-x-shard { animation: bm-x-shard 950ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards; animation-delay: calc(600ms + var(--bm-late, 0ms)); }
+.bomb-boom-svg.is-live .bm-x-smoke { transform-box: fill-box; transform-origin: center; animation: bm-x-smoke 1.7s ease-out forwards; animation-delay: calc(700ms + var(--bm-sd, 0ms) + var(--bm-late, 0ms)); }
+.bomb-boom-svg.is-live .bm-x-remains { opacity: 0; animation: bm-fade-in 600ms ease-out forwards; animation-delay: calc(1700ms + var(--bm-late, 0ms)); }
+@keyframes bm-x-swell { 0% { transform: scale(1); } 30% { transform: scale(1.08) rotate(-5deg); } 55% { transform: scale(1.16) rotate(5deg); } 80% { transform: scale(1.28) rotate(-4deg); } 96% { transform: scale(1.38); opacity: 1; } 100% { transform: scale(1.42); opacity: 0; } }
+@keyframes bm-x-flash { 0% { opacity: 0; transform: scale(0.2); } 15% { opacity: 1; transform: scale(0.9); } 100% { opacity: 0; transform: scale(1.6); } }
+@keyframes bm-x-fire { 0% { opacity: 1; transform: scale(0.1) rotate(0deg); } 40% { opacity: 1; transform: scale(1.1) rotate(8deg); } 100% { opacity: 0; transform: scale(1.35) rotate(18deg); } }
+@keyframes bm-x-shard { 0% { opacity: 1; transform: translate(0, 0) rotate(0deg); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(var(--dx) * 1.7), calc(var(--dy) * 1.7 + 30px)) rotate(var(--r)); } }
+@keyframes bm-x-smoke { 0% { opacity: 0; transform: translateY(0) scale(0.2); } 20% { opacity: 0.85; transform: translateY(-4px) scale(0.95); } 100% { opacity: 0; transform: translateY(-22px) scale(1.7); } }
+@keyframes bm-fade-in { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes bm-wisp { 0%, 100% { transform: translateY(0) scaleY(1); opacity: 0.7; } 50% { transform: translateY(-3px) scaleY(1.08); opacity: 0.4; } }
+.bomb-card--boom.is-exploding { animation: bombShake 0.5s var(--ease-out) both; animation-delay: calc(600ms + var(--bm-late, 0ms)); }
+.bomb-card--boom.is-exploding .bomb-card__title { animation: bm-title 520ms var(--ease-out) both; animation-delay: calc(820ms + var(--bm-late, 0ms)); }
+.bomb-card--boom.is-exploding .bomb-card__sub, .bomb-card--boom.is-exploding .bomb-card__prompt-small { animation: bm-fade-in 500ms ease-out both; animation-delay: calc(1100ms + var(--bm-late, 0ms)); }
+@keyframes bm-title { 0% { opacity: 0; transform: scale(0.2); } 60% { opacity: 1; transform: scale(1.25); } 100% { opacity: 1; transform: scale(1); } }
+
+/* The holder's chip after the boom: singed (a layer of soot under the name), and blown back as it happens. */
+.bomb-order__loser { position: relative; isolation: isolate; overflow: hidden; background: var(--danger-soft); color: var(--danger-ink); border-color: var(--danger); font-weight: 800; }
+.bomb-order__loser::after { content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0.55;
+  background: radial-gradient(40% 70% at 20% 60%, rgba(25, 20, 28, 0.85), transparent 70%), radial-gradient(35% 60% at 78% 35%, rgba(25, 20, 28, 0.7), transparent 70%), radial-gradient(30% 50% at 55% 90%, rgba(25, 20, 28, 0.6), transparent 70%); }
+.bomb-order__soot { margin-inline-end: 0.25em; }
+.bomb-order__loser.is-blown { animation: bm-blown 900ms cubic-bezier(0.2, 0.8, 0.3, 1) both; animation-delay: calc(600ms + var(--bm-late, 0ms)); }
+.bomb-order__loser.is-blown::after { animation: bm-singe 700ms ease-out both; animation-delay: calc(620ms + var(--bm-late, 0ms)); }
+@keyframes bm-blown { 0% { transform: none; } 18% { transform: translateY(-16px) rotate(-14deg) scale(1.15); } 42% { transform: translateY(6px) rotate(9deg); } 64% { transform: rotate(-5deg); } 82% { transform: rotate(2deg); } 100% { transform: none; } }
+@keyframes bm-singe { 0% { opacity: 0; } 100% { opacity: 0.55; } }
+.bm-strike-new { display: inline-block; animation: bm-strike 620ms var(--ease-out) both; animation-delay: calc(700ms + var(--bm-late, 0ms)); }
+@keyframes bm-strike { 0% { transform: scale(0); } 60% { transform: scale(1.45); } 100% { transform: scale(1); } }
+
+/* Soot over the whole screen for a second. */
+.bm-soot { position: fixed; inset: 0; z-index: var(--z-fx-top); pointer-events: none; opacity: 0; animation: bm-soot 1.8s ease-out forwards; }
+.bm-soot__spot { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); background: radial-gradient(closest-side, rgba(22, 18, 26, 0.72), rgba(22, 18, 26, 0.38) 55%, transparent); }
+@keyframes bm-soot { 0% { opacity: 0; } 8% { opacity: 1; } 55% { opacity: 0.9; } 100% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .bomb-char, .bomb-char *, .bomb-boom-svg *, .bomb-card--boom.is-exploding, .bomb-card--boom.is-exploding *, .bomb-order__loser, .bomb-order__loser::after, .bm-strike-new, .bm-landed, .bm-soot { animation: none !important; }
+  .bm-fuse, .bm-spark, .bm-spark__size, .bm-glow { transition: none !important; }
+  .bm-soot { display: none; }
+  .bomb-boom-svg.is-live :is(.bm-x-swell, .bm-x-flash, .bm-x-fire, .bm-x-shards, .bm-x-smoke) { display: none; }
+  .bomb-boom-svg.is-live .bm-x-remains { opacity: 1; }
+}
+
 </style>

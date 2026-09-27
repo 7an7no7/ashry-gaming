@@ -117,21 +117,27 @@ ROOM_GAMES.bomb = {
     if (!el) return;
     const t = TRANSLATIONS[appState.lang];
     const s = state.shared;
-    const sig = ['bomb', s.phase, s.round, s.prompt, s.heat, s.holderId, s.fromId, s.loserId, JSON.stringify(s.strikes || {}), state.youAreHost, appState.lang, bombRoom.fixing].join('|');
+    const sig = ['bomb', s.phase, s.round, s.prompt, s.holderId, s.fromId, s.loserId, JSON.stringify(s.strikes || {}), state.youAreHost, appState.lang, bombRoom.fixing].join('|');
+    // Where the bomb was on this screen, before a pass redraws it (the holder's own big bomb).
+    const bigBefore = el.querySelector('.bomb-char--big');
+    const fromBig = bigBefore && bombFx.holder[roomDealKey(state, s.round)] === Room.me && s.holderId !== Room.me ? bigBefore.getBoundingClientRect() : null;
     const rebuilt = renderRoomFrame(el, sig, () => bombRoomFrame(state, t));
     refreshRoomPlayerStrip(el, state);
     armBombSendBack(state);
+    bombRoomCharacter(state, el, el, fromBig);
     bombRoomTicking(state, rebuilt);
   }
 };
 
 /** The card with the category, shared by the phone and the TV. */
-function bombRoomCardHtml(s, t) {
+function bombRoomCardHtml(s, t, o) {
+  const opt = o || {};
   const kindLabel = s.kind === 'letter' ? (t.bomb_letter_label || '') : (t.bomb_category_label || '');
   if (s.phase === 'boom') {
+    const boom = opt.boom || null;
     return `
-      <div class="bomb-card bomb-card--boom" id="bomb-card">
-        <div class="bomb-boom" aria-hidden="true">💥</div>
+      <div class="bomb-card bomb-card--boom ${boom ? 'is-exploding' : ''}" id="bomb-card" style="--bm-late: ${boom ? -boom.late : 0}ms">
+        <div class="bomb-boom" aria-hidden="true" ${boom ? `data-reveal-ms="${Math.max(0, BOMB_BOOM_MS - boom.late)}"` : ''}>${bombBoomSvg({ size: opt.size === 'small' ? 'small' : 'big', late: boom ? boom.late : 0, settled: !boom })}</div>
         <div class="bomb-card__title">${escapeHTML(t.bomb_boom || '')}</div>
         <div class="bomb-card__sub">${escapeHTML(s.loserName ? (t.bomb_room_loser || '').replace('{name}', s.loserName) : (t.bomb_boom_hint || ''))}</div>
         <div class="bomb-card__prompt-small">${escapeHTML(kindLabel)}: <b>${escapeHTML(s.prompt || '')}</b></div>
@@ -139,7 +145,7 @@ function bombRoomCardHtml(s, t) {
   }
   return `
     <div class="bomb-card ${s.heat >= 3 ? 'is-urgent' : ''}" id="bomb-card">
-      <div class="bomb-fuse" aria-hidden="true"><span class="bomb-emoji">💣</span></div>
+      <div class="bomb-fuse bm-holder">${bombCharSvg({ heat: s.heat, size: opt.size || 'small' })}</div>
       <div class="eyebrow">${escapeHTML(kindLabel)}</div>
       <div class="bomb-card__prompt ${s.kind === 'letter' ? 'bomb-card__prompt--letter' : ''}">${escapeHTML(s.prompt || '')}</div>
       <div class="bomb-card__sub">${escapeHTML(s.kind === 'letter' ? (t.bomb_room_letter_hint || '') : (t.bomb_room_category_hint || ''))}</div>
@@ -147,27 +153,35 @@ function bombRoomCardHtml(s, t) {
 }
 
 /** Strikes, fewest first; whoever has most is losing. */
-function bombStrikesHtml(s, t) {
+function bombStrikesHtml(s, t, o) {
   const board = s.board || [];
   if (!board.length) return '';
+  const pop = o && o.boom && s.loserId ? s.loserId : '';
   return `
     <div class="card card--tight">
       <div class="eyebrow">💥 ${escapeHTML(t.bomb_room_strikes || '')}</div>
       ${board.map(p => `
-        <div class="status-row">
+        <div class="status-row" data-bm-pid="${escapeHTML(String(p.id || p.name))}">
           <div class="status-row__body"><div class="status-row__name">${escapeHTML(p.name)}</div></div>
-          <span class="badge ${p.score ? 'badge--danger' : ''}">${p.score ? '💥'.repeat(Math.min(p.score, 5)) + (p.score > 5 ? ' ' + p.score : '') : '—'}</span>
+          <span class="badge ${p.score ? 'badge--danger' : ''} ${pop && p.id === pop ? 'bm-strike-new' : ''}" ${pop && p.id === pop ? `style="--bm-late: ${-o.boom.late}ms"` : ''}>${p.score ? '💥'.repeat(Math.min(p.score, 5)) + (p.score > 5 ? ' ' + p.score : '') : '—'}</span>
         </div>`).join('')}
     </div>`;
 }
 
 /** Who has the bomb, as a row of the seating order with the holder lit. */
-function bombOrderHtml(s, state) {
+function bombOrderHtml(s, state, o) {
   const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+  const boom = s.phase === 'boom';
+  const blown = o && o.boom;
   return `
     <div class="chip-set bomb-order">
-      ${(s.order || []).filter(id => state.players.some(p => p.id === id)).map(id => `
-        <span class="chip ${id === s.holderId ? 'bomb-order__holder' : 'chip--plain'}">${id === s.holderId ? '💣 ' : ''}${escapeHTML(nameOf(id))}</span>`).join('')}
+      ${(s.order || []).filter(id => state.players.some(p => p.id === id)).map(id => {
+        const lost = boom && id === s.loserId;
+        const cls = lost ? 'bomb-order__loser' + (blown ? ' is-blown' : '') : (!boom && id === s.holderId ? 'bomb-order__holder' : 'chip--plain');
+        const mark = lost ? '<span class="bomb-order__soot" aria-hidden="true">💥</span>'
+          : (!boom && id === s.holderId ? `<span class="bomb-order__bomb" aria-hidden="true">${bombCharSvg({ heat: s.heat, size: 'mini', bubble: false })}</span>` : '');
+        return `<span class="chip ${cls}" data-bm-pid="${escapeHTML(id)}" ${lost && blown ? `style="--bm-late: ${-blown.late}ms"` : ''}>${mark}${escapeHTML(nameOf(id))}</span>`;
+      }).join('')}
     </div>`;
 }
 
@@ -184,7 +198,7 @@ function bombRoomFrame(state, t) {
     ${s.phase === 'ticking' ? `<span class="badge ${iHold ? 'badge--danger' : ''}">💣 ${escapeHTML(iHold ? (t.bomb_room_yours || '') : (s.holderName || ''))}</span>` : ''}</div>`;
   if (s.phase === 'ticking') {
     const inRound = (s.roster || []).indexOf(Room.me) !== -1;
-    return head + bombRoomCardHtml(s, t) + `
+    return head + bombRoomCardHtml(s, t, { size: iHold ? 'big' : 'small' }) + `
       ${iHold
         ? `<div class="btn-stack">
              <button class="btn btn--danger btn--lg bomb-pass" onclick="passBomb(this)">${escapeHTML(t.bomb_room_pass || '')} ➡</button>
@@ -209,7 +223,8 @@ function bombRoomFrame(state, t) {
       ${renderRoomPlayerStrip(state)}`;
   }
   // boom: the server already knows who was holding it; the host can correct.
-  return head + bombRoomCardHtml(s, t) + `
+  const boom = bombFxBoom(roomDealKey(state, s.round));
+  return head + bombRoomCardHtml(s, t, { size: s.loserId === Room.me ? 'big' : 'small', boom }) + bombOrderHtml(s, state, { boom }) + `
     ${state.youAreHost
       ? `<div class="btn-stack">
            <button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { lang: '${VOTE_LANG()}' })">${escapeHTML(t.bomb_next_round || '')}</button>
@@ -227,9 +242,53 @@ function bombRoomFrame(state, t) {
              </div>` : ''}
          </div>`
       : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
-    ${bombStrikesHtml(s, t)}
+    ${bombStrikesHtml(s, t, { boom })}
     ${renderRoomPlayerStrip(state)}`;
 }
+
+/**
+ * The bomb's moments in a room, after every draw (a phone or the TV): the heat in place, a pass
+ * flying from the last holder to the new one (from this phone's own big bomb when it passed, into
+ * it when it was handed the bomb), and the explosion's screen part. A round first seen here (a
+ * reload, a late join) plays nothing: bombFx.holder has no holder for it yet.
+ */
+function bombRoomCharacter(state, root, stage, fromBig) {
+  const s = state.shared || {};
+  if (!root) return;
+  const key = roomDealKey(state, s.round);
+  if (s.phase === 'ticking') {
+    bombFxSaw(key);
+    bombCharHeat(root, s.heat);
+    const card = root.querySelector('#bomb-card');
+    if (card) card.classList.toggle('is-urgent', (s.heat || 0) >= 3);
+    const prev = bombFx.holder[key];
+    bombFx.holder[key] = s.holderId;
+    if (prev && prev !== s.holderId && motionFirst('bomb-pass|' + key + '|' + (s.passes || 0) + '|' + (s.sentBack || 0) + '|' + s.holderId)) {
+      const chip = (id) => root.querySelector(`.bomb-order [data-bm-pid="${cssEscapeBomb(id)}"], .tv-order [data-bm-pid="${cssEscapeBomb(id)}"]`);
+      const fromChip = chip(prev);
+      const from = fromBig || (fromChip ? fromChip.getBoundingClientRect() : null);
+      const mineNow = s.holderId === Room.me && !state.youAreScreen;
+      const toChip = chip(s.holderId);
+      const to = mineNow ? root.querySelector('.bomb-char--big') : (toChip && (toChip.querySelector('.bomb-order__bomb') || toChip));
+      bombFlyChar(from, to);
+      if (state.youAreScreen) {
+        const big = root.querySelector('.bomb-char--big');
+        if (big) setTimeout(() => bombCharHop(big), 300);
+      } else if (fromBig || mineNow) {
+        bombFxEnsure();
+        if (typeof playFx === 'function') playFx('bombWhoosh');
+      }
+    }
+    return;
+  }
+  if (s.phase === 'boom') {
+    bombFxBoom(key);
+    bombBoomFx(key, stage, { loud: !!(state.youAreScreen || s.loserId === Room.me || !roomHasScreen()) });
+  }
+}
+
+/** An id as a CSS attribute value. */
+function cssEscapeBomb(id) { return String(id || '').replace(/["\\]/g, (c) => '\\' + c); }
 
 /** The press has to feel instant: the button locks before the server answers. */
 function passBomb(btn) {
@@ -247,7 +306,6 @@ function bombRoomTicking(state, rebuilt) {
   bombRoom.tickTimer = null;
   bombRoom.tickingKey = key;
   if (!key) {
-    if (rebuilt && s.phase === 'boom') { playSound('alarm'); haptic('heavy'); }
     return;
   }
   const tick = () => {
@@ -259,7 +317,7 @@ function bombRoomTicking(state, rebuilt) {
     const hint = document.getElementById('bomb-sound-hint');
     if (hint) hint.classList.toggle('hidden', !(mine && audioCtx.state !== 'running'));
     const card = document.getElementById('bomb-card');
-    if (card) { card.classList.remove('is-tick'); void card.offsetWidth; card.classList.add('is-tick'); }
+    if (card) { card.classList.remove('is-tick'); void card.offsetWidth; card.classList.add('is-tick'); bombCharTick(card); }
     bombRoom.tickTimer = setTimeout(tick, BOMB_TICK_MS[Math.min(3, st.shared.heat || 0)]);
   };
   tick();
@@ -269,7 +327,7 @@ function bombRoomTicking(state, rebuilt) {
 TV_GAMES.bomb = {
   sig(state) {
     const s = state.shared || {};
-    return [s.phase, s.round, s.prompt, s.heat, s.holderId, s.fromId || '', s.loserId, JSON.stringify(s.strikes || {})].join('|');
+    return [s.phase, s.round, s.prompt, s.holderId, s.fromId || '', s.loserId, JSON.stringify(s.strikes || {})].join('|');
   },
   frame(state, t) {
     const s = state.shared || {};
@@ -282,8 +340,13 @@ TV_GAMES.bomb = {
       ? `<div class="tv-actions">${s.fromId && roomNameOf(state, s.fromId)
           ? tvBtn((t.bomb_send_back || '{name}').replace('{name}', roomNameOf(state, s.fromId)), "roomAct('sendBack')", 'ghost') : ''}${tvBtn(t.bomb_swap, "roomAct('swap')", 'secondary')}</div>`
       : `<div class="tv-actions">${tvBtn(t.bomb_next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}${state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1 && p.id !== s.loserId).map(p => tvBtn('↩ ' + p.name, `roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })`, 'ghost')).join('')}</div>`);
-    return `<div class="tv-vote">${head}${holder}<div class="tv-bomb tv-scale">${bombRoomCardHtml(s, t)}</div><div class="tv-strip-inline">${bombOrderHtml(s, state).replace('chip-set bomb-order', 'tv-order')}</div>${host}<div class="tv-scale">${bombStrikesHtml(s, t)}</div></div>`;
+    const boom = s.phase === 'boom' ? bombFxBoom(roomDealKey(state, s.round)) : null;
+    return `<div class="tv-vote">${head}${holder}<div class="tv-bomb tv-scale">${bombRoomCardHtml(s, t, { size: 'big', boom })}</div><div class="tv-strip-inline">${bombOrderHtml(s, state, { boom }).replace('chip-set bomb-order', 'tv-order')}</div>${host}<div class="tv-scale">${bombStrikesHtml(s, t, { boom })}</div></div>`;
   },
-  after(state, rebuilt) { bombRoomTicking(state, rebuilt); }
+  after(state, rebuilt) {
+    const el = document.getElementById('view-room-tv');
+    bombRoomCharacter(state, el, el && el.querySelector('.tv-stage'), null);
+    bombRoomTicking(state, rebuilt);
+  }
 };
 </script>

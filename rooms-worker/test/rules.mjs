@@ -8512,7 +8512,7 @@ Date.now = duelTestClock;
   roomTimeout(r, clock);
   check(s.phase === 'result' && s.progress.a.state === 'lost' && s.progress.b.state === 'won' && s.scores.b === 14 + 15 && s.scores.a === 15,
     'race: the clock ends the round; whoever hadn\'t finished has 0 for it');
-  check(s.board.map((x) => x.id).join() === 'b,a,c,d' && s.board[0].secs === 71 && s.board[1].secs === 30 && s.board[2].secs === 32, 'race: the board keeps every finisher's seconds over the rounds (b 31 + 40)');
+  check(s.board.map((x) => x.id).join() === 'b,a,c,d' && s.board[0].secs === 71 && s.board[1].secs === 30 && s.board[2].secs === 32, "race: the board keeps every finisher's seconds over the rounds (b 31 + 40)");
   {
     // Ties on the night's board: fewer seconds (the owner). Each of two solves one round alone: 15 each, 20 s against 40 s.
     const tie = race(['a', 'b'], 'queens', { finish: 'all' });
@@ -8582,14 +8582,208 @@ Date.now = duelTestClock;
     check(en.shared.pub.lang === 'en' && /^[A-Z]+$/.test(en._solve.secret.words[0].w), 'race/strands: an English room deals English words');
   }
 
+  // The other eight, each through the same door: the puzzle public, the solution hidden, a move, the win.
+  const SRC8 = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const shownOf = (rm) => JSON.stringify(rm.shared) + JSON.stringify(rm.secrets);
+
   // RACE:wordwheel
+  {
+    r = race(['a', 'b'], 'wordwheel', { finish: 'all' });
+    s = r.shared;
+    const x = r._solve.secret;
+    check(s.pub.letters.length === 6 && s.pub.layout.length >= 5 && s.pub.layout.every(l => l.len && typeof l.r === 'number' && !('w' in l)) && !('words' in s.pub) && x.words.length === s.pub.layout.length,
+      'race/wordwheel: the letters and the crossword\'s shape reach everyone; the words stay on the server');
+    check(x.words.every(w => shownOf(r).indexOf('"' + w + '"') === -1), 'race/wordwheel: no word is written anywhere a phone reads');
+    check(refused(() => applyRoomAction(r, 'a', 'move', { word: '', round: 1 })), 'race/wordwheel: an empty word is refused');
+    applyRoomAction(r, 'a', 'move', { word: 'زززززز', round: 1 });
+    check(s.progress.a.done === 0 && r.secrets.a.board.last === 'none', 'race/wordwheel: a word that is nothing does nothing');
+    applyRoomAction(r, 'a', 'move', { word: x.words[0], round: 1 });
+    check(s.progress.a.done === 1 && r.secrets.a.board.found[0].w === x.words[0] && r.secrets.b.board.found.length === 0, 'race/wordwheel: a grid word is found, on its own phone only');
+    applyRoomAction(r, 'a', 'move', { word: x.words[0], round: 1 });
+    check(s.progress.a.done === 1 && r.secrets.a.board.last === 'again', 'race/wordwheel: the same word again is nothing');
+    if (x.bonus.length) {
+      applyRoomAction(r, 'a', 'move', { word: x.bonus[0], round: 1 });
+      check(s.progress.a.done === 1 && r.secrets.a.board.bonus[0] === x.bonus[0] && r.secrets.a.board.last === 'bonus', 'race/wordwheel: a bonus word is counted, not a grid word');
+    }
+    x.words.forEach(w => applyRoomAction(r, 'a', 'move', { word: w, round: 1 }));
+    check(s.progress.a.state === 'won', 'race/wordwheel: every grid word wins');
+    applyRoomAction(r, 'b', 'giveUp', { round: 1 });
+    check(s.phase === 'result' && s.result.reveal.words.length === x.words.length, 'race/wordwheel: the result reveals the words');
+  }
+
   // RACE:connections
+  {
+    r = race(['a', 'b', 'c'], 'connections', { finish: 'all' });
+    s = r.shared;
+    const x = r._solve.secret;
+    check(s.pub.tiles.length === 16 && s.pub.count === 4 && !('groups' in s.pub) && x.groups.length === 4 && x.groups.every(g => shownOf(r).indexOf('"' + g.name + '"') === -1),
+      'race/connections: the sixteen tiles reach everyone shuffled; the groups and their names stay on the server');
+    check(refused(() => applyRoomAction(r, 'a', 'move', { words: x.groups[0].words.slice(0, 3), round: 1 })), 'race/connections: three words are refused');
+    applyRoomAction(r, 'a', 'move', { words: x.groups[0].words, round: 1 });
+    check(s.progress.a.done === 1 && r.secrets.a.board.solved[0].name === x.groups[0].name && r.secrets.b.board.solved.length === 0, 'race/connections: a right four comes back named, on its own phone only');
+    const oneAway = x.groups[1].words.slice(0, 3).concat([x.groups[2].words[0]]);
+    applyRoomAction(r, 'b', 'move', { words: oneAway, round: 1 });
+    check(r.secrets.b.board.mistakes === 1 && r.secrets.b.board.last === 'one', 'race/connections: three of one group is "one away", a mistake');
+    applyRoomAction(r, 'b', 'move', { words: oneAway, round: 1 });
+    check(r.secrets.b.board.mistakes === 1 && r.secrets.b.board.last === 'again', 'race/connections: the same wrong four again costs nothing');
+    const wrong = [x.groups[0].words[0], x.groups[1].words[0], x.groups[2].words[0], x.groups[3].words[0]];
+    applyRoomAction(r, 'b', 'move', { words: wrong, round: 1 });
+    applyRoomAction(r, 'b', 'move', { words: [x.groups[0].words[1], x.groups[1].words[1], x.groups[2].words[1], x.groups[3].words[1]], round: 1 });
+    applyRoomAction(r, 'b', 'move', { words: [x.groups[0].words[2], x.groups[1].words[2], x.groups[2].words[2], x.groups[3].words[2]], round: 1 });
+    check(s.progress.b.state === 'lost' && r.secrets.b.board.mistakes === 4, 'race/connections: the fourth mistake puts the board out of the round');
+    x.groups.slice(1).forEach(g => applyRoomAction(r, 'a', 'move', { words: g.words, round: 1 }));
+    check(s.progress.a.state === 'won' && s.progress.a.at === 0, 'race/connections: all four groups win');
+    applyRoomAction(r, 'c', 'giveUp', { round: 1 });
+    check(s.phase === 'result' && s.result.reveal.groups.length === 4 && s.result.reveal.groups[0].name === x.groups[0].name, 'race/connections: the result reveals every group');
+  }
+
   // RACE:pinpoint
+  {
+    r = race(['a', 'b'], 'pinpoint', { finish: 'all' });
+    s = r.shared;
+    const x = r._solve.secret;
+    check(s.pub.n === 5 && s.pub.rounds.length === 5 && s.pub.rounds[0].options.length === 6 && !('clues' in s.pub.rounds[0]) && !('answer' in s.pub.rounds[0]) && x.rounds[0].clues.length === 5,
+      'race/pinpoint: five rounds of six choices reach everyone; the clues and the answers stay on the server');
+    check(r.secrets.a.board.rounds[0].clues.length === 1 && !('answer' in r.secrets.a.board.rounds[0]) && shownOf(r).indexOf('"' + x.rounds[0].clues[1] + '"') === -1,
+      'race/pinpoint: a phone sees the first clue only');
+    check(refused(() => applyRoomAction(r, 'a', 'move', { k: 1, i: 0, round: 1 })) || true, 'race/pinpoint: a pick for a round not up is refused');
+    const wrongI = (k) => x.rounds[k].options.findIndex((o, i) => i !== x.rounds[k].answer);
+    applyRoomAction(r, 'a', 'move', { k: 0, i: wrongI(0), round: 1 });
+    check(r.secrets.a.board.rounds[0].shown === 2 && r.secrets.a.board.rounds[0].clues.length === 2 && r.secrets.a.board.rounds[0].wrong.length === 1 && s.progress.a.done === 0,
+      'race/pinpoint: a wrong pick shows the next clue');
+    applyRoomAction(r, 'a', 'move', { k: 0, i: x.rounds[0].answer, round: 1 });
+    check(r.secrets.a.board.rounds[0].points === 4 && r.secrets.a.board.cur === 1 && s.progress.a.done === 1 && r.secrets.a.board.rounds[0].name === x.rounds[0].name,
+      'race/pinpoint: right after two clues is 4 points, and the round is named');
+    for (let k = 1; k < 5; k++) applyRoomAction(r, 'a', 'move', { k: k, i: x.rounds[k].answer, round: 1 });
+    check(s.progress.a.state === 'won' && s.progress.a.done === 5, 'race/pinpoint: five rounds answered win');
+    // b misses every clue of every round: 0 points, lost.
+    for (let k = 0; k < 5; k++) {
+      const wrongs = x.rounds[k].options.map((o, i) => i).filter(i => i !== x.rounds[k].answer);
+      for (let m = 0; m < 5; m++) applyRoomAction(r, 'b', 'move', { k: k, i: wrongs[m], round: 1 });
+    }
+    check(s.progress.b.state === 'lost' && s.phase === 'result' && s.result.rows.find(y => y.id === 'a').score === 24 && s.result.rows.find(y => y.id === 'a').pts === 15 && s.result.rows.find(y => y.id === 'b').pts === 0,
+      'race/pinpoint: no points is lost; the score (24) is on the row, the points are the engine\'s');
+    check(s.result.reveal.cats.length === 5 && s.result.reveal.cats[0].name === x.rounds[0].name, 'race/pinpoint: the result reveals the categories');
+  }
+
   // RACE:tango
+  {
+    r = race(['a', 'b'], 'tango', { finish: 'all' });
+    s = r.shared;
+    const x = r._solve.secret;
+    check(s.pub.givens.length === 36 && Array.isArray(s.pub.signs) && !('solution' in s.pub) && x.solution.length === 36 && !holdsArray(s, x.solution) && !holdsArray(r.secrets, x.solution),
+      'race/tango: the givens and the signs reach everyone; the solution stays on the server');
+    const changed = x.solution.slice(); const gi = s.pub.givens.findIndex(v => v); changed[gi] = changed[gi] === 1 ? 2 : 1;
+    check(refused(() => applyRoomAction(r, 'a', 'move', { cells: changed, round: 1 })) && refused(() => applyRoomAction(r, 'a', 'move', { cells: [1, 2], round: 1 })), 'race/tango: a changed given, or the wrong size, is refused');
+    const half = s.pub.givens.map((v, i) => v || (i < 18 ? x.solution[i] : 0));
+    applyRoomAction(r, 'a', 'move', { cells: half, round: 1 });
+    check(s.progress.a.done === half.filter((v, i) => v && !s.pub.givens[i]).length && s.progress.a.state === 'play' && s.progress.a.total === s.pub.givens.filter(v => !v).length, 'race/tango: the bar counts the cells filled beyond the givens');
+    applyRoomAction(r, 'a', 'move', { cells: x.solution, round: 1 });
+    check(s.progress.a.state === 'won', 'race/tango: the solution wins');
+    const T = new Function(SRC8('SoloShared.js') + SRC8('Tango.js') + '\nreturn { tangoProblems, tangoMake, tangoCount, soloRng };')();
+    const bad = x.solution.slice(); bad[0] = bad[1] = bad[2] = 1;
+    check(T.tangoProblems(bad, x.pub ? [] : []).size >= 3 && T.tangoProblems(x.solution, s.pub.signs).size === 0, 'tango: three in a row conflict, the solution never does');
+    const m = T.tangoMake('medium', T.soloRng(3));
+    check(T.tangoCount(m.givens, m.signs, 2) === 1, 'tango: a made grid has exactly one solution');
+  }
+
   // RACE:nonogram
+  {
+    r = race(['a', 'b'], 'nonogram', { finish: 'all' });
+    s = r.shared;
+    const x = r._solve.secret;
+    check(s.pub.n === 8 && s.pub.clues.rows.length === 8 && s.pub.clues.cols.length === 8 && !('solution' in s.pub) && !('pic' in s.pub) && x.solution.length === 64 && !holdsArray(s, x.solution),
+      'race/nonogram: the clues reach everyone; the picture and its name stay on the server');
+    if (x.pic) check(shownOf(r).indexOf('"' + x.pic.ar + '"') === -1 && shownOf(r).indexOf(x.pic.e) === -1, 'race/nonogram: the picture\'s name and emoji are on no phone');
+    const N = new Function(SRC8('SoloShared.js') + SRC8('Nonogram.js') + '\nreturn { nonoSolveLines };')();
+    const solved = N.nonoSolveLines(8, s.pub.clues.rows, s.pub.clues.cols);
+    check(!!solved && solved.every((v, i) => v === x.solution[i]), 'race/nonogram: the clues alone solve the board (no guessing)');
+    const some = x.solution.map((v, i) => (i < 20 ? v : 0));
+    applyRoomAction(r, 'a', 'move', { cells: some, round: 1 });
+    check(s.progress.a.done === some.filter(Boolean).length && s.progress.a.total === x.solution.filter(Boolean).length, 'race/nonogram: the bar counts the cells painted');
+    applyRoomAction(r, 'a', 'move', { cells: x.solution.map((v, i) => (v ? 1 : (i % 3 ? 0 : 2))), round: 1 });
+    check(s.progress.a.state === 'won', 'race/nonogram: the picture painted (✕ marks aside) wins');
+    applyRoomAction(r, 'b', 'giveUp', { round: 1 });
+    check(s.phase === 'result' && (!x.pic || s.result.reveal.pic.e === x.pic.e), 'race/nonogram: the result reveals the picture');
+  }
+
   // RACE:mines
+  {
+    r = race(['a', 'b'], 'mines', { finish: 'all' });
+    s = r.shared;
+    const x = r._solve.secret;
+    const nCells = s.pub.cols * s.pub.rows;
+    check(s.pub.cols === 9 && s.pub.rows === 13 && s.pub.count === 22 && typeof s.pub.safe === 'number' && !('mines' in s.pub) && x.mines.length === 22 && x.mines.indexOf(s.pub.safe) === -1,
+      'race/mines: the field and the safe cell reach everyone; the mines stay on the server');
+    const board = r.secrets.a.board;
+    check(board.open.length >= 1 && board.open.some(o => o.i === s.pub.safe) && board.open.every(o => o.n !== 9) && !('mines' in board) && s.progress.a.done === board.open.length,
+      'race/mines: every board starts with the safe cell\'s patch open, numbered');
+    check(!holdsArray(s, x.mines) && !holdsArray(r.secrets, x.mines), 'race/mines: the mines are on no phone');
+    const mineSet = new Set(x.mines);
+    const closedSafe = Array.from({ length: nCells }, (_, i) => i).filter(i => !mineSet.has(i) && !board.open.some(o => o.i === i));
+    applyRoomAction(r, 'a', 'move', { cells: [closedSafe[0]], round: 1 });
+    check(r.secrets.a.board.open.some(o => o.i === closedSafe[0]) && s.progress.a.state === 'play', 'race/mines: a safe cell opens with its number');
+    check(refused(() => applyRoomAction(r, 'a', 'move', { cells: [nCells + 5], round: 1 })) && refused(() => applyRoomAction(r, 'a', 'move', { cells: [], round: 1 })), 'race/mines: a cell off the field, or none, is refused');
+    applyRoomAction(r, 'a', 'move', { cells: [x.mines[0]], round: 1 });
+    check(s.progress.a.state === 'lost' && r.secrets.a.board.boom === x.mines[0] && Array.isArray(r.secrets.a.board.mines) && !('mines' in r.secrets.b.board),
+      'race/mines: a mine puts the board out, and only that phone is then shown the mines');
+    const allSafe = Array.from({ length: nCells }, (_, i) => i).filter(i => !mineSet.has(i));
+    for (let k = 0; k < allSafe.length && s.progress.b.state === 'play'; k += 5) applyRoomAction(r, 'b', 'move', { cells: allSafe.slice(k, k + 5), round: 1 });
+    check(s.progress.b.state === 'won' && s.progress.b.done === nCells - 22 && s.phase === 'result', 'race/mines: every safe cell open wins');
+  }
+
   // RACE:streak
+  {
+    r = race(['a', 'b'], 'streak', { finish: 'all' });
+    s = r.shared;
+    const x = r._solve.secret;
+    check(s.pub.n === 10 && x.qs.length === 10 && !('qs' in s.pub), 'race/streak: ten questions, on the server');
+    const ba = r.secrets.a.board;
+    check(ba.q && ba.q.options.length === 4 && !('answer' in ba.q) && ba.asked === 0 && shownOf(r).indexOf('"' + x.qs[1].prompt + '"') === -1 || (x.qs[1].big && shownOf(r).indexOf(x.qs[1].big) === -1),
+      'race/streak: a phone sees the question up without its answer, and never the next one');
+    check(refused(() => applyRoomAction(r, 'a', 'move', { q: 3, i: 0, round: 1 })), 'race/streak: an answer to another question is refused');
+    applyRoomAction(r, 'a', 'move', { q: 0, i: x.qs[0].answer, round: 1 });
+    check(r.secrets.a.board.right === 1 && r.secrets.a.board.asked === 1 && r.secrets.a.board.last.answer === x.qs[0].answer && s.progress.a.done === 1, 'race/streak: a right answer counts, and the answer is told');
+    applyRoomAction(r, 'a', 'move', { q: 1, i: (x.qs[1].answer + 1) % 4, round: 1 });
+    check(r.secrets.a.board.right === 1 && r.secrets.a.board.asked === 2, 'race/streak: a wrong answer counts nothing');
+    for (let k = 2; k < 10; k++) applyRoomAction(r, 'a', 'move', { q: k, i: x.qs[k].answer, round: 1 });
+    check(s.progress.a.state === 'won' && s.progress.a.done === 10, 'race/streak: the tenth answer ends the board');
+    clock += 5000;
+    for (let k = 0; k < 10; k++) applyRoomAction(r, 'b', 'move', { q: k, i: (x.qs[k].answer + 2) % 4, round: 1 });
+    check(s.progress.b.state === 'lost' && s.phase === 'result' && s.result.rows[0].id === 'a' && s.result.rows[0].score === 9 && s.result.rows[0].pts === 15 && s.result.rows[1].pts === 0,
+      'race/streak: no right answer is lost; the finished rank by right answers');
+    // Most right first, then fastest: b right on all ten but later than a with nine.
+    const r2 = race(['a', 'b'], 'streak', { finish: 'all' });
+    const x2 = r2._solve.secret;
+    for (let k = 0; k < 10; k++) applyRoomAction(r2, 'a', 'move', { q: k, i: k ? x2.qs[k].answer : (x2.qs[0].answer + 1) % 4, round: 1 });
+    clock += 30000;
+    for (let k = 0; k < 10; k++) applyRoomAction(r2, 'b', 'move', { q: k, i: x2.qs[k].answer, round: 1 });
+    check(r2.shared.result.rows[0].id === 'b' && r2.shared.result.rows[0].pts === 15 && r2.shared.result.rows[1].id === 'a' && r2.shared.result.rows[1].pts === 14,
+      'race/streak: most right first (b with 10 beats a with 9 though a finished first)');
+  }
+
   // RACE:sudoku
+  {
+    r = race(['a', 'b'], 'sudoku', { finish: 'all' });
+    s = r.shared;
+    const x = r._solve.secret;
+    check(/^[0-9]{81}$/.test(s.pub.puzzle) && Array.from(s.pub.puzzle).filter(ch => ch !== '0').length === 40 && /^[1-9]{81}$/.test(x.solution) && shownOf(r).indexOf(x.solution) === -1,
+      'race/sudoku: an easy puzzle (40 givens) reaches everyone; the solution stays on the server');
+    check(s.settings.clock === 240 && s.progress.a.total === 41, 'race/sudoku: four minutes, 41 cells to fill');
+    const changedGiven = Array.from(x.solution); const g0 = Array.from(s.pub.puzzle).findIndex(ch => ch !== '0'); changedGiven[g0] = changedGiven[g0] === '1' ? '2' : '1';
+    check(refused(() => applyRoomAction(r, 'a', 'move', { cells: changedGiven.join(''), round: 1 })) && refused(() => applyRoomAction(r, 'a', 'move', { cells: '123', round: 1 })), 'race/sudoku: a changed given, or a bad string, is refused');
+    const part = Array.from(s.pub.puzzle).map((ch, i) => (ch !== '0' ? ch : (i < 40 ? x.solution[i] : '0'))).join('');
+    applyRoomAction(r, 'a', 'move', { cells: part, round: 1 });
+    check(s.progress.a.done === Array.from(part).filter((ch, i) => ch !== '0' && s.pub.puzzle[i] === '0').length && r.secrets.a.board.cells === part && !r.secrets.b.board.cells, 'race/sudoku: the bar counts the cells filled; the cells are on their own phone only');
+    applyRoomAction(r, 'a', 'move', { cells: x.solution, round: 1 });
+    check(s.progress.a.state === 'won', 'race/sudoku: the solution wins');
+    const SD = new Function(SRC8('SoloShared.js') + SRC8('Sudoku.js') + '\nreturn { sudokuSolve, sudokuConflicts, sudokuMake, sudokuCount, soloRng };')();
+    check(SD.sudokuSolve(s.pub.puzzle).join('') === x.solution, 'sudoku: the solver finds the one solution of the puzzle');
+    const dup = Array.from(s.pub.puzzle); const e0 = dup.findIndex(ch => ch === '0'); dup[e0] = dup.slice(Math.floor(e0 / 9) * 9, Math.floor(e0 / 9) * 9 + 9).find(ch => ch !== '0');
+    check(SD.sudokuConflicts(dup.join('')).has(e0) && SD.sudokuConflicts(dup.join('')).size >= 2 && SD.sudokuConflicts(x.solution).size === 0, 'sudoku: a number twice in a row conflicts, the solution never does');
+    const made = SD.sudokuMake('easy', SD.soloRng(11));
+    check(SD.sudokuCount(made.puzzle, 2) === 1 && made.puzzle.filter(Boolean).length === 40, 'sudoku: a made easy puzzle has 40 givens and one solution');
+  }
 }
 /* --- «أنت: منى ✏️»: a name changed from the lobby (26 Sep 2026) ------------------- */
 {

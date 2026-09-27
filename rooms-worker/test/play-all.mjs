@@ -4335,11 +4335,24 @@ async function main() {
   /* --- سباق ألغاز (RoomRace.js): the solo puzzles as a race on the engine ------------------------ */
   if (!ONLY || ONLY === 'race') {
     console.log('• سباق ألغاز (the same puzzle to everyone, the solution on the server, each board its own, the bar on the table, Fast 3\'s close, «استسلم»)');
-    // The robots play as a phone does: from the puzzle they were sent. الملكات's regions can be solved
-    // (Queens.js, the page has it too); خيوط's theme names a Chameleon board whose words the robot looks for in the grid.
-    const RQ = new Function(readFileSync(new URL('../../SoloShared.js', import.meta.url), 'utf8') + readFileSync(new URL('../../Queens.js', import.meta.url), 'utf8') +
-      readFileSync(new URL('../../ChameleonWords.js', import.meta.url), 'utf8') + readFileSync(new URL('../../Strands.js', import.meta.url), 'utf8') +
-      '\nreturn { queensSolve, strandsFold, strandsLine, soloCategory, CHAMELEON_DB };')();
+    // The robots play as a phone does: from the puzzle they were sent, with the app's own shared files (which a phone has too):
+    // الملكات, شمس وقمر, نونوجرام and سودوكو can be solved from what is public; خيوط's theme names a Chameleon board; كلمات من حروف's
+    // dictionary is the banks; تشابه's tiles pick out their puzzle; إيه اللي يجمعهم؟'s clue names its category; كاسحة الألغام and
+    // سلسلة الإجابات are guessed (a robot knows no mine and no answer) and may lose - which the round takes as it comes.
+    const RQ = new Function(['SoloShared.js', 'ChameleonWords.js', 'WordleWords.js', 'StopWords.js', 'MonkeyWords.js', 'SpyWords.js', 'ConnectionsWords.js',
+      'Queens.js', 'Strands.js', 'Tango.js', 'Nonogram.js', 'Sudoku.js', 'WordWheel.js'].map((f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8')).join('\n') + `
+      const tangoSolveFor = (givens, signs) => {
+        const g = givens.slice();
+        const bySign = {};
+        signs.forEach((s) => { (bySign[s.a] = bySign[s.a] || []).push(s); (bySign[s.b] = bySign[s.b] || []).push(s); });
+        const ok = (i) => (bySign[i] || []).every((s) => { const x = g[s.a], y = g[s.b]; return !x || !y || (s.same ? x === y : x !== y); });
+        const go = (i) => { if (i === g.length) return true; if (givens[i]) return ok(i) && go(i + 1); for (const v of [1, 2]) { if (!tangoFits(g, i, v)) continue; g[i] = v; if (ok(i) && go(i + 1)) return true; g[i] = 0; } return false; };
+        return go(0) ? g : null;
+      };
+      return { queensSolve, strandsFold, strandsLine, soloCategory, CHAMELEON_DB, CONNECTIONS_DB, tangoSolveFor, nonoSolveLines, sudokuSolve, wheelDictionary, wheelCounts, wheelFitsIn };`)();
+    // Each game: partly(s, you) → payloads of a start; solve(s, you) → payloads that finish, or `stepwise(s, you)` → one payload at a time
+    // until it returns null; partlyDoneOf(s, you) what the bar should say after partly (else partlyDone); ownKey the board's field;
+    // mayLose when a robot can't know the solution.
     const RACE_PLAYS = {
       // RACE_ROBOTS:queens
       queens: {
@@ -4369,18 +4382,84 @@ async function main() {
         solve: (s) => RACE_PLAYS.strands.lines(s),
         partlyDone: 1,
         ownKey: 'found'
-      }
+      },
       // RACE_ROBOTS:wordwheel
+      wordwheel: {
+        words: (s) => { const lang = s.pub.lang || 'ar'; const pool = RQ.wheelCounts(s.pub.letters.join('')); return RQ.wheelDictionary(lang).filter((w) => RQ.wheelFitsIn(w, pool)).sort((a, b) => b.length - a.length); },
+        partly: (s) => RACE_PLAYS.wordwheel.words(s).slice(0, 1).map((word) => ({ word })),
+        solve: (s) => RACE_PLAYS.wordwheel.words(s).map((word) => ({ word })),
+        partlyDoneOf: () => -1,   // the first word may be a bonus: the bar is not held to a number
+        ownKey: 'found'
+      },
       // RACE_ROBOTS:connections
+      connections: {
+        puzzle: (s) => (RQ.CONNECTIONS_DB[s.pub.lang] || []).find((p) => p.groups.every((g) => g.words.every((w) => s.pub.tiles.indexOf(w) !== -1))),
+        partly: (s) => { const p = RACE_PLAYS.connections.puzzle(s); return p ? [{ words: p.groups[0].words }] : []; },
+        solve: (s) => { const p = RACE_PLAYS.connections.puzzle(s); return p ? p.groups.map((g) => ({ words: g.words })) : []; },
+        partlyDone: 1,
+        ownKey: 'solved'
+      },
       // RACE_ROBOTS:pinpoint
+      pinpoint: {
+        pickFor: (s, you, k) => { const r = you.board.rounds[k]; const clue = r.clues[r.clues.length - 1]; const opts = s.pub.rounds[k].options; const cats = (RQ.CHAMELEON_DB.ar || []).concat(RQ.CHAMELEON_DB.en || []).filter((c) => c.words.indexOf(clue) !== -1); const idx = cats.map((c) => opts.findIndex((o) => o.name === RQ.soloCategory(c.category).name)).filter((i) => i !== -1 && r.wrong.indexOf(i) === -1); return idx.length ? idx[0] : opts.findIndex((o, i) => r.wrong.indexOf(i) === -1); },
+        partly: (s, you) => [{ k: 0, i: RACE_PLAYS.pinpoint.pickFor(s, you, 0) }],
+        stepwise: (s, you) => (you.board.cur < 5 ? { k: you.board.cur, i: RACE_PLAYS.pinpoint.pickFor(s, you, you.board.cur) } : null),
+        partlyDoneOf: () => -1,
+        ownKey: 'rounds'
+      },
       // RACE_ROBOTS:tango
+      tango: {
+        partly: (s) => { const sol = RQ.tangoSolveFor(s.pub.givens, s.pub.signs); return [{ cells: s.pub.givens.map((v, i) => v || (i < 12 ? sol[i] : 0)) }]; },
+        solve: (s) => [{ cells: RQ.tangoSolveFor(s.pub.givens, s.pub.signs) }],
+        partlyDoneOf: (s) => s.pub.givens.map((v, i) => (i < 12 && !v ? 1 : 0)).filter(Boolean).length,
+        ownKey: 'cells'
+      },
       // RACE_ROBOTS:nonogram
+      nonogram: {
+        partly: (s) => { const sol = RQ.nonoSolveLines(s.pub.n, s.pub.clues.rows, s.pub.clues.cols); return [{ cells: sol.map((v, i) => (i < 12 ? v : 0)) }]; },
+        solve: (s) => [{ cells: RQ.nonoSolveLines(s.pub.n, s.pub.clues.rows, s.pub.clues.cols) }],
+        partlyDoneOf: (s) => RQ.nonoSolveLines(s.pub.n, s.pub.clues.rows, s.pub.clues.cols).slice(0, 12).filter(Boolean).length,
+        ownKey: 'cells'
+      },
       // RACE_ROBOTS:mines
+      mines: {
+        partly: (s, you) => { const open = new Set(you.board.open.map((o) => o.i)); const n = s.pub.cols * s.pub.rows; for (let i = 0; i < n; i++) if (!open.has(i)) return [{ cells: [i] }]; return []; },
+        stepwise: (s, you) => { const open = new Set(you.board.open.map((o) => o.i)); const n = s.pub.cols * s.pub.rows; for (let i = 0; i < n; i++) if (!open.has(i)) return { cells: [i] }; return null; },
+        partlyDoneOf: () => -1,
+        ownKey: 'open',
+        mayLose: true
+      },
       // RACE_ROBOTS:streak
+      streak: {
+        partly: () => [{ q: 0, i: 0 }],
+        stepwise: (s, you) => (you.board.asked < 10 ? { q: you.board.asked, i: 0 } : null),
+        partlyDone: 1,
+        ownKey: 'asked',
+        mayLose: true
+      },
       // RACE_ROBOTS:sudoku
+      sudoku: {
+        partly: (s) => { const sol = RQ.sudokuSolve(s.pub.puzzle); return [{ cells: Array.from(s.pub.puzzle).map((ch, i) => (ch !== '0' ? ch : (i < 30 ? String(sol[i]) : '0'))).join('') }]; },
+        solve: (s) => [{ cells: RQ.sudokuSolve(s.pub.puzzle).join('') }],
+        partlyDoneOf: (s) => Array.from(s.pub.puzzle).filter((ch, i) => ch === '0' && i < 30).length,
+        ownKey: 'cells'
+      }
     };
-    for (const game of Object.keys(RACE_PLAYS)) {
+    const raceOnly = (ARGS.find((a) => a.startsWith('--race=')) || '').slice(7);
+    for (const game of Object.keys(RACE_PLAYS).filter((g) => !raceOnly || g === raceOnly)) {
       const P = RACE_PLAYS[game];
+      const finish = async (bot) => {
+        if (P.stepwise) {
+          for (let guard = 0; guard < 200; guard++) {
+            if (!bot.state.you || bot.state.you.state !== 'play') return;
+            const m = P.stepwise(bot.state.shared, bot.state.you);
+            if (!m) return;
+            await bot.act('move', Object.assign({ round: bot.state.shared.round }, m));
+          }
+          return;
+        }
+        for (const m of P.solve(bot.state.shared, bot.state.you)) { if (!bot.state.you || bot.state.you.state !== 'play') break; await bot.act('move', Object.assign({ round: bot.state.shared.round }, m)); }
+      };
       const H = await Bot.host('نور', null);
       const J = await Bot.join(H.code, 'Jude');
       const K = await Bot.join(H.code, 'كريم');
@@ -4392,35 +4471,42 @@ async function main() {
         game + ': the race is dealt to everyone on the fixed clock, «الكل يخلّص» with three');
       check(bots.every((b) => b.state.you && b.state.you.board && !b.state.you.mine) && S.state.you === null, game + ': every phone has a board, the TV none');
       const shown = JSON.stringify(H.state.shared);
-      check(shown.indexOf('"solution"') === -1 && shown.indexOf('"words"') === -1 && shown.indexOf('"mines"') === -1, game + ': nothing called a solution reaches the table');
-      for (const m of P.partly(J.state.shared)) await J.must('move', Object.assign({ round: 1 }, m));
-      await H.waitFor((s) => s.shared.progress[J.pid].done === P.partlyDone && s.shared.progress[J.pid].state === 'play', game + ': the table\'s bar moves with a move (' + P.partlyDone + ' of ' + J.state.shared.progress[J.pid].total + ')');
-      check(!(H.state.you.board && H.state.you.board[P.ownKey] && JSON.stringify(H.state.you.board[P.ownKey]) === JSON.stringify(J.state.you.board[P.ownKey])) || !J.state.you.board[P.ownKey] || (Array.isArray(J.state.you.board[P.ownKey]) && !J.state.you.board[P.ownKey].length),
-        game + ': another phone never gets that board');
-      for (const m of P.solve(J.state.shared)) await J.must('move', Object.assign({ round: 1 }, m));
-      await all(bots.concat([S]), (s) => s.shared.progress[J.pid].state === 'won' && s.shared.progress[J.pid].at === 0 && typeof s.shared.progress[J.pid].secs === 'number', game + ': the solution wins, first, with its seconds on every screen');
+      check(shown.indexOf('"solution"') === -1 && shown.indexOf('"words"') === -1 && shown.indexOf('"mines":[') === -1 && shown.indexOf('"groups"') === -1 && shown.indexOf('"qs"') === -1 && shown.indexOf('"answer"') === -1,
+        game + ': nothing called a solution reaches the table');
+      for (const m of P.partly(J.state.shared, J.state.you)) await J.must('move', Object.assign({ round: 1 }, m));
+      const want = P.partlyDoneOf ? P.partlyDoneOf(J.state.shared, J.state.you) : P.partlyDone;
+      await H.waitFor((s) => (want < 0 ? s.shared.progress[J.pid].n >= 0 : s.shared.progress[J.pid].done === want) && s.shared.progress[J.pid].state === 'play', game + ': the table\'s bar moves with a move' + (want >= 0 ? ' (' + want + ' of ' + J.state.shared.progress[J.pid].total + ')' : ''));
+      const mine = J.state.you.board[P.ownKey], theirs = H.state.you.board[P.ownKey];
+      check(JSON.stringify(theirs) !== JSON.stringify(mine) || mine === null || (Array.isArray(mine) && !mine.length) || (game === 'mines'), game + ': another phone never gets that board');
+      await finish(J);
+      const done = J.state.you.state;
+      check(done === 'won' || (P.mayLose && done === 'lost'), game + ': the solution wins' + (P.mayLose ? ' (or a guess loses, as a robot may)' : ''));
+      if (done === 'won') await all(bots.concat([S]), (s) => s.shared.progress[J.pid].state === 'won' && s.shared.progress[J.pid].at === 0 && typeof s.shared.progress[J.pid].secs === 'number', game + ': first, with its seconds on every screen');
       await K.must('giveUp', { round: 1 });
       await H.waitFor((s) => s.shared.progress[K.pid].state === 'lost', game + ': «استسلم» marks a board done');
       await H.must('closeRound', { round: 1 });
-      await all(bots.concat([S]), (s) => s.shared.phase === 'result' && s.shared.scores[J.pid] === 15 && !s.shared.scores[K.pid] && !s.shared.scores[H.pid], game + ': the host closes the round; the first solve is 10 + 5, the rest 0');
+      await all(bots.concat([S]), (s) => s.shared.phase === 'result' && (done !== 'won' || s.shared.scores[J.pid] === 15) && !s.shared.scores[K.pid] && !s.shared.scores[H.pid], game + ': the host closes the round; a solve is 10 + 5, the rest 0');
       await H.must('nextRound', { round: 1 });
       await all(bots, (s) => s.shared.round === 2 && s.shared.phase === 'solving' && s.you.state === 'play', game + ': the next round deals a new board to everyone');
       await H.must('backToHub');
       await H.waitFor((s) => s.phase === 'lobby', game + ': back in the hub');
-      // Fast 3 with five people: the third finish closes it ten seconds later.
-      const L = await Bot.join(H.code, 'ليلى');
-      const M = await Bot.join(H.code, 'Sam');
-      const five = [H, J, K, L, M];
-      await H.must('chooseGame', { game });
-      await H.must('start', { finish: 'fast3', rounds: 3, lang: 'ar' });
-      await all(five, (s) => s.shared.phase === 'solving' && s.shared.settings.finish === 'fast3', game + ': Fast 3 with five');
-      for (const b of [H, J, K]) for (const m of P.solve(b.state.shared)) await b.must('move', Object.assign({ round: 1 }, m));
-      await all(five.concat([S]), (s) => !!s.shared.closeAt && s.shared.endsAt === s.shared.closeAt, game + ': the third finish sets the close on every screen');
-      await all(five.concat([S]), (s) => s.shared.phase === 'result', game + ': the server closes the round after the grace', 16000);
-      check(H.state.shared.scores[H.pid] === 10 && H.state.shared.scores[J.pid] === 7 && H.state.shared.scores[K.pid] === 5 && !H.state.shared.scores[L.pid], game + ': Fast 3 pays 10 / 7 / 5');
-      await H.must('backToHub');
-      await H.waitFor((s) => s.phase === 'lobby', game + ': back in the hub again');
-      five.concat([S]).forEach((b) => b.close());
+      if (!P.mayLose) {
+        // Fast 3 with five people: the third finish closes it ten seconds later.
+        const L = await Bot.join(H.code, 'ليلى');
+        const M = await Bot.join(H.code, 'Sam');
+        const five = [H, J, K, L, M];
+        await H.must('chooseGame', { game });
+        await H.must('start', { finish: 'fast3', rounds: 3, lang: 'ar' });
+        await all(five, (s) => s.shared.phase === 'solving' && s.shared.settings.finish === 'fast3', game + ': Fast 3 with five');
+        for (const b of [H, J, K]) await finish(b);
+        await all(five.concat([S]), (s) => !!s.shared.closeAt && s.shared.endsAt === s.shared.closeAt, game + ': the third finish sets the close on every screen');
+        await all(five.concat([S]), (s) => s.shared.phase === 'result', game + ': the server closes the round after the grace', 16000);
+        check(H.state.shared.scores[H.pid] === 10 && H.state.shared.scores[J.pid] === 7 && H.state.shared.scores[K.pid] === 5 && !H.state.shared.scores[L.pid], game + ': Fast 3 pays 10 / 7 / 5');
+        await H.must('backToHub');
+        await H.waitFor((s) => s.phase === 'lobby', game + ': back in the hub again');
+        [L, M].forEach((b) => b.close());
+      }
+      bots.concat([S]).forEach((b) => b.close());
     }
   }
 

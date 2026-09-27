@@ -102,8 +102,83 @@ const GENERIC = (room) => {
      own(youBoard, serverBoard, pid, view) -> a problem, or null   the board on a phone is exactly its own
    } */
 const RACE_PROBES = {
-  // RACE_PROBES:queens
-  queens: (room, x) => ({
+  // RACE_PROBES:wordwheel
+  wordwheel: (room, x, h) => ({
+    secrets: x.words.map((w, wi) => ({ value: w, knows: Object.keys(h.boards).filter((id) => h.boards[id].found.indexOf(wi) !== -1) }))
+      .concat(x.bonus.map((w) => ({ value: w, knows: Object.keys(h.boards).filter((id) => h.boards[id].bonus.indexOf(w) !== -1) }))),
+    own: (yb, b) => (JSON.stringify((yb.found || []).map((f) => f.wi)) === JSON.stringify(b.found) && JSON.stringify(yb.bonus || []) === JSON.stringify(b.bonus) ? null : 'you.board')
+  }),
+  // RACE_PROBES:connections
+  connections: (room, x, h) => ({
+    secrets: x.groups.map((g, gi) => ({ value: g.name, knows: Object.keys(h.boards).filter((id) => h.boards[id].solved.indexOf(gi) !== -1) })),
+    own: (yb, b) => (JSON.stringify((yb.solved || []).map((g) => g.gi)) === JSON.stringify(b.solved) && yb.mistakes === b.mistakes ? null : 'you.board')
+  }),
+  // RACE_PROBES:pinpoint
+  pinpoint: (room, x, h) => ({
+    // A round's answer is known once a phone has answered it; a clue once it has been shown to that phone.
+    secrets: x.rounds.flatMap((r, k) => [{ value: r.name, knows: Object.keys(h.boards).filter((id) => h.boards[id].rounds[k].points !== null), except: ['shared.pub'] }]
+    ),
+    // A clue not yet shown is on no phone - except where that same word is a clue this phone has already been shown (decoys share words across rounds).
+    probes: x.rounds.flatMap((r, k) => r.clues.map((c, ci) => probe('pinpoint: a clue not yet shown is on no phone', true, (view, pid, idx) => {
+      const b = h.boards[pid];
+      if (b && (b.rounds[k].shown > ci || b.rounds[k].points !== null)) return null;
+      const shown = ['shared.pub'];
+      (b ? b.rounds : []).forEach((br, j) => { const n = br.points !== null ? x.rounds[j].clues.length : br.shown; for (let i = 0; i < n; i++) shown.push('you.board.rounds.' + j + '.clues.' + i); });
+      return idx.find(c, { except: shown });
+    }))),
+    own: (yb, b) => (yb.cur === b.cur && JSON.stringify((yb.rounds || []).map((r) => [r.shown, r.wrong, r.points])) === JSON.stringify(b.rounds.map((r) => [r.shown, r.wrong, r.points])) ? null : 'you.board')
+  }),
+  // RACE_PROBES:tango
+  tango: (room, x, h) => ({
+    secrets: [],
+    probes: [probe("tango: the solution is on no phone that hasn't solved it", true, (view, pid) => {
+      if (h.boards[pid] && h.boards[pid].state === 'won') return null;
+      const sol = x.solution;
+      const seen = (node) => (Array.isArray(node) && node.length === sol.length && node.every((v, i) => v === sol[i]))
+        || (!!node && typeof node === 'object' && Object.keys(node).some((k) => seen(node[k])));
+      return seen(view) ? 'the solution' : null;
+    })],
+    own: (yb, b) => (JSON.stringify(yb.cells || null) === JSON.stringify(b.cells || null) ? null : 'you.board.cells')
+  }),
+  // RACE_PROBES:nonogram
+  nonogram: (room, x, h) => ({
+    secrets: x.pic ? [{ value: x.pic.ar, knows: [] }, { value: x.pic.en, knows: [] }, { value: x.pic.e, knows: [] }] : [],
+    probes: [probe("nonogram: the picture is on no phone that hasn't painted it", true, (view, pid) => {
+      if (h.boards[pid] && h.boards[pid].state === 'won') return null;
+      const sol = x.solution;
+      const seen = (node) => (Array.isArray(node) && node.length === sol.length && node.every((v, i) => v === sol[i]))
+        || (!!node && typeof node === 'object' && Object.keys(node).some((k) => seen(node[k])));
+      return seen(view) ? 'the solution' : null;
+    })],
+    own: (yb, b) => (JSON.stringify(yb.cells || null) === JSON.stringify(b.cells || null) ? null : 'you.board.cells')
+  }),
+  // RACE_PROBES:mines
+  mines: (room, x, h) => ({
+    secrets: [],
+    probes: [probe('mines: a mine reaches no phone whose board is still in play', true, (view, pid) => {
+      const b = h.boards[pid];
+      if (b && b.boom >= 0) return null;   // out of the round: shown where they were
+      const s = JSON.stringify(view);
+      if (s.indexOf('"mines":[') !== -1) return 'mines';
+      const open = view.you && view.you.board && view.you.board.open;
+      if (open && open.some((o) => o.n === 9)) return 'you.board.open (a mine)';
+      return null;
+    })],
+    own: (yb, b) => (JSON.stringify((yb.open || []).map((o) => o.i)) === JSON.stringify(b.open.map((o) => o.i)) ? null : 'you.board.open')
+  }),
+  // RACE_PROBES:streak
+  streak: (room, x, h) => ({
+    // The answer of the question up is a secret until answered; the questions to come are secrets entirely.
+    secrets: x.qs.flatMap((q, k) => [{ value: q.options[q.answer], knows: Object.keys(h.boards).filter((id) => h.boards[id].asked > k), except: ['you.board.q.options', 'you.board.last'] }]
+      .concat(k > 0 ? [{ value: q.prompt || q.big, knows: Object.keys(h.boards).filter((id) => h.boards[id].asked >= k) }] : [])),
+    own: (yb, b) => (yb.asked === b.asked && yb.right === b.right ? null : 'you.board')
+  }),
+  // RACE_PROBES:sudoku
+  sudoku: (room, x, h) => ({
+    secrets: [{ value: x.solution, knows: Object.keys(h.boards).filter((id) => h.boards[id].state === 'won') }],
+    own: (yb, b) => ((yb.cells || null) === (b.cells || null) ? null : 'you.board.cells')
+  }),
+  queens: (room, x, h) => ({
     secrets: [],
     probes: [probe('queens: the solution\'s crowns are on no phone', true, (view) => {
       const sol = x.solution;
@@ -1123,7 +1198,85 @@ const DRIVERS = {
     }
     return S(T).phase === 'gameover';
   },
-  // RACE_DRIVERS:queens
+  // RACE_DRIVERS:wordwheel
+  wordwheel() {
+    return DRIVERS.raceGame('wordwheel', {
+      partly: (T, pid) => act(T, pid, 'move', { word: T.room._solve.secret.words[0], round: S(T).round }),
+      solve: (T, pid) => T.room._solve.secret.words.forEach((w) => act(T, pid, 'move', { word: w, round: S(T).round })),
+      wrong: (T, pid) => { act(T, pid, 'move', { word: 'ززززز', round: S(T).round }); const b = T.room._solve.secret.bonus[0]; if (b) act(T, pid, 'move', { word: b, round: S(T).round }); },
+      stale: (T) => ({ word: T.room._solve.secret.words[1] })
+    });
+  },
+  // RACE_DRIVERS:connections
+  connections() {
+    return DRIVERS.raceGame('connections', {
+      partly: (T, pid) => act(T, pid, 'move', { words: T.room._solve.secret.groups[0].words, round: S(T).round }),
+      solve: (T, pid) => T.room._solve.secret.groups.forEach((g) => act(T, pid, 'move', { words: g.words, round: S(T).round })),
+      wrong: (T, pid) => { const g = T.room._solve.secret.groups; act(T, pid, 'move', { words: [g[0].words[0], g[1].words[0], g[2].words[0], g[3].words[0]], round: S(T).round }); act(T, pid, 'move', { words: g[1].words.slice(0, 3).concat([g[2].words[1]]), round: S(T).round }); },
+      stale: (T) => ({ words: T.room._solve.secret.groups[1].words })
+    });
+  },
+  // RACE_DRIVERS:pinpoint
+  pinpoint() {
+    const pickFor = (T, pid, right) => { const b = T.room._solve.boards[pid]; const r = T.room._solve.secret.rounds[b.cur]; return { k: b.cur, i: right ? r.answer : (r.answer + 1) % 6, round: S(T).round }; };
+    return DRIVERS.raceGame('pinpoint', {
+      partly: (T, pid) => act(T, pid, 'move', pickFor(T, pid, true)),
+      solve: (T, pid) => { for (let k = 0; k < 5; k++) { const b = T.room._solve.boards[pid]; if (!b || b.cur >= 5) break; act(T, pid, 'move', pickFor(T, pid, true)); } },
+      wrong: (T, pid) => act(T, pid, 'move', pickFor(T, pid, false)),
+      stale: (T) => ({ k: 0, i: 0 })
+    });
+  },
+  // RACE_DRIVERS:tango
+  tango() {
+    const sol = (T) => T.room._solve.secret.solution;
+    return DRIVERS.raceGame('tango', {
+      partly: (T, pid) => act(T, pid, 'move', { cells: S(T).pub.givens.map((v, i) => v || (i < 12 ? sol(T)[i] : 0)), round: S(T).round }),
+      solve: (T, pid) => act(T, pid, 'move', { cells: sol(T).slice(), round: S(T).round }),
+      wrong: (T, pid) => act(T, pid, 'move', { cells: [1, 2, 3], round: S(T).round }),
+      stale: (T) => ({ cells: sol(T).slice() })
+    });
+  },
+  // RACE_DRIVERS:nonogram
+  nonogram() {
+    const sol = (T) => T.room._solve.secret.solution;
+    return DRIVERS.raceGame('nonogram', {
+      partly: (T, pid) => act(T, pid, 'move', { cells: sol(T).map((v, i) => (i < 16 ? v : 0)), round: S(T).round }),
+      solve: (T, pid) => act(T, pid, 'move', { cells: sol(T).slice(), round: S(T).round }),
+      wrong: (T, pid) => act(T, pid, 'move', { cells: [1], round: S(T).round }),
+      stale: (T) => ({ cells: sol(T).slice() })
+    });
+  },
+  // RACE_DRIVERS:mines
+  mines() {
+    const safe = (T) => { const x = T.room._solve.secret; const m = new Set(x.mines); return Array.from({ length: x.pub.cols * x.pub.rows }, (_, i) => i).filter((i) => !m.has(i)); };
+    return DRIVERS.raceGame('mines', {
+      partly: (T, pid) => { const b = T.room._solve.boards[pid]; const open = new Set(b.open.map((o) => o.i)); const c = safe(T).find((i) => !open.has(i)); if (c !== undefined) act(T, pid, 'move', { cells: [c], round: S(T).round }); },
+      solve: (T, pid) => { const cells = safe(T); for (let k = 0; k < cells.length; k += 6) { const b = T.room._solve.boards[pid]; if (!b || b.boom >= 0 || T.room.shared.progress[pid].state !== 'play') break; act(T, pid, 'move', { cells: cells.slice(k, k + 6), round: S(T).round }); } },
+      // A mine puts the fifth phone out with 0 (the round goes on for the others; the three finishers still close Fast 3).
+      wrong: (T) => act(T, T.ids[4] || T.ids[T.ids.length - 1], 'move', { cells: [T.room._solve.secret.mines[0]], round: S(T).round }),
+      stale: (T) => ({ cells: [safe(T)[0]] })
+    });
+  },
+  // RACE_DRIVERS:streak
+  streak() {
+    const qs = (T) => T.room._solve.secret.qs;
+    return DRIVERS.raceGame('streak', {
+      partly: (T, pid) => { const b = T.room._solve.boards[pid]; act(T, pid, 'move', { q: b.asked, i: qs(T)[b.asked].answer, round: S(T).round }); },
+      solve: (T, pid) => { for (let k = 0; k < 10; k++) { const b = T.room._solve.boards[pid]; if (!b || b.asked >= 10) break; act(T, pid, 'move', { q: b.asked, i: k % 3 === 2 ? (qs(T)[b.asked].answer + 1) % 4 : qs(T)[b.asked].answer, round: S(T).round }); } },
+      wrong: (T, pid) => { const b = T.room._solve.boards[pid]; act(T, pid, 'move', { q: b.asked, i: (qs(T)[b.asked].answer + 1) % 4, round: S(T).round }); },
+      stale: (T) => ({ q: 0, i: 0 })
+    });
+  },
+  // RACE_DRIVERS:sudoku
+  sudoku() {
+    const sol = (T) => T.room._solve.secret.solution;
+    return DRIVERS.raceGame('sudoku', {
+      partly: (T, pid) => act(T, pid, 'move', { cells: Array.from(S(T).pub.puzzle).map((ch, i) => (ch !== '0' ? ch : (i < 30 ? sol(T)[i] : '0'))).join(''), round: S(T).round }),
+      solve: (T, pid) => act(T, pid, 'move', { cells: sol(T), round: S(T).round }),
+      wrong: (T, pid) => act(T, pid, 'move', { cells: '12', round: S(T).round }),
+      stale: (T) => ({ cells: sol(T) })
+    });
+  },
   queens() {
     const marks = (T, rows) => { const x = T.room._solve.secret; const n = S(T).pub.n; const m = new Array(n * n).fill(0); rows.forEach((r) => { m[r * n + x.solution[r]] = 2; }); return m; };
     return DRIVERS.raceGame('queens', {

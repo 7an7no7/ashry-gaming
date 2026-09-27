@@ -6,151 +6,37 @@
    the number of right answers before the third miss, and the best is kept per
    kind of question.
 
-   Every question comes from a bank the app already has, never a new list:
-   - trivia: TRIVIA_QUESTIONS (the room trivia's four-choice questions);
-   - board: TRIVIA_BOARD_BANK (دوري المعرفة), whose answers are free text, so
-     the three wrong ones are other answers from the same category;
-   - emoji: EMOJI_RIDDLES, wrong answers from the same kind (films with films);
-   - proverbs: PROVERBS, the missing word against other proverbs' words.
-   "trivia" asks from the first two, "mix" from any of the four at random. Free
-   play deals through freshPick, so a question doesn't come back until its
-   bank has gone round; the daily is ten seeded questions.
+   The question makers are QuizStreak.js (shared with the rooms server, which
+   deals a race's ten questions and judges every answer): every question comes
+   from a bank the app already has - the room trivia, the team board (this
+   page's), the emoji riddles and the proverbs. "trivia" asks from the first
+   two, "mix" from any of the four at random. Free play deals through
+   freshPick, so a question doesn't come back until its bank has gone round;
+   the daily is ten seeded questions.
 
    The question on screen carries its deadline (endsAt), so a reload comes
    back to it with the time it really has left. appState.streak holds it all.
+
+   In سباق ألغاز (RACE_UI.streak, JS_RoomRace.html) the same card and answers
+   play the room's ten questions: no hearts and no question clock (the race's
+   own clock is the backstop), each answer is sent (`move { q, i }`) and the
+   server says right or wrong and hands the next question. Most right, then
+   fastest, wins.
    ========================================================================= */
 
 const STREAK_SECONDS = 20;
 const STREAK_LIVES = 3;
 const STREAK_DAILY = 10;
-const STREAK_KINDS = ['trivia', 'board', 'emoji', 'proverbs'];
 let streakClock = null;
 let streakNextTimer = null;
 
 function streakState() {
+  const race = soloRaceState('streak');
+  if (race) return race;
   if (!appState.streak) {
     appState.streak = { source: 'mix', daily: '', lang: 'ar', q: null, deck: [], asked: 0, score: 0, lives: STREAK_LIVES, marks: [], phase: 'setup' };
   }
   return appState.streak;
-}
-
-/* --- The banks, as questions ----------------------------------------------------- */
-
-function streakDistinct(answer, pool, count, rnd) {
-  const seen = new Set([foldWord(answer)]);
-  const out = [];
-  soloShuffle(pool, rnd).forEach(x => {
-    const f = foldWord(x);
-    if (out.length >= count || !f || seen.has(f)) return;
-    seen.add(f);
-    out.push(x);
-  });
-  return out;
-}
-
-/**
- * The number inside an answer written as a number ("1977", "45 دقيقة",
- * "كل 4 سنوات", "42.195 كم"), or null for a word answer. A name with digits
- * stuck to letters (R2-D2) is a word.
- */
-function streakNumberOf(answer) {
-  const m = String(answer).match(/(^|\s)(-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)(?=\s|$)/);
-  if (!m) return null;
-  return { text: m[2], value: Number(m[2].replace(/,/g, '')), decimals: (m[2].split('.')[1] || '').length, commas: m[2].indexOf(',') !== -1 };
-}
-
-/**
- * Three wrong answers of the same kind as the right one. A number gets
- * numbers near it, written the same way (a year other years, "45 دقيقة"
- * other minutes), so the one number among three words never gives the
- * answer away; a word gets other word answers from its category, the ones
- * about as long first, then from the whole bank.
- */
-function streakBoardDecoys(answer, categoryTexts, everyText, rnd) {
-  const num = streakNumberOf(answer);
-  if (num) {
-    const v = num.value;
-    let candidates;
-    if (num.decimals) {
-      candidates = [0.8, 0.9, 0.95, 1.05, 1.1, 1.25].map(f => (v * f).toFixed(num.decimals));
-    } else if (v >= 1000 && v <= 2100) {
-      candidates = [-30, -20, -12, -8, -5, -3, -2, 2, 3, 4, 6, 9, 13, 21].map(d => v + d).filter(y => y <= 2025);
-    } else if (v <= 20) {
-      candidates = [-4, -3, -2, -1, 1, 2, 3, 4, 5].map(d => v + d).filter(x => x > 0);
-    } else {
-      candidates = [0.5, 0.7, 0.8, 0.9, 1.1, 1.2, 1.3, 1.5, 2].map(f => Math.round(v * f));
-    }
-    if (num.commas) candidates = candidates.map(x => Number(x).toLocaleString('en-US'));
-    const seen = new Set([num.text]);
-    const picks = [];
-    soloShuffle(candidates.map(String), rnd).forEach(c => {
-      if (picks.length < 3 && !seen.has(c)) { seen.add(c); picks.push(c); }
-    });
-    return picks.map(c => String(answer).replace(num.text, c));
-  }
-  const words = String(answer).trim().split(/\s+/).length;
-  const near = categoryTexts.filter(a => a !== answer && Math.abs(a.trim().split(/\s+/).length - words) <= 1);
-  const picks = streakDistinct(answer, near, 3, rnd);
-  if (picks.length < 3) picks.push(...streakDistinct(answer, categoryTexts.filter(a => picks.indexOf(a) === -1), 3 - picks.length, rnd));
-  if (picks.length < 3) picks.push(...streakDistinct(answer, everyText.filter(a => picks.indexOf(a) === -1), 3 - picks.length, rnd));
-  return picks.slice(0, 3);
-}
-
-/** Four shuffled options with the right one's index. */
-function streakOptions(answer, decoys, rnd) {
-  const options = soloShuffle([answer].concat(decoys), rnd);
-  return { options: options, answer: options.indexOf(answer) };
-}
-
-/** The raw items of one kind: { key, make(rnd) -> question } */
-function streakPool(kind, lang) {
-  if (kind === 'trivia') {
-    const list = (typeof TRIVIA_QUESTIONS !== 'undefined' && (TRIVIA_QUESTIONS[lang] || TRIVIA_QUESTIONS.ar)) || [];
-    return list.map(x => ({
-      key: x.q,
-      make: (rnd) => Object.assign({ kind: kind, prompt: x.q, tag: '' }, streakOptions(x.choices[x.answer], x.choices.filter((_, i) => i !== x.answer), rnd))
-    }));
-  }
-  if (kind === 'board') {
-    const out = [];
-    const bank = typeof TRIVIA_BOARD_BANK !== 'undefined' ? TRIVIA_BOARD_BANK : [];
-    // A note in brackets ("1024 (أو 1000 بالنظام العشري)") is for the host
-    // reading the board; as an option it would be copied into every wrong one.
-    const clean = (a) => String(a).replace(/\s*[(（][^)）]*[)）]/g, '').trim();
-    const everyText = [];
-    bank.forEach(cat => Object.values(cat.levels).forEach(list => list.forEach(row => {
-      const a = clean(lang === 'en' ? row[3] : row[1]);
-      if (!streakNumberOf(a)) everyText.push(a);
-    })));
-    bank.forEach(cat => {
-      const items = [];
-      Object.values(cat.levels).forEach(list => list.forEach(row => items.push(lang === 'en' ? { q: row[2], a: clean(row[3]) } : { q: row[0], a: clean(row[1]) })));
-      const texts = items.map(x => x.a).filter(a => !streakNumberOf(a));
-      items.forEach(x => out.push({
-        key: x.q,
-        make: (rnd) => Object.assign({ kind: kind, prompt: x.q, tag: `${cat.icon} ${lang === 'en' ? cat.en : cat.ar}` },
-          streakOptions(x.a, streakBoardDecoys(x.a, texts, everyText, rnd), rnd))
-      }));
-    });
-    return out;
-  }
-  if (kind === 'emoji') {
-    const list = (typeof EMOJI_RIDDLES !== 'undefined' && (EMOJI_RIDDLES[lang] || EMOJI_RIDDLES.ar)) || [];
-    return list.map(x => ({
-      key: x.e,
-      make: (rnd) => {
-        const same = list.filter(y => y.c === x.c && y !== x).map(y => y.a);
-        const decoys = streakDistinct(x.a, same, 3, rnd);
-        if (decoys.length < 3) decoys.push(...streakDistinct(x.a, list.map(y => y.a).filter(a => decoys.indexOf(a) === -1), 3 - decoys.length, rnd));
-        return Object.assign({ kind: kind, prompt: '', big: x.e, tag: x.c }, streakOptions(x.a, decoys, rnd));
-      }
-    }));
-  }
-  const list = (typeof PROVERBS !== 'undefined' && (PROVERBS[lang] || PROVERBS.ar)) || [];
-  return list.map(x => ({
-    key: x.p,
-    make: (rnd) => Object.assign({ kind: 'proverbs', prompt: x.p, tag: '' }, streakOptions(x.a, streakDistinct(x.a, list.map(y => y.a), 3, rnd), rnd))
-  }));
 }
 
 function streakDeal(source, lang) {
@@ -242,7 +128,7 @@ function streakStop() {
 // the next question, or a hidden game would carry on losing lives by itself.
 // The question on screen keeps its deadline, which "continue" honours.
 if (typeof onLeaveScreen === 'function') {
-  onLeaveScreen((from) => { if (from === 'play-streak') streakStop(); });
+  onLeaveScreen((from) => { if (from === 'play-streak' || (String(from).indexOf('room-') === 0 && from.slice(5) === 'streak')) streakStop(); });
 }
 
 function streakHearts(s) {
@@ -252,16 +138,19 @@ function streakHearts(s) {
 function paintStreak(fresh) {
   const s = streakState();
   const t = TRANSLATIONS[appState.lang];
-  const el = document.getElementById('streak-stage');
+  const el = soloStage('streak-stage');
   const q = s.q;
   if (!el || !q) return;
   streakStop();
-  const answered = q.picked !== null;
-  const left = Math.max(0, (q.endsAt - Date.now()) / 1000);
+  const answered = q.picked !== null && q.picked !== undefined;
+  const left = s.race ? 0 : Math.max(0, (q.endsAt - Date.now()) / 1000);
   const prompt = q.kind === 'proverbs'
     ? escapeHTML(q.prompt).replace('___', '<span class="streak-blank">؟</span>')
     : escapeHTML(q.prompt);
-  const bar = soloBarHtml([
+  const bar = soloBarHtml(s.race ? [
+    { label: t.race_unit_questions || '', value: `${Math.min(s.asked + 1, s.total || 10)}/${s.total || 10}`, id: 'streak-asked' },
+    { label: t.streak_score || '', value: s.score, id: 'streak-score' }
+  ] : [
     { label: t.streak_lives || '', value: `<span class="streak-hearts" id="streak-hearts">${streakHearts(s)}</span>` },
     { label: streakDecked(s) ? `📅 ${s.asked + 1}/${s.deck.length}` : (t.streak_score || ''), value: s.score, id: 'streak-score' },
     { label: t.streak_time || '', value: Math.ceil(answered ? 0 : left), id: 'streak-left' }
@@ -273,7 +162,7 @@ function paintStreak(fresh) {
           ${q.tag ? `<span class="eyebrow">${escapeHTML(q.tag)}</span>` : ''}
           ${q.big ? `<div class="streak-emoji" dir="ltr">${escapeHTML(q.big)}</div>` : ''}
           ${prompt ? `<p class="streak-prompt">${prompt}</p>` : `<p class="streak-prompt streak-prompt--sub">${escapeHTML(t.streak_emoji_q || '')}</p>`}
-          <div class="streak-timer${answered ? ' is-stopped' : ''}" aria-hidden="true"><i style="animation-duration:${STREAK_SECONDS}s; animation-delay:-${(STREAK_SECONDS - left).toFixed(2)}s"></i></div>
+          ${s.race ? '' : `<div class="streak-timer${answered ? ' is-stopped' : ''}" aria-hidden="true"><i style="animation-duration:${STREAK_SECONDS}s; animation-delay:-${(STREAK_SECONDS - left).toFixed(2)}s"></i></div>`}
         </div>
       </div>
       <div class="solo-layout__side">
@@ -286,9 +175,10 @@ function paintStreak(fresh) {
         </div>
       </div>
     </div>
-    <div class="view-actions">
+    ${s.race ? '' : `<div class="view-actions">
       <button class="btn btn--ghost btn--sm" onclick="setupStreak()">${escapeHTML(t.exit || '')}</button>
-    </div>`;
+    </div>`}`;
+  if (s.race) return;
   if (answered) {
     streakNextTimer = setTimeout(streakAdvance, 1300);
     return;
@@ -300,11 +190,25 @@ function paintStreak(fresh) {
   });
 }
 
+/** The score pops on a right answer; a heart jumps on a wrong one. */
+function streakPop(right, lives) {
+  if (motionOff()) return;
+  if (right) {
+    const score = document.getElementById('streak-score');
+    if (score && score.animate) score.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.45)' }, { transform: 'scale(1)' }], { duration: 360, easing: 'ease-out' });
+  } else {
+    const heart = document.querySelector(`#streak-hearts [data-h="${lives}"]`);
+    if (heart && heart.animate) heart.animate([{ transform: 'scale(1.6) rotate(-12deg)' }, { transform: 'scale(0.8) rotate(8deg)' }, { transform: 'none' }], { duration: 520, easing: 'ease-out' });
+  }
+}
+
 function answerStreak(i) {
   const s = streakState();
   const q = s.q;
-  if (s.phase !== 'play' || !q || q.picked !== null) return;
+  if (s.phase !== 'play' || !q || (q.picked !== null && q.picked !== undefined)) return;
   streakStop();
+  // A race: the answer is on the server, which judges and hands the next question (JS_RoomRace.html).
+  if (s.race) { q.picked = i; raceMove('streak', { q: s.asked, i: i }); return; }
   q.picked = i;
   const right = i === q.answer;
   if (right) s.score++;
@@ -315,14 +219,7 @@ function answerStreak(i) {
   playSound(right ? 'success' : 'alarm');
   haptic(right ? 'light' : 'medium');
   paintStreak(false);
-  if (motionOff()) return;
-  if (right) {
-    const score = document.getElementById('streak-score');
-    if (score && score.animate) score.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.45)' }, { transform: 'scale(1)' }], { duration: 360, easing: 'ease-out' });
-  } else {
-    const heart = document.querySelector(`#streak-hearts [data-h="${s.lives}"]`);
-    if (heart && heart.animate) heart.animate([{ transform: 'scale(1.6) rotate(-12deg)' }, { transform: 'scale(0.8) rotate(8deg)' }, { transform: 'none' }], { duration: 520, easing: 'ease-out' });
-  }
+  streakPop(right, s.lives);
 }
 
 function streakAdvance() {
@@ -375,4 +272,49 @@ soloRegister('streak', {
   setup: 'setup-streak', play: 'play-streak', paintSetup: paintStreakSetup, restore: restoreStreak,
   state: streakState, resume: continueStreak, repaint: () => { if (streakState().phase === 'play') paintStreak(false); }, prefs: ['source']
 });
+
+/* --- سباق ألغاز: the same card, raced (JS_RoomRace.html) ------------------------------ */
+RACE_UI.streak = {
+  stage: 'streak-stage',
+  unit: 'race_unit_questions',
+  fresh: (pub) => ({ source: 'mix', playSource: 'mix', daily: '', lang: 'ar', q: null, deck: [], asked: 0, score: 0, lives: STREAK_LIVES, marks: [], total: pub.n || 10, shown: -1 }),
+  // The server's verdict on the last answer colours the card, then the next question comes up.
+  sync(s, board, fx) {
+    const b = board || {};
+    const first = !!(fx && fx.first);
+    const answeredNow = b.last && s.q && b.last.q === s.shown && s.q.picked !== undefined && s.q.picked !== null && s.q.answer === undefined;
+    if (answeredNow && !first) {
+      s.q.answer = b.last.answer;
+      s.q.picked = b.last.picked;
+      const right = b.last.picked === b.last.answer;
+      s.score = b.right;
+      s.asked = b.asked;
+      s.marks = b.marks || [];
+      playSound(right ? 'success' : 'alarm');
+      haptic(right ? 'light' : 'medium');
+      paintStreak(false);
+      streakPop(right, s.lives);
+      const next = b.q;
+      clearTimeout(streakNextTimer);
+      streakNextTimer = setTimeout(() => {
+        if (soloRaceKind() !== 'streak' || s.asked !== b.asked) return;
+        if (next) { s.q = Object.assign({}, next, { picked: null }); s.shown = b.asked; paintStreak(true); }
+      }, 1300);
+      return;
+    }
+    // A reload, or a question this phone hasn't drawn yet.
+    if (b.q && (s.shown !== b.asked || !s.q)) {
+      s.q = Object.assign({}, b.q, { picked: null });
+      s.shown = b.asked;
+      s.score = b.right; s.asked = b.asked; s.marks = b.marks || [];
+      paintStreak(!first);
+    } else if (!b.q && s.shown !== b.asked) {
+      s.score = b.right; s.asked = b.asked; s.shown = b.asked;
+      if (s.q) { paintStreak(false); }
+    }
+  },
+  paint: () => paintStreak(false),
+  finished: () => 0,
+  scoreLabel: (score, t) => (t.race_score_right || '{n}').replace('{n}', score)
+};
 </script>

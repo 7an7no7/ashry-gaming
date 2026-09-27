@@ -370,6 +370,58 @@ work changed. Add to it when a decision is made or a batch ships.
       at the bottom in the bottom-left, and round the board clockwise), so the
       board keeps the whole width.
 
+- **سباق ألغاز (the puzzle race)** - the owner's decisions of 26 Sep 2026,
+  asked one by one (*سباق ألغاز*):
+  - **The ten solo puzzles as a race in a room**: خيوط, كلمات من حروف, تشابه,
+    إيه اللي يجمعهم؟, الملكات, شمس وقمر, نونوجرام, كاسحة الألغام (the same
+    mines for everyone, the first safe patch part of the deal), سلسلة
+    الإجابات (the same questions; most right, then fastest) and سودوكو (easy
+    only). Not 2048. **The same puzzle on every phone, dealt on the server**;
+    each phone solves on its own board with the solo game's own board; the
+    table sees only progress.
+  - **The ending, a lobby choice**: «الكل يخلّص» (the round ends when everyone
+    is done, the engine's way) or **«Fast 3»** (the first three score and the
+    round closes); Fast 3 is preselected with five people or more, the host
+    can switch.
+  - **Points**: Fast 3 pays 10 / 7 / 5, and 2 to anyone done within a
+    10-second grace after the third; «الكل يخلّص» keeps the engine's 10 + the
+    order bonus. Ties on the night's board: fewer seconds. The podium and the
+    night's board are the engine's.
+  - **The clock is a backstop, fixed per game** (`SV_RACE_CLOCKS`: about 2
+    minutes for خيوط, تشابه, إيه اللي يجمعهم؟ and كلمات من حروف, 3 for
+    الملكات, شمس وقمر, نونوجرام, كاسحة الألغام and سلسلة الإجابات, 4 for
+    سودوكو); **«استسلم»** marks a phone done with 0; the host keeps the
+    room's skip.
+  - **Nothing new on the home**: each solo game's card gets a "في غرفة" way
+    inside (the mode switch, like خمن الكلمة's); in a room's list **one tile
+    «سباق ألغاز»** opens the ten (a family like chess's, `ROOM_HUB_GROUPS`);
+    the lobby shows only the puzzle chosen, the rounds (3 or 5) and the
+    ending; every race looks the same (the puzzle, one progress strip, one
+    podium).
+  - **The TV** shows each player's progress bar, the finishing order and the
+    clock - never the puzzle's content.
+  - Decided here (open to change, each one place in the code):
+    - **The levels**: medium everywhere the solo game has one (سودوكو easy,
+      the owner's word); a hard nonogram or minefield would outlast the clock.
+    - **A mine ends that phone's round with 0** («خسرت» on its screen, the
+      round going on for the others), and **four mistakes in تشابه the
+      same** - the solo games' own rules; a round can't be cleared by
+      tapping everything.
+    - **إيه اللي يجمعهم؟ and سلسلة الإجابات rank by score, then by time**
+      (`svRaceRank`): finishing first with fewer right answers wins nothing.
+      Fast 3 closes on the first three *done*, and pays them in score order.
+    - **The seconds are the phone's own**, from the deal to its last move
+      (`svSecs`), shown on the result and used for the board's ties.
+    - A phone out of tries, or on a mine, or that gave up, is «💀» on the
+      result; one still solving when the round closes is «⏳» with 0.
+    - **A written word in كلمات من حروف is judged against the server's
+      banks** (the same dictionary the solo game builds, `wheelDictionary`
+      from the bundled lists); a word not in the layout but in the dictionary
+      is a bonus ⭐, as on one phone.
+    - **سلسلة الإجابات's race asks the room trivia, the emoji riddles and the
+      proverbs** - not the team board (its free-text decoys are the page's
+      own); ten questions a round.
+
 - **One sets, everyone solves** - the owner's decisions of 23 Sep 2026,
   asked one by one (*One sets, everyone solves*):
   - **المشنقة's room way made an engine**: a setter writes or picks a
@@ -1778,6 +1830,35 @@ the word search), `countUp` for streaks and scores.
   games already here (proposals in `notes/IMPROVEMENT_PLAN.md`, *Our own touch*).
   First done: the audience's Egyptian shouts and the زغروطة.
 
+- **The content audit of 27 Sep 2026** (the owner, playing خيوط: «وسائل
+  مواصلات» dealt صاروخ - "audit it and make sure all data fits and is spelled
+  correctly, and check the other games too"). Eight reviewers went through
+  every list the games deal from, one file each, against the same rules: a
+  word fits its category the way a family at the table understands the name
+  (a rocket is not transport, a nail is not a tool, a drink is not a dish, a
+  plate is not cutlery), the standard Egyptian spelling (ضابط not ظابط, نظارة
+  not نضارة, إصبع, no diacritics), no word twice or in two spellings, no
+  property-named category, family-clean, nothing obscure (ترومبيت, يعسوب, the
+  Konosuba characters). About 500 changes across `ChameleonWords.js` (both
+  languages), `SpyWords.js` (the drinks and bare ingredients left «أكلات» /
+  Food: they are not dishes; **the drinks were added to `StopWords.js`'s
+  food list**, so a table that writes شاي under أكل keeps its points),
+  `MonkeyWords.js`, `BombPrompts.js`, `StopWords.js`, `ConnectionsWords.js`
+  (a word that fit two groups of a hard puzzle was a bug: بومة under night
+  animals beside birds of prey), `EmojiRiddles.js` (foreign titles as
+  Egyptians say them: جوراسيك بارك, فاست آند فيوريس, the old name kept as an
+  alternative), `Proverbs.js` (five sayings in the wording they are said,
+  four arguable ones replaced), `PartyContent.js` (Gulf wording made
+  Egyptian, two Fibbage facts made exact), `WordleWords.js` (office and
+  political words out), `Countries.js` (the ج spellings accepted:
+  أنجولا, أوروجواي), `TimelineEvents.js` (the High Dam's 1970 replaced by
+  Nasser's death: it opened in 1971), the charades, describe, Who Am I, Just
+  One and drawing lists (R-rated and political films out, sequels' numbers
+  out, house parts out of tools). Left for the owner: السادات and عبد الناصر
+  among the famous, رأفت الهجان and الممر in the films, the Coptic months and
+  African currencies in the hard Connections, «رياضات ⚽» and «رياضات
+  أولمبية» overlapping. Every list keeps its size; `npm run check` passes.
+
 - **The owner's content decisions of 26 Sep 2026** (the review of 25 Sep,
   `notes/review-2026-09-25/`, asked each question; the owner answered):
   - **Cut**: prompts about height («أطول/أقصر واحد في العيلة» in لو خيروك,
@@ -3114,6 +3195,17 @@ the word search), `countUp` for streaks and scores.
   `div:has(> .field__label:first-child)` (the team generator's whole card
   went grey) - that selector now skips `.card`.
 
+- **26-27 Sep 2026, سباق ألغاز** - the ten solo puzzles as a race in a room,
+  to the owner's decisions (*The owner's specs*, *سباق ألغاز*): the solve
+  engine gained the race (`RoomSolve.js`, `RoomRace.js`), the generators
+  moved into shared files the Worker bundles, one renderer for the ten
+  (`JS_RoomRace.html`) with each game's board registered in `RACE_UI`, one
+  hub tile, the mode switch on ten setup screens. The Opus weekly limit
+  stopped the eight agents that were to build the games after الملكات and
+  خيوط, so the rest were built here. Rules tests 1,878, the leak check clean
+  for all ten, the robots' race round, and the browser look above.
+- **27 Sep 2026, the content audit** (*Decided, and why*): every list the
+  games deal from read word by word by eight reviewers, about 500 changes.
 ## Building and Running
 
 ### Development Requirements
@@ -5608,6 +5700,82 @@ emoji room (`room-emoji`), whose third way is the quiz.
   (`DRIVERS.solveGame`, `PROBES.solve`: all four both ways), `play-all.mjs`
   (a round of each both ways on a live server).
 
+### سباق ألغاز
+
+The owner's rules are in *The owner's specs*. The ten solo puzzles as a race
+on the solve engine (*One sets, everyone solves*): the room ids are the solo
+games' own (`sudoku`, `queens`, `tango`, `nonogram`, `mines`, `strands`,
+`wordwheel`, `connections`, `pinpoint`, `streak`: `SV_RACE_IDS` in
+`SolveGames.js`), the views `room-<id>`, one tile «سباق ألغاز» in the room's
+list (`ROOM_HUB_GROUPS.race`, `ROOM_HUB_FAMILIES.race`, a drawn icon
+`art:race`).
+
+- **The generators moved into shared files the Worker bundles** (never
+  copied): `SoloShared.js` (`soloRng`, `soloShuffle`, `soloPick`,
+  `soloCategory` - out of `JS_Solo.html`), `Sudoku.js`, `Queens.js`,
+  `Tango.js`, `Nonogram.js` (the pictures too), `Mines.js`, `Strands.js`,
+  `WordWheel.js`, `ConnectionsWords.js` (the three banks, out of
+  `JS_Connections.html`), `Pinpoint.js`, `QuizStreak.js`; each ends with
+  its race plug-in (`SUDOKU_RACE`, `QUEENS_RACE` …): `deal(rnd, st, pick)`
+  → `{ pub, …solution }` (the pick through `nextPrompt(s)`, so a puzzle
+  doesn't come back until its list has gone round), `board`, `total`,
+  `move(b, x, p, st)` → `'won' | 'lost' | ''` (throwing an Arabic error for
+  a bad move), `progress` → `{ done }`, `view`, `score`, `reveal`. The
+  page inlines them (`SHARED_LISTS`) so the solo games run on the same code.
+- **`RoomRace.js`** (bundled last): `svRaceKind(id)` wraps a plug-in into a
+  `SOLVE_KINDS` entry with `race: true` (no setter: every round is the
+  app's deal; `tries()` 0 = unlimited; the progress carries `total` and
+  `score`); `SV_RACE_IDS.forEach(id => SOLVE_KINDS[id] = svRaceKind(id))`.
+  The engine (`RoomSolve.js`) learnt the race: `svOptions` takes the lobby's
+  `finish` ('all' | 'fast3') and rounds (3 / 5) and fixes the clock from
+  `SV_RACE_CLOCKS`; `shared.race`, `startAt`, `closeAt` (the grace's end),
+  `secs`; `move` is the race's guess (a phone sends its board or its pick
+  after every change; the server judges); `giveUp` marks a board done with
+  0; `svRaceCheckClose` closes Fast 3 (the third done starts
+  `SV_RACE_GRACE_MS`); `svRaceRank` (score, then finish order) pays
+  `SV_RACE_POINTS` [10, 7, 5] and `SV_RACE_GRACE_POINTS` 2, or the engine's
+  10 + `SV_SPEED_BONUS` in «الكل يخلّص»; `svBoard` sorts a race by score
+  then seconds. A board is done at `b.at` (the server's time) - a plug-in's
+  board must not use `at` for anything else (*Traps*).
+- **The page** (`JS_RoomRace.html`, section 42 of `Style.html`): the lobby
+  (`raceLobbyHtml`: rounds, the ending; `recallOptions('raceRoom')`), the
+  screen (`raceRender`: the strip - round, ending, clock - the game's own
+  board in its race stage, the progress rows `raceRowsHtml` (a bar a player,
+  `scaleX`), «استسلم», the host's «اقفل الجولة», the done card, the closing
+  band «باقي 10 ثواني…», the result (`raceResultHtml`: the reveal, the rows
+  with seconds and points), the podium), `racePaintLive` (rows, clock and
+  buttons refreshed in place so the board is never redrawn under a finger),
+  and the TV (`raceTvFrame`: the bars, the order, the clock, never the
+  puzzle). **Each solo game registers `RACE_UI.<id>`** in its own file:
+  `stage` (the element id its board is drawn into: the race stage is the same
+  id inside `#view-room-<id>`, and `soloStage(id)` finds the race's while a
+  race is on - the race views come before the solo views in
+  `Controller.html` for that), `unit` (the rows' word), `fresh(pub,
+  settings)` (a solo state from the deal), `sync(s, board, fx)` (the
+  server's answer onto the state: found words fly, a group flies, a wrong pick
+  shakes), `paint`, `finished(s, won)`, and for games that need it
+  `snapshot` / `miss` (a refused move plays its miss). The solo game's own
+  state lives in `appState.race = { key, kind, s }` while a race is on
+  (`soloRaceState(kind)`); its move functions send `raceMove(kind, payload)`
+  where the solo game would judge. `RACE_UI` is on `window`
+  (`JS_Connections.html` loads before `JS_Solo.html`).
+- The ten games have `modes: ['device', 'room', 'tv']` and `players: [1,
+  12]` in the catalog, a mode switch on their setup screens, `room: true` on
+  their help entries with a race sub-section in `GAME_RULES`,
+  `HELP_FOR_VIEW` for `room-<id>`, `roomTurnOf` through `roomSolveTurn`,
+  `roomPlayerLeft` through `svPlayerLeft`.
+- Tests: `rules.mjs` (the engine: Fast 3's close, grace and points, «الكل
+  يخلّص», «استسلم», the clock, the seconds' tie, leaving, play again; every
+  game's deal, a bad move refused, progress, a win, a loss), `leaks.mjs`
+  (`RACE_PROBES`: the solution on no phone until it has solved it, a board
+  on its own phone only, the table's progress without content; a driver a
+  game through Fast 3 with the grace, «استسلم», the host's close, the clock,
+  a leaver and «الكل يخلّص»), `play-all.mjs` (`--only=race`, or
+  `--race=<game>`: a round of each on a live server). Looked at in headless
+  Chrome (three phones and a TV through a race of each game) at 375×812
+  Arabic light and 1280×720 English dark, a reload mid-race, Help, no console
+  errors.
+
 ### كدّاب
 
 The owner's rules are in *The owner's specs*.
@@ -7489,6 +7657,24 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A plug-in's board field is the engine's once it is named the same.** The
+solve engine stamps a done board with `b.at = Date.now()` (its seconds), and
+إيه اللي يجمعهم؟'s race board kept its current round as `at` too - a finished
+board pointed at round 1,790,512,033,850. A plug-in names its fields for
+itself (`cur`); before adding one, read what the engine writes on a board.
+
+**The rules tests read the built bundle, not the sources.** `rules.mjs` and
+`leaks.mjs` import `generated/rules.js`; an edit to `Pinpoint.js` or
+`ConnectionsWords.js` does nothing to them until `node build.mjs` has run
+(the dev server rebuilds it, a test on its own does not). Three "failures"
+of 27 Sep 2026 were a stale bundle.
+
+**A script that inserts at an anchor must match the anchor only.** The
+race's eight test blocks were meant to replace the trailing `// RACE:<id>`
+anchors; the regex also matched `// RACE:engine` at the top, so the blocks
+landed before the `let r` they used ("Cannot access 'r' before
+initialization"). Anchor lines get a shape nothing else in the file has.
 
 **A `<details>` drawn open fires its `toggle` too.** The lobby's folded
 options remembered "the host opened it" from the toggle event, and a details

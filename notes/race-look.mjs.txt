@@ -132,6 +132,42 @@ await shot(TV, '2-board');
 
 // A move on the host's phone through the board's own taps, then the solution on p2, a give-up on p3.
 const PLAY = {
+  sudoku: {
+    tap: `(() => { const s = sudokuState(); const sol = sudokuSolve(s.puzzle).join(''); const i = s.puzzle.indexOf('0'); s.cells = s.cells.slice(0, i) + sol[i] + s.cells.slice(i + 1); paintSudoku(); raceMove('sudoku', { cells: s.cells }); return i; })()`,
+    solve: `(async () => { const s = sudokuState(); const sol = sudokuSolve(s.puzzle).join(''); s.cells = sol; paintSudoku(); await raceMove('sudoku', { cells: sol }); return 1; })()`
+  },
+  tango: {
+    tap: `(() => { const s = tangoState(); const i = s.givens.findIndex(v => !v); s.cells[i] = 1; paintTango(); raceMove('tango', { cells: s.cells.slice() }); return i; })()`,
+    solve: `(async () => { const s = tangoState(); const g = s.givens.slice(); const ok = () => tangoProblems(g, s.signs).size === 0;
+      const go = (i) => { if (i === g.length) return true; if (s.givens[i]) return go(i + 1); for (const v of [1, 2]) { g[i] = v; if (ok() && go(i + 1)) return true; } g[i] = 0; return false; };
+      go(0); s.cells = g.slice(); paintTango(); await raceMove('tango', { cells: g.slice() }); return 1; })()`
+  },
+  nonogram: {
+    tap: `(() => { const s = nonoState(); const sol = nonoSolveLines(s.n, s.clues.rows, s.clues.cols); const i = sol.indexOf(1); s.cells[i] = 1; paintNonogram(); raceMove('nonogram', { cells: s.cells.slice() }); return i; })()`,
+    solve: `(async () => { const s = nonoState(); const sol = nonoSolveLines(s.n, s.clues.rows, s.clues.cols).map(v => (v === 1 ? 1 : 0)); s.cells = sol.slice(); paintNonogram(); await raceMove('nonogram', { cells: sol }); return 1; })()`
+  },
+  mines: {
+    tap: `(() => { const s = minesState(); const i = s.open.findIndex((o, k) => !o && !s.flags[k]); minesTap(i); return i; })()`,
+    solve: `(async () => { const s = minesState(); let n = 0; for (let k = 0; k < 6; k++) { if (s.phase !== 'play' && s.phase !== 'ready') break; const i = s.open.findIndex((o, j) => !o && !s.flags[j]); if (i < 0) break; minesTap(i); n++; await new Promise(r => setTimeout(r, 900)); } return n; })()`
+  },
+  wordwheel: {
+    tap: `(() => { const s = wheelState(); raceMove('wordwheel', { word: s.letters.slice(0, 3).join('') }); return s.letters.join(''); })()`,
+    solve: `(async () => { const s = wheelState(); const dict = wheelDictionary(s.lang); const have = s.letters.slice(); const fits = (w) => { const pool = have.slice(); for (const ch of w) { const k = pool.indexOf(ch); if (k < 0) return false; pool.splice(k, 1); } return true; };
+      const lens = new Set(s.words.map(w => w.len || (w.w && w.w.length))); const cands = dict.filter(w => fits(w) && lens.has(w.length)); let n = 0;
+      for (const w of cands) { await raceMove('wordwheel', { word: w }); n++; await new Promise(r => setTimeout(r, 500)); if (Room.state.you && Room.state.you.state !== 'play') break; } return n; })()`
+  },
+  connections: {
+    tap: `(() => { const c = connState(); raceMove('connections', { words: c.tiles.slice(0, 4).map(t => t.word) }); return 4; })()`,
+    solve: `(async () => { const c = connState(); for (let k = 0; k < 4; k++) { const ws = c.tiles.slice(k, k + 4).map(t => t.word); await raceMove('connections', { words: ws }); await new Promise(r => setTimeout(r, 900)); if (Room.state.you && Room.state.you.state !== 'play') break; } return 1; })()`
+  },
+  pinpoint: {
+    tap: `(() => { const s = pinState(); raceMove('pinpoint', { k: s.round, i: 0 }); return s.round; })()`,
+    solve: `(async () => { for (let t = 0; t < 30; t++) { const s = pinState(); if (Room.state.you && Room.state.you.state !== 'play') break; const r = s.rounds[s.round]; if (!r) break; const i = [0, 1, 2, 3, 4, 5].find(j => r.wrong.indexOf(j) === -1); await raceMove('pinpoint', { k: s.round, i: i }); await new Promise(x => setTimeout(x, 1400)); } return 1; })()`
+  },
+  streak: {
+    tap: `(() => { const s = streakState(); raceMove('streak', { q: s.asked, i: 0 }); return s.asked; })()`,
+    solve: `(async () => { for (let t = 0; t < 12; t++) { const s = streakState(); if (Room.state.you && Room.state.you.state !== 'play') break; await raceMove('streak', { q: s.asked, i: 1 }); await new Promise(x => setTimeout(x, 1700)); } return 1; })()`
+  },
   queens: {
     tap: `(() => { const s = queensState(); const n = s.n; const sol = queensSolve(n, s.regions, 1)[0]; const cell = document.querySelector('#view-room-queens #queens-grid [data-i="' + (0 * n + sol[0]) + '"]');
       cell.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 1, clientY: 1 })); document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));

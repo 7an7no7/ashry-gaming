@@ -25,7 +25,7 @@ const note = (msg) => problems.push(msg);
 /* ---------------------------------------------------------- Connections */
 // Three difficulties, one shape: every group is 4 words, and a word appears once per board.
 for (const [dbName, groupCount] of [['CONNECTIONS_EASY', 3], ['CONNECTIONS_DB', 4], ['CONNECTIONS_HARD', 5]]) {
-  const CONN = load(ROOT + 'JS_Connections.html', dbName);
+  const CONN = load(ROOT + 'ConnectionsWords.js', dbName);
   for (const [lang, puzzles] of Object.entries(CONN)) {
     puzzles.forEach((p, pi) => {
       const tag = `${dbName}.${lang}[${pi}]`;
@@ -418,8 +418,9 @@ for (const [lang, lists] of Object.entries(MONKEY)) {
 
 // Nonogram pictures: the right size, and solvable line by line (one solution, no guessing).
 {
-  const src = fs.readFileSync(G + 'JS_Nonogram.html', 'utf8').replace(/^\s*<script>/, '').replace(/<\/script>\s*$/, '');
-  const N = new Function('soloRegister', 'soloPick', src + '; return { NONO_PICTURES, nonoFromPicture, nonoClues, nonoSolvable };')(() => {}, () => {});
+  // The pictures live in Nonogram.js (shared with the rooms server since سباق ألغاز, 26 Sep 2026).
+  const src = fs.readFileSync(G + 'SoloShared.js', 'utf8') + fs.readFileSync(G + 'Nonogram.js', 'utf8');
+  const N = new Function(src + '; return { NONO_PICTURES, nonoFromPicture, nonoClues, nonoSolvable };')();
   let count = 0;
   for (const [size, pics] of Object.entries(N.NONO_PICTURES)) {
     const n = Number(size);

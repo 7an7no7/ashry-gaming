@@ -7,130 +7,30 @@
    the cells to reveal a picture. ⬛ fills, ✕ marks a cell you know is empty;
    drag to paint several at once.
 
-   A board is either one of NONO_PICTURES (drawn by hand) or random. Either
-   way it is only used if nonoSolvable can finish it line by line - so it has
-   exactly one solution and never needs a guess. 5×5 easy (random), 8×8
-   medium and 10×10 hard (pictures or random); the daily is a 10×10 picture,
-   going round all of them before one comes back (nonoDailyPicture: the order
-   of each round is shuffled from its number, so every phone agrees). Clearing
-   the board and dealing a new one over a game in progress both ask first.
-   The board is in appState.nonogram.
+   The pictures and the generator are Nonogram.js (shared with the rooms
+   server, which deals a race's board): a board is one of NONO_PICTURES or
+   random, and only used if it can be finished line by line. 5×5 easy
+   (random), 8×8 medium and 10×10 hard (pictures or random); the daily is a
+   10×10 picture, going round all of them before one comes back
+   (nonoDailyPicture: the order of each round is shuffled from its number, so
+   every phone agrees). Clearing the board and dealing a new one over a game
+   in progress both ask first. The board is in appState.nonogram.
+
+   In سباق ألغاز (RACE_UI.nonogram, JS_RoomRace.html) the same grid and drag
+   play the room's puzzle from its clues alone: the picture stays on the
+   server (its name would give it away), every drag is sent as `move { cells }`
+   and the server says when the painted cells are the picture. No hint.
    ========================================================================= */
 
-const NONO_PICTURES = {
-  8: [
-    { ar: 'قلب', en: 'Heart', e: '❤️', rows: ['.##..##.', '########', '########', '########', '.######.', '..####..', '...##...', '........'] },
-    { ar: 'سهم', en: 'Arrow', e: '⬆️', rows: ['...##...', '..####..', '.######.', '########', '...##...', '...##...', '...##...', '...##...'] },
-    { ar: 'جرس', en: 'Bell', e: '🔔', rows: ['...##...', '..####..', '.######.', '.######.', '.######.', '########', '########', '...##...'] },
-    { ar: 'ألماسة', en: 'Diamond', e: '💎', rows: ['..####..', '.######.', '########', '.######.', '..####..', '...##...', '........', '........'] },
-    { ar: 'عربية', en: 'Car', e: '🚗', rows: ['........', '..####..', '.#.##.#.', '########', '########', '.##..##.', '........', '........'] }
-  ],
-  10: [
-    { ar: 'قلب', en: 'Heart', e: '❤️', rows: ['..........', '.##....##.', '####..####', '##########', '##########', '.########.', '..######..', '...####...', '....##....', '..........'] },
-    { ar: 'بيت', en: 'House', e: '🏠', rows: ['....##....', '...####...', '..######..', '.########.', '##########', '.########.', '.##....##.', '.##.##.##.', '.##.##.##.', '.########.'] },
-    { ar: 'قطة', en: 'Cat', e: '🐱', rows: ['#........#', '##......##', '###....###', '##########', '#.##..##.#', '##########', '####..####', '###.##.###', '.########.', '..######..'] },
-    { ar: 'شجرة', en: 'Tree', e: '🌲', rows: ['....##....', '...####...', '..######..', '.########.', '##########', '..######..', '.########.', '##########', '....##....', '....##....'] },
-    { ar: 'نجمة', en: 'Star', e: '⭐', rows: ['....##....', '....##....', '...####...', '##########', '.########.', '..######..', '..######..', '.###..###.', '.##....##.', '##......##'] },
-    { ar: 'سمكة', en: 'Fish', e: '🐟', rows: ['..........', '....###...', '#..#####..', '##########', '####.#####', '##########', '#..#####..', '....###...', '..........', '..........'] },
-    { ar: 'شمسية', en: 'Umbrella', e: '☂️', rows: ['....##....', '..######..', '.########.', '##########', '#.#.##.#.#', '....##....', '....##....', '....##....', '.#..##....', '..###.....'] },
-    { ar: 'مركب', en: 'Boat', e: '⛵', rows: ['....#.....', '....##....', '....###...', '....####..', '....#####.', '....#.....', '##########', '.########.', '..######..', '..........'] },
-    { ar: 'مشروم', en: 'Mushroom', e: '🍄', rows: ['...####...', '.########.', '##..##..##', '##..##..##', '##########', '.########.', '...#..#...', '...#..#...', '...####...', '..........'] },
-    { ar: 'تفاحة', en: 'Apple', e: '🍎', rows: ['.....#....', '....#.....', '.###.###..', '##########', '##########', '##########', '##########', '.########.', '..######..', '...#..#...'] },
-    { ar: 'تاج', en: 'Crown', e: '👑', rows: ['..........', '#...##...#', '##..##..##', '###.##.###', '##########', '##########', '##########', '#.#.##.#.#', '##########', '..........'] }
-  ]
-};
-const NONO_SIZES = { easy: 5, medium: 8, hard: 10 };
 let nonoTimer = null;
 
 function nonoState() {
+  const race = soloRaceState('nonogram');
+  if (race) return race;
   if (!appState.nonogram) {
-    appState.nonogram = { level: 'easy', daily: '', n: 5, solution: [], cells: [], pic: null, mode: 'fill', hints: 0, startedAt: 0, pausedAt: 0, phase: 'setup' };
+    appState.nonogram = { level: 'easy', daily: '', n: 5, solution: [], clues: null, cells: [], pic: null, mode: 'fill', hints: 0, startedAt: 0, pausedAt: 0, phase: 'setup' };
   }
   return appState.nonogram;
-}
-
-/* --- The puzzle ------------------------------------------------------------------ */
-
-function nonoRuns(line) {
-  const runs = [];
-  let run = 0;
-  line.forEach(v => { if (v === 1) run++; else if (run) { runs.push(run); run = 0; } });
-  if (run) runs.push(run);
-  return runs;
-}
-
-/**
- * Everything one line can tell: cells (-1 unknown, 1 filled, 0 empty) against
- * its clue. Returns the line with every cell that all placements agree on,
- * or null when no placement fits.
- */
-function nonoLineSolve(clue, cells) {
-  const L = cells.length;
-  const agree = new Array(L).fill(null);
-  const line = new Array(L).fill(0);
-  let any = false;
-  const place = (k, start) => {
-    if (k === clue.length) {
-      for (let i = start; i < L; i++) if (cells[i] === 1) return;
-      any = true;
-      for (let i = 0; i < L; i++) agree[i] = agree[i] === null ? line[i] : (agree[i] === line[i] ? line[i] : -1);
-      return;
-    }
-    const len = clue[k];
-    let rest = 0;
-    for (let j = k + 1; j < clue.length; j++) rest += clue[j] + 1;
-    for (let p = start; p + len + rest <= L; p++) {
-      if (p > start && cells[p - 1] === 1) break;        // a filled cell can't be left out
-      let fits = true;
-      for (let i = p; i < p + len; i++) if (cells[i] === 0) { fits = false; break; }
-      if (!fits || (p + len < L && cells[p + len] === 1)) continue;
-      for (let i = p; i < p + len; i++) line[i] = 1;
-      place(k + 1, p + len + 1);
-      for (let i = p; i < p + len; i++) line[i] = 0;
-    }
-  };
-  place(0, 0);
-  return any ? agree : null;
-}
-
-/** Whether the clues alone finish the grid, line by line (so it has one solution and needs no guessing). */
-function nonoSolvable(n, rowClues, colClues) {
-  const g = new Array(n * n).fill(-1);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (let r = 0; r < n; r++) {
-      const line = g.slice(r * n, r * n + n);
-      const res = nonoLineSolve(rowClues[r], line);
-      if (!res) return false;
-      res.forEach((v, c) => { if (v !== -1 && g[r * n + c] === -1) { g[r * n + c] = v; changed = true; } });
-    }
-    for (let c = 0; c < n; c++) {
-      const line = Array.from({ length: n }, (_, r) => g[r * n + c]);
-      const res = nonoLineSolve(colClues[c], line);
-      if (!res) return false;
-      res.forEach((v, r) => { if (v !== -1 && g[r * n + c] === -1) { g[r * n + c] = v; changed = true; } });
-    }
-  }
-  return g.every(v => v !== -1);
-}
-
-function nonoClues(n, sol) {
-  const rows = Array.from({ length: n }, (_, r) => nonoRuns(sol.slice(r * n, r * n + n)));
-  const cols = Array.from({ length: n }, (_, c) => nonoRuns(Array.from({ length: n }, (_, r) => sol[r * n + c])));
-  return { rows: rows, cols: cols };
-}
-
-function nonoFromPicture(pic) {
-  return pic.rows.join('').split('').map(ch => (ch === '#' ? 1 : 0));
-}
-
-function nonoSolvablePictures(n) {
-  return (NONO_PICTURES[n] || []).filter(p => {
-    const sol = nonoFromPicture(p);
-    const cl = nonoClues(n, sol);
-    return nonoSolvable(n, cl.rows, cl.cols);
-  });
 }
 
 /**
@@ -147,23 +47,6 @@ function nonoDailyPicture(pics, day) {
   const before = order(round - 1);
   if (count > 1 && now[0] === before[count - 1]) now.push(now.shift());
   return pics[now[((index % count) + count) % count]];
-}
-
-/** { n, solution, pic } for a level. `daily` (a YYYY-MM-DD day) for the daily's picture. */
-function nonoMake(level, rnd, daily) {
-  const n = NONO_SIZES[level] || 5;
-  const pics = nonoSolvablePictures(n);
-  if (pics.length && (daily || rnd() < 0.5)) {
-    const pic = daily ? nonoDailyPicture(pics, daily === true ? soloToday() : daily) : soloPick(pics, rnd);
-    return { n: n, solution: nonoFromPicture(pic), pic: { ar: pic.ar, en: pic.en, e: pic.e } };
-  }
-  for (let attempt = 0; attempt < 400; attempt++) {
-    const sol = Array.from({ length: n * n }, () => (rnd() < 0.58 ? 1 : 0));
-    const cl = nonoClues(n, sol);
-    if (cl.rows.some(x => !x.length) || cl.cols.some(x => !x.length)) continue;
-    if (nonoSolvable(n, cl.rows, cl.cols)) return { n: n, solution: sol, pic: null };
-  }
-  return null;
 }
 
 /* --- Setup and play ---------------------------------------------------------------- */
@@ -199,7 +82,8 @@ function startNonogram(daily, sure) {
   if (daily && soloDailyResume('nonogram')) return;
   const s = nonoState();
   const level = daily ? 'hard' : s.level;
-  const made = nonoMake(level, soloRandom(daily ? soloDaySeed('nonogram') : null), daily ? soloToday() : '');
+  const rnd = soloRandom(daily ? soloDaySeed('nonogram') : null);
+  const made = nonoMake(level, rnd, daily ? nonoDailyPicture(nonoSolvablePictures(NONO_SIZES[level]), soloToday()) : null);
   if (!made) return;
   soloDailySetAside('nonogram');
   soloNewGame('nonogram');
@@ -207,6 +91,7 @@ function startNonogram(daily, sure) {
   s.playLevel = level;
   s.n = made.n;
   s.solution = made.solution;
+  s.clues = nonoClues(made.n, made.solution);
   s.pic = made.pic;
   s.cells = new Array(made.n * made.n).fill(0);   // 0 empty, 1 filled, 2 ✕
   s.mode = 'fill';
@@ -238,13 +123,19 @@ function nonoStopTimer() {
   nonoTimer = null;
 }
 
+/** The board's clues: kept on the state (a race has only these), worked out for a board saved before they were. */
+function nonoCluesOf(s) {
+  if (!s.clues && s.solution && s.solution.length) s.clues = nonoClues(s.n, s.solution);
+  return s.clues;
+}
+
 function paintNonogram() {
   const s = nonoState();
   const t = TRANSLATIONS[appState.lang];
-  const el = document.getElementById('nonogram-stage');
-  if (!el || !s.solution.length) return;
+  const el = soloStage('nonogram-stage');
+  const clues = el ? nonoCluesOf(s) : null;
+  if (!el || !clues) return;
   const n = s.n;
-  const clues = nonoClues(n, s.solution);
   const filled = s.cells.map(v => (v === 1 ? 1 : 0));
   const rowDone = Array.from({ length: n }, (_, r) => nonoRuns(filled.slice(r * n, r * n + n)).join(',') === clues.rows[r].join(','));
   const colDone = Array.from({ length: n }, (_, c) => nonoRuns(Array.from({ length: n }, (_, r) => filled[r * n + c])).join(',') === clues.cols[c].join(','));
@@ -276,13 +167,13 @@ function paintNonogram() {
         </div>
         <div class="sdk-tools">
           <button type="button" class="btn btn--neutral btn--sm" onclick="clearNonogram()">🧹 ${escapeHTML(t.queens_clear || '')}</button>
-          <button type="button" class="btn btn--neutral btn--sm" onclick="hintNonogram()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+          ${s.race ? '' : `<button type="button" class="btn btn--neutral btn--sm" onclick="hintNonogram()">💡 ${escapeHTML(t.solo_hint || '')}</button>`}
         </div>
       </div>
     </div>
-    <div class="view-actions">
+    ${s.race ? '' : `<div class="view-actions">
       <button class="btn btn--ghost btn--sm" onclick="setupNonogram()">${escapeHTML(t.exit || '')}</button>
-    </div>`;
+    </div>`}`;
 }
 
 function setNonoMode(mode) {
@@ -341,12 +232,13 @@ function clearNonogram(sure) {
   s.cells = s.cells.map(() => 0);
   saveToLocal();
   paintNonogram();
+  nonoCheck();
 }
 
 /** Fixes one wrong cell, or fills one missing one. */
 function hintNonogram() {
   const s = nonoState();
-  if (s.phase !== 'play') return;
+  if (s.phase !== 'play' || s.race) return;
   let i = s.cells.findIndex((v, k) => v === 1 && !s.solution[k]);
   if (i !== -1) s.cells[i] = 2;
   else {
@@ -360,9 +252,26 @@ function hintNonogram() {
   nonoCheck();
 }
 
+/** A solved board: the picture's cells pop in, corner to corner. */
+function nonoCelebrate(s) {
+  const grid = document.getElementById('nono-grid');
+  if (grid) grid.classList.add('is-solved');
+  if (motionOff()) return 0;
+  const n = s.n;
+  document.querySelectorAll('#nono-grid .nono-cell.is-fill').forEach(cell => {
+    const i = Number(cell.dataset.i);
+    if (cell.animate) cell.animate([{ transform: 'scale(0.4)', opacity: 0.3 }, { transform: 'scale(1.12)', opacity: 1 }, { transform: 'scale(1)' }],
+      { duration: 420, delay: (Math.floor(i / n) + i % n) * 30, easing: 'ease-out', fill: 'backwards' });
+  });
+  return n * 2 * 30 + 500;
+}
+
 function nonoCheck() {
   const s = nonoState();
-  if (s.phase !== 'play' || s.cells.some((v, i) => (v === 1 ? 1 : 0) !== s.solution[i])) return;
+  if (s.phase !== 'play') return;
+  // A race: the server holds the picture and judges the board (JS_RoomRace.html).
+  if (s.race) { raceMove('nonogram', { cells: s.cells.slice() }); return; }
+  if (s.cells.some((v, i) => (v === 1 ? 1 : 0) !== s.solution[i])) return;
   nonoStopTimer();
   s.phase = 'done';
   s.cells = s.cells.map(v => (v === 1 ? 1 : 0));
@@ -372,15 +281,7 @@ function nonoCheck() {
   paintNonogram();
   const t = TRANSLATIONS[appState.lang];
   const n = s.n;
-  const grid = document.getElementById('nono-grid');
-  if (grid) grid.classList.add('is-solved');
-  if (!motionOff()) {
-    document.querySelectorAll('#nono-grid .nono-cell.is-fill').forEach(cell => {
-      const i = Number(cell.dataset.i);
-      if (cell.animate) cell.animate([{ transform: 'scale(0.4)', opacity: 0.3 }, { transform: 'scale(1.12)', opacity: 1 }, { transform: 'scale(1)' }],
-        { duration: 420, delay: (Math.floor(i / n) + i % n) * 30, easing: 'ease-out', fill: 'backwards' });
-    });
-  }
+  nonoCelebrate(s);
   const level = s.playLevel || s.level;
   const rec = s.hints ? { record: false, prev: soloBest('nonogram', level) }
     : soloRecord('nonogram', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
@@ -412,4 +313,20 @@ soloRegister('nonogram', {
   setup: 'setup-nonogram', play: 'play-nonogram', paintSetup: paintNonogramSetup, restore: restoreNonogram,
   state: nonoState, resume: continueNonogram, repaint: paintNonogram, timed: true, prefs: ['level', 'mode']
 });
+
+/* --- سباق ألغاز: the same grid, raced (JS_RoomRace.html) ------------------------------ */
+RACE_UI.nonogram = {
+  stage: 'nonogram-stage',
+  unit: 'race_unit_cells',
+  fresh: (pub) => ({ level: 'medium', playLevel: 'medium', daily: '', n: pub.n, solution: [], clues: pub.clues, pic: null,
+    cells: new Array(pub.n * pub.n).fill(0), mode: 'fill', hints: 0, seconds: 0 }),
+  // A reload: the cells the server last took from this phone are the board.
+  sync(s, board) {
+    if (board && Array.isArray(board.cells) && board.cells.length === s.cells.length && !nonoHasWork(s)) s.cells = board.cells.slice();
+  },
+  paint: () => paintNonogram(),
+  finished: (s, won) => (won ? nonoCelebrate(s) : 0),
+  // The picture, once the round is over.
+  revealHtml: (r) => (r && r.pic ? `<div class="race-pic"><span class="race-pic__e" aria-hidden="true">${r.pic.e}</span><b>${escapeHTML(appState.lang === 'en' ? r.pic.en : r.pic.ar)}</b></div>` : '')
+};
 </script>

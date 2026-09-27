@@ -44,7 +44,7 @@ const TIMELINE_EVENTS = [
   { y: 1957, ar: 'إطلاق أول قمر صناعي',              en: 'The first satellite is launched' },
   { y: 1961, ar: 'أول إنسان يطلع الفضاء',            en: 'The first person in space' },
   { y: 1969, ar: 'أول إنسان على القمر',                  en: 'The first man on the Moon' },
-  { y: 1970, ar: 'اكتمال بناء السد العالي',              en: 'The Aswan High Dam is completed' },
+  { y: 1970, ar: 'وفاة جمال عبد الناصر',                 en: 'Gamal Abdel Nasser dies' },
   { y: 1971, ar: 'تأسيس الإمارات',                       en: 'The United Arab Emirates is founded' },
   { y: 1973, ar: 'حرب أكتوبر',                           en: 'The October War' },
   { y: 1975, ar: 'وفاة أم كلثوم',                        en: 'Umm Kulthum dies' },

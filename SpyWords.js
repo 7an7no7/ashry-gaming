@@ -34,7 +34,7 @@ const SPY_WORDS = {
     "عقاب", "كناري", "ببغاء", "بجعة", "فرخة", "سمان",
     "نورس", "قطة شيرازي", "أبو قردان", "لقلق", "فلامنجو", "طوقان",
     "طائر الطنان", "نقار الخشب", "كروان", "بلبل", "سنونو", "حدأة",
-    "نسر أصلع", "كوكاتو", "عندليب", "طائر الرفراف", "بجع أبيض", "ديك بري",
+    "نسر أصلع", "كوكاتو", "عندليب", "طائر الرفراف", "حمام زاجل", "دب بني",
 
     // sea
     "سمكة", "قرش", "أخطبوط", "حبار", "سبيط", "قنديل البحر",
@@ -45,7 +45,7 @@ const SPY_WORDS = {
 
     // reptiles
     "كوبرا", "حمار حصاوي", "حرباء", "ورل", "إغوانا", "ضفدع",
-    "نسناس", "تنين كومودو", "أناكوندا", "كلب سلوقي", "سلحفاة الماء", "ضفدع الشجر",
+    "نسناس", "تنين كومودو", "أناكوندا", "كلب سلوقي", "ضب", "ضفدع الشجر",
     "تمساح أمريكي", "الثعبان الجرسي", "سحلية الصحراء",
 
     // bugs
@@ -63,7 +63,7 @@ const SPY_WORDS = {
     "مسقعة", "سوشي", "آيس كريم", "مكرونة بشاميل", "كباب", "كفتة", "حواوشي", "ورق عنب",
     "سمك مشوي", "فشار", "شوربة عدس", "فول سوداني", "بان كيك", "بسبوسة", "كنافة", "تورتة",
     "شوربة فراخ", "كبدة", "إندومي", "طرشي", "جبنة قديمة", "فطير مشلتت", "بطاطس مقلية", "حمص الشام",
-    "كب كيك", "كوسة بالبشاميل", "كفتة داود باشا", "شوربة خضار", "شيش طاووق", "عصير قصب", "ساندوتش", "ميلك شيك",
+    "كب كيك", "كوسة بالبشاميل", "كفتة داود باشا", "شوربة خضار", "شيش طاووق", "فراخ بانيه", "ساندوتش", "رز بالخلطة",
     "عيش", "جبنة بيضاء", "رز بلبن", "أم علي", "بفتيك", "سمبوسة", "طحينة", "بابا غنوج",
     "فاصوليا", "بلح الشام", "مكرونة محمرة", "كفتة رز", "باذنجان", "بطيخ", "مانجو", "طعمية",
     "جلاش", "أرز معمر", "كبدة وسجق", "ممبار", "شوربة لسان عصفور", "فتة لحمة", "حلاوة طحينية", "بليلة",
@@ -84,7 +84,7 @@ const SPY_WORDS = {
     "خس", "كرنب", "قرنبيط", "بروكلي", "بسلة", "فاصوليا خضرا",
     "لوبيا", "فول أخضر", "ذرة", "فجل", "لفت", "بنجر",
     "كرفس", "بقدونس", "شبت", "كزبرة", "جرجير", "نعناع",
-    "ريحان", "زعتر", "مشروم", "خرشوف", "فلفل حار", "كرات",
+    "ملانة", "زعتر", "مشروم", "خرشوف", "فلفل حار", "كرات",
     "زنجبيل",
 
     // dishes
@@ -103,22 +103,24 @@ const SPY_WORDS = {
     "قطايف", "كريم كراميل", "كحك", "غريبة", "بيتي فور", "بسكويت",
     "شوكولاتة", "جاتوه", "دونات", "براونيز", "تشيز كيك", "مصاصة",
     "غزل البنات", "ملبن", "عسل أسود", "فطيرة تفاح", "سينابون", "بقلاوة",
-    "هريسة", "مارشميلو", "لبان", "عسلية", "حمصية", "سمسمية",
+    "هريسة", "مارشميلو", "حلاوة المولد", "عسلية", "حمصية", "سمسمية",
     "فولية", "كرواسون بالشوكولاتة", "بودنج", "موس شوكولاتة",
 
-    // drinks
-    "شاي", "قهوة", "نسكافيه", "كابتشينو", "لاتيه", "إسبريسو",
-    "شوكولاتة ساخنة", "سحلب", "ينسون", "كركديه", "تمر هندي", "عرقسوس",
-    "سوبيا", "خروب", "عصير برتقال", "عصير مانجو", "عصير جوافة", "ليمون بالنعناع",
-    "سموذي", "مياه غازية", "مياه معدنية", "لبن", "عصير فراولة", "كوكتيل",
-    "قمر الدين", "آيس تي", "شاي أخضر", "قرفة باللبن",
+    // more dishes, sweets and snacks (drinks and bare ingredients - salt,
+    // flour, oil, spices, sauces - are not أكلات, 27 Sep 2026)
+    "عكاوي", "جمبري", "تونة", "سردين", "بطارخ", "سمك سنجاري",
+    "ترمس", "مكسرات", "فستق", "لوز", "بندق", "كاجو",
+    "عين الجمل", "دوم", "كيكة", "عيش فينو", "بقسماط", "مكرونة نجرسكو",
+    "فريك", "عجة", "ريش ضاني", "روستو", "قوانص", "بطاطس بوريه",
+    "سد الحنك", "عيش السرايا", "صوابع زينب", "رموش الست", "بونبون", "كراميلا",
+
+    "ويفر", "شيبس", "بيض بالبسطرمة", "رز بالخضار", "سمان مشوي", "فراخ مقلية",
+    "صدور فراخ", "جبنة بالطماطم", "عجوة", "باتيه", "فاهيتا", "كباب حلة",
+    "كاسترد", "سميط", "جبنة فلمنك", "مافن", "منين", "تورلي",
+    "خضار سوتيه", "سلطة فواكه",
 
     // pantry
-    "ملح", "سكر", "فلفل أسود", "كمون", "قرفة", "حبهان",
-    "زعفران", "كركم", "شطة", "خل", "زيت", "زيت زيتون",
-    "سمنة", "زبدة", "دقيق", "نشا", "خميرة", "بيكنج باودر",
-    "فانيليا", "عسل نحل", "مربى", "صلصة", "كاتشب", "مايونيز",
-    "مستردة", "زيتون", "رز", "مكرونة", "عدس", "كريب",
+    "زبدة", "عسل نحل", "مربى", "زيتون", "رز", "مكرونة", "عدس", "كريب",
     "برغل", "شوفان", "كورن فليكس", "بيض", "جبنة", "لبن رايب"
   ],
   "مهن": [
@@ -127,29 +129,29 @@ const SPY_WORDS = {
     "صيدلي", "مصور", "مصلح موبايلات", "محاسب", "قاضي", "حلاق", "ممرض", "كاتب",
     "لاعب كرة", "جراح", "مذيع", "بياع فول", "مقاول", "ساعي البريد", "حارس أمن", "خباز",
     "كيميائي", "بحار", "بياع عرقسوس", "مدرب", "عربجي", "نحات", "راعي بقر", "سكرتير",
-    "حطاب", "سمسار", "محقق", "غواص", "منقذ", "بائع", "حداد", "مرشد سياحي",
+    "حطاب", "سمسار", "محقق", "غواص", "منقذ", "فكهاني", "حداد", "مرشد سياحي",
     "عامل بناء", "سواق", "كوافير", "بواب", "دليفري", "موظف بنك", "سايس", "بائع خضار",
-    "جزار", "بائع لب", "عامل نظافة", "مأذون", "مدرس خصوصي", "مؤلف", "صياد", "مصلح أحذية",
+    "جزار", "بائع لب", "عامل نظافة", "مأذون", "مدرس خصوصي", "مصمم ديكور", "صياد", "مصلح أحذية",
     "طباخ أفراح", "مغني", "كاوتشجي", "مندوب مبيعات", "موظف حكومة",
 
     // jobs
     "دكتور", "دكتور أسنان", "مهندس معماري", "أستاذ جامعة", "ناظر مدرسة", "مكوجي",
     "عسكري", "مضيفة طيران", "قبطان", "فلاح", "راعي غنم", "نقاش",
-    "بناء", "سواق تاكسي", "سواق أتوبيس", "شيف", "جرسون", "بياع جرايد",
+    "فني تكييف", "سواق تاكسي", "سواق أتوبيس", "شيف", "جرسون", "بياع جرايد",
     "بقال", "مسحراتي", "ترزي", "جنايني", "كمساري", "مخرج",
     "ملحن", "موسيقار", "شاعر", "مترجم", "كاشير", "بياع",
     "تاجر", "عالم", "مخترع", "عالم آثار", "رجل مطافي", "بياع فريسكا",
-    "بيطري", "مطرب", "حكم", "معلق رياضي", "بهلوان", "ساحر",
+    "دكتور بيطري", "عازف", "حكم", "معلق رياضي", "بهلوان", "ساحر",
     "مهرج", "عارض أزياء", "مصمم أزياء", "مصمم جرافيك", "يوتيوبر", "طيار حربي",
-    "ظابط جيش", "دبلوماسي", "سفير", "وزير", "عمدة", "إمام مسجد",
+    "ضابط جيش", "دبلوماسي", "سفير", "وزير", "عمدة", "إمام مسجد",
     "مؤذن", "قسيس", "شيخ", "أخصائي علاج طبيعي", "طبيب نفسي", "دكتور عيون",
     "دكتور أطفال", "صانع حلويات", "ساعاتي", "صائغ", "سمكري", "منجد"
   ],
   "أماكن": [
     "مدرسة", "مستشفى", "نادي", "سينما", "سوق", "مطار", "حديقة", "مطعم",
     "فندق", "بنك", "متحف", "ملاهي", "محطة قطار", "شاطئ البحر", "جيم", "مكتبة",
-    "غواصة", "محطة فضاء", "سيرك", "جزيرة", "قصر", "مزرعة", "صيدلية", "سوبر ماركت",
-    "كافيه", "جامعة", "مسجد", "ميناء", "محكمة", "مستودع", "نفق", "عيادة",
+    "مطعم بيتزا", "محطة فضاء", "سيرك", "جزيرة", "قصر", "مزرعة", "صيدلية", "سوبر ماركت",
+    "كافيه", "جامعة", "مسجد", "ميناء", "محكمة", "بازار", "نفق", "عيادة",
     "برج", "كهف", "بلكونة", "سجن", "حديقة حيوان", "قهوة بلدي", "مسرح", "غابة",
     "كشك", "قرية", "بئر", "منارة", "قلعة", "شلال", "مصنع", "مخبز",
     "الشهر العقاري", "مكتب محاماة", "كوبري", "ورشة", "كنيسة", "بنزينة", "فيلا", "قسم شرطة",
@@ -159,15 +161,15 @@ const SPY_WORDS = {
     // places
     "بيت", "عمارة", "شقة", "كوخ", "خيمة", "مخيم",
     "مدينة", "عاصمة", "شارع", "حارة", "ميدان", "رصيف",
-    "إشارة مرور", "موقف أتوبيس", "محل حلويات", "مكتب سفريات", "موقف عربيات", "حضانة",
-    "معمل", "مكتب بريد", "سفارة", "وزارة", "مجلس الشعب", "بلدية",
+    "مصيف", "موقف أتوبيس", "محل حلويات", "مكتب سفريات", "موقف عربيات", "حضانة",
+    "معمل", "مكتب بريد", "سفارة", "وزارة", "مجلس الشعب", "السجل المدني",
     "مطافي", "معبد", "مقابر", "بقالة", "مول", "محل هدوم",
     "محل جزم", "مكتبة أدوات", "فرن بلدي", "جزارة", "فكهاني", "خضري",
     "محل عصير", "مطعم فول وطعمية", "محل كشري", "شاليه", "منتجع", "محل ورد",
     "ملعب", "صالة بولينج", "فطاطري", "معرض", "أكوا بارك", "سنترال",
     "غيط", "حظيرة", "إسطبل", "مخزن", "شركة", "ناطحة سحاب",
-    "مركز شباب", "سد", "طاحونة", "نافورة", "هرم",
-    "مسلة", "معبد فرعوني", "صحراء", "واحة", "جبل", "نهر",
+    "مركز شباب", "سد", "طاحونة", "كورنيش", "هرم",
+    "قرية سياحية", "دير", "صحراء", "واحة", "جبل", "نهر",
     "بحيرة", "وادي", "صالون حلاقة", "مغسلة", "كوافير حريمي", "محل إلكترونيات",
     "محل ألعاب", "سايبر", "مغسلة عربيات", "صالة", "أوضة نوم", "حمام",
     "سطح", "بدروم", "جنينة البيت", "أوضة أطفال", "أوضة مكتب"
@@ -181,7 +183,7 @@ const SPY_WORDS = {
     "كرة قدم", "شطرنج", "بالون", "سبورة", "ميزان", "مقص", "جرس", "ستارة",
     "غلاية", "خوذة", "مفك", "بنطلون", "مخدة", "سجادة", "فوطة", "كبريت",
     "ولاعة", "شوكة", "معلقة", "طبق", "حلة", "بوتاجاز", "كليم", "شماعة",
-    "اباجورة", "راديو", "براية", "استيكة", "مقلمة", "منبه",
+    "أباجورة", "راديو", "براية", "أستيكة", "مقلمة", "منبه",
 
     // household
     "باب", "شباك", "قفل", "جرس الباب", "سلم", "أسانسير",
@@ -190,17 +192,17 @@ const SPY_WORDS = {
     "بطاقة شخصية", "رف", "نجفة", "لمبة", "مكيف", "دفاية",
     "سخان", "فانوس رمضان", "فريزر", "فرن", "ميكروويف", "غسالة أطباق",
     "مكنسة كهربا", "جاروف", "ممسحة", "جردل", "منشر غسيل", "مشبك غسيل",
-    "سلة غسيل", "طاسة", "كسرولة", "صينية", "صحن", "كوباية",
-    "فنجان", "مج", "ترمومتر", "براد شاي", "كنكة", "ترمس",
+    "سلة غسيل", "طاسة", "كسرولة", "صينية", "سلطانية", "كوباية",
+    "فنجان", "مج", "ترمومتر", "سكرية", "كنكة", "ترمس",
     "سكينة", "مغرفة", "مصفاة", "مبشرة", "فتاحة", "خلاط",
     "عصارة", "توستر", "هون", "لوح تقطيع", "نشابة", "منخل",
-    "ميزان مطبخ", "كارت شحن", "شامبو", "معجون سنان", "ترنج", "مشط",
+    "ميزان مطبخ", "كارت شحن", "شامبو", "معجون أسنان", "ترينج", "مشط",
     "فرشة شعر", "مجفف شعر", "مقص أظافر", "ماكينة حلاقة", "بانيو", "دش",
-    "حوض", "حنفية", "سيفون", "شطاف", "منشفة", "برنس",
+    "حوض", "حنفية", "سيفون", "شطاف", "معطر جو", "برنس",
     "مناديل", "ليفة", "ساعة حائط", "برواز", "لوحة", "فازة",
     "أصيص زرع", "شمعدان", "رسيفر", "دش ستالايت", "فيشة", "مشترك كهربا",
-    "سلك", "بطارية", "كشاف", "شنطة", "سلسلة مفاتيح", "صندوق",
-    "كرتونة", "كيس بلاستيك", "برطمان", "قزازة", "علبة", "مخدة كنبة",
+    "سلك", "بطارية", "كشاف", "شنطة", "دبوس", "صندوق",
+    "كرتونة", "كيس بلاستيك", "برطمان", "فلتر مية", "علبة", "مخدة كنبة",
     "سجادة صلاة", "مصحف", "سبحة", "مبخرة", "زرع صناعي", "حصالة",
     "ألبوم صور", "لعبة أطفال", "عربية أطفال",
 
@@ -208,7 +210,7 @@ const SPY_WORDS = {
     "شاكوش", "مسمار", "مسمار قلاووظ", "منشار", "كماشة", "زرادية",
     "مفتاح إنجليزي", "شنيور", "متر", "ميزان مية", "مبرد", "إزميل",
     "فأس", "كوريك", "مقص شجر", "خرطوم", "مرشة", "عربية يد",
-    "سلم خشب", "فرشة دهان", "رول دهان", "جردل بوية", "شريط لاصق", "غرا",
+    "سلم خشب", "فرشة دهان", "رول دهان", "جردل بوية", "شريط لاصق", "غراء",
     "صنفرة", "كاوية لحام", "مسدس شمع", "منشار كهربا", "كورة شراب", "صامولة",
     "مفرش سفرة", "عدة", "شنطة عدة", "جوانتي شغل", "نظارة لحام", "مقص صاج",
     "منجل",
@@ -216,13 +218,13 @@ const SPY_WORDS = {
     // clothes
     "قميص", "تيشيرت", "جينز", "شورت", "جلابية", "عباية",
     "فستان", "جيبة", "بلوزة", "بلوفر", "جاكيت", "بالطو",
-    "جاكت جلد", "بدلة", "صديري", "كرافتة", "بابيون", "بيجامة",
+    "جاكيت جلد", "بدلة", "صديري", "كرافتة", "بابيون", "بيجامة",
     "روب", "مايوه", "شراب", "كولون", "جزمة", "كوتشي",
     "شبشب", "صندل", "بوت", "كعب عالي", "طاقية", "كاب",
     "برنيطة", "طرحة", "إيشارب", "كوفية", "جوانتي", "حزام",
     "نظارة شمس", "خاتم", "دبلة", "سلسلة", "حلق", "أسورة",
     "خلخال", "تاج", "بروش", "زرار", "سوستة", "شنطة يد",
-    "شنطة ضهر", "منديل", "مريلة", "يونيفورم", "زي مدرسة", "عمة",
+    "شنطة ضهر", "منديل", "مريلة", "يونيفورم", "شال", "عمة",
     "طربوش", "حصيرة",
 
     // school
@@ -231,7 +233,7 @@ const SPY_WORDS = {
     "ظرف", "طابع", "آلة حاسبة", "برجل", "منقلة", "مثلث هندسة",
     "قاموس", "أطلس", "دفتر", "مكتب", "كرسي مكتب", "درج",
     "ملف", "حافظة ورق", "ختم", "لوحة إعلانات", "جرس المدرسة", "زمزمية",
-    "ساندوتش المدرسة",
+    "لانش بوكس",
 
     // tech
     "موبايل", "تابلت", "كمبيوتر", "شاشة", "كيبورد", "ماوس",
@@ -249,24 +251,24 @@ const SPY_WORDS = {
     "Panasonic", "Oppo", "Huawei", "Lipton", "Carrefour", "Kia", "Nikon", "Dell",
     "Visa", "Dunkin'", "أولكس", "فوري", "جوميا", "عبور لاند", "جهينة", "كريازي",
     "يونيفرسال", "Uber", "Pringles", "Vanish", "Persil", "Ariel", "Lux", "Pantene",
-    "Nokia", "Realme", "Nescafe"
+    "Nokia", "Realme", "Nescafé"
   ],
   "شخصيات مشهورة": [
     "محمد صلاح", "عادل إمام", "عمرو دياب", "أم كلثوم", "نجيب محفوظ", "أحمد زويل", "مجدي يعقوب", "تامر حسني",
     "محمد رمضان", "سمير غانم", "محمد منير", "إسماعيل ياسين", "سعاد حسني", "شريهان", "إسعاد يونس", "رامز جلال",
-    "هنيدي", "أشرف عبد الباقي", "حمو بيكا", "ويجز", "توت عنخ آمون", "كليوباترا", "السادات", "جمال عبد الناصر",
-    "بوجي وطمطم", "بكار", "فطوطة", "ميكي ماوس", "سبونج بوب", "سوبر مان", "باتمان", "فاندام",
-    "ليونيل ميسي", "كريستيانو رونالدو", "أبو تريكة", "شيكابالا", "أفشة", "الخطيب", "محمد صبحي", "مدحت شلبي"
+    "محمد هنيدي", "أشرف عبد الباقي", "حمو بيكا", "ويجز", "توت عنخ آمون", "كليوباترا", "السادات", "جمال عبد الناصر",
+    "بوجي وطمطم", "بكار", "فطوطة", "ميكي ماوس", "سبونج بوب", "سوبرمان", "باتمان", "فاندام",
+    "ليونيل ميسي", "كريستيانو رونالدو", "أبو تريكة", "شيكابالا", "أفشة", "محمود الخطيب", "محمد صبحي", "مدحت شلبي"
   ],
 
   "مواصلات": [
     // vehicles
     "عربية", "تاكسي", "أتوبيس", "ميكروباص", "توك توك", "موتوسيكل",
     "عجلة", "سكوتر", "قطر", "مترو", "ترام", "طيارة",
-    "هليكوبتر", "صاروخ", "فلوكة", "سفينة", "يخت", "لانش",
-    "منطاد", "عربية إسعاف", "عربية مطافي", "عربية شرطة", "جرار", "ونش",
-    "لودر", "تريلا", "نقل", "ربع نقل", "حنطور", "عربية كارو",
-    "سكيت بورد", "زلاجة", "جيت سكي", "عبارة", "تلفريك", "قطر سريع",
+    "هليكوبتر", "مركب", "فلوكة", "سفينة", "يخت", "لانش",
+    "أتوبيس مدرسة", "عربية إسعاف", "عربية مطافي", "عربية شرطة", "جرار", "ونش",
+    "قطر نوم", "تريلا", "نقل", "ربع نقل", "حنطور", "عربية كارو",
+    "ليموزين", "ترسيكل", "جيت سكي", "عبارة", "تلفريك", "قطر سريع",
     "عربية سباق", "جيب"
   ],
   "رياضات": [
@@ -279,7 +281,7 @@ const SPY_WORDS = {
     "جودو", "تايكوندو", "كونغ فو", "مبارزة", "رماية", "رماية بالقوس",
     "فروسية", "سباق خيل", "ركوب دراجات", "سباق عربيات", "تزلج على الجليد", "تزلج على الثلج",
     "تسلق جبال", "يوجا", "أيروبكس", "زومبا", "بولينج", "بلياردو",
-    "رقص باليه", "كريكيت", "بيسبول", "رجبي", "كرة قدم أمريكية", "سباق حواجز",
+    "كرة طائرة شاطئية", "كريكيت", "بيسبول", "رجبي", "كرة قدم أمريكية", "سباق حواجز",
     "مشي سريع", "ترايثلون", "باركور", "نط الحبل"
   ],
   "دول ومدن": [
@@ -317,7 +319,7 @@ const SPY_WORDS = {
     // instruments
     "عود", "قانون", "ناي", "كمان", "تشيلو", "كونترباص",
     "جيتار", "جيتار كهربا", "بيانو", "أورج", "طبلة", "دف",
-    "رق", "درامز", "سمسمية", "صفارة", "ساكسفون", "كلارينيت",
+    "رق", "درامز", "سمسمية", "طار", "ساكسفون", "كلارينيت",
     "فلوت", "ترومبون", "مندولين", "أكورديون", "هارمونيكا", "مزمار",
     "ربابة", "بزق", "صاجات", "مثلث موسيقى", "بوق"
   ]
@@ -334,9 +336,9 @@ const SPY_PAIRS = [
   ['قهوة', 'نسكافيه'], ['شاي', 'ينسون'], ['كشري', 'مكرونة'], ['فول', 'طعمية'],
   ['ملوخية', 'بامية'], ['كنافة', 'بسبوسة'], ['محشي', 'ورق عنب'], ['فطير', 'بيتزا'],
   ['عصير مانجو', 'عصير جوافة'], ['آيس كريم', 'مهلبية'], ['شاورما', 'برجر'],
-  ['سينما', 'مسرح'], ['تلفزيون', 'راديو'], ['كمبيوتر', 'لابتوب'], ['تابلت', 'موبايل'],
+  ['سينما', 'مسرح'], ['تليفزيون', 'راديو'], ['كمبيوتر', 'لابتوب'], ['تابلت', 'موبايل'],
   ['فيسبوك', 'إنستجرام'], ['واتساب', 'ماسنجر'], ['يوتيوب', 'تيك توك'],
-  ['بحر', 'نهر'], ['إسكندرية', 'الغردقة'], ['القاهرة', 'الجيزة'], ['الأقصر', 'أسوان'],
+  ['بحر', 'نهر'], ['الإسكندرية', 'الغردقة'], ['القاهرة', 'الجيزة'], ['الأقصر', 'أسوان'],
   ['أتوبيس', 'ميكروباص'], ['مترو', 'قطر'], ['تاكسي', 'أوبر'], ['عجلة', 'موتوسيكل'],
   ['طيارة', 'هليكوبتر'], ['مركب', 'لانش'],
   ['دكتور', 'صيدلي'], ['مدرس', 'ناظر'], ['شرطي', 'عسكري'], ['محامي', 'قاضي'],
@@ -348,7 +350,7 @@ const SPY_PAIRS = [
   ['تكييف', 'مروحة'], ['ثلاجة', 'فريزر'], ['غسالة', 'نشافة'], ['كنبة', 'كرسي'],
   ['سرير', 'مرتبة'], ['شباك', 'بلكونة'], ['عمارة', 'فيلا'], ['مطبخ', 'حمام'],
   ['عيد الفطر', 'عيد الأضحى'], ['فرح', 'خطوبة'], ['سبوع', 'عيد ميلاد'], ['عزومة', 'بوفيه'],
-  ['شنطة', 'محفظة'], ['ساعة', 'أسورة'], ['نضارة شمس', 'نضارة طبية'], ['جزمة', 'شبشب'],
+  ['شنطة', 'محفظة'], ['ساعة', 'أسورة'], ['نظارة شمس', 'نظارة طبية'], ['جزمة', 'شبشب'],
   ['تيشيرت', 'قميص'], ['بنطلون', 'شورت'],
   ['صيدلية', 'مستشفى'], ['بنك', 'مكتب بريد'], ['سوبر ماركت', 'بقالة'], ['مول', 'سوق'],
   ['كافيه', 'مطعم'], ['فرن', 'محل حلويات']
@@ -399,17 +401,17 @@ const SPY_WORDS_EN = {
     "Shark", "Octopus", "Squid", "Jellyfish", "Starfish", "Crab",
     "Lobster", "Shrimp", "Oyster", "Seahorse", "Clownfish", "Tuna",
     "Salmon", "Sardine", "Eel", "Stingray", "Sea Turtle", "Goldfish",
-    "Swordfish", "Pufferfish", "Sea Urchin", "Mussel", "Tilapia", "Coral",
+    "Swordfish", "Pufferfish", "Sea Urchin", "Mussel", "Tilapia", "Hammerhead Shark",
 
     // reptiles, amphibians and bugs
     "Frog", "Toad", "Chameleon", "Iguana", "Cobra", "Python",
     "Viper", "Alligator", "Komodo Dragon", "Tadpole", "Spider", "Tarantula",
     "Ladybird", "Beetle", "Grasshopper", "Cricket", "Dragonfly", "Moth",
     "Wasp", "Hornet", "Termite", "Firefly", "Snail", "Caterpillar",
-    "Centipede", "Flea", "Praying Mantis", "Silkworm", "Scarab", "Earthworm"
+    "Centipede", "Flea", "Praying Mantis", "Silkworm", "Scarab", "Stick Insect"
   ],
   "Food": [
-    "Koshari", "Ful Medames", "Falafel", "Molokhia", "Stuffed Vine Leaves", "Stuffed Peppers", "Fattah", "Mahshi",
+    "Koshari", "Ful Medames", "Falafel", "Molokhia", "Stuffed Vine Leaves", "Stuffed Pigeon", "Fattah", "Mahshi",
     "Shawarma", "Kofta", "Kebab", "Grilled Chicken", "Roast Chicken", "Fried Chicken", "Chicken Nuggets", "Chicken Wings",
     "Fish and Chips", "Grilled Fish", "Fried Fish", "Shrimp", "Calamari", "Sushi", "Tuna Sandwich", "Sardines",
     "Pizza", "Burger", "Cheeseburger", "Hot Dog", "Sandwich", "Club Sandwich", "Toast", "Wrap",
@@ -423,7 +425,7 @@ const SPY_WORDS_EN = {
     "Lamb Chops", "Mixed Grill", "Stew", "Lentil Soup", "Tomato Soup", "Chicken Soup", "Mushroom Soup", "Vegetable Soup",
     "Greek Salad", "Caesar Salad", "Fruit Salad", "Tabbouleh", "Fattoush", "Coleslaw", "Hummus", "Baba Ghanoush",
     "Tahini", "Pickles", "Olives", "Cheese", "Cheddar", "Mozzarella", "Feta", "Cream Cheese",
-    "Butter", "Yoghurt", "Milk", "Honey", "Jam", "Peanut Butter", "Nutella", "Molasses",
+    "Butter", "Yoghurt", "Moussaka", "Honey", "Jam", "Peanut Butter", "Nutella", "Molasses",
     "Bread", "Pitta Bread", "Baguette", "Crackers", "Breadsticks", "Rusks", "Popcorn", "Crisps",
     "Chips", "Mashed Potatoes", "Baked Potato", "Potato Wedges", "Onion Rings", "Corn on the Cob", "Roasted Sweet Potato", "Peanuts",
     "Apple", "Banana", "Orange", "Mango", "Strawberry", "Grapes", "Watermelon", "Melon",
@@ -433,24 +435,24 @@ const SPY_WORDS_EN = {
     "Cabbage", "Cauliflower", "Broccoli", "Spinach", "Aubergine", "Courgette", "Peas", "Green Beans",
     "Okra", "Mushroom", "Sweetcorn", "Pumpkin", "Beetroot", "Celery", "Radish", "Avocado",
     "Almonds", "Cashews", "Pistachios", "Walnuts", "Hazelnuts", "Raisins", "Sunflower Seeds", "Chestnuts",
-    "Chocolate Bar", "Lollipop", "Candy Floss", "Marshmallow", "Chewing Gum", "Toffee", "Gummy Bears", "Jelly Beans",
-    "Tea", "Coffee", "Hot Chocolate", "Milkshake", "Smoothie", "Lemonade", "Orange Juice", "Mango Juice",
-    "Sugarcane Juice", "Hibiscus Drink", "Tamarind Drink", "Sahlab", "Mint Tea", "Iced Coffee", "Cappuccino", "Sparkling Water",
-    "Ketchup", "Mayonnaise", "Mustard", "Barbecue Sauce", "Hot Sauce", "Garlic Sauce", "Salt", "Black Pepper",
-    "Cumin", "Cinnamon", "Paprika", "Vinegar", "Olive Oil", "Sugar", "Flour", "Rice",
-    "Lentils", "Chickpeas", "Beans", "Oats", "Corn Flakes", "Granola", "Protein Bar", "Iced Tea",
-    "Spring Rolls", "Dumplings", "Samosa", "Sambousek", "Kibbeh", "Manakish", "Cheese Pie", "Meat Pie",
-    "Quiche", "Fish Fingers", "Chicken Burger", "Veggie Burger", "Chicken Shawarma", "Beef Burger", "Pepperoni Pizza", "Margherita Pizza"
+    "Chocolate Bar", "Lollipop", "Candy Floss", "Marshmallow", "Ice Lolly", "Toffee", "Gummy Bears", "Jelly Beans",
+    "Sayadeya", "Shish Tawook", "Kabsa", "Mandi", "Maqluba", "Chicken Curry", "Fajitas", "Garlic Bread",
+    "Hash Browns", "Potato Salad", "Crêpe", "Scones", "Swiss Roll", "Trifle", "Tiramisu", "Eclair",
+    "Fruit Tart", "Prickly Pear", "Tangerine", "Grapefruit", "Papaya", "Lychee", "Artichoke", "Leek",
+    "Turnip", "Asparagus", "Lupini Beans", "Brioche", "Pretzel", "Chicken Escalope", "Oxtail", "Rice",
+    "Lentils", "Chickpeas", "Beans", "Oats", "Corn Flakes", "Granola", "Protein Bar", "Fish Cakes",
+    "Spring Rolls", "Dumplings", "Samosa", "Roast Turkey", "Kibbeh", "Manakish", "Cheese Pie", "Meat Pie",
+    "Quiche", "Fish Fingers", "Chicken Burger", "Veggie Burger", "Mulberries", "Sorbet", "Pepperoni Pizza", "Margherita Pizza"
   ],
   "Jobs": [
     "Engineer", "Petrol Station Attendant", "Carpenter", "Teacher", "Pilot", "Plumber", "Lawyer", "Cook",
     "Mechanic", "Electrician", "Astronaut", "Police Officer", "Journalist", "Actor", "Programmer", "Painter",
     "Pharmacist", "Photographer", "Phone Repairer", "Accountant", "Judge", "Barber", "Nurse", "Writer",
-    "Footballer", "Surgeon", "TV Presenter", "Builder", "Postman", "Security Guard", "Baker", "Chemist",
+    "Footballer", "Surgeon", "TV Presenter", "Builder", "Postman", "Security Guard", "Baker", "Lab Technician",
     "Sailor", "Coach", "Sculptor", "Cowboy", "Secretary", "Lumberjack", "Estate Agent", "Detective",
     "Diver", "Lifeguard", "Shop Assistant", "Blacksmith", "Tour Guide", "Driver", "Hairdresser", "Doorman",
-    "Delivery Driver", "Bank Clerk", "Parking Attendant", "Greengrocer", "Butcher", "Cleaner", "Private Tutor", "Author",
-    "Fisherman", "Shoemaker", "Singer", "Tyre Fitter", "Salesperson", "Civil Servant", "Doctor", "Dentist",
+    "Delivery Driver", "Bank Clerk", "Parking Attendant", "Greengrocer", "Butcher", "Cleaner", "Private Tutor", "Locksmith",
+    "Fisherman", "Shoemaker", "Singer", "Tyre Fitter", "Travel Agent", "Civil Servant", "Doctor", "Dentist",
     "Architect", "Professor", "Headteacher", "Soldier", "Flight Attendant", "Ship Captain", "Farmer", "Shepherd",
     "Decorator", "Taxi Driver", "Bus Driver", "Chef", "Waiter", "Newsagent", "Grocer", "Tailor",
     "Gardener", "Ticket Inspector", "Film Director", "Composer", "Musician", "Poet", "Translator", "Cashier",
@@ -459,29 +461,29 @@ const SPY_WORDS_EN = {
     "Army Officer", "Diplomat", "Ambassador", "Minister", "Mayor", "Imam", "Priest", "Physiotherapist",
     "Psychologist", "Eye Doctor", "Children's Doctor", "Pastry Chef", "Watchmaker", "Jeweller", "Upholsterer", "Librarian",
     "Receptionist", "Paramedic", "Zookeeper", "Florist", "Window Cleaner", "Bin Collector", "Train Driver", "Air Traffic Controller",
-    "Weather Forecaster", "News Reader", "Radio Presenter", "Cameraman", "Makeup Artist", "Dance Teacher", "Swimming Coach", "Personal Trainer",
-    "Optician", "Midwife", "Social Worker", "Banker", "Economist", "Politician", "Interior Designer"
+    "Weather Forecaster", "Stuntman", "Radio Presenter", "Cameraman", "Makeup Artist", "Dance Teacher", "Swimming Coach", "Personal Trainer",
+    "Optician", "Midwife", "Social Worker", "Banker", "Economist", "Potter", "Interior Designer"
   ],
   "Places": [
     "School", "Hospital", "Sports Club", "Cinema", "Market", "Airport", "Park", "Restaurant",
     "Hotel", "Bank", "Museum", "Theme Park", "Train Station", "Beach", "Gym", "Library",
-    "Submarine", "Space Station", "Circus", "Island", "Palace", "Farm", "Pharmacy", "Supermarket",
+    "Food Court", "Space Station", "Circus", "Island", "Palace", "Farm", "Pharmacy", "Supermarket",
     "Café", "University", "Mosque", "Port", "Courtroom", "Warehouse", "Tunnel", "Clinic",
-    "Tower", "Cave", "Balcony", "Prison", "Zoo", "Coffee Shop", "Theatre", "Forest",
+    "Tower", "Cave", "Balcony", "Prison", "Zoo", "Ice Cream Parlour", "Theatre", "Forest",
     "Kiosk", "Village", "Well", "Lighthouse", "Castle", "Waterfall", "Factory", "Bakery",
     "Post Office", "Law Office", "Bridge", "Workshop", "Church", "Petrol Station", "Villa", "Police Station",
     "Laboratory", "Language School", "Phone Shop", "Garage", "Studio", "Swimming Pool", "Wedding Hall", "Opera House",
     "Metro Station", "Fish Restaurant", "Stadium", "Car Showroom", "Kitchen", "Spice Shop", "House", "Block of Flats",
     "Flat", "Hut", "Tent", "Campsite", "City", "Capital City", "Street", "Alley",
-    "Square", "Pavement", "Traffic Lights", "Bus Stop", "Sweet Shop", "Travel Agency", "Car Park", "Nursery",
+    "Square", "Pavement", "Bus Station", "Bus Stop", "Sweet Shop", "Travel Agency", "Car Park", "Nursery",
     "Embassy", "Ministry", "Parliament", "Town Hall", "Fire Station", "Temple", "Cemetery", "Corner Shop",
     "Shopping Mall", "Clothes Shop", "Shoe Shop", "Bookshop", "Butcher's", "Fruit Shop", "Juice Bar", "Koshari Shop",
-    "Chalet", "Resort", "Flower Shop", "Football Pitch", "Bowling Alley", "Exhibition", "Water Park", "Barn",
-    "Stable", "Storeroom", "Office", "Skyscraper", "Youth Centre", "Dam", "Windmill", "Fountain",
-    "Pyramid", "Obelisk", "Desert", "Oasis", "Mountain", "River", "Lake", "Valley",
+    "Chalet", "Resort", "Flower Shop", "Football Pitch", "Bowling Alley", "Exhibition Centre", "Water Park", "Barn",
+    "Stable", "Bazaar", "Office", "Skyscraper", "Youth Centre", "Dam", "Windmill", "Seafront",
+    "Pyramid", "Holiday Village", "Desert", "Oasis", "Mountain", "River", "Lake", "Valley",
     "Barber's Shop", "Laundrette", "Beauty Salon", "Electronics Shop", "Toy Shop", "Car Wash", "Living Room", "Bedroom",
     "Bathroom", "Roof", "Basement", "Garden", "Children's Room", "Study", "Playground", "Aquarium",
-    "Planetarium", "Ice Rink", "Car Factory", "Harbour", "Vet's Surgery", "Dentist's Surgery", "Hairdresser's", "Cable Car"
+    "Planetarium", "Ice Rink", "Karting Track", "Pier", "Vet's Surgery", "Dentist's Surgery", "Dry Cleaner's", "Fish Market"
   ],
   "Things": [
     "Phone", "Laptop", "Tablet", "Headphones", "Television", "Camera", "Remote Control", "Charger",
@@ -510,8 +512,8 @@ const SPY_WORDS_EN = {
     "Ring", "Necklace", "Bracelet", "Earrings", "Perfume", "Lipstick", "Nail Polish", "Hair Clip",
     "Guitar", "Drum", "Piano", "Microphone", "Speaker", "Radio", "Keyboard", "Mouse",
     "Printer", "Router", "Memory Stick", "Power Bank", "Games Console", "Joystick", "Smartwatch", "Projector",
-    "Car", "Bicycle", "Tyre", "Steering Wheel", "Seat Belt", "Helmet", "Skateboard", "Scooter",
-    "Tree", "Flower", "Plant Pot", "Watering Can", "Bench", "Swing", "Slide", "Sandpit",
+    "Car Key", "Bicycle Pump", "Tyre", "Steering Wheel", "Seat Belt", "Helmet", "Skateboard", "Scooter",
+    "Hammock", "Bouquet", "Plant Pot", "Watering Can", "Bench", "Swing", "Slide", "Sandpit",
     "Money", "Coin", "Credit Card", "Receipt", "Ticket", "Passport", "Gift", "Wrapping Paper",
     "Trophy", "Medal", "Whistle", "Stopwatch", "Binoculars", "Telescope", "Microscope", "Magnifying Glass",
     "Birthday Candle", "Party Hat", "Ramadan Lantern", "Prayer Mat", "Rosary Beads", "Flag", "Mailbox", "Doorbell",
@@ -543,9 +545,9 @@ const SPY_WORDS_EN = {
   ],
   "Transport": [
     "Car", "Taxi", "Bus", "Minibus", "Tuk-tuk", "Motorbike", "Bicycle", "Scooter",
-    "Train", "Metro", "Tram", "Aeroplane", "Helicopter", "Rocket", "Felucca", "Ship",
-    "Yacht", "Speedboat", "Hot-air Balloon", "Ambulance", "Fire Engine", "Police Car", "Tractor", "Tow Truck",
-    "Digger", "Lorry", "Van", "Pick-up Truck", "Horse and Carriage", "Donkey Cart", "Skateboard", "Sledge",
+    "Train", "Metro", "Tram", "Aeroplane", "Helicopter", "Boat", "Felucca", "Ship",
+    "Yacht", "Speedboat", "School Bus", "Ambulance", "Fire Engine", "Police Car", "Tractor", "Tow Truck",
+    "Sleeper Train", "Lorry", "Van", "Pick-up Truck", "Horse and Carriage", "Donkey Cart", "Limousine", "Monorail",
     "Jet Ski", "Ferry", "Cable Car", "Bullet Train", "Racing Car", "Jeep"
   ],
   "Sports": [
@@ -555,7 +557,7 @@ const SPY_WORDS_EN = {
     "Weightlifting", "Bodybuilding", "Gymnastics", "Boxing", "Wrestling", "Karate", "Judo", "Taekwondo",
     "Kung Fu", "Fencing", "Shooting", "Archery", "Show Jumping", "Horse Racing", "Cycling", "Motor Racing",
     "Ice Skating", "Skiing", "Mountain Climbing", "Yoga", "Aerobics", "Zumba", "Bowling", "Snooker",
-    "Ballet", "Cricket", "Baseball", "Rugby", "American Football", "Hurdles", "Race Walking", "Triathlon",
+    "Beach Volleyball", "Cricket", "Baseball", "Rugby", "American Football", "Hurdles", "Race Walking", "Triathlon",
     "Parkour", "Skipping"
   ],
   "Countries & cities": [
@@ -581,7 +583,7 @@ const SPY_WORDS_EN = {
   ],
   "Musical instruments": [
     "Oud", "Qanun", "Ney Flute", "Violin", "Cello", "Double Bass", "Guitar", "Electric Guitar",
-    "Piano", "Electric Organ", "Tabla", "Tambourine", "Riq", "Drum Kit", "Simsimiyya", "Whistle",
+    "Piano", "Electric Organ", "Tabla", "Tambourine", "Riq", "Drum Kit", "Simsimiyya", "Xylophone",
     "Saxophone", "Clarinet", "Flute", "Trombone", "Mandolin", "Accordion", "Harmonica", "Mizmar",
     "Rebab", "Banjo", "Finger Cymbals", "Triangle", "Trumpet"
   ]

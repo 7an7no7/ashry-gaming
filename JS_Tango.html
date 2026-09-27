@@ -8,127 +8,25 @@
    One step can be taken back (↶); clearing the board and dealing a new one
    over a game in progress both ask first.
 
-   Made here: a full valid grid at random (tangoFill), then clues - given
-   cells and signs - added in a random order until tangoCount finds exactly
-   one solution, and taken away again while it still does. Easy keeps some
-   of the removed givens back; hard stays minimal. The daily comes from the
-   seed. The board is in appState.tango.
+   The grid is made in Tango.js (shared with the rooms server, which deals a
+   race's grid): a full valid grid, then the fewest clues that leave one
+   solution. The daily comes from the seed. The board is in appState.tango.
+
+   In سباق ألغاز (RACE_UI.tango, JS_RoomRace.html) the same grid and taps play
+   the room's puzzle: the state is the race's (soloRaceState), the stage the
+   race screen's (soloStage), every change is sent as `move { cells }` and
+   the server says when the grid is the solution. No hint in a race.
    ========================================================================= */
 
-const TANGO_N = 6;
 let tangoTimer = null;
 
 function tangoState() {
+  const race = soloRaceState('tango');
+  if (race) return race;
   if (!appState.tango) {
     appState.tango = { level: 'easy', daily: '', solution: [], givens: [], signs: [], cells: [], undo: null, hints: 0, startedAt: 0, pausedAt: 0, phase: 'setup' };
   }
   return appState.tango;
-}
-
-/* --- The puzzle ---------------------------------------------------------------- */
-
-/** Whether value v fits at i with the rows and columns filled so far (0 empty, 1 sun, 2 moon). */
-function tangoFits(g, i, v) {
-  const N = TANGO_N;
-  const r = Math.floor(i / N), c = i % N;
-  let rowCount = 0, colCount = 0;
-  for (let k = 0; k < N; k++) {
-    if (g[r * N + k] === v) rowCount++;
-    if (g[k * N + c] === v) colCount++;
-  }
-  if (g[i] !== v) { rowCount++; colCount++; }
-  if (rowCount > N / 2 || colCount > N / 2) return false;
-  const at = (rr, cc) => (rr === r && cc === c) ? v : g[rr * N + cc];
-  for (let k = Math.max(0, c - 2); k <= Math.min(N - 3, c); k++) {
-    if (at(r, k) === v && at(r, k + 1) === v && at(r, k + 2) === v) return false;
-  }
-  for (let k = Math.max(0, r - 2); k <= Math.min(N - 3, r); k++) {
-    if (at(k, c) === v && at(k + 1, c) === v && at(k + 2, c) === v) return false;
-  }
-  return true;
-}
-
-function tangoFill(rnd) {
-  const g = new Array(TANGO_N * TANGO_N).fill(0);
-  const go = (i) => {
-    if (i === g.length) return true;
-    for (const v of soloShuffle([1, 2], rnd)) {
-      if (!tangoFits(g, i, v)) continue;
-      g[i] = v;
-      if (go(i + 1)) return true;
-      g[i] = 0;
-    }
-    return false;
-  };
-  go(0);
-  return g;
-}
-
-/** How many solutions (up to limit) given cells and signs [{ a, b, same }]. */
-function tangoCount(givens, signs, limit) {
-  const g = givens.slice();
-  const bySign = {};
-  signs.forEach(s => { (bySign[s.a] = bySign[s.a] || []).push(s); (bySign[s.b] = bySign[s.b] || []).push(s); });
-  let found = 0;
-  const signOk = (i) => (bySign[i] || []).every(s => {
-    const x = g[s.a], y = g[s.b];
-    return !x || !y || (s.same ? x === y : x !== y);
-  });
-  const go = (i) => {
-    if (i === g.length) { found++; return found >= limit; }
-    if (givens[i]) return signOk(i) && go(i + 1);
-    for (const v of [1, 2]) {
-      if (!tangoFits(g, i, v)) continue;
-      g[i] = v;
-      if (signOk(i) && go(i + 1)) return true;
-      g[i] = 0;
-    }
-    return false;
-  };
-  // Given cells must themselves be consistent.
-  for (let i = 0; i < g.length; i++) if (g[i]) { const v = g[i]; g[i] = 0; const ok = tangoFits(g, i, v); g[i] = v; if (!ok) return 0; }
-  go(0);
-  return found;
-}
-
-function tangoMake(level, rnd) {
-  const N = TANGO_N;
-  const solution = tangoFill(rnd);
-  const pool = [];
-  for (let i = 0; i < N * N; i++) {
-    pool.push({ kind: 'cell', i: i });
-    if (i % N < N - 1) pool.push({ kind: 'sign', a: i, b: i + 1 });
-    if (i + N < N * N) pool.push({ kind: 'sign', a: i, b: i + N });
-  }
-  const chosen = [];
-  const build = (list) => {
-    const givens = new Array(N * N).fill(0);
-    const signs = [];
-    list.forEach(cl => {
-      if (cl.kind === 'cell') givens[cl.i] = solution[cl.i];
-      else signs.push({ a: cl.a, b: cl.b, same: solution[cl.a] === solution[cl.b] });
-    });
-    return { givens: givens, signs: signs };
-  };
-  for (const clue of soloShuffle(pool, rnd)) {
-    chosen.push(clue);
-    const b = build(chosen);
-    if (tangoCount(b.givens, b.signs, 2) === 1) break;
-  }
-  // Take clues away again while the solution stays the only one.
-  const removed = [];
-  for (const clue of soloShuffle(chosen.slice(), rnd)) {
-    const without = chosen.filter(x => x !== clue);
-    const b = build(without);
-    if (tangoCount(b.givens, b.signs, 2) === 1) { chosen.splice(chosen.indexOf(clue), 1); removed.push(clue); }
-  }
-  // Easy gets a few of the removed given cells back.
-  if (level !== 'hard') {
-    const extra = removed.filter(x => x.kind === 'cell').slice(0, level === 'easy' ? 5 : 2);
-    extra.forEach(x => chosen.push(x));
-  }
-  const b = build(chosen);
-  return { solution: solution, givens: b.givens, signs: b.signs };
 }
 
 /* --- Setup and play --------------------------------------------------------------- */
@@ -202,38 +100,13 @@ function tangoStopTimer() {
   tangoTimer = null;
 }
 
-/** Cells breaking a rule right now: a row or column over three of a kind, three in a row, a sign. */
-function tangoProblems(s) {
-  const N = TANGO_N;
-  const g = s.cells;
-  const bad = new Set();
-  for (let k = 0; k < N; k++) {
-    [1, 2].forEach(v => {
-      const row = [], col = [];
-      for (let j = 0; j < N; j++) { if (g[k * N + j] === v) row.push(k * N + j); if (g[j * N + k] === v) col.push(j * N + k); }
-      if (row.length > N / 2) row.forEach(i => bad.add(i));
-      if (col.length > N / 2) col.forEach(i => bad.add(i));
-    });
-    for (let j = 0; j <= N - 3; j++) {
-      const a = k * N + j;
-      if (g[a] && g[a] === g[a + 1] && g[a] === g[a + 2]) [a, a + 1, a + 2].forEach(i => bad.add(i));
-      const b = j * N + k;
-      if (g[b] && g[b] === g[b + N] && g[b] === g[b + 2 * N]) [b, b + N, b + 2 * N].forEach(i => bad.add(i));
-    }
-  }
-  s.signs.forEach(x => {
-    if (g[x.a] && g[x.b] && (x.same ? g[x.a] !== g[x.b] : g[x.a] === g[x.b])) { bad.add(x.a); bad.add(x.b); }
-  });
-  return bad;
-}
-
 function paintTango() {
   const s = tangoState();
   const t = TRANSLATIONS[appState.lang];
-  const el = document.getElementById('tango-stage');
-  if (!el || !s.solution.length) return;
+  const el = soloStage('tango-stage');
+  if (!el || !s.givens.length) return;
   const N = TANGO_N;
-  const bad = tangoProblems(s);
+  const bad = tangoProblems(s.cells, s.signs);
   const signAt = {};
   s.signs.forEach(x => { signAt[x.a + '-' + x.b] = x.same ? '=' : '×'; });
   const bar = soloBarHtml([
@@ -262,13 +135,13 @@ function paintTango() {
         <div class="sdk-tools">
           <button type="button" class="btn btn--neutral btn--sm" onclick="undoTango()" ${s.undo && s.phase === 'play' ? '' : 'disabled'}>↶ ${escapeHTML(t.solo_undo || '')}</button>
           <button type="button" class="btn btn--neutral btn--sm" onclick="clearTango()">🧹 ${escapeHTML(t.queens_clear || '')}</button>
-          <button type="button" class="btn btn--neutral btn--sm" onclick="hintTango()">💡 ${escapeHTML(t.solo_hint || '')}</button>
+          ${s.race ? '' : `<button type="button" class="btn btn--neutral btn--sm" onclick="hintTango()">💡 ${escapeHTML(t.solo_hint || '')}</button>`}
         </div>
       </div>
     </div>
-    <div class="view-actions">
+    ${s.race ? '' : `<div class="view-actions">
       <button class="btn btn--ghost btn--sm" onclick="setupTango()">${escapeHTML(t.exit || '')}</button>
-    </div>`;
+    </div>`}`;
 }
 
 function tapTango(i) {
@@ -294,6 +167,7 @@ function clearTango(sure) {
   s.cells = s.givens.slice();
   saveToLocal();
   paintTango();
+  tangoCheck();
 }
 
 /** Takes back the last change: a tap, a clear or a hint. */
@@ -304,11 +178,12 @@ function undoTango() {
   s.undo = null;
   saveToLocal();
   paintTango();
+  tangoCheck();
 }
 
 function hintTango() {
   const s = tangoState();
-  if (s.phase !== 'play') return;
+  if (s.phase !== 'play' || s.race) return;
   let i = s.cells.findIndex((v, k) => v && v !== s.solution[k]);
   if (i === -1) i = s.cells.findIndex(v => !v);
   if (i === -1) return;
@@ -320,9 +195,23 @@ function hintTango() {
   tangoCheck();
 }
 
+/** A solved grid: every cell turns over, corner to corner. */
+function tangoCelebrate() {
+  if (motionOff()) return 0;
+  document.querySelectorAll('#tango-grid .tango-cell').forEach(cell => {
+    const i = Number(cell.dataset.i);
+    if (cell.animate) cell.animate([{ transform: 'rotateY(0)' }, { transform: 'rotateY(180deg)' }, { transform: 'rotateY(360deg)' }],
+      { duration: 520, delay: (Math.floor(i / TANGO_N) + i % TANGO_N) * 45, easing: 'ease-in-out' });
+  });
+  return 1000;
+}
+
 function tangoCheck() {
   const s = tangoState();
-  if (s.phase !== 'play' || s.cells.some((v, i) => v !== s.solution[i])) return;
+  if (s.phase !== 'play') return;
+  // A race: the server holds the solution and judges the grid (JS_RoomRace.html).
+  if (s.race) { raceMove('tango', { cells: s.cells.slice() }); return; }
+  if (s.cells.some((v, i) => v !== s.solution[i])) return;
   tangoStopTimer();
   s.phase = 'done';
   const seconds = Math.round((Date.now() - s.startedAt) / 1000);
@@ -331,13 +220,7 @@ function tangoCheck() {
   saveToLocal();
   paintTango();
   const t = TRANSLATIONS[appState.lang];
-  if (!motionOff()) {
-    document.querySelectorAll('#tango-grid .tango-cell').forEach(cell => {
-      const i = Number(cell.dataset.i);
-      if (cell.animate) cell.animate([{ transform: 'rotateY(0)' }, { transform: 'rotateY(180deg)' }, { transform: 'rotateY(360deg)' }],
-        { duration: 520, delay: (Math.floor(i / TANGO_N) + i % TANGO_N) * 45, easing: 'ease-in-out' });
-    });
-  }
+  tangoCelebrate();
   const level = s.playLevel || s.level;
   const rec = s.hints ? { record: false, prev: soloBest('tango', level) }
     : soloRecord('tango', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
@@ -368,4 +251,18 @@ soloRegister('tango', {
   setup: 'setup-tango', play: 'play-tango', paintSetup: paintTangoSetup, restore: restoreTango,
   state: tangoState, resume: continueTango, repaint: paintTango, timed: true, prefs: ['level']
 });
+
+/* --- سباق ألغاز: the same grid, raced (JS_RoomRace.html) ------------------------------ */
+RACE_UI.tango = {
+  stage: 'tango-stage',
+  unit: 'race_unit_cells',
+  fresh: (pub) => ({ level: 'medium', playLevel: 'medium', daily: '', solution: [], givens: pub.givens.slice(), signs: pub.signs.slice(),
+    cells: pub.givens.slice(), undo: null, hints: 0, seconds: 0 }),
+  // A reload: the cells the server last took from this phone are the grid.
+  sync(s, board) {
+    if (board && Array.isArray(board.cells) && board.cells.length === s.cells.length && !tangoHasWork(s)) s.cells = board.cells.slice();
+  },
+  paint: () => paintTango(),
+  finished: (s, won) => (won ? tangoCelebrate() : 0)
+};
 </script>

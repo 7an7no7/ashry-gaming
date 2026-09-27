@@ -7,45 +7,25 @@
    six categories to choose from. Right after one word is 5 points, after five
    words 1; a wrong choice is crossed out and shows the next word.
 
-   The choices are made to be close: categories that share a word with the
-   answer come first (pinMake), and the first words shown are the ones they
-   share, so one word is rarely enough. Free play deals categories through
-   freshPick, so they don't come back until the list has gone round; the daily
-   is seeded. The game is in appState.pinpoint.
+   The round maker is Pinpoint.js (shared with the rooms server, which deals a
+   race's rounds and judges every pick): the choices are made to be close.
+   Free play deals categories through freshPick, so they don't come back
+   until the list has gone round; the daily is seeded. The game is in
+   appState.pinpoint.
+
+   In سباق ألغاز (RACE_UI.pinpoint, JS_RoomRace.html) the same rounds play
+   the room's puzzle: the answers and the clues to come stay on the server,
+   each pick is sent (`move { round, i }`), and what comes back is the points
+   or the next clue. The race ranks by points, then by time.
    ========================================================================= */
 
-const PIN_ROUNDS = 5;
-const PIN_CLUES = 5;
-const PIN_OPTIONS = 6;
-
 function pinState() {
+  const race = soloRaceState('pinpoint');
+  if (race) return race;
   if (!appState.pinpoint) {
     appState.pinpoint = { daily: '', lang: 'ar', rounds: [], round: 0, phase: 'setup' };
   }
   return appState.pinpoint;
-}
-
-/** One round: { name, icon, clues: [5 words], options: [{ name, icon }], answer } */
-function pinMakeRound(cats, target, rnd) {
-  const fold = (w) => foldWord(w);
-  const own = new Set(target.words.map(fold));
-  const others = cats.filter(c => c !== target);
-  const overlap = (c) => c.words.filter(w => own.has(fold(w))).length;
-  const neighbours = soloShuffle(others.filter(c => overlap(c) > 0), rnd).slice(0, 3);
-  const decoys = neighbours.concat(soloShuffle(others.filter(c => neighbours.indexOf(c) === -1), rnd)).slice(0, PIN_OPTIONS - 1);
-  const decoyWords = new Set();
-  decoys.forEach(c => c.words.forEach(w => decoyWords.add(fold(w))));
-  const shared = soloShuffle(target.words.filter(w => decoyWords.has(fold(w))), rnd).slice(0, 2);
-  const unique = soloShuffle(target.words.filter(w => !decoyWords.has(fold(w))), rnd);
-  const clues = shared.concat(unique).slice(0, PIN_CLUES);
-  const options = soloShuffle([target].concat(decoys), rnd);
-  const head = soloCategory(target.category);
-  return {
-    name: head.name, icon: head.icon, clues: clues,
-    options: options.map(c => soloCategory(c.category)),
-    answer: options.indexOf(target),
-    shown: 1, wrong: [], points: null
-  };
 }
 
 function setupPinpoint() {
@@ -96,7 +76,7 @@ const pinScore = (s) => s.rounds.reduce((sum, r) => sum + (r.points || 0), 0);
 function paintPinpoint(freshClue) {
   const s = pinState();
   const t = TRANSLATIONS[appState.lang];
-  const el = document.getElementById('pinpoint-stage');
+  const el = soloStage('pinpoint-stage');
   const r = s.rounds[s.round];
   if (!el || !r) return;
   const over = r.points !== null;
@@ -106,12 +86,14 @@ function paintPinpoint(freshClue) {
     { label: t.pin_points || '', value: pinScore(s), id: 'pin-score' },
     { label: t.pin_worth || '', value: over ? '–' : Math.max(1, PIN_CLUES + 1 - r.shown), id: 'pin-worth' }
   ]);
+  const clues = r.clues || [];
   el.innerHTML = `
     <div class="solo-layout">
       <div class="solo-layout__board">
         <div class="pin-clues" id="pin-clues">
-          ${r.clues.map((w, i) => {
-            const open = i < r.shown || over;
+          ${Array.from({ length: PIN_CLUES }, (_, i) => {
+            const w = clues[i];
+            const open = w !== undefined && (i < r.shown || over);
             return `<div class="pin-clue${open ? ' is-open' : ''}${freshClue && i === r.shown - 1 && !over ? ' is-new' : ''}" data-i="${i}">
               <span class="pin-clue__n metric">${i + 1}</span><b>${open ? escapeHTML(w) : '?'}</b></div>`;
           }).join('')}
@@ -130,15 +112,23 @@ function paintPinpoint(freshClue) {
         ${over && s.phase === 'play' ? `<button type="button" class="btn btn--primary" onclick="nextPinpoint()">${escapeHTML(s.round + 1 < s.rounds.length ? (t.pin_next || '') : (t.pin_finish || ''))}</button>` : ''}
       </div>
     </div>
-    <div class="view-actions">
+    ${s.race ? '' : `<div class="view-actions">
       <button class="btn btn--ghost btn--sm" onclick="setupPinpoint()">${escapeHTML(t.exit || '')}</button>
-    </div>`;
+    </div>`}`;
+}
+
+/** A wrong pick: the option shakes. */
+function pinShakeOption(i) {
+  const btn = document.querySelector(`#solo-choices [data-i="${i}"]`);
+  if (btn && btn.animate && !motionOff()) btn.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
 }
 
 function guessPinpoint(i) {
   const s = pinState();
   const r = s.rounds[s.round];
   if (!r || s.phase !== 'play' || r.points !== null || r.wrong.indexOf(i) !== -1) return;
+  // A race: the answer is on the server, which judges the pick (JS_RoomRace.html).
+  if (s.race) { s.lastPick = i; raceMove('pinpoint', { k: s.round, i: i }); return; }
   if (i === r.answer) {
     r.points = Math.max(1, PIN_CLUES + 1 - r.shown);
     saveToLocal();
@@ -158,8 +148,7 @@ function guessPinpoint(i) {
   saveToLocal();
   playSound(r.points === 0 ? 'alarm' : 'click');
   paintPinpoint(r.shown > wasShown);
-  const btn = document.querySelector(`#solo-choices [data-i="${i}"]`);
-  if (btn && btn.animate && !motionOff()) btn.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
+  pinShakeOption(i);
 }
 
 /** The points rise out of the right answer and land on the score. */
@@ -199,6 +188,7 @@ function nextPinpoint() {
     paintPinpoint(true);
     return;
   }
+  if (s.race) return;   // the server ends the board with the fifth answer
   pinFinish();
 }
 
@@ -238,4 +228,49 @@ soloRegister('pinpoint', {
   setup: 'setup-pinpoint', play: 'play-pinpoint', paintSetup: paintPinpointSetup, restore: restorePinpoint,
   state: pinState, resume: continuePinpoint, repaint: () => paintPinpoint(false)
 });
+
+/* --- سباق ألغاز: the same rounds, raced (JS_RoomRace.html) ------------------------------ */
+RACE_UI.pinpoint = {
+  stage: 'pinpoint-stage',
+  unit: 'race_unit_rounds',
+  fresh: (pub) => ({ daily: '', lang: 'ar', round: 0, lastPick: -1,
+    rounds: pub.rounds.map(r => ({ name: '', icon: '', clues: [], options: r.options, answer: -1, shown: 1, wrong: [], points: null })) }),
+  // The server's word on a pick: the points land on the score, a wrong pick shows the next clue; the shown round follows the board.
+  sync(s, board, fx) {
+    const b = board || {};
+    const rounds = b.rounds || [];
+    let changed = false, right = -1, wrong = -1, nextClue = false;
+    rounds.forEach((br, k) => {
+      const r = s.rounds[k];
+      if (!r) return;
+      const was = { shown: r.shown, wrong: r.wrong.length, points: r.points };
+      r.clues = br.clues || r.clues;
+      r.shown = br.shown; r.wrong = br.wrong.slice(); r.points = br.points;
+      if (br.points !== null) { r.answer = br.answer; r.name = br.name || ''; r.icon = br.icon || ''; }
+      if (k === s.round) {
+        if (was.points === null && br.points !== null && br.points > 0) right = br.answer;
+        if (br.wrong.length > was.wrong) { wrong = br.wrong[br.wrong.length - 1]; nextClue = br.shown > was.shown; }
+      }
+      if (was.shown !== br.shown || was.wrong !== br.wrong.length || was.points !== br.points) changed = true;
+    });
+    if (fx && fx.first) { s.round = Math.min(b.cur || 0, s.rounds.length - 1); paintPinpoint(false); return; }
+    if (!changed) return;
+    if (right >= 0) {
+      playSound('success'); haptic('light');
+      const btn = document.querySelector(`#solo-choices [data-i="${right}"]`);
+      const from = btn ? btn.getBoundingClientRect() : null;
+      paintPinpoint(false);
+      pinCelebrate(right, s.rounds[s.round].points, from);
+    } else if (wrong >= 0) {
+      haptic('medium');
+      playSound(s.rounds[s.round].points === 0 ? 'alarm' : 'click');
+      paintPinpoint(nextClue);
+      pinShakeOption(wrong);
+    } else paintPinpoint(false);
+  },
+  paint: () => paintPinpoint(false),
+  finished: () => 0,
+  scoreLabel: (score, t) => (t.race_score_pts || '{n}').replace('{n}', score),
+  revealHtml: (r) => (r && r.cats ? `<div class="race-cats">${r.cats.map(c => `<span class="badge">${c.icon} ${escapeHTML(c.name)}</span>`).join(' ')}</div>` : '')
+};
 </script>

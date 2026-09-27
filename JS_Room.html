@@ -906,6 +906,15 @@ function roomJoinPaintName(showField) {
   }
 }
 
+/* The join screen reached some other way (a reload onto it, a tab): a saved name
+   is folded into «أنت: منى ✏️» there too, as roomOpenJoin does. */
+if (typeof onLeaveScreen === 'function') onLeaveScreen((from, to) => {
+  if (to !== 'room-join') return;
+  const nameEl = document.getElementById('room-join-name');
+  const saved = String(roomName.get() || '').trim();
+  if (nameEl && !nameEl.value && saved) { nameEl.value = saved; roomJoinPaintName(false); }
+});
+
 /** Enter in the code field: on to the name, or straight in when the name is folded away. */
 function roomJoinCodeEnter() {
   const wrap = document.getElementById('room-join-name-wrap');
@@ -1143,7 +1152,18 @@ function renderRoomLobby(state) {
   // No game picked yet: the lobby shows the hub instead of a start button.
   const inHub = !state.game;
   if (startBtn) startBtn.classList.toggle('hidden', inHub || !state.youAreHost);
-  if (waitNote) waitNote.classList.toggle('hidden', !!state.youAreHost);
+  // One line for a player waiting: «المضيف يختار اللعبة…» (the hub's) until a
+  // game is chosen, then «مستنيين المضيف يبدأ اللعبة…» - never both.
+  if (waitNote) waitNote.classList.toggle('hidden', !!state.youAreHost || inHub);
+  // The QR folds behind «ادعي حد كمان ▾» once two or more people are in, so the
+  // game chosen comes first; folded once per room, a tap opens it again.
+  const invite = document.getElementById('room-invite');
+  if (invite) {
+    const many = state.players.filter(p => !p.bot).length >= 2;
+    invite.classList.toggle('is-solo', !many);
+    if (!many) { invite.open = true; delete invite.dataset.folded; }
+    else if (invite.dataset.folded !== state.code) { invite.open = false; invite.dataset.folded = state.code; }
+  }
   // Under the host's Start: how many more the chosen game needs, if any.
   const needEl = document.getElementById('room-start-need');
   if (needEl) {
@@ -1422,7 +1442,7 @@ function renderChosenGame(state, game) {
   }
 
   return `
-    <div class="chosen-game">
+    <div class="chosen-game" data-accent="${entry && entry.accent ? entry.accent : 'violet'}">
       <span class="chosen-game__icon" aria-hidden="true">${entry ? iconHtml(entry.icon) : '🎮'}</span>
       <span class="chosen-game__name">${name}</span>
       ${state.youAreHost

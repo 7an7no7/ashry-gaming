@@ -298,7 +298,7 @@ function unoHeadHtml(state) {
   if (set.stacking) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_stacking'))}">➕ <bdi dir="ltr">${set.stackMode === 'mixed' ? '+4 / +2' : '+2 · +2'}</bdi></span>`);
   if (set.sevenO) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_seven_o'))}"><bdi dir="ltr">7 · 0</bdi></span>`);
   if (set.jumpIn) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_jump_in'))}">⚡</span>`);
-  if (set.drawUntil) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_draw_until'))}">🂠∞</span>`);
+  if (set.drawUntil) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_draw_until'))}">${CARD_GLYPH}∞</span>`);
   if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-uno-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
   return `<div class="uno-head">${bits.join('')}</div>`;
 }
@@ -398,7 +398,7 @@ function unoMineHtml(state) {
   const n = hand.length;
   const tag = n === 1 ? `<span class="uno-tag">${escapeHTML(unoT('uno_tag'))}</span>` : said ? `<span class="badge badge--success">${escapeHTML(unoT('uno_said'))}</span>` : '';
   return `<div class="${cls.join(' ')}" data-uno-seat="${escapeHTML(Room.me)}">
-      <div class="uno-mine__head"><span class="uno-mine__title">🂠 ${escapeHTML(unoT('uno_your_cards'))}</span><b class="metric uno-mine__n">${n}</b>${tag}</div>
+      <div class="uno-mine__head"><span class="uno-mine__title">${CARD_GLYPH} ${escapeHTML(unoT('uno_your_cards'))}</span><b class="metric uno-mine__n">${n}</b>${tag}</div>
       <div class="uno-hand" data-uno-at="seat:${escapeHTML(Room.me)}">${body || `<span class="uno-hand__empty">—</span>`}</div>
     </div>`;
 }
@@ -444,13 +444,13 @@ function unoLatestHtml(state, tv) {
   const e = list[list.length - 1];
   if (!e) return '';
   const fresh = motionFirst(['uno-latest', roomDealKey(state), e.seq, tv ? 'tv' : 'phone'].join('|'));
-  return `<p class="uno-latest ${fresh ? 'is-new' : ''}">${escapeHTML(unoEventText(state, e))}</p>`;
+  return `<p class="uno-latest ${fresh ? 'is-new' : ''}">${cardGlyphs(escapeHTML(unoEventText(state, e)))}</p>`;
 }
 
 function unoLogHtml(state, count) {
   const list = unoMoves(state).slice(0, -1).slice(-count).reverse();
   if (!list.length) return '';
-  return `<ul class="uno-log">${list.map(e => `<li>${escapeHTML(unoEventText(state, e))}</li>`).join('')}</ul>`;
+  return `<ul class="uno-log">${list.map(e => `<li>${cardGlyphs(escapeHTML(unoEventText(state, e)))}</li>`).join('')}</ul>`;
 }
 
 /* --- the bar: what to do now -------------------------------------------------- */
@@ -550,11 +550,11 @@ function unoActionsHtml(state) {
     const settings = s.settings || {};
     const hintKey = !playable.length ? 'uno_facing_hint_none' : s.pending.kind === 'w4' ? 'uno_facing_hint_w4' : settings.stackMode === 'mixed' ? 'uno_facing_hint_mixed' : 'uno_facing_hint_stack';
     return bar(`${caught}<p class="uno-prompt is-mine">⭐ ${escapeHTML(unoT('uno_facing', { n: s.pending.n }))}</p><p class="uno-hint">${escapeHTML(unoT(hintKey))}</p>
-      <button type="button" class="btn ${playable.length ? 'btn--secondary' : 'btn--primary btn--lg'}" onclick="unoAct(this, 'take')">🂠 ${escapeHTML(unoT('uno_take', { n: s.pending.n }))}</button>${say}`, 'uno-actbar--facing');
+      <button type="button" class="btn ${playable.length ? 'btn--secondary' : 'btn--primary btn--lg'}" onclick="unoAct(this, 'take')">${CARD_GLYPH} ${escapeHTML(unoT('uno_take', { n: s.pending.n }))}</button>${say}`, 'uno-actbar--facing');
   }
   const drawLabel = (s.settings || {}).drawUntil ? unoT('uno_draw_until_btn') : unoT('uno_draw');
   return bar(`${caught}${head}<p class="uno-hint">${escapeHTML(playable.length ? unoT('uno_play_lit') : unoT('uno_nothing_fits'))}</p>
-    <button type="button" class="btn ${playable.length ? 'btn--secondary' : 'btn--primary btn--lg'}" onclick="unoAct(this, 'draw')">🂠 ${escapeHTML(drawLabel)}</button>${say}`);
+    <button type="button" class="btn ${playable.length ? 'btn--secondary' : 'btn--primary btn--lg'}" onclick="unoAct(this, 'draw')">${CARD_GLYPH} ${escapeHTML(drawLabel)}</button>${say}`);
 }
 
 /* --- the host's way past a phone that went quiet --------------------------------- */
@@ -775,7 +775,7 @@ ROOM_GAMES.uno = {
         </div>`;
     return `<div class="card card--tight uno-lobby">
         <div class="uno-lobby__cards" aria-hidden="true">${['r7', 'yd', 'gs', 'bv', 'w4'].map(k => unoCardHtml(k, { size: 'sm' })).join('')}</div>
-        <p class="field__hint" style="text-align:center">🂠 ${escapeHTML(typeof unoDecksFor === 'function' && unoDecksFor(n) > 1 ? unoT('uno_deck_two') : unoT('uno_deck_one'))}</p>
+        <p class="field__hint" style="text-align:center">${CARD_GLYPH} ${escapeHTML(typeof unoDecksFor === 'function' && unoDecksFor(n) > 1 ? unoT('uno_deck_two') : unoT('uno_deck_one'))}</p>
         ${few}
         <div class="field">
           <label class="field__label">🏁 ${escapeHTML(unoT('uno_length'))}</label>
@@ -791,7 +791,7 @@ ROOM_GAMES.uno = {
           ${seg('stackMode', ['same', 'mixed'], v => escapeHTML(v === 'same' ? unoT('uno_stack_same') : unoT('uno_stack_mixed')))}
           <p class="field__hint">${escapeHTML(o.stackMode === 'same' ? unoT('uno_stack_same_hint') : unoT('uno_stack_mixed_hint'))}</p>
         </div>` : ''}
-        ${sw('drawUntil', 'uno-draw-until', '🂠', unoT('uno_draw_until'), unoT('uno_draw_until_hint'))}
+        ${sw('drawUntil', 'uno-draw-until', CARD_GLYPH, unoT('uno_draw_until'), unoT('uno_draw_until_hint'))}
         ${sw('sevenO', 'uno-seven-o', '🔀', unoT('uno_seven_o'), unoT('uno_seven_o_hint'))}
         ${sw('jumpIn', 'uno-jump-in', '⚡', unoT('uno_jump_in'), unoT('uno_jump_in_hint'))}
         <div class="field">

@@ -3352,6 +3352,9 @@
       room_code: "كود الغرفة",
       room_join_hint: "اكتب الكود اللي ظاهر عند المضيف",
       room_scan_hint: "امسح الكود أو اكتبه في «ادخل غرفة»",
+      room_invite_more: "ادعي حد كمان",
+      imp_wait_discuss: "لما الكل يشوف كارته، المضيف يبدأ النقاش…",
+      score_total: "المجموع",
       room_join_btn: "ادخل الغرفة",
       room_players: "اللاعبين",
       room_leave: "اخرج من الغرفة",
@@ -3932,6 +3935,9 @@
       new_game: "لعبة جديدة",
       discussion_time: "وقت الأسئلة 🗣️",
       reveal_words: "كشف الكلمات 🔓",
+      reveal_words_btn: "🔓 كشف الكلمات",
+      reveal_imposters_btn: "كشف الجواسيس",
+      accuse_chameleon_btn: "اتهام الحرباء",
       enter_secret: "اكتب الرقم السري (من غير ما صاحبك يشوفه!)",
       group_manage_title: "إدارة المجموعات",
       group_create_new: "إنشاء مجموعة جديدة",
@@ -6990,6 +6996,9 @@
       room_code: "Room code",
       room_join_hint: "Type the code shown on the host's screen",
       room_scan_hint: "Scan the code, or type it under \"Join a room\"",
+      room_invite_more: "Invite someone else",
+      imp_wait_discuss: "Once everyone has seen their card, the host starts the discussion…",
+      score_total: "Total",
       room_join_btn: "Enter room",
       room_players: "Players",
       room_leave: "Leave room",
@@ -7570,6 +7579,9 @@
       new_game: "New Game",
       discussion_time: "Discussion Time 🗣️",
       reveal_words: "Reveal Words 🔓",
+      reveal_words_btn: "🔓 Reveal words",
+      reveal_imposters_btn: "Reveal the spies",
+      accuse_chameleon_btn: "Accuse the chameleon",
       enter_secret: "Enter Secret Number (Don't let them see!)",
       group_manage_title: "Manage Groups",
       group_create_new: "Create New Group",
@@ -8917,6 +8929,7 @@
     // 520px phone column.
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(appState.currentView) !== -1);
     document.body.classList.toggle('is-tv-view', appState.currentView === 'room-tv');
+    document.body.classList.toggle('in-room-game', /^room-/.test(appState.currentView || '') && ['room-lobby', 'room-join', 'room-tv'].indexOf(appState.currentView) === -1);
     // A room screen restored after a reload is not reached through setView.
     if (typeof syncFxButton === 'function') syncFxButton(appState.currentView);
     
@@ -10207,6 +10220,9 @@
     const previous = appState.currentView;
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(viewId) !== -1);
     document.body.classList.toggle('is-tv-view', viewId === 'room-tv');
+    // A room game on screen (not its lobby): the raised «افتح غرفة» lowers into
+    // an ordinary tab, so it never hangs over the game's own foot (section 42).
+    document.body.classList.toggle('in-room-game', /^room-/.test(viewId || '') && ['room-lobby', 'room-join', 'room-tv'].indexOf(viewId) === -1);
     const goingBack = viewDepth(viewId) < viewDepth(previous);
     // Remembered before the views are hidden: hiding them shrinks the scroll
     // height, and the position would be read back clamped.

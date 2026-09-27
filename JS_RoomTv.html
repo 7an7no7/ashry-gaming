@@ -214,6 +214,9 @@ function renderRoomTv(state) {
       </div>`;
   });
   if (!rebuilt) refreshTvStrip(el, state, t);
+  // مافيا's night is played in the night palette on the TV (section 42): the
+  // screen's own tokens go dark while the town sleeps; the app's theme is untouched.
+  el.classList.toggle('tv-night', !lobby && state.game === 'mafia' && !!state.shared && state.shared.phase === 'night');
 
   if (lobby) {
     tvClock(null);
@@ -606,8 +609,11 @@ TV_GAMES.trivia = {
 
     if (s.phase === 'gameover') {
       const medals = ['🥇', '🥈', '🥉'];
-      const top = (s.board || []).slice(0, 3);
-      // Third rises, then second, then the winner, the first time (JS_Motion.html, section 9).
+      const board = s.board || [];
+      // The top four, ranked as the phone's podium ranks them: a tie shares its
+      // place and its medal (two on 30 are both 🥈), and the next place skips.
+      const top = board.slice(0, 4).map(p => Object.assign({}, p, { rank: 1 + board.filter(q => q.score > p.score).length }));
+      // Fourth, then third, then second, then the winner rise, the first time (JS_Motion.html, section 9).
       const rise = motionFirst(['tvpodium', roomDealKey(state), JSON.stringify(top)].join('|'));
       const atOf = (i) => 150 + (top.length - 1 - i) * 520;
       return `
@@ -615,8 +621,8 @@ TV_GAMES.trivia = {
           <div class="tv-title tv-center-text">🏆 ${t.trivia_champion || ''}</div>
           <div class="tv-podium ${rise ? 'tv-podium--rise' : ''}" ${rise ? `data-reveal-ms="${atOf(0) + 640}"` : ''}>
             ${top.map((p, i) => `
-              <div class="tv-podium__place tv-podium__place--${i + 1}" style="--at:${atOf(i)}ms">
-                <span class="tv-podium__medal" aria-hidden="true">${medals[i]}</span>
+              <div class="tv-podium__place tv-podium__place--${Math.min(p.rank, 4)}" style="--at:${atOf(i)}ms">
+                <span class="tv-podium__medal" ${p.rank <= 3 ? 'aria-hidden="true"' : ''}>${medals[p.rank - 1] || p.rank}</span>
                 <span class="tv-podium__name">${escapeHTML(p.name)}</span>
                 <span class="tv-podium__score">${p.score}</span>
               </div>`).join('')}
@@ -645,7 +651,7 @@ TV_GAMES.trivia = {
     if (answering) {
       foot = `
         <div class="tv-progress"><div class="tv-progress__fill" style="width:${expected ? Math.round(answered / expected * 100) : 0}%"></div></div>
-        <div class="tv-note">${answered} / ${expected} ${t.trivia_answered || ''}</div>
+        <div class="tv-note">${ltrFrac(answered, expected)} ${t.trivia_answered || ''}</div>
         ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.trivia_close_early, "roomAct('closeQuestion')", 'ghost')}</div>` : ''}`;
     } else {
       const fastest = (s.order || []).slice(0, 5).map((id, i) => {
@@ -663,7 +669,7 @@ TV_GAMES.trivia = {
     return `
       <div class="tv-trivia">
         <div class="tv-top">
-          <span class="tv-pill">🧠 ${s.qIndex + 1} / ${s.totalQuestions}</span>
+          <span class="tv-pill">🧠 ${ltrFrac(s.qIndex + 1, s.totalQuestions)}</span>
           ${answering ? `<span id="tv-trivia-timer" class="tv-timer tv-timer--big">${s.seconds || ''}</span>` : ''}
         </div>
         <div class="tv-question">${escapeHTML(s.question || '')}</div>
@@ -760,7 +766,7 @@ TV_GAMES.fakeartist = {
     } else if (s.phase === 'voting') {
       panel = `
         <div class="tv-title">${t.fa_vote_title || ''}</div>
-        <div class="tv-note">${t.vote_count || ''}: ${s.vote.voted.length} / ${s.vote.eligible.length}</div>
+        <div class="tv-note">${t.vote_count || ''}: ${ltrFrac(s.vote.voted.length, s.vote.eligible.length)}</div>
         ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.fa_end_vote, "roomAct('closeVote')", 'ghost')}</div>` : ''}`;
     } else if (s.phase === 'guessing') {
       panel = `
@@ -872,15 +878,28 @@ TV_GAMES.wavelength = {
 
 /* --- the voting games ------------------------------------------------------------ */
 
+/** A game's drawn icon, big and faded behind a TV frame's title: the poster's art. */
+function tvArtHtml(game) {
+  return `<div class="tv-art" aria-hidden="true">${iconHtml('art:' + game)}</div>`;
+}
+
+/** Everyone a frame waits on, as chips: ✓ on whoever is done, the rest faded. */
+function tvWaitChips(state, ids, doneIds) {
+  const done = doneIds || [];
+  const chips = (ids || []).map(id => {
+    const p = state.players.find(x => x.id === id);
+    if (!p) return '';
+    const ok = done.indexOf(id) !== -1;
+    return `<span class="tv-chip ${ok ? 'is-done' : 'is-wait'}">${ok ? '✓ ' : ''}<span class="tv-chip__name"><bdi>${escapeHTML(p.name)}</bdi></span></span>`;
+  }).join('');
+  return chips ? `<div class="tv-legend tv-wait">${chips}</div>` : '';
+}
+
 function tvVoteProgress(state, t) {
   const v = state.shared.vote;
-  const voters = v.voted.map(id => {
-    const p = state.players.find(x => x.id === id);
-    return p ? `<span class="tv-chip is-done">✓ <span class="tv-chip__name">${escapeHTML(p.name)}</span></span>` : '';
-  }).join('');
   return `
-    <div class="tv-note">${t.vote_count || ''}: ${v.voted.length} / ${v.eligible.length}</div>
-    ${voters ? `<div class="tv-legend">${voters}</div>` : ''}
+    <div class="tv-note">${t.vote_count || ''}: ${ltrFrac(v.voted.length, v.eligible.length)}</div>
+    ${tvWaitChips(state, v.eligible, v.voted)}
     ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.vote_close, "roomAct('closeVote')", 'ghost')}</div>` : ''}`;
 }
 
@@ -945,7 +964,7 @@ TV_GAMES.fibbage = {
       return `
         <div class="tv-vote">${head}
           <div class="tv-note">✍️ ${t.fib_your_lie || ''}</div>
-          <div class="tv-note">${done} / ${active.length}</div>
+          <div class="tv-note">${ltrFrac(done, active.length)}</div>
           ${state.youAreHost ? `<div class="tv-actions">${tvBtn(fibCloseWritingLabel(t), "roomAct('closeWriting')", 'ghost')}</div>` : ''}
         </div>`;
     }
@@ -982,8 +1001,9 @@ TV_GAMES.imposter = {
     if (state.phase === 'reveal') {
       return `
         <div class="tv-center">
+          ${tvArtHtml('imposter')}
           ${s.category ? `<div class="tv-eyebrow">${escapeHTML(s.category)}</div>` : ''}
-          <div class="tv-big-icon" aria-hidden="true">🎴</div>
+          <div class="tv-big-icon" aria-hidden="true">${iconHtml('art:imposter')}</div>
           <div class="tv-title">${t.tv_check_cards || ''}</div>
           ${host(tvBtn(t.start_discussion, "roomAct('beginDiscussion')"))}
         </div>`;
@@ -997,7 +1017,7 @@ TV_GAMES.imposter = {
           ${host(tvBtn(undercover ? (t.imp_und_start_vote || t.imp_start_vote) : t.imp_start_vote, "roomAct('startVote')") + tvBtn(t.imp_reveal_direct, "roomAct('revealResult')", 'ghost'))}
         </div>`;
     }
-    if (state.phase === 'voting') return `<div class="tv-vote"><div class="tv-question">${escapeHTML(undercover ? (t.imp_und_accuse || '') : (t.accuse_player || ''))}</div>${tvVoteProgress(state, t)}</div>`;
+    if (state.phase === 'voting') return `<div class="tv-vote">${tvArtHtml('imposter')}<div class="tv-question">${escapeHTML(undercover ? (t.imp_und_accuse || '') : (t.accuse_player || ''))}</div>${tvVoteProgress(state, t)}</div>`;
     if (state.phase === 'guess') {
       return `
         <div class="tv-vote">
@@ -1052,9 +1072,11 @@ TV_GAMES.justone = {
       return `
         <div class="tv-trivia">${top}
           <div class="tv-center">
-            <div class="tv-big-icon" aria-hidden="true">🤔</div>
+            ${tvArtHtml('justone')}
+            <div class="tv-big-icon" aria-hidden="true">${iconHtml('art:justone')}</div>
             <div class="tv-title">${escapeHTML(s.guesserName || '')} · ${t.tv_jo_guessing || ''}</div>
             <div class="tv-note">✍️ ${t.tv_jo_writing || ''} (${ltrFrac(done, Math.max(0, active.length - 1))})</div>
+            ${tvWaitChips(state, active.filter(id => id !== s.guesserId), s.submitted)}
             ${state.youAreHost ? `<div class="tv-actions">${tvBtn(joCloseWritingLabel(t), "roomAct('closeWriting')", 'ghost')}</div>` : ''}
           </div>
         </div>`;

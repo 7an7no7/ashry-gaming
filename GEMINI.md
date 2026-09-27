@@ -3194,6 +3194,60 @@ the word search), `countUp` for streaks and scores.
   whose first child is a label was styled as an option row by section 39's
   `div:has(> .field__label:first-child)` (the team generator's whole card
   went grey) - that selector now skips `.card`.
+- **26 Sep 2026, the arcade look's design review: the one-phone party games**
+  (section 42 of `Style.html`, "ARCADE: ONE-PHONE GAMES"). The face-down role
+  card of الجاسوس, الحرباء and الموقع السري is a poster in the game's colour
+  (`.hold-card--poster`: the drawn icon big, the instruction in white over a
+  fade; the back the card's paper with a band of the colour, the one height
+  for every role kept), and من أنا؟ / كلمة واحدة's pass screens the same
+  poster (`.pass-poster`, icon beside the name on a phone's side). The
+  one-phone results of the three spy games turn over with `spyRevealParts`
+  as the rooms' do (keys `cham1`, `spy1`, `imp1`; confetti through
+  `afterReveal`). Every slate box of these screens is a token class now
+  (`.plate-well` for options and summaries, `.card--party` for the
+  بدون كلام / أوصف لي card, `.btn--neutral` / `.btn--success` for تخطي / صح,
+  `.metric` timers); the night stages (مين يبدأ, على راسك, رد الفعل) are
+  `--night`, the dark theme's ground. `.btn--go` is the Start bar's amber
+  (section 39) for the buttons that start play again (لعبة جديدة, جولة
+  جديدة, ماتش كمان, ابدأ الدور); `.btn-row--fit` keeps a row's buttons one
+  line each; `playChipsHtml` (`JS_TeamRelay.html`) is the round / score
+  strip as pill chips. أوصف لي starts from two amber Start buttons (60 / 90)
+  and its card fits a phone's side; دوري المعرفة's round is `ltrFrac`; the
+  podium never puts a 0 on a step once someone scored, and its place number
+  inherits the step's ink; a choice of six or more on a setup wraps into
+  boxes at 375 (شطرنج's clocks); ربع قرد's Arabic keys are four rows of 8
+  (`monkeyKeyRows`); no confetti on a turn that guessed nothing; drawn icons
+  on the spy buttons and cards (`btn__art`, new keys `*_btn` without the
+  emoji, since `data-i18n` rewrites a button's whole text).
+- **26 Sep 2026, the arcade look's design review: the rooms** (section 43 of
+  `Style.html`; nothing the rooms server runs changed). The lobby: the game
+  chosen is its own poster (`data-accent` on `.chosen-game`, a dark fade behind
+  the name), it and its options come before the players, the QR folds behind
+  «ادعي حد كمان ▾» once two people are in (`#room-invite`), one waiting line
+  (the hub's, then «مستنيين المضيف يبدأ اللعبة…»), the Start bar a solid dock;
+  the join card a poster head with proper field gaps (a saved name folded on
+  any way in, an `onLeaveScreen` hook); info toasts violet. While a room game
+  is on, `body.in-room-game` (set in `setView` and on a reload's restore)
+  lowers the raised «افتح غرفة» into a tab. The audience bar is one row (the
+  cheers, and «🔮 مين هيكسب؟» a chip whose names open in a popover;
+  `--aud-h` is the page's foot padding). Every `a / b` in the room files goes
+  through `ltrFrac`. الجاسوس's card is a poster with the drawn icon and its
+  waiting line says the host starts the discussion (`imp_wait_discuss`); the
+  TV's vote and writing frames show everyone as chips, ✓ on who is done
+  (`tvWaitChips`), with the game's drawn icon big and faded behind
+  (`tvArtHtml`). كلمة واحدة's clues are big cards on the phone and the TV; the
+  TV frames' top pills sit at the top of the stage. تحدي المعلومات and لو
+  خيروك share their colours between the phones and the TV (`--quiz-a..d`,
+  `--wyr-a/b`); the TV podium ranks ties (same score, same medal) and shows a
+  fourth. 🂠 is a drawn card back (`CARD_GLYPH`, `cardGlyphs` in
+  `JS_Cards.html`). The golf, bowling and إستميشن totals say «المجموع»
+  (`score_total`). مافيا's night is the night palette on the TV
+  (`#view-room-tv.tv-night`); the spy card's cover has a timer fallback. The
+  splash is the game's poster. Also: ارسم وخمّن's «إرسال» and the TV's word
+  line, لودو's own chip, الدومينو's felt (`--dom-felt-1/2`), بنك الحظ's
+  squares on the TV, خمّن مين's «الإجابة عند…» on one line, المشنقة's TV
+  cards, خمن الكلمة's grid on a phone's side, a room duel's result under the
+  board on a phone.
 
 - **26-27 Sep 2026, سباق ألغاز** - the ten solo puzzles as a race in a room,
   to the owner's decisions (*The owner's specs*, *سباق ألغاز*): the solve
@@ -7694,8 +7748,9 @@ its own, and a right-to-left line lays them out right to left (measured in the
 page: the 3 sits left of the 1). "1/3" with no spaces is safe. The party games'
 counters (the relay's turn, خبّي الموبايل عن … · 1 / 4, كلمة واحدة's round,
 ارسم واكتب's chain and step) go through `ltrFrac(a, b)` in `JS_TeamRelay.html`,
-which holds them left to right (LRI … PDI); other screens still write
-`${a} / ${b}` (the TV's trivia and vote counts, among others).
+which holds them left to right (LRI … PDI); since 26 Sep 2026 the room files
+and the TV do too (the trivia and vote counts, the quiz cards, صدق ولا كذب) -
+grep `} / ${` before adding another.
 
 **One lost brace puts the rest of the stylesheet under a media query.**
 Section 34 of `Style.html` ended its `@media (prefers-reduced-motion: reduce)`

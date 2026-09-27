@@ -51,7 +51,7 @@ ROOM_GAMES.twotruths = {
         </div>
         ${renderRoomPlayerStrip(state)}`);
       const prog = document.getElementById('tt-progress');
-      if (prog) prog.innerHTML = `<span>${escapeHTML(t.tt_written || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</span>`;
+      if (prog) prog.innerHTML = `<span>${escapeHTML(t.tt_written || '')}: ${ltrFrac((s.submitted || []).length, (s.roster || []).length)}</span>`;
       refreshRoomPlayerStrip(el, state);
       return;
     }
@@ -61,7 +61,7 @@ ROOM_GAMES.twotruths = {
       const v = s.vote || {};
       renderRoomFrame(el, ['tt-vote', s.turn, subject, (v.voted || []).length, state.youAreHost, appState.lang].join('|'), () => `
         <div class="card card--accent" style="text-align:center">
-          <div class="eyebrow">${escapeHTML(t.tt_turn_of || '')} · ${s.turn + 1} / ${(s.order || []).length}</div>
+          <div class="eyebrow">${escapeHTML(t.tt_turn_of || '')} · ${ltrFrac(s.turn + 1, (s.order || []).length)}</div>
           <div class="metric metric--md">${escapeHTML(s.subjectName || '')}</div>
           <p class="sheet__subtitle">${escapeHTML(subject ? (t.tt_they_vote_you || '') : (t.tt_pick_lie || ''))}</p>
         </div>
@@ -147,14 +147,14 @@ TV_GAMES.twotruths = {
         <div class="tv-center">
           <div class="tv-big-icon" aria-hidden="true">✍️</div>
           <div class="tv-title">${escapeHTML(t.tt_tv_writing || '')}</div>
-          <div class="tv-note">${escapeHTML(t.tt_written || '')}: ${(s.submitted || []).length} / ${(s.roster || []).length}</div>
+          <div class="tv-note">${escapeHTML(t.tt_written || '')}: ${ltrFrac((s.submitted || []).length, (s.roster || []).length)}</div>
           ${host(tvBtn(t.tt_start_anyway, "roomAct('closeWriting')", 'ghost'))}
         </div>`;
     }
     if (s.phase === 'voting') {
       return `
         <div class="tv-vote">
-          <div class="tv-eyebrow tv-center-text">${escapeHTML(t.tt_turn_of || '')} · ${s.turn + 1} / ${(s.order || []).length}</div>
+          <div class="tv-eyebrow tv-center-text">${escapeHTML(t.tt_turn_of || '')} · ${ltrFrac(s.turn + 1, (s.order || []).length)}</div>
           <div class="tv-title tv-center-text">${escapeHTML(s.subjectName || '')}</div>
           <div class="tv-ids tv-tt-items">${(s.items || []).map((x, i) => `<div class="tv-panel"><div class="tv-eyebrow">${i + 1}</div><div class="tv-title">${escapeHTML(x)}</div></div>`).join('')}</div>
           ${tvVoteProgress(state, t)}

@@ -133,6 +133,17 @@
   function monkeyCat() { return monkeyState().config.category; }
   function monkeyWordKey() { return monkeyState().letters.map(l => l.ch).join(''); }
   function monkeyPlayer() { const m = monkeyState(); return m.players[m.turnIndex]; }
+  /** The keypad in rows of at most 9 keys: the Arabic rows are 12 and 11 long, and
+      inside the card twelve keys were 23px wide at 375. The letters keep their
+      order; rows that already fit (English) are left as they are. */
+  function monkeyKeyRows(rows) {
+    if (rows.every(r => r.length <= 10)) return rows;
+    const all = rows.join('');
+    const n = Math.ceil(all.length / 9), per = Math.ceil(all.length / n);
+    const out = [];
+    for (let i = 0; i < all.length; i += per) out.push(all.slice(i, i + per));
+    return out;
+  }
   function monkeyPlayerByRow(row) { return monkeyState().players.find(p => String(p.row) === String(row)); }
 
   /* --- the board and the stage ------------------------------------------------ */
@@ -207,7 +218,7 @@
       const word = letters.length
         ? letters.map(l => `<span class="mk-letter" title="${escapeHTML(l.name || '')}">${escapeHTML(l.ch)}</span>`).join('')
         : `<span class="mk-word__empty">${escapeHTML(t.mk_word_empty || '')}</span>`;
-      const rows = (MONKEY_KEYS[lang] || MONKEY_KEYS.ar).map(row =>
+      const rows = monkeyKeyRows(MONKEY_KEYS[lang] || MONKEY_KEYS.ar).map(row =>
         `<div class="keypad__row">${row.split('').map(ch => `<button type="button" class="key" onclick="monkeyTapLetter('${ch}')">${ch}</button>`).join('')}</div>`).join('');
       stage.innerHTML = `
         ${verdict}

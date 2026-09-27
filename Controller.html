@@ -1831,18 +1831,26 @@
       <div id="view-room-tv" class="hidden" data-accent="indigo"></div>
 
       <div id="view-room-join" class="hidden" data-accent="teal">
-        <div class="card">
-          <div class="card__title" data-i18n="room_join_title">ادخل غرفة</div>
-          <p class="card__subtitle" data-i18n="room_join_hint">اكتب الكود اللي ظاهر عند المضيف</p>
+        <div class="card room-join-card">
+          <!-- A poster head, the lobby code card's kin (the design review, 26 Sep 2026). -->
+          <div class="room-join-head">
+            <span class="room-join-head__icon" aria-hidden="true">📲</span>
+            <div class="room-join-head__text">
+              <div class="card__title" data-i18n="room_join_title">ادخل غرفة</div>
+              <p class="card__subtitle" data-i18n="room_join_hint">اكتب الكود اللي ظاهر عند المضيف</p>
+            </div>
+          </div>
 
+          <div class="field">
           <label class="field__label" data-i18n="room_code">كود الغرفة</label>
           <!-- Long enough to take a whole pasted join link; tidyRoomCodeInput keeps just the code. -->
           <input type="text" id="room-join-code" class="room-code-input" maxlength="120"
                  inputmode="latin" autocapitalize="characters" autocomplete="off" enterkeyhint="next"
                  placeholder="ABCD" oninput="tidyRoomCodeInput(this)"
                  onkeydown="if(event.key==='Enter'){event.preventDefault();roomJoinCodeEnter();}">
+          </div>
 
-          <div id="room-join-name-wrap">
+          <div id="room-join-name-wrap" class="field">
             <label class="field__label" data-i18n="your_name">اسمك</label>
             <input type="text" id="room-join-name" autocomplete="off" maxlength="24" enterkeyhint="go"
                    data-i18n-ph="placeholder_name" placeholder="الاسم"
@@ -1863,15 +1871,24 @@
           <div class="eyebrow" data-i18n="room_code">كود الغرفة</div>
           <div id="room-code-display" class="room-code">----</div>
 
-          <div id="room-qr" class="room-qr hidden" aria-hidden="true"></div>
-          <p class="card__subtitle" data-i18n="room_scan_hint">
-            امسح الكود أو اكتبه في «ادخل غرفة»
-          </p>
+          <!-- Once two or more are in, the QR folds behind «ادعي حد كمان ▾», so the game
+               chosen comes first (renderRoomLobby: open while the room is one person). -->
+          <details id="room-invite" class="room-invite" open>
+            <summary class="room-invite__head"><span data-i18n="room_invite_more">ادعي حد كمان</span> <span class="room-invite__chev" aria-hidden="true">▾</span></summary>
+            <div id="room-qr" class="room-qr hidden" aria-hidden="true"></div>
+            <p class="card__subtitle" data-i18n="room_scan_hint">
+              امسح الكود أو اكتبه في «ادخل غرفة»
+            </p>
+          </details>
           <!-- For friends who aren't in the room with you: send them the link. -->
           <button id="room-share-btn" class="btn btn--secondary btn--auto" onclick="roomShareLink()">
             <span aria-hidden="true">🔗</span> <span data-i18n="room_share_link">ابعت لينك الغرفة</span>
           </button>
         </div>
+
+        <!-- The game chosen and its options (or the list of games) come before the
+             players: that is what the room is deciding (the design review, 26 Sep 2026). -->
+        <div id="room-host-setup"></div>
 
         <div class="section">
           <div class="section__head">
@@ -1883,8 +1900,6 @@
           <button type="button" id="room-me" class="lobby-me hidden" onclick="roomRenameMe()"></button>
           <div id="room-player-list"></div>
         </div>
-
-        <div id="room-host-setup"></div>
 
         <!-- The host's Start is always on screen, like a setup screen's (the owner, 26 Sep 2026). -->
         <div class="view-actions view-actions--start lobby-start">
@@ -2138,7 +2153,7 @@
       <div id="view-timers" class="hidden space-y-4">
           <div class="card text-center py-10">
               <h3 class="eyebrow" data-i18n="gen_timer">مؤقت عام</h3>
-              <div id="gen-timer-display" class="text-7xl font-black text-slate-700 dark:text-white mb-8 tabular-nums">00:00</div>
+              <div id="gen-timer-display" class="metric metric--xl" style="margin-bottom: var(--sp-8)">00:00</div>
               <div class="flex justify-center gap-4 mb-6">
                   <button onclick="adjustGenTimer(-1)" class="btn btn--ghost btn--sm btn--auto" data-i18n="tmr_minus1">-1د</button>
                   <button onclick="adjustGenTimer(1)" class="btn btn--secondary btn--sm btn--auto" data-i18n="tmr_plus1">+1د</button>
@@ -2265,9 +2280,9 @@
               <h2 id="reveal-player-name" class="metric metric--lg metric--accent">---</h2>
            </div>
            <!-- The role shows only while held (JS_Motion.html, section 11). -->
-           <div id="imposter-hold" class="hold-card" role="button" tabindex="0" data-next="imposter-hold-next">
+           <div id="imposter-hold" class="hold-card hold-card--poster" role="button" tabindex="0" data-next="imposter-hold-next">
                <div class="hold-card__front">
-                   <span class="hold-card__icon" aria-hidden="true">👆</span>
+                   <span class="hold-card__icon" aria-hidden="true" data-art-icon="imposter"></span>
                    <span class="hold-card__label" data-i18n="hold_to_reveal">دوس مطوّل عشان تشوف دورك</span>
                    <span class="hold-card__hint" data-i18n="hold_hint">أول ما تشيل صباعك يستخبى</span>
                </div>
@@ -2290,7 +2305,7 @@
            <div id="imposter-director" class="hidden"></div>
            <h3 class="eyebrow" data-i18n="players">قائمة اللاعبين</h3>
            <div id="imposter-game-players" class="flex flex-wrap gap-2 justify-center mb-10"></div>
-           <button onclick="revealImposterResult()" class="btn btn--danger" data-i18n="reveal_imposters">كشف الجواسيس 🕵️‍♂️</button>
+           <button onclick="revealImposterResult()" class="btn btn--danger" ><span class="btn__art" aria-hidden="true" data-art-icon="imposter"></span><span data-i18n="reveal_imposters_btn">كشف الجواسيس</span></button>
            <button onclick="setView('setup-imposter')" class="btn btn--ghost mt-4" data-i18n="exit">خروج</button>
         </div>
       </div>
@@ -2345,15 +2360,15 @@
       <div class="modal-content modal-content--simple">
         <div class="sheet__title" data-i18n="mk_log">اللي اتقال 📝</div>
         <input type="search" id="country-search-input" onkeyup="filterCountries()" placeholder="🔍 ابحث في السجل..." data-i18n-ph="monkey_log_search" autocomplete="off">
-        <div class="modal-list rounded-xl border border-slate-100 dark:border-slate-700">
+        <div class="modal-list plate-well plate-well--flush">
           <table class="w-full text-start">
-            <thead class="bg-slate-100 dark:bg-slate-800 text-xs tx-muted font-bold uppercase">
+            <thead class="plate-well__head text-xs tx-muted font-bold">
               <tr>
                 <th class="px-4 py-2 w-16">#</th>
                 <th class="px-4 py-2" data-i18n="monkey_log_word">الدولة</th>
               </tr>
             </thead>
-            <tbody id="used-countries-list" class="divide-y divide-slate-100 dark:divide-slate-700"></tbody>
+            <tbody id="used-countries-list" class="plate-well__rows"></tbody>
           </table>
         </div>
         <div class="modal-actions">
@@ -2728,11 +2743,11 @@
       </div>
 
 <div id="view-play-justone" class="hidden" data-accent="rose">
-    <div id="jo-phase-pass" class="card text-center py-12 space-y-6">
-        <div class="text-6xl">📱</div>
-        <div>
-           <h3 class="eyebrow" data-i18n="pass_phone_title">إدّي الموبايل لـ</h3>
-           <h2 id="jo-active-player" class="text-4xl font-black tx-accent">---</h2>
+    <div id="jo-phase-pass" class="card text-center space-y-6">
+        <div class="pass-poster">
+           <span class="pass-poster__icon" aria-hidden="true" data-art-icon="justone"></span>
+           <h3 class="pass-poster__label" data-i18n="pass_phone_title">إدّي الموبايل لـ</h3>
+           <h2 id="jo-active-player" class="pass-poster__name">---</h2>
         </div>
         <p id="jo-pass-instruction" class="field__hint" data-i18n="pass_instruction_static">هتكتب تلميح!</p>
         <button onclick="joRevealPhase()" class="btn btn--primary btn--lg" data-i18n="reveal_btn">أيوه أنا، وريني الكلمة</button>
@@ -2753,10 +2768,10 @@
         <h2 class="card__title card__title--neutral" data-i18n="guesser_turn_title">دور المخمن</h2>
         <h2 id="jo-guesser-name" class="text-3xl font-black tx-accent mb-6">---</h2>
         
-        <div class="text-start bg-slate-50 dark:bg-slate-800 p-4 rounded-xl mb-6">
+        <div class="text-start plate-well mb-6">
             <div class="eyebrow" data-i18n="available_clues_label">التلميحات المتاحة</div>
             <div id="jo-clues-list" class="flex flex-wrap gap-2 justify-center"></div>
-            <div id="jo-collisions-note" class="text-xs text-red-400 font-bold mt-4 text-center hidden" data-i18n="clues_removed_msg">🚫 تم حذف تلميحات متشابهة!</div>
+            <div id="jo-collisions-note" class="text-xs tx-danger font-bold mt-4 text-center hidden" data-i18n="clues_removed_msg">🚫 تم حذف تلميحات متشابهة!</div>
         </div>
 
         <p class="font-bold mb-4" data-i18n="what_is_word_label">إيه الكلمة السرية؟</p>
@@ -2767,9 +2782,9 @@
         <div class="eyebrow" data-i18n="correct_word_was">الكلمة الصحيحة كانت</div>
         <h2 id="jo-result-word" class="text-4xl font-black tx-success mb-8">---</h2>
         
-        <div class="grid grid-cols-2 gap-3">
-            <button onclick="joFinishRound(true)" class="btn btn--primary" data-i18n="got_it_btn">✅ عرفها!</button>
-            <button onclick="joFinishRound(false)" class="btn btn--danger" data-i18n="missed_it_btn">❌ ما عرفهاش</button>
+        <div class="btn-row btn-row--fit">
+            <button onclick="joFinishRound(true)" class="btn btn--success btn--lg" data-i18n="got_it_btn">✅ عرفها!</button>
+            <button onclick="joFinishRound(false)" class="btn btn--danger btn--lg" data-i18n="missed_it_btn">❌ ما عرفهاش</button>
         </div>
     </div>
 </div>
@@ -2821,15 +2836,15 @@
             <div class="eyebrow" data-i18n="pass_phone_to">ادّي الموبايل لـ</div>
             <h2 id="chameleon-reveal-name" class="text-4xl font-black tx-warning">---</h2>
           </div>
-          <div id="chameleon-hold" class="hold-card" role="button" tabindex="0" data-next="chameleon-hold-next">
+          <div id="chameleon-hold" class="hold-card hold-card--poster" role="button" tabindex="0" data-next="chameleon-hold-next">
             <div class="hold-card__front">
-              <span class="hold-card__icon" aria-hidden="true">👆</span>
+              <span class="hold-card__icon" aria-hidden="true" data-art-icon="chameleon"></span>
               <span class="hold-card__label" data-i18n="hold_to_reveal">دوس مطوّل عشان تشوف دورك</span>
               <span class="hold-card__hint" data-i18n="hold_hint">أول ما تشيل صباعك يستخبى</span>
             </div>
             <div class="hold-card__back" aria-hidden="true">
               <div id="chameleon-card-role" class="text-2xl font-black">---</div>
-              <div id="chameleon-card-detail" class="p-6 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10"></div>
+              <div id="chameleon-card-detail" class="hold-card__detail"></div>
             </div>
           </div>
           <button id="chameleon-hold-next" onclick="doneChameleonRevealStep()" class="btn btn--primary btn--lg hold-next is-waiting" data-i18n="hide_and_pass">إخفاء وتمرير الهاتف 🔒</button>
@@ -2853,7 +2868,7 @@
         </div>
 
         <div id="chameleon-play-actions" class="view-actions">
-          <button onclick="openChameleonAccuseModal()" class="btn btn--danger btn--lg" data-i18n="accuse_chameleon">اتهام الحرباء 🦎</button>
+          <button onclick="openChameleonAccuseModal()" class="btn btn--danger btn--lg" ><span class="btn__art" aria-hidden="true" data-art-icon="chameleon"></span><span data-i18n="accuse_chameleon_btn">اتهام الحرباء</span></button>
           <button onclick="setupChameleon()" class="btn btn--ghost" data-i18n="finish">إنهاء</button>
         </div>
       </div>
@@ -2921,15 +2936,15 @@
             <div class="eyebrow" data-i18n="pass_phone_to">ادّي الموبايل لـ</div>
             <h2 id="spyfall-reveal-name" class="text-4xl font-black tx-danger">---</h2>
           </div>
-          <div id="spyfall-hold" class="hold-card" role="button" tabindex="0" data-next="spyfall-hold-next">
+          <div id="spyfall-hold" class="hold-card hold-card--poster" role="button" tabindex="0" data-next="spyfall-hold-next">
             <div class="hold-card__front">
-              <span class="hold-card__icon" aria-hidden="true">👆</span>
+              <span class="hold-card__icon" aria-hidden="true" data-art-icon="spyfall"></span>
               <span class="hold-card__label" data-i18n="hold_to_reveal">دوس مطوّل عشان تشوف دورك</span>
               <span class="hold-card__hint" data-i18n="hold_hint">أول ما تشيل صباعك يستخبى</span>
             </div>
             <div class="hold-card__back" aria-hidden="true">
               <div id="spyfall-card-title" class="text-2xl font-black">---</div>
-              <div id="spyfall-card-detail" class="p-6 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10"></div>
+              <div id="spyfall-card-detail" class="hold-card__detail"></div>
             </div>
           </div>
           <button id="spyfall-hold-next" onclick="doneSpyfallRevealStep()" class="btn btn--primary btn--lg hold-next is-waiting" data-i18n="hide_and_pass">إخفاء وتمرير الهاتف 🔒</button>
@@ -2998,8 +3013,8 @@
       <div id="view-play-timesup" class="hidden view--stage" data-accent="blue">
         <div class="flex items-center justify-between mb-4">
           <div class="flex gap-2">
-            <span id="timesup-round-badge" class="badge badge--accent">جولة 1/3</span>
-            <span class="badge">🃏 <span id="timesup-cards-left">0</span></span>
+            <span class="chip play-chip"><span data-i18n="round">جولة</span> <b id="timesup-round-badge" class="metric">1/3</b></span>
+            <span class="chip chip--plain play-chip">🃏 <b id="timesup-cards-left" class="metric">0</b></span>
           </div>
           <div class="flex gap-2 font-bold text-sm">
             <span class="tx-accent"><span data-i18n="timesup_team_1">فريق 1</span>: <span id="timesup-score-team1">0</span></span>
@@ -3013,7 +3028,7 @@
           <div class="eyebrow" data-i18n="turn_of">دور الشارح</div>
           <h2 id="timesup-ready-player-name" class="text-4xl font-black tx-accent">---</h2>
           <p id="timesup-round-rule" class="card__subtitle"></p>
-          <button onclick="beginTimesUpLiveTurn()" class="btn btn--primary btn--lg" data-i18n="start_turn">ابدأ الدور ⏱️</button>
+          <button onclick="beginTimesUpLiveTurn()" class="btn btn--primary btn--go btn--lg" data-i18n="start_turn">ابدأ الدور ⏱️</button>
         </div>
 
         <div id="timesup-turn-live-card" class="hidden play-stage__playing flex flex-col">
@@ -3153,10 +3168,10 @@
                 </div>
               </div>
             </div>
-            <p class="field__hint mb-6" data-i18n="select_time">اختر وقت الجولة</p>
-            <div class="grid grid-cols-2 gap-3 mb-6">
-                <button onclick="startDescribeGame(60)" class="btn btn--primary btn--lg">60s</button>
-                <button onclick="startDescribeGame(90)" class="btn btn--primary btn--lg">90s</button>
+            <p class="field__hint" data-i18n="select_time">اختر وقت الجولة</p>
+            <div class="view-actions view-actions--start view-actions--row">
+                <button onclick="startDescribeGame(60)" class="btn btn--primary btn--lg">▶ <span class="metric">60</span> <span data-i18n="seconds_short">ثانية</span></button>
+                <button onclick="startDescribeGame(90)" class="btn btn--primary btn--lg">▶ <span class="metric">90</span> <span data-i18n="seconds_short">ثانية</span></button>
             </div>
         </div>
     </div>
@@ -3166,16 +3181,16 @@
             
             <div id="desc-ui-playing" class="play-stage__playing flex flex-col">
                 <div class="play-stage__head flex justify-between items-center mb-4">
-                    <div class="text-3xl font-black text-slate-700 dark:text-white" id="desc-timer">60</div>
+                    <div class="metric metric--md metric--accent" id="desc-timer">60</div>
                     <div class="btn-row">
                       <button onclick="undoDescribeCard()" class="btn btn--ghost btn--sm btn--auto" data-i18n-title="undo_card" title="تراجع عن آخر كارت" aria-label="تراجع">↶</button>
                       <button onclick="finishDescribeGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
                     </div>
                 </div>
 
-                <div class="play-stage__card card flex-grow flex flex-col justify-center text-center border-4 border-indigo-500 shadow-2xl relative">
+                <div class="play-stage__card card card--party flex-grow flex flex-col justify-center text-center relative">
                     <div class="eyebrow" data-i18n="target_word">الكلمة المطلوبة</div>
-                    <h2 id="desc-main-word" class="text-4xl font-black text-indigo-700 dark:text-indigo-400 mb-8">---</h2>
+                    <h2 id="desc-main-word" class="text-4xl font-black tx-accent mb-8">---</h2>
                     
                     <div class="plate-danger p-4 rounded-xl w-full">
                         <div class="eyebrow tx-danger mb-3 flex justify-center items-center gap-2">
@@ -3186,8 +3201,8 @@
                 </div>
 
                 <div class="play-stage__actions grid grid-cols-2 gap-4 mt-4">
-                    <button onclick="descAction('skip')" class="btn btn--ghost bg-slate-200 text-slate-600 h-20 text-xl" data-i18n="skip">تخطي ⏭️</button>
-                    <button onclick="descAction('correct')" class="btn btn--primary h-20 text-xl" data-i18n="correct">✅ صح!</button>
+                    <button onclick="descAction('skip')" class="btn btn--neutral h-20 text-xl" data-i18n="skip">تخطي ⏭️</button>
+                    <button onclick="descAction('correct')" class="btn btn--success h-20 text-xl" data-i18n="correct">✅ صح!</button>
                 </div>
             </div>
 
@@ -3195,9 +3210,9 @@
                 <div class="text-6xl mb-4">🏁</div>
                 <h2 class="card__title card__title--neutral" data-i18n="timeout_title">انتهى الوقت!</h2>
                 
-                <div class="card py-10 border-indigo-500 border-2">
+                <div class="card card--accent py-10">
                     <div class="eyebrow" data-i18n="correct_words">الكلمات الصحيحة</div>
-                    <div id="desc-final-score" class="text-7xl font-black text-green-600 dark:text-green-400">0</div>
+                    <div id="desc-final-score" class="metric metric--xl tx-success">0</div>
                 </div>
 
                 <button onclick="startDescribeGame()" class="btn btn--primary mt-4" data-i18n="play_again">جولة جديدة 🔄</button>
@@ -3334,35 +3349,35 @@
             
             <div id="charades-ui-playing" class="play-stage__playing flex flex-col">
                 <div class="play-stage__head flex justify-between items-center mb-4">
-                    <div class="text-3xl font-black text-slate-700 dark:text-white" id="charades-timer">60</div>
+                    <div class="metric metric--md metric--accent" id="charades-timer">60</div>
                     <div class="btn-row">
                       <button onclick="undoCharadesCard()" class="btn btn--ghost btn--sm btn--auto" data-i18n-title="undo_card" title="تراجع عن آخر كارت" aria-label="تراجع">↶</button>
                       <button onclick="finishCharadesGame()" class="btn btn--ghost btn--sm btn--auto" data-i18n="stop">إنهاء</button>
                     </div>
                 </div>
 
-                <div onclick="nextCharadesCard('correct')" class="play-stage__card card flex-grow flex flex-col justify-center items-center text-center border-4 border-purple-500 shadow-2xl cursor-pointer active:scale-95 transition-transform bg-purple-50 dark:bg-slate-800">
+                <div onclick="nextCharadesCard('correct')" class="play-stage__card card card--party flex-grow flex flex-col justify-center items-center text-center cursor-pointer active:scale-95 transition-transform">
                     <div class="eyebrow" data-i18n="act_it_out">مثل الكلمة</div>
-                    <h2 id="charades-word" class="text-5xl font-black text-purple-700 dark:text-purple-300 leading-tight">---</h2>
+                    <h2 id="charades-word" class="text-5xl font-black tx-accent leading-tight">---</h2>
                     <p class="field__hint" data-i18n="tap_card_correct">اضغط على الكارت لو خمّنوها صح</p>
                 </div>
 
                 <div class="play-stage__actions grid grid-cols-2 gap-4 mt-4">
-                    <button onclick="nextCharadesCard('pass')" class="btn btn--ghost bg-slate-200 text-slate-600 h-20 text-xl" data-i18n="pass">تجاوز ⏭️</button>
-                    <button onclick="nextCharadesCard('correct')" class="btn btn--primary h-20 text-xl" data-i18n="correct">✅ صح!</button>
+                    <button onclick="nextCharadesCard('pass')" class="btn btn--neutral h-20 text-xl" data-i18n="pass">تجاوز ⏭️</button>
+                    <button onclick="nextCharadesCard('correct')" class="btn btn--success h-20 text-xl" data-i18n="correct">✅ صح!</button>
                 </div>
             </div>
 
             <div id="charades-ui-result" class="hidden flex-col justify-center text-center">
-                <div class="text-6xl mb-4">🎭</div>
+                <div class="party-end-icon" aria-hidden="true" data-art-icon="charades"></div>
                 <h2 class="card__title card__title--neutral" data-i18n="timeout_title">انتهى الوقت!</h2>
                 
-                <div class="card py-10 border-purple-500 border-2">
+                <div class="card card--accent py-10">
                     <div class="eyebrow" data-i18n="correct_words">الكلمات الصحيحة</div>
-                    <div id="charades-final-score" class="text-7xl font-black text-green-600 dark:text-green-400">0</div>
+                    <div id="charades-final-score" class="metric metric--xl tx-success">0</div>
                 </div>
 
-                <button onclick="startCharadesGame(appState.charades.timer)" class="btn btn--primary mt-4" data-i18n="play_again">جولة جديدة 🔄</button>
+                <button onclick="startCharadesGame(appState.charades.timer)" class="btn btn--primary btn--go btn--lg mt-4" data-i18n="play_again">جولة جديدة 🔄</button>
                 <button onclick="setView('setup-charades')" class="btn btn--ghost mt-3" data-i18n="back">تغيير الفئة</button>
             </div>
 
@@ -3412,8 +3427,7 @@
     <div id="view-play-guessnum" class="hidden">
         <div class="card text-center min-h-[60vh] flex flex-col">
             <div class="flex justify-between items-center mb-6">
-                 <div class="eyebrow" data-i18n="attempts">المحاولات</div>
-                 <div id="gn-attempts" class="bg-slate-200 dark:bg-slate-700 px-3 py-1 rounded-lg font-black text-slate-700 dark:text-white">0</div>
+                 <span class="chip chip--plain play-chip"><span data-i18n="attempts">المحاولات</span> <b id="gn-attempts" class="metric">0</b></span>
             </div>
 
             <h3 id="gn-range-display" class="metric metric--md tx-muted mb-8" dir="ltr">1 - 100</h3>
@@ -3426,7 +3440,7 @@
                 <button onclick="checkNumberGuess()" class="btn btn--primary w-24">✅</button>
             </div>
 
-            <div id="gn-history" class="flex-grow overflow-y-auto max-h-60 border-t border-slate-100 dark:border-slate-800 pt-4"></div>
+            <div id="gn-history" class="gn-history flex-grow overflow-y-auto max-h-60 pt-4"></div>
 
             <button onclick="setView('setup-guessnum')" class="btn btn--ghost mt-4" data-i18n="new_game">لعبة جديدة</button>
         </div>
@@ -3460,7 +3474,7 @@
             <label class="field__label" data-i18n="category">المجموعة</label>
             <select id="whoami-cat-select" onchange="handleWhoAmICatChange()" style="margin-bottom: var(--sp-4)"></select>
 
-            <div id="whoami-manual-options" class="hidden mb-6 bg-slate-100 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div id="whoami-manual-options" class="hidden mb-6 plate-well">
                 <label class="switch-row" for="whoami-shuffle-check">
                     <span id="whoami-shuffle-label" class="field__label">🔀 خلط الأدوار</span>
                     <span class="switch">
@@ -3474,7 +3488,7 @@
                 </p>
             </div>
 
-            <div id="whoami-mix-options" class="hidden mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600">
+            <div id="whoami-mix-options" class="hidden mb-6 plate-well">
                 <p class="text-xs font-bold tx-muted mb-3 text-center" data-i18n="whoami_mix_pick">اختر الأقسام المطلوبة</p>
                 <div id="whoami-mix-list" class="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
                     </div>
@@ -3505,15 +3519,16 @@
                 <button type="button" class="segmented__item" data-value="0" onclick="setWhoAmITimer(0)" data-i18n="stop_no_timer">بدون</button>
               </div>
             </div>
-            <label class="field__label" data-i18n="players_count">عدد اللاعبين</label>
-            <div class="stepper" style="margin-bottom: var(--sp-6)">
-                <button onclick="adjustWhoAmICount(-1)" class="stepper__btn" aria-label="أقل">−</button>
+            <div class="field">
+              <label class="field__label" data-i18n="players_count">عدد اللاعبين</label>
+              <div class="stepper stepper--field">
+                <button type="button" onclick="adjustWhoAmICount(-1)" class="stepper__btn" aria-label="أقل">−</button>
                 <input type="number" id="whoami-count" value="3" class="stepper__value" readonly aria-live="polite">
-                <button onclick="adjustWhoAmICount(1)" class="stepper__btn" aria-label="أكثر">+</button>
+                <button type="button" onclick="adjustWhoAmICount(1)" class="stepper__btn" aria-label="أكثر">+</button>
+              </div>
             </div>
 
             <button onclick="startWhoAmI()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ اللعبة</button>
-            <button onclick="setView('menu')" class="btn btn--ghost" data-i18n="back">رجوع</button>
            </div>
          </div>
     </div>
@@ -3523,7 +3538,7 @@
             <div class="text-6xl mb-6">✍️</div>
             
             <h3 id="manual-instruction" class="font-bold tx-muted mb-2">أعط الهاتف لـ</h3>
-            <h2 id="manual-player-label" class="text-4xl font-black text-teal-600 mb-8">اللاعب 1</h2>
+            <h2 id="manual-player-label" class="text-4xl font-black tx-accent mb-8">اللاعب 1</h2>
             
             <input type="text" id="manual-whoami-input" class="text-center mb-4">
             
@@ -3537,9 +3552,11 @@
             <div id="whoami-pass-container" class="flex-grow flex flex-col justify-center text-center">
                 
                 <div id="whoami-pass-ui">
-                    <div class="text-6xl mb-6">📱</div>
-                    <h3 class="eyebrow" data-i18n="pass_phone">مرّر الموبايل لـ</h3>
-                    <h2 id="whoami-player-label" class="metric metric--lg metric--accent animate-pulse" style="margin-bottom: var(--sp-6)">---</h2>
+                    <div class="pass-poster">
+                      <span class="pass-poster__icon" aria-hidden="true" data-art-icon="whoami"></span>
+                      <h3 class="pass-poster__label" data-i18n="pass_phone">مرّر الموبايل لـ</h3>
+                      <h2 id="whoami-player-label" class="pass-poster__name">---</h2>
+                    </div>
                     
                     <button onclick="whoAmIReveal()" class="btn btn--primary btn--lg" data-i18n="reveal_identity">كشف الهوية 🕵️</button>
                 </div>
@@ -3560,14 +3577,14 @@
             <div id="whoami-timer-ui" class="hidden flex-col justify-center text-center">
                 <h3 class="card__title" data-i18n="discussion_time">وقت الأسئلة 🗣️</h3>
                 
-                <div class="card mb-8 py-10 bg-slate-50 dark:bg-slate-800">
-                    <div id="whoami-timer-display" class="text-7xl font-black text-slate-700 dark:text-white tabular-nums">00:00</div>
+                <div class="card card--accent mb-8 py-10">
+                    <div id="whoami-timer-display" class="metric metric--xl metric--accent">00:00</div>
                 </div>
                 <div id="whoami-director" class="hidden"></div>
 
-                <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="btn-row btn-row--fit mb-6">
                     <button onclick="toggleWhoAmITimer()" id="whoami-pause-btn" class="btn btn--ghost" data-i18n="pause_btn">إيقاف</button>
-                    <button onclick="finishWhoAmIGame()" class="btn btn--primary" data-i18n="reveal_words">كشف الكلمات 🔓</button>
+                    <button onclick="finishWhoAmIGame()" class="btn btn--primary" data-i18n="reveal_words_btn">🔓 كشف الكلمات</button>
                 </div>
                 
                 <p class="field__hint" data-i18n="whoami_ask_hint">اسأل أسئلة إجابتها «أيوه» أو «لأ» عشان تعرف انت مين!</p>
@@ -3578,7 +3595,7 @@
                 <div id="whoami-final-list" class="flex-grow overflow-y-auto space-y-2 mb-6 px-2"></div>
                 
                 <div class="space-y-3 mt-auto pb-4">
-                    <button onclick="setupWhoAmI()" class="btn btn--primary" data-i18n="play_again">لعبة جديدة</button>
+                    <button onclick="setupWhoAmI()" class="btn btn--primary btn--go btn--lg" data-i18n="play_again">لعبة جديدة</button>
                     <button onclick="setView('menu')" class="btn btn--ghost" data-i18n="main_menu">الرئيسية</button>
                 </div>
             </div>
@@ -3619,12 +3636,12 @@
 
     <div id="view-setup-reaction" class="hidden">
         <div class="card text-center py-8">
-            <div class="text-6xl mb-6">⚡</div>
-            <p class="tx-muted font-bold mb-8 leading-relaxed px-4" data-i18n="reaction_desc">
+            <p class="tx-muted font-bold leading-relaxed" data-i18n="reaction_desc">
                 ضع الهاتف على الطاولة بينك وبين صديقك. عندما تتحول الشاشة للون الأخضر، اضغط بأسرع ما يمكن! لكن احذر أن تضغط قبل اللون الأخضر.
             </p>
-            <button onclick="startReactionRound()" class="btn btn--danger w-full btn--lg" data-i18n="start">ابدأ التحدي</button>
-            <button onclick="setView('menu')" class="btn btn--ghost mt-3 w-full" data-i18n="back">رجوع</button>
+            <div class="view-actions view-actions--start">
+              <button onclick="startReactionRound()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ التحدي</button>
+            </div>
         </div>
       </div>
 

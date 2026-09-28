@@ -652,6 +652,60 @@ async function estimationRobots() {
   TV.close();
 }
 
+/* --- الكراسي الموسيقية: the music on the server's clock, a false start, fair taps, no tap, the end ------- */
+async function chairsRobots() {
+  console.log('• الكراسي الموسيقية (a false start, taps ranked by their stamps, a quiet phone, one left wins)');
+  const H = await Bot.host('حسام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const L = await Bot.join(H.code, 'ليلى');
+  const TV = await Bot.join(H.code, '', true);
+  const all4 = [H, J, K, L];
+  await H.must('chooseGame', { game: 'chairs' });
+  check((await J.act('start', { fake: false })).ok === false, 'chairs: only the host starts');
+  await H.must('start', { fake: false });
+  await all(all4.concat([TV]), (s) => s.game === 'chairs' && s.shared.phase === 'music' && s.shared.round === 1 && s.shared.chairs === 3 && s.shared.order.length === 4 && !s.shared.stopAt,
+    'chairs: the music starts on every phone and the TV, three chairs, no stop moment in sight');
+  check(TV.state.you === null, 'chairs: the TV has no secret');
+  const late = await Bot.join(H.code, 'متأخر');
+  check(late.state.inGame === false && late.state.shared.alive.indexOf(late.pid) === -1, 'chairs: someone who joins mid-game watches');
+  // A false start.
+  await K.must('sit', { round: 1, at: Date.now() });
+  await all(all4, (s) => s.shared.phase === 'result' && s.shared.loserId === K.pid && s.shared.why === 'early' && s.shared.alive.length === 3,
+    'chairs: a tap while the music plays puts that player out at once');
+  check((await K.act('sit', { round: 1, at: Date.now() })).ok && H.state.shared.phase === 'result', 'chairs: a tap from someone out changes nothing');
+  await H.waitFor((s) => s.shared.phase === 'music' && s.shared.round === 2, 'chairs: the next round starts by itself after the result', 9000);
+  // The real stop: everyone waits for it, then two tap and one doesn't.
+  await H.waitFor((s) => s.shared.phase === 'sit' && typeof s.shared.stopAt === 'number', 'chairs: the server stops the music inside 20 seconds', 24000);
+  const stop = H.state.shared.stopAt;
+  await sleep(500);          // a stamp later than its arrival is one the phone can't have had: give the stamps time to be in the past
+  await J.must('sit', { round: 2, at: stop + 300 });
+  await H.must('sit', { round: 2, at: stop + 150 });
+  await all(all4, (s) => s.shared.sits.length === 2 && s.shared.sits[0].id === H.pid && s.shared.sits[0].ms === 150 && s.shared.sits[1].ms === 300,
+    'chairs: taps are ranked by the phones\' stamps, not by who reached the server first');
+  await H.waitFor((s) => s.shared.phase === 'result' && s.shared.loserId === L.pid && s.shared.why === 'late', 'chairs: a phone that never taps is last, three seconds after the stop', 6000);
+  // The host moves on at once; the last two.
+  await H.must('nextRound', {});
+  await all(all4, (s) => s.shared.phase === 'music' && s.shared.round === 3 && s.shared.alive.length === 2, 'chairs: the host can start the next round straight away');
+  await H.waitFor((s) => s.shared.phase === 'sit', 'chairs: the last round stops', 24000);
+  const stop3 = H.state.shared.stopAt;
+  await sleep(300);
+  await J.must('sit', { round: 3, at: stop3 + 90 });
+  await H.must('sit', { round: 3, at: stop3 + 120 });
+  await all(all4.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.winnerId === J.pid && s.shared.wins[J.pid] === 1 && s.shared.board[0].id === J.pid &&
+    JSON.stringify(s.shared.places.map((p) => p.id)) === JSON.stringify([J.pid, H.pid, L.pid, K.pid]), 'chairs: the fastest of the last two wins; the places and the wins reach every screen');
+  await H.must('playAgain', {});
+  await all(all4.concat([late]), (s) => s.shared.phase === 'music' && s.shared.round === 1 && s.shared.alive.length === 5 && s.shared.wins[J.pid] === 1,
+    'chairs: play again deals in whoever joined and keeps the tally');
+  // A leave mid-music.
+  await api('/leave', { code: L.code, pid: L.pid, key: L.key });
+  await H.waitFor((s) => s.shared.alive.indexOf(L.pid) === -1 && s.shared.chairs === 3, 'chairs: a player who leaves is out of the ring');
+  L.close();
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'chairs: back in the hub');
+  [H, J, K, late, TV].forEach((x) => x.close());
+}
+
 async function main() {
   console.log('rooms server:', BASE);
   const t0 = Date.now();
@@ -675,6 +729,12 @@ async function main() {
   }
   if (ONLY === 'estimation') {
     await estimationRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'chairs') {
+    await chairsRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -4675,6 +4735,8 @@ async function main() {
     await H.waitFor((s) => s.phase === 'lobby', 'bowling: back in the hub');
     [H, J, S].forEach((x) => x.close());
   }
+
+  await chairsRobots();
 
   await chess4Robots();
   await estimationRobots();

@@ -78,6 +78,9 @@
   كذب):** everyone writes, everyone votes; 🖍️ **Draw & Write (ارسم واكتب):**
   the drawing telephone, drawn on phones and revealed on the TV; 🧠 **The Mind
   (العقل):** secret numbers laid down in rising order without a word.
+- **Rooms only, a party game:** 🪑 **Musical chairs (الكراسي الموسيقية):**
+  every phone is a player, the music stops at a secret moment, the fastest
+  taps get the chairs, one out a round (*الكراسي الموسيقية*).
 - **Multiplayer-only, also:** 🔔 **Buzzer (الجرس):** the host asks out loud,
   every phone is a buzzer, the server keeps the order of presses;
   🕴️ **Mafia (مافيا):** the app narrates night and day, roles on each phone;
@@ -141,6 +144,44 @@ or AI: what the owner has decided, what is waiting, and what each batch of
 work changed. Add to it when a decision is made or a batch ships.
 
 ### The owner's specs, as built
+
+- **الكراسي الموسيقية (Musical chairs)** - the owner's idea of 27 Sep 2026
+  ("each phone in a room, fastest to click sit when the music is off"),
+  every rule picked from a list (*الكراسي الموسيقية*):
+  - **Rooms and the TV only, 3 to 12 players; latecomers watch** until the
+    next game. **Chairs = players − 1, one out a round** until one is left.
+  - **The music plays on the TV, or the host's phone when there is none;
+    every phone buzzes and flashes at the stop.** An Egyptian beat made with
+    Web Audio (maqsum on a darbuka, a riff in hijaz), **its tempo climbing**.
+  - **A false start** (a tap while the music plays) **puts that player out at
+    once**, and the round ends.
+  - **Fake stops: a lobby switch, off by default** («وقفات خداعية»): the
+    music pauses for a moment and goes on; a tap in the pause is a false start.
+  - **The music plays a random 5-20 s**, no choice.
+  - **No tap within 3 s of the stop = last, so out**; no host button needed.
+  - **Scoring: a wins tally across play again, and the places at the end**
+    (the winner, then the last out first).
+  - **Home: the party section, a drawn chair icon** (`art:chairs`).
+  - **Look أ «الصالة»** from a design sheet of three
+    (https://claude.ai/artifact/LsYSF3NPhCppEe3b6b3Zvm): the arcade violet
+    ground, wooden chairs on a pale rug, round avatars with initials, the
+    amber «اقعد!». The owner added mid-build: **animations everywhere in it**.
+  - Decided here (open to change, each one place in the code):
+    - **The stop moment is a server secret** (`room._chairs`, like the bomb's
+      fuse), and so are the fake pauses until they come.
+    - **Fair on the network**: a tap carries `at`, the phone's stamp of the
+      server's time (`serverNow` / `receivedAt`, the chess clocks' gap), and
+      the server keeps it only inside the window it can prove - not before the
+      stop, not after the arrival; a stamp outside it counts as its arrival
+      (`CHAIRS_GRACE_MS` of drift allowed). So a slow connection loses no
+      chair and a phone can't claim a time it never saw.
+    - **The next round starts by itself 5.5 s after the result**
+      (`CHAIRS_BETWEEN_MS`); the host can start it sooner. The game flows
+      like the real one, and there is nothing to read on the result.
+    - A win counts only against somebody (a game where everyone else left is
+      nobody's); a player who leaves is out of the ring; fewer than two ends
+      the game.
+    - Someone who is out gets the audience bar and watches the ring.
 
 - **ألغاز شطرنج (chess puzzles)** - the owner's plan of 24 Sep 2026, approved
   as a whole (*ألغاز شطرنج*):
@@ -3301,6 +3342,18 @@ the word search), `countUp` for streaks and scores.
   leaves whoever sent nothing waving at the stop. Looked at on one phone
   (375×812 Arabic light, 667×375, 1280×720 English dark) and a room of three
   phones, a latecomer and a TV at 1920×1080, a reload mid-round.
+- **27-28 Sep 2026, الكراسي الموسيقية** - musical chairs as a room game, to
+  the owner's rules picked from a list (*The owner's specs*), the look
+  picked from a design sheet of three: `RoomChairs.js`, `JS_RoomChairs.html`,
+  section 50 of `Style.html`, a drawn icon. The stop is a server secret and
+  the taps are ranked by the phones' own stamps of the server's time. Looked
+  at in headless Chrome (three phones at 375×812 Arabic light, 667×375
+  English dark and 1280×720, a TV at 1920×1080): the lobby, the music, a
+  false start, the stop with the amber button, the hops onto the chairs, the
+  result, the end and Help; no console errors. Found on the way: the pane's
+  browser is too slow for a 3-second window, so the moments were photographed
+  by a script of our own (the screen test's CDP helpers).
+
 ## Building and Running
 
 ### Development Requirements
@@ -3359,7 +3412,7 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
   `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -3543,6 +3596,7 @@ is nowhere to hide the key card.
 | `WordleWords.js`, `Countries.js` | خمن الكلمة's lists and keypad (`WORDLE_DB`, `WORDLE_LAYOUTS`) and خمّن الدولة's table with the distances (`COUNTRIES`, `FLAG_ALIASES`, `FLAG_MODES`, `flagsDistance`, `flagsBearing`): moved out of `JS_Wordle.html` and `JS_Flags.html` for the rooms, shared by the page (inlined, `SHARED_LISTS`) and the Worker. |
 | `SolveGames.js` | The four solve games' own rules (every name `sv` / `SV_`): a written word and its colours, the ranges and higher / lower, the country hints, an emoji clue's problems: shared by the page (a setter's form checks what it sends) and the Worker. |
 | `RoomSolve.js` | `solveAction`: one sets, everyone solves - the engine (the order, the boards, the points, the clock, leaving) and its four plug-ins (`SOLVE_KINDS`). Bundled after `RoomGames.js`. |
+| `RoomChairs.js` | `chairsAction`: الكراسي الموسيقية - the secret stop and the fake pauses in `room._chairs`, the taps ranked by their stamps inside the provable window, the false start, the 3-second window, the rounds and the wins; `chairsDeadline` / `chairsTimeout`, `chairsPlayerLeft`. Bundled after `RoomGames.js`. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -7621,6 +7675,55 @@ row is crowned, the podium of four rises (`tourPodiumHtml`, the app's
 on the board (`animateScoreboards`). `roomTurnOf` answers for the phone's own
 match (`tourTurnOf`), and the lobby's switch is `tourLobbyHtml`, remembered on
 the host's phone per game (`recallOptions('tourMode')`).
+
+### الكراسي الموسيقية
+
+The owner's rules are in *The owner's specs*. Game id `chairs` everywhere
+(`room-chairs`, `ROOM_GAMES.chairs`, `TV_GAMES.chairs`, the catalog, the
+help); the rules are named `chairs` / `CHAIRS_`, the page's code `mch` / `MCH_`.
+
+- **`RoomChairs.js`**: `shared` holds `settings { fake }`, `roster` (the
+  first twelve people), `alive`, `outOrder`, `order` (the avatars' order
+  round the ring, drawn each round), `round`, `chairs`, `phase` ('music' |
+  'sit' | 'result' | 'gameover'), `startAt`, `pause { at, until }` (a fake
+  pause, only while it lasts), `stopAt` (once stopped), `sits` ([{ id, name,
+  ms }], ms null for no tap), `loserId` / `loserName` / `why` ('last' |
+  'late' | 'early'), `nextAt`, `winnerId`, `places`, `wins`, `board` (the
+  wins tally). `room._chairs = { stopAt, fakes, fakeAt }`, never projected.
+  Moves: `start` / `playAgain { fake }` (the host), `sit { round, at }` (a
+  stale round is dropped; while the music plays it is a false start),
+  `nextRound` (the host). The clock (`chairsDeadline` / `chairsTimeout`)
+  wakes for a fake pause's start and end, the stop, the window's close and
+  the next round.
+- **`JS_RoomChairs.html`** (section 50 of `Style.html`): `mchRingHtml` draws
+  the ring - the rug, the chairs at 31% of the square, the avatars orbiting
+  at 43% while the music plays (`.mch-orbit`, a Web Animation whose
+  `playbackRate` follows the tempo and is 0 in a fake pause; each avatar
+  counter-rotated to stay upright), on their chairs in tap order or standing
+  between the chairs' angles once it stopped, the loser greyed and walking
+  off (`is-walking`, once per round through `motionFirst`). The avatars
+  that moved hop from where they were (`mchFlip`: rects measured before the
+  redraw, and every paint tick during the music, so the hop starts from the
+  orbit). The middle is the equalizer (bars on Web Animations), «وقفت!» with
+  the draining 3-second bar, the result line with the countdown, or the
+  winner. The button is one element: grey «استنى…» while the music plays
+  (a tap is a real false start), amber «اقعد!» popping in at the stop,
+  locked as soon as it is tapped (`mch.pressed`). `mchTapAt` is the stamp
+  (`Date.now() − mch.gap`, the smallest `receivedAt − serverNow` seen). The
+  music (`mchMusicSync`: a lookahead scheduler on `fxTone` / `fxNoise`,
+  `MCH_MAQSUM` and `MCH_RIFF`, the tempo from `mchTempo`) plays only on
+  the voice (`mchIsVoice`: the TV, else the host's phone); the stop's
+  scratch, a note per seat taken, the out and the win sounds are the
+  voice's too; every phone buzzes and the rug flashes at the stop
+  (`mchOnce` keys, whatever the motion setting). The TV frame is the ring as
+  tall as the stage beside the order (or who is in the ring while the music
+  plays, and the places and the wins at the end).
+- Tests: `rules.mjs` ("Musical chairs", 31 checks: the secret stop, the
+  window, the stamps' clamp, a false start, no tap, the places and the wins,
+  leaving, the 13th watching, the fake pauses), `leaks.mjs` (the stop moment
+  and the fakes never reach a phone), `play-all.mjs` (`--only=chairs`: a
+  false start, taps ranked by their stamps, a quiet phone, the end, play
+  again with a latecomer, a leave).
 
 ### The catalog and the home screen
 

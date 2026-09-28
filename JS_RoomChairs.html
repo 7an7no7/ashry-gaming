@@ -1,0 +1,525 @@
+<script>
+/* ============================================================================
+   الكراسي الموسيقية — MUSICAL CHAIRS (rooms and the TV), 27 Sep 2026
+   ----------------------------------------------------------------------------
+   Every phone is a player round a ring of chairs (players − 1). The music
+   plays on the TV, or on the host's phone when there is none - an Egyptian
+   beat made here with Web Audio, its tempo climbing - and the avatars circle
+   the ring on every screen. The server stops it at a secret moment
+   (RoomChairs.js): every phone buzzes and flashes, the button turns amber,
+   and the taps are ranked by the phones' own stamps of the server's time
+   (mchTapAt), so a slow connection loses no chair. The slowest, or whoever
+   never tapped, walks off; one out a round until one is left.
+
+   Look أ «الصالة» from the design sheet: the arcade violet ground, wooden
+   chairs on a pale rug, round avatars with initials, the amber «اقعد!».
+   Everything here is public (state.shared); the phone adds only motion:
+     - the avatars orbit while the music plays (a Web Animation whose
+       playbackRate follows the tempo, and stops dead in a fake pause),
+     - at the stop each avatar that sat hops onto its chair (FLIP from where
+       it was, measured before the redraw), the loser greys and walks off,
+     - the button pops in, the sit window drains, the result card turns,
+     - the end is the places, confetti for the winner and the wins tally.
+   Every name here starts with mch / MCH_. Section 50 of Style.html.
+   ========================================================================= */
+const MCH_OPTS_KEY = 'chairs';
+const MCH_OPTS_DEFAULT = { fake: false };
+const MCH_COLORS = ['#6d28d9', '#0ea5a4', '#e5383b', '#f59e0b', '#2563eb', '#db2777', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#9333ea', '#65a30d'];
+const MCH_BPM_START = 104, MCH_BPM_END = 150, MCH_BPM_RAMP_MS = 16000;
+const MCH_SIT_MS = 3000;           // CHAIRS_SIT_MS on the server: the window's bar drains over it
+
+const mch = {
+  gap: Infinity,        // the smallest (receivedAt − serverNow) seen: the network's share, so the phone can tell the server's time
+  orbit: null,          // the ring's spin (a Web Animation) and its bars
+  eq: [],
+  music: null,          // the scheduler of the beat, on the one device that plays it
+  timer: null,          // the tempo, the countdown and the window, painted in place
+  seen: new Set(),      // play-once keys (a sound, a flash), whatever the motion setting
+  pressed: ''           // the round this phone tapped in, so the button locks before the server answers
+};
+
+/* --- the server's clock on this phone ---------------------------------------- */
+function mchNoteTime(state) {
+  if (state && typeof state.serverNow === 'number' && typeof state.receivedAt === 'number') {
+    mch.gap = Math.min(mch.gap, state.receivedAt - state.serverNow);
+  }
+}
+const mchServerNow = () => (isFinite(mch.gap) ? Date.now() - mch.gap : Date.now());
+/** The stamp a tap carries: the server's time as this phone knows it (null when it doesn't yet). */
+const mchTapAt = () => (isFinite(mch.gap) ? Date.now() - mch.gap : null);
+
+function mchOpts() { return recallOptions(MCH_OPTS_KEY, MCH_OPTS_DEFAULT); }
+function mchSetOpt(patch) {
+  rememberOptions(MCH_OPTS_KEY, patch);
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+const mchOnce = (key) => { if (!key || mch.seen.has(key)) return false; if (mch.seen.size > 300) mch.seen.clear(); mch.seen.add(key); return true; };
+const mchT = () => TRANSLATIONS[appState.lang];
+const mchFill = (str, vars) => String(str || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+const mchIso = (s) => '⁨' + s + '⁩';
+
+/** «7 كراسي»: the Arabic count words, the English plural. */
+function mchChairsWord(n) {
+  const t = mchT();
+  if (n === 1) return t.mch_chair1;
+  if (n === 2) return t.mch_chairs2;
+  if (n >= 3 && n <= 10) return mchFill(t.mch_chairs_n, { n });
+  return mchFill(t.mch_chairs_11, { n });
+}
+
+/** Who plays the music: the TV where there is one, else the host's phone. */
+function mchIsVoice(state) {
+  if (state.youAreScreen) return true;
+  const screenOn = (state.screens || []).some((x) => x.online);
+  return !!state.youAreHost && !screenOn;
+}
+
+/* --- the ring ------------------------------------------------------------------ */
+const mchColorOf = (s, id) => MCH_COLORS[Math.max(0, (s.roster || []).indexOf(id)) % MCH_COLORS.length];
+const mchNameOf = (state, id) => ((state.players || []).find((p) => p.id === id) || {}).name || '';
+const mchInitial = (name) => (String(name || '').trim().replace(/^ال/, '')[0] || '?');
+
+function mchChairSvg() {
+  return '<svg viewBox="0 0 40 40" aria-hidden="true" focusable="false"><rect x="7" y="11" width="26" height="24" rx="6" fill="#d89a4a"/><rect x="7" y="11" width="26" height="24" rx="6" fill="none" stroke="#8a4f17" stroke-width="1.5"/><rect x="4" y="4" width="32" height="10" rx="4" fill="#a35f22"/><rect x="11" y="16" width="18" height="14" rx="4" fill="#efc07a" opacity=".7"/></svg>';
+}
+
+/**
+ * The ring: the rug, the chairs, and the avatars - orbiting while the music
+ * plays, on their chairs (in tap order) or standing once it has stopped, the
+ * loser greyed. Positions are percentages of the square, worked out here
+ * (CSS trig would leave a 2021 phone with no layout at all).
+ */
+function mchRingHtml(state, s, o) {
+  const t = mchT();
+  const me = Room.me;
+  const chairs = Math.max(0, s.chairs || 0);
+  const order = (s.order || []).filter((id) => (state.players || []).some((p) => p.id === id));
+  const alive = s.alive || [];
+  const sits = s.sits || [];
+  const music = s.phase === 'music';
+  const at = (r, deg, w) => {
+    const a = (deg - 90) * Math.PI / 180;
+    return `left:${(50 + r * Math.cos(a) - w / 2).toFixed(2)}%;top:${(50 + r * Math.sin(a) - w / 2).toFixed(2)}%;width:${w}%;height:${w}%`;
+  };
+  const CH = 14, AV = 12;   // sizes as a share of the square; every radius keeps the avatars inside it
+  let out = '<div class="mch-rug"></div>';
+  for (let k = 0; k < chairs; k++) {
+    const deg = k * 360 / chairs;
+    out += `<div class="mch-chair" style="${at(31, deg, CH)};--rot:${deg.toFixed(0)}deg">${mchChairSvg()}</div>`;
+  }
+  const avHtml = (id, extra, style) => {
+    const name = mchNameOf(state, id);
+    return `<div class="mch-av ${id === me ? 'is-me' : ''} ${extra || ''}" data-mch-av="${escapeHTML(id)}" style="${style};--c:${mchColorOf(s, id)}" title="${escapeHTML(name)}">
+      <span class="mch-av__face">${escapeHTML(mchInitial(name))}</span><span class="mch-av__name">${escapeHTML(name)}</span></div>`;
+  };
+  if (music) {
+    // Everyone alive spins round the chairs, evenly spaced, upright.
+    out += '<div class="mch-orbit" data-mch-orbit>';
+    order.forEach((id, i) => {
+      if (alive.indexOf(id) === -1) return;
+      const deg = i * 360 / Math.max(1, order.length);
+      out += `<div class="mch-orbit__seat" style="${at(43, deg, AV)}">${avHtml(id, '', '')}</div>`;
+    });
+    out += '</div>';
+  } else {
+    order.forEach((id, i) => {
+      const deg = i * 360 / Math.max(1, order.length);
+      const rank = sits.findIndex((x) => x.id === id);
+      const sat = rank !== -1 && rank < chairs;
+      const isLoser = s.loserId === id;
+      if (alive.indexOf(id) === -1 && !isLoser) return;              // out earlier: not in the ring
+      let style;
+      if (sat) style = at(31, rank * 360 / Math.max(1, chairs), AV);  // on the chair it took
+      else style = at(44, deg + 180 / Math.max(1, order.length), AV);   // standing, between the chairs' angles
+      const outNow = isLoser && s.phase !== 'music';
+      const walk = outNow && motionFirst(['mch-out', roomDealKey(state), s.round].join('|')) ? ' is-walking' : '';
+      out += avHtml(id, (sat ? 'is-sat' : '') + (outNow ? ' is-out' + walk : ''), style);
+    });
+  }
+  // The middle: the equalizer while the music plays, the moment otherwise.
+  let mid;
+  if (music) {
+    mid = `<div class="mch-eq" data-mch-eq>${'<i></i>'.repeat(9)}</div><div class="mch-mid__line">${escapeHTML(t.mch_music_on)}</div>`;
+  } else if (s.phase === 'sit') {
+    mid = `<div class="mch-mid__big">${escapeHTML(t.mch_stopped)}</div><div class="mch-window"><i data-mch-window></i></div>`;
+  } else if (s.phase === 'result') {
+    const key = s.why === 'early' ? 'mch_out_early' : s.why === 'late' ? 'mch_out_late' : 'mch_out_last';
+    mid = `<div class="mch-mid__big mch-mid__big--out">${escapeHTML(mchFill(t[key], { name: mchIso(s.loserName || '') }))}</div>
+           <div class="mch-mid__line" data-mch-next></div>`;
+  } else {
+    mid = `<div class="mch-mid__big mch-mid__big--win">🏆 ${escapeHTML(mchFill(t.mch_winner, { name: mchIso(s.winnerName || '') }))}</div>`;
+  }
+  out += `<div class="mch-mid ${s.phase !== 'music' && motionFirst(['mch-mid', roomDealKey(state), s.round, s.phase].join('|')) ? 'mch-mid--in' : ''}">${mid}</div>`;
+  return `<div class="mch-ring ${o && o.tv ? 'mch-ring--tv' : ''}" data-mch-ring>${out}</div>`;
+}
+
+/** «مين قعد الأول؟»: the taps in order, the time each took, the one out crossed. */
+function mchOrderHtml(state, s) {
+  const t = mchT();
+  const sits = s.sits || [];
+  if (!sits.length && s.phase !== 'result') return '';
+  const chairs = s.chairs || 0;
+  const rows = sits.map((x, i) => {
+    const out = i >= chairs || x.id === s.loserId;
+    return `<div class="status-row ${out ? 'is-out' : ''}">
+      <span class="mch-order__n ${i < 3 && !out ? 'is-top' : ''}">${out ? '✕' : i + 1}</span>
+      <div class="status-row__body"><div class="status-row__name">${escapeHTML(x.name || mchNameOf(state, x.id))}</div></div>
+      <span class="mch-order__ms metric">${x.ms === null || x.ms === undefined ? '—' : x.ms + ' ms'}</span></div>`;
+  }).join('');
+  const early = s.phase === 'result' && s.why === 'early'
+    ? `<div class="status-row is-out"><span class="mch-order__n">✕</span><div class="status-row__body"><div class="status-row__name">${escapeHTML(s.loserName || '')}</div></div><span class="mch-order__ms">${escapeHTML(t.mch_early_short)}</span></div>` : '';
+  return `<div class="card card--tight mch-order"><div class="eyebrow">${escapeHTML(t.mch_order)}</div>${rows}${early}</div>`;
+}
+
+/** The TV's side while the music plays: who is in the ring, and who is out already. */
+function mchRingListHtml(state, s) {
+  const t = mchT();
+  const alive = s.alive || [];
+  const rows = (state.players || []).filter((p) => (s.roster || []).indexOf(p.id) !== -1).map((p) => {
+    const out = alive.indexOf(p.id) === -1;
+    return `<div class="status-row ${out ? 'is-out' : ''}"><span class="mch-order__n" style="background:${out ? 'var(--surface-3)' : mchColorOf(s, p.id)};color:#fff">${escapeHTML(mchInitial(p.name))}</span><div class="status-row__body"><div class="status-row__name">${escapeHTML(p.name)}</div></div>${out ? '<span class="mch-order__ms">✕</span>' : ''}</div>`;
+  }).join('');
+  return `<div class="card card--tight mch-order"><div class="eyebrow">${escapeHTML(t.mch_in_ring)}</div>${rows}</div>`;
+}
+
+/** The end: the winner crowned, the places (the last out first), the wins of the evening. */
+function mchOverHtml(state, s) {
+  const t = mchT();
+  const places = s.places || [];
+  const medals = ['🥇', '🥈', '🥉'];
+  const rise = motionFirst(['mch-over', roomDealKey(state)].join('|'));
+  const list = places.map((p, i) => `<div class="mch-place ${rise ? 'mch-place--rise' : ''}" style="--at:${i * 140}ms"><span class="mch-place__medal">${medals[i] || (i + 1)}</span><span class="mch-place__name">${escapeHTML(p.name)}</span></div>`).join('');
+  return `<div class="card mch-over ${rise ? 'mch-over--rise' : ''}" data-reveal-ms="${rise ? 700 + places.length * 140 : 0}">
+      <div class="eyebrow">${escapeHTML(t.mch_places)}</div>${list}</div>
+    ${renderScoreboard(s.board, t.mch_wins)}`;
+}
+
+/* --- the room game ------------------------------------------------------------- */
+ROOM_GAMES.chairs = {
+  lateJoin: true,     // someone who joins mid-game watches the ring, and is dealt in with play again
+  lobbyOptions(state) {
+    if (!state.youAreHost) return '';
+    const t = mchT();
+    const o = mchOpts();
+    return `
+      <div class="card card--tight">
+        <label class="switch-row" for="mch-fake">
+          <span class="field__label">${escapeHTML(t.mch_fake)}</span>
+          <span class="switch">
+            <input type="checkbox" id="mch-fake" role="switch" ${o.fake ? 'checked' : ''} onchange="mchSetOpt({ fake: this.checked })">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </label>
+        <p class="field__hint" style="text-align:center">${escapeHTML(o.fake ? t.mch_fake_hint : t.mch_lobby_hint)}</p>
+      </div>`;
+  },
+  startPayload() { return { fake: !!mchOpts().fake }; },
+
+  render(state) {
+    if (appState.currentView !== 'room-chairs') setView('room-chairs');
+    const el = document.getElementById('view-room-chairs');
+    if (!el) return;
+    mchNoteTime(state);
+    const t = mchT();
+    const s = state.shared || {};
+    const me = Room.me;
+    const alive = s.alive || [];
+    const inRing = alive.indexOf(me) !== -1;
+    const sits = s.sits || [];
+    const myRank = sits.findIndex((x) => x.id === me);
+    const voice = mchIsVoice(state);
+    const screenOn = (state.screens || []).some((x) => x.online);
+
+    const sig = ['mch', roomDealKey(state), s.phase, s.round, s.chairs, (s.order || []).join(','), alive.join(','),
+      sits.map((x) => x.id + ':' + x.ms).join(','), s.loserId, s.why, s.winnerId, JSON.stringify(s.wins || {}),
+      state.youAreHost, voice, inRing, appState.lang].join('|');
+
+    const before = mchRects(el);
+    renderRoomFrame(el, sig, () => {
+      const head = `
+        <div class="play-head mch-head">
+          <span class="badge">${escapeHTML(t.round)} <span class="metric">${s.round || 1}</span></span>
+          <span class="badge badge--accent">🪑 ${escapeHTML(mchChairsWord(s.chairs || 0))}</span>
+          <span class="badge">${escapeHTML(mchFill(t.mch_alive, { n: alive.length }))}</span>
+        </div>`;
+      let bar;
+      if (s.phase === 'gameover') {
+        bar = '';
+      } else if (!inRing) {
+        bar = `<div class="waiting-note">${escapeHTML((s.outOrder || []).indexOf(me) !== -1 ? t.mch_you_out : t.mch_watching)}</div>`;
+      } else if (s.phase === 'music') {
+        bar = `<button type="button" class="mch-btn is-wait" onclick="mchSit(this)">
+                 <span class="mch-btn__label">${escapeHTML(t.mch_wait_btn)}</span><span class="mch-btn__sub">${escapeHTML(t.mch_music_on)}</span></button>
+               <p class="mch-hint">${escapeHTML(t.mch_tap_hint)}</p>
+               <p class="mch-hint mch-hint--voice">${escapeHTML(voice ? t.mch_voice_you : screenOn ? t.mch_voice_tv : t.mch_voice_host)}</p>`;
+      } else if (s.phase === 'sit') {
+        const pressed = mch.pressed === roomDealKey(state) + '|' + s.round;
+        bar = myRank !== -1 || pressed
+          ? `<div class="mch-sat ${myRank === 0 ? 'is-first' : ''}"><span class="mch-sat__n">${myRank === -1 ? '…' : escapeHTML(mchFill(t.mch_sat, { n: myRank + 1 }))}</span><span class="mch-sat__ms metric">${myRank === -1 ? '' : (sits[myRank].ms + ' ms')}</span></div>`
+          : `<button type="button" class="mch-btn is-go mch-btn--pop" onclick="mchSit(this)"><span class="mch-btn__label">${escapeHTML(t.mch_sit)}</span></button>`;
+      } else {
+        bar = s.loserId === me
+          ? `<div class="mch-sat is-out"><span class="mch-sat__n">${escapeHTML(t.mch_you_out)}</span></div>`
+          : `<div class="mch-sat"><span class="mch-sat__n">${escapeHTML(myRank === -1 ? t.mch_safe : mchFill(t.mch_sat, { n: myRank + 1 }))}</span></div>`;
+      }
+      const host = !state.youAreHost ? '' : (s.phase === 'result'
+        ? roomHostRow([[t.mch_next_now, "roomAct('nextRound', {})", 'secondary']])
+        : s.phase === 'gameover'
+          ? `<div class="btn-row" style="margin-top:var(--sp-3)"><button class="btn btn--go" onclick="roomAct('playAgain', {})">▶ ${escapeHTML(t.mch_play_again)}</button><button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game)}</button></div>`
+          : '');
+      const share = s.phase === 'gameover' && typeof roomShareBtnHtml === 'function' ? roomShareBtnHtml(state, s.board) : '';
+      const over = s.phase === 'gameover' ? mchOverHtml(state, s) : '';
+      return `<div class="mch">${head}${mchRingHtml(state, s)}<div class="mch-bar">${bar}</div>${over}${host}${share}${mchOrderHtml(state, s)}${renderRoomPlayerStrip(state)}</div>`;
+    });
+    refreshRoomPlayerStrip(el, state);
+    mchAfter(state, el, before);
+  }
+};
+
+/** The tap: locked at once, sent with the server's time as this phone knows it. */
+function mchSit(btn) {
+  const state = Room.state;
+  const s = (state && state.shared) || {};
+  if (btn) { btn.classList.add('is-pressed'); btn.disabled = true; }
+  haptic('heavy');
+  if (s.phase === 'sit') mch.pressed = roomDealKey(state) + '|' + s.round;
+  roomAct('sit', { round: s.round, at: mchTapAt() });
+}
+
+/* --- motion, sound and the clocks, after every paint (phone and TV) ------------ */
+function mchRects(el) {
+  const map = {};
+  if (!el || motionOff()) return map;
+  el.querySelectorAll('[data-mch-av]').forEach((a) => { const r = a.getBoundingClientRect(); if (r.width) map[a.dataset.mchAv] = r; });
+  return map;
+}
+
+function mchAfter(state, el, before) {
+  const s = state.shared || {};
+  const key = roomDealKey(state) + '|' + s.round;
+  mchNoteTime(state);
+  // The ring's spin and the equalizer: one animation each, their speed the tempo's.
+  const orbitEl = el.querySelector('[data-mch-orbit]');
+  if (orbitEl && !orbitEl.dataset.spun) {
+    orbitEl.dataset.spun = '1';
+    mchStopOrbit();
+    if (!motionOff() && orbitEl.animate) {
+      const lap = 60 / MCH_BPM_START * 8 * 1000;      // eight beats a lap
+      mch.orbit = orbitEl.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: lap, iterations: Infinity });
+      orbitEl.querySelectorAll('.mch-av').forEach((a) => {
+        mch.eq.push(a.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(-360deg)' }], { duration: lap, iterations: Infinity }));
+      });
+      el.querySelectorAll('[data-mch-eq] > i').forEach((bar, i) => {
+        const beat = 60 / MCH_BPM_START * 1000;
+        const hi = 0.45 + ((i * 7) % 5) * 0.12;
+        mch.eq.push(bar.animate([{ transform: 'scaleY(0.25)' }, { transform: `scaleY(${hi})` }, { transform: 'scaleY(0.3)' }, { transform: 'scaleY(1)' }, { transform: 'scaleY(0.25)' }],
+          { duration: beat * (i % 2 ? 2 : 1), iterations: Infinity, delay: -i * 90, easing: 'ease-in-out' }));
+      });
+    }
+  }
+  if (!orbitEl) mchStopOrbit();
+  // The avatars that moved hop from where they were (a chair, or their spot in the orbit).
+  if (before && Object.keys(before).length) mchFlip(el, before, s);
+  // The stop: every phone buzzes and flashes once; the voice scratches the record.
+  if (s.phase === 'sit' && mchOnce('stop|' + key)) {
+    haptic('heavy');
+    const ring = el.querySelector('[data-mch-ring]');
+    if (ring && !motionOff()) { ring.classList.add('is-flash'); setTimeout(() => ring.classList.remove('is-flash'), 700); }
+    if (mchIsVoice(state)) mchSound('stop');
+  }
+  // A sit landing: a short note on the voice, higher the earlier.
+  (s.sits || []).forEach((x, i) => { if (mchOnce('sat|' + key + '|' + x.id) && mchIsVoice(state) && s.phase === 'sit') mchSound('sat', i); });
+  if (s.phase === 'result' && mchOnce('out|' + key)) {
+    if (mchIsVoice(state)) mchSound(s.why === 'early' ? 'early' : 'out');
+    if (s.loserId === Room.me) haptic('medium');
+  }
+  if (s.phase === 'gameover' && mchOnce('over|' + roomDealKey(state))) {
+    if (mchIsVoice(state)) { mchSound('win'); }
+    if (s.winnerId && (s.winnerId === Room.me || state.youAreScreen)) {
+      const card = el.querySelector('.mch-over') || el;
+      afterReveal(card, () => { if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }); });
+    }
+  }
+  // The music, on the one voice.
+  if (s.phase === 'music' && mchIsVoice(state)) mchMusicSync(state, s);
+  else mchMusicStop();
+  // Tempo, the sit window and the countdown, painted in place.
+  if (mch.timer) clearInterval(mch.timer);
+  mch.timer = null;
+  const paint = () => {
+    const st = Room.state;
+    if (!st || st.game !== 'chairs') { mchStopAll(); return; }
+    const sh = st.shared || {};
+    mch.lastRects = mchRects(el);          // where every avatar is now, for the next redraw's hop
+    if (sh.phase === 'music') {
+      const paused = !!sh.pause && mchServerNow() < sh.pause.until;
+      const rate = paused ? 0 : mchTempo(sh) / MCH_BPM_START;
+      if (mch.orbit) mch.orbit.playbackRate = rate;
+      mch.eq.forEach((a) => { a.playbackRate = rate; });
+      if (mch.music) mch.music.paused = paused;
+    } else if (sh.phase === 'sit') {
+      const bar = el.querySelector('[data-mch-window]');
+      if (bar) bar.style.transform = 'scaleX(' + Math.max(0, 1 - (mchServerNow() - (sh.stopAt || 0)) / MCH_SIT_MS).toFixed(3) + ')';
+    } else if (sh.phase === 'result') {
+      const n = el.querySelector('[data-mch-next]');
+      if (n && sh.nextAt) {
+        const left = Math.max(0, Math.ceil((sh.nextAt - mchServerNow()) / 1000));
+        const txt = mchFill(mchT().mch_next_in, { n: left });
+        if (n.textContent !== txt) { n.textContent = txt; if (typeof motionBump === 'function') motionBump(n); }
+      }
+    }
+  };
+  paint();
+  mch.lastRects = mchRects(el);
+  if (s.phase === 'music' || s.phase === 'sit' || s.phase === 'result') mch.timer = setInterval(paint, s.phase === 'sit' ? 60 : 250);
+}
+
+/** The tempo now: from MCH_BPM_START up to MCH_BPM_END over the first MCH_BPM_RAMP_MS of the round. */
+function mchTempo(s) {
+  const elapsed = Math.max(0, mchServerNow() - (s.startAt || mchServerNow()));
+  return MCH_BPM_START + (MCH_BPM_END - MCH_BPM_START) * Math.min(1, elapsed / MCH_BPM_RAMP_MS);
+}
+
+function mchFlip(el, before, s) {
+  if (motionOff()) return;
+  let k = 0;
+  el.querySelectorAll('[data-mch-av]').forEach((a) => {
+    const old = before[a.dataset.mchAv];
+    if (!old || !a.animate) return;
+    const now = a.getBoundingClientRect();
+    const dx = old.left - now.left, dy = old.top - now.top;
+    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+    const hop = a.classList.contains('is-sat') ? -Math.max(18, now.height * 0.6) : -8;
+    a.animate([
+      { transform: `translate(${dx}px, ${dy}px) scale(1)` },
+      { transform: `translate(${dx / 2}px, ${dy / 2 + hop}px) scale(1.18)`, offset: 0.55 },
+      { transform: 'translate(0, 0) scale(1)' }
+    ], { duration: 520, delay: k * 70, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
+    k++;
+  });
+}
+
+function mchStopOrbit() {
+  if (mch.orbit) { try { mch.orbit.cancel(); } catch (e) {} }
+  mch.orbit = null;
+  mch.eq.forEach((a) => { try { a.cancel(); } catch (e) {} });
+  mch.eq = [];
+}
+function mchStopAll() {
+  mchStopOrbit();
+  mchMusicStop();
+  if (mch.timer) clearInterval(mch.timer);
+  mch.timer = null;
+}
+onLeaveScreen((from) => { if (from === 'room-chairs' || from === 'room-tv') mchStopAll(); });
+onRoomClocksReset(() => mchStopAll());
+
+/* --- the music: an Egyptian beat made here, its tempo climbing ------------------ */
+// Maqsum on the darbuka, eight steps a bar: D T _ T D _ T _ (a dum on 1 and 5, taks between).
+const MCH_MAQSUM = ['D', 'T', '', 'T', 'D', '', 'T', ''];
+// A riff in hijaz on D, two bars of eighths: a bright, party-ish line over the beat.
+const MCH_RIFF = [293.66, 0, 369.99, 392, 440, 0, 392, 369.99, 311.13, 0, 293.66, 0, 440, 392, 369.99, 0,
+                  293.66, 0, 369.99, 392, 523.25, 0, 466.16, 440, 392, 0, 369.99, 0, 311.13, 293.66, 0, 0];
+
+function mchMusicSync(state, s) {
+  const key = roomDealKey(state) + '|' + s.round;
+  if (mch.music && mch.music.key === key) return;
+  mchMusicStop();
+  const ctx = fxCtx();
+  if (!ctx) return;
+  const m = { key, step: 0, nextT: ctx.currentTime + 0.08, paused: false, timer: null, s };
+  mch.music = m;
+  const tick = () => {
+    if (mch.music !== m) return;
+    if (ctx.state !== 'running') return;
+    if (m.paused) { m.nextT = ctx.currentTime + 0.06; return; }
+    const sh = (Room.state && Room.state.shared) || s;
+    while (m.nextT < ctx.currentTime + 0.28) {
+      const bpm = mchTempo(sh);
+      const stepDur = 60 / bpm / 2;
+      mchPlayStep(m.step, m.nextT, stepDur);
+      m.step++;
+      m.nextT += stepDur;
+    }
+  };
+  m.timer = setInterval(tick, 80);
+  tick();
+}
+function mchMusicStop() {
+  if (mch.music && mch.music.timer) clearInterval(mch.music.timer);
+  mch.music = null;
+}
+function mchPlayStep(step, at, dur) {
+  const hit = MCH_MAQSUM[step % 8];
+  if (hit === 'D') {
+    fxTone('sine', [[0, 150], [0.09, 55]], [[0, 0.5], [0.02, 0.42], [0.22, 0.001]], at);
+    fxNoise('lowpass', 500, 0.8, [[0, 0.35], [0.06, 0.001]], at);
+  } else if (hit === 'T') {
+    fxNoise('highpass', 2600, 1.2, [[0, 0.22], [0.045, 0.001]], at);
+    fxTone('triangle', [[0, 900], [0.03, 700]], [[0, 0.08], [0.05, 0.001]], at);
+  }
+  if (step % 2 === 0) {
+    // A closed hat on every beat's off-step keeps the pulse under the riff.
+    fxNoise('highpass', 6000, 0.8, [[0, 0.06], [0.03, 0.001]], at + dur);
+  }
+  const note = MCH_RIFF[step % MCH_RIFF.length];
+  if (note) {
+    const len = Math.min(0.3, dur * 1.7);
+    fxTone('square', [[0, note]], [[0, 0.0001], [0.012, 0.075], [len * 0.7, 0.045], [len, 0.0001]], at, 4);
+    fxTone('triangle', [[0, note / 2]], [[0, 0.0001], [0.01, 0.06], [len, 0.0001]], at);
+  }
+  if (hit === 'D') fxTone('sine', [[0, 73.42]], [[0, 0.0001], [0.01, 0.18], [dur * 1.6, 0.0001]], at);
+}
+
+/** The moments' sounds on the voice (the TV, or the host's phone): the needle scratch, a seat taken, out, the win. */
+function mchSound(kind, i) {
+  try {
+    const at = fxCtx().currentTime + 0.01;
+    if (kind === 'stop') {
+      fxNoise('bandpass', 1800, 2.5, [[0, 0.4], [0.16, 0.001]], at);
+      fxTone('sawtooth', [[0, 320], [0.3, 70]], [[0, 0.18], [0.3, 0.001]], at);
+    } else if (kind === 'sat') {
+      const hz = 660 - Math.min(6, i || 0) * 60;
+      fxTone('sine', [[0, hz], [0.07, hz * 1.5]], [[0, 0.2], [0.14, 0.001]], at);
+    } else if (kind === 'out') {
+      playFx('sad');
+    } else if (kind === 'early') {
+      playFx('fail');
+    } else if (kind === 'win') {
+      playFx('tada');
+      setTimeout(() => playFx('zaghrouta'), 500);
+    }
+  } catch (e) {}
+}
+
+/* --- the big screen ---------------------------------------------------------- */
+TV_GAMES.chairs = {
+  sig(state) {
+    const s = state.shared || {};
+    return ['chairs', roomDealKey(state), s.phase, s.round, s.chairs, (s.order || []).join(','), (s.alive || []).join(','),
+      (s.sits || []).map((x) => x.id + ':' + x.ms).join(','), s.loserId, s.why, s.winnerId, JSON.stringify(s.wins || {}), state.youAreHost, appState.lang].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    const alive = s.alive || [];
+    const head = `<div class="tv-eyebrow tv-center-text">${escapeHTML(t.round)} ${s.round || 1} · ${escapeHTML(mchChairsWord(s.chairs || 0))} · ${escapeHTML(mchFill(t.mch_alive, { n: alive.length }))}</div>`;
+    const host = !state.youAreHost ? '' : (s.phase === 'result'
+      ? `<div class="tv-actions">${tvBtn(t.mch_next_now, "roomAct('nextRound', {})", 'secondary')}</div>`
+      : s.phase === 'gameover' ? `<div class="tv-actions">${tvBtn('▶ ' + t.mch_play_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : '');
+    const side = s.phase === 'gameover' ? mchOverHtml(state, s) : (mchOrderHtml(state, s) || mchRingListHtml(state, s));
+    const hint = s.phase === 'music' ? `<div class="tv-note">${escapeHTML(t.mch_tap_hint)}</div>` : '';
+    return `<div class="mch-tv">
+      <div class="mch-tv__stage">${head}${mchRingHtml(state, s, { tv: true })}${hint}</div>
+      <div class="mch-tv__side tv-scale">${side}${host}</div>
+    </div>`;
+  },
+  after(state, rebuilt) {
+    const el = document.getElementById('view-room-tv');
+    if (!el) return;
+    // The TV has no measure-before hook: the rects kept by the last paint tick stand in (mch.lastRects).
+    mchAfter(state, el, mch.lastRects || null);
+  }
+};
+</script>

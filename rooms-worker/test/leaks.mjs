@@ -723,6 +723,15 @@ const PROBES = {
       })
     ];
   },
+  // الكراسي الموسيقية: the stop moment (and the fake pauses) never leave the server while the music plays.
+  chairs(room) {
+    const h = room._chairs;
+    const live = (room.shared || {}).phase === 'music' && !!h;
+    return [
+      secret('the stop moment stays on the server', live ? h.stopAt : null, []),
+      probe('no fake pause is announced before it comes', live && h.fakes.length > 0, (view) => (hasKey(view.shared, 'fakes') ? 'shared.fakes' : null))
+    ];
+  },
   // Nothing hidden: the generic rules still hold.
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
   connect4: () => [], dots: () => [], xo: () => [], ludo: () => [], bowling: () => [],
@@ -1606,6 +1615,26 @@ const DRIVERS = {
       must(T, s.turn.pid, 'throw', { x: Math.round(Math.random() * 40 - 20), aim: Math.round(Math.random() * 30 - 15), speed: 500 + Math.round(Math.random() * 400), spin: Math.round(Math.random() * 120 - 60), seq: s.turnSeq });
     }
     return S(T).phase === 'gameover';
+  },
+  chairs() {
+    // Four in the ring: a false start, taps timed by their stamps, a round nobody finishes, to one left.
+    const T = table('chairs', 4);
+    must(T, T.host, 'start', { fake: true });
+    for (let guard = 0; guard < 40 && S(T).phase !== 'gameover'; guard++) {
+      const s = S(T);
+      if (s.phase === 'result') { runClock(T, (r) => r.shared.phase !== 'result', 6); continue; }
+      if (s.phase === 'music') {
+        if (guard === 0) { must(T, s.alive[1], 'sit', { round: s.round, at: clock }); continue; }     // a false start
+        runClock(T, (r) => r.shared.phase !== 'music', 12);
+        continue;
+      }
+      if (s.phase === 'sit') {
+        const alive = s.alive.slice();
+        alive.slice(0, alive.length - 1).forEach((id, i) => must(T, id, 'sit', { round: s.round, at: s.stopAt + 100 + i * 50 }));
+        runClock(T, (r) => r.shared.phase !== 'sit', 6);                                             // the last never taps
+      }
+    }
+    return S(T).phase === 'gameover' && !!S(T).winnerId;
   },
   chess4() {
     // Two people and computer players, both ways: random moves for the people, the host playing

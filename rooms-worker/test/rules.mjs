@@ -8800,6 +8800,121 @@ Date.now = duelTestClock;
   check(r.phase !== 'lobby' && threw(() => applyRoomAction(r, 'a', 'rename', { name: 'X' })), 'rename: not while a game is being played');
 }
 
+/* --- الكراسي الموسيقية (27 Sep 2026): the stop is a server secret, taps are ranked fairly, one out a round --- */
+{
+  console.log('\nMusical chairs');
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const chairsRoom = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'chairs' });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); roomTimeout(r, clock); };
+  {
+    const r = newRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'chairs' });
+    check(threw(() => applyRoomAction(r, 'a', 'start', {})), 'chairs: fewer than three is refused');
+  }
+  {
+    const r = chairsRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    check(r.phase === 'play' && s.phase === 'music' && s.round === 1 && s.chairs === 3 && s.alive.length === 4 && s.order.length === 4,
+      'chairs: the music starts, players − 1 chairs, everyone in the ring');
+    check(r._chairs && r._chairs.stopAt > clock + 4999 && r._chairs.stopAt <= clock + 20000 && !('stopAt' in s && s.stopAt), 'chairs: the stop moment is 5-20 s away and lives on the server only');
+    check(roomDeadline(r) === r._chairs.stopAt, 'chairs: the server wakes at the stop');
+    check(!threw(() => applyRoomAction(r, 'b', 'sit', { round: 0, at: clock })) && s.phase === 'music', 'chairs: a tap for an old round is dropped');
+    // A false start: out of the round at once.
+    applyRoomAction(r, 'b', 'sit', { round: 1, at: clock });
+    check(s.phase === 'result' && s.loserId === 'b' && s.why === 'early' && s.alive.length === 3 && s.outOrder[0] === 'b' && !r._chairs,
+      'chairs: a tap while the music plays is a false start - that player is out and the round ends');
+    check(s.nextAt > clock && roomDeadline(r) === s.nextAt, 'chairs: the next round comes by itself after the result');
+    applyRoomAction(r, 'b', 'sit', { round: 1, at: clock });
+    check(s.phase === 'result', 'chairs: a player who is out can\'t sit');
+    tick(r);
+    check(s.phase === 'music' && s.round === 2 && s.chairs === 2 && s.alive.indexOf('b') === -1 && s.order.indexOf('b') === -1, 'chairs: round 2 plays without the one who is out');
+    // The stop, and the taps ranked by the phones' server-time stamps inside the provable window.
+    tick(r);
+    check(s.phase === 'sit' && s.stopAt === clock && s.sits.length === 0 && roomDeadline(r) === s.stopAt + 3000, 'chairs: the music stops; three seconds to sit');
+    const stop = s.stopAt;
+    clock = stop + 500;
+    applyRoomAction(r, 'a', 'sit', { round: 2, at: stop + 400 });
+    applyRoomAction(r, 'c', 'sit', { round: 2, at: stop - 1000 });          // a time the phone can't have had: the arrival counts
+    check(s.sits[0].id === 'a' && s.sits[0].ms === 400 && s.sits[1].id === 'c' && s.sits[1].ms === 500, 'chairs: a tap is timed by the phone\'s stamp inside [the stop, the arrival]; a stamp before the stop counts as its arrival');
+    applyRoomAction(r, 'a', 'sit', { round: 2, at: stop + 100 });
+    check(s.sits.length === 2 && s.sits[0].ms === 400, 'chairs: a second tap by the same player changes nothing');
+    clock = stop + 900;
+    applyRoomAction(r, 'd', 'sit', { round: 2, at: stop + 5000 });          // a stamp after now: the arrival
+    check(s.phase === 'result' && s.sits[2].id === 'd' && s.sits[2].ms === 900 && s.loserId === 'd' && s.why === 'last', 'chairs: everyone sat: the round closes, the slowest is out');
+    tick(r);
+    tick(r);
+    check(s.phase === 'sit' && s.alive.length === 2, 'chairs: round 3 stops for the last two');
+    applyRoomAction(r, 'c', 'sit', { round: 3, at: s.stopAt + 200 });
+    tick(r);                                                                 // a never taps: the window closes
+    check(s.phase === 'gameover' && r.phase === 'play' && s.loserId === 'a' && s.why === 'late' && s.winnerId === 'c' && s.wins.c === 1,
+      'chairs: no tap in three seconds is last; one left wins and takes a win');
+    check(JSON.stringify(s.places.map((p) => p.id)) === '["c","a","d","b"]' && s.board[0].id === 'c' && s.board[0].score === 1 && s.board[1].score === 0,
+      'chairs: the places are the winner, then the last out first; the board is the wins tally');
+    check(roomDeadline(r) === null, 'chairs: nothing to wake for after the end');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.phase === 'music' && r.shared.round === 1 && r.shared.alive.length === 4 && r.shared.wins.c === 1, 'chairs: play again seats everyone again and keeps the tally');
+    check(threw(() => applyRoomAction(r, 'b', 'nextRound', {})), 'chairs: only the host moves a round on');
+  }
+  {
+    // The host's next round, and leaving.
+    const r = chairsRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    applyRoomAction(r, 'd', 'sit', { round: 1, at: clock });
+    applyRoomAction(r, 'a', 'nextRound', {});
+    check(s.phase === 'music' && s.round === 2, 'chairs: the host can start the next round before its time');
+    leave(r, 'c');
+    check(s.phase === 'music' && s.alive.length === 2 && s.outOrder.indexOf('c') !== -1 && s.chairs === 1 && s.order.indexOf('c') === -1, 'chairs: a player who leaves is out of the ring');
+    tick(r);
+    applyRoomAction(r, 'a', 'sit', { round: 2, at: s.stopAt + 50 });
+    leave(r, 'b');
+    check(s.phase === 'gameover' && s.winnerId === 'a' && s.wins.a === 1, 'chairs: the last one left wins the game');
+  }
+  {
+    // The 13th watches; a watcher's tap does nothing.
+    const ids = 'abcdefghijklm'.split('');
+    const r = chairsRoom(ids);
+    check(r.shared.roster.length === 12 && r.shared.alive.indexOf('m') === -1, 'chairs: twelve play, the rest watch');
+    applyRoomAction(r, 'm', 'sit', { round: 1, at: clock });
+    check(r.shared.phase === 'music', 'chairs: a watcher\'s tap is nothing');
+  }
+  {
+    // Fake stops: the music pauses for a moment; a tap in the pause is a false start.
+    const realRandom = Math.random;
+    Math.random = () => 0.999;
+    const r = chairsRoom(['a', 'b', 'c'], { fake: true });
+    Math.random = realRandom;
+    const s = r.shared;
+    const h = r._chairs;
+    check(s.settings.fake === true && h.fakes.length >= 1 && h.fakes.every((f) => f > s.startAt + 2000 && f < h.stopAt - 1500), 'chairs: with the switch on, a fake pause or two, well inside the music');
+    check(roomDeadline(r) === h.fakes[0], 'chairs: the server wakes for the fake pause first');
+    tick(r);
+    check(s.phase === 'music' && s.pause && s.pause.until === s.pause.at + 600 && !('fakes' in s), 'chairs: the pause reaches the phones, its length only');
+    applyRoomAction(r, 'b', 'sit', { round: 1, at: clock });
+    check(s.phase === 'result' && s.loserId === 'b' && s.why === 'early', 'chairs: a tap in a fake pause is a false start');
+  }
+  {
+    const realRandom = Math.random;
+    Math.random = () => 0.999;
+    const r = chairsRoom(['a', 'b', 'c'], { fake: true });
+    Math.random = realRandom;
+    const s = r.shared;
+    tick(r);
+    tick(r);
+    check(s.phase === 'music' && !s.pause, 'chairs: the pause ends by itself and the music goes on');
+    for (let k = 0; k < 4 && s.phase === 'music'; k++) tick(r);
+    check(s.phase === 'sit', 'chairs: the real stop comes after the fake ones');
+  }
+  {
+    const r = chairsRoom(['a', 'b', 'c'], { fake: false });
+    check(r._chairs.fakes.length === 0, 'chairs: the switch off means no fake pauses');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

@@ -91,6 +91,7 @@ const clearGameState = (room) => {
   room._doubt = null;
   room._om = null;
   room._est = null;
+  room._chairs = null;   // الكراسي الموسيقية: the stop moment and the fake pauses (RoomChairs.js)
   // The engine's secret and boards (RoomSolve.js).
   room._solve = null;
   // A bot's next move belonged to the game that was cleared.
@@ -128,6 +129,8 @@ const ROOM_GAME_IDS = [
   'guesswho', 'hangman',
   // بولينج (RoomBowling.js): everyone bowls in turn, everyone watches every throw.
   'bowling',
+  // الكراسي الموسيقية (RoomChairs.js): the music stops, the fastest taps get the chairs.
+  'chairs',
   // كدّاب (RoomDoubt.js) and الشايب (RoomOldMaid.js): the playing cards.
   'doubt', 'oldmaid',
   // إستميشن (RoomEstimation.js): four for themselves, the auction, the calls, 13 tricks.
@@ -620,6 +623,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'dots':       dotsAction(room, playerId, action, payload); break;
     case 'xo':         xoRoomAction(room, playerId, action, payload); break;     // RoomDuels.js
     case 'battleship': battleshipAction(room, playerId, action, payload); break;  // RoomBattleship.js
+    case 'chairs':     chairsAction(room, playerId, action, payload); break;      // RoomChairs.js
     case 'chess':      chessAction(room, playerId, action, payload); break;       // RoomChess.js
     case 'votechess':  voteChessAction(room, playerId, action, payload); break;   // RoomVoteChess.js
     case 'handbrain':  handBrainAction(room, playerId, action, payload); break;   // RoomHandBrain.js
@@ -3585,6 +3589,7 @@ const gameDeadline = (room) => {
   if (room.game === 'oldmaid') return omDeadline(room);
   if (room.game === 'estimation') return estDeadline(room);
   if (room.game === 'minigolf') return mgDeadline(room);
+  if (room.game === 'chairs') return chairsDeadline(room);
   if (svKindOf(room)) return svDeadline(room);   // RoomSolve.js
   return null;
 };
@@ -3712,6 +3717,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'oldmaid') return omTimeout(room, now);
   if (room.game === 'estimation') return estTimeout(room, now);
   if (room.game === 'minigolf') return mgTimeout(room, now);
+  if (room.game === 'chairs') return chairsTimeout(room, now);
   return false;
 };
 
@@ -3813,6 +3819,9 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'buzzer':
       if (Array.isArray(s.buzzes)) s.buzzes = s.buzzes.filter(b => b.id !== playerId);
+      return;
+    case 'chairs':
+      chairsPlayerLeft(room, playerId);
       return;
     case 'stop':
       if ((s.phase === 'writing' || s.phase === 'collecting') && allIn(s.submitted)) scoreStopRound(room);

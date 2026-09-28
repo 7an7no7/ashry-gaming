@@ -720,6 +720,21 @@ function roomBotControlsHtml(state, tv) {
   const count = (state.players || []).filter(p => p.bot).length;
   const full = (state.players || []).length >= (bots.max || 12);
   const add = (level) => '+ 🤖 ' + roomBotLevelLabel(level, t);
+  // A game with no skill in it (السلم والتعبان) has one kind of computer player: one button, no level.
+  if (bots.one) {
+    const one = '+ 🤖 ' + (t.bot_add_one || '');
+    if (tv) return full ? '' : `<div class="tv-actions tv-actions--bots">${tvBtn(one, "roomAddBot('easy')", 'secondary')}</div>`;
+    return `
+    <div class="card card--tight room-bots">
+      <div class="room-bots__head">
+        <span class="field__label">🤖 ${escapeHTML(t.bot_title || '')}${count ? ` <span class="badge">${count}</span>` : ''}</span>
+        <div class="room-bots__add">
+          <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="roomAddBot('easy')" ${full ? 'disabled' : ''}>${escapeHTML(one)}</button>
+        </div>
+      </div>
+      <p class="field__hint">${escapeHTML(full ? (t.bot_full || '') : (t.bot_hint || ''))}</p>
+    </div>`;
+  }
   if (tv) {
     return full ? '' : `<div class="tv-actions tv-actions--bots">${tvBtn(add('easy'), "roomAddBot('easy')", 'secondary')}${tvBtn(add('hard'), "roomAddBot('hard')", 'secondary')}</div>`;
   }
@@ -749,7 +764,8 @@ function lobbyAvatarHtml(name, online, emoji) {
 function roomBotRowHtml(state, p, isNew) {
   const t = TRANSLATIONS[appState.lang] || {};
   const level = roomBotLevelLabel(p.bot, t);
-  const levelEl = state.youAreHost
+  const oneLevel = !!(roomBotsOf(state) || {}).one;
+  const levelEl = oneLevel ? '' : state.youAreHost
     ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('setBotLevel', { playerId: '${jsStringAttr(p.id)}' })" title="${escapeHTML(t.bot_level_change || '')}" aria-label="${escapeHTML((t.bot_level_change || '') + ': ' + level)}">${escapeHTML(level)}</button>`
     : `<span class="badge">${escapeHTML(level)}</span>`;
   const remove = state.youAreHost
@@ -811,6 +827,7 @@ const ROOM_HUB_GAMES = [
   { id: 'uno',        icon: 'art:uno', key: 'setup_uno',        accent: 'rose',   min: 1 },
   { id: 'domino',     icon: 'art:domino', key: 'setup_domino',     accent: 'green',  min: 1 },
   { id: 'ludo',       icon: 'art:ludo', key: 'setup_ludo',       accent: 'amber',  min: 1 },
+  { id: 'snakes',     icon: 'art:snakes', key: 'setup_snakes',   accent: 'teal',   min: 1 },
   { id: 'bank',       icon: 'art:bank', key: 'setup_bank',       accent: 'green',  min: 1 },
   { id: 'connect4',   icon: 'art:connect4', key: 'setup_connect4',   accent: 'blue',   min: 2 },
   { id: 'dots',       icon: 'art:dots', key: 'setup_dots',       accent: 'indigo', min: 2 },
@@ -1519,7 +1536,7 @@ function renderChosenGame(state, game) {
    scrolled past before every game. Open by default only the first time this
    phone hosts the game; the games whose options are where the table is seated
    (sides, seats, colours) are never folded. Nothing is removed: a tap opens it. */
-const LOBBY_OPTS_UNFOLDED = { codenames: 1, domino: 1, ludo: 1, chess4: 1, handbrain: 1, votechess: 1, bank: 1 };
+const LOBBY_OPTS_UNFOLDED = { codenames: 1, domino: 1, ludo: 1, snakes: 1, chess4: 1, handbrain: 1, votechess: 1, bank: 1 };
 const lobbyOptsOpen = {};
 
 function lobbyOptionsFold(state, options, t) {

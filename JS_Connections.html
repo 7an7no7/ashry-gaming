@@ -72,6 +72,8 @@ function paintConnectLevel() {
   hint.textContent = (t.conn_level_hint || '{cards} · {groups}')
     .replace('{cards}', groups * 4)
     .replace('{groups}', groups);
+  const daily = document.getElementById('conn-daily');
+  if (daily && typeof soloDailyButtonHtml === 'function') daily.innerHTML = soloDailyButtonHtml('connections', 'startConnections(true)');
 }
 
 function setupConnections() {
@@ -98,11 +100,27 @@ if (typeof onLanguageChange === 'function') {
   });
 }
 
-function startConnections() {
+/**
+ * A new puzzle at the chosen level, or today's (`daily`): a medium puzzle (4
+ * groups) in the games' language, the same puzzle and the same order of tiles
+ * on every phone on the date (soloRng(soloDaySeed('connections'))), played
+ * once. Started again while it's under way, it goes back to that board.
+ */
+function startConnections(daily) {
+  daily = daily === true;
+  if (daily && soloDailyResume('connections')) return;
+  // Played once: today's, once finished, is never dealt again (a past day from the archive may be).
+  if (daily && !soloArchiveDay && soloDailyResult('connections')) { setupConnections(); return; }
   const lang = contentLang();
-  const level = connectLevel();
+  const level = daily ? 'medium' : connectLevel();
   const pool = CONNECT_LEVELS[level].db()[lang];
-  const puzzle = freshPick(CONNECT_LEVELS[level].list + lang, pool, 1, { key: p => p.groups.map(g => g.name).join('|') })[0];
+  const rnd = daily ? soloRng(soloDaySeed('connections')) : null;
+  const puzzle = daily
+    ? soloPick(pool, rnd)
+    : freshPick(CONNECT_LEVELS[level].list + lang, pool, 1, { key: p => p.groups.map(g => g.name).join('|') })[0];
+  // Today's daily in progress is kept aside, never lost, when another board is dealt.
+  soloDailySetAside('connections');
+  soloNewGame('connections');
 
   connections.lang = lang;
   connections.level = level;
@@ -111,15 +129,38 @@ function startConnections() {
   connections.selected = [];
   connections.mistakes = 0;
   connections.tried = [];
+  // Every four tried, as the groups of its tiles: the daily's share is made of these.
+  connections.guesses = [];
+  connections.phase = 'play';
+  connections.daily = daily ? soloToday() : '';
+  delete connections.archive;
 
   // Group index travels with each word so a guess can be checked without
   // searching the puzzle every time.
-  connections.tiles = shuffleArray(
-    puzzle.groups.flatMap((g, gi) => g.words.map(w => ({ word: w, group: gi })))
-  );
+  const tiles = puzzle.groups.flatMap((g, gi) => g.words.map(w => ({ word: w, group: gi })));
+  connections.tiles = daily ? soloShuffle(tiles, rnd) : shuffleArray(tiles);
 
   setView('play-connections');
   renderConnections();
+}
+
+/** Back to the board in play (a daily set aside and brought back). */
+function continueConnections() {
+  setView('play-connections');
+  renderConnections();
+}
+
+/** "📅 تحدي اليوم" (or the archive's day) over a daily's board. */
+function paintConnectBadge() {
+  const el = document.getElementById('conn-daily-badge');
+  if (!el) return;
+  const c = connections;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const html = c.archive
+    ? `<span class="badge badge--warning">📅 ${escapeHTML(t.daily_archive_badge || '')} ${escapeHTML(c.archive)}</span>`
+    : (c.daily ? `<span class="badge">📅 ${escapeHTML(t.daily_title || '')}</span>` : '');
+  el.innerHTML = html;
+  el.classList.toggle('hidden', !html);
 }
 
 function toggleConnectTile(word) {
@@ -167,6 +208,10 @@ function submitConnectGuess() {
   }
   const tiles = c.tiles.filter(t => c.selected.includes(t.word));
   const groups = [...new Set(tiles.map(t => t.group))];
+  // The four as the player chose them, for the share (a repeat of a wrong four costs nothing and isn't kept).
+  const guessGroups = c.selected.map(w => (c.tiles.find(x => x.word === w) || {}).group);
+  const guessKeyNow = c.selected.slice().sort().join('|');
+  if (groups.length === 1 || (c.tried || []).indexOf(guessKeyNow) === -1) (c.guesses = c.guesses || []).push(guessGroups);
 
   if (groups.length === 1) {
     const from = connectTileRects();
@@ -277,13 +322,51 @@ function flyConnectGroup(gi, from) {
   return true;
 }
 
+const CONNECT_SQUARES = ['🟨', '🟩', '🟦', '🟪', '🟥'];
+
 function finishConnections(won) {
+  const found = connections.solved.length;
+  connections.phase = 'done';
   // Losing still reveals the answer — otherwise the puzzle just nags at you.
   connections.solved = connections.puzzle.groups.map((g, i) => i);
   connections.selected = [];
   renderConnections(true);
-  if (won) confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } });
-  else playSound('alarm');
+  const c = connections;
+  if (!c.daily && !c.archive) {
+    if (won) confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } });
+    else playSound('alarm');
+    return;
+  }
+  // A daily (or a day from the archive): the result sheet, and today's is kept at once.
+  const t = TRANSLATIONS[appState.lang] || {};
+  let share = '';
+  if (c.daily) {
+    soloMarkDaily('connections', { won: won, mistakes: c.mistakes, groups: found, total: c.puzzle.groups.length }, c.daily);
+    share = connectShareText(t, c.daily, won, c.mistakes, c.guesses || []);
+  }
+  soloLater('connections', motionOff() ? 0 : 900, () => soloResult({
+    icon: '🔗',
+    title: won ? (c.mistakes ? (t.conn_daily_won || '') : (t.conn_daily_perfect || '')) : (t.conn_daily_lost || ''),
+    value: found,
+    valueLabel: (t.conn_daily_groups || '').replace('{n}', c.puzzle.groups.length),
+    lines: [escapeHTML((t.conn_daily_mistakes || '').replace('{n}', c.mistakes).replace('{m}', CONNECT_MAX_MISTAKES))],
+    win: won, share: share,
+    again: () => startConnections(false), exit: setupConnections
+  }));
+}
+
+/**
+ * A daily's result for WhatsApp, Connections' way: every four tried as a row
+ * of its tiles' group colours (yellow, green, blue, purple, easiest first), a
+ * wrong one ending in ❌ - the colours only, never the words.
+ */
+function connectShareText(t, day, won, mistakes, guesses) {
+  const rows = guesses.map(g => {
+    const one = g.every(x => x === g[0]);
+    return g.map(x => CONNECT_SQUARES[x] || '⬜').join('') + (one ? '' : ' ❌');
+  });
+  const head = `🔗 ${t.setup_connections || ''} ${won ? '✅' : '❌'} ${mistakes}/${CONNECT_MAX_MISTAKES}`;
+  return `${soloShareHeader(t, day)}\n${head}\n${rows.join('\n')}`;
 }
 
 function renderConnections(finished) {
@@ -311,9 +394,10 @@ function renderConnections(finished) {
 
   const gridHtml = solvedHtml + (remaining.length ? `<div class="connect-grid">${tilesHtml}</div>` : '');
   const over = finished || c.solved.length === total || c.phase === 'done';
+  if (!c.race) paintConnectBadge();
   const left = CONNECT_MAX_MISTAKES - c.mistakes;
   const metaHtml = over
-    ? (c.race ? '' : `<button onclick="startConnections()" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>`)
+    ? (c.race ? '' : `<button onclick="startConnections(false)" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>`)
     : `<div class="connect-lives">${t.conn_mistakes || 'محاولات متبقية'}:
          ${'●'.repeat(Math.max(0, left))}${'○'.repeat(c.mistakes)}</div>
        <button onclick="submitConnectGuess()" class="btn btn--primary"
@@ -346,7 +430,8 @@ function saveConnections() {
     const c = connections;
     localStorage.setItem(CONNECT_SAVE_KEY, JSON.stringify({
       puzzle: c.puzzle, tiles: c.tiles, solved: c.solved, mistakes: c.mistakes,
-      tried: c.tried || [], lang: c.lang, level: c.level
+      tried: c.tried || [], lang: c.lang, level: c.level,
+      guesses: c.guesses || [], phase: c.phase || 'play', daily: c.daily || '', archive: c.archive || ''
     }));
   } catch (e) {}
 }
@@ -356,10 +441,19 @@ function restoreConnections() {
   const over = !saved || !saved.puzzle || !Array.isArray(saved.tiles)
     || saved.solved.length >= saved.puzzle.groups.length || saved.mistakes >= CONNECT_MAX_MISTAKES;
   if (over) { setupConnections(); return; }
-  Object.assign(connections, saved, { selected: [] });
+  Object.assign(connections, saved, { selected: [], phase: 'play' });
+  if (!connections.archive) delete connections.archive;
   setView('play-connections');
   renderConnections();
 }
+
+/* The dailies (JS_Solo.html) read and set this board aside through `connections`.
+   JS_Solo.html loads after this file: it registers the game once it is there. */
+(window.SOLO_LATE = window.SOLO_LATE || []).push(() => soloRegister('connections', {
+  setup: 'setup-connections', play: 'play-connections', paintSetup: paintConnectLevel,
+  state: () => connections, resume: continueConnections,
+  repaint: () => renderConnections(connections.phase === 'done')
+}));
 
 /* --- سباق ألغاز: the same grid, raced (JS_RoomRace.html) ------------------------------ */
 window.RACE_UI = window.RACE_UI || {};

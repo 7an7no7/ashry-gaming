@@ -51,6 +51,10 @@ function soloRegister(id, def) {
   SOLO_GAMES[id] = Object.assign({ id: id }, def);
 }
 
+// خمن الكلمة and تشابه load before this file, so they leave their registration
+// here (window.SOLO_LATE) to be made now.
+if (typeof window !== 'undefined' && Array.isArray(window.SOLO_LATE)) window.SOLO_LATE.forEach(fn => fn());
+
 function soloViews() {
   const out = [];
   Object.keys(SOLO_GAMES).forEach(id => {

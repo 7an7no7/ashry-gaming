@@ -161,6 +161,12 @@ function roomTurnOf(state) {
     case 'doubt':
       // The player up: lead a rank, or follow it or pass.
       return s.phase === 'play' && s.turn && s.turn.pid === me ? 'turn_up' : null;
+    case 'skull': {
+      // A disc to lay, «هيعملها؟» to answer, or the player up (RoomSkull.js).
+      if (s.phase === 'place') return (s.alive || []).indexOf(me) !== -1 && (s.placed || []).indexOf(me) === -1 ? 'turn_up' : null;
+      if (s.phase === 'guess') return s.flip && s.flip.pid !== me && (s.order || []).indexOf(me) !== -1 && (s.guessed || []).indexOf(me) === -1 ? 'turn_up' : null;
+      return ['add', 'bid', 'flip', 'lose'].indexOf(s.phase) !== -1 && s.turn && s.turn.pid === me ? 'turn_up' : null;
+    }
     case 'oldmaid':
       // The one who draws from the next hand.
       return s.phase === 'play' && s.turn && s.turn.pid === me ? 'turn_up' : null;

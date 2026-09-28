@@ -1,0 +1,1107 @@
+<script>
+/* ============================================================================
+   جمجمة — SKULL (rooms and the TV)
+   ----------------------------------------------------------------------------
+   The rules are skullAction in RoomSkull.js; the faces and the bots'
+   judgement Skull.js. What only this phone may know is state.you: its own
+   hand and pile (faces), every disc it still has, its «هيعملها؟» answer while
+   the flips wait, and the faces it has lost (only the bidder ever learns what
+   a skull took). Everyone else's discs are counts and backs; a face reaches
+   the table only once it is turned over (shared.flipped).
+
+   The phone: the head (round, the bets to win, the clock), the latest move,
+   the table - every seat a card in the player's colour with its pile of discs
+   face down (the ones turned over beside it), its mat (a rose on it once a bet
+   is won), the discs it has left - then the bet in the middle, your discs, and
+   the bar of what to do now: lay a disc, add one or bet, raise or pass,
+   «هيعملها؟» ✅ / ❌, turn a pile over, choose the disc to lose. The result of
+   a round stays over the table until the next is dealt (the server does it
+   by itself, SKULL_BETWEEN_MS).
+
+   Every move is an event, played once per device (pcEventsToPlay, the card
+   games' flights from JS_Cards.html): a disc slides onto its pile, a bet pops
+   on its seat, a pass, the auction won, the flips one by one with a beat of
+   suspense - a flower blooms, a skull pops with «بوم!» and a shake - a bet won
+   stamps its pile, a lost disc flies away face down (its face only on the
+   bidder's phone), the game's winner gets the podium and confetti.
+   ========================================================================= */
+
+const SKL_OPTS_KEY = 'skull';
+const SKL_CLOCK_CHOICES = [0, 30, 60];
+const SKL_FLIP_STEP_MS = 620;        // one disc turned over, then the next: the suspense
+const SKL_FACE_WORD = { rose: 'skl_face_rose', jasmine: 'skl_face_jasmine', lotus: 'skl_face_lotus', skull: 'skl_face_skull' };
+
+const sklLocal = { pick: null, bid: null, key: '', clock: null, clockKey: null, turnMine: false, wait: 0, guessed: {}, sent: '' };
+const sklFx = Object.assign(pcFx(), { tvSig: '' });
+
+/* --- the host's options ------------------------------------------------------- */
+
+function sklOpts() {
+  const o = recallOptions(SKL_OPTS_KEY, { turnClock: 0 });
+  return { turnClock: SKL_CLOCK_CHOICES.indexOf(Number(o.turnClock)) !== -1 ? Number(o.turnClock) : 0 };
+}
+
+function setSklOpt(key, value) {
+  const patch = {};
+  patch[key] = Number(value);
+  rememberOptions(SKL_OPTS_KEY, patch);
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/* --- who and where --------------------------------------------------------------- */
+
+const sklS = (state) => (state && state.shared) || {};
+const sklYou = (state) => (state && state.you) || {};
+const sklSeats = (state) => (sklS(state).order || []).filter(id => (state.players || []).some(p => p.id === id));
+const sklInGame = (state) => !state.youAreScreen && sklSeats(state).indexOf(Room.me) !== -1;
+const sklAlive = (s, pid) => (s.alive || []).indexOf(pid) !== -1;
+const sklCol = (s, pid) => Number((s.colors || {})[pid]) || 0;
+const sklFlowerOf = (s, pid) => (s.flowers || {})[pid] || 'rose';
+const sklUp = (s) => (s.turn && s.turn.pid) || null;
+const sklMine = (state) => sklUp(sklS(state)) === Room.me && sklInGame(state);
+const sklBidder = (s) => (s.flip && s.flip.pid) || (s.bid && s.bid.pid) || null;
+const sklFaceName = (f) => pcT(SKL_FACE_WORD[f] || 'skl_face_rose');
+/** The flowers turned over so far, and the number bet. */
+const sklGot = (s) => (s.flip ? Number(s.flip.got) || 0 : 0);
+
+/* --- the discs, drawn our way ---------------------------------------------------
+   One builder for every disc: a face (a seat's flower or the skull) or the
+   back, in the seat's colour (--skl-c on the element or an ancestor). Flat
+   cartoon, ink outlines like المشنقة's cast; no ids, so a page holds any
+   number of them. */
+
+const SKL_INK = '#2b2438';
+
+function sklPetals(cx, cy, n, rx, ry, dist, fill, rot) {
+  let out = '';
+  for (let k = 0; k < n; k++) {
+    const a = (rot || 0) + k * 360 / n;
+    out += `<ellipse cx="${cx}" cy="${cy - dist}" rx="${rx}" ry="${ry}" transform="rotate(${a} ${cx} ${cy})" fill="${fill}" stroke="${SKL_INK}" stroke-width="1.1"/>`;
+  }
+  return out;
+}
+
+const SKL_FACE_ART = {
+  // A red rose on two leaves.
+  rose: () =>
+    `<path d="M20 44c-6-1-9-6-8-12 6 0 10 5 8 12z" fill="#3f9a4a" stroke="${SKL_INK}" stroke-width="1.3"/>` +
+    `<path d="M44 44c6-1 9-6 8-12-6 0-10 5-8 12z" fill="#3f9a4a" stroke="${SKL_INK}" stroke-width="1.3"/>` +
+    `<path d="M32 45v-6" stroke="#2f7a38" stroke-width="2.4" stroke-linecap="round"/>` +
+    `<circle cx="32" cy="29" r="12" fill="#e03a52" stroke="${SKL_INK}" stroke-width="1.6"/>` +
+    `<path d="M25.5 29.5c0-4.6 3.4-7.6 7-7 3.8.6 5.4 4.4 3.4 7.2-1.8 2.4-5.4 1.6-5.4-.8 0-1.6 1.4-2.4 2.6-1.8" fill="none" stroke="#9f1239" stroke-width="1.7" stroke-linecap="round"/>` +
+    `<path d="M22.6 32.4c1.6 4.4 5.4 7 9.4 7s7.6-2.4 9.2-6.6" fill="none" stroke="#9f1239" stroke-width="1.5" stroke-linecap="round"/>`,
+  // Jasmine: three small white flowers with yellow hearts on a sprig.
+  jasmine: () =>
+    `<path d="M18 44c6-6 20-7 29-16" fill="none" stroke="#2f7a38" stroke-width="2" stroke-linecap="round"/>` +
+    `<path d="M27 39c-2-4 0-7 3-8 1 4-1 7-3 8z" fill="#3f9a4a" stroke="${SKL_INK}" stroke-width="1"/>` +
+    sklPetals(24, 26, 5, 3.2, 5, 5.2, '#fffdf7', 0) + `<circle cx="24" cy="26" r="2.6" fill="#f5c542" stroke="${SKL_INK}" stroke-width="1"/>` +
+    sklPetals(40, 22, 5, 2.8, 4.4, 4.6, '#fffdf7', 20) + `<circle cx="40" cy="22" r="2.3" fill="#f5c542" stroke="${SKL_INK}" stroke-width="1"/>` +
+    sklPetals(38, 39, 5, 2.6, 4, 4.2, '#fffdf7', 36) + `<circle cx="38" cy="39" r="2.1" fill="#f5c542" stroke="${SKL_INK}" stroke-width="1"/>`,
+  // A lotus of the Nile over a line of water.
+  lotus: () =>
+    `<path d="M14 45c5 2.6 10 2.6 15 0s10-2.6 15 0 6 1.6 7 1" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>` +
+    `<path d="M32 42c-9 0-15-5-17-12 6-1 12 2 17 8z" fill="#f9a8d4" stroke="${SKL_INK}" stroke-width="1.3"/>` +
+    `<path d="M32 42c9 0 15-5 17-12-6-1-12 2-17 8z" fill="#f9a8d4" stroke="${SKL_INK}" stroke-width="1.3"/>` +
+    `<path d="M32 41c-6-3-8-10-6-18 4 3 6 8 6 18z" fill="#f472b6" stroke="${SKL_INK}" stroke-width="1.3"/>` +
+    `<path d="M32 41c6-3 8-10 6-18-4 3-6 8-6 18z" fill="#f472b6" stroke="${SKL_INK}" stroke-width="1.3"/>` +
+    `<path d="M32 41c-3-5-3-14 0-22 3 8 3 17 0 22z" fill="#ec4899" stroke="${SKL_INK}" stroke-width="1.3"/>`,
+  // Our skull: round, big shiny eyes, a grin and rosy cheeks. Never scary.
+  skull: () =>
+    `<path d="M32 13c-10.4 0-17.4 7-17.4 16.2 0 5.8 2.8 9.8 6.8 12v4.6c0 2 1.4 3.2 3.2 3.2h14.8c1.8 0 3.2-1.2 3.2-3.2v-4.6c4-2.2 6.8-6.2 6.8-12C49.4 20 42.4 13 32 13z" fill="#fffdf6" stroke="${SKL_INK}" stroke-width="2"/>` +
+    `<ellipse cx="25.4" cy="29.6" rx="4.8" ry="5.6" fill="${SKL_INK}"/><ellipse cx="38.6" cy="29.6" rx="4.8" ry="5.6" fill="${SKL_INK}"/>` +
+    `<circle cx="27" cy="27.6" r="1.6" fill="#fff"/><circle cx="40.2" cy="27.6" r="1.6" fill="#fff"/>` +
+    `<circle cx="20.4" cy="36.2" r="2.4" fill="#fb7185" opacity=".55"/><circle cx="43.6" cy="36.2" r="2.4" fill="#fb7185" opacity=".55"/>` +
+    `<path d="M30.4 38.2 32 35.4l1.6 2.8z" fill="${SKL_INK}"/>` +
+    `<path d="M25.6 42.4c2 1.8 4.2 2.6 6.4 2.6s4.4-.8 6.4-2.6" fill="none" stroke="${SKL_INK}" stroke-width="1.8" stroke-linecap="round"/>` +
+    `<path d="M29.2 43.6v2.6M32 44.2v2.8M34.8 43.6v2.6" stroke="${SKL_INK}" stroke-width="1.3" stroke-linecap="round"/>`
+};
+
+/** One disc: `face` a face, or null for the back. */
+function sklDiscSvg(face) {
+  const rim = `<circle cx="32" cy="32" r="30" class="skl-disc__rim" stroke="${SKL_INK}" stroke-width="2"/>`;
+  if (!face) {
+    // The back: the seat's colour, a lighter ring and an eight-pointed star.
+    return `<svg class="skl-disc__svg" viewBox="0 0 64 64" aria-hidden="true">${rim}` +
+      `<circle cx="32" cy="32" r="23" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="2" stroke-dasharray="3 4"/>` +
+      `<rect x="22" y="22" width="20" height="20" rx="2" fill="#fff" fill-opacity=".32"/>` +
+      `<rect x="22" y="22" width="20" height="20" rx="2" fill="#fff" fill-opacity=".32" transform="rotate(45 32 32)"/>` +
+      `<circle cx="32" cy="32" r="4" fill="#fff" fill-opacity=".6"/></svg>`;
+  }
+  const art = (SKL_FACE_ART[face] || SKL_FACE_ART.rose)();
+  return `<svg class="skl-disc__svg" viewBox="0 0 64 64" aria-hidden="true">${rim}` +
+    `<circle cx="32" cy="32" r="25" class="skl-disc__face ${face === 'skull' ? 'is-skull' : ''}"/>${art}</svg>`;
+}
+
+function sklDiscHtml(face, col, cls) {
+  return `<span class="skl-disc ${face ? 'is-face is-' + face : 'is-back'} ${cls || ''}" style="--skl-c: var(--skl-c${col})">${sklDiscSvg(face)}</span>`;
+}
+
+/* --- this phone's taps --------------------------------------------------------- */
+
+function sklRedraw() {
+  if (Room.state && Room.state.game === 'skull') routeRoomState(Room.state);
+}
+
+function sklAct(btn, action, extra) {
+  const st = Room.state;
+  if (!st || st.game !== 'skull') return;
+  if (btn && 'disabled' in btn) btn.disabled = true;
+  haptic('light');
+  roomAct(action, Object.assign({ seq: sklS(st).turnSeq }, extra || {}));
+}
+
+function sklPick(id) {
+  sklLocal.pick = sklLocal.pick === id ? null : id;
+  haptic('light');
+  sklRedraw();
+}
+
+function sklPickBid(n) {
+  sklLocal.bid = Number(n);
+  haptic('light');
+  sklRedraw();
+}
+
+function sklPlace(btn) {
+  const st = Room.state;
+  if (!st || sklLocal.pick === null) return;
+  if (btn) btn.disabled = true;
+  haptic('medium');
+  roomAct('place', { disc: sklLocal.pick, round: sklS(st).round });
+}
+
+function sklAdd(btn) {
+  if (sklLocal.pick === null) return;
+  haptic('medium');
+  sklAct(btn, 'add', { disc: sklLocal.pick });
+}
+
+function sklBid(btn) {
+  if (!sklLocal.bid) return;
+  haptic('medium');
+  sklAct(btn, 'bid', { n: sklLocal.bid });
+}
+
+function sklGuess(btn, yes) {
+  const st = Room.state;
+  if (!st) return;
+  const s = sklS(st);
+  sklLocal.guessed[roomDealKey(st, s.round)] = !!yes;
+  if (btn) btn.disabled = true;
+  haptic('medium');
+  roomAct('guess', { yes: !!yes, round: s.round });
+  sklRedraw();
+}
+
+function sklFlip(pid) {
+  const st = Room.state;
+  if (!st || !sklMine(st) || sklS(st).phase !== 'flip') return;
+  const s = sklS(st);
+  const key = s.turnSeq + '|' + pid;
+  if (sklLocal.sent === key) return;
+  sklLocal.sent = key;
+  haptic('medium');
+  roomAct('flip', { target: pid, seq: s.turnSeq });
+}
+
+function sklLose(btn) {
+  if (sklLocal.pick === null) return;
+  haptic('heavy');
+  sklAct(btn, 'lose', { disc: sklLocal.pick });
+}
+
+/** Picks belong to the moment they were made in: a new round or a new turn starts them over. */
+function sklSyncPick(state) {
+  const s = sklS(state);
+  const key = [state.code, s.dealId || '', s.round, s.phase, s.turnSeq].join('|');
+  if (sklLocal.key !== key) { sklLocal.key = key; sklLocal.pick = null; sklLocal.bid = null; }
+  const you = sklYou(state);
+  const ids = (s.phase === 'lose' ? (you.discs || []) : (you.hand || [])).map(d => d.i);
+  if (sklLocal.pick !== null && ids.indexOf(sklLocal.pick) === -1) sklLocal.pick = null;
+}
+
+/* --- the table, piece by piece --------------------------------------------------- */
+
+function sklHeadHtml(state) {
+  const s = sklS(state);
+  const bits = [];
+  bits.push(`<span class="badge">${escapeHTML(pcT('skl_round', { n: s.round || 1 }))}</span>`);
+  bits.push(`<span class="badge">🌸 ${escapeHTML(pcT('skl_to_win'))}</span>`);
+  if (['place', 'add', 'bid', 'flip', 'lose'].indexOf(s.phase) !== -1 && s.endsAt) {
+    bits.push(`<span class="badge badge--accent metric" data-skl-clock="${s.endsAt}">⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  }
+  return `<div class="skl-head">${bits.join('')}</div>`;
+}
+
+/** A seat's tag: what it did last in this round. */
+function sklTagOf(s, pid) {
+  if (!sklAlive(s, pid)) return `<span class="skl-tag skl-tag--out">${escapeHTML(pcT('skl_tag_out'))}</span>`;
+  if (s.phase === 'place') return (s.placed || []).indexOf(pid) !== -1 ? `<span class="skl-tag">✓</span>` : `<span class="skl-tag skl-tag--wait">…</span>`;
+  const bidder = sklBidder(s);
+  if (bidder === pid && ['bid', 'guess', 'flip', 'lose'].indexOf(s.phase) !== -1) return `<span class="skl-tag skl-tag--bet">🌸 ${s.bid ? s.bid.n : ''}</span>`;
+  if ((s.passed || []).indexOf(pid) !== -1) return `<span class="skl-tag">${escapeHTML(pcT('skl_pass'))}</span>`;
+  return '';
+}
+
+/** The face-down discs left in a pile and the ones turned over, in order. */
+function sklPileParts(s, pid) {
+  const flipped = (s.flipped || []).filter(x => x.owner === pid).map(x => x.f);
+  const size = Number((s.piles || {})[pid]) || 0;
+  return { down: Math.max(0, size - flipped.length), flipped: flipped };
+}
+
+function sklCanFlip(state, pid) {
+  const s = sklS(state);
+  if (!sklMine(state) || s.phase !== 'flip' || !s.flip) return false;
+  if (!s.flip.own) return pid === Room.me;
+  return pid !== Room.me && sklAlive(s, pid) && sklPileParts(s, pid).down > 0;
+}
+
+function sklPileHtml(state, pid, tv) {
+  const s = sklS(state);
+  const col = sklCol(s, pid);
+  const parts = sklPileParts(s, pid);
+  const shown = Math.min(parts.down, 5);
+  let stack = '';
+  for (let k = 0; k < shown; k++) stack += `<span class="skl-pile__disc" style="--k:${k}">${sklDiscHtml(null, col)}</span>`;
+  if (!shown) stack = parts.flipped.length ? '' : `<span class="skl-pile__empty"></span>`;
+  const flips = parts.flipped.map((f, k) => `<span class="skl-pile__up" data-pc-at="flip:${escapeHTML(pid)}:${k}">${sklDiscHtml(f, col)}</span>`).join('');
+  const can = sklCanFlip(state, pid);
+  const tag = can ? 'button' : 'div';
+  const attrs = can ? ` type="button" onclick="sklFlip('${jsStringAttr(pid)}')" aria-label="${escapeHTML(pcT('skl_flip_this', { name: pcName(state, pid) }))}"` : '';
+  return `<div class="skl-pilewrap">
+      <${tag} class="skl-pile ${can ? 'is-flippable' : ''} ${!shown && parts.flipped.length ? 'is-spent' : ''}" data-pc-at="pile:${escapeHTML(pid)}"${attrs}>
+        <span class="skl-pile__stack" style="--n:${shown}">${stack}</span>
+        ${parts.down > 0 ? `<b class="skl-pile__n metric">${parts.down}</b>` : ''}
+      </${tag}>
+      ${flips ? `<span class="skl-pile__flips" dir="ltr">${flips}</span>` : ''}
+    </div>`;
+}
+
+function sklSeatHtml(state, pid, tv) {
+  const s = sklS(state);
+  const p = (state.players || []).find(x => x.id === pid);
+  const col = sklCol(s, pid);
+  const cls = ['skl-seat'];
+  if (sklUp(s) === pid) cls.push('is-turn');
+  if (!sklAlive(s, pid)) cls.push('is-out');
+  if (!p || !p.online) cls.push('is-away');
+  if (pid === Room.me && !state.youAreScreen) cls.push('is-me');
+  if (sklBidder(s) === pid && ['bid', 'guess', 'flip', 'lose', 'result'].indexOf(s.phase) !== -1) cls.push('is-bidder');
+  const wins = Number((s.wins || {})[pid]) || 0;
+  const discs = Number((s.discs || {})[pid]) || 0;
+  let dots = '';
+  for (let k = 0; k < 4; k++) dots += `<i class="${k < discs ? 'is-on' : ''}"></i>`;
+  const hand = Number((s.hands || {})[pid]) || 0;
+  return `<div class="${cls.join(' ')}" data-pc-seat="${escapeHTML(pid)}" style="--skl-c: var(--skl-c${col})">
+      <div class="skl-seat__head" data-pc-at="seat:${escapeHTML(pid)}">
+        <span class="skl-avatar" aria-hidden="true">${pcInitial(state, pid)}</span>
+        <span class="skl-seat__name">${escapeHTML(p ? p.name : '—')}</span>
+        ${sklTagOf(s, pid)}
+      </div>
+      <div class="skl-seat__body">
+      ${sklPileHtml(state, pid, tv)}
+      <div class="skl-seat__foot">
+        <span class="skl-mat ${wins ? 'is-won' : ''}" title="${escapeHTML(pcT('skl_mat', { n: wins }))}">${wins ? '🌹' : ''}<b class="metric">${wins}</b></span>
+        <span class="skl-left" aria-label="${escapeHTML(pcT('skl_discs_left', { n: discs }))}">${dots}</span>
+        ${sklAlive(s, pid) && s.phase !== 'result' ? `<span class="skl-inhand metric" title="${escapeHTML(pcT('skl_in_hand', { n: hand }))}">✋${hand}</span>` : ''}
+      </div>
+      </div>
+    </div>`;
+}
+
+/** The bet in the middle: what is being played for, and how far the flips have got. */
+function sklBetHtml(state, tv) {
+  const s = sklS(state);
+  const total = Number(s.total) || 0;
+  const name = (pid) => `<bdi>${escapeHTML(pcName(state, pid))}</bdi>`;
+  let main = '';
+  if (s.phase === 'place') {
+    main = `<div class="skl-bubble is-quiet">${escapeHTML(pcT('skl_place_all'))} <b class="metric">${ltrFrac((s.placed || []).length, (s.alive || []).length)}</b></div>`;
+  } else if (s.phase === 'add') {
+    main = `<div class="skl-bubble is-quiet">${escapeHTML(pcT('skl_add_or_bet', { name: pcName(state, sklUp(s)) }))}</div>`;
+  } else if (s.bid && ['bid', 'guess', 'flip', 'lose', 'result'].indexOf(s.phase) !== -1) {
+    const n = s.flip ? s.flip.n : s.bid.n;
+    const fresh = motionFirst(['skl-bet', roomDealKey(state), s.round, n, s.bid.pid, tv ? 'tv' : ''].join('|'));
+    let prog = '';
+    if (s.flip && (s.phase === 'flip' || s.phase === 'lose' || s.phase === 'result')) {
+      const got = sklGot(s);
+      let pips = '';
+      for (let k = 0; k < n; k++) pips += `<i class="${k < got ? 'is-on' : ''}"></i>`;
+      prog = `<div class="skl-prog" dir="ltr">${pips}</div>`;
+    }
+    main = `<div class="skl-bubble ${fresh ? 'is-new' : ''}">${name(s.bid.pid)}: <b>${escapeHTML(pcT('skl_bet_n', { n: n }))}</b></div>${prog}`;
+  }
+  return `<div class="skl-mid" data-pc-at="mid">
+      ${main}
+      <p class="skl-total">${escapeHTML(pcT('skl_on_table', { n: total }))}</p>
+    </div>`;
+}
+
+function sklTableHtml(state, tv) {
+  const seats = sklSeats(state);
+  const me = Room.me;
+  const at = seats.indexOf(me);
+  // Your own seat first, then round the table in turn.
+  const ordered = at === -1 || tv ? seats.slice() : seats.slice(at).concat(seats.slice(0, at));
+  return `<div class="skl-table ${seats.length > 5 ? 'skl-table--many' : ''}">${ordered.map(pid => sklSeatHtml(state, pid, tv)).join('')}</div>`;
+}
+
+/** Your discs: the hand to lay from, what you put on the table (you alone see it), what you lost. */
+function sklMineHtml(state) {
+  const s = sklS(state);
+  const you = sklYou(state);
+  const col = sklCol(s, Room.me);
+  const phase = s.phase;
+  const choosing = phase === 'lose' && sklMine(state);
+  const list = choosing ? (you.discs || []) : (you.hand || []);
+  const pickable = choosing || (phase === 'place' && (s.placed || []).indexOf(Room.me) === -1 && sklAlive(s, Room.me)) || (phase === 'add' && sklMine(state));
+  const discBtn = (d) => {
+    const sel = sklLocal.pick === d.i;
+    return pickable
+      ? `<button type="button" class="skl-hdisc ${sel ? 'is-sel' : ''}" data-pc-at="disc:${d.i}" onclick="sklPick(${Number(d.i)})" aria-pressed="${sel}" aria-label="${escapeHTML(sklFaceName(d.f))}">${sklDiscHtml(d.f, col)}</button>`
+      : `<span class="skl-hdisc" data-pc-at="disc:${d.i}">${sklDiscHtml(d.f, col)}</span>`;
+  };
+  const pile = (you.pile || []).map(d => `<span class="skl-mydown">${sklDiscHtml(d.f, col, 'is-small')}</span>`).join('');
+  const lost = (you.lost || []).slice(-2).map(l => `<span class="skl-lost">${sklDiscHtml(l.f, col, 'is-small is-gone')}</span>`).join('');
+  return `<div class="skl-mine" style="--skl-c: var(--skl-c${col})">
+      <div class="skl-mine__head"><span class="skl-mine__title">${escapeHTML(pcT(choosing ? 'skl_your_all' : 'skl_your_hand'))}</span><b class="metric">${list.length}</b></div>
+      <div class="skl-hand" dir="ltr" data-pc-at="hand">${list.map(discBtn).join('') || `<span class="skl-hand__empty">${escapeHTML(pcT('skl_hand_empty'))}</span>`}</div>
+      ${pile && !choosing ? `<div class="skl-mine__row"><span class="skl-mine__label">${escapeHTML(pcT('skl_your_pile'))}</span><span class="skl-mine__discs" dir="ltr">${pile}</span></div>` : ''}
+      ${lost ? `<div class="skl-mine__row"><span class="skl-mine__label">${escapeHTML(pcT('skl_you_lost'))}</span><span class="skl-mine__discs" dir="ltr">${lost}</span></div>` : ''}
+    </div>`;
+}
+
+/** The numbers a bet can be now, as chips. */
+function sklBidChipsHtml(state) {
+  const s = sklS(state);
+  const r = skullBidRange(s.total, s.phase === 'bid' ? s.bid : null);
+  if (r.min > r.max) return '';
+  if (sklLocal.bid === null || sklLocal.bid < r.min || sklLocal.bid > r.max) sklLocal.bid = r.min;
+  let out = '';
+  for (let n = r.min; n <= r.max; n++) out += `<button type="button" class="skl-num ${sklLocal.bid === n ? 'is-on' : ''}" onclick="sklPickBid(${n})" aria-pressed="${sklLocal.bid === n}">${n}</button>`;
+  return `<div class="skl-nums" dir="ltr">${out}</div>`;
+}
+
+function sklGuessHtml(state, tv) {
+  const s = sklS(state);
+  const guessers = (s.order || []).filter(id => (state.players || []).some(p => p.id === id) && id !== sklBidder(s));
+  const chips = guessers.map(id => `<span class="skl-gchip ${(s.guessed || []).indexOf(id) !== -1 ? 'is-done' : ''}">${escapeHTML(pcName(state, id))}${(s.guessed || []).indexOf(id) !== -1 ? ' ✓' : ''}</span>`).join('');
+  const left = s.guessEndsAt ? Math.max(0, Math.ceil((s.guessEndsAt - Date.now()) / 1000)) : 0;
+  return `<div class="skl-guess ${tv ? 'is-tv' : ''}">
+      <p class="skl-guess__q">🤔 ${escapeHTML(pcT('skl_will_they', { name: pcName(state, sklBidder(s)), n: s.flip ? s.flip.n : '' }))}</p>
+      <div class="skl-guess__bar"><i style="--skl-guess-ms:${Math.max(0, (s.guessEndsAt || 0) - Date.now())}ms" data-skl-bar="${s.guessEndsAt || 0}"></i></div>
+      <div class="skl-gchips">${chips}</div>
+      <span class="skl-guess__left metric" data-skl-guessclock="${s.guessEndsAt || 0}">${left}</span>
+    </div>`;
+}
+
+/** The bar: what to do now. */
+function sklActionsHtml(state) {
+  const s = sklS(state);
+  const t = TRANSLATIONS[appState.lang] || {};
+  const bar = (inner, extra) => `<div class="skl-actbar ${extra || ''}">${inner}</div>`;
+  const note = (inner) => `<div class="skl-note">${inner}</div>`;
+  const hint = (key, vars) => `<p class="skl-hint">${escapeHTML(pcT(key, vars))}</p>`;
+  const prompt = (key, vars, mine) => `<p class="skl-prompt ${mine ? 'is-mine' : ''}">${mine ? '⭐ ' : ''}${escapeHTML(pcT(key, vars))}</p>`;
+  if (s.phase === 'result' || s.phase === 'gameover') return '';
+  if (!sklInGame(state)) {
+    if (s.phase === 'guess') return note(sklGuessHtml(state, false));
+    return note(`<p class="skl-hint">${escapeHTML(t.vote_spectating || '')}</p>`);
+  }
+  const me = Room.me;
+  const up = sklUp(s);
+  const upName = up ? pcName(state, up) : '';
+  if (s.phase === 'guess') {
+    if (sklBidder(s) === me) return note(prompt('skl_they_guess', {}, true) + sklGuessHtml(state, false));
+    const done = (s.guessed || []).indexOf(me) !== -1;
+    const mine = sklYou(state).guess !== undefined ? sklYou(state).guess : sklLocal.guessed[roomDealKey(state, s.round)];
+    if (done) return note(prompt(mine ? 'skl_you_said_yes' : 'skl_you_said_no', {}, false) + sklGuessHtml(state, false));
+    return bar(`${prompt('skl_will_they', { name: pcName(state, sklBidder(s)), n: s.flip ? s.flip.n : '' }, true)}
+      ${hint('skl_guess_hint')}
+      <div class="skl-actrow">
+        <button type="button" class="btn btn--success btn--lg" onclick="sklGuess(this, true)">✅ ${escapeHTML(pcT('skl_yes'))}</button>
+        <button type="button" class="btn btn--danger btn--lg" onclick="sklGuess(this, false)">❌ ${escapeHTML(pcT('skl_no'))}</button>
+      </div>
+      ${sklGuessHtml(state, false)}`, 'is-guess');
+  }
+  if (!sklAlive(s, me)) return note(prompt('skl_you_out', {}, false) + hint('skl_you_out_hint'));
+  if (s.phase === 'place') {
+    if ((s.placed || []).indexOf(me) !== -1) return note(prompt('skl_placed', {}, false) + hint('skl_wait_place'));
+    return bar(`${prompt('skl_place_now', {}, true)}${hint('skl_place_hint')}
+      <button type="button" class="btn btn--primary btn--lg" onclick="sklPlace(this)" ${sklLocal.pick === null ? 'disabled' : ''}>${escapeHTML(pcT(sklLocal.pick === null ? 'skl_pick_disc' : 'skl_place_btn'))}</button>`);
+  }
+  if (s.phase === 'lose') {
+    if (up !== me) return note(prompt('skl_choosing', { name: upName }, false) + hint('skl_choosing_hint'));
+    return bar(`${prompt('skl_lose_now', {}, true)}${hint('skl_lose_hint')}
+      <button type="button" class="btn btn--danger btn--lg" onclick="sklLose(this)" ${sklLocal.pick === null ? 'disabled' : ''}>${escapeHTML(pcT(sklLocal.pick === null ? 'skl_pick_disc' : 'skl_lose_btn'))}</button>`);
+  }
+  if (s.phase === 'flip') {
+    if (up !== me) return note(prompt('skl_flipping', { name: upName, got: sklGot(s), n: s.flip ? s.flip.n : 0 }, false) + hint('skl_flipping_hint'));
+    if (!s.flip.own) return bar(`${prompt('skl_flip_own', {}, true)}${hint('skl_flip_own_hint')}
+      <button type="button" class="btn btn--primary btn--lg" onclick="sklFlip('${jsStringAttr(me)}')">${escapeHTML(pcT('skl_flip_own_btn'))}</button>`);
+    return bar(`${prompt('skl_flip_more', { left: Math.max(0, s.flip.n - sklGot(s)) }, true)}${hint('skl_flip_hint')}`);
+  }
+  if (up !== me) {
+    const key = s.phase === 'add' ? 'skl_wait_add' : 'skl_wait_bid';
+    return note(prompt('skl_turn_of', { name: upName }, false) + hint(key, { name: upName, n: s.bid ? s.bid.n : 0 }));
+  }
+  const handN = (sklYou(state).hand || []).length;
+  if (s.phase === 'add') {
+    const addBtn = handN ? `<button type="button" class="btn btn--secondary" onclick="sklAdd(this)" ${sklLocal.pick === null ? 'disabled' : ''}>${escapeHTML(pcT(sklLocal.pick === null ? 'skl_pick_to_add' : 'skl_add_btn'))}</button>` : '';
+    return bar(`${prompt(handN ? 'skl_your_add' : 'skl_must_bet', {}, true)}${hint(handN ? 'skl_add_hint' : 'skl_must_bet_hint')}
+      ${sklBidChipsHtml(state)}
+      <div class="skl-actrow">
+        <button type="button" class="btn btn--primary" onclick="sklBid(this)">${escapeHTML(pcT('skl_bet_btn', { n: sklLocal.bid || 1 }))}</button>
+        ${addBtn}
+      </div>`);
+  }
+  // The auction.
+  const chips = sklBidChipsHtml(state);
+  return bar(`${prompt('skl_your_raise', { n: s.bid.n }, true)}${hint('skl_raise_hint')}
+    ${chips}
+    <div class="skl-actrow">
+      ${chips ? `<button type="button" class="btn btn--primary" onclick="sklBid(this)">${escapeHTML(pcT('skl_raise_btn', { n: sklLocal.bid || 0 }))}</button>` : ''}
+      <button type="button" class="btn btn--secondary" onclick="sklAct(this, 'pass')">${escapeHTML(pcT('skl_pass'))}</button>
+    </div>`);
+}
+
+/* --- the result of a round, and the end --------------------------------------------- */
+
+function sklResultHtml(state, tv) {
+  const s = sklS(state);
+  const r = s.result;
+  if (!r) return '';
+  const fresh = motionFirst(['skl-res', roomDealKey(state), s.round, tv ? 'tv' : ''].join('|'));
+  const wait = fresh ? sklLocal.wait : 0;
+  let title;
+  if (r.void) title = pcT('skl_res_void', { name: pcName(state, r.bidder) });
+  else if (r.ok) title = pcT('skl_res_won', { name: pcName(state, r.bidder), n: r.n });
+  else if (r.own) title = pcT('skl_res_own', { name: pcName(state, r.bidder) });
+  else title = pcT('skl_res_skull', { name: pcName(state, r.bidder), owner: pcName(state, r.skullOwner) });
+  const guesses = r.guesses || {};
+  const gl = Object.keys(guesses).map((id, k) => {
+    const right = (r.right || []).indexOf(id) !== -1;
+    return `<span class="skl-gres ${right ? 'is-right' : 'is-wrong'}" style="--at:${k * 110}ms">${guesses[id] ? '✅' : '❌'} ${escapeHTML(pcName(state, id))}${right ? ' +1' : ''}</span>`;
+  }).join('');
+  // Only the bidder's own phone learns which of its discs a skull took.
+  const you = sklYou(state);
+  const mineLost = !tv && !r.ok && !r.void && r.bidder === Room.me && (you.lost || []).length && (you.lost[you.lost.length - 1] || {}).round === s.round
+    ? you.lost[you.lost.length - 1] : null;
+  const lostLine = mineLost ? `<div class="skl-res__lost">${sklDiscHtml(mineLost.f, sklCol(s, Room.me), 'is-small')}<span>${escapeHTML(pcT(r.own ? 'skl_res_you_gave' : 'skl_res_you_lost', { face: sklFaceName(mineLost.f) }))}</span></div>`
+    : (!r.ok && !r.void && r.bidder !== Room.me ? `<p class="skl-hint">${escapeHTML(pcT('skl_res_secret', { name: pcName(state, r.bidder) }))}</p>` : '');
+  const out = r.out ? `<p class="skl-res__out">👋 ${escapeHTML(pcT('skl_res_out', { name: pcName(state, r.out) }))}</p>` : '';
+  const nextLeft = s.phase === 'result' && s.nextAt ? Math.max(0, Math.ceil((s.nextAt - Date.now()) / 1000)) : 0;
+  const next = s.phase === 'result'
+    ? `<p class="skl-hint">${escapeHTML(pcT('skl_next_in'))} <b class="metric" data-skl-next="${s.nextAt || 0}">${nextLeft}</b></p>` +
+      (tv ? roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(pcT('skl_next_now'), "sklNext()", 'secondary')}</div>`) : roomMoveOnHtml(state, roomHostRow([[pcT('skl_next_now'), 'sklNext()', 'secondary']])))
+    : '';
+  return `<div class="card skl-res ${r.ok ? 'is-won' : r.void ? 'is-void' : 'is-lost'} ${fresh ? 'is-new' : ''}" style="--skl-wait:${wait}ms" data-reveal-ms="${wait + 400}">
+      <div class="skl-res__icon" aria-hidden="true">${r.void ? '🤷' : r.ok ? sklDiscHtml(sklFlowerOf(s, r.bidder), sklCol(s, r.bidder)) : sklDiscHtml('skull', sklCol(s, r.skullOwner || r.bidder))}</div>
+      <div class="skl-res__title">${escapeHTML(title)}</div>
+      ${lostLine}${out}
+      ${gl ? `<div class="skl-res__guesses"><span class="skl-mine__label">${escapeHTML(pcT('skl_guesses_title'))}</span><div class="skl-gress">${gl}</div></div>` : ''}
+      ${next}
+    </div>`;
+}
+
+function sklNext() {
+  const st = Room.state;
+  if (!st) return;
+  roomAct('nextRound', { round: sklS(st).round });
+}
+
+/** This game's bets, most first: the podium. */
+function sklBetsBoard(state) {
+  const s = sklS(state);
+  return (s.order || []).filter(id => (state.players || []).some(p => p.id === id))
+    .map(id => ({ id: id, name: pcName(state, id), score: Number((s.wins || {})[id]) || 0 }))
+    .sort((a, b) => b.score - a.score);
+}
+
+function sklGuessBoard(state) {
+  const s = sklS(state);
+  return (s.order || []).filter(id => (state.players || []).some(p => p.id === id))
+    .map(id => ({ id: id, name: pcName(state, id), score: Number((s.guessPts || {})[id]) || 0 }))
+    .sort((a, b) => b.score - a.score);
+}
+
+function sklOverHtml(state, tv) {
+  const s = sklS(state);
+  const t = TRANSLATIONS[appState.lang] || {};
+  const w = (s.winners || [])[0];
+  const title = !w ? pcT('skl_over_none') : s.why === 'last' ? pcT('skl_over_last', { name: pcName(state, w) })
+    : s.why === 'left' ? pcT('skl_over_left', { name: pcName(state, w) }) : pcT('skl_over_wins', { name: pcName(state, w) });
+  const bets = sklBetsBoard(state);
+  const guesses = sklGuessBoard(state);
+  const host = state.youAreHost
+    ? (tv ? `<div class="tv-actions">${tvBtn(t.play_again || '', "sklAct(this, 'playAgain')")}${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>`
+      : `<div class="btn-stack"><button type="button" class="btn btn--go btn--lg" onclick="sklAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
+          <button type="button" class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button></div>`)
+    : (tv ? '' : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`);
+  return `<div class="skl-over">
+      <div class="card card--accent skl-won">
+        <div class="skl-won__icon" aria-hidden="true">${w ? sklDiscHtml(sklFlowerOf(s, w), sklCol(s, w)) : '🌸'}</div>
+        <div class="card__title">${escapeHTML(title)}</div>
+      </div>
+      ${renderPodium(state, bets)}
+      ${guesses.some(r => r.score > 0) ? renderScoreboard(guesses, pcT('skl_guesses_board')) : ''}
+      ${(s.board || []).some(r => r.score > 0) ? renderScoreboard(s.board || [], pcT('skl_wins_board')) : ''}
+      ${tv ? '' : roomShareBtnHtml(state, s.board || [])}
+      ${host}
+    </div>`;
+}
+
+/* --- what happened ------------------------------------------------------------------- */
+
+function sklEventText(state, e) {
+  if (!e) return '';
+  const name = (pid) => pcName(state, pid);
+  switch (e.type) {
+    case 'round': return pcT('skl_ev_round', { n: e.round, name: name(e.starter) });
+    case 'add': return pcT('skl_ev_add', { name: name(e.pid) });
+    case 'bid': return pcT(e.open ? 'skl_ev_open' : 'skl_ev_bid', { name: name(e.pid), n: e.n });
+    case 'pass': return pcT('skl_ev_pass', { name: name(e.pid) });
+    case 'won': return pcT('skl_ev_won', { name: name(e.pid), n: e.n });
+    case 'flipOwn': return pcT('skl_ev_flip_own', { name: name(e.pid), n: (e.faces || []).length });
+    case 'flip': return pcT(e.f === 'skull' ? 'skl_ev_flip_skull' : 'skl_ev_flip', { name: name(e.pid), owner: name(e.owner) });
+    case 'betWon': return pcT('skl_ev_bet_won', { name: name(e.pid), n: e.n });
+    case 'skull': return e.owner === e.pid ? pcT('skl_ev_skull_own', { name: name(e.pid) }) : pcT('skl_ev_skull', { name: name(e.pid), owner: name(e.owner) });
+    case 'lost': return pcT('skl_ev_lost', { name: name(e.pid), n: e.left });
+    case 'out': return pcT('skl_ev_out', { name: name(e.pid) });
+    case 'auto': return e.why === 'host' ? pcT('skl_ev_auto_host', { name: name(e.pid) }) : pcT('skl_ev_auto_clock', { name: name(e.pid) });
+    case 'void': return pcT('skl_ev_void', { name: name(e.pid) });
+    case 'shrink': return pcT('skl_ev_shrink', { n: e.n });
+    case 'left': return pcT('skl_ev_left', { name: name(e.pid) });
+    case 'over': return e.pid ? pcT('skl_over_wins', { name: name(e.pid) }) : '';
+    default: return '';
+  }
+}
+
+const sklMoves = (state) => (sklS(state).events || []).filter(e => e && e.type !== 'auto' && e.type !== 'place' && e.type !== 'guessed' && sklEventText(state, e));
+
+function sklLatestHtml(state, tv) {
+  const list = sklMoves(state);
+  const e = list[list.length - 1];
+  if (!e) return '';
+  const fresh = motionFirst(['skl-latest', roomDealKey(state), e.seq, tv ? 'tv' : 'phone'].join('|'));
+  return `<p class="skl-latest ${fresh ? 'is-new' : ''} ${e.type === 'skull' || e.type === 'lost' ? 'is-bad' : e.type === 'betWon' ? 'is-good' : ''}">${escapeHTML(sklEventText(state, e))}</p>`;
+}
+
+function sklLogHtml(state, count) {
+  const list = sklMoves(state).slice(0, -1).slice(-count).reverse();
+  if (!list.length) return '';
+  return `<ul class="skl-log">${list.map(e => `<li>${escapeHTML(sklEventText(state, e))}</li>`).join('')}</ul>`;
+}
+
+/* --- the host's way past a phone that went quiet ---------------------------------- */
+
+function sklHostButtons(state) {
+  const s = sklS(state);
+  if (!roomCanMoveOn(state)) return [];
+  if (s.phase === 'place') {
+    const quiet = (s.alive || []).filter(id => (s.placed || []).indexOf(id) === -1).filter(id => { const p = (state.players || []).find(x => x.id === id); return p && !p.online && !p.bot; });
+    return quiet.length ? [['⏭️ ' + pcT('skl_skip_place'), "sklAct(this, 'skipTurn')"]] : [];
+  }
+  if (['add', 'bid', 'flip', 'lose'].indexOf(s.phase) === -1 || !s.turn) return [];
+  const p = (state.players || []).find(x => x.id === s.turn.pid);
+  if (p && (p.online || p.bot)) return [];
+  return [['⏭️ ' + pcT('skl_skip_turn', { name: pcName(state, s.turn.pid) }), "sklAct(this, 'skipTurn')"]];
+}
+
+function sklRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('.skl-seat[data-pc-seat]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-pc-seat'));
+    el.classList.toggle('is-away', !(p && (p.online || p.bot)));
+  });
+  const box = root.querySelector('[data-skl-host]');
+  if (box) {
+    const buttons = sklHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._sklHtml !== html) { box.innerHTML = html; box._sklHtml = html; }
+  }
+}
+
+/* --- the phone's frame ------------------------------------------------------------------ */
+
+function sklServerSig(state) {
+  const s = sklS(state);
+  const ev = s.events || [];
+  return [s.dealId || '', s.phase, s.round, s.turnSeq, JSON.stringify(s.turn || null), JSON.stringify(s.bid || null), JSON.stringify(s.flip || null),
+    JSON.stringify(s.piles || {}), JSON.stringify(s.discs || {}), JSON.stringify(s.wins || {}), (s.alive || []).join(','), (s.placed || []).join(','),
+    (s.passed || []).join(','), (s.guessed || []).join(','), JSON.stringify(s.flipped || []), JSON.stringify(s.result || null), s.endsAt || '', s.guessEndsAt || '',
+    ev.length ? ev[ev.length - 1].seq : 0, JSON.stringify(s.board || []), JSON.stringify(state.you || null), (s.winners || []).join(','),
+    (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','), state.youAreHost, !!state.hostAway].join('|');
+}
+
+function sklPhoneFrame(state) {
+  const s = sklS(state);
+  const over = s.phase === 'gameover';
+  return `<div class="skl ${sklMine(state) ? 'is-turn' : ''} ${over ? 'is-over' : ''}">
+      ${sklHeadHtml(state)}
+      ${over ? '' : sklLatestHtml(state, false)}
+      ${over ? sklOverHtml(state, false) : ''}
+      <div class="skl-layout">
+        <div class="skl-layout__table">${over ? '' : sklBetHtml(state, false)}${sklTableHtml(state, false)}</div>
+        <div class="skl-layout__side">
+          ${s.phase === 'result' ? sklResultHtml(state, false) : ''}
+          ${!over && sklInGame(state) ? sklMineHtml(state) : ''}
+          ${sklActionsHtml(state)}<div data-skl-host></div>
+          ${over ? '' : sklLogHtml(state, 3)}
+        </div>
+      </div>
+      ${renderRoomPlayerStrip(state)}
+    </div>`;
+}
+
+ROOM_GAMES.skull = {
+  bots: { max: SKULL_MAX },
+  lateJoin: true,     // someone who joins mid-game watches the table, and is dealt in with play again
+  // The page keeps your discs and the bar in view itself; a new round and the end are drawn from the top.
+  actionKey(state) {
+    const s = sklS(state);
+    return s.phase === 'gameover' ? [state.code, s.dealId, 'over'].join('|') : '';
+  },
+  lobbyOptions(state) {
+    const n = (state.players || []).length;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const art = `<div class="skl-lobby__discs" aria-hidden="true" dir="ltr">${sklDiscHtml('rose', 0)}${sklDiscHtml('jasmine', 1)}${sklDiscHtml(null, 2)}${sklDiscHtml('skull', 3)}${sklDiscHtml('lotus', 4)}</div>`;
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(pcT('skl_lobby_hint'))}</p>`;
+    const few = n < SKULL_MIN ? `<p class="field__hint tx-warning" style="text-align:center">🤖 ${escapeHTML(pcT('skl_need_three'))}</p>` : '';
+    const many = n > SKULL_MAX ? `<p class="field__hint tx-warning" style="text-align:center">${escapeHTML(pcT('skl_too_many'))}</p>` : '';
+    if (!state.youAreHost) return `<div class="skl-lobby">${art}${hint}${few}${many}<p class="field__hint" style="text-align:center">${escapeHTML(t.room_wait_host || '')}</p></div>`;
+    const o = sklOpts();
+    const seg = `<div class="segmented" role="group">${SKL_CLOCK_CHOICES.map(v =>
+      `<button type="button" class="segmented__item ${o.turnClock === v ? 'is-active' : ''}" onclick="setSklOpt('turnClock', ${v})">${v ? v + '″' : escapeHTML(pcT('skl_clock_off'))}</button>`).join('')}</div>`;
+    return `<div class="card card--tight skl-lobby">
+        ${art}${few}${many}
+        <div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(pcT('skl_clock'))}</label>
+          ${seg}
+          ${o.turnClock ? `<p class="field__hint">${escapeHTML(pcT('skl_clock_hint'))}</p>` : ''}
+        </div>
+        ${hint}
+      </div>`;
+  },
+  startPayload() {
+    return sklOpts();
+  },
+  render(state) {
+    if (appState.currentView !== 'room-skull') setView('room-skull');
+    const el = document.getElementById('view-room-skull');
+    if (!el) return;
+    const s = sklS(state);
+    sklSyncPick(state);
+    const server = sklServerSig(state);
+    const serverChanged = el._sklServer !== server;
+    let evs = [];
+    if (serverChanged) {
+      pcSnapshot(sklFx, el);
+      evs = pcEventsToPlay(sklFx, state);
+      sklLocal.wait = sklRevealWait(evs);
+    }
+    const handWas = el._sklHand || null;
+    const local = [sklLocal.pick, sklLocal.bid, appState.lang, JSON.stringify(sklLocal.guessed[roomDealKey(state, s.round)])].join('|');
+    const rebuilt = renderRoomFrame(el, server + '#' + local, () => sklPhoneFrame(state));
+    el._sklServer = server;
+    sklRefreshInPlace(el, state, false);
+    sklTick(state);
+    if (!rebuilt) return;
+    el._sklHand = (sklYou(state).hand || []).map(d => ({ i: d.i, f: d.f }));
+    if (evs.length) sklAfterDraw(el, state, evs, handWas);
+    sklTurnCue(state);
+    if (s.phase === 'result' && motionFirst('skl-res-view|' + roomDealKey(state, s.round))) sklResultInView(sklLocal.wait);
+    if (s.phase === 'gameover' && typeof confetti === 'function' && (s.winners || [])[0] === Room.me &&
+        motionFirst('skl-over|' + state.code + '|' + (s.dealId || ''))) {
+      afterReveal(el, () => confetti({ particleCount: 150, spread: 90 }));
+    }
+  }
+};
+
+/* --- the clocks --------------------------------------------------------------------- */
+
+function sklStopClock() {
+  if (sklLocal.clock) clearInterval(sklLocal.clock);
+  sklLocal.clock = null;
+}
+
+/** One small ticker for the turn clock, «هيعملها؟»'s window and the next round's countdown, painted in place. */
+function sklTick(state) {
+  const s = sklS(state);
+  const paint = () => {
+    const now = Date.now();
+    let any = false;
+    document.querySelectorAll('[data-skl-clock]').forEach(el => {
+      const left = Math.max(0, Math.ceil((Number(el.getAttribute('data-skl-clock')) - now) / 1000));
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 10);
+      el.classList.toggle('badge--accent', left > 10);
+      if (left > 0) any = true;
+    });
+    document.querySelectorAll('[data-skl-guessclock], [data-skl-next]').forEach(el => {
+      const at = Number(el.getAttribute('data-skl-guessclock') || el.getAttribute('data-skl-next'));
+      const left = Math.max(0, Math.ceil((at - now) / 1000));
+      el.textContent = left;
+      if (left > 0) any = true;
+    });
+    return any;
+  };
+  const running = ['place', 'add', 'bid', 'flip', 'lose', 'guess', 'result'].indexOf(s.phase) !== -1;
+  if (!running) { sklStopClock(); return; }
+  paint();
+  if (sklLocal.clock) return;
+  let lastTick = -1;
+  sklLocal.clock = setInterval(() => {
+    const st = Room.state;
+    if (!st || st.game !== 'skull') { sklStopClock(); return; }
+    const ss = sklS(st);
+    if (appState.currentView !== 'room-skull' && appState.currentView !== 'room-tv') return;
+    paint();
+    // The last five seconds tick on the phone it's waiting for, and on the TV.
+    if (ss.endsAt && ['place', 'add', 'bid', 'flip', 'lose'].indexOf(ss.phase) !== -1) {
+      const left = Math.ceil((ss.endsAt - Date.now()) / 1000);
+      const mine = st.youAreScreen || (ss.phase === 'place' ? (ss.placed || []).indexOf(Room.me) === -1 : sklUp(ss) === Room.me);
+      if (left > 0 && left <= 5 && left !== lastTick && mine) { lastTick = left; playSound('tick'); }
+    }
+  }, 250);
+}
+
+function sklTurnCue(state) {
+  const s = sklS(state);
+  const waiting = sklMine(state) || (s.phase === 'place' && sklInGame(state) && sklAlive(s, Room.me) && (s.placed || []).indexOf(Room.me) === -1) ||
+    (s.phase === 'guess' && sklInGame(state) && sklBidder(s) !== Room.me && (s.guessed || []).indexOf(Room.me) === -1);
+  const was = sklLocal.turnMine;
+  sklLocal.turnMine = waiting;
+  if (waiting && !was && sklFx.watched === state.code) { playSound('tick'); haptic('medium'); }
+  if (waiting && !was) sklBarInView();
+}
+
+/** A round's result comes into sight once its flips have played. */
+function sklResultInView(wait) {
+  sklFx.timers.push(setTimeout(() => {
+    const main = document.getElementById('shell-main');
+    const card = document.querySelector('#view-room-skull .skl-res');
+    if (!main || !card || appState.currentView !== 'room-skull') return;
+    const r = card.getBoundingClientRect();
+    const m = main.getBoundingClientRect();
+    if (r.top >= m.top && r.bottom <= m.bottom) return;
+    main.scrollBy({ top: r.top - m.top - 12, behavior: motionOff() ? 'auto' : 'smooth' });
+  }, (wait || 0) + 200));
+}
+
+/** On your turn the page keeps your discs and the bar in sight. */
+function sklBarInView() {
+  requestAnimationFrame(() => {
+    const main = document.getElementById('shell-main');
+    const root = document.getElementById('view-room-skull');
+    const bar = root && root.querySelector('.skl-actbar');
+    if (!main || !bar || appState.currentView !== 'room-skull') return;
+    const b = bar.getBoundingClientRect();
+    const m = main.getBoundingClientRect();
+    if (b.bottom <= m.bottom - 8 && b.top >= m.top) return;
+    main.scrollBy({ top: b.bottom - m.bottom + 12, behavior: motionOff() ? 'auto' : 'smooth' });
+  });
+}
+
+onRoomClocksReset(() => {
+  sklStopClock();
+  sklLocal.pick = null;
+  sklLocal.bid = null;
+  pcFxCancel(sklFx);
+  document.querySelectorAll('.skl-fly').forEach(el => el.remove());
+});
+
+/* --- the flights ---------------------------------------------------------------------- */
+
+/** How long the flips of these events take to play: the result waits for them. */
+function sklRevealWait(evs) {
+  if (!evs || !evs.length || !pcCanMove()) return 0;
+  let n = 0;
+  evs.forEach(e => { if (e.type === 'flipOwn') n += (e.faces || []).length; if (e.type === 'flip') n++; });
+  return n ? n * SKL_FLIP_STEP_MS + 700 : 0;
+}
+
+/** A disc flying from one place to another on a layer over the page (face: a face, or null for its back). */
+function sklFly(root, from, to, face, col, opts) {
+  const o = opts || {};
+  const a = pcRect(sklFx, root, from);
+  const b = typeof to === 'object' && to ? to : pcRect(sklFx, root, to);
+  if (!a || !b || !a.width || !b.width || !pcCanMove()) { if (o.done) o.done(); return; }
+  const size = o.size || Math.min(b.width, b.height || b.width, 56);
+  const box = (r) => ({ left: r.left + r.width / 2 - size / 2, top: r.top + (r.height || r.width) / 2 - size / 2, width: size, height: size });
+  const A = box(a), B = box(b);
+  const layer = pcLayer(root, A, 'skl-fly', sklDiscHtml(face, col));
+  const dx = B.left - A.left, dy = B.top - A.top;
+  const arc = o.arc || 26;
+  pcAnimate(layer, [
+    { transform: 'translate(0,0) scale(1) rotate(0deg)', opacity: 1 },
+    { transform: `translate(${dx / 2}px, ${dy / 2 - arc}px) scale(1.12) rotate(${o.spin || 90}deg)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) scale(${o.endScale || 1}) rotate(${(o.spin || 90) * 2}deg)`, opacity: o.fade ? 0 : 1 }
+  ], { duration: o.duration || 480, delay: o.delay || 0, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' }, () => { layer.remove(); if (o.done) o.done(); });
+}
+
+/** A disc turned over where it lies: its back, then its face - a flower blooms, a skull pops. */
+function sklTurnOver(root, key, face, col, delay) {
+  const r = pcRect(sklFx, root, key);
+  if (!r || !r.width || !pcCanMove()) { pcRelease(sklFx, root, key); return; }
+  const size = Math.max(r.width, 40) * 1.25;
+  const c = pcMid(r);
+  const layer = pcLayer(root, { left: c.x - size / 2, top: c.y - size / 2, width: size, height: size }, 'skl-fly skl-turn',
+    `<span class="skl-turn__back">${sklDiscHtml(null, col)}</span><span class="skl-turn__face">${sklDiscHtml(face, col)}</span>`);
+  const back = layer.children[0], front = layer.children[1];
+  const t = { duration: 520, delay: delay, easing: 'ease-in-out', fill: 'both' };
+  pcAnimate(layer, [{ opacity: 0, transform: 'scale(.8)' }, { opacity: 1, transform: 'scale(1.1)', offset: 0.2 }, { opacity: 1, transform: 'scale(1.1)', offset: 0.8 }, { opacity: 1, transform: 'scale(1)' }],
+    { duration: 520 + 520, delay: delay, easing: 'ease-out' });
+  back.animate([{ transform: 'scaleX(1)', opacity: 1 }, { transform: 'scaleX(0)', opacity: 1, offset: 0.5 }, { transform: 'scaleX(0)', opacity: 0 }], t);
+  const bloom = face === 'skull'
+    ? [{ transform: 'scaleX(0)', opacity: 0 }, { transform: 'scaleX(0)', opacity: 1, offset: 0.5 }, { transform: 'scale(1.3) rotate(-12deg)', offset: 0.75 }, { transform: 'scale(1) rotate(0deg)', opacity: 1 }]
+    : [{ transform: 'scaleX(0)', opacity: 0 }, { transform: 'scaleX(0)', opacity: 1, offset: 0.5 }, { transform: 'scale(1.18) rotate(18deg)', offset: 0.8 }, { transform: 'scale(1) rotate(0deg)', opacity: 1 }];
+  front.animate(bloom, Object.assign({}, t, { duration: 700 }));
+  sklFx.timers.push(setTimeout(() => {
+    if (face === 'skull') {
+      pcShout(sklFx, root, key, pcT('skl_boom'), 0);
+      pcShake(sklFx, root, key, 60);
+    } else {
+      pcRing(sklFx, root, key, { tone: 'success', scale: 1.8, duration: 600 });
+    }
+  }, delay + 380));
+  sklFx.timers.push(setTimeout(() => {
+    pcAnimate(layer, [{ opacity: 1 }, { opacity: 0 }], { duration: 160 }, () => layer.remove());
+    pcRelease(sklFx, root, key);
+  }, delay + 960));
+}
+
+function sklAfterDraw(root, state, evs, handWas) {
+  if (document.hidden || pcWokeRecently(sklFx) || !root.getClientRects().length) return;
+  sklSounds(state, evs);
+  if (evs.length > 16 || !pcCanMove()) return;
+  sklPlay(root, state, evs, handWas);
+}
+
+function sklPlay(root, state, list, handWas) {
+  const s = sklS(state);
+  const me = Room.me;
+  const fx = sklFx;
+  const steps = [];
+  const at = (ms, fn) => steps.push([ms, fn]);
+  let t = 0;
+  const hand = sklYou(state).hand || [];
+  const gone = Array.isArray(handWas) ? handWas.filter(d => !hand.some(x => x.i === d.i)) : [];
+  const flipCount = {};
+  (s.flipped || []).forEach(x => { flipCount[x.owner] = (flipCount[x.owner] || 0) + 1; });
+  // Which flipped disc of an owner an event turned over: counted back from the end.
+  const flipsIn = list.filter(e => e.type === 'flip' || e.type === 'flipOwn');
+  const pending = {};
+  flipsIn.forEach(e => { if (e.type === 'flip') pending[e.owner] = (pending[e.owner] || 0) + 1; else pending[e.pid] = (pending[e.pid] || 0) + (e.faces || []).length; });
+  const nextIndex = {};
+  Object.keys(pending).forEach(o => { nextIndex[o] = (flipCount[o] || 0) - pending[o]; });
+  list.forEach(e => {
+    const A = e.pid;
+    const col = sklCol(s, A);
+    switch (e.type) {
+      case 'place':
+      case 'add': {
+        const mine = A === me && !state.youAreScreen && gone.length;
+        const from = mine ? 'disc:' + gone[0].i : 'seat:' + A;
+        at(t, () => sklFly(root, from, 'pile:' + A, null, col, { duration: 460, spin: 60 }));
+        t += e.type === 'place' ? 90 : 300;
+        break;
+      }
+      case 'bid':
+        at(t, () => { pcPop(fx, root, 'seat:' + A, '🌸 ' + e.n, { big: true }); pcRing(fx, root, 'seat:' + A, { scale: 1.8 }); });
+        t += 380;
+        break;
+      case 'pass':
+        at(t, () => pcPop(fx, root, 'seat:' + A, pcT('skl_pass')));
+        t += 260;
+        break;
+      case 'won':
+        at(t, () => { pcStamp(fx, root, 'seat:' + A, pcT('skl_will_short'), { duration: 1200 }); });
+        t += 500;
+        break;
+      case 'flipOwn':
+      case 'flip': {
+        const owner = e.type === 'flip' ? e.owner : A;
+        const faces = e.type === 'flip' ? [e.f] : (e.faces || []);
+        faces.forEach(f => {
+          const k = nextIndex[owner]++;
+          const key = 'flip:' + owner + ':' + k;
+          pcHold(fx, root, key);
+          const d = t;
+          at(0, () => sklTurnOver(root, key, f, sklCol(s, owner), d));
+          t += SKL_FLIP_STEP_MS;
+        });
+        break;
+      }
+      case 'skull':
+        at(t, () => pcShake(fx, root, 'seat:' + A, 0));
+        t += 200;
+        break;
+      case 'betWon':
+        at(t, () => { pcStamp(fx, root, 'pile:' + A, pcT('skl_made_it'), { tone: 'success', duration: 1500 }); pcRing(fx, root, 'seat:' + A, { tone: 'success', scale: 2.4 }); });
+        t += 600;
+        break;
+      case 'lost': {
+        const r = pcRect(fx, root, 'seat:' + A);
+        if (r) {
+          const away = { left: r.left + r.width / 2 - 20, top: r.top - r.height * 2.2, width: 40, height: 40 };
+          // The face only on the bidder's own phone.
+          const you = sklYou(state);
+          const face = A === me && !state.youAreScreen && (you.lost || []).length ? you.lost[you.lost.length - 1].f : null;
+          at(t, () => sklFly(root, 'seat:' + A, away, face, col, { duration: 900, fade: true, spin: 200, endScale: 0.5, arc: 10 }));
+        }
+        t += 500;
+        break;
+      }
+      case 'out':
+        at(t, () => { pcRing(fx, root, 'seat:' + A, { tone: 'danger', scale: 2 }); pcPop(fx, root, 'seat:' + A, '👋', { big: true }); });
+        t += 400;
+        break;
+      case 'round':
+        at(t, () => pcPop(fx, root, 'mid', pcT('skl_pop_round', { n: e.round }), { big: true, duration: 1300 }));
+        t += 300;
+        break;
+      case 'auto':
+        at(t, () => pcPop(fx, root, 'seat:' + A, e.why === 'host' ? '⏭️' : '⏱️', { big: true }));
+        break;
+      default:
+        break;
+    }
+  });
+  steps.forEach(([ms, fn]) => fx.timers.push(setTimeout(fn, ms)));
+  fx.busyUntil = Math.max(fx.busyUntil, Date.now() + t);
+}
+
+/* --- the sounds (short, like the card games'; the TV is the room's one voice) ---- */
+
+if (typeof FX !== 'undefined') {
+  Object.assign(FX, {
+    sklDisc(at) {
+      // A disc laid on the felt: a soft wooden clack.
+      fxNoise('bandpass', 1400, 1.4, [[0, 0], [0.004, 0.14], [0.06, 0.001]], at);
+      fxTone('sine', [[0, 190], [0.05, 120]], [[0, 0], [0.004, 0.12], [0.08, 0.001]], at);
+    },
+    sklFlower(at) {
+      fxTone('triangle', [[0, 784], [0.12, 1046]], [[0, 0], [0.01, 0.12], [0.22, 0.001]], at);
+      fxTone('sine', [[0.08, 1318], [0.3, 1568]], [[0.08, 0], [0.1, 0.07], [0.36, 0.001]], at);
+    },
+    sklBoom(at) {
+      // «بوم!»: a comic thump and a boing that falls - no blast.
+      fxNoise('lowpass', 420, 0.8, [[0, 0], [0.01, 0.3], [0.28, 0.001]], at);
+      fxTone('square', [[0.04, 330], [0.5, 90]], [[0.04, 0], [0.06, 0.08], [0.55, 0.001]], at);
+    },
+    sklBet(at) {
+      fxTone('triangle', [[0, 523], [0.08, 659]], [[0, 0], [0.01, 0.1], [0.16, 0.001]], at);
+    }
+  });
+}
+
+function sklSound(name, mine) {
+  if (document.hidden) return;
+  if (!mine && typeof roomHasScreen === 'function' && roomHasScreen()) return;
+  if (typeof playFx === 'function' && typeof FX !== 'undefined' && FX[name]) playFx(name);
+}
+
+function sklSounds(state, evs) {
+  if (document.hidden || !evs.length) return;
+  const mine = evs.some(e => e.pid === Room.me && !state.youAreScreen);
+  const has = (type) => evs.some(e => e.type === type);
+  if (has('over')) { playRoomFx('success'); return; }
+  // The flips one after another, the skull or the win at the end.
+  let t = 0;
+  evs.forEach(e => {
+    const faces = e.type === 'flip' ? [e.f] : e.type === 'flipOwn' ? (e.faces || []) : [];
+    faces.forEach(f => {
+      const d = t + 380;
+      sklFx.timers.push(setTimeout(() => sklSound(f === 'skull' ? 'sklBoom' : 'sklFlower', mine), d));
+      t += SKL_FLIP_STEP_MS;
+    });
+  });
+  if (has('betWon')) sklFx.timers.push(setTimeout(() => (mine || !roomHasScreen()) && playSound('success'), t + 200));
+  if (has('bid')) sklSound('sklBet', mine);
+  else if (has('place') || has('add')) sklSound('sklDisc', mine);
+}
+
+Room.onChange((state) => {
+  if (!state) { sklFx.watched = ''; sklFx.prevPhase = ''; return; }
+  if (state.game === 'skull' && state.phase !== 'lobby') {
+    const showing = state.youAreScreen ? appState.currentView === 'room-tv' : (onRoomView() && state.inGame !== false);
+    if (!showing) pcEventsToPlay(sklFx, state);
+  }
+  sklFx.watched = state.code;
+  sklFx.prevPhase = state.phase;
+});
+
+/* --- the TV ------------------------------------------------------------------------------ */
+
+function sklTurnWords(state) {
+  const s = sklS(state);
+  const up = sklUp(s);
+  if (s.phase === 'place') return pcT('skl_place_all');
+  if (s.phase === 'guess') return pcT('skl_tv_guess');
+  if (s.phase === 'flip') return pcT('skl_flipping', { name: pcName(state, up), got: sklGot(s), n: s.flip ? s.flip.n : 0 });
+  if (s.phase === 'lose') return pcT('skl_choosing', { name: pcName(state, up) });
+  if (up) return pcT('skl_turn_of', { name: pcName(state, up) });
+  return '';
+}
+
+function sklTvFrame(state, t) {
+  const s = sklS(state);
+  if (s.phase === 'gameover') {
+    return `<div class="skl-tv skl-tv--over">
+        <div class="skl-tv__table">${sklTableHtml(state, true)}</div>
+        <div class="skl-tv__side tv-scale">${sklOverHtml(state, true)}</div>
+      </div>`;
+  }
+  const host = `<span data-skl-host class="skl-tv__host"></span>`;
+  return `<div class="skl-tv">
+      <div class="skl-tv__table">${sklTableHtml(state, true)}</div>
+      <div class="skl-tv__side">
+        ${sklHeadHtml(state)}
+        <div class="skl-tv__turn">${escapeHTML(sklTurnWords(state))}</div>
+        ${sklBetHtml(state, true)}
+        ${s.phase === 'guess' ? sklGuessHtml(state, true) : ''}
+        ${s.phase === 'result' ? sklResultHtml(state, true) : ''}
+        ${sklLatestHtml(state, true)}
+        <div class="tv-actions">${host}</div>
+        ${sklLogHtml(state, 2)}
+      </div>
+    </div>`;
+}
+
+TV_GAMES.skull = {
+  sig(state) {
+    return sklServerSig(Object.assign({}, state, { you: null }));
+  },
+  frame(state, t) {
+    const view = document.getElementById('view-room-tv');
+    pcSnapshot(sklFx, view);
+    const evs = view && view.getClientRects().length ? pcEventsToPlay(sklFx, state) : [];
+    sklLocal.wait = sklRevealWait(evs);
+    sklFx.tvEvents = evs;
+    return sklTvFrame(state, t);
+  },
+  after(state, rebuilt) {
+    const view = document.getElementById('view-room-tv');
+    sklTick(state);
+    sklRefreshInPlace(view, state, true);
+    if (!rebuilt || !view) return;
+    const evs = sklFx.tvEvents || [];
+    sklFx.tvEvents = null;
+    if (evs.length) sklAfterDraw(view, state, evs, null);
+    const s = sklS(state);
+    if (s.phase === 'gameover' && typeof confetti === 'function' && motionFirst('skl-tv-over|' + state.code + '|' + (s.dealId || ''))) {
+      afterReveal(view, () => confetti({ particleCount: 220, spread: 110, origin: { y: 0.6 } }));
+    }
+  }
+};
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sklFx.wokeAt = Date.now(); });
+</script>

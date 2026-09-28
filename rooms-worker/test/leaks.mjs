@@ -682,6 +682,70 @@ const PROBES = {
       })
     ];
   },
+  // جمجمة: a disc face down is on its owner's phone only; the table sees a face once it is turned over;
+  // the disc a skull took is on the bidder's phone only; «هيعملها؟»'s answers stay hidden until the result.
+  skull(room) {
+    const s = room.shared || {};
+    const g = room._skull || { discs: {}, piles: {}, guesses: {}, lost: {} };
+    const owner = {};
+    for (const id of Object.keys(g.discs)) for (const d of g.discs[id]) owner[d.i] = id;
+    // A disc a skull took keeps its owner: only the bidder's phone may ever hold it.
+    for (const id of Object.keys(g.lost || {})) for (const d of g.lost[id]) owner[d.i] = id;
+    const discsIn = (node, out = []) => {
+      if (!node || typeof node !== 'object') return out;
+      if ('i' in node && 'f' in node) out.push(node);
+      for (const k of Object.keys(node)) discsIn(node[k], out);
+      return out;
+    };
+    const live = ['place', 'add', 'bid', 'guess', 'flip', 'lose', 'result'].indexOf(s.phase) !== -1;
+    const anyLost = Object.keys(g.lost || {}).some((id) => (g.lost[id] || []).length);
+    const guessing = (s.phase === 'guess' || s.phase === 'flip') && Object.keys(g.guesses || {}).length > 0;
+    return [
+      probe('a disc is on its owner\'s phone only, and the table holds none', live, (view, pid) => {
+        if (discsIn(view.shared).length) return 'shared (a disc)';
+        const bad = discsIn(view.you).find((d) => owner[d.i] !== undefined && owner[d.i] !== pid);
+        return bad ? 'you (someone else\'s disc ' + bad.i + ')' : null;
+      }),
+      probe('a face on the table only where a disc was turned over (or a seat\'s flower, which is public)', live, (view) => {
+        const FACES = ['rose', 'jasmine', 'lotus', 'skull'];
+        const ok = (path) => /^flowers\.[^.]+$/.test(path) || /^flipped\.\d+\.f$/.test(path) ||
+          /^events\.\d+\.(f|type|faces\.\d+)$/.test(path);
+        let bad = null;
+        const walk = (node, path) => {
+          if (bad || node === null || node === undefined) return;
+          if (typeof node === 'object') { for (const k of Object.keys(node)) walk(node[k], path ? path + '.' + k : k); return; }
+          if (typeof node === 'string' && FACES.indexOf(node) !== -1 && !ok(path)) bad = 'shared.' + path;
+        };
+        walk(view.shared, '');
+        return bad;
+      }),
+      probe('the table sees exactly the discs turned over, from the top of each pile', s.phase === 'flip' && (s.flipped || []).length > 0, (view) => {
+        const flipped = view.shared.flipped || [];
+        const byOwner = {};
+        flipped.forEach((x) => { (byOwner[x.owner] = byOwner[x.owner] || []).push(x.f); });
+        for (const id of Object.keys(byOwner)) {
+          const pile = (g.piles[id] || []).map((i) => (g.discs[id].find((d) => d.i === i) || {}).f);
+          const top = pile.slice(pile.length - byOwner[id].length).reverse();
+          if (top.join() !== byOwner[id].join()) return 'shared.flipped (' + id + ')';
+        }
+        return null;
+      }),
+      probe('the disc a skull took is on the bidder\'s phone only', anyLost, (view, pid) => {
+        if (/"lost":\[/.test(JSON.stringify(view.shared))) return 'shared (lost)';
+        if ((view.shared.events || []).some((e) => e.type === 'lost' && 'f' in e)) return 'shared.events (a lost face)';
+        const mine = view.you && view.you.lost;
+        if (mine && JSON.stringify(mine) !== JSON.stringify(g.lost[pid] || [])) return 'you.lost (not its own)';
+        return null;
+      }),
+      probe('«هيعملها؟»: who answered is public, what they answered is not, until the result', guessing, (view, pid) => {
+        const sh = JSON.stringify(view.shared);
+        if (/"guesses":\{"/.test(sh) && !(view.shared.result && view.shared.phase === 'result')) return 'shared (guesses)';
+        const own = view.you ? view.you.guess : undefined;
+        if (own !== undefined && own !== g.guesses[pid]) return 'you.guess (not its own)';
+        return null;
+      })
+    ];
+  },
   // إستميشن: a card still in a hand is on that seat's phone only; the table sees a face once it is played.
   estimation(room) {
     const s = room.shared || {};
@@ -1633,6 +1697,54 @@ const DRIVERS = {
     clock += 200000;
     runClock(T, (r) => r.shared.phase === 'over', 3);
     return S(T).phase === 'over' && S(T).round === 4;
+  },
+  skull() {
+    // Three people and two computer players: every person lays, adds, bets, passes, answers
+    // «هيعملها؟», flips and chooses a disc to lose by hand; the bots and the clock do the rest.
+    // A skull taking a disc and a pile half turned over don't come up in every game, so it
+    // plays again until both have (a check can't pass, or fail, by chance).
+    const T = table('skull', 3);
+    must(T, T.host, 'addBot', { level: 'easy', name: 'زيزو' });
+    must(T, T.host, 'addBot', { level: 'hard', name: 'بندق' });
+    must(T, T.host, 'start', { turnClock: 30 });
+    const seen = { lost: false, midFlip: false, guess: false };
+    const people = T.ids;
+    for (let guard = 0; guard < 4000; guard++) {
+      const r = T.room;
+      const s = S(T);
+      const g = r._skull;
+      if (Object.keys(g.lost).some((id) => g.lost[id].length)) seen.lost = true;
+      if (s.phase === 'flip' && (s.flipped || []).length) seen.midFlip = true;
+      if (s.phase === 'gameover') {
+        if (seen.lost && seen.midFlip && seen.guess) break;
+        must(T, T.host, 'playAgain', {});
+        continue;
+      }
+      const up = s.turn && s.turn.pid;
+      const person = (id) => people.indexOf(id) !== -1;
+      let moved = false;
+      if (s.phase === 'place') {
+        const id = s.alive.find((x) => person(x) && s.placed.indexOf(x) === -1);
+        if (id) moved = act(T, id, 'place', { disc: pick(g.hands[id]), round: s.round });
+      } else if (s.phase === 'guess') {
+        const id = people.find((x) => x !== s.flip.pid && s.guessed.indexOf(x) === -1);
+        if (id) { moved = act(T, id, 'guess', { yes: Math.random() < 0.5, round: s.round }); seen.guess = true; }
+      } else if (up && person(up)) {
+        const seq = s.turnSeq;
+        if (s.phase === 'add') {
+          moved = g.hands[up].length && Math.random() < 0.5 ? act(T, up, 'add', { disc: pick(g.hands[up]), seq }) : act(T, up, 'bid', { n: 1 + Math.floor(Math.random() * Math.min(3, s.total)), seq });
+        } else if (s.phase === 'bid') {
+          moved = s.bid.n < s.total && Math.random() < 0.3 ? act(T, up, 'bid', { n: s.bid.n + 1, seq }) : act(T, up, 'pass', { seq });
+        } else if (s.phase === 'flip') {
+          const open = s.alive.filter((x) => x !== up && (g.piles[x] || []).length > (s.flipped || []).filter((f) => f.owner === x).length);
+          moved = act(T, up, 'flip', { target: s.flip.own ? pick(open) : up, seq });
+        } else if (s.phase === 'lose') {
+          moved = act(T, up, 'lose', { disc: pick(g.discs[up]).i, seq });
+        }
+      }
+      if (!moved) runClock(T, (room) => room.shared !== s || room.shared.phase === 'gameover', 3);
+    }
+    return seen.lost && seen.midFlip && seen.guess;
   },
   chairs() {
     // Four in the ring: a false start, taps timed by their stamps, a round nobody finishes, to one left.

@@ -248,7 +248,37 @@ work changed. Add to it when a decision is made or a batch ships.
     player's own colour) and a skull drawn our way; **our twist, «هيعملها؟»**:
     before the flips everyone else taps ✅ or ❌ on their phone, a point for
     guessing right, shown in the reveal; a turn clock **off by default, 30 or
-    60 seconds** (it adds a flower if it can, else passes).
+    60 seconds** (it adds a flower if it can, else passes). **Built 28 Sep
+    2026** (*جمجمة*); what the owner didn't say was decided while building:
+    - **Every seat's three flowers are the same flower** (rose, jasmine and
+      lotus in turn round the table): with a different flower a disc, the
+      table could work out from the flips, round by round, which disc a
+      player had lost - and whether their skull is still in hand.
+    - **Your own pile is turned over all at once**; a skull anywhere in it is
+      your own skull, even when its flowers alone would have made the bet.
+    - **A won bet: the bidder starts the next round**; your own skull with one
+      disc left needs no choice (it goes, and you are out).
+    - **«هيعملها؟» is 8 seconds, whatever the turn clock**, answered by
+      everyone seated at the game and still in the room but the bidder - out
+      players too (they are at the table); the answers are secret on the
+      server until the result. Its points are a side tally for this game,
+      shown on every result and at the end; the night's board is games won.
+    - **The result stays 6.5 s, then the next round deals itself**; the host
+      (or anyone once the host is away) can deal it sooner.
+    - **The clock before a bet adds a flower, or bets 1 when the hand holds
+      only the skull** (nobody can pass before a bet); in the first laying it
+      lays a flower, or the skull; the host's "play for" lays for every quiet
+      phone at once.
+    - **Leaving**: a pile leaves the table with its player; a bet above what is
+      left shrinks to all of it (which ends the auction), and flowers already
+      turned from that pile no longer count; **the bidder leaving calls the
+      round off** (nobody wins or loses a disc) and the next seat starts;
+      fewer than two ends the game, not counted as a win.
+    - **Forced moves**: laying the one disc you have left, and turning your own
+      pile over (the rule says the flips start there) - never a bet, a pass, a
+      disc added or «هيعملها؟».
+    - The piles stay on the table, the turned discs beside them, until the next
+      round is dealt; a latecomer watches and is dealt in by play again.
 
 - **الكراسي الموسيقية (Musical chairs)** - the owner's idea of 27 Sep 2026
   ("each phone in a room, fastest to click sit when the music is off"),
@@ -3685,6 +3715,22 @@ the word search), `countUp` for streaks and scores.
   every room game on four phones and a TV): identical, apart from vote chess's
   ticking clock ring; 199 screenshots, identical except canvases and running
   clocks.
+- **28 Sep 2026, جمجمة** - Skull as a room game, to the owner's rules
+  (*The owner's specs*, *جمجمة*): `Skull.js`, `RoomSkull.js`,
+  `JS_RoomSkull.html`, section 54 of `Style.html`, a drawn icon; our own
+  touch «هيعملها؟» (everyone else guesses before the flips, a side tally).
+  Rules tests: about 70 skull checks (36 whole games of bots among them),
+  2,038 in all; the leak check clean for all 68 room games, its skull probes
+  proved on a scratch build by leaking the answers, another's lost disc and a
+  pile's faces (the order of the flips is pinned by `rules.mjs` instead); a
+  robot round (`--only=skull`, 31 passed). Looked at in headless Chrome: three
+  phones (375×812 Arabic light, 667×375 English dark, 1280×720 Arabic dark),
+  two computer players and a TV at 1920×1080 through a whole game of seven
+  rounds to the podium - the laying, the bets, «هيعملها؟», the flips, a skull
+  and a chosen disc lost, the results - a reload mid-round, Help; no console
+  errors. Found on the way: a phone and a TV joined over the API stay on the
+  home until `roomReturnToActive()`, and the TV's end column needed its own
+  zoom to keep the podium on the screen.
 
 ## Building and Running
 
@@ -3743,8 +3789,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Skull.js`, `Battleship.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, and the game files bundled after
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -3930,6 +3976,8 @@ is nowhere to hide the key card.
 | `PlayingCards.js` | The playing cards كدّاب and الشايب deal: the deck (one or two), a card's rank and suit, a hand sorted, what makes a pair in الشايب (same rank, same colour), the ranks' names: shared by the page and the Worker, every name prefixed `pc` / `PC_`. |
 | `RoomDoubt.js` | `doubtAction`: كدّاب's claims, the call (first tap wins), the pile, passing and the pile going out, the places, the clock, leaving and the computer players; every hand in `room._doubt`. |
 | `RoomOldMaid.js` | `oldMaidAction`: الشايب's deal (the deck grows with the table), the lift and the draw, dragging or shuffling a hand, pairs, the loser and the tally, the clock, leaving; every hand in `room._om`. |
+| `Skull.js` | جمجمة's faces (a seat's flower, the skull), the bet's range, and the computer players' judgement as plain functions of what a bot may know: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `skull` / `SKULL_`. |
+| `RoomSkull.js` | `skullAction`: جمجمة - the laying, the adding and the auction, «هيعملها؟», the flips, a disc lost at random or chosen, the rounds, the clock (`skullDeadline` / `skullTimeout`), leaving (`skullPlayerLeft`), `ROOM_BOT_GAMES.skull` and the forced moves; every disc, hand, pile and answer in `room._skull`. |
 | `Estimation.js` | إستميشن's rules: the bid order (`estBidBeats`), the calls allowed (`estCallChoices`: 0 to the caller's number, the last off 13), following suit (`estLegal`), a trick's winner, the score keeper's scoring (`estScoreRound`, `estMult`) and the computer players' judgement: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `est` / `EST_`. |
 | `RoomEstimation.js` | `estimationAction`: the seats (bots in the empty ones), the dash, the auction, the calls, the tricks, the round's score, the clock (`estDeadline` / `estTimeout`), the host's "play for", a leaver's seat to a hard computer player (`estPlayerLeft`), `ROOM_BOT_GAMES.estimation` and the forced card; every hand in `room._est`. |
 | `Bowling.js` | بولينج's lane, pins and one throw as plain arithmetic (the same pins on every phone and the server from four whole numbers), and the score sheet: shared by the page and the Worker, every name prefixed `bowl`. |
@@ -4064,7 +4112,7 @@ compared on join with the same fold as everywhere else (`sameRoomName`), so
 أحمد and احمد can't both sit in one room.
 
 **Computer players** (the owner, 21 Sep 2026: optional, easy and hard). In
-the games that register them - أونو, الدومينو, لودو, بنك الحظ, خمّن مين, باغ هاوس, شطرنج الأربعة and إستميشن - the host can seat a bot in
+the games that register them - أونو, الدومينو, لودو, بنك الحظ, خمّن مين, باغ هاوس, شطرنج الأربعة, إستميشن and جمجمة - the host can seat a bot in
 the lobby, to play alone or to make up a table of four for teams. A bot is an
 ordinary entry in `room.players` with `bot` set to its level (`'easy'` or
 `'hard'`): it holds a seat, is dealt like anyone, and its hand is in
@@ -4119,7 +4167,7 @@ ever speak for it from outside.
   the last tile), لودو (one piece that can move, or two on the same
   square; never the roll, never the last piece home) and بنك الحظ (a debt
   nothing can cover: bankrupt; a place there is no way to pay for: leave
-  it) and إستميشن (the one card allowed, the last trick included). The duels register nothing: a last move there is often the
+  it) and إستميشن (the one card allowed, the last trick included) and جمجمة (your only disc laid, your own pile turned over). The duels register nothing: a last move there is often the
   winning one. `roomForcedMove` is exported for the rules tests. The phone draws a line (`uno_auto_*`, `dom_auto_*`) where the
   button would have been.
 - A new game with bots registers `ROOM_BOT_GAMES.<id> = { max, pending,
@@ -6639,6 +6687,90 @@ three), الشايب from two. Both have `GAME_RULES`, `HELP_ENTRIES`
 (`roomOnly`) and `HELP_FOR_VIEW` (`room-doubt`, `room-oldmaid`), and a
 `roomTurnOf` case (`turn_up` for the player up). Lobby choices are kept on
 the host's phone (`recallOptions('doubt' | 'oldmaid')`).
+
+### جمجمة
+
+The owner's rules are in *The owner's specs* (السلم والتعبان and جمجمة). Game
+id `skull` everywhere (`room-skull`, `ROOM_GAMES.skull`, `TV_GAMES.skull`, the
+catalog, the help); the rules are named `skull` / `SKULL_`, the page's code
+`skl` / `SKL_`, the stylesheet section 54 (`.skl-*`).
+
+- **`Skull.js`** (shared, no DOM): `SKULL_FLOWERS`, `skullFlowerOf(seat)` (rose,
+  jasmine, lotus in turn), `skullStartFaces`, `skullBidRange(total, bid)`, and
+  the bots: `skullBotPlace`, `skullBotTurn` (add or open the bet), `skullBotRaise`,
+  `skullBotGuess`, `skullBotFlip`, `skullBotLose`, each a function of a view a
+  bot may know (`skullBotView` in `RoomSkull.js`: its own hand and pile, the
+  piles' sizes, the bids, the passes, the flips). Easy plays by luck; hard bids
+  what its own pile and the tops of the others make likely, sets a trap with its
+  skull now and then (a small bet over it, or the skull added on top), flips
+  first the piles that look least like a skull (from the table: raises and
+  discs added - the owner's word), and gives up a flower rather than its skull.
+- **`RoomSkull.js`**: `room._skull = { discs, hands, piles, guesses, lost }` -
+  every disc `{ i, f }` (ids at random across the table), the hands and piles
+  as ids (a pile bottom to top), the «هيعملها؟» answers, and what each player
+  lost (`{ i, f, round }`). Never projected. A phone's slice: `hand` and `pile`
+  (faces), `discs` (all it has, to choose from), `lost` (only its own - only
+  the bidder ever learns what a skull took), and its own `guess` while the flips
+  wait. `shared`: `settings { turnClock }`, `order` (the seats, shuffled),
+  `colors`, `flowers`, `alive`, `round`, `starter`, `phase` ('place' → 'add' →
+  'bid' → 'guess' → 'flip' → ('lose') → 'result' → … → 'gameover'), `placed`,
+  `turn { pid }`, `turnSeq`, `endsAt`, `bid { pid, n }`, `bids`, `passed`,
+  `guessed` (who, never what), `guessEndsAt`, `flip { pid, n, got, own }`,
+  `flipped` ([{ owner, f }], faces public once turned), `piles` / `hands` /
+  `discs` (counts), `total`, `wins` (bets won this game), `guessPts`, `result`
+  (the answers published here), `nextStarter`, `nextAt`, `winners`, `why`,
+  `tally` / `board` (games won, across play again) and the events (`deal`,
+  `round`, `place`, `add`, `bid`, `pass`, `won`, `guessed`, `flipOwn` with its
+  faces, `flip` with its face, `betWon`, `skull`, `lost` - never its face -
+  `out`, `void`, `shrink`, `auto`, `left`, `over`). Moves: `place { disc,
+  round }` (all at once), `add { disc, seq }`, `bid { n, seq }`, `pass { seq }`,
+  `guess { yes, round }`, `flip { target, seq }`, `lose { disc, seq }`, the
+  host's (or a stand-in's) `skipTurn { seq }` and `nextRound { round }`,
+  `start` / `playAgain { turnClock }`. The piles stay on the table through the
+  result: `skullDealRound` puts every disc back in its hand.
+- **`JS_RoomSkull.html`**: the discs are drawn our way (`sklDiscSvg`: the seat's
+  colour as a rim, a cream face with a rose on two leaves, three jasmine sprigs
+  or a Nile lotus, and a round friendly skull with shiny eyes, a grin and rosy
+  cheeks; the back an eight-pointed star; flat cartoon with ink outlines, no
+  ids). The phone: the head, the latest move, the table (`sklSeatHtml`: every
+  seat a card in its colour - avatar, name, what it did, its pile face down with
+  a count and the turned discs beside it, its mat with a rose once a bet is won,
+  the discs it has left as dots, the hand's size), the bet (`sklBetHtml`: the
+  bubble, a pip a flower to turn), your discs (`sklMineHtml`: the hand, what you
+  laid, what you lost), and the bar (`sklActionsHtml`: pick a disc and lay it;
+  add one or bet with number chips; raise or باص; ✅ / ❌ with the window
+  draining and who has answered; «اقلب أقراصي», then a tap on a pile; the disc
+  to lose). The result (`sklResultHtml`) stays beside the table: the outcome,
+  your own lost disc (the bidder only), who guessed right, the countdown to the
+  next round. The end: the winner's disc, the podium of bets won, the guesses
+  and the night's board. The TV: the table big beside the head, whose turn, the
+  bet, «هيعملها؟»'s answers (who, not what), the result, the log.
+- **Motion** (`sklPlay`, the card games' flights from `JS_Cards.html`, keyed by
+  `pcEventsToPlay` so a reload or a latecomer replays nothing): a disc flies from
+  a seat (or from your hand) onto its pile, a bet pops on its seat, a pass, the
+  auction won stamped «هيعملها؟», **the flips one by one** (`SKL_FLIP_STEP_MS`:
+  `sklTurnOver` turns the disc where it lies - a flower blooms with a ring, the
+  skull pops with «بوم!» and a shake), a won bet stamped «عملها!», a lost disc
+  flying off face down (its face only on the bidder's phone), a player out; the
+  result card waits for the flips (`sklRevealWait`, `--skl-wait`), then its
+  guesses pop in; confetti after the podium. Sounds `sklDisc`, `sklBet`,
+  `sklFlower`, `sklBoom` in `FX`; the TV is the room's one voice.
+- `roomTurnOf`: a disc to lay, «هيعملها؟» to answer, or the player up. The
+  catalog: ورق وطاولة (`group: 'table'`), rose, `players: [1, 8]`, a drawn icon
+  (`art:skull`: a rose disc behind our skull on a disc).
+- Tests: `rules.mjs` ("skull": the laying, adding, the bet's range and raises,
+  passes final, the auction's end, «هيعملها؟» and its points, own pile first and
+  from the top, a won bet and two, a skull on another pile and your own, out and
+  the last one in, the clock in every phase, the host's "play for", stale taps,
+  leaving in each phase, the forced moves, 36 whole games of bots, 3 to 8 at the
+  table, easy and hard, every disc accounted for), `leaks.mjs` (`PROBES.skull`:
+  a disc on its owner's phone only - a lost one too; a face on the table only
+  where a disc was turned; the flips from the top of each pile; a lost face on
+  no other phone; the answers hidden until the result - proved by leaking the
+  answers, another's lost disc and a pile's faces in a scratch build; the driver
+  plays again until a skull has taken a disc and a pile was half turned), and
+  `play-all.mjs` (`--only=skull`: two people, a computer player and a TV to the
+  end of a game, and play again).
 
 ### شطرنج
 

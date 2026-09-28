@@ -105,6 +105,7 @@ const clearGameState = (room) => {
   room._timeline = null;
   room._doubt = null;
   room._om = null;
+  room._skull = null;   // جمجمة: every disc, hand and pile, the «هيعملها؟» answers (RoomSkull.js)
   room._est = null;
   room._chairs = null;   // الكراسي الموسيقية: the stop moment and the fake pauses (RoomChairs.js)
   // The engine's secret and boards (RoomSolve.js).
@@ -150,6 +151,8 @@ const ROOM_GAME_IDS = [
   'bumper',
   // كدّاب (RoomDoubt.js) and الشايب (RoomOldMaid.js): the playing cards.
   'doubt', 'oldmaid',
+  // جمجمة (RoomSkull.js): flowers and a skull face down, the bet, «هيعملها؟».
+  'skull',
   // إستميشن (RoomEstimation.js): four for themselves, the auction, the calls, 13 tricks.
   'estimation',
   // ميني جولف (RoomMiniGolf.js): every ball on the same hole, or one putt at a time.
@@ -680,6 +683,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'bowling':    bowlingAction(room, playerId, action, payload); break;   // RoomBowling.js
     case 'doubt':      doubtAction(room, playerId, action, payload); break;     // RoomDoubt.js
     case 'oldmaid':    oldMaidAction(room, playerId, action, payload); break;   // RoomOldMaid.js
+    case 'skull':      skullAction(room, playerId, action, payload); break;     // RoomSkull.js
     case 'estimation': estimationAction(room, playerId, action, payload); break; // RoomEstimation.js
     case 'wordle':
     case 'guessnum':
@@ -3646,6 +3650,7 @@ const gameDeadline = (room) => {
   if (room.game === 'bowling') return bowlDeadline(room);
   if (room.game === 'doubt') return doubtDeadline(room);
   if (room.game === 'oldmaid') return omDeadline(room);
+  if (room.game === 'skull') return skullDeadline(room);
   if (room.game === 'estimation') return estDeadline(room);
   if (room.game === 'minigolf') return mgDeadline(room);
   if (room.game === 'chairs') return chairsDeadline(room);
@@ -3775,6 +3780,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'bowling') return bowlTimeout(room, now);
   if (room.game === 'doubt') return doubtTimeout(room, now);
   if (room.game === 'oldmaid') return omTimeout(room, now);
+  if (room.game === 'skull') return skullTimeout(room, now);
   if (room.game === 'estimation') return estTimeout(room, now);
   if (room.game === 'minigolf') return mgTimeout(room, now);
   if (room.game === 'chairs') return chairsTimeout(room, now);
@@ -3999,6 +4005,10 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'oldmaid':
       omPlayerLeft(room, playerId);
+      return;
+    case 'skull':
+      // Their discs and pile leave the table; a bet of theirs is called off (RoomSkull.js).
+      skullPlayerLeft(room, playerId);
       return;
     case 'estimation':
       // A hard computer player takes the seat, hand and points for the rest of the game (RoomEstimation.js).

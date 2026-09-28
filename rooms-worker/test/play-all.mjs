@@ -770,6 +770,83 @@ async function hostAwayRobots() {
   [H, J, K].forEach((x) => x.close());
 }
 
+/* --- جمجمة: two people, a computer player and the TV (run alone with --only=skull) --- */
+async function skullRobots() {
+  console.log('• skull (discs on their own phones, a disc laid face down, the bet and the passes, «هيعملها؟» hidden until the result, the flips, a game to the end, play again)');
+  const H = await Bot.host('سامي', null);
+  const J = await Bot.join(H.code, 'جنى');
+  const TV = await Bot.join(H.code, '', true);
+  const ppl = [H, J];
+  await H.must('chooseGame', { game: 'skull' });
+  await H.must('addBot', { level: 'hard', name: 'زيزو' });
+  await H.must('start', { turnClock: 0 });
+  await all(ppl.concat([TV]), (s) => s.game === 'skull' && s.shared.phase === 'place', 'skull: dealt: everyone lays a disc');
+  const hand = (b) => (b.state.you && b.state.you.hand) || [];
+  check(ppl.every((b) => hand(b).length === 4 && hand(b).filter((d) => d.f === 'skull').length === 1) && TV.state.you === null &&
+        !/"f":"/.test(JSON.stringify(TV.state.shared)), 'skull: four discs on each phone (one skull), none on the TV, no face on the table');
+  const hSkull = hand(H).find((d) => d.f === 'skull');
+  await H.must('place', { disc: hSkull.i, round: H.state.shared.round });
+  await J.must('place', { disc: hand(J).find((d) => d.f !== 'skull').i, round: J.state.shared.round });
+  await all(ppl.concat([TV]), (s) => s.shared.phase === 'add', 'skull: everyone has laid (the computer player on the server)');
+  check(!leaks(J, '"i":' + hSkull.i + ',') && !leaks(TV, '"i":' + hSkull.i + ',') && H.state.you.pile.length === 1 && H.state.you.pile[0].f === 'skull',
+        'skull: a disc laid is on its own phone only');
+  check((await (H.state.shared.turn.pid === H.pid ? J : H).act('add', { disc: hand(H)[0].i, seq: H.state.shared.turnSeq })).ok === false,
+        'skull: only the player up adds');
+
+  // Play on, the people by hand, until a game is over; the checks ride along.
+  let sawGuessHidden = false, sawResult = false, sawFlip = false;
+  const until = Date.now() + 150000;
+  let games = 0;
+  while (Date.now() < until && games < 1) {
+    const s = H.state.shared;
+    if (s.phase === 'gameover') { games++; break; }
+    if (s.phase === 'place') {
+      for (const b of ppl) if (s.alive.indexOf(b.pid) !== -1 && s.placed.indexOf(b.pid) === -1 && hand(b).length) await b.act('place', { disc: hand(b)[0].i, round: s.round });
+    } else if (s.phase === 'guess') {
+      for (const b of ppl) {
+        if (b.pid === s.flip.pid || s.guessed.indexOf(b.pid) !== -1) continue;
+        await b.act('guess', { yes: b === J, round: s.round });
+        const other = ppl.find((x) => x !== b);
+        await other.waitFor((st) => (st.shared.guessed || []).indexOf(b.pid) !== -1 || st.shared.phase !== 'guess', 'skull: an answer reaches the table', 3000);
+        if (other.state.shared.phase === 'guess') {
+          const shown = JSON.stringify(other.state.shared).indexOf('"guesses"') === -1 && JSON.stringify(TV.state.shared).indexOf('"guesses"') === -1 &&
+            (other.state.you.guess === undefined || other.pid === b.pid);
+          check(shown && b.state.you.guess === (b === J), 'skull: who answered «هيعملها؟» is public, what they answered on their own phone only');
+          sawGuessHidden = true;
+        }
+      }
+    } else if (s.phase === 'result') {
+      sawResult = true;
+      check(!!s.result && typeof s.result.guesses === 'object', 'skull: the answers are published with the result');
+      await H.act('nextRound', { round: s.round });
+    } else if (s.turn) {
+      const b = byId(ppl, s.turn.pid);
+      if (b) {
+        const bs = b.state.shared;
+        if (bs.turnSeq === s.turnSeq) {
+          const seq = s.turnSeq;
+          if (s.phase === 'add') await b.act(hand(b).length > 1 ? 'add' : 'bid', hand(b).length > 1 ? { disc: hand(b)[0].i, seq } : { n: 1, seq });
+          else if (s.phase === 'bid') await b.act('pass', { seq });
+          else if (s.phase === 'flip') {
+            sawFlip = true;
+            const open = s.alive.filter((x) => x !== b.pid && (s.piles[x] || 0) > (s.flipped || []).filter((f) => f.owner === x).length);
+            await b.act('flip', { target: s.flip.own ? open[0] : b.pid, seq });
+          } else if (s.phase === 'lose') await b.act('lose', { disc: b.state.you.discs[0].i, seq });
+        }
+      }
+    }
+    await sleep(200);
+  }
+  await all(ppl.concat([TV]), (s) => s.shared.phase === 'gameover' && (s.shared.winners || []).length === 1, 'skull: a game played to its end (two bets won, or the last one in)', 8000);
+  check(sawResult && sawGuessHidden, 'skull: rounds with «هيعملها؟» and a result (' + (sawFlip ? 'a person flipped' : 'the computer flipped') + ')');
+  const w = H.state.shared.winners[0];
+  check(H.state.shared.board.find((r) => r.id === w).score === 1, 'skull: the winner counted on the night\'s board');
+  await H.must('playAgain', {});
+  await all(ppl, (s) => s.shared.phase === 'place' && s.shared.tally[w] === 1, 'skull: play again keeps the tally');
+  await H.must('backToHub');
+  ppl.concat([TV]).forEach((b) => b.close());
+}
+
 async function main() {
   console.log('rooms server:', BASE);
   const t0 = Date.now();
@@ -793,6 +870,12 @@ async function main() {
   }
   if (ONLY === 'chess4') {
     await chess4Robots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'skull') {
+    await skullRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -4826,6 +4909,7 @@ async function main() {
 
   await chess4Robots();
   await estimationRobots();
+  await skullRobots();
 
   /* --- كدّاب: claims face down, a call, the pile out, the end; computer players ------------ */
   console.log('• doubt (hands on their own phones, a claim, a call turned over, passes and the pile out, first out, bots on the server clock)');

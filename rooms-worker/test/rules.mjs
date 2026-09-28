@@ -9207,6 +9207,332 @@ Date.now = duelTestClock;
   check(throwsOn(() => applyRoomAction(bz, 'b', 'lock', {})), 'host away: the buzzer\'s verdicts stay the quizmaster\'s');
 }
 
+/* --- جمجمة: the discs, the bet, «هيعملها؟», the flips, the clock, leaving, whole games of bots --- */
+{
+  const skStart = (ids, opts) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'skull' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({}, opts || {}));
+    return r;
+  };
+  const S = (r) => r.shared;
+  const G = (r) => r._skull;
+  const faceOf = (r, pid, i) => G(r).discs[pid].find((d) => d.i === i).f;
+  const inHand = (r, pid, face) => G(r).hands[pid].find((i) => faceOf(r, pid, i) === face);
+  const sk = (r, pid, action, payload = {}) => applyRoomAction(r, pid, action, Object.assign({ seq: S(r).turnSeq, round: S(r).round }, payload));
+  const skThrew = (r, pid, action, payload) => threw(() => sk(r, pid, action, payload));
+  const up = (r) => S(r).turn && S(r).turn.pid;
+  const noFaces = (obj) => !/"f":"(skull|rose|jasmine|lotus)"/.test(JSON.stringify(obj));
+  const flowerIn = (r, pid) => G(r).hands[pid].find((i) => faceOf(r, pid, i) !== 'skull');
+
+  {
+    const r = skStart(['a', 'b', 'c']);
+    const s = S(r);
+    check(s.phase === 'place' && s.order.length === 3 && s.alive.length === 3 && s.round === 1 && s.settings.turnClock === 0,
+      'skull: dealt to three, everyone to lay a disc, no clock by default');
+    check(s.order.every((id, k) => G(r).discs[id].length === 4 && G(r).discs[id].filter((d) => d.f === 'skull').length === 1 &&
+      G(r).discs[id].filter((d) => d.f === ['rose', 'jasmine', 'lotus'][k % 3]).length === 3),
+      'skull: four discs each: three of the seat\'s own flower and a skull');
+    check(s.order.every((id) => r.secrets[id].hand.length === 4 && r.secrets[id].discs.length === 4) && noFaces(s),
+      'skull: every hand on its own phone, and no face on the table');
+    check(threw(() => skStart(['a', 'b'])) && threw(() => skStart(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'])), 'skull: 3 to 8 players');
+    check(skStart(['a', 'b', 'c'], { turnClock: 30 }).shared.settings.turnClock === 30 && skStart(['a', 'b', 'c'], { turnClock: 45 }).shared.settings.turnClock === 0,
+      'skull: the clock is off, 30 or 60');
+
+    // Laying.
+    const [A, B, C] = s.order;
+    check(threw(() => sk(r, A, 'place', { disc: G(r).hands[B][0] })), 'skull: you lay only your own disc');
+    sk(r, A, 'place', { disc: inHand(r, A, 'skull') });
+    sk(r, A, 'place', { disc: flowerIn(r, A) });
+    check(G(r).piles[A].length === 1 && s.placed.length === 1 && s.phase === 'place', 'skull: a second disc from the same phone is dropped');
+    sk(r, B, 'place', { disc: flowerIn(r, B), round: 99 });
+    check(G(r).piles[B].length === 0, 'skull: a tap from another round is dropped');
+    check(threw(() => sk(r, B, 'bid', { n: 1 })), 'skull: nobody bets before everyone has laid');
+    sk(r, B, 'place', { disc: flowerIn(r, B) });
+    sk(r, C, 'place', { disc: flowerIn(r, C) });
+    check(s.phase === 'add' && up(r) === s.starter && s.starter === A && s.piles[A] === 1 && s.total === 3, 'skull: everyone has laid: the starter is up, three on the table');
+    check(r.secrets[A].pile.length === 1 && r.secrets[A].pile[0].f === 'skull' && noFaces(s), 'skull: your own pile is on your phone only');
+
+    // Adding and betting.
+    check(skThrew(r, B, 'add', { disc: flowerIn(r, B) }), 'skull: only the player up adds');
+    check(skThrew(r, A, 'pass'), 'skull: before a bet nobody passes');
+    sk(r, A, 'add', { disc: flowerIn(r, A) });
+    check(up(r) === B && s.piles[A] === 2, 'skull: a disc added, the next seat is up');
+    const seq = s.turnSeq;
+    sk(r, B, 'add', { disc: flowerIn(r, B), seq: seq - 1 });
+    check(s.piles[B] === 1 && up(r) === B, 'skull: a stale tap is dropped');
+    check(skThrew(r, B, 'bid', { n: 0 }) && skThrew(r, B, 'bid', { n: 5 }), 'skull: a bet is 1 to every disc on the table');
+    sk(r, B, 'bid', { n: 2 });
+    check(s.phase === 'bid' && s.bid.pid === B && s.bid.n === 2 && up(r) === C, 'skull: the bet opens, the next seat raises or passes');
+    check(skThrew(r, C, 'add', { disc: flowerIn(r, C) }), 'skull: once a bet is on, nobody adds');
+    check(skThrew(r, C, 'bid', { n: 2 }), 'skull: a raise is more than the bet');
+    sk(r, C, 'pass');
+    check(up(r) === A && s.passed.indexOf(C) !== -1, 'skull: a pass, the next seat');
+    sk(r, A, 'bid', { n: 3 });
+    check(up(r) === B, 'skull: a pass is final: the one who passed is skipped');
+    sk(r, B, 'pass');
+    check(s.phase === 'guess' && s.flip.pid === A && s.flip.n === 3 && !s.turn && typeof s.guessEndsAt === 'number',
+      'skull: everyone else passed: the bet is A\'s, and «هيعملها؟» opens');
+
+    // «هيعملها؟»
+    check(threw(() => sk(r, A, 'guess', { yes: true })), 'skull: the bidder does not guess');
+    sk(r, B, 'guess', { yes: false });
+    check(s.guessed.join() === B && r.secrets[B].guess === false && r.secrets[C].guess === undefined && JSON.stringify(s).indexOf('"guesses"') === -1,
+      'skull: who answered is public, what they answered is on their own phone only');
+    sk(r, C, 'guess', { yes: true });
+    check(s.phase === 'flip' && up(r) === A, 'skull: everyone answered: the flips begin');
+
+    // Flipping: own first, all of it. A's pile: skull at the bottom, a flower on top - its own skull.
+    check(skThrew(r, A, 'flip', { target: B }), 'skull: your own pile first');
+    check(skThrew(r, B, 'flip', { target: A }), 'skull: only the bidder flips');
+    sk(r, A, 'flip', { target: A });
+    check(s.flipped.length === 2 && s.flipped.every((x) => x.owner === A) && s.phase === 'lose' && up(r) === A,
+      'skull: the whole own pile turns over; your own skull: you choose what to lose');
+    check(r.secrets[A].discs.length === 4, 'skull: the bidder sees every disc it has to choose from');
+    sk(r, A, 'lose', { disc: inHand(r, A, 'skull') || G(r).discs[A].find((d) => d.f === 'skull').i });
+    check(G(r).discs[A].length === 3 && !G(r).discs[A].some((d) => d.f === 'skull') && s.phase === 'result',
+      'skull: the disc chosen goes for good');
+    check(r.secrets[A].lost.length === 1 && r.secrets[A].lost[0].f === 'skull' && !r.secrets[B].lost.length && noFaces(s.events.filter((e) => e.type === 'lost')),
+      'skull: only the bidder\'s phone knows what went');
+    check(s.result.ok === false && s.result.own === true && s.nextStarter === A && s.result.right.join() === B && s.guessPts[B] === 1 && !s.guessPts[C],
+      'skull: the result: own skull, A starts next, B guessed right and scores');
+    check(s.discs[A] === 3, 'skull: the discs left are public');
+
+    // The next round by itself.
+    const due = roomDeadline(r);
+    clock = due + 1;
+    roomTimeout(r, clock);
+    check(s.phase === 'place' && s.round === 2 && s.starter === A && G(r).hands[A].length === 3 && s.flipped.length === 0,
+      'skull: the next round comes by itself, every disc back in its hand');
+  }
+
+  /* A skull on someone else's pile, a won bet, two wins. */
+  {
+    const r = skStart(['a', 'b', 'c']);
+    const s = S(r);
+    const [A, B, C] = s.order;
+    sk(r, A, 'place', { disc: flowerIn(r, A) });
+    sk(r, B, 'place', { disc: inHand(r, B, 'skull') });
+    sk(r, C, 'place', { disc: flowerIn(r, C) });
+    sk(r, A, 'bid', { n: 3 });
+    check(s.phase === 'guess', 'skull: a bet of every disc on the table ends the auction at once');
+    clock = s.guessEndsAt + 1;
+    roomTimeout(r, clock);
+    check(s.phase === 'flip', 'skull: «هيعملها؟» closes on its clock');
+    sk(r, A, 'flip', { target: A });
+    check(s.flip.got === 1 && s.phase === 'flip', 'skull: a flower of your own counts');
+    sk(r, A, 'flip', { target: B });
+    check(s.phase === 'result' && s.result.skullOwner === B && s.nextStarter === B && G(r).discs[A].length === 3,
+      'skull: a skull on another pile: the bidder loses a disc, the skull\'s owner starts next');
+    const lost = r.secrets[A].lost[0].f;
+    const leak = [B, C].some((id) => JSON.stringify(r.secrets[id]).indexOf('"lost":[]') === -1) || JSON.stringify(s.result).indexOf(lost) !== -1 && lost !== 'skull';
+    check(!leak, 'skull: the disc a skull took is on the bidder\'s phone only');
+    applyRoomAction(r, r.hostId, 'nextRound', { round: s.round });
+    check(s.phase === 'place' && s.starter === B, 'skull: the host deals the next round sooner');
+    // B wins twice.
+    for (let k = 0; k < 2; k++) {
+      s.alive.forEach((pid) => sk(r, pid, 'place', { disc: flowerIn(r, pid) }));
+      const starter = up(r);
+      if (starter !== B) {
+        // Get round to B by adding.
+        let guard = 0;
+        while (up(r) !== B && guard++ < 5) sk(r, up(r), 'add', { disc: flowerIn(r, up(r)) });
+      }
+      sk(r, B, 'bid', { n: 1 });
+      while (s.phase === 'bid') sk(r, up(r), 'pass');
+      s.order.filter((id) => id !== B).forEach((id) => sk(r, id, 'guess', { yes: true }));
+      sk(r, B, 'flip', { target: B });
+      if (k === 0) {
+        check(s.phase === 'result' && s.result.ok && s.wins[B] === 1 && s.result.right.length === 2, 'skull: all flowers: the bet is won, and everyone who said yes scores');
+        applyRoomAction(r, r.hostId, 'nextRound', { round: s.round });
+      }
+    }
+    check(s.phase === 'gameover' && s.winners.join() === B && s.why === 'wins' && s.tally[B] === 1 && s.board[0].id === B,
+      'skull: two won bets win the game, counted on the night\'s board');
+    applyRoomAction(r, r.hostId, 'playAgain', {});
+    check(s !== r.shared && r.shared.phase === 'place' && r.shared.tally[B] === 1 && !Object.keys(r.shared.wins).length,
+      'skull: play again keeps the tally, and the bets start over');
+  }
+
+  /* The top of a pile first: a skull under a flower is reached only after the flower. */
+  {
+    const r = skStart(['a', 'b', 'c']);
+    const s = S(r);
+    const [A, B, C] = s.order;
+    sk(r, A, 'place', { disc: flowerIn(r, A) });
+    sk(r, B, 'place', { disc: inHand(r, B, 'skull') });
+    sk(r, C, 'place', { disc: flowerIn(r, C) });
+    sk(r, A, 'add', { disc: flowerIn(r, A) });
+    sk(r, B, 'add', { disc: flowerIn(r, B) });
+    sk(r, C, 'bid', { n: 3 });
+    sk(r, A, 'pass'); sk(r, B, 'pass');
+    [A, B].forEach((id) => sk(r, id, 'guess', { yes: true }));
+    sk(r, C, 'flip', { target: C });
+    sk(r, C, 'flip', { target: B });
+    check(s.phase === 'flip' && s.flipped[1].owner === B && s.flipped[1].f !== 'skull' && s.flip.got === 2,
+      'skull: a pile is turned over from the top: the flower on the skull first');
+    sk(r, C, 'flip', { target: A });
+    check(s.phase === 'result' && s.result.ok && s.flipped.length === 3, 'skull: and the bet is made without ever reaching the skull under it');
+  }
+
+  /* Out, and the last one in. */
+  {
+    const r = skStart(['a', 'b', 'c']);
+    const s = S(r);
+    const [A, B, C] = s.order;
+    // A down to one disc: a flower.
+    G(r).discs[A] = G(r).discs[A].filter((d) => d.f !== 'skull').slice(0, 1);
+    G(r).hands[A] = G(r).discs[A].map((d) => d.i);
+    sk(r, A, 'place', { disc: G(r).hands[A][0] });
+    sk(r, B, 'place', { disc: inHand(r, B, 'skull') });
+    sk(r, C, 'place', { disc: flowerIn(r, C) });
+    sk(r, A, 'bid', { n: 2 });
+    sk(r, B, 'pass'); sk(r, C, 'pass');
+    [B, C].forEach((id) => sk(r, id, 'guess', { yes: false }));
+    sk(r, A, 'flip', { target: A });
+    sk(r, A, 'flip', { target: B });
+    check(s.alive.indexOf(A) === -1 && s.result.out === A && s.discs[A] === 0, 'skull: no discs left is out');
+    check(s.phase === 'result' && s.nextStarter === B, 'skull: two still in play on');
+    applyRoomAction(r, r.hostId, 'nextRound', { round: s.round });
+    check(s.alive.length === 2 && G(r).hands[A].length === 0 && s.placed.length === 0, 'skull: the out player lays nothing');
+    // C down to one flower, and hits B's skull.
+    G(r).discs[C] = G(r).discs[C].filter((d) => d.f !== 'skull').slice(0, 1);
+    G(r).hands[C] = G(r).discs[C].map((d) => d.i);
+    sk(r, B, 'place', { disc: inHand(r, B, 'skull') });
+    sk(r, C, 'place', { disc: G(r).hands[C][0] });
+    sk(r, B, 'bid', { n: 1 });
+    sk(r, C, 'bid', { n: 2 });
+    if (s.phase === 'bid') sk(r, B, 'pass');
+    s.order.filter((id) => id !== C && r.players.some((p) => p.id === id)).forEach((id) => sk(r, id, 'guess', { yes: true }));
+    sk(r, C, 'flip', { target: C });
+    sk(r, C, 'flip', { target: B });
+    check(s.phase === 'gameover' && s.winners.join() === B && s.why === 'last' && s.tally[B] === 1, 'skull: the last one in wins');
+  }
+
+  /* The clock, and the host's "play for". */
+  {
+    const r = skStart(['a', 'b', 'c'], { turnClock: 30 });
+    const s = S(r);
+    const [A, B, C] = s.order;
+    sk(r, A, 'place', { disc: inHand(r, A, 'skull') });
+    clock = roomDeadline(r) + 1;
+    roomTimeout(r, clock);
+    check(s.phase === 'add' && [B, C].every((id) => faceOf(r, id, G(r).piles[id][0]) !== 'skull'), 'skull: the clock lays a flower for whoever hasn\'t');
+    clock = roomDeadline(r) + 1;
+    roomTimeout(r, clock);
+    check(s.piles[A] === 2 && faceOf(r, A, G(r).piles[A][1]) !== 'skull' && up(r) === B, 'skull: before a bet the clock adds a flower');
+    G(r).hands[B] = G(r).hands[B].filter((i) => faceOf(r, B, i) === 'skull');
+    clock = roomDeadline(r) + 1;
+    roomTimeout(r, clock);
+    check(s.phase === 'bid' && s.bid.pid === B && s.bid.n === 1, 'skull: no flower in hand: the clock bets 1');
+    clock = roomDeadline(r) + 1;
+    roomTimeout(r, clock);
+    check(s.passed.indexOf(C) !== -1, 'skull: in the auction the clock passes');
+    check(threw(() => applyRoomAction(r, s.order.find((id) => id !== r.hostId), 'skipTurn', { seq: s.turnSeq })), 'skull: "play for" is the host\'s');
+    applyRoomAction(r, r.hostId, 'skipTurn', { seq: s.turnSeq });
+    check(s.phase === 'guess', 'skull: the host plays for a quiet phone the way the clock would');
+    clock = roomDeadline(r) + 1;
+    roomTimeout(r, clock);
+    check(s.phase === 'flip' && up(r) === B, 'skull: «هيعملها؟» closes by itself');
+    clock = roomDeadline(r) + 1;
+    roomTimeout(r, clock);
+    check(S(r).flip.own === true, 'skull: when flipping, your own pile is turned over for you (or by the clock)');
+  }
+
+  /* Leaving. */
+  {
+    const r = skStart(['a', 'b', 'c', 'd']);
+    const s = S(r);
+    const [A, B, C, D] = s.order;
+    sk(r, A, 'place', { disc: flowerIn(r, A) });
+    sk(r, B, 'place', { disc: flowerIn(r, B) });
+    sk(r, C, 'place', { disc: flowerIn(r, C) });
+    r.players = r.players.filter((p) => p.id !== D);
+    roomPlayerLeft(r, D, D);
+    check(s.phase === 'add' && s.alive.length === 3 && !(D in s.piles && s.piles[D]), 'skull: someone who hadn\'t laid leaves: the round goes on');
+    sk(r, A, 'add', { disc: flowerIn(r, A) });
+    sk(r, B, 'bid', { n: 4 });
+    r.players = r.players.filter((p) => p.id !== A);
+    roomPlayerLeft(r, A, A);
+    check(s.bid.n === 2 && s.phase === 'guess', 'skull: a pile leaves the table: a bet above what is left shrinks to all of it');
+    r.players = r.players.filter((p) => p.id !== B);
+    roomPlayerLeft(r, B, B);
+    check(s.phase === 'gameover' && s.winners.join() === C && !s.tally[C], 'skull: fewer than two left ends the game (not counted as a win)');
+
+    const v = skStart(['a', 'b', 'c', 'd']);
+    const vs = S(v);
+    vs.alive.slice().forEach((pid) => sk(v, pid, 'place', { disc: flowerIn(v, pid) }));
+    const bidder = up(v);
+    sk(v, bidder, 'bid', { n: 2 });
+    v.players = v.players.filter((p) => p.id !== bidder);
+    roomPlayerLeft(v, bidder, bidder);
+    check(vs.phase === 'result' && vs.result.void === true && vs.nextStarter !== bidder, 'skull: the bidder leaves: the round is called off');
+  }
+
+  /* Forced moves: your own pile to turn over, and one disc to lay. */
+  {
+    const r = skStart(['a', 'b', 'c']);
+    const s = S(r);
+    const [A, B, C] = s.order;
+    s.alive.forEach((pid) => sk(r, pid, 'place', { disc: flowerIn(r, pid) }));
+    sk(r, A, 'bid', { n: 1 });
+    sk(r, B, 'pass'); sk(r, C, 'pass');
+    sk(r, B, 'guess', { yes: true }); sk(r, C, 'guess', { yes: true });
+    const f = roomForcedMove(r);
+    check(f && f.pid === A && f.move.action === 'flip' && f.move.payload.target === A, 'skull: your own pile first is done for you');
+    const g = skStart(['a', 'b', 'c']);
+    const [A2] = g.shared.order;
+    g._skull.discs[A2] = g._skull.discs[A2].slice(0, 1);
+    g._skull.hands[A2] = [g._skull.discs[A2][0].i];
+    const f2 = roomForcedMove(g);
+    check(f2 && f2.pid === A2 && f2.move.action === 'place', 'skull: one disc left to lay is laid for you');
+    check(!roomForcedMove(skStart(['a', 'b', 'c'])), 'skull: a choice of discs is never made for you');
+  }
+
+  /* Whole games of computer players, 3 to 8 at the table, easy and hard. */
+  {
+    const runBots = (r) => { if (typeof r._botAt === 'number') { clock = Math.max(clock, r._botAt) + 1; roomTimeout(r, clock); return true; } return false; };
+    const errors = [];
+    const errorWas = console.error;
+    console.error = (...args) => { errors.push(args.join(' ')); };
+    let ended = 0, conserved = true, skulls = 0, wonBets = 0, owns = 0;
+    const games = 36;
+    for (let n = 0; n < games; n++) {
+      const r = newRoom(['a']);
+      applyRoomAction(r, 'a', 'chooseGame', { game: 'skull' });
+      const k = 2 + (n % 6);
+      for (let i = 0; i < k; i++) applyRoomAction(r, 'a', 'addBot', { level: (n + i) % 2 ? 'hard' : 'easy', name: 'زيزو' });
+      applyRoomAction(r, 'a', 'start', { turnClock: 30 });
+      let seen = r.shared.eventSeq;
+      for (let step = 0; step < 8000 && r.shared.phase !== 'gameover'; step++) {
+        if (!runBots(r)) {
+          const due = roomDeadline(r);
+          if (due === null) break;
+          clock = due + 1;
+          roomTimeout(r, clock);
+        }
+        (r.shared.events || []).filter((e) => e.seq > seen).forEach((e) => {
+          if (e.type === 'skull') { skulls++; if (e.owner === e.pid) owns++; }
+          if (e.type === 'betWon') wonBets++;
+        });
+        seen = r.shared.eventSeq;
+        const g = r._skull;
+        r.shared.order.forEach((id) => {
+          const owned = (g.discs[id] || []).map((d) => d.i).sort().join();
+          const placed = (g.hands[id] || []).concat(g.piles[id] || []).sort().join();
+          if (r.shared.alive.indexOf(id) !== -1 && owned !== placed) conserved = false;
+        });
+      }
+      if (r.shared.phase === 'gameover') ended++;
+    }
+    console.error = errorWas;
+    check(ended === games, `skull bots: ${games} whole games, 3 to 8 at the table, easy and hard, one person on the clock, all end (${ended})`);
+    check(!errors.length, 'skull bots: no bot move was ever refused' + (errors.length ? ': ' + errors[0] : ''));
+    check(conserved, 'skull: every disc is in its owner\'s hand or pile, never lost or made up');
+    check(skulls > 0 && wonBets > 0 && owns > 0, `skull bots: bets won (${wonBets}), skulls hit (${skulls}), own skulls (${owns})`);
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

@@ -137,7 +137,7 @@ const hbFillSeats = (room, order, names) => {
   let i = 0;
   return order.map(id => {
     if (id) return id;
-    const name = uniqueBotName(room, list[i++] || 'Bot');
+    const name = uniqueBotName(room, list[i++] || '');
     const bot = { id: newBotId() + i, name: name, bot: 'easy' };
     room.players.push(bot);
     roomEvent(room, 'joined', { name: name, bot: true });

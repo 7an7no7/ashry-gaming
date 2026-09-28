@@ -303,6 +303,8 @@ function chRoomHqMoments(state) {
   const evs = bd.hq.events || [];
   const top = evs.reduce((a, e) => Math.max(a, e.n || 0), 0);
   if (!chRoomLocal.hqSeen || chRoomLocal.hqSeen.key !== key) { chRoomLocal.hqSeen = { key: key, n: top }; return; }
+  // Looking back at an earlier move: nothing pops over it, and what came meanwhile plays on going live.
+  if (!state.youAreScreen && chBrowse.ply >= 0) return;
   evs.forEach(e => { if (e.n > chRoomLocal.hqSeen.n) chHqMoment(e.kind, key + '|' + e.n + '|' + e.kind); });
   chRoomLocal.hqSeen.n = Math.max(chRoomLocal.hqSeen.n, top);
 }
@@ -437,7 +439,8 @@ function chRoomHostRow(state, tv) {
   const key = [roomDealKey(state), s.round, bd.moves, picking ? 'pick' : ''].join('|');
   if (chRoomLocal.turnKey !== key) { chRoomLocal.turnKey = key; chRoomLocal.turnSince = Date.now(); }
   // The hidden queen's pick waiting on a phone: the host picks a random pawn for whoever hasn't.
-  const upSeat = picking ? [0, 1].find(k => !bd.hq.picked[k]) : bd.g.turn;
+  // Never the host's own seat while picking: the host picks their own pawn.
+  const upSeat = picking ? [0, 1].find(k => !bd.hq.picked[k] && (s.seats || [])[k] !== Room.me) : bd.g.turn;
   if (upSeat === undefined) return '';
   const id = (s.seats || [])[upSeat];
   const p = (state.players || []).find(x => x.id === id);
@@ -454,7 +457,8 @@ function chRoomHostRow(state, tv) {
   }
   const label = picking ? '🎲 ' + chT('ch_hq_pick_for', { name: duelIso(duelRoomNames(state)[upSeat] || '') })
     : '⏭️ ' + chT('ch_play_for', { name: duelIso(duelRoomNames(state)[bd.g.turn] || '') });
-  const press = `duelAct('skipTurn', { move: ${Number(bd.moves) || 0} })`;
+  const press = picking ? `duelAct('skipTurn', { move: ${Number(bd.moves) || 0}, seat: ${upSeat} })`
+    : `duelAct('skipTurn', { move: ${Number(bd.moves) || 0} })`;
   return tv ? `<div class="tv-actions">${tvBtn(label, press, 'ghost')}</div>` : roomHostRow([[label, press]]);
 }
 

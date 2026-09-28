@@ -411,8 +411,10 @@ function esCallPickerHtml(state) {
   }
   const n = esLocal.callN;
   const after = n === null ? null : others + n;
+  // The number the last caller may not call, said only when it is one they could have picked.
+  const banned = EST_TRICKS - others;
   const hint = n !== null ? esT(after > EST_TRICKS ? 'es_call_makes_over' : 'es_call_makes_under', { n: after })
-    : last ? esT('es_call_last', { n: EST_TRICKS - others }) : s.speed ? esT('es_call_hint_speed') : esT('es_call_hint', { n: s.callMax });
+    : last && banned >= 0 && banned <= s.callMax ? esT('es_call_last', { n: banned }) : s.speed ? esT('es_call_hint_speed') : esT('es_call_hint', { n: s.callMax });
   return `<p class="es-prompt is-mine">⭐ ${escapeHTML(esT('es_your_call'))}</p>
     <p class="es-hint">${escapeHTML(hint)}</p>
     <div class="es-chips" dir="ltr">${chips.join('')}</div>
@@ -567,14 +569,20 @@ function esRoundFrame(state) {
     </div>`;
 }
 
+/* Tied winners' names, plain and joined: pcT isolates the whole list, and an
+   isolate inside it would hide the Arabic letters and flip the line (Traps). */
+function esNamesList(state, ids) {
+  return ids.map(id => esNameOf(state, esSeats(state).indexOf(id))).join(appState.lang === 'ar' ? '، ' : ', ');
+}
+
 function esOverFrame(state) {
   const s = esShared(state);
   const t = TRANSLATIONS[appState.lang] || {};
   const w = s.winners || [];
-  const title = w.length > 1 ? esT('es_won_shared', { names: w.map(id => '\u2068' + esNameOf(state, esSeats(state).indexOf(id)) + '\u2069').join(' · ') })
+  const title = w.length > 1 ? esT('es_won_shared', { names: esNamesList(state, w) })
     : esT('es_won', { name: esNameOf(state, esSeats(state).indexOf(w[0])) });
   const hostNext = state.youAreHost ? `<div class="btn-stack">
-      <button type="button" class="btn btn--primary btn--lg" onclick="esAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
+      <button type="button" class="btn btn--primary btn--lg" onclick="esAct(this, 'playAgain', { botNames: ROOM_GAMES.estimation.startPayload().botNames })">${escapeHTML(t.play_again || '')}</button>
       <button type="button" class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
     </div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`;
   return `<div class="es es--over">
@@ -779,7 +787,7 @@ function esTickClock(s) {
   };
   if (!endsAt) { esStopClock(); return; }
   paint();
-  if (esLocal.clockKey === endsAt && esLocal.clock) return;
+  if (esLocal.clockKey === endsAt && esLocal.clock && esLocal.clock.isRunning()) return;
   esStopClock();
   esLocal.clockKey = endsAt;
   esLocal.clock = createClock({
@@ -968,10 +976,12 @@ function esPlay(root, state, list, delay, handWas, ending) {
         const cards = e.cards || [];
         at(t + hold, () => {
           esLocal.hideTrickNo = [s.deal, e.no].join('|');
+          // A newer frame may already hold the next trick's lead in a slot: leave that one showing.
+          const live = (Room.state && Room.state.game === 'estimation' ? esShared(Room.state).trick : null) || [];
           cards.forEach((x, i) => {
             const slot = pcEl(root, 'slot:' + x.k);
             const r = pcRect(fx, root, 'slot:' + x.k);
-            if (slot) slot.classList.add('is-gone');
+            if (slot && !live.some(c => c && c.k === x.k)) slot.classList.add('is-gone');
             if (r) pcFly(fx, root, r, seatKey(e.k), x.c, { flip: 'down', arc: 10, duration: 460, delay: i * 50, width: cardW });
           });
           pcRing(fx, root, seatKey(e.k), { tone: 'success', scale: 2 });
@@ -1071,11 +1081,11 @@ TV_GAMES.estimation = {
       const over = s.phase === 'gameover';
       const w = s.winners || [];
       const host = state.youAreHost ? `<div class="tv-actions">${over
-        ? tvBtn(t.play_again || '', "esAct(this, 'playAgain')") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')
+        ? tvBtn(t.play_again || '', "esAct(this, 'playAgain', { botNames: ROOM_GAMES.estimation.startPayload().botNames })") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')
         : tvBtn(esT('es_next_round', { n: (s.round || 0) + 1 }), "esAct(this, 'nextRound')")}</div>` : '';
       return `<div class="es-tvres">
           ${over ? `<div class="tv-big-icon" aria-hidden="true">🏆</div><div class="tv-title tv-center-text">${escapeHTML(w.length > 1
-            ? esT('es_won_shared', { names: w.map(id => '\u2068' + esNameOf(state, esSeats(state).indexOf(id)) + '\u2069').join(' · ') })
+            ? esT('es_won_shared', { names: esNamesList(state, w) })
             : esT('es_won', { name: esNameOf(state, esSeats(state).indexOf(w[0])) }))}</div>` : ''}
           <div class="es-tvres__grid">
             <div class="tv-scale">${over ? renderPodium(state, s.board || []) : esResultHtml(state, s.results, true)}</div>

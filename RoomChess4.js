@@ -199,7 +199,7 @@ const chess4NewRoomGame = (room, playerId, action, p) => {
   for (let k = 0; k < 4; k++) {
     if (order[k]) continue;
     if (room.players.length >= ROOM_MAX_PLAYERS) throw new Error('الغرفة مليانة');
-    const bot = chess4SeatBot(room, names[k] || names[0] || 'Bot', 'easy');
+    const bot = chess4SeatBot(room, names[k] || '', 'easy');
     roomEvent(room, 'joined', { name: bot.name, bot: true });
     order[k] = bot.id;
   }
@@ -317,7 +317,7 @@ const chess4PlayerLeft = (room, playerId, name) => {
   const seat = s.seats.indexOf(playerId);
   if (seat === -1 || s.g.out[seat]) return;
   if (s.g.mode === 'ffa') { chess4RoomOut(room, seat, 'left'); return; }
-  const bot = chess4SeatBot(room, name || s.names[seat] || 'Bot', 'hard');
+  const bot = chess4SeatBot(room, name || s.names[seat] || '', 'hard');
   s.seats[seat] = bot.id;
   s.replaced[seat] = true;
   chess4Log(s, { k: 'bot', seat: seat });

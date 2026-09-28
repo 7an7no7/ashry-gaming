@@ -3562,7 +3562,8 @@ function chPaint(opts) {
   // Looking back at an earlier move: that position, nothing to move (the game itself goes on).
   const bply = chBrowseSync('local|' + s.gameId, s.hist.length, () => chPaint({ still: true }));
   chViewShow(el.querySelector('[data-ch-host]'), bply >= 0 ? chBrowseModel(model, chReplayPositions(s.start, s.hist, s.lostStart), bply) : model);
-  if (hq && s.last && s.last.hq && !o.still) {
+  // Not over a position being looked back at: the moment is the game's, not that move's.
+  if (hq && s.last && s.last.hq && !o.still && bply < 0) {
     const k = s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n;
     if (s.last.hq.reveal) chHqMoment('reveal', k + '|r');
     if (s.last.hq.captured) chHqMoment('captured', k + '|c');

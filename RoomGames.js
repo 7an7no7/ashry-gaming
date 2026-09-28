@@ -299,9 +299,23 @@ const newBotId = () => 'b' + Date.now().toString(36) + Math.floor(Math.random() 
 const isRoomBot = (room, pid) => room.players.some(p => p.id === pid && !!p.bot);
 const roomBotLevel = (room, pid) => ((room.players.find(p => p.id === pid) || {}).bot) || null;
 
+/* The names the phone offers (ROOM_BOT_NAMES in JS_Room.html), for a bot seated
+   with none sent - a play again from an older page, say - so it is never "Bot". */
+const ROOM_BOT_FALLBACK = {
+  ar: ['زيزو', 'بندق', 'سمسم', 'فلفل', 'كوكي', 'توتا', 'شوشو', 'لولي', 'ميمي', 'بسبوسة', 'كراميلا'],
+  en: ['Robo', 'Chip', 'Pixel', 'Byte', 'Echo', 'Nova', 'Bolt', 'Zippy', 'Sparky', 'Widget', 'Dot']
+};
+/** A name from that list nobody here has, in the language the room's bots already use (Arabic by default). */
+const roomBotFallbackName = (room) => {
+  const bots = room.players.filter(p => p.bot).map(p => String(p.name || '').replace(/ \d+$/, ''));
+  const lang = bots.some(n => ROOM_BOT_FALLBACK.en.some(x => sameRoomName(n, x))) ? 'en' : 'ar';
+  const list = ROOM_BOT_FALLBACK[lang];
+  return list.find(n => !room.players.some(p => sameRoomName(p.name, n))) || list[0];
+};
+
 /** A bot's name, as the host's phone offered it, made unique in the room. */
 const uniqueBotName = (room, raw) => {
-  const base = String(raw || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20) || 'Bot';
+  const base = String(raw || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20) || roomBotFallbackName(room);
   let name = base;
   for (let n = 2; room.players.some(p => sameRoomName(p.name, name)); n++) name = base + ' ' + n;
   return name;

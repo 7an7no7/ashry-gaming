@@ -277,13 +277,18 @@ function chessHqSecrets(room) {
   });
 }
 
-/** Picks a random pawn for every seat that hasn't picked (the clock, the host), and starts the game once both have. */
-function chessHqAutoPick(room) {
+/**
+ * Picks a random pawn for every seat that hasn't picked (the clock), or only for
+ * seat `only` (the host's "pick for" a quiet phone - never the host's own seat,
+ * which picks for itself), and starts the game once both have.
+ */
+function chessHqAutoPick(room, only) {
   const bd = room.shared.chess;
   const h = room._chq;
   if (!bd || !bd.hq || !bd.hq.picking || !h) return false;
   [0, 1].forEach(c => {
     if (bd.hq.picked[c]) return;
+    if ((only === 0 || only === 1) && c !== only) return;
     if (chessHqPick(h, bd.g, c, chessHqRandom(bd.g, c))) bd.hq.picked[c] = true;
   });
   chessHqPicked(room);
@@ -303,9 +308,11 @@ function chessHqAfterMove(room) {
   const h = room._chq;
   if (!bd || !bd.hq || !h) return;
   const last = bd.last;
+  // A move that wasn't played (lost on time) leaves the last move as it was: its event is told already.
+  const told = (kind) => bd.hq.events.some(e => e.n === last.n && e.kind === kind);
   if (last && last.hq) {
-    if (last.hq.reveal) bd.hq.events.push({ n: last.n, seat: last.seat, kind: 'reveal', sq: last.to });
-    if (last.hq.captured) bd.hq.events.push({ n: last.n, seat: 1 - last.seat, kind: 'captured', sq: last.captureSq });
+    if (last.hq.reveal && !told('reveal')) bd.hq.events.push({ n: last.n, seat: last.seat, kind: 'reveal', sq: last.to });
+    if (last.hq.captured && !told('captured')) bd.hq.events.push({ n: last.n, seat: 1 - last.seat, kind: 'captured', sq: last.captureSq });
   }
   chessHqSecrets(room);
 }
@@ -418,7 +425,8 @@ function chessAction(room, playerId, action, payload) {
     requireHost(room, playerId);
     if (s.phase !== 'play' || bd.result || staleTap(p, 'move', bd.moves)) return;
     // The hidden queen's pick waiting on a quiet phone: a random pawn for whoever hasn't picked.
-    if (bd.hq && bd.hq.picking) { chessHqAutoPick(room); return; }
+    // The seat the host named (an older phone names none: every seat still to pick).
+    if (bd.hq && bd.hq.picking) { chessHqAutoPick(room, p.seat === 0 || p.seat === 1 ? p.seat : undefined); return; }
     const up = bd.g.turn;
     const hq = bd.hq ? room._chq : undefined;
     const mv = chessHostMove(bd.g, hq ? hq.sq[up] : -1);

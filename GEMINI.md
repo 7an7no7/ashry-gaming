@@ -81,6 +81,11 @@
 - **Rooms only, a party game:** 🪑 **Musical chairs (الكراسي الموسيقية):**
   every phone is a player, the music stops at a secret moment, the fastest
   taps get the chairs, one out a round (*الكراسي الموسيقية*).
+- **The TV as the game, the phones as controllers (a test):** **Bumper
+  Cars (عربيات التصادم):** a rink on the big screen, every phone steering its
+  own car with a stick or by tilting, the TV judging every bump and showing
+  each phone's delay and the traffic - the test before a racing game
+  (*عربيات التصادم*).
 - **Multiplayer-only, also:** 🔔 **Buzzer (الجرس):** the host asks out loud,
   every phone is a buzzer, the server keeps the order of presses;
   🕴️ **Mafia (مافيا):** the app narrates night and day, roles on each phone;
@@ -1788,6 +1793,32 @@ work changed. Add to it when a decision is made or a batch ships.
     might have played; and the draw button **draws until a tile fits in one
     tap** (the table sees how many were drawn), with باص a tap of its own.
 
+- **The TV as the console, the phones as controllers** - the owner's idea of
+  28 Sep 2026 ("like Mario Kart, each player controls his car from his phone,
+  like PlayStation"). Asked whether it is possible: yes, with the TV running
+  the game and the phones sending only their input; the owner said to build a
+  test first. **Built as عربيات التصادم** (*عربيات التصادم*), a bumper-cars
+  rink that measures what a racing game needs to know on the owner's real
+  phones and TV: the delay of each phone and what the traffic costs of the
+  free plan. Decided here (open to change):
+  - **The TV runs the game** (the physics, the knocks, the score); the server
+    only deals the round and takes the TV's scores. A phone's stick goes
+    through the room's live channel to the screens only, never stored and
+    never to another phone (`relayDrive` in `room.js`).
+  - **The phone sends its input about 15 times a second, and only when it
+    changes** (a stick held still is resent every 0.8 s), so a table of four
+    is 20-60 messages a second. Cloudflare bills 20 WebSocket messages into a
+    Durable Object as one request and the free plan gives 100,000 a day:
+    measured with four drivers, an hour of play is about 5-7% of a day.
+  - **Two controls**: a stick (the car turns toward the finger and goes, faster
+    the further out) and tilt (the phone as a wheel, with Gas); tilt can be
+    re-centred and flipped, since phones disagree about signs.
+  - **The delay shown is half a ping's round trip**, phone → server → TV →
+    server → phone, the median of the last seven.
+  - A real racing game next: the owner decides after trying this on the
+    phones and the TV (the track, the vehicles - tuk-tuks, a microbus - and
+    the rules, asked one at a time as always).
+
 ### Ideas not built yet (researched 16 Sep 2026)
 
 Solo was the gap (Wordle, Connections, Memory, X-O against the phone and Guess
@@ -3353,6 +3384,17 @@ the word search), `countUp` for streaks and scores.
   result, the end and Help; no console errors. Found on the way: the pane's
   browser is too slow for a 3-second window, so the moments were photographed
   by a script of our own (the screen test's CDP helpers).
+- **28 Sep 2026, عربيات التصادم (the controllers test)** - the owner asked
+  whether the TV can be the game and the phones the controllers, like a
+  console; yes, and this test was built first (*Decided, and why*, *The TV as
+  the console*): `RoomBumper.js`, `JS_RoomBumper.html`, section 51 of
+  `Style.html`, the live relay in `room.js` (`relayDrive`), a drawn icon.
+  Rules tests 11, the leak check, a robot round (sticks reach the screen only,
+  in order; an echo reaches one phone; oversized messages dropped). Looked at
+  in headless Chrome: two phones (375×812 Arabic light, 667×375 English dark,
+  the stick by real touches and the tilt screen), a TV at 1280×720 and two
+  robot drivers, bumps scored, the delay read, a reload mid-round, Help, the
+  TV's scores at the end; no console errors.
 
 ## Building and Running
 
@@ -3412,7 +3454,7 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
   `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -3596,6 +3638,7 @@ is nowhere to hide the key card.
 | `WordleWords.js`, `Countries.js` | خمن الكلمة's lists and keypad (`WORDLE_DB`, `WORDLE_LAYOUTS`) and خمّن الدولة's table with the distances (`COUNTRIES`, `FLAG_ALIASES`, `FLAG_MODES`, `flagsDistance`, `flagsBearing`): moved out of `JS_Wordle.html` and `JS_Flags.html` for the rooms, shared by the page (inlined, `SHARED_LISTS`) and the Worker. |
 | `SolveGames.js` | The four solve games' own rules (every name `sv` / `SV_`): a written word and its colours, the ranges and higher / lower, the country hints, an emoji clue's problems: shared by the page (a setter's form checks what it sends) and the Worker. |
 | `RoomSolve.js` | `solveAction`: one sets, everyone solves - the engine (the order, the boards, the points, the clock, leaving) and its four plug-ins (`SOLVE_KINDS`). Bundled after `RoomGames.js`. |
+| `RoomBumper.js` | `bumperAction`: عربيات التصادم - deals a round (the drivers, their colours, the countdown and the end), takes the TV's scores (`finish`, a screen only), ends on the server's clock with no scores when no screen reports; `bumperRelaying` says when `room.js` passes the controllers' messages on. |
 | `RoomChairs.js` | `chairsAction`: الكراسي الموسيقية - the secret stop and the fake pauses in `room._chairs`, the taps ranked by their stamps inside the provable window, the false start, the 3-second window, the rounds and the wins; `chairsDeadline` / `chairsTimeout`, `chairsPlayerLeft`. Bundled after `RoomGames.js`. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
@@ -7724,6 +7767,45 @@ help); the rules are named `chairs` / `CHAIRS_`, the page's code `mch` / `MCH_`.
   and the fakes never reach a phone), `play-all.mjs` (`--only=chairs`: a
   false start, taps ranked by their stamps, a quiet phone, the end, play
   again with a latecomer, a leave).
+
+### عربيات التصادم
+
+The controllers test (*Decided, and why*, *The TV as the console*). Game id
+`bumper` everywhere; the page's code is `bmp` / `BMP_`, the server's `bumper`
+/ `BUMPER_`.
+
+- **The channel.** Nothing a car does goes through the rules. A phone sends
+  `{ k: 'i', x, y }` (the stick, -100..100) or `{ k: 'i', s, g }` (the tilt's
+  steer and Gas) with `Room.sendLive`, every 66 ms when it changed and every
+  0.8 s when it didn't, and `{ k: 'p', n, at, r }` (a ping) every 1.5 s.
+  `room.js` asks `bumperRelaying(room)` and, while a round is on, passes a
+  player's message to every screen stamped with `from`, and a screen's to the
+  one phone it names (`to`): a ping's echo, a knock (`{ k: 'h', w: 'hit' |
+  'got' }`, a buzz and a red flash for the one knocked). Messages over 400
+  characters are dropped. The drawing's live line is untouched.
+- **The TV** (`TV_GAMES.bumper`) keeps the cars in `bmp.tv`: a rink of
+  1600 × 900 units drawn on a canvas, a car a circle of 38 with a rubber
+  ring, steps of 1/120 s, a grip that kills the sideways slide faster than the
+  roll, walls that bounce, and cars that knock each other (equal masses, a
+  little extra from the rubber). **A bump counts** for the car that drove
+  into the other harder, when they met at 170 units a second or more, once a
+  pair in 0.6 s. The side shows the clock, each driver's bumps, delay and
+  messages a second, and the traffic with what an hour costs of the free
+  plan. A car appears for every person in the room, latecomers included (the
+  colour: the one dealt, else the next in the room's order, `bmpColorOf`); a
+  stick not heard from for 1.5 s lets go. When the clock runs out the first
+  screen online (by id) sends `finish` with everyone's bumps, from the frame
+  loop or, in a background tab, a one-second timer.
+- **The phone** (`ROOM_GAMES.bumper`): the stick (pointer events on
+  `#bmp-pad`, `touch-action: none`), or the tilt (`deviceorientation`: gamma
+  upright, beta on its side by the screen's angle, 30° for a full turn; an
+  iPhone asks inside a tap - the mode button or Gas's first press), the
+  clock, the delay (green under 80 ms, amber under 150), the screen kept on;
+  the host can end the round early. A reload comes back to the controller.
+  The mode is remembered (`recallOptions('bumper')`), and so is the host's
+  round length (1, 2 or 3 minutes).
+- Tests: `rules.mjs` ("Bumper cars"), `leaks.mjs` (a driver; nothing is
+  hidden), `play-all.mjs` (`--only=bumper`: the relay on a live server).
 
 ### The catalog and the home screen
 

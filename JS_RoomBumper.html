@@ -84,7 +84,7 @@ ROOM_GAMES.bumper = {
         <div class="field">
           <span class="field__label">${escapeHTML(t.bmp_len)}</span>
           <div class="segmented" role="radiogroup">
-            ${[60, 120, 180].map(n => `<button type="button" class="segmented__option ${secs === n ? 'is-active' : ''}" onclick="bmpSetSecs(${n}, this)">${escapeHTML(t['bmp_m' + n])}</button>`).join('')}
+            ${[60, 120, 180].map(n => `<button type="button" class="segmented__item ${secs === n ? 'is-active' : ''}" onclick="bmpSetSecs(${n}, this)">${escapeHTML(t['bmp_m' + n])}</button>`).join('')}
           </div>
         </div>
         ${tv}
@@ -116,8 +116,8 @@ ROOM_GAMES.bumper = {
       const noTv = bmpHasScreen(state) ? '' : `<div class="waiting-note bmp-need">${escapeHTML(t.bmp_need_tv)}</div>`;
       const modes = `
         <div class="segmented bmp-modes" role="radiogroup">
-          <button type="button" class="segmented__option ${bmp.mode === 'stick' ? 'is-active' : ''}" onclick="bmpSetMode('stick')">${escapeHTML(t.bmp_stick)}</button>
-          <button type="button" class="segmented__option ${bmp.mode === 'tilt' ? 'is-active' : ''}" onclick="bmpSetMode('tilt')">${escapeHTML(t.bmp_tilt)}</button>
+          <button type="button" class="segmented__item ${bmp.mode === 'stick' ? 'is-active' : ''}" onclick="bmpSetMode('stick')">${escapeHTML(t.bmp_stick)}</button>
+          <button type="button" class="segmented__item ${bmp.mode === 'tilt' ? 'is-active' : ''}" onclick="bmpSetMode('tilt')">${escapeHTML(t.bmp_tilt)}</button>
         </div>`;
       const pad = !driver ? '' : bmp.mode === 'stick'
         ? `<div class="bmp-pad" id="bmp-pad" style="--car:${color}" aria-label="${escapeHTML(t.bmp_stick)}">
@@ -168,13 +168,13 @@ function bmpWirePad() {
     const move = (e) => {
       const r = pad.getBoundingClientRect();
       const rad = r.width / 2;
-      let x = (e.clientX - (r.left + rad)) / (rad * 0.78);
-      let y = (e.clientY - (r.top + rad)) / (rad * 0.78);
+      let x = (e.clientX - (r.left + rad)) / (rad * 0.62);
+      let y = (e.clientY - (r.top + rad)) / (rad * 0.62);
       const m = Math.hypot(x, y);
       if (m > 1) { x /= m; y /= m; }
       bmp.stick = { x, y };
       const knob = document.getElementById('bmp-knob');
-      if (knob) knob.style.transform = `translate(${x * rad * 0.78}px, ${y * rad * 0.78}px)`;
+      if (knob) knob.style.transform = `translate(${x * rad * 0.62}px, ${y * rad * 0.62}px)`;
     };
     pad.addEventListener('pointerdown', (e) => {
       active = e.pointerId;
@@ -354,8 +354,9 @@ function bmpOverHtml(state, s, t, tv) {
   const res = s.results || [];
   const board = res.map(r => ({ id: r.id, name: r.name, score: r.hits }));
   const top = res[0];
-  const head = top && top.hits > 0 && res.length > 1
-    ? `<div class="bmp-over__win">🏆 ${escapeHTML(bmpFill(t.bmp_winner, { name: top.name }))}</div>` : '';
+  const names = top && top.hits > 0 && res.length > 1 ? res.filter(r => r.hits === top.hits).map(r => r.name) : [];
+  const head = names.length
+    ? `<div class="bmp-over__win">🏆 ${escapeHTML(bmpFill(t.bmp_winner, { name: names.join(appState.lang === 'ar' ? ' و' : ' & ') }))}</div>` : '';
   const rows = res.map(r => `
     <div class="bmp-row">
       <span class="bmp-row__dot" style="--car:${bmpColorOf(state, r.id)}"></span>
@@ -368,8 +369,8 @@ function bmpOverHtml(state, s, t, tv) {
     ? `<div class="tv-actions">${tvBtn('▶ ' + t.bmp_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>`
     : `<div class="btn-row" style="margin-top:var(--sp-3)"><button class="btn btn--go" onclick="roomAct('playAgain', {})">▶ ${escapeHTML(t.bmp_again)}</button><button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game)}</button></div>`;
   return `<div class="bmp-over">
-    <div class="eyebrow" style="text-align:center">${escapeHTML(t.bmp_over)}</div>
-    ${head}${renderPodium(state, board)}
+    <div class="eyebrow bmp-over__eyebrow" style="text-align:center">${escapeHTML(t.bmp_over)}</div>
+    ${head}<div class="bmp-over__podium">${renderPodium(state, board)}</div>
     <div class="card card--tight bmp-rows">${rows}</div>${none}${host}</div>`;
 }
 
@@ -690,8 +691,10 @@ function bmpDrawCar(ctx, c, color) {
   ctx.fillText(Array.from(String(c.name || '?').trim())[0] || '?', 0, 2);
   ctx.font = '700 28px ' + getComputedStyle(document.body).fontFamily;
   ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.fillStyle = '#fff';
-  ctx.strokeText(c.name, 0, -R * 1.55);
-  ctx.fillText(c.name, 0, -R * 1.55);
+  // The name above the car, or under it against the top rail.
+  const ny = c.y < R * 3 ? R * 1.6 : -R * 1.55;
+  ctx.strokeText(c.name, 0, ny);
+  ctx.fillText(c.name, 0, ny);
   ctx.restore();
 }
 

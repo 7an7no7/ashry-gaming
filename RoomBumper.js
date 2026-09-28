@@ -92,8 +92,11 @@ const bumperEnd = (room, scores) => {
     taken: clean(got[id] && got[id].taken)
   })).sort((a, b) => b.hits - a.hits || a.taken - b.taken);
   s.reported = !!scores;
+  // The most bumps wins (a tie shares it), and only against somebody.
   const top = s.results[0];
-  if (top && top.hits > 0 && s.results.length > 1) s.wins[top.id] = (s.wins[top.id] || 0) + 1;
+  if (top && top.hits > 0 && s.results.length > 1) {
+    s.results.filter(r => r.hits === top.hits).forEach(r => { s.wins[r.id] = (s.wins[r.id] || 0) + 1; });
+  }
   s.board = room.players.filter(p => !p.bot)
     .map(p => ({ id: p.id, name: p.name, score: s.wins[p.id] || 0 }))
     .sort((a, b) => b.score - a.score);

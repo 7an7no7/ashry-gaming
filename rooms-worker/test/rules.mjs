@@ -8140,6 +8140,55 @@ Date.now = duelTestClock;
   try { applyRoomAction(r, 'd', 'predict', { target: 'c' }); } catch (e) { refused = true; }
   check(r.phase === 'result' && refused && !r.predict.picks.d, 'audience: once the game is over (its result shown) the guessing is closed, well inside its 90 seconds');
 }
+// The audit of 28 Sep 2026: a board is best-first, and some games win low - the winner is the first row, not the biggest score.
+{
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'bomb' });
+  // القنبلة's board: fewest strikes first. A has none and won; B, the most, lost.
+  r.phase = 'play';
+  r.shared = { phase: 'play', board: [{ id: 'a', name: 'A', score: 0 }, { id: 'c', name: 'C', score: 1 }, { id: 'b', name: 'B', score: 3 }] };
+  r.predict = { game: 'bomb', until: clock + 60000, picks: { c: 'a', d: 'b' } };
+  applyRoomAction(r, 'a', 'backToHub', {});
+  const line = (r.chat || []).find((m) => m.sys === 'predicted');
+  check(line && line.p.names === 'C' && line.p.n === 2, 'audience: on a lowest-wins board (القنبلة) whoever picked the first row called it, not whoever picked the most strikes');
+  const tie = newRoom(['a', 'b', 'c']);
+  applyRoomAction(tie, 'a', 'chooseGame', { game: 'bomb' });
+  tie.shared = { board: [{ id: 'a', name: 'A', score: 2 }, { id: 'b', name: 'B', score: 2 }] };
+  tie.predict = { game: 'bomb', until: clock + 60000, picks: { c: 'a' } };
+  applyRoomAction(tie, 'a', 'backToHub', {});
+  check(!(tie.chat || []).some((m) => m.sys === 'predicted'), 'audience: everyone level - nobody called anything');
+}
+// Play again after a game that was over: the old guesses are settled on the board that game ended on, and a fresh window opens.
+{
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'trivia' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', count: 5 });
+  applyRoomAction(r, 'c', 'predict', { target: 'b' });
+  r.shared.phase = 'gameover';
+  r.shared.board = [{ id: 'b', name: 'B', score: 40 }, { id: 'a', name: 'A', score: 10 }];
+  clock += 1000;
+  applyRoomAction(r, 'a', 'playAgain', {});
+  const line = (r.chat || []).find((m) => m.sys === 'predicted');
+  check(line && line.p.names === 'C' && r.predict && r.predict.game === 'trivia' && !Object.keys(r.predict.picks).length && r.predict.until === clock + 90000,
+    'audience: play again settles the last game\'s guesses and opens a fresh «مين هيكسب؟»');
+}
+// A new tournament after winner stays: the same.
+{
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'connect4' });
+  applyRoomAction(r, 'a', 'start', { mode: 4 });
+  applyRoomAction(r, 'c', 'predict', { target: r.shared.seats[0] });
+  for (let k = 0; k < 7 && r.shared.phase !== 'over'; k++) {
+    const who = r.shared.seats[r.shared.turn];
+    applyRoomAction(r, who, 'move', { col: who === r.shared.seats[0] ? 0 : 1, move: r.shared.moves });
+  }
+  const winner = r.shared.result && r.shared.result.winnerId;
+  const before = r.predict;
+  applyRoomAction(r, 'a', 'tourNew', { mode: 'tour', round: r.shared.round });
+  const line = (r.chat || []).find((m) => m.sys === 'predicted');
+  check(winner && !!r.shared.tour && line && line.p.n === 1 && r.predict && r.predict !== before && !Object.keys(r.predict.picks).length,
+    'audience: a new tournament settles the guesses on the game before it and opens a fresh window');
+}
 
 
 
@@ -8881,6 +8930,26 @@ Date.now = duelTestClock;
   DISABLED_GAMES.length = 0;
   applyRoomAction(r, 'a', 'chooseGame', { game: 'uno' });
   check(r.game === 'uno', 'off: taken out of the list, the game is back');
+
+  // The audit of 28 Sep 2026: between the games of a duel (winner stays, a new tournament) nothing new is dealt either;
+  // the moves of a game already running go on.
+  const d = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(d, 'a', 'chooseGame', { game: 'connect4' });
+  applyRoomAction(d, 'a', 'start', { mode: 4 });
+  DISABLED_GAMES.push('connect4');
+  const first = d.shared.seats[d.shared.turn];
+  applyRoomAction(d, first, 'move', { col: 0, move: d.shared.moves });
+  check(d.shared.moves === 1, 'off: a game already running plays on');
+  for (let k = 0; k < 7 && d.shared.phase !== 'over'; k++) {
+    const who = d.shared.seats[d.shared.turn];
+    applyRoomAction(d, who, 'move', { col: who === first ? 0 : 1, move: d.shared.moves });
+  }
+  check(d.shared.phase === 'over', 'off: the running game plays to its end');
+  check(threw(() => applyRoomAction(d, 'a', 'nextRound', { round: d.shared.round })) && d.shared.phase === 'over', 'off: winner stays deals no next game');
+  check(threw(() => applyRoomAction(d, 'a', 'tourNew', { mode: 'tour', round: d.shared.round })) && !d.shared.tour, 'off: no new tournament');
+  DISABLED_GAMES.length = 0;
+  applyRoomAction(d, 'a', 'nextRound', { round: d.shared.round });
+  check(d.shared.phase !== 'over', 'off: switched back on, the next game is dealt');
 }
 
 /* --- عربيات التصادم (28 Sep 2026): the server deals a round and takes the TV's result; the cars are the TV's --- */

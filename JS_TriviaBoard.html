@@ -427,6 +427,9 @@ function setTriviaPicker(i) {
   paintTriviaActions();
 }
 
+/** How long after the steal opens a verdict is taken for the second tap of a double tap. */
+const TB_STEAL_GUARD_MS = 600;
+
 /** The host's ✅ / ❌ with the steal on, in either stage. */
 function judgeTriviaCell(right) {
   const s = appState.triviaBoard;
@@ -434,6 +437,10 @@ function judgeTriviaCell(right) {
   if (!o || o.revealed || !tbStealOn(s)) return;
   const picker = o.picker === 1 ? 1 : 0;
   if (o.stage === 'steal') {
+    // The second tap of a double tap on ❌ (or a ✅ where the ❌ was) lands in the
+    // steal it just opened: a verdict in its first moment is dropped (the audit of
+    // 28 Sep 2026: first miss, steal, steal missed - in one double tap).
+    if (o.stageAt && Date.now() - o.stageAt < TB_STEAL_GUARD_MS) return;
     if (right) awardTriviaCell(1 - picker);
     else missTriviaSteal();
     return;
@@ -451,6 +458,7 @@ function enterTriviaSteal() {
   // Half the card's time, rounded up; no clock on the card, none for the steal.
   const secs = s.timer ? Math.max(1, Math.ceil(s.timer / 2)) : 0;
   o.stage = 'steal';
+  o.stageAt = Date.now();
   o.timeUp = false;
   o.secs = secs;
   o.endsAt = secs ? Date.now() + secs * 1000 : null;

@@ -481,6 +481,14 @@ export class Room extends DurableObject {
     } catch (err) {
       return { ok: false, error: errorText(err) };
     }
+    // A cheer the rules let go (too many too fast, or no game on): nothing changed,
+    // so nothing is saved or sent to the others - a tap-happy watcher used to push a
+    // whole state to every phone on each tap. The phone that sent it gets its own view.
+    const cheerSeq = (r) => (r.cheer && r.cheer.seq) || 0;
+    if (action === 'cheer' && cheerSeq(next) === cheerSeq(before)) {
+      if (!ws) this.polled.set(pid, Date.now());
+      return { ok: true, state: this.project(pid, this.onlineIds()) };
+    }
     let stopTaps = null;
     if (next._stopTaps && next._stopTaps.length) {
       stopTaps = next._stopTaps;
@@ -503,7 +511,7 @@ export class Room extends DurableObject {
     if (action === 'start' && before.phase === 'lobby' && next.phase !== 'lobby' && next.game && this.env.WORDS) {
       const mode = (next.screens || []).length ? 'tv' : 'room';
       this.env.WORDS.get(this.env.WORDS.idFromName('plays'))
-        .add([{ lang: mode, cat: new Date().toISOString().slice(0, 7), word: String(next.game) }]).catch(() => {});
+        .add([{ lang: mode, cat: new Date().toISOString().slice(0, 7), word: String(next.game), keep: true }]).catch(() => {});
     }
     if (!quick) await this.scheduleAlarm();
 

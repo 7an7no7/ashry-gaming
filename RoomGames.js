@@ -605,8 +605,15 @@ const applyRoomAction = (room, playerId, action, payload) => {
   const dealing = action === 'start' || action === 'nextRound' || action === 'playAgain';
   const textBefore = dealing ? JSON.stringify(room.shared || {}) : '';
 
-  // A game switched off for a fix (DisabledGames.js) deals nothing new.
-  if ((action === 'start' || action === 'playAgain') && roomGameIsOff(room.game)) throw new Error('اللعبة دي واقفة شوية عشان بنصلّحها، وهترجع قريب');
+  // A game switched off for a fix (DisabledGames.js) deals nothing new: no start, no play
+  // again, and no next game once this one is over (a duel's winner stays, a new tournament).
+  // The rounds inside a game already running go on to its end.
+  const wasOver = roomGameIsOver(room);
+  const OFF_MSG = 'اللعبة دي واقفة شوية عشان بنصلّحها، وهترجع قريب';
+  if ((action === 'start' || action === 'playAgain') && roomGameIsOff(room.game)) throw new Error(OFF_MSG);
+  if ((action === 'nextRound' || action === 'tourNew') && wasOver && roomGameIsOff(room.game)) throw new Error(OFF_MSG);
+  // The board the finished game ended on, for the audience's guesses if this deals the next one.
+  const boardBefore = (room.shared || {}).board;
 
   switch (room.game) {
     case 'imposter':  imposterAction(room, playerId, action, payload); break;
@@ -673,6 +680,15 @@ const applyRoomAction = (room, playerId, action, payload) => {
     roomEvent(room, 'started', { game: room.game });
     room.predict = { game: room.game, until: Date.now() + PREDICT_OPEN_MS, picks: {} };
     room.cheer = null;
+  }
+
+  // Play again, or a new tournament, after a game that was over: the guesses on the
+  // game that ended are settled against its board, and a fresh «مين هيكسب؟» opens -
+  // the old picks must not be scored against a later game's board.
+  const dealtNew = room.shared !== sharedBefore || (dealing && JSON.stringify(room.shared || {}) !== textBefore);
+  if ((action === 'playAgain' || action === 'tourNew') && wasOver && dealtNew && !roomGameIsOver(room)) {
+    settlePredictions(room, boardBefore);
+    room.predict = { game: room.game, until: Date.now() + PREDICT_OPEN_MS, picks: {} };
   }
 
   // Whoever is present when a game is dealt is in it. This can't be inferred
@@ -2459,17 +2475,20 @@ function roomGameIsOver(room) {
   return !!AUDIENCE_ONE_ROUND[room.game] && phases.some(p => p === 'result' || p === 'results');
 }
 
-/** The audience's guesses, checked against the board the game ended on (top score, ties all count). */
-function settlePredictions(room) {
+/** The audience's guesses, checked against the board the game ended on (the first row's
+    score, ties all count). A board is best-first, and some games win low (القنبلة's strikes,
+    الشايب's losses, ميني جولف's strokes, سكرو's points), so the top is the first row, never
+    the biggest number - the audit of 28 Sep 2026 found «مين هيكسب؟» crowning the loser. */
+function settlePredictions(room, boardOf) {
   const p = room.predict;
   room.predict = null;
   if (!p || p.game !== room.game) return;
   const voters = Object.keys(p.picks || {});
   if (!voters.length) return;
-  const board = ((room.shared || {}).board || []).filter(r => r && r.id);
+  const board = ((boardOf !== undefined ? boardOf : (room.shared || {}).board) || []).filter(r => r && r.id);
   if (!board.length) return;
-  const top = Math.max.apply(null, board.map(r => Number(r.score) || 0));
-  if (!(top > 0) && board.every(r => (Number(r.score) || 0) === top)) return;
+  const top = Number(board[0].score) || 0;
+  if (board.every(r => (Number(r.score) || 0) === top)) return;   // nobody ahead of anybody
   const winners = board.filter(r => (Number(r.score) || 0) === top).map(r => r.id);
   const nameOf = (id) => ((room.players.find(x => x.id === id) || {}).name || '');
   const right = voters.filter(v => winners.indexOf(p.picks[v]) !== -1).map(nameOf).filter(Boolean);

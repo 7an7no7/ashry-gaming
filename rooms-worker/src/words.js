@@ -9,8 +9,12 @@ const COUNT_KEY = '#count';
 
 /**
  * Words accepted by host adjustments in Stop the bus, shared across all rooms.
- * One instance, named "stop".
- * Keeps at most 5,000 keys, dropping the lowest counts when full.
+ * One instance, named "stop"; the same class keeps "plays" (how often each game
+ * is played) and "reports" («في غلطة؟»).
+ * Keeps at most 5,000 keys. The Stop log drops the lowest counts when full; an
+ * entry marked `keep` (the plays and the reports) is dropped itself instead when
+ * it would be a new key in a full log - what is kept is never pushed out by new
+ * keys, and a full log costs no read of the whole table on every add.
  */
 export class WordLog extends DurableObject {
   /**
@@ -22,8 +26,10 @@ export class WordLog extends DurableObject {
     const batch = entries.slice(0, MAX_BATCH);
     const updates = new Map();
 
+    let keep = false;
     for (const item of batch) {
       if (!item) continue;
+      if (item.keep) keep = true;
       const lang = String(item.lang || 'ar').trim();
       const cat = String(item.cat || '').trim();
       // A reported question is longer than a word (the improvement plan's «في غلطة؟»).
@@ -40,10 +46,24 @@ export class WordLog extends DurableObject {
 
     if (!updates.size) return;
 
+    // A log that keeps what it has: how many keys are left before it is full.
+    let room = Infinity;
+    if (keep) {
+      let have = await this.ctx.storage.get(COUNT_KEY);
+      if (typeof have !== 'number') {
+        const all = await this.ctx.storage.list();
+        have = all.size - (all.has(COUNT_KEY) ? 1 : 0);
+      }
+      room = MAX_KEYS - have;
+    }
+
     let added = 0;
     for (const [key, item] of updates) {
       const existing = await this.ctx.storage.get(key);
-      if (!existing) added++;
+      if (!existing) {
+        if (added >= room) continue;   // full: a new key is not kept
+        added++;
+      }
       const prevN = existing ? (typeof existing === 'number' ? existing : Number(existing.n) || 0) : 0;
       await this.ctx.storage.put(key, { lang: item.lang, cat: item.cat, word: item.word, n: prevN + item.n });
     }

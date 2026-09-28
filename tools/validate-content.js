@@ -543,6 +543,29 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   console.log(`chess puzzles: ${(PUZ || []).length} (level 1 ${levels[1]}, level 2 ${levels[2]}, level 3 ${levels[3]})`);
 }
 
+/* ------------------------------------------------ the ids the rooms server counts */
+// GameIds.js (the audit of 28 Sep 2026): /count keeps only a GAME_CATALOG id and
+// /report only those and the report-only ids, so the two lists must agree.
+{
+  const cat = fs.readFileSync(ROOT + 'JS_Catalog.html', 'utf8');
+  const block = (/const GAME_CATALOG = \[([\s\S]*?)\r?\n\];/.exec(cat) || [])[1] || '';
+  const catIds = (block.match(/^\s*\{\s*id:\s*'[^']+'/mg) || []).map(x => /'([^']+)'/.exec(x)[1]);
+  const appIds = load(ROOT + 'GameIds.js', 'APP_GAME_IDS');
+  const reportIds = load(ROOT + 'GameIds.js', 'APP_REPORT_IDS');
+  if (!catIds.length) note('GameIds.js: could not read the ids of GAME_CATALOG');
+  catIds.filter(id => appIds.indexOf(id) === -1).forEach(id => note(`GameIds.js: '${id}' is in GAME_CATALOG but not in APP_GAME_IDS`));
+  appIds.filter(id => catIds.indexOf(id) === -1).forEach(id => note(`GameIds.js: '${id}' is in APP_GAME_IDS but not in GAME_CATALOG`));
+  // Every «في غلطة؟» button names an id the server takes.
+  fs.readdirSync(ROOT).filter(f => /^JS_.*\.html$/.test(f)).forEach(f => {
+    const src = fs.readFileSync(ROOT + f, 'utf8');
+    (src.match(/reportBtnHtml\('([^']+)'/g) || []).forEach(m => {
+      const id = /'([^']+)'/.exec(m)[1];
+      if (reportIds.indexOf(id) === -1) note(`${f}: reportBtnHtml('${id}') is not in APP_REPORT_IDS (GameIds.js)`);
+    });
+  });
+  console.log(`game ids: ${appIds.length} (GAME_CATALOG ${catIds.length})`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

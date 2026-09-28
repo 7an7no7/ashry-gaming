@@ -4931,7 +4931,13 @@ it is started from its setup screen: `countPlay` in `JS_Catalog.html` (an
 `onLeaveScreen` hook from a `setup-*` view to a view whose `exitGameOf` is a
 game) sends `navigator.sendBeacon(ROOMS_URL + '/count', { game })`, never
 while offline. `POST /count` keeps the id and the month and nothing else - no
-name, no address - and takes 120 an hour from one address (`COUNT_LIMIT`).
+name, no address - and takes 120 an hour from one address (`COUNT_LIMIT`). It
+keeps only an id the app has (`APP_GAME_IDS` in `GameIds.js`, bundled into the
+Worker; `npm run check` fails when it and `GAME_CATALOG` differ, so a new game
+goes in both), and the "plays" and "reports" logs keep what they have once full
+(5,000 keys): an entry marked `keep` that would be a new key is dropped, never
+an old one pushed out (the audit of 28 Sep 2026: any id was taken, and a full
+log evicted its lowest counts, reading and sorting all 5,000 rows each time).
 Opening the app still touches no server. `GET /plays` (the admin key, as
 `/stop-words`) and `cd tools && ASHRY_ADMIN_KEY=… npm run plays [-- --month=2026-09]`
 print every game by how often it was started, split phone / room / TV. What
@@ -4943,7 +4949,9 @@ revealed answer - the trivia board's card, the emoji riddle and the proverb on
 one phone - a quiet button (`reportBtnHtml(game, text)` in `JS_Catalog.html`)
 sends the item to `POST /report` (the game, the content language and up to 160
 characters of the item; no name, no address), kept by a third `WordLog`
-instance, "reports" (`long: true` lifts the 40-letter cap for these). `GET
+instance, "reports" (`long: true` lifts the 40-letter cap for these; the game
+must be in `APP_REPORT_IDS`, the catalog's ids and `triviaboard`, and a
+`reportBtnHtml('<id>'` the check can't find there fails `npm run check`). `GET
 /reports` and `npm run reports` list them by game, most-reported first; they
 are fixed in the bank by hand, then `npm run check`. A new content game puts
 the button under its revealed answer too.
@@ -4968,9 +4976,17 @@ a duel). Players are never shown the bar. The server keeps `room.cheer` (the
 last one, `seq` rising; four a phone in three seconds) and `room.predict`
 (`{ game, until, picks }`, opened when a game is dealt, public), both room-level
 actions before a game's own (`cheer`, `predict`), projected by `view.js`.
-`settlePredictions` runs at `backToHub` beside `bankNightPoints`: the board's top
-score (ties all count) against the picks, said in the chat as a `predicted`
-event («توقعوا الكسبان صح: …»). A cheer with motion off shows still for 1.5 s.
+`settlePredictions` runs at `backToHub` beside `bankNightPoints`: the first
+row's score (a board is best-first, and القنبلة, الشايب, ميني جولف and سكرو win
+low; ties all count, everyone level is nobody) against the picks, said in the
+chat as a `predicted` event («توقعوا الكسبان صح: …»). **Play again and a new
+tournament** after a game that was over settle the guesses on the board that
+game ended on and open a fresh window (`applyRoomAction`, after the game's
+branch), so old picks are never scored against a later game. The page repaints
+the bar when the window closes (`audienceScheduleClose`), not at the next move.
+A cheer the rules drop (four a phone in three seconds, or no game on) changes
+nothing, so `room.js` saves and sends nothing for it - only the phone that
+tapped gets its view back. A cheer with motion off shows still for 1.5 s.
 
 **«ليالينا»** (the improvement plan, Phase 6, Plato's groups without accounts).
 Every phone in a room keeps that evening's leaderboard of the night
@@ -5017,7 +5033,10 @@ on the card with `setTriviaPicker`) and `secs` (the stage's whole length, for
 the bar). `paintTriviaActions` draws the host's buttons for the stage;
 `judgeTriviaCell(right)` is ✅ / ❌; `enterTriviaSteal` (❌, or the first
 clock in `triviaTimeUp`) restarts the clock at half the card's time with a new
-`endsAt`, and the band slides in once (`motionFirst`); `missTriviaSteal` (❌,
+`endsAt`, and the band slides in once (`motionFirst`); a verdict in the steal's
+first 600 ms (`TB_STEAL_GUARD_MS` from `open.stageAt`) is dropped as the second
+tap of a double tap on ❌, which used to run first miss, steal and steal missed
+in one go; `missTriviaSteal` (❌,
 or the steal's clock) sets `open.missed` and reveals the answer, and
 `paintTriviaAnswer` then offers only «التالي» (`awardTriviaCell(-1)`).
 `awardTriviaCell` passes the turn and keeps the turn before in `last`, so
@@ -7913,8 +7932,10 @@ list on the phone and the TV; a tap only says why (`gameOffToast`); it leaves
 `setView` sends any screen of it home (`gameOffForView`: its setup screen, or a
 screen whose `up` is that setup) - so a reload into it, a link or an old
 shortcut can't open it. On the server `chooseGame`, `start` and `playAgain`
-throw for it (a phone still on an older copy). A room already playing it when
-it is switched off plays that round to its end. Tests: `rules.mjs` ("Games
+throw for it (a phone still on an older copy), and so do `nextRound` and
+`tourNew` once its game is over (a duel's next game in winner stays, a new
+tournament). A room already playing it when it is switched off plays that game
+to its end, rounds and moves included. Tests: `rules.mjs` ("Games
 switched off").
 
 ### The catalog and the home screen
@@ -8248,6 +8269,16 @@ bowling's rumble) played on into a context iOS had left stuck, and when a tap
 made a new one it heard nothing for the rest of the round. Read `fxCtx()` on
 every tick, and when it has changed, rebuild the nodes (or reset the timeline
 to the new `currentTime`) on the new one.
+
+**A board is best-first, and some games win low: read row order, never the
+biggest score.** Every game's `shared.board` is sorted with the winner first,
+and القنبلة (strikes), الشايب (losses), ميني جولف (strokes) and سكرو (points)
+sort ascending. `settlePredictions` took `Math.max` of the scores, so «مين
+هيكسب؟» told the room that whoever picked the loser had called it (the audit of
+28 Sep 2026). The winner is `board[0]` and whoever shares its score, as
+`bankNightPoints`, `renderPodium`'s callers and `shareRoomResult` already read
+it. A tally (votes, wins, the night's points) is higher-is-better and may use
+`Math.max`; a game's board may not.
 
 **A plug-in's board field is the engine's once it is named the same.** The
 solve engine stamps a done board with `b.at = Date.now()` (its seconds), and

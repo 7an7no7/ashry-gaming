@@ -3528,6 +3528,20 @@ the word search), `countUp` for streaks and scores.
   375×812, 1280×720 and 667×375, Arabic and English, light and dark, with
   reduced motion, and the new-version toast as it was; no console errors.
   Found on the way: a dark-mode error or success toast was dark ink on grey.
+- **28 Sep 2026, 3D games rest when nothing happens for the phone** (battery):
+  ميني جولف's ambient drawing (the flag, the water, the pads, a windmill) and
+  حرب السفن's sea drop to about 5 frames a second on a phone that waits for
+  others, watches, or sits on the card between holes, after 10 s untouched,
+  sleeping on a timer in between; a touch, its own turn, a roll, a shell or
+  a new hole brings the full rate back at once, and the TV never rests
+  (*ميني جولف*, *حرب السفن*). بولينج (draws only while something moves) and
+  the chess 3D board (only on a change) were checked: 0 renders a second
+  idle; عربيات التصادم's TV is left alone and its phones draw no 3D. Measured
+  in headless Chrome (render calls a second, before → after): golf's waiting
+  phone 28.8 → 4.8, the card between holes 28.8 → 4.8 (144 → 4.8 on a
+  windmill hole), battleship's waiting phone 72 → 4.8; a touch, a roll, the
+  TV and the phone whose move it is unchanged. `npm run check` and
+  `test:rules` pass; no console errors.
 
 ## Building and Running
 
@@ -7125,7 +7139,18 @@ section (27):
     context) when no screen shows a sea (`onLeaveScreen`, and
     `onRoomClocksReset` when the room leaves the game); the loop skips a
     frame while the root is out of the page or the tab is hidden, and draws
-    every other frame when nothing is moving.
+    every other frame when nothing is moving (a burning ship's particles
+    count as nothing moving since 28 Sep 2026: they used to keep every frame
+    going for the rest of the game). **A phone at rest draws 5 frames a
+    second** (`bsResting`, `BS_REST_GAP`), sleeping on a timer in between:
+    no touch for 10 s while it has nothing to do - the models say `mine`
+    for placing and for this phone's shot, so the other player, a watcher,
+    or the phone after the game. A touch anywhere (a document listener), a
+    new state, a shell, a drag or this phone's move wakes it at once
+    (`wake`, wrapped round every call that can start motion). The TV
+    (`both`) never rests. Measured on 28 Sep 2026: the waiting phone 72 →
+    4.8 renders a second idle (rAF 144 → 9.5), the TV and the phone to move
+    unchanged.
   - **A model** (`bsPhoneModel`, `bsRoomModel`) says what to show: two seas
     (side 0 is yours - or the first seat's for anyone watching and the TV -
     side 1 the other), their grids and sunk ships, the fleets that may be
@@ -7421,7 +7446,24 @@ The owner's rules are in *The owner's specs*.
     and the loop lets go of a canvas that has been off the page 1.5 s). It
     draws at the screen's rate while something moves (a roll, a pull, a
     windmill), 30 frames a second when only the flag and the water move, and
-    not at all while the page is hidden. Textures are drawn on canvases once
+    not at all while the page is hidden. **A phone at rest draws 5 frames a
+    second** (the owner's battery, 28 Sep 2026; `mg3Resting`,
+    `MG_REST_GAP`): the card between holes (and the end), or no touch for
+    10 s (`MG_REST_AFTER_MS`) while it isn't this phone's putt - its ball is
+    in, it's another player's turn, it only watches. The loop then sleeps on
+    a timer (`MG3.sleep`) instead of waking every frame, and `mg3Kick` wakes
+    it at once: a touch, key or wheel anywhere on the page (`mg3Poke`, a
+    document listener), this phone's turn coming (`MG3.mine` turning true,
+    noticed on every room state through `mgRoomCourse`), a roll starting
+    (`mg3Play` → `mg3Start`), a pull, a splash, a new hole (`mg3SetHole`).
+    A roll is always at the screen's rate; a windmill to time a putt against
+    too, while it is this phone's putt. **The TV never rests** (plugged in,
+    and the show). `MG3.input.play()` says whether the hole is in play;
+    `fpsCap` still caps everything for the tests. Measured on 28 Sep 2026
+    (headless Chrome at 144 Hz, render calls a second): the waiting phone in
+    a room 28.8 → 4.8 idle (rAF callbacks 144 → 12), the card between holes
+    28.8 → 4.8 (a windmill hole 144 → 4.8), a touch or a roll back to 28.5 /
+    144 at once, the TV and your own putt unchanged. Textures are drawn on canvases once
     per engine (mown grass, rough, sand, rails, stone, sandstone, planks,
     clay, bark, ripple normals, the ball's dimples). A hole's meshes are built
     by `mg3SetHole` and thrown away with it (`mgKeep`); everything repeated
@@ -7473,7 +7515,8 @@ The owner's rules are in *The owner's specs*.
     `mgRampMesh`, `mgBumperMesh`, `mgPortalMesh`, `mgGateMesh`; ice and mud
     as flat glossy polygons with a rim): a pad's amber arrows and a belt's
     ribs run on their own texture (`mgOwnTex`) and a portal's swirls turn -
-    ambient movers, so an idle hole still draws at 30 frames a second; a
+    ambient movers, so an idle hole still draws at 30 frames a second (5 at
+    rest, above); a
     bumper's cap flashes and the post swells when `bumped[k]` changes, a
     gate's flap swings open the way through and falls back after `flaps[k]`.
     A flying ball is drawn at the rules' height (`z`); `mg3ShowBody` plays
@@ -8692,6 +8735,14 @@ green, were covered by it. The plinth's top is 3 cm under the green and it
 has holes where the cup and the bowls are. Water lies *over* the green
 (with a polygon offset): a hole in the green shape for a pond that touches
 the rails' edge doesn't triangulate.
+
+**three.js's `render` is not on the prototype.** `WebGLRenderer` sets its
+methods on each instance in its constructor, so counting frames by patching
+`THREE.WebGLRenderer.prototype.render` counts nothing. Wrap the constructor
+on `window.THREE` before a game builds its renderer and patch the instance.
+And a frame-rate check under SwiftShader is bound by the CPU (three pages
+rendering share it: 6 frames a second each), so it can't tell 30 from 5;
+`--use-angle=d3d11` on this PC draws at the headless 144 Hz.
 
 **Headless Chrome needs a software GL for a 3D check, and it is slow**:
 `--use-angle=swiftshader --enable-unsafe-swiftshader`. At full frame rate

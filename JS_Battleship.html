@@ -1253,18 +1253,37 @@ function bsMake3D(THREE, root) {
   }
 
   // --- the loop ---
-  let raf = 0, last = performance.now(), frameNo = 0, running = true;
+  let raf = 0, last = performance.now(), frameNo = 0, parity = 0, running = true, sleep = 0, lastDraw = 0;
   const shipTmp = new THREE.Group();
+  /** Out of a resting sleep at once (a touch, a new state, a shot). */
+  function wake() {
+    if (!sleep) return;
+    clearTimeout(sleep);
+    sleep = 0;
+    if (!raf) raf = requestAnimationFrame(tick);
+  }
   function tick(now) {
     raf = requestAnimationFrame(tick);
     if (!running || !root.isConnected) return;
-    const dt = Math.min(0.05, (now - last) / 1000);
+    // Quiet: nothing flying and no camera move - half the frames are enough for the water and the fires
+    // (a burning ship's particles are the quiet kind: they used to keep every frame going for the rest of the game).
+    const active = anims.length || camT < 1 || dragInfo;
+    // Resting (a phone waiting on the other player, or watching, untouched for a while): about 5 frames a
+    // second, sleeping on a timer in between. Never the TV, never on this phone's own move.
+    if (!active && bsResting(model, now)) {
+      const wait = BS_REST_GAP - (now - lastDraw);
+      if (wait > 0) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+        sleep = setTimeout(() => { sleep = 0; if (!raf) raf = requestAnimationFrame(tick); }, wait);
+        return;
+      }
+    } else if (!active && ++parity % 2) return;
+    // The time since the last frame drawn (two frames when quiet, a fifth of a second resting).
+    const step = Math.min(active ? 0.05 : 0.25, (now - last) / 1000);
     last = now;
+    lastDraw = now;
     frameNo++;
-    // Quiet: nothing flying and no camera move - half the frames are enough for the water and the fires.
-    const active = anims.length || camT < 1 || dragInfo || glow.live > 0;
-    if (!active && frameNo % 2) return;
-    const step = active ? dt : dt * 2;
     const tt = now / 1000;
     n1.offset.set(tt * 0.012, tt * 0.008);
     n2.offset.set(-tt * 0.009, tt * 0.013);
@@ -1376,6 +1395,8 @@ function bsMake3D(THREE, root) {
 
   function dispose() {
     cancelAnimationFrame(raf);
+    if (sleep) clearTimeout(sleep);
+    sleep = 0;
     ro.disconnect();
     const seen = new Set();
     scene.traverse(o => {
@@ -1398,10 +1419,13 @@ function bsMake3D(THREE, root) {
     canvas.remove();
   }
 
+  // Everything that can start motion wakes a resting sea first.
+  const woken = (fn) => function () { wake(); return fn.apply(null, arguments); };
   return {
     kind: '3d',
-    setModel: setModel, pick: pick, setAim: setAim, launch: launch, setDrag: setDrag, endDrag: endDrag, settleShip: settleShip, wobble: wobble,
-    resize: resize, pause: pause, dispose: dispose,
+    setModel: woken(setModel), pick: pick, setAim: woken(setAim), launch: woken(launch), setDrag: woken(setDrag), endDrag: woken(endDrag),
+    settleShip: woken(settleShip), wobble: woken(wobble),
+    resize: woken(resize), pause: pause, dispose: dispose, wake: wake,
     busyUntil: () => busyUntil,
     /** Where a square's middle is on the page (the tests tap there). */
     screenOf: (side, cell) => {
@@ -1411,6 +1435,25 @@ function bsMake3D(THREE, root) {
     },
   };
 }
+
+/* Resting (battery): a phone waiting on the other player's shot, or watching, draws the sea at about
+   5 frames a second once it has been left untouched for BS_REST_AFTER_MS. Its own move (placing,
+   firing), a touch anywhere, a new state or a shell in the air bring it straight back; the TV (the
+   model's `both`) never rests. The models say `mine` when this phone has something to do. */
+const BS_REST_AFTER_MS = 10000;
+const BS_REST_GAP = 200;
+let bsLastInput = performance.now(), bsWasMine = false;
+function bsResting(model, now) {
+  if (!model || model.both) return false;
+  const mine = !!model.mine;
+  if (mine && !bsWasMine) bsLastInput = now;   // this phone's move has just come: full rate
+  bsWasMine = mine;
+  return !mine && now - bsLastInput > BS_REST_AFTER_MS;
+}
+['pointerdown', 'keydown', 'wheel'].forEach(ev => document.addEventListener(ev, () => {
+  bsLastInput = performance.now();
+  if (bsView.r && bsView.r.wake) bsView.r.wake();
+}, { capture: true, passive: true }));
 
 // Sounds from the sea: the view says whether this screen is the room's voice.
 let bsLoud = true;
@@ -1998,6 +2041,7 @@ function bsPhoneModel(s, o, flying) {
     ],
     focus: focus,
     both: false,
+    mine: placing || (play && s.turn === 0),
     shot: last ? { side: last.seat === 0 ? 1 : 0, cell: last.cell, res: last.res, ship: last.ship } : null,
     shotKey: last ? s.gameId + '|' + s.shots : '',
     aim: myFire && s.aim >= 0 ? { side: 1, cell: s.aim } : null,
@@ -2302,6 +2346,7 @@ function bsRoomModel(state, tv) {
     })),
     focus: focus,
     both: !!tv,
+    mine: !!draft || myTurn,
     shot: s.last ? { side: sideOf(1 - s.last.seat), cell: s.last.cell, res: s.last.res, ship: s.last.ship } : null,
     shotKey: s.last ? [state.code, s.round, s.shots].join('|') : '',
     aim: myTurn && focus === 1 && aim >= 0 ? { side: 1, cell: aim } : null,

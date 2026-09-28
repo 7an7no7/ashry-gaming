@@ -133,7 +133,8 @@
   knocking each other (*ميني جولف*).
 - **Solo, with a puzzle of the day** (*Solo games*): #️⃣ Sudoku, 🔷 2048,
   🚩 Minesweeper, 👑 Queens, ☀️ Tango, 🖼️ Nonogram; 🧵 خيوط, 🔡 كلمات من
-  حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 🌍 خمّن الدولة.
+  حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 🌍 خمّن الدولة; and a
+  daily for 🟩 خمن الكلمة and تشابه too (not 2048).
 - **Utility Tools:**
   - 👆 Who starts? (مين يبدأ؟), the finger chooser: one starts, two teams, or an order.
   - 🏆 Tournament Organizer, 👥 Team Generator, 🎡 Random Picker.
@@ -148,6 +149,24 @@ or AI: what the owner has decided, what is waiting, and what each batch of
 work changed. Add to it when a decision is made or a batch ships.
 
 ### The owner's specs, as built
+
+- **A daily for خمن الكلمة and تشابه** - the owner's word of 28 Sep 2026: "the
+  same puzzle for every phone on a date, played once, a result shared on
+  WhatsApp as a grid of coloured squares (Wordle's way)" (*Solo games*).
+  Decided here (open to change, each one place in the code):
+  - **خمن الكلمة**: 5 letters in the games' language (`contentLang`), from the
+    very list the free game deals from (`WORDLE_DB[lang][5]`), picked with
+    `soloRng(soloDaySeed('wordle'))`, 6 tries. The share: the tries (x/6, X
+    when lost), the date and a row of 🟩🟨⬛ a guess, never the letters.
+  - **تشابه**: a medium puzzle (4 groups) from `CONNECTIONS_DB`, seeded the
+    same way, and its tiles dealt in a seeded order too, so every phone sees
+    the same grid. The share: a row a try in the groups' colours (🟨🟩🟦🟪,
+    easiest first), a wrong row ending in ❌, and the mistakes (x/4).
+  - Both are in تحدي اليوم («✅ 3/6»; «✅ 4/4 · 🔴» a red dot a mistake), have
+    the daily line on their setup screens, are played once (resumed where left,
+    set aside when a free game is dealt over them, never dealt again once
+    done), come back after a reload, count for the streak and are in the
+    archive.
 
 - **الكراسي الموسيقية (Musical chairs)** - the owner's idea of 27 Sep 2026
   ("each phone in a room, fastest to click sit when the music is off"),
@@ -3487,6 +3506,16 @@ the word search), `countUp` for streaks and scores.
   trivia letters, the chairs' TV initials, the bumper place and delay at 4.5:1;
   طرنيب's label wrapping; and the robots' minesweeper race move made safe (it
   opened the first shut cell, sometimes a mine).
+- **28 Sep 2026, a daily for خمن الكلمة and تشابه** (*The owner's specs*,
+  *Solo games*): the same 5-letter word and the same medium puzzle on every
+  phone on a date, played once, shared as coloured squares; both in تحدي
+  اليوم (fourteen dailies now), the streak and the archive; Wordle's end is the
+  solo result sheet now. Looked at in headless Chrome at 375×812 Arabic light
+  (both won), 1280×720 English dark (both lost) and 667×375: a reload
+  mid-daily, a free game dealt over it and the daily resumed, a finished one
+  not dealt again, the hub's lines, the share text, an archive day (nothing
+  marked), a second phone dealt the same word and tiles; no console errors.
+  `npm run check` and `test:rules` pass; nothing the rooms server runs changed.
 
 ## Building and Running
 
@@ -5677,10 +5706,34 @@ sixty with `soloRng(soloDaySeed('minigolf'))`, played as a one-hole solo game
 (`s.daily`); its result is `soloMarkDaily('minigolf', { strokes, par })`, never
 a best, and the hub's line is «🟢 ⛳ 3 · 🎯 3».
 
+**خمن الكلمة's and تشابه's dailies** (28 Sep 2026, the owner's word; *The
+owner's specs*). Both games load before `JS_Solo.html`, so they push their
+`soloRegister` onto `window.SOLO_LATE`, which `JS_Solo.html` runs right after
+defining it; their play views keep their own branches in `restoreView`.
+- **Wordle** (`startWordleGame(5, true)`): `appState.wordle` gained `phase`
+  ('play' | 'done', what the dailies read beside `status`), `daily` and
+  `archive`; the word is `soloPick(WORDLE_DB[lang][5], soloRng(soloDaySeed('wordle')))`.
+  Every Wordle game now ends on `soloResult` (the tries count up, the word),
+  not the old alert; a daily's is `soloMarkDaily('wordle', { won, tries, max })`
+  and `wordleShareText` (a row of 🟩🟨⬛ a guess, an Arabic row led by a
+  right-to-left mark so its first square is on the right, as on the board).
+  `#wordle-daily-badge` says «📅 تحدي اليوم» or the archive's day over the board.
+- **Connections** (`startConnections(true)`): the `connections` object gained
+  `phase`, `daily`, `archive` and `guesses` (every four tried, as its tiles'
+  groups; a repeat of a wrong four costs nothing and isn't kept), all saved
+  with the board. The daily is a medium puzzle and its tiles' order seeded too.
+  A daily (or an archive day) ends on `soloResult` (the groups found count up,
+  the mistakes); a free puzzle still ends as it did. The share
+  (`connectShareText`) is a row a try in `CONNECT_SQUARES` (🟨🟩🟦🟪, the
+  groups' colours in order), a wrong row with ❌.
+- A finished daily started again goes to its setup, never a new board
+  (`soloDailyResult`, skipped for an archive day).
+
 **تحدي اليوم** (`JS_Daily.html`, the `setup-daily` screen, first card of the
 `brain` group and a strip on the home above the recent games): every game's
-puzzle of the day in one list (`DAILY_GAMES`: the order, how to start its
-daily, and how its `soloMarkDaily` result reads in one line), the streak
+puzzle of the day in one list (`DAILY_GAMES`, fourteen since 28 Sep 2026: the
+order, how to start its daily, and how its `soloMarkDaily` result reads in one
+line), the streak
 (`soloStreak`, days in a row with one finished), how many are done and when
 they renew, and one message with every result (`shareDaily`). A daily started
 from the hub sets `soloHubReturn`, so `soloResult` turns its "again" and

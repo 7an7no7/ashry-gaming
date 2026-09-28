@@ -13,14 +13,27 @@ function setupWordle() {
     setView('setup-wordle');
 }
 
-function startWordleGame(length) {
+/**
+ * A new board of `length` letters, or today's puzzle (`daily`): 5 letters in
+ * the games' language, the same word on every phone on the date (dealt from
+ * the same list with soloRng(soloDaySeed('wordle'))), 6 tries, played once.
+ * Started again while it's under way, it goes back to that board.
+ */
+function startWordleGame(length, daily) {
+    if (daily && soloDailyResume('wordle')) return;
+    // Played once: today's, once finished, is never dealt again (a past day from the archive may be).
+    if (daily && !soloArchiveDay && soloDailyResult('wordle')) { setupWordle(); return; }
+    if (daily) length = WORDLE_DAILY_LEN;
     const lang = contentLang();
     const db = WORDLE_DB[lang][length];
-    
+
     if(!db || db.length === 0) {
         showToast("No words found for this length!", "Error");
         return;
     }
+    // Today's daily in progress is kept aside, never lost, when another board is dealt.
+    soloDailySetAside('wordle');
+    soloNewGame('wordle');
 
     // The keypad types the word, so it follows the language the word was
     // dealt in, not whatever the games' language is changed to later.
@@ -28,8 +41,10 @@ function startWordleGame(length) {
     appState.wordle.wordLength = length;
     // Rule: Increase tries to 7 if length > 6
     appState.wordle.maxTries = length > 6 ? 7 : 6;
-    
-    const picked = freshPick('wordle:' + lang + ':' + length, db, 1)[0];
+
+    const picked = daily
+        ? soloPick(db, soloRng(soloDaySeed('wordle')))
+        : freshPick('wordle:' + lang + ':' + length, db, 1)[0];
     // The Arabic keypad has a single alef, so a word spelled with أ, إ or آ
     // could never be typed and the game could not be won. It is played with
     // the plain letter, and the real spelling is shown at the end.
@@ -38,10 +53,43 @@ function startWordleGame(length) {
     appState.wordle.currentGuess = "";
     appState.wordle.guesses = [];
     appState.wordle.status = "playing";
+    // What the dailies read (JS_Solo.html): a board in play, and whose day it is.
+    appState.wordle.phase = 'play';
+    appState.wordle.daily = daily ? soloToday() : '';
+    delete appState.wordle.archive;
 
     renderWordleBoard();
     renderKeyboard();
+    saveToLocal();
     setView('play-wordle');
+}
+
+const WORDLE_DAILY_LEN = 5;
+
+/** Back to the board in play (a daily set aside and brought back). */
+function continueWordle() {
+    renderWordleBoard();
+    renderKeyboard();
+    setView('play-wordle');
+}
+
+/** The setup screen's daily line: play today's word, carry on with it, or that it's done. */
+function paintWordleSetup() {
+    const el = document.getElementById('wordle-daily');
+    if (el) el.innerHTML = soloDailyButtonHtml('wordle', 'startWordleGame(5, true)');
+}
+
+/** "📅 تحدي اليوم" (or the archive's day) over a daily's board. */
+function paintWordleBadge() {
+    const el = document.getElementById('wordle-daily-badge');
+    if (!el) return;
+    const s = appState.wordle;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const html = s.archive
+        ? `<span class="badge badge--warning">📅 ${escapeHTML(t.daily_archive_badge || '')} ${escapeHTML(s.archive)}</span>`
+        : (s.daily ? `<span class="badge">📅 ${escapeHTML(t.daily_title || '')}</span>` : '');
+    el.innerHTML = html;
+    el.classList.toggle('hidden', !html);
 }
 
 function renderWordleBoard() {
@@ -89,6 +137,7 @@ function renderWordleBoard() {
     container.innerHTML = rows.map(cells =>
         `<div class="wordle-row" style="grid-template-columns: repeat(${len}, 1fr)">${cells}</div>`
     ).join('');
+    paintWordleBadge();
 }
 
 function renderKeyboard() {
@@ -171,14 +220,13 @@ function submitWordleGuess() {
     // Check Win/Loss
     if(appState.wordle.currentGuess === appState.wordle.targetWord) {
         appState.wordle.status = "won";
+        appState.wordle.phase = 'done';
         appState.wordle.currentGuess = "";   // don't leave a half-row in state
-        playSound('success');
-        confetti({ particleCount: 200, spread: 100 });
         wordleResultSoon(true);
     } else if(appState.wordle.guesses.length >= appState.wordle.maxTries) {
         appState.wordle.status = "lost";
+        appState.wordle.phase = 'done';
         appState.wordle.currentGuess = "";
-        playSound('alarm');
         wordleResultSoon(false);
     } else {
         playSound('click');
@@ -236,32 +284,55 @@ function getKeyboardState() {
 }
 
 /**
- * The result a second after the last row: only for the game that ended, and
- * only on its board. A new game dealt in that second (back, then a length)
- * would otherwise have its own word shown.
+ * The result a second after the last row, once it has turned over: only for
+ * the game that ended, and only on its board (soloLater: a new game dealt in
+ * that second has its own word). A daily's result is kept at once, so a
+ * reload in that second can't lose it or play it again.
  */
 function wordleResultSoon(win) {
-    const word = appState.wordle.displayWord || appState.wordle.targetWord;
-    const dealt = appState.wordle.targetWord;
-    setTimeout(() => {
-        if (appState.currentView !== 'play-wordle' || appState.wordle.targetWord !== dealt) return;
-        showWordleResult(win, word);
-    }, 1000);
+    const s = appState.wordle;
+    const word = s.displayWord || s.targetWord;
+    const tries = s.guesses.length;
+    const max = s.maxTries;
+    const rows = s.guesses.map(g => checkGuess(g));
+    const t = TRANSLATIONS[appState.lang] || {};
+    let share = '';
+    if (s.daily) {
+        soloMarkDaily('wordle', { won: win, tries: tries, max: max }, s.daily);
+        share = wordleShareText(t, s.daily, win, tries, max, rows, s.lang);
+    }
+    soloLater('wordle', motionOff() ? 0 : 1000, () => soloResult({
+        icon: win ? '🟩' : '🟨',
+        title: win ? (t.wordle_won || '') : (t.wordle_lost || ''),
+        value: win ? tries : undefined,
+        valueText: win ? '' : `X/${max}`,
+        valueLabel: (t.wordle_tries_of || '').replace('{max}', max),
+        lines: [`${escapeHTML(t.wordle_word_was || '')} <b class="tx-accent">${escapeHTML(String(word || ''))}</b>`],
+        win: win, share: share,
+        again: () => startWordleGame(s.wordLength || 5, false), exit: setupWordle
+    }));
 }
 
-function showWordleResult(win, shown) {
-    const word = escapeHTML(String(shown || appState.wordle.displayWord || appState.wordle.targetWord || ''));
-    const title = win 
-        ? (appState.lang === 'ar' ? "🎉 مبروك!" : "🎉 You Won!") 
-        : (appState.lang === 'ar' ? "حظ أوفر!" : "Game Over!");
-    
-    const msg = appState.lang === 'ar' 
-        ? `الكلمة كانت: <br><b class="text-3xl tx-accent">${word}</b>` 
-        : `The word was: <br><b class="text-3xl tx-accent">${word}</b>`;
+/**
+ * A daily's result for WhatsApp, Wordle's way: the tries, then a row of
+ * 🟩🟨⬛ a guess - the colours only, never the letters. An Arabic row starts
+ * with a right-to-left mark, so its first square (the word's first letter)
+ * sits on the right, as it does on the board.
+ */
+function wordleShareText(t, day, win, tries, max, rows, lang) {
+    const sq = { correct: '🟩', present: '🟨', absent: '⬛' };
+    const lead = lang === 'ar' ? '\u200F' : '';
+    const grid = rows.map(r => lead + r.map(x => sq[x] || '⬛').join('')).join('\n');
+    return `${soloShareHeader(t, day)}\n🟩 ${t.setup_wordle || ''} ${win ? tries : 'X'}/${max}\n${grid}`;
+}
 
-    document.getElementById('alert-title').innerText = title;
-    document.getElementById('alert-msg').innerHTML = msg;
-    document.getElementById('alert-modal').classList.remove('hidden');
+/** A reload on the board: drawn as it was left. */
+function restoreWordle() {
+    const s = appState.wordle;
+    if (!s || !s.targetWord) return false;
+    renderWordleBoard();
+    renderKeyboard();
+    return true;
 }
 
 /**
@@ -291,6 +362,13 @@ if (typeof document !== 'undefined') {
     document.addEventListener('keydown', wordleKeyFromKeyboard);
 }
 if (typeof onLanguageChange === 'function') {
-    onLanguageChange(view => { if (view === 'play-wordle') renderKeyboard(); });
+    onLanguageChange(view => { if (view === 'play-wordle') { renderKeyboard(); paintWordleBadge(); } });
+}
+// JS_Solo.html loads after this file: it registers the game once it is there.
+if (typeof window !== 'undefined') {
+    (window.SOLO_LATE = window.SOLO_LATE || []).push(() => soloRegister('wordle', {
+        setup: 'setup-wordle', play: 'play-wordle', paintSetup: paintWordleSetup, restore: restoreWordle,
+        state: () => appState.wordle, resume: continueWordle, repaint: () => { renderWordleBoard(); renderKeyboard(); }
+    }));
 }
 </script>

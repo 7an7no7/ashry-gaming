@@ -21,6 +21,8 @@ const dailyHints = (r) => (r.hints ? ' 💡' + r.hints : '');
 const dailyIconText = (icon) => { const x = typeof iconText === 'function' ? iconText(icon) : icon; return x ? x + ' ' : ''; };
 
 const DAILY_GAMES = [
+  { id: 'wordle',    start: () => startWordleGame(5, true), line: (r) => r.won ? `✅ ${r.tries}/${r.max || 6}` : `❌ X/${r.max || 6}` },
+  { id: 'connections', start: () => startConnections(true), line: (r) => `${r.won ? '✅' : '❌'} ${r.groups}/${r.total || 4}${r.mistakes ? ' · ' + '🔴'.repeat(r.mistakes) : ''}` },
   { id: 'flags',     start: () => startFlags(true),     line: (r) => r.won ? `✅ ${r.guesses}/6` : '❌ X/6' },
   { id: 'streak',    start: () => startStreak(true),    line: (r) => `${r.score >= 7 ? '✅' : '☑️'} ${r.score}/10` },
   { id: 'pinpoint',  start: () => startPinpoint(true),  line: (r) => `${r.score >= 13 ? '✅' : '☑️'} ${r.score}/25` },

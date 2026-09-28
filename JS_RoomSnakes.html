@@ -294,9 +294,8 @@ function snkRoomIdle() {
 function snkRoomFeed(root, state, tv) {
   const k = snkRoomCtx(state, tv);
   const c = snkShowIn(root.querySelector('[data-snk-host]'));
-  const prevSeq = c.lastSeq;
-  k.prevSeq = prevSeq;
   k.onIdle = snkRoomIdle;
+  k.onStep = () => snkSyncIdle(root, snkRoomCtx(Room.state || state, tv));
   // Dealt while this screen watched the room: the map is built in front of it.
   k.fresh = snkRoomLocal.watched === state.code;
   snkFeed(snkShared(state), k);

@@ -47,6 +47,10 @@
   - 🎲 **Ludo (لودو):** the classic board, 2-4 players, against the phone
     (1-3 computer players, easy or hard) or in a room with the TV; every roll
     and every hop animated (*لودو*).
+  - 🐍 **Snakes & Ladders (السلم والتعبان):** 2-6 players, against the phone
+    (1-5 computer players) or in a room with the TV; a new fair map every
+    game, built in front of everyone; every snake and ladder with its own
+    moves, picked on the server (*السلم والتعبان*).
   - 🏦 **Lucky Bank (بنك الحظ):** Monopoly with Egypt's cities, 2-6
     players, against the phone or in a room with the TV; buildings are جراج ←
     استراحة ← سوق, the decks حظ and محاكمة, a 45-minute game by default
@@ -190,7 +194,8 @@ work changed. Add to it when a decision is made or a batch ships.
 
 - **السلم والتعبان (Snakes & Ladders) and جمجمة (Skull)** - picked by the
   owner from a list of ideas on 28 Sep 2026, every rule answered; to be built
-  together and released together. Not built yet.
+  together and released together. **السلم والتعبان built 28 Sep 2026**
+  (*السلم والتعبان*).
   - **السلم والتعبان**: **a room with the TV and against the phone** (you and
     computer players; not one phone passed round); **2-6 players**; **100 needs
     the exact number, too high bounces back** (98 + 5 → 100 → 97); **a 6 rolls
@@ -238,6 +243,37 @@ work changed. Add to it when a decision is made or a batch ships.
     TV see the same one, never the same twice in a row; each 1.5-3 s, the next
     roll waiting for it; played once (a reload doesn't replay it), still under
     motion off.
+  - **السلم والتعبان, decided while building** (open to change, each in one
+    place):
+    - **A piece starts off the board**, on a wooden mat under the first row,
+      and the first roll brings it in (a 4 lands on 4) - the classic way.
+    - **The map comes from a seed the server stores** (`g.map.seed`), so every
+      phone and the TV draw the very same snakes (their curves, colours and the
+      طربوش are seeded too), and a test can make the same map again. Fair means
+      a game takes 12 to 36 turns a player on average over 120 simulated games.
+    - **Seven snake moves, not six**: the six asked for and the sheet's
+      hypnotise; the ladder's five as asked. Each 1-3 seconds
+      (`SNAKES_MOVE_MS`), the server picking it and never the last one of its
+      kind. A near miss is a snake's head one square either side of where you
+      stop; a ladder missed, its foot one square either side.
+    - **The next roll waits for the table**: every roll carries how long it
+      takes to show (`snakesRollMs`) and the server's `readyAt`; a roll more
+      than 0.4 s before it is dropped, the clock counts from it, and the
+      computer players roll half a second to a second after it. The building
+      (about 5.6 s, 2.6 s more to take the old map apart) counts too: a tap
+      skips the building on that device, but the first roll still waits for
+      the table.
+    - **Who starts is drawn at random**, and the others follow in a random
+      order (no roll-off: nobody has a choice in it, and the building already
+      takes 5 seconds).
+    - **Six colours** (red, blue, yellow, green, pink, violet), picked in the
+      lobby like لودو's; with seven or more the host picks the six.
+    - **One kind of computer player**: one lobby button with no level
+      (`bots.one`), stored as `easy`.
+    - **Pieces home stand on the top of the frame** over 100, in the order they
+      got there, so nothing covers 100 or its cup.
+    - A win counts on the night's board only against somebody; a player who
+      leaves takes their piece off and the turn passes, one left ends it.
   - **جمجمة**: **rooms and the TV only**, your discs secret on your own phone,
     every pile face down on the TV; **3-8 players**; 4 discs each (3 flowers, 1
     skull); **two won bets wins, or the last one in**; **a skull hit takes one
@@ -3686,6 +3722,26 @@ the word search), `countUp` for streaks and scores.
   ticking clock ring; 199 screenshots, identical except canvases and running
   clocks.
 
+- **28 Sep 2026, السلم والتعبان** - Snakes & Ladders to the owner's rules
+  and look أ «كلاسيك بلمستنا» (*The owner's specs*, *السلم والتعبان*),
+  built beside جمجمة (another branch): `Snakes.js` (the map from a seed,
+  checked fair; the rules; each roll one event with its animation's variant
+  picked on the server), `RoomSnakes.js`, `JS_Snakes.html` (the sheet's board
+  ported: thin living snakes drawn each frame, wooden ladders, cartoon pieces,
+  the workers who build the map, seven snake moves and five ladder moves, the
+  near miss, the ladder missed, the bounce at 100, the six, the win dance; and
+  a game against the phone), `JS_RoomSnakes.html`, section 53 of `Style.html`,
+  a drawn icon (`art:snakes`), and the lobby's one kind of computer player
+  (`bots.one`). Rules tests: the map (80 seeds), the rules and the room;
+  `test:rules` passes (the leak check clean); the robots' round
+  (`--only=snakes`, 16 checks) passes on a local server. Looked at in headless
+  Chrome: against the phone at 375×812 Arabic light, 667×375 English dark and
+  1280×720 English light (the building, rolls, a snake's gulp, a reload
+  mid-game, a game to its podium, Help); a room of three phones (375×812,
+  667×375, 1280×720), a computer player and a TV at 1920×1080 (the lobby, the
+  building, rolls, a reload mid-game, Help, the end); no console errors. A
+  deploy is needed for the rooms server.
+
 ## Building and Running
 
 ### Development Requirements
@@ -3743,8 +3799,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, and the game files bundled after
-  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`) or `rooms-worker/src/` change. Build `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `Snakes.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Battleship.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, and the game files bundled after
+  `RoomGames.js`: `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`) or `rooms-worker/src/` change. Build `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -3912,6 +3968,8 @@ is nowhere to hide the key card.
 | `RoomDomino.js` | `dominoAction` and its clock, its leave and its computer players: bundled after `RoomGames.js`, so a game this size keeps its rules in a file of its own. |
 | `Ludo.js` | لودو's board (the track, the home columns, the yards as cells), every rule as one plain game object, and the computer players: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `ludo`. |
 | `RoomLudo.js` | `ludoAction`: the lobby's colours and seats, the server's dice, the clock, leaving, the bots and the forced move. Bundled after `RoomGames.js`. |
+| `Snakes.js` | السلم والتعبان's board, the map made from a seed and checked fair (`snakesGenMap`), and the rules as one plain game object: each roll one event with the variant of its animation and how long it takes to show (`snakesRoll`, `readyAt`). Shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `snakes` / `SNAKES_`. |
+| `RoomSnakes.js` | `snakesAction`: the lobby's colours and seats, the server's dice, a roll waiting for `readyAt`, the clock, the host's "play for", leaving, the computer players. Bundled after `RoomLudo.js`. |
 | `BankAlhaz.js` | بنك الحظ's board, its two decks (Arabic and English), every rule as two objects - the table (`g`, a room's `shared`) and what nobody sees (`priv`, the decks) - and the computer players: shared by the page and the Worker, every name prefixed `bank`. |
 | `RoomBank.js` | `bankAction`: the lobby's pieces, seats and options, the server's dice, the turn clock, leaving, the bots and the forced moves; the decks live in `room._bank`, never projected. Bundled after `RoomGames.js`. |
 | `GuessWho.js` | خمّن مين's faces (plain features, drawn by the page), the list of questions with their truthful answers, a board every face of which the list can tell apart, and the computer's question: shared by the page and the Worker, every name prefixed `gw`. |
@@ -4064,7 +4122,7 @@ compared on join with the same fold as everywhere else (`sameRoomName`), so
 أحمد and احمد can't both sit in one room.
 
 **Computer players** (the owner, 21 Sep 2026: optional, easy and hard). In
-the games that register them - أونو, الدومينو, لودو, بنك الحظ, خمّن مين, باغ هاوس, شطرنج الأربعة and إستميشن - the host can seat a bot in
+the games that register them - أونو, الدومينو, لودو, السلم والتعبان (one kind, `bots.one`), بنك الحظ, خمّن مين, باغ هاوس, شطرنج الأربعة and إستميشن - the host can seat a bot in
 the lobby, to play alone or to make up a table of four for teams. A bot is an
 ordinary entry in `room.players` with `bot` set to its level (`'easy'` or
 `'hard'`): it holds a seat, is dealt like anyone, and its hand is in
@@ -6141,6 +6199,136 @@ The numbers, researched on 16 Sep 2026:
 - **باصرة**: 10 a basra, 1 an ace or jack, 2♣ 2, 10♦ 3, most cards 30 - a
   26-26 split carries the 30 to the next deck. Target 101/121/150, 121 by
   default (Egyptian tables); 2-4 players or two teams.
+
+### السلم والتعبان
+
+The owner's rules and look are in *The owner's specs* (السلم والتعبان and
+جمجمة). Game id `snakes` everywhere (`setup-snakes`, `play-snakes`,
+`room-snakes`, `ROOM_GAMES.snakes`, `TV_GAMES.snakes`, the catalog, the help);
+the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
+`SNK_`. Built the way لودو is:
+
+- **`Snakes.js`** (shared, no DOM; inlined into the page through
+  `SHARED_LISTS`, bundled into the Worker before `RoomGames.js`). The board is
+  squares 1-100 boustrophedon from the bottom left, 60 units a square
+  (`snakesCellXY`, `snakesRowOf`). **The map is made from a seed**
+  (`snakesGenMap(seed)`, the sheet's generator on `snakesRng`, a seeded
+  mulberry32): 5 snakes and 5 ladders on squares nothing else uses (never 1 or
+  100), a head at least a row above its tail and no two snakes crossing, a
+  ladder at least two rows long and never more than two columns aside, a
+  ladder in the first three rows, and **fair**: 120 seeded games simulated
+  (`snakesFairness`), kept only when a game takes 12 to 36 turns on average
+  and never more than 200. The same seed gives the same map everywhere, so the
+  server stores only `g.map` (with its `seed`) and every screen draws the same
+  snakes: their curves, colours and which one wears the طربوش come from the
+  seed too (`snkMountMap`). A game is one plain object, a room's `shared`:
+  `seats` (the order they play), `colors` (one of `SNAKES_COLORS`: r b y g p
+  v), `pos` (0 off the board, 1..100), `turn { pid, sixes }`, `places`,
+  `phase`, `turnSeq`, `events`, `eventSeq`, `map`, `lastS` / `lastL` (the last
+  variant of each kind) and `readyAt`. `snakesRoll(g, pid, v, rnd, now)` is the
+  one rule: the walk, the bounce off 100 (`over`), the snake or ladder at the
+  end with **the variant of its animation picked here, never the last one of
+  its kind** (`SNAKES_SNAKE_MOVES`: gulp, slide, chase, sneeze, flick, squeeze,
+  hypno; `SNAKES_LADDER_MOVES`: climb, sprint, slip, lift, boost), a near miss
+  (`near: 's'`, a snake's head one square either side) or a ladder just missed
+  (`'l'`), a six rolling again, a finish, the last one left taking the last
+  place (`snakesCheckOver`). **Every roll is one event** carrying all of it,
+  with `ms`, how long every screen takes to show it (`snakesRollMs`: the die,
+  a hop a square, the move's own time from `SNAKES_MOVE_MS`, the near miss,
+  the six's cheer, the win dance), and `readyAt = now + ms`. A new game starts
+  with a `build` event (a variant of three, `teardown` on play again) and
+  `readyAt` after the building (`SNAKES_BUILD_MS`, `SNAKES_TEARDOWN_MS`).
+- **`RoomSnakes.js`** (bundled after `RoomLudo.js`): the lobby (`color` - a
+  seated player takes or lets go of one of six, the host may pick for a
+  computer player; `seat` - with seven or more the host picks the six),
+  `start` / `playAgain` (the order drawn at random; play again keeps the table
+  and takes the old map apart), `roll { seq }`, the host's `skipTurn { seq }`
+  (a move-on action), the clock (`snakesDeadline` / `snakesTimeout`: 0, 15 or
+  30 seconds, counted from `readyAt`, the server rolls), leaving
+  (`snakesPlayerLeft`: the piece goes, the turn passes, one left ends it; a
+  player already home keeps their place), `ROOM_BOT_GAMES.snakes` (it rolls
+  half a second to a second after `readyAt`). **A roll that comes more than
+  0.4 s before `readyAt` is dropped** (`SNAKES_EARLY_MS`: the table is still
+  watching the last one), and so is a stale `seq`. Nothing is hidden; the
+  whole game is `shared`. No forced moves: the roll is the game's one tap.
+- **`JS_Snakes.html`**: the board, ported from the design sheet
+  (`notes/snakes-looks-sheet.html`, look أ only), and a game against the phone.
+  - **One board per page** (`snkView`): an `<svg>` (`snkBoardSvg`, a viewBox
+    of 660 × 700: the board and, under it, the wooden mat the pieces wait on
+    before their first roll) in a root element moved into whichever screen
+    shows it (`snkShowIn`, into the frame's `[data-snk-host]`), so a room frame
+    rebuilt with innerHTML never cuts an animation; thrown away (`snkDrop`)
+    when no screen shows it. Layers, bottom up: the squares, the holes, the
+    ladders, the snakes' bodies, **the numbers** (with a halo of their square's
+    colour), the heads (at the top corner of their square), the cup, the
+    workers, the pieces, the die, the bubbles and confetti.
+  - **The snakes are drawn each frame** as outlined polygons along their
+    sampled spline (`snkRenderSnake`: the body with its width, the spots or
+    bands, the shine, the head turned and its pupils toward a piece within
+    about three squares, a yawn, a doze with Zzz now and then when nobody is
+    near). **One loop** (`snkFrame`): every frame while something moves, about
+    12 a second at rest, nothing while the page is hidden or the board is off
+    the page, and **with the motion setting off, drawn once and still**
+    (`snkStillNow`, read once a frame). The tongues, blinks, butterflies, the
+    cup and the rungs' shine are CSS loops (section 53), still under reduced
+    motion.
+  - **Playing the events** (`snkFeed(g, ctx)`): the board keeps the game's key
+    and the last event it played; a new game seen for the first time is built
+    in front of it only when `fresh` (it was dealt while this screen watched
+    the room: `snkRoomLocal.watched`), otherwise the board is simply set where
+    the game is (`snkSettleTo`: a reload, a late join). New `build`, `roll` and
+    `left` events are queued and played one after another (`snkRunQueue`,
+    `snkPlayRoll`: `snkRollDie`, `snkHopTo`, `snkBounceBack`, the variant from
+    `SNK_SNAKE_ANIM` / `SNK_LADDER_ANIM`, `snkNearMiss`, `snkMissedLadder`,
+    `snkWinDance`, the six's bubble); more than six at once, a hidden page or
+    the motion off, and the board is set instead. Every tween is on the
+    board's `gen` (a new game or a drop stops it) and finishes at once when
+    `fast` - a tap on the board while it is being built sets it, so **a tap
+    skips the building on that device**. While a roll is played the bar says
+    whose roll it is, the ring is on their chip, the log tells only what has
+    been shown (`c.shownSeq`) and your Roll button is out of sight
+    (`snkSyncIdle`); when the queue drains `onIdle` enables the button.
+  - **Where a piece stands** (`snkSpot`): in the lower half of its square, set
+    apart from others there (two side by side, three to six in two rows,
+    smaller); off the board on the mat in seat order; **at 100 on the top of
+    the frame**, in the order they got there, so nothing covers 100 or its cup.
+  - Against the phone (`appState.snakes`: 1-5 computer players, your colour),
+    restored through `soloRegister` (a reload sets the board where the game
+    is and the phone plays on); a computer player rolls 0.65-1.1 s after the
+    board goes quiet (`snkLocalNext`).
+  - The frame (`snkFrameHtml`): the board, the strip of players (colour,
+    name, square), the bar (whose turn, 🎲 Roll), the last three moves, and at
+    the end the podium of the first three (the rest under it). Sounds `snk*`
+    added to `FX` (steps, a hiss, a gulp, a slide whistle, a sneeze, a boing,
+    the climb, the lift, the hammer, a six, the win), heard on the device that
+    plays the table's sounds (the TV, or every phone without one) or for your
+    own move.
+- **`JS_RoomSnakes.html`**: the lobby's six colours (`snkColorPickerHtml`),
+  the seats with seven or more, the turn clock (`recallOptions('snakesRoom')`);
+  `ROOM_GAMES.snakes` (`bots: { max: 6, one: true }`, `lateJoin`) and
+  `TV_GAMES.snakes`; the roll button enabled once this screen has shown the
+  last roll **and** the server's `readyAt` has passed on this phone's clock
+  (the smallest `receivedAt − serverNow` seen, `snkReadyLocal`); the host's
+  "play for" after 40 s on one turn or at once for a phone that's away.
+- **One kind of computer player** (the owner: there is no skill in it):
+  `bots.one` on a `ROOM_GAMES` entry makes the lobby show one «+ 🤖 لاعب
+  كمبيوتر» button and no level on a bot's row (`roomBotControlsHtml`,
+  `roomBotRowHtml` in `JS_Room.html`); the bot is stored as `easy`.
+- **Layout** (section 53 of `Style.html`): upright, the players on top, the
+  board the width of the phone, the bar sticky under it; a phone on its side
+  and from 900 px, the board takes the height beside a column; the TV, the
+  board as tall as the stage beside the players, the bar and the log. The
+  board keeps look أ's own colours in both themes.
+- Tests: `rules.mjs` (80 maps: five of each, ends apart, heads above tails,
+  ladders two rows, no crossing, fairness re-simulated; the rules on a map of
+  our own: the first roll onto the board, a ladder, a snake, a six, a near
+  miss, a ladder missed, the bounce, the places, the variants never twice in a
+  row and every one coming up; the room: colours, the host's start, a roll
+  during the building dropped, a stale tap, the clock and the host's "play
+  for", a whole game with a computer player, the win on the night's board,
+  play again with a teardown, leaving, seven people), `leaks.mjs` (a game with
+  three computer players on the clock; nothing is hidden), `play-all.mjs`
+  (`--only=snakes`: two people, a computer player and a TV on a live server).
 
 ### بنك الحظ
 

@@ -1621,16 +1621,18 @@ const DRIVERS = {
   bumper() {
     // Three drivers and the screen: a round the TV reports, one the host ends early, one nobody reports.
     const T = table('bumper', 3);
-    must(T, T.host, 'start', { secs: 60 });
+    must(T, T.host, 'start', { mode: 'points', secs: 60 });
     clock += 64000;
-    must(T, SCREEN, 'finish', { round: S(T).round, scores: { p1: { hits: 4, taken: 1 }, p2: { hits: 2, taken: 3 } } });
+    must(T, SCREEN, 'finish', { round: S(T).round, scores: { p1: { score: 4, taken: 1 }, p2: { score: 2, taken: 3 } } });
     must(T, T.host, 'playAgain', {});
     must(T, T.host, 'endNow', {});
-    must(T, SCREEN, 'finish', { round: S(T).round, scores: { p3: { hits: 1, taken: 0 } } });
-    must(T, T.host, 'playAgain', {});
+    must(T, SCREEN, 'finish', { round: S(T).round, scores: { p3: { score: 1, taken: 0 } } });
+    must(T, T.host, 'playAgain', { mode: 'balloons' });
+    must(T, SCREEN, 'finish', { round: S(T).round, done: true, scores: { p1: { place: 1, lives: 2 } } });
+    must(T, T.host, 'playAgain', { mode: 'ring', ringWin: 'clock' });
     clock += 200000;
     runClock(T, (r) => r.shared.phase === 'over', 3);
-    return S(T).phase === 'over' && S(T).round === 3;
+    return S(T).phase === 'over' && S(T).round === 4;
   },
   chairs() {
     // Four in the ring: a false start, taps timed by their stamps, a round nobody finishes, to one left.

@@ -8800,7 +8800,7 @@ Date.now = duelTestClock;
   check(r.phase !== 'lobby' && threw(() => applyRoomAction(r, 'a', 'rename', { name: 'X' })), 'rename: not while a game is being played');
 }
 
-/* --- عربيات التصادم (28 Sep 2026): the server deals a round and takes the TV's scores; the cars are the TV's --- */
+/* --- عربيات التصادم (28 Sep 2026): the server deals a round and takes the TV's result; the cars are the TV's --- */
 {
   console.log('\nBumper cars');
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
@@ -8808,29 +8808,61 @@ Date.now = duelTestClock;
   r.screens = [{ id: 'tvx' }];
   applyRoomAction(r, 'a', 'chooseGame', { game: 'bumper' });
   check(threw(() => applyRoomAction(r, 'b', 'start', {})), 'bumper: only the host starts');
-  applyRoomAction(r, 'a', 'start', { secs: 60 });
+  applyRoomAction(r, 'a', 'start', { mode: 'points', secs: 60 });
   const s = r.shared;
-  check(r.phase === 'play' && s.phase === 'play' && s.roster.length === 3 && s.colors.a === 0 && s.colors.c === 2 && s.settings.secs === 60,
-    'bumper: a round deals everyone a colour');
-  check(s.startAt > clock && s.endsAt - s.startAt === 60000, 'bumper: a countdown, then the round\'s minute');
+  check(r.phase === 'play' && s.phase === 'play' && s.roster.length === 3 && s.colors.a === 0 && s.colors.c === 2 && s.settings.mode === 'points' && s.settings.secs === 60,
+    'bumper: a round deals everyone a colour and keeps the way to play');
+  check(s.startAt > clock && s.endsAt - s.startAt === 60000, 'bumper: Points - a countdown, then the round\'s minute');
   check(bumperRelaying(r), 'bumper: the controllers\' channel is open while the round is on');
-  applyRoomAction(r, 'tvx', 'finish', { round: 1, scores: { a: { hits: 5 } } });
-  check(s.phase === 'play', 'bumper: the TV can\'t end a round before its clock');
+  applyRoomAction(r, 'tvx', 'finish', { round: 1, done: true, scores: { a: { score: 5 } } });
+  check(s.phase === 'play', 'bumper: Points can\'t end before its clock, even with "done"');
   check(threw(() => applyRoomAction(r, 'b', 'endNow', {})) && s.phase === 'play' && s.endsAt > clock + 1000, 'bumper: only the host ends a round early');
   applyRoomAction(r, 'a', 'endNow', {});
-  applyRoomAction(r, 'b', 'finish', { round: 1, scores: { b: { hits: 99 } } });
-  check(s.phase === 'play', 'bumper: a player can\'t report the scores');
-  applyRoomAction(r, 'tvx', 'finish', { round: 1, scores: { a: { hits: 2, taken: 1 }, b: { hits: 7, taken: 0 }, c: { hits: -3, taken: 'x' } } });
-  check(s.phase === 'over' && s.results[0].id === 'b' && s.results[0].hits === 7 && s.results[2].hits === 0 && s.wins.b === 1 && !bumperRelaying(r),
-    'bumper: the TV\'s scores make the result, cleaned, the most bumps winning');
-  applyRoomAction(r, 'tvx', 'finish', { round: 1, scores: { a: { hits: 50 } } });
+  applyRoomAction(r, 'b', 'finish', { round: 1, scores: { b: { score: 99 } } });
+  check(s.phase === 'play', 'bumper: a player can\'t report the result');
+  applyRoomAction(r, 'tvx', 'finish', { round: 1, scores: { a: { score: 2, taken: 1 }, b: { score: 7, taken: 0 }, c: { score: -3, taken: 'x' } } });
+  check(s.phase === 'over' && s.results[0].id === 'b' && s.results[0].score === 7 && s.results[0].place === 1 && s.results[2].score === 0 && s.wins.b === 1 && !bumperRelaying(r),
+    'bumper: with no places, the score orders the result, cleaned, the most bumps winning');
+  applyRoomAction(r, 'tvx', 'finish', { round: 1, scores: { a: { score: 50 } } });
   check(s.results[0].id === 'b', 'bumper: a second report changes nothing');
   applyRoomAction(r, 'a', 'playAgain', { secs: 999 });
   const s2 = r.shared;
-  check(s2.phase === 'play' && s2.round === 2 && s2.settings.secs === 60 && s2.wins.b === 1, 'bumper: play again keeps the length and the wins');
+  check(s2.phase === 'play' && s2.round === 2 && s2.settings.secs === 60 && s2.settings.mode === 'points' && s2.wins.b === 1, 'bumper: play again keeps the way to play, the length and the wins');
   clock = s2.endsAt + 8001;
   roomTimeout(r, clock);
-  check(s2.phase === 'over' && s2.reported === false && s2.results.every(x => x.hits === 0) && !s2.wins.a, 'bumper: with no screen reporting, the round ends on the server\'s clock with no scores');
+  check(s2.phase === 'over' && s2.reported === false && s2.results.every(x => x.score === 0) && !s2.wins.a, 'bumper: with no screen reporting, the round ends on the server\'s clock with no result');
+
+  // Balloons: the default; it ends when one is left, before the clock; the places are the TV's.
+  applyRoomAction(r, 'a', 'playAgain', { mode: 'balloons' });
+  const s3 = r.shared;
+  check(s3.settings.mode === 'balloons' && s3.endsAt - s3.startAt === 180000, 'bumper: Balloons runs until one is left, three minutes at most');
+  applyRoomAction(r, 'tvx', 'finish', { round: 3, scores: { a: { score: 1, lives: 0, place: 3 } } });
+  check(s3.phase === 'play', 'bumper: Balloons doesn\'t end early without the TV saying one is left');
+  applyRoomAction(r, 'tvx', 'finish', { round: 3, done: true, scores: { a: { score: 1, lives: 0, place: 2 }, b: { score: 0, lives: 0, place: 3 }, c: { score: 4, lives: 2, place: 1 } } });
+  check(s3.phase === 'over' && s3.results.map(x => x.id).join() === 'c,a,b' && s3.results[0].lives === 2 && s3.wins.c === 1,
+    'bumper: one left ends Balloons at once, in the TV\'s places, the last with balloons winning');
+
+  // The ring: its two ways, and «آخر واحد» ending early too.
+  applyRoomAction(r, 'a', 'playAgain', { mode: 'ring', ringWin: 'last' });
+  check(r.shared.settings.mode === 'ring' && r.shared.settings.ringWin === 'last' && r.shared.endsAt - r.shared.startAt === 180000, 'bumper: the ring, last one on: no clock but the cap');
+  applyRoomAction(r, 'tvx', 'finish', { round: 4, done: true, scores: { a: { place: 1 }, b: { place: 2 }, c: { place: 3 } } });
+  check(r.shared.phase === 'over' && r.shared.wins.a === 1, 'bumper: the last one on the ring wins, at once');
+  applyRoomAction(r, 'a', 'playAgain', { mode: 'ring', ringWin: 'clock', secs: 120 });
+  check(r.shared.settings.ringWin === 'clock' && r.shared.endsAt - r.shared.startAt === 120000, 'bumper: the ring on the clock uses the length');
+  applyRoomAction(r, 'tvx', 'finish', { round: 5, done: true, scores: {} });
+  check(r.shared.phase === 'play', 'bumper: the ring on the clock can\'t end early');
+  clock = r.shared.endsAt;
+  applyRoomAction(r, 'tvx', 'finish', { round: 5, scores: { a: { score: 2, place: 1 }, b: { score: 2, place: 1 }, c: { score: 0, place: 3 } } });
+  check(r.shared.wins.a === 2 && r.shared.wins.b === 2, 'bumper: a tie for first shares the win');
+
+  // Computer players: the host seats them in the lobby; one person alone can't play a way that needs two cars.
+  const r2 = newRoom(['solo']);
+  applyRoomAction(r2, 'solo', 'chooseGame', { game: 'bumper' });
+  check(threw(() => applyRoomAction(r2, 'solo', 'start', { mode: 'balloons' })), 'bumper: Balloons alone is refused');
+  applyRoomAction(r2, 'solo', 'addBot', { level: 'hard', name: 'زيزو' });
+  applyRoomAction(r2, 'solo', 'addBot', { level: 'easy', name: 'بندق' });
+  applyRoomAction(r2, 'solo', 'start', { mode: 'balloons' });
+  check(r2.shared.roster.length === 3 && Object.values(r2.shared.bots).sort().join() === 'easy,hard', 'bumper: computer players drive (the TV drives them), with their levels');
 }
 
 /* --- الكراسي الموسيقية (27 Sep 2026): the stop is a server secret, taps are ranked fairly, one out a round --- */

@@ -663,7 +663,7 @@ async function bumperRobots() {
   J.ws.send(JSON.stringify({ t: 'live', d: { k: 'i', x: 50, y: 0 } }));
   await sleep(400);
   check(TV.live.length === 0, 'bumper: nothing is relayed before the round');
-  await H.must('start', { secs: 60 });
+  await H.must('start', { mode: 'points', secs: 60 });
   await all([H, J, TV], (s) => s.game === 'bumper' && s.shared.phase === 'play' && s.shared.roster.length === 2, 'bumper: the round reaches every phone and the TV');
   const t0 = Date.now();
   for (let i = 0; i < 10; i++) { J.ws.send(JSON.stringify({ t: 'live', d: { k: 'i', x: i * 10, y: -20 } })); await sleep(66); }

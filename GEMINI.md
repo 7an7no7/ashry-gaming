@@ -81,11 +81,10 @@
 - **Rooms only, a party game:** 🪑 **Musical chairs (الكراسي الموسيقية):**
   every phone is a player, the music stops at a secret moment, the fastest
   taps get the chairs, one out a round (*الكراسي الموسيقية*).
-- **The TV as the game, the phones as controllers (a test):** **Bumper
-  Cars (عربيات التصادم):** a rink on the big screen, every phone steering its
-  own car with a stick or by tilting, the TV judging every bump and showing
-  each phone's delay and the traffic - the test before a racing game
-  (*عربيات التصادم*).
+- **The TV as the game, the phones as controllers:** **Bumper Cars
+  (عربيات التصادم):** a 3D fairground rink on the big screen, every phone
+  steering its own car (a stick or tilt, a turbo and a horn), three ways to
+  play - بالونات, نقط and الحلبة - and computer players (*عربيات التصادم*).
 - **Multiplayer-only, also:** 🔔 **Buzzer (الجرس):** the host asks out loud,
   every phone is a buzzer, the server keeps the order of presses;
   🕴️ **Mafia (مافيا):** the app narrates night and day, roles on each phone;
@@ -1825,6 +1824,32 @@ work changed. Add to it when a decision is made or a batch ships.
     chess-style hub: one card, the ways inside), and loses its test wording;
     the delay and traffic numbers go behind a small toggle on the TV.
 
+- **عربيات التصادم, the full game** - the owner's answers of 28 Sep 2026
+  after the test ("improve the UI and the play style, ask what you need"):
+  - **Three ways to play, the host's choice in the lobby** (the owner: "3 modes
+    in it we select"): **بالونات** (the default): 3 balloons a car, a knock
+    pops one of the knocked car's, **a car with none left drives on as a ghost**
+    (bumps and pushes, pops nothing, can't win), the last car with balloons
+    wins; **نقط**: the most knocks landed when the clock runs out (the test's
+    game); **الحلبة**: a round stage with no rail, push the others off, **both
+    endings a lobby choice**: a point a push-off on the clock (the fallen back in
+    after 3 s), or the last one on wins.
+  - **The 3D fairground rink** on the TV (three.js), with the flat rink where
+    3D can't draw.
+  - **Computer players, easy and hard.** **No items** (bumping only).
+  - **On the phone**: the car's own balloons, score and place big, a **turbo**
+    button (every 4 s, a ring shows it filling) and a **horn** button (the car's
+    own horn on the TV).
+  - Decided here (open to change, each in one place): the TV drives the
+    computer players (`bmpBotInput`: a target now and then - hard picks the one
+    worth hitting and leads it, keeps off the ring's edge and turbos at a close
+    target); a car just popped has a second's grace; a push-off counts for
+    whoever touched the fallen car last within 2.5 s; Balloons and «آخر واحد»
+    end 1.4 s after one car is left, with three minutes as their cap; Balloons
+    or the ring alone needs two cars (a computer player makes the second); the
+    delay and traffic numbers are behind a small 📶 on the TV; the test wording
+    is gone.
+
 - **The TV as the console, the phones as controllers** - the owner's idea of
   28 Sep 2026 ("like Mario Kart, each player controls his car from his phone,
   like PlayStation"). Asked whether it is possible: yes, with the TV running
@@ -3427,6 +3452,15 @@ the word search), `countUp` for streaks and scores.
   the stick by real touches and the tilt screen), a TV at 1280×720 and two
   robot drivers, bumps scored, the delay read, a reload mid-round, Help, the
   TV's scores at the end; no console errors.
+- **28 Sep 2026, عربيات التصادم the full game** - the owner's answers
+  (*The owner's specs*): three ways to play (بالونات, نقط, الحلبة with its two
+  endings), a 3D fairground rink, computer players driven by the TV, turbo and
+  horn, the car's status big on the phone, the test wording and numbers put
+  away. Rules tests 21, the leak check, the robots' relay round; looked at in
+  headless Chrome with one phone, three computer players and a TV through
+  Balloons, the ring and Points to their results; no console errors. The
+  karting look sheet went to the owner the same day
+  (https://claude.ai/artifact/65GjjEdYqkuWY9BT5dWhLX).
 - **28 Sep 2026, عربيات التصادم's second round** - the owner's four points
   after trying it: the sound (the TV had only a faint knock), the tilt read
   from gravity, the tilt screen always sideways, auto gas (*عربيات التصادم*).
@@ -7809,65 +7843,73 @@ help); the rules are named `chairs` / `CHAIRS_`, the page's code `mch` / `MCH_`.
 
 ### عربيات التصادم
 
-The controllers test (*Decided, and why*, *The TV as the console*). Game id
-`bumper` everywhere; the page's code is `bmp` / `BMP_`, the server's `bumper`
-/ `BUMPER_`.
+The owner's rules are in *The owner's specs* (عربيات التصادم, the full game,
+and *The TV as the console*). Game id `bumper` everywhere; the page's code is
+`bmp` / `BMP_`, the server's `bumper` / `BUMPER_`.
 
+- **The server** (`RoomBumper.js`) deals a round - `roster` (people and the
+  computer players seated, `bots` their levels), `colors`, `settings { mode,
+  ringWin, secs }`, `startAt` / `endsAt` (the clock, or three minutes for the
+  ways that end by themselves) - and takes the TV's result with `finish {
+  round, scores: { pid: { score, taken, lives, place } }, done }`: a screen (or
+  the host) only; before the clock only with `done` in Balloons and «آخر
+  واحد». The places the TV gave order the table (ties share one); the first
+  place wins, against somebody. No screen reporting: the server ends it on its
+  clock with no result. `ROOM_BOT_GAMES.bumper` exists only so the lobby can
+  seat computer players; it never moves for them.
 - **The channel.** Nothing a car does goes through the rules. A phone sends
-  `{ k: 'i', x, y }` (the stick, -100..100) or `{ k: 'i', s, g }` (the tilt's
-  steer and Gas) with `Room.sendLive`, every 66 ms when it changed and every
-  0.8 s when it didn't, and `{ k: 'p', n, at, r }` (a ping) every 1.5 s.
-  `room.js` asks `bumperRelaying(room)` and, while a round is on, passes a
-  player's message to every screen stamped with `from`, and a screen's to the
-  one phone it names (`to`): a ping's echo, a knock (`{ k: 'h', w: 'hit' |
-  'got' }`, a buzz and a red flash for the one knocked). Messages over 400
-  characters are dropped. The drawing's live line is untouched.
-- **The TV** (`TV_GAMES.bumper`) keeps the cars in `bmp.tv`: a rink of
-  1600 × 900 units drawn on a canvas, a car a circle of 38 with a rubber
-  ring, steps of 1/120 s, a grip that kills the sideways slide faster than the
-  roll, walls that bounce, and cars that knock each other (equal masses, a
-  little extra from the rubber). **A bump counts** for the car that drove
-  into the other harder, when they met at 170 units a second or more, once a
-  pair in 0.6 s. The side shows the clock, each driver's bumps, delay and
-  messages a second, and the traffic with what an hour costs of the free
-  plan. A car appears for every person in the room, latecomers included (the
-  colour: the one dealt, else the next in the room's order, `bmpColorOf`); a
-  stick not heard from for 1.5 s lets go. When the clock runs out the first
-  screen online (by id) sends `finish` with everyone's bumps, from the frame
-  loop or, in a background tab, a one-second timer.
-- **The phone** (`ROOM_GAMES.bumper`): the stick (pointer events on
-  `#bmp-pad`, `touch-action: none`), or the tilt, the clock, the delay (green
-  under 80 ms, amber under 150), the screen kept on; the host can end the
-  round early. A reload comes back to the controller. The mode and auto gas
-  are remembered (`recallOptions('bumper')`), and so is the host's round
-  length (1, 2 or 3 minutes).
+  `{ k: 'i', x, y }` (the stick) or `{ k: 'i', s, g }` (the tilt; `g` -100 is
+  the brake) with `Room.sendLive`, every 66 ms when it changed and every 0.8 s
+  when it didn't, `{ k: 'b' }` (turbo), `{ k: 'hn' }` (horn) and a ping every
+  1.5 s. `room.js` asks `bumperRelaying(room)` and passes a player's message to
+  every screen stamped with `from`, a screen's to the one phone it names
+  (`to`): a ping's echo, a moment (`{ k: 'h', w: 'hit' | 'got' | 'pop' | 'fell' }`)
+  and the car's status (`{ k: 's', l, sc, pl, of, gh, out }`, on change and
+  every 3 s). Messages over 400 characters are dropped.
+- **The TV** keeps the game in `bmp.tv`: the sim in centimetres (a 16 × 9 m
+  rink, the ring a 4.4 m disc), cars as circles of 38 with a grip that kills the
+  slide faster than the roll, knocks between equal masses, a knock scoring for
+  the car that drove in harder (170 units a second or more, once a pair in 0.6
+  s), balloons, ghosts, falls and respawns, the computer players' driving
+  (`bmpBotInput`), the standings (`bmpTvRank`), the sound, and the result sent
+  by the first screen online. **The view** is `bmp3dView` (three.js through
+  `loadThree`: a checker-plate floor and a yellow-and-black rail, or the ring
+  over a pit of mats; fairground bulbs, two sweeping coloured lights; cars
+  with a rubber skirt, a clear-coated body, a seat, a driver, a pole with a
+  spark, balloons tied behind, name tags; sparks and balloon bits; an overlay
+  canvas for the countdown and «+1») or `bmpFlatView` (a canvas from above),
+  drawn first and replaced by 3D once it loads. Canvas text is set left to
+  right (`direction = 'ltr'`), or «+1» reads «1+» in an Arabic page.
+- **The phone** (`ROOM_GAMES.bumper`, `bots: { max: 8 }`): the car's status
+  (`bmpStatusHtml`, painted from the TV's `s` messages), the stick, turbo and
+  horn, the stick / tilt switch; the tilt screen (`#bmp-land`) has the wheel,
+  🎯 and ↔, auto gas, gas or brake, turbo and horn. The lobby's options are
+  `bmpLobbyHtml` (the way to play, the ring's ending, the length for the clocked
+  ways, remembered).
+- **The tilt**: the phone's roll read from gravity, the always-sideways screen,
+  auto gas - as described in the second round below.
+- **The sound** (`bmpSnd`, `bmpEngine`): the TV plays the countdown, the start
+  horn, an engine that follows the cars, crashes by how hard, a wall knock, a
+  balloon's pop, a fall, turbo, each car's horn (pitched by its colour), a
+  chime for a point, the last five seconds (clocked ways) and the end. A phone
+  plays its own moments. A TV whose sound is asleep shows «🔊 اضغط هنا عشان
+  الصوت».
 - **The tilt, second round** (the owner, 28 Sep 2026, after the first test:
   "the stick was more accurate", "force landscape even if it's locked", an
   auto-drive button, and no sound). The steer is the phone's **roll read from
   gravity** (`bmpTiltRead`): the down vector in the phone's own axes from
   beta and gamma, turned into the controller's frame, `atan2` of it - so it
-  reads the same however far the phone is leaned back (15° gives the same
-  steer at 10° and at 70° of lean; the first build read beta or gamma alone,
-  which mixed the lean into the steer). 28° is full lock, 3° dead zone, light
-  smoothing; 🎯 re-centres, ↔ flips. **The tilt screen is always sideways**
-  (`#bmp-land`, `bmpLandLayout`): an iPhone's rotation can't be forced from a
-  page, so the controller is a layer over the page, turned a quarter by CSS
-  while the page is upright - to the side the phone is really held, from
-  gravity with some hysteresis - and not turned when the page is sideways
-  already; the OS flipping to portrait mid-game changes nothing. Android also
-  asks for fullscreen and `screen.orientation.lock('landscape')`. The gas is
-  under the right thumb. **⚡ Auto gas** (`bmpToggleAuto`): forward until
-  tapped off, the big button then the brake (`g: -100`, which the TV plays as
-  -700 of thrust).
-- **The sound** (`bmpSnd`, `bmpEngine`): the TV plays the countdown beeps, a
-  start horn, one engine buzz whose pitch and loudness follow the cars'
-  average speed, a crash by how hard (once a pair in 0.18 s, never for cars
-  just pushing), a wall knock, a chime for a point, ticks in the last five
-  seconds and an end horn. A phone plays its own +1 chime and a thud when
-  knocked (an iPhone can't buzz). A TV whose sound is still asleep shows
-  «🔊 اضغط هنا عشان الصوت» until it isn't.
-- Tests: `rules.mjs` ("Bumper cars"), `leaks.mjs` (a driver; nothing is
-  hidden), `play-all.mjs` (`--only=bumper`: the relay on a live server).
+  reads the same however far the phone is leaned back. 28° is full lock, 3°
+  dead zone, light smoothing. **The tilt screen is always sideways**
+  (`bmpLandLayout`): an iPhone's rotation can't be forced from a page, so the
+  controller is a layer over the page, turned a quarter by CSS while the page
+  is upright - to the side the phone is really held - and not turned when the
+  page is sideways already. Android also asks for fullscreen and
+  `screen.orientation.lock('landscape')`. **⚡ Auto gas**: forward until tapped
+  off, the big button then the brake.
+- Tests: `rules.mjs` ("Bumper cars": the three ways, early ends, places, ties,
+  computer players), `leaks.mjs` (a driver; nothing is hidden), `play-all.mjs`
+  (`--only=bumper`: the relay on a live server).
 
 ### The catalog and the home screen
 

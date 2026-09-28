@@ -1,36 +1,41 @@
 <script>
 /* ============================================================================
-   عربيات التصادم — BUMPER CARS, the TV-and-controllers test (28 Sep 2026)
+   عربيات التصادم — BUMPER CARS (28 Sep 2026)
    ----------------------------------------------------------------------------
-   The TV runs the game; every phone is a controller. Unlike every other room
-   game, the moves never go through the rules: a phone sends its stick (or its
-   tilt) about 15 times a second over the room's live channel (Room.sendLive),
-   the rooms server passes it to the screens without keeping it (room.js,
-   relayDrive), and the TV drives the cars, judges the knocks and keeps the
-   score. The server only deals the round (RoomBumper.js) and takes the TV's
-   scores at the end (`finish`).
+   The TV runs the game; every phone is a controller. The moves never go
+   through the rules: a phone sends its stick (or its tilt), its boost and its
+   horn over the room's live channel (Room.sendLive), the rooms server passes
+   them to the screens without keeping them (room.js, relayDrive), and the TV
+   drives the cars - the computer players' too - judges the knocks, the
+   balloons and the ring, and sends the result at the end (`finish`). The
+   server only deals the round (RoomBumper.js).
 
-   It is a test of the idea before a real racing game, so the TV shows what a
-   racing game would need to know: each phone's delay (half its ping's round
-   trip, phone → server → TV → server → phone), how many messages arrive a
-   second, and what an hour of that costs of the free plan's day (Cloudflare
-   counts 20 WebSocket messages into a Durable Object as one request, and the
-   free plan gives 100,000 a day).
+   Three ways to play (the owner): بالونات (3 each, a knock pops one, the last
+   with balloons wins, the popped drive on as ghosts), نقط (the most knocks on
+   a clock) and الحلبة (a platform with no rail: push the others off - a point
+   a push on a clock, or the last one on). A 3D fairground rink on the TV
+   (three.js), and a flat one where 3D can't draw.
 
    Messages (d): phone → TV  { k: 'i', x, y }  the stick, -100..100 each (y down)
-                             { k: 'i', s, g }  the tilt: steer -100..100, gas 0/100
+                             { k: 'i', s, g }  the tilt: steer -100..100, gas -100..100
+                             { k: 'b' } boost   { k: 'hn' } horn
                              { k: 'p', n, at, r }  a ping (r: the last delay seen)
                  TV → phone  { k: 'p', to, n, at }  the ping's echo
-                             { k: 'h', to, w: 'hit' | 'got', n }  a knock landed / taken
+                             { k: 'h', to, w: 'hit' | 'got' | 'pop' | 'fell' }  a moment to feel
+                             { k: 's', to, l, sc, pl, of, gh, out }  lives, score, place, ghost / out
    Every name here starts with bmp / BMP_.
    ========================================================================= */
-const BMP_W = 1600, BMP_H = 900;          // the rink, in its own units (16:9)
+const BMP_W = 1600, BMP_H = 900;          // the rink, in its own units (16:9); a unit is a centimetre
 const BMP_R = 38;                         // a car's bumper, a circle
+const BMP_RING_R = 440;                   // الحلبة: the platform's radius
 const BMP_COLORS = ['#e5383b', '#3f73d6', '#e9b52a', '#35a35a', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4'];
 const BMP_SEND_MS = 66;                   // the controller's beat: ~15 a second
 const BMP_KEEP_MS = 800;                  // an input that hasn't changed is resent this often
 const BMP_PING_MS = 1500;
 const BMP_STALE_MS = 1500;                // the TV lets go of a stick not heard from this long
+const BMP_BOOST_MS = 4000;                // the boost's cooldown
+const BMP_RESPAWN_MS = 3000;              // الحلبة on the clock: back on the platform after this
+const BMP_LIVES = 3;
 const BMP_FREE_PER_DAY = 100000;          // Durable Object requests a day on the free plan
 const BMP_MSGS_PER_REQUEST = 20;          // incoming WebSocket messages billed as one request
 
@@ -41,13 +46,17 @@ const bmp = {
   tilt: { s: 0, held: false, auto: false, zero: 0, flip: 1, on: false, asking: false, raw: 0, rot: 90 },
   lastSent: '', lastSentAt: 0, sendTimer: null,
   ping: { n: 0, sent: {}, last: null, list: [] }, pingTimer: null,
-  wake: null, uiTimer: null, flashUntil: 0, myHits: 0,
-  tv: null                                // the TV's game: cars, loop, stats
+  wake: null, uiTimer: null, flashUntil: 0,
+  boostAt: 0,
+  me: null,                               // what the TV last said about this phone's car
+  tv: null,                               // the TV's game: cars, loop, view
+  stats: false                            // the TV's delay and traffic numbers
 };
 try {
-  const o = recallOptions('bumper', { mode: 'stick', auto: false });
+  const o = recallOptions('bumper', { mode: 'stick', auto: false, stats: false });
   bmp.mode = o.mode === 'tilt' ? 'tilt' : 'stick';
   bmp.tilt.auto = !!o.auto;
+  bmp.stats = !!o.stats;
 } catch (e) {}
 
 const bmpT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
@@ -58,6 +67,8 @@ function bmpNoteTime(state) {
   }
 }
 const bmpServerNow = () => (isFinite(bmp.gap) ? Date.now() - bmp.gap : Date.now());
+const bmpSettings = (s) => Object.assign({ mode: 'balloons', ringWin: 'clock', secs: 120 }, (s && s.settings) || {});
+const bmpLastStanding = (st) => st.mode === 'balloons' || (st.mode === 'ring' && st.ringWin === 'last');
 
 /** A driver's colour: the one dealt, or for a latecomer the next in the room's order (the same on every screen). */
 function bmpColorOf(state, pid) {
@@ -68,34 +79,71 @@ function bmpColorOf(state, pid) {
   const k = Object.keys(dealt).length + Math.max(0, late.indexOf(pid));
   return BMP_COLORS[k % BMP_COLORS.length];
 }
+const bmpColorIndex = (state, pid) => BMP_COLORS.indexOf(bmpColorOf(state, pid));
 const bmpHasScreen = (state) => (state.screens || []).some(x => x.online);
 function bmpSecsLeft(state) {
   const s = state.shared || {};
   return Math.max(0, Math.ceil(((s.endsAt || 0) - bmpServerNow()) / 1000));
 }
 const bmpClockText = (secs) => Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+const bmpModeName = (st, t) => st.mode === 'balloons' ? t.bmp_mode_balloons : st.mode === 'points' ? t.bmp_mode_points
+  : (st.ringWin === 'last' ? t.bmp_mode_ring_last : t.bmp_mode_ring_clock);
+const bmpModeLine = (st, t) => st.mode === 'balloons' ? t.bmp_how_balloons : st.mode === 'points' ? t.bmp_how_points
+  : (st.ringWin === 'last' ? t.bmp_how_ring_last : t.bmp_how_ring_clock);
+/** The balloons as a row of icons: those left, and the popped ones faded. */
+const bmpBalloonsHtml = (n, color) => Array.from({ length: BMP_LIVES }, (_, i) =>
+  `<span class="bmp-balloon ${i < n ? '' : 'is-popped'}" style="--car:${color}" aria-hidden="true"></span>`).join('');
 
-/* --- the lobby and the phone ------------------------------------------------- */
+/* --- the lobby ---------------------------------------------------------------- */
+function bmpLobbyOpts() {
+  const o = recallOptions('bumper', { gmode: 'balloons', ringWin: 'clock', secs: 120 });
+  return { mode: ['balloons', 'points', 'ring'].indexOf(o.gmode) !== -1 ? o.gmode : 'balloons',
+    ringWin: o.ringWin === 'last' ? 'last' : 'clock', secs: [60, 120, 180].indexOf(o.secs) !== -1 ? o.secs : 120 };
+}
+function bmpSetLobby(patch) {
+  const next = Object.assign(bmpLobbyOpts(), patch);
+  rememberOptions('bumper', { gmode: next.mode, ringWin: next.ringWin, secs: next.secs });
+  const box = document.getElementById('bmp-lobby');
+  if (box && Room.state) box.outerHTML = bmpLobbyHtml(Room.state);
+}
+function bmpLobbyHtml(state) {
+  const t = bmpT();
+  const o = bmpLobbyOpts();
+  const tv = bmpHasScreen(state) ? '' : `<p class="field__hint bmp-need">📺 ${escapeHTML(t.bmp_need_tv)}</p>`;
+  const seg = (items, cur, fn) => `<div class="segmented" role="radiogroup">${items.map(([v, label]) =>
+    `<button type="button" class="segmented__item ${cur === v ? 'is-active' : ''}" onclick="${fn}('${v}')">${escapeHTML(label)}</button>`).join('')}</div>`;
+  if (!state.youAreHost) {
+    return `<div class="card card--tight" id="bmp-lobby">${tv}<p class="field__hint" style="text-align:center">${escapeHTML(t.bmp_lobby_wait)}</p></div>`;
+  }
+  const clocked = o.mode === 'points' || (o.mode === 'ring' && o.ringWin === 'clock');
+  return `
+    <div class="card card--tight" id="bmp-lobby">
+      <div class="field">
+        <span class="field__label">${escapeHTML(t.bmp_mode)}</span>
+        ${seg([['balloons', '🎈 ' + t.bmp_mode_balloons], ['points', '💥 ' + t.bmp_mode_points], ['ring', '⭕ ' + t.bmp_mode_ring]], o.mode, "bmpPickMode")}
+      </div>
+      ${o.mode === 'ring' ? `<div class="field">
+        <span class="field__label">${escapeHTML(t.bmp_ring_win)}</span>
+        ${seg([['clock', t.bmp_ring_clock], ['last', t.bmp_ring_last]], o.ringWin, "bmpPickRing")}
+      </div>` : ''}
+      ${clocked ? `<div class="field">
+        <span class="field__label">${escapeHTML(t.bmp_len)}</span>
+        ${seg([['60', t.bmp_m60], ['120', t.bmp_m120], ['180', t.bmp_m180]], String(o.secs), "bmpPickSecs")}
+      </div>` : ''}
+      <p class="field__hint bmp-how">${escapeHTML(bmpModeLine(o, t))}</p>
+      ${tv}
+    </div>`;
+}
+function bmpPickMode(v) { bmpSetLobby({ mode: v }); }
+function bmpPickRing(v) { bmpSetLobby({ ringWin: v }); }
+function bmpPickSecs(v) { bmpSetLobby({ secs: Number(v) }); }
+
+/* --- the phone ---------------------------------------------------------------- */
 ROOM_GAMES.bumper = {
   lateJoin: true,       // someone who joins mid-round gets a car at once
-  lobbyOptions(state) {
-    const t = bmpT();
-    const tv = bmpHasScreen(state) ? '' : `<p class="field__hint bmp-need">${escapeHTML(t.bmp_need_tv)}</p>`;
-    if (!state.youAreHost) return `<div class="card card--tight">${tv}<p class="field__hint" style="text-align:center">${escapeHTML(t.bmp_test)}</p></div>`;
-    const secs = recallOptions('bumper', { secs: 120 }).secs;
-    return `
-      <div class="card card--tight">
-        <div class="field">
-          <span class="field__label">${escapeHTML(t.bmp_len)}</span>
-          <div class="segmented" role="radiogroup">
-            ${[60, 120, 180].map(n => `<button type="button" class="segmented__item ${secs === n ? 'is-active' : ''}" onclick="bmpSetSecs(${n}, this)">${escapeHTML(t['bmp_m' + n])}</button>`).join('')}
-          </div>
-        </div>
-        ${tv}
-        <p class="field__hint" style="text-align:center">${escapeHTML(t.bmp_test)}</p>
-      </div>`;
-  },
-  startPayload() { return { secs: recallOptions('bumper', { secs: 120 }).secs }; },
+  bots: { max: 8 },
+  lobbyOptions(state) { return bmpLobbyHtml(state); },
+  startPayload() { return bmpLobbyOpts(); },
 
   render(state) {
     if (appState.currentView !== 'room-bumper') setView('room-bumper');
@@ -104,68 +152,85 @@ ROOM_GAMES.bumper = {
     bmpNoteTime(state);
     const t = bmpT();
     const s = state.shared || {};
+    const st = bmpSettings(s);
     const me = Room.me;
     const driver = (state.players || []).some(p => p.id === me && !p.bot);
+    if (bmp.me && bmp.me.round !== s.round) bmp.me = null;
     const sig = ['bmp', s.round, s.phase, bmp.mode, bmp.tilt.auto, bmpHasScreen(state), state.youAreHost, driver, appState.lang,
       s.phase === 'over' ? JSON.stringify(s.results) + JSON.stringify(s.wins) : ''].join('|');
     renderRoomFrame(el, sig, () => {
       if (s.phase === 'over') return bmpOverHtml(state, s, t) + renderRoomPlayerStrip(state);
       const color = bmpColorOf(state, me);
-      const head = `
-        <div class="play-head bmp-head">
-          <span class="badge bmp-me" style="--car:${color}"><span class="bmp-me__dot"></span>${escapeHTML(t.bmp_you)}</span>
-          <span class="badge"><span aria-hidden="true">⏱️</span> <span class="metric" data-bmp-clock>${bmpClockText(bmpSecsLeft(state))}</span></span>
-          <span class="badge" data-bmp-ping>${escapeHTML(t.bmp_ping)} <span class="metric">–</span></span>
+      const noTv = bmpHasScreen(state) ? '' : `<div class="waiting-note bmp-need">📺 ${escapeHTML(t.bmp_need_tv)}</div>`;
+      const acts = `
+        <div class="bmp-acts">
+          <button type="button" class="bmp-act bmp-act--boost" id="bmp-boost" onclick="bmpBoost()" style="--car:${color}">
+            <span class="bmp-act__ring" aria-hidden="true"></span><span class="bmp-act__label">🚀 ${escapeHTML(t.bmp_boost)}</span>
+          </button>
+          <button type="button" class="bmp-act bmp-act--horn" onclick="bmpHorn()">📯 ${escapeHTML(t.bmp_horn)}</button>
         </div>`;
-      const noTv = bmpHasScreen(state) ? '' : `<div class="waiting-note bmp-need">${escapeHTML(t.bmp_need_tv)}</div>`;
-      const modes = `
-        <div class="segmented bmp-modes" role="radiogroup">
-          <button type="button" class="segmented__item ${bmp.mode === 'stick' ? 'is-active' : ''}" onclick="bmpSetMode('stick')">${escapeHTML(t.bmp_stick)}</button>
-          <button type="button" class="segmented__item ${bmp.mode === 'tilt' ? 'is-active' : ''}" onclick="bmpSetMode('tilt')">${escapeHTML(t.bmp_tilt)}</button>
-        </div>`;
-      const pad = !driver ? '' : bmp.mode === 'stick'
-        ? `<div class="bmp-pad" id="bmp-pad" style="--car:${color}" aria-label="${escapeHTML(t.bmp_stick)}">
-             <div class="bmp-pad__ring"></div><div class="bmp-pad__knob" id="bmp-knob"></div>
-           </div>
-           <p class="bmp-hint">${escapeHTML(t.bmp_stick_hint)}</p>`
-        : `<div class="bmp-land" id="bmp-land" style="--car:${color}">
-             <div class="bmp-land__top">
-               <span class="badge bmp-me"><span class="bmp-me__dot"></span>${escapeHTML(t.bmp_you)}</span>
-               <span class="badge"><span aria-hidden="true">⏱️</span> <span class="metric" data-bmp-clock>${bmpClockText(bmpSecsLeft(state))}</span></span>
-               <span class="badge" data-bmp-ping>${escapeHTML(t.bmp_ping)} <span class="metric">–</span></span>
-               <button type="button" class="btn btn--ghost btn--xs btn--auto bmp-land__back" onclick="bmpSetMode('stick')">${escapeHTML(t.bmp_back_stick)}</button>
-             </div>
-             <div class="bmp-land__main">
-               <div class="bmp-land__side">
-                 <div class="bmp-wheel" id="bmp-wheel" aria-hidden="true"><div class="bmp-wheel__spoke"></div></div>
-                 <div class="bmp-land__row">
-                   <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bmpTiltCentre()">${escapeHTML(t.bmp_center)}</button>
-                   <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bmpTiltFlip()">${escapeHTML(t.bmp_flip)}</button>
-                 </div>
-               </div>
-               <div class="bmp-land__side">
-                 <button type="button" class="bmp-auto ${bmp.tilt.auto ? 'is-on' : ''}" onclick="bmpToggleAuto()" aria-pressed="${bmp.tilt.auto}">${escapeHTML(t.bmp_auto)}</button>
-                 <button type="button" class="bmp-gas ${bmp.tilt.auto ? 'is-brake' : ''}" id="bmp-gas">${escapeHTML(bmp.tilt.auto ? t.bmp_brake : t.bmp_gas)}</button>
-               </div>
-             </div>
-             <p class="bmp-land__hint">${escapeHTML(t.bmp_tilt_hint)}</p>
-           </div>`;
+      if (!driver) {
+        return `<div class="bmp">${noTv}<p class="bmp-look">${escapeHTML(t.bmp_look_tv)}</p>${renderRoomPlayerStrip(state)}</div>`;
+      }
+      if (bmp.mode === 'tilt') {
+        return `<div class="bmp is-tilt" id="bmp-phone">
+          <div class="bmp-land" id="bmp-land" style="--car:${color}">
+            <div class="bmp-land__top">
+              ${bmpStatusHtml(state, true)}
+              <button type="button" class="btn btn--ghost btn--xs btn--auto bmp-land__back" onclick="bmpSetMode('stick')">${escapeHTML(t.bmp_back_stick)}</button>
+            </div>
+            <div class="bmp-land__main">
+              <div class="bmp-land__side">
+                <div class="bmp-wheel" id="bmp-wheel" aria-hidden="true"><div class="bmp-wheel__spoke"></div></div>
+                <div class="bmp-land__row">
+                  <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bmpTiltCentre()">${escapeHTML(t.bmp_center)}</button>
+                  <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bmpTiltFlip()">${escapeHTML(t.bmp_flip)}</button>
+                </div>
+              </div>
+              <div class="bmp-land__side">
+                <button type="button" class="bmp-auto ${bmp.tilt.auto ? 'is-on' : ''}" onclick="bmpToggleAuto()" aria-pressed="${bmp.tilt.auto}">${escapeHTML(t.bmp_auto)}</button>
+                <button type="button" class="bmp-gas ${bmp.tilt.auto ? 'is-brake' : ''}" id="bmp-gas">${escapeHTML(bmp.tilt.auto ? t.bmp_brake : t.bmp_gas)}</button>
+                ${acts}
+              </div>
+            </div>
+          </div>
+          ${noTv}</div>`;
+      }
       const host = state.youAreHost ? roomHostRow([[t.bmp_end_now, "roomAct('endNow', {})", 'ghost']]) : '';
-      const tiltOn = driver && bmp.mode === 'tilt';
-      return `<div class="bmp ${tiltOn ? 'is-tilt' : ''}" id="bmp-phone">${tiltOn ? '' : head}${noTv}${pad}${driver ? modes : ''}
-        <p class="bmp-look">${escapeHTML(t.bmp_look_tv)}</p>${host}${renderRoomPlayerStrip(state)}</div>`;
+      return `<div class="bmp" id="bmp-phone">
+        ${bmpStatusHtml(state, false)}${noTv}
+        <div class="bmp-pad" id="bmp-pad" style="--car:${color}" aria-label="${escapeHTML(t.bmp_stick)}">
+          <div class="bmp-pad__ring"></div><div class="bmp-pad__knob" id="bmp-knob"></div>
+        </div>
+        ${acts}
+        <div class="segmented bmp-modes" role="radiogroup">
+          <button type="button" class="segmented__item is-active" onclick="bmpSetMode('stick')">${escapeHTML(t.bmp_stick)}</button>
+          <button type="button" class="segmented__item" onclick="bmpSetMode('tilt')">${escapeHTML(t.bmp_tilt)}</button>
+        </div>
+        <p class="bmp-hint">${escapeHTML(bmpModeLine(st, t))}</p>
+        ${host}${renderRoomPlayerStrip(state)}</div>`;
     });
     refreshRoomPlayerStrip(el, state);
     if (s.phase === 'play' && driver) bmpControllerOn(); else bmpControllerOff();
     bmpWirePad();
     bmpLandLayout();
+    bmpPaintPhone();
   }
 };
 
-/** The host's round length, kept on the phone and sent with Start. */
-function bmpSetSecs(n, btn) {
-  rememberOptions('bumper', { secs: n });
-  if (btn && btn.parentElement) [...btn.parentElement.children].forEach(b => b.classList.toggle('is-active', b === btn));
+/** The phone's own car: the balloons, the score, the place - big. Filled in by bmpPaintPhone. */
+function bmpStatusHtml(state, compact) {
+  const t = bmpT();
+  const color = bmpColorOf(state, Room.me);
+  return `<div class="bmp-status ${compact ? 'is-compact' : ''}" style="--car:${color}">
+    <span class="bmp-status__car" aria-hidden="true"></span>
+    <span class="bmp-status__main" data-bmp-main></span>
+    <span class="bmp-status__place" data-bmp-place></span>
+    <span class="bmp-status__chips">
+      <span class="badge"><span aria-hidden="true">⏱️</span> <span class="metric" data-bmp-clock>${bmpClockText(bmpSecsLeft(state))}</span></span>
+      <span class="badge" data-bmp-ping>${escapeHTML(t.bmp_ping)} <span class="metric">–</span></span>
+    </span>
+  </div>`;
 }
 
 function bmpSetMode(mode) {
@@ -256,10 +321,7 @@ function bmpScreenAngle() {
 }
 /** The angle the controller is drawn at, as the phone's rotation: 90 or -90. */
 function bmpLandTheta() {
-  if (window.innerWidth >= window.innerHeight) {
-    const a = bmpScreenAngle();
-    return a === -90 ? -90 : 90;
-  }
+  if (window.innerWidth >= window.innerHeight) return bmpScreenAngle() === -90 ? -90 : 90;
   return bmp.tilt.rot;
 }
 function bmpLandLayout() {
@@ -347,6 +409,24 @@ function bmpLockLandscape(on) {
   } catch (e) {}
 }
 
+/* --- the boost and the horn ----------------------------------------------------- */
+function bmpBoost() {
+  const now = Date.now();
+  if (now - bmp.boostAt < BMP_BOOST_MS) { haptic('light'); return; }
+  bmp.boostAt = now;
+  Room.sendLive({ k: 'b' });
+  haptic('heavy');
+  bmpPaintPhone();
+}
+let bmpHornAt = 0;
+function bmpHorn() {
+  const now = Date.now();
+  if (now - bmpHornAt < 600) return;
+  bmpHornAt = now;
+  Room.sendLive({ k: 'hn' });
+  haptic('light');
+}
+
 /* --- sending: the controller's beat ---------------------------------------------- */
 function bmpInput() {
   if (bmp.mode === 'tilt') {
@@ -372,7 +452,7 @@ function bmpPing() {
 function bmpControllerOn() {
   if (!bmp.sendTimer) bmp.sendTimer = setInterval(bmpSendNow, BMP_SEND_MS);
   if (!bmp.pingTimer) { bmpPing(); bmp.pingTimer = setInterval(bmpPing, BMP_PING_MS); }
-  if (!bmp.uiTimer) bmp.uiTimer = setInterval(bmpPaintPhone, 250);
+  if (!bmp.uiTimer) bmp.uiTimer = setInterval(bmpPaintPhone, 200);
   if (!bmp.wake) {
     try {
       if (navigator.wakeLock && navigator.wakeLock.request) {
@@ -393,13 +473,15 @@ function bmpControllerOff() {
   bmp.stick = { x: 0, y: 0 };
   bmp.lastSent = '';
 }
-onRoomClocksReset(() => { bmpControllerOff(); bmpTvStop(); });
-onLeaveScreen((from) => { if (from === 'room-bumper') bmpControllerOff(); if (from === 'room-tv') bmpTvStop(); });
+onRoomClocksReset(() => { bmpControllerOff(); bmpTvStop(true); });
+onLeaveScreen((from) => { if (from === 'room-bumper') bmpControllerOff(); if (from === 'room-tv') bmpTvStop(true); });
 
-/** The phone's clock and delay, refreshed in place. */
+/** The phone's car, the clock, the delay and the boost's ring, refreshed in place. */
 function bmpPaintPhone() {
   const state = Room.state;
   if (!state || state.game !== 'bumper') return;
+  const t = bmpT();
+  const st = bmpSettings(state.shared);
   const clock = document.querySelector('[data-bmp-clock]');
   if (clock) clock.textContent = bmpClockText(bmpSecsLeft(state));
   const ping = document.querySelector('[data-bmp-ping] .metric');
@@ -408,11 +490,41 @@ function bmpPaintPhone() {
     ping.textContent = v === null ? '–' : v + ' ms';
     ping.parentElement.dataset.level = v === null ? '' : v < 80 ? 'good' : v < 150 ? 'ok' : 'bad';
   }
+  const me = bmp.me;
+  const main = document.querySelector('[data-bmp-main]');
+  if (main) {
+    const color = bmpColorOf(state, Room.me);
+    let html;
+    if (!me) html = `<span class="bmp-status__wait">${escapeHTML(t.bmp_look_tv)}</span>`;
+    else if (st.mode === 'balloons') html = me.gh ? `<span class="bmp-status__ghost">👻 ${escapeHTML(t.bmp_ghost)}</span>` : bmpBalloonsHtml(me.l, color);
+    else if (st.mode === 'ring' && st.ringWin === 'last') html = me.out ? `<span class="bmp-status__ghost">💦 ${escapeHTML(t.bmp_fell_out)}</span>`
+      : `<span class="bmp-status__n metric">${me.sc}</span><span class="bmp-status__unit">${escapeHTML(t.bmp_pushes)}</span>`;
+    else html = `<span class="bmp-status__n metric">${me.sc}</span><span class="bmp-status__unit">${escapeHTML(st.mode === 'ring' ? t.bmp_pushes : t.bmp_bumps)}</span>`;
+    const key = html;
+    if (main.dataset.k !== key) {
+      const was = main.dataset.k;
+      main.innerHTML = html;
+      main.dataset.k = key;
+      if (was && !motionOff()) { main.classList.remove('is-bump'); void main.offsetWidth; main.classList.add('is-bump'); }
+    }
+  }
+  const place = document.querySelector('[data-bmp-place]');
+  if (place) {
+    const txt = me && me.pl ? bmpFill(t.bmp_place, { n: me.pl, of: me.of }) : '';
+    if (place.textContent !== txt) place.textContent = txt;
+    place.classList.toggle('is-first', !!(me && me.pl === 1));
+  }
+  const boost = document.getElementById('bmp-boost');
+  if (boost) {
+    const left = Math.max(0, BMP_BOOST_MS - (Date.now() - bmp.boostAt));
+    boost.style.setProperty('--cd', (left / BMP_BOOST_MS).toFixed(3));
+    boost.classList.toggle('is-cool', left > 0);
+  }
   const phone = document.getElementById('bmp-phone');
   if (phone) phone.classList.toggle('is-hit', Date.now() < bmp.flashUntil);
 }
 
-/** What comes back from the TV: a ping's echo, a knock. */
+/** What comes back from the TV: a ping's echo, a moment, the car's status. */
 Room.onLive((d) => {
   if (!d || typeof d !== 'object') return;
   const state = Room.state;
@@ -429,20 +541,24 @@ Room.onLive((d) => {
     bmp.ping.last = list.slice().sort((a, b) => a - b)[Math.floor(list.length / 2)];
     return;
   }
+  if (d.k === 's') {
+    bmp.me = { round: (state.shared || {}).round, l: d.l | 0, sc: d.sc | 0, pl: d.pl | 0, of: d.of | 0, gh: !!d.gh, out: !!d.out };
+    bmpPaintPhone();
+    return;
+  }
   if (d.k === 'h') {
-    if (d.w === 'got') {
+    if (d.w === 'got' || d.w === 'pop' || d.w === 'fell') {
       bmp.flashUntil = Date.now() + 350;
-      bmpSnd('got');
-      try { if (navigator.vibrate) navigator.vibrate(90); } catch (e) {}
+      bmpSnd(d.w === 'pop' ? 'pop' : 'got');
+      try { if (navigator.vibrate) navigator.vibrate(d.w === 'fell' ? [80, 60, 80] : 90); } catch (e) {}
     } else {
-      bmp.myHits = d.n || 0;
       haptic('medium');
       bmpSnd('point');
       const phone = document.getElementById('bmp-phone');
       if (phone && !motionOff()) {
         const pop = document.createElement('div');
         pop.className = 'bmp-pop';
-        pop.textContent = '+1 ' + bmpT().bmp_hit;
+        pop.textContent = '+1';
         phone.appendChild(pop);
         setTimeout(() => pop.remove(), 900);
       }
@@ -452,36 +568,43 @@ Room.onLive((d) => {
 });
 
 /* --- the result (phone and TV) ------------------------------------------------ */
+function bmpResultStat(r, st, t) {
+  if (st.mode === 'balloons') return `${bmpBalloonsHtml(r.lives, 'var(--car)')} <span class="metric tx-muted">💥 ${r.score}</span>`;
+  if (st.mode === 'ring') return `<span class="metric">⭕ ${r.score}</span> <span class="metric tx-muted">💦 ${r.taken}</span>`;
+  return `<span class="metric">💥 ${r.score}</span> <span class="metric tx-muted">🤕 ${r.taken}</span>`;
+}
 function bmpOverHtml(state, s, t, tv) {
+  const st = bmpSettings(s);
   const res = s.results || [];
-  const board = res.map(r => ({ id: r.id, name: r.name, score: r.hits }));
-  const top = res[0];
-  const names = top && top.hits > 0 && res.length > 1 ? res.filter(r => r.hits === top.hits).map(r => r.name) : [];
-  const head = names.length
-    ? `<div class="bmp-over__win">🏆 ${escapeHTML(bmpFill(t.bmp_winner, { name: names.join(appState.lang === 'ar' ? ' و' : ' & ') }))}</div>` : '';
+  const podium = res.map(r => ({ id: r.id, name: r.name, score: Math.max(1, (res.length + 1) - r.place) }));
+  const winners = res.filter(r => r.place === 1);
+  const head = winners.length && res.length > 1 && s.reported
+    ? `<div class="bmp-over__win">🏆 ${escapeHTML(bmpFill(winners.length > 1 ? t.bmp_winners : t.bmp_winner, { name: winners.map(r => r.name).join(appState.lang === 'ar' ? ' و' : ' & ') }))}</div>` : '';
+  const medal = (p) => p === 1 ? '🥇' : p === 2 ? '🥈' : p === 3 ? '🥉' : p;
   const rows = res.map(r => `
-    <div class="bmp-row">
-      <span class="bmp-row__dot" style="--car:${bmpColorOf(state, r.id)}"></span>
-      <span class="bmp-row__name"><bdi>${escapeHTML(r.name)}</bdi></span>
-      <span class="bmp-row__n metric">💥 ${r.hits}</span>
-      <span class="bmp-row__n metric tx-muted">🤕 ${r.taken}</span>
+    <div class="bmp-row" style="--car:${bmpColorOf(state, r.id)}">
+      <span class="bmp-row__place">${medal(r.place)}</span>
+      <span class="bmp-row__dot"></span>
+      <span class="bmp-row__name"><bdi>${escapeHTML(r.name)}</bdi>${r.bot ? ' 🤖' : ''}</span>
+      <span class="bmp-row__stat">${bmpResultStat(r, st, t)}</span>
     </div>`).join('');
   const none = !s.reported ? `<p class="waiting-note">${escapeHTML(t.bmp_no_report)}</p>` : '';
   const host = !state.youAreHost ? '' : tv
     ? `<div class="tv-actions">${tvBtn('▶ ' + t.bmp_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>`
     : `<div class="btn-row" style="margin-top:var(--sp-3)"><button class="btn btn--go" onclick="roomAct('playAgain', {})">▶ ${escapeHTML(t.bmp_again)}</button><button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game)}</button></div>`;
   return `<div class="bmp-over">
-    <div class="eyebrow bmp-over__eyebrow" style="text-align:center">${escapeHTML(t.bmp_over)}</div>
-    ${head}<div class="bmp-over__podium">${renderPodium(state, board)}</div>
+    <div class="eyebrow bmp-over__eyebrow" style="text-align:center">${escapeHTML(t.bmp_over)} · ${escapeHTML(bmpModeName(st, t))}</div>
+    ${head}<div class="bmp-over__podium">${s.reported ? renderPodium(state, podium) : ''}</div>
     <div class="card card--tight bmp-rows">${rows}</div>${none}${host}</div>`;
 }
 
-/* --- the sound (28 Sep 2026: the owner heard nothing on the first test) ---------
+/* --- the sound ------------------------------------------------------------------
    The TV is the rink's voice: the countdown, the start horn, an engine that
-   follows how fast the cars go, every crash by how hard it was, a chime for a
-   point, the last five seconds and the end. A phone plays only its own bumps
-   (an iPhone can't buzz). Made with the soundboard's instruments; a TV whose
-   browser keeps the sound asleep shows «🔊 اضغط هنا عشان الصوت». */
+   follows how fast the cars go, every crash by how hard it was, a balloon's
+   pop, a fall off the ring, each car's own horn, a chime for a point, the last
+   five seconds and the end. A phone plays only its own moments (an iPhone
+   can't buzz). A TV whose browser keeps the sound asleep shows
+   «🔊 اضغط هنا عشان الصوت». */
 function bmpSnd(kind, v) {
   try {
     const ctx = fxCtx();
@@ -504,6 +627,20 @@ function bmpSnd(kind, v) {
     } else if (kind === 'got') {
       fxNoise('lowpass', 500, 0.8, [[0, 0.0001], [0.004, 0.45], [0.18, 0.0001]], at);
       fxTone('sine', [[0, 120], [0.15, 60]], [[0, 0.0001], [0.01, 0.4], [0.22, 0.0001]], at);
+    } else if (kind === 'pop') {
+      fxNoise('highpass', 1800, 0.7, [[0, 0.0001], [0.002, 0.6], [0.06, 0.0001]], at);
+      fxTone('sine', [[0, 900], [0.08, 300]], [[0, 0.0001], [0.005, 0.2], [0.1, 0.0001]], at);
+    } else if (kind === 'fall') {
+      fxTone('sine', [[0, 700], [0.7, 140]], [[0, 0.0001], [0.03, 0.16], [0.7, 0.0001]], at);
+      fxNoise('lowpass', 260, 0.6, [[0, 0.0001], [0.72, 0.0001], [0.75, 0.4], [1.0, 0.0001]], at);
+    } else if (kind === 'boost') {
+      fxNoise('bandpass', 700, 1.2, [[0, 0.0001], [0.04, 0.25], [0.5, 0.0001]], at);
+      fxTone('sawtooth', [[0, 110], [0.4, 260]], [[0, 0.0001], [0.03, 0.08], [0.45, 0.0001]], at);
+    } else if (kind === 'horn') {
+      // A car's own horn: two notes a fifth apart, pitched by its colour.
+      const base = 330 * Math.pow(1.12, v || 0);
+      fxTone('square', [[0, base]], [[0, 0.0001], [0.02, 0.09], [0.32, 0.08], [0.38, 0.0001]], at);
+      fxTone('square', [[0, base * 1.5]], [[0, 0.0001], [0.02, 0.07], [0.32, 0.06], [0.38, 0.0001]], at);
     } else if (kind === 'end') {
       fxTone('sawtooth', [[0, 523], [0.35, 523], [0.36, 392], [1.0, 392]], [[0, 0.0001], [0.02, 0.16], [0.95, 0.12], [1.15, 0.0001]], at);
     }
@@ -555,14 +692,17 @@ TV_GAMES.bumper = {
   frame(state, t) {
     const s = state.shared || {};
     if (s.phase === 'over') return `<div class="bmp-tv bmp-tv--over tv-scale">${bmpOverHtml(state, s, t, true)}</div>`;
+    const st = bmpSettings(s);
     const host = state.youAreHost ? `<div class="tv-actions">${tvBtn(t.bmp_end_now, "roomAct('endNow', {})", 'ghost')}</div>` : '';
     return `<div class="bmp-tv">
-      <div class="bmp-tv__stage"><canvas id="bmp-canvas" class="bmp-canvas"></canvas></div>
+      <div class="bmp-tv__stage" id="bmp-stage"></div>
       <div class="bmp-tv__side">
+        <div class="bmp-tv__mode">${escapeHTML(bmpModeName(st, t))}</div>
         <div class="bmp-tv__clock metric" data-bmp-tvclock>–</div>
         <button type="button" class="btn btn--primary btn--auto bmp-sound hidden" id="bmp-sound" onclick="setTimeout(() => bmpSnd('beep'), 150)">${escapeHTML(t.bmp_sound_tap)}</button>
         <div class="bmp-table" id="bmp-table"></div>
         <div class="bmp-stats" id="bmp-stats"></div>
+        <button type="button" class="btn btn--ghost btn--xs btn--auto bmp-stats-btn" onclick="bmpToggleStats()">📶 ${escapeHTML(t.bmp_stats)}</button>
         ${host}
       </div>
     </div>`;
@@ -570,49 +710,67 @@ TV_GAMES.bumper = {
   after(state, rebuilt) {
     bmpNoteTime(state);
     const s = state.shared || {};
-    if (s.phase !== 'play') { bmpTvStop(); return; }
+    if (s.phase !== 'play') { bmpTvStop(true); return; }
     bmpTvStart(state, rebuilt);
   }
 };
+
+function bmpToggleStats() {
+  bmp.stats = !bmp.stats;
+  rememberOptions('bumper', { stats: bmp.stats });
+  if (bmp.tv && Room.state) bmpTvPanel(Room.state);
+}
 
 function bmpTvStart(state, rebuilt) {
   const s = state.shared || {};
   const key = roomDealKey(state, s.round);
   if (!bmp.tv || bmp.tv.key !== key) {
-    bmp.tv = { key, round: s.round, cars: {}, sparks: [], pops: [], pairs: {}, reported: false,
-      msgs: [], sent: [], raf: 0, last: 0, canvas: null, uiAt: 0, snd: { cd: null, go: false, tick: null, end: false }, wallAt: 0, sndPairs: {} };
+    bmpTvStop(true);
+    bmp.tv = { key, round: s.round, st: bmpSettings(s), cars: {}, sparks: [], pops: [], pairs: {}, sndPairs: {}, reported: false,
+      msgs: [], sent: [], raf: 0, tick: null, last: 0, uiAt: 0, statusAt: 0, snd: { cd: null, go: false, tick: null, end: false },
+      wallAt: 0, elim: 0, view: null, done: false };
   }
   const g = bmp.tv;
-  if (rebuilt || !g.canvas || !g.canvas.isConnected) g.canvas = document.getElementById('bmp-canvas');
+  const stage = document.getElementById('bmp-stage');
+  if (stage && (rebuilt || !g.view || !g.view.el.isConnected)) bmpViewMount(g, stage);
   if (!g.raf) { g.last = performance.now(); g.raf = requestAnimationFrame(bmpTvFrame); }
-  // A page in the background draws no frames: the scores still go in when the round ends.
+  // A page in the background draws no frames: the result still goes in when the round ends.
   if (!g.tick) g.tick = setInterval(() => {
     const st = Room.state;
     if (bmp.tv !== g || !st || st.game !== 'bumper' || !st.youAreScreen || (st.shared || {}).phase !== 'play') return;
-    if (bmpServerNow() >= st.shared.endsAt && !g.reported) bmpTvReport(st);
+    if ((bmpServerNow() >= st.shared.endsAt || g.done) && !g.reported) bmpTvReport(st);
   }, 1000);
 }
-function bmpTvStop() {
-  if (bmp.tv && bmp.tv.raf) cancelAnimationFrame(bmp.tv.raf);
-  if (bmp.tv && bmp.tv.tick) clearInterval(bmp.tv.tick);
+function bmpTvStop(all) {
+  const g = bmp.tv;
+  if (!g) return;
+  if (g.raf) cancelAnimationFrame(g.raf);
+  if (g.tick) clearInterval(g.tick);
+  g.raf = 0; g.tick = null;
   bmpEngineOff();
-  if (bmp.tv) { bmp.tv.raf = 0; bmp.tv.tick = null; }
+  if (all && g.view) { try { g.view.dispose(); } catch (e) {} g.view = null; }
 }
 
-/** A car for every driver in the room: the roster, and anyone who joined since. */
+/* --- the cars: people, latecomers and computer players --------------------------- */
 function bmpTvSyncCars(state) {
   const g = bmp.tv;
-  const people = (state.players || []).filter(p => !p.bot);
-  const ids = people.map(p => p.id);
-  Object.keys(g.cars).forEach(id => { if (ids.indexOf(id) === -1) delete g.cars[id]; });
-  people.forEach((p) => {
+  const s = state.shared || {};
+  const botsDealt = s.bots || {};
+  const drivers = (state.players || []).filter(p => !p.bot || botsDealt[p.id]);
+  const ids = drivers.map(p => p.id);
+  Object.keys(g.cars).forEach(id => { if (ids.indexOf(id) === -1) { if (g.view) g.view.remove(id); delete g.cars[id]; } });
+  drivers.forEach((p) => {
     if (g.cars[p.id]) { g.cars[p.id].name = p.name; return; }
     const k = Object.keys(g.cars).length;
-    const a = (k / Math.max(ids.length, 2)) * Math.PI * 2 + 0.3;
-    const x = BMP_W / 2 + Math.cos(a) * BMP_W * 0.33;
-    const y = BMP_H / 2 + Math.sin(a) * BMP_H * 0.3;
-    g.cars[p.id] = { id: p.id, name: p.name, x, y, vx: 0, vy: 0, h: Math.atan2(BMP_H / 2 - y, BMP_W / 2 - x),
-      input: null, inAt: 0, hits: 0, taken: 0, ping: null, flash: 0, rate: [] };
+    const n = Math.max(ids.length, 2);
+    const a = (k / n) * Math.PI * 2 + 0.3;
+    const ring = g.st.mode === 'ring';
+    const rx = ring ? BMP_RING_R * 0.62 : BMP_W * 0.33, ry = ring ? BMP_RING_R * 0.62 : BMP_H * 0.3;
+    const x = BMP_W / 2 + Math.cos(a) * rx;
+    const y = BMP_H / 2 + Math.sin(a) * ry;
+    g.cars[p.id] = { id: p.id, name: p.name, bot: p.bot || null, x, y, vx: 0, vy: 0, h: Math.atan2(BMP_H / 2 - y, BMP_W / 2 - x),
+      input: null, inAt: 0, hits: 0, taken: 0, lives: BMP_LIVES, ghost: false, out: false, fall: null, safeUntil: 0,
+      boostAt: 0, boostFx: 0, hornAt: 0, hornFx: 0, lastTouch: null, elimAt: 0, ping: null, flash: 0, rate: [], ai: null, sent: '' };
   });
 }
 
@@ -629,26 +787,106 @@ function bmpTvHear(d) {
     if (car && typeof d.r === 'number' && d.r >= 0) car.ping = d.r;
     return;
   }
-  if (d.k === 'i' && car) {
-    car.input = d;
-    car.inAt = now;
-    car.rate.push(now);
-  }
+  if (!car) return;
+  if (d.k === 'i') { car.input = d; car.inAt = now; car.rate.push(now); return; }
+  if (d.k === 'b') { bmpTvBoost(car); return; }
+  if (d.k === 'hn') bmpTvHorn(car);
+}
+function bmpTvRunning(s) { const now = bmpServerNow(); return now >= s.startAt && now < s.endsAt && !bmp.tv.done; }
+function bmpTvBoost(car) {
+  const s = (Room.state && Room.state.shared) || {};
+  const now = Date.now();
+  if (!bmpTvRunning(s) || car.fall || car.out || now - car.boostAt < BMP_BOOST_MS - 200) return;
+  car.boostAt = now;
+  car.boostFx = now;
+  car.vx += Math.cos(car.h) * 560;
+  car.vy += Math.sin(car.h) * 560;
+  bmpSnd('boost');
+}
+function bmpTvHorn(car) {
+  const now = Date.now();
+  if (now - car.hornAt < 600) return;
+  car.hornAt = now;
+  car.hornFx = now;
+  bmpSnd('horn', bmpColorIndex(Room.state, car.id));
 }
 
+/* --- the computer players --------------------------------------------------------
+   Driven on the TV like a stick: a target now and then (easy: anyone, or a
+   wander; hard: the one worth hitting - the leader, the one with most balloons,
+   the one nearest the edge of the ring), aimed at where it is going (hard leads
+   it), keeping off the ring's edge, and the boost when the target is close
+   ahead (hard) or now and then (easy). */
+function bmpBotInput(g, c, now) {
+  const hard = c.bot === 'hard';
+  const st = g.st;
+  const others = Object.values(g.cars).filter(o => o !== c && !o.fall && !o.out && !(st.mode === 'balloons' && o.ghost));
+  const ai = c.ai || (c.ai = { target: null, until: 0, wander: null, slowSince: 0 });
+  if (now > ai.until || (ai.target && (!g.cars[ai.target] || g.cars[ai.target].fall || g.cars[ai.target].out))) {
+    ai.until = now + (hard ? 1200 : 2000) + Math.random() * 1200;
+    ai.wander = null;
+    if (!others.length || (!hard && Math.random() < 0.25)) {
+      ai.target = null;
+      ai.wander = { x: BMP_W / 2 + (Math.random() - 0.5) * 900, y: BMP_H / 2 + (Math.random() - 0.5) * 500 };
+    } else if (hard) {
+      const worth = (o) => {
+        const d = Math.hypot(o.x - c.x, o.y - c.y);
+        let v = -d / 400;
+        if (st.mode === 'balloons') v += o.lives * 0.6;
+        if (st.mode === 'points') v += o.hits * 0.15;
+        if (st.mode === 'ring') v += Math.hypot(o.x - BMP_W / 2, o.y - BMP_H / 2) / BMP_RING_R * 2.5;
+        return v;
+      };
+      ai.target = others.slice().sort((a, b) => worth(b) - worth(a))[0].id;
+    } else {
+      ai.target = others[Math.floor(Math.random() * others.length)].id;
+    }
+  }
+  let tx, ty;
+  const tg = ai.target && g.cars[ai.target];
+  if (tg) {
+    const lead = hard ? 0.35 : 0;
+    tx = tg.x + tg.vx * lead; ty = tg.y + tg.vy * lead;
+  } else if (ai.wander) { tx = ai.wander.x; ty = ai.wander.y; } else { tx = BMP_W / 2; ty = BMP_H / 2; }
+  let dx = tx - c.x, dy = ty - c.y;
+  const dl = Math.hypot(dx, dy) || 1;
+  dx /= dl; dy /= dl;
+  if (st.mode === 'ring') {
+    const cx = BMP_W / 2 - c.x, cy = BMP_H / 2 - c.y, cd = Math.hypot(cx, cy) || 1;
+    const edge = cd / BMP_RING_R;
+    const care = hard ? 0.72 : 0.84;
+    if (edge > care) {
+      const w = Math.min(1, (edge - care) / (1 - care)) * (hard ? 1.6 : 1.1);
+      dx = dx * (1 - w) + (cx / cd) * w * 1.3; dy = dy * (1 - w) + (cy / cd) * w * 1.3;
+      const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    }
+  }
+  const speed = Math.hypot(c.vx, c.vy);
+  if (speed < 40) { if (!ai.slowSince) ai.slowSince = now; } else ai.slowSince = 0;
+  if (ai.slowSince && now - ai.slowSince > 1200) { ai.until = 0; ai.slowSince = 0; }
+  const mag = hard ? 1 : 0.62;
+  if (now - c.boostAt > BMP_BOOST_MS) {
+    const ahead = tg && dl < 300 && (Math.cos(c.h) * dx + Math.sin(c.h) * dy) > 0.9;
+    if ((hard && ahead) || (!hard && Math.random() < 0.004)) bmpTvBoost(c);
+  }
+  if (Math.random() < (hard ? 0.0008 : 0.0015)) bmpTvHorn(c);
+  return { k: 'i', x: Math.round(dx * mag * 100), y: Math.round(dy * mag * 100) };
+}
+
+/* --- the loop ------------------------------------------------------------------ */
 function bmpTvFrame(ts) {
   const g = bmp.tv;
   if (!g) return;
   g.raf = requestAnimationFrame(bmpTvFrame);
   const state = Room.state;
-  if (!state || state.game !== 'bumper' || !state.youAreScreen) { bmpTvStop(); return; }
+  if (!state || state.game !== 'bumper' || !state.youAreScreen) { bmpTvStop(true); return; }
   const s = state.shared || {};
   if (s.phase !== 'play') return;
   bmpTvSyncCars(state);
   let dt = Math.min(0.05, (ts - g.last) / 1000);
   g.last = ts;
   const now = bmpServerNow();
-  const running = now >= s.startAt && now < s.endsAt;
+  const running = now >= s.startAt && now < s.endsAt && !g.done;
   // Fixed steps, so a slow frame doesn't let cars pass through each other.
   while (dt > 0) {
     const step = Math.min(dt, 1 / 120);
@@ -657,10 +895,25 @@ function bmpTvFrame(ts) {
   }
   g.sparks = g.sparks.filter(p => (p.t -= 1 / 60) > 0);
   g.pops = g.pops.filter(p => (p.t -= 1 / 60) > 0);
+  bmpTvCheckDone(state);
   bmpTvSounds(s, now, running);
-  if (now >= s.endsAt && !g.reported) bmpTvReport(state);
-  bmpTvDraw(state, now);
-  if (ts - g.uiAt > 250) { g.uiAt = ts; bmpTvPanel(state, now); }
+  if ((now >= s.endsAt || g.done) && !g.reported) bmpTvReport(state);
+  if (g.view) g.view.draw(state, now);
+  if (ts - g.uiAt > 250) { g.uiAt = ts; bmpTvPanel(state); }
+  if (ts - g.statusAt > 450) { g.statusAt = ts; bmpTvStatus(state); }
+}
+
+/** Balloons and «آخر واحد»: one car left ends the round (a moment later, so the pop is seen). */
+function bmpTvCheckDone(state) {
+  const g = bmp.tv;
+  if (g.done || !bmpLastStanding(g.st)) return;
+  const cars = Object.values(g.cars);
+  if (cars.length < 2) return;
+  const inGame = cars.filter(c => g.st.mode === 'balloons' ? !c.ghost : !c.out);
+  if (inGame.length <= 1) {
+    if (!g.doneAt) g.doneAt = Date.now() + 1400;
+    if (Date.now() >= g.doneAt) g.done = true;
+  }
 }
 
 /** The countdown, the start, the last five seconds and the end - each once - and the engine. */
@@ -671,10 +924,10 @@ function bmpTvSounds(s, now, running) {
     if (n !== m.cd) { m.cd = n; bmpSnd('beep'); }
   } else if (!m.go && now < s.startAt + 1500) { m.go = true; bmpSnd('go'); }
   const left = Math.ceil((s.endsAt - now) / 1000);
-  if (running && left <= 5 && left >= 1 && left !== m.tick) { m.tick = left; bmpSnd('tick'); }
-  if (now >= s.endsAt && !m.end) { m.end = true; bmpSnd('end'); bmpEngineOff(); }
+  if (running && !bmpLastStanding(g.st) && left <= 5 && left >= 1 && left !== m.tick) { m.tick = left; bmpSnd('tick'); }
+  if ((now >= s.endsAt || g.done) && !m.end) { m.end = true; bmpSnd('end'); bmpEngineOff(); }
   if (running) {
-    const cars = Object.values(g.cars);
+    const cars = Object.values(g.cars).filter(c => !c.fall);
     const avg = cars.length ? cars.reduce((a, c) => a + Math.hypot(c.vx, c.vy), 0) / cars.length / 720 : 0;
     bmpEngine(Math.min(1, avg * 1.4));
   }
@@ -682,10 +935,18 @@ function bmpTvSounds(s, now, running) {
 
 function bmpTvStep(dt, running) {
   const g = bmp.tv;
+  const st = g.st;
   const cars = Object.values(g.cars);
   const wall = Date.now();
   cars.forEach((c) => {
-    const inp = running && c.input && wall - c.inAt < BMP_STALE_MS ? c.input : null;
+    if (c.fall) {
+      // Falling off the ring: down it goes; on the clock, back on the platform after a moment.
+      c.fall.t += dt;
+      if (st.mode === 'ring' && st.ringWin === 'clock' && wall >= c.fall.back && running) bmpTvRespawn(c, wall);
+      return;
+    }
+    const human = !c.bot;
+    const inp = !running || c.out ? null : human ? (c.input && wall - c.inAt < BMP_STALE_MS ? c.input : null) : bmpBotInput(g, c, wall);
     let thrust = 0;
     if (inp && typeof inp.x === 'number') {
       const x = inp.x / 100, y = inp.y / 100;
@@ -711,24 +972,59 @@ function bmpTvStep(dt, running) {
     c.vx = f2 * fx - s2 * fy;
     c.vy = f2 * fy + s2 * fx;
     const sp = Math.hypot(c.vx, c.vy);
-    if (sp > 720) { c.vx *= 720 / sp; c.vy *= 720 / sp; }
+    const cap = wall - c.boostAt < 700 ? 1100 : 720;
+    if (sp > cap) { c.vx *= cap / sp; c.vy *= cap / sp; }
     c.x += c.vx * dt;
     c.y += c.vy * dt;
-    const m = 18 + BMP_R;
-    let hitWall = 0;
-    if (c.x < m) { hitWall = Math.abs(c.vx); c.x = m; c.vx = Math.abs(c.vx) * 0.7; }
-    if (c.x > BMP_W - m) { hitWall = Math.abs(c.vx); c.x = BMP_W - m; c.vx = -Math.abs(c.vx) * 0.7; }
-    if (c.y < m) { hitWall = Math.max(hitWall, Math.abs(c.vy)); c.y = m; c.vy = Math.abs(c.vy) * 0.7; }
-    if (c.y > BMP_H - m) { hitWall = Math.max(hitWall, Math.abs(c.vy)); c.y = BMP_H - m; c.vy = -Math.abs(c.vy) * 0.7; }
-    if (running && hitWall > 220 && wall - g.wallAt > 90) { g.wallAt = wall; bmpSnd('wall', hitWall / 720); }
+    if (st.mode === 'ring') {
+      // No rail: past the edge is a fall.
+      const d = Math.hypot(c.x - BMP_W / 2, c.y - BMP_H / 2);
+      if (d > BMP_RING_R + 6 && !c.out) bmpTvFall(c, wall, running);
+    } else {
+      const m = 18 + BMP_R;
+      let hitWall = 0;
+      if (c.x < m) { hitWall = Math.abs(c.vx); c.x = m; c.vx = Math.abs(c.vx) * 0.7; }
+      if (c.x > BMP_W - m) { hitWall = Math.abs(c.vx); c.x = BMP_W - m; c.vx = -Math.abs(c.vx) * 0.7; }
+      if (c.y < m) { hitWall = Math.max(hitWall, Math.abs(c.vy)); c.y = m; c.vy = Math.abs(c.vy) * 0.7; }
+      if (c.y > BMP_H - m) { hitWall = Math.max(hitWall, Math.abs(c.vy)); c.y = BMP_H - m; c.vy = -Math.abs(c.vy) * 0.7; }
+      if (running && hitWall > 220 && wall - g.wallAt > 90) { g.wallAt = wall; bmpSnd('wall', hitWall / 720); }
+    }
     c.flash = Math.max(0, c.flash - dt);
   });
-  for (let i = 0; i < cars.length; i++) {
-    for (let j = i + 1; j < cars.length; j++) bmpTvCollide(cars[i], cars[j], running);
+  const live = cars.filter(c => !c.fall && !c.out);
+  for (let i = 0; i < live.length; i++) {
+    for (let j = i + 1; j < live.length; j++) bmpTvCollide(live[i], live[j], running);
   }
 }
 
+/** Off the edge of the ring: a point to whoever pushed last, and back in or out. */
+function bmpTvFall(c, now, running) {
+  const g = bmp.tv;
+  c.fall = { t: 0, x: c.x, y: c.y, vx: c.vx, vy: c.vy, at: now, back: now + BMP_RESPAWN_MS };
+  c.taken++;
+  const pusher = c.lastTouch && now - c.lastTouch.at < 2500 ? g.cars[c.lastTouch.id] : null;
+  if (pusher && running) {
+    pusher.hits++;
+    g.pops.push({ x: pusher.x, y: pusher.y - BMP_R * 1.6, t: 0.9, color: bmpColorOf(Room.state, pusher.id) });
+    if (!pusher.bot) Room.sendLive({ k: 'h', to: pusher.id, w: 'hit' });
+    g.sent.push(now);
+  }
+  if (g.st.ringWin === 'last') { c.out = true; c.elimAt = ++g.elim; }
+  if (!c.bot) { Room.sendLive({ k: 'h', to: c.id, w: 'fell' }); g.sent.push(now); }
+  bmpSnd('fall');
+}
+function bmpTvRespawn(c, now) {
+  const a = Math.random() * Math.PI * 2, r = Math.random() * BMP_RING_R * 0.35;
+  c.x = BMP_W / 2 + Math.cos(a) * r; c.y = BMP_H / 2 + Math.sin(a) * r;
+  c.vx = 0; c.vy = 0; c.fall = null; c.safeUntil = now + 1500; c.lastTouch = null;
+  c.h = Math.atan2(BMP_H / 2 - c.y, BMP_W / 2 - c.x) + Math.PI;
+}
+
 function bmpTvCollide(a, b, running) {
+  const wall = Date.now();
+  // Just back on the ring: the others pass through for a moment.
+  if (wall < a.safeUntil && bmp.tv.st.mode === 'ring') return;
+  if (wall < b.safeUntil && bmp.tv.st.mode === 'ring') return;
   const dx = b.x - a.x, dy = b.y - a.y;
   const d = Math.hypot(dx, dy);
   if (d >= BMP_R * 2 || d === 0) return;
@@ -746,188 +1042,535 @@ function bmpTvCollide(a, b, running) {
   const hard = -vr;
   // Cars pushing against each other touch every step: sparks and a crash only for a real knock.
   if (hard < 70) return;
+  a.lastTouch = { id: b.id, at: wall };
+  b.lastTouch = { id: a.id, at: wall };
   const pairKey = a.id < b.id ? a.id + '|' + b.id : b.id + '|' + a.id;
-  if (!g.sndPairs[pairKey] || Date.now() - g.sndPairs[pairKey] > 180) { g.sndPairs[pairKey] = Date.now(); bmpSnd('bump', hard / 600); }
+  if (!g.sndPairs[pairKey] || wall - g.sndPairs[pairKey] > 180) { g.sndPairs[pairKey] = wall; bmpSnd('bump', hard / 600); }
   for (let k = 0; k < Math.min(14, 4 + hard / 40); k++) {
     const ang = Math.random() * Math.PI * 2, v = 80 + Math.random() * hard * 0.6;
     g.sparks.push({ x: cx, y: cy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, t: 0.45 });
   }
-  if (!running || hard < 170) return;
-  const pair = a.id < b.id ? a.id + '|' + b.id : b.id + '|' + a.id;
-  const wall = Date.now();
-  if (g.pairs[pair] && wall - g.pairs[pair] < 600) return;
+  if (!running || hard < 170 || g.st.mode === 'ring') return;
+  if (g.pairs[pairKey] && wall - g.pairs[pairKey] < 600) return;
   // Who drove into whom: each car's speed toward the other before the knock.
   const sa = (a.vx - j * nx) * nx + (a.vy - j * ny) * ny;
   const sb = -((b.vx + j * nx) * nx + (b.vy + j * ny) * ny);
   const hitter = sa >= sb ? a : b, victim = hitter === a ? b : a;
   if (Math.max(sa, sb) < 90) return;
-  g.pairs[pair] = wall;
+  g.pairs[pairKey] = wall;
+  if (g.st.mode === 'balloons') {
+    // A ghost pops nothing, a ghost has nothing to pop, and a car just popped has a moment's grace.
+    if (hitter.ghost || victim.ghost || wall < victim.safeUntil) return;
+    victim.lives--;
+    victim.safeUntil = wall + 1000;
+    if (victim.lives <= 0) { victim.lives = 0; victim.ghost = true; victim.elimAt = ++g.elim; }
+    if (g.view && g.view.popBalloon) g.view.popBalloon(victim, victim.lives);
+    bmpSnd('pop');
+  }
   hitter.hits++;
   victim.taken++;
   victim.flash = 0.4;
   g.pops.push({ x: hitter.x, y: hitter.y - BMP_R * 1.6, t: 0.9, color: bmpColorOf(Room.state, hitter.id) });
-  Room.sendLive({ k: 'h', to: hitter.id, w: 'hit', n: hitter.hits });
-  Room.sendLive({ k: 'h', to: victim.id, w: 'got', n: victim.taken });
+  if (!hitter.bot) Room.sendLive({ k: 'h', to: hitter.id, w: 'hit' });
+  if (!victim.bot) Room.sendLive({ k: 'h', to: victim.id, w: g.st.mode === 'balloons' ? 'pop' : 'got' });
   g.sent.push(wall, wall);
   bmpSnd('point');
 }
 
-/** The round's end: one screen (the first online, by id) tells the server the scores. */
+/** The standings as they are now: a place for every car, ties sharing one. */
+function bmpTvRank(g) {
+  const st = g.st;
+  const cars = Object.values(g.cars);
+  let key;
+  if (st.mode === 'balloons') key = (c) => c.ghost ? [0, c.elimAt, 0] : [1, c.lives, c.hits];
+  else if (st.mode === 'ring' && st.ringWin === 'last') key = (c) => c.out ? [0, c.elimAt, 0] : [1, c.hits, -c.taken];
+  else key = (c) => [1, c.hits, -c.taken];
+  const cmp = (a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < 3; i++) if (ka[i] !== kb[i]) return kb[i] - ka[i]; return 0; };
+  const sorted = cars.slice().sort(cmp);
+  sorted.forEach((c, i) => { c.place = i && cmp(sorted[i - 1], c) === 0 ? sorted[i - 1].place : i + 1; });
+  return sorted;
+}
+
+/** The round's end: one screen (the first online, by id) tells the server the result. */
 function bmpTvReport(state) {
   const g = bmp.tv;
   g.reported = true;
   const screens = (state.screens || []).filter(x => x.online).map(x => x.id).sort();
   if (screens[0] !== Room.me) return;
   const scores = {};
-  Object.values(g.cars).forEach(c => { scores[c.id] = { hits: c.hits, taken: c.taken }; });
-  roomAct('finish', { round: (state.shared || {}).round, scores });
+  bmpTvRank(g).forEach(c => { scores[c.id] = { score: c.hits, taken: c.taken, lives: c.lives, place: c.place }; });
+  roomAct('finish', { round: (state.shared || {}).round, scores, done: g.done });
 }
 
-function bmpTvDraw(state, now) {
+/** Each phone hears its car's lives, score and place - when they change, and now and then anyway. */
+function bmpTvStatus(state) {
   const g = bmp.tv;
-  const cv = g.canvas;
-  if (!cv || !cv.isConnected) return;
-  const box = cv.parentElement.getBoundingClientRect();
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const scale = Math.min(box.width / BMP_W, box.height / BMP_H);
-  const w = Math.round(BMP_W * scale), h = Math.round(BMP_H * scale);
-  if (cv.width !== w * dpr || cv.height !== h * dpr) {
-    cv.width = w * dpr; cv.height = h * dpr;
-    cv.style.width = w + 'px'; cv.style.height = h + 'px';
-  }
-  const ctx = cv.getContext('2d');
-  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
-  // The rink: a polished floor with a rubber rail.
-  ctx.fillStyle = '#1d1a2e';
-  ctx.fillRect(0, 0, BMP_W, BMP_H);
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-  ctx.lineWidth = 2;
-  for (let x = 100; x < BMP_W; x += 100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, BMP_H); ctx.stroke(); }
-  for (let y = 100; y < BMP_H; y += 100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(BMP_W, y); ctx.stroke(); }
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 18;
-  ctx.strokeRect(9, 9, BMP_W - 18, BMP_H - 18);
-  ctx.strokeStyle = '#1b1b1f';
-  ctx.lineWidth = 4;
-  ctx.setLineDash([40, 40]);
-  ctx.strokeRect(9, 9, BMP_W - 18, BMP_H - 18);
-  ctx.setLineDash([]);
-  Object.values(g.cars).forEach(c => bmpDrawCar(ctx, c, bmpColorOf(state, c.id)));
-  g.sparks.forEach((p) => {
-    p.x += p.vx / 60; p.y += p.vy / 60;
-    ctx.globalAlpha = Math.max(0, p.t / 0.45);
-    ctx.fillStyle = '#fde047';
-    ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+  const ranked = bmpTvRank(g);
+  const now = Date.now();
+  ranked.forEach((c) => {
+    if (c.bot) return;
+    const d = { k: 's', to: c.id, l: c.lives, sc: c.hits, pl: c.place, of: ranked.length, gh: c.ghost ? 1 : 0, out: c.out ? 1 : 0 };
+    const key = JSON.stringify(d);
+    if (key === c.sent && now - (c.sentAt || 0) < 3000) return;
+    if (Room.sendLive(d)) { c.sent = key; c.sentAt = now; g.sent.push(now); }
   });
-  ctx.globalAlpha = 1;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  g.pops.forEach((p) => {
-    ctx.globalAlpha = Math.min(1, p.t / 0.4);
-    ctx.font = '800 44px ' + getComputedStyle(document.body).fontFamily;
-    ctx.fillStyle = p.color;
-    ctx.strokeStyle = '#1b1b1f';
-    ctx.lineWidth = 6;
-    const y = p.y - (0.9 - p.t) * 60;
-    ctx.strokeText('+1', p.x, y);
-    ctx.fillText('+1', p.x, y);
-  });
-  ctx.globalAlpha = 1;
-  const s = state.shared || {};
-  if (now < s.startAt) {
-    const n = Math.ceil((s.startAt - now) / 1000);
-    bmpBigText(ctx, String(Math.min(3, n)), 260);
-  } else if (now < s.startAt + 700) {
-    bmpBigText(ctx, bmpT().bmp_go, 200);
-  } else if (now >= s.endsAt) {
-    bmpBigText(ctx, bmpT().bmp_over, 110);
-  }
-}
-function bmpBigText(ctx, text, size) {
-  ctx.font = '900 ' + size + 'px ' + getComputedStyle(document.body).fontFamily;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = size / 10;
-  ctx.strokeStyle = '#1b1b1f';
-  ctx.fillStyle = '#fde047';
-  ctx.strokeText(text, BMP_W / 2, BMP_H / 2);
-  ctx.fillText(text, BMP_W / 2, BMP_H / 2);
 }
 
-/** A bumper car from above: the rubber ring, the body, the seat and the driver's initial, the pole. */
-function bmpDrawCar(ctx, c, color) {
-  const R = BMP_R;
-  ctx.save();
-  ctx.translate(c.x, c.y);
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath(); ctx.ellipse(6, 10, R * 1.25, R * 1.05, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.rotate(c.h);
-  const rr = (x, y, w, h, r) => {
-    ctx.beginPath();
-    if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
-    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
-  };
-  rr(-R * 1.25, -R * 1.02, R * 2.5, R * 2.04, R * 0.9);
-  ctx.fillStyle = '#2b2b36'; ctx.fill();
-  ctx.lineWidth = 4; ctx.strokeStyle = '#111'; ctx.stroke();
-  rr(-R * 1.05, -R * 0.82, R * 2.1, R * 1.64, R * 0.7);
-  ctx.fillStyle = c.flash > 0 ? '#ffffff' : color; ctx.fill();
-  ctx.stroke();
-  // The nose, so the way it faces reads at a glance.
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.beginPath(); ctx.moveTo(R * 0.95, 0); ctx.lineTo(R * 0.55, -R * 0.35); ctx.lineTo(R * 0.55, R * 0.35); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  rr(-R * 0.75, -R * 0.55, R * 0.8, R * 1.1, R * 0.3); ctx.fill();
-  ctx.rotate(-c.h);
-  ctx.fillStyle = '#fde2c4';
-  ctx.beginPath(); ctx.arc(0, 0, R * 0.45, 0, Math.PI * 2); ctx.fill();
-  ctx.lineWidth = 3; ctx.strokeStyle = '#111'; ctx.stroke();
-  ctx.fillStyle = '#1b1b1f';
-  ctx.font = '800 ' + Math.round(R * 0.6) + 'px ' + getComputedStyle(document.body).fontFamily;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(Array.from(String(c.name || '?').trim())[0] || '?', 0, 2);
-  ctx.font = '700 28px ' + getComputedStyle(document.body).fontFamily;
-  ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.fillStyle = '#fff';
-  // The name above the car, or under it against the top rail.
-  const ny = c.y < R * 3 ? R * 1.6 : -R * 1.55;
-  ctx.strokeText(c.name, 0, ny);
-  ctx.fillText(c.name, 0, ny);
-  ctx.restore();
-}
-
-/** The side: the clock, each driver's bumps and delay, the traffic and what an hour costs. */
-function bmpTvPanel(state, now) {
+/** The side: the way to play, the clock, the standings; the delay and the traffic behind 📶. */
+function bmpTvPanel(state) {
   const g = bmp.tv;
   const t = bmpT();
-  const s = state.shared || {};
+  const st = g.st;
   const clock = document.querySelector('[data-bmp-tvclock]');
   if (clock) clock.textContent = bmpClockText(bmpSecsLeft(state));
   const sound = document.getElementById('bmp-sound');
   if (sound) { let asleep = true; try { asleep = audioCtx.state !== 'running'; } catch (e) {} sound.classList.toggle('hidden', !asleep); }
   const wall = Date.now();
   const recent = (list) => { while (list.length && wall - list[0] > 3000) list.shift(); return list.length / 3; };
-  const cars = Object.values(g.cars).sort((a, b) => b.hits - a.hits);
   const table = document.getElementById('bmp-table');
   if (table) {
-    table.innerHTML = cars.map(c => {
+    table.innerHTML = bmpTvRank(g).map(c => {
+      const color = bmpColorOf(state, c.id);
       const level = c.ping === null ? '' : c.ping < 80 ? 'good' : c.ping < 150 ? 'ok' : 'bad';
-      const live = wall - c.inAt < BMP_STALE_MS;
-      return `<div class="bmp-row ${live ? '' : 'is-idle'}">
-        <span class="bmp-row__dot" style="--car:${bmpColorOf(state, c.id)}"></span>
-        <span class="bmp-row__name"><bdi>${escapeHTML(c.name)}</bdi></span>
-        <span class="bmp-row__n metric">💥 ${c.hits}</span>
-        <span class="bmp-row__ping metric" data-level="${level}">${c.ping === null ? '–' : c.ping + ' ms'}</span>
-        <span class="bmp-row__rate metric tx-muted">${Math.round(recent(c.rate))}/s</span>
+      const stat = st.mode === 'balloons' ? (c.ghost ? '👻' : bmpBalloonsHtml(c.lives, color))
+        : st.mode === 'ring' ? (c.out ? '💦' : `<span class="metric">⭕ ${c.hits}</span>`) : `<span class="metric">💥 ${c.hits}</span>`;
+      const extra = bmp.stats && !c.bot
+        ? `<span class="bmp-row__ping metric" data-level="${level}">${c.ping === null ? '–' : c.ping + ' ms'}</span><span class="bmp-row__rate metric tx-muted">${Math.round(recent(c.rate))}/s</span>` : '';
+      const idle = !c.bot && wall - c.inAt >= BMP_STALE_MS;
+      return `<div class="bmp-row ${idle ? 'is-idle' : ''} ${c.ghost || c.out ? 'is-ghost' : ''}" style="--car:${color}">
+        <span class="bmp-row__place">${c.place}</span>
+        <span class="bmp-row__dot"></span>
+        <span class="bmp-row__name"><bdi>${escapeHTML(c.name)}</bdi>${c.bot ? ' 🤖' : ''}</span>
+        <span class="bmp-row__stat">${stat}</span>${extra}
       </div>`;
     }).join('');
   }
   const stats = document.getElementById('bmp-stats');
   if (stats) {
-    const perSec = recent(g.msgs) + recent(g.sent);
-    const pct = perSec * 3600 / BMP_MSGS_PER_REQUEST / BMP_FREE_PER_DAY * 100;
-    stats.innerHTML = `<div><span class="tx-muted">${escapeHTML(t.bmp_msgs)}</span> <b class="metric">${Math.round(perSec)}</b></div>
-      <div class="tx-muted">${escapeHTML(bmpFill(t.bmp_quota, { n: pct < 10 ? pct.toFixed(1) : Math.round(pct) }))}</div>`;
+    if (!bmp.stats) stats.innerHTML = '';
+    else {
+      const perSec = recent(g.msgs) + recent(g.sent);
+      const pct = perSec * 3600 / BMP_MSGS_PER_REQUEST / BMP_FREE_PER_DAY * 100;
+      stats.innerHTML = `<div><span class="tx-muted">${escapeHTML(t.bmp_msgs)}</span> <b class="metric">${Math.round(perSec)}</b></div>
+        <div class="tx-muted">${escapeHTML(bmpFill(t.bmp_quota, { n: pct < 10 ? pct.toFixed(1) : Math.round(pct) }))}</div>`;
+    }
   }
+}
+
+/* --- the view: the 3D fairground rink, or the flat one --------------------------- */
+function bmpViewMount(g, stage) {
+  if (g.view) { try { g.view.dispose(); } catch (e) {} g.view = null; }
+  stage.innerHTML = '';
+  g.view = bmpFlatView(g, stage);          // drawn at once; 3D takes over when it has loaded
+  if (typeof loadThree !== 'function') return;
+  loadThree().then((T) => {
+    if (bmp.tv !== g || !stage.isConnected) return;
+    const v = bmp3dView(g, stage, T);
+    if (!v) return;
+    if (g.view) { try { g.view.dispose(); } catch (e) {} }
+    g.view = v;
+  }).catch(() => {});
+}
+
+/** The flat rink: a canvas from above, where 3D can't draw or hasn't loaded yet. */
+function bmpFlatView(g, stage) {
+  const cv = document.createElement('canvas');
+  cv.className = 'bmp-canvas';
+  stage.appendChild(cv);
+  const ring = g.st.mode === 'ring';
+  return {
+    el: cv,
+    remove() {},
+    dispose() { cv.remove(); },
+    draw(state, now) {
+      const box = stage.getBoundingClientRect();
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const scale = Math.min(box.width / BMP_W, box.height / BMP_H);
+      if (!(scale > 0)) return;
+      const w = Math.round(BMP_W * scale), h = Math.round(BMP_H * scale);
+      if (cv.width !== w * dpr || cv.height !== h * dpr) {
+        cv.width = w * dpr; cv.height = h * dpr;
+        cv.style.width = w + 'px'; cv.style.height = h + 'px';
+      }
+      const ctx = cv.getContext('2d');
+      ctx.direction = 'ltr';
+      ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+      ctx.fillStyle = '#16131f';
+      ctx.fillRect(0, 0, BMP_W, BMP_H);
+      if (ring) {
+        ctx.fillStyle = '#2b2740';
+        ctx.beginPath(); ctx.arc(BMP_W / 2, BMP_H / 2, BMP_RING_R, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 10; ctx.stroke();
+      } else {
+        ctx.fillStyle = '#231f33'; ctx.fillRect(18, 18, BMP_W - 36, BMP_H - 36);
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 18; ctx.strokeRect(9, 9, BMP_W - 18, BMP_H - 18);
+      }
+      Object.values(g.cars).forEach(c => {
+        if (c.fall) return;
+        ctx.save();
+        ctx.globalAlpha = c.ghost || c.out ? 0.35 : 1;
+        ctx.translate(c.x, c.y);
+        ctx.rotate(c.h);
+        ctx.fillStyle = '#2b2b36';
+        ctx.beginPath(); ctx.ellipse(0, 0, BMP_R * 1.2, BMP_R, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = c.flash > 0 ? '#fff' : bmpColorOf(state, c.id);
+        ctx.beginPath(); ctx.ellipse(0, 0, BMP_R, BMP_R * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.6)';
+        ctx.beginPath(); ctx.moveTo(BMP_R, 0); ctx.lineTo(BMP_R * 0.5, -BMP_R * 0.35); ctx.lineTo(BMP_R * 0.5, BMP_R * 0.35); ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+        ctx.font = '700 26px ' + getComputedStyle(document.body).fontFamily;
+        ctx.fillText(c.name + (g.st.mode === 'balloons' && !c.ghost ? ' ' + '●'.repeat(c.lives) : ''), c.x, c.y - BMP_R * 1.4);
+      });
+      g.sparks.forEach(p => { p.x += p.vx / 60; p.y += p.vy / 60; ctx.fillStyle = '#fde047'; ctx.globalAlpha = p.t / 0.45; ctx.fillRect(p.x - 4, p.y - 4, 8, 8); });
+      ctx.globalAlpha = 1;
+      bmpOverlayText(ctx, state, now, BMP_W, BMP_H, 1);
+    }
+  };
+}
+/** The countdown, «يلا!» and the end, over the rink (flat: on the canvas; 3D: on its own overlay canvas). */
+function bmpOverlayText(ctx, state, now, W, H, k) {
+  const s = state.shared || {};
+  const t = bmpT();
+  let text = null, size = 0;
+  if (now < s.startAt) { text = String(Math.min(3, Math.ceil((s.startAt - now) / 1000))); size = 260; }
+  else if (now < s.startAt + 700) { text = t.bmp_go; size = 200; }
+  else if (now >= s.endsAt || (bmp.tv && bmp.tv.done)) { text = t.bmp_over; size = 110; }
+  if (!text) return;
+  size *= k;
+  ctx.font = '900 ' + size + 'px ' + getComputedStyle(document.body).fontFamily;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = size / 10; ctx.strokeStyle = '#1b1b1f'; ctx.fillStyle = '#fde047';
+  ctx.strokeText(text, W / 2, H / 2); ctx.fillText(text, W / 2, H / 2);
+}
+
+/* --- the 3D fairground rink (three.js) ------------------------------------------
+   A hall at night: a steel checker-plate floor (or, for الحلبة, a round stage
+   over a padded pit), a rubber rail in yellow and black, a ring of fairground
+   bulbs, two coloured lights sweeping round, and bumper cars - a rubber skirt,
+   a lacquered body in the driver's colour, a seat, the driver's head, a pole
+   with a spark on top, and in بالونات three balloons tied behind. Everything
+   the sim moves is placed from it every frame: a unit of the sim is a
+   centimetre, the rink 16 × 9 m. */
+function bmp3dView(g, stage, T) {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'bmp-canvas3d';
+  let renderer;
+  try { renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); } catch (e) { return null; }
+  const small = Math.min(window.screen.width || 800, window.screen.height || 800) < 700;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.toneMapping = T.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  const overlay = document.createElement('canvas');
+  overlay.className = 'bmp-overlay';
+  const wrap = document.createElement('div');
+  wrap.className = 'bmp-3d';
+  wrap.appendChild(canvas); wrap.appendChild(overlay);
+  stage.appendChild(wrap);
+
+  const ring = g.st.mode === 'ring';
+  const balloons = g.st.mode === 'balloons';
+  const W = (x) => (x - BMP_W / 2) / 100, Z = (y) => (y - BMP_H / 2) / 100;
+  const disposables = [];
+  const keep = (o) => { disposables.push(o); return o; };
+  const tex = (draw, w, h, rep) => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    const t = keep(new T.CanvasTexture(c));
+    t.colorSpace = T.SRGBColorSpace;
+    if (rep) { t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rep[0], rep[1]); }
+    t.anisotropy = 4;
+    return t;
+  };
+
+  const scene = new T.Scene();
+  scene.background = new T.Color(0x0c0a14);
+  scene.fog = new T.Fog(0x0c0a14, 18, 40);
+  const cam = new T.PerspectiveCamera(36, 16 / 9, 0.1, 80);
+  scene.add(new T.HemisphereLight(0xdcd4ff, 0x1a1422, 0.9));
+  const sun = new T.DirectionalLight(0xfff2e0, 1.6);
+  sun.position.set(-3, 14, 6);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
+  Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 7, bottom: -7, near: 1, far: 40 });
+  sun.shadow.bias = -0.0006;
+  scene.add(sun);
+  const party = [0xff3d7f, 0x3dd6ff].map((col) => {
+    const l = new T.PointLight(col, 40, 16, 1.6);
+    l.position.set(0, 4, 0);
+    scene.add(l);
+    return l;
+  });
+
+  // The floor of the hall, and the rink.
+  const plate = tex((c, w, h) => {
+    c.fillStyle = '#4a4e5a'; c.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 32) for (let x = (y / 32) % 2 ? 16 : 0; x < w; x += 32) {
+      c.save(); c.translate(x + 8, y + 8); c.rotate(((x + y) / 32) % 2 ? 0.7 : -0.7);
+      c.fillStyle = 'rgba(255,255,255,0.16)'; c.fillRect(-9, -2.2, 18, 4.4);
+      c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(-9, 1.4, 18, 1.4);
+      c.restore();
+    }
+  }, 256, 256, [8, 4.5]);
+  const hallFloor = new T.Mesh(keep(new T.PlaneGeometry(60, 40)), keep(new T.MeshStandardMaterial({ color: 0x1b1726, roughness: 0.9 })));
+  hallFloor.rotation.x = -Math.PI / 2; hallFloor.position.y = ring ? -1.6 : -0.02; hallFloor.receiveShadow = true;
+  scene.add(hallFloor);
+  if (!ring) {
+    const floor = new T.Mesh(keep(new T.PlaneGeometry(16, 9)), keep(new T.MeshStandardMaterial({ map: plate, roughness: 0.38, metalness: 0.55 })));
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+    const stripes = tex((c, w, h) => { for (let x = 0; x < w; x += 32) { c.fillStyle = (x / 32) % 2 ? '#1b1b1f' : '#f5b400'; c.fillRect(x, 0, 32, h); } }, 256, 16, [20, 1]);
+    const railMat = keep(new T.MeshStandardMaterial({ map: stripes, roughness: 0.6 }));
+    const railH = 0.32, railT = 0.22;
+    [[0, -4.5 - railT / 2, 16 + railT * 2, railT], [0, 4.5 + railT / 2, 16 + railT * 2, railT], [-8 - railT / 2, 0, railT, 9], [8 + railT / 2, 0, railT, 9]].forEach(([x, z, w, d]) => {
+      const m = new T.Mesh(keep(new T.BoxGeometry(w, railH, d)), railMat);
+      m.position.set(x, railH / 2, z); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+    });
+  } else {
+    const R = BMP_RING_R / 100;
+    const top = new T.Mesh(keep(new T.CylinderGeometry(R, R, 0.3, 72)), [
+      keep(new T.MeshStandardMaterial({ color: 0x2b2740, roughness: 0.6 })),
+      keep(new T.MeshStandardMaterial({ map: plate, roughness: 0.38, metalness: 0.55 })),
+      keep(new T.MeshStandardMaterial({ color: 0x2b2740 }))]);
+    top.position.y = -0.15; top.receiveShadow = true; scene.add(top);
+    const edge = new T.Mesh(keep(new T.TorusGeometry(R, 0.05, 8, 96)), keep(new T.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xf59e0b, emissiveIntensity: 1.4 })));
+    edge.rotation.x = Math.PI / 2; edge.position.y = 0.01; scene.add(edge);
+    // The pit: soft mats in the fairground colours.
+    const mats = [0xe5383b, 0x3f73d6, 0xe9b52a, 0x35a35a];
+    for (let i = 0; i < 16; i++) {
+      const a = i / 16 * Math.PI * 2;
+      const m = new T.Mesh(keep(new T.BoxGeometry(1.8, 0.3, 1.2)), keep(new T.MeshStandardMaterial({ color: mats[i % 4], roughness: 0.9 })));
+      m.position.set(Math.cos(a) * (R + 1.2), -1.45, Math.sin(a) * (R + 1.2)); m.rotation.y = -a; m.receiveShadow = true; scene.add(m);
+    }
+  }
+  // A ring of fairground bulbs around it all.
+  const bulbGeo = keep(new T.SphereGeometry(0.07, 10, 8));
+  const bulbCols = [0xffd166, 0xff6b6b, 0x7bdff2, 0xb8f28b];
+  const bulbs = bulbCols.map(col => keep(new T.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 2 })));
+  const addBulb = (x, y, z, i) => { const b = new T.Mesh(bulbGeo, bulbs[i % 4]); b.position.set(x, y, z); scene.add(b); };
+  if (ring) {
+    const R = BMP_RING_R / 100 + 0.25;
+    for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2; addBulb(Math.cos(a) * R, 0.08, Math.sin(a) * R, i); }
+  } else {
+    let i = 0;
+    for (let x = -8.3; x <= 8.31; x += 0.55) { addBulb(x, 0.42, -4.8, i++); addBulb(x, 0.42, 4.8, i++); }
+    for (let z = -4.25; z <= 4.26; z += 0.55) { addBulb(-8.3, 0.42, z, i++); addBulb(8.3, 0.42, z, i++); }
+  }
+  // The cars.
+  const skinMat = keep(new T.MeshStandardMaterial({ color: 0xf1c7a0, roughness: 0.7 }));
+  const rubberMat = keep(new T.MeshStandardMaterial({ color: 0x222228, roughness: 0.85 }));
+  const seatMat = keep(new T.MeshStandardMaterial({ color: 0x1b1b1f, roughness: 0.6 }));
+  const chromeMat = keep(new T.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.9, roughness: 0.2 }));
+  const lampMat = keep(new T.MeshStandardMaterial({ color: 0xfff6c8, emissive: 0xfff2a8, emissiveIntensity: 1.5 }));
+  const hairMat = keep(new T.MeshStandardMaterial({ color: 0x2a1a12, roughness: 0.8 }));
+  const rounded = (w, l, r) => {
+    const s = new T.Shape();
+    s.moveTo(-w / 2 + r, -l / 2); s.lineTo(w / 2 - r, -l / 2); s.quadraticCurveTo(w / 2, -l / 2, w / 2, -l / 2 + r);
+    s.lineTo(w / 2, l / 2 - r); s.quadraticCurveTo(w / 2, l / 2, w / 2 - r, l / 2); s.lineTo(-w / 2 + r, l / 2);
+    s.quadraticCurveTo(-w / 2, l / 2, -w / 2, l / 2 - r); s.lineTo(-w / 2, -l / 2 + r); s.quadraticCurveTo(-w / 2, -l / 2, -w / 2 + r, -l / 2);
+    return s;
+  };
+  const skirtGeo = keep(new T.ExtrudeGeometry(rounded(1.02, 0.84, 0.36), { depth: 0.16, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 3, curveSegments: 10 }));
+  skirtGeo.rotateX(-Math.PI / 2);
+  const bodyGeo = keep(new T.ExtrudeGeometry(rounded(0.86, 0.68, 0.28), { depth: 0.24, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 4, curveSegments: 12 }));
+  bodyGeo.rotateX(-Math.PI / 2);
+  const headGeo = keep(new T.SphereGeometry(0.13, 18, 14));
+  const hairGeo = keep(new T.SphereGeometry(0.135, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2));
+  const seatGeo = keep(new T.BoxGeometry(0.12, 0.34, 0.5));
+  const wheelGeo = keep(new T.TorusGeometry(0.09, 0.018, 8, 20));
+  const lampGeo = keep(new T.SphereGeometry(0.05, 10, 8));
+  const poleGeo = keep(new T.CylinderGeometry(0.018, 0.018, 1.3, 8));
+  const balloonGeo = keep(new T.SphereGeometry(0.22, 20, 16)); balloonGeo.scale(1, 1.18, 1);
+  const strMat = keep(new T.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 }));
+  const glow = tex((c, w, h) => { const gr = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(255,255,220,1)'); gr.addColorStop(0.3, 'rgba(255,220,120,.7)'); gr.addColorStop(1, 'rgba(255,200,80,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, h); }, 64, 64);
+  const glowMat = keep(new T.SpriteMaterial({ map: glow, blending: T.AdditiveBlending, depthWrite: false, transparent: true }));
+  const views = {};
+  const label = (text, color) => {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+    const x = c.getContext('2d');
+    x.font = '800 58px ' + getComputedStyle(document.body).fontFamily;
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    const w = Math.min(500, x.measureText(text).width + 60);
+    x.fillStyle = 'rgba(20,16,32,.78)';
+    x.beginPath(); if (x.roundRect) x.roundRect(256 - w / 2, 18, w, 92, 46); else x.rect(256 - w / 2, 18, w, 92); x.fill();
+    x.fillStyle = color; x.fillRect(256 - w / 2 + 26, 50, 22, 28);
+    x.fillStyle = '#fff'; x.fillText(text, 256 + 14, 66);
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
+    const sp = new T.Sprite(new T.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
+    sp.scale.set(2.8, 0.7, 1);
+    sp.renderOrder = 10;
+    return sp;
+  };
+  const makeCar = (c) => {
+    const color = bmpColorOf(Room.state, c.id);
+    const grp = new T.Group();
+    const body = new T.Group();
+    grp.add(body);
+    const paint = new T.MeshPhysicalMaterial({ color, roughness: 0.28, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.1, transparent: true });
+    const skirt = new T.Mesh(skirtGeo, rubberMat); skirt.position.y = 0.06; skirt.castShadow = true; body.add(skirt);
+    const shell = new T.Mesh(bodyGeo, paint); shell.position.y = 0.24; shell.castShadow = true; body.add(shell);
+    const seat = new T.Mesh(seatGeo, seatMat); seat.position.set(-0.2, 0.66, 0); seat.castShadow = true; body.add(seat);
+    const head = new T.Mesh(headGeo, skinMat); head.position.set(-0.05, 0.84, 0); head.castShadow = true; body.add(head);
+    const hair = new T.Mesh(hairGeo, hairMat); hair.position.copy(head.position); hair.position.y += 0.02; body.add(hair);
+    const wheel = new T.Mesh(wheelGeo, chromeMat); wheel.position.set(0.16, 0.66, 0); wheel.rotation.y = Math.PI / 2; wheel.rotation.x = 0.5; body.add(wheel);
+    [-0.2, 0.2].forEach(z => { const l = new T.Mesh(lampGeo, lampMat); l.position.set(0.47, 0.42, z); body.add(l); });
+    const pole = new T.Mesh(poleGeo, chromeMat); pole.position.set(-0.36, 1.05, 0); body.add(pole);
+    const spark = new T.Sprite(glowMat.clone()); spark.position.set(-0.36, 1.72, 0); spark.scale.set(0.35, 0.35, 1); body.add(spark);
+    const boost = new T.Sprite(glowMat); boost.position.set(-0.6, 0.35, 0); boost.scale.set(0.001, 0.001, 1); body.add(boost);
+    const bl = [];
+    let bm = null;
+    if (balloons) {
+      bm = new T.MeshPhysicalMaterial({ color, roughness: 0.2, clearcoat: 1, transparent: true, opacity: 0.95 });
+      for (let i = 0; i < BMP_LIVES; i++) {
+        const b = new T.Mesh(balloonGeo, bm);
+        const z = (i - 1) * 0.3;
+        b.position.set(-0.5, 1.4 + (i === 1 ? 0.18 : 0), z);
+        b.castShadow = true;
+        const sg = new T.BufferGeometry().setFromPoints([new T.Vector3(-0.42, 0.45, 0), new T.Vector3(-0.5, 1.16 + (i === 1 ? 0.18 : 0), z)]);
+        const str = new T.Line(sg, strMat);
+        grp.add(b); grp.add(str);
+        bl.push({ b, str, sg, gone: false, popT: 0 });
+      }
+    }
+    const lab = label(c.name + (c.bot ? ' 🤖' : ''), color);
+    lab.position.set(0, balloons ? 2.35 : 2.0, 0);
+    grp.add(lab);
+    const horn = label('📯', color); horn.scale.set(1.3, 0.33, 1); horn.position.set(0.5, 1.5, 0); horn.visible = false; grp.add(horn);
+    scene.add(grp);
+    return { grp, body, paint, spark, boost, bl, bm, lab, horn, name: c.name };
+  };
+  const freeCar = (v) => {
+    scene.remove(v.grp);
+    v.paint.dispose(); v.spark.material.dispose();
+    v.lab.material.map.dispose(); v.lab.material.dispose();
+    v.horn.material.map.dispose(); v.horn.material.dispose();
+    if (v.bm) v.bm.dispose();
+    v.bl.forEach(x => x.sg.dispose());
+  };
+  // Sparks: one pool of points.
+  const MAXP = 240;
+  const pGeo = keep(new T.BufferGeometry());
+  const pPos = new Float32Array(MAXP * 3);
+  pGeo.setAttribute('position', new T.BufferAttribute(pPos, 3));
+  const pts = new T.Points(pGeo, keep(new T.PointsMaterial({ color: 0xffe066, size: 0.12, map: glow, blending: T.AdditiveBlending, depthWrite: false, transparent: true })));
+  pts.frustumCulled = false;
+  scene.add(pts);
+  const confetti = [];                     // balloon bits
+  const bitGeo = keep(new T.PlaneGeometry(0.08, 0.05));
+
+  const fit = () => {
+    const box = stage.getBoundingClientRect();
+    const w = Math.max(1, Math.floor(box.width)), h = Math.max(1, Math.floor(box.height));
+    if (overlay.width !== w || overlay.height !== h) {
+      renderer.setSize(w, h, false);
+      canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+      overlay.width = w; overlay.height = h;
+      overlay.style.width = w + 'px'; overlay.style.height = h + 'px';
+      cam.aspect = w / h;
+      // The whole rink in view, seen from the near long side at an angle.
+      const half = ring ? 6.6 : 9.2, halfD = ring ? 6.2 : 5.2;
+      const vf = cam.fov * Math.PI / 180;
+      const hf = 2 * Math.atan(Math.tan(vf / 2) * cam.aspect);
+      const dist = Math.max(half / Math.tan(hf / 2), halfD * 1.2 / Math.tan(vf / 2)) * 0.87;
+      const el = 56 * Math.PI / 180;
+      cam.position.set(0, Math.sin(el) * dist, Math.cos(el) * dist);
+      cam.lookAt(0, 0, 0.45);
+      cam.updateProjectionMatrix();
+    }
+  };
+  const t0 = performance.now();
+
+  return {
+    el: wrap,
+    remove(id) { const v = views[id]; if (v) { freeCar(v); delete views[id]; } },
+    popBalloon(car) {
+      const v = views[car.id];
+      if (!v) return;
+      const b = v.bl.find(x => !x.gone);
+      if (!b) return;
+      b.gone = true; b.popT = 0.001;
+      const wp = new T.Vector3(); b.b.getWorldPosition(wp);
+      for (let i = 0; i < 14; i++) {
+        const m = new T.Mesh(bitGeo, b.b.material);
+        m.position.copy(wp);
+        m.userData = { vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2.5 + 0.5, vz: (Math.random() - 0.5) * 3, t: 0.9, spin: Math.random() * 10 };
+        scene.add(m); confetti.push(m);
+      }
+    },
+    dispose() {
+      Object.values(views).forEach(freeCar);
+      disposables.forEach(o => { try { o.dispose(); } catch (e) {} });
+      renderer.dispose();
+      try { renderer.forceContextLoss(); } catch (e) {}
+      wrap.remove();
+    },
+    draw(state, now) {
+      fit();
+      const tt = (performance.now() - t0) / 1000;
+      party.forEach((l, i) => { const a = tt * 0.5 + i * Math.PI; l.position.set(Math.cos(a) * 6, 4, Math.sin(a) * 3.5); });
+      Object.values(g.cars).forEach(c => {
+        let v = views[c.id];
+        if (!v || v.name !== c.name) { if (v) freeCar(v); v = views[c.id] = makeCar(c); }
+        const faded = c.ghost || c.out;
+        v.paint.opacity = faded ? 0.35 : 1;
+        v.paint.color.set(c.flash > 0 ? 0xffffff : bmpColorOf(state, c.id));
+        let y = 0, rx = 0, rz = 0;
+        let x = c.x, z = c.y;
+        if (c.fall) {
+          // Off the edge: it slides on out and drops into the pit, tumbling.
+          const f = c.fall.t;
+          x = c.fall.x + c.fall.vx * Math.min(f, 0.5) * 0.6; z = c.fall.y + c.fall.vy * Math.min(f, 0.5) * 0.6;
+          y = -Math.min(1.35, 4.9 * f * f);
+          rx = Math.min(1.2, f * 2.2); rz = Math.min(0.8, f * 1.4);
+        }
+        v.grp.position.set(W(x), y, Z(z));
+        v.body.rotation.set(rx, -c.h, rz);
+        v.grp.visible = !(c.out && c.fall && c.fall.t > 1.2);
+        // A car just back on the ring blinks.
+        if (!c.fall && Date.now() < c.safeUntil && g.st.mode === 'ring') v.grp.visible = Math.floor(tt * 8) % 2 === 0;
+        v.spark.material.opacity = 0.6 + 0.4 * Math.random();
+        const bAge = Date.now() - c.boostFx;
+        const bs = bAge < 600 ? (1 - bAge / 600) * 0.9 : 0.001;
+        v.boost.scale.set(bs, bs * 0.6, 1);
+        v.horn.visible = Date.now() - c.hornFx < 700;
+        v.bl.forEach((b, i) => {
+          if (b.gone) {
+            if (b.popT > 0 && b.popT < 0.2) { b.popT += 1 / 60; const s = 1 + b.popT * 4; b.b.scale.set(s, s, s); }
+            else { b.b.visible = false; b.str.visible = false; }
+          } else {
+            b.b.position.y = 1.4 + (i === 1 ? 0.18 : 0) + Math.sin(tt * 2 + i) * 0.04;
+          }
+        });
+      });
+      // Sparks and balloon bits.
+      let n = 0;
+      g.sparks.forEach(p => { if (n >= MAXP) return; pPos[n * 3] = W(p.x += p.vx / 60); pPos[n * 3 + 1] = 0.45 + (0.45 - p.t) * 1.2; pPos[n * 3 + 2] = Z(p.y += p.vy / 60); n++; });
+      pGeo.setDrawRange(0, n);
+      pGeo.attributes.position.needsUpdate = true;
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const m = confetti[i], u = m.userData;
+        u.t -= 1 / 60; u.vy -= 6 / 60;
+        m.position.x += u.vx / 60; m.position.y += u.vy / 60; m.position.z += u.vz / 60;
+        m.rotation.x += u.spin / 60; m.rotation.y += u.spin / 90;
+        if (u.t <= 0) { scene.remove(m); confetti.splice(i, 1); }
+      }
+      renderer.render(scene, cam);
+      // The countdown and the end, and a +1 over the scorer, on the overlay.
+      const ox = overlay.getContext('2d');
+      ox.direction = 'ltr';
+      ox.clearRect(0, 0, overlay.width, overlay.height);
+      g.pops.forEach(p => {
+        const wp = new T.Vector3(W(p.x), 2.3 + (0.9 - p.t) * 0.8, Z(p.y)).project(cam);
+        const sx = (wp.x + 1) / 2 * overlay.width, sy = (1 - wp.y) / 2 * overlay.height;
+        ox.globalAlpha = Math.min(1, p.t / 0.4);
+        ox.font = '900 ' + Math.round(overlay.height / 16) + 'px ' + getComputedStyle(document.body).fontFamily;
+        ox.textAlign = 'center'; ox.lineWidth = 6; ox.strokeStyle = '#1b1b1f'; ox.fillStyle = p.color;
+        ox.strokeText('+1', sx, sy); ox.fillText('+1', sx, sy);
+      });
+      ox.globalAlpha = 1;
+      bmpOverlayText(ox, state, now, overlay.width, overlay.height, overlay.height / 900);
+    }
+  };
 }
 </script>

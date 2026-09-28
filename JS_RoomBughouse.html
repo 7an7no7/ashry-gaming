@@ -695,7 +695,8 @@ onRoomClocksReset(() => {
   bhLocal.early = null;
   bhLocal.swap = false;
   const st = Room.state;
-  if (!st || st.game !== 'bughouse' || st.phase === 'lobby') {
+  // Runs for every game change: a board the next chess game (or the next bughouse deal) uses is left to it.
+  if (!st || ['chess', 'votechess', 'handbrain', 'bughouse'].indexOf(st.game) === -1 || st.phase === 'lobby') {
     if (appState.currentView === 'room-bughouse' || appState.currentView === 'room-tv' || appState.currentView === 'room-lobby') chViewDrop();
   }
 });

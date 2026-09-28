@@ -8880,6 +8880,21 @@ Date.now = duelTestClock;
   applyRoomAction(r2, 'solo', 'addBot', { level: 'easy', name: 'بندق' });
   applyRoomAction(r2, 'solo', 'start', { mode: 'balloons' });
   check(r2.shared.roster.length === 3 && Object.values(r2.shared.bots).sort().join() === 'easy,hard', 'bumper: computer players drive (the TV drives them), with their levels');
+
+  // The audit of 28 Sep 2026: a driver the TV didn't report goes last, and the TV's places still stand.
+  const r3 = newRoom(['a', 'b', 'c']);
+  r3.screens = [{ id: 'tvx' }];
+  applyRoomAction(r3, 'a', 'chooseGame', { game: 'bumper' });
+  applyRoomAction(r3, 'a', 'start', { mode: 'balloons' });
+  applyRoomAction(r3, 'tvx', 'finish', { round: 1, done: true, scores: { a: { score: 1, lives: 2, place: 1 }, b: { score: 9, lives: 0, place: 2 } } });
+  const s5 = r3.shared;
+  check(s5.phase === 'over' && s5.results.map(x => x.id).join() === 'a,b,c' && s5.results[0].place === 1 && s5.results[2].place === 3 && s5.wins.a === 1 && !s5.wins.b && !('rep' in s5.results[0]),
+    "bumper: an unreported driver goes last and the TV's places stand - a ghost with more knocks doesn't win");
+  applyRoomAction(r3, 'a', 'playAgain', { mode: 'balloons' });
+  leave(r3, 'c');
+  check(r3.shared.roster.join() === 'a,b', "bumper: a player who leaves mid-round leaves the round's roster");
+  applyRoomAction(r3, 'tvx', 'finish', { round: 2, done: true, scores: { a: { place: 2 }, b: { place: 1, lives: 1 } } });
+  check(r3.shared.results.map(x => x.id).join() === 'b,a' && r3.shared.wins.b === 1, 'bumper: the leaver is not in the result');
 }
 
 /* --- الكراسي الموسيقية (27 Sep 2026): the stop is a server secret, taps are ranked fairly, one out a round --- */
@@ -8955,6 +8970,31 @@ Date.now = duelTestClock;
     applyRoomAction(r, 'a', 'sit', { round: 2, at: s.stopAt + 50 });
     leave(r, 'b');
     check(s.phase === 'gameover' && s.winnerId === 'a' && s.wins.a === 1, 'chairs: the last one left wins the game');
+  }
+  {
+    // The audit of 28 Sep 2026: leaving while the chairs are taken makes the leaver the one out, nobody else.
+    const r = chairsRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    tick(r);
+    check(s.phase === 'sit', 'chairs/leave: the music stopped');
+    applyRoomAction(r, 'a', 'sit', { round: 1, at: s.stopAt + 100 });
+    applyRoomAction(r, 'b', 'sit', { round: 1, at: s.stopAt + 200 });
+    applyRoomAction(r, 'd', 'sit', { round: 1, at: s.stopAt + 300 });
+    leave(r, 'c');
+    check(s.phase === 'result' && s.loserId === 'c' && s.why === 'left' && s.loserName === 'C' && s.alive.length === 3 && s.alive.indexOf('d') !== -1 && s.outOrder.join() === 'c',
+      "chairs/leave: a player who hadn't sat leaves - they are the one out, the last to sit keeps the chair");
+    check(s.chairs === 3, "chairs/leave: the chairs of a round being read aren't recounted");
+    tick(r);
+    check(s.phase === 'music' && s.round === 2 && s.chairs === 2, 'chairs/leave: the next round is dealt for the three left');
+  }
+  {
+    // A win against nobody isn't one: everyone else left.
+    const r = chairsRoom(['a', 'b', 'c']);
+    const s = r.shared;
+    leave(r, 'b');
+    check(s.phase === 'music' && s.chairs === 1, 'chairs/leave: a leave while the music plays counts the chairs again');
+    leave(r, 'c');
+    check(s.phase === 'gameover' && s.winnerId === 'a' && !s.wins.a, 'chairs/leave: a game where everyone else left wins nothing');
   }
   {
     // The 13th watches; a watcher's tap does nothing.

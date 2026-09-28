@@ -50,7 +50,8 @@ const bmp = {
   boostAt: 0,
   me: null,                               // what the TV last said about this phone's car
   tv: null,                               // the TV's game: cars, loop, view
-  stats: false                            // the TV's delay and traffic numbers
+  stats: false,                           // the TV's delay and traffic numbers
+  locked: false                           // the fullscreen + landscape lock this game asked for itself
 };
 try {
   const o = recallOptions('bumper', { mode: 'stick', auto: false, stats: false });
@@ -372,7 +373,7 @@ function bmpTiltAsk() {
   asked.then((ans) => {
     bmp.tilt.asking = false;
     if (ans !== 'granted' || !O) { showToast(bmpT().bmp_tilt_denied, 'error'); bmpSetMode('stick'); return; }
-    if (bmp.mode !== 'tilt' || bmp.tilt.on) return;
+    if (bmp.mode !== 'tilt' || bmp.tilt.on || appState.currentView !== 'room-bumper') return;
     bmp.tilt.on = true;
     window.addEventListener('deviceorientation', bmpTiltRead);
   });
@@ -400,11 +401,15 @@ function bmpLockLandscape(on) {
     const de = document.documentElement;
     if (on) {
       if (!document.fullscreenElement && de.requestFullscreen && screen.orientation && screen.orientation.lock) {
-        de.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation.lock('landscape')).catch(() => {});
+        de.requestFullscreen({ navigationUI: 'hide' }).then(() => {
+          bmp.locked = true;               // ours: only this is undone below (a TV's own ⛶ is left alone)
+          return screen.orientation.lock('landscape');
+        }).catch(() => {});
       }
-    } else if (document.fullscreenElement && screen.orientation && screen.orientation.unlock) {
-      try { screen.orientation.unlock(); } catch (e) {}
-      document.exitFullscreen().catch(() => {});
+    } else if (bmp.locked) {
+      bmp.locked = false;
+      try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     }
   } catch (e) {}
 }
@@ -447,6 +452,7 @@ function bmpPing() {
   const n = ++bmp.ping.n;
   const at = Date.now();
   bmp.ping.sent[n] = at;
+  delete bmp.ping.sent[n - 10];            // an echo that never came
   Room.sendLive({ k: 'p', n, at, r: bmp.ping.last === null ? -1 : bmp.ping.last });
 }
 function bmpControllerOn() {
@@ -457,7 +463,11 @@ function bmpControllerOn() {
     try {
       if (navigator.wakeLock && navigator.wakeLock.request) {
         bmp.wake = 'asking';
-        navigator.wakeLock.request('screen').then(l => { bmp.wake = l; }).catch(() => { bmp.wake = null; });
+        navigator.wakeLock.request('screen').then(l => {
+          if (bmp.wake !== 'asking') { try { l.release(); } catch (e) {} return; }   // switched off meanwhile
+          bmp.wake = l;
+          l.addEventListener('release', () => { if (bmp.wake === l) bmp.wake = null; });
+        }).catch(() => { bmp.wake = null; });
       }
     } catch (e) {}
   }
@@ -473,8 +483,16 @@ function bmpControllerOff() {
   bmp.stick = { x: 0, y: 0 };
   bmp.lastSent = '';
 }
-onRoomClocksReset(() => { bmpControllerOff(); bmpTvStop(true); });
+// Runs on every game change in any game: undo only what bumper itself started.
+onRoomClocksReset(() => {
+  if (bmp.sendTimer || bmp.pingTimer || bmp.uiTimer || bmp.wake || bmp.tilt.on || bmp.locked) bmpControllerOff();
+  if (bmp.tv) bmpTvStop(true);
+});
 onLeaveScreen((from) => { if (from === 'room-bumper') bmpControllerOff(); if (from === 'room-tv') bmpTvStop(true); });
+// The browser lets go of a wake lock when the page is hidden: ask again on the way back.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && bmp.sendTimer && !bmp.wake && appState.currentView === 'room-bumper') bmpControllerOn();
+});
 
 /** The phone's car, the clock, the delay and the boost's ring, refreshed in place. */
 function bmpPaintPhone() {
@@ -647,15 +665,30 @@ function bmpSnd(kind, v) {
   } catch (e) {}
 }
 
+/**
+ * Two screens in a room both run the rink, but only one is its voice and
+ * talks to the phones: the lead, the first online screen by id (the same one
+ * that reports the result, bmpTvReport). The others only draw.
+ */
+function bmpIsLead(state) {
+  const screens = ((state && state.screens) || []).filter(x => x.online).map(x => x.id).sort();
+  return screens[0] === Room.me;
+}
+function bmpTvSnd(kind, v) { if (bmp.tv && bmp.tv.lead) bmpSnd(kind, v); }
+function bmpTvSend(d) { return bmp.tv && bmp.tv.lead ? Room.sendLive(d) : false; }
+
 /** The engine: one low buzz for the rink, its pitch and loudness following the cars' speed. */
 function bmpEngine(speed) {
   const g = bmp.tv;
   if (!g) return;
+  if (!g.lead) { bmpEngineOff(); return; }
   let ctx;
   try { ctx = fxCtx(); } catch (e) { return; }
   if (ctx.state !== 'running') return;
   let e = g.eng;
-  if (!e || e.ctx !== ctx) {
+  // A context wakeAudio replaced: the engine is built again on the new one (the old one's nodes let go).
+  if (e && e.ctx !== ctx) { try { e.o1.stop(); e.o2.stop(); } catch (err) {} e = g.eng = null; }
+  if (!e) {
     try {
       const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(), gain = ctx.createGain();
       o1.type = 'sawtooth'; o2.type = 'square'; o2.detune.value = 7;
@@ -728,9 +761,10 @@ function bmpTvStart(state, rebuilt) {
     bmpTvStop(true);
     bmp.tv = { key, round: s.round, st: bmpSettings(s), cars: {}, sparks: [], pops: [], pairs: {}, sndPairs: {}, reported: false,
       msgs: [], sent: [], raf: 0, tick: null, last: 0, uiAt: 0, statusAt: 0, snd: { cd: null, go: false, tick: null, end: false },
-      wallAt: 0, elim: 0, view: null, done: false };
+      wallAt: 0, elim: 0, view: null, done: false, lead: false };
   }
   const g = bmp.tv;
+  g.lead = bmpIsLead(state);
   const stage = document.getElementById('bmp-stage');
   if (stage && (rebuilt || !g.view || !g.view.el.isConnected)) bmpViewMount(g, stage);
   if (!g.raf) { g.last = performance.now(); g.raf = requestAnimationFrame(bmpTvFrame); }
@@ -782,7 +816,7 @@ function bmpTvHear(d) {
   g.msgs.push(now);
   const car = g.cars[d.from];
   if (d.k === 'p') {
-    Room.sendLive({ k: 'p', to: d.from, n: d.n, at: d.at });
+    bmpTvSend({ k: 'p', to: d.from, n: d.n, at: d.at });
     g.sent.push(now);
     if (car && typeof d.r === 'number' && d.r >= 0) car.ping = d.r;
     return;
@@ -801,14 +835,14 @@ function bmpTvBoost(car) {
   car.boostFx = now;
   car.vx += Math.cos(car.h) * 560;
   car.vy += Math.sin(car.h) * 560;
-  bmpSnd('boost');
+  bmpTvSnd('boost');
 }
 function bmpTvHorn(car) {
   const now = Date.now();
   if (now - car.hornAt < 600) return;
   car.hornAt = now;
   car.hornFx = now;
-  bmpSnd('horn', bmpColorIndex(Room.state, car.id));
+  bmpTvSnd('horn', bmpColorIndex(Room.state, car.id));
 }
 
 /* --- the computer players --------------------------------------------------------
@@ -817,10 +851,11 @@ function bmpTvHorn(car) {
    the one nearest the edge of the ring), aimed at where it is going (hard leads
    it), keeping off the ring's edge, and the boost when the target is close
    ahead (hard) or now and then (easy). */
-function bmpBotInput(g, c, now) {
+function bmpBotInput(g, c, now, alive) {
   const hard = c.bot === 'hard';
   const st = g.st;
-  const others = Object.values(g.cars).filter(o => o !== c && !o.fall && !o.out && !(st.mode === 'balloons' && o.ghost));
+  const pool = alive || Object.values(g.cars).filter(o => !o.fall && !o.out && !(st.mode === 'balloons' && o.ghost));
+  const others = pool.filter(o => o !== c);
   const ai = c.ai || (c.ai = { target: null, until: 0, wander: null, slowSince: 0 });
   if (now > ai.until || (ai.target && (!g.cars[ai.target] || g.cars[ai.target].fall || g.cars[ai.target].out))) {
     ai.until = now + (hard ? 1200 : 2000) + Math.random() * 1200;
@@ -921,11 +956,11 @@ function bmpTvSounds(s, now, running) {
   const g = bmp.tv, m = g.snd;
   if (now < s.startAt) {
     const n = Math.min(3, Math.ceil((s.startAt - now) / 1000));
-    if (n !== m.cd) { m.cd = n; bmpSnd('beep'); }
-  } else if (!m.go && now < s.startAt + 1500) { m.go = true; bmpSnd('go'); }
+    if (n !== m.cd) { m.cd = n; bmpTvSnd('beep'); }
+  } else if (!m.go && now < s.startAt + 1500) { m.go = true; bmpTvSnd('go'); }
   const left = Math.ceil((s.endsAt - now) / 1000);
-  if (running && !bmpLastStanding(g.st) && left <= 5 && left >= 1 && left !== m.tick) { m.tick = left; bmpSnd('tick'); }
-  if ((now >= s.endsAt || g.done) && !m.end) { m.end = true; bmpSnd('end'); bmpEngineOff(); }
+  if (running && !bmpLastStanding(g.st) && left <= 5 && left >= 1 && left !== m.tick) { m.tick = left; bmpTvSnd('tick'); }
+  if ((now >= s.endsAt || g.done) && !m.end) { m.end = true; bmpTvSnd('end'); bmpEngineOff(); }
   if (running) {
     const cars = Object.values(g.cars).filter(c => !c.fall);
     const avg = cars.length ? cars.reduce((a, c) => a + Math.hypot(c.vx, c.vy), 0) / cars.length / 720 : 0;
@@ -938,6 +973,8 @@ function bmpTvStep(dt, running) {
   const st = g.st;
   const cars = Object.values(g.cars);
   const wall = Date.now();
+  // The cars a computer player can go for, worked out once a step rather than once a bot.
+  const alive = cars.filter(o => !o.fall && !o.out && !(st.mode === 'balloons' && o.ghost));
   cars.forEach((c) => {
     if (c.fall) {
       // Falling off the ring: down it goes; on the clock, back on the platform after a moment.
@@ -946,7 +983,7 @@ function bmpTvStep(dt, running) {
       return;
     }
     const human = !c.bot;
-    const inp = !running || c.out ? null : human ? (c.input && wall - c.inAt < BMP_STALE_MS ? c.input : null) : bmpBotInput(g, c, wall);
+    const inp = !running || c.out ? null : human ? (c.input && wall - c.inAt < BMP_STALE_MS ? c.input : null) : bmpBotInput(g, c, wall, alive);
     let thrust = 0;
     if (inp && typeof inp.x === 'number') {
       const x = inp.x / 100, y = inp.y / 100;
@@ -987,7 +1024,7 @@ function bmpTvStep(dt, running) {
       if (c.x > BMP_W - m) { hitWall = Math.abs(c.vx); c.x = BMP_W - m; c.vx = -Math.abs(c.vx) * 0.7; }
       if (c.y < m) { hitWall = Math.max(hitWall, Math.abs(c.vy)); c.y = m; c.vy = Math.abs(c.vy) * 0.7; }
       if (c.y > BMP_H - m) { hitWall = Math.max(hitWall, Math.abs(c.vy)); c.y = BMP_H - m; c.vy = -Math.abs(c.vy) * 0.7; }
-      if (running && hitWall > 220 && wall - g.wallAt > 90) { g.wallAt = wall; bmpSnd('wall', hitWall / 720); }
+      if (running && hitWall > 220 && wall - g.wallAt > 90) { g.wallAt = wall; bmpTvSnd('wall', hitWall / 720); }
     }
     c.flash = Math.max(0, c.flash - dt);
   });
@@ -1006,12 +1043,12 @@ function bmpTvFall(c, now, running) {
   if (pusher && running) {
     pusher.hits++;
     g.pops.push({ x: pusher.x, y: pusher.y - BMP_R * 1.6, t: 0.9, color: bmpColorOf(Room.state, pusher.id) });
-    if (!pusher.bot) Room.sendLive({ k: 'h', to: pusher.id, w: 'hit' });
+    if (!pusher.bot) bmpTvSend({ k: 'h', to: pusher.id, w: 'hit' });
     g.sent.push(now);
   }
   if (g.st.ringWin === 'last') { c.out = true; c.elimAt = ++g.elim; }
-  if (!c.bot) { Room.sendLive({ k: 'h', to: c.id, w: 'fell' }); g.sent.push(now); }
-  bmpSnd('fall');
+  if (!c.bot) { bmpTvSend({ k: 'h', to: c.id, w: 'fell' }); g.sent.push(now); }
+  bmpTvSnd('fall');
 }
 function bmpTvRespawn(c, now) {
   const a = Math.random() * Math.PI * 2, r = Math.random() * BMP_RING_R * 0.35;
@@ -1045,7 +1082,7 @@ function bmpTvCollide(a, b, running) {
   a.lastTouch = { id: b.id, at: wall };
   b.lastTouch = { id: a.id, at: wall };
   const pairKey = a.id < b.id ? a.id + '|' + b.id : b.id + '|' + a.id;
-  if (!g.sndPairs[pairKey] || wall - g.sndPairs[pairKey] > 180) { g.sndPairs[pairKey] = wall; bmpSnd('bump', hard / 600); }
+  if (!g.sndPairs[pairKey] || wall - g.sndPairs[pairKey] > 180) { g.sndPairs[pairKey] = wall; bmpTvSnd('bump', hard / 600); }
   for (let k = 0; k < Math.min(14, 4 + hard / 40); k++) {
     const ang = Math.random() * Math.PI * 2, v = 80 + Math.random() * hard * 0.6;
     g.sparks.push({ x: cx, y: cy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, t: 0.45 });
@@ -1072,16 +1109,16 @@ function bmpTvCollide(a, b, running) {
     victim.safeUntil = wall + 1000;
     if (victim.lives <= 0) { victim.lives = 0; victim.ghost = true; victim.elimAt = ++g.elim; }
     if (g.view && g.view.popBalloon) g.view.popBalloon(victim, victim.lives);
-    bmpSnd('pop');
+    bmpTvSnd('pop');
   }
   hitter.hits++;
   victim.taken++;
   victim.flash = 0.4;
   g.pops.push({ x: hitter.x, y: hitter.y - BMP_R * 1.6, t: 0.9, color: bmpColorOf(Room.state, hitter.id) });
-  if (!hitter.bot) Room.sendLive({ k: 'h', to: hitter.id, w: 'hit' });
-  if (!victim.bot) Room.sendLive({ k: 'h', to: victim.id, w: g.st.mode === 'balloons' ? 'pop' : 'got' });
+  if (!hitter.bot) bmpTvSend({ k: 'h', to: hitter.id, w: 'hit' });
+  if (!victim.bot) bmpTvSend({ k: 'h', to: victim.id, w: g.st.mode === 'balloons' ? 'pop' : 'got' });
   g.sent.push(wall, wall);
-  bmpSnd('point');
+  bmpTvSnd('point');
 }
 
 /** The standings as they are now: a place for every car, ties sharing one. */
@@ -1102,8 +1139,7 @@ function bmpTvRank(g) {
 function bmpTvReport(state) {
   const g = bmp.tv;
   g.reported = true;
-  const screens = (state.screens || []).filter(x => x.online).map(x => x.id).sort();
-  if (screens[0] !== Room.me) return;
+  if (!bmpIsLead(state)) return;
   const scores = {};
   bmpTvRank(g).forEach(c => { scores[c.id] = { score: c.hits, taken: c.taken, lives: c.lives, place: c.place }; });
   roomAct('finish', { round: (state.shared || {}).round, scores, done: g.done });
@@ -1119,7 +1155,7 @@ function bmpTvStatus(state) {
     const d = { k: 's', to: c.id, l: c.lives, sc: c.hits, pl: c.place, of: ranked.length, gh: c.ghost ? 1 : 0, out: c.out ? 1 : 0 };
     const key = JSON.stringify(d);
     if (key === c.sent && now - (c.sentAt || 0) < 3000) return;
-    if (Room.sendLive(d)) { c.sent = key; c.sentAt = now; g.sent.push(now); }
+    if (bmpTvSend(d)) { c.sent = key; c.sentAt = now; g.sent.push(now); }
   });
 }
 
@@ -1131,9 +1167,12 @@ function bmpTvPanel(state) {
   const clock = document.querySelector('[data-bmp-tvclock]');
   if (clock) clock.textContent = bmpClockText(bmpSecsLeft(state));
   const sound = document.getElementById('bmp-sound');
-  if (sound) { let asleep = true; try { asleep = audioCtx.state !== 'running'; } catch (e) {} sound.classList.toggle('hidden', !asleep); }
+  if (sound) { let asleep = true; try { asleep = audioCtx.state !== 'running'; } catch (e) {} sound.classList.toggle('hidden', !asleep || !g.lead); }
   const wall = Date.now();
   const recent = (list) => { while (list.length && wall - list[0] > 3000) list.shift(); return list.length / 3; };
+  // Trimmed every tick, whether or not the numbers are shown, so the lists never grow for a whole round.
+  recent(g.msgs); recent(g.sent);
+  Object.values(g.cars).forEach(c => recent(c.rate));
   const table = document.getElementById('bmp-table');
   if (table) {
     table.innerHTML = bmpTvRank(g).map(c => {
@@ -1171,7 +1210,7 @@ function bmpViewMount(g, stage) {
   g.view = bmpFlatView(g, stage);          // drawn at once; 3D takes over when it has loaded
   if (typeof loadThree !== 'function') return;
   loadThree().then((T) => {
-    if (bmp.tv !== g || !stage.isConnected) return;
+    if (bmp.tv !== g || !g.raf || !stage.isConnected) return;   // the rink was stopped while three.js loaded
     const v = bmp3dView(g, stage, T);
     if (!v) return;
     if (g.view) { try { g.view.dispose(); } catch (e) {} }

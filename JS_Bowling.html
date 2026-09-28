@@ -1202,8 +1202,11 @@ function bowlRumbleStart() {
 }
 
 function bowlRumbleSet(speed, gutter) {
-  const r = bowlGfx.rumble;
+  let r = bowlGfx.rumble;
   if (!r) return;
+  // wakeAudio may have replaced a stuck context mid-roll: build the rumble again on the new one.
+  const ctx = bowlAudio();
+  if (ctx && ctx !== r.ctx) { bowlRumbleStart(); r = bowlGfx.rumble; if (!r) return; }
   const now = r.ctx.currentTime;
   r.gain.gain.setTargetAtTime(Math.min(0.42, speed * 0.05) * (gutter ? 0.8 : 1), now, 0.08);
   r.low.frequency.setTargetAtTime(gutter ? 420 : 120 + speed * 12, now, 0.1);

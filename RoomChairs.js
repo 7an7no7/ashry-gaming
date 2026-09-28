@@ -56,6 +56,7 @@ const chairsAction = (room, playerId, action, payload) => {
       roster,
       alive: roster.slice(),
       outOrder: [],
+      left: [],                       // who left the room mid-game (a win against only them isn't one)
       round: 0,
       wins: action === 'playAgain' ? (prev.wins || {}) : {},
       winnerId: null,
@@ -159,15 +160,18 @@ const chairsCloseSit = (room) => {
   chairsEndRound(room, loser ? loser.id : null, missing.indexOf(loser && loser.id) !== -1 ? 'late' : 'last');
 };
 
-/** The round's loser leaves the ring. `why`: 'last' (the slowest), 'late' (no tap), 'early' (a false start). */
-const chairsEndRound = (room, loserId, why) => {
+/**
+ * The round's loser leaves the ring. `why`: 'last' (the slowest), 'late' (no tap),
+ * 'early' (a false start), 'left' (left the room mid-round; `name` since they are gone).
+ */
+const chairsEndRound = (room, loserId, why, name) => {
   const s = room.shared;
   room._chairs = null;
   s.phase = 'result';
   s.pause = null;
   if (why === 'early') { s.stopAt = s.stopAt || Date.now(); }
   s.loserId = loserId;
-  s.loserName = loserId ? roomPlayerName(room, loserId) : '';
+  s.loserName = loserId ? (roomPlayerName(room, loserId) || name || '') : '';
   s.why = why;
   if (loserId) {
     s.alive = s.alive.filter(id => id !== loserId);
@@ -188,7 +192,8 @@ const chairsGameOver = (room) => {
   s.winnerId = alive.length === 1 ? alive[0] : null;
   s.winnerName = s.winnerId ? roomPlayerName(room, s.winnerId) : '';
   // A win counts only against somebody: a game where everyone else left is nobody's.
-  if (s.winnerId && (s.outOrder || []).length) s.wins[s.winnerId] = (s.wins[s.winnerId] || 0) + 1;
+  const left = s.left || [];
+  if (s.winnerId && (s.outOrder || []).some(id => left.indexOf(id) === -1)) s.wins[s.winnerId] = (s.wins[s.winnerId] || 0) + 1;
   // The places: the winner, then the last out first.
   s.places = (s.winnerId ? [s.winnerId] : []).concat((s.outOrder || []).slice().reverse())
     .map(id => ({ id, name: roomPlayerName(room, id) }));
@@ -251,17 +256,27 @@ const chairsTimeout = (room, now) => {
   return false;
 };
 
-/** Someone left: out of the ring; a round waiting on them closes; one left ends the game. */
-const chairsPlayerLeft = (room, playerId) => {
+/**
+ * Someone left: out of the ring; one left ends the game. Leaving while the
+ * chairs are being taken makes the leaver this round's one out, so nobody
+ * else loses a chair to the gap (chairsCloseSit would have knocked out the
+ * last to sit too). The chairs are counted again only while the music plays:
+ * during the sit and the result the ring reads them as they were dealt.
+ */
+const chairsPlayerLeft = (room, playerId, name) => {
   const s = room.shared;
   if (!s || room.phase !== 'play') return;
   const wasAlive = (s.alive || []).indexOf(playerId) !== -1;
   s.alive = chairsAlive(room);
   s.order = (s.order || []).filter(id => id !== playerId);
   if (s.phase === 'gameover') return;
-  if (wasAlive) s.outOrder = (s.outOrder || []).concat([playerId]);
+  if (wasAlive) s.left = (s.left || []).concat([playerId]);
   if (s.sits) s.sits = s.sits.filter(x => x.id !== playerId);
+  if (wasAlive && s.phase === 'sit' && s.alive.length >= 2) {
+    chairsEndRound(room, playerId, 'left', name);
+    return;
+  }
+  if (wasAlive) s.outOrder = (s.outOrder || []).concat([playerId]);
   if (s.alive.length < 2) { chairsGameOver(room); return; }
-  if (s.phase === 'sit' && s.alive.every(id => s.sits.some(x => x.id === id))) chairsCloseSit(room);
-  s.chairs = Math.max(0, s.alive.length - 1);
+  if (s.phase === 'music') s.chairs = Math.max(0, s.alive.length - 1);
 };

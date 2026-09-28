@@ -3443,6 +3443,31 @@ the word search), `countUp` for streaks and scores.
   steer the same at any lean, either way round, full lock at 28°), the
   sideways screen on an upright phone, auto gas and the brake, the TV's sound
   waking on a click; no console errors.
+- **28 Sep 2026, the audit of everything since 24 Sep, and every finding
+  fixed** - a read-only audit of the 109 commits after the last one (agy had
+  no quota, so six Claude reviewers read one area each; every moderate finding
+  checked at the source), then the owner asked for every finding fixed and the
+  four patterns behind them applied everywhere. The worst: المشنقة's TV stuck
+  on the guessing frame after a word (proved on a live room with motion on:
+  the old build still had no result after 8 s, the fixed one shows it at the
+  hold's end); every game start threw a laptop TV out of fullscreen (bumper
+  cars' cleanup ran for every game); a bumper-cars leaver let a ghost win;
+  Fast 3 paid a grace finisher a podium place; «مين هيكسب؟» took the highest
+  score in games won low; musical chairs' music silent after iOS replaced the
+  sound context; two TVs each running their own rink; `/count` and `/report`
+  taking any id and evicting real counts (`GameIds.js`, `keep`). Also: the
+  turn-clock badge in eighteen room games stopping after a trip off the room
+  screen (`isRunning()`), the hidden queen's host "pick for", play again's
+  "Bot" names, the room list's chess family carried into the next room, the
+  audience's guesses per game, cheers not broadcast when dropped, switched-off
+  duels not dealt again, the trivia steal's double tap, the race's toasts,
+  reveal and «استسلمت», Estimation's hints and lead card. The patterns went
+  into *Traps*: a signature decides everything its frame does;
+  `onRoomClocksReset` runs for every game (chess and bughouse no longer throw
+  each other's board away); a board is read by its order, never `Math.max`;
+  a scheduler reads `fxCtx()` every tick (the bumper engine and the bowling
+  rumble rebuilt too). Rules tests and the leak check, the robots, and the
+  screen test (rooms, screens, fixes: 88 passed).
 
 ## Building and Running
 

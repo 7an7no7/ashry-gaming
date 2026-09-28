@@ -47,6 +47,10 @@ const MAX_MESSAGE = 64 * 1024;
 const MAX_LIVE = 8 * 1024;
 // A controller's message (a stick, a ping): a few numbers.
 const MAX_DRIVE = 400;
+// A controller sends about 15 a second (a ping and a boost besides); more than
+// this from one phone in a second is dropped, so a stuck or hostile page can't
+// flood the screens and the free plan's requests.
+const DRIVE_PER_SEC = 30;
 // The count on the مع بعض tab (LiveStats in live.js): a room reports its number
 // of players online when it changes, and at least this often while the room is
 // in use, so a room that goes quiet can be told from one that has died.
@@ -769,6 +773,16 @@ export class Room extends DurableObject {
       return;
     }
     if (!this.room.players.some((p) => p.id === pid && !p.bot)) return;
+    // A light rate limit per phone: a count in a one-second window.
+    const now = Date.now();
+    const rates = this.driveRates || (this.driveRates = new Map());
+    let r = rates.get(pid);
+    if (!r || now - r.since >= 1000) {
+      if (rates.size > 64) rates.clear();          // players come and go; never let it grow
+      r = { n: 0, since: now };
+      rates.set(pid, r);
+    }
+    if (++r.n > DRIVE_PER_SEC) return;
     const text = JSON.stringify({ t: 'live', d: Object.assign({}, d, { from: pid }) });
     for (const ws of this.openSockets()) {
       if (screens.has(this.playerOf(ws))) { try { ws.send(text); } catch (e) {} }

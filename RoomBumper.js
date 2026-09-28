@@ -112,6 +112,9 @@ const bumperAction = (room, playerId, action, payload) => {
  * The round's result, from the TV's scores: { pid: { score, taken, lives, place } }.
  * A place the TV gave orders the table (ties share a place); without one, the
  * score does. Whatever is missing counts 0. The first place wins, against somebody.
+ * A driver the TV didn't report (a car it had already dropped) goes last: judging
+ * the places on the reported rows only, so one missing place can't throw the TV's
+ * order away and let a ghost win on its knocks.
  */
 const bumperEnd = (room, scores) => {
   const s = room.shared;
@@ -123,6 +126,7 @@ const bumperEnd = (room, scores) => {
     const g = got[id] || {};
     return {
       id,
+      rep: !!got[id],
       name: roomPlayerName(room, id) || s.names[id] || '',
       bot: !!(s.bots && s.bots[id]),
       score: num(g.score !== undefined ? g.score : g.hits, 9999),
@@ -131,11 +135,21 @@ const bumperEnd = (room, scores) => {
       place: num(g.place, 99)
     };
   });
-  const placed = rows.length && rows.every(r => r.place >= 1);
-  rows.sort((a, b) => (placed ? a.place - b.place : 0) || b.score - a.score || a.taken - b.taken);
-  if (!placed) {
+  const reported = rows.filter(r => r.rep);
+  const placed = reported.length > 0 && reported.every(r => r.place >= 1);
+  rows.sort((a, b) => (b.rep - a.rep) || (placed && a.rep ? a.place - b.place : 0) || b.score - a.score || a.taken - b.taken);
+  if (placed) {
+    // The unreported, after the TV's last place, ranked among themselves by score.
+    let base = reported.reduce((m, r) => Math.max(m, r.place), 0);
+    rows.forEach((r, i) => {
+      if (r.rep) return;
+      const prev = rows[i - 1];
+      r.place = prev && !prev.rep && prev.score === r.score && prev.taken === r.taken ? prev.place : ++base;
+    });
+  } else {
     rows.forEach((r, i) => { r.place = i && rows[i - 1].score === r.score && rows[i - 1].taken === r.taken ? rows[i - 1].place : i + 1; });
   }
+  rows.forEach(r => { delete r.rep; });
   s.results = rows;
   s.reported = !!scores;
   const winners = rows.filter(r => r.place === 1 && (r.score > 0 || bumperLastStanding(s.settings)));
@@ -159,6 +173,17 @@ const bumperTimeout = (room, now) => {
   if (room.phase !== 'play' || s.phase !== 'play' || now < s.endsAt + BUMPER_REPORT_MS) return false;
   bumperEnd(room, null);
   return true;
+};
+
+/**
+ * Someone left mid-round: their car leaves the rink (the TV drops it from the
+ * room's players) and their name leaves the round's roster, so the result
+ * doesn't carry a driver nobody reported.
+ */
+const bumperPlayerLeft = (room, playerId) => {
+  const s = room.shared;
+  if (!s || room.phase !== 'play' || s.phase !== 'play') return;
+  if (Array.isArray(s.roster)) s.roster = s.roster.filter(id => id !== playerId);
 };
 
 /** Whether a device's live message is passed on, and to whom: see room.js relayDrive. */

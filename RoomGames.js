@@ -3844,7 +3844,10 @@ const gamePlayerLeft = (room, playerId, name) => {
       if (Array.isArray(s.buzzes)) s.buzzes = s.buzzes.filter(b => b.id !== playerId);
       return;
     case 'chairs':
-      chairsPlayerLeft(room, playerId);
+      chairsPlayerLeft(room, playerId, name);
+      return;
+    case 'bumper':
+      bumperPlayerLeft(room, playerId);
       return;
     case 'stop':
       if ((s.phase === 'writing' || s.phase === 'collecting') && allIn(s.submitted)) scoreStopRound(room);

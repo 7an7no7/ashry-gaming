@@ -69,11 +69,15 @@ function mchChairsWord(n) {
   return mchFill(t.mch_chairs_11, { n });
 }
 
-/** Who plays the music: the TV where there is one, else the host's phone. */
+/**
+ * Who plays the music: the TV where there is one, else the host's phone. With
+ * two screens in the room only one is the voice - the first online by id (the
+ * rule عربيات التصادم's lead screen uses) - or the beat plays twice, out of step.
+ */
 function mchIsVoice(state) {
-  if (state.youAreScreen) return true;
-  const screenOn = (state.screens || []).some((x) => x.online);
-  return !!state.youAreHost && !screenOn;
+  const screens = (state.screens || []).filter((x) => x.online).map((x) => x.id).sort();
+  if (state.youAreScreen) return screens[0] === Room.me;
+  return !!state.youAreHost && !screens.length;
 }
 
 /* --- the ring ------------------------------------------------------------------ */
@@ -145,7 +149,7 @@ function mchRingHtml(state, s, o) {
   } else if (s.phase === 'sit') {
     mid = `<div class="mch-mid__big">${escapeHTML(t.mch_stopped)}</div><div class="mch-window"><i data-mch-window></i></div>`;
   } else if (s.phase === 'result') {
-    const key = s.why === 'early' ? 'mch_out_early' : s.why === 'late' ? 'mch_out_late' : 'mch_out_last';
+    const key = s.why === 'early' ? 'mch_out_early' : s.why === 'late' ? 'mch_out_late' : s.why === 'left' ? 'mch_out_left' : 'mch_out_last';
     mid = `<div class="mch-mid__big mch-mid__big--out">${escapeHTML(mchFill(t[key], { name: mchIso(s.loserName || '') }))}</div>
            <div class="mch-mid__line" data-mch-next></div>`;
   } else {
@@ -427,12 +431,17 @@ function mchMusicSync(state, s) {
   const key = roomDealKey(state) + '|' + s.round;
   if (mch.music && mch.music.key === key) return;
   mchMusicStop();
-  const ctx = fxCtx();
-  if (!ctx) return;
-  const m = { key, step: 0, nextT: ctx.currentTime + 0.08, paused: false, timer: null, s };
+  const ctx0 = fxCtx();
+  if (!ctx0) return;
+  const m = { key, step: 0, ctx: ctx0, nextT: ctx0.currentTime + 0.08, paused: false, timer: null, s };
   mch.music = m;
   const tick = () => {
     if (mch.music !== m) return;
+    // Read the context every tick: wakeAudio replaces one iOS left stuck, and a
+    // context kept from the start would stay silent for the rest of the round.
+    const ctx = fxCtx();
+    if (!ctx) return;
+    if (ctx !== m.ctx) { m.ctx = ctx; m.nextT = ctx.currentTime + 0.05; }
     if (ctx.state !== 'running') return;
     if (m.paused) { m.nextT = ctx.currentTime + 0.06; return; }
     const sh = (Room.state && Room.state.shared) || s;

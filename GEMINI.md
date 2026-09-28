@@ -183,8 +183,10 @@ work changed. Add to it when a decision is made or a batch ships.
       (`CHAIRS_BETWEEN_MS`); the host can start it sooner. The game flows
       like the real one, and there is nothing to read on the result.
     - A win counts only against somebody (a game where everyone else left is
-      nobody's); a player who leaves is out of the ring; fewer than two ends
-      the game.
+      nobody's: `s.left`); a player who leaves is out of the ring; fewer than
+      two ends the game. Leaving while the chairs are being taken makes the
+      leaver that round's one out («ساب الغرفة», `why: 'left'`), so nobody
+      else loses a chair for it (the audit of 28 Sep 2026).
     - Someone who is out gets the audience bar and watches the ring.
 
 - **ألغاز شطرنج (chess puzzles)** - the owner's plan of 24 Sep 2026, approved
@@ -7847,7 +7849,12 @@ and *The TV as the console*). Game id `bumper` everywhere; the page's code is
   the car that drove in harder (170 units a second or more, once a pair in 0.6
   s), balloons, ghosts, falls and respawns, the computer players' driving
   (`bmpBotInput`), the standings (`bmpTvRank`), the sound, and the result sent
-  by the first screen online. **The view** is `bmp3dView` (three.js through
+  by the first screen online. With two screens both draw the rink, but only
+  that lead screen (`bmpIsLead`) plays the sound and talks to the phones
+  (`bmpTvSnd`, `bmpTvSend`); الكراسي الموسيقية's voice (`mchIsVoice`) is the
+  same lead screen. `room.js` drops more than 30 controller messages a second
+  from one phone (`DRIVE_PER_SEC`). A driver who leaves leaves the round's
+  roster, and a driver the TV didn't report goes last in the result. **The view** is `bmp3dView` (three.js through
   `loadThree`: a checker-plate floor and a yellow-and-black rail, or the ring
   over a pit of mats; fairground bulbs, two sweeping coloured lights; cars
   with a rubber skirt, a clear-coated body, a seat, a driver, a pole with a
@@ -8222,6 +8229,25 @@ runs `clearAllIntervals`, which stops every clock; coming back found the dead
 clock under the same key and the badge stood still (the audit of 28 Sep 2026,
 eighteen renderers). The guard asks `x.clock.isRunning()` too - a new clock
 kept for a deadline does the same.
+
+**`onRoomClocksReset` runs for every game, not just its own** (the audit of
+28 Sep 2026). The router calls every registered stop whenever the game, the
+lobby or the deal changes, in any game. عربيات التصادم's stop left
+fullscreen whenever `document.fullscreenElement` was set, so a laptop TV put
+in ⛶ (`toggleTvFullscreen`) dropped out of it at every game's start; and
+شطرنج and باغ هاوس each threw away the one chess board the other was about to
+draw on. A stop undoes only what its own game started: remember it (bumper's
+`bmp.locked` for the fullscreen it asked for) and touch nothing when that game
+isn't running; leave shared pieces (the chess view) to whichever game uses
+them next.
+
+**A scheduler holding an old AudioContext goes silent after `wakeAudio`
+replaces it** (the same audit). A lookahead loop or a long sound that kept
+`const ctx = fxCtx()` from its start (the chairs' music, bumper's engine,
+bowling's rumble) played on into a context iOS had left stuck, and when a tap
+made a new one it heard nothing for the rest of the round. Read `fxCtx()` on
+every tick, and when it has changed, rebuild the nodes (or reset the timeline
+to the new `currentTime`) on the new one.
 
 **A plug-in's board field is the engine's once it is named the same.** The
 solve engine stamps a done board with `b.at = Date.now()` (its seconds), and

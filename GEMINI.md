@@ -188,6 +188,68 @@ work changed. Add to it when a decision is made or a batch ships.
     done), come back after a reload, count for the streak and are in the
     archive.
 
+- **السلم والتعبان (Snakes & Ladders) and جمجمة (Skull)** - picked by the
+  owner from a list of ideas on 28 Sep 2026, every rule answered; to be built
+  together and released together. Not built yet.
+  - **السلم والتعبان**: **a room with the TV and against the phone** (you and
+    computer players; not one phone passed round); **2-6 players**; **100 needs
+    the exact number, too high bounces back** (98 + 5 → 100 → 97); **a 6 rolls
+    again** (no penalty for three 6s, no 6 needed to start); **pieces share a
+    square**; **the snakes and ladders are placed at random each game**, checked
+    to be fair; **play on for places**, a podium; **pure classic**, no special
+    squares; a turn clock **off by default, 15 or 30 seconds**; **computer
+    players in rooms**, one level (there is no skill in it). **The look: أ
+    «كلاسيك بلمستنا»** (the owner, 28 Sep 2026, from a design sheet of three
+    full live boards, https://claude.ai/artifact/QcW9eYcizJZAhmBJQ2baT6, after
+    sending a photo of a real board as the model): a true 10 × 10 checkerboard
+    of mint `#d5f5dc` and teal `#4a9aa2` in a dark teal frame `#17454a`, big
+    bold numbers **in the middle of each square**; long thin curving snakes
+    with spots or bands in bright colours (orange, violet, sky, red, green,
+    yellow, pink, sea-green), outlined in ink, a frontal cartoon face; wooden
+    ladders; our touches: **one snake wears a طربوش and a moustache**, a gold
+    cup at 100, «ابدأ» on 1, workers in hard hats who build the board. From
+    the owner's review of the sheet: **nothing covers a number** (numbers drawn
+    above the bodies and ladders with a halo of their square's colour, **a
+    snake's head sits at the top corner of its square**, on the side its body
+    goes, players stand in the lower half of theirs); snakes and ladders thin
+    and not too many (the sheet: 5 of each, a ladder at least two rows, snakes
+    that don't cross each other); a ladder climb ends on its top square, never
+    off the board.
+  - **السلم والتعبان's animations** (the owner, 28 Sep 2026: "not one animation
+    for the same thing - maybe 5, happening at random", and "the map alive by
+    itself"): **the pieces are little cartoon people** in each player's colour
+    (the app's cast, المشنقة's style) whose faces react. **A snake plays one of
+    six at random**: the gulp (a bulge down the body, spat out at the tail), the
+    slide (down its back like a water slide), the chase (he runs, it catches
+    him), the sneeze, the tail flick (a catapult, a bounce on landing), the
+    squeeze (carried down, dizzy stars). **A ladder one of five**: rung by
+    rung, a sprint, a slip and a catch, the ladder stretching like an elevator,
+    a worker's boost. **The map is built in front of everyone at the start of
+    every game** (about 5 s, a tap skips it, a few versions at random): the old
+    map taken apart on play again (snakes slither off, workers carry the
+    ladders away), the squares dropping in with their numbers, workers carrying
+    in and hammering each ladder, snakes slithering in and curling up. **The
+    board lives on its own**: snakes breathe, flick their tongues, blink, doze
+    and yawn, and **watch a piece that comes within 6 squares of their head**;
+    grass, butterflies, birds, a shine on the rungs. Also: a near miss past a
+    snake's head (it snaps, he wipes his brow), a ladder just missed (he looks
+    up sadly), the bounce at 100 off a wall, a cheer for a 6, a trophy dance at
+    100. Decided here: **the server picks each variant** so every phone and the
+    TV see the same one, never the same twice in a row; each 1.5-3 s, the next
+    roll waiting for it; played once (a reload doesn't replay it), still under
+    motion off.
+  - **جمجمة**: **rooms and the TV only**, your discs secret on your own phone,
+    every pile face down on the TV; **3-8 players**; 4 discs each (3 flowers, 1
+    skull); **two won bets wins, or the last one in**; **a skull hit takes one
+    of the bidder's discs at random**, and only the bidder sees which; **your
+    own skull: you choose** what to lose; **the skull's owner starts the next
+    round** (the bidder, if it was their own); **computer players easy and
+    hard**; **the look: Egyptian flowers** (a rose, jasmine, a lotus on each
+    player's own colour) and a skull drawn our way; **our twist, «هيعملها؟»**:
+    before the flips everyone else taps ✅ or ❌ on their phone, a point for
+    guessing right, shown in the reveal; a turn clock **off by default, 30 or
+    60 seconds** (it adds a flower if it can, else passes).
+
 - **الكراسي الموسيقية (Musical chairs)** - the owner's idea of 27 Sep 2026
   ("each phone in a room, fastest to click sit when the music is off"),
   every rule picked from a list (*الكراسي الموسيقية*):

@@ -135,8 +135,39 @@ const MG3 = {
   pad: { top: 0.16, bottom: 0.05, side: 0.05 },
   tilt: 0.56,             // how far back the camera sits for its height: about 61° looking down
   fpsCap: 0,              // frames a second at most (0: as the screen draws); a test's slow software renderer sets it
-  onFrame: null
+  onFrame: null,
+  // Resting (battery): a phone waiting for others draws the flag and the water at 5 frames a second.
+  lastInput: 0, mine: false, sleep: 0
 };
+
+/* When nothing is happening for this phone - its ball is in, it isn't its turn, it only watches,
+   or the card between two holes is up - the ambient motion (the flag, the water, the pads' arrows,
+   a windmill) is drawn at MG_REST_GAP instead of the screen's rate, and the loop sleeps on a timer
+   in between rather than waking every frame. A touch anywhere, this phone's turn, a roll, a pull,
+   a splash or a new hole brings it straight back. The TV (plugged in, and the show) never rests. */
+const MG_REST_AFTER_MS = 10000;   // no touch for this long, and not this phone's putt
+const MG_REST_GAP = 200;          // about 5 frames a second
+const MG_AMBIENT_GAP = 32;        // about 30: the flag and the water while someone could be looking
+
+function mg3Kick() {
+  if (!MG3.sleep) return;
+  clearTimeout(MG3.sleep);
+  MG3.sleep = 0;
+  if (!MG3.raf && mg3Ready() && !document.hidden) MG3.raf = requestAnimationFrame(mg3Loop);
+}
+/** Any touch, key or wheel on the page: full rate again at once, for the next MG_REST_AFTER_MS. */
+function mg3Poke() { MG3.lastInput = performance.now(); mg3Kick(); }
+/** Is this screen resting now? (Never the TV; never while this phone may putt, unless the hole is over.) */
+function mg3Resting(now) {
+  if (appState.currentView === 'room-tv') return false;
+  const inp = MG3.input;
+  const play = inp && inp.play ? !!inp.play() : true;
+  const mine = !!(inp && inp.can());
+  if (mine && !MG3.mine) MG3.lastInput = now;   // this phone's turn has just come: full rate
+  MG3.mine = mine;
+  if (!play) return true;                        // the card between holes, the end
+  return !mine && now - MG3.lastInput > MG_REST_AFTER_MS;
+}
 
 function mg3Ready() { return !!(MG3.renderer && MG3.scene); }
 
@@ -267,7 +298,10 @@ function mg3Create() {
   canvas.addEventListener('pointercancel', mg3Cancel);
   canvas.addEventListener('lostpointercapture', mg3Cancel);
   document.addEventListener('visibilitychange', mg3Wake);
+  MG_POKE_EVENTS.forEach(ev => document.addEventListener(ev, mg3Poke, { capture: true, passive: true }));
+  MG3.lastInput = performance.now();
 }
+const MG_POKE_EVENTS = ['pointerdown', 'keydown', 'wheel'];
 
 /** Moves the canvas into `host` and watches its size. */
 function mg3Attach(host) {
@@ -297,11 +331,18 @@ function mg3Resize() {
 }
 
 function mg3Start() {
-  if (MG3.raf || !mg3Ready()) return;
+  if (!mg3Ready()) return;
+  if (MG3.sleep) { mg3Kick(); return; }   // resting: a roll or a new hole wakes it now
+  if (MG3.raf) return;
   MG3.last = performance.now();
   MG3.raf = requestAnimationFrame(mg3Loop);
 }
-function mg3Stop() { if (MG3.raf) cancelAnimationFrame(MG3.raf); MG3.raf = 0; }
+function mg3Stop() {
+  if (MG3.raf) cancelAnimationFrame(MG3.raf);
+  MG3.raf = 0;
+  if (MG3.sleep) clearTimeout(MG3.sleep);
+  MG3.sleep = 0;
+}
 function mg3Wake() {
   if (!mg3Ready()) return;
   if (document.hidden) mg3Stop(); else mg3Start();
@@ -337,6 +378,7 @@ function mg3Dispose() {
     if (MG3.canvas.parentNode) MG3.canvas.parentNode.removeChild(MG3.canvas);
   }
   document.removeEventListener('visibilitychange', mg3Wake);
+  MG_POKE_EVENTS.forEach(ev => document.removeEventListener(ev, mg3Poke, { capture: true }));
   Object.assign(MG3, {
     renderer: null, canvas: null, host: null, scene: null, cam: null, sun: null, env: null, tex: {}, geo: {},
     hole: null, holeKey: '', group: null, trash: [], movers: [], flag: null, waters: [], bobbers: [],
@@ -633,6 +675,7 @@ function mg3SetHole(h, key) {
   if (!mg3Ready() || (MG3.holeKey === key && MG3.hole === h)) return false;
   mg3ClearHole();
   mg3Cancel();
+  mg3Poke();   // a new hole: full rate again, for everyone to look at it
   const THREE = MG3.T;
   const G = new THREE.Group();
   MG3.group = G;
@@ -2945,10 +2988,27 @@ function mg3Loop(now) {
   if (document.hidden) return;
   const dt = Math.min(0.05, (now - MG3.last) / 1000);
   MG3.last = now;
-  const busy = !!MG3.pull || mg3Rolling() || MG3.fx.length > 0 || MG3.movers.some(m => m.kind === 'mill' || m.kind === 'slider' || m.kind === 'spinner');
-  // Nothing moving but the flag and the water: 30 frames a second is plenty.
-  const gap = MG3.fpsCap ? 1000 / MG3.fpsCap : (busy ? 0 : 32);
-  if (now - MG3.lastDraw < gap) { MG3.raf = requestAnimationFrame(mg3Loop); return; }
+  // A pull, a roll or a splash: every frame, always.
+  const busy = !!MG3.pull || mg3Rolling() || MG3.fx.length > 0;
+  const resting = !busy && mg3Resting(now);
+  // A moving piece to time a putt against (a windmill, a gate, a beam): every frame while it matters;
+  // nothing else moving but the flag and the water: 30 frames a second is plenty; resting: 5.
+  const pieces = MG3.movers.some(m => m.kind === 'mill' || m.kind === 'slider' || m.kind === 'spinner');
+  let gap = busy ? 0 : resting ? MG_REST_GAP : pieces ? 0 : MG_AMBIENT_GAP;
+  if (MG3.fpsCap) gap = Math.max(gap, 1000 / MG3.fpsCap);
+  const wait = gap - (now - MG3.lastDraw);
+  if (wait > 0) {
+    // Resting sleeps on a timer (a touch, a roll or a new hole wakes it: mg3Kick) rather than waking every frame.
+    if (resting && wait > 20) {
+      MG3.sleep = setTimeout(() => {
+        MG3.sleep = 0;
+        if (!MG3.raf && mg3Ready() && !document.hidden) MG3.raf = requestAnimationFrame(mg3Loop);
+      }, wait);
+      return;
+    }
+    MG3.raf = requestAnimationFrame(mg3Loop);
+    return;
+  }
   mg3Tick(now, dt);
   mg3Draw();
   MG3.raf = requestAnimationFrame(mg3Loop);
@@ -3287,10 +3347,12 @@ function mgSoloPaint() {
     mg3SyncBalls([{ id: 'me', at: s.at, color: MG_COLORS[0], hidden: s.phase !== 'play' && !rolling }]);
     MG3.input = {
       can: () => s.phase === 'play' && !mg3Rolling('me') && !mgBallWet('me') && appState.currentView === 'play-minigolf',
+      play: () => s.phase === 'play',
       from: () => s.at,
       guide: () => !!g.guide,
       onShot: mgSoloPutt
     };
+    mg3Kick();
   };
   mgMountIn(root, () => { ready(); mgSoloChrome(); });
   ready();
@@ -3665,12 +3727,14 @@ function mgRoomCourse(state, root, tv) {
   mgRoomReplays(state, tv);
   MG3.input = tv ? null : {
     can: () => !!Room.state && mgRoomCanPutt(Room.state) && appState.currentView === 'room-minigolf',
+    play: () => !!Room.state && (Room.state.shared || {}).phase === 'play',
     from: () => { const st = Room.state; const b = st && st.shared.balls[Room.me]; return b ? b.at : h.tee; },
     guide: () => !!((Room.state || {}).shared || {}).settings && !!Room.state.shared.settings.guide,
     others: () => mgRoomOthers((Room.state || {}).shared, Room.me),
     onShot: mgRoomPutt
   };
   MG3.onFrame = null;
+  mg3Kick();   // the table moved on (maybe to this phone's turn): look again now, not at the next resting frame
 }
 
 

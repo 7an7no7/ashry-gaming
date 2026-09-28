@@ -661,11 +661,14 @@ function hmRoomFx(state, you) {
  * seen. When the result arrives and this phone's board was still guessing a frame ago, or the
  * table's rows have a moment just begun, the guessing frame is held HM_HOLD_MS with the moment
  * on it, then the result is drawn. The board is rebuilt from the last one seen and the word.
+ * The last word of a game goes straight to 'gameover' (with its result), so it is held the same
+ * way before the podium. Asked again for the same word it gives the same hold (or none once it is
+ * over), so the TV's signature can ask first and its frame after.
  */
 const HM_HOLD_MS = 4500;
 function hmRoomHold(state, tv) {
   const s = state.shared || {};
-  if (s.phase !== 'result' || motionOff()) return null;
+  if (!(s.phase === 'result' || (s.phase === 'gameover' && s.result)) || motionOff()) return null;
   const key = [state.code, s.dealId, s.round].join('|');
   const now = Date.now();
   const cur = hmRoom.hold;
@@ -692,7 +695,13 @@ function hmRoomHold(state, tv) {
   hold.key = key;
   hold.until = now + HM_HOLD_MS;
   hmRoom.hold = hold;
-  setTimeout(() => { if (hmRoom.hold === hold) { hmRoom.hold = null; if (Room.state) routeRoomState(Room.state); } }, HM_HOLD_MS + 50);
+  // Redraw once the hold is over - only on a room screen: a player who stepped out to the menu or
+  // the rules is not dragged back (the room's own listener draws nothing off a room screen).
+  setTimeout(() => {
+    if (hmRoom.hold !== hold) return;
+    hmRoom.hold = null;
+    if (Room.state && (Room.state.youAreScreen || onRoomView())) routeRoomState(Room.state);
+  }, HM_HOLD_MS + 50);
   return hold;
 }
 
@@ -736,7 +745,7 @@ ROOM_GAMES.hangman = {
     const rebuilt = renderRoomFrame(el, hmRoomSig(state), () => {
       const round = `<div class="cn-score"><span class="cn-score__role">🪢 ${escapeHTML(hmT('hm_round', { n: s.round, m: s.rounds }))}</span>
           ${s.endsAt && s.phase === 'guessing' ? '<span class="badge badge--accent" data-hm-clock></span>' : ''}</div>`;
-      if (s.phase === 'gameover') {
+      if (s.phase === 'gameover' && !hold) {
         const podium = renderPodium(state, s.board);
         return `<div class="hm-room">
             ${s.result && s.result.word ? hmResultHtml(state) : ''}
@@ -813,7 +822,7 @@ ROOM_GAMES.hangman = {
     hmTickClock(state);
     if (!rebuilt) return;
     hmAfterBoard(el, fx);
-    if (s.phase === 'gameover' && duelOnce(['hm-over', state.code, s.dealId].join('|')) && (s.board || [])[0] && s.board[0].id === Room.me) {
+    if (s.phase === 'gameover' && !hold && duelOnce(['hm-over', state.code, s.dealId].join('|')) && (s.board || [])[0] && s.board[0].id === Room.me) {
       afterReveal(el, () => { playSound('success'); if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 85 }); });
     }
   },
@@ -830,23 +839,27 @@ onRoomClocksReset(() => { hmStopClock(); roomQuietStop(hmRoom); hmRoom.sinceKey 
 /* --- the TV: everyone's man, the word and the points ------------------------------ */
 
 TV_GAMES.hangman = {
-  sig: (state) => hmRoomSig(state),
+  // renderRoomTv works the signature out before it draws the frame, so the hold is decided here
+  // first: asked only in frame(), the hold began after the signature had said "no hold", and the
+  // redraw when it ended found the same signature and kept the held frame on the TV for good.
+  sig: (state) => { hmRoomHold(state, true); return hmRoomSig(state); },
   frame(state, t) {
     const s = state.shared || {};
     if (!s.settings) return tvLookAtPhones(t);
+    const hold = hmRoomHold(state, true);
     const host = (buttons) => (state.youAreHost && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
     const top = `<div class="tv-top">
         <span class="tv-pill">🪢 ${escapeHTML(hmT('hm_round', { n: s.round, m: s.rounds }))}</span>
         ${s.endsAt && s.phase === 'guessing' ? '<span class="tv-pill" data-hm-clock></span>' : ''}
       </div>`;
-    if (s.phase === 'gameover') {
+    if (s.phase === 'gameover' && !hold) {
       return `<div class="tv-vote" data-accent="orange">
           <div class="tv-title tv-center-text">🏆</div>
           ${renderPodium(state, s.board) || `<div class="tv-scale">${renderScoreboard(s.board)}</div>`}
           ${host([[t.play_again, "roomAct('playAgain')"], [t.room_another_game, "roomAct('backToHub')", 'ghost']])}
         </div>`;
     }
-    if (s.phase === 'result' && !hmRoomHold(state, true)) {
+    if (s.phase === 'result' && !hold) {
       return `<div class="tv-trivia" data-accent="orange">${top}
           <div class="tv-center hm-tv-result">${hmResultHtml(state, true)}</div>
           ${host([[hmT('hm_next_word'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`]])}

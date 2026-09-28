@@ -5997,7 +5997,9 @@ The owner's rules are in *The owner's specs*.
   jump straight to the result card: `hmRoomHold` keeps the guessing frame
   `HM_HOLD_MS` with the moment on it (the board rebuilt from the last one
   seen and the result's word, the secrets being gone), on the phone and the
-  TV, then the result is drawn. The look driver is `notes/hangman-look.mjs.txt`.
+  TV, then the result is drawn - the podium, too, for the last word of a game, which
+  goes straight to `gameover` (its confetti waits for the hold). The TV's
+  signature asks for the hold before its frame (*Traps*). The look driver is `notes/hangman-look.mjs.txt`.
 - **`JS_Hangman.html`**: one board builder for one phone and a room
   (`hmBoardHtml`: the gallows, the tiles, the wrong letters, the keys and the
   whole-word field) and the two on one phone (`appState.hangman`, restored
@@ -8200,6 +8202,18 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A screen's signature must include everything its frame decides.**
+`renderRoomTv` asks `TV_GAMES.<id>.sig(state)` before it calls `frame()`. المشنقة's TV
+started its hold (`hmRoomHold`: the guessing frame kept on while the last moment plays)
+inside `frame()`, so the signature said "no hold" while the held frame was drawn; when the
+hold ended its timer redrew, found the same signature, and the TV stayed on the guessing
+frame with no result and no "next word" until something else in the room changed (the audit of 28 Sep
+2026). The signature now decides the hold first (`sig: (state) => { hmRoomHold(state,
+true); return hmRoomSig(state); }`), as سكرو, أونو and the card games decide their
+endings in `sig`. Anything a frame reads from page state - a hold, a busy flag, a moment -
+is settled before (or inside) the signature, and a timer that redraws later goes through
+`routeRoomState` only on a room screen (`onRoomView()`), or it drags a player back.
 
 **A plug-in's board field is the engine's once it is named the same.** The
 solve engine stamps a done board with `b.at = Date.now()` (its seconds), and

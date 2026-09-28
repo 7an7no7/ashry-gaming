@@ -8050,6 +8050,35 @@ Date.now = duelTestClock;
     check(r.shared.phase === 'over' && r.shared.chess.hq.end && r.shared.chess.hq.end.every((e) => e.pick),
       'hidden queen room: a game played out by the host\'s moves ends with both picks shown');
   }
+  // audit 28 Sep 2026: the host's "pick for" names one seat, and never picks the host's own pawn.
+  {
+    const r = hqRoom(['a', 'b']);
+    const s = r.shared;
+    const hostSeat = s.seats.indexOf('a');
+    const other = 1 - hostSeat;
+    applyRoomAction(r, 'a', 'skipTurn', { move: 0, seat: other });
+    check(r.shared.chess.hq.picking && r.shared.chess.hq.picked[other] && !r.shared.chess.hq.picked[hostSeat] && r._chq.pick[hostSeat] === -1,
+      'audit/hq: the host\'s "pick for" a quiet phone picks that seat only - the host still picks their own pawn');
+    applyRoomAction(r, 'a', 'hqPick', { sq: hostSeat === 0 ? 'a2' : 'a7', round: s.round });
+    check(!r.shared.chess.hq.picking && r._chq.pick[hostSeat] === sq(hostSeat === 0 ? 'a2' : 'a7'), 'audit/hq: the host\'s own pick is the one they made');
+  }
+  // audit 28 Sep 2026: a move lost on time doesn't tell the last reveal a second time.
+  {
+    const r = hqRoom(['a', 'b'], { clock: '1+0' });
+    const s = r.shared;
+    const [W, B] = s.seats;
+    applyRoomAction(r, W, 'hqPick', { sq: 'e2', round: s.round });
+    applyRoomAction(r, B, 'hqPick', { sq: 'd7', round: s.round });
+    hmv(r, W, 'e2-e4');
+    hmv(r, B, 'a7-a6');
+    hmv(r, W, 'e4-e6');
+    check(r.shared.chess.hq.events.length === 1 && r.shared.chess.hq.events[0].kind === 'reveal', 'audit/hq: the reveal is told once');
+    clock += 62000;
+    const n = r.shared.chess.moves;
+    applyRoomAction(r, B, 'move', { from: 'b7', to: 'b6', move: n });
+    check(r.shared.chess.moves === n && r.shared.chess.result && r.shared.chess.hq.events.length === 1,
+      'audit/hq: Black\'s move after the flag isn\'t played, loses on time, and the reveal is not told again');
+  }
   // A tournament never deals it.
   {
     const r = newRoom(['a', 'b', 'c', 'd']);
@@ -8192,6 +8221,15 @@ Date.now = duelTestClock;
     const last = s.callOrder[s.callOrder.length - 1] === k;
     return EST.estCallChoices(s.callMax, s.calls.filter((c, i) => i !== k && c !== null).reduce((a, b) => a + b, 0), last)[0];
   };
+  // audit 28 Sep 2026: a computer player seated with no name sent (a play again from an older page) is never "Bot".
+  {
+    const r = newRoom(['a']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'estimation' });
+    applyRoomAction(r, 'a', 'start', {});
+    const names = r.players.filter((p) => p.bot).map((p) => p.name);
+    check(names.length === 3 && names.every((n) => !/^Bot/.test(n)) && new Set(names).size === 3,
+      'audit/bots: seats filled with no names sent take the app\'s own bot names, all different (' + names.join('، ') + ')');
+  }
   {
     const r = estStart(['a', 'b', 'c', 'd']);
     const s = r.shared;

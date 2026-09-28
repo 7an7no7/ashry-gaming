@@ -114,7 +114,7 @@ const estSeatTable = (room, names) => {
   const list = Array.isArray(names) ? names : [];
   let i = 0;
   while (seats.length < EST_SEATS) {
-    const name = uniqueBotName(room, list[i++] || 'Bot');
+    const name = uniqueBotName(room, list[i++] || '');
     const bot = { id: newBotId() + i, name: name, bot: 'easy' };
     room.players.push(bot);
     roomEvent(room, 'joined', { name: name, bot: true });

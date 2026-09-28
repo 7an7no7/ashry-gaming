@@ -1368,6 +1368,15 @@ function rememberNight(state) {
 }
 if (typeof Room !== 'undefined') Room.onChange(rememberNight);
 
+/* A group opened in one room's list (chess's ways, the puzzle race) is that room's:
+   leaving, opening or joining another starts the list from every game. Registered
+   before the router below, so the lobby is drawn with it already cleared. */
+let roomHubCode = '';
+if (typeof Room !== 'undefined') Room.onChange((state) => {
+  const code = (state && state.code) || '';
+  if (code !== roomHubCode) { roomHubCode = code; roomHubGroup = ''; }
+});
+
 /** The game picker. Everyone sees it; only the host can act on it. */
 function renderRoomHub(state) {
   const t = TRANSLATIONS[appState.lang];

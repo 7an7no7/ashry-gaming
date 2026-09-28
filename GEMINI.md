@@ -8201,6 +8201,14 @@ belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
 
+**A clock kept "for the same deadline" may be one `setView` stopped.** The
+room renderers keep their turn clock while the deadline is the same
+(`if (x.clockKey === endsAt && x.clock) return;`), but leaving the room screen
+runs `clearAllIntervals`, which stops every clock; coming back found the dead
+clock under the same key and the badge stood still (the audit of 28 Sep 2026,
+eighteen renderers). The guard asks `x.clock.isRunning()` too - a new clock
+kept for a deadline does the same.
+
 **A plug-in's board field is the engine's once it is named the same.** The
 solve engine stamps a done board with `b.at = Date.now()` (its seconds), and
 إيه اللي يجمعهم؟'s race board kept its current round as `at` too - a finished

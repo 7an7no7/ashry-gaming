@@ -72,10 +72,10 @@ function bugDealSeats(room, order) {
 
 /** The computer players a table short of four needs, named from the host's phone (botNames). */
 function bugFillBots(room, need, names) {
-  const pool = Array.isArray(names) && names.length ? names : ['Robo', 'Chip', 'Bit', 'Byte'];
+  const pool = Array.isArray(names) ? names.filter(Boolean) : [];
   const out = [];
   for (let i = 0; i < need; i++) {
-    const name = uniqueBotName(room, pool[i % pool.length]);
+    const name = uniqueBotName(room, pool[i] || '');
     const bot = { id: newBotId() + i, name: name, bot: 'easy' };
     room.players.push(bot);
     roomEvent(room, 'joined', { name: name, bot: true });

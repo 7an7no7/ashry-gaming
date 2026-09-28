@@ -81,7 +81,9 @@ The full guide is GEMINI.md — read it before changing anything:
    (https://play.3ashry.workers.dev), the same `docs/`; it restarts
    nothing.
 8. Update GEMINI.md if how something works changed. Commit everything, `docs/`
-   included, and push to `master`.
+   included, and push to `master`. GitHub Actions checks every push (`npm run
+   check`, `test:rules`, the site's build and budget): a red ✗ on the commit
+   means fix it and push again.
 9. `cd tools && npm run check:live` — waits for GitHub Pages, then confirms the
    link serves this build and the rooms server is up. Done when it says "Live."
 

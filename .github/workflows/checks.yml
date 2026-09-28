@@ -1,0 +1,54 @@
+# The checks that need no server, no Cloudflare login and no network beyond npm:
+# the content and translations, the room rules and the leak check, and a build of
+# the site (into a temporary folder) under its size budget. A red cross on a commit
+# means one of them failed: fix it before releasing. The screen test and the robot
+# players still run on the PC (CLAUDE.md, step 5).
+name: checks
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tools/package-lock.json
+            rooms-worker/package-lock.json
+
+      - name: Install the tools
+        working-directory: tools
+        run: npm ci --no-audit --no-fund
+
+      - name: Install the rooms server
+        working-directory: rooms-worker
+        run: npm ci --no-audit --no-fund
+
+      - name: Content and translations
+        working-directory: tools
+        run: npm run check
+
+      - name: Room rules and the leak check
+        working-directory: rooms-worker
+        run: npm run test:rules
+
+      - name: The site builds under its size budget
+        working-directory: tools
+        run: SITE_OUT="$RUNNER_TEMP/site" node build-site.mjs

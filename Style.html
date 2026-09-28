@@ -1766,11 +1766,38 @@ body.is-fullscreen-view .toast { z-index: var(--z-full-toast); }
 }
 .toast.show { opacity: 1; transform: none; }
 body.dark .toast { background: var(--n-700); }
-.toast.success { background: var(--success-btn); color: var(--success-on); }
-.toast.error   { background: var(--danger-btn); color: var(--danger-on); }
+.toast.success, body.dark .toast.success { background: var(--success-btn); color: var(--success-on); }
+.toast.error, body.dark .toast.error { background: var(--danger-btn); color: var(--danger-on); }
 .toast.info    { background: var(--info-btn); color: #ffffff; }
 /* A toast you can tap (a new version is ready). */
 .toast--action { pointer-events: auto; cursor: pointer; border: 0; font-family: inherit; text-align: start; }
+/* showToast's toasts stack (JS_Core.html): the stack sits where a toast always sat, the newest
+   at the bottom, three at most; each toast in it is in the flow, and a tap takes it away. The
+   stack itself lets taps through to the page between and around its toasts. */
+.toast-stack {
+  position: fixed;
+  inset-inline: var(--sp-4);
+  bottom: calc(var(--nav-h) + var(--safe-bottom) + var(--sp-3));
+  z-index: var(--z-toast);
+  max-width: calc(var(--shell-max) - var(--sp-8));
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
+  pointer-events: none;
+}
+.toast-stack > .toast {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  max-width: none;
+  margin: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.toast-stack > .toast.is-leaving { transform: translateY(8px) scale(0.97); transition-duration: var(--dur-2); }
+body.is-fullscreen-view .toast-stack { z-index: var(--z-full-toast); }
 
 /* ==========================================================================
    9. GAME-SPECIFIC
@@ -3511,7 +3538,7 @@ html:has(> body.is-tv-view) { font-size: 100% !important; }
   }
   .nav-item { flex: 0 0 auto; flex-direction: column; gap: 0.25rem; min-height: 4rem; padding: var(--sp-2) 2px; }
   .nav-label { font-size: 0.68rem; line-height: 1.2; text-align: center; }
-  .toast { bottom: calc(var(--safe-bottom) + var(--sp-3)); }
+  .toast, .toast-stack { bottom: calc(var(--safe-bottom) + var(--sp-3)); }
 
   /* Views: a readable column; the menu spreads out */
   .shell__main > [id^="view-"]:not(.fixed) { width: 100%; max-width: 47.5rem; margin-inline: auto; }

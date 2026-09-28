@@ -3468,6 +3468,18 @@ the word search), `countUp` for streaks and scores.
   a scheduler reads `fxCtx()` every tick (the bumper engine and the bowling
   rumble rebuilt too). Rules tests and the leak check, the robots, and the
   screen test (rooms, screens, fixes: 88 passed).
+- **28 Sep 2026, continuous checks and toasts that stack** - every push and
+  pull request to `master` runs `npm run check`, `test:rules` and a build
+  of the site under its budget on GitHub Actions (*Testing*, "Continuous
+  checks"); the leak check's musical-chairs driver plays again until a game
+  has had a fake pause (it failed about one run in a hundred when none came
+  up). `showToast` stacks its toasts, three at most, the oldest leaving
+  first, each for as long as its words take to read, the same words again
+  refreshing the one showing, a tap taking one away, announced to a screen
+  reader (*The design system*, "Toasts"). Checked in headless Chrome at
+  375×812, 1280×720 and 667×375, Arabic and English, light and dark, with
+  reduced motion, and the new-version toast as it was; no console errors.
+  Found on the way: a dark-mode error or success toast was dark ink on grey.
 
 ## Building and Running
 
@@ -3606,6 +3618,17 @@ npm run check        # content + i18n
   Running `npm test` and `test:ui` side by side saves about 9 minutes but makes
   the timing checks flakier on a busy PC (a mini golf "next hole" wait failed
   once that way).
+- **Continuous checks** (`.github/workflows/checks.yml`, 28 Sep 2026): every
+  push to `master` and every pull request into it runs, on GitHub Actions
+  (free, nothing to look after), `npm ci` in `tools/` and `rooms-worker/`,
+  `npm run check`, `npm run test:rules` (the rules and the leak check: no
+  server, no network, no Cloudflare login) and `node build-site.mjs` into a
+  temporary folder (`SITE_OUT`), which fails over the size budget. A red ✗
+  on a commit on GitHub means one of them failed: open the run, fix it, and
+  push again. It doesn't replace the PC's steps: the robots (`npm test`),
+  the screen test and the look in the browser still run here. A check that
+  can fail by chance (a random deal that never brings up what it checks)
+  makes the ✗ mean nothing, so such a test is made to wait for its case.
 - Everything else is exercised in the local preview.
 
 Client-side logs are in the browser console; the rooms server's are
@@ -9676,6 +9699,24 @@ points and وقف's slam, and confetti on top (`JS_Sounds.html` reads that one).
 The values are the numbers each layer always had (22 Sep 2026: forty rules on
 twenty-five numbers from 20 to 100,040, now names); a new popup picks a name,
 never a number. Small numbers inside a component stay local.
+
+**Toasts stack** (`showToast(msg, type)` in `JS_Core.html`, 28 Sep 2026; the
+signature and its 145 callers unchanged). They go into one `#toast-stack`
+(`.toast-stack`, `--z-toast`, `--z-full-toast` over a full-screen tool), which
+sits where a toast always sat - above the bottom bar, at the foot on a phone
+on its side - with the newest at the bottom and three at most (two on a screen under 500px
+tall, a phone on its side): one more sends the oldest away first (`toastMax`). A toast stays 2.5 s + 60 ms a character,
+2.5 to 7 s, an error a second more (`toastMs`); the same words and type again
+while it shows restart its clock with a small pop instead of stacking a
+second; a tap takes it away and the ones above slide into its place
+(`toastDismiss`). It is `role="status" aria-live="polite"`, an error
+`role="alert"`, and its words go in just after it is in the page so a screen
+reader hears them. In and out with transform and opacity; with motion off
+(`motionOff()`) it simply appears and goes. The stack lets taps through
+around its toasts; a toast itself takes one (to be dismissed). The new-version
+note (`.toast--action`) is its own fixed toast, as before. Found on the way: in
+dark mode a success or error toast was grey with dark ink (`body.dark .toast`
+outweighed `.toast.error`); both colours carry the dark selector now.
 
 **A popup closes with motion, and still closes at once** (26 Sep 2026, P14).
 `closeModal` and `closeAllModals` hide the real overlay straight away - so a

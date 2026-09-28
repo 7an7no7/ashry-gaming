@@ -4523,7 +4523,15 @@ async function main() {
       },
       // RACE_ROBOTS:mines
       mines: {
-        partly: (s, you) => { const open = new Set(you.board.open.map((o) => o.i)); const n = s.pub.cols * s.pub.rows; for (let i = 0; i < n; i++) if (!open.has(i)) return [{ cells: [i] }]; return []; },
+        // A cell the board proves safe (a number whose mines are all found by the simple count), else the deal's own safe cell: the first unopened cell could be a mine, and this check wants the board still in play.
+        partly: (s, you) => {
+          const W = s.pub.cols, H = s.pub.rows, open = new Map(you.board.open.map((o) => [o.i, o.n]));
+          const near = (i) => { const out = []; const x = i % W, y = (i - x) / W; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const X = x + dx, Y = y + dy; if (X >= 0 && Y >= 0 && X < W && Y < H) out.push(Y * W + X); } return out; };
+          const mines = new Set();
+          open.forEach((n, i) => { const shut = near(i).filter((k) => !open.has(k)); if (n > 0 && n < 9 && shut.length === n) shut.forEach((k) => mines.add(k)); });
+          for (const [i, n] of open) { if (!(n > 0 && n < 9)) continue; const shut = near(i).filter((k) => !open.has(k)); if (shut.filter((k) => mines.has(k)).length === n) { const safe = shut.find((k) => !mines.has(k)); if (safe !== undefined) return [{ cells: [safe] }]; } }
+          return [{ cells: [s.pub.safe] }];
+        },
         stepwise: (s, you) => { const open = new Set(you.board.open.map((o) => o.i)); const n = s.pub.cols * s.pub.rows; for (let i = 0; i < n; i++) if (!open.has(i)) return { cells: [i] }; return null; },
         partlyDoneOf: () => -1,
         ownKey: 'open',

@@ -145,7 +145,7 @@ function paintStreak(fresh) {
   const answered = q.picked !== null && q.picked !== undefined;
   const left = s.race ? 0 : Math.max(0, (q.endsAt - Date.now()) / 1000);
   const prompt = q.kind === 'proverbs'
-    ? escapeHTML(q.prompt).replace('___', '<span class="streak-blank">؟</span>')
+    ? escapeHTML(q.prompt).replace('___', `<span class="streak-blank">${/[\u0600-\u06FF]/.test(q.prompt) ? '؟' : '?'}</span>`)
     : escapeHTML(q.prompt);
   const bar = soloBarHtml(s.race ? [
     { label: t.race_unit_questions || '', value: `${Math.min(s.asked + 1, s.total || 10)}/${s.total || 10}`, id: 'streak-asked' },

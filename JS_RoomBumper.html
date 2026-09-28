@@ -81,6 +81,19 @@ function bmpColorOf(state, pid) {
   return BMP_COLORS[k % BMP_COLORS.length];
 }
 const bmpColorIndex = (state, pid) => BMP_COLORS.indexOf(bmpColorOf(state, pid));
+/**
+ * The ink for a word on a car's colour: dark on the light cars (yellow, orange,
+ * cyan, green, pink), white on the dark ones; `plate` where neither reaches
+ * 4.5:1 (the red and the violet), so the word sits on a darker pill.
+ */
+function bmpCarInk(hex) {
+  const lum = (h) => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16) / 255)
+    .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)))
+    .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const L = /^#[0-9a-f]{6}$/i.test(hex || '') ? lum(hex) : 0.2;
+  const onWhite = 1.05 / (L + 0.05), onDark = (L + 0.05) / (lum('#1b1b1f') + 0.05);
+  return onDark > onWhite ? { ink: '#1b1b1f', plate: onDark < 4.5 } : { ink: '#ffffff', plate: onWhite < 4.5 };
+}
 const bmpHasScreen = (state) => (state.screens || []).some(x => x.online);
 function bmpSecsLeft(state) {
   const s = state.shared || {};
@@ -163,9 +176,10 @@ ROOM_GAMES.bumper = {
       if (s.phase === 'over') return bmpOverHtml(state, s, t) + renderRoomPlayerStrip(state);
       const color = bmpColorOf(state, me);
       const noTv = bmpHasScreen(state) ? '' : `<div class="waiting-note bmp-need">📺 ${escapeHTML(t.bmp_need_tv)}</div>`;
+      const ink = bmpCarInk(color);
       const acts = `
         <div class="bmp-acts">
-          <button type="button" class="bmp-act bmp-act--boost" id="bmp-boost" onclick="bmpBoost()" style="--car:${color}">
+          <button type="button" class="bmp-act bmp-act--boost ${ink.plate ? 'is-plate' : ''}" id="bmp-boost" onclick="bmpBoost()" style="--car:${color};--car-ink:${ink.ink}">
             <span class="bmp-act__ring" aria-hidden="true"></span><span class="bmp-act__label">🚀 ${escapeHTML(t.bmp_boost)}</span>
           </button>
           <button type="button" class="bmp-act bmp-act--horn" onclick="bmpHorn()">📯 ${escapeHTML(t.bmp_horn)}</button>
@@ -175,7 +189,7 @@ ROOM_GAMES.bumper = {
       }
       if (bmp.mode === 'tilt') {
         return `<div class="bmp is-tilt" id="bmp-phone">
-          <div class="bmp-land" id="bmp-land" style="--car:${color}">
+          <div class="bmp-land" id="bmp-land" style="--car:${color};--car-ink:${ink.ink}">
             <div class="bmp-land__top">
               ${bmpStatusHtml(state, true)}
               <button type="button" class="btn btn--ghost btn--xs btn--auto bmp-land__back" onclick="bmpSetMode('stick')">${escapeHTML(t.bmp_back_stick)}</button>

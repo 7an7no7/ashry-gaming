@@ -249,7 +249,7 @@ function ludoBarHtml(c) {
 function ludoEventText(c, e) {
   const name = (pid) => c.names[pid] || '…';
   switch (e.type) {
-    case 'rolloff': return '🎲 ' + ludoT('ludo_ev_first', { name: name(e.first) });
+    case 'rolloff': return '🎲 ' + (c.me && e.first === c.me ? ludoT('ludo_ev_first_you') : ludoT('ludo_ev_first', { name: name(e.first) }));
     case 'three': return '🎲🎲🎲 ' + ludoT('ludo_ev_three', { name: name(e.pid) });
     case 'nomove': return ludoT('ludo_ev_nomove', { name: name(e.pid), n: e.n });
     case 'move': {
@@ -428,7 +428,7 @@ function ludoRollOffPanel(root, c, e, delay) {
   panel.innerHTML = `<div class="ludo-off__card">
       <p class="ludo-off__title">🎲 ${escapeHTML(ludoT('ludo_rolloff'))}</p>
       ${e.rounds.map((round, k) => `<div class="ludo-off__round" style="--at:${k * ROUND_MS}ms">${k ? `<p class="ludo-off__again">${escapeHTML(ludoT('ludo_rolloff_again'))}</p>` : ''}${rows(round, k)}</div>`).join('')}
-      <p class="ludo-off__first" style="--at:${e.rounds.length * ROUND_MS}ms">${escapeHTML(ludoT('ludo_ev_first', { name: c.names[e.first] || '' }))}</p>
+      <p class="ludo-off__first" style="--at:${e.rounds.length * ROUND_MS}ms">${escapeHTML(c.me && e.first === c.me ? ludoT('ludo_ev_first_you') : ludoT('ludo_ev_first', { name: c.names[e.first] || '' }))}</p>
     </div>`;
   const total = e.rounds.length * ROUND_MS + 1500;
   ludoFx.timers.push(setTimeout(() => {

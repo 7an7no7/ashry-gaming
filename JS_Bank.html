@@ -191,7 +191,7 @@ function bankDeedHtml(i, g) {
     body = row(bankT('bank_co_one'), 4 * per, o && !BANK_COMPANIES.every(k => bankOwnerOf(g, k) === o.by)) + row(bankT('bank_co_both'), 10 * per, o && BANK_COMPANIES.every(k => bankOwnerOf(g, k) === o.by));
   }
   return `<div class="bank-deed">
-      <div class="bank-deed__head" style="background:${head};color:${ink}"><span class="bank-deed__name">${escapeHTML(bankSqName(i))}</span><span class="bank-deed__price" dir="ltr">${bankFmt(q.price)}</span></div>
+      <div class="bank-deed__head ${ink === '#ffffff' ? '' : 'is-light'}" style="background:${head};color:${ink}"><span class="bank-deed__name">${escapeHTML(bankSqName(i))}</span><span class="bank-deed__price" dir="ltr">${bankFmt(q.price)}</span></div>
       <div class="bank-deed__body">${body}${owner}</div>
     </div>`;
 }
@@ -414,7 +414,7 @@ function bankTradeHtml(c) {
 function bankEventText(c, e) {
   const n = (pid) => c.names[pid] || '…';
   switch (e.type) {
-    case 'rolloff': return '🎲 ' + bankT('bank_ev_first', { name: n(e.first) });
+    case 'rolloff': return '🎲 ' + (c.me && e.first === c.me ? bankT('bank_ev_first_you') : bankT('bank_ev_first', { name: n(e.first) }));
     case 'buy': return '🏠 ' + bankT('bank_ev_buy', { name: n(e.pid), place: bankSqName(e.sq), n: bankFmt(e.price) });
     case 'rent': return e.amount ? '💵 ' + bankT('bank_ev_rent', { name: n(e.pid), other: n(e.to), n: bankFmt(e.amount) }) : '';
     case 'tax': return '🧾 ' + bankT('bank_ev_tax', { name: n(e.pid), n: bankFmt(e.amount) });

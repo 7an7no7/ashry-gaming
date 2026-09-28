@@ -3468,6 +3468,25 @@ the word search), `countUp` for streaks and scores.
   a scheduler reads `fxCtx()` every tick (the bumper engine and the bowling
   rumble rebuilt too). Rules tests and the leak check, the robots, and the
   screen test (rooms, screens, fixes: 88 passed).
+- **28 Sep 2026, the UI scan's fixes** - a computed-style scan of every screen
+  and room game at 375x812, 667x375, 1280x720 and 1920x1080 (both languages,
+  both themes), and its findings fixed: the puzzle race's boards on a phone on
+  its side sized like the solo boards (they collapsed to 18-32px in section 15's
+  `auto` column: a percentage width there has nothing to measure); the home's
+  ways-in lines readable on their white pills; bumper cars' stick, Turbo and Horn
+  all on a sideways screen, Turbo's word in ink chosen by the car's colour
+  (`bmpCarInk`, a darker pill on the red and the violet); كدّاب's ranks two rows
+  on a phone's side (44x40); بنك الحظ's corners, decks, +200 and deed prices at
+  4.5:1 in both themes (`--bank-*` tokens); «You start» for this phone
+  (`*_ev_first_you`); the solo tools' labels never cut (`min-width:
+  max-content`, the row wraps); the light amber's `--accent-ink` and
+  `--warning-ink` a shade darker (#a64b06, 5:1 on the violet surfaces);
+  سلسلة الإجابات's blank a Latin ? in English; every small tap at 44px (chess's
+  2D/3D, the lobby's six-or-more choices in boxes, vote chess's sides, the bank
+  pieces, the home's chips and «الكل ›» through a hit area over the gap); the
+  trivia letters, the chairs' TV initials, the bumper place and delay at 4.5:1;
+  طرنيب's label wrapping; and the robots' minesweeper race move made safe (it
+  opened the first shut cell, sometimes a mine).
 
 ## Building and Running
 

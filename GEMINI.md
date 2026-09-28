@@ -1793,6 +1793,38 @@ work changed. Add to it when a decision is made or a batch ships.
     might have played; and the draw button **draws until a tile fits in one
     tap** (the table sees how many were drawn), with باص a tap of its own.
 
+- **كارتينج (Karting)** - the owner's rules of 28 Sep 2026, asked after
+  عربيات التصادم's test (not built yet; the look is to be picked from a
+  design sheet of three first):
+  - **The TV is the game, the phones are the controllers** (the bumper cars'
+    channel, stick or tilt, auto gas); **a TV is required**, the lobby says so.
+  - **Real 3D on the TV** (three.js, like بولينج and ميني جولف): the whole
+    track from above at an angle, every kart on it.
+  - **Four vehicles, each with its own feel, balanced so any can win**:
+    توكتوك (sharp turns, low top speed), ميكروباص (fast, heavy, wins bumps),
+    تاكسي (balanced), عربية كارو / فيسبا (quick off the line). **Each player
+    picks theirs and a colour on their own phone** in the lobby; the TV shows
+    the grid.
+  - **Four tracks, each its own place**: وسط البلد (Tahrir, the Nile bridges,
+    traffic, minarets), الأهرامات والصحرا (sand that slows, camels), كورنيش
+    إسكندرية (the sea, Qaitbay, a long fast curve), خان الخليلي (narrow
+    twisting alleys, lanterns, shortcuts).
+  - **3 laps, the host can pick 2 to 5.**
+  - **Walls and slow edges**: rails keep everyone on the track, sand, grass
+    or the pavement slow you; nobody falls off.
+  - **Up to 8 racers**; **computer players easy and hard** fill the grid.
+  - **Item boxes with Egyptian items**: قشر موز (dropped behind, whoever
+    drives over it spins out), عصير قصب (a short boost), كلاكس (every car
+    near you wobbles and slows a moment), طماطم (thrown forward, splats the
+    car in front and blurs its steering a second). **Gentle catch-up**: the
+    further back, the better the items.
+  - **No drift**: steer and gas only.
+  - **The phone shows** the controller, your place (2/8), the lap, and the
+    item you hold with a big button to use it.
+  - **عربيات التصادم moves inside كارتينج's card** as its battle way (the
+    chess-style hub: one card, the ways inside), and loses its test wording;
+    the delay and traffic numbers go behind a small toggle on the TV.
+
 - **The TV as the console, the phones as controllers** - the owner's idea of
   28 Sep 2026 ("like Mario Kart, each player controls his car from his phone,
   like PlayStation"). Asked whether it is possible: yes, with the TV running

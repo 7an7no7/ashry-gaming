@@ -19642,4 +19642,78 @@ html[dir="rtl"] .mch-window > i { transform-origin: right; }
   .mch-ring.is-flash .mch-rug, .mch-av.is-walking, .mch-mid--in, .mch-btn--pop, .mch-place--rise { animation: none; }
 }
 
+/* ============================================================================
+   51. عربيات التصادم (BUMPER CARS in rooms, JS_RoomBumper.html, 28 Sep 2026):
+   the TV-and-controllers test. The phone is a controller (a stick, or a wheel
+   and Gas), the TV the rink (a canvas) beside the drivers and the traffic.
+   ========================================================================= */
+.bmp { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); position: relative; }
+.bmp-head { justify-content: center; flex-wrap: wrap; }
+.bmp-me { gap: 0.4rem; }
+.bmp-me__dot { width: 0.8rem; height: 0.8rem; border-radius: 50%; background: var(--car); box-shadow: 0 0 0 2px var(--surface-solid), 0 0 0 3px var(--car); }
+[data-bmp-ping][data-level="good"] .metric, .bmp-row__ping[data-level="good"] { color: var(--success); }
+[data-bmp-ping][data-level="ok"] .metric, .bmp-row__ping[data-level="ok"] { color: var(--warning); }
+[data-bmp-ping][data-level="bad"] .metric, .bmp-row__ping[data-level="bad"] { color: var(--danger); }
+.bmp-need { text-align: center; }
+.bmp-pad {
+  position: relative; width: min(82vw, calc(var(--app-h, 100vh) * 0.46), 22rem); aspect-ratio: 1;
+  border-radius: 50%; touch-action: none; user-select: none; -webkit-user-select: none;
+  background: radial-gradient(circle, var(--surface-solid) 0 55%, color-mix(in srgb, var(--car) 14%, var(--surface-2)) 56% 100%);
+  border: 3px solid color-mix(in srgb, var(--car) 45%, transparent);
+  box-shadow: inset 0 0.4rem 1.2rem rgba(0,0,0,0.12), var(--shadow-md, 0 6px 20px rgba(0,0,0,0.12));
+}
+.bmp-pad__ring { position: absolute; inset: 22%; border-radius: 50%; border: 2px dashed color-mix(in srgb, var(--car) 35%, transparent); pointer-events: none; }
+.bmp-pad__knob {
+  position: absolute; left: 50%; top: 50%; width: 34%; height: 34%; margin: -17% 0 0 -17%; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--car) 55%, #fff), var(--car) 60%);
+  border: 3px solid #1b1b1f; box-shadow: 0 0.35rem 0.8rem rgba(0,0,0,0.3); pointer-events: none;
+  transition: transform 160ms var(--ease-out, ease-out);
+}
+.bmp-pad.is-held .bmp-pad__knob { transition: none; }
+.bmp-tilt { display: flex; align-items: center; justify-content: center; gap: var(--sp-5); width: 100%; }
+.bmp-wheel {
+  width: min(42vw, 11rem); aspect-ratio: 1; border-radius: 50%; border: 0.9rem solid #2b2b36;
+  background: color-mix(in srgb, var(--car) 20%, var(--surface-2)); position: relative; box-shadow: 0 0 0 3px var(--car);
+}
+.bmp-wheel__spoke { position: absolute; left: 50%; top: 50%; width: 100%; height: 0.8rem; margin: -0.4rem 0 0 -50%; background: #2b2b36; border-radius: 0.4rem; }
+.bmp-wheel__spoke::after { content: ''; position: absolute; left: 50%; top: -1.6rem; width: 0.8rem; height: 1.6rem; margin-left: -0.4rem; background: #2b2b36; }
+.bmp-gas {
+  width: min(34vw, 8.5rem); aspect-ratio: 1; border-radius: 1.4rem; border: 3px solid #1b1b1f; touch-action: none;
+  background: var(--pop, #f59e0b); color: var(--pop-on, #1b1b1f); font: 900 var(--fs-xl, 1.4rem) var(--font-display, inherit);
+  box-shadow: 0 0.45rem 0 #1b1b1f; user-select: none; -webkit-user-select: none;
+}
+.bmp-gas.is-held { transform: translateY(0.35rem); box-shadow: 0 0.1rem 0 #1b1b1f; }
+.bmp-modes { width: min(100%, 20rem); }
+.bmp-hint, .bmp-look { text-align: center; color: var(--text-2); font-size: var(--fs-sm); margin: 0; max-width: 24rem; }
+.bmp-look { color: var(--text-3); }
+.bmp.is-hit::after { content: ''; position: fixed; inset: 0; background: rgba(229,56,59,0.28); pointer-events: none; z-index: var(--z-float, 30); }
+.bmp-pop {
+  position: absolute; top: 40%; left: 50%; transform: translateX(-50%); pointer-events: none;
+  font: 900 2rem var(--font-display, inherit); color: var(--success); text-shadow: 0 2px 0 rgba(0,0,0,0.2);
+  animation: bmp-pop 900ms var(--ease-out, ease-out) forwards;
+}
+@keyframes bmp-pop { from { opacity: 0; translate: 0 1rem; scale: 0.7; } 20% { opacity: 1; scale: 1.1; } to { opacity: 0; translate: 0 -3rem; scale: 1; } }
+
+.bmp-row { display: grid; grid-template-columns: auto 1fr auto auto auto; align-items: center; gap: 0.6rem; padding: 0.35rem 0; }
+.bmp-rows .bmp-row { grid-template-columns: auto 1fr auto auto; }
+.bmp-row + .bmp-row { border-top: 1px solid var(--border, rgba(0,0,0,0.08)); }
+.bmp-row.is-idle { opacity: 0.55; }
+.bmp-row__dot { width: 0.85rem; height: 0.85rem; border-radius: 50%; background: var(--car); border: 2px solid #1b1b1f; }
+.bmp-row__name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bmp-over { display: flex; flex-direction: column; gap: var(--sp-3); width: min(100%, 30rem); margin-inline: auto; }
+.bmp-over__win { text-align: center; font: 800 var(--fs-lg, 1.2rem) var(--font-display, inherit); }
+
+.bmp-tv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15rem, 22vw); gap: 2vmin; height: 100%; min-height: 0; }
+.bmp-tv--over { display: flex; justify-content: center; align-items: flex-start; overflow: auto; }
+.bmp-tv__stage { min-width: 0; min-height: 0; display: grid; place-items: center; }
+.bmp-canvas { border-radius: 1.2vmin; box-shadow: 0 1vmin 3vmin rgba(0,0,0,0.35); }
+.bmp-tv__side { display: flex; flex-direction: column; gap: 1.5vmin; min-width: 0; font-size: 2.2vmin; }
+.bmp-tv__clock { font-size: 7vmin; font-weight: 800; text-align: center; }
+.bmp-table { background: var(--surface-solid); border-radius: 1.2vmin; padding: 0.6vmin 1.4vmin; }
+.bmp-stats { display: grid; gap: 0.5vmin; font-size: 1.9vmin; }
+@media (prefers-reduced-motion: reduce) {
+  .bmp-pop { animation: none; opacity: 0; }
+  .bmp-pad__knob { transition: none; }
+}
+
 </style>

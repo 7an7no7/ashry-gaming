@@ -652,6 +652,40 @@ async function estimationRobots() {
   TV.close();
 }
 
+/* --- عربيات التصادم: the controllers' channel - a phone's stick reaches the screen, the screen's echo one phone --- */
+async function bumperRobots() {
+  console.log('• عربيات التصادم (sticks relayed to the screen only, an echo to one phone, the TV reports the scores)');
+  const H = await Bot.host('حسام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const TV = await Bot.join(H.code, '', true);
+  await H.must('chooseGame', { game: 'bumper' });
+  // Before the round, nothing is relayed.
+  J.ws.send(JSON.stringify({ t: 'live', d: { k: 'i', x: 50, y: 0 } }));
+  await sleep(400);
+  check(TV.live.length === 0, 'bumper: nothing is relayed before the round');
+  await H.must('start', { secs: 60 });
+  await all([H, J, TV], (s) => s.game === 'bumper' && s.shared.phase === 'play' && s.shared.roster.length === 2, 'bumper: the round reaches every phone and the TV');
+  const t0 = Date.now();
+  for (let i = 0; i < 10; i++) { J.ws.send(JSON.stringify({ t: 'live', d: { k: 'i', x: i * 10, y: -20 } })); await sleep(66); }
+  H.ws.send(JSON.stringify({ t: 'live', d: { k: 'p', n: 1, at: t0, r: -1 } }));
+  await sleep(500);
+  const sticks = TV.live.filter((d) => d.k === 'i');
+  check(sticks.length === 10 && sticks.every((d) => d.from === J.pid) && sticks[9].x === 90, 'bumper: every stick reaches the screen, in order, stamped with who sent it');
+  check(TV.live.some((d) => d.k === 'p' && d.from === H.pid) && H.live.length === 0 && J.live.length === 0, 'bumper: a phone never hears another phone');
+  TV.ws.send(JSON.stringify({ t: 'live', d: { k: 'p', to: H.pid, n: 1, at: t0 } }));
+  await sleep(400);
+  check(H.live.length === 1 && H.live[0].n === 1 && J.live.length === 0, 'bumper: the screen\'s echo reaches that one phone only');
+  J.ws.send(JSON.stringify({ t: 'live', d: { k: 'i', x: 'y'.repeat(600) } }));
+  await sleep(300);
+  check(TV.live.filter((d) => d.k === 'i').length === 10, 'bumper: an oversized message is dropped');
+  check((await J.act('finish', { round: 1, scores: {} })).ok && J.state.shared.phase === 'play', 'bumper: a player can\'t report the scores');
+  await H.must('endNow', {});
+  await TV.must('finish', { round: 1, scores: { [J.pid]: { hits: 3, taken: 0 }, [H.pid]: { hits: 1, taken: 3 } } });
+  await all([H, J, TV], (s) => s.shared.phase === 'over' && s.shared.results[0].id === J.pid && s.shared.wins[J.pid] === 1, 'bumper: the TV\'s scores are the result on every phone');
+  await H.must('backToHub');
+  [H, J, TV].forEach((x) => x.close());
+}
+
 /* --- الكراسي الموسيقية: the music on the server's clock, a false start, fair taps, no tap, the end ------- */
 async function chairsRobots() {
   console.log('• الكراسي الموسيقية (a false start, taps ranked by their stamps, a quiet phone, one left wins)');
@@ -729,6 +763,12 @@ async function main() {
   }
   if (ONLY === 'estimation') {
     await estimationRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'bumper') {
+    await bumperRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -4737,6 +4777,7 @@ async function main() {
   }
 
   await chairsRobots();
+  await bumperRobots();
 
   await chess4Robots();
   await estimationRobots();

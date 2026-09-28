@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName } from '../generated/rules.js';
+import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -45,6 +45,8 @@ const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer']);
 const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap']);
 const MAX_MESSAGE = 64 * 1024;
 const MAX_LIVE = 8 * 1024;
+// A controller's message (a stick, a ping): a few numbers.
+const MAX_DRIVE = 400;
 // The count on the مع بعض tab (LiveStats in live.js): a room reports its number
 // of players online when it changes, and at least this often while the room is
 // in use, so a room that goes quiet can be told from one that has died.
@@ -724,6 +726,12 @@ export class Room extends DurableObject {
     }
 
     if (msg.t === 'live') {
+      // A controller game (عربيات التصادم): each phone's steering to the screens,
+      // a screen's answer to one phone. Relayed, never stored.
+      if (bumperRelaying(this.room)) {
+        this.relayDrive(pid, msg.d, message.length);
+        return;
+      }
       // The line still under the drawer's finger. Relayed, never stored, and
       // only from whoever is drawing right now.
       const s = this.room.shared || {};
@@ -739,6 +747,31 @@ export class Room extends DurableObject {
 
     if (msg.t === 'leave') {
       await this.leave(pid, this.room.keys && this.room.keys[pid]);
+    }
+  }
+
+  /**
+   * The controllers' channel (RoomBumper.js). A player's message goes to every
+   * screen, stamped with who sent it; a screen's goes to the one phone it names
+   * (`to`). Nothing is kept, and nothing reaches another player: a phone only
+   * ever hears the screen. This runs many times a second a phone, so it does no
+   * more than pick the sockets.
+   */
+  relayDrive(pid, d, size) {
+    if (!d || typeof d !== 'object' || Array.isArray(d) || size > MAX_DRIVE) return;
+    const screens = new Set((this.room.screens || []).map((x) => x.id));
+    if (screens.has(pid)) {
+      if (typeof d.to !== 'string') return;
+      const text = JSON.stringify({ t: 'live', d });
+      for (const ws of this.openSockets()) {
+        if (this.playerOf(ws) === d.to) { try { ws.send(text); } catch (e) {} }
+      }
+      return;
+    }
+    if (!this.room.players.some((p) => p.id === pid && !p.bot)) return;
+    const text = JSON.stringify({ t: 'live', d: Object.assign({}, d, { from: pid }) });
+    for (const ws of this.openSockets()) {
+      if (screens.has(this.playerOf(ws))) { try { ws.send(text); } catch (e) {} }
     }
   }
 

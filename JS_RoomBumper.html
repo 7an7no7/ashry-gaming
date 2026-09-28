@@ -1,0 +1,730 @@
+<script>
+/* ============================================================================
+   عربيات التصادم — BUMPER CARS, the TV-and-controllers test (28 Sep 2026)
+   ----------------------------------------------------------------------------
+   The TV runs the game; every phone is a controller. Unlike every other room
+   game, the moves never go through the rules: a phone sends its stick (or its
+   tilt) about 15 times a second over the room's live channel (Room.sendLive),
+   the rooms server passes it to the screens without keeping it (room.js,
+   relayDrive), and the TV drives the cars, judges the knocks and keeps the
+   score. The server only deals the round (RoomBumper.js) and takes the TV's
+   scores at the end (`finish`).
+
+   It is a test of the idea before a real racing game, so the TV shows what a
+   racing game would need to know: each phone's delay (half its ping's round
+   trip, phone → server → TV → server → phone), how many messages arrive a
+   second, and what an hour of that costs of the free plan's day (Cloudflare
+   counts 20 WebSocket messages into a Durable Object as one request, and the
+   free plan gives 100,000 a day).
+
+   Messages (d): phone → TV  { k: 'i', x, y }  the stick, -100..100 each (y down)
+                             { k: 'i', s, g }  the tilt: steer -100..100, gas 0/100
+                             { k: 'p', n, at, r }  a ping (r: the last delay seen)
+                 TV → phone  { k: 'p', to, n, at }  the ping's echo
+                             { k: 'h', to, w: 'hit' | 'got', n }  a knock landed / taken
+   Every name here starts with bmp / BMP_.
+   ========================================================================= */
+const BMP_W = 1600, BMP_H = 900;          // the rink, in its own units (16:9)
+const BMP_R = 38;                         // a car's bumper, a circle
+const BMP_COLORS = ['#e5383b', '#3f73d6', '#e9b52a', '#35a35a', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4'];
+const BMP_SEND_MS = 66;                   // the controller's beat: ~15 a second
+const BMP_KEEP_MS = 800;                  // an input that hasn't changed is resent this often
+const BMP_PING_MS = 1500;
+const BMP_STALE_MS = 1500;                // the TV lets go of a stick not heard from this long
+const BMP_FREE_PER_DAY = 100000;          // Durable Object requests a day on the free plan
+const BMP_MSGS_PER_REQUEST = 20;          // incoming WebSocket messages billed as one request
+
+const bmp = {
+  gap: Infinity,                          // receivedAt - serverNow, smallest seen (the chess clocks' way)
+  mode: 'stick',
+  stick: { x: 0, y: 0 },
+  tilt: { s: 0, g: 0, zero: 0, flip: 1, on: false, raw: 0 },
+  lastSent: '', lastSentAt: 0, sendTimer: null,
+  ping: { n: 0, sent: {}, last: null, list: [] }, pingTimer: null,
+  wake: null, uiTimer: null, flashUntil: 0, myHits: 0,
+  tv: null                                // the TV's game: cars, loop, stats
+};
+try { bmp.mode = recallOptions('bumper', { mode: 'stick' }).mode === 'tilt' ? 'tilt' : 'stick'; } catch (e) {}
+
+const bmpT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+const bmpFill = (str, vals) => String(str || '').replace(/\{(\w+)\}/g, (m, k) => (vals[k] !== undefined ? vals[k] : m));
+function bmpNoteTime(state) {
+  if (state && typeof state.serverNow === 'number' && typeof state.receivedAt === 'number') {
+    bmp.gap = Math.min(bmp.gap, state.receivedAt - state.serverNow);
+  }
+}
+const bmpServerNow = () => (isFinite(bmp.gap) ? Date.now() - bmp.gap : Date.now());
+
+/** A driver's colour: the one dealt, or for a latecomer the next in the room's order (the same on every screen). */
+function bmpColorOf(state, pid) {
+  const s = (state && state.shared) || {};
+  const dealt = s.colors || {};
+  if (dealt[pid] !== undefined) return BMP_COLORS[dealt[pid] % BMP_COLORS.length];
+  const late = (state.players || []).filter(p => !p.bot && dealt[p.id] === undefined).map(p => p.id);
+  const k = Object.keys(dealt).length + Math.max(0, late.indexOf(pid));
+  return BMP_COLORS[k % BMP_COLORS.length];
+}
+const bmpHasScreen = (state) => (state.screens || []).some(x => x.online);
+function bmpSecsLeft(state) {
+  const s = state.shared || {};
+  return Math.max(0, Math.ceil(((s.endsAt || 0) - bmpServerNow()) / 1000));
+}
+const bmpClockText = (secs) => Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+
+/* --- the lobby and the phone ------------------------------------------------- */
+ROOM_GAMES.bumper = {
+  lateJoin: true,       // someone who joins mid-round gets a car at once
+  lobbyOptions(state) {
+    const t = bmpT();
+    const tv = bmpHasScreen(state) ? '' : `<p class="field__hint bmp-need">${escapeHTML(t.bmp_need_tv)}</p>`;
+    if (!state.youAreHost) return `<div class="card card--tight">${tv}<p class="field__hint" style="text-align:center">${escapeHTML(t.bmp_test)}</p></div>`;
+    const secs = recallOptions('bumper', { secs: 120 }).secs;
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <span class="field__label">${escapeHTML(t.bmp_len)}</span>
+          <div class="segmented" role="radiogroup">
+            ${[60, 120, 180].map(n => `<button type="button" class="segmented__option ${secs === n ? 'is-active' : ''}" onclick="bmpSetSecs(${n}, this)">${escapeHTML(t['bmp_m' + n])}</button>`).join('')}
+          </div>
+        </div>
+        ${tv}
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.bmp_test)}</p>
+      </div>`;
+  },
+  startPayload() { return { secs: recallOptions('bumper', { secs: 120 }).secs }; },
+
+  render(state) {
+    if (appState.currentView !== 'room-bumper') setView('room-bumper');
+    const el = document.getElementById('view-room-bumper');
+    if (!el) return;
+    bmpNoteTime(state);
+    const t = bmpT();
+    const s = state.shared || {};
+    const me = Room.me;
+    const driver = (state.players || []).some(p => p.id === me && !p.bot);
+    const sig = ['bmp', s.round, s.phase, bmp.mode, bmpHasScreen(state), state.youAreHost, driver, appState.lang,
+      s.phase === 'over' ? JSON.stringify(s.results) + JSON.stringify(s.wins) : ''].join('|');
+    renderRoomFrame(el, sig, () => {
+      if (s.phase === 'over') return bmpOverHtml(state, s, t) + renderRoomPlayerStrip(state);
+      const color = bmpColorOf(state, me);
+      const head = `
+        <div class="play-head bmp-head">
+          <span class="badge bmp-me" style="--car:${color}"><span class="bmp-me__dot"></span>${escapeHTML(t.bmp_you)}</span>
+          <span class="badge"><span aria-hidden="true">⏱️</span> <span class="metric" data-bmp-clock>${bmpClockText(bmpSecsLeft(state))}</span></span>
+          <span class="badge" data-bmp-ping>${escapeHTML(t.bmp_ping)} <span class="metric">–</span></span>
+        </div>`;
+      const noTv = bmpHasScreen(state) ? '' : `<div class="waiting-note bmp-need">${escapeHTML(t.bmp_need_tv)}</div>`;
+      const modes = `
+        <div class="segmented bmp-modes" role="radiogroup">
+          <button type="button" class="segmented__option ${bmp.mode === 'stick' ? 'is-active' : ''}" onclick="bmpSetMode('stick')">${escapeHTML(t.bmp_stick)}</button>
+          <button type="button" class="segmented__option ${bmp.mode === 'tilt' ? 'is-active' : ''}" onclick="bmpSetMode('tilt')">${escapeHTML(t.bmp_tilt)}</button>
+        </div>`;
+      const pad = !driver ? '' : bmp.mode === 'stick'
+        ? `<div class="bmp-pad" id="bmp-pad" style="--car:${color}" aria-label="${escapeHTML(t.bmp_stick)}">
+             <div class="bmp-pad__ring"></div><div class="bmp-pad__knob" id="bmp-knob"></div>
+           </div>
+           <p class="bmp-hint">${escapeHTML(t.bmp_stick_hint)}</p>`
+        : `<div class="bmp-tilt" style="--car:${color}">
+             <div class="bmp-wheel" id="bmp-wheel" aria-hidden="true"><div class="bmp-wheel__spoke"></div></div>
+             <button type="button" class="bmp-gas" id="bmp-gas">${escapeHTML(t.bmp_gas)}</button>
+           </div>
+           <div class="chip-set" style="justify-content:center">
+             <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bmpTiltCentre()">${escapeHTML(t.bmp_center)}</button>
+             <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bmpTiltFlip()">${escapeHTML(t.bmp_flip)}</button>
+           </div>
+           <p class="bmp-hint">${escapeHTML(t.bmp_tilt_hint)}</p>`;
+      const host = state.youAreHost ? roomHostRow([[t.bmp_end_now, "roomAct('endNow', {})", 'ghost']]) : '';
+      return `<div class="bmp" id="bmp-phone">${head}${noTv}${pad}${driver ? modes : ''}
+        <p class="bmp-look">${escapeHTML(t.bmp_look_tv)}</p>${host}${renderRoomPlayerStrip(state)}</div>`;
+    });
+    refreshRoomPlayerStrip(el, state);
+    if (s.phase === 'play' && driver) bmpControllerOn(); else bmpControllerOff();
+    bmpWirePad();
+  }
+};
+
+/** The host's round length, kept on the phone and sent with Start. */
+function bmpSetSecs(n, btn) {
+  rememberOptions('bumper', { secs: n });
+  if (btn && btn.parentElement) [...btn.parentElement.children].forEach(b => b.classList.toggle('is-active', b === btn));
+}
+
+function bmpSetMode(mode) {
+  if (mode === bmp.mode) { if (mode === 'tilt') bmpTiltCentre(); return; }
+  bmp.mode = mode;
+  rememberOptions('bumper', { mode });
+  bmp.stick = { x: 0, y: 0 };
+  bmp.tilt.g = 0;
+  if (mode === 'tilt') bmpTiltAsk(); else bmpTiltStop();
+  if (Room.state) ROOM_GAMES.bumper.render(Room.state);
+}
+
+/* --- the stick --------------------------------------------------------------- */
+function bmpWirePad() {
+  const pad = document.getElementById('bmp-pad');
+  if (pad && !pad.dataset.wired) {
+    pad.dataset.wired = '1';
+    let active = null;
+    const move = (e) => {
+      const r = pad.getBoundingClientRect();
+      const rad = r.width / 2;
+      let x = (e.clientX - (r.left + rad)) / (rad * 0.78);
+      let y = (e.clientY - (r.top + rad)) / (rad * 0.78);
+      const m = Math.hypot(x, y);
+      if (m > 1) { x /= m; y /= m; }
+      bmp.stick = { x, y };
+      const knob = document.getElementById('bmp-knob');
+      if (knob) knob.style.transform = `translate(${x * rad * 0.78}px, ${y * rad * 0.78}px)`;
+    };
+    pad.addEventListener('pointerdown', (e) => {
+      active = e.pointerId;
+      try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+      pad.classList.add('is-held');
+      move(e);
+      bmpSendNow();
+      e.preventDefault();
+    });
+    pad.addEventListener('pointermove', (e) => { if (e.pointerId === active) move(e); });
+    const up = (e) => {
+      if (e.pointerId !== active) return;
+      active = null;
+      pad.classList.remove('is-held');
+      bmp.stick = { x: 0, y: 0 };
+      const knob = document.getElementById('bmp-knob');
+      if (knob) knob.style.transform = '';
+      bmpSendNow();
+    };
+    pad.addEventListener('pointerup', up);
+    pad.addEventListener('pointercancel', up);
+  }
+  const gas = document.getElementById('bmp-gas');
+  if (gas && !gas.dataset.wired) {
+    gas.dataset.wired = '1';
+    const on = (e) => { if (!bmp.tilt.on) bmpTiltAsk(); bmp.tilt.g = 1; gas.classList.add('is-held'); try { gas.setPointerCapture(e.pointerId); } catch (err) {} bmpSendNow(); e.preventDefault(); };
+    const off = () => { bmp.tilt.g = 0; gas.classList.remove('is-held'); bmpSendNow(); };
+    gas.addEventListener('pointerdown', on);
+    gas.addEventListener('pointerup', off);
+    gas.addEventListener('pointercancel', off);
+    // An iPhone asks for the sensor only inside a tap (the Gas button's first press, or the mode button).
+    const O = window.DeviceOrientationEvent;
+    if (!bmp.tilt.on && !(O && typeof O.requestPermission === 'function')) bmpTiltAsk();
+  }
+}
+
+/* --- the tilt: the phone as a wheel -------------------------------------------- */
+/**
+ * The steer is the phone's roll as the player sees it: gamma upright, beta on
+ * its side (the sign by which way it was turned). It is read from where it was
+ * when the tilt was switched on (🎯 sets that again) and can be flipped (↔) -
+ * phones disagree about signs, and this is a test.
+ */
+function bmpTiltRead(e) {
+  const angle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
+    : (typeof window.orientation === 'number' ? window.orientation : 0);
+  let v;
+  if (angle === 90) v = e.beta;
+  else if (angle === -90 || angle === 270) v = -e.beta;
+  else v = e.gamma;
+  if (typeof v !== 'number' || !isFinite(v)) return;
+  bmp.tilt.raw = v;
+  if (!bmp.tilt.calibrated) { bmp.tilt.zero = v; bmp.tilt.calibrated = true; }
+  const s = Math.max(-1, Math.min(1, (v - bmp.tilt.zero) / 30)) * bmp.tilt.flip;
+  bmp.tilt.s = Math.abs(s) < 0.06 ? 0 : s;
+  const wheel = document.getElementById('bmp-wheel');
+  if (wheel) wheel.style.transform = `rotate(${bmp.tilt.s * 90}deg)`;
+}
+function bmpTiltAsk() {
+  if (bmp.tilt.on) return;
+  const O = window.DeviceOrientationEvent;
+  const asked = O && typeof O.requestPermission === 'function' ? O.requestPermission().catch(() => 'denied') : Promise.resolve('granted');
+  asked.then((ans) => {
+    if (ans !== 'granted' || !O) { showToast(bmpT().bmp_tilt_denied, 'error'); bmpSetMode('stick'); return; }
+    bmp.tilt.on = true;
+    bmp.tilt.calibrated = false;
+    window.addEventListener('deviceorientation', bmpTiltRead);
+  });
+}
+function bmpTiltStop() {
+  if (!bmp.tilt.on) return;
+  bmp.tilt.on = false;
+  window.removeEventListener('deviceorientation', bmpTiltRead);
+}
+function bmpTiltCentre() { bmp.tilt.zero = bmp.tilt.raw; bmp.tilt.calibrated = true; haptic('light'); }
+function bmpTiltFlip() { bmp.tilt.flip = -bmp.tilt.flip; haptic('light'); }
+
+/* --- sending: the controller's beat ---------------------------------------------- */
+function bmpInput() {
+  if (bmp.mode === 'tilt') return { k: 'i', s: Math.round(bmp.tilt.s * 20) * 5, g: bmp.tilt.g ? 100 : 0 };
+  return { k: 'i', x: Math.round(bmp.stick.x * 20) * 5, y: Math.round(bmp.stick.y * 20) * 5 };
+}
+function bmpSendNow() {
+  const d = bmpInput();
+  const key = JSON.stringify(d);
+  const now = Date.now();
+  if (key === bmp.lastSent && now - bmp.lastSentAt < BMP_KEEP_MS) return;
+  if (Room.sendLive(d)) { bmp.lastSent = key; bmp.lastSentAt = now; }
+}
+function bmpPing() {
+  const n = ++bmp.ping.n;
+  const at = Date.now();
+  bmp.ping.sent[n] = at;
+  Room.sendLive({ k: 'p', n, at, r: bmp.ping.last === null ? -1 : bmp.ping.last });
+}
+function bmpControllerOn() {
+  if (!bmp.sendTimer) bmp.sendTimer = setInterval(bmpSendNow, BMP_SEND_MS);
+  if (!bmp.pingTimer) { bmpPing(); bmp.pingTimer = setInterval(bmpPing, BMP_PING_MS); }
+  if (!bmp.uiTimer) bmp.uiTimer = setInterval(bmpPaintPhone, 250);
+  if (!bmp.wake) {
+    try {
+      if (navigator.wakeLock && navigator.wakeLock.request) {
+        bmp.wake = 'asking';
+        navigator.wakeLock.request('screen').then(l => { bmp.wake = l; }).catch(() => { bmp.wake = null; });
+      }
+    } catch (e) {}
+  }
+}
+function bmpControllerOff() {
+  if (bmp.sendTimer) { clearInterval(bmp.sendTimer); bmp.sendTimer = null; }
+  if (bmp.pingTimer) { clearInterval(bmp.pingTimer); bmp.pingTimer = null; }
+  if (bmp.uiTimer) { clearInterval(bmp.uiTimer); bmp.uiTimer = null; }
+  if (bmp.wake && bmp.wake !== 'asking') { try { bmp.wake.release(); } catch (e) {} }
+  bmp.wake = null;
+  bmpTiltStop();
+  bmp.stick = { x: 0, y: 0 };
+  bmp.lastSent = '';
+}
+onRoomClocksReset(() => { bmpControllerOff(); bmpTvStop(); });
+onLeaveScreen((from) => { if (from === 'room-bumper') bmpControllerOff(); if (from === 'room-tv') bmpTvStop(); });
+
+/** The phone's clock and delay, refreshed in place. */
+function bmpPaintPhone() {
+  const state = Room.state;
+  if (!state || state.game !== 'bumper') return;
+  const clock = document.querySelector('[data-bmp-clock]');
+  if (clock) clock.textContent = bmpClockText(bmpSecsLeft(state));
+  const ping = document.querySelector('[data-bmp-ping] .metric');
+  if (ping) {
+    const v = bmp.ping.last;
+    ping.textContent = v === null ? '–' : v + ' ms';
+    ping.parentElement.dataset.level = v === null ? '' : v < 80 ? 'good' : v < 150 ? 'ok' : 'bad';
+  }
+  const phone = document.getElementById('bmp-phone');
+  if (phone) phone.classList.toggle('is-hit', Date.now() < bmp.flashUntil);
+}
+
+/** What comes back from the TV: a ping's echo, a knock. */
+Room.onLive((d) => {
+  if (!d || typeof d !== 'object') return;
+  const state = Room.state;
+  if (!state || state.game !== 'bumper') return;
+  if (state.youAreScreen) { bmpTvHear(d); return; }
+  if (d.to !== Room.me) return;
+  if (d.k === 'p') {
+    const at = bmp.ping.sent[d.n];
+    if (!at) return;
+    delete bmp.ping.sent[d.n];
+    const list = bmp.ping.list;
+    list.push(Math.round((Date.now() - at) / 2));
+    if (list.length > 7) list.shift();
+    bmp.ping.last = list.slice().sort((a, b) => a - b)[Math.floor(list.length / 2)];
+    return;
+  }
+  if (d.k === 'h') {
+    if (d.w === 'got') {
+      bmp.flashUntil = Date.now() + 350;
+      try { if (navigator.vibrate) navigator.vibrate(90); } catch (e) {}
+    } else {
+      bmp.myHits = d.n || 0;
+      haptic('medium');
+      const phone = document.getElementById('bmp-phone');
+      if (phone && !motionOff()) {
+        const pop = document.createElement('div');
+        pop.className = 'bmp-pop';
+        pop.textContent = '+1 ' + bmpT().bmp_hit;
+        phone.appendChild(pop);
+        setTimeout(() => pop.remove(), 900);
+      }
+    }
+    bmpPaintPhone();
+  }
+});
+
+/* --- the result (phone and TV) ------------------------------------------------ */
+function bmpOverHtml(state, s, t, tv) {
+  const res = s.results || [];
+  const board = res.map(r => ({ id: r.id, name: r.name, score: r.hits }));
+  const top = res[0];
+  const head = top && top.hits > 0 && res.length > 1
+    ? `<div class="bmp-over__win">🏆 ${escapeHTML(bmpFill(t.bmp_winner, { name: top.name }))}</div>` : '';
+  const rows = res.map(r => `
+    <div class="bmp-row">
+      <span class="bmp-row__dot" style="--car:${bmpColorOf(state, r.id)}"></span>
+      <span class="bmp-row__name"><bdi>${escapeHTML(r.name)}</bdi></span>
+      <span class="bmp-row__n metric">💥 ${r.hits}</span>
+      <span class="bmp-row__n metric tx-muted">🤕 ${r.taken}</span>
+    </div>`).join('');
+  const none = !s.reported ? `<p class="waiting-note">${escapeHTML(t.bmp_no_report)}</p>` : '';
+  const host = !state.youAreHost ? '' : tv
+    ? `<div class="tv-actions">${tvBtn('▶ ' + t.bmp_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>`
+    : `<div class="btn-row" style="margin-top:var(--sp-3)"><button class="btn btn--go" onclick="roomAct('playAgain', {})">▶ ${escapeHTML(t.bmp_again)}</button><button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game)}</button></div>`;
+  return `<div class="bmp-over">
+    <div class="eyebrow" style="text-align:center">${escapeHTML(t.bmp_over)}</div>
+    ${head}${renderPodium(state, board)}
+    <div class="card card--tight bmp-rows">${rows}</div>${none}${host}</div>`;
+}
+
+/* --- the TV: the rink ----------------------------------------------------------- */
+TV_GAMES.bumper = {
+  sig(state) {
+    const s = state.shared || {};
+    return ['bmp', s.round, s.phase, s.phase === 'over' ? JSON.stringify(s.results) : '', state.youAreHost, appState.lang].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    if (s.phase === 'over') return `<div class="bmp-tv bmp-tv--over tv-scale">${bmpOverHtml(state, s, t, true)}</div>`;
+    const host = state.youAreHost ? `<div class="tv-actions">${tvBtn(t.bmp_end_now, "roomAct('endNow', {})", 'ghost')}</div>` : '';
+    return `<div class="bmp-tv">
+      <div class="bmp-tv__stage"><canvas id="bmp-canvas" class="bmp-canvas"></canvas></div>
+      <div class="bmp-tv__side">
+        <div class="bmp-tv__clock metric" data-bmp-tvclock>–</div>
+        <div class="bmp-table" id="bmp-table"></div>
+        <div class="bmp-stats" id="bmp-stats"></div>
+        ${host}
+      </div>
+    </div>`;
+  },
+  after(state, rebuilt) {
+    bmpNoteTime(state);
+    const s = state.shared || {};
+    if (s.phase !== 'play') { bmpTvStop(); return; }
+    bmpTvStart(state, rebuilt);
+  }
+};
+
+function bmpTvStart(state, rebuilt) {
+  const s = state.shared || {};
+  const key = roomDealKey(state, s.round);
+  if (!bmp.tv || bmp.tv.key !== key) {
+    bmp.tv = { key, round: s.round, cars: {}, sparks: [], pops: [], pairs: {}, reported: false,
+      msgs: [], sent: [], raf: 0, last: 0, canvas: null, uiAt: 0 };
+  }
+  const g = bmp.tv;
+  if (rebuilt || !g.canvas || !g.canvas.isConnected) g.canvas = document.getElementById('bmp-canvas');
+  if (!g.raf) { g.last = performance.now(); g.raf = requestAnimationFrame(bmpTvFrame); }
+  // A page in the background draws no frames: the scores still go in when the round ends.
+  if (!g.tick) g.tick = setInterval(() => {
+    const st = Room.state;
+    if (bmp.tv !== g || !st || st.game !== 'bumper' || !st.youAreScreen || (st.shared || {}).phase !== 'play') return;
+    if (bmpServerNow() >= st.shared.endsAt && !g.reported) bmpTvReport(st);
+  }, 1000);
+}
+function bmpTvStop() {
+  if (bmp.tv && bmp.tv.raf) cancelAnimationFrame(bmp.tv.raf);
+  if (bmp.tv && bmp.tv.tick) clearInterval(bmp.tv.tick);
+  if (bmp.tv) { bmp.tv.raf = 0; bmp.tv.tick = null; }
+}
+
+/** A car for every driver in the room: the roster, and anyone who joined since. */
+function bmpTvSyncCars(state) {
+  const g = bmp.tv;
+  const people = (state.players || []).filter(p => !p.bot);
+  const ids = people.map(p => p.id);
+  Object.keys(g.cars).forEach(id => { if (ids.indexOf(id) === -1) delete g.cars[id]; });
+  people.forEach((p) => {
+    if (g.cars[p.id]) { g.cars[p.id].name = p.name; return; }
+    const k = Object.keys(g.cars).length;
+    const a = (k / Math.max(ids.length, 2)) * Math.PI * 2 + 0.3;
+    const x = BMP_W / 2 + Math.cos(a) * BMP_W * 0.33;
+    const y = BMP_H / 2 + Math.sin(a) * BMP_H * 0.3;
+    g.cars[p.id] = { id: p.id, name: p.name, x, y, vx: 0, vy: 0, h: Math.atan2(BMP_H / 2 - y, BMP_W / 2 - x),
+      input: null, inAt: 0, hits: 0, taken: 0, ping: null, flash: 0, rate: [] };
+  });
+}
+
+/** A message from a phone. */
+function bmpTvHear(d) {
+  const g = bmp.tv;
+  if (!g || !d.from) return;
+  const now = Date.now();
+  g.msgs.push(now);
+  const car = g.cars[d.from];
+  if (d.k === 'p') {
+    Room.sendLive({ k: 'p', to: d.from, n: d.n, at: d.at });
+    g.sent.push(now);
+    if (car && typeof d.r === 'number' && d.r >= 0) car.ping = d.r;
+    return;
+  }
+  if (d.k === 'i' && car) {
+    car.input = d;
+    car.inAt = now;
+    car.rate.push(now);
+  }
+}
+
+function bmpTvFrame(ts) {
+  const g = bmp.tv;
+  if (!g) return;
+  g.raf = requestAnimationFrame(bmpTvFrame);
+  const state = Room.state;
+  if (!state || state.game !== 'bumper' || !state.youAreScreen) { bmpTvStop(); return; }
+  const s = state.shared || {};
+  if (s.phase !== 'play') return;
+  bmpTvSyncCars(state);
+  let dt = Math.min(0.05, (ts - g.last) / 1000);
+  g.last = ts;
+  const now = bmpServerNow();
+  const running = now >= s.startAt && now < s.endsAt;
+  // Fixed steps, so a slow frame doesn't let cars pass through each other.
+  while (dt > 0) {
+    const step = Math.min(dt, 1 / 120);
+    bmpTvStep(step, running);
+    dt -= step;
+  }
+  g.sparks = g.sparks.filter(p => (p.t -= 1 / 60) > 0);
+  g.pops = g.pops.filter(p => (p.t -= 1 / 60) > 0);
+  if (now >= s.endsAt && !g.reported) bmpTvReport(state);
+  bmpTvDraw(state, now);
+  if (ts - g.uiAt > 250) { g.uiAt = ts; bmpTvPanel(state, now); }
+}
+
+function bmpTvStep(dt, running) {
+  const g = bmp.tv;
+  const cars = Object.values(g.cars);
+  const wall = Date.now();
+  cars.forEach((c) => {
+    const inp = running && c.input && wall - c.inAt < BMP_STALE_MS ? c.input : null;
+    let thrust = 0;
+    if (inp && typeof inp.x === 'number') {
+      const x = inp.x / 100, y = inp.y / 100;
+      const m = Math.min(1, Math.hypot(x, y));
+      if (m > 0.15) {
+        const want = Math.atan2(y, x);
+        let diff = want - c.h;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        c.h += Math.max(-5.5 * dt, Math.min(5.5 * dt, diff));
+        thrust = 1000 * m * Math.max(0.25, Math.cos(diff));
+      }
+    } else if (inp && typeof inp.s === 'number') {
+      c.h += (inp.s / 100) * 3.6 * dt;
+      thrust = inp.g ? 1000 : 0;
+    }
+    const fx = Math.cos(c.h), fy = Math.sin(c.h);
+    c.vx += fx * thrust * dt;
+    c.vy += fy * thrust * dt;
+    // Grip: the sideways slide dies faster than the roll, so it steers like a car and a knock still slides.
+    const fwd = c.vx * fx + c.vy * fy;
+    const side = -c.vx * fy + c.vy * fx;
+    const f2 = fwd * Math.exp(-1.3 * dt), s2 = side * Math.exp(-3.2 * dt);
+    c.vx = f2 * fx - s2 * fy;
+    c.vy = f2 * fy + s2 * fx;
+    const sp = Math.hypot(c.vx, c.vy);
+    if (sp > 720) { c.vx *= 720 / sp; c.vy *= 720 / sp; }
+    c.x += c.vx * dt;
+    c.y += c.vy * dt;
+    const m = 18 + BMP_R;
+    if (c.x < m) { c.x = m; c.vx = Math.abs(c.vx) * 0.7; }
+    if (c.x > BMP_W - m) { c.x = BMP_W - m; c.vx = -Math.abs(c.vx) * 0.7; }
+    if (c.y < m) { c.y = m; c.vy = Math.abs(c.vy) * 0.7; }
+    if (c.y > BMP_H - m) { c.y = BMP_H - m; c.vy = -Math.abs(c.vy) * 0.7; }
+    c.flash = Math.max(0, c.flash - dt);
+  });
+  for (let i = 0; i < cars.length; i++) {
+    for (let j = i + 1; j < cars.length; j++) bmpTvCollide(cars[i], cars[j], running);
+  }
+}
+
+function bmpTvCollide(a, b, running) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const d = Math.hypot(dx, dy);
+  if (d >= BMP_R * 2 || d === 0) return;
+  const nx = dx / d, ny = dy / d;
+  const push = (BMP_R * 2 - d) / 2;
+  a.x -= nx * push; a.y -= ny * push;
+  b.x += nx * push; b.y += ny * push;
+  const vr = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+  if (vr >= 0) return;
+  const j = (1 + 0.9) / 2 * vr - 40;       // the rubber bumper gives a little extra
+  a.vx += j * nx; a.vy += j * ny;
+  b.vx -= j * nx; b.vy -= j * ny;
+  const g = bmp.tv;
+  const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+  const hard = -vr;
+  for (let k = 0; k < Math.min(14, 4 + hard / 40); k++) {
+    const ang = Math.random() * Math.PI * 2, v = 80 + Math.random() * hard * 0.6;
+    g.sparks.push({ x: cx, y: cy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, t: 0.45 });
+  }
+  if (!running || hard < 170) return;
+  const pair = a.id < b.id ? a.id + '|' + b.id : b.id + '|' + a.id;
+  const wall = Date.now();
+  if (g.pairs[pair] && wall - g.pairs[pair] < 600) return;
+  // Who drove into whom: each car's speed toward the other before the knock.
+  const sa = (a.vx - j * nx) * nx + (a.vy - j * ny) * ny;
+  const sb = -((b.vx + j * nx) * nx + (b.vy + j * ny) * ny);
+  const hitter = sa >= sb ? a : b, victim = hitter === a ? b : a;
+  if (Math.max(sa, sb) < 90) return;
+  g.pairs[pair] = wall;
+  hitter.hits++;
+  victim.taken++;
+  victim.flash = 0.4;
+  g.pops.push({ x: hitter.x, y: hitter.y - BMP_R * 1.6, t: 0.9, color: bmpColorOf(Room.state, hitter.id) });
+  Room.sendLive({ k: 'h', to: hitter.id, w: 'hit', n: hitter.hits });
+  Room.sendLive({ k: 'h', to: victim.id, w: 'got', n: victim.taken });
+  g.sent.push(wall, wall);
+  try { { fxNoise('lowpass', 420, 0.8, [[0, 0.0001], [0.01, 0.35], [0.16, 0.0001]], fxCtx().currentTime); fxTone('square', [[0, 160], [0.08, 90]], [[0, 0.05], [0.1, 0.0001]], fxCtx().currentTime); } } catch (e) {}
+}
+
+/** The round's end: one screen (the first online, by id) tells the server the scores. */
+function bmpTvReport(state) {
+  const g = bmp.tv;
+  g.reported = true;
+  const screens = (state.screens || []).filter(x => x.online).map(x => x.id).sort();
+  if (screens[0] !== Room.me) return;
+  const scores = {};
+  Object.values(g.cars).forEach(c => { scores[c.id] = { hits: c.hits, taken: c.taken }; });
+  roomAct('finish', { round: (state.shared || {}).round, scores });
+}
+
+function bmpTvDraw(state, now) {
+  const g = bmp.tv;
+  const cv = g.canvas;
+  if (!cv || !cv.isConnected) return;
+  const box = cv.parentElement.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const scale = Math.min(box.width / BMP_W, box.height / BMP_H);
+  const w = Math.round(BMP_W * scale), h = Math.round(BMP_H * scale);
+  if (cv.width !== w * dpr || cv.height !== h * dpr) {
+    cv.width = w * dpr; cv.height = h * dpr;
+    cv.style.width = w + 'px'; cv.style.height = h + 'px';
+  }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
+  // The rink: a polished floor with a rubber rail.
+  ctx.fillStyle = '#1d1a2e';
+  ctx.fillRect(0, 0, BMP_W, BMP_H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 2;
+  for (let x = 100; x < BMP_W; x += 100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, BMP_H); ctx.stroke(); }
+  for (let y = 100; y < BMP_H; y += 100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(BMP_W, y); ctx.stroke(); }
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 18;
+  ctx.strokeRect(9, 9, BMP_W - 18, BMP_H - 18);
+  ctx.strokeStyle = '#1b1b1f';
+  ctx.lineWidth = 4;
+  ctx.setLineDash([40, 40]);
+  ctx.strokeRect(9, 9, BMP_W - 18, BMP_H - 18);
+  ctx.setLineDash([]);
+  Object.values(g.cars).forEach(c => bmpDrawCar(ctx, c, bmpColorOf(state, c.id)));
+  g.sparks.forEach((p) => {
+    p.x += p.vx / 60; p.y += p.vy / 60;
+    ctx.globalAlpha = Math.max(0, p.t / 0.45);
+    ctx.fillStyle = '#fde047';
+    ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  g.pops.forEach((p) => {
+    ctx.globalAlpha = Math.min(1, p.t / 0.4);
+    ctx.font = '800 44px ' + getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = p.color;
+    ctx.strokeStyle = '#1b1b1f';
+    ctx.lineWidth = 6;
+    const y = p.y - (0.9 - p.t) * 60;
+    ctx.strokeText('+1', p.x, y);
+    ctx.fillText('+1', p.x, y);
+  });
+  ctx.globalAlpha = 1;
+  const s = state.shared || {};
+  if (now < s.startAt) {
+    const n = Math.ceil((s.startAt - now) / 1000);
+    bmpBigText(ctx, String(Math.min(3, n)), 260);
+  } else if (now < s.startAt + 700) {
+    bmpBigText(ctx, bmpT().bmp_go, 200);
+  } else if (now >= s.endsAt) {
+    bmpBigText(ctx, bmpT().bmp_over, 110);
+  }
+}
+function bmpBigText(ctx, text, size) {
+  ctx.font = '900 ' + size + 'px ' + getComputedStyle(document.body).fontFamily;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = size / 10;
+  ctx.strokeStyle = '#1b1b1f';
+  ctx.fillStyle = '#fde047';
+  ctx.strokeText(text, BMP_W / 2, BMP_H / 2);
+  ctx.fillText(text, BMP_W / 2, BMP_H / 2);
+}
+
+/** A bumper car from above: the rubber ring, the body, the seat and the driver's initial, the pole. */
+function bmpDrawCar(ctx, c, color) {
+  const R = BMP_R;
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(6, 10, R * 1.25, R * 1.05, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.rotate(c.h);
+  const rr = (x, y, w, h, r) => {
+    ctx.beginPath();
+    if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  };
+  rr(-R * 1.25, -R * 1.02, R * 2.5, R * 2.04, R * 0.9);
+  ctx.fillStyle = '#2b2b36'; ctx.fill();
+  ctx.lineWidth = 4; ctx.strokeStyle = '#111'; ctx.stroke();
+  rr(-R * 1.05, -R * 0.82, R * 2.1, R * 1.64, R * 0.7);
+  ctx.fillStyle = c.flash > 0 ? '#ffffff' : color; ctx.fill();
+  ctx.stroke();
+  // The nose, so the way it faces reads at a glance.
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.beginPath(); ctx.moveTo(R * 0.95, 0); ctx.lineTo(R * 0.55, -R * 0.35); ctx.lineTo(R * 0.55, R * 0.35); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  rr(-R * 0.75, -R * 0.55, R * 0.8, R * 1.1, R * 0.3); ctx.fill();
+  ctx.rotate(-c.h);
+  ctx.fillStyle = '#fde2c4';
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = '#111'; ctx.stroke();
+  ctx.fillStyle = '#1b1b1f';
+  ctx.font = '800 ' + Math.round(R * 0.6) + 'px ' + getComputedStyle(document.body).fontFamily;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(Array.from(String(c.name || '?').trim())[0] || '?', 0, 2);
+  ctx.font = '700 28px ' + getComputedStyle(document.body).fontFamily;
+  ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.fillStyle = '#fff';
+  ctx.strokeText(c.name, 0, -R * 1.55);
+  ctx.fillText(c.name, 0, -R * 1.55);
+  ctx.restore();
+}
+
+/** The side: the clock, each driver's bumps and delay, the traffic and what an hour costs. */
+function bmpTvPanel(state, now) {
+  const g = bmp.tv;
+  const t = bmpT();
+  const s = state.shared || {};
+  const clock = document.querySelector('[data-bmp-tvclock]');
+  if (clock) clock.textContent = bmpClockText(bmpSecsLeft(state));
+  const wall = Date.now();
+  const recent = (list) => { while (list.length && wall - list[0] > 3000) list.shift(); return list.length / 3; };
+  const cars = Object.values(g.cars).sort((a, b) => b.hits - a.hits);
+  const table = document.getElementById('bmp-table');
+  if (table) {
+    table.innerHTML = cars.map(c => {
+      const level = c.ping === null ? '' : c.ping < 80 ? 'good' : c.ping < 150 ? 'ok' : 'bad';
+      const live = wall - c.inAt < BMP_STALE_MS;
+      return `<div class="bmp-row ${live ? '' : 'is-idle'}">
+        <span class="bmp-row__dot" style="--car:${bmpColorOf(state, c.id)}"></span>
+        <span class="bmp-row__name"><bdi>${escapeHTML(c.name)}</bdi></span>
+        <span class="bmp-row__n metric">💥 ${c.hits}</span>
+        <span class="bmp-row__ping metric" data-level="${level}">${c.ping === null ? '–' : c.ping + ' ms'}</span>
+        <span class="bmp-row__rate metric tx-muted">${Math.round(recent(c.rate))}/s</span>
+      </div>`;
+    }).join('');
+  }
+  const stats = document.getElementById('bmp-stats');
+  if (stats) {
+    const perSec = recent(g.msgs) + recent(g.sent);
+    const pct = perSec * 3600 / BMP_MSGS_PER_REQUEST / BMP_FREE_PER_DAY * 100;
+    stats.innerHTML = `<div><span class="tx-muted">${escapeHTML(t.bmp_msgs)}</span> <b class="metric">${Math.round(perSec)}</b></div>
+      <div class="tx-muted">${escapeHTML(bmpFill(t.bmp_quota, { n: pct < 10 ? pct.toFixed(1) : Math.round(pct) }))}</div>`;
+  }
+}
+</script>

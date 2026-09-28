@@ -734,6 +734,8 @@ const PROBES = {
   },
   // Nothing hidden: the generic rules still hold.
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
+  // عربيات التصادم: the TV runs the cars; the server holds nothing but the round.
+  bumper: () => [],
   connect4: () => [], dots: () => [], xo: () => [], ludo: () => [], bowling: () => [],
   // شطرنج: the whole game is on the table.
   chess: () => [],
@@ -1615,6 +1617,20 @@ const DRIVERS = {
       must(T, s.turn.pid, 'throw', { x: Math.round(Math.random() * 40 - 20), aim: Math.round(Math.random() * 30 - 15), speed: 500 + Math.round(Math.random() * 400), spin: Math.round(Math.random() * 120 - 60), seq: s.turnSeq });
     }
     return S(T).phase === 'gameover';
+  },
+  bumper() {
+    // Three drivers and the screen: a round the TV reports, one the host ends early, one nobody reports.
+    const T = table('bumper', 3);
+    must(T, T.host, 'start', { secs: 60 });
+    clock += 64000;
+    must(T, SCREEN, 'finish', { round: S(T).round, scores: { p1: { hits: 4, taken: 1 }, p2: { hits: 2, taken: 3 } } });
+    must(T, T.host, 'playAgain', {});
+    must(T, T.host, 'endNow', {});
+    must(T, SCREEN, 'finish', { round: S(T).round, scores: { p3: { hits: 1, taken: 0 } } });
+    must(T, T.host, 'playAgain', {});
+    clock += 200000;
+    runClock(T, (r) => r.shared.phase === 'over', 3);
+    return S(T).phase === 'over' && S(T).round === 3;
   },
   chairs() {
     // Four in the ring: a false start, taps timed by their stamps, a round nobody finishes, to one left.

@@ -131,6 +131,8 @@ const ROOM_GAME_IDS = [
   'bowling',
   // الكراسي الموسيقية (RoomChairs.js): the music stops, the fastest taps get the chairs.
   'chairs',
+  // عربيات التصادم (RoomBumper.js): the TV runs the game, every phone steers a car (the controllers test).
+  'bumper',
   // كدّاب (RoomDoubt.js) and الشايب (RoomOldMaid.js): the playing cards.
   'doubt', 'oldmaid',
   // إستميشن (RoomEstimation.js): four for themselves, the auction, the calls, 13 tricks.
@@ -624,6 +626,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'xo':         xoRoomAction(room, playerId, action, payload); break;     // RoomDuels.js
     case 'battleship': battleshipAction(room, playerId, action, payload); break;  // RoomBattleship.js
     case 'chairs':     chairsAction(room, playerId, action, payload); break;      // RoomChairs.js
+    case 'bumper':     bumperAction(room, playerId, action, payload); break;      // RoomBumper.js
     case 'chess':      chessAction(room, playerId, action, payload); break;       // RoomChess.js
     case 'votechess':  voteChessAction(room, playerId, action, payload); break;   // RoomVoteChess.js
     case 'handbrain':  handBrainAction(room, playerId, action, payload); break;   // RoomHandBrain.js
@@ -3590,6 +3593,7 @@ const gameDeadline = (room) => {
   if (room.game === 'estimation') return estDeadline(room);
   if (room.game === 'minigolf') return mgDeadline(room);
   if (room.game === 'chairs') return chairsDeadline(room);
+  if (room.game === 'bumper') return bumperDeadline(room);
   if (svKindOf(room)) return svDeadline(room);   // RoomSolve.js
   return null;
 };
@@ -3718,6 +3722,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'estimation') return estTimeout(room, now);
   if (room.game === 'minigolf') return mgTimeout(room, now);
   if (room.game === 'chairs') return chairsTimeout(room, now);
+  if (room.game === 'bumper') return bumperTimeout(room, now);
   return false;
 };
 

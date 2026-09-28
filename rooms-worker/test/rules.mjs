@@ -6,7 +6,7 @@
  *   npm run test:rules      (builds generated/rules.js first)
  */
 import { readFileSync } from 'node:fs';
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying } from '../generated/rules.js';
 
 let failed = 0;
 const check = (ok, label) => {
@@ -8798,6 +8798,39 @@ Date.now = duelTestClock;
   applyRoomAction(r, 'a', 'chooseGame', { game: 'wouldyou' });
   applyRoomAction(r, 'a', 'start', { lang: 'ar' });
   check(r.phase !== 'lobby' && threw(() => applyRoomAction(r, 'a', 'rename', { name: 'X' })), 'rename: not while a game is being played');
+}
+
+/* --- عربيات التصادم (28 Sep 2026): the server deals a round and takes the TV's scores; the cars are the TV's --- */
+{
+  console.log('\nBumper cars');
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const r = newRoom(['a', 'b', 'c']);
+  r.screens = [{ id: 'tvx' }];
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'bumper' });
+  check(threw(() => applyRoomAction(r, 'b', 'start', {})), 'bumper: only the host starts');
+  applyRoomAction(r, 'a', 'start', { secs: 60 });
+  const s = r.shared;
+  check(r.phase === 'play' && s.phase === 'play' && s.roster.length === 3 && s.colors.a === 0 && s.colors.c === 2 && s.settings.secs === 60,
+    'bumper: a round deals everyone a colour');
+  check(s.startAt > clock && s.endsAt - s.startAt === 60000, 'bumper: a countdown, then the round\'s minute');
+  check(bumperRelaying(r), 'bumper: the controllers\' channel is open while the round is on');
+  applyRoomAction(r, 'tvx', 'finish', { round: 1, scores: { a: { hits: 5 } } });
+  check(s.phase === 'play', 'bumper: the TV can\'t end a round before its clock');
+  check(threw(() => applyRoomAction(r, 'b', 'endNow', {})) && s.phase === 'play' && s.endsAt > clock + 1000, 'bumper: only the host ends a round early');
+  applyRoomAction(r, 'a', 'endNow', {});
+  applyRoomAction(r, 'b', 'finish', { round: 1, scores: { b: { hits: 99 } } });
+  check(s.phase === 'play', 'bumper: a player can\'t report the scores');
+  applyRoomAction(r, 'tvx', 'finish', { round: 1, scores: { a: { hits: 2, taken: 1 }, b: { hits: 7, taken: 0 }, c: { hits: -3, taken: 'x' } } });
+  check(s.phase === 'over' && s.results[0].id === 'b' && s.results[0].hits === 7 && s.results[2].hits === 0 && s.wins.b === 1 && !bumperRelaying(r),
+    'bumper: the TV\'s scores make the result, cleaned, the most bumps winning');
+  applyRoomAction(r, 'tvx', 'finish', { round: 1, scores: { a: { hits: 50 } } });
+  check(s.results[0].id === 'b', 'bumper: a second report changes nothing');
+  applyRoomAction(r, 'a', 'playAgain', { secs: 999 });
+  const s2 = r.shared;
+  check(s2.phase === 'play' && s2.round === 2 && s2.settings.secs === 60 && s2.wins.b === 1, 'bumper: play again keeps the length and the wins');
+  clock = s2.endsAt + 8001;
+  roomTimeout(r, clock);
+  check(s2.phase === 'over' && s2.reported === false && s2.results.every(x => x.hits === 0) && !s2.wins.a, 'bumper: with no screen reporting, the round ends on the server\'s clock with no scores');
 }
 
 /* --- الكراسي الموسيقية (27 Sep 2026): the stop is a server secret, taps are ranked fairly, one out a round --- */

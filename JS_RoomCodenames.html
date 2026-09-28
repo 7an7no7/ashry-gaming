@@ -410,9 +410,11 @@ function refreshCodenamesHostTools(root, state, t) {
 /** Buttons for the host on the phone and the TV: pass the turn; a new spymaster where one has gone. */
 function cnHostTools(state, t, L) {
   const s = state.shared || {};
-  if (!state.youAreHost || s.winner || !s.board || !s.board.length) return '';
+  if (!roomCanMoveOn(state) || s.winner || !s.board || !s.board.length) return '';
   // The team whose turn it is goes with the tap, so a double tap passes one turn, not two.
   const buttons = [[cnPassTurnLabel(t), `roomAct('passTurn', { turn: '${jsStringAttr(s.turn || '')}' })`]];
+  // With the host away anyone may pass a stuck turn (requireHost); choosing a spymaster stays the host's.
+  if (!state.youAreHost) return roomHostRow(buttons);
   ['red', 'blue'].forEach(team => {
     const sm = cnSpymasterOf(state, team);
     if (sm.here && cnLocal.smPick !== team) return;

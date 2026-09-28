@@ -509,7 +509,7 @@ const solveAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'closeRound') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'solving' || staleTap(p, 'round', s.round)) return;
     svEndRound(room);
     return;
@@ -517,14 +517,14 @@ const solveAction = (room, playerId, action, payload) => {
 
   if (action === 'skipTurn') {
     // The setter's phone went quiet: the next one sets this secret.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'setting' || staleTap(p, 'round', s.round)) return;
     svDeal(room);
     return;
   }
 
   if (action === 'nextRound') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'result') return;
     if (svTooFew(room)) throw new Error('اللعبة دي محتاجة لاعبين على الأقل');
     s.round++;

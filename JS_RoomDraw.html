@@ -203,12 +203,12 @@ function drawFrame(state, amDrawer, over, t) {
       </div>` : '';
 
   const footer = over
-    ? (state.youAreHost
-        ? `<div class="btn-stack" style="margin-top: var(--sp-3)">
+    ? roomMoveOnHtml(state,
+        `<div class="btn-stack" style="margin-top: var(--sp-3)">
              <button onclick="roomAct('nextRound', ${roomNextArgs(state)})" class="btn btn--primary btn--lg">${t.draw_next || 'جولة جديدة'}</button>
-             <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
-           </div>`
-        : `<div class="waiting-note">${t.room_wait_host}</div>`)
+             ${state.youAreHost ? `<button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>` : ''}
+           </div>`,
+        `<div class="waiting-note">${t.room_wait_host}</div>`)
     : ((amDrawer || state.youAreHost)
         // The server lets the drawer reveal too, and they are the one who knows
         // it is hopeless. This used to need host AND drawer, so when the host

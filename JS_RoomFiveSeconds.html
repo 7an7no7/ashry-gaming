@@ -113,11 +113,11 @@ ROOM_GAMES.fiveseconds = {
     const t = TRANSLATIONS[appState.lang];
     const s = state.shared;
     const me = s.turnId === Room.me;
-    const judge = state.youAreHost ? `
+    const judge = roomMoveOnHtml(state, `
       <div class="btn-row" style="margin-top: var(--sp-3)">
         <button class="btn btn--success" onclick="roomAct('judge', { ok: true })">✅ ${escapeHTML(t.five_ok || '')}</button>
         <button class="btn btn--danger-soft" onclick="roomAct('judge', { ok: false })">❌ ${escapeHTML(t.five_fail || '')}</button>
-      </div>` : `<div class="waiting-note">${escapeHTML(t.five_wait_judge || '')}</div>`;
+      </div>`, `<div class="waiting-note">${escapeHTML(t.five_wait_judge || '')}</div>`);
     const round = `<div class="cn-score"><span class="cn-score__role">${escapeHTML(t.five_round || '')} ${ltrFrac(s.round, s.rounds)}</span></div>`;
     const last = s.lastName ? `<p class="field__hint" style="text-align:center">${escapeHTML(s.lastName)} ${s.verdict ? '✅' : '❌'} · ${escapeHTML(s.lastPrompt || '')}</p>` : '';
 
@@ -134,7 +134,7 @@ ROOM_GAMES.fiveseconds = {
         </div>
         ${last}
         ${renderScoreboard(s.board)}
-        ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })">${escapeHTML(t.five_skip || '')}</button>` : ''}
+        ${roomMoveOnHtml(state, `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })">${escapeHTML(t.five_skip || '')}</button>`)}
         ${renderRoomPlayerStrip(state)}`);
       refreshRoomPlayerStrip(el, state);
       return;
@@ -189,7 +189,7 @@ TV_GAMES.fiveseconds = {
             <div class="tv-eyebrow">${escapeHTML(t.five_turn || '')}</div>
             <div class="tv-title">${escapeHTML(s.turnName || '')}</div>
             ${s.lastName ? `<div class="tv-note">${escapeHTML(s.lastName)} ${s.verdict ? '✅' : '❌'} · ${escapeHTML(s.lastPrompt || '')}</div>` : ''}
-            ${host(tvBtn((t.five_go_for || '').replace('{name}', s.turnName || ''), "roomAct('go')") + tvBtn(t.five_skip, `roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })`, 'ghost'))}
+            ${roomMoveOnHtml(state, `<div class="tv-actions">${(state.youAreHost ? tvBtn((t.five_go_for || '').replace('{name}', s.turnName || ''), "roomAct('go')") : '') + tvBtn(t.five_skip, `roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })`, 'ghost')}</div>`)}
           </div>
           <div class="tv-scale">${renderScoreboard(s.board)}</div>
         </div>`;
@@ -201,7 +201,7 @@ TV_GAMES.fiveseconds = {
             <div class="tv-eyebrow">${escapeHTML(s.turnName || '')}</div>
             ${fivePromptHtml(s, t, true)}
             ${s.phase === 'counting' ? fiveRingHtml(s, true) : `<div class="tv-title tv-danger">⏰ ${escapeHTML(t.five_times_up || '')}</div>`}
-            ${host(tvBtn('✅ ' + (t.five_ok || ''), "roomAct('judge', { ok: true })", 'success') + tvBtn('❌ ' + (t.five_fail || ''), "roomAct('judge', { ok: false })", 'danger-soft'))}
+            ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn('✅ ' + (t.five_ok || ''), "roomAct('judge', { ok: true })", 'success') + tvBtn('❌ ' + (t.five_fail || ''), "roomAct('judge', { ok: false })", 'danger-soft')}</div>`)}
           </div>
         </div>`;
     }

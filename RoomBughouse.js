@@ -223,7 +223,7 @@ function bughouseAction(room, playerId, action, payload) {
 
   if (action === 'skipTurn') {
     // The host plays for a phone that went quiet on that board: the easy computer's move.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     const b = Number(p.board) === 1 ? 1 : 0;
     const bd = s.boards[b];
     if (s.phase !== 'play' || staleTap(p, 'move', bd.moves)) return;

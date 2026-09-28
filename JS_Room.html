@@ -108,7 +108,9 @@ const Room = (() => {
   /* --- change notification ----------------------------------------------- */
   const signatureOf = (s) => !s ? '' :
       s.version + '|' + s.phase + '|' + s.players.map(p => p.id + (p.online ? '1' : '0')).join(',') +
-      '|' + (s.screens || []).map(x => x.id + (x.online ? '1' : '0')).join(',');
+      '|' + (s.screens || []).map(x => x.id + (x.online ? '1' : '0')).join(',') +
+      // The host away long enough for anyone to move the game on (room.js): no move, but a change.
+      (s.hostAway ? '|away' : '');
 
   const emit = (force) => {
     const sig = signatureOf(state);
@@ -557,6 +559,49 @@ const roomClockStage = (state) => !state ? '' :
 function roomDealKey(state, fallback) {
   const deal = state && state.shared && state.shared.dealId;
   return (deal ? deal + '#' : '') + (state ? state.code : '') + '#' + (fallback === undefined ? '' : fallback);
+}
+
+/* --- when the host is away -----------------------------------------------------
+   The owner, 28 Sep 2026: once the host has been gone 20 seconds (a locked
+   phone), anyone at the table may press the host's "move on" buttons - the next
+   round, closing a vote, playing for a quiet phone - so the table never freezes;
+   the host stays the host, and the room is handed on only after 2 minutes. The
+   server decides (state.hostAway, room.js; requireHost in RoomGames.js). */
+
+/** True when this phone may press the host's "move on" buttons. */
+function roomCanMoveOn(state) {
+  return !!(state && (state.youAreHost || state.hostAway));
+}
+
+/**
+ * A host's "move on" control. The host gets it as ever; everyone else gets it
+ * drawn but hidden, shown only while the host is away (body.room-host-away, set
+ * from every state), so no frame is redrawn - and nothing half-typed lost - when
+ * that changes. `orElse` is what a non-host sees the rest of the time (a waiting
+ * line). A button that fires when the host is back is simply refused.
+ */
+function roomMoveOnHtml(state, html, orElse) {
+  if (!state || state.youAreHost) return html || '';
+  if (!html) return orElse || '';
+  return `<span class="room-moveon">${html}</span>` + (orElse ? `<span class="room-moveon-not">${orElse}</span>` : '');
+}
+
+/** The body class and the line that say so, on a phone's room screens and the TV. */
+function paintRoomHostAway(state) {
+  const away = !!(state && state.hostAway && !state.youAreHost && state.phase !== 'lobby');
+  document.body.classList.toggle('room-host-away', away);
+  let note = document.getElementById('room-host-away');
+  if (!away) { if (note) note.hidden = true; return; }
+  if (!note) {
+    note = document.createElement('div');
+    note.id = 'room-host-away';
+    note.className = 'room-host-away-note';
+    note.setAttribute('role', 'status');
+    document.body.appendChild(note);
+  }
+  const t = TRANSLATIONS[appState.lang] || {};
+  note.textContent = t.room_host_away || 'المضيف مش متصل - أي حد يقدر يكمّل';
+  note.hidden = false;
 }
 
 /** The host removes a player whose phone has gone (the server refuses anyone still here). */
@@ -1627,6 +1672,7 @@ Room.onChange((state) => {
     stopRoomClocks();
   }
   updateRoomBanner();
+  paintRoomHostAway(state);
   if (!state) { roomStageSeen = ''; roomActionSeen = null; return; }
 
   const stage = state.phase + '|' + (state.game || '');

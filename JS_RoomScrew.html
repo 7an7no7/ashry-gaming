@@ -1622,8 +1622,8 @@ function skrBoomHtml(state, ctx) {
   const boom = s.boom || {};
   const me = Room.me;
   const line = `<p class="skr-hint skr-vote__who">${escapeHTML(skrBoomLine(state))}</p>`;
-  const host = state.youAreHost
-    ? `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, '${SKR_BOOM_CLOSE}')">⏭️ ${escapeHTML(skrT('skr_boom_close', 'كمّل من غير الباقي', 'Go on without the rest'))}</button>` : '';
+  const host = roomMoveOnHtml(state,
+    `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, '${SKR_BOOM_CLOSE}')">⏭️ ${escapeHTML(skrT('skr_boom_close', 'كمّل من غير الباقي', 'Go on without the rest'))}</button>`);
   if (skrInGame(state) && skrBoomWaits(state, me)) {
     const pick = skrLocal.pick && skrLocal.pick.kind === 'boomPick' ? skrLocal.pick : skrNewPick('boomPick');
     return `<div class="skr-actbar skr-boom">${skrPickBarHtml(state, pick, ctx)}${line}${host}</div>`;
@@ -1744,8 +1744,8 @@ function skrVoteHtml(state) {
   const seated = skrInGame(state);
   const why = skrRoundEndWords(state);
   const whoLine = `<p class="skr-hint skr-vote__who">${escapeHTML(skrVotedLine(state))}</p>`;
-  const close = state.youAreHost
-    ? `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, 'closeThiefVote')">🔒 ${escapeHTML(t.vote_close || skrT('skr_vote_close', 'اقفل التصويت', 'Close the vote'))}</button>` : '';
+  const close = roomMoveOnHtml(state,
+    `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, 'closeThiefVote')">🔒 ${escapeHTML(t.vote_close || skrT('skr_vote_close', 'اقفل التصويت', 'Close the vote'))}</button>`);
   const question = escapeHTML(skrT('skr_thief_q', 'مين معاه الحرامي؟', 'Who holds the thief?'));
   if (!seated) {
     return `<div class="skr-note">${why ? `<p class="skr-hint">${escapeHTML(why)}</p>` : ''}<p class="skr-prompt"><span class="skr-power">${skrPowerChip(null, 'mask')}</span>${question}</p>${whoLine}${close}</div>`;
@@ -1799,8 +1799,8 @@ function skrActionsHtml(state) {
   const pick = skrLocal.pick;
   const bar = (inner) => `<div class="skr-actbar">${inner}</div>`;
   const note = (inner) => `<div class="skr-note">${inner}</div>`;
-  const hostBegin = state.youAreHost
-    ? `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, 'beginRound')">▶️ ${escapeHTML(skrT('skr_begin_round', 'ابدأ الجولة', 'Start the round'))}</button>` : '';
+  const hostBegin = roomMoveOnHtml(state,
+    `<button type="button" class="btn btn--ghost btn--sm" onclick="skrAct(this, 'beginRound')">▶️ ${escapeHTML(skrT('skr_begin_round', 'ابدأ الجولة', 'Start the round'))}</button>`);
 
   if (s.phase === 'memorize') {
     const ready = s.ready || [];
@@ -1907,7 +1907,7 @@ function skrActionsHtml(state) {
 
 function skrHostButtons(state) {
   const s = state.shared || {};
-  if (!state.youAreHost) return [];
+  if (!roomCanMoveOn(state)) return [];
   const gone = (pid) => { const p = (state.players || []).find(x => x.id === pid); return !p || !p.online; };
   const out = [];
   if (s.phase === 'play' && s.turn && gone(s.turn.pid)) {
@@ -2278,7 +2278,8 @@ function skrResultFrame(state) {
           ${skrPodiumHtml(state)}
         </div>` : ''}
       ${skrStandingsHtml(state)}
-      ${state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      ${over ? (state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)
+        : roomMoveOnHtml(state, hostNext, `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
       ${renderRoomPlayerStrip(state)}
     </div>`;
 }
@@ -3914,10 +3915,11 @@ function skrTvTable(state, t) {
     note = skrRoundEndWords(state);
   }
   let host = '';
-  if (state.youAreHost && s.phase === 'memorize') host = tvBtn('▶️ ' + skrT('skr_begin_round', 'ابدأ الجولة', 'Start the round'), "skrAct(this, 'beginRound')");
-  if (state.youAreHost && s.phase === 'thiefGuess') host = tvBtn('🔒 ' + ((t || {}).vote_close || skrT('skr_vote_close', 'اقفل التصويت', 'Close the vote')), "skrAct(this, 'closeThiefVote')");
+  // Each only moves the round on: anyone's once the host is away (roomMoveOnHtml).
+  if (s.phase === 'memorize') host = roomMoveOnHtml(state, tvBtn('▶️ ' + skrT('skr_begin_round', 'ابدأ الجولة', 'Start the round'), "skrAct(this, 'beginRound')"));
+  if (s.phase === 'thiefGuess') host = roomMoveOnHtml(state, tvBtn('🔒 ' + ((t || {}).vote_close || skrT('skr_vote_close', 'اقفل التصويت', 'Close the vote')), "skrAct(this, 'closeThiefVote')"));
   const boom = s.phase === 'play' && s.turn && s.turn.stage === 'boom' ? (s.boom || {}) : null;
-  if (state.youAreHost && boom) host = tvBtn('⏭️ ' + skrT('skr_boom_close', 'كمّل من غير الباقي', 'Go on without the rest'), `skrAct(this, '${SKR_BOOM_CLOSE}')`, 'ghost');
+  if (boom) host = roomMoveOnHtml(state, tvBtn('⏭️ ' + skrT('skr_boom_close', 'كمّل من غير الباقي', 'Go on without the rest'), `skrAct(this, '${SKR_BOOM_CLOSE}')`, 'ghost'));
   const boomers = !boom ? '' : `<div class="tv-strip-inline">${skrOrder(state).filter(pid => (boom.waiting || []).concat(boom.picked || []).indexOf(pid) !== -1).map(pid => {
       const done = (boom.picked || []).indexOf(pid) !== -1;
       return `<span class="tv-chip ${done ? 'is-done' : ''}">${done ? '💣✓' : '⏳'} ${escapeHTML(skrName(state, pid, true))}</span>`;
@@ -3988,7 +3990,7 @@ TV_GAMES.screw = {
           <div class="tv-title tv-center-text">🃏 ${escapeHTML(skrT('skr_reveal_title', 'كشف الكروت', 'The reveal'))} · ${escapeHTML(skrT('skr_round_of', 'جولة {n}/{m}', 'Round {n}/{m}', { n: s.round, m: s.rounds }))}</div>
           ${skrRevealHtml(state, { tv: true })}
           ${skrTvChips(state)}
-          ${host(tvBtn(t.next_round || 'الجولة التالية', `skrAct(this, 'nextRound', { round: ${Number(s.round) || 0} })`))}
+          ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.next_round || 'الجولة التالية', `skrAct(this, 'nextRound', { round: ${Number(s.round) || 0} })`)}</div>`)}
         </div>`;
     }
     skrFx.tvHands = s.hands;

@@ -188,7 +188,7 @@ const bowlingAction = (room, playerId, action, payload) => {
 
   if (action === 'skipTurn') {
     // The host throws a gentle ball for a phone that went quiet.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'play' || !s.turn || staleTap(p, 'seq', s.turnSeq)) return;
     bowlDoThrow(room, s.turn.pid, bowlGentleShot(), 'host');
     return;

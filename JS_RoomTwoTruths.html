@@ -34,7 +34,7 @@ ROOM_GAMES.twotruths = {
           <p class="sheet__subtitle">${escapeHTML(inRound ? (t.tt_wait_others || '') : (t.tt_spectating || t.vote_spectating || ''))}</p>
           <div id="tt-progress" class="vote-progress"></div>
         </div>
-        ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('closeWriting')">${escapeHTML(t.tt_start_anyway || '')}</button></div>` : ''}
+        ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('closeWriting')">${escapeHTML(t.tt_start_anyway || '')}</button></div>`)}
         ${renderRoomPlayerStrip(state)}` : `
         <div class="card">
           <div class="card__title">${escapeHTML(t.tt_write_title || '')}</div>
@@ -84,9 +84,9 @@ ROOM_GAMES.twotruths = {
           </p>
         </div>
         ${renderScoreboard(s.board)}
-        ${state.youAreHost
-          ? `<button class="btn btn--primary btn--lg" onclick="roomAct('next')">${escapeHTML(s.turn + 1 >= (s.order || []).length ? (t.tt_final || '') : (t.tt_next || ''))}</button>`
-          : `<div class="waiting-note">${t.room_wait_host}</div>`}
+        ${roomMoveOnHtml(state,
+          `<button class="btn btn--primary btn--lg" onclick="roomAct('next')">${escapeHTML(s.turn + 1 >= (s.order || []).length ? (t.tt_final || '') : (t.tt_next || ''))}</button>`,
+          `<div class="waiting-note">${t.room_wait_host}</div>`)}
         ${renderRoomPlayerStrip(state)}`);
       if (fresh && s.subjectId === Room.me && (s.fooled || []).length && typeof confetti === 'function') confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
       refreshRoomPlayerStrip(el, state);
@@ -148,7 +148,7 @@ TV_GAMES.twotruths = {
           <div class="tv-big-icon" aria-hidden="true">✍️</div>
           <div class="tv-title">${escapeHTML(t.tt_tv_writing || '')}</div>
           <div class="tv-note">${escapeHTML(t.tt_written || '')}: ${ltrFrac((s.submitted || []).length, (s.roster || []).length)}</div>
-          ${host(tvBtn(t.tt_start_anyway, "roomAct('closeWriting')", 'ghost'))}
+          ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.tt_start_anyway, "roomAct('closeWriting')", 'ghost')}</div>`)}
         </div>`;
     }
     if (s.phase === 'voting') {
@@ -168,7 +168,7 @@ TV_GAMES.twotruths = {
           <div class="tv-note">${(s.caught || []).length ? '🎯 ' + escapeHTML(t.tt_caught_by || '') + ': ' + (s.caught || []).map(escapeHTML).join('، ') : ''}
             ${(s.fooled || []).length ? ' · 🤡 ' + escapeHTML(t.tt_fooled || '') + ': ' + (s.fooled || []).map(escapeHTML).join('، ') : ''}</div>
           <div class="tv-scale">${renderScoreboard(s.board)}</div>
-          ${host(tvBtn(s.turn + 1 >= (s.order || []).length ? t.tt_final : t.tt_next, "roomAct('next')"))}
+          ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(s.turn + 1 >= (s.order || []).length ? t.tt_final : t.tt_next, "roomAct('next')")}</div>`)}
         </div>`;
     }
     return `

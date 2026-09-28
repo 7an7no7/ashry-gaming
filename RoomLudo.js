@@ -192,7 +192,7 @@ const ludoAction = (room, playerId, action, payload) => {
   if (!s || !s.phase || !Array.isArray(s.seats)) throw new Error('اللعبة لم تبدأ بعد');
 
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'play' || staleTap(p, 'seq', s.turnSeq)) return;
     ludoAuto(room, 'host');
     ludoAfter(room);

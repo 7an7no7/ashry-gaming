@@ -2430,7 +2430,7 @@ function bsRoomFleetsHtml(state) {
 /** The host's way on for a phone that went quiet: after 40 seconds on one step, or at once for one that's away. */
 function bsHostRow(state, tv) {
   const s = state.shared || {};
-  if (!state.youAreHost || (s.phase !== 'play' && s.phase !== 'place')) return '';
+  if (!roomCanMoveOn(state) || (s.phase !== 'play' && s.phase !== 'place')) return '';
   const key = [state.code, s.round, s.turnSeq].join('|');
   if (bsRoomLocal.turnKey !== key) { bsRoomLocal.turnKey = key; bsRoomLocal.turnSince = Date.now(); }
   const waitingOn = s.phase === 'place' ? (s.seats || []).filter((id, k) => !s.ready[k]) : [s.seats[s.turn]];

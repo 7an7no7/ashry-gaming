@@ -338,7 +338,7 @@ function omActionsHtml(state) {
 
 function omHostButtons(state) {
   const s = omShared(state);
-  if (!state.youAreHost || s.phase !== 'play' || !s.turn) return [];
+  if (!roomCanMoveOn(state) || s.phase !== 'play' || !s.turn) return [];
   const p = (state.players || []).find(x => x.id === s.turn.pid);
   if (p && p.online) return [];
   return [['⏭️ ' + pcT('om_skip_turn', { name: pcName(state, s.turn.pid) }), "omAct(this, 'skipTurn')"]];
@@ -815,7 +815,7 @@ function omTvTable(state) {
   const half = Math.ceil(seats.length / 2);
   const top = seats.slice(0, half);
   const bottom = seats.slice(half).reverse();
-  const host = state.youAreHost && s.phase === 'play' && s.turn ? '<span data-om-host class="om-tv__host"></span>' : '';
+  const host = s.phase === 'play' && s.turn ? '<span data-om-host class="om-tv__host"></span>' : '';
   const title = s.turn ? pcT('om_drawing', { name: pcName(state, s.turn.pid), from: pcName(state, s.turn.from) }) : '';
   return `<div class="om-tv">
       <div class="om-tv__ring">${top.map(pid => omSeatHtml(state, pid, true)).join('')}</div>

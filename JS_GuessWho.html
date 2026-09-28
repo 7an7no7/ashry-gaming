@@ -605,7 +605,7 @@ function gwTickClock(state) {
 /** The host's way on for a phone that went quiet: after 40 seconds on one turn, or at once for one that's away. */
 function gwHostRow(state, tv) {
   const s = state.shared || {};
-  if (!state.youAreHost || (s.phase !== 'play' && s.phase !== 'pick')) return '';
+  if (!roomCanMoveOn(state) || (s.phase !== 'play' && s.phase !== 'pick')) return '';
   const key = [state.code, s.round, s.turnSeq].join('|');
   if (gwLocal.turnKey !== key) {
     gwLocal.turnKey = key; gwLocal.turnSince = Date.now();

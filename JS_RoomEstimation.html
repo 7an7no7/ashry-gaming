@@ -555,9 +555,9 @@ function esResultHtml(state, h, tv) {
 function esRoundFrame(state) {
   const s = esShared(state);
   const t = TRANSLATIONS[appState.lang] || {};
-  const next = state.youAreHost
-    ? `<div class="btn-stack"><button type="button" class="btn btn--primary btn--lg" onclick="esAct(this, 'nextRound')">${escapeHTML(esT('es_next_round', { n: (s.round || 0) + 1 }))}</button></div>`
-    : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`;
+  const next = roomMoveOnHtml(state,
+    `<div class="btn-stack"><button type="button" class="btn btn--primary btn--lg" onclick="esAct(this, 'nextRound')">${escapeHTML(esT('es_next_round', { n: (s.round || 0) + 1 }))}</button></div>`,
+    `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`);
   return `<div class="es es--round">
       ${esHeadHtml(state)}
       ${esResultHtml(state, s.results, false)}
@@ -601,7 +601,7 @@ function esOverFrame(state) {
 
 function esHostButtons(state) {
   const s = esShared(state);
-  if (!state.youAreHost || ['dash', 'bid', 'call', 'play'].indexOf(s.phase) === -1) return [];
+  if (!roomCanMoveOn(state) || ['dash', 'bid', 'call', 'play'].indexOf(s.phase) === -1) return [];
   const quiet = (k) => {
     const p = (state.players || []).find(x => x.id === esSeats(state)[k]);
     return p && !p.online && !p.bot;
@@ -1042,7 +1042,7 @@ function esTvTurnWords(state) {
 }
 
 function esTvTable(state) {
-  const host = state.youAreHost ? '<span data-es-host class="es-tv__host"></span>' : '';
+  const host = '<span data-es-host class="es-tv__host"></span>';
   return `<div class="es-tv">
       <div class="es-tv__table">${esTableHtml(state, true)}</div>
       <div class="es-tv__side">
@@ -1080,9 +1080,9 @@ TV_GAMES.estimation = {
     if (s.phase === 'roundOver' || s.phase === 'gameover') {
       const over = s.phase === 'gameover';
       const w = s.winners || [];
-      const host = state.youAreHost ? `<div class="tv-actions">${over
-        ? tvBtn(t.play_again || '', "esAct(this, 'playAgain', { botNames: ROOM_GAMES.estimation.startPayload().botNames })") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')
-        : tvBtn(esT('es_next_round', { n: (s.round || 0) + 1 }), "esAct(this, 'nextRound')")}</div>` : '';
+      const host = over
+        ? (state.youAreHost ? `<div class="tv-actions">${tvBtn(t.play_again || '', "esAct(this, 'playAgain', { botNames: ROOM_GAMES.estimation.startPayload().botNames })") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>` : '')
+        : roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(esT('es_next_round', { n: (s.round || 0) + 1 }), "esAct(this, 'nextRound')")}</div>`);
       return `<div class="es-tvres">
           ${over ? `<div class="tv-big-icon" aria-hidden="true">🏆</div><div class="tv-title tv-center-text">${escapeHTML(w.length > 1
             ? esT('es_won_shared', { names: esNamesList(state, w) })

@@ -99,7 +99,7 @@ const chairsAction = (room, playerId, action, payload) => {
     return;
   }
   if (action === 'nextRound') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'result') return;
     chairsStartRound(room);
     return;

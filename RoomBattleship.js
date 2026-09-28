@@ -180,7 +180,7 @@ const battleshipAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if ((s.phase !== 'play' && s.phase !== 'place') || staleTap(p, 'seq', s.turnSeq)) return;
     bsAuto(room);
     return;

@@ -26,6 +26,14 @@ const ONLINE_WINDOW_MS = 20000;
 const SOCKET_SILENT_MS = 70000;
 // A host gone this long while others are still here hands the room on.
 const HOST_AWAY_MS = 120000;
+// A host gone this long lets anyone in the room press the host's "move on"
+// buttons (the next round, closing a vote, playing for a quiet phone): the owner,
+// 28 Sep 2026. The host stays the host; the handover above is unchanged.
+const HOST_STAND_IN_MS = 20000;
+// A host's socket that has missed a ping (every 25s) by this much is a locked
+// phone whose socket never closed: away since it was last heard. Only watched
+// while a game is on, so an idle hub doesn't wake the room more often.
+const HOST_QUIET_MS = 40000;
 // A round's timeout that threw is tried again after this, not in a tight loop.
 const TIMEOUT_RETRY_MS = 30000;
 // Rooms delete themselves: after this long with no moves and nobody connected...
@@ -184,9 +192,35 @@ export class Room extends DurableObject {
     return null;
   }
 
+  /**
+   * Since when the host has been away, or null while they are here. A socket
+   * still open but not heard for HOST_QUIET_MS counts as away since it was
+   * last heard (a locked phone), while a game is on.
+   */
+  hostAwaySince(online = this.onlineIds(), now = Date.now()) {
+    const room = this.room;
+    const hostId = room.hostId;
+    if (online.has(hostId)) {
+      const polled = this.polled.get(hostId);
+      if (polled && now - polled < ONLINE_WINDOW_MS) return null;
+      if (!room.game || room.phase === 'lobby') return null;
+      const heard = this.heardAt(hostId);
+      return heard !== null && now - heard >= HOST_QUIET_MS ? heard : null;
+    }
+    return (room.lastSeen && room.lastSeen[hostId]) || this.heardAt(hostId) || null;
+  }
+
+  /** True once the host has been away HOST_STAND_IN_MS: anyone may move the game on (requireHost). */
+  hostAway(online = this.onlineIds(), now = Date.now()) {
+    // Only while a game is on: the hub and the lobby are the host's (choosing, settings).
+    if (!this.room || !this.room.game || this.room.phase === 'lobby') return false;
+    const since = this.hostAwaySince(online, now);
+    return since !== null && now - since >= HOST_STAND_IN_MS;
+  }
+
   /** What one player may see: the shared state and their own secret (view.js). */
-  project(pid, online) {
-    return roomView(this.room, pid, online);
+  project(pid, online, away = this.hostAway(online)) {
+    return roomView(this.room, pid, online, { hostAway: away });
   }
 
   /**
@@ -198,6 +232,8 @@ export class Room extends DurableObject {
   broadcast({ skip = null, leaving = null, patch = null } = {}) {
     if (!this.room) return;
     const online = this.onlineIds(leaving);
+    const away = this.hostAway(online);
+    this.awayShown = away;
     const patchText = patch ? JSON.stringify(patch) : null;
     const views = new Map();
     for (const ws of this.openSockets(leaving)) {
@@ -206,7 +242,7 @@ export class Room extends DurableObject {
       if (!pid) continue;
       let text = patchText || views.get(pid);
       if (!text) {
-        text = JSON.stringify({ t: 'state', state: this.project(pid, online) });
+        text = JSON.stringify({ t: 'state', state: this.project(pid, online, away) });
         views.set(pid, text);
       }
       try { ws.send(text); } catch (e) {}
@@ -351,16 +387,26 @@ export class Room extends DurableObject {
         roomEvent(this.room, 'host', { name: heir.name || '📺' });
         changed = true;
       } else if (heir) {
+        // The stand-ins' moment first (everyone's phone shows the host's buttons), then the handover.
+        if (now < leftAt + HOST_STAND_IN_MS) soonest(leftAt + HOST_STAND_IN_MS);
         soonest(leftAt + HOST_AWAY_MS);
       }
     }
 
     // While the host holds a socket, look again when it would fall silent: a
     // socket that dies without closing wakes nothing, so nothing else notices.
+    // With a game on, sooner: a locked phone missing its pings lets stand-ins in.
     if (online.has(this.room.hostId)) {
       const heard = this.heardAt(this.room.hostId);
-      if (heard !== null) soonest(Math.max(heard + SOCKET_SILENT_MS + 1000, now + 5000));
+      const quiet = this.room.game && this.room.phase !== 'lobby' ? HOST_QUIET_MS : SOCKET_SILENT_MS;
+      if (heard !== null) {
+        soonest(Math.max(heard + SOCKET_SILENT_MS + 1000, now + 5000));
+        if (heard + quiet + 1000 > now) soonest(heard + quiet + 1000);
+      }
     }
+
+    // The host's buttons open to everyone, or close again: every phone is told.
+    if (!changed && this.hostAway(this.onlineIds(), now) !== !!this.awayShown) presence = true;
 
     if (changed) {
       this.touch();
@@ -476,11 +522,15 @@ export class Room extends DurableObject {
     // so they work on a copy that only replaces the room if the move is legal.
     const before = this.room;
     const next = structuredClone(before);
+    // For this one move only: whether the host has been away long enough for
+    // anyone to press their "move on" buttons (requireHost in RoomGames.js).
+    if (pid !== before.hostId && this.hostAway()) next._hostAway = true;
     try {
       withPromptMemory(memory, () => applyRoomAction(next, pid, action, payload));
     } catch (err) {
       return { ok: false, error: errorText(err) };
     }
+    delete next._hostAway;
     // A cheer the rules let go (too many too fast, or no game on): nothing changed,
     // so nothing is saved or sent to the others - a tap-happy watcher used to push a
     // whole state to every phone on each tap. The phone that sent it gets its own view.
@@ -513,7 +563,10 @@ export class Room extends DurableObject {
       this.env.WORDS.get(this.env.WORDS.idFromName('plays'))
         .add([{ lang: mode, cat: new Date().toISOString().slice(0, 7), word: String(next.game), keep: true }]).catch(() => {});
     }
-    if (!quick) await this.scheduleAlarm();
+    // The host's move while a game is on: look again when their socket would
+    // count as quiet (HOST_QUIET_MS), so a phone locked mid-game lets stand-ins in.
+    const watchHost = pid === next.hostId && next.game && next.phase !== 'lobby';
+    if (!quick) await this.scheduleAlarm(watchHost ? Date.now() + HOST_QUIET_MS + 1000 : undefined);
 
     // New strokes go out as just the strokes: resending a whole drawing to every
     // phone a few times a second would be most of a phone's data.
@@ -703,12 +756,14 @@ export class Room extends DurableObject {
       this.save(true);
     }
     server.send(JSON.stringify({ t: 'state', state: this.project(pid, this.onlineIds()) }));
-    if (!wasOnline) {
+    // The host back from a locked phone (its old socket was still counted as
+    // here): everyone's stand-in buttons go away.
+    if (!wasOnline || (pid === this.room.hostId && this.awayShown)) {
       this.broadcast({ skip: server });
       await this.reportLive();
     }
     // The host's socket is watched: the alarm looks again when it would fall silent.
-    if (pid === this.room.hostId) await this.scheduleAlarm(Date.now() + SOCKET_SILENT_MS + 1000);
+    if (pid === this.room.hostId) await this.scheduleAlarm(Date.now() + (this.room.game ? HOST_QUIET_MS : SOCKET_SILENT_MS) + 1000);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -823,6 +878,7 @@ export class Room extends DurableObject {
     this.save(true);
     this.broadcast({ leaving: ws });
     await this.reportLive(ws);
-    if (pid === this.room.hostId) await this.scheduleAlarm(Date.now() + HOST_AWAY_MS);
+    // The stand-ins' moment first; the alarm then waits for the handover.
+    if (pid === this.room.hostId) await this.scheduleAlarm(this.room.lastSeen[pid] + HOST_STAND_IN_MS + 500);
   }
 }

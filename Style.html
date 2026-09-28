@@ -6130,6 +6130,37 @@ body.has-fx.has-chat:not(.is-tv-view) .chat-fab { display: inline-flex; }
   cursor: pointer;
 }
 .turn-banner[hidden] { display: none; }
+
+/* --- the host away: anyone can move the game on (roomMoveOnHtml, JS_Room.html) --- */
+/* Drawn for everyone, shown to non-hosts only while the host is away, so a frame
+   never has to be rebuilt (and lose what is typed) when that changes. */
+.room-moveon { display: none; }
+.room-moveon-not { display: contents; }
+body.room-host-away .room-moveon { display: contents; }
+body.room-host-away .room-moveon-not { display: none; }
+.room-host-away-note {
+  position: fixed;
+  z-index: var(--z-float);
+  top: calc(var(--safe-top) + var(--header-h) + var(--sp-2));
+  inset-inline: var(--sp-4);
+  width: fit-content;
+  max-width: 26rem;
+  margin-inline: auto;
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--warning);
+  border-radius: 999px;
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: var(--sh-2);
+  font: 600 var(--fs-sm) / 1.4 var(--font);
+  text-align: center;
+  pointer-events: none;
+  display: none;
+}
+body.room-host-away.in-room-game .room-host-away-note:not([hidden]),
+body.room-host-away.is-tv-view .room-host-away-note:not([hidden]) { display: block; animation: turnIn var(--dur-3) var(--ease-spring); }
+body.is-tv-view .room-host-away-note { top: calc(var(--safe-top) + 4.5vmin); font-size: 2.2vmin; }
+@media (prefers-reduced-motion: reduce) { .room-host-away-note { animation: none !important; } }
 .turn-banner.is-in { animation: turnIn var(--dur-3) var(--ease-spring); }
 .turn-banner__bell { font-size: 1.6rem; line-height: 1; }
 .turn-banner__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }

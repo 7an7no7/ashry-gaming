@@ -114,19 +114,19 @@ function wavelengthFrame(state, t, psychicAway) {
     } else {
       panel = `
         <div class="waiting-note"><span class="animate-pulse">🧠</span> ${t.wl_waiting_clue || ''} <bdi>${escapeHTML(s.psychicName || '')}</bdi>…</div>
-        ${psychicAway && state.youAreHost ? `
+        ${psychicAway ? roomMoveOnHtml(state, `
           <div class="btn-stack">
             <button class="btn btn--ghost btn--sm" onclick="roomAct('nextRound', ${roomNextArgs(state, { skip: true })})">${t.wl_skip_psychic || ''}</button>
-          </div>` : ''}`;
+          </div>`) : ''}`;
     }
   } else if (s.phase === 'dial') {
     panel = `
       ${amPsychic
         ? `<div class="waiting-note">🤐 ${t.wl_psychic_quiet || ''}</div>`
         : `<p class="field__hint" style="text-align:center">${t.team_adjust_dial || ''}</p>`}
-      ${state.youAreHost
-        ? `<div class="btn-stack"><button onclick="lockWavelengthDial()" class="btn btn--primary btn--lg">${t.lock_dial_btn || ''}</button></div>`
-        : `<div class="waiting-note">${t.wl_host_locks || ''}</div>`}`;
+      ${roomMoveOnHtml(state,
+        `<div class="btn-stack"><button onclick="lockWavelengthDial()" class="btn btn--primary btn--lg">${t.lock_dial_btn || ''}</button></div>`,
+        `<div class="waiting-note">${t.wl_host_locks || ''}</div>`)}`;
   } else if (s.phase === 'results') {
     const verdict = { 4: t.bullseye, 3: t.very_close, 2: t.close_points }[s.pointsEarned] || t.miss_points;
     panel = `

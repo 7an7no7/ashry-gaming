@@ -140,7 +140,7 @@ function vcVoteResign() {
 
 function vcCloseNow() {
   const state = Room.state;
-  if (!state || !state.youAreHost || !vcShared(state).vote) return;
+  if (!state || !roomCanMoveOn(state) || !vcShared(state).vote) return;
   roomAct('closeVote', { n: vcShared(state).chess.moves });
 }
 
@@ -280,7 +280,7 @@ function vcBarHtml(state) {
   } else if (vcMyTeam(state) === -1) {
     parts.push(`<p class="field__hint" style="text-align:center">${escapeHTML(chT('vc_watching'))}</p>`);
   }
-  if (state.youAreHost) parts.push(roomHostRow([['⏭️ ' + chT('vc_close_now'), 'vcCloseNow()']]));
+  if (roomCanMoveOn(state)) parts.push(roomHostRow([['⏭️ ' + chT('vc_close_now'), 'vcCloseNow()']]));
   return parts.join('');
 }
 
@@ -452,7 +452,7 @@ TV_GAMES.votechess = {
       <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(vcStatus(state, true))}</div>
       <div class="tv-scale">${vcTallyHtml(state, true)}</div>
       ${over ? '' : `<div class="ch-tv__moves">${chMovesHtml(s.chess.sans, { current: s.chess.sans.length - 1, start: s.chess.start || '' })}</div>`}
-      ${state.youAreHost && s.vote ? `<div class="tv-actions">${tvBtn('⏭️ ' + chT('vc_close_now'), 'vcCloseNow()', 'ghost')}</div>` : ''}
+      ${roomCanMoveOn(state) && s.vote ? `<div class="tv-actions">${tvBtn('⏭️ ' + chT('vc_close_now'), 'vcCloseNow()', 'ghost')}</div>` : ''}
       ${over && state.youAreHost ? `<div class="tv-actions">${tvBtn('🔁 ' + chT('vc_again'), "roomAct('playAgain', {})", 'primary')}</div>` : ''}`;
     const side = view.querySelector('[data-ch-tvside]');
     if (side && side._chHtml !== html) {

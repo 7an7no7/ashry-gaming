@@ -81,8 +81,8 @@ function renderVoteProgress(state) {
   return `
     <div class="vote-progress">
       <span>${t.vote_count || 'صوّت'}: ${ltrFrac(v.voted.length, v.eligible.length)}</span>
-      ${state.youAreHost && v.phase === 'voting'
-        ? `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('closeVote')">${t.vote_close || 'اقفل التصويت'}</button>`
+      ${v.phase === 'voting'
+        ? roomMoveOnHtml(state, `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('closeVote')">${t.vote_close || 'اقفل التصويت'}</button>`)
         : ''}
     </div>`;
 }
@@ -141,11 +141,11 @@ function renderScoreboard(board, title) {
 /** Host gets "next round" and "another game"; everyone else waits. */
 function renderRoundFooter(state, nextLabel) {
   const t = TRANSLATIONS[appState.lang];
-  if (!state.youAreHost) return `<div class="waiting-note">${t.room_wait_host}</div>`;
-  return `<div class="btn-stack">
+  // The next round is anyone's once the host is away (roomMoveOnHtml); another game stays the host's.
+  return roomMoveOnHtml(state, `<div class="btn-stack">
       <button onclick="roomAct('nextRound', ${roomNextArgs(state)})" class="btn btn--primary btn--lg">${nextLabel}</button>
-      <button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>
-    </div>`;
+      ${state.youAreHost ? `<button onclick="roomAct('backToHub')" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>` : ''}
+    </div>`, `<div class="waiting-note">${t.room_wait_host}</div>`);
 }
 
 const langLobbyOptions = (state, hintKey) => {
@@ -244,7 +244,7 @@ ROOM_GAMES.fibbage = {
                <button onclick="submitFibbageLie()" class="btn btn--primary btn--lg">${t.send || 'إرسال'}</button>
                <p class="field__hint">${t.fib_lie_hint || 'الهدف إن الناس تصدقها وتختارها'}</p>`}
         </div>
-        ${state.youAreHost ? roomHostRow([[fibCloseWritingLabel(t), "roomAct('closeWriting')"]]) : ''}` + renderRoomPlayerStrip(state));
+        ${roomMoveOnHtml(state, roomHostRow([[fibCloseWritingLabel(t), "roomAct('closeWriting')"]]))}` + renderRoomPlayerStrip(state));
       refreshRoomPlayerStrip(el, state);
       return;
     }

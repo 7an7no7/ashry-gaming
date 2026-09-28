@@ -20,9 +20,23 @@ const shuffled = (arr) => {
   return out;
 };
 
-const requireHost = (room, playerId) => {
-  if (room.hostId !== playerId) throw new Error('دي للمضيف بس');
+/**
+ * Host-only moves. `standIn` marks a move that only gets the room moving (the
+ * next round, closing a vote, playing for a quiet phone): once the host has been
+ * away HOST_STAND_IN_MS (the owner, 28 Sep 2026: 20 seconds), anyone in the room
+ * may make it, so a table never freezes behind a locked phone. `room._hostAway`
+ * is stamped by room.js for the length of one move (the rules can't see who is
+ * connected); room.js already checked that `playerId` is a person or a screen in
+ * the room, so only a computer player is turned away here. Settings, seating,
+ * dealing a new game and taking someone out stay the host's alone.
+ */
+const requireHost = (room, playerId, standIn) => {
+  if (room.hostId === playerId) return;
+  if (standIn && room._hostAway && !isRoomBot(room, playerId)) return;
+  throw new Error('دي للمضيف بس');
 };
+/** A move that gets the room moving: the host's, or anyone's once the host is away (requireHost). */
+const requireMoveOn = (room, playerId) => requireHost(room, playerId, true);
 
 /**
  * Clears a game down to nothing, but remembers the sides people picked.
@@ -53,6 +67,7 @@ const clearGameState = (room) => {
   room._voteOwners = null;
   room._fibTruthId = null;
   room._joWord = null;
+  room._joWords = null;
   room._fakeId = null;
   room._target = null;
   room._deck = null;
@@ -753,7 +768,7 @@ const foldArabicLetters = (text) => String(text || '').toLowerCase()
 
 const stopAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound' || action === 'playAgain') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
     const prev = room.shared || {};
 
@@ -953,7 +968,7 @@ const CHAMELEON_GRID = 16;
 
 const chameleonRoomAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
     const prev = room.shared || {};
     if (action === 'nextRound' && prev.phase !== 'results') return;
@@ -989,7 +1004,7 @@ const chameleonRoomAction = (room, playerId, action, payload) => {
   if (!s || room.phase !== 'play') throw new Error('اللعبة لم تبدأ بعد');
 
   if (action === 'startVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'clues') return;
     openVote(room, room.players.filter(p => s.roster.indexOf(p.id) !== -1).map(p => ({ id: p.id, label: p.name, ownerId: p.id })), s.roster);
     s.phase = 'voting';
@@ -1001,7 +1016,7 @@ const chameleonRoomAction = (room, playerId, action, payload) => {
     return;
   }
   if (action === 'closeVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'voting') return;
     if (closeVote(room)) resolveChameleonVote(room);
     return;
@@ -1015,7 +1030,7 @@ const chameleonRoomAction = (room, playerId, action, payload) => {
     return;
   }
   if (action === 'skipGuess') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'guess') return;
     finishChameleon(room, 'caught', null);
     return;
@@ -1079,7 +1094,7 @@ const SPYFALL_CARD = 24;         // places shown per round, the real one among t
 
 const spyfallRoomAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
     const prev = room.shared || {};
     if (action === 'nextRound' && prev.phase !== 'results') return;
@@ -1130,7 +1145,7 @@ const spyfallRoomAction = (room, playerId, action, payload) => {
   if (!s || room.phase !== 'play') throw new Error('اللعبة لم تبدأ بعد');
 
   if (action === 'startVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'play') return;
     openSpyfallVote(room);
     return;
@@ -1141,7 +1156,7 @@ const spyfallRoomAction = (room, playerId, action, payload) => {
     return;
   }
   if (action === 'closeVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'voting') return;
     if (closeVote(room)) resolveSpyfallVote(room);
     return;
@@ -1156,7 +1171,7 @@ const spyfallRoomAction = (room, playerId, action, payload) => {
     return;
   }
   if (action === 'skipGuess') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'guess') return;
     finishSpyfall(room, 'caught', null, s.guesserId);
     return;
@@ -1226,7 +1241,7 @@ const BOMB_HEAT_AT = [0.4, 0.65, 0.85];
 
 const bombRoomAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound' || action === 'playAgain') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
     const prev = room.shared || {};
     if (action === 'nextRound' && prev.phase !== 'boom') return;
@@ -1534,7 +1549,7 @@ const imposterAction = (room, playerId, action, payload) => {
   const s = room.shared;
 
   if (action === 'beginDiscussion') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (room.phase !== 'reveal') return;
     room.phase = 'discuss';
     s.startedAt = Date.now();
@@ -1542,7 +1557,7 @@ const imposterAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'startVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (room.phase !== 'discuss') return;
     openVote(room, room.players.filter(p => s.roster.indexOf(p.id) !== -1).map(p => ({ id: p.id, label: p.name, ownerId: p.id })), s.roster);
     room.phase = 'voting';
@@ -1554,7 +1569,7 @@ const imposterAction = (room, playerId, action, payload) => {
     return;
   }
   if (action === 'closeVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (room.phase !== 'voting') return;
     if (closeVote(room)) resolveImposterVote(room);
     return;
@@ -1568,14 +1583,14 @@ const imposterAction = (room, playerId, action, payload) => {
     return;
   }
   if (action === 'skipGuess') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (room.phase !== 'guess') return;
     finishImposter(room, 'caught', null);
     return;
   }
   if (action === 'revealResult') {
     // The host ends it without a vote: the answer is shown, nobody scores.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (room.phase !== 'discuss' && room.phase !== 'voting') return;
     finishImposter(room, 'revealed', null);
     return;
@@ -1643,7 +1658,7 @@ const finishImposter = (room, outcome, guess) => {
    ========================================================================== */
 const justOneAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     const prev = room.shared || {};
     // From the result only, so a double tap can't deal a round nobody played.
     if (action === 'nextRound' && prev.phase !== 'result') return;
@@ -1654,8 +1669,12 @@ const justOneAction = (room, playerId, action, payload) => {
     const guesserIndex = (roundNo - 1) % room.players.length;
     const guesser = room.players[guesserIndex];
 
-    const words = payload.words && payload.words.length
-      ? payload.words
+    // The host's list is kept for the rounds after: a stand-in's next round (the
+    // host away, requireHost) deals from it, never from a list of its own phone's.
+    if (room.hostId === playerId && Array.isArray(payload.words) && payload.words.length) room._joWords = payload.words.slice(0, 2000);
+    else if (action === 'start') room._joWords = null;
+    const words = room._joWords && room._joWords.length
+      ? room._joWords
       : unlockedSpyWords();
     const secret = words[Math.floor(Math.random() * words.length)];
 
@@ -1704,7 +1723,7 @@ const justOneAction = (room, playerId, action, payload) => {
   if (action === 'closeWriting') {
     // A writer whose phone died must not hold the table: the host goes on with
     // the clues that are in.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (room.shared.phase !== 'writing') return;
     revealJustOneClues(room);
     return;
@@ -1728,14 +1747,14 @@ const justOneAction = (room, playerId, action, payload) => {
 
   if (action === 'skipGuess') {
     // The guesser has gone quiet: the word is shown and nobody scores.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (room.shared.phase !== 'guessing') return;
     skipJustOneRound(room);
     return;
   }
 
   if (action === 'judge') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     const s = room.shared;
     // Judging twice used to award two points.
     if (s.phase !== 'judging') throw new Error('لا يوجد تخمين للحكم عليه');
@@ -1908,7 +1927,7 @@ const whoAmIAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'reveal') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (room.phase !== 'playing') return;
     revealWhoAmI(room);
     return;
@@ -2204,7 +2223,7 @@ const codenamesAction = (room, playerId, action, payload) => {
   if (action === 'passTurn') {
     // The host moves the game on when a team is stuck: a spymaster who went
     // quiet before the clue, or a team that won't pass.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (room.phase !== 'playing' || s.winner) return;
     // The team the host meant to pass: a double tap would otherwise pass the
     // other team's turn straight back.
@@ -2609,7 +2628,7 @@ const activeRoster = (room, roster) => {
    ========================================================================== */
 const wouldYouRatherAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     // From the results only: a double tap must not skip a question unseen.
     const vote = room.shared && room.shared.vote;
     if (action === 'nextRound' && !(vote && vote.phase === 'results')) return;
@@ -2636,7 +2655,7 @@ const wouldYouRatherAction = (room, playerId, action, payload) => {
     castVote(room, playerId, String(payload.option || ''));
     return;
   }
-  if (action === 'closeVote') { requireHost(room, playerId); closeVote(room); return; }
+  if (action === 'closeVote') { requireMoveOn(room, playerId); closeVote(room); return; }
 
   throw new Error('إجراء غير معروف');
 };
@@ -2647,7 +2666,7 @@ const wouldYouRatherAction = (room, playerId, action, payload) => {
    ========================================================================== */
 const mostLikelyAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     // From the results only: a double tap must not skip a question unseen.
     if (action === 'nextRound' && (room.shared || {}).phase !== 'results') return;
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
@@ -2673,7 +2692,7 @@ const mostLikelyAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'closeVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (closeVote(room)) scoreMostLikely(room);
     return;
   }
@@ -2701,7 +2720,7 @@ const FIBBAGE_FOOL_POINTS = 500;
 
 const fibbageAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     // From the results only: a double tap must not skip a question unseen.
     if (action === 'nextRound' && (room.shared || {}).phase !== 'results') return;
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
@@ -2755,7 +2774,7 @@ const fibbageAction = (room, playerId, action, payload) => {
   if (action === 'closeWriting') {
     // A writer whose phone died must not hold the table: the vote opens on
     // the lies that are in (and on the truth alone, if nobody wrote).
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (room.shared.phase !== 'writing') return;
     openFibbageVote(room);
     return;
@@ -2767,7 +2786,7 @@ const fibbageAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'closeVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (closeVote(room)) scoreFibbage(room);
     return;
   }
@@ -2956,7 +2975,7 @@ const DRAW_TOOL_POINTS = { l: 4, r: 4, o: 4, b: 2 };
 
 const drawGuessAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     // Once the word is out only (a win or a reveal), so a double tap can't skip a drawer.
     if (action === 'nextRound' && !(room.shared && room.shared.word)) return;
     if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
@@ -3138,7 +3157,7 @@ const FAKE_ARTIST_MAX_POINTS = 150;
 
 const fakeArtistAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     // Only from the results screen, so a double tap can't deal two rounds.
     if (action === 'nextRound' && room.shared.phase !== 'results') return;
     if (room.players.length < 3) throw new Error('الحد الأدنى 3 لاعبين');
@@ -3201,7 +3220,7 @@ const fakeArtistAction = (room, playerId, action, payload) => {
   // The tap names the turn it was meant for ({ turn: turnIndex, round }), so a
   // double tap doesn't skip the next artist too.
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (staleTap(payload, 'turn', s.turnIndex) || staleTap(payload, 'round', s.round)) return;
     if (s.phase === 'drawing') advanceFakeArtistTurn(room);
     return;
@@ -3216,7 +3235,7 @@ const fakeArtistAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'closeVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'voting') return;
     closeVote(room);
     revealFakeArtist(room);
@@ -3235,7 +3254,7 @@ const fakeArtistAction = (room, playerId, action, payload) => {
 
   // The caught fake left, or won't answer: the host settles it for the artists.
   if (action === 'skipGuess') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase === 'guessing') finishFakeArtist(room, 'artists');
     return;
   }
@@ -3315,7 +3334,7 @@ const WAVELENGTH_BANDS = [
 
 const wavelengthAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound') {
-    requireHost(room, playerId);
+    requireHost(room, playerId, action === 'nextRound');
     const prev = room.shared || {};
     // From the results only (a double tap must not skip someone's turn as
     // psychic) — unless the host is deliberately skipping a silent psychic.
@@ -3374,7 +3393,7 @@ const wavelengthAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'lockDial') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     // Once only: a second tap must not score the same round twice.
     if (s.phase !== 'dial') return;
     const diff = Math.abs(s.dial - room._target);
@@ -3464,7 +3483,7 @@ const triviaAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'nextQuestion') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     // From the results only: a double tap must not skip a question unseen.
     if (s.phase !== 'results') return;
     const next = (room._qIdx || 0) + 1;
@@ -4085,7 +4104,7 @@ const twoTruthsAction = (room, playerId, action, payload) => {
   if (action === 'closeWriting') {
     // The host starts with whoever has written; a phone that never sends
     // must not hold the table.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'writing') return;
     if (s.submitted.length < 1) throw new Error('محدش كتب لسه');
     s.order = shuffled(s.submitted.slice());
@@ -4103,14 +4122,14 @@ const twoTruthsAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'closeVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'voting') return;
     if (closeVote(room)) resolveTwoTruths(room);
     return;
   }
 
   if (action === 'next') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'result') return;
     nextTwoTruthsTurn(room);
     return;
@@ -4245,7 +4264,7 @@ const quizAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'nextQuestion') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'results') return;
     const next = (room._qIdx || 0) + 1;
     if (next >= (room._deck || []).length) {
@@ -4358,7 +4377,7 @@ const fiveSecondsAction = (room, playerId, action, payload) => {
   if (action === 'judge') {
     // From the judging phase, or early: a player who named three things in two
     // seconds doesn't have to wait for the clock.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'judging' && s.phase !== 'counting') return;
     const ok = !!(payload && payload.ok);
     if (ok) addScore(room, s.turnId, 1);
@@ -4370,7 +4389,7 @@ const fiveSecondsAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'ready') return;
     // The player the host meant to skip: a double tap must not skip the next one too.
     if (staleTap(payload, 'turnId', s.turnId)) return;
@@ -4489,7 +4508,7 @@ const telephoneAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'revealNext' || action === 'revealBack') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'reveal') return;
     const r = s.reveal;
     // The step the host was looking at: a double tap must not flash a drawing
@@ -4734,7 +4753,7 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'skip') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     advanceMonkey(room, s.turn);
     return;
   }
@@ -4904,7 +4923,7 @@ const herdAction = (room, playerId, action, payload) => {
   if (!s || !s.phase) throw new Error('اللعبة لم تبدأ بعد');
 
   if (action === 'nextRound') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'result') return;
     dealHerdRound(room);
     return;
@@ -4924,7 +4943,7 @@ const herdAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'closeWriting') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'writing') return;
     if (s.submitted.length < 2) throw new Error('لسه محدش كتب كفاية');
     revealHerd(room);
@@ -4956,7 +4975,7 @@ const herdAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'score') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'reveal') return;
     scoreHerd(room);
     return;
@@ -5193,7 +5212,7 @@ const mindAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'nextLevel') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'levelDone') return;
     dealMindLevel(room, s.level + 1);
     return;
@@ -5398,7 +5417,7 @@ const timelineAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'play') return;
     // The player the host meant to skip: a double tap, or a skip crossing the
     // player's own move, must not skip the next one too.
@@ -5539,7 +5558,7 @@ const mafiaAction = (room, playerId, action, payload) => {
   const alive = s.alive.indexOf(playerId) !== -1;
 
   if (action === 'startNight') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'roles' && s.phase !== 'dayResult') return;
     mafiaStartNight(room);
     return;
@@ -5575,7 +5594,7 @@ const mafiaAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'endNight') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'night') return;
     mafiaEndNight(room);
     return;
@@ -5589,7 +5608,7 @@ const mafiaAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'startVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'day') return;
     mafiaOpenVote(room);
     return;
@@ -5602,7 +5621,7 @@ const mafiaAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'closeVote') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'voting') return;
     if (closeVote(room)) mafiaResolveVote(room);
     return;
@@ -5845,7 +5864,7 @@ const screwMove = (room, me, action, p) => {
       return;
     }
     case 'beginRound':
-      requireHost(room, me);
+      requireMoveOn(room, me);
       if (s.phase !== 'memorize') return;
       screwBeginPlay(room);
       return;
@@ -6073,7 +6092,7 @@ const screwMove = (room, me, action, p) => {
       return;
     }
     case 'closeThiefVote':
-      requireHost(room, me);
+      requireMoveOn(room, me);
       if (s.phase !== 'thiefGuess') return;
       screwCloseVote(room);
       return;
@@ -6090,19 +6109,19 @@ const screwMove = (room, me, action, p) => {
       return;
     }
     case 'closeBoom':
-      requireHost(room, me);
+      requireMoveOn(room, me);
       if (s.phase !== 'play' || !s.turn || s.turn.stage !== 'boom') return;
       screwBoomResolve(room);
       return;
     case 'nextRound':
-      requireHost(room, me);
+      requireMoveOn(room, me);
       if (s.phase !== 'reveal') return;
       if (screwSeated(room).length < 2) { screwGameOver(room); return; }
       screwDeal(room);
       return;
     case 'skipTurn':
       // The player up is gone: their drawn card goes to the pile, the turn passes.
-      requireHost(room, me);
+      requireMoveOn(room, me);
       screwSkip(room);
       return;
     default:

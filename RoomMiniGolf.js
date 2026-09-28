@@ -279,7 +279,7 @@ const minigolfAction = (room, playerId, action, payload) => {
 
   if (action === 'putt' || action === 'playFor') {
     const target = action === 'playFor' ? String(p.target || '') : playerId;
-    if (action === 'playFor') requireHost(room, playerId);
+    if (action === 'playFor') requireMoveOn(room, playerId);
     if (s.phase !== 'play' || staleTap(p, 'hole', s.hole)) return;
     const b = s.balls[target];
     if (!b) throw new Error(action === 'playFor' ? 'اللاعب ده مش في اللعبة' : 'انت بتتفرج الجيم ده');
@@ -295,7 +295,7 @@ const minigolfAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'nextHole') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'between' || staleTap(p, 'hole', s.hole)) return;
     mgStartHole(room, s.hole + 1);
     mgBoard(room);

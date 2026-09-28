@@ -272,7 +272,7 @@ const chess4Action = (room, playerId, action, payload) => {
 
   if (action === 'skipTurn') {
     // The host plays one easy move for a phone that went quiet.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'play' || staleTap(p, 'seq', s.turnSeq)) return;
     const mv = chess4BotMove(g, 'easy');
     if (mv) chess4ApplyMove(room, mv, 'host');

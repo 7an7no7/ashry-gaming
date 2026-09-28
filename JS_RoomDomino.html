@@ -815,9 +815,9 @@ function domResultFrame(state, tv) {
           ${over ? domGameOverHtml(state, true) : ''}
           ${tvReveal}
           ${domTotalsHtml(state, animate)}
-          ${state.youAreHost ? `<div class="tv-actions">${over
-            ? tvBtn(t.play_again || '', "roomAct('playAgain', ROOM_GAMES.domino.startPayload())") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')
-            : tvBtn(domT('dom_next_round'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`)}</div>` : ''}
+          ${over
+            ? (state.youAreHost ? `<div class="tv-actions">${tvBtn(t.play_again || '', "roomAct('playAgain', ROOM_GAMES.domino.startPayload())") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>` : '')
+            : roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(domT('dom_next_round'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`)}</div>`)}
         </div>
       </div>`;
   }
@@ -828,7 +828,7 @@ function domResultFrame(state, tv) {
       ${reveal}
       ${domTotalsHtml(state, animate)}
       ${over ? roomShareBtnHtml(state, s.board) : ''}
-      ${state.youAreHost ? hostNext : wait}
+      ${over ? (state.youAreHost ? hostNext : wait) : roomMoveOnHtml(state, hostNext, wait)}
       ${renderRoomPlayerStrip(state)}
     </div>`;
 }
@@ -943,7 +943,7 @@ function domHandInView(state) {
 /** The host's way past a phone that went quiet: gone, or holding the turn for 40 seconds. */
 function domHostButtons(state) {
   const s = domShared(state);
-  if (!state.youAreHost || s.phase !== 'play' || !s.turn) return [];
+  if (!roomCanMoveOn(state) || s.phase !== 'play' || !s.turn) return [];
   const p = domPlayer(state, s.turn);
   if (p && p.bot) return [];
   const key = state.code + '|' + s.turnSeq;

@@ -65,7 +65,7 @@ const doubtAction = (room, playerId, action, payload) => {
   if (!s || !s.phase || !room._doubt) throw new Error('اللعبة لم تبدأ بعد');
   if (s.phase !== 'play') return;
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (staleTap(p, 'seq', s.turnSeq)) return;
     doubtApply(room, () => doubtAuto(room, 'host'));
     return;

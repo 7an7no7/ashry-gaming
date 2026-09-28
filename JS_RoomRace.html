@@ -177,7 +177,7 @@ function raceResultHtml(kind, state, tv) {
 
 function raceHostButtons(state) {
   const s = state.shared || {};
-  if (!state.youAreHost || s.phase !== 'solving') return [];
+  if (!roomCanMoveOn(state) || s.phase !== 'solving') return [];
   return [['⏹️ ' + svT('sv_close_round'), `roomAct('closeRound', { round: ${Number(s.round) || 0} })`]];
 }
 
@@ -235,9 +235,9 @@ function raceRender(kind, state) {
       return `<div class="sv-room race-room">${head}
           ${raceResultHtml(kind, state)}
           ${renderScoreboard(s.board)}
-          ${state.youAreHost
-            ? `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(t.sv_next_round || '')}</button>`
-            : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+          ${roomMoveOnHtml(state,
+            `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(t.sv_next_round || '')}</button>`,
+            `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
           ${renderRoomPlayerStrip(state)}
         </div>`;
     }
@@ -340,6 +340,8 @@ function raceTvFrame(kind, state, t) {
   if (!s.settings) return tvLookAtPhones(t);
   const accent = (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[kind] && CATALOG_BY_ID[kind].accent) || 'violet';
   const host = (buttons) => (state.youAreHost && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
+  // The buttons that only move the game on: anyone's once the host is away (raceTvSig carries it).
+  const moveOn = (buttons) => (roomCanMoveOn(state) && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
   const top = `<div class="tv-top">
       <span class="tv-pill">${raceIcon(kind)} ${escapeHTML(raceName(kind))} · ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
       <span class="tv-pill">${escapeHTML(t[s.settings.finish === 'fast3' ? 'race_finish_fast3' : 'race_finish_all'] || '')}</span>
@@ -355,7 +357,7 @@ function raceTvFrame(kind, state, t) {
   if (s.phase === 'result') {
     return `<div class="tv-trivia" data-accent="${accent}">${top}
         <div class="tv-center sv-tv-result">${raceResultHtml(kind, state, true)}</div>
-        ${host([[svT('sv_next_round'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`]])}
+        ${moveOn([[svT('sv_next_round'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`]])}
       </div>`;
   }
   const ui = RACE_UI[kind] || {};
@@ -367,14 +369,14 @@ function raceTvFrame(kind, state, t) {
         ${raceClosingHtml(state)}
       </div>
       ${raceRowsHtml(kind, state, true)}
-      ${host(raceHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
+      ${moveOn(raceHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
     </div>`;
 }
 
 function raceTvSig(state) {
   const s = state.shared || {};
   return ['racetv', s.solve, s.dealId || '', s.round, s.phase, s.closeAt || '', JSON.stringify(s.progress || {}), JSON.stringify(s.result || null),
-    s.endsAt || '', JSON.stringify(s.board || []), state.youAreHost, appState.lang].join('|');
+    s.endsAt || '', JSON.stringify(s.board || []), state.youAreHost, !!state.hostAway, appState.lang].join('|');
 }
 
 /* --- the ten rooms ---------------------------------------------------------------------------- */

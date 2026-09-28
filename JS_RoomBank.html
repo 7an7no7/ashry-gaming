@@ -162,7 +162,7 @@ function bankRoomSkip() {
 /** The host's way past a phone that went quiet: gone, or holding the turn for 60 seconds. */
 function bankHostButtons(state) {
   const s = bankShared(state);
-  if (!state.youAreHost || s.phase !== 'play' || !s.turn || !s.turn.pid) return [];
+  if (!roomCanMoveOn(state) || s.phase !== 'play' || !s.turn || !s.turn.pid) return [];
   const p = (state.players || []).find(x => x.id === s.turn.pid);
   if (p && p.bot) return [];
   const key = state.code + '|' + s.turnSeq + '|' + s.eventSeq;

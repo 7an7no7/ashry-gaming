@@ -246,7 +246,7 @@ const hangmanAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'closeWord') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'guessing' || staleTap(p, 'round', s.round)) return;
     hmEndWord(room);
     return;
@@ -254,14 +254,14 @@ const hangmanAction = (room, playerId, action, payload) => {
 
   if (action === 'skipTurn') {
     // The writer's phone went quiet: the next one writes this word.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'writing' || staleTap(p, 'round', s.round)) return;
     hmDeal(room);
     return;
   }
 
   if (action === 'nextRound') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'result') return;
     if (hmTooFew(room)) throw new Error('المشنقة محتاجة لاعبين على الأقل');
     s.round++;

@@ -363,7 +363,7 @@ function dbActionsHtml(state) {
 
 function dbHostButtons(state) {
   const s = dbShared(state);
-  if (!state.youAreHost || s.phase !== 'play' || !s.turn) return [];
+  if (!roomCanMoveOn(state) || s.phase !== 'play' || !s.turn) return [];
   const p = (state.players || []).find(x => x.id === s.turn.pid);
   if (p && (p.online || p.bot)) return [];
   return [['⏭️ ' + pcT('db_skip_turn', { name: pcName(state, s.turn.pid) }), "dbAct(this, 'skipTurn')"]];
@@ -822,7 +822,8 @@ function dbTvTable(state) {
   const top = seats.slice(0, half);
   const bottom = seats.slice(half).reverse();
   const w = dbTurnWords(state);
-  const host = state.youAreHost && s.phase === 'play' && s.turn ? '<span data-db-host class="db-tv__host"></span>' : '';
+  // Everyone's TV keeps the place: the host's buttons, or anyone's once the host is away, are put in it in place.
+  const host = s.phase === 'play' && s.turn ? '<span data-db-host class="db-tv__host"></span>' : '';
   return `<div class="db-tv ${seats.length > 8 ? 'db-tv--many' : ''}">
       <div class="db-tv__ring">${top.map(pid => dbSeatHtml(state, pid, true)).join('')}</div>
       <div class="db-tv__mid">

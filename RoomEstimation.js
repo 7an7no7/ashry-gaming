@@ -50,13 +50,13 @@ const estimationAction = (room, playerId, action, payload) => {
   const s = room.shared;
   if (!s || !s.phase || !room._est) throw new Error('اللعبة لم تبدأ بعد');
   if (action === 'nextRound') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'roundOver' || staleTap(p, 'round', s.round)) return;
     estApply(room, () => estNextRound(room));
     return;
   }
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (staleTap(p, 'seq', s.turnSeq)) return;
     estApply(room, () => estAuto(room, 'host'));
     return;

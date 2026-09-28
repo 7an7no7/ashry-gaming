@@ -170,7 +170,10 @@ const RACE_PROBES = {
   streak: (room, x, h) => ({
     // The answer of the question up is a secret until answered; the questions to come are secrets entirely.
     secrets: x.qs.flatMap((q, k) => [{ value: q.options[q.answer], knows: Object.keys(h.boards).filter((id) => h.boards[id].asked > k), except: ['you.board.q.options', 'you.board.last'] }]
-      .concat(k > 0 ? [{ value: q.prompt || q.big, knows: Object.keys(h.boards).filter((id) => h.boards[id].asked >= k) }] : [])),
+      .concat(k > 0 && q.prompt ? [{ value: q.prompt, knows: Object.keys(h.boards).filter((id) => h.boards[id].asked >= k) }] : [])),
+    // An emoji clue is looked for as written: folded, 3️⃣👨👨👨 is just "3", which a trivia option may be.
+    probes: x.qs.map((q, k) => probe('streak: an emoji riddle to come is on no phone', k > 0 && !q.prompt && !!q.big, (view, pid) =>
+      (h.boards[pid] && h.boards[pid].asked >= k) || JSON.stringify(view).indexOf(JSON.stringify(q.big)) === -1 ? null : 'an emoji riddle to come')),
     own: (yb, b) => (yb.asked === b.asked && yb.right === b.right ? null : 'you.board')
   }),
   // RACE_PROBES:sudoku

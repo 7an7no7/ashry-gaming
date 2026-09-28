@@ -8731,7 +8731,13 @@ Date.now = duelTestClock;
     const x = r._solve.secret;
     check(s.pub.n === 5 && s.pub.rounds.length === 5 && s.pub.rounds[0].options.length === 6 && !('clues' in s.pub.rounds[0]) && !('answer' in s.pub.rounds[0]) && x.rounds[0].clues.length === 5,
       'race/pinpoint: five rounds of six choices reach everyone; the clues and the answers stay on the server');
-    check(r.secrets.a.board.rounds[0].clues.length === 1 && !('answer' in r.secrets.a.board.rounds[0]) && shownOf(r).indexOf('"' + x.rounds[0].clues[1] + '"') === -1,
+    // A hidden clue may still be written where a phone reads it for another reason: categories share
+    // words, so it can be another round's first clue, or a choice's name (about 1 deal in 100).
+    const pinShownFor = new Set();
+    x.rounds.forEach((q) => { pinShownFor.add(q.clues[0]); q.options.forEach((o) => pinShownFor.add(o.name)); });
+    const pinHidden = [].concat(...x.rounds.map((q) => q.clues.slice(1))).filter((w) => !pinShownFor.has(w));
+    check(r.secrets.a.board.rounds.every((q, k) => q.clues.length === 1 && q.clues[0] === x.rounds[k].clues[0] && !('answer' in q))
+      && pinHidden.every((w) => shownOf(r).indexOf('"' + w + '"') === -1),
       'race/pinpoint: a phone sees the first clue only');
     check(refused(() => applyRoomAction(r, 'a', 'move', { k: 1, i: 0, round: 1 })) || true, 'race/pinpoint: a pick for a round not up is refused');
     const wrongI = (k) => x.rounds[k].options.findIndex((o, i) => i !== x.rounds[k].answer);

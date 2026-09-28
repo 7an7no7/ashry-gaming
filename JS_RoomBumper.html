@@ -75,7 +75,7 @@ function bmpColorOf(state, pid) {
   const s = (state && state.shared) || {};
   const dealt = s.colors || {};
   if (dealt[pid] !== undefined) return BMP_COLORS[dealt[pid] % BMP_COLORS.length];
-  const late = (state.players || []).filter(p => !p.bot && dealt[p.id] === undefined).map(p => p.id);
+  const late = ((state && state.players) || []).filter(p => !p.bot && dealt[p.id] === undefined).map(p => p.id);
   const k = Object.keys(dealt).length + Math.max(0, late.indexOf(pid));
   return BMP_COLORS[k % BMP_COLORS.length];
 }
@@ -1055,9 +1055,16 @@ function bmpTvCollide(a, b, running) {
   // Who drove into whom: each car's speed toward the other before the knock.
   const sa = (a.vx - j * nx) * nx + (a.vy - j * ny) * ny;
   const sb = -((b.vx + j * nx) * nx + (b.vy + j * ny) * ny);
-  const hitter = sa >= sb ? a : b, victim = hitter === a ? b : a;
   if (Math.max(sa, sb) < 90) return;
   g.pairs[pairKey] = wall;
+  // Head-on at about the same speed is a draw (the owner, 28 Sep 2026: "if we both hit while facing
+  // each other, who gets what?"): both were driving in, within a quarter of each other's speed, so
+  // nobody scores. A clearly faster car, or a hit on the side or from behind, still scores one.
+  if (sa > 60 && sb > 60 && Math.min(sa, sb) >= 0.75 * Math.max(sa, sb)) {
+    g.pops.push({ x: cx, y: cy - BMP_R, t: 0.9, color: '#ffffff', text: '💥' });
+    return;
+  }
+  const hitter = sa >= sb ? a : b, victim = hitter === a ? b : a;
   if (g.st.mode === 'balloons') {
     // A ghost pops nothing, a ghost has nothing to pop, and a car just popped has a moment's grace.
     if (hitter.ghost || victim.ghost || wall < victim.safeUntil) return;
@@ -1566,7 +1573,8 @@ function bmp3dView(g, stage, T) {
         ox.globalAlpha = Math.min(1, p.t / 0.4);
         ox.font = '900 ' + Math.round(overlay.height / 16) + 'px ' + getComputedStyle(document.body).fontFamily;
         ox.textAlign = 'center'; ox.lineWidth = 6; ox.strokeStyle = '#1b1b1f'; ox.fillStyle = p.color;
-        ox.strokeText('+1', sx, sy); ox.fillText('+1', sx, sy);
+        const txt = p.text || '+1';
+        ox.strokeText(txt, sx, sy); ox.fillText(txt, sx, sy);
       });
       ox.globalAlpha = 1;
       bmpOverlayText(ox, state, now, overlay.width, overlay.height, overlay.height / 900);

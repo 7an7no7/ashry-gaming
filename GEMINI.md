@@ -1840,6 +1840,12 @@ work changed. Add to it when a decision is made or a batch ships.
   - **On the phone**: the car's own balloons, score and place big, a **turbo**
     button (every 4 s, a ring shows it filling) and a **horn** button (the car's
     own horn on the TV).
+  - **Head-on at about the same speed is a draw** (the owner, 28 Sep 2026,
+    asking "if we both hit while facing each other, who gets what?"): both
+    cars driving in, within a quarter of each other's speed - a crash and a
+    💥, nobody scores or loses a balloon (`bmpTvCollide`). A clearly faster car
+    or a hit on the side or from behind scores one, whichever way (no double
+    for a side hit, the owner's choice).
   - Decided here (open to change, each in one place): the TV drives the
     computer players (`bmpBotInput`: a target now and then - hard picks the one
     worth hitting and leads it, keeps off the ring's edge and turbos at a close

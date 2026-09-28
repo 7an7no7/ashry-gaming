@@ -1792,38 +1792,6 @@ work changed. Add to it when a decision is made or a batch ships.
     might have played; and the draw button **draws until a tile fits in one
     tap** (the table sees how many were drawn), with باص a tap of its own.
 
-- **كارتينج (Karting)** - the owner's rules of 28 Sep 2026, asked after
-  عربيات التصادم's test (not built yet; the look is to be picked from a
-  design sheet of three first):
-  - **The TV is the game, the phones are the controllers** (the bumper cars'
-    channel, stick or tilt, auto gas); **a TV is required**, the lobby says so.
-  - **Real 3D on the TV** (three.js, like بولينج and ميني جولف): the whole
-    track from above at an angle, every kart on it.
-  - **Four vehicles, each with its own feel, balanced so any can win**:
-    توكتوك (sharp turns, low top speed), ميكروباص (fast, heavy, wins bumps),
-    تاكسي (balanced), عربية كارو / فيسبا (quick off the line). **Each player
-    picks theirs and a colour on their own phone** in the lobby; the TV shows
-    the grid.
-  - **Four tracks, each its own place**: وسط البلد (Tahrir, the Nile bridges,
-    traffic, minarets), الأهرامات والصحرا (sand that slows, camels), كورنيش
-    إسكندرية (the sea, Qaitbay, a long fast curve), خان الخليلي (narrow
-    twisting alleys, lanterns, shortcuts).
-  - **3 laps, the host can pick 2 to 5.**
-  - **Walls and slow edges**: rails keep everyone on the track, sand, grass
-    or the pavement slow you; nobody falls off.
-  - **Up to 8 racers**; **computer players easy and hard** fill the grid.
-  - **Item boxes with Egyptian items**: قشر موز (dropped behind, whoever
-    drives over it spins out), عصير قصب (a short boost), كلاكس (every car
-    near you wobbles and slows a moment), طماطم (thrown forward, splats the
-    car in front and blurs its steering a second). **Gentle catch-up**: the
-    further back, the better the items.
-  - **No drift**: steer and gas only.
-  - **The phone shows** the controller, your place (2/8), the lap, and the
-    item you hold with a big button to use it.
-  - **عربيات التصادم moves inside كارتينج's card** as its battle way (the
-    chess-style hub: one card, the ways inside), and loses its test wording;
-    the delay and traffic numbers go behind a small toggle on the TV.
-
 - **عربيات التصادم, the full game** - the owner's answers of 28 Sep 2026
   after the test ("improve the UI and the play style, ask what you need"):
   - **Three ways to play, the host's choice in the lobby** (the owner: "3 modes
@@ -1860,10 +1828,9 @@ work changed. Add to it when a decision is made or a batch ships.
   28 Sep 2026 ("like Mario Kart, each player controls his car from his phone,
   like PlayStation"). Asked whether it is possible: yes, with the TV running
   the game and the phones sending only their input; the owner said to build a
-  test first. **Built as عربيات التصادم** (*عربيات التصادم*), a bumper-cars
-  rink that measures what a racing game needs to know on the owner's real
-  phones and TV: the delay of each phone and what the traffic costs of the
-  free plan. Decided here (open to change):
+  test first. **Built as عربيات التصادم** (*عربيات التصادم*), which then
+  became a game of its own; a racing game was planned and dropped the same day
+  (the owner: bumper cars only, for now). Decided here (open to change):
   - **The TV runs the game** (the physics, the knocks, the score); the server
     only deals the round and takes the TV's scores. A phone's stick goes
     through the room's live channel to the screens only, never stored and
@@ -1878,9 +1845,6 @@ work changed. Add to it when a decision is made or a batch ships.
     re-centred and flipped, since phones disagree about signs.
   - **The delay shown is half a ping's round trip**, phone → server → TV →
     server → phone, the median of the last seven.
-  - A real racing game next: the owner decides after trying this on the
-    phones and the TV (the track, the vehicles - tuk-tuks, a microbus - and
-    the rules, asked one at a time as always).
 
 ### Ideas not built yet (researched 16 Sep 2026)
 
@@ -3458,15 +3422,18 @@ the word search), `countUp` for streaks and scores.
   the stick by real touches and the tilt screen), a TV at 1280×720 and two
   robot drivers, bumps scored, the delay read, a reload mid-round, Help, the
   TV's scores at the end; no console errors.
+- **28 Sep 2026, a switch for any game** (*Switching a game off for a
+  fix*): `DisabledGames.js`, one list; the card grey with «🛠️ بنصلّحها»
+  everywhere, nothing opens it, the rooms server refuses it. The same day the
+  owner dropped a planned racing game (keeping عربيات التصادم) and every
+  mention of it went.
 - **28 Sep 2026, عربيات التصادم the full game** - the owner's answers
   (*The owner's specs*): three ways to play (بالونات, نقط, الحلبة with its two
   endings), a 3D fairground rink, computer players driven by the TV, turbo and
   horn, the car's status big on the phone, the test wording and numbers put
   away. Rules tests 21, the leak check, the robots' relay round; looked at in
   headless Chrome with one phone, three computer players and a TV through
-  Balloons, the ring and Points to their results; no console errors. The
-  karting look sheet went to the owner the same day
-  (https://claude.ai/artifact/65GjjEdYqkuWY9BT5dWhLX).
+  Balloons, the ring and Points to their results; no console errors.
 - **28 Sep 2026, عربيات التصادم's second round** - the owner's four points
   after trying it: the sound (the TV had only a faint knock), the tilt read
   from gravity, the tilt screen always sideways, auto gas (*عربيات التصادم*).
@@ -7916,6 +7883,30 @@ and *The TV as the console*). Game id `bumper` everywhere; the page's code is
 - Tests: `rules.mjs` ("Bumper cars": the three ways, early ends, places, ties,
   computer players), `leaks.mjs` (a driver; nothing is hidden), `play-all.mjs`
   (`--only=bumper`: the relay on a live server).
+
+### Switching a game off for a fix
+
+`DisabledGames.js` at the root (the owner, 28 Sep 2026: "disable any game
+while it is being upgraded or fixed ... later a one-word change"). **To switch
+a game off, put its id in `DISABLED_GAMES`; to switch it back on, take it out;
+then release as usual** (build the site, deploy the rooms server and the site).
+The id is the game's `GAME_CATALOG` id, the same as its room game's; chess is
+`shatranj` (its room game `chess` goes with it, `roomGameIsOff`), and `chess`
+alone is the chess clock tool.
+
+The file is shared (`SHARED_LISTS` in the page, `FILES` on the server). On the
+page (`JS_Catalog.html`): `catalogOff(id)`; a switched-off game's card is grey
+with «🛠️ بنصلّحها» (`gameOffBadge`, `.is-off`, section 52 of `Style.html`)
+on the home, in the recent row (just 🛠️), in chess's ways row and in a room's
+list on the phone and the TV; a tap only says why (`gameOffToast`); it leaves
+«الليلة دي؟», the featured poster and the first-visit cards; `catalogOpen`,
+`catalogQuickStart` and the daily hub (`playDaily`, the archive) refuse it; and
+`setView` sends any screen of it home (`gameOffForView`: its setup screen, or a
+screen whose `up` is that setup) - so a reload into it, a link or an old
+shortcut can't open it. On the server `chooseGame`, `start` and `playAgain`
+throw for it (a phone still on an older copy). A room already playing it when
+it is switched off plays that round to its end. Tests: `rules.mjs` ("Games
+switched off").
 
 ### The catalog and the home screen
 

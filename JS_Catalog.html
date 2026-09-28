@@ -182,6 +182,7 @@ function hubWaysHtml(g, t) {
         const w = CATALOG_BY_ID[id];
         if (!w) return '';
         const on = id === g.id;
+        if (catalogOff(id)) return `<button type="button" class="filter-chip is-off" data-accent="${w.accent}" onclick="gameOffToast()"><span aria-hidden="true">🛠️</span>${escapeHTML(t[key] || catalogTitle(w, t))}</button>`;
         return `<button type="button" class="filter-chip ${on ? 'is-active' : ''}" aria-pressed="${on}" data-accent="${w.accent}"
                   ${on ? '' : `onclick="catalogOpen('${id}', this)"`}><span aria-hidden="true">${iconHtml(w.icon)}</span>${escapeHTML(t[key] || catalogTitle(w, t))}${(w.modes || []).indexOf('device') === -1 ? ' <span aria-hidden="true">📲</span>' : ''}</button>`;
       }).join('')}</div>
@@ -290,9 +291,26 @@ if (typeof onLeaveScreen === 'function') onLeaveScreen((from, to) => {
   if (g && g.id) countPlay(g.id);
 });
 
+/* --- Games switched off for a fix (DisabledGames.js) ------------------------ */
+const catalogOff = (id) => typeof gameIsOff === 'function' && gameIsOff(id);
+/** The badge a switched-off game carries on every card. */
+const gameOffBadge = (t) => `<span class="game-off-badge">🛠️ ${escapeHTML(t.game_off || '')}</span>`;
+function gameOffToast() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  showToast(t.game_off_toast || '', 'info');
+  haptic('light');
+}
+/** The catalog game a screen belongs to, when that game is switched off (setView sends it home). */
+function gameOffForView(viewId) {
+  if (typeof DISABLED_GAMES === 'undefined' || !DISABLED_GAMES.length || !viewId || typeof GAME_CATALOG === 'undefined') return null;
+  const g = GAME_CATALOG.find(x => x.setup === viewId) || (typeof exitGameOf === 'function' ? exitGameOf(viewId) : null);
+  return g && catalogOff(g.id) ? g : null;
+}
+
 function catalogOpen(id, fromEl) {
   const g = CATALOG_BY_ID[id];
   if (!g) return;
+  if (catalogOff(id)) { gameOffToast(); return; }
   rememberRecent(id);
   if (typeof catalogReturn !== 'undefined') {
     catalogReturn.id = id;
@@ -335,9 +353,10 @@ function catalogMeta(g, t, withModeLabels, withModes) {
    tooltip; the ways it plays are on its setup's hero (the owner, 27 Sep 2026:
    no mode icons on the posters). */
 function catalogCard(g, t) {
-  const players = g.players ? `<span class="gcard__badge"><span aria-hidden="true">👥</span><span class="metric">${g.players[0] === g.players[1] ? g.players[0] : g.players[0] + '–' + g.players[1]}</span></span>` : '';
+  const off = catalogOff(g.id);
+  const players = off ? gameOffBadge(t) : g.players ? `<span class="gcard__badge"><span aria-hidden="true">👥</span><span class="metric">${g.players[0] === g.players[1] ? g.players[0] : g.players[0] + '–' + g.players[1]}</span></span>` : '';
   return `
-    <button type="button" class="gcard" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)"
+    <button type="button" class="gcard${off ? ' is-off' : ''}" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)"
             title="${escapeHTML(catalogDesc(g, t))}">
       <span class="gcard__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
       ${players}
@@ -351,7 +370,7 @@ function catalogCard(g, t) {
    card (a search or a chip hides it like any other). */
 let featLastId = null;   // the game the featured poster last showed, this visit
 function catalogFeatured(t) {
-  const shelf = (typeof STARTER_SHELF !== 'undefined' ? STARTER_SHELF : []).map(id => CATALOG_BY_ID[id]).filter(Boolean);
+  const shelf = (typeof STARTER_SHELF !== 'undefined' ? STARTER_SHELF : []).map(id => CATALOG_BY_ID[id]).filter(g => g && !catalogOff(g.id));
   if (!shelf.length) return '';
   // A different one each time the home opens (the owner, 26 Sep 2026), dealt
   // through freshPick so all eight come round before one comes back.
@@ -554,7 +573,7 @@ function tonightCandidates(count, how) {
   };
   const rank = (id) => { const i = TONIGHT_ORDER.indexOf(id); return i === -1 ? 999 : i; };
   return GAME_CATALOG
-    .filter(g => g.group !== 'tools' && !g.hub && fitsCount(g) && fitsMode(g))
+    .filter(g => g.group !== 'tools' && !g.hub && !catalogOff(g.id) && fitsCount(g) && fitsMode(g))
     .sort((a, b) => rank(a.id) - rank(b.id));
 }
 
@@ -655,6 +674,7 @@ function catalogQuickStart(id, fromEl) {
   const g = CATALOG_BY_ID[id];
   const go = QUICK_START[id];
   if (!g) return;
+  if (catalogOff(id)) { gameOffToast(); return; }
   if (!go) { catalogOpen(id, fromEl); return; }
   // The icon flies to the setup's hero only if the game stops there (the names
   // sheet over it); a game that starts at once has no hero to land on.
@@ -826,11 +846,12 @@ function renderHome() {
         ${recent.map(id => {
           const g = CATALOG_BY_ID[id];
           // «▶ العب تاني»: straight into the game with this phone's last choices.
-          const again = QUICK_START[g.id]
+          const off = catalogOff(g.id);
+          const again = QUICK_START[g.id] && !off
             ? `<button type="button" class="recent-play" data-accent="${g.accent}" onclick="catalogQuickStart('${g.id}', this.previousElementSibling)"
                        title="${escapeHTML(t.home_play_again || '')}" aria-label="${escapeHTML((t.home_play_again || '') + ': ' + catalogTitle(g, t))}">▶</button>`
             : '';
-          return `<span class="recent-item${again ? ' has-play' : ''}"><button type="button" class="recent-tile" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
+          return `<span class="recent-item${again ? ' has-play' : ''}"><button type="button" class="recent-tile${off ? ' is-off' : ''}" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">${off ? '<span class="game-off-badge game-off-badge--icon" aria-hidden="true">🛠️</span>' : ''}
                     <span class="recent-tile__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
                     <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>
                   </button>${again}</span>`;
@@ -868,7 +889,7 @@ function renderHome() {
   } else {
     // A first visit: the simple start, and the whole home folded under it.
     const total = GAME_CATALOG.filter(g => g.group !== 'tools' && !g.hub).length;
-    const cards = START_CARDS.map(id => CATALOG_BY_ID[id]).filter(Boolean).map((g, i) => `
+    const cards = START_CARDS.map(id => CATALOG_BY_ID[id]).filter(g => g && !catalogOff(g.id)).map((g, i) => `
       <button type="button" class="start-card" data-accent="${g.accent}" data-start="${g.id}" style="--i:${i}"
               onclick="catalogQuickStart('${g.id}', this)">
         <span class="start-card__icon" aria-hidden="true">${iconHtml(g.icon)}</span>

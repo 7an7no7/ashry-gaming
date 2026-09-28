@@ -6,7 +6,7 @@
  *   npm run test:rules      (builds generated/rules.js first)
  */
 import { readFileSync } from 'node:fs';
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
 let failed = 0;
 const check = (ok, label) => {
@@ -8798,6 +8798,23 @@ Date.now = duelTestClock;
   applyRoomAction(r, 'a', 'chooseGame', { game: 'wouldyou' });
   applyRoomAction(r, 'a', 'start', { lang: 'ar' });
   check(r.phase !== 'lobby' && threw(() => applyRoomAction(r, 'a', 'rename', { name: 'X' })), 'rename: not while a game is being played');
+}
+
+/* --- Games switched off for a fix (DisabledGames.js, 28 Sep 2026) --- */
+{
+  console.log('\nGames switched off');
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const r = newRoom(['a', 'b', 'c']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'uno' });
+  DISABLED_GAMES.push('uno');
+  check(threw(() => applyRoomAction(r, 'a', 'start', {})) && r.phase === 'lobby', 'off: a game switched off after it was chosen can\'t start');
+  applyRoomAction(r, 'a', 'backToHub', {});
+  check(threw(() => applyRoomAction(r, 'a', 'chooseGame', { game: 'uno' })), 'off: a game switched off can\'t be chosen');
+  DISABLED_GAMES.push('shatranj');
+  check(threw(() => applyRoomAction(r, 'a', 'chooseGame', { game: 'chess' })), 'off: switching chess (shatranj) off takes its room game with it');
+  DISABLED_GAMES.length = 0;
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'uno' });
+  check(r.game === 'uno', 'off: taken out of the list, the game is back');
 }
 
 /* --- عربيات التصادم (28 Sep 2026): the server deals a round and takes the TV's result; the cars are the TV's --- */

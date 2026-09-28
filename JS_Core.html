@@ -1131,6 +1131,8 @@
       mch_next_in: "الجولة الجاية بعد {n}…",
       mch_play_again: "العب تاني",
       mch_in_ring: "مين في الحلبة",
+      game_off: "بنصلّحها",
+      game_off_toast: "اللعبة دي واقفة شوية عشان بنصلّحها، وهترجع قريب.",
       bmp_mode: "طريقة اللعب",
       bmp_mode_balloons: "بالونات",
       bmp_mode_points: "نقط",
@@ -4898,6 +4900,8 @@
       mch_next_in: "Next round in {n}…",
       mch_play_again: "Play again",
       mch_in_ring: "In the ring",
+      game_off: "Being fixed",
+      game_off_toast: "This game is off for a fix and will be back soon.",
       bmp_mode: "Way to play",
       bmp_mode_balloons: "Balloons",
       bmp_mode_points: "Points",
@@ -10465,6 +10469,11 @@
   }
 
   function setView(viewId) {
+    // A game switched off for a fix (DisabledGames.js): its screens send you home with a word why.
+    if (typeof gameOffForView === 'function' && gameOffForView(viewId)) {
+      if (typeof gameOffToast === 'function') setTimeout(gameOffToast, 0);
+      viewId = 'menu';
+    }
     if (BALOO_VIEWS.indexOf(viewId) !== -1) ensureBalooFont();
     if (typeof syncFxButton === 'function') syncFxButton(viewId);
     const previous = appState.currentView;

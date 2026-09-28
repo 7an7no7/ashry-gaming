@@ -1400,18 +1400,19 @@ function renderRoomHub(state) {
       <div class="game-grid room-posters">
         ${roomHubTiles().map(tile => {
           const g = tile.g;
-          const enough = count >= tile.min;
+          const off = !tile.open && typeof roomGameIsOff === 'function' && roomGameIsOff(g.id);
+          const enough = count >= tile.min && !off;
           const cat = (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[g.id]) || null;
           const isF2F = !!(cat && cat.faceToFace);
           const showHint = roomHubLocation === 'apart' && isF2F;
           const hint = showHint ? (t.room_hub_facetoface || 'أحسن وانتوا مع بعض') : '';
           // A tile the room can't start yet says how many more it needs, in words.
           const need = !enough ? (t.room_need_more ? t.room_need_more.replace('{n}', String(tile.min - count)) : `${tile.min}+`) : '';
-          const badge = need ? `<div class="game-card__need">${escapeHTML(need)}</div>` : '';
+          const badge = off ? gameOffBadge(t) : need ? `<div class="game-card__need">${escapeHTML(need)}</div>` : '';
           const hintEl = hint ? `<div class="game-card__hint">${escapeHTML(hint)}</div>` : '';
           return `
-            <div class="game-card room-poster ${enough ? '' : 'is-disabled'} ${tile.open ? 'room-poster--family' : ''}" data-accent="${g.accent}"
-                 ${enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomAct('chooseGame', { game: '${g.id}' })"`) : ''}>
+            <div class="game-card room-poster ${enough ? '' : 'is-disabled'} ${off ? 'is-off' : ''} ${tile.open ? 'room-poster--family' : ''}" data-accent="${g.accent}"
+                 ${off ? 'onclick="gameOffToast()"' : enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomAct('chooseGame', { game: '${g.id}' })"`) : ''}>
               <div class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</div>
               <div class="game-title">${escapeHTML(roomHubTileName(tile, t))}</div>
               ${hintEl}

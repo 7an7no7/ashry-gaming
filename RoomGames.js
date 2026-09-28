@@ -543,6 +543,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     requireHost(room, playerId);
     const game = String(payload.game || '');
     if (ROOM_GAME_IDS.indexOf(game) === -1) throw new Error('لعبة غير معروفة');
+    if (roomGameIsOff(game)) throw new Error('اللعبة دي واقفة شوية عشان بنصلّحها، وهترجع قريب');
 
     clearGameState(room);
     room.game = game;
@@ -589,6 +590,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
   const sharedBefore = room.shared;
   const dealing = action === 'start' || action === 'nextRound' || action === 'playAgain';
   const textBefore = dealing ? JSON.stringify(room.shared || {}) : '';
+
+  // A game switched off for a fix (DisabledGames.js) deals nothing new.
+  if ((action === 'start' || action === 'playAgain') && roomGameIsOff(room.game)) throw new Error('اللعبة دي واقفة شوية عشان بنصلّحها، وهترجع قريب');
 
   switch (room.game) {
     case 'imposter':  imposterAction(room, playerId, action, payload); break;

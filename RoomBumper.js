@@ -2,8 +2,8 @@
    عربيات التصادم — BUMPER CARS (rooms), 28 Sep 2026
    ----------------------------------------------------------------------------
    The TV is the game and every phone a controller, like a console. It began as
-   the test of that idea before كارتينج; the owner then asked for it to be a game
-   of its own (the owner's specs): three ways to play, a 3D fairground rink,
+   the test of that idea; the owner then asked for it to be a game of its own
+   (the owner's specs): three ways to play, a 3D fairground rink,
    computer players, and on the phone lives and score, a boost and a horn.
 
    The split is not the one every other room game has. The TV runs the game

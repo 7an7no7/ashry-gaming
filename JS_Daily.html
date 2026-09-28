@@ -112,6 +112,7 @@ function renderDaily() {
 function playDaily(id) {
   const g = DAILY_GAMES.find(x => x.id === id);
   if (!g || soloDailyResult(id)) return;
+  if (typeof catalogOff === 'function' && catalogOff(id)) { gameOffToast(); return; }
   soloHubReturn = true;
   soloHubGame = id;
   if (typeof rememberRecent === 'function') rememberRecent(id);
@@ -194,6 +195,7 @@ function playArchive(id, day, sure) {
   // Today is the real daily, never practice: the archive dealt today's puzzle as a
   // board that records nothing, and "again" replayed it before the real go.
   if (day >= soloRealToday()) { playDaily(id); return; }
+  if (typeof catalogOff === 'function' && catalogOff(id)) { gameOffToast(); return; }
   soloHubReturn = false;
   const epoch = soloEpochs[id] || 0;
   soloArchiveDay = day;

@@ -386,13 +386,14 @@ function tvLobby(state, t) {
     const count = state.players.length;
     const tileHtml = (tile) => {
       const g = tile.g;
-      const enough = count >= tile.min;
+      const off = !tile.open && typeof roomGameIsOff === 'function' && roomGameIsOff(g.id);
+      const enough = count >= tile.min && !off;
       const act = tile.open ? `roomHubOpen('${tile.open}')` : `roomAct('chooseGame', { game: '${g.id}' })`;
       return `
             <button class="tv-hub__game${tile.open ? ' tv-hub__game--family' : ''}" data-accent="${g.accent}" ${enough ? `onclick="${act}"` : 'disabled'}>
               <span class="tv-hub__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
               <span class="tv-hub__name">${escapeHTML(roomHubTileName(tile, t))}</span>
-              ${enough ? '' : `<span class="tv-hub__need">${escapeHTML(t.room_need_more ? t.room_need_more.replace('{n}', String(tile.min - count)) : tile.min + '+')}</span>`}
+              ${off ? gameOffBadge(t) : enough ? '' : `<span class="tv-hub__need">${escapeHTML(t.room_need_more ? t.room_need_more.replace('{n}', String(tile.min - count)) : tile.min + '+')}</span>`}
             </button>`;
     };
     // Under the home's section heads (CATALOG_GROUPS), so a host finds a game

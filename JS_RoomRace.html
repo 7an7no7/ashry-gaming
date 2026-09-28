@@ -198,7 +198,7 @@ function raceSig(state) {
   const s = state.shared || {};
   const you = state.you || {};
   const done = s.phase === 'result' || s.phase === 'gameover';
-  return ['race', s.solve, s.dealId || '', s.round, s.phase, you.state || '', you.board ? 'b' : '',
+  return ['race', s.solve, s.dealId || '', s.round, s.phase, you.state || '', you.gave ? 'g' : '', you.board ? 'b' : '',
     done ? JSON.stringify(s.result || null) + JSON.stringify(s.board || []) : '', state.youAreHost, appState.lang].join('|');
 }
 
@@ -247,7 +247,7 @@ function raceRender(kind, state) {
       const won = you.state === 'won';
       const p = (s.progress || {})[Room.me] || {};
       const doneCard = you.state === 'play' ? '' : `<div class="card card--accent hm-end race-done ${motionFirst(['race-done', state.code, s.dealId, s.round].join('|')) ? 'is-in' : ''}">
-          <p class="sheet__title">${escapeHTML(won ? svT('race_you_done', { n: (p.at || 0) + 1 }) : (p.gave || (you.board && you.board.gave) ? (t.race_you_gave || '') : (t.race_you_lost || '')))}</p>
+          <p class="sheet__title">${escapeHTML(won ? svT('race_you_done', { n: (p.at || 0) + 1 }) : (you.gave ? (t.race_you_gave || '') : (t.race_you_lost || '')))}</p>
           ${won && typeof p.secs === 'number' ? `<p class="metric race-done__time">${escapeHTML(soloTime(p.secs))}</p>` : ''}
           <p class="field__hint">${escapeHTML(t.hm_done_wait || '')}</p></div>`;
       mine = `${doneCard}<div class="race-stage ${you.state !== 'play' ? 'is-done' : ''}" data-race-stage="${ui.stage}"></div>`;

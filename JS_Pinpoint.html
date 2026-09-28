@@ -123,12 +123,22 @@ function pinShakeOption(i) {
   if (btn && btn.animate && !motionOff()) btn.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
 }
 
+// A race's pick on its way to the server: a second tap before the answer would be judged
+// against the round the first one closed, and come back as an error.
+let pinRaceSending = false;
+
 function guessPinpoint(i) {
   const s = pinState();
   const r = s.rounds[s.round];
   if (!r || s.phase !== 'play' || r.points !== null || r.wrong.indexOf(i) !== -1) return;
   // A race: the answer is on the server, which judges the pick (JS_RoomRace.html).
-  if (s.race) { s.lastPick = i; raceMove('pinpoint', { k: s.round, i: i }); return; }
+  if (s.race) {
+    if (pinRaceSending) return;
+    pinRaceSending = true;
+    s.lastPick = i;
+    raceMove('pinpoint', { k: s.round, i: i }).finally(() => { pinRaceSending = false; });
+    return;
+  }
   if (i === r.answer) {
     r.points = Math.max(1, PIN_CLUES + 1 - r.shown);
     saveToLocal();

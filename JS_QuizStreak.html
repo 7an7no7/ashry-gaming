@@ -208,7 +208,16 @@ function answerStreak(i) {
   if (s.phase !== 'play' || !q || (q.picked !== null && q.picked !== undefined)) return;
   streakStop();
   // A race: the answer is on the server, which judges and hands the next question (JS_RoomRace.html).
-  if (s.race) { q.picked = i; raceMove('streak', { q: s.asked, i: i }); return; }
+  if (s.race) {
+    q.picked = i;
+    // A send that didn't go through (the network, a refusal) must not leave the question locked.
+    raceMove('streak', { q: s.asked, i: i }).then(ok => {
+      if (ok || streakState() !== s || s.q !== q || q.answer !== undefined) return;
+      q.picked = null;
+      paintStreak(false);
+    });
+    return;
+  }
   q.picked = i;
   const right = i === q.answer;
   if (right) s.score++;
@@ -274,6 +283,11 @@ soloRegister('streak', {
 });
 
 /* --- سباق ألغاز: the same card, raced (JS_RoomRace.html) ------------------------------ */
+// While the verdict of this phone's last answer is on the card (1.3 s), until when: another
+// racer's move in that time must not bring the next question up early. A time, not a flag,
+// so a reveal cut short (the timer cleared on leaving) can never hold the card for good.
+let streakRaceRevealUntil = 0;
+
 RACE_UI.streak = {
   stage: 'streak-stage',
   unit: 'race_unit_questions',
@@ -296,14 +310,16 @@ RACE_UI.streak = {
       streakPop(right, s.lives);
       const next = b.q;
       clearTimeout(streakNextTimer);
+      streakRaceRevealUntil = Date.now() + 1300;
       streakNextTimer = setTimeout(() => {
-        if (soloRaceKind() !== 'streak' || s.asked !== b.asked) return;
+        streakRaceRevealUntil = 0;
+        if (soloRaceKind() !== 'streak' || s.asked !== b.asked || s.shown === b.asked) return;
         if (next) { s.q = Object.assign({}, next, { picked: null }); s.shown = b.asked; paintStreak(true); }
       }, 1300);
       return;
     }
-    // A reload, or a question this phone hasn't drawn yet.
-    if (b.q && (s.shown !== b.asked || !s.q)) {
+    // A reload, or a question this phone hasn't drawn yet - never while this phone's verdict is still up.
+    if (b.q && (s.shown !== b.asked || !s.q) && (first || Date.now() >= streakRaceRevealUntil)) {
       s.q = Object.assign({}, b.q, { picked: null });
       s.shown = b.asked;
       s.score = b.right; s.asked = b.asked; s.marks = b.marks || [];

@@ -8665,6 +8665,34 @@ Date.now = duelTestClock;
       'race/pinpoint: no points is lost; the score (24) is on the row, the points are the engine\'s');
     check(s.result.reveal.cats.length === 5 && s.result.reveal.cats[0].name === x.rounds[0].name, 'race/pinpoint: the result reveals the categories');
   }
+  {
+    // Fast 3 with a scored game (audit, 28 Sep 2026): the first three to finish take 10 / 7 / 5,
+    // ranked by score among themselves; a grace finisher with a better score still gets 2.
+    const f3 = race(['a', 'b', 'c', 'd', 'e'], 'pinpoint', {});
+    const fs = f3.shared;
+    const fx = f3._solve.secret;
+    const play = (id, wrongs) => {
+      for (let k = 0; k < 5; k++) {
+        const bad = fx.rounds[k].options.map((o, i) => i).filter(i => i !== fx.rounds[k].answer);
+        for (let m = 0; m < wrongs; m++) applyRoomAction(f3, id, 'move', { k: k, i: bad[m], round: 1 });
+        applyRoomAction(f3, id, 'move', { k: k, i: fx.rounds[k].answer, round: 1 });
+      }
+    };
+    clock += 1000; play('a', 2);
+    clock += 1000; play('b', 1);
+    clock += 1000; play('c', 3);
+    check(fs.settings.finish === 'fast3' && !!fs.closeAt && fs.phase === 'solving', 'race Fast 3/pinpoint: the third to finish starts the grace');
+    applyRoomAction(f3, 'e', 'giveUp', { round: 1 });
+    check(f3.secrets.e.gave === true && f3.secrets.e.state === 'lost' && !f3.secrets.a.gave && !('gave' in fs.progress.e) && fs.phase === 'solving',
+      'race: «استسلم» tells its own phone it gave up (not the table, not anyone else)');
+    clock += 1000; play('d', 0);
+    check(fs.progress.d.state === 'won', 'race Fast 3/pinpoint: a perfect board inside the grace wins');
+    clock = fs.closeAt + 1600;
+    roomTimeout(f3, clock);
+    const p3 = (id) => (fs.result.rows.find((y) => y.id === id) || {}).pts;
+    check(fs.phase === 'result' && p3('b') === 10 && p3('a') === 7 && p3('c') === 5 && p3('d') === 2 && p3('e') === 0,
+      'race Fast 3/pinpoint: the first three are ranked by score among themselves (b 20, a 15, c 10); a grace finisher with a better score (d 25) still gets 2');
+  }
 
   // RACE:tango
   {

@@ -8781,6 +8781,8 @@
     const loader = document.getElementById('app-loader');
     if (!loader) { intro.state = 'done'; return; }
     intro.state = 'leaving';
+    // The slow-load scene (Controller.html), if one is up, fades before the flight.
+    const sceneMs = introSceneEnd();
     const reduce = reducedMotion();
     const onHome = appState.currentView === 'menu'
       && !(window.SERVER_DATA && window.SERVER_DATA.room)
@@ -8790,7 +8792,12 @@
       return;
     }
     const shown = (window.performance ? performance.now() : 0) - (window.INTRO_T0 || 0);
-    introLater(introFly, Math.max(0, INTRO_MIN_MS - shown));
+    introLater(introFly, Math.max(sceneMs, INTRO_MIN_MS - shown));
+  }
+
+  /** Stops the slow-load scene: its timers go at once; returns how long it takes to fade. */
+  function introSceneEnd() {
+    return typeof window.introSceneStop === 'function' ? window.introSceneStop() : 0;
   }
 
   function introFly() {
@@ -8825,6 +8832,7 @@
   function introFade(ms) {
     const loader = document.getElementById('app-loader');
     intro.state = 'leaving';
+    introSceneEnd();
     document.body.classList.remove('intro-flying');
     if (!loader) { intro.state = 'done'; return; }
     loader.style.transition = 'opacity ' + ms + 'ms ease-out';
@@ -8834,6 +8842,7 @@
 
   function introDone(loader) {
     intro.state = 'done';
+    introSceneEnd();
     if (loader) {
       loader.style.display = 'none';
       loader.classList.add('hidden');
@@ -8852,6 +8861,7 @@
   /** A tap on the intro: straight into the app, as soon as it is ready. */
   function skipIntro() {
     if (intro.state === 'done') return;
+    introSceneEnd();
     if (intro.state === 'waiting') { intro.skip = true; return; }
     intro.timers.forEach(clearTimeout);
     intro.timers = [];

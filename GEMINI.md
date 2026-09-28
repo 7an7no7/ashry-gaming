@@ -150,6 +150,26 @@ work changed. Add to it when a decision is made or a batch ships.
 
 ### The owner's specs, as built
 
+- **The slow-load scenes** - the owner's decisions of 28 Sep 2026, from a
+  design sheet of six scenes (*The design system*, "The intro"):
+  - **Up to 2.5 s nothing changes**: today's intro exactly; a page ready
+    sooner never shows anything new. Past 2.5 s still loading, **one scene of
+    six, chosen at random on each slow visit**, fades in under the name (the
+    thin line fades out): the dice, the cards, the dominoes, Connect 4, the
+    bus, and **the fuse, improved**: the loading line is القنبلة's fuse, the
+    spark runs along it to a small cartoon bomb that gets nervous as it
+    nears, then pops with «بوم!» / "Pop!" into confetti in the app's colours
+    (never a scary blast), and a fresh bomb drops in with a bounce.
+  - **A line under it every 3 s**: each scene has its own pool of five and
+    there is a general pool of twelve (the owner's own words); the first line
+    is the scene's own, then a general one and the scene's in turn, drawn at
+    random with none twice until its pool is used up, and at 12 s once «أول
+    مرة بس… المرة الجاية هيفتح في ثانية» / "First time only. Next time it
+    opens in a second".
+  - When the app is ready the scene fades and the logo flies home as before.
+  - Decided here: «لسه بنجيب أكتر من ٧٠ لعبة» / "70+ games" (the owner's
+    list said 80; the catalog has 71 games and 16 tools).
+
 - **A daily for خمن الكلمة and تشابه** - the owner's word of 28 Sep 2026: "the
   same puzzle for every phone on a date, played once, a result shared on
   WhatsApp as a grid of coloured squares (Wordle's way)" (*Solo games*).
@@ -3572,6 +3592,18 @@ the word search), `countUp` for streaks and scores.
   (`--only=hostaway`: the host's socket closed, «المضيف مش متصل» reaching
   the phones at 20 s, a player closing the vote and dealing the next, the
   host back).
+
+- **28 Sep 2026, the slow-load scenes** (*The owner's specs*, *The design
+  system*, "The intro"): six small scenes and a changing line under the logo
+  when a first load is still going 2.5 s in, chosen at random each slow
+  visit. After the logo in the page, before the big bundles: the logo still
+  starts at the same byte (51,327 minified, 21 KB gzipped); the scenes add
+  16.6 KB minified (6.5 KB gzipped: 57 lines in two languages and six
+  scenes). Looked at in headless Chrome at 390×844 on a throttled connection
+  (150 ms, 1.6 Mbps, CPU 4×): the intro unchanged at 1 s, a scene and its
+  line at 4 s and 8 s, each of the six in Arabic and English, light and dark,
+  still under reduced motion, 667×375, the logo flying home once ready with
+  nothing left running; unthrottled, no scene ever appears.
 
 - **28 Sep 2026, the stylesheet's performance** - style recalc measured in
   headless Chrome at 6x CPU throttling (`Performance.getMetrics` per action;
@@ -9565,6 +9597,29 @@ raises the home and the nav. Anywhere else - a game or a room restored by a
 reload, a `?room=` link, the install steps, a hidden tab, reduced motion - and
 after a tap on the intro (`skipIntro`), it is a short fade. Every step runs on
 a timer, and `initializeApp` sets a safety fade too.
+
+**A slow first load gets a scene** (the owner, 28 Sep 2026; *The owner's
+specs*). An ES5 script and a small stylesheet in `Controller.html`, after the
+intro's own scripts and before `Tailwind.html` - so the logo still comes first
+and the scenes have arrived long before they are needed - set a timer for
+2.5 s after `INTRO_T0`. If the app hasn't taken the intro away by then, it
+builds one scene (`#intro-scene`, chosen at random; `window.INTRO_SCENE =
+'fuse'` set before the page loads forces one for a test) and appends it to
+`#app-loader`; `has-scene` fades the line out and grows the scene's height, so
+the mark and the name glide up to make room. Each scene is CSS shapes and a
+little SVG on a 200 × 72 stage (`.isc`, prefix `isc-`), transform and opacity
+only; the dominoes, the bus and the fuse are mirrored in Arabic
+(`.isc-r`, the «بوم!» turned back) so they move the way the page reads. The
+line (`.isc-m`, the phone's own font - the app's haven't arrived) changes every
+3 s with a fade (`POOL`: each scene's five and twelve general, `[ar, en]`, in
+the saved language or the device's); a die gets new pips each throw
+(`animationiteration`). Reduced motion, or Settings → الحركة → مقفولة read from
+`ashryMotion`, shows the scene still (`is-still`: each piece's own resting
+place) and still changes the line. `window.introSceneStop()` clears its
+timers and fades the scene, returning how long that takes; `introExit`
+(through `introSceneEnd`) waits that long before the flight, and `introFade`,
+`introDone` and `skipIntro` call it too, so nothing is left running once the
+app opens (`introDone` then hides the loader, which ends every animation).
 
 **Motion** is section 14, with its script in `JS_Motion.html`: the intro's
 idea - something flies to where it lives rather than vanishing and

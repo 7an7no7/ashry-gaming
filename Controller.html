@@ -211,6 +211,196 @@
       })();
     </script>
 
+    <!-- The slow-load scenes (GEMINI.md, *The intro*): only when the page is still
+         loading 2.5 s after the intro went up, one of six small scenes fades in under
+         the name with a changing line. After the logo, before the big bundles, so it
+         never delays the logo and is here long before 2.5 s. ES5, like the gate. -->
+    <style>
+      #intro-scene { height: 0; opacity: 0; pointer-events: none; transition: height .5s cubic-bezier(.2,.8,.2,1), opacity .45s ease .1s; }
+      #app-loader.has-scene #intro-scene { height: 128px; opacity: 1; }
+      #app-loader.has-scene .intro__line { opacity: 0; transition: opacity .4s; }
+      #app-loader #intro-scene.is-leaving { opacity: 0; transition: opacity .25s; }
+      #intro-scene.is-still, #intro-scene.is-still * { animation: none !important; transition: none !important; }
+      .isc { position: relative; width: 200px; height: 72px; margin: 16px auto 0; }
+      .isc-r { transform: scaleX(-1); }
+      .isc-m { max-width: 300px; min-height: 40px; margin: 8px auto 0; padding: 0 16px; text-align: center; font: 600 14px/1.45 system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; color: #475569; transition: opacity .3s, transform .3s; }
+      .dark .isc-m { color: #cbd5e1; }
+      .isc-m.out { opacity: 0; transform: translateY(4px); }
+      .isc i, .isc b { position: absolute; display: block; font-style: normal; }
+      /* The dice */
+      .isc-d { left: 83px; top: 22px; width: 34px; height: 34px; padding: 5px; border-radius: 8px; background: #fff; box-shadow: inset 0 -3px 0 #d8d2ee, 0 6px 10px -4px rgba(46,16,101,.5); display: grid !important; grid-template: repeat(3,1fr) / repeat(3,1fr); transform: translate(18px,10px); animation: isc-d1 1.8s cubic-bezier(.3,.6,.4,1) infinite; }
+      .isc-d.b { background: #fbbf24; box-shadow: inset 0 -3px 0 #d97706, 0 6px 10px -4px rgba(0,0,0,.4); transform: translate(-22px,10px); animation-name: isc-d2; animation-delay: -.9s; }
+      .isc-d span { width: 6px; height: 6px; border-radius: 50%; background: #4c1d95; place-self: center; visibility: hidden; }
+      .isc-d span.on { visibility: visible; }
+      @keyframes isc-d1 { 0% { transform: translate(-60px,-30px) rotate(-160deg); opacity: 0 } 8% { opacity: 1 } 35% { transform: translate(-10px,10px) rotate(0) } 50% { transform: translate(0,4px) rotate(8deg) } 70%, 92% { transform: translate(18px,10px) rotate(0); opacity: 1 } 100% { transform: translate(18px,10px); opacity: 0 } }
+      @keyframes isc-d2 { 0% { transform: translate(60px,-30px) rotate(160deg); opacity: 0 } 8% { opacity: 1 } 35% { transform: translate(8px,10px) rotate(0) } 50% { transform: translate(0,4px) rotate(-8deg) } 70%, 92% { transform: translate(-22px,10px) rotate(0); opacity: 1 } 100% { transform: translate(-22px,10px); opacity: 0 } }
+      /* The cards */
+      .isc-c { left: 79px; top: 4px; width: 42px; height: 60px; border-radius: 7px; transform-origin: 50% 120%; animation: isc-fan 2.4s ease-in-out infinite; }
+      .isc-k { background: repeating-linear-gradient(45deg,#6d28d9 0 4px,#7c3aed 4px 8px); border: 2px solid #fff; box-shadow: 0 5px 10px -4px rgba(0,0,0,.35); }
+      .isc-c.l { --r: -24deg; --x: -26px; transform: translateX(-26px) rotate(-24deg); }
+      .isc-c.r { --r: 24deg; --x: 26px; transform: translateX(26px) rotate(24deg); }
+      .isc-c.m { z-index: 2; animation: none; perspective: 300px; }
+      .isc-in { position: absolute; top: 0; left: 0; right: 0; bottom: 0; transform-style: preserve-3d; transform: rotateY(180deg); animation: isc-flip 2.4s ease-in-out infinite; }
+      .isc-in b { top: 0; left: 0; right: 0; bottom: 0; border-radius: 7px; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+      .isc-in .f { background: #fff; transform: rotateY(180deg); box-shadow: 0 5px 10px -4px rgba(0,0,0,.35); font: 900 24px/56px system-ui, sans-serif; color: #e5383b; text-align: center; }
+      @keyframes isc-fan { 0%, 15% { transform: none } 40%, 70% { transform: translateX(var(--x)) rotate(var(--r)) } 90%, 100% { transform: none } }
+      @keyframes isc-flip { 0%, 45% { transform: rotateY(0) } 55%, 80% { transform: rotateY(180deg) } 95%, 100% { transform: rotateY(360deg) } }
+      /* The dominoes: they fall the way the page reads (the stage is mirrored in Arabic) */
+      .isc-dm { bottom: 14px; width: 12px; height: 36px; border-radius: 3px; background: #fff8e7; border: 1.5px solid #cbbf9d; transform-origin: 100% 100%; animation: isc-top 2.6s cubic-bezier(.5,0,.5,1) infinite; }
+      .isc-dm::after { content: ""; position: absolute; left: 1px; right: 1px; top: 50%; height: 1.5px; background: #8a7a55; }
+      .isc-dm::before { content: ""; position: absolute; left: 50%; top: 6px; width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: #1e1a14; box-shadow: 0 16px 0 #1e1a14; }
+      @keyframes isc-top { 0%, 10% { transform: none } 30%, 75% { transform: rotate(64deg) } 92%, 100% { transform: none } }
+      /* Connect 4 */
+      .isc-4 { left: 54px; top: -2px; display: grid !important; grid-template-columns: repeat(5,14px); grid-auto-rows: 14px; gap: 3px; padding: 5px; background: #1e5bd6; border-radius: 7px; }
+      .isc-4 i { position: relative; width: 14px; height: 14px; border-radius: 50%; background: #f8fafc; overflow: hidden; }
+      .dark .isc-4 i { background: #0f172a; }
+      .isc-4 i::after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%; background: var(--c); animation: isc-drop 3.6s cubic-bezier(.55,0,.8,1.3) var(--d) infinite backwards; }
+      @keyframes isc-drop { 0% { transform: translateY(-120px) } 12%, 86% { transform: none } 96%, 100% { transform: translateY(120px) } }
+      /* The bus (faces the way the page reads) */
+      .isc-rd { left: 0; right: 0; bottom: 10px; height: 3px; opacity: .6; background: repeating-linear-gradient(90deg,#94a3b8 0 10px,transparent 10px 18px); animation: isc-rd .5s linear infinite; }
+      @keyframes isc-rd { to { background-position: -18px 0 } }
+      .isc-bs { left: 61px; bottom: 12px; width: 78px; animation: isc-bob .4s ease-in-out infinite alternate; }
+      .isc-bs svg { display: block; }
+      @keyframes isc-bob { to { transform: translateY(-1.5px) } }
+      .isc-w { transform-box: fill-box; transform-origin: center; animation: isc-spin .5s linear infinite; }
+      @keyframes isc-spin { to { transform: rotate(360deg) } }
+      .isc-pf { left: 54px; bottom: 18px; width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; opacity: 0; animation: isc-pf 1s ease-out infinite; }
+      .isc-pf + .isc-pf { animation-delay: -.5s; }
+      .dark .isc-pf { background: #64748b; }
+      @keyframes isc-pf { 0% { opacity: .8; transform: scale(.6) } 100% { opacity: 0; transform: translate(-14px,-10px) scale(1.6) } }
+      /* The fuse: the spark runs to the bomb, which pops into confetti; a fresh one drops in */
+      .isc-fu { left: 12px; top: 34px; width: 136px; height: 4px; border-radius: 4px; background: #475569; }
+      .isc-bu { top: 0; left: 0; right: 0; bottom: 0; border-radius: 4px; background: #1e293b; transform-origin: 0 50%; transform: scaleX(.3); animation: isc-bu 5.4s linear infinite; }
+      .dark .isc-fu { background: #94a3b8; }
+      .dark .isc-bu { background: #334155; }
+      .dark .isc-pop { text-shadow: 0 1px 0 #92400e, 0 0 6px #0f172a; }
+      @keyframes isc-bu { 0% { transform: scaleX(0) } 66%, 72% { transform: scaleX(1); opacity: 1 } 79% { transform: scaleX(1); opacity: 0 } 80%, 100% { transform: scaleX(0); opacity: 0 } }
+      .isc-sp { left: 5px; top: 29px; width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle,#fff 0 20%,#fde047 35%,#f97316 60%,transparent 70%); transform: translateX(41px); animation: isc-sp 5.4s linear infinite, isc-fl .12s steps(2) infinite; }
+      @keyframes isc-sp { 0% { transform: translateX(0); opacity: 1 } 66% { transform: translateX(136px); opacity: 1 } 67%, 100% { transform: translateX(136px); opacity: 0 } }
+      @keyframes isc-fl { to { filter: brightness(1.5) } }
+      .isc-bm { position: absolute; left: 150px; top: 17px; width: 38px; height: 38px; transform-origin: 50% 90%; animation: isc-bm 5.4s ease-in-out infinite; }
+      @keyframes isc-bm { 0%, 48% { transform: none; opacity: 1 } 51% { transform: translateX(1px) rotate(4deg) } 54% { transform: translateX(-1px) rotate(-4deg) } 57% { transform: translateX(1px) rotate(5deg) } 60% { transform: translateX(-1px) rotate(-5deg) } 64% { transform: scale(1.12); opacity: 1 } 67% { transform: scale(1.35); opacity: 0 } 68%, 78% { transform: translateY(-40px); opacity: 0 } 85% { transform: translateY(3px); opacity: 1 } 89%, 100% { transform: none; opacity: 1 } }
+      .isc-wo { opacity: 0; animation: isc-wo 5.4s linear infinite; }
+      @keyframes isc-wo { 0%, 40% { opacity: 0 } 46%, 66% { opacity: 1 } 67%, 100% { opacity: 0 } }
+      .isc-pw { left: 136px; top: -16px; width: 68px; text-align: center; z-index: 2; }
+      .isc-r .isc-pw { transform: scaleX(-1); }
+      .isc-pop { display: block; font: 900 18px system-ui, sans-serif; color: #f59e0b; text-shadow: 0 1px 0 #92400e, 0 0 6px #fff; opacity: 0; animation: isc-pop 5.4s ease-out infinite; }
+      @keyframes isc-pop { 0%, 65% { opacity: 0; transform: scale(.4) } 69% { opacity: 1; transform: translateY(4px) scale(1.15) } 82% { opacity: 1; transform: translateY(-2px) } 90%, 100% { opacity: 0; transform: translateY(-6px) } }
+      .isc-cf { left: 166px; top: 32px; width: 6px; height: 9px; border-radius: 2px; background: var(--c); opacity: 0; animation: isc-cf 5.4s cubic-bezier(.2,.7,.4,1) infinite; }
+      @keyframes isc-cf { 0%, 66% { opacity: 0; transform: none } 68% { opacity: 1 } 80% { opacity: 1; transform: translate(var(--x),var(--y)) rotate(var(--o)) } 94%, 100% { opacity: 0; transform: translate(calc(var(--x) * 1.2),calc(var(--y) + 34px)) rotate(calc(var(--o) * 2)) } }
+    </style>
+    <script>
+      (function () {
+        var L = document.getElementById('app-loader');
+        if (!L || window.ASHRY_UNSUPPORTED) return;
+        var en = false, still = false;
+        try {
+          var st = JSON.parse(localStorage.getItem('gameTrackerState_v1') || 'null');
+          en = st && st.lang ? st.lang === 'en' : /^en/i.test(navigator.language || '');
+          var mp = localStorage.getItem('ashryMotion');
+          still = mp === 'off' || (mp !== 'on' && !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches));
+        } catch (e) {}
+        // The lines ([ar, en]): each scene's own, and the general ones said with any scene.
+        var POOL = {
+          dice: [['بنرمي الزهر… ادعيلنا بدَش!', 'Rolling the dice… wish us a double!'], ['الزهر لسه بيلف…', 'The dice are still spinning…'], ['ستة وستة؟ قرّبنا!', 'Double six? Almost there!'], ['بنهزّ الزهر في إيدينا…', 'Shaking the dice in our hands…'], ['زهرة وقعت تحت الكنبة… ثانية نجيبها', 'A die rolled under the sofa… one sec']],
+          cards: [['بنفنّط الكروت…', 'Shuffling the cards…'], ['بنوزّع على كل واحد ٧ ورقات…', 'Dealing seven cards each…'], ['حد شاف الجوكر؟', 'Has anyone seen the joker?'], ['محدش يبص في ورق التاني!', 'No peeking at anyone’s cards!'], ['بنرتّب الورق بالألوان…', 'Sorting the cards by colour…']],
+          domino: [['بنرصّ الدومينو… محدش يخبط الترابيزة', 'Lining up the dominoes… nobody bump the table'], ['بنقلب الحجارة على وشها…', 'Turning the tiles face down…'], ['مين معاه الدبش؟', 'Who’s got the double six?'], ['بنعدّ النقط…', 'Counting the pips…'], ['خبطة واحدة وكله يقع!', 'One nudge and they all fall!']],
+          c4: [['بنحط أول قرص في النص…', 'Dropping the first disc in the middle…'], ['أحمر ولا أصفر؟', 'Red or yellow?'], ['أربعة في صف… قرّبنا!', 'Four in a row… nearly!'], ['بننزّل الأقراص واحد واحد…', 'Dropping the discs one by one…'], ['اللوحة قرّبت تتملي…', 'The board’s almost full…']],
+          bus: [['الأتوبيس جاي… اركب!', 'The bus is pulling in… hop on!'], ['السواق بيدوّر الموتور…', 'The driver’s starting the engine…'], ['الأتوبيس واقف في الإشارة…', 'The bus is waiting at a red light…'], ['فيه كرسي فاضي جنب الشباك!', 'There’s a free seat by the window!'], ['المحطة الجاية: عشري جيمينج', 'Next stop: Ashry Gaming']],
+          fuse: [['القنبلة بتسخن… متقلقش، مش هتفرقع', 'The bomb is warming up… don’t worry, it won’t go off'], ['الفتيل ولّع… مين ماسكها؟', 'The fuse is lit… who’s holding it?'], ['سلّم القنبلة بسرعة!', 'Pass the bomb, quick!'], ['بوم… كونفيتي بس، متخافش', 'Boom… only confetti, don’t worry'], ['بنجهّز قنبلة جديدة…', 'Getting a fresh bomb ready…']],
+          all: [['بنلمّ الشلّة…', 'Getting the gang together…'], ['بنصحّي الجاسوس… هو نايم ومش واخد باله', 'Waking up the spy… he never notices'], ['القرد بيدوّر على ربعه…', 'The monkey is looking for his missing quarter…'], ['بنعمل الشاي للقعدة…', 'Making tea for the table…'], ['بنسخّن الألعاب…', 'Warming up the games…'], ['بنرصّ الكراسي… واحد هيفضل واقف!', 'Setting out the chairs… someone stays standing!'], ['بنشحن الريموت…', 'Charging the remote…'], ['لسه بنجيب أكتر من ٧٠ لعبة… قرّبنا خلاص', 'Still bringing 70+ games… nearly there'], ['النت عندك بياخد نفَسه… احنا مستنيين معاك', 'Your connection is catching its breath… we’re waiting with you'], ['الحرباء بتغيّر لونها…', 'The chameleon is changing colour…'], ['بنكتب الأسئلة… ومفيش غش!', 'Writing the questions… and no cheating!'], ['بنرسم آخر خط…', 'Drawing the last line…']]
+        };
+        var FIRST = ['أول مرة بس… المرة الجاية هيفتح في ثانية', 'First time only. Next time it opens in a second'];
+        var SC = ['dice', 'cards', 'domino', 'c4', 'bus', 'fuse'];
+        var stopped = false, shown = false, W = null, T, M, bags = {};
+        // A pool is drawn at random, none twice until it has all been said.
+        function draw(p) {
+          var b = bags[p];
+          if (!b || !b.length) b = bags[p] = POOL[p].slice();
+          return b.splice(Math.floor(Math.random() * b.length), 1)[0][en ? 1 : 0];
+        }
+        function pips(n) {
+          var on = [[4], [0, 8], [0, 4, 8], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8]][n - 1], h = '';
+          for (var i = 0; i < 9; i++) h += on.indexOf(i) > -1 ? '<span class="on"></span>' : '<span></span>';
+          return h;
+        }
+        function roll() { return 1 + Math.floor(Math.random() * 6); }
+        function stage(id) {
+          var h = '', i;
+          if (id === 'dice') return '<b class="isc-d">' + pips(roll()) + '</b><b class="isc-d b">' + pips(roll()) + '</b>';
+          if (id === 'cards') return '<b class="isc-c isc-k l"></b><b class="isc-c isc-k r"></b><b class="isc-c m"><b class="isc-in"><b class="isc-k"></b><b class="f">7</b></b></b>';
+          if (id === 'domino') { for (i = 0; i < 7; i++) h += '<b class="isc-dm" style="left:' + (30 + i * 21) + 'px;animation-delay:' + (i * 0.12).toFixed(2) + 's"></b>'; return h; }
+          if (id === 'c4') {
+            var order = [17, 16, 18, 15, 19, 12, 11, 13, 10, 14, 7, 6, 8, 5, 9, 2, 1, 3, 0, 4];
+            for (i = 0; i < 20; i++) { var k = order.indexOf(i); h += '<i style="--c:' + (k % 2 ? '#f5b400' : '#e5383b') + ';--d:' + (k * 0.14).toFixed(2) + 's"></i>'; }
+            return '<b class="isc-4">' + h + '</b>';
+          }
+          if (id === 'bus') {
+            var wheel = function (x) { return '<g class="isc-w"><circle cx="' + x + '" cy="31" r="6" fill="#1d1830"/><circle cx="' + x + '" cy="31" r="2" fill="#cbd5e1"/><rect x="' + (x - 0.7) + '" y="25.5" width="1.4" height="3" fill="#cbd5e1"/></g>'; };
+            var win = function (x) { return '<rect x="' + x + '" y="9" width="12" height="9" rx="2" fill="#e0e7ff" stroke="#1d1830" stroke-width="1.5"/>'; };
+            return '<b class="isc-rd"></b><b class="isc-pf"></b><b class="isc-pf"></b><b class="isc-bs"><svg viewBox="0 0 80 40" width="78" height="39" aria-hidden="true"><rect x="2" y="4" width="72" height="26" rx="7" fill="#6d28d9" stroke="#1d1830" stroke-width="2"/>' + win(8) + win(24) + win(40) +
+              '<rect x="56" y="9" width="14" height="15" rx="2" fill="#fbbf24" stroke="#1d1830" stroke-width="1.5"/><circle cx="14" cy="13" r="2.4" fill="#f59e0b"/><circle cx="46" cy="13" r="2.4" fill="#34d399"/>' + wheel(18) + wheel(58) + '</svg></b>';
+          }
+          var cf = [['#f59e0b', -36, -14, 200], ['#a78bfa', 26, -16, -160], ['#34d399', -16, -22, 90], ['#f472b6', 34, -4, 240], ['#60a5fa', -42, 0, -120], ['#fbbf24', 12, -24, 300], ['#e5383b', -26, -18, 160], ['#6d28d9', 30, -12, -220], ['#34d399', 40, -20, 140], ['#f472b6', -6, -26, -260]];
+          for (i = 0; i < cf.length; i++) h += '<i class="isc-cf" style="--c:' + cf[i][0] + ';--x:' + cf[i][1] + 'px;--y:' + cf[i][2] + 'px;--o:' + cf[i][3] + 'deg"></i>';
+          return '<b class="isc-fu"><b class="isc-bu"></b></b><i class="isc-sp"></i>' +
+            '<svg class="isc-bm" viewBox="0 0 38 38" aria-hidden="true"><circle cx="18" cy="21" r="14" fill="#1d1830"/><circle cx="12" cy="15" r="3.2" fill="#475569"/><rect x="23" y="3" width="8" height="7" rx="1.5" fill="#64748b" transform="rotate(35 27 6)"/><circle cx="13" cy="21" r="2" fill="#fff"/><circle cx="23" cy="21" r="2" fill="#fff"/><path d="M13 27 q5 3 10 0" stroke="#fff" stroke-width="1.7" fill="none" stroke-linecap="round"/>' +
+            '<g class="isc-wo"><circle cx="13" cy="21" r="2.6" fill="#fff"/><circle cx="23" cy="21" r="2.6" fill="#fff"/><circle cx="13" cy="21" r="1" fill="#1d1830"/><circle cx="23" cy="21" r="1" fill="#1d1830"/><rect x="12" y="25" width="12" height="5" rx="2.5" fill="#1d1830"/><path d="M13 28 q5 -3 10 0" stroke="#fff" stroke-width="1.7" fill="none" stroke-linecap="round"/><path d="M4 12 q-2.5 3 0 5.5" stroke="#7dd3fc" stroke-width="1.8" fill="none" stroke-linecap="round"/></g></svg>' +
+            '<b class="isc-pw"><span class="isc-pop">' + (en ? 'Pop!' : 'بوم!') + '</span></b>' + h;
+        }
+        var at = 0, sid, S;
+        // A line every 3 s: the scene's own first, then a general one and the scene's in
+        // turn; the fourth, at 12 s, says the next open will be quick.
+        function next() {
+          if (stopped) return;
+          at++;
+          var k = at > 3 ? at - 1 : at, text = at === 3 ? FIRST[en ? 1 : 0] : draw(k % 2 ? 'all' : sid), m = W.lastChild;
+          if (still) m.textContent = text;
+          else {
+            m.className = 'isc-m out';
+            S = setTimeout(function () { m.textContent = text; m.className = 'isc-m'; }, 300);
+          }
+          M = setTimeout(next, at === 2 ? 3500 : 3000);
+        }
+        function show() {
+          if (stopped || shown || !document.getElementById('app-loader')) return;
+          shown = true;
+          var id = window.INTRO_SCENE || SC[Math.floor(Math.random() * SC.length)];
+          if (!POOL[id] || id === 'all') id = 'dice';
+          sid = id;
+          bags[id] = POOL[id].slice(1);
+          W = document.createElement('div');
+          W.id = 'intro-scene';
+          W.setAttribute('aria-hidden', 'true');
+          W.setAttribute('dir', en ? 'ltr' : 'rtl');
+          if (still) W.className = 'is-still';
+          var mirror = !en && (id === 'domino' || id === 'bus' || id === 'fuse');
+          W.innerHTML = '<div class="isc isc-' + id + (mirror ? ' isc-r' : '') + '">' + stage(id) + '</div><p class="isc-m">' + POOL[id][0][en ? 1 : 0] + '</p>';
+          L.appendChild(W);
+          // A die shows new pips every time it is thrown again.
+          var dice = W.querySelectorAll('.isc-d');
+          for (var d = 0; d < dice.length; d++) dice[d].addEventListener('animationiteration', function () { this.innerHTML = pips(roll()); });
+          void W.offsetHeight;
+          L.className += ' has-scene';
+          M = setTimeout(next, 3000);
+        }
+        // Called by the app (introExit, skipIntro, the fade): stops everything and says
+        // how long the scene needs to fade before the logo flies.
+        window.introSceneStop = function () {
+          if (stopped) return 0;
+          stopped = true;
+          clearTimeout(T);
+          clearTimeout(M);
+          clearTimeout(S);
+          if (!W) return 0;
+          W.className += ' is-leaving';
+          return still ? 0 : 250;
+        };
+        var t0 = window.INTRO_T0 || 0, now = (window.performance && performance.now()) || 0;
+        T = setTimeout(show, Math.max(0, 2500 - (now - t0)));
+      })();
+    </script>
+
     <!-- Moved from <head> (see the note there): everything below the intro can wait for these. -->
     <!-- Only the utilities this app uses, built by tools/ (npm run build:css) -->
     <?!= include('Tailwind'); ?>

@@ -3573,6 +3573,25 @@ the word search), `countUp` for streaks and scores.
   the phones at 20 s, a player closing the vote and dealing the next, the
   host back).
 
+- **28 Sep 2026, the stylesheet's performance** - style recalc measured in
+  headless Chrome at 6x CPU throttling (`Performance.getMetrics` per action;
+  per rule by deleting it through the CSSOM and rebuilding a view's markup):
+  one setup-screen rule with a `:has()` above a universal subject was half of
+  every room screen's recalc. Replaced by `.stepper-row` on the nine count
+  rows in `Controller.html` (`.tv-art ~ *` by `.has-art` on its four parents,
+  `[class*="tabular"]` by `.tabular-nums`), each keeping its old weight.
+  8 s of أونو's style recalc 1,865 → 89 ms, a lobby filling 255 → 18, a
+  setup screen 211 → 171 (*The design system*, *Performance*). Then dead CSS
+  from a coverage run of every view, popup, game and room game: 27 rules, 8
+  selectors and a keyframes whose classes no source file writes (the page
+  1,548,144 → 1,547,909 bytes gzipped). No visual change, checked by swapping
+  master's stylesheet into the same page state and comparing every computed
+  style of every rendered element and its ::before/::after (441 states: every
+  setup, popup and started game at four sizes, both languages and themes, and
+  every room game on four phones and a TV): identical, apart from vote chess's
+  ticking clock ring; 199 screenshots, identical except canvases and running
+  clocks.
+
 ## Building and Running
 
 ### Development Requirements
@@ -8510,6 +8529,19 @@ sort ascending. `settlePredictions` took `Math.max` of the scores, so «مين
 it. A tally (votes, wins, the night's points) is higher-is-better and may use
 `Math.max`; a game's board may not.
 
+**A `:has()` above a universal subject taxes every DOM change.**
+`[id^="view-setup-"] :is(.field, div):has(> .field__label:first-child + .stepper)
+> :not(.field__label, .stepper)` looked scoped to the setup screens, but Chrome
+matches right to left: every element's parent was checked with `:has()`, and
+every `innerHTML` anywhere - a room's state push, a filter chip - re-checked
+`:has()` state up and across the tree. That one rule was half the style
+recalc of every room screen (8 s of أونو: 1,865 ms → 89 ms at 6x throttling
+without it). Putting a class before the `:has()` in the same compound did not
+help; a class in the markup did (*The design system*, *Performance*). Measure a
+selector by removing it through the CSSOM and rebuilding a view's markup N
+times (`Performance.getMetrics`' `RecalcStyleDuration`); Chrome's selector
+stats in a trace inflate the matching time about ninefold and missed it.
+
 **A plug-in's board field is the engine's once it is named the same.** The
 solve engine stamps a done board with `b.at = Date.now()` (its seconds), and
 إيه اللي يجمعهم؟'s race board kept its current round as `at` too - a finished
@@ -9943,6 +9975,54 @@ the right/present/absent colours still win.
 42), fields are 48px with one font. Don't put `py-*`, `h-*`, `text-xl` or
 `font-*` utilities on them - pick a size class. The Charades and Describe It
 play buttons (`h-20`) are the one deliberate exception.
+
+**Performance: what makes a style recalc slow** (28 Sep 2026, measured in
+headless Chrome at 6x CPU throttling, the numbers are that throttled time).
+Room screens rebuild their `innerHTML` on every state push, so the cost of
+styling new elements is paid all evening. What it cost, and what it costs now:
+
+| action (host phone, 375x812) | before | after |
+| --- | --- | --- |
+| 8 s of أونو, four people (style recalc, total) | 1,865 ms | 89 ms |
+| 6 s of الدومينو | 102 ms | 23 ms |
+| a lobby: create, three join | 255 ms | 18 ms |
+| opening a setup screen | 211 ms | 171 ms |
+| typing 12 letters in a setup field | 189 ms | 155 ms |
+| a filter chip on the home | 249 ms | 223 ms |
+
+Rebuilding a screen's markup once (the recalc alone): the home 17.7 → 7.3 ms,
+a setup 24 → 10, sudoku 19 → 8, the lobby 31 → 17, أونو 27 → 14, الدومينو
+18 → 7; the same halving at 667x375 and 1280x720. Nearly all of it was **one
+rule**: `[id^="view-setup-"] :is(.field, div):has(> .field__label:first-child +
+.stepper) > :not(.field__label, .stepper)`. A `:has()` on an ancestor compound
+with a universal subject makes Chrome re-check `:has()` state far up and
+across the tree on every DOM change anywhere - a setup-screen rule was half of
+every room screen's recalc. Rules learned (the tools, in the log below, are
+worth rerunning after a big CSS change):
+
+- **`:has()` goes on the subject, or on an ancestor of a class subject -
+  never above `> *`, `> :not(...)` or `~ *`.** When a parent must be found by
+  what it holds and the rule styles its children, mark the parent with a class
+  in the markup instead (`.stepper-row`, `.has-art`), repeated or wrapped in
+  `:where()` to keep the old selector's weight so the cascade can't change.
+- **No universal subject after a sibling combinator** (`.tv-art ~ *` walked
+  every element's previous siblings on every recalc): `:where(.parent) >
+  :not(.x)` does the same for a known first child.
+- **No attribute substring on the subject** (`[class*="tabular"]` is tried on
+  every element): name the class.
+- Everything else measured small: all 338 keyframes, the tokens, the universal
+  `*` / `::before` / `::backdrop` rules and Tailwind together cost less than
+  the one rule did; the remaining ~86 `:has()` rules are about 1-2 ms of a
+  rebuild together, none over the noise alone.
+- **Dead CSS**: a coverage run (every view at 375x812, 667x375, 1280x720,
+  1920x1080 and 768x1024, both languages and themes, motion on and off, every
+  popup, every one-phone game started, every room game dealt to five phones and
+  a TV) used 4,006 of 7,070 style rules. Unused is not dead: a rule is deleted
+  only when a class or id it needs appears in no source file at all, counting
+  strings built as `'x-' + n` / `` `x-${n}` `` (the `btn-*` aliases stay). That
+  removed 27 rules, 8 dead selectors from lists and one keyframes (~3 KB
+  source, 0.4 KB gzipped); the rest of the unused rules belong to states the
+  run didn't reach.
 
 ### Layout: the app shell
 

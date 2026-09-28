@@ -1636,9 +1636,14 @@ const DRIVERS = {
   },
   chairs() {
     // Four in the ring: a false start, taps timed by their stamps, a round nobody finishes, to one left.
+    // Fake pauses come only with 8 s of music or more, so now and then a whole game has none and
+    // the fake-pause probe never came up: play again until one has (a check can't fail by chance).
     const T = table('chairs', 4);
     must(T, T.host, 'start', { fake: true });
-    for (let guard = 0; guard < 40 && S(T).phase !== 'gameover'; guard++) {
+    let sawFake = false;
+    for (let guard = 0; guard < 240 && !(S(T).phase === 'gameover' && sawFake); guard++) {
+      if (S(T).phase === 'gameover') { must(T, T.host, 'playAgain', { fake: true }); continue; }
+      if (T.room._chairs && T.room._chairs.fakes.length) sawFake = true;
       const s = S(T);
       if (s.phase === 'result') { runClock(T, (r) => r.shared.phase !== 'result', 6); continue; }
       if (s.phase === 'music') {

@@ -1,0 +1,387 @@
+<script>
+/* ============================================================================
+   السلم والتعبان — SNAKES & LADDERS in rooms and on the TV
+   ----------------------------------------------------------------------------
+   The rules are snakesAction in RoomSnakes.js (and Snakes.js, which both sides
+   load); the board and every roll's animation are JS_Snakes.html, the same as a
+   game against the phone. This file is the room around them: the lobby (the
+   colours; with seven or more the host picks who plays; the host's turn
+   clock), the phone's frame, the TV's frame, the clock and the host's way past
+   a phone that went quiet.
+
+   Everything is on the table, so every phone and the TV draw the same board
+   from `shared`. Someone who joins in the middle watches the board (lateJoin)
+   and plays the next game. The roll button waits until this screen has shown
+   the last roll and the server's `readyAt` has passed (read by the server's
+   time: the smallest receivedAt - serverNow seen).
+   ========================================================================= */
+
+const SNK_OPTS_KEY = 'snakesRoom';
+
+/** What only this phone holds: the tap already sent, the clock, the host's timer, the server's time. */
+const snkRoomLocal = { sent: '', clock: null, clockKey: null, hostKey: '', turnSince: 0, hostTimer: null, readyTimer: null, gap: Infinity, turnMine: false };
+
+function snkRoomOpts() {
+  const o = recallOptions(SNK_OPTS_KEY, { turnClock: 0 });
+  if (SNAKES_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
+  return o;
+}
+
+function setSnakesRoomOpt(key, value) {
+  if (key === 'turnClock') rememberOptions(SNK_OPTS_KEY, { turnClock: Number(value) || 0 });
+  haptic('light');
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/* --- the lobby: colours and seats ---------------------------------------------------------- */
+
+/** Who would play if the game started now. Mirrors snakesLobbySeated in RoomSnakes.js - keep the two in step. */
+function snkRoomSeated(state) {
+  const ids = (state.players || []).map(p => p.id);
+  const lobby = ((state.shared || {}).lobby) || {};
+  if (Array.isArray(lobby.seated)) {
+    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
+    ids.forEach(id => { if (kept.length < SNAKES_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
+    return kept.slice(0, SNAKES_MAX_PLAYERS);
+  }
+  return ids.slice(0, SNAKES_MAX_PLAYERS);
+}
+
+function snkPickColorTap(color) {
+  const state = Room.state;
+  if (!state || state.phase !== 'lobby') return;
+  haptic('light');
+  roomAct('color', { color: color });
+}
+
+function snkSeatTap(pid, on) {
+  haptic('light');
+  roomAct('seat', { playerId: pid, on: !!on });
+}
+
+/** The six colours: each shows who has taken it; a tap takes a free one, or lets yours go. */
+function snkColorPickerHtml(state) {
+  const seated = snkRoomSeated(state);
+  const colors = (((state.shared || {}).lobby) || {}).colors || {};
+  const holder = {};
+  Object.keys(colors).forEach(id => { if (seated.indexOf(id) !== -1) holder[colors[id]] = id; });
+  const mineSeated = !state.youAreScreen && seated.indexOf(Room.me) !== -1;
+  const name = (id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+  const swatches = SNAKES_COLORS.map(c => {
+    const who = holder[c];
+    const mine = who === Room.me;
+    const can = mineSeated && (!who || mine);
+    const label = who ? name(who) : snkT('snk_color_free');
+    return `<button type="button" class="snk-pick ${mine ? 'is-mine' : ''} ${who ? 'is-taken' : ''}" style="--pc:${SNK_HEX[c]}" ${can ? `onclick="snkPickColorTap('${c}')"` : 'disabled'}
+        aria-pressed="${mine}" aria-label="${escapeHTML(snkColorName(c) + ': ' + label)}">
+        <span class="snk-pick__dot" aria-hidden="true"></span>
+        <span class="snk-pick__who">${escapeHTML(label)}</span>
+      </button>`;
+  }).join('');
+  const hint = state.youAreScreen ? '' : mineSeated ? snkT(colors[Room.me] ? 'snk_color_yours' : 'snk_color_pick') : snkT('snk_watching_next');
+  return `<div class="field">
+      <label class="field__label">🎨 ${escapeHTML(snkT('snk_color_label'))}</label>
+      <div class="snk-picks">${swatches}</div>
+      ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+    </div>`;
+}
+
+/** With seven or more in the room: who plays (six) and who watches. The host moves people between the two. */
+function snkSeatsHtml(state) {
+  const players = state.players || [];
+  if (players.length <= SNAKES_MAX_PLAYERS) return '';
+  const seated = snkRoomSeated(state);
+  const host = !!state.youAreHost;
+  const chip = (p) => {
+    const on = seated.indexOf(p.id) !== -1;
+    const inner = `${p.bot ? '🤖 ' : ''}${escapeHTML(p.name)}`;
+    return host
+      ? `<button type="button" class="chip ${on ? 'is-selected' : ''}" onclick="snkSeatTap('${jsStringAttr(p.id)}', ${!on})" aria-pressed="${on}">${inner}</button>`
+      : `<span class="chip ${on ? 'is-selected' : ''}">${inner}</span>`;
+  };
+  return `<div class="field">
+      <label class="field__label">🪑 ${escapeHTML(snkT('snk_seats_label', { n: seated.length }))}</label>
+      <div class="chip-set">${players.map(chip).join('')}</div>
+      <p class="field__hint">${escapeHTML(host ? snkT('snk_seats_hint_host') : snkT('snk_seats_hint'))}</p>
+    </div>`;
+}
+
+/* --- a room's frame ------------------------------------------------------------------------ */
+
+const snkShared = (state) => (state && state.shared) || {};
+const snkInGame = (state) => !state.youAreScreen && (snkShared(state).seats || []).indexOf(Room.me) !== -1;
+const snkMyTurn = (state) => { const s = snkShared(state); return s.phase === 'play' && s.turn && s.turn.pid === Room.me && snkInGame(state); };
+
+/** The server's readyAt on this phone's clock. */
+function snkReadyLocal(state) {
+  const s = snkShared(state);
+  if (typeof state.serverNow === 'number' && typeof state.receivedAt === 'number') snkRoomLocal.gap = Math.min(snkRoomLocal.gap, state.receivedAt - state.serverNow);
+  const gap = isFinite(snkRoomLocal.gap) ? snkRoomLocal.gap : 0;
+  return (s.readyAt || 0) + gap - 300;
+}
+
+function snkRoomRoll() {
+  const state = Room.state;
+  if (!state || state.game !== 'snakes' || !snkMyTurn(state) || snkBusy()) return;
+  const s = snkShared(state);
+  const stamp = state.code + '|' + s.turnSeq;
+  if (snkRoomLocal.sent === stamp) return;
+  snkRoomLocal.sent = stamp;
+  haptic('medium');
+  const btn = document.querySelector('#view-room-snakes [data-snk-roll]');
+  if (btn) btn.disabled = true;
+  Promise.resolve(roomAct('roll', { seq: s.turnSeq })).then(() => {
+    // Dropped by the server (the table was still watching): the button comes back.
+    setTimeout(() => {
+      if (snkRoomLocal.sent !== stamp) return;
+      snkRoomLocal.sent = '';
+      const st = Room.state;
+      if (st && st.game === 'snakes' && snkShared(st).turnSeq === s.turnSeq) snkRoomIdle();
+    }, 600);
+  });
+}
+
+function snkRoomSkip() {
+  const s = snkShared(Room.state);
+  roomAct('skipTurn', { seq: s.turnSeq });
+}
+
+/** The host's way past a phone that went quiet: gone, or holding the turn for 40 seconds. */
+function snkHostButtons(state) {
+  const s = snkShared(state);
+  if (!roomCanMoveOn(state) || s.phase !== 'play' || !s.turn || !s.turn.pid) return [];
+  const p = (state.players || []).find(x => x.id === s.turn.pid);
+  if (p && p.bot) return [];
+  const key = state.code + '|' + s.turnSeq;
+  if (snkRoomLocal.hostKey !== key) {
+    snkRoomLocal.hostKey = key;
+    snkRoomLocal.turnSince = Date.now();
+    clearTimeout(snkRoomLocal.hostTimer);
+    snkRoomLocal.hostTimer = setTimeout(() => {
+      const st = Room.state;
+      if (st && st.game === 'snakes') snkRefreshInPlace(document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-snakes'), st, !!st.youAreScreen);
+    }, 40500);
+  }
+  const quiet = !p || !p.online || Date.now() - (snkRoomLocal.turnSince || Date.now()) > 40000;
+  if (!quiet || s.turn.pid === Room.me) return [];
+  return [['⏭️ ' + snkT('snk_play_for', { name: p ? p.name : '' }), 'snkRoomSkip()']];
+}
+
+/** Presence redraws nothing: who is away and the host's buttons are updated in place. */
+function snkRefreshInPlace(root, state, tv) {
+  if (!root) return;
+  if (!tv) refreshRoomPlayerStrip(root, state);
+  root.querySelectorAll('[data-snk-chip]').forEach(el => {
+    const p = (state.players || []).find(x => x.id === el.getAttribute('data-snk-chip'));
+    el.classList.toggle('is-away', !!p && !p.bot && !p.online);
+  });
+  const box = root.querySelector('[data-snk-host-row]');
+  if (box) {
+    const buttons = snkHostButtons(state);
+    const html = tv ? buttons.map(b => tvBtn(b[0], b[1], 'ghost')).join('') : roomHostRow(buttons);
+    if (box._snkHtml !== html) { box.innerHTML = html; box._snkHtml = html; }
+  }
+}
+
+function snkStopClock() {
+  if (snkRoomLocal.clock) snkRoomLocal.clock.stop();
+  snkRoomLocal.clock = null;
+  snkRoomLocal.clockKey = null;
+}
+
+/** Draws the turn clock; the server rolls for the player when it runs out. */
+function snkTickClock(state) {
+  const s = snkShared(state);
+  const endsAt = s.phase === 'play' ? s.endsAt : null;
+  const paint = () => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    document.querySelectorAll('[data-snk-clock]').forEach(el => {
+      el.textContent = '⏱️ ' + left;
+      el.classList.toggle('badge--danger', left <= 5);
+      el.classList.toggle('badge--accent', left > 5);
+    });
+    return left;
+  };
+  if (!endsAt) { snkStopClock(); return; }
+  paint();
+  if (snkRoomLocal.clockKey === endsAt && snkRoomLocal.clock && snkRoomLocal.clock.isRunning()) return;
+  snkStopClock();
+  snkRoomLocal.clockKey = endsAt;
+  snkRoomLocal.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      if (left > 0 && left <= 5 && st && st.game === 'snakes' && snkShared(st).endsAt === endsAt && snkMyTurn(st)) playSound('tick');
+    },
+    onEnd: () => { snkRoomLocal.clock = null; paint(); }
+  });
+}
+
+/** The context the frame and the board are drawn from. */
+function snkRoomCtx(state, tv) {
+  const s = snkShared(state);
+  const names = {}, bots = {}, away = {};
+  (state.players || []).forEach(p => {
+    names[p.id] = p.name;
+    if (p.bot) bots[p.id] = p.bot;
+    else if (!p.online) away[p.id] = true;
+  });
+  const me = snkInGame(state) ? Room.me : null;
+  let over = '';
+  if (s.phase === 'gameover') {
+    const share = typeof roomShareBtnHtml === 'function' && !tv ? roomShareBtnHtml(state, s.board) : '';
+    if (tv) over = state.youAreHost ? `<div class="tv-actions">${tvBtn(snkT('snk_again'), "roomAct('playAgain')")}${tvBtn(snkT('room_another_game'), "roomAct('backToHub')", 'ghost')}</div>` : '';
+    else if (state.youAreHost) {
+      over = `<div class="btn-stack">
+          <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(snkT('snk_again'))}</button>
+          <button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(snkT('room_another_game'))}</button>
+        </div>${share}`;
+    } else over = `<p class="field__hint" style="text-align:center">${escapeHTML(snkT('snk_wait_host'))}</p>${share}`;
+  }
+  return {
+    g: s, me: me, names: names, bots: bots, away: away, tv: !!tv,
+    key: state.code + '|' + (s.dealId || '') + '|' + ((s.map || {}).seed || ''),
+    loud: !!tv || !roomHasScreen(),
+    rollJs: 'snkRoomRoll()', clock: !!s.endsAt, over: over, showOver: s.phase === 'gameover',
+    host: tv ? '<div class="tv-actions" data-snk-host-row></div>' : '<div data-snk-host-row></div>',
+    readyLocal: snkReadyLocal(state)
+  };
+}
+
+/** Everything the server said that the frame shows. Presence is not in it (refreshed in place). */
+function snkServerSig(state) {
+  const s = snkShared(state);
+  return [s.dealId || '', (s.map || {}).seed || '', s.phase, s.turnSeq, s.eventSeq, s.endsAt || '', (s.seats || []).join(','),
+    (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','), JSON.stringify(s.board || [])].join('|');
+}
+
+/** Once the board has shown everything: the roll button, the log, the chips, the end. */
+function snkRoomIdle() {
+  const st = Room.state;
+  if (!st || st.game !== 'snakes' || st.phase === 'lobby') return;
+  const tv = !!st.youAreScreen;
+  const root = document.getElementById(tv ? 'view-room-tv' : 'view-room-snakes');
+  if (!root) return;
+  const k = snkRoomCtx(st, tv);
+  snkSyncIdle(root, k);
+  // The server's readyAt may still be ahead (motion off plays nothing): look again then.
+  clearTimeout(snkRoomLocal.readyTimer);
+  if (!tv && k.readyLocal > Date.now() && snkMyTurn(st)) snkRoomLocal.readyTimer = setTimeout(snkRoomIdle, k.readyLocal - Date.now() + 30);
+  const s = snkShared(st);
+  if (!tv) {
+    const mine = snkMyTurn(st);
+    if (mine && !snkRoomLocal.turnMine) { playSound('tick'); haptic('medium'); }
+    snkRoomLocal.turnMine = mine;
+  }
+  if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce(['snk-room-end', tv ? 'tv' : 'ph', k.key].join('|'))) {
+    const won = s.places[0] === Room.me;
+    afterReveal(root, () => {
+      if (won || tv) {
+        playSound('success');
+        if (typeof confetti === 'function') confetti({ particleCount: tv ? 160 : 120, spread: tv ? 90 : 80, origin: { y: 0.6 } });
+        if (won) haptic('double');
+      }
+    });
+  }
+}
+
+/** The board fed after a frame was drawn (or not): it keeps playing whatever it is playing. */
+function snkRoomFeed(root, state, tv) {
+  const k = snkRoomCtx(state, tv);
+  const c = snkShowIn(root.querySelector('[data-snk-host]'));
+  const prevSeq = c.lastSeq;
+  k.prevSeq = prevSeq;
+  k.onIdle = snkRoomIdle;
+  // Dealt while this screen watched the room: the map is built in front of it.
+  k.fresh = snkRoomLocal.watched === state.code;
+  snkFeed(snkShared(state), k);
+  if (snkBusy()) snkSyncIdle(root, k); else snkRoomIdle();
+}
+
+ROOM_GAMES.snakes = {
+  bots: { max: SNAKES_MAX_PLAYERS, one: true },
+  // Someone who joins in the middle watches the board, and plays the next game.
+  lateJoin: true,
+
+  // A roll is not a new step to scroll to; the end of the game is drawn from the top.
+  actionKey(state) {
+    const s = snkShared(state);
+    return s.phase === 'gameover' ? [state.code, s.dealId, s.phase].join('|') : '';
+  },
+
+  lobbyOptions(state) {
+    const o = snkRoomOpts();
+    const clock = state.youAreHost ? `<div class="field">
+          <label class="field__label">⏱️ ${escapeHTML(snkT('snk_clock'))}</label>
+          <div class="segmented" role="group">${SNAKES_CLOCKS.map(v => `<button type="button" class="segmented__item ${Number(o.turnClock) === v ? 'is-active' : ''}" onclick="setSnakesRoomOpt('turnClock', ${v})">${v ? v + '″' : escapeHTML(snkT('snk_clock_off'))}</button>`).join('')}</div>
+          ${Number(o.turnClock) ? `<p class="field__hint">${escapeHTML(snkT('snk_clock_hint'))}</p>` : ''}
+        </div>` : '';
+    return `<div class="card card--tight snk-lobby">
+        ${snkColorPickerHtml(state)}
+        ${snkSeatsHtml(state)}
+        ${clock}
+        <p class="field__hint" style="text-align:center">${escapeHTML(snkT('snk_lobby_hint'))}</p>
+      </div>`;
+  },
+
+  startPayload() {
+    return { turnClock: snkRoomOpts().turnClock };
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-snakes') setView('room-snakes');
+    const el = document.getElementById('view-room-snakes');
+    if (!el) return;
+    const s = snkShared(state);
+    if (!Array.isArray(s.seats)) return;
+    const k = snkRoomCtx(state, false);
+    const local = [state.youAreHost, appState.lang, Room.me].join('|');
+    renderRoomFrame(el, snkServerSig(state) + '#' + local, () => snkFrameHtml(k) + renderRoomPlayerStrip(state));
+    snkRefreshInPlace(el, state, false);
+    snkTickClock(state);
+    snkRoomFeed(el, state, false);
+  }
+};
+
+onRoomClocksReset(() => {
+  snkStopClock();
+  clearTimeout(snkRoomLocal.hostTimer);
+  clearTimeout(snkRoomLocal.readyTimer);
+  snkRoomLocal.sent = '';
+  // Another game (or none): the board goes. A new deal of this game keeps it, so the old map can be taken apart.
+  const st = Room.state;
+  if (!st || st.game !== 'snakes') snkDrop();
+});
+
+// After the room has drawn this state: this page has now watched the room, so a game dealt
+// next is built in front of it.
+Room.onChange((state) => {
+  if (!state) { snkRoomLocal.watched = ''; return; }
+  snkRoomLocal.watched = state.code;
+});
+
+/* --- the TV: the board takes the height, the players beside it --------------------------------- */
+
+TV_GAMES.snakes = {
+  sig(state) {
+    return snkServerSig(state) + '|' + state.youAreHost + '|' + appState.lang;
+  },
+  frame(state) {
+    const s = snkShared(state);
+    if (!Array.isArray(s.seats)) return '';
+    return snkFrameHtml(snkRoomCtx(state, true));
+  },
+  after(state) {
+    const view = document.getElementById('view-room-tv');
+    if (!view) return;
+    snkTickClock(state);
+    snkRefreshInPlace(view, state, true);
+    snkRoomFeed(view, state, true);
+  }
+};
+</script>

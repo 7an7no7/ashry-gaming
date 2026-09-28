@@ -770,6 +770,65 @@ async function hostAwayRobots() {
   [H, J, K].forEach((x) => x.close());
 }
 
+async function snakesRobots() {
+  console.log('• السلم والتعبان (colours in the lobby, the map built, rolls after the table has seen the last one, a computer player, the clock, play again, leaving)');
+  const H = await Bot.host('هالة', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K];
+  const sS = (b) => b.state.shared || {};
+  await H.must('chooseGame', { game: 'snakes' });
+  await J.must('color', { color: 'p' });
+  check((await K.act('color', { color: 'p' })).ok === false, 'snakes: a colour already taken is refused');
+  await H.must('addBot', { level: 'easy', name: 'زيزو' });
+  check((await J.act('start', { turnClock: 15 })).ok === false, 'snakes: only the host starts');
+  await H.must('start', { turnClock: 15 });
+  await all(people.concat([TV]), (s) => s.game === 'snakes' && s.shared.phase === 'play' && s.shared.seats.length === 4 && s.shared.map.snakes.length === 5 && s.shared.events[0].type === 'build',
+    'snakes: four dealt in, the same new map on every phone and the TV, built in front of them');
+  check(sS(J).colors[J.pid] === 'p' && sS(TV).map.seed === sS(H).map.seed, 'snakes: the colour picked is kept, and every screen has the same map');
+  check(TV.state.you === null, 'snakes: the TV has no secret');
+  const bot = sS(H).seats.find((id) => !people.some((p) => p.pid === id));
+  // Play a while: people roll once the table is ready, the computer player rolls on its own, a quiet one is rolled for by the clock.
+  const quiet = K.pid;
+  let rolled = 0, early = 0;
+  const t0 = Date.now();
+  while (Date.now() - t0 < 60000) {
+    const s = sS(H);
+    if (s.phase !== 'play') break;
+    const up = s.turn.pid;
+    const who = people.find((p) => p.pid === up);
+    if (who && up !== quiet) {
+      if (Date.now() < s.readyAt - 1500) {
+        const seq = s.turnSeq;
+        await who.act('roll', { seq: seq });
+        if (sS(H).turnSeq === seq) early++;
+      }
+      await sleep(Math.max(0, s.readyAt - Date.now()) + 60);
+      const res = await who.act('roll', { seq: s.turnSeq });
+      if (res.ok) rolled++;
+    }
+    await sleep(300);
+    if (rolled >= 3 && sS(H).events.some((e) => e.type === 'auto' && e.why === 'clock') && sS(H).events.some((e) => e.type === 'roll' && e.pid === bot)) break;
+  }
+  const s1 = sS(H);
+  check(rolled >= 3, 'snakes: people roll on their turn once the table has seen the last roll');
+  check(early > 0, 'snakes: a roll before the table has seen the last one is dropped');
+  check(s1.events.some((e) => e.type === 'roll' && e.pid === bot), 'snakes: the computer player rolls on its own');
+  check(s1.events.some((e) => e.type === 'auto' && e.why === 'clock' && e.pid === quiet), 'snakes: the clock rolls for a quiet phone');
+  check(s1.events.filter((e) => e.type === 'roll').every((e) => e.n >= 1 && e.n <= 6 && typeof e.ms === 'number'), 'snakes: every roll is a die of 1-6 with how long it takes to show');
+  // Someone who joins in the middle watches the board.
+  const late = await Bot.join(H.code, 'متأخر');
+  check(late.state.inGame === false && Array.isArray(sS(late).seats), 'snakes: someone who joins mid-game is sent the board to watch');
+  // A leaver.
+  await api('/leave', { code: J.code, pid: J.pid, key: J.key });
+  J.close();
+  await H.waitFor((s) => s.shared.seats.indexOf(J.pid) === -1 && !(J.pid in s.shared.pos), 'snakes: a player who leaves takes their piece off, and play goes on');
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'snakes: back in the hub');
+  [H, K, late, TV].forEach((x) => x.close());
+}
+
 async function main() {
   console.log('rooms server:', BASE);
   const t0 = Date.now();
@@ -805,6 +864,12 @@ async function main() {
   }
   if (ONLY === 'bumper') {
     await bumperRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'snakes') {
+    await snakesRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -4821,6 +4886,7 @@ async function main() {
   }
 
   await chairsRobots();
+  await snakesRobots();
   await bumperRobots();
   await hostAwayRobots();
 

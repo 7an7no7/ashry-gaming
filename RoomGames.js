@@ -140,6 +140,8 @@ const ROOM_GAME_IDS = [
   // حرب السفن (RoomBattleship.js): the duels' line, a secret fleet on each seated phone.
   'battleship',
   'ludo', 'bank',
+  // السلم والتعبان (RoomSnakes.js): 2-6, the dice and every animation's variant on the server.
+  'snakes',
   // خمّن مين (RoomGuessWho.js, winner stays on like the duels) and المشنقة (RoomHangman.js).
   'guesswho', 'hangman',
   // بولينج (RoomBowling.js): everyone bowls in turn, everyone watches every throw.
@@ -673,6 +675,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'bughouse':   bughouseAction(room, playerId, action, payload); break;    // RoomBughouse.js
     case 'chess4':     chess4Action(room, playerId, action, payload); break;      // RoomChess4.js
     case 'ludo':       ludoAction(room, playerId, action, payload); break;      // RoomLudo.js
+    case 'snakes':     snakesAction(room, playerId, action, payload); break;    // RoomSnakes.js
     case 'bank':       bankAction(room, playerId, action, payload); break;      // RoomBank.js
     case 'guesswho':   guessWhoAction(room, playerId, action, payload); break;  // RoomGuessWho.js
     case 'hangman':    hangmanAction(room, playerId, action, payload); break;   // RoomHangman.js
@@ -3634,6 +3637,7 @@ const gameDeadline = (room) => {
   if (room.game === 'uno') return unoDeadline(room);
   if (room.game === 'domino') return dominoDeadline(room);
   if (room.game === 'ludo') return ludoDeadline(room);
+  if (room.game === 'snakes') return snakesDeadline(room);
   if (room.game === 'bank') return bankDeadline(room);
   if (room.game === 'guesswho') return gwDeadline(room);
   if (room.game === 'battleship') return bsDeadline(room);
@@ -3763,6 +3767,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'uno') return unoTimeout(room, now);
   if (room.game === 'domino') return dominoTimeout(room, now);
   if (room.game === 'ludo') return ludoTimeout(room, now);
+  if (room.game === 'snakes') return snakesTimeout(room, now);
   if (room.game === 'bank') return bankTimeout(room, now);
   if (room.game === 'guesswho') return gwTimeout(room, now);
   if (room.game === 'battleship') return bsTimeout(room, now);
@@ -3945,6 +3950,9 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'ludo':
       ludoPlayerLeft(room, playerId, name);
+      return;
+    case 'snakes':
+      snakesPlayerLeft(room, playerId, name);
       return;
     case 'bank':
       bankPlayerLeft(room, playerId, name);

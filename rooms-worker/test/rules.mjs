@@ -9207,6 +9207,152 @@ Date.now = duelTestClock;
   check(throwsOn(() => applyRoomAction(bz, 'b', 'lock', {})), 'host away: the buzzer\'s verdicts stay the quizmaster\'s');
 }
 
+/* --- السلم والتعبان (28 Sep 2026): the map, the rules, the room ------------------------------ */
+{
+  const S = new Function(readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8') +
+    '\nreturn { snakesGenMap, snakesCellXY, snakesRowOf, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesSegCross, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_MOVE_MS, SNAKES_BUILD_MS, SNAKES_TEARDOWN_MS };')();
+  const throws = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+
+  // The map.
+  const same = JSON.stringify(S.snakesGenMap(12345));
+  check(same === JSON.stringify(S.snakesGenMap(12345)) && same !== JSON.stringify(S.snakesGenMap(12346)),
+    'snakes: a seed makes the same map every time, and another seed another map');
+  const maps = [];
+  for (let k = 1; k <= 80; k++) maps.push(S.snakesGenMap(k * 104729 + 17));
+  check(maps.every((m) => m.snakes.length === 5 && m.ladders.length === 5), 'snakes: every map has 5 snakes and 5 ladders');
+  check(maps.every((m) => {
+    const ends = m.snakes.flatMap((s) => [s.h, s.t]).concat(m.ladders.flatMap((l) => [l.f, l.t]));
+    return new Set(ends).size === ends.length && ends.every((n) => n > 1 && n < 100);
+  }), 'snakes: no two ends share a square, and nothing starts or ends on 1 or 100');
+  check(maps.every((m) => m.snakes.every((s) => S.snakesRowOf(s.h) > S.snakesRowOf(s.t))), 'snakes: every snake\'s head is at least a row above its tail');
+  check(maps.every((m) => m.ladders.every((l) => S.snakesRowOf(l.t) - S.snakesRowOf(l.f) >= 2)), 'snakes: every ladder climbs at least two rows');
+  check(maps.every((m) => m.snakes.every((a, i) => m.snakes.every((b, j) => i === j ||
+    !S.snakesSegCross(S.snakesCellXY(a.h), S.snakesCellXY(a.t), S.snakesCellXY(b.h), S.snakesCellXY(b.t))))), 'snakes: no two snakes cross');
+  check(maps.every((m) => m.ladders.some((l) => l.f <= 30)), 'snakes: every map has a ladder in the first three rows');
+  const fair = maps.map((m) => S.snakesFairness(m.snakes, m.ladders, S.snakesRng(m.seed + 99), 300).avg);
+  check(fair.every((a) => a >= 10 && a <= 40), `snakes: every map is fair: a game takes ${Math.min(...fair).toFixed(1)}-${Math.max(...fair).toFixed(1)} turns on average (12-36 when made)`);
+
+  // The rules, on a map of our own.
+  const game = (ids) => {
+    const g = S.snakesNewGame(ids, Object.fromEntries(ids.map((id, i) => [id, 'rbygpv'[i]])), 777, 1000);
+    g.map = { seed: 1, snakes: [{ h: 50, t: 10 }, { h: 97, t: 60 }], ladders: [{ f: 5, t: 40 }, { f: 22, t: 44 }] };
+    return g;
+  };
+  let g = game(['a', 'b']);
+  check(g.pos.a === 0 && g.pos.b === 0 && g.turn.pid === 'a' && g.readyAt === 1000 + S.SNAKES_BUILD_MS, 'snakes: everyone starts off the board, the first seat first, after the map is built');
+  let e = S.snakesRoll(g, 'a', 4, Math.random, 2000);
+  check(e.from === 0 && e.to === 4 && g.pos.a === 4 && g.turn.pid === 'b', 'snakes: the first roll brings a piece onto the board (a 4 lands on 4), then the next player');
+  check(g.readyAt === 2000 + e.ms && e.ms > 1000, 'snakes: readyAt is when every screen has shown the roll');
+  check(throws(() => S.snakesRoll(g, 'a', 3, Math.random, 3000)), 'snakes: out of turn is refused');
+  e = S.snakesRoll(g, 'b', 5, Math.random, 3000);
+  check(e.walk === 5 && e.to === 40 && e.jump.k === 'l' && S.SNAKES_LADDER_MOVES.indexOf(e.jump.v) !== -1, 'snakes: a ladder\'s foot takes you to its top, with one of its five moves');
+  g.pos.a = 45;
+  e = S.snakesRoll(g, 'a', 5, Math.random, 4000);
+  check(e.walk === 50 && e.to === 10 && e.jump.k === 's' && S.SNAKES_SNAKE_MOVES.indexOf(e.jump.v) !== -1, 'snakes: a snake\'s head takes you down to its tail, with one of its seven moves');
+  g.pos.b = 43;
+  e = S.snakesRoll(g, 'b', 6, Math.random, 5000);
+  check(e.to === 49 && e.near === 's' && g.turn.pid === 'b' && g.turn.sixes === 1, 'snakes: a six rolls again; one square short of a snake is a near miss');
+  g.pos.b = 20;
+  e = S.snakesRoll(g, 'b', 1, Math.random, 6000);
+  check(e.to === 21 && e.near === 'l' && g.turn.pid === 'a', 'snakes: one square beside a ladder\'s foot is a ladder missed');
+  g.pos.a = 98;
+  e = S.snakesRoll(g, 'a', 5, Math.random, 7000);
+  check(e.over === 3 && e.walk === 97 && e.to === 60 && e.jump.k === 's', 'snakes: 100 needs the exact number: 98 + 5 bounces back to 97 (a snake there takes you down)');
+  g.pos.a = 96;
+  g.turn = { pid: 'a', sixes: 0 };
+  e = S.snakesRoll(g, 'a', 6, Math.random, 8000);
+  check(e.over === 2 && e.to === 98 && g.turn.pid === 'a', 'snakes: a six that bounces still rolls again');
+  e = S.snakesRoll(g, 'a', 2, Math.random, 9000);
+  check(e.to === 100 && e.place === 1 && g.phase === 'gameover' && JSON.stringify(g.places) === '["a","b"]',
+    'snakes: exactly 100 wins; the last one left takes the last place, and the game is over');
+  // Three players: play on for places.
+  g = game(['a', 'b', 'c']);
+  g.pos.a = 99;
+  S.snakesRoll(g, 'a', 1, Math.random, 1);
+  check(g.phase === 'play' && g.places[0] === 'a' && g.turn.pid === 'b', 'snakes: after the first home the others play on for the places');
+  g.pos.c = 94;
+  S.snakesRoll(g, 'b', 1, Math.random, 2);
+  S.snakesRoll(g, 'c', 6, Math.random, 3);
+  check(g.phase === 'gameover' && JSON.stringify(g.places) === '["a","c","b"]' && g.turn.pid === null, 'snakes: a finish with a six rolls no more; the places are in order');
+  // Variants never twice in a row.
+  g = game(['a', 'b']);
+  let prevS = '', prevL = '', repeat = false, seenS = new Set(), seenL = new Set();
+  for (let k = 0; k < 300; k++) {
+    g.phase = 'play'; g.places = []; g.turn = { pid: 'a', sixes: 0 };
+    g.pos.a = k % 2 ? 45 : 0;
+    const x = S.snakesRoll(g, 'a', 5, Math.random, k);
+    if (x.jump.k === 's') { if (x.jump.v === prevS) repeat = true; prevS = x.jump.v; seenS.add(x.jump.v); }
+    else { if (x.jump.v === prevL) repeat = true; prevL = x.jump.v; seenL.add(x.jump.v); }
+  }
+  check(!repeat && seenS.size === 7 && seenL.size === 5, 'snakes: the snake\'s 7 moves and the ladder\'s 5 all come up, never the same one twice in a row');
+  check(Object.values(S.SNAKES_MOVE_MS).every((ms) => ms >= 1000 && ms <= 3000), 'snakes: every move takes between 1 and 3 seconds');
+  // Leaving.
+  g = game(['a', 'b', 'c']);
+  S.snakesRemovePlayer(g, 'a');
+  check(g.turn.pid === 'b' && g.seats.join() === 'b,c' && !('a' in g.pos), 'snakes: a player who leaves on their turn takes their piece off and the turn passes');
+  S.snakesRemovePlayer(g, 'c');
+  check(g.phase === 'gameover' && g.places.join() === 'b', 'snakes: one left: the game is over');
+
+  // The room.
+  const r = newRoom(['h', 'p', 'q']);
+  applyRoomAction(r, 'h', 'chooseGame', { game: 'snakes' });
+  applyRoomAction(r, 'p', 'color', { color: 'g' });
+  check(throws(() => applyRoomAction(r, 'q', 'color', { color: 'g' })), 'snakes room: a colour already taken is refused');
+  check(throws(() => applyRoomAction(r, 'p', 'start', {})), 'snakes room: only the host starts');
+  applyRoomAction(r, 'h', 'addBot', { level: 'easy', name: 'زيزو' });
+  applyRoomAction(r, 'h', 'start', { turnClock: 15 });
+  let s = r.shared;
+  const bot = r.players.find((x) => x.bot).id;
+  check(r.phase === 'play' && s.seats.length === 4 && s.colors.p === 'g' && s.map.snakes.length === 5 && s.readyAt === clock + S.SNAKES_BUILD_MS,
+    'snakes room: four dealt in (a computer player among them), the colour picked kept, a new map, the building before the first roll');
+  check(s.events[0].type === 'build' && s.events[0].first === s.turn.pid && !s.events[0].teardown, 'snakes room: the map is built in front of everyone, and says who starts');
+  // Make a person start, to test the roll.
+  const first = s.turn.pid;
+  const person = s.seats.find((id) => id !== bot && id !== first) || 'h';
+  check(throws(() => applyRoomAction(r, person, 'roll', { seq: s.turnSeq })), 'snakes room: out of turn is refused');
+  if (first !== bot) {
+    const seq = s.turnSeq;
+    applyRoomAction(r, first, 'roll', { seq: seq });
+    check(r.shared.turnSeq === seq, 'snakes room: a roll while the table is still watching the map being built is dropped');
+    clock = r.shared.readyAt + 10;
+    applyRoomAction(r, first, 'roll', { seq: seq - 1 });
+    check(r.shared.turnSeq === seq, 'snakes room: a stale tap is dropped');
+    applyRoomAction(r, first, 'roll', { seq: seq });
+    check(r.shared.turnSeq === seq + 1 && r.shared.events.some((x) => x.type === 'roll' && x.pid === first), 'snakes room: the roll is made on the server once the table is ready');
+  }
+  // The clock rolls for a quiet person; the bot rolls by itself; a whole game to its end.
+  let guard = 0;
+  const whys = new Set();
+  while (r.shared.phase === 'play' && guard++ < 6000) {
+    clock += 700;
+    roomTimeout(r, clock);
+    (r.shared.events || []).forEach((x) => { if (x.type === 'auto') whys.add(x.why); });
+    // The host moves a quiet phone on now and then.
+    if (guard % 29 === 0 && r.shared.phase === 'play' && r.shared.turn.pid !== bot && clock >= (r.shared.readyAt || 0)) applyRoomAction(r, 'h', 'skipTurn', { seq: r.shared.turnSeq });
+  }
+  s = r.shared;
+  check(s.phase === 'gameover' && r.phase === 'gameover' && s.places.length === 4, 'snakes room: the clock, the host and the computer player play a whole game to its end');
+  check(whys.has('clock') && whys.has('host'), 'snakes room: the clock and the host\'s "play for" roll for a quiet phone');
+  check(s.wins[s.places[0]] === 1 && s.board[0].id === s.places[0], 'snakes room: the winner\'s win counts on the night\'s board');
+  const seqBefore = s.turnSeq, seedBefore = s.map.seed;
+  applyRoomAction(r, 'h', 'playAgain', {});
+  check(r.shared.phase === 'play' && r.shared.map.seed !== seedBefore && r.shared.turnSeq > seqBefore && r.shared.wins[s.places[0]] === 1 &&
+    r.shared.events[0].teardown === true && r.shared.readyAt === clock + S.SNAKES_BUILD_MS + S.SNAKES_TEARDOWN_MS,
+    'snakes room: play again takes the old map apart and builds a new one, keeping the wins');
+  // Leaving mid-game.
+  clock = r.shared.readyAt + 10;
+  const up = r.shared.turn.pid;
+  roomPlayerLeft(r, up, 'X');
+  check(r.shared.seats.indexOf(up) === -1 && r.shared.turn.pid !== up && r.shared.phase === 'play', 'snakes room: a player who leaves takes their piece off and the turn moves on');
+  // Seven people: the host picks six.
+  const big = newRoom(['h', 'b', 'c', 'd', 'e', 'f', 'g']);
+  applyRoomAction(big, 'h', 'chooseGame', { game: 'snakes' });
+  check(throws(() => applyRoomAction(big, 'g', 'color', { color: 'r' })), 'snakes room: the seventh watches and picks no colour');
+  applyRoomAction(big, 'h', 'seat', { playerId: 'b', on: false });
+  applyRoomAction(big, 'h', 'start', {});
+  check(big.shared.seats.length === 6 && big.shared.seats.indexOf('b') === -1, 'snakes room: with seven or more the host picks the six who play');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

@@ -737,6 +737,8 @@ const PROBES = {
   // عربيات التصادم: the TV runs the cars; the server holds nothing but the round.
   bumper: () => [],
   connect4: () => [], dots: () => [], xo: () => [], ludo: () => [], bowling: () => [],
+  // السلم والتعبان: the whole game is on the table; the server holds nothing but the dice it hasn't rolled.
+  snakes: () => [],
   // شطرنج: the whole game is on the table.
   chess: () => [],
   // الوزير المستخبي (a chess room with variant 'hq'): each hidden pawn's square on its owner's phone
@@ -1474,6 +1476,7 @@ const DRIVERS = {
   uno: () => DRIVERS.withBots('uno', 3, { turnClock: 30 }),
   domino: () => DRIVERS.withBots('domino', 3, { turnClock: 30 }),
   ludo: () => DRIVERS.withBots('ludo', 3, { turnClock: 15 }),
+  snakes: () => DRIVERS.withBots('snakes', 3, { turnClock: 15 }, 8000),
   bank: () => DRIVERS.withBots('bank', 2, { length: 30, turnClock: 60 }, 2500),
   withBots(game, bots, options, steps) {
     const T = table(game, 1);

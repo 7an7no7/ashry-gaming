@@ -19876,4 +19876,198 @@ html[dir="rtl"] .bmp-land__side { direction: rtl; }
 .recent-tile .game-off-badge { font-size: 0.7rem; top: -0.35rem; inset-inline-start: -0.2rem; padding: 0.1rem 0.3rem; }
 .gcard > .game-off-badge { position: absolute; }
 
+
+/* ============================================================================
+   53. السلم والتعبان (SNAKES & LADDERS, JS_Snakes.html and JS_RoomSnakes.html,
+   28 Sep 2026): the board is one <svg> the page moves into whichever screen
+   shows it; its own colours are look أ «كلاسيك بلمستنا» (mint #d5f5dc, teal
+   #4a9aa2, the frame #17454a), set in the drawing, not here. This section is
+   the frame around it (the players, the bar, the log, the end), the setup's
+   swatches and the lobby's colours, and the board's small living loops
+   (tongues, blinks, Zzz, butterflies, the cup), all still under reduced motion.
+   ========================================================================= */
+.snk-board { width: 100%; }
+.snk-svg { display: block; width: 100%; height: auto; aspect-ratio: 660 / 700; border-radius: 18px; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.snk-host { width: 100%; }
+
+.snk-layout { display: flex; flex-direction: column; gap: var(--sp-3); }
+.snk-layout__side { display: contents; }
+.snk-layout__board { width: 100%; max-width: 34rem; margin-inline: auto; }
+.snk-layout__side > .snk-over { order: -3; }
+.snk-layout__side > .snk-strip { order: -2; }
+
+.snk-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.snk-chip {
+  min-width: 0;
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: box-shadow var(--dur-2, 200ms) ease, opacity var(--dur-2, 200ms) ease;
+}
+.snk-chip.is-turn { border-color: transparent; box-shadow: 0 0 0 2px var(--pc), 0 4px 12px rgba(0, 0, 0, 0.08); }
+.snk-chip.is-away { opacity: 0.55; }
+.snk-chip__av {
+  width: 1.5rem; height: 1.5rem; flex: none;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--pc);
+  color: #ffffff; font-weight: 800; font-size: 0.75rem; line-height: 1;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+.snk-chip.is-done .snk-chip__av { background: var(--surface-2); font-size: 1rem; }
+.snk-chip__who { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.snk-chip__name { font-size: 0.78rem; font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.snk-chip__name small { font-weight: 600; color: var(--text-2); }
+.snk-chip__sq { font-size: 0.72rem; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+
+.snk-bar {
+  position: sticky; bottom: 0; z-index: 5;
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: 20px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  box-shadow: 0 -2px 14px rgba(40, 30, 20, 0.06);
+}
+.snk-bar.is-mine.is-ready { box-shadow: 0 0 0 2px var(--accent), 0 6px 18px rgba(40, 30, 20, 0.1); border-color: transparent; }
+.snk-bar__dot { width: 0.8rem; height: 0.8rem; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px var(--surface-solid), 0 0 0 3px var(--border); }
+.snk-bar__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.snk-bar__t1 { font-family: var(--font-display); font-weight: var(--fw-bold, 700); font-size: 1.15rem; line-height: 1.2; }
+.snk-bar__t2 { font-size: 0.82rem; font-weight: 500; color: var(--text-2); }
+.snk-bar__clock { flex: none; }
+.snk-bar__roll { flex: none; min-width: 6.5rem; }
+.snk-bar.is-ready .snk-bar__roll { animation: snkNudge 1.8s ease-in-out infinite; }
+@keyframes snkNudge { 0%, 72%, 100% { transform: none; } 80% { transform: rotate(-4deg) scale(1.04); } 90% { transform: rotate(4deg) scale(1.04); } }
+
+.snk-log { display: flex; flex-direction: column; gap: 4px; min-height: 1.2rem; }
+.snk-log__line { font-size: 0.8rem; font-weight: 500; color: var(--text-2); line-height: 1.4; }
+.snk-log__line.is-latest { color: var(--text); font-weight: 600; }
+
+.snk-over { display: flex; flex-direction: column; gap: var(--sp-3); }
+.snk-over.is-waiting { display: none; }
+.snk-over__title { margin: 0; text-align: center; font-family: var(--font-display); font-weight: var(--fw-bold, 700); font-size: 1.2rem; }
+.snk-over .podium { margin: 0; }
+.snk-over__rest { margin: 0; text-align: center; font-size: 0.82rem; color: var(--text-2); }
+.snk-podium__color { width: 0.75rem; height: 0.75rem; border-radius: 50%; }
+
+/* --- the setup screen and the room's lobby --------------------------------------- */
+.snk-swatches { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.snk-swatch {
+  width: 2.75rem; height: 2.75rem;
+  border-radius: 50%;
+  border: 0;
+  background: var(--pc);
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.4), 0 2px 5px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform var(--dur-2, 200ms) var(--ease-out, ease-out), box-shadow var(--dur-2, 200ms) ease;
+}
+.snk-swatch.is-active { transform: scale(1.08); box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 6px var(--text); }
+.snk-picks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.snk-pick {
+  min-width: 0; min-height: 2.9rem;
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-radius: 14px;
+  border: 0;
+  background: var(--pc);
+  color: #ffffff;
+  text-align: start;
+  cursor: pointer;
+}
+.snk-pick:disabled { cursor: default; }
+.snk-pick.is-taken:not(.is-mine) { opacity: 0.55; }
+.snk-pick.is-mine { box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 5.5px var(--text); }
+.snk-pick__dot { width: 1.2rem; height: 1.2rem; flex: none; border-radius: 50%; background: rgba(255, 255, 255, 0.9); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12); }
+.snk-pick__who { min-width: 0; font-size: 0.78rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+
+/* --- the board's own life (the owner: "the map alive by itself") ------------------ */
+.snk-tongue { transform-box: fill-box; transform-origin: 50% 0%; animation: snkFlick 3.6s infinite; }
+@keyframes snkFlick { 0%, 80%, 100% { transform: scaleY(0); } 84%, 93% { transform: scaleY(1); } 88% { transform: scaleY(0.65); } }
+.snk-lid { transform-box: fill-box; transform-origin: 50% 0%; transform: scaleY(0); animation: snkBlink 5s infinite; }
+@keyframes snkBlink { 0%, 93%, 100% { transform: scaleY(0); } 96% { transform: scaleY(1); } }
+.m-sleep .snk-lid, .m-sneeze .snk-lid { animation: none; transform: scaleY(1); }
+.m-sleep .snk-tongue { animation: none; transform: scaleY(0); }
+.snk-zz { opacity: 0; }
+.m-sleep .snk-zz { opacity: 1; animation: snkZz 2s ease-in-out infinite; }
+@keyframes snkZz { 0% { transform: translate(0, 0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translate(8px, -14px); opacity: 0; } }
+.snk-spi { opacity: 0; }
+.m-spiral .snk-spi { opacity: 1; }
+.m-spiral .snk-pup { opacity: 0; }
+.snk-spin { transform-box: fill-box; transform-origin: 50% 50%; animation: snkSpin 1.1s linear infinite; }
+@keyframes snkSpin { to { transform: rotate(360deg); } }
+.snk-brow { opacity: 0; }
+.m-wow .snk-brow { opacity: 1; }
+.m-wow .snk-pup { transform: scale(0.7); }
+.snk-fly { animation: snkFlyA 16s linear infinite; }
+.snk-fly.b { animation: snkFlyB 21s linear infinite; }
+@keyframes snkFlyA { 0% { transform: translate(-20px, 200px); } 25% { transform: translate(210px, 70px); } 50% { transform: translate(470px, 260px); } 75% { transform: translate(260px, 480px); } 100% { transform: translate(-20px, 200px); } }
+@keyframes snkFlyB { 0% { transform: translate(620px, 520px); } 33% { transform: translate(380px, 360px); } 66% { transform: translate(120px, 540px); } 100% { transform: translate(620px, 520px); } }
+.snk-wing { transform-box: fill-box; transform-origin: 100% 50%; animation: snkFlap 0.22s ease-in-out infinite alternate; }
+.snk-wing.r { transform-origin: 0% 50%; }
+@keyframes snkFlap { to { transform: scaleX(0.2); } }
+.snk-cup { transform-box: fill-box; transform-origin: 50% 100%; animation: snkCup 3s ease-in-out infinite; }
+@keyframes snkCup { 50% { transform: rotate(-5deg) translateY(-2px); } }
+.snk-shine { animation: snkShine 4.5s ease-in-out infinite; }
+@keyframes snkShine { 0%, 100% { stroke-opacity: 0.2; } 50% { stroke-opacity: 0.55; } }
+.snk-piece.is-mine .snk-pb > rect { stroke-width: 2.4; }
+
+/* --- a phone on its side, and every wide screen: the board takes the height --- */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .snk-layout { display: grid; grid-template-columns: auto minmax(13rem, 21rem); justify-content: center; align-items: start; gap: var(--sp-4); }
+  .snk-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  .snk-layout__board {
+    position: sticky; top: 0;
+    width: min(calc((var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem) * 660 / 700), 58vw);
+    max-width: none; margin: 0;
+  }
+  .snk-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .snk-bar { position: static; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .snk-chip { padding-block: 4px; }
+  .snk-strip { gap: 6px; }
+  .snk-bar { padding: var(--sp-2); }
+  .snk-bar__t1 { font-size: 1rem; }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-snakes, .shell__main > #view-room-snakes { max-width: 72rem; }
+  .snk-layout { gap: var(--sp-6); grid-template-columns: auto minmax(15rem, 23rem); }
+  .snk-layout__board { width: min(calc((var(--app-h, 100vh) - var(--header-h) - 2.5rem) * 660 / 700), 62vw); }
+  .snk-chip__name { font-size: 0.9rem; }
+}
+
+/* --- the TV: the board as tall as the stage, the players beside it --- */
+.snk--tv { height: 100%; min-height: 0; display: flex; }
+.snk--tv .snk-layout {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 30rem);
+  justify-content: center; align-items: center;
+  gap: calc(var(--tv-gap) * 2.5);
+}
+.snk--tv .snk-layout__side { display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); min-width: 0; }
+.snk--tv .snk-layout__board { position: static; width: min(calc((var(--app-h, 100vh) - 17vmin) * 660 / 700), 60vw); max-width: none; margin: 0; }
+.snk--tv .snk-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tv-gap); }
+.snk--tv .snk-chip { padding: 1vmin 1.4vmin; border-radius: var(--tv-r); gap: 1.2vmin; }
+.snk--tv .snk-chip__av { width: 4.6vmin; height: 4.6vmin; font-size: var(--tv-sm); }
+.snk--tv .snk-chip__name { font-size: var(--tv-md); }
+.snk--tv .snk-chip__sq { font-size: var(--tv-sm); }
+.snk--tv .snk-bar { position: static; padding: 1.4vmin 1.8vmin; border-radius: var(--tv-r); gap: 1.8vmin; }
+.snk--tv .snk-bar__t1 { font-size: var(--tv-md); }
+.snk--tv .snk-bar__t2 { font-size: var(--tv-sm); }
+.snk--tv .snk-log__line { font-size: var(--tv-sm); }
+.snk--tv .snk-over__title { font-size: var(--tv-md); }
+@media (orientation: portrait) {
+  .snk--tv { height: auto; }
+  .snk--tv .snk-layout { grid-template-columns: minmax(0, 1fr); }
+  .snk--tv .snk-layout__board { width: min(100%, 60vh); justify-self: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snk-tongue, .snk-lid, .m-sleep .snk-zz, .snk-spin, .snk-fly, .snk-fly.b, .snk-wing, .snk-cup, .snk-shine, .snk-bar.is-ready .snk-bar__roll { animation: none; }
+  .snk-chip, .snk-swatch { transition: none; }
+}
+
 </style>

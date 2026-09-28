@@ -27,7 +27,7 @@ const UNO = new Function(readFileSync(new URL('../../UnoCards.js', import.meta.u
 const DOMINO = new Function(readFileSync(new URL('../../DominoTiles.js', import.meta.url), 'utf8') +
   '\nreturn { dominoParse, dominoFits, dominoEnds, dominoCanPlay, dominoHandPips };')();
 // بنك الحظ's board, for the robots to see what a place costs before they buy it, as a player reads the card.
-const BANK = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+const BANK = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
   '\nreturn { BANK_SQUARES };')();
 
 // خمّن مين's faces and questions: the robots ask from the list and work out what is left on their own board.
@@ -862,7 +862,7 @@ async function snakesRobots() {
   await H.must('addBot', { level: 'easy', name: 'زيزو' });
   check((await J.act('start', { turnClock: 15 })).ok === false, 'snakes: only the host starts');
   await H.must('start', { turnClock: 15 });
-  await all(people.concat([TV]), (s) => s.game === 'snakes' && s.shared.phase === 'play' && s.shared.seats.length === 4 && s.shared.map.snakes.length === 6 && s.shared.events[0].type === 'build',
+  await all(people.concat([TV]), (s) => s.game === 'snakes' && s.shared.phase === 'play' && s.shared.seats.length === 4 && s.shared.map.snakes.length >= 6 && s.shared.map.snakes.length <= 8 && s.shared.events[0].type === 'build',
     'snakes: four dealt in, the same new map on every phone and the TV, built in front of them');
   check(sS(J).colors[J.pid] === 'p' && sS(TV).map.seed === sS(H).map.seed, 'snakes: the colour picked is kept, and every screen has the same map');
   check(TV.state.you === null, 'snakes: the TV has no secret');

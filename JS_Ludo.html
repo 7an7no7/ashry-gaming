@@ -645,7 +645,7 @@ function ludoLocalRoll() {
   if (!g || g.phase !== 'play' || g.turn.pid !== 'me' || g.turn.stage !== 'roll') return;
   if (Date.now() < ludoFx.busyUntil - 150) return;
   haptic('medium');
-  ludoRoll(g, 'me', 1 + Math.floor(Math.random() * 6));
+  ludoRoll(g, 'me', fairDie());
   saveToLocal();
   paintLudo();
 }
@@ -676,7 +676,7 @@ function ludoLocalNext() {
       const st = ludoState();
       const gg = st.g;
       if (!gg || gg !== g || gg.phase !== 'play' || gg.turn.pid !== pid || appState.currentView !== 'play-ludo') return;
-      if (gg.turn.stage === 'roll') ludoRoll(gg, pid, 1 + Math.floor(Math.random() * 6));
+      if (gg.turn.stage === 'roll') ludoRoll(gg, pid, fairDie());
       else {
         const pick = ludoBotPick(gg, pid, st.bots[pid]);
         if (pick >= 0) ludoMove(gg, pid, pick);

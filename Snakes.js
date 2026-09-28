@@ -80,21 +80,8 @@ const snakesRng = (seed) => {
   };
 };
 
-/**
- * The die: 1 to 6, each exactly as likely, from the cryptographic random source
- * (crypto.getRandomValues, on every phone and in the Worker). A byte of 252 or
- * more is thrown away and drawn again, because 256 doesn't divide by 6: keeping
- * them would make 1-4 a hair likelier than 5 and 6. Math.random only where there
- * is no crypto at all.
- */
-const snakesDie = () => {
-  const c = typeof globalThis !== 'undefined' && globalThis.crypto;
-  if (c && c.getRandomValues) {
-    const b = new Uint8Array(1);
-    for (;;) { c.getRandomValues(b); if (b[0] < 252) return 1 + (b[0] % 6); }
-  }
-  return 1 + Math.floor(Math.random() * 6);
-};
+/** The die: the app's one die (Dice.js). */
+const snakesDie = () => fairDie();
 
 const snakesSegDist = (p, a, b) => {
   const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy;
@@ -140,15 +127,21 @@ const snakesFairness = (snakes, ladders, rnd, games) => {
    bottom, 0 (1-10) to 9 (91-100). Each band gets one snake head (or ladder foot),
    so every map spreads them over the whole board: there is always a snake in the
    last row and in the one before it, and always a ladder in the first two rows.
-   The last band of each is the extra one, anywhere in its range. */
-const SNAKES_SNAKE_BANDS = [[9, 9], [8, 8], [6, 7], [4, 5], [2, 3], [1, 8]];
-const SNAKES_LADDER_BANDS = [[0, 0], [1, 1], [2, 3], [4, 5], [6, 7], [0, 5]];
+   A map has 6 to 8 of each (the owner, the same day: "at least 6 and at max 8"),
+   drawn per map: the five bands, then one to three extras anywhere in the
+   extra band's rows. */
+const SNAKES_SNAKE_BANDS = [[9, 9], [8, 8], [6, 7], [4, 5], [2, 3]];
+const SNAKES_LADDER_BANDS = [[0, 0], [1, 1], [2, 3], [4, 5], [6, 7]];
+const SNAKES_SNAKE_EXTRA = [1, 8];
+const SNAKES_LADDER_EXTRA = [0, 6];
+const SNAKES_COUNT = [6, 8];             // snakes, and ladders, on a map: at least, at most
 const SNAKES_FAIR_TURNS = [14, 32];      // the average turns a player takes to reach 100 on a map
 const SNAKES_BALANCE = [0.75, 1.35];     // the snakes' total drop over the ladders' total climb
 
 /**
- * The map for a seed: a snake head in each of SNAKES_SNAKE_BANDS' rows and a ladder
- * foot in each of SNAKES_LADDER_BANDS', nothing sharing a square, a snake's head
+ * The map for a seed: 6 to 8 snakes and 6 to 8 ladders (SNAKES_COUNT), a snake head
+ * in each of SNAKES_SNAKE_BANDS' rows and a ladder foot in each of SNAKES_LADDER_BANDS'
+ * (the rest in the extra bands), nothing sharing a square, a snake's head
  * at least a row above its tail and no two snakes crossing, a ladder at least two
  * rows long and never more than two columns aside, the snakes' drop and the
  * ladders' climb in balance (SNAKES_BALANCE), and a game that takes
@@ -161,13 +154,22 @@ const snakesGenMap = (seed) => {
   const cd = (a, b) => { const p = snakesCellXY(a), q = snakesCellXY(b); return Math.hypot(p.x - q.x, p.y - q.y) / C; };
   const inRows = (lo, hi) => lo * 10 + 1 + Math.floor(rnd() * (hi - lo + 1) * 10);
   let fallback = null;
-  for (let tries = 0; tries < 600; tries++) {
+  // How many, drawn once for the map and kept: a crowded board is harder to fit, and
+  // drawing again on every try would leave 8 rare. Only after 200 tries in vain does
+  // the larger count give one up (never under SNAKES_COUNT[0]).
+  const count = () => SNAKES_COUNT[0] + Math.floor(rnd() * (SNAKES_COUNT[1] - SNAKES_COUNT[0] + 1));
+  let nS = count(), nL = count();
+  for (let tries = 0; tries < 800; tries++) {
+    if (tries && tries % 200 === 0) { if (nS >= nL && nS > SNAKES_COUNT[0]) nS--; else if (nL > SNAKES_COUNT[0]) nL--; }
     const used = new Set([1, 100]);
     const snakes = [];
     const ladders = [];
+    const sBands = SNAKES_SNAKE_BANDS.slice(), lBands = SNAKES_LADDER_BANDS.slice();
+    for (let k = nS - sBands.length; k > 0; k--) sBands.push(SNAKES_SNAKE_EXTRA);
+    for (let k = nL - lBands.length; k > 0; k--) lBands.push(SNAKES_LADDER_EXTRA);
     let ok = true;
-    for (let i = 0; i < SNAKES_SNAKE_BANDS.length && ok; i++) {
-      const band = SNAKES_SNAKE_BANDS[i];
+    for (let i = 0; i < sBands.length && ok; i++) {
+      const band = sBands[i];
       let placed = false;
       for (let t = 0; t < 140 && !placed; t++) {
         const h = inRows(band[0], band[1]);
@@ -183,8 +185,8 @@ const snakesGenMap = (seed) => {
       }
       ok = placed;
     }
-    for (let i = 0; i < SNAKES_LADDER_BANDS.length && ok; i++) {
-      const band = SNAKES_LADDER_BANDS[i];
+    for (let i = 0; i < lBands.length && ok; i++) {
+      const band = lBands[i];
       let placed = false;
       for (let t = 0; t < 140 && !placed; t++) {
         const f = Math.max(2, inRows(band[0], band[1]));

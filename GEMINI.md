@@ -6261,19 +6261,25 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
   squares 1-100 boustrophedon from the bottom left, 60 units a square
   (`snakesCellXY`, `snakesRowOf`). **The map is made from a seed**
   (`snakesGenMap(seed)`, the sheet's generator on `snakesRng`, a seeded
-  mulberry32): **6 snakes and 6 ladders spread by bands** (the owner, 28 Sep
-  2026, after four games with no snake near 100: "organised correctly and
-  fairly"): a snake head in each of `SNAKES_SNAKE_BANDS`' rows - row 10
-  (91-99), row 9 (81-90), rows 7-8, 5-6, 3-4, and one more anywhere from row 2 -
-  and a ladder foot in each of `SNAKES_LADDER_BANDS`' - row 1, row 2, rows 3-4,
-  5-6, 7-8, and one more in the lower half; on squares nothing else uses (never
+  mulberry32): **6 to 8 snakes and 6 to 8 ladders, spread by bands** (the
+  owner, 28 Sep 2026, after four games with no snake near 100: "organised
+  correctly and fairly", then "at least 6 and at max 8"): each count drawn
+  once per map (`SNAKES_COUNT`) and kept, the larger one giving one up only
+  after 200 tries in vain - drawing again on every try had left 8 rare (a
+  crowded board is harder to fit); measured over 1,500 seeds a third each of 6,
+  7 and 8. A snake head in each of `SNAKES_SNAKE_BANDS`' rows - row 10 (91-99),
+  row 9 (81-90), rows 7-8, 5-6, 3-4 - and the extras from row 2 up
+  (`SNAKES_SNAKE_EXTRA`); a ladder foot in each of `SNAKES_LADDER_BANDS`' - row
+  1, row 2, rows 3-4, 5-6, 7-8 - and the extras in rows 1-7
+  (`SNAKES_LADDER_EXTRA`); on squares nothing else uses (never
   1 or 100), a head at least a row above its tail and no two snakes crossing, a
   ladder at least two rows long and never more than two columns aside, the
   snakes' total drop over the ladders' total climb within `SNAKES_BALANCE`
   (0.75-1.35), and **fair**: 120 seeded games simulated (`snakesFairness`),
   kept only when a game takes `SNAKES_FAIR_TURNS` (14-32) turns on average and
-  never more than 220. Measured over 1,000 seeds: every map found without the
-  fallback, 22-32 turns (median 29), at most 4 ms to make. Before the bands a
+  never more than 220. Measured over 1,500 seeds: every map found without the
+  fallback, 21-32 turns (median 29), a few ms to make (inside the room's
+  Durable Object, whose CPU limit is 30 s, not the Worker's 10 ms). Before the bands a
   snake head's row was left to chance (row 2 got a quarter of what row 5 got,
   and one map in ten had no snake in the last two rows). **The die**
   (`snakesDie`) comes from `crypto.getRandomValues` on the phone and in the

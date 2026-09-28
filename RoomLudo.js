@@ -26,7 +26,7 @@
 
 const LUDO_GRACE_MS = 1500;       // the server's clock acts this long after the phones'
 
-const ludoRoll6 = () => 1 + Math.floor(Math.random() * 6);
+const ludoRoll6 = () => fairDie();
 
 /** The players who would play if the game started now: the host's choice, or the first four. */
 const ludoLobbySeated = (room) => {

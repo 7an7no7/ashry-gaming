@@ -3514,7 +3514,7 @@ Date.now = duelTestClock;
 /* --- بنك الحظ: the board, every rule, the room, and whole games of computer players ------ */
 {
   const { readFileSync } = await import('node:fs');
-  const B = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+  const B = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
     '\nreturn { BANK_SQUARES, BANK_CARDS, BANK_GROUPS, BANK_STATIONS, BANK_COMPANIES, bankNewGame, bankRoll, bankBuy, bankEndTurn, bankBuild, bankSell, bankMortgage,' +
     ' bankUnmortgage, bankPayJail, bankUseCard, bankPayDebt, bankBankrupt, bankOffer, bankAnswer, bankRentOf, bankWorth, bankCanBuild, bankStepCost, bankAuto,' +
     ' bankBotMove, bankOnlyMove, bankRemovePlayer, bankFillTokens, bankRollOff, bankGroupSquares, bankLiquid, bankRents, bankDice };')();
@@ -3882,7 +3882,7 @@ Date.now = duelTestClock;
 
   // بنك الحظ: a debt to a player who leaves is cancelled; a "pay everyone" debt loses their share.
   {
-    const BB = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+    const BB = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
       '\nreturn { bankNewGame, bankFillTokens, bankRemovePlayer };')();
     const mk = () => BB.bankNewGame(['a', 'b', 'c'], BB.bankFillTokens(['a', 'b', 'c'], {}), 'a', { length: 0, firstLap: false }, 0, Math.random);
     let { g, priv } = mk();
@@ -7610,7 +7610,7 @@ Date.now = duelTestClock;
 
   // بنك الحظ: no bankruptcy while selling and mortgaging would cover the debt.
   {
-    const B = new Function(readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+    const B = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
       '\nreturn { bankNewGame, bankFillTokens, bankRoll, bankBankrupt, bankAuto, bankLiquid };')();
     const made = B.bankNewGame(['a', 'b'], B.bankFillTokens(['a', 'b'], {}), 'a', { length: 0, firstLap: false }, 0, Math.random);
     const g = made.g, priv = made.priv;
@@ -9536,8 +9536,8 @@ Date.now = duelTestClock;
 
 /* --- السلم والتعبان (28 Sep 2026): the map, the rules, the room ------------------------------ */
 {
-  const S = new Function(readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8') +
-    '\nreturn { snakesGenMap, snakesCellXY, snakesRowOf, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesSegCross, snakesDie, SNAKES_SNAKE_BANDS, SNAKES_LADDER_BANDS, SNAKES_BALANCE, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_MOVE_MS, SNAKES_BUILD_MS, SNAKES_TEARDOWN_MS };')();
+  const S = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8') +
+    '\nreturn { snakesGenMap, snakesCellXY, snakesRowOf, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesSegCross, snakesDie, SNAKES_SNAKE_BANDS, SNAKES_LADDER_BANDS, SNAKES_SNAKE_EXTRA, SNAKES_LADDER_EXTRA, SNAKES_COUNT, SNAKES_BALANCE, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_MOVE_MS, SNAKES_BUILD_MS, SNAKES_TEARDOWN_MS };')();
   const throws = (fn) => { try { fn(); return false; } catch (e) { return true; } };
 
   // The map.
@@ -9546,17 +9546,35 @@ Date.now = duelTestClock;
     'snakes: a seed makes the same map every time, and another seed another map');
   const maps = [];
   for (let k = 1; k <= 80; k++) maps.push(S.snakesGenMap(k * 104729 + 17));
-  check(maps.every((m) => m.snakes.length === 6 && m.ladders.length === 6), 'snakes: every map has 6 snakes and 6 ladders');
+  check(maps.every((m) => m.snakes.length >= 6 && m.snakes.length <= 8 && m.ladders.length >= 6 && m.ladders.length <= 8), 'snakes: every map has 6 to 8 snakes and 6 to 8 ladders');
+  {
+    const seen = new Set(), seenL = new Set();
+    maps.forEach((m) => { seen.add(m.snakes.length); seenL.add(m.ladders.length); });
+    check(seen.size === 3 && seenL.size === 3, 'snakes: 6, 7 and 8 snakes all come up, and 6, 7 and 8 ladders');
+  }
   const inBands = (list, bands, rowOf) => { const left = list.map(rowOf); return bands.every((b) => { const i = left.findIndex((r) => r >= b[0] && r <= b[1]); if (i === -1) return false; left.splice(i, 1); return true; }); };
-  check(maps.every((m) => inBands(m.snakes, S.SNAKES_SNAKE_BANDS, (x) => S.snakesRowOf(x.h))), 'snakes: every map has a snake head in each band, the last row and the one before it included');
+  check(maps.every((m) => inBands(m.snakes, S.SNAKES_SNAKE_BANDS.concat(Array(m.snakes.length - S.SNAKES_SNAKE_BANDS.length).fill(S.SNAKES_SNAKE_EXTRA)), (x) => S.snakesRowOf(x.h))), 'snakes: every map has a snake head in each band, the last row and the one before it included');
   check(maps.every((m) => m.snakes.some((x) => S.snakesRowOf(x.h) === 9) && m.snakes.some((x) => S.snakesRowOf(x.h) === 8)), 'snakes: always a snake in 91-99 and in 81-90');
-  check(maps.every((m) => inBands(m.ladders, S.SNAKES_LADDER_BANDS, (x) => S.snakesRowOf(x.f))), 'snakes: every map has a ladder foot in each band, the first two rows included');
+  check(maps.every((m) => inBands(m.ladders, S.SNAKES_LADDER_BANDS.concat(Array(m.ladders.length - S.SNAKES_LADDER_BANDS.length).fill(S.SNAKES_LADDER_EXTRA)), (x) => S.snakesRowOf(x.f))), 'snakes: every map has a ladder foot in each band, the first two rows included');
   check(maps.every((m) => { const d = m.snakes.reduce((n, x) => n + x.h - x.t, 0) / m.ladders.reduce((n, x) => n + x.t - x.f, 0); return d >= S.SNAKES_BALANCE[0] && d <= S.SNAKES_BALANCE[1]; }), 'snakes: the drop of the snakes and the climb of the ladders are in balance on every map');
   {
     const f = [0, 0, 0, 0, 0, 0, 0];
     for (let k = 0; k < 600000; k++) f[S.snakesDie()]++;
     const chi = f.slice(1).reduce((n, o) => n + (o - 100000) * (o - 100000) / 100000, 0);
     check(f[0] === 0 && chi < 20.5, `snakes: the die is 1-6 and even over 600,000 rolls (chi-square ${chi.toFixed(1)}, under 20.5 at 99.9%)`);
+  }
+  {
+    // Every real roll in the app is Dice.js's fairDie: the shared die, in لودو's room, بنك الحظ with the real random source.
+    const D = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+      '\nreturn { fairDie, bankRoll6, bankDice };')();
+    const spread = (roll, n) => { const f = [0, 0, 0, 0, 0, 0, 0, 0]; for (let k = 0; k < n; k++) { const v = roll(); f[v >= 1 && v <= 6 ? v : 7]++; } const e = n / 6; return { bad: f[0] + f[7], chi: f.slice(1, 7).reduce((x, o) => x + (o - e) * (o - e) / e, 0) }; };
+    const fd = spread(D.fairDie, 600000), bk = spread(() => D.bankRoll6(Math.random), 120000), bk2 = spread(() => D.bankRoll6(), 120000);
+    check(!fd.bad && fd.chi < 20.5, `dice: the app's one die is 1-6 and even over 600,000 rolls (chi-square ${fd.chi.toFixed(1)})`);
+    check(!bk.bad && bk.chi < 20.5 && !bk2.bad && bk2.chi < 20.5, 'dice: real rolls in بنك الحظ are the shared die, even over 120,000 rolls');
+    const seeded = (seed) => { let a = seed; return () => { a = (a * 16807) % 2147483647; return a / 2147483647; }; };
+    const r1 = seeded(42), r2 = seeded(42);
+    check(Array.from({ length: 50 }, () => D.bankRoll6(r1)).join() === Array.from({ length: 50 }, () => D.bankRoll6(r2)).join(), 'dice: a seeded source still gives the بنك الحظ tests the same rolls');
+    check(/const ludoRoll6 = \(\) => fairDie\(\);/.test(readFileSync(new URL('../../RoomLudo.js', import.meta.url), 'utf8')), 'dice: the لودو room rolls the shared die');
   }
   check(maps.every((m) => {
     const ends = m.snakes.flatMap((s) => [s.h, s.t]).concat(m.ladders.flatMap((l) => [l.f, l.t]));
@@ -9641,7 +9659,7 @@ Date.now = duelTestClock;
   applyRoomAction(r, 'h', 'start', { turnClock: 15 });
   let s = r.shared;
   const bot = r.players.find((x) => x.bot).id;
-  check(r.phase === 'play' && s.seats.length === 4 && s.colors.p === 'g' && s.map.snakes.length === 6 && s.readyAt === clock + S.SNAKES_BUILD_MS,
+  check(r.phase === 'play' && s.seats.length === 4 && s.colors.p === 'g' && s.map.snakes.length >= 6 && s.map.snakes.length <= 8 && s.readyAt === clock + S.SNAKES_BUILD_MS,
     'snakes room: four dealt in (a computer player among them), the colour picked kept, a new map, the building before the first roll');
   check(s.events[0].type === 'build' && s.events[0].first === s.turn.pid && !s.events[0].teardown, 'snakes room: the map is built in front of everyone, and says who starts');
   // Make a person start, to test the roll.

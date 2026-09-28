@@ -187,7 +187,8 @@ const bankLevel = (g, i) => ((g.own || {})[i] || {}).lvl || 0;
 const bankActive = (g) => g.seats.filter(pid => g.out.indexOf(pid) === -1);
 /** Whether `pid` may buy yet: always, or once past Start when the table plays the first lap. */
 const bankCanBuyYet = (g, pid) => !(g.settings && g.settings.firstLap) || !!(g.lapped || {})[pid];
-const bankRoll6 = (rnd) => 1 + Math.floor((rnd || Math.random)() * 6);
+// A real roll is the app's one die (Dice.js); a seeded source (the rules tests) keeps its own numbers.
+const bankRoll6 = (rnd) => (!rnd || rnd === Math.random ? fairDie() : 1 + Math.floor(rnd() * 6));
 /** A roll for this table: one die, or two (the lobby's switch). */
 const bankDice = (g, rnd) => (g && g.settings && g.settings.oneDie ? [bankRoll6(rnd)] : [bankRoll6(rnd), bankRoll6(rnd)]);
 const bankDiceSum = (d) => d.reduce((s, x) => s + x, 0);

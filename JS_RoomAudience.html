@@ -25,7 +25,7 @@ const AUDIENCE_SHOUTS = {
 };
 const AUDIENCE_CHEER_SET = Object.keys(AUDIENCE_SHOUTS);
 let audienceSoundAt = 0;
-const audience = { seenCheer: null, room: '', pickOpen: false };
+const audience = { seenCheer: null, room: '', pickOpen: false, closeTimer: null };
 
 const AUDIENCE_ORDER_NOT_SEATS = { trivia: true, emoji: true, proverbs: true, twotruths: true };
 
@@ -155,8 +155,22 @@ function audienceFloat(id, name, big) {
   setTimeout(done, 2600);   // an animation that never ends (a hidden tab) still goes
 }
 
+/* The guessing closes on the server's clock, and nothing else redraws the bar
+   then: a repaint is set for that moment (replaced on every paint), so the chip
+   goes when the window shuts rather than at the next move. */
+function audienceScheduleClose(state) {
+  if (audience.closeTimer) { clearTimeout(audience.closeTimer); audience.closeTimer = null; }
+  if (!audiencePredictOpen(state)) return;
+  const now = (state.serverNow && state.receivedAt) ? state.serverNow + (Date.now() - state.receivedAt) : Date.now();
+  audience.closeTimer = setTimeout(() => {
+    audience.closeTimer = null;
+    if (typeof Room !== 'undefined' && Room.isIn) paintAudience(Room.state);
+  }, Math.max(0, state.predict.until - now) + 50);
+}
+
 function paintAudience(state) {
   const bar = document.getElementById('room-audience');
+  audienceScheduleClose(state);
   const t = TRANSLATIONS[appState.lang] || {};
   // A new room, or the first state this page sees: nothing old floats up.
   if (!state || state.code !== audience.room) {

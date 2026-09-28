@@ -21,7 +21,7 @@
  * Anything else is looked up in the built app (docs/, see [assets] in
  * wrangler.toml) before it reaches this code.
  */
-import { RULES_HASH } from '../generated/rules.js';
+import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS } from '../generated/rules.js';
 import { Room } from './room.js';
 import { PromptMemory } from './memory.js';
 import { LiveStats } from './live.js';
@@ -181,9 +181,10 @@ export default {
         const text = await request.text();
         const body = JSON.parse(text.length < 200 ? text : '{}') || {};
         const game = String(body.game || '');
-        if (/^[a-z0-9-]{2,30}$/.test(game) && countAllowed(request)) {
+        // Only a game the app has (GameIds.js): the log keeps what it has once full, so a made-up id is never kept.
+        if (APP_GAME_IDS.indexOf(game) !== -1 && countAllowed(request)) {
           await env.WORDS.get(env.WORDS.idFromName('plays'))
-            .add([{ lang: 'device', cat: new Date().toISOString().slice(0, 7), word: game }]);
+            .add([{ lang: 'device', cat: new Date().toISOString().slice(0, 7), word: game, keep: true }]);
         }
       } catch (err) { /* a count is never worth an error */ }
       return json({ ok: true });
@@ -199,8 +200,8 @@ export default {
         const game = String(body.game || '');
         const item = String(body.text || '').trim();
         const lang = body.lang === 'en' ? 'en' : 'ar';
-        if (/^[a-z0-9-]{2,30}$/.test(game) && item && countAllowed(request)) {
-          await env.WORDS.get(env.WORDS.idFromName('reports')).add([{ lang, cat: game, word: item, long: true }]);
+        if (APP_REPORT_IDS.indexOf(game) !== -1 && item && countAllowed(request)) {
+          await env.WORDS.get(env.WORDS.idFromName('reports')).add([{ lang, cat: game, word: item, long: true, keep: true }]);
         }
       } catch (err) { /* a report is never worth an error */ }
       return json({ ok: true });

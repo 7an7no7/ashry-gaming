@@ -252,6 +252,8 @@ const svWriteSecrets = (room) => {
   Object.keys(h.boards || {}).forEach(pid => {
     const b = h.boards[pid];
     room.secrets[pid] = { board: K.view(b, h.secret, s.settings), state: b.state, n: b.n };
+    // «استسلم»: its own phone says «استسلمت», not «خسرت» (the table sees it only on the result).
+    if (b.gave) room.secrets[pid].gave = true;
   });
   if (s.setter && s.phase === 'solving') room.secrets[s.setter] = { mine: K.mine(h.secret, s.settings) };
 };
@@ -302,15 +304,20 @@ const svRaceCheckClose = (room) => {
 /**
  * A race's finished boards ranked: by the game's own score (most right first in
  * the quiz games) and then the order they finished in - which for every other
- * game is the whole ranking.
+ * game is the whole ranking. In Fast 3 the first three to finish are the podium
+ * whatever the score: they are ranked by score among themselves, and whoever
+ * finished in the grace comes after them (by score, then order) - a later,
+ * better score never takes a 10 / 7 / 5 place.
  */
 const svRaceRank = (room) => {
   const s = room.shared;
   const h = room._solve || { boards: {} };
   const K = SOLVE_KINDS[s.solve];
+  const top = s.settings && s.settings.finish === 'fast3' ? SV_RACE_POINTS.length : Infinity;
   return (s.solved || []).filter(pid => h.boards[pid] && h.boards[pid].state === 'won')
-    .map((pid, at) => ({ pid: pid, at: at, score: K.score ? K.score(h.boards[pid], h.secret, s.settings) : 0 }))
-    .sort((a, b) => b.score - a.score || a.at - b.at);
+    .map((pid, at) => ({ pid: pid, at: at, grace: at >= top ? 1 : 0, score: K.score ? K.score(h.boards[pid], h.secret, s.settings) : 0 }))
+    .sort((a, b) => a.grace - b.grace || b.score - a.score || a.at - b.at)
+    .map(r => ({ pid: r.pid, at: r.at, score: r.score }));
 };
 
 /** The setter of this secret: the next in the order who is still here (latecomers join the end). */

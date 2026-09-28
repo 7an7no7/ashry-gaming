@@ -244,7 +244,16 @@ function wheelSubmit() {
   const word = s.typed.map(i => s.letters[i]).join('');
   s.typed = [];
   // A race: the words are on the server, which judges the word (JS_RoomRace.html).
-  if (s.race) { saveToLocal(); paintWordWheel(); raceMove('wordwheel', { word: word }); return; }
+  if (s.race) {
+    saveToLocal(); paintWordWheel();
+    // "Already found" is said once, for this word: the board's `last` stays 'again' through
+    // everyone else's moves, so it is read here, after this phone's own answer, not in sync.
+    raceMove('wordwheel', { word: word }).then(ok => {
+      const b = ok && Room.state && Room.state.you && Room.state.you.board;
+      if (b && b.last === 'again') showToast(t.wheel_already || '', 'info');
+    });
+    return;
+  }
   const wi = s.words.findIndex(p => p.w === word);
   if (wi !== -1 && s.found.indexOf(wi) === -1) {
     s.found.push(wi);
@@ -367,7 +376,6 @@ RACE_UI.wordwheel = {
     if (fx && fx.first) return;
     if (fresh.length) { playSound('success'); haptic('light'); fresh.forEach(f => wheelFlipWord(s, f.wi)); }
     else if (bonusFresh.length) { playSound('click'); showToast(`⭐ ${t.wheel_bonus || ''}: ${bonusFresh[0]}`, 'success'); }
-    else if (b.last === 'again') showToast(t.wheel_already || '', 'info');
   },
   snapshot: (s) => s.found.length * 100 + s.bonusFound.length,
   miss: () => { wheelShake('wheel-typed'); wheelShake('wheel-ring'); },

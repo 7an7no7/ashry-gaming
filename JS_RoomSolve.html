@@ -635,7 +635,7 @@ function svTickClock(state) {
 /** The host's buttons: close the round early; move on from a setter whose phone went quiet. */
 function svHostButtons(state) {
   const s = state.shared || {};
-  if (!state.youAreHost) return [];
+  if (!roomCanMoveOn(state)) return [];
   const key = [state.code, s.round, s.phase].join('|');
   if (svRoom.sinceKey !== key) {
     svRoom.sinceKey = key; svRoom.since = Date.now();
@@ -704,9 +704,9 @@ function svRender(kind, state) {
       return `<div class="sv-room">${head}
           ${svResultHtml(kind, state)}
           ${renderScoreboard(s.board)}
-          ${state.youAreHost
-            ? `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${svRound(s)} })">${escapeHTML(svT('sv_next_round'))}</button>`
-            : `<div class="waiting-note">${escapeHTML(svT('room_wait_host'))}</div>`}
+          ${roomMoveOnHtml(state,
+            `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${svRound(s)} })">${escapeHTML(svT('sv_next_round'))}</button>`,
+            `<div class="waiting-note">${escapeHTML(svT('room_wait_host'))}</div>`)}
           ${renderRoomPlayerStrip(state)}
         </div>`;
     }
@@ -789,6 +789,8 @@ function svTvFrame(kind, state, t) {
   if (!s.settings) return tvLookAtPhones(t);
   const accent = SV_UI_ACCENTS[kind];
   const host = (buttons) => (state.youAreHost && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
+  // The buttons that only move the game on: anyone's once the host is away (svTvSig carries it).
+  const moveOn = (buttons) => (roomCanMoveOn(state) && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
   const top = `<div class="tv-top">
       <span class="tv-pill">${SV_ICONS[kind]} ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
       ${s.endsAt && s.phase === 'solving' ? '<span class="tv-pill" data-sv-clock></span>' : ''}
@@ -803,7 +805,7 @@ function svTvFrame(kind, state, t) {
   if (s.phase === 'result') {
     return `<div class="tv-trivia" data-accent="${accent}">${top}
         <div class="tv-center sv-tv-result">${svResultHtml(kind, state, true)}</div>
-        ${host([[svT('sv_next_round'), `roomAct('nextRound', { round: ${svRound(s)} })`]])}
+        ${moveOn([[svT('sv_next_round'), `roomAct('nextRound', { round: ${svRound(s)} })`]])}
       </div>`;
   }
   if (s.phase === 'setting') {
@@ -812,7 +814,7 @@ function svTvFrame(kind, state, t) {
           <div class="tv-big-icon" aria-hidden="true">✍️</div>
           <div class="tv-title">${escapeHTML(svT('sv_setting_' + kind, { name: s.setterName || '' }))}</div>
         </div>
-        ${host(svHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
+        ${moveOn(svHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
       </div>`;
   }
   return `<div class="tv-trivia sv-tv" data-accent="${accent}">${top}
@@ -821,7 +823,7 @@ function svTvFrame(kind, state, t) {
         ${svPubHtml(kind, s, true)}
       </div>
       ${svProgressHtml(kind, state, true)}
-      ${host(svHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
+      ${moveOn(svHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
     </div>`;
 }
 
@@ -830,7 +832,7 @@ const SV_UI_ACCENTS = { wordle: 'green', guessnum: 'blue', flags: 'blue', emoji:
 function svTvSig(state) {
   const s = state.shared || {};
   return ['svtv', s.solve, s.dealId || '', s.round, s.phase, s.setter || '', JSON.stringify(s.progress || {}), JSON.stringify(s.result || null),
-    s.endsAt || '', JSON.stringify(s.board || []), state.youAreHost, appState.lang].join('|');
+    s.endsAt || '', JSON.stringify(s.board || []), state.youAreHost, !!state.hostAway, appState.lang].join('|');
 }
 
 function svTvAfter(state) {

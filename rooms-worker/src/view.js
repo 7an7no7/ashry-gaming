@@ -10,7 +10,7 @@
  */
 import { chatFor } from '../generated/rules.js';
 
-export const roomView = (room, pid, online) => {
+export const roomView = (room, pid, online, extra) => {
   const screens = room.screens || [];
   const isScreen = screens.some((s) => s.id === pid);
   return {
@@ -20,6 +20,9 @@ export const roomView = (room, pid, online) => {
     phase: room.phase,
     hostId: room.hostId,
     youAreHost: room.hostId === pid,
+    // The host has been away long enough (room.js, HOST_STAND_IN_MS) that anyone
+    // may press the host's "move on" buttons: every phone and screen shows them.
+    hostAway: !!(extra && extra.hostAway),
     // A computer player (`bot`: its level) is always here: it has no phone to lose.
     players: room.players.map((p) => (p.bot
       ? { id: p.id, name: p.name, online: true, bot: p.bot }

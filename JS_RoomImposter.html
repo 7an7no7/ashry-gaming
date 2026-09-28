@@ -128,9 +128,9 @@ function renderImposterReveal(el, state, t) {
       ${state.shared.category ? `<div class="eyebrow">${escapeHTML(state.shared.category)}</div>` : ''}
       ${face}
     </div>
-    ${state.youAreHost
-      ? `<button onclick="roomAct('beginDiscussion')" class="btn btn--primary btn--lg">${t.start_discussion || 'ابدأ النقاش'}</button>`
-      : `<div class="waiting-note"><span class="animate-pulse">⏳</span> ${escapeHTML(t.imp_wait_discuss || t.room_wait_host || '')}</div>`}
+    ${roomMoveOnHtml(state,
+      `<button onclick="roomAct('beginDiscussion')" class="btn btn--primary btn--lg">${t.start_discussion || 'ابدأ النقاش'}</button>`,
+      `<div class="waiting-note"><span class="animate-pulse">⏳</span> ${escapeHTML(t.imp_wait_discuss || t.room_wait_host || '')}</div>`)}
     ${renderRoomPlayerStrip(state)}`);
 }
 
@@ -149,12 +149,12 @@ function renderImposterDiscuss(el, state, t) {
       <div id="room-imp-timer" class="metric metric--xl metric--accent">00:00</div>
       <p class="card__subtitle" style="margin-bottom:0">${escapeHTML(undercover ? (t.imp_und_discuss_hint || '') : (t.imposter_discuss_hint || 'اسألوا بعضكم واكتشفوا الجاسوس'))}</p>
     </div>
-    ${state.youAreHost
-      ? `<div class="btn-stack">
+    ${roomMoveOnHtml(state,
+      `<div class="btn-stack">
            <button onclick="roomAct('startVote')" class="btn btn--primary btn--lg">${escapeHTML(undercover ? (t.imp_und_start_vote || t.imp_start_vote || '') : (t.imp_start_vote || ''))}</button>
            <button onclick="roomAct('revealResult')" class="btn btn--ghost btn--sm">${escapeHTML(t.imp_reveal_direct || '')}</button>
-         </div>`
-      : `<div class="waiting-note">${escapeHTML(t.imp_wait_vote || '')}</div>`}
+         </div>`,
+      `<div class="waiting-note">${escapeHTML(t.imp_wait_vote || '')}</div>`)}
     ${renderRoomPlayerStrip(state)}`);
 
   startRoomDiscussClock(state.shared.startedAt);
@@ -186,7 +186,7 @@ function renderImposterGuess(el, state, t) {
     ${mine
       ? `<div class="btn-stack">${(s.options || []).map(w => `<button class="ballot-option" onclick="roomAct('guess', { word: '${jsStringAttr(w)}' })"><span class="ballot-option__label">${escapeHTML(w)}</span></button>`).join('')}</div>`
       : `<div class="chip-set" style="justify-content:center">${(s.options || []).map(w => `<span class="chip chip--plain"><span class="chip__label">${escapeHTML(w)}</span></span>`).join('')}</div>`}
-    ${state.youAreHost ? `<div class="btn-stack" style="margin-top: var(--sp-3)"><button class="btn btn--ghost btn--sm" onclick="roomAct('skipGuess')">${escapeHTML(t.fa_skip_guess || '')}</button></div>` : ''}
+    ${roomMoveOnHtml(state, `<div class="btn-stack" style="margin-top: var(--sp-3)"><button class="btn btn--ghost btn--sm" onclick="roomAct('skipGuess')">${escapeHTML(t.fa_skip_guess || '')}</button></div>`)}
     ${renderRoomPlayerStrip(state)}`);
 }
 

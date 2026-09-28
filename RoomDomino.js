@@ -403,7 +403,7 @@ const dominoAction = (room, playerId, action, payload) => {
   if (!s || !s.phase || !room._domino) throw new Error('اللعبة لم تبدأ بعد');
 
   if (action === 'nextRound') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'roundOver') return;
     dominoDeal(room);
     return;
@@ -411,7 +411,7 @@ const dominoAction = (room, playerId, action, payload) => {
 
   if (action === 'skipTurn') {
     // The host moves a quiet phone on: the phone plays for it, as the clock would.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'play' || !s.turn || staleTap(p, 'seq', s.turnSeq)) return;
     dominoAuto(room, s.turn, 'host');
     dominoSync(room);

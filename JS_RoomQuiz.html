@@ -163,9 +163,9 @@ function quizGame(game) {
             : `<div class="waiting-note">${escapeHTML(t.quiz_nobody || '')}</div>`}
           ${!s.retry && (s.answers || []).some(a => !a.right) ? `<div class="quiz-feed">${(s.answers || []).filter(a => !a.right).map(a => `<div class="quiz-feed__row">❌ <b>${escapeHTML(a.name)}</b>: ${escapeHTML(a.text || '')}</div>`).join('')}</div>` : ''}
           ${renderScoreboard(s.board)}
-          ${state.youAreHost
-            ? `<button class="btn btn--primary btn--lg" onclick="roomAct('nextQuestion')">${escapeHTML(s.qIndex + 1 >= s.total ? (t.quiz_last || '') : (t.quiz_next || ''))}</button>`
-            : `<div class="waiting-note">${t.room_wait_host}</div>`}
+          ${roomMoveOnHtml(state,
+            `<button class="btn btn--primary btn--lg" onclick="roomAct('nextQuestion')">${escapeHTML(s.qIndex + 1 >= s.total ? (t.quiz_last || '') : (t.quiz_next || ''))}</button>`,
+            `<div class="waiting-note">${t.room_wait_host}</div>`)}
           ${renderRoomPlayerStrip(state)}`);
         if (fresh && gotIt) playSound('success');
         // The points you just won float from the answer card onto your own row.
@@ -240,7 +240,7 @@ function quizTv(game) {
               <div class="tv-strip-inline">${(s.order || []).map((id, i) => `<span class="tv-chip is-done">${['🥇', '🥈', '🥉'][i] || '✅'} ${escapeHTML(((state.players.find(p => p.id === id)) || {}).name || '')} +${(s.gained || {})[id] || 0}</span>`).join('') || `<span class="tv-note">${escapeHTML(t.quiz_nobody || '')}</span>`}</div>
             </div>
             <div class="tv-scale">${renderScoreboard(s.board)}</div>
-            ${host(tvBtn(s.qIndex + 1 >= s.total ? t.quiz_last : t.quiz_next, "roomAct('nextQuestion')"))}
+            ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(s.qIndex + 1 >= s.total ? t.quiz_last : t.quiz_next, "roomAct('nextQuestion')")}</div>`)}
           </div>`;
       }
       return `

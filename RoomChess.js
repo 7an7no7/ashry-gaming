@@ -422,7 +422,7 @@ function chessAction(room, playerId, action, payload) {
 
   if (action === 'skipTurn') {
     // The host plays for a phone that went quiet: the computer's move at a low rating (chessHostMove).
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'play' || bd.result || staleTap(p, 'move', bd.moves)) return;
     // The hidden queen's pick waiting on a quiet phone: a random pawn for whoever hasn't picked.
     // The seat the host named (an older phone names none: every seat still to pick).

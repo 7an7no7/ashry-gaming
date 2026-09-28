@@ -310,7 +310,7 @@ const handBrainAction = (room, playerId, action, payload) => {
 
   if (action === 'skipTurn') {
     // The host plays for a phone gone quiet, as an easy computer player would.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'play' || bd.result || staleTap(p, 'move', bd.moves) || (p.stage && p.stage !== s.stage)) return;
     const mv = hbAutoMove(room, 'easy');
     if (!mv) return;

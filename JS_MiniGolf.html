@@ -3677,7 +3677,7 @@ function mgRoomCourse(state, root, tv) {
 /** The host's buttons: putt for a phone that went quiet (away, or its ball waiting 30 seconds). */
 function mgHostButtons(state) {
   const s = state.shared || {};
-  if (!state.youAreHost || s.phase !== 'play') return [];
+  if (!roomCanMoveOn(state) || s.phase !== 'play') return [];
   const out = [];
   (s.order || []).forEach(pid => {
     const b = s.balls[pid];
@@ -3779,8 +3779,8 @@ function mgBetweenHtml(state, tv) {
       <ul class="mg-results">${words}</ul>
       ${mgCardHtml(rows, mgRoomHoles(s), { upto: s.hole + 1, countHole: s.hole })}
       <p class="field__hint mg-next" data-mg-next>${escapeHTML(mgT('mg_next_in', { n: left }))}</p>
-      ${state.youAreHost ? (tv ? `<div class="tv-actions">${tvBtn(mgT('mg_next_hole') + ' ⏭️', `roomAct('nextHole', { hole: ${Number(s.hole) || 0} })`)}</div>`
-        : `<button type="button" class="btn btn--primary" onclick="roomAct('nextHole', { hole: ${Number(s.hole) || 0} })">${escapeHTML(mgT('mg_next_hole'))} ⏭️</button>`) : ''}
+      ${roomMoveOnHtml(state, tv ? `<div class="tv-actions">${tvBtn(mgT('mg_next_hole') + ' ⏭️', `roomAct('nextHole', { hole: ${Number(s.hole) || 0} })`)}</div>`
+        : `<button type="button" class="btn btn--primary" onclick="roomAct('nextHole', { hole: ${Number(s.hole) || 0} })">${escapeHTML(mgT('mg_next_hole'))} ⏭️</button>`)}
     </div>`;
 }
 
@@ -3949,7 +3949,7 @@ setInterval(() => {
     const left = Math.max(0, Math.ceil((st.shared.nextAt + (mgRoom.offset || 0) - Date.now()) / 1000));
     document.querySelectorAll('[data-mg-next]').forEach(el => { el.textContent = mgT('mg_next_in', { n: left }); });
   }
-  if (st.youAreHost && st.shared.phase === 'play' && ++mgTickN % 10 === 0) {
+  if (roomCanMoveOn(st) && st.shared.phase === 'play' && ++mgTickN % 10 === 0) {
     const root = document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-minigolf');
     const host = root && mgPart(root, 'host');
     if (host) {

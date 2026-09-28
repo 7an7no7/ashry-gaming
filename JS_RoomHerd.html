@@ -127,7 +127,7 @@ ROOM_GAMES.herd = {
           </div>
           <div id="herd-progress" class="vote-progress"></div>
         </div>`) + `
-        ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('closeWriting')">${escapeHTML(t.herd_reveal_now || '')}</button></div>` : ''}
+        ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('closeWriting')">${escapeHTML(t.herd_reveal_now || '')}</button></div>`)}
         ${renderRoomPlayerStrip(state)}`);
       const prog = document.getElementById('herd-progress');
       if (prog) prog.innerHTML = `<span>${escapeHTML(t.tt_written || '')}: ${ltrFrac((s.submitted || []).length, (s.roster || []).length)}</span>`;
@@ -140,11 +140,11 @@ ROOM_GAMES.herd = {
       const fresh = renderRoomFrame(el, sig, () => head + `
         <p class="field__hint" style="text-align:center">${escapeHTML(state.youAreHost ? (herdLocal.mergeFrom ? (t.herd_merge_into || '') : (t.herd_merge_hint || '')) : (t.herd_host_checks || ''))}</p>
         ${herdGroupsHtml(s, t, { merge: state.youAreHost })}
-        ${state.youAreHost ? `
+        ${roomMoveOnHtml(state, `
           <div class="btn-stack">
             <button class="btn btn--primary btn--lg" onclick="roomAct('score')">${escapeHTML(t.herd_score || '')}</button>
-            ${(s.groups || []).some(g => (g.parts || []).length > 1) ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('unmerge')">${escapeHTML(t.herd_unmerge || '')}</button>` : ''}
-          </div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+            ${state.youAreHost && (s.groups || []).some(g => (g.parts || []).length > 1) ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('unmerge')">${escapeHTML(t.herd_unmerge || '')}</button>` : ''}
+          </div>`, `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
         ${renderRoomPlayerStrip(state)}`);
       if (fresh && !motionOff()) herdStagger(el);
       refreshRoomPlayerStrip(el, state);
@@ -161,9 +161,9 @@ ROOM_GAMES.herd = {
         </div>
         ${herdGroupsHtml(s, t)}
         ${renderScoreboard(herdBoard(s))}
-        ${state.youAreHost
-          ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('nextRound')">${escapeHTML(t.next_round || '')}</button></div>`
-          : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        ${roomMoveOnHtml(state,
+          `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('nextRound')">${escapeHTML(t.next_round || '')}</button></div>`,
+          `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
         ${renderRoomPlayerStrip(state)}`);
       if (fresh && (s.gained || []).indexOf(Room.me) !== -1) playSound('success');
       if (fresh && s.sheepId === Room.me && s.sheepFrom !== Room.me) playSound('alarm');
@@ -241,27 +241,28 @@ TV_GAMES.herd = {
   frame(state, t) {
     const s = state.shared;
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    const moveOn = (html) => roomMoveOnHtml(state, `<div class="tv-actions">${html}</div>`);
     const prompt = `<div class="tv-eyebrow tv-center-text">${escapeHTML(t.round || '')} ${s.round} · 🎯 ${s.target}</div>
       <div class="tv-title tv-center-text">${escapeHTML(t.herd_write_one || '')}: ${escapeHTML(s.prompt || '')}</div>`;
     if (s.phase === 'writing') {
       return `<div class="tv-center">${prompt}
         <div class="tv-big-icon" aria-hidden="true">🐄</div>
         <div class="tv-note">${escapeHTML(t.tt_written || '')}: ${ltrFrac((s.submitted || []).length, (s.roster || []).length)}</div>
-        ${host(tvBtn(t.herd_reveal_now, "roomAct('closeWriting')", 'ghost'))}</div>`;
+        ${moveOn(tvBtn(t.herd_reveal_now, "roomAct('closeWriting')", 'ghost'))}</div>`;
     }
     if (s.phase === 'reveal') {
       const merged = (s.groups || []).some(g => (g.parts || []).length > 1);
       return `<div class="tv-vote">${prompt}
         ${state.youAreHost ? `<div class="tv-note">${escapeHTML(herdLocal.mergeFrom ? (t.herd_merge_into || '') : (t.herd_merge_hint || ''))}</div>` : ''}
         ${herdTvGroupsHtml(s, state.youAreHost)}
-        ${host(tvBtn(t.herd_score, "roomAct('score')") + (merged ? tvBtn(t.herd_unmerge, "roomAct('unmerge')", 'ghost') : ''))}</div>`;
+        ${moveOn(tvBtn(t.herd_score, "roomAct('score')") + (merged && state.youAreHost ? tvBtn(t.herd_unmerge, "roomAct('unmerge')", 'ghost') : ''))}</div>`;
     }
     if (s.phase === 'result') {
       return `<div class="tv-vote">${prompt}
         <div class="tv-question">${s.majorityKey ? '🐄 ' + escapeHTML(t.herd_majority || '') : '🤷 ' + escapeHTML(t.herd_no_majority || '')}${s.sheepId ? ' · 🐑 ' + escapeHTML(s.sheepName || '') : ''}</div>
         ${herdTvGroupsHtml(s)}
         <div class="tv-strip-inline">${herdBoard(s).map(p => `<span class="tv-chip"><b class="metric">${p.score}</b> ${escapeHTML(p.name)}</span>`).join('')}</div>
-        ${host(tvBtn(t.next_round, "roomAct('nextRound')"))}</div>`;
+        ${moveOn(tvBtn(t.next_round, "roomAct('nextRound')"))}</div>`;
     }
     return `<div class="tv-vote">
       <div class="tv-title tv-center-text">🏆 ${escapeHTML((s.winners || []).join(' · '))}</div>

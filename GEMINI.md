@@ -1923,6 +1923,21 @@ the word search), `countUp` for streaks and scores.
   lesson for the next sheet: a "design direction" is a different structure,
   not a palette; put the palettes on a second axis.
 
+- **A host away for 20 s lets anyone move the round on** (the owner, 28 Sep
+  2026, approved: "once the host has been offline 20 s, any seated player can
+  press the host's 'move on' buttons ... the full handover stays at 2
+  minutes"). How it works is under *Multiplayer rooms*. Decided here (open to
+  change, each one place): a screen counts as a stand-in too (a TV often is
+  the only thing on the table), a computer player never does; a socket still
+  open but silent 40 s counts as away (`HOST_QUIET_MS`: a locked iPhone keeps
+  its socket), so a phone that only locked is seen after 40 s, not 20; the
+  list of move-on actions (everything that moves a round forward, every
+  "play for"), and what stays the host's (starting and choosing games,
+  settings, seats, kicking, corrections, الجرس's verdicts, «وقت كمان»,
+  choosing a spymaster); a stand-in is trusted as the host is (it may "play
+  for" a quiet opponent), and a tap pressed just as the host came back is
+  simply refused.
+
 - **An idea from another app is rebuilt our way, never copied** (the owner, 25
   Sep 2026: "we just got the idea and built it with our style ... with special
   things that would be in our app only"). Before building anything borrowed,
@@ -3468,6 +3483,21 @@ the word search), `countUp` for streaks and scores.
   a scheduler reads `fxCtx()` every tick (the bumper engine and the bowling
   rumble rebuilt too). Rules tests and the leak check, the robots, and the
   screen test (rooms, screens, fixes: 88 passed).
+- **28 Sep 2026, a host away doesn't stop the table** (*Decided, and why*,
+  *Multiplayer rooms*): after 20 s with the host's phone gone (40 s for a
+  socket open but silent), any player or screen presses the host's "move on"
+  buttons in every room game; settings, seats and new games stay the host's,
+  the handover still at 2 minutes. `room.js` (`hostAway`, the `_hostAway`
+  stamp, the alarm's two marks), `view.js` (`hostAway`), `requireMoveOn` in
+  the rules and every game's room file, `roomCanMoveOn` / `roomMoveOnHtml` /
+  `paintRoomHostAway` on the page and the TV. Also: كلمة واحدة's room words
+  are only the host's (a stand-in's `nextRound` keeps them, `room._joWords`).
+  Rules tests (a player refused while the host is here, allowed while away,
+  settings / the hub / a new game / الجرس still refused, two stand-ins' taps
+  dealing one round), the leak check, and a robot round
+  (`--only=hostaway`: the host's socket closed, «المضيف مش متصل» reaching
+  the phones at 20 s, a player closing the vote and dealing the next, the
+  host back).
 
 ## Building and Running
 
@@ -3778,6 +3808,43 @@ away, and «شيله من الغرفة» for a phone that is gone. The move is `
 { playerId }`, handled in `room.js` beside `kick` (it needs to know who is
 connected): the host only, a person (never a computer player) who is here
 now; said in the chat as the `host` event every change of host already is.
+
+**A host away doesn't stop the table** (the owner, 28 Sep 2026: a locked host
+phone froze the round for the 2 minutes before the handover). While a game is
+on, once the host has been away **20 s** (`HOST_STAND_IN_MS` in `room.js`) -
+the socket closed that long ago (`lastSeen`), or a socket still open but not
+heard from for 40 s (`HOST_QUIET_MS`: a locked iPhone keeps its socket), and
+not polling over HTTP - **any person or screen in the room can press the
+host's "move on" buttons**. The server decides: `room.js` stamps `_hostAway`
+on the copy the rules run on for a move from anyone but the host
+(`hostAway()`, taken off before saving), and the rules check
+`requireMoveOn(room, pid)` (`requireHost(room, pid, true)`: the host, or
+anyone but a computer player while `_hostAway`) instead of `requireHost` for
+those actions. **Move-on actions**: `nextRound`, `nextQuestion`, `nextHole`,
+`nextLevel`, `closeVote`, `closeWriting`, `closeWord`, `closeRound`,
+`closeThiefVote`, `closeBoom`, `startVote`, `beginDiscussion`, `endNight`,
+`startNight`, `lockDial`, `revealResult`, `revealNext` / `revealBack`, `reveal`
+(من أنا؟), `judge` (كلمة واحدة, خمس ثواني), `score` (زي الكل), `skipGuess`,
+`skipTurn` and "play for" in every game, `passTurn` (أسماء الرموز),
+`beginRound` (سكرو), `playFor` (ميني جولف); a tournament's match carries the
+stamp too (`tourRoomOf`). **Still the host's alone**: starting or choosing a
+game (`start`, `playAgain`, `restart`, `chooseGame`, `backToHub`,
+`tourNew`), settings and seats, computer players, `kick` / `makeHost`,
+corrections (`adjust`, `markLoser`, `flip`, `penalty`, `merge`, `undo`,
+`swap`, `setQuarters`), الجرس's verdicts (the host is the quizmaster),
+مافيا's `moreTime`, `setSpymaster` (it would show a key), عربيات التصادم's
+`endNow`, the TV's big match. Every such action kept its `staleTap` guard, so
+two stand-ins pressing «التالي» together deal one round. Every projection
+carries `hostAway` (`view.js`); `broadcast` sends it again when it flips
+(`awayShown`, and the alarm wakes at the 20 s and the 40 s marks). On the
+page `roomCanMoveOn(state)` is the host or `state.hostAway`, and a frame
+draws a move-on button through `roomMoveOnHtml(state, html)`: the host always
+gets it, anyone else a `.room-moveon` span shown only under
+`body.room-host-away` (`paintRoomHostAway`, from `Room.onChange`), so the
+buttons appear without rebuilding a frame someone is typing in; a small note
+under the header says «المضيف مش متصل - أي حد يقدر يكمّل» (`room_host_away`).
+The TV draws the same buttons (its signature has `hostAway`). The full
+handover of the room still comes at 2 minutes.
 
 **Opening rooms is limited per address.** `/create` answers 429 after 60 rooms
 from one address in 10 minutes (`CREATE_LIMIT`, `CREATE_WINDOW_MS` in

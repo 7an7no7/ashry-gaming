@@ -292,7 +292,7 @@ const guessWhoAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if ((s.phase !== 'play' && s.phase !== 'pick') || staleTap(p, 'seq', s.turnSeq)) return;
     gwAuto(room, 'host');
     return;

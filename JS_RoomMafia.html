@@ -425,7 +425,7 @@ ROOM_GAMES.mafia = {
             <p class="field__hint">${escapeHTML(mafiaRoleSummary((s.roster || []).length, s.mode, t))}</p>
           </div>
           ${role}
-          ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('startNight')">🌙 ${escapeHTML(t.mafia_start_night || '')}</button></div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+          ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('startNight')">🌙 ${escapeHTML(t.mafia_start_night || '')}</button></div>`, `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
           ${renderRoomPlayerStrip(state)}`;
       }
       if (s.phase === 'night') {
@@ -434,7 +434,7 @@ ROOM_GAMES.mafia = {
             <p class="field__hint">${escapeHTML(t.mafia_night_everyone || '')} · <span class="metric" data-mafia-acted>${(s.acted || []).length}/${(s.alive || []).length}</span></p></div>
           ${outNote}${mafiaNightHtml(state, t)}
           ${inGame && alive ? role : ''}
-          ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('endNight')">${escapeHTML(t.mafia_end_night || '')}</button></div>` : ''}
+          ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('endNight')">${escapeHTML(t.mafia_end_night || '')}</button></div>`)}
           ${renderRoomPlayerStrip(state)}`;
       }
       if (s.phase === 'day') {
@@ -445,10 +445,10 @@ ROOM_GAMES.mafia = {
           </div>
           ${mafiaPeopleHtml(state, t)}
           ${inGame && alive ? role : ''}
-          ${state.youAreHost ? `<div class="btn-stack">
+          ${roomMoveOnHtml(state, `<div class="btn-stack">
               <button class="btn btn--primary btn--lg" onclick="roomAct('startVote')">🗳️ ${escapeHTML(t.mafia_vote_now || '')}</button>
-              <button class="btn btn--ghost btn--sm" onclick="roomAct('moreTime')">+1 ${escapeHTML(t.meta_min || '')}</button>
-            </div>` : `<div class="waiting-note">${escapeHTML(t.mafia_vote_soon || '')}</div>`}
+              ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('moreTime')">+1 ${escapeHTML(t.meta_min || '')}</button>` : ''}
+            </div>`, `<div class="waiting-note">${escapeHTML(t.mafia_vote_soon || '')}</div>`)}
           ${renderRoomPlayerStrip(state)}`;
       }
       if (s.phase === 'voting') {
@@ -464,7 +464,7 @@ ROOM_GAMES.mafia = {
         return head + mafiaNewsHtml(state, t) + `
           <div class="card card--tight">${s.vote && s.vote.results ? renderVoteResults(mafiaVoteState(state)) : ''}</div>
           ${mafiaPeopleHtml(state, t)}
-          ${state.youAreHost ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('startNight')">🌙 ${escapeHTML(t.mafia_next_night || '')}</button></div>` : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+          ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('startNight')">🌙 ${escapeHTML(t.mafia_next_night || '')}</button></div>`, `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
           ${renderRoomPlayerStrip(state)}`;
       }
       // gameover
@@ -521,6 +521,7 @@ TV_GAMES.mafia = {
   frame(state, t) {
     const s = state.shared;
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    const moveOn = (html) => roomMoveOnHtml(state, `<div class="tv-actions">${html}</div>`);
     const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
     const clock = s.endsAt ? `<div id="tv-mafia-clock" class="tv-clock">${mafiaClockText(s.endsAt)}</div>` : '';
     const people = `<div class="tv-strip-inline">${(s.alive || []).map(id => `<span class="tv-chip">${escapeHTML(nameOf(id))}</span>`).join('')}${(s.out || []).map(o => `<span class="tv-chip is-away">${MAFIA_ICONS[o.role] || ''} ${escapeHTML(o.name)}</span>`).join('')}</div>`;
@@ -528,18 +529,18 @@ TV_GAMES.mafia = {
       return `<div class="tv-center"><div class="tv-big-icon" aria-hidden="true">🎭</div>
         <div class="tv-title">${escapeHTML(t.mafia_roles_intro || '')}</div>
         <div class="tv-note">${escapeHTML(mafiaRoleSummary((s.roster || []).length, s.mode, t))}</div>
-        ${host(tvBtn('🌙 ' + (t.mafia_start_night || ''), "roomAct('startNight')"))}</div>`;
+        ${moveOn(tvBtn('🌙 ' + (t.mafia_start_night || ''), "roomAct('startNight')"))}</div>`;
     }
     if (s.phase === 'night') {
       return `<div class="tv-center mafia-tv-night"><div class="tv-big-icon" aria-hidden="true">🌙</div>
         <div class="tv-title">${escapeHTML(t.mafia_city_sleeps || '')}</div>${clock}
         <div class="tv-note">${escapeHTML(t.mafia_night_everyone || '')} · ${(s.acted || []).length}/${(s.alive || []).length}</div>
-        ${host(tvBtn(t.mafia_end_night, "roomAct('endNight')", 'ghost'))}</div>`;
+        ${moveOn(tvBtn(t.mafia_end_night, "roomAct('endNight')", 'ghost'))}</div>`;
     }
     if (s.phase === 'day') {
       return `<div class="tv-vote"><div class="tv-scale">${mafiaNewsHtml(state, t)}</div>
         <div class="tv-title tv-center-text">🗣️ ${escapeHTML(t.mafia_discuss_now || '')}</div>${clock}${people}
-        ${host(tvBtn('🗳️ ' + (t.mafia_vote_now || ''), "roomAct('startVote')") + tvBtn('+1 ' + (t.meta_min || ''), "roomAct('moreTime')", 'ghost'))}</div>`;
+        ${moveOn(tvBtn('🗳️ ' + (t.mafia_vote_now || ''), "roomAct('startVote')") + (state.youAreHost ? tvBtn('+1 ' + (t.meta_min || ''), "roomAct('moreTime')", 'ghost') : ''))}</div>`;
     }
     if (s.phase === 'voting') {
       return `<div class="tv-vote"><div class="tv-title tv-center-text">🗳️ ${escapeHTML(t.mafia_who_leaves || '')}</div>${people}${tvVoteProgress(state, t)}</div>`;
@@ -549,7 +550,7 @@ TV_GAMES.mafia = {
       const results = ((mafiaVoteState(state).shared.vote || {}).results || []).filter(r => r.count > 0).sort((a, b) => b.count - a.count);
       return `<div class="tv-vote"><div class="tv-scale">${mafiaNewsHtml(state, t)}</div>
         <div class="tv-legend">${results.map((r, k) => `<span class="tv-chip${k === 0 ? ' is-done' : ''}"><b class="metric">${r.count}</b> ${escapeHTML(r.label)}</span>`).join('')}</div>${people}
-        ${host(tvBtn('🌙 ' + (t.mafia_next_night || ''), "roomAct('startNight')"))}</div>`;
+        ${moveOn(tvBtn('🌙 ' + (t.mafia_next_night || ''), "roomAct('startNight')"))}</div>`;
     }
     return `<div class="tv-vote">
       <div class="tv-title tv-center-text">${s.winner === 'town' ? '🏙️ ' + escapeHTML(t.mafia_town_wins || '') : '🕴️ ' + escapeHTML(t.mafia_mafia_wins || '')}</div>

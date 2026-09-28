@@ -609,7 +609,7 @@ function roomQuietRedraw(local, game) {
   clearTimeout(local.quietTimer);
   local.quietTimer = setTimeout(() => {
     const st = typeof Room !== 'undefined' ? Room.state : null;
-    if (!st || st.game !== game || !st.youAreHost) return;
+    if (!st || st.game !== game || !roomCanMoveOn(st)) return;
     if (st.youAreScreen) {
       if (appState.currentView !== 'room-tv') return;
       const tv = document.getElementById('view-room-tv');
@@ -623,7 +623,7 @@ function roomQuietStop(local) { clearTimeout(local.quietTimer); local.quietTimer
 /** The host's buttons: close the word early; move on from a writer whose phone went quiet. */
 function hmHostButtons(state) {
   const s = state.shared || {};
-  if (!state.youAreHost) return [];
+  if (!roomCanMoveOn(state)) return [];
   const key = [state.code, s.round, s.phase].join('|');
   if (hmRoom.sinceKey !== key) {
     hmRoom.sinceKey = key; hmRoom.since = Date.now();
@@ -709,7 +709,7 @@ function hmRoomSig(state) {
   const s = state.shared || {};
   return [s.dealId || '', s.round, s.phase, s.setter || '', JSON.stringify(s.progress || {}), JSON.stringify(s.result || null),
     s.endsAt || '', JSON.stringify(s.board || []), JSON.stringify(state.you || null),
-    (state.players || []).map(p => p.id + ':' + p.name).join(','), state.youAreHost, appState.lang, hmRoom.hold && Date.now() < hmRoom.hold.until ? 'hold' : ''].join('|');
+    (state.players || []).map(p => p.id + ':' + p.name).join(','), state.youAreHost, !!state.hostAway, appState.lang, hmRoom.hold && Date.now() < hmRoom.hold.until ? 'hold' : ''].join('|');
 }
 
 ROOM_GAMES.hangman = {
@@ -762,9 +762,9 @@ ROOM_GAMES.hangman = {
         return `<div class="hm-room">${round}
             ${hmResultHtml(state)}
             ${renderScoreboard(s.board)}
-            ${state.youAreHost
-              ? `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(hmT('hm_next_word'))}</button>`
-              : `<div class="waiting-note">${escapeHTML(hmT('room_wait_host'))}</div>`}
+            ${roomMoveOnHtml(state,
+              `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(hmT('hm_next_word'))}</button>`,
+              `<div class="waiting-note">${escapeHTML(hmT('room_wait_host'))}</div>`)}
             ${renderRoomPlayerStrip(state)}
           </div>`;
       }
@@ -848,6 +848,8 @@ TV_GAMES.hangman = {
     if (!s.settings) return tvLookAtPhones(t);
     const hold = hmRoomHold(state, true);
     const host = (buttons) => (state.youAreHost && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
+    // The buttons that only move the game on: anyone's once the host is away (the signature carries it).
+    const moveOn = (buttons) => (roomCanMoveOn(state) && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
     const top = `<div class="tv-top">
         <span class="tv-pill">🪢 ${escapeHTML(hmT('hm_round', { n: s.round, m: s.rounds }))}</span>
         ${s.endsAt && s.phase === 'guessing' ? '<span class="tv-pill" data-hm-clock></span>' : ''}
@@ -862,7 +864,7 @@ TV_GAMES.hangman = {
     if (s.phase === 'result' && !hold) {
       return `<div class="tv-trivia" data-accent="orange">${top}
           <div class="tv-center hm-tv-result">${hmResultHtml(state, true)}</div>
-          ${host([[hmT('hm_next_word'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`]])}
+          ${moveOn([[hmT('hm_next_word'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`]])}
         </div>`;
     }
     if (s.phase === 'writing') {
@@ -871,7 +873,7 @@ TV_GAMES.hangman = {
             <div class="tv-big-icon" aria-hidden="true">✍️</div>
             <div class="tv-title">${escapeHTML(hmT('hm_room_writing', { name: s.setterName || '' }))}</div>
           </div>
-          ${host(hmHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
+          ${moveOn(hmHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
         </div>`;
     }
     // The TV's frame is the room's colour; the man and the tiles keep the game's orange.
@@ -882,7 +884,7 @@ TV_GAMES.hangman = {
           ${hmTilesHtml(hmBlankPattern(s), s.alpha, {})}
         </div>
         ${hmProgressHtml(state, true)}
-        ${host(hmHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
+        ${moveOn(hmHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
       </div>`;
   },
   after(state) { hmTickClock(state); }

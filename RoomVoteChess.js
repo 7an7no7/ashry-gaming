@@ -306,7 +306,7 @@ const voteChessAction = (room, playerId, action, payload) => {
 
   if (action === 'closeVote') {
     // The host closes a vote that waits on a phone gone quiet: the votes so far decide it.
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'play' || !s.vote || staleTap(p, 'n', bd.moves)) return;
     vcClose(room, 'host');
     return;

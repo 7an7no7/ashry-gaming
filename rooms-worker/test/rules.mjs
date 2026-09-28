@@ -9172,6 +9172,41 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- The host away: anyone moves the round on (28 Sep 2026) -------------- */
+// room.js stamps _hostAway on the copy the rules run on once the host has been
+// away 20 s (HOST_STAND_IN_MS); here the tests set it by hand.
+{
+  const throwsOn = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const r = newRoom(['h', 'b', 'c']);
+  applyRoomAction(r, 'h', 'chooseGame', { game: 'wouldyou' });
+  applyRoomAction(r, 'h', 'start', { lang: 'ar' });
+  check(throwsOn(() => applyRoomAction(r, 'b', 'closeVote', {})), 'host here: a player can\'t close the vote');
+  r._hostAway = true;
+  check(!throwsOn(() => applyRoomAction(r, 'b', 'closeVote', {})) && r.shared.vote.phase === 'results',
+        'host away: a player closes the vote');
+  const round = r.shared.round;
+  applyRoomAction(r, 'b', 'nextRound', { lang: 'ar' });
+  applyRoomAction(r, 'c', 'nextRound', { lang: 'ar' });
+  check(r.shared.round === round + 1, 'host away: two stand-ins tapping next together move on once');
+  check(throwsOn(() => applyRoomAction(r, 'b', 'backToHub', {})), 'host away: the hub stays the host\'s');
+  check(throwsOn(() => applyRoomAction(r, 'b', 'chooseGame', { game: 'trivia' })), 'host away: choosing a game stays the host\'s');
+  check(throwsOn(() => applyRoomAction(r, 'b', 'playAgain', { lang: 'ar' })), 'host away: a new game stays the host\'s');
+  delete r._hostAway;
+  applyRoomAction(r, 'h', 'closeVote', {});
+  check(throwsOn(() => applyRoomAction(r, 'b', 'nextRound', { lang: 'ar' })), 'host back: next round is the host\'s again');
+
+  const cn = newRoom(['h', 'b', 'c', 'd']);
+  applyRoomAction(cn, 'h', 'chooseGame', { game: 'codenames' });
+  cn._hostAway = true;
+  check(throwsOn(() => applyRoomAction(cn, 'b', 'setOptions', { timer: 60 })), 'host away: settings stay the host\'s');
+
+  const bz = newRoom(['h', 'b', 'c']);
+  applyRoomAction(bz, 'h', 'chooseGame', { game: 'buzzer' });
+  applyRoomAction(bz, 'h', 'start', {});
+  bz._hostAway = true;
+  check(throwsOn(() => applyRoomAction(bz, 'b', 'lock', {})), 'host away: the buzzer\'s verdicts stay the quizmaster\'s');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

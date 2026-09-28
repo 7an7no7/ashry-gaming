@@ -66,7 +66,7 @@ const oldMaidAction = (room, playerId, action, payload) => {
   if (!s || !s.phase || !room._om) throw new Error('اللعبة لم تبدأ بعد');
   if (s.phase !== 'play') return;
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (staleTap(p, 'seq', s.turnSeq)) return;
     omApply(room, () => omAuto(room, 'host'));
     return;

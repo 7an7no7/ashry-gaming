@@ -561,7 +561,7 @@ function unoActionsHtml(state) {
 
 function unoHostButtons(state) {
   const s = state.shared || {};
-  if (!state.youAreHost || s.phase !== 'play' || !s.turn) return [];
+  if (!roomCanMoveOn(state) || s.phase !== 'play' || !s.turn) return [];
   const p = (state.players || []).find(x => x.id === s.turn.pid);
   if (p && (p.online || p.bot)) return [];
   return [['⏭️ ' + unoT('uno_skip_turn', { name: unoName(state, s.turn.pid) }), "unoAct(this, 'skipTurn')"]];
@@ -679,7 +679,8 @@ function unoResultFrame(state) {
       ${rounds ? renderScoreboard(s.board || []) : ''}
       ${!rounds && (s.board || []).some(row => row.score > 0) ? renderScoreboard(s.board || [], unoT('uno_wins_board')) : ''}
       ${over ? roomShareBtnHtml(state, s.board || []) : ''}
-      ${state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      ${over ? (state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)
+        : roomMoveOnHtml(state, hostNext, `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
       ${renderRoomPlayerStrip(state)}
     </div>`;
 }
@@ -1548,7 +1549,7 @@ function unoTvTable(state, t) {
   const bottom = order.slice(half).reverse();
   const w = unoTurnWords(state);
   const catchLine = s.unoCatch ? `<div class="uno-tv__catch">🚨 ${escapeHTML(unoT('uno_catch_hint', { name: unoName(state, s.unoCatch) }))}</div>` : '';
-  const host = state.youAreHost && s.phase === 'play' && s.turn ? '<span data-uno-host class="uno-tv__host"></span>' : '';
+  const host = s.phase === 'play' && s.turn ? '<span data-uno-host class="uno-tv__host"></span>' : '';
   return `<div class="uno-tv ${order.length > 8 ? 'uno-tv--many' : ''}">
       <div class="uno-tv__ring">${top.map(pid => unoSeatHtml(state, pid, true)).join('')}</div>
       <div class="uno-tv__mid">
@@ -1609,7 +1610,7 @@ TV_GAMES.uno = {
             ${over && !rounds && (s.board || []).some(row => row.score > 0) ? `<div class="tv-eyebrow">${escapeHTML(unoT('uno_wins_board'))}</div>` : ''}
             ${chips}
             ${over ? host(tvBtn(t.play_again || '', "unoAct(this, 'playAgain')") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost'))
-              : host(tvBtn(t.next_round || '', `unoAct(this, 'nextRound', { round: ${Number(s.round) || 0} })`))}
+              : roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.next_round || '', `unoAct(this, 'nextRound', { round: ${Number(s.round) || 0} })`)}</div>`)}
           </div>
         </div>`;
     }

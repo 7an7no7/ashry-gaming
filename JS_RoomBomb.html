@@ -241,7 +241,10 @@ function bombRoomFrame(state, t) {
                </div>
              </div>` : ''}
          </div>`
-      : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+      // The next round only (anyone's once the host is away); the strike stays the host's to move.
+      : roomMoveOnHtml(state,
+          `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { lang: '${VOTE_LANG()}' })">${escapeHTML(t.bomb_next_round || '')}</button></div>`,
+          `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
     ${bombStrikesHtml(s, t, { boom })}
     ${renderRoomPlayerStrip(state)}`;
 }
@@ -336,7 +339,9 @@ TV_GAMES.bomb = {
       ? `<div class="tv-question">💣 ${escapeHTML((t.bomb_room_with || '').replace('{name}', s.holderName || ''))}</div>`
       : '';
     // tvBtn escapes its label, so a player's name is safe in it.
-    const host = !state.youAreHost ? '' : (s.phase === 'ticking'
+    const host = !state.youAreHost
+      ? (s.phase === 'ticking' ? '' : roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.bomb_next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}</div>`))
+      : (s.phase === 'ticking'
       ? `<div class="tv-actions">${s.fromId && roomNameOf(state, s.fromId)
           ? tvBtn((t.bomb_send_back || '{name}').replace('{name}', roomNameOf(state, s.fromId)), "roomAct('sendBack')", 'ghost') : ''}${tvBtn(t.bomb_swap, "roomAct('swap')", 'secondary')}</div>`
       : `<div class="tv-actions">${tvBtn(t.bomb_next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}${state.players.filter(p => (s.roster || []).indexOf(p.id) !== -1 && p.id !== s.loserId).map(p => tvBtn('↩ ' + p.name, `roomAct('markLoser', { playerId: '${jsStringAttr(p.id)}' })`, 'ghost')).join('')}</div>`);

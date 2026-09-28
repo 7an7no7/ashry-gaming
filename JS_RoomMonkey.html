@@ -237,7 +237,10 @@ ROOM_GAMES.monkey = {
         ${s.mode === 'letters' ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('undo', { n: ${(s.letters || []).length} })" ${word ? '' : 'disabled'}>↶ ${escapeHTML(t.draw_undo || '')}</button>` : ''}
         <button class="btn btn--ghost btn--sm" onclick="${mkHostCall('skip', s)}">${escapeHTML(t.mk_skip || '')}</button>
         <button class="btn btn--ghost btn--sm" onclick="${mkHostCall('penalty', s)}">${escapeHTML(t.mk_penalty || '')}</button>
-      </div>` : '';
+      </div>` : roomMoveOnHtml(state, `
+      <div class="btn-row" style="margin-bottom: var(--sp-4)">
+        <button class="btn btn--ghost btn--sm" onclick="${mkHostCall('skip', s)}">${escapeHTML(t.mk_skip || '')}</button>
+      </div>`);
     const cat = `<span class="badge badge--accent">${escapeHTML(mkCatLabel(s.category))}</span>`;
     // The input survives presence flickers: the signature carries only what the screen shows.
     const sig = ['mk', s.mode, s.turnId, word, s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {}), myTurn, state.youAreHost, mkRoom.swapFor, appState.lang].join('|');
@@ -335,7 +338,9 @@ TV_GAMES.monkey = {
         </div>
       </div>
       ${boardStrip}
-      ${host((s.mode === 'letters' ? tvBtn('↶ ' + (t.draw_undo || ''), `roomAct('undo', { n: ${(s.letters || []).length} })`, 'ghost') : '') + tvBtn(t.mk_skip, mkHostCall('skip', s), 'ghost') + tvBtn(t.mk_penalty, mkHostCall('penalty', s), 'danger-soft'))}
+      ${state.youAreHost
+        ? host((s.mode === 'letters' ? tvBtn('↶ ' + (t.draw_undo || ''), `roomAct('undo', { n: ${(s.letters || []).length} })`, 'ghost') : '') + tvBtn(t.mk_skip, mkHostCall('skip', s), 'ghost') + tvBtn(t.mk_penalty, mkHostCall('penalty', s), 'danger-soft'))
+        : roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.mk_skip, mkHostCall('skip', s), 'ghost')}</div>`)}
       ${swapRow}
     </div>`;
   },

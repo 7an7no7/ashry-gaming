@@ -179,7 +179,7 @@ const bankAction = (room, playerId, action, payload) => {
   const now = Date.now();
 
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (bankStale(s, p, 'seq')) return;
     bankEvent(s, 'auto', { pid: s.turn.pid, why: 'host' });
     bankAuto(s, priv, s.turn.pid, Math.random, now);

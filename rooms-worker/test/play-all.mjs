@@ -740,9 +740,45 @@ async function chairsRobots() {
   [H, J, K, late, TV].forEach((x) => x.close());
 }
 
+// The host's phone gone quiet mid-round: after 20 s anyone moves the round on (28 Sep 2026).
+async function hostAwayRobots() {
+  console.log('• the host away: after 20 s any player moves the round on; settings stay the host\'s');
+  const H = await Bot.host('هشام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  await H.must('chooseGame', { game: 'wouldyou' });
+  await H.must('start', { lang: 'ar' });
+  await all([J, K], (s) => s.game === 'wouldyou' && s.shared.vote && s.shared.vote.phase === 'voting' && s.hostAway === false,
+    'host away: the round is on, the host here');
+  check((await J.act('closeVote', {})).ok === false, 'host away: while the host is here only the host closes the vote');
+  H.close();
+  await J.waitFor((s) => s.hostAway === true, 'host away: 20 s after the host\'s phone went, every phone is told', 30000);
+  check(J.state.hostId === H.pid, 'host away: the room is still the host\'s (the handover is at 2 minutes)');
+  await J.must('closeVote', {});
+  await all([J, K], (s) => s.shared.vote.phase === 'results', 'host away: a player closed the vote');
+  const round = J.state.shared.round;
+  await Promise.all([J.act('nextRound', { lang: 'ar' }), K.act('nextRound', { lang: 'ar' })]);
+  await all([J, K], (s) => s.shared.round === round + 1 && s.shared.vote.phase === 'voting', 'host away: two taps on "next" deal one round');
+  await sleep(300);
+  check(J.state.shared.round === round + 1, 'host away: two taps on "next" deal one round, not two');
+  check((await K.act('chooseGame', { game: 'trivia' })).ok === false, 'host away: choosing a game stays the host\'s');
+  check((await K.act('backToHub', {})).ok === false, 'host away: the hub stays the host\'s');
+  await H.connect();
+  await J.waitFor((s) => s.hostAway === false, 'host away: the host back, the phones are told', 8000);
+  check((await J.act('closeVote', {})).ok === false, 'host away: with the host back, the vote is the host\'s again');
+  await H.must('backToHub');
+  [H, J, K].forEach((x) => x.close());
+}
+
 async function main() {
   console.log('rooms server:', BASE);
   const t0 = Date.now();
+  if (ONLY === 'hostaway') {
+    await hostAwayRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
   if (ONLY === 'teamchess') {
     await teamChessRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
@@ -4778,6 +4814,7 @@ async function main() {
 
   await chairsRobots();
   await bumperRobots();
+  await hostAwayRobots();
 
   await chess4Robots();
   await estimationRobots();

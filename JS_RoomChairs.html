@@ -268,8 +268,9 @@ ROOM_GAMES.chairs = {
           ? `<div class="mch-sat is-out"><span class="mch-sat__n">${escapeHTML(t.mch_you_out)}</span></div>`
           : `<div class="mch-sat"><span class="mch-sat__n">${escapeHTML(myRank === -1 ? t.mch_safe : mchFill(t.mch_sat, { n: myRank + 1 }))}</span></div>`;
       }
-      const host = !state.youAreHost ? '' : (s.phase === 'result'
-        ? roomHostRow([[t.mch_next_now, "roomAct('nextRound', {})", 'secondary']])
+      const host = s.phase === 'result' ? roomMoveOnHtml(state, roomHostRow([[t.mch_next_now, "roomAct('nextRound', {})", 'secondary']]))
+        : !state.youAreHost ? '' : (s.phase === 'result'
+        ? ''
         : s.phase === 'gameover'
           ? `<div class="btn-row" style="margin-top:var(--sp-3)"><button class="btn btn--go" onclick="roomAct('playAgain', {})">▶ ${escapeHTML(t.mch_play_again)}</button><button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game)}</button></div>`
           : '');
@@ -513,8 +514,9 @@ TV_GAMES.chairs = {
     const s = state.shared || {};
     const alive = s.alive || [];
     const head = `<div class="tv-eyebrow tv-center-text">${escapeHTML(t.round)} ${s.round || 1} · ${escapeHTML(mchChairsWord(s.chairs || 0))} · ${escapeHTML(mchFill(t.mch_alive, { n: alive.length }))}</div>`;
-    const host = !state.youAreHost ? '' : (s.phase === 'result'
-      ? `<div class="tv-actions">${tvBtn(t.mch_next_now, "roomAct('nextRound', {})", 'secondary')}</div>`
+    const host = s.phase === 'result' ? roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.mch_next_now, "roomAct('nextRound', {})", 'secondary')}</div>`)
+      : !state.youAreHost ? '' : (s.phase === 'result'
+      ? ''
       : s.phase === 'gameover' ? `<div class="tv-actions">${tvBtn('▶ ' + t.mch_play_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : '');
     const side = s.phase === 'gameover' ? mchOverHtml(state, s) : (mchOrderHtml(state, s) || mchRingListHtml(state, s));
     const hint = s.phase === 'music' ? `<div class="tv-note">${escapeHTML(t.mch_tap_hint)}</div>` : '';

@@ -114,10 +114,10 @@ function fakeArtistFrame(state, t, myTurn, drawerAway) {
       </div>
       <p class="field__hint" style="text-align:center">${t.fa_one_line || ''}</p>` : '';
 
-  const skip = (drawerAway && state.youAreHost) ? `
+  const skip = drawerAway ? roomMoveOnHtml(state, `
       <div class="btn-stack">
         <button class="btn btn--ghost btn--sm" onclick="${faSkipTurnCall(s)}">${t.fa_skip_turn || ''}</button>
-      </div>` : '';
+      </div>`) : '';
 
   const voting = s.phase === 'voting' ? `
       <div class="card">
@@ -141,7 +141,7 @@ function fakeArtistFrame(state, t, myTurn, drawerAway) {
            <div class="eyebrow">${t.fa_caught || ''}</div>
            <div class="card__title">${faDot(state, s.fakeId)} ${escapeHTML(faName(state, s.fakeId))}</div>
            <div class="waiting-note"><span class="animate-pulse">🤔</span> ${t.fa_guessing_wait || ''}</div>
-           ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipGuess')">${t.fa_skip_guess || ''}</button>` : ''}
+           ${roomMoveOnHtml(state, `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipGuess')">${t.fa_skip_guess || ''}</button>`)}
          </div>`;
   }
 

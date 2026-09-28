@@ -54,7 +54,7 @@ const unoAction = (room, playerId, action, payload) => {
   if (!s || !s.phase || !g) throw new Error('اللعبة لم تبدأ بعد');
 
   if (action === 'nextRound') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (s.phase !== 'roundOver') return;           // a double tap: the round is dealt already
     unoApply(room, () => unoDeal(room));
     return;
@@ -69,7 +69,7 @@ const unoAction = (room, playerId, action, payload) => {
     return;
   }
   if (action === 'skipTurn') {
-    requireHost(room, playerId);
+    requireMoveOn(room, playerId);
     if (staleTap(p, 'seq', s.turnSeq)) return;
     if (s.phase !== 'play' || !s.turn) return;
     unoApply(room, () => unoAuto(room, 'host'));

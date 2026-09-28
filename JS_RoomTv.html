@@ -192,7 +192,8 @@ function renderRoomTv(state) {
   const lobby = state.phase === 'lobby';
   const game = lobby ? null : (TV_GAMES[state.game] || null);
   const inner = lobby ? tvLobbySig(state) : (game ? game.sig(state) : state.phase);
-  const sig = ['tv', state.game || '', state.phase, (state.shared && state.shared.dealId) || '', state.youAreHost, appState.lang, inner].join('#');
+  // hostAway: the host's "move on" buttons open to this screen too (roomCanMoveOn); a TV types nothing, so a rebuild costs nothing.
+  const sig = ['tv', state.game || '', state.phase, (state.shared && state.shared.dealId) || '', state.youAreHost, !!state.hostAway, appState.lang, inner].join('#');
 
   // A laptop host typing the Codenames words, or with a picker open, keeps it:
   // the lobby is rebuilt for every join, and that took the box from under them.
@@ -546,8 +547,8 @@ TV_GAMES.codenames = {
           <div class="tv-cn__board">${cards}</div>
           <aside class="tv-cn__log">${log || `<div class="tv-panel tv-note">📜 ${t.cn_log || ''}</div>`}</aside>
         </div>
-        ${actions || (state.youAreHost && !s.winner)
-          ? `<div class="tv-actions">${actions}${state.youAreHost && !s.winner ? '<div class="tv-scale" data-cn-host></div>' : ''}</div>` : ''}
+        ${actions || !s.winner
+          ? `<div class="tv-actions">${actions}${!s.winner ? '<div class="tv-scale" data-cn-host></div>' : ''}</div>` : ''}
       </div>`;
   },
 
@@ -664,7 +665,7 @@ TV_GAMES.trivia = {
         ${fastest
           ? `<div class="tv-fastest"><span class="tv-fastest__label">⚡ ${t.tv_fastest || ''}</span>${fastest}</div>`
           : `<div class="tv-note">${t.tv_nobody_right || ''}</div>`}
-        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(last ? t.trivia_final : t.next_q_btn, "roomAct('nextQuestion')")}</div>` : ''}`;
+        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(last ? t.trivia_final : t.next_q_btn, "roomAct('nextQuestion')")}</div>`)}`;
     }
 
     return `
@@ -710,9 +711,9 @@ TV_GAMES.drawguess = {
          <div class="tv-title">${escapeHTML(s.drawerName || '')}</div>
          <div id="draw-timer" class="tv-timer tv-timer--big">--</div>
          ${s.hint ? drawHintHtml(s.hint, t) : ''}`;
-    const actions = !state.youAreHost ? '' : (over
-      ? tvBtn(t.draw_next, `roomAct('nextRound', ${roomNextArgs(state)})`) + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')
-      : tvBtn(t.draw_reveal, "roomAct('giveUp')", 'ghost'));
+    const actions = over
+      ? roomMoveOnHtml(state, tvBtn(t.draw_next, `roomAct('nextRound', ${roomNextArgs(state)})`)) + (state.youAreHost ? tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost') : '')
+      : (state.youAreHost ? tvBtn(t.draw_reveal, "roomAct('giveUp')", 'ghost') : '');
     return `
       <div class="tv-split">
         <div class="tv-split__main"><div class="tv-canvas draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div></div>
@@ -762,19 +763,19 @@ TV_GAMES.fakeartist = {
         <div class="tv-eyebrow">${t.round || ''} ${s.round}/${s.totalRounds}</div>
         <div class="tv-title">${who(s.currentDrawerId)}</div>
         <div class="tv-note">${t.fa_is_drawing || ''}</div>
-        ${state.youAreHost && !faOnline(state, s.currentDrawerId)
-          ? `<div class="tv-actions">${tvBtn(t.fa_skip_turn, faSkipTurnCall(s), 'ghost')}</div>` : ''}`;
+        ${!faOnline(state, s.currentDrawerId)
+          ? roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_skip_turn, faSkipTurnCall(s), 'ghost')}</div>`) : ''}`;
     } else if (s.phase === 'voting') {
       panel = `
         <div class="tv-title">${t.fa_vote_title || ''}</div>
         <div class="tv-note">${t.vote_count || ''}: ${ltrFrac(s.vote.voted.length, s.vote.eligible.length)}</div>
-        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.fa_end_vote, "roomAct('closeVote')", 'ghost')}</div>` : ''}`;
+        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_end_vote, "roomAct('closeVote')", 'ghost')}</div>`)}`;
     } else if (s.phase === 'guessing') {
       panel = `
         <div class="tv-eyebrow">${t.fa_caught || ''}</div>
         <div class="tv-title">${who(s.fakeId)}</div>
         <div class="tv-note">🤔 ${t.fa_guessing_wait || ''}</div>
-        ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>` : ''}`;
+        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>`)}`;
     } else {
       const fakeWon = s.winner === 'fake';
       const line = !s.fakeCaught ? t.fa_escaped : (fakeWon ? t.fa_stole : t.fa_artists_win);
@@ -787,9 +788,7 @@ TV_GAMES.fakeartist = {
         <div class="tv-note">${fakeWon ? '🦹' : '🎉'} ${line || ''}</div>
         <div class="tv-note">${t.fa_fake_was || ''} ${who(s.fakeId)}${s.fakeGuessWord ? ` · ${t.fa_guessed || ''} «${escapeHTML(s.fakeGuessWord)}»` : ''}</div>
         <div class="tv-scale">${renderScoreboard(s.board)}</div>
-        ${state.youAreHost ? `<div class="tv-actions">${
-          tvBtn(t.next_round, `roomAct('nextRound', ${roomNextArgs(state)})`) +
-          tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+        ${tvNextFooter(state, t, t.next_round)}`;
     }
     const legend = (s.drawerOrder || []).map(id => `
       <span class="tv-chip ${id === s.currentDrawerId && s.phase === 'drawing' ? 'is-turn' : ''}">
@@ -833,20 +832,18 @@ TV_GAMES.wavelength = {
     let panel;
     if (s.phase === 'clue') {
       panel = `<div class="tv-note">🧠 ${t.wl_waiting_clue || ''} <bdi>${escapeHTML(s.psychicName || '')}</bdi>…</div>` +
-        (state.youAreHost && !wlOnline(state, s.psychicId)
-          ? `<div class="tv-actions">${tvBtn(t.wl_skip_psychic, `roomAct('nextRound', ${roomNextArgs(state, { skip: true })})`, 'ghost')}</div>` : '');
+        (!wlOnline(state, s.psychicId)
+          ? roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.wl_skip_psychic, `roomAct('nextRound', ${roomNextArgs(state, { skip: true })})`, 'ghost')}</div>`) : '');
     } else if (s.phase === 'dial') {
-      panel = `<div class="tv-note">${t.team_adjust_dial || ''}</div>` + (state.youAreHost
-        ? `<div class="tv-actions">${tvBtn(t.lock_dial_btn, 'lockWavelengthDial()')}</div>`
-        : `<div class="tv-note">${t.wl_host_locks || ''}</div>`);
+      panel = `<div class="tv-note">${t.team_adjust_dial || ''}</div>` + roomMoveOnHtml(state,
+        `<div class="tv-actions">${tvBtn(t.lock_dial_btn, 'lockWavelengthDial()')}</div>`,
+        `<div class="tv-note">${t.wl_host_locks || ''}</div>`);
     } else {
       const verdict = { 4: t.bullseye, 3: t.very_close, 2: t.close_points }[s.pointsEarned] || t.miss_points;
       panel = `
         <div class="tv-title tv-center-text">${verdict || ''}</div>
         <div class="tv-note">${t.wl_dial || ''} ${s.dial} · ${t.wl_target || ''} ${s.target}</div>
-        ${state.youAreHost ? `<div class="tv-actions">${
-          tvBtn(t.next_round, `roomAct('nextRound', ${roomNextArgs(state)})`) +
-          tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+        ${tvNextFooter(state, t, t.next_round)}`;
     }
 
     return `
@@ -904,13 +901,14 @@ function tvVoteProgress(state, t) {
   return `
     <div class="tv-note">${t.vote_count || ''}: ${ltrFrac(v.voted.length, v.eligible.length)}</div>
     ${tvWaitChips(state, v.eligible, v.voted)}
-    ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.vote_close, "roomAct('closeVote')", 'ghost')}</div>` : ''}`;
+    ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.vote_close, "roomAct('closeVote')", 'ghost')}</div>`)}`;
 }
 
+/** The next round (anyone's once the host is away) and, for the host, another game. */
 function tvNextFooter(state, t, label) {
-  return state.youAreHost ? `<div class="tv-actions">${
+  return roomMoveOnHtml(state, `<div class="tv-actions">${
     tvBtn(label, `roomAct('nextRound', ${roomNextArgs(state)})`) +
-    tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : '';
+    (state.youAreHost ? tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost') : '')}</div>`);
 }
 
 TV_GAMES.wouldyou = {
@@ -969,7 +967,7 @@ TV_GAMES.fibbage = {
         <div class="tv-vote">${head}
           <div class="tv-note">✍️ ${t.fib_your_lie || ''}</div>
           <div class="tv-note">${ltrFrac(done, active.length)}</div>
-          ${state.youAreHost ? `<div class="tv-actions">${tvBtn(fibCloseWritingLabel(t), "roomAct('closeWriting')", 'ghost')}</div>` : ''}
+          ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(fibCloseWritingLabel(t), "roomAct('closeWriting')", 'ghost')}</div>`)}
         </div>`;
     }
     if (s.vote && s.vote.phase === 'voting') {
@@ -1002,6 +1000,8 @@ TV_GAMES.imposter = {
     const s = state.shared;
     const undercover = !!s.undercover;
     const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    // The host's buttons that only move the round on: anyone's once the host is away.
+    const moveOn = (html) => roomMoveOnHtml(state, `<div class="tv-actions">${html}</div>`);
     if (state.phase === 'reveal') {
       return `
         <div class="tv-center">
@@ -1009,7 +1009,7 @@ TV_GAMES.imposter = {
           ${s.category ? `<div class="tv-eyebrow">${escapeHTML(s.category)}</div>` : ''}
           <div class="tv-big-icon" aria-hidden="true">${iconHtml('art:imposter')}</div>
           <div class="tv-title">${t.tv_check_cards || ''}</div>
-          ${host(tvBtn(t.start_discussion, "roomAct('beginDiscussion')"))}
+          ${moveOn(tvBtn(t.start_discussion, "roomAct('beginDiscussion')"))}
         </div>`;
     }
     if (state.phase === 'discuss') {
@@ -1018,7 +1018,7 @@ TV_GAMES.imposter = {
           <div class="tv-eyebrow">${t.discussion_time || ''}</div>
           <div id="room-imp-timer" class="tv-clock">00:00</div>
           <div class="tv-note">${escapeHTML(undercover ? (t.imp_und_discuss_hint || '') : (t.imposter_discuss_hint || ''))}</div>
-          ${host(tvBtn(undercover ? (t.imp_und_start_vote || t.imp_start_vote) : t.imp_start_vote, "roomAct('startVote')") + tvBtn(t.imp_reveal_direct, "roomAct('revealResult')", 'ghost'))}
+          ${moveOn(tvBtn(undercover ? (t.imp_und_start_vote || t.imp_start_vote) : t.imp_start_vote, "roomAct('startVote')") + tvBtn(t.imp_reveal_direct, "roomAct('revealResult')", 'ghost'))}
         </div>`;
     }
     if (state.phase === 'voting') return `<div class="tv-vote">${tvArtHtml('imposter')}<div class="tv-question">${escapeHTML(undercover ? (t.imp_und_accuse || '') : (t.accuse_player || ''))}</div>${tvVoteProgress(state, t)}</div>`;
@@ -1027,7 +1027,7 @@ TV_GAMES.imposter = {
         <div class="tv-vote">
           <div class="tv-question">${undercover ? '🎭' : '🕵️'} ${escapeHTML(s.guesserName || '')} · ${escapeHTML(undercover ? (t.imp_und_guessing || '') : (t.imp_guessing || ''))}</div>
           <div class="tv-strip-inline">${(s.options || []).map(w => `<span class="tv-chip">${escapeHTML(w)}</span>`).join('')}</div>
-          ${host(tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost'))}
+          ${moveOn(tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost'))}
         </div>`;
     }
     const cast = typeof spyCastHtml === 'function'
@@ -1085,7 +1085,7 @@ TV_GAMES.justone = {
             <div class="tv-title">${escapeHTML(s.guesserName || '')} · ${t.tv_jo_guessing || ''}</div>
             <div class="tv-note">✍️ ${t.tv_jo_writing || ''} (${ltrFrac(done, Math.max(0, active.length - 1))})</div>
             ${tvWaitChips(state, active.filter(id => id !== s.guesserId), s.submitted)}
-            ${state.youAreHost ? `<div class="tv-actions">${tvBtn(joCloseWritingLabel(t), "roomAct('closeWriting')", 'ghost')}</div>` : ''}
+            ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(joCloseWritingLabel(t), "roomAct('closeWriting')", 'ghost')}</div>`)}
           </div>
         </div>`;
     }
@@ -1097,7 +1097,7 @@ TV_GAMES.justone = {
             || `<span class="tv-note">${t.jo_no_clues || ''}</span>`}</div>
           ${s.removedCount ? `<div class="tv-note">🚫 ${t.clues_removed_msg || ''} (${s.removedCount})</div>` : ''}
           <div class="tv-note">${t.jo_waiting_guess || ''} ${escapeHTML(s.guesserName || '')}…</div>
-          ${state.youAreHost ? `<div class="tv-actions">${tvBtn(joSkipGuessLabel(t), "roomAct('skipGuess')", 'ghost')}</div>` : ''}
+          ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(joSkipGuessLabel(t), "roomAct('skipGuess')", 'ghost')}</div>`)}
         </div>`;
     }
     const right = s.lastResult === 'correct';
@@ -1109,9 +1109,9 @@ TV_GAMES.justone = {
           <div class="tv-eyebrow">${t.secret_word || ''}</div>
           <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
           ${s.phase === 'result' ? `<div class="tv-title ${right ? 'tv-success' : 'tv-danger'}">${right ? '✅ ' + (t.correct || '') : '❌ ' + (t.wrong || '')}</div>` : ''}
-          ${!state.youAreHost ? '' : `<div class="tv-actions">${s.phase === 'judging'
+          ${roomMoveOnHtml(state, `<div class="tv-actions">${s.phase === 'judging'
             ? tvBtn(t.correct, "roomAct('judge', { correct: true })", 'success') + tvBtn(t.wrong, "roomAct('judge', { correct: false })", 'danger')
-            : tvBtn(t.next_round, `justOneNextRound(${Number(s.round) || 0})`) + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>`}
+            : tvBtn(t.next_round, `justOneNextRound(${Number(s.round) || 0})`) + (state.youAreHost ? tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost') : '')}</div>`)}
         </div>
       </div>`;
   }
@@ -1133,7 +1133,7 @@ TV_GAMES.whoami = {
           <div class="tv-title">${t.tv_whoami_play || ''}</div>
           <div class="tv-note">${escapeHTML((t.wa_progress || '').replace('{n}', guessed.length).replace('{m}', expected.length))}</div>
           <div class="tv-strip-inline">${guessed.map((id, i) => `<span class="tv-chip is-done">${['🥇', '🥈', '🥉'][i] || '✅'} ${escapeHTML(nameOf(id))}</span>`).join('')}</div>
-          ${host(tvBtn(t.reveal_words, "roomAct('reveal')", 'danger'))}
+          ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.reveal_words, "roomAct('reveal')", 'danger')}</div>`)}
         </div>`;
     }
     return `
@@ -1215,7 +1215,7 @@ TV_GAMES.stop = {
           ${stopBusLeftHtml(stopBusLeftNames(state), motionFirst('sbus-left|tv|' + stopRoundKey(state)) && stopBusMem.key === stopRoundKey(state) && stopBusMem.sawWrite, true)}
           ${state.youAreHost && stopUnknownCount(s) ? `<div class="tv-note">❓ ${escapeHTML(t.stop_room_check_host || '')}</div>` : ''}
           <div class="tv-scale">${stopReviewTable(state, t, state.youAreHost)}</div>
-          ${state.youAreHost ? `<div class="tv-actions">${tvBtn(last ? t.stop_finish : t.stop_next_letter, "roomAct('nextRound')")}</div>` : ''}
+          ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(last ? t.stop_finish : t.stop_next_letter, "roomAct('nextRound')")}</div>`)}
         </div>`;
     }
     const board = s.board || [];

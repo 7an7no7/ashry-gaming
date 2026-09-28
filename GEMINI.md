@@ -5821,8 +5821,10 @@ The owner's rules are in *The owner's specs*.
   figures, gone once hanged, freed or stopped). **The escape fits his pieces** (the owner, 28 Sep 2026,
   putting back what the cartoon build had replaced with one run for all): the
   rope snaps and a head alone drops, bounces and rolls off spinning; head and
-  body tip over on the body's foot and slide off like a log; arms crawl off
-  paddling, with dust; one leg hops away, higher as he goes (`hm-esc-*`,
+  body tip over on the body's foot and slide off like a log; arms do an army
+  crawl (flat, the head leading, an arm reaching ahead then pulling, the body
+  lunging forward on each pull, the arms half a cycle apart, dust behind;
+  the owner, 28 Sep 2026: "improve this one"); one leg hops away, higher as he goes (`hm-esc-*`,
   3.2 s, each turning about its own point; the hold and the rows' memory
   cover it). The pieces he never earned stay hidden.
 - **The man is alive** (the owner, 27 Sep 2026: "moving, calling for help,

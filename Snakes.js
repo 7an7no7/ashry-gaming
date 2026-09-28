@@ -80,6 +80,22 @@ const snakesRng = (seed) => {
   };
 };
 
+/**
+ * The die: 1 to 6, each exactly as likely, from the cryptographic random source
+ * (crypto.getRandomValues, on every phone and in the Worker). A byte of 252 or
+ * more is thrown away and drawn again, because 256 doesn't divide by 6: keeping
+ * them would make 1-4 a hair likelier than 5 and 6. Math.random only where there
+ * is no crypto at all.
+ */
+const snakesDie = () => {
+  const c = typeof globalThis !== 'undefined' && globalThis.crypto;
+  if (c && c.getRandomValues) {
+    const b = new Uint8Array(1);
+    for (;;) { c.getRandomValues(b); if (b[0] < 252) return 1 + (b[0] % 6); }
+  }
+  return 1 + Math.floor(Math.random() * 6);
+};
+
 const snakesSegDist = (p, a, b) => {
   const dx = b.x - a.x, dy = b.y - a.y, l = dx * dx + dy * dy;
   let t = l ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / l : 0;
@@ -119,30 +135,45 @@ const snakesFairness = (snakes, ladders, rnd, games) => {
   return { avg: tot / n, worst: worst };
 };
 
+/* How many of each, and where (the owner, 28 Sep 2026: "the ladders and snakes'
+   number and places fit and organised correctly and fairly"). Rows count from the
+   bottom, 0 (1-10) to 9 (91-100). Each band gets one snake head (or ladder foot),
+   so every map spreads them over the whole board: there is always a snake in the
+   last row and in the one before it, and always a ladder in the first two rows.
+   The last band of each is the extra one, anywhere in its range. */
+const SNAKES_SNAKE_BANDS = [[9, 9], [8, 8], [6, 7], [4, 5], [2, 3], [1, 8]];
+const SNAKES_LADDER_BANDS = [[0, 0], [1, 1], [2, 3], [4, 5], [6, 7], [0, 5]];
+const SNAKES_FAIR_TURNS = [14, 32];      // the average turns a player takes to reach 100 on a map
+const SNAKES_BALANCE = [0.75, 1.35];     // the snakes' total drop over the ladders' total climb
+
 /**
- * The map for a seed: 5 snakes and 5 ladders that don't share a square, a snake's
- * head at least a row above its tail and no two snakes crossing, a ladder at least
- * two rows long and never more than two columns aside, a ladder in the first three
- * rows, and a game that takes 12 to 36 turns on average (simulated, seeded too).
- * The same seed gives the same map everywhere.
+ * The map for a seed: a snake head in each of SNAKES_SNAKE_BANDS' rows and a ladder
+ * foot in each of SNAKES_LADDER_BANDS', nothing sharing a square, a snake's head
+ * at least a row above its tail and no two snakes crossing, a ladder at least two
+ * rows long and never more than two columns aside, the snakes' drop and the
+ * ladders' climb in balance (SNAKES_BALANCE), and a game that takes
+ * SNAKES_FAIR_TURNS turns on average (simulated, seeded too). The same seed gives
+ * the same map everywhere.
  */
 const snakesGenMap = (seed) => {
   const rnd = snakesRng(seed);
   const C = SNAKES_C;
   const cd = (a, b) => { const p = snakesCellXY(a), q = snakesCellXY(b); return Math.hypot(p.x - q.x, p.y - q.y) / C; };
+  const inRows = (lo, hi) => lo * 10 + 1 + Math.floor(rnd() * (hi - lo + 1) * 10);
   let fallback = null;
-  for (let tries = 0; tries < 400; tries++) {
+  for (let tries = 0; tries < 600; tries++) {
     const used = new Set([1, 100]);
     const snakes = [];
     const ladders = [];
     let ok = true;
-    for (let i = 0; i < 5 && ok; i++) {
+    for (let i = 0; i < SNAKES_SNAKE_BANDS.length && ok; i++) {
+      const band = SNAKES_SNAKE_BANDS[i];
       let placed = false;
-      for (let t = 0; t < 120 && !placed; t++) {
-        const h = 16 + Math.floor(rnd() * 83);
-        const tl = h - (11 + Math.floor(rnd() * 30));
-        if (h > 99 || tl < 2 || used.has(h) || used.has(tl)) continue;
-        if (snakes.some(s => cd(s.h, h) < 2.1 || cd(s.t, tl) < 1.6 || cd(s.h, tl) < 1.2)) continue;
+      for (let t = 0; t < 140 && !placed; t++) {
+        const h = inRows(band[0], band[1]);
+        const tl = h - (11 + Math.floor(rnd() * 35));
+        if (h > 99 || h < 12 || tl < 2 || used.has(h) || used.has(tl)) continue;
+        if (snakes.some(s => cd(s.h, h) < 2.1 || cd(s.t, tl) < 1.6 || cd(s.h, tl) < 1.2 || cd(s.t, h) < 1.2)) continue;
         const a = snakesCellXY(h), b = snakesCellXY(tl);
         if (Math.abs(a.x - b.x) > 4 * C || a.y - b.y > -C) continue;
         if (snakes.some(o => { const c1 = snakesCellXY(o.h), c2 = snakesCellXY(o.t); return snakesSegCross(a, b, c1, c2) || snakesSegDist(a, c1, c2) < 55 || snakesSegDist(b, c1, c2) < 45 || snakesSegDist(c1, a, b) < 55; })) continue;
@@ -152,11 +183,12 @@ const snakesGenMap = (seed) => {
       }
       ok = placed;
     }
-    for (let i = 0; i < 5 && ok; i++) {
+    for (let i = 0; i < SNAKES_LADDER_BANDS.length && ok; i++) {
+      const band = SNAKES_LADDER_BANDS[i];
       let placed = false;
-      for (let t = 0; t < 90 && !placed; t++) {
-        const f = 2 + Math.floor(rnd() * 80);
-        const top = f + 14 + Math.floor(rnd() * 22);
+      for (let t = 0; t < 140 && !placed; t++) {
+        const f = Math.max(2, inRows(band[0], band[1]));
+        const top = f + 14 + Math.floor(rnd() * 24);
         if (top > 99 || used.has(f) || used.has(top) || snakesRowOf(top) - snakesRowOf(f) < 2) continue;
         const a = snakesCellXY(f), b = snakesCellXY(top);
         if (Math.abs(a.x - b.x) > 2 * C || (a.y - b.y) < Math.abs(a.x - b.x) * 1.1 || Math.hypot(a.x - b.x, a.y - b.y) > 5 * C) continue;
@@ -170,11 +202,13 @@ const snakesGenMap = (seed) => {
       ok = placed;
     }
     if (!ok) continue;
-    if (!ladders.some(l => l.f <= 30)) continue;
+    const drop = snakes.reduce((n, s) => n + s.h - s.t, 0), climb = ladders.reduce((n, l) => n + l.t - l.f, 0);
+    const bal = drop / climb;
+    if (bal < SNAKES_BALANCE[0] || bal > SNAKES_BALANCE[1]) continue;
     const st = snakesFairness(snakes, ladders, rnd, 120);
     const m = { seed: Number(seed) >>> 0, snakes: snakes, ladders: ladders, avg: Math.round(st.avg * 10) / 10 };
     if (!fallback) fallback = m;
-    if (st.avg < 12 || st.avg > 36 || st.worst > 200) continue;
+    if (st.avg < SNAKES_FAIR_TURNS[0] || st.avg > SNAKES_FAIR_TURNS[1] || st.worst > 220) continue;
     return m;
   }
   return fallback;

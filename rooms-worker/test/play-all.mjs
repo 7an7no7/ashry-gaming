@@ -862,7 +862,7 @@ async function snakesRobots() {
   await H.must('addBot', { level: 'easy', name: 'زيزو' });
   check((await J.act('start', { turnClock: 15 })).ok === false, 'snakes: only the host starts');
   await H.must('start', { turnClock: 15 });
-  await all(people.concat([TV]), (s) => s.game === 'snakes' && s.shared.phase === 'play' && s.shared.seats.length === 4 && s.shared.map.snakes.length === 5 && s.shared.events[0].type === 'build',
+  await all(people.concat([TV]), (s) => s.game === 'snakes' && s.shared.phase === 'play' && s.shared.seats.length === 4 && s.shared.map.snakes.length === 6 && s.shared.events[0].type === 'build',
     'snakes: four dealt in, the same new map on every phone and the TV, built in front of them');
   check(sS(J).colors[J.pid] === 'p' && sS(TV).map.seed === sS(H).map.seed, 'snakes: the colour picked is kept, and every screen has the same map');
   check(TV.state.you === null, 'snakes: the TV has no secret');

@@ -24,7 +24,7 @@
 const SNAKES_GRACE_MS = 1500;          // the server's clock acts this long after the phones'
 const SNAKES_EARLY_MS = 400;           // a roll this close to readyAt is taken (clocks and networks differ)
 
-const snakesRoll6 = () => 1 + Math.floor(Math.random() * 6);
+const snakesRoll6 = () => snakesDie();
 
 /** The players who would play if the game started now: the host's choice, or the first six. */
 const snakesLobbySeated = (room) => {

@@ -6261,12 +6261,24 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
   squares 1-100 boustrophedon from the bottom left, 60 units a square
   (`snakesCellXY`, `snakesRowOf`). **The map is made from a seed**
   (`snakesGenMap(seed)`, the sheet's generator on `snakesRng`, a seeded
-  mulberry32): 5 snakes and 5 ladders on squares nothing else uses (never 1 or
-  100), a head at least a row above its tail and no two snakes crossing, a
-  ladder at least two rows long and never more than two columns aside, a
-  ladder in the first three rows, and **fair**: 120 seeded games simulated
-  (`snakesFairness`), kept only when a game takes 12 to 36 turns on average
-  and never more than 200. The same seed gives the same map everywhere, so the
+  mulberry32): **6 snakes and 6 ladders spread by bands** (the owner, 28 Sep
+  2026, after four games with no snake near 100: "organised correctly and
+  fairly"): a snake head in each of `SNAKES_SNAKE_BANDS`' rows - row 10
+  (91-99), row 9 (81-90), rows 7-8, 5-6, 3-4, and one more anywhere from row 2 -
+  and a ladder foot in each of `SNAKES_LADDER_BANDS`' - row 1, row 2, rows 3-4,
+  5-6, 7-8, and one more in the lower half; on squares nothing else uses (never
+  1 or 100), a head at least a row above its tail and no two snakes crossing, a
+  ladder at least two rows long and never more than two columns aside, the
+  snakes' total drop over the ladders' total climb within `SNAKES_BALANCE`
+  (0.75-1.35), and **fair**: 120 seeded games simulated (`snakesFairness`),
+  kept only when a game takes `SNAKES_FAIR_TURNS` (14-32) turns on average and
+  never more than 220. Measured over 1,000 seeds: every map found without the
+  fallback, 22-32 turns (median 29), at most 4 ms to make. Before the bands a
+  snake head's row was left to chance (row 2 got a quarter of what row 5 got,
+  and one map in ten had no snake in the last two rows). **The die**
+  (`snakesDie`) comes from `crypto.getRandomValues` on the phone and in the
+  Worker, a byte of 252 or more drawn again so each face is exactly 1 in 6
+  (`rules.mjs` rolls 600,000 and checks the spread). The same seed gives the same map everywhere, so the
   server stores only `g.map` (with its `seed`) and every screen draws the same
   snakes: their curves, colours and which one wears the طربوش come from the
   seed too (`snkMountMap`). A game is one plain object, a room's `shared`:

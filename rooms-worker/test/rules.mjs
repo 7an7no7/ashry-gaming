@@ -9537,7 +9537,7 @@ Date.now = duelTestClock;
 /* --- السلم والتعبان (28 Sep 2026): the map, the rules, the room ------------------------------ */
 {
   const S = new Function(readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8') +
-    '\nreturn { snakesGenMap, snakesCellXY, snakesRowOf, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesSegCross, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_MOVE_MS, SNAKES_BUILD_MS, SNAKES_TEARDOWN_MS };')();
+    '\nreturn { snakesGenMap, snakesCellXY, snakesRowOf, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesSegCross, snakesDie, SNAKES_SNAKE_BANDS, SNAKES_LADDER_BANDS, SNAKES_BALANCE, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_MOVE_MS, SNAKES_BUILD_MS, SNAKES_TEARDOWN_MS };')();
   const throws = (fn) => { try { fn(); return false; } catch (e) { return true; } };
 
   // The map.
@@ -9546,7 +9546,18 @@ Date.now = duelTestClock;
     'snakes: a seed makes the same map every time, and another seed another map');
   const maps = [];
   for (let k = 1; k <= 80; k++) maps.push(S.snakesGenMap(k * 104729 + 17));
-  check(maps.every((m) => m.snakes.length === 5 && m.ladders.length === 5), 'snakes: every map has 5 snakes and 5 ladders');
+  check(maps.every((m) => m.snakes.length === 6 && m.ladders.length === 6), 'snakes: every map has 6 snakes and 6 ladders');
+  const inBands = (list, bands, rowOf) => { const left = list.map(rowOf); return bands.every((b) => { const i = left.findIndex((r) => r >= b[0] && r <= b[1]); if (i === -1) return false; left.splice(i, 1); return true; }); };
+  check(maps.every((m) => inBands(m.snakes, S.SNAKES_SNAKE_BANDS, (x) => S.snakesRowOf(x.h))), 'snakes: every map has a snake head in each band, the last row and the one before it included');
+  check(maps.every((m) => m.snakes.some((x) => S.snakesRowOf(x.h) === 9) && m.snakes.some((x) => S.snakesRowOf(x.h) === 8)), 'snakes: always a snake in 91-99 and in 81-90');
+  check(maps.every((m) => inBands(m.ladders, S.SNAKES_LADDER_BANDS, (x) => S.snakesRowOf(x.f))), 'snakes: every map has a ladder foot in each band, the first two rows included');
+  check(maps.every((m) => { const d = m.snakes.reduce((n, x) => n + x.h - x.t, 0) / m.ladders.reduce((n, x) => n + x.t - x.f, 0); return d >= S.SNAKES_BALANCE[0] && d <= S.SNAKES_BALANCE[1]; }), 'snakes: the drop of the snakes and the climb of the ladders are in balance on every map');
+  {
+    const f = [0, 0, 0, 0, 0, 0, 0];
+    for (let k = 0; k < 600000; k++) f[S.snakesDie()]++;
+    const chi = f.slice(1).reduce((n, o) => n + (o - 100000) * (o - 100000) / 100000, 0);
+    check(f[0] === 0 && chi < 20.5, `snakes: the die is 1-6 and even over 600,000 rolls (chi-square ${chi.toFixed(1)}, under 20.5 at 99.9%)`);
+  }
   check(maps.every((m) => {
     const ends = m.snakes.flatMap((s) => [s.h, s.t]).concat(m.ladders.flatMap((l) => [l.f, l.t]));
     return new Set(ends).size === ends.length && ends.every((n) => n > 1 && n < 100);
@@ -9557,7 +9568,7 @@ Date.now = duelTestClock;
     !S.snakesSegCross(S.snakesCellXY(a.h), S.snakesCellXY(a.t), S.snakesCellXY(b.h), S.snakesCellXY(b.t))))), 'snakes: no two snakes cross');
   check(maps.every((m) => m.ladders.some((l) => l.f <= 30)), 'snakes: every map has a ladder in the first three rows');
   const fair = maps.map((m) => S.snakesFairness(m.snakes, m.ladders, S.snakesRng(m.seed + 99), 300).avg);
-  check(fair.every((a) => a >= 10 && a <= 40), `snakes: every map is fair: a game takes ${Math.min(...fair).toFixed(1)}-${Math.max(...fair).toFixed(1)} turns on average (12-36 when made)`);
+  check(fair.every((a) => a >= 10 && a <= 40), `snakes: every map is fair: a game takes ${Math.min(...fair).toFixed(1)}-${Math.max(...fair).toFixed(1)} turns on average (14-32 when made)`);
 
   // The rules, on a map of our own.
   const game = (ids) => {
@@ -9630,7 +9641,7 @@ Date.now = duelTestClock;
   applyRoomAction(r, 'h', 'start', { turnClock: 15 });
   let s = r.shared;
   const bot = r.players.find((x) => x.bot).id;
-  check(r.phase === 'play' && s.seats.length === 4 && s.colors.p === 'g' && s.map.snakes.length === 5 && s.readyAt === clock + S.SNAKES_BUILD_MS,
+  check(r.phase === 'play' && s.seats.length === 4 && s.colors.p === 'g' && s.map.snakes.length === 6 && s.readyAt === clock + S.SNAKES_BUILD_MS,
     'snakes room: four dealt in (a computer player among them), the colour picked kept, a new map, the building before the first roll');
   check(s.events[0].type === 'build' && s.events[0].first === s.turn.pid && !s.events[0].teardown, 'snakes room: the map is built in front of everyone, and says who starts');
   // Make a person start, to test the roll.

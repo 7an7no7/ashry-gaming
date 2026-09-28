@@ -3395,6 +3395,13 @@ the word search), `countUp` for streaks and scores.
   the stick by real touches and the tilt screen), a TV at 1280×720 and two
   robot drivers, bumps scored, the delay read, a reload mid-round, Help, the
   TV's scores at the end; no console errors.
+- **28 Sep 2026, عربيات التصادم's second round** - the owner's four points
+  after trying it: the sound (the TV had only a faint knock), the tilt read
+  from gravity, the tilt screen always sideways, auto gas (*عربيات التصادم*).
+  Checked in headless Chrome with sensor readings made from known poses (the
+  steer the same at any lean, either way round, full lock at 28°), the
+  sideways screen on an upright phone, auto gas and the brake, the TV's sound
+  waking on a click; no console errors.
 
 ## Building and Running
 
@@ -7797,13 +7804,36 @@ The controllers test (*Decided, and why*, *The TV as the console*). Game id
   screen online (by id) sends `finish` with everyone's bumps, from the frame
   loop or, in a background tab, a one-second timer.
 - **The phone** (`ROOM_GAMES.bumper`): the stick (pointer events on
-  `#bmp-pad`, `touch-action: none`), or the tilt (`deviceorientation`: gamma
-  upright, beta on its side by the screen's angle, 30° for a full turn; an
-  iPhone asks inside a tap - the mode button or Gas's first press), the
-  clock, the delay (green under 80 ms, amber under 150), the screen kept on;
-  the host can end the round early. A reload comes back to the controller.
-  The mode is remembered (`recallOptions('bumper')`), and so is the host's
-  round length (1, 2 or 3 minutes).
+  `#bmp-pad`, `touch-action: none`), or the tilt, the clock, the delay (green
+  under 80 ms, amber under 150), the screen kept on; the host can end the
+  round early. A reload comes back to the controller. The mode and auto gas
+  are remembered (`recallOptions('bumper')`), and so is the host's round
+  length (1, 2 or 3 minutes).
+- **The tilt, second round** (the owner, 28 Sep 2026, after the first test:
+  "the stick was more accurate", "force landscape even if it's locked", an
+  auto-drive button, and no sound). The steer is the phone's **roll read from
+  gravity** (`bmpTiltRead`): the down vector in the phone's own axes from
+  beta and gamma, turned into the controller's frame, `atan2` of it - so it
+  reads the same however far the phone is leaned back (15° gives the same
+  steer at 10° and at 70° of lean; the first build read beta or gamma alone,
+  which mixed the lean into the steer). 28° is full lock, 3° dead zone, light
+  smoothing; 🎯 re-centres, ↔ flips. **The tilt screen is always sideways**
+  (`#bmp-land`, `bmpLandLayout`): an iPhone's rotation can't be forced from a
+  page, so the controller is a layer over the page, turned a quarter by CSS
+  while the page is upright - to the side the phone is really held, from
+  gravity with some hysteresis - and not turned when the page is sideways
+  already; the OS flipping to portrait mid-game changes nothing. Android also
+  asks for fullscreen and `screen.orientation.lock('landscape')`. The gas is
+  under the right thumb. **⚡ Auto gas** (`bmpToggleAuto`): forward until
+  tapped off, the big button then the brake (`g: -100`, which the TV plays as
+  -700 of thrust).
+- **The sound** (`bmpSnd`, `bmpEngine`): the TV plays the countdown beeps, a
+  start horn, one engine buzz whose pitch and loudness follow the cars'
+  average speed, a crash by how hard (once a pair in 0.18 s, never for cars
+  just pushing), a wall knock, a chime for a point, ticks in the last five
+  seconds and an end horn. A phone plays its own +1 chime and a thud when
+  knocked (an iPhone can't buzz). A TV whose sound is still asleep shows
+  «🔊 اضغط هنا عشان الصوت» until it isn't.
 - Tests: `rules.mjs` ("Bumper cars"), `leaks.mjs` (a driver; nothing is
   hidden), `play-all.mjs` (`--only=bumper`: the relay on a live server).
 

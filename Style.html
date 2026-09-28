@@ -19714,6 +19714,33 @@ html[dir="rtl"] .mch-window > i { transform-origin: right; }
 .bmp-tv__clock { font-size: 7vmin; font-weight: 800; text-align: center; }
 .bmp-table { background: var(--surface-solid); border-radius: 1.2vmin; padding: 0.6vmin 1.4vmin; }
 .bmp-stats { display: grid; gap: 0.5vmin; font-size: 1.9vmin; }
+/* The tilt controller: always sideways, laid over the page and turned a quarter
+   by JS (bmpLandLayout) while the page is upright, so rotation lock can't stop it. */
+.bmp-land {
+  position: fixed; left: 50%; top: 50%; z-index: var(--z-float-hi, 90);
+  display: flex; flex-direction: column; gap: 0.5rem; padding: 0.6rem 1rem;
+  background: var(--bg, #f5f3ee); transform-origin: 50% 50%; touch-action: none;
+  user-select: none; -webkit-user-select: none; box-sizing: border-box;
+}
+body.dark .bmp-land { background: var(--bg, #0d0b16); }
+.bmp-land__top { display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
+.bmp-land__back { margin-inline-start: auto; }
+.bmp-land__main { direction: ltr; flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 1rem; }
+html[dir="rtl"] .bmp-land__side { direction: rtl; }
+.bmp-land__side { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6rem; min-height: 0; }
+.bmp-land__row { display: flex; gap: 0.5rem; }
+.bmp-land .bmp-wheel { width: min(38vmin, 13rem); }
+.bmp-land .bmp-gas { width: min(40vmin, 11rem); aspect-ratio: 1.25; font-size: 1.6rem; }
+.bmp-land__hint { margin: 0; text-align: center; color: var(--text-3); font-size: 0.75rem; }
+.bmp-gas.is-brake { background: var(--danger-btn, #e5383b); color: var(--danger-on, #fff); }
+.bmp-auto {
+  padding: 0.5rem 1rem; border-radius: 999px; border: 2px solid var(--car); font-weight: 800;
+  background: var(--surface-solid); color: var(--text); min-height: 2.75rem;
+}
+.bmp-auto.is-on { background: var(--car); color: #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--car) 30%, transparent); }
+.bmp.is-tilt .bmp-modes, .bmp.is-tilt .bmp-look, .bmp.is-tilt [data-room-strip], .bmp.is-tilt .room-host-row { visibility: hidden; }
+.bmp-sound { align-self: center; }
+
 @media (prefers-reduced-motion: reduce) {
   .bmp-pop { animation: none; opacity: 0; }
   .bmp-pad__knob { transition: none; }

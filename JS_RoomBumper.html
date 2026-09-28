@@ -38,13 +38,17 @@ const bmp = {
   gap: Infinity,                          // receivedAt - serverNow, smallest seen (the chess clocks' way)
   mode: 'stick',
   stick: { x: 0, y: 0 },
-  tilt: { s: 0, g: 0, zero: 0, flip: 1, on: false, raw: 0 },
+  tilt: { s: 0, held: false, auto: false, zero: 0, flip: 1, on: false, asking: false, raw: 0, rot: 90 },
   lastSent: '', lastSentAt: 0, sendTimer: null,
   ping: { n: 0, sent: {}, last: null, list: [] }, pingTimer: null,
   wake: null, uiTimer: null, flashUntil: 0, myHits: 0,
   tv: null                                // the TV's game: cars, loop, stats
 };
-try { bmp.mode = recallOptions('bumper', { mode: 'stick' }).mode === 'tilt' ? 'tilt' : 'stick'; } catch (e) {}
+try {
+  const o = recallOptions('bumper', { mode: 'stick', auto: false });
+  bmp.mode = o.mode === 'tilt' ? 'tilt' : 'stick';
+  bmp.tilt.auto = !!o.auto;
+} catch (e) {}
 
 const bmpT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
 const bmpFill = (str, vals) => String(str || '').replace(/\{(\w+)\}/g, (m, k) => (vals[k] !== undefined ? vals[k] : m));
@@ -102,7 +106,7 @@ ROOM_GAMES.bumper = {
     const s = state.shared || {};
     const me = Room.me;
     const driver = (state.players || []).some(p => p.id === me && !p.bot);
-    const sig = ['bmp', s.round, s.phase, bmp.mode, bmpHasScreen(state), state.youAreHost, driver, appState.lang,
+    const sig = ['bmp', s.round, s.phase, bmp.mode, bmp.tilt.auto, bmpHasScreen(state), state.youAreHost, driver, appState.lang,
       s.phase === 'over' ? JSON.stringify(s.results) + JSON.stringify(s.wins) : ''].join('|');
     renderRoomFrame(el, sig, () => {
       if (s.phase === 'over') return bmpOverHtml(state, s, t) + renderRoomPlayerStrip(state);
@@ -124,22 +128,37 @@ ROOM_GAMES.bumper = {
              <div class="bmp-pad__ring"></div><div class="bmp-pad__knob" id="bmp-knob"></div>
            </div>
            <p class="bmp-hint">${escapeHTML(t.bmp_stick_hint)}</p>`
-        : `<div class="bmp-tilt" style="--car:${color}">
-             <div class="bmp-wheel" id="bmp-wheel" aria-hidden="true"><div class="bmp-wheel__spoke"></div></div>
-             <button type="button" class="bmp-gas" id="bmp-gas">${escapeHTML(t.bmp_gas)}</button>
-           </div>
-           <div class="chip-set" style="justify-content:center">
-             <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bmpTiltCentre()">${escapeHTML(t.bmp_center)}</button>
-             <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bmpTiltFlip()">${escapeHTML(t.bmp_flip)}</button>
-           </div>
-           <p class="bmp-hint">${escapeHTML(t.bmp_tilt_hint)}</p>`;
+        : `<div class="bmp-land" id="bmp-land" style="--car:${color}">
+             <div class="bmp-land__top">
+               <span class="badge bmp-me"><span class="bmp-me__dot"></span>${escapeHTML(t.bmp_you)}</span>
+               <span class="badge"><span aria-hidden="true">⏱️</span> <span class="metric" data-bmp-clock>${bmpClockText(bmpSecsLeft(state))}</span></span>
+               <span class="badge" data-bmp-ping>${escapeHTML(t.bmp_ping)} <span class="metric">–</span></span>
+               <button type="button" class="btn btn--ghost btn--xs btn--auto bmp-land__back" onclick="bmpSetMode('stick')">${escapeHTML(t.bmp_back_stick)}</button>
+             </div>
+             <div class="bmp-land__main">
+               <div class="bmp-land__side">
+                 <div class="bmp-wheel" id="bmp-wheel" aria-hidden="true"><div class="bmp-wheel__spoke"></div></div>
+                 <div class="bmp-land__row">
+                   <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bmpTiltCentre()">${escapeHTML(t.bmp_center)}</button>
+                   <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bmpTiltFlip()">${escapeHTML(t.bmp_flip)}</button>
+                 </div>
+               </div>
+               <div class="bmp-land__side">
+                 <button type="button" class="bmp-auto ${bmp.tilt.auto ? 'is-on' : ''}" onclick="bmpToggleAuto()" aria-pressed="${bmp.tilt.auto}">${escapeHTML(t.bmp_auto)}</button>
+                 <button type="button" class="bmp-gas ${bmp.tilt.auto ? 'is-brake' : ''}" id="bmp-gas">${escapeHTML(bmp.tilt.auto ? t.bmp_brake : t.bmp_gas)}</button>
+               </div>
+             </div>
+             <p class="bmp-land__hint">${escapeHTML(t.bmp_tilt_hint)}</p>
+           </div>`;
       const host = state.youAreHost ? roomHostRow([[t.bmp_end_now, "roomAct('endNow', {})", 'ghost']]) : '';
-      return `<div class="bmp" id="bmp-phone">${head}${noTv}${pad}${driver ? modes : ''}
+      const tiltOn = driver && bmp.mode === 'tilt';
+      return `<div class="bmp ${tiltOn ? 'is-tilt' : ''}" id="bmp-phone">${tiltOn ? '' : head}${noTv}${pad}${driver ? modes : ''}
         <p class="bmp-look">${escapeHTML(t.bmp_look_tv)}</p>${host}${renderRoomPlayerStrip(state)}</div>`;
     });
     refreshRoomPlayerStrip(el, state);
     if (s.phase === 'play' && driver) bmpControllerOn(); else bmpControllerOff();
     bmpWirePad();
+    bmpLandLayout();
   }
 };
 
@@ -154,8 +173,9 @@ function bmpSetMode(mode) {
   bmp.mode = mode;
   rememberOptions('bumper', { mode });
   bmp.stick = { x: 0, y: 0 };
-  bmp.tilt.g = 0;
+  bmp.tilt.held = false;
   if (mode === 'tilt') bmpTiltAsk(); else bmpTiltStop();
+  bmpLockLandscape(mode === 'tilt');
   if (Room.state) ROOM_GAMES.bumper.render(Room.state);
 }
 
@@ -200,8 +220,8 @@ function bmpWirePad() {
   const gas = document.getElementById('bmp-gas');
   if (gas && !gas.dataset.wired) {
     gas.dataset.wired = '1';
-    const on = (e) => { if (!bmp.tilt.on) bmpTiltAsk(); bmp.tilt.g = 1; gas.classList.add('is-held'); try { gas.setPointerCapture(e.pointerId); } catch (err) {} bmpSendNow(); e.preventDefault(); };
-    const off = () => { bmp.tilt.g = 0; gas.classList.remove('is-held'); bmpSendNow(); };
+    const on = (e) => { if (!bmp.tilt.on) bmpTiltAsk(); bmp.tilt.held = true; gas.classList.add('is-held'); try { gas.setPointerCapture(e.pointerId); } catch (err) {} bmpSendNow(); e.preventDefault(); };
+    const off = () => { bmp.tilt.held = false; gas.classList.remove('is-held'); bmpSendNow(); };
     gas.addEventListener('pointerdown', on);
     gas.addEventListener('pointerup', off);
     gas.addEventListener('pointercancel', off);
@@ -213,48 +233,127 @@ function bmpWirePad() {
 
 /* --- the tilt: the phone as a wheel -------------------------------------------- */
 /**
- * The steer is the phone's roll as the player sees it: gamma upright, beta on
- * its side (the sign by which way it was turned). It is read from where it was
- * when the tilt was switched on (🎯 sets that again) and can be flipped (↔) -
- * phones disagree about signs, and this is a test.
+ * The steer is the phone's roll: where gravity points in the plane of the
+ * controller as the player holds it, worked out from the phone's orientation
+ * (the down vector in the phone's own axes, rotated by the way the controller
+ * is turned). It doesn't care how far the phone leans back, which reading beta
+ * or gamma alone did (the owner, 28 Sep 2026: "the stick was more accurate").
+ * Level is 0; 🎯 makes the way it is held now level, ↔ flips it. 28° from level
+ * is full lock, with a small dead zone and a light smoothing.
+ *
+ * The tilt screen is always sideways (the owner: "force landscape even if the
+ * phone is locked"): a phone's own rotation can't be forced on an iPhone, so
+ * the controller is laid over the page and turned a quarter by CSS while the
+ * page is upright - to whichever side the phone is really held - and not
+ * turned when the page is sideways already. Android also gets the real lock
+ * (fullscreen, then screen.orientation.lock), where it is allowed.
  */
-function bmpTiltRead(e) {
-  const angle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
+const BMP_FULL_LOCK = 28, BMP_DEAD = 3;
+function bmpScreenAngle() {
+  const a = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
     : (typeof window.orientation === 'number' ? window.orientation : 0);
-  let v;
-  if (angle === 90) v = e.beta;
-  else if (angle === -90 || angle === 270) v = -e.beta;
-  else v = e.gamma;
-  if (typeof v !== 'number' || !isFinite(v)) return;
-  bmp.tilt.raw = v;
-  if (!bmp.tilt.calibrated) { bmp.tilt.zero = v; bmp.tilt.calibrated = true; }
-  const s = Math.max(-1, Math.min(1, (v - bmp.tilt.zero) / 30)) * bmp.tilt.flip;
-  bmp.tilt.s = Math.abs(s) < 0.06 ? 0 : s;
+  return a === 270 ? -90 : a;
+}
+/** The angle the controller is drawn at, as the phone's rotation: 90 or -90. */
+function bmpLandTheta() {
+  if (window.innerWidth >= window.innerHeight) {
+    const a = bmpScreenAngle();
+    return a === -90 ? -90 : 90;
+  }
+  return bmp.tilt.rot;
+}
+function bmpLandLayout() {
+  const el = document.getElementById('bmp-land');
+  if (!el) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  if (W >= H) {
+    el.style.width = W + 'px'; el.style.height = H + 'px';
+    el.style.transform = 'translate(-50%, -50%)';
+  } else {
+    el.style.width = H + 'px'; el.style.height = W + 'px';
+    el.style.transform = `translate(-50%, -50%) rotate(${bmp.tilt.rot}deg)`;
+  }
+}
+window.addEventListener('resize', bmpLandLayout);
+window.addEventListener('orientationchange', () => setTimeout(bmpLandLayout, 150));
+
+function bmpTiltRead(e) {
+  if (typeof e.beta !== 'number' || typeof e.gamma !== 'number') return;
+  const r = Math.PI / 180, b = e.beta * r, g = e.gamma * r;
+  // Down, in the phone's own axes (x to its right edge, y to its top).
+  const gx = Math.cos(b) * Math.sin(g), gy = -Math.sin(b);
+  // Upright page: turn the controller to the side the phone is really held.
+  if (window.innerWidth < window.innerHeight) {
+    const want = gx < -0.45 ? 90 : gx > 0.45 ? -90 : bmp.tilt.rot;
+    if (want !== bmp.tilt.rot) { bmp.tilt.rot = want; bmpLandLayout(); }
+  }
+  const th = bmpLandTheta() * r;
+  const sx = gx * Math.cos(th) - gy * Math.sin(th);
+  const sy = gx * Math.sin(th) + gy * Math.cos(th);
+  if (Math.hypot(sx, sy) < 0.25) return;        // lying flat: no roll to read
+  const phi = Math.atan2(sx, -sy) / r;
+  bmp.tilt.raw = phi;
+  let d = phi - bmp.tilt.zero;
+  d = ((d + 540) % 360) - 180;
+  const m = Math.max(0, Math.abs(d) - BMP_DEAD) / (BMP_FULL_LOCK - BMP_DEAD);
+  const want = Math.sign(d) * Math.min(1, m) * bmp.tilt.flip;
+  bmp.tilt.s += (want - bmp.tilt.s) * 0.4;
+  if (Math.abs(bmp.tilt.s) < 0.02) bmp.tilt.s = 0;
   const wheel = document.getElementById('bmp-wheel');
-  if (wheel) wheel.style.transform = `rotate(${bmp.tilt.s * 90}deg)`;
+  if (wheel) wheel.style.transform = `rotate(${(bmp.tilt.s * 90).toFixed(1)}deg)`;
 }
 function bmpTiltAsk() {
-  if (bmp.tilt.on) return;
+  if (bmp.tilt.on || bmp.tilt.asking) return;
   const O = window.DeviceOrientationEvent;
   const asked = O && typeof O.requestPermission === 'function' ? O.requestPermission().catch(() => 'denied') : Promise.resolve('granted');
+  bmp.tilt.asking = true;
   asked.then((ans) => {
+    bmp.tilt.asking = false;
     if (ans !== 'granted' || !O) { showToast(bmpT().bmp_tilt_denied, 'error'); bmpSetMode('stick'); return; }
+    if (bmp.mode !== 'tilt' || bmp.tilt.on) return;
     bmp.tilt.on = true;
-    bmp.tilt.calibrated = false;
     window.addEventListener('deviceorientation', bmpTiltRead);
   });
 }
 function bmpTiltStop() {
+  bmp.tilt.held = false;
+  bmp.tilt.s = 0;
   if (!bmp.tilt.on) return;
   bmp.tilt.on = false;
   window.removeEventListener('deviceorientation', bmpTiltRead);
 }
-function bmpTiltCentre() { bmp.tilt.zero = bmp.tilt.raw; bmp.tilt.calibrated = true; haptic('light'); }
+function bmpTiltCentre() { bmp.tilt.zero = bmp.tilt.raw; haptic('light'); }
 function bmpTiltFlip() { bmp.tilt.flip = -bmp.tilt.flip; haptic('light'); }
+/** Auto gas: on until tapped off; the big button is the brake meanwhile. */
+function bmpToggleAuto() {
+  bmp.tilt.auto = !bmp.tilt.auto;
+  rememberOptions('bumper', { auto: bmp.tilt.auto });
+  haptic('light');
+  if (Room.state) ROOM_GAMES.bumper.render(Room.state);
+  bmpSendNow();
+}
+/** The real lock where the phone allows it (Android, in fullscreen); nothing is lost where it doesn't. */
+function bmpLockLandscape(on) {
+  try {
+    const de = document.documentElement;
+    if (on) {
+      if (!document.fullscreenElement && de.requestFullscreen && screen.orientation && screen.orientation.lock) {
+        de.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation.lock('landscape')).catch(() => {});
+      }
+    } else if (document.fullscreenElement && screen.orientation && screen.orientation.unlock) {
+      try { screen.orientation.unlock(); } catch (e) {}
+      document.exitFullscreen().catch(() => {});
+    }
+  } catch (e) {}
+}
 
 /* --- sending: the controller's beat ---------------------------------------------- */
 function bmpInput() {
-  if (bmp.mode === 'tilt') return { k: 'i', s: Math.round(bmp.tilt.s * 20) * 5, g: bmp.tilt.g ? 100 : 0 };
+  if (bmp.mode === 'tilt') {
+    // Auto gas: forward until tapped off, the big button braking; otherwise the button is the gas.
+    const g = bmp.tilt.auto ? (bmp.tilt.held ? -100 : 100) : (bmp.tilt.held ? 100 : 0);
+    return { k: 'i', s: Math.round(bmp.tilt.s * 50) * 2, g };
+  }
   return { k: 'i', x: Math.round(bmp.stick.x * 20) * 5, y: Math.round(bmp.stick.y * 20) * 5 };
 }
 function bmpSendNow() {
@@ -290,6 +389,7 @@ function bmpControllerOff() {
   if (bmp.wake && bmp.wake !== 'asking') { try { bmp.wake.release(); } catch (e) {} }
   bmp.wake = null;
   bmpTiltStop();
+  bmpLockLandscape(false);
   bmp.stick = { x: 0, y: 0 };
   bmp.lastSent = '';
 }
@@ -332,10 +432,12 @@ Room.onLive((d) => {
   if (d.k === 'h') {
     if (d.w === 'got') {
       bmp.flashUntil = Date.now() + 350;
+      bmpSnd('got');
       try { if (navigator.vibrate) navigator.vibrate(90); } catch (e) {}
     } else {
       bmp.myHits = d.n || 0;
       haptic('medium');
+      bmpSnd('point');
       const phone = document.getElementById('bmp-phone');
       if (phone && !motionOff()) {
         const pop = document.createElement('div');
@@ -374,6 +476,76 @@ function bmpOverHtml(state, s, t, tv) {
     <div class="card card--tight bmp-rows">${rows}</div>${none}${host}</div>`;
 }
 
+/* --- the sound (28 Sep 2026: the owner heard nothing on the first test) ---------
+   The TV is the rink's voice: the countdown, the start horn, an engine that
+   follows how fast the cars go, every crash by how hard it was, a chime for a
+   point, the last five seconds and the end. A phone plays only its own bumps
+   (an iPhone can't buzz). Made with the soundboard's instruments; a TV whose
+   browser keeps the sound asleep shows «🔊 اضغط هنا عشان الصوت». */
+function bmpSnd(kind, v) {
+  try {
+    const ctx = fxCtx();
+    if (ctx.state !== 'running') return;
+    const at = ctx.currentTime + 0.01;
+    const k = Math.max(0, Math.min(1, v === undefined ? 1 : v));
+    if (kind === 'beep') fxTone('square', [[0, 660]], [[0, 0.0001], [0.01, 0.16], [0.2, 0.0001]], at);
+    else if (kind === 'tick') fxTone('square', [[0, 1040]], [[0, 0.0001], [0.005, 0.1], [0.09, 0.0001]], at);
+    else if (kind === 'go') {
+      fxTone('sawtooth', [[0, 440], [0.6, 440]], [[0, 0.0001], [0.02, 0.16], [0.55, 0.12], [0.75, 0.0001]], at);
+      fxTone('square', [[0, 880], [0.6, 880]], [[0, 0.0001], [0.02, 0.07], [0.7, 0.0001]], at);
+    } else if (kind === 'bump') {
+      fxNoise('bandpass', 1100, 0.8, [[0, 0.0001], [0.004, 0.25 + 0.45 * k], [0.22, 0.0001]], at);
+      fxTone('sine', [[0, 150], [0.18, 55]], [[0, 0.0001], [0.01, 0.25 + 0.45 * k], [0.28, 0.0001]], at);
+      fxTone('triangle', [[0, 380], [0.1, 720], [0.26, 330]], [[0, 0.0001], [0.02, 0.1 + 0.08 * k], [0.32, 0.0001]], at + 0.03);
+    } else if (kind === 'wall') fxNoise('lowpass', 380, 0.7, [[0, 0.0001], [0.005, 0.12 + 0.3 * k], [0.14, 0.0001]], at);
+    else if (kind === 'point') {
+      fxTone('sine', [[0, 988]], [[0, 0.0001], [0.01, 0.16], [0.12, 0.0001]], at);
+      fxTone('sine', [[0, 1319]], [[0, 0.0001], [0.01, 0.16], [0.3, 0.0001]], at + 0.09);
+    } else if (kind === 'got') {
+      fxNoise('lowpass', 500, 0.8, [[0, 0.0001], [0.004, 0.45], [0.18, 0.0001]], at);
+      fxTone('sine', [[0, 120], [0.15, 60]], [[0, 0.0001], [0.01, 0.4], [0.22, 0.0001]], at);
+    } else if (kind === 'end') {
+      fxTone('sawtooth', [[0, 523], [0.35, 523], [0.36, 392], [1.0, 392]], [[0, 0.0001], [0.02, 0.16], [0.95, 0.12], [1.15, 0.0001]], at);
+    }
+  } catch (e) {}
+}
+
+/** The engine: one low buzz for the rink, its pitch and loudness following the cars' speed. */
+function bmpEngine(speed) {
+  const g = bmp.tv;
+  if (!g) return;
+  let ctx;
+  try { ctx = fxCtx(); } catch (e) { return; }
+  if (ctx.state !== 'running') return;
+  let e = g.eng;
+  if (!e || e.ctx !== ctx) {
+    try {
+      const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), f = ctx.createBiquadFilter(), gain = ctx.createGain();
+      o1.type = 'sawtooth'; o2.type = 'square'; o2.detune.value = 7;
+      f.type = 'lowpass'; f.frequency.value = 520;
+      gain.gain.value = 0;
+      o1.connect(f); o2.connect(f); f.connect(gain); gain.connect(ctx.destination);
+      o1.start(); o2.start();
+      e = g.eng = { ctx, o1, o2, gain };
+    } catch (err) { return; }
+  }
+  const now = ctx.currentTime;
+  const s = Math.max(0, Math.min(1, speed));
+  e.o1.frequency.setTargetAtTime(42 + 80 * s, now, 0.12);
+  e.o2.frequency.setTargetAtTime(63 + 120 * s, now, 0.12);
+  e.gain.gain.setTargetAtTime(s < 0.02 ? 0 : 0.02 + 0.07 * s, now, 0.2);
+}
+function bmpEngineOff() {
+  const e = bmp.tv && bmp.tv.eng;
+  if (!e) return;
+  bmp.tv.eng = null;
+  try {
+    const now = e.ctx.currentTime;
+    e.gain.gain.setTargetAtTime(0, now, 0.08);
+    e.o1.stop(now + 0.5); e.o2.stop(now + 0.5);
+  } catch (err) {}
+}
+
 /* --- the TV: the rink ----------------------------------------------------------- */
 TV_GAMES.bumper = {
   sig(state) {
@@ -388,6 +560,7 @@ TV_GAMES.bumper = {
       <div class="bmp-tv__stage"><canvas id="bmp-canvas" class="bmp-canvas"></canvas></div>
       <div class="bmp-tv__side">
         <div class="bmp-tv__clock metric" data-bmp-tvclock>–</div>
+        <button type="button" class="btn btn--primary btn--auto bmp-sound hidden" id="bmp-sound" onclick="setTimeout(() => bmpSnd('beep'), 150)">${escapeHTML(t.bmp_sound_tap)}</button>
         <div class="bmp-table" id="bmp-table"></div>
         <div class="bmp-stats" id="bmp-stats"></div>
         ${host}
@@ -407,7 +580,7 @@ function bmpTvStart(state, rebuilt) {
   const key = roomDealKey(state, s.round);
   if (!bmp.tv || bmp.tv.key !== key) {
     bmp.tv = { key, round: s.round, cars: {}, sparks: [], pops: [], pairs: {}, reported: false,
-      msgs: [], sent: [], raf: 0, last: 0, canvas: null, uiAt: 0 };
+      msgs: [], sent: [], raf: 0, last: 0, canvas: null, uiAt: 0, snd: { cd: null, go: false, tick: null, end: false }, wallAt: 0, sndPairs: {} };
   }
   const g = bmp.tv;
   if (rebuilt || !g.canvas || !g.canvas.isConnected) g.canvas = document.getElementById('bmp-canvas');
@@ -422,6 +595,7 @@ function bmpTvStart(state, rebuilt) {
 function bmpTvStop() {
   if (bmp.tv && bmp.tv.raf) cancelAnimationFrame(bmp.tv.raf);
   if (bmp.tv && bmp.tv.tick) clearInterval(bmp.tv.tick);
+  bmpEngineOff();
   if (bmp.tv) { bmp.tv.raf = 0; bmp.tv.tick = null; }
 }
 
@@ -483,9 +657,27 @@ function bmpTvFrame(ts) {
   }
   g.sparks = g.sparks.filter(p => (p.t -= 1 / 60) > 0);
   g.pops = g.pops.filter(p => (p.t -= 1 / 60) > 0);
+  bmpTvSounds(s, now, running);
   if (now >= s.endsAt && !g.reported) bmpTvReport(state);
   bmpTvDraw(state, now);
   if (ts - g.uiAt > 250) { g.uiAt = ts; bmpTvPanel(state, now); }
+}
+
+/** The countdown, the start, the last five seconds and the end - each once - and the engine. */
+function bmpTvSounds(s, now, running) {
+  const g = bmp.tv, m = g.snd;
+  if (now < s.startAt) {
+    const n = Math.min(3, Math.ceil((s.startAt - now) / 1000));
+    if (n !== m.cd) { m.cd = n; bmpSnd('beep'); }
+  } else if (!m.go && now < s.startAt + 1500) { m.go = true; bmpSnd('go'); }
+  const left = Math.ceil((s.endsAt - now) / 1000);
+  if (running && left <= 5 && left >= 1 && left !== m.tick) { m.tick = left; bmpSnd('tick'); }
+  if (now >= s.endsAt && !m.end) { m.end = true; bmpSnd('end'); bmpEngineOff(); }
+  if (running) {
+    const cars = Object.values(g.cars);
+    const avg = cars.length ? cars.reduce((a, c) => a + Math.hypot(c.vx, c.vy), 0) / cars.length / 720 : 0;
+    bmpEngine(Math.min(1, avg * 1.4));
+  }
 }
 
 function bmpTvStep(dt, running) {
@@ -506,8 +698,8 @@ function bmpTvStep(dt, running) {
         thrust = 1000 * m * Math.max(0.25, Math.cos(diff));
       }
     } else if (inp && typeof inp.s === 'number') {
-      c.h += (inp.s / 100) * 3.6 * dt;
-      thrust = inp.g ? 1000 : 0;
+      c.h += (inp.s / 100) * 3.2 * dt;
+      thrust = inp.g > 0 ? 1000 * Math.min(1, inp.g / 100) : inp.g < 0 ? -700 : 0;
     }
     const fx = Math.cos(c.h), fy = Math.sin(c.h);
     c.vx += fx * thrust * dt;
@@ -523,10 +715,12 @@ function bmpTvStep(dt, running) {
     c.x += c.vx * dt;
     c.y += c.vy * dt;
     const m = 18 + BMP_R;
-    if (c.x < m) { c.x = m; c.vx = Math.abs(c.vx) * 0.7; }
-    if (c.x > BMP_W - m) { c.x = BMP_W - m; c.vx = -Math.abs(c.vx) * 0.7; }
-    if (c.y < m) { c.y = m; c.vy = Math.abs(c.vy) * 0.7; }
-    if (c.y > BMP_H - m) { c.y = BMP_H - m; c.vy = -Math.abs(c.vy) * 0.7; }
+    let hitWall = 0;
+    if (c.x < m) { hitWall = Math.abs(c.vx); c.x = m; c.vx = Math.abs(c.vx) * 0.7; }
+    if (c.x > BMP_W - m) { hitWall = Math.abs(c.vx); c.x = BMP_W - m; c.vx = -Math.abs(c.vx) * 0.7; }
+    if (c.y < m) { hitWall = Math.max(hitWall, Math.abs(c.vy)); c.y = m; c.vy = Math.abs(c.vy) * 0.7; }
+    if (c.y > BMP_H - m) { hitWall = Math.max(hitWall, Math.abs(c.vy)); c.y = BMP_H - m; c.vy = -Math.abs(c.vy) * 0.7; }
+    if (running && hitWall > 220 && wall - g.wallAt > 90) { g.wallAt = wall; bmpSnd('wall', hitWall / 720); }
     c.flash = Math.max(0, c.flash - dt);
   });
   for (let i = 0; i < cars.length; i++) {
@@ -550,6 +744,10 @@ function bmpTvCollide(a, b, running) {
   const g = bmp.tv;
   const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
   const hard = -vr;
+  // Cars pushing against each other touch every step: sparks and a crash only for a real knock.
+  if (hard < 70) return;
+  const pairKey = a.id < b.id ? a.id + '|' + b.id : b.id + '|' + a.id;
+  if (!g.sndPairs[pairKey] || Date.now() - g.sndPairs[pairKey] > 180) { g.sndPairs[pairKey] = Date.now(); bmpSnd('bump', hard / 600); }
   for (let k = 0; k < Math.min(14, 4 + hard / 40); k++) {
     const ang = Math.random() * Math.PI * 2, v = 80 + Math.random() * hard * 0.6;
     g.sparks.push({ x: cx, y: cy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, t: 0.45 });
@@ -571,7 +769,7 @@ function bmpTvCollide(a, b, running) {
   Room.sendLive({ k: 'h', to: hitter.id, w: 'hit', n: hitter.hits });
   Room.sendLive({ k: 'h', to: victim.id, w: 'got', n: victim.taken });
   g.sent.push(wall, wall);
-  try { { fxNoise('lowpass', 420, 0.8, [[0, 0.0001], [0.01, 0.35], [0.16, 0.0001]], fxCtx().currentTime); fxTone('square', [[0, 160], [0.08, 90]], [[0, 0.05], [0.1, 0.0001]], fxCtx().currentTime); } } catch (e) {}
+  bmpSnd('point');
 }
 
 /** The round's end: one screen (the first online, by id) tells the server the scores. */
@@ -705,6 +903,8 @@ function bmpTvPanel(state, now) {
   const s = state.shared || {};
   const clock = document.querySelector('[data-bmp-tvclock]');
   if (clock) clock.textContent = bmpClockText(bmpSecsLeft(state));
+  const sound = document.getElementById('bmp-sound');
+  if (sound) { let asleep = true; try { asleep = audioCtx.state !== 'running'; } catch (e) {} sound.classList.toggle('hidden', !asleep); }
   const wall = Date.now();
   const recent = (list) => { while (list.length && wall - list[0] > 3000) list.shift(); return list.length / 3; };
   const cars = Object.values(g.cars).sort((a, b) => b.hits - a.hits);

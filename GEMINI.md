@@ -214,7 +214,11 @@ work changed. Add to it when a decision is made or a batch ships.
     foul, kahk) **and the lives are tea glasses that spill**; **in «محدش
     يدوس» the hands hover and tremble over the table**, and a hand that
     presses gets stung. (A photo-finish replay and each player's own hand
-    were offered and not chosen.) Build straight away, no second sheet.
+    were offered and not chosen.) A second sheet of three new worlds (a
+    free-kick wall, a pigeon roof, a zaffa;
+    https://claude.ai/artifact/V5zYDTFbbaud7qiPKRVaZk) was drawn at the
+    owner's ask, and **the owner kept the improved table** (its fourth card,
+    where a bee stings the hand that presses in the trap).
   - **الشاهد** (the witness), **its own card**, with خمّن مين's faces: the
     witness sees a face 8 s, the sketch artist builds it on a face builder
     from what the witness says; the table then votes on a lineup. **The
@@ -237,6 +241,16 @@ work changed. Add to it when a decision is made or a batch ships.
     it and pays), the box opens slowly. **Clues always true; lies come from
     people only.** **No computer players.** **8 boxes, 3-8 players.** The
     most money at the end wins.
+    **The look: أ «استوديو الصندوق»** (the owner, 29 Sep 2026, from a second
+    sheet, https://claude.ai/artifact/NUru7oBeMjHrECDpiXCynv - the first,
+    Khan el-Khalili, was rejected: ordinary drawing, a dull opening, a
+    crowded phone, and another place wanted): a TV game-show studio, the
+    players at podiums with LED screens, a red lacquer box with a gold bow
+    on a turntable; the opening is the star (a drumroll, the box shaking,
+    light from the cracks, 3-2-1, a flash, the lid flying off: a coin
+    fountain, or a funny scorpion in a bow tie and top hat scattering the
+    winner's coins); the phone one step at a time (the clue, held to read;
+    the bid, one big number with +/− and chips; waiting).
 
 - **The slow-load scenes** - the owner's decisions of 28 Sep 2026, from a
   design sheet of six scenes (*The design system*, "The intro"):

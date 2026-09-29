@@ -9246,6 +9246,16 @@ belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
 
+**A robot reads the server's time through the gap, never its own clock.** On 29 Sep 2026
+`play-all.mjs --only=snakes` failed live twice ("people roll on their turn once the table has
+seen the last roll") and passed locally: this PC's clock was 8.3 s behind Cloudflare's, and the
+robot slept until `readyAt - Date.now()`, so every roll was 8 s late and only one fit in the
+minute. The game was right - a phone turns `readyAt` into its own time with the smallest
+`receivedAt - serverNow` seen (`snkReadyLocal`), so a fair roll is never dropped. The robot does
+the same now, and counts a roll only when the ack's `turnSeq` moved (a dropped tap is acked ok
+too). Any test that compares a server stamp (`readyAt`, `endsAt`, `nextAt`) with `Date.now()`
+has to convert it first, or it passes on a local server and fails on the live one.
+
 **A screen's signature must include everything its frame decides.**
 `renderRoomTv` asks `TV_GAMES.<id>.sig(state)` before it calls `frame()`. المشنقة's TV
 started its hold (`hmRoomHold`: the guessing frame kept on while the last moment plays)

@@ -566,6 +566,43 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   console.log(`game ids: ${appIds.length} (GAME_CATALOG ${catIds.length})`);
 }
 
+/* ------------------------------------------ السلم والتعبان: the sneak's crawl */
+// The owner's review (29 Sep 2026): the snake that catches a sneak crawls over the board to him and
+// back, and must never tie itself in a knot. Over 150 maps, every square beside a ladder's foot and the
+// snake nearest to it, the way snkCrawlPlan picks keeps the body from crossing or overlapping itself at
+// every moment of the crawl, and on the board. (The straight way it replaced tangled in about 4 of 10.)
+{
+  const strip = (f) => fs.readFileSync(ROOT + f, 'utf8').replace(/^\s*<script>/, '').replace(/<\/script>\s*$/, '');
+  const stub = 'const window = { addEventListener() {} }, document = { addEventListener() {} }; const requestAnimationFrame = () => 0, cancelAnimationFrame = () => {};\n';
+  const K = new Function(stub + fs.readFileSync(ROOT + 'Snakes.js', 'utf8') + '\n' + strip('JS_Snakes.html') +
+    '\n; return { snakesGenMap, snakesCellXY, snakesNearestSnake, snkWay, snkSample, snkCrawlPlan };')();
+  let cases = 0, tangled = 0, turned = 0, worst = '';
+  for (let seed = 1; seed <= 150; seed++) {
+    const m = K.snakesGenMap(seed * 7919);
+    const rnd = (() => { let a = (seed * 2654435761) >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; })();
+    const shapes = {};
+    m.snakes.forEach(sn => { shapes[sn.h] = K.snkSample(K.snkWay(sn, rnd)).pts; });
+    const busy = new Set();
+    m.snakes.forEach(sn => { busy.add(sn.h); busy.add(sn.t); });
+    m.ladders.forEach(l => { busy.add(l.f); busy.add(l.t); });
+    m.ladders.forEach(l => {
+      [l.f - 1, l.f + 1].forEach(walk => {
+        if (walk < 1 || walk > 99 || busy.has(walk) || m.snakes.some(sn => Math.abs(sn.h - walk) === 1)) return;
+        const sn = K.snakesNearestSnake(m, walk);
+        const a = K.snakesCellXY(l.f), b = K.snakesCellXY(l.t);
+        const at = { x: a.x + (b.x - a.x) * 0.3, y: a.y + 2 + (b.y - a.y) * 0.3 };
+        const plan = K.snkCrawlPlan(shapes[sn.h], at, 17.5);
+        cases++;
+        const pts = shapes[sn.h], H = pts[0], B = pts[5], fx = H.x - B.x, fy = H.y - B.y;
+        if (fx * (at.x - H.x) + fy * (at.y - H.y) < 0) turned++;
+        if (plan.knots) { tangled++; worst = worst || `map ${seed * 7919}, ${walk} beside ${l.f}, snake ${sn.h}: ${plan.knots}`; }
+      });
+    });
+  }
+  if (tangled) note(`snakes: the sneak's crawl tangles in ${tangled} of ${cases} cases (first: ${worst})`);
+  console.log(`snakes: the sneak's crawl clean in ${cases - tangled} of ${cases} cases (${turned} with him behind the snake's head)`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

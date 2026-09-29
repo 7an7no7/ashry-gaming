@@ -379,8 +379,16 @@ work changed. Add to it when a decision is made or a batch ships.
         is back on his square while the snake crawls home** (0.9 s, both at
         once). 3.5 s (push) and 3.8 s (eat) in the server's time
         (`SNAKES_SNEAK_MS`), the animation ending about 0.15 s inside it.
-      - **The crawl follows one path**: out from where the head points, in
-        gentle S bends, to beside him (`snkCrawlWay`); every point of the body
+      - **The crawl follows one path, planned never to knot** (`snkCrawlPlan`):
+        out from where the head points to beside him - straight on in gentle S
+        bends only when he is ahead of its head, otherwise a wide arc (a radius
+        of 48-75 units, 0.8-1.25 squares, either way round, tighter only along
+        the board's edge) - trying both sides of him and above him, and keeping
+        the shortest way whose body never crosses or overlaps itself at any of
+        14 moments of the crawl and stays on the board (`snkCrawlKnots`; the
+        straight way it replaced tangled in about 4 cases in 10, the owner's
+        "hairpin knot"). `npm run check` plans 1,407 sneaks over 150 maps and
+        fails on any that tangles. Every point of the body
         follows the head along its own resting body and then that path
         (`snkCrawlAt`), so the tail leaves its hole and the whole snake moves;
         **home it backs along the same path**, which lands it exactly in its own
@@ -3956,6 +3964,13 @@ the word search), `countUp` for streaks and scores.
   1920 × 1080 in a room - the snake's outline the same string before and
   after, the piece ending on its own square, every moment ending 0.3-0.6 s
   inside its server time; a 90 s game against the phone; no console errors.
+  Then the coordinator's review: a snake whose head faced away from him
+  turned back in a hairpin and crossed its own body, so the way out is
+  planned (`snkCrawlPlan`, a wide arc, checked by `npm run check` over 1,407
+  sneaks). A copy of the board's bottom-left corner once seen over its middle
+  in a screenshot was headless Chrome's capture, not the page: one mat, one
+  board in the DOM, and a clip of the very same still frame taken just
+  before was clean.
 - **28 Sep 2026, the stylesheet's performance** - style recalc measured in
   headless Chrome at 6x CPU throttling (`Performance.getMetrics` per action;
   per rule by deleting it through the CSSOM and rebuilding a view's markup):
@@ -6702,7 +6717,7 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
     `snkMarkSquare`, looks round, tiptoes to the ladder and starts up it; the
     snake crawls - `sn.crawl = { way, d }`, drawn by `snkRenderSnake` through
     `snkCrawlAt`: a body point `a` from the head sits at `d - a` along its
-    resting body and then the way out (`snkCrawlWay`), so the body follows the
+    resting body and then the way out (`snkCrawlPlan`, never a knot), so the body follows the
     head, the tail leaves its hole, and `d = 0` is exactly its own shape -
     catches him, and backs home along the same path while he lands back on
     his square), the

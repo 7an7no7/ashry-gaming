@@ -492,28 +492,101 @@ function snkRenderSnake(c, sn, t) {
  * is at s = d - a, so the body follows the head along one path: at d = 0 it lies exactly in its own
  * shape, and the further it crawls the more of the tail has left its hole.
  */
-function snkCrawlAt(sn, s) {
-  const arr = s >= 0 ? sn.crawl.way : sn.pts, u = Math.abs(s) / SNK_STEP;
+function snkCrawlAt(sn, s) { return snkCrawlPoint(sn.pts, sn.crawl.way, s); }
+function snkCrawlPoint(pts, way, s) {
+  const arr = s >= 0 ? way : pts, u = Math.abs(s) / SNK_STEP;
   const i = Math.min(arr.length - 1, Math.floor(u)), j = Math.min(arr.length - 1, i + 1), f = Math.min(1, u - i);
   return { x: snkLerp(arr[i].x, arr[j].x, f), y: snkLerp(arr[i].y, arr[j].y, f) };
 }
 
-/** The way a snake crawls out, from its head's own place to `to`: on from where its head points, in gentle S bends, on the board. */
-function snkCrawlWay(sn, to) {
-  const H = sn.pts[0], B = sn.pts[Math.min(sn.pts.length - 1, 5)];
+/**
+ * One way out for a crawl: from the head's own place a little on where it points, then (`turn` ±1) a
+ * wide arc of radius `R` until it faces `to`, then on to `to` in gentle bends of `amp` either side.
+ */
+function snkCrawlWayOf(pts, to, turn, R, amp) {
+  const H = pts[0], B = pts[Math.min(pts.length - 1, 5)];
   let fx = H.x - B.x, fy = H.y - B.y;
   const fl = Math.hypot(fx, fy) || 1;
   fx /= fl; fy /= fl;
-  const S = { x: H.x + fx * 14, y: H.y + fy * 14 };
-  const dx = to.x - S.x, dy = to.y - S.y, D = Math.hypot(dx, dy) || 1, px = -dy / D, py = dx / D;
-  const P = [{ x: H.x, y: H.y }, S];
-  const m = D > 70 ? snkClamp(Math.round(D / 90), 1, 3) : 0;
-  for (let j = 1; j <= m; j++) {
-    const f = j / (m + 1), amp = 15 * (j % 2 ? 1 : -1);
-    P.push({ x: snkClamp(S.x + dx * f + px * amp, 12, 588), y: snkClamp(S.y + dy * f + py * amp, 12, 588) });
+  const P = [{ x: H.x, y: H.y }];
+  const inB = (u, v) => u >= 14 && u <= 586 && v >= 14 && v <= 586;
+  let x = H.x, y = H.y, hx = fx, hy = fy;
+  // On a little where the head points - unless that is off the board (a head in the top row points up).
+  if (inB(x + fx * 14, y + fy * 14)) { x += fx * 14; y += fy * 14; P.push({ x: x, y: y }); }
+  if (turn) {
+    const st = 8, da = st / R;
+    const rotBy = (a) => { const c0 = Math.cos(a * turn), s0 = Math.sin(a * turn), nx = hx * c0 - hy * s0, ny = hx * s0 + hy * c0; hx = nx; hy = ny; };
+    for (let k = 0, rot = 0; k < 90 && rot < Math.PI * 1.25; k++) {
+      const tx = to.x - x, ty = to.y - y, tl = Math.hypot(tx, ty) || 1;
+      if (hx * tx / tl + hy * ty / tl > 0.94 || tl < 20) break;
+      rotBy(da); rot += da;
+      // At the board's edge it turns along it (tighter there), never off the board.
+      for (let e = 0; e < 12 && !inB(x + hx * st, y + hy * st); e++) { rotBy(da); rot += da; }
+      x = snkClamp(x + hx * st, 14, 586); y = snkClamp(y + hy * st, 14, 586);
+      P.push({ x: x, y: y });
+    }
   }
-  P.push({ x: to.x, y: to.y });
+  const dx = to.x - x, dy = to.y - y, D = Math.hypot(dx, dy) || 1, px = -dy / D, py = dx / D;
+  const m = D > 70 && amp ? snkClamp(Math.round(D / 90), 1, 3) : 0;
+  for (let j = 1; j <= m; j++) {
+    const f = j / (m + 1), a = amp * (j % 2 ? 1 : -1);
+    P.push({ x: snkClamp(x + dx * f + px * a, 14, 586), y: snkClamp(y + dy * f + py * a, 14, 586) });
+  }
+  if (D > 6) P.push({ x: to.x, y: to.y });
   return snkSample(P);
+}
+
+/**
+ * How badly a crawl tangles: the body sampled at 14 moments of the way out (the way home is the same
+ * moments backwards), counting the places where two parts of it that are far apart along the body come
+ * closer than its width (a crossing or an overlap), and every point off the board's squares. 0 is clean.
+ */
+function snkCrawlKnots(pts, way, W) {
+  const L = pts[pts.length - 1].a, D = way[way.length - 1].a, gap = Math.max(3 * W, 48) / SNK_STEP, lim = W * W;
+  let bad = 0;
+  for (let k = 0; k <= 13; k++) {
+    const d = D * k / 13, Q = [];
+    for (let a = 0; a <= L; a += SNK_STEP * 2) Q.push(snkCrawlPoint(pts, way, d - a));
+    for (let i = 0; i < Q.length; i++) {
+      if (Q[i].x < 6 || Q[i].x > 594 || Q[i].y < 6 || Q[i].y > 594) bad++;
+      for (let j = i + Math.ceil(gap / 2); j < Q.length; j++) {
+        const ex = Q[i].x - Q[j].x, ey = Q[i].y - Q[j].y;
+        if (ex * ex + ey * ey < lim) bad++;
+      }
+    }
+  }
+  return bad;
+}
+
+/**
+ * The crawl for the sneak: the snake (its resting spine `pts`, width `W`) comes to beside him at `at`
+ * (on the ladder). It tries each side of him and each way of getting there - straight on, or a wide
+ * arc (0.8-1.3 squares) turning either way when he is behind its head - and keeps the shortest way
+ * whose body never crosses or overlaps itself at any moment and stays on the board; failing that, the
+ * least tangled. The same on every screen (nothing random). Returns { way, D, target, knots }.
+ */
+function snkCrawlPlan(pts, at, W) {
+  const H = pts[0];
+  const near = H.x >= at.x ? 1 : -1;               // his side the snake is on first
+  const targets = [
+    { x: snkClamp(at.x + near * 24, 14, 586), y: at.y - 6 },
+    { x: snkClamp(at.x - near * 24, 14, 586), y: at.y - 6 },
+    { x: snkClamp(at.x, 14, 586), y: snkClamp(at.y - 30, 14, 586) }
+  ];
+  const B = pts[Math.min(pts.length - 1, 5)], fx = H.x - B.x, fy = H.y - B.y, fl = Math.hypot(fx, fy) || 1;
+  let best = null;
+  targets.forEach((to, ti) => {
+    // Straight on only when he is ahead of its head; otherwise a wide arc (never a hairpin at the head).
+    const tx = to.x - H.x, ty = to.y - H.y, ahead = (fx * tx + fy * ty) / fl / (Math.hypot(tx, ty) || 1) > 0.35;
+    [[0, 0, 15], [0, 0, -15], [0, 0, 0], [1, 55, 12], [-1, 55, 12], [1, 75, 0], [-1, 75, 0], [1, 48, 0], [-1, 48, 0]].forEach(([turn, R, amp]) => {
+      if (!turn && !ahead) return;
+      const w = snkCrawlWayOf(pts, to, turn, R || 55, amp);
+      const knots = snkCrawlKnots(pts, w.pts, W);
+      const score = knots * 1000 + w.L + ti * 40 + (turn ? 10 : 0);
+      if (!best || score < best.score) best = { way: w.pts, D: w.L, target: to, knots: knots, score: score };
+    });
+  });
+  return best;
 }
 
 /** One loop for the page: every frame while something moves, about 20 a second at rest, nothing when hidden. */
@@ -1537,11 +1610,11 @@ async function snkSneak(c, g, p, e) {
   if (eyes) eyes.removeAttribute('transform');
   if (!snkAlive(c, g)) return done();
   // 3. The snake nearest to him sets off now, crawling along the board to where he will be.
-  const side = q.x < 300 ? 1 : -1;
-  const target = { x: snkClamp(q.x + side * 24, 14, 586), y: q.y - 6 };
-  const wayS = snkCrawlWay(sn, target);
-  sn.crawl = { way: wayS.pts, d: 0 };
-  const D = wayS.L;
+  // Its way is planned so its body never crosses itself: a wide arc when he is behind its head (snkCrawlPlan).
+  const plan = snkCrawlPlan(sn.pts, q, sn.W);
+  const target = plan.target;
+  sn.crawl = { way: plan.way, d: 0 };
+  const D = plan.D;
   const crawlMs = snkClamp(420 + D * 1.6, 600, 950);
   c.animatingSnake = sn;
   sn.mood = 'wow';

@@ -259,6 +259,59 @@ work changed. Add to it when a decision is made or a batch ships.
     improve the maps and the traps while building** - varied, hand-made-
     feeling layouts per level, traps that belong to each story and move,
     near misses that react.
+    **Built 29 Sep 2026** (*الأوضة المضلمة*). Decided while building (open
+    to change, each in one place):
+    - **Only the map's seed is secret** (`room._dark.seed`): the guides'
+      slices and the screen carry `{ seed, story, level }` and draw the very
+      map from it (`darkMap`, cached); the mover's slice is only the echo
+      round its square (`darkEcho`). Where the mover stands, the hearts and
+      the events are public (the table sees the walk anyway).
+    - **The TV is sent the map through its own channel** (`room.screenOnly`,
+      projected as `screen` to screens only, never to a phone), and is dark
+      but where the lenses are, like a guide's phone; the mover is told to
+      turn their back to it («ادي ضهرك للتلفزيون»).
+    - **The map is never turned** for anyone, so "left" and "right" are the
+      same on every phone and the TV.
+    - **The levels** (`DARK_LEVELS`): 10×7 with 4 rooms and 3 still traps,
+      then 12×8 / 5 rooms, 13×9 / 6, 15×9 / 7, 16×10 / 8 (and on at that
+      size), 1-2 moving traps from level 2, loops in the plan from level 2;
+      level 1 has no moving trap. A layout is BSP rooms, doors on a spanning
+      tree plus loops, each room a kind (the kids' room, the kitchen,
+      grandpa's room, the salon, the hall, the dining room; the tomb's
+      entry, the treasure, the sarcophagus room, the pillars, the sand room,
+      the jars) with its own floor and furniture against its walls.
+    - **The traps**: home - Lego and a squeaky duck on the floor, a creaky
+      tile beside grandpa's armchair, the cat pacing, a ball rolling across a
+      room; tomb - pressure plates, sand pits, a plate beside the
+      sarcophagus, a mummy patrolling, a swinging blade (open 6 ticks of 8).
+      Moving traps run on a clock of 350 ms ticks from the level's start
+      (`DARK_TICK`, `shared.t0`), the same on every screen. **Every level is
+      checked walkable** by a (square, tick) search (`darkSolve`) before it
+      is dealt; a map that isn't loses traps until it is.
+    - **A near miss** (a trap on a square beside the mover's) is a private
+      event to the guides and the TV (a toast, a sound); the sleeper wakes up
+      a little (grandpa, or the mummy in the sarcophagus, stirs) as the
+      mover comes near, and sits up on a trap beside it.
+    - **Joystick mode is walked on the server**: each push carries the
+      stick's direction and the server walks the last one for the time since
+      (at most 0.35 s, `DARK_STICK_DT`, `darkAdvance`), sliding along walls.
+      Steps are at least 110 ms apart (`DARK_STEP_GAP`).
+    - **The times**: the level's name 2.6 s before anyone moves, a trap 2 s
+      (back on the start at once, the stun after), a win 4.6 s, then **the
+      next level deals itself** with the next mover in a shuffled order.
+    - **Hearts are the whole game's** (3, never refilled); the game is over
+      at 0, and its score is levels cleared, with the room's best kept on
+      play again. No night-board points (it is co-op).
+    - **Someone who joins mid-game becomes a guide** (up to 8), at once.
+    - **A quiet mover**: the host's (or a stand-in's) «عدّي الدور» passes the
+      walk to the next, from the start, with no heart lost.
+    - **The lens**: 2 players - the one guide sees the whole map; more - each
+      lens a circle of `darkLensR` (smaller with more guides), held 44 px
+      above the finger on a touch screen; it goes to the other guides and
+      the TV through the live channel (`relayLens`), never to the mover.
+    - **Phones draw 2D only**; the TV 3D (or 2D, its switch remembered).
+      The home, party section (`group: 'party'`), blue, a drawn icon
+      (`art:darkroom`: a lens over a dark plan).
   - **بالظبط ٣!** (reflex sync): an order for all at once after a countdown
     («بالظبط ٣ منكم يدوسوا!», in order, «محدش يدوس», all at the same
     instant, the pulse in sequence). **Lives are the table's** (co-op, a
@@ -4372,6 +4425,24 @@ the word search), `countUp` for streaks and scores.
   show - the board keeps the money from before the opening now; the word
   «عقرب!» popped over the drumroll's banner, which now goes when the lid
   flies. A deploy is needed for the rooms server.
+- **29 Sep 2026, الأوضة المضلمة** - the blind co-op maze, the second of the
+  five new room games (*The owner's specs*, *الأوضة المضلمة*): `Dark.js`,
+  `RoomDark.js`, `JS_RoomDark.html`, section 57 of `Style.html`, a drawn
+  icon, look ج «العدسة والصدى»; the rooms server gained a screen-only channel
+  (`room.screenOnly` → `screen`) and the lens relay (`relayLens`). Rules
+  tests (480 maps walkable by an independent search, each story's traps, the
+  room's rules; all pass), the leak check (clean; its probes proved by
+  planting the seed and the traps in the mover's slice and in `shared`), the
+  robots' round (`--only=darkroom`, 42 passed on a local server: the map on
+  the guides and the TV only, the lens never reaching the mover, a bump, a
+  trap, the next level, passing the walk, the stick). Looked at in headless
+  Chrome with motion on: three phones (375×812, 667×375, 1280×720; Arabic
+  and English, light and dark) and a TV at 1920×1080 in 3D and 2D, both
+  stories, both ways of moving, a trap, two levels, a reload of a guide and
+  of the mover mid-level, Help; no console errors. Found on the way: a TV
+  banner put up for a trap was lost when the next state of the same move
+  rebuilt the frame - the banner is remembered with its end and drawn again.
+  A deploy is needed for the rooms server.
 
 ## Building and Running
 
@@ -4430,8 +4501,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `Snakes.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Skull.js`, `Battleship.js`, `Witness.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, `Wire.js`, and the game files bundled after
-  `RoomGames.js`, `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`, `RoomWire.js`, `RoomWitness.js`, `RoomBox.js`, `rooms-worker/src/`, `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `Snakes.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Skull.js`, `Battleship.js`, `Witness.js`, `Dark.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, `Wire.js`, and the game files bundled after
+  `RoomGames.js`, `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`, `RoomWire.js`, `RoomWitness.js`, `RoomDark.js`, `RoomBox.js`, `rooms-worker/src/`, `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -4584,7 +4655,7 @@ is nowhere to hide the key card.
 |---|---|
 | `rooms-worker/src/index.js` | The Worker: `/create`, `/join`, `/act`, `/poll`, `/leave`, `/ws`. Knows no game rules. |
 | `rooms-worker/src/room.js` | `Room` Durable Object, one per code: players, keys, sockets, saving, clocks, `project()`. |
-| `rooms-worker/src/view.js` | `roomView(room, pid, online)`: what one device is sent, the projection itself - its own file so the leak check builds every view with the same function. |
+| `rooms-worker/src/view.js` | `roomView(room, pid, online)`: what one device is sent, the projection itself - its own file so the leak check builds every view with the same function. A screen also gets `room.screenOnly` as `screen` (الأوضة المضلمة's map), never a phone. |
 | `rooms-worker/src/memory.js` | `PromptMemory`: which prompts every room dealt lately. |
 | `rooms-worker/src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live`. |
 | `RoomGames.js` | `applyRoomAction` — one branch per game. All rules live here. |
@@ -4636,6 +4707,8 @@ is nowhere to hide the key card.
 | `Witness.js` | الشاهد's faces: a sketch cleaned (`witnessClean`, `witnessFix`), the blank sketch, and the lineup of six look-alikes (`witnessLineup`, `WITNESS_CHANGES`) on خمّن مين's faces: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `witness` / `WITNESS_`. |
 | `RoomBox.js` | `boxAction`: افتح يا صندوق - the deck, the true clues (`boxClueCandidates`, `boxClueTrue`), the secret bids in `room._box`, the opening and every box's effect (`boxOpen`), the clocks (`boxDeadline` / `boxTimeout`), leaving (`boxPlayerLeft`). Bundled after `RoomWitness.js`. |
 | `RoomWitness.js` | `witnessAction`: الشاهد - the witness's look (the face in `room._witness`, on the witness's slice only while it lasts), the sketch, the vote, the reveal and the points, the clocks (`witnessDeadline` / `witnessTimeout`), leaving (`witnessPlayerLeft`). Bundled last. |
+| `Dark.js` | الأوضة المضلمة's maps from a seed (`darkMap`: rooms, doors, furniture, traps, checked walkable by `darkSolve`), the moving traps on the tick clock, the walls and the echo, the joystick's walk (`darkAdvance`), the lens size: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `dark` / `DARK_`. |
+| `RoomDark.js` | `darkAction`: الأوضة المضلمة - the seed in `room._dark`, the mover's steps or stick, traps, the levels and the hearts, the slices (`darkSync`: the guides and `room.screenOnly` the seed, the mover the echo), the clock (`darkDeadline` / `darkTimeout`), leaving (`darkPlayerLeft`), and `darkRelaying` for the lens relay. Bundled last. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -9525,6 +9598,81 @@ computer players, the TV optional.
   build; `DRIVERS.box`: five people, a key forced, a box on the clock, the
   host's calls, a leaver), `play-all.mjs` (`--only=box`: four phones and a TV
   through eight boxes, a leaver at the fifth, play again with the latecomer).
+### الأوضة المضلمة
+
+The owner's rules are in *The owner's specs* (the five new room games). Game
+id `darkroom` everywhere (`room-darkroom`, `ROOM_GAMES.darkroom`,
+`TV_GAMES.darkroom`, the catalog, the help); the rules are named `dark` /
+`DARK_`, the page's code `dk` / `DK_`, the stylesheet section 57
+(`.dk-*`). Rooms only, 2-8 people, no computer players, the TV optional.
+
+- **`Dark.js`** (shared, no DOM): a map is `darkMap(story, level, seed)`
+  (cached per key), made from the seed with `darkRng` (mulberry32): a BSP
+  partition into rooms (`darkPartition`), doors on a spanning tree plus loops
+  (`darkDoorOn`), each room's kind and furniture against its walls
+  (`darkPlace`, never cutting the plan in two), the still traps (most on the
+  shortest way, so the walk has to go round), the moving ones (a patrol path
+  walked a square every `DARK_STEP_TICKS` ticks, a ball rolling across, a
+  blade on `DARK_BLADE`'s period), the torches and the sleeper. A map has
+  `w`, `h`, the rooms, `doors`, `blocks`, `start`, `goal`, `traps`, `dyn`,
+  `segs` (the walls for drawing) and `solve` (the fewest ticks from the
+  search). `darkBlocked(m, x, y, dx, dy)` is the one rule for a move (a wall,
+  a door's edge, furniture, the edge), `darkEcho` what the mover's phone may
+  know (which sides are blocked, and by what kind), `darkDynAt(m, tick)`
+  where the moving traps are, `darkNextHit` the next tick one reaches a
+  square (the server's alarm), `darkAdvance` the stick's walk,
+  `darkLensR(m, guides)` the lens.
+- **`RoomDark.js`**: `shared` holds `story`, `mode` ('steps' | 'stick'),
+  `roster`, `order`, `turn`, `moverId`, `guides`, `level`, `hearts`,
+  `cleared`, `best`, `run` (a count of starts; every move carries it,
+  `staleTap`), `pos`, `face`, `vel`, `t0`, `phase` ('play' | 'trap' | 'won'
+  | 'gameover'), `stunUntil`, `nextAt`, `steps` and the public events `ev`
+  (`level`, `bump`, `trap`, `back`, `won`, `mover`, `over`). `room._dark`
+  (never projected): the seed and the private events `pev` (a near miss or a
+  trap with its square). Moves: `start` / `playAgain` (the host, `{ story,
+  mode }`), `step { d, run }`, `stick { vx, vy, run }`, and the move-on
+  `passMover { run }`. `darkSync` rewrites every slice after each move: the
+  mover `{ mover: true, echo }`, a guide `{ g: { seed, story, level }, pev }`,
+  and `room.screenOnly` the same for the screens.
+- **The rooms server**: `view.js` sends `room.screenOnly` to a screen only
+  (`screen`; a phone gets `null`), which is how a TV draws a map no phone
+  but the guides' may have. `room.js` relays a guide's lens (`relayLens`,
+  when `darkRelaying(room)`): from a roster guide only, to every socket but
+  the sender's and the mover's, rate-limited like the bumper cars' sticks,
+  never stored.
+- **`JS_RoomDark.html`**: a guide's phone draws the map on a canvas
+  (`dkPlan`: floors, furniture, walls with their shade, cached per level;
+  the traps, the cat, the mummy, the ball, the blade, grandpa, the goal's
+  glow and the torches live each frame, `dkDrawLive`), dark but under the
+  lenses (`dkDark`, `dkLenses`); its own lens is dragged (`dkWireGuide`,
+  sent `Room.sendLive({ k: 'lens' })` at most 11 times a second while dragging, every 2.5 s besides), the others'
+  are dashed rings in their colours. The mover's phone is the sonar
+  (`dkDrawMover`: rings and an echo line on each blocked side) and the
+  arrows (steps; the keyboard's arrows too) or the stick (sent 8 times a
+  second while held). The loop (`dkFrame`) draws at 30 frames a second
+  while something moves, 6 on a phone untouched for 10 s, never on a hidden
+  page; the TV never rests. The TV (`dkTvMount`): 3D through `loadThree`
+  (`dkTv3D`: the rooms with their floors, walls, furniture, grandpa in his
+  armchair, the cat's glowing eyes, the fridge's glow, the torches, the
+  sarcophagus and the mummy; lit only under the lenses by spotlights; pixel
+  ratio at most 2; drawn only when something changes or moves; disposed on
+  leaving) or 2D (`dkTv2D`, also the fallback), a 3D / 2D switch
+  (`dkTvSet`, remembered as `darkTv`). Events play once (keyed on the deal):
+  a bump shakes the sonar, a trap is a banner and its sound, a win confetti,
+  a new level a banner with the next mover's name. The room's one voice is
+  the TV, else the host's phone (`dkVoice`); the mover's own phone plays its
+  own steps, bumps and traps.
+- **Layout** (section 57): upright the head, the map (or the sonar and the
+  arrows), then the lens chips and the hint; a phone on its side and from
+  900 px the map beside the column (the sonar beside the controls). The TV:
+  the pills on top, the view full size, the chips and the switch at the foot.
+- Tests: `rules.mjs` ("The dark room": 480 maps walkable by an independent
+  (square, tick) search, the same map from a seed, one connected plan, the
+  traps where they belong, the creaky tile beside grandpa, the levels
+  growing, the lens, the stick stopping at a wall, and the room's rules),
+  `leaks.mjs` (`PROBES.darkroom`: the seed never on the mover's phone or in
+  `shared`, the mover sent nothing but the echo, no trap's square public;
+  proved by planting each), `play-all.mjs` (`--only=darkroom`).
 
 ### Switching a game off for a fix
 

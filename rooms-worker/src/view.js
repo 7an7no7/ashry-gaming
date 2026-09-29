@@ -39,8 +39,11 @@ export const roomView = (room, pid, online, extra) => {
     predict: room.predict ? { game: room.predict.game, until: room.predict.until, picks: room.predict.picks || {} } : null,
     // Less any other team's channel (أسماء الرموز); a screen reads no team's.
     chat: chatFor(room, pid),
-    // A screen faces everyone, so it never receives a secret.
+    // A screen faces everyone, so it never receives a player's secret.
     you: isScreen ? null : ((room.secrets && room.secrets[pid]) || null),
+    // What only the big screen draws (الأوضة المضلمة's map, shown lit where the guides' lenses are):
+    // set by a game on room.screenOnly, sent to screens and nobody else.
+    screen: isScreen ? (room.screenOnly || null) : null,
     // False for someone who joined after this game was dealt.
     inGame: isScreen || !room.shared || !room.shared.roster ? true : room.shared.roster.indexOf(pid) !== -1,
     // The server's clock as this was sent: a phone that has just reloaded or joined can read a

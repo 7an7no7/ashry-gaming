@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying } from '../generated/rules.js';
+import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -799,6 +799,11 @@ export class Room extends DurableObject {
         this.relayDrive(pid, msg.d, message.length);
         return;
       }
+      // الأوضة المضلمة: a guide's lens, to everyone but the mover (and the sender).
+      if (darkRelaying(this.room)) {
+        this.relayLens(pid, msg.d, message.length);
+        return;
+      }
       // The line still under the drawer's finger. Relayed, never stored, and
       // only from whoever is drawing right now.
       const s = this.room.shared || {};
@@ -849,6 +854,34 @@ export class Room extends DurableObject {
     const text = JSON.stringify({ t: 'live', d: Object.assign({}, d, { from: pid }) });
     for (const ws of this.openSockets()) {
       if (screens.has(this.playerOf(ws))) { try { ws.send(text); } catch (e) {} }
+    }
+  }
+
+  /**
+   * الأوضة المضلمة's lenses (RoomDark.js): where each guide holds their lens over the
+   * map, so every other guide sees it as a dashed ring and the TV lights it. Relayed,
+   * never stored, from a guide only, and never to the mover's phone (it says nothing
+   * of the map, but the mover's phone has no use for it). The same light rate limit
+   * as the controllers'.
+   */
+  relayLens(pid, d, size) {
+    const s = this.room.shared || {};
+    if (!d || typeof d !== 'object' || Array.isArray(d) || size > MAX_DRIVE) return;
+    if (pid === s.moverId || (s.roster || []).indexOf(pid) === -1) return;
+    const now = Date.now();
+    const rates = this.driveRates || (this.driveRates = new Map());
+    let r = rates.get(pid);
+    if (!r || now - r.since >= 1000) {
+      if (rates.size > 64) rates.clear();
+      r = { n: 0, since: now };
+      rates.set(pid, r);
+    }
+    if (++r.n > DRIVE_PER_SEC) return;
+    const text = JSON.stringify({ t: 'live', d: { k: 'lens', x: Number(d.x) || 0, y: Number(d.y) || 0, from: pid } });
+    for (const ws of this.openSockets()) {
+      const to = this.playerOf(ws);
+      if (to === pid || to === s.moverId) continue;
+      try { ws.send(text); } catch (e) {}
     }
   }
 

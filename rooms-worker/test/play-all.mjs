@@ -35,6 +35,8 @@ const GW = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.ur
   ';return { gwUp };')();
 
 // شطرنج's legal moves (and باغ هاوس's drops), for the robots of a chess tournament and of bughouse.
+// الأوضة المضلمة's map, rebuilt from the seed the guides and the TV are sent (never the mover).
+const DARKM = new Function(readFileSync(new URL('../../Dark.js', import.meta.url), 'utf8') + ';return { darkMap, darkBlocked, darkPath, DARK_DIRS };')();
 const CHM = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
 
 const ARGS = process.argv.slice(2);
@@ -923,6 +925,132 @@ async function boxRobots() {
   people.concat([TV, late]).forEach((x) => x.close());
 }
 
+/* --- الأوضة المضلمة: the mover walks blind, the guides and the TV see the map (--only=darkroom) --- */
+async function darkroomRobots() {
+  console.log('• the dark room (the map on the guides\' phones and the TV only, the echo on the mover\'s, steps, a bump, a trap, the next level, the lens relay, the stick)');
+  const H = await Bot.host('هالة', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K];
+  const byId = (id) => people.find((b) => b.pid === id);
+  await H.must('chooseGame', { game: 'darkroom' });
+  check((await J.act('start', {})).ok === false, 'darkroom: only the host starts');
+  await H.must('start', { story: 'home', mode: 'steps' });
+  await all(people.concat([TV]), (s) => s.game === 'darkroom' && s.shared.level === 1 && s.shared.hearts === 3 && s.shared.phase === 'play',
+    'darkroom: level 1 is dealt on every phone and the TV');
+  const mapOf = () => {
+    const g = TV.state.screen && TV.state.screen.g;
+    return g ? DARKM.darkMap(g.story, g.level, g.seed) : null;
+  };
+  const roles = () => {
+    const s = H.state.shared;
+    const M = byId(s.moverId);
+    return { s, M, guides: people.filter((b) => b !== M) };
+  };
+  let { s, M, guides } = roles();
+  await M.waitFor((st) => st.you && st.you.mover === true && st.you.echo, 'darkroom: the mover is sent the echo');
+  check(!JSON.stringify(M.state).includes('"seed"') && !M.state.screen, 'darkroom: the mover is never sent the map');
+  check(guides.every((b) => b.state.you && b.state.you.g && b.state.you.g.seed === TV.state.screen.g.seed), 'darkroom: the guides and the TV share the map');
+  check(!JSON.stringify(H.state.shared).includes('"seed"') && !JSON.stringify(H.state.shared).includes('"traps"'), 'darkroom: the map is not public');
+
+  // The lens: a guide's goes to the other guide and the TV, never to the mover.
+  M.live = []; guides[1].live = []; TV.live = [];
+  guides[0].ws.send(JSON.stringify({ t: 'live', d: { k: 'lens', x: 3.5, y: 2.5 } }));
+  await sleep(400);
+  check(guides[1].live.some((d) => d && d.k === 'lens') && TV.live.some((d) => d && d.k === 'lens'), 'darkroom: a lens reaches the other guides and the TV');
+  check(!M.live.some((d) => d && d.k === 'lens'), 'darkroom: the mover never hears a lens');
+  M.ws.send(JSON.stringify({ t: 'live', d: { k: 'lens', x: 1, y: 1 } }));
+  await sleep(300);
+  check(!TV.live.some((d) => d && d.x === 1 && d.y === 1), 'darkroom: the mover can\'t send a lens');
+
+  const m1 = mapOf();
+  const cellOf = (st) => Math.floor(st.shared.pos.y) * m1.w + Math.floor(st.shared.pos.x);
+  const startCell = m1.start[1] * m1.w + m1.start[0];
+  const dirTo = (m, a, b) => {
+    const ax = a % m.w, ay = (a - ax) / m.w, bx = b % m.w, by = (b - bx) / m.w;
+    return bx > ax ? 'R' : bx < ax ? 'L' : by > ay ? 'D' : 'U';
+  };
+  // A step before the intro ends is ignored.
+  const run0 = s.run;
+  await M.act('step', { d: 'U', run: run0 });
+  check(cellOf(H.state) === startCell, 'darkroom: no step before the level starts');
+  await sleep(Math.max(0, s.t0 - Date.now()) + 150);
+  // A bump into a wall.
+  const sx = m1.start[0], sy = m1.start[1];
+  const wallDir = Object.keys(DARKM.DARK_DIRS).find((k) => DARKM.darkBlocked(m1, sx, sy, DARKM.DARK_DIRS[k][0], DARKM.DARK_DIRS[k][1]));
+  if (wallDir) {
+    const n0 = H.state.shared.evN || 0;
+    await M.must('step', { d: wallDir, run: run0 });
+    await H.waitFor((st) => (st.shared.evN || 0) > n0 && st.shared.ev[st.shared.ev.length - 1].type === 'bump', 'darkroom: a wall is a bump for everyone');
+    check(cellOf(H.state) === startCell, 'darkroom: a bump doesn\'t move the mover');
+    await sleep(150);
+  }
+  // Walk into a still trap: back to the start, a heart lost.
+  const trapCells = new Set(m1.traps.map((t) => t.y * m1.w + t.x));
+  let way = null;
+  for (const t of m1.traps) {
+    const c = t.y * m1.w + t.x;
+    const avoid = new Set([...trapCells].filter((x) => x !== c));
+    way = DARKM.darkPath(m1, startCell, c, avoid);
+    if (way) break;
+  }
+  check(!!way, 'darkroom: a trap can be reached');
+  const walk = async (path, run) => {
+    for (let i = 1; i < path.length; i++) {
+      if (H.state.shared.phase !== 'play') return;
+      await M.act('step', { d: dirTo(m1, path[i - 1], path[i]), run });
+      await sleep(140);
+    }
+  };
+  if (way) {
+    await walk(way, run0);
+    await all(people.concat([TV]), (st) => st.shared.phase === 'trap' && st.shared.hearts === 2, 'darkroom: a trap costs the team a heart');
+    await H.waitFor((st) => st.shared.phase === 'play' && st.shared.run === run0 + 1, 'darkroom: after the trap the mover is back at the start', 5000);
+    check(cellOf(H.state) === startCell, 'darkroom: back on the start square');
+  }
+  // Now to the door, round every still trap.
+  s = H.state.shared;
+  const goalCell = m1.goal[1] * m1.w + m1.goal[0];
+  const toGoal = DARKM.darkPath(m1, startCell, goalCell, trapCells);
+  check(!!toGoal, 'darkroom: the way out exists past the traps');
+  await walk(toGoal, s.run);
+  await all(people.concat([TV]), (st) => st.shared.phase === 'won' && st.shared.cleared === 1, 'darkroom: the way out wins the level for everyone');
+  const firstMover = s.moverId;
+  await H.waitFor((st) => st.shared.level === 2 && st.shared.phase === 'play', 'darkroom: the next level comes by itself', 8000);
+  check(H.state.shared.moverId !== firstMover, 'darkroom: the next level has another mover');
+  ({ s, M, guides } = roles());
+  await M.waitFor((st) => st.you && st.you.mover && !st.you.g, 'darkroom: the new mover loses the map');
+  await all(guides, (st) => st.you && st.you.g && st.you.g.level === 2, 'darkroom: the old mover is a guide with the new map');
+  const m2 = mapOf();
+  check(m2 && m2.w * m2.h > m1.w * m1.h, 'darkroom: level 2 is bigger');
+  // The host moves a quiet mover on: from the start, no heart lost.
+  const hearts = s.hearts;
+  await H.must('passMover', { run: s.run });
+  await H.waitFor((st) => st.shared.moverId !== s.moverId && st.shared.hearts === hearts, 'darkroom: passing the mover costs no heart');
+  // Back to the hub; the tomb with the stick.
+  await H.must('backToHub');
+  await H.waitFor((st) => st.phase === 'lobby', 'darkroom: back in the hub');
+  await H.must('chooseGame', { game: 'darkroom' });
+  await H.must('start', { story: 'tomb', mode: 'stick' });
+  await all(people.concat([TV]), (st) => st.game === 'darkroom' && st.shared.story === 'tomb' && st.shared.mode === 'stick' && st.shared.level === 1, 'darkroom: the tomb with the stick');
+  ({ s, M } = roles());
+  check((await M.act('step', { d: 'U', run: s.run })).ok && H.state.shared.steps === 0, 'darkroom: no steps in stick mode');
+  await sleep(Math.max(0, s.t0 - Date.now()) + 150);
+  const m3 = mapOf();
+  const p0 = Object.assign({}, H.state.shared.pos);
+  const free = Object.keys(DARKM.DARK_DIRS).find((k) => !DARKM.darkBlocked(m3, m3.start[0], m3.start[1], DARKM.DARK_DIRS[k][0], DARKM.DARK_DIRS[k][1]));
+  const v = DARKM.DARK_DIRS[free];
+  await M.must('stick', { vx: v[0], vy: v[1], run: s.run });
+  await sleep(300);
+  await M.must('stick', { vx: 0, vy: 0, run: s.run });
+  const p1 = H.state.shared.pos;
+  check(Math.hypot(p1.x - p0.x, p1.y - p0.y) > 0.3, 'darkroom: the stick walks the mover on the server');
+  await H.must('backToHub');
+  await H.waitFor((st) => st.phase === 'lobby', 'darkroom: back in the hub again');
+  people.concat([TV]).forEach((x) => x.close());
+}
+
 // The host's phone gone quiet mid-round: after 20 s anyone moves the round on (28 Sep 2026).
 async function hostAwayRobots() {
   console.log('• the host away: after 20 s any player moves the round on; settings stay the host\'s');
@@ -1153,6 +1281,12 @@ async function main() {
   }
   if (ONLY === 'box') {
     await boxRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'darkroom') {
+    await darkroomRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -5159,6 +5293,7 @@ async function main() {
   await witnessRobots();
   await wireRobots();
   await boxRobots();
+  await darkroomRobots();
   await snakesRobots();
   await bumperRobots();
   await hostAwayRobots();

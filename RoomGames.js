@@ -111,6 +111,8 @@ const clearGameState = (room) => {
   room._witness = null;  // الشاهد: the real face and its place in the lineup (RoomWitness.js)
   room._wire = null;     // سلك مقطوع: the panels, the controls' states, what is broken (RoomWire.js); the room's best (_wireBest) stays
   room._box = null;      // افتح يا صندوق: the eight boxes, the clues, the bids, a key's peek (RoomBox.js)
+  room._dark = null;     // الأوضة المضلمة: the map's seed and the near misses (RoomDark.js)
+  room.screenOnly = null; // the screen's own slice (src/view.js): الأوضة المضلمة's map for the TV
   // The engine's secret and boards (RoomSolve.js).
   room._solve = null;
   // A bot's next move belonged to the game that was cleared.
@@ -179,7 +181,9 @@ const ROOM_GAME_IDS = [
   // الشاهد (RoomWitness.js): a face seen 8 seconds, a sketch from the description, a lineup vote.
   'witness',
   // افتح يا صندوق (RoomBox.js): a secret clue each, a minute of talk, one secret bid, the box opens.
-  'box'
+  'box',
+  // الأوضة المضلمة (RoomDark.js): one walks blind, the rest guide with the map under a lens.
+  'darkroom'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -684,6 +688,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'wire':       wireAction(room, playerId, action, payload); break;        // RoomWire.js
     case 'box':        boxAction(room, playerId, action, payload); break;         // RoomBox.js
     case 'bumper':     bumperAction(room, playerId, action, payload); break;      // RoomBumper.js
+    case 'darkroom':   darkAction(room, playerId, action, payload); break;        // RoomDark.js
     case 'chess':      chessAction(room, playerId, action, payload); break;       // RoomChess.js
     case 'votechess':  voteChessAction(room, playerId, action, payload); break;   // RoomVoteChess.js
     case 'handbrain':  handBrainAction(room, playerId, action, payload); break;   // RoomHandBrain.js
@@ -3674,6 +3679,7 @@ const gameDeadline = (room) => {
   if (room.game === 'wire') return wireDeadline(room);
   if (room.game === 'box') return boxDeadline(room);
   if (room.game === 'bumper') return bumperDeadline(room);
+  if (room.game === 'darkroom') return darkDeadline(room);
   if (svKindOf(room)) return svDeadline(room);   // RoomSolve.js
   return null;
 };
@@ -3808,6 +3814,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'wire') return wireTimeout(room, now);
   if (room.game === 'box') return boxTimeout(room, now);
   if (room.game === 'bumper') return bumperTimeout(room, now);
+  if (room.game === 'darkroom') return darkTimeout(room, now);
   return false;
 };
 
@@ -3923,6 +3930,9 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'bumper':
       bumperPlayerLeft(room, playerId);
+      return;
+    case 'darkroom':
+      darkPlayerLeft(room, playerId);
       return;
     case 'stop':
       if ((s.phase === 'writing' || s.phase === 'collecting') && allIn(s.submitted)) scoreStopRound(room);

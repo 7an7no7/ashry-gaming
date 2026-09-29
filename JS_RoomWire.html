@@ -1,0 +1,873 @@
+<script>
+/* ============================================================================
+   سلك مقطوع — the co-op panic game (rooms and the TV), 29 Sep 2026
+   ----------------------------------------------------------------------------
+   Every phone is a panel of 4-6 controls with funny names (Wire.js), every
+   phone gets an order with a draining bar - usually for a control on someone
+   else's panel, so it is shouted across the table. The server deals the
+   panels, makes every order and judges every change (RoomWire.js); the phone
+   draws its own panel (state.you), its own order (shared.orders[me]), the
+   level's progress, damage and clock, and plays the moments.
+
+   Each place keeps its own layout, from the owner's picks on the design sheet:
+     bus      «تابلوه الميكروباص»: the order on an LED screen with a segment
+              timer, metal plates in a grid; the TV's road is the progress,
+              the engine's temperature the damage, a ticker of the last order.
+     kitchen  «ورقة ماما على التلاجة»: the order a yellow note with a burning
+              fuse, pinned in the middle of the controls; the TV split, the
+              kitchen and a fridge of every phone's order, plates filling the
+              table, smoke rising.
+     wedding  «عم الفرح والمكسر»: the uncle shouts the order, a ring round his
+              face that angers as it closes, a DJ mixer's faders; the TV's
+              stage lights coming on, the guests' faces falling.
+   The TV is the one voice (the alarms loud and a bit tense); with no TV the
+   host's phone plays them, and every phone shows the damage and the clock.
+   Every name here starts with wr / WR_. Section 55 of Style.html.
+   ========================================================================= */
+const WR_OPTS_KEY = 'wire';
+const WR_OPTS_DEFAULT = { place: 'random', surprises: true };
+const WR_PLACE_ICON = { bus: '🚐', kitchen: '🍲', wedding: '💃', random: '🎲' };
+
+const wr = {
+  gap: Infinity,        // the smallest (receivedAt − serverNow) seen: the server's clock on this phone
+  seen: {},             // per deal: the last event seq played
+  local: {},            // a control this phone just changed: { v, at } until the server agrees
+  loop: 0,              // the rAF painting the bars and the clocks
+  el: null,             // the frame the loop paints (the phone's or the TV's)
+  tv: false,
+  motion: '',           // '' not asked, 'on' listening, 'no' tap only
+  shake: { id: null, n: 0, last: 0, sent: false },
+  beepAt: 0,
+  tickSec: -1,
+  momentTimer: null,
+  toastTimer: null,
+  hostKey: '',
+  noteKey: ''
+};
+
+const wrT = () => TRANSLATIONS[appState.lang] || {};
+const wrL = () => (typeof contentLang === 'function' && contentLang() === 'en' ? 'en' : 'ar');
+const wrFill = (str, vars) => String(str || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+const wrIso = (s) => '⁨' + s + '⁩';
+function wrOpts() { return recallOptions(WR_OPTS_KEY, WR_OPTS_DEFAULT); }
+function wrSetOpt(patch) {
+  rememberOptions(WR_OPTS_KEY, patch);
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+function wrNoteTime(state) {
+  if (state && typeof state.serverNow === 'number' && typeof state.receivedAt === 'number') wr.gap = Math.min(wr.gap, state.receivedAt - state.serverNow);
+}
+const wrNow = () => (isFinite(wr.gap) ? Date.now() - wr.gap : Date.now());
+const wrName = (state, id) => ((state.players || []).find((p) => p.id === id) || {}).name || '';
+const wrClockText = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+/** The one voice: the TV (the first online screen), else the host's phone. */
+function wrIsVoice(state) {
+  const screens = (state.screens || []).filter((x) => x.online).map((x) => x.id).sort();
+  if (state.youAreScreen) return screens[0] === Room.me;
+  return !!state.youAreHost && !screens.length;
+}
+
+/* --- the controls ------------------------------------------------------------- */
+/** A panel in the order its place lays it out: slides last across (bus, kitchen), faders first (wedding). */
+function wrOrdered(place, panel) {
+  const kind = (x) => { const c = wireControl(x.c) || {}; return c.t === 'slide' ? 1 : 0; };
+  const list = panel.slice();
+  if (place === 'wedding') list.sort((a, b) => kind(b) - kind(a));
+  else list.sort((a, b) => kind(a) - kind(b));
+  return list;
+}
+
+function wrCtlHtml(x) {
+  const c = wireControl(x.c);
+  if (!c) return '';
+  const name = escapeHTML(wireName(x.c, wrL()));
+  const label = `<b class="wr-ctl__n">${name}</b>`;
+  let inner;
+  if (c.t === 'btn') {
+    inner = `<button type="button" class="wr-btn" style="--c:${c.c}" data-wr-act="press" aria-label="${name}"></button>${label}`;
+  } else if (c.t === 'sw') {
+    inner = `<button type="button" class="wr-sw" data-wr-act="sw" aria-pressed="false" aria-label="${name}"><span class="wr-sw__b"></span><span class="wr-sw__l"></span></button>${label}`;
+  } else if (c.t === 'dial') {
+    inner = `<button type="button" class="wr-dial" data-wr-act="dial" aria-label="${name}"><span class="wr-dial__knob"></span><span class="wr-dial__v metric" data-wr-v>1</span></button>${label}`;
+  } else {
+    const sl = `<div class="wr-sl" data-o="${c.o}" data-wr-act="slide" role="slider" aria-label="${name}" aria-valuemin="1" aria-valuemax="5" tabindex="0" dir="ltr"><div class="wr-sl__tr"></div><div class="wr-sl__th"></div></div>`;
+    inner = c.o === 'v'
+      ? `${label}${sl}<span class="wr-sl__v" dir="ltr"><span>5</span><span>1</span></span>`
+      : `${sl}<span class="wr-sl__v" dir="ltr"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></span>${label}`;
+  }
+  const cls = 'wr-ctl wr-ctl--' + c.t + (c.t === 'slide' ? ' wr-ctl--' + c.o : '');
+  return `<div class="${cls}" data-c="${escapeHTML(x.c)}">${inner}<button type="button" class="wr-smk" data-wr-act="wipe" hidden><em data-wr-smk></em></button></div>`;
+}
+
+/** The uncle of the wedding: glad, or angry once his ring is nearly closed (.is-hurry). */
+function wrUncleSvg() {
+  return `<svg viewBox="0 0 80 80" aria-hidden="true" focusable="false"><circle cx="40" cy="42" r="30" fill="#f2c4a0" stroke="#221f36" stroke-width="4"/>
+    <path d="M14 36 Q16 10 40 10 Q64 10 66 36 Q58 22 40 22 Q22 22 14 36Z" fill="#5a3b2a" stroke="#221f36" stroke-width="3"/>
+    <circle cx="30" cy="40" r="4" fill="#221f36"/><circle cx="50" cy="40" r="4" fill="#221f36"/>
+    <g class="wr-mad"><path d="M22 30 L36 35 M58 30 L44 35" stroke="#221f36" stroke-width="4" stroke-linecap="round"/><ellipse cx="40" cy="62" rx="9" ry="6" fill="#7a1b1d" stroke="#221f36" stroke-width="3"/></g>
+    <path d="M24 54 Q32 50 40 54 Q48 50 56 54 Q48 58 40 56 Q32 58 24 54Z" fill="#221f36"/>
+    <path class="wr-glad" d="M30 62 Q40 70 50 62" stroke="#221f36" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M32 76 L40 70 L48 76 L40 80Z" fill="#e5383b" stroke="#221f36" stroke-width="2"/></svg>`;
+}
+
+/** The order's box, in the place's own shape. */
+function wrOrderHtml(place) {
+  const t = wrT();
+  const text = `<b class="wr-ord__text" data-wr-otext></b><span class="wr-ord__who" data-wr-onote></span>`;
+  if (place === 'wedding') {
+    return `<div class="wr-ord wr-ord--uncle" data-wr-ord>
+      <div class="wr-face">${wrUncleSvg()}</div>
+      <div class="wr-bub"><small>${escapeHTML(t.wr_ord_wedding)}</small>${text}</div></div>`;
+  }
+  if (place === 'kitchen') {
+    return `<div class="wr-ord wr-ord--note" data-wr-ord><small>${escapeHTML(t.wr_ord_kitchen)}</small>${text}<div class="wr-drain wr-drain--fuse"><i></i><span class="wr-spark"></span></div></div>`;
+  }
+  return `<div class="wr-ord wr-ord--led" data-wr-ord><small>${escapeHTML(t.wr_ord_bus)}</small>${text}<div class="wr-drain wr-drain--seg"><i></i></div></div>`;
+}
+
+const wrPlaceName = (place) => ((WIRE_PLACE_NAMES[place] || ['', ''])[appState.lang === 'en' ? 1 : 0]);
+
+function wrBarsHtml(place) {
+  const t = wrT();
+  return `<div class="wr-bars">
+    <div>${escapeHTML(t['wr_prog_' + place] || t.wr_prog_bus)}<div class="wr-mbar wr-mbar--p"><i></i></div></div>
+    <div>${escapeHTML(t['wr_dmg_' + place] || t.wr_dmg_bus)}<div class="wr-mbar wr-mbar--d"><i></i></div></div></div>`;
+}
+
+function wrPhoneHtml(state) {
+  const t = wrT();
+  const s = state.shared || {};
+  const place = s.place || 'bus';
+  const me = Room.me;
+  const inTable = (s.alive || []).indexOf(me) !== -1;
+  const panel = wrOrdered(place, ((state.you || {}).panel) || []);
+  const top = `<div class="wr-top"><span class="wr-top__lv" data-wr-level></span><span class="wr-top__place">${escapeHTML(wrPlaceName(place))}</span><span class="wr-top__clock metric" data-wr-clock dir="ltr">1:15</span></div>`;
+  let body;
+  if (s.phase === 'gameover') {
+    body = '';          // the end card takes the panel's place
+  } else if (!inTable) {
+    body = `<div class="wr-watch">${escapeHTML(t.wr_watching)}</div>`;
+  } else if (place === 'kitchen') {
+    const first = panel.filter((x) => (wireControl(x.c) || {}).t !== 'slide').slice(0, 2);
+    const rest = panel.filter((x) => first.indexOf(x) === -1);
+    body = `<div class="wr-pnl">${first.map(wrCtlHtml).join('')}${wrOrderHtml(place)}${rest.map(wrCtlHtml).join('')}</div>`;
+  } else {
+    body = `${wrOrderHtml(place)}<div class="wr-pnl">${panel.map(wrCtlHtml).join('')}</div>`;
+  }
+  const shake = inTable ? `<div class="wr-shake" data-wr-shake hidden>
+      <div class="wr-shake__card">
+        <div class="wr-shake__icon" aria-hidden="true">📳</div>
+        <div class="wr-shake__title">${escapeHTML(t.wr_shake_title)}</div>
+        <div class="wr-shake__dots" data-wr-sdots><i></i><i></i><i></i></div>
+        <button type="button" class="btn btn--lg wr-shake__tap" data-wr-act="shake">${escapeHTML(t.wr_shake_tap)}</button>
+        <div class="wr-shake__left metric" data-wr-sleft></div>
+      </div></div>` : '';
+  const over = s.phase === 'gameover' ? wrOverHtml(state) : '';
+  return `${over}<div class="wr wr--${place}${over ? ' wr--over' : ''}" data-wr-root>${top}${wrBarsHtml(place)}${body}<div class="wr-stamp" data-wr-stamp aria-live="polite"></div><div class="wr-red"></div>${shake}</div>
+    <div data-wr-host></div>${renderRoomPlayerStrip(state)}`;
+}
+
+/** The end: how far the table got, the room's best, and the host's buttons. */
+function wrOverHtml(state) {
+  const t = wrT();
+  const s = state.shared || {};
+  const why = s.why === 'time' ? t.wr_over_time : s.why === 'left' ? t.wr_over_left : t.wr_over_damage;
+  const rise = motionFirst(['wr-over', roomDealKey(state)].join('|'));
+  const host = state.youAreHost
+    ? `<div class="btn-row" style="margin-top:var(--sp-3)"><button class="btn btn--go" onclick="roomAct('playAgain', {})">▶ ${escapeHTML(t.wr_again)}</button><button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game)}</button></div>`
+    : `<div class="waiting-note">${escapeHTML(t.wr_wait_host)}</div>`;
+  return `<div class="card wr-over ${rise ? 'wr-over--rise' : ''}" data-reveal-ms="${rise ? 900 : 0}">
+      <div class="wr-over__why">${escapeHTML(why)}</div>
+      <div class="wr-over__big"><span class="metric" data-wr-won data-to="${s.levelsWon || 0}">${rise ? 0 : (s.levelsWon || 0)}</span></div>
+      <div class="wr-over__line">${escapeHTML(t.wr_levels_cleared)}</div>
+      <div class="wr-over__best">${s.newBest ? '🏆 ' + escapeHTML(t.wr_new_best) + ' · ' : ''}${escapeHTML(wrFill(t.wr_room_best, { n: s.best || 0 }))}</div>
+      ${host}</div>`;
+}
+
+/* --- the room game ------------------------------------------------------------ */
+ROOM_GAMES.wire = {
+  lateJoin: true,     // someone who joins mid-game watches, and is dealt in with play again
+  lobbyOptions(state) {
+    if (!state.youAreHost) return '';
+    const t = wrT();
+    const o = wrOpts();
+    const opt = (p) => `<button type="button" class="chip ${o.place === p ? 'is-active' : ''}" aria-pressed="${o.place === p}" onclick="wrSetOpt({ place: '${p}' })"><span aria-hidden="true">${WR_PLACE_ICON[p]}</span> ${escapeHTML(t['wr_place_' + p])}</button>`;
+    return `
+      <div class="card card--tight wr-lobby">
+        <div class="field">
+          <span class="field__label">${escapeHTML(t.wr_place)}</span>
+          <div class="chip-set wr-lobby__places">${['bus', 'kitchen', 'wedding', 'random'].map(opt).join('')}</div>
+        </div>
+        <label class="switch-row" for="wr-surprises">
+          <span class="field__label">${escapeHTML(t.wr_surprises)}</span>
+          <span class="switch">
+            <input type="checkbox" id="wr-surprises" role="switch" ${o.surprises ? 'checked' : ''} onchange="wrSetOpt({ surprises: this.checked })">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </label>
+        <p class="field__hint" style="text-align:center">${escapeHTML(o.surprises ? t.wr_surprises_hint : t.wr_lobby_hint)}</p>
+      </div>`;
+  },
+  startPayload() { const o = wrOpts(); return { place: o.place, surprises: !!o.surprises }; },
+  actionKey(state) {
+    // The screen stays put while the orders run; only a new level or the end scrolls to the top.
+    const s = state.shared || {};
+    return [state.code, roomDealKey(state), s.level, s.phase === 'gameover'].join('|');
+  },
+  render(state) {
+    if (appState.currentView !== 'room-wire') setView('room-wire');
+    const el = document.getElementById('view-room-wire');
+    if (!el) return;
+    wrNoteTime(state);
+    const s = state.shared || {};
+    const panel = ((state.you || {}).panel || []).map((x) => x.c).join(',');
+    const sig = ['wr', s.place, s.level, s.phase === 'gameover', panel, (s.alive || []).indexOf(Room.me) !== -1, state.youAreHost, appState.lang, wrL()].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => wrPhoneHtml(state));
+    if (rebuilt) { wr.hostKey = ''; wrWire(el); }
+    refreshRoomPlayerStrip(el, state);
+    wr.el = el; wr.tv = false;
+    wrPaint(state, el);
+    wrEvents(state, el);
+    if (rebuilt && s.phase === 'gameover') wrOverMotion(state, el);
+    wrStartLoop();
+  }
+};
+
+/* --- input: one listener on the frame --------------------------------------- */
+function wrWire(el) {
+  const root = el.querySelector('[data-wr-root]');
+  if (!root) return;
+  let drag = null;
+  root.addEventListener('pointerdown', (e) => {
+    wrAskMotion();
+    const hit = e.target.closest('[data-wr-act]');
+    if (!hit) return;
+    const act = hit.dataset.wrAct;
+    const ctl = hit.closest('[data-c]');
+    const cid = ctl ? ctl.dataset.c : '';
+    if (act === 'slide') {
+      e.preventDefault();
+      drag = { el: hit, cid };
+      try { hit.setPointerCapture(e.pointerId); } catch (err) {}
+      wrSlideTo(drag, e);
+      return;
+    }
+    if (act === 'press') {
+      hit.classList.remove('is-hit'); void hit.offsetWidth; hit.classList.add('is-hit');
+      setTimeout(() => hit.classList.remove('is-hit'), 140);
+      haptic('light');
+      wrClick(0.8);
+      wrSend('press', { c: cid });
+    }
+  });
+  root.addEventListener('pointermove', (e) => { if (drag) wrSlideTo(drag, e); });
+  const end = () => { if (drag) { wrPaintNow(); drag = null; } };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', end);
+  root.addEventListener('click', (e) => {
+    const hit = e.target.closest('[data-wr-act]');
+    if (!hit) return;
+    const act = hit.dataset.wrAct;
+    const ctl = hit.closest('[data-c]');
+    const cid = ctl ? ctl.dataset.c : '';
+    if (act === 'sw') {
+      const v = wrValue(cid) ? 0 : 1;
+      wrLocal(cid, v);
+      haptic('light'); wrClick(1);
+      wrSend('ctl', { c: cid, v });
+    } else if (act === 'dial') {
+      const v = (wrValue(cid) || 1) % WIRE_VALUES + 1;
+      wrLocal(cid, v);
+      haptic('light'); wrClick(1.2);
+      wrSend('ctl', { c: cid, v });
+    } else if (act === 'wipe') {
+      haptic('light');
+      hit.classList.remove('is-wipe'); void hit.offsetWidth; hit.classList.add('is-wipe');
+      const x = wrMine(cid);
+      if (x && x.b && x.b.k === 'smoke') { x.b.left = Math.max(0, x.b.left - 1); wrPaintNow(); }
+      wrSend('wipe', { c: cid });
+    } else if (act === 'shake') {
+      wrShakeCount(true);
+    }
+  });
+  root.addEventListener('keydown', (e) => {
+    const sl = e.target.closest && e.target.closest('[data-wr-act="slide"]');
+    if (!sl) return;
+    const cid = sl.closest('[data-c]').dataset.c;
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const v = Math.max(1, Math.min(WIRE_VALUES, (wrValue(cid) || 1) + d));
+    if (v !== wrValue(cid)) { wrLocal(cid, v); wrSend('ctl', { c: cid, v }); }
+  });
+}
+
+function wrSlideTo(drag, e) {
+  const r = drag.el.getBoundingClientRect();
+  const vert = drag.el.dataset.o === 'v';
+  const f = vert ? (r.bottom - e.clientY) / r.height : (e.clientX - r.left) / r.width;
+  const v = 1 + Math.round(Math.max(0, Math.min(1, f)) * (WIRE_VALUES - 1));
+  if (v === wrValue(drag.cid)) return;
+  wrLocal(drag.cid, v);
+  haptic('light'); wrClick(0.6 + v * 0.15);
+  wrSend('ctl', { c: drag.cid, v });
+}
+
+function wrSend(action, payload) {
+  const st = Room.state;
+  const s = (st && st.shared) || {};
+  roomAct(action, Object.assign({ lv: s.level }, payload));
+}
+
+/** This phone's own control as the server last sent it. */
+function wrMine(cid) {
+  const panel = ((Room.state && Room.state.you) || {}).panel || [];
+  return panel.find((x) => x.c === cid) || null;
+}
+/** A control's value: this phone's own change until the server has caught up with it. */
+function wrValue(cid) {
+  const l = wr.local[cid];
+  const x = wrMine(cid);
+  const server = x ? x.v : 0;
+  if (l && Date.now() - l.at < 1500 && l.v !== server) return l.v;
+  return server;
+}
+function wrLocal(cid, v) {
+  wr.local[cid] = { v, at: Date.now() };
+  wrPaintNow();
+}
+
+/* --- painting ------------------------------------------------------------------- */
+function wrPaintNow() { if (Room.state && wr.el) (wr.tv ? wrTvPaint : wrPaint)(Room.state, wr.el); }
+
+function wrPaint(state, el) {
+  const t = wrT();
+  const s = state.shared || {};
+  const root = el.querySelector('[data-wr-root]');
+  if (!root) return;
+  const me = Room.me;
+  root.style.setProperty('--p', Math.min(1, (s.progress || 0) / Math.max(1, s.target || 1)).toFixed(3));
+  root.style.setProperty('--d', Math.min(1, (s.damage || 0) / Math.max(1, s.dmgMax || 1)).toFixed(3));
+  const lv = root.querySelector('[data-wr-level]');
+  if (lv) lv.textContent = wrFill(t.wr_level, { n: s.level || 1 });
+  // The controls: values, and whatever is broken.
+  (((state.you || {}).panel) || []).forEach((x) => {
+    const ctl = root.querySelector(`[data-c="${CSS.escape(x.c)}"]`);
+    if (!ctl) return;
+    const c = wireControl(x.c);
+    const v = wrValue(x.c);
+    if (c.t === 'sw') { const b = ctl.querySelector('.wr-sw'); if (b) b.setAttribute('aria-pressed', v ? 'true' : 'false'); }
+    else if (c.t === 'dial') {
+      const k = ctl.querySelector('.wr-dial__knob'); if (k) k.style.setProperty('--r', (-120 + (v - 1) * 60) + 'deg');
+      const n = ctl.querySelector('[data-wr-v]'); if (n && n.textContent !== String(v)) n.textContent = v;
+    } else if (c.t === 'slide') {
+      const sl = ctl.querySelector('.wr-sl'); if (sl) { sl.style.setProperty('--f', ((v - 1) / (WIRE_VALUES - 1)).toFixed(3)); sl.setAttribute('aria-valuenow', v); }
+    }
+    const smoke = x.b && x.b.k === 'smoke';
+    const flip = x.b && x.b.k === 'flip';
+    ctl.classList.toggle('is-smoke', !!smoke);
+    ctl.classList.toggle('is-flip', !!flip);
+    const smk = ctl.querySelector('.wr-smk');
+    if (smk) {
+      smk.hidden = !smoke;
+      const em = smk.querySelector('[data-wr-smk]');
+      const txt = smoke ? wrFill(t.wr_wipe, { n: x.b.left }) : '';
+      if (em && em.textContent !== txt) em.textContent = txt;
+    }
+  });
+  // The order.
+  const ord = root.querySelector('[data-wr-ord]');
+  if (ord) {
+    const o = (s.orders || {})[me];
+    const text = ord.querySelector('[data-wr-otext]');
+    const note = ord.querySelector('[data-wr-onote]');
+    let big = '', small = '';
+    ord.classList.toggle('is-idle', !o);
+    if (s.phase === 'ready') { big = wrFill(t.wr_get_ready, { n: s.level || 1 }); small = t.wr_learn_panel; }
+    else if (s.phase === 'won') { big = wrFill(t.wr_level_won, { n: s.level || 1 }); small = ''; }
+    else if (s.phase === 'gameover') { big = t.wr_game_over; small = ''; }
+    else if (s.shake) { big = t.wr_shake_title; small = ''; }
+    else if (o) {
+      big = wireOrderText(o, wrL());
+      const mine = (((state.you || {}).panel) || []).some((x) => x.c === o.c);
+      small = mine ? '' : t.wr_shout;
+    } else { big = '…'; small = ''; }
+    if (text && text.textContent !== big) {
+      text.textContent = big;
+      if (o && s.phase === 'play' && !motionOff()) { ord.classList.remove('is-new'); void ord.offsetWidth; ord.classList.add('is-new'); }
+    }
+    if (note && note.textContent !== small) note.textContent = small;
+  }
+  // The shake: everyone at once.
+  const sh = root.querySelector('[data-wr-shake]');
+  if (sh) {
+    const on = !!s.shake && s.phase === 'play';
+    const done = on && (s.shake.done || []).indexOf(me) !== -1;
+    sh.hidden = !on;
+    sh.classList.toggle('is-done', done);
+    if (on && wr.shake.id !== s.shake.id) wr.shake = { id: s.shake.id, n: 0, last: 0, sent: done };
+    if (on) {
+      const dots = sh.querySelectorAll('[data-wr-sdots] > i');
+      const n = done ? 3 : wr.shake.n;
+      dots.forEach((d, i) => d.classList.toggle('is-on', i < n));
+      const tap = sh.querySelector('.wr-shake__tap');
+      if (tap) { tap.disabled = done; tap.textContent = done ? t.wr_shake_done : t.wr_shake_tap; }
+    }
+  }
+  // The host's "next level now" while a level is won.
+  const host = el.querySelector('[data-wr-host]');
+  if (host) {
+    const key = [s.phase, s.level, state.youAreHost, !!state.hostAway].join('|');
+    if (wr.hostKey !== key) {
+      wr.hostKey = key;
+      host.innerHTML = s.phase === 'won' ? roomMoveOnHtml(state, roomHostRow([[t.wr_next_now, `roomAct('nextLevel', { lv: ${Number(s.level) || 0} })`, 'secondary']])) : '';
+    }
+  }
+  wrFrame();
+}
+
+/** Every frame while the room is on screen: the order's bar, the clock, the countdowns. */
+function wrFrame() {
+  const st = Room.state;
+  const el = wr.el;
+  if (!st || st.game !== 'wire' || !el || !el.isConnected) return false;
+  const s = st.shared || {};
+  const now = wrNow();
+  const t = wrT();
+  // The level's clock.
+  let clockMs = s.phase === 'ready' ? (s.endsAt || 0) - (s.startAt || 0) : s.phase === 'play' ? (s.endsAt || 0) - now : 0;
+  el.querySelectorAll('[data-wr-clock]').forEach((c) => { const txt = wrClockText(clockMs); if (c.textContent !== txt) c.textContent = txt; c.classList.toggle('is-low', s.phase === 'play' && clockMs < 10000); });
+  const ring = el.querySelector('[data-wr-ring]');
+  if (ring) ring.style.setProperty('--c', Math.max(0, Math.min(1, clockMs / WIRE_LEVEL_MS)).toFixed(3));
+  if (wr.tv) { wrTvFrame(st, el, now); return true; }
+  const root = el.querySelector('[data-wr-root]');
+  if (!root) return true;
+  const o = (s.orders || {})[Room.me];
+  let tt = 0;
+  if (s.phase === 'play' && o && !s.shake) tt = Math.max(0, Math.min(1, (o.ends - now) / Math.max(1, o.ends - o.at)));
+  else if (s.phase === 'play' && o && s.shake) tt = Math.max(0, Math.min(1, (o.ends - s.shake.ends) / Math.max(1, o.ends - o.at - WIRE_SHAKE_MS)));
+  else if (s.phase === 'ready') tt = Math.max(0, Math.min(1, ((s.startAt || 0) - now) / WIRE_READY_MS));
+  else if (s.phase === 'won') tt = Math.max(0, Math.min(1, ((s.nextAt || 0) - now) / WIRE_BETWEEN_MS));
+  root.style.setProperty('--t', tt.toFixed(3));
+  root.classList.toggle('is-hurry', s.phase === 'play' && !!o && tt < 0.35);
+  const note = root.querySelector('[data-wr-onote]');
+  if (note && (s.phase === 'ready' || s.phase === 'won')) {
+    const secs = Math.max(0, Math.ceil(((s.phase === 'ready' ? s.startAt : s.nextAt) - now) / 1000));
+    const txt = s.phase === 'ready' ? t.wr_learn_panel + ' · ' + wrFill(t.wr_orders_in, { n: secs }) : wrFill(t.wr_next_in, { n: secs });
+    if (note.textContent !== txt) note.textContent = txt;
+  }
+  const left = root.querySelector('[data-wr-sleft]');
+  if (left && s.shake) { const txt = Math.max(0, Math.ceil((s.shake.ends - now) / 1000)) + ''; if (left.textContent !== txt) left.textContent = txt; }
+  wrVoiceTick(st, s, now);
+  return true;
+}
+
+function wrStartLoop() {
+  if (wr.loop) return;
+  const step = () => {
+    wr.loop = 0;
+    if (!wrFrame()) return;
+    wr.loop = requestAnimationFrame(step);
+  };
+  wr.loop = requestAnimationFrame(step);
+}
+function wrStopAll() {
+  if (wr.loop) cancelAnimationFrame(wr.loop);
+  wr.loop = 0;
+  wr.el = null;
+  clearTimeout(wr.momentTimer);
+  clearTimeout(wr.toastTimer);
+}
+onLeaveScreen((from) => { if (from === 'room-wire' || (from === 'room-tv' && wr.tv)) wrStopAll(); });
+onRoomClocksReset(() => { if (wr.el) wrStopAll(); });
+
+/* --- the moments: events played once per phone -------------------------------- */
+function wrEvents(state, el) {
+  const s = state.shared || {};
+  const key = roomDealKey(state);
+  const evs = s.events || [];
+  const last = evs.length ? evs[evs.length - 1].seq : 0;
+  if (!(key in wr.seen)) { wr.seen = {}; wr.seen[key] = last; return; }   // a reload or a late join replays nothing
+  const from = wr.seen[key];
+  wr.seen[key] = last;
+  const fresh = evs.filter((e) => e.seq > from);
+  if (!fresh.length) return;
+  const me = Room.me;
+  const voice = wrIsVoice(state);
+  const t = wrT();
+  fresh.forEach((e) => {
+    if (voice) wrSound(e.type === 'done' ? 'done' : e.type === 'miss' ? 'alarm' : e.type === 'break' ? 'crackle' : e.type === 'shake' ? 'whistle'
+      : e.type === 'shakeOk' ? 'ok' : e.type === 'shakeFail' ? 'fail' : e.type === 'won' ? 'won' : e.type === 'lost' ? 'lost' : e.type === 'level' ? 'level' : '');
+    if (wr.tv) { wrTvMoment(state, el, e); return; }
+    if (e.type === 'done' && e.to === me) {
+      wrStamp(el, 'ok', e.by && e.by !== me ? t.wr_done + '\n' + wrFill(t.wr_done_by, { name: wrIso(wrName(state, e.by)) }) : t.wr_done);
+      haptic('light');
+    } else if (e.type === 'done' && e.by === me) {
+      const ctl = el.querySelector(`[data-c="${CSS.escape(e.c)}"]`);
+      if (ctl && !motionOff()) { ctl.classList.remove('is-done'); void ctl.offsetWidth; ctl.classList.add('is-done'); }
+    } else if (e.type === 'miss' && e.to === me) {
+      wrStamp(el, 'bad', t.wr_missed);
+      haptic('heavy');
+    } else if (e.type === 'miss' || e.type === 'shakeFail') {
+      if (e.type === 'shakeFail') wrStamp(el, 'bad', t.wr_shake_fail);
+      const root = el.querySelector('[data-wr-root]');
+      if (root && !motionOff()) { root.classList.remove('is-hurt'); void root.offsetWidth; root.classList.add('is-hurt'); }
+    } else if (e.type === 'break' && e.pid === me) {
+      haptic('medium');
+    } else if (e.type === 'shake') {
+      haptic('heavy');
+    } else if (e.type === 'shakeOk') {
+      wrStamp(el, 'ok', t.wr_shake_ok);
+    } else if (e.type === 'level') {
+      wrStamp(el, 'lvl', wrFill(t.wr_level, { n: e.n }));
+    } else if (e.type === 'won') {
+      wrStamp(el, 'lvl', wrFill(t.wr_level_won, { n: e.n }));
+      haptic('medium');
+    } else if (e.type === 'lost') {
+      wrStamp(el, 'bad', t.wr_game_over);
+      haptic('heavy');
+    }
+  });
+}
+
+function wrStamp(el, kind, text) {
+  const root = el.querySelector('[data-wr-root]');
+  const st = el.querySelector('[data-wr-stamp]');
+  if (!root || !st) return;
+  st.textContent = text;
+  root.classList.remove('is-ok', 'is-bad', 'is-lvl');
+  if (motionOff()) return;
+  void root.offsetWidth;
+  root.classList.add('is-' + kind);
+  clearTimeout(wr.momentTimer);
+  wr.momentTimer = setTimeout(() => root.classList.remove('is-ok', 'is-bad', 'is-lvl'), kind === 'lvl' ? 1500 : 900);
+}
+
+function wrOverMotion(state, el) {
+  const n = el.querySelector('[data-wr-won]');
+  const card = el.querySelector('.wr-over');
+  if (n && card && card.classList.contains('wr-over--rise')) countUp(n, 0, Number(n.dataset.to) || 0);
+  const s = state.shared || {};
+  if (card && s.newBest && (s.levelsWon || 0) > 0) afterReveal(card, () => { if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } }); });
+}
+
+/* --- «الكل يهز الموبايل!»: the phone's motion, or three taps ----------------------- */
+function wrAskMotion() {
+  if (wr.motion) return;
+  const listen = () => { wr.motion = 'on'; window.addEventListener('devicemotion', wrOnMotion); };
+  if (typeof DeviceMotionEvent === 'undefined') { wr.motion = 'no'; return; }
+  if (typeof DeviceMotionEvent.requestPermission === 'function') {
+    wr.motion = 'asking';
+    // iOS asks only inside a tap: this runs in the first tap on the panel.
+    DeviceMotionEvent.requestPermission().then((r) => { if (r === 'granted') listen(); else wr.motion = 'no'; }).catch(() => { wr.motion = 'no'; });
+  } else listen();
+}
+function wrOnMotion(e) {
+  const st = Room.state;
+  if (!st || st.game !== 'wire' || !st.shared || !st.shared.shake) return;
+  const a = e.acceleration && e.acceleration.x !== null ? e.acceleration : null;
+  const g = e.accelerationIncludingGravity;
+  let hard = false;
+  if (a) hard = Math.hypot(a.x || 0, a.y || 0, a.z || 0) > 12;
+  else if (g) hard = Math.abs(Math.hypot(g.x || 0, g.y || 0, g.z || 0) - 9.8) > 10;
+  if (hard) wrShakeCount(false);
+}
+function wrShakeCount(tap) {
+  const st = Room.state;
+  const s = (st && st.shared) || {};
+  if (!s.shake || s.phase !== 'play' || (s.shake.done || []).indexOf(Room.me) !== -1) return;
+  if (wr.shake.id !== s.shake.id) wr.shake = { id: s.shake.id, n: 0, last: 0, sent: false };
+  const now = Date.now();
+  if (!tap && now - wr.shake.last < 180) return;
+  wr.shake.last = now;
+  if (wr.shake.sent) return;
+  wr.shake.n += 1;
+  haptic('light');
+  if (wr.shake.n >= 3) {
+    wr.shake.sent = true;
+    roomAct('shake', { id: s.shake.id });
+  }
+  wrPaintNow();
+}
+
+/* --- the sounds: the voice's alarms, loud and a bit tense ---------------------- */
+function wrClick(pitch) {
+  try { fxTone('triangle', [[0, 260 * (pitch || 1)]], [[0, 0.06], [0.04, 0.001]], fxCtx().currentTime + 0.005); } catch (e) {}
+}
+function wrSound(kind) {
+  if (!kind) return;
+  try {
+    const at = fxCtx().currentTime + 0.01;
+    if (kind === 'alarm') {
+      // A two-tone klaxon, three times: the order was missed.
+      for (let k = 0; k < 3; k++) {
+        fxTone('square', [[0, 880]], [[0, 0.0001], [0.01, 0.22], [0.14, 0.2], [0.16, 0.0001]], at + k * 0.3);
+        fxTone('square', [[0, 660]], [[0, 0.0001], [0.01, 0.22], [0.12, 0.2], [0.14, 0.0001]], at + k * 0.3 + 0.15);
+      }
+      fxTone('sawtooth', [[0, 110], [0.9, 70]], [[0, 0.16], [0.9, 0.001]], at);
+    } else if (kind === 'done') {
+      fxTone('sine', [[0, 740], [0.08, 1110]], [[0, 0.14], [0.16, 0.001]], at);
+    } else if (kind === 'crackle') {
+      for (let k = 0; k < 5; k++) fxNoise('bandpass', 1400 + k * 500, 3, [[0, 0.3], [0.05, 0.001]], at + k * 0.07);
+      fxNoise('lowpass', 400, 0.7, [[0, 0.25], [0.6, 0.001]], at + 0.3);
+    } else if (kind === 'whistle') {
+      fxTone('sine', [[0, 500], [0.6, 1600]], [[0, 0.2], [0.55, 0.2], [0.7, 0.001]], at);
+      fxTone('sine', [[0, 500], [0.6, 1600]], [[0, 0.2], [0.55, 0.2], [0.7, 0.001]], at + 0.8);
+    } else if (kind === 'danger') {
+      fxTone('square', [[0, 440]], [[0, 0.0001], [0.01, 0.14], [0.09, 0.0001]], at);
+    } else if (kind === 'tick') {
+      fxTone('triangle', [[0, 1200]], [[0, 0.12], [0.05, 0.001]], at);
+    } else if (kind === 'level') {
+      fxTone('sawtooth', [[0, 220], [0.25, 330]], [[0, 0.16], [0.3, 0.001]], at);
+      fxTone('sawtooth', [[0, 330], [0.25, 440]], [[0, 0.16], [0.35, 0.001]], at + 0.3);
+    } else if (kind === 'ok') playFx('ding');
+    else if (kind === 'fail') playFx('buzzer');
+    else if (kind === 'won') playFx('tada');
+    else if (kind === 'lost') playFx('sad');
+  } catch (e) {}
+}
+/** On the voice: a tense beep while the damage is one short of the end, and the last ten seconds ticking. */
+function wrVoiceTick(st, s, now) {
+  if (s.phase !== 'play' || !wrIsVoice(st)) return;
+  if ((s.damage || 0) >= (s.dmgMax || 5) - 1 && Date.now() - wr.beepAt > 1200) { wr.beepAt = Date.now(); wrSound('danger'); }
+  const left = Math.ceil(((s.endsAt || 0) - now) / 1000);
+  if (left <= 10 && left > 0 && left !== wr.tickSec) { wr.tickSec = left; wrSound('tick'); }
+}
+
+/* --- the big screen: each place its own scene ----------------------------------- */
+function wrTvBusSvg() {
+  return `<svg class="wr-scn" viewBox="0 0 960 540" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+    <rect width="960" height="540" fill="#ffe3ad"/><circle cx="820" cy="150" r="54" fill="#fff4c4" stroke="#f59e0b" stroke-width="6"/>
+    <path d="M0 330 Q160 260 330 320 T700 300 T960 320 V540 H0Z" fill="#f2c27b" stroke="#221f36" stroke-width="4"/>
+    <path d="M0 385 Q240 345 480 385 T960 372 V540 H0Z" fill="#e9ad5f" stroke="#221f36" stroke-width="4"/>
+    <rect y="410" width="960" height="70" fill="#5b5566" stroke="#221f36" stroke-width="4"/>
+    <path class="wr-lane" d="M20 446 H940" stroke="#fff" stroke-width="6" stroke-dasharray="40 30"/>
+    <g transform="translate(130 250)"><rect x="-5" y="0" width="10" height="160" fill="#8a6b4a" stroke="#221f36" stroke-width="3"/><rect x="-82" y="-8" width="164" height="54" rx="8" fill="#1f8a4c" stroke="#221f36" stroke-width="4"/><text x="0" y="27" text-anchor="middle" font-size="21" fill="#fff" font-weight="700" font-family="IBM Plex Sans Arabic,Tahoma">${escapeHTML(wrT().wr_tv_sign)}</text></g>
+    <g transform="translate(700 300)" fill="#6fae5c" stroke="#221f36" stroke-width="4"><path d="M0 110 V20 Q0 0 14 0 Q28 0 28 20 V110Z"/><path d="M0 60 H-18 V36" fill="none"/><path d="M28 50 H44 V26" fill="none"/></g>
+    <g class="wr-bus" transform="translate(330 250)"><g class="wr-bus__body">
+      <rect x="60" y="-20" width="120" height="30" rx="6" fill="#c0392b" stroke="#221f36" stroke-width="4"/><rect x="190" y="-14" width="70" height="24" rx="6" fill="#f59e0b" stroke="#221f36" stroke-width="4"/>
+      <path d="M10 40 Q10 10 40 10 H300 Q350 10 370 60 L380 150 H10Z" fill="#fff" stroke="#221f36" stroke-width="6" stroke-linejoin="round"/>
+      <rect x="10" y="95" width="370" height="20" fill="#2f6fd6" stroke="#221f36" stroke-width="4"/>
+      <g fill="#bfe3ff" stroke="#221f36" stroke-width="4"><rect x="30" y="28" width="58" height="50" rx="6"/><rect x="100" y="28" width="58" height="50" rx="6"/><rect x="170" y="28" width="58" height="50" rx="6"/><rect x="240" y="28" width="58" height="50" rx="6"/><path d="M312 28 H336 Q356 30 364 78 H312Z"/></g>
+      <circle cx="330" cy="54" r="13" fill="#f2c4a0" stroke="#221f36" stroke-width="3"/><path d="M322 60 q8 5 16 0" stroke="#221f36" stroke-width="3" fill="none"/>
+      <circle cx="60" cy="48" r="11" fill="#f2c4a0" stroke="#221f36" stroke-width="3"/><circle cx="200" cy="50" r="11" fill="#f2c4a0" stroke="#221f36" stroke-width="3"/>
+      <g><circle cx="85" cy="150" r="32" fill="#221f36"/><circle cx="85" cy="150" r="13" fill="#bbb"/><circle cx="300" cy="150" r="32" fill="#221f36"/><circle cx="300" cy="150" r="13" fill="#bbb"/></g>
+      <circle class="wr-hz" cx="372" cy="120" r="9" stroke="#221f36" stroke-width="3"/><circle class="wr-hz" cx="18" cy="120" r="9" stroke="#221f36" stroke-width="3"/>
+      <g class="wr-puff"><circle cx="360" cy="40" r="18"/><circle cx="372" cy="30" r="14"/><circle cx="350" cy="36" r="16"/></g>
+    </g></g></svg>`;
+}
+function wrTvGaugeSvg() {
+  return `<svg viewBox="0 0 110 62" aria-hidden="true"><path d="M8 56 A47 47 0 0 1 102 56" fill="none" stroke="#3c3552" stroke-width="12"/><path d="M8 56 A47 47 0 0 1 55 9" fill="none" stroke="#3ddc84" stroke-width="12"/><path d="M55 9 A47 47 0 0 1 85 20" fill="none" stroke="#ffb938" stroke-width="12"/><path d="M85 20 A47 47 0 0 1 102 56" fill="none" stroke="#ff5f57" stroke-width="12"/><g class="wr-nd"><path d="M52 56 L55 14 L58 56Z" fill="#fff" stroke="#000" stroke-width="2"/></g><circle cx="55" cy="56" r="6" fill="#fff" stroke="#000" stroke-width="2"/></svg>`;
+}
+function wrTvKitchenSvg() {
+  return `<svg class="wr-scn" viewBox="0 0 710 520" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+    <defs><pattern id="wrTile" width="44" height="44" patternUnits="userSpaceOnUse"><rect width="44" height="44" fill="#fdf1e4"/><path d="M0 0 H44 V44" fill="none" stroke="#efd6bd" stroke-width="3"/></pattern></defs>
+    <rect width="710" height="520" fill="url(#wrTile)"/>
+    <rect x="100" y="60" width="170" height="130" rx="8" fill="#243a6b" stroke="#221f36" stroke-width="6"/><path d="M185 60 V190 M100 125 H270" stroke="#221f36" stroke-width="5"/><circle cx="230" cy="92" r="16" fill="#fff4c4"/>
+    <circle cx="480" cy="92" r="46" fill="#fff" stroke="#221f36" stroke-width="6"/><path class="wr-hand" d="M480 92 L480 60" stroke="#221f36" stroke-width="5" stroke-linecap="round"/><path d="M480 92 L500 100" stroke="#e5383b" stroke-width="4" stroke-linecap="round"/>
+    <rect y="330" width="710" height="34" fill="#c98b5a" stroke="#221f36" stroke-width="5"/><rect y="364" width="710" height="160" fill="#e6a86e" stroke="#221f36" stroke-width="5"/>
+    <path d="M180 364 V520 M360 364 V520 M540 364 V520" stroke="#221f36" stroke-width="4"/>
+    <rect x="180" y="270" width="250" height="62" rx="8" fill="#fff" stroke="#221f36" stroke-width="5"/>
+    <g><path class="wr-flm" d="M232 272 q-12 -14 0 -30 q4 12 10 6 q8 16 -10 24Z" fill="#ff9b57" stroke="#221f36" stroke-width="3"/><path class="wr-flm" d="M372 272 q-12 -14 0 -30 q4 12 10 6 q8 16 -10 24Z" fill="#ff9b57" stroke="#221f36" stroke-width="3"/></g>
+    <g transform="translate(190 190)"><rect x="0" y="0" width="100" height="74" rx="10" fill="#9aa4b1" stroke="#221f36" stroke-width="5"/><rect x="-8" y="-8" width="116" height="16" rx="8" fill="#7c8593" stroke="#221f36" stroke-width="5"/><path d="M16 26 q14 -10 28 0 q14 10 28 0 M16 46 q14 -10 28 0 q14 10 28 0" stroke="#4f7d3a" stroke-width="5" fill="none"/><g class="wr-stm"><circle cx="50" cy="-14" r="14"/><circle cx="36" cy="-14" r="12"/></g></g>
+    <g transform="translate(330 214)"><path d="M0 50 Q0 0 40 0 Q80 0 80 50Z" fill="#e5383b" stroke="#221f36" stroke-width="5"/><rect x="-6" y="48" width="92" height="10" rx="5" fill="#221f36"/></g>
+    <g transform="translate(520 250)"><rect x="0" y="40" width="140" height="44" fill="#cfd8e3" stroke="#221f36" stroke-width="5"/><path d="M40 40 V0 H86 V16" fill="none" stroke="#221f36" stroke-width="10"/><path d="M40 40 V0 H86 V16" fill="none" stroke="#2f6fd6" stroke-width="5"/><circle cx="86" cy="26" r="5" fill="#2f6fd6"/></g>
+  </svg>`;
+}
+function wrTvWeddingSvg() {
+  const bulbs = [[40, 128], [120, 146], [200, 154], [280, 150], [360, 140], [440, 126], [520, 116], [600, 114], [680, 118], [760, 124], [840, 126], [920, 120]]
+    .map(([x, y]) => `<circle class="wr-blb" cx="${x}" cy="${y}" r="14"/>`).join('');
+  return `<svg class="wr-scn" viewBox="0 0 960 540" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+    <rect width="960" height="540" fill="#1b1236"/><g fill="#fff" opacity=".7"><circle cx="90" cy="150" r="2"/><circle cx="260" cy="190" r="2"/><circle cx="700" cy="170" r="2"/><circle cx="880" cy="210" r="2"/><circle cx="520" cy="200" r="2"/></g>
+    <rect y="400" width="960" height="140" fill="#3b2d6b"/>
+    <path d="M0 110 Q240 180 480 120 T960 110" fill="none" stroke="#221f36" stroke-width="4"/>
+    <g data-wr-bulbs>${bulbs}</g>
+    <path d="M300 400 V250 Q300 190 480 190 Q660 190 660 250 V400Z" fill="#7c3aed" stroke="#221f36" stroke-width="6"/>
+    <path d="M330 400 V260 Q330 220 480 220 Q630 220 630 260 V400Z" fill="#b794f6" stroke="#221f36" stroke-width="5"/>
+    <rect x="360" y="330" width="240" height="60" rx="18" fill="#fff" stroke="#221f36" stroke-width="5"/>
+    <g class="wr-dance"><circle cx="435" cy="268" r="22" fill="#f2c4a0" stroke="#221f36" stroke-width="4"/><path d="M413 262 Q420 238 450 244 Q470 252 460 290 L466 350 H404 L410 290Z" fill="#fff" stroke="#221f36" stroke-width="4"/><path d="M400 390 L420 300 H450 L470 390Z" fill="#fff" stroke="#221f36" stroke-width="4"/></g>
+    <g class="wr-dance"><circle cx="525" cy="262" r="22" fill="#f2c4a0" stroke="#221f36" stroke-width="4"/><path d="M503 256 Q510 236 525 238 Q544 238 547 256" fill="#221f36"/><path d="M500 290 H550 L556 390 H494Z" fill="#221f36" stroke="#221f36" stroke-width="4"/><path d="M518 292 L525 312 L532 292" fill="#fff"/></g>
+    <g stroke="#221f36" stroke-width="5"><rect x="150" y="270" width="80" height="130" rx="8" fill="#2d2350"/><circle class="wr-cone" cx="190" cy="310" r="22" fill="#4b4270"/><circle cx="190" cy="370" r="14" fill="#4b4270"/><rect x="730" y="270" width="80" height="130" rx="8" fill="#2d2350"/><circle class="wr-cone" cx="770" cy="310" r="22" fill="#4b4270"/><circle cx="770" cy="370" r="14" fill="#4b4270"/></g>
+  </svg>`;
+}
+const WR_GUEST_COLORS = ['#e5387b', '#2f6fd6', '#1f9d55', '#f59e0b', '#7c3aed', '#e5383b'];
+function wrGuestsHtml() {
+  return WR_GUEST_COLORS.map((col, k) => `<div class="wr-gst"><svg viewBox="0 0 80 84" aria-hidden="true"><path d="M8 84 Q8 54 40 54 Q72 54 72 84Z" fill="${col}" stroke="#221f36" stroke-width="4"/><circle cx="40" cy="32" r="22" fill="#f2c4a0" stroke="#221f36" stroke-width="4"/>${k % 2
+    ? '<path d="M18 30 Q18 8 40 8 Q62 8 62 30 L62 50 Q40 44 18 50Z" fill="#6b4ea0" stroke="#221f36" stroke-width="3"/><circle cx="40" cy="34" r="16" fill="#f2c4a0"/>'
+    : '<path d="M18 26 Q24 8 40 10 Q58 8 62 26 Q50 18 40 18 Q28 18 18 26Z" fill="#3b2a20"/>'}<circle cx="33" cy="32" r="3" fill="#221f36"/><circle cx="47" cy="32" r="3" fill="#221f36"/><path class="wr-hap" d="M32 40 Q40 47 48 40" stroke="#221f36" stroke-width="3" fill="none" stroke-linecap="round"/><path class="wr-sad" d="M32 45 Q40 38 48 45" stroke="#221f36" stroke-width="3" fill="none" stroke-linecap="round"/></svg></div>`).join('');
+}
+
+function wrTvHtml(state, t) {
+  const s = state.shared || {};
+  const place = s.place || 'bus';
+  const card = `<div class="wr-tvcard" data-wr-tvcard hidden></div><div class="wr-toast" data-wr-toast></div><div class="wr-flash"></div>`;
+  if (place === 'kitchen') {
+    return `<div class="wr-tv wr-tv--kitchen" data-wr-tv>
+      <div class="wr-tv__scene">${wrTvKitchenSvg()}
+        <div class="wr-kclock">${escapeHTML(t.wr_tv_guests_in)} <b class="metric" data-wr-clock dir="ltr">1:15</b></div>
+        <div class="wr-smokem"><i></i></div><div class="wr-smokel">${escapeHTML(t.wr_dmg_kitchen)}</div>
+        <div class="wr-plates"><span class="wr-plates__lbl">${escapeHTML(t.wr_prog_kitchen)}</span>${'<span class="wr-plate"></span>'.repeat(10)}</div>
+        <div class="wr-tv__lv" data-wr-level></div>
+      </div>
+      <div class="wr-fridge"><h4>${escapeHTML(t.wr_tv_fridge)}</h4><div class="wr-fridge__notes" data-wr-notes></div></div>
+      ${card}</div>`;
+  }
+  if (place === 'wedding') {
+    return `<div class="wr-tv wr-tv--wedding" data-wr-tv>
+      ${wrTvWeddingSvg()}
+      <span class="wr-tv__lv" data-wr-level></span>
+      <div class="wr-clockc" data-wr-ring><b class="metric" data-wr-clock dir="ltr">1:15</b></div>
+      <div class="wr-legend">${escapeHTML(t.wr_tv_legend_wedding)}</div>
+      <div class="wr-gbub" data-wr-tick>—</div>
+      <div class="wr-crowd">${wrGuestsHtml()}</div>
+      ${card}</div>`;
+  }
+  return `<div class="wr-tv wr-tv--bus" data-wr-tv>
+    ${wrTvBusSvg()}
+    <div class="wr-hud">
+      <span class="wr-tv__lv" data-wr-level></span>
+      <div class="wr-road"><div class="wr-road__goal">${escapeHTML(t.wr_tv_goal)} 🏁</div><svg class="wr-road__bus" viewBox="0 0 60 40" aria-hidden="true"><path d="M3 10 Q3 3 10 3 H44 Q54 3 57 14 L58 34 H3Z" fill="#fff" stroke="#000" stroke-width="3"/><rect x="3" y="22" width="55" height="5" fill="#2f6fd6"/><circle cx="14" cy="35" r="5"/><circle cx="46" cy="35" r="5"/></svg></div>
+      <div class="wr-gauge">${wrTvGaugeSvg()}<span>${escapeHTML(t.wr_dmg_bus)}</span></div>
+      <span class="wr-led metric" data-wr-clock dir="ltr">1:15</span>
+    </div>
+    <div class="wr-ticker"><span>${escapeHTML(t.wr_tv_last)}</span><b data-wr-tick>—</b></div>
+    ${card}</div>`;
+}
+
+TV_GAMES.wire = {
+  sig(state) {
+    const s = state.shared || {};
+    return ['wire', roomDealKey(state), s.place, s.level, s.phase === 'gameover', (s.alive || []).join(','), state.youAreHost, appState.lang, wrL()].join('|');
+  },
+  frame(state, t) { return wrTvHtml(state, t); },
+  after(state, rebuilt) {
+    const el = document.getElementById('view-room-tv');
+    if (!el) return;
+    wrNoteTime(state);
+    if (rebuilt) wr.noteKey = '';
+    wr.el = el; wr.tv = true;
+    wrTvPaint(state, el);
+    wrEvents(state, el);
+    wrStartLoop();
+  }
+};
+
+/** The latest order given out: what the bus's ticker and the uncle shout. */
+function wrLatestOrder(s) {
+  let best = null;
+  Object.keys(s.orders || {}).forEach((pid) => { const o = s.orders[pid]; if (o && (!best || o.at > best.at)) best = o; });
+  return best;
+}
+
+function wrTvPaint(state, el) {
+  const t = wrT();
+  const s = state.shared || {};
+  const tv = el.querySelector('[data-wr-tv]');
+  if (!tv) return;
+  const p = Math.min(1, (s.progress || 0) / Math.max(1, s.target || 1));
+  const d = Math.min(1, (s.damage || 0) / Math.max(1, s.dmgMax || 1));
+  tv.style.setProperty('--p', p.toFixed(3));
+  tv.style.setProperty('--d', d.toFixed(3));
+  tv.classList.toggle('is-hot', d >= 0.5);
+  el.querySelectorAll('[data-wr-level]').forEach((x) => { x.textContent = wrFill(t.wr_level, { n: s.level || 1 }); });
+  const light = (sel, frac) => { const list = tv.querySelectorAll(sel); const n = Math.round(frac * list.length); list.forEach((x, i) => { const on = i < n; if (x.classList.contains('is-on') !== on) { x.classList.toggle('is-on', on); if (on && !motionOff()) { x.classList.remove('is-pop'); void x.getBoundingClientRect(); x.classList.add('is-pop'); } } }); };
+  light('.wr-plate', p);
+  light('.wr-blb', p);
+  light('.wr-gst', d);
+  const tick = tv.querySelector('[data-wr-tick]');
+  if (tick) {
+    const o = wrLatestOrder(s);
+    const txt = s.phase === 'play' && s.shake ? t.wr_shake_title : o ? wireOrderText(o, wrL()) : '—';
+    if (tick.textContent !== txt) tick.textContent = txt;
+  }
+  // The kitchen's fridge: every phone's order, each with its fuse.
+  const notes = tv.querySelector('[data-wr-notes]');
+  if (notes) {
+    const alive = s.alive || [];
+    const key = alive.map((pid) => pid + ':' + ((s.orders || {})[pid] ? s.orders[pid].id : '-')).join(',') + '|' + wrL() + '|' + !!s.shake;
+    if (wr.noteKey !== key) {
+      wr.noteKey = key;
+      notes.innerHTML = alive.map((pid, i) => {
+        const o = (s.orders || {})[pid];
+        const txt = s.shake ? t.wr_shake_title : o ? wireOrderText(o, wrL()) : '…';
+        return `<div class="wr-note ${i % 2 ? 'wr-note--b' : ''} ${o ? '' : 'is-idle'}" data-wr-note="${escapeHTML(pid)}"><small>${escapeHTML(wrFill(t.wr_tv_phone_of, { name: wrIso(wrName(state, pid)) }))}</small><span>${escapeHTML(txt)}</span><i></i></div>`;
+      }).join('');
+    }
+  }
+  // The level's card over the scene: ready, won, the end.
+  const card = tv.querySelector('[data-wr-tvcard]');
+  if (card) {
+    let html = '';
+    if (s.phase === 'ready') html = `<div class="wr-tvcard__big">${escapeHTML(wrFill(t.wr_level, { n: s.level || 1 }))}</div><div class="wr-tvcard__line">${escapeHTML(wrFill(t.wr_tv_target, { n: s.target || 0 }))}</div><div class="wr-tvcard__line metric" data-wr-cd></div>`;
+    else if (s.phase === 'won') html = `<div class="wr-tvcard__big">🎉 ${escapeHTML(wrFill(t.wr_level_won, { n: s.level || 1 }))}</div><div class="wr-tvcard__line" data-wr-cd></div>${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.wr_next_now, `roomAct('nextLevel', { lv: ${Number(s.level) || 0} })`, 'secondary')}</div>`)}`;
+    else if (s.phase === 'gameover') {
+      const why = s.why === 'time' ? t.wr_over_time : s.why === 'left' ? t.wr_over_left : t.wr_over_damage;
+      html = `<div class="wr-tvcard__line">${escapeHTML(why)}</div><div class="wr-tvcard__big metric">${s.levelsWon || 0}</div><div class="wr-tvcard__line">${escapeHTML(t.wr_levels_cleared)}</div>
+        <div class="wr-tvcard__line">${s.newBest ? '🏆 ' + escapeHTML(t.wr_new_best) + ' · ' : ''}${escapeHTML(wrFill(t.wr_room_best, { n: s.best || 0 }))}</div>
+        ${state.youAreHost ? `<div class="tv-actions">${tvBtn('▶ ' + t.wr_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+    }
+    const key = [s.phase, s.level, s.levelsWon, s.best, state.youAreHost, !!state.hostAway, appState.lang].join('|');
+    if (card.dataset.key !== key) {
+      card.dataset.key = key;
+      card.innerHTML = html;
+      card.hidden = !html;
+      if (html && !motionOff()) { card.classList.remove('is-in'); void card.offsetWidth; card.classList.add('is-in'); }
+    }
+  }
+  wrFrame();
+}
+
+function wrTvFrame(st, el, now) {
+  const s = st.shared || {};
+  const t = wrT();
+  el.querySelectorAll('[data-wr-note]').forEach((n) => {
+    const o = (s.orders || {})[n.dataset.wrNote];
+    const i = n.querySelector('i');
+    if (!i) return;
+    const f = o && s.phase === 'play' ? Math.max(0, Math.min(1, ((s.shake ? o.ends - (s.shake.ends - now) : o.ends) - now) / Math.max(1, o.ends - o.at))) : 0;
+    i.style.transform = 'scaleX(' + f.toFixed(3) + ')';
+  });
+  const cd = el.querySelector('[data-wr-cd]');
+  if (cd) {
+    const secs = Math.max(0, Math.ceil(((s.phase === 'ready' ? s.startAt : s.nextAt) - now) / 1000));
+    const txt = s.phase === 'ready' ? wrFill(t.wr_orders_in, { n: secs }) : wrFill(t.wr_next_in, { n: secs });
+    if (cd.textContent !== txt) cd.textContent = txt;
+  }
+  const tv = el.querySelector('[data-wr-tv]');
+  if (tv) tv.classList.toggle('is-alarm-soon', s.phase === 'play' && (s.endsAt || 0) - now < 10000);
+  wrVoiceTick(st, s, now);
+}
+
+/** A moment on the TV: the scene reacts, a toast says what broke, the frame flashes on a miss. */
+function wrTvMoment(state, el, e) {
+  const tv = el.querySelector('[data-wr-tv]');
+  if (!tv) return;
+  const t = wrT();
+  const moment = e.type === 'done' || e.type === 'shakeOk' || e.type === 'won' ? 'ok' : e.type === 'miss' || e.type === 'shakeFail' ? 'bad' : e.type === 'break' ? 'smoke' : e.type === 'shake' ? 'shake' : '';
+  if (!moment) return;
+  if (!motionOff()) {
+    tv.dataset.moment = moment;
+    clearTimeout(wr.momentTimer);
+    wr.momentTimer = setTimeout(() => { delete tv.dataset.moment; }, 1600);
+    if (moment === 'bad') { tv.classList.remove('is-alarm'); void tv.offsetWidth; tv.classList.add('is-alarm'); }
+  }
+  const tick = tv.querySelector('[data-wr-tick]');
+  if (tick && (e.type === 'done' || e.type === 'miss')) tick.textContent = wireOrderText(e, wrL()) || tick.textContent;
+  let msg = '';
+  if (e.type === 'break') msg = wrFill(e.k === 'smoke' ? t.wr_tv_smoke : t.wr_tv_flip, { name: wrIso(wrName(state, e.pid)), c: wireName(e.c, wrL()) });
+  else if (e.type === 'shake') msg = t.wr_shake_title + ' 📳';
+  else if (e.type === 'shakeFail') msg = t.wr_shake_fail;
+  if (msg) {
+    const toast = tv.querySelector('[data-wr-toast]');
+    if (toast) {
+      toast.textContent = msg;
+      toast.classList.add('is-on');
+      clearTimeout(wr.toastTimer);
+      wr.toastTimer = setTimeout(() => toast.classList.remove('is-on'), 3200);
+    }
+  }
+}
+</script>

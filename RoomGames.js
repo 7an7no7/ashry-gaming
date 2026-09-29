@@ -109,6 +109,7 @@ const clearGameState = (room) => {
   room._est = null;
   room._chairs = null;   // الكراسي الموسيقية: the stop moment and the fake pauses (RoomChairs.js)
   room._witness = null;  // الشاهد: the real face and its place in the lineup (RoomWitness.js)
+  room._wire = null;     // سلك مقطوع: the panels, the controls' states, what is broken (RoomWire.js); the room's best (_wireBest) stays
   // The engine's secret and boards (RoomSolve.js).
   room._solve = null;
   // A bot's next move belonged to the game that was cleared.
@@ -150,6 +151,8 @@ const ROOM_GAME_IDS = [
   'bowling',
   // الكراسي الموسيقية (RoomChairs.js): the music stops, the fastest taps get the chairs.
   'chairs',
+  // سلك مقطوع (RoomWire.js): every phone a panel, orders shouted across the table, levels until you lose.
+  'wire',
   // عربيات التصادم (RoomBumper.js): the TV runs the game, every phone steers a car (the controllers test).
   'bumper',
   // كدّاب (RoomDoubt.js) and الشايب (RoomOldMaid.js): the playing cards.
@@ -675,6 +678,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'battleship': battleshipAction(room, playerId, action, payload); break;  // RoomBattleship.js
     case 'chairs':     chairsAction(room, playerId, action, payload); break;      // RoomChairs.js
     case 'witness':    witnessAction(room, playerId, action, payload); break;     // RoomWitness.js
+    case 'wire':       wireAction(room, playerId, action, payload); break;        // RoomWire.js
     case 'bumper':     bumperAction(room, playerId, action, payload); break;      // RoomBumper.js
     case 'chess':      chessAction(room, playerId, action, payload); break;       // RoomChess.js
     case 'votechess':  voteChessAction(room, playerId, action, payload); break;   // RoomVoteChess.js
@@ -3663,6 +3667,7 @@ const gameDeadline = (room) => {
   if (room.game === 'minigolf') return mgDeadline(room);
   if (room.game === 'chairs') return chairsDeadline(room);
   if (room.game === 'witness') return witnessDeadline(room);
+  if (room.game === 'wire') return wireDeadline(room);
   if (room.game === 'bumper') return bumperDeadline(room);
   if (svKindOf(room)) return svDeadline(room);   // RoomSolve.js
   return null;
@@ -3795,6 +3800,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'minigolf') return mgTimeout(room, now);
   if (room.game === 'chairs') return chairsTimeout(room, now);
   if (room.game === 'witness') return witnessTimeout(room, now);
+  if (room.game === 'wire') return wireTimeout(room, now);
   if (room.game === 'bumper') return bumperTimeout(room, now);
   return false;
 };
@@ -3903,6 +3909,8 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'witness':
       witnessPlayerLeft(room, playerId);
+    case 'wire':
+      wirePlayerLeft(room, playerId);
       return;
     case 'bumper':
       bumperPlayerLeft(room, playerId);

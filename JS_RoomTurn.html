@@ -52,6 +52,8 @@ function roomTurnOf(state) {
     case 'witness':
       if (s.phase === 'ready' && s.witnessId === me) return 'turn_witness';
       return s.phase === 'draw' && s.artistId === me ? 'turn_draw' : null;
+    case 'wire':
+      return s.phase === 'play' && (s.alive || []).indexOf(me) !== -1 && !!(s.orders || {})[me] ? 'turn_wire' : null;
     case 'chairs':
       return s.phase === 'sit' && (s.alive || []).indexOf(me) !== -1 && !(s.sits || []).some(x => x.id === me) ? 'turn_chairs' : null;
     case 'drawguess':

@@ -738,6 +738,70 @@ async function chairsRobots() {
   [H, J, K, late, TV].forEach((x) => x.close());
 }
 
+/* --- سلك مقطوع: panels on their own phones, orders done by whoever holds the control, damage, a level won, the end --- */
+async function wireRobots() {
+  console.log('• سلك مقطوع (own panels, an order shouted and done by its holder, a miss, a level won, the damage, play again)');
+  const H = await Bot.host('هبة', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  const three = [H, J, K];
+  await H.must('chooseGame', { game: 'wire' });
+  check((await J.act('start', { place: 'bus', surprises: false })).ok === false, 'wire: only the host starts');
+  await H.must('start', { place: 'bus', surprises: false });
+  await all(three.concat([TV]), (s) => s.game === 'wire' && s.shared.phase === 'ready' && s.shared.level === 1 && s.shared.place === 'bus',
+    'wire: level 1\'s card on every phone and the TV');
+  const panels = three.map((b) => ((b.state.you || {}).panel || []).map((x) => x.c));
+  const flat = [].concat(...panels);
+  check(panels.every((p) => p.length === 6) && new Set(flat).size === flat.length, 'wire: three phones, six controls each, none on two phones');
+  check(TV.state.you === null, 'wire: the TV holds no panel');
+  const late = await Bot.join(H.code, 'متأخر');
+  check(late.state.inGame === false && !(late.state.you && late.state.you.panel), 'wire: someone who joins mid-game watches, with no panel');
+  await all(three, (s) => s.shared.phase === 'play' && three.every((b) => s.shared.orders[b.pid]), 'wire: the orders start with the clock, one on every phone', 9000);
+  const holder = (cid) => three.find((b) => ((b.state.you || {}).panel || []).some((x) => x.c === cid));
+  const doIt = async (o) => {
+    const h = holder(o.c);
+    if (!h) return false;
+    const lv = h.state.shared.level;
+    if (o.n) { for (let k = 0; k < o.n; k++) await h.act('press', { c: o.c, lv }); } else await h.act('ctl', { c: o.c, v: o.v, lv });
+    return true;
+  };
+  // An order done by whoever holds its control, and a control worked from the wrong phone.
+  const o1 = H.state.shared.orders[H.pid];
+  const wrong = three.find((b) => b !== holder(o1.c));
+  check((await wrong.act(o1.n ? 'press' : 'ctl', { c: o1.c, v: o1.v, lv: 1 })).ok === false, 'wire: a control can be worked only from its own phone');
+  await doIt(o1);
+  await all(three.concat([TV]), (s) => s.shared.progress >= 1 && s.shared.events.some((e) => e.type === 'done' && e.to === H.pid), 'wire: the order done reaches every screen, with who did it');
+  // A miss: nobody does J's order.
+  const miss = J.state.shared.orders[J.pid] && J.state.shared.orders[J.pid].id;
+  await H.waitFor((s) => s.shared.events.some((e) => e.type === 'miss' && e.id === miss) && s.shared.damage >= 1, 'wire: an order left to run out is damage', 15000);
+  // The rest of the level, done fast.
+  const t0 = Date.now();
+  while (H.state.shared.phase === 'play' && Date.now() - t0 < 70000) {
+    const s = H.state.shared;
+    const pending = Object.keys(s.orders).map((id) => s.orders[id]).filter(Boolean);
+    for (const o of pending) await doIt(o);
+    await sleep(120);
+  }
+  await all(three.concat([TV]), (s) => s.shared.phase === 'won' && s.shared.levelsWon === 1 && s.shared.best === 1, 'wire: the target reached: level 1 won on every screen', 8000);
+  check((await J.act('nextLevel', { lv: 1 })).ok === false, 'wire: only the host moves on to the next level');
+  await H.must('nextLevel', { lv: 1 });
+  await all(three, (s) => s.shared.phase === 'ready' && s.shared.level === 2, 'wire: the host starts level 2 at once');
+  // Level 2: nobody does anything, so the damage ends the game.
+  await H.waitFor((s) => s.shared.phase === 'gameover' && s.shared.why === 'damage' && s.shared.levelsWon === 1, 'wire: the orders left to run out: the damage ends the game', 50000);
+  await all([J, K, TV], (s) => s.shared.phase === 'gameover' && s.shared.best === 1, 'wire: the end and the room\'s best on every screen');
+  await H.must('playAgain', { place: 'wedding', surprises: true });
+  await all(three.concat([late]), (s) => s.shared.phase === 'ready' && s.shared.level === 1 && s.shared.place === 'wedding' && s.shared.best === 1 && s.shared.alive.length === 4,
+    'wire: play again deals in whoever joined, and keeps the room\'s best');
+  // A leave mid-game.
+  await api('/leave', { code: K.code, pid: K.pid, key: K.key });
+  await H.waitFor((s) => s.shared.alive.indexOf(K.pid) === -1 && s.shared.alive.length === 3, 'wire: a player who leaves goes from the table');
+  K.close();
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'wire: back in the hub');
+  [H, J, late, TV].forEach((x) => x.close());
+}
+
 // The host's phone gone quiet mid-round: after 20 s anyone moves the round on (28 Sep 2026).
 async function hostAwayRobots() {
   console.log('• the host away: after 20 s any player moves the round on; settings stay the host\'s');
@@ -962,6 +1026,12 @@ async function main() {
   }
   if (ONLY === 'snakes') {
     await snakesRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'wire') {
+    await wireRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -4953,6 +5023,7 @@ async function main() {
   }
 
   await chairsRobots();
+  await wireRobots();
   await snakesRobots();
   await bumperRobots();
   await hostAwayRobots();

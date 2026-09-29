@@ -799,6 +799,24 @@ const PROBES = {
       probe('no fake pause is announced before it comes', live && h.fakes.length > 0, (view) => (hasKey(view.shared, 'fakes') ? 'shared.fakes' : null))
     ];
   },
+  // سلك مقطوع: each phone its own panel; the orders are public, but never who holds their control.
+  wire(room) {
+    const w = room._wire;
+    const live = !!w && (room.shared || {}).phase !== 'gameover';
+    return [
+      probe('a phone is sent its own panel, no other', live, (view, pid) => {
+        if (pid === SCREEN) return view.you ? 'you' : null;
+        const mine = (w.panels[pid] || []).join();
+        const got = ((view.you && view.you.panel) || []).map((x) => x.c).join();
+        return got === mine ? null : 'you.panel';
+      }),
+      probe('no phone is told whose panel an order waits on', live, (view) => {
+        const o = view.shared.orders || {};
+        if (hasKey(view.shared, 'panels') || hasKey(view.shared, 'vals')) return 'shared.panels';
+        return Object.keys(o).some((k) => o[k] && (hasKey(o[k], 'by') || hasKey(o[k], 'holder') || hasKey(o[k], 'pid') || hasKey(o[k], 'base'))) ? 'shared.orders' : null;
+      })
+    ];
+  },
   // Nothing hidden: the generic rules still hold.
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
   // عربيات التصادم: the TV runs the cars; the server holds nothing but the round.
@@ -1774,6 +1792,33 @@ const DRIVERS = {
       }
     }
     return S(T).phase === 'gameover' && !!S(T).winnerId;
+  },
+  wire() {
+    // Four at the kitchen with the surprises on: most orders done by whoever holds them, some let
+    // go (damage), the smoke wiped, the shake made or missed, levels won until the table loses.
+    const T = table('wire', 4);
+    must(T, T.host, 'start', { place: 'kitchen', surprises: true });
+    let played = 0;
+    for (let guard = 0; guard < 6000 && S(T).phase !== 'gameover'; guard++) {
+      const s = S(T);
+      const w = T.room._wire;
+      if (s.phase !== 'play') { runClock(T, (r) => r.shared.phase === 'play' || r.shared.phase === 'gameover', 6); continue; }
+      if (s.shake && Math.random() < 0.7) { const who = s.alive.find((id) => s.shake.done.indexOf(id) === -1); if (who) { must(T, who, 'shake', { id: s.shake.id }); continue; } }
+      const smoke = Object.keys(w.broken).find((c) => w.broken[c].k === 'smoke');
+      if (smoke && Math.random() < 0.5) { const h = Object.keys(w.panels).find((id) => w.panels[id].indexOf(smoke) !== -1); must(T, h, 'wipe', { c: smoke, lv: s.level }); continue; }
+      const pid = Object.keys(s.orders).find((id) => s.orders[id]);
+      // Harder levels let more go, so the game ends.
+      if (pid && Math.random() < Math.max(0.3, 0.97 - 0.12 * s.level)) {
+        const o = s.orders[pid];
+        const h = Object.keys(w.panels).find((id) => w.panels[id].indexOf(o.c) !== -1);
+        if (o.n) { for (let k = 0; k < o.n; k++) act(T, h, 'press', { c: o.c, lv: s.level }); }
+        else act(T, h, 'ctl', { c: o.c, v: o.v, lv: s.level });
+        played++;
+        continue;
+      }
+      runClock(T, (r) => r.shared !== s || r.shared.phase !== 'play' || JSON.stringify(r.shared.orders) !== JSON.stringify(s.orders), 3);
+    }
+    return S(T).phase === 'gameover' && played > 10;
   },
   chess4() {
     // Two people and computer players, both ways: random moves for the people, the host playing

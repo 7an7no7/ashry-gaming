@@ -9769,6 +9769,217 @@ Date.now = duelTestClock;
   check(big.shared.seats.length === 6 && big.shared.seats.indexOf('b') === -1, 'snakes room: with seven or more the host picks the six who play');
 }
 
+/* --- سلك مقطوع (29 Sep 2026): the panels, the orders, the damage and the clock, surprises, leaving --- */
+{
+  console.log('\nCut wire');
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const WIRE = new Function(readFileSync(new URL('../../Wire.js', import.meta.url), 'utf8') + ';return { WIRE_CONTROLS, WIRE_PLACES, wireLevel, wirePanelSize, wireOrderText, WIRE_DMG_MAX, WIRE_LEVEL_MS, WIRE_READY_MS, WIRE_GRACE_MS, WIRE_SHAKE_MS, WIRE_WIPES };')();
+  const wireRoom = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'wire' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({ place: 'bus', surprises: false }, payload || {}));
+    return r;
+  };
+  const holderOf = (r, cid) => Object.keys(r._wire.panels).find((pid) => r._wire.panels[pid].indexOf(cid) !== -1);
+  const tickTo = (r, t) => { clock = Math.max(clock + 1, t); roomTimeout(r, clock); };
+  const tick = (r) => tickTo(r, roomDeadline(r));
+  /** Plays one order to its end, by the phone that holds its control. */
+  const doOrder = (r, pid) => {
+    const o = r.shared.orders[pid];
+    const by = holderOf(r, o.c);
+    if (o.n) for (let k = 0; k < o.n; k++) applyRoomAction(r, by, 'press', { c: o.c, lv: r.shared.level });
+    else applyRoomAction(r, by, 'ctl', { c: o.c, v: o.v, lv: r.shared.level });
+    return by;
+  };
+  const toPlay = (r) => { tickTo(r, r.shared.startAt); for (let k = 0; k < 10 && Object.keys(r._wire.pend).length; k++) tick(r); };
+
+  // The lists: three places of 34, the ids unique, every order written in both languages.
+  check(WIRE.WIRE_PLACES.every((p) => WIRE.WIRE_CONTROLS[p].length >= 32 && new Set(WIRE.WIRE_CONTROLS[p].map((c) => c.id)).size === WIRE.WIRE_CONTROLS[p].length),
+    'wire: three places, 32+ controls each (8 × 4), no id twice');
+  check(WIRE.WIRE_PLACES.every((p) => WIRE.WIRE_CONTROLS[p].every((c) => c.ar && c.en && (c.t !== 'btn' || (c.do && c.do[0] && c.do[1] && c.c)) && (c.t !== 'sw' || (c.on && c.off)) && (c.t !== 'slide' || c.o))),
+    'wire: every control has its names, its orders and its shape');
+  check(WIRE.wireOrderText({ c: 'bus.horn', n: 2 }, 'ar') === 'اضرب الكلاكس مرتين' && WIRE.wireOrderText({ c: 'bus.tape', v: 4 }, 'ar') === 'الكاسيت على 4' && WIRE.wireOrderText({ c: 'bus.brake', v: 1 }, 'en') === 'Pull the handbrake',
+    'wire: an order reads in either language');
+  check(WIRE.wirePanelSize(3) === 6 && WIRE.wirePanelSize(4) === 5 && WIRE.wirePanelSize(8) === 4, 'wire: 6 controls with three, 5 with four or five, 4 from six');
+  const l1 = WIRE.wireLevel(1, 4), l5 = WIRE.wireLevel(5, 4);
+  check(l5.target > l1.target && l5.orderMs < l1.orderMs && l1.dmgMax === WIRE.WIRE_DMG_MAX + 1 && WIRE.wireLevel(1, 3).dmgMax === WIRE.WIRE_DMG_MAX && WIRE.wireLevel(1, 8).dmgMax === WIRE.WIRE_DMG_MAX + 5, 'wire: a later level asks for more orders, faster; the damage a level takes grows with the table');
+
+  {
+    const r = newRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'wire' });
+    check(threw(() => applyRoomAction(r, 'a', 'start', {})), 'wire: fewer than three is refused');
+  }
+  {
+    const r = wireRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    check(threw(() => { const x = newRoom(['a', 'b', 'c']); applyRoomAction(x, 'a', 'chooseGame', { game: 'wire' }); applyRoomAction(x, 'b', 'start', {}); }), 'wire: only the host starts');
+    check(r.phase === 'play' && s.phase === 'ready' && s.level === 1 && s.place === 'bus' && s.alive.length === 4, 'wire: a game opens on level 1\'s card');
+    const all = [].concat(...Object.values(r._wire.panels));
+    check(Object.keys(r._wire.panels).length === 4 && Object.values(r._wire.panels).every((p) => p.length === 5) && new Set(all).size === all.length && all.every((c) => c.indexOf('bus.') === 0),
+      'wire: four panels of five from the microbus, no control on two phones');
+    check(['a', 'b', 'c', 'd'].every((id) => r.secrets[id] && r.secrets[id].panel.map((x) => x.c).join() === r._wire.panels[id].join()) && !('panels' in s),
+      'wire: each phone is sent its own panel, the table none');
+    check(Object.values(s.orders).every((o) => o === null) && roomDeadline(r) === s.startAt && s.startAt === clock + WIRE.WIRE_READY_MS, 'wire: no orders on the card; the server wakes when it ends');
+    // A change on the card counts for nothing but the value.
+    const sw = all.find((c) => c.indexOf('brake') !== -1 || /wiper|hazard|door|beam|window|visor|heater|lock|fog|boot/.test(c));
+    toPlay(r);
+    check(s.phase === 'play' && ['a', 'b', 'c', 'd'].every((id) => s.orders[id]), 'wire: the orders start with the level\'s clock, one for every phone');
+    check(Object.values(s.orders).every((o) => !('by' in o) && !('holder' in o)) && new Set(Object.values(s.orders).map((o) => o.c)).size === 4,
+      'wire: an order never says who holds its control; no control asked for twice at once');
+    check(Object.values(s.orders).every((o) => { const c = r._wire.vals[o.c]; return o.n ? o.n >= 1 && o.n <= 2 : o.v !== c; }), 'wire: an order never asks for what the control already is');
+    // Done by whoever holds it.
+    const o = s.orders.a;
+    const by = holderOf(r, o.c);
+    const notMine = ['a', 'b', 'c', 'd'].find((id) => id !== by);
+    check(threw(() => applyRoomAction(r, notMine, o.n ? 'press' : 'ctl', { c: o.c, v: o.v, lv: 1 })), 'wire: a control can be worked only from the phone that holds it');
+    applyRoomAction(r, by, o.n ? 'press' : 'ctl', { c: o.c, v: o.v, lv: 0 });
+    check(s.progress === 0, 'wire: a tap from the last level is dropped');
+    doOrder(r, 'a');
+    const ev = s.events[s.events.length - 1];
+    check(s.progress === 1 && s.orders.a === null && ev.type === 'done' && ev.to === 'a' && ev.by === by && r._wire.pend.a > clock, 'wire: an order done: progress, who did it told, the next order after a beat');
+    // Missed: damage.
+    const b = s.orders.b;
+    tickTo(r, b.ends + WIRE.WIRE_GRACE_MS);
+    check(s.damage >= 1 && s.events.some((e) => e.type === 'miss' && e.to === 'b'), 'wire: an order past its bar is damage');
+    // A button pressed n times, counted from when it was asked.
+    let btnOrder = null;
+    for (let k = 0; k < 200 && !btnOrder; k++) {
+      Object.keys(s.orders).forEach((pid) => { const x = s.orders[pid]; if (x && x.n && !btnOrder) btnOrder = { pid, o: x }; });
+      if (!btnOrder) { const pid = Object.keys(s.orders).find((id) => s.orders[id]); if (pid) doOrder(r, pid); else tick(r); }
+      // A level won before a button order came up: the next level, and look again there.
+      if (s.phase === 'won') { applyRoomAction(r, 'a', 'nextLevel', { lv: s.level }); toPlay(r); }
+      if (s.phase !== 'play') break;
+    }
+    if (btnOrder && s.phase === 'play') {
+      const h = holderOf(r, btnOrder.o.c);
+      const before = s.progress;
+      for (let k = 0; k < btnOrder.o.n - 1; k++) applyRoomAction(r, h, 'press', { c: btnOrder.o.c, lv: s.level });
+      const midway = s.progress === before;
+      applyRoomAction(r, h, 'press', { c: btnOrder.o.c, lv: s.level });
+      check(midway && s.progress === before + 1, 'wire: a button order is done on its last press, not before');
+    } else check(false, 'wire: a button order came up');
+  }
+  {
+    // The level won, the next one's card, the panels kept with the surprises off.
+    const r = wireRoom(['a', 'b', 'c']);
+    const s = r.shared;
+    const panelsBefore = JSON.stringify(r._wire.panels);
+    toPlay(r);
+    for (let k = 0; k < 400 && s.phase === 'play'; k++) {
+      const pid = Object.keys(s.orders).find((id) => s.orders[id]);
+      if (pid) doOrder(r, pid); else tick(r);
+    }
+    check(s.phase === 'won' && s.levelsWon === 1 && s.best === 1 && s.newBest && Object.values(s.orders).every((o) => o === null), 'wire: the target reached: the level is won, the room\'s best is 1');
+    check(roomDeadline(r) === s.nextAt, 'wire: the next level comes by itself');
+    check(threw(() => applyRoomAction(r, 'b', 'nextLevel', { lv: 1 })), 'wire: only the host moves on to the next level');
+    applyRoomAction(r, 'a', 'nextLevel', { lv: 1 });
+    check(s.phase === 'ready' && s.level === 2 && s.progress === 0 && s.damage === 0 && s.target > WIRE.wireLevel(1, 3).target && JSON.stringify(r._wire.panels) === panelsBefore,
+      'wire: level 2 asks for more, the damage starts again, the panels stay with the surprises off');
+    applyRoomAction(r, 'a', 'nextLevel', { lv: 1 });
+    check(s.level === 2, 'wire: a double tap on the next level does nothing');
+    // Lost by the clock.
+    toPlay(r);
+    tickTo(r, s.endsAt);
+    check(s.phase === 'gameover' && s.why === 'time' && s.levelsWon === 1 && s.best === 1 && roomDeadline(r) === null, 'wire: the clock running out ends the game; one level cleared');
+    applyRoomAction(r, 'a', 'playAgain', { place: 'kitchen', surprises: true });
+    check(r.shared.phase === 'ready' && r.shared.level === 1 && r.shared.best === 1 && !r.shared.newBest && r.shared.place === 'kitchen' && r.shared.settings.surprises,
+      'wire: play again keeps the room\'s best and takes the new place');
+  }
+  {
+    // Lost by the damage.
+    const r = wireRoom(['a', 'b', 'c']);
+    const s = r.shared;
+    toPlay(r);
+    for (let k = 0; k < 200 && s.phase === 'play'; k++) tick(r);
+    check(s.phase === 'gameover' && s.why === 'damage' && s.damage >= s.dmgMax && s.levelsWon === 0, 'wire: every order missed: the damage ends the game at level 1');
+  }
+  {
+    // Surprises: new panels, a control breaking, the shake.
+    const r = wireRoom(['a', 'b', 'c', 'd', 'e'], { place: 'wedding', surprises: true });
+    const s = r.shared;
+    const w = r._wire;
+    check(w.nextBreak && w.nextBreak > s.startAt && w.shakeAt === null, 'wire: with surprises a break is coming; no shake on level 1');
+    toPlay(r);
+    // Keep the table busy (every order done) until the break comes, or the damage would end the level first.
+    for (let k = 0; k < 400 && s.phase === 'play' && !Object.keys(w.broken).length; k++) {
+      const pid = Object.keys(s.orders).find((id) => s.orders[id]);
+      if (pid && s.progress < s.target - 1) doOrder(r, pid); else tick(r);
+    }
+    const broken = Object.keys(w.broken);
+    check(broken.length === 1 && s.events.some((e) => e.type === 'break' && e.c === broken[0] && e.pid === holderOf(r, broken[0])), 'wire: a control breaks, and the table is told whose');
+    // Make it smoke to test the wipe.
+    const cid = broken[0];
+    const h = holderOf(r, cid);
+    w.broken[cid] = { k: 'smoke', left: WIRE.WIRE_WIPES };
+    const valBefore = w.vals[cid], pressBefore = w.presses[cid] || 0;
+    applyRoomAction(r, h, 'ctl', { c: cid, v: valBefore === 1 ? 0 : 1, lv: s.level });   // whatever it is, nothing happens
+    applyRoomAction(r, h, 'ctl', { c: cid, v: (valBefore || 0) % 5 + 1, lv: s.level });
+    applyRoomAction(r, h, 'press', { c: cid, lv: s.level });
+    check(w.broken[cid] && w.vals[cid] === valBefore && (w.presses[cid] || 0) === pressBefore, 'wire: a control in smoke can\'t be worked');
+  }
+  {
+    const r = wireRoom(['a', 'b', 'c', 'd'], { surprises: true });
+    const s = r.shared, w = r._wire;
+    const cid = w.panels.b[0];
+    toPlay(r);
+    w.broken[cid] = { k: 'smoke', left: WIRE.WIRE_WIPES };
+    for (let k = 0; k < WIRE.WIRE_WIPES - 1; k++) applyRoomAction(r, 'b', 'wipe', { c: cid, lv: 1 });
+    check(w.broken[cid] && w.broken[cid].left === 1, 'wire: every wipe clears a little of the smoke');
+    applyRoomAction(r, 'b', 'wipe', { c: cid, lv: 1 });
+    check(!w.broken[cid] && s.events.some((e) => e.type === 'fixed' && e.c === cid), 'wire: wiped clean, it works again');
+    // The shake.
+    w.shakeAt = clock + 10;
+    tickTo(r, w.shakeAt);
+    const sh = s.shake;
+    const ends = Object.values(s.orders).filter(Boolean).map((o) => o.ends);
+    check(sh && sh.done.length === 0 && sh.ends === clock + WIRE.WIRE_SHAKE_MS && ends.every((e) => e > clock + WIRE.WIRE_SHAKE_MS - 1), 'wire: «everyone shake!»: every phone at once, the orders\' bars standing still meanwhile');
+    const before = s.progress;
+    ['a', 'b', 'c'].forEach((id) => applyRoomAction(r, id, 'shake', { id: sh.id }));
+    applyRoomAction(r, 'a', 'shake', { id: sh.id });
+    check(s.shake && s.shake.done.length === 3, 'wire: a phone shaking twice counts once');
+    applyRoomAction(r, 'd', 'shake', { id: sh.id });
+    check(!s.shake && s.progress === before + 2 && s.events.some((e) => e.type === 'shakeOk'), 'wire: everyone shook: a bonus for the table');
+    w.shakeAt = clock + 10;
+    tickTo(r, w.shakeAt);
+    const dmg = s.damage;
+    applyRoomAction(r, 'a', 'shake', { id: s.shake.id });
+    tickTo(r, s.shake.ends);
+    check(!s.shake && s.damage === dmg + 1 && s.events.some((e) => e.type === 'shakeFail'), 'wire: not everyone shook in time: damage');
+    // New panels every level with the surprises on.
+    const panels = JSON.stringify(w.panels);
+    for (let k = 0; k < 600 && s.phase === 'play'; k++) {
+      const pid = Object.keys(s.orders).find((id) => s.orders[id] && !(w.broken[s.orders[id].c] && w.broken[s.orders[id].c].k === 'smoke'));
+      if (pid) doOrder(r, pid); else tick(r);
+    }
+    if (s.phase === 'won') tick(r);
+    check(s.level === 2 && s.phase === 'ready' && JSON.stringify(w.panels) !== panels, 'wire: the surprises deal new panels every level');
+  }
+  {
+    // Leaving: the leaver's controls go, orders waiting on them are called off, two is the least.
+    const r = wireRoom(['a', 'b', 'c']);
+    const s = r.shared, w = r._wire;
+    toPlay(r);
+    const cOnB = w.panels.b[0];
+    w.seq += 1;
+    s.orders.a = { id: w.seq, c: cOnB, at: clock, ends: clock + 9000, v: w.vals[cOnB] === undefined ? undefined : (w.vals[cOnB] ? 0 : 1), n: w.vals[cOnB] === undefined ? 1 : undefined };
+    const dmg = s.damage;
+    leave(r, 'b');
+    check(s.alive.join() === 'a,c' && !w.panels.b && s.orders.a === null && w.pend.a > clock && s.damage === dmg && !r.secrets.b, 'wire: a leaver\'s panel goes; an order waiting on it is called off with no damage');
+    leave(r, 'c');
+    check(s.phase === 'gameover' && s.why === 'left', 'wire: fewer than two at the table ends the game');
+  }
+  {
+    // A latecomer watches; random picks one place for the game.
+    const r = wireRoom(['a', 'b', 'c'], { place: 'random' });
+    check(WIRE.WIRE_PLACES.indexOf(r.shared.place) !== -1 && r.shared.settings.place === 'random', 'wire: random picks one of the three places');
+    r.players.push({ id: 'z', name: 'Z' });
+    toPlay(r);
+    check(r.shared.alive.indexOf('z') === -1 && !r.secrets.z && !r.shared.orders.z, 'wire: someone who joins mid-game watches: no panel, no order');
+    const nine = wireRoom(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']);
+    check(nine.shared.alive.length === 8 && Object.keys(nine._wire.panels).length === 8 && Object.values(nine._wire.panels).every((p) => p.length === 4), 'wire: eight at the table, four controls each; the ninth watches');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

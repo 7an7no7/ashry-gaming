@@ -20740,4 +20740,340 @@ button.skl-hdisc { cursor: pointer; min-width: 44px; min-height: 44px; }
   .snk-chip, .snk-swatch { transition: none; }
 }
 
+/* =====================================================================
+   55. سلك مقطوع (CUT WIRE in rooms, JS_RoomWire.html, 29 Sep 2026): every
+   phone a panel, each place its own layout from the owner's picks - the
+   microbus's dashboard (an LED order, metal plates), mum's note in the
+   kitchen (the order pinned among the controls, a burning fuse), the
+   wedding's uncle and DJ mixer (a ring round his face, faders). The places
+   keep their own colours in both themes (they are scenes, not the page).
+   The TV: each place its scene, the progress and the damage drawn into it.
+   ========================================================================= */
+.wr {
+  --ink: #221f36;
+  --k: 1;
+  --t: 1; --p: 0; --d: 0;
+  position: relative; isolation: isolate; overflow: hidden;
+  display: flex; flex-direction: column; gap: 0.25rem;
+  border-radius: var(--r-2xl); border: 3px solid #15121f;
+  box-shadow: 0 10px 30px rgba(20, 12, 40, 0.25);
+  color: var(--pc); background: var(--pbg);
+  -webkit-user-select: none; user-select: none;
+  padding-block-end: 0.6rem;
+}
+.wr button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.wr-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.7rem 1rem 0.15rem; font-size: 0.82rem; font-weight: 700; }
+.wr-top__place { font-family: var(--font-display); font-size: 0.9rem; text-align: center; flex: 1; min-width: 0; }
+.wr-top__clock { font-size: 1rem; }
+.wr-top__clock.is-low { color: #ff5f57; }
+.wr--kitchen .wr-top__clock.is-low { color: #c21d1d; }
+.wr-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; padding: 0.15rem 1rem 0.4rem; font-size: 0.72rem; font-weight: 700; }
+.wr-mbar { height: 0.7rem; border-radius: 99px; background: rgba(127, 127, 127, 0.28); overflow: hidden; border: 2px solid var(--ink); margin-top: 0.15rem; }
+.wr-mbar i { display: block; height: 100%; transform-origin: right; transition: transform 0.35s var(--ease-out, ease); }
+html[dir="ltr"] .wr-mbar i { transform-origin: left; }
+.wr-mbar--p i { background: #1f9d55; transform: scaleX(var(--p)); }
+.wr-mbar--d i { background: #e5383b; transform: scaleX(var(--d)); }
+.wr-watch { margin: 1rem; padding: 1.2rem; text-align: center; font-weight: 700; border-radius: var(--r-xl); background: rgba(0, 0, 0, 0.18); }
+
+/* The stamp and the red edge: a moment on this phone. */
+.wr-stamp { position: absolute; inset-inline: 0; top: 40%; z-index: 5; text-align: center; white-space: pre-line; font-family: var(--font-display); font-weight: 900; font-size: 2.3rem; line-height: 1.2; pointer-events: none; opacity: 0; }
+.wr.is-ok .wr-stamp { color: #1f9d55; animation: wrStamp 0.9s both; }
+.wr.is-bad .wr-stamp { color: #e5383b; animation: wrStamp 0.9s both; }
+.wr.is-lvl .wr-stamp { color: #f59e0b; animation: wrStamp 1.5s both; }
+.wr.is-ok .wr-stamp, .wr.is-bad .wr-stamp, .wr.is-lvl .wr-stamp { text-shadow: 0 2px 0 #fff, 0 -2px 0 #fff, 2px 0 0 #fff, -2px 0 0 #fff, 0 4px 12px rgba(0, 0, 0, 0.35); }
+@keyframes wrStamp { 0% { opacity: 0; transform: scale(0.5) rotate(-8deg); } 25% { opacity: 1; transform: scale(1.1) rotate(-6deg); } 75% { opacity: 1; transform: scale(1) rotate(-6deg); } 100% { opacity: 0; transform: scale(1) rotate(-6deg); } }
+.wr.is-bad, .wr.is-hurt { animation: wrBuzz 0.4s; }
+@keyframes wrBuzz { 0%, 100% { translate: 0; } 20% { translate: -8px; } 40% { translate: 7px; } 60% { translate: -5px; } 80% { translate: 3px; } }
+.wr-red { position: absolute; inset: 0; pointer-events: none; z-index: 4; border-radius: inherit; }
+.wr.is-bad .wr-red, .wr.is-hurt .wr-red { animation: wrRedIn 0.7s; }
+@keyframes wrRedIn { 30% { box-shadow: inset 0 0 60px 14px rgba(229, 56, 59, 0.7); } }
+
+/* --- the controls -------------------------------------------------------------- */
+.wr-ctl { position: relative; display: grid; justify-items: center; align-content: center; gap: 0.35rem; padding: 0.5rem 0.25rem; border-radius: 1.1rem; min-width: 0; transition: rotate 0.35s var(--ease-out, ease); }
+.wr-ctl__n { font-weight: 700; font-size: 0.8rem; text-align: center; line-height: 1.3; max-width: 100%; overflow-wrap: anywhere; }
+.wr-btn {
+  width: calc(4.6rem * var(--k)); height: calc(4.6rem * var(--k)); border-radius: 50%; border: 4px solid var(--ink); padding: 0;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.55), transparent 40%), var(--c, #e5383b);
+  box-shadow: 0 7px 0 var(--ink); transition: transform 0.08s, box-shadow 0.08s; touch-action: manipulation;
+}
+.wr-btn:active, .wr-btn.is-hit { transform: translateY(6px); box-shadow: 0 1px 0 var(--ink); }
+.wr-sw { width: calc(4.1rem * var(--k)); height: calc(5.6rem * var(--k)); border-radius: 0.9rem; border: 4px solid var(--ink); background: #3a3450; position: relative; padding: 0; transition: background 0.2s; }
+.wr-sw__l { position: absolute; left: 50%; bottom: 44%; width: 0.62rem; height: 40%; margin-left: -0.31rem; background: #cfcbe0; border: 3px solid var(--ink); border-radius: 6px; transform-origin: 50% 100%; transform: rotate(35deg); transition: transform 0.18s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.wr-sw__l::after { content: ""; position: absolute; top: -1rem; left: 50%; width: 1.5rem; height: 1.5rem; margin-left: -0.75rem; border-radius: 50%; background: #e5383b; border: 3px solid var(--ink); }
+.wr-sw__b { position: absolute; left: 50%; bottom: 0.6rem; width: 1.9rem; height: 1.1rem; margin-left: -0.95rem; border-radius: 6px; background: var(--ink); }
+.wr-sw[aria-pressed="true"] { background: #2f7a52; }
+.wr-sw[aria-pressed="true"] .wr-sw__l { transform: rotate(-35deg); }
+.wr-sw[aria-pressed="true"] .wr-sw__l::after { background: #3ddc84; }
+.wr-dial {
+  margin-bottom: 0.7rem; width: calc(5.2rem * var(--k)); height: calc(5.2rem * var(--k)); border-radius: 50%; border: 4px solid var(--ink); position: relative; padding: 0;
+  background: conic-gradient(from 200deg, #fff 0 20%, #ffe8a3 20% 40%, #ffc861 40% 60%, #ff9b57 60% 80%, #ff5f57 80% 100%);
+}
+.wr-dial__knob { position: absolute; inset: 14px; border-radius: 50%; background: #3a3450; border: 3px solid var(--ink); transform: rotate(var(--r, -120deg)); transition: transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.wr-dial__knob::after { content: ""; position: absolute; top: 2px; left: 50%; width: 6px; height: 1.1rem; margin-left: -3px; border-radius: 3px; background: #ffd166; }
+.wr-dial__v { position: absolute; bottom: -0.8rem; left: 50%; translate: -50%; background: var(--ink); color: #fff; font-weight: 900; border-radius: 99px; padding: 0 0.55rem; font-size: 0.85rem; }
+.wr-sl { position: relative; touch-action: none; cursor: grab; }
+.wr-sl:focus-visible { outline: 3px solid #ffd166; outline-offset: 3px; border-radius: 8px; }
+.wr-sl[data-o="h"] { width: min(100%, calc(12rem * var(--k))); height: 2.75rem; }
+.wr-sl[data-o="v"] { width: 3.4rem; height: calc(10rem * var(--k)); }
+.wr-sl__tr { position: absolute; background: var(--ink); border-radius: 99px; }
+.wr-sl[data-o="h"] .wr-sl__tr { left: 10px; right: 10px; top: 18px; height: 8px; }
+.wr-sl[data-o="v"] .wr-sl__tr { top: 10px; bottom: 10px; left: 23px; width: 8px; }
+.wr-sl__th { position: absolute; border: 4px solid var(--ink); background: #ffd166; border-radius: 10px; transition: left 0.1s, bottom 0.1s; }
+.wr-sl[data-o="h"] .wr-sl__th { width: 28px; height: 40px; top: 2px; left: calc(var(--f, 0) * (100% - 28px)); }
+.wr-sl[data-o="v"] .wr-sl__th { width: 46px; height: 26px; left: 4px; bottom: calc(var(--f, 0) * (100% - 26px)); }
+.wr-sl__v { font-size: 0.7rem; font-weight: 700; opacity: 0.8; display: flex; justify-content: space-between; width: min(100%, calc(12rem * var(--k))); padding-inline: 12px; }
+.wr-ctl--v .wr-sl__v { flex-direction: column; width: auto; height: auto; gap: 0; padding: 0; align-items: center; position: absolute; inset-inline-end: 0.4rem; top: 2.2rem; bottom: 1rem; justify-content: space-between; }
+
+/* Broken: smoke to wipe, or the whole control turned upside down. */
+.wr-smk {
+  position: absolute; inset: 0; z-index: 2; border: 0; border-radius: 1.1rem; display: grid; place-items: center;
+  background: radial-gradient(circle at 30% 40%, #8d8aa0 0 22%, transparent 23%), radial-gradient(circle at 70% 35%, #a6a3b6 0 26%, transparent 27%), radial-gradient(circle at 50% 70%, #7a7790 0 30%, transparent 31%), rgba(90, 86, 110, 0.9);
+  animation: wrSmoke 1.6s ease-in-out infinite alternate;
+}
+.wr-smk[hidden] { display: none; }
+.wr-smk em { font-style: normal; font-weight: 900; color: #fff; background: #221f36; border-radius: 99px; padding: 0.15rem 0.7rem; font-size: 0.85rem; }
+.wr-smk.is-wipe { animation: wrWipe 0.25s; }
+@keyframes wrSmoke { to { background-position: 6px -4px, -5px 3px, 3px 5px, 0 0; } }
+@keyframes wrWipe { 50% { opacity: 0.55; transform: scale(0.96); } }
+.wr-ctl.is-flip { rotate: 180deg; }
+.wr-ctl.is-done { animation: wrDone 0.6s; }
+@keyframes wrDone { 30% { box-shadow: 0 0 0 4px #3ddc84, 0 0 22px 6px rgba(61, 220, 132, 0.6); } }
+
+/* The order's box: a pop when a new order comes. */
+.wr-ord { position: relative; }
+.wr-ord.is-new .wr-ord__text { animation: wrOrdIn 0.35s var(--ease-out, ease); }
+@keyframes wrOrdIn { from { opacity: 0; transform: translateY(6px) scale(0.96); } }
+.wr-ord.is-idle .wr-ord__text { opacity: 0.55; }
+.wr-ord small { display: block; font-size: 0.72rem; font-weight: 700; }
+.wr-ord__text { display: block; font-family: var(--font-display); line-height: 1.35; min-height: 2.7em; }
+.wr-ord__who { display: block; font-size: 0.75rem; font-weight: 700; min-height: 1.1rem; }
+
+/* --- «تابلوه الميكروباص»: the LED order over a grid of metal plates ---------------- */
+.wr--bus { --pbg: linear-gradient(#3b3552, #221d33); --pc: #f4f0ff; }
+.wr-ord--led { margin: 0.25rem 0.9rem 0.6rem; background: #0c0a12; border: 4px solid #000; border-radius: 0.9rem; padding: 0.75rem 0.9rem 0.6rem; box-shadow: inset 0 0 0 2px #3c3552; }
+.wr-ord--led small { color: #8f89a8; }
+.wr-ord--led .wr-ord__text { color: #ffb938; font-size: 1.45rem; text-shadow: 0 0 10px rgba(255, 185, 56, 0.6); }
+.wr-ord--led .wr-ord__who { color: #7ee0a2; }
+.wr-drain--seg { height: 0.85rem; margin-top: 0.35rem; background: repeating-linear-gradient(90deg, #221f36 0 12px, #0c0a12 12px 15px); border-radius: 4px; overflow: hidden; direction: ltr; }
+.wr-drain--seg i { display: block; height: 100%; width: 100%; background: repeating-linear-gradient(90deg, #ffb938 0 12px, transparent 12px 15px); transform-origin: left; transform: scaleX(var(--t)); }
+.wr--bus.is-hurry .wr-drain--seg i { background: repeating-linear-gradient(90deg, #ff5f57 0 12px, transparent 12px 15px); }
+.wr--bus.is-hurry .wr-ord__text { color: #ff7a6b; animation: wrBlink 0.5s steps(2) infinite; }
+@keyframes wrBlink { 50% { opacity: 0.55; } }
+.wr-pnl { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; padding: 0 0.9rem; align-content: start; }
+.wr--bus .wr-ctl { background: linear-gradient(#5a5270, #443d5a); border: 3px solid #15121f; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.15); }
+.wr--bus .wr-ctl::before, .wr--bus .wr-ctl::after { content: ""; position: absolute; top: 7px; width: 6px; height: 6px; border-radius: 50%; background: #2a2538; }
+.wr--bus .wr-ctl::before { right: 8px; } .wr--bus .wr-ctl::after { left: 8px; }
+.wr--bus .wr-ctl__n { background: #efe6c8; color: #221f36; border-radius: 4px; padding: 0 0.5rem; font-size: 0.75rem; border: 2px solid #15121f; }
+.wr--bus .wr-ctl--h, .wr--kitchen .wr-ctl--h { grid-column: 1 / -1; }
+
+/* --- «ورقة ماما على التلاجة»: the note pinned in the middle, the controls round it --- */
+.wr--kitchen {
+  --pbg: #fdf1e4; --pc: #221f36;
+  background-image: linear-gradient(90deg, rgba(214, 176, 140, 0.25) 2px, transparent 2px), linear-gradient(rgba(214, 176, 140, 0.25) 2px, transparent 2px);
+  background-size: 46px 46px; background-color: #fdf1e4;
+}
+.wr--kitchen .wr-pnl { gap: 0.6rem 0.75rem; padding-top: 0.4rem; }
+.wr--kitchen .wr-ctl { background: #fff; border: 3px solid var(--ink); box-shadow: 0 4px 0 var(--ink); }
+.wr-ord--note { grid-column: 1 / -1; margin: 0.6rem 0.2rem 0.35rem; background: #fff6a8; border: 3px solid var(--ink); border-radius: 4px 4px 16px 4px; padding: 1rem 1rem 1.25rem; transform: rotate(-1.6deg); box-shadow: 0 6px 0 rgba(34, 31, 54, 0.2); color: #221f36; }
+.wr-ord--note::before { content: ""; position: absolute; top: -12px; left: 50%; width: 26px; height: 26px; margin-left: -13px; border-radius: 50%; background: #e5383b; border: 3px solid var(--ink); }
+.wr-ord--note small { color: #7a6a2a; }
+.wr-ord--note .wr-ord__text { font-size: 1.5rem; }
+.wr-ord--note .wr-ord__who { color: #1f7a43; }
+.wr-drain--fuse { position: absolute; inset-inline: 10px; bottom: 6px; height: 8px; border-radius: 9px; background: rgba(34, 31, 54, 0.12); }
+.wr-drain--fuse i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg, #e5383b, #f59e0b); transform-origin: right; transform: scaleX(var(--t)); }
+.wr-spark { position: absolute; top: -2px; right: calc(var(--t) * 100% - 6px); width: 12px; height: 12px; border-radius: 50%; background: #ffd166; box-shadow: 0 0 10px 4px #ff9b57; animation: wrSpark 0.18s infinite alternate; }
+@keyframes wrSpark { to { transform: scale(1.35); } }
+.wr--kitchen.is-hurry .wr-ord--note { animation: wrWob 0.25s infinite alternate; }
+@keyframes wrWob { to { transform: rotate(1.2deg); } }
+
+/* --- «عم الفرح والمكسر»: the uncle shouts, the mixer's faders ------------------------ */
+.wr--wedding { --pbg: radial-gradient(circle at 50% 0, #4c2f8a, #1b1236 70%); --pc: #fff; }
+.wr-ord--uncle { display: grid; grid-template-columns: 5.8rem 1fr; gap: 0.6rem; align-items: center; padding: 0.25rem 0.9rem 0.5rem; }
+.wr-face { position: relative; width: 5.8rem; height: 5.8rem; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(#ffd166 calc(var(--t) * 360deg), rgba(255, 255, 255, 0.12) 0); }
+.wr-face svg { width: 5rem; height: 5rem; }
+.wr-face .wr-mad { display: none; }
+.wr--wedding.is-hurry .wr-face .wr-mad { display: inline; }
+.wr--wedding.is-hurry .wr-face .wr-glad { display: none; }
+.wr--wedding.is-hurry .wr-face { background: conic-gradient(#ff5f57 calc(var(--t) * 360deg), rgba(255, 255, 255, 0.12) 0); animation: wrBuzz 0.4s infinite; }
+.wr-bub { position: relative; background: #fff; color: #221f36; border: 3px solid var(--ink); border-radius: 18px; padding: 0.6rem 0.75rem; }
+.wr-bub::before { content: ""; position: absolute; top: 2rem; inset-inline-start: -12px; border: 10px solid transparent; border-inline-end-color: #221f36; border-inline-start: 0; }
+.wr-bub small { color: #6b6480; }
+.wr-bub .wr-ord__text { font-size: 1.3rem; }
+.wr-bub .wr-ord__who { color: #1f7a43; }
+.wr--wedding .wr-pnl { margin: 0.2rem 0.75rem 0; padding: 0.85rem 0.6rem; border-radius: 22px; background: linear-gradient(#2d2350, #1a1433); border: 4px solid #000; grid-template-columns: repeat(4, 1fr); grid-auto-flow: row dense; gap: 0.5rem; }
+.wr--wedding .wr-ctl { background: rgba(255, 255, 255, 0.06); border: 2px solid rgba(255, 255, 255, 0.14); grid-column: span 2; }
+.wr--wedding .wr-ctl--v { grid-column: span 1; grid-row: span 2; }
+.wr--wedding .wr-ctl__n { font-size: 0.75rem; }
+.wr--wedding .wr-sl__tr { background: #0b0818; box-shadow: 0 0 0 2px #6d5ba8; }
+.wr--wedding .wr-sl__th { background: #cc99ff; }
+
+/* «الكل يهز الموبايل!»: the whole panel waits for the shake. */
+.wr-shake { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; padding: 1rem; background: rgba(20, 12, 40, 0.72); }
+.wr-shake[hidden] { display: none; }
+.wr-shake__card { width: min(100%, 20rem); display: grid; justify-items: center; gap: 0.6rem; padding: 1.2rem 1rem; border-radius: var(--r-2xl); background: #fff; color: #221f36; border: 4px solid #221f36; box-shadow: 0 8px 0 #221f36; text-align: center; }
+.wr-shake__icon { font-size: 3.2rem; animation: wrShakeIcon 0.3s infinite alternate; }
+@keyframes wrShakeIcon { from { rotate: -14deg; } to { rotate: 14deg; } }
+.wr-shake__title { font-family: var(--font-display); font-weight: 900; font-size: 1.5rem; line-height: 1.3; }
+.wr-shake__dots { display: flex; gap: 0.5rem; }
+.wr-shake__dots i { width: 1.1rem; height: 1.1rem; border-radius: 50%; border: 3px solid #221f36; background: #fff; transition: background 0.15s, transform 0.15s; }
+.wr-shake__dots i.is-on { background: #1f9d55; transform: scale(1.15); }
+.wr-shake__tap { width: 100%; background: #f59e0b; color: #2a1600; border: 3px solid #221f36; }
+.wr-shake__left { font-size: 1.3rem; font-weight: 900; }
+.wr-shake.is-done .wr-shake__icon { animation: none; }
+
+/* The end, above the table's bars (the panel goes). */
+.wr-over { text-align: center; display: grid; gap: 0.3rem; margin-bottom: var(--sp-3); }
+.wr-over__why { font-weight: 800; color: var(--danger-ink, var(--danger)); }
+.wr-over__big { font-family: var(--font-display); font-size: 3.4rem; font-weight: 900; line-height: 1.1; color: var(--accent-ink); }
+.wr-over__line { font-weight: 700; color: var(--text-2); }
+.wr-over__best { font-weight: 700; }
+.wr-over--rise { animation: wrRise 0.6s var(--ease-out, ease) both; }
+@keyframes wrRise { from { opacity: 0; transform: translateY(14px) scale(0.97); } }
+.wr-lobby__places { justify-content: center; }
+
+/* A phone on its side, and any wide screen: the order beside the panel. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) {
+  #view-room-wire .wr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); grid-template-areas: "top top" "bars pnl" "ord pnl"; grid-template-rows: auto auto 1fr; align-content: start; align-items: start; column-gap: 0.4rem; }
+  #view-room-wire .wr > .wr-pnl { grid-auto-flow: row dense; }
+  #view-room-wire .wr-top { grid-area: top; }
+  #view-room-wire .wr-bars { grid-area: bars; }
+  #view-room-wire .wr > .wr-ord { grid-area: ord; }
+  #view-room-wire .wr > .wr-pnl { grid-area: pnl; }
+  #view-room-wire .wr-watch { grid-column: 1 / -1; }
+  #view-room-wire .wr--kitchen { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "bars" "pnl"; }
+  #view-room-wire .wr--kitchen .wr-pnl { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  #view-room-wire .wr--kitchen .wr-ord--note { grid-column: span 2; grid-row: span 2; align-self: center; }
+  #view-room-wire .wr--kitchen .wr-ctl--h { grid-column: span 2; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  #view-room-wire .wr { --k: 0.72; }
+  .wr-top { padding-top: 0.45rem; }
+  .wr-ctl { padding: 0.3rem 0.2rem; gap: 0.2rem; }
+  .wr-ord--led .wr-ord__text, .wr-ord--note .wr-ord__text { font-size: 1.2rem; }
+  .wr-sl[data-o="h"] { height: 2.4rem; }
+  .wr-sl[data-o="v"] { height: calc(8rem * var(--k)); }
+  .wr-stamp { font-size: 1.8rem; }
+  /* The uncle's column is narrow here: his face over the bubble, a size down. */
+  .wr-ord--uncle { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 0.35rem; }
+  .wr-face { width: 4.2rem; height: 4.2rem; }
+  .wr-face svg { width: 3.6rem; height: 3.6rem; }
+  .wr-bub { width: 100%; }
+  .wr-ctl--v .wr-sl__v { top: 2.9rem; }
+  .wr-bub::before { top: -12px; inset-inline-start: calc(50% - 10px); border: 10px solid transparent; border-bottom-color: #221f36; border-top: 0; }
+}
+@media (min-width: 900px) {
+  #view-room-wire > .wr { max-width: 60rem; margin-inline: auto; }
+  #view-room-wire > .wr-over { max-width: 36rem; margin-inline: auto; }
+}
+
+/* --- the TV: each place its scene ---------------------------------------------- */
+.wr-tv { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; border-radius: var(--tv-r, 18px); border: 0.6vmin solid #15121f; background: #000; container-type: size; font-family: var(--font); }
+.wr-scn { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.wr-tv__lv { font-family: var(--font-display); font-weight: 900; font-size: 4.2cqh; color: #ffb938; }
+.wr-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 3; }
+.wr-tv.is-alarm .wr-flash { animation: wrAlarm 0.35s 4 alternate; }
+.wr-tv.is-alarm { animation: wrBuzz 0.35s 2; }
+@keyframes wrAlarm { to { opacity: 1; } }
+.wr-toast { position: absolute; top: 24cqh; left: 50%; translate: -50%; z-index: 4; max-width: 86cqw; text-align: center; background: #221f36; color: #fff; border: 0.5cqh solid #fff; border-radius: 2.6cqh; padding: 1.4cqh 3cqh; font-weight: 800; font-size: 3.4cqh; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+.wr-toast.is-on { opacity: 1; }
+.wr-tvcard { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; justify-items: center; gap: 1.6cqh; padding: 4cqh; text-align: center; background: rgba(12, 8, 26, 0.72); color: #fff; }
+.wr-tvcard[hidden] { display: none; }
+.wr-tvcard.is-in { animation: wrCardIn 0.5s var(--ease-out, ease) both; }
+@keyframes wrCardIn { from { opacity: 0; transform: scale(1.06); } }
+.wr-tvcard__big { font-family: var(--font-display); font-weight: 900; font-size: 11cqh; line-height: 1.1; color: #ffd166; text-shadow: 0 0.8cqh 0 #221f36; }
+.wr-tvcard__line { font-weight: 800; font-size: 4cqh; }
+.wr-tvcard .tv-actions { margin-top: 1cqh; }
+
+/* The microbus: the road above is the progress, the engine's heat the damage. */
+.wr-bus__body { transform-box: fill-box; transform-origin: 50% 100%; animation: wrIdle 0.5s ease-in-out infinite alternate; }
+@keyframes wrIdle { to { transform: translateY(2px); } }
+.wr-tv[data-moment="ok"] .wr-bus__body { animation: wrJolt 0.55s var(--ease-out, ease); }
+@keyframes wrJolt { 30% { transform: translateX(26px) rotate(-1.5deg); } 70% { transform: translateX(8px); } }
+.wr-puff circle { fill: #bdbac8; stroke: #221f36; stroke-width: 3; transform-box: fill-box; transform-origin: center; animation: wrPuff 2.4s ease-out infinite; }
+.wr-puff circle:nth-child(2) { animation-delay: 0.8s; } .wr-puff circle:nth-child(3) { animation-delay: 1.6s; }
+@keyframes wrPuff { 0% { opacity: 0; transform: translate(0, 0) scale(0.4); } 20% { opacity: 0.9; } 100% { opacity: 0; transform: translate(-30px, -110px) scale(1.6); } }
+.wr-tv.is-hot .wr-puff circle { fill: #5c596c; animation-duration: 1.1s; }
+.wr-hz { fill: #ffb938; }
+.wr-tv.is-alarm .wr-hz, .wr-tv.is-alarm-soon .wr-hz { animation: wrHz 0.3s steps(2) infinite; }
+@keyframes wrHz { 50% { fill: #fff; } }
+.wr-tv--bus .wr-flash { box-shadow: inset 0 0 0 3cqh #ffb938, inset 0 0 22cqh 4cqh rgba(229, 56, 59, 0.8); }
+.wr-hud { position: absolute; top: 0; inset-inline: 0; z-index: 2; display: grid; grid-template-columns: auto 1fr auto auto; gap: 3cqw; align-items: center; padding: 2.4cqh 3cqw; background: rgba(21, 18, 31, 0.86); color: #fff; border-bottom: 0.8cqh solid #000; }
+.wr-road { position: relative; height: 6.3cqh; background: #5b5566; border: 0.6cqh solid #000; border-radius: 1.5cqh; direction: ltr; }
+.wr-road::before { content: ""; position: absolute; left: 1.5cqh; right: 1.5cqh; top: 2.4cqh; height: 0.8cqh; background: repeating-linear-gradient(90deg, #fff 0 3.3cqh, transparent 3.3cqh 6cqh); }
+.wr-road__bus { position: absolute; top: -1.3cqh; left: calc(var(--p) * (100% - 11cqh)); width: 11cqh; transition: left 0.8s cubic-bezier(0.3, 1.4, 0.5, 1); }
+.wr-road__goal { position: absolute; right: -1cqh; top: -4.4cqh; font-size: 2.2cqh; font-weight: 700; background: #1f8a4c; border: 0.4cqh solid #000; border-radius: 1cqh; padding: 0 1cqh; white-space: nowrap; }
+.wr-gauge { width: 20cqh; text-align: center; font-size: 2cqh; font-weight: 700; line-height: 1.1; }
+.wr-gauge svg { width: 20cqh; height: 11.3cqh; display: block; }
+.wr-nd { transform-origin: 55px 56px; transform: rotate(calc(-90deg + var(--d) * 180deg)); transition: transform 0.6s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.wr-led { font-size: 5.6cqh; font-weight: 700; color: #ff5f57; background: #000; border-radius: 1.5cqh; padding: 0 2.2cqh; text-shadow: 0 0 1.5cqh rgba(255, 95, 87, 0.7); }
+.wr-ticker { position: absolute; bottom: 3.3cqh; inset-inline: 3.6cqw; z-index: 2; display: flex; gap: 2.2cqw; align-items: center; background: #0c0a12; border: 0.8cqh solid #000; border-radius: 2.6cqh; padding: 1.8cqh 3cqh; color: #8f89a8; font-size: 3cqh; }
+.wr-ticker b { font-family: var(--font-display); font-size: 5.2cqh; color: #ffb938; min-width: 0; }
+.wr-tv[data-moment="ok"] .wr-ticker b { color: #7ee0a2; }
+.wr-tv[data-moment="bad"] .wr-ticker b { color: #ff5f57; }
+
+/* The kitchen: the scene beside the fridge of every phone's order. */
+.wr-tv--kitchen { display: grid; grid-template-columns: minmax(0, 1fr) 27cqw; background: #fdf1e4; }
+.wr-tv__scene { position: relative; min-width: 0; }
+.wr-tv--kitchen .wr-flash { background: radial-gradient(circle, transparent 40%, rgba(229, 56, 59, 0.65)); }
+.wr-tv--kitchen .wr-tv__lv { position: absolute; top: 3cqh; inset-inline-end: 3cqh; color: #b45309; }
+.wr-kclock { position: absolute; top: 3.6cqh; left: 50%; translate: -50%; background: #221f36; color: #fff; border-radius: 99px; padding: 0.6cqh 2.6cqh; font-weight: 700; font-size: 2.6cqh; white-space: nowrap; }
+.wr-kclock b { color: #ffd166; font-size: 3.4cqh; unicode-bidi: isolate; }
+.wr-smokem { position: absolute; top: 3cqh; inset-inline-start: 3cqh; width: 8cqh; height: 36cqh; border: 0.55cqh solid #221f36; border-radius: 4cqh; background: #fff; overflow: hidden; }
+.wr-smokem i { position: absolute; inset-inline: 0; bottom: 0; height: calc(var(--d) * 100%); background: linear-gradient(#5c596c, #8d8aa0); transition: height 0.6s; }
+.wr-smokel { position: absolute; top: 40cqh; inset-inline-start: 1.5cqh; width: 11cqh; text-align: center; font-size: 2.2cqh; font-weight: 700; color: #221f36; }
+.wr-plates { position: absolute; bottom: 3cqh; inset-inline: 3cqh; display: flex; align-items: center; gap: 1.3cqh; background: rgba(255, 255, 255, 0.94); border: 0.55cqh solid #221f36; border-radius: 3cqh; padding: 1.4cqh 2.2cqh; font-weight: 700; color: #221f36; font-size: 2.6cqh; }
+.wr-plates__lbl { margin-inline-end: 0.6cqh; }
+.wr-plate { width: 6.2cqh; height: 6.2cqh; border-radius: 50%; border: 0.55cqh dashed #b9a88f; flex: none; }
+.wr-plate.is-on { border: 0.55cqh solid #221f36; background: radial-gradient(circle, #fff 0 40%, #6ab04c 41% 55%, #fff 56%); }
+.wr-plate.is-pop, .wr-blb.is-pop { animation: wrPop 0.5s cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes wrPop { from { transform: scale(0); } }
+.wr-flm { transform-box: fill-box; transform-origin: 50% 100%; animation: wrFlame 0.3s infinite alternate; }
+@keyframes wrFlame { to { transform: scaleY(0.8) scaleX(1.1); } }
+.wr-stm circle { fill: #fff; stroke: #221f36; stroke-width: 3; transform-box: fill-box; transform-origin: center; animation: wrPuff 2.8s ease-out infinite; opacity: 0; }
+.wr-stm circle:nth-child(2) { animation-delay: 1.4s; }
+.wr-tv.is-hot .wr-stm circle { fill: #5c596c; }
+.wr-hand { transform-origin: 480px 92px; animation: wrSpin 6s linear infinite; }
+@keyframes wrSpin { to { transform: rotate(360deg); } }
+.wr-fridge { background: #e6f1fb; border-inline-start: 1.1cqh solid #221f36; padding: 3cqh 2.4cqh; display: flex; flex-direction: column; gap: 2cqh; min-height: 0; overflow: hidden; }
+.wr-fridge h4 { margin: 0; font-family: var(--font-display); font-size: 3cqh; color: #221f36; }
+.wr-fridge__notes { display: flex; flex-direction: column; gap: 1.8cqh; min-height: 0; }
+.wr-note { position: relative; background: #fff6a8; border: 0.55cqh solid #221f36; border-radius: 0.8cqh 0.8cqh 2.2cqh 0.8cqh; padding: 1.2cqh 1.8cqh 2.2cqh; color: #221f36; font-weight: 700; font-size: 2.8cqh; line-height: 1.3; transform: rotate(-1deg); }
+.wr-note--b { transform: rotate(1.5deg); background: #cdeefd; }
+.wr-note small { display: block; font-size: 2cqh; color: #6b6480; }
+.wr-note.is-idle { opacity: 0.55; }
+.wr-note i { position: absolute; inset-inline: 1.4cqh; bottom: 0.8cqh; height: 0.9cqh; border-radius: 1cqh; background: #e5383b; transform-origin: right; }
+.wr-tv[data-moment="ok"] .wr-kclock { animation: wrPopSm 0.5s; }
+@keyframes wrPopSm { 40% { transform: scale(1.08); } }
+
+/* The wedding: the stage, the lanterns coming on, the guests' faces falling. */
+.wr-tv--wedding { background: #1b1236; }
+.wr-tv--wedding .wr-flash { background: linear-gradient(rgba(229, 56, 59, 0.55), transparent 35%, transparent 65%, rgba(229, 56, 59, 0.55)); }
+.wr-tv--wedding .wr-tv__lv { position: absolute; top: 4cqh; inset-inline-start: 4cqh; z-index: 2; color: #ffd166; }
+.wr-blb { fill: #4b4270; stroke: #221f36; stroke-width: 3; transition: fill 0.3s; transform-box: fill-box; transform-origin: center; }
+.wr-blb.is-on { fill: #ffd166; filter: drop-shadow(0 0 8px #ffd166); }
+.wr-clockc { position: absolute; top: 2.6cqh; left: 50%; translate: -50%; z-index: 2; width: 17cqh; height: 17cqh; border-radius: 50%; background: conic-gradient(#ff5f57 calc(var(--c, 1) * 360deg), #3a2f63 0); border: 0.75cqh solid #000; display: grid; place-items: center; }
+.wr-clockc b { width: 13cqh; height: 13cqh; border-radius: 50%; background: #1b1236; color: #fff; display: grid; place-items: center; font-size: 3.8cqh; }
+.wr-legend { position: absolute; top: 4cqh; inset-inline-end: 4cqh; z-index: 2; max-width: 30cqw; color: #fff; font-weight: 700; font-size: 2.4cqh; text-align: end; }
+.wr-crowd { position: absolute; bottom: 0; inset-inline: 0; z-index: 2; display: flex; justify-content: center; gap: 2.6cqh; padding: 1.8cqh 0 2.2cqh; background: linear-gradient(transparent, rgba(0, 0, 0, 0.55)); }
+.wr-gst { width: 17cqh; height: 17.8cqh; position: relative; }
+.wr-gst svg { width: 100%; height: 100%; }
+.wr-gst .wr-sad { display: none; }
+.wr-gst.is-on .wr-sad { display: inline; }
+.wr-gst.is-on .wr-hap { display: none; }
+.wr-gst.is-on.is-pop { animation: wrBuzz 0.5s; }
+.wr-gbub { position: absolute; bottom: 24cqh; left: 30%; translate: -50%; z-index: 2; max-width: 52cqw; background: #fff; color: #221f36; border: 0.75cqh solid #221f36; border-radius: 3.7cqh; padding: 1.5cqh 3.3cqh; font-family: var(--font-display); font-weight: 900; font-size: 4.8cqh; text-align: center; }
+.wr-gbub::after { content: ""; position: absolute; bottom: -3cqh; left: 50%; margin-left: -2cqh; border: 2.2cqh solid transparent; border-top-color: #221f36; border-bottom: 0; }
+.wr-tv[data-moment="ok"] .wr-gbub { background: #b8f0cb; }
+.wr-tv[data-moment="bad"] .wr-gbub { background: #ffc2bd; }
+.wr-dance { transform-box: fill-box; transform-origin: 50% 100%; }
+.wr-tv[data-moment="ok"] .wr-dance, .wr-tv[data-moment="shake"] .wr-dance { animation: wrDance 0.35s 4 alternate; }
+@keyframes wrDance { to { transform: rotate(6deg) translateY(-6px); } }
+.wr-tv[data-moment="shake"] .wr-scn { animation: wrBuzz 0.3s 4; }
+.wr-cone { transform-box: fill-box; transform-origin: center; animation: wrThump 0.5s ease-in-out infinite alternate; }
+@keyframes wrThump { to { transform: scale(1.12); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .wr, .wr *, .wr-tv, .wr-tv * { animation: none !important; transition: none !important; }
+}
+
 </style>

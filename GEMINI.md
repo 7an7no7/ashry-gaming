@@ -274,6 +274,45 @@ work changed. Add to it when a decision is made or a batch ships.
       got there, so nothing covers 100 or its cup.
     - A win counts on the night's board only against somebody; a player who
       leaves takes their piece off and the turn passes, one left ends it.
+  - **السلم والتعبان, the second round** (the owner, 29 Sep 2026, asked one by
+    one; none of it changes a rule or where a piece ends up - looks only):
+    - **The board takes all the space it can** without squeezing the rest: on a
+      phone upright edge to edge (the page's gutter only); on a phone on its
+      side, a laptop and the TV as tall as the play area with no scrolling (it
+      was 291 px in a 261 px area sideways, 618 in 589 on a laptop), the
+      players, the roll and the log in the column beside it.
+    - **Landing on a snake's tail square**, one at random: **the tail tickles
+      him** (he giggles and wriggles, the snake grins), **trips him (توقعني)**
+      (he falls flat, gets up, dusts himself off), **pushes him a square back**
+      (he stomps back to his own), or **curls into a seat** he sits on, then
+      hops off.
+    - **Landing one square before or after a ladder's foot: the sneak, about
+      half the time.** He tiptoes to the ladder and starts up it fast, looking
+      round; **the nearest snake crawls over** and pushes him down, or eats him
+      and spits him back onto his own square.
+    - **Walking past a snake's head** (not stopping on it): the head sits at the
+      top edge of its square, so **he ducks and tiptoes under it** (the owner's
+      point: more real than jumping), its eyes following him, now and then a
+      snap just above him and a flinch; sometimes the snake lowers its head into
+      the path and he **jumps over** it instead.
+    - **A 1: «بس كده؟»**, one sad little step. **Sixes build up**: the first a
+      cheer, the second a bigger one, the third fireworks. **Tension near
+      100**: from 95 a drumroll, the snake nearest 100 licks its lips, the cup
+      shines.
+    - **Two on one square**: a high five, a bump, or a little dance together.
+      **Waiting**: the players not up tap a foot, yawn, watch the snakes, sit
+      down after a long wait. **The others react** when someone is eaten or
+      climbs (a gasp, a laugh, a clap). **The cup giggles** at a bounce off 100.
+    - **The board lives**: now and then a snake yawns, stretches or snaps at a
+      passing butterfly; a worker walks in, tightens a ladder rung and walks
+      off; at a win the snakes sway like a crowd and the ladders glow; **on the
+      TV only**, the light slowly turns from day to night over a long game and
+      the snakes doze more at night.
+    - **Players**: those home sit on the frame by the cup and cheer the rest
+      on; a player who leaves a room picks up a little suitcase and walks off
+      the board; **a tap on a piece shows whose it is** in a bubble; **faces
+      show the mood** (scared near a snake's head, happy by a ladder's foot,
+      bored when far behind).
   - **جمجمة**: **rooms and the TV only**, your discs secret on your own phone,
     every pile face down on the TV; **3-8 players**; 4 discs each (3 flowers, 1
     skull); **two won bets wins, or the last one in**; **a skull hit takes one

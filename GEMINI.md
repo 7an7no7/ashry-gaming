@@ -1270,6 +1270,39 @@ work changed. Add to it when a decision is made or a batch ships.
       medium, 4.8 on hard). A room saved before the holes were drawn plays the
       first holes (`mgCourse`); a solo game saved before gets them too.
 
+- **كدّاب and الشايب, the second round** - the owner's picks of 29 Sep 2026
+  from a list of what playing them showed (asked, not assumed):
+  - **The look: ج «المسرح»** (a game show), picked from a design sheet of
+    three table looks, each a different structure (أ an oval felt, ب a café
+    table, ج a stage; https://claude.ai/artifact/5V8UoRKiHhLf3z2ASmbgA3). The
+    cards stay the owner's «بلوكات» (*The playing cards*); the table round
+    them is the stage (*كدّاب*, "The stage").
+  - **Faster picking in كدّاب**: a rank chip picks your cards of that rank
+    (each chip shows how many you hold), so a true lead is one tap; cards
+    picked by hand first stay picked (a bluff). Following, a one-tap «اختار
+    الـسبعات اللي معاك (2)», or «معكش سبعات: اكدب أو قول باص».
+  - **The call window, with computer players only** (the owner's word, asked:
+    "only when playing with bots, right?"): a bot up after a play a person can
+    still call waits 3.2-3.8 s (it was 1.9-2.9) and a bar drains on كدّاب!
+    with «زيزو هيلعب دلوقتي… الحق!». With a person next nothing changes: the
+    chance ends when they move, as at a real table (a fixed window for
+    everyone was offered and not chosen).
+  - **A clearer table**: the turned-over cards of a call bigger, the stamp on
+    their lower edge (not over their faces); an empty pile a dashed place, not
+    a faded back; a picked card over its neighbours in an overlapping hand.
+  - **الشايب: the old man moment** - when الشايب changes hands, only the two
+    phones concerned react (the one who drew it: the old man laughs,
+    «اتشيّبت!»; the one rid of it: relief). No sound (the table would hear);
+    the TV and the other phones see nothing.
+  - **«🔀 اخلط ورقي»** in the drag mode: one tap shuffles your own hand.
+  - **The backs to draw from in rows of whole cards** on a phone held upright
+    (seven or more), not slivers of an overlap; **one pair count**, not two.
+  - Code sharing between the two games' files was offered and not chosen.
+  - Decided here (open to change, each one place): the seats' status words
+    are neutral nouns («في الانتظار», «🎯 الدور», «السحب من هنا») because a
+    name doesn't say whether a verb is masculine or feminine; the claim's
+    small line is «🎤 منى» for the same reason; a burst of «اخلط» taps is one
+    event that moves on (`omMix`), so the log's 40 keep the draws.
 - **كدّاب (I Doubt It)** - the owner's spec of 23 Sep 2026, every rule asked
   one at a time, look ب "بلوكات" picked from a design sheet of four games
   (*كدّاب*):
@@ -3884,6 +3917,20 @@ the word search), `countUp` for streaks and scores.
   reached the waist hid the shirt, the tie and the necklace, so the faces
   under it looked alike - it ends on the chest now, and a face with one gets
   none of what it would hide. A deploy is needed for the rooms server.
+
+- **29 Sep 2026, كدّاب and الشايب's second round** (*The owner's specs*):
+  the flow fixes (rank chips that pick, the pick-your-rank button, the bot's
+  wait and the draining bar on كدّاب!, bigger called cards, a dashed empty
+  pile; shuffle my hand, rows of backs, the old man moment, one pair count),
+  then look ج «المسرح» on the phone, a phone on its side, a laptop and the TV
+  (section 26b of `Style.html`). Rules tests (the call window's times and
+  `shared.callEnds`, `mix` and the lifted card following its card), the leak
+  check, and the screen test's rooms and screens. Looked at in the browser at
+  375x812, 1280x720 and a TV at 1920x1080 with three computer players and two
+  scripted people. Found on the way: a design sheet with no viewport tag
+  shows a phone the 980px page; and a laptop's named grid areas leak onto a
+  TV frame that shares its class (`grid-area: rail` makes an implicit area).
+  A deploy is needed for the rooms server.
 
 ## Building and Running
 
@@ -6958,6 +7005,55 @@ The owner's rules are in *The owner's specs*.
   concerns: the giver sees it leave face up and turn, the drawer sees it
   turn up as it lands), a player safe, the shuffle, a leaver's cards
   flying to the next hand; the end turns الشايب over in the loser's hand.
+
+### كدّاب and الشايب on the stage (section 26b of `Style.html`)
+
+Look ج «المسرح» (*The owner's specs*). Both games' play frames, on the phone
+and the TV, are a `.pc-stage`: dark in both themes, and it sets the page's
+tokens again inside it (`--text*`, `--surface*`, `--border`, `--accent-ink`,
+the semantic inks and softs), so everything built on tokens - badges,
+hints, the log, the room strip - reads right on it without rules of its own.
+The pieces: `.pc-rail` of `.pc-tile`s (a seat: initial and name, the count
+lit up in gold, `pc-tile__led`, which is also the seat's flight target
+`data-pc-at="seat:…"`, and a status line); `.pc-spot` (a beam,
+`pc-spot__beam`, a lit floor, `pc-spot__floor`) holding `.pc-banner` (a small
+line, the headline, a gold rule); the buzzer (`.db-callbtn` made round) in
+`.db-controls` between `.pc-side--ghost` «باص» and `.pc-side--amber` «ارمي»
+(`is-solo` when only the buzzer applies, `no-buzz` without it); `.pc-throw`,
+the amber button for a lead and «خد الكارت ده»; your hand a fan
+(`.pc-fanrow`, each card's `--a` from `pcFanAngle(k, n)`, turned with the
+`rotate` property about a point far below, so a lift's `transform` and a
+drag's still add to it); الشايب's pairs on `.pc-shelf`; «على الهوا»
+(`.pc-onair`), the log. Phone: one column, the controls above the hand
+(`dbHandInView` keeps the hand's foot in sight without losing the bar's
+top). A phone on its side: the stage beside the controls and the hand. From
+900px: a grid - the scoreboard a column on one side, «على الهوا» on the
+other, and in the middle the spotlit pile beside the controls with the hand
+along the bottom, so 1280x720 needs no scrolling. The TV: the scoreboard
+down one side, the stage in the middle, the turn and the log on the other
+(its frame resets `grid-area` on its children: the laptop's named areas
+would otherwise make implicit ones on a TV that shares the class).
+
+**The call window with computer players** (`RoomDoubt.js`,
+`ROOM_BOT_GAMES.doubt.pending`): when the bot up follows a play a person
+still holding cards could call, its moment is 3.2-3.8 s
+(`DOUBT_BOT_TURN_HUMAN_MS`), kept per turn in `room._doubt.turnAt` and
+published as `shared.callEnds` (cleared by every `doubtSync`, set again by
+the hook, which runs after it); the page draws `dbCallBarHtml` from it with
+the server's time (`dbLocal.gap`, the smallest `receivedAt - serverNow`).
+
+**Shuffling your own hand** (`RoomOldMaid.js`, `mix`, drag mode only): the
+server shuffles the hand; the lifted card follows its card (the aim is by
+id); the event says only who (`{ type: 'mix', pid }`), a repeat by the same
+player moving the last one on. `omLive` slides your cards to the new order
+and jumbles the backs on the drawer's screen; `mix` is left out of the
+frame's signature like `move`.
+
+**The old man moment** (`omOldManMoment`, `omShowMoment`): read from this
+phone's own hand before and after a batch of events (a `draw` of yours, a
+`draw` from you, or a leaver's cards), shown as a layer over the hand
+(`.om-moment`, removed by a timer, a tap, or the room moving on), with a
+light buzz and no sound.
 
 ### The playing cards (`JS_Cards.html`, section 26 of `Style.html`)
 

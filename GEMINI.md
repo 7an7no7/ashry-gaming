@@ -275,7 +275,8 @@ work changed. Add to it when a decision is made or a batch ships.
     - A win counts on the night's board only against somebody; a player who
       leaves takes their piece off and the turn passes, one left ends it.
   - **السلم والتعبان, the second round** (the owner, 29 Sep 2026, asked one by
-    one; none of it changes a rule or where a piece ends up - looks only):
+    one; none of it changes a rule or where a piece ends up - looks only).
+    **Built 29 Sep 2026** (*السلم والتعبان*, "The second round"):
     - **The board takes all the space it can** without squeezing the rest: on a
       phone upright edge to edge (the page's gutter only); on a phone on its
       side, a laptop and the TV as tall as the play area with no scrolling (it
@@ -313,6 +314,39 @@ work changed. Add to it when a decision is made or a batch ships.
       the board; **a tap on a piece shows whose it is** in a bubble; **faces
       show the mood** (scared near a snake's head, happy by a ladder's foot,
       bored when far behind).
+    - Decided while building (open to change, each in one place):
+      - **The server picks every moment of a roll** (`snakesRoll`), in a
+        fixed order on its random source so one source makes the same roll
+        everywhere: each head walked past - **jump three times in ten**
+        (`SNAKES_PASS_JUMP`), else a duck, **a snap in three of those**
+        (`SNAKES_PASS_SNAP`); a tail square's move (never the last one); the
+        sneak (`SNAKES_SNEAK_CHANCE` 0.5) and how it ends, push or eat, half
+        and half; the meeting's move; the sixes in a row. Each has its time in
+        `snakesRollMs`, so `readyAt` waits for it.
+      - **The sneak is the "ladder just missed" case** (`near: 'l'`): a
+        snake's head beside the square keeps its near miss, and a tail square
+        its tail move, first. **"The nearest snake"** is the one whose head is
+        nearest the ladder's foot; its front crawls over and its tail stays
+        in its hole, the neck stretching (a cartoon: no snake is too far).
+      - **Walked past** means a square the walk goes through, the bounce off
+        100 included, never the one it stops on (`snakesPathOf`).
+      - **Two on one square** is anyone still playing on the square the roll
+        ends on (1-99), the first in seat order.
+      - **The tension is the roll from 95-99** (`tense`); the cup also shines
+        whenever someone stands on 95-99.
+      - **A leaver's suitcase walk** is 1.8 s and the next roll waits for it
+        (`SNAKES_LEAVE_MS`, `readyAt` in `snakesPlayerLeft`).
+      - **The TV's night follows the rolls, not the clock** (`g.rolls`, the
+        same on every screen and after a reload): dusk from the 30th roll,
+        night at the 140th (`snkNight`), stars on the frame from half way.
+      - **The others' reactions** are chosen from the roll's own number and
+        the map's seed, so every screen shows the same without the server
+        storing them; the moods, the idle moments and the board's life are
+        each screen's own.
+      - **The moods**: scared with a snake's head 1-6 squares ahead, happy
+        with a ladder's foot there (scared first), bored 30 or more behind
+        the leader; **sitting down after 25 s** without moving
+        (`SNK_SIT_AFTER`), never the one about to roll.
   - **جمجمة**: **rooms and the TV only**, your discs secret on your own phone,
     every pile face down on the TV; **3-8 players**; 4 discs each (3 flowers, 1
     skull); **two won bets wins, or the last one in**; **a skull hit takes one
@@ -3884,6 +3918,27 @@ the word search), `countUp` for streaks and scores.
   reached the waist hid the shirt, the tie and the necklace, so the faces
   under it looked alike - it ends on the chest now, and a face with one gets
   none of what it would hide. A deploy is needed for the rooms server.
+- **29 Sep 2026, السلم والتعبان's second round** (*The owner's specs*,
+  *السلم والتعبان*, "The second round"): the board as big as fits at every size
+  (measured by `snkFit`, nothing scrolls sideways-held, on a laptop or the TV;
+  a room's strip of people moved into the side column), and every new moment
+  the owner picked - a snake's tail square (four moves), the sneak beside a
+  ladder's foot (push or eat), heads walked past (duck, snap, jump), a 1, the
+  sixes building up to fireworks, the drumroll from 95, two on one square,
+  the cup's giggle, the snakes swaying and the ladders glowing at a win, the
+  leaver's suitcase - decided on the server in the roll's event and counted in
+  `readyAt`; and the board's own life on each screen: moods on the faces,
+  tapping, yawning, watching, sitting, cheering from the frame, the others'
+  reactions, a snake stretching or snapping at a butterfly, a worker at a
+  rung, a name on a tap, the TV's night. Rules tests (13 new checks; all pass,
+  the leak check clean), the robots' round (`--only=snakes`, 16 passed).
+  Looked at in headless Chrome on a virtual clock (every moment photographed
+  mid-way, each ending before its `readyAt`): one phone at 375×812 Arabic
+  light and 1280×720 English dark, 667×375 English dark (a leaver's walk, a
+  reload mid-roll), reduced motion (every roll set at once, no errors); a room
+  of three phones (375×812, 667×375 dark, 1280×720), a computer player and a
+  TV at 1920×1080 and 1280×720 (sizes, rolls, a leaver, the night); no console
+  errors. A deploy is needed for the rooms server.
 
 ## Building and Running
 
@@ -6417,8 +6472,9 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
 - **`JS_Snakes.html`**: the board, ported from the design sheet
   (`notes/snakes-looks-sheet.html`, look أ only), and a game against the phone.
   - **One board per page** (`snkView`): an `<svg>` (`snkBoardSvg`, a viewBox
-    of 660 × 700: the board and, under it, the wooden mat the pieces wait on
-    before their first roll) in a root element moved into whichever screen
+    of 646 × 700, `SNK_VB`: the frame edge to edge, room above it for the
+    pieces home, and under it the wooden mat the pieces wait on before their
+    first roll) in a root element moved into whichever screen
     shows it (`snkShowIn`, into the frame's `[data-snk-host]`), so a room frame
     rebuilt with innerHTML never cuts an animation; thrown away (`snkDrop`)
     when no screen shows it. Layers, bottom up: the squares, the holes, the
@@ -6481,7 +6537,68 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
   board the width of the phone, the bar sticky under it; a phone on its side
   and from 900 px, the board takes the height beside a column; the TV, the
   board as tall as the stage beside the players, the bar and the log. The
-  board keeps look أ's own colours in both themes.
+  board keeps look أ's own colours in both themes. **The board's size is
+  measured, not guessed** (the second round): wherever the frame is two
+  columns, `snkFit` (from `snkShowIn` and on resize) sets `--snk-bw` (the
+  board's width) from what is left of the play area under the frame's top -
+  `#shell-main`'s height less its padding, or the TV frame's own height - and
+  never so wide that the side column drops under its least width (13rem, 15rem
+  from 900 px, 18rem on the TV), and `--snk-fh` holds the side column to that
+  height, scrolling inside itself; a room's strip of people is in the side
+  column (`k.strip`). So nothing scrolls. Measured in headless Chrome (the
+  board's height, before → after): 667 × 375 291 → 296-304 px, a room's phone
+  no longer scrolling (it scrolled 40 px); 1280 × 720 618 → 605-616, a room's
+  phone no longer scrolling (59 px); the TV 896 → 907 at 1920 × 1080 and
+  598 → 603 at 1280 × 720, filling the frame's height; upright the frame now
+  reaches the page's gutter (the drawing's own margin cut from 30 units to 1
+  a side, the board 338 × 358 → 338 × 366). The owner's own numbers (261 px
+  of room sideways) were a phone with less height than the emulator's: the
+  measuring is why it fits there too.
+- **The second round** (the owner, 29 Sep 2026; *The owner's specs*):
+  - **Decided on the server**, in the roll's event (`Snakes.js`): `pass`
+    ([{ h, v: 'duck' | 'snap' | 'jump' }], each head walked past, in order),
+    `tail` ({ v: tickle | trip | push | seat, h }, `g.lastT` never twice),
+    `sneak` ({ f: the ladder's foot, h: the snake that crawls, v: push | eat }),
+    `meet` ({ v: five | bump | dance, with }), `sixes` (1, 2, 3…), `tense`
+    (from 95-99) and `rolls`; each with its time (`SNAKES_TAIL_MS`,
+    `SNAKES_SNEAK_MS`, `SNAKES_PASS_MS`, `SNAKES_MEET_MS`, `SNAKES_ONE_MS`,
+    `SNAKES_TENSE_MS`, `SNAKES_SIXES_MS`) in `snakesRollMs`. A leaver's `left`
+    event carries `ms` and moves `readyAt` (`RoomSnakes.js`).
+  - **Played on each screen** (`snkPlayRoll`): `snkTense` before the die (a
+    drumroll `snkDrum`, the snake nearest 100 in `m-lick`, the cup's glow
+    faster under `is-drum`), the walk with `passQ` (`snkPassHead`: ducked -
+    squashed at the feet and on tiptoe - the snake's eyes on him by its usual
+    tracking; a snap lunging just above him; or the head lowered into the path
+    and a jump over it), `snkOne`, then the snake or ladder with the others'
+    reactions (`snkReact`), a tail move (`SNK_TAIL_ANIM`: `snkTickle`,
+    `snkTrip`, `snkTailPush`, `snkTailSeat` with a coil drawn under him) or
+    the sneak (`snkSneak`: the front of the snake's body carried by `sn.shx`
+    / `sn.shy`, weighted along the body so the tail stays in its hole), the
+    meeting (`snkMeet`), the win (`c.crowd` sways every head, the ladders'
+    glow pulses) or the sixes (`snkSixes`, fireworks `snkBurst` on the
+    third); a leaver's `snkLeave` (the suitcase, «سلام!», walking off the
+    nearer edge) - the piece is kept for it (`snkSyncPlayers`' `keep`) until
+    the queue has played it. Each stays inside its server time: measured on a
+    virtual clock, every one ends 300-600 ms before `readyAt`.
+  - **The board's own life** (`snkAmbient`, from `snkFrame` at the resting
+    rate, never with the motion off): once a second the moods (`snkMoods`:
+    `mood-happy`, `mood-scared`, `mood-bored` on the piece, faces that are CSS
+    over the piece's parts - `snk-grin`, `snk-wob`, `snk-eW`, `snk-lids`,
+    `snk-flat` - only while nothing is being played) and sitting (`is-sat`,
+    after `SNK_SIT_AFTER`); every few seconds one waiting piece taps a foot,
+    yawns or watches the nearest snake (`snkIdleOnce`: `idle-*` classes); every
+    11-23 s one of the board's moments (`snkBoardLife`: a snake's yawn or
+    stretch, a butterfly flying past a head that snaps at it -
+    `snkButterflySnap` - or a worker tightening a rung, `snkWorkerRung`), each
+    on `snkAmb`, a tween that gives way at once to a roll or a building. Pieces
+    home sit on the frame and cheer (`is-home`, each at its own moment,
+    `--snk-d`). A tap on a piece shows its name (`snkNameBubble`, even with the
+    motion off). The TV's night is `snkNight` (`.snk-dusk`, `.snk-stars`, a
+    slow CSS transition), and at night the snakes' naps come sooner and last
+    longer.
+  - **Cost**: one frame's own work (the snakes drawn and the board's life) at
+    4× CPU throttle, 1.18 → 1.30 ms (measured over 600 frames, three runs
+    each); the page at rest 26-38 → 34-42 ms of script a second.
 - Tests: `rules.mjs` (80 maps: five of each, ends apart, heads above tails,
   ladders two rows, no crossing, fairness re-simulated; the rules on a map of
   our own: the first roll onto the board, a ladder, a snake, a six, a near
@@ -6489,7 +6606,13 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
   row and every one coming up; the room: colours, the host's start, a roll
   during the building dropped, a stale tap, the clock and the host's "play
   for", a whole game with a computer player, the win on the night's board,
-  play again with a teardown, leaving, seven people), `leaks.mjs` (a game with
+  play again with a teardown, leaving, seven people; the second round: the
+  sneak about half the time and only beside a ladder's foot with the nearest
+  snake, the tail's four moves never twice in a row and only on a tail square,
+  a head counted only when walked past, bouncing off 100 included, a jump
+  about three times in ten, the sixes counted, two on one square, every new
+  moment in the roll's time, one random source making the same rolls, the
+  leaver's walk waited for), `leaks.mjs` (a game with
   three computer players on the clock; nothing is hidden), `play-all.mjs`
   (`--only=snakes`: two people, a computer player and a TV on a live server).
 

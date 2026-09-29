@@ -340,7 +340,8 @@ ROOM_GAMES.snakes = {
     if (!Array.isArray(s.seats)) return;
     const k = snkRoomCtx(state, false);
     const local = [state.youAreHost, appState.lang, Room.me].join('|');
-    renderRoomFrame(el, snkServerSig(state) + '#' + local, () => snkFrameHtml(k) + renderRoomPlayerStrip(state));
+    // The room's strip of people sits in the column beside the board, so the page never scrolls.
+    renderRoomFrame(el, snkServerSig(state) + '#' + local, () => snkFrameHtml(Object.assign({}, k, { strip: renderRoomPlayerStrip(state) })));
     snkRefreshInPlace(el, state, false);
     snkTickClock(state);
     snkRoomFeed(el, state, false);

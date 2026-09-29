@@ -9769,6 +9769,149 @@ Date.now = duelTestClock;
   check(big.shared.seats.length === 6 && big.shared.seats.indexOf('b') === -1, 'snakes room: with seven or more the host picks the six who play');
 }
 
+/* --- الشاهد (29 Sep 2026): a face seen 8 s, a sketch, a lineup of six very alike, the jury's vote --- */
+{
+  console.log('\nThe witness');
+  const W = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../Witness.js', import.meta.url), 'utf8') +
+    ';return { gwSignature, witnessLineup, witnessClean, witnessFix, witnessBlank, WITNESS_LOOK_MS, WITNESS_DRAW_MS, WITNESS_VOTE_MS };')();
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
+  const witRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'witness' }); return r; };
+  const gone = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id.toUpperCase()); };
+  // The lineup: six, one gender, never two alike, each look-alike close to the real one.
+  {
+    let ok = true, oneGender = true, close = true, names = true;
+    const KEYS = ['hair', 'style', 'hijab', 'beard', 'mous', 'brows', 'eyes', 'mouth', 'freckles', 'rosy', 'mole', 'wrinkles', 'glasses', 'sun', 'phones', 'cap', 'ear', 'necklace', 'scarf', 'top', 'tie', 'pattern', 'shirt', 'skin'];
+    const featureDiff = (a, b) => KEYS.filter((k) => JSON.stringify(a[k] === undefined ? null : a[k]) !== JSON.stringify(b[k] === undefined ? null : b[k])).length;
+    for (let k = 0; k < 400; k++) {
+      const L = W.witnessLineup(Math.random);
+      const sigs = new Set(L.faces.map(W.gwSignature));
+      if (L.faces.length !== 6 || sigs.size !== 6 || L.real < 0 || L.real > 5) ok = false;
+      if (L.faces.some((x) => x.g !== L.faces[0].g)) oneGender = false;
+      if (new Set(L.faces.map((x) => x.name)).size !== 6) names = false;
+      const real = L.faces[L.real];
+      // One to three changes; the rules may take off one more thing (a tie with the collar).
+      if (L.faces.some((x, i) => i !== L.real && (featureDiff(x, real) < 1 || featureDiff(x, real) > 5))) close = false;
+    }
+    check(ok, 'witness: a lineup is six faces, none two alike, the real one among them');
+    check(oneGender && names, 'witness: a lineup is one gender, every suspect a different name');
+    check(close, 'witness: every look-alike differs from the real face in a few features only');
+  }
+  // A sketch from a phone is only a face: unknown fields dropped, what can't be worn together fixed.
+  {
+    const x = W.witnessClean({ g: 'f', hijab: 3, ear: true, beard: true, cap: 2, top: 'collar', tie: 'tie', skin: 9, hair: 'purple', evil: '<b>', glasses: true, sun: true });
+    check(x.g === 'f' && x.hijab === 3 && !x.ear && !x.beard && x.cap === null && x.top === 'tee' && x.tie === '' && x.skin === 0 && x.hair === 'black' && !('evil' in x) && x.sun && !x.glasses,
+      'witness: a sketch is cleaned: a hijab takes the earrings, a cap and a collar; bad values fall back');
+  }
+  {
+    const r = witRoom(['a', 'b']);
+    check(threw(() => applyRoomAction(r, 'a', 'start', {})), 'witness: fewer than three is refused');
+  }
+  {
+    const r = witRoom(['a', 'b', 'c', 'd']);
+    check(threw(() => applyRoomAction(r, 'b', 'start', {})), 'witness: only the host starts');
+    applyRoomAction(r, 'a', 'start', {});
+    let s = r.shared;
+    check(r.phase === 'play' && s.phase === 'ready' && s.round === 1 && s.rounds === 4 && s.order.length === 4 && s.witnessId === s.order[0] && s.artistId === s.order[1],
+      'witness: round 1 waits for the witness; the artist is the next in turn');
+    check(!r._witness && !Object.keys(r.secrets).length && roomDeadline(r) === null, 'witness: no face is dealt before the witness is ready, and no clock runs');
+    const w = s.witnessId, art = s.artistId, jury = s.order.filter((id) => id !== w && id !== art);
+    applyRoomAction(r, art, 'ready', { round: 1 });
+    check(r.shared.phase === 'ready', 'witness: only the witness opens the case file');
+    applyRoomAction(r, w, 'ready', { round: 1 });
+    s = r.shared;
+    const real = r._witness.faces[r._witness.real];
+    check(s.phase === 'look' && r.secrets[w] && W.gwSignature(r.secrets[w].face) === W.gwSignature(real) && Object.keys(r.secrets).length === 1,
+      'witness: the real face goes to the witness\'s phone only');
+    check(s.lineup === null && s.realIdx === null && !s.sketch, 'witness: nothing of the face is on the table');
+    check(roomDeadline(r) === s.lookEndsAt && s.lookEndsAt - clock >= W.WITNESS_LOOK_MS, 'witness: the look lasts 8 seconds on the server\'s clock');
+    tick(r);
+    s = r.shared;
+    check(s.phase === 'draw' && !r.secrets[w] && s.sketch && s.sketch.g === 'm' && s.drawEndsAt - clock === W.WITNESS_DRAW_MS, 'witness: after 8 s the face leaves the witness\'s phone; 90 s to draw from a plain face');
+    applyRoomAction(r, jury[0], 'sketch', { round: 1, n: 1, face: { g: 'f' } });
+    check(s.sketch.g === 'm', 'witness: only the artist draws');
+    const copy = Object.assign({}, real);
+    applyRoomAction(r, art, 'sketch', { round: 1, n: 2, face: copy });
+    applyRoomAction(r, art, 'sketch', { round: 1, n: 1, face: W.witnessBlank('m') });
+    check(s.sketchN === 2 && W.gwSignature(s.sketch) === W.gwSignature(real), 'witness: the sketch is shared as it is built, a late tap never undoes a newer one');
+    applyRoomAction(r, art, 'done', { round: 1 });
+    s = r.shared;
+    check(s.phase === 'vote' && s.lineup.length === 6 && s.realIdx === null && s.early === true && s.vote.eligible.slice().sort().join() === jury.slice().sort().join(), 'witness: done early opens the lineup; the jury is everyone else');
+    check(threw(() => applyRoomAction(r, w, 'vote', { option: 's1', round: 1 })) && threw(() => applyRoomAction(r, art, 'vote', { option: 's1', round: 1 })), 'witness: the witness and the artist don\'t vote');
+    const realOpt = 's' + (r._witness.real + 1), wrongOpt = 's' + (((r._witness.real + 1) % 6) + 1);
+    applyRoomAction(r, jury[0], 'vote', { option: wrongOpt, round: 1 });
+    check(s.phase === 'vote' && !s.vote.results && !s.picks, 'witness: a vote is hidden until the vote closes');
+    applyRoomAction(r, jury[0], 'vote', { option: realOpt, round: 1 });
+    applyRoomAction(r, jury[1], 'vote', { option: wrongOpt, round: 1 });
+    s = r.shared;
+    check(s.phase === 'reveal' && typeof s.realIdx === 'number' && s.right.join() === jury[0] && s.picks[jury[1]] === Number(wrongOpt.slice(1)) - 1,
+      'witness: the vote closes when the jury has voted; a vote may be changed until then');
+    check(s.scores[jury[0]] === 1 && !s.scores[jury[1]] && s.scores[w] === 1 && s.scores[art] === 1 && s.gained[w] === 1, 'witness: a point to a juror right, and one each to the witness and the artist for them');
+    check(!r._witness && s.board[0].score === 1, 'witness: the answer is public now and the board is up');
+    applyRoomAction(r, 'a', 'nextRound', { round: 0 });
+    check(r.shared.phase === 'reveal', 'witness: a stale next round is dropped');
+    applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+    s = r.shared;
+    check(s.phase === 'ready' && s.round === 2 && s.witnessId === s.order[1] && s.artistId === s.order[2] && s.lineup === null && !s.picks, 'witness: round 2: the next witness, and the artist after them');
+    // Round 2: nobody votes, the clocks run.
+    applyRoomAction(r, s.witnessId, 'ready', { round: 2 });
+    tick(r); tick(r);
+    s = r.shared;
+    check(s.phase === 'vote' && s.early === false, 'witness: the drawing ends by itself after 90 s');
+    tick(r);
+    s = r.shared;
+    check(s.phase === 'reveal' && s.right.length === 0 && !s.gained[s.witnessId], 'witness: the vote ends on its clock; nobody right, no points');
+    applyRoomAction(r, 'a', 'nextRound', { round: 2 });
+    // Round 3: the host passes over a quiet witness.
+    s = r.shared;
+    const quiet = s.witnessId;
+    check(threw(() => applyRoomAction(r, quiet === 'b' ? 'c' : 'b', 'skipTurn', { round: 3 })), 'witness: only the host (or a stand-in) passes a witness over');
+    applyRoomAction(r, 'a', 'skipTurn', { round: 3 });
+    s = r.shared;
+    check(s.round === 4 && s.skipped.indexOf(quiet) !== -1 && s.witnessId === s.order[3] && s.artistId === s.order[0], 'witness: a witness passed over; the last round\'s artist goes round to the first');
+    applyRoomAction(r, s.witnessId, 'ready', { round: 4 });
+    tick(r);
+    applyRoomAction(r, 'a', 'closeDraw', { round: 4 });
+    s = r.shared;
+    check(s.phase === 'vote', 'witness: the host can close a quiet artist\'s drawing');
+    applyRoomAction(r, 'a', 'closeVote', { round: 4 });
+    applyRoomAction(r, 'a', 'nextRound', { round: 4 });
+    s = r.shared;
+    check(s.phase === 'gameover' && s.board.length === 4 && roomDeadline(r) === null, 'witness: everyone has been the witness once: the game is over');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.phase === 'ready' && r.shared.round === 1 && !Object.keys(r.shared.scores).length, 'witness: play again deals a new game');
+  }
+  // Leaving.
+  {
+    const r = witRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'start', {});
+    let s = r.shared;
+    const art = s.artistId;
+    gone(r, art);
+    s = r.shared;
+    check(s.phase === 'ready' && s.artistId && s.artistId !== art && s.artistId !== s.witnessId, 'witness: an artist who leaves before the drawing hands the pencil to the next one');
+    applyRoomAction(r, s.witnessId, 'ready', { round: s.round });
+    tick(r);
+    gone(r, r.shared.artistId);
+    s = r.shared;
+    check(s.phase === 'vote' && s.jury.length === 1, 'witness: an artist who leaves mid-drawing sends the sketch to the lineup');
+    gone(r, s.jury[0]);
+    s = r.shared;
+    check(s.phase === 'reveal' && s.right.length === 0, 'witness: the last juror leaving closes the vote');
+    applyRoomAction(r, r.hostId, 'nextRound', { round: s.round });
+    check(r.shared.phase === 'gameover', 'witness: fewer than three left ends the game');
+  }
+  {
+    const r = witRoom(['a', 'b', 'c', 'd', 'e']);
+    applyRoomAction(r, 'a', 'start', {});
+    const w = r.shared.witnessId;
+    applyRoomAction(r, w, 'ready', { round: 1 });
+    gone(r, w);
+    const s = r.shared;
+    check(s.phase === 'ready' && s.round === 2 && s.witnessId !== w && !r._witness && !Object.keys(r.secrets).length, 'witness: a witness who leaves while looking: the round is passed over, the face gone');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

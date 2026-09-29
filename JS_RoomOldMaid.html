@@ -210,7 +210,7 @@ function omSeatHtml(state, pid, tv) {
   const s = omShared(state);
   const p = (state.players || []).find(x => x.id === pid);
   const n = (s.counts || {})[pid] || 0;
-  const cls = ['om-seat'];
+  const cls = ['om-seat', 'pc-tile'];
   const turn = s.phase === 'play' && s.turn;
   if (turn && s.turn.pid === pid) cls.push('is-turn');
   if (turn && s.turn.from === pid) cls.push('is-from');
@@ -218,15 +218,16 @@ function omSeatHtml(state, pid, tv) {
   const place = (s.out || []).indexOf(pid);
   if (place !== -1) cls.push('is-out');
   if (s.loser === pid) cls.push('is-loser');
-  let tag = '';
-  if (s.loser === pid) tag = `<span class="om-tag om-tag--loser">🧓</span>`;
-  else if (place !== -1) tag = `<span class="om-tag om-tag--out">✓ ${place + 1}</span>`;
-  else if (turn && s.turn.pid === pid) tag = `<span class="om-tag om-tag--turn">${escapeHTML(pcT('om_tag_drawing'))}</span>`;
-  else if (turn && s.turn.from === pid) tag = `<span class="om-tag">${escapeHTML(pcT('om_tag_from'))}</span>`;
+  let st = pcT('pc_st_wait');
+  let hot = '';
+  if (s.loser === pid) { st = '🧓 ' + pcT('pc_old_maid'); hot = 'is-hot'; }
+  else if (place !== -1) { st = '✓ ' + pcT('pc_st_place', { n: place + 1 }); hot = 'is-good'; }
+  else if (turn && s.turn.pid === pid) { st = pcT('pc_st_turn'); hot = 'is-turn'; }
+  else if (turn && s.turn.from === pid) { st = pcT('om_st_from'); hot = 'is-target'; }
   return `<div class="${cls.join(' ')}" data-pc-seat="${escapeHTML(pid)}">
-      <span class="om-avatar" aria-hidden="true">${pcInitial(state, pid)}</span>
-      <span class="om-seat__who"><span class="om-seat__name">${escapeHTML(p ? p.name : '—')}</span>${tag}</span>
-      <span class="om-seat__hand" data-pc-at="seat:${escapeHTML(pid)}">${pcFanHtml(n, tv ? 4 : 3)}<b class="om-seat__n metric">${n}</b></span>
+      <span class="pc-tile__who"><span class="om-avatar" aria-hidden="true">${pcInitial(state, pid)}</span><span class="om-seat__name">${escapeHTML(p ? p.name : '—')}</span></span>
+      <b class="pc-tile__led metric" data-pc-at="seat:${escapeHTML(pid)}">${n}</b>
+      <span class="pc-tile__st ${hot}">${escapeHTML(st)}</span>
     </div>`;
 }
 
@@ -237,7 +238,7 @@ function omMidHtml(state, tv) {
   const shown = thrown.slice(-(tv ? 8 : 6));
   const size = tv ? 'md' : 'sm';
   const pairs = shown.map((tp, k) => `<span class="om-pair" style="--k:${k};--tilt:${((k * 29 + thrown.length * 7) % 18) - 9}deg">${pcCardHtml(tp.cards[0], { size: size })}${pcCardHtml(tp.cards[1], { size: size })}</span>`).join('');
-  return `<div class="om-mid" data-pc-at="mid">
+  return `<div class="om-mid pc-shelf" data-pc-at="mid">
       <div class="om-mid__pairs" dir="ltr">${pairs || `<span class="om-mid__empty">${escapeHTML(pcT('om_no_pairs'))}</span>`}</div>
       <p class="om-mid__label">${escapeHTML(pcT('om_pairs_out', { n: thrown.length, of: s.pairs || 0 }))}</p>
     </div>`;
@@ -270,16 +271,19 @@ function omDrawHtml(state, tv) {
   if (s.phase !== 'play' || !s.turn) return '';
   const drawer = pcName(state, s.turn.pid);
   const from = pcName(state, s.turn.from);
+  const banner = (small, strong) => `<div class="pc-banner"><small>${escapeHTML(small)}</small><strong>${escapeHTML(strong)}</strong><span class="pc-banner__rule" aria-hidden="true"></span></div>`;
   if (s.turn.from === Room.me && !state.youAreScreen) {
-    return `<div class="om-draw is-victim">
-        <p class="om-draw__title">${escapeHTML(pcT('om_drawing_from_you', { name: drawer }))}</p>
+    return `<div class="om-draw pc-spot is-victim">
+        ${banner(pcT('om_turn_of', { name: drawer }), pcT('om_they_draw_you'))}
         <p class="om-hint">${escapeHTML(omDragging(state) ? pcT('om_victim_hint_drag') : pcT('om_victim_hint'))}</p>
       </div>`;
   }
-  const title = omMyTurn(state) ? pcT('om_draw_from', { name: from }) : pcT('om_drawing', { name: drawer, from: from });
-  return `<div class="om-draw ${omMyTurn(state) ? 'is-mine' : ''}">
-      <p class="om-draw__title">${omMyTurn(state) ? '⭐ ' : ''}${escapeHTML(title)}</p>
+  const mine = omMyTurn(state);
+  return `<div class="om-draw pc-spot ${mine ? 'is-mine' : ''}">
+      <span class="pc-spot__beam" aria-hidden="true"></span>
+      ${mine ? banner(pcT('om_your_turn'), pcT('om_draw_from', { name: from })) : banner(pcT('om_turn_of', { name: drawer }), pcT('om_from_short', { name: from }))}
       ${omBacksHtml(state, tv ? 'lg' : 'md', tv)}
+      <span class="pc-spot__floor" aria-hidden="true"></span>
     </div>`;
 }
 
@@ -292,13 +296,13 @@ function omMineHtml(state) {
   if (!hand.length) {
     return `<div class="om-mine is-empty"><p class="om-mine__safe">${escapeHTML(place !== -1 ? pcT('om_you_safe', { n: place + 1 }) : pcT('om_no_cards'))}</p></div>`;
   }
-  const cards = hand.map((c, k) => `<span class="om-hcard ${k === aim ? 'is-aimed' : ''}" data-card="${c.i}" data-pc-at="card:${c.i}">${pcCardHtml(c.c, { size: 'md' })}</span>`).join('');
+  const cards = hand.map((c, k) => `<span class="om-hcard ${k === aim ? 'is-aimed' : ''}" style="--a:${pcFanAngle(k, hand.length)}" data-card="${c.i}" data-pc-at="card:${c.i}">${pcCardHtml(c.c, { size: 'md' })}</span>`).join('');
   const hint = omDragging(state) ? pcT('om_hand_hint_drag') : pcT('om_hand_hint_shuffle');
   const mix = omDragging(state) && s.phase === 'play' && hand.length > 1
     ? `<button type="button" class="om-mixbtn" onclick="omMixMine(this)">${escapeHTML(pcT('om_mix'))}</button>` : '';
   return `<div class="om-mine ${victim ? 'is-victim' : ''}" data-pc-seat="${escapeHTML(Room.me)}">
       <div class="om-mine__head"><span class="om-mine__title">${CARD_GLYPH} ${escapeHTML(pcT('om_your_cards'))}</span><b class="metric om-mine__n">${hand.length}</b>${mix}<span class="om-mine__hint">${escapeHTML(hint)}</span></div>
-      <div class="om-hand pc-row ${omDragging(state) ? 'is-draggable' : ''}" dir="ltr" data-pc-at="seat:${escapeHTML(Room.me)}">${cards}</div>
+      <div class="om-hand pc-row pc-fanrow ${omDragging(state) ? 'is-draggable' : ''}" dir="ltr" data-pc-at="seat:${escapeHTML(Room.me)}">${cards}</div>
     </div>`;
 }
 
@@ -347,7 +351,7 @@ function omActionsHtml(state) {
   const lifted = !!s.aim;
   return `<div class="om-actbar">
       <p class="om-hint" data-om-take-hint>${escapeHTML(lifted ? pcT('om_take_hint') : pcT('om_lift_hint'))}</p>
-      <button type="button" class="btn btn--primary btn--lg" data-om-take onclick="omTake()" ${lifted ? '' : 'disabled'}>${escapeHTML(pcT('om_take'))}</button>
+      <button type="button" class="btn btn--lg pc-throw" data-om-take onclick="omTake()" ${lifted ? '' : 'disabled'}>${escapeHTML(pcT('om_take'))}</button>
     </div>`;
 }
 
@@ -516,17 +520,17 @@ function omPhoneFrame(state) {
   const seats = omSeats(state);
   const at = seats.indexOf(me);
   const opps = at === -1 ? seats.slice() : seats.slice(at + 1).concat(seats.slice(0, at));
-  return `<div class="om ${omMyTurn(state) ? 'is-turn' : ''}">
-      ${omHeadHtml(state)}
-      ${omLatestHtml(state, false)}
-      <div class="om-opps hscroll-fade" data-om-opps>${opps.map(pid => omSeatHtml(state, pid, false)).join('')}</div>
+  const log = omLogHtml(state, 3);
+  return `<div class="om pc-stage ${omMyTurn(state) ? 'is-turn' : ''}">
+      <div class="pc-stage__top">${omHeadHtml(state)}${omLatestHtml(state, false)}</div>
+      <div class="om-opps pc-rail hscroll-fade" data-om-opps>${opps.map(pid => omSeatHtml(state, pid, false)).join('')}</div>
       <div class="om-layout">
         <div class="om-layout__draw">${omDrawHtml(state, false)}</div>
+        <div class="om-layout__act">${omActionsHtml(state)}<div data-om-host></div></div>
         <div class="om-layout__mid">${omMidHtml(state, false)}</div>
         <div class="om-layout__mine">${omInGame(state) ? omMineHtml(state) : ''}</div>
-        <div class="om-layout__act">${omActionsHtml(state)}<div data-om-host></div></div>
-        <div class="om-layout__log">${omLogHtml(state, 3)}</div>
       </div>
+      <div class="om-layout__log pc-onair">${log ? `<h4>${escapeHTML(pcT('pc_on_air'))}</h4>${log}` : ''}</div>
       ${renderRoomPlayerStrip(state)}
     </div>`;
 }
@@ -879,26 +883,20 @@ Room.onChange((state) => {
 function omTvTable(state) {
   const s = omShared(state);
   const seats = omSeats(state);
-  const half = Math.ceil(seats.length / 2);
-  const top = seats.slice(0, half);
-  const bottom = seats.slice(half).reverse();
   const host = s.phase === 'play' && s.turn ? '<span data-om-host class="om-tv__host"></span>' : '';
-  const title = s.turn ? pcT('om_drawing', { name: pcName(state, s.turn.pid), from: pcName(state, s.turn.from) }) : '';
-  return `<div class="om-tv">
-      <div class="om-tv__ring">${top.map(pid => omSeatHtml(state, pid, true)).join('')}</div>
-      <div class="om-tv__mid">
-        <div class="om-tv__info">
-          ${omHeadHtml(state)}
-          ${omLatestHtml(state, true)}
-          <div class="tv-actions">${host}</div>
-          ${omLogHtml(state, 2)}
-        </div>
-        <div class="om-tv__table">
-          <div class="om-draw"><p class="om-draw__title">${escapeHTML(title)}</p>${omBacksHtml(Object.assign({}, state, { youAreScreen: true }), 'lg', true)}</div>
-          ${omMidHtml(state, true)}
-        </div>
+  const banner = s.turn ? `<div class="pc-banner"><small>${escapeHTML(pcT('om_turn_of', { name: pcName(state, s.turn.pid) }))}</small><strong>${escapeHTML(pcT('om_from_short', { name: pcName(state, s.turn.from) }))}</strong><span class="pc-banner__rule" aria-hidden="true"></span></div>` : '';
+  return `<div class="om-tv pc-stage">
+      <div class="om-tv__rail pc-rail">${seats.map(pid => omSeatHtml(state, pid, true)).join('')}</div>
+      <div class="om-tv__table">
+        <div class="om-draw pc-spot"><span class="pc-spot__beam" aria-hidden="true"></span>${banner}${omBacksHtml(Object.assign({}, state, { youAreScreen: true }), 'lg', true)}<span class="pc-spot__floor" aria-hidden="true"></span></div>
+        ${omMidHtml(state, true)}
       </div>
-      <div class="om-tv__ring">${bottom.map(pid => omSeatHtml(state, pid, true)).join('')}</div>
+      <div class="om-tv__info">
+        ${omHeadHtml(state)}
+        ${omLatestHtml(state, true)}
+        <div class="tv-actions">${host}</div>
+        <div class="pc-onair"><h4>${escapeHTML(pcT('pc_on_air'))}</h4>${omLogHtml(state, 3)}</div>
+      </div>
     </div>`;
 }
 

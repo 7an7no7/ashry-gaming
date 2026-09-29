@@ -13912,6 +13912,315 @@ span.om-back { cursor: default; }
 }
 
 /* ==========================================================================
+   26b. كدّاب · الشايب: THE STAGE - look ج «المسرح», the owner's pick of
+   29 Sep 2026 from a design sheet of three (a game show): the players a small
+   scoreboard of tiles (a name, the count lit up, what they're doing), the
+   claim - or whose draw it is - a big headline under a spotlight, the pile on
+   a lit floor, «كدّاب!» a round red buzzer with «باص» and «ارمي» beside it,
+   your hand a fan at the foot, the pairs out on a shelf. On a laptop and the
+   TV the scoreboard is a column on one side and «على الهوا» (the log) on the
+   other. The stage is dark in both themes: .pc-stage sets the page's tokens
+   again inside it, so every piece built on them (badges, hints, the log,
+   the room strip) reads right on it. The cards are section 26's, unchanged.
+   ========================================================================== */
+.pc-stage {
+  --stg-1: #2a2150;
+  --stg-2: #151126;
+  --stg-3: #0b0913;
+  --stg-line: #332b55;
+  --stg-gold: #fbbf24;
+  --stg-red: #ef4444;
+  --text: #f3f0ff;
+  --text-strong: #ffffff;
+  --text-2: #cfc6ee;
+  --text-3: #a79fcb;
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-solid: #1d1733;
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --surface-3: rgba(255, 255, 255, 0.1);
+  --border: var(--stg-line);
+  --border-strong: #4a3f78;
+  --accent-soft: rgba(167, 139, 250, 0.16);
+  --accent-ink: #c4b5fd;
+  --accent-border: #5b4a99;
+  --danger-ink: #fca5a5;
+  --danger-soft: rgba(239, 68, 68, 0.16);
+  --success-ink: #86efac;
+  --success-soft: rgba(34, 197, 94, 0.16);
+  --warning-ink: #fcd34d;
+  --warning-soft: rgba(251, 191, 36, 0.14);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-2) var(--sp-3);
+  border-radius: var(--r-xl);
+  background: radial-gradient(90% 55% at 50% 30%, var(--stg-1), var(--stg-2) 62%, var(--stg-3));
+  color: var(--text);
+  box-shadow: 0 18px 40px -22px rgba(11, 9, 19, 0.8);
+}
+.pc-stage .db-head, .pc-stage .om-head, .pc-stage .db-latest, .pc-stage .om-latest,
+.pc-stage .db-opps, .pc-stage .om-opps, .pc-stage .db-table, .pc-stage .om-draw,
+.pc-stage .db-mine, .pc-stage .om-mine, .pc-stage .db-actbar, .pc-stage .om-actbar, .pc-stage .om-mid, .pc-stage .db-log, .pc-stage .om-log { margin-bottom: 0; }
+.pc-stage__top { display: flex; flex-direction: column; gap: var(--sp-1); }
+.pc-stage .db-layout, .pc-stage .om-layout { row-gap: var(--sp-2); }
+.pc-stage .db-layout { grid-template-areas: "center" "act" "mine"; }
+.pc-stage .om-layout { grid-template-areas: "draw" "act" "mine" "mid"; }
+.pc-stage .om-backs.is-wrap { gap: 0.6rem 5px; }
+.pc-stage .om-backs.is-wrap .pc-card { --pc-w: 2.55rem; }
+.pc-stage [data-room-strip] { margin-top: var(--sp-2) !important; }
+
+/* --- The scoreboard --- */
+.pc-stage .pc-rail { gap: 6px; padding: 2px 2px 4px; }
+.pc-stage .pc-tile {
+  flex: none;
+  min-width: 4.8rem;
+  max-width: 7.5rem;
+  min-height: 0;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 1px;
+  padding: 6px 8px 5px;
+  border: 1px solid var(--stg-line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #211b38, #171329);
+  box-shadow: none;
+}
+.pc-tile__who { max-width: 100%; display: flex; align-items: center; gap: 4px; }
+.pc-stage .pc-tile .db-avatar, .pc-stage .pc-tile .om-avatar { width: 1.15rem; height: 1.15rem; font-size: 0.625rem; }
+.pc-stage .pc-tile .db-seat__name, .pc-stage .pc-tile .om-seat__name { max-width: 4.6rem; color: var(--text-2); font-size: 0.75rem; font-weight: 800; }
+.pc-tile__led {
+  color: var(--stg-gold);
+  font-family: 'Baloo Bhaijaan 2', var(--font);
+  font-size: 1.55rem;
+  font-weight: 800;
+  line-height: 1.05;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+}
+.pc-tile__st { max-width: 100%; overflow: hidden; color: var(--text-3); font-size: 0.6875rem; font-weight: 800; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.pc-tile__st.is-hot { color: #fca5a5; }
+.pc-tile__st.is-turn, .pc-tile__st.is-target { color: var(--stg-gold); }
+.pc-tile__st.is-good { color: #86efac; }
+.pc-stage .pc-tile.is-turn { border-color: var(--stg-gold); box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.35), 0 0 18px rgba(251, 191, 36, 0.3); }
+.pc-stage .pc-tile.is-last, .pc-stage .pc-tile.is-from { border-style: solid; border-color: var(--stg-red); box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35), 0 0 18px rgba(239, 68, 68, 0.35); }
+.pc-stage .pc-tile.is-out { background: linear-gradient(180deg, #1c2a26, #131d1a); border-color: #2c4a3e; opacity: 0.75; }
+.pc-stage .pc-tile.is-loser { border-color: var(--stg-red); background: linear-gradient(180deg, #3a1722, #22101a); }
+.pc-stage .pc-tile.is-away { opacity: 0.55; }
+
+/* --- The spotlight: the headline, the pile on a lit floor --- */
+.pc-stage .pc-spot { position: relative; isolation: isolate; overflow: hidden; padding: var(--sp-2) var(--sp-2) var(--sp-3); border-radius: var(--r-xl); background: transparent; box-shadow: none; }
+.pc-spot__beam {
+  position: absolute;
+  z-index: -1;
+  inset: 0 6% 0;
+  background: linear-gradient(180deg, rgba(255, 236, 180, 0.26), rgba(255, 236, 180, 0.06) 78%, transparent);
+  clip-path: polygon(40% 0, 60% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+.pc-spot__floor {
+  position: absolute;
+  z-index: -1;
+  left: 12%;
+  right: 12%;
+  bottom: -0.2rem;
+  height: 3.4rem;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 230, 160, 0.42), rgba(255, 230, 160, 0.08) 70%, transparent);
+  pointer-events: none;
+}
+.pc-banner { display: grid; justify-items: center; gap: 3px; max-width: 100%; text-align: center; }
+.pc-banner small { color: #d9cffc; font-size: var(--fs-sm); font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.pc-banner strong {
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 9vw, 2.6rem);
+  font-weight: 900;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  text-shadow: 0 0 22px rgba(167, 139, 250, 0.8), 0 2px 0 rgba(0, 0, 0, 0.4);
+}
+.pc-banner.is-quiet strong { font-size: 1.5rem; }
+.pc-banner__rule { width: min(12rem, 55%); height: 3px; border-radius: 3px; background: linear-gradient(90deg, transparent, var(--stg-gold), transparent); }
+.pc-banner.is-open strong { animation: pc-banner-in 420ms cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+@keyframes pc-banner-in { from { opacity: 0; transform: scale(0.8); } }
+.om-draw.pc-spot .pc-banner strong { font-size: clamp(1.5rem, 7vw, 2rem); }
+.pc-stage .db-table { gap: var(--sp-2); }
+.pc-stage .db-pilezone { position: relative; isolation: isolate; min-height: 7rem; padding-block: var(--sp-2) var(--sp-3); }
+.pc-stage .db-pile, .pc-stage .db-pile .pc-card { --pc-w: 4.3rem; }
+.pc-stage .db-pileinfo { flex-direction: row; align-items: center; justify-content: center; gap: var(--sp-2); }
+.pc-stage .db-pile__n { color: #fde68a; }
+.pc-stage .db-pile__n b { color: #fde68a; }
+.pc-stage .db-rank { background: rgba(255, 255, 255, 0.08); box-shadow: none; }
+.pc-stage .db-rank b { color: #fff; }
+.pc-stage .db-play { background: rgba(255, 255, 255, 0.07); color: #e7e1ff; }
+.pc-stage .db-play.is-top { background: rgba(255, 255, 255, 0.14); color: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2); }
+.pc-stage .db-called__line { color: #fff; }
+.pc-stage .db-pile__empty { border-color: rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.04); }
+
+/* --- The controls: the buzzer between «باص» and «ارمي» --- */
+.pc-stage .db-actbar, .pc-stage .om-actbar {
+  position: static;
+  max-height: none;
+  overflow: visible;
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+  border: 1px solid var(--stg-line);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+}
+.pc-stage .db-actbar.is-mine, .pc-stage .om-actbar { border-color: rgba(251, 191, 36, 0.45); }
+.pc-stage .db-actbar.is-call { border-color: rgba(239, 68, 68, 0.5); }
+.db-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--sp-2); }
+.db-controls.no-buzz { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
+.db-controls.is-solo { grid-template-columns: auto; justify-content: center; }
+.pc-stage .db-callbtn {
+  width: 6.4rem;
+  height: 6.4rem;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, #fca5a5, #ef4444 35%, #b91c1c 70%, #7f1d1d);
+  box-shadow: 0 0 0 5px #2a2150, 0 0 0 9px rgba(239, 68, 68, 0.55), 0 0 36px 6px rgba(239, 68, 68, 0.45), inset 0 -7px 0 rgba(0, 0, 0, 0.25);
+  font-size: 1.45rem;
+}
+.pc-stage .db-callbtn:active { transform: translateY(3px) scale(0.97); box-shadow: 0 0 0 5px #2a2150, 0 0 0 9px rgba(239, 68, 68, 0.55), 0 0 22px 4px rgba(239, 68, 68, 0.4), inset 0 -3px 0 rgba(0, 0, 0, 0.25); }
+.db-controls.is-solo .db-callbtn { width: 7.6rem; height: 7.6rem; font-size: 1.7rem; }
+.db-callbtn.is-hot { animation: db-call-pulse 0.8s ease-in-out infinite alternate; }
+.pc-stage .db-callbar { position: relative; inset: auto; display: block; width: min(12rem, 70%); height: 0.35rem; margin: var(--sp-2) auto 0; background: rgba(239, 68, 68, 0.25); }
+.pc-stage .db-callbar > i { background: #ef4444; }
+.db-callhint { margin-top: 2px; }
+.pc-side {
+  min-width: 0;
+  min-height: 3.1rem;
+  padding: 0.35rem 0.7rem;
+  border: 0;
+  border-radius: var(--r-full);
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.pc-side--ghost { border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(255, 255, 255, 0.1); color: #eee8ff; }
+.pc-side--amber, .pc-throw { background: linear-gradient(180deg, #fbbf24, #f59e0b); color: #3b1d00; box-shadow: 0 8px 18px -10px rgba(245, 158, 11, 0.8); }
+.pc-side:disabled, .pc-throw:disabled { opacity: 0.45; cursor: default; }
+.pc-throw { width: 100%; border: 0; font-family: var(--font-display); }
+.pc-stage .db-rankchip { border-color: var(--stg-line); background: rgba(255, 255, 255, 0.06); color: #fff; }
+.pc-stage .db-rankchip.is-held { border-color: rgba(196, 181, 253, 0.6); background: rgba(167, 139, 250, 0.2); }
+.pc-stage .db-rankchip.is-on { border-color: transparent; background: var(--stg-gold); color: #3b1d00; }
+.pc-stage .db-prompt.is-mine { color: var(--stg-gold); }
+
+/* --- Your hand: a fan at the foot of the stage --- */
+.pc-stage .db-mine, .pc-stage .om-mine { border-color: var(--stg-line); background: rgba(255, 255, 255, 0.03); box-shadow: none; }
+.pc-stage .db-mine.is-turn { border-color: rgba(251, 191, 36, 0.5); box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.3); }
+.pc-stage .om-mine.is-victim { border-color: var(--stg-gold); box-shadow: 0 0 0 1px var(--stg-gold); }
+.pc-fanrow { padding-top: 1.5rem; padding-bottom: 0.4rem; }
+.pc-fanrow > * { rotate: calc(var(--a, 0) * 1deg); transform-origin: 50% 340%; }
+.pc-fanrow > .is-dragging { rotate: 0deg; }
+.pc-stage .om-mixbtn { border-color: rgba(251, 191, 36, 0.5); background: rgba(251, 191, 36, 0.12); color: #fde68a; }
+
+/* --- الشايب: the hand being drawn from under the light, the pairs on a shelf --- */
+.pc-stage .om-draw { gap: var(--sp-2); }
+.pc-stage .om-draw.is-victim { align-items: center; background: rgba(251, 191, 36, 0.08); }
+.pc-stage .om-draw.is-mine { box-shadow: none; }
+.pc-stage .pc-shelf {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-1) var(--sp-2);
+  padding: var(--sp-2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+}
+.pc-stage .pc-shelf .om-mid__pairs { min-height: 0; }
+.pc-stage .om-mid__label { color: var(--text-2); }
+
+/* --- «على الهوا»: the log --- */
+.pc-onair:empty { display: none; }
+.pc-onair h4 { margin: 0 0 var(--sp-1); color: var(--stg-gold); font-family: var(--font-display); font-size: var(--fs-sm); font-weight: 800; }
+.pc-stage .db-log li, .pc-stage .om-log li { background: rgba(255, 255, 255, 0.05); color: #d7cff3; }
+
+/* --- A phone on its side: the stage beside the controls and the hand --- */
+@media (orientation: landscape) and (max-height: 500px) {
+  .pc-stage { padding: var(--sp-2); gap: var(--sp-1); }
+  .pc-stage .db-layout { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); grid-template-areas: "center act" "center mine"; }
+  .pc-stage .om-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "draw act" "draw mine" "mid mine"; }
+  .pc-banner strong { font-size: 1.6rem; }
+  .pc-stage .db-pilezone { min-height: 5rem; }
+  .pc-stage .db-pile, .pc-stage .db-pile .pc-card { --pc-w: 3.3rem; }
+  .pc-stage .db-callbtn { width: 4.8rem; height: 4.8rem; font-size: 1.15rem; }
+  .db-controls.is-solo .db-callbtn { width: 5.4rem; height: 5.4rem; }
+  .pc-side { min-height: 2.6rem; }
+  .pc-stage .pc-onair { display: none; }
+}
+
+/* --- A laptop, a big screen as a player's own: the scoreboard a column on one side, «على الهوا» on the other --- */
+@media (min-width: 900px) and (min-height: 501px) {
+  .pc-stage { display: grid; grid-template-columns: 13rem minmax(0, 1fr) 14rem; grid-template-areas: "top top top" "rail main air" "strip strip strip"; align-items: start; column-gap: var(--sp-4); padding: var(--sp-4); }
+  .pc-stage > .pc-stage__top { grid-area: top; }
+  .pc-stage > .pc-rail { grid-area: rail; flex-direction: column; flex-wrap: nowrap; overflow: visible; }
+  .pc-stage > .db-layout, .pc-stage > .om-layout { grid-area: main; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); column-gap: var(--sp-3); align-items: start; }
+  /* The controls and the hand side by side under the light, so a 720-high screen holds the whole table. */
+  .pc-stage .db-layout { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-areas: "center act" "mine mine"; align-items: center; }
+  .pc-stage .om-layout { grid-template-areas: "draw draw" "act mine" "mid mine"; }
+  .pc-stage > .pc-onair { grid-area: air; }
+  .pc-stage > [data-room-strip] { grid-area: strip; }
+  .pc-stage .pc-rail > .pc-tile { max-width: none; width: 100%; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who led" "st led"; justify-items: start; align-items: center; column-gap: var(--sp-2); padding: 8px 12px; }
+  .pc-stage .pc-rail .pc-tile__who { grid-area: who; }
+  .pc-stage .pc-rail .pc-tile__led { grid-area: led; font-size: 1.9rem; }
+  .pc-stage .pc-rail .pc-tile__st { grid-area: st; }
+  .pc-stage .pc-tile .db-seat__name, .pc-stage .pc-tile .om-seat__name { max-width: 8rem; font-size: var(--fs-sm); }
+  .pc-banner strong { font-size: clamp(2rem, 3.8vw, 3rem); }
+  .pc-stage .db-pilezone { min-height: 0; }
+  .pc-stage .db-pile, .pc-stage .db-pile .pc-card { --pc-w: clamp(4rem, 9.5vh, 6.4rem); }
+  .pc-stage .db-callbtn { width: 6.6rem; height: 6.6rem; font-size: 1.55rem; }
+  .db-controls.is-solo .db-callbtn { width: 7.6rem; height: 7.6rem; }
+  /* The controls' column is narrow here: the buzzer on top, «باص» and «ارمي» under it. */
+  .db-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); grid-template-areas: "buzz buzz" "pass throw"; }
+  .db-controls.is-solo { grid-template-areas: "buzz"; grid-template-columns: auto; }
+  .db-controls.no-buzz { grid-template-areas: "pass throw"; }
+  .db-controls > .pc-side--ghost { grid-area: pass; }
+  .db-controls > .pc-side--amber { grid-area: throw; }
+  .db-controls > .db-callbtn { grid-area: buzz; justify-self: center; margin-block: 0.4rem 0.6rem; }
+  .pc-stage { grid-template-columns: 12rem minmax(0, 1fr) 12rem; padding: var(--sp-3); row-gap: var(--sp-2); }
+  .pc-stage .pc-spot { padding-block: var(--sp-1) var(--sp-2); }
+}
+
+/* --- The TV: the scoreboard down one side, the stage in the middle, the turn and «على الهوا» on the other --- */
+.db-tv.pc-stage, .om-tv.pc-stage { height: 100%; min-height: 0; display: grid; grid-template-areas: none; align-items: stretch; grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 21vw) minmax(0, 1fr) minmax(0, 24vw); gap: calc(var(--tv-gap) * 1.5); padding: 2vmin; border-radius: var(--tv-r); }
+.pc-stage.db-tv > *, .pc-stage.om-tv > * { grid-area: auto; }
+.db-tv__rail, .om-tv__rail { min-height: 0; display: flex; flex-direction: column; justify-content: safe center; gap: 1vmin; overflow: hidden; }
+.pc-stage .db-tv__rail > .pc-tile, .pc-stage .om-tv__rail > .pc-tile { max-width: none; width: 100%; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who led" "st led"; justify-items: start; align-items: center; column-gap: 1.2vmin; padding: 1vmin 1.6vmin; border-radius: 1.4vmin; }
+.db-tv__rail .pc-tile__who, .om-tv__rail .pc-tile__who { grid-area: who; gap: 1vmin; }
+.db-tv__rail .pc-tile__led, .om-tv__rail .pc-tile__led { grid-area: led; font-size: 5vmin; }
+.db-tv__rail .pc-tile__st, .om-tv__rail .pc-tile__st { grid-area: st; font-size: var(--tv-xs); }
+.pc-stage.db-tv .pc-tile .db-avatar, .pc-stage.om-tv .pc-tile .om-avatar { width: 3.6vmin; height: 3.6vmin; font-size: 1.8vmin; }
+.pc-stage.db-tv .pc-tile .db-seat__name, .pc-stage.om-tv .pc-tile .om-seat__name { max-width: 13vw; font-size: var(--tv-sm); }
+.db-tv--many .db-tv__rail > .pc-tile { padding-block: 0.5vmin; }
+.db-tv--many .db-tv__rail .pc-tile__led { font-size: 3.6vmin; }
+.pc-stage .db-tv__table, .pc-stage .om-tv__table { justify-content: center; }
+.pc-stage.db-tv .db-table { flex: 1; background: transparent; padding: 2vmin; }
+.pc-stage.db-tv .pc-banner strong, .pc-stage.om-tv .pc-banner strong { font-size: 8vmin; }
+.pc-stage.db-tv .pc-banner small, .pc-stage.om-tv .pc-banner small { font-size: var(--tv-sm); }
+.pc-stage.db-tv .db-pilezone { min-height: 0; padding-block: 2vmin 4vmin; }
+.pc-stage.db-tv .db-pile, .pc-stage.db-tv .db-pile .pc-card { --pc-w: min(20vmin, 13vw); }
+.pc-stage.db-tv .pc-spot__floor, .pc-stage.om-tv .pc-spot__floor { height: 9vmin; }
+.pc-stage .db-tv__info, .pc-stage .om-tv__info { justify-content: safe center; }
+.pc-stage .db-tv__call { color: #fca5a5; }
+.pc-stage .pc-onair h4 { font-size: var(--tv-sm); }
+.pc-stage.om-tv .om-draw { background: transparent; }
+@media (orientation: portrait) {
+  .db-tv.pc-stage, .om-tv.pc-stage { height: auto; grid-template-columns: minmax(0, 1fr); }
+  .db-tv__rail, .om-tv__rail { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-banner.is-open strong, .db-callbtn.is-hot { animation: none; }
+}
+
+/* ==========================================================================
    32. ONE SETS, EVERYONE SOLVES (خمن الكلمة, خمّن الرقم, خمّن الدولة, فوازير إيموجي in rooms)
    JS_RoomSolve.html, on the engine of RoomSolve.js. Each phone's own board is
    the one-phone game's own look (the Wordle grid and keys, the flags rows, the

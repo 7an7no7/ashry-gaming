@@ -216,22 +216,25 @@ function dbSeatHtml(state, pid, tv) {
   const s = dbShared(state);
   const p = (state.players || []).find(x => x.id === pid);
   const n = (s.counts || {})[pid] || 0;
-  const cls = ['db-seat'];
+  const cls = ['db-seat', 'pc-tile'];
   const turn = s.phase === 'play' && s.turn && s.turn.pid === pid;
   if (turn) cls.push('is-turn');
   if (!p || !p.online) cls.push('is-away');
   if (s.last && s.last.pid === pid) cls.push('is-last');
   const place = (s.places || []).indexOf(pid);
   if (place !== -1) cls.push('is-out');
-  let tag = '';
-  if (place !== -1) tag = `<span class="db-tag db-tag--out">${['🥇', '🥈', '🥉'][place] || '✓'}</span>`;
-  else if (s.pendingOut === pid) tag = `<span class="db-tag db-tag--hot">${escapeHTML(pcT('db_tag_last'))}</span>`;
-  else if ((s.passed || []).indexOf(pid) !== -1) tag = `<span class="db-tag">${escapeHTML(pcT('db_tag_pass'))}</span>`;
-  else if (s.last && s.last.pid === pid) tag = `<span class="db-tag db-tag--play">${dbTimes(s.last.n)}</span>`;
+  // What the seat is doing, in one line under its count.
+  let st = pcT('pc_st_wait');
+  let hot = '';
+  if (place !== -1) { st = (['🥇', '🥈', '🥉'][place] || '✓') + ' ' + pcT('pc_st_place', { n: place + 1 }); hot = 'is-good'; }
+  else if (s.pendingOut === pid) { st = pcT('db_tag_last'); hot = 'is-hot'; }
+  else if (s.last && s.last.pid === pid) { st = pcT('db_st_threw', { n: s.last.n }); hot = 'is-hot'; }
+  else if ((s.passed || []).indexOf(pid) !== -1) st = pcT('db_tag_pass');
+  else if (turn) { st = pcT('pc_st_turn'); hot = 'is-turn'; }
   return `<div class="${cls.join(' ')}" data-pc-seat="${escapeHTML(pid)}">
-      <span class="db-avatar" aria-hidden="true">${pcInitial(state, pid)}</span>
-      <span class="db-seat__who"><span class="db-seat__name">${escapeHTML(p ? p.name : '—')}</span>${tag}</span>
-      <span class="db-seat__hand" data-pc-at="seat:${escapeHTML(pid)}">${pcFanHtml(n, tv ? 4 : 3)}<b class="db-seat__n metric">${n}</b></span>
+      <span class="pc-tile__who"><span class="db-avatar" aria-hidden="true">${pcInitial(state, pid)}</span><span class="db-seat__name">${escapeHTML(p ? p.name : '—')}</span></span>
+      <b class="pc-tile__led metric" data-pc-at="seat:${escapeHTML(pid)}">${n}</b>
+      <span class="pc-tile__st ${hot}">${escapeHTML(st)}</span>
     </div>`;
 }
 
@@ -256,33 +259,32 @@ function dbTableHtml(state, tv) {
   const s = dbShared(state);
   const n = Number(s.pileCount) || 0;
   const plays = s.plays || [];
-  let top;
   const ev = dbLastTableEvent(s);
+  const banner = (small, strong, cls) => `<div class="pc-banner ${cls || ''}"><small>${small}</small><strong>${strong}</strong><span class="pc-banner__rule" aria-hidden="true"></span></div>`;
+  let top;
   if (s.last) {
-    top = `<div class="db-bubble is-open"><bdi>${escapeHTML(pcName(state, s.last.pid))}</bdi>: <b><bdi>${escapeHTML(dbClaim(s.last.n, s.last.rank))}</bdi></b></div>`;
+    top = banner(`🎤 <bdi>${escapeHTML(pcName(state, s.last.pid))}</bdi>`, `<bdi>${escapeHTML(dbClaim(s.last.n, s.last.rank))}</bdi>`, 'is-open');
   } else if (plays.length && s.rank) {
     const lp = plays[plays.length - 1];
-    top = `<div class="db-bubble"><bdi>${escapeHTML(pcName(state, lp.pid))}</bdi>: <b><bdi>${escapeHTML(dbClaim(lp.n, s.rank))}</bdi></b></div>`;
+    top = banner(`🎤 <bdi>${escapeHTML(pcName(state, lp.pid))}</bdi>`, `<bdi>${escapeHTML(dbClaim(lp.n, s.rank))}</bdi>`, '');
   } else if (ev && ev.type === 'call' && s.phase === 'play') {
     top = dbCallResultHtml(state, ev, tv);
   } else if (s.phase === 'play' && s.turn) {
-    top = `<div class="db-bubble is-quiet">${escapeHTML(pcT(ev && ev.type === 'pileOut' ? 'db_pile_went' : 'db_new_rank', { name: pcName(state, s.turn.pid) }))}</div>`;
+    top = banner(escapeHTML(pcT(ev && ev.type === 'pileOut' ? 'db_pile_went' : 'db_new_rank', { name: pcName(state, s.turn.pid) })), escapeHTML(pcT('db_rank_open_big')), 'is-quiet');
   } else top = '';
   const layers = Math.min(n, 5);
   let stack = '';
   for (let k = 0; k < layers; k++) stack += `<span class="db-pile__card" style="--k:${k};--tilt:${((k * 47 + n * 13) % 22) - 11}deg">${pcCardHtml(null, { size: tv ? 'lg' : 'md' })}</span>`;
-  const rank = s.rank ? `<span class="db-rank"><span class="db-rank__label">${escapeHTML(pcT('db_rank'))}</span><b>${escapeHTML(pcRankPlural(s.rank))}</b></span>`
-    : `<span class="db-rank is-open"><span class="db-rank__label">${escapeHTML(pcT('db_rank'))}</span><b>${escapeHTML(pcT('db_rank_open'))}</b></span>`;
+  const rank = s.rank ? `<span class="db-rank"><span class="db-rank__label">${escapeHTML(pcT('db_rank'))}</span><b>${escapeHTML(pcRankPlural(s.rank))}</b></span>` : '';
   const chips = plays.length ? `<div class="db-plays">${plays.map((p, i) => `<span class="db-play ${i === plays.length - 1 ? 'is-top' : ''}"><bdi>${escapeHTML(pcName(state, p.pid))}</bdi> <b class="metric">${dbTimes(p.n)}</b></span>`).join('')}</div>` : '';
-  return `<div class="db-table">
+  return `<div class="db-table pc-spot">
+      <span class="pc-spot__beam" aria-hidden="true"></span>
       ${top}
       <div class="db-pilezone">
+        <span class="pc-spot__floor" aria-hidden="true"></span>
         <span class="db-pile ${n ? '' : 'is-empty'}" data-pc-at="pile">${stack || '<span class="db-pile__empty" aria-hidden="true"></span>'}</span>
-        <div class="db-pileinfo">
-          <span class="db-pile__n"><b class="metric">${n}</b> ${escapeHTML(pcT('db_in_pile'))}</span>
-          ${rank}
-        </div>
       </div>
+      <div class="db-pileinfo"><span class="db-pile__n"><b class="metric">${n}</b> ${escapeHTML(pcT('db_in_pile'))}</span>${rank}</div>
       ${chips}
     </div>`;
 }
@@ -299,13 +301,17 @@ function dbCallBtnHtml(state) {
   if (!dbCanCall(state)) return '';
   const s = dbShared(state);
   const hot = s.pendingOut === s.last.pid;
-  // A computer player is up next: it moves at shared.callEnds, and a bar drains until then.
-  const up = s.turn ? pcName(state, s.turn.pid) : '';
+  return `<button type="button" class="db-callbtn ${hot ? 'is-hot' : ''}" onclick="dbCall(this)">${escapeHTML(pcT('db_call'))}</button>`;
+}
+
+/** The line under the buzzer: whose claim, and when a computer player up next will move. */
+function dbCallHintHtml(state) {
+  if (!dbCanCall(state)) return '';
+  const s = dbShared(state);
+  const hot = s.pendingOut === s.last.pid;
   const bar = dbCallBarHtml(state);
-  return `<div class="db-callbox ${hot ? 'is-hot' : ''} ${bar ? 'has-bar' : ''}">
-      <button type="button" class="db-callbtn" onclick="dbCall(this)">${escapeHTML(pcT('db_call'))}${bar}</button>
-      <p class="db-hint">${escapeHTML(pcT(hot ? 'db_call_hint_last' : 'db_call_hint', { name: pcName(state, s.last.pid), claim: dbClaim(s.last.n, s.last.rank) }))}${bar ? ` <b class="db-hint__bot">${escapeHTML(pcT('db_call_bot', { name: up }))}</b>` : ''}</p>
-    </div>`;
+  const up = s.turn ? pcName(state, s.turn.pid) : '';
+  return `${bar}<p class="db-hint db-callhint">${escapeHTML(pcT(hot ? 'db_call_hint_last' : 'db_call_hint', { name: pcName(state, s.last.pid), claim: dbClaim(s.last.n, s.last.rank) }))}${bar ? ` <b class="db-hint__bot">${escapeHTML(pcT('db_call_bot', { name: up }))}</b>` : ''}</p>`;
 }
 
 /** Your hand in rows of at most DB_ROW_MAX, overlapping when a row is wider than the screen. */
@@ -316,12 +322,15 @@ function dbMineHtml(state) {
   // Upright, rows of at most DB_ROW_MAX; on a phone's side and wider, one row that overlaps.
   const rows = dbWide() ? 1 : Math.max(1, Math.ceil(hand.length / DB_ROW_MAX));
   const per = Math.ceil(hand.length / rows) || 1;
-  const cardBtn = (c) => {
+  const cardBtn = (c, k, n) => {
     const sel = dbLocal.sel.indexOf(c.i) !== -1;
-    return `<button type="button" class="db-hcard ${sel ? 'is-sel' : ''}" data-pc-at="card:${c.i}" onclick="dbTapCard(${Number(c.i)})" aria-pressed="${sel}" aria-label="${escapeHTML(pcCardName(c.c))}">${pcCardHtml(c.c, { size: 'md' })}</button>`;
+    return `<button type="button" class="db-hcard ${sel ? 'is-sel' : ''}" style="--a:${pcFanAngle(k, n)}" data-pc-at="card:${c.i}" onclick="dbTapCard(${Number(c.i)})" aria-pressed="${sel}" aria-label="${escapeHTML(pcCardName(c.c))}">${pcCardHtml(c.c, { size: 'md' })}</button>`;
   };
   let body = '';
-  for (let r = 0; r < rows; r++) body += `<div class="db-hand__row pc-row" dir="ltr">${hand.slice(r * per, (r + 1) * per).map(cardBtn).join('')}</div>`;
+  for (let r = 0; r < rows; r++) {
+    const row = hand.slice(r * per, (r + 1) * per);
+    body += `<div class="db-hand__row pc-row pc-fanrow" dir="ltr">${row.map((c, k) => cardBtn(c, k, row.length)).join('')}</div>`;
+  }
   const picked = dbLocal.sel.length ? `<span class="badge badge--accent">${escapeHTML(pcT('db_picked', { n: dbLocal.sel.length }))}</span>` : '';
   const view = document.getElementById('view-room-doubt');
   if (view) view._dbWide = dbWide();
@@ -381,6 +390,8 @@ function dbActionsHtml(state) {
   const bar = (inner, extra) => `<div class="db-actbar ${extra || ''}">${inner}</div>`;
   const note = (inner) => `<div class="db-note">${inner}</div>`;
   const t = TRANSLATIONS[appState.lang] || {};
+  const buzz = dbCallBtnHtml(state);
+  const buzzHint = dbCallHintHtml(state);
   if (!dbInGame(state)) return note(`<p class="db-hint">${escapeHTML(t.vote_spectating || '')}</p>`);
   const place = (s.places || []).indexOf(Room.me);
   if (place !== -1) return note(`<p class="db-prompt">🏅 ${escapeHTML(pcT('db_you_out', { n: place + 1 }))}</p><p class="db-hint">${escapeHTML(pcT('db_you_out_hint'))}</p>`);
@@ -388,6 +399,7 @@ function dbActionsHtml(state) {
     const name = pcName(state, s.turn.pid);
     const hint = s.pendingOut && s.pendingOut !== Room.me ? pcT('db_waiting_last', { name: pcName(state, s.pendingOut) })
       : s.turn.stage === 'lead' ? pcT('db_waiting_lead', { name: name }) : pcT('db_waiting_follow', { name: name, rank: pcRankPlural(s.rank) });
+    if (buzz) return bar(`<div class="db-controls is-solo">${buzz}</div>${buzzHint}`, 'is-call');
     return note(`<p class="db-prompt">${escapeHTML(pcT('db_turn_of', { name: name }))}</p><p class="db-hint">${escapeHTML(hint)}</p>`);
   }
   const n = dbLocal.sel.length;
@@ -397,7 +409,7 @@ function dbActionsHtml(state) {
     return bar(`<p class="db-prompt is-mine">⭐ ${escapeHTML(pcT('db_your_lead'))}</p>
       <p class="db-hint">${escapeHTML(pcT('db_lead_hint_chips'))}</p>
       ${dbRankChipsHtml(state)}
-      <button type="button" class="btn btn--primary btn--lg" onclick="dbSend()" ${n && r ? '' : 'disabled'}>${escapeHTML(label)}</button>`);
+      <button type="button" class="btn btn--lg pc-throw" onclick="dbSend()" ${n && r ? '' : 'disabled'}>${escapeHTML(label)}</button>`, 'is-mine');
   }
   const label = n ? pcT('db_throw', { claim: dbClaim(n, s.rank) }) : pcT('db_pick_cards');
   const have = dbMineOf(state, s.rank);
@@ -407,12 +419,13 @@ function dbActionsHtml(state) {
     : allPicked ? ''
     : `<button type="button" class="db-havebtn" onclick="dbPickHave()">✋ ${escapeHTML(pcT('db_have_pick', { rank: pcRankPlural(s.rank), n: have.length }))}</button>`;
   return bar(`<p class="db-prompt is-mine">⭐ ${escapeHTML(pcT('db_your_follow', { rank: pcRankPlural(s.rank) }))}</p>
-    <p class="db-hint">${escapeHTML(pcT('db_follow_hint', { rank: pcRankPlural(s.rank) }))}</p>
     ${helper}
-    <div class="db-actrow">
-      <button type="button" class="btn btn--primary" onclick="dbSend()" ${n ? '' : 'disabled'}>${escapeHTML(label)}</button>
-      <button type="button" class="btn btn--secondary" onclick="dbAct(this, 'pass')">${escapeHTML(pcT('db_pass'))}</button>
-    </div>`);
+    <div class="db-controls ${buzz ? '' : 'no-buzz'}">
+      <button type="button" class="pc-side pc-side--ghost" onclick="dbAct(this, 'pass')">${escapeHTML(pcT('db_pass'))}</button>
+      ${buzz}
+      <button type="button" class="pc-side pc-side--amber" onclick="dbSend()" ${n ? '' : 'disabled'}>${escapeHTML(label)}</button>
+    </div>
+    ${buzzHint}`, 'is-mine');
 }
 
 /* --- the host's way past a phone that went quiet ---------------------------------- */
@@ -490,16 +503,15 @@ function dbPhoneFrame(state) {
   const seats = dbSeats(state);
   const at = seats.indexOf(me);
   const opps = at === -1 ? seats.slice() : seats.slice(at + 1).concat(seats.slice(0, at));
-  return `<div class="db ${dbMyTurn(state) ? 'is-turn' : ''}">
-      ${dbHeadHtml(state)}
-      ${dbLatestHtml(state, false)}
-      <div class="db-opps hscroll-fade" data-db-opps>${opps.map(pid => dbSeatHtml(state, pid, false)).join('')}</div>
+  return `<div class="db pc-stage ${dbMyTurn(state) ? 'is-turn' : ''}">
+      <div class="pc-stage__top">${dbHeadHtml(state)}${dbLatestHtml(state, false)}</div>
+      <div class="db-opps pc-rail hscroll-fade" data-db-opps>${opps.map(pid => dbSeatHtml(state, pid, false)).join('')}</div>
       <div class="db-layout">
-        <div class="db-layout__center">${dbTableHtml(state, false)}${dbCallBtnHtml(state)}</div>
-        <div class="db-layout__mine">${dbInGame(state) ? dbMineHtml(state) : ''}</div>
+        <div class="db-layout__center">${dbTableHtml(state, false)}</div>
         <div class="db-layout__act">${dbActionsHtml(state)}<div data-db-host></div></div>
-        <div class="db-layout__log">${dbLogHtml(state, 3)}</div>
+        <div class="db-layout__mine">${dbInGame(state) ? dbMineHtml(state) : ''}</div>
       </div>
+      <div class="db-layout__log pc-onair">${dbLogHtml(state, 3) ? `<h4>${escapeHTML(pcT('pc_on_air'))}</h4>${dbLogHtml(state, 3)}` : ''}</div>
       ${renderRoomPlayerStrip(state)}
     </div>`;
 }
@@ -650,13 +662,13 @@ function dbHandInView(state) {
     const hand = root && root.querySelector('.db-mine');
     const bar = root && root.querySelector('.db-actbar');
     if (!main || !hand || !bar || appState.currentView !== 'room-doubt') return;
+    const m = main.getBoundingClientRect();
     const h = hand.getBoundingClientRect();
     const b = bar.getBoundingClientRect();
-    if (b.top <= h.top + 4) return;
-    const top = main.getBoundingClientRect().top;
-    const over = h.bottom + 8 - b.top;
+    // The bottom of the hand in view, without taking the top of the bar off the screen.
+    const over = h.bottom + 8 - m.bottom;
     if (over <= 0) return;
-    const by = Math.min(over, Math.max(0, h.top - top - 8));
+    const by = Math.min(over, Math.max(0, b.top - m.top - 8));
     if (by > 0) main.scrollBy({ top: by, behavior: motionOff() ? 'auto' : 'smooth' });
   });
 }
@@ -875,27 +887,22 @@ function dbTurnWords(state) {
 function dbTvTable(state) {
   const s = dbShared(state);
   const seats = dbSeats(state);
-  const half = Math.ceil(seats.length / 2);
-  const top = seats.slice(0, half);
-  const bottom = seats.slice(half).reverse();
   const w = dbTurnWords(state);
   // Everyone's TV keeps the place: the host's buttons, or anyone's once the host is away, are put in it in place.
   const host = s.phase === 'play' && s.turn ? '<span data-db-host class="db-tv__host"></span>' : '';
-  return `<div class="db-tv ${seats.length > 8 ? 'db-tv--many' : ''}">
-      <div class="db-tv__ring">${top.map(pid => dbSeatHtml(state, pid, true)).join('')}</div>
-      <div class="db-tv__mid">
-        <div class="db-tv__info">
-          ${dbHeadHtml(state)}
-          <div class="db-tv__turn">${escapeHTML(w.title)}</div>
-          ${w.hint ? `<div class="tv-note">${escapeHTML(w.hint)}</div>` : ''}
-          ${s.last ? `<div class="db-tv__call">🤥 ${escapeHTML(pcT('db_tv_call', { name: pcName(state, s.last.pid) }))}${dbCallBarHtml(state)}</div>` : ''}
-          ${dbLatestHtml(state, true)}
-          <div class="tv-actions">${host}</div>
-          ${dbLogHtml(state, 2)}
-        </div>
-        <div class="db-tv__table">${dbTableHtml(state, true)}</div>
+  return `<div class="db-tv pc-stage ${seats.length > 8 ? 'db-tv--many' : ''}">
+      <div class="db-tv__rail pc-rail">${seats.map(pid => dbSeatHtml(state, pid, true)).join('')}</div>
+      <div class="db-tv__table">${dbTableHtml(state, true)}
+        ${s.last ? `<div class="db-tv__call">🤥 ${escapeHTML(pcT('db_tv_call', { name: pcName(state, s.last.pid) }))}${dbCallBarHtml(state)}</div>` : ''}
       </div>
-      <div class="db-tv__ring">${bottom.map(pid => dbSeatHtml(state, pid, true)).join('')}</div>
+      <div class="db-tv__info">
+        ${dbHeadHtml(state)}
+        <div class="db-tv__turn">${escapeHTML(w.title)}</div>
+        ${w.hint ? `<div class="tv-note">${escapeHTML(w.hint)}</div>` : ''}
+        ${dbLatestHtml(state, true)}
+        <div class="tv-actions">${host}</div>
+        <div class="pc-onair"><h4>${escapeHTML(pcT('pc_on_air'))}</h4>${dbLogHtml(state, 3)}</div>
+      </div>
     </div>`;
 }
 

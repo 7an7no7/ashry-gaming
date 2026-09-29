@@ -802,6 +802,32 @@ const PROBES = {
       probe('no fake pause is announced before it comes', live && h.fakes.length > 0, (view) => (hasKey(view.shared, 'fakes') ? 'shared.fakes' : null))
     ];
   },
+  // بالظبط ٣!: a phone's secret (a colour, a shape, a number, a word) on its own phone only, and on no
+  // other screen until the verdict publishes them all; every tap's exact events stay on the server.
+  exact(room) {
+    const s = room.shared || {};
+    const h = room._exact;
+    const open = !!h && (s.phase === 'ready' || s.phase === 'go');
+    const withSecrets = open && Object.keys(h.mine || {}).length > 0;
+    return [
+      probe("a phone's secret is its own, exactly", withSecrets, (view, pid) => {
+        if (pid === SCREEN) return null;
+        const mine = (view.you && view.you.mine) || null;
+        const want = h.mine[pid] || null;
+        return JSON.stringify(mine) === JSON.stringify(want) ? null : 'you.mine';
+      }),
+      probe('no secret on the table before the verdict', withSecrets, (view) => {
+        const sv = view.shared || {};
+        if (hasKey(sv, 'result')) return 'shared.result';
+        const o = sv.order || {};
+        return ['mine', 'c', 'sh', 'say', 'reveal'].find((k) => hasKey(o, k)) ? 'shared.order' : null;
+      }),
+      probe("a tap's exact moment stays on the server while the order is open", open, (view) => {
+        const sv = view.shared || {};
+        return hasKey(sv, 'ev') || (sv.live && hasKey(sv.live, 'ev')) ? 'shared.ev' : null;
+      })
+    ];
+  },
   // الشاهد: the real face on the witness's phone only, and only while they look; which suspect it is, hidden until the reveal.
   witness(room) {
     const s = room.shared || {};
@@ -1823,6 +1849,36 @@ const DRIVERS = {
       if (s.phase === 'reveal') { must(T, T.host, 'nextRound', { round: s.round }); continue; }
     }
     return S(T).phase === 'gameover';
+  },
+  exact() {
+    // Five at the table from level 6, so every order comes up (the ones with secrets among them):
+    // random hands down and up on each, the host moving a verdict on now and then, to the last glass.
+    const T = table('exact', 5);
+    must(T, T.host, 'start', {});
+    T.room.shared.level = 6;
+    T.room.shared.lives = 60;
+    const kinds = new Set();
+    for (let guard = 0; guard < 600 && S(T).phase !== 'gameover'; guard++) {
+      const s = S(T);
+      if (kinds.size >= 14 && s.lives > 1) T.room.shared.lives = 1;
+      if (s.phase === 'ready') { kinds.add(s.order.kind); runClock(T, (r) => r.shared.phase !== 'ready', 3); continue; }
+      if (s.phase === 'go') {
+        T.ids.forEach((id, i) => {
+          if (Math.random() < 0.55) {
+            clock += 40;
+            act(T, id, 'down', { round: s.round, at: clock });
+            if (i % 2) { clock += 120; act(T, id, 'up', { round: s.round, at: clock }); }
+          }
+        });
+        runClock(T, (r) => r.shared.phase !== 'go', 3);
+        continue;
+      }
+      if (s.phase === 'reveal') {
+        if (guard % 3 === 0) must(T, T.host, 'nextRound', { round: s.round });
+        else runClock(T, (r) => r.shared.phase !== 'reveal', 3);
+      }
+    }
+    return S(T).phase === 'gameover' && kinds.size === 14;
   },
   chairs() {
     // Four in the ring: a false start, taps timed by their stamps, a round nobody finishes, to one left.

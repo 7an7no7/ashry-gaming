@@ -1,0 +1,984 @@
+<script>
+/* ============================================================================
+   بالظبط ٣! — EXACTLY 3! (rooms and the TV), 29 Sep 2026
+   ----------------------------------------------------------------------------
+   One order for the whole table each level («بالظبط ٣ منكم يحطوا إيدهم!»,
+   «محدش يحط إيده!», in turn, all at once, the pulse, a colour on your own
+   screen…), read for a moment on every screen, then done on your phone's pad
+   within a short window. The server judges from the phones' own stamps of the
+   server's time (RoomExact.js) and names exactly whose hand was wrong.
+
+   Look أ «إيد على الترابيزة», improved (the owner, 29 Sep 2026): a wooden table
+   from above with a seat each, the order a paper card in the middle, the phone a
+   round pad you put your hand on. Hands come down on the table live; the reveal
+   slams them down again in the order they were pressed, the extra hand gets a
+   slap from its neighbours and pulls back («آه 😂»), in «محدش يحط إيده» the hands
+   hover and tremble and a bee stings the one that presses, the table fills with
+   food as you win, and the lives are tea glasses on a brass tray that spill.
+
+   Everything here is drawing and motion: whose hand is down, the taps and the
+   order hands came down in are the server's `shared.live`; this phone's own
+   press is drawn at once (ex.local) and sent with its stamp (exStamp).
+   Every name here starts with ex / EX_. Section 58 of Style.html.
+   ========================================================================= */
+const EX_COLORS = ['#e0457b', '#2f8fe0', '#1faa74', '#f59e0b', '#8b5cf6', '#ef6b3b', '#0ea5a4', '#db2777', '#65a30d', '#2563eb', '#ea580c', '#7c3aed'];
+const EX_SKIN = ['#f2c79b', '#d9a574', '#c68b5a', '#f5d0a9', '#b87a4b', '#e8b98a'];
+const EX_INK = '#221f36';
+const EX_GRACE = 150;                 // EXACT_GRACE_MS: the pad opens this far before go on the phone's clock
+const EX_TOL = 150;                   // EXACT_TOL_MS
+const EX_SECRET_KINDS = ['pick', 'pickcount', 'mirror', 'sum', 'letgo'];
+const EX_BADGE_KINDS = ['count', 'all', 'seq', 'pick', 'pickcount', 'mirror', 'sum', 'none', 'pulse'];
+
+const ex = {
+  gap: Infinity,        // the smallest (receivedAt − serverNow) seen: the network's share
+  timer: null,          // the countdown, meters, the pulse and the counter, painted in place
+  fx: [],               // the reveal's timers
+  seen: new Set(),      // play-once keys (a sound, a buzz)
+  local: { key: '', down: false, taps: 0 },   // this phone's own hand this order
+  prevDown: {},         // whose hand was down at the last paint, for the slam
+  goShown: '',          // the order whose «دلوقتي!» already popped
+  revealKey: ''
+};
+
+/* --- the server's clock on this phone ---------------------------------------- */
+function exNoteTime(state) {
+  if (state && typeof state.serverNow === 'number' && typeof state.receivedAt === 'number') {
+    ex.gap = Math.min(ex.gap, state.receivedAt - state.serverNow);
+  }
+}
+const exNow = () => (isFinite(ex.gap) ? Date.now() - ex.gap : Date.now());
+const exStamp = () => (isFinite(ex.gap) ? Date.now() - ex.gap : null);
+
+const exT = () => TRANSLATIONS[appState.lang];
+const exFill = (str, vars) => String(str || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+const exIso = (s) => '⁨' + s + '⁩';
+const exOnce = (key) => { if (!key || ex.seen.has(key)) return false; if (ex.seen.size > 400) ex.seen.clear(); ex.seen.add(key); return true; };
+const exRoundKey = (state) => roomDealKey(state) + '|' + ((state.shared || {}).round || 0);
+const exNameOf = (state, id) => ((state.players || []).find((p) => p.id === id) || {}).name || '';
+const exInitial = (name) => (String(name || '').trim().replace(/^ال/, '')[0] || '?');
+const exInRoster = (state) => ((state.shared || {}).roster || []).indexOf(Room.me) !== -1 && !state.youAreScreen;
+const exColorOf = (s, id) => EX_COLORS[Math.max(0, (s.roster || []).indexOf(id)) % EX_COLORS.length];
+const exSkinOf = (s, id) => EX_SKIN[Math.max(0, (s.roster || []).indexOf(id)) % EX_SKIN.length];
+
+/**
+ * The one voice: the TV where there is one (the first online screen), else the
+ * host's phone - the rule الكراسي الموسيقية's music uses.
+ */
+function exIsVoice(state) {
+  const screens = (state.screens || []).filter((x) => x.online).map((x) => x.id).sort();
+  if (state.youAreScreen) return screens[0] === Room.me;
+  return !!state.youAreHost && !screens.length;
+}
+
+/* --- the drawings (no ids: a page holds many) --------------------------------- */
+function exHandSvg(c, skin) {
+  return `<svg viewBox="0 0 70 118" aria-hidden="true" focusable="false"><g stroke="${EX_INK}" stroke-width="2.6" stroke-linejoin="round">
+<rect x="14" y="80" width="42" height="40" rx="8" fill="${c}"/><rect x="14" y="80" width="42" height="9" rx="4" fill="#fff" opacity=".55"/>
+<path d="M16 84 Q12 52 20 46 L52 46 Q60 52 55 84 Z" fill="${skin}"/>
+<rect x="18" y="22" width="9" height="30" rx="4.5" fill="${skin}"/><rect x="28" y="14" width="9" height="36" rx="4.5" fill="${skin}"/><rect x="38" y="16" width="9" height="34" rx="4.5" fill="${skin}"/><rect x="48" y="26" width="8.5" height="28" rx="4.2" fill="${skin}"/>
+<rect x="3" y="54" width="9" height="24" rx="4.5" fill="${skin}" transform="rotate(-32 8 66)"/>
+<ellipse cx="22.5" cy="26" rx="2.6" ry="3" fill="#fff" opacity=".55" stroke="none"/><ellipse cx="32.5" cy="18" rx="2.6" ry="3" fill="#fff" opacity=".55" stroke="none"/><ellipse cx="42.5" cy="20" rx="2.6" ry="3" fill="#fff" opacity=".55" stroke="none"/><ellipse cx="52.2" cy="30" rx="2.4" ry="3" fill="#fff" opacity=".55" stroke="none"/>
+<path d="M26 66 Q35 70 44 66" fill="none" stroke-width="1.6" opacity=".5"/></g></svg>`;
+}
+function exGlassSvg() {
+  return `<svg viewBox="0 0 40 66" aria-hidden="true" focusable="false"><g stroke="${EX_INK}" stroke-width="2.2" stroke-linejoin="round">
+<ellipse cx="20" cy="62" rx="18" ry="4" fill="#d9a032"/>
+<path d="M6 8 Q4 26 11 34 Q5 44 9 60 H31 Q35 44 29 34 Q36 26 34 8 Z" fill="rgba(255,255,255,.4)"/>
+<path class="ex-tea" d="M8 18 Q7 28 12 34 Q6 44 10 58 H30 Q34 44 28 34 Q33 28 32 18 Z" fill="#b24f18" stroke="none"/>
+<path class="ex-tea" d="M8 18 H32" stroke="#ffb46b" stroke-width="2"/><path d="M6 8 H34" stroke="#d9a032" stroke-width="3"/>
+<path d="M11 12 Q10 28 14 34" fill="none" stroke="#fff" stroke-width="2.5" opacity=".7"/></g></svg>`;
+}
+function exBeeSvg() {
+  return `<svg viewBox="0 0 44 36" aria-hidden="true" focusable="false"><g stroke="${EX_INK}" stroke-width="2"><ellipse class="ex-bee__wing" cx="18" cy="8" rx="8" ry="6" fill="#dff4ff" opacity=".9"/><ellipse class="ex-bee__wing" cx="28" cy="8" rx="8" ry="6" fill="#dff4ff" opacity=".9"/><ellipse cx="22" cy="22" rx="16" ry="11" fill="#ffd23f"/><path d="M16 12 v20 M24 11 v22" stroke-width="4"/><circle cx="8" cy="20" r="2" fill="${EX_INK}"/><path d="M38 22 l6 2 l-6 2" fill="${EX_INK}"/></g></svg>`;
+}
+function exImpactSvg() {
+  let p = '';
+  for (let a = 0; a < 360; a += 45) {
+    const r = a * Math.PI / 180;
+    p += `<path d="M${(50 + Math.cos(r) * 30).toFixed(1)} ${(50 + Math.sin(r) * 30).toFixed(1)} L${(50 + Math.cos(r) * 46).toFixed(1)} ${(50 + Math.sin(r) * 46).toFixed(1)}"/>`;
+  }
+  return `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false"><g stroke="#fff" stroke-width="6" stroke-linecap="round">${p}</g></svg>`;
+}
+/** What each level puts on the table: bread, foul, falafel, pickles, watermelon, kahk, dates, kunafa. */
+function exFoodSvg(k) {
+  const g = (inner) => `<svg viewBox="0 0 100 80" aria-hidden="true" focusable="false"><g stroke="${EX_INK}" stroke-width="2.6" stroke-linejoin="round">${inner}</g></svg>`;
+  const plate = '<ellipse cx="50" cy="52" rx="46" ry="22" fill="#f4f1fb"/><ellipse cx="50" cy="52" rx="36" ry="15" fill="none" stroke="#d6cfe6" stroke-width="2"/>';
+  switch (k % 8) {
+    case 0: return g('<path d="M6 34 Q50 16 94 34 L86 66 Q50 76 14 66 Z" fill="#c98a3a"/><path d="M10 44 L90 44 M12 55 L88 55" stroke="#8a5a20" stroke-width="2"/><circle cx="36" cy="28" r="17" fill="#d9a05a"/><circle cx="64" cy="25" r="17" fill="#e2ad68"/>');
+    case 1: return g('<path class="ex-steam" d="M36 14 q-5 -7 0 -12 M50 10 q-5 -7 0 -12 M64 14 q-5 -7 0 -12" fill="none" stroke="#fff" opacity=".85"/><path d="M12 36 Q12 76 50 76 Q88 76 88 36 Z" fill="#b8652f"/><ellipse cx="50" cy="36" rx="38" ry="9" fill="#6b3a18"/><circle cx="50" cy="22" r="6" fill="#b8652f"/><path d="M31 34 Q50 16 69 34" fill="#b8652f"/>');
+    case 2: return g(plate + [[34, 46], [52, 42], [68, 48], [42, 58], [60, 58]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="9" fill="#7a5b1e"/><circle cx="${x - 2}" cy="${y - 2}" r="2" fill="#5fa33a" stroke="none"/>`).join(''));
+    case 3: return g('<rect x="30" y="10" width="40" height="62" rx="10" fill="#dff1d8" opacity=".92"/><rect x="28" y="6" width="44" height="10" rx="4" fill="#e0457b"/>' + [[42, 32], [57, 40], [44, 52], [58, 58]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="7" ry="10" fill="#6fae3a"/>`).join(''));
+    case 4: return g('<path d="M8 30 Q50 86 92 30 Z" fill="#e5383b"/><path d="M8 30 Q50 92 92 30" fill="none" stroke="#2f9e44" stroke-width="7"/>' + [[34, 42], [50, 50], [66, 42], [44, 36], [58, 38]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="2" ry="3.2" fill="${EX_INK}" stroke="none"/>`).join(''));
+    case 5: return g(plate + [[34, 46], [52, 42], [68, 48], [44, 58], [60, 58]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="10" fill="#f1dcb0"/><circle cx="${x}" cy="${y}" r="5" fill="none" stroke="#c9a46a" stroke-width="1.5"/>`).join(''));
+    case 6: return g(plate + [[36, 46], [50, 42], [64, 46], [44, 56], [58, 56]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="8" ry="5" fill="#5a2d14" transform="rotate(-20 ${x} ${y})"/>`).join(''));
+    default: return g('<rect x="10" y="26" width="80" height="44" rx="8" fill="#b0b8c8"/><rect x="16" y="30" width="68" height="34" rx="5" fill="#f0a93a"/><path d="M18 36 q8 -4 16 0 t16 0 t16 0 t16 0" fill="none" stroke="#fbe0a0" stroke-width="3"/><circle cx="40" cy="48" r="3" fill="#6fae3a" stroke="none"/><circle cx="60" cy="50" r="3" fill="#6fae3a" stroke="none"/>');
+  }
+}
+function exShapeSvg(sh, color) {
+  const f = color || '#fff';
+  const inner = sh === 'star' ? `<path d="M50 8 L61 38 L93 38 L67 57 L77 89 L50 70 L23 89 L33 57 L7 38 L39 38 Z" fill="${f}"/>`
+    : sh === 'circle' ? `<circle cx="50" cy="50" r="40" fill="${f}"/>`
+    : sh === 'triangle' ? `<path d="M50 8 L94 88 L6 88 Z" fill="${f}"/>`
+    : `<rect x="12" y="12" width="76" height="76" rx="8" fill="${f}"/>`;
+  return `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false"><g stroke="${EX_INK}" stroke-width="5" stroke-linejoin="round">${inner}</g></svg>`;
+}
+
+/* --- the order in words ------------------------------------------------------- */
+function exGroupWord(o, t) {
+  if (o.kind === 'mirror') return '';
+  if (o.attr === 'c') return t['ex_grp_c_' + o.want];
+  if (o.attr === 'sh') return t['ex_grp_sh_' + o.want];
+  return t['ex_grp_' + o.want];
+}
+function exOrderText(state, o) {
+  const t = exT();
+  const s = state.shared || {};
+  const names = (ids) => ids.map((id) => exIso(exNameOf(state, id) || '?')).join(' ' + t.ex_arrow + ' ');
+  let title = '', sub = t['ex_s_' + o.kind] || '';
+  switch (o.kind) {
+    case 'count': title = o.n === 1 ? t.ex_o_count1 : exFill(t.ex_o_count, { n: o.n }); break;
+    case 'none': title = t.ex_o_none; break;
+    case 'all': title = t.ex_o_all; break;
+    case 'taps': title = exFill(t.ex_o_taps, { n: o.n }); break;
+    case 'total': title = exFill(t.ex_o_total, { n: o.n }); break;
+    case 'hold': title = exFill(t.ex_o_hold, { n: o.n }); break;
+    case 'seq': title = t.ex_o_seq; sub = names(o.seq || []); break;
+    case 'pulse': title = t.ex_o_pulse; break;
+    case 'pick': title = exFill(t.ex_o_pick, { group: exGroupWord(o, t) }); break;
+    case 'pickcount': title = exFill(t.ex_o_pickcount, { n: o.n, group: exGroupWord(o, t) }); break;
+    case 'mirror': title = t.ex_o_mirror; break;
+    case 'sum': title = exFill(t.ex_o_sum, { n: o.n }); break;
+    case 'letgo': title = t.ex_o_letgo; break;
+    case 'release': title = t.ex_o_release; break;
+    default: title = '';
+  }
+  void s;
+  return { title, sub };
+}
+
+/** This phone's secret as a badge on its pad and, after the verdict, on a seat's plate. */
+function exSecretHtml(m, o, big) {
+  if (!m) return '';
+  const t = exT();
+  if (m.c) {
+    const col = m.c === 'g' ? '#22c55e' : '#ef4444';
+    return `<span class="ex-sec ex-sec--c ${big ? 'is-big' : ''}" style="--sc:${col}"><span class="ex-sec__dot">${exShapeSvg(m.c === 'g' ? 'circle' : 'square', col)}</span><span class="ex-sec__w">${escapeHTML(t['ex_col_' + m.c])}</span></span>`;
+  }
+  if (m.sh) return `<span class="ex-sec ex-sec--sh ${big ? 'is-big' : ''}"><span class="ex-sec__dot">${exShapeSvg(m.sh, '#ffd23f')}</span><span class="ex-sec__w">${escapeHTML(t['ex_shape_' + m.sh])}</span></span>`;
+  if (m.say) return `<span class="ex-sec ex-sec--say is-${m.say} ${big ? 'is-big' : ''}"><span class="ex-sec__w">${escapeHTML(m.say === 'press' ? t.ex_say_press : t.ex_say_stop)}</span></span>`;
+  if (typeof m.n === 'number') return `<span class="ex-sec ex-sec--n ${big ? 'is-big' : ''}"><span class="ex-sec__num metric">${m.n}</span>${big && o && o.kind === 'letgo' ? `<span class="ex-sec__w">${escapeHTML(t.ex_my_lift)}</span>` : ''}</span>`;
+  return '';
+}
+
+/* --- the table ------------------------------------------------------------------ */
+/**
+ * The seats: the first half of the order along the top edge, the rest along the
+ * bottom. On a phone the order is turned so this phone sits in the bottom row.
+ */
+function exSeats(state, s) {
+  const roster = (s.roster || []).filter((id) => (state.players || []).some((p) => p.id === id));
+  let order = roster.slice();
+  const top = Math.ceil(order.length / 2);
+  const mi = order.indexOf(Room.me);
+  if (mi !== -1 && !state.youAreScreen) {
+    const shift = (mi - top + order.length) % order.length;
+    order = order.slice(shift).concat(order.slice(0, shift));
+  }
+  const rows = [order.slice(0, top), order.slice(top)];
+  const out = [];
+  rows.forEach((row, r) => row.forEach((id, i) => {
+    out.push({ id, row: r ? 'bot' : 'top', i, x: 24 + 52 * (i + 0.5) / row.length });
+  }));
+  return { seats: out, perRow: Math.max(rows[0].length, rows[1].length || 0) };
+}
+
+function exTableHtml(state, s, view) {
+  const t = exT();
+  const { seats, perRow } = exSeats(state, s);
+  const hw = perRow <= 3 ? 9 : perRow <= 4 ? 8 : perRow <= 5 ? 7 : 6.2;
+  const initials = perRow > 4;
+  const lives = view.lives, max = s.maxLives || 3;
+  const glasses = Array.from({ length: max }, (_, k) =>
+    `<span class="ex-cup ${k >= lives ? 'is-spilt' : ''}" data-ex-glass="${k}"><span class="ex-glass">${exGlassSvg()}</span><i class="ex-pud"></i></span>`).join('');
+  const foods = [];
+  const from = Math.max(0, view.food - 6);
+  for (let k = from; k < view.food; k++) foods.push(`<span class="ex-dish" data-ex-dish="${k}" title="${escapeHTML(t['ex_food_' + (k % 8)])}">${exFoodSvg(k)}</span>`);
+  const seatHtml = seats.map((st) => {
+    const name = exNameOf(state, st.id);
+    const plate = initials ? exInitial(name) : name;
+    return `<div class="ex-seat ex-seat--${st.row} ${st.id === Room.me && !state.youAreScreen ? 'is-me' : ''}" data-ex-seat="${escapeHTML(st.id)}" data-row="${st.row}" data-i="${st.i}" style="--x:${st.x.toFixed(2)}%;--c:${exColorOf(s, st.id)}">
+      <span class="ex-hand" data-ex-hand>${exHandSvg(exColorOf(s, st.id), exSkinOf(s, st.id))}</span>
+      <span class="ex-plate" title="${escapeHTML(name)}"><span class="ex-plate__n">${escapeHTML(plate)}</span><span class="ex-plate__sec" data-ex-sec></span></span>
+      <span class="ex-badge" data-ex-badge></span>
+      <span class="ex-bub" data-ex-bub></span>
+    </div>`;
+  }).join('');
+  return `<div class="ex-table ${view.tv ? 'ex-table--tv' : ''}" dir="ltr" data-ex-table style="--hw:${hw}cqw">
+    <div class="ex-wood"></div>
+    <div class="ex-tray" aria-label="${escapeHTML(exFill(t.ex_lives, { n: lives }))}">${glasses}</div>
+    <div class="ex-food" data-ex-food>${foods.join('')}</div>
+    ${seatHtml}
+    <div class="ex-card" data-ex-card dir="${appState.lang === 'ar' ? 'rtl' : 'ltr'}">${view.card || ''}</div>
+    <div class="ex-fx" data-ex-fx></div>
+  </div>`;
+}
+
+/** The card while an order is read and done. */
+function exOrderCardHtml(state, s) {
+  const t = exT();
+  const o = s.order || {};
+  const txt = exOrderText(state, o);
+  return `<div class="ex-card__kick"><span class="ex-chip">${escapeHTML(exFill(t.ex_level, { n: s.level || 1 }))}</span>${o.fresh ? `<span class="ex-chip ex-chip--new">${escapeHTML(t.ex_new)}</span>` : ''}</div>
+    <div class="ex-card__title">${escapeHTML(txt.title)}</div>
+    ${txt.sub ? `<div class="ex-card__sub">${escapeHTML(txt.sub)}</div>` : ''}
+    <div class="ex-card__big" data-ex-big></div>
+    <div class="ex-card__meter"><i data-ex-meter></i></div>`;
+}
+
+/* --- the verdict in words -------------------------------------------------------- */
+function exVerdictTitle(res, o) {
+  const t = exT();
+  if (res.ok) return t.ex_v_ok;
+  const bad = Object.keys(res.bad || {});
+  const whys = bad.map((id) => res.bad[id].why);
+  if (o.kind === 'none') return t.ex_v_stung;
+  if (o.kind === 'total') return exFill(t.ex_v_total, { got: res.total || 0, want: o.n });
+  if (o.kind === 'sum') return exFill(t.ex_v_sum, { got: res.sum || 0, want: o.n });
+  if (res.short && !bad.length) return res.short === 1 ? t.ex_v_short : exFill(t.ex_v_short_n, { n: res.short });
+  if (o.kind === 'all') return t.ex_v_sync;
+  if (o.kind === 'taps') return t.ex_v_taps;
+  if (o.kind === 'seq') return t.ex_v_order;
+  if (o.kind === 'pulse') return t.ex_v_pulse;
+  if (o.kind === 'letgo') return t.ex_v_letgo;
+  if (o.kind === 'release') return t.ex_v_release;
+  if (o.kind === 'pick' || o.kind === 'mirror') return t.ex_v_pick;
+  const extras = whys.filter((w) => w === 'extra').length;
+  if (extras) return extras === 1 ? t.ex_v_extra : exFill(t.ex_v_extra_n, { n: extras });
+  return t.ex_v_bad;
+}
+
+/** One line under the table: whose hand, laughing, not shaming (a hand is feminine: fits any name). */
+function exCaption(state, res, o) {
+  const t = exT();
+  if (res.ok) {
+    let line = exFill(t.ex_cap_ok, { food: t['ex_food_' + ((res.food || 0) % 8)] });
+    if (res.refill) line += ' · ' + t.ex_cap_refill;
+    return line;
+  }
+  const bad = Object.keys(res.bad || {});
+  if (!bad.length) return res.short ? exFill(o.kind === 'sum' ? t.ex_cap_short_sum : t.ex_cap_short, { n: res.short }) : '';
+  const first = res.bad[bad[0]];
+  const same = bad.filter((id) => res.bad[id].why === first.why);
+  const names = same.slice(0, 3).map((id) => exIso(exNameOf(state, id) || '?')).join('، ');
+  let line = exFill(t['ex_cap_' + first.why] || t.ex_cap_wrong, { name: names, n: first.n || 0, k: o.n || 0 });
+  const rest = bad.length - Math.min(3, same.length);
+  if (rest > 0) line += ' ' + exFill(t.ex_cap_more, { n: rest });
+  return line;
+}
+
+function exMeLine(state, res, o) {
+  const t = exT();
+  const b = (res.bad || {})[Room.me];
+  if (!b) return res.ok ? t.ex_me_ok : t.ex_me_fine;
+  return exFill(t['ex_me_' + b.why] || t.ex_me_wrong, { n: b.n || 0, k: o.n || 0 });
+}
+
+/* --- the room game --------------------------------------------------------------- */
+ROOM_GAMES.exact = {
+  lateJoin: true,     // a latecomer watches the table, and is dealt in by play again
+  lobbyOptions(state) {
+    const t = exT();
+    return `<div class="card card--tight"><p class="field__hint" style="text-align:center">${escapeHTML(t.ex_lobby_hint)}</p></div>`;
+  },
+  startPayload() { return {}; },
+  actionKey(state) {
+    const s = state.shared || {};
+    return ['exact', roomDealKey(state), s.round, s.phase === 'gameover' ? 'over' : ''].join('|');
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-exact') setView('room-exact');
+    const el = document.getElementById('view-room-exact');
+    if (!el) return;
+    exNoteTime(state);
+    const t = exT();
+    const s = state.shared || {};
+    const play = s.phase === 'ready' || s.phase === 'go';
+    const res = s.result || {};
+    const key = exRoundKey(state);
+    const revealFirst = s.phase === 'reveal' && ex.revealKey !== key && motionFirst('ex-reveal|' + key);
+    if (s.phase === 'reveal' && revealFirst) ex.revealKey = key;
+    const sig = ['ex', roomDealKey(state), play ? 'play' : s.phase, s.round, s.level, s.lives, (s.roster || []).join(','),
+      state.youAreHost, appState.lang, exInRoster(state), JSON.stringify(s.order || {}).length].join('|');
+    const rebuilt = renderRoomFrame(el, sig, () => {
+      const view = exViewOf(s, revealFirst);
+      const head = exHeadHtml(state, s, view);
+      const card = play ? exOrderCardHtml(state, s) : s.phase === 'reveal' ? (revealFirst ? '<div class="ex-card__title">…</div>' : exVerdictCardHtml(state, s)) : exOverCardHtml(state, s);
+      const table = exTableHtml(state, s, Object.assign({ card }, view));
+      let below;
+      if (s.phase === 'gameover') below = exOverHtml(state, s);
+      else if (!exInRoster(state)) below = `<div class="waiting-note">${escapeHTML(t.ex_watching)}</div>`;
+      else if (play) below = exPadHtml(state, s);
+      else below = `<div class="ex-me ${(res.bad || {})[Room.me] ? 'is-bad' : 'is-ok'}" data-ex-me>${revealFirst ? '' : escapeHTML(exMeLine(state, res, s.order || {}))}</div>`;
+      const next = s.phase === 'reveal'
+        ? `<div class="ex-next" data-ex-next></div>${roomMoveOnHtml(state, roomHostRow([[t.ex_next_now, `roomAct('nextRound', { round: ${Number(s.round) || 0} })`, 'secondary']]))}`
+        : '';
+      const host = s.phase === 'gameover' && state.youAreHost
+        ? `<div class="btn-row" style="margin-top:var(--sp-3)"><button class="btn btn--go" onclick="roomAct('playAgain', {})">▶ ${escapeHTML(t.ex_play_again)}</button><button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game)}</button></div>`
+        : '';
+      const share = s.phase === 'gameover' && typeof roomShareBtnHtml === 'function' ? roomShareBtnHtml(state, s.board) : '';
+      return `<div class="ex">${head}<div class="ex-stage">${table}<div class="ex-cap" data-ex-cap>${s.phase === 'reveal' && !revealFirst ? escapeHTML(exCaption(state, res, s.order || {})) : ''}</div>${play ? `<div class="ex-cap ex-cap--sub">${escapeHTML(exOrderText(state, s.order || {}).sub || '')}</div>` : ''}</div>
+        <div class="ex-below">${below}${next}</div>${host}${share}${renderRoomPlayerStrip(state)}</div>`;
+    });
+    refreshRoomPlayerStrip(el, state);
+    exAfter(state, el, rebuilt, revealFirst);
+  }
+};
+
+/** What the table shows of the glasses and the food: before the verdict while it plays, after it otherwise. */
+function exViewOf(s, revealFirst) {
+  const res = s.result || {};
+  if (s.phase === 'reveal' && revealFirst && res.livesBefore !== undefined) {
+    return { lives: res.livesBefore, food: Math.max(0, (res.levelBefore || 1) - 1), before: true };
+  }
+  return { lives: s.lives, food: Math.max(0, (s.level || 1) - 1) };
+}
+
+function exHeadHtml(state, s, view) {
+  const t = exT();
+  return `<div class="play-head ex-head">
+    <span class="badge badge--accent">${escapeHTML(exFill(t.ex_level, { n: s.level || 1 }))}</span>
+    <span class="badge ex-head__lives" aria-label="${escapeHTML(exFill(t.ex_lives, { n: view.lives }))}">${Array.from({ length: s.maxLives || 3 }, (_, k) => `<i class="${k < view.lives ? '' : 'is-gone'}">${exGlassSvg()}</i>`).join('')}</span>
+    ${s.best ? `<span class="badge">${escapeHTML(exFill(t.ex_best, { n: s.best }))}</span>` : ''}
+  </div>`;
+}
+
+function exPadHtml(state, s) {
+  const t = exT();
+  const mine = (state.you && state.you.round === s.round && state.you.mine) || null;
+  const o = s.order || {};
+  const idx = o.kind === 'pulse' ? (o.seq || []).indexOf(Room.me) : -1;
+  return `<div class="ex-padwrap">
+    <button type="button" class="ex-pad is-wait" data-ex-pad aria-label="${escapeHTML(t.ex_pad_lab)}" style="--c:${exColorOf(s, Room.me)}">
+      <span class="ex-pad__ring"></span>
+      <span class="ex-pad__hand">${exHandSvg(exColorOf(s, Room.me), exSkinOf(s, Room.me))}</span>
+      ${mine ? `<span class="ex-pad__sec">${exSecretHtml(mine, o, true)}</span>` : ''}
+      ${idx !== -1 ? `<span class="ex-pad__turn metric">${idx + 1}</span>` : ''}
+      <span class="ex-pad__taps metric" data-ex-taps></span>
+      <span class="ex-pad__lab" data-ex-lab>${escapeHTML(t.ex_wait_pad)}</span>
+    </button>
+    <div class="ex-pad__hint" data-ex-hint></div>
+  </div>`;
+}
+
+function exVerdictCardHtml(state, s) {
+  const res = s.result || {};
+  const t = exT();
+  return `<div class="ex-card__kick"><span class="ex-chip">${escapeHTML(exFill(t.ex_level, { n: res.levelBefore || s.level || 1 }))}</span></div>
+    <div class="ex-card__verdict ${res.ok ? 'is-ok' : 'is-bad'}">${escapeHTML(exVerdictTitle(res, s.order || {}))}</div>
+    ${res.final ? `<div class="ex-card__sub">${escapeHTML(t.ex_over)}</div>` : ''}`;
+}
+
+function exOverCardHtml(state, s) {
+  const t = exT();
+  return `<div class="ex-card__verdict is-bad">${escapeHTML(t.ex_over)}</div>
+    <div class="ex-card__sub">${escapeHTML(exFill(t.ex_reached, { n: s.reached || s.level || 1 }))}</div>`;
+}
+
+function exOverHtml(state, s) {
+  const t = exT();
+  const cleared = Math.max(0, (s.reached || s.level || 1) - 1);
+  const rise = motionFirst('ex-over|' + roomDealKey(state));
+  return `<div class="card ex-over ${rise ? 'ex-over--rise' : ''}" data-reveal-ms="${rise ? 900 : 0}">
+      <div class="eyebrow">${escapeHTML(t.ex_over_title)}</div>
+      <div class="ex-over__big metric" data-ex-count="${cleared}">${rise ? 0 : cleared}</div>
+      <div class="ex-over__lab">${escapeHTML(t.ex_cleared_lab)}</div>
+      ${s.record ? `<div class="ex-over__rec">${escapeHTML(t.ex_record)}</div>` : `<div class="ex-over__best">${escapeHTML(exFill(t.ex_best_now, { n: s.best || 0 }))}</div>`}
+    </div>
+    ${typeof renderPodium === 'function' ? renderPodium(state, s.board) : ''}
+    ${renderScoreboard(s.board, t.ex_clean)}`;
+}
+
+/* --- the pad ---------------------------------------------------------------------- */
+function exPadState(state) {
+  const s = state.shared || {};
+  const now = exNow();
+  if (s.phase !== 'ready' && s.phase !== 'go') return 'done';
+  if (now < s.goAt - EX_GRACE) return 'wait';
+  if (now > s.endAt) return 'done';
+  return 'live';
+}
+
+function exLocalFor(state) {
+  const key = exRoundKey(state);
+  if (ex.local.key !== key) ex.local = { key, down: false, taps: 0 };
+  return ex.local;
+}
+
+function exPadDown() {
+  const state = Room.state;
+  if (!state || state.game !== 'exact' || !exInRoster(state)) return;
+  const s = state.shared || {};
+  const loc = exLocalFor(state);
+  const pad = document.querySelector('#view-room-exact [data-ex-pad]');
+  const st = exPadState(state);
+  if (st !== 'live') {
+    if (pad && st === 'wait' && !motionOff() && pad.animate) pad.animate([{ translate: '0 0' }, { translate: '-6px 0' }, { translate: '6px 0' }, { translate: '0 0' }], { duration: 260 });
+    return;
+  }
+  if (loc.down) return;
+  loc.down = true;
+  loc.taps++;
+  if (pad) pad.classList.add('is-down');
+  haptic('medium');
+  exSound('tap');
+  Room.act('down', { round: s.round, at: exStamp() }).catch(() => {});
+  exPaintLive(document.getElementById('view-room-exact'), state);
+}
+
+function exPadUp() {
+  const state = Room.state;
+  if (!state || state.game !== 'exact') return;
+  const s = state.shared || {};
+  const loc = exLocalFor(state);
+  const pad = document.querySelector('#view-room-exact [data-ex-pad]');
+  if (pad) pad.classList.remove('is-down');
+  if (!loc.down) return;
+  loc.down = false;
+  if (exPadState(state) === 'live') Room.act('up', { round: s.round, at: exStamp() }).catch(() => {});
+  exPaintLive(document.getElementById('view-room-exact'), state);
+}
+
+function exWirePad(el) {
+  const pad = el && el.querySelector('[data-ex-pad]');
+  if (!pad || pad.dataset.wired) return;
+  pad.dataset.wired = '1';
+  pad.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+    exPadDown();
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => pad.addEventListener(ev, () => exPadUp()));
+  pad.addEventListener('contextmenu', (e) => e.preventDefault());
+  pad.addEventListener('keydown', (e) => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); exPadDown(); } });
+  pad.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); exPadUp(); } });
+}
+
+/* --- live: hands on the table while the order is done ------------------------------ */
+function exPaintLive(el, state) {
+  if (!el) return;
+  const s = state.shared || {};
+  const play = s.phase === 'ready' || s.phase === 'go';
+  if (!play) return;
+  const o = s.order || {};
+  const live = s.live || { down: {}, taps: {}, order: [] };
+  const loc = exLocalFor(state);
+  const key = exRoundKey(state);
+  if (ex.prevKey !== key) { ex.prevKey = key; ex.prevDown = {}; }
+  let total = 0;
+  el.querySelectorAll('[data-ex-seat]').forEach((seat) => {
+    const id = seat.dataset.exSeat;
+    let down = !!live.down[id];
+    let taps = live.taps[id] || 0;
+    if (id === Room.me && !state.youAreScreen && exInRoster(state)) { down = loc.down; taps = Math.max(taps, loc.taps); }
+    total += taps;
+    const was = !!ex.prevDown[id];
+    seat.classList.toggle('is-down', down);
+    seat.classList.toggle('is-hover', o.kind === 'none' && !down);
+    if (down && !was) {
+      exImpact(el, seat);
+      if (exIsVoice(state) && id !== Room.me) exSound('slam');
+    }
+    ex.prevDown[id] = down;
+    const badge = seat.querySelector('[data-ex-badge]');
+    if (badge) {
+      let txt = '';
+      if (o.kind === 'taps' || o.kind === 'total') txt = taps ? String(taps) : '';
+      else if (EX_BADGE_KINDS.indexOf(o.kind) !== -1) { const k = live.order.indexOf(id); txt = k === -1 ? '' : String(k + 1); }
+      if (badge.textContent !== txt) { badge.textContent = txt; badge.classList.toggle('is-on', !!txt); }
+    }
+  });
+  if (o.kind === 'total') {
+    const big = el.querySelector('[data-ex-big]');
+    if (big && exPadState(state) !== 'wait') big.textContent = exFill(exT().ex_total_now, { n: total });
+  }
+  const tapsEl = el.querySelector('[data-ex-taps]');
+  if (tapsEl) tapsEl.textContent = (o.kind === 'taps' || o.kind === 'total') && loc.taps ? String(loc.taps) : '';
+}
+
+function exImpact(el, seat) {
+  if (motionOff()) return;
+  const fx = el.querySelector('[data-ex-fx]');
+  const table = el.querySelector('[data-ex-table]');
+  const hand = seat.querySelector('[data-ex-hand]');
+  if (!fx || !table || !hand) return;
+  const tr = table.getBoundingClientRect(), hr = hand.getBoundingClientRect();
+  const down = seat.dataset.row === 'top';
+  const x = hr.left + hr.width / 2 - tr.left, y = (down ? hr.bottom - hr.height * 0.18 : hr.top + hr.height * 0.18) - tr.top;
+  const im = document.createElement('span');
+  im.className = 'ex-imp';
+  im.style.left = x + 'px';
+  im.style.top = y + 'px';
+  im.innerHTML = exImpactSvg();
+  fx.appendChild(im);
+  setTimeout(() => im.remove(), 520);
+}
+
+/* --- the clocks painted in place (the countdown, the meter, the pulse, the counter) - */
+function exTick(el, state) {
+  const s = state.shared || {};
+  if (!(s.phase === 'ready' || s.phase === 'go')) return;
+  const t = exT();
+  const o = s.order || {};
+  const now = exNow();
+  const key = exRoundKey(state);
+  const big = el.querySelector('[data-ex-big]');
+  const meter = el.querySelector('[data-ex-meter]');
+  const card = el.querySelector('[data-ex-card]');
+  const pad = el.querySelector('[data-ex-pad]');
+  const lab = el.querySelector('[data-ex-lab]');
+  const hint = el.querySelector('[data-ex-hint]');
+  const voice = exIsVoice(state);
+  const setText = (node, txt) => { if (node && node.textContent !== txt) node.textContent = txt; };
+  if (now < s.goAt) {
+    const left = s.goAt - now;
+    const n = Math.ceil(left / 1000);
+    setText(big, n <= 3 ? String(n) : '');
+    if (big) big.classList.toggle('is-count', n <= 3);
+    if (n <= 3 && exOnce('cd|' + key + '|' + n)) {
+      if (big && !motionOff() && big.animate) big.animate([{ scale: 1.5, opacity: 0.2 }, { scale: 1, opacity: 1 }], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      if (voice) exSound('tick');
+    }
+    if (meter) meter.style.transform = 'scaleX(' + Math.max(0, Math.min(1, left / Math.max(1, s.goAt - (s.readAt || s.goAt - 3000)))).toFixed(3) + ')';
+    if (card) card.classList.add('is-read');
+    if (pad) { pad.classList.remove('is-live', 'is-done'); pad.classList.add('is-wait'); }
+    setText(lab, t.ex_wait_pad);
+  } else {
+    if (card) card.classList.remove('is-read');
+    if (ex.goShown !== key) {
+      ex.goShown = key;
+      if (big && !motionOff() && big.animate) big.animate([{ scale: 1.8, opacity: 0 }, { scale: 1, opacity: 1 }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      if (voice && exOnce('go|' + key)) exSound('go');
+      if (exInRoster(state) && exOnce('buzz|' + key)) haptic('light');
+    }
+    const span = Math.max(1, s.endAt - s.goAt);
+    const done = now > s.endAt;
+    if (meter) meter.style.transform = 'scaleX(' + Math.max(0, 1 - (now - s.goAt) / span).toFixed(3) + ')';
+    if (pad) {
+      pad.classList.toggle('is-wait', false);
+      pad.classList.toggle('is-live', !done);
+      pad.classList.toggle('is-done', done);
+    }
+    setText(lab, done ? t.ex_pad_done : t.ex_pad_lab);
+    let bigTxt = o.kind === 'total' ? (big ? big.textContent : '') : t.ex_now;
+    let hintTxt = '';
+    // The pulse: whose beat it is, lit round the table; this phone's own beat glows.
+    if (o.kind === 'pulse' && o.beat) {
+      const k = Math.floor((now - s.goAt) / o.beat);
+      const cur = (o.seq || [])[k];
+      el.querySelectorAll('[data-ex-seat]').forEach((seat) => seat.classList.toggle('is-lit', seat.dataset.exSeat === cur && !done));
+      const mi = (o.seq || []).indexOf(Room.me);
+      if (mi !== -1 && exInRoster(state)) {
+        const mine = mi === k;
+        if (pad) pad.classList.toggle('is-beat', mine && !done);
+        hintTxt = mine ? t.ex_pulse_now : k < mi ? exFill(t.ex_pulse_you, { n: mi - k }) : '';
+      }
+      bigTxt = cur ? exIso(exNameOf(state, cur)) : '';
+    }
+    // The counter: hands down first, then 1..5.
+    if (o.kind === 'letgo' || o.kind === 'release') {
+      const into = now - s.goAt;
+      if (into < o.lead) bigTxt = t.ex_put_down;
+      else if (o.kind === 'letgo') {
+        const c = Math.min(5, Math.floor((into - o.lead) / o.step) + 1);
+        bigTxt = String(c);
+        if (big && big.textContent !== bigTxt && !motionOff() && big.animate) big.animate([{ scale: 1.4 }, { scale: 1 }], { duration: 220 });
+        const m = state.you && state.you.mine;
+        if (m && typeof m.n === 'number' && exInRoster(state)) {
+          hintTxt = c === m.n ? t.ex_lift_now : exFill(t.ex_lift_on, { n: m.n });
+          if (pad) pad.classList.toggle('is-beat', c === m.n && !done);
+          if (c === m.n && exOnce('lift|' + key)) haptic('light');
+        }
+        if (voice && exOnce('cnt|' + key + '|' + c)) exSound('tick');
+      } else bigTxt = t.ex_release_now;
+    }
+    if (o.kind === 'hold' && done && voice && exOnce('bell|' + key)) exSound('bell');
+    if (o.kind === 'hold') bigTxt = done ? t.ex_bell : t.ex_now;
+    if (o.kind !== 'total') setText(big, bigTxt);
+    if (big) big.classList.remove('is-count');
+    setText(hint, hintTxt);
+  }
+}
+
+/* --- after every paint (phone and TV) -------------------------------------------- */
+function exAfter(state, el, rebuilt, revealFirst) {
+  const s = state.shared || {};
+  exNoteTime(state);
+  if (rebuilt) { exClearFx(); ex.prevDown = {}; ex.prevKey = ''; }
+  exWirePad(el);
+  exPaintLive(el, state);
+  if (s.phase === 'reveal') {
+    if (rebuilt) {
+      if (revealFirst && !motionOff()) exReveal(el, state);
+      else exSettle(el, state, false);
+    }
+  } else if (s.phase === 'gameover' && rebuilt) {
+    exSettle(el, state, true);
+    const key = 'over|' + roomDealKey(state);
+    const card = el.querySelector('.ex-over');
+    const cnt = el.querySelector('[data-ex-count]');
+    if (cnt && typeof countUp === 'function' && card && card.classList.contains('ex-over--rise')) countUp(cnt, 0, Number(cnt.dataset.exCount) || 0);
+    if (exOnce(key)) {
+      if (exIsVoice(state)) exSound(s.record ? 'win' : 'over');
+      if (s.record && (exInRoster(state) || state.youAreScreen) && card) afterReveal(card, () => { if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }); });
+    }
+  }
+  if (typeof animateScoreboards === 'function' && s.phase === 'gameover') animateScoreboards(state);
+  if (ex.timer) clearInterval(ex.timer);
+  ex.timer = null;
+  const paint = () => {
+    const st = Room.state;
+    if (!st || st.game !== 'exact') { exStopAll(); return; }
+    const sh = st.shared || {};
+    if (sh.phase === 'ready' || sh.phase === 'go') exTick(el, st);
+    else if (sh.phase === 'reveal') {
+      const n = el.querySelector('[data-ex-next]');
+      if (n && sh.nextAt) {
+        const left = Math.max(0, Math.ceil((sh.nextAt - exNow()) / 1000));
+        const txt = sh.result && sh.result.final ? '' : exFill(sh.result && sh.result.ok ? exT().ex_next_level : exT().ex_next_in, { n: left, lvl: sh.level });
+        if (n.textContent !== txt) n.textContent = txt;
+      }
+    }
+  };
+  paint();
+  if (s.phase === 'ready' || s.phase === 'go' || s.phase === 'reveal') ex.timer = setInterval(paint, s.phase === 'reveal' ? 250 : 80);
+}
+
+function exClearFx() {
+  ex.fx.forEach((id) => clearTimeout(id));
+  ex.fx = [];
+}
+function exLater(ms, fn) { ex.fx.push(setTimeout(fn, ms)); }
+function exStopAll() {
+  exClearFx();
+  if (ex.timer) clearInterval(ex.timer);
+  ex.timer = null;
+}
+onLeaveScreen((from) => { if (from === 'room-exact' || from === 'room-tv') exStopAll(); });
+onRoomClocksReset(() => exStopAll());
+
+/* --- the reveal: the hands slam down again in the order pressed, then the verdict --- */
+function exSeatEl(el, id) {
+  return Array.from(el.querySelectorAll('[data-ex-seat]')).find((x) => x.dataset.exSeat === id) || null;
+}
+function exBubble(seat, txt, cls) {
+  const b = seat && seat.querySelector('[data-ex-bub]');
+  if (!b) return;
+  b.textContent = txt;
+  b.className = 'ex-bub is-on ' + (cls || '');
+}
+function exSecretsOnPlates(el, state, res) {
+  const rv = res.reveal || {};
+  const o = (state.shared || {}).order || {};
+  Object.keys(rv).forEach((id) => {
+    const seat = exSeatEl(el, id);
+    const slot = seat && seat.querySelector('[data-ex-sec]');
+    if (slot) slot.innerHTML = exSecretHtml(rv[id], o, false);
+  });
+}
+function exWhyBubble(t, b, o) {
+  switch (b.why) {
+    case 'extra': return t.ex_b_ouch;
+    case 'stung': return t.ex_b_ai;
+    case 'missing': return t.ex_b_where;
+    case 'wrong': return t.ex_b_notyou;
+    case 'early': return t.ex_b_early;
+    case 'late': return t.ex_b_late;
+    case 'taps': return exFill(t.ex_b_taps, { n: b.n || 0, k: o.n || 0 });
+    case 'together': return t.ex_b_together;
+    case 'order': return t.ex_b_order;
+    default: return '?';
+  }
+}
+
+/** The final picture, without motion: who came down, who was wrong, the glasses, the food. */
+function exSettle(el, state, over) {
+  const s = state.shared || {};
+  const res = s.result || {};
+  const o = s.order || {};
+  const t = exT();
+  if (over) return;
+  const pressed = {};
+  (res.presses || []).forEach((p, i) => { pressed[p.id] = i + 1; });
+  el.querySelectorAll('[data-ex-seat]').forEach((seat) => {
+    const id = seat.dataset.exSeat;
+    const b = (res.bad || {})[id];
+    seat.classList.remove('is-hover', 'is-lit');
+    seat.classList.toggle('is-down', !!pressed[id] && !b);
+    seat.classList.toggle('is-pull', !!b);
+    seat.classList.toggle('is-bad', !!b);
+    const badge = seat.querySelector('[data-ex-badge]');
+    if (badge) {
+      const txt = pressed[id] && EX_BADGE_KINDS.indexOf(o.kind) !== -1 ? String(pressed[id]) : (res.taps || {})[id] && (o.kind === 'taps' || o.kind === 'total') ? String(res.taps[id]) : '';
+      badge.textContent = txt;
+      badge.classList.toggle('is-on', !!txt);
+      badge.classList.toggle('is-bad', !!b);
+    }
+    if (b) exBubble(seat, exWhyBubble(t, b, o), 'is-still');
+  });
+  exSecretsOnPlates(el, state, res);
+}
+
+function exReveal(el, state) {
+  const s = state.shared || {};
+  const res = s.result || {};
+  const o = s.order || {};
+  const t = exT();
+  const voice = exIsVoice(state);
+  const card = el.querySelector('[data-ex-card]');
+  const cap = el.querySelector('[data-ex-cap]');
+  const me = el.querySelector('[data-ex-me]');
+  const seats = Array.from(el.querySelectorAll('[data-ex-seat]'));
+  // Every hand back off the table (the trap: hovering and trembling over it).
+  seats.forEach((seat) => {
+    seat.classList.remove('is-down', 'is-lit', 'is-pull', 'is-bad');
+    seat.classList.toggle('is-hover', o.kind === 'none');
+    const badge = seat.querySelector('[data-ex-badge]');
+    if (badge) { badge.textContent = ''; badge.classList.remove('is-on', 'is-bad'); }
+  });
+  if (card) card.innerHTML = `<div class="ex-card__kick"><span class="ex-chip">${escapeHTML(exFill(t.ex_level, { n: res.levelBefore || 1 }))}</span></div><div class="ex-card__title">${escapeHTML(exOrderText(state, o).title)}</div>`;
+  const presses = res.presses || [];
+  const gap = presses.length ? Math.min(230, 1500 / presses.length) : 0;
+  const start = o.kind === 'none' ? 700 : 350;
+  presses.forEach((p, i) => exLater(start + i * gap, () => {
+    const seat = exSeatEl(el, p.id);
+    if (!seat) return;
+    seat.classList.remove('is-hover');
+    seat.classList.add('is-down');
+    exImpact(el, seat);
+    const badge = seat.querySelector('[data-ex-badge]');
+    if (badge) {
+      const txt = o.kind === 'taps' || o.kind === 'total' ? String((res.taps || {})[p.id] || '') : String(i + 1);
+      badge.textContent = txt;
+      badge.classList.toggle('is-on', !!txt);
+    }
+    if (voice) exSound('slam', i);
+  }));
+  const T = start + presses.length * gap + 380;
+  // The verdict.
+  exLater(T, () => {
+    if (card) {
+      card.innerHTML = exVerdictCardHtml(state, s);
+      if (card.animate) card.animate([{ rotate: '-8deg', scale: 1.25 }, { rotate: '-1.5deg', scale: 1 }], { duration: 360, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+    }
+    if (cap) cap.textContent = exCaption(state, res, o);
+    if (me) me.textContent = exMeLine(state, res, o);
+    exSecretsOnPlates(el, state, res);
+    if (res.ok) {
+      if (voice) exSound('ok');
+      const fx = el.querySelector('[data-ex-fx]');
+      if (fx && typeof confetti === 'function' && (voice || exInRoster(state))) confetti({ particleCount: 60, spread: 70, origin: { y: 0.5 } });
+      void fx;
+    } else if (voice) exSound('bad');
+    if (!(res.bad || {})[Room.me] && exInRoster(state)) haptic('light');
+  });
+  // What each wrong hand gets.
+  const bad = Object.keys(res.bad || {});
+  bad.forEach((id, k) => exLater(T + 350 + k * 320, () => {
+    const seat = exSeatEl(el, id);
+    if (!seat) return;
+    const b = res.bad[id];
+    seat.classList.add('is-bad');
+    if (b.why === 'stung') exBee(el, seat, voice);
+    else if (b.why === 'extra') exSlap(el, seat, voice);
+    else {
+      exLater(120, () => { seat.classList.remove('is-down'); seat.classList.add('is-pull'); });
+      if (voice) exSound('boing');
+    }
+    exLater(b.why === 'stung' ? 1100 : 260, () => exBubble(seat, exWhyBubble(exT(), b, o)));
+    if (id === Room.me) haptic('heavy');
+  }));
+  // The glasses and the food.
+  exLater(T + 600 + bad.length * 320, () => {
+    if (res.ok) {
+      const food = el.querySelector('[data-ex-food]');
+      if (food && typeof res.food === 'number') {
+        const d = document.createElement('span');
+        d.className = 'ex-dish is-new';
+        d.innerHTML = exFoodSvg(res.food);
+        d.title = t['ex_food_' + (res.food % 8)];
+        food.appendChild(d);
+        while (food.children.length > 6) food.firstElementChild.remove();
+      }
+      if (res.refill) {
+        const g = el.querySelector(`[data-ex-glass="${res.livesAfter - 1}"]`);
+        if (g) { g.classList.remove('is-spilt'); g.classList.add('is-refill'); }
+      }
+      if (voice) exSound('dish');
+    } else {
+      const g = el.querySelector(`[data-ex-glass="${res.livesAfter}"]`);
+      if (g) g.classList.add('is-spilt', 'is-spilling');
+      el.querySelectorAll('.ex-head__lives i').forEach((i, k) => i.classList.toggle('is-gone', k >= res.livesAfter));
+      if (voice) exSound('spill');
+      if (exInRoster(state)) haptic('medium');
+    }
+  });
+}
+
+/** The extra hand: its neighbours in the row slap it («طخ!») and it pulls back. */
+function exSlap(el, seat, voice) {
+  const row = seat.dataset.row;
+  const i = Number(seat.dataset.i);
+  const neighbours = Array.from(el.querySelectorAll(`[data-ex-seat][data-row="${row}"]`)).filter((x) => Math.abs(Number(x.dataset.i) - i) === 1);
+  const hand = seat.querySelector('[data-ex-hand]');
+  const hr = hand ? hand.getBoundingClientRect() : null;
+  neighbours.forEach((nb) => {
+    const h = nb.querySelector('[data-ex-hand]');
+    if (!h || !hr || !h.animate) return;
+    const r = h.getBoundingClientRect();
+    const dx = (hr.left - r.left) * 0.45;
+    h.animate([{ translate: '0 0', rotate: '0deg' }, { translate: `${dx}px 0`, rotate: `${dx > 0 ? 18 : -18}deg` }, { translate: '0 0', rotate: '0deg' }], { duration: 320, easing: 'ease-in-out' });
+  });
+  exLater(170, () => {
+    exPow(el, seat, exT().ex_b_slap);
+    if (voice) exSound('slap');
+  });
+  exLater(300, () => { seat.classList.remove('is-down'); seat.classList.add('is-pull'); });
+}
+
+/** The trap: a bee flies across the table to the hand that pressed, a sting, a bump, «آي!». */
+function exBee(el, seat, voice) {
+  const fx = el.querySelector('[data-ex-fx]');
+  const table = el.querySelector('[data-ex-table]');
+  const hand = seat.querySelector('[data-ex-hand]');
+  if (!fx || !table || !hand) return;
+  const tr = table.getBoundingClientRect(), hr = hand.getBoundingClientRect();
+  const bee = document.createElement('span');
+  bee.className = 'ex-bee';
+  bee.innerHTML = exBeeSvg();
+  bee.style.left = (tr.width / 2) + 'px';
+  bee.style.top = (tr.height / 2) + 'px';
+  fx.appendChild(bee);
+  const x = hr.left + hr.width / 2 - tr.left, y = hr.top + hr.height / 2 - tr.top;
+  if (voice) exSound('buzz');
+  if (bee.animate) {
+    bee.animate([
+      { translate: '0 0' },
+      { translate: `${(x - tr.width / 2) * 0.4}px ${(y - tr.height / 2) * 0.1 - 30}px`, offset: 0.45 },
+      { translate: `${x - tr.width / 2}px ${y - tr.height / 2}px` }
+    ], { duration: 900, easing: 'ease-in', fill: 'forwards' });
+  }
+  exLater(950, () => {
+    exPow(el, seat, exT().ex_b_ai);
+    seat.classList.add('has-bump');
+    seat.classList.remove('is-down', 'is-hover');
+    seat.classList.add('is-pull');
+    if (voice) exSound('sting');
+    if (bee.animate) bee.animate([{ translate: `${x - tr.width / 2}px ${y - tr.height / 2}px`, opacity: 1 }, { translate: `${tr.width}px -${tr.height}px`, opacity: 0 }], { duration: 800, easing: 'ease-in', fill: 'forwards' });
+  });
+  exLater(1900, () => bee.remove());
+}
+
+function exPow(el, seat, txt) {
+  const fx = el.querySelector('[data-ex-fx]');
+  const table = el.querySelector('[data-ex-table]');
+  const hand = seat.querySelector('[data-ex-hand]');
+  if (!fx || !table || !hand) return;
+  const tr = table.getBoundingClientRect(), hr = hand.getBoundingClientRect();
+  const p = document.createElement('span');
+  p.className = 'ex-pow';
+  p.textContent = txt;
+  p.style.left = (hr.left + hr.width / 2 - tr.left) + 'px';
+  p.style.top = (hr.top + hr.height / 2 - tr.top) + 'px';
+  fx.appendChild(p);
+  setTimeout(() => p.remove(), 900);
+}
+
+/* --- the sounds, on the one voice (a tap on its own phone) ------------------------ */
+function exSound(kind, i) {
+  try {
+    const ctx = fxCtx();
+    if (!ctx) return;
+    const at = ctx.currentTime + 0.01;
+    if (kind === 'tap' || kind === 'slam') {
+      const hz = kind === 'tap' ? 140 : 110 + ((i || 0) % 5) * 6;
+      fxTone('sine', [[0, hz * 1.4], [0.08, hz * 0.6]], [[0, kind === 'tap' ? 0.35 : 0.5], [0.12, 0.001]], at);
+      fxNoise('lowpass', 900, 0.8, [[0, kind === 'tap' ? 0.18 : 0.3], [0.07, 0.001]], at);
+    } else if (kind === 'tick') {
+      fxTone('triangle', [[0, 880]], [[0, 0.18], [0.08, 0.001]], at);
+    } else if (kind === 'go') {
+      fxTone('sine', [[0, 988]], [[0, 0.001], [0.01, 0.3], [0.5, 0.001]], at);
+      fxTone('sine', [[0, 1319]], [[0, 0.001], [0.01, 0.2], [0.6, 0.001]], at + 0.06);
+    } else if (kind === 'bell') {
+      fxTone('sine', [[0, 1568]], [[0, 0.001], [0.01, 0.3], [0.9, 0.001]], at);
+      fxTone('sine', [[0, 2093]], [[0, 0.001], [0.01, 0.16], [0.7, 0.001]], at);
+    } else if (kind === 'ok') {
+      [523, 659, 784, 1047].forEach((hz, k) => fxTone('triangle', [[0, hz]], [[0, 0.001], [0.01, 0.22], [0.22, 0.001]], at + k * 0.08));
+    } else if (kind === 'bad') {
+      fxTone('sawtooth', [[0, 220], [0.35, 140]], [[0, 0.16], [0.35, 0.001]], at);
+    } else if (kind === 'slap') {
+      fxNoise('highpass', 1800, 0.9, [[0, 0.55], [0.09, 0.001]], at);
+      fxTone('square', [[0, 300], [0.05, 160]], [[0, 0.12], [0.06, 0.001]], at);
+    } else if (kind === 'boing') {
+      fxTone('sine', [[0, 180], [0.25, 520]], [[0, 0.22], [0.28, 0.001]], at);
+    } else if (kind === 'buzz') {
+      fxTone('sawtooth', [[0, 210], [0.9, 240]], [[0, 0.001], [0.05, 0.08], [0.85, 0.08], [0.95, 0.001]], at, 12);
+    } else if (kind === 'sting') {
+      fxTone('square', [[0, 1400], [0.1, 900]], [[0, 0.18], [0.12, 0.001]], at);
+    } else if (kind === 'spill') {
+      fxNoise('bandpass', 700, 1.4, [[0, 0.001], [0.05, 0.3], [0.5, 0.001]], at);
+      fxTone('sine', [[0, 420], [0.45, 200]], [[0, 0.12], [0.45, 0.001]], at);
+    } else if (kind === 'dish') {
+      fxTone('triangle', [[0, 1200]], [[0, 0.2], [0.18, 0.001]], at);
+      fxTone('triangle', [[0, 1600]], [[0, 0.12], [0.2, 0.001]], at + 0.05);
+    } else if (kind === 'over') {
+      playFx('sad');
+    } else if (kind === 'win') {
+      playFx('tada');
+    }
+  } catch (e) {}
+}
+
+/* --- the big screen ---------------------------------------------------------------- */
+TV_GAMES.exact = {
+  sig(state) {
+    const s = state.shared || {};
+    const play = s.phase === 'ready' || s.phase === 'go';
+    return ['exact', roomDealKey(state), play ? 'play' : s.phase, s.round, s.level, s.lives, (s.roster || []).join(','),
+      state.youAreHost, state.hostAway, appState.lang].join('|');
+  },
+  frame(state, t) {
+    exNoteTime(state);
+    const s = state.shared || {};
+    const play = s.phase === 'ready' || s.phase === 'go';
+    const key = exRoundKey(state);
+    const revealFirst = s.phase === 'reveal' && ex.revealKey !== 'tv|' + key && motionFirst('ex-reveal-tv|' + key);
+    if (revealFirst) ex.revealKey = 'tv|' + key;
+    ex.tvRevealFirst = revealFirst;
+    const view = exViewOf(s, revealFirst);
+    const card = play ? exOrderCardHtml(state, s) : s.phase === 'reveal' ? (revealFirst ? '<div class="ex-card__title">…</div>' : exVerdictCardHtml(state, s)) : exOverCardHtml(state, s);
+    const head = `<div class="tv-eyebrow tv-center-text">${escapeHTML(t.setup_exact)} · ${escapeHTML(exFill(t.ex_level, { n: s.level || 1 }))}${s.best ? ' · ' + escapeHTML(exFill(t.ex_best, { n: s.best })) : ''}</div>`;
+    let side = '';
+    if (play) {
+      const txt = exOrderText(state, s.order || {});
+      side = `<div class="card ex-tv__order"><div class="eyebrow">${escapeHTML(t.ex_order)}</div><div class="ex-tv__title">${escapeHTML(txt.title)}</div>${txt.sub ? `<div class="ex-tv__sub">${escapeHTML(txt.sub)}</div>` : ''}</div>`;
+    } else if (s.phase === 'reveal') {
+      side = `<div class="card ex-tv__order"><div class="ex-cap ex-cap--tv" data-ex-cap>${revealFirst ? '' : escapeHTML(exCaption(state, s.result || {}, s.order || {}))}</div><div class="ex-next" data-ex-next></div></div>`;
+    } else {
+      side = exOverHtml(state, s);
+    }
+    const host = s.phase === 'reveal'
+      ? roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.ex_next_now, `roomAct('nextRound', { round: ${Number(s.round) || 0} })`, 'secondary')}</div>`)
+      : s.phase === 'gameover' && state.youAreHost ? `<div class="tv-actions">${tvBtn('▶ ' + t.ex_play_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : '';
+    return `<div class="ex-tv${s.phase === 'gameover' ? ' ex-tv--over' : ''}">
+      <div class="ex-tv__stage">${head}${exTableHtml(state, s, Object.assign({ card, tv: true }, view))}</div>
+      <div class="ex-tv__side tv-scale">${side}${host}</div>
+    </div>`;
+  },
+  after(state, rebuilt) {
+    const el = document.getElementById('view-room-tv');
+    if (!el) return;
+    exAfter(state, el, rebuilt, !!ex.tvRevealFirst);
+  }
+};
+</script>

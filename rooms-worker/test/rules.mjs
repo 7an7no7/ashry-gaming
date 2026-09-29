@@ -9140,6 +9140,348 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- بالظبط ٣! (29 Sep 2026): every order judged from the phones' stamps, the glasses, the levels --- */
+{
+  console.log('\nExactly 3');
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const exRoom = (ids) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'exact' });
+    applyRoomAction(r, ids[0], 'start', {});
+    return r;
+  };
+  // Puts an order of our own on the table (the judge reads shared.order and room._exact.mine).
+  const force = (r, order, mine) => {
+    const s = r.shared;
+    s.order = order;
+    r._exact = { mine: mine || {}, ev: {} };
+    s.phase = 'ready';
+    s.goAt = Math.max(s.goAt, clock);
+    s.live = { down: {}, taps: {}, order: [] };
+    const win = order.win || 3000;
+    s.endAt = s.goAt + win;
+    s.closeAt = s.endAt + 350;
+    clock = s.goAt;
+    roomTimeout(r, clock);
+  };
+  // A tap stamped `ms` after go, arriving now (the clock moves to it).
+  const tap = (r, id, t, ms, arrive) => {
+    const s = r.shared;
+    clock = Math.max(clock, s.goAt + (arrive === undefined ? ms : arrive));
+    applyRoomAction(r, id, t === 'd' ? 'down' : 'up', { round: s.round, at: s.goAt + ms });
+  };
+  const press = (r, id, ms) => { tap(r, id, 'd', ms); tap(r, id, 'u', ms + 60); };
+  const close = (r) => {
+    for (let k = 0; k < 3 && r.shared.phase !== 'reveal'; k++) { clock = Math.max(clock, roomDeadline(r)); roomTimeout(r, clock); }
+    return r.shared.result;
+  };
+  const bad = (res) => Object.keys(res.bad).sort().map((id) => id + ':' + res.bad[id].why).join(',');
+  const next = (r) => { clock = Math.max(clock, r.shared.nextAt); roomTimeout(r, clock); };
+
+  {
+    const r = newRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'exact' });
+    check(threw(() => applyRoomAction(r, 'a', 'start', {})), 'exact: fewer than three is refused');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    check(r.phase === 'play' && s.phase === 'ready' && s.round === 1 && s.level === 1 && s.lives === 3 && s.order.kind === 'count' && s.order.n === 3,
+      'exact: the first order is the game\'s own name: exactly 3 hands down');
+    check(s.goAt > clock && roomDeadline(r) === s.goAt && s.endAt > s.goAt && s.closeAt === s.endAt + 350, 'exact: the order is read until go; the window follows');
+    applyRoomAction(r, 'a', 'nextRound', {});
+    check(s.phase === 'ready' && s.round === 1, 'exact: there is no verdict to move on from yet');
+    clock = s.goAt - 1000;
+    applyRoomAction(r, 'a', 'down', { round: 1, at: clock });
+    check(s.phase === 'ready' && !r._exact.ev.a, 'exact: a tap while the order is read does nothing');
+    clock = s.goAt - 100;
+    applyRoomAction(r, 'a', 'down', { round: 1, at: s.goAt - 100 });
+    check(s.phase === 'go' && r._exact.ev.a && r._exact.ev.a[0].at === s.goAt, 'exact: a tap a hair before the server\'s go turns the phase; its stamp counts from go');
+    applyRoomAction(r, 'a', 'down', { round: 0, at: clock });
+    check(r._exact.ev.a.length === 1, 'exact: a tap for an old order is dropped; a second down while down is nothing');
+    check(s.live.down.a === true && s.live.order[0] === 'a' && s.live.taps.a === 1, 'exact: whose hand is down is shared live');
+    tap(r, 'a', 'u', 300);
+    tap(r, 'b', 'd', 200);
+    tap(r, 'c', 'd', 400);
+    check(!s.live.down.a && s.live.down.b && s.live.order.join() === 'a,b,c', 'exact: a hand lifted is up again; the order is by stamp');
+    applyRoomAction(r, 'x', 'down', { round: 1, at: clock });
+    const res = close(r);
+    check(s.phase === 'reveal' && res.ok && s.level === 2 && s.lives === 3 && res.food === 0 && s.clean.a === 1 && s.nextAt === clock + 3600,
+      'exact: three hands, three wanted: the table goes up a level and the verdict stays a moment');
+    check(res.presses.map((p) => p.id).join() === 'a,b,c' && res.presses[0].ms === 0, 'exact: the verdict lists the hands in the order they came down');
+    check(threw(() => applyRoomAction(r, 'b', 'nextRound', { round: 1 })) && s.phase === 'reveal', 'exact: only the host moves on');
+    applyRoomAction(r, 'a', 'nextRound', { round: 0 });
+    check(s.phase === 'reveal', 'exact: a stale "next" is dropped');
+    applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+    check(s.phase === 'ready' && s.round === 2 && s.order.kind !== 'count' && s.order.fresh === true, 'exact: the host moves on; level 2 deals an order not seen yet');
+  }
+  {
+    // count: the extra hand is the latest by its stamp, not by its arrival.
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    force(r, { kind: 'count', n: 3, win: 3000 });
+    tap(r, 'd', 'd', 900, 900);
+    tap(r, 'a', 'd', 100, 950);
+    tap(r, 'b', 'd', 200, 1000);
+    tap(r, 'c', 'd', 300, 1050);
+    let res = close(r);
+    check(!res.ok && bad(res) === 'd:extra' && s.lives === 2 && res.livesBefore === 3 && res.livesAfter === 2 && s.level === 1 && s.clean.a === 1 && !s.clean.d,
+      'exact/count: four hands for three: the one stamped last is the extra, a glass spills, the level stays');
+    next(r);
+    force(r, { kind: 'count', n: 3 });
+    press(r, 'a', 100);
+    press(r, 'b', 300);
+    res = close(r);
+    check(!res.ok && res.short === 1 && bad(res) === '' && s.lives === 1, 'exact/count: two hands for three: one short, nobody named');
+    next(r);
+    force(r, { kind: 'count', n: 3 });
+    tap(r, 'a', 'd', 100);
+    tap(r, 'c', 'd', 200, 2600);
+    tap(r, 'd', 'd', 9999, 2700);
+    tap(r, 'b', 'd', 3200, 3300);
+    res = close(r);
+    check(res.ok && s.level === 2, 'exact/stamps: a stamp after the window is dropped; a stamp from the future counts as its arrival');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    force(r, { kind: 'none', win: 3000 });
+    tap(r, 'c', 'd', 800);
+    check(s.closeAt <= clock + 300, 'exact/none: a hand in the trap closes the order at once');
+    let res = close(r);
+    check(!res.ok && bad(res) === 'c:stung', 'exact/none: whoever pressed is stung');
+    next(r);
+    force(r, { kind: 'none' });
+    res = close(r);
+    check(res.ok, 'exact/none: nobody pressed: right');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd', 'e']);
+    const s = r.shared;
+    force(r, { kind: 'all', sync: 500 });
+    press(r, 'a', 0); press(r, 'b', 300); press(r, 'c', 450); press(r, 'd', 1400);
+    let res = close(r);
+    check(bad(res) === 'd:late,e:missing', 'exact/all: the widest group inside the window is right; outside it late, no hand missing');
+    next(r);
+    force(r, { kind: 'all', sync: 500 });
+    press(r, 'a', 0); press(r, 'b', 900); press(r, 'c', 1000); press(r, 'd', 1100);
+    check(s.phase === 'go', 'exact/all: waiting for the last hand');
+    press(r, 'e', 1300);
+    check(s.closeAt <= clock + 300, 'exact/all: everyone in: closes early');
+    res = close(r);
+    check(bad(res) === 'a:early', 'exact/all: one far before the others is early');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c']);
+    force(r, { kind: 'taps', n: 3 });
+    [0, 200, 400].forEach((ms) => press(r, 'a', ms));
+    [0, 200, 400, 600].forEach((ms) => press(r, 'b', ms));
+    [0, 200].forEach((ms) => press(r, 'c', ms));
+    const res = close(r);
+    check(bad(res) === 'b:taps,c:taps' && res.bad.b.n === 4 && res.bad.c.n === 2 && res.taps.a === 3, 'exact/taps: each must tap exactly n; the wrong ones and their counts');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c']);
+    force(r, { kind: 'total', n: 5, win: 4000 });
+    press(r, 'a', 0); press(r, 'b', 100); press(r, 'a', 200); press(r, 'c', 300); press(r, 'b', 400); press(r, 'c', 500);
+    let res = close(r);
+    check(!res.ok && res.total === 6 && bad(res) === 'c:extra', 'exact/total: six taps for five: the owner of the sixth is extra');
+    next(r);
+    force(r, { kind: 'total', n: 5, win: 4000 });
+    press(r, 'a', 0); press(r, 'b', 100);
+    res = close(r);
+    check(res.short === 3, 'exact/total: under is short by the taps missing');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    force(r, { kind: 'hold', n: 2, win: 3500 });
+    tap(r, 'a', 'd', 100); tap(r, 'b', 'd', 200); tap(r, 'c', 'd', 300); tap(r, 'c', 'u', 900);
+    let res = close(r);
+    check(res.ok && res.held.join() === 'a,b', 'exact/hold: two still down at the bell; a hand that lifted in time is fine');
+    next(r);
+    force(r, { kind: 'hold', n: 2, win: 3500 });
+    tap(r, 'a', 'd', 100); tap(r, 'b', 'd', 1200); tap(r, 'c', 'd', 300); tap(r, 'c', 'u', 400); tap(r, 'c', 'd', 2000); tap(r, 'd', 'd', 50);
+    res = close(r);
+    check(bad(res) === 'b:extra,c:extra', 'exact/hold: the latest to put a hand down (and keep it) are extra');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    force(r, { kind: 'seq', seq: ['c', 'a', 'b'], win: 4000 });
+    press(r, 'c', 100); press(r, 'b', 300); press(r, 'a', 500); press(r, 'd', 700);
+    check(r.shared.phase === 'go', 'exact/seq: the order stays open while the window lasts');
+    const res = close(r);
+    check(bad(res) === 'b:order,d:extra', 'exact/seq: a hand before its turn is out of order; a hand not in the list is extra');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd', 'e']);
+    force(r, { kind: 'pulse', seq: ['a', 'b', 'c', 'd', 'e'], beat: 1000, win: 5500 });
+    press(r, 'a', 100); press(r, 'b', 950); press(r, 'd', 2000); press(r, 'c', 2900);
+    const res = close(r);
+    check(bad(res) === 'd:early,e:missing', 'exact/pulse: a press in its beat (with a little slack) is right; before it early, none missing');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    const mine = { a: { c: 'g' }, b: { c: 'r' }, c: { c: 'g' }, d: { c: 'r' } };
+    force(r, { kind: 'pick', attr: 'c', want: 'g' }, mine);
+    press(r, 'a', 100); press(r, 'b', 200);
+    let res = close(r);
+    check(bad(res) === 'b:wrong,c:missing' && res.reveal.b.c === 'r', 'exact/pick: a red that pressed is wrong, a green that didn\'t is missing; every screen is shown after');
+    next(r);
+    const mine2 = { a: { sh: 'star' }, b: { sh: 'star' }, c: { sh: 'circle' }, d: { sh: 'square' } };
+    force(r, { kind: 'pick', attr: 'sh', want: 'star' }, mine2);
+    press(r, 'a', 100); press(r, 'b', 150);
+    res = close(r);
+    check(res.ok, 'exact/pick: exactly the stars: right');
+    next(r);
+    force(r, { kind: 'pick', attr: 'odd', want: 'odd' }, { a: { n: 3 }, b: { n: 4 }, c: { n: 9 }, d: { n: 8 } });
+    press(r, 'a', 100); press(r, 'c', 150); press(r, 'd', 150);
+    res = close(r);
+    check(bad(res) === 'd:wrong', 'exact/pick: odd numbers only');
+    check(s.phase === 'reveal', 'exact/pick: judged');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    force(r, { kind: 'mirror' }, { a: { say: 'stop' }, b: { say: 'press' }, c: { say: 'stop' }, d: { say: 'press' } });
+    press(r, 'a', 100); press(r, 'b', 100);
+    const res = close(r);
+    check(bad(res) === 'b:wrong,c:missing', 'exact/mirror: the opposite of the screen: «دوس» that pressed is wrong, «متدوسش» that didn\'t is missing');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd', 'e']);
+    force(r, { kind: 'pickcount', attr: 'c', want: 'g', n: 2 }, { a: { c: 'g' }, b: { c: 'g' }, c: { c: 'g' }, d: { c: 'r' }, e: { c: 'r' } });
+    press(r, 'a', 100); press(r, 'c', 200); press(r, 'b', 300); press(r, 'd', 50);
+    const res = close(r);
+    check(bad(res) === 'b:extra,d:wrong', 'exact/pickcount: exactly two of the greens: a third green is extra, a red wrong');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    const mine = { a: { n: 4 }, b: { n: 6 }, c: { n: 3 }, d: { n: 5 } };
+    force(r, { kind: 'sum', n: 10 }, mine);
+    press(r, 'b', 100); press(r, 'a', 200);
+    let res = close(r);
+    check(res.ok && res.sum === 10, 'exact/sum: 6 + 4 is ten: right');
+    next(r);
+    force(r, { kind: 'sum', n: 10 }, mine);
+    press(r, 'b', 100); press(r, 'c', 200); press(r, 'a', 300);
+    res = close(r);
+    check(bad(res) === 'a:extra' && res.sum === 13, 'exact/sum: 6 + 3, then a 4 goes over: that hand is extra');
+    next(r);
+    force(r, { kind: 'sum', n: 10 }, mine);
+    press(r, 'c', 100); press(r, 'a', 200);
+    res = close(r);
+    check(res.short === 3 && bad(res) === '', 'exact/sum: under is short by the number missing');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c', 'd', 'e']);
+    force(r, { kind: 'letgo', lead: 1200, step: 1000, win: 6600 }, { a: { n: 1 }, b: { n: 2 }, c: { n: 1 }, d: { n: 3 }, e: { n: 2 } });
+    tap(r, 'a', 'd', 100); tap(r, 'b', 'd', 200); tap(r, 'd', 'd', 300); tap(r, 'e', 'd', 1500);
+    tap(r, 'a', 'u', 1600);                 // counter 1: 1200-2200
+    tap(r, 'b', 'u', 1700);                 // wanted 2: early
+    tap(r, 'e', 'u', 2600);
+    const res = close(r);
+    check(bad(res) === 'b:early,c:missing,d:late,e:late', 'exact/letgo: let go on your own number; early, never down, still down at the end, down too late');
+  }
+  {
+    const r = exRoom(['a', 'b', 'c']);
+    const s = r.shared;
+    force(r, { kind: 'release', lead: 1500, gap: 400, win: 5000 });
+    ['a', 'b', 'c'].forEach((id, i) => tap(r, id, 'd', 100 + i * 100));
+    tap(r, 'a', 'u', 2000); tap(r, 'b', 'u', 2200);
+    check(s.phase === 'go', 'exact/release: open while a hand is still down');
+    tap(r, 'c', 'u', 3000);
+    check(s.closeAt <= clock + 300, 'exact/release: every hand up: closes early');
+    const res = close(r);
+    check(bad(res) === 'a:together,b:together', 'exact/release: two hands up at the same moment are both caught');
+  }
+  {
+    // The glasses: three wrong and it ends; every fifth level refills one; the room keeps its best.
+    const r = exRoom(['a', 'b', 'c']);
+    const s = r.shared;
+    s.level = 5; s.lives = 2;
+    force(r, { kind: 'none' });
+    let res = close(r);
+    check(res.ok && s.level === 6 && s.lives === 3 && res.refill, 'exact: every fifth level cleared refills a spilt glass');
+    for (let k = 0; k < 3; k++) { next(r); force(r, { kind: 'count', n: 2 }); close(r); }
+    check(s.lives === 0 && s.result.final && s.phase === 'reveal' && s.nextAt === clock + 4200, 'exact: the last glass spills: the verdict first');
+    next(r);
+    check(s.phase === 'gameover' && s.reached === 6 && s.best === 5 && s.record === true && roomDeadline(r) === null, 'exact: then the end: the level reached, a new record for the room');
+    check(s.board.length === 3 && s.board[0].score >= s.board[2].score, 'exact: the board is each player\'s clean hands');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.phase === 'ready' && r.shared.best === 5 && r.shared.lives === 3 && r.shared.level === 1, 'exact: play again starts over and keeps the room\'s best');
+  }
+  {
+    // The deck: level 1's orders, a new one each level while there are some, never twice in a row.
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    const kinds = [];
+    s.lives = 1000;
+    for (let k = 0; k < 6; k++) { close(r); kinds.push(s.order.kind); next(r); }
+    check(kinds.every((k) => ['count', 'all', 'taps'].indexOf(k) !== -1), 'exact/deck: level 1 deals only count, all together and taps');
+    s.level = 7;
+    const seen = new Set();
+    let twice = false, prev = null, trapsNear = false;
+    const recent = [];
+    for (let k = 0; k < 120; k++) {
+      close(r); next(r);
+      const kd = s.order.kind;
+      if (kd === prev) twice = true;
+      if (kd === 'none' && recent.slice(-2).indexOf('none') !== -1) trapsNear = true;
+      recent.push(kd); prev = kd; seen.add(kd);
+    }
+    check(seen.size === 14 && !twice && !trapsNear, 'exact/deck: every order comes up, never the same twice in a row, the trap never within two of itself');
+    check(s.order.sync === undefined || s.order.sync >= 220, 'exact/deck: the windows tighten with the level, never below their floor');
+  }
+  {
+    // A phone's secret is its own; nobody else is sent one.
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    s.level = 6;
+    let found = false;
+    for (let k = 0; k < 60 && !found; k++) { s.lives = 3; close(r); next(r); found = ['pick', 'pickcount', 'mirror', 'sum', 'letgo'].indexOf(s.order.kind) !== -1; }
+    check(found && ['a', 'b', 'c', 'd'].every((id) => r.secrets[id] && r.secrets[id].mine === r._exact.mine[id]) && !('mine' in s.order),
+      'exact: an order with secrets gives each phone its own, and the order itself carries none');
+    close(r);
+    check(Object.keys(r.secrets).length === 0 && s.result.reveal && Object.keys(s.result.reveal).length === 4, 'exact: the verdict publishes every screen and clears the secrets');
+  }
+  {
+    // Leaving: mid-order it is dealt again at the same level, no glass lost; one left ends it.
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    clock = s.goAt; roomTimeout(r, clock);
+    tap(r, 'b', 'd', 50);
+    const round = s.round;
+    leave(r, 'b');
+    check(s.phase === 'ready' && s.round === round + 1 && s.lives === 3 && s.level === 1 && s.roster.indexOf('b') === -1 && s.redealt === s.round,
+      'exact/leave: a player who leaves mid-order: the order is dealt again, no glass lost');
+    applyRoomAction(r, 'a', 'down', { round, at: clock });
+    check(!r._exact.ev.a, 'exact/leave: a tap for the order before is stale');
+    leave(r, 'c');
+    check(s.phase === 'ready', 'exact/leave: two can still play');
+    leave(r, 'd');
+    check(s.phase === 'gameover', 'exact/leave: one left ends the game');
+  }
+  {
+    // A latecomer watches; the thirteenth watches.
+    const ids = 'abcdefghijklm'.split('');
+    const r = exRoom(ids);
+    const s = r.shared;
+    check(s.roster.length === 12 && s.roster.indexOf('m') === -1, 'exact: twelve play, the rest watch');
+    clock = s.goAt; roomTimeout(r, clock);
+    applyRoomAction(r, 'm', 'down', { round: s.round, at: clock });
+    check(!r._exact.ev.m && !s.live.down.m, 'exact: a watcher\'s tap is nothing');
+  }
+  {
+    // The host away: anyone moves the verdict on.
+    const r = exRoom(['a', 'b', 'c']);
+    close(r);
+    check(threw(() => applyRoomAction(r, 'b', 'nextRound', { round: 1 })), 'exact: a player can\'t skip the verdict while the host is here');
+    r._hostAway = true;
+    applyRoomAction(r, 'b', 'nextRound', { round: 1 });
+    check(r.shared.phase === 'ready' && r.shared.round === 2, 'exact: with the host away anyone moves on');
+  }
+}
+
 /* --- The host away: anyone moves the round on (28 Sep 2026) -------------- */
 // room.js stamps _hostAway on the copy the rules run on once the host has been
 // away 20 s (HOST_STAND_IN_MS); here the tests set it by hand.

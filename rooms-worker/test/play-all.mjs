@@ -738,6 +738,81 @@ async function chairsRobots() {
   [H, J, K, late, TV].forEach((x) => x.close());
 }
 
+/* --- بالظبط ٣!: the order on every screen, hands live, the server's window, the glasses, the end ------- */
+async function exactRobots() {
+  console.log('• بالظبط ٣! (the order on every phone, taps stamped with the server time, the verdict, the glasses, the end)');
+  const H = await Bot.host('حسام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const L = await Bot.join(H.code, 'ليلى');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K, L];
+  // The server's time on this PC, as a phone reads it: the smallest gap between a state's
+  // arrival and the server's time as it was sent (the PC's clock may be seconds off the live one).
+  let gap = Infinity;
+  const noteGap = () => people.concat([TV]).forEach((p) => { const st = p.state; if (st && typeof st.serverNow === 'number' && typeof st.receivedAt === 'number') gap = Math.min(gap, st.receivedAt - st.serverNow); });
+  const serverNow = () => { noteGap(); return Date.now() - (isFinite(gap) ? gap : 0); };
+  const untilServer = async (t, extra = 0) => { const wait = t - serverNow() + extra; if (wait > 0) await sleep(wait); };
+  await H.must('chooseGame', { game: 'exact' });
+  check((await J.act('start', {})).ok === false, 'exact: only the host starts');
+  await H.must('start', {});
+  await all(people.concat([TV]), (s) => s.game === 'exact' && s.shared.phase === 'ready' && s.shared.round === 1 && s.shared.order.kind === 'count' && s.shared.order.n === 3 && s.shared.lives === 3,
+    'exact: the first order reaches every phone and the TV: exactly 3 hands, three glasses');
+  check(TV.state.you === null, 'exact: the TV has no secret');
+  const late = await Bot.join(H.code, 'متأخر');
+  check((late.state.shared.roster || []).indexOf(late.pid) === -1, 'exact: someone who joins mid-game watches');
+  check((await late.act('down', { round: 1, at: serverNow() })).ok && !((H.state.shared.live || {}).down || {})[late.pid], "exact: a watcher's tap is nothing");
+  // Round 1: three hands, stamped with the server's time.
+  await untilServer(H.state.shared.goAt, 120);
+  await H.must('down', { round: 1, at: serverNow() });
+  await J.must('down', { round: 1, at: serverNow() });
+  await K.must('down', { round: 1, at: serverNow() });
+  await all(people.concat([TV]), (s) => s.shared.live && Object.keys(s.shared.live.down || {}).length === 3 && (s.shared.live.order || []).length === 3,
+    'exact: the hands on the table reach every screen as they come down');
+  await H.must('up', { round: 1, at: serverNow() });
+  await all(people, (s) => !s.shared.live.down[H.pid], 'exact: a hand lifted is up again on every screen');
+  await H.waitFor((s) => s.shared.phase === 'reveal', 'exact: the window closes on the server clock', 9000);
+  let s = H.state.shared;
+  check(s.result.ok && s.level === 2 && s.lives === 3 && s.result.presses.length === 3, 'exact: three hands for three: exact, on to level 2');
+  check((await J.act('nextRound', { round: 1 })).ok === false, 'exact: only the host moves on while the host is here');
+  await H.must('nextRound', { round: 1 });
+  await all(people, (x) => x.shared.phase === 'ready' && x.shared.round === 2 && x.shared.order.fresh === true, 'exact: the host moves on; level 2 deals an order not seen yet');
+  // The rounds after: nobody touches the pad - every order but the trap spills a glass - until the tea runs out.
+  let spilt = 0, guard = 0;
+  while (H.state.shared.phase !== 'gameover' && guard++ < 12) {
+    s = H.state.shared;
+    if (s.phase === 'ready' || s.phase === 'go') {
+      const round = s.round, kind = s.order.kind, lives = s.lives;
+      await H.waitFor((x) => x.shared.phase === 'reveal' && x.shared.round === round, 'exact: round ' + round + ' closes by itself', 14000);
+      const r = H.state.shared.result;
+      if (kind === 'none') check(r.ok, 'exact: nobody pressed in the trap: right');
+      else { spilt++; check(!r.ok && H.state.shared.lives === lives - 1, 'exact: ' + kind + ' with no hands: a glass spills'); }
+      continue;
+    }
+    if (s.phase === 'reveal') {
+      if (s.result.final) { await H.waitFor((x) => x.shared.phase === 'gameover', 'exact: the last spill, then the end by itself', 9000); break; }
+      await H.must('nextRound', { round: s.round });
+      await H.waitFor((x) => x.shared.phase === 'ready' && x.shared.round === s.round + 1, 'exact: the next order', 4000);
+    }
+  }
+  s = H.state.shared;
+  await all(people.concat([TV]), (x) => x.shared.phase === 'gameover' && x.shared.best >= 1 && x.shared.record === true && x.shared.board.length === 4,
+    'exact: the tea runs out: the end on every screen, the room\'s record, the clean hands');
+  check(spilt === 3, 'exact: three glasses, three spills');
+  // Play again keeps the room's best and deals in whoever joined; a leave mid-order deals it again.
+  await H.must('playAgain', {});
+  await all(people.concat([late]), (x) => x.shared.phase === 'ready' && x.shared.round === 1 && x.shared.lives === 3 && x.shared.best >= 1 && x.shared.roster.length === 5,
+    'exact: play again: three glasses again, the best kept, the latecomer dealt in');
+  const r1 = H.state.shared.round;
+  await api('/leave', { code: L.code, pid: L.pid, key: L.key });
+  await H.waitFor((x) => x.shared.roster.indexOf(L.pid) === -1 && x.shared.round === r1 + 1 && x.shared.phase === 'ready' && x.shared.lives === 3,
+    'exact: a player who leaves mid-order: dealt again, no glass lost');
+  L.close();
+  await H.must('backToHub');
+  await H.waitFor((x) => x.phase === 'lobby', 'exact: back in the hub');
+  [H, J, K, late, TV].forEach((x) => x.close());
+}
+
 /* --- الشاهد: the face on the witness's phone only, the sketch shared as it is built, the jury's vote ------- */
 async function witnessRobots() {
   console.log('• الشاهد (the face seen 8 s on one phone, the sketch on every screen, the lineup vote, the points)');
@@ -1018,6 +1093,12 @@ async function main() {
   }
   if (ONLY === 'snakes') {
     await snakesRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'exact') {
+    await exactRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -5016,6 +5097,7 @@ async function main() {
 
   await chairsRobots();
   await witnessRobots();
+  await exactRobots();
   await snakesRobots();
   await bumperRobots();
   await hostAwayRobots();

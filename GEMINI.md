@@ -85,6 +85,10 @@
 - **Rooms only, a deduction game:** **The Witness (الشاهد):** one sees a
   face for 8 seconds and describes it, the next builds it on a face builder,
   the rest pick the real one from a lineup of six look-alikes (*الشاهد*).
+- **Rooms only, a reflex game:** **Exactly 3! (بالظبط ٣!):** one order for
+  the whole table after a countdown («بالظبط ٣ منكم يحطوا إيدهم!», nobody,
+  in turn, all at once…), hands slammed on a wooden table, three tea glasses
+  that spill, levels until the tea is gone (*بالظبط ٣!*).
 - **Rooms only, a party game:** 🪑 **Musical chairs (الكراسي الموسيقية):**
   every phone is a player, the music stops at a secret moment, the fastest
   taps get the chairs, one out a round (*الكراسي الموسيقية*).
@@ -242,6 +246,47 @@ work changed. Add to it when a decision is made or a batch ships.
     https://claude.ai/artifact/V5zYDTFbbaud7qiPKRVaZk) was drawn at the
     owner's ask, and **the owner kept the improved table** (its fourth card,
     where a bee stings the hand that presses in the trap).
+    **Built 29 Sep 2026** (*بالظبط ٣!*); decided while building (open to
+    change, each in one place):
+    - **Fourteen orders, all judged from the phones' own taps** (the deck,
+      `EXACT_KINDS`, each with the level it first comes up at): exactly N
+      hands down; everyone together (within a window that tightens with the
+      level, 800 ms down to 220); everyone taps exactly N times; «محدش يحط
+      إيده» (the trap, from level 2); in turn (a named order); exactly N
+      still down at the bell; only those whose screen shows a colour, a shape
+      or an odd / even number (from 3); the whole table taps exactly N times
+      (from 3); the pulse round the table, a beat each (from 4); your secret
+      numbers add up to exactly N (from 4, the longest read, it needs
+      talking); down and lift on the counter at your own number, or lift one
+      by one never two together, or do the opposite of your screen (from 5);
+      exactly N of those whose screen shows… (from 6). A new order each level
+      until all have come up, never the same twice running, the trap never
+      within two of itself; round 1 is always «بالظبط ٣ منكم» (the game's
+      name).
+    - **Each order is read on a paper card during a countdown** (2.6-6 s by
+      the order), then the pad opens for its window; an order already
+      decided (everyone down, the trap pressed, the turn complete) closes
+      0.3 s later instead of waiting out its window.
+    - **Wrong names every hand that did it, and why**: extra (the latest
+      down of one too many), missing, wrong screen, stung, early, late, the
+      wrong number of taps, two let go together, out of turn - on the table
+      as a bubble by the hand and a line under it («إيد منى زيادة 😂»),
+      worded so it fits any name. A short count ("2 hands short") blames
+      nobody.
+    - **Three tea glasses; every fifth level cleared fills a spilt one
+      again** (`EXACT_REFILL_EVERY`), so a good table plays on.
+    - **The room's best is the orders cleared** (level − 1), kept across play
+      again in the room; the night's board is each player's clean hands
+      (orders they did right), not a win.
+    - **The next order comes by itself** 3.6 s after a right one, 5.4 s after a
+      wrong one (the slap, the bee, the spill); the host (or anyone once the
+      host is away) can deal it sooner.
+    - **Leaving mid-order deals the order again** (no glass lost: the numbers
+      were for the old table); fewer than two ends the game; a latecomer
+      watches and plays the next game. 3-12 people, no computer players.
+    - **The voice** (the sounds of the slams, the slap, the bee, the spill) is
+      the TV's, or the host's phone with no TV; your own tap clicks on your
+      own phone.
   - **الشاهد** (the witness), **its own card**, with خمّن مين's faces: the
     witness sees a face 8 s, the sketch artist builds it on a face builder
     from what the witness says; the table then votes on a lineup. **The
@@ -4248,6 +4293,20 @@ the word search), `countUp` for streaks and scores.
   which pushed the sketch off a phone's screen - the face is gone by then, so
   the file goes and the sketch takes its place. A deploy is needed for the
   rooms server.
+- **29 Sep 2026, بالظبط ٣!** - the reflex game, the owner's rules and look
+  (*The owner's specs*, *بالظبط ٣!*): `RoomExact.js`, `JS_RoomExact.html`,
+  section 58 of `Style.html`, a drawn icon; fourteen orders all judged from
+  the phones' stamped taps, the hands slammed in the order pressed, the slap,
+  the bee, the tea that spills and the food that fills the table. Rules tests
+  (all pass), the leak check (clean, its probes proved on a scratch build),
+  the robots' round (`--only=exact`, 50 passed on a local server). Looked at
+  in headless Chrome with motion on: four phones (375×812 Arabic light and
+  English light, 667×375 English dark, 1280×720 Arabic dark) and a TV at 1920×1080
+  through orders to level 7 and the end, a reload mid-order (the pad back),
+  Help; no errors of the game's. Found on the way: a script that shoots five
+  screens between the countdown and the tap falls behind a game whose next
+  order deals itself - the look took its pictures after the verdicts, not in
+  the window. A deploy is needed for the rooms server.
 
 ## Building and Running
 
@@ -4307,7 +4366,7 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
   `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `Snakes.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Skull.js`, `Battleship.js`, `Witness.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, and the game files bundled after
-  `RoomGames.js`, `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`, `RoomWitness.js`, `rooms-worker/src/`, `docs/` first: the
+  `RoomGames.js`, `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`, `RoomWitness.js`, `RoomExact.js`, `rooms-worker/src/`, `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -4510,6 +4569,7 @@ is nowhere to hide the key card.
 | `RoomChairs.js` | `chairsAction`: الكراسي الموسيقية - the secret stop and the fake pauses in `room._chairs`, the taps ranked by their stamps inside the provable window, the false start, the 3-second window, the rounds and the wins; `chairsDeadline` / `chairsTimeout`, `chairsPlayerLeft`. Bundled after `RoomGames.js`. |
 | `Witness.js` | الشاهد's faces: a sketch cleaned (`witnessClean`, `witnessFix`), the blank sketch, and the lineup of six look-alikes (`witnessLineup`, `WITNESS_CHANGES`) on خمّن مين's faces: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `witness` / `WITNESS_`. |
 | `RoomWitness.js` | `witnessAction`: الشاهد - the witness's look (the face in `room._witness`, on the witness's slice only while it lasts), the sketch, the vote, the reveal and the points, the clocks (`witnessDeadline` / `witnessTimeout`), leaving (`witnessPlayerLeft`). Bundled last. |
+| `RoomExact.js` | `exactAction`: بالظبط ٣! - the deck of orders (`EXACT_KINDS`), each order dealt with its numbers and any screen secrets (`room._exact.mine`, each phone's own in `room.secrets`), the taps stamped with the server's time, the judge (whose hand, and why), the glasses and the levels, the clock (`exactDeadline` / `exactTimeout`), leaving (`exactPlayerLeft`). Bundled last. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -9253,6 +9313,74 @@ id `witness` everywhere (`room-witness`, `ROOM_GAMES.witness`,
   people, a skipped round, the clocks, the host's close, a leaver),
   `play-all.mjs` (`--only=witness`: four phones and a TV to the podium, and
   play again).
+
+### بالظبط ٣!
+
+The owner's rules are in *The owner's specs* (the five new room games). Game
+id `exact` everywhere (`room-exact`, `ROOM_GAMES.exact`, `TV_GAMES.exact`, the
+catalog, the help); the rules are named `exact` / `EXACT_`, the page's code
+`ex` / `EX_`, the stylesheet section 58 (`.ex-*`). Rooms only, 3-12 people,
+the party section, orange, a drawn icon (`art:exact`: a paper card with a 3
+and a hand on the table).
+
+- **`RoomExact.js`** (bundled last). `shared`: `roster`, `round` (every order
+  dealt, redeals included), `level`, `lives` / `maxLives`, `best`, `record`,
+  `seen` / `last` (the orders shown, for the deck), `clean` (each player's
+  right orders) and `board`, `phase` ('ready' → 'go' → 'reveal' → … →
+  'gameover'), `order` (`{ kind, fresh, n?, seq?, beat?, sync?, attr?, want?,
+  lead?, step?, gap? }`), `readAt` / `goAt` / `endAt` / `closeAt`, `live`
+  (`{ down, taps, order }`: whose hand is down, how many taps, the order hands
+  came down in - what a table sees), `result` (the verdict: `ok`, `bad` by
+  player with `why`, `short`, `presses` with their ms after go, `taps`,
+  `total`, `sum`, `held`, `lets`, `reveal` - every screen's secret - `food`,
+  `refill`, `final`) and `nextAt`, `reached`. `room._exact = { mine, ev }`:
+  each phone's secret for the orders that deal one (a colour, a shape, a
+  number, «اعكس»), and every tap's events, never projected; a phone's own
+  secret is `room.secrets[pid] = { mine, round }` while its order is on.
+  Moves: `start` / `playAgain` (the host), `down` / `up { round, at }` (`at`
+  the phone's stamp of the server's time, kept only between go − 150 ms and
+  its arrival - `EXACT_GRACE_MS` - else the arrival counts; a tap that turns
+  up before the server's alarm opens the window opens it), `nextRound {
+  round }` (a move-on action). `exactJudge` is the one rule for every order
+  (the list of `why`s in its comment). `exactPlayerLeft` deals the order
+  again with a new round number, so a stale tap from the old one is dropped.
+- **`JS_RoomExact.html`** (look أ «إيد على الترابيزة», the fourth card of the
+  sheet): the table from above in container units (`--th`), its wood, a seat
+  a player - the first half along the far edge, the rest along the near one,
+  turned so your own seat is in the near row - each a cartoon hand in the
+  player's colour and a name plate; the order a paper card in the middle
+  (`exOrderCardHtml`: the level, the order, its sub line, a draining meter
+  during the go); the tray of tea glasses (`.ex-cup`: a glass and its puddle,
+  `is-spilt`) and the food the table has earned (`exFoodSvg`, eight dishes in
+  turn: bread, foul, ta'meya, pickles, watermelon, kahk, dates, kunafa). Under it the pad (`exPadHtml`): one big round
+  button for your hand with your secret on it (`exSecretHtml`), pointer and
+  keyboard (Space) wired in `exWirePad`, `exPadDown` / `exPadUp` sending the
+  stamp (`exStamp`: `Date.now()` less the smallest `receivedAt − serverNow`
+  seen). The pad and the table are drawn once for the whole order (the
+  frame's signature says `play` for both ready and go), and `exTick` paints
+  the countdown, the meter, the pulse's lit seat, the counter, the bell and
+  the table's hands in place (`exPaintLive`) - a finger on the pad is never
+  redrawn under it. The TV: the table big beside the order or the verdict,
+  the podium and the record at the end (`.ex-tv--over`, half and half).
+- **The reveal** (`exReveal`, keyed with `motionFirst` on the round, so a
+  reload or a latecomer replays nothing): the hands lift off, then slam down
+  one by one in the order pressed (their ms after go); then the verdict card;
+  then each wrong hand's moment - an extra one gets a slap from its
+  neighbours and pulls back (`exSlap`), a hand in the trap is stung by a bee
+  (`exBee`), a missing one gets «كنت فين؟» - and a glass spills, or a new dish
+  lands on the table (a glass fills again on a refill). The line under the
+  table waits for the moments (`afterReveal`). In «محدش يحط إيده» the hands
+  hover and tremble over the table while the window is open. The end: the
+  level reached counting up, «رقم جديد للأوضة!», confetti, the podium of
+  clean hands.
+- Tests: `rules.mjs` ("Exactly 3": every order right and wrong, the stamps'
+  clamp, the early close, the lives and the refill, the record, stale taps,
+  the host away, leaving mid-order), `leaks.mjs` (`PROBES.exact`: a phone's
+  secret on its own phone only and nobody's on the table before the verdict;
+  proved by leaking both in a scratch build; `DRIVERS.exact`: five people
+  from level 6 until every order has come up), `play-all.mjs`
+  (`--only=exact`: four phones and a watcher on a live server, a right order
+  and wrong ones to the end, play again with a latecomer, a leave mid-order).
 
 ### Switching a game off for a fix
 

@@ -20485,7 +20485,7 @@ button.skl-hdisc { cursor: pointer; min-width: 44px; min-height: 44px; }
    (tongues, blinks, Zzz, butterflies, the cup), all still under reduced motion.
    ========================================================================= */
 .snk-board { width: 100%; }
-.snk-svg { display: block; width: 100%; height: auto; aspect-ratio: 660 / 700; border-radius: 18px; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.snk-svg { display: block; width: 100%; height: auto; aspect-ratio: 646 / 700; border-radius: 18px; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .snk-host { width: 100%; }
 
 .snk-layout { display: flex; flex-direction: column; gap: var(--sp-3); }
@@ -20615,10 +20615,11 @@ button.skl-hdisc { cursor: pointer; min-width: 44px; min-height: 44px; }
 /* --- a phone on its side, and every wide screen: the board takes the height --- */
 @media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
   .snk-layout { display: grid; grid-template-columns: auto minmax(13rem, 21rem); justify-content: center; align-items: start; gap: var(--sp-4); }
-  .snk-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  /* The side column is as tall as the board's play area and scrolls inside itself (snkFit sets both). */
+  .snk-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 13rem; max-height: var(--snk-fh, none); overflow-y: auto; overscroll-behavior: contain; }
   .snk-layout__board {
     position: sticky; top: 0;
-    width: min(calc((var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem) * 660 / 700), 58vw);
+    width: var(--snk-bw, min(calc((var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem) * 646 / 700), 58vw));
     max-width: none; margin: 0;
   }
   .snk-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -20633,7 +20634,8 @@ button.skl-hdisc { cursor: pointer; min-width: 44px; min-height: 44px; }
 @media (min-width: 900px) and (min-height: 501px) {
   .shell__main > #view-play-snakes, .shell__main > #view-room-snakes { max-width: 72rem; }
   .snk-layout { gap: var(--sp-6); grid-template-columns: auto minmax(15rem, 23rem); }
-  .snk-layout__board { width: min(calc((var(--app-h, 100vh) - var(--header-h) - 2.5rem) * 660 / 700), 62vw); }
+  .snk-layout__side { min-width: 15rem; }
+  .snk-layout__board { width: var(--snk-bw, min(calc((var(--app-h, 100vh) - var(--header-h) - 2.5rem) * 646 / 700), 62vw)); }
   .snk-chip__name { font-size: 0.9rem; }
 }
 
@@ -20646,8 +20648,8 @@ button.skl-hdisc { cursor: pointer; min-width: 44px; min-height: 44px; }
   justify-content: center; align-items: center;
   gap: calc(var(--tv-gap) * 2.5);
 }
-.snk--tv .snk-layout__side { display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); min-width: 0; }
-.snk--tv .snk-layout__board { position: static; width: min(calc((var(--app-h, 100vh) - 17vmin) * 660 / 700), 60vw); max-width: none; margin: 0; }
+.snk--tv .snk-layout__side { display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); min-width: 18rem; max-height: var(--snk-fh, none); overflow-y: auto; }
+.snk--tv .snk-layout__board { position: static; width: var(--snk-bw, min(calc((var(--app-h, 100vh) - 17vmin) * 646 / 700), 60vw)); max-width: none; margin: 0; }
 .snk--tv .snk-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tv-gap); }
 .snk--tv .snk-chip { padding: 1vmin 1.4vmin; border-radius: var(--tv-r); gap: 1.2vmin; }
 .snk--tv .snk-chip__av { width: 4.6vmin; height: 4.6vmin; font-size: var(--tv-sm); }
@@ -20662,9 +20664,76 @@ button.skl-hdisc { cursor: pointer; min-width: 44px; min-height: 44px; }
   .snk--tv { height: auto; }
   .snk--tv .snk-layout { grid-template-columns: minmax(0, 1fr); }
   .snk--tv .snk-layout__board { width: min(100%, 60vh); justify-self: center; }
+  .snk--tv .snk-layout__side { min-width: 0; max-height: none; }
 }
 
+/* --- the second round (the owner, 29 Sep 2026): the pieces' moods, idle moments, reactions,
+   sitting and cheering on the frame; the snake licking its lips; the cup shining; the TV's night.
+   A class on the piece (JS_Snakes.html) shows a part; the moves' own faces (snkFace) are attributes,
+   and a mood or an idle class is only on a piece while nothing of its own is being played. --- */
+.snk-piece .snk-pb { transform-box: fill-box; transform-origin: 50% 100%; }
+.snk-piece.mood-happy .snk-smile, .snk-piece.mood-scared .snk-smile, .snk-piece.mood-bored .snk-smile { opacity: 0; }
+.snk-piece.mood-happy .snk-grin { opacity: 1; }
+.snk-piece.mood-scared .snk-wob, .snk-piece.mood-scared .snk-sweat, .snk-piece.mood-scared .snk-eW { opacity: 1; }
+.snk-piece.mood-scared .snk-eN { opacity: 0; }
+.snk-piece.mood-scared .snk-pb { animation: snkShiver 0.35s linear infinite; }
+@keyframes snkShiver { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-0.7px); } 75% { transform: translateX(0.7px); } }
+.snk-piece.mood-bored .snk-flat, .snk-piece.mood-bored .snk-lids { opacity: 1; }
+.snk-piece.mood-bored .snk-eN { translate: 0 0.8px; }
+
+/* Waiting: a foot tapping, a yawn, eyes on the snakes. */
+.snk-piece.idle-tap .snk-legR { transform-box: fill-box; transform-origin: 50% 0%; animation: snkTap 0.26s ease-in-out 7 alternate; }
+@keyframes snkTap { to { transform: rotate(-38deg); } }
+.snk-piece.idle-yawn .snk-smile { opacity: 0; }
+.snk-piece.idle-yawn .snk-yawnM { transform-box: fill-box; transform-origin: 50% 50%; animation: snkYawnM 2.1s ease-in-out both; }
+@keyframes snkYawnM { 0%, 100% { opacity: 0; transform: scale(0.4); } 25%, 70% { opacity: 1; transform: scale(1, 1.3); } }
+.snk-piece.idle-yawn .snk-armsUp { animation: snkBlinkOn 2.1s ease-in-out both; }
+@keyframes snkBlinkOn { 0%, 100% { opacity: 0; } 25%, 70% { opacity: 1; } }
+.snk-piece.idle-yawn .snk-eN { transform-box: fill-box; transform-origin: 50% 50%; animation: snkShut 2.1s ease-in-out both; }
+@keyframes snkShut { 0%, 100% { transform: none; } 25%, 70% { transform: scaleY(0.2); } }
+.snk-piece.idle-watch .snk-eN, .snk-piece.idle-watch .snk-eW { animation: snkLook 2.2s ease-in-out both; }
+@keyframes snkLook { 0%, 100% { translate: 0 0; } 20%, 80% { translate: var(--snk-lx, 1.6px) var(--snk-ly, 0px); } }
+
+/* Sitting down after a long wait, and home on the frame by the cup, cheering the rest on. */
+.snk-piece.is-sat .snk-pb, .snk-piece.is-home .snk-pb { translate: 0 5px; }
+.snk-piece.is-sat .snk-legs, .snk-piece.is-home .snk-legs { opacity: 0; }
+.snk-piece.is-sat .snk-legsSit, .snk-piece.is-home .snk-legsSit { opacity: 1; }
+.snk-piece.is-home .snk-smile { opacity: 0; }
+.snk-piece.is-home .snk-grin { opacity: 1; }
+.snk-piece.is-home .snk-armsUp { animation: snkCheerArms 2.8s ease-in-out infinite; animation-delay: var(--snk-d, 0s); }
+@keyframes snkCheerArms { 0%, 52%, 100% { opacity: 0; } 58%, 92% { opacity: 1; } }
+.snk-piece.is-home .snk-pb { animation: snkCheerHop 2.8s ease-in-out infinite; animation-delay: var(--snk-d, 0s); }
+@keyframes snkCheerHop { 0%, 55%, 100% { transform: none; } 65% { transform: translateY(-5px); } 75% { transform: none; } 84% { transform: translateY(-3px); } }
+
+/* The others react to a snake or a ladder: a gasp, a laugh, a clap. */
+.snk-piece.react-gasp .snk-smile, .snk-piece.react-laugh .snk-smile, .snk-piece.react-clap .snk-smile { opacity: 0; }
+.snk-piece.react-gasp .snk-gasp, .snk-piece.react-gasp .snk-eW { opacity: 1; }
+.snk-piece.react-gasp .snk-eN { opacity: 0; }
+.snk-piece.react-gasp .snk-pb { animation: snkRGasp 0.9s ease-out both; }
+@keyframes snkRGasp { 0%, 100% { transform: none; } 18% { transform: translateY(-6px) scale(1.06); } 40% { transform: translateY(0) scale(1); } }
+.snk-piece.react-laugh .snk-grin, .snk-piece.react-clap .snk-grin { opacity: 1; }
+.snk-piece.react-laugh .snk-pb { animation: snkRLaugh 1.2s ease-in-out both; }
+@keyframes snkRLaugh { 0%, 100% { transform: none; } 15%, 45%, 75% { transform: rotate(-8deg) translateY(-2px); } 30%, 60%, 90% { transform: rotate(8deg); } }
+.snk-piece.react-clap .snk-armsFwd { opacity: 1; transform-box: fill-box; transform-origin: 50% 50%; animation: snkRClap 0.2s ease-in-out 7 alternate both; }
+@keyframes snkRClap { to { transform: scaleX(0.5); } }
+
+/* The snake nearest 100 licks its lips from 95; the cup shines while anyone is that close. */
+.m-lick .snk-tongue { animation: snkLick 0.4s ease-in-out infinite alternate; }
+@keyframes snkLick { from { transform: scaleY(0.7) rotate(-14deg); } to { transform: scaleY(1.25) rotate(14deg); } }
+.snk-cupglow { opacity: 0; transform-box: fill-box; transform-origin: 50% 50%; }
+.is-near100 .snk-cupglow { animation: snkCupGlow 1.6s ease-in-out infinite; }
+.is-drum .snk-cupglow { animation: snkCupGlow 0.45s ease-in-out infinite; }
+@keyframes snkCupGlow { 0%, 100% { opacity: 0.12; transform: scale(0.85); } 50% { opacity: 0.6; transform: scale(1.15); } }
+
+/* The TV's night comes slowly; its stars twinkle on the frame. */
+.snk-dusk, .snk-stars { transition: opacity 8s linear; }
+.snk-star { animation: snkTwinkle 2.4s ease-in-out infinite; }
+@keyframes snkTwinkle { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
 @media (prefers-reduced-motion: reduce) {
+  .snk-piece .snk-pb, .snk-piece .snk-legR, .snk-piece .snk-yawnM, .snk-piece .snk-armsUp, .snk-piece .snk-armsFwd, .snk-piece .snk-eN, .snk-piece .snk-eW,
+  .m-lick .snk-tongue, .snk-cupglow, .snk-star { animation: none; }
+  .snk-dusk, .snk-stars { transition: none; }
   .snk-tongue, .snk-lid, .m-sleep .snk-zz, .snk-spin, .snk-fly, .snk-fly.b, .snk-wing, .snk-cup, .snk-shine, .snk-bar.is-ready .snk-bar__roll { animation: none; }
   .snk-chip, .snk-swatch { transition: none; }
 }

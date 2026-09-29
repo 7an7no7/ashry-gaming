@@ -229,7 +229,9 @@ const snakesPlayerLeft = (room, playerId, name) => {
   if (!s || !Array.isArray(s.seats) || s.seats.indexOf(playerId) === -1) return;
   if (s.phase === 'gameover') return;
   if (s.places.indexOf(playerId) !== -1) return;
-  snakesEvent(s, 'left', { pid: playerId, name: name || undefined });
+  // The leaver picks up a suitcase and walks off the board (29 Sep 2026): the next roll waits for it.
+  snakesEvent(s, 'left', { pid: playerId, name: name || undefined, ms: SNAKES_LEAVE_MS });
+  s.readyAt = Math.max(s.readyAt || 0, Date.now() + SNAKES_LEAVE_MS);
   snakesRemovePlayer(s, playerId);
   snakesAfter(room);
 };

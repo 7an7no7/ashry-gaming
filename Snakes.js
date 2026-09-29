@@ -25,6 +25,12 @@
        animation (picked here, never the same as the last one of its kind),
        a near miss, a six. `readyAt` is when every screen has finished showing
        it (`snakesRollMs`); the next roll waits for it.
+     - The second round (29 Sep 2026) is picked here too, so every screen plays
+       the same: each snake head walked past (`pass`: duck, snap or jump), a
+       snake's tail square (`tail`, never the same move twice in a row), the
+       sneak beside a ladder's foot (`sneak`, about half the time: push or eat),
+       two on one square (`meet`), the sixes in a row (`sixes`), the drumroll
+       from 95 (`tense`), and `rolls` (the TV's day turning to night).
 
    Squares are 1..100 on a 10 x 10 board, boustrophedon from the bottom left
    (1 bottom left, 10 bottom right, 11 above 10, 100 top left). The drawing's
@@ -46,12 +52,29 @@ const SNAKES_MOVE_MS = {
   gulp: 3000, slide: 2300, chase: 2800, sneeze: 2900, flick: 2600, squeeze: 2800, hypno: 3000,
   climb: 1900, sprint: 1100, slip: 2700, lift: 2100, boost: 1900
 };
+/* The second round (the owner, 29 Sep 2026): more that a roll can show, each picked
+   here so every phone and the TV play the same one, and counted in readyAt. */
+const SNAKES_TAIL_MOVES = ['tickle', 'trip', 'push', 'seat'];     // landing on a snake's tail square
+const SNAKES_TAIL_MS = { tickle: 1500, trip: 1700, push: 1600, seat: 1800 };
+const SNAKES_SNEAK_ENDS = ['push', 'eat'];                        // the sneak up a ladder next door, and how it ends
+const SNAKES_SNEAK_MS = { push: 2700, eat: 3000 };
+const SNAKES_SNEAK_CHANCE = 0.5;                                  // how often landing beside a ladder's foot is a sneak
+const SNAKES_PASS_MS = { duck: 380, snap: 700, jump: 420 };       // walking past a snake's head, on top of the hop
+const SNAKES_PASS_JUMP = 0.3;                                     // how often the head comes down and he jumps over it
+const SNAKES_PASS_SNAP = 0.3;                                     // of the ducks, how often the snake snaps above him
+const SNAKES_MEET_MOVES = ['five', 'bump', 'dance'];              // two on one square
+const SNAKES_MEET_MS = 1100;
+const SNAKES_ONE_MS = 750;           // a 1: «بس كده؟»
+const SNAKES_TENSE_MS = 900;         // from 95: the drumroll before the die
+const SNAKES_TENSE_FROM = 95;
+const SNAKES_SIXES_MS = [800, 1100, 1800];   // the first six, the second, the third and after (fireworks)
+const SNAKES_LEAVE_MS = 1800;        // a player who leaves picks up a suitcase and walks off
 const SNAKES_DIE_MS = 1000;          // the die tumbling and landing
 const SNAKES_HOP_MS = 210;           // one square of a walk
 const SNAKES_NEAR_MS = 1300;         // a snake snapping at a near miss, a ladder just missed
 const SNAKES_SIX_MS = 800;           // the cheer for a six
 const SNAKES_WIN_MS = 2800;          // the trophy dance at 100
-const SNAKES_BOUNCE_MS = 700;        // bumping into the cup at 100 before walking back
+const SNAKES_BOUNCE_MS = 900;        // bumping into the cup at 100 (it giggles) before walking back
 const SNAKES_BUILD_MS = 5600;        // the map built in front of everyone
 const SNAKES_TEARDOWN_MS = 2600;     // the old map taken apart first (play again)
 const SNAKES_BUILD_VARIANTS = 3;
@@ -254,6 +277,8 @@ const snakesNewGame = (seats, colors, seed, now, opts) => {
     map: snakesGenMap(seed),
     lastS: '',
     lastL: '',
+    lastT: '',
+    rolls: 0,
     readyAt: 0
   };
   const buildMs = SNAKES_BUILD_MS + (o.teardown ? SNAKES_TEARDOWN_MS : 0);
@@ -285,16 +310,37 @@ const snakesPickMove = (list, last, rnd) => {
   return o[Math.floor(rnd() * o.length) % o.length];
 };
 
-/** How long every screen takes to show a roll. */
+/** How long every screen takes to show a roll: every part of it, the second round's included. */
 const snakesRollMs = (e) => {
   let ms = SNAKES_DIE_MS;
+  if (e.tense) ms += SNAKES_TENSE_MS;
   if (e.over) ms += (100 - e.from) * SNAKES_HOP_MS + SNAKES_BOUNCE_MS + e.over * SNAKES_HOP_MS;
   else ms += Math.max(1, e.walk - (e.from === 0 ? 0 : e.from)) * SNAKES_HOP_MS;
+  (e.pass || []).forEach(x => { ms += SNAKES_PASS_MS[x.v] || 0; });
+  if (e.n === 1 && !e.jump && !e.over && !e.place) ms += SNAKES_ONE_MS;
   if (e.jump) ms += SNAKES_MOVE_MS[e.jump.v] || 2500;
+  else if (e.tail) ms += SNAKES_TAIL_MS[e.tail.v] || 1600;
+  else if (e.sneak) ms += SNAKES_SNEAK_MS[e.sneak.v] || 2800;
   else if (e.near) ms += SNAKES_NEAR_MS;
+  if (e.meet) ms += SNAKES_MEET_MS;
   if (e.place) ms += SNAKES_WIN_MS;
-  else if (e.n === 6) ms += SNAKES_SIX_MS;
+  else if (e.n === 6) ms += e.sixes ? SNAKES_SIXES_MS[Math.min(e.sixes, 3) - 1] : SNAKES_SIX_MS;
   return ms + 300;
+};
+
+/** The squares a walk goes through, its last square left out: up to 100 and back when it bounces. */
+const snakesPathOf = (from, v) => {
+  const out = [];
+  for (let k = 1; k <= v; k++) out.push(from + k <= 100 ? from + k : 200 - (from + k));
+  return out.slice(0, -1);
+};
+
+/** The snake whose head is nearest to a square: the one that crawls over for the sneak. */
+const snakesNearestSnake = (map, n) => {
+  const p = snakesCellXY(n);
+  let best = null, bd = 1e9;
+  (map.snakes || []).forEach(s => { const q = snakesCellXY(s.h), d = Math.hypot(p.x - q.x, p.y - q.y); if (d < bd) { bd = d; best = s; } });
+  return best;
 };
 
 /** Who plays after `pid`: the next seat still on the board. */
@@ -358,13 +404,44 @@ const snakesRoll = (g, pid, v, rnd, now) => {
     if (g.map.snakes.some(s => Math.abs(s.h - walk) === 1)) near = 's';
     else if (g.map.ladders.some(l => l.f === walk + 1 || l.f === walk - 1)) near = 'l';
   }
+  // The second round (29 Sep 2026), picked here and in this order, so one random source
+  // gives the same roll everywhere: each snake head walked past (ducked under, snapped at,
+  // or jumped over), a snake's tail square, the sneak beside a ladder's foot, two on one square.
+  const pass = [];
+  snakesPathOf(from, v).forEach(n => {
+    if (!g.map.snakes.some(s => s.h === n)) return;
+    pass.push({ h: n, v: rand() < SNAKES_PASS_JUMP ? 'jump' : rand() < SNAKES_PASS_SNAP ? 'snap' : 'duck' });
+  });
+  let tail = null, sneak = null;
+  const tailOf = !jump && walk > 0 && walk < 100 ? g.map.snakes.find(s => s.t === walk) : null;
+  if (tailOf) {
+    const tv = snakesPickMove(SNAKES_TAIL_MOVES, g.lastT, rand);
+    g.lastT = tv;
+    tail = { v: tv, h: tailOf.h };
+    near = null;
+  } else if (near === 'l' && rand() < SNAKES_SNEAK_CHANCE) {
+    const ld = g.map.ladders.find(l => l.f === walk + 1 || l.f === walk - 1);
+    const sn = snakesNearestSnake(g.map, ld.f);
+    if (sn) sneak = { f: ld.f, h: sn.h, v: SNAKES_SNEAK_ENDS[Math.floor(rand() * SNAKES_SNEAK_ENDS.length) % SNAKES_SNEAK_ENDS.length] };
+  }
+  const sixes = v === 6 ? ((g.turn && g.turn.sixes) || 0) + 1 : 0;
   g.pos[pid] = to;
+  let meet = null;
+  if (to > 0 && to < 100) {
+    const other = g.seats.find(id => id !== pid && g.pos[id] === to && g.places.indexOf(id) === -1);
+    if (other) meet = { v: SNAKES_MEET_MOVES[Math.floor(rand() * SNAKES_MEET_MOVES.length) % SNAKES_MEET_MOVES.length], with: other };
+  }
+  g.rolls = (g.rolls || 0) + 1;
   let place = 0;
   if (to === 100) {
     g.places.push(pid);
     place = g.places.length;
   }
-  const e = snakesEvent(g, 'roll', { pid: pid, n: v, from: from, walk: walk, over: over, to: to, jump: jump, near: near, place: place || undefined });
+  const e = snakesEvent(g, 'roll', {
+    pid: pid, n: v, from: from, walk: walk, over: over, to: to, jump: jump, near: near, place: place || undefined,
+    pass: pass.length ? pass : undefined, tail: tail || undefined, sneak: sneak || undefined, meet: meet || undefined,
+    sixes: sixes || undefined, tense: from >= SNAKES_TENSE_FROM && from < 100 ? true : undefined, rolls: g.rolls
+  });
   e.ms = snakesRollMs(e);
   g.readyAt = (now || 0) + e.ms;
   if (place) snakesEvent(g, 'finish', { pid: pid, place: place });

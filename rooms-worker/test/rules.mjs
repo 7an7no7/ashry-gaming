@@ -9505,7 +9505,7 @@ Date.now = duelTestClock;
 /* --- السلم والتعبان (28 Sep 2026): the map, the rules, the room ------------------------------ */
 {
   const S = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8') +
-    '\nreturn { snakesGenMap, snakesCellXY, snakesRowOf, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesSegCross, snakesDie, SNAKES_SNAKE_BANDS, SNAKES_LADDER_BANDS, SNAKES_SNAKE_EXTRA, SNAKES_LADDER_EXTRA, SNAKES_COUNT, SNAKES_BALANCE, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_MOVE_MS, SNAKES_BUILD_MS, SNAKES_TEARDOWN_MS };')();
+    '\nreturn { snakesGenMap, snakesCellXY, snakesRowOf, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesSegCross, snakesDie, SNAKES_SNAKE_BANDS, SNAKES_LADDER_BANDS, SNAKES_SNAKE_EXTRA, SNAKES_LADDER_EXTRA, SNAKES_COUNT, SNAKES_BALANCE, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_MOVE_MS, SNAKES_BUILD_MS, SNAKES_TEARDOWN_MS, SNAKES_TAIL_MOVES, SNAKES_TAIL_MS, SNAKES_SNEAK_MS, SNAKES_PASS_MS, SNAKES_MEET_MS, SNAKES_ONE_MS, SNAKES_TENSE_MS, SNAKES_SIXES_MS, SNAKES_LEAVE_MS, SNAKES_NEAR_MS, snakesRollMs, snakesPathOf };')();
   const throws = (fn) => { try { fn(); return false; } catch (e) { return true; } };
 
   // The map.
@@ -9610,6 +9610,78 @@ Date.now = duelTestClock;
   }
   check(!repeat && seenS.size === 7 && seenL.size === 5, 'snakes: the snake\'s 7 moves and the ladder\'s 5 all come up, never the same one twice in a row');
   check(Object.values(S.SNAKES_MOVE_MS).every((ms) => ms >= 1000 && ms <= 3000), 'snakes: every move takes between 1 and 3 seconds');
+  // The second round (29 Sep 2026): the server picks every new moment of a roll.
+  {
+    // The test map: heads 50 and 97, tails 10 and 60, ladder feet 5 and 22.
+    const fresh = (pos) => { const x = game(['a', 'b']); x.phase = 'play'; x.turn = { pid: 'a', sixes: 0 }; Object.assign(x.pos, pos || {}); return x; };
+    // The sneak: only beside a ladder's foot (near 'l'), about half the time, the nearest snake named.
+    const nearestHead = (n) => { const q = S.snakesCellXY(n); return [50, 97].sort((h1, h2) => { const a1 = S.snakesCellXY(h1), a2 = S.snakesCellXY(h2); return Math.hypot(a1.x - q.x, a1.y - q.y) - Math.hypot(a2.x - q.x, a2.y - q.y); })[0]; };
+    let sneaks = 0, wrong = false;
+    for (let k = 0; k < 2000; k++) {
+      const ev = S.snakesRoll(fresh({ a: 20 }), 'a', 1, Math.random, k);
+      if (ev.sneak) { sneaks++; if (ev.near !== 'l' || ev.sneak.f !== 22 || ev.sneak.h !== nearestHead(22) || ['push', 'eat'].indexOf(ev.sneak.v) === -1) wrong = true; }
+    }
+    check(!wrong && sneaks > 880 && sneaks < 1120, `snakes: landing beside a ladder's foot is a sneak about half the time (${sneaks} of 2000), the nearest snake crawling over to push him or eat him`);
+    let stray = false;
+    for (let k = 0; k < 3000; k++) {
+      const x = fresh({ a: Math.floor(Math.random() * 94) });
+      const ev = S.snakesRoll(x, 'a', 1 + (k % 6), Math.random, k);
+      if (ev.sneak && (ev.jump || ev.tail || !x.map.ladders.some((l) => Math.abs(l.f - ev.walk) === 1))) stray = true;
+      if (ev.tail && (ev.jump || !x.map.snakes.some((sn) => sn.t === ev.walk && sn.h === ev.tail.h))) stray = true;
+      if ((ev.pass || []).some((q) => !x.map.snakes.some((sn) => sn.h === q.h) || q.h === ev.walk || S.snakesPathOf(ev.from, ev.n).indexOf(q.h) === -1)) stray = true;
+    }
+    check(!stray, 'snakes: a sneak only beside a ladder\'s foot, a tail move only on a tail square, a head only when walked past');
+    // The tail: four moves, never the same twice in a row, every one coming up.
+    const x = fresh({ a: 4 });
+    let prevT = '', repT = false; const seenT = new Set();
+    for (let k = 0; k < 200; k++) {
+      x.phase = 'play'; x.places = []; x.turn = { pid: 'a', sixes: 0 }; x.pos.a = 4;
+      const ev = S.snakesRoll(x, 'a', 6, Math.random, k);
+      if (!ev.tail || ev.near) { repT = true; break; }
+      if (ev.tail.v === prevT) repT = true;
+      prevT = ev.tail.v; seenT.add(ev.tail.v);
+    }
+    check(!repT && seenT.size === 4, 'snakes: a snake\'s tail square plays one of four moves, never the same twice in a row');
+    // Walking past a head: duck, snap or jump for each head passed, and none for the one landed on.
+    let jumps = 0, n = 0;
+    for (let k = 0; k < 1000; k++) {
+      const ev = S.snakesRoll(fresh({ a: 46 }), 'a', 5, Math.random, k);
+      if (!ev.pass || ev.pass.length !== 1 || ev.pass[0].h !== 50) { n = -1; break; }
+      n++; if (ev.pass[0].v === 'jump') jumps++;
+    }
+    check(n === 1000 && jumps > 240 && jumps < 360, `snakes: walking past a snake's head he jumps over it about three times in ten (${jumps} of 1000), else ducks under`);
+    check(!S.snakesRoll(fresh({ a: 44 }), 'a', 6, Math.random, 1).pass, 'snakes: the head he lands on is not one walked past');
+    const bounce = fresh({ a: 95 });
+    const eb = S.snakesRoll(bounce, 'a', 3, Math.random, 1);
+    check(eb.tense === true && eb.pass && eb.pass.length === 1 && eb.pass[0].h === 97, 'snakes: from 95 the roll is tense (the drumroll), and 97 on the way is a head walked past');
+    check(S.snakesPathOf(98, 5).join() === '99,100,99,98' && S.snakesPathOf(0, 4).join() === '1,2,3', 'snakes: a walk\'s path bounces off 100 and leaves out its last square');
+    // Sixes build up: 1, 2, 3 in a row.
+    const six = fresh({ a: 30 });
+    const counts = [1, 2, 3].map((k) => S.snakesRoll(six, 'a', 6, () => 0.99, k).sixes);
+    const after = S.snakesRoll(six, 'a', 2, () => 0.99, 9);
+    check(counts.join() === '1,2,3' && !after.sixes, 'snakes: the sixes in a row are counted on the roll (the third is fireworks)');
+    // Two on one square.
+    const em = S.snakesRoll(fresh({ a: 30, b: 33 }), 'a', 3, Math.random, 1);
+    check(em.meet && em.meet.with === 'b' && ['five', 'bump', 'dance'].indexOf(em.meet.v) !== -1, 'snakes: landing where another piece stands is a high five, a bump or a dance');
+    // Every part is counted in how long the roll takes, so readyAt waits for it.
+    const bare = (ev) => S.snakesRollMs(Object.assign({}, ev, { pass: undefined, tail: undefined, sneak: undefined, meet: undefined, tense: undefined, sixes: undefined }));
+    const one = fresh({ a: 30 });
+    const e1 = S.snakesRoll(one, 'a', 1, () => 0.99, 1000);
+    const noOne = S.snakesRollMs(Object.assign({}, e1, { n: 2 }));
+    check(e1.ms - noOne === S.SNAKES_ONE_MS && one.readyAt === 1000 + e1.ms, 'snakes: a plain 1 counts «بس كده؟», and readyAt waits for all of it');
+    const sn = fresh({ a: 20 });
+    let es = null;
+    for (let k = 0; k < 60 && !(es && es.sneak); k++) { sn.pos.a = 20; sn.turn = { pid: 'a', sixes: 0 }; es = S.snakesRoll(sn, 'a', 1, Math.random, 5000); }
+    const et = S.snakesRoll(fresh({ a: 4 }), 'a', 6, Math.random, 1);
+    const em2 = S.snakesRollMs(Object.assign({}, em, { meet: undefined }));
+    check(es.sneak && es.ms - bare(es) === S.SNAKES_SNEAK_MS[es.sneak.v] - S.SNAKES_NEAR_MS && et.ms - bare(et) === S.SNAKES_TAIL_MS[et.tail.v] &&
+      sn.readyAt === 5000 + es.ms && eb.ms - bare(eb) === S.SNAKES_TENSE_MS + S.SNAKES_PASS_MS[eb.pass[0].v] && em.ms - em2 === S.SNAKES_MEET_MS &&
+      S.snakesRollMs(Object.assign({}, counts, { n: 6, from: 42, walk: 48, to: 48, sixes: 3 })) - S.snakesRollMs({ n: 6, from: 42, walk: 48, to: 48, sixes: 1 }) === S.SNAKES_SIXES_MS[2] - S.SNAKES_SIXES_MS[0],
+      'snakes: the sneak, the tail, the heads walked past, the drumroll, the meeting and the sixes are each counted in the roll\'s time');
+    // The same random source gives the same roll everywhere.
+    const run = () => { const z = fresh({ a: 0, b: 0 }); const rnd = S.snakesRng(4242); const out = []; for (let k = 0; k < 80 && z.phase === 'play'; k++) out.push(S.snakesRoll(z, z.turn.pid, 1 + Math.floor(rnd() * 6), rnd, k)); return JSON.stringify(out); };
+    check(run() === run(), 'snakes: one random source makes the very same rolls, every new moment in them included');
+  }
   // Leaving.
   g = game(['a', 'b', 'c']);
   S.snakesRemovePlayer(g, 'a');
@@ -9668,6 +9740,7 @@ Date.now = duelTestClock;
   const up = r.shared.turn.pid;
   roomPlayerLeft(r, up, 'X');
   check(r.shared.seats.indexOf(up) === -1 && r.shared.turn.pid !== up && r.shared.phase === 'play', 'snakes room: a player who leaves takes their piece off and the turn moves on');
+  { const lv = r.shared.events.filter((x) => x.type === 'left').pop(); check(lv && lv.ms === S.SNAKES_LEAVE_MS && r.shared.readyAt >= clock + S.SNAKES_LEAVE_MS, 'snakes room: the leaver walks off with a suitcase, and the next roll waits for it'); }
   // Seven people: the host picks six.
   const big = newRoom(['h', 'b', 'c', 'd', 'e', 'f', 'g']);
   applyRoomAction(big, 'h', 'chooseGame', { game: 'snakes' });

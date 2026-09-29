@@ -113,6 +113,7 @@ const clearGameState = (room) => {
   room._box = null;      // المزاد: the eight boxes, the clues, the bids, a key's peek (RoomBox.js)
   room._dark = null;     // الأوضة المضلمة: the map's seed and the near misses (RoomDark.js)
   room.screenOnly = null; // the screen's own slice (src/view.js): الأوضة المضلمة's map for the TV
+  room._exact = null;    // بالظبط ٣!: each phone's secret and every tap's events (RoomExact.js)
   // The engine's secret and boards (RoomSolve.js).
   room._solve = null;
   // A bot's next move belonged to the game that was cleared.
@@ -183,7 +184,9 @@ const ROOM_GAME_IDS = [
   // المزاد (RoomBox.js): a secret clue each, a minute of talk, one secret bid, the box opens.
   'box',
   // الأوضة المضلمة (RoomDark.js): one walks blind, the rest guide with the map under a lens.
-  'darkroom'
+  'darkroom',
+  // بالظبط ٣! (RoomExact.js): an order for the whole table, judged from the phones' stamps.
+  'exact'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -687,6 +690,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'witness':    witnessAction(room, playerId, action, payload); break;     // RoomWitness.js
     case 'wire':       wireAction(room, playerId, action, payload); break;        // RoomWire.js
     case 'box':        boxAction(room, playerId, action, payload); break;         // RoomBox.js
+    case 'exact':      exactAction(room, playerId, action, payload); break;       // RoomExact.js
     case 'bumper':     bumperAction(room, playerId, action, payload); break;      // RoomBumper.js
     case 'darkroom':   darkAction(room, playerId, action, payload); break;        // RoomDark.js
     case 'chess':      chessAction(room, playerId, action, payload); break;       // RoomChess.js
@@ -3678,6 +3682,7 @@ const gameDeadline = (room) => {
   if (room.game === 'witness') return witnessDeadline(room);
   if (room.game === 'wire') return wireDeadline(room);
   if (room.game === 'box') return boxDeadline(room);
+  if (room.game === 'exact') return exactDeadline(room);
   if (room.game === 'bumper') return bumperDeadline(room);
   if (room.game === 'darkroom') return darkDeadline(room);
   if (svKindOf(room)) return svDeadline(room);   // RoomSolve.js
@@ -3813,6 +3818,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'witness') return witnessTimeout(room, now);
   if (room.game === 'wire') return wireTimeout(room, now);
   if (room.game === 'box') return boxTimeout(room, now);
+  if (room.game === 'exact') return exactTimeout(room, now);
   if (room.game === 'bumper') return bumperTimeout(room, now);
   if (room.game === 'darkroom') return darkTimeout(room, now);
   return false;
@@ -3927,6 +3933,9 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'box':
       boxPlayerLeft(room, playerId);
+      return;
+    case 'exact':
+      exactPlayerLeft(room, playerId);
       return;
     case 'bumper':
       bumperPlayerLeft(room, playerId);

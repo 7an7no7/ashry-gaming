@@ -21025,4 +21025,306 @@ button.wit-slot:active { transform: scale(0.97); }
   .wit-flip__in, .wit-polar__back, .wit-slot, .wit-ring__arc { transition: none; }
 }
 
+/* =========================================================================
+   59. افتح يا صندوق (OPEN THE BOX in rooms, JS_RoomBox.html, 29 Sep 2026)
+   Look أ «استوديو الصندوق»: a TV game-show studio - a violet LED wall, a
+   sign in bulbs, two swinging spotlights, podiums with little LED screens, a
+   red lacquer box with a gold bow on a lit turntable. The scene is an SVG
+   with a canvas over it for the particles, in a 16:9 stage (a phone's close
+   crop during the opening); its words are HTML over it, sized in cqw. The
+   phone is the studio's violet with gold numbers, one step at a time. The
+   scene and the phone keep their own colours in both themes (like a board).
+   ========================================================================= */
+:root {
+  --bx-ink: #2a1600;
+  --bx-gold: #ffd35a;
+  --bx-gold-2: #f59e0b;
+  --bx-pink: #ff5ec4;
+  --bx-violet: #5e1bb0;
+  --bx-night: #23074a;
+  --bx-deep: #0b0219;
+  --bx-line: rgba(255, 255, 255, 0.2);
+  --bx-chip: rgba(255, 255, 255, 0.08);
+}
+.bx { display: flex; flex-direction: column; gap: var(--sp-3); }
+
+/* The stage: the scene, the canvas, the words over it */
+.bx-stage {
+  position: relative; width: 100%; aspect-ratio: var(--bx-ar, 16 / 9); overflow: hidden;
+  border-radius: var(--r-xl); background: #08020f; container-type: inline-size;
+  box-shadow: 0 0 0 2px rgba(255, 211, 90, 0.35), 0 18px 40px -22px rgba(30, 0, 60, 0.9);
+  isolation: isolate;
+}
+.bx-cam { position: absolute; inset: 0; will-change: transform; }
+.bx-svg, .bx-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.bx-cv { pointer-events: none; }
+.bx-svgtxt { font-family: var(--font-display); }
+.bx-sign { font-family: "Baloo Bhaijaan 2", var(--font-display); }
+.bx-flash { position: absolute; inset: 0; background: #fffbe6; opacity: 0; pointer-events: none; }
+.bx-vign { position: absolute; inset: 0; pointer-events: none; opacity: 0.35; background: radial-gradient(ellipse at 50% 55%, transparent 42%, rgba(0, 0, 0, 0.8)); }
+.bx-tag {
+  position: absolute; top: 2.8%; inset-inline-end: 2%; padding: 0.35em 1em; border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.3); color: #ffffff;
+  font-weight: 700; font-size: 1.6cqw; white-space: nowrap;
+}
+.bx-ban {
+  position: absolute; left: 50%; top: 22%; transform: translateX(-50%); max-width: 92%;
+  padding: 0.25em 1.1em; border-radius: var(--r-full); text-align: center; text-wrap: balance;
+  font-family: var(--font-display); font-weight: 900; font-size: 2.4cqw; line-height: 1.35; color: #ffe9a8;
+  background: linear-gradient(#34106a, #12042a); border: 0.25cqw solid var(--bx-gold);
+  box-shadow: 0 0 2.6cqw rgba(255, 94, 196, 0.65);
+}
+.bx-ban:empty { display: none; }
+.bx-ban.is-in { animation: bx-ban-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1); }
+@keyframes bx-ban-in { from { transform: translateX(-50%) scale(0.5); opacity: 0; } }
+.bx-big {
+  position: absolute; left: 0; right: 0; top: 27%; text-align: center; pointer-events: none; opacity: 0; white-space: nowrap;
+  font-family: "Baloo Bhaijaan 2", var(--font-display); font-weight: 800; font-size: 10cqw; line-height: 1.1;
+  color: var(--bx-gold); text-shadow: 0 0 2.6cqw var(--bx-pink), 0 0.55cqw 0 #8a5a06;
+}
+.bx-big.is-pop { animation: bx-big-pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) forwards; }
+.bx-big.is-hold { font-size: 8.5cqw; animation: bx-big-hold 2.6s cubic-bezier(0.2, 1.3, 0.4, 1) forwards; }
+.bx-big.is-held { font-size: 8.5cqw; opacity: 1; }
+@keyframes bx-big-pop { 0% { transform: scale(0.3); opacity: 0; } 40% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+@keyframes bx-big-hold { 0% { transform: scale(0.2) rotate(-8deg); opacity: 0; } 15% { transform: scale(1.15); opacity: 1; } 25% { transform: scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: scale(1.05); } }
+/* A phone's close crop: the same words, a bigger share of the frame */
+.bx-stage--crop .bx-tag { font-size: 3cqw; }
+.bx-stage--crop .bx-ban { font-size: 4.2cqw; top: 20%; border-width: 0.45cqw; }
+.bx-stage--crop .bx-big { font-size: 17cqw; top: 26%; }
+.bx-stage--crop .bx-big.is-hold, .bx-stage--crop .bx-big.is-held { font-size: 14cqw; }
+
+/* The studio's own life */
+.bx-bulbs .bl:nth-child(2n) { animation: bx-blink 0.8s steps(2) infinite; }
+@keyframes bx-blink { 50% { opacity: 0.25; } }
+.bx-cone { transform-box: fill-box; }
+.bx-c1 { transform-origin: 5.5% 0%; animation: bx-swing-a 3.6s ease-in-out infinite alternate; }
+.bx-c2 { transform-origin: 94.5% 0%; animation: bx-swing-b 4.2s ease-in-out infinite alternate; }
+@keyframes bx-swing-a { from { transform: rotate(-9deg); } to { transform: rotate(7deg); } }
+@keyframes bx-swing-b { from { transform: rotate(8deg); } to { transform: rotate(-7deg); } }
+.bx-twk { transform-box: fill-box; transform-origin: center; animation: bx-twk 1.8s ease-in-out infinite; }
+.bx-twk:nth-of-type(2n) { animation-delay: -0.9s; }
+@keyframes bx-twk { 0%, 100% { transform: scale(0.2); opacity: 0; } 50% { transform: scale(1); opacity: 1; } }
+.bx-rock { transform-box: fill-box; transform-origin: 50% 100%; animation: bx-rock 3.4s ease-in-out infinite; }
+.bx-rock.is-show { animation: none; }
+@keyframes bx-rock { 0%, 100% { transform: rotate(-1.2deg); } 50% { transform: rotate(1.2deg) translateY(-2px); } }
+.bx-coinspin, .bx-moth { transform-box: fill-box; transform-origin: center; }
+.bx-pod.is-gone { opacity: 0.35; }
+.bx-pod--me .bx-pod__name { fill: var(--bx-gold); }
+
+/* The TV */
+.bx-tv { height: 100%; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 1.2vmin; container-type: size; }
+.bx-stage--tv { flex: none; width: min(100cqw, calc((100cqh - 9vmin) * 1.7778)); border-radius: 1.6vmin; }
+.bx-tv__bar { display: flex; align-items: center; justify-content: center; gap: 2vmin; flex-wrap: wrap; }
+.bx-tv .bx-opened { gap: 0.8vmin; }
+.bx-tv .bx-ob { width: 5vmin; height: 5vmin; font-size: 2.6vmin; border-radius: 1vmin; }
+.bx-tvinfo {
+  position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); display: flex; align-items: center; gap: 1.4cqw;
+  padding: 0.6cqw 1.8cqw; border-radius: var(--r-full);
+  background: rgba(10, 2, 24, 0.72); border: 0.15cqw solid rgba(255, 211, 90, 0.55); color: #ffffff;
+  font-size: 1.5cqw; font-weight: 700; text-align: start; max-width: 38%;
+}
+.bx-tvinfo__clock { font-family: "Baloo Bhaijaan 2", var(--font-display); font-size: 3.4cqw; color: var(--bx-gold); line-height: 1; min-width: 3.2em; text-align: center; }
+.bx-tvinfo.is-last .bx-tvinfo__clock, .bx-tvinfo__clock.is-low { color: #ff8fb3; animation: bx-throb 0.9s ease-in-out infinite; }
+@keyframes bx-throb { 50% { transform: scale(1.1); } }
+.bx-tv--over { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 3vmin; align-items: center; }
+.bx-over--tv .bx-over__title { font-size: 5vmin; }
+
+/* The opened boxes, a strip of eight */
+.bx-opened { display: flex; justify-content: center; gap: 0.35rem; flex-wrap: wrap; }
+.bx-ob {
+  width: 2.1rem; height: 2.1rem; border-radius: 0.55rem; display: grid; place-items: center; font-size: 1.05rem;
+  background: linear-gradient(#ff5a6e, #a00b24); color: #ffe9a8; font-weight: 800; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+  border: 1.5px solid rgba(255, 211, 90, 0.6);
+}
+.bx-ob b { font-size: 0.85rem; }
+.bx-ob.is-open { background: linear-gradient(#34106a, #12042a); }
+.bx-ob.is-cur { box-shadow: 0 0 0 2px var(--bx-gold), 0 0 12px rgba(255, 211, 90, 0.7); }
+
+/* The phone: one step at a time */
+.bx-phone {
+  position: relative; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3);
+  border-radius: var(--r-xl); color: #ffffff; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 0%, var(--bx-violet), var(--bx-night) 55%, var(--bx-deep));
+  box-shadow: 0 0 0 1px rgba(255, 211, 90, 0.25), var(--sh-2);
+}
+.bx-phone::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 50% -12%, rgba(255, 255, 255, 0.2), transparent 50%), radial-gradient(circle, rgba(255, 94, 196, 0.25) 1.6px, transparent 2.2px) 0 0 / 16px 16px;
+  -webkit-mask-image: linear-gradient(#000 0, transparent 40%); mask-image: linear-gradient(#000 0, transparent 40%);
+}
+.bx-phone > * { position: relative; }
+.bx-phone .waiting-note { color: rgba(255, 255, 255, 0.85); }
+.bx-ptop { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); }
+.bx-ptop__n { opacity: 0.85; font-weight: 700; }
+.bx-pmon { padding: 0.25rem 0.8rem; border-radius: var(--r-full); background: var(--bx-chip); border: 1px solid var(--bx-line); font-weight: 700; }
+.bx-pmon__k { opacity: 0.75; font-weight: 600; }
+.bx-pmon b { color: var(--bx-gold); font-size: var(--fs-body); }
+.bx-dots { display: flex; gap: 0.4rem; justify-content: center; }
+.bx-dots i { width: 1.5rem; height: 0.3rem; border-radius: 0.2rem; background: var(--bx-line); transition: background var(--dur-2); }
+.bx-dots i.is-on { background: var(--bx-gold); }
+.bx-step { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); text-align: center; animation: bx-step-in 0.35s var(--ease-out) both; }
+@keyframes bx-step-in { from { opacity: 0; transform: translateX(-1.5rem); } }
+[dir="ltr"] .bx-step { animation-name: bx-step-in-ltr; }
+@keyframes bx-step-in-ltr { from { opacity: 0; transform: translateX(1.5rem); } }
+.bx-k { margin: 0; font-family: var(--font-display); font-weight: 900; font-size: var(--fs-h2); line-height: 1.3; text-wrap: balance; }
+.bx-note { margin: 0; font-size: var(--fs-sm); opacity: 0.82; text-wrap: balance; }
+.bx-note--zero { color: #ffc6e4; opacity: 1; }
+
+/* The clue: a glossy pink card, held to read */
+.hold-card.bx-clue { width: min(100%, 17.5rem); min-height: 18rem; margin-inline: auto; border-radius: 1.75rem; }
+.bx-clue .hold-card__front {
+  border: 0; border-radius: 1.75rem; color: #ffffff; gap: 0.4rem;
+  background: radial-gradient(circle at 30% 20%, #ff7ad0, #b0137a 48%, #3d0a4f);
+  box-shadow: 0 0 0 4px var(--bx-gold), 0 0 36px rgba(255, 94, 196, 0.55);
+}
+.bx-clue .hold-card__front b { font-family: var(--font-display); font-size: var(--fs-h2); }
+.bx-clue .hold-card__front small { font-size: var(--fs-sm); opacity: 0.88; }
+.bx-clue__art { width: 7rem; height: 7rem; }
+.bx-clue__art text { font-family: var(--font-display); }
+.bx-clue .hold-card__back {
+  align-items: center; text-align: center; padding: var(--sp-5) var(--sp-4); border-radius: 1.75rem; color: #3a1400;
+  background: linear-gradient(160deg, #fff7d6, #ffd35a);
+  box-shadow: 0 0 0 4px var(--bx-gold), 0 0 36px rgba(255, 94, 196, 0.55);
+}
+.bx-clue .hold-card__back small { font-size: var(--fs-sm); font-weight: 700; opacity: 0.8; }
+.bx-clue .hold-card__back p { margin: 0; font-family: var(--font-display); font-weight: 900; font-size: 1.65rem; line-height: 1.45; text-wrap: balance; }
+.bx-clue .hold-card__back em { font-style: normal; font-size: var(--fs-xs, 0.78rem); font-weight: 700; padding: 0.2rem 0.75rem; border-radius: var(--r-full); background: rgba(31, 191, 115, 0.2); color: #0d6b3d; }
+.bx-clue:focus-visible { outline: 3px solid var(--bx-gold); outline-offset: 4px; }
+
+.bx-talk { display: flex; gap: 0.6rem; align-items: center; justify-content: center; font-size: var(--fs-sm); font-weight: 700; }
+.bx-talk__t { color: var(--bx-gold); font-size: var(--fs-h3); }
+.bx-talk__t.is-low, .bx-talk.is-last .bx-talk__t { color: #ff8fb3; }
+.bx-tbar { display: block; width: min(100%, 14rem); height: 0.35rem; border-radius: 0.2rem; background: var(--bx-line); overflow: hidden; margin-top: calc(var(--sp-2) * -1); }
+.bx-tbar > i { display: block; height: 100%; background: var(--bx-gold); transform-origin: right; transition: transform 0.25s linear; }
+[dir="ltr"] .bx-tbar > i { transform-origin: left; }
+.bx-talk.is-last + .bx-tbar > i { background: #ff8fb3; }
+
+.bx-peek {
+  display: flex; flex-direction: column; gap: 0.2rem; width: min(100%, 20rem); padding: 0.6rem 0.9rem; border-radius: var(--r-lg);
+  background: linear-gradient(135deg, rgba(255, 211, 90, 0.22), rgba(255, 94, 196, 0.18)); border: 1.5px solid var(--bx-gold);
+  font-size: var(--fs-sm); text-align: center;
+}
+.bx-peek b { color: var(--bx-gold); font-family: var(--font-display); }
+
+/* The bid: one big number */
+.bx-bidrow { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: var(--sp-2); }
+.bx-rb {
+  width: 4rem; height: 4rem; border-radius: 50%; border: 2px solid var(--bx-line); background: var(--bx-chip);
+  color: #ffffff; font-size: 2.2rem; font-weight: 700; line-height: 1; display: grid; place-items: center; cursor: pointer;
+}
+.bx-rb:disabled { opacity: 0.35; cursor: default; }
+.bx-rb:not(:disabled):active, .bx-qchips button:active, .bx-go:active { transform: scale(0.96); }
+.bx-bn { display: flex; flex-direction: column; align-items: center; min-width: 8.5rem; }
+.bx-bv {
+  font-family: "Baloo Bhaijaan 2", var(--font-display); font-weight: 800; font-size: 4.4rem; line-height: 1.05;
+  color: var(--bx-gold); text-shadow: 0 0 22px rgba(255, 211, 90, 0.7), 0 4px 0 #8a5a06;
+}
+.bx-bv.is-bump { animation: bx-bump 0.22s; }
+@keyframes bx-bump { 50% { transform: scale(1.12); } }
+.bx-bn span { font-size: var(--fs-sm); opacity: 0.8; }
+.bx-qchips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; width: 100%; }
+.bx-qchips button {
+  min-height: var(--tap, 44px); border-radius: 0.95rem; border: 1px solid var(--bx-line); background: var(--bx-chip);
+  color: #ffffff; font: inherit; font-weight: 700; font-size: var(--fs-sm); cursor: pointer; padding: 0 0.25rem;
+}
+.bx-go {
+  width: 100%; min-height: 3.6rem; border: 0; border-radius: 1.35rem; cursor: pointer;
+  font-family: var(--font-display); font-weight: 900; font-size: var(--fs-h3); color: var(--bx-ink);
+  background: linear-gradient(#ffe07a, var(--bx-gold-2));
+  box-shadow: 0 0 0 3px rgba(255, 211, 90, 0.25), 0 10px 26px rgba(245, 158, 11, 0.45), inset 0 2px 0 rgba(255, 255, 255, 0.6);
+}
+.bx-go:focus-visible, .bx-rb:focus-visible, .bx-qchips button:focus-visible { outline: 3px solid #ffffff; outline-offset: 2px; }
+.bx-ghost { background: none; border: 0; color: inherit; opacity: 0.8; font: inherit; font-size: var(--fs-sm); cursor: pointer; min-height: var(--tap, 44px); }
+
+/* Waiting */
+.bx-coin3 {
+  margin-top: var(--sp-3); width: 6.5rem; height: 6.5rem; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 900; font-size: 2.2rem; color: #7a5205;
+  background: radial-gradient(circle at 35% 30%, #fff6c8, #f6c343 45%, #c08a12 85%, #7a5205);
+  box-shadow: inset 0 0 0 6px rgba(122, 82, 5, 0.35), 0 0 40px rgba(255, 211, 90, 0.45);
+  animation: bx-spin-y 1.8s linear infinite;
+}
+@keyframes bx-spin-y { to { transform: rotateY(360deg); } }
+.bx-avs { display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: center; }
+.bx-av {
+  position: relative; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--bx-chip); border: 2px solid var(--bx-line); font-weight: 700; font-size: 0.85rem;
+  transition: background var(--dur-2), border-color var(--dur-2), color var(--dur-2);
+}
+.bx-av.is-ok { background: var(--bx-gold); border-color: var(--bx-gold); color: var(--bx-ink); }
+.bx-av.is-ok::after {
+  content: "✓"; position: absolute; bottom: -0.3rem; inset-inline-start: -0.3rem; width: 1.15rem; height: 1.15rem; border-radius: 50%;
+  background: #1fbf73; color: #ffffff; font-size: 0.7rem; display: grid; place-items: center;
+}
+
+/* The opening on a phone: the bids, then what it did to you */
+.bx-after { transition: opacity var(--dur-3, 0.4s) var(--ease-out), transform var(--dur-3, 0.4s) var(--ease-out); }
+.bx-after:not(.is-on) { visibility: hidden; opacity: 0; transform: translateY(0.4rem); }
+.bx-bids { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; }
+.bx-bidchip {
+  display: inline-flex; gap: 0.35rem; align-items: center; padding: 0.3rem 0.75rem; border-radius: var(--r-full);
+  background: linear-gradient(#34106a, #12042a); color: #ffffff; font-size: var(--fs-sm); border: 1px solid rgba(255, 211, 90, 0.35);
+}
+.bx-bidchip b { color: var(--bx-gold); }
+.bx-bidchip.is-win { border-color: var(--bx-gold); box-shadow: 0 0 12px rgba(255, 94, 196, 0.7); }
+.bx-mine { display: flex; justify-content: center; }
+.bx-mine span {
+  font-family: "Baloo Bhaijaan 2", var(--font-display); font-weight: 800; font-size: 2.2rem; padding: 0.1rem 1.2rem;
+  border-radius: var(--r-full); background: var(--surface-2);
+}
+.bx-mine.is-up span { color: #0f8a4f; }
+.bx-mine.is-down span { color: #c0263d; }
+body.dark .bx-mine.is-up span { color: #7dffb0; }
+body.dark .bx-mine.is-down span { color: #ff9a9a; }
+.bx-host { display: flex; gap: var(--sp-2); justify-content: center; flex-wrap: wrap; }
+.bx-soon { text-align: center; font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); margin-top: var(--sp-1); }
+.bx-soon b { color: var(--text); }
+.bx-tv .bx-soon { font-size: 2vmin; }
+.bx-stage--crop .bx-pods { display: none; }
+
+/* The end */
+.bx-over { display: flex; flex-direction: column; gap: var(--sp-3); }
+.bx-over__title { font-family: var(--font-display); font-weight: 900; font-size: var(--fs-h1); text-align: center; color: var(--text); }
+.bx-phone .bx-over__title { color: var(--bx-gold); }
+/* The podium and the board's heading sit on the studio's dark panel: light ink. */
+.bx-phone .bx-over .podium__name { color: #fff; }
+.bx-phone .bx-over .podium__score { color: var(--bx-gold); }
+.bx-phone .bx-over .scoreboard .section__title { color: #efe6ff; }
+.bx-phone .bx-over .scoreboard .section__rule { background: rgba(255, 255, 255, 0.2); }
+
+/* A phone on its side and bigger screens: the stage beside the steps */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) {
+  .bx--talk .bx-phone, .bx--bid .bx-phone { padding: var(--sp-3) var(--sp-4); }
+  .bx-step--clue { display: grid; grid-template-columns: minmax(0, 17rem) minmax(0, 1fr); grid-template-areas: "k k" "card talk" "card bar" "card peek" "card note" "card go"; column-gap: var(--sp-4); row-gap: var(--sp-2); align-items: center; text-align: center; }
+  .bx-step--clue > .bx-k { grid-area: k; }
+  .bx-step--clue > .bx-clue { grid-area: card; }
+  .bx-step--clue > .bx-talk { grid-area: talk; }
+  .bx-step--clue > .bx-tbar { grid-area: bar; justify-self: center; margin-top: 0; }
+  .bx-step--clue > .bx-peek { grid-area: peek; justify-self: center; }
+  .bx-step--clue > .bx-note { grid-area: note; }
+  .bx-step--clue > .bx-go { grid-area: go; }
+  .bx--open .bx-phone { flex-direction: row; flex-wrap: wrap; align-items: flex-start; justify-content: center; }
+  .bx--open .bx-stage--crop { width: min(62%, calc((var(--app-h, 100vh) - 9rem) * 1.15)); }
+  .bx--open .bx-bids { flex: 1 1 12rem; align-self: center; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .hold-card.bx-clue { min-height: 13rem; }
+  .bx-clue .hold-card__back p { font-size: 1.3rem; }
+  .bx-bv { font-size: 3.2rem; }
+  .bx-rb { width: 3.2rem; height: 3.2rem; font-size: 1.8rem; }
+  .bx-step--bid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--sp-4); row-gap: var(--sp-2); align-items: center; }
+  .bx-step--bid > .bx-k { grid-column: 1 / -1; }
+  .bx-step--bid > .bx-bidrow { grid-row: 2 / span 3; margin: 0; }
+  .bx-step--bid > .bx-go, .bx-step--bid > .bx-ghost { grid-column: 1 / -1; }
+}
+@media (min-width: 900px) {
+  .bx--open .bx-stage--crop { width: min(62%, 30rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bx-bulbs .bl, .bx-cone, .bx-twk, .bx-rock, .bx-coin3, .bx-step, .bx-ban.is-in, .bx-bv.is-bump,
+  .bx-tvinfo.is-last .bx-tvinfo__clock, .bx-tvinfo__clock.is-low { animation: none; }
+  .bx-after, .bx-tbar > i, .bx-dots i, .bx-av { transition: none; }
+}
+
 </style>

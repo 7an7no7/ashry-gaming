@@ -738,6 +738,62 @@ async function chairsRobots() {
   [H, J, K, late, TV].forEach((x) => x.close());
 }
 
+/* --- الشاهد: the face on the witness's phone only, the sketch shared as it is built, the jury's vote ------- */
+async function witnessRobots() {
+  console.log('• الشاهد (the face seen 8 s on one phone, the sketch on every screen, the lineup vote, the points)');
+  const H = await Bot.host('حسام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const L = await Bot.join(H.code, 'ليلى');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K, L];
+  const byId = (id) => people.find((b) => b.pid === id);
+  await H.must('chooseGame', { game: 'witness' });
+  check((await J.act('start', {})).ok === false, 'witness: only the host starts');
+  await H.must('start', {});
+  await all(people.concat([TV]), (s) => s.game === 'witness' && s.shared.phase === 'ready' && s.shared.round === 1 && s.shared.rounds === 4,
+    'witness: round 1 waits for the witness on every phone and the TV');
+  const late = await Bot.join(H.code, 'متأخر');
+  check(late.state.inGame === false, 'witness: someone who joins mid-game watches');
+  for (let round = 1; round <= 2; round++) {
+    const s0 = H.state.shared;
+    const W = byId(s0.witnessId), A = byId(s0.artistId);
+    const jury = people.filter((b) => b !== W && b !== A);
+    check((await A.act('ready', { round })).ok && H.state.shared.phase === 'ready', `witness ${round}: only the witness opens the case file`);
+    await W.must('ready', { round });
+    await W.waitFor((s) => s.shared.phase === 'look' && s.you && s.you.face && typeof s.you.face.g === 'string', `witness ${round}: the face reaches the witness's phone`);
+    await all(people.concat([TV, late]), (s) => s.shared.phase === 'look', `witness ${round}: every screen sees the look begin`);
+    check([A, TV, late].concat(jury).every((b) => !(b.state.you && b.state.you.face) && !b.state.shared.lineup),
+      `witness ${round}: nobody else is sent the face`);
+    await H.waitFor((s) => s.shared.phase === 'draw', `witness ${round}: the server ends the look after 8 seconds`, 12000);
+    await W.waitFor((s) => !(s.you && s.you.face), `witness ${round}: the face leaves the witness's phone`);
+    const face = Object.assign({}, H.state.shared.sketch, { g: 'f', style: 'bun', glasses: true, shirt: 4 });
+    await A.must('sketch', { round, n: 1, face });
+    await TV.waitFor((s) => s.shared.sketch && s.shared.sketch.g === 'f' && s.shared.sketch.glasses === true && s.shared.sketchN === 1, `witness ${round}: the TV sees the sketch as it is built`);
+    await A.must('done', { round });
+    await all(people.concat([TV]), (s) => s.shared.phase === 'vote' && s.shared.lineup.length === 6 && s.shared.realIdx === null, `witness ${round}: the lineup goes up; which one is real stays hidden`);
+    await jury[0].must('vote', { option: 's1', round });
+    check(!H.state.shared.vote.results && H.state.shared.vote.voted.length === 1, `witness ${round}: who voted is public, not what`);
+    await jury[1].must('vote', { option: 's2', round });
+    await all(people.concat([TV]), (s) => s.shared.phase === 'reveal' && typeof s.shared.realIdx === 'number', `witness ${round}: the vote closes when the jury has voted, the real one shown`);
+    const sh = H.state.shared;
+    const right = sh.right.length;
+    check((sh.gained[W.pid] || 0) === right && (sh.gained[A.pid] || 0) === right && jury.every((b) => (sh.gained[b.pid] || 0) === (sh.right.indexOf(b.pid) !== -1 ? 1 : 0)),
+      `witness ${round}: a juror right scores 1; the witness and the artist 1 for each`);
+    await H.must('nextRound', { round });
+  }
+  await H.waitFor((s) => s.shared.round === 3 && s.shared.phase === 'ready', 'witness: round 3 is dealt');
+  // A player who leaves before the look: the round goes on without them.
+  const s3 = H.state.shared;
+  const leaver = people.find((b) => b.pid !== s3.witnessId && b.pid !== H.pid);
+  await api('/leave', { code: leaver.code, pid: leaver.pid, key: leaver.key });
+  await H.waitFor((s) => s.shared.phase === 'ready' && s.players.every((p) => p.id !== leaver.pid) && s.shared.artistId !== leaver.pid, 'witness: a player who leaves is off the table');
+  leaver.close();
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'witness: back in the hub');
+  people.filter((b) => b !== leaver).concat([TV, late]).forEach((x) => x.close());
+}
+
 // The host's phone gone quiet mid-round: after 20 s anyone moves the round on (28 Sep 2026).
 async function hostAwayRobots() {
   console.log('• the host away: after 20 s any player moves the round on; settings stay the host\'s');
@@ -962,6 +1018,12 @@ async function main() {
   }
   if (ONLY === 'snakes') {
     await snakesRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'witness') {
+    await witnessRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -4953,6 +5015,7 @@ async function main() {
   }
 
   await chairsRobots();
+  await witnessRobots();
   await snakesRobots();
   await bumperRobots();
   await hostAwayRobots();

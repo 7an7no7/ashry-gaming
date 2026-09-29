@@ -1,0 +1,687 @@
+<script>
+/* ============================================================================
+   الشاهد — THE WITNESS on the phones and the TV (29 Sep 2026)
+   ----------------------------------------------------------------------------
+   The rules are RoomWitness.js; the faces' rules Witness.js (inlined here too)
+   and the faces themselves خمّن مين's (GuessWho.js, drawn by gwFaceSvg in
+   JS_GuessWho.html, look ب «ألبوم ناعم»). A round: the witness taps «وريني
+   الوش» and sees a face 8 seconds on their own phone (a Polaroid in a case
+   file, a countdown ring); then they describe it out loud and the sketch
+   artist builds it on a face builder (category tabs, big option buttons),
+   every tap sent so the TV and the table watch it being drawn; then the jury
+   picks from a lineup of six faces very alike against a height-line wall; the
+   votes land as initialled coins under each suspect, a spotlight and «هو ده!»
+   fall on the real one, and the points count up.
+
+   Look أ «القسم» (the owner, 29 Sep 2026, from the design sheet): the police
+   station - a navy bar, the mugshot's height lines, the manila case file and
+   its Polaroid, the lineup wall on the TV. The scene keeps its own colours in
+   both themes, like a board (section 56 of Style.html).
+
+   Every name here starts with wit / WIT_. The TV is the room's one voice for
+   the sounds (the host's phone when there is none), as in الكراسي الموسيقية.
+   ========================================================================= */
+const WIT_COINS = ['#e11d48', '#2563eb', '#16a34a', '#ea580c', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#b45309', '#9333ea', '#0f766e', '#be123c'];
+const WIT_HEIGHTS = [190, 180, 170, 160, 150];
+
+const wit = {
+  gap: Infinity,        // the smallest (receivedAt − serverNow) seen, so the phone knows the server's time
+  timer: null,          // the clocks and the ring, painted in place
+  local: null,          // the artist's own sketch while drawing: { key, face, n, cat }
+  seen: new Set(),      // play-once keys for sounds
+  sketchN: {},          // the sketch number each screen last drew, for its little pop
+  tick: -1
+};
+
+/* --- small helpers ------------------------------------------------------------ */
+function witNoteTime(state) {
+  if (state && typeof state.serverNow === 'number' && typeof state.receivedAt === 'number') {
+    wit.gap = Math.min(wit.gap, state.receivedAt - state.serverNow);
+  }
+}
+const witServerNow = () => (isFinite(wit.gap) ? Date.now() - wit.gap : Date.now());
+const witIso = (s) => '⁨' + s + '⁩';
+function witT(key, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || key;
+  Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
+  return s;
+}
+const witOnce = (key) => { if (!key || wit.seen.has(key)) return false; if (wit.seen.size > 300) wit.seen.clear(); wit.seen.add(key); return true; };
+const witNameOf = (state, id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+const witInitial = (name) => (String(name || '').trim().replace(/^ال/, '')[0] || '?');
+const witColorOf = (s, id) => WIT_COINS[Math.max(0, (s.roster || []).indexOf(id)) % WIT_COINS.length];
+const witRoundKey = (state) => roomDealKey(state) + '|' + ((state.shared || {}).round || 0);
+
+/** Who this device is this round: the witness, the artist, a juror, watching, or a screen. */
+function witRole(state) {
+  const s = state.shared || {};
+  if (state.youAreScreen) return 'screen';
+  const me = Room.me;
+  if ((s.roster || []).indexOf(me) === -1) return 'watch';
+  if (me === s.witnessId) return 'witness';
+  if (me === s.artistId) return 'artist';
+  return 'jury';
+}
+
+/** The TV is the room's one voice; with no screen, the host's phone (the chairs' rule). */
+function witVoice(state) {
+  const screens = (state.screens || []).filter(x => x.online).map(x => x.id).sort();
+  if (state.youAreScreen) return screens[0] === Room.me;
+  return !!state.youAreHost && !screens.length;
+}
+
+/** The face, drawn by خمّن مين's own painter. */
+const witFace = (x, bg) => gwFaceSvg(x, bg || null);
+
+/* --- the scene's pieces -------------------------------------------------------- */
+
+/** The mugshot board: height lines, the face, the plate under it. */
+function witMugHtml(face, plate, o) {
+  const opt = o || {};
+  const lines = WIT_HEIGHTS.map((h, i) => `<div class="wit-hl" style="top:${8 + i * 19}%"><span>${h}</span></div>`).join('');
+  return `<div class="wit-mug ${opt.cls || ''}">${lines}
+      <div class="wit-mug__face" data-wit-sketch>${face ? witFace(face) : ''}</div>
+      ${plate ? `<div class="wit-mug__plate">${escapeHTML(plate)}</div>` : ''}
+    </div>`;
+}
+
+/** The countdown ring: filled by the painter from the server's time. */
+function witRingHtml(until, total, o) {
+  return `<div class="wit-ring ${(o && o.cls) || ''}" data-wit-ring="${until || 0}" data-wit-total="${total}">
+      <svg viewBox="0 0 40 40" aria-hidden="true" focusable="false"><circle class="wit-ring__bg" cx="20" cy="20" r="17"/><circle class="wit-ring__arc" cx="20" cy="20" r="17" pathLength="100"/></svg>
+      <b class="metric" data-wit-ring-n>${Math.ceil(total / 1000)}</b>
+    </div>`;
+}
+
+/** The case file: the folder, the crime, the Polaroid (the face, or its back), the ring. */
+function witFolderHtml(state, o) {
+  const s = state.shared || {};
+  const opt = o || {};
+  const face = opt.face || null;
+  return `<div class="wit-folder ${opt.cls || ''}">
+      <div class="wit-folder__tab">${escapeHTML(witT('wit_file', { n: s.round || 1 }))}</div>
+      <div class="wit-folder__crime">${escapeHTML(witT('wit_case_q', { crime: witT('wit_crime_' + (s.crime || 0)) }))}</div>
+      <div class="wit-polar ${face ? '' : 'is-back'} ${opt.flip ? 'is-flipping' : ''}">
+        <div class="wit-polar__face">${face ? witFace(face, '#e4ebf6') : ''}</div>
+        <div class="wit-polar__back" aria-hidden="true">؟</div>
+      </div>
+      ${opt.ring || ''}
+    </div>`;
+}
+
+/** The bar at the top: the station, the case, a clock pill. */
+function witTopHtml(state, clockUntil) {
+  const s = state.shared || {};
+  return `<div class="wit-top">
+      <b class="wit-top__title">🚓 ${escapeHTML(witT('wit_station'))}</b>
+      <span class="wit-pill">${escapeHTML(witT('wit_case_n'))} ${ltrFrac(s.round || 1, s.rounds || 1)}</span>
+      ${clockUntil ? `<span class="wit-pill wit-pill--clock metric" data-wit-clock="${clockUntil}">…</span>` : ''}
+    </div>`;
+}
+
+/** Who is who this round: the witness, the artist, and the jury's size. */
+function witRolesHtml(state) {
+  const s = state.shared || {};
+  const me = Room.me;
+  const tag = (id, label) => `<span class="wit-role ${id === me ? 'is-me' : ''}"><span class="wit-role__k">${escapeHTML(label)}</span><bdi>${escapeHTML(witNameOf(state, id) || '…')}</bdi></span>`;
+  return `<div class="wit-roles">${tag(s.witnessId, witT('wit_role_witness'))}${tag(s.artistId, witT('wit_role_artist'))}</div>`;
+}
+
+/** A coin: a juror's initial in their colour. */
+function witCoinHtml(s, state, id, i) {
+  const name = witNameOf(state, id);
+  return `<span class="wit-coin" style="--c:${witColorOf(s, id)};--at:${i * 160}ms" title="${escapeHTML(name)}">${escapeHTML(witInitial(name))}</span>`;
+}
+
+/**
+ * The lineup: six suspects against the height wall, each with its number and
+ * name. o: { vote (this phone may tap), mine (its own pick), reveal (the real
+ * one and the coins), tv, rise }.
+ */
+function witLineupHtml(state, o) {
+  const s = state.shared || {};
+  const opt = o || {};
+  const L = s.lineup || [];
+  const reveal = opt.reveal && typeof s.realIdx === 'number';
+  const picks = reveal ? (s.picks || {}) : {};
+  const coinsAt = {};
+  Object.keys(picks).forEach(id => { (coinsAt[picks[id]] = coinsAt[picks[id]] || []).push(id); });
+  let k = 0;
+  const slots = L.map((x, i) => {
+    const real = reveal && i === s.realIdx;
+    const coins = (coinsAt[i] || []).map(id => witCoinHtml(s, state, id, k++)).join('');
+    const tag = opt.vote ? 'button' : 'div';
+    const attrs = opt.vote ? ` type="button" onclick="witVote(${i})" aria-label="${escapeHTML(witT('wit_suspect_n', { n: i + 1 }))}"` : '';
+    return `<${tag} class="wit-slot ${opt.mine === i ? 'is-mine' : ''} ${real ? 'is-real' : ''} ${reveal && !real ? 'is-not' : ''} ${opt.rise ? 'wit-slot--rise' : ''}" style="--i:${i}"${attrs}>
+        ${real ? '<span class="wit-spot" aria-hidden="true"></span>' : ''}
+        <span class="wit-slot__face">${witFace(x)}</span>
+        <span class="wit-slot__num metric">${i + 1}</span>
+        <span class="wit-slot__name">${escapeHTML(gwName(x, appState.lang))}</span>
+        ${reveal ? `<span class="wit-slot__coins">${coins}</span>` : ''}
+        ${real ? `<span class="wit-stamp ${opt.rise ? 'wit-stamp--in' : ''}" style="--at:${opt.stampAt || 0}ms">${escapeHTML(witT('wit_is_it'))}</span>` : ''}
+      </${tag}>`;
+  }).join('');
+  const wall = WIT_HEIGHTS.map((h, i) => `<div class="wit-hl" style="top:${6 + i * 16}%"><span>${h}</span></div>`).join('');
+  return `<div class="wit-lineup ${opt.tv ? 'wit-lineup--tv' : ''} ${reveal ? 'is-reveal' : ''}">
+      <div class="wit-lineup__wall" aria-hidden="true">${wall}</div>
+      <div class="wit-lineup__row">${slots}</div>
+    </div>`;
+}
+
+/** The sketch beside the real face, the real one turning over at the reveal. */
+function witCompareHtml(state, o) {
+  const s = state.shared || {};
+  const opt = o || {};
+  const real = (s.lineup || [])[s.realIdx];
+  const open = typeof s.realIdx === 'number';
+  return `<div class="wit-compare">
+      <div class="wit-compare__card"><div class="wit-clip">${s.sketch ? witFace(s.sketch, '#ffffff') : ''}</div>
+        <small>${escapeHTML(witT('wit_sketch_by', { artist: witIso(witNameOf(state, s.artistId)) }))}</small></div>
+      <div class="wit-compare__card">
+        <div class="wit-flip ${open ? 'is-open' : ''} ${open && opt.turn ? 'wit-flip--turn' : ''}" style="--at:${opt.turnAt || 0}ms">
+          <div class="wit-flip__in">
+            <div class="wit-flip__back">📁<br>${escapeHTML(witT('wit_locked'))}</div>
+            <div class="wit-flip__front">${real ? witFace(real, '#e4ebf6') : ''}</div>
+          </div>
+        </div>
+        <small>${escapeHTML(witT('wit_real'))}</small></div>
+    </div>`;
+}
+
+/** The round's verdict: how many knew him, and the points. */
+function witVerdictHtml(state) {
+  const s = state.shared || {};
+  const n = (s.right || []).length, m = (s.jury || []).length;
+  const line = !m ? witT('wit_no_jury') : !n ? witT('wit_nobody') : n === m ? witT('wit_all') : witT('wit_right_n', { n, m });
+  const pts = n ? `<div class="wit-verdict__pts">${escapeHTML(witT('wit_pts_team', { n }))}</div>` : '';
+  return `<div class="wit-verdict"><div class="wit-verdict__line">${escapeHTML(line)}</div>${pts}</div>`;
+}
+
+/** The chips of the points each one won this round, over the board. */
+function witGainedHtml(state) {
+  const s = state.shared || {};
+  const rows = Object.keys(s.gained || {}).filter(id => s.gained[id] > 0);
+  if (!rows.length) return '';
+  return `<div class="wit-gained">${rows.map(id => `<span class="wit-gain" style="--c:${witColorOf(s, id)}"><span class="wit-coin wit-coin--flat" style="--c:${witColorOf(s, id)}">${escapeHTML(witInitial(witNameOf(state, id)))}</span><bdi>${escapeHTML(witNameOf(state, id))}</bdi> <b class="metric">+${s.gained[id]}</b></span>`).join('')}</div>`;
+}
+
+/* --- the builder ------------------------------------------------------------------- */
+const WIT_NO_HIJAB = (x) => x.hijab === null || x.hijab === undefined;
+const witColourOpts = (prefix) => GW_COLOUR_HEX.map((c, i) => [prefix + i, 'wit_col_' + i, c]);
+const WIT_CATS = [
+  { k: 'g', icon: '🧑', opts: () => [['m', 'wit_o_man'], ['f', 'wit_o_woman']], get: x => x.g,
+    set: (x, v) => { x.g = v; if (v === 'm') { x.hijab = null; x.ear = false; if (WITNESS_STYLES.m.indexOf(x.style) === -1) x.style = 'short'; } else { x.beard = x.mous = false; if (WITNESS_STYLES.f.indexOf(x.style) === -1) x.style = 'long'; } } },
+  { k: 'skin', icon: '🎨', opts: () => GW_SKIN.map((c, i) => [i, '', c]), get: x => x.skin, set: (x, v) => { x.skin = Number(v); } },
+  { k: 'style', icon: '💇', opts: x => WITNESS_STYLES[x.g].map(v => [v, 'wit_o_' + v]), get: x => (WIT_NO_HIJAB(x) ? x.style : ''),
+    set: (x, v) => { x.style = v; x.hijab = null; if (v === 'bald' || v === 'bun') x.cap = null; } },
+  { k: 'hair', icon: '🖌️', opts: () => GW_HAIR.map(h => [h, 'wit_o_h_' + h, GW_HAIR_COL[h]]), get: x => x.hair, set: (x, v) => { x.hair = v; } },
+  { k: 'head', icon: '🧢', opts: x => [['none', 'wit_o_none']].concat(witColourOpts('c').map(o => [o[0], 'wit_o_cap', o[2]]))
+      .concat(x.g === 'f' ? witColourOpts('h').map(o => [o[0], 'wit_o_hijab', o[2]]) : []),
+    get: x => (x.cap !== null && x.cap !== undefined ? 'c' + x.cap : !WIT_NO_HIJAB(x) ? 'h' + x.hijab : 'none'),
+    set: (x, v) => {
+      x.cap = null; x.hijab = null;
+      if (v[0] === 'c') { x.cap = Number(v.slice(1)); x.phones = false; if (x.style === 'bald' || x.style === 'bun') x.style = x.g === 'm' ? 'short' : 'long'; }
+      if (v[0] === 'h') { x.hijab = Number(v.slice(1)); x.ear = false; x.necklace = false; x.scarf = null; x.phones = false; if (x.top === 'collar') x.top = 'tee'; x.tie = ''; }
+    } },
+  { k: 'glasses', icon: '👓', opts: () => [['none', 'wit_o_no_glasses'], ['glasses', 'wit_o_glasses'], ['sun', 'wit_o_sun']],
+    get: x => (x.sun ? 'sun' : x.glasses ? 'glasses' : 'none'), set: (x, v) => { x.glasses = v === 'glasses'; x.sun = v === 'sun'; } },
+  { k: 'eyes', icon: '👁️', opts: () => GW_EYES.map(e => [e, 'wit_o_e_' + e, GW_EYE_COL[e]]), get: x => x.eyes, set: (x, v) => { x.eyes = v; } },
+  { k: 'brows', icon: '〰️', opts: () => [['', 'wit_o_thin'], ['thick', 'wit_o_thick']], get: x => x.brows || '', set: (x, v) => { x.brows = v; } },
+  { k: 'beard', icon: '🧔', men: true, opts: () => [['none', 'wit_o_none'], ['mous', 'wit_o_mous'], ['beard', 'wit_o_beard'], ['both', 'wit_o_both']],
+    get: x => (x.beard && x.mous ? 'both' : x.beard ? 'beard' : x.mous ? 'mous' : 'none'),
+    set: (x, v) => { x.beard = v === 'beard' || v === 'both'; x.mous = v === 'mous' || v === 'both'; } },
+  { k: 'mouth', icon: '👄', opts: () => [['smile', 'wit_o_smile'], ['laugh', 'wit_o_laugh'], ['serious', 'wit_o_serious']], get: x => x.mouth, set: (x, v) => { x.mouth = v; } },
+  { k: 'marks', icon: '✨', multi: true, opts: () => [['mole', 'wit_o_mole'], ['freckles', 'wit_o_freckles'], ['rosy', 'wit_o_rosy'], ['wrinkles', 'wit_o_wrinkles']],
+    on: (x, v) => !!x[v], set: (x, v) => { x[v] = !x[v]; } },
+  { k: 'extras', icon: '💍', multi: true,
+    opts: x => (WIT_NO_HIJAB(x) ? (x.g === 'f' ? [['ear', 'wit_o_ear']] : []).concat([['necklace', 'wit_o_necklace'], ['phones', 'wit_o_phones']]) : []),
+    on: (x, v) => !!x[v], set: (x, v) => { x[v] = !x[v]; if (v === 'phones' && x.phones) x.cap = null; } },
+  { k: 'scarf', icon: '🧣', when: x => WIT_NO_HIJAB(x), opts: () => [['none', 'wit_o_none']].concat(witColourOpts('s')),
+    get: x => (x.scarf === null || x.scarf === undefined ? 'none' : 's' + x.scarf), set: (x, v) => { x.scarf = v === 'none' ? null : Number(v.slice(1)); } },
+  { k: 'top', icon: '👕', opts: x => [['tee', 'wit_o_tee'], ['hoodie', 'wit_o_hoodie']].concat(WIT_NO_HIJAB(x) ? [['collar', 'wit_o_collar']] : []),
+    get: x => x.top, set: (x, v) => { x.top = v; if (v !== 'collar') x.tie = ''; } },
+  { k: 'tie', icon: '👔', when: x => x.top === 'collar', opts: () => [['', 'wit_o_no_tie'], ['tie', 'wit_o_tie'], ['bow', 'wit_o_bow']], get: x => x.tie || '', set: (x, v) => { x.tie = v; } },
+  { k: 'shirt', icon: '🎽', opts: () => witColourOpts('').map(o => [Number(o[0]), o[1], o[2]]), get: x => x.shirt, set: (x, v) => { x.shirt = Number(v); } },
+  { k: 'pattern', icon: '〽️', opts: () => [['plain', 'wit_o_plain'], ['stripes', 'wit_o_stripes'], ['dots', 'wit_o_dots']], get: x => x.pattern, set: (x, v) => { x.pattern = v; } }
+];
+const witCatsFor = (x) => WIT_CATS.filter(c => (!c.men || x.g === 'm') && (!c.when || c.when(x)) && c.opts(x).length);
+
+function witBuilderHtml() {
+  const l = wit.local;
+  if (!l) return '';
+  const x = l.face;
+  const cats = witCatsFor(x);
+  if (!cats.some(c => c.k === l.cat)) l.cat = cats[0].k;
+  const cat = WIT_CATS.find(c => c.k === l.cat);
+  const tabs = cats.map(c => `<button type="button" class="wit-tab ${c.k === l.cat ? 'is-on' : ''}" onclick="witCat('${c.k}')"><span aria-hidden="true">${c.icon}</span> ${escapeHTML(witT('wit_cat_' + c.k))}</button>`).join('');
+  const val = cat.multi ? null : cat.get(x);
+  const opts = cat.opts(x).map((o, i) => {
+    const on = cat.multi ? cat.on(x, o[0]) : String(o[0]) === String(val);
+    const label = o[1] ? witT(o[1]) : '';
+    const aria = label || witT('wit_skin_n', { n: i + 1 });
+    return `<button type="button" class="wit-opt ${on ? 'is-on' : ''}" aria-pressed="${on}" aria-label="${escapeHTML(aria)}" onclick="witPick(${i})">
+        ${o[2] ? `<span class="wit-sw" style="background:${o[2]}"></span>` : ''}${label ? `<span>${escapeHTML(label)}</span>` : ''}</button>`;
+  }).join('');
+  return `<div class="wit-tabs" data-wit-tabs>${tabs}</div><div class="wit-opts">${opts}</div>`;
+}
+
+/** The artist's sketch starts from the room's plain face once per round. */
+function witLocalFor(state) {
+  const s = state.shared || {};
+  const key = witRoundKey(state);
+  if (!wit.local || wit.local.key !== key) {
+    wit.local = { key, face: Object.assign({}, s.sketch || witnessBlank('m')), n: s.sketchN || 0, cat: 'g' };
+  }
+  return wit.local;
+}
+
+function witPaintBuilder() {
+  const el = document.querySelector('#view-room-witness [data-wit-builder]');
+  if (!el || !wit.local) return;
+  const tabs = el.querySelector('[data-wit-tabs]');
+  const scroll = tabs ? tabs.scrollLeft : 0;
+  el.innerHTML = witBuilderHtml();
+  const nt = el.querySelector('[data-wit-tabs]');
+  if (nt) nt.scrollLeft = scroll;
+  const face = document.querySelector('#view-room-witness [data-wit-sketch]');
+  if (face) { face.innerHTML = witFace(wit.local.face); witPop(face); }
+}
+
+function witCat(k) {
+  if (!wit.local) return;
+  wit.local.cat = k;
+  witPaintBuilder();
+  const on = document.querySelector('#view-room-witness .wit-tab.is-on');
+  if (on && on.scrollIntoView) { try { on.scrollIntoView({ block: 'nearest', inline: 'center', behavior: motionOff() ? 'auto' : 'smooth' }); } catch (e) {} }
+}
+
+function witPick(i) {
+  const l = wit.local;
+  const st = Room.state;
+  if (!l || !st || (st.shared || {}).phase !== 'draw') return;
+  const cat = WIT_CATS.find(c => c.k === l.cat);
+  const o = cat && cat.opts(l.face)[i];
+  if (!o) return;
+  cat.set(l.face, o[0]);
+  witnessFix(l.face);
+  l.n = Math.max(l.n, (st.shared.sketchN || 0)) + 1;
+  haptic('light');
+  witPaintBuilder();
+  roomAct('sketch', { round: st.shared.round, n: l.n, face: l.face });
+}
+
+function witDone() {
+  const st = Room.state;
+  if (!st || (st.shared || {}).phase !== 'draw') return;
+  haptic('medium');
+  roomAct('done', { round: st.shared.round, face: wit.local ? wit.local.face : undefined });
+}
+
+function witReady() {
+  const st = Room.state;
+  if (!st) return;
+  haptic('medium');
+  roomAct('ready', { round: st.shared.round });
+}
+
+/* --- the vote ---------------------------------------------------------------------- */
+function witMine(state) {
+  try { const v = JSON.parse(sessionStorage.getItem('witVote') || 'null'); return v && v.key === witRoundKey(state) ? v.i : null; } catch (e) { return null; }
+}
+function witVote(i) {
+  const st = Room.state;
+  if (!st || (st.shared || {}).phase !== 'vote' || witRole(st) !== 'jury') return;
+  try { sessionStorage.setItem('witVote', JSON.stringify({ key: witRoundKey(st), i })); } catch (e) {}
+  haptic('light');
+  const el = document.getElementById('view-room-witness');
+  if (el) {
+    el.querySelectorAll('.wit-slot').forEach((b, k) => b.classList.toggle('is-mine', k === i));
+    const line = el.querySelector('[data-wit-mine]');
+    if (line) line.textContent = witT('wit_vote_mine', { n: i + 1 });
+  }
+  roomAct('vote', { option: 's' + (i + 1), round: st.shared.round });
+}
+
+/** No one left to be the witness after this round: the next tap ends the game. */
+function witLast(state) {
+  const s = state.shared || {};
+  const here = (id) => (state.players || []).some(p => p.id === id);
+  const present = (s.roster || []).filter(here).length;
+  return present < WITNESS_MIN || !(s.order || []).slice((s.turn || 0) + 1).some(here);
+}
+
+/* --- the frames ---------------------------------------------------------------------- */
+function witSig(state) {
+  const s = state.shared || {};
+  const v = s.vote || {};
+  const role = witRole(state);
+  return ['wit', s.phase, s.round, s.witnessId, s.artistId, role, (s.lineup || []).length, (v.voted || []).join(','), s.realIdx,
+    JSON.stringify(s.board || []), state.youAreHost, !!(state.you && state.you.face), witMine(state), appState.lang,
+    // A viewer's frame redraws with the sketch; the artist's own builder is painted in place.
+    role === 'artist' ? '' : s.phase === 'draw' ? '' : s.sketchN].join('|');
+}
+
+function witHostBtns(state) {
+  const s = state.shared || {};
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (s.phase === 'ready') return roomMoveOnHtml(state, roomHostRow([[witT('wit_skip'), `roomAct('skipTurn', { round: ${s.round} })`]]));
+  if (s.phase === 'draw') return roomMoveOnHtml(state, roomHostRow([[witT('wit_close_draw'), `roomAct('closeDraw', { round: ${s.round} })`]]));
+  if (s.phase === 'vote') return roomMoveOnHtml(state, roomHostRow([[witT('wit_close_vote'), `roomAct('closeVote', { round: ${s.round} })`]]));
+  if (s.phase === 'reveal') {
+    const last = witLast(state);
+    return roomMoveOnHtml(state, `<div class="btn-stack wit-next"><button type="button" class="btn btn--go btn--lg" onclick="roomAct('nextRound', { round: ${s.round} })">${escapeHTML(witT(last ? 'wit_final' : 'wit_next'))}</button></div>`,
+      `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`);
+  }
+  if (s.phase === 'gameover' && state.youAreHost) {
+    return `<div class="btn-row" style="margin-top:var(--sp-3)"><button class="btn btn--go" onclick="roomAct('playAgain', {})">▶ ${escapeHTML(t.play_again || '')}</button><button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button></div>`;
+  }
+  return '';
+}
+
+/** The body of a phone's frame, by the phase and who this phone is. */
+function witPhoneBody(state) {
+  const s = state.shared || {};
+  const role = witRole(state);
+  const artist = witIso(witNameOf(state, s.artistId));
+  const witness = witIso(witNameOf(state, s.witnessId));
+  const key = witRoundKey(state);
+  if (s.phase === 'ready') {
+    if (role === 'witness') {
+      return `${witFolderHtml(state)}<div class="wit-side">
+        <div class="wit-msg">${escapeHTML(witT('wit_you_witness'))}</div>
+        <p class="wit-hint">${escapeHTML(witT('wit_ready_hint', { artist }))}</p>
+        <button type="button" class="btn btn--go btn--lg wit-go" onclick="witReady()">${escapeHTML(witT('wit_ready_btn'))}</button></div>`;
+    }
+    return `${witFolderHtml(state)}<div class="wit-side">
+      <div class="wit-msg">${escapeHTML(witT(role === 'artist' ? 'wit_ready_artist' : 'wit_ready_wait', { witness }))}</div>
+      <p class="wit-hint">${escapeHTML(witT('wit_ready_jury'))}</p></div>`;
+  }
+  if (s.phase === 'look') {
+    const face = role === 'witness' && state.you && state.you.face;
+    const ring = witRingHtml(s.lookEndsAt, WITNESS_LOOK_MS);
+    const msg = role === 'witness' ? witT('wit_look_focus') : role === 'artist' ? witT('wit_look_artist', { witness }) : witT('wit_look_others', { witness });
+    return `${witFolderHtml(state, { face, ring })}<div class="wit-side"><div class="wit-msg">${escapeHTML(msg)}</div>${role === 'witness' ? witHintChips() : ''}</div>`;
+  }
+  if (s.phase === 'draw') {
+    if (role === 'artist') {
+      witLocalFor(state);
+      return `<div class="wit-say">🗣️ ${escapeHTML(witT('wit_artist_listen', { witness }))}</div>
+        <div class="wit-draw">
+          ${witMugHtml(wit.local.face, witT('wit_plate', { artist }))}
+          <div class="wit-builder" data-wit-builder>${witBuilderHtml()}</div>
+        </div>
+        <div class="wit-foot"><button type="button" class="btn btn--go btn--lg" onclick="witDone()">${escapeHTML(witT('wit_done_btn'))}</button></div>`;
+    }
+    if (role === 'witness') {
+      // The face is gone from this phone: what is left is to talk, and to watch the sketch grow.
+      return `<div class="wit-draw wit-draw--watch">
+          ${witMugHtml(s.sketch, witT('wit_plate', { artist }))}
+          <div class="wit-side">
+            <div class="wit-msg">${escapeHTML(witT('wit_describe', { artist }))}</div>
+            ${witHintChips()}
+          </div>
+        </div>`;
+    }
+    return `<div class="wit-draw wit-draw--watch">
+        ${witMugHtml(s.sketch, witT('wit_plate', { artist }))}
+        <div class="wit-side"><div class="wit-msg">${escapeHTML(witT('wit_jury_draw'))}</div>${witRolesHtml(state)}</div>
+      </div>`;
+  }
+  if (s.phase === 'vote') {
+    const mine = witMine(state);
+    const juror = role === 'jury' && (s.vote && (s.vote.eligible || []).indexOf(Room.me) !== -1);
+    const rise = motionFirst('wit-line|' + key);
+    const voted = ((s.vote || {}).voted || []);
+    return `<div class="wit-vote">
+        <div class="wit-vote__head">
+          <div class="wit-clip wit-clip--small">${s.sketch ? witFace(s.sketch, '#ffffff') : ''}</div>
+          <div>
+            <div class="wit-msg wit-msg--start">${escapeHTML(witT('wit_lineup_title'))}</div>
+            <p class="wit-hint wit-hint--start" data-wit-mine>${escapeHTML(juror ? (mine === null ? witT('wit_vote_hint') : witT('wit_vote_mine', { n: mine + 1 })) : witT('wit_vote_wait'))}</p>
+          </div>
+        </div>
+        ${witLineupHtml(state, { vote: juror, mine, rise })}
+        <p class="wit-hint">${escapeHTML(witT('wit_voted_n'))} ${ltrFrac(voted.length, ((s.vote || {}).eligible || []).length)}</p>
+      </div>`;
+  }
+  if (s.phase === 'reveal') {
+    const rise = motionFirst('wit-rev|' + key);
+    const coins = Object.keys(s.picks || {}).length;
+    const stampAt = coins * 160 + 700;
+    return `<div class="wit-reveal" data-reveal-ms="${rise ? stampAt + 900 : 0}">
+        ${witLineupHtml(state, { reveal: true, rise, stampAt, mine: witMine(state) })}
+        ${witCompareHtml(state, { turn: rise, turnAt: stampAt })}
+        ${witVerdictHtml(state)}
+        ${witGainedHtml(state)}
+      </div>
+      ${renderScoreboard(s.board)}`;
+  }
+  if (s.phase === 'gameover') {
+    const podium = renderPodium(state, s.board);
+    return `<div class="wit-over"><div class="wit-msg">🚨 ${escapeHTML(witT('wit_over_title'))}</div>${podium}${renderScoreboard(s.board)}
+      ${typeof roomShareBtnHtml === 'function' ? roomShareBtnHtml(state, s.board) : ''}</div>`;
+  }
+  return '';
+}
+
+function witHintChips() {
+  return `<div class="wit-hints">${[1, 2, 3, 4, 5].map(i => `<span>${escapeHTML(witT('wit_hint_' + i))}</span>`).join('')}</div>`;
+}
+
+/* --- the room game ----------------------------------------------------------------- */
+ROOM_GAMES.witness = {
+  lateJoin: true,     // someone who joins mid-game watches the lineup, and plays the next game
+  lobbyOptions(state) {
+    if (!state.youAreHost) return '';
+    return `<p class="field__hint" style="text-align:center">${escapeHTML(witT('wit_lobby_hint'))}</p>`;
+  },
+  startPayload() { return {}; },
+  actionKey(state) {
+    const s = state.shared || {};
+    return [roomDealKey(state), s.round, s.phase].join('|');
+  },
+  render(state) {
+    if (appState.currentView !== 'room-witness') setView('room-witness');
+    const el = document.getElementById('view-room-witness');
+    if (!el) return;
+    witNoteTime(state);
+    const s = state.shared || {};
+    const role = witRole(state);
+    const clock = s.phase === 'draw' ? s.drawEndsAt : s.phase === 'vote' ? s.voteEndsAt : null;
+    renderRoomFrame(el, witSig(state), () => `
+      <div class="wit wit--${s.phase} wit--${role}">
+        ${witTopHtml(state, clock)}
+        ${role === 'watch' ? `<div class="waiting-note">${escapeHTML(witT('wit_watching'))}</div>` : ''}
+        ${s.phase !== 'gameover' && s.phase !== 'draw' ? witRolesHtml(state) : ''}
+        <div class="wit-body">${witPhoneBody(state)}</div>
+        ${witHostBtns(state)}
+        ${renderRoomPlayerStrip(state)}
+      </div>`);
+    refreshRoomPlayerStrip(el, state);
+    witAfter(state, el);
+  }
+};
+
+/* --- after every paint: the sketch in place, the clocks, the sounds, the confetti --- */
+function witAfter(state, el) {
+  const s = state.shared || {};
+  const key = witRoundKey(state);
+  witNoteTime(state);
+  // A viewer's sketch follows the artist's taps in place.
+  if (s.phase === 'draw' && witRole(state) !== 'artist') {
+    const f = el.querySelector('[data-wit-sketch]');
+    const seenN = wit.sketchN[el.id];
+    if (f && s.sketch && seenN !== s.sketchN + '|' + key) {
+      f.innerHTML = witFace(s.sketch);
+      if (seenN && seenN.split('|').slice(1).join('|') === key) witPop(f);
+      wit.sketchN[el.id] = s.sketchN + '|' + key;
+    }
+  }
+  if (s.phase === 'reveal' || s.phase === 'gameover') animateScoreboards(state);
+  // The sounds, on the room's one voice.
+  const voice = witVoice(state);
+  if (s.phase === 'look' && witOnce('look|' + key)) { if (voice || witRole(state) === 'witness') witSound('shutter'); if (witRole(state) === 'witness') haptic('medium'); }
+  if (s.phase === 'draw' && witOnce('draw|' + key) && (voice || witRole(state) === 'witness')) witSound('close');
+  if (s.phase === 'reveal' && witOnce('rev|' + key)) {
+    const coins = Object.keys(s.picks || {}).length;
+    if (voice && !motionOff()) {
+      for (let i = 0; i < coins; i++) setTimeout(() => witSound('coin', i), i * 160 + 150);
+      setTimeout(() => witSound('stamp'), coins * 160 + 750);
+    } else if (voice) witSound('stamp');
+    if ((s.gained || {})[Room.me]) setTimeout(() => haptic('medium'), coins * 160 + 800);
+  }
+  if (s.phase === 'gameover' && witOnce('over|' + roomDealKey(state))) {
+    if (voice) witSound('win');
+    const top = (s.board || [])[0];
+    if (top && top.score > 0 && (state.youAreScreen || (s.board || []).some(r => r.id === Room.me && r.score === top.score))) {
+      afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }); });
+    }
+  }
+  // The clocks and the ring, painted in place.
+  if (wit.timer) clearInterval(wit.timer);
+  wit.timer = null;
+  const paint = () => {
+    const st = Room.state;
+    if (!st || st.game !== 'witness') { witStop(); return; }
+    const now = witServerNow();
+    el.querySelectorAll('[data-wit-clock]').forEach(c => {
+      const left = Math.max(0, Math.ceil((Number(c.dataset.witClock) - now) / 1000));
+      const txt = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+      if (c.textContent !== txt) c.textContent = txt;
+      c.classList.toggle('is-low', left <= 10);
+    });
+    el.querySelectorAll('[data-wit-ring]').forEach(r => {
+      const until = Number(r.dataset.witRing), total = Number(r.dataset.witTotal) || 1;
+      const ms = Math.max(0, until - now);
+      const n = Math.ceil(ms / 1000);
+      const b = r.querySelector('[data-wit-ring-n]');
+      if (b && b.textContent !== String(n)) {
+        b.textContent = n;
+        if (n > 0 && n <= 3 && wit.tick !== n && (st.shared || {}).phase === 'look' && (witVoice(st) || witRole(st) === 'witness')) { wit.tick = n; witSound('tick'); }
+      }
+      const arc = r.querySelector('.wit-ring__arc');
+      if (arc) arc.style.strokeDashoffset = String(100 - Math.min(100, (ms / total) * 100));
+    });
+  };
+  paint();
+  if (s.phase === 'look' || s.phase === 'draw' || s.phase === 'vote') wit.timer = setInterval(paint, s.phase === 'look' ? 100 : 250);
+}
+
+function witPop(el) {
+  if (!el || motionOff() || !el.animate) return;
+  el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.05)' }, { transform: 'scale(1)' }], { duration: 260, easing: 'ease-out' });
+}
+
+function witStop() {
+  if (wit.timer) clearInterval(wit.timer);
+  wit.timer = null;
+  wit.tick = -1;
+}
+onLeaveScreen((from) => { if (from === 'room-witness' || from === 'room-tv') witStop(); });
+onRoomClocksReset(() => { witStop(); wit.local = null; });
+
+/** The moments' sounds: the camera's shutter, the file closing, the last ticks, a coin, the stamp, the end. */
+function witSound(kind, i) {
+  try {
+    const at = fxCtx().currentTime + 0.01;
+    if (kind === 'shutter') {
+      fxNoise('highpass', 3000, 0.9, [[0, 0.35], [0.05, 0.001]], at);
+      fxNoise('bandpass', 1400, 1.2, [[0, 0.25], [0.08, 0.001]], at + 0.07);
+    } else if (kind === 'close') {
+      fxNoise('lowpass', 700, 0.7, [[0, 0.3], [0.12, 0.001]], at);
+      fxTone('sine', [[0, 180], [0.1, 90]], [[0, 0.2], [0.14, 0.001]], at);
+    } else if (kind === 'tick') {
+      fxTone('square', [[0, 1200]], [[0, 0.08], [0.05, 0.001]], at);
+    } else if (kind === 'coin') {
+      const hz = 1300 + Math.min(8, i || 0) * 90;
+      fxTone('triangle', [[0, hz], [0.04, hz * 1.5]], [[0, 0.16], [0.18, 0.001]], at);
+      fxTone('sine', [[0, hz * 2]], [[0, 0.05], [0.12, 0.001]], at + 0.03);
+    } else if (kind === 'stamp') {
+      fxNoise('lowpass', 400, 0.8, [[0, 0.5], [0.16, 0.001]], at);
+      fxTone('sine', [[0, 140], [0.18, 60]], [[0, 0.4], [0.22, 0.001]], at);
+    } else if (kind === 'win') {
+      playFx('tada');
+    }
+  } catch (e) {}
+}
+
+/* --- the big screen ---------------------------------------------------------------- */
+TV_GAMES.witness = {
+  sig(state) {
+    const s = state.shared || {};
+    const v = s.vote || {};
+    return ['witness', roomDealKey(state), s.phase, s.round, s.witnessId, s.artistId, (v.voted || []).join(','), s.realIdx,
+      JSON.stringify(s.board || []), state.youAreHost, appState.lang, s.phase === 'draw' ? '' : s.sketchN].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    const key = witRoundKey(state);
+    const witness = witIso(witNameOf(state, s.witnessId));
+    const artist = witIso(witNameOf(state, s.artistId));
+    const head = `<div class="wit-tv__head"><b>🚓 ${escapeHTML(witT('wit_station'))}</b>
+        <span>${escapeHTML(witT('wit_case_q', { crime: witT('wit_crime_' + (s.crime || 0)) }))}</span>
+        <span class="wit-pill">${escapeHTML(witT('wit_case_n'))} ${ltrFrac(s.round || 1, s.rounds || 1)}</span></div>`;
+    const host = (() => {
+      if (s.phase === 'ready') return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(witT('wit_skip'), `roomAct('skipTurn', { round: ${s.round} })`, 'ghost')}</div>`);
+      if (s.phase === 'draw') return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(witT('wit_close_draw'), `roomAct('closeDraw', { round: ${s.round} })`, 'ghost')}</div>`);
+      if (s.phase === 'vote') return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(witT('wit_close_vote'), `roomAct('closeVote', { round: ${s.round} })`, 'ghost')}</div>`);
+      if (s.phase === 'reveal') {
+        const last = witLast(state);
+        return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(witT(last ? 'wit_final' : 'wit_next'), `roomAct('nextRound', { round: ${s.round} })`)}</div>`);
+      }
+      if (s.phase === 'gameover' && state.youAreHost) return `<div class="tv-actions">${tvBtn('▶ ' + (t.play_again || ''), "roomAct('playAgain', {})")}${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>`;
+      return '';
+    })();
+    let body = '';
+    if (s.phase === 'ready' || s.phase === 'look') {
+      const ring = s.phase === 'look' ? witRingHtml(s.lookEndsAt, WITNESS_LOOK_MS, { cls: 'wit-ring--tv' }) : '';
+      body = `<div class="wit-tv__stage wit-tv__stage--center">
+          ${witFolderHtml(state, { ring, cls: 'wit-folder--tv' })}
+          <div class="wit-tv__side">
+            <div class="wit-tv__roles">${witRolesHtml(state)}</div>
+            <div class="wit-msg">${escapeHTML(s.phase === 'look' ? witT('wit_look_others', { witness }) : witT('wit_ready_wait', { witness }))}</div>
+            ${host}
+          </div>
+        </div>`;
+    } else if (s.phase === 'draw') {
+      body = `<div class="wit-tv__stage">
+          ${witMugHtml(s.sketch, witT('wit_plate', { artist }), { cls: 'wit-mug--tv' })}
+          <div class="wit-tv__side">
+            <div class="wit-pill wit-pill--clock wit-pill--big metric" data-wit-clock="${s.drawEndsAt}">…</div>
+            <div class="wit-msg">${escapeHTML(witT('wit_tv_drawing', { artist, witness }))}</div>
+            <p class="wit-hint">${escapeHTML(witT('wit_jury_draw'))}</p>
+            ${host}
+          </div>
+        </div>`;
+    } else if (s.phase === 'vote' || s.phase === 'reveal') {
+      const reveal = s.phase === 'reveal';
+      const rise = motionFirst((reveal ? 'wit-tv-rev|' : 'wit-tv-line|') + key);
+      const coins = Object.keys(s.picks || {}).length;
+      const stampAt = coins * 160 + 700;
+      const v = s.vote || {};
+      body = `<div class="wit-tv__stage wit-tv__stage--lineup" ${reveal ? `data-reveal-ms="${rise ? stampAt + 900 : 0}"` : ''}>
+          <div class="wit-tv__main">
+            <div class="wit-msg">${escapeHTML(witT('wit_lineup_title'))}</div>
+            ${witLineupHtml(state, { tv: true, reveal, rise, stampAt })}
+          </div>
+          <div class="wit-tv__side">
+            ${witCompareHtml(state, { turn: reveal && rise, turnAt: stampAt })}
+            ${reveal ? witVerdictHtml(state) + witGainedHtml(state) : `${s.voteEndsAt ? `<div class="wit-pill wit-pill--clock metric" data-wit-clock="${s.voteEndsAt}">…</div>` : ''}${tvWaitChips(state, v.eligible || [], v.voted || [])}`}
+            ${host}
+          </div>
+        </div>`;
+    } else if (s.phase === 'gameover') {
+      body = `<div class="wit-tv__stage wit-tv__stage--over">
+          <div class="wit-tv__main"><div class="wit-msg">🚨 ${escapeHTML(witT('wit_over_title'))}</div>${renderPodium(state, s.board)}</div>
+          <div class="wit-tv__side tv-scale">${renderScoreboard(s.board)}${host}</div>
+        </div>`;
+    }
+    return `<div class="wit wit-tv wit--${s.phase}">${head}${body}</div>`;
+  },
+  after(state) {
+    const el = document.getElementById('view-room-tv');
+    if (el) witAfter(state, el);
+  }
+};
+</script>

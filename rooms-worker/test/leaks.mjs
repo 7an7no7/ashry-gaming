@@ -24,6 +24,9 @@ import { roomView } from '../src/view.js';
 // The countries, for the engine's خمّن الدولة driver to guess with (one sets, everyone solves).
 const SOLVE_LISTS = new Function(readFileSync(new URL('../../Countries.js', import.meta.url), 'utf8') + '\nreturn { COUNTRIES };')();
 
+// خمّن مين's faces, to know the real face of الشاهد by what can be seen of it.
+const WIT = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') + ';return { gwSignature };')();
+
 const realNow = Date.now;
 let clock = realNow();
 Date.now = () => clock;
@@ -797,6 +800,32 @@ const PROBES = {
     return [
       secret('the stop moment stays on the server', live ? h.stopAt : null, []),
       probe('no fake pause is announced before it comes', live && h.fakes.length > 0, (view) => (hasKey(view.shared, 'fakes') ? 'shared.fakes' : null))
+    ];
+  },
+  // الشاهد: the real face on the witness's phone only, and only while they look; which suspect it is, hidden until the reveal.
+  witness(room) {
+    const s = room.shared || {};
+    const h = room._witness;
+    const realSig = h ? WIT.gwSignature(h.faces[h.real]) : null;
+    const faceSigs = (node, skip, out = []) => {
+      if (!node || typeof node !== 'object' || skip.indexOf(node) !== -1) return out;
+      if (typeof node.g === 'string' && 'shirt' in node) out.push(WIT.gwSignature(node));
+      Object.keys(node).forEach((k) => faceSigs(node[k], skip, out));
+      return out;
+    };
+    return [
+      probe("the real face is on the witness's phone only, and only while they look", !!h && (s.phase === 'look' || s.phase === 'draw'), (view, pid) => {
+        if (pid === s.witnessId && s.phase === 'look') return null;
+        const skip = [view.shared && view.shared.sketch].filter(Boolean);
+        return faceSigs(view, skip).indexOf(realSig) !== -1 ? 'the real face' : null;
+      }),
+      probe('which suspect is the real one stays hidden until the reveal', !!h && s.phase === 'vote', (view) => {
+        const sv = view.shared || {};
+        if (typeof sv.realIdx === 'number') return 'shared.realIdx';
+        if (sv.picks) return 'shared.picks';
+        if (view.you && view.you.face) return 'you.face';
+        return null;
+      })
     ];
   },
   // Nothing hidden: the generic rules still hold.
@@ -1749,6 +1778,51 @@ const DRIVERS = {
       if (!moved) runClock(T, (room) => room.shared !== s || room.shared.phase === 'gameover', 3);
     }
     return seen.lost && seen.midFlip && seen.guess;
+  },
+  witness() {
+    // Five at the table: every one the witness once - a sketch built, votes changed, a vote on the clock,
+    // a quiet witness passed over, a drawing closed by the host, a juror leaving mid-vote - to the board.
+    const T = table('witness', 5);
+    must(T, T.host, 'start', {});
+    for (let guard = 0; guard < 60 && S(T).phase !== 'gameover'; guard++) {
+      const s = S(T);
+      if (s.phase === 'ready') {
+        if (s.round === 3) { must(T, T.host, 'skipTurn', { round: s.round }); continue; }
+        must(T, s.witnessId, 'ready', { round: s.round });
+        continue;
+      }
+      if (s.phase === 'look') { runClock(T, (r) => r.shared.phase !== 'look', 3); continue; }
+      if (s.phase === 'draw') {
+        const face = Object.assign({}, s.sketch, { hair: pick(['black', 'brown', 'red']), glasses: Math.random() < 0.5, g: pick(['m', 'f']) });
+        must(T, s.artistId, 'sketch', { round: s.round, n: (s.sketchN || 0) + 1, face });
+        if (s.round === 2) runClock(T, (r) => r.shared.phase !== 'draw', 3);
+        else if (s.round === 4) must(T, T.host, 'closeDraw', { round: s.round });
+        else must(T, s.artistId, 'done', { round: s.round });
+        continue;
+      }
+      if (s.phase === 'vote') {
+        const jury = s.vote.eligible;
+        if (s.round === 2) { runClock(T, (r) => r.shared.phase !== 'vote', 3); continue; }
+        jury.slice(0, jury.length - 1).forEach((id) => {
+          act(T, id, 'vote', { option: 's' + (1 + Math.floor(Math.random() * 6)), round: s.round });
+          act(T, id, 'vote', { option: 's' + (1 + Math.floor(Math.random() * 6)), round: s.round });
+        });
+        if (S(T).phase === 'vote') {
+          if (s.round === 5 && jury.length > 1) {
+            const gone = jury[jury.length - 1];
+            T.room.players = T.room.players.filter((p) => p.id !== gone);
+            const next = structuredClone(T.room);
+            roomPlayerLeft(next, gone, 'X');
+            T.room = next;
+            scan(T, 'left');
+          } else act(T, jury[jury.length - 1], 'vote', { option: 's1', round: s.round });
+        }
+        if (S(T).phase === 'vote') must(T, T.host, 'closeVote', { round: s.round });
+        continue;
+      }
+      if (s.phase === 'reveal') { must(T, T.host, 'nextRound', { round: s.round }); continue; }
+    }
+    return S(T).phase === 'gameover';
   },
   chairs() {
     // Four in the ring: a false start, taps timed by their stamps, a round nobody finishes, to one left.

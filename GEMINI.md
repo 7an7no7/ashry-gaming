@@ -82,6 +82,9 @@
   كذب):** everyone writes, everyone votes; 🖍️ **Draw & Write (ارسم واكتب):**
   the drawing telephone, drawn on phones and revealed on the TV; 🧠 **The Mind
   (العقل):** secret numbers laid down in rising order without a word.
+- **Rooms only, a deduction game:** **The Witness (الشاهد):** one sees a
+  face for 8 seconds and describes it, the next builds it on a face builder,
+  the rest pick the real one from a lineup of six look-alikes (*الشاهد*).
 - **Rooms only, a party game:** 🪑 **Musical chairs (الكراسي الموسيقية):**
   every phone is a player, the music stops at a secret moment, the fastest
   taps get the chairs, one out a round (*الكراسي الموسيقية*).
@@ -235,6 +238,42 @@ work changed. Add to it when a decision is made or a batch ships.
     witness's case file with a Polaroid and a countdown ring, the TV's
     lineup against a height-line wall, votes landing as initialled coins
     under each suspect, a spotlight and «هو ده!» on the real one.
+    **Built 29 Sep 2026** (*الشاهد*); decided while building (open to
+    change, each in one place):
+    - **The witness taps «وريني الوش» first** (a `ready` step): the 8 s
+      start when they are looking, not while the phone is in a pocket, and
+      count from the face's arrival (0.4 s of network lead,
+      `WITNESS_LOOK_LEAD_MS`). A witness who never taps (a locked phone) is
+      passed over by the host's (or a stand-in's) «عدّي الشاهد ده»; their
+      round is skipped, not replayed.
+    - **The lineup is one gender** (a family would rule out the other half
+      at a glance), every suspect a different name, each look-alike 1-3
+      features off the real face (`WITNESS_CHANGES`: the hair and its
+      colour, eyes, brows, glasses, a beard or moustache, the mouth, marks,
+      earrings and the rest, the clothes), never adding or taking away a
+      hijab, and no two with the same `gwSignature`.
+    - **The sketch starts as a plain man** with nothing on (`witnessBlank`);
+      the artist's first category is man or woman. Every pick is sent to
+      the room (a `sketch` move, only a newer one kept), so the witness and
+      the jury watch the words take shape.
+    - **The jury is everyone but the witness and the artist**, the vote on
+      the voting engine: secret until it closes, changeable until then,
+      closed when every juror has voted, on a 45 s clock
+      (`WITNESS_VOTE_MS`) or by the host. A round with no juror left goes
+      straight to the reveal.
+    - **Eight family crimes** (`wit_crime_0..7`: the kunafa, the stuffed vine
+      leaves, the remote, the basbousa…), dealt in a shuffled order, one a
+      round.
+    - **The next case is the host's tap** after the reveal (a pause the table
+      uses to laugh at the sketch); anyone once the host is away.
+    - **Leaving**: an artist who leaves before drawing hands it to the next
+      in turn; mid-drawing, the vote opens on what is drawn so far; a witness
+      who leaves before the drawing starts has their round skipped; fewer
+      than three at a round's start ends the game. A latecomer watches and
+      plays the next game.
+    - **The TV is the room's one voice** (the shutter, the file closing, the
+      clock's last seconds, the coins, the stamp, the win); with no TV the
+      host's phone.
   - **مزاد خان الخليلي** (bluffing auction): 8 boxes on the TV (a treasure,
     a scorpion, «اسرق نص فلوس الأول»…), each phone one secret clue about
     the box, a minute of talk, then **a secret bid once** (highest takes
@@ -4172,6 +4211,20 @@ the word search), `countUp` for streaks and scores.
   shows a phone the 980px page; and a laptop's named grid areas leak onto a
   TV frame that shares its class (`grid-area: rail` makes an implicit area).
   A deploy is needed for the rooms server.
+- **29 Sep 2026, الشاهد** - the witness, the first of the five new room
+  games (*The owner's specs*, *الشاهد*): `Witness.js`, `RoomWitness.js`,
+  `JS_RoomWitness.html`, section 56 of `Style.html`, a drawn icon
+  (`art:witness`: a mugshot and a magnifier), look أ «القسم». Rules tests
+  (all pass), the leak check (clean, its probes proved on a scratch build),
+  the robots' round (`--only=witness`, 58 passed on a local server). Looked
+  at in headless Chrome with motion on: four phones (375×812 Arabic light and
+  English dark, 667×375 English, 1280×720 Arabic) and a TV at 1920×1080
+  through four cases to the podium, a reload mid-drawing (back on the
+  drawing with the sketch), Help; no console errors. Found on the way: the
+  witness's own phone kept the case file over the sketch while describing,
+  which pushed the sketch off a phone's screen - the face is gone by then, so
+  the file goes and the sketch takes its place. A deploy is needed for the
+  rooms server.
 
 ## Building and Running
 
@@ -4230,8 +4283,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `Snakes.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Skull.js`, `Battleship.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, and the game files bundled after
-  `RoomGames.js`, `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`, `rooms-worker/src/`, `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `Snakes.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Skull.js`, `Battleship.js`, `Witness.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, and the game files bundled after
+  `RoomGames.js`, `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`, `RoomWitness.js`, `rooms-worker/src/`, `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
@@ -4432,6 +4485,8 @@ is nowhere to hide the key card.
 | `RoomSolve.js` | `solveAction`: one sets, everyone solves - the engine (the order, the boards, the points, the clock, leaving) and its four plug-ins (`SOLVE_KINDS`). Bundled after `RoomGames.js`. |
 | `RoomBumper.js` | `bumperAction`: عربيات التصادم - deals a round (the drivers, their colours, the countdown and the end), takes the TV's scores (`finish`, a screen only), ends on the server's clock with no scores when no screen reports; `bumperRelaying` says when `room.js` passes the controllers' messages on. |
 | `RoomChairs.js` | `chairsAction`: الكراسي الموسيقية - the secret stop and the fake pauses in `room._chairs`, the taps ranked by their stamps inside the provable window, the false start, the 3-second window, the rounds and the wins; `chairsDeadline` / `chairsTimeout`, `chairsPlayerLeft`. Bundled after `RoomGames.js`. |
+| `Witness.js` | الشاهد's faces: a sketch cleaned (`witnessClean`, `witnessFix`), the blank sketch, and the lineup of six look-alikes (`witnessLineup`, `WITNESS_CHANGES`) on خمّن مين's faces: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `witness` / `WITNESS_`. |
+| `RoomWitness.js` | `witnessAction`: الشاهد - the witness's look (the face in `room._witness`, on the witness's slice only while it lasts), the sketch, the vote, the reveal and the points, the clocks (`witnessDeadline` / `witnessTimeout`), leaving (`witnessPlayerLeft`). Bundled last. |
 | `JS_Room.html` | Client engine (WebSocket, reconnect, HTTP fallback) + the generic lobby UI. |
 | `JS_RoomImposter.html`, `JS_RoomCodenames.html`, `JS_RoomGames.html`, `JS_RoomBuzzer.html`, … | Per-game renderers. |
 
@@ -9106,6 +9161,75 @@ and *The TV as the console*). Game id `bumper` everywhere; the page's code is
 - Tests: `rules.mjs` ("Bumper cars": the three ways, early ends, places, ties,
   computer players), `leaks.mjs` (a driver; nothing is hidden), `play-all.mjs`
   (`--only=bumper`: the relay on a live server).
+
+### الشاهد
+
+The owner's rules are in *The owner's specs* (the five new room games). Game
+id `witness` everywhere (`room-witness`, `ROOM_GAMES.witness`,
+`TV_GAMES.witness`, the catalog, the help); the rules are named `witness` /
+`WITNESS_`, the page's code `wit` / `WIT_`, the stylesheet section 56
+(`.wit-*`). Rooms only, 3-12 people, no computer players, the TV optional.
+
+- **`Witness.js`** (shared, no DOM, after `GuessWho.js`, whose faces it
+  uses): `witnessBlank(g)` the sketch to start from, `witnessClean(raw)` any
+  sketch a phone sends made legal (every field one of its choices, then
+  `witnessFix`: what a hijab hides goes, a cap never on a bald head or a bun,
+  glasses or sunglasses, a tie only on a collar, a hijab, cap or scarf never
+  the shirt's colour), `witnessLineup(rnd)` → `{ faces, real }`: a real face
+  (`gwRandomFace`) and five `witnessAlike` copies, each one to three
+  `WITNESS_CHANGES` away, one gender, distinct `gwSignature` and names.
+- **`RoomWitness.js`** (bundled last): `shared` holds `roster`, `order` (the
+  witnesses in turn, shuffled), `turn`, `round`, `rounds` (one each),
+  `crimes` / `crime`, `phase` ('ready' → 'look' → 'draw' → 'vote' → 'reveal'
+  → … → 'gameover'), `witnessId`, `artistId`, `lookEndsAt`, `drawEndsAt`,
+  `sketch` and `sketchN`, `lineup` (published at the vote, `realIdx` only at
+  the reveal), `jury`, `voteEndsAt`, `picks` (each juror's pick, published at
+  the reveal), `right`, `gained`, `scores`, `history`, `skipped` and `board`.
+  `room._witness = { lineup, real }`, never projected; the witness's slice is
+  `{ face }` during the look only. Moves: `start` / `playAgain` (the host),
+  `ready`, `sketch { round, n, face }`, `done { round, face }`, `vote {
+  round, option }` ('s1'..'s6'), and the move-on actions `closeDraw`,
+  `closeVote`, `skipTurn` (a quiet witness), `nextRound`; each carries
+  `round` (`staleTap`). Points at the reveal: a juror right +1, the witness
+  and the artist +1 each for every juror right.
+- **`JS_RoomWitness.html`** (look أ «القسم»): the police-station head (the
+  station, the case count, the clock), the roles as chips, the manila case
+  file (`witFolderHtml`: the crime, a Polaroid of the face on the witness's
+  phone only, the countdown ring `witRingHtml` painted from the server's time,
+  then the Polaroid turning over), the mugshot against height lines
+  (`witMugHtml`, the sketch with «المشتبه فيه · رسم …»), **the builder**
+  (`WIT_CATS`, `witBuilderHtml`: category tabs - man or woman, skin, hair and
+  its colour, a cap or hijab, glasses, eyes, brows, a beard, the mouth,
+  marks, extras, a scarf, the top, a tie, the shirt's colour and pattern -
+  and big option buttons; a pick redraws the mugshot in place and sends the
+  sketch, `witPick`), the lineup (`witLineupHtml`: six suspects against the
+  height wall, numbered plates, a tap votes on a juror's phone, the coins
+  with each juror's initial landing under the suspects at the reveal, a
+  spotlight and the «هو ده!» stamp on the real one), the sketch beside the
+  real face (`witCompareHtml`), the verdict and the points gained, and the
+  podium at the end. The artist's phone is the builder; the witness's the
+  case file, then the sketch growing and the hint chips («الشعر؟»…); the
+  jury watch the sketch. The TV draws the case file and the sketch big, then
+  the lineup, the coins and the spotlight. `roomTurnOf` asks the witness to
+  tap and the artist to draw.
+- **Motion**: the Polaroid flips, the lineup rises one suspect at a time,
+  the coins drop one by one, the spotlight comes on and the stamp slams, the
+  points count up; the sounds (`witSound`: a shutter, the file closing, the
+  last seconds' ticks, the coins, the stamp) on the room's one voice
+  (`witVoice`). A reload or a latecomer replays nothing (`motionFirst`,
+  `witOnce` keyed on the round).
+- **Layout** (section 56): upright one column; a phone on its side and from
+  900 px the case file beside the message, the mugshot beside the builder
+  (as tall as the play area on a phone's side), the lineup six across, the
+  reveal's lineup beside the comparison. The TV: the head, then the stage.
+- Tests: `rules.mjs` ("The witness": lineups, the clean, a whole game with
+  its points, stale taps, the clocks, leaving in each phase), `leaks.mjs`
+  (`PROBES.witness`: the real face on the witness's phone only during the
+  look, and the real index, the picks and the face on no phone before the
+  reveal - proved by leaking each in a scratch build; `DRIVERS.witness`: five
+  people, a skipped round, the clocks, the host's close, a leaver),
+  `play-all.mjs` (`--only=witness`: four phones and a TV to the podium, and
+  play again).
 
 ### Switching a game off for a fix
 

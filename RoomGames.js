@@ -110,7 +110,7 @@ const clearGameState = (room) => {
   room._chairs = null;   // الكراسي الموسيقية: the stop moment and the fake pauses (RoomChairs.js)
   room._witness = null;  // الشاهد: the real face and its place in the lineup (RoomWitness.js)
   room._wire = null;     // سلك مقطوع: the panels, the controls' states, what is broken (RoomWire.js); the room's best (_wireBest) stays
-  room._box = null;      // افتح يا صندوق: the eight boxes, the clues, the bids, a key's peek (RoomBox.js)
+  room._box = null;      // المزاد: the eight boxes, the clues, the bids, a key's peek (RoomBox.js)
   room._dark = null;     // الأوضة المضلمة: the map's seed and the near misses (RoomDark.js)
   room.screenOnly = null; // the screen's own slice (src/view.js): الأوضة المضلمة's map for the TV
   // The engine's secret and boards (RoomSolve.js).
@@ -180,7 +180,7 @@ const ROOM_GAME_IDS = [
   'chess4',
   // الشاهد (RoomWitness.js): a face seen 8 seconds, a sketch from the description, a lineup vote.
   'witness',
-  // افتح يا صندوق (RoomBox.js): a secret clue each, a minute of talk, one secret bid, the box opens.
+  // المزاد (RoomBox.js): a secret clue each, a minute of talk, one secret bid, the box opens.
   'box',
   // الأوضة المضلمة (RoomDark.js): one walks blind, the rest guide with the map under a lens.
   'darkroom'

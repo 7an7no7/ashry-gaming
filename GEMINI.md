@@ -85,10 +85,10 @@
 - **Rooms only, a deduction game:** **The Witness (الشاهد):** one sees a
   face for 8 seconds and describes it, the next builds it on a face builder,
   the rest pick the real one from a lineup of six look-alikes (*الشاهد*).
-- **Rooms only, a bluffing auction:** **Open the Box (افتح يا صندوق):** a
+- **Rooms only, a bluffing auction:** **The Auction (المزاد):** a
   game-show studio, eight boxes one at a time, a true secret clue on every
   phone, a minute of talk (and lies), one secret bid each; the highest takes
-  the box, pays, and it opens in front of everyone (*افتح يا صندوق*).
+  the box, pays, and it opens in front of everyone (*المزاد*).
 - **Rooms only, a party game:** 🪑 **Musical chairs (الكراسي الموسيقية):**
   every phone is a player, the music stops at a secret moment, the fastest
   taps get the chairs, one out a round (*الكراسي الموسيقية*).
@@ -394,16 +394,16 @@ work changed. Add to it when a decision is made or a batch ships.
     - **The TV is the room's one voice** (the shutter, the file closing, the
       clock's last seconds, the coins, the stamp, the win); with no TV the
       host's phone.
-  - **افتح يا صندوق** (bluffing auction; first called «مزاد خان الخليلي»):
+  - **المزاد** (bluffing auction; first called «مزاد خان الخليلي»):
     8 boxes on the TV (a treasure,
     a scorpion, «اسرق نص فلوس الأول»…), each phone one secret clue about
     the box, a minute of talk, then **a secret bid once** (highest takes
     it and pays), the box opens slowly. **Clues always true; lies come from
     people only.** **No computer players.** **8 boxes, 3-8 players.** The
     most money at the end wins.
-    **The name: «افتح يا صندوق»** (the studio's name, the owner's go-ahead
-    on the recommendation, 29 Sep 2026; «مزاد خان الخليلي» went with the
-    old place).
+    **The name: «المزاد» / "The Auction"** (the owner, 29 Sep 2026, after it
+    was built as «افتح يا صندوق», the studio's name; «مزاد خان الخليلي» went
+    with the old place; the host's drumroll still shouts «افتح يا صندوق!»).
     **The look: أ «استوديو الصندوق»** (the owner, 29 Sep 2026, from a second
     sheet, https://claude.ai/artifact/NUru7oBeMjHrECDpiXCynv - the first,
     Khan el-Khalili, was rejected: ordinary drawing, a dull opening, a
@@ -414,7 +414,7 @@ work changed. Add to it when a decision is made or a batch ships.
     fountain, or a funny scorpion in a bow tie and top hat scattering the
     winner's coins); the phone one step at a time (the clue, held to read;
     the bid, one big number with +/− and chips; waiting).
-    **Built 29 Sep 2026** (*افتح يا صندوق*); decided while building (open to
+    **Built 29 Sep 2026** (*المزاد*); decided while building (open to
     change, each in one place):
     - **Everyone starts with 1,000 ج** (`BOX_START_MONEY`, play money).
     - **The eight boxes** (`boxDeal`): three treasures of 300-800 (in
@@ -4407,8 +4407,8 @@ the word search), `countUp` for streaks and scores.
   of five in 11 s, so the damage a level takes grows with the table. The
   page is 1616 KB compressed with it, over the 1600 KB budget: raising the
   budget is the owner's call. A deploy is needed for the rooms server.
-- **29 Sep 2026, افتح يا صندوق** - the bluffing auction, the second of the
-  five new room games (*The owner's specs*, *افتح يا صندوق*): `RoomBox.js`,
+- **29 Sep 2026, المزاد** - the bluffing auction, the second of the
+  five new room games (*The owner's specs*, *المزاد*): `RoomBox.js`,
   `JS_RoomBox.html`, section 59 of `Style.html`, a drawn icon (`art:box`: the
   red box with its gold bow), look أ «استوديو الصندوق». Rules tests (every
   clue true over 150 dealt games, the bids, ties, every effect, paying, the
@@ -4705,7 +4705,7 @@ is nowhere to hide the key card.
 | `Wire.js`, `RoomWire.js` | سلك مقطوع: the three places' controls, the levels and the order text (shared), and `wireAction` - the panels and values in `room._wire`, the orders, the damage and the clock, the surprises, `wireDeadline` / `wireTimeout`, `wirePlayerLeft`. `RoomWire.js` is bundled last. |
 | `RoomChairs.js` | `chairsAction`: الكراسي الموسيقية - the secret stop and the fake pauses in `room._chairs`, the taps ranked by their stamps inside the provable window, the false start, the 3-second window, the rounds and the wins; `chairsDeadline` / `chairsTimeout`, `chairsPlayerLeft`. Bundled after `RoomGames.js`. |
 | `Witness.js` | الشاهد's faces: a sketch cleaned (`witnessClean`, `witnessFix`), the blank sketch, and the lineup of six look-alikes (`witnessLineup`, `WITNESS_CHANGES`) on خمّن مين's faces: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `witness` / `WITNESS_`. |
-| `RoomBox.js` | `boxAction`: افتح يا صندوق - the deck, the true clues (`boxClueCandidates`, `boxClueTrue`), the secret bids in `room._box`, the opening and every box's effect (`boxOpen`), the clocks (`boxDeadline` / `boxTimeout`), leaving (`boxPlayerLeft`). Bundled after `RoomWitness.js`. |
+| `RoomBox.js` | `boxAction`: المزاد - the deck, the true clues (`boxClueCandidates`, `boxClueTrue`), the secret bids in `room._box`, the opening and every box's effect (`boxOpen`), the clocks (`boxDeadline` / `boxTimeout`), leaving (`boxPlayerLeft`). Bundled after `RoomWitness.js`. |
 | `RoomWitness.js` | `witnessAction`: الشاهد - the witness's look (the face in `room._witness`, on the witness's slice only while it lasts), the sketch, the vote, the reveal and the points, the clocks (`witnessDeadline` / `witnessTimeout`), leaving (`witnessPlayerLeft`). Bundled last. |
 | `Dark.js` | الأوضة المضلمة's maps from a seed (`darkMap`: rooms, doors, furniture, traps, checked walkable by `darkSolve`), the moving traps on the tick clock, the walls and the echo, the joystick's walk (`darkAdvance`), the lens size: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `dark` / `DARK_`. |
 | `RoomDark.js` | `darkAction`: الأوضة المضلمة - the seed in `room._dark`, the mover's steps or stick, traps, the levels and the hearts, the slices (`darkSync`: the guides and `room.screenOnly` the seed, the mover the echo), the clock (`darkDeadline` / `darkTimeout`), leaving (`darkPlayerLeft`), and `darkRelaying` for the lens relay. Bundled last. |
@@ -9524,7 +9524,7 @@ id `witness` everywhere (`room-witness`, `ROOM_GAMES.witness`,
   `play-all.mjs` (`--only=witness`: four phones and a TV to the podium, and
   play again).
 
-### افتح يا صندوق
+### المزاد
 
 The owner's rules are in *The owner's specs* (the five new room games). Game
 id `box` everywhere (`room-box`, `ROOM_GAMES.box`, `TV_GAMES.box`, the

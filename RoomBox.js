@@ -1,5 +1,5 @@
 /* ============================================================================
-   افتح يا صندوق — THE BLUFFING AUCTION (rooms), the owner's rules of 29 Sep 2026
+   المزاد — THE BLUFFING AUCTION (rooms), the owner's rules of 29 Sep 2026
    ----------------------------------------------------------------------------
    Eight boxes, one at a time. Each box hides one thing (a treasure, a scorpion,
    a bill, a thief's mask, a coin for double-or-nothing, a key, or nothing at

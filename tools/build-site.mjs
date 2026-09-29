@@ -158,7 +158,7 @@ if (process.env.MINIFY !== '0') {
    can't creep back up a game at a time. Raise it on purpose, not by accident. */
 {
   const { gzipSync } = await import('node:zlib');
-  const BUDGET_KB = 1600;
+  const BUDGET_KB = 1750;
   const kb = Math.round(gzipSync(Buffer.from(html, 'utf8'), { level: 9 }).length / 1024);
   console.log(`first visit: ${kb} KB compressed (budget ${BUDGET_KB} KB)`);
   if (kb > BUDGET_KB && process.env.MINIFY !== '0') throw new Error(`the page is ${kb} KB compressed, over the ${BUDGET_KB} KB budget`);

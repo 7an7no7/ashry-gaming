@@ -6253,7 +6253,7 @@ plan, Phase 2, 25 Sep 2026). `build-site.mjs` runs every inline script and
 style through esbuild (`transform`: whitespace and syntax, **names kept** -
 every script shares one scope and the markup calls functions by name), drops
 HTML comments and indentation, and fails the build when the page is over
-`BUDGET_KB` (1,600 KB gzipped; 1,347 at the start). A script that parses as
+`BUDGET_KB` (1,750 KB gzipped since 29 Sep 2026, raised on purpose for the five new room games - الشاهد took the page to 1,609; 1,600 before, 1,347 at the start; loading a game's code only when it opens is the way to win room back). A script that parses as
 ES5 is kept ES5 (it tries `target: 'es5'` first), so the browser gate still
 runs where nothing else does; everything else stays within ES2017, the page's
 floor. `charset: 'utf8'` matters: without it esbuild writes every Arabic

@@ -154,6 +154,90 @@ work changed. Add to it when a decision is made or a batch ships.
 
 ### The owner's specs, as built
 
+- **Five new room games, not built yet** - the owner, 29 Sep 2026, from six
+  ideas another AI suggested, reworked our way (`notes/new-game-ideas.pdf`,
+  the Arabic sheet the owner decided from). Build all five; الجاسوس الأبكم
+  was declined as a game (it repeats الجاسوس / المختلف / الحرباء; its
+  "glitch" may become a switch in كلمة واحدة later). Every rule asked; the
+  looks are still to be picked from design sheets. Each is its own card.
+  - **سلك مقطوع** (co-op panic, like Spaceteam): each phone a panel of 4-6
+    controls with funny names; each phone gets an order with a draining bar,
+    usually for a control on someone else's panel, so it is shouted across
+    the table. **Three places, the host picks in the lobby** (or random): the
+    microbus broken down on the desert road, the kitchen an hour before the
+    guests, the wedding with the power cut. **Levels that get harder until
+    you lose** (a room's best). **A level is lost by both**: a damage bar
+    (every missed order) and a clock, whichever runs out first. **3-8
+    players.** **The TV's alarms loud and a bit tense.** **Without a TV it
+    plays** (every phone shows damage and time, the host's phone the sound).
+    **Surprises, all three, with a lobby switch to turn them off**: panels
+    change every level, a control breaks suddenly (flipped / covered in
+    smoke, wipe it), an order for everyone at once («الكل يهز الموبايل!»).
+    **The look: each place its own layout** (the owner, 29 Sep 2026, from
+    the sheet https://claude.ai/artifact/ME7L215iH5B9J1XfBK4mJ5): the
+    microbus is «تابلوه الميكروباص» (a dashboard, the order on an LED screen
+    with a segment timer, metal plates in a grid; the TV's road is the
+    progress, the engine temperature the damage), the kitchen «ورقة ماما على
+    التلاجة» (the order a note with a burning fuse amid the controls; the TV
+    split, the kitchen and a column of every phone's order; plates filling
+    the table, rising smoke), the wedding «عم الفرح والمكسر» (the uncle shouts
+    the order, a ring timer round his face that angers, a DJ mixer's faders;
+    the stage lights coming on, the guests' faces falling).
+  - **الأوضة المضلمة** (blind co-op maze), **its own card** (the owner chose
+    it over a level inside سلك مقطوع): the TV shows a maze from above; one
+    player moves with arrows on a black screen, every other phone sees a
+    piece of the map, and they talk the mover through. **Two stories, a
+    lobby choice**: the power cut at home (the kid to the fridge: toys on
+    the floor, the cat, grandpa asleep) or a pharaoh's tomb (a torch,
+    traps, cartoon mummies). **Movement, a lobby choice**: a step per tap on
+    an arrow (squares) or continuous with a joystick. **A trap: back to the
+    start and a heart lost** (3 hearts for the team). **Levels that get
+    harder** (bigger maze, moving traps), **the mover changes each level**.
+    **2-8 players** (two: one blind, one sees the whole map), **no TV
+    needed**.
+  - **بالظبط ٣!** (reflex sync): an order for all at once after a countdown
+    («بالظبط ٣ منكم يدوسوا!», in order, «محدش يدوس», all at the same
+    instant, the pulse in sequence). **Lives are the table's** (co-op, a
+    room's best). **A wrong count: the table loses a life and the screen
+    shows who was extra** (laughing, not shaming). **Only orders the phone
+    can judge** (no battery - iPhone can't read it - no "wearing red" or
+    "the youngest"). **Until the lives run out, getting harder.** **3-12
+    players, no TV needed.** Taps judged by the phones' stamps of the
+    server's time, as الكراسي الموسيقية.
+    **The look: أ «إيد على الترابيزة», improved** (the owner, 29 Sep 2026,
+    from https://claude.ai/artifact/HyhEyTCYt2fBCYiHJh9UoU): a wooden table
+    from above with a seat each, the order a paper card in the middle, the
+    phone a pad you put your hand on; the reveal slams cartoon hands down in
+    the order pressed. The owner's additions: **the extra hand gets a slap**
+    (the others slap it lightly and it pulls back - laughing, not shaming);
+    **the table fills as you win** (each level puts something on it: tea,
+    foul, kahk) **and the lives are tea glasses that spill**; **in «محدش
+    يدوس» the hands hover and tremble over the table**, and a hand that
+    presses gets stung. (A photo-finish replay and each player's own hand
+    were offered and not chosen.) Build straight away, no second sheet.
+  - **الشاهد** (the witness), **its own card**, with خمّن مين's faces: the
+    witness sees a face 8 s, the sketch artist builds it on a face builder
+    from what the witness says; the table then votes on a lineup. **The
+    witness describes in their own words** (no yes/no limit). **8 seconds,
+    6 faces in the lineup**, very alike. **The jury hears the witness too**
+    (all in one room; the difficulty is memory and a close lineup). **90 s
+    to draw, the artist can finish early.** **Points: the jury a point for
+    right, the witness and the artist a point for each juror right.** **One
+    round each as witness** (the artist the next in turn). **3-12 players,
+    no TV needed.** The crime is a family joke (who ate the last kunafa).
+    **The look: أ «القسم»** (the owner, 29 Sep 2026, from
+    https://claude.ai/artifact/7NmAM8cFDs2ubDVmCDd49n): the police station -
+    the artist's builder with category tabs and big option buttons, the
+    witness's case file with a Polaroid and a countdown ring, the TV's
+    lineup against a height-line wall, votes landing as initialled coins
+    under each suspect, a spotlight and «هو ده!» on the real one.
+  - **مزاد خان الخليلي** (bluffing auction): 8 boxes on the TV (a treasure,
+    a scorpion, «اسرق نص فلوس الأول»…), each phone one secret clue about
+    the box, a minute of talk, then **a secret bid once** (highest takes
+    it and pays), the box opens slowly. **Clues always true; lies come from
+    people only.** **No computer players.** **8 boxes, 3-8 players.** The
+    most money at the end wins.
+
 - **The slow-load scenes** - the owner's decisions of 28 Sep 2026, from a
   design sheet of six scenes (*The design system*, "The intro"):
   - **Up to 2.5 s nothing changes**: today's intro exactly; a page ready

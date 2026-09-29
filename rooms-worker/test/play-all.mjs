@@ -868,6 +868,14 @@ async function snakesRobots() {
   // Play a while: people roll once the table is ready, the computer player rolls on its own, a quiet one is rolled for by the clock.
   const quiet = K.pid;
   let rolled = 0, early = 0;
+  // The server's readyAt on this PC's clock, as the page reads it (snkReadyLocal): the smallest
+  // gap seen between a state's arrival and the server's time as it was sent. The PC's clock may be
+  // seconds off Cloudflare's (it was 8 s behind on 29 Sep 2026, and the robot rolled 8 s late).
+  let gap = Infinity;
+  const readyLocal = (s) => {
+    people.forEach((p) => { const st = p.state; if (st && typeof st.serverNow === 'number' && typeof st.receivedAt === 'number') gap = Math.min(gap, st.receivedAt - st.serverNow); });
+    return (s.readyAt || 0) + (isFinite(gap) ? gap : 0);
+  };
   const t0 = Date.now();
   while (Date.now() - t0 < 60000) {
     const s = sS(H);
@@ -875,14 +883,16 @@ async function snakesRobots() {
     const up = s.turn.pid;
     const who = people.find((p) => p.pid === up);
     if (who && up !== quiet) {
-      if (Date.now() < s.readyAt - 1500) {
+      if (Date.now() < readyLocal(s) - 1500) {
         const seq = s.turnSeq;
         await who.act('roll', { seq: seq });
         if (sS(H).turnSeq === seq) early++;
       }
-      await sleep(Math.max(0, s.readyAt - Date.now()) + 60);
-      const res = await who.act('roll', { seq: s.turnSeq });
-      if (res.ok) rolled++;
+      await sleep(Math.max(0, readyLocal(s) - Date.now()) + 60);
+      const seq = s.turnSeq;
+      const res = await who.act('roll', { seq: seq });
+      // Counted only when the server really played it (a roll raises turnSeq); a dropped tap is acked ok too.
+      if (res.ok && res.state && res.state.shared && res.state.shared.turnSeq !== seq) rolled++;
     }
     await sleep(300);
     if (rolled >= 3 && sS(H).events.some((e) => e.type === 'auto' && e.why === 'clock') && sS(H).events.some((e) => e.type === 'roll' && e.pid === bot)) break;

@@ -3907,11 +3907,12 @@ Date.now = duelTestClock;
   }
 }
 
-/* --- خمّن مين: the faces, the questions, winner stays on ------------------------ */
+/* --- خمّن مين: the faces, no list, nothing automatic, winner stays on ------------ */
 {
   const GW = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') +
-    '\nreturn { gwDealBoard, gwSignature, gwAnswer, gwRuledOut, gwBotQuestion, gwUp, GW_QUESTIONS, GW_NAMES, gwName };')();
-  let distinct = true, sized = true, named = true, capsOk = true;
+    '\nreturn { gwDealBoard, gwSignature, gwUp, GW_NAMES, GW_COLOURS, gwName };')();
+  let distinct = true, sized = true, named = true, capsOk = true, hijabOk = true, clothesOk = true, rich = true;
+  const seen = {};
   for (const n of [16, 24, 30]) {
     for (let k = 0; k < 40; k++) {
       const faces = GW.gwDealBoard(n);
@@ -3919,34 +3920,36 @@ Date.now = duelTestClock;
       if (new Set(faces.map(GW.gwSignature)).size !== n) distinct = false;
       const names = faces.map((f) => f.g + f.name);
       if (new Set(names).size !== n || faces.some((f) => !GW.gwName(f, 'ar') || !GW.gwName(f, 'en'))) named = false;
-      if (faces.some((f) => f.hat && (f.style === 'bald' || f.style === 'bun'))) capsOk = false;
+      faces.forEach((f) => {
+        if (f.cap !== null && (f.style === 'bald' || f.style === 'bun' || f.hijab !== null || f.phones)) capsOk = false;
+        if (f.hijab !== null && (f.g !== 'f' || f.ear || f.scarf !== null || f.necklace || f.tie || f.top === 'collar')) hijabOk = false;
+        if (f.glasses && f.sun) clothesOk = false;
+        if (f.tie && f.top !== 'collar') clothesOk = false;
+        if ([f.hijab, f.cap, f.scarf].indexOf(f.shirt) !== -1) clothesOk = false;
+        if (!(f.shirt >= 0 && f.shirt < GW.GW_COLOURS.length)) clothesOk = false;
+        ['hijab', 'sun', 'glasses', 'phones', 'ear', 'necklace', 'freckles', 'rosy', 'mole', 'wrinkles', 'beard', 'mous'].forEach((key) => {
+          if (f[key] !== null && f[key] !== false) seen[key] = (seen[key] || 0) + 1;
+        });
+        seen['m:' + f.mouth] = (seen['m:' + f.mouth] || 0) + 1;
+        seen['t:' + f.top] = (seen['t:' + f.top] || 0) + 1;
+        seen['p:' + f.pattern] = (seen['p:' + f.pattern] || 0) + 1;
+        seen['s:' + f.style] = (seen['s:' + f.style] || 0) + 1;
+        if (f.cap !== null) seen.cap = (seen.cap || 0) + 1;
+        if (f.scarf !== null) seen.scarf = (seen.scarf || 0) + 1;
+        if (f.tie) seen['tie:' + f.tie] = (seen['tie:' + f.tie] || 0) + 1;
+      });
     }
   }
-  check(sized && distinct, 'guesswho: a board is 16, 24 or 30 faces, and the list can tell every two of them apart');
+  const wanted = ['hijab', 'sun', 'glasses', 'phones', 'ear', 'necklace', 'freckles', 'rosy', 'mole', 'wrinkles', 'beard', 'mous', 'cap', 'scarf',
+    'm:smile', 'm:laugh', 'm:serious', 't:tee', 't:hoodie', 't:collar', 'p:plain', 'p:stripes', 'p:dots', 'tie:tie', 'tie:bow',
+    's:short', 's:curly', 's:spiky', 's:bald', 's:long', 's:bun', 's:ponytail', 's:braids'];
+  wanted.forEach((w) => { if (!(seen[w] > 20)) rich = false; });
+  check(sized && distinct, 'guesswho: a board is 16, 24 or 30 faces, no two looking the same');
   check(named, 'guesswho: every face has its own name, in Arabic and English');
-  check(capsOk, 'guesswho: no cap on a bald head or a bun, where it would hide an answer');
-  const bald = { g: 'm', style: 'bald', hair: 'black', eyes: 'blue' };
-  const qi = (id) => GW.GW_QUESTIONS.findIndex((q) => q.id === id);
-  check(!GW.gwAnswer(qi('black'), bald) && GW.gwAnswer(qi('bald'), bald) && GW.gwAnswer(qi('eyeblue'), bald),
-    'guesswho: a bald head has no hair colour, and the other answers are plain');
-
-  // The computer's questions narrow any board down to one face.
-  let narrows = true;
-  for (let k = 0; k < 60; k++) {
-    const faces = GW.gwDealBoard(30);
-    const secret = Math.floor(Math.random() * 30);
-    let down = [];
-    const asked = [];
-    for (let step = 0; step < 40 && GW.gwUp(faces, down).length > 1; step++) {
-      const q = GW.gwBotQuestion(faces, down, asked, k % 2 ? 'hard' : 'easy');
-      if (q < 0) break;
-      asked.push(q);
-      down = down.concat(GW.gwRuledOut(faces, down, q, GW.gwAnswer(q, faces[secret])));
-    }
-    const left = GW.gwUp(faces, down);
-    if (left.length !== 1 || left[0] !== secret) narrows = false;
-  }
-  check(narrows, 'guesswho: asking from the list always narrows a board down to the secret face');
+  check(capsOk, 'guesswho: no cap on a bald head, a bun, a hijab or with headphones');
+  check(hijabOk, 'guesswho: a hijab only on a woman, never with what it would hide (earrings, a scarf, a collar, a tie, a necklace)');
+  check(clothesOk, 'guesswho: glasses or sunglasses, a tie only on a collar, and nothing in the shirt\'s own colour');
+  check(rich, 'guesswho: every feature the owner asked for turns up on the boards');
 
   const gw = (ids, payload) => {
     const r = newRoom(ids);
@@ -3960,46 +3963,44 @@ Date.now = duelTestClock;
   let r = gw(['a', 'b', 'c'], {});
   let s = r.shared;
   check(s.phase === 'play' && s.seats.length === 2 && s.line.length === 1 && s.faces.length === 24 && s.stage === 'ask' &&
-    s.settings.autoFlip === false && s.settings.wrong === 'lose' && s.settings.pick === 'random',
+    s.settings.wrong === 'lose' && s.settings.pick === 'random' && s.settings.autoFlip === undefined,
     'guesswho: two sit down, one waits, 24 faces, and the defaults are the owner\'s');
   const [p0, p1] = s.seats;
   const watcher = s.line[0];
   check(r.secrets[p0].face === r._gw.secret[0] && r.secrets[p1].face === r._gw.secret[1] && !r.secrets[watcher] &&
     JSON.stringify(s).indexOf('secret') === -1,
     'guesswho: each seated phone holds its own face, the watcher none, and the table neither');
-  check(refused(() => applyRoomAction(r, watcher, 'ask', { q: 0, seq: s.turnSeq })), 'guesswho: someone in the line cannot ask');
-  check(refused(() => applyRoomAction(r, p1, 'ask', { q: 0, seq: s.turnSeq })), 'guesswho: nor the player whose turn it is not');
-  // A list question waits for the other player (the owner, 23 Sep 2026), who can only answer it truthfully.
-  let q = GW.gwBotQuestion(s.faces, s.down[0], [], 'hard');
-  const truth = GW.gwAnswer(q, s.faces[r._gw.secret[1]]);
+  // There is no list (the owner, 29 Sep 2026).
+  check(refused(() => applyRoomAction(r, p0, 'ask', { q: 0, seq: s.turnSeq })) && s.stage === 'ask',
+    'guesswho: there is no question from a list');
+  check(refused(() => applyRoomAction(r, watcher, 'loud', { seq: s.turnSeq })), 'guesswho: someone in the line cannot ask');
+  check(refused(() => applyRoomAction(r, p1, 'loud', { seq: s.turnSeq })), 'guesswho: nor the player whose turn it is not');
+  // Out loud: the other answers, taken as given; the asker flips by hand and ends the turn.
   const seq = s.turnSeq;
-  applyRoomAction(r, p0, 'ask', { q, seq });
-  check(s.stage === 'answer' && s.q.kind === 'list' && s.q.answer === null && s.log.length === 0 && s.turn === 0,
-    'guesswho: a list question waits for the other player\'s answer, and the table doesn\'t know it yet');
-  applyRoomAction(r, p0, 'ask', { q, seq });
-  check(s.stage === 'answer' && s.asked[0].length === 1, 'guesswho: the same tap again, drawn for the last step, is dropped');
-  check(refused(() => applyRoomAction(r, p0, 'answer', { yes: truth, seq: s.turnSeq })), 'guesswho: the asker can\'t answer their own list question');
-  check(refused(() => applyRoomAction(r, p1, 'answer', { yes: !truth, seq: s.turnSeq })) && s.stage === 'answer',
-    'guesswho: a wrong answer to a list question is refused ("look again"), and the question still waits');
-  applyRoomAction(r, p1, 'answer', { yes: truth, seq: s.turnSeq });
-  check(s.stage === 'flip' && s.turn === 0 && s.q.answer === truth && s.down[0].length === 0 && s.log.length === 1 && s.log[0].answer === truth,
-    'guesswho: the true answer comes back, and by default nothing falls: the asker flips by hand');
+  applyRoomAction(r, p0, 'loud', { seq });
+  check(s.stage === 'answer' && s.q.kind === 'loud' && s.q.answer === null && s.log.length === 0 && s.turn === 0,
+    'guesswho: an out-loud question waits for the other player');
+  applyRoomAction(r, p0, 'loud', { seq });
+  check(s.stage === 'answer', 'guesswho: the same tap again, drawn for the last step, is dropped');
+  check(refused(() => applyRoomAction(r, p0, 'answer', { yes: true, seq: s.turnSeq })), 'guesswho: the asker can\'t answer their own question');
+  applyRoomAction(r, p1, 'answer', { yes: false, seq: s.turnSeq });
+  check(s.stage === 'flip' && s.q.answer === false && s.down[0].length === 0 && s.log.length === 1 && s.log[0].kind === 'loud',
+    'guesswho: any answer is taken as given, and nothing falls by itself: the asker flips by hand');
+  applyRoomAction(r, p0, 'flip', { face: 3, down: true });
+  applyRoomAction(r, p0, 'flip', { face: 3, down: true });
+  applyRoomAction(r, p0, 'flip', { face: 5, down: true });
+  applyRoomAction(r, p0, 'flip', { face: 5, down: false });
+  check(JSON.stringify(s.down[0]) === '[3]', 'guesswho: a face is put down and back up by hand, and a double tap is one flip');
   applyRoomAction(r, p0, 'done', { seq: s.turnSeq });
   check(s.turn === 1 && s.stage === 'ask', 'guesswho: "done" passes the turn');
-  // Out loud: the other answers, the asker flips by hand and ends the turn.
-  applyRoomAction(r, p1, 'loud', { seq: s.turnSeq });
-  check(s.stage === 'answer' && s.q.kind === 'loud', 'guesswho: an out-loud question waits for the other player');
-  check(refused(() => applyRoomAction(r, p1, 'answer', { yes: true, seq: s.turnSeq })), 'guesswho: the asker can\'t answer their own question');
-  applyRoomAction(r, p0, 'answer', { yes: false, seq: s.turnSeq });
-  check(s.stage === 'flip' && s.q.answer === false && s.down[1].length === 0, 'guesswho: after an out-loud answer nothing falls by itself');
-  applyRoomAction(r, p1, 'flip', { face: 3, down: true });
-  applyRoomAction(r, p1, 'flip', { face: 3, down: true });
-  applyRoomAction(r, p1, 'flip', { face: 5, down: true });
-  applyRoomAction(r, p1, 'flip', { face: 5, down: false });
-  check(JSON.stringify(s.down[1]) === '[3]', 'guesswho: a face is put down and back up by hand, and a double tap is one flip');
+  // Typed: cleaned to one line, answered as given, logged with its text.
+  applyRoomAction(r, p1, 'typed', { text: '  لابسة\n طرحة؟ ', seq: s.turnSeq });
+  check(s.stage === 'answer' && s.q.kind === 'typed' && s.q.text === 'لابسة طرحة؟', 'guesswho: a typed question is cleaned to one line and waits for the other');
+  applyRoomAction(r, p0, 'answer', { yes: true, seq: s.turnSeq });
+  check(s.stage === 'flip' && s.q.answer === true && s.log[s.log.length - 1].kind === 'typed' && s.log[s.log.length - 1].text === 'لابسة طرحة؟',
+    'guesswho: a typed answer is taken as given and logged with its text');
   applyRoomAction(r, p1, 'done', { seq: s.turnSeq });
-  check(s.turn === 0 && s.stage === 'ask', 'guesswho: "done" ends the turn');
-  check(refused(() => applyRoomAction(r, p0, 'ask', { q, seq: s.turnSeq })), 'guesswho: a list question can\'t be asked twice');
+  check(refused(() => applyRoomAction(r, p0, 'typed', { text: '   ', seq: s.turnSeq })), 'guesswho: an empty typed question is refused');
   // A wrong guess loses the game (the default).
   const wrongFace = up(r, 0).find((i) => i !== r._gw.secret[1]);
   applyRoomAction(r, p0, 'guess', { face: wrongFace, seq: s.turnSeq });
@@ -4012,52 +4013,30 @@ Date.now = duelTestClock;
   check(s.phase === 'play' && s.seats[0] === watcher && s.seats[1] === p1 && s.down[0].length === 0 &&
     !!r.secrets[watcher] && !r.secrets[p0],
     'guesswho: the next in line sits down against the winner, moves first, and a new board is dealt');
-  // A right guess wins.
   applyRoomAction(r, watcher, 'guess', { face: r._gw.secret[1], seq: s.turnSeq });
   check(s.phase === 'over' && s.result.winnerId === watcher && s.result.reason === 'guess', 'guesswho: naming the face wins');
 
-  // A wrong guess losing only the turn; faces flipped by hand after a list question.
-  r = gw(['a', 'b'], { wrong: 'turn', autoFlip: false, size: 16 });
+  // A wrong guess losing only the turn.
+  r = gw(['a', 'b'], { wrong: 'turn', size: 16 });
   s = r.shared;
-  check(s.faces.length === 16 && s.settings.wrong === 'turn' && s.settings.autoFlip === false, 'guesswho: the host\'s switches are kept');
-  const w0 = s.seats[0];
+  check(s.faces.length === 16 && s.settings.wrong === 'turn', 'guesswho: the host\'s switches are kept');
   const miss = GW.gwUp(s.faces, []).find((i) => i !== r._gw.secret[1]);
-  applyRoomAction(r, w0, 'guess', { face: miss, seq: s.turnSeq });
+  applyRoomAction(r, s.seats[0], 'guess', { face: miss, seq: s.turnSeq });
   check(s.phase === 'play' && s.turn === 1 && s.down[0].indexOf(miss) !== -1, 'guesswho: with the switch, a wrong guess puts that face down and passes the turn');
-  q = GW.gwBotQuestion(s.faces, s.down[1], [], 'hard');
-  applyRoomAction(r, s.seats[1], 'ask', { q, seq: s.turnSeq });
-  applyRoomAction(r, s.seats[0], 'answer', { yes: GW.gwAnswer(q, s.faces[r._gw.secret[0]]), seq: s.turnSeq });
-  check(s.stage === 'flip' && s.down[1].length === 0 && typeof s.q.answer === 'boolean', 'guesswho: with app flipping off, a list answer waits for the hand');
-  applyRoomAction(r, s.seats[1], 'done', { seq: s.turnSeq });
-  // Typed: any question, answered as given, flipped by hand.
-  applyRoomAction(r, s.seats[0], 'typed', { text: '  شعره\n طويل؟ ', seq: s.turnSeq });
-  check(s.stage === 'answer' && s.q.kind === 'typed' && s.q.text === 'شعره طويل؟', 'guesswho: a typed question is cleaned to one line and waits for the other');
-  check(refused(() => applyRoomAction(r, s.seats[0], 'typed', { text: 'x', seq: s.turnSeq })) === false || s.stage === 'answer', 'guesswho: nothing else can be asked meanwhile');
-  applyRoomAction(r, s.seats[1], 'answer', { yes: true, seq: s.turnSeq });
-  check(s.stage === 'flip' && s.q.answer === true && s.log[s.log.length - 1].kind === 'typed' && s.log[s.log.length - 1].text === 'شعره طويل؟',
-    'guesswho: a typed answer is taken as given, logged with its text, and flipped by hand');
-  applyRoomAction(r, s.seats[0], 'done', { seq: s.turnSeq });
-  check(refused(() => applyRoomAction(r, s.seats[1], 'typed', { text: '   ', seq: s.turnSeq })), 'guesswho: an empty typed question is refused');
 
-  // With the switch on, a list answer lets the ruled-out faces fall, and the turn passes.
-  r = gw(['a', 'b'], { autoFlip: true });
-  s = r.shared;
-  q = GW.gwBotQuestion(s.faces, s.down[0], [], 'hard');
-  const t2 = GW.gwAnswer(q, s.faces[r._gw.secret[1]]);
-  const expect = GW.gwRuledOut(s.faces, [], q, t2).length;
-  applyRoomAction(r, s.seats[0], 'ask', { q, seq: s.turnSeq });
-  applyRoomAction(r, s.seats[1], 'answer', { yes: t2, seq: s.turnSeq });
-  check(s.q.out === expect && s.down[0].length === expect && s.down[0].indexOf(r._gw.secret[1]) === -1 && s.turn === 1 && s.stage === 'ask',
-    'guesswho: with faces falling by themselves, what the answer rules out falls and the turn passes');
-  // The clock catches a list question unanswered: it is answered truthfully.
+  // The clock never answers for anyone: a question left unanswered is dropped and the turn passes.
   r = gw(['a', 'b'], { turnClock: 30 });
   s = r.shared;
-  q = GW.gwBotQuestion(s.faces, s.down[0], [], 'hard');
-  applyRoomAction(r, s.seats[0], 'ask', { q, seq: s.turnSeq });
-  check(s.endsAt > 0, 'guesswho: the clock starts again for the one answering');
+  check(roomDeadline(r) === s.endsAt + 1500, 'guesswho: the turn clock is a server deadline');
+  applyRoomAction(r, s.seats[0], 'loud', { seq: s.turnSeq });
+  check(s.endsAt > 0 && s.stage === 'answer', 'guesswho: the clock starts again for the one answering');
   clock = s.endsAt + 2000;
   roomTimeout(r, clock);
-  check(s.stage === 'flip' && s.q.answer === GW.gwAnswer(q, s.faces[r._gw.secret[1]]), 'guesswho: a list question the clock catches is answered truthfully');
+  check(s.turn === 1 && s.stage === 'ask' && s.q === null && s.log[s.log.length - 1].kind === 'skip' && s.log[s.log.length - 1].stage === 'answer',
+    'guesswho: a question the clock catches unanswered is dropped, not answered, and the turn passes');
+  clock = s.endsAt + 2000;
+  roomTimeout(r, clock);
+  check(s.turn === 0 && s.log[s.log.length - 1].kind === 'skip', 'guesswho: a turn with no question passes on the clock');
 
   // Each picks their own face.
   r = gw(['a', 'b'], { pick: 'choose' });
@@ -4068,14 +4047,6 @@ Date.now = duelTestClock;
   applyRoomAction(r, s.seats[1], 'pick', { face: 9 });
   check(s.phase === 'play' && r._gw.secret[0] === 4 && r._gw.secret[1] === 9 && s.stage === 'ask', 'guesswho: once both have picked, play starts');
 
-  // The turn clock passes the turn.
-  r = gw(['a', 'b'], { turnClock: 30 });
-  s = r.shared;
-  check(roomDeadline(r) === s.endsAt + 1500, 'guesswho: the turn clock is a server deadline');
-  clock = s.endsAt + 2000;
-  roomTimeout(r, clock);
-  check(s.turn === 1 && s.log[s.log.length - 1].kind === 'skip', 'guesswho: when it runs out the turn passes, with no question');
-
   // Someone seated leaves: a forfeit.
   r = gw(['a', 'b', 'c'], {});
   s = r.shared;
@@ -4084,57 +4055,12 @@ Date.now = duelTestClock;
   roomPlayerLeft(r, leaver, 'X');
   check(s.phase === 'over' && s.result.reason === 'left' && s.result.winnerId === s.seats[0], 'guesswho: a seated player who leaves loses by forfeit');
 
-  // A computer player plays a whole game, and can't be asked out loud.
+  // No computer players (the owner, 29 Sep 2026): they could only ask from a list.
   r = newRoom(['h']);
   applyRoomAction(r, 'h', 'chooseGame', { game: 'guesswho' });
-  applyRoomAction(r, 'h', 'addBot', { level: 'hard', name: 'Robo' });
-  applyRoomAction(r, 'h', 'start', { size: 30 });
-  s = r.shared;
-  const botSeat = s.seats.findIndex((id) => id !== 'h');
-  if (s.turn !== botSeat) {
-    check(refused(() => applyRoomAction(r, 'h', 'loud', { seq: s.turnSeq })), 'guesswho: a computer player can\'t be asked out loud');
-  } else check(true, 'guesswho: a computer player can\'t be asked out loud (the bot went first)');
-  let steps = 0;
-  const hs = 1 - botSeat;
-  while (r.shared.phase === 'play' && steps < 400) {
-    steps++;
-    const sh = r.shared;
-    if (sh.stage === 'answer') {
-      // The bot asked: the person answers truthfully. The person asked: the bot answers after its moment.
-      if (sh.turn === botSeat) applyRoomAction(r, 'h', 'answer', { yes: GW.gwAnswer(sh.q.qi, sh.faces[r._gw.secret[hs]]), seq: sh.turnSeq });
-      else { clock = (r._botAt || clock) + 10; roomTimeout(r, clock); }
-      continue;
-    }
-    if (sh.stage === 'flip') {
-      GW.gwRuledOut(sh.faces, sh.down[hs], sh.q.qi, sh.q.answer).forEach((f) => applyRoomAction(r, 'h', 'flip', { face: f, down: true }));
-      applyRoomAction(r, 'h', 'done', { seq: sh.turnSeq });
-      continue;
-    }
-    if (sh.turn === botSeat) { clock = (r._botAt || clock) + 10; roomTimeout(r, clock); continue; }
-    const hq = GW.gwBotQuestion(sh.faces, sh.down[hs], sh.asked[hs], 'easy');
-    if (hq < 0) applyRoomAction(r, 'h', 'guess', { face: up(r, hs)[0], seq: sh.turnSeq });
-    else applyRoomAction(r, 'h', 'ask', { q: hq, seq: sh.turnSeq });
-  }
-  const botLog = r.shared.log.filter((e) => e.seat === botSeat);
-  check(r.shared.phase === 'over' && botLog.every((e) => e.kind === 'list' || e.kind === 'guess') &&
-    r.shared.log.some((e) => e.seat === hs && e.kind === 'list'),
-    'guesswho: a hard computer player asks from the list, answers the person\'s questions, and plays the game to the end');
-
-  // Two computer players against each other, many times: a hard one never guesses wrong.
-  let bothFine = true;
-  for (let k = 0; k < 20; k++) {
-    const rb = newRoom(['h']);
-    applyRoomAction(rb, 'h', 'chooseGame', { game: 'guesswho' });
-    applyRoomAction(rb, 'h', 'addBot', { level: 'hard', name: 'A' });
-    applyRoomAction(rb, 'h', 'addBot', { level: 'hard', name: 'B' });
-    rb.players = rb.players.filter((p) => p.id !== 'h');
-    rb.hostId = rb.players[0].id;
-    applyRoomAction(rb, rb.hostId, 'start', { size: [16, 24, 30][k % 3] });
-    let n = 0;
-    while (rb.shared.phase === 'play' && n < 200) { n++; clock = (rb._botAt || clock) + 10; roomTimeout(rb, clock); }
-    if (rb.shared.phase !== 'over' || rb.shared.result.reason !== 'guess') bothFine = false;
-  }
-  check(bothFine, 'guesswho: two hard computer players always finish with a right guess');
+  check(refused(() => applyRoomAction(r, 'h', 'addBot', { level: 'hard', name: 'Robo' })) && r.players.length === 1,
+    'guesswho: no computer player can be seated');
+  check(refused(() => applyRoomAction(r, 'h', 'start', {})), 'guesswho: one person alone can\'t start it');
 }
 
 /* --- المشنقة: the letters, the fold, the two ways a room plays ---------------- */
@@ -6504,10 +6430,6 @@ Date.now = duelTestClock;
     const three = newRoom(['a', 'b', 'c']);
     applyRoomAction(three, 'a', 'chooseGame', { game: 'connect4' });
     check(refused(() => applyRoomAction(three, 'a', 'start', { tournament: true })) && three.phase === 'lobby', 'tournament: the server refuses one with fewer than four people');
-    const gw = newRoom(['a', 'b', 'c']);
-    applyRoomAction(gw, 'a', 'chooseGame', { game: 'guesswho' });
-    applyRoomAction(gw, 'a', 'addBot', { level: 'easy', name: 'Robo' });
-    check(refused(() => applyRoomAction(gw, 'a', 'start', { tournament: true })), 'tournament: computer players don\'t count toward the four');
     const four = newRoom(people(4));
     applyRoomAction(four, 'a', 'chooseGame', { game: 'connect4' });
     check(refused(() => applyRoomAction(four, 'b', 'start', { tournament: true })), 'tournament: only the host starts one');

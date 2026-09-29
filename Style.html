@@ -11704,10 +11704,11 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 
 /* ==========================================================================
    24. خمّن مين
-   JS_GuessWho.html. The owner's option ب "ألبوم" (22 Sep 2026): white cards
-   with the face on a pastel backdrop and the name under it, the calm of the
-   rest of the app; a face put down fades to grey, shrinks and is crossed
-   out. The layout is the duels': upright, the board with the question above
+   JS_GuessWho.html. The owner's option ب «ألبوم ناعم» (29 Sep 2026): white
+   cards with a soft face on a pale backdrop and the name under it; a face put
+   down fades to grey, shrinks and is crossed out. Cards big enough to read
+   their details: 4 or 5 a row on a phone held upright (--gw-cols-n), and a
+   face held down opens big (.gw-zoom). The layout is the duels': upright, the board with the question above
    it and the bar of what to do stuck under it; on a phone on its side and
    from 900px the board takes the height (sized off --app-h and the board's
    own --gw-aspect) with the rest in a column beside it.
@@ -11719,7 +11720,7 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .gw-layout__side > .gw-mine { order: -3; }
 .gw-layout__side > .gw-qa { order: -2; }
 .gw-layout__board { width: 100%; max-width: 34rem; margin-inline: auto; }
-.gw-board { display: grid; grid-template-columns: repeat(var(--gw-cols, 6), minmax(0, 1fr)); gap: 0.375rem; }
+.gw-board { display: grid; grid-template-columns: repeat(var(--gw-cols-n, var(--gw-cols, 6)), minmax(0, 1fr)); gap: 0.375rem; }
 .gw-board--small { gap: 0.25rem; }
 
 .gw-card {
@@ -11737,6 +11738,9 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
   cursor: pointer;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   transition: transform 380ms var(--ease-spring), opacity 320ms var(--ease-out), filter 320ms var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
 .gw-card:disabled { cursor: default; }
@@ -11746,8 +11750,8 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
   display: block;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.6875rem;
-  line-height: 1.55;
+  font-size: 0.75rem;
+  line-height: 1.5;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -11783,11 +11787,11 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .gw-dot--2 { background: #7c3aed; }
 
 .gw-mine { display: flex; align-items: center; gap: var(--sp-3); }
-.gw-mine__card { width: 3.25rem; flex: none; }
+.gw-mine__card { width: 4.75rem; flex: none; cursor: zoom-in; -webkit-touch-callout: none; user-select: none; }
 .gw-mine__card, .gw-mine__card .gw-card__pic { display: block; }
 .gw-mine__card { border-radius: var(--r-xs); overflow: hidden; border: 2px solid var(--accent); background: var(--surface-solid); }
-.gw-mine__card .gw-card__pic { aspect-ratio: 1; }
-.gw-mine__card .gw-card__name { font-size: 0.625rem; color: var(--text-strong); }
+.gw-mine__card .gw-card__pic { aspect-ratio: 90 / 98; }
+.gw-mine__card .gw-card__name { font-size: 0.75rem; color: var(--text-strong); }
 .gw-mine__text { display: flex; flex-direction: column; min-width: 0; }
 .gw-mine__text .field__hint { margin: 0; }
 
@@ -11830,22 +11834,18 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .gw-bar__say { margin: 0; text-align: center; font-weight: 600; color: var(--text-strong); }
 .gw-bar__say--quiet { font-weight: 500; font-size: 0.875rem; color: var(--text-2); }
 .gw-bar__row { display: flex; gap: var(--sp-2); }
-.gw-bar__row > .btn { flex: 1 1 0; min-width: 0; padding-inline: var(--sp-2); }
-.gw-qs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.375rem; max-height: 14rem; overflow-y: auto; }
-.gw-q {
-  min-height: 2.75rem;
-  padding: 0.375rem 0.625rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  color: var(--text-strong);
-  font-family: var(--font);
-  font-weight: 700;
-  font-size: 0.875rem;
-  cursor: pointer;
+.gw-bar__row > .btn { flex: 1 1 0; min-width: 0; padding-inline: var(--sp-2); white-space: nowrap; }
+/* Under the board: a hold opens a face big. */
+.gw-hold-hint { margin: var(--sp-2) 0 0; text-align: center; font-size: 0.8125rem; color: var(--text-3); }
+.gw-zoom {
+  position: fixed; inset: 0; z-index: var(--z-fx-top); display: grid; place-items: center;
+  background: rgba(12, 10, 20, 0.55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  animation: gwZoomIn 180ms var(--ease-out) both;
 }
-.gw-q:active { transform: scale(0.96); background: var(--accent-soft); }
-.gw-q.is-used { opacity: 0.45; text-decoration: line-through; cursor: default; }
+.gw-card--zoom { width: min(78vw, 22rem, calc(var(--app-h, 100vh) * 0.62)); cursor: default; padding: 0.375rem 0.375rem 0; border-radius: var(--r-lg); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35); animation: gwPop 320ms var(--ease-spring) both; }
+.gw-card--zoom .gw-card__pic { border-radius: calc(var(--r-lg) - 0.375rem); }
+.gw-card--zoom .gw-card__name { font-size: 1.375rem; line-height: 1.8; }
+@keyframes gwZoomIn { from { opacity: 0; } }
 
 .gw-history { font-size: 0.875rem; }
 .gw-history summary { cursor: pointer; font-weight: 700; color: var(--text-2); padding-block: var(--sp-1); }
@@ -11863,17 +11863,13 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 /* After a guess the faces turn once the drum roll is over (--gw-wait, set by the page). */
 .gw-reveal.is-turning .gw-reveal__one .gw-card { animation-delay: calc(var(--at, 0ms) + var(--gw-wait, 0ms)); }
 
-/* Four ways to ask, two by two on a phone. */
-.gw-bar__row--four { flex-wrap: wrap; }
-.gw-bar__row--four > .btn { flex: 1 1 calc(50% - var(--sp-2)); }
 
 /* The question put to you: big, beside your own secret face. */
 .gw-ask-me { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-1); }
 .gw-ask-me.is-in { animation: gwPop 460ms var(--ease-spring) both; }
-.gw-ask-me__face { width: 4.25rem; }
+.gw-ask-me__face { width: 6rem; flex: none; }
 .gw-ask-me__text { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; }
 .gw-ask-me__q { font-family: var(--font-display); font-weight: 800; font-size: 1.375rem; line-height: 1.25; color: var(--text-strong); overflow-wrap: anywhere; }
-.gw-ask-me__look { font-weight: 700; color: var(--danger-ink); }
 .gw-ask-me__btns > .btn { flex: 1 1 0; }
 
 /* The one who was asked, thinking: three dots that breathe. */
@@ -11917,6 +11913,12 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 /* A phone on its side, and every wide screen: the board takes the height, the rest a column beside it. */
 @media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
   .gw-layout { display: grid; grid-template-columns: auto minmax(13rem, 21rem); justify-content: center; gap: var(--sp-4); align-items: start; }
+  .gw-board { grid-template-columns: repeat(var(--gw-cols, 6), minmax(0, 1fr)); }
+  /* The side column is narrow: out loud takes its own row, typing and guessing share the next. */
+  .gw-bar__row { flex-wrap: wrap; }
+  .gw-bar__row > .btn:first-child:nth-last-child(3) { flex-basis: 100%; }
+  /* The board takes the height here; the hold is in Help and the bar's line. */
+  .gw-hold-hint { display: none; }
   .gw-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
   .gw-layout__board {
     position: sticky;
@@ -11937,6 +11939,7 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 /* The TV: both boards, the question between them. */
 .gw-tv { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 22rem) minmax(0, 1fr); align-items: center; gap: calc(var(--tv-gap) * 2); }
 .gw-tv__board { display: flex; flex-direction: column; gap: var(--tv-gap); min-width: 0; width: min(100%, calc((var(--app-h, 100vh) - 24vmin) * var(--gw-aspect, 1))); justify-self: center; }
+.gw-tv .gw-board { grid-template-columns: repeat(var(--gw-cols, 6), minmax(0, 1fr)); }
 .gw-tv__name { display: flex; justify-content: space-between; align-items: baseline; gap: 1vmin; font-size: var(--tv-md); }
 .gw-tv__name i { font-style: normal; font-size: var(--tv-sm); color: var(--text-2); }
 .gw-tv__mid { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); min-width: 0; }
@@ -12279,7 +12282,7 @@ body.dark .hm-gallows .hm-hair { fill: #4a3626; }
   .hm-bub { opacity: 1; }
   .hm-face { transition: none; }
   .hm-s5 .hm-drop { opacity: 1; }
-  .gw-qa__a.is-in, .gw-reveal.is-turning .gw-reveal__one .gw-card, .hm-tile.is-new, .gw-ask-me.is-in, .gw-dots i, .gw-bubble, .gw-drama__card { animation: none; }
+  .gw-qa__a.is-in, .gw-reveal.is-turning .gw-reveal__one .gw-card, .hm-tile.is-new, .gw-ask-me.is-in, .gw-dots i, .gw-bubble, .gw-drama__card, .gw-zoom, .gw-card--zoom { animation: none; }
 }
 
 /* ==========================================================================

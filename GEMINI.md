@@ -98,7 +98,7 @@
   🗓️ **Timeline (قبل ولا بعد):** put an event in its place on the line,
   before or after the cards already down;
   **Guess Who (خمّن مين):** two duel with a secret face each, yes-or-no
-  questions from a list or out loud, winner stays on (*خمّن مين*).
+  questions of their own, out loud or typed, winner stays on (*خمّن مين*).
 - **Words, one phone or a room:** **Hangman (المشنقة):** two on one phone
   taking turns, or a room where one writes and everyone guesses on their own
   board, or races on the app's word (*المشنقة*).
@@ -1460,9 +1460,53 @@ work changed. Add to it when a decision is made or a batch ships.
     pins fall on screen - so a game abandoned mid-way banks nothing on the
     night's table.
 
+- **خمّن مين, reworked** - the owner's decisions of 29 Sep 2026 ("improve the
+  cards people look as style and look, and new things to ask about ... remove
+  the question part, so the player always thinks about what he wants to ask
+  ... and remove anything auto, since they don't know what we will answer"),
+  every point asked first. They replace the list, the auto-flip, the "look
+  again" refusal and the computer players of the spec below:
+  - **No list of questions**: every question is **asked out loud or typed**.
+    The bar has 🗣️ بصوتك (first), ✍️ اكتب and 🎯 خمّن, with a line of example
+    questions over them.
+  - **Nothing automatic**: the other player's yes or no is taken as given (the
+    phone doesn't know the question), faces go down by hand only, and the
+    clock never answers for anyone - a question left unanswered is dropped
+    and the turn passes.
+  - **No computer players** (they could only ask from a list): a room needs
+    two people (`players: [2, 12]`, the hub's `min: 2`).
+  - **Richer faces**, look ب «ألبوم ناعم» picked from a design sheet of three
+    (`notes/guesswho-looks-sheet.html`, https://claude.ai/artifact/SLPXLhRJAg9Tbh2rYRAU6V):
+    worn - glasses, sunglasses, a cap, **a hijab**, a scarf, a tie, a bow tie,
+    headphones, earrings, a necklace, several on one face; the face - a
+    smile, a big laugh or serious, freckles, rosy cheeks, a mole, thick
+    eyebrows, wrinkles; hair - short, long, curly, a bun, a ponytail, braids,
+    spiky, bald, beards and moustaches, five colours; clothes - a tee, a
+    hoodie or a collar shirt, plain, striped or dotted, in eight colours a
+    family names.
+  - **Readable at a card's size** (the owner: "make sure the card in its
+    actual size would be easy to see the details"): the details drawn bold,
+    the picture cropped to the head and shoulders, **4 cards a row on a phone
+    held upright for 16 and 24 faces, 5 for 30** (65-85px a card; the board
+    scrolls under the bar), your own face bigger beside the board and the
+    question, and **a face held down opens big** with every detail, on any
+    board, the watchers' included.
+  - Decided here (open to change, each one place in the code): **a hijab
+    covers the hair, the ears and the neck**, so a face with one has no
+    earrings, scarf, collar, tie or necklace (they couldn't be seen), and it
+    ends on the chest so the shirt still shows; what "black hair?" means for
+    her is the table's call. **A cap never sits on a bald head, a bun, a hijab
+    or with headphones**; glasses or sunglasses, never both (sunglasses hide
+    the eyes); a hijab, a cap or a scarf is never the shirt's own colour. Two
+    faces on a board never look the same (`gwSignature`, what can be seen).
+    The backdrops are pale and go by the face, never by a clothes colour.
+    A room saved before the rework plays on (its faces draw with the plain
+    fields, an old `hat` as a blue cap).
+
 - **خمّن مين (Guess Who)** - the owner's spec of 22 Sep 2026, every rule
   asked one at a time, look ب "ألبوم" picked from a sheet of three
-  (*خمّن مين*):
+  (*خمّن مين*); the list, the auto-flip and the computer players below were
+  removed on 29 Sep 2026 (above):
   - **A room only: two duel, the rest watch on their phones or the TV, the
     winner stays on** (the duels' line). Not against the phone, not one phone.
   - **Drawn faces** (hair, glasses, a cap, a beard, a moustache, earrings,
@@ -2464,7 +2508,7 @@ the word search), `countUp` for streaks and scores.
     defender's third rank is the attacker's sixth, and the old «الصف السادس»
     read as the defender's own sixth.
   - **A room game computer players can fill starts at 1 in `GAME_CATALOG`**
-    (أونو, الدومينو, خمّن مين, كدّاب joined لودو, بنك الحظ, إستميشن, شطرنج
+    (أونو, الدومينو, كدّاب joined لودو, بنك الحظ, إستميشن, شطرنج
     الأربعة, المخ والإيد, باغ هاوس), so the "1" filter and «لوحدي» in «الليلة
     دي؟» find every one of them; «لوحدي» now offers a room game too (`fitsMode`
     in `tonightCandidates`: a game on this phone, or a room opened alone with
@@ -3827,6 +3871,20 @@ the word search), `countUp` for streaks and scores.
   building, rolls, a reload mid-game, Help, the end); no console errors. A
   deploy is needed for the rooms server.
 
+- **29 Sep 2026, خمّن مين reworked** - the owner's decisions (*The owner's
+  specs*): no list of questions, nothing automatic, no computer players, and
+  faces with far more to ask about in look ب «ألبوم ناعم», picked from a
+  design sheet of three; cards 4 or 5 a row on a phone upright and a hold that
+  opens a face big. Rules tests (the boards, what goes together, every
+  feature turning up, no list, answers as given, the clock dropping a
+  question, no computer player), the leak check and the robots updated.
+  Looked at in headless Chrome at 375x812, 667x375, 1280x720 and a TV at
+  1920x1080: a question out loud and one typed, answered, faces flipped by
+  hand, a hold on a face, a guess to the end. Found on the way: a hijab that
+  reached the waist hid the shirt, the tie and the necklace, so the faces
+  under it looked alike - it ends on the chest now, and a face with one gets
+  none of what it would hide. A deploy is needed for the rooms server.
+
 ## Building and Running
 
 ### Development Requirements
@@ -4057,8 +4115,8 @@ is nowhere to hide the key card.
 | `RoomSnakes.js` | `snakesAction`: the lobby's colours and seats, the server's dice, a roll waiting for `readyAt`, the clock, the host's "play for", leaving, the computer players. Bundled after `RoomLudo.js`. |
 | `BankAlhaz.js` | بنك الحظ's board, its two decks (Arabic and English), every rule as two objects - the table (`g`, a room's `shared`) and what nobody sees (`priv`, the decks) - and the computer players: shared by the page and the Worker, every name prefixed `bank`. |
 | `RoomBank.js` | `bankAction`: the lobby's pieces, seats and options, the server's dice, the turn clock, leaving, the bots and the forced moves; the decks live in `room._bank`, never projected. Bundled after `RoomGames.js`. |
-| `GuessWho.js` | خمّن مين's faces (plain features, drawn by the page), the list of questions with their truthful answers, a board every face of which the list can tell apart, and the computer's question: shared by the page and the Worker, every name prefixed `gw`. |
-| `RoomGuessWho.js` | `guessWhoAction`: the duels' seats and line (`duelSeatNext`, `duelEnd` from `RoomDuels.js`, bundled before it), the secret faces in `room._gw`, questions from the list and out loud, flipping, guessing, the clock and the bots. |
+| `GuessWho.js` | خمّن مين's faces (plain features, drawn by the page) and a board of them, no two looking the same: shared by the page and the Worker, every name prefixed `gw`. |
+| `RoomGuessWho.js` | `guessWhoAction`: the duels' seats and line (`duelSeatNext`, `duelEnd` from `RoomDuels.js`, bundled before it), the secret faces in `room._gw`, questions out loud or typed, flipping, guessing, the clock. |
 | `Hangman.js` | المشنقة's letters, the fold (one key a letter), a written word's rules, a board and a guess, and the race's words from the Chameleon boards: shared by the page and the Worker, every name prefixed `hm`. |
 | `RoomHangman.js` | `hangmanAction`: one writes or a race, the word in `room._hm`, each board on its own phone, the points, the word clock, leaving. |
 | `Battleship.js` | حرب السفن's fleets, the no-touching check, a random fleet, one shot and its result (a sinking marks the water round it), and the computer admiral: shared by the page (inlined, `SHARED_LISTS`) and the Worker, every name prefixed `bs` / `BS_`. |
@@ -4209,7 +4267,7 @@ compared on join with the same fold as everywhere else (`sameRoomName`), so
 أحمد and احمد can't both sit in one room.
 
 **Computer players** (the owner, 21 Sep 2026: optional, easy and hard). In
-the games that register them - أونو, الدومينو, لودو, السلم والتعبان (one kind, `bots.one`), بنك الحظ, خمّن مين, باغ هاوس, شطرنج الأربعة, إستميشن and جمجمة - the host can seat a bot in
+the games that register them - أونو, الدومينو, لودو, السلم والتعبان (one kind, `bots.one`), بنك الحظ, باغ هاوس, شطرنج الأربعة, إستميشن and جمجمة - the host can seat a bot in
 the lobby, to play alone or to make up a table of four for teams. A bot is an
 ordinary entry in `room.players` with `bot` set to its level (`'easy'` or
 `'hard'`): it holds a seat, is dealt like anyone, and its hand is in
@@ -6502,59 +6560,57 @@ The owner's rules are in *The owner's specs*. Built the way لودو is:
 The owner's rules are in *The owner's specs*. Built on the duels:
 
 - **`GuessWho.js`** (shared, no DOM). A face is a set of plain features
-  (`g`, `skin`, `hair`, `style`, `glasses`, `hat`, `beard`, `mous`, `ear`,
-  `eyes`, `shirt`, and `name`, an index into `GW_NAMES[g]`, one name in
-  both languages). `GW_QUESTIONS` is the list, each a feature with a plain
-  yes or no, answered by `gwAnswer`; a cap is never drawn on a bald head or
-  a bun (it would hide an answer) and a bald head has no hair colour.
-  `gwDealBoard(size)` deals half men and half women with a different answer
-  somewhere in the list for every pair (`gwSignature`), so the list alone can
-  always find any face; `rules.mjs` checks that on hundreds of boards, and
-  that the computer's questions always narrow one down to the secret face.
-  `gwBotQuestion` is the computer's question: hard the one closest to
-  halving the faces still up, easy any that splits them.
+  (the full list in the file's header: `g`, `skin`, `hair`, `style`, `hijab`,
+  `beard`, `mous`, `brows`, `eyes`, `mouth`, `freckles`, `rosy`, `mole`,
+  `wrinkles`, `glasses`, `sun`, `phones`, `cap`, `ear`, `necklace`, `scarf`,
+  `top`, `tie`, `pattern`, `shirt`, and `name`, an index into `GW_NAMES[g]`,
+  one name in both languages); a colour is an index into `GW_COLOURS`.
+  `gwRandomFace` keeps the rules of what can go together (*The owner's
+  specs*), and `gwDealBoard(size)` deals half men and half women, no two with
+  the same `gwSignature` (everything that can be seen). There is no list of
+  questions and no computer player: `rules.mjs` checks the boards, the rules
+  of what goes together, and that every feature turns up.
 - **`RoomGuessWho.js`** is the room, bundled after `RoomDuels.js`, whose line
   and seats it uses: `duelSeatNext` seats the next game, `duelEnd` scores
   one and moves the line, so the champion, the streak and the night's board
   are the duels' own. The secret faces are `room._gw.secret`, never
   projected; each seated phone gets its own in `room.secrets[pid].face`, and
   `shared.reveal` only once the game is over. The stages of a turn are
-  `ask` (a list question `ask { q }`, a typed one `typed { text }` - one
-  line, 80 characters - an out-loud one `loud`, or a guess), `answer` (the
-  other phone taps yes or no: `gwTakeAnswer` refuses a list answer that
-  isn't the truth about the answerer's face, and nothing about it is in
-  `shared` until it is given) and `flip` (faces put down by hand, then
-  `done`; with the switch on, a list answer drops them itself and the turn
-  passes). `flip { face, down }` works any time in play, so a double tap is
-  one flip. Every turn move carries `seq` (`turnSeq`). The clock restarts
-  for whoever must act - the asker, then the one answering, then the asker
-  flipping (`gwStartClock`); the clock and the host's `skipTurn` pass the
-  turn, except that a list question caught unanswered is answered
-  truthfully by the server (an out-loud or typed one is dropped); in `pick`
-  they deal a face to whoever hasn't picked. A guess leaves `shared.q =
-  { kind: 'guess', face, right }` for the page's drum roll.
+  `ask` (a typed question `typed { text }` - one line, 80 characters - an
+  out-loud one `loud`, or a guess), `answer` (the other phone taps yes or
+  no, taken as given: `gwTakeAnswer`) and `flip` (faces put down by hand,
+  then `done`). `flip { face, down }` works any time in play, so a double
+  tap is one flip. Every turn move carries `seq` (`turnSeq`). The clock
+  restarts for whoever must act - the asker, then the one answering, then
+  the asker flipping (`gwStartClock`); the clock and the host's `skipTurn`
+  pass the turn, dropping a question nobody answered; in `pick` they deal a
+  face to whoever hasn't picked. A guess leaves `shared.q = { kind: 'guess',
+  face, right }` for the page's drum roll. No `ROOM_BOT_GAMES` entry, so the
+  lobby can't seat a computer player.
 - **`JS_GuessWho.html`** draws it: `gwFaceSvg` builds a face from its
-  features (a flat SVG in the look of the design sheet), `gwBoardHtml` the
-  board (16 faces 4 wide, 24 and 30 six wide, so a phone's board is short
-  enough for the bar under it), `gwBarHtml` the one bar of what to do, and
-  the pills, the line, the result and the "next game" card are the duels'
-  (`duelPillsHtml`, `duelRoomOverHtml`, `duelRoomLineHtml`). The faces a
-  question rules out fall one after another on every phone and the TV
-  (`gwNewlyDown` compares with what the phone last drew, `gwFall` staggers
-  them); a face flipped by hand is drawn at once and remembered, so the
-  server's board doesn't make it fall again. The answerer's card is
-  `gwAnswerCardHtml`, and `gwSendAnswer` checks a list answer against the
-  phone's own face before sending. `gwMoments` plays the newest log entry
-  once per phone (`duelOnce`): an answer as the bubble, a guess as the drum
-  roll (`gwLocal.drama` holds the reveal's turn until it is over, through
+  features (look ب, soft gradients and patterns with ids per picture,
+  cropped to `viewBox="5 12 90 98"`), `gwBoardHtml` the board (`--gw-cols`
+  where the board takes the height - 4 for 16, 6 for 24 and 30 - and
+  `--gw-cols-n` on a phone upright - 4, 4, 5), `gwBarHtml` the one bar of
+  what to do, and the pills, the line, the result and the "next game" card
+  are the duels' (`duelPillsHtml`, `duelRoomOverHtml`, `duelRoomLineHtml`).
+  **A hold opens a face big** (`gwWireHold`: 380 ms on a card without
+  moving, `gwZoomOpen`, closed when the finger lifts, and the tap it ends in
+  doesn't flip the card, `gwHold.until`); every card on every phone board
+  can be held (`data-gw-face`, or `data-gw-zoom` where a tap does nothing),
+  your own face too, and a long press's menu is kept off the pictures. A
+  face flipped by hand is drawn at once and remembered, so the server's
+  board doesn't make it fall again (`gwNewlyDown`, `gwFall`). The
+  answerer's card is `gwAnswerCardHtml` (the question big beside their own
+  face). `gwMoments` plays the newest log entry once per phone
+  (`duelOnce`): an answer as the bubble, a guess as the drum roll
+  (`gwLocal.drama` holds the reveal's turn until it is over, through
   `--gw-wait` and `data-reveal-ms`); the sounds are `gwSound`, heard where
   `duelRoomLoud` says. A typed question survives a redraw under it
-  (`gwLocal.typed`, focus put back). The lobby's flipping switch is
-  remembered as the host's own choice only once they touch it
-  (`flipChosen`): a phone that remembered the old default isn't kept on it. Upright the board comes under
-  your face and the last question, the bar sticky at the foot; on a phone
-  on its side and from 900px the board takes the height (`--gw-aspect`)
-  with everything else in a column beside it. The TV is both boards and the
+  (`gwLocal.typed`, focus put back). Upright the board comes under your
+  face and the last question, the bar sticky at the foot; on a phone on its
+  side and from 900px the board takes the height (`--gw-aspect`) with
+  everything else in a column beside it. The TV is both boards and the
   question between them.
 
 ### المشنقة

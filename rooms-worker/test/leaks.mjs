@@ -1601,18 +1601,16 @@ const DRIVERS = {
         const s = S(T);
         if (s.phase === 'pick') { s.seats.forEach((id, k) => { if (!s.picked[k]) act(T, id, 'pick', { face: pick(s.faces.map((_, i) => i)) }); }); continue; }
         const me = s.seats[s.turn], other = s.seats[1 - s.turn], seq = s.turnSeq;
-        // A list answer must be the truth (a wrong one is refused); out loud or typed, anything goes.
-        if (s.stage === 'answer') { const y = Math.random() < 0.5; if (!act(T, other, 'answer', { yes: y, seq })) must(T, other, 'answer', { yes: !y, seq }); continue; }
+        // Every question is out loud or typed, and any answer is taken as given.
+        if (s.stage === 'answer') { must(T, other, 'answer', { yes: Math.random() < 0.5, seq }); continue; }
         if (s.stage === 'flip') { act(T, me, 'flip', { face: pick(up(s, s.turn)), down: true }); must(T, me, 'done', { seq: S(T).turnSeq }); continue; }
         // A random flip by hand can put down the face being looked for: late on, guess any face not guessed yet.
         const tried = s.log.filter((e) => e.kind === 'guess' && e.seat === s.turn).map((e) => e.face);
         const fresh = s.faces.map((_, i) => i).filter((i) => tried.indexOf(i) === -1);
         const left = up(s, s.turn).filter((i) => tried.indexOf(i) === -1);
         if (left.length <= 2 || guard > 40) { must(T, me, 'guess', { face: pick(left.length && guard <= 60 ? left : fresh), seq }); continue; }
-        if (Math.random() < 0.15) { must(T, me, 'loud', { seq }); continue; }
-        if (Math.random() < 0.15) { must(T, me, 'typed', { text: pick(['شعره طويل؟', 'Is she smiling?']), seq }); continue; }
-        const open = Array.from({ length: 18 }, (_, i) => i).filter((i) => s.asked[s.turn].indexOf(i) === -1);
-        if (!open.length || !act(T, me, 'ask', { q: pick(open), seq })) must(T, me, 'guess', { face: pick(left), seq });
+        if (Math.random() < 0.5) { must(T, me, 'loud', { seq }); continue; }
+        must(T, me, 'typed', { text: pick(['لابسة طرحة؟', 'Is she smiling?', 'لابس حاجة زرقا؟']), seq });
       }
     };
     must(T, T.host, 'start', {});
@@ -1621,7 +1619,7 @@ const DRIVERS = {
     play();
     must(T, T.host, 'backToHub');
     must(T, T.host, 'chooseGame', { game: 'guesswho' });
-    must(T, T.host, 'start', { pick: 'choose', autoFlip: false, wrong: 'turn', size: 16 });
+    must(T, T.host, 'start', { pick: 'choose', wrong: 'turn', size: 16 });
     play();
     return S(T).phase === 'over';
   },
@@ -1955,11 +1953,10 @@ const TOUR_DRIVERS = {
       const base = { match: m.id, mg: m.games };
       if (g.phase === 'pick') { g.seats.forEach((id, k) => { if (!g.picked[k]) act(T, id, 'pick', Object.assign({ face: pick(g.faces.map((_, i) => i)) }, base)); }); continue; }
       const me = g.seats[g.turn], other = g.seats[1 - g.turn], seq = g.turnSeq;
-      if (g.stage === 'answer') { const y = Math.random() < 0.5; if (!act(T, other, 'answer', Object.assign({ yes: y, seq }, base))) act(T, other, 'answer', Object.assign({ yes: !y, seq }, base)); continue; }
+      if (g.stage === 'answer') { act(T, other, 'answer', Object.assign({ yes: Math.random() < 0.5, seq }, base)); continue; }
       if (g.stage === 'flip') { act(T, me, 'done', Object.assign({ seq }, base)); continue; }
       if (Math.random() < 0.3) { act(T, me, 'guess', Object.assign({ face: pick(g.faces.map((_, i) => i)), seq }, base)); continue; }
-      const open = Array.from({ length: 18 }, (_, i) => i).filter((i) => g.asked[g.turn].indexOf(i) === -1);
-      if (!open.length || !act(T, me, 'ask', Object.assign({ q: pick(open), seq }, base))) act(T, me, 'loud', Object.assign({ seq }, base));
+      act(T, me, Math.random() < 0.5 ? 'loud' : 'typed', Object.assign({ seq, text: 'بيضحك؟' }, base));
     }
     return S(T).tour.phase === 'over';
   },

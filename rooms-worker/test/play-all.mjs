@@ -30,9 +30,9 @@ const DOMINO = new Function(readFileSync(new URL('../../DominoTiles.js', import.
 const BANK = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
   '\nreturn { BANK_SQUARES };')();
 
-// خمّن مين's faces and questions: the robots ask from the list and work out what is left on their own board.
+// خمّن مين's faces: the robots work out what is left up on their own board.
 const GW = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') +
-  ';return { gwBotQuestion, gwAnswer, gwUp, gwRuledOut };')();
+  ';return { gwUp };')();
 
 // شطرنج's legal moves (and باغ هاوس's drops), for the robots of a chess tournament and of bughouse.
 const CHM = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
@@ -196,15 +196,13 @@ const TOUR_MOVE = {
     const you = b.state.you || {};
     if (g.phase !== 'play') return null;
     if (g.stage === 'answer' && seat === 1 - g.turn) {
-      const yes = g.q && g.q.kind === 'list' ? GW.gwAnswer(g.q.qi, g.faces[you.face]) : Math.random() < 0.5;
-      return { action: 'answer', payload: { yes, seq: g.turnSeq } };
+      return { action: 'answer', payload: { yes: Math.random() < 0.5, seq: g.turnSeq } };
     }
     if (seat !== g.turn) return null;
     if (g.stage === 'flip') return { action: 'done', payload: { seq: g.turnSeq } };
     const up = GW.gwUp(g.faces, g.down[seat]);
     if (up.length <= 3 || Math.random() < 0.25) return { action: 'guess', payload: { face: up[Math.floor(Math.random() * up.length)], seq: g.turnSeq } };
-    const qi = GW.gwBotQuestion(g.faces, g.down[seat], g.asked[seat], 'easy');
-    return qi < 0 ? { action: 'guess', payload: { face: up[0], seq: g.turnSeq } } : { action: 'ask', payload: { q: qi, seq: g.turnSeq } };
+    return Math.random() < 0.5 ? { action: 'loud', payload: { seq: g.turnSeq } } : { action: 'typed', payload: { text: 'بيضحك؟', seq: g.turnSeq } };
   },
   chess: (b, g, m) => {
     // The first round's match is drawn twice by agreement (the replay, then Armageddon, where a draw is
@@ -4177,7 +4175,7 @@ async function main() {
 
   /* --- prompt memory across rooms ---------------------------------------- */
   /* --- خمّن مين: two duel, the room watches, winner stays on ---------------------- */
-  console.log('• guess who (the secret faces, a list question the other answers, one out loud, one typed, a wrong guess, winner stays on, a computer player)');
+  console.log('• guess who (the secret faces, no list, one out loud, one typed, a wrong guess, winner stays on, no computer players)');
   {
     const H = await Bot.host('هاني', null);
     const J = await Bot.join(H.code, 'جنى');
@@ -4196,16 +4194,14 @@ async function main() {
           'guesswho: each seated phone holds its own face, the one watching and the TV none');
     check(!leaks(watcher, '"reveal":[') && !leaks(S, '"reveal":['), 'guesswho: no face is shown to the table while it is played');
     let s = H.state.shared;
-    const q = GW.gwBotQuestion(s.faces, s.down[0], [], 'hard');
-    check((await watcher.act('ask', { q, seq: s.turnSeq })).ok === false, 'guesswho: someone in the line cannot ask');
-    await first.must('ask', { q, seq: s.turnSeq });
-    await all(gwBots, (st) => st.shared.q && st.shared.q.qi === q && st.shared.stage === 'answer' && st.shared.q.answer === null,
-              'guesswho: a list question waits on the other phone');
-    const truth = GW.gwAnswer(q, second.state.shared.faces[second.state.you.face]);
-    check((await second.act('answer', { yes: !truth, seq: second.state.shared.turnSeq })).ok === false, 'guesswho: a wrong answer to a list question is refused');
-    await second.must('answer', { yes: truth, seq: second.state.shared.turnSeq });
-    await all(gwBots, (st) => st.shared.stage === 'flip' && st.shared.q.answer === truth && st.shared.turn === 0,
-              'guesswho: the true answer reaches the whole room, and the asker flips by hand');
+    check((await watcher.act('loud', { seq: s.turnSeq })).ok === false, 'guesswho: someone in the line cannot ask');
+    check((await first.act('ask', { q: 0, seq: s.turnSeq })).ok === false, 'guesswho: there is no question from a list');
+    await first.must('loud', { seq: s.turnSeq });
+    await all(gwBots, (st) => st.shared.q && st.shared.q.kind === 'loud' && st.shared.stage === 'answer' && st.shared.q.answer === null,
+              'guesswho: an out-loud question waits on the other phone');
+    await second.must('answer', { yes: false, seq: second.state.shared.turnSeq });
+    await all(gwBots, (st) => st.shared.stage === 'flip' && st.shared.q.answer === false && st.shared.turn === 0 && st.shared.down[0].length === 0,
+              'guesswho: the answer reaches the whole room as given, and nothing falls: the asker flips by hand');
     await first.must('done', { seq: first.state.shared.turnSeq });
     await all(gwBots, (st) => st.shared.turn === 1 && st.shared.stage === 'ask', 'guesswho: done passes the turn');
     // Out loud: the other answers on their phone, then the asker flips by hand.
@@ -4224,11 +4220,9 @@ async function main() {
     await first.waitFor((st) => st.shared.stage === 'flip' && st.shared.q.answer === false, 'guesswho: its answer comes back');
     await first.must('done', { seq: first.state.shared.turnSeq });
     await all(gwBots, (st) => st.shared.turn === 1 && st.shared.stage === 'ask', 'guesswho: and the turn passes');
-    s = second.state.shared;
-    const q2 = GW.gwBotQuestion(s.faces, s.down[1], s.asked[1], 'hard');
-    await second.must('ask', { q: q2, seq: s.turnSeq });
-    await first.waitFor((st) => st.shared.stage === 'answer', 'guesswho: the second asks from the list');
-    await first.must('answer', { yes: GW.gwAnswer(q2, first.state.shared.faces[first.state.you.face]), seq: first.state.shared.turnSeq });
+    await second.must('typed', { text: 'لابس حاجة زرقا؟', seq: second.state.shared.turnSeq });
+    await first.waitFor((st) => st.shared.stage === 'answer', 'guesswho: the second types one too');
+    await first.must('answer', { yes: true, seq: first.state.shared.turnSeq });
     await second.waitFor((st) => st.shared.stage === 'flip', 'guesswho: and is answered');
     await second.must('done', { seq: second.state.shared.turnSeq });
     await all(gwBots, (st) => st.shared.turn === 0 && st.shared.stage === 'ask', 'guesswho: back to the first');
@@ -4246,32 +4240,11 @@ async function main() {
     await H.must('backToHub');
     gwBots.concat([S]).forEach((b) => b.close());
 
-    // Against a computer player, played to the end on the server's clock.
+    // No computer players, and one person can't start it.
     const P = await Bot.host('بسام', null);
     await P.must('chooseGame', { game: 'guesswho' });
-    await P.must('addBot', { level: 'hard', name: 'زيزو' });
-    await P.must('start', { size: 24 });
-    const end = Date.now() + 90000;
-    while (Date.now() < end && P.state.shared.phase === 'play') {
-      const st = P.state.shared;
-      const seat = st.seats.indexOf(P.pid);
-      if (st.stage === 'answer' && st.turn !== seat) {
-        await P.act('answer', { yes: GW.gwAnswer(st.q.qi, st.faces[P.state.you.face]), seq: st.turnSeq });
-      } else if (st.stage === 'flip' && st.turn === seat) {
-        for (const f of GW.gwRuledOut(st.faces, st.down[seat], st.q.qi, st.q.answer)) await P.act('flip', { face: f, down: true });
-        await P.act('done', { seq: P.state.shared.turnSeq });
-      } else if (st.turn === seat && st.stage === 'ask') {
-        const left = GW.gwUp(st.faces, st.down[seat]);
-        const qi = GW.gwBotQuestion(st.faces, st.down[seat], st.asked[seat], 'hard');
-        if (qi < 0 || left.length <= 1) await P.act('guess', { face: left[0], seq: st.turnSeq });
-        else await P.act('ask', { q: qi, seq: st.turnSeq });
-      }
-      await sleep(250);
-    }
-    check(P.state.shared.phase === 'over' && P.state.shared.result.reason === 'guess', 'guesswho: a game against a computer player is played to the end');
-    const botSeat = P.state.shared.seats.findIndex((id) => id !== P.pid);
-    check(P.state.shared.log.filter((e) => e.seat === botSeat).every((e) => e.kind === 'list' || e.kind === 'guess'),
-          'guesswho: the computer player asks from the list');
+    check((await P.act('addBot', { level: 'hard', name: 'زيزو' })).ok === false, 'guesswho: no computer player can be seated');
+    check((await P.act('start', { size: 24 })).ok === false, 'guesswho: one person alone cannot start it');
     P.close();
   }
 

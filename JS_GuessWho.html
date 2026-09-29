@@ -7,21 +7,20 @@
    the duels' own (duelRoom* in JS_RoomConnect4.html, duelPillsHtml in
    JS_Connect4.html), so the two games of that kind look and move alike.
 
-   The look the owner picked (22 Sep 2026, option ب "ألبوم" of a design
-   sheet of three): white cards with a pastel backdrop and the name under the
-   face, like the rest of the app; a face put down fades, shrinks and is
-   crossed out. The faces are drawn here (gwFaceSvg), never photos.
+   The look (the owner, 29 Sep 2026, option ب «ألبوم ناعم» of a design sheet
+   of three, notes/guesswho-looks-sheet.html): soft faces with no outlines on
+   a pale backdrop, white cards with the name under the face; a face put down
+   fades, shrinks and is crossed out. The faces are drawn here (gwFaceSvg),
+   never photos, and made to be read at a card's size: bold details, the
+   picture cropped to the head and shoulders, four or five cards a row on a
+   phone held upright, and a face held down opens big (gwZoomOpen).
 
-   A seated phone sees its own board and its own secret face (state.you.face,
-   from room.secrets - the other one's never reaches it), the last question
-   and its answer, and one bar of what to do: ask from the list, type a
-   question, ask out loud, guess; answer the other's question (from the list
-   too, since 23 Sep 2026: the owner found the app answering for you "like
-   playing vs the computer"); or put the faces down by hand and end the
-   turn. A list answer that doesn't match your face is stopped on the phone
-   ("look again") before it is sent - the server checks it the same way. A
-   face can be flipped by hand at any time. The ones watching see both
-   boards; the TV draws both boards and the question between them.
+   There is no list of questions and nothing automatic (the owner, 29 Sep
+   2026): on your turn you type a question or ask it out loud, or guess; the
+   other taps yes or no on their phone, beside their own secret face; you
+   put the faces down by hand and end the turn. A face can be flipped by
+   hand at any time. The ones watching see both boards; the TV draws both
+   boards and the question between them.
 
    The table moments (the owner, 23 Sep 2026): while the other decides, the
    asker sees them thinking; the answer lands as a big أيوه / لأ bubble with
@@ -29,19 +28,146 @@
    drum roll over "is it Karim?" before the verdict, and the secret faces
    turn only after it (gwMoments).
 
-   Motion: the faces a question rules out fall one after another (gwFall,
-   newest first from what this phone last showed), the answer pops, the
-   pills' ring slides, the winner's phone and the TV cheer, and at the end
-   both secret faces turn over (gwRevealHtml).
+   Motion: the answer pops, the pills' ring slides, the winner's phone and
+   the TV cheer, and at the end both secret faces turn over (gwRevealHtml).
    ========================================================================= */
 
-const GW_SKIN = ['#f6d5b8', '#e8b98f', '#c98e62', '#8d5a3b'];
-const GW_HAIR_COL = { black: '#2b2320', brown: '#6b4226', blonde: '#e0b454', red: '#b5472a', grey: '#c2beb8' };
-const GW_EYE_COL = { brown: '#5a3a22', blue: '#2f7de1', green: '#169a4a' };
-const GW_SHIRT = ['#0f766e', '#6d28d9', '#e11d48', '#f59e0b', '#2563eb', '#16a34a', '#db2777', '#475569'];
-const GW_BACK = ['#dff3ef', '#ece6fb', '#fde7ea', '#fdf0d5', '#e3ecfd', '#e3f5e6', '#fbe4f0', '#e8ebf0'];
+const GW_SKIN = ['#f7d7bc', '#e9b98e', '#c68d61', '#8a5636'];
+const GW_HAIR_COL = { black: '#2b2320', brown: '#6b4226', blonde: '#e3b448', red: '#c0502d', grey: '#cfcbc4' };
+const GW_EYE_COL = { brown: '#6a4122', blue: '#2f7de1', green: '#169a4a' };
+// GW_COLOURS in GuessWho.js, in order: red, blue, green, yellow, purple, orange, pink, grey - each one a colour a family names.
+const GW_COLOUR_HEX = ['#e11d48', '#2563eb', '#16a34a', '#eab308', '#7c3aed', '#f97316', '#ec4899', '#6b7280'];
+// The backdrops: soft and pale, none close enough to a clothes colour to be taken for one.
+const GW_BACK = ['#e2f4f0', '#ece7f8', '#fbe9e4', '#f6efdc', '#e4ebf6', '#eef3e1'];
 
-// panel: null | 'ask' | 'guess'; guess / pick: the face chosen before the confirm;
+/** Mixes two #rrggbb colours: t 0 is `a`, 1 is `b`. */
+function gwMix(a, b, t) {
+  const x = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16));
+  const y = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+const gwColour = (i) => GW_COLOUR_HEX[Number(i)] || GW_COLOUR_HEX[1];
+const gwHas = (v) => v !== null && v !== undefined && v !== false;
+let gwUid = 0;
+
+/**
+ * One face, look ب «ألبوم ناعم» (the owner, 29 Sep 2026): no outlines, a soft light on the face and the
+ * hair, a pale backdrop. Drawn to be read at a card's size on a phone: the details are bold (big
+ * earrings, freckles and a mole you can count, wide stripes and dots), and the picture is cropped to
+ * the head and shoulders. The ids are per picture (gradients, patterns). A face saved before 29 Sep
+ * 2026 has fewer fields and draws with the plain ones (a tee, a smile; its old `hat` as a blue cap).
+ */
+function gwFaceSvg(x, bg) {
+  if (!x) return '';
+  const u = 'gw' + (++gwUid);
+  const skin = GW_SKIN[x.skin] || GW_SKIN[0];
+  const skinD = gwMix(skin, '#3b1f10', 0.28);
+  const hair = GW_HAIR_COL[x.hair] || GW_HAIR_COL.black;
+  const shirt = gwColour(x.shirt);
+  const hijab = gwHas(x.hijab) ? gwColour(x.hijab) : null;
+  const cap = gwHas(x.cap) ? gwColour(x.cap) : (x.hat ? GW_COLOUR_HEX[1] : null);
+  const scarf = gwHas(x.scarf) ? gwColour(x.scarf) : null;
+  const top = x.top || 'tee';
+  const mouth = x.mouth || 'smile';
+  const style = x.style || 'short';
+  const S = `url(#${u}s)`;
+  const H = `url(#${u}h)`;
+  const defs = [
+    `<radialGradient id="${u}s" cx="45%" cy="38%" r="70%"><stop offset="0" stop-color="${gwMix(skin, '#ffffff', 0.22)}"/><stop offset="1" stop-color="${gwMix(skin, '#6b3a1e', 0.16)}"/></radialGradient>`,
+    `<linearGradient id="${u}h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${gwMix(hair, '#ffffff', 0.18)}"/><stop offset="1" stop-color="${gwMix(hair, '#000000', 0.2)}"/></linearGradient>`,
+    bg ? `<linearGradient id="${u}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${gwMix(bg, '#ffffff', 0.4)}"/><stop offset="1" stop-color="${bg}"/></linearGradient>` : ''
+  ];
+  let shirtFill = shirt;
+  if (x.pattern === 'stripes') {
+    defs.push(`<pattern id="${u}p" width="9" height="9" patternUnits="userSpaceOnUse"><rect width="9" height="9" fill="${shirt}"/><rect width="9" height="4" fill="#ffffff" opacity=".78"/></pattern>`);
+    shirtFill = `url(#${u}p)`;
+  } else if (x.pattern === 'dots') {
+    defs.push(`<pattern id="${u}p" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="10" height="10" fill="${shirt}"/><circle cx="2.5" cy="2.5" r="2.1" fill="#fff"/><circle cx="7.5" cy="7.5" r="2.1" fill="#fff"/></pattern>`);
+    shirtFill = `url(#${u}p)`;
+  }
+  const o = [];
+  if (bg) o.push(`<rect x="0" y="0" width="100" height="110" fill="url(#${u}b)"/>`);
+  // Behind the head: long hair, a ponytail, a bun, curls.
+  if (!hijab && style === 'long') o.push(`<path d="M28 44 C24 70 28 88 36 92 L64 92 C72 88 76 70 72 44Z" fill="${H}"/>`);
+  if (!hijab && style === 'ponytail') o.push(`<path d="M64 34 C87 33 91 63 80 82 C80 65 74 51 64 46Z" fill="${H}"/><circle cx="67" cy="36" r="3.6" fill="${GW_COLOUR_HEX[6]}"/>`);
+  if (!hijab && style === 'bun') o.push(`<circle cx="50" cy="21.5" r="9" fill="${H}"/>`);
+  if (!hijab && style === 'curly') {
+    for (let k = 0; k < 8; k++) o.push(`<circle cx="${27 + k * 6.6}" cy="${k === 0 || k === 7 ? 44 : (k === 1 || k === 6 ? 32 : 26)}" r="8.5" fill="${H}"/>`);
+    if (x.g === 'f') o.push(`<circle cx="25" cy="54" r="7.5" fill="${H}"/><circle cx="75" cy="54" r="7.5" fill="${H}"/>`);
+  }
+  // The shoulders: the neck, the top and what is worn on it.
+  o.push(`<rect x="43" y="64" width="14" height="28" rx="5" fill="${skinD}"/>`);
+  if (top === 'hoodie') o.push(`<path d="M27 95 C29 79 71 79 73 95 C64 89 36 89 27 95Z" fill="${gwMix(shirt, '#000000', 0.25)}"/>`);
+  o.push(`<path d="M11 111 C12 97 30 89 50 89 C70 89 88 97 89 111Z" fill="${shirtFill}"/>`);
+  if (top === 'collar') {
+    o.push(`<path d="M43 89 L50 99 L57 89Z" fill="${skinD}"/><path d="M39 88 L50 99 L42.5 104Z" fill="#ffffff"/><path d="M61 88 L50 99 L57.5 104Z" fill="#ffffff"/>`);
+    if (!x.tie) o.push(`<circle cx="50" cy="106.5" r="1.6" fill="#1f2430"/>`);
+  }
+  if (top === 'tee') o.push(`<path d="M40.5 89.5 Q50 98 59.5 89.5" fill="none" stroke="${gwMix(shirt, '#000000', 0.32)}" stroke-width="2.4"/>`);
+  if (top === 'hoodie') o.push(`<path d="M45.5 93 L44.5 106 M54.5 93 L55.5 106" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="44.5" cy="107" r="2" fill="#fff"/><circle cx="55.5" cy="107" r="2" fill="#fff"/>`);
+  if (x.tie === 'tie') o.push(`<path d="M47.4 99 L52.6 99 L54 102 L52.4 111 L47.6 111 L46 102Z" fill="#dc2626"/><path d="M47 96.6 L53 96.6 L52.4 101 L47.6 101Z" fill="#991b1b"/>`);
+  if (x.tie === 'bow') o.push(`<path d="M50 99 L39.5 93.5 L39.5 104.5Z" fill="#7c3aed"/><path d="M50 99 L60.5 93.5 L60.5 104.5Z" fill="#7c3aed"/><circle cx="50" cy="99" r="2.8" fill="#5b21b6"/>`);
+  if (x.necklace) o.push(`<path d="M39.5 89 Q50 102 60.5 89" fill="none" stroke="#d99a16" stroke-width="2.2"/><circle cx="50" cy="97" r="3.6" fill="#f5c542"/><circle cx="49" cy="96" r="1.1" fill="#fff" opacity=".8"/>`);
+  if (scarf) o.push(`<path d="M32 83 C40 94 60 94 68 83 L69 90.5 C60 102 40 102 31 90.5Z" fill="${scarf}"/><path d="M55 93 L62.5 111 L53.5 111 L50.5 96Z" fill="${gwMix(scarf, '#000000', 0.2)}"/>`);
+  if (!hijab && style === 'braids') {
+    [[33, -1], [67, 1]].forEach(([cx, d]) => {
+      for (let k = 0; k < 5; k++) o.push(`<ellipse cx="${cx + d * k * 0.4}" cy="${66 + k * 6.3}" rx="4.8" ry="4" fill="${H}"/>`);
+      o.push(`<circle cx="${cx + d * 2}" cy="97.5" r="2.8" fill="${GW_COLOUR_HEX[6]}"/>`);
+    });
+  }
+  // A hijab drapes over the shoulders, round the head, and covers the hair and the ears.
+  // It ends on the chest, so the shirt's colour and pattern still show round it.
+  if (hijab) o.push(`<path d="M50 18 C27 18 21 38 22 56 C23 70 23 80 27 88 C35 97 65 97 73 88 C77 80 77 70 78 56 C79 38 73 18 50 18Z" fill="${hijab}"/>`);
+  // The head.
+  if (!hijab) {
+    o.push(`<ellipse cx="29.5" cy="52" rx="5" ry="6" fill="${S}"/><ellipse cx="70.5" cy="52" rx="5" ry="6" fill="${S}"/>`);
+    if (x.ear) o.push(`<circle cx="29" cy="61.5" r="3.6" fill="#f5b400"/><circle cx="71" cy="61.5" r="3.6" fill="#f5b400"/><circle cx="28.2" cy="60.6" r="1.1" fill="#fff" opacity=".8"/><circle cx="70.2" cy="60.6" r="1.1" fill="#fff" opacity=".8"/>`);
+  }
+  // The head's shadow on the neck, under the head so it never marks the chin.
+  if (!hijab) o.push(`<ellipse cx="50" cy="73" rx="9" ry="4" fill="rgba(80,40,20,.2)"/>`);
+  o.push(`<ellipse cx="50" cy="50" rx="20.5" ry="23.5" fill="${S}"/>`);
+  if (x.wrinkles) o.push(`<path d="M40.5 33 q9.5 -2.4 19 0 M42.5 36.6 q7.5 -1.8 15 0 M31.2 46 l3.8 1.6 M31.5 50.4 l3.6 -.7 M68.8 46 l-3.8 1.6 M68.5 50.4 l-3.6 -.7" fill="none" stroke="${skinD}" stroke-width="1.6" stroke-linecap="round"/>`);
+  if (x.rosy) o.push(`<ellipse cx="35.5" cy="58" rx="5" ry="3.2" fill="#fb7185" opacity=".6"/><ellipse cx="64.5" cy="58" rx="5" ry="3.2" fill="#fb7185" opacity=".6"/>`);
+  if (x.freckles) [[34.6, 55], [37.8, 57.6], [34, 59], [39.2, 54.4], [65.4, 55], [62.2, 57.6], [66, 59], [60.8, 54.4]].forEach(([a, b]) => o.push(`<circle cx="${a}" cy="${b}" r="1.25" fill="${gwMix(skin, '#6b3410', 0.55)}"/>`));
+  if (x.mole) o.push(`<circle cx="61.5" cy="64" r="1.8" fill="#3b2418"/>`);
+  if (x.beard) o.push(`<path d="M29 48 C29 71 38 78 50 78 C62 78 71 71 71 48 C68 61 62 67 50 67 C38 67 32 61 29 48Z" fill="${H}"/>`);
+  // The hair in front, or the hijab's frame round the face.
+  if (hijab) {
+    o.push(`<path d="M29 47 C30 30 40 25 50 25 C60 25 70 30 71 47 C66 36 58 31 50 31 C42 31 34 36 29 47Z" fill="${gwMix(hijab, '#000000', 0.14)}"/>`);
+    o.push(`<path d="M29.5 57 C30.5 72 40 79 50 79 C60 79 69.5 72 70.5 57 C72 76 63 86 50 86 C37 86 28 76 29.5 57Z" fill="${hijab}"/>`);
+  } else {
+    if (style === 'short' || style === 'bun' || style === 'ponytail') o.push(`<path d="M29 44 C28 26 38 21 50 21 C62 21 72 26 71 44 C66 34 58 30 50 30 C42 30 34 34 29 44Z" fill="${H}"/>`);
+    if (style === 'spiky') o.push(`<path d="M29 44 L28 30 L34 33 L36 21 L42 28 L47 16 L52 27 L58 17 L61 28 L68 22 L67 32 L72 30 L71 44 C66 34 58 31 50 31 C42 31 34 34 29 44Z" fill="${H}"/>`);
+    if (style === 'long') o.push(`<path d="M29 48 C27 26 38 20 50 20 C62 20 73 26 71 48 C68 36 62 30 50 29 C40 30 32 36 29 48Z" fill="${H}"/>`);
+    if (style === 'braids') o.push(`<path d="M29 47 C28 26 38 21 50 21 C62 21 72 26 71 47 C68 34 56 28 50 32 C44 28 32 34 29 47Z" fill="${H}"/>`);
+    if (style === 'bald') o.push(`<path d="M29.3 50 C28.6 42 30.5 38.5 33.4 39.5 L33 55Z" fill="${H}"/><path d="M70.7 50 C71.4 42 69.5 38.5 66.6 39.5 L67 55Z" fill="${H}"/><ellipse cx="44" cy="33" rx="6" ry="3" fill="rgba(255,255,255,.3)"/>`);
+    else if (!cap) o.push(`<path d="M36 28 Q46 22 58 25" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2.4" stroke-linecap="round"/>`);
+  }
+  if (cap) o.push(`<path d="M28.5 40 C28 22 38 16.5 50 16.5 C62 16.5 72 22 71.5 40Z" fill="${cap}"/><path d="M48 38 C60 37 82 38 88 42 C81 45 62 43.2 48 42Z" fill="${gwMix(cap, '#000000', 0.22)}"/><circle cx="50" cy="17.5" r="2.4" fill="${gwMix(cap, '#000000', 0.22)}"/>`);
+  if (x.phones) o.push(`<path d="M25.5 50 C23 15 77 15 74.5 50" fill="none" stroke="#1f2937" stroke-width="4.4" stroke-linecap="round"/><rect x="20.5" y="42.5" width="9.5" height="18" rx="3.8" fill="#1f2937"/><rect x="70" y="42.5" width="9.5" height="18" rx="3.8" fill="#1f2937"/><rect x="22" y="45" width="3" height="13" rx="1.5" fill="#ef4444"/><rect x="75" y="45" width="3" height="13" rx="1.5" fill="#ef4444"/>`);
+  // The face: brows, eyes, glasses, nose, moustache, mouth.
+  const brow = x.hair === 'grey' ? '#8f8a82' : (hijab || style === 'bald' ? GW_HAIR_COL.black : hair);
+  o.push(`<path d="M35.5 39.5 q5.5 -3.2 11 0 M53.5 39.5 q5.5 -3.2 11 0" stroke="${brow}" stroke-width="${x.brows === 'thick' ? 4.4 : 2.2}" fill="none" stroke-linecap="round"/>`);
+  if (!x.sun) {
+    const ey = GW_EYE_COL[x.eyes] || GW_EYE_COL.brown;
+    [41, 59].forEach(cx => {
+      o.push(`<ellipse cx="${cx}" cy="48" rx="4.6" ry="4.3" fill="#fff"/><circle cx="${cx}" cy="48.3" r="3.1" fill="${ey}"/><circle cx="${cx}" cy="48.3" r="1.3" fill="#1b1b24"/><circle cx="${cx + 1.1}" cy="47.1" r=".9" fill="#fff"/>`);
+      if (x.g === 'f') o.push(`<path d="M${cx - 4.8} 46.2 q4.8 -3.6 9.6 0" fill="none" stroke="#1b1b24" stroke-width="1.3"/>`);
+    });
+  }
+  if (x.glasses) o.push(`<g fill="rgba(255,255,255,.2)" stroke="#1f2430" stroke-width="2.4"><rect x="32.8" y="42.3" width="15.8" height="11.4" rx="4.6"/><rect x="51.4" y="42.3" width="15.8" height="11.4" rx="4.6"/></g><path d="M48.6 47 h2.8" stroke="#1f2430" stroke-width="2.4"/>`);
+  if (x.sun) o.push(`<path d="M32 43 h16.5 v5 c0 5 -3 7.5 -8 7.5 c-5 0 -8.5 -2.5 -8.5 -7.5Z M51.5 43 h16.5 v5 c0 5 -3.5 7.5 -8.5 7.5 c-5 0 -8 -2.5 -8 -7.5Z" fill="#111827"/><path d="M48.5 45 h3" stroke="#111827" stroke-width="2.4"/><path d="M35 46.2 l4.4 -1.8 M54.5 46.2 l4.4 -1.8" stroke="rgba(255,255,255,.6)" stroke-width="1.5" stroke-linecap="round"/>`);
+  o.push(`<path d="M50 50 q-2.6 6 .6 7" stroke="rgba(0,0,0,.3)" stroke-width="1.8" fill="none" stroke-linecap="round"/>`);
+  if (x.mous) o.push(`<path d="M39.5 60.5 C43 55 48 56.5 50 57.6 C52 56.5 57 55 60.5 60.5 C56 59 53 59.8 50 60 C47 59.8 44 59 39.5 60.5Z" fill="${H}"/>`);
+  const my = x.mous ? 1 : 0;
+  if (mouth === 'smile') o.push(`<path d="M42.5 ${61.5 + my} Q50 ${68 + my} 57.5 ${61.5 + my}" stroke="#8a3b2e" stroke-width="2.6" fill="none" stroke-linecap="round"/>`);
+  if (mouth === 'serious') o.push(`<path d="M44.5 ${64 + my} L55.5 ${64 + my}" stroke="#8a3b2e" stroke-width="2.6" fill="none" stroke-linecap="round"/>`);
+  if (mouth === 'laugh') o.push(`<path d="M41 ${60 + my} Q50 ${75 + my} 59 ${60 + my}Z" fill="#7f1d1d"/><path d="M42.6 ${60.5 + my} L57.4 ${60.5 + my} L56.6 ${63.2 + my} L43.4 ${63.2 + my}Z" fill="#fff"/><ellipse cx="50" cy="${68.2 + my}" rx="4.2" ry="2.3" fill="#f87171"/>`);
+  // Cropped to the head and shoulders, so the details are as big as the card allows.
+  return `<svg viewBox="5 12 90 98" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false"><defs>${defs.join('')}</defs>${o.join('')}</svg>`;
+}
+
+// panel: null | 'typed' | 'guess'; guess / pick: the face chosen before the confirm;
 // down: what each board last showed down, so a redraw knows which faces are newly down.
 const gwLocal = { panel: null, guess: null, pick: null, down: {}, turnKey: '', turnSince: 0, clock: null, clockKey: null, typed: '', drama: null };
 
@@ -54,54 +180,11 @@ const gwT = (key, vars) => {
 const gwFaceName = (x) => gwName(x, appState.lang);
 // The number of the log's newest entry (the log keeps only its last few; a room saved before logSeq counts its length).
 const gwLogSeq = (s) => (typeof s.logSeq === 'number' ? s.logSeq : (s.log || []).length);
-const gwQText = (qi) => {
-  const q = GW_QUESTIONS[qi];
-  return q ? (appState.lang === 'en' ? q.en : q.ar) : '';
-};
 
-/** One face, drawn: the shoulders, the head, the hair, then what it wears. `bg` fills the tile behind it. */
-function gwFaceSvg(x, bg) {
-  if (!x) return '';
-  const h = GW_HAIR_COL[x.hair] || GW_HAIR_COL.black;
-  const s = GW_SKIN[x.skin] || GW_SKIN[0];
-  const o = [];
-  o.push('<svg viewBox="0 0 100 110" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">');
-  if (bg) o.push('<rect width="100" height="110" fill="' + bg + '"/>');
-  if (x.style === 'long') o.push('<path d="M25 46 C22 74 27 90 34 94 L66 94 C73 90 78 74 75 46Z" fill="' + h + '"/>');
-  o.push('<path d="M14 110 C16 88 32 80 50 80 C68 80 84 88 86 110Z" fill="' + (GW_SHIRT[x.shirt] || GW_SHIRT[0]) + '"/>');
-  o.push('<rect x="43" y="66" width="14" height="17" rx="6" fill="' + s + '" style="filter:brightness(.9)"/>');
-  o.push('<circle cx="28" cy="52" r="5.5" fill="' + s + '"/><circle cx="72" cy="52" r="5.5" fill="' + s + '"/>');
-  if (x.ear) o.push('<circle cx="27.5" cy="60" r="2.8" fill="#f5b400"/><circle cx="72.5" cy="60" r="2.8" fill="#f5b400"/>');
-  o.push('<ellipse cx="50" cy="48" rx="22" ry="25" fill="' + s + '"/>');
-  if (x.beard) o.push('<path d="M28 48 C28 70 38 77 50 77 C62 77 72 70 72 48 C69 61 62 66 50 66 C38 66 31 61 28 48Z" fill="' + h + '"/>');
-  if (x.style === 'short') o.push('<path d="M27 46 C26 27 37 20 50 20 C63 20 74 27 73 46 C68 35 59 31 50 31 C41 31 32 35 27 46Z" fill="' + h + '"/>');
-  if (x.style === 'long') o.push('<path d="M27 50 C25 27 37 19 50 19 C63 19 75 27 73 50 C70 38 64 32 50 30 C40 32 30 38 27 50Z" fill="' + h + '"/>');
-  if (x.style === 'bun') o.push('<circle cx="50" cy="15" r="9" fill="' + h + '"/><path d="M27 46 C26 27 37 21 50 21 C63 21 74 27 73 46 C68 35 59 30 50 30 C41 30 32 35 27 46Z" fill="' + h + '"/>');
-  if (x.style === 'curly') {
-    for (let k = 0; k < 7; k++) {
-      const cy = k === 0 || k === 6 ? 38 : (k === 1 || k === 5 ? 29 : 25);
-      o.push('<circle cx="' + (29 + k * 7) + '" cy="' + cy + '" r="8" fill="' + h + '"/>');
-    }
-    if (x.g === 'f') o.push('<circle cx="25" cy="50" r="7" fill="' + h + '"/><circle cx="75" cy="50" r="7" fill="' + h + '"/>');
-  }
-  const brow = x.style === 'bald' ? GW_HAIR_COL.black : h;
-  o.push('<path d="M36 40 q5 -3 10 0 M54 40 q5 -3 10 0" stroke="' + brow + '" stroke-width="2.2" fill="none" stroke-linecap="round"/>');
-  o.push('<ellipse cx="41" cy="48" rx="4" ry="3.6" fill="#fff"/><ellipse cx="59" cy="48" rx="4" ry="3.6" fill="#fff"/>');
-  const ey = GW_EYE_COL[x.eyes] || GW_EYE_COL.brown;
-  o.push('<circle cx="41" cy="48.3" r="2.6" fill="' + ey + '"/><circle cx="59" cy="48.3" r="2.6" fill="' + ey + '"/>');
-  o.push('<circle cx="41" cy="48.3" r="1.1" fill="#111"/><circle cx="59" cy="48.3" r="1.1" fill="#111"/>');
-  o.push('<path d="M50 50 q-2.6 6 0.6 7" stroke="rgba(0,0,0,.28)" stroke-width="1.8" fill="none" stroke-linecap="round"/>');
-  o.push('<path d="M43 62 Q50 67 57 62" stroke="#8a3b2e" stroke-width="2.2" fill="none" stroke-linecap="round"/>');
-  if (x.mous) o.push('<path d="M40 60.5 C43 55.5 48 57 50 58 C52 57 57 55.5 60 60.5 C56 59.2 53 59.8 50 60 C47 59.8 44 59.2 40 60.5Z" fill="' + h + '"/>');
-  if (x.glasses) o.push('<g fill="rgba(255,255,255,.18)" stroke="#1f2430" stroke-width="2.2"><rect x="33" y="42.5" width="15" height="11" rx="4.5"/><rect x="52" y="42.5" width="15" height="11" rx="4.5"/></g><path d="M48 47 h4" stroke="#1f2430" stroke-width="2.2"/>');
-  if (x.hat) o.push('<path d="M26.5 40 C26 22 37 15 50 15 C63 15 74 22 73.5 40Z" fill="#1e40af"/><path d="M48 38 C60 37 80 38 86 42 C79 44.5 62 43 48 42Z" fill="#1e3a8a"/><circle cx="50" cy="16" r="2.4" fill="#1e3a8a"/>');
-  o.push('</svg>');
-  return o.join('');
-}
 
 /** A face as a card: its picture on its backdrop and its name. */
 function gwCardInner(x) {
-  return `<span class="gw-card__pic">${gwFaceSvg(x, GW_BACK[x.shirt] || GW_BACK[0])}</span><span class="gw-card__name">${escapeHTML(gwFaceName(x))}</span>`;
+  return `<span class="gw-card__pic">${gwFaceSvg(x, GW_BACK[(Number(x.name) || 0) % GW_BACK.length])}</span><span class="gw-card__name">${escapeHTML(gwFaceName(x))}</span>`;
 }
 
 /**
@@ -114,20 +197,27 @@ function gwBoardHtml(s, down, o) {
   const d = down || [];
   const fall = opt.fall || [];
   const cols = gwCols(s.faces.length);
+  const colsNarrow = gwColsNarrow(s.faces.length);
   const cards = s.faces.map((x, i) => {
     const isDown = d.indexOf(i) !== -1;
     const cls = ['gw-card',
       isDown && fall.indexOf(i) === -1 ? 'is-down' : '',
       opt.picked === i ? 'is-picked' : '',
       opt.guessing && !isDown ? 'is-aim' : ''].join(' ');
-    const attrs = opt.tap ? `type="button" data-gw-face="${i}"` : 'type="button" tabindex="-1" disabled';
+    // Not a player's board (watching, the TV): a tap does nothing, a hold still zooms.
+    const attrs = opt.tap ? `type="button" data-gw-face="${i}"` : `type="button" tabindex="-1" data-gw-zoom="${i}"`;
     return `<button ${attrs} class="${cls}" aria-label="${escapeHTML(gwFaceName(x))}${isDown ? ' ✕' : ''}">${gwCardInner(x)}</button>`;
   }).join('');
-  return `<div class="gw-board ${opt.small ? 'gw-board--small' : ''}" style="--gw-cols:${cols}">${cards}</div>`;
+  return `<div class="gw-board ${opt.small ? 'gw-board--small' : ''}" style="--gw-cols:${cols};--gw-cols-n:${colsNarrow}">${cards}</div>`;
 }
 
-/** A board is 4 faces wide for 16, 6 for 24 (four rows) and 30 (five): short enough to fit under the bar on a phone. */
+/** Where the board takes the screen's height (a phone on its side, a laptop, the TV): 4 faces wide for 16, 6 for 24 and 30. */
 const gwCols = (n) => (Number(n) === 16 ? 4 : 6);
+/**
+ * A phone held upright: 4 wide for 16 and 24, 5 for 30, so a card is 65-85px and its details can be
+ * read (the owner, 29 Sep 2026). The board is taller than the screen then, and scrolls under the bar.
+ */
+const gwColsNarrow = (n) => (Number(n) === 30 ? 5 : 4);
 
 /** A board's width over its height (a card is 5 wide by 6 tall), for sizing it off the screen's height. */
 const gwAspect = (n) => {
@@ -135,6 +225,56 @@ const gwAspect = (n) => {
   const rows = Math.ceil(Number(n) / cols);
   return ((cols * 5) / (rows * 6)).toFixed(3);
 };
+
+/* --- a face held down opens big: every detail, to ask about it or answer ------ */
+
+const gwHold = { timer: null, x: 0, y: 0, open: false, until: 0 };
+
+/** The face at `i` on the board, big over the screen, until the finger lifts. */
+function gwZoomOpen(i) {
+  const state = duelRoomState();
+  const s = state && state.shared;
+  const x = s && s.faces && s.faces[i];
+  if (!x) return;
+  gwZoomClose();
+  const el = document.createElement('div');
+  el.className = 'gw-zoom';
+  el.innerHTML = `<span class="gw-card gw-card--zoom">${gwCardInner(x)}</span>`;
+  el.addEventListener('click', gwZoomClose);
+  document.body.appendChild(el);
+  gwHold.open = true;
+  haptic('light');
+}
+
+function gwZoomClose() {
+  document.querySelectorAll('.gw-zoom').forEach(z => z.remove());
+  if (gwHold.open) gwHold.until = Date.now() + 450;
+  gwHold.open = false;
+}
+
+/** Wires the hold on a screen: 380 ms on a face without moving opens it, lifting closes it, and the tap it ends in doesn't count. */
+function gwWireHold(root) {
+  if (!root || root._gwHold) return;
+  root._gwHold = true;
+  const stop = () => { clearTimeout(gwHold.timer); gwHold.timer = null; };
+  root.addEventListener('pointerdown', (e) => {
+    const card = e.target.closest('[data-gw-face], [data-gw-zoom]');
+    if (!card || !root.contains(card)) return;
+    stop();
+    gwHold.x = e.clientX; gwHold.y = e.clientY;
+    const i = Number(card.getAttribute('data-gw-face') !== null ? card.getAttribute('data-gw-face') : card.getAttribute('data-gw-zoom'));
+    gwHold.timer = setTimeout(() => { gwHold.timer = null; gwZoomOpen(i); }, 380);
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (gwHold.timer && Math.hypot(e.clientX - gwHold.x, e.clientY - gwHold.y) > 10) stop();
+  });
+  const end = () => { stop(); if (gwHold.open) gwZoomClose(); };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', end);
+  // A long press on a phone opens its own menu over a picture; not here.
+  root.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-gw-face], [data-gw-zoom]')) e.preventDefault(); });
+  document.addEventListener('pointerup', () => { if (gwHold.open) gwZoomClose(); });
+}
 
 /** The faces newly down on a board since this phone last drew it (none the first time, or after a new deal). */
 function gwNewlyDown(key, down) {
@@ -176,23 +316,21 @@ function gwQaHtml(state, tv) {
   if (!q) return `<div class="gw-qa gw-qa--empty ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_first_q'))}</span></div>`;
   if (q.kind === 'guess') return `<div class="gw-qa gw-qa--empty ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(gwT('gw_first_q'))}</span></div>`;
   const asker = duelIso(names[q.seat] || '');
-  const text = q.kind === 'list' ? gwT('gw_asked_list', { name: asker, q: gwQText(q.qi) })
-    : q.kind === 'typed' ? gwT('gw_asked_list', { name: asker, q: q.text || '' }) : gwT('gw_asked_loud', { name: asker });
+  const text = q.kind === 'typed' ? gwT('gw_asked_list', { name: asker, q: q.text || '' }) : gwT('gw_asked_loud', { name: asker });
   const answered = typeof q.answer === 'boolean';
   const pop = answered && motionFirst(['gw-qa', roomDealKey(state), s.round, gwLogSeq(s), q.seat].join('|'));
   const thinking = `<span class="gw-qa__a is-wait gw-think">💭 ${escapeHTML(gwT('gw_thinking', { name: duelIso(names[1 - q.seat] || '') }))}<span class="gw-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>`;
   const ans = answered
     ? `<span class="gw-qa__a ${q.answer ? 'is-yes' : 'is-no'} ${pop ? 'is-in' : ''}">${escapeHTML(q.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>` : thinking;
-  const out = typeof q.out === 'number' ? `<span class="gw-qa__out">${escapeHTML(gwT('gw_out', { n: q.out }))}</span>` : '';
-  return `<div class="gw-qa ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q">${escapeHTML(text)}</span>${ans}${out}</div>`;
+  return `<div class="gw-qa ${tv ? 'gw-qa--tv' : ''}"><span class="gw-qa__q" dir="auto">${escapeHTML(text)}</span>${ans}</div>`;
 }
 
 /** Every question so far, newest first: what the table has learnt about each face. */
 function gwHistoryHtml(state) {
   const s = state.shared;
   const names = duelRoomNames(state);
-  const rows = (s.log || []).slice().reverse().filter(e => e.kind === 'list' || e.kind === 'loud' || e.kind === 'typed').map(e => {
-    const q = e.kind === 'list' ? gwQText(e.qi) : e.kind === 'typed' ? '✍️ ' + (e.text || '') : '🗣️';
+  const rows = (s.log || []).slice().reverse().filter(e => e.kind === 'loud' || e.kind === 'typed').map(e => {
+    const q = e.kind === 'typed' ? '✍️ ' + (e.text || '') : '🗣️ ' + gwT('gw_loud_log');
     return `<li><b>${escapeHTML(names[e.seat] || '')}</b> ${escapeHTML(q)} <span class="${e.answer ? 'tx-success' : 'tx-danger'}">${escapeHTML(e.answer ? gwT('gw_yes') : gwT('gw_no'))}</span></li>`;
   }).join('');
   if (!rows) return '';
@@ -221,7 +359,7 @@ function gwMineHtml(state, seat) {
   if (typeof face !== 'number' || !s.faces[face]) return '';
   const other = duelRoomNames(state)[1 - seat] || '';
   return `<div class="gw-mine">
-      <span class="gw-mine__card">${gwCardInner(s.faces[face])}</span>
+      <span class="gw-mine__card" data-gw-zoom="${face}">${gwCardInner(s.faces[face])}</span>
       <span class="gw-mine__text"><span class="eyebrow">${escapeHTML(gwT('gw_your_face'))}</span>
         <span class="field__hint">${escapeHTML(gwT('gw_your_face_hint', { name: duelIso(other) }))}</span></span>
     </div>`;
@@ -271,7 +409,6 @@ function gwBarHtml(state, seat) {
   const names = duelRoomNames(state);
   const seq = Number(s.turnSeq) || 0;
   const other = names[1 - seat] || '';
-  const vsBot = (state.players || []).some(p => p.id === s.seats[1 - seat] && p.bot);
   if (s.phase === 'pick') {
     if (s.picked && s.picked[seat]) return `<p class="gw-bar__say">${escapeHTML(gwT('gw_pick_wait', { name: duelIso(other) }))}</p>`;
     const chosen = typeof gwLocal.pick === 'number' ? s.faces[gwLocal.pick] : null;
@@ -290,14 +427,6 @@ function gwBarHtml(state, seat) {
   if (s.stage === 'flip') {
     return `<p class="gw-bar__say">${escapeHTML(gwT('gw_flip_now'))}</p>
       <button type="button" class="btn btn--primary btn--lg" onclick="duelAct('done', { seq: ${seq} })">${escapeHTML(gwT('gw_done'))}</button>`;
-  }
-  if (gwLocal.panel === 'ask') {
-    const asked = s.asked[seat] || [];
-    return `<p class="gw-bar__say">${escapeHTML(gwT('gw_pick_q'))}</p>
-      <div class="gw-qs">${GW_QUESTIONS.map((q, qi) => asked.indexOf(qi) !== -1
-        ? `<button type="button" class="gw-q is-used" disabled>${escapeHTML(gwQText(qi))}</button>`
-        : `<button type="button" class="gw-q" onclick="gwAsk(${qi})">${escapeHTML(gwQText(qi))}</button>`).join('')}</div>
-      <button type="button" class="btn btn--ghost btn--sm" onclick="gwPanel(null)">${escapeHTML(gwT('gw_back'))}</button>`;
   }
   if (gwLocal.panel === 'typed') {
     return `<p class="gw-bar__say">${escapeHTML(gwT('gw_typed_title', { name: duelIso(other) }))}</p>
@@ -320,10 +449,11 @@ function gwBarHtml(state, seat) {
       : `<p class="gw-bar__say">🎯 ${escapeHTML(gwT('gw_guess_pick'))}</p>
          <button type="button" class="btn btn--ghost btn--sm" onclick="gwPanel(null)">${escapeHTML(gwT('gw_back'))}</button>`;
   }
-  return `<div class="gw-bar__row ${vsBot ? '' : 'gw-bar__row--four'}">
-      <button type="button" class="btn btn--primary" onclick="gwPanel('ask')">${escapeHTML(gwT('gw_ask'))}</button>
-      ${vsBot ? '' : `<button type="button" class="btn btn--secondary" onclick="gwPanel('typed')">${escapeHTML(gwT('gw_typed'))}</button>
-      <button type="button" class="btn btn--secondary" onclick="duelAct('loud', { seq: ${seq} })">${escapeHTML(gwT('gw_loud'))}</button>`}
+  // No list (the owner, 29 Sep 2026): you think of the question. Out loud first - it is a party game.
+  return `<p class="gw-bar__say gw-bar__say--quiet">${escapeHTML(gwT('gw_ask_hint'))}</p>
+    <div class="gw-bar__row">
+      <button type="button" class="btn btn--primary" onclick="duelAct('loud', { seq: ${seq} })">${escapeHTML(gwT('gw_loud'))}</button>
+      <button type="button" class="btn btn--secondary" onclick="gwPanel('typed')">${escapeHTML(gwT('gw_typed'))}</button>
       <button type="button" class="btn btn--secondary" onclick="gwPanel('guess')">${escapeHTML(gwT('gw_guess'))}</button>
     </div>`;
 }
@@ -334,14 +464,14 @@ function gwAnswerCardHtml(state, seat) {
   const q = s.q || {};
   const names = duelRoomNames(state);
   const face = (state.you || {}).face;
-  const text = q.kind === 'list' ? gwQText(q.qi) : q.kind === 'typed' ? (q.text || '') : gwT('gw_loud_asked');
-  const card = typeof face === 'number' && s.faces[face] ? `<span class="gw-ask-me__face gw-mine__card">${gwCardInner(s.faces[face])}</span>` : '';
+  const text = q.kind === 'typed' ? (q.text || '') : gwT('gw_loud_asked');
+  // Your own face, big enough to check before you answer; hold it to see it bigger still.
+  const card = typeof face === 'number' && s.faces[face] ? `<span class="gw-ask-me__face gw-mine__card" data-gw-zoom="${face}">${gwCardInner(s.faces[face])}</span>` : '';
   return `<div class="gw-ask-me ${motionFirst(['gw-askme', roomDealKey(state), s.round, s.turnSeq].join('|')) ? 'is-in' : ''}">
       ${card}
       <div class="gw-ask-me__text">
         <span class="eyebrow">${escapeHTML(gwT('gw_q_from', { name: duelIso(names[s.turn] || '') }))}</span>
         <span class="gw-ask-me__q" dir="auto">${escapeHTML(text)}</span>
-        <span class="gw-ask-me__look" data-gw-look hidden>👀 ${escapeHTML(gwT('gw_look_again'))}</span>
       </div>
     </div>
     <div class="btn-row gw-ask-me__btns">
@@ -350,22 +480,12 @@ function gwAnswerCardHtml(state, seat) {
     </div>`;
 }
 
-/** Yes or no. A list answer that doesn't match this phone's face is stopped here: look again. */
+/** Yes or no, as the player says: the phone doesn't know the question, so it doesn't judge the answer. */
 function gwSendAnswer(yes) {
   const state = duelRoomState();
   if (!state || state.game !== 'guesswho') return;
-  const s = state.shared;
-  const face = (state.you || {}).face;
-  if (s.q && s.q.kind === 'list' && typeof face === 'number' && gwAnswer(s.q.qi, s.faces[face]) !== yes) {
-    const look = document.querySelector('#view-room-guesswho [data-gw-look]');
-    if (look) look.hidden = false;
-    const card = document.querySelector('#view-room-guesswho .gw-ask-me');
-    if (card && !motionOff()) { card.classList.remove('animate-shake'); void card.offsetWidth; card.classList.add('animate-shake'); }
-    haptic('heavy');
-    return;
-  }
   haptic('medium');
-  duelAct('answer', { yes: yes, seq: s.turnSeq });
+  duelAct('answer', { yes: yes, seq: state.shared.turnSeq });
 }
 
 function gwSendTyped(form) {
@@ -445,7 +565,7 @@ function gwMoments(state, loud) {
   if (!duelOnce(key)) return;
   const quiet = typeof motionOff === 'function' && motionOff();
   const names = duelRoomNames(state);
-  if (last.kind === 'list' || last.kind === 'loud' || last.kind === 'typed') {
+  if (last.kind === 'loud' || last.kind === 'typed') {
     if (loud) gwSound(last.answer ? 'yes' : 'no');
     if (quiet) return;
     gwOverlay(`<span class="gw-bubble ${last.answer ? 'is-yes' : 'is-no'}">${escapeHTML(last.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>`, 'gw-over--bubble', 1100);
@@ -479,13 +599,6 @@ function gwPanel(p) {
   gwRedraw();
 }
 
-function gwAsk(qi) {
-  const s = (duelRoomState() || {}).shared || {};
-  gwLocal.panel = null;
-  haptic('light');
-  duelAct('ask', { q: qi, seq: s.turnSeq });
-}
-
 function gwSendGuess() {
   const s = (duelRoomState() || {}).shared || {};
   const face = gwLocal.guess;
@@ -512,6 +625,7 @@ function gwTapFace(card) {
   const seat = (s.seats || []).indexOf(Room.me);
   if (seat === -1 || state.youAreScreen) return;
   const i = Number(card.getAttribute('data-gw-face'));
+  if (Date.now() < gwHold.until) return;
   if (s.phase === 'pick') {
     if (s.picked && s.picked[seat]) return;
     gwLocal.pick = i;
@@ -539,16 +653,10 @@ function gwTapFace(card) {
 
 /* --- the lobby: the host's choices, remembered on their phone ----------------- */
 
-// By hand is the default since 23 Sep 2026: a phone that remembered the old default (faces falling by
-// themselves) hadn't chosen it, so only a choice made on this switch since then (flipChosen) is kept.
-const gwRoomOpts = () => {
-  const o = recallOptions('guesswhoRoom', { size: 24, pick: 'random', autoFlip: false, wrong: 'lose', turnClock: 0 });
-  if (!o.flipChosen) o.autoFlip = false;
-  return o;
-};
+const gwRoomOpts = () => recallOptions('guesswhoRoom', { size: 24, pick: 'random', wrong: 'lose', turnClock: 0 });
 
 function setGwRoomOpt(key, value) {
-  rememberOptions('guesswhoRoom', key === 'autoFlip' ? { autoFlip: value, flipChosen: true } : { [key]: value });
+  rememberOptions('guesswhoRoom', { [key]: value });
   duelLobbyRedraw();
 }
 
@@ -634,7 +742,7 @@ function gwSig(state) {
 }
 
 ROOM_GAMES.guesswho = {
-  bots: { max: 12 },
+  // No computer players (the owner, 29 Sep 2026): they could only ask from a list.
   // Someone who joins mid-game joins the line and watches (routeRoomState).
   lateJoin: true,
 
@@ -644,7 +752,6 @@ ROOM_GAMES.guesswho = {
     return `<div class="card card--tight">
         ${gwLobbySeg(gwT('gw_lobby_size'), 'size', GW_SIZES.map(n => [n, String(n)]), o.size)}
         ${gwLobbySeg(gwT('gw_lobby_pick'), 'pick', [['random', gwT('gw_pick_random')], ['choose', gwT('gw_pick_choose')]], o.pick)}
-        ${gwLobbySeg(gwT('gw_lobby_flip'), 'autoFlip', [[false, gwT('gw_flip_hand')], [true, gwT('gw_flip_auto')]], o.autoFlip, o.autoFlip ? gwT('gw_flip_hint') : '')}
         ${gwLobbySeg(gwT('gw_lobby_wrong'), 'wrong', [['lose', gwT('gw_wrong_lose')], ['turn', gwT('gw_wrong_turn')]], o.wrong)}
         ${gwLobbySeg('⏱️ ' + gwT('gw_lobby_clock'), 'turnClock', GW_CLOCKS.map(v => [v, v ? v + '″' : gwT('gw_clock_off')]), o.turnClock)}
         ${typeof tourModeOf === 'function' && tourModeOf(state.game) === 'tour' && tourCanStart(state) ? '' : `<p class="field__hint" style="text-align:center">${escapeHTML(gwT('gw_lobby_hint'))}</p>`}
@@ -652,7 +759,7 @@ ROOM_GAMES.guesswho = {
   },
   startPayload() {
     const o = gwRoomOpts();
-    return { size: o.size, pick: o.pick, autoFlip: o.autoFlip, wrong: o.wrong, turnClock: o.turnClock };
+    return { size: o.size, pick: o.pick, wrong: o.wrong, turnClock: o.turnClock };
   },
 
   render(state) {
@@ -695,6 +802,7 @@ ROOM_GAMES.guesswho = {
             <div class="gw-layout">
               <div class="gw-layout__board" style="--gw-aspect:${gwAspect(s.faces.length)}">
                 ${gwBoardHtml(s, myDown, { tap: true, fall: fall, picked: s.phase === 'pick' ? gwLocal.pick : gwLocal.guess, guessing: gwLocal.panel === 'guess' })}
+                <p class="gw-hold-hint">🔍 ${escapeHTML(gwT('gw_hold_hint'))}</p>
               </div>
               <div class="gw-layout__side">
                 ${head}
@@ -737,6 +845,7 @@ ROOM_GAMES.guesswho = {
     gwTickClock(state);
     if (!rebuilt) return;
     falls.forEach(f => gwFall(el.querySelector(f.sel), f.fall));
+    gwWireHold(el);
     if (!el._gwWired) {
       el._gwWired = true;
       el.addEventListener('click', (e) => {
@@ -758,6 +867,7 @@ ROOM_GAMES.guesswho = {
 };
 
 onRoomClocksReset(() => {
+  gwZoomClose();
   gwStopClock();
   roomQuietStop(gwLocal);
   gwLocal.turnKey = '';

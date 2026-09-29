@@ -858,6 +858,71 @@ async function wireRobots() {
   [H, J, late, TV].forEach((x) => x.close());
 }
 
+/* --- افتح يا صندوق: four people and the TV, eight boxes to the end (run alone with --only=box) --- */
+async function boxRobots() {
+  console.log('• box (a true clue on each phone, secret bids, the highest takes the box, the show, eight boxes to the end, a leaver)');
+  const H = await Bot.host('منى', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const L = await Bot.join(H.code, 'ليلى');
+  const TV = await Bot.join(H.code, '', true);
+  let people = [H, J, K, L];
+  await H.must('chooseGame', { game: 'box' });
+  check((await J.act('start', {})).ok === false, 'box: only the host starts');
+  await H.must('start', {});
+  await all(people.concat([TV]), (s) => s.game === 'box' && s.shared.phase === 'talk' && s.shared.box === 0,
+    'box: box 1 is up, the talk on, on every phone and the TV');
+  const late = await Bot.join(H.code, 'متأخر');
+  check(late.state.inGame === false && !(late.state.you && late.state.you.clue), 'box: someone who joins mid-game watches, with no clue');
+  check(people.every((b) => b.state.you && b.state.you.clue && b.state.you.clue.id), 'box: every player has a secret clue');
+  check(!(TV.state.you && TV.state.you.clue), 'box: the TV has no clue');
+  const ids = new Set(people.map((b) => b.state.you.clue.id));
+  check(ids.size === people.length, 'box: every phone\'s clue is different');
+  for (let n = 0; n < 8; n++) {
+    await all(people.concat([TV]), (s) => s.shared.box === n && (s.shared.phase === 'talk' || s.shared.phase === 'bid'), `box ${n + 1}: dealt everywhere`);
+    if (n === 1) {
+      check((await J.act('openBids', { box: n })).ok === false, 'box: only the host calls the bids early');
+      await H.must('openBids', { box: n });
+      await all(people, (s) => s.shared.phase === 'bid' && s.shared.bidEndsAt, 'box: the host calls the bids: the last call');
+    }
+    if (n === 4) {
+      // Someone leaves during the talk: the box goes on with the others.
+      const out = people[3];
+      await api('/leave', { code: out.code, pid: out.pid, key: out.key });
+      out.close();
+      people = people.slice(0, 3);
+      await H.waitFor((s) => s.players.every((p) => p.id !== out.pid) && s.shared.board.every((r) => r.id !== out.pid), 'box: a player who leaves takes their money off the board');
+    }
+    const bids = people.map((b, i) => (n * 37 + i * 53) % 260);
+    await people[0].must('bid', { box: n, amount: bids[0] });
+    check(people[0].state.you.bid === bids[0] && !people[1].state.you.bid && people[1].state.shared.done.indexOf(people[0].pid) !== -1 && !people[1].state.shared.result,
+      `box ${n + 1}: a bid is on its own phone only; the table sees who, not how much`);
+    await people[0].must('bid', { box: n, amount: 5 });
+    check(people[0].state.you.bid === bids[0], `box ${n + 1}: a bid is sent once`);
+    for (let i = 1; i < people.length; i++) await people[i].must('bid', { box: n, amount: bids[i] });
+    await all(people.concat([TV]), (s) => s.shared.phase === 'open' && s.shared.result && s.shared.result.box === n, `box ${n + 1}: every bid in: the box opens on every screen`);
+    const R = H.state.shared.result;
+    const top = Math.max(...bids);
+    check(Object.keys(R.bids).length === people.length && (top === 0 ? !R.winnerId : R.bid === top && R.bids[R.winnerId] === top),
+      `box ${n + 1}: the bids are shown; the highest takes the box (${R.kind})`);
+    check(!people.some((b) => b.state.you && b.state.you.clue), `box ${n + 1}: the clues leave the phones once it opens`);
+    check((await H.act('nextBox', { box: n })).ok && H.state.shared.phase === 'open', `box ${n + 1}: the next box waits for the show`);
+    await sleep(10400);
+    await H.must('nextBox', { box: n });
+  }
+  await all(people.concat([TV, late]), (s) => s.shared.phase === 'gameover' && s.shared.opened.length === 8 && s.shared.board.length === 3,
+    'box: after the eighth box the game is over, the board by money');
+  const b = H.state.shared.board;
+  check(b[0].score >= b[1].score && b[1].score >= b[2].score && people.every((x) => b.some((r) => r.id === x.pid && r.score === x.state.shared.money[x.pid])),
+    'box: the richest wins');
+  await H.must('playAgain', {});
+  await all(people.concat([late]), (s) => s.shared.phase === 'talk' && s.shared.box === 0, 'box: play again deals box 1 again, the latecomer in');
+  check(late.state.you && late.state.you.clue, 'box: the latecomer plays the next game');
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'box: back in the hub');
+  people.concat([TV, late]).forEach((x) => x.close());
+}
+
 // The host's phone gone quiet mid-round: after 20 s anyone moves the round on (28 Sep 2026).
 async function hostAwayRobots() {
   console.log('• the host away: after 20 s any player moves the round on; settings stay the host\'s');
@@ -1082,6 +1147,12 @@ async function main() {
   }
   if (ONLY === 'snakes') {
     await snakesRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
+  if (ONLY === 'box') {
+    await boxRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
@@ -5087,6 +5158,7 @@ async function main() {
   await chairsRobots();
   await witnessRobots();
   await wireRobots();
+  await boxRobots();
   await snakesRobots();
   await bumperRobots();
   await hostAwayRobots();

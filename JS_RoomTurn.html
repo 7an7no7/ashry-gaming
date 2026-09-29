@@ -49,6 +49,8 @@ function roomTurnOf(state) {
   switch (state.game) {
     case 'bomb':
       return s.phase === 'ticking' && s.holderId === me ? 'turn_bomb' : null;
+    case 'box':
+      return (s.phase === 'talk' || s.phase === 'bid') && (s.roster || []).indexOf(me) !== -1 && (s.done || []).indexOf(me) === -1 ? 'turn_box' : null;
     case 'witness':
       if (s.phase === 'ready' && s.witnessId === me) return 'turn_witness';
       return s.phase === 'draw' && s.artistId === me ? 'turn_draw' : null;

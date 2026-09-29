@@ -10123,6 +10123,203 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- افتح يا صندوق (29 Sep 2026): a true clue each, a minute of talk, one secret bid, the box opens --- */
+{
+  console.log('\nOpen the box');
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
+  const boxRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'box' }); return r; };
+  const gone = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id.toUpperCase()); };
+  // The test's own reading of every clue, written apart from the rules: is it true of this box?
+  const KINDS = ['treasure', 'scorpion', 'bill', 'steal', 'double', 'key', 'empty'];
+  const TRAIT = {
+    gain: ['treasure', 'steal'], lose: ['scorpion', 'bill'], nomoney: ['key', 'empty'], moves: ['treasure', 'scorpion', 'bill', 'steal', 'double'],
+    others: ['bill', 'steal'], alone: ['treasure', 'scorpion', 'double', 'key', 'empty'], luck: ['double'], shiny: ['treasure', 'key', 'double'], alive: ['scorpion']
+  };
+  const truth = (c, b, prev) => {
+    if (c.k === 'not') return KINDS.indexOf(c.v.a) !== -1 && c.v.a !== b.kind;
+    if (c.k.indexOf('is_') === 0) return TRAIT[c.k.slice(3)].indexOf(b.kind) !== -1;
+    if (c.k.indexOf('no_') === 0) return TRAIT[c.k.slice(3)].indexOf(b.kind) === -1;
+    if (c.k === 'two') return c.v.a !== c.v.b && (c.v.a === b.kind || c.v.b === b.kind);
+    if (c.k === 'three') return new Set([c.v.a, c.v.b, c.v.c]).size === 3 && [c.v.a, c.v.b, c.v.c].indexOf(b.kind) !== -1;
+    if (c.k === 'gt') return b.kind === 'treasure' && b.value > c.v.x;
+    if (c.k === 'lt') return b.kind === 'treasure' && b.value < c.v.x;
+    if (c.k === 'same') return prev === b.kind;
+    if (c.k === 'diff') return !!prev && prev !== b.kind;
+    return false;
+  };
+  const allBid = (r, amounts) => Object.keys(amounts).forEach((id) => applyRoomAction(r, id, 'bid', { box: r.shared.box, amount: amounts[id] }));
+  // The deck, and every clue of many boxes: true, all different at a table, strong and weak mixed.
+  {
+    let deckOk = true, keyLast = false, cluesTrue = true, distinct = true, varied = true, counts = true;
+    const sawKinds = new Set();
+    for (let g = 0; g < 150; g++) {
+      const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].slice(0, 3 + (g % 6));
+      const r = boxRoom(ids);
+      applyRoomAction(r, 'a', 'start', {});
+      const deck = r._box.deck;
+      if (deck.length !== 8 || deck.filter((b) => b.kind === 'treasure').length < 3 || !deck.some((b) => b.kind === 'scorpion')) deckOk = false;
+      if (deck[7].kind === 'key') keyLast = true;
+      deck.forEach((b) => sawKinds.add(b.kind));
+      for (let i = 0; i < 8 && r.shared.phase !== 'gameover'; i++) {
+        const b = r._box.deck[r.shared.box];
+        const prev = r.shared.box > 0 ? r._box.deck[r.shared.box - 1].kind : null;
+        const clues = ids.map((id) => r.secrets[id] && r.secrets[id].clue);
+        if (clues.some((c) => !c)) counts = false;
+        clues.forEach((c) => { if (c && !truth(c, b, prev)) cluesTrue = false; });
+        if (new Set(clues.map((c) => c && c.id)).size !== ids.length) distinct = false;
+        if (new Set(clues.map((c) => c && c.s)).size < 2) varied = false;
+        applyRoomAction(r, 'a', 'closeBids', { box: r.shared.box });
+        clock += 20000;
+        applyRoomAction(r, 'a', 'nextBox', { box: r.shared.box });
+      }
+    }
+    check(deckOk && !keyLast, 'box: eight boxes, three treasures at least and a scorpion; a key is never the last box');
+    check(KINDS.every((k) => sawKinds.has(k)), 'box: every kind of box turns up');
+    check(counts && cluesTrue, 'box: every phone gets a clue, and every clue is true of its box');
+    check(distinct && varied, 'box: the clues at a table are all different, strong and weak mixed');
+  }
+  {
+    const r = boxRoom(['a', 'b']);
+    check(threw(() => applyRoomAction(r, 'a', 'start', {})), 'box: fewer than three is refused');
+  }
+  {
+    const r = boxRoom(['a', 'b', 'c', 'd']);
+    check(threw(() => applyRoomAction(r, 'b', 'start', {})), 'box: only the host starts');
+    applyRoomAction(r, 'a', 'start', {});
+    let s = r.shared;
+    check(r.phase === 'play' && s.phase === 'talk' && s.box === 0 && s.boxes === 8 && ['a', 'b', 'c', 'd'].every((id) => s.money[id] === 1000),
+      'box: box 1 of 8, everyone with 1,000');
+    check(roomDeadline(r) === s.talkEndsAt + 600 && s.talkEndsAt - clock === 60000, 'box: a minute of talk on the server\'s clock');
+    check(!('deck' in s) && !s.result && Object.keys(r.secrets).length === 4 && ['a', 'b', 'c', 'd'].every((id) => Object.keys(r.secrets[id]).sort().join() === 'box,clue'),
+      'box: the box is hidden; each phone has its clue only');
+    applyRoomAction(r, 'b', 'bid', { box: 0, amount: 300 });
+    applyRoomAction(r, 'b', 'bid', { box: 0, amount: 900 });
+    s = r.shared;
+    check(r._box.bids.b === 300 && r.secrets.b.bid === 300 && s.done.join() === 'b' && !('bids' in s), 'box: a bid is sent once and stays secret; who sent is public');
+    applyRoomAction(r, 'c', 'bid', { box: 0, amount: 5000 });
+    check(r._box.bids.c === 1000, 'box: a bid is no more than your money');
+    applyRoomAction(r, 'd', 'bid', { box: 9, amount: 100 });
+    check(r.shared.done.indexOf('d') === -1, 'box: a bid for another box is dropped');
+    tick(r);
+    s = r.shared;
+    check(s.phase === 'bid' && s.bidEndsAt - clock === 20000, 'box: the minute ends; 20 seconds of last call');
+    applyRoomAction(r, 'd', 'bid', { box: 0, amount: 0 });
+    tick(r);
+    s = r.shared;
+    check(s.phase === 'open' && s.result.bids.a === 0 && s.result.winnerId === 'c' && s.result.bid === 1000,
+      'box: the last call ends; no bid is a 0; the highest takes it');
+    check(s.result.before.c === 1000 && s.result.moves[0].from === 'c' && s.result.moves[0].n === 1000, 'box: the winner pays their bid');
+    check(!Object.keys(r._box.bids).length && !Object.keys(r._box.clues).length && ['a', 'b', 'd'].every((id) => !r.secrets[id].clue), 'box: once open the bids and clues are done with');
+    applyRoomAction(r, 'a', 'nextBox', { box: 0 });
+    check(r.shared.phase === 'open', 'box: the show plays to its end before the next box');
+    clock += 10600;
+    check(threw(() => applyRoomAction(r, 'b', 'nextBox', { box: 0 })) && r.shared.phase === 'open', 'box: only the host (or a stand-in) moves on');
+    applyRoomAction(r, 'a', 'nextBox', { box: 0 });
+    check(r.shared.phase === 'talk' && r.shared.box === 1 && r.shared.done.length === 0, 'box: the host moves on to the next box');
+    allBid(r, { a: 0, b: 0, c: 0, d: 0 });
+    s = r.shared;
+    check(s.phase === 'open' && s.result.winnerId === null && Object.keys(s.result.delta).every((id) => s.result.delta[id] === 0), 'box: every bid in opens it at once; all zero, nobody takes it and nothing moves');
+    tick(r);
+    check(r.shared.phase === 'talk' && r.shared.box === 2, 'box: the next box comes by itself after the show');
+    r.shared.money.a = 500; r.shared.money.b = 800;
+    allBid(r, { a: 200, b: 200, c: 100, d: 0 });
+    check(r.shared.result.winnerId === 'a' && r.shared.result.tie && r.shared.result.tieBy === 'poorer', 'box: a tie goes to the poorer');
+    tick(r);
+    r.shared.money.a = 800; r.shared.money.b = 800;
+    const wins = new Set();
+    for (let k = 0; k < 30; k++) {
+      const c = structuredClone(r);
+      allBid(c, { a: 200, b: 200, c: 100, d: 0 });
+      wins.add(c.shared.result.winnerId);
+    }
+    check(wins.size === 2 && wins.has('a') && wins.has('b'), 'box: equal bids and equal money: by lot');
+  }
+  {
+    const setUp = (kind, value, money) => {
+      const r = boxRoom(['a', 'b', 'c', 'd']);
+      applyRoomAction(r, 'a', 'start', {});
+      r._box.deck[0] = { kind, value };
+      r._box.deck[1] = { kind: 'treasure', value: 700 };
+      if (money) Object.assign(r.shared.money, money);
+      return r;
+    };
+    let r = setUp('treasure', 600);
+    allBid(r, { a: 200, b: 100, c: 0, d: 0 });
+    check(r.shared.money.a === 1400 && r.shared.money.b === 1000, 'box: a treasure: pay 200, get 600');
+    r = setUp('scorpion', 300);
+    allBid(r, { a: 200, b: 100, c: 0, d: 0 });
+    check(r.shared.money.a === 500, 'box: a scorpion: pay 200, and it scatters 300 more');
+    r = setUp('scorpion', 300, { a: 350 });
+    allBid(r, { a: 200, b: 100, c: 0, d: 0 });
+    check(r.shared.money.a === 0, 'box: money never goes below nothing');
+    r = setUp('bill', 50);
+    allBid(r, { a: 100, b: 50, c: 0, d: 0 });
+    check(r.shared.money.a === 750 && r.shared.money.b === 1050 && r.shared.money.c === 1050 && r.shared.money.d === 1050, 'box: a bill: 50 to everyone else');
+    r = setUp('steal', null, { b: 900, c: 1300, d: 1300 });
+    allBid(r, { a: 100, b: 50, c: 0, d: 0 });
+    const v = r.shared.result.victimId;
+    check((v === 'c' || v === 'd') && r.shared.money[v] === 650 && r.shared.money.a === 1550, 'box: a thief: half the leader\'s money');
+    r = setUp('steal', null, { a: 3000, b: 1000, c: 810, d: 200 });
+    allBid(r, { a: 100, b: 50, c: 0, d: 0 });
+    check(r.shared.result.victimId === 'b' && r.shared.money.b === 500, 'box: the leader who takes it steals from the richest of the rest');
+    let heads = 0, tails = 0;
+    for (let k = 0; k < 60; k++) {
+      r = setUp('double', null);
+      allBid(r, { a: 200, b: 50, c: 0, d: 0 });
+      if (r.shared.result.coin === 'heads' && r.shared.money.a === 1200) heads++;
+      else if (r.shared.result.coin === 'tails' && r.shared.money.a === 800) tails++;
+    }
+    check(heads + tails === 60 && heads > 10 && tails > 10, 'box: double-or-nothing: heads pays the bid back twice, tails nothing');
+    r = setUp('key', null);
+    allBid(r, { a: 200, b: 50, c: 0, d: 0 });
+    check(r.shared.money.a === 800 && r.secrets.a.peek && r.secrets.a.peek.box === 1 && r.secrets.a.peek.kind === 'treasure' && r.secrets.a.peek.value === 700 && !r.secrets.b.peek,
+      'box: a key: its holder alone sees the next box');
+    clock += 20000;
+    applyRoomAction(r, 'a', 'nextBox', { box: 0 });
+    check(r.secrets.a.peek && r.secrets.a.peek.box === 1 && r.secrets.a.clue, 'box: the peek stays through the next box\'s talk, beside the clue');
+    allBid(r, { a: 0, b: 0, c: 0, d: 0 });
+    check(!r.secrets.a.peek, 'box: the peek is gone once that box opens');
+    r = setUp('empty', null);
+    allBid(r, { a: 200, b: 50, c: 0, d: 0 });
+    check(r.shared.money.a === 800 && r.shared.result.kind === 'empty', 'box: an empty box: paid for nothing');
+  }
+  {
+    const r = boxRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'start', {});
+    for (let i = 0; i < 8; i++) { allBid(r, { a: 10 * i, b: 0, c: 0, d: 5 }); tick(r); }
+    const s = r.shared;
+    check(s.phase === 'gameover' && s.opened.length === 8 && s.board.length === 4 && s.board[0].score >= s.board[3].score && roomDeadline(r) === null && !r._box,
+      'box: after the eighth box the richest wins; the board is money');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.phase === 'talk' && r.shared.box === 0 && r.shared.money.b === 1000, 'box: play again deals eight new boxes');
+  }
+  {
+    const r = boxRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'start', {});
+    applyRoomAction(r, 'a', 'bid', { box: 0, amount: 100 });
+    applyRoomAction(r, 'b', 'bid', { box: 0, amount: 100 });
+    applyRoomAction(r, 'c', 'bid', { box: 0, amount: 100 });
+    gone(r, 'd');
+    check(r.shared.phase === 'open' && !('d' in r.shared.result.bids), 'box: the last one yet to bid leaving opens the box');
+    check(r.shared.board.every(row => row.score === r.shared.result.before[row.id]),
+      'box: while the box is being opened the board keeps the money from before (the show tells it)');
+    gone(r, 'c');
+    check(r.shared.phase === 'open' && r.shared.board.length === 2, 'box: a player who leaves takes their money off the board');
+    gone(r, 'b');
+    check(r.shared.phase === 'gameover', 'box: fewer than two left ends the game');
+  }
+  {
+    const r = boxRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'start', {});
+    check(threw(() => applyRoomAction(r, 'b', 'closeBids', { box: 0 })), 'box: only the host (or a stand-in) closes the bids');
+    applyRoomAction(r, 'a', 'openBids', { box: 0 });
+    check(r.shared.phase === 'bid', 'box: the host can end the talk sooner');
+    applyRoomAction(r, 'a', 'closeBids', { box: 0 });
+    check(r.shared.phase === 'open', 'box: and close the bids');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

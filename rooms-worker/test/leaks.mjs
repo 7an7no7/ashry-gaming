@@ -846,6 +846,39 @@ const PROBES = {
       })
     ];
   },
+  // افتح يا صندوق: the box's contents on no phone before it opens (a key's peek on its holder's alone);
+  // every clue on its own phone only; the bids hidden until all are in.
+  box(room) {
+    const s = room.shared || {};
+    const h = room._box;
+    const closed = !!h && (s.phase === 'talk' || s.phase === 'bid');
+    return [
+      probe('the box on the table is on no phone before it opens', closed, (view, pid, idx) => {
+        const sv = view.shared || {};
+        if (hasKey(sv, 'deck')) return 'shared.deck';
+        if (sv.result && sv.result.box === s.box) return 'shared.result';
+        // Its kind anywhere but in the boxes already opened, a clue (which may name it among others) or a key's peek.
+        return idx.find(h.deck[s.box].kind + '', { except: ['shared.opened', 'shared.result', 'you.clue', 'you.peek'] });
+      }),
+      probe("a key's peek at the next box reaches its holder only", !!h && Object.keys(h.peeks || {}).length > 0, (view, pid) => {
+        const p = view.you && view.you.peek;
+        if (!p) return null;
+        return h.peeks[pid] && h.peeks[pid].box === p.box && h.peeks[pid].kind === p.kind ? null : 'you.peek (someone else\'s)';
+      }),
+      probe("a phone's clue is its own, and nobody else's is on it", closed, (view, pid) => {
+        if (hasKey(view.shared, 'clues')) return 'shared.clues';
+        const c = view.you && view.you.clue;
+        if (!c) return null;
+        return JSON.stringify(c) === JSON.stringify(h.clues[pid]) ? null : 'you.clue (someone else\'s)';
+      }),
+      probe('the bids are hidden until all are in', closed, (view, pid) => {
+        if (hasKey(view.shared, 'bids')) return 'shared.bids';
+        const b = view.you && view.you.bid;
+        if (b === undefined || b === null) return null;
+        return h.bids[pid] === b ? null : 'you.bid (someone else\'s)';
+      })
+    ];
+  },
   // Nothing hidden: the generic rules still hold.
   wouldyou: () => [], mostlikely: () => [], buzzer: () => [], monkey: () => [],
   // عربيات التصادم: the TV runs the cars; the server holds nothing but the round.
@@ -1839,6 +1872,40 @@ const DRIVERS = {
         continue;
       }
       if (s.phase === 'reveal') { must(T, T.host, 'nextRound', { round: s.round }); continue; }
+    }
+    return S(T).phase === 'gameover';
+  },
+  box() {
+    // Five at the table, the eight boxes: bids in early, the minute and the last call on the clock,
+    // the host calling and closing the bids, a key (its peek) on the table, a player leaving mid-bid.
+    const T = table('box', 5);
+    must(T, T.host, 'start', {});
+    T.room._box.deck[2] = { kind: 'key', value: null };
+    for (let guard = 0; guard < 80 && S(T).phase !== 'gameover'; guard++) {
+      const s = S(T);
+      if (s.phase === 'talk' || s.phase === 'bid') {
+        const here = s.roster.filter((id) => T.room.players.some((p) => p.id === id)).filter((id) => s.done.indexOf(id) === -1);
+        if (s.box === 1) { runClock(T, (r) => r.shared.phase === 'open', 5); continue; }
+        if (s.box === 3 && s.phase === 'talk') { must(T, T.host, 'openBids', { box: s.box }); continue; }
+        if (s.box === 4) { act(T, here[0], 'bid', { box: s.box, amount: 50 }); must(T, T.host, 'closeBids', { box: s.box }); continue; }
+        if (s.box === 5 && here.length > 1 && T.room.players.length === 5) {
+          act(T, here[0], 'bid', { box: s.box, amount: 120 });
+          const goneId = here[here.length - 1];
+          T.room.players = T.room.players.filter((p) => p.id !== goneId);
+          const next = structuredClone(T.room);
+          roomPlayerLeft(next, goneId, 'X');
+          T.room = next;
+          scan(T, 'left');
+          continue;
+        }
+        here.forEach((id) => act(T, id, 'bid', { box: s.box, amount: 10 * Math.floor(Math.random() * 30) }));
+        continue;
+      }
+      if (s.phase === 'open') {
+        if (s.box % 2) runClock(T, (r) => r.shared.phase !== 'open', 3);
+        else { clock += 11000; must(T, T.host, 'nextBox', { box: s.box }); }
+        continue;
+      }
     }
     return S(T).phase === 'gameover';
   },

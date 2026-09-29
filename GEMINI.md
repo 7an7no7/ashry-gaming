@@ -347,6 +347,26 @@ work changed. Add to it when a decision is made or a batch ships.
         with a ladder's foot there (scared first), bored 30 or more behind
         the leader; **sitting down after 25 s** without moving
         (`SNK_SIT_AFTER`), never the one about to roll.
+  - **السلم والتعبان, the owner's review of the second round** (29 Sep 2026,
+    after playing it):
+    - **The sneak: he stops first, then sneaks.** He landed straight on the
+      ladder's square as part of his walk, so the table took the ladder's square
+      for his real one. Now he lands on his own square and stands there a beat
+      (everyone sees where he is), looks round, then tiptoes to the ladder, is
+      caught and brought back - all in his own turn. (The other way offered,
+      sneaking in the background during the others' turns, was not chosen: it
+      would play over their moves.)
+    - **The snake that catches him crawls to him and back.** It stretched from
+      its place to the ladder, which looked bad: now the whole snake crawls
+      along the board to him, catches him (a push or an eat and spit), and
+      crawls back to its own place. **It is the snake nearest to him**, not one
+      snake for every ladder.
+    - **Fun, never annoying** (the owner: "I don't want the animations to be too
+      much"): the extras are kept special - the sneak about 1 in 3 (was half),
+      the snake-tail moments about half the time (otherwise he just stands),
+      ducking under a head quick and small with a snap only now and then, the
+      idle waiting moments rarer, every big moment short. The moments that are
+      the rules (a snake, a ladder, the win) always play.
   - **جمجمة**: **rooms and the TV only**, your discs secret on your own phone,
     every pile face down on the TV; **3-8 players**; 4 discs each (3 flowers, 1
     skull); **two won bets wins, or the last one in**; **a skull hit takes one

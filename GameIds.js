@@ -11,7 +11,7 @@
    ========================================================================= */
 const APP_GAME_IDS = [
   'imposter', 'chameleon', 'spyfall', 'fakeartist', 'fibbage', 'mafia', 'twotruths',
-  'mind', 'guesswho', 'witness', 'timeline', 'charades', 'describe', 'timesup', 'whoami', 'justone',
+  'mind', 'guesswho', 'witness', 'darkroom', 'timeline', 'charades', 'describe', 'timesup', 'whoami', 'justone',
   'codenames', 'hangman', 'bowling', 'drawguess', 'telephone', 'monkey', 'bomb', 'bumper',
   'chairs', 'stop', 'wouldyou', 'mostlikely', 'wavelength', 'herd', 'headsup',
   'fiveseconds', 'trivia', 'buzzer', 'emoji', 'proverbs', 'screw', 'uno', 'domino', 'ludo', 'snakes',

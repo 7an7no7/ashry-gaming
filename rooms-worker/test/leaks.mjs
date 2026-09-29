@@ -24,6 +24,9 @@ import { roomView } from '../src/view.js';
 // The countries, for the engine's خمّن الدولة driver to guess with (one sets, everyone solves).
 const SOLVE_LISTS = new Function(readFileSync(new URL('../../Countries.js', import.meta.url), 'utf8') + '\nreturn { COUNTRIES };')();
 
+// الأوضة المضلمة's maps, for its driver to find a way through a level.
+const DARK = new Function(readFileSync(new URL('../../Dark.js', import.meta.url), 'utf8') + ';return { darkMap, darkBlocked, darkDynCell, DARK_DIRS, DARK_TICK };')();
+
 // خمّن مين's faces, to know the real face of الشاهد by what can be seen of it.
 const WIT = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') + ';return { gwSignature };')();
 
@@ -825,6 +828,31 @@ const PROBES = {
         if (sv.picks) return 'shared.picks';
         if (view.you && view.you.face) return 'you.face';
         return null;
+      })
+    ];
+  },
+  // الأوضة المضلمة: the map (its seed) and where the traps are never reach the mover's phone, nor anything public.
+  darkroom(room) {
+    const s = room.shared || {};
+    const h = room._dark;
+    const live = !!h && !!h.seed && s.phase !== 'gameover';
+    const pev = (h && h.pev) || [];
+    return [
+      probe("the map's seed is never on the mover's phone, nor anywhere public", live, (view, pid, idx) => {
+        if (pid === s.moverId) return idx.find(h.seed);
+        return idx.find(h.seed, { except: ['you', 'screen'] });
+      }),
+      probe("the mover's phone has only the echo: no map, no near misses", live, (view, pid) => {
+        if (pid !== s.moverId) return null;
+        const y = view.you || {};
+        if (y.g) return 'you.g';
+        if (y.pev) return 'you.pev';
+        if (view.screen) return 'screen';
+        return null;
+      }),
+      probe('where a trap is (a near miss, the one that caught the mover) is not public', live && pev.length > 0, (view) => {
+        const sh = JSON.stringify(view.shared || {});
+        return pev.some((e) => sh.indexOf('"x":' + e.x + ',"y":' + e.y) !== -1 && e.type) ? 'shared (a trap\'s place)' : null;
       })
     ];
   },
@@ -1778,6 +1806,78 @@ const DRIVERS = {
       if (!moved) runClock(T, (room) => room.shared !== s || room.shared.phase === 'gameover', 3);
     }
     return seen.lost && seen.midFlip && seen.guess;
+  },
+  darkroom() {
+    // Four at the table: a level walked (a trap on the way), the next one with a guide leaving and the turn
+    // passed, the traps to the end of the hearts; then play again in the tomb with the joystick.
+    const T = table('darkroom', 4);
+    must(T, T.host, 'start', { story: 'home', mode: 'steps' });
+    const mapOf = () => DARK.darkMap(S(T).story, S(T).level, T.room._dark.seed);
+    const at = (k) => { clock = S(T).t0 + k * DARK.DARK_TICK + 5; };
+    const cellOf = (m) => Math.floor(S(T).pos.y) * m.w + Math.floor(S(T).pos.x);
+    const dirTo = (m, a, b) => ({ 1: 'R', [-1]: 'L', [m.w]: 'D', [-m.w]: 'U' })[b - a];
+    // A way over (cell, tick) to a target, avoiding still and moving traps unless the target is one.
+    const plan = (m, to) => {
+      const W = m.w, from = cellOf(m), k0 = Math.max(0, Math.ceil((clock - S(T).t0) / DARK.DARK_TICK));
+      const still = new Set(m.traps.map((t) => t.y * W + t.x));
+      const prev = new Map([[from + '|' + k0, null]]);
+      let front = [from];
+      for (let k = k0; k < k0 + 2000 && front.length; k++) {
+        const next = [];
+        for (const c of front) {
+          if (c === to) { const out = []; for (let key = c + '|' + k; key; key = prev.get(key)) out.push([Number(key.split('|')[0]), Number(key.split('|')[1])]); return out.reverse(); }
+          const x = c % W, y = Math.floor(c / W);
+          const opts = [c];
+          for (const d of Object.values(DARK.DARK_DIRS)) if (!DARK.darkBlocked(m, x, y, d[0], d[1])) opts.push((y + d[1]) * W + x + d[0]);
+          for (const n of opts) {
+            const key = n + '|' + (k + 1);
+            if (prev.has(key) || (n !== to && (still.has(n) || m.dyn.some((d) => DARK.darkDynCell(m, d, k + 1) === n)))) continue;
+            prev.set(key, c + '|' + k); next.push(n);
+          }
+        }
+        front = next;
+      }
+      return null;
+    };
+    const go = (to) => {
+      const m = mapOf();
+      const path = plan(m, to);
+      if (!path) return false;
+      for (let i = 1; i < path.length && S(T).phase === 'play'; i++) {
+        at(path[i][1]);
+        const d = dirTo(m, path[i - 1][0], path[i][0]);
+        if (d) must(T, S(T).moverId, 'step', { d, run: S(T).run });
+      }
+      return true;
+    };
+    const trapOnce = () => { const m = mapOf(); const t = m.traps[0]; go(t.y * m.w + t.x); runClock(T, (r) => r.shared.phase !== 'trap', 4); };
+    const win = () => { const m = mapOf(); go(m.goal[1] * m.w + m.goal[0]); runClock(T, (r) => r.shared.phase !== 'won', 4); };
+    trapOnce();
+    win();
+    if (S(T).level !== 2) return false;
+    // A guide leaves; the host passes the mover's turn.
+    const guide = S(T).guides[0];
+    T.room.players = T.room.players.filter((p) => p.id !== guide);
+    const next = structuredClone(T.room); roomPlayerLeft(next, guide, 'X'); T.room = next; scan(T, 'left');
+    must(T, T.host, 'passMover', { run: S(T).run });
+    // Wait on the start while the moving traps go round (the server's clock), then walk the level.
+    at(3);
+    win();
+    for (let guard = 0; guard < 8 && S(T).phase !== 'gameover'; guard++) trapOnce();
+    if (S(T).phase !== 'gameover') return false;
+    // The tomb, with the joystick.
+    must(T, T.host, 'playAgain', { story: 'tomb', mode: 'stick' });
+    at(2);
+    for (let guard = 0; guard < 30 && S(T).phase === 'play'; guard++) {
+      const m = mapOf();
+      const t = m.traps[0];
+      const x = S(T).pos.x, y = S(T).pos.y;
+      const dx = t.x + 0.5 - x, dy = t.y + 0.5 - y, l = Math.hypot(dx, dy) || 1;
+      must(T, S(T).moverId, 'stick', { vx: dx / l, vy: dy / l, run: S(T).run });
+      clock += 300;
+    }
+    runClock(T, (r) => r.shared.phase !== 'trap', 4);
+    return S(T).level >= 1;
   },
   witness() {
     // Five at the table: every one the witness once - a sketch built, votes changed, a vote on the clock,

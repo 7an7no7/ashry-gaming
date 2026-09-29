@@ -6,7 +6,7 @@
  *   npm run test:rules      (builds generated/rules.js first)
  */
 import { readFileSync } from 'node:fs';
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, DISABLED_GAMES } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
 let failed = 0;
 const check = (ok, label) => {
@@ -9909,6 +9909,280 @@ Date.now = duelTestClock;
     gone(r, w);
     const s = r.shared;
     check(s.phase === 'ready' && s.round === 2 && s.witnessId !== w && !r._witness && !Object.keys(r.secrets).length, 'witness: a witness who leaves while looking: the round is passed over, the face gone');
+  }
+}
+
+
+/* --- الأوضة المضلمة (29 Sep 2026): one walks blind, the rest guide with the map under a lens --- */
+{
+  console.log('\nThe dark room');
+  const D = new Function(readFileSync(new URL('../../Dark.js', import.meta.url), 'utf8') +
+    ';return { darkMap, darkSolve, darkBlocked, darkDynCell, darkDynCells, darkReach, darkEcho, darkAdvance, darkLensR, darkNextHit, DARK_TICK, DARK_DIRS, DARK_TRAPS, DARK_LEVELS };')();
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const shape = (m) => JSON.stringify({ r: m.rooms, d: m.doors, b: m.blocks, t: m.traps, y: m.dyn, s: m.start, g: m.goal });
+  // An independent walk-finder over (cell, tick): a step a tick, or a wait; never on a still trap, never where a moving one is.
+  const walk = (m, from, k0) => {
+    const W = m.w, start = from, goal = m.goal[1] * W + m.goal[0];
+    const still = new Set(m.traps.map((t) => t.y * W + t.x));
+    const hits = (c, k) => (m.dyn || []).some((d) => D.darkDynCell(m, d, k) === c);
+    const prev = new Map();
+    let front = [start];
+    prev.set(start + '|' + k0, null);
+    for (let k = k0; k < k0 + 3000 && front.length; k++) {
+      const next = [];
+      for (const c of front) {
+        if (c === goal) {
+          const path = [];
+          for (let key = c + '|' + k; key; key = prev.get(key)) path.push(Number(key.split('|')[0]));
+          return path.reverse();
+        }
+        const x = c % W, y = Math.floor(c / W);
+        const opts = [c];
+        for (const d of Object.values(D.DARK_DIRS)) if (!D.darkBlocked(m, x, y, d[0], d[1])) opts.push((y + d[1]) * W + x + d[0]);
+        for (const n of opts) {
+          const key = n + '|' + (k + 1);
+          if (still.has(n) || hits(n, k + 1) || prev.has(key)) continue;
+          prev.set(key, c + '|' + k);
+          next.push(n);
+        }
+      }
+      front = next;
+    }
+    return null;
+  };
+  // Many seeds, both stories, every level: always walkable, and every piece where it belongs.
+  {
+    let solvable = true, sameAgain = true, free = true, connected = true, clean = true, story = true, creak = true, dynOk = true, sizes = true;
+    let moving = 0, level1Moving = 0, blades = 0, balls = 0, cats = 0, mummies = 0;
+    for (const st of ['home', 'tomb']) {
+      let lastArea = 0;
+      for (let lv = 1; lv <= 6; lv++) {
+        let area = 0;
+        for (let i = 0; i < 40; i++) {
+          const seed = (i * 2654435761 + lv * 97 + (st === 'tomb' ? 13 : 0)) >>> 0 || 1;
+          const m = D.darkMap(st, lv, seed);
+          area = m.w * m.h;
+          const W = m.w, start = m.start[1] * W + m.start[0], goal = m.goal[1] * W + m.goal[0];
+          if (!walk(m, start, 0) || D.darkSolve(m) < 0) solvable = false;
+          if (shape(D.darkMap(st, lv, seed)) !== shape(m)) sameAgain = false;
+          if (m.cellBlock[start] >= 0 || m.cellBlock[goal] >= 0 || m.trapAt.has(start) || m.trapAt.has(goal)) free = false;
+          // Every free cell reachable from the bed (no pocket nobody can reach).
+          const seen = D.darkReach(m, start);
+          for (let c = 0; c < W * m.h; c++) if (m.cellBlock[c] < 0 && !seen[c]) connected = false;
+          // The start and its neighbours never on a moving trap's line; still traps never on a door.
+          const near = [start];
+          for (const d of Object.values(D.DARK_DIRS)) { const x = m.start[0] + d[0], y = m.start[1] + d[1]; if (x >= 0 && y >= 0 && x < W && y < m.h) near.push(y * W + x); }
+          (m.dyn || []).forEach((d) => { if (d.path.some((c) => near.indexOf(c) !== -1 || c === goal)) dynOk = false; });
+          m.doors.forEach((d) => { if (m.trapAt.has(d[1] * W + d[0]) || m.trapAt.has(d[3] * W + d[2])) clean = false; });
+          const kinds = D.DARK_TRAPS[st];
+          const allowed = [...kinds.still, kinds.near, kinds.patrol, kinds.roll, 'sand'];
+          m.traps.forEach((t) => { if (allowed.indexOf(t.k) === -1) story = false; });
+          m.dyn.forEach((d) => { if (allowed.indexOf(d.k) === -1) story = false; });
+          if (st === 'home') m.traps.filter((t) => t.k === 'creak').forEach((t) => {
+            const b = m.blocks[m.sleeper];
+            if (!b || Math.abs(t.x - b.x) + Math.abs(t.y - b.y) !== 1) creak = false;
+          });
+          if (lv === 1) level1Moving += m.dyn.length;
+          moving += m.dyn.length;
+          m.dyn.forEach((d) => { if (d.k === 'blade') blades++; if (d.k === 'ball') balls++; if (d.k === 'cat') cats++; if (d.k === 'mummy') mummies++; });
+        }
+        if (area < lastArea) sizes = false;
+        lastArea = area;
+      }
+    }
+    check(solvable, 'darkroom: 480 maps, both stories, levels 1-6: a search over (cell, time) always finds a way from the start to the goal');
+    check(sameAgain, 'darkroom: the same seed makes the same map (the page and the server draw one house)');
+    check(free && connected, 'darkroom: the start and the goal are free, and every free cell can be reached');
+    check(clean && dynOk, 'darkroom: no trap on a door, no moving trap on the start, beside it or on the goal');
+    check(story && creak, 'darkroom: each story has its own traps; the creaky tile lies right beside grandpa');
+    check(sizes && level1Moving === 0 && moving > 200 && blades > 0 && balls > 0 && cats > 0 && mummies > 0,
+      'darkroom: levels grow; level 1 lies still, later ones bring the cat, the ball, the mummy and the blade');
+  }
+  // The lens shrinks as the guides grow; a lone guide sees the whole map.
+  {
+    const m = D.darkMap('home', 3, 99);
+    check(D.darkLensR(m, 1) === 0 && D.darkLensR(m, 2) > D.darkLensR(m, 4) && D.darkLensR(m, 7) >= 1.5, 'darkroom: one guide sees it all; the lens gets smaller with more guides');
+  }
+  // The joystick: a wall stops the body at its edge.
+  {
+    const m = D.darkMap('home', 2, 4242);
+    const x0 = m.start[0] + 0.5, y0 = m.start[1] + 0.5;
+    let hitWall = null;
+    for (const k of Object.keys(D.DARK_DIRS)) { const d = D.DARK_DIRS[k]; if (D.darkBlocked(m, m.start[0], m.start[1], d[0], d[1])) { hitWall = d; break; } }
+    const r = D.darkAdvance(m, x0, y0, hitWall[0], hitWall[1], 1);
+    check(!!r.bump && Math.floor(r.x) === m.start[0] && Math.floor(r.y) === m.start[1], 'darkroom joystick: walking into a wall stops at its edge, with a bump');
+  }
+
+  const dkRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'darkroom' }); return r; };
+  const gone = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id.toUpperCase()); };
+  const mapOf = (r) => D.darkMap(r.shared.story, r.shared.level, r._dark.seed);
+  const at = (r, k) => { clock = r.shared.t0 + k * D.DARK_TICK + 5; };
+  const cellOf = (r) => Math.floor(r.shared.pos.y) * mapOf(r).w + Math.floor(r.shared.pos.x);
+  const dirTo = (m, a, b) => { const d = b - a; return d === 1 ? 'R' : d === -1 ? 'L' : d === m.w ? 'D' : d === -m.w ? 'U' : null; };
+  /** Walks the mover along a safe way to the goal, a step each tick. */
+  const walkToGoal = (r) => {
+    const m = mapOf(r);
+    const k0 = Math.max(0, Math.ceil((clock - r.shared.t0) / D.DARK_TICK));
+    const path = walk(m, cellOf(r), k0);
+    if (!path) return false;
+    for (let i = 1; i < path.length; i++) {
+      at(r, k0 + i);
+      const d = dirTo(m, path[i - 1], path[i]);
+      if (d) applyRoomAction(r, r.shared.moverId, 'step', { d, run: r.shared.run });
+      if (r.shared.phase !== 'play') break;
+    }
+    return r.shared.phase === 'won';
+  };
+  {
+    check(threw(() => applyRoomAction(dkRoom(['a']), 'a', 'start', {})), 'darkroom: one player is refused');
+    const r = dkRoom(['a', 'b', 'c']);
+    check(threw(() => applyRoomAction(r, 'b', 'start', {})), 'darkroom: only the host starts');
+    applyRoomAction(r, 'a', 'start', { story: 'tomb', mode: 'steps' });
+    let s = r.shared;
+    check(r.phase === 'play' && s.story === 'tomb' && s.mode === 'steps' && s.level === 1 && s.hearts === 3 && s.order.length === 3 && s.moverId === s.order[0],
+      'darkroom: level 1, three hearts, the first in the order walks');
+    const mover = s.moverId, guides = s.guides;
+    check(guides.length === 2 && guides.indexOf(mover) === -1, 'darkroom: everyone else guides');
+    check(!('seed' in s) && JSON.stringify(s).indexOf(String(r._dark.seed)) === -1, 'darkroom: the map\'s seed is nowhere in shared');
+    check(r.secrets[mover] && r.secrets[mover].echo && !r.secrets[mover].g, 'darkroom: the mover\'s slice is the echo, never the map');
+    check(guides.every((id) => r.secrets[id] && r.secrets[id].g.seed === r._dark.seed) && r.screenOnly && r.screenOnly.g.seed === r._dark.seed,
+      'darkroom: every guide and the screen get the map\'s seed');
+    const m = mapOf(r);
+    check(JSON.stringify(r.secrets[mover].echo) === JSON.stringify(D.darkEcho(m, m.start[0], m.start[1])), 'darkroom: the echo is what stands beside the start');
+    // Nothing moves before the level's intro is over, and only the mover moves.
+    const pos0 = JSON.stringify(s.pos);
+    applyRoomAction(r, mover, 'step', { d: 'U', run: s.run });
+    applyRoomAction(r, mover, 'step', { d: 'D', run: s.run });
+    check(JSON.stringify(r.shared.pos) === pos0, 'darkroom: no step during the intro');
+    at(r, 1);
+    applyRoomAction(r, guides[0], 'step', { d: 'U', run: s.run });
+    check(JSON.stringify(r.shared.pos) === pos0, 'darkroom: a guide can\'t walk');
+    // Into a wall: a bump, and the mover stays.
+    let wallDir = null, openDir = null;
+    for (const k of Object.keys(D.DARK_DIRS)) { const d = D.DARK_DIRS[k]; const b = D.darkBlocked(m, m.start[0], m.start[1], d[0], d[1]); if (b && !wallDir) wallDir = k; if (!b && !openDir) openDir = k; }
+    applyRoomAction(r, mover, 'step', { d: wallDir, run: s.run });
+    s = r.shared;
+    check(JSON.stringify(s.pos) === pos0 && s.ev[s.ev.length - 1].type === 'bump' && s.ev[s.ev.length - 1].k, 'darkroom: a step into a wall is a bump, and the mover stays');
+    clock += 30;
+    applyRoomAction(r, mover, 'step', { d: openDir, run: s.run });
+    check(JSON.stringify(r.shared.pos) === pos0, 'darkroom: a second step within 110 ms is a double tap, dropped');
+    clock += 200;
+    applyRoomAction(r, mover, 'step', { d: openDir, run: s.run - 1 });
+    check(JSON.stringify(r.shared.pos) === pos0, 'darkroom: a step from before the last reset is dropped');
+  }
+  // A trap: back to the start, a heart gone; the goal: the next level, a new mover.
+  {
+    const r = dkRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'start', { story: 'home', mode: 'steps' });
+    const m = mapOf(r);
+    const t = m.traps[0];
+    const W = m.w;
+    // The way to the first still trap, stepping on nothing else first.
+    const target = t.y * W + t.x;
+    const bfs = (from, to) => { const prev = new Map([[from, -1]]); const q = [from]; while (q.length) { const c = q.shift(); if (c === to) break; const x = c % W, y = Math.floor(c / W); for (const d of Object.values(D.DARK_DIRS)) { if (D.darkBlocked(m, x, y, d[0], d[1])) continue; const n = (y + d[1]) * W + x + d[0]; if (prev.has(n) || (n !== to && (m.trapAt.has(n) || D.darkDynCells(m, 0).has(n)))) continue; prev.set(n, c); q.push(n); } } if (!prev.has(to)) return null; const out = []; for (let c = to; c !== -1; c = prev.get(c)) out.push(c); return out.reverse(); };
+    const p = bfs(m.start[1] * W + m.start[0], target);
+    for (let i = 1; p && i < p.length && r.shared.phase === 'play'; i++) { at(r, i); applyRoomAction(r, r.shared.moverId, 'step', { d: dirTo(m, p[i - 1], p[i]), run: r.shared.run }); }
+    let s = r.shared;
+    check(!!p && s.phase === 'trap' && s.hearts === 2 && s.trap === t.k && s.ev[s.ev.length - 1].type === 'trap', 'darkroom: a still trap catches the mover and a heart is lost');
+    check(r.screenOnly.pev.some((e) => e.type === 'trap' && e.x === t.x && e.y === t.y) && !JSON.stringify(s).includes('"x":' + t.x + ',"y":' + t.y + '}'),
+      'darkroom: where the trap was goes to the guides and the screen, not to shared');
+    check(roomDeadline(r) === s.stunUntil, 'darkroom: the trap\'s moment is on the server\'s clock');
+    const run = s.run;
+    clock = s.stunUntil; roomTimeout(r, clock);
+    s = r.shared;
+    check(s.phase === 'play' && s.run === run + 1 && Math.floor(s.pos.x) === m.start[0] && Math.floor(s.pos.y) === m.start[1], 'darkroom: back at the start after the trap');
+    const mover1 = s.moverId;
+    check(walkToGoal(r), 'darkroom: the mover reaches the goal along a safe way');
+    s = r.shared;
+    check(s.cleared === 1 && s.best === 1 && roomDeadline(r) === s.nextAt, 'darkroom: a level cleared, the next one on the server\'s clock');
+    clock = s.nextAt; roomTimeout(r, clock);
+    s = r.shared;
+    const m2 = mapOf(r);
+    check(s.level === 2 && s.moverId !== mover1 && s.hearts === 2 && m2.w * m2.h > m.w * m.h && s.phase === 'play', 'darkroom: level 2 is bigger, with the next mover and the hearts kept');
+    check(r.secrets[mover1] && r.secrets[mover1].g && !r.secrets[s.moverId].g, 'darkroom: the old mover now guides, the new one has only the echo');
+  }
+  // A moving trap walks into a mover who stands still.
+  {
+    const r = dkRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'start', { story: 'tomb', mode: 'steps' });
+    r._dark.seed = 777; r.shared.level = 3;
+    const m = mapOf(r);
+    const d = m.dyn.find((x) => x.k === 'mummy') || m.dyn[0];
+    const c = d.k === 'blade' ? d.path[0] : d.path[d.path.length - 1];
+    r.shared.pos = { x: c % m.w + 0.5, y: Math.floor(c / m.w) + 0.5 };
+    at(r, 0);
+    const due = roomDeadline(r);
+    check(due && due > clock && due === r.shared.t0 + D.darkNextHit(m, c, clock - r.shared.t0) + 20, 'darkroom: the server knows when a moving trap reaches the mover');
+    clock = due; roomTimeout(r, clock);
+    check(r.shared.phase === 'trap' && r.shared.hearts === 2 && r.shared.trap === d.k, 'darkroom: a moving trap that walks into the mover catches them');
+  }
+  // Three traps end the game; play again keeps the room's best.
+  {
+    const r = dkRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'start', { story: 'home', mode: 'steps' });
+    for (let i = 0; i < 3; i++) {
+      const m = mapOf(r);
+      const t = m.traps[0];
+      const ap = Object.keys(D.DARK_DIRS).map((k) => { const d = D.DARK_DIRS[k]; return { k, x: t.x - d[0], y: t.y - d[1], d }; })
+        .find((q) => q.x >= 0 && q.y >= 0 && q.x < m.w && q.y < m.h && m.cellBlock[q.y * m.w + q.x] < 0 && !D.darkBlocked(m, q.x, q.y, q.d[0], q.d[1]));
+      r.shared.pos = { x: ap.x + 0.5, y: ap.y + 0.5 };
+      at(r, 3 + i * 20);
+      applyRoomAction(r, r.shared.moverId, 'step', { d: ap.k, run: r.shared.run });
+      if (r.shared.phase === 'trap') { clock = r.shared.stunUntil; roomTimeout(r, clock); }
+    }
+    const s = r.shared;
+    check(s.phase === 'gameover' && s.ended === 'hearts' && s.hearts === 0 && r.screenOnly === null, 'darkroom: three traps, and the game is over');
+    s.best = 4;
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.phase === 'play' && r.shared.hearts === 3 && r.shared.level === 1 && r.shared.best === 4 && r.shared.story === 'home', 'darkroom: play again: three hearts, level 1, the room\'s best kept');
+  }
+  // The joystick on the server: a push walks, a wall stops it.
+  {
+    const r = dkRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'start', { story: 'home', mode: 'stick' });
+    const m = mapOf(r);
+    at(r, 1);
+    let open = null;
+    for (const k of Object.keys(D.DARK_DIRS)) { const d = D.DARK_DIRS[k]; if (!D.darkBlocked(m, m.start[0], m.start[1], d[0], d[1]) && !m.trapAt.has((m.start[1] + d[1]) * m.w + m.start[0] + d[0])) { open = d; break; } }
+    const s0 = JSON.stringify(r.shared.pos);
+    applyRoomAction(r, r.shared.moverId, 'step', { d: 'U', run: r.shared.run });
+    check(JSON.stringify(r.shared.pos) === s0, 'darkroom joystick: arrows do nothing in joystick mode');
+    applyRoomAction(r, r.shared.moverId, 'stick', { vx: open[0], vy: open[1], run: r.shared.run });
+    clock += 200;
+    applyRoomAction(r, r.shared.moverId, 'stick', { vx: open[0], vy: open[1], run: r.shared.run });
+    const moved = Math.hypot(r.shared.pos.x - (m.start[0] + 0.5), r.shared.pos.y - (m.start[1] + 0.5));
+    check(moved > 0.3 && moved < 0.6, 'darkroom joystick: a push walks at the joystick\'s speed (0.2 s ≈ half a cell)');
+    clock += 5000;
+    applyRoomAction(r, r.shared.moverId, 'stick', { vx: 0, vy: 0, run: r.shared.run });
+    const moved2 = Math.hypot(r.shared.pos.x - (m.start[0] + 0.5), r.shared.pos.y - (m.start[1] + 0.5));
+    check(moved2 < moved + 0.9, 'darkroom joystick: a phone gone quiet walks at most a third of a second more');
+  }
+  // Leaving, passing the turn, a latecomer.
+  {
+    const r = dkRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'start', {});
+    let s = r.shared;
+    const m1 = s.moverId;
+    check(threw(() => applyRoomAction(r, ['b', 'c'].find((id) => id !== m1) || 'b', 'passMover', { run: s.run })) && r.shared.moverId === m1, 'darkroom: only the host passes the turn');
+    applyRoomAction(r, 'a', 'passMover', { run: s.run });
+    s = r.shared;
+    check(s.moverId !== m1 && s.hearts === 3 && s.ev[s.ev.length - 1].type === 'mover', 'darkroom: the host passes a quiet mover\'s turn, no heart lost');
+    const m2 = s.moverId;
+    gone(r, m2);
+    s = r.shared;
+    check(s.moverId !== m2 && s.phase === 'play' && s.guides.indexOf(m2) === -1, 'darkroom: a mover who leaves: the next one walks');
+    r.players.push({ id: 'z', name: 'Z' });
+    at(r, 2);
+    applyRoomAction(r, s.moverId, 'step', { d: 'U', run: s.run });
+    check(r.shared.roster.indexOf('z') !== -1 && r.secrets.z && r.secrets.z.g, 'darkroom: someone who joins becomes a guide');
+    gone(r, 'z');
+    gone(r, r.shared.guides[0]);
+    check(r.shared.phase === 'gameover' && r.shared.ended === 'left', 'darkroom: one left, and the game is over');
+  }
+  {
+    const r = dkRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'start', {});
+    check(darkRelaying(r), 'darkroom: the lenses are relayed while a level is played');
   }
 }
 

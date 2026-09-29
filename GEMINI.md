@@ -198,6 +198,20 @@ work changed. Add to it when a decision is made or a batch ships.
     harder** (bigger maze, moving traps), **the mover changes each level**.
     **2-8 players** (two: one blind, one sees the whole map), **no TV
     needed**.
+    **The look: ج «العدسة والصدى»** (the owner, 29 Sep 2026, took the
+    recommendation, from a second sheet in 3D,
+    https://claude.ai/artifact/EvE9c3QFCJ6Q41Tn48fhyn - the first was
+    rejected: flat drawing, a boring grid of squares): real rooms in 3D
+    (three.js), never a visible grid; each guide drags a lens over the dark
+    plan and sees the other lenses as dashed rings (with two players the
+    lens is the whole map); the mover sees nothing but an echo line where a
+    wall or furniture is beside them; the TV in 3D with a 2D switch (2D is
+    also the fallback). Borrowed from the other two looks: the house's rooms
+    (grandpa snoring in his armchair, the cat's glowing eyes, the fridge
+    glowing) and the tomb's torches, sarcophagus and mummy. **The owner:
+    improve the maps and the traps while building** - varied, hand-made-
+    feeling layouts per level, traps that belong to each story and move,
+    near misses that react.
   - **بالظبط ٣!** (reflex sync): an order for all at once after a countdown
     («بالظبط ٣ منكم يدوسوا!», in order, «محدش يدوس», all at the same
     instant, the pulse in sequence). **Lives are the table's** (co-op, a
@@ -206,7 +220,13 @@ work changed. Add to it when a decision is made or a batch ships.
     can judge** (no battery - iPhone can't read it - no "wearing red" or
     "the youngest"). **Until the lives run out, getting harder.** **3-12
     players, no TV needed.** Taps judged by the phones' stamps of the
-    server's time, as الكراسي الموسيقية.
+    server's time, as الكراسي الموسيقية. **Every order is about the phone
+    only** (the owner, 29 Sep 2026, again: "all related to the phone so you
+    know who failed" - nothing about the body, clothes, age or anything the
+    phone can't see): counts, timing, order, holding, releasing, tapping a
+    number of times, a colour or shape on your own screen, and the like;
+    the server knows exactly who got it wrong. **The owner: improve the
+    orders, the animation and the flow of a game while building.**
     **The look: أ «إيد على الترابيزة», improved** (the owner, 29 Sep 2026,
     from https://claude.ai/artifact/HyhEyTCYt2fBCYiHJh9UoU): a wooden table
     from above with a seat each, the order a paper card in the middle, the
@@ -280,6 +300,9 @@ work changed. Add to it when a decision is made or a batch ships.
     it and pays), the box opens slowly. **Clues always true; lies come from
     people only.** **No computer players.** **8 boxes, 3-8 players.** The
     most money at the end wins.
+    **The name: «افتح يا صندوق»** (the studio's name, the owner's go-ahead
+    on the recommendation, 29 Sep 2026; «مزاد خان الخليلي» went with the
+    old place).
     **The look: أ «استوديو الصندوق»** (the owner, 29 Sep 2026, from a second
     sheet, https://claude.ai/artifact/NUru7oBeMjHrECDpiXCynv - the first,
     Khan el-Khalili, was rejected: ordinary drawing, a dull opening, a

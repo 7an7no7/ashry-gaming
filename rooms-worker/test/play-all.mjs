@@ -792,6 +792,8 @@ async function witnessRobots() {
   await H.must('backToHub');
   await H.waitFor((s) => s.phase === 'lobby', 'witness: back in the hub');
   people.filter((b) => b !== leaver).concat([TV, late]).forEach((x) => x.close());
+}
+
 /* --- سلك مقطوع: panels on their own phones, orders done by whoever holds the control, damage, a level won, the end --- */
 async function wireRobots() {
   console.log('• سلك مقطوع (own panels, an order shouted and done by its holder, a miss, a level won, the damage, play again)');
@@ -1086,6 +1088,10 @@ async function main() {
   }
   if (ONLY === 'witness') {
     await witnessRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
   if (ONLY === 'wire') {
     await wireRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);

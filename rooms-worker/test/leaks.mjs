@@ -825,6 +825,9 @@ const PROBES = {
         if (sv.picks) return 'shared.picks';
         if (view.you && view.you.face) return 'you.face';
         return null;
+      })
+    ];
+  },
   // سلك مقطوع: each phone its own panel; the orders are public, but never who holds their control.
   wire(room) {
     const w = room._wire;

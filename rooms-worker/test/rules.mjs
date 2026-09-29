@@ -9909,6 +9909,9 @@ Date.now = duelTestClock;
     gone(r, w);
     const s = r.shared;
     check(s.phase === 'ready' && s.round === 2 && s.witnessId !== w && !r._witness && !Object.keys(r.secrets).length, 'witness: a witness who leaves while looking: the round is passed over, the face gone');
+  }
+}
+
 /* --- سلك مقطوع (29 Sep 2026): the panels, the orders, the damage and the clock, surprises, leaving --- */
 {
   console.log('\nCut wire');

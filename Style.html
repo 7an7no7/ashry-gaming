@@ -13569,7 +13569,7 @@ body.dark .pc-stamp--danger, body.dark .pc-stamp { color: #fb7185; }
 .db-pile { position: relative; display: block; width: var(--pc-w, 3.3rem); height: calc(var(--pc-w, 3.3rem) * 1.42); --pc-w: 3.3rem; }
 .db-pile .pc-card { --pc-w: 3.3rem; }
 .db-pile__card { position: absolute; inset: 0; transform: translate(calc(var(--k) * 2px), calc(var(--k) * -2px)) rotate(var(--tilt, 0deg)); }
-.db-pile__empty { position: absolute; inset: 0; opacity: 0.18; filter: grayscale(1); }
+.db-pile__empty { position: absolute; inset: 0; border: 2px dashed var(--accent-border, var(--border-strong, var(--border))); border-radius: calc(var(--pc-w, 3.3rem) * 0.12); background: color-mix(in srgb, var(--surface-solid) 45%, transparent); }
 .db-pileinfo { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-1); }
 .db-pile__n { color: var(--text-2); font-size: var(--fs-sm); font-weight: 800; }
 .db-pile__n b { color: var(--text-strong); font-size: 1.35rem; }
@@ -13585,7 +13585,7 @@ body.dark .pc-stamp--danger, body.dark .pc-stamp { color: #fb7185; }
 .db-called__cards { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; padding: 4px 6px; }
 .db-called__stamp {
   position: absolute;
-  top: 50%;
+  top: 100%;
   left: 50%;
   padding: 0 0.4em 0.08em;
   border: 3px solid currentColor;
@@ -13593,12 +13593,16 @@ body.dark .pc-stamp--danger, body.dark .pc-stamp { color: #fb7185; }
   background: color-mix(in srgb, var(--surface-solid) 78%, transparent);
   color: var(--pc-call);
   font-family: var(--font-display);
-  font-size: 1.45rem;
+  font-size: 1.2rem;
   font-weight: 800;
   line-height: 1.15;
   white-space: nowrap;
-  transform: translate(-50%, -50%) rotate(-12deg);
+  /* On the cards' lower edge, not over their faces: the table has to read them. */
+  transform: translate(-50%, -70%) rotate(-8deg);
+  box-shadow: var(--sh-1);
 }
+.db-called__cards { margin-bottom: 0.7rem; }
+.db-called .pc-card { --pc-w: 2.9rem; }
 .db-called.is-true .db-called__stamp { color: var(--pc-true); }
 body.dark .db-called__stamp { color: #fb7185; }
 body.dark .db-called.is-true .db-called__stamp { color: #4ade80; }
@@ -13622,6 +13626,12 @@ body.dark .db-called.is-true .db-called__stamp { color: #4ade80; }
 }
 .db-callbtn:active { transform: translateY(4px); box-shadow: 0 1px 0 #8e1226, 0 6px 14px -8px rgba(200, 30, 58, 0.7); }
 .db-callbtn:disabled { opacity: 0.6; }
+.db-callbtn { position: relative; overflow: hidden; }
+/* The computer player up next moves when this runs out (shared.callEnds). */
+.db-callbar { position: absolute; inset-inline: 0.9rem; bottom: 0.45rem; height: 0.3rem; border-radius: var(--r-full); background: rgba(255, 255, 255, 0.28); overflow: hidden; pointer-events: none; }
+.db-callbar > i { position: absolute; inset: 0; border-radius: inherit; background: #fff; transform-origin: left center; animation: db-callbar linear forwards; }
+@keyframes db-callbar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.db-hint__bot { color: var(--danger-ink); font-weight: 900; }
 .db-callbox.is-hot .db-callbtn { animation: db-call-pulse 0.8s ease-in-out infinite alternate; }
 @keyframes db-call-pulse { from { transform: scale(1); } to { transform: scale(1.03); } }
 /* Your hand. */
@@ -13643,7 +13653,7 @@ body.dark .db-called.is-true .db-called__stamp { color: #4ade80; }
   transition: transform var(--dur-2) var(--ease-out);
   -webkit-tap-highlight-color: transparent;
 }
-.db-hcard.is-sel { transform: translateY(-0.9rem); }
+.db-hcard.is-sel { z-index: 2; transform: translateY(-0.9rem); }
 .db-hcard.is-sel .pc-card { box-shadow: 0 0 0 3px var(--accent), 0 10px 22px -8px var(--accent-glow); }
 .db-hand .db-hcard.is-sent { translate: 0 -0.4rem; }
 .db-hcard:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
@@ -13661,6 +13671,13 @@ body.dark .db-called.is-true .db-called__stamp { color: #4ade80; }
   cursor: pointer;
 }
 .db-rankchip.is-on { border-color: transparent; background: var(--accent); color: var(--accent-on); box-shadow: 0 6px 14px -8px var(--accent-glow); }
+.db-rankchip { position: relative; }
+.db-rankchip.is-held { border-color: var(--accent-border, var(--accent)); background: var(--accent-soft); }
+.db-rankchip.is-held.is-on { background: var(--accent); }
+/* How many of that rank you hold: the chip picks them all. */
+.db-rankchip__n { position: absolute; top: -0.4rem; right: -0.3rem; min-width: 1.1rem; height: 1.1rem; padding: 0 0.25rem; border-radius: var(--r-full); background: var(--pop, #f59e0b); color: var(--pop-on, #1c1917); font-family: var(--font); font-size: 0.7rem; font-weight: 900; line-height: 1.1rem; box-shadow: var(--sh-1); }
+.db-havebtn { align-self: center; min-height: 2.6rem; padding: 0.3rem 1rem; border: 1.5px dashed var(--accent); border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent-ink); font-size: var(--fs-sm); font-weight: 900; cursor: pointer; }
+.db-hint--have { color: var(--warning-ink, var(--text-2)); font-weight: 800; }
 .db-actrow { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--sp-2); }
 .db-actrow .btn { padding-inline: var(--sp-2); }
 /* The end. */
@@ -13714,6 +13731,37 @@ span.om-back { cursor: default; }
 .om-back.is-lifted .pc-card { box-shadow: 0 0 0 3px var(--pc-gold), 0 14px 24px -8px rgba(180, 120, 0, 0.55); }
 .om-back.is-sent { transform: translateY(-1.6rem) scale(1.04); }
 .om-back:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+/* An upright phone and a hand of seven or more: rows of whole cards, each one easy to tap. */
+.om-backs.is-wrap { flex-wrap: wrap; justify-content: center; gap: 0.7rem 6px; padding-top: 1.2rem; }
+.om-backs.is-wrap .pc-card { --pc-w: 2.9rem; }
+/* One tap shuffles your own hand (drag mode). */
+.om-mixbtn { margin-inline-start: auto; min-height: 2.25rem; padding: 0.2rem 0.8rem; border: 1px solid var(--accent-border); border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent-ink); font-size: var(--fs-xs); font-weight: 900; cursor: pointer; }
+/* الشايب changes hands: a moment on the two phones it concerns, over your hand. */
+.om-moment {
+  position: fixed;
+  z-index: var(--z-fx, 9000);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: min(17rem, calc(100vw - 2rem));
+  padding: 0.9rem 1.2rem;
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: 0 0 0 2px var(--pc-gold), 0 18px 40px -12px rgba(46, 16, 101, 0.55);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+.om-moment--got { background: linear-gradient(160deg, var(--pc-om-1), var(--pc-om-2)); color: #fff; }
+.om-moment__card .pc-card { --pc-w: 4.6rem; }
+.om-moment__title { font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; line-height: 1.25; }
+.om-moment--gave .om-moment__title { color: var(--success-ink); font-size: 1.1rem; }
+.om-moment__hint { font-size: var(--fs-xs); font-weight: 700; opacity: 0.85; }
+.om-moment.is-moving { animation: om-moment-in 360ms cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+.om-moment--got.is-moving .om-moment__card { animation: om-moment-laugh 0.34s ease-in-out 0.4s 5 alternate; }
+@keyframes om-moment-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes om-moment-laugh { from { transform: rotate(-6deg) translateY(0); } to { transform: rotate(6deg) translateY(-4px); } }
 .om-mid { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); margin-bottom: var(--sp-3); padding: var(--sp-2); border: 1px dashed var(--border-strong, var(--border)); border-radius: var(--r-xl); }
 .om-mid__pairs { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 10px; min-height: 3.1rem; }
 .om-mid__empty { align-self: center; color: var(--text-3); font-size: var(--fs-sm); font-weight: 700; }
@@ -13810,6 +13858,8 @@ span.om-back { cursor: default; }
 .db-tv .badge, .om-tv .badge, .db-tvres .badge, .om-tvres .badge { height: auto; padding: 0.25em 0.7em; font-size: var(--tv-xs); }
 .db-tv__turn { color: var(--text-strong); font-size: var(--tv-lg); font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
 .db-tv__call { color: var(--danger-ink); font-size: var(--tv-sm); font-weight: 900; }
+.db-tv__call .db-callbar { position: relative; display: block; inset: auto; width: 60%; height: 0.8vmin; margin: 1vmin auto 0; background: color-mix(in srgb, var(--danger-ink) 22%, transparent); }
+.db-tv__call .db-callbar > i { background: var(--danger-ink); }
 .db-tv .db-latest, .om-tv .om-latest { margin: 0; padding: 0.8vmin 1.6vmin; border-radius: var(--tv-r); font-size: var(--tv-sm); }
 .db-tv .db-log, .om-tv .om-log { margin: 0; }
 .db-tv .db-log li, .om-tv .om-log li { padding: 0.5vmin 1vmin; font-size: var(--tv-xs); }

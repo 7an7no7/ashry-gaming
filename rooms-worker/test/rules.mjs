@@ -5488,6 +5488,26 @@ Date.now = duelTestClock;
     check(o.includes(r._botPid) && r._botKey.indexOf('call|') !== -1, 'doubt bots: a hard bot that knows a claim is a lie calls it');
     runBots(r);
     check(r.shared.events.slice(-1)[0].type === 'call' && r.shared.events.slice(-1)[0].truth === false, 'doubt bots: and turns the lie over');
+    {
+      // The call window (the owner, 29 Sep 2026): a bot up after a play a person could call waits longer, and says when.
+      const w = botRoom(['hard', 'hard', 'hard']);
+      const rnd = Math.random;
+      Math.random = () => 0.999;                       // no bot calls, no bluffs: the moves below are the only ones
+      try {
+        const ow = w.shared.order;
+        const ia = ow.indexOf('a');
+        const X = ow[(ia + 1) % 4];
+        const Y = ow[(ia + 2) % 4];
+        dTable(w, ow.map((id) => (id === 'a' ? ['7h', '2c', '3c'] : ['7s', '9h', '9d'])), { up: ia });
+        d(w, 'a', 'play', { cards: dIds(w, 'a', '7h'), rank: '7' });
+        check(w._botPid === X && !w.shared.callEnds && w._botAt - clock < 3000,
+          "doubt bots: after a person's own play nobody else can call it: the bot up keeps its quick pace, no bar");
+        runBots(w);
+        check(w.shared.last && w.shared.last.pid === X && w._botPid === Y && w.shared.callEnds === w._botAt && w._botAt - clock >= 3200,
+          'doubt bots: a play a person can still call: the bot up waits at least 3.2 s, and the phones are told when (shared.callEnds)');
+        check(roomDeadline(w) === w.shared.callEnds, "doubt bots: the room wakes for the bot at the very time the phones were told");
+      } finally { Math.random = rnd; }
+    }
 
     const errors = [];
     const errorWas = console.error;
@@ -5590,6 +5610,26 @@ Date.now = duelTestClock;
     o(r, B, 'take', { pos: 0 });
     const got = oHand(r, B).find((c) => before.indexOf(c.i) !== -1);
     check(!got && oHand(r, B).length + oHand(r, C).length === 5, 'oldmaid: a drawn card changes its id, so the one who gave it up cannot follow it');
+  }
+  {
+    // Shuffling your own hand in one tap (the owner, 29 Sep 2026).
+    const r = omStart(['a', 'b', 'c']);
+    const [A, B] = r.shared.order;
+    oTable(r, [['7h', '2s', 'OM'], ['9c', '7d', '3h', 'Qs', 'Kd'], ['2c', '9s', '3d']]);
+    o(r, A, 'lift', { pos: 1 });
+    const aimed = oHand(r, B)[1].i;
+    const seq = r.shared.eventSeq;
+    applyRoomAction(r, B, 'mix', {});
+    check(oHand(r, B).length === 5 && r.shared.aim.pos === oHand(r, B).findIndex((c) => c.i === aimed),
+      'oldmaid: a hand shuffled in one tap keeps its cards, and the lifted card moves with its card');
+    const mix = r.shared.events.slice(-1)[0];
+    check(mix.type === 'mix' && mix.pid === B && Object.keys(mix).sort().join() === 'pid,seq,type', 'oldmaid: the table sees only that the hand was shuffled');
+    applyRoomAction(r, B, 'mix', {});
+    check(r.shared.events.filter((e) => e.type === 'mix').length === 1 && r.shared.eventSeq === seq + 2,
+      'oldmaid: shuffled again and again, one event that moves on (the draws stay in the log)');
+    check(r.secrets[B].hand.map((c) => c.i).join() === oHand(r, B).map((c) => c.i).join(), "oldmaid: the shuffler's phone gets its hand in the new order");
+    const sh = omStart(['a', 'b'], { mode: 'shuffle' });
+    check(threw(() => applyRoomAction(sh, sh.shared.order[0], 'mix', {})), 'oldmaid: with the hands shuffled by the server there is nothing to shuffle by hand');
   }
   {
     // Safe, the loser, the tally.

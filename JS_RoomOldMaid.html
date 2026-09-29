@@ -108,6 +108,15 @@ function omTake() {
   roomAct('take', { seq: s.turnSeq });
 }
 
+/** Your own hand shuffled in one tap (drag mode): the server shuffles it, omLive slides the cards to their new places. */
+function omMixMine(btn) {
+  const st = Room.state;
+  if (!st || !omInGame(st) || !omDragging(st) || omShared(st).phase !== 'play' || omLocal.drag) return;
+  haptic('light');
+  if (btn && pcCanMove()) btn.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-8deg)' }, { transform: 'rotate(8deg)' }, { transform: 'rotate(0)' }], { duration: 320 });
+  roomAct('mix', {});
+}
+
 /* --- dragging your own cards ------------------------------------------------------- */
 
 function omHandRow() { return document.querySelector('#view-room-oldmaid .om-hand'); }
@@ -193,7 +202,6 @@ function omHeadHtml(state) {
   const set = s.settings || {};
   const bits = [];
   bits.push(`<span class="badge">${escapeHTML(set.mode === 'shuffle' ? pcT('om_mode_shuffle') : pcT('om_mode_drag'))}</span>`);
-  if (s.pairs) bits.push(`<span class="badge">${escapeHTML(pcT('om_pairs_badge', { n: (s.thrown || []).length, of: s.pairs }))}</span>`);
   if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-om-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
   return `<div class="om-head">${bits.join('')}</div>`;
 }
@@ -236,10 +244,15 @@ function omMidHtml(state, tv) {
 }
 
 /** The hand being drawn from: a row of backs, the lifted one up; buttons for the drawer, a picture for everyone else. */
-function omBacksHtml(state, size) {
+/** On a phone held upright a hand of more than six is laid in rows, whole cards, not slivers of an overlap. */
+const OM_WRAP_FROM = 7;
+const omWrapBacks = () => window.innerWidth < 600 && window.innerWidth < window.innerHeight;
+
+function omBacksHtml(state, size, tv) {
   const s = omShared(state);
   if (!s.turn) return '';
   const n = (s.counts || {})[s.turn.from] || 0;
+  const wrap = !tv && n >= OM_WRAP_FROM && omWrapBacks();
   const mine = omMyTurn(state);
   const aim = s.aim ? s.aim.pos : -1;
   let out = '';
@@ -249,7 +262,7 @@ function omBacksHtml(state, size) {
       ? `<button type="button" class="${cls}" data-pc-at="back:${k}" onclick="omTapBack(this)" aria-label="${escapeHTML(pcT('om_back_label', { n: k + 1 }))}">${pcCardHtml(null, { size: size })}</button>`
       : `<span class="${cls}" data-pc-at="back:${k}">${pcCardHtml(null, { size: size })}</span>`;
   }
-  return `<div class="om-backs pc-row" dir="ltr">${out}</div>`;
+  return `<div class="om-backs pc-row ${wrap ? 'is-wrap' : ''}" dir="ltr">${out}</div>`;
 }
 
 function omDrawHtml(state, tv) {
@@ -266,7 +279,7 @@ function omDrawHtml(state, tv) {
   const title = omMyTurn(state) ? pcT('om_draw_from', { name: from }) : pcT('om_drawing', { name: drawer, from: from });
   return `<div class="om-draw ${omMyTurn(state) ? 'is-mine' : ''}">
       <p class="om-draw__title">${omMyTurn(state) ? '⭐ ' : ''}${escapeHTML(title)}</p>
-      ${omBacksHtml(state, tv ? 'lg' : 'md')}
+      ${omBacksHtml(state, tv ? 'lg' : 'md', tv)}
     </div>`;
 }
 
@@ -281,8 +294,10 @@ function omMineHtml(state) {
   }
   const cards = hand.map((c, k) => `<span class="om-hcard ${k === aim ? 'is-aimed' : ''}" data-card="${c.i}" data-pc-at="card:${c.i}">${pcCardHtml(c.c, { size: 'md' })}</span>`).join('');
   const hint = omDragging(state) ? pcT('om_hand_hint_drag') : pcT('om_hand_hint_shuffle');
+  const mix = omDragging(state) && s.phase === 'play' && hand.length > 1
+    ? `<button type="button" class="om-mixbtn" onclick="omMixMine(this)">${escapeHTML(pcT('om_mix'))}</button>` : '';
   return `<div class="om-mine ${victim ? 'is-victim' : ''}" data-pc-seat="${escapeHTML(Room.me)}">
-      <div class="om-mine__head"><span class="om-mine__title">${CARD_GLYPH} ${escapeHTML(pcT('om_your_cards'))}</span><b class="metric om-mine__n">${hand.length}</b><span class="om-mine__hint">${escapeHTML(hint)}</span></div>
+      <div class="om-mine__head"><span class="om-mine__title">${CARD_GLYPH} ${escapeHTML(pcT('om_your_cards'))}</span><b class="metric om-mine__n">${hand.length}</b>${mix}<span class="om-mine__hint">${escapeHTML(hint)}</span></div>
       <div class="om-hand pc-row ${omDragging(state) ? 'is-draggable' : ''}" dir="ltr" data-pc-at="seat:${escapeHTML(Room.me)}">${cards}</div>
     </div>`;
 }
@@ -305,7 +320,7 @@ function omEventText(state, e) {
   }
 }
 
-const omMoves = (state) => (omShared(state).events || []).filter(e => e && e.type !== 'move' && e.type !== 'auto' && e.type !== 'shuffle' && omEventText(state, e));
+const omMoves = (state) => (omShared(state).events || []).filter(e => e && e.type !== 'move' && e.type !== 'mix' && e.type !== 'auto' && e.type !== 'shuffle' && omEventText(state, e));
 
 function omLatestHtml(state, tv) {
   const list = omMoves(state);
@@ -375,10 +390,10 @@ function omLive(root, state, rebuilt) {
   const topSeq = (s.events || []).reduce((m, e) => Math.max(m, Number(e && e.seq) || 0), 0);
   const dealKey = roomDealKey(state);
   if (omLocal.moveKey !== dealKey) { omLocal.moveKey = dealKey; omLocal.moveSeq = topSeq; }
-  const moves = (s.events || []).filter(e => e && e.type === 'move' && (Number(e.seq) || 0) > omLocal.moveSeq);
+  const moves = (s.events || []).filter(e => e && (e.type === 'move' || e.type === 'mix') && (Number(e.seq) || 0) > omLocal.moveSeq);
   omLocal.moveSeq = Math.max(omLocal.moveSeq, topSeq);
   if (backs && !rebuilt && s.turn) {
-    moves.filter(e => e.pid === s.turn.from).forEach(e => {
+    moves.filter(e => e.type === 'move' && e.pid === s.turn.from).forEach(e => {
       const kids = Array.from(backs.children);
       const el = kids[e.from];
       if (!el || e.to < 0 || e.to >= kids.length) return;
@@ -390,6 +405,13 @@ function omLive(root, state, rebuilt) {
         if (Math.abs(dx) > 0.5) k.animate([{ transform: 'translate(' + dx + 'px, ' + (k === el ? '-0.6rem' : '0') + ')' }, { transform: 'translate(0, 0)' }], { duration: 260, easing: 'cubic-bezier(0.3, 0.8, 0.3, 1)' });
       });
     });
+    // A hand shuffled in one tap: its backs jumble where they are (which is which, nobody can tell).
+    if (moves.some(e => e.type === 'mix' && e.pid === s.turn.from) && pcCanMove()) {
+      Array.from(backs.children).forEach((k, j) => {
+        const dx = ((j * 37) % 11 - 5) * 3;
+        k.animate([{ transform: 'translate(0, 0)' }, { transform: 'translate(' + dx + 'px, -0.5rem) rotate(' + (dx / 2) + 'deg)' }, { transform: 'translate(0, 0)' }], { duration: 380, easing: 'ease-in-out' });
+      });
+    }
     Array.from(backs.children).forEach((el, k) => el.setAttribute('data-pc-at', 'back:' + k));
   }
   if (backs && (omLocal.lifting === null || aim === omLocal.lifting || !omMyTurn(state))) {
@@ -480,7 +502,7 @@ function omResultFrame(state) {
 /** Everything a frame shows, less what a lift or a drag changes (omLive draws those in place). */
 function omServerSig(state) {
   const s = omShared(state);
-  const events = (s.events || []).filter(e => e && e.type !== 'move');
+  const events = (s.events || []).filter(e => e && e.type !== 'move' && e.type !== 'mix');
   const hand = omHand(state).map(c => c.i).sort((a, b) => a - b).join(',');
   return [s.dealId || '', s.phase, s.turnSeq, JSON.stringify(s.turn || null), JSON.stringify(s.counts || {}), (s.out || []).join(','),
     (s.thrown || []).length, events.length ? events[events.length - 1].seq : 0, s.endsAt || '', s.loser || '', JSON.stringify(s.board || []),
@@ -560,14 +582,15 @@ ROOM_GAMES.oldmaid = {
       return;
     }
     if (omLocal.drag && changed === false) { omLive(el, state, false); omRefreshInPlace(el, state, false); return; }
-    const local = [state.youAreHost, appState.lang].join('|');
+    const local = [state.youAreHost, appState.lang, omWrapBacks()].join('|');
+  el._omWrap = omWrapBacks();
     const handWas = omLocal.shownKey === state.code + '|' + (s.dealId || '') ? omLocal.shownHand : null;
     const rebuilt = renderRoomFrame(el, server + '#' + local, () => { omLocal.drag = null; omLocal.lifting = null; pcSnapshot(omFx, el); return omPhoneFrame(state); });
     el._omServer = server;
     omRefreshInPlace(el, state, false);
     omTickClock(s);
     if (rebuilt) {
-      pcFitRows(el, '.om-hand, .om-backs');
+      pcFitRows(el, '.om-hand, .om-backs:not(.is-wrap)');
       omOppsInView(el);
       if (typeof watchScrollFade === 'function') watchScrollFade(el.querySelector('[data-om-opps]'));
     }
@@ -638,6 +661,7 @@ function omTurnCue(state) {
 
 onRoomClocksReset(() => {
   omStopClock();
+  document.querySelectorAll('.om-moment').forEach(el => el.remove());
   omLocal.drag = null;
   omLocal.lifting = null;
   pcFxCancel(omFx);
@@ -647,7 +671,10 @@ let omFitTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(omFitTimer);
   omFitTimer = setTimeout(() => {
-    pcFitRows(document.getElementById('view-room-oldmaid'), '.om-hand, .om-backs');
+    const el = document.getElementById('view-room-oldmaid');
+    // Turned upright (or on its side): the backs are laid out again, rows or one overlapping row.
+    if (el && el._omWrap !== undefined && el._omWrap !== omWrapBacks() && Room.state && Room.state.game === 'oldmaid') { delete el.dataset.sig; routeRoomState(Room.state); }
+    pcFitRows(el, '.om-hand, .om-backs:not(.is-wrap)');
     pcFitRows(document.getElementById('view-room-tv'), '.om-backs');
   }, 120);
 });
@@ -662,11 +689,51 @@ function omOwnMoveWaiting(state) {
 
 function omAfterDraw(root, state, handWas) {
   const s = omShared(state);
-  const evs = pcEventsToPlay(omFx, state).filter(e => e.type !== 'move');
+  const evs = pcEventsToPlay(omFx, state).filter(e => e.type !== 'move' && e.type !== 'mix');
   if (document.hidden || pcWokeRecently(omFx) || !root.getClientRects().length || !evs.length) return;
+  omOldManMoment(state, handWas, evs);
   omEventSounds(state, evs);
   if (s.phase !== 'play' || evs.length > 16 || !pcCanMove()) return;
   omPlay(root, state, evs, omFx.prevPhase === 'lobby' ? 1000 : 0, handWas);
+}
+
+/**
+ * الشايب changing hands, on the two phones it concerns only (the owner, 29 Sep
+ * 2026): the one who drew it sees the old man laugh, the one rid of it a
+ * relief. No sound: the table would hear it. Read from this phone's own hand
+ * before and after, so nothing new reaches any other phone.
+ */
+function omOldManMoment(state, handWas, evs) {
+  const s = omShared(state);
+  if (state.youAreScreen || s.phase !== 'play' || !Array.isArray(handWas) || document.hidden) return;
+  const me = Room.me;
+  const had = handWas.some(c => c.c === PC_OLD_MAID);
+  const has = omHand(state).some(c => c.c === PC_OLD_MAID);
+  let kind = '';
+  if (!had && has && evs.some(e => (e.type === 'draw' && e.pid === me) || (e.type === 'left' && e.to === me))) kind = 'got';
+  else if (had && !has && evs.some(e => e.type === 'draw' && e.from === me)) kind = 'gave';
+  if (!kind) return;
+  omFx.timers.push(setTimeout(() => omShowMoment(kind), pcCanMove() ? 650 : 0));
+}
+
+function omShowMoment(kind) {
+  document.querySelectorAll('.om-moment').forEach(el => el.remove());
+  const view = document.getElementById('view-room-oldmaid');
+  if (!view || appState.currentView !== 'room-oldmaid') return;
+  const hand = view.querySelector('.om-mine');
+  const r = (hand || view).getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'om-moment om-moment--' + kind + (pcCanMove() ? ' is-moving' : '');
+  el.setAttribute('role', 'status');
+  el.innerHTML = kind === 'got'
+    ? `<span class="om-moment__card">${pcCardHtml(PC_OLD_MAID, { size: 'lg' })}</span><b class="om-moment__title">${escapeHTML(pcT('om_got_old'))}</b><span class="om-moment__hint">${escapeHTML(pcT('om_got_old_hint'))}</span>`
+    : `<b class="om-moment__title">${escapeHTML(pcT('om_gave_old'))}</b>`;
+  el.style.left = Math.round(r.left + r.width / 2) + 'px';
+  el.style.top = Math.round(Math.max(80, Math.min(window.innerHeight - 120, r.top + Math.min(r.height, 180) / 2))) + 'px';
+  el.addEventListener('click', () => el.remove());
+  document.body.appendChild(el);
+  haptic('light');
+  setTimeout(() => { if (el.isConnected) el.remove(); }, kind === 'got' ? 2800 : 1800);
 }
 
 /** The last draw plays on the table before the loser is shown. */
@@ -674,7 +741,7 @@ function omPlayEnding(root, state) {
   const s = omShared(state);
   if (!root || !root._omTable || s.phase !== 'gameover') return false;
   if (document.hidden || pcWokeRecently(omFx) || !pcCanMove() || !root.getClientRects().length) return false;
-  const evs = pcEventsToPlay(omFx, state).filter(e => e.type !== 'over' && e.type !== 'move');
+  const evs = pcEventsToPlay(omFx, state).filter(e => e.type !== 'over' && e.type !== 'move' && e.type !== 'mix');
   if (!evs.length || evs.length > 8) return false;
   pcSnapshot(omFx, root);
   omEventSounds(state, evs);
@@ -827,7 +894,7 @@ function omTvTable(state) {
           ${omLogHtml(state, 2)}
         </div>
         <div class="om-tv__table">
-          <div class="om-draw"><p class="om-draw__title">${escapeHTML(title)}</p>${omBacksHtml(Object.assign({}, state, { youAreScreen: true }), 'lg')}</div>
+          <div class="om-draw"><p class="om-draw__title">${escapeHTML(title)}</p>${omBacksHtml(Object.assign({}, state, { youAreScreen: true }), 'lg', true)}</div>
           ${omMidHtml(state, true)}
         </div>
       </div>

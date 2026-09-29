@@ -72,6 +72,7 @@ const oldMaidAction = (room, playerId, action, payload) => {
     return;
   }
   if (action === 'move') { omApply(room, () => omMove(room, playerId, p)); return; }
+  if (action === 'mix') { omApply(room, () => omMix(room, playerId)); return; }
   if (staleTap(p, 'seq', s.turnSeq)) return;
   if (action === 'lift') { omApply(room, () => omLift(room, playerId, p)); return; }
   if (action === 'take') { omApply(room, () => omTake(room, playerId, p)); return; }
@@ -316,6 +317,24 @@ const omMove = (room, me, p) => {
   hand.splice(to, 0, card);
   room._om.hands[me] = hand;
   omEvent(room, 'move', { pid: me, from: from, to: to });
+};
+
+/**
+ * A player shuffles their own hand in one tap (drag mode; the owner, 29 Sep
+ * 2026): the lifted card moves with its card, as with a drag, and the table
+ * sees only that the hand was shuffled.
+ */
+const omMix = (room, me) => {
+  const s = room.shared;
+  if (s.settings.mode !== 'drag') throw new Error('الورق بيتخلط لوحده في اللعبة دي');
+  const hand = omHand(room, me);
+  if (hand.length < 2) return;
+  room._om.hands[me] = shuffled(hand);
+  // Tapped again and again: one event that moves on, so the log's 40 keep the draws.
+  const evs = s.events || [];
+  const last = evs[evs.length - 1];
+  if (last && last.type === 'mix' && last.pid === me) { s.eventSeq = (s.eventSeq || 0) + 1; last.seq = s.eventSeq; }
+  else omEvent(room, 'mix', { pid: me });
 };
 
 /** The clock, or the host for a quiet phone: a card at random (the lifted one, if there is one). */

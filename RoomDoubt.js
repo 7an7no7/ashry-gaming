@@ -52,6 +52,9 @@ const DOUBT_MIN = 3;
 const DOUBT_MAX = 12;
 const DOUBT_PLAYS_SHOWN = 12;
 const DOUBT_BOT_TURN_MS = [1900, 2900];     // long enough for the table to call first
+// A person could still call the play on top: the bot up waits longer, and the phones are told
+// when it will move (shared.callEnds), so a bar drains on كدّاب! (the owner, 29 Sep 2026).
+const DOUBT_BOT_TURN_HUMAN_MS = [3200, 3800];
 const DOUBT_BOT_CALL_MS = [900, 1800];
 
 const doubtDecksFor = (n) => (n >= 7 ? 2 : 1);
@@ -360,6 +363,8 @@ const doubtSync = (room) => {
   (s.order || []).forEach(id => { counts[id] = doubtHand(room, id).length; });
   s.counts = counts;
   s.pileCount = g.pile.reduce((a, pl) => a + pl.cards.length, 0);
+  // Set again by the bot hook when a bot is up with a play open to a person's call.
+  s.callEnds = null;
   room.secrets = {};
   (s.order || []).filter(id => doubtHere(room, id)).forEach(id => {
     room.secrets[id] = { hand: pcSorted(doubtHand(room, id), c => c.c).map(c => ({ i: c.i, c: c.c })) };
@@ -504,7 +509,15 @@ ROOM_BOT_GAMES.doubt = {
     const caller = doubtBotCaller(room);
     if (caller) return { pid: caller, key: 'call|' + s.last.id, delay: doubtRand(DOUBT_BOT_CALL_MS) };
     if (!isRoomBot(room, s.turn.pid)) return null;
-    return { pid: s.turn.pid, key: 'turn|' + s.turnSeq, delay: doubtRand(s.last ? DOUBT_BOT_TURN_MS : [1300, 2000]) };
+    const g = room._doubt;
+    // The same moment keeps the time it was given (the room's alarm keeps it too).
+    if (!g.turnAt || g.turnAt.seq !== s.turnSeq) {
+      const human = !!s.last && doubtHolding(room).some(id => id !== s.last.pid && !isRoomBot(room, id));
+      const ms = doubtRand(!s.last ? [1300, 2000] : human ? DOUBT_BOT_TURN_HUMAN_MS : DOUBT_BOT_TURN_MS);
+      g.turnAt = { seq: s.turnSeq, at: Date.now() + ms, human: human };
+    }
+    s.callEnds = g.turnAt.human && s.last ? g.turnAt.at : null;
+    return { pid: s.turn.pid, key: 'turn|' + s.turnSeq, delay: Math.max(0, g.turnAt.at - Date.now()) };
   },
   decide(room, pid) {
     const s = room.shared || {};

@@ -1,5 +1,5 @@
 /* ============================================================================
-   سلك مقطوع — the co-op panic game (rooms), the owner's rules of 29 Sep 2026
+   الحقوا! (first called سلك مقطوع) — the co-op panic game (rooms), the owner's rules of 29 Sep 2026
    ----------------------------------------------------------------------------
    Every phone is a panel of 4-6 controls with funny names (Wire.js), in one of
    three places: the microbus broken down on the desert road, the kitchen an

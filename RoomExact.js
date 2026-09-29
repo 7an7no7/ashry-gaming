@@ -1,5 +1,5 @@
 /* ============================================================================
-   بالظبط ٣! — EXACTLY 3! (rooms), the owner's rules of 29 Sep 2026
+   حط إيدك! (first called بالظبط ٣!) — HANDS DOWN! (rooms), the owner's rules of 29 Sep 2026
    ----------------------------------------------------------------------------
    A co-op reflex game on everyone's own phone. Each level the table gets one
    order ("exactly 3 of you: hands down!", "nobody press", "in turn", ...),

@@ -171,7 +171,10 @@ work changed. Add to it when a decision is made or a batch ships.
   was declined as a game (it repeats الجاسوس / المختلف / الحرباء; its
   "glitch" may become a switch in كلمة واحدة later). Every rule asked; the
   looks are still to be picked from design sheets. Each is its own card.
-  - **سلك مقطوع** (co-op panic, like Spaceteam): each phone a panel of 4-6
+  - **الحقوا! / "Panic Stations!"** (first called «سلك مقطوع»; renamed by the
+    owner, 29 Sep 2026, on the recommendation: there is no wire in the game,
+    and «الحقوا!» is what the table shouts in all three places; ids stay
+    `wire`) (co-op panic, like Spaceteam): each phone a panel of 4-6
     controls with funny names; each phone gets an order with a draining bar,
     usually for a control on someone else's panel, so it is shouted across
     the table. **Three places, the host picks in the lobby** (or random): the
@@ -316,7 +319,9 @@ work changed. Add to it when a decision is made or a batch ships.
     - **Phones draw 2D only**; the TV 3D (or 2D, its switch remembered).
       The home, party section (`group: 'party'`), blue, a drawn icon
       (`art:darkroom`: a lens over a dark plan).
-  - **بالظبط ٣!** (reflex sync): an order for all at once after a countdown
+  - **حط إيدك! / "Hands Down!"** (first called «بالظبط ٣!»; renamed by the
+    owner, 29 Sep 2026, on the recommendation: that name covered one order of
+    fourteen; ids stay `exact`) (reflex sync): an order for all at once after a countdown
     («بالظبط ٣ منكم يدوسوا!», in order, «محدش يدوس», all at the same
     instant, the pulse in sequence). **Lives are the table's** (co-op, a
     room's best). **A wrong count: the table loses a life and the screen
@@ -9369,7 +9374,7 @@ help); the rules are named `chairs` / `CHAIRS_`, the page's code `mch` / `MCH_`.
   false start, taps ranked by their stamps, a quiet phone, the end, play
   again with a latecomer, a leave).
 
-### سلك مقطوع
+### الحقوا! (first سلك مقطوع)
 
 The owner's rules are in *The owner's specs* (five new room games). Game id
 `wire` everywhere (`room-wire`, `ROOM_GAMES.wire`, `TV_GAMES.wire`, the
@@ -9733,7 +9738,7 @@ id `darkroom` everywhere (`room-darkroom`, `ROOM_GAMES.darkroom`,
   `leaks.mjs` (`PROBES.darkroom`: the seed never on the mover's phone or in
   `shared`, the mover sent nothing but the echo, no trap's square public;
   proved by planting each), `play-all.mjs` (`--only=darkroom`).
-### بالظبط ٣!
+### حط إيدك! (first بالظبط ٣!)
 
 The owner's rules are in *The owner's specs* (the five new room games). Game
 id `exact` everywhere (`room-exact`, `ROOM_GAMES.exact`, `TV_GAMES.exact`, the

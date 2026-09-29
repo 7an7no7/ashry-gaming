@@ -1,5 +1,5 @@
 /* ============================================================================
-   سلك مقطوع — the controls, the places and the numbers (29 Sep 2026)
+   الحقوا! (first called سلك مقطوع) — the controls, the places and the numbers (29 Sep 2026)
    ----------------------------------------------------------------------------
    Shared by the page (inlined, SHARED_LISTS) and the rooms server (bundled
    before RoomGames.js): the server deals panels and orders from these lists,

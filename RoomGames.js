@@ -109,11 +109,11 @@ const clearGameState = (room) => {
   room._est = null;
   room._chairs = null;   // الكراسي الموسيقية: the stop moment and the fake pauses (RoomChairs.js)
   room._witness = null;  // الشاهد: the real face and its place in the lineup (RoomWitness.js)
-  room._wire = null;     // سلك مقطوع: the panels, the controls' states, what is broken (RoomWire.js); the room's best (_wireBest) stays
+  room._wire = null;     // الحقوا!: the panels, the controls' states, what is broken (RoomWire.js); the room's best (_wireBest) stays
   room._box = null;      // المزاد: the eight boxes, the clues, the bids, a key's peek (RoomBox.js)
   room._dark = null;     // الأوضة المضلمة: the map's seed and the near misses (RoomDark.js)
   room.screenOnly = null; // the screen's own slice (src/view.js): الأوضة المضلمة's map for the TV
-  room._exact = null;    // بالظبط ٣!: each phone's secret and every tap's events (RoomExact.js)
+  room._exact = null;    // حط إيدك!: each phone's secret and every tap's events (RoomExact.js)
   // The engine's secret and boards (RoomSolve.js).
   room._solve = null;
   // A bot's next move belonged to the game that was cleared.
@@ -155,7 +155,7 @@ const ROOM_GAME_IDS = [
   'bowling',
   // الكراسي الموسيقية (RoomChairs.js): the music stops, the fastest taps get the chairs.
   'chairs',
-  // سلك مقطوع (RoomWire.js): every phone a panel, orders shouted across the table, levels until you lose.
+  // الحقوا! (RoomWire.js): every phone a panel, orders shouted across the table, levels until you lose.
   'wire',
   // عربيات التصادم (RoomBumper.js): the TV runs the game, every phone steers a car (the controllers test).
   'bumper',
@@ -185,7 +185,7 @@ const ROOM_GAME_IDS = [
   'box',
   // الأوضة المضلمة (RoomDark.js): one walks blind, the rest guide with the map under a lens.
   'darkroom',
-  // بالظبط ٣! (RoomExact.js): an order for the whole table, judged from the phones' stamps.
+  // حط إيدك! (RoomExact.js): an order for the whole table, judged from the phones' stamps.
   'exact'
 ];
 

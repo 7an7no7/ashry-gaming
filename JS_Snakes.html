@@ -402,8 +402,9 @@ function snkRenderSnake(c, sn, t) {
   const tp = sn.pts[n - 1];
   sn.hole.setAttribute('transform', `translate(${tp.x} ${tp.y}) scale(${sn.holeK.toFixed(3)}) translate(${-tp.x} ${-tp.y})`);
   if (hide) return;
-  // The sneak: the whole snake crawls over (shx, shy); its hole stays where it is.
-  const shx = sn.shx || 0, shy = sn.shy || 0;
+  // The sneak (the owner's review): the whole snake crawls along its way out to him and back, the body
+  // following the head (snkCrawlAt), the tail leaving its hole; at d = 0 it is exactly its own shape.
+  const cr = sn.crawl && sn.crawl.d > 0 ? sn.crawl : null;
   const Lf = [], Rf = [], P = [];
   for (let i = i0; i < n; i++) {
     const b = sn.pts[i], d = b.a - sn.s, dt = sn.L - b.a;
@@ -411,15 +412,22 @@ function snkRenderSnake(c, sn, t) {
     if (d < 16) w *= 0.72 + 0.28 * d / 16;
     w *= Math.min(1, 0.1 + dt / (0.42 * sn.L));
     if (sn.bulge != null) w += 13 * Math.exp(-Math.pow((b.a - sn.bulge) / 12, 2));
+    if (cr) { const q = snkCrawlAt(sn, cr.d - b.a); P.push({ x: q.x, y: q.y, w: w, nx: 0, ny: 0, a: b.a }); continue; }
     let o = snkWave(sn, b, t);
     if (sn.tailFlick && dt < 70) o += sn.tailFlick * (1 - dt / 70) * 18;
-    // The front of the body goes the whole way, the tail stays in its hole (smoothly between).
-    const sw = shx || shy ? snkEase(snkClamp(1 - (b.a - sn.s) / (sn.L * 0.8), 0, 1)) : 0;
-    const x = b.x + b.nx * o + shx * sw, y = b.y + b.ny * o + shy * sw;
-    P.push({ x: x, y: y, w: w, nx: b.nx, ny: b.ny, a: b.a });
-    Lf.push(snkR(x + b.nx * w / 2) + ' ' + snkR(y + b.ny * w / 2));
-    Rf.push(snkR(x - b.nx * w / 2) + ' ' + snkR(y - b.ny * w / 2));
+    P.push({ x: b.x + b.nx * o, y: b.y + b.ny * o, w: w, nx: b.nx, ny: b.ny, a: b.a });
   }
+  if (cr) {
+    // Crawling: the sides from the way's own direction at each point.
+    for (let k = 0; k < P.length; k++) {
+      const q1 = P[Math.max(0, k - 1)], q2 = P[Math.min(P.length - 1, k + 1)], dx = q2.x - q1.x, dy = q2.y - q1.y, l = Math.hypot(dx, dy) || 1;
+      P[k].nx = -dy / l; P[k].ny = dx / l;
+    }
+  }
+  P.forEach(q => {
+    Lf.push(snkR(q.x + q.nx * q.w / 2) + ' ' + snkR(q.y + q.ny * q.w / 2));
+    Rf.push(snkR(q.x - q.nx * q.w / 2) + ' ' + snkR(q.y - q.ny * q.w / 2));
+  });
   sn.body.setAttribute('d', 'M' + Lf.join('L') + 'L' + Rf.reverse().join('L') + 'Z');
   let sp = '', sh = '';
   for (let k = 5; k < P.length - 4; k += 5) {
@@ -476,6 +484,36 @@ function snkRenderSnake(c, sn, t) {
   sn.smile.setAttribute('opacity', sn.jaw > 0.1 ? 0 : 1);
   const cls = 'snk-hdi' + (sn.mood ? ' m-' + sn.mood : '');
   if (sn.hdi.getAttribute('class') !== cls) sn.hdi.setAttribute('class', cls);
+}
+
+/**
+ * A point of a crawling snake (the sneak): `s` >= 0 is along its way out (from its head's own place
+ * toward him), `s` < 0 back down its own resting body (tail-wards). A body point at `a` from the head
+ * is at s = d - a, so the body follows the head along one path: at d = 0 it lies exactly in its own
+ * shape, and the further it crawls the more of the tail has left its hole.
+ */
+function snkCrawlAt(sn, s) {
+  const arr = s >= 0 ? sn.crawl.way : sn.pts, u = Math.abs(s) / SNK_STEP;
+  const i = Math.min(arr.length - 1, Math.floor(u)), j = Math.min(arr.length - 1, i + 1), f = Math.min(1, u - i);
+  return { x: snkLerp(arr[i].x, arr[j].x, f), y: snkLerp(arr[i].y, arr[j].y, f) };
+}
+
+/** The way a snake crawls out, from its head's own place to `to`: on from where its head points, in gentle S bends, on the board. */
+function snkCrawlWay(sn, to) {
+  const H = sn.pts[0], B = sn.pts[Math.min(sn.pts.length - 1, 5)];
+  let fx = H.x - B.x, fy = H.y - B.y;
+  const fl = Math.hypot(fx, fy) || 1;
+  fx /= fl; fy /= fl;
+  const S = { x: H.x + fx * 14, y: H.y + fy * 14 };
+  const dx = to.x - S.x, dy = to.y - S.y, D = Math.hypot(dx, dy) || 1, px = -dy / D, py = dx / D;
+  const P = [{ x: H.x, y: H.y }, S];
+  const m = D > 70 ? snkClamp(Math.round(D / 90), 1, 3) : 0;
+  for (let j = 1; j <= m; j++) {
+    const f = j / (m + 1), amp = 15 * (j % 2 ? 1 : -1);
+    P.push({ x: snkClamp(S.x + dx * f + px * amp, 12, 588), y: snkClamp(S.y + dy * f + py * amp, 12, 588) });
+  }
+  P.push({ x: to.x, y: to.y });
+  return snkSample(P);
 }
 
 /** One loop for the page: every frame while something moves, about 20 a second at rest, nothing when hidden. */
@@ -934,12 +972,12 @@ async function snkNearMiss(c, g, p, sn) {
   const x0 = p.x, y0 = p.y;
   sn.mood = 'wow';
   snkSound(c, 'snkHiss', p.mine);
-  await snkTween(c, g, 420, (t, r) => { const k = Math.sin(r * Math.PI); sn.jaw = k; sn.lunge = { x: (x0 - sn.hx) * 0.35 * k, y: (y0 - sn.hy) * 0.35 * k, s: 1 + 0.18 * k }; }, snkLin);
+  await snkTween(c, g, 380, (t, r) => { const k = Math.sin(r * Math.PI); sn.jaw = k; sn.lunge = { x: (x0 - sn.hx) * 0.35 * k, y: (y0 - sn.hy) * 0.35 * k, s: 1 + 0.18 * k }; }, snkLin);
   sn.jaw = 0; sn.lunge = { x: 0, y: 0, s: 1 }; sn.mood = '';
   snkFace(p, 'gasp sweat');
-  await snkTween(c, g, 380, t => snkSetP(p, x0, y0 - Math.sin(t * Math.PI) * 26), snkLin);
-  snkBubble(c, p.x, p.y - 24, snkT('snk_b_phew'), 1100);
-  await snkWait(c, g, 450);
+  await snkTween(c, g, 330, t => snkSetP(p, x0, y0 - Math.sin(t * Math.PI) * 26), snkLin);
+  snkBubble(c, p.x, p.y - 24, snkT('snk_b_phew'), 900);
+  await snkWait(c, g, 180);
   snkFace(p, '');
 }
 
@@ -947,8 +985,8 @@ async function snkMissedLadder(c, g, p) {
   snkBubble(c, p.x, p.y - 24, snkT('snk_b_missed'), 1100);
   snkFace(p, 'sad');
   const x0 = p.x, y0 = p.y;
-  await snkTween(c, g, 900, (t, r) => snkSetP(p, x0, y0 + Math.sin(r * Math.PI) * 2, 1, -Math.sin(r * Math.PI) * 6), snkLin);
-  await snkWait(c, g, 250);
+  await snkTween(c, g, 700, (t, r) => snkSetP(p, x0, y0 + Math.sin(r * Math.PI) * 2, 1, -Math.sin(r * Math.PI) * 6), snkLin);
+  await snkWait(c, g, 150);
   snkFace(p, '');
 }
 
@@ -1071,10 +1109,11 @@ function snkAmbient(c, t) {
     });
   }
   if (c.playing) return;
-  if (!c.nextIdle) c.nextIdle = t + 3;
-  if (t > c.nextIdle) { c.nextIdle = t + 2.5 + Math.random() * 3.5; snkIdleOnce(c); }
-  if (!c.nextLife) c.nextLife = t + 7 + Math.random() * 6;
-  if (t > c.nextLife && !c.life) { c.nextLife = t + 11 + Math.random() * 12; snkBoardLife(c); }
+  // Rarer since the owner's review (29 Sep 2026): an idle moment every 7-14 s (was 2.5-6), the board's own every 18-35 s (was 11-23).
+  if (!c.nextIdle) c.nextIdle = t + 6;
+  if (t > c.nextIdle) { c.nextIdle = t + 7 + Math.random() * 7; snkIdleOnce(c); }
+  if (!c.nextLife) c.nextLife = t + 12 + Math.random() * 8;
+  if (t > c.nextLife && !c.life) { c.nextLife = t + 18 + Math.random() * 17; snkBoardLife(c); }
 }
 
 /** One waiting player taps a foot, yawns, or watches the snakes (never the one about to roll). */
@@ -1255,14 +1294,15 @@ async function snkPassHead(c, g, p, sn, v, from, to) {
     snkFace(p, '');
     return ok;
   }
-  snkFace(p, v === 'snap' ? 'wide sweat' : 'wide');
+  // A plain duck is quick and small: no new face, just down and under.
+  if (v === 'snap') snkFace(p, 'wide sweat');
   let flinched = false;
   const ok = await snkTween(c, g, ms, (t, r) => {
-    const x = snkLerp(from.x, to.x, t), y = snkLerp(from.y, to.y, t) - Math.abs(Math.sin(r * Math.PI * 3)) * 2.5;
+    const x = snkLerp(from.x, to.x, t), y = snkLerp(from.y, to.y, t) - Math.abs(Math.sin(r * Math.PI * 2)) * 1.5;
     // Ducked low and on tiptoe (anchored at the feet), the snake's eyes on him.
-    const sy = 0.74, sx = 1.08;
+    const sy = 0.86, sx = 1.04;
     p.x = x; p.y = y;
-    p.e.setAttribute('transform', `translate(${x.toFixed(1)} ${(y + 18 * k0 * (1 - sy)).toFixed(1)}) rotate(${(Math.sin(r * Math.PI * 3) * 4).toFixed(1)}) scale(${(k0 * sx).toFixed(3)} ${(k0 * sy).toFixed(3)})`);
+    p.e.setAttribute('transform', `translate(${x.toFixed(1)} ${(y + 18 * k0 * (1 - sy)).toFixed(1)}) rotate(${(Math.sin(r * Math.PI * 2) * 2.5).toFixed(1)}) scale(${(k0 * sx).toFixed(3)} ${(k0 * sy).toFixed(3)})`);
     if (v === 'snap') {
       const k = snkClamp((r - 0.3) / 0.35, 0, 1), b = Math.sin(k * Math.PI);
       sn.jaw = b; sn.mood = 'wow';
@@ -1374,7 +1414,7 @@ async function snkMeet(c, g, p, m) {
 
 async function snkTickle(c, g, p, sn) {
   snkFace(p, 'grin');
-  snkBubble(c, p.x, p.y - 24, snkT('snk_b_tickle'), 1300);
+  snkBubble(c, p.x, p.y - 24, snkT('snk_b_tickle'), 1000);
   snkSound(c, 'snkGiggle', p.mine);
   const x0 = p.x, y0 = p.y;
   await snkTween(c, g, SNAKES_TAIL_MS.tickle - 150, (t, r) => {
@@ -1389,19 +1429,19 @@ async function snkTickle(c, g, p, sn) {
 
 async function snkTrip(c, g, p, sn) {
   const x0 = p.x, y0 = p.y, k0 = p.k || 1;
-  await snkTween(c, g, 280, (t, r) => { sn.tailFlick = Math.sin(r * Math.PI) * 1.1; }, snkLin);
+  await snkTween(c, g, 200, (t, r) => { sn.tailFlick = Math.sin(r * Math.PI) * 1.1; }, snkLin);
   snkFace(p, 'gasp');
-  snkBubble(c, x0, y0 - 24, snkT('snk_b_trip'), 1100);
+  snkBubble(c, x0, y0 - 24, snkT('snk_b_trip'), 1000);
   snkSound(c, 'snkBoing', p.mine);
   // Falls flat on his face (about his feet), lies there, gets up and dusts himself off.
   const fall = (a) => p.e.setAttribute('transform', `translate(${x0} ${y0 + 18 * k0}) rotate(${a.toFixed(1)}) translate(0 ${-18 * k0}) scale(${k0})`);
-  await snkTween(c, g, 320, t => { sn.tailFlick = 0; fall(-88 * t); }, snkEaseIn);
+  await snkTween(c, g, 260, t => { sn.tailFlick = 0; fall(-88 * t); }, snkEaseIn);
   snkPuff(c, x0 - 16, y0 + 14, 4, '#e8d8b0', 14);
-  await snkWait(c, g, 380);
+  await snkWait(c, g, 250);
   snkFace(p, 'sad');
-  await snkTween(c, g, 320, t => fall(-88 * (1 - t)), snkEaseOut);
+  await snkTween(c, g, 260, t => fall(-88 * (1 - t)), snkEaseOut);
   snkFace(p, 'fwd');
-  await snkTween(c, g, 300, (t, r) => { snkSetP(p, x0 + Math.sin(r * Math.PI * 8) * 1.5, y0); if (r > 0.3 && r < 0.36) snkPuff(c, x0, y0 + 4, 2, '#e8d8b0', 8); }, snkLin);
+  await snkTween(c, g, 220, (t, r) => { snkSetP(p, x0 + Math.sin(r * Math.PI * 8) * 1.5, y0); if (r > 0.3 && r < 0.36) snkPuff(c, x0, y0 + 4, 2, '#e8d8b0', 8); }, snkLin);
   snkSetP(p, x0, y0);
   snkFace(p, '');
 }
@@ -1409,15 +1449,15 @@ async function snkTrip(c, g, p, sn) {
 async function snkTailPush(c, g, p, sn) {
   const x0 = p.x, y0 = p.y, back = snakesCellXY(Math.max(1, p.n - 1));
   const bx = snkLerp(x0, back.x, 0.75), by = back.y + 12;
-  await snkTween(c, g, 250, (t, r) => { sn.tailFlick = -Math.sin(r * Math.PI) * 1.2; }, snkLin);
+  await snkTween(c, g, 200, (t, r) => { sn.tailFlick = -Math.sin(r * Math.PI) * 1.2; }, snkLin);
   snkFace(p, 'gasp');
-  snkBubble(c, x0, y0 - 24, snkT('snk_b_push'), 900);
+  snkBubble(c, x0, y0 - 24, snkT('snk_b_push'), 800);
   snkSound(c, 'snkBoing', p.mine);
-  await snkTween(c, g, 420, (t, r) => { sn.tailFlick = 0; snkSetP(p, snkLerp(x0, bx, t), snkLerp(y0, by, t) - Math.sin(r * Math.PI) * 10, 1, -t * 20); }, snkEaseOut);
+  await snkTween(c, g, 360, (t, r) => { sn.tailFlick = 0; snkSetP(p, snkLerp(x0, bx, t), snkLerp(y0, by, t) - Math.sin(r * Math.PI) * 10, 1, -t * 20); }, snkEaseOut);
   snkFace(p, 'sad');
-  snkBubble(c, p.x, p.y - 24, snkT('snk_b_stomp'), 900);
+  snkBubble(c, p.x, p.y - 24, snkT('snk_b_stomp'), 800);
   // Stomps back to his own square: four heavy steps.
-  await snkTween(c, g, SNAKES_TAIL_MS.push - 820, (t, r) => {
+  await snkTween(c, g, SNAKES_TAIL_MS.push - 700, (t, r) => {
     const st = Math.abs(Math.sin(r * Math.PI * 4));
     p.x = snkLerp(bx, x0, t); p.y = snkLerp(by, y0, t);
     p.e.setAttribute('transform', `translate(${p.x.toFixed(1)} ${(p.y - st * 5).toFixed(1)}) scale(${((p.k || 1) * (1 + (1 - st) * 0.08)).toFixed(3)} ${((p.k || 1) * (1 - (1 - st) * 0.1)).toFixed(3)})`);
@@ -1433,15 +1473,15 @@ async function snkTailSeat(c, g, p, sn) {
   snkEl('path', { d: d, fill: 'none', stroke: SNK_INK, 'stroke-width': 8 }, coil);
   snkEl('path', { d: d, fill: 'none', stroke: sn.col, 'stroke-width': 5.4 }, coil);
   const cy = y0 + 13;
-  await snkTween(c, g, 320, (t, r) => { sn.tailFlick = Math.sin(r * Math.PI) * 0.6; snkTR(coil, x0, cy, snkBackOut(t), 0); }, snkLin);
+  await snkTween(c, g, 260, (t, r) => { sn.tailFlick = Math.sin(r * Math.PI) * 0.6; snkTR(coil, x0, cy, snkBackOut(t), 0); }, snkLin);
   sn.tailFlick = 0;
   snkFace(p, 'grin sit');
-  snkBubble(c, x0, y0 - 28, snkT('snk_b_seat'), 1100);
-  await snkTween(c, g, 260, t => snkSetP(p, x0, y0 - 9 * t), snkEaseOut);
-  await snkTween(c, g, 650, (t, r) => snkSetP(p, x0, y0 - 9, 1, Math.sin(r * Math.PI * 2) * 7), snkLin);
+  snkBubble(c, x0, y0 - 28, snkT('snk_b_seat'), 900);
+  await snkTween(c, g, 220, t => snkSetP(p, x0, y0 - 9 * t), snkEaseOut);
+  await snkTween(c, g, 400, (t, r) => snkSetP(p, x0, y0 - 9, 1, Math.sin(r * Math.PI * 2) * 7), snkLin);
   snkFace(p, 'up');
-  await snkTween(c, g, 300, (t, r) => snkSetP(p, x0, y0 - 9 * (1 - t) - Math.sin(r * Math.PI) * 14), snkLin);
-  await snkTween(c, g, 160, t => snkTR(coil, x0, cy, 1 - t, 0), snkEaseIn);
+  await snkTween(c, g, 260, (t, r) => snkSetP(p, x0, y0 - 9 * (1 - t) - Math.sin(r * Math.PI) * 14), snkLin);
+  await snkTween(c, g, 140, t => snkTR(coil, x0, cy, 1 - t, 0), snkEaseIn);
   coil.remove();
   snkSetP(p, x0, y0);
   snkFace(p, '');
@@ -1451,65 +1491,116 @@ const SNK_TAIL_ANIM = { tickle: snkTickle, trip: snkTrip, push: snkTailPush, sea
 
 /* --- the sneak: one square beside a ladder's foot ------------------------------------------------- */
 
+/** His own square marked for a moment (a ring of his colour round its edge, never over its number). */
+function snkMarkSquare(c, n, col, ms) {
+  if (c.fast || snkStill() || !(n > 0 && n < 100)) return;
+  const q = snakesCellXY(n);
+  const e = snkEl('rect', { x: q.x - SNK_C / 2 + 3, y: q.y - SNK_C / 2 + 3, width: SNK_C - 6, height: SNK_C - 6, rx: 8, fill: 'none', stroke: col, 'stroke-width': 4, opacity: 0 }, c.under);
+  const t0 = performance.now();
+  (function f(now) {
+    const k = snkClamp((now - t0) / ms, 0, 1);
+    e.setAttribute('opacity', (Math.min(1, k * 6, (1 - k) * 4) * (0.75 + 0.25 * Math.sin(k * Math.PI * 4))).toFixed(2));
+    if (k < 1 && e.isConnected) requestAnimationFrame(f); else e.remove();
+  })(t0);
+}
+
+/*
+ * The sneak (the owner's review, 29 Sep 2026): he lands on his own square and stands there a clear
+ * beat (it glows round its edge: this is where he is), looks round, tiptoes to the ladder's foot and
+ * starts up it fast; the snake nearest to him crawls the whole way over along the board (snkCrawlAt),
+ * catches him - a push, or an eat and a spit - and he is back on his own square while it crawls home
+ * into its very own shape. Inside SNAKES_SNEAK_MS (push 3.5 s, eat 3.8 s) with about 0.15 s to spare.
+ */
 async function snkSneak(c, g, p, e) {
   const l = c.ladders.find(x => x.f === e.sneak.f), sn = c.snakes.find(x => x.h === e.sneak.h);
   if (!l || !sn) return;
-  const home = { x: p.x, y: p.y }, foot = snkLadPt(l, 0), q = snkLadPt(l, 0.4);
-  // Tiptoes to the ladder, looking round, and starts up it fast.
-  snkFace(p, 'grin');
-  snkBubble(c, p.x, p.y - 24, snkT('snk_b_shh'), 900);
-  await snkTween(c, g, 400, (t, r) => snkSetP(p, snkLerp(home.x, foot.x, t), snkLerp(home.y, foot.y, t) - Math.abs(Math.sin(r * Math.PI * 5)) * 3, 1, Math.sin(r * Math.PI * 3) * 9), snkLin);
-  if (!snkAlive(c, g)) return;
-  snkFace(p, 'up');
-  await snkTween(c, g, 450, (t, r) => { const u = snkLadPt(l, 0.4 * t); snkSetP(p, u.x, u.y, 1, Math.sin(r * Math.PI * 4) * 14); }, snkEaseOut);
-  if (!snkAlive(c, g)) return;
-  // The nearest snake crawls over.
-  snkFace(p, 'wide sweat');
-  sn.mood = 'wow';
+  p.n = e.walk;
+  const home = snkSpot(c, p), foot = snkLadPt(l, 0), q = snkLadPt(l, 0.3);
+  p.k = home.k;
+  snkSetP(p, home.x, home.y);
+  const done = () => {
+    sn.crawl = null; sn.amp = 2.2; sn.mood = ''; sn.jaw = 0; sn.bulge = null; sn.lunge = { x: 0, y: 0, s: 1 };
+    c.animatingSnake = null;
+  };
+  // 1. He stands on his own square: everyone sees where he is (0.7 s).
+  snkMarkSquare(c, e.walk, p.col, 1150);
+  await snkWait(c, g, 700);
+  if (!snkAlive(c, g)) return done();
+  // 2. Looks round: left, then right (0.5 s).
+  snkFace(p, 'wide');
+  const eyes = p.e.querySelector('.snk-eW');
+  await snkTween(c, g, 500, (t, r) => {
+    const lk = Math.sin(r * Math.PI * 2);
+    if (eyes) eyes.setAttribute('transform', `translate(${(-lk * 1.6).toFixed(2)} 0)`);
+    snkSetP(p, home.x - lk * 2, home.y, 1, -lk * 7);
+  }, snkLin);
+  if (eyes) eyes.removeAttribute('transform');
+  if (!snkAlive(c, g)) return done();
+  // 3. The snake nearest to him sets off now, crawling along the board to where he will be.
+  const side = q.x < 300 ? 1 : -1;
+  const target = { x: snkClamp(q.x + side * 24, 14, 586), y: q.y - 6 };
+  const wayS = snkCrawlWay(sn, target);
+  sn.crawl = { way: wayS.pts, d: 0 };
+  const D = wayS.L;
+  const crawlMs = snkClamp(420 + D * 1.6, 600, 950);
   c.animatingSnake = sn;
+  sn.mood = 'wow';
   snkSound(c, 'snkHiss', p.mine);
-  const hx0 = sn.hx - (sn.shx || 0), hy0 = sn.hy - (sn.shy || 0);
-  const tx = q.x + (q.x < 300 ? 26 : -26) - hx0, ty = q.y - 8 - hy0;
-  await snkTween(c, g, 600, t => { sn.shx = tx * t; sn.shy = ty * t; sn.amp = 2.2 + 3 * Math.sin(t * Math.PI); }, snkEase);
-  if (!snkAlive(c, g)) return;
-  snkBubble(c, hx0 + tx, hy0 + ty - 16, snkT('snk_b_notyou'), 800);
-  const crawlBack = (ms, extra) => snkTween(c, g, ms, t => { sn.shx = tx * (1 - t); sn.shy = ty * (1 - t); sn.amp = 2.2 + 3 * Math.sin(t * Math.PI); if (extra) extra(t); }, snkEase);
+  const out = snkTween(c, g, crawlMs, t => { sn.crawl.d = D * t; }, snkEase);
+  // ... while he tiptoes to the ladder's foot and starts up it fast (0.4 + 0.35 s).
+  snkFace(p, 'grin');
+  snkBubble(c, home.x, home.y - 24, snkT('snk_b_shh'), 800);
+  await snkTween(c, g, 400, (t, r) => snkSetP(p, snkLerp(home.x, foot.x, t), snkLerp(home.y, foot.y, t) - Math.abs(Math.sin(r * Math.PI * 4)) * 3, 1, Math.sin(r * Math.PI * 4) * 7), snkLin);
+  if (!snkAlive(c, g)) return done();
+  snkFace(p, 'up');
+  await snkTween(c, g, 350, (t, r) => { const u = snkLadPt(l, 0.3 * t); snkSetP(p, u.x, u.y, 1, Math.sin(r * Math.PI * 4) * 12); }, snkEaseOut);
+  await out;
+  if (!snkAlive(c, g)) return done();
+  // 4. Caught.
+  snkFace(p, 'wide sweat');
+  snkBubble(c, target.x, target.y - 18, snkT('snk_b_notyou'), 800);
+  const back = (ms) => snkTween(c, g, ms, t => { sn.crawl.d = D * (1 - t); }, snkEase);
+  p.n = e.walk;
   if (e.sneak.v === 'push') {
-    await snkTween(c, g, 200, (t, r) => { const k = Math.sin(r * Math.PI); sn.jaw = 0.6 * k; sn.lunge = { x: (q.x - sn.hx) * 0.4 * k, y: (q.y - sn.hy) * 0.4 * k, s: 1 + 0.15 * k }; }, snkLin);
+    await snkTween(c, g, 200, (t, r) => { const k = Math.sin(r * Math.PI); sn.jaw = 0.6 * k; sn.lunge = { x: (p.x - sn.hx) * 0.4 * k, y: (p.y - sn.hy) * 0.4 * k, s: 1 + 0.15 * k }; }, snkLin);
     sn.jaw = 0; sn.lunge = { x: 0, y: 0, s: 1 };
+    if (!snkAlive(c, g)) return done();
     snkFace(p, 'gasp up');
-    snkBubble(c, q.x, q.y - 24, snkT('snk_b_ah'), 800);
+    snkBubble(c, p.x, p.y - 24, snkT('snk_b_ah'), 800);
     snkSound(c, 'snkBoing', p.mine);
-    p.n = e.walk;
-    const s = snkSpot(c, p);
-    p.k = s.k;
-    await snkTween(c, g, 450, t => snkSetP(p, snkLerp(q.x, s.x, t), snkLerp(q.y, s.y, t) - Math.sin(t * Math.PI) * 30, 1, t * 300), snkLin);
-    snkSettleAll(c);
-    snkFace(p, 'dizzy');
-    await crawlBack(350);
+    // Knocked back down onto his own square, while the snake crawls home (0.9 s).
+    const x1 = p.x, y1 = p.y;
+    sn.mood = '';
+    await Promise.all([
+      snkTween(c, g, 450, t => snkSetP(p, snkLerp(x1, home.x, t), snkLerp(y1, home.y, t) - Math.sin(t * Math.PI) * 30, 1, t * 300), snkLin)
+        .then(() => { if (snkAlive(c, g)) { snkSettleAll(c); snkFace(p, 'dizzy'); } }),
+      back(900)
+    ]);
   } else {
     await snkTween(c, g, 250, t => { sn.jaw = t; sn.lunge = { x: (q.x - sn.hx) * 0.3 * t, y: (q.y - sn.hy) * 0.3 * t, s: 1 + 0.2 * t }; snkSetP(p, snkLerp(q.x, sn.hx + sn.lunge.x, t), snkLerp(q.y, sn.hy + sn.lunge.y + 8, t), 1 - t * 0.9, t * 140); }, snkEaseIn);
     p.e.setAttribute('opacity', 0); p.hidden = true;
     snkSound(c, 'snkGulp', p.mine);
-    snkBubble(c, sn.hx, sn.hy - 14, snkT('snk_b_ham'), 800);
-    sn.jaw = 0; sn.lunge = { x: 0, y: 0, s: 1.15 };
-    await crawlBack(500, t => { sn.bulge = snkLerp(sn.s + 14, Math.min(sn.L - 12, 90), t); });
-    sn.bulge = null; sn.lunge = { x: 0, y: 0, s: 1 };
-    if (!snkAlive(c, g)) return;
-    // Spat back onto his own square.
-    p.n = e.walk; p.hidden = false; p.e.setAttribute('opacity', 1);
-    const s = snkSpot(c, p);
-    p.k = s.k;
-    snkBubble(c, sn.hx, sn.hy - 14, snkT('snk_b_tuf'), 700);
-    snkPuff(c, sn.hx, sn.hy, 4);
+    snkBubble(c, sn.hx, sn.hy - 14, snkT('snk_b_ham'), 700);
+    // A chew: the bulge goes a little way down, then back up.
+    await snkTween(c, g, 300, (t, r) => { sn.jaw = 1 - t; sn.lunge = { x: sn.lunge.x * (1 - t), y: sn.lunge.y * (1 - t), s: 1 + 0.2 * (1 - t) }; sn.bulge = 14 + Math.sin(r * Math.PI) * 40; }, snkLin);
+    sn.bulge = null; sn.jaw = 0; sn.lunge = { x: 0, y: 0, s: 1 };
+    if (!snkAlive(c, g)) { p.hidden = false; p.e.setAttribute('opacity', 1); return done(); }
+    // Spat back onto his own square, and the snake crawls home (0.9 s).
+    p.hidden = false; p.e.setAttribute('opacity', 1);
+    const x1 = sn.hx, y1 = sn.hy;
+    snkBubble(c, x1, y1 - 14, snkT('snk_b_tuf'), 700);
+    snkPuff(c, x1, y1, 4);
     snkSound(c, 'snkBoing', p.mine);
-    await snkTween(c, g, 400, t => snkSetP(p, snkLerp(sn.hx, s.x, t), snkLerp(sn.hy, s.y, t) - Math.sin(t * Math.PI) * 40, 0.3 + 0.7 * snkBackOut(Math.min(1, t * 1.3)), (1 - t) * -300), snkLin);
-    snkSettleAll(c);
-    snkFace(p, 'dizzy');
+    sn.mood = '';
+    await Promise.all([
+      snkTween(c, g, 400, t => snkSetP(p, snkLerp(x1, home.x, t), snkLerp(y1, home.y, t) - Math.sin(t * Math.PI) * 40, 0.3 + 0.7 * snkBackOut(Math.min(1, t * 1.3)), (1 - t) * -300), snkLin)
+        .then(() => { if (snkAlive(c, g)) { snkSettleAll(c); snkFace(p, 'dizzy'); } }),
+      back(900)
+    ]);
   }
-  sn.shx = 0; sn.shy = 0; sn.amp = 2.2; sn.mood = ''; sn.jaw = 0; sn.bulge = null;
-  c.animatingSnake = null;
-  await snkWait(c, g, 200);
+  done();
+  if (!snkAlive(c, g)) return;
+  await snkWait(c, g, 150);
   snkFace(p, '');
 }
 
@@ -1658,7 +1749,7 @@ function snkSettleTo(c, g) {
   c.fx.innerHTML = ''; c.under.innerHTML = '';
   c.die.setAttribute('opacity', 0);
   if (g.map && (!c.map || c.map.seed !== g.map.seed)) snkMountMap(c, g.map);
-  c.snakes.forEach(sn => { sn.s = 0; sn.holeK = 1; sn.dir = 1; sn.amp = 2.2; sn.bulge = null; sn.jaw = 0; sn.mood = ''; sn.lunge = { x: 0, y: 0, s: 1 }; sn.tailFlick = 0; sn.shx = 0; sn.shy = 0; });
+  c.snakes.forEach(sn => { sn.s = 0; sn.holeK = 1; sn.dir = 1; sn.amp = 2.2; sn.bulge = null; sn.jaw = 0; sn.mood = ''; sn.lunge = { x: 0, y: 0, s: 1 }; sn.tailFlick = 0; sn.crawl = null; });
   c.crowd = false; c.life = false; c.animatingSnake = null;
   c.svg.classList.remove('is-drum');
   c.ladders.forEach(l => { l.g.removeAttribute('transform'); l.inner.removeAttribute('transform'); l.glowL.setAttribute('opacity', 0); });

@@ -9505,7 +9505,7 @@ Date.now = duelTestClock;
 /* --- السلم والتعبان (28 Sep 2026): the map, the rules, the room ------------------------------ */
 {
   const S = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8') +
-    '\nreturn { snakesGenMap, snakesCellXY, snakesRowOf, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesSegCross, snakesDie, SNAKES_SNAKE_BANDS, SNAKES_LADDER_BANDS, SNAKES_SNAKE_EXTRA, SNAKES_LADDER_EXTRA, SNAKES_COUNT, SNAKES_BALANCE, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_MOVE_MS, SNAKES_BUILD_MS, SNAKES_TEARDOWN_MS, SNAKES_TAIL_MOVES, SNAKES_TAIL_MS, SNAKES_SNEAK_MS, SNAKES_PASS_MS, SNAKES_MEET_MS, SNAKES_ONE_MS, SNAKES_TENSE_MS, SNAKES_SIXES_MS, SNAKES_LEAVE_MS, SNAKES_NEAR_MS, snakesRollMs, snakesPathOf };')();
+    '\nreturn { snakesGenMap, snakesCellXY, snakesRowOf, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesSegCross, snakesDie, SNAKES_SNAKE_BANDS, SNAKES_LADDER_BANDS, SNAKES_SNAKE_EXTRA, SNAKES_LADDER_EXTRA, SNAKES_COUNT, SNAKES_BALANCE, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_MOVE_MS, SNAKES_BUILD_MS, SNAKES_TEARDOWN_MS, SNAKES_TAIL_MOVES, SNAKES_TAIL_MS, SNAKES_TAIL_CHANCE, SNAKES_SNEAK_MS, SNAKES_SNEAK_CHANCE, SNAKES_PASS_JUMP, SNAKES_PASS_SNAP, SNAKES_PASS_MS, SNAKES_MEET_MS, SNAKES_ONE_MS, SNAKES_TENSE_MS, SNAKES_SIXES_MS, SNAKES_LEAVE_MS, SNAKES_NEAR_MS, snakesRollMs, snakesPathOf };')();
   const throws = (fn) => { try { fn(); return false; } catch (e) { return true; } };
 
   // The map.
@@ -9614,14 +9614,28 @@ Date.now = duelTestClock;
   {
     // The test map: heads 50 and 97, tails 10 and 60, ladder feet 5 and 22.
     const fresh = (pos) => { const x = game(['a', 'b']); x.phase = 'play'; x.turn = { pid: 'a', sixes: 0 }; Object.assign(x.pos, pos || {}); return x; };
-    // The sneak: only beside a ladder's foot (near 'l'), about half the time, the nearest snake named.
+    // The sneak: only beside a ladder's foot (near 'l'), about 1 in 3 (the owner's review), the snake nearest to HIM named.
     const nearestHead = (n) => { const q = S.snakesCellXY(n); return [50, 97].sort((h1, h2) => { const a1 = S.snakesCellXY(h1), a2 = S.snakesCellXY(h2); return Math.hypot(a1.x - q.x, a1.y - q.y) - Math.hypot(a2.x - q.x, a2.y - q.y); })[0]; };
     let sneaks = 0, wrong = false;
     for (let k = 0; k < 2000; k++) {
       const ev = S.snakesRoll(fresh({ a: 20 }), 'a', 1, Math.random, k);
-      if (ev.sneak) { sneaks++; if (ev.near !== 'l' || ev.sneak.f !== 22 || ev.sneak.h !== nearestHead(22) || ['push', 'eat'].indexOf(ev.sneak.v) === -1) wrong = true; }
+      if (ev.sneak) { sneaks++; if (ev.near !== 'l' || ev.sneak.f !== 22 || ev.sneak.h !== nearestHead(ev.walk) || ['push', 'eat'].indexOf(ev.sneak.v) === -1) wrong = true; }
     }
-    check(!wrong && sneaks > 880 && sneaks < 1120, `snakes: landing beside a ladder's foot is a sneak about half the time (${sneaks} of 2000), the nearest snake crawling over to push him or eat him`);
+    // 2000 rolls at 1/3: mean 667, sd 21; the bounds are more than 5 sd away.
+    check(!wrong && S.SNAKES_SNEAK_CHANCE === 1 / 3 && sneaks > 560 && sneaks < 780, `snakes: landing beside a ladder's foot is a sneak about 1 in 3 (${sneaks} of 2000), the snake nearest to him crawling over to push him or eat him`);
+    // The nearest to him, not to the ladder: a map where the two differ.
+    {
+      const m2 = { seed: 7, snakes: [{ h: 24, t: 4 }, { h: 23, t: 2 }], ladders: [{ f: 18, t: 64 }] };   // 24 is right above 17, 23 right above 18
+      const dist = (a, b) => { const p1 = S.snakesCellXY(a), p2 = S.snakesCellXY(b); return Math.hypot(p1.x - p2.x, p1.y - p2.y); };
+      let hit = null;
+      for (let k = 0; k < 300 && !hit; k++) {
+        const z = fresh({ a: 16 }); z.map = m2;
+        const ev = S.snakesRoll(z, 'a', 1, Math.random, k);
+        if (ev.sneak) hit = ev;
+      }
+      const toHim = dist(24, 17) < dist(23, 17) ? 24 : 23, toLadder = dist(24, 18) < dist(23, 18) ? 24 : 23;
+      check(hit && hit.walk === 17 && hit.sneak.f === 18 && hit.sneak.h === toHim && toHim !== toLadder, `snakes: the snake that crawls over for the sneak is the one nearest to him, on his own square (${toHim}; nearest the ladder ${toLadder})`);
+    }
     let stray = false;
     for (let k = 0; k < 3000; k++) {
       const x = fresh({ a: Math.floor(Math.random() * 94) });
@@ -9633,23 +9647,27 @@ Date.now = duelTestClock;
     check(!stray, 'snakes: a sneak only beside a ladder\'s foot, a tail move only on a tail square, a head only when walked past');
     // The tail: four moves, never the same twice in a row, every one coming up.
     const x = fresh({ a: 4 });
-    let prevT = '', repT = false; const seenT = new Set();
-    for (let k = 0; k < 200; k++) {
+    let prevT = '', repT = false, tails = 0; const seenT = new Set();
+    for (let k = 0; k < 2000; k++) {
       x.phase = 'play'; x.places = []; x.turn = { pid: 'a', sixes: 0 }; x.pos.a = 4;
       const ev = S.snakesRoll(x, 'a', 6, Math.random, k);
-      if (!ev.tail || ev.near) { repT = true; break; }
+      if (ev.near || ev.sneak) { repT = true; break; }
+      if (!ev.tail) continue;
+      tails++;
       if (ev.tail.v === prevT) repT = true;
       prevT = ev.tail.v; seenT.add(ev.tail.v);
     }
-    check(!repT && seenT.size === 4, 'snakes: a snake\'s tail square plays one of four moves, never the same twice in a row');
+    // 2000 rolls at 1/2: mean 1000, sd 22; the bounds are more than 5 sd away.
+    check(!repT && seenT.size === 4 && tails > 880 && tails < 1120, `snakes: a snake's tail square plays one of four moves about half the time (${tails} of 2000), otherwise he just stands; never the same move twice in a row`);
     // Walking past a head: duck, snap or jump for each head passed, and none for the one landed on.
-    let jumps = 0, n = 0;
-    for (let k = 0; k < 1000; k++) {
+    let jumps = 0, snaps = 0, n = 0;
+    for (let k = 0; k < 3000; k++) {
       const ev = S.snakesRoll(fresh({ a: 46 }), 'a', 5, Math.random, k);
       if (!ev.pass || ev.pass.length !== 1 || ev.pass[0].h !== 50) { n = -1; break; }
-      n++; if (ev.pass[0].v === 'jump') jumps++;
+      n++; if (ev.pass[0].v === 'jump') jumps++; else if (ev.pass[0].v === 'snap') snaps++;
     }
-    check(n === 1000 && jumps > 240 && jumps < 360, `snakes: walking past a snake's head he jumps over it about three times in ten (${jumps} of 1000), else ducks under`);
+    // Jumps 2 in 10 (mean 600, sd 22), snaps 0.8 x 0.15 = 12 in 100 (mean 360, sd 18): the bounds over 5 sd away.
+    check(n === 3000 && jumps > 480 && jumps < 720 && snaps > 260 && snaps < 460, `snakes: walking past a snake's head he jumps over it about 2 in 10 (${jumps} of 3000), a snap now and then (${snaps}), else a quick duck`);
     check(!S.snakesRoll(fresh({ a: 44 }), 'a', 6, Math.random, 1).pass, 'snakes: the head he lands on is not one walked past');
     const bounce = fresh({ a: 95 });
     const eb = S.snakesRoll(bounce, 'a', 3, Math.random, 1);
@@ -9671,8 +9689,9 @@ Date.now = duelTestClock;
     check(e1.ms - noOne === S.SNAKES_ONE_MS && one.readyAt === 1000 + e1.ms, 'snakes: a plain 1 counts «بس كده؟», and readyAt waits for all of it');
     const sn = fresh({ a: 20 });
     let es = null;
-    for (let k = 0; k < 60 && !(es && es.sneak); k++) { sn.pos.a = 20; sn.turn = { pid: 'a', sixes: 0 }; es = S.snakesRoll(sn, 'a', 1, Math.random, 5000); }
-    const et = S.snakesRoll(fresh({ a: 4 }), 'a', 6, Math.random, 1);
+    for (let k = 0; k < 200 && !(es && es.sneak); k++) { sn.pos.a = 20; sn.turn = { pid: 'a', sixes: 0 }; es = S.snakesRoll(sn, 'a', 1, Math.random, 5000); }
+    let et = null;
+    for (let k = 0; k < 200 && !(et && et.tail); k++) et = S.snakesRoll(fresh({ a: 4 }), 'a', 6, Math.random, 1);
     const em2 = S.snakesRollMs(Object.assign({}, em, { meet: undefined }));
     check(es.sneak && es.ms - bare(es) === S.SNAKES_SNEAK_MS[es.sneak.v] - S.SNAKES_NEAR_MS && et.ms - bare(et) === S.SNAKES_TAIL_MS[et.tail.v] &&
       sn.readyAt === 5000 + es.ms && eb.ms - bare(eb) === S.SNAKES_TENSE_MS + S.SNAKES_PASS_MS[eb.pass[0].v] && em.ms - em2 === S.SNAKES_MEET_MS &&

@@ -328,6 +328,8 @@ work changed. Add to it when a decision is made or a batch ships.
         its tail move, first. **"The nearest snake"** is the one whose head is
         nearest the ladder's foot; its front crawls over and its tail stays
         in its hole, the neck stretching (a cartoon: no snake is too far).
+        *Replaced by the owner's review below*: the snake nearest to him, the
+        whole snake crawling, the sneak 1 in 3.
       - **Walked past** means a square the walk goes through, the bounce off
         100 included, never the one it stops on (`snakesPathOf`).
       - **Two on one square** is anyone still playing on the square the roll
@@ -348,7 +350,8 @@ work changed. Add to it when a decision is made or a batch ships.
         the leader; **sitting down after 25 s** without moving
         (`SNK_SIT_AFTER`), never the one about to roll.
   - **السلم والتعبان, the owner's review of the second round** (29 Sep 2026,
-    after playing it):
+    after playing it). **Built 29 Sep 2026** (*السلم والتعبان*, "The sneak and
+    the crawl"):
     - **The sneak: he stops first, then sneaks.** He landed straight on the
       ladder's square as part of his walk, so the table took the ladder's square
       for his real one. Now he lands on his own square and stands there a beat
@@ -367,6 +370,42 @@ work changed. Add to it when a decision is made or a batch ships.
       ducking under a head quick and small with a snap only now and then, the
       idle waiting moments rarer, every big moment short. The moments that are
       the rules (a snake, a ladder, the win) always play.
+    - Decided while building (open to change, each in one place):
+      - **The sneak's order**: he stands 0.7 s on his own square with a ring of
+        his colour round its edge (`snkMarkSquare`, never over its number), looks
+        left and right 0.5 s, tiptoes to the foot 0.4 s and starts up 0.35 s;
+        **the snake sets off when he starts to tiptoe** (so the catch comes as
+        he climbs, 0.6-0.95 s of crawl by the distance), catches him, and **he
+        is back on his square while the snake crawls home** (0.9 s, both at
+        once). 3.5 s (push) and 3.8 s (eat) in the server's time
+        (`SNAKES_SNEAK_MS`), the animation ending about 0.15 s inside it.
+      - **The crawl follows one path**: out from where the head points, in
+        gentle S bends, to beside him (`snkCrawlWay`); every point of the body
+        follows the head along its own resting body and then that path
+        (`snkCrawlAt`), so the tail leaves its hole and the whole snake moves;
+        **home it backs along the same path**, which lands it exactly in its own
+        shape (checked: the body's outline before and after is the same
+        string). Turning round and coming home head first was not built: it
+        cannot end in the resting shape without a second trip.
+      - **"The snake nearest to him"** is the snake whose head is nearest to the
+        square he landed on (`snakesNearestSnake(map, walk)`).
+      - **A tail square with no move** (half the time) shows nothing else
+        either: no near miss, he just stands.
+      - **The frequencies and times**, before → after: the sneak 1/2 → 1/3
+        (`SNAKES_SNEAK_CHANCE`); a tail square's move always → 1/2
+        (`SNAKES_TAIL_CHANCE`); walking past a head, a jump 3 → 2 in 10
+        (`SNAKES_PASS_JUMP`), a snap 30% → 15% of the ducks
+        (`SNAKES_PASS_SNAP`, so about 12 in 100 heads passed), a duck
+        380 → 200 ms and smaller (no new face, a light squash), a snap
+        700 → 450, a jump 420 → 380; the tail's moves tickle 1.5 → 1.2 s, trip
+        1.7 → 1.4, push 1.6 → 1.3, seat 1.8 → 1.4; two on one square
+        1.1 → 0.9 s; a 1 0.75 → 0.55 s; the drumroll 0.9 → 0.7 s; the sixes
+        0.8 / 1.1 / 1.8 → 0.7 / 0.9 / 1.3 s; a near miss and a ladder just
+        missed 1.3 → 1.0 s; the sneak 2.7 / 3.0 → 3.5 / 3.8 s (it now includes
+        the stand and the crawl home). The waiting pieces' idle moments every
+        2.5-6 s → 7-14 s, the board's own moments every 11-23 s → 18-35 s. The
+        snake and ladder moves, the bounce, the win and the building are
+        unchanged.
   - **جمجمة**: **rooms and the TV only**, your discs secret on your own phone,
     every pile face down on the TV; **3-8 players**; 4 discs each (3 flowers, 1
     skull); **two won bets wins, or the last one in**; **a skull hit takes one
@@ -3903,6 +3942,20 @@ the word search), `countUp` for streaks and scores.
   still under reduced motion, 667×375, the logo flying home once ready with
   nothing left running; unthrottled, no scene ever appears.
 
+- **29 Sep 2026, السلم والتعبان: the sneak and the crawl** (*The owner's
+  specs*, the review of the second round): he stands on his own square before
+  he sneaks, the snake nearest to him crawls the whole way over along the
+  board and back into its very own shape, and the extras rarer and shorter
+  (the sneak 1 in 3, a tail move half the time, a jump 2 in 10, a snap now and
+  then, the idle moments and the board's own moments about half as often,
+  every second-round moment trimmed). `npm run check`, `test:rules` (the new
+  rates, the snake nearest to him, the times in `readyAt`), the robots'
+  `--only=snakes` round (16 passed) on a local server. Looked at in headless
+  Chrome on a virtual clock, frame by frame: the sneak (push and eat) at
+  375 × 812 Arabic light and 1280 × 720 English dark, and on the TV at
+  1920 × 1080 in a room - the snake's outline the same string before and
+  after, the piece ending on its own square, every moment ending 0.3-0.6 s
+  inside its server time; a 90 s game against the phone; no console errors.
 - **28 Sep 2026, the stylesheet's performance** - style recalc measured in
   headless Chrome at 6x CPU throttling (`Performance.getMetrics` per action;
   per rule by deleting it through the CSSOM and rebuilding a view's markup):
@@ -6630,7 +6683,13 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
     (from 95-99) and `rolls`; each with its time (`SNAKES_TAIL_MS`,
     `SNAKES_SNEAK_MS`, `SNAKES_PASS_MS`, `SNAKES_MEET_MS`, `SNAKES_ONE_MS`,
     `SNAKES_TENSE_MS`, `SNAKES_SIXES_MS`) in `snakesRollMs`. A leaver's `left`
-    event carries `ms` and moves `readyAt` (`RoomSnakes.js`).
+    event carries `ms` and moves `readyAt` (`RoomSnakes.js`). Since the
+    owner's review (29 Sep 2026) the extras are rarer and shorter: a tail
+    square plays a move half the time (`SNAKES_TAIL_CHANCE`), the sneak is 1
+    in 3 (`SNAKES_SNEAK_CHANCE`) with **the snake nearest to him** (his own
+    square, `snakesNearestSnake(map, walk)`), a jump 2 in 10 and a snap 15%
+    of the ducks (*The owner's specs*, the review, for every number before
+    and after).
   - **Played on each screen** (`snkPlayRoll`): `snkTense` before the die (a
     drumroll `snkDrum`, the snake nearest 100 in `m-lick`, the cup's glow
     faster under `is-drum`), the walk with `passQ` (`snkPassHead`: ducked -
@@ -6639,8 +6698,14 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
     and a jump over it), `snkOne`, then the snake or ladder with the others'
     reactions (`snkReact`), a tail move (`SNK_TAIL_ANIM`: `snkTickle`,
     `snkTrip`, `snkTailPush`, `snkTailSeat` with a coil drawn under him) or
-    the sneak (`snkSneak`: the front of the snake's body carried by `sn.shx`
-    / `sn.shy`, weighted along the body so the tail stays in its hole), the
+    the sneak (`snkSneak`: he stands on his own square with its edge ringed,
+    `snkMarkSquare`, looks round, tiptoes to the ladder and starts up it; the
+    snake crawls - `sn.crawl = { way, d }`, drawn by `snkRenderSnake` through
+    `snkCrawlAt`: a body point `a` from the head sits at `d - a` along its
+    resting body and then the way out (`snkCrawlWay`), so the body follows the
+    head, the tail leaves its hole, and `d = 0` is exactly its own shape -
+    catches him, and backs home along the same path while he lands back on
+    his square), the
     meeting (`snkMeet`), the win (`c.crowd` sways every head, the ladders'
     glow pulses) or the sixes (`snkSixes`, fireworks `snkBurst` on the
     third); a leaver's `snkLeave` (the suitcase, «سلام!», walking off the
@@ -6653,8 +6718,8 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
     over the piece's parts - `snk-grin`, `snk-wob`, `snk-eW`, `snk-lids`,
     `snk-flat` - only while nothing is being played) and sitting (`is-sat`,
     after `SNK_SIT_AFTER`); every few seconds one waiting piece taps a foot,
-    yawns or watches the nearest snake (`snkIdleOnce`: `idle-*` classes); every
-    11-23 s one of the board's moments (`snkBoardLife`: a snake's yawn or
+    yawns or watches the nearest snake (`snkIdleOnce`: `idle-*` classes, every 7-14 s since the owner's review); every
+    18-35 s (was 11-23) one of the board's moments (`snkBoardLife`: a snake's yawn or
     stretch, a butterfly flying past a head that snaps at it -
     `snkButterflySnap` - or a worker tightening a rung, `snkWorkerRung`), each
     on `snkAmb`, a tween that gives way at once to a roll or a building. Pieces
@@ -6674,10 +6739,12 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
   during the building dropped, a stale tap, the clock and the host's "play
   for", a whole game with a computer player, the win on the night's board,
   play again with a teardown, leaving, seven people; the second round: the
-  sneak about half the time and only beside a ladder's foot with the nearest
-  snake, the tail's four moves never twice in a row and only on a tail square,
+  sneak about 1 in 3 and only beside a ladder's foot, with the snake nearest to
+  him (a map where the one nearest the ladder is another), the tail's four
+  moves about half the time, never twice in a row and only on a tail square,
   a head counted only when walked past, bouncing off 100 included, a jump
-  about three times in ten, the sixes counted, two on one square, every new
+  about 2 in 10 and a snap about 12 in 100 (every rate over 2,000-3,000 rolls,
+  the bounds five standard deviations out), the sixes counted, two on one square, every new
   moment in the roll's time, one random source making the same rolls, the
   leaver's walk waited for), `leaks.mjs` (a game with
   three computer players on the clock; nothing is hidden), `play-all.mjs`

@@ -28,7 +28,8 @@
      - The second round (29 Sep 2026) is picked here too, so every screen plays
        the same: each snake head walked past (`pass`: duck, snap or jump), a
        snake's tail square (`tail`, never the same move twice in a row), the
-       sneak beside a ladder's foot (`sneak`, about half the time: push or eat),
+       sneak beside a ladder's foot (`sneak`, about 1 in 3: push or eat, by the
+       snake nearest to him), a tail square's move about half the time,
        two on one square (`meet`), the sixes in a row (`sixes`), the drumroll
        from 95 (`tense`), and `rolls` (the TV's day turning to night).
 
@@ -55,24 +56,26 @@ const SNAKES_MOVE_MS = {
 /* The second round (the owner, 29 Sep 2026): more that a roll can show, each picked
    here so every phone and the TV play the same one, and counted in readyAt. */
 const SNAKES_TAIL_MOVES = ['tickle', 'trip', 'push', 'seat'];     // landing on a snake's tail square
-const SNAKES_TAIL_MS = { tickle: 1500, trip: 1700, push: 1600, seat: 1800 };
+/* The owner's review (29 Sep 2026): "fun, never annoying" - the extras kept special and short. */
+const SNAKES_TAIL_MS = { tickle: 1200, trip: 1400, push: 1300, seat: 1400 };
+const SNAKES_TAIL_CHANCE = 0.5;                                   // how often a tail square plays a move (otherwise he just stands)
 const SNAKES_SNEAK_ENDS = ['push', 'eat'];                        // the sneak up a ladder next door, and how it ends
-const SNAKES_SNEAK_MS = { push: 2700, eat: 3000 };
-const SNAKES_SNEAK_CHANCE = 0.5;                                  // how often landing beside a ladder's foot is a sneak
-const SNAKES_PASS_MS = { duck: 380, snap: 700, jump: 420 };       // walking past a snake's head, on top of the hop
-const SNAKES_PASS_JUMP = 0.3;                                     // how often the head comes down and he jumps over it
-const SNAKES_PASS_SNAP = 0.3;                                     // of the ducks, how often the snake snaps above him
+const SNAKES_SNEAK_MS = { push: 3500, eat: 3800 };                // he stands, looks round, sneaks; the snake crawls to him and back
+const SNAKES_SNEAK_CHANCE = 1 / 3;                                // how often landing beside a ladder's foot is a sneak
+const SNAKES_PASS_MS = { duck: 200, snap: 450, jump: 380 };       // walking past a snake's head, on top of the hop
+const SNAKES_PASS_JUMP = 0.2;                                     // how often the head comes down and he jumps over it
+const SNAKES_PASS_SNAP = 0.15;                                    // of the ducks, how often the snake snaps above him
 const SNAKES_MEET_MOVES = ['five', 'bump', 'dance'];              // two on one square
-const SNAKES_MEET_MS = 1100;
-const SNAKES_ONE_MS = 750;           // a 1: «بس كده؟»
-const SNAKES_TENSE_MS = 900;         // from 95: the drumroll before the die
+const SNAKES_MEET_MS = 900;
+const SNAKES_ONE_MS = 550;           // a 1: «بس كده؟»
+const SNAKES_TENSE_MS = 700;         // from 95: the drumroll before the die
 const SNAKES_TENSE_FROM = 95;
-const SNAKES_SIXES_MS = [800, 1100, 1800];   // the first six, the second, the third and after (fireworks)
+const SNAKES_SIXES_MS = [700, 900, 1300];    // the first six, the second, the third and after (fireworks)
 const SNAKES_LEAVE_MS = 1800;        // a player who leaves picks up a suitcase and walks off
 const SNAKES_DIE_MS = 1000;          // the die tumbling and landing
 const SNAKES_HOP_MS = 210;           // one square of a walk
-const SNAKES_NEAR_MS = 1300;         // a snake snapping at a near miss, a ladder just missed
-const SNAKES_SIX_MS = 800;           // the cheer for a six
+const SNAKES_NEAR_MS = 1000;         // a snake snapping at a near miss, a ladder just missed
+const SNAKES_SIX_MS = 700;           // the cheer for a six
 const SNAKES_WIN_MS = 2800;          // the trophy dance at 100
 const SNAKES_BOUNCE_MS = 900;        // bumping into the cup at 100 (it giggles) before walking back
 const SNAKES_BUILD_MS = 5600;        // the map built in front of everyone
@@ -335,7 +338,7 @@ const snakesPathOf = (from, v) => {
   return out.slice(0, -1);
 };
 
-/** The snake whose head is nearest to a square: the one that crawls over for the sneak. */
+/** The snake whose head is nearest to a square: for the sneak, the one nearest to him (his own square) crawls over. */
 const snakesNearestSnake = (map, n) => {
   const p = snakesCellXY(n);
   let best = null, bd = 1e9;
@@ -415,13 +418,16 @@ const snakesRoll = (g, pid, v, rnd, now) => {
   let tail = null, sneak = null;
   const tailOf = !jump && walk > 0 && walk < 100 ? g.map.snakes.find(s => s.t === walk) : null;
   if (tailOf) {
-    const tv = snakesPickMove(SNAKES_TAIL_MOVES, g.lastT, rand);
-    g.lastT = tv;
-    tail = { v: tv, h: tailOf.h };
+    // About half the time the tail plays with him; otherwise he just stands (no near miss either).
+    if (rand() < SNAKES_TAIL_CHANCE) {
+      const tv = snakesPickMove(SNAKES_TAIL_MOVES, g.lastT, rand);
+      g.lastT = tv;
+      tail = { v: tv, h: tailOf.h };
+    }
     near = null;
   } else if (near === 'l' && rand() < SNAKES_SNEAK_CHANCE) {
     const ld = g.map.ladders.find(l => l.f === walk + 1 || l.f === walk - 1);
-    const sn = snakesNearestSnake(g.map, ld.f);
+    const sn = snakesNearestSnake(g.map, walk);
     if (sn) sneak = { f: ld.f, h: sn.h, v: SNAKES_SNEAK_ENDS[Math.floor(rand() * SNAKES_SNEAK_ENDS.length) % SNAKES_SNEAK_ENDS.length] };
   }
   const sixes = v === 6 ? ((g.turn && g.turn.sixes) || 0) + 1 : 0;

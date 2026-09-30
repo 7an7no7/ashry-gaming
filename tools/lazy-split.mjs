@@ -25,6 +25,7 @@ import * as walk from 'acorn-walk';
 export const SHELL_FILES = [
   'Logo', 'Tailwind', 'Style',
   'JS_Lazy', 'JS_Core', 'JS_Catalog', 'JS_Room', 'JS_Utils',
+  'JS_PackStore',      // «اعمل مسابقتك» / «كلماتنا» on the phone: the lobbies and the word games' lists read it
   'JS_RoomAutoNext',   // «التالي لوحده»: trivia, the voting games, موجة, زي الكل, صدق ولا كذب
   'JS_RoomImposter',   // renderRoomFrame, roomAct, roomHostRow: every room screen's helpers
   'JS_RoomGames',      // the play-mode switch, كلمة واحدة and من أنا؟ rooms
@@ -32,7 +33,7 @@ export const SHELL_FILES = [
   'JS_RoomTv', 'JS_Dice', 'JS_Director', 'JS_Solo', 'JS_Daily', 'JS_TeamRelay',
   'JS_Sounds', 'JS_RoomChat', 'JS_RoomAudience', 'JS_RoomTurn', 'JS_Motion', 'JS_ShareCard', 'JS_Three'
 ];
-export const SHELL_LISTS = ['DisabledGames.js', 'Dice.js', 'SoloShared.js'];
+export const SHELL_LISTS = ['DisabledGames.js', 'Dice.js', 'SoloShared.js', 'Packs.js'];
 
 /* The chunks: a game, or a family of games that share their code. The order of
    files inside a chunk is always the page's own order. */
@@ -54,6 +55,7 @@ export const CHUNKS = {
   trivia: ['JS_RoomTrivia'],
   connections: ['JS_Connections', 'ConnectionsWords.js'],
   triviaboard: ['JS_TriviaBoardBank', 'JS_TriviaBoard'],
+  quizmaker: ['JS_QuizMaker'],   // «اعمل مسابقتك» and «كلماتنا»: the editors
   domino: ['JS_Domino', 'JS_RoomDomino', 'DominoTiles.js'],
   chameleon: ['JS_Chameleon', 'JS_RoomChameleon'],
   spyfall: ['JS_Spyfall', 'JS_RoomSpyfall', 'SpyfallPlaces.js'],
@@ -136,6 +138,8 @@ export const VIEW_CHUNKS = {
   'room-whoami': ['whoami'],
   'setup-teams': ['newgames'], 'setup-reaction': ['newgames'],
   'setup-codenames': ['codenames'],
+  // «اعمل مسابقتك» opens the trivia setup (its «لوحة الفرق» way); the screen is the board's.
+  'setup-trivia': ['triviaboard'],
   // The card score keepers (JS_CardScore draws every one of them).
   ...Object.fromEntries(['estimation', 'tarneeb', 'trix', 'konkan', 'basra'].flatMap((g) =>
     [[`setup-cs-${g}`, ['cardscore']], [`play-cs-${g}`, ['cardscore']]]))
@@ -386,7 +390,7 @@ export function chunkCode(chunk, sources, banner) {
 
 /* Word lists the page shares with the rooms server: one file, both sides
    (and ChessPuzzles.js, which only the page has). */
-export const SHARED_LISTS = ['DisabledGames.js', 'Dice.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js'];
+export const SHARED_LISTS = ['DisabledGames.js', 'Dice.js', 'Packs.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js'];
 
 /** Reads Controller.html, every file it includes and the shared lists. */
 export async function readPage(root, readFile, path) {

@@ -40,10 +40,15 @@ ROOM_GAMES.buzzer = {
           </span>
         </label>
         <p class="field__hint" style="text-align:center">${escapeHTML(t.bz_lobby_hint || '')}</p>
+        ${typeof packSourceFieldHtml === 'function' ? packSourceFieldHtml('buzzerRoom', t.qm_src_none_bz || '', '') : ''}
       </div>`;
   },
 
-  startPayload() { return {}; },
+  // «اعمل مسابقتك»: a quiz the host reads out; the server deals it and keeps its answers.
+  startPayload() {
+    const quiz = typeof packRoomPick === 'function' ? packRoomPick('buzzerRoom') : '';
+    return quiz ? { pack: quiz } : {};
+  },
 
   render(state) {
     if (appState.currentView !== 'room-buzzer') setView('room-buzzer');
@@ -60,7 +65,8 @@ ROOM_GAMES.buzzer = {
     const out = (s.out || []).indexOf(Room.me) !== -1;
 
     const sig = ['bz', s.phase, s.round, buzzes.map(b => b.id).join(','), out,
-                 JSON.stringify(s.scores || {}), state.youAreHost, JSON.stringify(s.last || null), appState.lang].join('|');
+                 JSON.stringify(s.scores || {}), state.youAreHost, JSON.stringify(s.last || null), appState.lang,
+                 JSON.stringify(s.quiz || null), JSON.stringify((state.you || {}).answer === undefined ? null : state.you.answer)].join('|');
 
     renderRoomFrame(el, sig, () => {
       const head = `
@@ -112,6 +118,7 @@ ROOM_GAMES.buzzer = {
             <button class="btn btn--success" onclick="roomAct('correct', { id: '${jsStringAttr(first ? first.id : '')}' })" ${first ? '' : 'disabled'}>✅ ${escapeHTML(t.bz_correct || '')}</button>
             <button class="btn btn--danger-soft" onclick="roomAct('wrong', { id: '${jsStringAttr(first ? first.id : '')}', penalty: buzzerPenalty() })" ${first ? '' : 'disabled'}>❌ ${escapeHTML(t.bz_wrong || '')}${buzzerPenalty() ? ' (−1)' : ''}</button>
           </div>
+          ${bzQuizHostHtml(state, t)}
           <div class="btn-row" style="margin-bottom: var(--sp-2)">
             <button class="btn btn--secondary btn--sm" onclick="roomAct('${armed ? 'lock' : 'arm'}')">${armed ? '🔒 ' + escapeHTML(t.bz_lock || '') : '🔔 ' + escapeHTML(t.bz_arm || '')}</button>
             <button class="btn btn--ghost btn--sm" onclick="roomAct('reset')">🔄 ${escapeHTML(t.bz_reset || '')}</button>
@@ -122,7 +129,7 @@ ROOM_GAMES.buzzer = {
           </div>
         </div>`;
 
-      return head + stage + last + order + host + renderScoreboard(s.board) + renderRoomPlayerStrip(state);
+      return head + bzQuizHtml(state, t) + stage + last + order + host + renderScoreboard(s.board) + renderRoomPlayerStrip(state);
     });
     refreshRoomPlayerStrip(el, state);
   }
@@ -179,5 +186,43 @@ function pressBuzzer(btn, round) {
   }
   // The question it was pressed for: a late press can't lead the next one.
   roomAct('buzz', round ? { round: round } : {});
+}
+
+/* --- «اعمل مسابقتك» on the buzzer (30 Sep 2026) ----------------------------------------
+   The family's quiz, read out by the host: every phone and the TV see the question
+   and its four answers; the right one is on the host's phone only (state.you.answer,
+   from the server) until someone gets it or the host shows it (shared.quiz.answer).
+   «السؤال التالي» deals the next; after the last, «خلصت الأسئلة». */
+function bzQuizHtml(state, t) {
+  const q = (state.shared || {}).quiz;
+  if (!q) return '';
+  if (q.done) return `<div class="card card--tight bz-quiz"><div class="bz-quiz__q">${escapeHTML((t.bz_quiz_done || '').replace('{t}', q.title || ''))}</div></div>`;
+  const letters = String(t.qm_letters || 'ABCD').split('');
+  const shown = typeof q.answer === 'number' ? q.answer : null;
+  const mine = state.you && typeof state.you.answer === 'number' ? state.you.answer : null;
+  const right = shown !== null ? shown : mine;
+  const key = ['bzq', roomDealKey(state), q.n, shown].join('|');
+  const fresh = shown !== null && typeof motionFirst === 'function' && !motionOff() && motionFirst(key);
+  return `
+    <div class="card card--tight bz-quiz">
+      <div class="eyebrow">${escapeHTML((q.emoji || '✍️') + ' ' + (q.title || ''))} · ${escapeHTML((t.bz_quiz_q || '').replace('{a}', ''))}${ltrFrac(q.n + 1, q.total)}</div>
+      <div class="bz-quiz__q">${escapeHTML(q.q || '')}</div>
+      <div class="bz-quiz__grid">
+        ${(q.choices || []).map((c, i) => `<div class="bz-quiz__ch ${i === right ? 'is-right' : (shown !== null ? 'is-dim' : '')}${i === shown && fresh ? ' is-revealed' : ''}"><b>${escapeHTML(letters[i] || '')}</b><span>${escapeHTML(c)}</span></div>`).join('')}
+      </div>
+      ${mine !== null && shown === null ? `<p class="bz-quiz__note">🔒 ${escapeHTML(t.bz_quiz_host_only || '')}</p>` : ''}
+    </div>`;
+}
+
+/** The host's quiz buttons: show the answer, then the next question. */
+function bzQuizHostHtml(state, t) {
+  const q = (state.shared || {}).quiz;
+  if (!q || !state.youAreHost) return '';
+  if (q.done) return `<div class="btn-row" style="margin-bottom: var(--sp-2)"><button class="btn btn--primary" onclick="roomAct('playAgain')">↺ ${escapeHTML(t.bz_quiz_again || '')}</button></div>`;
+  const shown = typeof q.answer === 'number';
+  return `<div class="btn-row" style="margin-bottom: var(--sp-2)">
+      ${shown ? '' : `<button class="btn btn--secondary" onclick="roomAct('quizReveal', { n: ${q.n} })">${escapeHTML(t.bz_quiz_reveal || '')}</button>`}
+      <button class="btn ${shown ? 'btn--primary' : 'btn--ghost'}" onclick="roomAct('quizNext', { n: ${q.n} })">${escapeHTML(t.bz_quiz_next || '')}</button>
+    </div>`;
 }
 </script>

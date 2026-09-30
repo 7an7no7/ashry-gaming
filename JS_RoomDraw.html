@@ -98,14 +98,17 @@ ROOM_GAMES.drawguess = {
             </option>`).join('')}
         </select>
         <p class="field__hint" style="text-align:center">${t.draw_hint || ''}</p>
-      </div>`;
+      </div>` + packWordsLobbyHtml('drawRoom');
   },
   startPayload: () => {
     const sel = document.getElementById('draw-seconds');
-    return {
+    const out = {
       lang: contentLang(),
       seconds: sel ? Number(sel.value) : drawRoomSeconds(Room.state)
     };
+    // «كلماتنا»: the family's words to draw, dealt by the server from their code.
+    if (packWordsLobbyPick('drawRoom')) out.pack = packWordsCode();
+    return out;
   },
 
   render(state) {

@@ -20,6 +20,7 @@ const APP_GAME_IDS = [
   'minigolf', 'sudoku', 'g2048', 'mines', 'queens', 'tango', 'nonogram', 'daily', 'wordle',
   'connections', 'streak', 'pinpoint', 'strands', 'wordwheel', 'flags', 'chesspuzzle',
   'chooser', 'spin', 'teams', 'tourney', 'universal', 'timers', 'chess', 'dice', 'sounds',
+  'quizmaker', 'wordpack',
   'cs-estimation', 'cs-tarneeb', 'cs-trix', 'cs-konkan', 'cs-basra', 'screw-calc',
   'domino-calc'
 ];

@@ -39,16 +39,25 @@ ROOM_GAMES.trivia = {
     if (!state.youAreHost) return '';
     const t = TRANSLATIONS[appState.lang];
     const chosen = triviaCountChoice();
+    // «اعمل مسابقتك»: the family's own quiz instead of the app's questions (played whole).
+    const quiz = typeof packRoomPick === 'function' ? packRoomPick('triviaRoom') : '';
     return `
       <div class="card card--tight">
+        ${typeof packSourceFieldHtml === 'function' ? packSourceFieldHtml('triviaRoom', t.qm_src_app || '', t.qm_src_hint_room || '') : ''}
+        ${quiz ? '' : `
         <label class="field__label" for="trivia-count">${t.trivia_count || ''}</label>
         <select id="trivia-count" onchange="rememberTriviaCount(this.value)">
           ${TRIVIA_COUNTS.map(n => `<option value="${n}" ${n === chosen ? 'selected' : ''}>${n}</option>`).join('')}
-        </select>
+        </select>`}
         <p class="field__hint" style="text-align:center">${t.trivia_hint || ''}</p>
       </div>` + autoNextLobbyHtml(state, 'trivia');
   },
-  startPayload: () => ({ lang: VOTE_LANG(), count: triviaCountChoice(), autoNext: autoNextChoice('trivia') }),
+  startPayload: () => {
+    const quiz = typeof packRoomPick === 'function' ? packRoomPick('triviaRoom') : '';
+    const out = { lang: VOTE_LANG(), count: triviaCountChoice(), autoNext: autoNextChoice('trivia') };
+    if (quiz) out.pack = quiz;
+    return out;
+  },
 
   render(state) {
     if (appState.currentView !== 'room-trivia') setView('room-trivia');
@@ -100,7 +109,7 @@ function triviaFrame(state, t, iAnswered) {
 
   const header = `
     <div class="cn-score">
-      <span class="cn-score__role">🧠 ${t.trivia_q_of || ''} ${ltrFrac(s.qIndex + 1, s.totalQuestions)}</span>
+      <span class="cn-score__role">${s.quiz ? escapeHTML((s.quiz.emoji || '✍️') + ' ' + s.quiz.title) + ' · ' : '🧠 '}${t.trivia_q_of || ''} ${ltrFrac(s.qIndex + 1, s.totalQuestions)}</span>
       ${s.phase === 'answering' ? `<span id="trivia-timer" class="badge badge--accent">${s.seconds || ''}</span>` : ''}
     </div>
     <div class="card" style="text-align:center">

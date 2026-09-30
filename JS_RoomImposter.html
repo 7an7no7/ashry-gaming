@@ -37,7 +37,9 @@ ROOM_GAMES.imposter = {
     if (!state.youAreHost) return '';
     // Locked categories are behind a password on the single-device screen and
     // there is no password step here, so they simply aren't offered.
-    const cats = Object.keys(spyCategories() || {}).filter(c => c.indexOf('🔒') === -1);
+    // «كلماتنا» too, once it has a code: the server deals the family's words by it.
+    const cats = (packWordsCode() && packWordsList() ? [packWordsCatName()] : [])
+      .concat(Object.keys(spyCategories() || {}).filter(c => c.indexOf('🔒') === -1));
     if (!cats.length) return '';
     const maxSpies = Math.max(1, state.players.length - 2);
     const t = TRANSLATIONS[appState.lang];
@@ -72,8 +74,11 @@ ROOM_GAMES.imposter = {
     const spies = document.getElementById('room-imp-spies');
     const under = document.getElementById('room-imp-undercover');
     const o = imposterRoomOpts();
+    const category = cat ? cat.value : (o.category || '');
     return {
-      category: cat ? cat.value : (o.category || ''),
+      category: category,
+      // The family's words, by their code (never the phone's copy).
+      pack: category && category === packWordsCatName() && !(under && under.checked) ? packWordsCode() : '',
       spies: spies ? Number(spies.value) : (Number(o.spies) || 1),
       undercover: under ? under.checked : !!o.undercover,
       // المختلف's pairs come in the games' language (SPY_PAIRS_EN on the server).

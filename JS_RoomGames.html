@@ -216,7 +216,8 @@ ROOM_GAMES.whoami = {
   lobbyOptions(state) {
     if (!state.youAreHost) return '';
     const t = TRANSLATIONS[appState.lang];
-    const cats = Object.keys(typeof WHOAMI_DB !== 'undefined' ? (WHOAMI_DB[contentLang()] || {}) : {});
+    // «كلماتنا» too: من أنا؟'s characters come from the host's phone, so no code is needed.
+    const cats = Object.keys(packCatsPlus(typeof WHOAMI_DB !== 'undefined' ? (WHOAMI_DB[contentLang()] || {}) : {}));
     if (!cats.length) return '';
     // The same category in the other language when the games' language changed since.
     const chosen = matchCategoryKey(cats, whoamiRoomCat()) || cats[0];
@@ -231,7 +232,7 @@ ROOM_GAMES.whoami = {
 
   startPayload() {
     const sel = document.getElementById('room-whoami-cat');
-    const db = (typeof WHOAMI_DB !== 'undefined' ? WHOAMI_DB[contentLang()] : {}) || {};
+    const db = packCatsPlus((typeof WHOAMI_DB !== 'undefined' ? WHOAMI_DB[contentLang()] : {}) || {});
     const cat = sel ? sel.value : (matchCategoryKey(Object.keys(db), whoamiRoomCat()) || Object.keys(db)[0]);
     return { words: (db[cat] || []).slice() };
   },

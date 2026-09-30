@@ -36,6 +36,10 @@ const HU_DECKS = [
   { id: 'places', icon: '🌍', from: [['WHOAMI_DB', '🌍'], ['COUNTRIES']] },
   { id: 'actions', icon: '🏃', from: [['CHARADES_DB', '🏃']] }
 ];
+/** The decks, with «كلماتنا» when the phone has the family's words (JS_PackStore.html). */
+function huDecksNow() {
+  return typeof packWordsList === 'function' && packWordsList() ? HU_DECKS.concat([{ id: 'pack', icon: '✍️' }]) : HU_DECKS;
+}
 const HU_SECONDS = [60, 90, 120];
 const HU_DEAL = 80;
 const HU_DECK_CACHE = {};
@@ -53,6 +57,7 @@ function huState() {
 
 /** The words of a deck in a language, each once. */
 function huDeckWords(id, lang) {
+  if (id === 'pack') return (typeof packWordsList === 'function' && packWordsList()) || [];
   const key = id + ':' + lang;
   if (HU_DECK_CACHE[key]) return HU_DECK_CACHE[key];
   const decks = id === 'mix' ? HU_DECKS.filter(d => d.from && d.id !== 'actions') : HU_DECKS.filter(d => d.id === id);
@@ -94,10 +99,10 @@ function paintHeadsUpSetup() {
   const lang = contentLang() === 'en' ? 'en' : 'ar';
   const box = document.getElementById('headsup-decks');
   if (box) {
-    box.innerHTML = HU_DECKS.map(d => `
+    box.innerHTML = huDecksNow().map(d => `
       <button type="button" class="hu-deck${d.id === s.deck ? ' is-active' : ''}" onclick="setHeadsUpOption('deck', '${d.id}')">
         <span class="hu-deck__icon" aria-hidden="true">${d.icon}</span>
-        <span class="hu-deck__name">${escapeHTML(t['hu_deck_' + d.id] || d.id)}</span>
+        <span class="hu-deck__name">${escapeHTML(d.id === 'pack' ? packWordsCatName().replace(/^✍️ /, '') : (t['hu_deck_' + d.id] || d.id))}</span>
         <span class="hu-deck__count metric">${huDeckWords(d.id, lang).length}</span>
       </button>`).join('');
   }
@@ -107,7 +112,7 @@ function paintHeadsUpSetup() {
 
 function setHeadsUpOption(key, value) {
   const s = huState();
-  if (key === 'deck') s.deck = HU_DECKS.some(d => d.id === value) ? value : 'mix';
+  if (key === 'deck') s.deck = huDecksNow().some(d => d.id === value) ? value : 'mix';
   if (key === 'seconds') s.seconds = HU_SECONDS.indexOf(Number(value)) !== -1 ? Number(value) : 60;
   if (key === 'rounds') s.rounds = Math.min(3, Math.max(1, Number(value) || 1));
   saveToLocal();
@@ -355,7 +360,7 @@ function paintHeadsUp() {
   const who = huPlayer(s);
   const whoName = who || (t.hu_you || '');
   const exit = `<button type="button" class="hu-exit" onclick="setupHeadsUp()" aria-label="${escapeHTML(t.exit || '')}">✕</button>`;
-  const deck = HU_DECKS.find(d => d.id === s.deck) || HU_DECKS[0];
+  const deck = huDecksNow().find(d => d.id === s.deck) || HU_DECKS[0];
   delete el.dataset.flash;
   el.dataset.phase = s.phase;
 

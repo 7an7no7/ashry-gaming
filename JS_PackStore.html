@@ -1,0 +1,268 @@
+<script>
+/* ============================================================================
+   «اعمل مسابقتك» and «كلماتنا» on the phone: the packs this phone wrote or
+   opened (30 Sep 2026). In the shell, because the games that offer them - the
+   trivia board, a room's lobby, the word games' category lists - read them
+   before their editor (JS_QuizMaker.html, a chunk) is ever loaded.
+
+   What a pack is and what it may hold: Packs.js (shared with the server).
+   Where it lives: here, in localStorage 'ashryPacks_v1', so it plays offline
+   once it is on the phone; and on the rooms server under its code, so the
+   family can open it and a room can deal it (rooms-worker/src/packs.js).
+
+     { quizzes: [ { id, code, key, title, emoji, questions, updated, savedAt, dirty } ],
+       words:   { id, code, key, title, words, updated, savedAt, dirty } | null }
+
+   `key` is the edit key /pack/create gave this phone: only the author's phone
+   has one, so only it can change the pack on the server (`packIsMine`). A
+   pack opened by code has none: it plays, and «اعمل نسخة ليا» makes a copy
+   of one's own. `dirty`: changed on the phone since it was last saved.
+
+   For «الشلة» (a crew that owns packs) - the functions another screen needs:
+     packsKnownCodes()        every code on this phone: [{ code, kind, title }]
+     packOpenByCode(code)     fetches a pack and keeps it on the phone -> { kind, id }
+     packFetch(code)          fetches without keeping -> { code, kind, pack }
+     packQuizByCode(code)     the phone's copy of a quiz, or null
+   ========================================================================= */
+const PACKS_KEY = 'ashryPacks_v1';
+
+function packsLoad() {
+  let db = null;
+  try { db = JSON.parse(localStorage.getItem(PACKS_KEY) || 'null'); } catch (e) { db = null; }
+  if (!db || typeof db !== 'object') db = {};
+  if (!Array.isArray(db.quizzes)) db.quizzes = [];
+  if (!db.words || typeof db.words !== 'object') db.words = null;
+  return db;
+}
+
+function packsStore(db) {
+  try { localStorage.setItem(PACKS_KEY, JSON.stringify(db)); return true; } catch (e) { return false; }
+}
+
+const packNewId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+/** The quizzes on this phone, the latest changed first. */
+function packsQuizzes() {
+  return packsLoad().quizzes.slice().sort((a, b) => (b.updated || 0) - (a.updated || 0));
+}
+function packQuizById(id) { return packsLoad().quizzes.find(q => q.id === id) || null; }
+function packQuizByCode(code) {
+  const c = packCode(code);
+  return c ? (packsLoad().quizzes.find(q => q.code === c) || null) : null;
+}
+/** Keeps a quiz (new or changed). */
+function packQuizPut(quiz) {
+  const db = packsLoad();
+  const i = db.quizzes.findIndex(q => q.id === quiz.id);
+  if (i === -1) db.quizzes.push(quiz); else db.quizzes[i] = quiz;
+  return packsStore(db);
+}
+function packQuizRemove(id) {
+  const db = packsLoad();
+  db.quizzes = db.quizzes.filter(q => q.id !== id);
+  packsStore(db);
+}
+/** The family word pack on this phone, or null. */
+function packWordsLocal() { return packsLoad().words; }
+function packWordsPut(words) {
+  const db = packsLoad();
+  db.words = words;
+  return packsStore(db);
+}
+const packIsMine = (p) => !!(p && (p.key || !p.code));
+
+/** Every code on this phone, for whoever wants to keep a list of them (the crews). */
+function packsKnownCodes() {
+  const db = packsLoad();
+  const out = db.quizzes.filter(q => q.code).map(q => ({ code: q.code, kind: 'quiz', title: q.title }));
+  if (db.words && db.words.code) out.push({ code: db.words.code, kind: 'words', title: db.words.title });
+  return out;
+}
+
+/* --- the server ------------------------------------------------------------- */
+
+/** One call to the rooms server's /pack/*; { ok, ... } or { ok: false, error }. */
+async function packApi(path, body) {
+  const base = String(window.ROOMS_URL || '').replace(/\/+$/, '');
+  let res;
+  try {
+    res = await fetch(base + path, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(body || {}) });
+  } catch (e) {
+    return { ok: false, error: 'offline' };
+  }
+  try { return await res.json(); } catch (e) { return { ok: false, error: 'server' }; }
+}
+
+/** A pack by its code, not kept: { code, kind, pack } or throws an Error whose message is its code. */
+async function packFetch(code) {
+  const c = packCode(code);
+  if (!PACK_CODE_RE.test(c)) throw new Error('not_found');
+  const got = await packApi('/pack/get', { code: c });
+  if (!got.ok) throw new Error(got.error || 'server');
+  return { code: c, kind: got.kind, pack: got.pack };
+}
+
+/**
+ * Opens a pack from its code and keeps it on the phone: a quiz joins the list
+ * (the phone's own copy of the same code is refreshed, its key kept); the words
+ * become this phone's word pack. -> { kind, id }. Throws like packFetch.
+ */
+async function packOpenByCode(code) {
+  const got = await packFetch(code);
+  const now = Date.now();
+  if (got.kind === 'quiz') {
+    const had = packQuizByCode(got.code);
+    const quiz = Object.assign({}, had || { id: packNewId() }, {
+      code: got.code, title: got.pack.title, emoji: got.pack.emoji || '', questions: got.pack.questions,
+      updated: now, savedAt: now, dirty: false
+    });
+    packQuizPut(quiz);
+    return { kind: 'quiz', id: quiz.id };
+  }
+  const had = packWordsLocal();
+  packWordsPut({
+    id: had && had.code === got.code ? had.id : packNewId(),
+    code: got.code, key: had && had.code === got.code ? had.key : null,
+    title: got.pack.title, words: got.pack.words, updated: now, savedAt: now, dirty: false
+  });
+  return { kind: 'words', id: 'words' };
+}
+
+/**
+ * Saves a pack to the server: a new one gets its code and key, the author's
+ * own is changed in place. `local` is the phone's record; `kind` 'quiz' or
+ * 'words'. -> { ok, code } or { ok: false, error, at }.
+ */
+async function packPublish(kind, local) {
+  const pack = kind === 'quiz'
+    ? { title: local.title, emoji: local.emoji || '', questions: local.questions }
+    : { title: local.title, words: local.words };
+  const clean = packClean(kind, pack);
+  if (clean.error) return { ok: false, error: clean.error, at: clean.at };
+  const res = local.code && local.key
+    ? await packApi('/pack/save', { code: local.code, key: local.key, kind, pack: clean.pack })
+    : await packApi('/pack/create', { kind, pack: clean.pack });
+  if (!res.ok) return res;
+  return { ok: true, code: res.code, key: res.key || local.key, pack: res.pack || clean.pack };
+}
+
+/** A pack played on this phone alone (the team board, a word game): its year starts again. */
+function packPlayed(code) {
+  const c = packCode(code);
+  if (!PACK_CODE_RE.test(c) || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+  const base = String(window.ROOMS_URL || '').replace(/\/+$/, '');
+  try {
+    if (navigator.sendBeacon) navigator.sendBeacon(base + '/pack/played', JSON.stringify({ code: c }));
+  } catch (e) {}
+}
+
+/** What an error code says, in the app's language. `at`: the question it is in. */
+function packErrorText(error, at) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const base = t['pk_err_' + error] || t.pk_err_server || '';
+  return typeof at === 'number' ? base.replace('{n}', String(at + 1)) : base.replace(' {n}', '').replace('{n}', '');
+}
+
+/* --- «كلماتنا» as a category in the word games -------------------------------- */
+
+/** The family's words, when the phone has enough to deal from (at least `min`). */
+function packWordsList(min) {
+  const w = packWordsLocal();
+  const list = w && Array.isArray(w.words) ? w.words.filter(Boolean) : [];
+  return list.length >= (min || PACK_LIMITS.minWords) ? list : null;
+}
+/** The category's name in the lists: ✍️ and the pack's own title. */
+function packWordsCatName() {
+  const w = packWordsLocal();
+  const t = TRANSLATIONS[appState.lang] || {};
+  return '✍️ ' + ((w && w.title) || t.wp_title_default || 'كلماتنا');
+}
+/** The code a room deals the words by (a pack not yet saved plays on one phone only). */
+function packWordsCode() {
+  const w = packWordsLocal();
+  return w && w.code && !w.dirty ? w.code : '';
+}
+
+/** الجاسوس's categories with «كلماتنا» first, when the phone has a word pack. */
+function spyCategoriesPlus() {
+  const base = spyCategories() || {};
+  const words = packWordsList();
+  if (!words) return base;
+  const out = {};
+  out[packWordsCatName()] = words;
+  return Object.assign(out, base);
+}
+
+/* --- choosing a quiz in a room's lobby (trivia, the buzzer) ---------------------------- */
+
+/** The quiz chosen for a room game (`key`: 'triviaRoom' or 'buzzerRoom'), if it is still on the phone with a code. */
+function packRoomPick(key) {
+  const code = packCode(recallOptions(key, { pack: '' }).pack || '');
+  const quiz = code ? packQuizByCode(code) : null;
+  return quiz && quiz.code ? quiz.code : '';
+}
+
+/** The lobby's «الأسئلة» list: the app's (or none), then every quiz on this phone - one with no code yet can't be dealt by a room. */
+function packSourceFieldHtml(key, noneLabel, hint) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const pick = packRoomPick(key);
+  const quizzes = packsQuizzes();
+  const opts = quizzes.map(q => q.code
+    ? `<option value="${escapeHTML(q.code)}" ${q.code === pick ? 'selected' : ''}>${escapeHTML((q.emoji ? q.emoji + ' ' : '') + q.title)} · ${escapeHTML(String((q.questions || []).length))}</option>`
+    : `<option value="" disabled>${escapeHTML((q.emoji ? q.emoji + ' ' : '') + q.title)} ${escapeHTML(t.qm_src_unsaved || '')}</option>`).join('');
+  return `
+    <div class="field pk-src">
+      <label class="field__label" for="pk-src-${key}">${escapeHTML(t.qm_src_label || '')}</label>
+      <select id="pk-src-${key}" onchange="packSetRoomPick('${key}', this.value)">
+        <option value="" ${pick ? '' : 'selected'}>${escapeHTML(noneLabel)}</option>${opts}
+      </select>
+      ${pick && hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
+      <button type="button" class="btn btn--ghost btn--sm pk-src__make" onclick="catalogOpen('quizmaker')">${escapeHTML(t.qm_src_make || '')}</button>
+    </div>`;
+}
+
+function packSetRoomPick(key, code) {
+  rememberOptions(key, { pack: packCode(code) });
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (typeof Room !== 'undefined' && Room.state && typeof routeRoomState === 'function') routeRoomState(Room.state);
+}
+
+/* --- «كلماتنا» in a room's lobby (الحرباء, ارسم وخمّن): the app's words or the family's ------ */
+
+/** Whether the lobby chose the family's words (`key` the game's option), and they can be dealt by code. */
+function packWordsLobbyPick(key, min) {
+  return !!(recallOptions(key, { words: '' }).words === 'pack' && packWordsCode() && packWordsList(min));
+}
+function packWordsLobbyHtml(key, min) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const local = packWordsList(min);
+  if (!local) return '';
+  const code = packWordsCode();
+  const on = packWordsLobbyPick(key, min);
+  return `
+    <div class="card card--tight field pk-src">
+      <label class="field__label" for="pk-words-${key}">${escapeHTML(t.wp_room_label || '')}</label>
+      <select id="pk-words-${key}" onchange="packSetWordsPick('${key}', this.value)" ${code ? '' : 'disabled'}>
+        <option value="" ${on ? '' : 'selected'}>${escapeHTML(t.wp_room_app || '')}</option>
+        <option value="pack" ${on ? 'selected' : ''}>${escapeHTML(packWordsCatName())} · ${local.length}</option>
+      </select>
+      ${code ? '' : `<p class="field__hint">${escapeHTML(t.wp_room_unsaved || '')}</p>`}
+    </div>`;
+}
+function packSetWordsPick(key, value) {
+  rememberOptions(key, { words: value === 'pack' ? 'pack' : '' });
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (typeof Room !== 'undefined' && Room.state && typeof routeRoomState === 'function') routeRoomState(Room.state);
+}
+
+/** A game's categories (name -> words) with «كلماتنا» first, when the phone has enough of them. */
+function packCatsPlus(db, min) {
+  const words = packWordsList(min);
+  if (!words) return db;
+  const out = {};
+  out[packWordsCatName()] = words;
+  return Object.assign(out, db);
+}
+</script>

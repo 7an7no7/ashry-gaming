@@ -598,11 +598,48 @@ function tonightSet(key, value) {
   haptic('light');
 }
 
+/* A pick goes the way the table said it plays (ideas batch: shell): own phones
+   or the TV opens a room with the game already chosen; one phone starts it as
+   the first visit's cards do (asking «مين بيلعب؟» for missing names), or opens
+   its setup on the one phone side. */
 function tonightGo(id) {
   closeModal('tonight-modal');
+  const g = CATALOG_BY_ID[id];
+  if (!g) return;
+  if (catalogOff(id)) { gameOffToast(); return; }
   const view = document.getElementById('view-menu');
   const card = view ? view.querySelector(`.gcard[data-game="${id}"]`) : null;
-  catalogOpen(id, card);
+  const { count, how } = tonightPrefs;
+  const modes = g.modes || [];
+  const wantRoom = count && count !== '1' && (how === 'room' || how === 'tv') && modes.indexOf('room') !== -1;
+  const setupId = g.setup && g.setup.indexOf('setup-') === 0 ? g.setup.slice('setup-'.length) : '';
+  if (wantRoom) {
+    // A laptop or TV that asked for "on the TV" is the big screen itself; a phone
+    // hosts, and the lobby's QR brings the TV in.
+    if (how === 'tv' && tonightIsBigScreen()) roomCreateScreenOnce = true;
+    const viewEl = setupId ? document.getElementById('view-' + g.setup) : null;
+    if (viewEl && viewEl.querySelector('.mode-switch')) {
+      playModeOnce = { id: setupId, mode: 'online' };
+      catalogOpen(id, card);
+      playModeOnce = null;
+      const panel = appState.currentView === g.setup && viewEl.querySelector('.mode-online-panel:not(.hidden)');
+      const open = panel && panel.querySelector('button.btn--primary');
+      if (open) open.click(); else roomCreateScreenOnce = false;
+      return;
+    }
+    catalogOpen(id, card);   // a room-only game's card opens its room
+    if (appState.currentView !== 'room-lobby' && appState.currentView !== 'room-tv') roomCreateScreenOnce = false;
+    return;
+  }
+  if (setupId && document.querySelector('#view-' + g.setup + ' .mode-switch')) playModeOnce = { id: setupId, mode: 'device' };
+  if (QUICK_START[id]) catalogQuickStart(id, card);
+  else catalogOpen(id, card);
+  if (playModeOnce && playModeOnce.id === setupId) playModeOnce = null;
+}
+
+/** A laptop or a TV rather than a phone: wide and tall, with a real pointer. */
+function tonightIsBigScreen() {
+  return !!(window.matchMedia && window.matchMedia('(min-width: 900px) and (min-height: 540px) and (pointer: fine)').matches);
 }
 
 function tonightPaint() {
@@ -748,6 +785,124 @@ function homePickForUs(btnEl) {
   catalogOpen(pickedId, cardEl || btnEl);
 }
 
+/* --- «كمّل اللعبة» (ideas batch: shell) ------------------------------------
+   A game on one phone left in the middle is one tap from the home: a card at
+   the top of a returning phone's home, «كمّل: بنك الحظ», brings it back the way
+   its own setup's "continue" does. HOME_CONT is the registry: each entry says
+   whether its game is still going (live), a short line where it is cheap, and
+   how to go back (go). When a board is left, homeContMark stamps the time, so
+   the card is the game played last; ✕ hides it for this visit. */
+const HOME_CONT_KEY = 'ashryContinue_v1';
+const homeContHidden = {};   // key → hidden with ✕, for this visit
+const homeContSafe = (fn) => { try { return fn(); } catch (e) { return null; } };
+const homeContSolo = (id) => ({
+  key: id, game: id,
+  view: () => (SOLO_GAMES[id] || {}).play,
+  live: () => { const g = SOLO_GAMES[id]; const st = g && g.state ? g.state() : null; return !!(st && st.phase === 'play'); },
+  go: () => SOLO_GAMES[id].resume()
+});
+const HOME_CONT = [
+  { key: 'charades', game: 'charades', view: () => 'play-charades', live: () => relayInProgress(appState.charades),
+    line: (t) => (t.relay_turn_of || '') + ' · ' + ltrFrac(Math.floor(appState.charades.relay.i / 2) + 1, appState.charades.relay.turns),
+    go: () => { setView('setup-charades'); charadesResumeMatch(); } },
+  { key: 'describe', game: 'describe', view: () => 'play-describe', live: () => relayInProgress(appState.describe),
+    line: (t) => (t.relay_turn_of || '') + ' · ' + ltrFrac(Math.floor(appState.describe.relay.i / 2) + 1, appState.describe.relay.turns),
+    go: () => { setView('setup-describe'); describeResumeMatch(); } },
+  { key: 'trivia', game: 'trivia', view: () => 'play-trivia', live: () => triviaStarted(),
+    line: (t) => (t.tb_round || '') + ' ' + ltrFrac(appState.triviaBoard.round, appState.triviaBoard.rounds), go: () => resumeTriviaBoard() },
+  { key: 'bank', game: 'bank', view: () => 'play-bank', live: () => { const x = bankState(); return !!(x.g && Array.isArray(x.g.seats) && x.priv && x.g.phase !== 'gameover'); }, go: () => bankContinue() },
+  { key: 'ludo', game: 'ludo', view: () => 'play-ludo', live: () => { const x = ludoState(); return !!(x.g && x.g.pieces && x.g.phase === 'play'); }, go: () => ludoContinue() },
+  { key: 'snakes', game: 'snakes', view: () => 'play-snakes', live: () => { const x = snkState(); return !!(x.g && x.g.map && x.g.pos && x.g.phase !== 'gameover'); }, go: () => snakesContinue() },
+  { key: 'monkey', game: 'monkey', view: () => 'play-monkey', live: () => { const m = appState.monkey; return !!(m && (m.players || []).length && m.phase !== 'done'); },
+    go: () => { setView('play-monkey'); renderMonkeyBoard(); updateTimerUI(); } },
+  { key: 'shatranj', game: 'shatranj', view: () => 'play-shatranj', live: () => { const x = chState(); return !!(x.phase === 'play' && x.g); }, go: () => chContinue() },
+  { key: 'connect4', game: 'connect4', view: () => 'play-connect4', live: () => c4State().phase === 'play', go: () => c4Continue() },
+  { key: 'dots', game: 'dots', view: () => 'play-dots', live: () => dotsState().phase === 'play', go: () => dotsContinue() },
+  { key: 'battleship', game: 'battleship', view: () => 'play-battleship', live: () => { const p = bsPhoneState().phase; return p === 'place' || p === 'play'; }, go: () => bsPhoneContinue() },
+  { key: 'bowling', game: 'bowling', view: () => 'play-bowling', live: () => { const x = bowlSoloState(); return !!(x.card && x.phase === 'play'); }, go: () => bowlingContinue() },
+  { key: 'minigolf', game: 'minigolf', view: () => 'play-minigolf', live: () => mgSoloLive(mgSoloState()), go: () => mgContinue() },
+  { key: 'screw', game: 'screw', view: () => 'play-screw', live: () => { const x = appState.screw; return !!(x && (x.players || []).length && x.done > 0 && x.done < x.rounds); },
+    line: (t) => (t.tb_round || '') + ' ' + ltrFrac(appState.screw.done + 1, appState.screw.rounds), go: () => { setView('play-screw'); renderScrewBoard(); } },
+  { key: 'domino', game: 'domino', view: () => 'play-domino', live: () => { const d = appState.domino; return !!(d && (d.players || []).length && !d.declared && d.players.some(p => Number(p.score) > 0)); },
+    go: () => { setView('play-domino'); renderDominoBoard(); } },
+  Object.assign(homeContSolo('g2048'), { line: (t) => (t.home_cont_score || '') + ' ' + g2048State().score }),
+  homeContSolo('sudoku'), homeContSolo('mines'), homeContSolo('queens'), homeContSolo('tango'), homeContSolo('nonogram'),
+  homeContSolo('strands'), homeContSolo('wordwheel'), homeContSolo('pinpoint'), homeContSolo('streak'), homeContSolo('flags'),
+  homeContSolo('wordle'), homeContSolo('connections'), homeContSolo('chesspuzzle'),
+  // A daily started and set aside for a free game: back to تحدي اليوم, whose row says «كمّل».
+  { key: 'daily', game: 'daily', view: () => 'setup-daily',
+    live: () => typeof DAILY_GAMES !== 'undefined' && DAILY_GAMES.some(d => { const id = d.id || d; return SOLO_GAMES[id] && soloDailyInProgress(id) && !soloDailyLive(SOLO_GAMES[id]); }),
+    line: (t) => t.home_cont_daily || '', go: () => catalogOpen('daily', null) }
+];
+
+function homeContStamps() {
+  try { return JSON.parse(localStorage.getItem(HOME_CONT_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+
+/** A board left: its game is the one played last (the card shows the newest). */
+function homeContMark(from) {
+  const hit = HOME_CONT.find(c => homeContSafe(c.view) === from);
+  if (!hit) return;
+  const all = homeContStamps();
+  all[hit.key] = Date.now();
+  try { localStorage.setItem(HOME_CONT_KEY, JSON.stringify(all)); } catch (e) {}
+}
+if (typeof onLeaveScreen === 'function') onLeaveScreen((from) => { if (from && from !== 'menu') homeContMark(from); });
+
+/** The game to offer: still going, not switched off, not hidden, played last. */
+function homeContPick() {
+  const stamps = homeContStamps();
+  let best = null;
+  HOME_CONT.forEach(c => {
+    if (homeContHidden[c.key] || !CATALOG_BY_ID[c.game] || catalogOff(c.game)) return;
+    if (!homeContSafe(c.live)) return;
+    const at = Number(stamps[c.key]) || 0;
+    if (!best || at > best.at) best = { c, at };
+  });
+  return best ? best.c : null;
+}
+
+function homeContHtml(t) {
+  const c = homeContPick();
+  if (!c) return '';
+  const g = CATALOG_BY_ID[c.game];
+  const line = c.line ? homeContSafe(() => c.line(t)) : '';
+  const name = catalogTitle(g, t);
+  return `
+    <div class="home-cont" id="home-cont" data-accent="${g.accent}">
+      <button type="button" class="home-cont__go" onclick="homeContGo('${c.key}')">
+        <span class="home-cont__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
+        <span class="home-cont__text">
+          <span class="home-cont__title">${escapeHTML((t.home_cont_label || '{name}').replace('{name}', name))}</span>
+          ${line ? `<span class="home-cont__line">${escapeHTML(line)}</span>` : ''}
+        </span>
+        <span class="home-cont__play" aria-hidden="true">▶</span>
+      </button>
+      <button type="button" class="home-cont__x" onclick="homeContHide('${c.key}')"
+              aria-label="${escapeHTML(t.home_cont_hide || '')}" title="${escapeHTML(t.home_cont_hide || '')}">✕</button>
+    </div>`;
+}
+
+function homeContGo(key) {
+  const c = HOME_CONT.find(x => x.key === key);
+  if (!c) return;
+  if (!homeContSafe(c.live)) { renderHome(); return; }
+  haptic('light');
+  if (typeof catalogReturn !== 'undefined') { catalogReturn.id = c.game; catalogReturn.kind = 'card'; }
+  try { c.go(); } catch (e) { console.error('continue', key, e); }
+}
+
+function homeContHide(key) {
+  homeContHidden[key] = true;
+  const el = document.getElementById('home-cont');
+  if (!el) return;
+  if (motionOff()) { el.remove(); return; }
+  const a = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.96)' }], { duration: 180, easing: 'ease-in' });
+  const done = () => { if (el.isConnected) el.remove(); };
+  a.onfinish = done;
+  setTimeout(done, 260);
+}
+
 function renderHome() {
   const view = document.getElementById('view-menu');
   if (!view) return;
@@ -843,7 +998,7 @@ function renderHome() {
   })() : '';
 
   const recentRow = recent.length ? `
-    <section class="section" id="home-recent">
+    <section class="section home-recent--slim" id="home-recent">
       <div class="section__head">
         <span class="section__emoji" aria-hidden="true">🕘</span>
         <h2 class="section__title">${escapeHTML(t.home_recent || '')}</h2>
@@ -892,7 +1047,9 @@ function renderHome() {
 
   const empty = `<div class="empty hidden" id="home-empty"><span class="empty__icon" aria-hidden="true">🔍</span>${escapeHTML(t.home_empty || '')}</div>`;
   if (compact) {
-    view.innerHTML = catalogFeatured(t) + together + search + dailyStrip + recentRow + groups + empty;
+    // The game left in the middle, then the ones played lately, then the rest
+    // (ideas batch: shell: the recent row as a slim row at the top).
+    view.innerHTML = homeContHtml(t) + recentRow + catalogFeatured(t) + together + search + dailyStrip + groups + empty;
   } else {
     // A first visit: the simple start, and the whole home folded under it.
     const total = GAME_CATALOG.filter(g => g.group !== 'tools' && !g.hub).length;
@@ -1254,9 +1411,18 @@ function firstPlayOpenRules(el, helpKey) {
   if (typeof openHelpModal === 'function') openHelpModal();
 }
 
-function catalogHeroHtml(g, t) {
-  const modes = (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean)
-    .map(mode => `<span class="meta-bit meta-bit--mode"><span aria-hidden="true">${mode.icon}</span>${escapeHTML(t[mode.short] || t[mode.label] || '')}</span>`).join('');
+function catalogHeroHtml(g, t, switchId) {
+  // On a setup with the one phone / own phones switch the mode pills ARE that
+  // switch (ideas batch: shell): a tap turns it, and the side it is on is lit
+  // (applyPlayMode keeps them in step). With no switch they are plain words.
+  const modes = (g.modes || []).filter(m => PLAY_MODES[m]).map(m => {
+    const mode = PLAY_MODES[m];
+    const inner = `<span aria-hidden="true">${mode.icon}</span>${escapeHTML(t[mode.short] || t[mode.label] || '')}`;
+    if (!switchId) return `<span class="meta-bit meta-bit--mode">${inner}</span>`;
+    const side = m === 'device' ? 'device' : 'online';
+    return `<button type="button" class="meta-bit meta-bit--mode meta-bit--pick" data-pmode="${side}" aria-pressed="false"
+                    onclick="setPlayMode('${switchId}', '${side}')">${inner}</button>`;
+  }).join('');
   const helpKey = firstPlayKey(g.setup || g.id, false);
   const card = firstPlayCardHtml(helpKey);
   return `
@@ -1274,6 +1440,16 @@ function catalogHeroHtml(g, t) {
     ${card}`;
 }
 
+/** The hero's mode pills lit for the switch's side (see catalogHeroHtml). */
+function heroSyncModes(view, mode) {
+  if (!view) return;
+  view.querySelectorAll('.game-hero [data-pmode]').forEach(b => {
+    const on = b.dataset.pmode === (mode === 'online' ? 'online' : 'device');
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+
 function syncGameHero(viewId) {
   const view = document.getElementById('view-' + viewId);
   if (!view) return;
@@ -1286,7 +1462,13 @@ function syncGameHero(viewId) {
     hero.className = 'game-hero';
     view.insertBefore(hero, view.firstChild);
   }
-  hero.innerHTML = catalogHeroHtml(g, t);
+  const sw = view.querySelector('.mode-switch');
+  hero.innerHTML = catalogHeroHtml(g, t, sw && viewId.indexOf('setup-') === 0 ? viewId.slice('setup-'.length) : '');
+  hero.classList.toggle('game-hero--modes', !!sw);
+  if (sw) {
+    const on = sw.querySelector('.segmented__item.is-active');
+    heroSyncModes(view, on ? on.dataset.mode : 'device');
+  }
   // A hub's games (chess) carry the row of its ways right under the hero.
   let ways = view.querySelector(':scope > .hub-ways');
   const waysHtml = hubWaysHtml(g, t);

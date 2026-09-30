@@ -2390,20 +2390,22 @@ function openExitSheet(navTarget) {
       </div>`;
   } else {
     const up = (VIEW_META[view] || {}).up || 'menu';
-    // From a bottom tab, the first way out is where that tab goes.
-    const primary = navTarget && navTarget !== 'menu'
-      ? exitSheetRow(t.exit_leave_game || 'اخرج من اللعبة', `closeModal('exit-modal'); navGo('${jsStringAttr(navTarget)}')`, 'btn--primary btn--lg')
-      : exitSheetRow(t.exit_pick_another || '', "closeModal('exit-modal'); setView('menu')", 'btn--primary btn--lg');
+    // The sheet usually opens from a back tap nobody meant, so the loud button keeps the
+    // round going and the ways out, which stop it, are quieter. From a bottom tab, the
+    // first way out is where that tab goes.
+    const leave = navTarget && navTarget !== 'menu'
+      ? exitSheetRow(t.exit_leave_game || 'اخرج من اللعبة', `closeModal('exit-modal'); navGo('${jsStringAttr(navTarget)}')`, 'btn--danger-soft')
+      : exitSheetRow(t.exit_pick_another || '', "closeModal('exit-modal'); setView('menu')", 'btn--danger-soft');
     body.innerHTML = `
       <div class="modal-icon" aria-hidden="true">${iconHtml(game.icon)}</div>
       <div class="sheet__title">${escapeHTML(t.exit_game_title || '')}</div>
       <p class="sheet__subtitle">${escapeHTML(t.exit_game_sub || '')}</p>
-      <div class="btn-stack">
-        ${primary}
-        ${exitSheetRow(t.exit_settings || '', `closeModal('exit-modal'); setView('${jsStringAttr(up)}')`)}
-      </div>
       <div class="modal-actions">
-        <button class="btn btn--ghost" onclick="closeModal('exit-modal')">${escapeHTML(t.exit_keep || '')}</button>
+        <button class="btn btn--primary btn--lg" onclick="closeModal('exit-modal')">${escapeHTML(t.exit_keep || '')}</button>
+      </div>
+      <div class="btn-stack">
+        ${leave}
+        ${exitSheetRow(t.exit_settings || '', `closeModal('exit-modal'); setView('${jsStringAttr(up)}')`)}
       </div>`;
     // The round waits while the table reads this.
     pauseClocksForSheet();

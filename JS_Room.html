@@ -181,6 +181,7 @@ const Room = (() => {
       clearTimeout(offlineTimer);
       offlineTimer = null;
       setSyncing(false);
+      roomNetNotice(false);
       startHeartbeat();
     };
     ws.onmessage = (event) => { if (socket === ws) onMessage(event.data); };
@@ -200,7 +201,7 @@ const Room = (() => {
     if (!offlineTimer) {
       offlineTimer = setTimeout(() => {
         offlineTimer = null;
-        if (session && !connected()) setSyncing(true);
+        if (session && !connected()) { setSyncing(true); roomNetNotice(true); }
       }, OFFLINE_NOTICE_MS);
     }
     scheduleReconnect();
@@ -350,6 +351,7 @@ const Room = (() => {
           state = arrived(res.state);
         }
         setSyncing(false);
+        roomNetNotice(false);     // moving again over HTTP: nothing is lost
         emit(false);
       } catch (e) {
         // Still offline; the socket and this both keep trying.
@@ -634,6 +636,35 @@ function paintRoomHostAway(state) {
   note.textContent = t.room_host_away || 'المضيف مش متصل - أي حد يقدر يكمّل';
   note.hidden = false;
 }
+
+/**
+ * The room can't be reached (the socket dropped and polling fails too): a line under the
+ * header says so, where the host-away note sits, so a player doesn't tap into moves that
+ * fail. It goes the moment the socket or a poll gets through. Not a toast: it lasts as
+ * long as the trouble does.
+ */
+function roomNetNotice(on) {
+  const show = !!on && typeof Room !== 'undefined' && Room.isIn;
+  document.body.classList.toggle('room-offline', show);
+  let note = document.getElementById('room-net');
+  if (!show) { if (note) note.hidden = true; return; }
+  if (!note) {
+    note = document.createElement('div');
+    note.id = 'room-net';
+    note.className = 'room-host-away-note room-net-note';
+    note.setAttribute('role', 'status');
+    document.body.appendChild(note);
+  }
+  const t = TRANSLATIONS[appState.lang] || {};
+  note.textContent = '🔄 ' + (t.room_reconnecting || 'النت قطع… بنرجّع الاتصال');
+  note.hidden = false;
+}
+Room.onChange(() => { if (!Room.isIn) roomNetNotice(false); });
+// The note is written once when the trouble starts: a language change rewrites it.
+if (typeof onLanguageChange === 'function') onLanguageChange(() => {
+  const note = document.getElementById('room-net');
+  if (note && !note.hidden) roomNetNotice(true);
+});
 
 /** The host removes a player whose phone has gone (the server refuses anyone still here). */
 function roomKick(playerId) {
@@ -1130,11 +1161,47 @@ function shareAppLink() {
   return shareOrCopy(base, t.share_app_text || '', t.link_copied || '');
 }
 
+/**
+ * A join mistake is said under the field it is about (the code, or the name), and the
+ * field is focused, rather than in a toast that goes: the player sees what to fix.
+ * Typing in the field takes the line away.
+ */
+function roomJoinFieldError(id, msg) {
+  const el = document.getElementById(id);
+  if (!el) return showToast(msg, 'error');
+  const field = el.closest('.field') || el.parentElement;
+  let line = field.querySelector('.field__error');
+  if (!line) {
+    line = document.createElement('p');
+    line.className = 'field__error';
+    line.id = id + '-err';
+    line.setAttribute('role', 'alert');
+    field.appendChild(line);
+  }
+  line.textContent = msg;
+  el.setAttribute('aria-invalid', 'true');
+  el.setAttribute('aria-describedby', line.id);
+  el.addEventListener('input', () => roomJoinClearErrors(), { once: true });
+  playSound('alarm');
+  try { el.focus(); } catch (e) {}
+}
+function roomJoinClearErrors() {
+  ['room-join-code', 'room-join-name'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.removeAttribute('aria-invalid');
+    el.removeAttribute('aria-describedby');
+    const line = (el.closest('.field') || el.parentElement).querySelector('.field__error');
+    if (line) line.remove();
+  });
+}
+
 async function roomJoinFromForm() {
   const code = extractRoomCode(document.getElementById('room-join-code').value);
   const name = (document.getElementById('room-join-name').value || '').trim();
-  if (code.length < 4) return showToast(roomErrText('code'), 'error');
-  if (!name) return showToast(roomErrText('name'), 'error');
+  roomJoinClearErrors();
+  if (code.length < 4) return roomJoinFieldError('room-join-code', roomErrText('code'));
+  if (!name) { roomJoinEditName(); return roomJoinFieldError('room-join-name', roomErrText('name')); }
 
   roomName.set(name);
   setView('room-lobby');
@@ -1152,8 +1219,9 @@ async function roomJoinFromForm() {
     setView('room-join');
     const msg = String(err.message || '');
     // Someone in the room has this phone's name: the field comes back to change it.
-    if (msg.indexOf('الاسم') !== -1) roomJoinEditName();
-    showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? roomErrText('notfound') : msg, 'error');
+    if (msg.indexOf('الاسم') !== -1) { roomJoinEditName(); roomJoinFieldError('room-join-name', msg); }
+    else if (msg.indexOf('ROOM_NOT_FOUND') !== -1) roomJoinFieldError('room-join-code', roomErrText('notfound'));
+    else showToast(msg, 'error');
   }
 }
 

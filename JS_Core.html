@@ -4000,6 +4000,7 @@
       confirm: "تأكيد",
       room_hub_wait: "المضيف يختار اللعبة…",
       room_host_away: "المضيف مش متصل - أي حد يقدر يكمّل",
+      room_reconnecting: "النت قطع… بنرجّع الاتصال",
       room_night_title: "ليلتنا",
       night_share: "ابعت صورة الليلة",
       night_champion: "👑 القعدة كانت لـ {name}",
@@ -8516,6 +8517,7 @@
       confirm: "Confirm",
       room_hub_wait: "The host is choosing a game…",
       room_host_away: "The host is away - anyone can carry on",
+      room_reconnecting: "Connection lost… reconnecting",
       room_night_title: "Tonight",
       night_share: "Share tonight's card",
       night_champion: "👑 Tonight belonged to {name}",
@@ -12326,8 +12328,23 @@
     el._timer = setTimeout(() => toastDismiss(el), toastMs(el._msg, el._type));
   }
 
+  /** A setup screen's Start bar sits where the toasts do: the stack goes just above it, so a
+      toast never covers Start and a tap meant for Start never lands on a toast. */
+  function toastClearStart(stack) {
+    stack.style.bottom = '';
+    const view = document.getElementById('view-' + (appState.currentView || ''));
+    if (!view) return;
+    const bar = [...view.querySelectorAll('.view-actions--start')].find(b => b.getClientRects().length && !b.closest('.hidden'));
+    if (!bar) return;
+    const r = bar.getBoundingClientRect(), h = window.innerHeight;
+    if (!r.height || r.top > h || r.bottom < h * 0.5) return;
+    const floor = h - parseFloat(getComputedStyle(stack).bottom || '0');
+    if (floor > r.top) stack.style.bottom = Math.round(h - r.top + 8) + 'px';
+  }
+
   function showToast(msg, type = 'info') {
     const stack = toastStack();
+    if (!stack.children.length) toastClearStart(stack);
     const live = [...stack.children].filter(n => !n._leaving);
     const last = live[live.length - 1];
     // The same words twice in a row: the toast showing stays, its clock starts again.

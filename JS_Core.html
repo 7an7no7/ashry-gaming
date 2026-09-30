@@ -5462,6 +5462,27 @@
       skr_team_basra_hint: "في دورك تقدر ترمي كارت من كروت صاحبك لو زي اللي على الأرض؛ لو غلط، كارت العقاب ليك",
       tools_general: "أدوات لأي لعبة",
       tools_scores: "حاسبات النقط",
+      // ideas batch: party2
+      imp1_accuse_btn: "اتهموا حد",
+      imp1_accuse_title: "مين الجاسوس؟",
+      imp1_accuse_hint: "اتفقوا على واحد: دوسة تختاره، ودوسة كمان تأكّد",
+      imp1_confirm: "دوس تاني للتأكيد",
+      imp1_pass_to: "هاتوا الموبايل لـ {name}",
+      wa1_got_title: "مين عرف نفسه؟",
+      wa1_got_hint: "دوسوا على اللي عرف: الأول 3، التاني 2، والباقي 1. دوسة تانية ترجّعه.",
+      wa1_all_got: "الكل عرف نفسه!",
+      spy1_guess_title: "الجاسوس كشف نفسه! اختار المكان",
+      spy1_guess_hint: "صح يبقى الجاسوس كسب، غلط يبقى الطاولة كسبت.",
+      stop1_empty: "فاضي",
+      stop1_shared: "مكررة",
+      stop1_unique: "لوحده",
+      stop1_all_unique: "الكل لوحده",
+      stop1_all_empty: "الكل فاضي",
+      stop1_next_cat: "الخانة اللي بعدها",
+      stop1_prev_cat: "اللي قبلها",
+      stop1_to_table: "📋 الجدول كله",
+      stop1_cat_hint: "كل واحد يقرا كلمته: لوحده 10، مكررة 5، فاضية أو غلط 0",
+      stop1_check: "راجعوا الجدول",
     },
     en: {
       title: "Ashry Gaming",
@@ -10008,6 +10029,27 @@
       skr_team_basra_hint: "On your turn you may throw one of your partner's cards if it matches the pile; if it doesn't, the penalty card is yours",
       tools_general: "For any game",
       tools_scores: "Score keepers",
+      // ideas batch: party2
+      imp1_accuse_btn: "Accuse someone",
+      imp1_accuse_title: "Who is the imposter?",
+      imp1_accuse_hint: "Agree on one: tap to pick, tap again to confirm",
+      imp1_confirm: "Tap again to confirm",
+      imp1_pass_to: "Hand the phone to {name}",
+      wa1_got_title: "Who got theirs?",
+      wa1_got_hint: "Tap whoever got it: first 3, second 2, then 1. Tap again to take it back.",
+      wa1_all_got: "Everyone got theirs!",
+      spy1_guess_title: "The spy owns up! Pick the place",
+      spy1_guess_hint: "Right and the spy wins; wrong and the table wins.",
+      stop1_empty: "Blank",
+      stop1_shared: "Shared",
+      stop1_unique: "Unique",
+      stop1_all_unique: "All unique",
+      stop1_all_empty: "All blank",
+      stop1_next_cat: "Next category",
+      stop1_prev_cat: "Back",
+      stop1_to_table: "📋 Whole table",
+      stop1_cat_hint: "Each reads their word: unique 10, shared 5, blank or wrong 0",
+      stop1_check: "Check the table",
     }
   };
 
@@ -10834,7 +10876,7 @@
             }
         }
         else if (appState.currentView === 'imposter-reveal') showRevealStep();
-        else if (appState.currentView === 'play-imposter') { renderImposterBoard(); isPaused = true; updateImposterTimerUI(); }
+        else if (appState.currentView === 'play-imposter') { renderImposterBoard(); isPaused = true; updateImposterTimerUI(); if (typeof imp1Restore === 'function') imp1Restore(); }
         else if (appState.currentView === 'play-domino') {
             if ((appState.domino.players || []).length) renderDominoBoard();
             else setTimeout(() => setView('setup-domino'), 50);
@@ -12604,7 +12646,8 @@ const GAME_RULES = {
                 <li>اختار فئة (حيوانات، أكلات، دول…) أو اكتب كلمة بنفسك، وحدد عدد الجواسيس.</li>
                 <li>مرر الموبايل: كل واحد يدوس مطوّل على الكارت ويشوف الكلمة السرية، إلا الجاسوس يشوف «أنت الجاسوس». أول ما يشيل صباعه تستخبى.</li>
                 <li>اسألوا بعض أسئلة عن الكلمة من غير ما تقولوها. الجاسوس بيحاول يتمشّى مع الكلام ويعرف الكلمة، والباقي بيحاولوا يمسكوه من إجاباته.</li>
-                <li>لما تتأكدوا، اضغط <b>كشف الجواسيس</b>.</li>
+                <li>لما تتأكدوا، اضغطوا <b>اتهموا حد</b> واختاروا واحد (دوسة تختاره ودوسة كمان تأكد). لو طلع الجاسوس، ياخد الموبايل ويختار الكلمة من 6 كلمات.</li>
+                <li>مسكتوه وغلط = نقطة لكل واحد مش جاسوس. هرب أو عرف الكلمة = نقطتين لكل جاسوس. «العب تاني» بيكمّل على نفس النقط. <b>كشف من غير تصويت</b> يوري الإجابة من غير نقط.</li>
             </ol>
             <p class="help-sub">🎤 مين يسأل مين؟</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -12634,7 +12677,7 @@ const GAME_RULES = {
                 <li>الكل في نفس <b>المكان</b> (مطار، مستشفى…) وكل واحد ليه دور فيه، إلا <b>الجاسوس</b> اللي مش عارف المكان.</li>
                 <li>مرر الموبايل: كل واحد يدوس مطوّل على الكارت ويشوف المكان ودوره، وأول ما يشيل صباعه يستخبى.</li>
                 <li>اسألوا بعض أسئلة عن المكان من غير ما تقولوه: «بتيجي هنا كتير؟». الإجابة الواضحة زيادة بتفضح المكان للجاسوس، والإجابة المهزوزة بتفضح الجاسوس.</li>
-                <li>الجاسوس يقدر يوقّف اللعبة في أي وقت ويخمّن المكان. لو صاب، يكسب.</li>
+                <li>الجاسوس يقدر يوقّف اللعبة في أي وقت ويخمّن المكان (زرار 🕵️ تحت الأماكن) من قايمة 24 مكان، المكان الصح وسطهم. لو صاب، يكسب.</li>
                 <li>لما الوقت يخلص أو تتفقوا، صوّتوا على الجاسوس. لو مسكتوه عنده فرصة أخيرة يخمّن المكان.</li>
                 <li><b>العب تاني</b> يوزّع من جديد لنفس اللاعبين ويكمّل النقط: مسكتوه وغلط = نقطة لكل واحد، هرب أو عرف المكان = نقطتين للجاسوس.</li>
             </ol>
@@ -12815,7 +12858,7 @@ const GAME_RULES = {
                 <li>كل واحد معاه ورقة وقلم. الموبايل بيطلع <b>حرف</b>.</li>
                 <li>اكتب كلمة تبدأ بالحرف في كل فئة: اسم، حيوان، نبات، جماد، بلد… (اختار الفئات قبل ما تبدأ).</li>
                 <li>أول واحد يخلص يضغط <b>وقف!</b> والكل يرفع القلم. أو الوقت بيخلص لوحده.</li>
-                <li>الحساب: <b>10</b> لإجابة محدش غيرك كتبها، <b>5</b> لإجابة اتكررت، <b>0</b> لو فاضية أو غلط. اضغط على الخانة عشان تغيرها.</li>
+                <li>الحساب: <b>10</b> لإجابة محدش غيرك كتبها، <b>5</b> لإجابة اتكررت، <b>0</b> لو فاضية أو غلط. فئة فئة: كل واحد يقرا كلمته وتختاروا له <b>لوحده</b> أو <b>مكررة</b> أو <b>فاضي</b> (وفيه «الكل لوحده»)، وفي الآخر الجدول كله لو حبيتوا تعدّلوا خانة.</li>
                 <li>بعد الجولات كلها، أعلى مجموع يكسب.</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
@@ -14405,7 +14448,8 @@ const GAME_RULES = {
                 <li>Pick a category (animals, food, countries…) or type a word yourself, and set how many imposters.</li>
                 <li>Pass the phone: each player presses and holds the card to see the secret word, except the imposter, who sees "You are the imposter". It hides again the moment they let go.</li>
                 <li>Ask each other about the word without saying it. The imposter tries to blend in and work out the word; the rest try to catch them from their answers.</li>
-                <li>When you are sure, press <b>Reveal the imposters</b>.</li>
+                <li>When you are sure, press <b>Accuse someone</b> and pick one (tap to pick, tap again to confirm). If it is the imposter, they take the phone and pick the word from six.</li>
+                <li>Caught and wrong = a point to everyone who isn't an imposter. Escaped or guessed the word = two to each imposter. Play again keeps the score. <b>Reveal without a vote</b> shows the answer with no points.</li>
             </ol>
             <p class="help-sub">🎤 Who asks whom?</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -14435,7 +14479,7 @@ const GAME_RULES = {
                 <li>Everyone is at the same <b>place</b> (an airport, a hospital…) with a job there, except the <b>spy</b>, who doesn't know the place.</li>
                 <li>Pass the phone: each player presses and holds the card to see the place and their job; it hides again the moment they let go.</li>
                 <li>Ask each other about the place without naming it: "Do you come here often?". Too clear an answer gives the place to the spy; a shaky one gives the spy away.</li>
-                <li>The spy can stop the game at any time and guess the place. Right, and they win.</li>
+                <li>The spy can stop the game at any time and guess the place (the 🕵️ button under the places) from a card of 24, the real one among them. Right, and they win.</li>
                 <li>When time is up, or you agree, vote on the spy. If caught, the spy gets one last guess at the place.</li>
                 <li><b>Play again</b> deals again to the same table and keeps score: caught and wrong = a point each, escaped or found the place = two for the spy.</li>
             </ol>
@@ -14616,7 +14660,7 @@ const GAME_RULES = {
                 <li>Everyone has paper and a pen. The phone draws a <b>letter</b>.</li>
                 <li>Write a word starting with it in every category: a name, an animal, a plant, an object, a country… (pick the categories before you start).</li>
                 <li>The first one finished presses <b>Stop!</b> and everyone puts their pen down. Or the clock runs out.</li>
-                <li>Scoring: <b>10</b> for an answer nobody else had, <b>5</b> for a shared one, <b>0</b> for blank or wrong. Tap a cell to change it.</li>
+                <li>Scoring: <b>10</b> for an answer nobody else had, <b>5</b> for a shared one, <b>0</b> for blank or wrong. One category at a time: each reads their word and you pick <b>Unique</b>, <b>Shared</b> or <b>Blank</b> for them («All unique» for the usual case); at the end, the whole table if you want to fix a cell.</li>
                 <li>After all the rounds, the highest total wins.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>

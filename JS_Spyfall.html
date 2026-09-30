@@ -28,9 +28,20 @@ const spyfallState = {
 /** The place list of this deal's language: switching the games' language mid-round made the spy's guess always wrong. */
 const spyfallDb = () => SPYFALL_DB[spyfallState.lang || contentLang()] || SPYFALL_DB.ar;
 
+/* ideas batch: party2 - a card of 24 places, the real one among them (the room's
+   SPYFALL_CARD in RoomGames.js): the board and the spy's guess read it, not all
+   fifty. A deal saved before the card existed keeps the whole list. */
+const SPY1_CARD = 24;
+function spy1DealCard(loc) {
+  const others = shuffleArray(spyfallDb().map(l => l.location).filter(l => l !== loc.location)).slice(0, SPY1_CARD - 1);
+  return shuffleArray(others.concat([loc.location]));
+}
+const spy1Card = () => (Array.isArray(spyfallState.card) && spyfallState.card.length
+  ? spyfallState.card : spyfallDb().map(l => l.location));
+
 /** The accuse and pause buttons, shown while the round can still be decided. */
 function spyfallLiveControls(on) {
-  ['spyfall-accuse-btn', 'spyfall-pause-btn'].forEach(id => document.getElementById(id)?.classList.toggle('hidden', !on));
+  ['spyfall-accuse-btn', 'spyfall-pause-btn', 'spyfall-spyguess-btn'].forEach(id => document.getElementById(id)?.classList.toggle('hidden', !on));
 }
 
 function setupSpyfall() {
@@ -60,6 +71,7 @@ function startSpyfallGame(again) {
   const db = SPYFALL_DB[lang] || SPYFALL_DB.ar;
   const loc = freshPick('spyfall:' + lang, db, 1, { key: l => l.location })[0];
   spyfallState.location = loc;
+  spyfallState.card = spy1DealCard(loc);
 
   // Spies count (default 1, or 2 if selected)
   // Two spies among three to five players leaves too few people who know the
@@ -116,7 +128,7 @@ function spyfallSave() {
       players: st.players, location: st.location, spies: st.spies, playerRoles: st.playerRoles,
       revealIndex: st.revealIndex, timerSeconds: st.timerSeconds, left: st.left,
       crossed: [...st.crossedLocations], scores: st.scores, scoreId: st.scoreId,
-      done: st.done, lang: st.lang
+      done: st.done, lang: st.lang, card: st.card
     }));
   } catch (e) {}
 }
@@ -241,12 +253,12 @@ function renderSpyfallLocationBoard() {
   const list = document.getElementById('spyfall-locations-list');
   if (!list) return;
 
-  list.innerHTML = db.map(item => {
-    const crossed = spyfallState.crossedLocations.has(item.location);
+  list.innerHTML = spy1Card().map(name => {
+    const crossed = spyfallState.crossedLocations.has(name);
     return `
-      <button type="button" onclick="toggleSpyfallCrossLocation('${jsStringAttr(item.location)}')"
+      <button type="button" onclick="toggleSpyfallCrossLocation('${jsStringAttr(name)}')"
               class="p-2.5 rounded-xl text-xs font-bold text-center transition-all ${crossed ? 'opacity-30 line-through bg-black/10 dark:bg-white/10' : 'bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 shadow-sm border border-black/5 dark:border-white/5'}">
-        ${escapeHTML(item.location)}
+        ${escapeHTML(name)}
       </button>
     `;
   }).join('');
@@ -297,19 +309,43 @@ function voteSpyfallAccused(player) {
   }
 }
 
-function openSpyfallGuessModal(spyName) {
+function openSpyfallGuessModal(spyName, volunteer) {
   if (spyfallState.done) return;
-  const db = spyfallDb();
+  const t = TRANSLATIONS[appState.lang] || {};
   const list = document.getElementById('spyfall-spy-guess-grid');
   if (list) {
-    list.innerHTML = db.map(item => `
-      <button onclick="spySubmitLocationGuess('${jsStringAttr(item.location)}', '${jsStringAttr(spyName)}')"
+    list.innerHTML = spy1Card().map(name => `
+      <button onclick="spySubmitLocationGuess('${jsStringAttr(name)}', '${jsStringAttr(spyName)}')"
               class="p-3 rounded-xl bg-black/5 dark:bg-white/5 active:bg-amber-500 active:text-black font-bold text-xs transition-colors text-center">
-        ${escapeHTML(item.location)}
+        ${escapeHTML(name)}
       </button>
     `).join('');
   }
+  // The spy may own up and guess at any time (the room's spyGuess): its own words, and a way back.
+  const title = document.querySelector('#spyfall-spy-guess-modal .sheet__title');
+  const hint = document.querySelector('#spyfall-spy-guess-modal .sheet__subtitle');
+  const key = (el, k) => { if (el) { el.setAttribute('data-i18n', k); el.textContent = t[k] || ''; } };
+  key(title, volunteer ? 'spy1_guess_title' : 'spy_guess_title');
+  key(hint, volunteer ? 'spy1_guess_hint' : 'spy_guess_hint');
+  document.getElementById('spy1-guess-cancel')?.classList.toggle('hidden', !volunteer);
   document.getElementById('spyfall-spy-guess-modal').classList.remove('hidden');
+}
+
+let spy1PausedForGuess = false;
+/** «أنا الجاسوس، هخمّن المكان»: the clock stands still while the spy picks. */
+function spy1VolunteerGuess() {
+  if (spyfallState.done) return;
+  spy1PausedForGuess = !!(spyfallState.timerClock && spyfallState.timerClock.isRunning());
+  if (spy1PausedForGuess) { spyfallState.timerClock.pause(); setSpyfallPauseLabel(true); }
+  haptic('medium');
+  openSpyfallGuessModal(spyfallSpyNames(), true);
+}
+
+function spy1CancelGuess() {
+  closeModal('spyfall-spy-guess-modal');
+  if (spyfallState.done) return;
+  if (spy1PausedForGuess && spyfallState.timerClock) { spyfallState.timerClock.resume(); setSpyfallPauseLabel(false); }
+  spy1PausedForGuess = false;
 }
 
 function spySubmitLocationGuess(locName, spyName) {

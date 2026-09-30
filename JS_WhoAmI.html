@@ -1062,6 +1062,10 @@ function whoAmINext() {
 function startWhoAmITimer() {
     document.getElementById('whoami-pass-container').classList.add('hidden');
     document.getElementById('whoami-timer-ui').classList.remove('hidden');
+    // Who got theirs, in order (the room's gotIt): a fresh list each game.
+    appState.whoami.got = [];
+    appState.whoami.dealAt = Date.now();
+    wa1PaintGot();
     // Who asks whom, if the table asked for it (JS_Director.html).
     if (typeof directorStart === 'function') {
         directorStart(appState.whoami, appState.whoami.assignments.map(a => a.name), directorModeOf('whoami'));
@@ -1131,10 +1135,76 @@ function updateWhoAmITimerDisplay() {
     document.getElementById('whoami-timer-display').innerText = `${m}:${s}`;
 }
 
+/* ---- Who got theirs (ideas batch: party2) ------------------------------------
+   The room's «عرفت» on one phone: a chip for each player, tapped by the table the
+   moment someone says their character. The order pays as the room's does
+   (WHOAMI_ORDER_POINTS in RoomGames.js: 3, 2, then 1), and a second tap takes it
+   back for exactly what it paid, nobody after losing anything. Everyone got it:
+   the characters are shown, with the podium. */
+const WA1_ORDER_POINTS = [3, 2, 1];
+let wa1FinishTimer = null;
+
+function wa1PaintGot(bumpName) {
+    const box = document.getElementById('wa1-got');
+    const w = appState.whoami;
+    if (!box || !w.assignments) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const got = w.got || [];
+    box.innerHTML = `
+        <div class="eyebrow">${escapeHTML(t.wa1_got_title || '')}</div>
+        <div class="wa1-got__chips">
+          ${w.assignments.map((a, i) => {
+            const at = got.findIndex(g => g.name === a.name);
+            const on = at !== -1;
+            return `<button type="button" class="wa1-chip ${on ? 'is-got' : ''}" aria-pressed="${on}" data-wa1="${i}" onclick="wa1Toggle(${i})">
+                ${on ? `<span class="wa1-chip__at metric" aria-hidden="true">${at + 1}</span>` : ''}
+                <span class="wa1-chip__name">${escapeHTML(a.name)}</span>
+                ${on ? `<span class="wa1-chip__pts metric">+${got[at].pts}</span>` : ''}
+              </button>`;
+          }).join('')}
+        </div>
+        <p class="field__hint">${escapeHTML(t.wa1_got_hint || '')}</p>`;
+    if (bumpName !== undefined && typeof motionBump === 'function') {
+        const el = box.querySelector(`[data-wa1="${bumpName}"]`);
+        if (el) motionBump(el);
+    }
+}
+
+function wa1Toggle(i) {
+    const w = appState.whoami;
+    const a = (w.assignments || [])[i];
+    if (!a) return;
+    const timerUi = document.getElementById('whoami-timer-ui');
+    if (!timerUi || timerUi.classList.contains('hidden')) return;
+    w.got = w.got || [];
+    const at = w.got.findIndex(g => g.name === a.name);
+    if (at !== -1) {
+        w.got.splice(at, 1);
+        if (wa1FinishTimer) { clearTimeout(wa1FinishTimer); wa1FinishTimer = null; }
+        haptic('light');
+    } else {
+        w.got.push({ name: a.name, pts: WA1_ORDER_POINTS[Math.min(w.got.length, WA1_ORDER_POINTS.length - 1)] });
+        playSound('success');
+        haptic('medium');
+    }
+    wa1PaintGot(i);
+    if (w.got.length >= w.assignments.length && !wa1FinishTimer) {
+        showToast((TRANSLATIONS[appState.lang] || {}).wa1_all_got || '', 'success');
+        wa1FinishTimer = setTimeout(() => {
+            wa1FinishTimer = null;
+            const ui = document.getElementById('whoami-timer-ui');
+            if (appState.currentView === 'play-whoami' && ui && !ui.classList.contains('hidden')
+                && (appState.whoami.got || []).length >= appState.whoami.assignments.length) finishWhoAmIGame();
+        }, 1100);
+    }
+}
+
 // --- RESULT PHASE ---
 function finishWhoAmIGame() {
     if(appState.whoami.interval) appState.whoami.interval.stop();
     appState.whoami.interval = null;
+    if (wa1FinishTimer) { clearTimeout(wa1FinishTimer); wa1FinishTimer = null; }
+    const got = appState.whoami.got || [];
 
     const listEl = document.getElementById('whoami-final-list');
     listEl.innerHTML = appState.whoami.assignments.map(item => {
@@ -1143,9 +1213,10 @@ function finishWhoAmIGame() {
             const parts = item.word.split('|');
             displayWord = `${escapeHTML(parts[0])} <span class="field__hint">(${escapeHTML(parts[1])})</span>`;
         }
+        const g = got.find(x => x.name === item.name);
         return `
             <div class="status-row">
-                <div class="status-row__body"><div class="status-row__name">${escapeHTML(item.name)}</div></div>
+                <div class="status-row__body"><div class="status-row__name">${g ? '✅ ' : ''}${escapeHTML(item.name)}${g ? ` <span class="badge badge--accent metric">+${g.pts}</span>` : ''}</div></div>
                 <span class="tx-strong font-black text-xl" style="text-align: end">${displayWord}</span>
             </div>`;
     }).join('');
@@ -1154,8 +1225,19 @@ function finishWhoAmIGame() {
     document.getElementById('whoami-result-ui').classList.remove('hidden');
     document.getElementById('whoami-result-ui').classList.add('flex');
 
+    // The order's points on the podium (renderPodium), its confetti after it has risen.
+    const board = appState.whoami.assignments.map(a => {
+        const g = got.find(x => x.name === a.name);
+        return { id: a.name, name: a.name, score: g ? g.pts : 0 };
+    }).sort((a, b) => b.score - a.score);
+    const pod = document.getElementById('wa1-podium');
+    const podium = pod && typeof renderPodium === 'function'
+        ? renderPodium({ code: 'whoami1', game: String(appState.whoami.dealAt || '') }, board) : '';
+    if (pod) { pod.innerHTML = podium; pod.classList.toggle('hidden', !podium); }
+
     playSound('success');
-    confetti({ particleCount: 150, spread: 70 });
+    if (podium) afterReveal(pod, () => confetti({ particleCount: 150, spread: 70 }));
+    else confetti({ particleCount: 150, spread: 70 });
 }
 
 /** The mix's categories as ticks, for the games' language; unticked ones are remembered by emoji. */
@@ -1203,5 +1285,7 @@ onLanguageChange((view) => {
         else updateWhoAmIPassScreen();
     }
     paintWhoAmIPauseLabel();
+    const timerUi = document.getElementById('whoami-timer-ui');
+    if (timerUi && !timerUi.classList.contains('hidden')) wa1PaintGot();
 });
 </script>

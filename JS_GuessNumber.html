@@ -96,9 +96,23 @@ function checkNumberGuess() {
     // Outside the range on the screen: not a try, just a nudge (the friend's
     // way has no range to show, so any number goes there).
     const gn = appState.guessnum;
-    if (gn.min != null && gn.max != null && (guess < gn.min || guess > gn.max)) {
-        showToast(((TRANSLATIONS[appState.lang] || {}).gn_between || '').replace('{min}', gn.min).replace('{max}', gn.max));
+    // ideas batch: solo - the window narrows with every higher / lower: a guess
+    // outside what is still possible is nudged (a shake and a line), not a try.
+    const win = gnWindow();
+    if ((win.lo != null && guess < win.lo) || (win.hi != null && guess > win.hi)) {
+        const t = TRANSLATIONS[appState.lang] || {};
+        const fbEl = document.getElementById('gn-feedback');
+        if (fbEl) {
+            fbEl.className = 'text-xl font-bold mb-6 tx-warning';
+            fbEl.textContent = win.lo != null && win.hi != null
+                ? (t.gn_between || '').replace('{min}', win.lo).replace('{max}', win.hi)
+                : (win.lo != null ? (t.gn_more_than || '').replace('{n}', win.lo - 1) : (t.gn_less_than || '').replace('{n}', win.hi + 1));
+        }
+        playSound('thud');
+        soloShake(inputEl);
+        soloShake(document.getElementById('gn-range-display'), 4);
         inputEl.value = '';
+        inputEl.focus();
         return;
     }
 
@@ -345,7 +359,63 @@ function gnCharHtml(o) {
 }
 
 /** One phone: the man for the guesses so far; `moment` when a guess has just been made. */
+/**
+ * ideas batch: solo - what is still possible after the guesses so far: lo and
+ * hi (null where unknown: the friend's way has no range until a verdict).
+ */
+function gnWindow() {
+  const gn = appState.guessnum || {};
+  let lo = gn.min != null ? Number(gn.min) : null, hi = gn.max != null ? Number(gn.max) : null;
+  (gn.history || []).forEach(h => {
+    const n = Number(h.guess);
+    if (h.type === 'low') lo = lo == null ? n + 1 : Math.max(lo, n + 1);
+    else if (h.type === 'high') hi = hi == null ? n - 1 : Math.min(hi, n - 1);
+  });
+  return { lo: lo, hi: hi };
+}
+
+/** «بين 51 و 100» over a bar of the whole range whose lit part is the window, shrinking with each verdict. */
+function gnPaintWindow() {
+  const el = document.getElementById('gn-range-display');
+  if (!el) return;
+  const gn = appState.guessnum || {};
+  const t = TRANSLATIONS[appState.lang] || {};
+  const w = gnWindow();
+  const num = (n) => `<bdi class="metric">${n}</bdi>`;
+  let text;
+  if (gn.status === 'won') text = num(gn.target);
+  else if (w.lo != null && w.hi != null) text = (t.gn_window || '{lo} - {hi}').replace('{lo}', num(w.lo)).replace('{hi}', num(w.hi));
+  else if (w.lo != null) text = (t.gn_more_than || '').replace('{n}', num(w.lo - 1));
+  else if (w.hi != null) text = (t.gn_less_than || '').replace('{n}', num(w.hi + 1));
+  else text = '???';
+  const hasBar = gn.min != null && gn.max != null && gn.max > gn.min;
+  let a = 0, f = 1;
+  if (hasBar) {
+    const span = gn.max - gn.min + 1;
+    const lo = gn.status === 'won' ? gn.target : w.lo, hi = gn.status === 'won' ? gn.target : w.hi;
+    a = (lo - gn.min) / span;
+    f = Math.max(0.012, (hi - lo + 1) / span);
+  }
+  el.removeAttribute('dir');
+  el.classList.add('gnw');
+  let bar = el.querySelector('.gnw__fill');
+  if (!bar || !!el.querySelector('.gnw__bar') !== hasBar) {
+    el.innerHTML = `<span class="gnw__text"></span>` + (hasBar
+      ? `<span class="gnw__line" dir="ltr"><span class="gnw__end">${gn.min}</span><span class="gnw__bar"><span class="gnw__fill"></span></span><span class="gnw__end">${gn.max}</span></span>` : '');
+    bar = el.querySelector('.gnw__fill');
+  }
+  const textEl = el.querySelector('.gnw__text');
+  textEl.innerHTML = text;
+  // .metric holds its text left to right: a sentence reads in the page's own direction.
+  textEl.setAttribute('dir', document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr');
+  if (bar) {
+    bar.style.transform = `translateX(${(a * 100).toFixed(2)}%) scaleX(${f.toFixed(4)})`;
+    bar.classList.toggle('is-won', gn.status === 'won');
+  }
+}
+
 function gnPaintLocal(moment) {
+  gnPaintWindow();
   const box = document.getElementById('gn-char');
   if (!box) return;
   const gn = appState.guessnum || {};

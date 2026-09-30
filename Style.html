@@ -22193,4 +22193,92 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
 }
 
 
+/* ===== IDEAS BATCH: SOLO ===== */
+/* The Wordle tiles turn over row by row (wordleReveal, Web Animations): a
+   little depth so rotateX reads as a turn, not a squash. */
+#wordle-grid .wordle-row { perspective: 40rem; }
+
+/* Guess the number: the window of what is still possible, over a bar of the
+   whole range whose lit part shrinks with each verdict (gnPaintWindow). */
+.gnw { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
+.gnw__text { font-variant-numeric: tabular-nums; unicode-bidi: isolate; }
+.gnw__line { display: flex; align-items: center; gap: var(--sp-2); inline-size: min(100%, 20rem); font-size: var(--fs-xs, 0.75rem); color: var(--text-3); }
+.gnw__end { flex: none; min-inline-size: 1.5rem; text-align: center; font-variant-numeric: tabular-nums; }
+.gnw__bar { position: relative; flex: 1; block-size: 0.625rem; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
+.gnw__fill { position: absolute; inset: 0; border-radius: var(--r-full); background: var(--accent); transform-origin: left center; transition: transform 480ms var(--ease-spring); }
+.gnw__fill.is-won { background: var(--success-btn); }
+@media (prefers-reduced-motion: reduce) { .gnw__fill { transition: none; } }
+
+/* 2048: "+N" rising from the score, and a ring round a new highest tile. */
+.g2048-plus {
+  position: fixed; z-index: var(--z-fx, 60); pointer-events: none;
+  font-family: var(--font-display); font-weight: var(--fw-black); font-size: 1.25rem;
+  color: var(--accent-ink); text-shadow: 0 1px 0 var(--surface-solid);
+}
+.g2048-tile.is-top { animation: g2048-top 520ms var(--ease-spring); }
+.g2048-tile.is-top::after {
+  content: ''; position: absolute; inset: -0.25rem; border-radius: inherit;
+  border: 3px solid var(--pop); opacity: 0; pointer-events: none;
+  animation: g2048-ring 620ms ease-out;
+}
+@keyframes g2048-top { 0% { scale: 1; } 35% { scale: 1.22; } 100% { scale: 1; } }
+@keyframes g2048-ring { 0% { opacity: 0.9; transform: scale(0.85); } 100% { opacity: 0; transform: scale(1.45); } }
+
+/* Minesweeper: a ring fills over the long press (MINES_HOLD_MS), and a mine
+   that goes off in the chain flashes. */
+.mines-cell { position: relative; }
+.mines-ring {
+  position: absolute; inset: 8%; border-radius: 50%; pointer-events: none;
+  border: 3px solid var(--accent); opacity: 0.85;
+  transform: scale(0.2);
+  animation: mines-ring var(--hold, 420ms) linear forwards;
+}
+@keyframes mines-ring { to { transform: scale(1); opacity: 1; } }
+.mines-cell.is-blown::after {
+  content: ''; position: absolute; inset: -20%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--warning-btn) 70%, transparent), transparent 70%);
+  opacity: 0; animation: mines-blow 420ms ease-out;
+}
+@keyframes mines-blow { 0% { opacity: 1; transform: scale(0.5); } 100% { opacity: 0; transform: scale(1.4); } }
+
+/* The timer: a ring that drains round the time, and one-tap presets. */
+.gtm-dial { position: relative; display: grid; place-items: center; inline-size: min(16rem, 70vw, calc(var(--app-h, 100vh) * 0.42)); aspect-ratio: 1; margin: var(--sp-2) auto var(--sp-5); }
+.gtm-dial > .metric { position: relative; }
+.gtm-ring { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; transform: rotate(-90deg); }
+.gtm-ring circle { fill: none; stroke-width: 7; }
+.gtm-ring__track { stroke: var(--surface-3); }
+.gtm-ring__fill { stroke: var(--accent); stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1s linear, stroke 300ms; }
+[dir="rtl"] .gtm-ring { transform: rotate(-90deg) scaleY(-1); }
+.gtm-dial.is-low .gtm-ring__fill { stroke: var(--danger-btn); }
+.gtm-dial.is-low > .metric { color: var(--danger-ink, var(--danger)); }
+.gtm-presets { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-block-end: var(--sp-4); }
+.gtm-presets .chip { min-block-size: 2.75rem; min-inline-size: 3.25rem; justify-content: center; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .gtm-ring__fill { transition: none; } }
+
+/* The counter: the leader wears the crown. */
+.univ-crown { display: none; margin-inline-end: 0.25rem; }
+.univ-row.is-leader .univ-crown { display: inline; }
+.univ-row.is-leader { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--pop) 60%, transparent); }
+
+/* Hold to repeat: a held + or − never selects text or opens a menu. */
+.stepper__btn, .cs-step__btn, [data-hold-repeat] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+
+/* The solo result sheet: a new record's gold stamp slams on once. */
+.solo-stamp { display: flex; justify-content: center; }
+.solo-stamp > span {
+  display: inline-block; padding: 0.35rem 1rem; border-radius: var(--r-lg);
+  border: 3px solid var(--pop); color: var(--pop-on);
+  background: color-mix(in srgb, var(--pop) 88%, var(--surface-solid));
+  font-family: var(--font-display); font-weight: var(--fw-black); font-size: 1.35rem;
+  rotate: -6deg; box-shadow: 0 0.25rem 1rem color-mix(in srgb, var(--pop) 45%, transparent);
+}
+.solo-stamp.is-slam > span { animation: solo-stamp-slam 520ms cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes solo-stamp-slam {
+  0% { opacity: 0; transform: scale(2.4); }
+  60% { opacity: 1; transform: scale(0.92); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.solo-result-minor > .btn { flex: 1; white-space: nowrap; min-inline-size: 0; }
+@media (prefers-reduced-motion: reduce) { .solo-stamp.is-slam > span { animation: none; } .g2048-tile.is-top, .g2048-tile.is-top::after, .mines-ring, .mines-cell.is-blown::after { animation: none; } }
+
 </style>

@@ -96,18 +96,29 @@ function paintWordleBadge() {
     el.classList.toggle('hidden', !html);
 }
 
-function renderWordleBoard() {
+/**
+ * The board. opts.reveal: the index of the row just sent - its tiles are drawn
+ * with their letters only and turned over one after another (wordleReveal),
+ * each taking its colour at the halfway point; every other finished row is
+ * drawn settled. opts.pop: the index of the letter just typed, which pops -
+ * only that one (ideas batch: solo).
+ */
+function renderWordleBoard(opts) {
+    opts = opts || {};
     const container = document.getElementById('wordle-grid');
     const len = appState.wordle.wordLength;
-    const cell = (cls, char) => `<div class="wordle-cell ${cls}">${char || ''}</div>`;
+    const cell = (cls, char, extra) => `<div class="wordle-cell ${cls}"${extra || ''}>${char || ''}</div>`;
     const rows = [];
+    const revealing = typeof opts.reveal === 'number' && !motionOff();
 
     // Completed guesses
-    appState.wordle.guesses.forEach(guess => {
+    appState.wordle.guesses.forEach((guess, r) => {
         const result = checkGuess(guess);
         let cells = '';
         for (let i = 0; i < len; i++) {
-            cells += cell('wordle-cell--' + result[i] + ' animate-flip', guess[i]);
+            cells += (revealing && r === opts.reveal)
+                ? cell('wordle-cell--filled', guess[i], ` data-res="${result[i]}"`)
+                : cell('wordle-cell--' + result[i], guess[i]);
         }
         rows.push(cells);
     });
@@ -118,7 +129,7 @@ function renderWordleBoard() {
         for (let i = 0; i < len; i++) {
             const char = appState.wordle.currentGuess[i];
             cells += char
-                ? cell('wordle-cell--filled animate-pop', char)
+                ? cell('wordle-cell--filled' + (opts.pop === i ? ' animate-pop' : ''), char)
                 : cell('wordle-cell--empty');
         }
         rows.push(cells);
@@ -142,6 +153,59 @@ function renderWordleBoard() {
         `<div class="wordle-row" style="grid-template-columns: repeat(${len}, 1fr)">${cells}</div>`
     ).join('');
     paintWordleBadge();
+    if (revealing) wordleReveal(opts.reveal, !!opts.win);
+}
+
+// ideas batch: solo - the reveal's timing: a tile every 250ms, each 460ms to turn.
+const WORDLE_FLIP_GAP = 250;
+const WORDLE_FLIP_MS = 460;
+let wordleRevealUntil = 0;     // typing waits while a row turns over
+
+/** How long the row just sent takes to turn over (and, on a win, to bounce). */
+function wordleRevealMs(win) {
+    if (motionOff()) return 0;
+    const len = appState.wordle.wordLength || 5;
+    return (len - 1) * WORDLE_FLIP_GAP + WORDLE_FLIP_MS + (win ? (len - 1) * 90 + 420 : 0);
+}
+
+/**
+ * Row `r` turns over tile by tile: each tile folds to edge-on, takes its colour
+ * (set by a timer too, so it lands even where the animation is cut short), and
+ * unfolds. The keyboard's colours follow once the last tile is down; a winning
+ * row then bounces tile by tile.
+ */
+function wordleReveal(r, win) {
+    const row = document.querySelectorAll('#wordle-grid .wordle-row')[r];
+    if (!row) { renderKeyboard(); return; }
+    const tiles = Array.from(row.querySelectorAll('.wordle-cell'));
+    const epoch = row;          // a redraw replaces the row: its timers then do nothing
+    wordleRevealUntil = Date.now() + wordleRevealMs(win);
+    tiles.forEach((tile, i) => {
+        const at = i * WORDLE_FLIP_GAP;
+        if (tile.animate) {
+            tile.animate([
+                { transform: 'rotateX(0deg)' },
+                { transform: 'rotateX(90deg)', offset: 0.5 },
+                { transform: 'rotateX(0deg)' }
+            ], { duration: WORDLE_FLIP_MS, delay: at, easing: 'ease-in-out' });
+        }
+        setTimeout(() => {
+            if (!epoch.isConnected) return;
+            tile.classList.remove('wordle-cell--filled');
+            tile.classList.add('wordle-cell--' + (tile.dataset.res || 'absent'));
+        }, at + WORDLE_FLIP_MS / 2);
+    });
+    const landed = (tiles.length - 1) * WORDLE_FLIP_GAP + WORDLE_FLIP_MS;
+    setTimeout(() => {
+        renderKeyboard();
+        if (!win || !epoch.isConnected) return;
+        tiles.forEach((tile, i) => {
+            if (!tile.animate) return;
+            tile.animate([
+                { translate: '0 0' }, { translate: '0 -34%', offset: 0.4 }, { translate: '0 4%', offset: 0.75 }, { translate: '0 0' }
+            ], { duration: 420, delay: i * 90, easing: 'ease-out' });
+        });
+    }, landed);
 }
 
 function renderKeyboard() {
@@ -184,6 +248,7 @@ function foldWordleWord(word) {
 
 function handleWordleKey(key) {
     if(appState.wordle.status !== 'playing') return;
+    if (Date.now() < wordleRevealUntil) return;     // the last row is still turning over
 
     if(key === 'ENTER') {
         submitWordleGuess();
@@ -195,16 +260,16 @@ function handleWordleKey(key) {
     } else {
         if(appState.wordle.currentGuess.length < appState.wordle.wordLength) {
             appState.wordle.currentGuess += foldWordleWord(key);
-            renderWordleBoard();
+            renderWordleBoard({ pop: appState.wordle.currentGuess.length - 1 });
         }
     }
 }
 
 function submitWordleGuess() {
     if(appState.wordle.currentGuess.length !== appState.wordle.wordLength) {
-        playSound('alarm');
-        const msg = appState.lang === 'ar' ? "الكلمة قصيرة جداً!" : "Word too short!";
-        showToast(msg);
+        playSound('thud');
+        const t = TRANSLATIONS[appState.lang] || {};
+        showToast(t.wordle_too_short || '');
         // The row you are typing in shakes: the feedback every word game gives.
         // `animate-shake` is the one Connections already uses. Removed on a timer
         // as well, so a second short word shakes again (an animation that is
@@ -237,8 +302,11 @@ function submitWordleGuess() {
         appState.wordle.currentGuess = "";
     }
 
-    renderWordleBoard();
-    renderKeyboard();
+    // Only the row just sent turns over; the keyboard's colours wait for its
+    // last tile (wordleReveal draws them then, or at once with motion off).
+    const won = appState.wordle.status === 'won';
+    renderWordleBoard({ reveal: appState.wordle.guesses.length - 1, win: won });
+    if (motionOff()) renderKeyboard();
     saveToLocal();
 }
 
@@ -305,7 +373,7 @@ function wordleResultSoon(win) {
         soloMarkDaily('wordle', { won: win, tries: tries, max: max }, s.daily);
         share = wordleShareText(t, s.daily, win, tries, max, rows, s.lang);
     }
-    soloLater('wordle', motionOff() ? 0 : 1000, () => soloResult({
+    soloLater('wordle', motionOff() ? 0 : wordleRevealMs(win) + 450, () => soloResult({
         icon: win ? '🟩' : '🟨',
         title: win ? (t.wordle_won || '') : (t.wordle_lost || ''),
         value: win ? tries : undefined,

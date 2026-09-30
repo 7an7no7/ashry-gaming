@@ -713,19 +713,122 @@ function setupMoreToggled(el) {
       renderUniversalBoard();
       setView('play-universal');
   }
+  /*
+   * ideas batch: solo - the counter is sorted by score (ties keep their
+   * order), the leader crowned. A row is kept, not rebuilt, so a held + goes on
+   * repeating (holdRepeat below); the rows slide into their new order
+   * (motionRowsSwap) - not while a button is held, then once it lets go.
+   */
+  function univOrder() {
+      const ps = appState.universal.players;
+      return ps.map((p, i) => i).sort((a, b) => (ps[b].score - ps[a].score) || (a - b));
+  }
   function renderUniversalBoard() {
       const div = document.getElementById('universal-board');
-      div.innerHTML = '';
-      appState.universal.players.forEach((p, idx) => {
-          div.innerHTML += `
-          <div class="status-row">
-              <div class="status-row__name w-1/3 truncate">${escapeHTML(p.name)}</div>
+      if (!div) return;
+      const ps = appState.universal.players;
+      const rowHtml = (p, idx) => `
+          <div class="status-row univ-row" data-univ-row="${idx}">
+              <div class="status-row__name w-1/3 truncate"><span class="univ-crown" aria-hidden="true">👑</span>${escapeHTML(p.name)}</div>
               <div class="metric metric--md tx-accent w-1/3 text-center" data-univ-score="${idx}">${p.score}</div>
               <div class="status-row__actions">
-                  <button onclick="modUnivScore(${idx}, 1)" class="control-btn" aria-label="+1">+</button>
-                  <button onclick="modUnivScore(${idx}, -1)" class="control-btn control-btn--danger" aria-label="-1">−</button>
+                  <button onclick="modUnivScore(${idx}, 1)" class="control-btn" aria-label="+1" data-hold-repeat>+</button>
+                  <button onclick="modUnivScore(${idx}, -1)" class="control-btn control-btn--danger" aria-label="-1" data-hold-repeat>−</button>
               </div>
           </div>`;
+      const rows = Array.from(div.querySelectorAll('.univ-row'));
+      const names = rows.map(r => r.querySelector('.status-row__name').textContent.replace('👑', ''));
+      if (rows.length !== ps.length || rows.some((r, k) => !ps[Number(r.dataset.univRow)] || names[k] !== ps[Number(r.dataset.univRow)].name)) {
+          div.innerHTML = univOrder().map(i => rowHtml(ps[i], i)).join('');
+      } else {
+          ps.forEach((p, i) => {
+              const sc = div.querySelector('[data-univ-score="' + i + '"]');
+              if (sc && sc.textContent !== String(p.score)) sc.textContent = p.score;
+          });
+          if (!holdRepeatActive) {
+              const want = univOrder();
+              const now = Array.from(div.querySelectorAll('.univ-row')).map(r => Number(r.dataset.univRow));
+              if (want.join() !== now.join()) {
+                  motionRowsSwap(div, () => want.forEach(i => div.appendChild(div.querySelector('[data-univ-row="' + i + '"]'))));
+              }
+          }
+      }
+      // The leader wears the crown: only one, once someone is ahead of the rest.
+      const top = Math.max.apply(null, ps.map(p => p.score));
+      const leaders = ps.filter(p => p.score === top).length;
+      div.querySelectorAll('.univ-row').forEach(r => {
+          r.classList.toggle('is-leader', ps.length > 1 && leaders === 1 && ps[Number(r.dataset.univRow)].score === top);
+      });
+  }
+
+  /*
+   * ideas batch: solo - hold to repeat, for every stepper: the setup steppers
+   * (.stepper__btn -> stepField), the card score keepers (.cs-step__btn -> csStep)
+   * and anything marked data-hold-repeat (the counter's + and -). A tap is still
+   * one step (the button's own click). Held for HOLD_REPEAT_DELAY it repeats,
+   * faster and faster; letting go, a cancel, the page hiding, or the button going
+   * away or being disabled stops it, and the click that ends a hold is swallowed
+   * so it doesn't add one more.
+   */
+  const HOLD_REPEAT_SEL = '.stepper__btn, .cs-step__btn, [data-hold-repeat]';
+  const HOLD_REPEAT_DELAY = 420;
+  let holdRepeatActive = null;   // { el, timer, fired, pid }
+  let holdRepeatSwallowUntil = 0;
+  let holdRepeatSwallowEl = null;
+  function holdRepeatStop(released) {
+      const h = holdRepeatActive;
+      if (!h) return;
+      clearTimeout(h.timer);
+      holdRepeatActive = null;
+      try { h.el.releasePointerCapture(h.pid); } catch (e) {}
+      if (h.fired) {
+          // The click the browser sends after a held button is let go was already counted.
+          if (released) { holdRepeatSwallowUntil = Date.now() + 600; holdRepeatSwallowEl = h.el; }
+          h.el.dispatchEvent(new CustomEvent('hold-repeat-end', { bubbles: true }));
+      }
+  }
+  function holdRepeatStep() {
+      const h = holdRepeatActive;
+      if (!h) return;
+      if (!h.el.isConnected || h.el.disabled) { holdRepeatStop(false); return; }
+      h.fired++;
+      h.el.click();                                   // the button's own action, one step
+      const gap = Math.max(45, Math.round(170 * Math.pow(0.86, h.fired)));
+      h.timer = setTimeout(holdRepeatStep, gap);
+  }
+  if (typeof document !== 'undefined') {
+      document.addEventListener('pointerdown', (e) => {
+          if (e.button !== undefined && e.button !== 0) return;
+          holdRepeatSwallowUntil = 0;            // a new press: the last hold's click is not coming
+          const el = e.target && e.target.closest && e.target.closest(HOLD_REPEAT_SEL);
+          if (!el || el.disabled) return;
+          holdRepeatStop(false);
+          holdRepeatActive = { el: el, fired: 0, pid: e.pointerId, timer: setTimeout(holdRepeatStep, HOLD_REPEAT_DELAY) };
+          try { el.setPointerCapture(e.pointerId); } catch (err) {}
+      }, true);
+      ['pointerup', 'pointercancel'].forEach(ev => document.addEventListener(ev, (e) => {
+          if (holdRepeatActive && e.pointerId === holdRepeatActive.pid) holdRepeatStop(ev === 'pointerup');
+      }, true));
+      // A finger that slides well off the button (the capture keeps its events) lets go of it.
+      document.addEventListener('pointermove', (e) => {
+          const h = holdRepeatActive;
+          if (!h || e.pointerId !== h.pid) return;
+          const r = h.el.getBoundingClientRect();
+          if (e.clientX < r.left - 24 || e.clientX > r.right + 24 || e.clientY < r.top - 24 || e.clientY > r.bottom + 24) holdRepeatStop(false);
+      }, true);
+      document.addEventListener('visibilitychange', () => holdRepeatStop(false));
+      window.addEventListener('blur', () => holdRepeatStop(false));
+      document.addEventListener('click', (e) => {
+          if (Date.now() < holdRepeatSwallowUntil && e.isTrusted && holdRepeatSwallowEl && e.target && e.target.closest
+              && e.target.closest(HOLD_REPEAT_SEL) === holdRepeatSwallowEl) {
+              holdRepeatSwallowUntil = 0;
+              e.stopPropagation();
+              e.preventDefault();
+          }
+      }, true);
+      // The counter re-sorts once a held button lets go.
+      document.addEventListener('hold-repeat-end', (e) => {
+          if (e.target.closest && e.target.closest('#universal-board')) renderUniversalBoard();
       });
   }
   function modUnivScore(idx, val) {
@@ -754,6 +857,8 @@ function setupMoreToggled(el) {
       const tm = appState.timers.general;
       tm.time += (mins * 60);
       if(tm.time < 0) tm.time = 0;
+      // ideas batch: solo - the ring measures against the length set, or the longest the time has been since.
+      if (!tm.running || tm.time > (tm.total || 0)) tm.total = tm.time;
       updateGenDisplay();
       if (typeof motionBump === 'function') motionBump(document.getElementById('gen-timer-display'), 1.08);
 
@@ -773,6 +878,32 @@ function setupMoreToggled(el) {
       const s = (t % 60).toString().padStart(2,'0');
       const el = document.getElementById('gen-timer-display');
       if (el) el.innerText = `${m}:${s}`;
+      // ideas batch: solo - the ring drains with the time left.
+      const ring = document.getElementById('gtm-ring-fill');
+      if (ring) {
+          const total = appState.timers.general.total || 0;
+          const f = total > 0 ? Math.max(0, Math.min(1, t / total)) : 0;
+          ring.style.strokeDashoffset = String(1 - f);
+          const dial = document.getElementById('gtm-dial');
+          if (dial) {
+              dial.classList.toggle('is-running', !!appState.timers.general.running);
+              dial.classList.toggle('is-low', !!appState.timers.general.running && t <= 10 && t > 0);
+          }
+      }
+  }
+
+  /** ideas batch: solo - a preset starts the timer at once at that length (whatever was running). */
+  function genTimerPreset(seconds) {
+      const tm = appState.timers.general;
+      if (tm.interval) tm.interval.stop();
+      tm.interval = null;
+      tm.running = false;
+      tm.endsAt = null;
+      tm.time = seconds;
+      tm.total = seconds;
+      updateGenDisplay();
+      if (typeof motionBump === 'function') motionBump(document.getElementById('gtm-dial'), 1.05);
+      toggleGenTimer();
   }
 
   // Coming back to the timer (or a reload onto it) shows its real time and state.
@@ -796,6 +927,7 @@ function setupMoreToggled(el) {
           if (btn) btn.innerText = TRANSLATIONS[appState.lang].start_btn;
       } else {
           if(tm.time <= 0) return;
+          if (!tm.total || tm.total < tm.time) tm.total = tm.time;
           tm.running = true;
           // The deadline is saved with the app, so a reload (or iOS dropping the page
           // while the phone is locked) doesn't leave the timer silently stopped.
@@ -837,6 +969,7 @@ function setupMoreToggled(el) {
       tm.running = false;
       tm.endsAt = null;
       tm.time = 0;
+      tm.total = 0;
       updateGenDisplay();
       document.getElementById('gen-start-btn').innerText = TRANSLATIONS[appState.lang].start_btn;
   }

@@ -1989,7 +1989,16 @@ const DRIVERS = {
       }
       return true;
     };
-    const trapOnce = () => { const m = mapOf(); const t = m.traps[0]; go(t.y * m.w + t.x); runClock(T, (r) => r.shared.phase !== 'trap', 4); };
+    // The first still trap there is a way to without another trap or the goal on it: a random map may put
+    // traps[0] behind other traps (grandpa's creaky tile behind a Lego brick), or the way to it over the
+    // goal, which wins the level instead (the same flake rules.mjs had, 1 run in 40).
+    const trapOnce = () => {
+      const m = mapOf(), goal = m.goal[1] * m.w + m.goal[0];
+      const t = m.traps.find((tr) => { const p = plan(m, tr.y * m.w + tr.x); return p && !p.some(([c]) => c === goal); });
+      if (!t) return;
+      go(t.y * m.w + t.x);
+      runClock(T, (r) => r.shared.phase !== 'trap', 4);
+    };
     const win = () => { const m = mapOf(); go(m.goal[1] * m.w + m.goal[0]); runClock(T, (r) => r.shared.phase !== 'won', 4); };
     trapOnce();
     win();

@@ -311,7 +311,9 @@ work changed. Add to it when a decision is made or a batch ships.
       play again. No night-board points (it is co-op).
     - **Someone who joins mid-game becomes a guide** (up to 8), at once.
     - **A quiet mover**: the host's (or a stand-in's) «عدّي الدور» passes the
-      walk to the next, from the start, with no heart lost.
+      walk to the next, from the start, with no heart lost - **on a new map
+      of the same level** (the owner, 30 Sep 2026: the next mover watched the
+      old one as a guide), as when the mover leaves mid-level.
     - **The lens**: 2 players - the one guide sees the whole map; more - each
       lens a circle of `darkLensR` (smaller with more guides), held 44 px
       above the finger on a touch screen; it goes to the other guides and
@@ -1114,7 +1116,10 @@ work changed. Add to it when a decision is made or a batch ships.
     - **A mine ends that phone's round with 0** («خسرت» on its screen, the
       round going on for the others), and **four mistakes in تشابه the
       same** - the solo games' own rules; a round can't be cleared by
-      tapping everything.
+      tapping everything. **A phone that hit a mine sees only that mine
+      until the round is over** (the owner, 30 Sep 2026: the others are
+      still clearing the very same field); the whole field comes with the
+      result.
     - **إيه اللي يجمعهم؟ and سلسلة الإجابات rank by score, then by time**
       (`svRaceRank`): finishing first with fewer right answers wins nothing.
       Fast 3 closes on the first three *done*, and pays them in score order.
@@ -4507,6 +4512,40 @@ the word search), `countUp` for streaks and scores.
   screens between the countdown and the tap falls behind a game whose next
   order deals itself - the look took its pictures after the verdicts, not in
   the window. A deploy is needed for the rooms server.
+- **30 Sep 2026, the full-app audit and every finding fixed** - a read-only
+  audit of the whole app (agy's quota was low, so 17 Claude reviewers read one
+  area each on a throwaway clone; every critical and moderate finding checked
+  at the source, the Chess960 one proved by running the code), then the owner
+  asked for every critical, moderate and minor finding fixed. Six agents fixed
+  one area each in worktrees, merged here. The worst: جمجمة's public hand and
+  pile counts told the table which disc a skull had taken (the lost disc now
+  leaves only `g.discs`; the leak check counts them); Chess960 castling where
+  the king moves one square was saved as a king step, so undo, looking back and
+  the review replayed it wrong (a move now carries its stored form,
+  `chessUciOf`: king-takes-rook for that castling); a room of computer players
+  alone never went idle; cheers vanished from the second game (the cheer's
+  number is kept); الأوضة المضلمة's moving traps missed a mover standing still
+  (the alarm can't wake under a second, so the timeout checks every trap tick
+  since the last) and its joystick saved the whole room nine times a second
+  (`stick` is a quick action); the chairs' «اقعد!» and the witness lineup
+  rebuilt under the finger; المزاد's strip showed a box before its lid flew;
+  على كيفك could never copy الخشاف; the Stop clock (and every room clock that
+  compared `endsAt` with the phone's own time) reads the server's time through
+  `roomServerNow()` (Ludo, Snakes and the bank have their own gap helpers); a
+  double tap on "skip the setter" skipped two; the chess puzzle streak went on
+  at 0 hearts; حرب السفن's shell could stay "in flight" for good; السلم
+  والتعبان replayed its building on coming back to the room; تشابه's daily was
+  lost after a reload off its board; الحرباء and الموقع السري on one phone
+  scored twice after a back-close; a switched-off game restored on reload;
+  bumper cars' tilt died from round 2 on an iPhone. And about fifty minor ones
+  (stale taps carried and checked on the buzzer, bomb send-back, Codenames
+  guess, Wavelength skip and quiz guess; typed text kept across a host change
+  by `renderRoomFrame`'s fourth argument; clock intervals, motion listeners
+  and loops stopped off their screen; archive replays no longer set bests; a
+  new deal over a game in progress asks first; خمس ثواني's verdict can be taken
+  back). The owner's three decisions are in their sections: the buzzer, the
+  dark room's new map, the mines race. Rules tests and the leak check pass
+  three runs in a row; the robots and the screen test ran before the release.
 
 ## Building and Running
 
@@ -5940,7 +5979,9 @@ out loud and every phone is a buzzer. `buzzerAction` in `RoomGames.js` keeps
 `shared.buzzes` in the order the presses reached the server, which is the one
 thing a phone cannot be trusted with. The host's verdict (`correct` scores the
 first in line and clears the queue; `wrong` drops them so the next in line
-answers the same question) and `lock` / `arm` (buzzers off while the question
+answers the same question, and **they are out for that question** - `s.out`,
+cleared by the next question; the owner, 30 Sep 2026 - and every press carries
+its question's `round`, so a late one can't lead the next question) and `lock` / `arm` (buzzers off while the question
 is read) are host-only. A screen never buzzes: `buzz` from a device that is not
 in `room.players` is ignored. Everything is in `shared` (`board` is the sorted
 scoreboard the TV strip reads), and `TV_GAMES.buzzer` draws the first buzzer

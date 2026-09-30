@@ -1,4 +1,4 @@
-const CACHE = 'ashry-20260929191011';
+const CACHE = 'ashry-20260930073600';
 const SHELL = ['./manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
 const PINNED = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
@@ -44,6 +44,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+  // The worker's own file is never kept or answered from the cache: the page asks
+  // for it to learn whether a newer build is out, and offline that has to fail.
+  if (url.pathname.endsWith('/sw.js')) return;
 
   const cached = () => caches.match(req).then((hit) => hit || caches.match('./index.html'));
   if (req.mode !== 'navigate') { event.respondWith(fetch(req).then((res) => keep(req, res)).catch(cached)); return; }

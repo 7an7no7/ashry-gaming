@@ -4824,6 +4824,9 @@ async function main() {
     const seatOf = (b) => H.state.shared.seats.indexOf(b.pid);
     const bs = () => H.state.shared;
     check((await S.act('move', { from: 'e2', to: 'e4', move: 0 })).ok === false, 'bughouse: the TV can\'t move');
+    // The clocks start together 3 s after the deal, and a move before then is refused:
+    // wait out the look by the server's own clock (startAt against its serverNow), as a phone does.
+    await new Promise((res) => setTimeout(res, Math.max(0, (bs().startAt || 0) - (H.state.serverNow || Date.now())) + 300));
     // Each person moves on their own board whenever it is their turn; the bots answer on the server's clock.
     const played = { moves: 0, drops: 0, captures: 0 };
     let refused = 0;

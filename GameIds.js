@@ -12,10 +12,8 @@
 const APP_GAME_IDS = [
   'imposter', 'chameleon', 'spyfall', 'fakeartist', 'fibbage', 'mafia', 'twotruths',
   'mind', 'guesswho', 'witness', 'box', 'timeline', 'charades', 'describe', 'timesup', 'whoami', 'justone',
-  'mind', 'guesswho', 'witness', 'darkroom', 'timeline', 'charades', 'describe', 'timesup', 'whoami', 'justone',
   'codenames', 'hangman', 'bowling', 'drawguess', 'telephone', 'monkey', 'bomb', 'bumper',
-  'chairs', 'wire', 'stop', 'wouldyou', 'mostlikely', 'wavelength', 'herd', 'headsup',
-  'chairs', 'exact', 'stop', 'wouldyou', 'mostlikely', 'wavelength', 'herd', 'headsup',
+  'chairs', 'wire', 'darkroom', 'exact', 'stop', 'wouldyou', 'mostlikely', 'wavelength', 'herd', 'headsup',
   'fiveseconds', 'trivia', 'buzzer', 'emoji', 'proverbs', 'screw', 'uno', 'domino', 'ludo', 'snakes',
   'bank', 'doubt', 'skull', 'chess4', 'estimation', 'oldmaid', 'votechess', 'handbrain', 'bughouse',
   'memory', 'xo', 'connect4', 'dots', 'battleship', 'shatranj', 'guessnum', 'reaction',

@@ -8118,6 +8118,13 @@ Date.now = duelTestClock;
   applyRoomAction(r, 'a', 'backToHub', {});
   const line = (r.chat || []).find((m) => m.sys === 'predicted');
   check(line && line.p.names === 'C' && line.p.n === 2 && !r.predict, 'audience: back at the hub the chat says who called the winner');
+  // The audit of 30 Sep 2026: the next game keeps the cheers' number, so the phones see its cheers.
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'buzzer' });
+  applyRoomAction(r, 'a', 'start', {});
+  check(r.cheer && r.cheer.seq === 4 && !r.cheer.e, 'audience: a new game drops the last cheer but keeps its number');
+  clock += 5000;
+  applyRoomAction(r, 'c', 'cheer', { e: 'fire' });
+  check(r.cheer.seq === 5 && r.cheer.e === 'fire', 'audience: the first cheer of the second game is newer than any a phone saw');
 }
 // The owner, 26 Sep 2026: the guessing closes once the game is over, not only after 90 seconds.
 {
@@ -10963,6 +10970,95 @@ Date.now = duelTestClock;
     applyRoomAction(r, 'a', 'start', {});
     check(darkRelaying(r), 'darkroom: the lenses are relayed while a level is played');
   }
+}
+
+/* --- the audit of 30 Sep 2026: rooms core and the party games ---------------- */
+{
+  console.log('\nAudit of 30 Sep 2026 (rooms core, party games)');
+  // الجرس: a player marked wrong is out for that question; a late press can't lead the next.
+  const bz = newRoom(['a', 'b', 'c']);
+  applyRoomAction(bz, 'a', 'chooseGame', { game: 'buzzer' });
+  applyRoomAction(bz, 'a', 'start', {});
+  applyRoomAction(bz, 'b', 'buzz', { round: 1 });
+  applyRoomAction(bz, 'a', 'wrong', { id: 'b' });
+  applyRoomAction(bz, 'b', 'buzz', { round: 1 });
+  check(bz.shared.buzzes.length === 0 && bz.shared.out.indexOf('b') !== -1, 'buzzer: answered wrong, out for the rest of that question');
+  applyRoomAction(bz, 'c', 'buzz', { round: 1 });
+  applyRoomAction(bz, 'a', 'correct', { id: 'c' });
+  check(bz.shared.round === 2 && bz.shared.out.length === 0, 'buzzer: a new question lets everyone buzz again');
+  applyRoomAction(bz, 'b', 'buzz', { round: 1 });
+  check(bz.shared.buzzes.length === 0, 'buzzer: a press for the last question can\'t lead the next one');
+  applyRoomAction(bz, 'b', 'buzz', { round: 2 });
+  check(bz.shared.buzzes.length === 1 && bz.shared.buzzes[0].id === 'b', 'buzzer: out last question, in again this one');
+
+  // القنبلة: a send-back names the pass it undoes.
+  const bm = newRoom(['a', 'b', 'c']);
+  applyRoomAction(bm, 'a', 'chooseGame', { game: 'bomb' });
+  applyRoomAction(bm, 'a', 'start', { lang: 'ar', fuse: 'long' });
+  const h0 = bm.shared.holderId;
+  applyRoomAction(bm, h0, 'pass', {});
+  const h1 = bm.shared.holderId;
+  applyRoomAction(bm, h1, 'sendBack', { passes: bm.shared.passes, from: h0 });
+  check(bm.shared.holderId === h0, 'bomb: a send-back hands the bomb back');
+  applyRoomAction(bm, 'a', 'sendBack', { passes: 1, from: h0 });
+  check(bm.shared.holderId === h0 && bm.shared.sentBack === 1, 'bomb: the second tap of a send-back does nothing');
+
+  // أسماء الرموز: a guess picked on a turn that passed is dropped.
+  const cz = newRoom(['r1', 'r2', 'b1', 'b2']);
+  applyRoomAction(cz, 'r1', 'chooseGame', { game: 'codenames' });
+  [['r1', 'red', 'spymaster'], ['r2', 'red', 'operative'], ['b1', 'blue', 'spymaster'], ['b2', 'blue', 'operative']]
+    .forEach(([id, team, role]) => applyRoomAction(cz, id, 'setTeam', { team, role }));
+  applyRoomAction(cz, 'r1', 'start', { lang: 'en' });
+  const up = cz.shared.turn;
+  applyRoomAction(cz, up === 'red' ? 'r1' : 'b1', 'giveClue', { word: 'zzqq', count: 1 });
+  const other = up === 'red' ? 'blue' : 'red';
+  const hidden = cz.shared.board.filter((c) => !c.revealed).length;
+  cz.screens = [{ id: 'tv', name: 'TV' }];
+  applyRoomAction(cz, 'tv', 'guess', { index: cz._key.indexOf('neutral'), turn: other });
+  check(cz.shared.board.filter((c) => !c.revealed).length === hidden && cz.shared.turn === up, 'codenames: a screen\'s pick for a turn that passed is dropped');
+
+  // موجة: a skip names the round it was pressed on.
+  const wl = newRoom(['a', 'b', 'c']);
+  applyRoomAction(wl, 'a', 'chooseGame', { game: 'wavelength' });
+  applyRoomAction(wl, 'a', 'start', { lang: 'ar' });
+  applyRoomAction(wl, 'a', 'nextRound', { skip: true, round: 1 });
+  applyRoomAction(wl, 'a', 'nextRound', { skip: true, round: 1 });
+  check(wl.shared.round === 2, 'wavelength: a double tap on "skip the psychic" skips one');
+
+  // كمّل المثل: a guess typed for a card that closed is not judged on the next.
+  const qz = newRoom(['a', 'b', 'c']);
+  applyRoomAction(qz, 'a', 'chooseGame', { game: 'proverbs' });
+  applyRoomAction(qz, 'a', 'start', { lang: 'ar', count: 5 });
+  applyRoomAction(qz, 'b', 'guess', { text: 'زززز', qIndex: qz.shared.qIndex + 1 });
+  check(!(qz._answers || {}).b && !(qz.shared.tried || []).length, 'quiz: a guess for another card is dropped');
+
+  // ربع قرد: the last letter was the leaver's: the word starts over.
+  const mk = newRoom(['a', 'b', 'c']);
+  applyRoomAction(mk, 'a', 'chooseGame', { game: 'monkey' });
+  applyRoomAction(mk, 'a', 'start', { lang: 'ar', mode: 'letters', category: 'countries', timer: 0, winners: 1 });
+  applyRoomAction(mk, 'a', 'letter', { ch: 'م' });
+  leave(mk, 'a');
+  check(mk.shared.letters.length === 0, 'monkey: a word whose last letter was the leaver\'s starts over');
+
+  // الجاسوس, الحرباء, الموقع السري: every impostor gone before the vote: revealed, nobody scores.
+  const im = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(im, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(im, 'a', 'start', { category: 'حيوانات', spies: 1 });
+  im.hostId = im._impSpies[0] === 'a' ? 'b' : 'a';
+  leave(im, im._impSpies[0]);
+  check(im.phase === 'result' && im.shared.outcome === 'revealed' && im.shared.impostorLeft && !Object.values(im.shared.scores || {}).some((n) => n), 'imposter: the spy leaving before the vote ends it, nobody scores');
+  const ch = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(ch, 'a', 'chooseGame', { game: 'chameleon' });
+  applyRoomAction(ch, 'a', 'start', {});
+  ch.hostId = ch._chamId === 'a' ? 'b' : 'a';
+  leave(ch, ch._chamId);
+  check(ch.shared.phase === 'results' && ch.shared.outcome === 'revealed' && !Object.values(ch.shared.scores || {}).some((n) => n), 'chameleon: the chameleon leaving ends it, nobody scores');
+  const sf = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(sf, 'a', 'chooseGame', { game: 'spyfall' });
+  applyRoomAction(sf, 'a', 'start', {});
+  sf.hostId = sf._spyIds[0] === 'a' ? 'b' : 'a';
+  leave(sf, sf._spyIds[0]);
+  check(sf.shared.phase === 'results' && sf.shared.outcome === 'revealed' && !Object.values(sf.shared.scores || {}).some((n) => n), 'spyfall: the spy leaving ends it, nobody scores');
 }
 
 Date.now = realNow;

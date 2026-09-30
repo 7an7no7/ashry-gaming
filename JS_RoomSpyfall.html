@@ -148,7 +148,7 @@ function spyfallFrame(state, t) {
       ${renderRoomPlayerStrip(state)}`;
   }
   const won = s.outcome === 'caught';
-  const line = s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
+  const line = s.impostorLeft ? (t.room_impostor_left || '') : s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
   const revealKey = ['spy', roomDealKey(state, s.round), s.outcome, s.location].join('|');
   const cover = spyRevealParts(revealKey, (s.spyNames || []).length > 1 ? t.reveal_spies_were : t.reveal_spy_was);
   const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, spyCastVerdict(s.outcome), { kind: 'spyfall', loud: spyCastLoud(state) }) : '';
@@ -186,18 +186,18 @@ function spyfallGuessPlace(loc) {
 }
 
 function spyfallClockText(endsAt) {
-  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  const left = Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000));
   return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
 }
 
 function paintSpyfallRoomTimer(endsAt) {
   const text = spyfallClockText(endsAt);
-  const low = endsAt - Date.now() <= 30000;
+  const low = endsAt - roomServerNow() <= 30000;
   const el = document.getElementById('spy-room-timer');
   if (el) { el.textContent = text; el.classList.toggle('badge--danger', low); el.classList.toggle('badge--accent', !low); }
   const big = document.getElementById('tv-spy-timer');
   if (big) { big.textContent = text; big.classList.toggle('is-low', low); }
-  countdownUrgency(el || big, Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+  countdownUrgency(el || big, Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)));
 }
 
 function startSpyfallRoomClock(s) {
@@ -207,7 +207,7 @@ function startSpyfallRoomClock(s) {
   spyfallRoom.clockKey = s.endsAt;
   const endsAt = s.endsAt;
   spyfallRoom.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => paintSpyfallRoomTimer(endsAt),
     onEnd: () => {
       spyfallRoom.clock = null;
@@ -251,7 +251,7 @@ TV_GAMES.spyfall = {
       return `<div class="tv-vote">${head}<div class="tv-question">🕵️ ${escapeHTML(s.guesserName || '')} · ${t.spy_guessing || ''}</div>${places}
         ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>`)}</div>`;
     }
-    const line = s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
+    const line = s.impostorLeft ? (t.room_impostor_left || '') : s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
     const cast = typeof spyCastHtml === 'function'
       ? spyCastHtml(['spy', roomDealKey(state, s.round), s.outcome, s.location].join('|'), spyCastVerdict(s.outcome), { kind: 'spyfall', tv: true })
       : '';

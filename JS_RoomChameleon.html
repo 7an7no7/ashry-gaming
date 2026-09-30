@@ -100,7 +100,7 @@ function chameleonFrame(state, t) {
   }
   // results
   const won = s.outcome === 'caught';
-  const line = s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
+  const line = s.impostorLeft ? (t.room_impostor_left || '') : s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
   const revealKey = ['cham', roomDealKey(state, s.round), s.outcome, s.chameleonName].join('|');
   const cover = spyRevealParts(revealKey, t.reveal_chameleon_was);
   const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, spyCastVerdict(s.outcome), { kind: 'chameleon', loud: spyCastLoud(state) }) : '';
@@ -149,7 +149,7 @@ TV_GAMES.chameleon = {
       return `<div class="tv-vote">${head}<div class="tv-question">🦎 ${escapeHTML(s.chameleonName || '')} · ${t.cham_guessing || ''}</div>${grid}
         ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>`)}</div>`;
     }
-    const line = s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
+    const line = s.impostorLeft ? (t.room_impostor_left || '') : s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
     const cast = typeof spyCastHtml === 'function'
       ? spyCastHtml(['cham', roomDealKey(state, s.round), s.outcome, s.chameleonName].join('|'), spyCastVerdict(s.outcome), { kind: 'chameleon', tv: true, cls: 'spc--tv-short' })
       : '';

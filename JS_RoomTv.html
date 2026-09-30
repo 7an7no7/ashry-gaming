@@ -20,6 +20,7 @@ const tv = {
   clockKey: null,
   cnPick: null,     // the card picked on the TV, waiting for "reveal"
   cnDeal: null,
+  cnTurnKey: null,  // the turn and clue cnPick was picked for
   cnSeen: null,
   cheered: ''
 };
@@ -292,7 +293,7 @@ function tvClock(id, endsAt) {
   const paint = () => {
     const el = document.getElementById(id);
     if (!el) return 0;
-    const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    const left = Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000));
     el.textContent = cnClockText(left);
     el.classList.toggle('is-low', left <= 10);
     countdownUrgency(el, left);
@@ -303,7 +304,7 @@ function tvClock(id, endsAt) {
   if (tv.clock) tv.clock.stop();
   tv.clockKey = id + endsAt;
   tv.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paint();
       if (left > 0 && left <= 5) playSound('tick');
@@ -366,7 +367,7 @@ function tvLobby(state, t) {
     // (a tile each, the newest popping in) and the game chosen, from the top, so
     // a 1080p screen isn't a heading and a line floating in the middle of an
     // empty half (the owner, 26 Sep 2026).
-    const cat = state.game && typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[state.game] : null;
+    const cat = state.game && typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[state.game === 'chess' ? 'shatranj' : state.game] : null;
     const chosen = entry ? `
       <div class="tv-lobby__game" data-accent="${entry.accent}">
         <span class="tv-lobby__game-icon" aria-hidden="true">${iconHtml(entry.icon)}</span>
@@ -479,6 +480,9 @@ TV_GAMES.codenames = {
   frame(state, t) {
     const s = state.shared;
     if (tv.cnDeal !== s.dealtAt) { tv.cnDeal = s.dealtAt; tv.cnPick = null; tv.cnSeen = null; }
+    // A new turn or a new clue: the card picked for the last one is let go.
+    const turnKey = s.turn + '|' + (s.clue ? s.clue.word + ':' + s.clue.count : '');
+    if (tv.cnTurnKey !== turnKey) { tv.cnTurnKey = turnKey; tv.cnPick = null; }
     const L = CN_TEAM_LABEL[appState.lang] || CN_TEAM_LABEL.ar;
     const canGuess = !!s.clue && !s.winner;
     const board = s.board || [];
@@ -589,7 +593,7 @@ async function tvRevealCodenames() {
   if (i === null) return;
   tv.cnPick = null;
   tvRedraw();
-  await roomAct('guess', { index: i });
+  await roomAct('guess', { index: i, turn: Room.state && Room.state.shared ? Room.state.shared.turn : undefined });
 }
 
 function tvCancelCodenames() {
@@ -1199,7 +1203,7 @@ TV_GAMES.stop = {
             key: stopRoundKey(state), writing: s.phase === 'writing', room: true, tv: true,
             letterHtml: `<div class="tv-stop-letter">${escapeHTML(s.letter || '')}</div>`,
             // The clock is the stop's timetable board (JS_StopBus.html), the same element paintStopRoomTimer paints.
-            clockHtml: s.phase === 'writing' && s.endsAt ? `<div class="tv-timer tv-timer--big" id="tv-stop-timer">${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</div>` : '',
+            clockHtml: s.phase === 'writing' && s.endsAt ? `<div class="tv-timer tv-timer--big" id="tv-stop-timer">${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</div>` : '',
             pax: stopBusRoomPax(state)
           })}
           ${s.phase === 'collecting' ? `<div class="tv-note">⏳ ${t.stop_room_collecting || ''}${s.stopperName ? ' · ✋ ' + escapeHTML(s.stopperName) : ''}</div>` : ''}

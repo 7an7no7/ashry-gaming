@@ -56,8 +56,10 @@ ROOM_GAMES.buzzer = {
     const armed = s.phase === 'armed';
     const rank = buzzes.findIndex(b => b.id === Room.me);
     const first = buzzes[0];
+    // Answered this question wrong: out until the next one (RoomGames.js, s.out).
+    const out = (s.out || []).indexOf(Room.me) !== -1;
 
-    const sig = ['bz', s.phase, s.round, buzzes.map(b => b.id).join(','),
+    const sig = ['bz', s.phase, s.round, buzzes.map(b => b.id).join(','), out,
                  JSON.stringify(s.scores || {}), state.youAreHost, JSON.stringify(s.last || null), appState.lang].join('|');
 
     renderRoomFrame(el, sig, () => {
@@ -70,9 +72,11 @@ ROOM_GAMES.buzzer = {
       let stage;
       if (!armed) {
         stage = `<div class="bz-stage"><div class="bz-locked"><span aria-hidden="true">🔒</span><p>${escapeHTML(t.bz_locked_hint || '')}</p></div></div>`;
+      } else if (rank === -1 && out) {
+        stage = `<div class="bz-stage"><div class="bz-locked"><span aria-hidden="true">❌</span><p>${escapeHTML(t.bz_out_question || '')}</p></div></div>`;
       } else if (rank === -1) {
         stage = `<div class="bz-stage">
-          <button type="button" class="bz-button" id="bz-button" onclick="pressBuzzer(this)" aria-label="${escapeHTML(t.bz_press || '')}">
+          <button type="button" class="bz-button" id="bz-button" onclick="pressBuzzer(this, ${Number(s.round) || 1})" aria-label="${escapeHTML(t.bz_press || '')}">
             <span class="bz-button__icon" aria-hidden="true">🔔</span>
             <span class="bz-button__label">${escapeHTML(t.bz_press || '')}</span>
           </button></div>`;
@@ -125,7 +129,7 @@ ROOM_GAMES.buzzer = {
 };
 
 /** The press has to feel instant: the button locks before the server answers. */
-function pressBuzzer(btn) {
+function pressBuzzer(btn, round) {
   if (btn) { btn.classList.add('is-pressed'); btn.disabled = true; }
   haptic('heavy');
   // A ring off the button, so the press reads across the table. Removed by a
@@ -136,6 +140,7 @@ function pressBuzzer(btn) {
     btn.appendChild(ring);
     setTimeout(() => { if (ring.isConnected) ring.remove(); }, 700);
   }
-  roomAct('buzz');
+  // The question it was pressed for: a late press can't lead the next one.
+  roomAct('buzz', round ? { round: round } : {});
 }
 </script>

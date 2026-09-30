@@ -52,7 +52,7 @@ function quizFeedHtml(s, t) {
 function armQuizClock(endsAt) {
   const paint = () => {
     const el = document.getElementById('quiz-clock');
-    if (el) el.textContent = String(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+    if (el) el.textContent = String(Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)));
   };
   paint();
   // A clock stopped by leaving the screen (setView stops every clock without its
@@ -61,7 +61,7 @@ function armQuizClock(endsAt) {
   stopQuizClock();
   quiz.clockKey = endsAt;
   quiz.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: paint,
     onEnd: () => {
       quiz.clock = null;
@@ -88,7 +88,9 @@ async function quizSend() {
   const text = (input && input.value || '').trim();
   if (!text) return;
   input.value = '';
-  await roomAct('guess', { text: text });
+  // The card it was typed for: a guess landing after the next card is dealt is dropped.
+  const st = Room.state && Room.state.shared;
+  await roomAct('guess', st && typeof st.qIndex === 'number' ? { text: text, qIndex: st.qIndex } : { text: text });
 }
 
 function quizGame(game) {
@@ -140,7 +142,7 @@ function quizGame(game) {
             : `<div class="waiting-note">${escapeHTML(done ? (t.quiz_you_got_it || '') : used ? (t.quiz_one_try_used || '') : (t.vote_spectating || ''))}</div>`}
           <div id="quiz-feed" class="quiz-feed"></div>
           ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)" onclick="roomAct('closeQuestion')">${escapeHTML(t.quiz_close || '')}</button>` : ''}
-          ${renderRoomPlayerStrip(state)}`);
+          ${renderRoomPlayerStrip(state)}`, 'quiz|' + s.qIndex);
         const feed = document.getElementById('quiz-feed');
         if (feed) feed.innerHTML = quizFeedHtml(s, t);
         armQuizClock(s.endsAt);

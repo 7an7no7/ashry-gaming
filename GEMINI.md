@@ -80,6 +80,9 @@ file and a new line.
 - Content decisions (the content audit, the words cut and kept) - `notes/content.md`.
 - Rooms, the long version: the table of files (which Room*.js / JS_Room*.html does what), **computer players** (`ROOM_BOT_GAMES`, forced moves), **a host away** (`requireMoveOn`, the move-on actions), **the voting engine**, **«التالي لوحده»** (the next round dealt by itself, `autoNext`), the «دورك!» alert (`roomTurnOf`), the host's name menu, how a guess is judged, the chat, the live count, the audience and «ليالينا», which browsers run the app (the TV gate), names in a room, the lobby's Start, the share card, getting people in - `notes/rooms.md`.
 - The static site, offline copy, second address, minified page and its budget, the brand mark and icons, putting it on the home screen, the play counter and «في غلطة؟» reports - `notes/site.md`.
+- Each game's code loaded when it opens (the shell, `docs/g/` chunks, `tools/lazy-split.mjs`, `JS_Lazy.html`, the chunk map and its measurements) - `notes/lazy-load.md`.
+- Room links with a WhatsApp preview (`/r/CODE`, the site worker's one script, `docs/og/` pictures) and errors from players' phones (`POST /err`, `npm run errors`) - `notes/previews-errors.md`.
+- The parallel tests and `npm run test:changed` (the segments, the file → test mapping) - `notes/tests-docs.md`.
 - Player names, the picker, «مين بيلعب؟» - `notes/players.md`.
 - The catalog and the home screen (`GAME_CATALOG`, the first visit, «الليلة دي؟», descriptions, setup options remembered) - `notes/home.md`. Read before adding a game.
 - The soundboard and sound on iPhones (`wakeAudio`, a stuck audio context) - `notes/sound.md`.
@@ -205,7 +208,37 @@ Two browser tabs on the preview behave like two phones in one room.
   `RoomGames.js`, `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`, `RoomWire.js`, `RoomWitness.js`, `RoomExact.js`, `RoomDark.js`, `RoomBox.js`, `rooms-worker/src/`, `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
+- **The main address** (`cd tools && npm run deploy:site`): `site-worker/` is
+  `docs/` as static files plus one small script that runs only for room links,
+  `/r/CODE` (`run_worker_first`), the page a crawler reads for WhatsApp's
+  preview; every other request stays a free static-asset request.
 - `docs/README.md` and `rooms-worker/README.md` have the details.
+
+### Each game's code loads when it opens (30 Sep 2026)
+
+The published page is a shell (the home and every registry it reads - the
+catalog, the translations, `GAME_RULES`, help, icons - nav, settings, the room
+engine, the TV frame, sounds, motion) and each game's code is a chunk in
+`docs/g/<id>.<hash>.js`: 619 KB gzipped to open the app instead of 1,760.
+`tools/lazy-split.mjs` builds the chunks from the code itself and fails the
+build on a file in no chunk, a screen it can't place, a chunk cycle, or a
+screen button calling code its chunk doesn't load. `JS_Lazy.html` loads a
+chunk at every door (`setView`, the cards, «كمّل», «الليلة دي؟», the daily hub,
+a room's state; `lzWait`, `lzRun`, `lzEnsure`); a reload onto a game gets its
+chunk written in before start-up (`lzBootWrite`). The worker keeps chunks in
+`g-chunks` across builds and fetches them all when a build installs, so one
+visit still plays every game offline; `docs/g/` keeps the last four builds'
+files. The budget is the shell's (710 KB gzipped); `LAZY=0` builds one page.
+
+- **A new game file goes into `CHUNKS` in `tools/lazy-split.mjs`** (or
+  `SHELL_FILES` when every screen needs it); a screen it can't place goes into
+  `VIEW_CHUNKS`.
+- Shell code that calls a game's functions goes through a door (`lzRun(chunk,
+  fn)`), and a test that calls a game's code loads its chunk first
+  (`lzEnsure(lzChunksOfView('…'))`).
+- CSS all stays in the shell (later sections restyle earlier ones, so a late
+  stylesheet would change which rule wins); moving it section by section is the
+  next saving. Details, the chunk map and the measurements: `notes/lazy-load.md`.
 
 ### Testing
 
@@ -610,6 +643,15 @@ it - `VOTE_LANG()` is now just `contentLang()` - and never through
 keypad follows the content language too, since it types the word.
 
 ### Traps this codebase has already fallen into
+
+**A chunk runs after DOMContentLoaded.** A game file that paints at start-up
+must paint at once when `document.readyState` isn't 'loading', and a registry a
+shell file reads once (`SOLO_LATE`) has to take late entries. A chunk is
+several scripts joined, so one that throws at load stops the rest of its chunk.
+
+**A `wrangler dev` on a port already in use still prints "Ready".** Tests then
+hit another session's server. Check the port's owner first
+(`Get-NetTCPConnection -LocalPort …`).
 
 **A style a test adds to `<head>` loses to the app's own.** The page's stylesheets are
 in `<body>` (the logo comes first), so a rule injected into the head with the same

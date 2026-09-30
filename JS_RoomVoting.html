@@ -256,19 +256,104 @@ ROOM_GAMES.fibbage = {
       return;
     }
 
-    // Results: mark the real answer, then show who fooled whom.
-    renderRoomFrame(el, ['fibresult', s.dealId, s.round, state.youAreHost].join('|'), () => question + `
-      <div class="card card--accent" style="text-align:center">
-        <div class="eyebrow">${t.fib_truth || 'الإجابة الصحيحة'}</div>
-        <div class="metric metric--md metric--accent">${escapeHTML(s.truth || '')}</div>
-      </div>
-      ${renderVoteResults(state, { highlightId: s.truthId || 'truth' })}
-      ${renderScoreboard(s.board)}
+    // Results: the lies turn over one at a time, least picked first, and the
+    // truth last (fibRevealHtml); a redraw shows them all settled.
+    const rebuilt = renderRoomFrame(el, ['fibresult', s.dealId, s.round, state.youAreHost].join('|'), () => question +
+      fibRevealHtml(state, t) + `
       ${renderRoundFooter(state, t.next_question || 'سؤال جديد')}
       ${renderRoomPlayerStrip(state)}`);
+    if (rebuilt) fibRevealRun(el, state);
     refreshRoomPlayerStrip(el, state);
   }
 };
+
+/* --- فيبج's reveal (ideas batch: rooms) -------------------------------------------
+   The options turn over one at a time: the lies, least picked first, each saying
+   whose lie it was and how many it fooled; then the truth, last, face down under
+   three ticks and turning over like the spy's card; then the board, its points
+   flying in from the cards on a phone. Once per round (stageReveal); a reload or
+   a latecomer sees it settled. Owners are public once the vote has closed
+   (results[].ownerId). */
+const FIB_FOOL_PTS = 500;     // FIBBAGE_FOOL_POINTS in RoomGames.js
+const FIB_TRUTH_PTS = 1000;   // FIBBAGE_TRUTH_POINTS
+const FIB_STEP_MS = 900;
+
+/** The round's options in the order they turn over, each with its moment. */
+function fibRevealPlan(state) {
+  const s = state.shared;
+  const results = ((s.vote || {}).results || []);
+  const truthId = s.truthId || 'truth';
+  const lies = results.filter(r => r.id !== truthId).sort((a, b) => a.count - b.count);
+  const truth = results.find(r => r.id === truthId) || { id: truthId, label: s.truth || '', count: 0, voters: [] };
+  const lieAt = (i) => 300 + i * FIB_STEP_MS;
+  const truthAt = lies.length ? lieAt(lies.length - 1) + 1500 : 1300;
+  return { lies, truth, lieAt, truthAt, boardAt: truthAt + 1000 };
+}
+
+function fibRevealHtml(state, t, o) {
+  const s = state.shared;
+  const opt = o || {};
+  const plan = fibRevealPlan(state);
+  const st = stageReveal(['fib-rev', opt.tv ? 'tv' : 'ph', roomDealKey(state), s.round].join('|'), state);
+  const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+  const voters = (r) => r.voters && r.voters.length ? `<div class="fib-card__voters">${r.voters.map(v => `<bdi>${escapeHTML(v)}</bdi>`).join('، ')}</div>` : '';
+  const lies = plan.lies.map((r, i) => `
+    <div class="fib-card ${r.count ? 'is-fooled' : ''}" data-fib-owner="${escapeHTML(String(r.ownerId || ''))}" data-fib-n="${r.count}"${st.at(plan.lieAt(i), 'pop')}>
+      <div class="fib-card__label">${escapeHTML(r.label)}</div>
+      <div class="fib-card__line">🤥 ${escapeHTML(t.fib_lie_of || '{name}').replace('{name}', `<bdi>${escapeHTML(nameOf(r.ownerId))}</bdi>`)} —
+        ${r.count ? `${escapeHTML(t.fib_fooled || '')} <b class="metric">${st.count(r.count, plan.lieAt(i) + 250)}</b>` : escapeHTML(t.fib_fooled_none || '')}</div>
+      ${voters(r)}
+    </div>`).join('');
+  const truth = plan.truth;
+  const truthCard = `
+    <div class="fib-card fib-card--truth"${st.at(plan.truthAt, 'flip')} data-fib-truth>
+      ${st.on ? stageCoverHtml(t.fib_truth) : ''}
+      <div class="fib-card__eyebrow">✅ ${escapeHTML(t.fib_truth || '')}</div>
+      <div class="fib-card__truth">${escapeHTML(s.truth || truth.label || '')}</div>
+      <div class="fib-card__line">${truth.count ? `${escapeHTML(t.fib_found_by || '')}: ${truth.voters.map(v => `<bdi>${escapeHTML(v)}</bdi>`).join('، ')}` : escapeHTML(t.fib_found_none || '')}</div>
+    </div>`;
+  const board = st.board(renderScoreboard(s.board), plan.boardAt);
+  return `<div class="fib-reveal ${opt.tv ? 'fib-reveal--tv' : ''}"${st.end(900)} data-fib-stage="${st.on ? '1' : ''}">
+      <div class="fib-reveal__cards">${lies}${truthCard}</div>
+      <div class="fib-reveal__board ${opt.tv ? 'tv-scale' : ''}">${board}</div>
+    </div>`;
+}
+
+/** The counts, the board, the drum before the truth, the points flying home and the confetti. */
+function fibRevealRun(root, state) {
+  const box = root && root.querySelector('.fib-reveal');
+  if (!box) return;
+  stageRun(box, state);
+  if (box.dataset.fibStage !== '1') return;
+  const plan = fibRevealPlan(state);
+  [1100, 700, 300].forEach(ms => stageSound(state, 'tick', plan.truthAt - ms));
+  stageSound(state, 'success', plan.truthAt + 300);
+  if (!state.youAreScreen) {
+    // The truth turns over where it can be seen: a phone scrolls to it just before.
+    setTimeout(() => {
+      const card = box.isConnected && box.querySelector('[data-fib-truth]');
+      if (card && card.getBoundingClientRect().bottom > window.innerHeight - 90) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, Math.max(0, plan.truthAt - 900));
+    // Each lie's points fly to its author's row, then the finders' to theirs.
+    setTimeout(() => {
+      if (!box.isConnected) return;
+      const rowOf = (id) => box.querySelector(`.scoreboard [data-pid="${CSS.escape(String(id))}"]`);
+      let k = 0;
+      box.querySelectorAll('.fib-card.is-fooled').forEach(card => {
+        const row = rowOf(card.dataset.fibOwner);
+        const n = Number(card.dataset.fibN) || 0;
+        if (row) setTimeout(() => card.isConnected && flyPoints('+' + n * FIB_FOOL_PTS, card.getBoundingClientRect(), row), 120 + (k++) * 200);
+      });
+      const truthCard = box.querySelector('[data-fib-truth]');
+      (plan.truth.voters || []).forEach(name => {
+        const p = state.players.find(x => x.name === name);
+        const row = p && rowOf(p.id);
+        if (row && truthCard) setTimeout(() => truthCard.isConnected && flyPoints('+' + FIB_TRUTH_PTS, truthCard.getBoundingClientRect(), row), 120 + (k++) * 200);
+      });
+    }, plan.boardAt + 200);
+  }
+  if (typeof confetti === 'function') afterReveal(box.parentElement, () => { if (box.isConnected && !document.hidden) confetti({ particleCount: 110, spread: 80, origin: { y: 0.6 } }); });
+}
 
 /** The host's way past a writer whose phone went quiet. */
 const fibCloseWritingLabel = (t) => t.fib_close_writing || (appState.lang === 'en' ? 'Vote on the answers so far' : 'صوّتوا على اللي اتكتب');

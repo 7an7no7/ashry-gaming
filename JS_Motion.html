@@ -1270,6 +1270,102 @@ function motionRowsSwap(list, mutate) {
   });
 }
 
+/* --- 14. Staged reveals (ideas batch: rooms, 30 Sep 2026) --------------------
+
+   A result told one piece at a time: the lies of فيبج one by one, the roles of
+   مافيا, the wrong answers of the trivia dimming before the right one pops.
+   stageReveal(key, state) is on only the first time `key` is drawn on this device
+   (motionFirst); a redraw, a reload or a latecomer gets every part settled.
+
+     const st = stageReveal(key, state);
+     `<div ${st.at(800, 'pop')}>…</div>`   a part, --rv-at 800ms; '' when settled
+     st.count(to, ms)                       a number that counts up from 0 at ms
+     st.board(renderScoreboard(b), ms)      a board kept still until ms, then it
+                                            fades in and counts up (animateScoreboards)
+     st.end(600)                            data-reveal-ms: the last part + 600ms,
+                                            so afterReveal waits for it
+   and after the markup is in the page, stageRun(root, state) starts the counts
+   and the boards. The kinds (Style.html, IDEAS BATCH: ROOMS): 'in' rises in,
+   'pop' springs in, 'undim' holds a dimmed thing at full strength until its
+   moment, 'win' bumps (and draws its ring then), 'flip' is a card that turns
+   over with its `.rv-cover` (stageCoverHtml) on it until then. Every part's
+   resting state is the settled one, so an animation that never runs leaves
+   the result showing.
+   --------------------------------------------------------------------------- */
+// When this page first saw each deal: a reveal drawn within a moment of that
+// (a reload, a latecomer, a TV switched on) is shown settled, never replayed.
+const stageDealSeen = new Map();
+Room.onChange((state) => {
+  if (!state || !state.game || typeof roomDealKey !== 'function') return;
+  const k = roomDealKey(state);
+  if (!stageDealSeen.has(k)) { if (stageDealSeen.size > 60) stageDealSeen.clear(); stageDealSeen.set(k, Date.now()); }
+});
+const STAGE_FRESH_MS = 1500;
+
+function stageReveal(key, state) {
+  let on = !!key && motionFirst(key);
+  if (on && state && typeof roomDealKey === 'function') {
+    const seen = stageDealSeen.get(roomDealKey(state));
+    if (seen === undefined || Date.now() - seen < STAGE_FRESH_MS) on = false;
+  }
+  let last = 0;
+  const mark = (ms) => { last = Math.max(last, ms); return Math.round(ms); };
+  return {
+    on,
+    at(ms, kind) { return on ? ` data-rv="${kind || 'in'}" style="--rv-at:${mark(ms)}ms"` : ''; },
+    count(to, ms, from) {
+      const n = Number(to) || 0;
+      return on ? `<span data-rv-count="${n}" data-rv-from="${Number(from) || 0}" data-rv-ms="${mark(ms)}">${Number(from) || 0}</span>` : String(n);
+    },
+    board(html, ms) {
+      if (!on || !html) return html || '';
+      return html.replace('class="section scoreboard"', `class="section scoreboard" data-seen="1" data-rv-board="${mark(ms)}" data-rv="in" style="--rv-at:${Math.round(ms)}ms"`);
+    },
+    end(extra) { return on ? ` data-reveal-ms="${Math.round(last + (extra === undefined ? 600 : extra))}"` : ''; },
+    last: () => last
+  };
+}
+
+/** The face-down cover a 'flip' part carries until its moment. */
+function stageCoverHtml(label) {
+  return `<span class="rv-cover" aria-hidden="true"><b>?</b>${label ? `<small>${escapeHTML(label)}</small>` : ''}</span>`;
+}
+
+/** Starts what the markup can't do alone: the counts, the boards, and the covers' removal. */
+function stageRun(root, state) {
+  if (!root) return;
+  root.querySelectorAll('[data-rv-count]:not([data-rv-armed])').forEach((el) => {
+    el.dataset.rvArmed = '1';
+    const to = Number(el.dataset.rvCount) || 0;
+    const from = Number(el.dataset.rvFrom) || 0;
+    const ms = Number(el.dataset.rvMs) || 0;
+    setTimeout(() => { if (el.isConnected) countUp(el, from, to); }, Math.max(0, ms - 180));
+    setTimeout(() => { if (el.isConnected) el.textContent = to; }, ms + 2200);   // a tab that stops drawing still ends right
+  });
+  root.querySelectorAll('[data-rv-board]:not([data-rv-armed])').forEach((el) => {
+    el.dataset.rvArmed = '1';
+    setTimeout(() => {
+      if (!el.isConnected) return;
+      delete el.dataset.seen;
+      if (state) animateScoreboards(state);
+    }, Number(el.dataset.rvBoard) || 0);
+  });
+  root.querySelectorAll('[data-rv="flip"]:not([data-rv-armed])').forEach((el) => {
+    el.dataset.rvArmed = '1';
+    const at = parseFloat((el.style.getPropertyValue('--rv-at') || '0')) || 0;
+    setTimeout(() => { const c = el.querySelector(':scope > .rv-cover'); if (c) c.remove(); }, at + 900);
+  });
+}
+
+/** A sound at a part's moment: the TV plays its own, a phone only when there is no TV. */
+function stageSound(state, name, ms) {
+  setTimeout(() => {
+    if (document.hidden) return;
+    if (state && state.youAreScreen) playSound(name);
+    else if (typeof playRoomFx === 'function') playRoomFx(name);
+  }, Math.max(0, ms || 0));
+}
+
 // After the room has drawn itself for this state.
 Room.onChange((state) => { if (state) setTimeout(() => animateScoreboards(state), 0); });
 window.addEventListener('resize', () => requestAnimationFrame(syncNavPill));

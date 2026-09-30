@@ -189,6 +189,37 @@ function witCompareHtml(state, o) {
     </div>`;
 }
 
+/* --- the sketch, feature by feature (ideas batch: rooms) --------------------------------
+   At the reveal the sketch is held against the real face one feature at a time, the
+   builder's own categories (WIT_CATS, only those the real face has): «الشعر ✓
+   النضارة ✗ …», ending «الرسام جاب 7/10». Worked out here on the page from the two
+   faces the reveal publishes; nothing new from the server. */
+function witFeatureMatches(sketch, real) {
+  if (!sketch || !real) return [];
+  return witCatsFor(real).map(c => {
+    const opts = c.opts(real);
+    const ok = c.multi
+      ? opts.every(o => !!c.on(sketch, o[0]) === !!c.on(real, o[0]))
+      : String(c.get(sketch)) === String(c.get(real));
+    return { k: c.k, ok };
+  });
+}
+
+function witTallyHtml(state, startAt, o) {
+  const s = state.shared || {};
+  const real = (s.lineup || [])[s.realIdx];
+  const rows = witFeatureMatches(s.sketch, real);
+  if (!rows.length) return '';
+  const st = stageReveal(['wit-tally', (o && o.tv) ? 'tv' : 'ph', witRoundKey(state)].join('|'), state);
+  const step = Math.min(220, Math.round(2200 / rows.length));
+  const n = rows.filter(r => r.ok).length;
+  const chips = rows.map((r, i) => `<span class="wit-tick ${r.ok ? 'is-ok' : 'is-off'}"${st.at(startAt + i * step, 'pop')}>${escapeHTML(witT(r.k === 'g' ? 'wit_feat_g' : 'wit_cat_' + r.k))} <b aria-hidden="true">${r.ok ? '✓' : '✗'}</b></span>`).join('');
+  return `<div class="wit-tally ${(o && o.tv) ? 'wit-tally--tv' : ''}">
+      <div class="wit-tally__chips">${chips}</div>
+      <div class="wit-tally__sum"${st.at(startAt + rows.length * step + 250, 'pop')}>${escapeHTML(witT('wit_artist_got', { n: ltrFrac(n, rows.length) }))}</div>
+    </div>`;
+}
+
 /** The round's verdict: how many knew him, and the points. */
 function witVerdictHtml(state) {
   const s = state.shared || {};
@@ -452,6 +483,7 @@ function witPhoneBody(state) {
     return `<div class="wit-reveal" data-reveal-ms="${rise ? stampAt + 900 : 0}">
         ${witLineupHtml(state, { reveal: true, rise, stampAt, mine: witMine(state) })}
         ${witCompareHtml(state, { turn: rise, turnAt: stampAt })}
+        ${witTallyHtml(state, stampAt + 900)}
         ${witVerdictHtml(state)}
         ${witGainedHtml(state)}
       </div>
@@ -524,6 +556,7 @@ function witAfter(state, el) {
     }
   }
   if (s.phase === 'reveal' || s.phase === 'gameover') animateScoreboards(state);
+  if (s.phase === 'reveal') stageRun(el, state);
   // The sounds, on the room's one voice.
   const voice = witVoice(state);
   if (s.phase === 'look' && witOnce('look|' + key)) { if (voice || witRole(state) === 'witness') witSound('shutter'); if (witRole(state) === 'witness') haptic('medium'); }
@@ -672,7 +705,7 @@ TV_GAMES.witness = {
           </div>
           <div class="wit-tv__side">
             ${witCompareHtml(state, { turn: reveal && rise, turnAt: stampAt })}
-            ${reveal ? witVerdictHtml(state) + witGainedHtml(state) : `${s.voteEndsAt ? `<div class="wit-pill wit-pill--clock metric" data-wit-clock="${s.voteEndsAt}">…</div>` : ''}${tvWaitChips(state, v.eligible || [], v.voted || [])}`}
+            ${reveal ? witTallyHtml(state, stampAt + 900, { tv: true }) + witVerdictHtml(state) + witGainedHtml(state) : `${s.voteEndsAt ? `<div class="wit-pill wit-pill--clock metric" data-wit-clock="${s.voteEndsAt}">…</div>` : ''}${tvWaitChips(state, v.eligible || [], v.voted || [])}`}
             ${host}
           </div>
         </div>`;

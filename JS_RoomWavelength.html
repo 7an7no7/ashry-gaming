@@ -41,7 +41,7 @@ ROOM_GAMES.wavelength = {
     // The dial is left out on purpose: it moves constantly, and rebuilding for
     // it would yank the slider out from under whoever is dragging it.
     const sig = ['wl', s.round, s.phase, state.youAreHost, psychicAway, appState.lang].join('|');
-    renderRoomFrame(el, sig, () => wavelengthFrame(state, t, psychicAway));
+    if (renderRoomFrame(el, sig, () => wavelengthFrame(state, t, psychicAway)) && s.phase === 'results') wlRevealRun(el, state);
     paintWavelengthDial(s.dial);
     refreshRoomPlayerStrip(el, state);
   }
@@ -65,6 +65,9 @@ function wavelengthFrame(state, t, psychicAway) {
     return `<div class="wl-zone wl-zone--${b.points}" style="left:${from}%; width:${to - from}%"></div>`;
   };
 
+  // The reveal (ideas batch: rooms): a curtain wipes off the bands while the needle pulses, then the points count up.
+  const wr = s.phase === 'results' ? wlReveal(state, false) : null;
+
   const header = `
     <div class="cn-score">
       <span class="cn-score__role">🧠 ${amPsychic
@@ -85,7 +88,8 @@ function wavelengthFrame(state, t, psychicAway) {
         </div>
         <div class="wl-bar">
           ${target !== null ? WL_BANDS.map(band).join('') + `<div class="wl-target" style="left:${target}%"></div>` : ''}
-          <div class="wl-needle" id="wl-needle" style="left:${s.dial}%"></div>
+          ${wr ? wr.shutter : ''}
+          <div class="wl-needle ${wr && wr.st.on ? 'wl-needle--pulse' : ''}" id="wl-needle" style="left:${s.dial}%"></div>
         </div>
         ${canTurn ? `
           <input type="range" id="wl-dial" class="wl-dial" min="0" max="100" step="1" value="${s.dial}"
@@ -130,8 +134,9 @@ function wavelengthFrame(state, t, psychicAway) {
   } else if (s.phase === 'results') {
     const verdict = { 4: t.bullseye, 3: t.very_close, 2: t.close_points }[s.pointsEarned] || t.miss_points;
     panel = `
-      <div class="card ${s.pointsEarned ? 'plate-success' : 'plate-danger'}" style="text-align:center">
+      <div class="card ${s.pointsEarned ? 'plate-success' : 'plate-danger'}" style="text-align:center"${wr.st.at(wr.verdictAt, 'pop')}>
         <div class="card__title" style="margin:0">${verdict || ''}</div>
+        ${wr.pointsHtml}
         <p style="margin: var(--sp-1) 0 0">${t.wl_dial || ''} ${s.dial} · ${t.wl_target || ''} ${s.target}</p>
       </div>
       ${renderRoundFooter(state, t.next_round || '')}`;
@@ -200,5 +205,34 @@ async function lockWavelengthDial() {
     try { await Room.act('setDial', { dial: v }); } catch (e) {}
   }
   roomAct('lockDial');
+}
+
+/* --- the reveal (ideas batch: rooms) ------------------------------------------------
+   A curtain the colour of the bar lies over the target bands, the needle pulses
+   under it, then the curtain wipes away (transform only) and the round's points
+   count up. Once per round on each device (stageReveal); settled on a redraw. */
+const WL_WIPE_AT = 900;
+
+function wlReveal(state, tv) {
+  const s = state.shared;
+  const st = stageReveal(['wl-rev', tv ? 'tv' : 'ph', roomDealKey(state), s.round].join('|'), state);
+  const verdictAt = WL_WIPE_AT + 900;
+  const pts = Number(s.pointsEarned) || 0;
+  return {
+    st,
+    verdictAt,
+    shutter: st.on ? `<div class="wl-shutter" style="--rv-at:${WL_WIPE_AT}ms" aria-hidden="true"></div>` : '',
+    pointsHtml: `<div class="wl-points metric" dir="ltr">+${st.count(pts, verdictAt + 250)}</div>`
+  };
+}
+
+function wlRevealRun(root, state) {
+  const box = root && root.querySelector('.wl-bar');
+  stageRun(root, state);
+  if (!box || !box.querySelector('.wl-shutter')) return;
+  stageSound(state, 'tick', 200);
+  stageSound(state, 'tick', 550);
+  if ((Number(state.shared.pointsEarned) || 0) > 0) stageSound(state, 'success', WL_WIPE_AT + 800);
+  setTimeout(() => { const sh = box.querySelector('.wl-shutter'); if (sh) sh.remove(); }, WL_WIPE_AT + 1200);
 }
 </script>

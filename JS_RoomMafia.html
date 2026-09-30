@@ -471,18 +471,19 @@ ROOM_GAMES.mafia = {
       // gameover
       const mine = (s.roles || []).find(r => r.id === Room.me);
       const iWon = mine && ((s.winner === 'mafia') === (mine.role === 'mafia' || mine.role === 'lawyer'));
+      const endRev = mafiaEndReveal(state, t, false);
       return `
         ${s.news ? mafiaNewsHtml(state, t) : ''}
-        <div class="card ${s.winner === 'town' ? 'card--accent' : 'mafia-won'}" style="text-align:center">
+        <div class="card mafia-end-card ${s.winner === 'town' ? 'card--accent' : 'mafia-won'}"${endRev.st.at(endRev.winAt, 'pop')}>
           <div class="metric metric--lg">${s.winner === 'town' ? '🏙️' : '🕴️'}</div>
           <div class="card__title">${escapeHTML(s.winner === 'town' ? (t.mafia_town_wins || '') : (t.mafia_mafia_wins || ''))}</div>
           ${mine ? `<p class="sheet__subtitle">${escapeHTML(iWon ? (t.mafia_you_won || '') : (t.mafia_you_lost || ''))}</p>` : ''}
         </div>
-        <div class="card card--tight">
+        <div class="card card--tight"${endRev.st.end(400)}>
           <div class="eyebrow">${escapeHTML(t.mafia_everyone_was || '')}</div>
-          ${(s.roles || []).map(r => `<div class="mafia-final ${r.alive ? '' : 'is-out'}"><span>${MAFIA_ICONS[r.role]}</span><b>${escapeHTML(r.name)}</b><span>${escapeHTML(t['mafia_role_' + r.role] || '')}</span></div>`).join('')}
+          ${endRev.rows}
         </div>
-        ${renderScoreboard(s.board)}
+        ${endRev.st.board(renderScoreboard(s.board), endRev.winAt + 500)}
         ${state.youAreHost ? `<div class="btn-stack">
             <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.mafia.startPayload())">${escapeHTML(t.play_again || '')}</button>
             <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
@@ -494,6 +495,7 @@ ROOM_GAMES.mafia = {
     mafiaNarrate(state, t, el);
     refreshRoomPlayerStrip(el, state);
     refreshMafiaSecret(el, state, t);
+    if (s.phase === 'gameover' && rebuilt) mafiaEndRun(el, state);
     const acted = el.querySelector('[data-mafia-acted]');
     if (acted) acted.textContent = `${(s.acted || []).length}/${(s.alive || []).length}`;
     if ((s.phase === 'night' || s.phase === 'day') && s.endsAt) mafiaTickClock(s); else mafiaStopClock();
@@ -502,6 +504,46 @@ ROOM_GAMES.mafia = {
     }
   }
 };
+
+/* --- the end: every role turns over (ideas batch: rooms) ------------------------------
+   The citizens first, then the Doctor, the Detective and the Lawyer, and the Mafia
+   last after a drum roll; the winner's card comes once the last one is up, and the
+   narrator's line waits for it all (afterReveal reads the data-reveal-ms). */
+const MAFIA_END_ORDER = { citizen: 0, doctor: 1, detective: 2, lawyer: 3, mafia: 4 };
+
+function mafiaEndReveal(state, t, tv) {
+  const s = state.shared;
+  const st = stageReveal(['mafia-end', tv ? 'tv' : 'ph', roomDealKey(state), JSON.stringify(s.scores || {})].join('|'), state);
+  // The cards stay in the table's order (a pile sorted by role would tell before it turns);
+  // only their moments follow the roles.
+  const roles = s.roles || [];
+  const when = new Map();
+  let at = 300;
+  let prev = null;
+  roles.slice().sort((a, b) => (MAFIA_END_ORDER[a.role] || 0) - (MAFIA_END_ORDER[b.role] || 0)).forEach(r => {
+    if (prev !== null && r.role !== prev) at += r.role === 'mafia' ? 1000 : 300;
+    prev = r.role;
+    when.set(r, at);
+    at += r.role === 'citizen' ? 300 : r.role === 'mafia' ? 700 : 550;
+  });
+  const rows = roles.map(r => {
+    const here = when.get(r);
+    return `<div class="mafia-final ${r.alive ? '' : 'is-out'} ${r.role === 'mafia' ? 'is-mafia' : ''}"${st.at(here, 'flip')}>
+        ${st.on ? stageCoverHtml('') : ''}
+        <span aria-hidden="true">${MAFIA_ICONS[r.role]}</span><b>${escapeHTML(r.name)}</b><span>${escapeHTML(t['mafia_role_' + r.role] || '')}</span></div>`;
+  }).join('');
+  return { st, rows, winAt: st.on ? at + 300 : 0 };
+}
+
+/** The counts and the board, and the drum roll closing in before the first Mafia card. */
+function mafiaEndRun(root, state) {
+  stageRun(root, state);
+  const mafia = root ? [...root.querySelectorAll('.mafia-final.is-mafia[data-rv]')] : [];
+  if (!mafia.length) return;
+  const at = Math.min(...mafia.map(el => parseFloat(el.style.getPropertyValue('--rv-at')) || 0));
+  [1000, 760, 540, 340, 170].forEach(ms => stageSound(state, 'tick', at - ms));
+  stageSound(state, 'alarm', at + 250);
+}
 
 /** A sound once per moment on this phone: nightfall, the morning's news. */
 function mafiaSounds(state) {
@@ -535,7 +577,8 @@ TV_GAMES.mafia = {
     if (s.phase === 'night') {
       return `<div class="tv-center mafia-tv-night"><div class="tv-big-icon" aria-hidden="true">🌙</div>
         <div class="tv-title">${escapeHTML(t.mafia_city_sleeps || '')}</div>${clock}
-        <div class="tv-note">${escapeHTML(t.mafia_night_everyone || '')} · ${(s.acted || []).length}/${(s.alive || []).length}</div>
+        <div class="tv-note">${escapeHTML(t.mafia_night_everyone || '')}</div>
+        ${tvWaitChips(state, s.alive || [], s.acted || [])}
         ${moveOn(tvBtn(t.mafia_end_night, "roomAct('endNight')", 'ghost'))}</div>`;
     }
     if (s.phase === 'day') {
@@ -549,18 +592,26 @@ TV_GAMES.mafia = {
     if (s.phase === 'dayResult') {
       // One screen, no scrolling: the count per name as chips, not the phone's bars.
       const results = ((mafiaVoteState(state).shared.vote || {}).results || []).filter(r => r.count > 0).sort((a, b) => b.count - a.count);
-      return `<div class="tv-vote"><div class="tv-scale">${mafiaNewsHtml(state, t)}</div>
-        <div class="tv-legend">${results.map((r, k) => `<span class="tv-chip${k === 0 ? ' is-done' : ''}"><b class="metric">${r.count}</b> ${escapeHTML(r.label)}</span>`).join('')}</div>${people}
+      const news = mafiaNewsHtml(state, t);
+      // The voted-out player's role turns over on its card first; the counts come after it (ideas batch: rooms).
+      const st = stageReveal(['mafia-tv-dr', roomDealKey(state), s.day].join('|'), state);
+      const after = news.indexOf('spy-reveal__cover') !== -1 ? SPY_REVEAL_MS + 200 : 300;
+      return `<div class="tv-vote"><div class="tv-scale">${news}</div>
+        <div class="tv-legend">${results.map((r, k) => `<span class="tv-chip${k === 0 ? ' is-done' : ''}"${st.at(after + k * 220, 'pop')}><b class="metric">${r.count}</b> ${escapeHTML(r.label)}</span>`).join('')}</div>${people}
         ${moveOn(tvBtn('🌙 ' + (t.mafia_next_night || ''), "roomAct('startNight')"))}</div>`;
     }
-    return `<div class="tv-vote">
-      <div class="tv-title tv-center-text">${s.winner === 'town' ? '🏙️ ' + escapeHTML(t.mafia_town_wins || '') : '🕴️ ' + escapeHTML(t.mafia_mafia_wins || '')}</div>
-      <div class="tv-strip-inline">${(s.roles || []).map(r => `<span class="tv-chip ${r.alive ? '' : 'is-away'}">${MAFIA_ICONS[r.role]} ${escapeHTML(r.name)}</span>`).join('')}</div>
-      <div class="tv-scale">${renderScoreboard(s.board)}</div>
+    const endRev = mafiaEndReveal(state, t, true);
+    return `<div class="tv-vote"${endRev.st.end(400)}>
+      <div class="tv-title tv-center-text"${endRev.st.at(endRev.winAt, 'pop')}>${s.winner === 'town' ? '🏙️ ' + escapeHTML(t.mafia_town_wins || '') : '🕴️ ' + escapeHTML(t.mafia_mafia_wins || '')}</div>
+      <div class="mafia-final-grid">${endRev.rows}</div>
+      <div class="tv-scale">${endRev.st.board(renderScoreboard(s.board), endRev.winAt + 500)}</div>
       ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.mafia.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}</div>`;
   },
-  after(state) {
+  after(state, rebuilt) {
     const s = state.shared;
+    const view = document.getElementById('view-room-tv');
+    if (rebuilt && s.phase === 'gameover') mafiaEndRun(view, state);
+    if (rebuilt && s.phase === 'dayResult') stageRun(view, state);
     if ((s.phase === 'night' || s.phase === 'day') && s.endsAt) mafiaTickClock(s); else mafiaStopClock();
     // The big screen is the table's own voice, so it is the one that reads.
     mafiaNarrate(state, TRANSLATIONS[appState.lang], document.getElementById('view-room-tv'));

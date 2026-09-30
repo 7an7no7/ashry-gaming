@@ -22684,4 +22684,165 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
 @keyframes tv-side-in { from { opacity: 0; transform: translateY(1.5rem) scale(0.98); } }
 @keyframes tv-join-step { from { transform: scale(1.18); } }
 
+
+/* ===== IDEAS BATCH: ROOMS ===== */
+/* Staged reveals (stageReveal in JS_Motion.html, section 14): each part waits
+   for its --rv-at, and its resting state is the settled one. */
+[data-rv] {
+  animation-duration: 460ms;
+  animation-timing-function: var(--ease-out);
+  animation-delay: var(--rv-at, 0ms);
+  animation-fill-mode: backwards;
+}
+[data-rv="in"]    { animation-name: rv-in; }
+[data-rv="pop"]   { animation-name: rv-pop; animation-duration: 640ms; animation-timing-function: cubic-bezier(0.2, 1.3, 0.35, 1); }
+[data-rv="undim"] { animation-name: rv-undim; animation-duration: 520ms; }
+[data-rv="win"]   { animation-name: rv-win; animation-duration: 700ms; animation-timing-function: cubic-bezier(0.2, 1.3, 0.35, 1); }
+[data-rv="flip"]  { position: relative; animation-name: rv-turn; animation-duration: 560ms; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); animation-fill-mode: both; }
+@keyframes rv-in    { from { opacity: 0; transform: translateY(0.6rem); } }
+@keyframes rv-pop   { 0% { opacity: 0; transform: scale(0.82); } 60% { opacity: 1; transform: scale(1.05); } }
+@keyframes rv-undim { from { opacity: 1; transform: none; } }
+@keyframes rv-win   { 0% { transform: none; } 45% { transform: scale(1.07); } }
+@keyframes rv-fade  { from { opacity: 0; } }
+@keyframes rv-turn  { 0% { transform: perspective(60rem) rotateX(0); } 50% { transform: perspective(60rem) rotateX(90deg); } 100% { transform: perspective(60rem) rotateX(0); } }
+
+/* A 'flip' part's face: shown until the card is edge-on (--rv-at + 280ms). */
+.rv-cover {
+  position: absolute;
+  inset: -1px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent-on) 12%, transparent) 0 0.5rem, transparent 0.5rem 1rem),
+    var(--accent);
+  color: var(--accent-on);
+  font-weight: 900;
+  visibility: hidden;
+  pointer-events: none;
+  animation: spy-cover calc(var(--rv-at, 0ms) + 280ms) linear both;
+}
+.rv-cover b { font-size: 1.4em; line-height: 1; }
+.rv-cover small { font-size: var(--fs-sm); }
+
+
+/* فيبج: the lies one by one, the truth last (fibRevealHtml). */
+.fib-reveal { display: flex; flex-direction: column; gap: var(--sp-4); margin-block: var(--sp-3); }
+.fib-reveal__cards { display: flex; flex-direction: column; gap: var(--sp-2); }
+.fib-card {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+}
+.fib-card__label { font-weight: 800; font-size: 1.125rem; color: var(--text-strong); overflow-wrap: anywhere; }
+.fib-card__line { margin-top: var(--sp-1); font-size: var(--fs-sm); color: var(--text-2); }
+.fib-card.is-fooled .fib-card__line b { color: var(--danger); }
+.fib-card__voters { margin-top: var(--sp-1); font-size: var(--fs-xs); color: var(--text-3); }
+.fib-card--truth { text-align: center; border-color: var(--success); background: var(--success-soft); box-shadow: 0 0 0 1px var(--success), var(--sh-2); }
+.fib-card__eyebrow { font-size: var(--fs-sm); font-weight: 800; color: var(--success-ink); }
+.fib-card__truth { margin-block: var(--sp-1); font-family: var(--font-display); font-size: 1.6rem; font-weight: 900; color: var(--text-strong); overflow-wrap: anywhere; }
+body.dark .fib-card__eyebrow { color: var(--success); }
+.fib-reveal--tv { width: min(96%, 1700px); align-self: center; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: start; gap: var(--tv-gap); margin: 0; }
+.fib-reveal--tv .fib-reveal__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tv-gap); }
+.fib-reveal--tv .fib-card { padding: 1.4vmin 2vmin; border-radius: var(--tv-r); }
+.fib-reveal--tv .fib-card__label { font-size: var(--tv-md); }
+.fib-reveal--tv .fib-card__line { font-size: var(--tv-sm); }
+.fib-reveal--tv .fib-card__voters { font-size: calc(var(--tv-sm) * 0.85); }
+.fib-reveal--tv .fib-card--truth { grid-column: 1 / -1; }
+.fib-reveal--tv .fib-card__eyebrow { font-size: var(--tv-sm); }
+.fib-reveal--tv .fib-card__truth { font-size: clamp(1.6rem, 5vmin, 4.2rem); }
+.fib-reveal--tv .fib-reveal__board { width: 100%; }
+.fib-reveal--tv .rv-cover { font-size: var(--tv-md); }
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) {
+  .fib-reveal:not(.fib-reveal--tv) .fib-reveal__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fib-reveal:not(.fib-reveal--tv) .fib-card--truth { grid-column: 1 / -1; }
+}
+
+/* موجة: a curtain the colour of the bar lies over the bands, then slides away. */
+.wl-shutter {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: inherit;
+  transform: translateX(101%);
+  animation: wl-wipe 820ms cubic-bezier(0.65, 0, 0.35, 1) var(--rv-at, 900ms) backwards;
+  pointer-events: none;
+}
+.wl-shutter::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 0.35rem;
+  background: color-mix(in srgb, var(--text-strong) 35%, transparent);
+}
+@keyframes wl-wipe { from { transform: none; } }
+.wl-needle { z-index: 2; }
+.wl-needle--pulse { animation: wl-pulse 360ms ease-in-out 5 alternate both; }
+@keyframes wl-pulse { from { transform: scaleY(1); opacity: 1; } to { transform: scaleY(1.12); opacity: 0.55; } }
+.wl-points { margin-top: var(--sp-1); font-family: var(--font-display); font-size: 2rem; font-weight: 900; line-height: 1.1; }
+.tv-wl .wl-points { font-size: clamp(2rem, 7vmin, 6rem); }
+
+/* مافيا: the end, role by role. */
+.mafia-end-card { text-align: center; }
+.mafia-final.is-mafia > b { color: var(--danger); }
+.mafia-final .rv-cover b { color: var(--accent-on); text-decoration: none; }
+.mafia-final[data-rv] .rv-cover { border-radius: var(--r-sm); }
+.mafia-final-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); gap: calc(var(--tv-gap) / 2) var(--tv-gap); width: min(94%, 1600px); align-self: center; }
+.mafia-final-grid .mafia-final { grid-template-columns: 1.6em minmax(0, 1fr) auto; padding: 0.35em 0.7em; border: 1px solid var(--border); border-radius: var(--tv-r); background: var(--surface-solid); font-size: var(--tv-sm); }
+.mafia-final-grid .mafia-final:last-child { border-bottom: 1px solid var(--border); }
+.mafia-final-grid .mafia-final.is-mafia { border-color: var(--danger); }
+
+/* تحدي المعلومات: the right answer's ring comes with it, not before (the TV). */
+.tv-choice.is-correct[data-rv="win"] { box-shadow: none; }
+.tv-choice.is-correct[data-rv="win"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0.6vmin var(--bg), 0 0 0 1.2vmin var(--success);
+  pointer-events: none;
+  animation: rv-fade 300ms var(--ease-out) var(--rv-at, 0ms) backwards;
+}
+.tv-trivia-res { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: var(--tv-gap); width: min(96%, 1700px); }
+.tv-trivia-res .tv-fastest { justify-content: flex-start; }
+.tv-trivia-board { width: 100%; }
+body.is-tv-view .tv-trivia-board .scoreboard { margin: 0; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); }
+body.is-tv-view .tv-trivia-board .status-row { padding-block: 0.3rem; min-height: 0; }
+
+/* الجرس: how far behind the first press. */
+.bz-gap { font-size: var(--fs-xs); color: var(--text-2); background: var(--surface-2); font-variant-numeric: tabular-nums; }
+.tv-chip .bz-gap { font-size: 0.8em; }
+.bz-finish { position: relative; width: min(90%, 1100px); height: clamp(5rem, 16vmin, 12rem); margin-top: var(--tv-gap); }
+.bz-finish__track { position: absolute; inset-inline: 0; top: 50%; height: 0.35vmin; min-height: 2px; background: var(--border); }
+.bz-finish__line { position: absolute; top: 8%; bottom: 8%; left: 4%; width: 0.6vmin; min-width: 3px; background: repeating-linear-gradient(0deg, var(--text-strong) 0 0.8vmin, transparent 0.8vmin 1.6vmin); opacity: 0.6; }
+.bz-finish__mark { position: absolute; top: 50%; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); }
+.bz-finish__dot { width: 2vmin; height: 2vmin; min-width: 10px; min-height: 10px; border-radius: 50%; background: var(--text-3); box-shadow: 0 0 0 0.4vmin var(--bg); }
+.bz-finish__mark.is-first .bz-finish__dot { background: var(--accent); width: 3vmin; height: 3vmin; }
+.bz-finish__tag { position: absolute; white-space: nowrap; font-size: var(--tv-sm); font-weight: 800; color: var(--text-strong); }
+.bz-finish__tag small { font-weight: 700; color: var(--text-2); }
+.bz-finish__mark--high .bz-finish__tag { bottom: calc(100% + 0.6vmin); }
+.bz-finish__mark--low .bz-finish__tag { top: calc(100% + 0.6vmin); }
+.bz-finish__mark.is-first .bz-finish__tag { color: var(--accent-ink); }
+
+/* الشاهد: the sketch against the real face, feature by feature. */
+.wit-tally { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin-block: var(--sp-2); }
+.wit-tally__chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35rem; }
+.wit-tick { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.2rem 0.55rem; border-radius: var(--r-full); font-size: var(--fs-xs); font-weight: 800; border: 1px solid var(--border); background: var(--surface-solid); color: var(--text-2); }
+.wit-tick.is-ok { border-color: var(--success); color: var(--success-ink); background: var(--success-soft); }
+.wit-tick.is-off { color: var(--danger); }
+body.dark .wit-tick.is-ok { color: var(--success); }
+.wit-tally__sum { font-family: var(--font-display); font-weight: 900; font-size: 1.125rem; color: var(--text-strong); }
+.wit-tally--tv .wit-tick { font-size: calc(var(--tv-sm) * 0.8); }
+.wit-tally--tv .wit-tally__sum { font-size: var(--tv-md); }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-rv], .rv-cover, .wl-shutter, .wl-needle--pulse { animation: none; }
+}
+
 </style>

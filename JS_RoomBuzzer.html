@@ -100,7 +100,7 @@ ROOM_GAMES.buzzer = {
           ${buzzes.length ? buzzes.slice(0, 6).map((b, i) => `
             <div class="status-row ${i === 0 ? 'status-row--turn' : ''}">
               <div class="status-row__body"><div class="status-row__name">${['🥇', '🥈', '🥉'][i] || (i + 1) + '.'} ${escapeHTML(b.name)}</div></div>
-              ${i === 0 ? `<span class="badge badge--accent">${escapeHTML(t.bz_answering || '')}</span>` : ''}
+              ${i === 0 ? `<span class="badge badge--accent">${escapeHTML(t.bz_answering || '')}</span>` : bzGapHtml(buzzes, i)}
             </div>`).join('')
           : `<div class="waiting-note">${escapeHTML(armed ? (t.bz_nobody || '') : (t.bz_locked_hint || ''))}</div>`}
         </div>`;
@@ -127,6 +127,43 @@ ROOM_GAMES.buzzer = {
     refreshRoomPlayerStrip(el, state);
   }
 };
+
+/* --- how close it was (ideas batch: rooms) -------------------------------------------
+   The server stamps every press with its own clock as it arrives (buzzes[].at,
+   RoomGames.js), so the gap behind the first press is a fact, not a guess:
+   «+0.18ث» beside each press after the first, and on the TV a photo-finish strip. */
+function bzGapMs(buzzes, i) {
+  const a = buzzes[0] && Number(buzzes[0].at), b = buzzes[i] && Number(buzzes[i].at);
+  return a && b ? Math.max(0, b - a) : null;
+}
+
+/** «+0.18 ث»: the number held left to right, the unit after it in the line's own direction. */
+function bzGapText(ms) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const unit = t.bz_secs_short || 's';
+  return `<bdi dir="ltr">+${(ms / 1000).toFixed(2)}</bdi>${appState.lang === 'ar' ? '&nbsp;' : ''}${escapeHTML(unit)}`;
+}
+
+function bzGapHtml(buzzes, i) {
+  const ms = bzGapMs(buzzes, i);
+  return ms === null ? '' : `<span class="badge bz-gap">${bzGapText(ms)}</span>`;
+}
+
+/** The TV's photo finish: the first press at the line, the rest behind it by their gap. */
+function bzFinishHtml(buzzes) {
+  if (!buzzes.length || !buzzes[0].at) return '';
+  const shown = buzzes.slice(0, 6);
+  const span = Math.max(400, ...shown.map((b, i) => bzGapMs(buzzes, i) || 0));
+  const marks = shown.map((b, i) => {
+    const ms = bzGapMs(buzzes, i) || 0;
+    const x = 4 + (ms / span) * 88;
+    return `<div class="bz-finish__mark ${i === 0 ? 'is-first' : ''} bz-finish__mark--${i % 2 ? 'low' : 'high'}" style="left:${x.toFixed(1)}%">
+        <span class="bz-finish__dot"></span>
+        <span class="bz-finish__tag" dir="${appState.lang === 'ar' ? 'rtl' : 'ltr'}"><bdi>${escapeHTML(b.name)}</bdi>${i ? ` <small>${bzGapText(ms)}</small>` : ''}</span>
+      </div>`;
+  }).join('');
+  return `<div class="bz-finish" dir="ltr" aria-hidden="true"><div class="bz-finish__line"></div><div class="bz-finish__track"></div>${marks}</div>`;
+}
 
 /** The press has to feel instant: the button locks before the server answers. */
 function pressBuzzer(btn, round) {

@@ -38,6 +38,15 @@
    leaves the host today's award buttons. The stage, its length (`secs`) and
    its deadline are in `open`, so a reload comes back in the same stage with
    the time it really had left. Off, a card plays exactly as it always did.
+
+   The double card (the owner, 30 Sep 2026; a setup switch «كارت دبل», on by
+   default, kept in ashryTriviaTeams): every board hides one card worth twice
+   its points (`cell.dbl`), dealt at random among the 200-500 cards when the
+   board is made, never a 100. Nothing shows it until it is opened: then a
+   slam «🎯 كارت دبل!» (once per opening: `open.dblSeen`, so a reload shows it
+   settled) and the card's clock starts after it. Its points are doubled
+   wherever they are counted (tbCellPoints): the award, the steal, `last` for
+   the undo. A cleared double card keeps a small ×2 on the board.
    ========================================================================= */
 
 const TB_LEVELS = [100, 200, 300, 400, 500];
@@ -46,6 +55,8 @@ const TB_ADJUST_STEP = 100;
 const TB_TEAMS_KEY = 'ashryTriviaTeams';
 const TB_TIMER_CHOICES = [15, 20, 30, 45, 60];
 const TB_TIMER_DEFAULT = 30;
+/** The double card's slam, before its question's clock starts. */
+const TB_DBL_MS = 1200;
 
 /** The open card's clock (createClock), or null. */
 let tbClock = null;
@@ -93,6 +104,9 @@ function tbRecallSetup() {
   // The steal: on until the host turns it off; then as they left it.
   const steal = document.getElementById('tb-steal-on');
   if (steal) steal.checked = saved.steal !== false;
+  // The double card: on until the host turns it off.
+  const dbl = document.getElementById('tb-double-on');
+  if (dbl) dbl.checked = saved.double !== false;
 }
 
 /** What the setup screen shows now, as the defaults for next time. */
@@ -106,7 +120,8 @@ function tbRememberSetup() {
       rounds: Math.max(1, Math.min(4, Number(field('tb-rounds').value) || 2)),
       timerOn: !!field('tb-timer-on').checked,
       timerSeconds: TB_TIMER_CHOICES.indexOf(picked) !== -1 ? picked : TB_TIMER_DEFAULT,
-      steal: !!field('tb-steal-on').checked
+      steal: !!field('tb-steal-on').checked,
+      double: !!field('tb-double-on').checked
     }));
   } catch (e) {}
 }
@@ -195,9 +210,10 @@ function beginTriviaBoard() {
   const picked = Number(((document.getElementById('tb-timer-seconds') || {}).dataset || {}).value);
   const timerSeconds = TB_TIMER_CHOICES.indexOf(picked) !== -1 ? picked : TB_TIMER_DEFAULT;
   const stealOn = !!(document.getElementById('tb-steal-on') || {}).checked;
+  const doubleOn = !!(document.getElementById('tb-double-on') || {}).checked;
   try {
     localStorage.setItem(TB_TEAMS_KEY, JSON.stringify({
-      a: nameA, b: nameB, rounds: rounds, timerOn: timerOn, timerSeconds: timerSeconds, steal: stealOn
+      a: nameA, b: nameB, rounds: rounds, timerOn: timerOn, timerSeconds: timerSeconds, steal: stealOn, double: doubleOn
     }));
   } catch (e) {}
 
@@ -212,8 +228,10 @@ function beginTriviaBoard() {
     timer: timerOn ? timerSeconds : 0,
     // The other team's chance after a miss; `turn` is the team up next (0 or 1).
     steal: stealOn,
+    // One hidden card a board worth twice its points.
+    double: doubleOn,
     turn: 0,
-    board: dealTriviaRound([]),
+    board: tbDealBoard([], doubleOn),
     open: null,
     last: null,
     finished: false
@@ -239,6 +257,21 @@ function dealTriviaRound(previousIds) {
     })
   }));
 }
+
+/** A board with its hidden double card: one of the 200-500 cards, at random. */
+function tbDealBoard(previousIds, withDouble) {
+  const board = dealTriviaRound(previousIds);
+  if (withDouble) {
+    const cells = [];
+    board.forEach(col => col.cells.forEach(cell => { if (cell.points > TB_LEVELS[0]) cells.push(cell); }));
+    const pick = cells[Math.floor(Math.random() * cells.length)];
+    if (pick) pick.dbl = true;
+  }
+  return board;
+}
+
+/** What a card is worth: twice its points when it is the double card. */
+function tbCellPoints(cell) { return cell ? cell.points * (cell.dbl ? 2 : 1) : 0; }
 
 function tbTeamName(index) {
   const s = appState.triviaBoard;
@@ -285,7 +318,8 @@ function renderTriviaBoard() {
       if (cell.done) {
         const dot = cell.team === 0 ? 'a' : (cell.team === 1 ? 'b' : 'none');
         const who = cell.team === 0 || cell.team === 1 ? tbTeamName(cell.team) : (t.quiz_nobody || '');
-        cells += `<button class="tb-cell is-done" disabled aria-label="${escapeHTML(catName + ' ' + points + ' - ' + who)}"><span class="tb-dot tb-dot--${dot}"></span></button>`;
+        const x2 = cell.dbl ? `<span class="tb-x2" aria-hidden="true">×2</span>` : '';
+        cells += `<button class="tb-cell is-done${cell.dbl ? ' is-double' : ''}" disabled aria-label="${escapeHTML(catName + ' ' + points + (cell.dbl ? ' ×2' : '') + ' - ' + who)}"><span class="tb-dot tb-dot--${dot}"></span>${x2}</button>`;
       } else {
         cells += `<button class="tb-cell" onclick="openTriviaCell(${c}, ${row})" aria-label="${escapeHTML(catName + ' ' + points)}">${points}</button>`;
       }
@@ -324,12 +358,14 @@ function tbTurn(s) { return s && s.turn === 1 ? 1 : 0; }
 function tbOpenPoints(s) {
   const o = s && s.open;
   const cell = o && s.board[o.c] && s.board[o.c].cells[o.row];
-  return cell ? cell.points : 0;
+  return tbCellPoints(cell);
 }
 
 function openTriviaCell(c, row) {
   const s = appState.triviaBoard;
   if (!s || !s.board[c] || !s.board[c].cells[row] || s.board[c].cells[row].done) return;
+  // The double card's slam comes first: its clock starts once it is over.
+  const intro = s.board[c].cells[row].dbl && !motionOff() ? TB_DBL_MS : 0;
   s.open = {
     c: c,
     row: row,
@@ -341,8 +377,11 @@ function openTriviaCell(c, row) {
     // This stage's whole length, for the bar: the card's time, then half of it.
     secs: s.timer || 0,
     // A running clock keeps its deadline; a paused one keeps the seconds left.
-    endsAt: s.timer ? Date.now() + s.timer * 1000 : null,
-    left: null
+    endsAt: s.timer ? Date.now() + intro + s.timer * 1000 : null,
+    left: null,
+    // The double card: its slam plays once per opening (a reload shows it settled).
+    dbl: !!s.board[c].cells[row].dbl,
+    dblSeen: false
   };
   saveToLocal();
   showTriviaCell();
@@ -366,7 +405,10 @@ function showTriviaCell() {
   // The Egypt category's icon is a flag: Windows draws one as two letters without the flag font.
   if (typeof flagsEnsureFont === 'function') flagsEnsureFont();
   document.getElementById('tb-q-cat').innerHTML = (cat.icon ? '<span class="flag-emoji">' + escapeHTML(cat.icon) + '</span> ' : '') + escapeHTML(en ? cat.en : cat.ar);
-  document.getElementById('tb-q-points').textContent = cell.points;
+  const pts = document.getElementById('tb-q-points');
+  // ×2 held left to right, or an Arabic line turns it into "2×".
+  pts.innerHTML = cell.dbl ? '<bdi dir="ltr">×2</bdi> · ' + tbCellPoints(cell) : String(cell.points);
+  pts.classList.toggle('tb-q-points--double', !!cell.dbl);
   document.getElementById('tb-q-text').textContent = en ? item[2] : item[0];
   document.getElementById('tb-q-answer-text').textContent = en ? item[3] : item[1];
   if (o.revealed) paintTriviaAnswer();
@@ -375,7 +417,31 @@ function showTriviaCell() {
     paintTriviaActions();
   }
   document.getElementById('tb-question-modal').classList.remove('hidden');
+  if (cell.dbl && !o.dblSeen) {
+    tbDoubleReveal(o);
+    return;
+  }
   startTriviaTimer();
+}
+
+/** «🎯 كارت دبل!»: a slam over the card, then its clock. */
+function tbDoubleReveal(o) {
+  const t = tbText();
+  o.dblSeen = true;
+  saveToLocal();
+  const box = document.getElementById('tb-q-timer');
+  if (box) box.classList.add('hidden');
+  const slam = slamBanner('🎯 ' + (t.tb_double_slam || 'كارت دبل!'), t.tb_double_sub || 'النقط متضاعفة ×2');
+  if (slam) slam.classList.add('tb-dbl-slam');
+  if (typeof playFx === 'function') playFx('tada'); else playSound('success');
+  haptic('heavy');
+  const pts = document.getElementById('tb-q-points');
+  if (pts && typeof motionBump === 'function') motionBump(pts);
+  setTimeout(() => {
+    const s = appState.triviaBoard;
+    // Still this card, still open: its clock now.
+    if (s && s.open === o && !o.revealed && appState.currentView === 'play-trivia') startTriviaTimer();
+  }, slam ? TB_DBL_MS : 0);
 }
 
 /** The host's buttons while the answer is still hidden. */
@@ -545,11 +611,11 @@ function awardTriviaCell(teamIndex) {
   cell.done = true;
   cell.team = teamIndex >= 0 ? teamIndex : null;
   // `turn` is what the undo puts back: the card goes back to the team it was up for.
-  s.last = { c: s.open.c, row: s.open.row, team: cell.team, points: teamIndex >= 0 ? cell.points : 0, round: s.round, turn: s.turn };
+  s.last = { c: s.open.c, row: s.open.row, team: cell.team, points: teamIndex >= 0 ? tbCellPoints(cell) : 0, round: s.round, turn: s.turn };
   // With the steal on the turn passes after every card, whoever scored it.
   if (tbStealOn(s)) s.turn = 1 - (s.open.picker === 1 ? 1 : 0);
   if (teamIndex >= 0) {
-    s.teams[teamIndex].score += cell.points;
+    s.teams[teamIndex].score += tbCellPoints(cell);
     playSound('success');
     haptic('medium');
   } else if (!s.open.missed) {
@@ -749,7 +815,7 @@ function advanceTriviaBoard() {
     return;
   }
   s.round++;
-  s.board = dealTriviaRound(s.board.map(col => col.cat));
+  s.board = tbDealBoard(s.board.map(col => col.cat), !!s.double);
   saveToLocal();
   renderTriviaBoard();
   showToast((tbText().tb_round || 'الجولة') + ' ' + s.round, 'info');
@@ -788,7 +854,7 @@ function replayTriviaBoard() {
   s.open = null;
   s.last = null;
   cancelTriviaAdvance();
-  s.board = dealTriviaRound([]);
+  s.board = tbDealBoard([], !!s.double);
   saveToLocal();
   renderTriviaBoard();
 }

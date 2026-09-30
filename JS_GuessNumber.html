@@ -404,7 +404,10 @@ function gnPaintWindow() {
       ? `<span class="gnw__line" dir="ltr"><span class="gnw__end">${gn.min}</span><span class="gnw__bar"><span class="gnw__fill"></span></span><span class="gnw__end">${gn.max}</span></span>` : '');
     bar = el.querySelector('.gnw__fill');
   }
-  el.querySelector('.gnw__text').innerHTML = text;
+  const textEl = el.querySelector('.gnw__text');
+  textEl.innerHTML = text;
+  // .metric holds its text left to right: a sentence reads in the page's own direction.
+  textEl.setAttribute('dir', document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr');
   if (bar) {
     bar.style.transform = `translateX(${(a * 100).toFixed(2)}%) scaleX(${f.toFixed(4)})`;
     bar.classList.toggle('is-won', gn.status === 'won');

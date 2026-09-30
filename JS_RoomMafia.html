@@ -514,14 +514,20 @@ const MAFIA_END_ORDER = { citizen: 0, doctor: 1, detective: 2, lawyer: 3, mafia:
 function mafiaEndReveal(state, t, tv) {
   const s = state.shared;
   const st = stageReveal(['mafia-end', tv ? 'tv' : 'ph', roomDealKey(state), JSON.stringify(s.scores || {})].join('|'));
-  const roles = (s.roles || []).slice().sort((a, b) => (MAFIA_END_ORDER[a.role] || 0) - (MAFIA_END_ORDER[b.role] || 0));
+  // The cards stay in the table's order (a pile sorted by role would tell before it turns);
+  // only their moments follow the roles.
+  const roles = s.roles || [];
+  const when = new Map();
   let at = 300;
   let prev = null;
-  const rows = roles.map(r => {
-    if (prev !== null && r.role !== prev) at += r.role === 'mafia' ? 1300 : 450;
+  roles.slice().sort((a, b) => (MAFIA_END_ORDER[a.role] || 0) - (MAFIA_END_ORDER[b.role] || 0)).forEach(r => {
+    if (prev !== null && r.role !== prev) at += r.role === 'mafia' ? 1000 : 300;
     prev = r.role;
-    const here = at;
-    at += r.role === 'citizen' ? 360 : 750;
+    when.set(r, at);
+    at += r.role === 'citizen' ? 300 : r.role === 'mafia' ? 700 : 550;
+  });
+  const rows = roles.map(r => {
+    const here = when.get(r);
     return `<div class="mafia-final ${r.alive ? '' : 'is-out'} ${r.role === 'mafia' ? 'is-mafia' : ''}"${st.at(here, 'flip')}>
         ${st.on ? stageCoverHtml('') : ''}
         <span aria-hidden="true">${MAFIA_ICONS[r.role]}</span><b>${escapeHTML(r.name)}</b><span>${escapeHTML(t['mafia_role_' + r.role] || '')}</span></div>`;
@@ -532,9 +538,9 @@ function mafiaEndReveal(state, t, tv) {
 /** The counts and the board, and the drum roll closing in before the first Mafia card. */
 function mafiaEndRun(root, state) {
   stageRun(root, state);
-  const first = root && root.querySelector('.mafia-final.is-mafia[data-rv]');
-  if (!first) return;
-  const at = parseFloat(first.style.getPropertyValue('--rv-at')) || 0;
+  const mafia = root ? [...root.querySelectorAll('.mafia-final.is-mafia[data-rv]')] : [];
+  if (!mafia.length) return;
+  const at = Math.min(...mafia.map(el => parseFloat(el.style.getPropertyValue('--rv-at')) || 0));
   [1000, 760, 540, 340, 170].forEach(ms => stageSound(state, 'tick', at - ms));
   stageSound(state, 'alarm', at + 250);
 }

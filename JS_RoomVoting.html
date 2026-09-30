@@ -300,7 +300,7 @@ function fibRevealHtml(state, t, o) {
   const lies = plan.lies.map((r, i) => `
     <div class="fib-card ${r.count ? 'is-fooled' : ''}" data-fib-owner="${escapeHTML(String(r.ownerId || ''))}" data-fib-n="${r.count}"${st.at(plan.lieAt(i), 'pop')}>
       <div class="fib-card__label">${escapeHTML(r.label)}</div>
-      <div class="fib-card__line">🤥 ${escapeHTML((t.fib_lie_of || '{name}').replace('{name}', nameOf(r.ownerId)))} —
+      <div class="fib-card__line">🤥 ${escapeHTML(t.fib_lie_of || '{name}').replace('{name}', `<bdi>${escapeHTML(nameOf(r.ownerId))}</bdi>`)} —
         ${r.count ? `${escapeHTML(t.fib_fooled || '')} <b class="metric">${st.count(r.count, plan.lieAt(i) + 250)}</b>` : escapeHTML(t.fib_fooled_none || '')}</div>
       ${voters(r)}
     </div>`).join('');
@@ -329,6 +329,11 @@ function fibRevealRun(root, state) {
   [1100, 700, 300].forEach(ms => stageSound(state, 'tick', plan.truthAt - ms));
   stageSound(state, 'success', plan.truthAt + 300);
   if (!state.youAreScreen) {
+    // The truth turns over where it can be seen: a phone scrolls to it just before.
+    setTimeout(() => {
+      const card = box.isConnected && box.querySelector('[data-fib-truth]');
+      if (card && card.getBoundingClientRect().bottom > window.innerHeight - 90) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, Math.max(0, plan.truthAt - 900));
     // Each lie's points fly to its author's row, then the finders' to theirs.
     setTimeout(() => {
       if (!box.isConnected) return;
@@ -347,7 +352,7 @@ function fibRevealRun(root, state) {
       });
     }, plan.boardAt + 200);
   }
-  if (typeof confetti === 'function') afterReveal(box, () => { if (box.isConnected && !document.hidden) confetti({ particleCount: 110, spread: 80, origin: { y: 0.6 } }); });
+  if (typeof confetti === 'function') afterReveal(box.parentElement, () => { if (box.isConnected && !document.hidden) confetti({ particleCount: 110, spread: 80, origin: { y: 0.6 } }); });
 }
 
 /** The host's way past a writer whose phone went quiet. */

@@ -137,14 +137,16 @@ function bzGapMs(buzzes, i) {
   return a && b ? Math.max(0, b - a) : null;
 }
 
+/** «+0.18 ث»: the number held left to right, the unit after it in the line's own direction. */
 function bzGapText(ms) {
   const t = TRANSLATIONS[appState.lang] || {};
-  return '+' + (ms / 1000).toFixed(2) + (t.bz_secs_short || 's');
+  const unit = t.bz_secs_short || 's';
+  return `<bdi dir="ltr">+${(ms / 1000).toFixed(2)}</bdi>${appState.lang === 'ar' ? '&nbsp;' : ''}${escapeHTML(unit)}`;
 }
 
 function bzGapHtml(buzzes, i) {
   const ms = bzGapMs(buzzes, i);
-  return ms === null ? '' : `<span class="badge bz-gap metric"><bdi dir="ltr">${escapeHTML(bzGapText(ms))}</bdi></span>`;
+  return ms === null ? '' : `<span class="badge bz-gap metric">${bzGapText(ms)}</span>`;
 }
 
 /** The TV's photo finish: the first press at the line, the rest behind it by their gap. */
@@ -157,7 +159,7 @@ function bzFinishHtml(buzzes) {
     const x = 4 + (ms / span) * 88;
     return `<div class="bz-finish__mark ${i === 0 ? 'is-first' : ''} bz-finish__mark--${i % 2 ? 'low' : 'high'}" style="left:${x.toFixed(1)}%">
         <span class="bz-finish__dot"></span>
-        <span class="bz-finish__tag"><bdi>${escapeHTML(b.name)}</bdi>${i ? ` <small dir="ltr">${escapeHTML(bzGapText(ms))}</small>` : ''}</span>
+        <span class="bz-finish__tag"><bdi>${escapeHTML(b.name)}</bdi>${i ? ` <small dir="auto">${bzGapText(ms)}</small>` : ''}</span>
       </div>`;
   }).join('');
   return `<div class="bz-finish" dir="ltr" aria-hidden="true"><div class="bz-finish__line"></div><div class="bz-finish__track"></div>${marks}</div>`;

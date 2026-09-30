@@ -124,8 +124,11 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
   It says «آخر برنامج: 4 ألعاب» when this phone has a draft.
 - The builder (`#prog-modal`, one centred sheet with three panes): the list (a handle to
   drag, ⚙️ the game's options, ✕; the arrow keys on the handle move a row), the picker (the
-  room's list, a family opening into its games, ✓ on what is in, the same game twice
-  allowed), a game's options (its own `ROOM_GAMES[id].lobbyOptions`, drawn with a copy of
+  room's list under the home's section heads, a family opening into its games, ✓ on what
+  is in, the same game twice allowed; a search box on top, 30 Sep 2026, finds any game by
+  name in either language, a family's games too - `roomGameHits` in JS_Room.html - and an
+  add while searching redraws only the results, `progPickRefresh`, so the box keeps what is
+  typed), a game's options (its own `ROOM_GAMES[id].lobbyOptions`, drawn with a copy of
   the room state for that game; «احفظ» reads its `startPayload()`). A game added reads its
   options at once, out of sight (`progCapture`: the game's chunk loaded, its lobby options
   drawn into a hidden holder, `startPayload()` read). The draft is kept on the host's phone

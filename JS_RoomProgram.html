@@ -20,7 +20,7 @@ const PROG_DRAFT_KEY = 'ashryProgramDraft_v1';
 const PROG_MIN = 3;
 const PROG_MAX = 8;
 const PROG_AV = ['violet', 'teal', 'amber', 'rose', 'blue', 'green', 'indigo', 'orange'];
-const prog = { draft: null, pane: 'list', pickGroup: '', optsAt: -1, timer: null, seen: '', busy: false, drag: null };
+const prog = { draft: null, pane: 'list', pickGroup: '', pickSearch: '', optsAt: -1, timer: null, seen: '', busy: false, drag: null };
 
 const progT = () => TRANSLATIONS[appState.lang] || {};
 const progEntry = (id) => ROOM_HUB_GAMES.find(g => g.id === id) || { id: id, icon: '🎮', key: '', accent: 'violet', min: 1 };
@@ -127,6 +127,7 @@ function progOpenBuilder() {
   progDraftLoad();
   prog.pane = 'list';
   prog.pickGroup = '';
+  prog.pickSearch = '';
   progRenderBuilder();
   const m = document.getElementById('prog-modal');
   if (m) m.classList.remove('hidden');
@@ -187,22 +188,23 @@ function progPane(pane) {
   if (box) box.scrollTop = 0;
 }
 
-/** The games to add: the room's list (a family - chess's ways, the puzzle race - opens into its games). */
+/** The games to add: the room's list (a family - chess's ways, the puzzle race - opens into
+    its games), under the home's section heads, with a search by name on top that finds any
+    game, a family's too (roomGameHits, JS_Room.html). */
 function progPickHtml(t) {
+  return `
+    <div class="sheet__title">${escapeHTML(t.prog_pick_title || '')}</div>
+    <p class="sheet__subtitle" id="prog-pick-sub">${escapeHTML(progFill(t.prog_pick_hint || '', { n: (prog.draft || []).length, max: PROG_MAX }))}</p>
+    ${prog.pickGroup ? `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="progPickGroup('')">↩ ${escapeHTML(t.room_hub_all || '')}</button>`
+      : roomGameSearchHtml('prog-pick-search', prog.pickSearch, 'progPickSearch', t)}
+    <div id="prog-pick-results" class="prog-pick-results">${progPickResultsHtml(t)}</div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" onclick="progPane('list')">${escapeHTML(t.prog_pick_done || '')}</button>
+    </div>`;
+}
+function progPickResultsHtml(t) {
   const byId = (id) => ROOM_HUB_GAMES.find(g => g.id === id);
   const off = (id) => typeof roomGameIsOff === 'function' && roomGameIsOff(id);
-  let tiles;
-  if (prog.pickGroup && ROOM_HUB_GROUPS[prog.pickGroup]) {
-    tiles = ROOM_HUB_GROUPS[prog.pickGroup].map(byId).filter(Boolean).map(g => ({ g, open: '' }));
-  } else {
-    tiles = ROOM_HUB_GAMES.filter(g => {
-      const k = roomHubGroupOf(g.id);
-      return !k || ROOM_HUB_GROUPS[k][0] === g.id;
-    }).map(g => {
-      const k = roomHubGroupOf(g.id);
-      return k ? { g: ROOM_HUB_FAMILIES[k] || g, open: k } : { g, open: '' };
-    });
-  }
   const inList = (prog.draft || []).map(x => x.id);
   const tile = (x) => {
     const g = x.g;
@@ -217,15 +219,33 @@ function progPickHtml(t) {
         ${dis ? gameOffBadge(t) : ''}
       </button>`;
   };
-  return `
-    <div class="sheet__title">${escapeHTML(t.prog_pick_title || '')}</div>
-    <p class="sheet__subtitle">${escapeHTML(progFill(t.prog_pick_hint || '', { n: (prog.draft || []).length, max: PROG_MAX }))}</p>
-    ${prog.pickGroup ? `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="progPickGroup('')">↩ ${escapeHTML(t.room_hub_all || '')}</button>` : ''}
-    <div class="game-grid room-posters prog-pick-grid">${tiles.map(tile).join('')}</div>
-    <div class="modal-actions">
-      <button type="button" class="btn btn--primary btn--lg" onclick="progPane('list')">${escapeHTML(t.prog_pick_done || '')}</button>
-    </div>`;
+  const grid = (list) => `<div class="game-grid room-posters prog-pick-grid">${list.map(tile).join('')}</div>`;
+  if (prog.pickGroup && ROOM_HUB_GROUPS[prog.pickGroup]) {
+    return grid(ROOM_HUB_GROUPS[prog.pickGroup].map(byId).filter(Boolean).map(g => ({ g, open: '' })));
+  }
+  if ((prog.pickSearch || '').trim()) {
+    const hits = roomGameHits(prog.pickSearch).map(g => ({ g, open: '' }));
+    return hits.length ? grid(hits) : `<div class="empty room-search__none">${escapeHTML(t.home_empty || '')}</div>`;
+  }
+  const tiles = ROOM_HUB_GAMES.filter(g => {
+    const k = roomHubGroupOf(g.id);
+    return !k || ROOM_HUB_GROUPS[k][0] === g.id;
+  }).map(g => {
+    const k = roomHubGroupOf(g.id);
+    return k ? { g: ROOM_HUB_FAMILIES[k] || g, open: k } : { g, open: '' };
+  });
+  return roomGameSectionsHtml(tiles, grid, t);
 }
+/** Redraws the results and the count only, so the search box keeps its focus and what is typed. */
+function progPickRefresh() {
+  const t = progT();
+  const box = document.getElementById('prog-pick-results');
+  if (!box) { progRenderBuilder(); return; }
+  box.innerHTML = progPickResultsHtml(t);
+  const sub = document.getElementById('prog-pick-sub');
+  if (sub) sub.textContent = progFill(t.prog_pick_hint || '', { n: (prog.draft || []).length, max: PROG_MAX });
+}
+function progPickSearch(value) { prog.pickSearch = String(value || ''); progPickRefresh(); }
 function progPickGroup(k) { prog.pickGroup = k || ''; progRenderBuilder(); }
 
 function progAdd(id) {
@@ -236,10 +256,10 @@ function progAdd(id) {
   haptic('light');
   const i = list.length - 1;
   progCapture(i).then(() => { if (prog.pane === 'list') progRenderBuilder(); });
-  // Stays on the picker (several games in a row); the tile says it is in the list.
-  progRenderBuilder();
-  const grid = document.querySelector('.prog-pick-grid');
-  const el = grid && grid.querySelector(`[onclick="progAdd('${id}')"]`);
+  // Stays on the picker (several games in a row, the search kept); the tile says it is in the list.
+  if (prog.pane === 'pick') progPickRefresh(); else progRenderBuilder();
+  const box = document.getElementById('prog-pick-results');
+  const el = box && box.querySelector(`[onclick="progAdd('${id}')"]`);
   if (el && typeof motionBump === 'function') motionBump(el);
 }
 function progRemove(i) {

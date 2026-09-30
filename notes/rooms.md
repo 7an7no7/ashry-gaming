@@ -551,3 +551,18 @@ don't load it.
   `roomReturnToActive()` (known; the look script calls it).
 - Headless Chrome started with a fixed `--remote-debugging-port` writes no
   `DevToolsActivePort`; ask `http://127.0.0.1:<port>/json/version` instead.
+
+### Finding a game in the room's list (30 Sep 2026)
+
+The owner: "a search bar to reach games faster instead of scrolling a lot", in the room's
+list and in برنامج السهرة's picker. Both draw `roomGameSearchHtml` (the home's box) over
+their results: `roomGameHits(term)` (JS_Room.html) matches every room game by its name in
+Arabic and English, its catalog title and line, and its family's name (the race's own, or
+the first game's: «شطرنج» finds all five chess ways), folded by `helpNormalise`, names
+before lines. Typing redraws only the results (`#room-hub-list`, `#prog-pick-results`), so
+the box keeps its focus; the lobby's redraw already waits for a focused field
+(`roomFieldInUse`). The search is on the whole list, not inside an opened family, and is
+forgotten with the room (`roomHubSearch` cleared with `roomHubGroup`). Both lists are also
+laid out under the home's section heads now (`roomGameSectionsHtml`), «تنفع دلوقتي» too,
+where it used to be one long grid. The TV host's list has no search (no keyboard).
+

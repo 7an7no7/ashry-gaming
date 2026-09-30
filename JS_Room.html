@@ -1678,8 +1678,61 @@ if (typeof Room !== 'undefined') Room.onChange(rememberNight);
 let roomHubCode = '';
 if (typeof Room !== 'undefined') Room.onChange((state) => {
   const code = (state && state.code) || '';
-  if (code !== roomHubCode) { roomHubCode = code; roomHubGroup = ''; }
+  if (code !== roomHubCode) { roomHubCode = code; roomHubGroup = ''; roomHubSearch = ''; }
 });
+
+/* Finding a game by name (the owner, 30 Sep 2026: "a search bar to reach games
+   faster instead of scrolling a lot"), in the room's list and in برنامج السهرة's
+   picker. Every room game answers to its name in either language and its line,
+   a family's games too (chess's ways, the ten puzzles) and to the family's name,
+   as the home's search does; a match on the name comes before one on the line. */
+let roomHubSearch = '';
+function roomGameHits(term) {
+  const q = helpNormalise(term).trim();
+  if (!q) return [];
+  const langs = [TRANSLATIONS.ar, TRANSLATIONS.en];
+  const hits = [];
+  ROOM_HUB_GAMES.forEach(g => {
+    const cat = typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[g.id === 'chess' ? 'shatranj' : g.id] : null;
+    // The family's name: its own (the race), or its first game's (chess finds all its ways).
+    const k = roomHubGroupOf(g.id);
+    const fam = k ? (ROOM_HUB_FAMILIES[k] || ROOM_HUB_GAMES.find(x => x.id === ROOM_HUB_GROUPS[k][0])) : null;
+    const names = [], lines = [];
+    langs.forEach(t => {
+      names.push(t[g.key] || '');
+      if (cat) { names.push(t[cat.title] || ''); lines.push(t[cat.desc] || ''); }
+      if (fam) names.push(t[fam.key] || '');
+    });
+    if (helpNormalise(names.join(' ')).indexOf(q) !== -1) hits.push({ g, rank: 0 });
+    else if (helpNormalise(lines.join(' ')).indexOf(q) !== -1) hits.push({ g, rank: 1 });
+  });
+  return hits.sort((a, b) => a.rank - b.rank).map(x => x.g);
+}
+function roomGameSearchHtml(id, value, handler, t) {
+  return `
+    <label class="home-search room-search">
+      <span class="home-search__icon" aria-hidden="true">🔍</span>
+      <input type="search" id="${id}" autocomplete="off" enterkeyhint="search" aria-label="${escapeHTML(t.home_search_ph || '')}"
+             placeholder="${escapeHTML(t.home_search_ph || '')}" value="${escapeHTML(value || '')}" oninput="${handler}(this.value)">
+    </label>`;
+}
+/** Tiles under the home's section heads (tvHubGroupOf), in the catalog's order. */
+function roomGameSectionsHtml(tiles, grid, t) {
+  if (typeof CATALOG_GROUPS === 'undefined' || typeof tvHubGroupOf !== 'function') return grid(tiles);
+  const groups = CATALOG_GROUPS.map(gr => ({ gr: gr, tiles: [] }));
+  const other = { gr: null, tiles: [] };
+  tiles.forEach(x => { (groups.find(y => y.gr.id === tvHubGroupOf(x.g.id)) || other).tiles.push(x); });
+  return groups.concat([other]).filter(y => y.tiles.length).map(y => `
+    <div class="room-hub-sec">
+      ${y.gr ? `<h3 class="room-hub-sec__head"><span aria-hidden="true">${y.gr.icon}</span> ${escapeHTML(t[y.gr.title] || y.gr.id)}</h3>` : ''}
+      ${grid(y.tiles)}
+    </div>`).join('');
+}
+function setRoomHubSearch(value) {
+  roomHubSearch = String(value || '');
+  const el = document.getElementById('room-hub-list');
+  if (el && Room.state) el.innerHTML = roomHubListHtml(Room.state, TRANSLATIONS[appState.lang]);
+}
 
 /* The host's list (ideas batch: shell): the games this room can start now
    first, «تنفع دلوقتي (N)», and the rest folded under «محتاجين ناس أكتر (N) ▾»,
@@ -1711,25 +1764,18 @@ function roomHubPosterHtml(tile, state, t) {
 }
 
 function roomHubListHtml(state, t) {
-  const tiles = roomHubTiles();
   const grid = (list) => `<div class="game-grid room-posters">${list.map(x => roomHubPosterHtml(x, state, t)).join('')}</div>`;
+  if (roomHubSearch.trim() && !roomHubGroup) {
+    const hits = roomGameHits(roomHubSearch).map(g => ({ g: g, min: g.min, open: '' }));
+    return hits.length ? grid(hits) : `<div class="empty room-search__none">${escapeHTML(t.home_empty || '')}</div>`;
+  }
+  const tiles = roomHubTiles();
   if (roomHubGroup) return grid(tiles);
   const count = state.players.length;
   const ready = tiles.filter(x => count >= x.min && !(!x.open && typeof roomGameIsOff === 'function' && roomGameIsOff(x.g.id)));
   const rest = tiles.filter(x => ready.indexOf(x) === -1);
   let more = '';
   if (rest.length) {
-    let body;
-    if (typeof CATALOG_GROUPS !== 'undefined' && typeof tvHubGroupOf === 'function') {
-      const groups = CATALOG_GROUPS.map(gr => ({ gr: gr, tiles: [] }));
-      const other = { gr: null, tiles: [] };
-      rest.forEach(x => { (groups.find(y => y.gr.id === tvHubGroupOf(x.g.id)) || other).tiles.push(x); });
-      body = groups.concat([other]).filter(y => y.tiles.length).map(y => `
-        <div class="room-hub-sec">
-          ${y.gr ? `<h3 class="room-hub-sec__head"><span aria-hidden="true">${y.gr.icon}</span> ${escapeHTML(t[y.gr.title] || y.gr.id)}</h3>` : ''}
-          ${grid(y.tiles)}
-        </div>`).join('');
-    } else body = grid(rest);
     // Nothing playable yet (one person, every game needs two): the rest is the list, open.
     const open = roomHubMoreOpen || !ready.length;
     more = `
@@ -1738,12 +1784,13 @@ function roomHubListHtml(state, t) {
           <span>${escapeHTML(t.room_hub_more || '')} <span class="room-hub-count metric">(${rest.length})</span></span>
           <span class="room-hub-more__chev" aria-hidden="true">▾</span>
         </summary>
-        <div class="room-hub-more__body">${body}</div>
+        <div class="room-hub-more__body">${roomGameSectionsHtml(rest, grid, t)}</div>
       </details>`;
   }
+  // What can start now, under the same section heads, so a long list reads by kind.
   const now = ready.length ? `
       <h3 class="room-hub-now"><span aria-hidden="true">✅</span> ${escapeHTML(t.room_hub_now || '')} <span class="room-hub-count metric">(${ready.length})</span></h3>
-      ${grid(ready)}` : '';
+      ${roomGameSectionsHtml(ready, grid, t)}` : '';
   return now + more;
 }
 
@@ -1790,8 +1837,8 @@ function renderRoomHub(state) {
         <h2 class="section__title">${t.room_pick_game || 'اختر لعبة'}</h2>
         <span class="section__rule"></span>
       </div>
-      ${roomHubGroup ? roomHubBackHtml(t, false) : chips}
-      ${roomHubListHtml(state, t)}
+      ${roomHubGroup ? roomHubBackHtml(t, false) : roomGameSearchHtml('room-hub-search', roomHubSearch, 'setRoomHubSearch', t) + chips}
+      <div id="room-hub-list">${roomHubListHtml(state, t)}</div>
     </div>
     ${night}`;
 }

@@ -10059,6 +10059,7 @@
         const overlay = r.target;
         if (overlay.classList.contains('hidden')) return;
         tintModal(overlay);
+        labelModal(overlay);
         // Just opened (it was hidden): its rows rise under the spring (JS_Motion.html).
         if (/(^|\s)hidden(\s|$)/.test(r.oldValue || '') && typeof motionRiseModal === 'function') motionRiseModal(overlay);
       });
@@ -10067,8 +10068,38 @@
     document.querySelectorAll('.modal-overlay').forEach(el => {
       if (el.parentElement !== document.body) document.body.appendChild(el);
       tintOnOpen.observe(el, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+      // Said as a dialog to a screen reader (no focus trap: the owner's call, 30 Sep 2026).
+      const content = el.querySelector('.modal-content');
+      if (content) { content.setAttribute('role', 'dialog'); content.setAttribute('aria-modal', 'true'); }
+      labelModal(el);
     });
   }
+
+  /** A popup is named by its title: some are filled in when they open (the exit sheet),
+      so this runs again every time one opens. */
+  let modalTitleSeq = 0;
+  function labelModal(overlay) {
+    const content = overlay.querySelector('.modal-content');
+    const title = content && content.querySelector('.sheet__title, h2, h3');
+    if (!title) return;
+    if (!title.id) title.id = 'modal-title-' + (++modalTitleSeq);
+    content.setAttribute('aria-labelledby', title.id);
+  }
+
+  /* Escape closes the popup on top, exactly as the phone's back does (edgeBack: each
+     popup's own way out through closeModal). With no popup open it does nothing, so a
+     key press never leaves a screen. */
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    const open = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
+    if (!open.length) return;
+    // The one drawn on top: an alert or a confirm sits above a sheet whatever its place in
+    // the page (--z-alert, --z-confirm), then the later in the page.
+    const z = (el) => parseInt(getComputedStyle(el).zIndex, 10) || 0;
+    const top = open.reduce((a, b) => (z(b) >= z(a) ? b : a));
+    e.preventDefault();
+    if (top.id) closeModal(top.id); else { modalExitGhost(top); top.classList.add('hidden'); }
+  });
 
   /* Moved under <body>, a popup no longer sits inside its game's screen, so it
      lost the game's colour and every result, exit and confirm sheet came up

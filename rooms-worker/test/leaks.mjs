@@ -163,7 +163,11 @@ const RACE_PROBES = {
     secrets: [],
     probes: [probe('mines: a mine reaches no phone whose board is still in play', true, (view, pid) => {
       const b = h.boards[pid];
-      if (b && b.boom >= 0) return null;   // out of the round: shown where they were
+      if (b && b.boom >= 0) {
+        // Out of the round: the mine it hit while the others race, the field only once the round is over.
+        const mb = view.you && view.you.board && view.you.board.mines;
+        return room.shared.phase === 'solving' && mb && mb.length > 1 ? 'the field while the others race' : null;
+      }
       const s = JSON.stringify(view);
       if (s.indexOf('"mines":[') !== -1) return 'mines';
       const open = view.you && view.you.board && view.you.board.open;

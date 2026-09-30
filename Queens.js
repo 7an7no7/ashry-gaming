@@ -156,7 +156,10 @@ function queensSolved(n, solution, marks) {
 const QUEENS_RACE_LEVEL = 'medium';
 const QUEENS_RACE = {
   deal(rnd) {
-    const made = queensMake(QUEENS_RACE_LEVEL, rnd) || queensMake('easy', rnd);
+    // The generator can come back empty: try again (the easy size last), never deal nothing.
+    let made = null;
+    for (let i = 0; !made && i < 12; i++) made = queensMake(i < 8 ? QUEENS_RACE_LEVEL : 'easy', rnd);
+    if (!made) throw new Error('ماعرفناش نجهّز اللوحة، جرّبوا تاني');
     return { pub: { n: made.n, regions: made.regions }, solution: made.solution };
   },
   board: () => ({ marks: null }),

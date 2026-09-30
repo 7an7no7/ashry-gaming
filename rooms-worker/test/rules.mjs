@@ -4172,6 +4172,15 @@ Date.now = duelTestClock;
     'hangman: the word ends when all are done; the first solve is 10 + 5 with a writer too, the writer 5 for each who was hanged');
   applyRoomAction(r, 'a', 'nextRound', { round: 1 });
   check(s.round === 2 && s.phase === 'writing' && s.setter !== setter && !s.cat, 'hangman: the next word has the next writer, and no hint yet');
+  {
+    // A double tap on «skip the writer» skips one writer, not two.
+    const x = hm(['a', 'b', 'c', 'd'], { rounds: 3 });
+    const quietW = x.shared.setter;
+    applyRoomAction(x, 'a', 'skipTurn', { round: 1, setter: quietW });
+    const nextW = x.shared.setter;
+    applyRoomAction(x, 'a', 'skipTurn', { round: 1, setter: quietW });
+    check(nextW !== quietW && x.shared.setter === nextW && x.shared.phase === 'writing', 'audit3/hangman: a double tap on «skip the writer» skips one writer');
+  }
   // The writer leaves before writing: the next one writes.
   const w2 = s.setter;
   r.players = r.players.filter((p) => p.id !== w2);
@@ -4297,8 +4306,11 @@ Date.now = duelTestClock;
   r = sv('guessnum', ['a', 'b', 'c', 'd'], { rounds: 3, max: 50 });
   s = r.shared;
   const quiet = s.setter;
-  applyRoomAction(r, 'a', 'skipTurn', { round: 1 });
+  applyRoomAction(r, 'a', 'skipTurn', { round: 1, setter: quiet });
   check(s.phase === 'setting' && s.setter && s.setter !== quiet, 'solve: the host moves on from a quiet setter');
+  const skippedTo = s.setter;
+  applyRoomAction(r, 'a', 'skipTurn', { round: 1, setter: quiet });
+  check(s.setter === skippedTo, 'audit3/solve: a double tap on «skip the setter» skips one setter, not two');
   const leaver = s.setter;
   r.players = r.players.filter((p) => p.id !== leaver);
   roomPlayerLeft(r, leaver, 'L');
@@ -8616,6 +8628,8 @@ Date.now = duelTestClock;
   roomTimeout(r, clock);
   check(s.phase === 'result' && s.progress.a.state === 'lost' && s.progress.b.state === 'won' && s.scores.b === 14 + 15 && s.scores.a === 15,
     'race: the clock ends the round; whoever hadn\'t finished has 0 for it');
+  check(s.progress.a.timeUp === true && s.result.rows.find((x) => x.id === 'a').timeUp === true && !s.progress.b.timeUp && !s.result.rows.find((x) => x.id === 'b').timeUp,
+    'audit3/race: a board still solving at the close is out of time (⏳), not beaten');
   check(s.board.map((x) => x.id).join() === 'b,a,c,d' && s.board[0].secs === 71 && s.board[1].secs === 30 && s.board[2].secs === 32, "race: the board keeps every finisher's seconds over the rounds (b 31 + 40)");
   {
     // Ties on the night's board: fewer seconds (the owner). Each of two solves one round alone: 15 each, 20 s against 40 s.
@@ -8865,9 +8879,12 @@ Date.now = duelTestClock;
     applyRoomAction(r, 'a', 'move', { cells: [x.mines[0]], round: 1 });
     check(s.progress.a.state === 'lost' && r.secrets.a.board.boom === x.mines[0] && Array.isArray(r.secrets.a.board.mines) && !('mines' in r.secrets.b.board),
       'race/mines: a mine puts the board out, and only that phone is then shown the mines');
+    check(r.secrets.a.board.mines.length === 1 && r.secrets.a.board.mines[0] === x.mines[0] && !r.secrets.a.board.all,
+      'audit3/race/mines: while the others race, the phone that hit a mine sees that mine only, not the field');
     const allSafe = Array.from({ length: nCells }, (_, i) => i).filter(i => !mineSet.has(i));
     for (let k = 0; k < allSafe.length && s.progress.b.state === 'play'; k += 5) applyRoomAction(r, 'b', 'move', { cells: allSafe.slice(k, k + 5), round: 1 });
     check(s.progress.b.state === 'won' && s.progress.b.done === nCells - 22 && s.phase === 'result', 'race/mines: every safe cell open wins');
+    check(r.secrets.a.board.mines.length === 22 && r.secrets.a.board.all === true, 'audit3/race/mines: once the round is over, the whole field');
   }
 
   // RACE:streak

@@ -66,8 +66,10 @@ function startQueens(daily, sure) {
   if (daily && soloDailyResume('queens')) return;
   const s = queensState();
   const level = daily ? 'medium' : s.level;
-  const made = queensMake(level, soloRandom(daily ? soloDaySeed('queens') : null));
-  if (!made) { showToast('…', 'error'); return; }
+  let made = queensMake(level, soloRandom(daily ? soloDaySeed('queens') : null));
+  // A free board that couldn't be made gets one more go with other dice.
+  if (!made && !daily) made = queensMake(level, soloRandom(null));
+  if (!made) { showToast((TRANSLATIONS[appState.lang] || {}).solo_make_failed || '', 'error'); return; }
   soloDailySetAside('queens');
   soloNewGame('queens');
   s.daily = daily ? soloToday() : '';
@@ -273,7 +275,7 @@ function queensCheck() {
   const t = TRANSLATIONS[appState.lang];
   queensCelebrate(s);
   const level = s.playLevel || s.level;
-  const rec = s.hints ? { record: false, prev: soloBest('queens', level) }
+  const rec = s.hints || s.archive ? { record: false, prev: soloBest('queens', level) }
     : soloRecord('queens', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
   let share = '';
   if (s.daily) {

@@ -66,7 +66,8 @@ function minesFlood(s, start) {
    unflagged neighbours of a number whose flags are all down; the flags stay on
    the phone) and gets back what opened with each cell's number. A mine puts
    the board out of the round with 0 (the solo game's loss), and that phone
-   alone is then shown where the mines were. Every safe cell open wins.
+   alone is then shown the mine it hit - the whole field only once the round is
+   over, since the others are still racing on it. Every safe cell open wins.
    ------------------------------------------------------------------------------ */
 const MINES_RACE_LEVEL = 'medium';
 const minesField = (x) => ({ cols: x.pub.cols, rows: x.pub.rows, count: x.pub.count, mines: x.mines });
@@ -104,8 +105,9 @@ const MINES_RACE = {
     return b.open.filter(o => o.n !== 9).length >= n - x.pub.count ? 'won' : '';
   },
   progress: (b) => ({ done: b.open.filter(o => o.n !== 9).length }),
-  // The cells this phone has opened with their numbers; the mines only once it has hit one.
-  view: (b, x) => (b.boom >= 0 ? { open: b.open, boom: b.boom, mines: x.mines } : { open: b.open, boom: -1 }),
+  // The cells this phone has opened with their numbers; once it has hit a mine, that mine,
+  // and every mine only when the round is over (`over`: the others race on the same field).
+  view: (b, x, st, over) => (b.boom >= 0 ? { open: b.open, boom: b.boom, mines: over ? x.mines : [b.boom], all: !!over } : { open: b.open, boom: -1 }),
   score: () => 0,
   reveal: () => null
 };

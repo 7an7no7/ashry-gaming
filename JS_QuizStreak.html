@@ -88,7 +88,11 @@ function setStreakSource(source) {
 /** A run with a fixed deck: today's daily, or a past day from the archive (which clears s.daily). */
 const streakDecked = (s) => !!(s.deck && s.deck.length);
 
-function startStreak(daily) {
+// A run with a question answered: a new one asks first (soloConfirmNew).
+const streakHasWork = (s) => (s.asked || 0) > 0;
+
+function startStreak(daily, sure) {
+  if (!sure && soloConfirmNew('streak', streakHasWork, () => startStreak(daily, true))) return;
   if (daily && soloDailyResume('streak')) return;
   soloDailySetAside('streak');
   soloNewGame('streak');
@@ -118,6 +122,10 @@ function streakNext() {
 }
 
 function streakStop() {
+  // A question stopped while a sheet had paused it (the sheet led off the board):
+  // the time the sheet was open is given back to its deadline.
+  const q = appState.streak && appState.streak.q;
+  if (q && q.pausedAt) { q.endsAt += Math.max(0, Date.now() - q.pausedAt); q.pausedAt = 0; }
   if (streakClock) streakClock.stop();
   streakClock = null;
   clearTimeout(streakNextTimer);
@@ -183,11 +191,26 @@ function paintStreak(fresh) {
     streakNextTimer = setTimeout(streakAdvance, 1300);
     return;
   }
-  streakClock = createClock({
+  const clock = createClock({
     seconds: Math.ceil(left),
     onTick: (v) => { const n = document.getElementById('streak-left'); if (n) n.textContent = v; },
     onEnd: () => answerStreak(-1)
   });
+  // Help or the exit sheet pauses this clock (pauseClocksForSheet): the question's
+  // deadline stands still with it, so "continue" and a reload keep the time it had.
+  const pause = clock.pause;
+  clock.pause = () => {
+    if (!q.pausedAt) q.pausedAt = Date.now();
+    const bar = el.querySelector('.streak-timer i');
+    if (bar) bar.style.animationPlayState = 'paused';
+    return pause();
+  };
+  clock.resume = () => {
+    if (q.pausedAt) { q.endsAt += Math.max(0, Date.now() - q.pausedAt); q.pausedAt = 0; saveToLocal(); }
+    if (streakClock === clock && streakState().q === q) paintStreak(false);
+    return clock;
+  };
+  streakClock = clock;
 }
 
 /** The score pops on a right answer; a heart jumps on a wrong one. */

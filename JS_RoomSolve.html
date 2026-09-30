@@ -636,7 +636,8 @@ function svTickClock(state) {
 function svHostButtons(state) {
   const s = state.shared || {};
   if (!roomCanMoveOn(state)) return [];
-  const key = [state.code, s.round, s.phase].join('|');
+  // The setter is in the key: skipping one gives the next the whole 40 s.
+  const key = [state.code, s.round, s.phase, s.setter || ''].join('|');
   if (svRoom.sinceKey !== key) {
     svRoom.sinceKey = key; svRoom.since = Date.now();
     // The 40 s below come round with nothing pushed: a redraw for them (roomQuietRedraw, JS_Hangman.html).
@@ -645,7 +646,7 @@ function svHostButtons(state) {
   if (s.phase === 'solving') return [['⏹️ ' + svT('sv_close_round'), `roomAct('closeRound', { round: ${svRound(s)} })`]];
   if (s.phase === 'setting' && s.setter !== Room.me) {
     const p = (state.players || []).find(x => x.id === s.setter);
-    if (!p || !p.online || Date.now() - svRoom.since > 40000) return [['⏭️ ' + svT('sv_skip_setter'), `roomAct('skipTurn', { round: ${svRound(s)} })`]];
+    if (!p || !p.online || Date.now() - svRoom.since > 40000) return [['⏭️ ' + svT('sv_skip_setter'), `roomAct('skipTurn', { round: ${svRound(s)}, setter: '${jsStringAttr(s.setter || '')}' })`]];
   }
   return [];
 }

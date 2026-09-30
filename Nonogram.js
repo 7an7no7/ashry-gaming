@@ -155,7 +155,14 @@ function nonoMake(level, rnd, pic) {
 const NONO_RACE_LEVEL = 'medium';
 const NONO_RACE = {
   deal(rnd) {
-    const made = nonoMake(NONO_RACE_LEVEL, rnd);
+    // The generator can come back empty: try again, then a drawn picture (always solvable), never deal nothing.
+    let made = null;
+    for (let i = 0; !made && i < 5; i++) made = nonoMake(NONO_RACE_LEVEL, rnd);
+    if (!made) {
+      const pics = nonoSolvablePictures(NONO_SIZES[NONO_RACE_LEVEL] || 5);
+      if (pics.length) made = nonoMake(NONO_RACE_LEVEL, rnd, soloPick(pics, rnd));
+    }
+    if (!made) throw new Error('ماعرفناش نجهّز اللوحة، جرّبوا تاني');
     return { pub: { n: made.n, clues: nonoClues(made.n, made.solution) }, solution: made.solution, pic: made.pic };
   },
   board: () => ({ cells: null }),

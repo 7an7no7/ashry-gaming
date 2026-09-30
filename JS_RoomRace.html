@@ -132,7 +132,7 @@ function raceRowsHtml(kind, state, tv) {
     const done = Math.max(0, Math.min(total, Number(p.done) || 0));
     const won = p.state === 'won';
     const st = won ? `✅ ${escapeHTML(svT('hm_place', { n: (p.at || 0) + 1 }))}${typeof p.secs === 'number' ? ` · <span class="metric">${escapeHTML(soloTime(p.secs))}</span>` : ''}`
-      : p.state === 'lost' ? `<span aria-hidden="true">💀</span>` : `<span class="race-row__dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
+      : p.state === 'lost' ? `<span aria-hidden="true">${p.timeUp ? '⏳' : '💀'}</span>` : `<span class="race-row__dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
     const pop = won && motionFirst(['race-won', state.code, s.dealId, s.round, id, tv ? 'tv' : 'p'].join('|'));
     return `<div class="race-row is-${p.state} ${id === Room.me ? 'is-me' : ''} ${pop ? 'is-new' : ''}">
         <span class="race-row__who">${escapeHTML(svName(state, id))}</span>
@@ -162,7 +162,7 @@ function raceResultHtml(kind, state, tv) {
   const turn = motionFirst(['race-reveal', state.code, s.dealId, s.round, tv ? 'tv' : 'phone'].join('|'));
   const reveal = ui.revealHtml ? ui.revealHtml(r.reveal, s) : '';
   const rows = (r.rows || []).map((x, i) => `<li class="sv-res is-${x.state}" style="--at:${(reveal ? 700 : 100) + i * 140}ms">
-      <span>${x.state === 'won' ? '✅' : (x.gave ? '🏳️' : '💀')} ${escapeHTML(x.name)}
+      <span>${x.state === 'won' ? '✅' : (x.gave ? '🏳️' : (x.timeUp ? '⏳' : '💀'))} ${escapeHTML(x.name)}
         ${x.state === 'won' && typeof x.secs === 'number' ? `<small class="tx-muted metric">${escapeHTML(soloTime(x.secs))}</small>` : ''}
         ${typeof x.score === 'number' && x.score > 0 && ui.scoreLabel ? `<small class="tx-muted">${escapeHTML(ui.scoreLabel(x.score, t))}</small>` : ''}</span>
       <b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li>`).join('');

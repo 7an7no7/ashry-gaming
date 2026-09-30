@@ -624,7 +624,8 @@ function roomQuietStop(local) { clearTimeout(local.quietTimer); local.quietTimer
 function hmHostButtons(state) {
   const s = state.shared || {};
   if (!roomCanMoveOn(state)) return [];
-  const key = [state.code, s.round, s.phase].join('|');
+  // The writer is in the key: skipping one gives the next the whole 40 s.
+  const key = [state.code, s.round, s.phase, s.setter || ''].join('|');
   if (hmRoom.sinceKey !== key) {
     hmRoom.sinceKey = key; hmRoom.since = Date.now();
     if (s.phase === 'writing') roomQuietRedraw(hmRoom, 'hangman'); else roomQuietStop(hmRoom);
@@ -632,7 +633,7 @@ function hmHostButtons(state) {
   if (s.phase === 'guessing') return [['⏹️ ' + hmT('hm_close_word'), `roomAct('closeWord', { round: ${Number(s.round) || 0} })`]];
   if (s.phase === 'writing' && s.setter !== Room.me) {
     const p = (state.players || []).find(x => x.id === s.setter);
-    if (!p || !p.online || Date.now() - hmRoom.since > 40000) return [['⏭️ ' + hmT('hm_skip_writer'), `roomAct('skipTurn', { round: ${Number(s.round) || 0} })`]];
+    if (!p || !p.online || Date.now() - hmRoom.since > 40000) return [['⏭️ ' + hmT('hm_skip_writer'), `roomAct('skipTurn', { round: ${Number(s.round) || 0}, setter: '${jsStringAttr(s.setter || '')}' })`]];
   }
   return [];
 }

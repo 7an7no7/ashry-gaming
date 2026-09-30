@@ -634,7 +634,9 @@ function gwTapFace(card) {
     return;
   }
   if (s.phase !== 'play') return;
-  const isDown = s.down[seat].indexOf(i) !== -1;
+  // What the screen shows, not the server's last word: a quick second tap on a
+  // face just put down lifts it back before the room has answered the first.
+  const isDown = card.classList.contains('is-down');
   if (gwLocal.panel === 'guess' && s.turn === seat && s.stage === 'ask') {
     if (isDown) return;
     gwLocal.guess = i;

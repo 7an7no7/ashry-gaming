@@ -102,7 +102,11 @@ function setFlagsLevel(level) {
   paintFlagsSetup();
 }
 
-function startFlags(daily) {
+// A game with a guess made: a new one asks first (soloConfirmNew).
+const flagsHasWork = (s) => (s.guesses || []).length > 0;
+
+function startFlags(daily, sure) {
+  if (!sure && soloConfirmNew('flags', flagsHasWork, () => startFlags(daily, true))) return;
   if (daily && soloDailyResume('flags')) return;
   soloDailySetAside('flags');
   soloNewGame('flags');
@@ -276,7 +280,7 @@ function flagsFinish(won) {
   const max = FLAG_MODES[s.playMode].guesses;
   const tries = s.guesses.length;
   const key = s.playMode + ':' + s.playLevel;
-  const rec = won && !s.daily ? soloRecord('flags', key, { guesses: tries }, (a, b) => a.guesses < b.guesses) : { record: false, prev: soloBest('flags', key) };
+  const rec = won && !s.daily && !s.archive ? soloRecord('flags', key, { guesses: tries }, (a, b) => a.guesses < b.guesses) : { record: false, prev: soloBest('flags', key) };
   const squares = (p) => {
     const full = Math.floor(p / 20);
     const half = p % 20 >= 10 && full < 5 ? 1 : 0;

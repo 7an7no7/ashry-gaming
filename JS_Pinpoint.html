@@ -44,7 +44,11 @@ function paintPinpointSetup() {
   if (daily) daily.innerHTML = soloDailyButtonHtml('pinpoint', 'startPinpoint(true)');
 }
 
-function startPinpoint(daily) {
+// A game with a round played: a new one asks first (soloConfirmNew).
+const pinHasWork = (s) => (s.rounds || []).some(r => r && (r.points !== null && r.points !== undefined || (r.wrong || []).length > 0));
+
+function startPinpoint(daily, sure) {
+  if (!sure && soloConfirmNew('pinpoint', pinHasWork, () => startPinpoint(daily, true))) return;
   if (daily && soloDailyResume('pinpoint')) return;
   soloDailySetAside('pinpoint');
   soloNewGame('pinpoint');
@@ -210,7 +214,9 @@ function pinFinish() {
   saveToLocal();
   const score = pinScore(s);
   const max = s.rounds.length * PIN_CLUES;
-  const rec = soloRecord('pinpoint', '', { score: score }, (a, b) => a.score > b.score);
+  // A past day replayed from the archive is never a best.
+  const rec = s.archive ? { record: false, prev: soloBest('pinpoint', '') }
+    : soloRecord('pinpoint', '', { score: score }, (a, b) => a.score > b.score);
   const marks = s.rounds.map(r => r.points ? ['', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'][PIN_CLUES + 1 - r.points] : '❌').join(' ');
   let share = '';
   if (s.daily) {

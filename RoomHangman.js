@@ -255,7 +255,8 @@ const hangmanAction = (room, playerId, action, payload) => {
   if (action === 'skipTurn') {
     // The writer's phone went quiet: the next one writes this word.
     requireMoveOn(room, playerId);
-    if (s.phase !== 'writing' || staleTap(p, 'round', s.round)) return;
+    // The writer it was pressed for, too: a double tap must not skip the next writer as well.
+    if (s.phase !== 'writing' || staleTap(p, 'round', s.round) || staleTap(p, 'setter', s.setter)) return;
     hmDeal(room);
     return;
   }

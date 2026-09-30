@@ -1,4 +1,66 @@
 <script>
+  /* --- ERRORS ON PLAYERS' PHONES ---
+     An error nobody sees on a guest's phone is an error the owner never hears of. The
+     published page sends each one to the rooms server (POST /err, kept by the "errors"
+     log; npm run errors in tools/ reads it): this build's id, the screen, a short
+     message and where in the page - never a name, a room code or anything typed (the
+     server blanks quoted text that isn't code). Each error once a page load, ten at
+     most, never offline, never from a browser extension or another site's script, and
+     not the noise every page gets (a cross-origin "Script error.", the ResizeObserver
+     loop, a network hiccup). The preview sends nothing unless window.ASHRY_ERR_REPORT
+     is set. Its own script, ES5, so an error in the big script below can't stop it. */
+  (function () {
+    var sent = {}, count = 0, MAX = 10;
+    var NOISE = /ResizeObserver loop|^Script error\.?$|Failed to fetch|Load failed|NetworkError|The (network|Internet) connection|AbortError|The operation was aborted|Network request failed|Importing a module script failed/i;
+    var FOREIGN = /(chrome|moz|safari|safari-web)-extension:|webkit-masked-url:|^about:|^blob:/;
+    function page(u) { try { return new URL(u, location.href).origin === location.origin; } catch (e) { return false; } }
+    // The first frame of our own page in a stack: "fn@index:1234:56".
+    function frameOf(stack, file, line, col) {
+      var lines = String(stack || '').split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        var m = /(?:at\s+([^\s(]+)\s+\()?((?:https?:)[^\s()]+?):(\d+):(\d+)\)?\s*$/.exec(lines[i])
+          || /^\s*([^@\s]*)@((?:https?:)[^\s]+?):(\d+):(\d+)\s*$/.exec(lines[i]);
+        if (m && page(m[2])) {
+          var p = new URL(m[2], location.href).pathname.split('/').pop() || 'index';
+          return (m[1] ? m[1].replace(/^Object\.|^async\s+/, '') + '@' : '') + p + ':' + m[3] + ':' + m[4];
+        }
+      }
+      if (file && page(file)) return (new URL(file, location.href).pathname.split('/').pop() || 'index') + ':' + (line || 0) + ':' + (col || 0);
+      return '';
+    }
+    function report(msg, stack, file, line, col) {
+      try {
+        if (!(window.STATIC_SITE || window.ASHRY_ERR_REPORT) || !window.ROOMS_URL || !navigator.sendBeacon) return;
+        if (navigator.onLine === false || count >= MAX) return;
+        msg = String(msg || '').replace(/\s+/g, ' ').trim();
+        if (!msg || NOISE.test(msg)) return;
+        if (FOREIGN.test(String(file || '')) || FOREIGN.test(String(stack || ''))) return;
+        var f = frameOf(stack, file, line, col);
+        if (!f) return;   // not our page's code: another site's script, an extension, the browser
+        var view = '';
+        try { view = String((typeof appState !== 'undefined' && appState && appState.currentView) || ''); } catch (e) {}
+        var b = String(window.BUILD_ID || '');
+        var key = b + '|' + msg + '|' + f + '|' + view;
+        if (sent[key]) return;
+        sent[key] = 1;
+        count++;
+        navigator.sendBeacon(String(window.ROOMS_URL).replace(/\/+$/, '') + '/err',
+          JSON.stringify({ b: b, m: msg.slice(0, 300), f: f, v: view }));
+      } catch (e) { /* a report never throws */ }
+    }
+    window.addEventListener('error', function (e) {
+      if (!e || e.target && e.target !== window) return;   // a missing image or script is not an error of ours
+      var err = e.error;
+      report((err && err.message) || e.message, err && err.stack, e.filename, e.lineno, e.colno);
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e && e.reason;
+      if (!r) return;
+      report(r.message || (typeof r === 'string' ? r : ''), r.stack, '', 0, 0);
+    });
+  })();
+</script>
+<script>
   /* --- SECURITY UTILS --- */
   function escapeHTML(str) {
       if (typeof str !== 'string') return str;
@@ -5047,7 +5109,7 @@
       dom_partners: "🔵 {a} ضد 🔴 {b}",
       dom_target: "الهدف",
       dom_help_fit: "نوّر الحجارة اللي تركب",
-      dom_help_fit_hint: "للترابيزة كلها: في دورك الحجر اللي يركب ينوّر والباقي يبهت. من غيره شغّل مخك.",
+      dom_help_fit_hint: "للترابيزة كلها: في دورك الحجر اللي يركب ينوّر والباقي يبهت، وجنب كل واحد الأرقام اللي قال عليها باص (👊). من غيره شغّل مخك.",
       dom_help_points: "وريني نقط الحركة",
       dom_help_points_hint: "قبل ما تنزّل الحجر، كل طرف يركب عليه يقولك هيجيب كام (\u2066+2\u2069).",
       dom_clock: "وقت الدور",
@@ -5556,6 +5618,22 @@
       lz_loading: "بنجهّز اللعبة…",
       lz_failed: "مقدرناش نفتح اللعبة. اتأكد من النت",
       lz_retry: "حاول تاني",
+      // next batch: autonext
+      an_switch: "⏭️ التالي لوحده",
+      an_hint_on: "بعد كل نتيجة عدّاد صغير، والجولة اللي بعدها تيجي لوحدها. تقدر تدوس «التالي» بدري أو «⏸ استنى».",
+      an_hint_off: "مقفول: المضيف يدوس «التالي» بعد كل نتيجة.",
+      an_next_in: "الجولة الجاية خلال {n}…",
+      an_final_in: "النتيجة النهائية خلال {n}…",
+      an_pause: "⏸ استنى",
+      an_paused: "⏸ العد واقف · «التالي» لما تجهزوا",
+      // next batch: small
+      skr_replay: "↺ شوف تاني",
+      skr_replay_hint: "الحركة دي تتعاد على موبايلك إنت بس",
+      tb_double: "كارت دبل",
+      tb_double_hint: "كارت واحد مستخبي في كل لوحة (مش من الـ 100) نقطه متضاعفة. محدش يعرف مكانه غير لما يتفتح.",
+      tb_double_slam: "كارت دبل!",
+      tb_double_sub: "النقط متضاعفة ×2",
+      dom_lacks: "قال باص على: {n}",
     },
     en: {
       title: "Ashry Gaming",
@@ -9668,7 +9746,7 @@
       dom_partners: "🔵 {a} against 🔴 {b}",
       dom_target: "Target",
       dom_help_fit: "Light up the tiles that fit",
-      dom_help_fit_hint: "For the whole table: on your turn the tiles that fit light up and the rest fade. Off, use your head.",
+      dom_help_fit_hint: "For the whole table: on your turn the tiles that fit light up and the rest fade, and each seat shows the numbers it passed on (👊). Off, use your head.",
       dom_help_points: "Show a move's points",
       dom_help_points_hint: "Before you place a tile, each end it fits says what it would score (+2).",
       dom_clock: "Turn clock",
@@ -10177,6 +10255,22 @@
       lz_loading: "Getting the game ready…",
       lz_failed: "Couldn't open the game. Check the connection",
       lz_retry: "Try again",
+      // next batch: autonext
+      an_switch: "⏭️ Next by itself",
+      an_hint_on: "After each result a short count, then the next round comes by itself. Press «Next» sooner, or «⏸ Wait».",
+      an_hint_off: "Off: the host presses «Next» after each result.",
+      an_next_in: "Next round in {n}…",
+      an_final_in: "Final result in {n}…",
+      an_pause: "⏸ Wait",
+      an_paused: "⏸ Count stopped · «Next» when you're ready",
+      // next batch: small
+      skr_replay: "↺ See again",
+      skr_replay_hint: "Plays that move again on your phone only",
+      tb_double: "Double card",
+      tb_double_hint: "One card on every board (never a 100) is hidden and worth double. Nobody knows which until it is opened.",
+      tb_double_slam: "Double card!",
+      tb_double_sub: "Points ×2",
+      dom_lacks: "Passed on: {n}",
     }
   };
 
@@ -12833,7 +12927,11 @@ const GAME_RULES = {
                 <li>كل واحد يكتب إجابة مخترعة تبان مقنعة.</li>
                 <li>الإجابات كلها تظهر مخلوطة مع الحقيقية. اختار اللي تفتكرها الحقيقية، ومش هتقدر تختار كذبتك.</li>
                 <li>تصيب الحقيقية = 1000 نقطة. كل واحد يختار كذبتك = 500 نقطة لك.</li>
-            </ol>`,
+            </ol>
+            <p class="help-sub">⏭️ التالي لوحده</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>اختيار للمضيف في الأوضة، <b>مقفول من الأول</b>: بعد كل نتيجة عدّاد صغير «الجولة الجاية خلال…»، واللي بعدها تيجي لوحدها. المضيف يدوس «التالي» بدري، أو <b>«⏸ استنى»</b> يوقف العد للجولة دي. ولو للعبة آخر، آخر جولة بتروح للنتيجة النهائية.</li>
+            </ul>`,
 
         charades: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -12932,6 +13030,10 @@ const GAME_RULES = {
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>الجمل الثلاثة على الشاشة، ومين صوّت، وبعدين الكذبة ومين اتضحك عليه.</li>
+            </ul>
+            <p class="help-sub">⏭️ التالي لوحده</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>اختيار للمضيف في الأوضة، <b>مقفول من الأول</b>: بعد كل نتيجة عدّاد صغير «الجولة الجاية خلال…»، واللي بعدها تيجي لوحدها. المضيف يدوس «التالي» بدري، أو <b>«⏸ استنى»</b> يوقف العد للجولة دي. ولو للعبة آخر، آخر جولة بتروح للنتيجة النهائية.</li>
             </ul>`,
         emoji: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -13007,11 +13109,19 @@ const GAME_RULES = {
                 <li>سؤال واحد، اختيارين، وكل واحد يصوّت من موبايله.</li>
                 <li>الأصوات مخفية لحد ما يصوّت الجميع، عشان محدش يمشي مع الأغلبية.</li>
                 <li>مفيش نقاط: النقاش نفسه هو اللعبة.</li>
+            </ul>
+            <p class="help-sub">⏭️ التالي لوحده</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>اختيار للمضيف في الأوضة، <b>مقفول من الأول</b>: بعد كل نتيجة عدّاد صغير «الجولة الجاية خلال…»، واللي بعدها تيجي لوحدها. المضيف يدوس «التالي» بدري، أو <b>«⏸ استنى»</b> يوقف العد للجولة دي. ولو للعبة آخر، آخر جولة بتروح للنتيجة النهائية.</li>
             </ul>`,
         mostlikely: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>يظهر موقف، وكل واحد يختار مين في الغرفة أقرب له. مسموح تصوّت لنفسك.</li>
                 <li>اللي ياخد أكتر أصوات ياخد نقطة، ولو فيه تعادل على الأول كلهم ياخدوا نقطة.</li>
+            </ul>
+            <p class="help-sub">⏭️ التالي لوحده</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>اختيار للمضيف في الأوضة، <b>مقفول من الأول</b>: بعد كل نتيجة عدّاد صغير «الجولة الجاية خلال…»، واللي بعدها تيجي لوحدها. المضيف يدوس «التالي» بدري، أو <b>«⏸ استنى»</b> يوقف العد للجولة دي. ولو للعبة آخر، آخر جولة بتروح للنتيجة النهائية.</li>
             </ul>`,
         wavelength: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -13019,7 +13129,11 @@ const GAME_RULES = {
                 <li>القارئ يدّي تلميح واحد يوصف المكان ده.</li>
                 <li>الفريق يتشاور ويحرك المؤشر (من الموبايل أو من على التلفزيون). القارئ مايحركش.</li>
                 <li>المضيف يقفل المؤشر: في الصميم 4 نقاط، قريب جداً 3، قريب 2.</li>
-            </ol>`,
+            </ol>
+            <p class="help-sub">⏭️ التالي لوحده</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>اختيار للمضيف في الأوضة، <b>مقفول من الأول</b>: بعد كل نتيجة عدّاد صغير «الجولة الجاية خلال…»، واللي بعدها تيجي لوحدها. المضيف يدوس «التالي» بدري، أو <b>«⏸ استنى»</b> يوقف العد للجولة دي. ولو للعبة آخر، آخر جولة بتروح للنتيجة النهائية.</li>
+            </ul>`,
 
         trivia: `
             <p class="help-sub">📱 كل واحد من موبايله</p>
@@ -13027,6 +13141,10 @@ const GAME_RULES = {
                 <li>المضيف يختار عدد الأسئلة (5 لـ 20)، والكل يجاوب في نفس اللحظة. 15 ثانية لكل سؤال.</li>
                 <li>الإجابة الصح = <b>10 نقاط</b>، وأسرع إجابات صح بتاخد زيادة: الأولى +5، التانية +4… لحد الخامسة +1.</li>
             </ol>
+            <p class="help-sub">⏭️ التالي لوحده</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>اختيار للمضيف في الأوضة، <b>مقفول من الأول</b>: بعد كل نتيجة عدّاد صغير «الجولة الجاية خلال…»، واللي بعدها تيجي لوحدها. المضيف يدوس «التالي» بدري، أو <b>«⏸ استنى»</b> يوقف العد للجولة دي. ولو للعبة آخر، آخر جولة بتروح للنتيجة النهائية.</li>
+            </ul>
             <p class="help-sub">📺 دوري المعرفة (فريقين على شاشة واحدة)</p>
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>فريقين ومقدم واحد. كل جولة 5 فئات، وفي كل فئة أسئلة من 100 لـ 500 نقطة: الأعلى أصعب.</li>
@@ -13034,6 +13152,7 @@ const GAME_RULES = {
                 <li>مؤقت اختياري لكل سؤال: اضغط على العداد عشان توقفه، ولما يخلص الإجابة تظهر لوحدها. أزرار + و − لتصحيح النقاط.</li>
                 <li><b>السرقة</b> (مفتوحة من الأول): لو الفريق اللي عليه الدور غلط أو وقته خلص، الإجابة ما بتظهرش، والفريق التاني ياخد <b>فرصة واحدة</b> بنص الوقت. صح؟ ياخد نقط السؤال كلها. غلط أو الوقت خلص؟ الإجابة تظهر ومحدش ياخد حاجة. الدور بيلف عادي بعد كل سؤال.</li>
                 <li>المقدم عنده <b>✅ صح</b> و<b>❌ غلط</b> في كل مرحلة. «👁️ إظهار الإجابة» قبل السرقة بيلغي السرقة ويخليه يدي النقط لأي فريق.</li>
+                <li><b>🎯 كارت دبل</b> (مفتوح من الأول): في كل لوحة كارت واحد مستخبي، مش من الـ 100، نقطه <b>متضاعفة</b>. محدش يعرف مكانه لحد ما يتفتح. لو اتسرق، الفريق التاني ياخد الدبل. بعد ما يتلعب بيفضل عليه <b>×2</b> صغيرة.</li>
                 <li>اديت النقط غلط؟ <b>رجّع آخر سؤال</b>. ولو سبت لعبة لسه ما خلصتش، تقدر تكمّلها من شاشة الإعداد.</li>
             </ol>`,
         bumper: `
@@ -13080,6 +13199,7 @@ const GAME_RULES = {
                 <li>في دورك حاجة واحدة: تسحب من الورق، أو تاخد الكارت اللي فوق على الأرض، أو ترمي كارت زيه من إيدك، أو تقول <b>سكرو</b>.</li>
                 <li>بعد سكرو كل واحد تاني بياخد دور أخير، وبعدها الكروت تتكشف وتتحسب. واللي يخلّص كروته قبل الكل بيقفل الجولة على طول.</li>
                 <li>أقل مجموع ياخد <b>صفر</b>. اللي قال سكرو وحد غلبه، مجموعه <b>بيتضاعف</b>.</li>
+                <li><b>↺ شوف تاني</b> جنب آخر حركة فوق الترابيزة: بيعيد رسمة الحركة دي على موبايلك إنت بس. آخر حركة بس، ومن غير ما يكشف أي كارت ما اتكشفش.</li>
             </ol>
             <details class="help-more">
                 <summary>🃏 الكروت وقيمتها</summary>
@@ -13245,7 +13365,7 @@ const GAME_RULES = {
             <p class="help-sub">📱 كل واحد من موبايله</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>حجارتك على موبايلك، وحجارة الباقيين مقلوبة قدامك بعددها. اضغط على حجر عشان تنزّله، ولو يركب على أكتر من طرف الأطراف بتنوّر: اختار واحد.</li>
-                <li>المضيف بيختار: عادي أو أمريكاني، فرق، الهدف، ووقت الدور (لو خلص، الموبايل بيلعب بدالك: أول حجر يركب، أو يسحب، أو يقول باص). ومساعدات للترابيزة كلها، مقفولة من الأول: <b>نوّر الحجارة اللي تركب</b>، و<b>نقط الحركة</b> في الأمريكاني.</li>
+                <li>المضيف بيختار: عادي أو أمريكاني، فرق، الهدف، ووقت الدور (لو خلص، الموبايل بيلعب بدالك: أول حجر يركب، أو يسحب، أو يقول باص). ومساعدات للترابيزة كلها، مقفولة من الأول: <b>نوّر الحجارة اللي تركب</b> (ومعاه جنب كل واحد الأرقام اللي قال عليها باص، 👊 4·6، لحد ما يسحب أو ينزّل واحد منها)، و<b>نقط الحركة</b> في الأمريكاني.</li>
                 <li>ناقصين؟ ضيف <b>لاعبين كمبيوتر</b>: السهل بينزّل أول حجر يركب، والصعب بيلعب عشان يكسب. الكمبيوتر مابيشوفش حجارة حد.</li>
                 <li>موبايل حد سكت؟ المضيف يقدر يلعب بداله.</li>
             </ul>
@@ -14435,6 +14555,10 @@ const GAME_RULES = {
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>السؤال والإجابات متجمعة والنقط، والمضيف يتحكم من الشاشة.</li>
+            </ul>
+            <p class="help-sub">⏭️ التالي لوحده</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>اختيار للمضيف في الأوضة، <b>مقفول من الأول</b>: بعد كل نتيجة عدّاد صغير «الجولة الجاية خلال…»، واللي بعدها تيجي لوحدها. المضيف يدوس «التالي» بدري، أو <b>«⏸ استنى»</b> يوقف العد للجولة دي. ولو للعبة آخر، آخر جولة بتروح للنتيجة النهائية.</li>
             </ul>`,
         mafia: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -14635,7 +14759,11 @@ const GAME_RULES = {
                 <li>Everyone types a made-up answer that sounds convincing.</li>
                 <li>All the answers appear mixed with the real one. Pick the one you think is real; you cannot pick your own lie.</li>
                 <li>Hit the truth = 1000 points. Each player who picks your lie = 500 points for you.</li>
-            </ol>`,
+            </ol>
+            <p class="help-sub">⏭️ Next by itself</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The host's choice in the lobby, <b>off to start</b>: after each result a small count «Next round in…», then the next one comes by itself. The host can press «Next» sooner, or <b>«⏸ Wait»</b> to stop the count for that round. In a game with a last round, that one goes to the final result.</li>
+            </ul>`,
 
         charades: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -14734,6 +14862,10 @@ const GAME_RULES = {
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The three statements on the screen, who has voted, then the lie and who fell for it.</li>
+            </ul>
+            <p class="help-sub">⏭️ Next by itself</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The host's choice in the lobby, <b>off to start</b>: after each result a small count «Next round in…», then the next one comes by itself. The host can press «Next» sooner, or <b>«⏸ Wait»</b> to stop the count for that round. In a game with a last round, that one goes to the final result.</li>
             </ul>`,
         emoji: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -14809,11 +14941,19 @@ const GAME_RULES = {
                 <li>One question, two options, and everyone votes from their phone.</li>
                 <li>Votes stay hidden until everyone has voted, so nobody follows the crowd.</li>
                 <li>No points: the argument afterwards is the game.</li>
+            </ul>
+            <p class="help-sub">⏭️ Next by itself</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The host's choice in the lobby, <b>off to start</b>: after each result a small count «Next round in…», then the next one comes by itself. The host can press «Next» sooner, or <b>«⏸ Wait»</b> to stop the count for that round. In a game with a last round, that one goes to the final result.</li>
             </ul>`,
         mostlikely: `
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>A situation comes up and everyone picks who in the room fits it best. Voting for yourself is allowed.</li>
                 <li>Most votes takes a point; a tie gives everyone tied a point.</li>
+            </ul>
+            <p class="help-sub">⏭️ Next by itself</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The host's choice in the lobby, <b>off to start</b>: after each result a small count «Next round in…», then the next one comes by itself. The host can press «Next» sooner, or <b>«⏸ Wait»</b> to stop the count for that round. In a game with a last round, that one goes to the final result.</li>
             </ul>`,
         wavelength: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -14821,7 +14961,11 @@ const GAME_RULES = {
                 <li>The psychic gives one clue that describes the spot.</li>
                 <li>The team talks it over and moves the dial (from a phone or on the TV). The psychic doesn't touch it.</li>
                 <li>The host locks the dial: dead centre 4 points, very close 3, close 2.</li>
-            </ol>`,
+            </ol>
+            <p class="help-sub">⏭️ Next by itself</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The host's choice in the lobby, <b>off to start</b>: after each result a small count «Next round in…», then the next one comes by itself. The host can press «Next» sooner, or <b>«⏸ Wait»</b> to stop the count for that round. In a game with a last round, that one goes to the final result.</li>
+            </ul>`,
 
         trivia: `
             <p class="help-sub">📱 Everyone on their own phone</p>
@@ -14829,6 +14973,10 @@ const GAME_RULES = {
                 <li>The host picks how many questions (5 to 20) and everyone answers at once. 15 seconds a question.</li>
                 <li>A right answer is <b>10 points</b>, and the fastest right answers get more: the first +5, the second +4… down to the fifth +1.</li>
             </ol>
+            <p class="help-sub">⏭️ Next by itself</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The host's choice in the lobby, <b>off to start</b>: after each result a small count «Next round in…», then the next one comes by itself. The host can press «Next» sooner, or <b>«⏸ Wait»</b> to stop the count for that round. In a game with a last round, that one goes to the final result.</li>
+            </ul>
             <p class="help-sub">📺 The team board (two teams on one screen)</p>
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Two teams and one host. Each round has 5 categories with questions from 100 to 500 points: the higher, the harder.</li>
@@ -14836,6 +14984,7 @@ const GAME_RULES = {
                 <li>An optional clock per question: tap it to pause, and when it runs out the answer shows by itself. + and − correct the scores.</li>
                 <li><b>The steal</b> (on by default): if the team whose turn it is misses or runs out of time, the answer stays hidden and the other team gets <b>one try</b> on half the time. Right? They take the question's full points. Wrong or out of time? The answer is shown and nobody scores. The turn passes as usual after every question.</li>
                 <li>The host has <b>✅ Right</b> and <b>❌ Wrong</b> at each stage. «👁️ Show answer» before the steal skips it and lets the host give the points to either team.</li>
+                <li><b>🎯 Double card</b> (on by default): every board hides one card, never a 100, worth <b>twice</b> its points. Nobody knows where it is until it is opened. Stolen, the other team takes the double. Once played it keeps a small <b>×2</b>.</li>
                 <li>Gave the points wrongly? <b>Undo the last question</b>. Left a game unfinished? Carry on from the setup screen.</li>
             </ol>`,
         bumper: `
@@ -14882,6 +15031,7 @@ const GAME_RULES = {
                 <li>On your turn, one thing: draw from the deck, take the top card of the pile, throw a matching card from your hand, or call <b>Screw</b>.</li>
                 <li>After Screw everyone else gets one last turn, then the cards are shown and counted. A player who gets rid of every card ends the round at once.</li>
                 <li>The lowest total scores <b>zero</b>. A caller who is beaten has their total <b>doubled</b>.</li>
+                <li><b>↺ See again</b> beside the latest move at the top of the table plays that move again on your phone only. The latest move only, and it never shows a card that wasn't shown.</li>
             </ol>
             <details class="help-more">
                 <summary>🃏 The cards and their values</summary>
@@ -15047,7 +15197,7 @@ const GAME_RULES = {
             <p class="help-sub">📱 Each on their own phone</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Your tiles are on your phone; everyone else's lie face down in front of you, just the count. Tap a tile to play it; if it fits more than one end, the ends light up: pick one.</li>
-                <li>The host picks Classic or All Fives, teams, the target and a turn clock (when it runs out the phone plays for you: the first tile that fits, else it draws, else it passes), and helpers for the whole table, off to begin with: <b>light up the tiles that fit</b>, and <b>a move's points</b> in All Fives.</li>
+                <li>The host picks Classic or All Fives, teams, the target and a turn clock (when it runs out the phone plays for you: the first tile that fits, else it draws, else it passes), and helpers for the whole table, off to begin with: <b>light up the tiles that fit</b> (with it each seat also shows the numbers it passed on, 👊 4·6, until it draws or plays one), and <b>a move's points</b> in All Fives.</li>
                 <li>Short of players? Add <b>computer players</b>: the easy one plays the first tile that fits, the hard one plays to win. They never see anyone's tiles.</li>
                 <li>A phone went quiet? The host can play for it.</li>
             </ul>
@@ -16237,6 +16387,10 @@ const GAME_RULES = {
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The question, the grouped answers and the points, with the host's buttons on the screen.</li>
+            </ul>
+            <p class="help-sub">⏭️ Next by itself</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>The host's choice in the lobby, <b>off to start</b>: after each result a small count «Next round in…», then the next one comes by itself. The host can press «Next» sooner, or <b>«⏸ Wait»</b> to stop the count for that round. In a game with a last round, that one goes to the final result.</li>
             </ul>`,
         mafia: `
             <ol class="list-decimal list-inside space-y-1 text-xs">

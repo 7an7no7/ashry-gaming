@@ -86,10 +86,10 @@ ROOM_GAMES.herd = {
           </div>
         </div>
         <p class="field__hint" style="text-align:center">${escapeHTML(t.herd_lobby_hint || '')}</p>
-      </div>`;
+      </div>` + autoNextLobbyHtml(state, 'herd');
   },
   startPayload() {
-    return { lang: VOTE_LANG(), target: herdOpts().target };
+    return { lang: VOTE_LANG(), target: herdOpts().target, autoNext: autoNextChoice('herd') };
   },
 
   render(state) {
@@ -161,8 +161,9 @@ ROOM_GAMES.herd = {
         </div>
         ${herdGroupsHtml(s, t)}
         ${renderScoreboard(herdBoard(s))}
+        ${autoNextSlotHtml(state)}
         ${roomMoveOnHtml(state,
-          `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('nextRound')">${escapeHTML(t.next_round || '')}</button></div>`,
+          `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(t.next_round || '')}</button></div>`,
           `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
         ${renderRoomPlayerStrip(state)}`);
       if (fresh && (s.gained || []).indexOf(Room.me) !== -1) playSound('success');
@@ -262,7 +263,8 @@ TV_GAMES.herd = {
         <div class="tv-question">${s.majorityKey ? '🐄 ' + escapeHTML(t.herd_majority || '') : '🤷 ' + escapeHTML(t.herd_no_majority || '')}${s.sheepId ? ' · 🐑 ' + escapeHTML(s.sheepName || '') : ''}</div>
         ${herdTvGroupsHtml(s)}
         <div class="tv-strip-inline">${herdBoard(s).map(p => `<span class="tv-chip"><b class="metric">${p.score}</b> ${escapeHTML(p.name)}</span>`).join('')}</div>
-        ${moveOn(tvBtn(t.next_round, "roomAct('nextRound')"))}</div>`;
+        ${autoNextSlotHtml(state)}
+        ${moveOn(tvBtn(t.next_round, `roomAct('nextRound', { round: ${Number(s.round) || 0} })`))}</div>`;
     }
     return `<div class="tv-vote">
       <div class="tv-title tv-center-text">🏆 ${escapeHTML((s.winners || []).join(' · '))}</div>

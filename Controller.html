@@ -82,7 +82,9 @@
         spyDataEn: <?!= initialSpyDataEn ?>,
         spyPairsEn: <?!= initialSpyPairsEn ?>,
         room: <?!= initialRoom ?>,
-        webAppUrl: <?!= webAppUrl ?>
+        webAppUrl: <?!= webAppUrl ?>,
+        // true: a room's link is <webAppUrl>r/CODE, the page with the room's preview (site-worker/).
+        roomLinks: <?!= roomLinks ?>
       };
       // The shared lists read the spy words by this name (MonkeyWords.js,
       // StopWords.js, the letter wheel), as the rooms server does.
@@ -2037,6 +2039,16 @@
                 </span>
               </label>
               <p class="field__hint" data-i18n="tb_steal_hint">لو الفريق غلط أو وقته خلص، الإجابة ما بتظهرش: الفريق التاني ياخد فرصة واحدة بنص الوقت، ولو جاوب صح ياخد النقط كلها.</p>
+            </div>
+            <div class="field">
+              <label class="switch-row" for="tb-double-on">
+                <span class="field__label" data-i18n="tb_double">كارت دبل</span>
+                <span class="switch">
+                  <input type="checkbox" id="tb-double-on" role="switch" checked onchange="tbRememberSetup()">
+                  <span class="switch__track" aria-hidden="true"></span>
+                </span>
+              </label>
+              <p class="field__hint" data-i18n="tb_double_hint">كارت واحد مستخبي في كل لوحة (مش من الـ 100) نقطه متضاعفة. محدش يعرف مكانه غير لما يتفتح.</p>
             </div>
             <button onclick="startTriviaBoard()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
           </div>
@@ -4254,10 +4266,11 @@
     </div>
 
     <!-- tools/build-site.mjs and build-preview.mjs write the map of the chunks here (window.LZ_MANIFEST: each game's code is a file of its own in g/, tools/lazy-split.mjs). -->
-    <?!= include('JS_Lazy'); ?>
     <?!= include('JS_Core'); ?>
+    <?!= include('JS_Lazy'); ?>
     <?!= include('JS_Catalog'); ?>
     <?!= include('JS_Room'); ?>
+    <?!= include('JS_RoomAutoNext'); ?>
     <?!= include('JS_Utils'); ?>
     <?!= include('JS_WhoAmI'); ?>
     <?!= include('JS_GuessNumber'); ?>

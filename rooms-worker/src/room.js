@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying } from '../generated/rules.js';
+import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -341,12 +341,22 @@ export class Room extends DurableObject {
     let again;
     const soonest = (t) => { again = Math.min(again === undefined ? Infinity : again, t); };
 
-    // A round whose time is up ends, even with every phone asleep.
-    const due = roomDeadline(room);
+    // A round whose time is up ends, even with every phone asleep. A timeout that
+    // deals the next round («التالي لوحده») gets the shared prompt memory, as the
+    // host's own «التالي» does; the read lets other messages in, so the room is
+    // looked at again after it.
+    let memory = null;
+    const early = roomDeadline(this.room);
+    if (early && now >= early && roomTimeoutDeals(this.room, now)) memory = await this.readMemory();
+    const due = roomDeadline(this.room);
     if (due && now >= due) {
-      const next = structuredClone(room);
+      const next = structuredClone(this.room);
       try {
-        if (roomTimeout(next, now)) { this.room = next; changed = true; }
+        if (withPromptMemory(memory, () => roomTimeout(next, now))) {
+          this.room = next;
+          changed = true;
+          if (memory && Object.keys(memory.changed).length) this.memoryStub().write(memory.changed).catch(() => {});
+        }
         // A timeout that left its own deadline due would bring the alarm straight
         // back; treat it like one that threw and look again later.
         const still = roomDeadline(this.room);

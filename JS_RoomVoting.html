@@ -142,7 +142,7 @@ function renderScoreboard(board, title) {
 function renderRoundFooter(state, nextLabel) {
   const t = TRANSLATIONS[appState.lang];
   // The next round is anyone's once the host is away (roomMoveOnHtml); another game stays the host's.
-  return roomMoveOnHtml(state, `<div class="btn-stack">
+  return autoNextSlotHtml(state) + roomMoveOnHtml(state, `<div class="btn-stack">
       <button onclick="roomAct('nextRound', ${roomNextArgs(state)})" class="btn btn--primary btn--lg">${nextLabel}</button>
       ${state.youAreHost ? `<button onclick="tvBackToHub()" class="btn btn--ghost">${t.room_another_game || 'لعبة أخرى'}</button>` : ''}
     </div>`, `<div class="waiting-note">${t.room_wait_host}</div>`);
@@ -158,8 +158,8 @@ const langLobbyOptions = (state, hintKey) => {
    لو خيروك — no scoring, the argument is the point
    ========================================================================== */
 ROOM_GAMES.wouldyou = {
-  lobbyOptions: (s) => langLobbyOptions(s, 'wyr_hint'),
-  startPayload: () => ({ lang: VOTE_LANG() }),
+  lobbyOptions: (s) => langLobbyOptions(s, 'wyr_hint') + autoNextLobbyHtml(s, 'wouldyou'),
+  startPayload: () => ({ lang: VOTE_LANG(), autoNext: autoNextChoice('wouldyou') }),
   render(state) {
     if (appState.currentView !== 'room-wouldyou') setView('room-wouldyou');
     const el = document.getElementById('view-room-wouldyou');
@@ -183,8 +183,8 @@ ROOM_GAMES.wouldyou = {
    مين أكثر واحد — the ballot is the room itself
    ========================================================================== */
 ROOM_GAMES.mostlikely = {
-  lobbyOptions: (s) => langLobbyOptions(s, 'mlt_hint'),
-  startPayload: () => ({ lang: VOTE_LANG() }),
+  lobbyOptions: (s) => langLobbyOptions(s, 'mlt_hint') + autoNextLobbyHtml(s, 'mostlikely'),
+  startPayload: () => ({ lang: VOTE_LANG(), autoNext: autoNextChoice('mostlikely') }),
   render(state) {
     if (appState.currentView !== 'room-mostlikely') setView('room-mostlikely');
     const el = document.getElementById('view-room-mostlikely');
@@ -208,8 +208,8 @@ ROOM_GAMES.mostlikely = {
    فيبج — invent an answer, then find the real one
    ========================================================================== */
 ROOM_GAMES.fibbage = {
-  lobbyOptions: (s) => langLobbyOptions(s, 'fib_hint'),
-  startPayload: () => ({ lang: VOTE_LANG() }),
+  lobbyOptions: (s) => langLobbyOptions(s, 'fib_hint') + autoNextLobbyHtml(s, 'fibbage'),
+  startPayload: () => ({ lang: VOTE_LANG(), autoNext: autoNextChoice('fibbage') }),
   render(state) {
     if (appState.currentView !== 'room-fibbage') setView('room-fibbage');
     const el = document.getElementById('view-room-fibbage');

@@ -1171,11 +1171,11 @@ async function roomRenameMe() {
 
 /**
  * The room code in whatever was typed or pasted: a code, or a whole join link
- * someone sent ("…/?room=ABCD"), in any case and with stray spaces.
+ * someone sent ("…/?room=ABCD" or "…/r/ABCD"), in any case and with stray spaces.
  */
 function extractRoomCode(text) {
   const raw = String(text || '');
-  const fromLink = /[?&]room=([A-Za-z0-9]{4,8})/.exec(raw);
+  const fromLink = /[?&]room=([A-Za-z0-9]{4,8})/.exec(raw) || /\/r\/([A-Za-z0-9]{4,8})/.exec(raw);
   return (fromLink ? fromLink[1] : raw.replace(/[^A-Za-z0-9]/g, '')).toUpperCase().slice(0, 4);
 }
 
@@ -1189,6 +1189,26 @@ function tidyRoomCodeInput(el) {
 }
 
 /**
+ * A room's join link. On the published site it is <app>/r/CODE: site-worker/ answers it
+ * with a small page carrying the room's preview (its title and picture for WhatsApp and
+ * the rest), which sends a browser straight on to <app>?room=CODE. `game` (the room
+ * game chosen) names the game in the preview, and an English phone asks for an English
+ * one; a QR leaves both out (shorter, easier to scan). The preview and a copy with no
+ * worker keep the plain ?room= link.
+ */
+function roomInviteUrl(code, opts) {
+  const data = window.SERVER_DATA || {};
+  const base = data.webAppUrl;
+  if (!base || !code) return '';
+  if (!data.roomLinks) return base + '?room=' + code;
+  const o = opts || {};
+  const q = [];
+  if (o.game && /^[a-z0-9]{1,24}$/.test(o.game)) q.push('g=' + o.game);
+  if (o.lang === 'en') q.push('l=en');
+  return base.replace(/\/?$/, '/') + 'r/' + code + (q.length ? '?' + q.join('&') : '');
+}
+
+/**
  * Sends the join link through the phone's share sheet (WhatsApp and the rest),
  * or copies it where there is none - for friends who can't scan the QR code
  * because they aren't in the same place.
@@ -1198,7 +1218,7 @@ async function roomShareLink() {
   const base = window.SERVER_DATA && window.SERVER_DATA.webAppUrl;
   if (!state || !base) return;
   const t = TRANSLATIONS[appState.lang] || {};
-  const url = base + '?room=' + state.code;
+  const url = roomInviteUrl(state.code, { game: state.game, lang: appState.lang });
   const text = (t.room_share_text || '') + ' ' + state.code;
   return shareOrCopy(url, text, t.room_link_copied || '');
 }
@@ -1353,9 +1373,7 @@ function renderRoomLobby(state) {
   const joined = lobbySeen.ids ? state.players.filter(p => !lobbySeen.ids.has(p.id)).map(p => p.id) : [];
   lobbySeen.ids = new Set(state.players.map(p => p.id));
 
-  const url = (window.SERVER_DATA && window.SERVER_DATA.webAppUrl)
-    ? window.SERVER_DATA.webAppUrl + '?room=' + state.code
-    : '';
+  const url = roomInviteUrl(state.code);
   // Encoded once per code, not on every presence tick. The skeleton empties it
   // while a room loads, hence the innerHTML check.
   const qrEl = document.getElementById('room-qr');

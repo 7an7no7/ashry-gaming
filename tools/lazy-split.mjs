@@ -25,6 +25,7 @@ import * as walk from 'acorn-walk';
 export const SHELL_FILES = [
   'Logo', 'Tailwind', 'Style',
   'JS_Lazy', 'JS_Core', 'JS_Catalog', 'JS_Room', 'JS_Utils',
+  'JS_RoomAutoNext',   // «التالي لوحده»: trivia, the voting games, موجة, زي الكل, صدق ولا كذب
   'JS_RoomImposter',   // renderRoomFrame, roomAct, roomHostRow: every room screen's helpers
   'JS_RoomGames',      // the play-mode switch, كلمة واحدة and من أنا؟ rooms
   'JS_RoomVoting',     // the voting engine and renderScoreboard, used by most rooms

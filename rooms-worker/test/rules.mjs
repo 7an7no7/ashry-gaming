@@ -11262,6 +11262,150 @@ Date.now = duelTestClock;
   check(sf.shared.phase === 'results' && sf.shared.outcome === 'revealed' && !Object.values(sf.shared.scores || {}).some((n) => n), 'spyfall: the spy leaving ends it, nobody scores');
 }
 
+/* --- «التالي لوحده»: the next round by itself (the next batch) ------------ */
+{
+  const threw2 = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const an = (game, ids, start) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game });
+    applyRoomAction(r, ids[0], 'start', Object.assign({ lang: 'ar' }, start || {}));
+    return r;
+  };
+  const due = (r) => roomDeadline(r);
+  const fire = (r) => { clock = Math.max(clock, due(r)); return roomTimeout(r, clock); };
+
+  // تحدي المعلومات
+  const triviaAnswer = (r) => { r.shared.roster.forEach((pid) => { clock += 50; applyRoomAction(r, pid, 'answer', { choice: 0, qIndex: r.shared.qIndex }); }); };
+  const off = an('trivia', ['a', 'b', 'c'], { count: 5 });
+  triviaAnswer(off);
+  check(off.shared.phase === 'results' && !('nextAt' in off.shared) && due(off) === null, 'autonext/trivia: off: no nextAt, nothing on the clock (as before)');
+  const tv = an('trivia', ['a', 'b', 'c'], { count: 5, autoNext: true });
+  triviaAnswer(tv);
+  check(tv.shared.phase === 'results' && tv.shared.nextAt === clock + 10000 && tv.shared.nextMs === 10000 && due(tv) === tv.shared.nextAt, 'autonext/trivia: on: the result sets nextAt 10 s ahead');
+  check(roomTimeout(tv, clock + 5000) === false && tv.shared.qIndex === 0, 'autonext/trivia: before nextAt nothing happens');
+  fire(tv);
+  check(tv.shared.phase === 'answering' && tv.shared.qIndex === 1 && !('nextAt' in tv.shared), 'autonext/trivia: nextAt passing deals the next question');
+  // A question the clock closes (nobody answered) sets the count too.
+  clock = tv.shared.endsAt + 2500;
+  roomTimeout(tv, clock);
+  check(tv.shared.phase === 'results' && typeof tv.shared.nextAt === 'number', 'autonext/trivia: a question the clock closed starts the count');
+  // A double deal can't happen: the host's tap first, then the old deadline.
+  const oldAt = tv.shared.nextAt;
+  applyRoomAction(tv, 'a', 'nextQuestion', { qIndex: 1 });
+  check(tv.shared.qIndex === 2 && tv.shared.phase === 'answering', 'autonext/trivia: the host\'s «التالي» still deals at once');
+  roomTimeout(tv, oldAt);
+  check(tv.shared.qIndex === 2 && tv.shared.phase === 'answering', 'autonext/trivia: the timer after the host\'s tap deals nothing more');
+  triviaAnswer(tv);
+  const key = tv.shared.nextFor;
+  applyRoomAction(tv, 'a', 'nextQuestion', { qIndex: 1 });
+  check(tv.shared.qIndex === 2 && tv.shared.phase === 'results', 'autonext/trivia: a stale «التالي» (an older question) is dropped');
+  check(threw2(() => applyRoomAction(tv, 'b', 'autoPause', { key })), 'autonext/trivia: a player can\'t pause while the host is here');
+  applyRoomAction(tv, 'a', 'autoPause', { key: 'q0' });
+  check(typeof tv.shared.nextAt === 'number', 'autonext/trivia: a stale pause is dropped');
+  applyRoomAction(tv, 'a', 'autoPause', { key });
+  check(tv.shared.nextAt === null && tv.shared.nextPaused === true && due(tv) === null, 'autonext/trivia: «استنى» clears nextAt for this round');
+  check(roomTimeout(tv, clock + 60000) === false && tv.shared.qIndex === 2, 'autonext/trivia: paused, nothing deals by itself');
+  tv._hostAway = true;
+  applyRoomAction(tv, 'b', 'nextQuestion', { qIndex: 2 });
+  delete tv._hostAway;
+  check(tv.shared.qIndex === 3, 'autonext/trivia: after a pause «التالي» by hand (a stand-in too) deals');
+  triviaAnswer(tv);
+  check(typeof tv.shared.nextAt === 'number' && tv.shared.nextPaused === false, 'autonext/trivia: the next result counts again');
+  tv._hostAway = true;
+  applyRoomAction(tv, 'b', 'autoPause', { key: tv.shared.nextFor });
+  delete tv._hostAway;
+  check(tv.shared.nextAt === null, 'autonext/trivia: a stand-in may pause when the host is away');
+  applyRoomAction(tv, 'a', 'nextQuestion', { qIndex: 3 });
+  triviaAnswer(tv);
+  check(tv.shared.qIndex === 4 && tv.shared.phase === 'results', 'autonext/trivia: the last question\'s result');
+  fire(tv);
+  check(tv.shared.phase === 'gameover' && !('nextAt' in tv.shared) && due(tv) === null, 'autonext/trivia: the last result goes to the end');
+  check(roomTimeout(tv, clock + 1e6) === false && tv.shared.phase === 'gameover', 'autonext/trivia: the end never starts a game by itself');
+  applyRoomAction(tv, 'a', 'playAgain', { lang: 'ar' });
+  triviaAnswer(tv);
+  check(typeof tv.shared.nextAt === 'number', 'autonext/trivia: play again keeps the switch');
+
+  // لو خيروك
+  const wy = an('wouldyou', ['a', 'b', 'c'], { autoNext: true });
+  ['a', 'b', 'c'].forEach((pid) => applyRoomAction(wy, pid, 'vote', { option: 'a', round: 1 }));
+  check(wy.shared.vote.phase === 'results' && wy.shared.nextAt === clock + 12000, 'autonext/wouldyou: the result sets nextAt');
+  fire(wy);
+  check(wy.shared.round === 2 && wy.shared.vote.phase === 'voting' && !('nextAt' in wy.shared), 'autonext/wouldyou: the next question deals itself');
+  applyRoomAction(wy, 'a', 'vote', { option: 'a', round: 2 });
+  applyRoomAction(wy, 'b', 'vote', { option: 'b', round: 2 });
+  wy.players = wy.players.filter((p) => p.id !== 'c');
+  roomPlayerLeft(wy, 'c', 'C');
+  check(wy.shared.vote.phase === 'results' && typeof wy.shared.nextAt === 'number', 'autonext/wouldyou: a vote a leaver closed starts the count');
+  applyRoomAction(wy, 'a', 'nextRound', { lang: 'ar', round: 2 });
+  applyRoomAction(wy, 'a', 'nextRound', { lang: 'ar', round: 2 });
+  check(wy.shared.round === 3, 'autonext/wouldyou: a double «التالي» deals one');
+  const wyOff = an('wouldyou', ['a', 'b'], {});
+  ['a', 'b'].forEach((pid) => applyRoomAction(wyOff, pid, 'vote', { option: 'a', round: 1 }));
+  check(!('nextAt' in wyOff.shared) && due(wyOff) === null, 'autonext/wouldyou: off: no nextAt');
+
+  // مين أكثر واحد
+  const ml = an('mostlikely', ['a', 'b', 'c'], { autoNext: true });
+  ['a', 'b', 'c'].forEach((pid) => applyRoomAction(ml, pid, 'vote', { option: 'b', round: 1 }));
+  check(ml.shared.phase === 'results' && typeof ml.shared.nextAt === 'number', 'autonext/mostlikely: the result sets nextAt');
+  fire(ml);
+  check(ml.shared.round === 2 && ml.shared.phase !== 'results', 'autonext/mostlikely: the next question deals itself');
+  ['a', 'b', 'c'].forEach((pid) => applyRoomAction(ml, pid, 'vote', { option: 'c', round: 2 }));
+  ml.players = ml.players.filter((p) => p.id !== 'c');
+  roomPlayerLeft(ml, 'c', 'C');
+  fire(ml);
+  check(ml.shared.round === 2 && ml.shared.nextAt === null && ml.shared.nextPaused === true && due(ml) === null, 'autonext/mostlikely: a round the rules refuse (too few left) stops the count, no retry loop');
+
+  // فيبج
+  const fb = an('fibbage', ['a', 'b', 'c'], { autoNext: true });
+  ['a', 'b', 'c'].forEach((pid) => applyRoomAction(fb, pid, 'submitLie', { lie: 'كذبة ' + pid + ' ' + Math.random().toString(36).slice(2, 6) }));
+  const votable = (pid) => fb.shared.vote.options.find((o) => (fb._voteOwners || {})[o.id] !== pid).id;
+  ['a', 'b', 'c'].forEach((pid) => applyRoomAction(fb, pid, 'vote', { option: votable(pid) }));
+  check(fb.shared.phase === 'results' && fb.shared.nextMs === 9000 + 3700 + 900 * 2, 'autonext/fibbage: the pause counts the lies\' reveal in (3 lies: 14.5 s)');
+  fire(fb);
+  check(fb.shared.round === 2 && fb.shared.phase === 'writing', 'autonext/fibbage: the next question deals itself');
+
+  // موجة
+  const wl2 = an('wavelength', ['a', 'b', 'c'], { autoNext: true });
+  applyRoomAction(wl2, wl2.shared.psychicId, 'giveClue', { clue: 'x' });
+  applyRoomAction(wl2, 'a', 'lockDial', {});
+  check(wl2.shared.phase === 'results' && wl2.shared.nextAt === clock + 11000, 'autonext/wavelength: the result sets nextAt');
+  const psy1 = wl2.shared.psychicId;
+  fire(wl2);
+  check(wl2.shared.round === 2 && wl2.shared.phase === 'clue' && wl2.shared.psychicId !== psy1, 'autonext/wavelength: the next psychic is dealt');
+
+  // زي الكل: the reveal stays the host's (merging is a judgement); the result counts
+  const hd = an('herd', ['a', 'b', 'c'], { autoNext: true, target: 10 });
+  ['a', 'b', 'c'].forEach((pid, i) => applyRoomAction(hd, pid, 'submit', { text: 'جواب' + i, round: 1 }));
+  check(hd.shared.phase === 'reveal' && !('nextAt' in hd.shared) && due(hd) === null, 'autonext/herd: the reveal waits for the host (merging)');
+  applyRoomAction(hd, 'a', 'score', {});
+  check(hd.shared.phase === 'result' && hd.shared.nextAt === clock + 12000, 'autonext/herd: the result sets nextAt');
+  fire(hd);
+  check(hd.shared.round === 2 && hd.shared.phase === 'writing' && !('nextAt' in hd.shared), 'autonext/herd: the next round deals itself');
+
+  // صدق ولا كذب
+  const t2 = an('twotruths', ['a', 'b', 'c'], { autoNext: true });
+  ['a', 'b', 'c'].forEach((id) => applyRoomAction(t2, id, 'submit', { statements: ['t1' + id, 't2' + id, 'lie' + id], lie: 2 }));
+  const t2Vote = () => t2.shared.roster.filter((id) => id !== t2.shared.subjectId).forEach((pid) => applyRoomAction(t2, pid, 'vote', { option: 'i0', turn: t2.shared.turn }));
+  t2Vote();
+  check(t2.shared.phase === 'result' && t2.shared.nextAt === clock + 13000, 'autonext/twotruths: the result sets nextAt');
+  applyRoomAction(t2, 'a', 'next', { turn: 5 });
+  check(t2.shared.turn === 0 && t2.shared.phase === 'result', 'autonext/twotruths: a stale «التالي» is dropped');
+  fire(t2);
+  check(t2.shared.turn === 1 && t2.shared.phase === 'voting', 'autonext/twotruths: the next storyteller comes up');
+  t2Vote(); fire(t2); t2Vote();
+  check(t2.shared.turn === 2 && t2.shared.phase === 'result', 'autonext/twotruths: the last storyteller\'s result');
+  fire(t2);
+  check(t2.shared.phase === 'gameover' && due(t2) === null, 'autonext/twotruths: the last result goes to the end');
+  const t2Off = an('twotruths', ['a', 'b', 'c'], {});
+  ['a', 'b', 'c'].forEach((id) => applyRoomAction(t2Off, id, 'submit', { statements: ['x', 'y', 'z'], lie: 0 }));
+  t2Off.shared.roster.filter((id) => id !== t2Off.shared.subjectId).forEach((pid) => applyRoomAction(t2Off, pid, 'vote', { option: 'i0' }));
+  check(t2Off.shared.phase === 'result' && !('nextAt' in t2Off.shared), 'autonext/twotruths: off: no nextAt');
+
+  // A game without the switch: autoPause is refused, a start payload's autoNext ignored.
+  const bz = an('buzzer', ['a', 'b'], { autoNext: true });
+  check(threw2(() => applyRoomAction(bz, 'a', 'autoPause', {})) && !bz._autoNext, 'autonext: other games have no such switch');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

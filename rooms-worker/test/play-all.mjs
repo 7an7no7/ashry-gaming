@@ -1307,9 +1307,107 @@ async function snakesRobots() {
   [H, K, late, TV].forEach((x) => x.close());
 }
 
+/* --- «التالي لوحده»: the next round by itself (--only=autonext; about 40 s of server clocks) --- */
+async function autonextRobots() {
+  console.log('• next by itself (trivia and لو خيروك with the host\'s switch on: the count on every phone and the TV, the server deals, a pause, the end)');
+  const H = await Bot.host('هالة', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K];
+  const everyone = people.concat([TV]);
+  await H.must('chooseGame', { game: 'trivia' });
+  await H.must('start', { lang: 'ar', count: 5, autoNext: true });
+  await all(everyone, (s) => s.shared.phase === 'answering' && s.shared.qIndex === 0, 'autonext: trivia starts');
+  const answerAll = async () => { for (const b of people) await b.must('answer', { choice: 0, qIndex: b.state.shared.qIndex }); };
+  await answerAll();
+  await all(everyone, (s) => s.shared.phase === 'results' && typeof s.shared.nextAt === 'number' && s.shared.nextMs === 10000, 'autonext: the result carries the count on every phone and the TV');
+  await all(everyone, (s) => s.shared.phase === 'answering' && s.shared.qIndex === 1 && !('nextAt' in s.shared), 'autonext: the server deals the next question by itself', 16000);
+  await answerAll();
+  await all(everyone, (s) => s.shared.phase === 'results' && s.shared.qIndex === 1 && typeof s.shared.nextAt === 'number', 'autonext: question 2\'s count');
+  check((await J.act('autoPause', { key: J.state.shared.nextFor })).ok === false, 'autonext: a player can\'t pause while the host is here');
+  await H.must('autoPause', { key: 'q0' });
+  check(typeof H.state.shared.nextAt === 'number', 'autonext: a stale pause is dropped');
+  await H.must('autoPause', { key: H.state.shared.nextFor });
+  await all(everyone, (s) => s.shared.nextAt === null && s.shared.nextPaused === true, 'autonext: «استنى» stops the count everywhere');
+  await sleep(1500);
+  check(H.state.shared.qIndex === 1 && H.state.shared.phase === 'results', 'autonext: paused, nothing is dealt');
+  await H.must('nextQuestion', { qIndex: 1 });
+  await all(everyone, (s) => s.shared.qIndex === 2 && s.shared.phase === 'answering', 'autonext: «التالي» by hand after a pause');
+  await H.must('nextQuestion', { qIndex: 1 });
+  check(H.state.shared.qIndex === 2, 'autonext: a stale «التالي» is dropped');
+  for (let q = 2; q < 4; q++) {
+    await answerAll();
+    await H.waitFor((s) => s.shared.phase === 'results' && s.shared.qIndex === q, `autonext: question ${q + 1}'s result`);
+    await H.must('nextQuestion', { qIndex: q });
+    await H.waitFor((s) => s.shared.phase === 'answering' && s.shared.qIndex === q + 1, `autonext: the host's «التالي» still skips the count (question ${q + 2})`);
+  }
+  await answerAll();
+  await all(everyone, (s) => s.shared.phase === 'results' && s.shared.qIndex === 4 && typeof s.shared.nextAt === 'number', 'autonext: the last question counts to the end too');
+  await all(everyone, (s) => s.shared.phase === 'gameover' && !('nextAt' in s.shared), 'autonext: the last result goes to the podium by itself', 16000);
+  await sleep(1200);
+  check(H.state.shared.phase === 'gameover', 'autonext: the end never starts a new game');
+  await H.must('backToHub');
+
+  // لو خيروك: the vote's result deals the next question by itself.
+  await H.must('chooseGame', { game: 'wouldyou' });
+  await H.must('start', { lang: 'ar', autoNext: true });
+  await all(everyone, (s) => s.shared.round === 1 && s.shared.vote && s.shared.vote.phase === 'voting', 'autonext: لو خيروك starts');
+  for (const b of people) await b.must('vote', { option: 'a', round: 1 });
+  await all(everyone, (s) => s.shared.vote.phase === 'results' && s.shared.nextMs === 12000, 'autonext: the vote\'s result carries the count');
+  await all(everyone, (s) => s.shared.round === 2 && s.shared.vote.phase === 'voting', 'autonext: the next question comes by itself', 18000);
+  await H.must('backToHub');
+
+  // Off: nothing is counted.
+  await H.must('chooseGame', { game: 'wouldyou' });
+  await H.must('start', { lang: 'ar' });
+  for (const b of people) await b.must('vote', { option: 'b', round: 1 });
+  await H.waitFor((s) => s.shared.vote.phase === 'results', 'autonext off: the result');
+  check(!('nextAt' in H.state.shared), 'autonext off: no count, the host\'s «التالي» as before');
+  await H.must('backToHub');
+  everyone.forEach((x) => x.close());
+}
+
+/* --- POST /err: an error on a player's phone, kept without anything personal (run alone with --only=err) --- */
+async function errRobots() {
+  console.log('• /err: an error kept safe (no typed text, no address), counted; /errors needs the admin key');
+  const post = (body, ua) => fetch(BASE + '/err', {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain;charset=UTF-8', 'user-agent': ua || 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' },
+    body: JSON.stringify(body)
+  }).then((r) => r.text().then(() => r));   // read, so no socket is left open
+  const tag = 'rb' + Math.random().toString(36).slice(2, 8);   // this run's own message, so an older one isn't counted
+  const r1 = await post({ b: '20260930120000', m: `Cannot read properties of undefined (reading '${tag}') 'منى كتبت الكلمة دي' https://evil.example/x?room=ABCD`, f: 'roomRender@index:1234:56', v: 'room-lobby' });
+  check(r1.status === 204, 'err: a report is answered 204');
+  await post({ b: '20260930120000', m: `Cannot read properties of undefined (reading '${tag}') 'منى كتبت الكلمة دي' https://evil.example/x?room=ABCD`, f: 'roomRender@index:1234:56', v: 'room-lobby' },
+    'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36');
+  check((await post({})).status === 204 && (await post({ m: 'x'.repeat(5000) })).status === 204, 'err: an empty or a huge report is answered and dropped');
+  const bad = await fetch(BASE + '/err', { method: 'GET' }).then((r) => r.text().then(() => r));
+  check(bad.status === 405, 'err: only POST');
+  check((await fetch(BASE + '/errors').then((r) => r.text().then(() => r))).status === 404, 'errors: the list is hidden without the admin key');
+  const key = process.env.ASHRY_ADMIN_KEY;
+  if (!key) { console.log('  (ASHRY_ADMIN_KEY not set: the list itself not read)'); return; }
+  const list = await fetch(BASE + '/errors', { headers: { Authorization: `Bearer ${key}` } }).then((r) => r.json());
+  const row = Array.isArray(list) && list.find((e) => e.word.includes(tag));
+  check(!!row, 'errors: the report is in the list');
+  if (!row) return;
+  check(row.n === 2 && row.lang === '20260930120000' && row.cat === 'room-lobby', 'errors: the same error twice is one row counted twice, under its build and screen');
+  check(row.word.includes('@ roomRender@index:1234:56'), 'errors: the frame of the page is kept');
+  check(!/منى|evil|ABCD|room=/.test(row.word), 'errors: typed text, an address and a room code are blanked out: ' + row.word);
+  check(row.tags && row.tags['ios-safari'] === 1 && row.tags['android-chrome'] === 1, 'errors: the kinds of device are counted, never the whole user agent');
+  check(row.first > 0 && row.last >= row.first, 'errors: when it was first and last seen');
+}
+
 async function main() {
   console.log('rooms server:', BASE);
   const t0 = Date.now();
+  if (ONLY === 'err') {
+    await errRobots();
+    await sleep(300);   // lets the last sockets close: Node on Windows asserts on an exit while one is closing
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
   if (ONLY === 'hostaway') {
     await hostAwayRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
@@ -1394,12 +1492,20 @@ async function main() {
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
   }
+  if (ONLY === 'autonext') {
+    await autonextRobots();
+    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+    process.exit(failures.length ? 1 : 0);
+  }
   if (ONLY === 'duels') {
     await duelTourRobots();
     console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
     process.exit(failures.length ? 1 : 0);
   }
+
+  await errRobots();
 
   /* --- room basics ------------------------------------------------------- */
   console.log('• room: create, join, presence, keys');
@@ -5024,6 +5130,8 @@ async function main() {
       svBots.concat([S]).forEach((x) => x.close());
     }
   }
+
+  if (!ONLY) await autonextRobots();
 
   /* --- سباق ألغاز (RoomRace.js): the solo puzzles as a race on the engine ------------------------ */
   if (!ONLY || ONLY === 'race') {

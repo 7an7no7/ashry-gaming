@@ -1,12 +1,21 @@
-# The app's second address: the built site (docs/) served as plain files by Cloudflare,
-# free and unlimited (requests to static files cost nothing on the free plan). GitHub Pages
-# stays the main link; this is the fast copy to share when GitHub is slow (23 Sep 2026:
-# GitHub sent the page at 20-80 KB/s, Cloudflare in 1.4 s). No code runs here and nothing
-# is stored - rooms stay on ashry-rooms (the ROOMS_URL written into the page).
+# The app's main address: the built site (docs/) served as plain files by Cloudflare,
+# free and unlimited (requests to static files cost nothing on the free plan). Every
+# link the app shares points here (tools/site.config.json, appUrl); the same build stays
+# on GitHub Pages. Nothing is stored - rooms stay on ashry-rooms (the ROOMS_URL written
+# into the page).
+#
+# One small script (src/index.js) runs for room links only, /r/CODE: the page a crawler
+# (WhatsApp, Telegram...) reads for the room's preview, which sends a browser on to
+# /?room=CODE. run_worker_first limits it to /r/*, so every other request is still a
+# static-asset request that never runs the script. A script run is a Worker request
+# (100,000 a day free); a room link is opened a handful of times per room.
 #
 #   cd tools && npm run deploy:site      (after npm run build:site)
 name = "play"
+main = "src/index.js"
 compatibility_date = "2026-09-01"
 
 [assets]
 directory = "../docs"
+binding = "ASSETS"
+run_worker_first = ["/r/*"]

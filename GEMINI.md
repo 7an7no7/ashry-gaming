@@ -4591,6 +4591,7 @@ the word search), `countUp` for streaks and scores.
   - **Decided**: the zoom lock stays (the owner: apps don't pinch-zoom, iOS ignores
     the lock anyway, and Settings → Screen size is the way to bigger text).
 - **30 Sep 2026, the ideas batch** - a review of every game for its look, how easy it is to play and its motion (five reviewers, one area each), then every idea built but five the owner is deciding (*The ideas batch*): the Wordle reveal, soft misses, Guess the Number's window, 2048's swipes, the minefield's hold and chain, undo stacks, the memory game's third tap, timer presets, the sorted counter, hold-to-repeat, the result sheet; only the buttons score in بدون كلام, the last three seconds on every one-phone clock, the 3-2-1 and the turn's fix-it list, the bomb's holder, كلمة واحدة's writers' check; الجاسوس's vote and pick from six, من أنا؟'s order points, الموقع السري's card of 24, Stop scored a category at a time; one wording for the two ways to play, «الليلة دي؟» opening the room, recents first, «كمّل», the room list's «تنفع دلوقتي», the empty TV lobby's big QR; the TV's who-is-done chips and the staged reveals of فيبج, موجة, مافيا, the trivia and الجرس, الشاهد's tally; لودو's landing rings, السلم والتعبان's reach, أونو's colour counts and «بعدك إنت», بنك الحظ's «دبّرها» (a rooms-server action) and its buy line.
+- **30 Sep 2026, later: the owner's four picks** (*The owner's four picks after the ideas batch*): «التالي لوحده» in trivia, لو خيروك, مين أكثر واحد, فيبج, زي الكل, صدق ولا كذب and موجة (a lobby switch, off by default; the server deals the next round after a pause, with a countdown and «⏸ استنى»); سكرو's «↺ شوف تاني» on the latest move, on the asking phone only; دوري المعرفة's hidden «كارت دبل!» (one a board, never a 100, a setup switch on by default); الدومينو's «👊» passed-on numbers on the seats while «نوّر الحجارة اللي تركب» is on. A deploy of the rooms server.
 
 ## Building and Running
 
@@ -10709,6 +10710,215 @@ console errors. Scripts: the scratchpad's `b-rooms/t1.mjs` and `t3.mjs`.
   the picker's counts), and dominoes/estimation/skull/ludo rooms started with bots: no console errors.
 
 **Left for the owner** (not built): an automatic «التالي» in the older room games (a lobby switch, off by default); a replay of the latest move in سكرو; a «🚫 ممنوعة!» button in أوصف لي and whether it costs a point; a hidden double card in دوري المعرفة; domino's passed-on numbers under the helper switch.
+
+### The owner's four picks after the ideas batch (30 Sep 2026)
+
+Of the five questions the ideas batch left, the owner said yes to four (the «🚫 ممنوعة!» button in أوصف لي was not taken): an automatic «التالي» in the older room games, a replay of the latest move in سكرو, a hidden double card in دوري المعرفة, and domino's passed-on numbers under the helper switch. The details not given were decided while building and are open to change.
+
+#### Next batch: «التالي لوحده» (autonext)
+
+The owner approved a lobby switch «التالي لوحده» / "Next by itself" for the older
+room games that wait for the host's «التالي» after each result: تحدي المعلومات
+(room trivia), لو خيروك, مين أكثر واحد, فيبج, موجة (Wavelength), زي الكل, صدق ولا
+كذب. Off by default, per game, the host's lobby choice, remembered on the host's
+phone. Off is exactly today's flow (no new field in `shared`).
+
+**How it works**
+
+**Server (`RoomGames.js`, a block just before "CLOCKS THE SERVER KEEPS").**
+- `room._autoNext` is the switch, set from `start` / `playAgain`'s `payload.autoNext`
+  (a boolean) for the games in `AUTONEXT_GAMES`; a `start` without it is off; a
+  `playAgain` without it keeps what the room had (trivia's and صدق ولا كذب's play
+  again send no options).
+- `AUTONEXT_GAMES[game] = { action, deals, ms, ready(s), key(s), args(s) }`: the
+  host's own «التالي» action and its payload (`nextQuestion {qIndex}`,
+  `nextRound {lang, round}`, `next {turn}`), whether it deals prompts, the pause,
+  when the result is up, and a key for "this result".
+- `autoNextSync(room)` runs after every move (end of `applyRoomAction`), after a
+  leaver (`roomPlayerLeft`) and after a game's own timeout (`roomTimeout`): once
+  per result it sets `shared.nextAt` (server time), `nextMs` (the whole pause),
+  `nextFor` (the result's key) and `nextPaused: false`; when the result is gone or
+  the switch is off it deletes the four fields.
+- `gameDeadline` returns `autoNextDeadline(room)` first; `gameTimeout` fires
+  `autoNextFire(room)`: the host's action through `applyRoomAction` on a copy (so
+  every stale-tap guard, the generic `nextRound` round check, the deal id, the
+  roster and the last-round → `gameover` path are the ones the host's tap takes).
+  If the rules refuse it (too few left to deal a round) the count stops
+  (`nextAt: null, nextPaused: true`) instead of retrying every 30 s.
+- `autoPause { key }` (room-level branch in `applyRoomAction`, before the game's):
+  a move-on action (`requireMoveOn`: the host, or a stand-in once the host is away),
+  dropped when `key` is not the current `nextFor` (stale), clears `nextAt` and sets
+  `nextPaused`. «التالي» by hand still works any time.
+- Stale guards added: trivia's `nextQuestion` takes `{ qIndex }`, صدق ولا كذب's
+  `next` takes `{ turn }` (both optional, as every stale field is). The phones and
+  the TV now send them; زي الكل's `nextRound` sends `{ round }`.
+
+**Prompt memory on a timeout (`rooms-worker/src/room.js`).** A host's «التالي» is a
+`DEAL_ACTION`, so `act()` loads the shared prompt memory; a timeout never did. The
+alarm now asks `roomTimeoutDeals(room, now)` (exported from the bundle; true when
+the due timeout is an autonext deal of a game whose `deals` is true), reads the
+memory, runs the timeout inside `withPromptMemory`, and writes what changed. The
+room is re-read after the await (other messages may have come in). Trivia and صدق
+ولا كذب deal nothing on «التالي» (the deck / the order is dealt at start), so they
+don't load it.
+
+**The pauses** (each is the reveal's own time plus time to enjoy it):
+| game | pause | why |
+| --- | --- | --- |
+| trivia | 10 s | the staged answer takes ~3.7 s (`triviaRevealPlan`: wrong ones 0.8 s apart, the right one, the board) |
+| لو خيروك, مين أكثر واحد | 12 s | the vote's bars ~3 s (`voteRevealTimes`) |
+| فيبج | 9 s + 3.7 s + 0.9 s a lie past the first | the lies turn over 0.9 s apart, then the truth (+1.5 s) and the board (+1 s) (`fibRevealPlan`) |
+| موجة | 11 s | the shutter and the verdict ~2.3 s (`wlReveal`) |
+| زي الكل | 12 s | after the host's «احسب» (see below) |
+| صدق ولا كذب | 13 s | the lie and who was fooled, the board |
+
+**The page (`JS_RoomAutoNext.html`, new, included right after `JS_Room.html`).**
+- `autoNextLobbyHtml(state, game)`: the host's switch row (host only, on a phone or a
+  TV hosting the room; the TV lobby uses the same `lobbyOptions`), with a hint that
+  changes in place. `autoNextChoice(game)` / `autoNextSet(game, on)` use
+  `recallOptions('autoNext')` / `rememberOptions`. Each game's `startPayload` sends
+  `autoNext`; its `lobbyOptions` appends the switch.
+- `autoNextSlotHtml(state)`: an empty `[data-an-slot]` put just before each result's
+  «التالي» row (the phones' frames and the TV's: trivia, `renderRoundFooter` for the
+  three voting games and موجة, `tvNextFooter`, زي الكل, صدق ولا كذب). Drawn only when
+  `'nextFor' in shared`, so with the switch off the markup is exactly as before.
+- `autoNextPaint()` fills every slot from `Room.state` (a 250 ms interval while a slot
+  exists, and on every `Room.onChange`), rebuilding only when the key (`nextFor`,
+  `nextAt` / paused, can-move-on, last, language) changes, so a pause or the host
+  going away never rebuilds the frame: «⏭️ الجولة الجاية خلال 5…» (or «النتيجة
+  النهائية خلال 5…» on the last trivia question / the last storyteller), a draining
+  bar (a linear Web Animation of `scaleX` from what is left to 0; with motion off
+  the tick sets it), and «⏸ استنى» for `roomCanMoveOn(state)`. Paused: «⏸ العد
+  واقف · «التالي» لما تجهزوا». The seconds are read from the server's time
+  (`roomServerNow()`). The last 3 seconds bump (`motionBump`).
+- While the count runs the non-host's «مستنيين المضيف…» line is hidden
+  (`.an-slot[data-an-on="1"] ~ .room-moveon-not`).
+- CSS: the `/* ===== NEXT BATCH: AUTONEXT ===== */` section at the end of `Style.html`
+  (tokens only; bigger on the TV, `.an-slot--tv`).
+- Keys: `an_switch`, `an_hint_on`, `an_hint_off`, `an_next_in`, `an_final_in`,
+  `an_pause`, `an_paused` (one `// next batch: autonext` block per language). Help:
+  a «⏭️ التالي لوحده» sub-head in the seven games' `GAME_RULES`, both languages
+  (in trivia's under the rooms part, before دوري المعرفة).
+
+**Decided here (open to change, one place each)**
+
+- **زي الكل counts only after the result, not the reveal.** Its reveal is where the
+  host merges answers that mean the same thing - a judgement - so «احسب» stays the
+  host's; the count starts on the scored result.
+- **The games with no end** (لو خيروك, مين أكثر واحد, فيبج, موجة) keep going round by
+  round with the switch on until the host takes the room back to the hub; the count
+  never starts a new game after a `gameover` (trivia, صدق ولا كذب, زي الكل).
+- **A round the rules refuse** (e.g. مين أكثر واحد with fewer than 3 left) stops the
+  count rather than trying again; the host decides.
+- **Pause is for this result only**: the next result counts again.
+- The lobby switch shows only for the host (a player's lobby shows nothing new).
+
+**Tests**
+
+- `rooms-worker/test/rules.mjs`: 46 `autonext/…` checks - off (no `nextAt`, nothing
+  on the clock), on (the count, the timeout deals, a question the clock closed counts
+  too), the host's tap then the old deadline (no double deal), stale «التالي» and
+  stale pause dropped, a player refused / a stand-in allowed, pause, the last round to
+  the end and never a new game, play again keeps it, a vote a leaver closed, a refused
+  round stopping the count, فيبج's pause with its lies, موجة, زي الكل's reveal left to
+  the host, صدق ولا كذب to the end, other games refuse `autoPause`.
+- `npm run test:rules`: all pass, the leak check clean.
+- `rooms-worker/test/play-all.mjs`: `autonextRobots()` (`--only=autonext`, and in the
+  full run before سباق ألغاز): trivia and لو خيروك on a live server with three phones
+  and a TV (the count everywhere, the server dealing - which exercises the alarm's
+  prompt memory for لو خيروك -, pause, stale taps, the end, off). 55 passed.
+- Looked at in headless Chrome: a trivia room and a فيبج room with three phones
+  (375×812 ar light, 375×812 en dark, 667×375 ar dark) and a TV at 1920×1080; the
+  lobby switch on a phone, a phone on its side and a TV host's lobby; the count, the
+  auto-advance, «⏸ استنى» from the host's own button, a reload mid-count (the count
+  comes back); no console errors.
+
+**Traps met**
+
+- A robot or a CDP phone that joins a room stays on the home until
+  `roomReturnToActive()` (known; the look script calls it).
+- Headless Chrome started with a fixed `--remote-debugging-port` writes no
+  `DevToolsActivePort`; ask `http://127.0.0.1:<port>/json/version` instead.
+
+#### Next batch: small (three owner-approved touches)
+
+Page-side only: nothing the rooms server runs was touched (no rules tests needed).
+
+**1. سكرو: «↺ شوف تاني» on the latest move (JS_RoomScrew.html)**
+
+- `skrLatestHtml` draws a small pill `.skr-replay` (`data-skr-replay`) beside the
+  latest move's line, on a phone only (never the TV, which has no tap), while the
+  table is on (`memorize`, `play`, `thiefGuess`), with motion on, and not while this
+  phone is picking a move (`skrLocal.pick`: the flights hold slots the pick is using).
+  `skrReplayOffered(state)` is that test.
+- `skrReplay()` plays the latest move (the same `e` the line names, from `skrMoves`)
+  through `skrPlay(root, state, [e], 0)` - the very choreography the move had, holds,
+  releases, `skrFx.timers` and `busyUntil` included. No server call; nobody else sees it.
+- **Memory is the game**: the replay is given `state.you` with `seen: null`, so a look
+  (7/8/9/10, كعب داير, شوف وبدّل…) flies face down: a face the looker saw is not shown
+  again. The drawer's own drawn card stays as it is (it is face up in the hand anyway).
+  Only the latest move, never a history.
+- Places that are gone after the move (the "held" card after a keep) come from the
+  rects measured before the move's redraw: `skrReplayRemember(evs)` keeps
+  `skrFx.replay = { seqs, rects, scroll }` when `skrAfterDraw` plays events; the replay
+  uses them (shifted by how far `#shell-main` has scrolled since). Cleared by `skrFxCancel`.
+  After a reload there is nothing saved: live places only, a flight from a gone place is
+  skipped (its hold released), as skrFly already does.
+- The button is disabled while anything is flying (`skrReplaySync`, a timer until
+  `busyUntil`), after the move's own flights and during a replay.
+- GAME_RULES (both languages): a fifth line in سكرو's ordered list.
+
+**2. دوري المعرفة: the hidden double card (JS_TriviaBoard.html)**
+
+Decided while building (open to change, each in one place):
+- **One hidden double card per board** (`cell.dbl`), dealt at random among the 200-500
+  cards when the board is made (`tbDealBoard(previousIds, withDouble)`, wrapping
+  `dealTriviaRound`; used by the start, the next round and play again). Never a 100.
+- **A setup switch «كارت دبل»** (`#tb-double-on`, on by default), remembered in
+  `ashryTriviaTeams` as `double`; the board keeps it as `s.double` for its later rounds.
+  A board saved before it has no `double` and no `dbl` cells: it plays as before.
+- **Nothing shows it until opened.** Opening it: `slamBanner('🎯 كارت دبل!', 'النقط
+  متضاعفة ×2')` in gold (`.tb-dbl-slam`), the tada, a buzz, the points badge pops
+  (`motionBump`); the badge says `×2 · 800` (×2 in a `<bdi dir="ltr">`) in gold
+  (`.tb-q-points--double`). The slam plays once per opening (`open.dblSeen`, saved, so a
+  reload mid-card shows the card settled, still double). The card's clock starts after
+  the slam: `open.endsAt` is set `TB_DBL_MS` (1.2 s) later at open, and
+  `tbDoubleReveal` starts the clock when the slam is over. Motion off: no slam, no delay.
+- **Points** go through `tbCellPoints(cell)` everywhere they are counted: the award, the
+  steal band's points (`tbOpenPoints`), and `s.last.points` - so «رجّع آخر سؤال» takes
+  exactly the doubled points off. Stolen, the other team gets the double.
+- A played double card keeps a small `×2` (`.tb-x2`) on its cell; an undone one goes back
+  to looking like any card (still double, and its slam plays again when reopened).
+- GAME_RULES (both languages): a line under the steal.
+- Found on the way: "×2 · 400" written as plain text in an Arabic badge reads "400 · 2×";
+  the ×2 needs its own left-to-right isolate.
+
+**3. الدومينو: the numbers each seat passed on (JS_RoomDomino.html)**
+
+- `domLacksHtml(s, pid)` in `domSeatHtml`: a small gold chip `👊 4·6`
+  (`.dom-seat__lacks`, the digits in a `<bdi dir="ltr">`, an aria-label «قال باص على:
+  4 ، 6» / "Passed on: 4, 6") from `shared.knocked[pid]`, **only with the host's
+  helpFit on** and while a round is played. Shown on the phone's seats and the TV's seat
+  strip (the same builder). Off, nothing.
+- On a phone upright (max-width 599px, portrait) the chip hangs on the seat's top edge
+  (absolute) so three seats across keep their names; elsewhere it sits after the count.
+- `domServerSig` carries `knocked` when helpFit is on, so the chip refreshes.
+- `dom_help_fit_hint` and the room rules line in GAME_RULES say so (both languages).
+
+**Tests**
+
+- `npm run check` passes.
+- Browser (own wrangler on 8821, preview on 4421, headless Chrome, motion on):
+  سكرو with two phones at 375x812 Arabic, 667x375 English, 1280x720: the button disabled
+  while the move flies, enabled after, a replay shows two ghosts and two holds mid-way and
+  leaves nothing held after; no console errors. Trivia board at 375x812 Arabic,
+  667x375 English, 1280x720: the switch remembered on and off, the double never on a
+  100 and exactly one a board (300 deals), hidden on the board, the slam, ×2 · points,
+  a reload mid-card (card back, double, no slam), a steal worth double, the ×2 mark,
+  undo taking the doubled points off. Domino with three computer players and a TV
+  (1920x1080), helpFit on: a seat's chip on the phone (375x812 Arabic, 667x375 English)
+  and the TV; helpFit off: none.
+- `ONLY=screens,rooms npm run test:ui http://127.0.0.1:8821`: see the final report.
 
 ### Traps this codebase has already fallen into
 

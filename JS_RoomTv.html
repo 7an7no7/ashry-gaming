@@ -28,10 +28,8 @@ const tv = {
 /** Per game: sig(state) says when to rebuild, frame(state, t) builds, after() paints. */
 const TV_GAMES = {};
 
-function roomJoinUrl(code) {
-  const base = window.SERVER_DATA && window.SERVER_DATA.webAppUrl;
-  return base && code ? base + '?room=' + code : '';
-}
+/** The join link for the TV's QR and its written address: roomInviteUrl (JS_Room.html). */
+function roomJoinUrl(code) { return roomInviteUrl(code); }
 
 /** A TV button. The label is text (a player's name can be in it), so it is escaped here. */
 const tvBtn = (label, onclick, kind) =>
@@ -706,7 +704,8 @@ TV_GAMES.trivia = {
             : `<div class="tv-note">${t.tv_nobody_right || ''}</div>`}</div>
           <div class="tv-scale tv-trivia-board">${st.board(renderScoreboard(s.board), plan.rightAt + 700)}</div>
         </div>
-        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(last ? t.trivia_final : t.next_q_btn, "roomAct('nextQuestion')")}</div>`)}`;
+        ${autoNextSlotHtml(state)}
+        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(last ? t.trivia_final : t.next_q_btn, `roomAct('nextQuestion', { qIndex: ${Number(s.qIndex) || 0} })`)}</div>`)}`;
     }
 
     return `
@@ -953,7 +952,7 @@ function tvVoteProgress(state, t) {
 
 /** The next round (anyone's once the host is away) and, for the host, another game. */
 function tvNextFooter(state, t, label) {
-  return roomMoveOnHtml(state, `<div class="tv-actions">${
+  return autoNextSlotHtml(state) + roomMoveOnHtml(state, `<div class="tv-actions">${
     tvBtn(label, `roomAct('nextRound', ${roomNextArgs(state)})`) +
     (state.youAreHost ? tvBtn(t.room_another_game, "tvBackToHub()", 'ghost') : '')}</div>`);
 }

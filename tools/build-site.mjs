@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { transform } from 'esbuild';
 import { assemble } from './lazy-split.mjs';
+import { makeOg } from './make-og.mjs';
 
 const here = fileURLToPath(new URL('./', import.meta.url));
 const root = path.join(here, '..');
@@ -27,6 +28,8 @@ const out = process.env.SITE_OUT ? path.resolve(process.env.SITE_OUT) : path.joi
 
 const config = JSON.parse(await readFile(path.join(here, 'site.config.json'), 'utf8'));
 const roomsUrl = String(process.env.ROOMS_URL || config.roomsUrl || '').replace(/\/+$/, '');
+// APP_URL=http://127.0.0.1:8798/ builds a copy whose links point at a local site-worker (a test).
+const appUrl = process.env.APP_URL || config.appUrl || '';
 // The icon's version goes on its addresses: a changed address is what makes
 // Android refresh an installed icon, and the page compares it with the one an
 // iPhone copy was added with (checkIconBanner in JS_Utils.html).
@@ -98,11 +101,17 @@ html = html
   .replace('<?!= initialSpyPairs ?>', () => scriptJson(SPY_PAIRS))
   .replace('<?!= initialSpyDataEn ?>', () => scriptJson(SPY_WORDS_EN))
   .replace('<?!= initialSpyPairsEn ?>', () => scriptJson(SPY_PAIRS_EN))
+  // ?room=CODE, or /r/CODE (the room link with a preview, site-worker/): a phone whose
+  // offline copy answers /r/CODE itself (a service worker from before the short links)
+  // opens the app at that address, so the code is read from the path too.
   .replace('<?!= initialRoom ?>',
-    "(function () { var m = /[?&]room=([A-Za-z0-9]{1,8})/.exec(location.search); return m ? m[1].toUpperCase() : ''; })()")
+    "(function () { var m = /[?&]room=([A-Za-z0-9]{1,8})/.exec(location.search) || /\\/r\\/([A-Za-z0-9]{4,8})\\/?$/.exec(location.pathname); return m ? m[1].toUpperCase() : ''; })()")
+  // A room's link is play.3ashry.workers.dev/r/CODE (a page with the room's preview for
+  // WhatsApp, then the app): only where the links point at the Cloudflare address.
+  .replace('<?!= roomLinks ?>', () => (appUrl ? 'true' : 'false'))
   // Every link the app shares (the app, a room's link and QR) goes to the main address, from
   // either copy, so whoever it reaches lands on the fast one (appUrl in site.config.json).
-  .replace('<?!= webAppUrl ?>', () => (config.appUrl ? JSON.stringify(config.appUrl) : 'location.origin + location.pathname'));
+  .replace('<?!= webAppUrl ?>', () => (appUrl ? JSON.stringify(appUrl) : 'location.origin + location.pathname'));
 
 // One id for this build: the offline cache's name and the page's own, so an open
 // page can tell whether the worker that just took over is a newer build.
@@ -124,6 +133,8 @@ const RUNTIME = `<script>
       // A join link has done its job once read; leaving ?room= in the address
       // would send a reload straight back to the join screen. The same for ?install=.
       if (/[?&](room|install)=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+      // /r/CODE opened as the app itself (an older offline copy answers it): back to the app's own address.
+      if (/\\/r\\/[A-Za-z0-9]{4,8}\\/?$/.test(location.pathname)) history.replaceState(null, '', location.pathname.replace(/r\\/[A-Za-z0-9]{4,8}\\/?$/, '') + location.hash);
     </script>
 </head>`;
 if (html.indexOf('</head>') === -1) throw new Error('Controller.html: no </head>');
@@ -282,6 +293,10 @@ self.addEventListener('fetch', (event) => {
   }
   const cached = () => caches.match(req).then((hit) => hit || caches.match('./index.html'));
   if (req.mode !== 'navigate') { event.respondWith(fetch(req).then((res) => keep(req, res)).catch(cached)); return; }
+  // A room's link with a preview (/r/CODE, site-worker/): the page there only sends a
+  // browser on to ./?room=CODE, so a phone with the app goes there at once, on line or off.
+  const room = url.pathname.slice(new URL(self.registration.scope).pathname.length).match(/^r[/]([A-Za-z0-9]{4,8})[/]?$/);
+  if (room) { event.respondWith(Response.redirect(new URL('./?room=' + room[1].toUpperCase(), self.registration.scope).href, 302)); return; }
   // Opening the app (a room link's ?room= too): this build's saved page at once; the
   // network only when there is none yet. A newer build arrives as a newer worker.
   event.respondWith(caches.match('./index.html').then((hit) => (hit ? clean(hit) :
@@ -289,6 +304,13 @@ self.addEventListener('fetch', (event) => {
 });
 `;
 await writeFile(path.join(out, 'sw.js'), SW, 'utf8');
+
+// The pictures and names a room link's preview shows (og/, read by site-worker/ for /r/CODE).
+// Never in the worker's list above: a phone never downloads them.
+{
+  const og = await makeOg(out);
+  console.log(`docs/og/: ${og.files} files, ${(og.bytes / 1024).toFixed(0)} KB` + (og.skipped.length ? ` (the app's picture for ${og.skipped.join(', ')})` : ''));
+}
 
 // The manifest is written by hand, but its icon addresses carry the version.
 const manifestPath = path.join(out, 'manifest.webmanifest');

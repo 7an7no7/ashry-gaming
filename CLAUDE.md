@@ -13,7 +13,10 @@ Arabic-first (RTL, ar/en) party-games web app for phones.
 - **The old Apps Script version** is a frozen copy in `C:\Users\TPC\Apps Script\G`
   (git tag `apps-script-v177`). All new work happens here; don't change that folder.
 
-The full guide is GEMINI.md — read it before changing anything:
+The guide is GEMINI.md — read it before changing anything. It holds what applies
+to the whole app (decisions, build and test, conventions, traps) and an index;
+each game's full spec and how it is built is in `notes/games/<id>.md`, the log in
+`notes/log.md`. Read a game's file before changing that game:
 
 @GEMINI.md
 
@@ -38,9 +41,14 @@ The full guide is GEMINI.md — read it before changing anything:
   one card*). Only a game of its own, with its own name, gets its own card.
 - New games and screens use the motion toolkit wherever it fits (GEMINI.md,
   *Using the motion toolkit in a new game*): reveals, podiums, flights, count-ups.
-- Keep GEMINI.md current: how things work, the traps met on the way, and
-  *Where the app is going* (ideas, decisions, the log), so the next person or
-  AI can carry on.
+- Keep the guide current, so the next person or AI can carry on. GEMINI.md
+  (always loaded, keep it small): what applies to every game, the traps met on
+  the way, the decisions, and one index line per game. The detail goes in the
+  topic files: a game's spec and how it works in `notes/games/<id>.md` (a new
+  game gets a new file and an index line), the day-by-day log in `notes/log.md`,
+  ideas in `notes/ideas.md`, the long versions of rooms / design / site in
+  `notes/rooms.md`, `notes/design.md`, `notes/site.md`. When changing a game,
+  update its file and, if what it covers changed, its index line.
 - A finished change goes live. The owner judges by the link, not this folder, so
   follow the steps below to the end.
 
@@ -56,10 +64,12 @@ The full guide is GEMINI.md — read it before changing anything:
    `npm test`. Every check must pass.
 5. **The screen test**: with `npm run dev` running in `rooms-worker/`,
    `cd tools && npm run test:ui` (every screen at three sizes, every room game on
-   five phones and a TV, the offline copy and its updates; about 15 minutes, or
-   `ONLY=rooms` etc. for a part). Every check must pass. **Test what changed**
-   (the owner, 25 Sep 2026: the three suites in a row take 35-40 minutes): a
-   small change runs `npm run check`, `test:rules` and only the parts it touches
+   five phones and a TV, the offline copy and its updates; about 4 minutes in
+   shards, or `ONLY=rooms` etc. for a part; `npm test` about 5). Every check
+   must pass. **Test what changed** (the owner, 25 Sep 2026: the suites in a row
+   took 35-40 minutes): `cd tools && npm run test:changed` runs the checks, the
+   robot segments and the screen-test parts the changes since master need
+   (`--dry` shows the plan); otherwise a small change runs `npm run check`, `test:rules` and only the parts it touches
    (`ONLY=screens` for a screen or a setup, `ONLY=rooms` for a room client,
    `ONLY=site` for the offline copy; `npm test` and `test:live` only when step 4
    applies); the full run is for big releases (an audit's fixes, a new game, a
@@ -80,7 +90,9 @@ The full guide is GEMINI.md — read it before changing anything:
    `cd tools && npm run deploy:site` - the app's second address on Cloudflare
    (https://play.3ashry.workers.dev), the same `docs/`; it restarts
    nothing.
-8. Update GEMINI.md if how something works changed. Commit everything, `docs/`
+8. Update the guide if how something works changed (the game's
+   `notes/games/<id>.md`, a line in `notes/log.md`, GEMINI.md for anything
+   app-wide). Commit everything, `docs/`
    included, and push to `master`. GitHub Actions checks every push (`npm run
    check`, `test:rules`, the site's build and budget): a red ✗ on the commit
    means fix it and push again.
@@ -95,12 +107,13 @@ cd tools && npm run build:preview   # the app in .preview/, rooms on :8787
 cd tools && npm run build:site      # rebuild docs/ (commit it)
 cd tools && npm run check:live      # are both addresses serving this build?
 cd tools && npm run deploy:site     # the second address (Cloudflare) - every release
-cd tools && npm run test:ui         # every screen, every room game, the offline copy (needs npm run dev)
+cd tools && npm run test:ui         # every screen, every room game, the offline copy, in shards (needs npm run dev)
+cd tools && npm run test:changed    # only what the changes since master need (-- --dry: the plan)
 cd tools && npm run export:trivia -- <path>  # the board bank as trivia_bank.js
 cd tools && npm run build:icons     # the brand mark (Logo.html) and the icons in docs/
 cd tools && npm run plays           # how often each game is started (ASHRY_ADMIN_KEY)
 cd rooms-worker && npm run dev      # local rooms server on :8787
-cd rooms-worker && npm test         # robot players, every room game (needs npm run dev)
+cd rooms-worker && npm test         # robot players, every room game, 4 segments at a time (needs npm run dev)
 cd rooms-worker && npm run test:rules  # trivia scoring, no server needed
 cd rooms-worker && npm run deploy   # publish the rooms server (build the site first)
 cd rooms-worker && npm run test:live

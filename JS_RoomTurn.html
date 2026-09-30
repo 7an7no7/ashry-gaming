@@ -305,4 +305,52 @@ Room.onChange((state) => {
     restoreTurnTitle();
   }
 });
+
+/*
+ * «بعدك إنت» (ideas batch: board). When the turn reaches the player just before you, a light buzz
+ * and a small pill under the header, so you look at your hand before it is your go. One helper for
+ * أونو, الدومينو, لودو, إستميشن and جمجمة: each works out who plays next from its own table and
+ * passes it here after drawing. `moment` names this turn (it buzzes once per moment); the pill goes
+ * the moment the next state is not "you're next" (your turn, a new round, another screen).
+ */
+const roomNextUp = { key: '', el: null, timer: 0 };
+
+function roomNextUpClear() {
+  if (roomNextUp.timer) clearTimeout(roomNextUp.timer);
+  roomNextUp.timer = 0;
+  const el = roomNextUp.el;
+  roomNextUp.el = null;
+  if (!el) return;
+  if (motionOff() || !el.animate) { el.remove(); return; }
+  const a = el.animate([{ opacity: 1, transform: 'translate(-50%, 0)' }, { opacity: 0, transform: 'translate(-50%, -0.5rem)' }], { duration: 180, easing: 'ease-in', fill: 'forwards' });
+  a.onfinish = () => el.remove();
+  setTimeout(() => el.remove(), 260);
+}
+
+function roomNextUpCue(game, state, nextPid, moment) {
+  const on = !!state && state.game === game && !state.youAreScreen && !!Room.me && nextPid === Room.me &&
+    appState.currentView === 'room-' + game && !document.hidden;
+  if (!on) { roomNextUp.key = ''; roomNextUpClear(); return; }
+  const key = [state.code, game, moment].join('|');
+  if (roomNextUp.key === key && roomNextUp.el && roomNextUp.el.isConnected) return;
+  const fresh = roomNextUp.key !== key;
+  roomNextUp.key = key;
+  if (!fresh) return;
+  roomNextUpClear();
+  haptic('light');
+  const el = document.createElement('div');
+  el.className = 'room-nextup';
+  el.setAttribute('role', 'status');
+  el.textContent = (TRANSLATIONS[appState.lang] || TRANSLATIONS.ar).room_next_up || '';
+  document.body.appendChild(el);
+  roomNextUp.el = el;
+  if (!motionOff() && el.animate) {
+    el.animate([{ opacity: 0, transform: 'translate(-50%, -0.6rem) scale(0.92)' }, { opacity: 1, transform: 'translate(-50%, 0) scale(1)' }], { duration: 260, easing: 'cubic-bezier(.2,.9,.3,1.3)' });
+  }
+  // A long turn before yours: the pill steps aside after a while (the buzz already said it).
+  roomNextUp.timer = setTimeout(roomNextUpClear, 6000);
+}
+
+if (typeof onLeaveScreen === 'function') onLeaveScreen(() => { roomNextUp.key = ''; roomNextUpClear(); });
+if (typeof onRoomClocksReset === 'function') onRoomClocksReset(() => { roomNextUp.key = ''; roomNextUpClear(); });
 </script>

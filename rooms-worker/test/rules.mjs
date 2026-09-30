@@ -3833,6 +3833,45 @@ Date.now = duelTestClock;
     'bank room: high rents off by default; the host can turn them on and buying after the first lap off');
   check(r2.shared.settings.oneDie === true && rr.shared.settings.oneDie === false && r2.shared.events.find((e) => e.type === 'rolloff').rounds[0].every((x) => x.d.length === 1),
     'bank room: one die off by default; on, the room rolls one die, the roll-off too');
+
+  // «🪄 دبّرها» (ideas batch): the player owing raises the money through the room and pays in one tap.
+  {
+    const refusedR = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+    const r3 = newRoom(['h', 'p']);
+    applyRoomAction(r3, 'h', 'chooseGame', { game: 'bank' });
+    applyRoomAction(r3, 'h', 'start', { firstLap: false });
+    const s3 = r3.shared;
+    const who = s3.turn.pid, other = who === 'h' ? 'p' : 'h';
+    const setDebt = (amount) => {
+      s3.turn.stage = 'debt';
+      s3.debt = { pid: who, amount: amount, to: other };
+      s3.turnSeq++;
+    };
+    s3.own[5] = { by: who, lvl: 0, mort: false };
+    s3.cash[who] = 40;
+    setDebt(120);
+    const otherCash = s3.cash[other];
+    applyRoomAction(r3, who, 'raise', { seq: s3.turnSeq - 1 });
+    check(!!r3.shared.debt && !r3.shared.own[5].mort, 'bank raise: a stale tap (an old seq) does nothing');
+    check(refusedR(() => applyRoomAction(r3, other, 'raise', { seq: r3.shared.turnSeq })) && !!r3.shared.debt,
+      "bank raise: refused for someone whose debt it isn't");
+    applyRoomAction(r3, who, 'raise', { seq: r3.shared.turnSeq });
+    check(!r3.shared.debt && r3.shared.own[5].mort && r3.shared.cash[who] === 20 && r3.shared.cash[other] === otherCash + 120,
+      'bank raise: the station is mortgaged (100), the 120 paid to the other player, 20 left');
+    // Not enough to raise: refused, and nothing is sold or mortgaged.
+    const r4 = newRoom(['h', 'p']);
+    applyRoomAction(r4, 'h', 'chooseGame', { game: 'bank' });
+    applyRoomAction(r4, 'h', 'start', { firstLap: false });
+    const s4 = r4.shared;
+    const w4 = s4.turn.pid, o4 = w4 === 'h' ? 'p' : 'h';
+    s4.own[5] = { by: w4, lvl: 0, mort: false };
+    s4.cash[w4] = 40;
+    s4.turn.stage = 'debt';
+    s4.debt = { pid: w4, amount: 500, to: o4 };
+    s4.turnSeq++;
+    check(refusedR(() => applyRoomAction(r4, w4, 'raise', { seq: s4.turnSeq })) && !r4.shared.own[5].mort && r4.shared.cash[w4] === 40 && !!r4.shared.debt,
+      "bank raise: refused when everything they have can't cover it, and nothing is touched");
+  }
 }
 
 /* --- the audit of 22 Sep 2026: one check per fix ---------------------------- */

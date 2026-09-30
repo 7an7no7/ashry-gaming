@@ -248,6 +248,24 @@ function bankTimeHtml(c) {
   return `<div class="bank-time"><span class="badge metric" data-bank-left>⏳</span>${clock}</div>`;
 }
 
+/** Whether `pid` can put a building up anywhere right now (a whole colour, the money, evenly). */
+const bankCanBuildAny = (g, pid) => bankPlacesOf(g, pid).some(i => bankCanBuild(g, pid, i));
+
+/**
+ * What buying the square means (ideas batch): «هيبقى معاك 2 من 3 الأحمر · يفضل معاك 1,240»,
+ * or that it completes the colour; stations and companies count the same way.
+ */
+function bankBuyMeans(g, pid, i) {
+  const q = BANK_SQUARES[i];
+  if (!q || !q.price) return '';
+  const same = q.t === 'p' ? bankGroupSquares(q.g) : BANK_SQUARES.map((x, k) => (x.t === q.t ? k : -1)).filter(k => k !== -1);
+  const have = same.filter(k => bankOwnerOf(g, k) === pid).length + 1;
+  const grp = bankT(q.t === 'p' ? 'bank_col_' + q.g : q.t === 'st' ? 'bank_col_st' : 'bank_col_co');
+  const left = bankFmt((g.cash[pid] || 0) - q.price);
+  if (have >= same.length && q.t === 'p') return bankT('bank_buy_full', { grp: grp, left: left });
+  return bankT('bank_buy_means', { have: have, of: same.length, grp: grp, left: left });
+}
+
 /** What the bar says and offers: only the player whose turn it is gets buttons. */
 function bankBarHtml(c) {
   const g = c.g;
@@ -274,22 +292,26 @@ function bankBarHtml(c) {
   } else if (tn.stage === 'buy') {
     const q = BANK_SQUARES[g.pos[c.me]];
     line = bankT('bank_buy_q', { place: bankSqName(g.pos[c.me]) });
-    sub = (g.cash[c.me] || 0) < q.price ? bankT('bank_short_buy') : '';
+    sub = (g.cash[c.me] || 0) < q.price ? bankT('bank_short_buy') : bankBuyMeans(g, c.me, g.pos[c.me]);
     buttons = btn(bankT('bank_buy', { n: bankFmt(q.price) }), 'buy', { yes: true }, 'primary', (g.cash[c.me] || 0) < q.price) + btn(bankT('bank_leave'), 'buy', { yes: false }, 'ghost');
   } else if (tn.stage === 'debt' && g.debt) {
     const to = g.debt.to === 'bank' ? bankT('bank_the_bank') : g.debt.to === 'each' ? bankT('bank_everyone') : (c.names[g.debt.to] || '');
     line = bankT('bank_you_owe', { n: bankFmt(g.debt.amount), to: to });
     sub = (g.cash[c.me] || 0) < g.debt.amount ? bankT('bank_raise_hint') : '';
     // Bankrupt only when nothing can cover the debt (the server refuses it otherwise).
-    buttons = btn(bankT('bank_pay'), 'payDebt', null, 'primary', (g.cash[c.me] || 0) < g.debt.amount) +
+    const short = (g.cash[c.me] || 0) < g.debt.amount;
+    const canRaise = short && bankLiquid(g, c.me) >= g.debt.amount;
+    if (canRaise) sub = bankT('bank_raise_can');
+    // «🪄 دبّرها»: selling back and mortgaging can cover it - one tap raises it and pays.
+    buttons = (canRaise ? btn(bankT('bank_raise_btn'), 'raise', null, 'primary') : btn(bankT('bank_pay'), 'payDebt', null, 'primary', short)) +
       (bankLiquid(g, c.me) < g.debt.amount ? btn(bankT('bank_bankrupt'), 'bankrupt', null, 'danger') : '');
   } else if (tn.stage === 'act') {
     line = bankT('bank_your_turn');
-    sub = bankCanBuyYet(g, c.me) ? bankT('bank_act_hint') : bankT('bank_first_lap_hint');
+    sub = bankCanBuyYet(g, c.me) ? (bankCanBuildAny(g, c.me) ? bankT('bank_build_nudge') : bankT('bank_act_hint')) : bankT('bank_first_lap_hint');
     buttons = btn(bankT('bank_end_turn'), 'endTurn', null, 'primary');
   }
   const tools = mine && tn.stage !== 'buy' ? `<div class="bank-bar__tools">
-      <button type="button" class="btn btn--ghost btn--xs btn--auto ${bankUi.panel === 'manage' ? 'is-on' : ''}" onclick="bankPanel('manage')">🏗️ ${escapeHTML(bankT('bank_manage'))}</button>
+      <button type="button" class="btn btn--ghost btn--xs btn--auto ${bankUi.panel === 'manage' ? 'is-on' : ''} ${tn.stage === 'act' && bankUi.panel !== 'manage' && bankCanBuildAny(g, c.me) ? 'bank-nudge' : ''}" onclick="bankPanel('manage')">🏗️ ${escapeHTML(bankT('bank_manage'))}</button>
       ${tn.stage === 'roll' || tn.stage === 'act' ? `<button type="button" class="btn btn--ghost btn--xs btn--auto ${bankUi.panel === 'trade' ? 'is-on' : ''}" onclick="bankPanel('trade')">🤝 ${escapeHTML(bankT('bank_trade'))}</button>` : ''}
     </div>` : mine && tn.stage === 'buy' ? `<div class="bank-bar__tools"><button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="bankPanel('manage')">🏗️ ${escapeHTML(bankT('bank_manage'))}</button></div>` : '';
   return `<div class="bank-bar ${mine ? 'is-mine' : ''}" style="--pc:${bankSeatHex(g, tn.pid)}">
@@ -921,6 +943,7 @@ function bankLocalDo(action, p) {
       case 'payJail': bankPayJail(g, 'me'); break;
       case 'useCard': bankUseCard(g, s.priv, 'me'); break;
       case 'payDebt': bankPayDebt(g, s.priv, 'me', Math.random); break;
+      case 'raise': bankRaiseDebt(g, s.priv, 'me', Math.random); break;
       case 'bankrupt': bankBankrupt(g, s.priv, 'me', now); break;
       case 'endTurn': bankEndTurn(g, 'me', now); break;
       case 'build': bankBuild(g, 'me', p.sq); break;

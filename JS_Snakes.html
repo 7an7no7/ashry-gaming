@@ -219,7 +219,7 @@ function snkBoardSvg() {
     else nums += `<text x="${p.x}" y="${p.y + 24}" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="15" fill="${lk.num}"${st}>100</text>`;
     nums += '</g>';
   }
-  s += `</g><g class="snk-holes"></g><g class="snk-ladders"></g><g class="snk-snakes"></g><g class="snk-nums" style="pointer-events:none">${nums}</g><g class="snk-heads"></g>`;
+  s += `</g><g class="snk-hints" style="pointer-events:none"></g><g class="snk-holes"></g><g class="snk-ladders"></g><g class="snk-snakes"></g><g class="snk-nums" style="pointer-events:none">${nums}</g><g class="snk-heads"></g>`;
   // The TV's night (the light turns slowly over a long game), over the board and under the cup and the pieces.
   s += `<g class="snk-night" style="pointer-events:none"><rect class="snk-dusk" x="-22" y="-22" width="644" height="644" rx="18" fill="#0b1a44" opacity="0"/><g class="snk-stars" opacity="0">${[[210, -15], [300, -12], [390, -16], [480, -13], [565, -15], [615, 60], [615, 300], [-15, 420], [-15, 180], [615, 520]].map(([x, y], i) => `<path class="snk-star" style="animation-delay:${(i * 0.37).toFixed(2)}s" d="M${x} ${y - 4} L${x + 1.2} ${y - 1.2} L${x + 4} ${y} L${x + 1.2} ${y + 1.2} L${x} ${y + 4} L${x - 1.2} ${y + 1.2} L${x - 4} ${y} L${x - 1.2} ${y - 1.2}Z" fill="#fff6c4"/>`).join('')}</g></g>`;
   const cupAt = snakesCellXY(100);
@@ -2204,6 +2204,7 @@ function snkLocalRoll() {
   const g = s.g;
   if (!g || g.phase !== 'play' || !g.turn || g.turn.pid !== 'me' || snkBusy()) return;
   haptic('medium');
+  snkHintSync(null, false);
   snakesRoll(g, 'me', snakesDie(), Math.random, Date.now());
   saveToLocal();
   paintSnakes();
@@ -2280,6 +2281,48 @@ function snkSyncIdle(root, k) {
     if (dot) dot.style.background = SNK_HEX[k.g.colors[up]] || 'transparent';
     // Your roll button waits out of sight while someone else's roll is still being shown.
     if (btn) btn.classList.toggle('hidden', !!playing && up !== k.me);
+  }
+  snkHintSync(k, !k.tv && !!btn && ready && !playing && k.g.phase === 'play' && !!k.g.turn && k.g.turn.pid === k.me);
+}
+
+/*
+ * Before your roll (ideas batch): a ring pulses round your piece and the six squares a roll could
+ * reach are tinted - red where a snake's head is, green where a ladder's foot is, plain otherwise.
+ * Looks only; drawn under the ladders, the snakes and the numbers (nothing covers a number), gone
+ * the moment the roll starts. The map is on the phone (g.map).
+ */
+function snkReachOf(g, pid) {
+  const from = (g.pos || {})[pid] || 0;
+  const out = [];
+  for (let d = 1; d <= 6; d++) {
+    let t = from + d;
+    if (t > 100) t = 200 - t;
+    if (t >= 1 && out.indexOf(t) === -1) out.push(t);
+  }
+  return out;
+}
+
+function snkHintSync(k, on) {
+  const c = snkView.c;
+  if (!c || !c.svg) return;
+  const layer = c.svg.querySelector('.snk-hints');
+  const key = on && k ? [k.key, k.g.turnSeq, (k.g.pos || {})[k.me] || 0].join('|') : '';
+  if (c.hintKey === key && (!c.hintRing || c.hintRing.isConnected)) return;
+  c.hintKey = key;
+  if (layer) layer.textContent = '';
+  if (c.hintRing) { c.hintRing.remove(); c.hintRing = null; }
+  if (!key || !layer) return;
+  const m = k.g.map || {};
+  const heads = (m.snakes || []).map(x => x.h), feet = (m.ladders || []).map(x => x.f);
+  snkReachOf(k.g, k.me).forEach(n => {
+    const q = snakesCellXY(n);
+    const kind = heads.indexOf(n) !== -1 ? 'snake' : feet.indexOf(n) !== -1 ? 'ladder' : 'plain';
+    snkEl('rect', { class: 'snk-hint snk-hint--' + kind, x: q.x - SNK_C / 2 + 2.5, y: q.y - SNK_C / 2 + 2.5, width: SNK_C - 5, height: SNK_C - 5, rx: 7 }, layer);
+  });
+  const p = c.players[k.me];
+  if (p && !p.hidden) {
+    const kk = p.k || 1;
+    c.hintRing = snkEl('ellipse', { class: 'snk-myring', cx: p.x.toFixed(1), cy: (p.y + 17 * kk).toFixed(1), rx: (19 * kk).toFixed(1), ry: (7 * kk).toFixed(1), stroke: p.col || '#fff' }, c.under);
   }
 }
 

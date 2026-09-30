@@ -455,8 +455,16 @@ function unoLogHtml(state, count) {
 
 /* --- the bar: what to do now -------------------------------------------------- */
 
-function unoColorPickerHtml() {
-  return `<div class="uno-colors">${UNO_COLORS.map(c => `<button type="button" class="uno-colorbtn uno-c--${c}" onclick="unoPickColor('${c}')"><span class="uno-colorbtn__dot" aria-hidden="true"></span>${escapeHTML(unoColorName(c))}</button>`).join('')}</div>`;
+/** The four colours to name, each with how many of it you hold «(3)»; the one you hold most wears a faint ring (ideas batch). */
+function unoColorPickerHtml(state) {
+  const count = {};
+  UNO_COLORS.forEach(c => { count[c] = 0; });
+  (state ? unoHand(state) : []).forEach(card => { const c = String(card.k || '')[0]; if (card.k !== 'w' && card.k !== 'w4' && count[c] !== undefined) count[c]++; });
+  const most = Math.max.apply(null, UNO_COLORS.map(c => count[c]));
+  return `<div class="uno-colors">${UNO_COLORS.map(c => {
+    const top = most > 0 && count[c] === most;
+    return `<button type="button" class="uno-colorbtn uno-c--${c} ${top ? 'is-most' : ''}" onclick="unoPickColor('${c}')"><span class="uno-colorbtn__dot" aria-hidden="true"></span>${escapeHTML(unoColorName(c))}${state ? ` <span class="uno-colorbtn__n" dir="ltr">(${count[c]})</span>` : ''}</button>`;
+  }).join('')}</div>`;
 }
 
 function unoTargetsHtml(state) {
@@ -512,7 +520,7 @@ function unoActionsHtml(state) {
   const pick = unoLocal.pick;
   const cancel = `<button type="button" class="btn btn--ghost btn--sm" onclick="unoCancelPick()">${escapeHTML(unoT('uno_cancel'))}</button>`;
 
-  if (pick && pick.need === 'color') return bar(`<p class="uno-prompt is-mine">🎨 ${escapeHTML(unoT('uno_pick_color'))}</p>${unoColorPickerHtml()}${cancel}`);
+  if (pick && pick.need === 'color') return bar(`<p class="uno-prompt is-mine">🎨 ${escapeHTML(unoT('uno_pick_color'))}</p>${unoColorPickerHtml(state)}${cancel}`);
   if (pick && pick.need === 'target') return bar(`<p class="uno-prompt is-mine">🔀 ${escapeHTML(unoT('uno_pick_target'))}</p>${unoTargetsHtml(state)}${cancel}`);
 
   if (!unoMyTurn(state)) {
@@ -526,7 +534,7 @@ function unoActionsHtml(state) {
   const turn = s.turn;
   const head = `<p class="uno-prompt is-mine">⭐ ${escapeHTML(unoT('uno_your_turn'))}</p>`;
   if (turn.stage === 'color') {
-    return bar(`${head}<p class="uno-hint">${escapeHTML(unoT('uno_pick_first_color'))}</p>${unoColorPickerHtml()}`);
+    return bar(`${head}<p class="uno-hint">${escapeHTML(unoT('uno_pick_first_color'))}</p>${unoColorPickerHtml(state)}`);
   }
   if (turn.stage === 'drawn') {
     const card = hand.find(c => String(c.i) === String((state.you || {}).drawn));
@@ -910,6 +918,11 @@ function unoTurnCue(state) {
   unoLocal.turnMine = mine;
   if (mine && !was && unoFx.watched === state.code) { playSound('tick'); haptic('medium'); }
   unoHandInView(state);
+  const s = state.shared || {};
+  const order = unoOrder(state);
+  const at = s.turn ? order.indexOf(s.turn.pid) : -1;
+  const next = s.phase === 'play' && at !== -1 && order.length > 2 ? order[(((at + (s.dir === -1 ? -1 : 1)) % order.length) + order.length) % order.length] : null;
+  if (typeof roomNextUpCue === 'function') roomNextUpCue('uno', state, next, [s.dealId || '', s.turn ? s.turn.pid : ''].join('|'));
 }
 
 function unoHandInView(state) {

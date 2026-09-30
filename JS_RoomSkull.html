@@ -801,6 +801,20 @@ function sklTurnCue(state) {
   sklLocal.turnMine = waiting;
   if (waiting && !was && sklFx.watched === state.code) { playSound('tick'); haptic('medium'); }
   if (waiting && !was) sklBarInView();
+  // «بعدك إنت» while discs are added and bets go round: the next seat still in.
+  let next = null;
+  const up = sklUp(s);
+  if (up && (s.phase === 'add' || s.phase === 'bid') && Array.isArray(s.order)) {
+    const n = s.order.length, at = s.order.indexOf(up);
+    for (let k = 1; k <= n && at !== -1; k++) {
+      const id = s.order[(at + k) % n];
+      if ((s.alive || []).indexOf(id) === -1 || (s.phase === 'bid' && (s.passed || []).indexOf(id) !== -1)) continue;
+      next = id !== up ? id : null;
+      break;
+    }
+    if ((s.alive || []).length <= 2) next = null;
+  }
+  if (typeof roomNextUpCue === 'function') roomNextUpCue('skull', state, next, [s.dealId || '', s.round || 0, up || ''].join('|'));
 }
 
 /** A round's result comes into sight once its flips have played. */

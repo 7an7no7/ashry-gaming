@@ -1274,10 +1274,10 @@ function motionRowsSwap(list, mutate) {
 
    A result told one piece at a time: the lies of فيبج one by one, the roles of
    مافيا, the wrong answers of the trivia dimming before the right one pops.
-   stageReveal(key) is on only the first time `key` is drawn on this device
+   stageReveal(key, state) is on only the first time `key` is drawn on this device
    (motionFirst); a redraw, a reload or a latecomer gets every part settled.
 
-     const st = stageReveal(key);
+     const st = stageReveal(key, state);
      `<div ${st.at(800, 'pop')}>…</div>`   a part, --rv-at 800ms; '' when settled
      st.count(to, ms)                       a number that counts up from 0 at ms
      st.board(renderScoreboard(b), ms)      a board kept still until ms, then it
@@ -1292,8 +1292,22 @@ function motionRowsSwap(list, mutate) {
    resting state is the settled one, so an animation that never runs leaves
    the result showing.
    --------------------------------------------------------------------------- */
-function stageReveal(key) {
-  const on = !!key && motionFirst(key);
+// When this page first saw each deal: a reveal drawn within a moment of that
+// (a reload, a latecomer, a TV switched on) is shown settled, never replayed.
+const stageDealSeen = new Map();
+Room.onChange((state) => {
+  if (!state || !state.game || typeof roomDealKey !== 'function') return;
+  const k = roomDealKey(state);
+  if (!stageDealSeen.has(k)) { if (stageDealSeen.size > 60) stageDealSeen.clear(); stageDealSeen.set(k, Date.now()); }
+});
+const STAGE_FRESH_MS = 1500;
+
+function stageReveal(key, state) {
+  let on = !!key && motionFirst(key);
+  if (on && state && typeof roomDealKey === 'function') {
+    const seen = stageDealSeen.get(roomDealKey(state));
+    if (seen === undefined || Date.now() - seen < STAGE_FRESH_MS) on = false;
+  }
   let last = 0;
   const mark = (ms) => { last = Math.max(last, ms); return Math.round(ms); };
   return {

@@ -513,7 +513,7 @@ const MAFIA_END_ORDER = { citizen: 0, doctor: 1, detective: 2, lawyer: 3, mafia:
 
 function mafiaEndReveal(state, t, tv) {
   const s = state.shared;
-  const st = stageReveal(['mafia-end', tv ? 'tv' : 'ph', roomDealKey(state), JSON.stringify(s.scores || {})].join('|'));
+  const st = stageReveal(['mafia-end', tv ? 'tv' : 'ph', roomDealKey(state), JSON.stringify(s.scores || {})].join('|'), state);
   // The cards stay in the table's order (a pile sorted by role would tell before it turns);
   // only their moments follow the roles.
   const roles = s.roles || [];
@@ -594,7 +594,7 @@ TV_GAMES.mafia = {
       const results = ((mafiaVoteState(state).shared.vote || {}).results || []).filter(r => r.count > 0).sort((a, b) => b.count - a.count);
       const news = mafiaNewsHtml(state, t);
       // The voted-out player's role turns over on its card first; the counts come after it (ideas batch: rooms).
-      const st = stageReveal(['mafia-tv-dr', roomDealKey(state), s.day].join('|'));
+      const st = stageReveal(['mafia-tv-dr', roomDealKey(state), s.day].join('|'), state);
       const after = news.indexOf('spy-reveal__cover') !== -1 ? SPY_REVEAL_MS + 200 : 300;
       return `<div class="tv-vote"><div class="tv-scale">${news}</div>
         <div class="tv-legend">${results.map((r, k) => `<span class="tv-chip${k === 0 ? ' is-done' : ''}"${st.at(after + k * 220, 'pop')}><b class="metric">${r.count}</b> ${escapeHTML(r.label)}</span>`).join('')}</div>${people}

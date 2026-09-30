@@ -14,7 +14,7 @@
  *            no error in the console; and every game started from its setup
  *   rooms    every room game started with five phones (each its own browser profile, so its own
  *            storage) and a big screen: the same checks on every phone and the TV
- *   fixes    what the audit of 23 Sep 2026 fixed on the page: a word being typed in a room survives
+ *   fixes    what the audit of 23 Sep 2026 fixed on the page (and «الشلة»'s page with a night on it): a word being typed in a room survives
  *            the others' moves, a room link fills its code, a chess clock is right after a reload,
  *            Battleship tells no result before the shell lands, Guess Who's face pick has a clock
  *   site     the offline copy: the app opens from the phone, and a new build is switched to by
@@ -482,6 +482,67 @@ if (ONLY.includes('fixes')) {
   const errs = all.flatMap((p) => takeErrors(p).map((e) => p.name + ': ' + e));
   check(!errs.length, 'no errors on any phone or the TV through all of it', [...new Set(errs)].join('\n      '));
   for (const p of all) await closePhone(p);
+
+  // «الشلة»: a crew with a night on it, its page at every size (the empty page is in the screens part).
+  const cp = await newPhone('crew');
+  await open(cp, BASE + '/preview/');
+  const made = await ev(cp, `(async () => {
+    localStorage.setItem('ashryName', 'منى');
+    const res = await crewApi('create', { name: 'شلة الاختبار', me: 'منى' });
+    if (!res.ok) return null;
+    crewRemember({ code: res.code, name: res.crew.name, memberId: res.memberId, key: res.key, me: 'منى' }, true);
+    const k = await crewApi('join', { code: res.code, name: 'كريم' });
+    // A night of the crew: a room opened for it, a buzzer game won by كريم, back to the hub.
+    await Room.create('منى', 'buzzer');
+    await Room.act('setCrew', { code: res.code, key: res.key });
+    return { code: res.code, room: Room.state.code, kkey: k.key };
+  })()`);
+  check(!!(made && made.code), 'crew: made from the page', JSON.stringify(made));
+  if (made) {
+    const kp = await newPhone('crew-k');
+    await open(kp, BASE + '/preview/');
+    await ev(kp, `(async () => { await Room.join(${JSON.stringify(made.room)}, 'كريم'); return 1; })()`);
+    await ev(cp, `(async () => { await Room.act('start', {}); return 1; })()`);
+    for (let i = 0; i < 2; i++) {
+      await wait(400);
+      await ev(kp, `Room.act('buzz', { round: Room.state.shared.round }).then(() => 1)`);
+      await wait(400);
+      await ev(cp, `Room.act('correct', { id: Room.state.shared.buzzes[0].id }).then(() => 1)`);
+    }
+    await ev(cp, `Room.act('backToHub', {}).then(() => 1)`);
+    await wait(1500);
+    await ev(cp, `lzEnsure(lzChunksOfView('crew')).then(() => 1)`);
+    const bad = [];
+    for (const [w, h] of [[375, 812], [667, 375], [1280, 720], [1920, 1080]]) {
+      await resize(cp, w, h);
+      for (const [lang, dark] of [['ar', false], ['en', true]]) {
+        await setLook(cp, lang, dark);
+        for (const tab of ['month', 'champs', 'titles', 'nights']) {
+          await ev(cp, `crewPage.at = {}; setView('crew'); closeAllModals(); 1`);
+          await wait(120);
+          await chunkIn(cp);
+          await ev(cp, `crewTab(${JSON.stringify(tab)}); 1`);
+          await wait(tab === 'month' ? 900 : 150);
+          const found = await sweep(cp);
+          if (found && found.length) bad.push(`${w}x${h} ${lang} ${tab}: ` + found.join('; '));
+        }
+      }
+    }
+    await ev(cp, `crewPage.tab = 'nights'; crewPage.at = {}; renderCrew(); 1`);
+    await wait(1200);
+    await ev(cp, `crewTab('month'); 1`);
+    await wait(200);
+    const podium = await ev(cp, `(() => { const d = crewPage.data[crewPage.code] || {}; return { cast: !!document.querySelector('#crew-pane .podium .pod-cast'), top: (d.table || [])[0], nights: d.nightCount }; })()`);
+    check(podium && podium.cast && podium.top && podium.top.name === 'كريم', 'crew: the month opens on the podium, كريم on top', JSON.stringify(podium));
+    check(!bad.length, 'crew: the page and its four tabs at four sizes, Arabic light and English dark: laid out within the screen', bad.join('\n      '));
+    await open(cp, BASE + '/preview/');
+    const back = await ev(cp, `appState.currentView === 'crew' && !!document.querySelector('#view-crew .crew-card')`);
+    check(back, 'crew: a reload on the crew page comes back to it');
+    const errs = [cp, kp].flatMap((p) => takeErrors(p).map((e) => p.name + ': ' + e)).filter((e) => !/navigator\.vibrate/.test(e));
+    check(!errs.length, 'crew: no errors', [...new Set(errs)].join('\n      '));
+    await closePhone(kp);
+  }
+  await closePhone(cp);
 }
 
 if (ONLY.includes('site')) {

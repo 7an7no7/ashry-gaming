@@ -2676,7 +2676,13 @@ function settlePredictions(room, boardOf) {
   if (board.every(r => (Number(r.score) || 0) === top)) return;   // nobody ahead of anybody
   const winners = board.filter(r => (Number(r.score) || 0) === top).map(r => r.id);
   const nameOf = (id) => ((room.players.find(x => x.id === id) || {}).name || '');
-  const right = voters.filter(v => winners.indexOf(p.picks[v]) !== -1).map(nameOf).filter(Boolean);
+  const rightIds = voters.filter(v => winners.indexOf(p.picks[v]) !== -1);
+  const right = rightIds.map(nameOf).filter(Boolean);
+  // «الشلة»'s العرّاف: a guess right counts toward the title (crewNightInput, Crew.js).
+  if (rightIds.length) {
+    const x = nightExtras(room);
+    rightIds.forEach(id => { x.pred[id] = (x.pred[id] || 0) + 1; x.names[id] = nameOf(id) || x.names[id] || ''; });
+  }
   roomEvent(room, 'predicted', { names: right.join('، '), n: voters.length });
 }
 
@@ -2700,6 +2706,7 @@ const bankNightPoints = (room, board) => {
   if (rows.length < 2) return false;
   if (!rows.some(r => (Number(r.score) || 0) !== 0)) return false;
   room.night = room.night || {};
+  const x = nightExtras(room);
   let banked = false;
   rows.forEach(row => {
     const score = Number(row.score) || 0;
@@ -2707,9 +2714,38 @@ const bankNightPoints = (room, board) => {
     const points = NIGHT_PLACES[rows.findIndex(r => (Number(r.score) || 0) === score)];
     if (!points) return;
     room.night[row.id] = (room.night[row.id] || 0) + points;
+    // Beside the points, for «الشلة» (Crew.js, crewNightInput): the name (kept for someone who
+    // leaves), a first place in this game (the titles), and a computer player to leave out.
+    const who = (room.players || []).find(p => p.id === row.id);
+    x.names[row.id] = (who && who.name) || row.name || x.names[row.id] || '';
+    if (who && who.bot && x.bots.indexOf(row.id) === -1) x.bots.push(row.id);
+    if (points === NIGHT_PLACES[0] && room.game) x.wins = x.wins.concat([{ id: row.id, g: room.game }]).slice(-60);
     banked = true;
   });
+  if (banked && room.game) {
+    x.games = x.games.concat([room.game]).slice(-40);
+    // A record score (the top row, a game where higher is better) and the rooms' own titles' tallies.
+    const s = room.shared || {};
+    if (CREW_RECORD_GAMES.indexOf(room.game) !== -1 && rows[0] && Number(rows[0].score) > 0) {
+      x.best = x.best.concat([{ id: rows[0].id, g: room.game, s: Number(rows[0].score) }]).slice(-20);
+    }
+    Object.keys(CREW_TALLY_TITLE).forEach(k => {
+      const t = s[k];
+      if (t && t.id && t.n > 0) {
+        x.tally = x.tally.concat([{ id: t.id, k: k, n: t.n }]).slice(-20);
+        x.names[t.id] = x.names[t.id] || t.name || '';
+      }
+    });
+  }
   return banked;
+};
+
+/** What the night keeps beside its points, for «الشلة» (never sent to a phone: view.js). */
+const nightExtras = (room) => {
+  const x = room.nightx = room.nightx || {};
+  x.names = x.names || {}; x.wins = x.wins || []; x.games = x.games || [];
+  x.best = x.best || []; x.tally = x.tally || []; x.pred = x.pred || {}; x.bots = x.bots || [];
+  return x;
 };
 
 /**

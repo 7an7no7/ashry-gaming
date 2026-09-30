@@ -1081,7 +1081,10 @@ const scan = (T, after) => {
     const view = roomView(room, pid, ONLINE);
     return { pid, view, idx: indexView(view) };
   });
-  const probes = GENERIC(room).concat(T.tourOf ? tourProbes(room, T.tourOf) : (PROBES[game] || (() => []))(room));
+  // A night's program (T.dynamic) plays several games: each step is held to the probes of the game on now.
+  const probeGame = T.dynamic ? room.game : game;
+  const probes = GENERIC(room).concat(T.tourOf ? tourProbes(room, T.tourOf) : (PROBES[probeGame] || (() => []))(room))
+    .concat(T.dynamic ? PROGRAM_PROBES(room) : []);
   for (const p of probes) {
     if (!r.probes.has(p.name)) r.probes.set(p.name, 0);
     if (!p.active) continue;
@@ -2382,7 +2385,69 @@ const TOUR_DRIVERS = {
 };
 
 /* A variant of a room game, played through and held to its own probes (PROBES['chess:hq']). */
+/* برنامج السهرة (RoomProgram.js): its public state never carries a game's options or the
+   highlights the awards are made from (a lie in كدّاب nobody called is a secret until the
+   game is over), and the awards appear only with the finale. */
+const PROGRAM_PROBES = (room) => {
+  const p = room.program;
+  if (!p) return [];
+  return [
+    probe('program: no game options or highlight log in its public state', true, (view) => {
+      const pv = view.program || {};
+      const text = JSON.stringify(pv);
+      const bad = /"(opts|lies|liar|caught|prophet|detective|sly|strikes|dseq|seen|buzz|trivia|chairs)":/.exec(text);
+      if (bad) return 'program.' + bad[1];
+      return null;
+    }),
+    probe('program: the awards only with the finale', p.phase !== 'final', (view) => ((view.program || {}).final ? 'program.final' : null))
+  ];
+};
+
 const VARIANT_DRIVERS = {
+  program() {
+    // A night of three games: كدّاب played out by its turn clock (lies and calls on the pile),
+    // المختلف cut short by the host, the trivia played out by its own clocks, to the finale.
+    const ids = ['p1', 'p2', 'p3', 'p4'];
+    const room = {
+      code: 'LEAK', version: 1, game: null, phase: 'lobby', hostId: 'p1',
+      players: ids.map((id, i) => ({ id, name: NAMES[i] })), screens: [{ id: SCREEN }], shared: {}, secrets: {}
+    };
+    if (!report.has('program')) report.set('program', { moves: 0, probes: new Map(), leaks: new Map() });
+    const T = { room, game: 'program', ids, host: 'p1', dynamic: true };
+    must(T, 'p1', 'programStart', { games: [
+      { id: 'doubt', opts: { turnClock: 30, end: 'first' } },
+      { id: 'imposter', opts: { undercover: true, lang: 'ar' } },
+      { id: 'trivia', opts: { count: 5, lang: 'ar' } }
+    ] });
+    const P = () => T.room.program || {};
+    runClock(T, (r) => r.game === 'doubt' && r.program.phase === 'playing', 20);
+    // The table plays: whoever is up lays one card (truly or not); now and then someone calls.
+    for (let guard = 0; guard < 3000 && P().phase === 'playing' && T.room.game === 'doubt'; guard++) {
+      const s = S(T);
+      if (s.last && Math.random() < 0.2) {
+        const caller = ids.find((id) => id !== s.last.pid && (s.counts || {})[id] > 0);
+        if (caller && act(T, caller, 'call', { play: s.last.id })) continue;
+      }
+      const up = s.turn && s.turn.pid;
+      const hand = ((T.room.secrets || {})[up] || {}).hand || [];
+      if (!up || !hand.length) { runClock(T, (r) => r.program.phase !== 'playing' || (r.shared.turn || {}).pid !== up, 3); continue; }
+      const lead = s.turn.stage === 'lead';
+      const rankOf = (c) => String(c.c).slice(0, -1);
+      // Mostly the truth (all of a rank), a lie a quarter of the time.
+      const rank = lead ? rankOf(pick(hand)) : s.rank;
+      const same = hand.filter((c) => rankOf(c) === rank);
+      const cards = same.length && Math.random() < 0.75 ? same : [pick(hand)];
+      if (!act(T, up, 'play', { cards: cards.map((c) => c.i), rank: lead ? rank : undefined, seq: s.turnSeq })) {
+        runClock(T, (r) => (r.shared.turn || {}).pid !== up || r.program.phase !== 'playing', 3);
+      }
+    }
+    if (P().phase !== 'result') return false;
+    runClock(T, (r) => r.game === 'imposter' && r.program.phase === 'playing', 40);
+    must(T, 'p1', 'programSkip', { seq: P().seq });
+    runClock(T, (r) => r.program.phase === 'final', 4000);
+    return P().phase === 'final' && P().final.games === 3;
+  },
+
   'chess:hq'() {
     // Two games: one on a clock (White picks, Black's pick by the clock), one where the host picks for both;
     // moves at random, a hidden queen moved like a pawn now and then and like a queen a third of the time.

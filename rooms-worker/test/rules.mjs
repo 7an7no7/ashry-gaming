@@ -11412,6 +11412,198 @@ Date.now = duelTestClock;
   check(threw2(() => applyRoomAction(bz, 'a', 'autoPause', {})) && !bz._autoNext, 'autonext: other games have no such switch');
 }
 
+/* --- برنامج السهرة: the night's program (RoomProgram.js, 30 Sep 2026) ---------------------- */
+{
+  console.log('\nبرنامج السهرة (the night\'s program)');
+  const threwP = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const P = (ids) => {
+    const r = newRoom(ids);
+    return r;
+  };
+  const tickTo = (r, ms) => {
+    // Runs every clock that falls due up to ms from now, the way the alarm does.
+    const end = clock + ms;
+    for (let i = 0; i < 400; i++) {
+      const d = roomDeadline(r);
+      if (d === null || d > end) break;
+      clock = Math.max(clock, d);
+      roomTimeout(r, clock);
+    }
+    clock = end;
+  };
+  const play3 = (r, games) => applyRoomAction(r, 'a', 'programStart', { games });
+
+  // Starting one: the host only, 3 to 8 games, the hub only.
+  const r0 = P(['a', 'b', 'c', 'd']);
+  check(threwP(() => play3(r0, [{ id: 'trivia' }, { id: 'mind' }])), 'program: fewer than 3 games is refused');
+  check(threwP(() => applyRoomAction(r0, 'b', 'programStart', { games: [{ id: 'trivia' }, { id: 'mind' }, { id: 'buzzer' }] })), 'program: only the host starts one');
+  check(threwP(() => play3(r0, [{ id: 'trivia' }, { id: 'nope' }, { id: 'mind' }])), 'program: an unknown game is refused');
+  check(threwP(() => play3(r0, new Array(9).fill({ id: 'mind' }))), 'program: more than 8 games is refused');
+  play3(r0, [{ id: 'trivia', opts: { count: 5, lang: 'ar' } }, { id: 'imposter', opts: {} }, { id: 'mind', opts: {} }]);
+  const p0 = r0.program;
+  check(p0 && p0.phase === 'between' && p0.at === -1 && roomDeadline(r0) === clock + 8000, 'program: the line-up first, 8 s on the server\'s clock');
+  check(!('opts' in p0.games[0]) && Array.isArray(r0._progOpts) && r0._progOpts[0].count === 5, 'program: each game\'s options stay on the server (room._progOpts)');
+  check(threwP(() => applyRoomAction(r0, 'a', 'chooseGame', { game: 'uno' })), 'program: a game of its own can\'t be chosen while it runs');
+  check(threwP(() => play3(r0, [{ id: 'trivia' }, { id: 'mind' }, { id: 'buzzer' }])), 'program: a second program can\'t start over the first');
+
+  // The clock deals the first game with the host's options («التالي لوحده» on).
+  tickTo(r0, 8000);
+  check(r0.game === 'trivia' && r0.phase === 'play' && r0.program.phase === 'playing' && r0._deck.length === 5 && r0._autoNext === true,
+    'program: the first game is dealt by itself, with its options and «التالي لوحده» on');
+  // Play it: a right every time and first, c right, b and d wrong.
+  for (let q = 0; q < 5; q++) {
+    const right = r0._currentQ.answer;
+    clock += 400; applyRoomAction(r0, 'a', 'answer', { choice: right, qIndex: q });
+    clock += 400; applyRoomAction(r0, 'c', 'answer', { choice: right, qIndex: q });
+    applyRoomAction(r0, 'b', 'answer', { choice: (right + 1) % 4, qIndex: q });
+    applyRoomAction(r0, 'd', 'answer', { choice: (right + 1) % 4, qIndex: q });
+    if (q < 4) applyRoomAction(r0, 'a', 'nextQuestion', { qIndex: q });
+  }
+  check(r0.program.phase === 'playing', 'program: the last result isn\'t the end yet');
+  applyRoomAction(r0, 'a', 'nextQuestion', { qIndex: 4 });
+  const g1 = r0.program.gained || {};
+  check(r0.shared.phase === 'gameover' && r0.program.phase === 'result', 'program: the game\'s end is noticed, its result stays up');
+  check(g1.a === 5 && g1.c === 3 && g1.b === 2 && g1.d === 2, 'program: places → points: 5, 3, and the two tied third share 2', JSON.stringify(g1));
+  check(r0.program.table.a.firsts === 1 && r0.program.table.c.firsts === 0, 'program: a first place is counted');
+  check(!('nextAt' in r0.shared) && !r0._autoNext, 'program: the game\'s own count gives way to the program\'s');
+  check(threwP(() => applyRoomAction(r0, 'a', 'playAgain', {})) && r0.shared.phase === 'gameover', 'program: play again is refused once the program counted the game');
+  // A stale skip, a player's skip while the host is here, a computer player's never.
+  const seq0 = r0.program.seq;
+  applyRoomAction(r0, 'a', 'programSkip', { seq: seq0 - 1 });
+  check(r0.program.phase === 'result', 'program: a skip aimed at the pause before does nothing');
+  check(threwP(() => applyRoomAction(r0, 'b', 'programSkip', { seq: seq0 })), 'program: a player can\'t skip while the host is here');
+  // The pause after the result, on the clock: the standings.
+  tickTo(r0, 9000);
+  check(r0.program.phase === 'between' && r0.game === null && r0.phase === 'lobby' && roomDeadline(r0) === clock + 10000, 'program: the result gives way to the table for 10 s');
+  check(!!r0.night && r0.night.a === 3, 'program: the room\'s own night table («ليالينا») still banks the game');
+  // Pause and go on; the host away lets a player press them.
+  applyRoomAction(r0, 'a', 'programPause', { seq: r0.program.seq, on: true });
+  check(r0.program.paused && roomDeadline(r0) === null, 'program: ⏸ stops the clock');
+  clock += 60000;
+  check(r0.program.phase === 'between' && roomTimeout(r0, clock) === false, 'program: nothing moves while it stands still');
+  r0._hostAway = true;
+  applyRoomAction(r0, 'b', 'programPause', { seq: r0.program.seq, on: false });
+  delete r0._hostAway;
+  check(!r0.program.paused && roomDeadline(r0) > clock, 'program: with the host away a player can go on (a move-on action)');
+  // The next game's start is refused (الجاسوس needs a category): the program waits in its lobby.
+  tickTo(r0, 11000);
+  check(r0.program.phase === 'waiting' && r0.game === 'imposter' && r0.phase === 'lobby' && !!r0.program.waitWhy, 'program: a start the game refuses waits for the host in its lobby', r0.program.waitWhy);
+  applyRoomAction(r0, 'a', 'start', { undercover: true, lang: 'ar' });
+  check(r0.program.phase === 'playing' && r0.game === 'imposter' && r0.phase !== 'lobby', 'program: the host\'s Start picks it up');
+  // «خلّصنا دي» before anybody scored: everyone played, nobody won.
+  applyRoomAction(r0, 'a', 'programSkip', { seq: r0.program.seq });
+  const g2 = r0.program.gained || {};
+  check(r0.program.phase === 'between' && g2.a === 1 && g2.b === 1 && g2.c === 1 && g2.d === 1, 'program: a game ended early with everyone level: 1 each for playing', JSON.stringify(g2));
+  check(r0.program.done[1].cut === true && r0.program.table.a.firsts === 1, 'program: it is marked cut short, and gives no first place');
+  // A player leaves: their row stays.
+  roomPlayerLeft(r0, 'd', 'D');
+  r0.players = r0.players.filter((x) => x.id !== 'd');
+  check(r0.program.table.d && r0.program.names.d === 'D', 'program: a leaver keeps their row on the night\'s table');
+  // The co-op game: dealt, then cut - everyone who played shares the first place.
+  tickTo(r0, 10000);
+  check(r0.game === 'mind' && r0.program.phase === 'playing', 'program: the third game is dealt');
+  applyRoomAction(r0, 'a', 'backToHub', {});
+  const g3 = r0.program.gained || {};
+  check(r0.program.phase === 'final' && g3.a === 5 && g3.b === 5 && g3.c === 5 && !g3.d, 'program: the host\'s back-to-the-games ends it; a co-op game gives everyone who played the same (and the last game leads to the finale)', JSON.stringify(g3));
+  const f0 = r0.program.final;
+  check(f0 && f0.table[0].id === 'a' && f0.table[0].pts === 11 && f0.champions.join() === 'a' && f0.games === 3, 'program: the finale: the table and the champion', JSON.stringify(f0 && f0.table));
+  check(r0._nightSummary && r0._nightSummary.table.length === f0.table.length && r0._nightSummary.games.length === 3, 'program: nightProgramFinished got the summary (the crew\'s hook)');
+  check(r0.nightx && Array.isArray(r0.nightx.programs) && r0.nightx.programs.length === 1 && r0.nightx.programs[0].table[0].pts === 11,
+    'program: the finale is kept on the night (room.nightx.programs) for the crew night recording');
+  check(f0.awards.some((x) => x.k === 'trivia' && x.id === 'a'), 'program: an award from real play (the quickest right answer)', JSON.stringify(f0.awards));
+  check(threwP(() => applyRoomAction(r0, 'b', 'programClose', {})), 'program: only the host closes the finale');
+  applyRoomAction(r0, 'a', 'programClose', {});
+  check(r0.program === null && !r0._progLog, 'program: closed, the room is back to its hub');
+
+  // The host ends it early mid-game: the game on then doesn't count.
+  const r1 = P(['a', 'b', 'c']);
+  play3(r1, [{ id: 'trivia', opts: { count: 5 } }, { id: 'trivia', opts: { count: 5 } }, { id: 'trivia', opts: { count: 5 } }]);
+  applyRoomAction(r1, 'a', 'programSkip', { seq: r1.program.seq });
+  check(r1.game === 'trivia' && r1.program.phase === 'playing', 'program: ⏭ on the line-up deals the first game now');
+  const right1 = r1._currentQ.answer;
+  applyRoomAction(r1, 'b', 'answer', { choice: right1, qIndex: 0 });
+  check(threwP(() => applyRoomAction(r1, 'b', 'programEnd', {})), 'program: only the host ends it');
+  applyRoomAction(r1, 'a', 'programEnd', {});
+  check(r1.program.phase === 'final' && r1.game === null && r1.program.final.games === 0 && r1.program.final.champions.length === 0,
+    'program: ended early, the unfinished game isn\'t counted; nobody is champion');
+  applyRoomAction(r1, 'a', 'chooseGame', { game: 'uno' });
+  check(r1.program === null && r1.game === 'uno', 'program: choosing a game after the finale closes it');
+
+  // A duel: the two who played place, the ones watching don't; a computer player takes a place, no points.
+  const r2 = P(['a', 'b', 'c']);
+  play3(r2, [{ id: 'connect4', opts: { mode: 4 } }, { id: 'buzzer' }, { id: 'buzzer' }]);
+  tickTo(r2, 8000);
+  const seats = r2.shared.seats.slice();
+  check(r2.game === 'connect4' && r2.program.phase === 'playing' && seats.length === 2, 'program: a duel is dealt');
+  const colWin = [0, 1, 0, 1, 0, 1, 0];
+  for (const col of colWin) {
+    if (r2.shared.phase !== 'play') break;
+    const up = r2.shared.seats[r2.shared.turn];
+    applyRoomAction(r2, up, 'move', { col, move: r2.shared.moves });
+  }
+  const g4 = r2.program.gained || {};
+  const watcher = ['a', 'b', 'c'].find((x) => seats.indexOf(x) === -1);
+  check(r2.program.phase === 'result' && g4[seats[0]] === 5 && g4[seats[1]] === 3 && !g4[watcher], 'program: a duel: the winner 5, the loser 3, the one watching nothing', JSON.stringify({ g4, seats, ph: r2.shared.phase }));
+  // The buzzer ends after its questions; the fastest hand is kept for the awards.
+  tickTo(r2, 9000); tickTo(r2, 10000);
+  check(r2.game === 'buzzer' && r2.program.phase === 'playing', 'program: the buzzer is dealt');
+  for (let q = 0; q < 10; q++) {
+    const round = r2.shared.round;
+    clock += 1000; applyRoomAction(r2, 'b', 'buzz', { round });
+    clock += 180; applyRoomAction(r2, 'c', 'buzz', { round });
+    applyRoomAction(r2, 'a', 'correct', { id: 'b' });
+  }
+  check(r2.program.phase === 'result' && (r2.program.gained || {}).b === 5, 'program: the buzzer ends after 10 questions in a program');
+  applyRoomAction(r2, 'a', 'programEnd', {});
+  const aw = r2.program.final.awards;
+  const buzzAw = aw.find((x) => x.k === 'buzz');
+  check(buzzAw && buzzAw.id === 'b' && buzzAw.v === 180 && buzzAw.with === 'C', 'program: «أسرع إيد»: who beat whom to the buzzer, and by how much', JSON.stringify(aw));
+  const fin2 = r2.program.final;
+  check(fin2.champions.length >= 1 && fin2.champions.every((id) => fin2.table.find((x) => x.id === id).pts === fin2.table[0].pts) &&
+    fin2.table.filter((x) => x.pts === fin2.table[0].pts).length === fin2.champions.length, 'program: the champions after a duel and the buzzer: everyone level on top', JSON.stringify(fin2.table));
+
+  // The same game twice in a row: the table counts both.
+  const r3 = P(['a', 'b', 'c']);
+  play3(r3, [{ id: 'buzzer' }, { id: 'buzzer' }, { id: 'buzzer' }]);
+  for (let gi = 0; gi < 3; gi++) {
+    tickTo(r3, gi === 0 ? 8000 : 10000);
+    for (let q = 0; q < 10; q++) { const round = r3.shared.round; applyRoomAction(r3, 'c', 'buzz', { round }); applyRoomAction(r3, 'a', 'correct', { id: 'c' }); }
+    if (gi < 2) tickTo(r3, 9000);
+  }
+  check(r3.program.phase === 'result' && r3.program.table.c.pts === 15 && r3.program.table.c.firsts === 3, 'program: three buzzer games: 15 points and 3 first places', JSON.stringify(r3.program.table));
+  tickTo(r3, 9000);
+  const streakAw = r3.program.final && r3.program.final.awards.find((x) => x.k === 'streak');
+  check(r3.program.phase === 'final' && streakAw && streakAw.id === 'c' && streakAw.v === 3, 'program: the last result leads to the finale by itself; «على نار» for three firsts in a row');
+
+  // Co-op finished (العقل to its end): everyone who played the same, no first places.
+  const r4 = P(['a', 'b']);
+  play3(r4, [{ id: 'mind' }, { id: 'buzzer' }, { id: 'buzzer' }]);
+  tickTo(r4, 8000);
+  for (let i = 0; i < 60 && r4.program.phase === 'playing'; i++) {
+    const s = r4.shared;
+    if (r4.phase === 'levelDone') { applyRoomAction(r4, 'a', 'nextLevel', {}); continue; }
+    // The one holding the higher lowest card plays first: wrong, until the hearts run out.
+    const low = (id) => Math.min(...(((r4.secrets || {})[id] || {}).cards || [1000]));
+    const who = ['a', 'b'].filter((id) => low(id) < 1000).sort((x, y) => low(y) - low(x))[0];
+    if (!who) break;
+    try { applyRoomAction(r4, who, 'play', {}); } catch (e) { break; }
+  }
+  const g5 = r4.program.gained || {};
+  check(r4.program.phase === 'result' && g5.a === 5 && g5.b === 5 && r4.program.table.a.firsts === 0, 'program: العقل played to its end: 5 each, and no first places', JSON.stringify({ g5, ph: r4.shared.phase, rp: r4.phase }));
+
+  // An endless game ends after its rounds: لو خيروك, five rounds.
+  const r5 = P(['a', 'b', 'c']);
+  play3(r5, [{ id: 'wouldyou', opts: { lang: 'ar' } }, { id: 'buzzer' }, { id: 'buzzer' }]);
+  tickTo(r5, 8000);
+  let guard = 0;
+  while (r5.program.phase === 'playing' && guard++ < 20) {
+    const v = r5.shared.vote;
+    if (v && v.phase === 'voting') ['a', 'b', 'c'].forEach((id) => { try { applyRoomAction(r5, id, 'vote', { option: 'a', round: r5.shared.round }); } catch (e) {} });
+    if (r5.program.phase === 'playing') tickTo(r5, 13000);
+  }
+  check(r5.program.phase === 'result' && r5.shared.round === 5 && Object.keys(r5.program.gained || {}).length === 3, 'program: لو خيروك ends after 5 rounds in a program (all level: 5 each)', JSON.stringify({ r: r5.shared.round, ph: r5.program.phase }));
+}
+
 /* --- «الشلة» (Crew.js): a room's night for its crew, the table, the titles, the records --- */
 {
   console.log('\n«الشلة» (the crew)');

@@ -23091,6 +23091,367 @@ body.is-tv-view .an-slot--tv .an-count__bar { block-size: 0.8vmin; }
 }
 
 
+/* ===== برنامج السهرة: THE NIGHT'S PROGRAM (JS_RoomProgram.html) =====
+   Look أ «لوحة المذيع»: a studio card between two games - the night's table in big
+   rows beside the next game's poster and its countdown ring - and the finale: the
+   champion, the podium with the cast, a row of award cards. The card is a stage in
+   both themes (the page's tokens set again inside it, as كدّاب's stage does), sized
+   in rem on a phone and in vmin on the TV (.prog--tv). */
+
+/* The host's door, at the top of the room's list. */
+.prog-door {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  margin-block: var(--sp-2) var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: var(--r-xl);
+  background: radial-gradient(120% 140% at 100% 0%, rgba(245, 158, 11, 0.28), transparent 55%),
+              linear-gradient(135deg, #2a2150, #151126);
+  color: #f3f0ff;
+  text-align: start;
+  box-shadow: var(--sh-2);
+  cursor: pointer;
+}
+.prog-door__icon { font-size: 2rem; line-height: 1; filter: drop-shadow(0 0.2rem 0.4rem rgba(0, 0, 0, 0.35)); }
+.prog-door__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.prog-door__title { font: 900 var(--fs-h3) / 1.3 var(--font-display); color: #fff; }
+.prog-door__sub { font-size: var(--fs-sm); color: #cfc6ee; line-height: 1.45; }
+.prog-door__chev { font-size: 1.6rem; color: #fbbf24; line-height: 1; }
+html[dir="rtl"] .prog-door__chev { transform: scaleX(-1); }
+@media (hover: hover) and (pointer: fine) { .prog-door:hover { transform: translateY(-2px); box-shadow: var(--sh-3); } }
+.prog-door { transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out); }
+.tv .prog-door { margin-block: 0 var(--tv-gap); padding: 1.4vmin 2vmin; border-radius: var(--tv-r); }
+.tv .prog-door__title { font-size: var(--tv-md); }
+.tv .prog-door__sub { font-size: var(--tv-xs); }
+
+/* The builder. */
+.prog-sheet { max-width: 30rem; }
+.prog-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; }
+.prog-row {
+  display: grid;
+  grid-template-columns: 1.9rem 1rem 2rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  touch-action: pan-y;
+}
+.prog-row.is-dragging { position: relative; z-index: 2; box-shadow: var(--sh-3); border-color: var(--accent); transition: none; }
+.prog-row:not(.is-dragging) { transition: transform var(--dur-2) var(--ease-out); }
+.prog-row__grip {
+  min-width: 1.9rem;
+  min-height: 2.75rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-weight: 900;
+  letter-spacing: -0.2em;
+  cursor: grab;
+  touch-action: none;
+}
+.prog-row__num { font-weight: 900; color: var(--accent-ink); text-align: center; }
+.prog-row__icon { font-size: 1.7rem; line-height: 1; text-align: center; }
+.prog-row__text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.prog-row__name { font-weight: 800; color: var(--text-strong); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prog-row__sum { font-size: var(--fs-xs); color: var(--text-3); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prog-row__btn { min-width: 2.5rem; min-height: 2.5rem; padding: 0; }
+/* In a program «التالي لوحده» is always on (the program runs by itself): its switch isn't offered. */
+.prog-opts .an-lobby { display: none; }
+.prog-empty { width: 100%; }
+.prog-warn { color: var(--warning-ink); }
+.prog-pick-grid { width: 100%; }
+.prog-pick { position: relative; }
+.prog-pick__in {
+  position: absolute;
+  inset-block-start: 0.35rem;
+  inset-inline-end: 0.35rem;
+  min-width: 1.5rem;
+  padding: 0 0.3rem;
+  border-radius: var(--r-full);
+  background: var(--success-btn);
+  color: var(--success-on);
+  font-size: var(--fs-xs);
+  font-weight: 900;
+  line-height: 1.5rem;
+}
+.prog-opts { width: 100%; display: flex; flex-direction: column; gap: var(--sp-3); text-align: start; }
+
+/* The stage: between two games and the finale. */
+.prog {
+  --pg-gold: #fbbf24;
+  --pg-green: #4ade80;
+  --text: #f3f0ff;
+  --text-strong: #ffffff;
+  --text-2: #cfc6ee;
+  --text-3: #a79fcb;
+  --surface: rgba(255, 255, 255, 0.06);
+  --surface-solid: #1d1733;
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --surface-3: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.12);
+  --accent-ink: #fcd34d;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-3);
+  border-radius: var(--r-2xl);
+  background: radial-gradient(90% 60% at 50% -10%, rgba(124, 58, 237, 0.5), transparent 60%),
+              radial-gradient(45% 45% at 100% 100%, rgba(245, 158, 11, 0.18), transparent 70%),
+              linear-gradient(180deg, #1c1438, #0f0b1f);
+  color: var(--text);
+  box-shadow: var(--sh-3);
+  overflow: hidden;
+}
+.prog-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.prog-pill {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.prog-dots { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.prog-dot {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: 1.05rem;
+  opacity: 0.55;
+}
+.prog-dot.is-done { opacity: 0.9; box-shadow: inset 0 0 0 2px var(--pg-green); }
+.prog-dot.is-next { opacity: 1; box-shadow: inset 0 0 0 2px var(--pg-gold); animation: prog-glow 1.6s ease-in-out infinite; }
+@keyframes prog-glow { 50% { transform: scale(1.12); } }
+.prog-h { margin: 0; font: 900 var(--fs-h2) / 1.3 var(--font-display); color: var(--text-strong); }
+.prog-last { margin: -0.4rem 0 0; font-size: var(--fs-sm); color: var(--text-2); }
+.prog-grid { display: grid; grid-template-columns: 1fr; gap: var(--sp-3); }
+.prog-rows { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+.prog-trow {
+  display: grid;
+  grid-template-columns: 1.6rem 2.1rem minmax(0, 1fr) auto 4.2rem;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.prog-trow--1 {
+  background: linear-gradient(90deg, rgba(245, 184, 46, 0.12), rgba(245, 184, 46, 0.3));
+  box-shadow: inset 0 0 0 2px rgba(245, 184, 46, 0.7);
+}
+html[dir="rtl"] .prog-trow--1 { background: linear-gradient(270deg, rgba(245, 184, 46, 0.12), rgba(245, 184, 46, 0.3)); }
+.prog-trow__p { font-weight: 900; color: var(--text-2); text-align: center; font-size: 1.1rem; }
+.prog-av {
+  width: 2.1rem;
+  height: 2.1rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-on);
+  font: 800 1rem / 1 var(--font-display);
+}
+.prog-trow__name { min-width: 0; font-weight: 800; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prog-trow__w { font-size: var(--fs-xs); color: var(--text-3); text-align: center; line-height: 1.2; }
+.prog-trow__w b { display: block; font-size: 1rem; color: var(--text-strong); }
+.prog-trow__pts { text-align: center; line-height: 1.1; }
+.prog-trow__pts b { display: block; font: 900 1.35rem / 1.1 var(--font-display); color: var(--text-strong); }
+.prog-up { display: block; font-size: var(--fs-xs); font-weight: 900; color: var(--pg-green); }
+.prog-lineup { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.prog-lineup__row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  font-weight: 800;
+  color: var(--text-strong);
+}
+.prog-lineup__row .metric { color: var(--pg-gold); min-width: 1.2rem; text-align: center; }
+.prog-lineup__icon { font-size: 1.4rem; line-height: 1; }
+.prog-next {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: var(--sp-4) var(--sp-3);
+  border-radius: var(--r-xl);
+  background: linear-gradient(160deg, var(--accent), var(--accent-hover, var(--accent)));
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.35);
+}
+.prog-next__lbl { font-size: var(--fs-sm); font-weight: 800; opacity: 0.9; }
+.prog-next__art { font-size: 3.4rem; line-height: 1.1; filter: drop-shadow(0 0.3rem 0.6rem rgba(0, 0, 0, 0.35)); }
+.prog-next__name { font: 900 var(--fs-h2) / 1.25 var(--font-display); }
+.prog-next__sub { font-size: var(--fs-sm); opacity: 0.9; line-height: 1.45; }
+.prog-next__foot { display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin-top: 0.25rem; font-weight: 700; }
+.prog-ring { position: relative; width: 3.4rem; height: 3.4rem; flex: none; }
+.prog-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.prog-ring__bg { fill: none; stroke: rgba(255, 255, 255, 0.25); stroke-width: 3; }
+.prog-ring__fg { fill: none; stroke: var(--pg-gold); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 0; transition: stroke-dashoffset 260ms linear; }
+.prog-ring b { position: absolute; inset: 0; display: grid; place-items: center; font: 900 1.3rem / 1 var(--font-display); color: #fff; }
+.prog-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+/* The lighter buttons, on the stage's dark ground in both themes. */
+.prog .btn--secondary, .prog .btn--ghost {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  box-shadow: none;
+}
+.prog .btn--ghost { background: transparent; }
+.prog-wait { margin: 0; text-align: center; color: var(--text-2); font-size: var(--fs-sm); }
+
+/* The finale. */
+.prog-fin-title { text-align: center; color: var(--text-2); font-weight: 700; font-size: var(--fs-sm); }
+.prog-champ { text-align: center; font: 900 var(--fs-h1) / 1.25 var(--font-display); color: var(--pg-gold); text-shadow: 0 0.2rem 1rem rgba(245, 158, 11, 0.35); }
+.prog-podium .podium { padding-top: 4.5rem; }
+.prog-awards { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: var(--sp-2); }
+.prog-aw {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+.prog-aw b { color: var(--pg-gold); font-size: var(--fs-sm); }
+.prog-aw strong { color: var(--text-strong); font-size: 1rem; }
+.prog-fulltable summary { cursor: pointer; text-align: center; font-weight: 800; color: var(--text-2); padding: var(--sp-2); list-style: none; }
+.prog-fulltable summary::-webkit-details-marker { display: none; }
+.prog-fulltable[open] summary span { display: inline-block; transform: rotate(180deg); }
+
+/* Motion: the rows come in one after another, ▲ +N pops, the award cards flip up. Once per card (prog-fresh). */
+.prog-fresh .prog-trow, .prog-fresh .prog-lineup__row { animation: prog-row-in 420ms var(--ease-out, ease-out) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.prog-fresh .prog-next { animation: prog-next-in 560ms cubic-bezier(0.2, 1.2, 0.35, 1) both 180ms; }
+.prog-fresh .prog-up { animation: prog-up 520ms cubic-bezier(0.2, 1.5, 0.35, 1) both; animation-delay: calc(700ms + var(--i, 0) * 70ms); }
+.prog-fresh .prog-champ { animation: prog-next-in 620ms cubic-bezier(0.2, 1.3, 0.35, 1) both; }
+.prog-fresh .prog-aw { animation: prog-aw-in 520ms cubic-bezier(0.2, 1.2, 0.35, 1) both; animation-delay: calc(2400ms + var(--i, 0) * 220ms); }
+@keyframes prog-row-in { from { opacity: 0; transform: translateY(0.6rem); } }
+@keyframes prog-next-in { from { opacity: 0; transform: scale(0.85); } }
+@keyframes prog-up { from { opacity: 0; transform: translateY(0.4rem) scale(0.6); } }
+@keyframes prog-aw-in { from { opacity: 0; transform: perspective(40rem) rotateX(55deg) translateY(0.8rem); } }
+
+/* A phone on its side and wider: the table beside the next game. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) {
+  .prog-grid { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); align-items: start; }
+  .prog-awards { grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .prog { padding: var(--sp-3); gap: var(--sp-2); }
+  .prog-next { padding: var(--sp-3) var(--sp-2); }
+  .prog-next__art { font-size: 2.4rem; }
+}
+
+/* The TV: the same card, as big as the screen. */
+.tv-stage > .prog--tv { flex: 1 1 auto; }
+.prog--tv {
+  gap: 2vmin;
+  padding: 2.4vmin 3vmin;
+  border-radius: var(--tv-r);
+  font-size: var(--tv-sm);
+}
+.prog--tv .prog-pill { font-size: var(--tv-xs); padding: 0.5vmin 1.6vmin; }
+.prog--tv .prog-dot { width: 4.4vmin; height: 4.4vmin; font-size: 2.4vmin; }
+.prog--tv .prog-h { font-size: var(--tv-lg); }
+.prog--tv .prog-last { font-size: var(--tv-xs); margin: -1vmin 0 0; }
+.prog--tv .prog-grid { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 2.6vmin; flex: 1 1 auto; min-height: 0; align-items: stretch; }
+.prog--tv .prog-rows { gap: 1.1vmin; }
+.prog--tv .prog-trow { grid-template-columns: 4vmin 5.4vmin minmax(0, 1fr) 11vmin 11vmin; gap: 1.4vmin; padding: 1vmin 1.6vmin; border-radius: 1.6vmin; }
+.prog--tv .prog-trow__p { font-size: 3vmin; }
+.prog--tv .prog-av { width: 5.2vmin; height: 5.2vmin; font-size: 2.4vmin; }
+.prog--tv .prog-trow__name { font-size: 3vmin; }
+.prog--tv .prog-trow__w { font-size: 1.8vmin; }
+.prog--tv .prog-trow__w b { font-size: 3vmin; }
+.prog--tv .prog-trow__pts b { font-size: 3.6vmin; }
+.prog--tv .prog-up { font-size: 1.9vmin; }
+.prog--tv .prog-lineup__row { font-size: 3vmin; padding: 1.2vmin 1.8vmin; gap: 1.4vmin; }
+.prog--tv .prog-lineup__icon { font-size: 4vmin; }
+.prog--tv .prog-next { padding: 3vmin 2vmin; gap: 1vmin; justify-content: center; border-radius: 2vmin; }
+.prog--tv .prog-next__lbl { font-size: 2.2vmin; }
+.prog--tv .prog-next__art { font-size: 13vmin; }
+.prog--tv .prog-next__name { font-size: 4.6vmin; }
+.prog--tv .prog-next__sub { font-size: 2.2vmin; }
+.prog--tv .prog-next__foot { font-size: 2.2vmin; gap: 1.6vmin; }
+.prog-ring--big { width: 10vmin; height: 10vmin; }
+.prog-ring--big b { font-size: 4.4vmin; }
+.prog--tv .prog-wait { font-size: var(--tv-xs); }
+.prog--tv .prog-fin-title { font-size: var(--tv-sm); }
+.prog--tv .prog-champ { font-size: var(--tv-xl); }
+.prog--tv .prog-podium { flex: 1 1 auto; min-height: 0; display: flex; align-items: flex-end; justify-content: center; }
+.prog--tv .prog-podium .podium { zoom: 1.6; padding-top: 3.5rem; }
+.prog--tv .prog-awards { grid-template-columns: repeat(auto-fit, minmax(22vmin, 1fr)); gap: 1.4vmin; }
+.prog--tv .prog-aw { font-size: 1.8vmin; padding: 1.2vmin 1.4vmin; border-radius: 1.6vmin; }
+.prog--tv .prog-aw b { font-size: 2.2vmin; }
+.prog--tv .prog-aw strong { font-size: 2.8vmin; }
+@media (max-height: 800px) { .prog--tv .prog-podium .podium { zoom: 1.25; } }
+
+/* The pill over the room's screens: where the program is, and the host's ⏭ ⏸. */
+.prog-bar {
+  position: fixed;
+  z-index: var(--z-float-hi);
+  top: calc(var(--safe-top) + var(--header-h) + var(--sp-2));
+  inset-inline-start: var(--sp-3);
+  max-width: calc(100vw - var(--sp-6));
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.35rem 0.25rem 0.75rem;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  border-radius: var(--r-full);
+  background: linear-gradient(135deg, #2a2150, #151126);
+  color: #f3f0ff;
+  box-shadow: var(--sh-2);
+  font: 700 var(--fs-sm) / 1.3 var(--font);
+  animation: turnIn var(--dur-3) var(--ease-spring);
+}
+html[dir="rtl"] .prog-bar { padding: 0.25rem 0.75rem 0.25rem 0.35rem; }
+.prog-bar[hidden] { display: none; }
+.prog-bar__moon { font-size: 1rem; }
+.prog-bar__n { color: #fbbf24; font-weight: 900; }
+.prog-bar__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prog-bar__text b { color: #fbbf24; }
+.prog-bar__btn {
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: var(--r-full);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: 800 var(--fs-sm) / 1 var(--font);
+  cursor: pointer;
+}
+.prog-bar__btn::before { content: ''; position: absolute; inset: -0.35rem; }
+.prog-bar__btn { position: relative; }
+.prog-bar__btn--wide { white-space: nowrap; }
+body.room-host-away .prog-bar, body.room-offline .prog-bar { top: calc(var(--safe-top) + var(--header-h) + var(--sp-2) + 2.4rem); }
+body .prog-bar.prog-bar--tv, body.room-host-away .prog-bar.prog-bar--tv, body.room-offline .prog-bar.prog-bar--tv { top: auto; bottom: calc(var(--safe-bottom) + 1.4vmin); inset-inline-start: auto; inset-inline-end: 2vmin; font-size: 2vmin; padding: 0.6vmin 1.6vmin; }
+.prog-bar--tv .prog-bar__btn { min-width: 5vmin; min-height: 5vmin; font-size: 2.2vmin; }
+@media (prefers-reduced-motion: reduce) {
+  .prog-bar, .prog-dot.is-next, .prog-fresh .prog-trow, .prog-fresh .prog-lineup__row, .prog-fresh .prog-next,
+  .prog-fresh .prog-up, .prog-fresh .prog-champ, .prog-fresh .prog-aw { animation: none !important; }
+  .prog-ring__fg, .prog-row, .prog-door { transition: none !important; }
+}
+
 /* ===== «الشلة» (THE CREW): JS_CrewCore.html, JS_Crew.html =====
    Look ج «كارنيه النادي» (notes/next-level-looks.html): a membership card on top,
    four tabs under it; the month opens on the podium of the cast figures. Built on

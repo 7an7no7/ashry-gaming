@@ -190,9 +190,11 @@ function renderRoomTv(state) {
   keepTvAwake();
 
   const t = TRANSLATIONS[appState.lang] || {};
-  const lobby = state.phase === 'lobby';
-  const game = lobby ? null : (TV_GAMES[state.game] || null);
-  const inner = lobby ? tvLobbySig(state) : (game ? game.sig(state) : state.phase);
+  // برنامج السهرة between two games, and its finale (JS_RoomProgram.html).
+  const prog = typeof progInterlude === 'function' && progInterlude(state);
+  const lobby = state.phase === 'lobby' && !prog;
+  const game = lobby || prog ? null : (TV_GAMES[state.game] || null);
+  const inner = prog ? progTvSig(state) : lobby ? tvLobbySig(state) : (game ? game.sig(state) : state.phase);
   // hostAway: the host's "move on" buttons open to this screen too (roomCanMoveOn); a TV types nothing, so a rebuild costs nothing.
   const sig = ['tv', state.game || '', state.phase, (state.shared && state.shared.dealId) || '', state.youAreHost, !!state.hostAway, appState.lang, inner].join('#');
 
@@ -211,7 +213,7 @@ function renderRoomTv(state) {
     return `
       <div class="tv">
         ${tvBar(state, t)}
-        <div class="tv-stage">${lobby ? tvLobby(state, t) : (game ? game.frame(state, t) : tvLookAtPhones(t))}</div>
+        <div class="tv-stage">${prog ? progTvFrame(state, t) : lobby ? tvLobby(state, t) : (game ? game.frame(state, t) : tvLookAtPhones(t))}</div>
         ${tvStrip(state, t)}
       </div>`;
   });
@@ -220,7 +222,10 @@ function renderRoomTv(state) {
   // screen's own tokens go dark while the town sleeps; the app's theme is untouched.
   el.classList.toggle('tv-night', !lobby && state.game === 'mafia' && !!state.shared && state.shared.phase === 'night');
 
-  if (lobby) {
+  if (prog) {
+    tvClock(null);
+    progTvAfter(state, rebuilt);
+  } else if (lobby) {
     tvClock(null);
     if (rebuilt) renderJoinQR('tv-qr', roomJoinUrl(state.code));
     tvHubFit();
@@ -447,6 +452,7 @@ function tvLobby(state, t) {
     }
     control = `
       ${roomHubBackHtml(t, true)}
+      ${typeof roomProgramDoorHtml === 'function' ? roomProgramDoorHtml(state, t) : ''}
       <div class="tv-hub-box"><div class="tv-hub-scroll">${list}</div></div>`;
   } else {
     const game = ROOM_GAMES[state.game];

@@ -589,6 +589,10 @@ const applyRoomAction = (room, playerId, action, payload) => {
   // The host sits a computer player down, takes one out, or changes its level.
   if (roomBotAction(room, playerId, action, payload)) return;
 
+  // برنامج السهرة (RoomProgram.js): its own actions, and the room-level moves it changes while it runs.
+  if (programAction(room, playerId, action, payload)) return;
+  if (programGuard(room, playerId, action, payload)) return;
+
   if (action === 'chooseGame') {
     requireHost(room, playerId);
     const game = String(payload.game || '');
@@ -658,6 +662,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
   if ((action === 'nextRound' || action === 'tourNew') && wasOver && roomGameIsOff(room.game)) throw new Error(OFF_MSG);
   // The board the finished game ended on, for the audience's guesses if this deals the next one.
   const boardBefore = (room.shared || {}).board;
+  // برنامج السهرة: what this move is about to wipe (the buzzer's line), for the awards.
+  programBeforeMove(room, playerId, action, payload);
 
   switch (room.game) {
     case 'imposter':  imposterAction(room, playerId, action, payload); break;
@@ -760,6 +766,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
 
   // A round's result just shown, with «التالي لوحده» on: the count to the next one starts.
   autoNextSync(room);
+  // برنامج السهرة: a game that just ended is banked, and its result given its pause.
+  programSync(room);
 
   // Whatever changed, a computer player may be up now.
   scheduleBots(room);
@@ -3741,6 +3749,8 @@ const autoNextDeadline = (room) => {
 
 /** True when the timeout due now deals prompts: room.js loads the shared prompt memory for it. */
 const roomTimeoutDeals = (room, now) => {
+  // برنامج السهرة deals the next game from its clock: the game may deal from a list.
+  if (programTimeoutDeals(room, now)) return true;
   const at = autoNextDeadline(room);
   return at !== null && now >= at && AUTONEXT_GAMES[room.game].deals;
 };
@@ -3795,6 +3805,9 @@ const DRAW_TIMEOUT_GRACE_MS = 1500;
  * own clock, or a computer player's next move, whichever comes first.
  */
 const roomDeadline = (room) => {
+  // برنامج السهرة's pauses (a result, the standings) come before any game's clock.
+  const prog = programDeadline(room);
+  if (prog !== null) return typeof room._botAt === 'number' ? Math.min(prog, room._botAt) : prog;
   const game = gameDeadline(room);
   const bot = typeof room._botAt === 'number' ? room._botAt : null;
   if (game === null) return bot;
@@ -3866,12 +3879,16 @@ const gameDeadline = (room) => {
 /** Acts on a deadline that has passed. True when the room changed. */
 const roomTimeout = (room, now) => {
   let changed = false;
+  // برنامج السهرة: a result that gives way to the standings, the standings to the next game.
+  if (programTimeout(room, now)) return true;
   if (typeof room._botAt === 'number' && now >= room._botAt) changed = runRoomBot(room);
   const due = gameDeadline(room);
   if (due && now >= due && gameTimeout(room, now)) {
     changed = true;
     // A question the clock closed shows its result: with «التالي لوحده» on, the count starts.
     autoNextSync(room);
+    // A game the clock ended, in a program: banked.
+    programSync(room);
     // A turn the clock ended may have handed the move to a bot.
     scheduleBots(room);
   }
@@ -4021,6 +4038,8 @@ const roomPlayerLeft = (room, playerId, name) => {
   gamePlayerLeft(room, playerId, name);
   // A vote a leaver closed shows its result: the count to the next round starts.
   autoNextSync(room);
+  // A game a leaver ended, in a program: banked (the leaver keeps their row on the night's table).
+  programPlayerLeft(room, playerId, name);
   // The turn they held may have moved on to a computer player.
   scheduleBots(room);
 };

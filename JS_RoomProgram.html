@@ -1,0 +1,717 @@
+<script>
+/* ============================================================================
+   برنامج السهرة — THE NIGHT'S PROGRAM, on the phones and the TV
+   (the rules: RoomProgram.js; the owner's decisions are at its top)
+
+   Look أ «لوحة المذيع» (notes/next-level-looks.html, feature 3):
+   - between two games: the night's table in big rows (place, face, name, first
+     places, points with ▲ +N) beside the next game's poster and a countdown ring;
+   - the finale: «بطل الليلة: …», the podium with the cast in the middle, a row of
+     award cards under it, the share card; a phone gets the same, compact.
+   - the builder: the host picks the games (3-8) in order, drags them about,
+     removes them, and sets each one's options with the game's own lobby options
+     (ROOM_GAMES[id].lobbyOptions), captured with its own startPayload().
+   A small pill over any room screen says where the program is (a game's result
+   giving way to the table, a game waiting for the host's Start) with the host's
+   ⏭ and ⏸. The TV is the room's one voice.
+   ========================================================================== */
+
+const PROG_DRAFT_KEY = 'ashryProgramDraft_v1';
+const PROG_MIN = 3;
+const PROG_MAX = 8;
+const PROG_AV = ['violet', 'teal', 'amber', 'rose', 'blue', 'green', 'indigo', 'orange'];
+const prog = { draft: null, pane: 'list', pickGroup: '', optsAt: -1, timer: null, seen: '', busy: false, drag: null };
+
+const progT = () => TRANSLATIONS[appState.lang] || {};
+const progEntry = (id) => ROOM_HUB_GAMES.find(g => g.id === id) || { id: id, icon: '🎮', key: '', accent: 'violet', min: 1 };
+const progGameName = (id, t) => { const e = progEntry(id); return (t || progT())[e.key] || id; };
+const progGameLine = (id, t) => { const e = progEntry(id); return e.key ? ((t || progT())['cat_' + e.key.replace(/^setup_/, '')] || '') : ''; };
+const progFill = (text, map) => String(text || '').replace(/\{(\w+)\}/g, (m, k) => (map && map[k] !== undefined ? map[k] : m));
+const progSecs = (ms) => (Math.max(0, Number(ms) || 0) / 1000).toFixed(2).replace(/0$/, '');
+const progIsIn = (state) => !!(state && state.program);
+
+/** Between two games, or the finale: the room is in its lobby with no game, and the program draws it. */
+function progInterlude(state) {
+  const p = state && state.program;
+  return !!(p && state.phase === 'lobby' && !state.game && (p.phase === 'between' || p.phase === 'final'));
+}
+
+/** How long the program's pause has left, in ms (by the server's time), and whether it stands still. */
+function progLeft(p) {
+  if (!p) return { left: 0, paused: false, total: 1 };
+  const total = Math.max(1, Number(p.ms) || 1);
+  if (p.paused) return { left: Math.max(0, Number(p.left) || 0), paused: true, total };
+  if (typeof p.endsAt !== 'number') return { left: 0, paused: false, total };
+  const now = typeof roomServerNow === 'function' ? roomServerNow() : Date.now();
+  return { left: Math.max(0, p.endsAt - now), paused: false, total };
+}
+
+/* --- the draft (the builder's list, kept on the host's phone) ------------- */
+
+function progDraftLoad() {
+  if (prog.draft) return prog.draft;
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(PROG_DRAFT_KEY) || '[]') || []; } catch (e) { list = []; }
+  prog.draft = (Array.isArray(list) ? list : [])
+    .filter(x => x && ROOM_HUB_GAMES.some(g => g.id === x.id) && !(typeof roomGameIsOff === 'function' && roomGameIsOff(x.id)))
+    .slice(0, PROG_MAX)
+    .map(x => ({ id: x.id, opts: x.opts && typeof x.opts === 'object' ? x.opts : null, sum: String(x.sum || '') }));
+  return prog.draft;
+}
+function progDraftSave() {
+  try { localStorage.setItem(PROG_DRAFT_KEY, JSON.stringify(prog.draft || [])); } catch (e) {}
+}
+
+/** A game's options as the host's phone would start it now: its lobby options drawn out of
+    sight (they read what this phone remembers) and its own startPayload(). */
+function progFakeState(id) {
+  const st = Room.state || {};
+  return Object.assign({}, st, { game: id, phase: 'lobby', shared: {}, youAreHost: true, you: null });
+}
+function progHolder() {
+  let el = document.getElementById('prog-holder');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'prog-holder';
+    el.hidden = true;
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+  }
+  return el;
+}
+/** Reads the options drawn in `root` into a start payload, and a short line of what is picked. */
+function progReadOpts(id, root) {
+  const game = ROOM_GAMES[id];
+  let opts = {};
+  try { opts = (game && game.startPayload) ? (game.startPayload() || {}) : {}; } catch (e) { opts = {}; }
+  let sum = '';
+  if (root && typeof lobbyOptsSummarise === 'function') {
+    const box = document.createElement('div');
+    box.className = 'lobby-opts';
+    box.innerHTML = '<span class="lobby-opts__sum"></span><div class="lobby-opts__body"></div>';
+    const body = box.querySelector('.lobby-opts__body');
+    [...root.childNodes].forEach(n => body.appendChild(n.cloneNode(true)));
+    // Cloned controls lose what was picked in them (a select's value): read the live ones.
+    root.querySelectorAll('select').forEach((sel, i) => { const c = body.querySelectorAll('select')[i]; if (c) c.selectedIndex = sel.selectedIndex; });
+    root.querySelectorAll('input[type=checkbox]').forEach((inp, i) => { const c = body.querySelectorAll('input[type=checkbox]')[i]; if (c) c.checked = inp.checked; });
+    const wrap = document.createElement('div');
+    wrap.appendChild(box);
+    lobbyOptsSummarise(wrap);
+    sum = box.querySelector('.lobby-opts__sum').textContent;
+  }
+  try { opts = JSON.parse(JSON.stringify(opts)); } catch (e) { opts = {}; }
+  return { opts, sum };
+}
+/** The options of the i-th game as this phone remembers them (its chunk loaded first). */
+function progCapture(i) {
+  const item = (prog.draft || [])[i];
+  if (!item) return Promise.resolve();
+  const id = item.id;
+  const ready = typeof lzEnsure === 'function' ? lzEnsure(lzChunksOfRoom(id)) : Promise.resolve();
+  return ready.then(() => {
+    const game = ROOM_GAMES[id];
+    const holder = progHolder();
+    try { holder.innerHTML = (game && game.lobbyOptions) ? (game.lobbyOptions(progFakeState(id)) || '') : ''; } catch (e) { holder.innerHTML = ''; }
+    const got = progReadOpts(id, holder);
+    holder.innerHTML = '';
+    const now = (prog.draft || [])[i];
+    if (now && now.id === id && !now.opts) { now.opts = got.opts; now.sum = got.sum; progDraftSave(); }
+  }).catch(() => {});
+}
+
+/* --- the builder ----------------------------------------------------------- */
+
+function progOpenBuilder() {
+  const st = Room.state;
+  if (!st || !st.youAreHost) return;
+  progDraftLoad();
+  prog.pane = 'list';
+  prog.pickGroup = '';
+  progRenderBuilder();
+  const m = document.getElementById('prog-modal');
+  if (m) m.classList.remove('hidden');
+  haptic('light');
+}
+function progCloseBuilder() {
+  const body = document.getElementById('prog-modal-body');
+  // Options open in the sheet: kept as they are now.
+  if (prog.pane === 'opts') progOptsDone(true);
+  closeModal('prog-modal');
+  if (body) setTimeout(() => { if (document.getElementById('prog-modal').classList.contains('hidden')) body.innerHTML = ''; }, 300);
+}
+
+function progRenderBuilder() {
+  const body = document.getElementById('prog-modal-body');
+  if (!body) return;
+  const t = progT();
+  if (prog.pane === 'pick') { body.innerHTML = progPickHtml(t); return; }
+  if (prog.pane === 'opts') return;   // drawn by progOpenOpts
+  const list = progDraftLoad();
+  const rows = list.map((x, i) => {
+    const e = progEntry(x.id);
+    return `
+      <li class="prog-row" data-i="${i}" data-accent="${e.accent}">
+        <button type="button" class="prog-row__grip" aria-label="${escapeHTML(t.prog_drag || '')}" title="${escapeHTML(t.prog_drag || '')}"
+                onpointerdown="progDragStart(event, ${i})" onkeydown="progGripKey(event, ${i})">⋮⋮</button>
+        <span class="prog-row__num metric">${i + 1}</span>
+        <span class="prog-row__icon" aria-hidden="true">${iconHtml(e.icon)}</span>
+        <span class="prog-row__text">
+          <span class="prog-row__name">${escapeHTML(progGameName(x.id, t))}</span>
+          <span class="prog-row__sum">${escapeHTML(x.sum || (x.opts ? (t.prog_opts_default || '') : '…'))}</span>
+        </span>
+        <button type="button" class="iconbtn prog-row__btn" onclick="progOpenOpts(${i})" aria-label="${escapeHTML(t.prog_opts || '')}" title="${escapeHTML(t.prog_opts || '')}">⚙️</button>
+        <button type="button" class="iconbtn prog-row__btn" onclick="progRemove(${i})" aria-label="${escapeHTML(t.prog_remove || '')}" title="${escapeHTML(t.prog_remove || '')}">✕</button>
+      </li>`;
+  }).join('');
+  const n = list.length;
+  const people = ((Room.state && Room.state.players) || []).filter(p => !p.bot).length;
+  const short = list.filter(x => progEntry(x.id).min > people).map(x => progGameName(x.id, t));
+  body.innerHTML = `
+    <div class="modal-icon" aria-hidden="true">🌙</div>
+    <div class="sheet__title">${escapeHTML(t.prog_title || '')}</div>
+    <p class="sheet__subtitle">${escapeHTML(t.prog_builder_hint || '')}</p>
+    ${n ? `<ol class="prog-list" id="prog-list">${rows}</ol>` : `<div class="empty prog-empty">${escapeHTML(t.prog_empty || '')}</div>`}
+    ${n < PROG_MAX ? `<button type="button" class="btn btn--secondary" onclick="progPane('pick')"><span aria-hidden="true">＋</span> ${escapeHTML(t.prog_add || '')}</button>` : ''}
+    ${short.length ? `<p class="field__hint prog-warn">${escapeHTML(progFill(t.prog_need_people || '', { games: short.join('، ') }))}</p>` : ''}
+    <p class="field__hint">${escapeHTML(t.prog_scoring_hint || '')}</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" ${n < PROG_MIN ? 'disabled aria-disabled="true"' : ''} onclick="progStart()">▶ ${escapeHTML(n < PROG_MIN ? progFill(t.prog_need_games || '', { n: PROG_MIN - n }) : progFill(t.prog_start || '', { n: n }))}</button>
+      <button type="button" class="btn btn--ghost" onclick="progCloseBuilder()">${escapeHTML(t.cancel || '')}</button>
+    </div>`;
+}
+function progPane(pane) {
+  prog.pane = pane;
+  if (pane !== 'pick') prog.pickGroup = '';
+  progRenderBuilder();
+  const box = document.querySelector('#prog-modal .modal-content');
+  if (box) box.scrollTop = 0;
+}
+
+/** The games to add: the room's list (a family - chess's ways, the puzzle race - opens into its games). */
+function progPickHtml(t) {
+  const byId = (id) => ROOM_HUB_GAMES.find(g => g.id === id);
+  const off = (id) => typeof roomGameIsOff === 'function' && roomGameIsOff(id);
+  let tiles;
+  if (prog.pickGroup && ROOM_HUB_GROUPS[prog.pickGroup]) {
+    tiles = ROOM_HUB_GROUPS[prog.pickGroup].map(byId).filter(Boolean).map(g => ({ g, open: '' }));
+  } else {
+    tiles = ROOM_HUB_GAMES.filter(g => {
+      const k = roomHubGroupOf(g.id);
+      return !k || ROOM_HUB_GROUPS[k][0] === g.id;
+    }).map(g => {
+      const k = roomHubGroupOf(g.id);
+      return k ? { g: ROOM_HUB_FAMILIES[k] || g, open: k } : { g, open: '' };
+    });
+  }
+  const inList = (prog.draft || []).map(x => x.id);
+  const tile = (x) => {
+    const g = x.g;
+    const dis = !x.open && off(g.id);
+    const count = !x.open ? inList.filter(id => id === g.id).length : 0;
+    const act = dis ? 'onclick="gameOffToast()" aria-disabled="true"' : x.open ? `onclick="progPickGroup('${x.open}')"` : `onclick="progAdd('${g.id}')"`;
+    return `
+      <button type="button" class="game-card room-poster prog-pick ${dis ? 'is-off' : ''} ${x.open ? 'room-poster--family' : ''}" data-accent="${g.accent}" ${act}>
+        <span class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</span>
+        <span class="game-title">${escapeHTML(x.open ? (t[g.key] || g.id) : roomHubTileName({ g, open: '' }, t))}</span>
+        ${count ? `<span class="prog-pick__in metric" aria-label="${escapeHTML(t.prog_in_list || '')}">✓${count > 1 ? count : ''}</span>` : ''}
+        ${dis ? gameOffBadge(t) : ''}
+      </button>`;
+  };
+  return `
+    <div class="sheet__title">${escapeHTML(t.prog_pick_title || '')}</div>
+    <p class="sheet__subtitle">${escapeHTML(progFill(t.prog_pick_hint || '', { n: (prog.draft || []).length, max: PROG_MAX }))}</p>
+    ${prog.pickGroup ? `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="progPickGroup('')">↩ ${escapeHTML(t.room_hub_all || '')}</button>` : ''}
+    <div class="game-grid room-posters prog-pick-grid">${tiles.map(tile).join('')}</div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" onclick="progPane('list')">${escapeHTML(t.prog_pick_done || '')}</button>
+    </div>`;
+}
+function progPickGroup(k) { prog.pickGroup = k || ''; progRenderBuilder(); }
+
+function progAdd(id) {
+  const list = progDraftLoad();
+  if (list.length >= PROG_MAX) { showToast(progFill(progT().prog_full || '', { n: PROG_MAX }), 'error'); return; }
+  list.push({ id, opts: null, sum: '' });
+  progDraftSave();
+  haptic('light');
+  const i = list.length - 1;
+  progCapture(i).then(() => { if (prog.pane === 'list') progRenderBuilder(); });
+  // Stays on the picker (several games in a row); the tile says it is in the list.
+  progRenderBuilder();
+  const grid = document.querySelector('.prog-pick-grid');
+  const el = grid && grid.querySelector(`[onclick="progAdd('${id}')"]`);
+  if (el && typeof motionBump === 'function') motionBump(el);
+}
+function progRemove(i) {
+  const list = progDraftLoad();
+  const row = document.querySelector(`#prog-list .prog-row[data-i="${i}"]`);
+  const go = () => { list.splice(i, 1); progDraftSave(); progRenderBuilder(); };
+  if (row && typeof motionOff === 'function' && !motionOff() && row.animate) {
+    row.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.96)' }], { duration: 160, easing: 'ease-in' });
+    setTimeout(go, 150);
+  } else go();
+}
+function progMove(from, to) {
+  const list = progDraftLoad();
+  if (to < 0 || to >= list.length || from === to) return;
+  const [x] = list.splice(from, 1);
+  list.splice(to, 0, x);
+  progDraftSave();
+  const ul = document.getElementById('prog-list');
+  if (ul && typeof flipGrid === 'function') flipGrid(ul, () => progRenderBuilder());
+  else progRenderBuilder();
+}
+function progGripKey(e, i) {
+  if (e.key === 'ArrowUp') { e.preventDefault(); progMove(i, i - 1); focusGrip(i - 1); }
+  if (e.key === 'ArrowDown') { e.preventDefault(); progMove(i, i + 1); focusGrip(i + 1); }
+  function focusGrip(k) { setTimeout(() => { const b = document.querySelector(`#prog-list .prog-row[data-i="${k}"] .prog-row__grip`); if (b) b.focus(); }, 30); }
+}
+
+/* Dragging a row by its handle: the row follows the finger, the others make room,
+   and letting go puts it where it is. */
+function progDragStart(e, i) {
+  const ul = document.getElementById('prog-list');
+  const row = ul && ul.querySelector(`.prog-row[data-i="${i}"]`);
+  if (!row) return;
+  e.preventDefault();
+  const rows = [...ul.querySelectorAll('.prog-row')];
+  const rects = rows.map(r => r.getBoundingClientRect());
+  prog.drag = { i, to: i, y0: e.clientY, row, rows, rects, h: rects[i].height + 8, id: e.pointerId };
+  row.classList.add('is-dragging');
+  try { row.setPointerCapture(e.pointerId); } catch (err) {}
+  const move = (ev) => {
+    const d = prog.drag;
+    if (!d || ev.pointerId !== d.id) return;
+    const dy = ev.clientY - d.y0;
+    d.row.style.transform = `translateY(${dy}px)`;
+    const mid = d.rects[d.i].top + d.rects[d.i].height / 2 + dy;
+    let to = d.rects.findIndex(r => mid < r.top + r.height / 2);
+    if (to === -1) to = d.rects.length - 1;
+    if (to > d.i) to = Math.max(d.i, to - (mid < d.rects[to].top + d.rects[to].height / 2 ? 1 : 0));
+    to = Math.max(0, Math.min(d.rects.length - 1, to));
+    d.to = to;
+    d.rows.forEach((r, k) => {
+      if (k === d.i) return;
+      let shift = 0;
+      if (d.i < to && k > d.i && k <= to) shift = -d.h;
+      if (d.i > to && k < d.i && k >= to) shift = d.h;
+      r.style.transform = shift ? `translateY(${shift}px)` : '';
+    });
+  };
+  const up = (ev) => {
+    const d = prog.drag;
+    if (!d || ev.pointerId !== d.id) return;
+    row.removeEventListener('pointermove', move);
+    row.removeEventListener('pointerup', up);
+    row.removeEventListener('pointercancel', up);
+    prog.drag = null;
+    d.rows.forEach(r => { r.style.transform = ''; r.classList.remove('is-dragging'); });
+    if (d.to !== d.i) { const list = progDraftLoad(); const [x] = list.splice(d.i, 1); list.splice(d.to, 0, x); progDraftSave(); haptic('light'); }
+    progRenderBuilder();
+  };
+  row.addEventListener('pointermove', move);
+  row.addEventListener('pointerup', up);
+  row.addEventListener('pointercancel', up);
+}
+
+/** A game's options in the sheet: its own lobby options, as the lobby shows them. */
+function progOpenOpts(i) {
+  const item = (prog.draft || [])[i];
+  if (!item) return;
+  prog.pane = 'opts';
+  prog.optsAt = i;
+  const body = document.getElementById('prog-modal-body');
+  const t = progT();
+  const draw = () => {
+    if (prog.pane !== 'opts' || prog.optsAt !== i || !body) return;
+    const game = ROOM_GAMES[item.id];
+    let html = '';
+    try { html = (game && game.lobbyOptions) ? (game.lobbyOptions(progFakeState(item.id)) || '') : ''; } catch (e) { html = ''; }
+    const e = progEntry(item.id);
+    body.innerHTML = `
+      <div class="chosen-game" data-accent="${e.accent}">
+        <span class="chosen-game__icon" aria-hidden="true">${iconHtml(e.icon)}</span>
+        <span class="chosen-game__name">${escapeHTML(progGameName(item.id, t))}</span>
+      </div>
+      <div id="prog-opts-body" class="prog-opts">${html || `<p class="field__hint" style="text-align:center">${escapeHTML(t.prog_no_opts || '')}</p>`}</div>
+      <p class="field__hint">${escapeHTML(t.prog_opts_hint || '')}</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--primary btn--lg" onclick="progOptsDone()">${escapeHTML(t.prog_opts_save || '')}</button>
+      </div>`;
+    const box = document.querySelector('#prog-modal .modal-content');
+    if (box) box.scrollTop = 0;
+  };
+  body.innerHTML = `<div class="empty">${escapeHTML(t.lz_loading || '…')}</div>`;
+  (typeof lzEnsure === 'function' ? lzEnsure(lzChunksOfRoom(item.id)) : Promise.resolve()).then(draw, draw);
+}
+function progOptsDone(quiet) {
+  const i = prog.optsAt;
+  const item = (prog.draft || [])[i];
+  const root = document.getElementById('prog-opts-body');
+  if (item && root) {
+    const got = progReadOpts(item.id, root);
+    item.opts = got.opts;
+    item.sum = got.sum;
+    progDraftSave();
+  }
+  prog.optsAt = -1;
+  prog.pane = 'list';
+  if (!quiet) progRenderBuilder();
+}
+
+async function progStart() {
+  const list = progDraftLoad();
+  const t = progT();
+  if (list.length < PROG_MIN || prog.busy) return;
+  prog.busy = true;
+  try {
+    // A game whose options were never read: read now, as this phone remembers them.
+    for (let i = 0; i < list.length; i++) if (!list[i].opts) await progCapture(i);
+    await Room.act('programStart', { games: list.map(x => ({ id: x.id, opts: x.opts || {} })) });
+    progCloseBuilder();
+  } catch (err) {
+    showToast((err && err.message) || t.room_err_generic || '', 'error');
+  } finally { prog.busy = false; }
+}
+
+/* --- the night's table -------------------------------------------------------- */
+
+/** Everyone on the table, best first, with their place (tied points share it), from the program's own order. */
+function progTableRows(state) {
+  const p = state.program || {};
+  const names = p.names || {};
+  const table = p.table || {};
+  const order = (p.order && p.order.length ? p.order : Object.keys(table)).filter(id => table[id]);
+  const rows = order.map(id => ({ id, name: names[id] || ((state.players || []).find(x => x.id === id) || {}).name || '',
+    pts: table[id].pts || 0, firsts: table[id].firsts || 0, gained: (p.gained || {})[id] || 0 }));
+  rows.forEach(r => { r.place = 1 + rows.filter(x => x.pts > r.pts).length; });
+  return rows.filter(r => r.name);
+}
+
+function progAvatar(name, i) {
+  const letter = escapeHTML(Array.from(String(name || '?').trim())[0] || '?');
+  return `<span class="prog-av" data-accent="${PROG_AV[i % PROG_AV.length]}" aria-hidden="true">${letter}</span>`;
+}
+
+function progRowsHtml(state, t, max) {
+  const rows = progTableRows(state).slice(0, max || 99);
+  const lead = rows.length && rows[0].pts > 0 ? rows[0].pts : -1;
+  return rows.map((r, i) => `
+    <div class="prog-trow ${r.place === 1 && lead > 0 ? 'prog-trow--1' : ''}" style="--i:${i}" data-pid="${escapeHTML(r.id)}">
+      <span class="prog-trow__p metric">${r.place}</span>
+      ${progAvatar(r.name, i)}
+      <span class="prog-trow__name"><bdi>${escapeHTML(r.name)}</bdi>${r.pts === lead ? ' <span aria-hidden="true">👑</span>' : ''}</span>
+      <span class="prog-trow__w"><b class="metric">${r.firsts}</b>${escapeHTML(r.firsts === 1 ? (t.prog_first_one || '') : (t.prog_firsts || ''))}</span>
+      <span class="prog-trow__pts"><b class="metric" data-prog-pts="${r.pts}" data-prog-from="${r.pts - r.gained}">${r.pts}</b>${r.gained ? `<span class="prog-up metric" style="--i:${i}">▲ +${r.gained}</span>` : ''}</span>
+    </div>`).join('');
+}
+
+/** The countdown ring: drawn full, drained by the ticker (progTick). */
+function progRingHtml(big) {
+  return `<div class="prog-ring ${big ? 'prog-ring--big' : ''}" data-prog-ring>
+      <svg viewBox="0 0 36 36" aria-hidden="true"><circle class="prog-ring__bg" cx="18" cy="18" r="15"/><circle class="prog-ring__fg" cx="18" cy="18" r="15" pathLength="100"/></svg>
+      <b class="metric" data-prog-count></b>
+    </div>`;
+}
+
+/** The dots along the top: each game of the program, done, next, or to come. */
+function progDotsHtml(p) {
+  const done = (p.done || []).length;
+  return `<div class="prog-dots" role="list">${(p.games || []).map((g, i) => {
+    const e = progEntry(g.id);
+    const cls = i < done ? 'is-done' : i === done ? 'is-next' : '';
+    return `<span class="prog-dot ${cls}" role="listitem" data-accent="${e.accent}" title="${escapeHTML(progGameName(g.id))}">${iconHtml(e.icon)}</span>`;
+  }).join('')}</div>`;
+}
+
+/** The host's buttons between two games (and a stand-in's once the host is away: skip and pause). */
+function progHostHtml(state, t, tv) {
+  const p = state.program;
+  const can = typeof roomCanMoveOn === 'function' ? roomCanMoveOn(state) : state.youAreHost;
+  if (!can) return `<p class="prog-wait">${escapeHTML(t.prog_wait_host || '')}</p>`;
+  const b = (label, on, kind) => tv && typeof tvBtn === 'function' ? tvBtn(label, on, kind)
+    : `<button type="button" class="btn ${kind === 'ghost' ? 'btn--ghost' : kind === 'secondary' ? 'btn--secondary' : 'btn--primary'} btn--auto" onclick="${on}">${label}</button>`;
+  return `<div class="prog-actions ${tv ? 'tv-actions' : ''}">
+      ${b('⏭ ' + escapeHTML(p.at < 0 ? (t.prog_go_first || '') : (t.prog_go_now || '')), 'progSkip()')}
+      ${b(p.paused ? '▶ ' + escapeHTML(t.prog_resume || '') : '⏸ ' + escapeHTML(t.prog_pause || ''), `progPause(${p.paused ? 'false' : 'true'})`, 'secondary')}
+      ${state.youAreHost ? b('⏹ ' + escapeHTML(t.prog_end || ''), 'progEnd()', 'ghost') : ''}
+    </div>`;
+}
+
+/** Between two games (or before the first): the table beside the next game. */
+function progBetweenHtml(state, t, tv) {
+  const p = state.program;
+  const nextIdx = Math.max(0, p.at + 1);
+  const next = (p.games || [])[nextIdx];
+  const first = p.at < 0;
+  const played = (p.done || []).filter(g => !g.skipped).length;
+  const e = next ? progEntry(next.id) : null;
+  const lineup = `<ol class="prog-lineup">${(p.games || []).map((g, i) => {
+    const ge = progEntry(g.id);
+    return `<li class="prog-lineup__row" style="--i:${i}" data-accent="${ge.accent}"><span class="metric">${i + 1}</span><span class="prog-lineup__icon" aria-hidden="true">${iconHtml(ge.icon)}</span><span>${escapeHTML(progGameName(g.id, t))}</span></li>`;
+  }).join('')}</ol>`;
+  const last = p.done && p.done[p.done.length - 1];
+  const lastLine = !first && last ? `<p class="prog-last">${escapeHTML(progFill(last.skipped ? (t.prog_skipped || '') : last.coop ? (t.prog_last_coop || '') : (t.prog_last || ''), { game: progGameName(last.id, t) }))}</p>` : '';
+  return `
+    <div class="prog prog--between ${tv ? 'prog--tv' : ''}" data-accent="violet">
+      <div class="prog-top">
+        <span class="prog-pill">🌙 ${escapeHTML(first ? progFill(t.prog_lineup_n || '', { n: (p.games || []).length }) : progFill(t.prog_after_n || '', { n: played, of: (p.games || []).length }))}</span>
+        ${progDotsHtml(p)}
+      </div>
+      <h2 class="prog-h">${escapeHTML(first ? (t.prog_lineup_title || '') : (t.prog_table_title || ''))}</h2>
+      ${lastLine}
+      <div class="prog-grid">
+        <div class="prog-rows">${first ? lineup : progRowsHtml(state, t, tv ? 8 : 12)}</div>
+        ${e ? `
+        <div class="prog-next" data-accent="${e.accent}">
+          <div class="prog-next__lbl">${escapeHTML(first ? (t.prog_first_game || '') : (t.prog_next_game || ''))}</div>
+          <div class="prog-next__art" aria-hidden="true">${iconHtml(e.icon)}</div>
+          <div class="prog-next__name">${escapeHTML(progGameName(next.id, t))}</div>
+          <div class="prog-next__sub">${escapeHTML(progGameLine(next.id, t))}</div>
+          <div class="prog-next__foot"><span data-prog-note>${escapeHTML(p.paused ? (t.prog_paused || '') : (t.prog_get_ready || ''))}</span>${progRingHtml(tv)}</div>
+        </div>` : ''}
+      </div>
+      ${progHostHtml(state, t, tv)}
+    </div>`;
+}
+
+/* --- the finale ----------------------------------------------------------------- */
+
+const PROG_AWARD_ICON = { buzz: '⚡', trivia: '🧠', liar: '🤥', catcher: '🕵️', detective: '🔎', sly: '🦊', strike: '🎳', chair: '🪑', prophet: '🔮', streak: '🔥', climb: '🚀' };
+
+function progAwardText(a, t) {
+  const secs = (a.k === 'buzz' || a.k === 'trivia' || a.k === 'chair') ? progSecs(a.v) : a.v;
+  return {
+    title: t['prog_aw_' + a.k] || a.k,
+    line: progFill(t['prog_aw_' + a.k + '_line'] || '', { v: secs, with: a.with || '', from: a.from || '', game: a.g ? progGameName(a.g, t) : '' })
+  };
+}
+
+function progFinalHtml(state, t, tv) {
+  const p = state.program;
+  const f = p.final || { table: [], champions: [], awards: [], games: 0, minutes: 0 };
+  const champs = (f.champions || []).map(id => (f.table.find(r => r.id === id) || {}).name).filter(Boolean);
+  const board = (f.table || []).map(r => ({ id: r.id, name: r.name, score: r.pts }));
+  const podium = typeof renderPodium === 'function' ? renderPodium(state, board) : '';
+  const awards = (f.awards || []).map((a, i) => {
+    const x = progAwardText(a, t);
+    return `<div class="prog-aw" style="--i:${i}"><b><span aria-hidden="true">${PROG_AWARD_ICON[a.k] || '🏅'}</span> ${escapeHTML(x.title)}</b><strong><bdi>${escapeHTML(a.name || '')}</bdi></strong><span>${escapeHTML(x.line)}</span></div>`;
+  }).join('');
+  const rest = tv ? '' : `
+      <details class="prog-fulltable">
+        <summary>${escapeHTML(t.prog_full_table || '')} <span aria-hidden="true">▾</span></summary>
+        <div class="prog-rows prog-rows--final">${(f.table || []).map((r, i) => `
+          <div class="prog-trow" style="--i:${i}">
+            <span class="prog-trow__p metric">${r.place}</span>${progAvatar(r.name, i)}
+            <span class="prog-trow__name"><bdi>${escapeHTML(r.name)}</bdi></span>
+            <span class="prog-trow__w"><b class="metric">${r.firsts}</b>${escapeHTML(r.firsts === 1 ? (t.prog_first_one || '') : (t.prog_firsts || ''))}</span>
+            <span class="prog-trow__pts"><b class="metric">${r.pts}</b></span>
+          </div>`).join('')}</div>
+      </details>`;
+  const share = !state.youAreScreen && champs.length ? `<button type="button" class="btn btn--secondary btn--auto" onclick="progShare()"><span aria-hidden="true">📸</span> ${escapeHTML(t.prog_share || '')}</button>` : '';
+  const close = state.youAreHost
+    ? (tv && typeof tvBtn === 'function' ? tvBtn(escapeHTML(t.prog_close || ''), 'progClose()') : `<button type="button" class="btn btn--primary btn--auto" onclick="progClose()">${escapeHTML(t.prog_close || '')}</button>`)
+    : '';
+  return `
+    <div class="prog prog--final ${tv ? 'prog--tv' : ''}" data-accent="amber">
+      <div class="prog-fin-title">✨ ${escapeHTML(progFill(t.prog_fin_title || '', { n: f.games || 0, m: f.minutes || 0 }))} ✨</div>
+      <div class="prog-champ">${champs.length ? `<span aria-hidden="true">👑</span> ${escapeHTML(progFill(champs.length > 1 ? (t.prog_champs || '') : (t.prog_champ || ''), { name: champs.join(t.prog_and || ' & ') }))}` : escapeHTML(t.prog_no_champ || '')}</div>
+      ${podium ? `<div class="prog-podium">${podium}</div>` : ''}
+      ${awards ? `<div class="prog-awards">${awards}</div>` : ''}
+      ${rest}
+      <div class="prog-actions ${tv ? 'tv-actions' : ''}">${share}${close}</div>
+      ${state.youAreHost ? '' : `<p class="prog-wait">${escapeHTML(t.prog_fin_wait || '')}</p>`}
+    </div>`;
+}
+
+/* --- drawing it: the phone's view and the TV's frame -------------------------------- */
+
+function progSig(state) {
+  const p = state.program;
+  return ['prog', p.id, p.phase, p.seq, p.paused ? 1 : 0, state.youAreHost ? 1 : 0, state.hostAway ? 1 : 0, appState.lang,
+    JSON.stringify(p.table), (state.players || []).map(x => x.id + x.name).join(',')].join('|');
+}
+
+function progRender(state) {
+  if (appState.currentView !== 'room-program') setView('room-program');
+  const el = document.getElementById('view-room-program');
+  if (!el) return;
+  const t = progT();
+  const rebuilt = renderRoomFrame(el, progSig(state), () =>
+    state.program.phase === 'final' ? progFinalHtml(state, t, false) : progBetweenHtml(state, t, false));
+  if (rebuilt) progAfter(el, state, false);
+  progTickStart();
+}
+
+function progTvSig(state) { return progSig(state); }
+function progTvFrame(state, t) {
+  return state.program.phase === 'final' ? progFinalHtml(state, t, true) : progBetweenHtml(state, t, true);
+}
+function progTvAfter(state, rebuilt) {
+  const el = document.getElementById('view-room-tv');
+  if (rebuilt && el) progAfter(el, state, true);
+  progTickStart();
+}
+
+/** What plays once a card is up: the points counting up, ▲ +N, the podium's confetti, the voice. */
+function progAfter(el, state, tv) {
+  const p = state.program;
+  const key = 'prog|' + state.code + '|' + p.id + '|' + p.seq;
+  const fresh = typeof motionFirst === 'function' && motionFirst(key + (tv ? '|tv' : ''));
+  el.classList.toggle('prog-fresh', !!fresh);
+  if (fresh && p.phase === 'between') {
+    el.querySelectorAll('[data-prog-pts]').forEach((b) => {
+      const to = Number(b.dataset.progPts) || 0;
+      const from = Number(b.dataset.progFrom) || 0;
+      if (to !== from && typeof countUp === 'function') setTimeout(() => countUp(b, from, to), 350);
+    });
+  }
+  if (p.phase === 'final') {
+    const box = el.querySelector('.prog--final');
+    if (fresh && box && typeof confetti === 'function' && (tv || !(typeof roomHasScreen === 'function' && roomHasScreen()))) {
+      afterReveal(box, () => confetti({ particleCount: 180, spread: 90, origin: { y: 0.6 } }));
+    }
+  }
+  if (progSoundOnce(state, key)) {
+    if (p.phase === 'final') { playFx('tada'); setTimeout(() => playFx('applause'), 1600); }
+    else playFx(p.at < 0 ? 'drum' : 'ding');
+  }
+}
+
+/** The room's one voice: the TV, or the host's phone when there is no TV. Once per moment. */
+const progSounded = new Set();
+function progSoundOnce(state, key) {
+  const voice = state.youAreScreen ? true : (!(typeof roomHasScreen === 'function' && roomHasScreen()) && state.youAreHost);
+  if (!voice || progSounded.has(key)) return false;
+  progSounded.add(key);
+  return true;
+}
+
+/* --- the pill over any room screen, and the ticker ------------------------------------ */
+
+function progPillEl() {
+  let el = document.getElementById('prog-bar');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'prog-bar';
+    el.className = 'prog-bar';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.hidden = true;
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function progPaintPill(state) {
+  const el = progPillEl();
+  const p = state && state.program;
+  const onRoom = typeof onRoomView === 'function' && onRoomView();
+  // While a game is played nothing floats over it: the game's own «لعبة تانية» (backToHub)
+  // ends it for the program. The pill is for the moments between: a result giving way
+  // to the table, and a game waiting for the host's Start.
+  const show = !!(p && onRoom && !progInterlude(state) && (p.phase === 'result' || p.phase === 'waiting'));
+  if (!show) { if (!el.hidden) { el.hidden = true; el.innerHTML = ''; el.dataset.sig = ''; } document.body.classList.remove('has-prog-bar'); return; }
+  const t = progT();
+  const can = typeof roomCanMoveOn === 'function' ? roomCanMoveOn(state) : state.youAreHost;
+  const cur = (p.games || [])[p.at];
+  const sig = [p.id, p.phase, p.seq, p.paused ? 1 : 0, can ? 1 : 0, state.youAreHost ? 1 : 0, appState.lang, state.youAreScreen ? 1 : 0].join('|');
+  document.body.classList.add('has-prog-bar');
+  el.hidden = false;
+  if (el.dataset.sig === sig) return;
+  el.dataset.sig = sig;
+  el.classList.toggle('prog-bar--tv', !!state.youAreScreen);
+  const n = `<span class="prog-bar__n metric">${ltrFrac(Math.max(1, p.at + 1), (p.games || []).length)}</span>`;
+  let text = '', btns = '';
+  if (p.phase === 'result') {
+    text = `<span data-prog-note>${escapeHTML(p.paused ? (t.prog_paused || '') : (t.prog_table_in || ''))}</span> <b class="metric" data-prog-count></b>`;
+    if (can) btns = `<button type="button" class="prog-bar__btn" onclick="progSkip()" aria-label="${escapeHTML(t.prog_go_now || '')}" title="${escapeHTML(t.prog_go_now || '')}">⏭</button>
+      <button type="button" class="prog-bar__btn" onclick="progPause(${p.paused ? 'false' : 'true'})" aria-label="${escapeHTML(p.paused ? (t.prog_resume || '') : (t.prog_pause || ''))}" title="${escapeHTML(p.paused ? (t.prog_resume || '') : (t.prog_pause || ''))}">${p.paused ? '▶' : '⏸'}</button>`;
+  } else if (p.phase === 'waiting') {
+    text = escapeHTML(progFill(state.youAreHost ? (t.prog_waiting_host || '') : (t.prog_waiting || ''), { game: cur ? progGameName(cur.id, t) : '' }));
+    if (state.youAreHost) btns = `<button type="button" class="prog-bar__btn prog-bar__btn--wide" onclick="progSkipGame()">${escapeHTML(t.prog_skip_game || '')}</button>`;
+  }
+  el.innerHTML = `<span class="prog-bar__moon" aria-hidden="true">🌙</span>${n}<span class="prog-bar__text">${text}</span>${btns}`;
+  progTickStart();
+}
+
+/** The count and the rings, from the server's time, four times a second while any is showing. */
+function progTickStart() {
+  if (prog.timer) return;
+  progTick();
+  prog.timer = setInterval(progTick, 250);
+}
+function progTick() {
+  const st = typeof Room !== 'undefined' ? Room.state : null;
+  const p = st && st.program;
+  const nodes = document.querySelectorAll('[data-prog-count], [data-prog-ring]');
+  if (!p || !nodes.length || (p.phase !== 'result' && p.phase !== 'between')) {
+    if (!nodes.length || !p || p.phase === 'final') { clearInterval(prog.timer); prog.timer = null; }
+    return;
+  }
+  const L = progLeft(p);
+  const secs = Math.ceil(L.left / 1000);
+  document.querySelectorAll('[data-prog-count]').forEach(b => {
+    const txt = String(secs);
+    if (b.textContent !== txt) {
+      b.textContent = txt;
+      if (secs <= 3 && secs > 0 && !L.paused && typeof motionBump === 'function') motionBump(b);
+    }
+  });
+  document.querySelectorAll('[data-prog-ring] .prog-ring__fg').forEach(c => {
+    const off = String(Math.round((1 - L.left / L.total) * 100));
+    if (c.style.strokeDashoffset !== off) c.style.strokeDashoffset = off;
+  });
+  // The last three seconds before the next game tick, on the room's one voice.
+  const key = 'progtick|' + p.id + '|' + p.seq + '|' + secs;
+  if (p.phase === 'between' && !L.paused && secs > 0 && secs <= 3 && progSoundOnce(st, key)) playSound('tick');
+}
+
+/* --- the moves ------------------------------------------------------------------------- */
+
+function progSkip() {
+  const p = Room.state && Room.state.program;
+  if (!p) return;
+  roomAct('programSkip', { seq: p.seq });
+}
+function progSkipGame() {
+  const st = Room.state;
+  const p = st && st.program;
+  if (!p) return;
+  const t = progT();
+  showConfirmModal(t.prog_skip_game_q || '', () => roomAct('programSkip', { seq: p.seq }));
+}
+function progPause(on) {
+  const p = Room.state && Room.state.program;
+  if (!p) return;
+  roomAct('programPause', { seq: p.seq, on: !!on });
+}
+function progEnd() {
+  const t = progT();
+  showConfirmModal(t.prog_end_q || '', () => roomAct('programEnd', {}));
+}
+function progClose() { roomAct('programClose', {}); }
+
+/** The night as a picture: the table with the champion crowned (the app's share card). */
+function progShare() {
+  const st = Room.state;
+  const f = st && st.program && st.program.final;
+  if (!f) return;
+  const t = progT();
+  const champs = (f.champions || []).map(id => (f.table.find(r => r.id === id) || {}).name).filter(Boolean);
+  const title = '🌙 ' + (t.prog_title || '');
+  const crown = progFill(champs.length > 1 ? (t.prog_champs || '') : (t.prog_champ || ''), { name: champs.join(t.prog_and || ' & ') });
+  const awards = (f.awards || []).slice(0, 3).map(a => (PROG_AWARD_ICON[a.k] || '🏅') + ' ' + progAwardText(a, t).title + ': ' + a.name).join(' · ');
+  return shareResultCard({
+    title: title,
+    icon: '🏆',
+    rows: (f.table || []).map(r => ({ name: r.name, value: r.pts })),
+    footer: '👑 ' + crown + (awards ? '\n' + awards : ''),
+    text: title + ' · 👑 ' + crown + (awards ? ' · ' + awards : '')
+  });
+}
+
+/* Registered once, when this chunk comes: the pill follows every state, and a room left for good takes it away. */
+if (typeof Room !== 'undefined' && Room.onChange) Room.onChange((state) => progPaintPill(state));
+if (typeof onLeaveScreen === 'function') onLeaveScreen(() => setTimeout(() => progPaintPill(Room.state), 0));
+</script>

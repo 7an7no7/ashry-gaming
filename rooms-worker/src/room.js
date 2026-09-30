@@ -53,7 +53,7 @@ const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', '
 // set for these (the dark room's joystick: its traps and goal come with the walk).
 const QUICK_WITH_ALARM = new Set(['stick']);
 // The actions that deal prompts, which need the shared prompt memory.
-const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap']);
+const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap', 'programSkip']);
 const MAX_MESSAGE = 64 * 1024;
 const MAX_LIVE = 8 * 1024;
 // A controller's message (a stick, a ping): a few numbers.
@@ -441,8 +441,13 @@ export class Room extends DurableObject {
       const next = structuredClone(this.room);
       try {
         if (withPromptMemory(memory, () => roomTimeout(next, now))) {
+          // «الشلة»: a clock that banked a game on the night (برنامج السهرة moves on by its own
+          // clock) sends the night to its crew, as a move does.
+          const nightSig = (r) => JSON.stringify([r.night || null, r.nightx || null]);
+          const grew = next.crew && nightSig(next) !== nightSig(this.room);
           this.room = next;
           changed = true;
+          if (grew) this.recordCrew().catch(() => {});
           if (memory && Object.keys(memory.changed).length) this.memoryStub().write(memory.changed).catch(() => {});
         }
         // A timeout that left its own deadline due would bring the alarm straight

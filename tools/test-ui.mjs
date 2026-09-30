@@ -3,7 +3,7 @@
  *
  *   npm run test:ui                      (the rooms server running: npm run dev in rooms-worker/)
  *   node test-ui.mjs http://127.0.0.1:8797          another rooms server
- *   ONLY=screens,rooms,fixes,site node test-ui.mjs  some parts only
+ *   ONLY=screens,rooms,fixes,program,site node test-ui.mjs  some parts only
  *   CHROME=/path/to/chrome                          where Chrome is, if not in the usual place
  *
  * It builds its own copy of the app (the preview, and the published site for the offline copy)
@@ -17,6 +17,8 @@
  *   fixes    what the audit of 23 Sep 2026 fixed on the page (and «الشلة»'s page with a night on it): a word being typed in a room survives
  *            the others' moves, a room link fills its code, a chess clock is right after a reload,
  *            Battleship tells no result before the shell lands, Guess Who's face pick has a clock
+ *   program  برنامج السهرة: the builder, the table between two games, a reload there, the finale,
+ *            on five phones and a TV
  *   site     the offline copy: the app opens from the phone, and a new build is switched to by
  *            itself on the home screen, never in a game; Settings says which version this is
  *
@@ -32,7 +34,7 @@ import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('./', import.meta.url));
 const root = path.join(here, '..');
 const ROOMS = (process.argv.slice(2).find((a) => /^https?:/.test(a)) || process.env.ROOMS_URL || 'http://127.0.0.1:8787').replace(/\/$/, '');
-const ONLY = (process.env.ONLY || 'screens,rooms,fixes,site').split(',');
+const ONLY = (process.env.ONLY || 'screens,rooms,fixes,program,site').split(',');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'ashry-ui-'));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // Side by side (tools/test-ui-parallel.mjs): which screen sizes this process sweeps, and which
@@ -519,6 +521,89 @@ if (ONLY.includes('fixes')) {
     await closePhone(kp);
   }
   await closePhone(cp);
+}
+
+/* --- برنامج السهرة: the builder, the table between two games and the finale ---------------- */
+if (ONLY.includes('program')) {
+  console.log('• the night\'s program: the builder, the table between two games, the finale (five phones and a TV)');
+  const { phones, tv, all } = await roomOfFive();
+  const host = phones[0];
+  await showRoom(host);
+  await wait(500);
+  all.forEach(takeErrors);
+  const modalCheck = async () => { await ev(host, SWEEP); return ev(host, `__uiCheck(document.getElementById('prog-modal'))`); };
+  // The builder: its door in the room's list, the picker, a game's options, the list.
+  const door = await ev(host, `!!document.querySelector('#view-room-lobby .prog-door')`);
+  check(door, 'program: the host sees its door at the top of the room\'s list');
+  await ev(host, `(() => { localStorage.setItem('ashryProgramDraft_v1', '[]'); prog && (prog.draft = null); return 1; })()`).catch(() => {});
+  await ev(host, `roomOpenProgram(); 1`);
+  await chunkIn(host, 8000);
+  await wait(500);
+  await ev(host, `(() => { prog.draft = null; localStorage.setItem('ashryProgramDraft_v1', '[]'); progRenderBuilder(); return 1; })()`);
+  let found = await modalCheck();
+  check(found && !found.length, 'program: the builder, empty, laid out within the screen', JSON.stringify(found));
+  await ev(host, `progPane('pick'); 1`);
+  await wait(300);
+  found = await modalCheck();
+  check(found && !found.length, 'program: the picker laid out within the screen', JSON.stringify(found));
+  for (const id of ['trivia', 'buzzer', 'mind']) { await ev(host, `progAdd(${JSON.stringify(id)}); 1`); await wait(600); await chunkIn(host, 8000); }
+  await ev(host, `progPane('list'); 1`);
+  await wait(800);
+  found = await modalCheck();
+  const rows = await ev(host, `document.querySelectorAll('#prog-list .prog-row').length`);
+  check(rows === 3 && found && !found.length, 'program: three games in the list, laid out within the screen', JSON.stringify({ rows, found }));
+  await ev(host, `progOpenOpts(0); 1`);
+  await wait(800);
+  found = await modalCheck();
+  const optsShown = await ev(host, `!!document.querySelector('#prog-opts-body select, #prog-opts-body .segmented, #prog-opts-body input')`);
+  check(optsShown && found && !found.length, 'program: a game\'s own options in the sheet', JSON.stringify(found));
+  await ev(host, `progOptsDone(); 1`);
+  // The drag: the last game to the top, by the handle.
+  const moved = await ev(host, `(() => { progMove(2, 0); return progDraftLoad().map(x => x.id).join(','); })()`);
+  check(moved === 'mind,trivia,buzzer', 'program: a game moved in the list', moved);
+  await ev(host, `progMove(0, 2); 1`);
+  const started = await ev(host, `(async () => { await progStart(); return Room.state.program ? Room.state.program.phase : 'none'; })()`);
+  check(started === 'between', 'program: started from the builder', started);
+  await wait(1500);
+  const lookAll = async (label) => {
+    const bad = [];
+    for (const p of all) {
+      const view = await showRoom(p);
+      await wait(300);
+      const f = await sweep(p);
+      if (f && f.length) bad.push(p.name + ' (' + view + '): ' + f.join('; '));
+    }
+    const errs = all.flatMap((p) => takeErrors(p).map((e) => p.name + ': ' + e));
+    check(!bad.length && !errs.length, `program: ${label}, on every phone and the TV, laid out without errors`, [...bad, ...new Set(errs)].join('\n      '));
+  };
+  const views = async () => Promise.all(all.map((p) => ev(p, `appState.currentView`)));
+  await lookAll('the line-up');
+  check((await views()).every((v) => v === 'room-program' || v === 'room-tv'), 'program: the line-up is the program\'s own screen');
+  // The first game now; cut short at once: the table between two games.
+  await ev(host, `(async () => { await Room.act('programSkip', { seq: Room.state.program.seq }); return 1; })()`);
+  await wait(1500);
+  await ev(host, `(async () => { await Room.act('programSkip', { seq: Room.state.program.seq }); return 1; })()`);
+  await wait(1500);
+  await lookAll('the table between two games');
+  const ring = await ev(tv, `!!document.querySelector('#view-room-tv .prog-ring [data-prog-count]')`);
+  check(ring, 'program: the TV\'s next game has its countdown ring');
+  // A reload between two games comes back to the table.
+  await send('Page.reload', {}, phones[1].sessionId);
+  await appUp(phones[1], 20000);
+  await wait(2500);
+  const back = await showRoom(phones[1]);
+  check(back === 'room-program', 'program: a phone reloaded between two games comes back to the table', back);
+  // The finale.
+  await ev(host, `(async () => { await Room.act('programEnd', {}); return 1; })()`);
+  await wait(2500);
+  await lookAll('the finale');
+  const champ = await ev(tv, `!!document.querySelector('#view-room-tv .prog--final')`);
+  check(champ, 'program: the TV shows the finale');
+  await ev(host, `(async () => { await Room.act('programClose', {}); return 1; })()`);
+  await wait(1000);
+  const hub = await showRoom(host);
+  check(hub === 'room-lobby', 'program: closed, back to the room\'s list', hub);
+  for (const p of all) await closePhone(p);
 }
 
 if (ONLY.includes('site')) {

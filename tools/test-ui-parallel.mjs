@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('./', import.meta.url));
 const root = path.join(here, '..');
 const ROOMS = (process.argv.slice(2).find((a) => /^https?:/.test(a)) || process.env.ROOMS_URL || 'http://127.0.0.1:8787').replace(/\/$/, '');
-const ONLY = (process.env.ONLY || 'screens,rooms,fixes,site').split(',');
+const ONLY = (process.env.ONLY || 'screens,rooms,fixes,program,site').split(',');
 const JOBS = Math.max(1, Number(process.env.JOBS || 4));
 const ROOM_SHARDS = Math.max(1, Number(process.env.UI_ROOM_SHARDS || 3));
 
@@ -56,6 +56,7 @@ if (ONLY.includes('rooms')) for (let i = 0; i < ROOM_SHARDS; i++) SHARDS.push({ 
 if (ONLY.includes('screens')) for (const size of ['375x812', '1280x720', '667x375']) SHARDS.push({ name: `screens ${size}`, env: { ONLY: 'screens', UI_SIZES: size }, secs: size === '667x375' ? 100 : 180 });
 if (ONLY.includes('fixes')) SHARDS.push({ name: 'fixes', env: { ONLY: 'fixes' }, secs: 60 });
 if (ONLY.includes('site')) SHARDS.push({ name: 'site', env: { ONLY: 'site' }, secs: 60 });
+if (ONLY.includes('program')) SHARDS.push({ name: 'program', env: { ONLY: 'program' }, secs: 50 });
 SHARDS.sort((a, b) => b.secs - a.secs);
 
 const results = [];

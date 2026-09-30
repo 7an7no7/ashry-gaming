@@ -106,7 +106,7 @@
       const d = appState.domino;
       const t = TRANSLATIONS[appState.lang] || {};
       const teams = d.mode === 'teams';
-      const moreLabel = appState.lang === 'ar' ? 'نقاط أخرى' : 'Other points';
+      const moreLabel = escapeHTML(t.domino_more || '');
       const rows = d.players.map((p, idx) => {
           // Accents come from the design system, so the row follows the theme;
           // the old hardcoded pairs (text-blue-600 on a dark card) were under 2:1.
@@ -198,7 +198,7 @@
       if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
       showScoreWinner({
           name: dominoName(winner, d.players.indexOf(winner)),
-          label: t.cs_totals || (appState.lang === 'ar' ? 'النقاط' : 'Points'),
+          label: t.cs_totals || '',
           value: winner.score,
           rows: standings
       });
@@ -218,7 +218,7 @@
       // An empty or non-numeric field parsed to NaN, and NaN poisoned the score
       // permanently - every later render showed "NaN".
       if (!isFinite(val) || pendingDominoIdx === null) {
-          return showToast(appState.lang === 'ar' ? 'أدخل رقماً صحيحاً' : 'Enter a valid number', 'warn');
+          return showToast((TRANSLATIONS[appState.lang] || {}).domino_bad_number || '', 'warn');
       }
       addDominoPoints(pendingDominoIdx, val);
       closeModal('domino-input-modal');

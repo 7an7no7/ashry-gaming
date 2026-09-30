@@ -63,7 +63,7 @@ async function roomOpenScreen() {
     if (Room.state) routeRoomState(Room.state);
   } catch (err) {
     setSyncing(false);
-    showToast(err.message || 'تعذر إنشاء الغرفة', 'error');
+    showToast(err.message || roomErrText('create'), 'error');
   }
 }
 
@@ -81,7 +81,7 @@ async function roomJoinAsScreen() {
   } catch (err) {
     setSyncing(false);
     const msg = String(err.message || '');
-    showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? 'لا توجد غرفة بهذا الكود' : msg, 'error');
+    showToast(msg.indexOf('ROOM_NOT_FOUND') !== -1 ? roomErrText('notfound') : msg, 'error');
   }
 }
 
@@ -265,7 +265,7 @@ function tvStrip(state, t) {
     ? s.board : null;
   if (board) board.forEach(r => { scores[r.id] = r.score; });
   const chips = state.players.map(p => `
-    <span class="tv-chip ${p.online ? '' : 'is-away'}">
+    <span class="tv-chip ${p.online ? '' : 'is-away'}"${p.online ? '' : ` title="${escapeHTML(t.room_away || '')}"`}>
       <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
       <span class="tv-chip__name">${roomNameHtml(state, p)}</span>
       ${board ? `<b class="tv-chip__score" dir="ltr">${scores[p.id] || 0}</b>` : ''}

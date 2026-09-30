@@ -235,8 +235,9 @@ function playersSheetPaint(names, fresh) {
       <span class="players-sheet__n metric" aria-hidden="true">${i + 1}</span>
       <input type="text" maxlength="24" autocomplete="off" enterkeyhint="${i === names.length - 1 ? 'go' : 'next'}"
              value="${escapeHTML(n)}" placeholder="${escapeHTML((t.players_sheet_ph || '').replace('{n}', i + 1))}"
+             aria-label="${escapeHTML((t.players_sheet_ph || '').replace('{n}', i + 1))}"
              oninput="playersSheetChips()" onkeydown="playersSheetKey(event, ${i})">
-      <button type="button" class="iconbtn iconbtn--plain" aria-label="${escapeHTML(t.players_remove || '')}"
+      <button type="button" class="iconbtn iconbtn--plain" aria-label="${escapeHTML((t.players_remove || '') + ' ' + (i + 1))}"
               onclick="playersSheetRemove(${i})">✕</button>
     </div>`).join('');
   const add = document.getElementById('players-sheet-add');
@@ -2127,10 +2128,9 @@ function syncWakeLock(view) {
 
 // 1. Opens the Modal and prepares the data
 function saveCurrentGroup() {
-    if (!appState.activePlayers || appState.activePlayers.length === 0) {
-        showToast(appState.lang === 'ar' ? "أضف لاعباً واحداً على الأقل!" : "Add at least 1 player!", "error");
-        return;
-    }
+    // Opens with nobody picked too: a saved group can be deleted, or chosen to update, from
+    // a clean setup. Saving and replacing still ask for players (they check it themselves).
+    if (!appState.activePlayers) appState.activePlayers = [];
 
     // Populate the update dropdown
     const updateSelect = document.getElementById('update-group-select');
@@ -2185,6 +2185,10 @@ function updateExistingGroup(mode) {
     let currentGroupPlayers = groups[groupName] || [];
 
     if (mode === 'add') {
+        if (!appState.activePlayers.length) {
+            showToast(appState.lang === 'ar' ? "أضف لاعباً واحداً على الأقل!" : "Add at least 1 player!", "error");
+            return;
+        }
         // Merge without duplicates
         const newSet = new Set([...currentGroupPlayers, ...appState.activePlayers]);
         saveDataToGroup(groupName, Array.from(newSet));

@@ -2845,6 +2845,9 @@ the word search), `countUp` for streaks and scores.
   is anyone at the table too, spy included, on one phone and in rooms; and in
   المختلف the pair's two words are dealt either way round, so the close word
   isn't always the second.
+- **Pinch-zoom stays off** (the owner, 30 Sep 2026): `user-scalable=no` in the
+  viewport is kept - a pinch mid-game is a slip, iOS ignores the lock anyway, and
+  Settings → Screen size makes the whole app bigger.
 - Rooms stay on Cloudflare; WebRTC was rejected. Firebase, if ever, on a
   different Google account from the one already tried.
 - صراحة أو جرأة (truth or dare): a family-clean list is too tame. تخمين السعر
@@ -4546,6 +4549,47 @@ the word search), `countUp` for streaks and scores.
   back). The owner's three decisions are in their sections: the buzzer, the
   dark room's new map, the mines race. Rules tests and the leak check pass
   three runs in a row; the robots and the screen test ran before the release.
+- **30 Sep 2026, the UI/UX review and its fixes** - a review of every screen against
+  a UI rulebook, re-triaged with the owner (a phone-first party game: touch first,
+  keyboard play of boards optional, undo or a safer layout before a new confirm, the
+  look untouched), then fixed in batches, each checked at 375x812, 667x375 and the
+  TV, Arabic and English, light and dark. What changed and where it lives:
+  - **Flow**: a double tap in بدون كلام / أوصف لي scores once (`busyUntil`); «لعبة
+    تانية» between rounds asks first (`tvBackToHub`, on the phone and the TV); the
+    one-phone exit sheet's loud button is «كمّل اللعب», the ways out quieter
+    (`openExitSheet`); «المضيف يبقى…» is a secondary button; a lobby Start the server
+    refuses for too few people points at the "N more needed" line (`blockStartAt`)
+    instead of a toast (trivia, the emoji riddles and the proverbs start with one, so
+    the phone never blocks it itself); the players sheet keeps «يلا» pinned; toasts
+    sit above a setup's Start bar (`toastClearStart`); a solo bowling phone that
+    can't draw 3D throws a plain ball, and mini golf offline says so with «حاول تاني».
+  - **Rooms**: a line under the header while the room can't be reached
+    (`roomNetNotice`, `body.room-offline`, the host-away note's pill); join mistakes
+    under their field (`roomJoinFieldError`); every room turn clock reads
+    `roomServerNow()` (18 files used the phone's own clock); a typed chat line sends
+    once; the rooms server's Arabic refusals shown in English on an English phone
+    (`ROOM_ERR_EN`, `roomErrLocal`, `roomError` - the server's text stays on
+    `err.raw`; anything not in the table is «That can't be done right now». A new
+    server message a player meets often goes in the table); an «مش متصل» / Away
+    badge in the lobby; TV names at `--tv-sm`.
+  - **Popups**: every `.modal-content` is `role="dialog" aria-modal` named by its
+    title (`labelModal` in `hoistModals`, no focus trap - the owner's call); Escape,
+    the phone's back and the edge swipe all close the popup drawn on top
+    (`topModal` / `closeTopModal`: by z-index, so a confirm over a sheet goes first).
+  - **Accessibility**: icon buttons and fields named in both languages
+    (`data-i18n-title`, `a11y_*` keys; a field with only a placeholder gets it as its
+    `aria-label` in `applyTranslations`); segmented options say `aria-pressed`, the
+    tab bar `aria-current`; the room game tiles are buttons; arrow keys in the flags
+    search (`flagsKey`); live regions for the turn banner, the chat, the lobby lines
+    and Guess the Number; board cells named (the trivia board, X-O, memory, the
+    archive); Wordle's colours get ● / ▲ under Settings → رموز للألوان; a wrong
+    Sudoku number a wavy underline; a stepper dims − / + at its ends
+    (`syncSteppers`); small targets get a bigger invisible hit area (the kick ✕,
+    the cheers, the banner's Return).
+  - **Bugs**: Minesweeper's right button flags; «إدارة المجموعات» opens with nobody
+    picked; Guess the Number's and Domino's text moved into `TRANSLATIONS`.
+  - **Decided**: the zoom lock stays (the owner: apps don't pinch-zoom, iOS ignores
+    the lock anyway, and Settings → Screen size is the way to bigger text).
 
 ## Building and Running
 
@@ -10165,6 +10209,11 @@ footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
 
 ### Traps this codebase has already fallen into
+
+**A style a test adds to `<head>` loses to the app's own.** The page's stylesheets are
+in `<body>` (the logo comes first), so a rule injected into the head with the same
+weight is overridden and a "before" screenshot silently shows "after" (30 Sep 2026).
+Append test styles to `document.body`, and read the computed value to be sure.
 
 **A timeout must do everything that is due, or the room waits 30 s.**
 `room.js` gives a timeout that leaves its own deadline still in the past a

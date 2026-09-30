@@ -139,7 +139,7 @@ const Room = (() => {
     remember();
     if (typeof updateRoomBanner === 'function') updateRoomBanner();
     if (wasIn) {
-      showToast(message, 'error');
+      showToast(roomErrLocal(message), 'error');
       emit(true);
       // Only from a room screen: someone playing a one-phone game or using a timer
       // meanwhile stays put (setView would stop that game's clocks).
@@ -312,13 +312,13 @@ const Room = (() => {
     clearTimeout(waiter.timer);
     if (msg.ok) { waiter.resolve(state); return; }
     if (msg.gone || msg.kicked) handleDropped(msg.gone ? DROPPED.gone : DROPPED.kicked);
-    waiter.reject(new Error(msg.error || roomErrText('action')));
+    waiter.reject(roomError(msg.error || roomErrText('action')));
   }
 
   function failPending(message, quiet) {
     pending.forEach(w => {
       clearTimeout(w.timer);
-      const err = new Error(message);
+      const err = roomError(message);
       if (quiet) err.quiet = true;
       w.reject(err);
     });
@@ -412,14 +412,14 @@ const Room = (() => {
     /** `screen`: this device shows the room on a big screen instead of playing in it. */
     async create(name, gameId, screen) {
       const res = await request('/create', { name: name, game: gameId || null, screen: !!screen });
-      if (!res.ok) throw new Error(res.error || roomErrText('create'));
+      if (!res.ok) throw roomError(res.error || roomErrText('create'));
       adoptSession(res, gameId);
       return res;
     },
 
     async join(code, name, screen) {
       const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name, screen: !!screen });
-      if (!res.ok) throw new Error(res.error || roomErrText('join'));
+      if (!res.ok) throw roomError(res.error || roomErrText('join'));
       adoptSession(res, res.state.game);
       return res;
     },
@@ -451,9 +451,9 @@ const Room = (() => {
         .then(res => {
           if (res.gone || res.kicked) {
             handleDropped(res.gone ? DROPPED.gone : DROPPED.kicked);
-            throw new Error(res.gone ? DROPPED.gone : DROPPED.kicked);
+            throw roomError(res.gone ? DROPPED.gone : DROPPED.kicked);
           }
-          if (!res.ok) throw new Error(res.error || roomErrText('action'));
+          if (!res.ok) throw roomError(res.error || roomErrText('action'));
           // A late answer from a room this phone has since left is not this room's state.
           if (res.state && session && res.state.code === session.code && notOlder(res.state)) { state = arrived(res.state); emit(false); }
           connect();
@@ -692,6 +692,68 @@ function roomCanMenu(state, p) {
 function roomErrText(key) {
   const k = 'room_err_' + key;
   return (TRANSLATIONS[appState.lang] || {})[k] || TRANSLATIONS.ar[k] || key;
+}
+
+/* The rooms server words its refusals in Arabic. A phone in English shows the ones a
+   player meets in English, and anything else as a plain "can't be done right now" -
+   never Arabic. The server's own text stays on the error as `raw` (the name-taken check
+   reads it). A code such as ROOM_NOT_FOUND has no Arabic and passes as it is. */
+const ROOM_ERR_EN = {
+  'الغرفة فيها شاشات كفاية': 'This room has enough screens',
+  'اكتب اسمك الأول': 'Type your name first',
+  'الغرفة اتملت': 'The room is full',
+  'الاسم ده مستخدم في الغرفة، اختار اسم تاني': 'Someone in the room has that name - pick another',
+  'دي للمضيف بس': 'Only the host can do that',
+  'مينفعش تطلّع نفسك من الغرفة': "You can't remove yourself from the room",
+  'ده لسه متصل، مينفعش يطلع': "They're still connected, so they can't be removed",
+  'المضيف بس اللي يقدر ينقل المضيف': 'Only the host can hand over the room',
+  'مينفعش ده يبقى المضيف': "They can't be the host",
+  'ده مش متصل دلوقتي، مينفعش يبقى المضيف': "They're not connected, so they can't be the host",
+  'معرفناش نفتح الغرفة، جرّب تاني': "Couldn't open the room - try again",
+  'فتحت غرف كتير في وقت قصير، استنى شوية وجرب تاني': 'Too many rooms opened in a short time - wait a bit and try again',
+  'مش قادرين نوصل للسيرفر، جرّب تاني': "Can't reach the server - try again",
+  'انقطع الاتصال، حاول مرة أخرى': 'The connection dropped - try again',
+  'لست في غرفة': "You're not in a room",
+  'انتهت الغرفة': 'The room has closed',
+  'تمت إزالتك من الغرفة': 'You were removed from the room',
+  'اللعبة لم تبدأ بعد': "The game hasn't started yet",
+  'مش دورك': "It's not your turn",
+  'دور لاعب آخر': "It's another player's turn",
+  'مش دور فريقك': "It's not your team's turn",
+  'تحتاج لاعبين على الأقل': 'You need at least 2 players',
+  'تحتاج 3 لاعبين على الأقل': 'You need at least 3 players',
+  'محتاجين 3 لاعبين على الأقل': 'You need at least 3 players',
+  'محتاجين لاعب واحد على الأقل': 'You need at least 1 player',
+  'ستدخل من الجولة القادمة': "You'll join from the next round",
+  'انت بتتفرج دلوقتي': "You're watching right now",
+  'انت بتتفرج الدور ده': "You're watching this round",
+  'انت بتتفرج دلوقتي، استنى دورك في الطابور': "You're watching - wait for your turn in the line",
+  'انت مش في اللعبة دي': "You're not in this game",
+  'لست في الغرفة': "You're not in the room",
+  'لست ضمن هذه الجولة': "You're not in this round",
+  'اختيار غير صحيح': "That choice isn't valid",
+  'لا يوجد تصويت الآن': "There's no vote right now",
+  'ليس وقت التخمين': "It's not time to guess",
+  'انتهى وقت الكتابة': "Time's up for writing",
+  'انتهت اللعبة': 'The game is over',
+  'اللعبة خلصت': 'The game is over',
+  'مش وقت اللعب': "It's not time to play",
+  'مش دلوقتي': 'Not now',
+  'انتظر تلميح القائد': "Wait for the spymaster's clue",
+  'النقلة دي مش مسموحة': "That move isn't allowed",
+  'الرسام فقط': 'Only the drawer can do that',
+  'فلوسك مش مكفية': "You don't have enough money"
+};
+const ROOM_ERR_ARABIC = new RegExp('[' + String.fromCharCode(0x0600) + '-' + String.fromCharCode(0x06FF) + ']');
+function roomErrLocal(text) {
+  const s = String(text == null ? '' : text);
+  if (appState.lang !== 'en' || !ROOM_ERR_ARABIC.test(s)) return s;
+  return ROOM_ERR_EN[s] || (TRANSLATIONS.en && TRANSLATIONS.en.room_err_generic) || "That can't be done right now";
+}
+function roomError(text) {
+  const err = new Error(roomErrLocal(text));
+  err.raw = String(text == null ? '' : text);
+  return err;
 }
 
 function roomNameHtml(state, p, inner) {
@@ -1219,7 +1281,7 @@ async function roomJoinFromForm() {
     setView('room-join');
     const msg = String(err.message || '');
     // Someone in the room has this phone's name: the field comes back to change it.
-    if (msg.indexOf('الاسم') !== -1) { roomJoinEditName(); roomJoinFieldError('room-join-name', msg); }
+    if (String(err.raw || msg).indexOf('الاسم') !== -1) { roomJoinEditName(); roomJoinFieldError('room-join-name', msg); }
     else if (msg.indexOf('ROOM_NOT_FOUND') !== -1) roomJoinFieldError('room-join-code', roomErrText('notfound'));
     else showToast(msg, 'error');
   }
@@ -1297,6 +1359,7 @@ function renderRoomLobby(state) {
         <div class="status-row__actions">
           ${p.id === Room.me ? `<span class="badge badge--accent">${youLabel}</span>` : ''}
           ${p.id === state.hostId ? `<span class="badge lobby-row__host"><span aria-hidden="true">👑</span> ${hostLabel}</span>` : ''}
+          ${p.online ? '' : `<span class="badge">${escapeHTML((TRANSLATIONS[appState.lang] || {}).room_away || '')}</span>`}
           ${roomKickButton(state, p, 'btn btn--ghost btn--xs btn--auto')}
         </div>
       </div>`).join('');
@@ -1593,13 +1656,13 @@ function renderRoomHub(state) {
           const badge = off ? gameOffBadge(t) : need ? `<div class="game-card__need">${escapeHTML(need)}</div>` : '';
           const hintEl = hint ? `<div class="game-card__hint">${escapeHTML(hint)}</div>` : '';
           return `
-            <div class="game-card room-poster ${enough ? '' : 'is-disabled'} ${off ? 'is-off' : ''} ${tile.open ? 'room-poster--family' : ''}" data-accent="${g.accent}"
-                 ${off ? 'onclick="gameOffToast()"' : enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomAct('chooseGame', { game: '${g.id}' })"`) : ''}>
-              <div class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</div>
-              <div class="game-title">${escapeHTML(roomHubTileName(tile, t))}</div>
+            <button type="button" class="game-card room-poster ${enough ? '' : 'is-disabled'} ${off ? 'is-off' : ''} ${tile.open ? 'room-poster--family' : ''}" data-accent="${g.accent}"
+                 ${off ? 'onclick="gameOffToast()" aria-disabled="true"' : enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomAct('chooseGame', { game: '${g.id}' })"`) : 'aria-disabled="true"'}>
+              <span class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</span>
+              <span class="game-title">${escapeHTML(roomHubTileName(tile, t))}</span>
               ${hintEl}
               ${badge}
-            </div>`;
+            </button>`;
         }).join('')}
       </div>
     </div>

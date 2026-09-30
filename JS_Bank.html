@@ -309,7 +309,7 @@ function bankSideText(g, side, c) {
   if (side.cash) bits.push(bankMoney(side.cash));
   (side.sqs || []).forEach(i => bits.push(bankSqName(i)));
   (side.cards || []).forEach(() => bits.push(bankT('bank_jail_card')));
-  return bits.length ? bits.join('، ') : bankT('bank_nothing');
+  return bits.length ? bits.join(appState.lang === 'en' ? ', ' : '، ') : bankT('bank_nothing');
 }
 
 /** An offer: to the one it was made to, yes or no; to the one who made it, a way to take it back. */
@@ -384,7 +384,7 @@ function bankTradeHtml(c) {
     return `<button type="button" class="bank-tchip ${on ? 'is-on' : ''}" onclick="bankTradeCard('${side}')" aria-pressed="${on}">🎟️ ${escapeHTML(bankT('bank_jail_card'))}</button>`;
   }).join('');
   const cashIn = (side, pid) => `<label class="bank-tcash"><span>${escapeHTML(bankT('bank_cash'))}</span>
-      <input type="number" inputmode="numeric" min="0" max="${g.cash[pid] || 0}" step="10" value="${tr[side].cash || ''}" placeholder="0" oninput="bankTradeCash('${side}', this.value)"></label>`;
+      <input type="number" inputmode="numeric" min="0" max="${g.cash[pid] || 0}" step="10" value="${tr[side].cash || ''}" placeholder="0" data-bank-trade-cash="${side}" oninput="bankTradeCash('${side}', this.value)"></label>`;
   // A place only goes to someone who may buy (the first lap): until then that side is money and cards.
   const locked = { give: !bankCanBuyYet(g, tr.to), get: !bankCanBuyYet(g, me) };
   ['give', 'get'].forEach(side => { if (locked[side]) tr[side].sqs = []; });
@@ -785,20 +785,24 @@ function bankWire(root) {
   });
 }
 
-/** The game's time left, drawn every second. */
-function bankTickTime(root, g, turnClockEndsAt) {
+/**
+ * The game's time left, drawn every second. `gap`: in a room, how far this phone's clock is
+ * ahead of the server's (both times are the server's); 0 against the phone.
+ */
+function bankTickTime(root, g, turnClockEndsAt, gap) {
   clearInterval(bankFx.timeTimer);
+  const off = Number(gap) || 0;
   const paint = () => {
     const left = root.querySelector('[data-bank-left]');
     if (left && g.endsAt) {
-      const ms = Math.max(0, g.endsAt - bankNow());
+      const ms = Math.max(0, g.endsAt + off - bankNow());
       const m = Math.floor(ms / 60000);
       const s = Math.floor((ms % 60000) / 1000);
       left.textContent = '⏳ ' + m + ':' + String(s).padStart(2, '0');
     }
     const clk = root.querySelector('[data-bank-clock]');
     if (clk && turnClockEndsAt) {
-      const secs = Math.max(0, Math.ceil((turnClockEndsAt - Date.now()) / 1000));
+      const secs = Math.max(0, Math.ceil((turnClockEndsAt + off - Date.now()) / 1000));
       clk.textContent = '⏱️ ' + secs;
       clk.classList.toggle('badge--danger', secs <= 10);
     }
@@ -945,7 +949,8 @@ function bankLocalNext() {
   bankStopBot();
   const s = bankState();
   const g = s.g;
-  if (!g || g.phase !== 'play' || appState.currentView !== 'play-bank') return;
+  // Nothing plays while the app is hidden (its clock is paused too): it carries on when it is back.
+  if (!g || g.phase !== 'play' || appState.currentView !== 'play-bank' || document.hidden) return;
   const wait = Math.max(0, bankFx.busyUntil - Date.now());
   const think = BANK_BOT_MS[0] + Math.floor(Math.random() * (BANK_BOT_MS[1] - BANK_BOT_MS[0]));
   const offerTo = g.offer && s.bots[g.offer.to] ? g.offer.to : null;
@@ -955,7 +960,7 @@ function bankLocalNext() {
       bankBotTimer = null;
       const st = bankState();
       const gg = st.g;
-      if (gg !== g || gg.phase !== 'play' || appState.currentView !== 'play-bank') return;
+      if (gg !== g || gg.phase !== 'play' || appState.currentView !== 'play-bank' || document.hidden) return;
       const mv = bankBotMove(gg, st.priv, pid, st.bots[pid]);
       if (mv) {
         const p = mv.payload || {};
@@ -991,7 +996,7 @@ function bankLocalNext() {
     bankBotTimer = setTimeout(() => {
       bankBotTimer = null;
       const gg = bankState().g;
-      if (gg !== g || appState.currentView !== 'play-bank' || !bankOnlyMove(gg, 'me')) return;
+      if (gg !== g || appState.currentView !== 'play-bank' || document.hidden || !bankOnlyMove(gg, 'me')) return;
       bankLocalDo(only.action, only.payload);
     }, wait + 1400);
   }
@@ -1080,7 +1085,11 @@ if (typeof onLeaveScreen === 'function') {
 }
 document.addEventListener('visibilitychange', () => {
   if (appState.currentView !== 'play-bank') return;
-  if (document.hidden) bankPauseClock(); else bankResumeClock();
+  if (document.hidden) { bankPauseClock(); return; }
+  bankResumeClock();
+  // A computer player's move that came due while hidden was dropped: it is asked for again
+  // (unless a timer, a move or a redraw waiting for the motion, is still to come).
+  if (bankState().g && !bankBotTimer) bankLocalNext();
 });
 
 /* --- the sounds: short and quiet, not on the soundboard ------------------------------------------ */

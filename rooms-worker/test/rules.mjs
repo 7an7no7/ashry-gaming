@@ -5698,6 +5698,21 @@ Date.now = duelTestClock;
     check(oHand(m, C2).length === 0 && m.shared.thrown.length === 2 && m.shared.out.indexOf(C2) !== -1,
       "oldmaid: a leaver's cards go to the next hand still playing, and their pairs go out");
     check(m.shared.phase === 'gameover' && m.shared.loser === A2, 'oldmaid: one left holding cards loses');
+    // Audit of 30 Sep 2026: a leaver's cards go in at random places under fresh ids, never on the end.
+    let spread = false, freshIds = true;
+    for (let k = 0; k < 30; k++) {
+      const q = omStart(['a', 'b', 'c', 'd']);
+      const [, Bq, Cq] = q.shared.order;
+      oTable(q, [['7h', 'OM'], ['3h', '4c', '5s'], ['9h', 'Jc', 'Kd', 'Qs'], ['6h', '8c']]);
+      const oldIds = oHand(q, Bq).map((c) => c.i);
+      q.players = q.players.filter((p) => p.id !== Bq);
+      roomPlayerLeft(q, Bq, Bq);
+      const h = oHand(q, Cq);
+      const got = h.filter((c) => ['3h', '4c', '5s'].indexOf(c.c) !== -1);
+      if (got.length !== 3 || got.some((c) => oldIds.indexOf(c.i) !== -1)) freshIds = false;
+      if (h.slice(-3).map((c) => c.c).sort().join() !== '3h,4c,5s') spread = true;
+    }
+    check(freshIds && spread, "oldmaid: a leaver's cards go into the next hand at random places, under fresh ids");
     const two = omStart(['a', 'b']);
     two.players = two.players.filter((p) => p.id !== 'b');
     roomPlayerLeft(two, 'b', 'b');
@@ -9703,9 +9718,15 @@ Date.now = duelTestClock;
     check(s.phase === 'flip', 'skull: «هيعملها؟» closes on its clock');
     sk(r, A, 'flip', { target: A });
     check(s.flip.got === 1 && s.phase === 'flip', 'skull: a flower of your own counts');
+    const cntHand = s.hands[A], cntPile = s.piles[A];
     sk(r, A, 'flip', { target: B });
     check(s.phase === 'result' && s.result.skullOwner === B && s.nextStarter === B && G(r).discs[A].length === 3,
       'skull: a skull on another pile: the bidder loses a disc, the skull\'s owner starts next');
+    // Audit of 30 Sep 2026: a hand or pile one short told the table where the lost disc was.
+    check(s.hands[A] === cntHand && s.piles[A] === cntPile && s.discs[A] === 3,
+      'skull: a lost disc leaves the public hand and pile counts as they were until the next deal');
+    check(r.secrets[A].hand.length + r.secrets[A].pile.length === 3 && r.secrets[A].hand.concat(r.secrets[A].pile).every((d) => d.f),
+      "skull: the bidder's own hand and pile no longer list the lost disc");
     const lost = r.secrets[A].lost[0].f;
     const leak = [B, C].some((id) => JSON.stringify(r.secrets[id]).indexOf('"lost":[]') === -1) || JSON.stringify(s.result).indexOf(lost) !== -1 && lost !== 'skull';
     check(!leak, 'skull: the disc a skull took is on the bidder\'s phone only');
@@ -9821,6 +9842,17 @@ Date.now = duelTestClock;
     check(S(r).flip.own === true, 'skull: when flipping, your own pile is turned over for you (or by the clock)');
   }
 
+  /* The host's "play for" in the laying lays only for the quiet phones it names (audit of 30 Sep 2026). */
+  {
+    const r = skStart(['a', 'b', 'c', 'd']);
+    const s = S(r);
+    const C = s.order[2];
+    applyRoomAction(r, r.hostId, 'skipTurn', { seq: s.turnSeq, pids: [C] });
+    check(s.placed.length === 1 && s.placed[0] === C && s.phase === 'place', 'skull: the host lays only for the quiet phone it named');
+    applyRoomAction(r, r.hostId, 'skipTurn', { seq: s.turnSeq });
+    check(s.placed.length === 4 && s.phase === 'add', 'skull: with no names (an older phone) the host lays for everyone left');
+  }
+
   /* Leaving. */
   {
     const r = skStart(['a', 'b', 'c', 'd']);
@@ -9900,7 +9932,9 @@ Date.now = duelTestClock;
         seen = r.shared.eventSeq;
         const g = r._skull;
         r.shared.order.forEach((id) => {
-          const owned = (g.discs[id] || []).map((d) => d.i).sort().join();
+          // A disc lost this round stays counted in its hand or pile until the next deal (its public counts don't move).
+          const owned = (g.discs[id] || []).map((d) => d.i)
+            .concat((g.lost[id] || []).filter((l) => l.round === r.shared.round).map((l) => l.i)).sort().join();
           const placed = (g.hands[id] || []).concat(g.piles[id] || []).sort().join();
           if (r.shared.alive.indexOf(id) !== -1 && owned !== placed) conserved = false;
         });

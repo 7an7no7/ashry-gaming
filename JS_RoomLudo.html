@@ -18,7 +18,7 @@
 const LUDO_OPTS_KEY = 'ludoRoom';
 
 /** What only this phone holds: the tap already sent, the clock, the host's timer. */
-const ludoRoomLocal = { sent: '', clock: null, clockKey: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '' };
+const ludoRoomLocal = { sent: '', clock: null, clockKey: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '', gap: Infinity };
 
 function ludoRoomOpts() {
   const o = recallOptions(LUDO_OPTS_KEY, { turnClock: 0 });
@@ -204,12 +204,20 @@ function ludoStopClock() {
   ludoRoomLocal.clockKey = null;
 }
 
+/** This phone's clock ahead of the server's: the smallest receivedAt - serverNow seen. */
+function ludoServerGap(state) {
+  if (state && typeof state.serverNow === 'number' && typeof state.receivedAt === 'number') ludoRoomLocal.gap = Math.min(ludoRoomLocal.gap, state.receivedAt - state.serverNow);
+  return isFinite(ludoRoomLocal.gap) ? ludoRoomLocal.gap : 0;
+}
+
 /** Draws the turn clock; the server plays the turn when it runs out. */
 function ludoTickClock(state) {
   const s = ludoShared(state);
   const endsAt = s.phase === 'play' ? s.endsAt : null;
+  // The server's endsAt read by the server's time, not this phone's clock.
+  const gap = ludoServerGap(state);
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt + gap - Date.now()) / 1000)) : 0;
     document.querySelectorAll('[data-ludo-clock]').forEach(el => {
       el.textContent = '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 5);
@@ -223,7 +231,7 @@ function ludoTickClock(state) {
   ludoStopClock();
   ludoRoomLocal.clockKey = endsAt;
   ludoRoomLocal.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt + gap - Date.now()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = Room.state;

@@ -563,7 +563,20 @@ function unoHostButtons(state) {
   const s = state.shared || {};
   if (!roomCanMoveOn(state) || s.phase !== 'play' || !s.turn) return [];
   const p = (state.players || []).find(x => x.id === s.turn.pid);
-  if (p && (p.online || p.bot)) return [];
+  if (p && p.bot) return [];
+  // Gone, or holding the turn for 40 seconds (الدومينو's rule): a timer shows the button when that comes.
+  const key = state.code + '|' + s.turnSeq;
+  if (unoFx.hostKey !== key) {
+    unoFx.hostKey = key;
+    unoFx.turnSince = Date.now();
+    clearTimeout(unoFx.hostTimer);
+    unoFx.hostTimer = setTimeout(() => {
+      const st = Room.state;
+      if (st && st.game === 'uno') unoRefreshInPlace(document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-uno'), st, !!st.youAreScreen);
+    }, 40500);
+  }
+  const quiet = !p || !p.online || Date.now() - (unoFx.turnSince || Date.now()) > 40000;
+  if (!quiet || s.turn.pid === Room.me) return [];
   return [['⏭️ ' + unoT('uno_skip_turn', { name: unoName(state, s.turn.pid) }), "unoAct(this, 'skipTurn')"]];
 }
 
@@ -1357,10 +1370,13 @@ function unoPlayEnding(root, state) {
   const s = state.shared || {};
   if (!root || !root._unoTable || (s.phase !== 'roundOver' && s.phase !== 'gameover')) return false;
   if (document.hidden || unoWokeRecently() || !unoCanMove() || !root.getClientRects().length) return false;
-  const evs = unoEventsToPlay(state).filter(e => e.type !== 'win');
-  if (!evs.length || evs.length > 8) return false;
+  // The win is not flown, but it is heard: the sounds get every event (the round's fanfare),
+  // since these are taken here and the result's frame will not see them again.
+  const all = unoEventsToPlay(state);
+  const evs = all.filter(e => e.type !== 'win');
+  if (!evs.length || evs.length > 8) { if (all.length) unoEventSounds(state, all); return false; }
   unoSnapshot(root);
-  unoEventSounds(state, evs);
+  unoEventSounds(state, all);
   unoPlay(root, state, evs, 0, null);
   return unoFx.busyUntil > Date.now();
 }

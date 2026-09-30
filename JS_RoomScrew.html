@@ -1523,6 +1523,8 @@ function skrPickBarHtml(state, pick, ctx) {
     : pick.kind === 'power'
     ? (() => { const p = skrPowerInfo(pick.power); return `<span class="skr-power">${skrPowerChip(pick.power)}${escapeHTML(p.name)}</span>: `; })()
     : '';
+  // A copied power (على كيفك) is sent with the card it copies, or the server refuses it.
+  const powerArg = pick.as ? `{ as: '${jsStringAttr(pick.as)}' }` : '{ }';
   let body = '';
   if (need.as) {
     // Only what the table has already seen go down. With nothing there the
@@ -1538,13 +1540,13 @@ function skrPickBarHtml(state, pick, ctx) {
         <button type="button" class="btn btn--secondary" onclick="skrPickMode('own')">🂠 ${escapeHTML(skrT('skr_around_own', 'كارتين من عندي', 'Two of mine'))}</button>
       </div>`;
   } else if (need.button && pick.power === 'khoshaf') {
-    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', { })">🥣 ${escapeHTML(skrT('skr_khoshaf_show', 'اكشف 4 كروت', 'Show four cards'))}</button>`;
+    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', ${powerArg})">🥣 ${escapeHTML(skrT('skr_khoshaf_show', 'اكشف 4 كروت', 'Show four cards'))}</button>`;
   } else if (need.button && pick.power === 'boom') {
-    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', { })">💣 ${escapeHTML(skrT('skr_boom_go', 'بوم!', 'Boom!'))}</button>`;
+    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', ${powerArg})">💣 ${escapeHTML(skrT('skr_boom_go', 'بوم!', 'Boom!'))}</button>`;
   } else if (need.button && pick.power === 'scream') {
-    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', { })">😱 ${escapeHTML(skrT('skr_scream_go', 'اصرخ!', 'Scream!'))}</button>`;
+    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', ${powerArg})">😱 ${escapeHTML(skrT('skr_scream_go', 'اصرخ!', 'Scream!'))}</button>`;
   } else if (need.button) {
-    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', { })">✓ ${escapeHTML(t.confirm || 'تأكيد')}</button>`;
+    body = `<button type="button" class="btn btn--primary btn--lg" onclick="skrAct(this, 'power', ${powerArg})">✓ ${escapeHTML(t.confirm || 'تأكيد')}</button>`;
   } else {
     const ready = skrPickReady(state, pick);
     const summary = ready ? skrPickSummary(state, pick) : '';

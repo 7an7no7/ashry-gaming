@@ -406,7 +406,10 @@ const omPlayerLeft = (room, playerId) => {
   g.hands[playerId] = [];
   let pairs = [];
   if (cards.length && heir) {
-    g.hands[heir] = omHand(room, heir).concat(cards.map(c => ({ i: omNewId(g), c: c.c })));
+    // Each at a random place under a fresh id (as a drawn card goes), never on the end where they could be found.
+    const hand = omHand(room, heir).slice();
+    cards.forEach(c => hand.splice(Math.floor(Math.random() * (hand.length + 1)), 0, { i: omNewId(g), c: c.c }));
+    g.hands[heir] = hand;
     if (s.settings.mode === 'shuffle') g.hands[heir] = shuffled(g.hands[heir]);
     pairs = omThrowPairs(room, heir);
   }

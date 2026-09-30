@@ -13,7 +13,10 @@ Arabic-first (RTL, ar/en) party-games web app for phones.
 - **The old Apps Script version** is a frozen copy in `C:\Users\TPC\Apps Script\G`
   (git tag `apps-script-v177`). All new work happens here; don't change that folder.
 
-The full guide is GEMINI.md — read it before changing anything:
+The guide is GEMINI.md — read it before changing anything. It holds what applies
+to the whole app (decisions, build and test, conventions, traps) and an index;
+each game's full spec and how it is built is in `notes/games/<id>.md`, the log in
+`notes/log.md`. Read a game's file before changing that game:
 
 @GEMINI.md
 
@@ -38,9 +41,14 @@ The full guide is GEMINI.md — read it before changing anything:
   one card*). Only a game of its own, with its own name, gets its own card.
 - New games and screens use the motion toolkit wherever it fits (GEMINI.md,
   *Using the motion toolkit in a new game*): reveals, podiums, flights, count-ups.
-- Keep GEMINI.md current: how things work, the traps met on the way, and
-  *Where the app is going* (ideas, decisions, the log), so the next person or
-  AI can carry on.
+- Keep the guide current, so the next person or AI can carry on. GEMINI.md
+  (always loaded, keep it small): what applies to every game, the traps met on
+  the way, the decisions, and one index line per game. The detail goes in the
+  topic files: a game's spec and how it works in `notes/games/<id>.md` (a new
+  game gets a new file and an index line), the day-by-day log in `notes/log.md`,
+  ideas in `notes/ideas.md`, the long versions of rooms / design / site in
+  `notes/rooms.md`, `notes/design.md`, `notes/site.md`. When changing a game,
+  update its file and, if what it covers changed, its index line.
 - A finished change goes live. The owner judges by the link, not this folder, so
   follow the steps below to the end.
 
@@ -80,7 +88,9 @@ The full guide is GEMINI.md — read it before changing anything:
    `cd tools && npm run deploy:site` - the app's second address on Cloudflare
    (https://play.3ashry.workers.dev), the same `docs/`; it restarts
    nothing.
-8. Update GEMINI.md if how something works changed. Commit everything, `docs/`
+8. Update the guide if how something works changed (the game's
+   `notes/games/<id>.md`, a line in `notes/log.md`, GEMINI.md for anything
+   app-wide). Commit everything, `docs/`
    included, and push to `master`. GitHub Actions checks every push (`npm run
    check`, `test:rules`, the site's build and budget): a red ✗ on the commit
    means fix it and push again.

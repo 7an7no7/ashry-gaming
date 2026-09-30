@@ -1,0 +1,130 @@
+# Key features and games (the full list)
+
+Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to every game and an index; this file keeps the detail, word for word.
+
+## Key Features & Games
+- **Group Games:** 
+  - 🕵️‍♂️ **Imposter (الجاسوس):** Social deduction game.
+  - 🐵 **Monkey (ربع قرد):** the letter game with the phone as referee, plus
+    the last-letter chain and one-name-a-turn; on one phone, in a room, on the TV.
+  - 🤫 **Just One (كلمة واحدة):** Cooperative word guessing.
+  - 🃏 **Skrew (سكرو):** the whole game in a room (every version, mixed or
+    alone, singles or two teams, every hand face down on every phone with every
+    move shown), and a calculator for a game with real cards; and score keepers for 🎯 إستميشن,
+    ♠️ طرنيب, ♥️ تريكس, ♦️ كونكان and 🎣 باصرة (*Card game score keepers*).
+  - 🀄 **Domino (الدومينو):** the whole game in a room, 2-4 players or
+    computer players, solo or two against two, عادي (Egyptian) or أمريكاني
+    (All Fives, with the spinner), on ivory tiles with every move animated;
+    and the score keeper for a game with real tiles (*الدومينو in rooms*).
+  - 🎲 **Ludo (لودو):** the classic board, 2-4 players, against the phone
+    (1-3 computer players, easy or hard) or in a room with the TV; every roll
+    and every hop animated (*لودو*).
+  - 🐍 **Snakes & Ladders (السلم والتعبان):** 2-6 players, against the phone
+    (1-5 computer players) or in a room with the TV; a new fair map every
+    game, built in front of everyone; every snake and ladder with its own
+    moves, picked on the server (*السلم والتعبان*).
+  - 🏦 **Lucky Bank (بنك الحظ):** Monopoly with Egypt's cities, 2-6
+    players, against the phone or in a room with the TV; buildings are جراج ←
+    استراحة ← سوق, the decks حظ and محاكمة, a 45-minute game by default
+    (*بنك الحظ*).
+  - 🎭 **Charades (بدون كلام), 🗣️ Describe It (أوصف لي), ❓ Who Am I? (من أنا؟)**
+  - 🧠 **Trivia (تحدي المعلومات):** two ways to play. *دوري المعرفة* is a board for
+    two teams on one screen (five categories × 100–500 points, a host reads and
+    awards); a room has everyone answer on their own phone, faster right answers
+    scoring more.
+- **Multiplayer-only (separate phones, see *Multiplayer rooms*):**
+  - 🔠 **Codenames (أسماء الرموز):** two teams, a shared 5×5 board, a key only
+    the spymasters hold. There is nowhere to hide that key on one phone.
+  - 🎨 **Draw & Guess (ارسم وخمّن):** one phone draws, the rest watch it appear.
+  - 🤥 **Fibbage (كذبة وصدقة):** invent an answer, then find the real one.
+  - ⚖️ **Would You Rather (لو خيروك)** and 👉 **Most Likely To (مين أكثر واحد):**
+    the voting engine; votes stay hidden until the round closes.
+- **Puzzle/Logic Games:** Wordle, Guess the Number, 🔗 Connections (تشابه) in three
+  levels: easy (3 groups, 12 cards), medium (4 groups, 16) and hard (5 groups, 20).
+- **Party, one phone:** 🤳 **Heads Up (على راسك):** the phone on a forehead,
+  tilt for right or pass; 💣 **The Bomb (القنبلة):** a category and a hidden,
+  accelerating fuse, pass the phone; 🚏 **Stop the Bus (أتوبيس كومبليت):** the
+  paper game with the phone as letter, clock and scorer; 5️⃣ **Five Seconds
+  (خمس ثواني):** name three things in a category before the ring runs out.
+- **Quiz cards, one phone or a room:** 🤔 **Emoji Riddles (فوازير إيموجي):**
+  a film, a proverb, a dish or a place in emoji (`EmojiRiddles.js`); 📜
+  **Complete the Proverb (كمّل المثل):** a proverb with one word missing
+  (`Proverbs.js`).
+- **Rooms only, no content at all:** 🙊 **Two Truths and a Lie (صدق ولا
+  كذب):** everyone writes, everyone votes; 🖍️ **Draw & Write (ارسم واكتب):**
+  the drawing telephone, drawn on phones and revealed on the TV; 🧠 **The Mind
+  (العقل):** secret numbers laid down in rising order without a word.
+- **Rooms only, a deduction game:** **The Witness (الشاهد):** one sees a
+  face for 8 seconds and describes it, the next builds it on a face builder,
+  the rest pick the real one from a lineup of six look-alikes (*الشاهد*).
+- **Rooms only, a bluffing auction:** **The Auction (المزاد):** a
+  game-show studio, eight boxes one at a time, a true secret clue on every
+  phone, a minute of talk (and lies), one secret bid each; the highest takes
+  the box, pays, and it opens in front of everyone (*المزاد*).
+- **Rooms only, a reflex game:** **Exactly 3! (بالظبط ٣!):** one order for
+  the whole table after a countdown («بالظبط ٣ منكم يحطوا إيدهم!», nobody,
+  in turn, all at once…), hands slammed on a wooden table, three tea glasses
+  that spill, levels until the tea is gone (*بالظبط ٣!*).
+- **Rooms only, a party game:** 🪑 **Musical chairs (الكراسي الموسيقية):**
+  every phone is a player, the music stops at a secret moment, the fastest
+  taps get the chairs, one out a round (*الكراسي الموسيقية*).
+- **The TV as the game, the phones as controllers:** **Bumper Cars
+  (عربيات التصادم):** a 3D fairground rink on the big screen, every phone
+  steering its own car (a stick or tilt, a turbo and a horn), three ways to
+  play - بالونات, نقط and الحلبة - and computer players (*عربيات التصادم*).
+- **Multiplayer-only, also:** 🔔 **Buzzer (الجرس):** the host asks out loud,
+  every phone is a buzzer, the server keeps the order of presses;
+  🕴️ **Mafia (مافيا):** the app narrates night and day, roles on each phone;
+  🐄 **Herd Mentality (زي الكل):** write what most of the table will write;
+  🌈 **Uno (أونو):** the whole card game, every hand on its own phone, with
+  the house rules as switches and computer players to fill the table;
+  🗓️ **Timeline (قبل ولا بعد):** put an event in its place on the line,
+  before or after the cards already down;
+  **Guess Who (خمّن مين):** two duel with a secret face each, yes-or-no
+  questions of their own, out loud or typed, winner stays on (*خمّن مين*).
+- **Words, one phone or a room:** **Hangman (المشنقة):** two on one phone
+  taking turns, or a room where one writes and everyone guesses on their own
+  board, or races on the app's word (*المشنقة*).
+- **One sets, everyone solves, in rooms** (*One sets, everyone solves*): 🟩
+  **خمن الكلمة**, 🔢 **خمّن الرقم** and 🌍 **خمّن الدولة** gain a room where one
+  sets the secret and every other phone solves it on its own board, or a race
+  on the app's pick; 🤔 **فوازير إيموجي** gains a riddle written by a player
+  (and the same race) beside its quiz.
+- **Two players & solo:** 🎴 **Memory (لعبة الذاكرة)** solo against the clock
+  or two on one phone; ⭕ **Tic Tac Toe (إكس أو)** against a friend or an
+  unbeatable minimax, with a "3 marks only" switch that ends the draws, or a
+  room (*إكس أو in rooms*); 🔴 **Connect 4 (كونكت ٤)** and 🔲 **Dots & Boxes
+  (نقط ومربعات)**: two on one phone, against the phone at three levels, or a
+  room where two play and the rest watch, winner stays on (*The duels*).
+- 🏆 **The duels' tournament (بطولة)**: every room duel - كونكت ٤, نقط
+  ومربعات, إكس أو, خمّن مين, حرب السفن - can be a knockout for four people or
+  more: a random draw with byes, every match of a round at once on its own
+  two phones, the bracket on the TV, a podium (*The duels' tournament*).
+- 🚢 **Battleship (حرب السفن)**: the classic 10×10 with five ships, in real 3D (three.js): against the phone at three levels, or a room where two play and the rest watch, winner stays on (*حرب السفن*).
+- ♞ **Chess (شطرنج)**: the full rules in real 3D (three.js) - a wooden board and Staunton pieces: two on one phone, against the computer at a rating from 400 to 2000 with a coach (a warning before a blunder, hints, a word on every move, the pieces in danger), or a room where two play and the rest watch, winner stays on; a chess clock; every game reviewed move by move (*شطرنج*).
+- **Chess for teams, in rooms:** 🗳️ **شطرنج بالتصويت (Vote chess):** two teams, every move a secret team vote on everyone's own board, the tally shown once it is played (*شطرنج بالتصويت*). 🧠 **المخ والإيد (Hand and Brain):** 2 against 2, the Brain names a piece, the Hand moves it; computer players fill the seats (*المخ والإيد*).
+- **Bughouse (باغ هاوس)**: chess for four on two boards, in rooms: partners on different boards with opposite colours, what you take goes to your partner's hand to drop; clocks always running, a mate or a flag on either board decides it; computer players fill the seats (*باغ هاوس*).
+- **شطرنج الأربعة (Four-Player Chess)**: four on one 14×14 board without its corners, in a room with the TV: two teams (red and yellow against blue and green) or everyone for themselves on chess.com's points, where a player out stays on the board as grey walls; computer players, easy and hard, for the empty colours; the 2D chess board's look with the pieces in four colours, turned so your colour is at the bottom (*شطرنج الأربعة*).
+- **إستميشن (Estimation), in rooms:** four for themselves, 13 cards each: the dash, an auction for the call and the trumps, everyone's call (never adding up to 13), 13 tricks, the score keeper's scoring, 18 rounds (13 and five speed rounds) or 13; computer players take the empty seats (*إستميشن*).
+- **Cards, in rooms:** **كدّاب (I Doubt It):** lay cards face down and say what they are; anyone can call «كدّاب!», the first tap wins; computer players (*كدّاب*). **الشايب (Old Maid):** draw a card blind from the next hand, pair up, and don't be left holding the drawn old man; drag your cards about while someone is lifting one (*الشايب*).
+- **Sports, in real 3D (three.js):** 🎳 **Bowling (بولينج):** swipe the ball down a
+  wooden lane, a curve in the swipe hooks it; solo for a best score, or a
+  room where everyone bowls in turn and everyone watches (*بولينج*). ⛳ **Mini Golf (ميني جولف):** sixty holes, twenty
+  easy, twenty medium and twenty hard, each its own place (a windmill, the
+  Corniche, Khan el-Khalili's magic lamp, the metro's turnstiles, Qaitbay's
+  moat, the Blue Hole, the Suez Canal's ferries, Ibn Tulun's spiral, a pinball
+  table, a rocket in space…), pull back from the ball and let go; games of 3,
+  6, 9 or 18 holes drawn at random from the difficulty chosen (or mixed,
+  easiest first); solo with the best kept on the phone, or a room with the
+  TV where every ball plays the hole at once, or in turns with the balls
+  knocking each other (*ميني جولف*).
+- **Solo, with a puzzle of the day** (*Solo games*): #️⃣ Sudoku, 🔷 2048,
+  🚩 Minesweeper, 👑 Queens, ☀️ Tango, 🖼️ Nonogram; 🧵 خيوط, 🔡 كلمات من
+  حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 🌍 خمّن الدولة; and a
+  daily for 🟩 خمن الكلمة and تشابه too (not 2048).
+- **Utility Tools:**
+  - 👆 Who starts? (مين يبدأ؟), the finger chooser: one starts, two teams, or an order.
+  - 🏆 Tournament Organizer, 👥 Team Generator, 🎡 Random Picker.
+  - ♟️ Chess Clock, ⏱️ General Timers, 🎲 Dice & Coin.
+  - 🀄 Domino Scorer (a shortcut to the domino setup's "على الطاولة" side),
+    🔢 Universal Counter, 🔊 the soundboard.

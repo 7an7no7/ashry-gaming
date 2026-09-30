@@ -12,6 +12,8 @@
  *   GET  /live                                    -> { players, rooms } playing right now
  *   POST /count   { game }                        a game started on one phone (counted, nothing else kept)
  *   POST /report  { game, text, lang }            «في غلطة؟»: an item a player says is wrong
+ *   POST /err     { b, m, f, v }                  an error on a player's phone (build, message, frame, view)
+ *   GET|DELETE /errors                            what /err kept (the admin key)
  *   GET  /test                                    connection test page
  *
  * Bodies are JSON sent as text/plain, which browsers send without a CORS
@@ -93,6 +95,55 @@ const countAllowed = (request) => {
   seen.n++;
   return seen.n <= COUNT_LIMIT;
 };
+
+// A page sends at most ten errors a load (JS_Core.html); 40 an hour from one address
+// is a household reloading a broken screen, and a script can't fill the log.
+const ERR_LIMIT = 40;
+const ERR_WINDOW_MS = 60 * 60 * 1000;
+const erredBy = new Map();
+const errAllowed = (request) => {
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+  if (!ip) return true;
+  const now = Date.now();
+  if (erredBy.size > 5000) {
+    for (const [k, v] of erredBy) if (now - v.since > ERR_WINDOW_MS) erredBy.delete(k);
+  }
+  const seen = erredBy.get(ip);
+  if (!seen || now - seen.since > ERR_WINDOW_MS) { erredBy.set(ip, { n: 1, since: now }); return true; }
+  seen.n++;
+  return seen.n <= ERR_LIMIT;
+};
+
+/**
+ * One error from a page, made safe to keep: the build, the view, a short message
+ * with anything that could be a player's text or an address blanked out, and the
+ * first frame of the page's own code. The device kind comes from the User-Agent
+ * header (never stored whole). Returns null for something not worth keeping.
+ */
+function errEntry(body, ua) {
+  const build = /^[0-9]{8,14}$/.test(String(body.b || '')) ? String(body.b) : 'unknown';
+  const view = /^[a-z0-9-]{1,40}$/.test(String(body.v || '')) ? String(body.v) : '?';
+  let msg = String(body.m || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  if (!msg) return null;
+  msg = msg
+    .replace(/https?:\/\/[^\s'"()]+/g, '<url>')
+    .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '<email>')
+    // A quoted piece is kept only when it reads like code (a property, a function name).
+    .replace(/(['"`])([^'"`]*)\1/g, (all, q, inner) => (/^[\w$.#\[\]-]{1,40}$/.test(inner) ? all : q + '…' + q))
+    .replace(/\d{3,}/g, '#')
+    .slice(0, 100);
+  const frame = String(body.f || '').replace(/[^\w$.@:<>/-]/g, '').slice(0, 56) || '?';   // 100 + ' @ ' + 56 fits the log's 160
+  const s = String(ua || '');
+  const os = /iPhone|iPad|iPod/.test(s) ? 'ios' : /Android/.test(s) ? 'android'
+    : /SmartTV|SMART-TV|Tizen|Web0S|webOS|CrKey|AFT|BRAVIA/i.test(s) ? 'tv' : 'desktop';
+  const br = /FBAN|FBAV|Instagram|TikTok|GSA\//.test(s) ? 'inapp'
+    : /SamsungBrowser/.test(s) ? 'samsung'
+    : /EdgiOS|EdgA|Edg\//.test(s) ? 'edge'
+    : /FxiOS|Firefox\//.test(s) ? 'firefox'
+    : /CriOS|Chrome\//.test(s) ? 'chrome'
+    : /Safari\//.test(s) ? 'safari' : 'other';
+  return { lang: build, cat: view, word: msg + ' @ ' + frame, long: true, keep: true, stamp: true, tag: os + '-' + br };
+}
 
 const randomCode = () => {
   const bytes = new Uint8Array(ROOM_CODE_LEN);
@@ -205,6 +256,38 @@ export default {
         }
       } catch (err) { /* a report is never worth an error */ }
       return json({ ok: true });
+    }
+
+    // An error on a player's phone (JS_Core.html's reporter): no name, no room code, no
+    // address kept - the build, the screen, the message and where in the page, and the
+    // kind of device. Answered 204 whatever happens: a report is never worth an error.
+    if (url.pathname === '/err') {
+      if (request.method !== 'POST') return json({ ok: false }, 405);
+      try {
+        const text = await request.text();
+        const body = JSON.parse(text.length < 2000 ? text : '{}') || {};
+        const entry = errEntry(body, request.headers.get('User-Agent'));
+        if (entry && errAllowed(request)) {
+          await env.WORDS.get(env.WORDS.idFromName('errors')).add([entry]);
+        }
+      } catch (err) { /* never an error about an error */ }
+      return new Response(null, { status: 204, headers: CORS });
+    }
+
+    // What /err kept, for the owner (npm run errors); DELETE empties it once read.
+    if (url.pathname === '/errors') {
+      const auth = request.headers.get('Authorization') || '';
+      if (!env.ADMIN_KEY || auth !== `Bearer ${env.ADMIN_KEY}`) return new Response('not found', { status: 404 });
+      try {
+        const log = env.WORDS.get(env.WORDS.idFromName('errors'));
+        if (request.method === 'DELETE') { await log.clear(); return json({ ok: true }); }
+        if (request.method !== 'GET') return new Response('not found', { status: 404 });
+        const list = await log.list();
+        list.sort((a, b) => b.n - a.n);
+        return json(list);
+      } catch (err) {
+        return json({ ok: false, error: 'unavailable' }, 500);
+      }
     }
 
     if (url.pathname === '/plays' || url.pathname === '/reports') {

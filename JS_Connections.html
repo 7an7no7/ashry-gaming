@@ -106,8 +106,12 @@ if (typeof onLanguageChange === 'function') {
  * on every phone on the date (soloRng(soloDaySeed('connections'))), played
  * once. Started again while it's under way, it goes back to that board.
  */
-function startConnections(daily) {
+// A board with a group found or a mistake made: a new one asks first (soloConfirmNew).
+const connectHasWork = (c) => !!c.puzzle && ((c.solved || []).length > 0 || c.mistakes > 0);
+
+function startConnections(daily, sure) {
   daily = daily === true;
+  if (!sure && soloConfirmNew('connections', connectHasWork, () => startConnections(daily, true))) return;
   if (daily && soloDailyResume('connections')) return;
   // Played once: today's, once finished, is never dealt again (a past day from the archive may be).
   if (daily && !soloArchiveDay && soloDailyResult('connections')) { setupConnections(); return; }
@@ -223,9 +227,9 @@ function submitConnectGuess() {
     renderConnections();
     const flying = flyConnectGroup(groups[0], from);
     if (c.solved.length === puzzle.groups.length) {
-      // The last row lands before the board settles into its finished state.
-      if (flying) setTimeout(() => { if (connections.puzzle === puzzle) finishConnections(true); }, CONNECT_FLY_MS);
-      else finishConnections(true);
+      // The board is finished (and a daily marked) at once, so a reload in the
+      // flight can't lose it; only the redraw and the sheet wait for the last row.
+      finishConnections(true, flying ? CONNECT_FLY_MS : 0);
     }
     return;
   }
@@ -324,26 +328,36 @@ function flyConnectGroup(gi, from) {
 
 const CONNECT_SQUARES = ['🟨', '🟩', '🟦', '🟪', '🟥'];
 
-function finishConnections(won) {
+/** The board is over: its state (and a daily's result) kept now; the redraw and the sheet after `waitMs`. */
+function finishConnections(won, waitMs) {
   const found = connections.solved.length;
   connections.phase = 'done';
   // Losing still reveals the answer — otherwise the puzzle just nags at you.
   connections.solved = connections.puzzle.groups.map((g, i) => i);
   connections.selected = [];
-  renderConnections(true);
   const c = connections;
-  if (!c.daily && !c.archive) {
-    if (won) confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } });
-    else playSound('alarm');
-    return;
-  }
-  // A daily (or a day from the archive): the result sheet, and today's is kept at once.
+  const puzzle = c.puzzle;
+  saveConnections();
   const t = TRANSLATIONS[appState.lang] || {};
   let share = '';
   if (c.daily) {
     soloMarkDaily('connections', { won: won, mistakes: c.mistakes, groups: found, total: c.puzzle.groups.length }, c.daily);
     share = connectShareText(t, c.daily, won, c.mistakes, c.guesses || []);
   }
+  if (waitMs) { setTimeout(() => { if (connections.puzzle === puzzle) connectSettle(won, found, share); }, waitMs); return; }
+  connectSettle(won, found, share);
+}
+
+function connectSettle(won, found, share) {
+  const c = connections;
+  renderConnections(true);
+  if (!c.daily && !c.archive) {
+    if (won) confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } });
+    else playSound('alarm');
+    return;
+  }
+  // A daily (or a day from the archive): the result sheet (today's was kept at once).
+  const t = TRANSLATIONS[appState.lang] || {};
   soloLater('connections', motionOff() ? 0 : 900, () => soloResult({
     icon: '🔗',
     title: won ? (c.mistakes ? (t.conn_daily_won || '') : (t.conn_daily_perfect || '')) : (t.conn_daily_lost || ''),
@@ -435,17 +449,26 @@ function saveConnections() {
     }));
   } catch (e) {}
 }
-function restoreConnections() {
+/** The saved board put back into `connections` when it is unfinished; false otherwise. */
+function connectLoadSaved() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(CONNECT_SAVE_KEY) || 'null'); } catch (e) {}
-  const over = !saved || !saved.puzzle || !Array.isArray(saved.tiles)
-    || saved.solved.length >= saved.puzzle.groups.length || saved.mistakes >= CONNECT_MAX_MISTAKES;
-  if (over) { setupConnections(); return; }
+  const over = !saved || !saved.puzzle || !Array.isArray(saved.tiles) || !Array.isArray(saved.solved)
+    || saved.phase === 'done' || saved.solved.length >= saved.puzzle.groups.length || saved.mistakes >= CONNECT_MAX_MISTAKES;
+  if (over) return false;
   Object.assign(connections, saved, { selected: [], phase: 'play' });
   if (!connections.archive) delete connections.archive;
+  return true;
+}
+function restoreConnections() {
+  if (!connectLoadSaved()) { setupConnections(); return; }
   setView('play-connections');
   renderConnections();
 }
+// The board lives in this file, not appState: an unfinished one is put back at
+// start-up, so the dailies (soloDailyLive, soloDailySetAside) see it after a
+// reload on any screen and a free game can't deal over today's silently.
+if (typeof localStorage !== 'undefined') { try { connectLoadSaved(); } catch (e) {} }
 
 /* The dailies (JS_Solo.html) read and set this board aside through `connections`.
    JS_Solo.html loads after this file: it registers the game once it is there. */

@@ -77,7 +77,7 @@ const svRaceKind = (id) => {
     board: (x, st) => R().board(x, st),
     tries: () => 0,
     guess: (b, x, p, st) => R().move(b, x, p, st),
-    view: (b, x, st) => R().view(b, x, st),
+    view: (b, x, st, over) => R().view(b, x, st, over),
     progress: (b, x, st) => Object.assign({ total: R().total(x, st) }, R().progress(b, x, st)),
     score: (b, x, st) => (R().score ? R().score(b, x, st) : 0),
     reveal: (x, st) => (R().reveal ? R().reveal(x, st) : null),

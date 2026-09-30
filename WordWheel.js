@@ -162,7 +162,10 @@ const WHEEL_RACE_LEVEL = 'medium';
 const WHEEL_RACE = {
   deal(rnd, st) {
     const lang = st.lang === 'en' ? 'en' : 'ar';
-    const made = wheelMake(WHEEL_RACE_LEVEL, lang, rnd) || wheelMake('easy', lang, rnd);
+    // The generator can come back empty: try again (the easy size last), never deal nothing.
+    let made = null;
+    for (let i = 0; !made && i < 12; i++) made = wheelMake(i < 8 ? WHEEL_RACE_LEVEL : 'easy', lang, rnd);
+    if (!made) throw new Error('ماعرفناش نجهّز اللوحة، جرّبوا تاني');
     return {
       pub: { letters: made.letters, layout: made.words.map(p => ({ len: p.w.length, r: p.r, c: p.c, dir: p.dir })), rows: made.rows, cols: made.cols, lang: lang },
       words: made.words.map(p => p.w),

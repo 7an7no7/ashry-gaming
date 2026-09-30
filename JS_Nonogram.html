@@ -83,8 +83,10 @@ function startNonogram(daily, sure) {
   const s = nonoState();
   const level = daily ? 'hard' : s.level;
   const rnd = soloRandom(daily ? soloDaySeed('nonogram') : null);
-  const made = nonoMake(level, rnd, daily ? nonoDailyPicture(nonoSolvablePictures(NONO_SIZES[level]), soloToday()) : null);
-  if (!made) return;
+  let made = nonoMake(level, rnd, daily ? nonoDailyPicture(nonoSolvablePictures(NONO_SIZES[level]), soloToday()) : null);
+  // A free board that couldn't be made gets one more go with other dice.
+  if (!made && !daily) made = nonoMake(level, soloRandom(null), null);
+  if (!made) { showToast((TRANSLATIONS[appState.lang] || {}).solo_make_failed || '', 'error'); return; }
   soloDailySetAside('nonogram');
   soloNewGame('nonogram');
   s.daily = daily ? soloToday() : '';
@@ -283,7 +285,7 @@ function nonoCheck() {
   const n = s.n;
   nonoCelebrate(s);
   const level = s.playLevel || s.level;
-  const rec = s.hints ? { record: false, prev: soloBest('nonogram', level) }
+  const rec = s.hints || s.archive ? { record: false, prev: soloBest('nonogram', level) }
     : soloRecord('nonogram', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
   let share = '';
   if (s.daily) {

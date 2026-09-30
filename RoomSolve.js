@@ -251,7 +251,7 @@ const svWriteSecrets = (room) => {
   const K = SOLVE_KINDS[s.solve];
   Object.keys(h.boards || {}).forEach(pid => {
     const b = h.boards[pid];
-    room.secrets[pid] = { board: K.view(b, h.secret, s.settings), state: b.state, n: b.n };
+    room.secrets[pid] = { board: K.view(b, h.secret, s.settings, s.phase !== 'solving'), state: b.state, n: b.n };
     // «استسلم»: its own phone says «استسلمت», not «خسرت» (the table sees it only on the result).
     if (b.gave) room.secrets[pid].gave = true;
   });
@@ -263,6 +263,7 @@ const svProgressOf = (room, b, at) => {
   const s = room.shared;
   const out = Object.assign({ n: b.n, state: b.state, at: at }, SOLVE_KINDS[s.solve].progress(b, room._solve.secret, s.settings));
   if (s.race && b.state !== 'play') out.secs = svSecs(room, b);
+  if (b.timeUp) out.timeUp = true;
   return out;
 };
 
@@ -392,7 +393,8 @@ const svEndRound = (room) => {
   if (s.race) svRaceRank(room).forEach((r, i) => { ranks[r.pid] = { at: i, score: r.score }; });
   Object.keys(h.boards).forEach(pid => {
     const b = h.boards[pid];
-    if (b.state === 'play') { b.state = 'lost'; b.at = Date.now(); }
+    // Still solving when the round closed: out of time (⏳), not beaten (💀).
+    if (b.state === 'play') { b.state = 'lost'; b.timeUp = true; b.at = Date.now(); }
     const at = s.race ? (ranks[pid] ? ranks[pid].at : -1) : s.solved.indexOf(pid);
     let pts = 0;
     if (b.state === 'won') {
@@ -407,7 +409,7 @@ const svEndRound = (room) => {
     s.progress[pid] = svProgressOf(room, b, at === -1 ? null : at);
     if (here.indexOf(pid) !== -1) {
       const row = { id: pid, name: roomPlayerName(room, pid), state: b.state, n: b.n, pts: pts };
-      if (s.race) { row.secs = svSecs(room, b); row.score = ranks[pid] ? ranks[pid].score : 0; row.gave = !!b.gave; }
+      if (s.race) { row.secs = svSecs(room, b); row.score = ranks[pid] ? ranks[pid].score : 0; row.gave = !!b.gave; row.timeUp = !!b.timeUp; }
       rows.push(row);
     }
   });
@@ -518,7 +520,8 @@ const solveAction = (room, playerId, action, payload) => {
   if (action === 'skipTurn') {
     // The setter's phone went quiet: the next one sets this secret.
     requireMoveOn(room, playerId);
-    if (s.phase !== 'setting' || staleTap(p, 'round', s.round)) return;
+    // The setter it was pressed for, too: a double tap must not skip the next setter as well.
+    if (s.phase !== 'setting' || staleTap(p, 'round', s.round) || staleTap(p, 'setter', s.setter)) return;
     svDeal(room);
     return;
   }

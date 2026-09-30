@@ -119,10 +119,24 @@ window.RACE_UI = window.RACE_UI || {};  // JS_Connections.html loads before this
 
 /** The race this phone is playing on screen: its kind, or ''. */
 function soloRaceKind() {
+  if (soloOwnOnly) return '';
   const st = typeof Room !== 'undefined' && Room.state;
   if (!st || !st.shared || !st.shared.race || !st.shared.solve) return '';
   if (appState.currentView !== 'room-' + st.game) return '';
   return st.shared.solve;
+}
+
+/**
+ * The solo game's own board, never the race's: a state accessor answers with the
+ * race board while this phone races that game, but pausing, the dailies and the
+ * leave hooks are about the solo game (a solo board left for a race of the same
+ * game is the one to pause).
+ */
+let soloOwnOnly = false;
+function soloOwnState(g) {
+  if (!g || !g.state) return null;
+  soloOwnOnly = true;
+  try { return g.state(); } finally { soloOwnOnly = false; }
 }
 
 /** This phone's race board of `kind` (the game's state object), or null when it isn't racing it. */
@@ -158,7 +172,7 @@ function soloNewGame(id) {
   soloEpochs[id] = (soloEpochs[id] || 0) + 1;
   soloLookOn = null;   // the finished board being looked at is gone
   const g = typeof SOLO_GAMES !== 'undefined' ? SOLO_GAMES[id] : null;
-  const s = g && g.state ? g.state() : null;
+  const s = soloOwnState(g);
   if (s && s.archive) delete s.archive;
 }
 
@@ -316,7 +330,7 @@ function soloDailyKeptSave(all) {
 
 /** Today's daily is the game's current board, still being played. */
 function soloDailyLive(g) {
-  const s = g && g.state ? g.state() : null;
+  const s = soloOwnState(g);
   const today = soloRealToday();
   return !!(s && s.daily && s.daily === today && s.phase === 'play' && !soloDailyResult(g.id, today));
 }
@@ -334,7 +348,7 @@ function soloDailyInProgress(id) {
 function soloDailySetAside(id) {
   const g = SOLO_GAMES[id];
   if (!soloDailyLive(g)) return;
-  const copy = JSON.parse(JSON.stringify(g.state()));
+  const copy = JSON.parse(JSON.stringify(soloOwnState(g)));
   soloPause(copy);
   const all = soloDailyKept();
   all[id] = { day: copy.daily, state: copy };
@@ -355,7 +369,7 @@ function soloDailyResume(id) {
     if (!kept || kept.day !== soloToday() || !kept.state) return false;
     // Put it back in the same object (the game's code holds on to it),
     // keeping the setup choices made since.
-    const s = g.state();
+    const s = soloOwnState(g);
     const prefs = {};
     (g.prefs || []).forEach(k => { if (k in s) prefs[k] = s[k]; });
     Object.keys(s).forEach(k => { delete s[k]; });
@@ -431,8 +445,8 @@ if (typeof onLeaveScreen === 'function') {
   onLeaveScreen((from, to) => {
     Object.values(SOLO_GAMES).forEach(g => {
       if (!g.timed || !g.state || !g.play) return;
-      if (from === g.play) soloPause(g.state());
-      if (to === g.play) soloResume(g.state());
+      if (from === g.play) soloPause(soloOwnState(g));
+      if (to === g.play) soloResume(soloOwnState(g));
     });
     if (soloLookOn && from === soloLookOn.view) soloLookOn = null;
   });

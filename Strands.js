@@ -158,7 +158,10 @@ const STRANDS_RACE = {
   deal(rnd, st, pick) {
     const lang = st.lang === 'en' ? 'en' : 'ar';
     const themes = pick && pick.many ? pick.many(CHAMELEON_DB[lang] || CHAMELEON_DB.ar, 'race_strands_' + lang, 8) : [];
-    const made = strandsMake(STRANDS_RACE_LEVEL, lang, rnd, themes) || strandsMake('easy', lang, rnd, themes);
+    // The generator can come back empty: try again (the easy size last), never deal nothing.
+    let made = null;
+    for (let i = 0; !made && i < 12; i++) made = strandsMake(i < 8 ? STRANDS_RACE_LEVEL : 'easy', lang, rnd, themes);
+    if (!made) throw new Error('ماعرفناش نجهّز اللوحة، جرّبوا تاني');
     return {
       pub: { size: made.size, theme: made.theme, icon: made.icon, grid: made.grid, lens: made.words.map(w => w.w.length), lang: lang },
       words: made.words

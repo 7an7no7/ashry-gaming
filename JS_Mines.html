@@ -229,7 +229,7 @@ function paintMines(opened, from) {
           if (isMine) { cls += i === s.boom ? ' is-boom' : ' is-mine'; inner = '💣'; }
           else { const n = minesNumAt(s, i); if (n) { cls += ' n' + n; inner = n; } }
         } else if (s.flags[i]) {
-          cls += ' is-flag' + (over && !isMine && (!s.race || s.mines.length) ? ' is-wrong' : '');
+          cls += ' is-flag' + (over && !isMine && (!s.race || s.minesAll) ? ' is-wrong' : '');
           inner = '🚩';
         }
         return `<button type="button" class="${cls}" data-i="${i}"
@@ -306,7 +306,9 @@ function minesWin() {
   saveToLocal();
   paintMines();
   const level = s.playLevel || s.level;
-  const rec = soloRecord('mines', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
+  // A past day replayed from the archive is never a best.
+  const rec = s.archive ? { record: false, prev: soloBest('mines', level) }
+    : soloRecord('mines', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
   let share = '';
   if (s.daily) {
     soloMarkDaily('mines', { seconds: seconds }, s.daily);
@@ -345,7 +347,10 @@ RACE_UI.mines = {
     const b = board || {};
     const fresh = [];
     (b.open || []).forEach(o => { if (!s.open[o.i]) { s.open[o.i] = 1; s.nums[o.i] = o.n; s.flags[o.i] = 0; fresh.push(o.i); } });
-    if (typeof b.boom === 'number' && b.boom >= 0) { s.boom = b.boom; s.mines = (b.mines || []).slice(); s.phase = 'done'; }
+    // The mine hit while the others race; the whole field (`all`) once the round is over.
+    const had = (s.mines || []).length;
+    if (typeof b.boom === 'number' && b.boom >= 0) { s.boom = b.boom; s.mines = (b.mines || []).slice(); s.minesAll = !!b.all; s.phase = 'done'; }
+    if (!fresh.length && !(fx && fx.first) && s.mines.length !== had) paintMines();
     if (fresh.length || (fx && fx.first)) {
       const from = s.lastTap >= 0 ? s.lastTap : fresh[0];
       paintMines(fx && fx.first ? null : fresh, from);

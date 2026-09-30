@@ -19,7 +19,11 @@ function setupWordle() {
  * the same list with soloRng(soloDaySeed('wordle'))), 6 tries, played once.
  * Started again while it's under way, it goes back to that board.
  */
-function startWordleGame(length, daily) {
+// A board with a word tried: a new one asks first (soloConfirmNew).
+const wordleHasWork = (w) => (w.guesses || []).length > 0;
+
+function startWordleGame(length, daily, sure) {
+    if (!sure && soloConfirmNew('wordle', wordleHasWork, () => startWordleGame(length, daily, true))) return;
     if (daily && soloDailyResume('wordle')) return;
     // Played once: today's, once finished, is never dealt again (a past day from the archive may be).
     if (daily && !soloArchiveDay && soloDailyResult('wordle')) { setupWordle(); return; }

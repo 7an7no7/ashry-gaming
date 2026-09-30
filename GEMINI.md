@@ -70,6 +70,10 @@ file and a new line.
 - One sets, everyone solves (Wordle, the number, the country, the emoji riddle in rooms) - `notes/games/solve.md`.
 - سباق ألغاز (the ten puzzles as a race) - `notes/games/race.md`.
 - الكراسي الموسيقية - `notes/games/chairs.md`. عربيات التصادم (the TV as the console) - `notes/games/bumper.md`.
+- 🎉 «الشلة» (the crew: a family's or friends' monthly table, champions, titles, its quizzes and words; a room opened for it - asked «للشلة؟» every time - records its night once; `Crew.js`, `rooms-worker/src/crew.js`, `JS_CrewCore.html`, `JS_Crew.html`, `/crew/*`, `/s/CODE`) - `notes/games/crew.md`.
+- ✍️ «اعمل مسابقتك» (the family's own quiz: a room, the team board, the buzzer) and «كلماتنا» (the family's words as a category in the word games), kept by a 6-letter code (`Packs.js`, `rooms-worker/src/packs.js`, `JS_PackStore.html`, `JS_QuizMaker.html`, `/pack/*`) - `notes/games/quiz.md`.
+- 🌙 «برنامج السهرة» (the night as a show: the host's line-up of room games run on the server's clock, the table between games, places → 5/3/2/1, the finale with the podium and awards; `RoomProgram.js`, `JS_RoomProgram.html`) - `notes/games/program.md`.
+- **The night's points are one rule everywhere** (the owner, 30 Sep 2026): each game banks 5 / 3 / 2 for the first three places and 1 for everyone else who played (`NIGHT_PLACES`, `NIGHT_PLAYED` in `RoomGames.js`): the room's night board, الشلة's nights and the program.
 - The five of 29 Sep: الحقوا! - `notes/games/wire.md`; الأوضة المضلمة - `notes/games/darkroom.md`; حط إيدك! - `notes/games/exact.md`; الشاهد - `notes/games/witness.md`; المزاد - `notes/games/box.md`.
 
 ### The app around the games

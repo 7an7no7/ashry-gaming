@@ -35,6 +35,12 @@ const ROOMS = (process.argv.slice(2).find((a) => /^https?:/.test(a)) || process.
 const ONLY = (process.env.ONLY || 'screens,rooms,fixes,site').split(',');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'ashry-ui-'));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// Side by side (tools/test-ui-parallel.mjs): which screen sizes this process sweeps, and which
+// share of the room games it plays (i/k: every k-th game from the i-th). UI_GAMES=uno,domino plays
+// just those room games. UI_PREVIEW / UI_SITE: copies already built, so a shard doesn't build again.
+const SIZES = process.env.UI_SIZES ? process.env.UI_SIZES.split(',') : null;
+const ROOMS_SHARD = (process.env.UI_ROOMS_SHARD || '0/1').split('/').map(Number);
+const ONLY_GAMES = process.env.UI_GAMES ? process.env.UI_GAMES.split(',') : null;
 
 let failed = 0, passed = 0;
 const check = (ok, label, detail) => {
@@ -56,14 +62,19 @@ const build = (script, env) => {
   const r = spawnSync(process.execPath, [path.join(here, script)], { env: Object.assign({}, process.env, env), encoding: 'utf8' });
   if (r.status !== 0) { console.error(r.stdout, r.stderr); process.exit(1); }
 };
-const PREVIEW = path.join(TMP, 'preview');
+const PREVIEW = process.env.UI_PREVIEW || path.join(TMP, 'preview');
 const SITE = path.join(TMP, 'site');
-build('build-preview.mjs', { ROOMS_URL: ROOMS, PREVIEW_OUT: PREVIEW });
-fs.mkdirSync(SITE, { recursive: true });
-for (const f of ['icon-180.png', 'icon-192.png', 'icon-512.png', 'favicon-64.png', 'manifest.webmanifest']) {
-  if (fs.existsSync(path.join(root, 'docs', f))) fs.copyFileSync(path.join(root, 'docs', f), path.join(SITE, f));
+if (process.env.UI_SITE) {
+  // The site part rewrites its copy (a newer stamp), so each process gets one of its own.
+  fs.cpSync(process.env.UI_SITE, SITE, { recursive: true });
+} else {
+  build('build-preview.mjs', { ROOMS_URL: ROOMS, PREVIEW_OUT: PREVIEW });
+  fs.mkdirSync(SITE, { recursive: true });
+  for (const f of ['icon-180.png', 'icon-192.png', 'icon-512.png', 'favicon-64.png', 'manifest.webmanifest']) {
+    if (fs.existsSync(path.join(root, 'docs', f))) fs.copyFileSync(path.join(root, 'docs', f), path.join(SITE, f));
+  }
+  build('build-site.mjs', { ROOMS_URL: ROOMS, SITE_OUT: SITE });
 }
-build('build-site.mjs', { ROOMS_URL: ROOMS, SITE_OUT: SITE });
 
 /* --- a static server for both ------------------------------------------------------------ */
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
@@ -120,7 +131,11 @@ ws.onmessage = (e) => {
   } else if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') {
     const text = (m.params.entry.text || '') + ' ' + (m.params.entry.url || '');
     // A rooms server answering 4xx to a refused move is the app working; only a 5xx is news.
-    if (!skip(text) && !/status of 4\d\d/.test(text)) phone.errors.push('log: ' + text.slice(0, 200));
+    // The play counter's beacon (/count) is sent as a screen is left; under load the local
+    // `wrangler dev` proxy now and then drops one ("Network connection lost") and answers 500.
+    // It is a count, not the app: the server's own tests check /count.
+    const droppedBeacon = /status of 5\d\d .*\/count$/.test(text.trim());
+    if (!skip(text) && !/status of 4\d\d/.test(text) && !droppedBeacon) phone.errors.push('log: ' + text.slice(0, 200));
   }
 };
 const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
@@ -152,13 +167,20 @@ async function resize(phone, w, h) {
   await ev(phone, `window.dispatchEvent(new Event('resize')); 1`);
 }
 /** Runs `expr` in the page (awaited); a page that navigates meanwhile gives undefined. */
-async function ev(phone, expr) {
+async function ev(phone, expr, retried) {
   try {
     const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }, phone.sessionId);
     if (r.exceptionDetails) throw new Error((r.exceptionDetails.exception && r.exceptionDetails.exception.description) || r.exceptionDetails.text);
     return r.result && r.result.value;
   } catch (e) {
     if (/context was destroyed|Cannot find context|Inspected target navigated/.test(e.message)) return undefined;
+    // Caught between two documents (a screen that reloads the page): the app's names aren't there
+    // yet. Seen on a busy PC with several shards at once; wait for the app and ask once more.
+    if (!retried && /(appState|Room|setView) is not defined/.test(e.message)) {
+      if (await appUp(phone, 60000)) return ev(phone, expr, true);
+      const href = await send('Runtime.evaluate', { expression: 'location.href + " " + document.readyState', returnByValue: true }, phone.sessionId).catch(() => null);
+      throw new Error(e.message + ' (the page: ' + (href && href.result ? href.result.value : '?') + ')');
+    }
     throw e;
   }
 }
@@ -223,7 +245,7 @@ const setLook = (phone, lang, dark) => ev(phone, `(() => {
 if (ONLY.includes('screens')) {
   console.log('• every screen on one phone (3 sizes; Arabic light, English dark)');
   const phone = await newPhone('phone');
-  const sizes = [[375, 812], [667, 375], [1280, 720]];
+  const sizes = [[375, 812], [667, 375], [1280, 720]].filter(([w, h]) => !SIZES || SIZES.includes(w + 'x' + h));
   const looks = [['ar', false], ['en', true]];
   for (const [w, h] of sizes) {
     await resize(phone, w, h);
@@ -313,7 +335,8 @@ if (ONLY.includes('rooms')) {
   const { phones, tv, all } = await roomOfFive();
   const host = phones[0];
   all.forEach(takeErrors);
-  const games = await ev(host, `ROOM_HUB_GAMES.map(g => g.id)`);
+  const games = (await ev(host, `ROOM_HUB_GAMES.map(g => g.id)`))
+    .filter((g, i) => i % ROOMS_SHARD[1] === ROOMS_SHARD[0] && (!ONLY_GAMES || ONLY_GAMES.includes(g)));
   // What a host does in the lobby before some games: sides and spymasters, or a phone turned
   // into a screen for a game of 2 to 4.
   const PREP = {
@@ -455,7 +478,7 @@ if (ONLY.includes('site')) {
 
   let next = newBuild();
   await askUpdate();
-  check(await buildNow(20000) === next, 'on the home screen, a new build is switched to by itself');
+  check(await buildNow(40000) === next, 'on the home screen, a new build is switched to by itself');
   await appUp(phone);
 
   // In a game it waits, with the note; back on the home it switches.
@@ -469,7 +492,7 @@ if (ONLY.includes('site')) {
   const inGame = await ev(phone, `({ build: window.BUILD_ID, view: appState.currentView, note: !!document.querySelector('.toast--action') })`);
   check(inGame && inGame.build === before && inGame.view === 'play-sudoku' && inGame.note, 'in a game a new build waits, and a note says it is there', JSON.stringify(inGame));
   await ev(phone, `setView('menu'); 1`);
-  check(await buildNow(20000) === next, 'back on the home screen, it switches by itself');
+  check(await buildNow(40000) === next, 'back on the home screen, it switches by itself');
   await appUp(phone);
   const kept = await ev(phone, `(appState.sudoku && appState.sudoku.puzzle) || ''`);
   check(!!puzzle && kept === puzzle, 'the game left in the middle is still there after the switch', JSON.stringify({ before: puzzle.slice(0, 12), after: String(kept).slice(0, 12) }));
@@ -487,6 +510,7 @@ if (ONLY.includes('site')) {
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
+if (process.env.UI_CHILD) console.log('@@RESULT ' + JSON.stringify({ passed, failed }));
 try { ws.close(); } catch (e) {}
 chrome.kill();
 server.close();

@@ -230,7 +230,7 @@ npm run check        # content + i18n
   strings were quietly the wrong ones before this check existed), and checks that
   every `data-i18n` attribute in the markup names a real key.
 - `npm test` in `rooms-worker/` (with `npm run dev` running) plays every room
-  game with robot players: turns, votes, scores, that secrets never reach the
+  game with robot players, in segments side by side: turns, votes, scores, that secrets never reach the
   wrong phone, reconnects, the server's clocks and the shared prompt memory.
   `npm run test:live` runs the same against the deployed server.
 - `npm run test:rules` in `rooms-worker/` checks the trivia scoring and question
@@ -272,15 +272,23 @@ npm run check        # content + i18n
     (the same site under a newer stamp) is switched to by itself on the home,
     waits with a note in a game and switches back on the home with the game
     kept, and Settings → الإصدار says latest, then newer.
-  `ONLY=screens,rooms,fixes,site` runs some parts; `CHROME=` points at Chrome.
-  About 15 minutes whole.
-- **How long each takes**, and which to run (CLAUDE.md step 5): `npm test`
-  about 9 minutes (the robots wait out the games' real clocks), `test:ui`
-  about 15, `test:live` about 16 (every move crosses the internet). A small
-  change runs the parts it touches; the three in a row are for big releases.
-  Running `npm test` and `test:ui` side by side saves about 9 minutes but makes
-  the timing checks flakier on a busy PC (a mini golf "next hole" wait failed
-  once that way).
+  `ONLY=screens,rooms,fixes,site` runs some parts, `UI_GAMES=uno,domino` some
+  room games; `CHROME=` points at Chrome. About 4 minutes whole, in shards.
+- **How long each takes**, and which to run (CLAUDE.md step 5). Both suites run
+  in shards side by side (30 Sep 2026; `notes/builders/tests-docs.md`): `npm test`
+  plays its 38 segments (`--only=` names, listed in `SEGMENTS` at the end of
+  `play-all.mjs`) four processes at a time, about 4-5 minutes (it was 16
+  one after another; `--jobs=6` about 3, `npm run test:serial` the old way);
+  `test:ui` (`test-ui-parallel.mjs`) builds the app once and runs 8 shards
+  (each screen size, the room games in thirds, fixes, site), each its own
+  Chrome, four at a time: about 4 minutes (it was 10; `test:ui:one` the old
+  single process). `JOBS=N` sets how many at once for either. `test:live`
+  is `npm test` against the live server. **`npm run test:changed`** in `tools/`
+  runs only what the changes since master need (`--dry` to see the plan,
+  `--files=` to ask about a file): the map from files to robot segments and
+  room games is `MAP` in `tools/test-changed.mjs`, and a core file or one it
+  doesn't know runs everything. Don't run `npm test` and `test:ui` at the same
+  time: eight processes on one PC make the timing checks flaky.
 - **Continuous checks** (`.github/workflows/checks.yml`, 28 Sep 2026): every
   push to `master` and every pull request into it runs, on GitHub Actions
   (free, nothing to look after), `npm ci` in `tools/` and `rooms-worker/`,

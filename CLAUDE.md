@@ -64,10 +64,12 @@ each game's full spec and how it is built is in `notes/games/<id>.md`, the log i
    `npm test`. Every check must pass.
 5. **The screen test**: with `npm run dev` running in `rooms-worker/`,
    `cd tools && npm run test:ui` (every screen at three sizes, every room game on
-   five phones and a TV, the offline copy and its updates; about 15 minutes, or
-   `ONLY=rooms` etc. for a part). Every check must pass. **Test what changed**
-   (the owner, 25 Sep 2026: the three suites in a row take 35-40 minutes): a
-   small change runs `npm run check`, `test:rules` and only the parts it touches
+   five phones and a TV, the offline copy and its updates; about 4 minutes in
+   shards, or `ONLY=rooms` etc. for a part; `npm test` about 5). Every check
+   must pass. **Test what changed** (the owner, 25 Sep 2026: the suites in a row
+   took 35-40 minutes): `cd tools && npm run test:changed` runs the checks, the
+   robot segments and the screen-test parts the changes since master need
+   (`--dry` shows the plan); otherwise a small change runs `npm run check`, `test:rules` and only the parts it touches
    (`ONLY=screens` for a screen or a setup, `ONLY=rooms` for a room client,
    `ONLY=site` for the offline copy; `npm test` and `test:live` only when step 4
    applies); the full run is for big releases (an audit's fixes, a new game, a
@@ -105,12 +107,13 @@ cd tools && npm run build:preview   # the app in .preview/, rooms on :8787
 cd tools && npm run build:site      # rebuild docs/ (commit it)
 cd tools && npm run check:live      # are both addresses serving this build?
 cd tools && npm run deploy:site     # the second address (Cloudflare) - every release
-cd tools && npm run test:ui         # every screen, every room game, the offline copy (needs npm run dev)
+cd tools && npm run test:ui         # every screen, every room game, the offline copy, in shards (needs npm run dev)
+cd tools && npm run test:changed    # only what the changes since master need (-- --dry: the plan)
 cd tools && npm run export:trivia -- <path>  # the board bank as trivia_bank.js
 cd tools && npm run build:icons     # the brand mark (Logo.html) and the icons in docs/
 cd tools && npm run plays           # how often each game is started (ASHRY_ADMIN_KEY)
 cd rooms-worker && npm run dev      # local rooms server on :8787
-cd rooms-worker && npm test         # robot players, every room game (needs npm run dev)
+cd rooms-worker && npm test         # robot players, every room game, 4 segments at a time (needs npm run dev)
 cd rooms-worker && npm run test:rules  # trivia scoring, no server needed
 cd rooms-worker && npm run deploy   # publish the rooms server (build the site first)
 cd rooms-worker && npm run test:live

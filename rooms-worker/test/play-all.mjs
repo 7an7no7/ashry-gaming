@@ -6,9 +6,13 @@
  *
  *   node test/play-all.mjs                         # local: npx wrangler dev
  *   node test/play-all.mjs https://ashry-rooms.3ashry.workers.dev
+ *   node test/play-all.mjs --only=uno,domino       # some segments (the names: SEGMENTS, at the end)
+ *   node test/play-all.mjs --jobs=6                # 6 segments at once (default 4, JOBS=… too)
+ *   node test/play-all.mjs --jobs=1                # one after another, in this process
  *
- * Needs Node 22+ (built-in fetch and WebSocket). Takes about half a minute,
- * most of it waiting for a trivia question to time out on the server.
+ * Needs Node 22+ (built-in fetch and WebSocket). The games are segments that each
+ * play in rooms of their own, run side by side in processes of their own: about
+ * 4-5 minutes at 4, 3 at 6, 17 one after another (most of it the games' real clocks).
  */
 import { readFileSync } from 'node:fs';
 import { stopDictionary, stopAnswerFits, stopWordKnown, foldStopAnswer } from '../generated/rules.js';
@@ -982,7 +986,11 @@ async function boxRobots() {
     for (let i = 1; i < people.length; i++) await people[i].must('bid', { box: n, amount: bids[i] });
     await all(people.concat([TV]), (s) => s.shared.phase === 'open' && s.shared.result && s.shared.result.box === n, `box ${n + 1}: every bid in: the box opens on every screen`);
     const R = H.state.shared.result;
-    const top = Math.max(...bids);
+    // A bid is capped at the money its player has (a scorpion or the thief earlier can leave less
+    // than the robot asked for), so the highest is the highest of the bids the server took.
+    const top = Math.max(...Object.values(R.bids));
+    check(people.every((b, i) => R.bids[b.pid] === Math.min(bids[i], R.before ? R.before[b.pid] : bids[i])),
+      `box ${n + 1}: every bid is what was sent, or all the money when that was less`);
     check(Object.keys(R.bids).length === people.length && (top === 0 ? !R.winnerId : R.bid === top && R.bids[R.winnerId] === top),
       `box ${n + 1}: the bids are shown; the highest takes the box (${R.kind})`);
     check(!people.some((b) => b.state.you && b.state.you.clue), `box ${n + 1}: the clues leave the phones once it opens`);
@@ -1398,115 +1406,8 @@ async function errRobots() {
   check(row.first > 0 && row.last >= row.first, 'errors: when it was first and last seen');
 }
 
-async function main() {
-  console.log('rooms server:', BASE);
-  const t0 = Date.now();
-  if (ONLY === 'err') {
-    await errRobots();
-    await sleep(300);   // lets the last sockets close: Node on Windows asserts on an exit while one is closing
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'hostaway') {
-    await hostAwayRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'teamchess') {
-    await teamChessRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'hq') {
-    await hiddenQueenRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'chess4') {
-    await chess4Robots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'skull') {
-    await skullRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'estimation') {
-    await estimationRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'bumper') {
-    await bumperRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'snakes') {
-    await snakesRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'box') {
-    await boxRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'darkroom') {
-    await darkroomRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'exact') {
-    await exactRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'witness') {
-    await witnessRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'wire') {
-    await wireRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'chairs') {
-    await chairsRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'autonext') {
-    await autonextRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-  if (ONLY === 'duels') {
-    await duelTourRobots();
-    console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-    if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(failures.length ? 1 : 0);
-  }
-
-  await errRobots();
-
+/* --- the core: one room of four people through the party games (run alone with --only=core) --- */
+async function coreSeg() {
   /* --- room basics ------------------------------------------------------- */
   console.log('• room: create, join, presence, keys');
   const A = await Bot.host('أحمد', null);
@@ -2479,6 +2380,70 @@ async function main() {
   await A.must('chooseGame', { game: 'uno' });
   await all(bots, (s) => s.players.some((p) => p.bot && p.name === 'زيزو'), 'bots: a game with bots sits them back down');
   await A.must('backToHub');
+  console.log('• prompt memory shared between rooms');
+  const H = await Bot.host('H', 'codenames');
+  const others = [H, await Bot.join(H.code, 'I'), await Bot.join(H.code, 'J'), await Bot.join(H.code, 'K')];
+  await others[0].must('setTeam', { team: 'red', role: 'spymaster' });
+  await others[1].must('setTeam', { team: 'red', role: 'operative' });
+  await others[2].must('setTeam', { team: 'blue', role: 'spymaster' });
+  await others[3].must('setTeam', { team: 'blue', role: 'operative' });
+  await H.must('start', { lang: 'ar' });
+  await H.waitFor((s) => s.phase === 'playing', 'second room dealt');
+  const secondBoard = H.state.shared.board.map((c) => c.word);
+  const repeated = secondBoard.filter((w) => firstBoard.indexOf(w) !== -1);
+  check(repeated.length === 0, `a new room's board skips the last room's words (${repeated.length} repeated)`);
+  others.forEach((b) => b.close());
+
+  /* --- leaving ----------------------------------------------------------- */
+  console.log('• leaving');
+  await api('/leave', { code: A.code, pid: D.pid, key: D.key });
+  await A.waitFor((s) => s.players.length === 3, 'a player who leaves is removed');
+  await A.act('leave');
+  A.ws.send(JSON.stringify({ t: 'leave' }));
+  await B.waitFor((s) => s.players.length === 2 && s.hostId !== A.pid, 'the host leaving hands the room on');
+  check(B.state.youAreHost || C.state.youAreHost, 'someone is host again');
+  bots.forEach((b) => b.close());
+
+  if (SLOW) {
+    /* --- presence clocks: a socket that dies without closing, a screen host -- */
+    console.log('• presence (--slow: waits about three minutes)');
+    // A host whose phone stops pinging but whose socket never closes, like a locked iPhone.
+    const Z = await Bot.host('زومبي', null);
+    const zAt = Date.now();
+    const Y = await Bot.join(Z.code, 'يحيى');
+    clearInterval(Z.pinger);
+    // A room opened from a TV, whose TV then goes away.
+    const S = await Bot.host('', null, true);
+    const P = await Bot.join(S.code, 'بسمة');
+    await P.waitFor((s) => s.screens.length === 1 && s.screens[0].online, 'the screen host is here');
+    // The room's own early alarms (at create and join) run while the TV is still here, so
+    // nothing but the TV's leaving can start the handover clock.
+    await sleep(25000);
+    S.close();
+    await P.waitFor((s) => s.screens[0].online === false, 'the screen host shows as away when its socket closes');
+    await Y.waitFor((s) => s.players.find((p) => p.id === Z.pid).online === false, 'a socket silent for 70 seconds counts as away', 100000);
+    await Promise.all([
+      Y.waitFor((s) => s.hostId === Y.pid && s.youAreHost, 'a silent host hands the room on after two minutes', 150000)
+        .then(() => check(Date.now() - zAt < 150000, `two minutes counted from when the host was last heard (${Math.round((Date.now() - zAt) / 1000)}s)`)),
+      P.waitFor((s) => s.hostId === P.pid && s.youAreHost, 'a room hosted by a screen that went away hands over to a player', 150000)
+    ]);
+    [Z, Y, S, P].forEach((b) => b.close());
+  }
+
+}
+
+/** A room of the four people the core plays with, for a segment that used to borrow the core's room. */
+async function fourPeople(label) {
+  const A = await Bot.host('أحمد', null);
+  const B = await Bot.join(A.code, 'سارة');
+  const C = await Bot.join(A.code, 'Omar');
+  const D = await Bot.join(A.code, 'منى');
+  const bots = [A, B, C, D];
+  await all(bots, (s) => s.players.length === 4 && s.players.every((p) => p.online), label + ': a room of four');
+  return { A, B, C, D, bots };
+}
+
+async function connect4Seg() {
   /* --- كونكت ٤: winner stays on ------------------------------------------------- */
   console.log('• connect 4 (winner stays on, a draw, someone joining, a forfeit)');
   {
@@ -2578,6 +2543,9 @@ async function main() {
     duelBots.forEach((b) => b.close());
   }
 
+}
+
+async function dotsSeg() {
   /* --- نقط ومربعات --------------------------------------------------------------- */
   console.log('• dots & boxes (a box keeps the turn, two alternate, the TV cannot move)');
   {
@@ -2620,6 +2588,10 @@ async function main() {
     [P, Q, TV].forEach((b) => b.close());
   }
 
+}
+
+async function unoSeg() {
+  const { A, B, C, D, bots } = await fourPeople('uno');
   /* --- أونو --------------------------------------------------------------------- */
   console.log('• uno (a round to the end, stacking both ways, draw rules, 7-0, jump-in, UNO and a catch, rounds, bots on the server clock, the turn clock, leaving)');
   {
@@ -3063,6 +3035,10 @@ async function main() {
     H.close();
   }
 
+  bots.forEach((b) => b.close());
+}
+
+async function dominoSeg() {
   /* --- الدومينو ------------------------------------------------------------------- */
   console.log('• domino (2, 3 and 4 players, teams, both modes, drawing and knocking, a blocked table, the helpers, computer players, the clock, leaving)');
   {
@@ -3339,6 +3315,10 @@ async function main() {
     H.close();
   }
 
+}
+
+async function mafiaSeg() {
+  const { A, B, C, D, bots } = await fourPeople('mafia');
   /* --- مافيا ---------------------------------------------------------------------- */
   console.log('• mafia');
   await A.must('chooseGame', { game: 'mafia' });
@@ -3401,6 +3381,11 @@ async function main() {
   for (const b of [E, F]) { await api('/leave', { code: A.code, pid: b.pid, key: b.key }); b.close(); }
   await A.waitFor((s) => s.players.length === 4, 'the two extra players leave');
 
+  bots.forEach((b) => b.close());
+}
+
+async function screwSeg() {
+  const { A, B, C, D, bots } = await fourPeople('screw');
   /* --- سكرو ------------------------------------------------------------------------ */
   console.log('• skrew (classic, the thief vote, partners, المسحراتي with أوسكار, an empty hand, sudden death, the house rules, leaving)');
   const { SKREW_CARDS, skrewMatches, skrewValue, skrewHandValues, skrewPileCommands } = SKREW;
@@ -4495,6 +4480,10 @@ async function main() {
     skBots = [A, B, C, D];
   }
 
+  bots.forEach((b) => b.close());
+}
+
+async function ludoSeg() {
   /* --- لودو ------------------------------------------------------------------------ */
   console.log('• ludo (colours in the lobby, who plays with five, the roll-off, turns, the server\'s dice, a computer player, play again, leaving)');
   {
@@ -4598,6 +4587,9 @@ async function main() {
     H.close();
   }
 
+}
+
+async function bankSeg() {
   /* --- بنك الحظ ------------------------------------------------------------------------ */
   console.log('• bank (pieces in the lobby, the options, the roll-off, turns and buying, the decks kept secret, an offer, a computer player, leaving)');
   {
@@ -4711,6 +4703,9 @@ async function main() {
     H.close();
   }
 
+}
+
+async function guesswhoSeg() {
   /* --- prompt memory across rooms ---------------------------------------- */
   /* --- خمّن مين: two duel, the room watches, winner stays on ---------------------- */
   console.log('• guess who (the secret faces, no list, one out loud, one typed, a wrong guess, winner stays on, no computer players)');
@@ -4786,6 +4781,9 @@ async function main() {
     P.close();
   }
 
+}
+
+async function battleshipSeg() {
   /* --- حرب السفن: two duel, the room watches, winner stays on ------------------------- */
   console.log('• battleship (each fleet on its own phone, placing and ready, a hit shoots again, a sunk ship shown, winner stays on, the host plays for a quiet phone)');
   {
@@ -4858,6 +4856,9 @@ async function main() {
     bsBots.concat([S]).forEach((b) => b.close());
   }
 
+}
+
+async function chessSeg() {
   /* --- شطرنج: two play, the room watches, winner stays on, a clock ------------------ */
   console.log('• chess (White first, illegal and stale moves refused, a draw offered and refused, mate, winner stays on, resigning, a forfeit, the clock)');
   {
@@ -4916,8 +4917,9 @@ async function main() {
     chBots.concat([S]).forEach((b) => b.close());
   }
 
-  await teamChessRobots();
-  await hiddenQueenRobots();
+}
+
+async function bughouseSeg() {
   /* --- باغ هاوس: four on two boards, the hands, drops, computer players --------------- */
   console.log('• bughouse (two people and two computer players, two boards, a capture sent to the partner and dropped, the bots on their own, a leaver taken over, resigning, play again)');
   {
@@ -4984,6 +4986,9 @@ async function main() {
     [H, S].forEach((b) => b.close());
   }
 
+}
+
+async function hangmanSeg() {
   /* --- المشنقة: one writes and the rest guess, then a race ------------------------ */
   console.log('• hangman (a written word kept from the guessers, each board its own, the writer\'s points, a race, the clock)');
   {
@@ -5041,6 +5046,9 @@ async function main() {
     hmBots.concat([S]).forEach((b) => b.close());
   }
 
+}
+
+async function solveSeg() {
   /* --- one sets, everyone solves (RoomSolve.js): خمن الكلمة, خمّن الرقم, خمّن الدولة, فوازير إيموجي ---- */
   console.log('• one sets, everyone solves (the secret on the setter\'s phone only, each board its own, the order\'s bonus, the setter\'s points, a race)');
   {
@@ -5131,10 +5139,11 @@ async function main() {
     }
   }
 
-  if (!ONLY) await autonextRobots();
+}
 
+async function raceSeg() {
   /* --- سباق ألغاز (RoomRace.js): the solo puzzles as a race on the engine ------------------------ */
-  if (!ONLY || ONLY === 'race') {
+  {
     console.log('• سباق ألغاز (the same puzzle to everyone, the solution on the server, each board its own, the bar on the table, Fast 3\'s close, «استسلم»)');
     // The robots play as a phone does: from the puzzle they were sent, with the app's own shared files (which a phone has too):
     // الملكات, شمس وقمر, نونوجرام and سودوكو can be solved from what is public; خيوط's theme names a Chameleon board; كلمات من حروف's
@@ -5319,6 +5328,9 @@ async function main() {
     }
   }
 
+}
+
+async function minigolfSeg() {
   /* --- ميني جولف: all at once, then in turns ------------------------------------------ */
   console.log('• minigolf (a mixed game drawn on the server, every ball on the hole at once, the putt on every phone, what the hole asks for + 3 strokes then picked up; nine hard holes in turns with the balls knocking each other, the next hole on the server\'s clock)');
   {
@@ -5423,6 +5435,9 @@ async function main() {
     golfers.concat([TV]).forEach((b) => b.close());
   }
 
+}
+
+async function bowlingSeg() {
   /* --- بولينج: turns, the same pins on every phone, the clock's ball, the end ------------ */
   console.log('• bowling (turns, the server\'s pins equal a replay of the shot, the clock throws a gentle ball, a leave, the end)');
   {
@@ -5485,20 +5500,9 @@ async function main() {
     [H, J, S].forEach((x) => x.close());
   }
 
-  await chairsRobots();
-  await witnessRobots();
-  await wireRobots();
-  await boxRobots();
-  await darkroomRobots();
-  await exactRobots();
-  await snakesRobots();
-  await bumperRobots();
-  await hostAwayRobots();
+}
 
-  await chess4Robots();
-  await estimationRobots();
-  await skullRobots();
-
+async function doubtSeg() {
   /* --- كدّاب: claims face down, a call, the pile out, the end; computer players ------------ */
   console.log('• doubt (hands on their own phones, a claim, a call turned over, passes and the pile out, first out, bots on the server clock)');
   {
@@ -5588,6 +5592,9 @@ async function main() {
     P.close();
   }
 
+}
+
+async function oldmaidSeg() {
   /* --- الشايب: a lift the table sees, a drag the lifted card follows, the draw, the loser --- */
   console.log('• oldmaid (the deck for the table, a lifted card, dragging, the draw kept secret, pairs out, the loser and the tally, shuffled hands, leaving)');
   {
@@ -5648,22 +5655,9 @@ async function main() {
     omBots.concat([S]).forEach((b) => b.close());
   }
 
-  await duelTourRobots();
+}
 
-  console.log('• prompt memory shared between rooms');
-  const H = await Bot.host('H', 'codenames');
-  const others = [H, await Bot.join(H.code, 'I'), await Bot.join(H.code, 'J'), await Bot.join(H.code, 'K')];
-  await others[0].must('setTeam', { team: 'red', role: 'spymaster' });
-  await others[1].must('setTeam', { team: 'red', role: 'operative' });
-  await others[2].must('setTeam', { team: 'blue', role: 'spymaster' });
-  await others[3].must('setTeam', { team: 'blue', role: 'operative' });
-  await H.must('start', { lang: 'ar' });
-  await H.waitFor((s) => s.phase === 'playing', 'second room dealt');
-  const secondBoard = H.state.shared.board.map((c) => c.word);
-  const repeated = secondBoard.filter((w) => firstBoard.indexOf(w) !== -1);
-  check(repeated.length === 0, `a new room's board skips the last room's words (${repeated.length} repeated)`);
-  others.forEach((b) => b.close());
-
+async function leavemidSeg() {
   /* --- leaving mid-round, and removing a phone that is gone ---------------- */
   console.log('• leaving mid-round (the round stops waiting), removing a gone phone');
   const L1 = await Bot.host('لمى', null);
@@ -5731,48 +5725,143 @@ async function main() {
     'the bomb in the hands of someone who leaves goes on to the next player');
   [L1, L2, L3, L4, L5, L6].forEach((b) => b.close());
 
-  /* --- leaving ----------------------------------------------------------- */
-  console.log('• leaving');
-  await api('/leave', { code: A.code, pid: D.pid, key: D.key });
-  await A.waitFor((s) => s.players.length === 3, 'a player who leaves is removed');
-  await A.act('leave');
-  A.ws.send(JSON.stringify({ t: 'leave' }));
-  await B.waitFor((s) => s.players.length === 2 && s.hostId !== A.pid, 'the host leaving hands the room on');
-  check(B.state.youAreHost || C.state.youAreHost, 'someone is host again');
-  bots.forEach((b) => b.close());
+}
 
-  if (SLOW) {
-    /* --- presence clocks: a socket that dies without closing, a screen host -- */
-    console.log('• presence (--slow: waits about three minutes)');
-    // A host whose phone stops pinging but whose socket never closes, like a locked iPhone.
-    const Z = await Bot.host('زومبي', null);
-    const zAt = Date.now();
-    const Y = await Bot.join(Z.code, 'يحيى');
-    clearInterval(Z.pinger);
-    // A room opened from a TV, whose TV then goes away.
-    const S = await Bot.host('', null, true);
-    const P = await Bot.join(S.code, 'بسمة');
-    await P.waitFor((s) => s.screens.length === 1 && s.screens[0].online, 'the screen host is here');
-    // The room's own early alarms (at create and join) run while the TV is still here, so
-    // nothing but the TV's leaving can start the handover clock.
-    await sleep(25000);
-    S.close();
-    await P.waitFor((s) => s.screens[0].online === false, 'the screen host shows as away when its socket closes');
-    await Y.waitFor((s) => s.players.find((p) => p.id === Z.pid).online === false, 'a socket silent for 70 seconds counts as away', 100000);
-    await Promise.all([
-      Y.waitFor((s) => s.hostId === Y.pid && s.youAreHost, 'a silent host hands the room on after two minutes', 150000)
-        .then(() => check(Date.now() - zAt < 150000, `two minutes counted from when the host was last heard (${Math.round((Date.now() - zAt) / 1000)}s)`)),
-      P.waitFor((s) => s.hostId === P.pid && s.youAreHost, 'a room hosted by a screen that went away hands over to a player', 150000)
-    ]);
-    [Z, Y, S, P].forEach((b) => b.close());
+/* --- the segments, and running them ------------------------------------------------------------
+ *
+ * Every segment plays in rooms of its own, so segments can run side by side: `npm test` runs them
+ * in JOBS processes at once (default 4; --jobs=N or JOBS=N; 1 runs everything in this process, in
+ * order, as before). --only=a,b runs some segments by name. The seconds are what each took on the
+ * owner's PC (30 Sep 2026): the longest start first, so the last to finish is a short one.
+ * `exclusive` segments wait on the server's clocks with little slack; they run after the others,
+ * one at a time, with nothing else running.
+ */
+const SEGMENTS = [
+  { name: 'err', run: errRobots, secs: 5 },
+  { name: 'core', run: coreSeg, secs: 47 },
+  { name: 'connect4', run: connect4Seg, secs: 1 },
+  { name: 'dots', run: dotsSeg, secs: 1 },
+  { name: 'uno', run: unoSeg, secs: 72 },
+  { name: 'domino', run: dominoSeg, secs: 58 },
+  { name: 'mafia', run: mafiaSeg, secs: 1 },
+  { name: 'screw', run: screwSeg, secs: 5 },
+  { name: 'ludo', run: ludoSeg, secs: 25 },
+  { name: 'bank', run: bankSeg, secs: 2 },
+  { name: 'guesswho', run: guesswhoSeg, secs: 1 },
+  { name: 'battleship', run: battleshipSeg, secs: 1 },
+  { name: 'chess', run: chessSeg, secs: 1 },
+  { name: 'teamchess', run: teamChessRobots, secs: 30 },
+  { name: 'hq', run: hiddenQueenRobots, secs: 1 },
+  { name: 'bughouse', run: bughouseSeg, secs: 23 },
+  { name: 'hangman', run: hangmanSeg, secs: 1 },
+  { name: 'solve', run: solveSeg, secs: 2 },
+  { name: 'autonext', run: autonextRobots, secs: 45 },
+  { name: 'race', run: raceSeg, secs: 96 },
+  { name: 'minigolf', run: minigolfSeg, secs: 9 },
+  { name: 'bowling', run: bowlingSeg, secs: 30 },
+  { name: 'chairs', run: chairsRobots, secs: 40 },
+  { name: 'witness', run: witnessRobots, secs: 17 },
+  { name: 'wire', run: wireRobots, secs: 50 },
+  { name: 'box', run: boxRobots, secs: 84 },
+  { name: 'darkroom', run: darkroomRobots, secs: 18 },
+  { name: 'exact', run: exactRobots, secs: 36 },
+  { name: 'snakes', run: snakesRobots, secs: 35 },
+  { name: 'bumper', run: bumperRobots, secs: 3 },
+  { name: 'hostaway', run: hostAwayRobots, secs: 21 },
+  { name: 'chess4', run: chess4Robots, secs: 27 },
+  { name: 'estimation', run: estimationRobots, secs: 83 },
+  { name: 'skull', run: skullRobots, secs: 40 },
+  { name: 'doubt', run: doubtSeg, secs: 10 },
+  { name: 'oldmaid', run: oldmaidSeg, secs: 1 },
+  { name: 'duels', run: duelTourRobots, secs: 126 },
+  { name: 'leavemid', run: leavemidSeg, secs: 1 },
+];
+const EXCLUSIVE = new Set([]);
+
+const JOBS = Math.max(1, Number((ARGS.find((a) => a.startsWith('--jobs=')) || '').slice(7) || process.env.JOBS || 4));
+const CHILD = ARGS.includes('--child');
+
+function wantedSegments() {
+  if (!ONLY) return SEGMENTS;
+  const names = ONLY.split(',').map((s) => s.trim()).filter(Boolean);
+  const unknown = names.filter((n) => !SEGMENTS.some((s) => s.name === n));
+  if (unknown.length) {
+    console.error(`unknown segment: ${unknown.join(', ')}\nsegments: ${SEGMENTS.map((s) => s.name).join(' ')}`);
+    process.exit(2);
   }
+  return SEGMENTS.filter((s) => names.indexOf(s.name) !== -1);
+}
 
+/** Runs segments here, one after another. A segment that throws is a failure, and the next one runs. */
+async function runHere(list) {
+  const times = {};
+  for (const seg of list) {
+    const t = Date.now();
+    try { await seg.run(); }
+    catch (err) {
+      failures.push(`${seg.name}: crashed: ${(err && err.message) || err}`);
+      console.log(`  ✗ ${seg.name} crashed: ${(err && err.stack) || err}`);
+    }
+    times[seg.name] = (Date.now() - t) / 1000;
+  }
+  return times;
+}
+
+/** Runs each segment in a process of its own, JOBS at a time; prints each one's output when it ends. */
+async function runSharded(list) {
+  const { spawn } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const file = fileURLToPath(import.meta.url);
+  const extra = ARGS.filter((a) => a === '--slow' || a.startsWith('--race='));
+  const queue = list.filter((s) => !EXCLUSIVE.has(s.name)).sort((a, b) => b.secs - a.secs);
+  const after = list.filter((s) => EXCLUSIVE.has(s.name));
+  const results = [];
+  const runOne = (seg) => new Promise((resolve) => {
+    const t = Date.now();
+    const child = spawn(process.execPath, [file, BASE, '--only=' + seg.name, '--child', ...extra], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let text = '';
+    child.stdout.on('data', (d) => { text += d; });
+    child.stderr.on('data', (d) => { text += d; });
+    child.on('close', (code) => {
+      const m = text.match(/^@@RESULT (.*)$/m);
+      const r = m ? JSON.parse(m[1]) : { passed: 0, failures: [`${seg.name}: the process ended without a result (exit ${code})`] };
+      const body = text.replace(/^@@RESULT .*$/m, '').replace(/^rooms server: .*\n/m, '').replace(/\n+$/, '');
+      const secs = (Date.now() - t) / 1000;
+      console.log(`\n── ${seg.name} (${secs.toFixed(1)}s, ${r.passed} passed, ${r.failures.length} failed) ──\n${body}`);
+      results.push({ name: seg.name, secs, passed: r.passed, failures: r.failures });
+      resolve();
+    });
+  });
+  const worker = async () => { while (queue.length) await runOne(queue.shift()); };
+  console.log(`${list.length} segments in ${Math.min(JOBS, queue.length)} processes${after.length ? `, then ${after.map((s) => s.name).join(', ')} alone` : ''}`);
+  await Promise.all(Array.from({ length: Math.min(JOBS, queue.length) }, worker));
+  for (const seg of after) await runOne(seg);
+  return results;
+}
+
+async function main() {
+  const t0 = Date.now();
+  const list = wantedSegments();
+  if (!CHILD && JOBS > 1 && list.length > 1) {
+    console.log('rooms server:', BASE);
+    const results = await runSharded(list);
+    const total = results.reduce((n, r) => n + r.passed, 0);
+    const failed = results.flatMap((r) => r.failures.map((f) => (f.startsWith(r.name + ':') ? f : `[${r.name}] ${f}`)));
+    console.log('\nsegments by time: ' + results.slice().sort((a, b) => b.secs - a.secs).map((r) => `${r.name} ${Math.round(r.secs)}s`).join(', '));
+    console.log(`\n${total} passed, ${failed.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s (${JOBS} at a time)`);
+    if (failed.length) console.log('failed:\n - ' + failed.join('\n - '));
+    process.exit(failed.length ? 1 : 0);
+  }
+  console.log('rooms server:', BASE);
+  const times = await runHere(list);
+  await sleep(300);   // lets the last sockets close: Node on Windows asserts on an exit while one is closing
+  if (CHILD) {
+    console.log('@@RESULT ' + JSON.stringify({ passed, failures, times }));
+    process.exit(failures.length ? 1 : 0);
+  }
   console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
-  if (failures.length) {
-    console.log('failed:\n - ' + failures.join('\n - '));
-    process.exit(1);
-  }
-  process.exit(0);
+  if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+  process.exit(failures.length ? 1 : 0);
 }
 
 main().catch((err) => {

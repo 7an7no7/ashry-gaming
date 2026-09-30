@@ -1,6 +1,9 @@
 // Proves the split of GEMINI.md (30 Sep 2026) lost nothing.
 //
-//   node tools/prove-docs-split.mjs [ref]     (ref: the commit with the whole GEMINI.md, default 57c8f60, master when it was split)
+//   node tools/prove-docs-split.mjs [ref] [--at=commit]
+//     ref: the commit with the whole GEMINI.md (default 57c8f60, master when it was split);
+//     --at: read the new files from a commit (the split itself) instead of the folder, since
+//     GEMINI.md and the notes go on changing after the split.
 //
 // Every non-empty line of the old GEMINI.md (whitespace normalised) must appear,
 // as many times as it appeared there, across the new GEMINI.md and the files that
@@ -13,7 +16,12 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const ref = process.argv[2] || '57c8f60';
+const ARGS = process.argv.slice(2);
+const ref = ARGS.find((a) => !a.startsWith('--')) || '57c8f60';
+const AT = (ARGS.find((a) => a.startsWith('--at=')) || '').slice(5);
+const read = (f) => AT
+  ? execFileSync('git', ['show', `${AT}:${f}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 })
+  : fs.readFileSync(path.join(root, f), 'utf8');
 const oldText = execFileSync('git', ['show', `${ref}:GEMINI.md`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 });
 const norm = (l) => l.replace(/\s+/g, ' ').trim();
 const count = (lines) => { const m = new Map(); for (const l of lines) { const k = norm(l); if (k) m.set(k, (m.get(k) || 0) + 1); } return m; };
@@ -24,10 +32,13 @@ const walk = (dir) => { for (const e of fs.readdirSync(dir, { withFileTypes: tru
   if (e.isDirectory()) walk(p);
   else if (p.endsWith('.md') && fs.readFileSync(p, 'utf8').includes('Moved from GEMINI.md on 30 Sep 2026')) files.push(path.relative(root, p).replace(/\\/g, '/'));
 } };
-walk(path.join(root, 'notes'));
+if (AT) {
+  const listed = execFileSync('git', ['ls-tree', '-r', '--name-only', AT, '--', 'notes'], { cwd: root, encoding: 'utf8' }).split('\n');
+  for (const f of listed) if (f.endsWith('.md') && read(f).includes('Moved from GEMINI.md on 30 Sep 2026')) files.push(f);
+} else walk(path.join(root, 'notes'));
 
 const oldCount = count(oldText.split('\n'));
-const perFile = files.map((f) => [f, count(fs.readFileSync(path.join(root, f), 'utf8').split('\n'))]);
+const perFile = files.map((f) => [f, count(read(f).split('\n'))]);
 const newCount = new Map();
 for (const [, m] of perFile) for (const [k, n] of m) newCount.set(k, (newCount.get(k) || 0) + n);
 

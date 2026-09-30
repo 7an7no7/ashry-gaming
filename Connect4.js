@@ -306,7 +306,12 @@ function c4BestMove(board, me, level, opts) {
     let scored;
     try { scored = c4ScoreRoot(ctx, me, 3, order); } catch (e) { return order[0]; }
     // A quarter of the time the second choice, as long as it doesn't hand over the game.
-    if (scored.length > 1 && rnd() < 0.25 && scored[1].score > -C4_WIN / 2) return scored[1].c;
+    // (Checked on the board too: the search's score alone let a second choice under the other's win through.)
+    if (scored.length > 1 && rnd() < 0.25 && scored[1].score > -C4_WIN / 2) {
+      const next = c4Clone(board);
+      c4Play(next, scored[1].c, me);
+      if (c4WinningCol(next, opp) === -1) return scored[1].c;
+    }
     return scored[0].c;
   }
 

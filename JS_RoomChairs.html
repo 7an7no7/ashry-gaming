@@ -275,7 +275,7 @@ ROOM_GAMES.chairs = {
         const pressed = mch.pressed === roomDealKey(state) + '|' + s.round;
         bar = myRank !== -1 || pressed
           ? `<div class="mch-sat ${myRank === 0 ? 'is-first' : ''}"><span class="mch-sat__n">${myRank === -1 ? '…' : escapeHTML(mchFill(t.mch_sat, { n: myRank + 1 }))}</span><span class="mch-sat__ms metric">${myRank === -1 ? '' : (sits[myRank].ms + ' ms')}</span></div>`
-          : `<button type="button" class="mch-btn is-go mch-btn--pop" onclick="mchSit(this)"><span class="mch-btn__label">${escapeHTML(t.mch_sit)}</span></button>`;
+          : `<button type="button" class="mch-btn is-go mch-btn--pop" onpointerdown="mchSit(this)" onclick="mchSit(this)"><span class="mch-btn__label">${escapeHTML(t.mch_sit)}</span></button>`;
       } else {
         bar = s.loserId === me
           ? `<div class="mch-sat is-out"><span class="mch-sat__n">${escapeHTML(t.mch_you_out)}</span></div>`
@@ -296,10 +296,18 @@ ROOM_GAMES.chairs = {
   }
 };
 
-/** The tap: locked at once, sent with the server's time as this phone knows it. */
+/**
+ * The tap: locked at once, sent with the server's time as this phone knows it.
+ * «اقعد!» fires on the finger going down (someone else sitting rebuilds the
+ * bar, so a click could land on a button that is no longer there), and its
+ * click - the keyboard's way - finds it already sent: one sit a round.
+ */
 function mchSit(btn) {
   const state = Room.state;
   const s = (state && state.shared) || {};
+  const once = roomDealKey(state) + '|' + s.round + '|' + s.phase;
+  if (mch.sent === once) return;
+  mch.sent = once;
   if (btn) { btn.classList.add('is-pressed'); btn.disabled = true; }
   haptic('heavy');
   if (s.phase === 'sit') mch.pressed = roomDealKey(state) + '|' + s.round;

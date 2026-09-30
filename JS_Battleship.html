@@ -1627,6 +1627,7 @@ function bsViewStart() {
     root.classList.add('is-flat');
     root.classList.remove('is-loading');
     if (bsView.model) bsView.r.setModel(bsView.model);
+    bsViewFresh();
   };
   if (typeof loadThree !== 'function' || typeof threeCanDraw !== 'function' || !threeCanDraw()) { flat(); return; }
   bsView.loading = true;
@@ -1638,11 +1639,24 @@ function bsViewStart() {
     catch (e) { console.warn('battleship 3d', e); flat(); return; }
     root.classList.remove('is-loading', 'is-flat');
     if (bsView.model) bsView.r.setModel(bsView.model);
+    bsViewFresh();
   }).catch(() => {
     if (bsView.root !== root) return;
     bsView.loading = false;
     flat();
   });
+}
+
+/**
+ * A renderer just made shows the sea as it is and flies nothing, so a shot the
+ * page was holding back for (flying) will never land: let it go and paint again.
+ */
+function bsViewFresh() {
+  const room = bsRoomLocal.flying, phone = bsPhoneLocal.flying;
+  bsRoomLocal.flying = '';
+  bsPhoneLocal.flying = '';
+  if (room) bsRoomRedraw();
+  if (phone && appState.currentView === 'play-battleship') { paintBattleship({ landed: true }); bsPhoneMaybeAi(); }
 }
 
 /** Everything the sea holds is thrown away: the renderer, its textures, its canvas. */
@@ -1988,7 +2002,8 @@ function bsPhoneApply(seat, cell) {
     s.scores[seat === 0 ? 'me' : 'ai']++;
   } else if (out.res === 'miss') s.turn = target;
   saveToLocal();
-  bsPhoneLocal.flying = motionOff() ? '' : s.gameId + '|' + s.shots;
+  // Only a sea on screen flies a shell (one still loading shows the result at once, and never lands it).
+  bsPhoneLocal.flying = motionOff() || !bsView.r ? '' : s.gameId + '|' + s.shots;
   paintBattleship();
   bsPhoneLocal.busyUntil = Date.now() + 300;
   bsPhoneMaybeAi();
@@ -2261,7 +2276,7 @@ function bsRoomFire() {
   bsRoomLocal.sent = stamp;
   bsRoomLocal.aim = -1;
   const expect = [state.code, s.round, (s.shots || 0) + 1].join('|');
-  if (!motionOff()) bsRoomLocal.flying = expect;
+  if (!motionOff() && bsView.r) bsRoomLocal.flying = expect;
   if (bsView.r && bsView.r.launch) bsView.r.launch(1, cell);
   haptic('medium');
   bsRoomRedraw();
@@ -2289,7 +2304,7 @@ function bsRoomNoteShot(state) {
   if (bsRoomLocal.seen === null) { bsRoomLocal.seen = key; return; }
   if (key && key !== bsRoomLocal.seen) {
     bsRoomLocal.seen = key;
-    if (!motionOff()) bsRoomLocal.flying = key;
+    if (!motionOff() && bsView.r) bsRoomLocal.flying = key;
   }
 }
 

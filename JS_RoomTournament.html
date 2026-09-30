@@ -612,6 +612,25 @@ function tourFlyWinners(root, state) {
   });
 }
 
+/**
+ * A tournament already over when this page first sees it (a reload, a latecomer,
+ * a TV coming on) shows its podium settled and plays no confetti: both are
+ * marked seen, as duelRoomFirstSight does for a game.
+ */
+const tourSeen = new Set();
+function tourFirstSight(state) {
+  const tr = (state.shared || {}).tour;
+  if (!tr) return;
+  const k = state.code + '|' + tr.no;
+  if (tourSeen.has(k)) return;
+  tourSeen.add(k);
+  if (tr.phase !== 'over') return;
+  ['p', 'tv'].forEach((w) => {
+    if (typeof motionFirst === 'function') motionFirst(['tour-podium', state.code, tr.no, w].join('|'));
+    duelOnce(['tour-cheer', state.code, tr.no, w].join('|'));
+  });
+}
+
 /** The end, once per tournament on this screen: the podium has risen, then the confetti and the fanfare. */
 function tourCheer(root, state) {
   const tr = state.shared.tour;
@@ -654,6 +673,7 @@ function tourRender(state, id, orig) {
   if (appState.currentView !== view) setView(view);
   const el = document.getElementById('view-' + view);
   if (!el) return;
+  tourFirstSight(state);
   tourSyncAuto(state);
   const kind = TOUR_CLIENT[id];
   if (kind && kind.onState) kind.onState(state);
@@ -702,6 +722,7 @@ function tourLiveCardHtml(state, m) {
 }
 
 function tourTvFrame(state, t) {
+  tourFirstSight(state);
   const s = state.shared;
   const tour = s.tour;
   const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);

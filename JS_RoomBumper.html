@@ -387,6 +387,7 @@ function bmpTiltAsk() {
   asked.then((ans) => {
     bmp.tilt.asking = false;
     if (ans !== 'granted' || !O) { showToast(bmpT().bmp_tilt_denied, 'error'); bmpSetMode('stick'); return; }
+    bmp.tilt.granted = true;
     if (bmp.mode !== 'tilt' || bmp.tilt.on || appState.currentView !== 'room-bumper') return;
     bmp.tilt.on = true;
     window.addEventListener('deviceorientation', bmpTiltRead);
@@ -470,6 +471,10 @@ function bmpPing() {
   Room.sendLive({ k: 'p', n, at, r: bmp.ping.last === null ? -1 : bmp.ping.last });
 }
 function bmpControllerOn() {
+  // Round 2 on: the round's end took the sensor away (bmpControllerOff). Once allowed, an iPhone
+  // answers again without a tap; one that never allowed it still asks in the Gas button's tap.
+  const O = window.DeviceOrientationEvent;
+  if (bmp.mode === 'tilt' && !bmp.tilt.on && (bmp.tilt.granted || !(O && typeof O.requestPermission === 'function'))) bmpTiltAsk();
   if (!bmp.sendTimer) bmp.sendTimer = setInterval(bmpSendNow, BMP_SEND_MS);
   if (!bmp.pingTimer) { bmpPing(); bmp.pingTimer = setInterval(bmpPing, BMP_PING_MS); }
   if (!bmp.uiTimer) bmp.uiTimer = setInterval(bmpPaintPhone, 200);
@@ -1152,11 +1157,14 @@ function bmpTvRank(g) {
 /** The round's end: one screen (the first online, by id) tells the server the result. */
 function bmpTvReport(state) {
   const g = bmp.tv;
-  g.reported = true;
+  // Only the lead screen reports; another screen keeps looking, in case it becomes the lead (the first went off).
   if (!bmpIsLead(state)) return;
+  g.reported = true;
   const scores = {};
   bmpTvRank(g).forEach(c => { scores[c.id] = { score: c.hits, taken: c.taken, lives: c.lives, place: c.place }; });
-  roomAct('finish', { round: (state.shared || {}).round, scores, done: g.done });
+  // A finish that didn't arrive is sent again (after a breath, not every frame).
+  Room.act('finish', { round: (state.shared || {}).round, scores, done: g.done })
+    .catch(() => setTimeout(() => { if (bmp.tv === g) g.reported = false; }, 2000));
 }
 
 /** Each phone hears its car's lives, score and place - when they change, and now and then anyway. */

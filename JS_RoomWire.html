@@ -35,7 +35,8 @@ const wr = {
   loop: 0,              // the rAF painting the bars and the clocks
   el: null,             // the frame the loop paints (the phone's or the TV's)
   tv: false,
-  motion: '',           // '' not asked, 'on' listening, 'no' tap only
+  motion: '',           // '' not asked, 'asking', 'on' allowed (listening only while a shake is on: wrMotionSync), 'no' tap only
+  listening: false,
   shake: { id: null, n: 0, last: 0, sent: false },
   beepAt: 0,
   tickSec: -1,
@@ -462,6 +463,7 @@ function wrFrame() {
   const left = root.querySelector('[data-wr-sleft]');
   if (left && s.shake) { const txt = Math.max(0, Math.ceil((s.shake.ends - now) / 1000)) + ''; if (left.textContent !== txt) left.textContent = txt; }
   wrVoiceTick(st, s, now);
+  wrMotionSync(s.phase === 'play' && !!s.shake);
   return true;
 }
 
@@ -470,6 +472,8 @@ function wrStartLoop() {
   const step = () => {
     wr.loop = 0;
     if (!wrFrame()) return;
+    // Nothing drains once the game is over: the last frame is painted, and the next state's render starts it again.
+    if (((Room.state || {}).shared || {}).phase === 'gameover') return;
     wr.loop = requestAnimationFrame(step);
   };
   wr.loop = requestAnimationFrame(step);
@@ -478,6 +482,7 @@ function wrStopAll() {
   if (wr.loop) cancelAnimationFrame(wr.loop);
   wr.loop = 0;
   wr.el = null;
+  wrMotionSync(false);
   clearTimeout(wr.momentTimer);
   clearTimeout(wr.toastTimer);
 }
@@ -557,13 +562,21 @@ function wrOverMotion(state, el) {
 /* --- «الكل يهز الموبايل!»: the phone's motion, or three taps ----------------------- */
 function wrAskMotion() {
   if (wr.motion) return;
-  const listen = () => { wr.motion = 'on'; window.addEventListener('devicemotion', wrOnMotion); };
+  const listen = () => { wr.motion = 'on'; const s = (Room.state || {}).shared || {}; wrMotionSync(s.phase === 'play' && !!s.shake); };
   if (typeof DeviceMotionEvent === 'undefined') { wr.motion = 'no'; return; }
   if (typeof DeviceMotionEvent.requestPermission === 'function') {
     wr.motion = 'asking';
     // iOS asks only inside a tap: this runs in the first tap on the panel.
     DeviceMotionEvent.requestPermission().then((r) => { if (r === 'granted') listen(); else wr.motion = 'no'; }).catch(() => { wr.motion = 'no'; });
   } else listen();
+}
+/** The sensor is listened to only while «الكل يهز» is on, and never after the room screen is left. */
+function wrMotionSync(on) {
+  const want = !!on && wr.motion === 'on';
+  if (want === wr.listening) return;
+  wr.listening = want;
+  if (want) window.addEventListener('devicemotion', wrOnMotion);
+  else window.removeEventListener('devicemotion', wrOnMotion);
 }
 function wrOnMotion(e) {
   const st = Room.state;

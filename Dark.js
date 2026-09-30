@@ -707,7 +707,7 @@ function darkAdvance(m, x, y, vx, vy, dt) {
       const edge = dir > 0 ? cx + 1 - R : cx + R;
       if ((dir > 0 && nx > edge) || (dir < 0 && nx < edge)) {
         const b = darkBlocked(m, cx, cy, dir, 0);
-        if (b) { nx = edge; bump = bump || b; }
+        if (b) { nx = dir > 0 ? Math.max(x, edge) : Math.min(x, edge); bump = bump || b; }   // already past it: stay, never back
       }
       x = nx;
     }
@@ -718,7 +718,7 @@ function darkAdvance(m, x, y, vx, vy, dt) {
       const edge = dir > 0 ? cy + 1 - R : cy + R;
       if ((dir > 0 && ny > edge) || (dir < 0 && ny < edge)) {
         const b = darkBlocked(m, cx, cy, 0, dir);
-        if (b) { ny = edge; bump = bump || b; }
+        if (b) { ny = dir > 0 ? Math.max(y, edge) : Math.min(y, edge); bump = bump || b; }
       }
       y = ny;
     }

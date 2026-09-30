@@ -857,12 +857,35 @@ function bxPhoneOpenHtml(state) {
 
 function bxOpenedHtml(state) {
   const s = state.shared || {};
+  // The box being opened stays shut in the strip until its lid flies (the server adds it as the show starts).
+  const lidAt = s.phase === 'open' ? (s.openAt || 0) + BX_TB * 1000 : 0;
   const cells = Array.from({ length: s.boxes || 8 }, (_, i) => {
     const o = (s.opened || [])[i];
     const cur = i === s.box && s.phase !== 'gameover' && !(s.phase === 'open');
+    if (o && i === s.box && lidAt > bxServerNow()) {
+      return `<span class="bx-ob" data-bx-lid="${lidAt}" data-bx-icon="${escapeHTML(BX_KIND_ICON[o.kind] || '?')}" data-bx-title="${escapeHTML(bxKind(o.kind))}"><b dir="ltr">${i + 1}</b></span>`;
+    }
     return `<span class="bx-ob ${o ? 'is-open' : ''} ${cur ? 'is-cur' : ''}" title="${o ? escapeHTML(bxKind(o.kind)) : ''}">${o ? BX_KIND_ICON[o.kind] || '?' : `<b dir="ltr">${i + 1}</b>`}</span>`;
   }).join('');
+  if (lidAt) setTimeout(bxOpenedLater, 0);
   return `<div class="bx-opened" aria-label="${escapeHTML(bxT('box_opened'))}">${cells}</div>`;
+}
+/** The strip's shut cell turns open when the lid flies, on every screen showing it. */
+function bxOpenedLater() {
+  clearTimeout(bx.obTimer);
+  const due = [...document.querySelectorAll('[data-bx-lid]')];
+  if (!due.length) return;
+  const wait = Math.min(...due.map((c) => Number(c.dataset.bxLid))) - bxServerNow();
+  bx.obTimer = setTimeout(() => {
+    document.querySelectorAll('[data-bx-lid]').forEach((c) => {
+      if (Number(c.dataset.bxLid) > bxServerNow() + 30) return;
+      c.classList.add('is-open');
+      c.title = c.dataset.bxTitle || '';
+      c.textContent = c.dataset.bxIcon || '?';
+      c.removeAttribute('data-bx-lid');
+    });
+    bxOpenedLater();
+  }, Math.max(0, wait));
 }
 
 /* --- the host's buttons ---------------------------------------------------------------- */

@@ -19,7 +19,7 @@
 const SNK_OPTS_KEY = 'snakesRoom';
 
 /** What only this phone holds: the tap already sent, the clock, the host's timer, the server's time. */
-const snkRoomLocal = { sent: '', clock: null, clockKey: null, hostKey: '', turnSince: 0, hostTimer: null, readyTimer: null, gap: Infinity, turnMine: false };
+const snkRoomLocal = { fed: '', sent: '', clock: null, clockKey: null, hostKey: '', turnSince: 0, hostTimer: null, readyTimer: null, gap: Infinity, turnMine: false };
 
 function snkRoomOpts() {
   const o = recallOptions(SNK_OPTS_KEY, { turnClock: 0 });
@@ -116,12 +116,16 @@ const snkShared = (state) => (state && state.shared) || {};
 const snkInGame = (state) => !state.youAreScreen && (snkShared(state).seats || []).indexOf(Room.me) !== -1;
 const snkMyTurn = (state) => { const s = snkShared(state); return s.phase === 'play' && s.turn && s.turn.pid === Room.me && snkInGame(state); };
 
+/** This phone's clock ahead of the server's: the smallest receivedAt - serverNow seen. */
+function snkServerGap(state) {
+  if (state && typeof state.serverNow === 'number' && typeof state.receivedAt === 'number') snkRoomLocal.gap = Math.min(snkRoomLocal.gap, state.receivedAt - state.serverNow);
+  return isFinite(snkRoomLocal.gap) ? snkRoomLocal.gap : 0;
+}
+
 /** The server's readyAt on this phone's clock. */
 function snkReadyLocal(state) {
   const s = snkShared(state);
-  if (typeof state.serverNow === 'number' && typeof state.receivedAt === 'number') snkRoomLocal.gap = Math.min(snkRoomLocal.gap, state.receivedAt - state.serverNow);
-  const gap = isFinite(snkRoomLocal.gap) ? snkRoomLocal.gap : 0;
-  return (s.readyAt || 0) + gap - 300;
+  return (s.readyAt || 0) + snkServerGap(state) - 300;
 }
 
 function snkRoomRoll() {
@@ -197,8 +201,10 @@ function snkStopClock() {
 function snkTickClock(state) {
   const s = snkShared(state);
   const endsAt = s.phase === 'play' ? s.endsAt : null;
+  // The server's endsAt read by the server's time, not this phone's clock.
+  const gap = snkServerGap(state);
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt + gap - Date.now()) / 1000)) : 0;
     document.querySelectorAll('[data-snk-clock]').forEach(el => {
       el.textContent = '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 5);
@@ -212,7 +218,7 @@ function snkTickClock(state) {
   snkStopClock();
   snkRoomLocal.clockKey = endsAt;
   snkRoomLocal.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt + gap - Date.now()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = Room.state;
@@ -296,9 +302,11 @@ function snkRoomFeed(root, state, tv) {
   const c = snkShowIn(root.querySelector('[data-snk-host]'));
   k.onIdle = snkRoomIdle;
   k.onStep = () => snkSyncIdle(root, snkRoomCtx(Room.state || state, tv));
-  // Dealt while this screen watched the room: the map is built in front of it.
-  k.fresh = snkRoomLocal.watched === state.code;
+  // Dealt while this screen watched the room: the map is built in front of it - once. A deal this
+  // page already fed (the board dropped on a trip off the room screen) is set, not built again.
+  k.fresh = snkRoomLocal.watched === state.code && snkRoomLocal.fed !== k.key;
   snkFeed(snkShared(state), k);
+  snkRoomLocal.fed = k.key;
   if (snkBusy()) snkSyncIdle(root, k); else snkRoomIdle();
 }
 

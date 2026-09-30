@@ -268,15 +268,16 @@ function mafiaSky(root, phase) {
 const mafiaSaid = { key: '' };
 
 /**
- * Whether this device is the one that speaks. The big screen if there is one -
+ * Whether this device is the one that speaks. The first big screen online if there is one -
  * it is the table's own voice and nobody is holding it - and otherwise the
  * host's phone. Exactly one device in a room answers true.
  */
 function mafiaNarrator(state) {
   if (!state || !state.shared || !state.shared.narrate) return false;
-  if (state.youAreScreen) return true;
-  const hasScreen = (state.screens || []).length > 0;
-  return !hasScreen && !!state.youAreHost;
+  // The first screen online (by id): with two TVs only one speaks.
+  const screens = (state.screens || []).filter(x => x.online).map(x => x.id).sort();
+  if (state.youAreScreen) return screens[0] === Room.me;
+  return !screens.length && !!state.youAreHost;
 }
 
 /** Two sentences into one, without doubling a full stop that is already there. */

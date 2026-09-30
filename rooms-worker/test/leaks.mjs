@@ -746,6 +746,20 @@ const PROBES = {
         if (mine && JSON.stringify(mine) !== JSON.stringify(g.lost[pid] || [])) return 'you.lost (not its own)';
         return null;
       }),
+      // A lost disc leaves no trace in the public counts until the next deal: a hand or a pile one
+      // short would say where it was (the skull kept in hand, say). So in every seat still at the
+      // table (or out this round) hand + pile is what it held when the round was dealt.
+      probe('a lost disc leaves the hand and pile counts as dealt until the next deal', live && anyLost, (view) => {
+        const sh = view.shared;
+        const r = sh.result || {};
+        const seats = (s.alive || []).concat(r.out ? [r.out] : []);
+        for (const id of seats) {
+          const dealt = (g.discs[id] || []).length + (g.lost[id] || []).filter((l) => l.round === s.round).length;
+          const shown = (Number((sh.hands || {})[id]) || 0) + (Number((sh.piles || {})[id]) || 0);
+          if (shown !== dealt) return 'shared.hands/piles (' + id + ': ' + shown + ' for ' + dealt + ')';
+        }
+        return null;
+      }),
       probe('«هيعملها؟»: who answered is public, what they answered is not, until the result', guessing, (view, pid) => {
         const sh = JSON.stringify(view.shared);
         if (/"guesses":\{"/.test(sh) && !(view.shared.result && view.shared.phase === 'result')) return 'shared (guesses)';

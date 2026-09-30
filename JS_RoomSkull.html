@@ -601,12 +601,25 @@ function sklLogHtml(state, count) {
 
 /* --- the host's way past a phone that went quiet ---------------------------------- */
 
+/** The phones still to lay a disc that are away (never a computer player). */
+function sklQuietPlacers(state) {
+  const s = sklS(state);
+  return (s.alive || []).filter(id => (s.placed || []).indexOf(id) === -1)
+    .filter(id => { const p = (state.players || []).find(x => x.id === id); return p && !p.online && !p.bot; });
+}
+
+/** The host lays only for the quiet phones, named at the tap (the clock still lays for all). */
+function sklSkipPlace(btn) {
+  const st = Room.state;
+  if (!st || st.game !== 'skull') return;
+  sklAct(btn, 'skipTurn', { pids: sklQuietPlacers(st) });
+}
+
 function sklHostButtons(state) {
   const s = sklS(state);
   if (!roomCanMoveOn(state)) return [];
   if (s.phase === 'place') {
-    const quiet = (s.alive || []).filter(id => (s.placed || []).indexOf(id) === -1).filter(id => { const p = (state.players || []).find(x => x.id === id); return p && !p.online && !p.bot; });
-    return quiet.length ? [['⏭️ ' + pcT('skl_skip_place'), "sklAct(this, 'skipTurn')"]] : [];
+    return sklQuietPlacers(state).length ? [['⏭️ ' + pcT('skl_skip_place'), 'sklSkipPlace(this)']] : [];
   }
   if (['add', 'bid', 'flip', 'lose'].indexOf(s.phase) === -1 || !s.turn) return [];
   const p = (state.players || []).find(x => x.id === s.turn.pid);
@@ -701,6 +714,13 @@ ROOM_GAMES.skull = {
     sklSyncPick(state);
     const server = sklServerSig(state);
     const serverChanged = el._sklServer !== server;
+    // A move landing while the last one still plays (a flip, a disc flying) waits for it,
+    // as the other card rooms do - but this phone's own move is drawn at once.
+    if (serverChanged && el._sklServer && sklFx.busyUntil > Date.now() && !sklOwnMoveWaiting(state)) {
+      pcDeferRedraw(sklFx, 'skull');
+      sklRefreshInPlace(el, state, false);
+      return;
+    }
     let evs = [];
     if (serverChanged) {
       pcSnapshot(sklFx, el);
@@ -1076,12 +1096,24 @@ function sklTvFrame(state, t) {
     </div>`;
 }
 
+/** A move of this phone's own among the events not yet shown (it never waits behind the table's motion). */
+function sklOwnMoveWaiting(state) {
+  const s = sklS(state);
+  if (state.youAreScreen || sklFx.deal !== state.code + '|' + (s.dealId || '')) return false;
+  const own = ['place', 'add', 'bid', 'pass', 'guessed', 'flip', 'flipOwn', 'lost'];
+  return (s.events || []).some(e => e && (Number(e.seq) || 0) > sklFx.lastSeq && e.pid === Room.me && own.indexOf(e.type) !== -1);
+}
+
 TV_GAMES.skull = {
   sig(state) {
-    return sklServerSig(Object.assign({}, state, { you: null }));
+    const cur = sklServerSig(Object.assign({}, state, { you: null }));
+    // The table's motion plays out before the next state is drawn.
+    if (sklFx.tvSig && cur !== sklFx.tvSig && sklFx.busyUntil > Date.now()) { pcDeferRedraw(sklFx, 'skull'); return sklFx.tvSig; }
+    return cur;
   },
   frame(state, t) {
     const view = document.getElementById('view-room-tv');
+    sklFx.tvSig = sklServerSig(Object.assign({}, state, { you: null }));
     pcSnapshot(sklFx, view);
     const evs = view && view.getClientRects().length ? pcEventsToPlay(sklFx, state) : [];
     sklLocal.wait = sklRevealWait(evs);

@@ -16,7 +16,7 @@
    ========================================================================= */
 
 const BANK_OPTS_KEY = 'bankRoom';
-const bankRoomLocal = { sent: '', clockTimer: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '' };
+const bankRoomLocal = { sent: '', clockTimer: null, hostKey: '', turnSince: 0, hostTimer: null, turnMine: false, redrawTimer: null, tvSig: '', gap: Infinity };
 
 function bankRoomOpts() {
   const o = recallOptions(BANK_OPTS_KEY, { length: BANK_LENGTH_DEFAULT, pot: false, go400: false, firstLap: true, highRent: false, oneDie: false, turnClock: 0 });
@@ -294,12 +294,17 @@ ROOM_GAMES.bank = {
     }
     bankUiFor(s);
     const c = bankRoomCtx(state, false);
-    const local = [state.youAreHost, appState.lang, Room.me, bankUi.sel, bankUi.panel, JSON.stringify(bankUi.trade)].join('|');
+    // The cash typed in an offer is not in the signature (it is kept in bankUi and drawn from
+    // there): a room update mid-typing must not rebuild the field under the finger.
+    const trade = Object.assign({}, bankUi.trade, { give: Object.assign({}, bankUi.trade.give, { cash: 0 }), get: Object.assign({}, bankUi.trade.get, { cash: 0 }) });
+    const local = [state.youAreHost, appState.lang, Room.me, bankUi.sel, bankUi.panel, JSON.stringify(trade)].join('|');
     const serverChanged = el._bankServer !== server;
+    const typing = bankRoomTyping(el);
     const rebuilt = renderRoomFrame(el, server + '#' + local, () => bankFrameHtml(c) + renderRoomPlayerStrip(state));
+    if (rebuilt) bankRoomRestoreTyping(el, typing);
     el._bankServer = server;
     bankRefreshInPlace(el, state, false);
-    bankTickTime(el, s, s.clockEndsAt);
+    bankTickTime(el, s, s.clockEndsAt, bankRoomGap(state));
     if (!rebuilt) return;
     bankWire(el);
     const played = serverChanged ? bankAfterPaint(el, c) : 0;
@@ -316,6 +321,29 @@ ROOM_GAMES.bank = {
     }
   }
 };
+
+/** This phone's clock ahead of the server's (the smallest receivedAt - serverNow seen): the clocks read by it. */
+function bankRoomGap(state) {
+  if (state && typeof state.serverNow === 'number' && typeof state.receivedAt === 'number') bankRoomLocal.gap = Math.min(bankRoomLocal.gap, state.receivedAt - state.serverNow);
+  return isFinite(bankRoomLocal.gap) ? bankRoomLocal.gap : 0;
+}
+
+/** The offer's cash field being typed in, if any: which side, the caret. */
+function bankRoomTyping(root) {
+  const a = document.activeElement;
+  if (!a || !root.contains(a) || !a.hasAttribute('data-bank-trade-cash')) return null;
+  let caret = null;
+  try { caret = a.selectionStart; } catch (e) { caret = null; }
+  return { side: a.getAttribute('data-bank-trade-cash'), value: a.value, caret: caret };
+}
+function bankRoomRestoreTyping(root, typed) {
+  if (!typed) return;
+  const el = root.querySelector('[data-bank-trade-cash="' + typed.side + '"]');
+  if (!el) return;
+  el.value = typed.value;
+  el.focus({ preventScroll: true });
+  try { if (typed.caret !== null) el.setSelectionRange(typed.caret, typed.caret); } catch (e) { /* number fields have no caret */ }
+}
 
 onRoomClocksReset(() => {
   clearInterval(bankFx.timeTimer);
@@ -354,7 +382,7 @@ TV_GAMES.bank = {
     const s = bankShared(state);
     bankRefreshInPlace(view, state, true);
     if (!rebuilt || !view) return;
-    bankTickTime(view, s, s.clockEndsAt);
+    bankTickTime(view, s, s.clockEndsAt, bankRoomGap(state));
     const c = bankRoomCtx(state, true);
     const played = bankAfterPaint(view, c);
     if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce('bank-tv-end|' + c.key)) {

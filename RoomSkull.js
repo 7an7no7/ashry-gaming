@@ -59,7 +59,9 @@ const skullAction = (room, playerId, action, payload) => {
   if (action === 'skipTurn') {
     requireMoveOn(room, playerId);
     if (staleTap(p, 'seq', s.turnSeq)) return;
-    skullApply(room, () => skullAuto(room, 'host'));
+    // In the laying the host's phone names the quiet phones (`pids`): only they are laid for.
+    const only = Array.isArray(p.pids) ? p.pids.map(String) : null;
+    skullApply(room, () => skullAuto(room, 'host', only));
     return;
   }
   if (action === 'nextRound') {
@@ -413,8 +415,8 @@ const skullLoseDisc = (room, pid, d, own) => {
   const g = room._skull;
   if (!d) return;
   g.discs[pid] = (g.discs[pid] || []).filter(x => x !== d);
-  g.hands[pid] = (g.hands[pid] || []).filter(i => i !== d.i);
-  g.piles[pid] = (g.piles[pid] || []).filter(i => i !== d.i);
+  // Not taken out of the hand or the pile: their public counts would say where
+  // the lost disc was (the skull still in hand, say). skullDealRound rebuilds both.
   g.lost[pid] = (g.lost[pid] || []).concat([{ i: d.i, f: d.f, round: room.shared.round }]);
   skullEvent(room, 'lost', { pid: pid, own: !!own, left: g.discs[pid].length });
 };
@@ -465,12 +467,13 @@ const skullGameOver = (room, winner, why, counted) => {
 /** A flower from the hand if there is one, else the first disc. */
 const skullFlowerInHand = (room, pid) => (room._skull.hands[pid] || []).find(i => skullIsFlower(skullFaceOf(room, pid, i)));
 
-const skullAuto = (room, why) => {
+const skullAuto = (room, why, only) => {
   const s = room.shared;
   const g = room._skull;
   if (s.phase === 'place') {
-    // Everyone still to lay a disc lays one: a flower if they have one, else the skull.
-    s.alive.filter(id => s.placed.indexOf(id) === -1).forEach(id => {
+    // Everyone still to lay a disc lays one (the clock), or only the quiet phones the host named:
+    // a flower if they have one, else the skull.
+    s.alive.filter(id => s.placed.indexOf(id) === -1 && (!only || only.indexOf(id) !== -1)).forEach(id => {
       const disc = skullFlowerInHand(room, id) || (g.hands[id] || [])[0];
       if (disc === undefined) return;
       skullEvent(room, 'auto', { pid: id, why: why });
@@ -545,9 +548,11 @@ const skullSync = (room) => {
   room.secrets = {};
   (s.order || []).filter(id => skullHere(room, id)).forEach(id => {
     const face = (i) => ({ i: i, f: skullFaceOf(room, id, i) });
+    // A disc lost this round is still counted in its hand or pile until the next deal; its owner's list leaves it out.
+    const kept = (i) => !!skullDisc(room, id, i);
     const sec = {
-      hand: (g.hands[id] || []).map(face),
-      pile: (g.piles[id] || []).map(face),
+      hand: (g.hands[id] || []).filter(kept).map(face),
+      pile: (g.piles[id] || []).filter(kept).map(face),
       // Every disc it still has (its own: in hand and on the table), for choosing which to lose.
       discs: (g.discs[id] || []).map(d => ({ i: d.i, f: d.f })),
       lost: (g.lost[id] || []).slice()

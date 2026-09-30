@@ -11,9 +11,10 @@
 ROOM_GAMES.chameleon = {
   lobbyOptions(state) {
     const t = TRANSLATIONS[appState.lang];
-    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.cham_room_hint || '')}</p>`;
+    return (state.youAreHost ? packWordsLobbyHtml('chameleonRoom', 16) : '') +
+      `<p class="field__hint" style="text-align:center">${escapeHTML(t.cham_room_hint || '')}</p>`;
   },
-  startPayload: () => ({ lang: VOTE_LANG() }),
+  startPayload: () => Object.assign({ lang: VOTE_LANG() }, packWordsLobbyPick('chameleonRoom', 16) ? { pack: packWordsCode() } : {}),
 
   render(state) {
     if (appState.currentView !== 'room-chameleon') setView('room-chameleon');

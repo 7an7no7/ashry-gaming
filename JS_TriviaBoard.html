@@ -121,7 +121,8 @@ function tbRememberSetup() {
       timerOn: !!field('tb-timer-on').checked,
       timerSeconds: TB_TIMER_CHOICES.indexOf(picked) !== -1 ? picked : TB_TIMER_DEFAULT,
       steal: !!field('tb-steal-on').checked,
-      double: !!field('tb-double-on').checked
+      double: !!field('tb-double-on').checked,
+      source: tbSourceId()
     }));
   } catch (e) {}
 }
@@ -138,6 +139,7 @@ const triviaStarted = () => {
 
 function paintTriviaSetup() {
   tbRecallSetup();
+  tbPaintSource();
   const panel = document.querySelector('#view-setup-trivia .mode-device-panel');
   let box = document.getElementById('tb-resume');
   if (!box && panel) {
@@ -211,11 +213,15 @@ function beginTriviaBoard() {
   const timerSeconds = TB_TIMER_CHOICES.indexOf(picked) !== -1 ? picked : TB_TIMER_DEFAULT;
   const stealOn = !!(document.getElementById('tb-steal-on') || {}).checked;
   const doubleOn = !!(document.getElementById('tb-double-on') || {}).checked;
+  const source = tbSourceId();
   try {
     localStorage.setItem(TB_TEAMS_KEY, JSON.stringify({
-      a: nameA, b: nameB, rounds: rounds, timerOn: timerOn, timerSeconds: timerSeconds, steal: stealOn, double: doubleOn
+      a: nameA, b: nameB, rounds: rounds, timerOn: timerOn, timerSeconds: timerSeconds, steal: stealOn, double: doubleOn, source: source
     }));
   } catch (e) {}
+  // «اعمل مسابقتك»: the family's quiz, from the phone's own copy (it plays offline).
+  const quiz = source && typeof packQuizById === 'function' ? packQuizById(source) : null;
+  const quizCopy = quiz && packCleanQuiz(quiz).pack;
 
   stopTriviaTimer();
   cancelTriviaAdvance();
@@ -231,11 +237,17 @@ function beginTriviaBoard() {
     // One hidden card a board worth twice its points.
     double: doubleOn,
     turn: 0,
-    board: tbDealBoard([], doubleOn),
+    board: [],
     open: null,
     last: null,
     finished: false
   };
+  if (quizCopy) {
+    appState.triviaBoard.quiz = { title: quizCopy.title, emoji: quizCopy.emoji || '', code: quiz.code || '', questions: quizCopy.questions };
+    appState.triviaBoard.rounds = tbQuizRounds(appState.triviaBoard.quiz);
+    if (quiz.code && typeof packPlayed === 'function') packPlayed(quiz.code);
+  }
+  appState.triviaBoard.board = tbDealBoard([], doubleOn);
   saveToLocal();
   setView('play-trivia');
   renderTriviaBoard();
@@ -260,14 +272,101 @@ function dealTriviaRound(previousIds) {
 
 /** A board with its hidden double card: one of the 200-500 cards, at random. */
 function tbDealBoard(previousIds, withDouble) {
-  const board = dealTriviaRound(previousIds);
+  const s = appState.triviaBoard;
+  const board = s && s.quiz ? tbDealQuizRound(s.quiz, s.round || 1) : dealTriviaRound(previousIds);
   if (withDouble) {
     const cells = [];
-    board.forEach(col => col.cells.forEach(cell => { if (cell.points > TB_LEVELS[0]) cells.push(cell); }));
+    board.forEach(col => col.cells.forEach(cell => { if (cell.points > TB_LEVELS[0] && !cell.blank) cells.push(cell); }));
     const pick = cells[Math.floor(Math.random() * cells.length)];
     if (pick) pick.dbl = true;
   }
   return board;
+}
+
+/* --- «اعمل مسابقتك» on the board (30 Sep 2026) ----------------------------------------
+   A quiz fills the board in the author's order, a row at a time: 25 questions a board
+   (the rounds are as many boards as it takes, at most 4), the first five at 100, the
+   next five at 200… - so an author who writes easy first gets the board's own curve.
+   A board of fewer questions has fewer columns (never more than it has questions) and
+   fewer rows; the last row's empty places are blank. A column is named with the quiz
+   and its number (مسابقة العيد 1…). The card shows the four answers; «الإجابة» is the
+   right one. */
+const TB_QUIZ_PER_BOARD = 25;
+function tbQuizRounds(quiz) {
+  return Math.max(1, Math.min(4, Math.ceil(((quiz && quiz.questions) || []).length / TB_QUIZ_PER_BOARD)));
+}
+function tbDealQuizRound(quiz, round) {
+  const from = (round - 1) * TB_QUIZ_PER_BOARD;
+  const list = quiz.questions.slice(from, from + TB_QUIZ_PER_BOARD);
+  const cols = Math.max(1, Math.min(TB_CATEGORIES_PER_ROUND, list.length));
+  const rows = Math.max(1, Math.ceil(list.length / cols));
+  const board = [];
+  for (let c = 0; c < cols; c++) {
+    board.push({
+      cat: null, quizCol: c,
+      cells: TB_LEVELS.slice(0, rows).map((points, r) => {
+        const k = r * cols + c;
+        return k < list.length ? { points: points, q: from + k, team: null, done: false } : { points: points, q: -1, team: null, done: true, blank: true };
+      })
+    });
+  }
+  return board;
+}
+/** A column's head: its category, or the quiz's title and the column's number. */
+function tbColHead(s, col) {
+  if (s && s.quiz && col.cat === null) {
+    const t = tbText();
+    const n = (typeof toArabicDigits === 'function' && appState.lang === 'ar') ? toArabicDigits(String(col.quizCol + 1)) : String(col.quizCol + 1);
+    return { icon: s.quiz.emoji || '✍️', name: (t.qm_col || '{t} {n}').replace('{t}', s.quiz.title).replace('{n}', n) };
+  }
+  const cat = tbCategory(col.cat) || {};
+  return { icon: cat.icon || '', name: cat[tbLang()] || '' };
+}
+/** A card's question and answer: [q, answer, choices or null]. */
+function tbCardItem(s, col, cell) {
+  if (s && s.quiz && col.cat === null) {
+    const q = s.quiz.questions[cell.q];
+    return q ? [(q.e ? q.e + ' ' : '') + q.q, q.c[q.a], q.c, q.a] : null;
+  }
+  const cat = tbCategory(col.cat);
+  const item = cat && (cat.levels[cell.points] || [])[cell.q];
+  if (!item) return null;
+  return tbLang() === 'en' ? [item[2], item[3], null, -1] : [item[0], item[1], null, -1];
+}
+
+/** The setup's «الأسئلة»: the app's, or a quiz on this phone (JS_PackStore.html). */
+function tbSourceId() {
+  const sel = document.getElementById('tb-source');
+  if (sel) return sel.value || '';
+  return tbSavedSetup().source || '';
+}
+function tbPaintSource() {
+  const panel = document.querySelector('#view-setup-trivia .mode-device-panel');
+  if (!panel || typeof packsQuizzes !== 'function') return;
+  let box = document.getElementById('tb-source-field');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'tb-source-field';
+    box.className = 'field';
+    const sub = panel.querySelector('.card__subtitle');
+    if (sub) sub.after(box); else panel.insertBefore(box, panel.firstChild);
+  }
+  const t = tbText();
+  const quizzes = packsQuizzes();
+  const want = tbSavedSetup().source || '';
+  const pick = quizzes.some(q => q.id === want) ? want : '';
+  box.innerHTML = `
+    <label class="field__label" for="tb-source">${escapeHTML(t.qm_src_label || '')}</label>
+    <select id="tb-source" onchange="tbRememberSetup(); tbPaintSource()">
+      <option value="" ${pick ? '' : 'selected'}>${escapeHTML(t.qm_src_app || '')}</option>
+      ${quizzes.map(q => `<option value="${escapeHTML(q.id)}" ${q.id === pick ? 'selected' : ''}>${escapeHTML((q.emoji ? q.emoji + ' ' : '') + (q.title || ''))} · ${(q.questions || []).length}</option>`).join('')}
+    </select>
+    ${pick ? `<p class="field__hint">${escapeHTML(t.qm_src_hint_board || '')}</p>` : ''}
+    <button type="button" class="btn btn--ghost btn--sm pk-src__make" onclick="catalogOpen('quizmaker')">${escapeHTML(t.qm_src_make || '')}</button>`;
+  // A quiz sets its own rounds (as many boards as it fills).
+  const rounds = document.getElementById('tb-rounds');
+  const field = rounds && rounds.closest('.field');
+  if (field) field.classList.toggle('hidden', !!pick);
 }
 
 /** What a card is worth: twice its points when it is the double card. */
@@ -304,17 +403,19 @@ function renderTriviaBoard() {
 
   if (typeof flagsEnsureFont === 'function') flagsEnsureFont();
   const headers = s.board.map(col => {
-    const cat = tbCategory(col.cat) || {};
-    return `<div class="tb-cat"><span class="tb-cat__icon flag-emoji" aria-hidden="true">${cat.icon || ''}</span>${escapeHTML(cat[lang] || '')}</div>`;
+    const head = tbColHead(s, col);
+    return `<div class="tb-cat"><span class="tb-cat__icon flag-emoji" aria-hidden="true">${escapeHTML(head.icon)}</span>${escapeHTML(head.name)}</div>`;
   }).join('');
 
   let cells = '';
-  TB_LEVELS.forEach((points, row) => {
+  // A quiz board of few questions has fewer rows (tbDealQuizRound).
+  TB_LEVELS.slice(0, Math.max(...s.board.map(col => col.cells.length))).forEach((points, row) => {
     s.board.forEach((col, c) => {
       const cell = col.cells[row];
       // Named with its category (the column's head is out of reach of a screen reader), and
       // once played, who took it: the dot's colour alone says that on screen.
-      const catName = (tbCategory(col.cat) || {})[lang] || '';
+      const catName = tbColHead(s, col).name;
+      if (cell.blank) { cells += `<span class="tb-cell is-done tb-cell--blank" aria-hidden="true"></span>`; return; }
       if (cell.done) {
         const dot = cell.team === 0 ? 'a' : (cell.team === 1 ? 'b' : 'none');
         const who = cell.team === 0 || cell.team === 1 ? tbTeamName(cell.team) : (t.quiz_nobody || '');
@@ -340,7 +441,7 @@ function renderTriviaBoard() {
         </div>
         ${team(1)}
       </div>
-      <div class="tb-board">${headers}${cells}</div>
+      <div class="tb-board"${s.board.length !== TB_CATEGORIES_PER_ROUND ? ` style="grid-template-columns: repeat(${s.board.length}, minmax(0, 1fr))"` : ''}>${headers}${cells}</div>
       <div class="btn-stack tb-actions">
         <button class="btn btn--secondary" onclick="nextTriviaRound()">${lastRound ? (t.tb_finish || 'إنهاء اللعبة') : (t.tb_next_round || 'الجولة التالية')}</button>
         ${canUndo ? `<button class="btn btn--ghost btn--sm" onclick="undoTriviaAward()">↶ ${escapeHTML(t.tb_undo_award || 'رجّع آخر سؤال')}</button>` : ''}
@@ -394,23 +495,23 @@ function showTriviaCell() {
   const o = s && s.open;
   const col = o && s.board[o.c];
   const cell = col && col.cells[o.row];
-  const cat = col && tbCategory(col.cat);
-  const item = cat && cell && (cat.levels[cell.points] || [])[cell.q];
+  const item = cell && tbCardItem(s, col, cell);
   if (!item || cell.done) {
     if (s) s.open = null;
     return;
   }
-  const en = tbLang() === 'en';
+  const head = tbColHead(s, col);
 
   // The Egypt category's icon is a flag: Windows draws one as two letters without the flag font.
   if (typeof flagsEnsureFont === 'function') flagsEnsureFont();
-  document.getElementById('tb-q-cat').innerHTML = (cat.icon ? '<span class="flag-emoji">' + escapeHTML(cat.icon) + '</span> ' : '') + escapeHTML(en ? cat.en : cat.ar);
+  document.getElementById('tb-q-cat').innerHTML = (head.icon ? '<span class="flag-emoji">' + escapeHTML(head.icon) + '</span> ' : '') + escapeHTML(head.name);
   const pts = document.getElementById('tb-q-points');
   // ×2 held left to right, or an Arabic line turns it into "2×".
   pts.innerHTML = cell.dbl ? '<bdi dir="ltr">×2</bdi> · ' + tbCellPoints(cell) : String(cell.points);
   pts.classList.toggle('tb-q-points--double', !!cell.dbl);
-  document.getElementById('tb-q-text').textContent = en ? item[2] : item[0];
-  document.getElementById('tb-q-answer-text').textContent = en ? item[3] : item[1];
+  document.getElementById('tb-q-text').textContent = item[0];
+  document.getElementById('tb-q-answer-text').textContent = item[1];
+  tbPaintChoices(item, !!o.revealed);
   if (o.revealed) paintTriviaAnswer();
   else {
     document.getElementById('tb-q-answer').classList.add('hidden');
@@ -570,11 +671,30 @@ function revealTriviaAnswer() {
   paintTriviaAnswer();
 }
 
+/** A quiz card's four answers under the question; the right one lit once the answer is shown. */
+function tbPaintChoices(item, revealed) {
+  let box = document.getElementById('tb-q-choices');
+  const text = document.getElementById('tb-q-text');
+  if (!item || !item[2]) { if (box) box.remove(); return; }
+  if (!box && text) {
+    box = document.createElement('div');
+    box.id = 'tb-q-choices';
+    box.className = 'tb-q-choices';
+    text.after(box);
+  }
+  if (!box) return;
+  const letters = String(tbText().qm_letters || 'ABCD').split('');
+  box.innerHTML = item[2].map((c, i) => `<span class="${revealed && i === item[3] ? 'is-right' : ''}"><b>${escapeHTML(letters[i] || '')}</b> ${escapeHTML(c)}</span>`).join('');
+}
+
 function paintTriviaAnswer() {
   const t = tbText();
   const s = appState.triviaBoard;
   document.getElementById('tb-q-answer').classList.remove('hidden');
-  const report = typeof reportBtnHtml === 'function'
+  const o = s && s.open;
+  const col = o && s.board[o.c];
+  if (col && col.cells[o.row]) tbPaintChoices(tbCardItem(s, col, col.cells[o.row]), true);
+  const report = typeof reportBtnHtml === 'function' && !(s && s.quiz)
     ? reportBtnHtml('triviaboard', (document.getElementById('tb-q-text') || {}).textContent || '') : '';
   // The steal missed too: the answer for the table, and no points for anyone.
   if (s && s.open && s.open.missed) {
@@ -855,6 +975,7 @@ function replayTriviaBoard() {
   s.last = null;
   cancelTriviaAdvance();
   s.board = tbDealBoard([], !!s.double);
+  if (s.quiz && s.quiz.code && typeof packPlayed === 'function') packPlayed(s.quiz.code);
   saveToLocal();
   renderTriviaBoard();
 }

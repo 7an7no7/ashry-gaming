@@ -290,6 +290,30 @@ if (ONLY.includes('screens')) {
       check(!bad.length, `${views.length} screens at ${w}x${h}, ${lang} ${dark ? 'dark' : 'light'}: laid out within the screen`, bad.join('\n      '));
       const errs = takeErrors(phone);
       check(!errs.length, `${w}x${h}, ${lang}: no errors opening every screen`, [...new Set(errs)].join('\n      '));
+      // «اعمل مسابقتك»: the editor with a question open, the list, the sheet with the code and
+      // its three ways, and a reload in the middle of a question coming back to it.
+      await ev(phone, `(() => { localStorage.removeItem('ashryPacks_v1'); setView('setup-quizmaker'); return 1; })()`);
+      await chunkIn(phone);
+      await ev(phone, `(() => { qmNewQuiz(); const q = packQuizById(qmEdit.id); q.title = 'مسابقة العيد'; q.questions = [
+        { q: 'مين أول واحد في العيلة اتجوز؟', e: '💍', c: ['خالو حسن', 'عمو مجدي', 'طنط نادية', 'بابا'], a: 1 },
+        { q: 'آخر مصيف روحناه سوا كان فين؟ سؤال طويل شوية عشان نشوف السطر وهو بيتقص في القايمة', e: '', c: ['رأس البر', 'مرسى مطروح', 'الغردقة', 'بلطيم'], a: 0 },
+        { q: 'Which year did we move?', e: '🏠', c: ['2010', '2012', '2015', ''], a: -1 }];
+        packQuizPut(q); qmOpenQ(1); return 1; })()`);
+      await wait(120);
+      const qmBad = await sweep(phone);
+      check(!(qmBad && qmBad.length), `${w}x${h}, ${lang}: the quiz editor with a question open is laid out within the screen`, (qmBad || []).join('; '));
+      await open(phone, BASE + '/preview/');
+      await chunkIn(phone);
+      const back = await ev(phone, `JSON.stringify({ v: appState.currentView, open: qmEdit.open, q: (document.getElementById('qm-q-in') || {}).value || '' })`);
+      check(/"v":"play-quizmaker","open":1/.test(back || '') && /آخر مصيف/.test(back || ''), `${w}x${h}, ${lang}: a reload mid-question comes back to the question, open`, back);
+      await ev(phone, `(() => { const q = packQuizById(qmEdit.id); q.code = 'QZ7K2A'; packQuizPut(q); qmOpenSheet(q); return 1; })()`);
+      await wait(150);
+      await ev(phone, SWEEP);
+      const sheetBad = await ev(phone, `__uiCheck(document.getElementById('qm-save-modal'))`);
+      check(!(sheetBad && sheetBad.length), `${w}x${h}, ${lang}: the sheet with the code and the three ways fits`, (sheetBad || []).join('; '));
+      await ev(phone, `(() => { closeAllModals(); localStorage.removeItem('ashryPacks_v1'); localStorage.removeItem('ashryQuizEdit_v1'); setView('menu'); return 1; })()`);
+      const qmErrs = takeErrors(phone);
+      check(!qmErrs.length, `${w}x${h}, ${lang}: no errors in the quiz editor`, [...new Set(qmErrs)].join('\n      '));
     }
     // Every game started the way a player starts it: its setup screen's Start.
     if (w !== 667) {

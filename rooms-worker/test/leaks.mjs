@@ -995,6 +995,44 @@ const PROBES = {
       })
     ];
   },
+  // «اعمل مسابقتك» in trivia: the bank's rules, and the family's quiz itself never leaves the server.
+  'trivia:quiz'(room) {
+    const s = room.shared || {};
+    const out = PROBES.trivia(room);
+    out.push(probe('the quiz as the author wrote it stays on the server', !!room._pack, (view) =>
+      (JSON.stringify(view).indexOf('"questions":') !== -1 ? 'the pack' : null)));
+    out.push(probe('a quiz question\'s answer is not sent while it is asked', s.phase === 'answering' && !!s.quiz, (view) =>
+      (hasKey(view.shared, 'correctAnswer') || (view.you && 'answer' in view.you) ? 'the answer' : null)));
+    return out;
+  },
+  // «اعمل مسابقتك» on the buzzer: the answer on the host's phone only, until it is shown.
+  'buzzer:quiz'(room) {
+    const s = room.shared || {};
+    const q = s.quiz;
+    const hidden = !!(q && !q.done && q.answer === null);
+    const right = hidden && room._bzDeck ? room._bzDeck[q.n] : null;
+    const out = [
+      probe('buzzer quiz: the right answer is on the host\'s phone only', hidden, (view, pid) => {
+        if (hasKey(view.shared.quiz || {}, 'answer')) return 'shared.quiz.answer';
+        const y = view.you || {};
+        if (pid !== room.hostId && 'answer' in y) return 'you.answer';
+        if (pid === room.hostId && pid !== SCREEN && y.answer !== right.answer) return 'you.answer (the host\'s is wrong)';
+        return null;
+      }),
+      probe('buzzer quiz: questions to come stay on the server', !!(q && room._bzDeck), (view, pid, idx) => {
+        for (let k = (q.n || 0) + 1; k < room._bzDeck.length; k++) { const hit = idx.find(room._bzDeck[k].q); if (hit) return hit; }
+        return null;
+      }),
+      probe('the quiz as the author wrote it stays on the server', !!room._pack, (view) =>
+        (JSON.stringify(view).indexOf('"questions":') !== -1 ? 'the pack' : null))
+    ];
+    return out;
+  },
+  // «كلماتنا» in الجاسوس: the family's word is on the players' phones only, like the app's.
+  'imposter:words'(room) {
+    return PROBES.imposter(room).concat([probe('the family\'s list stays on the server', !!room._pack, (view) =>
+      (JSON.stringify(view).indexOf('"words":[') !== -1 && !(view.shared && view.shared.words) ? 'the pack' : null))]);
+  },
   // شطرنج بالتصويت: what anyone voted stays on their own phone until the move is played.
   votechess(room) {
     const s = room.shared || {};
@@ -1113,12 +1151,15 @@ const table = (game, n, opts = {}) => {
 /** A move, applied as room.js applies one. False when the rules refuse it. */
 const act = (T, pid, action, payload = {}) => {
   const next = structuredClone(T.room);
+  // A pack named by the lobby (a family quiz, «كلماتنا»): room.js loads it for this one move.
+  if (payload && payload.pack && T.pack) next._packIn = T.pack;
   try {
     applyRoomAction(next, pid, action, payload);
   } catch (e) {
     T.lastError = e.message;
     return false;
   }
+  delete next._packIn;
   T.room = next;
   scan(T, action);
   return true;
@@ -2384,6 +2425,15 @@ const TOUR_DRIVERS = {
   }
 };
 
+/* A family quiz and a word pack for the pack drivers (as the rooms server keeps them). */
+const LEAK_QUIZ = { code: 'QZ7K2A', kind: 'quiz', pack: { title: 'مسابقة العيد', emoji: '🎉', questions: [
+  { q: 'مين أول واحد في العيلة اتجوز؟', e: '💍', c: ['خالو حسن', 'عمو مجدي', 'طنط نادية', 'بابا'], a: 1 },
+  { q: 'آخر مصيف روحناه سوا كان فين؟', e: '🏖️', c: ['رأس البر', 'مرسى مطروح', 'الغردقة', 'بلطيم'], a: 0 },
+  { q: 'تيتا بتعمل كحك العيد بكام كيلو دقيق؟', e: '', c: ['اتنين', 'خمسة', 'عشرة', 'تلاتة'], a: 1 },
+  { q: 'كريم بيشجع أنهي نادي في السر؟', e: '⚽', c: ['الأهلي', 'الزمالك', 'الإسماعيلي', 'المصري'], a: 2 }
+] } };
+const LEAK_WORDS = { code: 'WRD234', kind: 'words', pack: { title: 'كلماتنا', words: ['خالو حسن', 'الكنبة الكبيرة', 'بطاطس تيتا', 'المصيف', 'التكييف البايظ', 'قطة الجيران', 'عربية بابا', 'الريموت'] } };
+
 /* A variant of a room game, played through and held to its own probes (PROBES['chess:hq']). */
 /* برنامج السهرة (RoomProgram.js): its public state never carries a game's options or the
    highlights the awards are made from (a lie in كدّاب nobody called is a secret until the
@@ -2448,6 +2498,55 @@ const VARIANT_DRIVERS = {
     return P().phase === 'final' && P().final.games === 3;
   },
 
+  'trivia:quiz'() {
+    const T = table('trivia:quiz', 4, { gameId: 'trivia' });
+    T.pack = LEAK_QUIZ;
+    must(T, T.host, 'start', { lang: 'ar', count: 5, pack: 'QZ7K2A' });
+    for (let q = 0; q < 4; q++) {
+      if (q) must(T, T.host, 'nextQuestion', { qIndex: q - 1 });
+      if (q === 2) { runClock(T, (r) => r.shared.phase === 'results'); continue; }
+      for (const id of T.ids) must(T, id, 'answer', { choice: Math.floor(Math.random() * 4), qIndex: q });
+    }
+    must(T, T.host, 'nextQuestion', { qIndex: 3 });
+    must(T, T.host, 'playAgain', { lang: 'ar' });
+    for (const id of T.ids) must(T, id, 'answer', { choice: 0, qIndex: 0 });
+    return S(T).phase === 'results' && !!S(T).quiz;
+  },
+  'buzzer:quiz'() {
+    const T = table('buzzer:quiz', 3, { gameId: 'buzzer' });
+    T.pack = LEAK_QUIZ;
+    must(T, T.host, 'start', { pack: 'QZ7K2A' });
+    must(T, 'p2', 'buzz', { round: S(T).round });
+    must(T, T.host, 'wrong', { id: 'p2' });
+    must(T, 'p3', 'buzz', { round: S(T).round });
+    must(T, T.host, 'correct', { id: 'p3' });
+    must(T, T.host, 'quizNext', { n: 0 });
+    must(T, T.host, 'quizReveal', { n: 1 });
+    must(T, T.host, 'quizNext', { n: 1 });
+    must(T, 'p2', 'buzz', { round: S(T).round });
+    must(T, T.host, 'correct', { id: 'p2' });
+    must(T, T.host, 'quizNext', { n: 2 });
+    must(T, T.host, 'quizNext', { n: 3 });
+    const done = S(T).quiz.done;
+    // A TV host: nothing on the screen but what the table sees.
+    const T2 = table('buzzer:quiz', 3, { gameId: 'buzzer', screenHost: true });
+    T2.pack = LEAK_QUIZ;
+    must(T2, T2.host, 'start', { pack: 'QZ7K2A' });
+    must(T2, 'p1', 'buzz', { round: S(T2).round });
+    must(T2, T2.host, 'quizReveal', { n: 0 });
+    return done && S(T2).quiz.answer !== null;
+  },
+  'imposter:words'() {
+    const T = table('imposter:words', 4, { gameId: 'imposter' });
+    T.pack = LEAK_WORDS;
+    must(T, T.host, 'start', { category: '✍️ كلماتنا', spies: 1, pack: 'WRD234' });
+    must(T, T.host, 'beginDiscussion');
+    must(T, T.host, 'startVote');
+    const spy = T.room._impSpies[0];
+    for (const id of T.ids) act(T, id, 'vote', { option: id === spy ? T.ids.find((x) => x !== spy) : spy });
+    if (S(T).guesserId) must(T, S(T).guesserId, 'guess', { word: S(T).options[0] });
+    return T.room.phase === 'result';
+  },
   'chess:hq'() {
     // Two games: one on a clock (White picks, Black's pick by the clock), one where the host picks for both;
     // moves at random, a hidden queen moved like a pawn now and then and like a queen a third of the time.

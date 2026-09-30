@@ -8,7 +8,8 @@
       const manualLabel = appState.lang === 'ar' ? '✍️ إدخال يدوي' : '✍️ Manual Entry';
       
       let html = `<option value="countries">${countriesLabel}</option><option value="manual">${manualLabel}</option>`;
-      for(const cat in spyCategories()) {
+      // «كلماتنا» first, when the phone has the family's words (JS_PackStore.html).
+      for(const cat in spyCategoriesPlus()) {
           html += `<option value="${cat}">${cat}</option>`;
       }
       // Rebuilt on every visit: the pick goes back to the one last chosen on
@@ -164,8 +165,9 @@
                   ? COUNTRIES.filter(c => c.tier === 1).map(c => contentLang() === 'en' ? c.en : c.ar) : [];
               const countries = known.length ? known : (MONKEY_LISTS[contentLang()] || MONKEY_LISTS.ar).countries;
               secretWord = freshPick('imposter:countries:' + contentLang(), countries, 1)[0];
-          } else if (spyCategories()[category]) {
-              let list = spyCategories()[category];
+          } else if (spyCategoriesPlus()[category]) {
+              let list = spyCategoriesPlus()[category];
+              if (category === packWordsCatName() && packWordsCode()) packPlayed(packWordsCode());
               if (category.includes('🔒')) list = list.slice(1);
               secretWord = freshPick('imposter:' + category, list, 1)[0];
           }
@@ -401,8 +403,8 @@
           pool = typeof COUNTRIES !== 'undefined'
               ? COUNTRIES.filter(c => c.tier === 1).map(c => contentLang() === 'en' ? c.en : c.ar) : [];
           if (pool.indexOf(im.secretWord) === -1) pool = ((MONKEY_LISTS[contentLang()] || MONKEY_LISTS.ar).countries || []).slice();
-      } else if (cat && cat !== 'manual' && spyCategories()[cat]) {
-          pool = spyCategories()[cat].slice(cat.includes('🔒') ? 1 : 0);
+      } else if (cat && cat !== 'manual' && spyCategoriesPlus()[cat]) {
+          pool = spyCategoriesPlus()[cat].slice(cat.includes('🔒') ? 1 : 0);
       }
       const others = shuffleArray(pool.filter(w => w !== im.secretWord)).slice(0, IMP1_GUESS_OPTIONS - 1);
       if (others.length < 2) return null;

@@ -876,6 +876,81 @@ async function witnessRobots() {
   people.filter((b) => b !== leaver).concat([TV, late]).forEach((x) => x.close());
 }
 
+/* --- «اعمل مسابقتك» and «كلماتنا»: packs kept by code, dealt by the server ------------------- */
+async function quizRobots() {
+  console.log('• اعمل مسابقتك / كلماتنا (a pack by code, the author\'s key, trivia and the buzzer with a quiz, الجاسوس with the family words)');
+  const quiz = { title: 'مسابقة العيد', emoji: '🎉', questions: [
+    { q: 'مين أول واحد في العيلة اتجوز؟', e: '💍', c: ['خالو حسن', 'عمو مجدي', 'طنط نادية', 'بابا'], a: 1 },
+    { q: 'آخر مصيف روحناه سوا كان فين؟', c: ['رأس البر', 'مرسى مطروح', 'الغردقة', 'بلطيم'], a: 0 },
+    { q: 'تيتا بتعمل كحك العيد بكام كيلو دقيق؟', c: ['اتنين', 'خمسة', 'عشرة', 'تلاتة'], a: 1 }
+  ] };
+  const made = await api('/pack/create', { kind: 'quiz', pack: quiz });
+  check(made.ok && /^[A-HJ-NP-Z2-9]{6}$/.test(made.code) && typeof made.key === 'string' && made.key.length >= 20, 'quiz: a quiz gets a 6-letter code and an edit key');
+  const bad = await api('/pack/create', { kind: 'quiz', pack: { title: 'x', questions: [{ q: 'س', c: ['a', 'a', 'b', 'c'], a: 0 }] } });
+  check(!bad.ok && bad.error === 'choices_same' && bad.at === 0, 'quiz: the server refuses two answers the same, naming the question');
+  const got = await api('/pack/get', { code: made.code.toLowerCase() });
+  check(got.ok && got.kind === 'quiz' && got.pack.questions.length === 3 && got.pack.title === 'مسابقة العيد', 'quiz: anyone opens it by its code (in any case)');
+  const denied = await api('/pack/save', { code: made.code, key: 'not-the-key', kind: 'quiz', pack: quiz });
+  check(!denied.ok && denied.error === 'denied', 'quiz: only the author\'s key changes it');
+  const edited = await api('/pack/save', { code: made.code, key: made.key, kind: 'quiz', pack: Object.assign({}, quiz, { title: 'مسابقة العيد الكبير' }) });
+  check(edited.ok && (await api('/pack/get', { code: made.code })).pack.title === 'مسابقة العيد الكبير', 'quiz: the author changes it in place');
+  check((await api('/pack/get', { code: 'ZZZZZZ' })).error === 'not_found', 'quiz: a code nobody made is not found');
+  check((await api('/pack/played', { code: made.code })).ok, 'quiz: played starts its year again');
+
+  // Trivia in a room with the quiz: the server loads it by its code.
+  const H = await Bot.host('منى', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K];
+  await H.must('chooseGame', { game: 'trivia' });
+  check((await H.act('start', { lang: 'ar', pack: 'ZZZZZZ' })).ok === false, 'quiz/trivia: a code with no quiz is refused');
+  await H.must('start', { lang: 'ar', count: 10, pack: made.code });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'answering' && s.shared.quiz && s.shared.quiz.code === made.code && s.shared.totalQuestions === 3,
+    'quiz/trivia: every screen gets the family\'s quiz, all three questions');
+  check(people.concat([TV]).every((b) => !('correctAnswer' in b.state.shared) && !leaks(b, '"questions"')), 'quiz/trivia: the answer and the quiz itself stay on the server');
+  check(H.state.shared.question.indexOf('مين أول واحد في العيلة اتجوز؟') !== -1, 'quiz/trivia: the first question is the author\'s first');
+  for (const b of people) await b.must('answer', { choice: 0, qIndex: 0 });
+  await all(people, (s) => s.shared.phase === 'results' && typeof s.shared.correctAnswer === 'number', 'quiz/trivia: the answer comes with the results');
+  check(H.state.shared.choices[H.state.shared.correctAnswer] === 'عمو مجدي', 'quiz/trivia: the right answer is the author\'s tick, after the shuffle');
+  await H.must('backToHub');
+
+  // The buzzer with the quiz: the answer on the host's phone only.
+  await H.must('chooseGame', { game: 'buzzer' });
+  await H.must('start', { pack: made.code });
+  await all(people.concat([TV]), (s) => s.shared.quiz && s.shared.quiz.n === 0 && s.shared.quiz.choices.length === 4 && s.shared.quiz.answer === null,
+    'quiz/buzzer: the question and its four answers on every screen');
+  await H.waitFor((s) => s.you && typeof s.you.answer === 'number', 'quiz/buzzer: the host\'s phone has the answer');
+  check([J, K, TV].every((b) => !(b.state.you && 'answer' in b.state.you)), 'quiz/buzzer: nobody else has it');
+  await J.must('buzz', { round: H.state.shared.round });
+  await H.waitFor((s) => (s.shared.buzzes || []).length === 1, 'quiz/buzzer: a buzz lands');
+  await H.must('correct', { id: J.pid });
+  await all(people.concat([TV]), (s) => typeof s.shared.quiz.answer === 'number' && s.shared.phase === 'locked', 'quiz/buzzer: a right answer shows it to everyone');
+  await H.must('quizNext', { n: 0 });
+  await all(people, (s) => s.shared.quiz.n === 1 && s.shared.quiz.answer === null, 'quiz/buzzer: the next question');
+  await H.must('quizReveal', { n: 1 });
+  await H.must('quizNext', { n: 1 });
+  await H.must('quizNext', { n: 2 });
+  await all(people.concat([TV]), (s) => s.shared.quiz.done === true, 'quiz/buzzer: after the last question the quiz is done');
+  await H.must('backToHub');
+
+  // «كلماتنا» in الجاسوس.
+  const words = ['خالو حسن', 'الكنبة الكبيرة', 'بطاطس تيتا', 'المصيف', 'التكييف البايظ', 'قطة الجيران', 'عربية بابا'];
+  const wp = await api('/pack/create', { kind: 'words', pack: { title: 'كلماتنا', words } });
+  check(wp.ok && /^[A-HJ-NP-Z2-9]{6}$/.test(wp.code), 'words: the family words get a code');
+  check((await api('/pack/create', { kind: 'words', pack: { title: 'x', words: ['a', 'b'] } })).error === 'few_words', 'words: six words at least');
+  const L = await Bot.join(H.code, 'ليلى');
+  await H.must('chooseGame', { game: 'imposter' });
+  await H.must('start', { category: '✍️ كلماتنا', spies: 1, pack: wp.code });
+  const players = people.concat([L]);
+  await all(players, (s) => s.game === 'imposter' && !!s.you, 'words/imposter: everyone is dealt');
+  const word = players.map((b) => b.state.you.word).find(Boolean);
+  check(words.indexOf(word) !== -1, 'words/imposter: the secret word is one of the family\'s');
+  check(!leaks(TV, word), 'words/imposter: the screen never sees it');
+  await H.must('backToHub');
+  players.concat([TV]).forEach((b) => b.close());
+}
+
 /* --- سلك مقطوع: panels on their own phones, orders done by whoever holds the control, damage, a level won, the end --- */
 async function wireRobots() {
   console.log('• سلك مقطوع (own panels, an order shouted and done by its holder, a miss, a level won, the damage, play again)');
@@ -5957,6 +6032,7 @@ const SEGMENTS = [
   { name: 'bowling', run: bowlingSeg, secs: 30 },
   { name: 'chairs', run: chairsRobots, secs: 40 },
   { name: 'witness', run: witnessRobots, secs: 17 },
+  { name: 'quiz', run: quizRobots, secs: 6 },
   { name: 'wire', run: wireRobots, secs: 50 },
   { name: 'box', run: boxRobots, secs: 84 },
   { name: 'darkroom', run: darkroomRobots, secs: 18 },

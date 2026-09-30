@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode } from '../generated/rules.js';
+import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -381,6 +381,22 @@ export class Room extends DurableObject {
     return this.env.WORDS.get(this.env.WORDS.idFromName('stop'));
   }
 
+  /**
+   * A pack the family wrote («اعمل مسابقتك», «كلماتنا»), by its code, for a move that
+   * deals with it: the rules never take a quiz's answers or a word list from a phone.
+   * Reading it as played starts its year again. null when there is none by that code.
+   */
+  async readPack(raw) {
+    const code = packCode(raw);
+    if (!PACK_CODE_RE.test(code) || !this.env.PACKS) return null;
+    try {
+      const got = await this.env.PACKS.get(this.env.PACKS.idFromName('pack:' + code)).get(true);
+      return got ? { code, kind: got.kind, pack: got.pack } : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   async readMemory() {
     try {
       return { values: await this.memoryStub().read(), changed: {} };
@@ -492,6 +508,7 @@ export class Room extends DurableObject {
       }
       if (heir && now - leftAt >= HOST_AWAY_MS - 1000) {
         this.room.hostId = heir.id;
+        roomHostChanged(this.room);
         roomEvent(this.room, 'host', { name: heir.name || '📺' });
         changed = true;
       } else if (heir) {
@@ -616,6 +633,8 @@ export class Room extends DurableObject {
     const action = String(rawAction || '');
     const payload = rawPayload && typeof rawPayload === 'object' ? rawPayload : {};
     const memory = DEAL_ACTIONS.has(action) ? await this.readMemory() : null;
+    // A quiz or word pack chosen in the lobby (payload.pack): loaded here, for this one move.
+    const pack = (action === 'start' || action === 'playAgain') && payload.pack ? await this.readPack(payload.pack) : null;
 
     // The memory read let other messages in; look at the room as it is now.
     problem = this.check(pid);
@@ -636,12 +655,15 @@ export class Room extends DurableObject {
     // For this one move only: whether the host has been away long enough for
     // anyone to press their "move on" buttons (requireHost in RoomGames.js).
     if (pid !== before.hostId && this.hostAway()) next._hostAway = true;
+    // The pack for this move only (roomPackAdopt in RoomGames.js keeps what the game needs).
+    if (pack) next._packIn = pack;
     try {
       withPromptMemory(memory, () => applyRoomAction(next, pid, action, payload));
     } catch (err) {
       return { ok: false, error: errorText(err) };
     }
     delete next._hostAway;
+    delete next._packIn;
     // A cheer the rules let go (too many too fast, or no game on): nothing changed,
     // so nothing is saved or sent to the others - a tap-happy watcher used to push a
     // whole state to every phone on each tap. The phone that sent it gets its own view.
@@ -766,6 +788,7 @@ export class Room extends DurableObject {
     if (target !== pid) {
       if (!this.onlineIds().has(target)) return { ok: false, error: 'ده مش متصل دلوقتي، مينفعش يبقى المضيف' };
       room.hostId = target;
+      roomHostChanged(room);
       if (room.lastSeen) delete room.lastSeen[target];
       roomEvent(room, 'host', { name: p.name });
       this.touch();

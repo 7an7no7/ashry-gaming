@@ -54,6 +54,8 @@ const MAP = [
   { files: /^JS_RoomAutoNext\.html$/, robots: ['autonext'], ui: ['trivia', 'wouldyou', 'mostlikely', 'fibbage', 'herd', 'twotruths', 'wavelength'] },
   // Error reports from players' phones (/err): the admin script that reads them.
   { files: /^tools\/errors\.mjs$/, robots: ['err'] },
+  // «اعمل مسابقتك» and «كلماتنا»: the packs, their editor, and the rooms that deal them.
+  { files: /^(Packs\.js|JS_PackStore\.html|JS_QuizMaker\.html|rooms-worker\/src\/packs\.js)$/, robots: ['quiz', 'core'], ui: ['trivia', 'buzzer', 'imposter', 'chameleon', 'drawguess', 'whoami'], screens: true },
   { files: /^JS_(Imposter|Chameleon|Spyfall|Bomb|Monkey|Stop|StopBus|WhoAmI|Charades|DescribeIt|TimesUp|NewGames|Emoji|Proverbs|FiveSeconds|TriviaBoard|TriviaBoardBank|Director|HeadsUp|Chooser)\.html$/, screens: true, ui: CORE_GAMES },
   { files: /^JS_RoomMafia\.html$/, robots: ['mafia'], ui: ['mafia'] },
   { files: /^(SkrewCards\.js|JS_RoomScrew\.html|JS_Screw\.html)$/, robots: ['screw'], ui: ['screw'], screens: true },

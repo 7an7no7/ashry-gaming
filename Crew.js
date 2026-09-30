@@ -26,6 +26,8 @@ const CREW_MAX_PACKS = 30;
 const CREW_NIGHTS_SHOWN = 30;         // the السهرات tab
 const CREW_DAY_SHIFT_MS = 6 * 3600 * 1000;
 const CREW_TZ = 'Africa/Cairo';
+const CREW_PROGRAMS_KEPT = 3;         // «برنامج السهرة»: a night keeps its last three programs
+const CREW_PROGRAM_AWARDS = 8;        // and each one's awards (the program gives eight at most)
 
 /** A code for a new crew, from a random source returning 0..1. */
 const crewNewCode = (rnd) => {
@@ -115,7 +117,23 @@ const crewNightInput = (room) => {
     wins: (x.wins || []).filter(w => person(w.id)).map(w => Object.assign(tag(w.id), { g: w.g })).slice(-60),
     best: (x.best || []).filter(b => person(b.id)).map(b => Object.assign(tag(b.id), { g: b.g, s: b.s })).slice(-20),
     tally: (x.tally || []).filter(b => person(b.id)).map(b => Object.assign(tag(b.id), { k: b.k, n: b.n })).slice(-20),
-    pred: Object.keys(x.pred || {}).filter(person).map(pid => Object.assign(tag(pid), { n: x.pred[pid] }))
+    pred: Object.keys(x.pred || {}).filter(person).map(pid => Object.assign(tag(pid), { n: x.pred[pid] })),
+    // «برنامج السهرة» (RoomProgram.js, nightProgramFinished): a night that was a program says so,
+    // with its champion(s) and awards - small, the last three programs of the night at most.
+    programs: (x.programs || []).slice(-CREW_PROGRAMS_KEPT).map(p => {
+      const who = (id, name) => ({ name: name || nameOf(id), member: links[id] || null });
+      return {
+        at: Number(p.at) || 0,
+        games: (p.games || []).filter(g => g && !g.skipped).map(g => String(g.id || '')).slice(0, 8),
+        champions: (p.champions || []).filter(id => !botIds.has(id)).map(id => {
+          const row = (p.table || []).find(r => r.id === id) || {};
+          return who(id, row.name);
+        }).filter(c => c.name),
+        awards: (p.awards || []).filter(a => a && !botIds.has(a.id)).slice(0, CREW_PROGRAM_AWARDS)
+          .map(a => Object.assign(who(a.id, a.name), { k: a.k, v: a.v, g: a.g || '', with: a.with || '', from: a.from || '' }))
+          .filter(a => a.name)
+      };
+    })
   };
 };
 
@@ -147,7 +165,15 @@ const crewCleanNight = (input, members, now) => {
     wins: keep(inp.wins, 60, r => ({ g: String(r.g || '').slice(0, 24) })),
     best: keep(inp.best, 20, r => ({ g: String(r.g || '').slice(0, 24), s: Number(r.s) || 0 })),
     tally: keep(inp.tally, 20, r => ({ k: String(r.k || '').slice(0, 24), n: Math.max(0, Math.floor(Number(r.n) || 0)) })),
-    pred: keep(inp.pred, 12, r => ({ k: 'oracle', c: Math.max(0, Math.floor(Number(r.n) || 0)) }))
+    pred: keep(inp.pred, 12, r => ({ k: 'oracle', c: Math.max(0, Math.floor(Number(r.n) || 0)) })),
+    prog: (Array.isArray(inp.programs) ? inp.programs : []).slice(-CREW_PROGRAMS_KEPT).map(p => ({
+      at: Number(p && p.at) || 0,
+      g: (Array.isArray(p && p.games) ? p.games : []).map(g => String(g).slice(0, 24)).filter(Boolean).slice(0, 8),
+      c: keep(p && p.champions, 12, () => ({})),
+      aw: keep(p && p.awards, CREW_PROGRAM_AWARDS, a => ({ k: String(a.k || '').replace(/[^a-z]/gi, '').slice(0, 16),
+        v: Number(a.v) || 0, g: String(a.g || '').slice(0, 24),
+        w: crewCleanName(a.with, CREW_MEMBER_NAME_MAX), f: Math.floor(Number(a.from) || 0) })).filter(a => a.k)
+    })).filter(p => p.g.length)
   };
 };
 
@@ -253,7 +279,13 @@ const crewNightSummary = (n, members) => {
   return {
     id: n.id, date: n.date, games: n.games || [],
     winners: crewNightWinners(n).map(nm),
-    top: (n.rows || []).slice(0, 3).map(r => ({ name: nm(r), p: r.p, guest: !r.m || !name.has(r.m) }))
+    top: (n.rows || []).slice(0, 3).map(r => ({ name: nm(r), p: r.p, guest: !r.m || !name.has(r.m) })),
+    // A night that was a program: its last program's champion(s) and awards, and how many there were.
+    prog: (n.prog && n.prog.length) ? (() => {
+      const p = n.prog[n.prog.length - 1];
+      return { n: n.prog.length, games: p.g.length, champs: p.c.map(nm),
+        aw: p.aw.map(a => ({ k: a.k, name: nm(a), v: a.v, g: a.g, with: a.w || '', from: a.f || 0 })) };
+    })() : null
   };
 };
 
@@ -284,7 +316,7 @@ const crewView = (meta, nights, now, you) => {
     records: crewRecords(nights, members, champs),
     nights: sorted.slice(0, CREW_NIGHTS_SHOWN).map(n => crewNightSummary(n, members)),
     nightCount: nights.length,
-    packs: (meta.packs || []).map(p => ({ code: p.code, kind: p.kind, title: p.title, by: p.by, at: p.at }))
+    packs: (meta.packs || []).map(p => ({ code: p.code, kind: p.kind, title: p.title, by: p.by, byId: p.byId || '', at: p.at }))
   };
 };
 
@@ -303,4 +335,39 @@ const crewFreezeChamps = (meta, nights, now) => {
     if (c) { meta.champs = (meta.champs || []).concat([c]); changed = true; }
   });
   return changed;
+};
+
+/* --- the crew's packs: codes of quizzes and word packs («اعمل مسابقتك», «كلماتنا») ----------
+   A crew keeps the codes, never the packs (the rooms server's PackStore has them): every member
+   sees them on the crew's page and in the word games without typing a code. Any member adds one;
+   the member who added it, or the manager, takes it off. `me` is a member ({ id, name }) - the
+   Durable Object proves it from the phone's key first; `me.server` is another feature's own call
+   (attachPack). Errors are the Arabic words the page shows (ROOM_ERR_EN in JS_Room.html). */
+const CREW_PACK_KINDS = ['quiz', 'words'];
+
+const crewAddPackTo = (meta, me, p) => {
+  const m = me || {};
+  if (!m.server && !(meta.members || []).some(x => x.id === m.id)) throw new Error('مش في الشلة');
+  const code = String((p && p.code) || '').trim().toUpperCase().slice(0, 16);
+  if (!/^[A-Z0-9]{6}$/.test(code)) throw new Error('كود مش صحيح');
+  const kind = CREW_PACK_KINDS.indexOf(String((p && p.kind) || '')) !== -1 ? String(p.kind) : 'quiz';
+  const title = crewCleanName(p && p.title, 40);
+  const packs = meta.packs = Array.isArray(meta.packs) ? meta.packs : [];
+  const had = packs.find(x => x.code === code);
+  if (had) { if (title) had.title = title; return had; }   // added already: whoever added it first keeps it
+  if (packs.length >= CREW_MAX_PACKS) throw new Error('الشلة فيها حاجات كتير، امسح واحدة الأول');
+  const pack = { code, kind, title, by: crewCleanName(m.name, CREW_MEMBER_NAME_MAX), byId: m.server ? '' : String(m.id), at: Date.now() };
+  packs.unshift(pack);
+  return pack;
+};
+
+const crewRemovePackFrom = (meta, me, code) => {
+  const m = me || {};
+  if (!(meta.members || []).some(x => x.id === m.id)) throw new Error('مش في الشلة');
+  const c = String(code || '').trim().toUpperCase();
+  const pack = (meta.packs || []).find(x => x.code === c);
+  if (!pack) throw new Error('مش موجودة');
+  if (m.id !== meta.managerId && pack.byId !== m.id) throw new Error('اللي ضافها أو اللي ماسك الشلة بس');
+  meta.packs = meta.packs.filter(x => x !== pack);
+  return pack;
 };

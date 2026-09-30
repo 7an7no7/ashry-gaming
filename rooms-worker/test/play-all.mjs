@@ -1541,7 +1541,7 @@ async function crewRobots() {
   let view = await waitNight((c) => c.nightCount === 1, 'crew: the night reached the crew');
   if (view) {
     const row = view.table.find((r) => r.id === kk.memberId);
-    check(row && row.won === 1 && row.points === 3 && row.played === 1, 'crew: كريم won the night: 1 night, 3 points');
+    check(row && row.won === 1 && row.points === 5 && row.played === 1, 'crew: كريم won the night: 1 night, 5 points (5/3/2, the rule of 30 Sep)');
     check(!view.table.some((r) => r.name === 'ضيف'), 'crew: the guest is not on the season table');
     check(view.nights[0] && view.nights[0].top.some((t) => t.name === 'ضيف' && t.guest), 'crew: the guest is on the night, as a guest');
     check(view.nights[0] && view.nights[0].games.indexOf('buzzer') !== -1, 'crew: the night says which games were played');
@@ -1549,11 +1549,11 @@ async function crewRobots() {
   // A second game the same night: the same night, replaced, not a second one.
   await H.must('chooseGame', { game: 'buzzer' });
   await playBuzz([K, H, K]);
-  view = await waitNight((c) => c.nightCount === 1 && (c.table.find((r) => r.id === made.memberId) || {}).points === 3, 'crew: a second game adds to the same night');
+  view = await waitNight((c) => c.nightCount === 1 && (c.table.find((r) => r.id === made.memberId) || {}).points === 5, 'crew: a second game adds to the same night');
   if (view) {
     const k = view.table.find((r) => r.id === kk.memberId);
     const h = view.table.find((r) => r.id === made.memberId);
-    check(k && h && k.points === 6 && h.points === 3 && k.won === 1 && h.won === 0, 'crew: the night totals 6 (كريم, 3 + 3) and 3 (هالة, 1 + 2), one night won');
+    check(k && h && k.points === 10 && h.points === 5 && k.won === 1 && h.won === 0, 'crew: the night totals 10 (كريم, 5 + 5) and 5 (هالة, 2 + 3), one night won');
     check(view.titles.some((t) => t.key === 'fast' && t.id === kk.memberId && t.n === 2), 'crew: a title from real play (two buzzer games won: أسرع إيد)');
   }
   check(!leaked(), 'crew: still no crew key in any room state');
@@ -1594,9 +1594,102 @@ async function crewRobots() {
   let v2 = null;
   for (let i = 0; i < 30 && !(v2 && v2.ok && v2.crew.nightCount === 1); i++) { await sleep(200); v2 = await crew('get', { code: c2.code, key: c2k.key }); }
   const nr = v2 && v2.ok && v2.crew.table.find((r) => r.id === c2k.memberId);
-  check(!!(nr && nr.won === 1 && nr.points === 3), 'crew: a room that closes with a game on the table still sends its night');
+  check(!!(nr && nr.won === 1 && nr.points === 5), 'crew: a room that closes with a game on the table still sends its night');
   await crew('act', { code: c2.code, key: c2.key, action: 'leave' });
   await crew('act', { code: c2.code, key: c2k.key, action: 'leave' });
+}
+
+/* --- the links (30 Sep 2026): a crew's quizzes and words, and a night that was «برنامج السهرة» --- */
+async function crewLinkRobots() {
+  console.log("• the crew's packs (a member adds, a stranger can't, 30 at most, who takes one off) and a program night recorded once");
+  const crew = (path, body) => api('/crew/' + path, body);
+  const made = await crew('create', { name: 'شلة الروابط', me: 'هالة' });
+  check(made.ok, 'crewlink: a crew');
+  if (!made.ok) return;
+  const code = made.code;
+  const kk = await crew('join', { code, name: 'كريم' });
+  const other = await crew('create', { name: 'شلة تانية', me: 'غريب' });
+  const quiz = await api('/pack/create', { kind: 'quiz', pack: { title: 'مسابقة الشلة', emoji: '🎉', questions: [
+    { q: 'مين أول واحد وصل السهرة؟', c: ['هالة', 'كريم', 'سارة', 'نور'], a: 1 }] } });
+  const words = await api('/pack/create', { kind: 'words', pack: { title: 'كلمات الشلة', words: ['القعدة', 'الشاي بالنعناع', 'البلكونة', 'الطاولة', 'فشار', 'سهرة الخميس'] } });
+  check(quiz.ok && words.ok, 'crewlink: a quiz and a word pack with their codes');
+  const act = (key, action, payload) => crew('act', { code, key, action, payload });
+  const add = await act(kk.key, 'addPack', { code: quiz.code, kind: 'quiz', title: 'مسابقة الشلة' });
+  check(add.ok && add.crew.packs.length === 1 && add.crew.packs[0].byId === kk.memberId && add.crew.packs[0].by === 'كريم', 'crewlink: a member adds a quiz to the crew (who added it kept)');
+  check((await act('nope', 'addPack', { code: words.code, kind: 'words' })).ok === false, 'crewlink: a wrong key adds nothing');
+  check((await crew('act', { code, key: other.key, action: 'addPack', payload: { code: words.code, kind: 'words' } })).ok === false, "crewlink: another crew's member can't add to this one");
+  const w = await act(made.key, 'addPack', { code: words.code, kind: 'words', title: 'كلمات الشلة' });
+  check(w.ok && w.crew.packs.length === 2 && w.crew.packs.some((p) => p.kind === 'words'), 'crewlink: the manager adds the words');
+  const seen = await crew('get', { code, key: kk.key });
+  check(seen.ok && seen.crew.packs.length === 2 && !JSON.stringify(seen).includes(made.key) && !JSON.stringify(seen).includes(kk.key), 'crewlink: every member sees the packs, and no key');
+  let n = 2;
+  for (let i = 0; n < 30; i++) { const r = await act(made.key, 'addPack', { code: 'AB' + (1000 + i), kind: 'quiz', title: 'q' + i }); if (r.ok) n = r.crew.packs.length; else break; }
+  check(n === 30, 'crewlink: thirty packs on the crew');
+  const over = await act(kk.key, 'addPack', { code: 'ZZ9999', kind: 'quiz' });
+  check(!over.ok && /كتير/.test(over.error || ''), 'crewlink: the 31st is refused');
+  check((await act(kk.key, 'removePack', { code: 'AB1000' })).ok === false, "crewlink: a member can't take off a pack someone else added");
+  const off1 = await act(kk.key, 'removePack', { code: quiz.code });
+  check(off1.ok && !off1.crew.packs.some((p) => p.code === quiz.code), 'crewlink: whoever added it takes it off');
+  const off2 = await act(made.key, 'removePack', { code: 'AB1000' });
+  check(off2.ok && off2.crew.packs.length === 28, 'crewlink: the manager takes any off');
+
+  // A program played in a room opened for the crew: one night, the program's places, its badge.
+  const H = await Bot.host('هالة', null);
+  const K = await Bot.join(H.code, 'كريم');
+  const G = await Bot.join(H.code, 'ضيف');
+  const people = [H, K, G];
+  await H.must('setCrew', { code, key: made.key });
+  await K.must('crewMe', { code, key: kk.key });
+  await H.must('programStart', { games: [{ id: 'buzzer', opts: {} }, { id: 'buzzer', opts: {} }, { id: 'buzzer', opts: {} }] });
+  const byName = { h: H, k: K, g: G };
+  const plan = [['k', 'k', 'h'], ['h', 'h', 'g'], ['k']];
+  const advance = async (gi) => {
+    for (let i = 0; i < 20; i++) {
+      const p = H.state.program;
+      if (p && p.phase === 'playing' && p.at === gi && H.state.game === 'buzzer' && H.state.shared && H.state.shared.phase) return true;
+      if (p && (p.phase === 'between' || p.phase === 'result')) await H.act('programSkip', { seq: p.seq });
+      await sleep(250);
+    }
+    return false;
+  };
+  for (let gi = 0; gi < 3; gi++) {
+    check(await advance(gi), 'crewlink: the program deals game ' + (gi + 1));
+    for (const who of plan[gi]) {
+      await H.waitFor((st) => st.shared && st.shared.phase === 'armed', 'crewlink: buzzers armed');
+      await byName[who].must('buzz', { round: H.state.shared.round });
+      await H.waitFor((st) => (st.shared.buzzes || []).length === 1, 'crewlink: a buzz');
+      await H.must('correct', { id: byName[who].pid });
+    }
+    await H.must('programSkip', { seq: H.state.program.seq });
+    await H.waitFor((st) => st.program && st.program.phase !== 'playing', 'crewlink: the game is counted as it stands');
+  }
+  for (let i = 0; i < 10 && !(H.state.program && H.state.program.phase === 'final'); i++) {
+    await H.act('programSkip', { seq: H.state.program.seq });
+    await sleep(250);
+  }
+  await all(people, (st) => st.program && st.program.phase === 'final', 'crewlink: the finale');
+  const champ = H.state.program.final.champions;
+  check(champ.length === 1 && champ[0] === K.pid, 'crewlink: كريم is the champion of the program');
+  let view = null;
+  for (let i = 0; i < 40; i++) {
+    view = await crew('get', { code, key: kk.key });
+    if (view.ok && view.crew.nightCount === 1 && view.crew.nights[0] && view.crew.nights[0].prog) break;
+    await sleep(200);
+  }
+  const night = view && view.ok && view.crew.nights[0];
+  check(!!(view && view.ok && view.crew.nightCount === 1), 'crewlink: the program night reached the crew, once');
+  const rowK = view && view.ok && view.crew.table.find((r) => r.id === kk.memberId);
+  const rowH = view && view.ok && view.crew.table.find((r) => r.id === made.memberId);
+  check(!!(rowK && rowH && rowK.points === 12 && rowH.points === 11 && rowK.won === 1), 'crewlink: the night by places, 5/3/2 a game: كريم 12, هالة 11, one night won');
+  check(!!(night && night.prog && night.prog.games === 3 && night.prog.champs.join() === 'كريم'), 'crewlink: the night says it was a program, and who won it');
+  check(!!(night && night.top.some((t) => t.name === 'ضيف' && t.guest)), 'crewlink: the guest is on the night as a guest');
+  check(!people.some((b) => JSON.stringify(b.state).includes(made.key) || JSON.stringify(b.state).includes(kk.key) || JSON.stringify(b.state).includes('crewLinks')),
+    "crewlink: no crew key and no member map in any phone's room state");
+  await H.must('programClose', {});
+  people.forEach((b) => b.close());
+  await act(kk.key, 'leave');
+  await act(made.key, 'leave');
+  await crew('act', { code: other.code, key: other.key, action: 'leave' });
 }
 
 /* --- the core: one room of four people through the party games (run alone with --only=core) --- */
@@ -6049,6 +6142,7 @@ const SEGMENTS = [
   { name: 'leavemid', run: leavemidSeg, secs: 1 },
   { name: 'program', run: programRobots, secs: 60 },
   { name: 'crew', run: crewRobots, secs: 6 },
+  { name: 'crewlink', run: crewLinkRobots, secs: 12 },
 ];
 const EXCLUSIVE = new Set([]);
 

@@ -38,7 +38,7 @@ const HU_DECKS = [
 ];
 /** The decks, with «كلماتنا» when the phone has the family's words (JS_PackStore.html). */
 function huDecksNow() {
-  return typeof packWordsList === 'function' && packWordsList() ? HU_DECKS.concat([{ id: 'pack', icon: '✍️' }]) : HU_DECKS;
+  return typeof packWordPacks === 'function' ? HU_DECKS.concat(packWordPacks().map(p => ({ id: p.id, icon: '✍️', name: p.name.replace(/^✍️ /, '') }))) : HU_DECKS;
 }
 const HU_SECONDS = [60, 90, 120];
 const HU_DEAL = 80;
@@ -57,7 +57,7 @@ function huState() {
 
 /** The words of a deck in a language, each once. */
 function huDeckWords(id, lang) {
-  if (id === 'pack') return (typeof packWordsList === 'function' && packWordsList()) || [];
+  if (String(id).indexOf('pack') === 0) { const wp = typeof packWordPackById === 'function' && packWordPackById(id); return wp ? wp.words : []; }
   const key = id + ':' + lang;
   if (HU_DECK_CACHE[key]) return HU_DECK_CACHE[key];
   const decks = id === 'mix' ? HU_DECKS.filter(d => d.from && d.id !== 'actions') : HU_DECKS.filter(d => d.id === id);
@@ -102,7 +102,7 @@ function paintHeadsUpSetup() {
     box.innerHTML = huDecksNow().map(d => `
       <button type="button" class="hu-deck${d.id === s.deck ? ' is-active' : ''}" onclick="setHeadsUpOption('deck', '${d.id}')">
         <span class="hu-deck__icon" aria-hidden="true">${d.icon}</span>
-        <span class="hu-deck__name">${escapeHTML(d.id === 'pack' ? packWordsCatName().replace(/^✍️ /, '') : (t['hu_deck_' + d.id] || d.id))}</span>
+        <span class="hu-deck__name">${escapeHTML(d.name || t['hu_deck_' + d.id] || d.id)}</span>
         <span class="hu-deck__count metric">${huDeckWords(d.id, lang).length}</span>
       </button>`).join('');
   }

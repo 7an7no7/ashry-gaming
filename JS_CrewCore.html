@@ -13,8 +13,18 @@
      crewApi(path, body)   -> POST ROOMS_URL/crew/<path>, resolves { ok, ... }
      crewAct(code, action, payload) -> a member's move with this phone's key
      crewAddPack(code, { code, kind, title }) / crewRemovePack(code, packCode)
+     crewPacksOf(code)     -> the packs a crew keeps, from this phone's copy of its page
+     crewPackAddBtnHtml(code, kind, title) -> «ضيفها للشلة» for a pack's sheet
    ========================================================================= */
 const CREW_STORE = 'ashryCrews_v1';
+const CREW_CACHE = 'ashryCrewCache_v1';   // a copy of each crew's last page (a reload, no network)
+
+function crewCacheRead() { try { return JSON.parse(localStorage.getItem(CREW_CACHE) || '{}') || {}; } catch (e) { return {}; } }
+function crewCacheWrite(code, view) {
+  const all = crewCacheRead();
+  if (view) all[code] = view; else delete all[code];
+  try { localStorage.setItem(CREW_CACHE, JSON.stringify(all)); } catch (e) {}
+}
 
 function crewStoreRead() {
   try {
@@ -75,6 +85,175 @@ async function crewAct(code, action, payload) {
 }
 function crewAddPack(code, pack) { return crewAct(code, 'addPack', pack); }
 function crewRemovePack(code, packCode) { return crewAct(code, 'removePack', { code: packCode }); }
+
+/* --- the crew's packs (the links, 30 Sep 2026) -----------------------------------------
+   A crew keeps the codes of its quizzes and word packs (Crew.js, crewAddPackTo), so every
+   member has them without typing a code: on the crew's page (JS_Crew.html), in «اعمل
+   مسابقتك»'s list («من الشلة», JS_QuizMaker.html), and a word pack as a category in the word
+   games (JS_PackStore.html, packWordPacks). The list comes with the crew's page; this phone
+   keeps its last copy (CREW_CACHE). */
+
+/** The packs a crew keeps, from this phone's last copy of its page: [{ code, kind, title, by, byId, at }]. */
+/** A name or a title inside a translated line, held apart (an Arabic title in an English line). */
+const crewIso = (x) => String.fromCharCode(0x2068) + String(x || '') + String.fromCharCode(0x2069);
+
+function crewPacksOf(code) {
+  const v = crewCacheRead()[code];
+  return v && Array.isArray(v.packs) ? v.packs : [];
+}
+/** Asks the crew for its page again (its packs among it); resolves true when it came. */
+async function crewRefresh(code) {
+  const res = await crewAct(code, 'get');
+  if (res && res.ok && res.crew) { crewCacheWrite(code, res.crew); crewWordsSync(); return true; }
+  if (res && (res.out || res.gone)) crewCacheWrite(code, null);
+  return false;
+}
+
+/** «ضيفها للشلة» under a saved pack (a quiz's or the words' sheet), for a phone in a crew. */
+function crewPackAddBtnHtml(code, kind, title) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const list = crewList();
+  if (!code || !list.length) return '';
+  const inAll = list.every(c => crewPacksOf(c.code).some(p => p.code === code));
+  const label = inAll ? (list.length === 1 ? (t.crew_pack_in || '') : (t.crew_pack_in_all || '')) : (t.crew_pack_add_btn || '');
+  return `<button type="button" class="btn btn--secondary crew-pack-add${inAll ? ' is-in' : ''}" data-crew-pack="${escapeHTML(code)}" ${inAll ? 'disabled' : ''}
+      onclick="crewPackAdd('${jsStringAttr(code)}', '${jsStringAttr(kind)}', '${jsStringAttr(title || '')}')"><span aria-hidden="true">🎉</span> ${escapeHTML(label)}</button>`;
+}
+
+/** Adds a pack to the crew: at once with one crew, a pick of which with several. */
+function crewPackAdd(code, kind, title) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const list = crewList();
+  if (!list.length || !code) return;
+  if (list.length === 1) { crewPackAddTo(list[0].code, code, kind, title); return; }
+  crewPackAdd.pending = { code, kind, title };
+  ['qm-save-modal'].forEach(id => { if (typeof closeModal === 'function') closeModal(id); });
+  const rows = list.map(c => {
+    const has = crewPacksOf(c.code).some(p => p.code === code);
+    return `
+      <button type="button" class="crew-pick ${has ? 'is-on' : ''}" ${has ? 'disabled' : ''} onclick="crewPackAddTo('${jsStringAttr(c.code)}')">
+        <span class="crew-pick__icon" aria-hidden="true">🎉</span>
+        <span class="crew-pick__name">${escapeHTML(c.name)}</span>
+        ${has ? '<span class="crew-pick__on" aria-hidden="true">✓</span>' : ''}
+      </button>`;
+  }).join('');
+  crewModal(`
+    <div class="modal-icon" aria-hidden="true">${kind === 'words' ? '✍️' : '🧠'}</div>
+    <div class="sheet__title">${escapeHTML(t.crew_pack_pick || '')}</div>
+    <p class="sheet__subtitle">${escapeHTML(title || code)}</p>
+    <div class="modal-list crew-picks">${rows}</div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--ghost" onclick="closeModal('crew-modal')">${escapeHTML(t.cancel || '')}</button>
+    </div>`);
+}
+
+/** One crew: its answer is the crew's new page, kept, and every screen showing the packs follows. */
+async function crewPackAddTo(crewCode, code, kind, title) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const p = code ? { code, kind, title } : (crewPackAdd.pending || {});
+  if (!p.code) return;
+  const res = await crewAddPack(crewCode, { code: p.code, kind: p.kind === 'words' ? 'words' : 'quiz', title: p.title || '' });
+  if (!res || !res.ok) { showToast(roomErrLocal((res && res.error) || '') || t.crew_err_net || '', 'error'); return; }
+  if (res.crew) crewCacheWrite(crewCode, res.crew);
+  crewPackAdd.pending = null;
+  const e = crewEntry(crewCode) || {};
+  if (typeof closeModal === 'function') closeModal('crew-modal');
+  showToast(String(t.crew_pack_added || '').replace('{name}', crewIso(e.name)), 'success');
+  haptic('success');
+  crewPacksChanged(p.code);
+}
+
+/** After a pack went on or off a crew: the buttons, the crew's page and the quiz list follow. */
+function crewPacksChanged(justAdded) {
+  document.querySelectorAll('[data-crew-pack]').forEach(b => {
+    const html = crewPackAddBtnHtml(b.dataset.crewPack, '', '');
+    if (!html) return;
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    const fresh = box.firstElementChild;
+    if (!fresh) return;
+    // Keep the button's own onclick (its kind and title), take the new label and state.
+    b.innerHTML = fresh.innerHTML;
+    b.disabled = fresh.disabled;
+    b.classList.toggle('is-in', fresh.classList.contains('is-in'));
+    if (fresh.disabled && typeof motionBump === 'function') motionBump(b);
+  });
+  if (justAdded) crewPacksChanged.justAdded = justAdded;
+  crewWordsSync();
+  if (appState.currentView === 'crew' && typeof renderCrew === 'function') renderCrew();
+  if (appState.currentView === 'setup-quizmaker' && typeof qmPaintHub === 'function') qmPaintHub();
+}
+
+/**
+ * A pack from the crew, opened: a quiz is openPackByCode's (its sheet, kept on the phone); the
+ * words too when the phone has no word pack of its own (or has this one) - otherwise they are
+ * shown on a sheet here, never over the family's own words, since they are dealt as a category
+ * of their own anyway.
+ */
+async function crewOpenPack(code, kind) {
+  const own = typeof packWordsLocal === 'function' ? packWordsLocal() : null;
+  if (kind !== 'words' || !own || own.code === code) { await openPackByCode(code); return; }
+  const t = TRANSLATIONS[appState.lang] || {};
+  let w = (typeof packCrewWordsAll === 'function' ? packCrewWordsAll() : []).find(x => x.code === code);
+  if (!w) {
+    try { const got = await packFetch(code); w = { code, title: got.pack.title, words: got.pack.words }; }
+    catch (e) { showToast(packErrorText(e.message), 'error'); return; }
+  }
+  const title = w.title || t.wp_title_default || '';
+  crewModal(`
+    <div class="modal-icon" aria-hidden="true">✍️</div>
+    <div class="sheet__title">${escapeHTML(title)}</div>
+    <p class="sheet__subtitle">${escapeHTML(String(t.crew_words_where || '').replace('{t}', crewIso(title)))}</p>
+    <div class="wp-chips crew-words-chips">${(w.words || []).map(x => `<span class="wp-chip">${escapeHTML(x)}</span>`).join('')}</div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--ghost" onclick="closeModal('crew-modal')">${escapeHTML(t.close || t.cancel || '')}</button>
+    </div>`);
+}
+
+/**
+ * The crews' word packs, kept on this phone (JS_PackStore.html, crewWords): fetched once each
+ * (again when the crew says it changed), dropped when no crew on the phone lists it. Reads the
+ * crews' last pages only; asks the network just for a pack it doesn't have yet.
+ */
+let crewWordsBusy = false;
+async function crewWordsSync() {
+  if (crewWordsBusy || typeof packCrewWordsAll !== 'function') return;
+  crewWordsBusy = true;
+  try {
+    const want = {};   // code -> { crews: [...], at, title }
+    crewList().forEach(c => crewPacksOf(c.code).filter(p => p.kind === 'words').forEach(p => {
+      const w = want[p.code] = want[p.code] || { crews: [], at: 0, title: p.title };
+      w.crews.push(c.code);
+      w.at = Math.max(w.at, Number(p.at) || 0);
+    }));
+    const had = packCrewWordsAll();
+    const keep = had.filter(w => want[w.code]).map(w => Object.assign({}, w, { crews: want[w.code].crews }));
+    for (const code of Object.keys(want)) {
+      if (keep.some(w => w.code === code)) continue;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) continue;
+      try {
+        const got = await packFetch(code);
+        if (got.kind === 'words') keep.push({ code, title: got.pack.title, words: got.pack.words, crews: want[code].crews, at: Date.now() });
+      } catch (e) { /* not there any more, or no network: tried again next time */ }
+    }
+    const same = JSON.stringify(had.map(w => [w.code, w.crews])) === JSON.stringify(keep.map(w => [w.code, w.crews]));
+    if (!same) packCrewWordsSet(keep);
+  } finally { crewWordsBusy = false; }
+}
+
+// A phone in a crew asks for its page now and then (at most every 6 hours, after start-up),
+// so a pack another member added reaches this phone's lists without opening the crew's page.
+const CREW_REFRESH_EVERY_MS = 6 * 3600 * 1000;
+function crewRefreshSoon() {
+  const c = crewCurrent();
+  if (!c) return;
+  let at = 0;
+  try { at = Number(localStorage.getItem('ashryCrewPacksAt') || 0); } catch (e) {}
+  if (Date.now() - at < CREW_REFRESH_EVERY_MS) { crewWordsSync(); return; }
+  try { localStorage.setItem('ashryCrewPacksAt', String(Date.now())); } catch (e) {}
+  crewRefresh(c.code);
+}
+if (typeof document !== 'undefined') setTimeout(() => { try { crewRefreshSoon(); } catch (e) {} }, 5000);
 
 /** A crew's link: the preview page (/s/CODE, site-worker/) where links point at Cloudflare, else ?crew=. */
 function crewInviteUrl(code, name) {

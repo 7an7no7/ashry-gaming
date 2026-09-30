@@ -494,6 +494,15 @@ if (ONLY.includes('fixes')) {
     if (!res.ok) return null;
     crewRemember({ code: res.code, name: res.crew.name, memberId: res.memberId, key: res.key, me: 'منى' }, true);
     const k = await crewApi('join', { code: res.code, name: 'كريم' });
+    // The links (30 Sep 2026): a quiz and the words on the crew, a second quiz on the phone only.
+    const keepQuiz = (made, title) => packQuizPut({ id: packNewId(), code: made.code, key: made.key, title, emoji: '🎉', questions: made.pack.questions, updated: Date.now(), savedAt: Date.now(), dirty: false });
+    const quiz = { title: 'مسابقة الشلة', emoji: '🎉', questions: [{ q: 'مين وصل الأول؟', c: ['منى', 'كريم', 'سارة', 'نور'], a: 1 }] };
+    const q1 = await packApi('/pack/create', { kind: 'quiz', pack: quiz });
+    const q2 = await packApi('/pack/create', { kind: 'quiz', pack: Object.assign({}, quiz, { title: 'مسابقة العيد' }) });
+    const wp = await packApi('/pack/create', { kind: 'words', pack: { title: 'كلمات الشلة', words: ['القعدة', 'الشاي بالنعناع', 'البلكونة', 'الطاولة', 'فشار', 'سهرة الخميس', 'الريموت'] } });
+    if (q1.ok) { keepQuiz(q1, 'مسابقة الشلة'); await crewAddPack(res.code, { code: q1.code, kind: 'quiz', title: 'مسابقة الشلة' }); }
+    if (q2.ok) keepQuiz(q2, 'مسابقة العيد');
+    if (wp.ok) { const a = await crewAddPack(res.code, { code: wp.code, kind: 'words', title: 'كلمات الشلة' }); if (a && a.crew) crewCacheWrite(res.code, a.crew); }
     // A night of the crew: a room opened for it, a buzzer game won by كريم, back to the hub.
     await Room.create('منى', 'buzzer');
     await Room.act('setCrew', { code: res.code, key: res.key });
@@ -536,6 +545,44 @@ if (ONLY.includes('fixes')) {
     await wait(200);
     const podium = await ev(cp, `(() => { const d = crewPage.data[crewPage.code] || {}; return { cast: !!document.querySelector('#crew-pane .podium .pod-cast'), top: (d.table || [])[0], nights: d.nightCount }; })()`);
     check(podium && podium.cast && podium.top && podium.top.name === 'كريم', 'crew: the month opens on the podium, كريم on top', JSON.stringify(podium));
+    // The links: the crew's packs under the card, «من الشلة» in the quiz list, the words in the word games,
+    // «ضيفها للشلة» on a quiz not on the crew yet, and a night that was a program on the nights tab.
+    const packs = await ev(cp, `(() => ({ chips: document.querySelectorAll('#view-crew .crew-pack').length, x: document.querySelectorAll('#view-crew .crew-pack__x').length }))()`);
+    check(packs && packs.chips === 2 && packs.x === 2, 'crew link: the crew page shows its quiz and words, each with ✕ for the manager', JSON.stringify(packs));
+    await ev(cp, `crewWordsSync().then(() => 1)`);
+    await wait(600);
+    const words = await ev(cp, `(() => { const p = packWordPacks(); return { names: p.map(x => x.name), spy: Object.keys(spyCategoriesPlus()).slice(0, 3) }; })()`);
+    check(words && words.names.some((n) => /كلمات الشلة/.test(n)) && words.spy.some((n) => /كلمات الشلة/.test(n)), "crew link: the crew's words are a category in the word games", JSON.stringify(words));
+    await ev(cp, `lzEnsure(lzChunksOfView('setup-quizmaker')).then(() => { setView('setup-quizmaker'); return 1; })`);
+    await wait(500);
+    const hub = await ev(cp, `(() => ({ rows: document.querySelectorAll('#qm-hub .qm-item--crew').length }))()`);
+    check(hub && hub.rows === 2, 'crew link: «من الشلة» in the quiz list, the crew\'s two packs', JSON.stringify(hub));
+    const sheet = await ev(cp, `(() => { const q = packsQuizzes().find(x => x.title === 'مسابقة العيد'); if (!q) return null; qmOpenSheet(q); const b = document.querySelector('#qm-save-modal .crew-pack-add'); return b ? { on: !b.disabled, text: b.textContent.trim() } : null; })()`);
+    check(sheet && sheet.on, 'crew link: «ضيفها للشلة» on a saved quiz the crew doesn\'t have', JSON.stringify(sheet));
+    const hubBad = [];
+    for (const [w, h] of [[375, 812], [1280, 720]]) {
+      await resize(cp, w, h);
+      for (const [lang, dark] of [['ar', false], ['en', true]]) {
+        await setLook(cp, lang, dark);
+        await ev(cp, `closeAllModals(); qmPaintHub(); 1`);
+        await wait(250);
+        const f1 = await sweep(cp);
+        if (f1 && f1.length) hubBad.push(`${w}x${h} ${lang} hub: ` + f1.join('; '));
+        await ev(cp, `(() => { const q = packsQuizzes().find(x => x.title === 'مسابقة العيد'); qmOpenSheet(q); return 1; })()`);
+        await wait(300);
+        const f2 = await sweep(cp);
+        if (f2 && f2.length) hubBad.push(`${w}x${h} ${lang} sheet: ` + f2.join('; '));
+        await ev(cp, `closeAllModals(); setView('crew'); 1`);
+        await wait(200);
+        await ev(cp, `(() => { const c = crewPage.code; crewPage.at[c] = Date.now(); const d = crewPage.data[c]; if (d && d.nights && d.nights[0]) d.nights[0].prog = { n: 1, games: 3, champs: ['كريم'], aw: [{ k: 'buzz', name: 'كريم', v: 180 }, { k: 'prophet', name: 'منى', v: 2 }, { k: 'streak', name: 'كريم', v: 2 }] }; crewPage.tab = 'month'; renderCrew(); crewTab('nights'); return 1; })()`);
+        await wait(300);
+        const f3 = await sweep(cp);
+        if (f3 && f3.length) hubBad.push(`${w}x${h} ${lang} nights: ` + f3.join('; '));
+      }
+    }
+    const badge = await ev(cp, `(() => ({ badge: !!document.querySelector('#crew-pane .crew-prog-badge'), aw: document.querySelectorAll('#crew-pane .crew-night__aw').length }))()`);
+    check(badge && badge.badge && badge.aw === 3, 'crew link: a program night shows its badge, champion and awards on the nights tab', JSON.stringify(badge));
+    check(!hubBad.length, 'crew link: the quiz list, the sheet and the nights tab laid out within the screen (375x812, 1280x720; Arabic light, English dark)', hubBad.join('\n      '));
     check(!bad.length, 'crew: the page and its four tabs at four sizes, Arabic light and English dark: laid out within the screen', bad.join('\n      '));
     await open(cp, BASE + '/preview/');
     const back = await ev(cp, `appState.currentView === 'crew' && !!document.querySelector('#view-crew .crew-card')`);

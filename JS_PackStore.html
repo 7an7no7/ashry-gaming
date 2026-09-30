@@ -200,13 +200,63 @@ function packWordsCode() {
   return w && w.code && !w.dirty ? w.code : '';
 }
 
-/** الجاسوس's categories with «كلماتنا» first, when the phone has a word pack. */
+/* --- «كلماتنا» of a crew (الشلة): the word packs this phone's crews keep ------------------
+   A crew keeps pack codes (JS_CrewCore.html); a word pack among them is fetched once and kept
+   here (`crewWords` in ashryPacks_v1: { code, title, words, crews: [crew codes], at }), so it
+   plays offline like the phone's own and every member has it without typing a code
+   (crewWordsSync). It is never the phone's own pack: read-only, and gone when no crew on the
+   phone lists it any more. */
+function packCrewWordsAll() {
+  const db = packsLoad();
+  return Array.isArray(db.crewWords) ? db.crewWords.filter(w => w && w.code && Array.isArray(w.words)) : [];
+}
+function packCrewWordsSet(list) {
+  const db = packsLoad();
+  db.crewWords = list;
+  return packsStore(db);
+}
+
+/**
+ * Every word pack this phone can deal from: its own first («كلماتنا»), then its crews' (a
+ * code the phone doesn't already have as its own). Each: { id, code, title, words, name, crew }
+ * - `id` 'pack' (the own) or 'pack:<code>', `name` the category's name in the lists, `code` ''
+ * for an own pack not saved yet (a room can't deal it).
+ */
+function packWordPacks(min) {
+  const need = min || PACK_LIMITS.minWords;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const out = [];
+  const own = packWordsLocal();
+  const ownList = packWordsList(need);
+  if (ownList) out.push({ id: 'pack', code: packWordsCode(), title: (own && own.title) || t.wp_title_default || '', words: ownList, name: packWordsCatName(), crew: '' });
+  const crews = (typeof crewList === 'function') ? crewList() : [];
+  packCrewWordsAll().forEach(w => {
+    if (own && own.code === w.code) return;
+    const crew = crews.find(c => (w.crews || []).indexOf(c.code) !== -1);
+    if (!crew) return;
+    const list = w.words.filter(Boolean);
+    if (list.length < need) return;
+    let name = '✍️ ' + (w.title || t.wp_title_default || '');
+    if (out.some(o => o.name === name)) name += ' · ' + crew.name;
+    out.push({ id: 'pack:' + w.code, code: w.code, title: w.title || '', words: list, name, crew: crew.name });
+  });
+  return out;
+}
+/** A word pack by its list id ('pack', 'pack:<code>'), or null. */
+function packWordPackById(id, min) { return packWordPacks(min).find(p => p.id === id) || null; }
+/** The code a category name deals by ('' for the app's categories and an unsaved own pack). */
+function packWordsCodeOfCat(name, min) {
+  const p = packWordPacks(min).find(x => x.name === name);
+  return p ? p.code : '';
+}
+
+/** الجاسوس's categories with «كلماتنا» (and the crews' words) first, when the phone has any. */
 function spyCategoriesPlus() {
   const base = spyCategories() || {};
-  const words = packWordsList();
-  if (!words) return base;
+  const packs = packWordPacks();
+  if (!packs.length) return base;
   const out = {};
-  out[packWordsCatName()] = words;
+  packs.forEach(p => { out[p.name] = p.words; });
   return Object.assign(out, base);
 }
 
@@ -247,39 +297,45 @@ function packSetRoomPick(key, code) {
 
 /* --- «كلماتنا» in a room's lobby (الحرباء, ارسم وخمّن): the app's words or the family's ------ */
 
-/** Whether the lobby chose the family's words (`key` the game's option), and they can be dealt by code. */
+/**
+ * The code of the words the lobby chose (`key` the game's option): the family's own or a
+ * crew's, still on the phone and dealt by code; '' for the app's words.
+ */
 function packWordsLobbyPick(key, min) {
-  return !!(recallOptions(key, { words: '' }).words === 'pack' && packWordsCode() && packWordsList(min));
+  const want = String(recallOptions(key, { words: '' }).words || '');
+  if (!want) return '';
+  const p = packWordPackById(want, min);
+  return p && p.code ? p.code : '';
 }
 function packWordsLobbyHtml(key, min) {
   const t = TRANSLATIONS[appState.lang] || {};
-  const local = packWordsList(min);
-  if (!local) return '';
-  const code = packWordsCode();
-  const on = packWordsLobbyPick(key, min);
+  const packs = packWordPacks(min);
+  if (!packs.length) return '';
+  const pick = packWordsLobbyPick(key, min);
+  const unsaved = packs.some(p => !p.code);
+  const opts = packs.map(p => `<option value="${escapeHTML(p.id)}" ${p.code ? '' : 'disabled'} ${p.code && p.code === pick ? 'selected' : ''}>${escapeHTML(p.name)} · ${p.words.length}</option>`).join('');
   return `
     <div class="card card--tight field pk-src">
       <label class="field__label" for="pk-words-${key}">${escapeHTML(t.wp_room_label || '')}</label>
-      <select id="pk-words-${key}" onchange="packSetWordsPick('${key}', this.value)" ${code ? '' : 'disabled'}>
-        <option value="" ${on ? '' : 'selected'}>${escapeHTML(t.wp_room_app || '')}</option>
-        <option value="pack" ${on ? 'selected' : ''}>${escapeHTML(packWordsCatName())} · ${local.length}</option>
+      <select id="pk-words-${key}" onchange="packSetWordsPick('${key}', this.value)">
+        <option value="" ${pick ? '' : 'selected'}>${escapeHTML(t.wp_room_app || '')}</option>${opts}
       </select>
-      ${code ? '' : `<p class="field__hint">${escapeHTML(t.wp_room_unsaved || '')}</p>`}
+      ${unsaved ? `<p class="field__hint">${escapeHTML(t.wp_room_unsaved || '')}</p>` : ''}
     </div>`;
 }
 function packSetWordsPick(key, value) {
-  rememberOptions(key, { words: value === 'pack' ? 'pack' : '' });
+  rememberOptions(key, { words: /^pack(:[A-Z0-9]{6})?$/.test(String(value || '')) ? String(value) : '' });
   const setup = document.getElementById('room-host-setup');
   if (setup) delete setup.dataset.sig;
   if (typeof Room !== 'undefined' && Room.state && typeof routeRoomState === 'function') routeRoomState(Room.state);
 }
 
-/** A game's categories (name -> words) with «كلماتنا» first, when the phone has enough of them. */
+/** A game's categories (name -> words) with «كلماتنا» (and the crews' words) first, when the phone has enough of them. */
 function packCatsPlus(db, min) {
-  const words = packWordsList(min);
-  if (!words) return db;
+  const packs = packWordPacks(min);
+  if (!packs.length) return db;
   const out = {};
-  out[packWordsCatName()] = words;
+  packs.forEach(p => { out[p.name] = p.words; });
   return Object.assign(out, db);
 }
 </script>

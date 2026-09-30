@@ -9,18 +9,14 @@
    months' champions), الألقاب (titles and records), السهرات (the nights).
    The server works every number out (Crew.js, crewView); this draws them.
    ========================================================================= */
-const CREW_CACHE = 'ashryCrewCache_v1';
+// The cache of each crew's last page (crewCacheRead / crewCacheWrite) is in the shell, JS_CrewCore.html.
 const CREW_TABS = ['month', 'champs', 'titles', 'nights'];
 const CREW_TITLE_ICONS = { fast: '⚡', liar: '🤥', detective: '🕵️', oracle: '🔮', cards: '🃏', brain: '🧠', words: '💬', sport: '🎳', luck: '🍀' };
+// «برنامج السهرة»'s awards on the nights tab (the same icons as the program's own finale).
+const CREW_PROG_ICONS = { buzz: '⚡', trivia: '🧠', liar: '🤥', catcher: '🕵️', detective: '🔎', sly: '🦊', strike: '🎳', chair: '🪑', prophet: '🔮', streak: '🔥', climb: '🚀' };
 const CREW_RECORD_ICONS = { best_bowling: '🎳', best_trivia: '🧠', night_points: '🌙', night_games: '🏅', streak: '🔥', month_nights: '📅' };
 const crewPage = { code: '', tab: 'month', data: {}, at: {}, busy: {}, drawn: '' };
 
-function crewCacheRead() { try { return JSON.parse(localStorage.getItem(CREW_CACHE) || '{}') || {}; } catch (e) { return {}; } }
-function crewCacheWrite(code, view) {
-  const all = crewCacheRead();
-  if (view) all[code] = view; else delete all[code];
-  try { localStorage.setItem(CREW_CACHE, JSON.stringify(all)); } catch (e) {}
-}
 function crewT() { return TRANSLATIONS[appState.lang] || {}; }
 function crewFmt(s, vars) { return String(s || '').replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] !== undefined ? vars[k] : m)); }
 function crewNum(n) { return '<bdi dir="ltr" class="metric">' + (Number(n) || 0) + '</bdi>'; }
@@ -102,6 +98,7 @@ async function crewFetch(code) {
   if (res && res.ok && res.crew) {
     crewPage.data[code] = res.crew;
     crewCacheWrite(code, res.crew);
+    crewWordsSync();   // a words pack another member added: on this phone's word games now
   } else if (res && (res.out || res.gone)) {
     crewCacheWrite(code, null);
     delete crewPage.data[code];
@@ -150,6 +147,7 @@ function crewDraw(view, list, code, data) {
         <button type="button" class="btn btn--secondary btn--sm" onclick="crewOpenMembers()"><span aria-hidden="true">👥</span> ${escapeHTML(t.crew_members || '')}</button>
         <button type="button" class="btn btn--primary btn--sm" onclick="crewOpenRoom()"><span aria-hidden="true">🎮</span> ${escapeHTML(t.crew_open_room || '')}</button>
       </div>
+      ${data ? crewPacksHtml(data, t) : ''}
       </div>
       <div class="crew-main">
       <div class="segmented crew-tabs" role="tablist">
@@ -160,6 +158,87 @@ function crewDraw(view, list, code, data) {
     </div>`;
   if (typeof watchScrollFade === 'function') view.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
   if (data) crewAfterPane(crewPage.tab, data);
+  if (data) crewAfterPacks(data);
+}
+
+/* --- the crew's packs: its quizzes and words, under the card (the links, 30 Sep 2026) ----
+   Every member sees them without a code; a tap opens one (openPackByCode, or the words'
+   sheet); «＋» adds a quiz or words from this phone; ✕ for whoever added it and the manager. */
+function crewPacksHtml(d, t) {
+  const packs = d.packs || [];
+  const mgr = d.managerId === d.you;
+  const chips = packs.map(p => {
+    const canOff = mgr || (p.byId && p.byId === d.you);
+    const kindLabel = p.kind === 'words' ? (t.crew_pack_words || '') : (t.crew_pack_quiz || '');
+    return `<span class="crew-pack" data-pack="${escapeHTML(p.code)}">
+        <button type="button" class="crew-pack__open" onclick="crewOpenPack('${jsStringAttr(p.code)}', '${jsStringAttr(p.kind)}')">
+          <span class="crew-pack__e" aria-hidden="true">${p.kind === 'words' ? '✍️' : '🧠'}</span>
+          <span class="crew-pack__t"><b dir="auto">${escapeHTML(p.title || p.code)}</b><small>${escapeHTML(kindLabel)}${p.by ? ' · ' + escapeHTML(crewFmt(t.crew_pack_by, { name: p.by })) : ''}</small></span>
+        </button>
+        ${canOff ? `<button type="button" class="iconbtn crew-pack__x" onclick="crewPackRemove('${jsStringAttr(p.code)}')" aria-label="${escapeHTML(crewFmt(t.crew_pack_remove, { t: p.title || p.code }))}" title="${escapeHTML(crewFmt(t.crew_pack_remove, { t: p.title || p.code }))}">✕</button>` : ''}
+      </span>`;
+  }).join('');
+  return `
+    <section class="crew-packs" aria-labelledby="crew-packs-h">
+      <div class="crew-packs__head">
+        <h3 class="crew-packs__title" id="crew-packs-h">${escapeHTML(t.crew_packs_title || '')}${packs.length ? ` <span class="crew-packs__n metric">${packs.length}</span>` : ''}</h3>
+        <button type="button" class="btn btn--ghost btn--xs btn--auto crew-packs__add" onclick="crewOpenPacksAdd()"><span aria-hidden="true">＋</span> ${escapeHTML(t.crew_packs_add || '')}</button>
+      </div>
+      ${packs.length ? `<div class="crew-packs__list hscroll-fade">${chips}</div>`
+        : `<p class="crew-packs__empty">${escapeHTML(t.crew_packs_empty || '')}</p>`}
+    </section>`;
+}
+
+/** The packs pop in once per list (and a pack just added pops alone). */
+function crewAfterPacks(d) {
+  const box = document.querySelector('#view-crew .crew-packs__list');
+  if (!box || motionOff()) return;
+  const fresh = crewPacksChanged.justAdded;
+  crewPacksChanged.justAdded = '';
+  const els = [...box.querySelectorAll('.crew-pack')];
+  const key = 'crewpacks|' + d.code + '|' + (d.packs || []).map(p => p.code).join(',');
+  if (!motionFirst(key)) return;
+  els.forEach((el, i) => {
+    if (fresh && el.dataset.pack !== fresh) return;
+    if (el.animate) el.animate([{ opacity: 0, transform: 'translateY(8px) scale(0.96)' }, { opacity: 1, transform: 'none' }],
+      { duration: 300, delay: fresh ? 0 : 50 * Math.min(i, 8), easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' });
+  });
+}
+
+/** «＋»: the quizzes and words on this phone that have a code and aren't on the crew yet. */
+function crewOpenPacksAdd() {
+  const t = crewT();
+  const code = crewPage.code;
+  const on = new Set(crewPacksOf(code).map(p => p.code));
+  const mine = (typeof packsKnownCodes === 'function' ? packsKnownCodes() : []).filter(p => !on.has(p.code));
+  const rows = mine.map(p => `
+      <button type="button" class="crew-pick" onclick="crewPackAddTo('${jsStringAttr(code)}', '${jsStringAttr(p.code)}', '${jsStringAttr(p.kind)}', '${jsStringAttr(p.title || '')}')">
+        <span class="crew-pick__icon" aria-hidden="true">${p.kind === 'words' ? '✍️' : '🧠'}</span>
+        <span class="crew-pick__name">${escapeHTML(p.title || p.code)}</span>
+        <span class="crew-pick__code" dir="ltr">${escapeHTML(p.code)}</span>
+      </button>`).join('');
+  crewModal(`
+    <div class="modal-icon" aria-hidden="true">📦</div>
+    <div class="sheet__title">${escapeHTML(t.crew_packs_add_title || '')}</div>
+    <p class="sheet__subtitle">${escapeHTML(mine.length ? (t.crew_packs_add_sub || '') : (t.crew_packs_none_here || ''))}</p>
+    ${mine.length ? `<div class="modal-list crew-picks">${rows}</div>` : ''}
+    <div class="modal-actions">
+      <button type="button" class="btn btn--secondary" onclick="closeModal('crew-modal'); catalogOpen('quizmaker')"><span aria-hidden="true">🧠</span> ${escapeHTML(t.crew_packs_make || '')}</button>
+      <button type="button" class="btn btn--ghost" onclick="closeModal('crew-modal')">${escapeHTML(t.cancel || '')}</button>
+    </div>`);
+}
+
+function crewPackRemove(packCode) {
+  const t = crewT();
+  const code = crewPage.code;
+  const p = crewPacksOf(code).find(x => x.code === packCode) || {};
+  showConfirmModal(crewFmt(t.crew_pack_remove_q, { t: crewIso(p.title || packCode) }), async () => {
+    const res = await crewRemovePack(code, packCode);
+    if (!res || !res.ok) { showToast(roomErrLocal((res && res.error) || '') || t.crew_err_net, 'error'); return; }
+    if (res.crew) { crewPage.data[code] = res.crew; crewCacheWrite(code, res.crew); }
+    showToast(t.crew_pack_removed || '', 'info');
+    crewPacksChanged();
+  });
 }
 
 function crewSwitch(code) {
@@ -324,8 +403,20 @@ function crewNightsHtml(d, t) {
           ${n.winners && n.winners.length ? `<span class="crew-night__win">👑 ${escapeHTML(n.winners.join('، '))}</span>` : ''}</div>
         <div class="crew-night__games">${games.map(g => `<span class="crew-night__game" title="${escapeHTML(crewGameName(g, t))}">${crewGameIcon(g)}<span>${escapeHTML(crewGameName(g, t))}</span></span>`).join('')}</div>
         <div class="crew-night__top">${(n.top || []).map((r, i) => `<span class="crew-night__who ${r.guest ? 'is-guest' : ''}">${['🥇', '🥈', '🥉'][i] || ''} ${escapeHTML(r.name)} ${crewNum(r.p)}${r.guest ? ` <small>${escapeHTML(t.crew_guest || '')}</small>` : ''}</span>`).join('')}</div>
+        ${n.prog ? crewNightProgHtml(n.prog, t) : ''}
       </div>`;
   }).join('')}</div>`;
+}
+
+/** A night that was «برنامج السهرة»: the badge, its champion(s), its awards (the program's finale, small). */
+function crewNightProgHtml(p, t) {
+  const champs = (p.champs || []).join('، ');
+  const aw = (p.aw || []).slice(0, 6).map(a => `<span class="crew-night__aw" title="${escapeHTML(t['prog_aw_' + a.k] || a.k)}"><span aria-hidden="true">${CREW_PROG_ICONS[a.k] || '🏅'}</span> <b>${escapeHTML(t['prog_aw_' + a.k] || a.k)}</b> ${escapeHTML(a.name)}</span>`).join('');
+  return `<div class="crew-night__prog">
+      <span class="crew-prog-badge"><span aria-hidden="true">🌙</span> ${escapeHTML(t.crew_prog_badge || '')}${p.n > 1 ? ` <span class="metric">×${p.n}</span>` : ''}</span>
+      ${champs ? `<span class="crew-night__pchamp">${escapeHTML(crewFmt(t.crew_prog_champ, { name: champs }))}</span>` : ''}
+      ${aw ? `<div class="crew-night__aws">${aw}</div>` : ''}
+    </div>`;
 }
 
 /* --- the sheets (the one centred #crew-modal) ------------------------------ */

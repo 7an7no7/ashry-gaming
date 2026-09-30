@@ -1173,7 +1173,12 @@ async function roomStartGame() {
   try {
     await Room.act('start', game.startPayload ? game.startPayload() : {});
   } catch (err) {
-    showToast(err.message || roomErrText('start'), 'error');
+    // Too few people in: the line under Start already says how many more, so point at
+    // it (a blocked Start's way) rather than a toast. The server still decides: trivia,
+    // the emoji riddles and the proverbs start with one.
+    const needEl = document.getElementById('room-start-need');
+    if (needEl && Number(needEl.dataset.short || 0) > 0 && typeof blockStartAt === 'function') blockStartAt(needEl);
+    else showToast(err.message || roomErrText('start'), 'error');
   }
 }
 

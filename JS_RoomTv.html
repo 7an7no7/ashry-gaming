@@ -146,7 +146,9 @@ onLeaveScreen((from, to) => { if (from === 'room-tv' && to !== 'room-tv') releas
 onRoomClocksReset(() => tvClock(null));
 Room.onChange((state) => { if (!state || !state.youAreScreen) { if (tv.wake) releaseTv(); } });
 
-/** The host on the TV ends the round for everyone, after a confirm. */
+/** The host ends the round for everyone, after a confirm: the TV's 🏠, and «لعبة تانية»
+    between rounds on the phone and the TV, where it sits right under «الجولة الجاية» and
+    would wipe the running scores on a slip. At a game's end it stays one tap. */
 function tvBackToHub() {
   const state = Room.state;
   if (!state || !state.youAreHost) return;
@@ -716,7 +718,7 @@ TV_GAMES.drawguess = {
          <div id="draw-timer" class="tv-timer tv-timer--big">--</div>
          ${s.hint ? drawHintHtml(s.hint, t) : ''}`;
     const actions = over
-      ? roomMoveOnHtml(state, tvBtn(t.draw_next, `roomAct('nextRound', ${roomNextArgs(state)})`)) + (state.youAreHost ? tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost') : '')
+      ? roomMoveOnHtml(state, tvBtn(t.draw_next, `roomAct('nextRound', ${roomNextArgs(state)})`)) + (state.youAreHost ? tvBtn(t.room_another_game, "tvBackToHub()", 'ghost') : '')
       : (state.youAreHost ? tvBtn(t.draw_reveal, "roomAct('giveUp')", 'ghost') : '');
     return `
       <div class="tv-split">
@@ -912,7 +914,7 @@ function tvVoteProgress(state, t) {
 function tvNextFooter(state, t, label) {
   return roomMoveOnHtml(state, `<div class="tv-actions">${
     tvBtn(label, `roomAct('nextRound', ${roomNextArgs(state)})`) +
-    (state.youAreHost ? tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost') : '')}</div>`);
+    (state.youAreHost ? tvBtn(t.room_another_game, "tvBackToHub()", 'ghost') : '')}</div>`);
 }
 
 TV_GAMES.wouldyou = {
@@ -1115,7 +1117,7 @@ TV_GAMES.justone = {
           ${s.phase === 'result' ? `<div class="tv-title ${right ? 'tv-success' : 'tv-danger'}">${right ? '✅ ' + (t.correct || '') : '❌ ' + (t.wrong || '')}</div>` : ''}
           ${roomMoveOnHtml(state, `<div class="tv-actions">${s.phase === 'judging'
             ? tvBtn(t.correct, "roomAct('judge', { correct: true })", 'success') + tvBtn(t.wrong, "roomAct('judge', { correct: false })", 'danger')
-            : tvBtn(t.next_round, `justOneNextRound(${Number(s.round) || 0})`) + (state.youAreHost ? tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost') : '')}</div>`)}
+            : tvBtn(t.next_round, `justOneNextRound(${Number(s.round) || 0})`) + (state.youAreHost ? tvBtn(t.room_another_game, "tvBackToHub()", 'ghost') : '')}</div>`)}
         </div>
       </div>`;
   }

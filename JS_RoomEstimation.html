@@ -238,7 +238,7 @@ function esHeadHtml(state) {
   if (s.speed) bits.push(`<span class="badge badge--accent">⚡ ${escapeHTML(esT('es_speed'))}</span>`);
   if ((s.mult || 1) > 1) bits.push(`<span class="badge badge--danger" dir="ltr">${escapeHTML(esT('es_mult', { n: s.mult }))}</span>`);
   if (s.trump && (s.phase === 'call' || s.phase === 'play' || s.speed)) bits.push(`<span class="badge es-trumpbadge">${escapeHTML(esT('es_trump'))} ${esSuitHtml(s.trump)}</span>`);
-  if (s.endsAt && ['dash', 'bid', 'call', 'play'].indexOf(s.phase) !== -1) bits.push(`<span class="badge badge--accent metric" data-es-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  if (s.endsAt && ['dash', 'bid', 'call', 'play'].indexOf(s.phase) !== -1) bits.push(`<span class="badge badge--accent metric" data-es-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</span>`);
   return `<div class="es-head">${bits.join('')}</div>`;
 }
 
@@ -777,7 +777,7 @@ function esStopClock() {
 function esTickClock(s) {
   const endsAt = s && ['dash', 'bid', 'call', 'play'].indexOf(s.phase) !== -1 ? s.endsAt : null;
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)) : 0;
     document.querySelectorAll('[data-es-clock]').forEach(el => {
       el.textContent = '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 10);
@@ -791,7 +791,7 @@ function esTickClock(s) {
   esStopClock();
   esLocal.clockKey = endsAt;
   esLocal.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = Room.state;

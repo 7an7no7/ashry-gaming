@@ -202,7 +202,7 @@ function chooseTriviaAnswer(choice) {
  * the plain name resolved to the board's painter and this clock never ticked.
  */
 function paintRoomTriviaTimer(endsAt) {
-  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  const left = Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000));
   const el = document.getElementById('trivia-timer');
   if (el) {
     el.textContent = left;
@@ -228,7 +228,7 @@ function startTriviaClock(s) {
   trivia.fired = false;
   const endsAt = s.endsAt;
   trivia.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => paintRoomTriviaTimer(endsAt),
     onEnd: () => {
       trivia.clock = null;

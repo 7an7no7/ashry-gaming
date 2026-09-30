@@ -731,6 +731,10 @@ function clearCharadesFlip() {
 }
 
 function nextCharadesCard(action) {
+    // The next word shows 250ms after a tap: a second tap in that time would score a
+    // card nobody saw (ثلاث جولات guards the same way, turnProcessing).
+    if ((appState.charades.busyUntil || 0) > Date.now()) return;
+    appState.charades.busyUntil = Date.now() + 300;
     // What this card was judged as, so it can be taken back: a tap lands on the
     // wrong button often enough under a clock, and the round is scored on it.
     const shown = appState.charades.history[appState.charades.history.length - 1];

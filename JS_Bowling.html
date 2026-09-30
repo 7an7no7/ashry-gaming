@@ -1920,7 +1920,7 @@ function bowlTickClock(state) {
   const endsAt = s.phase === 'play' ? s.endsAt : null;
   const secs = (s.settings || {}).clock || 0;
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.min(secs, Math.ceil((endsAt - Date.now()) / 1000))) : 0;
+    const left = endsAt ? Math.max(0, Math.min(secs, Math.ceil((endsAt - roomServerNow()) / 1000))) : 0;
     document.querySelectorAll('[data-bowl-clock]').forEach(el => {
       el.hidden = !endsAt;
       el.textContent = '⏱️ ' + left;
@@ -1935,7 +1935,7 @@ function bowlTickClock(state) {
   bowlStopClock();
   bowlRoom.clockKey = endsAt;
   bowlRoom.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = Room.state;

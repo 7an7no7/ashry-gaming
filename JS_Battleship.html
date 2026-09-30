@@ -2471,7 +2471,7 @@ function bsTickClock(state) {
   const s = state.shared || {};
   const endsAt = (s.phase === 'play' || s.phase === 'place') ? s.endsAt : null;
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)) : 0;
     document.querySelectorAll('[data-bs-clock]').forEach(el => {
       el.textContent = '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 5);
@@ -2484,7 +2484,7 @@ function bsTickClock(state) {
   bsStopClock();
   bsRoomLocal.clockKey = endsAt;
   bsRoomLocal.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = duelRoomState();

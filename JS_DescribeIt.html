@@ -1850,6 +1850,9 @@ function renderDescribeCard() {
 
 function descAction(action) {
     if(appState.describe.timer <= 0) return;
+    // A double tap would score a card nobody saw (the next one is still turning in).
+    if ((appState.describe.busyUntil || 0) > Date.now()) return;
+    appState.describe.busyUntil = Date.now() + 300;
 
     // Kept so a mis-tap under the clock can be taken back (undoDescribeCard).
     if (appState.describe.currentCard) {

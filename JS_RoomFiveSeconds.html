@@ -30,7 +30,7 @@ function armFiveClock(endsAt, loud, onEnd) {
   // clock was paused (`shift`), so it and the alarm agree.
   let pausedAt = 0, shift = 0;
   const paint = () => {
-    const left = Math.max(0, (endsAt + shift - (pausedAt || Date.now())) / 1000);
+    const left = Math.max(0, (endsAt + shift - (pausedAt || roomServerNow())) / 1000);
     const ring = document.getElementById('five-ring');
     const num = document.getElementById('five-num');
     if (ring) ring.style.setProperty('--five-p', String(Math.max(0, Math.min(1, left / 5))));
@@ -48,8 +48,8 @@ function armFiveClock(endsAt, loud, onEnd) {
   // (stopFiveClock), which ends the loop, so it never runs on the next screen.
   const smooth = () => {
     const c = five.clock;
-    if (c && !c.isRunning()) { if (!pausedAt) pausedAt = Date.now(); }
-    else if (pausedAt) { shift += Date.now() - pausedAt; pausedAt = 0; }
+    if (c && !c.isRunning()) { if (!pausedAt) pausedAt = roomServerNow(); }
+    else if (pausedAt) { shift += roomServerNow() - pausedAt; pausedAt = 0; }
     paint();
     if (five.clockKey !== endsAt || !c) return;
     // A clock stopped without its end (setView stops every clock) with no ring
@@ -59,7 +59,7 @@ function armFiveClock(endsAt, loud, onEnd) {
   };
   raf = requestAnimationFrame(smooth);
   five.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => { if (loud) playRoomFx('tick'); },
     onEnd: () => { cancelAnimationFrame(raf); paint(); if (loud) playRoomFx('alarm'); five.clock = null; if (onEnd) onEnd(); }
   });

@@ -208,7 +208,7 @@ function dbHeadHtml(state) {
   const bits = [];
   bits.push(`<span class="badge">${escapeHTML(set.end === 'places' ? pcT('db_end_places') : pcT('db_end_first'))}</span>`);
   if ((s.decks || 1) > 1) bits.push(`<span class="badge">${CARD_GLYPH} ×${s.decks}</span>`);
-  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-db-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-db-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</span>`);
   return `<div class="db-head">${bits.join('')}</div>`;
 }
 
@@ -615,7 +615,7 @@ function dbStopClock() {
 function dbTickClock(s) {
   const endsAt = s && s.phase === 'play' ? s.endsAt : null;
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)) : 0;
     document.querySelectorAll('[data-db-clock]').forEach(el => {
       el.textContent = '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 10);
@@ -629,7 +629,7 @@ function dbTickClock(s) {
   dbStopClock();
   dbLocal.clockKey = endsAt;
   dbLocal.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = Room.state;

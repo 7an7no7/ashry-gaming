@@ -609,7 +609,7 @@ function svTickClock(state) {
   const s = state.shared || {};
   const endsAt = s.phase === 'solving' ? s.endsAt : null;
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)) : 0;
     document.querySelectorAll('[data-sv-clock]').forEach(el => {
       el.textContent = '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 10);
@@ -622,7 +622,7 @@ function svTickClock(state) {
   svStopClock();
   svRoom.clockKey = endsAt;
   svRoom.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = Room.state;

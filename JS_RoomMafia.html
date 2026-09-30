@@ -59,7 +59,7 @@ function mafiaRoleSummary(n, mode, t) {
 const mafiaRoleName = (role, t) => `${MAFIA_ICONS[role] || ''} ${t['mafia_role_' + role] || ''}`;
 
 function mafiaClockText(endsAt) {
-  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  const left = Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000));
   return `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
 }
 
@@ -73,7 +73,7 @@ function mafiaTickClock(s) {
   if (mafiaLocal.clockKey === s.endsAt && mafiaLocal.clock && mafiaLocal.clock.isRunning()) return;
   mafiaStopClock();
   mafiaLocal.clockKey = s.endsAt;
-  mafiaLocal.clock = createClock({ seconds: Math.max(1, Math.ceil((s.endsAt - Date.now()) / 1000)), onTick: paint, onEnd: paint });
+  mafiaLocal.clock = createClock({ seconds: Math.max(1, Math.ceil((s.endsAt - roomServerNow()) / 1000)), onTick: paint, onEnd: paint });
 }
 
 function mafiaStopClock() {

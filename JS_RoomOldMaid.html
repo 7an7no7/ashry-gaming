@@ -202,7 +202,7 @@ function omHeadHtml(state) {
   const set = s.settings || {};
   const bits = [];
   bits.push(`<span class="badge">${escapeHTML(set.mode === 'shuffle' ? pcT('om_mode_shuffle') : pcT('om_mode_drag'))}</span>`);
-  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-om-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-om-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</span>`);
   return `<div class="om-head">${bits.join('')}</div>`;
 }
 
@@ -630,7 +630,7 @@ function omStopClock() {
 function omTickClock(s) {
   const endsAt = s && s.phase === 'play' ? s.endsAt : null;
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)) : 0;
     document.querySelectorAll('[data-om-clock]').forEach(el => {
       el.textContent = '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 5);
@@ -644,7 +644,7 @@ function omTickClock(s) {
   omStopClock();
   omLocal.clockKey = endsAt;
   omLocal.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = Room.state;

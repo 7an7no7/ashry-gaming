@@ -1313,7 +1313,7 @@ function skrMineHtml(state, ctx) {
   const memo = Object.keys(ctx.faces).length > 0;
   const hint = memo ? `<span class="badge badge--accent">🧠 ${escapeHTML(skrT('skr_memo_badge', 'احفظهم', 'Memorise'))}</span>` : '';
   // A timed look: a ring with the seconds left over your hand, and a bar running down under it.
-  const left = memo && s.phase === 'memorize' && s.endsAt ? Math.max(0, s.endsAt - Date.now()) : 0;
+  const left = memo && s.phase === 'memorize' && s.endsAt ? Math.max(0, s.endsAt - roomServerNow()) : 0;
   const total = Math.max(1, (Number((s.settings || {}).memorizeSecs) || 0) * 1000);
   const timer = left ? `<div class="skr-memo-timer" aria-hidden="true"><span class="skr-memo-timer__ring"></span><b class="metric" data-skr-count>${Math.ceil(left / 1000)}</b></div>
       <span class="skr-memo-bar" style="animation-duration:${total}ms;animation-delay:${-Math.max(0, total - left)}ms"></span>` : '';
@@ -1437,7 +1437,7 @@ function skrHeadHtml(state) {
   bits.push(`<span class="badge">${escapeHTML(skrEditionName(settings))}</span>`);
   if (settings.teams) bits.push(`<span class="badge">🤝</span>`);
   if (settings.suddenDeath) bits.push(`<span class="badge" title="${escapeHTML(skrT('skr_sudden', 'موت مفاجئ', 'Sudden death'))}">💀</span>`);
-  if ((s.phase === 'play' || s.phase === 'thiefGuess' || s.phase === 'memorize') && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-skr-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  if ((s.phase === 'play' || s.phase === 'thiefGuess' || s.phase === 'memorize') && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-skr-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</span>`);
   return `<div class="skr-head">${bits.join('')}</div>`;
 }
 
@@ -2522,7 +2522,7 @@ function skrStopClock() {
 function skrTickClock(s) {
   const endsAt = s && (s.phase === 'play' || s.phase === 'thiefGuess' || s.phase === 'memorize') ? s.endsAt : null;
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)) : 0;
     document.querySelectorAll('[data-skr-clock]').forEach(el => {
       el.textContent = '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 10);
@@ -2543,7 +2543,7 @@ function skrTickClock(s) {
   skrStopClock();
   skrLocal.clockKey = endsAt;
   skrLocal.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = Room.state;
@@ -3911,7 +3911,7 @@ function skrTvTable(state, t) {
     title = '🧠 ' + skrT('skr_tv_memorize', 'كل واحد يحفظ الكارتين اللي تحت', 'Everyone memorises their bottom two cards');
     note = skrT('skr_ready_count', 'جاهزين {n}/{m}', 'Ready {n}/{m}', { n: (s.ready || []).length, m: order.length });
     // A timed look: a big countdown the whole room can read.
-    if (s.endsAt) count = `<div class="skr-tv__count metric" data-skr-count>${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</div>`;
+    if (s.endsAt) count = `<div class="skr-tv__count metric" data-skr-count>${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</div>`;
   } else if (s.phase === 'thiefGuess') {
     title = '🦹 ' + skrT('skr_thief_q', 'مين معاه الحرامي؟', 'Who holds the thief?');
     note = skrRoundEndWords(state);

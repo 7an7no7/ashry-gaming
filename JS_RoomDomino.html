@@ -401,7 +401,7 @@ function domHeadBits(state, target) {
   bits.push(`<span class="badge">${escapeHTML(st.mode === 'american' ? domT('dom_mode_american') : domT('dom_mode_normal'))}</span>`);
   if (st.teams) bits.push(`<span class="badge">🤝 ${escapeHTML(domT('dom_teams_short'))}</span>`);
   if (target && st.target) bits.push(`<span class="badge">🎯 ${st.target}</span>`);
-  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-dom-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-dom-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</span>`);
   return bits.join('');
 }
 
@@ -884,7 +884,7 @@ function domStopClock() {
 function domTickClock(s) {
   const endsAt = s && s.phase === 'play' ? s.endsAt : null;
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)) : 0;
     document.querySelectorAll('[data-dom-clock]').forEach(el => {
       el.textContent = '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 10);
@@ -898,7 +898,7 @@ function domTickClock(s) {
   domStopClock();
   domLocal.clockKey = endsAt;
   domLocal.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = Room.state;

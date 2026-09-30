@@ -299,7 +299,7 @@ function unoHeadHtml(state) {
   if (set.sevenO) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_seven_o'))}"><bdi dir="ltr">7 · 0</bdi></span>`);
   if (set.jumpIn) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_jump_in'))}">⚡</span>`);
   if (set.drawUntil) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_draw_until'))}">${CARD_GLYPH}∞</span>`);
-  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-uno-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+  if (s.phase === 'play' && s.endsAt) bits.push(`<span class="badge badge--accent metric" data-uno-clock>⏱️ ${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</span>`);
   return `<div class="uno-head">${bits.join('')}</div>`;
 }
 
@@ -876,7 +876,7 @@ function unoStopClock() {
 function unoTickClock(s) {
   const endsAt = s && s.phase === 'play' ? s.endsAt : null;
   const paint = () => {
-    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : 0;
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)) : 0;
     document.querySelectorAll('[data-uno-clock]').forEach(el => {
       el.textContent = '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 10);
@@ -890,7 +890,7 @@ function unoTickClock(s) {
   unoStopClock();
   unoLocal.clockKey = endsAt;
   unoLocal.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paint();
       const st = Room.state;

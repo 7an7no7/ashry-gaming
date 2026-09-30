@@ -233,7 +233,7 @@ function sklHeadHtml(state) {
   bits.push(`<span class="badge">${escapeHTML(pcT('skl_round', { n: s.round || 1 }))}</span>`);
   bits.push(`<span class="badge">🌸 ${escapeHTML(pcT('skl_to_win'))}</span>`);
   if (['place', 'add', 'bid', 'flip', 'lose'].indexOf(s.phase) !== -1 && s.endsAt) {
-    bits.push(`<span class="badge badge--accent metric" data-skl-clock="${s.endsAt}">⏱️ ${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>`);
+    bits.push(`<span class="badge badge--accent metric" data-skl-clock="${s.endsAt}">⏱️ ${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</span>`);
   }
   return `<div class="skl-head">${bits.join('')}</div>`;
 }
@@ -392,10 +392,10 @@ function sklGuessHtml(state, tv) {
   const s = sklS(state);
   const guessers = (s.order || []).filter(id => (state.players || []).some(p => p.id === id) && id !== sklBidder(s));
   const chips = guessers.map(id => `<span class="skl-gchip ${(s.guessed || []).indexOf(id) !== -1 ? 'is-done' : ''}">${escapeHTML(pcName(state, id))}${(s.guessed || []).indexOf(id) !== -1 ? ' ✓' : ''}</span>`).join('');
-  const left = s.guessEndsAt ? Math.max(0, Math.ceil((s.guessEndsAt - Date.now()) / 1000)) : 0;
+  const left = s.guessEndsAt ? Math.max(0, Math.ceil((s.guessEndsAt - roomServerNow()) / 1000)) : 0;
   return `<div class="skl-guess ${tv ? 'is-tv' : ''}">
       <p class="skl-guess__q">🤔 ${escapeHTML(pcT('skl_will_they', { name: pcName(state, sklBidder(s)), n: s.flip ? s.flip.n : '' }))}</p>
-      <div class="skl-guess__bar"><i style="--skl-guess-ms:${Math.max(0, (s.guessEndsAt || 0) - Date.now())}ms" data-skl-bar="${s.guessEndsAt || 0}"></i></div>
+      <div class="skl-guess__bar"><i style="--skl-guess-ms:${Math.max(0, (s.guessEndsAt || 0) - roomServerNow())}ms" data-skl-bar="${s.guessEndsAt || 0}"></i></div>
       <div class="skl-gchips">${chips}</div>
       <span class="skl-guess__left metric" data-skl-guessclock="${s.guessEndsAt || 0}">${left}</span>
     </div>`;
@@ -496,7 +496,7 @@ function sklResultHtml(state, tv) {
   const lostLine = mineLost ? `<div class="skl-res__lost">${sklDiscHtml(mineLost.f, sklCol(s, Room.me), 'is-small')}<span>${escapeHTML(pcT(r.own ? 'skl_res_you_gave' : 'skl_res_you_lost', { face: sklFaceName(mineLost.f) }))}</span></div>`
     : (!r.ok && !r.void && r.bidder !== Room.me ? `<p class="skl-hint">${escapeHTML(pcT('skl_res_secret', { name: pcName(state, r.bidder) }))}</p>` : '');
   const out = r.out ? `<p class="skl-res__out">👋 ${escapeHTML(pcT('skl_res_out', { name: pcName(state, r.out) }))}</p>` : '';
-  const nextLeft = s.phase === 'result' && s.nextAt ? Math.max(0, Math.ceil((s.nextAt - Date.now()) / 1000)) : 0;
+  const nextLeft = s.phase === 'result' && s.nextAt ? Math.max(0, Math.ceil((s.nextAt - roomServerNow()) / 1000)) : 0;
   const next = s.phase === 'result'
     ? `<p class="skl-hint">${escapeHTML(pcT('skl_next_in'))} <b class="metric" data-skl-next="${s.nextAt || 0}">${nextLeft}</b></p>` +
       (tv ? roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(pcT('skl_next_now'), "sklNext()", 'secondary')}</div>`) : roomMoveOnHtml(state, roomHostRow([[pcT('skl_next_now'), 'sklNext()', 'secondary']])))
@@ -786,7 +786,7 @@ function sklTick(state) {
     paint();
     // The last five seconds tick on the phone it's waiting for, and on the TV.
     if (ss.endsAt && ['place', 'add', 'bid', 'flip', 'lose'].indexOf(ss.phase) !== -1) {
-      const left = Math.ceil((ss.endsAt - Date.now()) / 1000);
+      const left = Math.ceil((ss.endsAt - roomServerNow()) / 1000);
       const mine = st.youAreScreen || (ss.phase === 'place' ? (ss.placed || []).indexOf(Room.me) === -1 : sklUp(ss) === Room.me);
       if (left > 0 && left <= 5 && left !== lastTick && mine) { lastTick = left; playSound('tick'); }
     }

@@ -31,13 +31,13 @@ function teleDraft(value) {
 function armTeleClock(endsAt) {
   const paint = () => {
     const el = document.getElementById('tele-clock');
-    if (el) el.textContent = String(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)));
+    if (el) el.textContent = String(Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)));
   };
   paint();
   if (tele.clockKey === endsAt && tele.clock && tele.clock.isRunning()) return;
   stopTeleClock();
   tele.clockKey = endsAt;
-  tele.clock = createClock({ seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)), onTick: paint, onEnd: () => { tele.clock = null; } });
+  tele.clock = createClock({ seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)), onTick: paint, onEnd: () => { tele.clock = null; } });
 }
 function stopTeleClock() {
   if (tele.clock) tele.clock.stop();

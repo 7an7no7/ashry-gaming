@@ -208,14 +208,20 @@ async function sendRoomChat(quick) {
   const typed = quick === undefined;
   const text = String(typed ? ((input && input.value) || '') : quick).trim();
   if (!text) return;
+  // The field is cleared only once the server has the line, so a second Enter (or tap
+  // on send) meanwhile would send it twice: one typed line at a time.
+  if (typed && roomChat.sending) return;
   const payload = { text: text };
   if (roomChat.to === 'team' && chatTeamOf(Room.state)) payload.to = 'team';
+  if (typed) roomChat.sending = true;
   try {
     await Room.act('chat', payload);
     if (typed && input) { input.value = ''; input.focus(); }
     playSound('tick');
   } catch (e) {
     showToast(e.message || '', 'error');
+  } finally {
+    if (typed) roomChat.sending = false;
   }
 }
 

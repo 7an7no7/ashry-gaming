@@ -124,7 +124,7 @@ const mkHostCall = (action, s) => `roomAct('${action}', { target: '${jsStringAtt
 function armMkClock(endsAt) {
   const paint = () => {
     const el = document.getElementById('mk-clock');
-    if (el) el.textContent = endsAt ? String(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))) : '∞';
+    if (el) el.textContent = endsAt ? String(Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000))) : '∞';
   };
   paint();
   if (!endsAt) { stopMkClock(); return; }
@@ -132,7 +132,7 @@ function armMkClock(endsAt) {
   stopMkClock();
   mkRoom.clockKey = endsAt;
   mkRoom.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: (left) => { paint(); if (left <= 5 && left > 0 && Room.state && Room.state.shared.turnId === Room.me) playSound('tick'); },
     onEnd: () => { mkRoom.clock = null; paint(); }
   });

@@ -11475,7 +11475,7 @@ Date.now = duelTestClock;
   // The pause after the result, on the clock: the standings.
   tickTo(r0, 9000);
   check(r0.program.phase === 'between' && r0.game === null && r0.phase === 'lobby' && roomDeadline(r0) === clock + 10000, 'program: the result gives way to the table for 10 s');
-  check(!!r0.night && r0.night.a === 3, 'program: the room\'s own night table («ليالينا») still banks the game');
+  check(!!r0.night && r0.night.a === 5, 'program: the room\'s own night table («ليالينا») still banks the game');
   // Pause and go on; the host away lets a player press them.
   applyRoomAction(r0, 'a', 'programPause', { seq: r0.program.seq, on: true });
   check(r0.program.paused && roomDeadline(r0) === null, 'program: ⏸ stops the clock');

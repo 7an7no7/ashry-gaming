@@ -38,6 +38,9 @@ const STOP_POINTS = [0, 10, 5];
 const stopLetterPool = (letter) => (/[A-Za-z]/.test(letter || '') ? STOP_LETTERS.en : STOP_LETTERS.ar);   // a tap cycles a cell through these
 
 let stopClock = null;
+// When the last letter was dealt: a double tap on «next letter» lands its second
+// tap on the new round's وقف, which is in the same place.
+let stopDealtAt = 0;
 
 function stopState() {
   if (!appState.stop) {
@@ -112,6 +115,7 @@ function nextStopLetter() {
   s.endsAt = s.timer ? Date.now() + s.timer * 1000 : 0;
   s.phase = 'play';
   s.roundScores = {};
+  stopDealtAt = Date.now();
   saveToLocal();
   if (appState.currentView !== 'play-stop') setView('play-stop');
   paintStopPlay();
@@ -154,6 +158,7 @@ function armStopClock() {
 function stopRound() {
   const s = stopState();
   if (s.phase !== 'play') return;
+  if (Date.now() - stopDealtAt < 600) return;
   if (stopClock) stopClock.stop();
   stopClock = null;
   s.phase = 'score';

@@ -22,7 +22,8 @@ const chameleonState = {
   revealIndex: 0,
   accusedPlayer: "",
   scores: {},
-  scoreId: 0
+  scoreId: 0,
+  done: false   // the round's result is out: a second accusation must not score it again
 };
 
 const ROW_LETTERS = ["A", "B", "C", "D"];
@@ -101,6 +102,7 @@ function startChameleonGame(again) {
   chameleonState.chameleonPlayer = shuffledPlayers[Math.floor(Math.random() * shuffledPlayers.length)];
   chameleonState.revealIndex = 0;
   chameleonState.accusedPlayer = '';
+  chameleonState.done = false;
 
   resetChameleonTable();
   playSound('click');
@@ -187,6 +189,8 @@ function doneChameleonRevealStep() {
 
 function startChameleonTablePlay() {
   resetChameleonTable();
+  // A round already decided (its result closed with the phone's back) keeps its accuse bar away.
+  if (chameleonState.done) document.getElementById('chameleon-play-actions')?.classList.add('hidden');
   setView('play-chameleon');
   renderChameleonGrid();
 
@@ -245,6 +249,7 @@ function renderChameleonGrid(interactive) {
 }
 
 function openChameleonAccuseModal() {
+  if (chameleonState.done) return;
   const t = TRANSLATIONS[appState.lang] || {};
   const list = document.getElementById('chameleon-accuse-list');
   if (list) {
@@ -260,6 +265,7 @@ function openChameleonAccuseModal() {
 
 function voteChameleonAccused(player) {
   closeModal('chameleon-accuse-modal');
+  if (chameleonState.done) return;
   chameleonState.accusedPlayer = player;
   const isCorrectCatch = (player === chameleonState.chameleonPlayer);
 
@@ -285,11 +291,19 @@ function openChameleonGuessPhase() {
 }
 
 function chameleonGuessWord(word) {
+  if (chameleonState.done) return;
   const isCorrectWord = (word === chameleonState.secretWord);
   finishChameleonGame(true, isCorrectWord);
 }
 
 function finishChameleonGame(wasCaught, chameleonGuessedWord) {
+  if (chameleonState.done) return;
+  chameleonState.done = true;
+  chameleonSave();
+  // The live controls go: the result closed with the phone's back leaves the board, not a second round to score.
+  document.getElementById('chameleon-play-actions')?.classList.add('hidden');
+  document.getElementById('chameleon-guess-box')?.classList.add('hidden');
+  renderChameleonGrid();
   const t = TRANSLATIONS[appState.lang] || {};
   const resultModal = document.getElementById('chameleon-result-modal');
   const titleEl = document.getElementById('chameleon-result-title');

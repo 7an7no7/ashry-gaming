@@ -20,8 +20,18 @@ const spyfallState = {
   timerClock: null,
   crossedLocations: new Set(),
   scores: {},
-  scoreId: 0
+  scoreId: 0,
+  done: false,  // the round's result is out: a second accusation must not score it again
+  lang: ''      // the games' language the place was dealt in (the board and the spy's guess)
 };
+
+/** The place list of this deal's language: switching the games' language mid-round made the spy's guess always wrong. */
+const spyfallDb = () => SPYFALL_DB[spyfallState.lang || contentLang()] || SPYFALL_DB.ar;
+
+/** The accuse and pause buttons, shown while the round can still be decided. */
+function spyfallLiveControls(on) {
+  ['spyfall-accuse-btn', 'spyfall-pause-btn'].forEach(id => document.getElementById(id)?.classList.toggle('hidden', !on));
+}
 
 function setupSpyfall() {
   setView('setup-spyfall');
@@ -45,6 +55,8 @@ function startSpyfallGame(again) {
   selected.forEach(p => { if (typeof spyfallState.scores[p] !== 'number') spyfallState.scores[p] = 0; });
 
   const lang = contentLang();
+  spyfallState.lang = lang;
+  spyfallState.done = false;
   const db = SPYFALL_DB[lang] || SPYFALL_DB.ar;
   const loc = freshPick('spyfall:' + lang, db, 1, { key: l => l.location })[0];
   spyfallState.location = loc;
@@ -103,7 +115,8 @@ function spyfallSave() {
     localStorage.setItem(SPYFALL_SAVE_KEY, JSON.stringify({
       players: st.players, location: st.location, spies: st.spies, playerRoles: st.playerRoles,
       revealIndex: st.revealIndex, timerSeconds: st.timerSeconds, left: st.left,
-      crossed: [...st.crossedLocations], scores: st.scores, scoreId: st.scoreId
+      crossed: [...st.crossedLocations], scores: st.scores, scoreId: st.scoreId,
+      done: st.done, lang: st.lang
     }));
   } catch (e) {}
 }
@@ -175,6 +188,9 @@ function startSpyfallDiscussion(resume) {
   setSpyfallPauseLabel(false);
 
   if (spyfallState.timerClock) spyfallState.timerClock.stop();
+  spyfallLiveControls(!spyfallState.done);
+  // A round already decided (its result closed with the phone's back): the board, no clock.
+  if (spyfallState.done) { updateSpyfallTimerUI(0); return; }
 
   // Back from a reload: the time it had left, paused until the table is ready.
   let left = resume && spyfallState.left > 0 ? spyfallState.left : spyfallState.timerSeconds;
@@ -221,8 +237,7 @@ function setSpyfallPauseLabel(paused) {
 }
 
 function renderSpyfallLocationBoard() {
-  const lang = contentLang();
-  const db = SPYFALL_DB[lang] || SPYFALL_DB.ar;
+  const db = spyfallDb();
   const list = document.getElementById('spyfall-locations-list');
   if (!list) return;
 
@@ -248,6 +263,7 @@ function toggleSpyfallCrossLocation(locName) {
 }
 
 function openSpyfallAccuseModal() {
+  if (spyfallState.done) return;
   const t = TRANSLATIONS[appState.lang] || {};
   const list = document.getElementById('spyfall-accuse-list');
   if (list) {
@@ -265,6 +281,7 @@ const spyfallSpyNames = () => spyfallState.spies.join(appState.lang === 'en' ? '
 
 function voteSpyfallAccused(player) {
   closeModal('spyfall-accuse-modal');
+  if (spyfallState.done) return;
   if (spyfallState.timerClock) spyfallState.timerClock.stop();
   const isSpy = spyfallState.spies.includes(player);
   const t = TRANSLATIONS[appState.lang] || {};
@@ -281,8 +298,8 @@ function voteSpyfallAccused(player) {
 }
 
 function openSpyfallGuessModal(spyName) {
-  const lang = contentLang();
-  const db = SPYFALL_DB[lang] || SPYFALL_DB.ar;
+  if (spyfallState.done) return;
+  const db = spyfallDb();
   const list = document.getElementById('spyfall-spy-guess-grid');
   if (list) {
     list.innerHTML = db.map(item => `
@@ -297,6 +314,7 @@ function openSpyfallGuessModal(spyName) {
 
 function spySubmitLocationGuess(locName, spyName) {
   closeModal('spyfall-spy-guess-modal');
+  if (spyfallState.done) return;
   const isCorrect = (locName === spyfallState.location.location);
   const t = TRANSLATIONS[appState.lang] || {};
 
@@ -310,6 +328,11 @@ function spySubmitLocationGuess(locName, spyName) {
 }
 
 function finishSpyfallGame(civiliansWon, message, accused) {
+  if (spyfallState.done) return;
+  spyfallState.done = true;
+  if (spyfallState.timerClock) spyfallState.timerClock.stop();
+  spyfallSave();
+  spyfallLiveControls(false);
   const t = TRANSLATIONS[appState.lang] || {};
   const resultModal = document.getElementById('spyfall-result-modal');
   const titleEl = document.getElementById('spyfall-result-title');

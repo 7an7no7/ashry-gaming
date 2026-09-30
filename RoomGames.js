@@ -636,6 +636,14 @@ const applyRoomAction = (room, playerId, action, payload) => {
   // double tap - would deal another round nobody saw. Every game, one place.
   if (action === 'nextRound' && room.shared && room.shared.round !== undefined && staleTap(payload, 'round', room.shared.round)) return;
 
+  // «التالي لوحده» (the next batch): the host's lobby switch, kept for the game on the room.
+  if (AUTONEXT_GAMES[room.game] && (action === 'start' || action === 'playAgain')) {
+    if (payload && typeof payload.autoNext === 'boolean') room._autoNext = payload.autoNext;
+    else if (action === 'start') room._autoNext = false;
+  }
+  // «⏸ استنى»: the count to the next round stops, for this round; «التالي» is by hand again.
+  if (action === 'autoPause') { autoNextPause(room, playerId, payload); return; }
+
   // What was there before the move, to tell whether it dealt something new.
   const sharedBefore = room.shared;
   const dealing = action === 'start' || action === 'nextRound' || action === 'playAgain';
@@ -749,6 +757,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
       (room.shared !== sharedBefore || (dealing && JSON.stringify(room.shared) !== textBefore))) {
     room.shared.dealId = newDealId();
   }
+
+  // A round's result just shown, with «التالي لوحده» on: the count to the next one starts.
+  autoNextSync(room);
 
   // Whatever changed, a computer player may be up now.
   scheduleBots(room);
@@ -3528,6 +3539,8 @@ const triviaAction = (room, playerId, action, payload) => {
     requireMoveOn(room, playerId);
     // From the results only: a double tap must not skip a question unseen.
     if (s.phase !== 'results') return;
+    // Pressed for a question that has since moved on (the clock of «التالي لوحده» got there first).
+    if (staleTap(payload, 'qIndex', s.qIndex)) return;
     const next = (room._qIdx || 0) + 1;
     if (next >= (room._deck || []).length) {
       s.phase = 'gameover';
@@ -3624,6 +3637,113 @@ const closeTriviaQuestion = (room) => {
 };
 
 /* ==========================================================================
+   التالي لوحده — NEXT BY ITSELF (the next batch, 30 Sep 2026)
+   --------------------------------------------------------------------------
+   The older room games wait for the host's «التالي» after every result. With
+   the host's lobby switch on (room._autoNext, off by default), a result shown
+   sets shared.nextAt: long enough to enjoy it (its staged reveal counted in),
+   and when it passes the server deals the next round exactly as the host's
+   «التالي» would - the same action through applyRoomAction, so the stale-tap
+   guards, the deal id and the prompt memory (room.js loads it for this
+   timeout, roomTimeoutDeals) all hold. The last round goes to the end, never
+   to a new game. «⏸ استنى» (autoPause, a move-on action) clears nextAt for
+   this round; «التالي» by hand still works any time. Off: no field is added.
+
+   shared.nextAt  when the next round deals itself (the server's time), or null
+                  once paused; nextMs the whole pause (the draining bar);
+                  nextFor the result it was set for; nextPaused after «استنى».
+   ========================================================================== */
+// The pause after each result, its reveal counted in: the trivia answer is told
+// over ~3.7 s (triviaRevealPlan), a vote's bars ~3 s (voteRevealTimes), the dial
+// ~2.3 s (wlReveal), فيبج's cards one by one (fibRevealPlan).
+const AUTONEXT_TRIVIA_MS = 10000;
+const AUTONEXT_VOTE_MS = 12000;
+const AUTONEXT_WAVE_MS = 11000;
+const AUTONEXT_HERD_MS = 12000;
+const AUTONEXT_TT_MS = 13000;
+// فيبج: the lies turn over 0.9 s apart, then the truth (+1.5 s), the board (+1 s): ~3.7 s + 0.9 s a lie.
+const AUTONEXT_FIB_MS = (s) => {
+  const lies = ((s.vote || {}).results || []).length - 1;
+  return 9000 + 3700 + 900 * Math.max(0, lies - 1);
+};
+const AUTONEXT_GAMES = {
+  trivia:     { action: 'nextQuestion', deals: false, ms: AUTONEXT_TRIVIA_MS, ready: (s) => s.phase === 'results', key: (s) => 'q' + s.qIndex, args: (s) => ({ qIndex: s.qIndex }) },
+  wouldyou:   { action: 'nextRound', deals: true, ms: AUTONEXT_VOTE_MS, ready: (s) => !!(s.vote && s.vote.phase === 'results'), key: (s) => 'r' + s.round, args: (s) => ({ lang: s.lang, round: s.round }) },
+  mostlikely: { action: 'nextRound', deals: true, ms: AUTONEXT_VOTE_MS, ready: (s) => s.phase === 'results', key: (s) => 'r' + s.round, args: (s) => ({ lang: s.lang, round: s.round }) },
+  fibbage:    { action: 'nextRound', deals: true, ms: AUTONEXT_FIB_MS, ready: (s) => s.phase === 'results', key: (s) => 'r' + s.round, args: (s) => ({ lang: s.lang, round: s.round }) },
+  wavelength: { action: 'nextRound', deals: true, ms: AUTONEXT_WAVE_MS, ready: (s) => s.phase === 'results', key: (s) => 'r' + s.round, args: (s) => ({ lang: s.lang, round: s.round }) },
+  herd:       { action: 'nextRound', deals: true, ms: AUTONEXT_HERD_MS, ready: (s) => s.phase === 'result', key: (s) => 'r' + s.round, args: (s) => ({ round: s.round }) },
+  twotruths:  { action: 'next', deals: false, ms: AUTONEXT_TT_MS, ready: (s) => s.phase === 'result', key: (s) => 't' + s.turn, args: (s) => ({ turn: s.turn }) }
+};
+
+/** Starts the count once per result, or takes it away once the result is gone (or the switch is off). */
+const autoNextSync = (room) => {
+  const cfg = AUTONEXT_GAMES[room.game];
+  const s = room.shared;
+  if (!cfg || !s || typeof s !== 'object' || room.phase === 'lobby') return;
+  if (!room._autoNext || !cfg.ready(s)) {
+    ['nextAt', 'nextMs', 'nextFor', 'nextPaused'].forEach(k => { if (k in s) delete s[k]; });
+    return;
+  }
+  const key = cfg.key(s);
+  if (s.nextFor === key) return;   // set (or paused) for this result already
+  const ms = typeof cfg.ms === 'function' ? cfg.ms(s) : cfg.ms;
+  s.nextFor = key;
+  s.nextAt = Date.now() + ms;
+  s.nextMs = ms;
+  s.nextPaused = false;
+};
+
+/** When the next round deals itself, or null. */
+const autoNextDeadline = (room) => {
+  const cfg = AUTONEXT_GAMES[room.game];
+  const s = room.shared;
+  if (!cfg || !room._autoNext || !s || typeof s.nextAt !== 'number' || !cfg.ready(s)) return null;
+  return s.nextAt;
+};
+
+/** True when the timeout due now deals prompts: room.js loads the shared prompt memory for it. */
+const roomTimeoutDeals = (room, now) => {
+  const at = autoNextDeadline(room);
+  return at !== null && now >= at && AUTONEXT_GAMES[room.game].deals;
+};
+
+/**
+ * The count ran out: the host's «التالي», through the same door. A move the
+ * rules refuse (too few left to deal a round) stops the count instead of
+ * trying again for ever; the host's button decides then.
+ */
+const autoNextFire = (room) => {
+  const cfg = AUTONEXT_GAMES[room.game];
+  const s = room.shared;
+  const trial = structuredClone(room);
+  try {
+    applyRoomAction(trial, room.hostId, cfg.action, cfg.args(s));
+  } catch (err) {
+    s.nextAt = null;
+    s.nextPaused = true;
+    return true;
+  }
+  Object.keys(room).forEach(k => { delete room[k]; });
+  Object.assign(room, trial);
+  // A move that did nothing must not leave its deadline in the past.
+  const again = autoNextDeadline(room);
+  if (again !== null && again <= Date.now()) { room.shared.nextAt = null; room.shared.nextPaused = true; }
+  return true;
+};
+
+/** «⏸ استنى»: a move-on action, aimed at the result it was pressed on. */
+const autoNextPause = (room, playerId, payload) => {
+  if (!AUTONEXT_GAMES[room.game]) throw new Error('إجراء غير معروف');
+  requireMoveOn(room, playerId);
+  const s = room.shared || {};
+  if (staleTap(payload, 'key', s.nextFor)) return;
+  if (typeof s.nextAt !== 'number') return;
+  s.nextAt = null;
+  s.nextPaused = true;
+};
+
+/* ==========================================================================
    CLOCKS THE SERVER KEEPS
    --------------------------------------------------------------------------
    A timed round has to end even when no phone is awake to end it. The room
@@ -3649,6 +3769,9 @@ const gameDeadline = (room) => {
   const s = room.shared || {};
   // A knockout tournament of a duel: every match's clock, and the next match's start (RoomTournament.js).
   if (isTourRoom(room)) return tourDeadline(room);
+  // «التالي لوحده»: the next round deals itself at nextAt.
+  const autoAt = autoNextDeadline(room);
+  if (autoAt !== null) return autoAt;
   if (room.game === 'trivia' && s.phase === 'answering' && s.endsAt) {
     return s.endsAt + TRIVIA_GRACE_MS;
   }
@@ -3710,6 +3833,8 @@ const roomTimeout = (room, now) => {
   const due = gameDeadline(room);
   if (due && now >= due && gameTimeout(room, now)) {
     changed = true;
+    // A question the clock closed shows its result: with «التالي لوحده» on, the count starts.
+    autoNextSync(room);
     // A turn the clock ended may have handed the move to a bot.
     scheduleBots(room);
   }
@@ -3723,6 +3848,8 @@ const gameTimeout = (room, now) => {
   // The engine first: فوازير إيموجي on it must not reach the quiz's clock below (RoomSolve.js).
   if (svKindOf(room)) return svTimeout(room, now);
   if (isTourRoom(room)) return tourTimeout(room, now);
+  const autoAt = autoNextDeadline(room);
+  if (autoAt !== null && now >= autoAt) return autoNextFire(room);
   if (room.game === 'trivia') {
     closeTriviaQuestion(room);
     return true;
@@ -3855,6 +3982,8 @@ const gameTimeout = (room, now) => {
    ========================================================================== */
 const roomPlayerLeft = (room, playerId, name) => {
   gamePlayerLeft(room, playerId, name);
+  // A vote a leaver closed shows its result: the count to the next round starts.
+  autoNextSync(room);
   // The turn they held may have moved on to a computer player.
   scheduleBots(room);
 };
@@ -4231,6 +4360,7 @@ const twoTruthsAction = (room, playerId, action, payload) => {
   if (action === 'next') {
     requireMoveOn(room, playerId);
     if (s.phase !== 'result') return;
+    if (staleTap(payload, 'turn', s.turn)) return;
     nextTwoTruthsTurn(room);
     return;
   }

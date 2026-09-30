@@ -353,8 +353,23 @@ function domSeatHtml(state, pid, opts) {
       <div class="dom-seat__tiles" data-dom-at="seat:${escapeHTML(pid)}" aria-label="${escapeHTML(domT('dom_tiles_n', { n: n }))}">
         ${domBacksHtml(n, o.max)}${n > (o.max || 7) ? `<span class="dom-seat__more">+${n - (o.max || 7)}</span>` : ''}
         <span class="dom-seat__count metric">${n}</span>
+        ${domLacksHtml(s, pid)}
       </div>
     </div>`;
+}
+
+/**
+ * The numbers a seat passed on (shared.knocked: public, the table saw the ends
+ * when they passed; gone once they draw or play one). Shown only with the
+ * host's «نوّر الحجارة اللي تركب» on: off, remembering them is the game.
+ */
+function domLacksHtml(s, pid) {
+  const st = s.settings || {};
+  const lacks = st.helpFit && s.phase === 'play' ? ((s.knocked || {})[pid] || []) : [];
+  if (!lacks.length) return '';
+  const nums = lacks.join('·');
+  return `<span class="dom-seat__lacks" title="${escapeHTML(domT('dom_lacks', { n: lacks.join(' ، ') }))}" aria-label="${escapeHTML(domT('dom_lacks', { n: lacks.join(' ، ') }))}">` +
+    `<span aria-hidden="true">👊</span><bdi dir="ltr">${nums}</bdi></span>`;
 }
 
 /**
@@ -665,6 +680,7 @@ function domServerSig(state) {
   return [s.dealId || '', s.phase, s.round, s.turn || '', s.turnSeq, JSON.stringify(s.table || null), JSON.stringify(s.counts || {}),
     s.bone, JSON.stringify(s.scores || {}), evs.length ? evs[evs.length - 1].seq : 0, s.endsAt || '', JSON.stringify(state.you || null),
     domOrder(state).join(','), JSON.stringify(s.teams || null), JSON.stringify(s.settings || {}),
+    (s.settings || {}).helpFit ? JSON.stringify(s.knocked || {}) : '',
     (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','),
     s.phase === 'play' ? '' : JSON.stringify(s.result || null) + JSON.stringify(s.winners || null)].join('|');
 }

@@ -760,7 +760,60 @@ function skrLatestHtml(state, tv) {
   const e = moves[moves.length - 1];
   if (!e) return '';
   const fresh = motionFirst(['skr-latest', state.code, (state.shared || {}).dealId || '', e.seq, tv ? 'tv' : 'phone'].join('|'));
-  return `<div class="skr-latest ${fresh ? 'is-new' : ''}" role="status">${escapeHTML(skrEventText(state, e))}</div>`;
+  const text = escapeHTML(skrEventText(state, e));
+  if (tv || !skrReplayOffered(state)) return `<div class="skr-latest ${fresh ? 'is-new' : ''}" role="status">${text}</div>`;
+  const label = skrT('skr_replay', '↺ شوف تاني', '↺ See again');
+  return `<div class="skr-latest skr-latest--replay ${fresh ? 'is-new' : ''}"><span role="status">${text}</span>` +
+    `<button type="button" class="skr-replay" data-skr-replay onclick="skrReplay(this)" title="${escapeHTML(skrT('skr_replay_hint', 'تتعاد على موبايلك إنت بس', 'Replays on your phone only'))}">${escapeHTML(label)}</button></div>`;
+}
+
+/**
+ * «↺ شوف تاني»: the latest move played again, on this phone only. No server
+ * call, nothing new is shown (a look's face is left out: memory is the game),
+ * and only the latest move - never a history. Not while a move is flying or a
+ * move of this phone's is being picked.
+ */
+function skrReplayOffered(state) {
+  const s = state.shared || {};
+  return !state.youAreScreen && !skrLocal.pick && skrCanMove() && (s.phase === 'play' || s.phase === 'memorize' || s.phase === 'thiefGuess');
+}
+
+/** Where the latest moves' cards were before their redraw (a kept card's "held" place is gone after it). */
+function skrReplayRemember(evs) {
+  const main = document.getElementById('shell-main');
+  skrFx.replay = { seqs: evs.map(e => e && e.seq), rects: skrFx.rects, scroll: main ? main.scrollTop : 0 };
+}
+
+/** The button waits while anything is flying. */
+function skrReplaySync(root) {
+  const btn = root && root.querySelector('[data-skr-replay]');
+  clearTimeout(skrFx.replayTimer);
+  if (!btn) return;
+  const wait = skrFx.busyUntil - Date.now();
+  btn.disabled = wait > 0;
+  if (wait > 0) skrFx.replayTimer = setTimeout(() => skrReplaySync(document.getElementById('view-room-screw')), wait + 60);
+}
+
+function skrReplay(btn) {
+  const root = document.getElementById('view-room-screw');
+  const state = Room.state;
+  if (!root || !state || state.game !== 'screw' || !root._skrTable || !skrReplayOffered(state)) return;
+  if (skrFx.busyUntil > Date.now()) { skrReplaySync(root); return; }
+  const moves = skrMoves(state);
+  const e = moves[moves.length - 1];
+  if (!e) return;
+  const saved = skrFx.replay && skrFx.replay.seqs.indexOf(e.seq) !== -1 ? skrFx.replay : null;
+  if (saved) {
+    const main = document.getElementById('shell-main');
+    const dy = saved.scroll - (main ? main.scrollTop : 0);
+    const rects = {};
+    Object.keys(saved.rects || {}).forEach(k => { const r = saved.rects[k]; rects[k] = { left: r.left, top: r.top + dy, width: r.width, height: r.height }; });
+    skrFx.rects = rects;
+  }
+  // A look's face stays out of the replay (the drawn card is face up in the hand anyway).
+  const you = Object.assign({}, state.you || {}, { seen: null });
+  skrPlay(root, Object.assign({}, state, { you: you }), [e], 0);
+  skrReplaySync(root);
 }
 
 /** The log under the table: the moves before the latest one (which is written at the top). */
@@ -2501,6 +2554,7 @@ ROOM_GAMES.screw = {
     el._skrTable = s.phase === 'memorize' || s.phase === 'play' || s.phase === 'thiefGuess';
     skrMemoFlipDown(el, state, memoWas);
     skrAfterDraw(el, state);
+    skrReplaySync(el);
     skrTurnCue(state);
     skrRevealCount(el);
     skrRevealMoments(el);
@@ -2625,6 +2679,8 @@ onRoomClocksReset(() => {
 const SKR_FLASH_MS = 3000;
 
 function skrFxCancel() {
+  skrFx.replay = null;
+  clearTimeout(skrFx.replayTimer);
   skrFx.timers.forEach(clearTimeout);
   skrFx.timers = [];
   skrFx.held.forEach(el => { el._skrHolds = 0; el.classList.remove('skr-hold'); });
@@ -3367,6 +3423,7 @@ function skrAfterDraw(root, state) {
   if (s.phase === 'reveal' || s.phase === 'gameover' || evs.length > 10) return;
   if (!skrCanMove()) { skrFlashEvents(root, state, evs); return; }
   const delay = skrFx.prevPhase === 'lobby' ? 1000 : 0;   // the room's start splash first
+  if (!skrIsTv(root)) skrReplayRemember(evs);
   skrPlay(root, state, evs, delay);
 }
 

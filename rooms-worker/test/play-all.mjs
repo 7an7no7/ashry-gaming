@@ -1406,6 +1406,101 @@ async function errRobots() {
   check(row.first > 0 && row.last >= row.first, 'errors: when it was first and last seen');
 }
 
+/* --- «الشلة»: a crew made and joined, a room opened for it, a night recorded once (run alone with --only=crew) --- */
+async function crewRobots() {
+  console.log("• the crew (create, join, a room for the crew, a night recorded once and replaced, a guest, the manager's moves, a non-manager refused)");
+  const crew = (path, body) => api('/crew/' + path, body);
+  const made = await crew('create', { name: 'شلة الروبوتات', me: 'هالة' });
+  check(made.ok && /^[A-Z]{6}$/.test(made.code), 'crew: made with a six-letter code');
+  if (!made.ok) return;
+  const code = made.code;
+  const peek = await crew('peek', { code });
+  check(peek.ok && peek.crew.members.length === 1 && !JSON.stringify(peek).includes(made.key), 'crew: the join sheet sees the name and members, never a key');
+  const kk = await crew('join', { code, name: 'كريم' });
+  check(kk.ok && kk.key && kk.key !== made.key, 'crew: someone new joins with a key of their own');
+  const dup = await crew('join', { code, name: 'هاله' });
+  check(!dup.ok && dup.error === 'NAME_TAKEN' && dup.id === made.memberId, 'crew: a name already there (folded) is offered as "is that you?"');
+  const claim = await crew('join', { code, claim: made.memberId });
+  check(claim.ok && claim.memberId === made.memberId && claim.key !== made.key, 'crew: a second phone claims a member and gets its own key');
+  check((await crew('get', { code, key: 'nope' })).ok === false, 'crew: a wrong key sees nothing');
+
+  // A room opened for the crew: the host proves membership with the crew key (checked server to server).
+  const H = await Bot.host('هالة', 'buzzer');
+  check((await H.act('setCrew', { code, key: 'bad' })).ok === false, 'crew: a room refuses a crew the phone is not in');
+  const K = await Bot.join(H.code, 'كريم');
+  const G = await Bot.join(H.code, 'ضيف');
+  check((await K.act('setCrew', { code, key: kk.key })).ok === false, 'crew: only the host opens the night for a crew');
+  await H.must('setCrew', { code, key: made.key });
+  await all([H, K, G], (st) => st.crew && st.crew.code === code, 'crew: every phone sees the night is for the crew');
+  await K.must('crewMe', { code, key: kk.key });
+  check((await G.act('crewMe', { code, key: 'nope' })).ok === false, 'crew: a guest cannot claim to be a member');
+  const keys = [made.key, kk.key, claim.key];
+  const leaked = () => [H, K, G].some((b) => keys.some((k) => JSON.stringify(b.state).includes(k)));
+  check(!leaked(), "crew: no crew key in any phone's room state");
+
+  // A buzzer game, then back to the hub: the night is sent.
+  const playBuzz = async (winners) => {
+    await H.must('start', {});
+    for (const w of winners) {
+      await H.waitFor((st) => st.shared && st.shared.phase === 'armed', 'crew: buzzers armed');
+      const r = H.state.shared.round;
+      await w.must('buzz', { round: r });
+      await H.waitFor((st) => st.shared.buzzes.length === 1, 'crew: a buzz');
+      await H.must('correct', { id: w.pid });
+    }
+    await H.must('backToHub');
+    await H.waitFor((st) => !st.game, 'crew: back in the hub');
+  };
+  await playBuzz([K, K, G]);
+  const waitNight = async (pred, label) => {
+    const until = Date.now() + 6000;
+    let v = null;
+    while (Date.now() < until) {
+      v = await crew('get', { code, key: kk.key });
+      if (v.ok && pred(v.crew)) break;
+      await sleep(200);
+    }
+    check(!!(v && v.ok && pred(v.crew)), label);
+    return v && v.ok ? v.crew : null;
+  };
+  let view = await waitNight((c) => c.nightCount === 1, 'crew: the night reached the crew');
+  if (view) {
+    const row = view.table.find((r) => r.id === kk.memberId);
+    check(row && row.won === 1 && row.points === 3 && row.played === 1, 'crew: كريم won the night: 1 night, 3 points');
+    check(!view.table.some((r) => r.name === 'ضيف'), 'crew: the guest is not on the season table');
+    check(view.nights[0] && view.nights[0].top.some((t) => t.name === 'ضيف' && t.guest), 'crew: the guest is on the night, as a guest');
+    check(view.nights[0] && view.nights[0].games.indexOf('buzzer') !== -1, 'crew: the night says which games were played');
+  }
+  // A second game the same night: the same night, replaced, not a second one.
+  await H.must('chooseGame', { game: 'buzzer' });
+  await playBuzz([K, H, K]);
+  view = await waitNight((c) => c.nightCount === 1 && (c.table.find((r) => r.id === made.memberId) || {}).points === 3, 'crew: a second game adds to the same night');
+  if (view) {
+    const k = view.table.find((r) => r.id === kk.memberId);
+    const h = view.table.find((r) => r.id === made.memberId);
+    check(k && h && k.points === 6 && h.points === 3 && k.won === 1 && h.won === 0, 'crew: the night totals 6 (كريم, 3 + 3) and 3 (هالة, 1 + 2), one night won');
+    check(view.titles.some((t) => t.key === 'fast' && t.id === kk.memberId && t.n === 2), 'crew: a title from real play (two buzzer games won: أسرع إيد)');
+  }
+  check(!leaked(), 'crew: still no crew key in any room state');
+
+  // The manager's moves, and a member who isn't the manager refused.
+  check((await crew('act', { code, key: kk.key, action: 'renameMember', payload: { id: made.memberId, name: 'x' } })).ok === false, "crew: a member who isn't the manager can't rename someone");
+  check((await crew('act', { code, key: kk.key, action: 'removeMember', payload: { id: made.memberId } })).ok === false, 'crew: nor take someone out');
+  const ren = await crew('act', { code, key: made.key, action: 'renameMember', payload: { id: kk.memberId, name: 'كريم الكبير' } });
+  check(ren.ok && ren.crew.members.some((m) => m.name === 'كريم الكبير'), "crew: the manager fixes a member's name");
+  const hand = await crew('act', { code, key: made.key, action: 'handOver', payload: { id: kk.memberId } });
+  check(hand.ok && hand.crew.managerId === kk.memberId, 'crew: the manager hands the crew on');
+  check((await crew('act', { code, key: made.key, action: 'rename', payload: { name: 'y' } })).ok === false, "crew: the old manager can't rename it any more");
+  const pack = await crew('act', { code, key: made.key, action: 'addPack', payload: { code: 'QZ1234', kind: 'quiz', title: 'مسابقة العيلة' } });
+  check(pack.ok && pack.crew.packs.length === 1, 'crew: a member keeps a pack on the crew');
+  const gone = await crew('act', { code, key: kk.key, action: 'removeMember', payload: { id: made.memberId } });
+  check(gone.ok && !gone.crew.members.some((m) => m.id === made.memberId), 'crew: the manager takes a member out');
+  check((await crew('get', { code, key: made.key })).out === true && (await crew('get', { code, key: claim.key })).out === true, 'crew: every phone of a member taken out is out');
+  const left = await crew('act', { code, key: kk.key, action: 'leave' });
+  check(left.ok && left.gone, 'crew: the last member leaving ends the crew');
+  [H, K, G].forEach((b) => b.close());
+}
+
 /* --- the core: one room of four people through the party games (run alone with --only=core) --- */
 async function coreSeg() {
   /* --- room basics ------------------------------------------------------- */
@@ -5775,6 +5870,7 @@ const SEGMENTS = [
   { name: 'oldmaid', run: oldmaidSeg, secs: 1 },
   { name: 'duels', run: duelTourRobots, secs: 126 },
   { name: 'leavemid', run: leavemidSeg, secs: 1 },
+  { name: 'crew', run: crewRobots, secs: 6 },
 ];
 const EXCLUSIVE = new Set([]);
 

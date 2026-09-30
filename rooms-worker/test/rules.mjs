@@ -10966,19 +10966,25 @@ Date.now = duelTestClock;
   }
   // A trap: back to the start, a heart gone; the goal: the next level, a new mover.
   {
-    const r = dkRoom(['a', 'b', 'c']);
-    applyRoomAction(r, 'a', 'start', { story: 'home', mode: 'steps' });
-    const m = mapOf(r);
-    const t = m.traps[0];
-    const W = m.w;
-    // The way to the first still trap, stepping on nothing else first.
-    const target = t.y * W + t.x;
-    const bfs = (from, to) => { const prev = new Map([[from, -1]]); const q = [from]; while (q.length) { const c = q.shift(); if (c === to) break; const x = c % W, y = Math.floor(c / W); for (const d of Object.values(D.DARK_DIRS)) { if (D.darkBlocked(m, x, y, d[0], d[1])) continue; const n = (y + d[1]) * W + x + d[0]; if (prev.has(n) || (n !== to && (m.trapAt.has(n) || D.darkDynCells(m, 0).has(n)))) continue; prev.set(n, c); q.push(n); } } if (!prev.has(to)) return null; const out = []; for (let c = to; c !== -1; c = prev.get(c)) out.push(c); return out.reverse(); };
-    const p = bfs(m.start[1] * W + m.start[0], target);
+    // The way to a still trap, stepping on nothing else first - no other trap, and not
+    // the goal (reaching it would clear the level first, about 1 map in 280). Not always
+    // the first trap: one may sit behind others (the creaky tile in grandpa's corner
+    // behind a Lego brick, about 1 map in 40), which the game allows - only the goal
+    // must be reachable. A map with no such way at all (about 1 in 100,000) is dealt
+    // again, so the check waits for its case instead of failing by chance.
+    let r = null, m = null, W = 0, t = null, p = null;
+    const bfs = (from, to) => { const goal = m.goal[1] * W + m.goal[0]; const prev = new Map([[from, -1]]); const q = [from]; while (q.length) { const c = q.shift(); if (c === to) break; const x = c % W, y = Math.floor(c / W); for (const d of Object.values(D.DARK_DIRS)) { if (D.darkBlocked(m, x, y, d[0], d[1])) continue; const n = (y + d[1]) * W + x + d[0]; if (prev.has(n) || (n !== to && (n === goal || m.trapAt.has(n) || D.darkDynCells(m, 0).has(n)))) continue; prev.set(n, c); q.push(n); } } if (!prev.has(to)) return null; const out = []; for (let c = to; c !== -1; c = prev.get(c)) out.push(c); return out.reverse(); };
+    for (let tries = 0; tries < 20 && !p; tries++) {
+      r = dkRoom(['a', 'b', 'c']);
+      applyRoomAction(r, 'a', 'start', { story: 'home', mode: 'steps' });
+      m = mapOf(r);
+      W = m.w;
+      for (const cand of m.traps) { p = bfs(m.start[1] * W + m.start[0], cand.y * W + cand.x); if (p) { t = cand; break; } }
+    }
     for (let i = 1; p && i < p.length && r.shared.phase === 'play'; i++) { at(r, i); applyRoomAction(r, r.shared.moverId, 'step', { d: dirTo(m, p[i - 1], p[i]), run: r.shared.run }); }
     let s = r.shared;
     check(!!p && s.phase === 'trap' && s.hearts === 2 && s.trap === t.k && s.ev[s.ev.length - 1].type === 'trap', 'darkroom: a still trap catches the mover and a heart is lost');
-    check(r.screenOnly.pev.some((e) => e.type === 'trap' && e.x === t.x && e.y === t.y) && !JSON.stringify(s).includes('"x":' + t.x + ',"y":' + t.y + '}'),
+    check(!!t && r.screenOnly.pev.some((e) => e.type === 'trap' && e.x === t.x && e.y === t.y) && !JSON.stringify(s).includes('"x":' + t.x + ',"y":' + t.y + '}'),
       'darkroom: where the trap was goes to the guides and the screen, not to shared');
     check(roomDeadline(r) === s.stunUntil, 'darkroom: the trap\'s moment is on the server\'s clock');
     const run = s.run;

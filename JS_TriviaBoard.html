@@ -284,12 +284,13 @@ function tbDealBoard(previousIds, withDouble) {
 }
 
 /* --- «اعمل مسابقتك» on the board (30 Sep 2026) ----------------------------------------
-   A quiz fills the board in the author's order: 25 questions a board (the rounds are as
-   many boards as it takes, at most 4), five to a column, the first of each five at 100
-   and the last at 500 - so an author who writes easy first gets the board's own curve.
-   A column is named with the quiz and its number (مسابقة العيد ١…); a board with fewer
-   than 25 questions has fewer columns, and a last column may be short (its empty
-   places are blank). The card shows the four answers; «الإجابة» is the right one. */
+   A quiz fills the board in the author's order, a row at a time: 25 questions a board
+   (the rounds are as many boards as it takes, at most 4), the first five at 100, the
+   next five at 200… - so an author who writes easy first gets the board's own curve.
+   A board of fewer questions has fewer columns (never more than it has questions) and
+   fewer rows; the last row's empty places are blank. A column is named with the quiz
+   and its number (مسابقة العيد 1…). The card shows the four answers; «الإجابة» is the
+   right one. */
 const TB_QUIZ_PER_BOARD = 25;
 function tbQuizRounds(quiz) {
   return Math.max(1, Math.min(4, Math.ceil(((quiz && quiz.questions) || []).length / TB_QUIZ_PER_BOARD)));
@@ -297,13 +298,14 @@ function tbQuizRounds(quiz) {
 function tbDealQuizRound(quiz, round) {
   const from = (round - 1) * TB_QUIZ_PER_BOARD;
   const list = quiz.questions.slice(from, from + TB_QUIZ_PER_BOARD);
-  const cols = Math.max(1, Math.ceil(list.length / TB_LEVELS.length));
+  const cols = Math.max(1, Math.min(TB_CATEGORIES_PER_ROUND, list.length));
+  const rows = Math.max(1, Math.ceil(list.length / cols));
   const board = [];
   for (let c = 0; c < cols; c++) {
     board.push({
       cat: null, quizCol: c,
-      cells: TB_LEVELS.map((points, r) => {
-        const k = c * TB_LEVELS.length + r;
+      cells: TB_LEVELS.slice(0, rows).map((points, r) => {
+        const k = r * cols + c;
         return k < list.length ? { points: points, q: from + k, team: null, done: false } : { points: points, q: -1, team: null, done: true, blank: true };
       })
     });
@@ -406,7 +408,8 @@ function renderTriviaBoard() {
   }).join('');
 
   let cells = '';
-  TB_LEVELS.forEach((points, row) => {
+  // A quiz board of few questions has fewer rows (tbDealQuizRound).
+  TB_LEVELS.slice(0, Math.max(...s.board.map(col => col.cells.length))).forEach((points, row) => {
     s.board.forEach((col, c) => {
       const cell = col.cells[row];
       // Named with its category (the column's head is out of reach of a screen reader), and

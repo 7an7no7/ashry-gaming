@@ -71,7 +71,7 @@ ROOM_GAMES.buzzer = {
     renderRoomFrame(el, sig, () => {
       const head = `
         <div class="play-head">
-          <span class="badge">${escapeHTML(t.bz_question || '')} <span class="metric">${s.round || 1}</span></span>
+          <span class="badge">${escapeHTML(t.bz_question || '')} ${s.quiz ? ltrFrac(Math.min(s.quiz.n + 1, s.quiz.total), s.quiz.total) : `<span class="metric">${s.round || 1}</span>`}</span>
           <span class="badge ${armed ? 'badge--success' : ''}">${armed ? '🔔 ' + escapeHTML(t.bz_open || '') : '🔒 ' + escapeHTML(t.bz_locked || '')}</span>
         </div>`;
 
@@ -205,7 +205,7 @@ function bzQuizHtml(state, t) {
   const fresh = shown !== null && typeof motionFirst === 'function' && !motionOff() && motionFirst(key);
   return `
     <div class="card card--tight bz-quiz">
-      <div class="eyebrow">${escapeHTML((q.emoji || '✍️') + ' ' + (q.title || ''))} · ${escapeHTML((t.bz_quiz_q || '').replace('{a}', ''))}${ltrFrac(q.n + 1, q.total)}</div>
+      <div class="eyebrow">${escapeHTML((q.emoji || '✍️') + ' ' + (q.title || ''))}</div>
       <div class="bz-quiz__q">${escapeHTML(q.q || '')}</div>
       <div class="bz-quiz__grid">
         ${(q.choices || []).map((c, i) => `<div class="bz-quiz__ch ${i === right ? 'is-right' : (shown !== null ? 'is-dim' : '')}${i === shown && fresh ? ' is-revealed' : ''}"><b>${escapeHTML(letters[i] || '')}</b><span>${escapeHTML(c)}</span></div>`).join('')}

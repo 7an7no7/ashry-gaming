@@ -14,6 +14,11 @@
  *   POST /report  { game, text, lang }            «في غلطة؟»: an item a player says is wrong
  *   POST /err     { b, m, f, v }                  an error on a player's phone (build, message, frame, view)
  *   GET|DELETE /errors                            what /err kept (the admin key)
+ *   POST /crew/create { name, me }              -> «الشلة»: { code, memberId, key, crew }
+ *   POST /crew/join   { code, claim | name }    -> the same, for a member claimed or someone new
+ *   POST /crew/peek   { code }                  -> the crew's name and members (the join sheet)
+ *   POST /crew/get    { code, key }             -> the crew's page (a member's key)
+ *   POST /crew/act    { code, key, action, payload }  rename, renameMember, removeMember, handOver, leave, addPack, removePack
  *   GET  /test                                    connection test page
  *
  * Bodies are JSON sent as text/plain, which browsers send without a CORS
@@ -23,14 +28,15 @@
  * Anything else is looked up in the built app (docs/, see [assets] in
  * wrangler.toml) before it reaches this code.
  */
-import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS } from '../generated/rules.js';
+import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS, CREW_CODE_RE, crewNewCode } from '../generated/rules.js';
 import { Room } from './room.js';
 import { PromptMemory } from './memory.js';
 import { LiveStats } from './live.js';
 import { WordLog } from './words.js';
+import { Crew } from './crew.js';
 import TEST_PAGE from './page.js';
 
-export { Room, PromptMemory, LiveStats, WordLog };
+export { Room, PromptMemory, LiveStats, WordLog, Crew };
 
 // Every phone looking at the مع بعض tab asks for the count; this Worker asks
 // LiveStats at most this often and answers the rest from what it last heard.
@@ -77,6 +83,51 @@ const createAllowed = (request) => {
   seen.n++;
   return seen.n <= CREATE_LIMIT;
 };
+
+// «الشلة»: making and joining crews, per address. A family joins a handful of phones;
+// a script can't fill the free plan's storage with crews.
+const CREW_LIMIT = 30;
+const CREW_WINDOW_MS = 10 * 60 * 1000;
+const crewedBy = new Map();
+const crewAllowed = (request) => {
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+  if (!ip) return true;
+  const now = Date.now();
+  if (crewedBy.size > 5000) {
+    for (const [k, v] of crewedBy) if (now - v.since > CREW_WINDOW_MS) crewedBy.delete(k);
+  }
+  const seen = crewedBy.get(ip);
+  if (!seen || now - seen.since > CREW_WINDOW_MS) { crewedBy.set(ip, { n: 1, since: now }); return true; }
+  seen.n++;
+  return seen.n <= CREW_LIMIT;
+};
+const crewRandom = () => {
+  const b = new Uint32Array(1);
+  crypto.getRandomValues(b);
+  return b[0] / 4294967296;
+};
+
+/** «الشلة»'s endpoints (crew.js): every answer { ok, ... }, an error the message the app shows. */
+async function handleCrew(env, path, body) {
+  if (!env.CREWS) return { ok: false, error: 'unavailable' };
+  const stub = (code) => env.CREWS.get(env.CREWS.idFromName(code));
+  if (path === '/crew/create') {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const code = crewNewCode(crewRandom);
+      const res = await stub(code).create(code, body.name, body.me);
+      if (!res.taken) return res;
+    }
+    return { ok: false, error: 'معرفناش نعمل الشلة، جرّب تاني' };
+  }
+  const code = String(body.code || '').trim().toUpperCase();
+  if (!CREW_CODE_RE.test(code)) return { ok: false, error: 'CREW_NOT_FOUND' };
+  const crew = stub(code);
+  if (path === '/crew/peek') return crew.peek();
+  if (path === '/crew/join') return crew.join(body.claim ? String(body.claim) : '', body.name);
+  if (path === '/crew/get') return crew.get(String(body.key || ''));
+  return crew.act(String(body.key || ''), String(body.action || ''), body.payload);
+}
+const CREW_API = new Set(['/crew/create', '/crew/join', '/crew/peek', '/crew/get', '/crew/act']);
 
 // A phone starts a game every few minutes; 120 counts an hour from one address
 // is a whole busy household, and a script can't fill the count.
@@ -205,6 +256,27 @@ export default {
       }
       try {
         return json(await handle(env, url.pathname, body));
+      } catch (err) {
+        console.error(url.pathname, err && err.stack || err);
+        return json({ ok: false, error: 'مش قادرين نوصل للسيرفر، جرّب تاني' }, 500);
+      }
+    }
+
+    if (CREW_API.has(url.pathname)) {
+      if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
+      let body;
+      try {
+        const text = await request.text();
+        if (text.length > 16 * 1024) throw new Error('too big');
+        body = JSON.parse(text || '{}') || {};
+      } catch (e) {
+        return json({ ok: false, error: 'bad request' }, 400);
+      }
+      if ((url.pathname === '/crew/create' || url.pathname === '/crew/join') && !crewAllowed(request)) {
+        return json({ ok: false, error: 'حاولت كتير في وقت قصير، استنى شوية وجرب تاني' }, 429);
+      }
+      try {
+        return json(await handleCrew(env, url.pathname, body));
       } catch (err) {
         console.error(url.pathname, err && err.stack || err);
         return json({ ok: false, error: 'مش قادرين نوصل للسيرفر، جرّب تاني' }, 500);

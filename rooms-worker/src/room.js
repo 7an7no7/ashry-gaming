@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying } from '../generated/rules.js';
+import { ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -113,6 +113,14 @@ export class Room extends DurableObject {
   }
 
   async destroy() {
+    // «الشلة»: the night's last word before the room goes - the game still on the table is
+    // banked as the hub would bank it, and the night is sent (it replaces what was sent before).
+    if (this.room && this.room.crew) {
+      try {
+        if (this.room.game && this.room.shared && this.room.shared.board) bankNightPoints(this.room, this.room.shared.board);
+      } catch (e) {}
+      await this.recordCrew();
+    }
     // Out of the count before the room forgets its own code.
     if (this.room && this.room.code) {
       const stub = this.liveStub();
@@ -281,6 +289,86 @@ export class Room extends DurableObject {
     } catch (e) {
       this.lastLive = null;   // try again on the next change
     }
+  }
+
+  /* --- «الشلة»: the crew this room's night counts for (crew.js) ------------- */
+
+  crewStub(code) {
+    return this.env.CREWS ? this.env.CREWS.get(this.env.CREWS.idFromName(code)) : null;
+  }
+
+  /** Sends the night to its crew (server to server; the crew replaces the same night sent before). */
+  async recordCrew() {
+    const room = this.room;
+    if (!room || !room.crew || !room.crewNight) return;
+    let input = null;
+    try { input = crewNightInput(room); } catch (e) { console.error('crewNightInput', errorText(e)); }
+    const stub = this.crewStub(room.crew.code);
+    if (!input || !stub) return;
+    try { await stub.recordNight(input); } catch (e) { console.error('recordNight', errorText(e)); }
+  }
+
+  /**
+   * The host opens the night «للشلة» (or for another crew, or none), in the lobby. The
+   * phone proves it is a member with its crew key, checked with the crew itself; the key
+   * is never kept in the room. A night already sent to another crew is taken back from it.
+   */
+  async setCrew(pid, payload, ws) {
+    if (this.room.hostId !== pid) return { ok: false, error: 'دي للمضيف بس' };
+    if (this.room.game && this.room.phase !== 'lobby') return { ok: false, error: 'غيّر الشلة بين الألعاب' };
+    const code = payload.code ? crewCleanCode(payload.code) : '';
+    if (payload.code && !code) return { ok: false, error: 'كود الشلة مش صحيح' };
+    let verified = null;
+    if (code) {
+      const stub = this.crewStub(code);
+      try { verified = stub ? await stub.verify(String(payload.key || '')) : null; } catch (e) { verified = null; }
+      if (!verified || !verified.ok) return { ok: false, error: 'إنت مش في الشلة دي على الموبايل ده' };
+    }
+    // The call let other messages in: look at the room as it is now.
+    await this.load();
+    const room = this.room;
+    if (!room || room.hostId !== pid) return { ok: false, error: 'دي للمضيف بس' };
+    const old = room.crew;
+    if (old && old.code !== code && room.crewNight) {
+      const stub = this.crewStub(old.code);
+      if (stub) stub.dropNight(room.crewNight).catch(() => {});
+    }
+    if (!code) {
+      room.crew = null;
+      room.crewNight = null;
+    } else {
+      if (!old || old.code !== code) room.crewNight = room.code + '-' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+      room.crew = { code, name: String(verified.name || '').slice(0, 30) };
+      room.crewLinks = room.crewLinks || {};
+      room.crewLinks[pid] = verified.memberId;
+    }
+    this.touch();
+    await this.save();
+    this.broadcast({ skip: ws });
+    if (room.crew) this.recordCrew().catch(() => {});
+    if (!ws) this.polled.set(pid, Date.now());
+    return { ok: true, state: this.project(pid, this.onlineIds()) };
+  }
+
+  /** A phone in the room says which member of the room's crew it is (its crew key, checked). */
+  async crewMe(pid, payload, ws) {
+    const crew = this.room.crew;
+    if (!crew || crewCleanCode(payload.code) !== crew.code) return { ok: false, error: 'الغرفة مش للشلة دي' };
+    if (!this.room.players.some((p) => p.id === pid && !p.bot)) return { ok: false, error: 'لست في الغرفة' };
+    let verified = null;
+    const stub = this.crewStub(crew.code);
+    try { verified = stub ? await stub.verify(String(payload.key || '')) : null; } catch (e) { verified = null; }
+    if (!verified || !verified.ok) return { ok: false, error: 'إنت مش في الشلة دي على الموبايل ده' };
+    await this.load();
+    if (!this.room || !this.room.crew || this.room.crew.code !== crew.code) return { ok: false, error: 'الغرفة مش للشلة دي' };
+    this.room.crewLinks = this.room.crewLinks || {};
+    if (this.room.crewLinks[pid] !== verified.memberId) {
+      this.room.crewLinks[pid] = verified.memberId;
+      await this.save();
+      this.recordCrew().catch(() => {});
+    }
+    if (!ws) this.polled.set(pid, Date.now());
+    return { ok: true, state: this.project(pid, this.onlineIds()) };
   }
 
   /* --- the prompt memory shared by all rooms ------------------------------- */
@@ -532,6 +620,9 @@ export class Room extends DurableObject {
     if (action === 'kick') return this.kick(pid, payload, ws);
     // Handing the room on is the room's too: it has to know who is connected.
     if (action === 'makeHost') return this.makeHost(pid, payload, ws);
+    // «الشلة»: checked with the crew's own object, so the room's (the rules' can't wait on it).
+    if (action === 'setCrew') return this.setCrew(pid, payload, ws);
+    if (action === 'crewMe') return this.crewMe(pid, payload, ws);
 
     // The rules change the room in place and may throw halfway through a move,
     // so they work on a copy that only replaces the room if the move is legal.
@@ -562,6 +653,10 @@ export class Room extends DurableObject {
     this.room = next;
     this.touch();
     if (!ws) this.polled.set(pid, Date.now());
+    // «الشلة»: the night grew (a game banked on the way back to the hub, a guess settled):
+    // the crew gets it again, replacing what it had. Not waited on: a move never waits for it.
+    const nightSig = (r) => JSON.stringify([r.night || null, r.nightx || null]);
+    if (next.crew && nightSig(next) !== nightSig(before)) this.recordCrew().catch(() => {});
 
     const quick = QUICK_ACTIONS.has(action);
     await this.save(quick);

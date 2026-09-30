@@ -1,0 +1,236 @@
+# «الشلة» (the crew) - the builder's notes (30 Sep 2026)
+
+Built on the `crew` branch. Not deployed, not pushed; GEMINI.md untouched. At the
+end: a line ready for GEMINI.md's index and a draft of `notes/games/crew.md`.
+
+## What it is
+
+A family or a group of friends kept across evenings: a code and a link / QR (no
+accounts, no passwords, like rooms), the month's table (nights won, then points),
+a champion a month on a wall kept for good, playful titles and records from real
+play, and every night's history. A night counts only when its room was opened
+«للشلة»; one-phone games never count. The page is look ج «كارنيه النادي»
+(`notes/next-level-looks.html`).
+
+## How it works
+
+### The rules (`Crew.js`, root, bundled into the rooms server; plain functions)
+
+- `crewNewCode(rnd)`: 6 letters from `CREW_ALPHABET` (no I, L, O). `crewCleanCode`
+  reads a typed code or a pasted `/s/CODE` / `?crew=CODE` link.
+- `crewDateOf(ts)` / `crewMonthOf(ts)`: Cairo time (`Africa/Cairo`), the night's
+  start less 6 hours - a night that runs past midnight stays on the day it began.
+- `crewNightInput(room)`: what a room sends its crew: `{ id, start, games, rows:
+  [{ name, member, points }], wins: [{ name, member, g }], best, tally, pred }`,
+  from `room.night` (the night's leaderboard, 3/2/1 a game, `bankNightPoints`) and
+  `room.nightx` (what `bankNightPoints` and `settlePredictions` note beside it:
+  names, first places, record scores, the rooms' own tallies, right guesses).
+  Computer players are left out; a leaver keeps their name.
+- `crewCleanNight(input, members, now)`: a night as the crew keeps it; a row's
+  member is the id the room proved (`crewLinks`) or the folded name (`crewFold`,
+  أحمد = احمد); anyone else is a guest (`m: null`).
+- `crewTable(nights, members, month)`: every member, sorted by nights won, then
+  points, then nights played. `crewNightWinners`: the rows on top (a tie is a win
+  for each; a guest alone on top means no member won).
+- `crewTitles`: the month's titles - `CREW_TITLE_GAMES` maps a first place in a game
+  to a title (fast, liar, detective, cards, brain, words, sport, luck), the rooms'
+  own tallies add to two (`s.fastest` → fast, `s.bestLiar` → liar), the audience's
+  right guesses make `oracle`. A title needs someone alone on top with 2 or more.
+- `crewRecords`: best bowling and trivia scores (`CREW_RECORD_GAMES`), most points
+  in a night, most games won in a night, the longest run of nights won, the most
+  nights in a month - over the nights kept.
+- `crewView(meta, nights, now, you)`: the page's whole payload (worked out when
+  asked). `crewFreezeChamps`: a past month's champion frozen into `meta.champs`
+  two days after the month ends (kept even when old nights are dropped).
+
+### The server (`rooms-worker/src/crew.js`, the `Crew` Durable Object, binding `CREWS`, migration v5)
+
+- One object per code. Storage: `crew` (name, `managerId`, `members [{ id, name,
+  at }]`, `keys { key: { m, at } }`, `champs`, `packs`, `activeAt`) and one key a
+  night, `n:<id>`. At most 30 members, 400 nights (the oldest go; champions are
+  frozen first), 30 packs, 6 keys a member (the oldest phone's goes).
+- Endpoints (`index.js`, JSON as text/plain like the rooms): `/crew/create { name,
+  me }`, `/crew/join { code, claim | name }` (a name already there, folded, is
+  refused as `NAME_TAKEN` with its id: the sheet says "tap your name"), `/crew/peek
+  { code }` (name and members, never a key or a night), `/crew/get { code, key }`,
+  `/crew/act { code, key, action, payload }`. `create` and `join` are limited per
+  address (30 in 10 minutes, `CREW_LIMIT`).
+- Actions: `rename`, `renameMember`, `removeMember`, `handOver` (the manager only:
+  `managerId === the key's member`), `leave` (anyone; a manager leaving hands the
+  crew to whoever has been in longest; the last member leaving deletes the crew),
+  `addPack` / `removePack` (any member / the one who added it or the manager).
+- A key that no longer proves a member answers `{ out: true }` (a member taken out:
+  all their phones), a crew gone `{ gone: true }`; the page forgets it then.
+- A crew nobody touches for a year deletes itself (an alarm at `activeAt` + 1
+  year; a write moves it, a page view at most once a day).
+
+### A room's night (`rooms-worker/src/room.js`)
+
+- `setCrew { code, key }` (the host, in the lobby - the hub or a game chosen but
+  not started): the room checks the key with the crew itself (`verify`, server to
+  server) and keeps only `room.crew = { code, name }` (projected to every phone by
+  `view.js`), `room.crewNight` (the night's id) and `room.crewLinks[pid] =
+  memberId`. **The key is never kept in the room.** `setCrew {}` / `{ code: '' }`:
+  not for a crew. Moving to another crew takes the night back from the old one
+  (`dropNight`).
+- `crewMe { code, key }`: any player's phone that is a member says which member it
+  is (sent once a room by `JS_CrewCore.html`), so a room name that differs from the
+  crew name still maps.
+- **When a night is sent**: whenever the night grows (a game banked on the way back
+  to the hub, a guess settled - `act` compares `night` and `nightx` before and
+  after) and when the room closes (`destroy`: the idle clean-up, or the last person
+  leaving - the game still on the table is banked first, as the hub would). Always
+  the whole night under one id, so the crew replaces it: never counted twice, never
+  lost when nobody presses anything. Not waited on by the move.
+- Server-to-server API for other features (a stub: `env.CREWS.get(env.CREWS.idFromName(code))`):
+  `verify(key)` → `{ ok, memberId, memberName, name, code }`; `recordNight(input)`
+  (the shape of `crewNightInput`: any results table can be sent, under an id of your
+  own, and sent again to replace it); `dropNight(id)`; `attachPack({ code, kind,
+  title, by })`; `listPacks()`.
+
+### The page (`JS_CrewCore.html` in the shell, `JS_Crew.html` the chunk `crew`)
+
+- The phone keeps `ashryCrews_v1` = `{ list: [{ code, name, memberId, key, me,
+  at }] }` (`at`: used last) and a copy of each crew's last page, `ashryCrewCache_v1`
+  (a reload or no network still shows it).
+- Client API for other features (shell): `crewList()` (no keys, used last first),
+  `crewCurrent()`, `crewApi(path, body)`, `crewAct(code, action, payload)`,
+  `crewAddPack(code, { code, kind, title })`, `crewRemovePack(code, packCode)`,
+  `crewInviteUrl(code, name)`, `openCrews(then)`.
+- Doors: the مع بعض tab's card (`crewTogetherHtml`: make / join, or the last used
+  and "+N"), Settings → الشلة, a link `/s/CODE?n=<name>` (the site worker's preview
+  page «انضم لـ «X» على عشرى جيمينج», then `/?crew=CODE`; the offline copy
+  redirects `/s/CODE` the same way), and `?crew=CODE` (read in `SERVER_DATA.crew`,
+  taken off the address by the build's runtime). `initCrews` opens the join sheet.
+- The view `crew` (`VIEW_META`: up `together`, violet; the مع بعض tab lights):
+  several crews → chips on top; the card (name, code, faces, «موسم سبتمبر · اليوم 30
+  من 30»; a tap opens the members); ادعي (the code big, its QR, the share sheet),
+  الأعضاء, افتح غرفة (a room opened for this crew); the tabs (`.segmented`, the
+  thumb slides; the pane slides in from its side): الشهر (a `.podium` of the top
+  three by nights won - the cast figures dress it by themselves - the rest of the
+  table, three peek cards), الأبطال (the wall), الألقاب (title cards, then the
+  records), السهرات (date, games, winner, top three with guests marked).
+- The sheets are one centred `#crew-modal`: make, join (code → «إنت مين فيهم؟» a
+  chip a member, the one matching the phone's saved name ringed, or «أنا جديد»),
+  invite, members (the manager's ✏️ 👑 ✕, rename the crew, leave), the room's pick.
+- Joining adds every member's name to the phone's saved names
+  (`addToPlayerLibrary`), and sets the phone's room name if it had none.
+- The room: a phone in a crew opens a new room for the crew it used last
+  (`crewAutoForRoom` after `Room.create`); the lobby shows «السهرة دي محسوبة لـ «X»
+  ✏️» (the host's pick sheet) or «السهرة دي للشلة؟» to a host with crews; a guest
+  sees the line with «انضم للشلة»; the hub's night board offers a guest «انضم لـ
+  «X»» once the night has points.
+- Motion: the card rises in, the podium rises with the cheerers (`podium--rise`,
+  once per state with `motionFirst`), numbers count up, cards pop in one after
+  another, the tab's pane slides, confetti on a crew made or joined.
+
+## Decided while building (open to change)
+
+- **A night is one room session** opened for a crew: every game banked on its night
+  board, 3/2/1 a game (the room's existing «ليلتنا» points). Its date is the room's
+  opening, Cairo time, less 6 hours. The most points wins the night; a tie on top is
+  a win for each tied member.
+- **Guests count on the night** (they can win it; then no member does), never on the
+  table. Computer players are left out of the crew's night.
+- **The host changes the crew only in the lobby** (between games); switching takes
+  the night from the old crew and gives the whole night to the new one.
+- **A phone in a crew opens every new room for the crew it used last**; the host
+  taps the line to change it or turn it off. (The owner: "the room shows the last
+  used"; asking at every room would be a tap more each time.)
+- **Leave = out of the crew** (the member and all their phones); the manager leaving
+  hands management to the longest-standing member; the last one leaving deletes it.
+  The manager taking someone out is the same, from their side.
+- **A member taken out keeps their past nights' rows** but leaves the table; a
+  champion frozen on the wall keeps the name it had.
+- **Claiming a member needs only the code** (as rooms need only the code): «إنت مين
+  فيهم؟» gives any phone that member's key. A member may have 6 phones.
+- **Titles are the month's** (the season); records are over every night kept (400).
+  Title groups: fast (الجرس، الكراسي، خمس ثواني، حط إيدك، عربيات التصادم + the room
+  trivia's first right answers), liar (كدّاب، كذبة وصدقة، صدق ولا كذب + its best
+  liar, المزاد، جمجمة), detective (the spy games, مافيا، الفنان المزيف، الشاهد، خمّن
+  مين), cards, brain (chess and puzzles, the duels, حرب السفن، العقل…), words, sport
+  (بولينج، ميني جولف), luck (لودو، السلم، بنك الحظ، القنبلة), oracle (the audience's
+  right guesses). Never a "worst" title.
+- **The link carries the crew's name** (`/s/CODE?n=…`) so the site worker's preview
+  needs no lookup (nothing to look after, no cross-worker call); `?crew=CODE` on the
+  preview build and GitHub Pages.
+- **Champions are frozen two days after the month ends** (a room open across the
+  last midnight still sends its night); the wall shows an unfrozen past month
+  worked out on the fly meanwhile.
+
+## Traps met
+
+- **Two `lzRun` calls share one key** ('nav'): `setView('crew')` (which waits for
+  the chunk) and then `lzRun('crew', openSheet)` replaced the first, so a `?crew=`
+  link opened the sheet over the home. `openCrews` does both in one `lzRun`.
+- **The podium's cast figures are added by a MutationObserver (a microtask)**: a
+  check in the same evaluate as the redraw sees none; look in the next task.
+- `bankNightPoints` is called by older rules tests with rooms that have no
+  `players`: guard `(room.players || [])`.
+- `jsStringAttr` returns the value without quotes: write `onclick="f('${jsStringAttr(x)}')"`.
+
+## Tests (30 Sep 2026, a local rooms server on :8791)
+
+- `npm run check`: passes (4,719 keys in each language).
+- `npm run test:rules`: 26 crew checks among the room rules (the date shift, codes,
+  a night from a room with a leaver and a computer player, names folded to members,
+  guests, the table, ties, the month's fresh start, titles from first places, the
+  trivia tally and the audience, the records and the streak, the wall and its
+  freeze, no keys in a view, a phone's room view without who is which member); all
+  pass, the leak check clean.
+- Robots `--only=crew`: 50 passed (create, peek without keys, join, a folded name
+  offered as "is that you?", a second phone claiming a member, a wrong key; a room
+  refusing a bad key and a non-host's `setCrew`; `crewMe`, a guest's refused; no
+  crew key in any room state; a night recorded once and replaced by a second game;
+  the guest on the night, not the table; a title from the buzzer; the manager's
+  moves and a non-manager refused; hand over; packs; take out (every phone of the
+  member out); the last leaving ends the crew; a room that closes with a game on
+  the table still sends its night).
+- Screen test `fixes`: a crew with a night, its page and four tabs at 375×812,
+  667×375, 1280×720 and 1920×1080 in Arabic light and English dark laid out within
+  the screen, the podium with the cast, a reload on the page, no errors. The empty
+  page is swept by `screens` like every view.
+- Looked at in headless Chrome: the whole flow on three phones (make, a link
+  joined, a room for the crew, a guest, a buzzer game, the offer, the page, every
+  tab, members, invite, the pick sheet, reload), four sizes, both languages and
+  themes; no console errors (only Chrome's "vibrate before a tap", from scripted taps).
+- Shell 629 KB gzipped (budget 710; +10 KB).
+
+## For the other two features
+
+- **اعمل مسابقتك / the family word pack**: keep a quiz's or a pack's code on a
+  crew with `crewAddPack(crewCode, { code, kind: 'quiz' | 'words', title })` on the
+  page (a member's key), or `attachPack` server to server; a member lists them in
+  `crew.packs` of `crewAct(code, 'get')`. Show them on your own screen; the crew's
+  page doesn't draw packs yet.
+- **برنامج السهرة**: a room opened «للشلة» is `Room.state.crew`; the night is
+  recorded by the room itself. To add your own results table, call
+  `recordNight({ id, start, games, rows: [{ name, member?, points }], wins, … })`
+  on the crew's stub with an id of your own (never the room's `room.crewNight`: the
+  room sends that one again and would replace yours).
+
+## Ready to paste into GEMINI.md's index ("The app around the games")
+
+- «الشلة» (the crew: a family's or friends' monthly table, champions, titles; a
+  room opened for it records its night; `Crew.js`, `rooms-worker/src/crew.js`,
+  `JS_CrewCore.html`, `JS_Crew.html`, `/crew/*`, `/s/CODE`) - `notes/games/crew.md`.
+
+## Draft of notes/games/crew.md
+
+(The sections above from "What it is" to "Traps met", as they stand, plus the
+owner's decisions:)
+
+- A crew is joined by a code and a link / QR (no accounts, no passwords); one
+  phone can be in several; the home/room shows the last used, and the host picks
+  which one for a room.
+- Table: nights won, then points. Season = a calendar month; a champion of the
+  month; the table starts fresh on the 1st; every past month's champion kept.
+- Titles playful, never mean, from real play; records.
+- Joining asks «إنت مين فيهم؟» once (or "I'm new") and adds the group's names to
+  the phone's saved names.
+- A night counts only when the room was opened for the crew; rooms only.
+- The creator manages it (rename, remove, fix a name, hand over); the rest can leave.
+- Guests play and count on the night; offered «انضم للشلة» at the end of the night;
+  not on the table unless they join.
+- The page: this month's table and champion (the cast podium), the champions'
+  wall, titles and records, the nights; look ج «كارنيه النادي».

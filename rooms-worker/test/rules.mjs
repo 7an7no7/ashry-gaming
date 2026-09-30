@@ -11412,6 +11412,83 @@ Date.now = duelTestClock;
   check(threw2(() => applyRoomAction(bz, 'a', 'autoPause', {})) && !bz._autoNext, 'autonext: other games have no such switch');
 }
 
+/* --- «الشلة» (Crew.js): a room's night for its crew, the table, the titles, the records --- */
+{
+  console.log('\n«الشلة» (the crew)');
+  const CR = await import('../generated/rules.js');
+  // The day starts at 6 AM Cairo time: a night that runs past midnight stays on its day.
+  const cairo2 = Date.UTC(2026, 8, 30, 22, 30);   // 1:30 AM on 1 Oct in Cairo
+  check(CR.crewDateOf(cairo2) === '2026-09-30' && CR.crewMonthOf(cairo2) === '2026-09', 'crew: a night past midnight on the 30th counts for September');
+  check(CR.crewDateOf(Date.UTC(2026, 9, 1, 9, 0)) === '2026-10-01', 'crew: the next morning is October');
+  check(CR.crewCleanCode('https://play.3ashry.workers.dev/s/abcdef?n=x') === 'ABCDEF' && CR.crewCleanCode('?crew=QWERTY') === 'QWERTY' && CR.crewCleanCode('ABC') === '', 'crew: a pasted link or a typed code gives the code');
+  let seq = 0;
+  const rnd = () => (seq = (seq * 9301 + 49297) % 233280) / 233280;
+  const codes = new Set(Array.from({ length: 200 }, () => CR.crewNewCode(rnd)));
+  check([...codes].every((c) => /^[ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/.test(c)), 'crew: codes are six letters, never I, L or O');
+
+  // A room's night: bankNightPoints notes the names, the first places and a record score.
+  const nr = newRoom(['h', 'k', 'g', 'bot']);
+  nr.players[0].name = 'هالة'; nr.players[1].name = 'كريم'; nr.players[2].name = 'ضيف';
+  nr.players[3].bot = 'easy'; nr.players[3].name = 'زيزو';
+  nr.createdAt = cairo2; nr.crewNight = 'N1'; nr.crewLinks = { k: 'mK' };
+  nr.game = 'bowling';
+  nr.shared = { board: [{ id: 'k', name: 'كريم', score: 180 }, { id: 'bot', name: 'زيزو', score: 150 }, { id: 'h', name: 'هالة', score: 90 }, { id: 'g', name: 'ضيف', score: 40 }] };
+  CR.bankNightPoints(nr, nr.shared.board);
+  nr.game = 'trivia';
+  nr.shared = { board: [{ id: 'g', name: 'ضيف', score: 50 }, { id: 'h', name: 'هالة', score: 40 }, { id: 'k', name: 'كريم', score: 10 }], fastest: { id: 'h', name: 'هالة', n: 3 } };
+  CR.bankNightPoints(nr, nr.shared.board);
+  nr.players = nr.players.filter((p) => p.id !== 'g');   // the guest left: the night keeps their name
+  const inp = CR.crewNightInput(nr);
+  check(inp && inp.id === 'N1' && inp.games.join() === 'bowling,trivia', 'crew: the night lists its games');
+  check(!inp.rows.some((r) => r.name === 'زيزو'), 'crew: a computer player is left out of the night');
+  check(inp.rows.find((r) => r.name === 'ضيف') && inp.rows.find((r) => r.name === 'كريم').member === 'mK', 'crew: a leaver keeps their name; a phone that proved it is mapped by id');
+  check(inp.best.some((b) => b.g === 'bowling' && b.s === 180) && inp.tally.some((t) => t.k === 'fastest' && t.n === 3), 'crew: a record score and a room\'s own tally are noted');
+
+  // The crew keeps it: names to members, guests kept as guests.
+  const members = [{ id: 'mH', name: 'هاله' }, { id: 'mK', name: 'كريم' }, { id: 'mS', name: 'سارة' }];
+  const n1 = CR.crewCleanNight(inp, members, cairo2 + 1000);
+  const rowOf = (n) => n1.rows.find((r) => r.n === n);
+  check(rowOf('هالة').m === 'mH', 'crew: a name matches its member folded (هالة is هاله)');
+  check(rowOf('ضيف').m === null && rowOf('كريم').m === 'mK', 'crew: a guest stays a guest');
+  check(n1.date === '2026-09-30' && n1.month === '2026-09', 'crew: the night is dated from its start');
+
+  // A second night in September and one in October.
+  const n2 = CR.crewCleanNight({ id: 'N2', start: Date.UTC(2026, 8, 12, 18), rows: [{ name: 'كريم', points: 6 }, { name: 'هالة', points: 5 }],
+    wins: [{ name: 'كريم', g: 'buzzer' }, { name: 'كريم', g: 'chairs' }, { name: 'هالة', g: 'uno' }],
+    pred: [{ name: 'سارة', n: 2 }] }, members, Date.UTC(2026, 8, 12, 21));
+  const n3 = CR.crewCleanNight({ id: 'N3', start: Date.UTC(2026, 9, 2, 18), rows: [{ name: 'سارة', points: 4 }, { name: 'كريم', points: 4 }] }, members, Date.UTC(2026, 9, 2, 21));
+  const nights = [n1, n2, n3];
+  // n1: كريم 3 (bowling) + 1 (trivia) = 4, هالة 1 + 2 = 3, the guest 0 + 3 = 3: كريم wins it
+  const sep = CR.crewTable(nights, members, '2026-09');
+  check(sep[0].id === 'mK' && sep[0].won === 2 && sep[0].points === 10 && sep[0].played === 2, 'crew: the table ranks by nights won (كريم 2 nights, 10 points)');
+  check(sep.find((r) => r.id === 'mS').played === 0 && sep.length === 3, 'crew: every member is on the table, 0 nights too');
+  const oct = CR.crewTable(nights, members, '2026-10');
+  check(oct[0].won === 1 && oct[1].won === 1 && oct.map((r) => r.id).slice(0, 2).sort().join() === 'mK,mS', 'crew: a tie on top is a night won for each');
+  check(oct.find((r) => r.id === 'mH').points === 0, 'crew: the table starts fresh each month');
+  const titles = CR.crewTitles(nights, members, '2026-09');
+  check(titles.some((t) => t.key === 'fast' && t.id === 'mH' && t.n === 3), "crew: أسرع إيد from the room trivia's own tally (3 first right answers beat كريم's buzzer and chairs, 2)");
+  check(titles.some((t) => t.key === 'oracle' && t.id === 'mS' && t.n === 2), 'crew: العرّاف from the audience\'s right guesses');
+  check(!titles.some((t) => t.key === 'cards'), 'crew: one first place is no title (2 at least)');
+  const recs = CR.crewRecords(nights, members, []);
+  check(recs.some((r) => r.key === 'best_bowling' && r.value === 180 && r.id === 'mK'), 'crew: the bowling record');
+  check(recs.some((r) => r.key === 'streak' && r.value === 3 && r.id === 'mK'), 'crew: the longest run of nights won (كريم, 3 in a row)');
+  // A view in October: September's champion on the wall, frozen two days on.
+  const meta = { code: 'ABCDEF', name: 'x', members, champs: [] };
+  const view = CR.crewView(meta, nights, Date.UTC(2026, 9, 2, 22), 'mH');
+  check(view.month === '2026-10' && view.champions[0] && view.champions[0].month === '2026-09' && view.champions[0].ids.join() === 'mK', 'crew: last month\'s champion is on the wall at once');
+  check(!CR.crewFreezeChamps(meta, nights, Date.UTC(2026, 9, 1, 12)) && !meta.champs.length, 'crew: not frozen on the 1st (a room open across midnight may still send its night)');
+  check(CR.crewFreezeChamps(meta, nights, Date.UTC(2026, 9, 5, 12)) && meta.champs.length === 1 && meta.champs[0].names.join() === 'كريم', 'crew: frozen a few days on, kept for good');
+  check(!JSON.stringify(view).includes('"keys"'), 'crew: a view carries no keys');
+
+  // The night leaves nothing on the phones: the room's view never has the crew's links or notes.
+  const { roomView } = await import('../src/view.js').catch(() => ({}));
+  if (roomView) {
+    nr.crew = { code: 'ABCDEF', name: 'x' };
+    const v = JSON.stringify(roomView(nr, 'h', new Set(['h'])));
+    check(v.includes('"crew"') && !v.includes('crewLinks') && !v.includes('nightx') && !v.includes('crewNight') && !v.includes('mK'), 'crew: a phone sees which crew the night is for, never who is which member');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

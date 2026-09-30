@@ -673,22 +673,34 @@ function charadesRunTurn() {
     appState.charades.history = [];
     // A turn's take-backs are its own: the last team's cards stay theirs.
     appState.charades.judged = [];
+    appState.charades.sum = null;
+    saveToLocal();
 
-    document.getElementById('charades-ui-playing').classList.remove('hidden');
+    const playing = document.getElementById('charades-ui-playing');
+    playing.classList.remove('hidden');
     document.getElementById('charades-ui-result').classList.add('hidden');
     document.getElementById('charades-ui-relay').classList.add('hidden');
 
     if (appState.currentView !== 'play-charades') setView('play-charades');
-    nextCharadesCard();
-
+    clearCharadesFlip();
+    const wordEl = document.getElementById('charades-word');
+    if (wordEl) wordEl.innerText = '';
     document.getElementById('charades-timer').innerText = appState.charades.timer;
     if (appState.charades.interval) appState.charades.interval.stop();
+    appState.charades.interval = null;
 
+    // A 3-2-1 on the card first (على راسك's rhythm), then the first word and the clock.
+    partyCountdown('play-charades', playing, charadesStartClock);
+}
+
+function charadesStartClock() {
+    appState.charades.busyUntil = 0;
+    nextCharadesCard();
     appState.charades.interval = createClock({
         seconds: appState.charades.timer,
         onTick: (left) => {
             const timerEl = document.getElementById('charades-timer');
-            if (timerEl) timerEl.innerText = left;
+            if (timerEl) { timerEl.innerText = left; countdownUrgency(timerEl, left); }
         },
         onEnd: () => {
             appState.charades.interval = null;
@@ -731,6 +743,8 @@ function clearCharadesFlip() {
 }
 
 function nextCharadesCard(action) {
+    // Nothing is scored under the 3-2-1.
+    if (action && document.querySelector('#charades-ui-playing.is-counting')) return;
     // The next word shows 250ms after a tap: a second tap in that time would score a
     // card nobody saw (ثلاث جولات guards the same way, turnProcessing).
     if ((appState.charades.busyUntil || 0) > Date.now()) return;
@@ -798,27 +812,85 @@ function undoCharadesCard() {
 
 function finishCharadesGame() {
     clearCharadesFlip();
+    partyCountdownStop();
+    countdownClear();
     if (appState.charades.interval) appState.charades.interval.stop();
     appState.charades.interval = null;
+
+    // Every card of the turn, for the list where a verdict can be put right
+    // (ideas batch: party1). The card on screen was never judged: it isn't in it.
+    const cards = (appState.charades.judged || []).map(j => ({ w: j.word, ok: j.action === 'correct' }));
     appState.charades.judged = [];
+    appState.charades.score = cards.filter(c => c.ok).length;
+    appState.charades.sum = { cards: cards, relay: relayPlaying(appState.charades), at: Date.now() };
+    saveToLocal();
 
     playSound('alarm');
     if ((appState.charades.score || 0) > 0) confetti({ particleCount: 200, spread: 100 }); // nothing guessed, no confetti
+    charadesShowSummary();
+}
 
+/** The turn's list: fix a verdict, then the next turn (or the team's points). */
+function charadesShowSummary() {
+    const sum = appState.charades.sum;
+    if (!sum) return;
+    const t = TRANSLATIONS[appState.lang];
     document.getElementById('charades-ui-playing').classList.add('hidden');
+    document.getElementById('charades-ui-result').classList.add('hidden');
+    const box = document.getElementById('charades-ui-relay');
+    box.classList.remove('hidden');
+    box.innerHTML = partyTurnSummaryHtml(appState.charades, t, {
+        scoreId: 'charades-sum-got', toggleFn: 'charadesSumToggle', bankFn: 'charadesSumBank()',
+        againFn: 'startCharadesGame(appState.charades.timer)', exitFn: "setView('setup-charades')", exitKey: 'change_category'
+    });
+    const got = document.getElementById('charades-sum-got');
+    const n = sum.cards.filter(c => c.ok).length;
+    if (got && n > 0 && !motionOff() && motionFirst('charades-sum:' + sum.at)) countUp(got, 0, n);
+}
 
-    // Team mode: bank the turn, then the next handover or the final board.
-    if (relayPlaying(appState.charades)) {
-        const t = TRANSLATIONS[appState.lang];
-        const phase = relayTurnDone(appState.charades, appState.charades.score);
-        const box = document.getElementById('charades-ui-relay');
-        box.classList.remove('hidden');
-        box.innerHTML = relaySummaryHtml(appState.charades, t,
-            phase === 'done' ? 'startCharades()' : 'charadesRunTurn()', "setView('setup-charades')");
-        return;
-    }
+function charadesSumToggle(i) {
+    const sum = appState.charades.sum;
+    if (!sum) return;
+    appState.charades.score = partyTurnToggle(sum, i, 'charadesSumToggle', 'charades-sum-got');
+    saveToLocal();
+}
 
-    document.getElementById('charades-final-score').innerText = appState.charades.score;
-    document.getElementById('charades-ui-result').classList.remove('hidden');
+/** Team mode: the corrected score is the team's, then the next handover or the final board. */
+function charadesSumBank() {
+    const sum = appState.charades.sum;
+    if (!sum || !relayActive(appState.charades)) { appState.charades.sum = null; saveToLocal(); setView('setup-charades'); return; }
+    const t = TRANSLATIONS[appState.lang];
+    const phase = relayTurnDone(appState.charades, sum.cards.filter(c => c.ok).length);
+    appState.charades.sum = null;
+    saveToLocal();
+    const box = document.getElementById('charades-ui-relay');
+    box.classList.remove('hidden');
+    box.innerHTML = relaySummaryHtml(appState.charades, t,
+        phase === 'done' ? 'startCharades()' : 'charadesRunTurn()', "setView('setup-charades')");
+}
+
+/**
+ * Leaving with a turn's list still open: a team's points are banked as they
+ * stand (they are the team's), one player's list just goes.
+ */
+function charadesSumSettle() {
+    const sum = appState.charades.sum;
+    if (!sum) return;
+    if (sum.relay && relayActive(appState.charades)) relayTurnDone(appState.charades, sum.cards.filter(c => c.ok).length);
+    appState.charades.sum = null;
+    saveToLocal();
+}
+
+if (typeof onLeaveScreen === 'function') onLeaveScreen((from) => {
+    if (from !== 'play-charades') return;
+    partyCountdownStop();
+    charadesSumSettle();
+});
+
+/** A reload on the turn's list comes back to it (a turn under way is lost, as before). */
+function restoreCharadesSummary() {
+    if (!appState.charades.sum) return false;
+    charadesShowSummary();
+    return true;
 }
 </script>

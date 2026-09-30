@@ -36,6 +36,8 @@ function bombState() {
   if (!Array.isArray(b.players)) b.players = [];
   if (!b.strikes || typeof b.strikes !== 'object') b.strikes = {};
   if (typeof b.roundLoser !== 'string') b.roundLoser = '';
+  // Who holds it now, an index into players (ideas batch: party1).
+  if (typeof b.holder !== 'number' || b.holder < 0 || b.holder >= b.players.length) b.holder = 0;
   return b;
 }
 
@@ -88,6 +90,7 @@ function bombNewGame(players) {
   b.players.forEach(p => { b.strikes[p] = 0; });
   b.rounds = 0;
   b.roundLoser = '';
+  b.holder = 0;
   b.startedAt = Date.now();
 }
 
@@ -95,6 +98,12 @@ function startBombRound() {
   const b = bombState();
   // The setup screen's button starts a game; the boom screen's the next round.
   if (appState.currentView === 'setup-bomb') bombNewGame();
+  // With names, the bomb starts in the hands of whoever lost the last round
+  // (the first name for a new game), as a room does.
+  if (b.players.length >= 2) {
+    const lost = b.players.indexOf(b.roundLoser);
+    if (lost >= 0) b.holder = lost;
+  }
   b.roundLoser = '';
   const range = BOMB_FUSES[b.fuse] || BOMB_FUSES.normal;
   const seconds = range[0] + Math.floor(Math.random() * (range[1] - range[0] + 1));
@@ -150,6 +159,7 @@ function bombTick() {
     card.classList.add('is-tick');
     card.classList.toggle('is-urgent', remaining < 8000);
     bombCharHeat(card, bombHeatOf(total, remaining));
+    bombCharHeat(document.getElementById('bomb-one-order'), bombHeatOf(total, remaining));
     bombCharTick(card);
   }
   // A second between ticks at the start, a quarter of one at the end.
@@ -168,10 +178,80 @@ function bombExplode() {
   const b = bombState();
   bombStop();
   b.phase = 'boom';
+  bombOneStrikeHolder();
   saveToLocal();
   bombFxSaw(bombOneKey(b));
   paintBomb();
   bombBoomFx(bombOneKey(b), document.getElementById('bomb-stage'));
+  bombOneStrikeFx();
+}
+
+/* --- ideas batch: party1 - the phone keeps who holds it ---------------------
+   With names picked, a chip for the holder goes round the seating order: a tap
+   on the bomb, or «سلّم», passes it to the next name (the bomb flies there);
+   a tap on a name puts it in those hands. At the boom the strike lands on the
+   holder by itself, and the table can still move it (bombPickLoser). Without
+   names the bomb plays exactly as before. `b.holder` is saved with the rest.
+   ------------------------------------------------------------------------- */
+
+/** The strike, on whoever was holding it when it went off (once, at the boom). */
+function bombOneStrikeHolder() {
+  const b = bombState();
+  if (b.players.length < 2 || b.roundLoser) return;
+  const name = b.players[b.holder];
+  if (name === undefined) return;
+  b.roundLoser = name;
+  b.strikes[name] = (b.strikes[name] || 0) + 1;
+}
+
+/** The boom's strike popping on the board, as a pick by hand does. */
+function bombOneStrikeFx() {
+  const b = bombState();
+  if (!b.roundLoser || motionOff() || !(window.CSS && CSS.escape)) return;
+  const badge = document.querySelector('#bomb-stage .status-row[data-bm-pid="' + CSS.escape(b.roundLoser) + '"] .badge');
+  if (badge) { badge.style.setProperty('--bm-late', (BOMB_BURST_MS - 700) + 'ms'); badge.classList.add('bm-strike-new'); }
+}
+
+/** The seating order with the holder lit, under the bomb while it ticks. */
+function bombOneOrderHtml(b, heat) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  return b.players.map((p, i) => {
+    const on = i === b.holder;
+    const mark = on ? `<span class="bomb-order__bomb" aria-hidden="true">${bombCharSvg({ heat: heat, size: 'mini', bubble: false })}</span>` : '';
+    return `<button type="button" class="chip ${on ? 'bomb-order__holder' : 'chip--plain'} bm1-chip" data-bm1="${i}" aria-pressed="${on}" onclick="bombOneGive(${i})" aria-label="${escapeHTML((t.bm1_give_to || '').replace('{name}', p))}">${mark}${escapeHTML(p)}</button>`;
+  }).join('');
+}
+
+function bombOnePaintOrder() {
+  const b = bombState();
+  const box = document.getElementById('bomb-one-order');
+  if (!box) return;
+  box.innerHTML = bombOneOrderHtml(b, bombHeatOf(b.total * 1000, Math.max(0, b.endsAt - Date.now())));
+  const who = document.getElementById('bomb-one-holder');
+  if (who) who.textContent = ((TRANSLATIONS[appState.lang] || {}).bm1_holding || '').replace('{name}', b.players[b.holder] || '');
+}
+
+/** Pass it on: the next name in the seating order. */
+function bombOnePass() {
+  const b = bombState();
+  if (b.phase !== 'ticking') return;
+  if (b.players.length < 2) { const svg = document.querySelector('#bomb-stage .bomb-char--big'); if (svg) bombCharHop(svg); return; }
+  bombOneGive((b.holder + 1) % b.players.length);
+}
+
+/** The bomb into `index`'s hands: it hops off the big bomb and flies to that chip. */
+function bombOneGive(index) {
+  const b = bombState();
+  if (b.phase !== 'ticking' || index === b.holder || !b.players[index]) return;
+  const big = document.querySelector('#bomb-stage .bomb-char--big');
+  const from = big ? big.getBoundingClientRect() : null;
+  b.holder = index;
+  saveToLocal();
+  bombOnePaintOrder();
+  if (big) bombCharHop(big);
+  playSound('tick');
+  const chip = document.querySelector('#bomb-one-order [data-bm1="' + index + '"]');
+  if (chip) bombFlyChar(from, chip.querySelector('.bomb-order__bomb') || chip);
 }
 
 /** A one-phone round's key for the bomb's moments (the explosion plays once a round). */
@@ -271,6 +351,7 @@ function paintBomb() {
     const who = scoring ? `
       <div class="card card--tight">
         <div class="eyebrow">💣 ${escapeHTML(t.bomb_room_who || '')}</div>
+        ${b.roundLoser ? `<p class="field__hint">${escapeHTML(t.bm1_fix_hint || '')}</p>` : ''}
         <div class="chip-set">
           ${b.players.map((p, i) => {
             const on = p === b.roundLoser;
@@ -299,15 +380,22 @@ function paintBomb() {
   }
 
   if (b.phase === 'ticking') bombFxSaw(bombOneKey(b));
+  const heat = bombHeatOf(b.total * 1000, Math.max(0, b.endsAt - Date.now()));
+  // With names the phone keeps who holds it (ideas batch: party1): a tap on the bomb passes it.
+  const order = scoring ? `
+    <p class="bm1-holding" id="bomb-one-holder">${escapeHTML((t.bm1_holding || '').replace('{name}', b.players[b.holder] || ''))}</p>
+    <div class="chip-set bomb-order" id="bomb-one-order">${bombOneOrderHtml(b, heat)}</div>` : '';
   el.innerHTML = `
     <div class="bomb-card ${b.phase === 'ticking' && b.endsAt - Date.now() < 8000 ? 'is-urgent' : ''}" id="bomb-card">
-      <div class="bomb-fuse bm-holder">${bombCharSvg({ heat: bombHeatOf(b.total * 1000, Math.max(0, b.endsAt - Date.now())), size: 'big', tap: 'bombCharHop(this)' })}</div>
+      <div class="bomb-fuse bm-holder">${bombCharSvg({ heat: heat, size: 'big', tap: scoring ? 'bombOnePass()' : 'bombCharHop(this)' })}</div>
       <div class="eyebrow">${escapeHTML(kindLabel)}</div>
       <div class="bomb-card__prompt ${b.kind === 'letter' ? 'bomb-card__prompt--letter' : ''}">${escapeHTML(b.prompt)}</div>
       <div class="bomb-card__sub">${escapeHTML(b.kind === 'letter' ? (t.bomb_letter_hint || '') : (t.bomb_category_hint || ''))}</div>
     </div>
+    ${order}
     <div class="view-actions">
-      <button class="btn btn--secondary btn--lg" onclick="bombSwapPrompt()">${escapeHTML(t.bomb_swap || '')}</button>
+      ${scoring ? `<button class="btn btn--primary btn--lg" onclick="bombOnePass()">💣 ${escapeHTML(t.bm1_pass || '')}</button>` : ''}
+      <button class="btn btn--secondary ${scoring ? '' : 'btn--lg'}" onclick="bombSwapPrompt()">${escapeHTML(t.bomb_swap || '')}</button>
       <button class="btn btn--ghost" onclick="exitBomb()">${escapeHTML(t.exit || '')}</button>
     </div>`;
 }
@@ -320,6 +408,7 @@ function restoreBomb() {
     // It went off while the page was away. Dropping to the setup lost the round
     // and the next Start wiped the game's strikes; the table still says whose it was.
     b.phase = 'boom';
+    bombOneStrikeHolder();
     saveToLocal();
     paintBomb();
     return true;

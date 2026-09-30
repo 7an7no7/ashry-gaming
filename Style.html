@@ -22193,4 +22193,105 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
 }
 
 
+
+/* ===== IDEAS BATCH: PARTY1 ===== */
+/* بدون كلام / أوصف لي: the 3-2-1 over the card, before the clock (partyCountdown). */
+.pt-count { display: none; }
+.is-counting .pt-count {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  color: var(--accent-ink);
+  font-size: clamp(5rem, 28vw, 9rem);
+  font-weight: var(--fw-black);
+  line-height: 1;
+}
+.is-counting .play-stage__card > :not(.pt-count) { visibility: hidden; }
+.is-counting .play-stage__actions,
+.is-counting .play-stage__head .btn-row > :first-child { opacity: 0.4; pointer-events: none; }
+
+/* The last three seconds read red on the one-phone clocks that pop (countdownUrgency). */
+:is(#charades-timer, #desc-timer, #timesup-clock-display, #whoami-timer-display, #spyfall-timer-display, #stop-clock):is([data-count-at="1"], [data-count-at="2"], [data-count-at="3"]) { color: var(--danger); }
+
+/* The end of a turn: every card, a tap flips its verdict (partyTurnSummaryHtml). */
+.pt-sum { text-align: center; }
+.pt-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.pt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  min-height: 2.75rem;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text-3);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-bold);
+  text-decoration: line-through;
+  cursor: pointer;
+}
+.pt-chip.is-right { border-color: transparent; background: var(--success-soft); color: var(--success-ink); text-decoration: none; }
+
+/* The one-phone bomb: who holds it (bombOneOrderHtml). */
+.bm1-holding { margin: var(--sp-3) 0 0; text-align: center; color: var(--text-2); font-weight: var(--fw-bold); }
+.bm1-chip { min-height: 2.75rem; cursor: pointer; font-family: var(--font); font-size: var(--fs-body); }
+
+/* كلمة واحدة on one phone: the writers' check (joPaintCheck) and the guesser's cards. */
+.jo-check { display: grid; gap: var(--sp-3); }
+.jo-check .card__title { margin: 0; }
+.jo-check-word { color: var(--text-2); }
+.jo-check-word b { color: var(--success-ink); }
+.jo-dup-line { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--danger-soft); color: var(--danger-ink); font-weight: var(--fw-bold); }
+.jo-clues { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.jo-clue {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 6rem;
+  min-height: 3.5rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 2px solid var(--accent-border, var(--border));
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  cursor: pointer;
+  box-shadow: var(--sh-1);
+}
+.jo-clue__word { font-family: var(--font-display); font-size: var(--fs-h3); font-weight: var(--fw-black); line-height: 1.2; }
+.jo-clue__by { color: var(--text-3); font-size: var(--fs-xs); }
+.jo-clue.is-struck { border-color: var(--danger); background: var(--danger-soft); box-shadow: none; }
+.jo-clue.is-struck .jo-clue__word { color: var(--danger-ink); text-decoration: line-through; text-decoration-thickness: 3px; }
+.jo-clue.is-dup { cursor: default; }
+.jo-clue.is-shake { animation: jo-shake 520ms var(--ease-out) both; }
+@keyframes jo-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-6px) rotate(-2deg); } 40% { transform: translateX(6px) rotate(2deg); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.jo-card {
+  display: grid;
+  place-items: center;
+  min-width: 7rem;
+  min-height: 5rem;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-xl);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 6vw, 2rem);
+  font-weight: var(--fw-black);
+  line-height: 1.2;
+  box-shadow: var(--sh-2);
+}
+.jo-clues--deal .jo-card { animation: jo-card-in 560ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 260ms + 150ms); }
+@keyframes jo-card-in { 0% { opacity: 0; transform: perspective(40rem) rotateY(90deg) scale(0.8); } 60% { opacity: 1; transform: perspective(40rem) rotateY(-10deg) scale(1.04); } 100% { opacity: 1; transform: none; } }
+@media (orientation: landscape) and (max-height: 500px) {
+  .jo-check { gap: var(--sp-2); }
+  .jo-card { min-height: 3.75rem; font-size: 1.4rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jo-clue.is-shake, .jo-clues--deal .jo-card { animation: none; }
+}
+
 </style>

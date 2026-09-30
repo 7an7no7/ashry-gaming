@@ -1773,15 +1773,23 @@ function describeRunTurn() {
     appState.describe.history = []; // Reset used words
     // A turn's take-backs are its own: the last team's cards stay theirs.
     appState.describe.judged = [];
+    appState.describe.sum = null;
+    saveToLocal();
 
     // UI RESET: Show Game, Hide Result
-    document.getElementById('desc-ui-playing').classList.remove('hidden');
+    const playing = document.getElementById('desc-ui-playing');
+    playing.classList.remove('hidden');
     document.getElementById('desc-ui-result').classList.add('hidden');
     document.getElementById('desc-ui-relay').classList.add('hidden');
 
     if (appState.currentView !== 'play-describe') setView('play-describe');
+    if (appState.describe.interval) appState.describe.interval.stop();
+    appState.describe.interval = null;
+    document.getElementById('desc-timer').innerText = appState.describe.timer;
+    // The card is dealt under the 3-2-1 (hidden until it ends), so the layout
+    // doesn't jump when it shows; the clock starts with it (ideas batch: party1).
     nextDescribeCard();
-    startDescribeTimer();
+    partyCountdown('play-describe', playing, () => { appState.describe.busyUntil = 0; startDescribeTimer(); });
 }
 
 /** The card between team turns: whose turn, hand the phone over. */
@@ -1807,7 +1815,7 @@ function startDescribeTimer() {
         onTick: (left) => {
             appState.describe.timer = left;
             const el = document.getElementById('desc-timer');
-            if (el) el.innerText = left;
+            if (el) { el.innerText = left; countdownUrgency(el, left); }
         },
         onEnd: () => {
             appState.describe.interval = null;
@@ -1850,6 +1858,8 @@ function renderDescribeCard() {
 
 function descAction(action) {
     if(appState.describe.timer <= 0) return;
+    // Nothing is scored under the 3-2-1.
+    if (document.querySelector('#desc-ui-playing.is-counting')) return;
     // A double tap would score a card nobody saw (the next one is still turning in).
     if ((appState.describe.busyUntil || 0) > Date.now()) return;
     appState.describe.busyUntil = Date.now() + 300;
@@ -1893,29 +1903,83 @@ function undoDescribeCard() {
 
 function finishDescribeGame() {
     // 1. Stop Timer
+    partyCountdownStop();
+    countdownClear();
     if (appState.describe.interval) appState.describe.interval.stop();
     appState.describe.interval = null;
-    
+
+    // Every card of the turn, for the list where a verdict can be put right
+    // (ideas batch: party1). The card on screen was never judged: it isn't in it.
+    const cards = (appState.describe.judged || []).map(j => ({ w: (j.card && j.card.word) || '', ok: j.action === 'correct' }));
+    appState.describe.judged = [];
+    appState.describe.score = cards.filter(c => c.ok).length;
+    appState.describe.sum = { cards: cards, relay: relayPlaying(appState.describe), at: Date.now() };
+    saveToLocal();
+
     playSound('alarm');
     if ((appState.describe.score || 0) > 0) confetti({ particleCount: 200, spread: 100 }); // nothing guessed, no confetti
+    describeShowSummary();
+}
 
+/** The turn's list: fix a verdict, then the next turn (or the team's points). */
+function describeShowSummary() {
+    const sum = appState.describe.sum;
+    if (!sum) return;
+    const t = TRANSLATIONS[appState.lang];
     document.getElementById('desc-ui-playing').classList.add('hidden');
+    document.getElementById('desc-ui-result').classList.add('hidden');
+    const box = document.getElementById('desc-ui-relay');
+    box.classList.remove('hidden');
+    box.innerHTML = partyTurnSummaryHtml(appState.describe, t, {
+        scoreId: 'desc-sum-got', toggleFn: 'describeSumToggle', bankFn: 'describeSumBank()',
+        againFn: 'startDescribeGame()', exitFn: "setView('setup-describe')", exitKey: 'change_settings'
+    });
+    const got = document.getElementById('desc-sum-got');
+    const n = sum.cards.filter(c => c.ok).length;
+    if (got && n > 0 && !motionOff() && motionFirst('desc-sum:' + sum.at)) countUp(got, 0, n);
+}
 
-    appState.describe.judged = [];
+function describeSumToggle(i) {
+    const sum = appState.describe.sum;
+    if (!sum) return;
+    appState.describe.score = partyTurnToggle(sum, i, 'describeSumToggle', 'desc-sum-got');
+    saveToLocal();
+}
 
-    // Team mode: bank the turn, then the next handover or the final board.
-    if (relayPlaying(appState.describe)) {
-        const t = TRANSLATIONS[appState.lang];
-        const phase = relayTurnDone(appState.describe, appState.describe.score);
-        const box = document.getElementById('desc-ui-relay');
-        box.classList.remove('hidden');
-        box.innerHTML = relaySummaryHtml(appState.describe, t,
-            phase === 'done' ? 'startDescribeGame()' : 'describeRunTurn()', "setView('setup-describe')");
-        return;
-    }
+/** Team mode: the corrected score is the team's, then the next handover or the final board. */
+function describeSumBank() {
+    const sum = appState.describe.sum;
+    if (!sum || !relayActive(appState.describe)) { appState.describe.sum = null; saveToLocal(); setView('setup-describe'); return; }
+    const t = TRANSLATIONS[appState.lang];
+    const phase = relayTurnDone(appState.describe, sum.cards.filter(c => c.ok).length);
+    appState.describe.sum = null;
+    saveToLocal();
+    const box = document.getElementById('desc-ui-relay');
+    box.classList.remove('hidden');
+    box.innerHTML = relaySummaryHtml(appState.describe, t,
+        phase === 'done' ? 'startDescribeGame()' : 'describeRunTurn()', "setView('setup-describe')");
+}
 
-    document.getElementById('desc-final-score').innerText = appState.describe.score;
-    document.getElementById('desc-ui-result').classList.remove('hidden');
+/** Leaving with the list open: a team's points are banked as they stand; one player's list just goes. */
+function describeSumSettle() {
+    const sum = appState.describe.sum;
+    if (!sum) return;
+    if (sum.relay && relayActive(appState.describe)) relayTurnDone(appState.describe, sum.cards.filter(c => c.ok).length);
+    appState.describe.sum = null;
+    saveToLocal();
+}
+
+if (typeof onLeaveScreen === 'function') onLeaveScreen((from) => {
+    if (from !== 'play-describe') return;
+    partyCountdownStop();
+    describeSumSettle();
+});
+
+/** A reload on the turn's list comes back to it (a turn under way is lost, as before). */
+function restoreDescribeSummary() {
+    if (!appState.describe.sum) return false;
+    describeShowSummary();
+    return true;
 }
 
 /* --- DICE & COIN LOGIC --- */

@@ -198,4 +198,105 @@ function setRelayName(store, index, value) {
   relayOptsOf(store).names[index] = String(value || '').trim().slice(0, 20);
   saveToLocal();
 }
+
+/* --- ideas batch: party1 - a turn's 3-2-1 and its list of cards ------------
+   بدون كلام and أوصف لي borrowed على راسك's rhythm (JS_HeadsUp.html): the
+   clock waits for a 3-2-1 on the card, and at the end of a turn every card of
+   it is listed, a tap flipping its verdict (right / skipped) with the score
+   following. `cards` is [{ w, ok }], built from the turn's `judged` stack.
+   ------------------------------------------------------------------------- */
+
+let ptCountTimer = null;
+
+/**
+ * The 3-2-1 over the card: `host` is the playing box (it gets `is-counting`,
+ * which hides the word and holds the buttons), `view` the screen it runs on.
+ * It waits under Help or the exit sheet, as the clock would, and simply stops
+ * when the screen is left. `onGo` deals the first card and starts the clock.
+ */
+function partyCountdown(view, host, onGo) {
+  partyCountdownStop();
+  if (!host) { onGo(); return; }
+  host.classList.add('is-counting');
+  const el = host.querySelector('.pt-count');
+  let n = 3;
+  const tick = () => {
+    ptCountTimer = null;
+    if (appState.currentView !== view || !host.classList.contains('is-counting')) return;
+    if (document.querySelector('.modal-overlay:not(.hidden)')) { ptCountTimer = setTimeout(tick, 300); return; }
+    if (n > 0) {
+      if (el) {
+        el.textContent = n;
+        if (el.animate && !motionOff()) el.animate([{ transform: 'scale(1.6)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], { duration: 380, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+      }
+      playSound('tick');
+      haptic('light');
+      n--;
+      ptCountTimer = setTimeout(tick, 900);
+    } else {
+      host.classList.remove('is-counting');
+      playSound('success');
+      onGo();
+    }
+  };
+  tick();
+}
+
+function partyCountdownStop(host) {
+  clearTimeout(ptCountTimer);
+  ptCountTimer = null;
+  document.querySelectorAll('.is-counting').forEach((el) => { if (!host || el === host) el.classList.remove('is-counting'); });
+}
+
+/** The turn's cards as tappable chips; `toggleFn` is the name of the game's toggle. */
+function partyTurnListHtml(cards, t, toggleFn) {
+  if (!cards.length) return `<p class="field__hint">${escapeHTML(t.pt_none || '')}</p>`;
+  return `<p class="field__hint">${escapeHTML(t.pt_fix_hint || '')}</p>
+    <div class="pt-cards">${cards.map((c, i) => partyTurnChipHtml(c, i, toggleFn)).join('')}</div>`;
+}
+
+function partyTurnChipHtml(c, i, toggleFn) {
+  return `<button type="button" class="pt-chip${c.ok ? ' is-right' : ''}" data-pt="${i}" onclick="${toggleFn}(${i})" aria-pressed="${c.ok ? 'true' : 'false'}">` +
+    `<span aria-hidden="true">${c.ok ? '✓' : '⏭'}</span> ${escapeHTML(c.w)}</button>`;
+}
+
+/** Flips one card's verdict in `sum` and repaints its chip and the score (`scoreId`). */
+function partyTurnToggle(sum, i, toggleFn, scoreId) {
+  if (!sum || !sum.cards[i]) return 0;
+  const c = sum.cards[i];
+  c.ok = !c.ok;
+  const got = sum.cards.filter(x => x.ok).length;
+  document.querySelectorAll(`[data-pt="${i}"]`).forEach((chip) => {
+    chip.outerHTML = partyTurnChipHtml(c, i, toggleFn);
+  });
+  const score = document.getElementById(scoreId);
+  if (score) { score.textContent = got; if (typeof motionBump === 'function') motionBump(score); }
+  playSound(c.ok ? 'success' : 'click');
+  haptic('light');
+  return got;
+}
+
+/**
+ * The end of a turn: the score, the list, then either the game's own buttons
+ * (one player) or «احسب النقط» that banks it for the team (the relay).
+ */
+function partyTurnSummaryHtml(store, t, o) {
+  const sum = store.sum;
+  const got = sum.cards.filter(x => x.ok).length;
+  const team = sum.relay && store.relay ? `<div class="eyebrow">${escapeHTML(t.relay_turn_done || '')} · ${escapeHTML(store.relay.names[relayTeam(store)])}</div>` : `<h2 class="card__title card__title--neutral">${escapeHTML(t.timeout_title || '')}</h2>`;
+  const buttons = sum.relay
+    ? `<button type="button" class="btn btn--primary btn--go btn--lg" onclick="${o.bankFn}">${escapeHTML(t.pt_save_turn || '')}</button>`
+    : `<button type="button" class="btn btn--primary btn--go btn--lg" onclick="${o.againFn}">${escapeHTML(t.play_again || '')}</button>
+       <button type="button" class="btn btn--ghost" onclick="${o.exitFn}">${escapeHTML(t[o.exitKey] || '')}</button>`;
+  return `
+    <div class="relay pt-sum">
+      ${team}
+      <div class="relay__result">
+        <div class="eyebrow">${escapeHTML(t.correct_words || '')}</div>
+        <div class="metric metric--xl tx-success" id="${o.scoreId}">${got}</div>
+      </div>
+      ${partyTurnListHtml(sum.cards, t, o.toggleFn)}
+      ${buttons}
+    </div>`;
+}
 </script>

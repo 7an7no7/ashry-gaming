@@ -188,15 +188,22 @@ if (MINIFY) {
 await mkdir(out, { recursive: true });
 await writeFile(path.join(out, 'index.html'), html, 'utf8');
 
-/* The chunks, in g/. The files of the build before are kept beside this one's:
+/* The chunks, in g/. The files of the last builds (KEEP_BUILDS) are kept beside this one's:
    a page still open on that build (it switches only when nothing is lost) loads
    its own chunks from there, and so does a phone whose worker hasn't updated yet.
    g/files.json lists this build's files, and becomes the list of the one before. */
 const gDir = path.join(out, 'g');
 await mkdir(gDir, { recursive: true });
 const listPath = path.join(gDir, 'files.json');
-let before = [];
-try { before = JSON.parse(await readFile(listPath, 'utf8')).files || []; } catch (e) {}
+// The last few builds' lists, not only the one before: two builds between pushes must
+// not delete the files the published build (and a phone still open on it) loads.
+const KEEP_BUILDS = 4;
+let history = [];
+try {
+  const was = JSON.parse(await readFile(listPath, 'utf8'));
+  history = [was.files || []].concat(was.history || []).slice(0, KEEP_BUILDS - 1);
+} catch (e) {}
+const before = [...new Set(history.flat())];
 const nowFiles = built.chunks.map((c) => c.file);
 for (const c of built.chunks) {
   const p = path.join(gDir, c.file);
@@ -204,7 +211,7 @@ for (const c of built.chunks) {
 }
 const keepFiles = new Set([...nowFiles, ...before, 'files.json']);
 for (const f of await readdir(gDir)) if (!keepFiles.has(f)) await rm(path.join(gDir, f), { force: true });
-await writeFile(listPath, JSON.stringify({ build: buildId, files: nowFiles }) + '\n', 'utf8');
+await writeFile(listPath, JSON.stringify({ build: buildId, files: nowFiles, history }) + '\n', 'utf8');
 const prevFiles = before.filter((f) => !nowFiles.includes(f));
 
 /* Offline copy, and the app's own copy on the phone. Opening the app answers

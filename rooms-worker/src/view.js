@@ -34,6 +34,9 @@ export const roomView = (room, pid, online, extra) => {
     // The leaderboard of the night: room-level like the chat, so it survives
     // every deal and the trip back to the hub.
     night: room.night || {},
+    // برنامج السهرة (RoomProgram.js): the list, where it is, the night's table, the finale.
+    // Public by design: each game's options and the awards' raw log stay behind (room._prog*).
+    program: room.program || null,
     // The audience (RoomGames.js): the last cheer, and the guesses of who will win.
     cheer: room.cheer || null,
     predict: room.predict ? { game: room.predict.game, until: room.predict.until, picks: room.predict.picks || {} } : null,

@@ -85,6 +85,8 @@ export const CHUNKS = {
   box: ['JS_RoomBox'],
   dark: ['JS_RoomDark', 'Dark.js'],
   exact: ['JS_RoomExact'],
+  // برنامج السهرة: the builder, the table between two games, the finale (the room engine opens it).
+  program: ['JS_RoomProgram'],
   hangman: ['JS_Hangman', 'Hangman.js'],
   solve: ['JS_RoomSolve', 'JS_RoomRace', 'SolveGames.js'],
   bowling: ['JS_Bowling', 'Bowling.js'],

@@ -5736,6 +5736,84 @@ async function leavemidSeg() {
  * `exclusive` segments wait on the server's clocks with little slack; they run after the others,
  * one at a time, with nothing else running.
  */
+/* --- برنامج السهرة: a night of three games to its finale (RoomProgram.js) ------------------- */
+async function programRobots() {
+  console.log('• the night\'s program (three games on the server\'s clock: the line-up, the table between games, a pause, the finale)');
+  const H = await Bot.host('منى', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K];
+  const everyone = people.concat([TV]);
+  check((await J.act('programStart', { games: [{ id: 'trivia' }, { id: 'buzzer' }, { id: 'mind' }] })).ok === false, 'program: only the host starts one');
+  await H.must('programStart', { games: [
+    { id: 'trivia', opts: { lang: 'ar', count: 5 } },
+    { id: 'buzzer', opts: {} },
+    { id: 'mind', opts: {} }
+  ] });
+  await all(everyone, (s) => s.program && s.program.phase === 'between' && s.program.at === -1 && s.program.games.length === 3 && typeof s.program.endsAt === 'number',
+    'program: the line-up on every phone and the TV, on a clock');
+  check(!JSON.stringify(TV.state.program).includes('"opts"'), 'program: no game\'s options in what the phones are sent');
+  // The server deals the first game by itself.
+  await all(everyone, (s) => s.game === 'trivia' && s.phase !== 'lobby' && s.program.phase === 'playing', 'program: the first game is dealt by itself', 14000);
+  for (let q = 0; q < 5; q++) {
+    await H.waitFor((s) => s.shared.phase === 'answering' && s.shared.qIndex === q, `program: trivia question ${q + 1}`, 16000);
+    for (const b of people) await b.must('answer', { choice: b === J ? 1 : 0, qIndex: q });
+    await H.waitFor((s) => s.shared.phase === 'results' && s.shared.qIndex === q, `program: trivia result ${q + 1}`);
+    await H.must('nextQuestion', { qIndex: q });
+  }
+  await all(everyone, (s) => s.program.phase === 'result' && s.shared.phase === 'gameover' && s.program.gained, 'program: the game\'s end is banked, its result stays up');
+  const g1 = H.state.program.gained;
+  const sum = Object.keys(g1).reduce((a, k) => a + g1[k], 0);
+  check(Object.keys(g1).length === 3 && Object.values(g1).every((x) => [5, 3, 2, 1].indexOf(x) !== -1) && sum >= 3 + 3 + 1, 'program: places turned into points (5 / 3 / 2 / 1, ties shared)');
+  check((await J.act('programSkip', { seq: J.state.program.seq })).ok === false, 'program: a player can\'t skip while the host is here');
+  check((await H.act('playAgain', {})).ok === false, 'program: play again is refused once the program has counted the game');
+  // The result gives way to the table by the clock, then the table to the next game.
+  await all(everyone, (s) => s.program.phase === 'between' && s.program.at === 0 && !s.game && s.phase === 'lobby', 'program: the table between two games, by itself', 14000);
+  const seq = H.state.program.seq;
+  await H.must('programPause', { seq: seq, on: true });
+  await all(everyone, (s) => s.program.paused === true && typeof s.program.left === 'number', 'program: ⏸ stops the count on every screen');
+  await sleep(1200);
+  check(H.state.program.phase === 'between', 'program: paused, nothing is dealt');
+  await H.must('programPause', { seq: seq, on: false });
+  await all(everyone, (s) => s.game === 'buzzer' && s.phase !== 'lobby' && s.program.phase === 'playing', 'program: after ⏸ the next game comes by itself', 16000);
+  for (let q = 0; q < 10; q++) {
+    const round = H.state.shared.round;
+    await J.must('buzz', { round });
+    await K.must('buzz', { round });
+    await H.waitFor((s) => (s.shared.buzzes || []).length >= 1, `program: buzzer question ${q + 1}`);
+    await H.must('correct', { id: H.state.shared.buzzes[0].id });
+  }
+  await all(everyone, (s) => s.program.phase === 'result' && s.game === 'buzzer', 'program: the buzzer ends after its questions');
+  // ⏭ now, twice: to the table, then to the third game.
+  await H.must('programSkip', { seq: H.state.program.seq });
+  await all(everyone, (s) => s.program.phase === 'between' && s.program.at === 1, 'program: ⏭ goes straight to the table');
+  await H.must('programSkip', { seq: H.state.program.seq - 1 });
+  check(H.state.program.phase === 'between', 'program: a stale ⏭ does nothing');
+  await H.must('programSkip', { seq: H.state.program.seq });
+  await all(everyone, (s) => s.game === 'mind' && s.phase !== 'lobby' && s.program.phase === 'playing', 'program: the third game is dealt');
+  // العقل's first level, played right (the robots lay their cards in rising order).
+  for (let guard = 0; guard < 20; guard++) {
+    const holding = people.map((b) => ({ b, card: ((b.state.you || {}).cards || [])[0] })).filter((x) => typeof x.card === 'number');
+    if (!holding.length) break;
+    holding.sort((x, y) => x.card - y.card);
+    await holding[0].b.must('play', { card: holding[0].card });
+    await sleep(150);
+  }
+  await H.waitFor((s) => s.phase === 'levelDone' || s.shared.phase === 'levelDone', 'program: العقل\'s first level done', 6000);
+  // «خلّصنا دي»: the co-op game ends here, everyone who played the same; the last one leads to the finale.
+  await H.must('programSkip', { seq: H.state.program.seq });
+  await all(everyone, (s) => s.program.phase === 'final' && s.program.final && s.game === null, 'program: the finale on every phone and the TV');
+  const f = H.state.program.final;
+  check(f.games === 3 && f.table.length === 3 && f.champions.length >= 1 && f.table[0].pts >= f.table[2].pts, 'program: the night\'s table and its champions');
+  check(f.awards.some((a) => a.k === 'buzz') && f.awards.every((a) => a.name && a.k), 'program: awards from real play (the buzzer\'s fastest hand among them)');
+  check((H.state.chat || []).some((m) => m.sys === 'programEnd'), 'program: the chat says who won the night');
+  check((await J.act('programClose', {})).ok === false, 'program: only the host closes the finale');
+  await H.must('programClose', {});
+  await all(everyone, (s) => !s.program && !s.game, 'program: closed, back to the room\'s games');
+  everyone.forEach((x) => x.close());
+}
+
 const SEGMENTS = [
   { name: 'err', run: errRobots, secs: 5 },
   { name: 'core', run: coreSeg, secs: 47 },
@@ -5775,6 +5853,7 @@ const SEGMENTS = [
   { name: 'oldmaid', run: oldmaidSeg, secs: 1 },
   { name: 'duels', run: duelTourRobots, secs: 126 },
   { name: 'leavemid', run: leavemidSeg, secs: 1 },
+  { name: 'program', run: programRobots, secs: 60 },
 ];
 const EXCLUSIVE = new Set([]);
 

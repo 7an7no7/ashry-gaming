@@ -53,7 +53,7 @@ const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', '
 // set for these (the dark room's joystick: its traps and goal come with the walk).
 const QUICK_WITH_ALARM = new Set(['stick']);
 // The actions that deal prompts, which need the shared prompt memory.
-const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap']);
+const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap', 'programSkip']);
 const MAX_MESSAGE = 64 * 1024;
 const MAX_LIVE = 8 * 1024;
 // A controller's message (a stick, a ping): a few numbers.

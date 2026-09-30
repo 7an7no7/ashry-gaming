@@ -382,18 +382,18 @@ function paintBomb() {
   if (b.phase === 'ticking') bombFxSaw(bombOneKey(b));
   const heat = bombHeatOf(b.total * 1000, Math.max(0, b.endsAt - Date.now()));
   // With names the phone keeps who holds it (ideas batch: party1): a tap on the bomb passes it.
-  const order = scoring ? `
-    <p class="bm1-holding" id="bomb-one-holder">${escapeHTML((t.bm1_holding || '').replace('{name}', b.players[b.holder] || ''))}</p>
-    <div class="chip-set bomb-order" id="bomb-one-order">${bombOneOrderHtml(b, heat)}</div>` : '';
+  const order = scoring ? `<div class="chip-set bomb-order" id="bomb-one-order">${bombOneOrderHtml(b, heat)}</div>` : '';
+  const holding = scoring ? `<p class="bm1-holding" id="bomb-one-holder">${escapeHTML((t.bm1_holding || '').replace('{name}', b.players[b.holder] || ''))}</p>` : '';
   el.innerHTML = `
     <div class="bomb-card ${b.phase === 'ticking' && b.endsAt - Date.now() < 8000 ? 'is-urgent' : ''}" id="bomb-card">
       <div class="bomb-fuse bm-holder">${bombCharSvg({ heat: heat, size: 'big', tap: scoring ? 'bombOnePass()' : 'bombCharHop(this)' })}</div>
+      ${holding}
       <div class="eyebrow">${escapeHTML(kindLabel)}</div>
       <div class="bomb-card__prompt ${b.kind === 'letter' ? 'bomb-card__prompt--letter' : ''}">${escapeHTML(b.prompt)}</div>
       <div class="bomb-card__sub">${escapeHTML(b.kind === 'letter' ? (t.bomb_letter_hint || '') : (t.bomb_category_hint || ''))}</div>
     </div>
     ${order}
-    <div class="view-actions">
+    <div class="view-actions ${scoring ? 'bm1-actions' : ''}">
       ${scoring ? `<button class="btn btn--primary btn--lg" onclick="bombOnePass()">💣 ${escapeHTML(t.bm1_pass || '')}</button>` : ''}
       <button class="btn btn--secondary ${scoring ? '' : 'btn--lg'}" onclick="bombSwapPrompt()">${escapeHTML(t.bomb_swap || '')}</button>
       <button class="btn btn--ghost" onclick="exitBomb()">${escapeHTML(t.exit || '')}</button>

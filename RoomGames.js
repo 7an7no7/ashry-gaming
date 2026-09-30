@@ -2601,7 +2601,7 @@ const bankNightPoints = (room, board) => {
     room.night[row.id] = (room.night[row.id] || 0) + points;
     // Beside the points, for «الشلة» (Crew.js, crewNightInput): the name (kept for someone who
     // leaves), a first place in this game (the titles), and a computer player to leave out.
-    const who = room.players.find(p => p.id === row.id);
+    const who = (room.players || []).find(p => p.id === row.id);
     x.names[row.id] = (who && who.name) || row.name || x.names[row.id] || '';
     if (who && who.bot && x.bots.indexOf(row.id) === -1) x.bots.push(row.id);
     if (points === NIGHT_PLACES[0] && room.game) x.wins = x.wins.concat([{ id: row.id, g: room.game }]).slice(-60);

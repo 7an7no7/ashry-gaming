@@ -30,7 +30,8 @@ export const SHELL_FILES = [
   'JS_RoomGames',      // the play-mode switch, كلمة واحدة and من أنا؟ rooms
   'JS_RoomVoting',     // the voting engine and renderScoreboard, used by most rooms
   'JS_RoomTv', 'JS_Dice', 'JS_Director', 'JS_Solo', 'JS_Daily', 'JS_TeamRelay',
-  'JS_Sounds', 'JS_RoomChat', 'JS_RoomAudience', 'JS_RoomTurn', 'JS_Motion', 'JS_ShareCard', 'JS_Three'
+  'JS_Sounds', 'JS_RoomChat', 'JS_RoomAudience', 'JS_RoomTurn', 'JS_Motion', 'JS_ShareCard', 'JS_Three',
+  'JS_CrewCore'        // «الشلة»: which crews this phone is in, the room's pick, the doors (the page is the chunk 'crew')
 ];
 export const SHELL_LISTS = ['DisabledGames.js', 'Dice.js', 'SoloShared.js'];
 
@@ -96,6 +97,7 @@ export const CHUNKS = {
   ludo: ['JS_Ludo', 'JS_RoomLudo', 'Ludo.js'],
   snakes: ['JS_Snakes', 'JS_RoomSnakes', 'Snakes.js'],
   bank: ['JS_Bank', 'JS_RoomBank', 'BankAlhaz.js'],
+  crew: ['JS_Crew'],   // «الشلة»'s page and sheets
   // Word lists more than one chunk deals from.
   'w-chameleon': ['ChameleonWords.js'],
   'w-monkey': ['MonkeyWords.js'],

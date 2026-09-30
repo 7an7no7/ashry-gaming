@@ -1,0 +1,256 @@
+<script>
+/* ============================================================================
+   «الشلة» (the crew): what every screen needs, in the shell. The crew's page,
+   its sheets and its motion are JS_Crew.html (a chunk, loaded when the page or a
+   sheet opens: lzRun('crew', …)). The rooms server keeps a crew (Crew.js,
+   rooms-worker/src/crew.js); this phone keeps only which crews it is in and the
+   key each one gave it (ashryCrews_v1) - its proof of membership, never shown
+   and never sent to a room (a room is told only that the phone proved it).
+
+   For other features (the API, documented in notes/builders/crew.md):
+     crewList()            -> [{ code, name, me, memberId, at }] newest used first
+     crewCurrent()         -> the one used last, or null
+     crewApi(path, body)   -> POST ROOMS_URL/crew/<path>, resolves { ok, ... }
+     crewAct(code, action, payload) -> a member's move with this phone's key
+     crewAddPack(code, { code, kind, title }) / crewRemovePack(code, packCode)
+   ========================================================================= */
+const CREW_STORE = 'ashryCrews_v1';
+
+function crewStoreRead() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CREW_STORE) || 'null');
+    if (raw && Array.isArray(raw.list)) return raw;
+  } catch (e) {}
+  return { list: [] };
+}
+function crewStoreWrite(s) {
+  try { localStorage.setItem(CREW_STORE, JSON.stringify(s)); } catch (e) {}
+}
+/** The crews this phone is in, the one used last first (no keys). */
+function crewList() {
+  return crewStoreRead().list.slice().sort((a, b) => (b.at || 0) - (a.at || 0))
+    .map(c => ({ code: c.code, name: c.name, me: c.me, memberId: c.memberId, at: c.at }));
+}
+function crewCurrent() { return crewList()[0] || null; }
+function crewEntry(code) { return crewStoreRead().list.find(c => c.code === code) || null; }
+/** Kept after a create or a join; `touch` makes it the one used last. */
+function crewRemember(entry, touch) {
+  const s = crewStoreRead();
+  const old = s.list.find(c => c.code === entry.code);
+  const next = Object.assign({}, old || {}, entry);
+  if (touch !== false) next.at = Date.now();
+  s.list = s.list.filter(c => c.code !== entry.code).concat([next]);
+  crewStoreWrite(s);
+  return next;
+}
+function crewForget(code) {
+  const s = crewStoreRead();
+  s.list = s.list.filter(c => c.code !== code);
+  crewStoreWrite(s);
+}
+function crewTouch(code) { const e = crewEntry(code); if (e) crewRemember({ code: code }, true); }
+
+async function crewApi(path, body) {
+  const base = String(window.ROOMS_URL || '').replace(/\/+$/, '');
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (!base) return { ok: false, error: t.crew_err_net || '' };
+  try {
+    const res = await fetch(base + '/crew/' + path, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body: JSON.stringify(body || {})
+    });
+    return (await res.json()) || { ok: false, error: t.crew_err_net || '' };
+  } catch (e) {
+    return { ok: false, net: true, error: t.crew_err_net || '' };
+  }
+}
+/** A member's move with this phone's key. A key no longer good forgets the crew on this phone. */
+async function crewAct(code, action, payload) {
+  const e = crewEntry(code);
+  if (!e) return { ok: false, error: 'NOT_IN_CREW' };
+  const res = action === 'get' ? await crewApi('get', { code, key: e.key })
+    : await crewApi('act', { code, key: e.key, action, payload: payload || {} });
+  if (res && (res.out || res.gone)) crewForget(code);
+  else if (res && res.ok && res.crew) crewRemember({ code, name: res.crew.name }, false);
+  return res;
+}
+function crewAddPack(code, pack) { return crewAct(code, 'addPack', pack); }
+function crewRemovePack(code, packCode) { return crewAct(code, 'removePack', { code: packCode }); }
+
+/** A crew's link: the preview page (/s/CODE, site-worker/) where links point at Cloudflare, else ?crew=. */
+function crewInviteUrl(code, name) {
+  const data = window.SERVER_DATA || {};
+  const base = data.webAppUrl;
+  if (!base || !code) return '';
+  if (!data.roomLinks) return base + '?crew=' + code;
+  const q = [];
+  if (name) q.push('n=' + encodeURIComponent(String(name).slice(0, 30)));
+  if (appState.lang === 'en') q.push('l=en');
+  return base.replace(/\/?$/, '/') + 's/' + code + (q.length ? '?' + q.join('&') : '');
+}
+
+/** The doors: the مع بعض tab's card, Settings, a link. The page is JS_Crew.html's. */
+function openCrews(then) {
+  if (typeof closeModal === 'function') closeModal('settings-modal');
+  // One door for both: two lzRun calls share one key, and the second would drop the first.
+  lzRun('crew', () => { setView('crew'); if (typeof then === 'function') then(); });
+}
+function crewOpenJoinDoor(code) { openCrews(() => crewOpenJoin(code || '')); }
+function crewOpenCreateDoor() { openCrews(() => crewOpenCreate()); }
+
+/** A ?crew=CODE (or /s/CODE) link: the crew page and its join sheet. */
+function initCrews() {
+  const code = String((window.SERVER_DATA && window.SERVER_DATA.crew) || '').toUpperCase();
+  if (!/^[A-Z]{6}$/.test(code)) return;
+  const e = crewEntry(code);
+  if (e) { crewRemember({ code }, true); openCrews(); return; }
+  crewOpenJoinDoor(code);
+}
+
+function crewPaintSettings() {
+  const el = document.getElementById('settings-crew-value');
+  if (!el) return;
+  const c = crewCurrent();
+  el.textContent = c ? c.name : '';
+}
+
+/* --- the مع بعض tab's card ------------------------------------------------- */
+function crewTogetherHtml(t) {
+  const list = crewList();
+  const c = list[0];
+  if (!c) {
+    return `
+    <section class="crew-door card card--tight" data-accent="violet">
+      <span class="crew-door__icon" aria-hidden="true">🎉</span>
+      <div class="crew-door__text">
+        <div class="crew-door__title">${escapeHTML(t.crew_title || '')}</div>
+        <div class="crew-door__sub">${escapeHTML(t.crew_door_sub || '')}</div>
+      </div>
+      <div class="crew-door__btns">
+        <button type="button" class="btn btn--primary btn--sm btn--auto" onclick="crewOpenCreateDoor()">${escapeHTML(t.crew_create || '')}</button>
+        <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="crewOpenJoinDoor('')">${escapeHTML(t.crew_join || '')}</button>
+      </div>
+    </section>`;
+  }
+  const more = list.length > 1 ? ` <span class="crew-door__more">+${list.length - 1}</span>` : '';
+  return `
+    <button type="button" class="crew-door crew-door--have card card--tight" data-accent="violet" onclick="openCrews()">
+      <span class="crew-door__icon" aria-hidden="true">🎉</span>
+      <span class="crew-door__text">
+        <span class="crew-door__eyebrow">${escapeHTML(t.crew_title || '')}${more}</span>
+        <span class="crew-door__title">${escapeHTML(c.name)}</span>
+        <span class="crew-door__sub">${escapeHTML(t.crew_door_have || '')}</span>
+      </span>
+      <span class="crew-door__chev" aria-hidden="true">‹</span>
+    </button>`;
+}
+
+/* --- a room «للشلة» ----------------------------------------------------------
+   The host's phone opens a new room for the crew it used last (the owner: the
+   room shows the last used; the host picks another, or none, in the lobby). Every
+   phone that is a member says so to the room once (crewMe), so the night maps it
+   to its member even when its room name differs; the rest are guests. */
+async function crewAutoForRoom() {
+  const c = crewCurrent();
+  const e = c && crewEntry(c.code);
+  if (!e || typeof Room === 'undefined' || !Room.state || !Room.state.youAreHost || Room.state.crew) return;
+  try { await Room.act('setCrew', { code: e.code, key: e.key }); } catch (err) { /* a key gone: the lobby offers the pick */ }
+}
+
+async function crewSetForRoom(code) {
+  if (typeof Room === 'undefined' || !Room.state) return;
+  const e = code ? crewEntry(code) : null;
+  try {
+    await Room.act('setCrew', e ? { code: e.code, key: e.key } : { code: '' });
+    if (e) crewTouch(e.code);
+    if (typeof closeModal === 'function') closeModal('crew-modal');
+  } catch (err) {
+    showToast(roomErrLocal((err && err.message) || ''), 'error');
+  }
+}
+
+/** The host's pick: the crews on this phone, or none. A centred sheet (#crew-modal). */
+function crewPickForRoom() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const state = Room.state || {};
+  const cur = state.crew && state.crew.code;
+  const rows = crewList().map(c => `
+      <button type="button" class="crew-pick ${c.code === cur ? 'is-on' : ''}" onclick="crewSetForRoom('${jsStringAttr(c.code)}')">
+        <span class="crew-pick__icon" aria-hidden="true">🎉</span>
+        <span class="crew-pick__name">${escapeHTML(c.name)}</span>
+        ${c.code === cur ? '<span class="crew-pick__on" aria-hidden="true">✓</span>' : ''}
+      </button>`).join('');
+  crewModal(`
+    <div class="modal-icon" aria-hidden="true">🎉</div>
+    <div class="sheet__title">${escapeHTML(t.crew_room_pick || '')}</div>
+    <p class="sheet__subtitle">${escapeHTML(t.crew_room_pick_sub || '')}</p>
+    <div class="modal-list crew-picks">${rows}
+      <button type="button" class="crew-pick ${!cur ? 'is-on' : ''}" onclick="crewSetForRoom('')">
+        <span class="crew-pick__icon" aria-hidden="true">🚫</span>
+        <span class="crew-pick__name">${escapeHTML(t.crew_room_none || '')}</span>
+        ${!cur ? '<span class="crew-pick__on" aria-hidden="true">✓</span>' : ''}
+      </button>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--ghost" onclick="closeModal('crew-modal')">${escapeHTML(t.cancel || '')}</button>
+    </div>`);
+}
+
+/** Fills and opens the one centred sheet the crew uses (#crew-modal). */
+function crewModal(html) {
+  const el = document.getElementById('crew-modal');
+  const box = document.getElementById('crew-modal-box');
+  if (!el || !box) return;
+  box.innerHTML = html;
+  el.classList.remove('hidden');
+}
+
+/** The lobby's line: which crew the night is for (the host changes it), and «انضم» for a guest. */
+function crewLobbyHtml(state) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (!state || state.youAreScreen) return '';
+  const crew = state.crew;
+  const mine = crew && crewEntry(crew.code);
+  if (state.youAreHost) {
+    const have = crewList().length;
+    if (!crew && !have) return '';
+    return `
+      <button type="button" class="crew-lobby ${crew ? 'is-on' : ''}" onclick="crewPickForRoom()">
+        <span class="crew-lobby__icon" aria-hidden="true">🎉</span>
+        <span class="crew-lobby__text">${crew
+          ? escapeHTML((t.crew_room_for || '').replace('{name}', crew.name))
+          : escapeHTML(t.crew_room_ask || '')}</span>
+        <span class="crew-lobby__edit" aria-hidden="true">✏️</span>
+      </button>`;
+  }
+  if (!crew) return '';
+  return `
+    <div class="crew-lobby is-on crew-lobby--guest">
+      <span class="crew-lobby__icon" aria-hidden="true">🎉</span>
+      <span class="crew-lobby__text">${escapeHTML((t.crew_room_for || '').replace('{name}', crew.name))}</span>
+      ${mine ? '' : `<button type="button" class="btn btn--secondary btn--xs btn--auto" onclick="crewOpenJoinDoor('${jsStringAttr(crew.code)}')">${escapeHTML(t.crew_join_this || '')}</button>`}
+    </div>`;
+}
+
+/** Under the night's board in the hub: a guest is asked to join the crew. */
+function crewGuestOfferHtml(state, t) {
+  if (!state || !state.crew || state.youAreScreen || crewEntry(state.crew.code)) return '';
+  return `
+    <div class="crew-offer" data-accent="violet">
+      <span class="crew-offer__icon" aria-hidden="true">🎉</span>
+      <span class="crew-offer__text">${escapeHTML((t.crew_offer || '').replace('{name}', state.crew.name))}</span>
+      <button type="button" class="btn btn--primary btn--sm btn--auto" onclick="crewOpenJoinDoor('${jsStringAttr(state.crew.code)}')">${escapeHTML(t.crew_join_this || '')}</button>
+    </div>`;
+}
+
+// Every member phone in a room for its crew says which member it is, once per room.
+const crewMeSent = {};
+if (typeof Room !== 'undefined') Room.onChange((state) => {
+  if (!state || !state.crew || state.youAreScreen || !Room.me) return;
+  const e = crewEntry(state.crew.code);
+  if (!e) return;
+  const k = state.code + '|' + state.crew.code + '|' + Room.me;
+  if (crewMeSent[k]) return;
+  crewMeSent[k] = true;
+  Room.act('crewMe', { code: e.code, key: e.key }).catch(() => { delete crewMeSent[k]; });
+});
+</script>

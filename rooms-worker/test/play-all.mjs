@@ -1499,6 +1499,29 @@ async function crewRobots() {
   const left = await crew('act', { code, key: kk.key, action: 'leave' });
   check(left.ok && left.gone, 'crew: the last member leaving ends the crew');
   [H, K, G].forEach((b) => b.close());
+
+  // Nobody presses anything: the game still on the table is banked when the room closes.
+  const c2 = await crew('create', { name: 'شلة الباب', me: 'سما' });
+  const c2k = await crew('join', { code: c2.code, name: 'نور' });
+  const S = await Bot.host('سما', 'buzzer');
+  const N = await Bot.join(S.code, 'نور');
+  await S.must('setCrew', { code: c2.code, key: c2.key });
+  await S.must('start', {});
+  for (let i = 0; i < 2; i++) {
+    await S.waitFor((st) => st.shared && st.shared.phase === 'armed', 'crew: armed');
+    await N.must('buzz', { round: S.state.shared.round });
+    await S.waitFor((st) => st.shared.buzzes.length === 1, 'crew: a buzz');
+    await S.must('correct', { id: N.pid });
+  }
+  await api('/leave', { code: N.code, pid: N.pid, key: N.key });
+  await api('/leave', { code: S.code, pid: S.pid, key: S.key });
+  S.close(); N.close();
+  let v2 = null;
+  for (let i = 0; i < 30 && !(v2 && v2.ok && v2.crew.nightCount === 1); i++) { await sleep(200); v2 = await crew('get', { code: c2.code, key: c2k.key }); }
+  const nr = v2 && v2.ok && v2.crew.table.find((r) => r.id === c2k.memberId);
+  check(!!(nr && nr.won === 1 && nr.points === 3), 'crew: a room that closes with a game on the table still sends its night');
+  await crew('act', { code: c2.code, key: c2.key, action: 'leave' });
+  await crew('act', { code: c2.code, key: c2k.key, action: 'leave' });
 }
 
 /* --- the core: one room of four people through the party games (run alone with --only=core) --- */

@@ -12,6 +12,9 @@
  *   /r/ABCD?g=imposter   -> «تعالى نلعب الجاسوس - الغرفة ABCD» and og/imposter.jpg
  *   /r/ABCD?l=en         -> the same in English (the sharer's phone was in English)
  *
+ *   /s/ABCDEF?n=<name>   -> «الشلة»'s link: «انضم لشلة <name> على عشرى جيمينج», then /?crew=ABCDEF
+ *                           (the name comes from the sharer's phone, in the link; nothing is looked up)
+ *
  * A browser goes on at once (a meta refresh, and location.replace so /r/ABCD
  * isn't left in its history). A phone that has the app is sent on by the app's
  * own service worker before it even asks (sw.js). The names come from
@@ -20,6 +23,7 @@
  */
 
 const CODE = /^[A-Za-z0-9]{4,8}$/;
+const CREW_CODE = /^[A-Za-z]{6}$/;
 const GAME = /^[a-z0-9]{1,24}$/;
 
 let gamesCache = null;   // { at, data }
@@ -115,6 +119,35 @@ async function roomPage(request, env, url) {
   });
 }
 
+/** «الشلة»'s link, /s/CODE: a preview page with the crew's name (the sharer's, in ?n=), then the app. */
+async function crewPage(request, env, url) {
+  const rest = url.pathname.slice(3).replace(/\/+$/, '');   // after "/s/"
+  if (!CREW_CODE.test(rest)) {
+    if (rest && rest.indexOf('/') === -1 && rest.indexOf('.') !== -1) {
+      return env.ASSETS.fetch(new Request(url.origin + '/' + rest, request));
+    }
+    return Response.redirect(url.origin + '/', 302);
+  }
+  const code = rest.toUpperCase();
+  const lang = url.searchParams.get('l') === 'en' ? 'en' : 'ar';
+  const name = String(url.searchParams.get('n') || '').replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 30);
+  const data = await games(env, url.origin);
+  const site = data.app[lang] || data.app.ar;
+  let title, desc;
+  if (lang === 'en') {
+    title = name ? `Join the crew “${name}” on ${site}` : `Join a crew on ${site}`;
+    desc = `Our family's own league: who wins the most nights this month. Open the link and pick your name.`;
+  } else {
+    title = name ? `انضم لشلة «${name}» على ${site}` : `انضم للشلة على ${site}`;
+    desc = `الدوري بتاعنا: مين يكسب ليالي أكتر الشهر ده. افتح اللينك واختار اسمك.`;
+  }
+  const target = url.origin + '/?crew=' + code;
+  const self = url.origin + '/s/' + code + (url.search || '');
+  return new Response(page({ lang, title, desc, image: url.origin + '/og/app.jpg', alt: site, url: self, target, site }), {
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300', 'x-robots-tag': 'noindex' }
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -122,6 +155,11 @@ export default {
       if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('method not allowed', { status: 405 });
       if (url.pathname === '/r' || url.pathname === '/r/') return Response.redirect(url.origin + '/', 302);
       return roomPage(request, env, url);
+    }
+    if (url.pathname === '/s' || url.pathname.startsWith('/s/')) {
+      if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('method not allowed', { status: 405 });
+      if (url.pathname === '/s' || url.pathname === '/s/') return Response.redirect(url.origin + '/', 302);
+      return crewPage(request, env, url);
     }
     // Anything else that reaches the script is what the assets don't have: let them answer (a 404).
     return env.ASSETS.fetch(request);

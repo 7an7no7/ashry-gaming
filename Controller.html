@@ -82,6 +82,8 @@
         spyDataEn: <?!= initialSpyDataEn ?>,
         spyPairsEn: <?!= initialSpyPairsEn ?>,
         room: <?!= initialRoom ?>,
+        // «الشلة»'s link: ?crew=CODE, or /s/CODE (the preview page, site-worker/) opened as the app.
+        crew: (function () { var m = /[?&]crew=([A-Za-z]{6})/.exec(location.search) || /\/s\/([A-Za-z]{6})\/?$/.exec(location.pathname); return m ? m[1].toUpperCase() : ''; })(),
         webAppUrl: <?!= webAppUrl ?>,
         // true: a room's link is <webAppUrl>r/CODE, the page with the room's preview (site-worker/).
         roomLinks: <?!= roomLinks ?>
@@ -470,6 +472,8 @@
       <!-- The other two tabs, drawn by renderTogether() and renderTools(). -->
       <div id="view-together" class="hidden view-stagger" data-accent="teal"></div>
       <div id="view-tools" class="hidden view-stagger" data-accent="indigo"></div>
+      <!-- «الشلة»: the crew's page (JS_Crew.html draws it; look ج «كارنيه النادي»). -->
+      <div id="view-crew" class="hidden" data-accent="violet"></div>
 
 
       <!-- ============ NEW GAMES: القنبلة · أتوبيس كومبليت · الذاكرة · إكس أو · مين يبدأ ============ -->
@@ -2141,6 +2145,9 @@
             <span aria-hidden="true">🔗</span> <span data-i18n="room_share_link">ابعت لينك الغرفة</span>
           </button>
         </div>
+
+        <!-- «الشلة»: which crew tonight counts for (the host changes it; a guest may join). -->
+        <div id="room-crew"></div>
 
         <!-- The game chosen and its options (or the list of games) come before the
              players: that is what the room is deciding (the design review, 26 Sep 2026). -->
@@ -4170,6 +4177,11 @@
       </div>
     </div>
 
+    <!-- «الشلة»: one centred sheet the crew fills (JS_CrewCore.html crewModal: the room's pick, and JS_Crew.html's create, join, invite, members). -->
+    <div id="crew-modal" class="modal-overlay hidden" data-accent="violet" onclick="if(event.target===this) closeModal('crew-modal')">
+      <div class="modal-content modal-content--simple crew-sheet" id="crew-modal-box"></div>
+    </div>
+
     <!-- SETTINGS SHEET — theme, language and app-level actions, moved out of the
          bottom bar so the two remaining nav targets can be full width. -->
     <!-- "دورك!": said when you come back to the app and the room is waiting on you (JS_RoomTurn.html). -->
@@ -4235,6 +4247,11 @@
             <span class="setting-row__icon" aria-hidden="true">👤</span>
             <span class="setting-row__text"><span data-i18n="your_name">اسمك</span><span class="setting-row__hint" data-i18n="your_name_hint">الاسم اللي بيظهر في الغرف</span></span>
             <span class="setting-row__value" id="settings-name-value"></span>
+          </button>
+          <button class="setting-row" onclick="openCrews()">
+            <span class="setting-row__icon" aria-hidden="true">🎉</span>
+            <span class="setting-row__text"><span data-i18n="crew_title">الشلة</span><span class="setting-row__hint" data-i18n="crew_settings_hint">جدول العيلة أو الصحاب كل شهر، والأبطال والألقاب</span></span>
+            <span class="setting-row__value" id="settings-crew-value"></span>
           </button>
           <button class="setting-row" onclick="shareAppLink()">
             <span class="setting-row__icon" aria-hidden="true">🔗</span>
@@ -4388,6 +4405,8 @@
     <?!= include('JS_RoomBank'); ?>
     <?!= include('JS_RoomChat'); ?>
     <?!= include('JS_RoomAudience'); ?>
+    <?!= include('JS_CrewCore'); ?>
+    <?!= include('JS_Crew'); ?>
     <?!= include('JS_RoomTurn'); ?>
     <?!= include('JS_Motion'); ?>
     <?!= include('JS_ShareCard'); ?>

@@ -905,6 +905,7 @@ function startJustOneGame(keepPlayers) {
 
 function nextJoRound() {
     appState.justone.clues = [];
+    appState.justone.struck = {};
     appState.justone.verdict = null;
     appState.justone.phase = 'pass';
 
@@ -919,6 +920,7 @@ function nextJoRound() {
     document.getElementById('jo-phase-pass').classList.remove('hidden');
     document.getElementById('jo-phase-write').classList.add('hidden');
     document.getElementById('jo-phase-guess').classList.add('hidden');
+    document.getElementById('jo-phase-check').classList.add('hidden');
     document.getElementById('jo-phase-result').classList.add('hidden');
 
     joShowPassScreen();
@@ -972,27 +974,115 @@ function joSubmitClue() {
     }
 }
 
-function joPrepareGuessPhase() {
-    // Collision Detection
-    const counts = {};
-    appState.justone.clues.forEach(c => {
-        counts[foldWord(c.text)] = (counts[foldWord(c.text)] || 0) + 1;
-    });
+/* --- ideas batch: party1 - the writers' check -------------------------------
+   Before the guesser looks, the phone shows the writers every clue with who
+   wrote it («الكتّاب بس يبصوا»): the exact duplicates (the same word after
+   foldWord) are already crossed out, with a shake and a line saying who wrote
+   the same word; a tap crosses out or brings back any other clue the writers
+   find too close (as the real game's table does). Then «ادّي الموبايل لـ …»
+   and the guesser's clues are big cards, turned over one by one.
+   `jo.struck` is { clue index: 'dup' | 'close' }.
+   ------------------------------------------------------------------------- */
 
-    const validClues = appState.justone.clues.filter(c => counts[foldWord(c.text)] === 1);
-    const collisionsCount = appState.justone.clues.length - validClues.length;
+/** The duplicates, by their folded word: [[index, index, …], …]. */
+function joDupGroups(clues) {
+    const by = {};
+    clues.forEach((c, i) => { const k = foldWord(c.text); (by[k] = by[k] || []).push(i); });
+    return Object.keys(by).map(k => by[k]).filter(g => g.length > 1);
+}
+
+/** "منى وكريم" / "Mona and Karim" / "Mona, Karim and Sara". */
+function joNamesList(names) {
+    if (appState.lang === 'ar') return names.join(' و');
+    if (names.length < 2) return names.join('');
+    return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+}
+
+function joPrepareGuessPhase() {
+    const jo = appState.justone;
+    jo.struck = {};
+    joDupGroups(jo.clues).forEach(g => g.forEach(i => { jo.struck[i] = 'dup'; }));
+    jo.phase = 'check';
+    document.getElementById('jo-phase-write').classList.add('hidden');
+    document.getElementById('jo-phase-guess').classList.add('hidden');
+    document.getElementById('jo-phase-check').classList.remove('hidden');
+    joPaintCheck();
+    playSound('success');
+    const dupShake = Object.keys(jo.struck).length && motionFirst('jo-dup:' + jo.startedAt + ':' + jo.round);
+    if (dupShake) {
+        if (typeof playFx === 'function') playFx('buzzer');
+        haptic('medium');
+        document.querySelectorAll('#jo-phase-check .jo-clue.is-dup').forEach(el => el.classList.add('is-shake'));
+    }
+}
+
+function joPaintCheck() {
+    const jo = appState.justone;
+    const el = document.getElementById('jo-phase-check');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const guesser = jo.players[jo.guesserIndex] || '';
+    const lines = joDupGroups(jo.clues).map(g => `<p class="jo-dup-line">🙈 ${escapeHTML((t.jo_dup_line || '').replace('{names}', joNamesList(g.map(i => jo.clues[i].player))))}</p>`).join('');
+    el.innerHTML = `
+        <div class="eyebrow">👀 ${escapeHTML((t.jo_check_hide || '').replace('{name}', guesser))}</div>
+        <h2 class="card__title card__title--neutral">${escapeHTML(t.jo_check_title || '')}</h2>
+        <div class="jo-check-word">${escapeHTML(t.secret_word_label || '')}: <b>${escapeHTML(jo.secretWord || '')}</b></div>
+        ${lines}
+        <p class="field__hint">${escapeHTML(t.jo_check_hint || '')}</p>
+        <div class="jo-clues jo-clues--check">
+            ${jo.clues.map((c, i) => {
+                const s = (jo.struck || {})[i];
+                return `<button type="button" class="jo-clue ${s ? 'is-struck' : ''} ${s === 'dup' ? 'is-dup' : ''}" data-jo="${i}" aria-pressed="${s ? 'true' : 'false'}" ${s === 'dup' ? 'aria-disabled="true"' : ''} onclick="joToggleClue(${i})">
+                    <span class="jo-clue__word">${escapeHTML(c.text)}</span>
+                    <span class="jo-clue__by">${escapeHTML(c.player)}</span>
+                </button>`;
+            }).join('')}
+        </div>
+        <button type="button" class="btn btn--primary btn--lg" onclick="joShowGuess()">📱 ${escapeHTML((t.jo_check_give || '').replace('{name}', guesser))}</button>`;
+}
+
+/** A clue the writers find too close: crossed out, or brought back. A duplicate stays out (the rule). */
+function joToggleClue(i) {
+    const jo = appState.justone;
+    if (jo.phase !== 'check' || !jo.clues[i]) return;
+    jo.struck = jo.struck || {};
+    if (jo.struck[i] === 'dup') {
+        const el = document.querySelector('#jo-phase-check [data-jo="' + i + '"]');
+        if (el && !motionOff()) { el.classList.remove('is-shake'); void el.offsetWidth; el.classList.add('is-shake'); }
+        const t = TRANSLATIONS[appState.lang] || {};
+        showToast(t.jo_dup_locked || '', 'info');
+        return;
+    }
+    if (jo.struck[i]) delete jo.struck[i]; else jo.struck[i] = 'close';
+    const el = document.querySelector('#jo-phase-check [data-jo="' + i + '"]');
+    if (el) { el.classList.toggle('is-struck', !!jo.struck[i]); el.setAttribute('aria-pressed', jo.struck[i] ? 'true' : 'false'); }
+    haptic('light');
+    playSound(jo.struck[i] ? 'click' : 'tick');
+}
+
+/** The phone to the guesser: the clues left, as cards turned over one by one. */
+function joShowGuess() {
+    const jo = appState.justone;
+    if (jo.phase !== 'check') return;
+    jo.phase = 'guess';
+    const struck = jo.struck || {};
+    const validClues = jo.clues.filter((_, i) => !struck[i]);
+    const collisionsCount = jo.clues.length - validClues.length;
 
     const list = document.getElementById('jo-clues-list');
     list.innerHTML = '';
+    list.className = 'jo-clues';
 
     if (validClues.length === 0) {
         const msg = appState.lang === 'ar' ? "يا ساتر! كل التلميحات اتحذفت!" : "Oh no! All clues removed!";
         list.innerHTML = `<div class="tx-danger font-bold">${msg}</div>`;
     } else {
-        validClues.forEach(c => {
-            list.innerHTML += `<div class="bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-white px-4 py-2 rounded-xl font-bold text-lg shadow-sm border border-indigo-200 dark:border-indigo-700">${escapeHTML(c.text)}</div>`;
-        });
+        const deal = !motionOff() && motionFirst('jo-deal:' + jo.startedAt + ':' + jo.round);
+        list.classList.toggle('jo-clues--deal', deal);
+        list.innerHTML = validClues.map((c, i) => `<div class="jo-card" style="--i: ${i}"><span>${escapeHTML(c.text)}</span></div>`).join('');
+        if (deal) validClues.forEach((_, i) => setTimeout(() => { if (jo.phase === 'guess') playSound('tick'); }, 150 + i * 260));
     }
+    document.getElementById('jo-phase-check').classList.add('hidden');
 
     const collisionNote = document.getElementById('jo-collisions-note');
     if (collisionsCount > 0) {
@@ -1127,6 +1217,7 @@ function joPaintResult() {
 if (typeof onLanguageChange === 'function') onLanguageChange((view) => {
     const jo = appState.justone;
     if (view === 'play-justone' && ['result', 'judged', 'final'].indexOf(jo.phase) !== -1) joPaintResult();
+    if (view === 'play-justone' && jo.phase === 'check') joPaintCheck();
 });
 
 /* ================= REACTION TEST LOGIC ================= */

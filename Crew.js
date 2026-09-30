@@ -6,7 +6,7 @@
    rules tests. No DOM, no storage, no clock of its own: `now` is always passed.
 
    A night is one room session opened «للشلة» (room.crew): every game banked on
-   the night's leaderboard (bankNightPoints, 3/2/1 a game) adds up to the night's
+   the night's leaderboard (bankNightPoints, 5/3/2 and 1 for everyone else, a game) adds up to the night's
    points, the most points wins the night, and the season is the calendar month
    (Cairo time, the night's start less six hours, so a night that goes past
    midnight stays on the day it began). The table: nights won, then points.

@@ -2573,9 +2573,10 @@ function settlePredictions(room, boardOf) {
 
 /* --- the leaderboard of the night --------------------------------------------
    Placement points rather than each game's own score: a trivia score and a
-   سكرو score are not the same currency. 3 for the first, 2 for the second, 1
-   for the third, and tied players share a place - two firsts both take 3 and
-   the next takes 1. Every game's board is already best-first (سكرو sorts
+   سكرو score are not the same currency. 5 for the first, 3 for the second, 2
+   for the third and 1 for everyone else who played (the owner, 30 Sep 2026:
+   the same rule as «برنامج السهرة», one rule everywhere), and tied players
+   share a place - two firsts both take 5 and the next takes 2. Every game's board is already best-first (سكرو sorts
    ascending because its lowest total wins), so a row's place is where it sits.
 
    Banked once, when the room leaves a game for the hub: that is the only
@@ -2584,7 +2585,8 @@ function settlePredictions(room, boardOf) {
    board it finished on. A game nobody scored in, and a game that keeps no
    scores at all (ارسم واكتب), add nothing.
    ---------------------------------------------------------------------------- */
-const NIGHT_PLACES = [3, 2, 1];
+const NIGHT_PLACES = [5, 3, 2];
+const NIGHT_PLAYED = 1;   // everyone else on the board
 
 const bankNightPoints = (room, board) => {
   const rows = (board || []).filter(r => r && r.id);
@@ -2596,8 +2598,7 @@ const bankNightPoints = (room, board) => {
   rows.forEach(row => {
     const score = Number(row.score) || 0;
     // Standard competition ranking: the place is how many rows are ahead of this score.
-    const points = NIGHT_PLACES[rows.findIndex(r => (Number(r.score) || 0) === score)];
-    if (!points) return;
+    const points = NIGHT_PLACES[rows.findIndex(r => (Number(r.score) || 0) === score)] || NIGHT_PLAYED;
     room.night[row.id] = (room.night[row.id] || 0) + points;
     // Beside the points, for «الشلة» (Crew.js, crewNightInput): the name (kept for someone who
     // leaves), a first place in this game (the titles), and a computer player to leave out.

@@ -145,15 +145,15 @@ function crewTogetherHtml(t) {
 }
 
 /* --- a room «للشلة» ----------------------------------------------------------
-   The host's phone opens a new room for the crew it used last (the owner: the
-   room shows the last used; the host picks another, or none, in the lobby). Every
-   phone that is a member says so to the room once (crewMe), so the night maps it
-   to its member even when its room name differs; the rest are guests. */
+   Opening a room on a phone that is in a crew asks every time «للشلة؟» (the
+   owner, 30 Sep 2026: "ask every time", so a night with other friends never
+   counts by mistake): the crews on this phone, the one used last first, and
+   «مش للشلة». The host can still change it in the lobby. Every phone that is a
+   member says so to the room once (crewMe), so the night maps it to its member
+   even when its room name differs; the rest are guests. */
 async function crewAutoForRoom() {
-  const c = crewCurrent();
-  const e = c && crewEntry(c.code);
-  if (!e || typeof Room === 'undefined' || !Room.state || !Room.state.youAreHost || Room.state.crew) return;
-  try { await Room.act('setCrew', { code: e.code, key: e.key }); } catch (err) { /* a key gone: the lobby offers the pick */ }
+  if (!crewList().length || typeof Room === 'undefined' || !Room.state || !Room.state.youAreHost || Room.state.crew) return;
+  crewPickForRoom();
 }
 
 async function crewSetForRoom(code) {

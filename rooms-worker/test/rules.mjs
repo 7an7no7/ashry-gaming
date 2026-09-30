@@ -356,21 +356,21 @@ const leave = (r, id, hook = true) => {
   // 🌙 ليلتنا: placement points, not each game's own score.
   const night = (board) => { const r = { night: {} }; bankNightPoints(r, board); return r.night; };
   check(JSON.stringify(night([{ id: 'a', score: 30 }, { id: 'b', score: 20 }, { id: 'c', score: 10 }, { id: 'd', score: 5 }]))
-        === JSON.stringify({ a: 3, b: 2, c: 1 }), 'night: 3/2/1 to the top three, nothing to the fourth');
+        === JSON.stringify({ a: 5, b: 3, c: 2, d: 1 }), 'night: 5/3/2 to the top three, 1 to everyone else who played');
   check(JSON.stringify(night([{ id: 'a', score: 30 }, { id: 'b', score: 30 }, { id: 'c', score: 10 }]))
-        === JSON.stringify({ a: 3, b: 3, c: 1 }), 'night: two tied firsts both take 3, and the next takes 1');
+        === JSON.stringify({ a: 5, b: 5, c: 2 }), 'night: two tied firsts both take 5, and the next takes 2');
   check(JSON.stringify(night([{ id: 'a', score: 30 }, { id: 'b', score: 10 }, { id: 'c', score: 10 }]))
-        === JSON.stringify({ a: 3, b: 2, c: 2 }), 'night: two tied seconds both take 2, and nobody takes 1');
+        === JSON.stringify({ a: 5, b: 3, c: 3 }), 'night: two tied seconds both take 3');
   check(JSON.stringify(night([{ id: 'a', score: 0 }, { id: 'b', score: 0 }])) === '{}', 'night: a game nobody scored in adds nothing');
   check(JSON.stringify(night([{ id: 'a', score: 10 }])) === '{}', 'night: one player alone adds nothing');
   check(JSON.stringify(night([])) === '{}' && JSON.stringify(night(undefined)) === '{}', 'night: a game that keeps no scores adds nothing');
   // سكرو sorts ascending because its lowest total wins, so its board is best-first too.
   check(JSON.stringify(night([{ id: 'a', score: -1 }, { id: 'b', score: 12 }, { id: 'c', score: 40 }]))
-        === JSON.stringify({ a: 3, b: 2, c: 1 }), 'night: سكرو banks its lowest total as first');
+        === JSON.stringify({ a: 5, b: 3, c: 2 }), 'night: سكرو banks its lowest total as first');
   // and it adds up across the evening
   const r = { night: { a: 3 } };
   bankNightPoints(r, [{ id: 'b', score: 5 }, { id: 'a', score: 1 }]);
-  check(r.night.a === 5 && r.night.b === 3, 'night: a second game adds to the first');
+  check(r.night.a === 6 && r.night.b === 5, 'night: a second game adds to the first');
 }
 
 {
@@ -382,7 +382,7 @@ const leave = (r, id, hook = true) => {
   check(!r.night, 'night: nothing is banked while the game is still on');
   applyRoomAction(r, 'a', 'backToHub', {});
   const afterOne = JSON.stringify(r.night || {});
-  check(r.night.a === 3 && r.night.b === 2 && r.night.c === 1 && r.phase === 'lobby' && !r.shared.board,
+  check(r.night.a === 5 && r.night.b === 3 && r.night.c === 2 && r.phase === 'lobby' && !r.shared.board,
     'night: leaving a game for the hub banks its board');
   applyRoomAction(r, 'a', 'backToHub', {});
   check(JSON.stringify(r.night) === afterOne, 'night: a second tap on the hub banks nothing twice');
@@ -11458,9 +11458,9 @@ Date.now = duelTestClock;
     pred: [{ name: 'سارة', n: 2 }] }, members, Date.UTC(2026, 8, 12, 21));
   const n3 = CR.crewCleanNight({ id: 'N3', start: Date.UTC(2026, 9, 2, 18), rows: [{ name: 'سارة', points: 4 }, { name: 'كريم', points: 4 }] }, members, Date.UTC(2026, 9, 2, 21));
   const nights = [n1, n2, n3];
-  // n1: كريم 3 (bowling) + 1 (trivia) = 4, هالة 1 + 2 = 3, the guest 0 + 3 = 3: كريم wins it
+  // n1: كريم 5 (bowling) + 2 (trivia) = 7, هالة 2 + 3 = 5, the guest 1 + 5 = 6: كريم wins it
   const sep = CR.crewTable(nights, members, '2026-09');
-  check(sep[0].id === 'mK' && sep[0].won === 2 && sep[0].points === 10 && sep[0].played === 2, 'crew: the table ranks by nights won (كريم 2 nights, 10 points)');
+  check(sep[0].id === 'mK' && sep[0].won === 2 && sep[0].points === 13 && sep[0].played === 2, 'crew: the table ranks by nights won (كريم 2 nights, 13 points)');
   check(sep.find((r) => r.id === 'mS').played === 0 && sep.length === 3, 'crew: every member is on the table, 0 nights too');
   const oct = CR.crewTable(nights, members, '2026-10');
   check(oct[0].won === 1 && oct[1].won === 1 && oct.map((r) => r.id).slice(0, 2).sort().join() === 'mK,mS', 'crew: a tie on top is a night won for each');

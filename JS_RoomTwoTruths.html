@@ -11,9 +11,9 @@
 ROOM_GAMES.twotruths = {
   lobbyOptions(state) {
     const t = TRANSLATIONS[appState.lang];
-    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.tt_lobby_hint || '')}</p>`;
+    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.tt_lobby_hint || '')}</p>` + autoNextLobbyHtml(state, 'twotruths');
   },
-  startPayload() { return {}; },
+  startPayload() { return { autoNext: autoNextChoice('twotruths') }; },
 
   render(state) {
     if (appState.currentView !== 'room-twotruths') setView('room-twotruths');
@@ -84,8 +84,9 @@ ROOM_GAMES.twotruths = {
           </p>
         </div>
         ${renderScoreboard(s.board)}
+        ${autoNextSlotHtml(state)}
         ${roomMoveOnHtml(state,
-          `<button class="btn btn--primary btn--lg" onclick="roomAct('next')">${escapeHTML(s.turn + 1 >= (s.order || []).length ? (t.tt_final || '') : (t.tt_next || ''))}</button>`,
+          `<button class="btn btn--primary btn--lg" onclick="roomAct('next', { turn: ${Number(s.turn) || 0} })">${escapeHTML(s.turn + 1 >= (s.order || []).length ? (t.tt_final || '') : (t.tt_next || ''))}</button>`,
           `<div class="waiting-note">${t.room_wait_host}</div>`)}
         ${renderRoomPlayerStrip(state)}`);
       if (fresh && s.subjectId === Room.me && (s.fooled || []).length && typeof confetti === 'function') confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
@@ -168,7 +169,8 @@ TV_GAMES.twotruths = {
           <div class="tv-note">${(s.caught || []).length ? '🎯 ' + escapeHTML(t.tt_caught_by || '') + ': ' + (s.caught || []).map(escapeHTML).join('، ') : ''}
             ${(s.fooled || []).length ? ' · 🤡 ' + escapeHTML(t.tt_fooled || '') + ': ' + (s.fooled || []).map(escapeHTML).join('، ') : ''}</div>
           <div class="tv-scale">${renderScoreboard(s.board)}</div>
-          ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(s.turn + 1 >= (s.order || []).length ? t.tt_final : t.tt_next, "roomAct('next')")}</div>`)}
+          ${autoNextSlotHtml(state)}
+          ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(s.turn + 1 >= (s.order || []).length ? t.tt_final : t.tt_next, `roomAct('next', { turn: ${Number(s.turn) || 0} })`)}</div>`)}
         </div>`;
     }
     return `

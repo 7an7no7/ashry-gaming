@@ -1,0 +1,141 @@
+<script>
+/* ============================================================================
+   التالي لوحده — NEXT BY ITSELF (the next batch, 30 Sep 2026)
+   ----------------------------------------------------------------------------
+   The host's lobby switch (off by default, remembered on the host's phone per
+   game: recallOptions('autoNext')) for the older room games that wait for
+   «التالي» after every result: تحدي المعلومات, لو خيروك, مين أكثر واحد, فيبج,
+   موجة, زي الكل, صدق ولا كذب. The server keeps the count (shared.nextAt,
+   RoomGames.js AUTONEXT_GAMES) and deals the next round itself; this file
+   draws the switch and the count.
+
+   A result frame puts autoNextSlotHtml(state) just before its «التالي» row: a
+   slot the painter below fills and keeps up to date in place (the number, a
+   draining bar, «⏸ استنى» for whoever may move the round on), so a pause or the
+   host coming and going never rebuilds the frame. The slot is drawn only when
+   the server set a count for this result - with the switch off nothing is.
+   ========================================================================= */
+
+const AUTONEXT_ROOM_GAMES = ['trivia', 'wouldyou', 'mostlikely', 'fibbage', 'wavelength', 'herd', 'twotruths'];
+
+/** The host's choice for a game (what the next start sends). */
+function autoNextChoice(game) {
+  return !!recallOptions('autoNext', {})[game];
+}
+
+function autoNextSet(game, on) {
+  rememberOptions('autoNext', { [game]: !!on });
+  const t = TRANSLATIONS[appState.lang] || {};
+  document.querySelectorAll('[data-an-hint="' + game + '"]').forEach(el => { el.textContent = on ? (t.an_hint_on || '') : (t.an_hint_off || ''); });
+  haptic('light');
+}
+
+/** The lobby's switch: the host's only (on a phone or a TV hosting the room). */
+function autoNextLobbyHtml(state, game) {
+  if (!state || !state.youAreHost) return '';
+  const t = TRANSLATIONS[appState.lang] || {};
+  const on = autoNextChoice(game);
+  const id = 'an-switch-' + game;
+  return `
+    <div class="card card--tight an-lobby">
+      <label class="switch-row" for="${id}">
+        <span class="field__label">${escapeHTML(t.an_switch || '')}</span>
+        <span class="switch">
+          <input type="checkbox" id="${id}" role="switch" ${on ? 'checked' : ''} onchange="autoNextSet('${game}', this.checked)">
+          <span class="switch__track" aria-hidden="true"></span>
+        </span>
+      </label>
+      <p class="field__hint" data-an-hint="${game}">${escapeHTML(on ? (t.an_hint_on || '') : (t.an_hint_off || ''))}</p>
+    </div>`;
+}
+
+/** Is the result on screen the game's last (the count leads to the final result)? */
+function autoNextIsLast(state) {
+  const s = (state && state.shared) || {};
+  if (state.game === 'trivia') return s.qIndex + 1 >= s.totalQuestions;
+  if (state.game === 'twotruths') return s.turn + 1 >= (s.order || []).length;
+  return false;
+}
+
+/** The slot a result frame carries while the server counts to the next round. */
+function autoNextSlotHtml(state) {
+  const s = state && state.shared;
+  if (!s || !('nextFor' in s)) return '';
+  autoNextLoop();
+  return `<div class="an-slot${state.youAreScreen ? ' an-slot--tv' : ''}" data-an-slot></div>`;
+}
+
+const autoNextFx = { timer: null };
+
+function autoNextLoop() {
+  if (autoNextFx.timer) return;
+  autoNextFx.timer = setInterval(autoNextPaint, 250);
+  setTimeout(autoNextPaint, 0);
+}
+
+/** Fills every slot on the page from the room as it is now; stops when there is none. */
+function autoNextPaint() {
+  const slots = [...document.querySelectorAll('[data-an-slot]')];
+  const state = typeof Room !== 'undefined' ? Room.state : null;
+  const s = state && state.shared;
+  if (!slots.length || !s) {
+    if (!slots.length && autoNextFx.timer) { clearInterval(autoNextFx.timer); autoNextFx.timer = null; }
+    return;
+  }
+  const t = TRANSLATIONS[appState.lang] || {};
+  const counting = typeof s.nextAt === 'number';
+  const can = roomCanMoveOn(state);
+  const last = autoNextIsLast(state);
+  const key = [s.nextFor, counting ? s.nextAt : (s.nextPaused ? 'paused' : 'none'), can, last, appState.lang].join('|');
+  const left = counting ? Math.max(0, s.nextAt - roomServerNow()) : 0;
+  const secs = Math.ceil(left / 1000);
+  const total = Math.max(1, Number(s.nextMs) || 1);
+  slots.forEach(slot => {
+    if (slot.dataset.anKey !== key) {
+      slot.dataset.anKey = key;
+      slot.dataset.anOn = counting ? '1' : '';
+      if (counting) {
+        const line = escapeHTML(last ? (t.an_final_in || '') : (t.an_next_in || '')).replace('{n}', `<b class="metric an-count__n" dir="ltr">${secs}</b>`);
+        slot.innerHTML = `
+          <div class="an-count" role="status">
+            <div class="an-count__line">⏭️ <span>${line}</span></div>
+            <div class="an-count__bar" aria-hidden="true"><span class="an-count__fill"></span></div>
+            ${can ? `<button type="button" class="btn btn--ghost btn--sm btn--auto an-count__pause" onclick="autoNextPause()">${escapeHTML(t.an_pause || '')}</button>` : ''}
+          </div>`;
+        const fill = slot.querySelector('.an-count__fill');
+        if (fill) {
+          fill.style.transform = `scaleX(${Math.min(1, left / total)})`;
+          if (!motionOff() && fill.animate && left > 0) {
+            fill.animate([{ transform: `scaleX(${Math.min(1, left / total)})` }, { transform: 'scaleX(0)' }],
+              { duration: left, easing: 'linear', fill: 'forwards' });
+          }
+        }
+        // The first time the count shows in this slot, it rises in (opacity and translate only).
+        const box = slot.firstElementChild;
+        if (!slot.dataset.anShown && box && box.animate && !motionOff()) {
+          box.animate([{ opacity: 0, translate: '0 0.5rem' }, { opacity: 1, translate: '0 0' }], { duration: 280, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+        }
+        slot.dataset.anShown = '1';
+      } else {
+        slot.innerHTML = s.nextPaused ? `<div class="an-count an-count--paused" role="status">${escapeHTML(t.an_paused || '')}</div>` : '';
+      }
+    }
+    if (!counting) return;
+    const n = slot.querySelector('.an-count__n');
+    if (n && n.textContent !== String(secs)) { n.textContent = String(secs); if (secs <= 3 && secs > 0 && typeof motionBump === 'function') motionBump(n); }
+    // The bar's end state by the clock too (an animation that never runs leaves it right).
+    const fill = slot.querySelector('.an-count__fill');
+    if (fill && (motionOff() || !fill.getAnimations || !fill.getAnimations().length)) fill.style.transform = `scaleX(${Math.min(1, left / total)})`;
+  });
+}
+
+/** «⏸ استنى»: the count stops for this result; «التالي» by hand again. */
+function autoNextPause() {
+  const s = Room.state && Room.state.shared;
+  if (!s || typeof s.nextAt !== 'number') return;
+  roomAct('autoPause', { key: s.nextFor });
+}
+
+// A new state (a pause, the host away or back) is painted at once, not on the next tick.
+if (typeof Room !== 'undefined' && Room.onChange) Room.onChange(() => setTimeout(autoNextPaint, 0));
+</script>

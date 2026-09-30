@@ -318,6 +318,8 @@ function catalogOpen(id, fromEl) {
   const g = CATALOG_BY_ID[id];
   if (!g) return;
   if (catalogOff(id)) { gameOffToast(); return; }
+  // Its code first (JS_Lazy.html), then this again: the home stays until it has run.
+  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => catalogOpen(id, fromEl))) return;
   rememberRecent(id);
   if (typeof catalogReturn !== 'undefined') {
     catalogReturn.id = id;
@@ -607,6 +609,7 @@ function tonightGo(id) {
   const g = CATALOG_BY_ID[id];
   if (!g) return;
   if (catalogOff(id)) { gameOffToast(); return; }
+  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => tonightGo(id))) return;
   const view = document.getElementById('view-menu');
   const card = view ? view.querySelector(`.gcard[data-game="${id}"]`) : null;
   const { count, how } = tonightPrefs;
@@ -720,6 +723,7 @@ function catalogQuickStart(id, fromEl) {
   if (!g) return;
   if (catalogOff(id)) { gameOffToast(); return; }
   if (!go) { catalogOpen(id, fromEl); return; }
+  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => catalogQuickStart(id, fromEl))) return;
   // The icon flies to the setup's hero only if the game stops there (the names
   // sheet over it); a game that starts at once has no hero to land on.
   const fly = typeof catalogIconFlight === 'function' ? catalogIconFlight(g, fromEl) : null;
@@ -849,12 +853,44 @@ function homeContMark(from) {
 }
 if (typeof onLeaveScreen === 'function') onLeaveScreen((from) => { if (from && from !== 'menu') homeContMark(from); });
 
+/* Whether a board is still going is its game's own code to say, and a game's
+   code loads when it opens (JS_Lazy.html). The board left last comes with the
+   page (lzBootWrite); one left before it whose code isn't here yet is fetched,
+   and the card is drawn again when it has come. */
+const homeContAsked = {};
+function homeContNeed(c) {
+  if (typeof lzChunksOfGame !== 'function') return [];
+  if (c.key !== 'daily') return lzChunksOfGame(c.game);
+  // A daily set aside: the games whose boards wait in the day's keeping.
+  if (typeof DAILY_GAMES === 'undefined' || typeof soloDailyInProgress !== 'function') return [];
+  return DAILY_GAMES.reduce((all, d) => soloDailyInProgress(d.id) ? all.concat(lzChunksOfGame(d.id)) : all, []);
+}
+function homeContLater(key, need) {
+  if (homeContAsked[key]) return;
+  homeContAsked[key] = true;
+  lzEnsure(need).then(() => { if (appState.currentView === 'menu') homeContRefresh(); }, () => {});
+}
+/** The «كمّل» card drawn again in place (the rest of the home untouched). */
+function homeContRefresh() {
+  const view = document.getElementById('view-menu');
+  if (!view) return;
+  const html = homeContHtml(TRANSLATIONS[appState.lang] || {});
+  const old = document.getElementById('home-cont');
+  if (old) { if (html) old.outerHTML = html; else old.remove(); return; }
+  if (html && view.firstElementChild) view.insertAdjacentHTML('afterbegin', html);
+}
+
 /** The game to offer: still going, not switched off, not hidden, played last. */
 function homeContPick() {
   const stamps = homeContStamps();
   let best = null;
   HOME_CONT.forEach(c => {
     if (homeContHidden[c.key] || !CATALOG_BY_ID[c.game] || catalogOff(c.game)) return;
+    const need = homeContNeed(c);
+    if (need.length && !lzReady(need)) {
+      if (Number(stamps[c.key]) > 0) homeContLater(c.key, need);
+      return;
+    }
     if (!homeContSafe(c.live)) return;
     const at = Number(stamps[c.key]) || 0;
     if (!best || at > best.at) best = { c, at };
@@ -886,6 +922,7 @@ function homeContHtml(t) {
 function homeContGo(key) {
   const c = HOME_CONT.find(x => x.key === key);
   if (!c) return;
+  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(c.game), () => homeContGo(key))) return;
   if (!homeContSafe(c.live)) { renderHome(); return; }
   haptic('light');
   if (typeof catalogReturn !== 'undefined') { catalogReturn.id = c.game; catalogReturn.kind = 'card'; }

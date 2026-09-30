@@ -1,0 +1,460 @@
+/**
+ * The page in pieces: what loads with the page (the shell) and what each game
+ * brings when it opens (a chunk). Used by build-site.mjs and build-preview.mjs.
+ *
+ * Every JS_*.html shares one global scope, and so do the chunks: a chunk is the
+ * scripts of its files concatenated into one classic script (never a module), so
+ * its top-level functions become globals exactly as they were on the one page.
+ * JS_Lazy.html (in the shell) loads a chunk, with the chunks it needs first.
+ *
+ * What a chunk needs is worked out from the code (acorn): a name one chunk uses
+ * that another declares makes the second a dependency of the first, unless the
+ * edge is listed in LAZY_EDGES (a call made only when the other game is already
+ * running, or made through lzRun). Which chunk a screen, a room game or a card
+ * of the home needs is worked out too (the view ids and ROOM_GAMES.x = in the
+ * chunk's files), with the few the code can't say in the maps at the end.
+ */
+import * as acorn from 'acorn';
+import * as walk from 'acorn-walk';
+
+/* ---------------------------------------------------------------------------
+   The shell: loaded with the page. The home, the nav, settings, help, the room
+   engine and the TV's frame, the motion toolkit, the sounds, and every registry
+   the home and Help read (the catalog, the translations, GAME_RULES, ICON_ART).
+   ------------------------------------------------------------------------- */
+export const SHELL_FILES = [
+  'Logo', 'Tailwind', 'Style',
+  'JS_Lazy', 'JS_Core', 'JS_Catalog', 'JS_Room', 'JS_Utils',
+  'JS_RoomImposter',   // renderRoomFrame, roomAct, roomHostRow: every room screen's helpers
+  'JS_RoomGames',      // the play-mode switch, كلمة واحدة and من أنا؟ rooms
+  'JS_RoomVoting',     // the voting engine and renderScoreboard, used by most rooms
+  'JS_RoomTv', 'JS_Dice', 'JS_Director', 'JS_Solo', 'JS_Daily', 'JS_TeamRelay',
+  'JS_Sounds', 'JS_RoomChat', 'JS_RoomAudience', 'JS_RoomTurn', 'JS_Motion', 'JS_ShareCard', 'JS_Three'
+];
+export const SHELL_LISTS = ['DisabledGames.js', 'Dice.js', 'SoloShared.js'];
+
+/* The chunks: a game, or a family of games that share their code. The order of
+   files inside a chunk is always the page's own order. */
+export const CHUNKS = {
+  spy: ['JS_Imposter'],
+  whoami: ['JS_WhoAmI'],
+  charades: ['JS_Charades'],
+  describe: ['JS_DescribeIt'],
+  guessnum: ['JS_GuessNumber'],
+  tourney: ['JS_Tournament'],
+  wordle: ['JS_Wordle'],
+  newgames: ['JS_NewGames'],
+  screwcalc: ['JS_Screw'],
+  screw: ['JS_RoomScrew', 'SkrewCards.js'],
+  monkey: ['JS_Monkey', 'JS_RoomMonkey'],
+  codenames: ['JS_RoomCodenames'],
+  draw: ['JS_RoomDraw', 'JS_RoomFakeArtist', 'JS_RoomTelephone'],
+  wavelength: ['JS_RoomWavelength'],
+  trivia: ['JS_RoomTrivia'],
+  connections: ['JS_Connections', 'ConnectionsWords.js'],
+  triviaboard: ['JS_TriviaBoardBank', 'JS_TriviaBoard'],
+  domino: ['JS_Domino', 'JS_RoomDomino', 'DominoTiles.js'],
+  chameleon: ['JS_Chameleon', 'JS_RoomChameleon'],
+  spyfall: ['JS_Spyfall', 'JS_RoomSpyfall', 'SpyfallPlaces.js'],
+  timesup: ['JS_TimesUp'],
+  bomb: ['JS_Bomb', 'JS_RoomBomb', 'JS_FiveSeconds', 'JS_RoomFiveSeconds', 'BombPrompts.js'],
+  stop: ['JS_Stop', 'JS_StopBus', 'JS_RoomStop', 'StopWords.js'],
+  memory: ['JS_Memory'],
+  xo: ['JS_XO', 'JS_RoomXO', 'TicTacToe.js'],
+  grids: ['JS_Sudoku', 'JS_2048', 'JS_Mines', 'JS_Queens', 'JS_Tango', 'JS_Nonogram',
+    'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js'],
+  wordsolo: ['JS_WordSearch', 'JS_Pinpoint', 'Strands.js', 'Pinpoint.js'],
+  wordwheel: ['JS_WordWheel', 'WordWheel.js'],   // its dictionary is every word list's
+  streak: ['JS_QuizStreak', 'QuizStreak.js', 'TriviaQuestions.js'],
+  flags: ['JS_Flags'],
+  headsup: ['JS_HeadsUp'],
+  cardscore: ['JS_CardScore', 'JS_CardRules'],
+  chooser: ['JS_Chooser'],
+  smallrooms: ['JS_RoomBuzzer', 'JS_RoomChairs', 'JS_RoomTwoTruths', 'JS_RoomHerd', 'JS_RoomMafia', 'JS_RoomMind', 'JS_RoomTimeline'],
+  wire: ['JS_RoomWire', 'Wire.js'],
+  bumper: ['JS_RoomBumper'],
+  quiz: ['JS_Emoji', 'JS_Proverbs', 'JS_RoomQuiz'],
+  uno: ['JS_RoomUno', 'UnoCards.js'],
+  cardslib: ['JS_Cards', 'PlayingCards.js'],
+  cards: ['JS_RoomDoubt', 'JS_RoomSkull', 'JS_RoomOldMaid', 'JS_RoomEstimation', 'Skull.js', 'Estimation.js'],
+  duels: ['JS_Connect4', 'JS_RoomConnect4', 'JS_RoomTournament', 'Connect4.js'],
+  dots: ['JS_Dots', 'JS_RoomDots', 'DotsBoxes.js'],
+  guesswho: ['JS_GuessWho', 'GuessWho.js'],
+  witness: ['JS_RoomWitness', 'Witness.js'],
+  box: ['JS_RoomBox'],
+  dark: ['JS_RoomDark', 'Dark.js'],
+  exact: ['JS_RoomExact'],
+  hangman: ['JS_Hangman', 'Hangman.js'],
+  solve: ['JS_RoomSolve', 'JS_RoomRace', 'SolveGames.js'],
+  bowling: ['JS_Bowling', 'Bowling.js'],
+  battleship: ['JS_Battleship', 'Battleship.js'],
+  minigolf: ['JS_MiniGolf', 'MiniGolf.js'],
+  chess: ['JS_Chess', 'JS_ChessOpenings', 'JS_ChessReview', 'JS_ChessPosition', 'JS_RoomChess', 'Chess.js'],
+  chesspuzzles: ['JS_ChessPuzzles', 'ChessPuzzles.js'],
+  chessrooms: ['JS_RoomBughouse', 'JS_RoomChess4', 'JS_RoomVoteChess', 'JS_RoomHandBrain', 'Chess4.js'],
+  ludo: ['JS_Ludo', 'JS_RoomLudo', 'Ludo.js'],
+  snakes: ['JS_Snakes', 'JS_RoomSnakes', 'Snakes.js'],
+  bank: ['JS_Bank', 'JS_RoomBank', 'BankAlhaz.js'],
+  // Word lists more than one chunk deals from.
+  'w-chameleon': ['ChameleonWords.js'],
+  'w-monkey': ['MonkeyWords.js'],
+  'w-wordle': ['WordleWords.js'],
+  'w-countries': ['Countries.js'],
+  'w-riddles': ['EmojiRiddles.js', 'Proverbs.js']
+};
+
+/* References that don't make a dependency: the call is only made while the other
+   game's own chunk is loaded (its room or its screen is showing), or it goes
+   through lzRun. "from>to" by file. */
+export const LAZY_EDGES = [
+  // The tournament's adapters for each duel game run only in that game's tournament.
+  'JS_RoomTournament>JS_Dots', 'JS_RoomTournament>JS_RoomXO', 'JS_RoomTournament>GuessWho.js',
+  'JS_RoomTournament>JS_Chess', 'JS_RoomTournament>JS_RoomChess', 'JS_RoomTournament>Chess.js',
+  'JS_RoomTournament>JS_Battleship',
+  // A solo puzzle's race moves: only in its race, whose room loads the race.
+  'JS_Sudoku>JS_RoomRace', 'JS_Mines>JS_RoomRace', 'JS_Queens>JS_RoomRace', 'JS_Tango>JS_RoomRace',
+  'JS_Nonogram>JS_RoomRace', 'JS_WordSearch>JS_RoomRace', 'JS_WordWheel>JS_RoomRace', 'JS_Pinpoint>JS_RoomRace',
+  'JS_QuizStreak>JS_RoomRace', 'JS_Connections>JS_RoomRace',
+  // The playing cards' helpers name the two card rooms only while they play.
+  'JS_Cards>JS_RoomDoubt', 'JS_Cards>JS_RoomOldMaid',
+  // «جرّبها كلغز» from a chess review goes through lzRun.
+  'JS_ChessReview>JS_ChessPuzzles',
+  // The race's own screen: the connections board only in its race.
+  'JS_RoomRace>JS_Connections'
+];
+
+/* Screens, room games and cards of the home whose chunk the code can't say by itself. */
+const race = (game) => ['solve', game];
+export const VIEW_CHUNKS = {
+  // سباق ألغاز: the race's screen (JS_RoomRace) and the puzzle's own board (RACE_UI).
+  'room-sudoku': race('grids'), 'room-queens': race('grids'), 'room-tango': race('grids'),
+  'room-nonogram': race('grids'), 'room-mines': race('grids'),
+  'room-strands': race('wordsolo'), 'room-wordwheel': race('wordwheel'), 'room-pinpoint': race('wordsolo'),
+  'room-connections': race('connections'), 'room-streak': race('streak'),
+  'room-guessnum': ['solve'], 'room-flags': ['solve'],
+  'room-whoami': ['whoami'],
+  'setup-teams': ['newgames'], 'setup-reaction': ['newgames'],
+  'setup-codenames': ['codenames'],
+  // The card score keepers (JS_CardScore draws every one of them).
+  ...Object.fromEntries(['estimation', 'tarneeb', 'trix', 'konkan', 'basra'].flatMap((g) =>
+    [[`setup-cs-${g}`, ['cardscore']], [`play-cs-${g}`, ['cardscore']]]))
+};
+export const ROOM_CHUNKS = {
+  whoami: ['whoami'],       // its room is drawn by JS_RoomGames (shell) from WHOAMI_DB
+  emoji: ['quiz', 'solve'], // the quiz, and a riddle written by a player on the solve engine
+  proverbs: ['quiz']
+};
+export const GAME_CHUNKS = {};
+
+/* Screens that belong to the shell (the home, the tabs, rooms' lobby, the tools
+   in JS_Core / JS_Utils); anything else must map to a chunk or the build fails. */
+export const SHELL_VIEWS = ['menu', 'together', 'tools', 'room-tv', 'room-join', 'room-lobby',
+  'timers', 'play-chess', 'setup-universal', 'play-universal', 'setup-spin', 'play-spin', 'tool-dice',
+  'setup-daily', 'setup-daily-archive', 'setup-stats',
+  // Rooms drawn by the shell's own room files (JS_RoomImposter, JS_RoomGames, JS_RoomVoting).
+  'room-imposter', 'room-justone', 'room-wouldyou', 'room-mostlikely', 'room-fibbage'];
+
+/* --------------------------------------------------------------------------- */
+
+const ID = /[A-Za-z_$][\w$]*/;
+
+function patNames(p, set) {
+  if (!p) return;
+  if (p.type === 'Identifier') set.add(p.name);
+  else if (p.type === 'ObjectPattern') p.properties.forEach((q) => patNames(q.type === 'RestElement' ? q.argument : q.value, set));
+  else if (p.type === 'ArrayPattern') p.elements.forEach((q) => patNames(q, set));
+  else if (p.type === 'RestElement') patNames(p.argument, set);
+  else if (p.type === 'AssignmentPattern') patNames(p.left, set);
+}
+const localCache = new WeakMap();
+function localsOf(fn) {
+  if (localCache.has(fn)) return localCache.get(fn);
+  const set = new Set();
+  fn.params.forEach((q) => patNames(q, set));
+  if (fn.id && fn.type !== 'FunctionDeclaration') set.add(fn.id.name);
+  const visit = (n, top) => {
+    if (!n || typeof n.type !== 'string') return;
+    if (!top && /Function/.test(n.type)) { if (n.type === 'FunctionDeclaration' && n.id) set.add(n.id.name); return; }
+    if (n.type === 'VariableDeclarator') patNames(n.id, set);
+    if (n.type === 'CatchClause') patNames(n.param, set);
+    if (n.type === 'ClassDeclaration' && n.id) set.add(n.id.name);
+    for (const k in n) {
+      const v = n[k];
+      if (Array.isArray(v)) v.forEach((c) => c && typeof c.type === 'string' && visit(c));
+      else if (v && typeof v.type === 'string') visit(v);
+    }
+  };
+  visit(fn.body, true);
+  localCache.set(fn, set);
+  return set;
+}
+
+/** Top-level names each file declares, and the names it uses (at load, or inside functions). */
+function analyse(code, name) {
+  const decl = new Set(), run = new Set(), load = new Set();
+  let ast;
+  try { ast = acorn.parse(code, { ecmaVersion: 'latest', sourceType: 'script', allowReturnOutsideFunction: true }); }
+  catch (e) { throw new Error(`lazy-split: ${name} doesn't parse: ${e.message}`); }
+  for (const st of ast.body) {
+    if ((st.type === 'FunctionDeclaration' || st.type === 'ClassDeclaration') && st.id) decl.add(st.id.name);
+    if (st.type === 'VariableDeclaration') st.declarations.forEach((d) => patNames(d.id, decl));
+  }
+  walk.full(ast, (node) => {
+    if (node.type === 'AssignmentExpression' && node.left.type === 'MemberExpression' && !node.left.computed &&
+        node.left.object.type === 'Identifier' && node.left.object.name === 'window') decl.add(node.left.property.name);
+  });
+  walk.fullAncestor(ast, (node, st, anc) => {
+    if (node.type !== 'Identifier') return;
+    const p = anc[anc.length - 2];
+    if (p && p.type === 'MemberExpression' && p.property === node && !p.computed) return;
+    if (p && p.type === 'Property' && p.key === node && !p.computed && !p.shorthand) return;
+    if (p && (p.type === 'MethodDefinition' || p.type === 'PropertyDefinition') && p.key === node) return;
+    if (p && (p.type === 'LabeledStatement' || p.type === 'BreakStatement' || p.type === 'ContinueStatement')) return;
+    const fns = anc.filter((a, i) => i < anc.length - 1 && /Function/.test(a.type));
+    if (fns.some((fn) => localsOf(fn).has(node.name))) return;
+    (fns.length ? run : load).add(node.name);
+  });
+  // Handlers written as markup (onclick="fn(...)") inside strings.
+  for (const m of code.matchAll(/\bon[a-z]+=\\?["']([^"'\\]*)/g)) for (const id of m[1].matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)) run.add(id[1]);
+  return { decl, run, load };
+}
+
+/**
+ * Splits the page. `sources` maps each include name (JS_Core) and each list
+ * (Chess.js) to its code; `order` is their order on the one page (the lists
+ * first, as on the page). Returns the plan: the shell's files, the chunks in the
+ * order they must run, and the maps the page asks.
+ */
+export function plan({ sources, order, controller, roomGameIds }) {
+  const shellSet = new Set([...SHELL_FILES, ...SHELL_LISTS]);
+  const fileChunk = new Map();
+  for (const [id, files] of Object.entries(CHUNKS)) for (const f of files) {
+    if (fileChunk.has(f)) throw new Error(`lazy-split: ${f} is in two chunks`);
+    if (shellSet.has(f)) throw new Error(`lazy-split: ${f} is in the shell and chunk ${id}`);
+    fileChunk.set(f, id);
+  }
+  const pos = new Map(order.map((f, i) => [f, i]));
+  for (const f of order) {
+    if (!shellSet.has(f) && !fileChunk.has(f)) throw new Error(`lazy-split: ${f} is in no chunk (add it to CHUNKS or SHELL_FILES in tools/lazy-split.mjs)`);
+  }
+  for (const f of fileChunk.keys()) if (!pos.has(f)) throw new Error(`lazy-split: ${f} (chunk ${fileChunk.get(f)}) isn't on the page`);
+
+  // The code of each file, as scripts.
+  const code = new Map();
+  for (const f of order) {
+    const src = sources.get(f);
+    code.set(f, /\.js$/.test(f) ? [src] : [...src.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]));
+  }
+  const info = new Map();
+  const declaredBy = new Map();
+  for (const f of order) {
+    if (f === 'Style' || f === 'Tailwind' || f === 'Logo') continue;
+    const a = { decl: new Set(), run: new Set(), load: new Set() };
+    code.get(f).forEach((c, i) => {
+      const r = analyse(c, `${f}#${i}`);
+      r.decl.forEach((x) => a.decl.add(x)); r.run.forEach((x) => a.run.add(x)); r.load.forEach((x) => a.load.add(x));
+    });
+    info.set(f, a);
+    a.decl.forEach((n) => { if (!declaredBy.has(n)) declaredBy.set(n, []); declaredBy.get(n).push(f); });
+  }
+  const lazy = new Set(LAZY_EDGES);
+
+  // Chunk dependencies, and the ones that must run first (used at load).
+  const deps = {}, loadDeps = {}, shellUses = {};
+  for (const id of Object.keys(CHUNKS)) { deps[id] = new Set(); loadDeps[id] = new Set(); }
+  for (const [f, a] of info) {
+    const from = fileChunk.get(f);
+    const edge = (n, isLoad) => {
+      if (a.decl.has(n)) return;
+      const by = declaredBy.get(n) || [];
+      if (!by.length || by.some((g) => shellSet.has(g))) return;
+      for (const g of by) {
+        const to = fileChunk.get(g);
+        if (!from) { (shellUses[g] ||= new Set()).add(n); continue; }
+        if (to === from || lazy.has(`${f}>${g}`)) continue;
+        deps[from].add(to);
+        if (isLoad) loadDeps[from].add(to);
+      }
+    };
+    a.run.forEach((n) => edge(n, false));
+    a.load.forEach((n) => edge(n, true));
+  }
+
+  // The order chunks run in: whatever one uses while it loads runs before it;
+  // otherwise the page's own order (by a chunk's first file).
+  const first = (id) => Math.min(...CHUNKS[id].map((f) => pos.get(f)));
+  const ids = Object.keys(CHUNKS).sort((x, y) => first(x) - first(y));
+  const done = new Set(), sorted = [];
+  const visit = (id, stack) => {
+    if (done.has(id)) return;
+    if (stack.includes(id)) throw new Error(`lazy-split: chunks load each other: ${[...stack, id].join(' > ')}`);
+    [...loadDeps[id]].sort((x, y) => first(x) - first(y)).forEach((d) => visit(d, [...stack, id]));
+    done.add(id); sorted.push(id);
+  };
+  ids.forEach((id) => visit(id, []));
+
+  // Screens: a view id named in a chunk's files belongs to that chunk.
+  const viewIds = [...controller.matchAll(/id="view-([a-z0-9-]+)"/g)].map((m) => m[1]);
+  const text = (f) => code.get(f).join('\n');
+  const mentions = (f, v) => {
+    const s = text(f);
+    return s.includes(`'${v}'`) || s.includes(`"${v}"`) || s.includes('`' + v + '`') || s.includes(`view-${v}`);
+  };
+  const views = {}, unmapped = [];
+  for (const v of viewIds) {
+    if (VIEW_CHUNKS[v]) { views[v] = VIEW_CHUNKS[v]; continue; }
+    if (SHELL_VIEWS.includes(v)) continue;
+    const hit = new Set();
+    for (const [f, id] of fileChunk) if (!/\.js$/.test(f) && mentions(f, v)) hit.add(id);
+    // A screen named in several chunks: the one whose files open it (setView), else the fewest-deps.
+    let pick = [...hit];
+    if (pick.length > 1) {
+      const opener = pick.filter((id) => CHUNKS[id].some((f) => !/\.js$/.test(f) && new RegExp(`setView\\((['"\`])${v}\\1`).test(text(f))));
+      if (opener.length === 1) pick = opener;
+    }
+    if (pick.length === 1) views[v] = pick;
+    else unmapped.push(`${v}${pick.length ? ' (in ' + pick.join(', ') + ')' : ''}`);
+  }
+  if (unmapped.length) throw new Error(`lazy-split: screens with no chunk, or several: ${unmapped.join('; ')} - add them to VIEW_CHUNKS or SHELL_VIEWS`);
+
+  // A screen's own buttons may only call what is loaded by the time it shows:
+  // the shell, or its chunks and what they need.
+  const closure = (ids) => {
+    const seen = new Set(), stack = [...ids];
+    while (stack.length) { const id = stack.pop(); if (seen.has(id)) continue; seen.add(id); deps[id].forEach((d) => stack.push(d)); }
+    return seen;
+  };
+  const marks = [...controller.matchAll(/id="view-([a-z0-9-]+)"|class="modal-overlay/g)];
+  const handlerProblems = [];
+  marks.forEach((m, i) => {
+    if (!m[1]) return;
+    const block = controller.slice(m.index, i + 1 < marks.length ? marks[i + 1].index : controller.length);
+    const have = closure(views[m[1]] || []);
+    for (const h of block.matchAll(/\bon[a-z]+="([^"]*)"/g)) for (const fn of h[1].matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)) {
+      const by = declaredBy.get(fn[1]) || [];
+      if (!by.length || by.some((g) => shellSet.has(g))) continue;
+      if (!by.some((g) => have.has(fileChunk.get(g)))) handlerProblems.push(`view-${m[1]} calls ${fn[1]} (${by.join(', ')})`);
+    }
+  });
+  if (handlerProblems.length) throw new Error(`lazy-split: a screen's button calls code its chunk doesn't load:\n  ${[...new Set(handlerProblems)].join('\n  ')}`);
+
+  // Room games: its screen's chunk, and every chunk that registers it.
+  const rooms = {};
+  for (const g of roomGameIds) {
+    const set = new Set(ROOM_CHUNKS[g] || []);
+    if (views['room-' + g]) views['room-' + g].forEach((c) => set.add(c));
+    const reg = new RegExp(`\\b(ROOM_GAMES|TV_GAMES|RACE_UI)\\.${g}\\s*=`);
+    for (const [f, id] of fileChunk) if (!/\.js$/.test(f) && reg.test(text(f))) set.add(id);
+    if (set.size) rooms[g] = [...set];
+  }
+
+  // Cards of the home: the chunk of the function its `open` calls (a tool with no setup screen).
+  // (the page asks it before catalogOpen, «كمّل», the daily hub and «الليلة دي؟»).
+  const games = {};
+  const catalog = sources.get('JS_Catalog');
+  for (const line of catalog.split('\n')) {
+    const id = /^\s*\{\s*id:\s*'([\w-]+)'/.exec(line);
+    if (!id) continue;
+    const set = new Set(GAME_CHUNKS[id[1]] || []);
+    const setup = /\bsetup:\s*'([\w-]+)'/.exec(line);
+    if (setup && views[setup[1]]) views[setup[1]].forEach((c) => set.add(c));
+    const open = /\bopen:\s*\(\)\s*=>\s*([A-Za-z_$][\w$]*)\(/.exec(line);
+    if (open) (declaredBy.get(open[1]) || []).forEach((f) => { if (fileChunk.get(f)) set.add(fileChunk.get(f)); });
+    if (set.size) games[id[1]] = [...set];
+  }
+
+  return {
+    shell: order.filter((f) => shellSet.has(f)),
+    chunks: sorted.map((id) => ({
+      id, files: [...CHUNKS[id]].sort((a, b) => pos.get(a) - pos.get(b)),
+      deps: [...deps[id]].sort((x, y) => sorted.indexOf(x) - sorted.indexOf(y))
+    })),
+    views, rooms, games,
+    shellUses: Object.fromEntries(Object.entries(shellUses).map(([f, s]) => [f, [...s]]))
+  };
+}
+
+/** The code of a chunk: its files' scripts, one after another, in the page's order. */
+export function chunkCode(chunk, sources, banner) {
+  return chunk.files.map((f) => {
+    const src = sources.get(f);
+    const parts = /\.js$/.test(f) ? [src] : [...src.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    return parts.map((p) => (banner ? `/* ==== ${f} ==== */\n` : '') + p.replace(/\s+$/, '') + '\n;').join('\n');
+  }).join('\n');
+}
+
+/* Word lists the page shares with the rooms server: one file, both sides
+   (and ChessPuzzles.js, which only the page has). */
+export const SHARED_LISTS = ['DisabledGames.js', 'Dice.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js'];
+
+/** Reads Controller.html, every file it includes and the shared lists. */
+export async function readPage(root, readFile, path) {
+  const controller = await readFile(path.join(root, 'Controller.html'), 'utf8');
+  const includes = [...controller.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g)].map((m) => m[1]);
+  const sources = new Map();
+  for (const n of includes) sources.set(n, await readFile(path.join(root, `${n}.html`), 'utf8'));
+  for (const n of SHARED_LISTS) sources.set(n, await readFile(path.join(root, n), 'utf8'));
+  // On the page the lists come after the styles and before the scripts.
+  const styles = includes.filter((n) => !/^JS_/.test(n));
+  const order = [...styles, ...SHARED_LISTS, ...includes.filter((n) => /^JS_/.test(n))];
+  const roomGameIds = roomGameIdsOf(await readFile(path.join(root, 'RoomGames.js'), 'utf8'));
+  return { controller, includes, sources, order, roomGameIds };
+}
+
+/** The ids of the room games (ROOM_GAME_IDS in RoomGames.js). */
+export function roomGameIdsOf(roomGamesJs) {
+  const m = /ROOM_GAME_IDS\s*=\s*\[([\s\S]*?)\]/.exec(roomGamesJs);
+  if (!m) throw new Error('lazy-split: ROOM_GAME_IDS not found in RoomGames.js');
+  return [...m[1].matchAll(/'([\w-]+)'/g)].map((x) => x[1]);
+}
+
+/* --- putting the page together ------------------------------------------------
+   Controller.html with its includes: the shell's inlined, a chunk's left out
+   (its code goes to its own file), the shared lists the shell needs inlined at
+   their comment, the map (window.LZ_MANIFEST) at the chunk-map comment before
+   JS_Lazy.html, and the boot line (lzBootWrite) at the end of the body. With
+   `whole`, the page as it was: everything inlined, no map, no chunk files.
+
+   name(chunk, code) gives a chunk's file name (the site's carries its hash).
+   Returns { html, chunks: [{ id, deps, file, code }], manifest, plan }; the
+   template values (<?!= … ?>) are left for the caller. */
+const LISTS_MARK = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline the word lists[^\n]*-->/;
+const MAP_MARK = /<!-- tools\/build-site\.mjs and build-preview\.mjs write the map of the chunks here[^\n]*-->/;
+const BOOT_MARK = /<!-- tools\/build-site\.mjs and build-preview\.mjs write the boot line here[^\n]*-->/;
+
+export async function assemble({ root, readFile, path, whole = false, name = (c) => `${c.id}.js`, banner = false, base = 'g/', prepare = async (code) => code }) {
+  const page = await readPage(root, readFile, path);
+  let html = page.controller;
+  for (const m of [LISTS_MARK, MAP_MARK, BOOT_MARK]) {
+    if (!m.test(html)) throw new Error(`Controller.html: a build comment is missing (${m.source.slice(0, 70)}…)`);
+  }
+  const tags = [...html.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g)];
+  const script = (code) => `<script>\n${code}\n</script>`;
+
+  if (whole) {
+    for (const [tag, n] of tags) html = html.replace(tag, () => page.sources.get(n));
+    html = html.replace(LISTS_MARK, () => SHARED_LISTS.map((n) => script(page.sources.get(n))).join('\n    '));
+    html = html.replace(MAP_MARK, '').replace(BOOT_MARK, '');
+    return { html, chunks: [], manifest: null, plan: null };
+  }
+
+  const p = plan(page);
+  const shell = new Set(p.shell);
+  for (const [tag, n] of tags) html = html.replace(tag, () => (shell.has(n) ? page.sources.get(n) : ''));
+  html = html.replace(LISTS_MARK, () => SHARED_LISTS.filter((n) => shell.has(n)).map((n) => script(page.sources.get(n))).join('\n    '));
+
+  const chunks = [];
+  for (const c of p.chunks) {
+    const code = await prepare(chunkCode(c, page.sources, banner), c);
+    chunks.push({ id: c.id, deps: c.deps, code, file: name(c, code) });
+  }
+  const manifest = {
+    base,
+    order: chunks.map((c) => c.id),
+    chunks: Object.fromEntries(chunks.map((c) => [c.id, c.deps.length ? { f: c.file, d: c.deps } : { f: c.file }])),
+    views: p.views, rooms: p.rooms, games: p.games
+  };
+  html = html.replace(MAP_MARK, () => script(`window.LZ_MANIFEST = ${JSON.stringify(manifest).replace(/</g, '\\u003c')};`));
+  html = html.replace(BOOT_MARK, () => script('if (window.lzBootWrite) lzBootWrite();'));
+  return { html, chunks, manifest, plan: p };
+}

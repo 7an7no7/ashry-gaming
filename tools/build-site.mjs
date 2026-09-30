@@ -10,18 +10,20 @@
  *   npm run build:site
  *   ROOMS_URL=http://127.0.0.1:8787 npm run build:site    # against wrangler dev
  */
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { transform } from 'esbuild';
+import { assemble } from './lazy-split.mjs';
 
 const here = fileURLToPath(new URL('./', import.meta.url));
 const root = path.join(here, '..');
 // SITE_OUT: somewhere else than docs/ (the screen test builds a copy of the site to try its
 // offline copy and updates on, without touching what is published).
 const out = process.env.SITE_OUT ? path.resolve(process.env.SITE_OUT) : path.join(root, 'docs');
-const read = (name) => readFile(path.join(root, `${name}.html`), 'utf8');
 
 const config = JSON.parse(await readFile(path.join(here, 'site.config.json'), 'utf8'));
 const roomsUrl = String(process.env.ROOMS_URL || config.roomsUrl || '').replace(/\/+$/, '');
@@ -46,13 +48,34 @@ const SPY_PAIRS_EN = new Function(spySource + '\nreturn SPY_PAIRS_EN;')();
 // JSON inside a <script>: "</script>" in a word would end the tag early.
 const scriptJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
 
-let html = await read('Controller');
-// A replacer function, not a string: in a replacement string $&, $' and $` are
-// patterns, and any of them in an included file would be silently rewritten.
-for (const [tag, name] of [...html.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g)]) {
-  const body = await read(name);
-  html = html.replace(tag, () => body);
-}
+const MINIFY = process.env.MINIFY !== '0';
+
+/* Minifying, one script at a time: whitespace and comments go and the syntax is
+   tightened; names are kept, because every script on the page shares one scope
+   and the markup calls functions by name. A script that is ES5 stays ES5 (the
+   browser gate must run where nothing else does); the rest never goes past
+   ES2017, the page's floor. */
+const minifyJs = async (code, es5First = true) => {
+  for (const target of es5First ? ['es5', 'es2017'] : ['es2017']) {
+    try { return (await transform(code, { loader: 'js', target, minifyWhitespace: true, minifySyntax: true, legalComments: 'none', charset: 'utf8' })).code.trim(); }
+    catch (e) { if (target === 'es2017') throw new Error(`minify: ${e.message.slice(0, 300)}`); }
+  }
+};
+
+/* The page is the shell - the home, the nav, settings, help, the room engine, the
+   TV's frame - and each game's code is a file of its own in g/, loaded when the
+   game opens (tools/lazy-split.mjs, JS_Lazy.html). A chunk's name carries a hash
+   of its code, so it can be kept for ever: a changed game is a new name, and a
+   game that didn't change keeps its name (and the copy on the phone) build after
+   build. LAZY=0 builds the whole page in one file, as before. */
+const whole = process.env.LAZY === '0';
+const hashOf = (code) => createHash('sha1').update(code).digest('hex').slice(0, 10);
+const built = await assemble({
+  root, readFile, path, whole,
+  prepare: (code) => (MINIFY ? minifyJs(code, false) : code),
+  name: (c, code) => `${c.id}.${hashOf(code)}.js`
+});
+let html = built.html;
 
 const HEAD = `<title>عشرى جيمينج</title>
     <link rel="manifest" href="manifest.webmanifest">
@@ -106,24 +129,13 @@ const RUNTIME = `<script>
 if (html.indexOf('</head>') === -1) throw new Error('Controller.html: no </head>');
 html = html.replace('</head>', () => RUNTIME);
 
-// Word lists the page shares with the rooms server: one file, both sides.
-const SHARED_LISTS = ['DisabledGames.js', 'Dice.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js'];
-const sharedListsHtml = (await Promise.all(SHARED_LISTS.map(async (name) =>
-  `<script>\n${await readFile(path.join(root, name), 'utf8')}\n</script>`))).join('\n    ');
-const listsMark = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline the word lists[^\n]*-->/;
-if (!listsMark.test(html)) throw new Error('Controller.html: SHARED_LISTS comment not found');
-html = html.replace(listsMark, () => sharedListsHtml);
-
 const leftover = html.match(/<\?!?=?[\s\S]{0,40}\?>/);
 if (leftover) throw new Error(`unresolved template tag: ${leftover[0]}`);
 
 /* The published page is minified (notes/IMPROVEMENT_PLAN.md, Phase 2: the page
-   was 7 MB, most of it comments and indentation). Whitespace and comments go and
-   the syntax is tightened; names are kept, because every script on the page shares
-   one scope and the markup calls functions by name. A script that is ES5 stays
-   ES5 (the browser gate must run where nothing else does); the rest never goes
-   past ES2017, the page's floor. MINIFY=0 leaves the page as written. */
-if (process.env.MINIFY !== '0') {
+   was 7 MB, most of it comments and indentation), with minifyJs above; the chunks
+   were minified the same way as they were made. MINIFY=0 leaves both as written. */
+if (MINIFY) {
   const before = html.length;
   const parts = html.split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>)/i);
   for (let i = 0; i < parts.length; i++) {
@@ -138,12 +150,7 @@ if (process.env.MINIFY !== '0') {
     const [, open, tag, code, close] = m;
     if (tag.toLowerCase() === 'script') {
       if (/\bsrc=/.test(open) || (/\btype=/.test(open) && !/javascript|module/.test(open))) continue;
-      let res = null;
-      for (const target of ['es5', 'es2017']) {
-        try { res = await transform(code, { loader: 'js', target, minifyWhitespace: true, minifySyntax: true, legalComments: 'none', charset: 'utf8' }); break; }
-        catch (e) { if (target === 'es2017') throw new Error(`minify: ${e.message.slice(0, 300)}`); }
-      }
-      parts[i] = open + res.code.trim() + close;
+      parts[i] = open + (await minifyJs(code)) + close;
     } else {
       const res = await transform(code, { loader: 'css', minify: true, charset: 'utf8', target: ['chrome88', 'safari14', 'firefox78'] });
       parts[i] = open + res.code.trim() + close;
@@ -153,19 +160,41 @@ if (process.env.MINIFY !== '0') {
   console.log(`minified: ${(before / 1e6).toFixed(2)} MB -> ${(html.length / 1e6).toFixed(2)} MB`);
 }
 
-/* The size budget (notes/IMPROVEMENT_PLAN.md, Phase 2). What a first visit
-   downloads is the page compressed; a build past the budget fails, so the page
-   can't creep back up a game at a time. Raise it on purpose, not by accident. */
+/* The size budget (notes/IMPROVEMENT_PLAN.md, Phase 2). What opening the app
+   downloads is the page (the shell) compressed; a build past the budget fails, so
+   the shell can't creep back up a game at a time. The games' chunks are only
+   reported: each comes when its game opens. Raise it on purpose, not by accident.
+   (The whole page, before the split: 1,800 KB, 1,751 used.) */
 {
-  const { gzipSync } = await import('node:zlib');
-  const BUDGET_KB = 1800;
-  const kb = Math.round(gzipSync(Buffer.from(html, 'utf8'), { level: 9 }).length / 1024);
-  console.log(`first visit: ${kb} KB compressed (budget ${BUDGET_KB} KB)`);
-  if (kb > BUDGET_KB && process.env.MINIFY !== '0') throw new Error(`the page is ${kb} KB compressed, over the ${BUDGET_KB} KB budget`);
+  const BUDGET_KB = whole ? 1800 : 710;
+  const gz = (s) => gzipSync(Buffer.from(s, 'utf8'), { level: 9 }).length / 1024;
+  const kb = Math.round(gz(html));
+  const chunksKb = Math.round(built.chunks.reduce((n, c) => n + gz(c.code), 0));
+  console.log(`first visit: ${kb} KB compressed (budget ${BUDGET_KB} KB)${whole ? '' : `; the ${built.chunks.length} games' chunks ${chunksKb} KB more, each when its game opens (${kb + chunksKb} KB in all)`}`);
+  if (kb > BUDGET_KB && MINIFY) throw new Error(`the page is ${kb} KB compressed, over the ${BUDGET_KB} KB budget`);
 }
 
 await mkdir(out, { recursive: true });
 await writeFile(path.join(out, 'index.html'), html, 'utf8');
+
+/* The chunks, in g/. The files of the build before are kept beside this one's:
+   a page still open on that build (it switches only when nothing is lost) loads
+   its own chunks from there, and so does a phone whose worker hasn't updated yet.
+   g/files.json lists this build's files, and becomes the list of the one before. */
+const gDir = path.join(out, 'g');
+await mkdir(gDir, { recursive: true });
+const listPath = path.join(gDir, 'files.json');
+let before = [];
+try { before = JSON.parse(await readFile(listPath, 'utf8')).files || []; } catch (e) {}
+const nowFiles = built.chunks.map((c) => c.file);
+for (const c of built.chunks) {
+  const p = path.join(gDir, c.file);
+  if (!existsSync(p)) await writeFile(p, c.code, 'utf8');
+}
+const keepFiles = new Set([...nowFiles, ...before, 'files.json']);
+for (const f of await readdir(gDir)) if (!keepFiles.has(f)) await rm(path.join(gDir, f), { force: true });
+await writeFile(listPath, JSON.stringify({ build: buildId, files: nowFiles }) + '\n', 'utf8');
+const prevFiles = before.filter((f) => !nowFiles.includes(f));
 
 /* Offline copy, and the app's own copy on the phone. Opening the app answers
    from the copy this build's worker saved when it was installed - at once, however
@@ -180,8 +209,17 @@ await writeFile(path.join(out, 'index.html'), html, 'utf8');
    since their URLs never change; only good answers are kept (a failed one used
    to stay cached for the whole build), and the page asks for them again once
    the worker is in charge, so a first visit is enough to play offline. Room traffic is never cached: it is POSTs
-   and WebSockets, which this never touches. */
+   and WebSockets, which this never touches.
+
+   The games' chunks (g/) live in a cache of their own, g-chunks, kept from build to
+   build: installing a build fetches every chunk it doesn't hold yet (a game that
+   didn't change keeps its file name, so only the changed ones come), and a chunk is
+   answered from there first. Activating keeps this build's chunks and the build
+   before's (a page still open on that build loads its own), and drops the rest. */
 const SW = `const CACHE = 'ashry-${buildId}';
+const CHUNKS = 'g-chunks';
+const GAME_FILES = ${JSON.stringify(nowFiles.map((f) => './g/' + f))};
+const KEEP_FILES = GAME_FILES.concat(${JSON.stringify(prevFiles.map((f) => './g/' + f))});
 const SHELL = ['./manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
 const PINNED = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
@@ -200,12 +238,17 @@ self.addEventListener('install', (event) => {
       if (!res.ok) throw new Error('index ' + res.status);
       return Promise.all([c.put('./index.html', res.clone()), c.put('./', res)]);
     }).then(() => c.addAll(SHELL.map(fresh)))
-  ).then(() => self.skipWaiting()));
+  ).then(() => caches.open(CHUNKS)).then((g) => Promise.all(GAME_FILES.map((f) =>
+    g.match(f).then((hit) => hit || fetch(f).then((res) => { if (!res.ok) throw new Error(f + ' ' + res.status); return g.put(f, res); })))))
+  .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== CHUNKS).map((k) => caches.delete(k))))
+    .then(() => caches.open(CHUNKS)).then((g) => g.keys().then((reqs) => Promise.all(reqs
+      .filter((r) => KEEP_FILES.indexOf('./g/' + new URL(r.url).pathname.split('/').pop()) === -1)
+      .map((r) => g.delete(r)))))
     .then(() => self.clients.claim()));
 });
 
@@ -231,6 +274,12 @@ self.addEventListener('fetch', (event) => {
   // for it to learn whether a newer build is out, and offline that has to fail.
   if (url.pathname.endsWith('/sw.js')) return;
 
+  // A game's chunk: its name changes whenever its code does, so the copy kept is the answer.
+  if (/\\/g\\/[^/]+\\.js$/.test(url.pathname)) {
+    event.respondWith(caches.open(CHUNKS).then((g) => g.match(req, { ignoreSearch: true }).then((hit) => hit ||
+      fetch(req).then((res) => { if (res.ok) g.put(req, res.clone()); return res; }))));
+    return;
+  }
   const cached = () => caches.match(req).then((hit) => hit || caches.match('./index.html'));
   if (req.mode !== 'navigate') { event.respondWith(fetch(req).then((res) => keep(req, res)).catch(cached)); return; }
   // Opening the app (a room link's ?room= too): this build's saved page at once; the

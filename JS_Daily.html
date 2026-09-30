@@ -34,7 +34,7 @@ const DAILY_GAMES = [
   { id: 'nonogram',  start: () => startNonogram(true),  line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'mines',     start: () => startMines(true),     line: (r) => r.lost ? '💥' : `✅ ${soloTime(r.seconds)}` },
   { id: 'minigolf',  start: () => startMiniGolf(true),  line: (r) => `${r.strokes <= r.par ? '🟢 ' : ''}⛳ ${r.strokes} · 🎯 ${r.par}` },
-  { id: 'chesspuzzle', start: () => chPzStartDaily(),  line: (r) => chPzDailyLine(r) }
+  { id: 'chesspuzzle', start: () => chPzStartDaily(),  line: (r) => !r || !r.solved ? '♟️ ❌' : r.hint ? '♟️ 💡' : r.tries > 1 ? '♟️ ✅ ' + r.tries : '♟️ ✅' }
 ];
 
 let soloHubReturn = false;
@@ -115,6 +115,7 @@ function playDaily(id) {
   const g = DAILY_GAMES.find(x => x.id === id);
   if (!g || soloDailyResult(id)) return;
   if (typeof catalogOff === 'function' && catalogOff(id)) { gameOffToast(); return; }
+  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => playDaily(id))) return;
   soloHubReturn = true;
   soloHubGame = id;
   if (typeof rememberRecent === 'function') rememberRecent(id);
@@ -192,6 +193,8 @@ function selectArchiveDay(day) {
  */
 function playArchive(id, day, sure) {
   const g = DAILY_GAMES.find(x => x.id === id);
+  // The game's code comes with its chunk (JS_Lazy.html).
+  if (g && typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => playArchive(id, day, sure))) return;
   const soloG = typeof SOLO_GAMES !== 'undefined' ? SOLO_GAMES[id] : null;
   if (!g || !soloG) return;
   // Today is the real daily, never practice: the archive dealt today's puzzle as a

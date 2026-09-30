@@ -23452,4 +23452,329 @@ body .prog-bar.prog-bar--tv, body.room-host-away .prog-bar.prog-bar--tv, body.ro
   .prog-ring__fg, .prog-row, .prog-door { transition: none !important; }
 }
 
+/* ===== «الشلة» (THE CREW): JS_CrewCore.html, JS_Crew.html =====
+   Look ج «كارنيه النادي» (notes/next-level-looks.html): a membership card on top,
+   four tabs under it; the month opens on the podium of the cast figures. Built on
+   the app's tokens; the card's gold chip and the podium's steps keep their metals
+   in both themes. */
+.crew-page { display: flex; flex-direction: column; gap: var(--sp-3); max-width: 36rem; margin-inline: auto; width: 100%; }
+.crew-switch { margin: 0; }
+
+/* The membership card. */
+.crew-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+  aspect-ratio: 1.6;
+  max-height: 15rem;
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  border: 0;
+  border-radius: var(--r-2xl);
+  overflow: hidden;
+  color: #ffffff;
+  text-align: start;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, #12052e), var(--accent) 60%, color-mix(in srgb, var(--accent) 70%, #ffffff));
+  box-shadow: var(--poster-shadow);
+  cursor: pointer;
+  font: inherit;
+}
+.crew-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0 10px, transparent 10px 22px);
+  pointer-events: none;
+}
+.crew-card > * { position: relative; }
+.crew-card__top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-2); }
+.crew-card__brand { font-size: var(--fs-xs); font-weight: 700; opacity: 0.85; }
+.crew-card__name { font-family: var(--font-display); font-weight: 900; font-size: 1.45rem; line-height: 1.3; overflow-wrap: anywhere; }
+.crew-card__season { font-size: var(--fs-sm); opacity: 0.9; margin-top: 2px; }
+.crew-card__chip { flex: none; width: 2.4rem; height: 1.75rem; border-radius: 0.4rem; background: linear-gradient(135deg, #f5b82e, #c98a0b); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); }
+.crew-card__mid { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; gap: var(--sp-2); }
+.crew-card__code small { display: block; font-size: var(--fs-xs); opacity: 0.8; }
+.crew-card__codev { font-family: var(--font-display); font-weight: 900; font-size: 1.35rem; letter-spacing: 0.08em; }
+.crew-card__faces { display: flex; padding-inline-start: 0.5rem; }
+.crew-card__faces .crew-av { margin-inline-start: -0.5rem; border: 2px solid rgba(255, 255, 255, 0.92); }
+.crew-card--ghost { cursor: default; opacity: 0.9; transform: rotate(-3deg); max-width: 18rem; margin-inline: auto; }
+.crew-card--in { animation: crew-card-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@keyframes crew-card-in {
+  from { opacity: 0; transform: translateY(14px) rotate(-2deg) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The faces: a letter on a colour (the same hue for a name everywhere). */
+.crew-av {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  font-weight: 800;
+  font-size: var(--fs-sm);
+  color: #ffffff;
+  background: #7c3aed;
+}
+.crew-av--c0 { background: #7c3aed; } .crew-av--c1 { background: #0ea5e9; } .crew-av--c2 { background: #e11d74; }
+.crew-av--c3 { background: #16a34a; } .crew-av--c4 { background: #ea580c; } .crew-av--c5 { background: #0d9488; }
+.crew-av--more { background: rgba(255, 255, 255, 0.28); font-size: var(--fs-xs); }
+.crew-av--s { width: 1.75rem; height: 1.75rem; font-size: var(--fs-xs); }
+.crew-av--xs { width: 1.35rem; height: 1.35rem; font-size: 0.625rem; }
+
+.crew-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.crew-actions .btn { min-width: 0; padding-inline: var(--sp-2); }
+.crew-actions .btn--primary { grid-column: 1 / -1; }
+.crew-tabs .segmented__item { white-space: nowrap; }
+.crew-pane { display: flex; flex-direction: column; gap: var(--sp-3); min-height: 8rem; }
+
+/* الشهر: the podium's steps in gold, silver and bronze, as on the look. */
+.crew-podium { margin-top: var(--sp-2); }
+.crew-podium .podium__place--rank1 .podium__block { background: linear-gradient(180deg, #f5b82e, #c98a0b); color: #1c1200; }
+.crew-podium .podium__place--rank2 .podium__block { background: linear-gradient(180deg, #b8bfd0, #8a93a8); color: #ffffff; border-color: transparent; }
+.crew-podium .podium__place--rank3 .podium__block { background: linear-gradient(180deg, #d38a55, #a3602f); color: #ffffff; border-color: transparent; }
+.crew-podium .podium__score { font-size: var(--fs-sm); }
+.crew-podium__pts { font-size: var(--fs-xs); color: var(--text-3); font-weight: 700; }
+.crew-table { padding: var(--sp-1) var(--sp-3); }
+.crew-row {
+  display: grid;
+  grid-template-columns: 1.5rem auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap);
+  border-bottom: 1px solid var(--hairline);
+}
+.crew-row:last-child { border-bottom: 0; }
+.crew-row__n { color: var(--text-3); font-weight: 800; text-align: center; }
+.crew-row__who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--text-strong); }
+.crew-row__stat { text-align: end; white-space: nowrap; }
+.crew-row__stat b { font-family: var(--font-display); font-weight: 900; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.crew-row__stat small { color: var(--text-3); font-size: var(--fs-xs); }
+.crew-row.is-you .crew-row__who { color: var(--accent-ink); }
+.crew-hint { margin: 0; font-size: var(--fs-xs); color: var(--text-3); text-align: center; }
+.crew-note {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+.crew-note__icon { font-size: 1.5rem; }
+.crew-peek { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.crew-peek__c {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 5.5rem;
+  padding: var(--sp-2) var(--sp-1);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  text-align: center;
+  font: inherit;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  cursor: pointer;
+  min-width: 0;
+}
+.crew-peek__c b { font-family: var(--font-display); font-size: var(--fs-sm); color: var(--text-strong); }
+.crew-peek__c > span:last-child { overflow-wrap: anywhere; }
+.crew-peek__e { font-size: 1.2rem; }
+
+/* الأبطال: the wall, a frame a month. */
+.crew-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: var(--sp-2); }
+.crew-champ {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-2);
+  border-radius: var(--r-lg);
+  text-align: center;
+  background: linear-gradient(160deg, color-mix(in srgb, #f5b82e 18%, var(--surface-solid)), var(--surface-solid));
+  border: 1px solid color-mix(in srgb, #c98a0b 35%, transparent);
+  box-shadow: var(--sh-2);
+}
+.crew-champ__cup { font-size: 1.8rem; }
+.crew-champ__month { font-family: var(--font-display); font-weight: 900; color: var(--text-strong); }
+.crew-champ__names { font-weight: 700; color: var(--text); overflow-wrap: anywhere; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.crew-champ__stat { font-size: var(--fs-xs); color: var(--text-3); }
+
+/* الألقاب: a card a title, then the records as rows. */
+.crew-titles { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: var(--sp-2); }
+.crew-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  transform: rotate(-1deg);
+}
+.crew-title:nth-child(even) { transform: rotate(1deg); }
+.crew-title__e { font-size: 1.5rem; }
+.crew-title__name { font-family: var(--font-display); font-size: 1rem; }
+.crew-title__who { display: flex; align-items: center; gap: 6px; font-weight: 800; color: var(--text-strong); overflow-wrap: anywhere; }
+.crew-title__why { color: var(--text-2); font-size: var(--fs-xs); }
+.crew-sub { margin-top: var(--sp-2); }
+.crew-records { padding: var(--sp-1) var(--sp-3); }
+.crew-rec { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); min-height: var(--tap); border-bottom: 1px solid var(--hairline); padding-block: 6px; }
+.crew-rec:last-child { border-bottom: 0; }
+.crew-rec__e { font-size: 1.3rem; }
+.crew-rec__what { display: flex; flex-direction: column; font-weight: 700; color: var(--text-strong); min-width: 0; }
+.crew-rec__what small { font-weight: 500; color: var(--text-3); font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.crew-rec__v { font-family: var(--font-display); font-size: 1.3rem; font-weight: 900; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+
+/* السهرات: a card a night. */
+.crew-nights { display: flex; flex-direction: column; gap: var(--sp-2); }
+.crew-night { padding: var(--sp-3); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--sh-1); display: flex; flex-direction: column; gap: var(--sp-2); }
+.crew-night__head { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.crew-night__date { font-family: var(--font-display); font-weight: 800; color: var(--text-strong); }
+.crew-night__win { font-weight: 800; color: var(--accent-ink); font-size: var(--fs-sm); }
+.crew-night__games { display: flex; flex-wrap: wrap; gap: 6px; }
+.crew-night__game { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 4px; border-radius: var(--r-full); background: var(--surface-2); font-size: var(--fs-xs); color: var(--text-2); }
+.crew-night__game .art-icon, .crew-night__game > :first-child { font-size: 1rem; }
+.crew-night__top { display: flex; flex-wrap: wrap; gap: 4px var(--sp-3); font-size: var(--fs-sm); color: var(--text); }
+.crew-night__who.is-guest { color: var(--text-3); }
+.crew-night__who small { font-size: var(--fs-xs); }
+
+/* The empty page: a ghost card, what it is, two ways in. */
+.crew-empty { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-3); max-width: 28rem; margin-inline: auto; text-align: center; padding-top: var(--sp-3); }
+.crew-empty__title { margin: var(--sp-2) 0 0; font-family: var(--font-display); font-size: 1.35rem; color: var(--text-strong); }
+.crew-empty__text { margin: 0; color: var(--text-2); }
+
+/* The sheet: the join's «إنت مين فيهم؟», the members, the invite. */
+.crew-sheet .field { display: flex; flex-direction: column; gap: 6px; }
+.crew-codein { text-transform: uppercase; letter-spacing: 0.15em; text-align: center; font-weight: 800; }
+.crew-who { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); max-height: 14rem; overflow: auto; }
+.crew-who__m {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+  padding: 4px 14px 4px 6px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.crew-who__m.is-guess { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.crew-new { display: flex; flex-direction: column; gap: var(--sp-2); }
+.crew-new > summary { list-style: none; }
+.crew-new > summary::-webkit-details-marker { display: none; }
+.crew-new[open] { gap: var(--sp-2); }
+.crew-new[open] > summary { display: none; }
+.crew-new[open] > .field, .crew-new[open] > .btn { margin-top: var(--sp-2); }
+.crew-mems { max-height: 20rem; overflow: auto; }
+.crew-mem { display: flex; align-items: center; gap: var(--sp-2); min-height: 3rem; border-bottom: 1px solid var(--hairline); }
+.crew-mem:last-child { border-bottom: 0; }
+.crew-mem__name { flex: 1; min-width: 0; font-weight: 700; color: var(--text-strong); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; overflow-wrap: anywhere; }
+.crew-mem__acts { display: flex; gap: 4px; }
+.crew-mem__acts .iconbtn { width: 2.5rem; height: 2.5rem; }
+.crew-invite__code { font-family: var(--font-display); font-weight: 900; font-size: 2rem; letter-spacing: 0.15em; color: var(--accent-ink); text-align: center; }
+.crew-qr { max-width: 12rem; margin-inline: auto; }
+.crew-picks { display: flex; flex-direction: column; gap: var(--sp-2); }
+.crew-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 3rem;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font: inherit;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+}
+.crew-pick.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.crew-pick__name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.crew-pick__on { font-weight: 900; }
+
+/* The room: the lobby's line, and the guest's offer under the night's board. */
+.crew-lobby {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--tap);
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-lg);
+  border: 1px dashed var(--border-strong);
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+}
+.crew-lobby.is-on { border-style: solid; border-color: color-mix(in srgb, #7c3aed 40%, transparent); background: color-mix(in srgb, #7c3aed 10%, var(--surface-solid)); color: var(--text-strong); }
+.crew-lobby--guest { cursor: default; }
+.crew-lobby__text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.crew-offer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.crew-offer__text { flex: 1 1 12rem; min-width: 0; }
+.crew-offer__icon { font-size: 1.4rem; }
+
+/* The مع بعض tab's door. */
+.crew-door { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); margin-block: var(--sp-3); text-align: start; }
+button.crew-door { width: 100%; border: 1px solid var(--border); font: inherit; cursor: pointer; background: var(--surface); }
+.crew-door__icon { font-size: 1.9rem; flex: none; }
+.crew-door__text { flex: 1 1 12rem; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.crew-door__eyebrow { font-size: var(--fs-xs); color: var(--text-3); font-weight: 700; }
+.crew-door__more { color: var(--accent-ink); }
+.crew-door__title { font-family: var(--font-display); font-weight: 900; color: var(--text-strong); overflow-wrap: anywhere; }
+.crew-door__sub { font-size: var(--fs-sm); color: var(--text-2); }
+.crew-door__btns { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.crew-door__chev { color: var(--text-3); font-size: 1.4rem; }
+html[dir="ltr"] .crew-door__chev { transform: scaleX(-1); }
+
+/* A phone on its side, a laptop, a TV: the card and its buttons a column beside the tabs. */
+.crew-side, .crew-main { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) {
+  .crew-page { max-width: 62rem; display: grid; grid-template-columns: minmax(15rem, 21rem) minmax(0, 1fr); grid-template-areas: "switch switch" "side main"; align-items: start; gap: var(--sp-3) var(--sp-4); }
+  .crew-switch { grid-area: switch; }
+  .crew-side { grid-area: side; }
+  .crew-main { grid-area: main; }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .crew-side { position: sticky; top: 0; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .crew-page { grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr); }
+  .crew-card { aspect-ratio: auto; min-height: 8.5rem; padding: var(--sp-3); }
+  .crew-card__name { font-size: 1.1rem; }
+  .crew-card__codev { font-size: 1.1rem; }
+  .crew-card__season { font-size: var(--fs-xs); }
+  .crew-actions .btn span[aria-hidden] { display: none; }
+  .crew-tabs .segmented__item { font-size: var(--fs-sm); padding-inline: 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crew-card--in { animation: none; }
+}
+
 </style>

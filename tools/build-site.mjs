@@ -132,7 +132,9 @@ const RUNTIME = `<script>
 
       // A join link has done its job once read; leaving ?room= in the address
       // would send a reload straight back to the join screen. The same for ?install=.
-      if (/[?&](room|install)=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+      if (/[?&](room|install|crew)=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+      // /s/CODE («الشلة»'s link) opened as the app itself: back to the app's own address.
+      if (/\\/s\\/[A-Za-z]{6}\\/?$/.test(location.pathname)) history.replaceState(null, '', location.pathname.replace(/s\\/[A-Za-z]{6}\\/?$/, '') + location.hash);
       // /r/CODE opened as the app itself (an older offline copy answers it): back to the app's own address.
       if (/\\/r\\/[A-Za-z0-9]{4,8}\\/?$/.test(location.pathname)) history.replaceState(null, '', location.pathname.replace(/r\\/[A-Za-z0-9]{4,8}\\/?$/, '') + location.hash);
     </script>
@@ -304,6 +306,9 @@ self.addEventListener('fetch', (event) => {
   // browser on to ./?room=CODE, so a phone with the app goes there at once, on line or off.
   const room = url.pathname.slice(new URL(self.registration.scope).pathname.length).match(/^r[/]([A-Za-z0-9]{4,8})[/]?$/);
   if (room) { event.respondWith(Response.redirect(new URL('./?room=' + room[1].toUpperCase(), self.registration.scope).href, 302)); return; }
+  // «الشلة»'s link (/s/CODE) the same way: the app, on its join sheet.
+  const crew = url.pathname.slice(new URL(self.registration.scope).pathname.length).match(/^s[/]([A-Za-z]{6})[/]?$/);
+  if (crew) { event.respondWith(Response.redirect(new URL('./?crew=' + crew[1].toUpperCase(), self.registration.scope).href, 302)); return; }
   // Opening the app (a room link's ?room= too): this build's saved page at once; the
   // network only when there is none yet. A newer build arrives as a newer worker.
   event.respondWith(caches.match('./index.html').then((hit) => (hit ? clean(hit) :

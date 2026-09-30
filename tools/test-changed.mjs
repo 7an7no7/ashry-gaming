@@ -88,6 +88,8 @@ const MAP = [
   { files: /^(Wire\.js|RoomWire\.js|JS_RoomWire\.html)$/, robots: ['wire'], ui: ['wire'] },
   { files: /^(Witness\.js|RoomWitness\.js|JS_RoomWitness\.html)$/, robots: ['witness'], ui: ['witness'] },
   { files: /^(RoomExact\.js|JS_RoomExact\.html)$/, robots: ['exact'], ui: ['exact'] },
+  // «الشلة»: the crew's rules and page (a room's night reaches its crew: the robots' crew segment; the page: screens and fixes).
+  { files: /^(Crew\.js|JS_Crew\.html|JS_CrewCore\.html)$/, robots: ['crew'], screens: true, fixes: true },
   { files: /^(Dark\.js|RoomDark\.js|JS_RoomDark\.html)$/, robots: ['darkroom'], ui: ['darkroom'] },
   { files: /^(RoomBox\.js|JS_RoomBox\.html)$/, robots: ['box'], ui: ['box'] },
   // برنامج السهرة: its robots, and the screen test's own part (the builder, the table, the finale).
@@ -127,6 +129,7 @@ for (const f of changed) {
   if (hit.screens) plan.screens = true;
   if (hit.site) plan.site = true;
   if (hit.program) plan.program = true;
+  if (hit.fixes) plan.fixes = true;
   if ((hit.ui || []).some((g) => ['hangman', 'guesswho', 'chess', 'battleship'].includes(g))) plan.fixes = true;
   plan.why.push(`${f}: ${[(hit.robots || []).length ? 'robots ' + hit.robots.join(',') : '', (hit.ui || []).length ? 'rooms ' + hit.ui.join(',') : '', hit.screens ? 'screens' : '', hit.site ? 'site' : ''].filter(Boolean).join('; ') || 'checks only'}`);
 }

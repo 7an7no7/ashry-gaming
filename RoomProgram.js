@@ -300,16 +300,24 @@ const programFinish = (room) => {
  * «الشلة» (crews) hook: called once when a program reaches its finale, with
  *   summary = { code, at, startedAt,
  *               games:  [{ id, coop, cut, skipped, places: [{ id, name, place, pts }] }],
- *               table:  [{ id, name, pts, firsts, place }]   (best first),
- *               champions: [ids], awards: [{ k, id, name, v, g, with }] }
- * The rules can't reach another Durable Object, so it is left on the room as
- * room._nightSummary (private: never projected; kept until the program is closed
- * or another one starts); room.js (or the crew's code) picks it up after the move
- * or the alarm that made it, the way it takes room._stopTaps, and hands it on.
- * The crew link itself is built on another branch: this is the one place to wire it.
+ *               table:  [{ id, name, pts, firsts, place }]   (best first; ids are the room's player ids),
+ *               champions: [ids], awards: [{ k, id, name, v, g, with, from?, how? }] }
+ * Two places keep it, both private (never projected by view.js):
+ *   room.nightx.programs  the night's programs (the last 5), beside what bankNightPoints notes for
+ *                         the crew: the crew's night recording (room.js sends the night to its crew
+ *                         whenever room.night / room.nightx change, after a move and after the alarm)
+ *                         reads it from there - crewNightInput (Crew.js) maps each id to its member
+ *                         with room.crewLinks, as it does the night's rows (notes/builders/program.md);
+ *   room._nightSummary    the last one, for anything else that wants it (kept until the program is
+ *                         closed or another starts).
+ * Every game of a program is also banked on the room's own night table (3/2/1, bankNightPoints) as
+ * the hub would, so a crew's night counts a program's games like any other; the program's own
+ * table (5/3/2/1) and its awards are the extra this hook adds.
  */
 function nightProgramFinished(room, summary) {
   room._nightSummary = summary;
+  const x = nightExtras(room);
+  x.programs = (x.programs || []).concat([summary]).slice(-5);
 }
 
 /** After every move and every clock: a game that reached its end, a start pressed by hand. */

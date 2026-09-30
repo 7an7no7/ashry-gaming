@@ -746,7 +746,26 @@ const ROOM_ERR_EN = {
   'انتظر تلميح القائد': "Wait for the spymaster's clue",
   'النقلة دي مش مسموحة': "That move isn't allowed",
   'الرسام فقط': 'Only the drawer can do that',
-  'فلوسك مش مكفية': "You don't have enough money"
+  'فلوسك مش مكفية': "You don't have enough money",
+  // «الشلة» (rooms-worker/src/crew.js, room.js)
+  'ده للي ماسك الشلة بس': 'Only whoever runs the crew can do that',
+  'الاسم ده موجود في الشلة': 'Someone in the crew has that name',
+  'اكتب اسم الشلة': "Type the crew's name",
+  'اكتب اسمك': 'Type your name',
+  'اكتب الاسم': 'Type the name',
+  'الشلة اتملت': 'The crew is full',
+  'مش في الشلة': "They're not in the crew",
+  'الاسم ده مش في الشلة دلوقتي': "That name isn't in the crew any more",
+  'عشان تخرج انت، استخدم «اخرج من الشلة»': 'To leave yourself, use «Leave the crew»',
+  'اللي ضافها أو اللي ماسك الشلة بس': 'Only whoever added it, or runs the crew',
+  'الشلة فيها حاجات كتير، امسح واحدة الأول': 'The crew has too many; remove one first',
+  'كود مش صحيح': "That code isn't right",
+  'غيّر الشلة بين الألعاب': 'Change the crew between games',
+  'كود الشلة مش صحيح': "That crew code isn't right",
+  'إنت مش في الشلة دي على الموبايل ده': "This phone isn't in that crew",
+  'الغرفة مش للشلة دي': "The room isn't for that crew",
+  'معرفناش نعمل الشلة، جرّب تاني': "Couldn't start the crew - try again",
+  'حاولت كتير في وقت قصير، استنى شوية وجرب تاني': 'Too many tries in a short time - wait a bit and try again'
 };
 const ROOM_ERR_ARABIC = new RegExp('[' + String.fromCharCode(0x0600) + '-' + String.fromCharCode(0x06FF) + ']');
 function roomErrLocal(text) {
@@ -1069,6 +1088,8 @@ async function roomCreateFor(gameId) {
     await Room.create(name, gameId);
     setSyncing(false);
     lobbySkeleton(false);
+    // «الشلة»: a phone in a crew opens the night for the one it used last (the lobby changes it).
+    if (typeof crewAutoForRoom === 'function') crewAutoForRoom();
     // The room arrived while the skeleton was showing, so nothing has drawn it yet.
     if (Room.state) routeRoomState(Room.state);
   } catch (err) {
@@ -1457,6 +1478,12 @@ function renderRoomLobby(state) {
     needEl.dataset.short = String(short);
     if (wasShort > 0 && !short && startBtn && typeof motionNudge === 'function') motionNudge(startBtn);
   }
+  // «الشلة»: which crew tonight counts for (JS_CrewCore.html).
+  const crewEl = document.getElementById('room-crew');
+  if (crewEl && typeof crewLobbyHtml === 'function') {
+    const html = crewLobbyHtml(state);
+    if (crewEl.dataset.sig !== html) { crewEl.innerHTML = html; crewEl.dataset.sig = html; }
+  }
   // «أنت: منى ✏️» on a phone that plays (a screen has no name).
   const meBtn = document.getElementById('room-me');
   const mine = state.players.find(p => p.id === Room.me);
@@ -1610,6 +1637,7 @@ function roomNightBoardHtml(state, t) {
       <p class="field__hint" style="text-align:center">${escapeHTML(t.room_night_hint || '')}</p>
       ${!state.youAreScreen && typeof shareCardBtnHtml === 'function'
         ? `<div class="btn-row" style="justify-content:center">${shareCardBtnHtml('shareRoomNight()', t.night_share || t.share_card || '')}</div>` : ''}
+      ${typeof crewGuestOfferHtml === 'function' ? crewGuestOfferHtml(state, t) : ''}
     </div>`;
 }
 

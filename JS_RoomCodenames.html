@@ -83,7 +83,8 @@ const cnLocal = {
   smPick: null,       // the host is choosing a new spymaster for this team
   clock: null,
   clockKey: null,
-  appliedFor: null    // the room this host's remembered options were sent to
+  appliedFor: null,   // the room this host's remembered options were sent to
+  turnKey: null       // the turn and clue `pending` was picked for
 };
 
 /** Folds the spellings the server counts as one word (normaliseClue in RoomGames.js). */
@@ -165,6 +166,9 @@ ROOM_GAMES.codenames = {
       cnLocal.swapMode = false;
       cnLocal.smPick = null;
     }
+    // A new turn or a new clue: the card this phone picked for the last one is let go.
+    const turnKey = s.turn + '|' + (s.clue ? s.clue.word + ':' + s.clue.count : '');
+    if (cnLocal.turnKey !== turnKey) { cnLocal.turnKey = turnKey; cnLocal.pending = null; }
 
     const v = cnView(state);
     const faceUp = (s.board || []).map(c => !!c.revealed);
@@ -299,7 +303,7 @@ function cnCard(cell, i, v, fresh) {
 
 function cnBanner(s, t, L) {
   const timer = s.endsAt && !s.winner
-    ? `<span id="cn-timer" class="badge badge--accent cn-timer">${cnClockText(Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000)))}</span>`
+    ? `<span id="cn-timer" class="badge badge--accent cn-timer">${cnClockText(Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000)))}</span>`
     : '';
 
   if (s.winner) {
@@ -582,7 +586,7 @@ async function revealCodenamesPending() {
   if (i === null) return;
   cnLocal.pending = null;
   cnRedraw();
-  await roomAct('guess', { index: i });
+  await roomAct('guess', { index: i, turn: Room.state && Room.state.shared ? Room.state.shared.turn : undefined });
 }
 
 function toggleCodenamesKey() {
@@ -676,7 +680,7 @@ function cnOptionsSummary(t, settings) {
 function paintCodenamesTimer(endsAt) {
   const el = document.getElementById('cn-timer');
   if (!el) return 0;
-  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  const left = Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000));
   el.textContent = cnClockText(left);
   el.classList.toggle('badge--danger', left <= 10);
   el.classList.toggle('badge--accent', left > 10);
@@ -690,7 +694,7 @@ function startCodenamesClock(endsAt) {
   stopCodenamesClock();
   cnLocal.clockKey = endsAt;
   cnLocal.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => {
       const left = paintCodenamesTimer(endsAt);
       // Only while the board is what this phone shows: the hidden view keeps its timer element.

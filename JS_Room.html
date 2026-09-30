@@ -40,7 +40,19 @@ const Room = (() => {
   let state = null;        // last projection from the server
   // When each projection reached this phone, beside the server's time on it (serverNow): the
   // two together are the network's delay, whenever the screen gets round to drawing it.
-  const arrived = (s) => { if (s && typeof s === 'object') s.receivedAt = Date.now(); return s; };
+  // The smallest gap seen for this room is the network's share at most: roomServerNow() reads by it.
+  let clock = { code: '', gap: null };
+  const arrived = (s) => {
+    if (s && typeof s === 'object') {
+      s.receivedAt = Date.now();
+      if (typeof s.serverNow === 'number') {
+        const gap = s.receivedAt - s.serverNow;
+        if (clock.code !== s.code) clock = { code: s.code, gap: gap };
+        else clock.gap = Math.min(clock.gap, gap);
+      }
+    }
+    return s;
+  };
   // An HTTP answer can land after the socket (opened meanwhile) already brought
   // something newer: never step back to an older version of the same room.
   const notOlder = (s) => !state || !s || state.code !== s.code ||
@@ -302,8 +314,13 @@ const Room = (() => {
     waiter.reject(new Error(msg.error || roomErrText('action')));
   }
 
-  function failPending(message) {
-    pending.forEach(w => { clearTimeout(w.timer); w.reject(new Error(message)); });
+  function failPending(message, quiet) {
+    pending.forEach(w => {
+      clearTimeout(w.timer);
+      const err = new Error(message);
+      if (quiet) err.quiet = true;
+      w.reject(err);
+    });
     pending.clear();
   }
 
@@ -327,7 +344,9 @@ const Room = (() => {
           // here), and a big screen's presence decides who plays the table's sounds.
           state.players.forEach(p => { p.online = !!p.bot || res.online.indexOf(p.id) !== -1; });
           (state.screens || []).forEach(x => { x.online = res.online.indexOf(x.id) !== -1; });
-        } else if (res.state) {
+          // The host away (room.js): no move, but the stand-ins' buttons open or close.
+          if (typeof res.hostAway === 'boolean') state.hostAway = res.hostAway;
+        } else if (res.state && res.state.code === session.code) {
           state = arrived(res.state);
         }
         setSyncing(false);
@@ -349,6 +368,9 @@ const Room = (() => {
   const adoptSession = (res, game) => {
     const old = session;
     disconnect();
+    // A move still waiting on the old room's socket is let go without a word:
+    // its answer would never come, and it is not this room's.
+    failPending('', true);
     // Opening or joining a room while in another one leaves the old one properly,
     // or it kept a ghost seat (and, for a host, two minutes before handing over).
     if (old && old.code && old.playerId && old.playerId !== res.playerId) {
@@ -376,6 +398,8 @@ const Room = (() => {
     // A socket can look open after the phone slept and still be dead; this is
     // when something actually came back (JS_RoomTurn.html waits on it).
     get heardAt() { return heardAt; },
+    /** This phone's clock less the server's, as closely as the answers so far show it (0 before any). */
+    get clockGap() { return state && clock.code === state.code && clock.gap !== null ? clock.gap : 0; },
 
     onChange(fn) { listeners.push(fn); return () => { listeners = listeners.filter(f => f !== fn); }; },
 
@@ -428,7 +452,8 @@ const Room = (() => {
             throw new Error(res.gone ? DROPPED.gone : DROPPED.kicked);
           }
           if (!res.ok) throw new Error(res.error || roomErrText('action'));
-          if (res.state && session && notOlder(res.state)) { state = arrived(res.state); emit(false); }
+          // A late answer from a room this phone has since left is not this room's state.
+          if (res.state && session && res.state.code === session.code && notOlder(res.state)) { state = arrived(res.state); emit(false); }
           connect();
           return state;
         });
@@ -498,6 +523,12 @@ const Room = (() => {
     }
   };
 })();
+
+/** The server's time now, read on this phone: a room's endsAt is compared with this,
+    never with Date.now(), or a phone whose clock is off shows the wrong time left. */
+function roomServerNow() {
+  return Date.now() - Room.clockGap;
+}
 
 // A phone that wakes up, or gets its network back, catches up at once.
 document.addEventListener('visibilitychange', () => {

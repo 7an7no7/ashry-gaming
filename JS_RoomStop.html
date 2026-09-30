@@ -179,7 +179,7 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
         key: stopRoundKey(state), writing: s.phase === 'writing', room: true,
         letterHtml: `<div class="stop-letter">${escapeHTML(s.letter)}</div>`,
         // The clock is the stop's timetable board (the same element paintStopRoomTimer reads and paints).
-        clockHtml: s.phase === 'writing' && s.endsAt ? `<span id="stop-room-timer" class="badge badge--accent metric">${Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000))}</span>` : '',
+        clockHtml: s.phase === 'writing' && s.endsAt ? `<span id="stop-room-timer" class="badge badge--accent metric">${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</span>` : '',
         pax: stopBusRoomPax(state)
       })}
       ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
@@ -392,7 +392,7 @@ function adjustStopRoom(pid, cat, current) {
 }
 
 function paintStopRoomTimer(endsAt) {
-  const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  const left = Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000));
   const el = document.getElementById('stop-room-timer');
   if (el) { el.textContent = left; el.classList.toggle('badge--danger', left <= 10); el.classList.toggle('badge--accent', left > 10); }
   const big = document.getElementById('tv-stop-timer');
@@ -408,7 +408,7 @@ function startStopRoomClock(s) {
   stopRoom.clockKey = s.endsAt;
   const endsAt = s.endsAt;
   stopRoom.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: () => { const left = paintStopRoomTimer(endsAt); if (left > 0 && left <= 5) playRoomFx('tick'); },
     onEnd: () => {
       stopRoom.clock = null;

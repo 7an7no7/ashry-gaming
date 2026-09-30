@@ -48,7 +48,10 @@ const IDLE_RECHECK_MS = 10 * 60 * 1000;
 const ALARM_FLOOR_MS = 1000;
 // Rapid moves (drawing, the dial) are saved at most this often; the phones get them at once.
 const QUICK_SAVE_MS = 1000;
-const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer']);
+const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', 'stick']);
+// Quick actions whose game has a clock that moves with them: the alarm is still
+// set for these (the dark room's joystick: its traps and goal come with the walk).
+const QUICK_WITH_ALARM = new Set(['stick']);
 // The actions that deal prompts, which need the shared prompt memory.
 const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap']);
 const MAX_MESSAGE = 64 * 1024;
@@ -123,9 +126,11 @@ export class Room extends DurableObject {
     await this.ctx.storage.deleteAll();
   }
 
-  touch() {
+  touch(active = true) {
     this.room.version++;
-    this.room.updatedAt = Date.now();
+    // Only a move somebody is here for keeps the room from idling: a table of
+    // computer players moving on the alarm alone used to keep it alive for ever.
+    if (active) this.room.updatedAt = Date.now();
   }
 
   /* --- who is here --------------------------------------------------------- */
@@ -409,7 +414,7 @@ export class Room extends DurableObject {
     if (!changed && this.hostAway(this.onlineIds(), now) !== !!this.awayShown) presence = true;
 
     if (changed) {
-      this.touch();
+      this.touch(this.onlineIds().size > 0);
       await this.save();
       this.broadcast();
     } else {
@@ -566,7 +571,7 @@ export class Room extends DurableObject {
     // The host's move while a game is on: look again when their socket would
     // count as quiet (HOST_QUIET_MS), so a phone locked mid-game lets stand-ins in.
     const watchHost = pid === next.hostId && next.game && next.phase !== 'lobby';
-    if (!quick) await this.scheduleAlarm(watchHost ? Date.now() + HOST_QUIET_MS + 1000 : undefined);
+    if (!quick || QUICK_WITH_ALARM.has(action)) await this.scheduleAlarm(watchHost ? Date.now() + HOST_QUIET_MS + 1000 : undefined);
 
     // New strokes go out as just the strokes: resending a whole drawing to every
     // phone a few times a second would be most of a phone's data.
@@ -606,7 +611,7 @@ export class Room extends DurableObject {
     }
     const online = this.onlineIds();
     if (Number(version) === this.room.version) {
-      return { ok: true, same: true, version: this.room.version, online: [...online] };
+      return { ok: true, same: true, version: this.room.version, online: [...online], hostAway: this.hostAway(online) };
     }
     return { ok: true, state: this.project(pid, online) };
   }

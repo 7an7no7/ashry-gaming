@@ -722,7 +722,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
   if (action === 'start' && room.phase !== 'lobby') {
     roomEvent(room, 'started', { game: room.game });
     room.predict = { game: room.game, until: Date.now() + PREDICT_OPEN_MS, picks: {} };
-    room.cheer = null;
+    // The last cheer goes, its number stays: a phone only floats a cheer newer than
+    // the last it saw, so a count starting over hid every cheer from game 2 on.
+    room.cheer = room.cheer ? { seq: room.cheer.seq } : null;
   }
 
   // Play again, or a new tournament, after a game that was over: the guesses on the
@@ -1101,7 +1103,7 @@ const finishChameleon = (room, outcome, guessIndex) => {
   s.secretWord = s.words[room._chamSecret];
   if (outcome === 'caught') {
     s.roster.forEach(id => { if (id !== cham && room.players.some(p => p.id === id)) addScore(room, id, 1); });
-  } else {
+  } else if (outcome !== 'revealed') {
     addScore(room, cham, 2);
   }
   s.board = scoreboardOf(room);
@@ -1243,7 +1245,7 @@ const finishSpyfall = (room, outcome, guess, spyId) => {
   s.spyNames = spies.map(id => roomPlayerName(room, id));
   if (outcome === 'caught') {
     s.roster.forEach(id => { if (spies.indexOf(id) === -1 && room.players.some(p => p.id === id)) addScore(room, id, 1); });
-  } else {
+  } else if (outcome !== 'revealed') {
     spies.forEach(id => addScore(room, id, 2));
   }
   s.board = scoreboardOf(room);
@@ -1315,6 +1317,8 @@ const bombRoomAction = (room, playerId, action, payload) => {
     // whoever was handed the bomb can hand it straight back, and the host can
     // settle it at any point. The fuse keeps burning through the argument.
     if (s.phase !== 'ticking') return;
+    // Aimed at the pass the phone saw: a second tap, or one after the bomb moved on, does nothing.
+    if (staleTap(payload, 'passes', s.passes || 0) || staleTap(payload, 'from', s.fromId)) return;
     const isHost = room.hostId === playerId;
     if (!s.fromId) throw new Error('مفيش تمريرة ترجع');
     if (!isHost && playerId !== s.holderId) throw new Error('القنبلة مش معاك');
@@ -1414,7 +1418,7 @@ const buzzerAction = (room, playerId, action, payload) => {
     requireHost(room, playerId);
     if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
     room.secrets = {};
-    room.shared = { round: 1, phase: 'armed', buzzes: [], scores: {}, last: null, roster: room.players.map(p => p.id) };
+    room.shared = { round: 1, phase: 'armed', buzzes: [], out: [], scores: {}, last: null, roster: room.players.map(p => p.id) };
     room.shared.board = scoreboardOf(room);
     room.phase = 'playing';
     return;
@@ -1426,9 +1430,13 @@ const buzzerAction = (room, playerId, action, payload) => {
   if (action === 'buzz') {
     // A press after the host locked, or a second press: nothing to record.
     if (s.phase !== 'armed') return;
+    // A press for a question that has moved on can't lead the next one.
+    if (staleTap(payload, 'round', s.round)) return;
     const player = room.players.find(p => p.id === playerId);
     if (!player) return;                                     // a screen can't buzz
     if (s.buzzes.some(b => b.id === playerId)) return;
+    // Answered wrong: out until the next question (the owner's rule).
+    if ((s.out || []).indexOf(playerId) !== -1) return;
     s.buzzes.push({ id: playerId, name: player.name, at: Date.now() });
     return;
   }
@@ -1437,7 +1445,7 @@ const buzzerAction = (room, playerId, action, payload) => {
 
   // Whoever is here when a question starts is in it: someone who joined during
   // the evening can buzz from the next question, not only after a new game.
-  const freshRoster = () => { s.roster = room.players.map(p => p.id); };
+  const freshRoster = () => { s.roster = room.players.map(p => p.id); s.out = []; };
 
   // The first in line answered. Right: a point and a fresh question. Wrong:
   // out of the line, and the next one gets a go at the same question. The
@@ -1459,6 +1467,8 @@ const buzzerAction = (room, playerId, action, payload) => {
     if (staleTap(payload, 'id', s.buzzes[0] && s.buzzes[0].id)) return;
     const first = s.buzzes.shift();
     if (!first) return;
+    // Out for the rest of this question: no second go at the same one.
+    s.out = (s.out || []).concat([first.id]);
     if (payload && payload.penalty) addScore(room, first.id, -1);
     s.last = { id: first.id, name: first.name, ok: false };
     s.board = scoreboardOf(room);
@@ -2199,6 +2209,8 @@ const codenamesAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'guess') {
+    // Picked on a turn that has since passed: the screen's pick would be the other team's guess.
+    if (staleTap(payload, 'turn', s.turn)) return;
     // A big screen guesses for whichever team is up: the team gathered at the TV.
     const t = isRoomScreen(room, playerId) ? { team: s.turn, role: 'operative' } : teamOf(playerId);
     if (!t || t.role !== 'operative') throw new Error('اللاعبون فقط يخمنون');
@@ -3367,6 +3379,8 @@ const wavelengthAction = (room, playerId, action, payload) => {
     // From the results only (a double tap must not skip someone's turn as
     // psychic) — unless the host is deliberately skipping a silent psychic.
     if (action === 'nextRound' && prev.phase !== 'results' && !(payload && payload.skip)) return;
+    // The skip names the round it was pressed on: a double tap must not skip two psychics.
+    if (action === 'nextRound' && staleTap(payload, 'round', prev.round)) return;
     if (room.players.length < 2) throw new Error('الحد الأدنى لاعبان');
 
     const lang = roomLangOf(room, payload);
@@ -3873,16 +3887,35 @@ const gamePlayerLeft = (room, playerId, name) => {
   // A tournament: their match is lost by forfeit, and so is any they would have played (RoomTournament.js).
   if (isTourRoom(room)) { tourPlayerLeft(room, playerId); return; }
 
+  // Every impostor gone before a vote caught them: the round has nothing left to
+  // find, so it ends as the host's reveal would - the answer shown, nobody scores.
+  const impostorsGone = (ids) => (ids || []).length > 0 && !(ids || []).some(here);
+
   switch (room.game) {
     case 'imposter':
+      if ((room.phase === 'reveal' || room.phase === 'discuss' || room.phase === 'voting') && impostorsGone(room._impSpies)) {
+        s.impostorLeft = true;
+        finishImposter(room, 'revealed', null);
+        return;
+      }
       if (room.phase === 'voting' && voteClosed()) resolveImposterVote(room);
       if (room.phase === 'guess' && !here(s.guesserId)) finishImposter(room, 'caught', null);
       return;
     case 'chameleon':
+      if (s.phase !== 'guess' && s.phase !== 'results' && impostorsGone([room._chamId])) {
+        s.impostorLeft = true;
+        finishChameleon(room, 'revealed', null);
+        return;
+      }
       if (s.phase === 'voting' && voteClosed()) resolveChameleonVote(room);
       if (s.phase === 'guess' && !here(room._chamId)) finishChameleon(room, 'caught', null);
       return;
     case 'spyfall':
+      if (s.phase !== 'guess' && s.phase !== 'results' && impostorsGone(room._spyIds)) {
+        s.impostorLeft = true;
+        finishSpyfall(room, 'revealed', null, null);
+        return;
+      }
       if (s.phase === 'voting' && voteClosed()) resolveSpyfallVote(room);
       if (s.phase === 'guess' && !here(s.guesserId)) finishSpyfall(room, 'caught', null, s.guesserId);
       return;
@@ -3928,6 +3961,7 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'witness':
       witnessPlayerLeft(room, playerId);
+      return;
     case 'wire':
       wirePlayerLeft(room, playerId);
       return;
@@ -4088,6 +4122,9 @@ const monkeyPlayerLeft = (room, playerId) => {
   const wasUp = s.turnId === playerId;
   s.order = s.order.filter(id => id !== playerId);
   if (s.quarters) delete s.quarters[playerId];
+  // The last letter was theirs: «كذاب» on it would hand a quarter to nobody, so the word starts over.
+  const lastLetter = Array.isArray(s.letters) && s.letters[s.letters.length - 1];
+  if (lastLetter && lastLetter.by === playerId) s.letters = [];
   // A verdict about them can't move a quarter to, or from, someone who isn't here.
   if (s.verdict && (s.verdict.loserId === playerId || s.verdict.otherId === playerId)) s.verdict.canFlip = false;
   s.board = monkeyBoard(room);
@@ -4291,6 +4328,8 @@ const quizAction = (room, playerId, action, payload) => {
   const s = room.shared;
 
   if (action === 'guess') {
+    // Typed for a card that has since closed: never judged against the next one.
+    if (staleTap(payload, 'qIndex', s.qIndex)) return;
     if (s.phase !== 'answering') throw new Error('انتهى وقت الإجابة');
     if ((s.roster || []).indexOf(playerId) === -1) throw new Error('لست ضمن هذه الجولة');
     const text = String((payload && payload.text) || '').trim().slice(0, 60);

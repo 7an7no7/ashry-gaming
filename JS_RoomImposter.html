@@ -197,6 +197,7 @@ function imposterOutcomeLine(s, t) {
   if (s.outcome === 'escaped') return (under ? (t.imp_und_escaped || '') : (t.imp_escaped || '')).replace('{name}', names);
   if (s.outcome === 'stole') return (under ? (t.imp_und_stole || '') : (t.imp_stole || '')).replace('{name}', names);
   if (s.outcome === 'caught') return (under ? (t.imp_und_caught || '') : (t.imp_caught || '')).replace('{name}', names);
+  if (s.impostorLeft) return (t.room_impostor_left || '').replace('{name}', names);
   return under ? (t.imp_und_revealed || '') : (t.imp_revealed || '');
 }
 
@@ -210,7 +211,7 @@ function stopRoomDiscussClock() {
 }
 onRoomClocksReset(stopRoomDiscussClock);
 function startRoomDiscussClock(startedAt) {
-  const base = startedAt || Date.now();
+  const base = startedAt || roomServerNow();
   // Restarting on every render threw the tick away each poll for no gain; the
   // reading is anchored to the shared start time either way.
   if (roomDiscussClock && roomDiscussBase === base) return;
@@ -219,7 +220,7 @@ function startRoomDiscussClock(startedAt) {
   const paint = () => {
     const el = document.getElementById('room-imp-timer');
     if (!el) return;
-    const secs = Math.max(0, Math.floor((Date.now() - base) / 1000));
+    const secs = Math.max(0, Math.floor((roomServerNow() - base) / 1000));
     const m = String(Math.floor(secs / 60)).padStart(2, '0');
     const s = String(secs % 60).padStart(2, '0');
     el.innerText = `${m}:${s}`;
@@ -278,7 +279,7 @@ function renderImposterResult(el, state, t) {
  *
  * Returns true when it rebuilt, for anything that should only fire on a change.
  */
-function renderRoomFrame(el, sig, build) {
+function renderRoomFrame(el, sig, build, keep) {
   // The deal is part of every frame (the owner, 23 Sep 2026: back to the hub,
   // ارسم وخمّن chosen again, and the same word "again and again"). A new deal of
   // the same game starts at round 1 with the same player up, so a screen keyed
@@ -288,8 +289,32 @@ function renderRoomFrame(el, sig, build) {
   const full = (st ? [st.code, st.game || '', (st.shared && st.shared.dealId) || ''].join('~') + '~' : '') + sig;
   if (el.dataset.sig === full) return false;
   el.dataset.sig = full;
+  // `keep` names the moment a field belongs to (a round's writing): rebuilt within
+  // the same moment - a new host, the language - what is being typed survives.
+  const keepKey = keep ? full.slice(0, full.length - sig.length) + keep : '';
+  const kept = keepKey && el.dataset.keep === keepKey ? roomFieldsTake(el) : null;
+  el.dataset.keep = keepKey;
   el.innerHTML = build();
+  if (kept) roomFieldsPut(kept);
   return true;
+}
+
+/** The text fields of a frame, their values, and which had the caret. */
+function roomFieldsTake(el) {
+  const fields = [...el.querySelectorAll('input[id]:not([type]), input[id][type="text"], textarea[id]')]
+    .filter(f => f.value).map(f => ({ id: f.id, value: f.value }));
+  const a = document.activeElement;
+  const focus = a && a.id && el.contains(a) && 'selectionStart' in a
+    ? { id: a.id, start: a.selectionStart, end: a.selectionEnd } : null;
+  return { fields: fields, focus: focus };
+}
+
+function roomFieldsPut(kept) {
+  kept.fields.forEach(f => { const box = document.getElementById(f.id); if (box && !box.value) box.value = f.value; });
+  const f = kept.focus && document.getElementById(kept.focus.id);
+  if (f) {
+    try { f.focus({ preventScroll: true }); f.setSelectionRange(kept.focus.start, kept.focus.end); } catch (e) {}
+  }
 }
 
 /** Updates just the presence strip, leaving the rest of the view alone. */
@@ -330,7 +355,7 @@ async function roomAct(action, payload) {
   try {
     await Room.act(action, payload || {});
   } catch (err) {
-    showToast(err.message || 'تعذر تنفيذ الإجراء', 'error');
+    if (!err.quiet) showToast(err.message || 'تعذر تنفيذ الإجراء', 'error');
   }
 }
 </script>

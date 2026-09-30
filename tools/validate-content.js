@@ -555,6 +555,9 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   if (!catIds.length) note('GameIds.js: could not read the ids of GAME_CATALOG');
   catIds.filter(id => appIds.indexOf(id) === -1).forEach(id => note(`GameIds.js: '${id}' is in GAME_CATALOG but not in APP_GAME_IDS`));
   appIds.filter(id => catIds.indexOf(id) === -1).forEach(id => note(`GameIds.js: '${id}' is in APP_GAME_IDS but not in GAME_CATALOG`));
+  // A merge once left two half-lines of it side by side: an id listed twice is a bad merge.
+  appIds.filter((id, k) => appIds.indexOf(id) !== k).forEach(id => note(`GameIds.js: '${id}' is listed twice in APP_GAME_IDS`));
+  catIds.filter((id, k) => catIds.indexOf(id) !== k).forEach(id => note(`JS_Catalog.html: '${id}' is in GAME_CATALOG twice`));
   // Every «في غلطة؟» button names an id the server takes.
   fs.readdirSync(ROOT).filter(f => /^JS_.*\.html$/.test(f)).forEach(f => {
     const src = fs.readFileSync(ROOT + f, 'utf8');

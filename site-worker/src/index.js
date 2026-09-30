@@ -138,7 +138,7 @@ async function crewPage(request, env, url) {
     title = name ? `Join the crew “${name}” on ${site}` : `Join a crew on ${site}`;
     desc = `Our family's own league: who wins the most nights this month. Open the link and pick your name.`;
   } else {
-    title = name ? `انضم لشلة «${name}» على ${site}` : `انضم للشلة على ${site}`;
+    title = name ? `انضم لـ «${name}» على ${site}` : `انضم للشلة على ${site}`;
     desc = `الدوري بتاعنا: مين يكسب ليالي أكتر الشهر ده. افتح اللينك واختار اسمك.`;
   }
   const target = url.origin + '/?crew=' + code;

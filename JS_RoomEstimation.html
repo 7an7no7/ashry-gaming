@@ -810,6 +810,14 @@ function esTurnCue(state) {
   esLocal.turnMine = mine;
   if (mine && !was && esFx.watched === state.code) { playSound('tick'); haptic('medium'); }
   esHandInView(state);
+  // «بعدك إنت» while cards are played (the auction and the calls skip seats): the seat after the
+  // one up, unless the card coming completes the trick (then its winner leads).
+  let next = null;
+  if (s.phase === 'play' && s.turn && s.turn.stage === 'play' && (s.trick || []).length < 3 && typeof estNext === 'function') {
+    const k = estNext(s.turn.k);
+    if (k === esMine(state)) next = Room.me;
+  }
+  if (typeof roomNextUpCue === 'function') roomNextUpCue('estimation', state, next, [s.deal || '', s.tricks || 0, (s.trick || []).length].join('|'));
 }
 
 /** On your turn the page keeps your hand and the bar in sight. */

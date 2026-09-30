@@ -22193,4 +22193,61 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
 }
 
 
+/* ===== IDEAS BATCH: BOARD ===== */
+
+/* لودو: where every piece that can move lands, drawn at once (a touch screen has no hover). */
+.ludo-path--end.ludo-land { animation: ideasLudoLand 1.6s ease-in-out infinite; }
+.ludo-path--end.ludo-land.is-safe { background: rgba(255, 255, 255, 0.55); }
+.ludo-path--end.ludo-land i {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-style: normal; font-size: 0.8rem; line-height: 1; color: var(--pc);
+}
+@keyframes ideasLudoLand { 0%, 100% { opacity: 0.95; } 50% { opacity: 0.55; } }
+
+/* السلم والتعبان: before your roll, your piece's ring and the six squares a roll could reach. */
+.snk-hint { stroke-width: 3.5; fill-opacity: 0.2; stroke-opacity: 0.95; }
+.snk-hint--plain { stroke: #ffffff; fill: #ffffff; stroke-dasharray: 6 5; }
+.snk-hint--ladder { stroke: #1f9d55; fill: #1f9d55; }
+.snk-hint--snake { stroke: #e5383b; fill: #e5383b; }
+.snk-myring {
+  fill: none; stroke-width: 3;
+  transform-box: fill-box; transform-origin: center;
+  animation: ideasSnkRing 1.2s ease-out infinite;
+}
+@keyframes ideasSnkRing { from { transform: scale(0.85); opacity: 1; } to { transform: scale(1.35); opacity: 0.15; } }
+
+/* أونو: how many of each colour you hold, and a faint ring on the one you hold most. */
+.uno-colorbtn__n { font-family: var(--font); font-weight: 700; font-size: 0.85em; opacity: 0.85; }
+.uno-colorbtn.is-most { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink, #000) 22%, transparent), 0 6px 14px -8px var(--c); }
+
+/* «بعدك إنت»: a small pill under the header when the player just before you is up. */
+.room-nextup {
+  position: fixed;
+  inset-block-start: calc(var(--safe-top) + 3.9rem);
+  left: 50%;
+  transform: translate(-50%, 0);
+  z-index: var(--z-toast);
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: var(--accent-soft, var(--surface-solid));
+  color: var(--accent-ink, var(--text));
+  border: 1px solid color-mix(in srgb, var(--accent, #7c5cff) 35%, transparent);
+  box-shadow: var(--shadow-md, 0 6px 18px -8px rgba(0, 0, 0, 0.35));
+  font-weight: 700;
+  font-size: 0.9rem;
+  pointer-events: none;
+  white-space: nowrap;
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .room-nextup { inset-block-start: calc(var(--safe-top) + 0.5rem); }
+}
+
+/* بنك الحظ: the 🏗️ button breathes when a whole colour can be built on. */
+.bank-nudge { animation: ideasBankNudge 1.8s ease-in-out infinite; box-shadow: 0 0 0 2px var(--accent); }
+@keyframes ideasBankNudge { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ludo-path--end.ludo-land, .snk-myring, .bank-nudge { animation: none; }
+}
+
 </style>

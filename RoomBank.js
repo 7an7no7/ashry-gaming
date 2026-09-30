@@ -196,7 +196,7 @@ const bankAction = (room, playerId, action, payload) => {
 
   if (s.seats.indexOf(playerId) === -1 || s.out.indexOf(playerId) !== -1) throw new Error('انت مش في اللعبة دي');
 
-  const turnMoves = { roll: 1, buy: 1, payJail: 1, useCard: 1, payDebt: 1, bankrupt: 1, endTurn: 1 };
+  const turnMoves = { roll: 1, buy: 1, payJail: 1, useCard: 1, payDebt: 1, raise: 1, bankrupt: 1, endTurn: 1 };
   const manage = { build: 1, sell: 1, mortgage: 1, unmortgage: 1, offer: 1, cancelOffer: 1 };
   if (turnMoves[action]) {
     if (bankStale(s, p, 'seq')) return;
@@ -207,6 +207,7 @@ const bankAction = (room, playerId, action, payload) => {
     else if (action === 'payJail') bankPayJail(s, playerId);
     else if (action === 'useCard') bankUseCard(s, priv, playerId);
     else if (action === 'payDebt') bankPayDebt(s, priv, playerId, Math.random);
+    else if (action === 'raise') bankRaiseDebt(s, priv, playerId, Math.random);
     else if (action === 'bankrupt') bankBankrupt(s, priv, playerId, now);
     else if (action === 'endTurn') bankEndTurn(s, playerId, now);
     bankRoomAfter(room);

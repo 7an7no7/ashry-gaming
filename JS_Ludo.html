@@ -525,15 +525,54 @@ function ludoSound(name) {
 }
 
 /**
+ * Where each piece this phone may move would land, drawn at once so a touch
+ * screen sees it too (a mouse also gets the whole path on hover): a ring in the
+ * piece's colour, «أكل» over a capture, ★ on a safe square. Two pieces that
+ * land on one square draw one ring. Cleared when the frame is redrawn or a
+ * piece is tapped.
+ */
+function ludoLandMarks(board, c) {
+  const layer = board && board.querySelector('[data-ludo-fx]');
+  if (!layer || !board.isConnected) return;
+  layer.querySelectorAll('.ludo-land').forEach(x => x.remove());
+  const g = c.g;
+  if (!g || !g.turn || g.turn.stage !== 'move') return;
+  const seen = {};
+  board.querySelectorAll('.ludo-pc.is-movable').forEach(btn => {
+    const [pid, i] = String(btn.getAttribute('data-ludo-pc')).split('|');
+    const tg = ludoTarget(g, pid, Number(i), g.turn.dice);
+    if (!tg) return;
+    const color = g.colors[pid];
+    const xy = ludoCellOf(color, tg.to, Number(i));
+    const at = tg.to === LUDO_HOME ? 'home' : xy.join(',');
+    if (seen[at]) return;
+    seen[at] = 1;
+    const onTrack = tg.to <= LUDO_LAST_TRACK;
+    const safe = onTrack && !tg.cap.length && LUDO_SAFE.indexOf(ludoGlobal(color, tg.to)) !== -1;
+    const dot = document.createElement('span');
+    dot.className = 'ludo-path ludo-path--end ludo-land' + (tg.cap.length ? ' is-capture' : '') + (safe ? ' is-safe' : '');
+    dot.style.left = ludoPct(xy[0]);
+    dot.style.top = ludoPct(xy[1]);
+    dot.style.setProperty('--pc', LUDO_HEX[color]);
+    if (tg.cap.length) dot.innerHTML = `<b dir="auto">${escapeHTML(ludoT('ludo_takes'))}</b>`;
+    else if (safe) dot.innerHTML = '<i aria-hidden="true">★</i>';
+    layer.appendChild(dot);
+  });
+}
+
+/**
  * The finger on a piece that can move: a mouse or a keyboard sees the squares
  * it would pass and where it lands first ("أكل" where it takes a piece); a tap
  * moves it. `onMove(index)`.
  */
-function ludoWire(root, c, onMove) {
+function ludoWire(root, c, onMove, delay) {
   const board = root.querySelector('[data-ludo-board]');
   if (!board || typeof onMove !== 'function') return;
   const layer = board.querySelector('[data-ludo-fx]');
-  const clear = () => { if (layer) layer.querySelectorAll('.ludo-path').forEach(x => x.remove()); };
+  const clear = () => { if (layer) layer.querySelectorAll('.ludo-path:not(.ludo-land)').forEach(x => x.remove()); };
+  // Every piece that can move shows where it lands, once the roll has been seen.
+  const marks = () => ludoLandMarks(board, c);
+  if (delay > 0) ludoFx.timers.push(setTimeout(marks, delay)); else marks();
   const show = (btn) => {
     clear();
     const [pid, i] = String(btn.getAttribute('data-ludo-pc')).split('|');
@@ -560,6 +599,7 @@ function ludoWire(root, c, onMove) {
     btn.addEventListener('blur', clear);
     btn.addEventListener('click', () => {
       clear();
+      if (layer) layer.querySelectorAll('.ludo-land').forEach(x => x.remove());
       const i = Number(String(btn.getAttribute('data-ludo-pc')).split('|')[1]);
       haptic('light');
       onMove(i);
@@ -733,7 +773,7 @@ function paintLudo(opts) {
   el.innerHTML = ludoFrameHtml(c);
   if (o.still) ludoEventsToPlay(c.key, s.g, false);
   const played = ludoAfterPaint(el, c);
-  ludoWire(el, c, ludoLocalMove);
+  ludoWire(el, c, ludoLocalMove, played);
   const g = s.g;
   if (g.phase === 'play' && g.turn.pid === 'me') {
     if (typeof duelOnce === 'function' && duelOnce(['ludo-turn', s.gameId, g.turnSeq].join('|')) && !o.still) {

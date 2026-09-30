@@ -699,6 +699,23 @@ const bankPayDebt = (g, priv, pid, rnd) => {
   bankAfter(g);
 };
 
+/**
+ * «🪄 دبّرها» (ideas batch): the player whose debt it is has the money raised for them - the very
+ * sell-back-then-mortgage the computer players and the clock use (bankRaise) - and pays it. Refused
+ * (and nothing touched) when everything they have can't cover it, so it never half-sells a player
+ * who is going bankrupt anyway.
+ */
+const bankRaiseDebt = (g, priv, pid, rnd) => {
+  bankMustTurn(g, pid, ['debt']);
+  const d = g.debt;
+  if (!d || d.pid !== pid) throw new Error('مفيش دين');
+  if ((g.cash[pid] || 0) < d.amount) {
+    if (bankLiquid(g, pid) < d.amount) throw new Error('أملاكك مش مكفية الدين');
+    bankRaise(g, pid, d.amount);
+  }
+  bankPayDebt(g, priv, pid, rnd);
+};
+
 /** The turn is over: the next player, or - time up and the lap done - the end. */
 const bankEndTurn = (g, pid, now) => {
   bankMustTurn(g, pid, ['act']);

@@ -308,6 +308,11 @@ function ludoTurnCue(state, delay) {
   if (mine && !was && ludoFx.watched === state.code) {
     ludoFx.timers.push(setTimeout(() => { playSound('tick'); haptic('medium'); }, delay || 0));
   }
+  // «بعدك إنت»: only on a player's roll, not while they may still roll a 6 again (that is still their turn).
+  const seats = (s.seats || []).filter(id => (s.places || []).indexOf(id) === -1);
+  const at = s.turn ? seats.indexOf(s.turn.pid) : -1;
+  const next = s.phase === 'play' && at !== -1 && seats.length > 2 ? seats[(at + 1) % seats.length] : null;
+  if (typeof roomNextUpCue === 'function') roomNextUpCue('ludo', state, next, [s.dealId || '', s.turn ? s.turn.pid : ''].join('|'));
 }
 
 ROOM_GAMES.ludo = {
@@ -362,7 +367,7 @@ ROOM_GAMES.ludo = {
     ludoTickClock(state);
     if (!rebuilt) return;
     const played = ludoAfterPaint(el, c);
-    ludoWire(el, c, ludoRoomMove);
+    ludoWire(el, c, ludoRoomMove, played);
     ludoTurnCue(state, played);
     if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce(['ludo-room-end', c.key].join('|'))) {
       const won = s.places[0] === Room.me;

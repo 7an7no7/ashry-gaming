@@ -921,6 +921,11 @@ function domTurnCue(state) {
     if (bar && domCanMove()) bar.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.02)' }, { transform: 'scale(1)' }], { duration: 360, easing: 'ease-out' });
   }
   domHandInView(state);
+  const s = domShared(state);
+  const order = (s.order || []).filter(id => (state.players || []).some(p => p.id === id));
+  const at = order.indexOf(s.turn);
+  const next = s.phase === 'play' && at !== -1 && order.length > 2 ? order[(at + 1) % order.length] : null;
+  if (typeof roomNextUpCue === 'function') roomNextUpCue('domino', state, next, [s.dealId || '', s.round || 0, s.turn || ''].join('|'));
 }
 
 /** On your turn the page keeps your hand and the bar in sight - and the ends to choose from, once a tile is picked. */

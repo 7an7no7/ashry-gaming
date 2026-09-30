@@ -74,7 +74,11 @@ function dkSetOpt(patch) {
 }
 const dkOnce = (key) => { if (!key || dk.seen.has(key)) return false; if (dk.seen.size > 400) dk.seen.clear(); dk.seen.add(key); return true; };
 const dkName = (state, id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
-const dkLevelKey = (state) => roomDealKey(state) + '|' + ((state.shared || {}).level || 0);
+// The map's seed too: a new mover mid-level gets a new map at the same level (RoomDark.js darkNewMap).
+const dkLevelKey = (state) => {
+  const g = (state.you && state.you.g) || (state.screen && state.screen.g) || {};
+  return roomDealKey(state) + '|' + ((state.shared || {}).level || 0) + '|' + (g.seed || 0);
+};
 
 /** Who this device is: the mover, a guide, watching, or a screen. */
 function dkRole(state) {
@@ -1140,7 +1144,9 @@ function dkTvMount(state, force) {
   if (!stage || !m) return;
   const key = dkLevelKey(state);
   const want = dkTvWant();
-  if (dk.view && !force && dk.view.key === key && dk.view.mode === (dk.view.fell ? '2d' : want)) {
+  // A 2D view still waiting for three.js counts as the 3D one it will become (no rebuild, no second load).
+  const fits = (v) => (v.fell ? v.mode === '2d' : v.mode === want || (want === '3d' && v.pending3d));
+  if (dk.view && !force && dk.view.key === key && fits(dk.view)) {
     if (dk.view.root.parentElement !== stage) stage.insertBefore(dk.view.root, stage.firstChild);
     return;
   }
@@ -1150,8 +1156,10 @@ function dkTvMount(state, force) {
   dk.view = v;
   stage.insertBefore(v.root, stage.firstChild);
   if (want === '3d' && typeof loadThree === 'function') {
+    v.pending3d = true;
     loadThree().then((T) => {
-      if (dk.view !== v || !v.root.isConnected) return;
+      v.pending3d = false;
+      if (dk.view !== v || !v.root.isConnected || dkTvWant() !== '3d') return;
       let v3 = null;
       try { v3 = dkTv3D(m, T); } catch (e) { v3 = null; }
       if (!v3) { v.fell = true; return; }
@@ -1159,7 +1167,7 @@ function dkTvMount(state, force) {
       v.root.replaceWith(v3.root);
       v.dispose();
       dk.view = v3;
-    }).catch(() => { v.fell = true; });
+    }).catch(() => { v.pending3d = false; v.fell = true; });
   }
 }
 function dkTvDrop() {

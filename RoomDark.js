@@ -108,6 +108,7 @@ const darkAction = (room, playerId, action, payload) => {
     if (now - (h.lastStep || 0) < DARK_STEP_GAP) return;
     h.lastStep = now;
     const m = darkMapOf(room);
+    if (darkCatchUp(room, m, now)) { darkSync(room); return; }
     const x = Math.floor(s.pos.x), y = Math.floor(s.pos.y);
     s.face = payload.d;
     const b = darkBlocked(m, x, y, d[0], d[1]);
@@ -123,6 +124,7 @@ const darkAction = (room, playerId, action, payload) => {
     if (playerId !== s.moverId || s.mode !== 'stick' || s.phase !== 'play' || now < s.t0) return;
     const h = room._dark;
     const m = darkMapOf(room);
+    if (darkCatchUp(room, m, now)) { darkSync(room); return; }
     let vx = Number(payload && payload.vx), vy = Number(payload && payload.vy);
     if (!isFinite(vx) || !isFinite(vy)) { vx = 0; vy = 0; }
     const len = Math.hypot(vx, vy);
@@ -154,7 +156,7 @@ const darkAction = (room, playerId, action, payload) => {
     if (staleTap(payload, 'run', s.run)) return;
     if (s.phase !== 'play') return;
     darkNextMover(room);
-    darkToStart(room);
+    darkNewMap(room);
     darkEv(room, { type: 'mover' });
     darkSync(room);
     return;
@@ -176,6 +178,9 @@ const darkArrive = (room, m, cells, now) => {
     if (c === goal && (s.mode === 'steps' || c === cells[cells.length - 1])) { darkWon(room, now); return; }
   }
   const last = cells[cells.length - 1];
+  // Where the mover now stands was checked up to this tick; the alarm checks the ticks after it.
+  h.checkCell = last;
+  h.checkK = Math.floor(ms / DARK_TICK);
   if (last !== h.nearCell && now - (h.lastNear || 0) > DARK_NEAR_GAP) {
     const near = darkNear(m, last, ms);
     if (near) {
@@ -186,7 +191,7 @@ const darkArrive = (room, m, cells, now) => {
   h.nearCell = last;
 };
 
-const darkCaught = (room, kind, cell, now) => {
+const darkCaught = (room, kind, cell, now, at) => {
   const s = room.shared;
   const m = darkMapOf(room);
   s.phase = 'trap';
@@ -194,7 +199,7 @@ const darkCaught = (room, kind, cell, now) => {
   s.hearts = Math.max(0, s.hearts - 1);
   s.stunUntil = now + DARK_TRAP_MS;
   s.trap = kind;
-  darkEv(room, { type: 'trap', k: kind });
+  darkEv(room, { type: 'trap', k: kind, at: at || now });
   darkPev(room, { type: 'trap', k: kind, x: cell % m.w, y: Math.floor(cell / m.w) });
 };
 
@@ -221,6 +226,8 @@ const darkToStart = (room) => {
   s.stunUntil = null;
   room._dark.lastStick = 0;
   room._dark.nearCell = -1;
+  room._dark.checkCell = darkCellOf(m, s.pos);
+  room._dark.checkK = Math.floor((s.at - s.t0) / DARK_TICK) - 1;   // this tick still to check
 };
 
 /** The next one in the order who is still here walks. */
@@ -238,17 +245,70 @@ const darkStartLevel = (room, first) => {
   const s = room.shared;
   const h = room._dark;
   s.level = (s.level || 0) + 1;
+  darkNextMover(room);
+  darkNewMap(room);
+  darkEv(room, { type: 'level', lv: s.level, first: !!first });
+};
+
+/**
+ * A new plan for this level (a new seed), from its intro: every level, and
+ * when the walk passes to another mover mid-level (the owner, 30 Sep 2026),
+ * since the new mover was a guide who saw the old one. The level, the hearts
+ * and the levels cleared stay as they are.
+ */
+const darkNewMap = (room) => {
+  const s = room.shared;
+  const h = room._dark;
   // A seed nobody can guess (not Math.random's next number, which a phone can't see anyway).
   let seed = 0;
-  while (!seed) seed = Math.floor(Math.random() * 2147483646) + 1;
+  while (!seed || seed === h.seed) seed = Math.floor(Math.random() * 2147483646) + 1;
   h.seed = seed;
   h.pev = [];
-  darkNextMover(room);
+  h.newMap = false;
   s.t0 = Date.now() + DARK_INTRO_MS;
   s.nextAt = null;
   s.steps = 0;
   darkToStart(room);
-  darkEv(room, { type: 'level', lv: s.level, first: !!first });
+};
+
+/** The first tick in fromK..toK when a moving trap stands on `cell`, or null (a lap of them at most). */
+const darkFirstHitTick = (m, cell, fromK, toK) => {
+  if (!m || !m.dyn || !m.dyn.length) return null;
+  const a = Math.max(0, fromK);
+  const b = Math.min(toK, a + darkPeriod(m));
+  for (let k = a; k <= b; k++) {
+    for (const d of m.dyn) if (darkDynCell(m, d, k) === cell) return k;
+  }
+  return null;
+};
+
+/**
+ * A mover standing still: every tick since the last check on their square, not
+ * just the tick the alarm wakes at (the alarm can't come sooner than a second,
+ * and a trap passes a square in 350 ms). Caught: true.
+ */
+const darkCatchUp = (room, m, now) => {
+  const s = room.shared;
+  const h = room._dark;
+  if (s.phase !== 'play' || now < s.t0 || !m) return false;
+  const c = darkCellOf(m, s.pos);
+  const kNow = Math.floor((now - s.t0) / DARK_TICK);
+  const from = h.checkCell === c && typeof h.checkK === 'number' ? h.checkK + 1 : kNow;
+  h.checkCell = c;
+  h.checkK = kNow;
+  const k = darkFirstHitTick(m, c, from, kNow);
+  if (k === null) return false;
+  const d = m.dyn.find(z => darkDynCell(m, z, k) === c);
+  darkCaught(room, d.k, c, now, s.t0 + k * DARK_TICK);
+  return true;
+};
+
+/** Someone in the room who isn't at the table yet, with room for another guide. */
+const darkWantsJoiner = (room) => {
+  const s = room.shared;
+  if (!s || !s.roster || s.phase === 'gameover') return false;
+  if (s.roster.filter(id => darkHere(room, id)).length >= DARK_MAX) return false;
+  return room.players.some(p => !p.bot && s.roster.indexOf(p.id) === -1);
 };
 
 const darkGameOver = (room, ended) => {
@@ -272,7 +332,8 @@ const darkSync = (room) => {
   const h = room._dark;
   if (!s || !h) return;
   room.players.forEach(p => {
-    if (p.bot || s.roster.indexOf(p.id) !== -1 || s.roster.length >= DARK_MAX) return;
+    if (p.bot || s.roster.indexOf(p.id) !== -1) return;
+    if (s.roster.filter(id => darkHere(room, id)).length >= DARK_MAX) return;
     s.roster.push(p.id);
     s.order.push(p.id);
   });
@@ -297,15 +358,19 @@ const darkSync = (room) => {
 const darkDeadline = (room) => {
   const s = room.shared || {};
   if (room.phase !== 'play' || !room._dark) return null;
+  // Someone joined (room.js has no join hook for the rules): the next alarm seats them as a guide.
+  if (darkWantsJoiner(room)) return Date.now();
   if (s.phase === 'trap') return s.stunUntil;
   if (s.phase === 'won') return s.nextAt;
   if (s.phase === 'play') {
     const m = darkMapOf(room);
     if (!m || !m.dyn.length) return null;
-    const now = Date.now();
-    // From a moment ago: at the very tick a trap arrives (the alarm's own wake) the deadline must still be now, not the next hit.
-    const hit = darkNextHit(m, darkCellOf(m, s.pos), Math.max(0, now - s.t0 - 30));
-    return hit === null ? null : s.t0 + hit + 20;
+    // The first tick after the last one checked on the mover's square (darkCatchUp).
+    const h = room._dark;
+    const c = darkCellOf(m, s.pos);
+    const from = h.checkCell === c && typeof h.checkK === 'number' ? h.checkK + 1 : Math.floor(Math.max(0, Date.now() - s.t0) / DARK_TICK);
+    const k = darkFirstHitTick(m, c, from, from + darkPeriod(m));
+    return k === null ? null : s.t0 + k * DARK_TICK + 20;
   }
   return null;
 };
@@ -313,8 +378,10 @@ const darkDeadline = (room) => {
 const darkTimeout = (room, now) => {
   const s = room.shared || {};
   if (room.phase !== 'play' || !room._dark) return false;
+  if (darkWantsJoiner(room)) { darkSync(room); return true; }
   if (s.phase === 'trap' && s.stunUntil && now >= s.stunUntil) {
     if (s.hearts <= 0) darkGameOver(room, 'hearts');
+    else if (room._dark.newMap) { darkNewMap(room); darkEv(room, { type: 'back' }); }
     else { darkToStart(room); darkEv(room, { type: 'back' }); }
     darkSync(room);
     return true;
@@ -325,11 +392,7 @@ const darkTimeout = (room, now) => {
     return true;
   }
   if (s.phase === 'play' && now >= s.t0) {
-    const m = darkMapOf(room);
-    const c = darkCellOf(m, s.pos);
-    const k = Math.floor((now - s.t0) / DARK_TICK);
-    const d = (m.dyn || []).find(z => darkDynCell(m, z, k) === c);
-    if (d) { darkCaught(room, d.k, c, now); darkSync(room); return true; }
+    if (darkCatchUp(room, darkMapOf(room), now)) { darkSync(room); return true; }
   }
   return false;
 };
@@ -344,9 +407,11 @@ const darkPlayerLeft = (room, playerId) => {
   if (!s || room.phase !== 'play' || !room._dark || s.phase === 'gameover') return;
   if (darkPresent(room).length < DARK_MIN) { darkGameOver(room, 'left'); darkSync(room); return; }
   // (After a win the next level picks the next mover anyway; mid-trap the trap's own timeout sends them back.)
+  // The new mover was a guide who saw this map: a new one at the same level (at once, or after the trap's moment).
   if (playerId === s.moverId && (s.phase === 'play' || s.phase === 'trap')) {
     darkNextMover(room);
-    if (s.phase === 'play') darkToStart(room);
+    if (s.phase === 'play') darkNewMap(room);
+    else room._dark.newMap = true;
     darkEv(room, { type: 'mover' });
   }
   darkSync(room);

@@ -354,9 +354,9 @@ function witLast(state) {
 /* --- the frames ---------------------------------------------------------------------- */
 function witSig(state) {
   const s = state.shared || {};
-  const v = s.vote || {};
   const role = witRole(state);
-  return ['wit', s.phase, s.round, s.witnessId, s.artistId, role, (s.lineup || []).length, (v.voted || []).join(','), s.realIdx,
+  // Who has voted is painted in place (witAfter): a juror's vote must not rebuild the lineup under another's finger.
+  return ['wit', s.phase, s.round, s.witnessId, s.artistId, role, (s.lineup || []).length, s.realIdx,
     JSON.stringify(s.board || []), state.youAreHost, !!(state.you && state.you.face), witMine(state), appState.lang,
     // A viewer's frame redraws with the sketch; the artist's own builder is painted in place.
     role === 'artist' ? '' : s.phase === 'draw' ? '' : s.sketchN].join('|');
@@ -442,7 +442,7 @@ function witPhoneBody(state) {
           </div>
         </div>
         ${witLineupHtml(state, { vote: juror, mine, rise })}
-        <p class="wit-hint">${escapeHTML(witT('wit_voted_n'))} ${ltrFrac(voted.length, ((s.vote || {}).eligible || []).length)}</p>
+        <p class="wit-hint">${escapeHTML(witT('wit_voted_n'))} <span data-wit-voted>${ltrFrac(voted.length, ((s.vote || {}).eligible || []).length)}</span></p>
       </div>`;
   }
   if (s.phase === 'reveal') {
@@ -508,6 +508,11 @@ function witAfter(state, el) {
   const s = state.shared || {};
   const key = witRoundKey(state);
   witNoteTime(state);
+  el.querySelectorAll('[data-wit-voted]').forEach((n) => {
+    const v = s.vote || {};
+    const txt = ltrFrac((v.voted || []).length, (v.eligible || []).length);
+    if (n.textContent !== txt) n.textContent = txt;
+  });
   // A viewer's sketch follows the artist's taps in place.
   if (s.phase === 'draw' && witRole(state) !== 'artist') {
     const f = el.querySelector('[data-wit-sketch]');

@@ -2505,7 +2505,7 @@ const duelTestClock = Date.now;
 Date.now = realNow;
 {
   const src = (name) => readFileSync(new URL('../../' + name, import.meta.url), 'utf8');
-  const C4 = new Function(src('Connect4.js') + '\nreturn { c4NewBoard, c4Play, c4DropRow, c4LegalCols, c4Winner, c4BestMove };')();
+  const C4 = new Function(src('Connect4.js') + '\nreturn { c4NewBoard, c4Play, c4DropRow, c4LegalCols, c4Winner, c4BestMove, c4Clone, c4WinningCol };')();
   const DB = new Function(src('DotsBoxes.js') + '\nreturn { dotsNewBoard, dotsPlay, dotsGeom, dotsBestMove, dotsSafe, dotsCaptures, dotsFree, dotsCounts, dotsSides, dotsComponents, dotsDoubleDeal };')();
   // A seeded source, so a failure can be played again.
   const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
@@ -2574,6 +2574,24 @@ Date.now = realNow;
   C4.c4BestMove(C4.c4NewBoard(5), 1, 'hard', { budget: 250 });
   check(Date.now() - t0 < 600, 'connect4: hard thinks inside its time budget, never holding the page');
   check(C4.c4BestMove(drawn, 1, 'hard') === -1, 'connect4: a full board has no move');
+  // The audit of 30 Sep 2026: medium's "second choice" never hands the other side a win on the spot.
+  {
+    const r2 = seeded(11);
+    let handed = 0, tried = 0;
+    for (let g = 0; g < 160; g++) {
+      const bb = C4.c4NewBoard(4);
+      let p = 1, over = false;
+      const n = 6 + Math.floor(r2() * 14);
+      for (let m = 0; m < n && !over; m++) { const cols = C4.c4LegalCols(bb); const res = C4.c4Play(bb, cols[Math.floor(r2() * cols.length)], p); over = !res || res.win || res.draw; p = 3 - p; }
+      if (over || C4.c4WinningCol(C4.c4Clone(bb), p) !== -1 || C4.c4WinningCol(C4.c4Clone(bb), 3 - p) !== -1) continue;
+      const safe = C4.c4LegalCols(bb).filter((c) => { const x = C4.c4Clone(bb); C4.c4Play(x, c, p); return C4.c4WinningCol(x, 3 - p) === -1; });
+      if (!safe.length) continue;
+      tried++;
+      const c = C4.c4BestMove(bb, p, 'medium', { rnd: () => 0.1, budget: 30 });
+      if (safe.indexOf(c) === -1) handed++;
+    }
+    check(tried > 40 && handed === 0, 'connect4 (audit): medium never plays under the other side\'s win while a safe column is left');
+  }
 
   // Dots: the lines and the boxes.
   let d = DB.dotsNewBoard(4);
@@ -10703,7 +10721,7 @@ Date.now = duelTestClock;
 {
   console.log('\nThe dark room');
   const D = new Function(readFileSync(new URL('../../Dark.js', import.meta.url), 'utf8') +
-    ';return { darkMap, darkSolve, darkBlocked, darkDynCell, darkDynCells, darkReach, darkEcho, darkAdvance, darkLensR, darkNextHit, DARK_TICK, DARK_DIRS, DARK_TRAPS, DARK_LEVELS };')();
+    ';return { darkMap, darkSolve, darkBlocked, darkDynCell, darkDynCells, darkReach, darkEcho, darkAdvance, darkLensR, darkNextHit, DARK_TICK, DARK_DIRS, DARK_TRAPS, DARK_LEVELS, DARK_BODY };')();
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const shape = (m) => JSON.stringify({ r: m.rooms, d: m.doors, b: m.blocks, t: m.traps, y: m.dyn, s: m.start, g: m.goal });
   // An independent walk-finder over (cell, tick): a step a tick, or a wait; never on a still trap, never where a moving one is.
@@ -10964,6 +10982,99 @@ Date.now = duelTestClock;
     gone(r, 'z');
     gone(r, r.shared.guides[0]);
     check(r.shared.phase === 'gameover' && r.shared.ended === 'left', 'darkroom: one left, and the game is over');
+  }
+  // The audit of 30 Sep 2026: a trap that passes a still mover between two alarms (the alarm can't come sooner than a second).
+  {
+    const r = dkRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'start', { story: 'home', mode: 'steps' });
+    r._dark.seed = 777; r.shared.level = 3;
+    const m = mapOf(r);
+    const T = r.shared.t0;
+    // A cell a moving trap is on at tick k and not at k-1 or k+3 (a second later).
+    let pick = null;
+    for (let k = 1; k < 200 && !pick; k++) {
+      for (const d of m.dyn) {
+        const c = D.darkDynCell(m, d, k);
+        if (c < 0 || m.trapAt.has(c)) continue;
+        const on = (kk) => m.dyn.some((z) => D.darkDynCell(m, z, kk) === c);
+        if (!on(k - 1) && !on(k + 1) && !on(k + 2) && !on(k + 3)) { pick = { c, k, kind: d.k }; break; }
+      }
+    }
+    r.shared.pos = { x: pick.c % m.w + 0.5, y: Math.floor(pick.c / m.w) + 0.5 };
+    r._dark.checkCell = pick.c; r._dark.checkK = pick.k - 1;
+    clock = T + (pick.k - 1) * D.DARK_TICK + 5;
+    const due = roomDeadline(r);
+    check(due === T + pick.k * D.DARK_TICK + 20, 'darkroom (audit): the alarm is asked for the tick the trap reaches the still mover');
+    clock = T + (pick.k + 3) * D.DARK_TICK + 5;   // the alarm came a second late: the trap has moved on
+    roomTimeout(r, clock);
+    const s = r.shared;
+    const e = s.ev[s.ev.length - 1];
+    check(s.phase === 'trap' && s.trap === pick.kind && e.type === 'trap' && e.at === T + pick.k * D.DARK_TICK,
+      'darkroom (audit): a moving trap that crossed the still mover between alarms still catches them, at its own tick');
+    // A cell no moving trap ever reaches: nothing, however late the alarm.
+    const r2 = dkRoom(['a', 'b']);
+    applyRoomAction(r2, 'a', 'start', { story: 'home', mode: 'steps' });
+    r2._dark.seed = 777; r2.shared.level = 3;
+    const reach = new Set();
+    for (let k = 0; k < 2000; k++) m.dyn.forEach((d) => reach.add(D.darkDynCell(m, d, k)));
+    let safe = -1;
+    for (let c = 0; c < m.w * m.h && safe < 0; c++) if (!reach.has(c) && !m.trapAt.has(c) && m.cellBlock[c] < 0) safe = c;
+    r2.shared.pos = { x: safe % m.w + 0.5, y: Math.floor(safe / m.w) + 0.5 };
+    r2._dark.checkCell = safe; r2._dark.checkK = 0;
+    clock = r2.shared.t0 + 50 * D.DARK_TICK;
+    check(roomDeadline(r2) === null && roomTimeout(r2, clock) === false && r2.shared.phase === 'play' && r2.shared.hearts === 3,
+      'darkroom (audit): a square no moving trap crosses: no alarm and no catch');
+  }
+  // The walk passes to another mover mid-level: a new map at the same level (the owner, 30 Sep 2026).
+  {
+    const r = dkRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'start', {});
+    r.shared.level = 2; r.shared.hearts = 2; r.shared.cleared = 1;
+    const seed0 = r._dark.seed, m1 = r.shared.moverId;
+    clock = r.shared.t0 + 3000;
+    applyRoomAction(r, 'a', 'passMover', { run: r.shared.run });
+    let s = r.shared;
+    check(s.moverId !== m1 && r._dark.seed !== seed0 && s.level === 2 && s.hearts === 2 && s.cleared === 1 && s.t0 > clock,
+      'darkroom (audit): passing the walk deals a new map at the same level, with its intro, hearts and cleared kept');
+    check(s.guides.every((id) => r.secrets[id].g.seed === r._dark.seed) && !r.secrets[s.moverId].g, 'darkroom (audit): the guides get the new map\'s seed, the new mover none');
+    const seed1 = r._dark.seed;
+    gone(r, s.moverId);
+    check(r._dark.seed !== seed1 && r.shared.level === 2, 'darkroom (audit): the mover leaving deals a new map too');
+    // Mid-trap: the new map comes with the trap's end.
+    const r2 = dkRoom(['a', 'b', 'c']);
+    applyRoomAction(r2, 'a', 'start', {});
+    r2.shared.phase = 'trap'; r2.shared.stunUntil = clock + 100; r2.shared.hearts = 2;
+    const seed2 = r2._dark.seed;
+    gone(r2, r2.shared.moverId);
+    check(r2._dark.seed === seed2 && r2._dark.newMap, 'darkroom (audit): a mover leaving mid-trap: the trap\'s moment plays on the old map');
+    clock += 200; roomTimeout(r2, clock);
+    check(r2.shared.phase === 'play' && r2._dark.seed !== seed2 && r2.shared.hearts === 2, 'darkroom (audit): then back at the start of a new map');
+  }
+  // A latecomer is seated by the next alarm; the cap of eight counts who is here.
+  {
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const r = dkRoom(ids);
+    applyRoomAction(r, 'a', 'start', {});
+    check(r.shared.roster.length === 8, 'darkroom (audit): eight at the table');
+    r.players.push({ id: 'y', name: 'Y' });
+    check(roomTimeout(r, clock) === false && r.shared.roster.indexOf('y') === -1, 'darkroom (audit): a ninth waits while eight are here');
+    gone(r, r.shared.guides[0]);
+    check(roomDeadline(r) <= clock + 5, 'darkroom (audit): once one leaves, the latecomer is due at once');
+    roomTimeout(r, clock);
+    check(r.shared.roster.indexOf('y') !== -1 && r.secrets.y && r.secrets.y.g && r.shared.guides.indexOf('y') !== -1,
+      'darkroom (audit): the alarm makes the latecomer a guide, with no move needed');
+  }
+  // The joystick already past a wall's edge (a rounded place): pushing on stays put, never snaps back.
+  {
+    const m = D.darkMap('home', 2, 4242);
+    let wall = null;
+    for (const k of Object.keys(D.DARK_DIRS)) { const d = D.DARK_DIRS[k]; if (D.darkBlocked(m, m.start[0], m.start[1], d[0], d[1])) { wall = d; break; } }
+    const R = D.DARK_BODY;
+    const past = (base, dir) => (dir > 0 ? base + 1 - R + 0.02 : base + R - 0.02);
+    const x0 = wall[0] ? past(m.start[0], wall[0]) : m.start[0] + 0.5;
+    const y0 = wall[1] ? past(m.start[1], wall[1]) : m.start[1] + 0.5;
+    const r = D.darkAdvance(m, x0, y0, wall[0], wall[1], 0.2);
+    check(Math.abs(r.x - x0) < 1e-9 && Math.abs(r.y - y0) < 1e-9, 'darkroom joystick (audit): past a wall\'s edge, a push into it doesn\'t move the body back');
   }
   {
     const r = dkRoom(['a', 'b']);

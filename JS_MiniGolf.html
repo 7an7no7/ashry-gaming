@@ -3118,7 +3118,18 @@ function mgMountIn(root, onReady) {
   if (msg) { msg.textContent = mgT('mg_loading'); msg.classList.remove('hidden'); }
   mg3Mount(host).then(ok => {
     if (!host.isConnected) return;
-    if (!ok) { if (msg) { msg.textContent = mgT('mg_no_3d'); msg.classList.remove('hidden'); } return; }
+    if (!ok) {
+      if (!msg) return;
+      // three.js never arrived (offline before a first 3D visit): say so, with a way to try
+      // again, as the bowling lanes do; a device that can't draw 3D keeps the plain message.
+      if (!window.THREE) {
+        msg.innerHTML = `<p>${escapeHTML(mgT('mg_offline'))}</p><button type="button" class="btn btn--primary btn--sm btn--auto" data-mg-retry>${escapeHTML(mgT('bowl_retry'))}</button>`;
+        const again = msg.querySelector('[data-mg-retry]');
+        if (again) again.onclick = () => mgMountIn(root, onReady);
+      } else msg.textContent = mgT('mg_no_3d');
+      msg.classList.remove('hidden');
+      return;
+    }
     if (msg) msg.classList.add('hidden');
     if (onReady) onReady();
   });

@@ -196,9 +196,9 @@ function paintFlags(freshIndex) {
           </div>` : `
           <div class="flags-input">
             <input type="text" id="flags-query" autocomplete="off" autocorrect="off" spellcheck="false"
-              dir="auto" placeholder="${escapeHTML(t.flags_type || '')}" value="${escapeHTML(s.query || '')}"
-              oninput="flagsSuggest(this.value)" onkeydown="if (event.key === 'Enter') { event.preventDefault(); flagsPickFirst(); }">
-            <div class="flags-suggest" id="flags-suggest"></div>
+              dir="auto" placeholder="${escapeHTML(t.flags_type || '')}" aria-label="${escapeHTML(t.flags_type || '')}" aria-controls="flags-suggest" value="${escapeHTML(s.query || '')}"
+              oninput="flagsSuggest(this.value)" onkeydown="flagsKey(event)">
+            <div class="flags-suggest" id="flags-suggest" onkeydown="flagsKey(event)"></div>
           </div>`}
       </div>
     </div>
@@ -244,6 +244,22 @@ function flagsSuggest(query, keep) {
       <span class="flag-emoji" aria-hidden="true">${s.playMode === 'flag' ? '' : flagEmoji(c.code)}</span>${escapeHTML(flagName(c, s.lang))}</button>`).join('')
     || (query && foldWord(query) ? `<span class="field__hint">${escapeHTML((TRANSLATIONS[appState.lang] || {}).flags_none || '')}</span>` : '');
   if (!keep) saveToLocal();
+}
+
+/* The keyboard: Enter in the field guesses the first suggestion; the arrows walk from the
+   field into the suggestions and along them (each is a button, so Enter picks it), and up
+   from the first goes back to the field. */
+function flagsKey(e) {
+  const input = document.getElementById('flags-query');
+  const chips = [...document.querySelectorAll('#flags-suggest .flags-chip')];
+  const at = chips.indexOf(document.activeElement);
+  if (e.key === 'Enter' && e.target === input) { e.preventDefault(); flagsPickFirst(); return; }
+  const step = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+  if (!step || !chips.length) return;
+  e.preventDefault();
+  const next = at === -1 ? (step > 0 ? 0 : -1) : at + step;
+  if (next < 0) { if (input) input.focus(); return; }
+  chips[Math.min(next, chips.length - 1)].focus();
 }
 
 function flagsPickFirst() {

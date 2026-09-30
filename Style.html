@@ -1296,6 +1296,16 @@ html[lang="ar"] .eyebrow { text-transform: none; letter-spacing: normal; font-si
   transition: opacity var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
 .chip__remove:active { transform: scale(0.85); background: var(--danger-soft); color: var(--danger); opacity: 1; }
+/* Small targets that keep their look: the hit area reaches past the drawn circle to the
+   44px a finger needs (the kick ✕, the audience's cheers, the room banner's Return). */
+.chip__remove, .audience__cheer, .arb__btn--return { position: relative; }
+.chip__remove::after, .audience__cheer::after, .arb__btn--return::after {
+  content: '';
+  position: absolute;
+}
+.chip__remove::after { inset: -0.3125rem; }
+.audience__cheer::after { inset: -0.28rem; }
+.arb__btn--return::after { inset: -0.25rem -0.125rem; }
 
 /* --- Badge -------------------------------------------------------------- */
 .badge {
@@ -1521,6 +1531,7 @@ select {
   transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
 }
 .stepper__btn:active { transform: scale(0.88); background: var(--accent-soft); }
+.stepper__btn:disabled { opacity: 0.35; cursor: default; box-shadow: none; transform: none; }
 .stepper__value { text-align: center; font-size: var(--fs-h2); font-weight: 900; font-variant-numeric: tabular-nums; color: var(--text-strong); }
 
 /* --- Segmented control -------------------------------------------------- */
@@ -3044,11 +3055,11 @@ html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal
 .plate-danger  { background: var(--danger-soft);  color: var(--danger-ink);  border: 1px solid var(--danger); }
 .plate-success { background: var(--success-soft); color: var(--success-ink); border: 1px solid var(--success); }
 
-/* Keyboard focus stays visible; pointer presses don't draw a ring. */
+/* Keyboard focus stays visible; pointer presses don't draw a ring. The ring follows the
+   element's own corners (a radius here squared off every rounded chip and tab). */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: var(--r-xs);
 }
 :focus:not(:focus-visible) { outline: none; }
 
@@ -7092,7 +7103,7 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 .sdk-cell.is-peer { background: var(--surface-2); }
 .sdk-cell.is-same { background: var(--accent-soft); }
 .sdk-cell.is-sel { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
-.sdk-cell.is-wrong { color: var(--danger); }
+.sdk-cell.is-wrong { color: var(--danger); text-decoration: underline wavy var(--danger); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
 .sdk-notes { position: absolute; inset: 1px; display: grid; grid-template-columns: repeat(3, 1fr); color: var(--text-2); font-size: clamp(0.45rem, 2.1vw, 0.65rem); font-weight: 700; line-height: 1; }
 .sdk-notes i { display: grid; place-items: center; font-style: normal; }
 .sdk-pad { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; width: 100%; max-width: 30rem; margin: var(--sp-3) auto 0; }
@@ -12342,9 +12353,10 @@ body.dark .hm-gallows .hm-hair { fill: #4a3626; }
 .mg-canvas-host { position: absolute; inset: 0; }
 .mg-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
 .mg-msg {
-  position: absolute; inset: 0; display: grid; place-items: center; padding: var(--sp-6);
+  position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: var(--sp-3); padding: var(--sp-6);
   text-align: center; color: #1d2a1f; font-weight: var(--fw-semi); font-size: var(--fs-body, 1rem);
 }
+.mg-msg p { margin: 0; }
 .mg-msg.hidden { display: none; }
 
 /* --- the strip at the top --- */
@@ -17349,6 +17361,7 @@ body.dark .home-start { background: linear-gradient(150deg, #5b21b6 0%, #4c1d95 
   font-family: var(--font-display);
 }
 [id^="view-setup-"] .stepper__btn:active { background: var(--accent-border); }
+[id^="view-setup-"] .stepper__btn:disabled { opacity: 0.35; background: var(--accent-soft); }
 [id^="view-setup-"] .stepper__value { font-family: var(--font-display); font-weight: 800; }
 /* A choice of a few: a pill track and the accent thumb (syncSegmented's). */
 [id^="view-setup-"] .segmented {

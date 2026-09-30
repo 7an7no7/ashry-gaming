@@ -138,7 +138,7 @@ function paintMemory() {
     <div class="mem-grid" style="--mem-cols: ${size.cols}; --mem-rows: ${Math.ceil(size.pairs * 2 / size.cols)}">
       ${m.cards.map((c, i) => `
         <button type="button" class="mem-card ${c.m ? 'is-matched' : ''} ${m.flipped.indexOf(i) !== -1 ? 'is-flipped' : ''}"
-                id="mem-card-${i}" onclick="flipMemory(${i})" aria-label="${escapeHTML(t.mem_card || '')} ${i + 1}">
+                id="mem-card-${i}" onclick="flipMemory(${i})" aria-label="${escapeHTML(t.mem_card || '')} ${i + 1}${c.m || m.flipped.indexOf(i) !== -1 ? ' ' + c.e : ''}">
           <span class="mem-card__inner">
             <span class="mem-card__face mem-card__face--back" aria-hidden="true">?</span>
             <span class="mem-card__face mem-card__face--front" aria-hidden="true">${c.e}</span>
@@ -150,6 +150,12 @@ function paintMemory() {
     </div>`;
 }
 
+/** A card's name for a screen reader: its number, and its face while it is turned up. */
+function memoryCardLabel(el, i, face) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  el.setAttribute('aria-label', (t.mem_card || '') + ' ' + (i + 1) + (face ? ' ' + face : ''));
+}
+
 function flipMemory(i) {
   const m = memoryState();
   if (m.phase !== 'play') return;
@@ -157,7 +163,7 @@ function flipMemory(i) {
   if (!card || card.m || m.flipped.indexOf(i) !== -1 || m.flipped.length >= 2) return;
   m.flipped.push(i);
   const el = document.getElementById('mem-card-' + i);
-  if (el) el.classList.add('is-flipped');
+  if (el) { el.classList.add('is-flipped'); memoryCardLabel(el, i, card.e); }
   playSound('click');
 
   if (m.flipped.length < 2) { saveToLocal(); memoryLastPair(); return; }
@@ -184,7 +190,7 @@ function flipMemory(i) {
   memoryFlipTimer = setTimeout(() => {
     memoryFlipTimer = null;
     m.flipped = [];
-    [a, b].forEach(k => { const c = document.getElementById('mem-card-' + k); if (c) c.classList.remove('is-flipped'); });
+    [a, b].forEach(k => { const c = document.getElementById('mem-card-' + k); if (c) { c.classList.remove('is-flipped'); memoryCardLabel(c, k, ''); } });
     if (m.mode === 'duo') m.turn = 1 - m.turn;
     memoryPaintBar();
     saveToLocal();

@@ -279,11 +279,15 @@ function renderTriviaBoard() {
   TB_LEVELS.forEach((points, row) => {
     s.board.forEach((col, c) => {
       const cell = col.cells[row];
+      // Named with its category (the column's head is out of reach of a screen reader), and
+      // once played, who took it: the dot's colour alone says that on screen.
+      const catName = (tbCategory(col.cat) || {})[lang] || '';
       if (cell.done) {
         const dot = cell.team === 0 ? 'a' : (cell.team === 1 ? 'b' : 'none');
-        cells += `<button class="tb-cell is-done" disabled aria-label="${points}"><span class="tb-dot tb-dot--${dot}"></span></button>`;
+        const who = cell.team === 0 || cell.team === 1 ? tbTeamName(cell.team) : (t.quiz_nobody || '');
+        cells += `<button class="tb-cell is-done" disabled aria-label="${escapeHTML(catName + ' ' + points + ' - ' + who)}"><span class="tb-dot tb-dot--${dot}"></span></button>`;
       } else {
-        cells += `<button class="tb-cell" onclick="openTriviaCell(${c}, ${row})">${points}</button>`;
+        cells += `<button class="tb-cell" onclick="openTriviaCell(${c}, ${row})" aria-label="${escapeHTML(catName + ' ' + points)}">${points}</button>`;
       }
     });
   });

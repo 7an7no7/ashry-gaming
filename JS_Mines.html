@@ -182,9 +182,16 @@ function toggleMinesFlagMode() {
   paintMines();
 }
 
-/* A long press flags, on phones that have no right button. */
+/* A long press flags, on phones that have no right button; on a computer the right
+   button flags at once (the grid swallows its menu). */
 function minesPointerDown(e, i) {
   minesCancelHold();
+  if (e && e.button === 2) {
+    e.preventDefault();
+    minesHold = { i: i, fired: true, timer: 0 };
+    minesToggleFlag(i);
+    return;
+  }
   minesHold = { i: i, fired: false, timer: setTimeout(() => {
     minesHold.fired = true;
     minesToggleFlag(i);

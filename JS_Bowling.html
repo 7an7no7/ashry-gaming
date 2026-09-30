@@ -1460,7 +1460,11 @@ function bowlSoloHud() {
           <button type="button" class="btn btn--ghost" onclick="setView('setup-bowling')">${escapeHTML(bowlT('bowl_options'))}</button>
         </div>
       </div>` : '';
-    if (over._html !== html2) { over.innerHTML = html2; over._html = html2; }
+    // A phone that can't draw the lane still bowls: a plain ball down the middle, as in a room.
+    const plain = s.phase === 'play' && !bowlSolo.busy && bowlGfx.st === 'failed'
+      ? `<div class="bowl-over card"><button type="button" class="btn btn--primary" onclick="bowlSoloShot(bowlGentleShot())">${escapeHTML(bowlT('bowl_throw_plain'))}</button></div>` : '';
+    const html3 = html2 || plain;
+    if (over._html !== html3) { over.innerHTML = html3; over._html = html3; }
   }
   bowlHint(stage, s.phase === 'play' && !bowlSolo.busy && bowlGfx.st === 'ready' ? bowlT('bowl_swipe') : '');
 }
@@ -1474,7 +1478,8 @@ function paintBowling(o) {
   bowlSoloHud();
   if (bowlSolo.busy) return true;
   bowlGfxMount(stage, () => paintBowling()).then(ok => {
-    if (!ok || appState.currentView !== 'play-bowling' || bowlSolo.busy) return;
+    if (!ok) { if (appState.currentView === 'play-bowling') bowlSoloHud(); return; }   // the plain ball
+    if (appState.currentView !== 'play-bowling' || bowlSolo.busy) return;
     bowlGfxRack(s.card.standing, { snap: true });
     bowlGfxInput(s.phase === 'play', bowlSoloShot, s.guide);
     bowlSoloHud();
@@ -1511,7 +1516,15 @@ function bowlSoloShot(shot) {
   bowlGfxInput(false);
   bowlSoloHud();
   bowlGfxThrow(before, shot).then(sim => {
-    if (!sim || gen !== bowlSolo.gen) return;
+    if (gen !== bowlSolo.gen) return;
+    if (!sim) {
+      if (bowlGfx.st !== 'failed') return;
+      // No lane to roll it on: the result straight away, then the next ball or the end.
+      bowlSolo.shown = null;
+      const ms = bowlBanner(stage, out.kind, out.down, up);
+      if (s.phase === 'over') { setTimeout(() => { if (gen === bowlSolo.gen) bowlSoloOver(); }, ms); return 'plain-over'; }
+      return 'plain';
+    }
     bowlSolo.shown = null;
     bowlSoloHud();
     const ms = bowlBanner(stage, out.kind, out.down, up);
@@ -1522,9 +1535,9 @@ function bowlSoloShot(shot) {
     }
     return bowlGfxSet(s.card.standing, { fresh: out.fresh, hold: out.kind === 'strike' ? 1100 : 700 });
   }).then(ok => {
-    if (gen !== bowlSolo.gen) return;
+    if (gen !== bowlSolo.gen || ok === 'plain-over') return;
     bowlSolo.busy = false;
-    if (ok && s.phase === 'play' && appState.currentView === 'play-bowling') bowlGfxInput(true, bowlSoloShot, s.guide);
+    if (ok && ok !== 'plain' && s.phase === 'play' && appState.currentView === 'play-bowling') bowlGfxInput(true, bowlSoloShot, s.guide);
     bowlSoloHud();
   });
 }

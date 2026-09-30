@@ -39,7 +39,7 @@ function startGuessNumber() {
         max = parseInt(document.getElementById('gn-max').value);
 
         if (isNaN(min) || isNaN(max) || min >= max) {
-            showToast(appState.lang === 'ar' ? "المدى مش مظبوط: أول رقم لازم يبقى أصغر" : "Check the range: the first number must be smaller");
+            showToast((TRANSLATIONS[appState.lang] || {}).gn_bad_range || '');
             return;
         }
         target = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -54,7 +54,7 @@ function startGuessNumber() {
         target = parseInt(secretInput.value);
         
         if (isNaN(target)) {
-            showToast(appState.lang === 'ar' ? "اكتب الرقم السري الأول!" : "Type the secret number first!");
+            showToast((TRANSLATIONS[appState.lang] || {}).gn_need_secret || '');
             return;
         }
         
@@ -76,7 +76,7 @@ function startGuessNumber() {
 
     // UI Reset
     document.getElementById('gn-input').value = '';
-    document.getElementById('gn-feedback').innerHTML = appState.lang === 'ar' ? 'يلا خمّن!' : 'Start guessing!';
+    document.getElementById('gn-feedback').textContent = (TRANSLATIONS[appState.lang] || {}).gn_start || '';
     document.getElementById('gn-history').innerHTML = '';
     document.getElementById('gn-attempts').innerText = '0';
     gnPaintLocal(false);
@@ -97,7 +97,7 @@ function checkNumberGuess() {
     // way has no range to show, so any number goes there).
     const gn = appState.guessnum;
     if (gn.min != null && gn.max != null && (guess < gn.min || guess > gn.max)) {
-        showToast(appState.lang === 'ar' ? `الرقم ما بين ${gn.min} و ${gn.max}` : `The number is between ${gn.min} and ${gn.max}`);
+        showToast(((TRANSLATIONS[appState.lang] || {}).gn_between || '').replace('{min}', gn.min).replace('{max}', gn.max));
         inputEl.value = '';
         return;
     }
@@ -112,9 +112,7 @@ function checkNumberGuess() {
         // WIN
         playSound('success');
         
-        const winMsg = appState.lang === 'ar' 
-            ? `🎉 صح! الرقم هو ${guess}`
-            : `🎉 Correct! Number is ${guess}`;
+        const winMsg = ((TRANSLATIONS[appState.lang] || {}).gn_win || '').replace('{n}', guess);
             
         document.getElementById('gn-feedback').innerHTML = `<span class="tx-success font-black text-2xl">${winMsg}</span>`;
         addToHistory(guess, "✅", "win");
@@ -131,7 +129,7 @@ function checkNumberGuess() {
         // تخمينك 60 والرقم 50 -> نحتاج رقم "أقل"
         playSound('click');
         // التغيير هنا: بدلاً من "عالي جداً" نقول "أقل"
-        feedback = appState.lang === 'ar' ? "أقل! ⬇️" : "Lower! ⬇️";
+        feedback = (TRANSLATIONS[appState.lang] || {}).gn_lower || '';
         colorClass = "tx-danger";
         addToHistory(guess, "⬇️", "high");
     } 
@@ -139,7 +137,7 @@ function checkNumberGuess() {
         // تخمينك 40 والرقم 50 -> نحتاج رقم "أعلى"
         playSound('click');
         // التغيير هنا: بدلاً من "منخفض جداً" نقول "أعلى"
-        feedback = appState.lang === 'ar' ? "أعلى! ⬆️" : "Higher! ⬆️";
+        feedback = (TRANSLATIONS[appState.lang] || {}).gn_higher || '';
         colorClass = "tx-accent";
         addToHistory(guess, "⬆️", "low");
     }

@@ -11681,6 +11681,88 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- the links (30 Sep 2026): a crew's packs, and a night that was «برنامج السهرة» --- */
+{
+  console.log('\n«الشلة» × «اعمل مسابقتك» × «برنامج السهرة» (the links)');
+  const CR = await import('../generated/rules.js');
+  const threwL = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  // The packs: a member adds, a stranger can't, CREW_MAX_PACKS at most, the adder or the manager takes one off.
+  const meta = { code: 'LNKCRW', name: 'x', managerId: 'mH', members: [{ id: 'mH', name: 'هالة' }, { id: 'mK', name: 'كريم' }, { id: 'mS', name: 'سارة' }], packs: [] };
+  const H = meta.members[0], K = meta.members[1], S = meta.members[2];
+  check(threwL(() => CR.crewAddPackTo(meta, { id: 'mX', name: 'غريب' }, { code: 'QZ7K2A', kind: 'quiz', title: 'x' })) && !meta.packs.length, 'crew link: someone not in the crew can\'t add a pack');
+  check(threwL(() => CR.crewAddPackTo(meta, K, { code: 'nope', kind: 'quiz' })), 'crew link: a code that isn\'t one is refused');
+  const p1 = CR.crewAddPackTo(meta, K, { code: 'qz7k2a', kind: 'quiz', title: 'مسابقة العيد' });
+  check(p1.code === 'QZ7K2A' && p1.byId === 'mK' && p1.by === 'كريم' && meta.packs.length === 1, 'crew link: a member adds a quiz (its code, who added it)');
+  CR.crewAddPackTo(meta, S, { code: 'QZ7K2A', kind: 'quiz', title: 'مسابقة العيد ٢' });
+  check(meta.packs.length === 1 && meta.packs[0].byId === 'mK' && meta.packs[0].title === 'مسابقة العيد ٢', 'crew link: the same code again is the same pack (whoever added it first keeps it)');
+  CR.crewAddPackTo(meta, S, { code: 'WD4M9P', kind: 'words', title: 'كلماتنا' });
+  for (let i = 0; meta.packs.length < CR.CREW_MAX_PACKS; i++) CR.crewAddPackTo(meta, H, { code: 'AA' + String(1000 + i), kind: 'quiz', title: 'q' + i });
+  check(meta.packs.length === CR.CREW_MAX_PACKS && threwL(() => CR.crewAddPackTo(meta, H, { code: 'ZZ9999', kind: 'quiz' })), 'crew link: a crew keeps ' + CR.CREW_MAX_PACKS + ' packs at most, the next is refused');
+  check(threwL(() => CR.crewRemovePackFrom(meta, S, 'QZ7K2A')) && meta.packs.some((p) => p.code === 'QZ7K2A'), 'crew link: a member who didn\'t add it (and doesn\'t run the crew) can\'t take it off');
+  CR.crewRemovePackFrom(meta, K, 'QZ7K2A');
+  CR.crewRemovePackFrom(meta, H, 'WD4M9P');
+  check(!meta.packs.some((p) => p.code === 'QZ7K2A' || p.code === 'WD4M9P'), 'crew link: whoever added it, or the manager, takes a pack off');
+  check(threwL(() => CR.crewRemovePackFrom(meta, { id: 'mX' }, 'AA1000')), 'crew link: a stranger can\'t take one off');
+  CR.crewAddPackTo(meta, { server: true, name: 'x' }, { code: 'BB2222', kind: 'words' }); CR.crewAddPackTo(meta, { server: true, name: 'x' }, { code: 'BB2224', kind: 'quiz' });
+  check(meta.packs.length === CR.CREW_MAX_PACKS && threwL(() => CR.crewAddPackTo(meta, { server: true }, { code: 'BB2223' })), 'crew link: a server\'s own call is held to the same limit');
+  const pv = CR.crewView(meta, [], Date.UTC(2026, 8, 30, 12), 'mK');
+  check(pv.packs.length === CR.CREW_MAX_PACKS && pv.packs.every((p) => p.code && p.kind && 'byId' in p) && !JSON.stringify(pv).includes('"keys"'),
+    'crew link: the page gets every pack with who added it, and no keys');
+
+  // A program played in a room opened for a crew: the night's rows are the program's places, banked once.
+  const room = newRoom(['h', 'k', 'g']);
+  room.players[0].name = 'هالة'; room.players[1].name = 'كريم'; room.players[2].name = 'ضيف';
+  room.createdAt = Date.UTC(2026, 8, 30, 17); room.crew = { code: 'LNKCRW', name: 'x' }; room.crewNight = 'LN1'; room.crewLinks = { h: 'mH', k: 'mK' };
+  const tick = (ms) => {
+    const end = clock + ms;
+    for (let i = 0; i < 400; i++) { const d = roomDeadline(room); if (d === null || d > end) break; clock = Math.max(clock, d); roomTimeout(room, clock); }
+    clock = end;
+  };
+  // What the crew keeps, the way recordNight does: one night per id, replaced every time it is sent.
+  const kept = new Map();
+  const send = () => { const inp = CR.crewNightInput(room); if (inp) kept.set(inp.id, CR.crewCleanNight(inp, meta.members, clock)); };
+  applyRoomAction(room, 'h', 'programStart', { games: [{ id: 'buzzer', opts: {} }, { id: 'buzzer', opts: {} }, { id: 'buzzer', opts: {} }] });
+  const buzzes = [['k', 'k', 'h'], ['h', 'h', 'g'], ['k']];   // k 2-1-0, then h 2 g 1, then k alone
+  for (let gi = 0; gi < 3; gi++) {
+    for (let i = 0; i < 40 && !(room.program.phase === 'playing' && room.program.at === gi && room.game === 'buzzer'); i++) tick(2000);
+    check(room.program.phase === 'playing' && room.game === 'buzzer', 'crew link: the program deals game ' + (gi + 1));
+    for (const who of buzzes[gi]) {
+      applyRoomAction(room, who, 'buzz', { round: room.shared.round });
+      applyRoomAction(room, 'h', 'correct', { id: who });
+      send();
+    }
+    applyRoomAction(room, 'h', 'programSkip', { seq: room.program.seq });   // «خلّصنا دي»: counted as it stands
+    send();
+    if (gi < 2) { tick(20000); send(); }
+  }
+  for (let i = 0; i < 10 && room.program.phase !== 'final'; i++) applyRoomAction(room, 'h', 'programSkip', { seq: room.program.seq });
+  send();
+  check(room.program.phase === 'final' && room.program.final.champions.join() === 'k', 'crew link: the program reaches its finale, كريم the champion', JSON.stringify(room.program.final && room.program.final.table));
+  // 5/3/2 a game (1 for everyone else): k 5+2+5, h 3+5+3, g 2+3+3 (the tie for second shares 3).
+  const night = room.night || {};
+  check(night.k === 12 && night.h === 11 && night.g === 8, 'crew link: the room\'s night banked each game once, by places (12, 11, 8)', JSON.stringify(night));
+  const tbl = room.program.final.table;
+  check(tbl.every((r) => night[r.id] === r.pts), 'crew link: the night and the program\'s own table agree (never counted twice)');
+  check(kept.size === 1, 'crew link: sent many times, it is one night for the crew');
+  const cn = kept.get('LN1');
+  check(cn && cn.rows.find((r) => r.m === 'mK').p === 12 && cn.rows.find((r) => r.m === 'mH').p === 11 && cn.rows.find((r) => r.n === 'ضيف').m === null,
+    'crew link: the crew\'s night: كريم 12, هالة 11 (members), the guest a guest');
+  check(cn.prog.length === 1 && cn.prog[0].g.join() === 'buzzer,buzzer,buzzer' && cn.prog[0].c.length === 1 && cn.prog[0].c[0].m === 'mK',
+    'crew link: the night knows it was a program, and its champion (a member)');
+  const cv = CR.crewView(meta, [...kept.values()], Date.UTC(2026, 8, 30, 20), 'mH');
+  const nv = cv.nights[0];
+  check(nv && nv.prog && nv.prog.n === 1 && nv.prog.games === 3 && nv.prog.champs.join() === 'كريم', 'crew link: the السهرات tab gets the program: its champion by member name');
+  check(nv && Array.isArray(nv.prog.aw) && nv.prog.aw.every((a) => a.k && a.name), 'crew link: and its awards, each a kind and a name', JSON.stringify(nv && nv.prog));
+  check(cv.table.find((r) => r.id === 'mK').won === 1 && cv.table.find((r) => r.id === 'mK').points === 12, 'crew link: the season table counts the program night like any other');
+  check(JSON.stringify(cn).length < 4000, 'crew link: a program adds little to a night (' + JSON.stringify(cn).length + ' bytes)');
+  // What a phone of the room sees: nothing of the crew's notes.
+  const { roomView } = await import('../src/view.js').catch(() => ({}));
+  if (roomView) {
+    const v = JSON.stringify(roomView(room, 'g', new Set(['h', 'k', 'g'])));
+    check(!v.includes('nightx') && !v.includes('crewLinks') && !v.includes('mK') && !v.includes('_nightSummary'), 'crew link: a guest\'s phone sees nothing of the crew\'s notes or who is which member');
+  }
+}
+
 /* --- «اعمل مسابقتك» and «كلماتنا» (30 Sep 2026): packs checked, dealt from the server's copy --- */
 {
   console.log('• packs: a quiz and the family words, checked, dealt in trivia, the buzzer and the word games');

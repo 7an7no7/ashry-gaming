@@ -19,7 +19,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import {
   CREW_MAX_MEMBERS, CREW_MAX_NIGHTS, CREW_MAX_PACKS, CREW_NAME_MAX, CREW_MEMBER_NAME_MAX,
-  crewFold, crewCleanName, crewCleanNight, crewView, crewFreezeChamps
+  crewFold, crewCleanName, crewCleanNight, crewView, crewFreezeChamps, crewAddPackTo, crewRemovePackFrom
 } from '../generated/rules.js';
 
 const YEAR_MS = 365 * 24 * 3600 * 1000;
@@ -209,13 +209,9 @@ export class Crew extends DurableObject {
         await this.touch(true);
         return { ok: true, left: true };
       } else if (action === 'addPack') {
-        this.addPack(me, p);
+        crewAddPackTo(this.meta, me, p);            // Crew.js: the rule (a member, a code, CREW_MAX_PACKS)
       } else if (action === 'removePack') {
-        const code = String(p.code || '');
-        const pack = (this.meta.packs || []).find((x) => x.code === code);
-        if (!pack) throw new Error('مش موجودة');
-        if (!manager && pack.byId !== me.id) throw new Error('اللي ضافها أو اللي ماسك الشلة بس');
-        this.meta.packs = this.meta.packs.filter((x) => x !== pack);
+        crewRemovePackFrom(this.meta, me, p.code);  // the one who added it, or the manager
       } else if (action !== 'get') {
         throw new Error('إجراء غير معروف');
       }
@@ -238,21 +234,11 @@ export class Crew extends DurableObject {
 
   /* --- packs: codes of quizzes and word packs the crew keeps (other features') --- */
 
-  addPack(me, p) {
-    const code = String(p.code || '').trim().slice(0, 16);
-    if (!/^[A-Za-z0-9_-]{3,16}$/.test(code)) throw new Error('كود مش صحيح');
-    const kind = String(p.kind || 'pack').replace(/[^a-z0-9_-]/gi, '').slice(0, 16) || 'pack';
-    const title = crewCleanName(p.title, 40);
-    const packs = this.meta.packs = (this.meta.packs || []).filter((x) => x.code !== code);
-    if (packs.length >= CREW_MAX_PACKS) throw new Error('الشلة فيها حاجات كتير، امسح واحدة الأول');
-    packs.unshift({ code, kind, title, by: me.name, byId: me.id, at: Date.now() });
-  }
-
   /** Server to server: a pack attached without a phone (another feature's own endpoint). */
   async attachPack(pack) {
     await this.load();
     if (!this.meta) return fail('CREW_NOT_FOUND');
-    try { this.addPack({ name: String((pack && pack.by) || ''), id: '' }, pack || {}); } catch (err) { return fail(err.message); }
+    try { crewAddPackTo(this.meta, { server: true, name: String((pack && pack.by) || '') }, pack || {}); } catch (err) { return fail(err.message); }
     await this.save();
     await this.touch(true);
     return { ok: true };

@@ -234,3 +234,104 @@ owner's decisions:)
   not on the table unless they join.
 - The page: this month's table and champion (the cast podium), the champions'
   wall, titles and records, the nights; look ج «كارنيه النادي».
+
+## The links, 30 Sep 2026
+
+The crew wired to «اعمل مسابقتك» / «كلماتنا» and «برنامج السهرة» (a branch of its own, on
+master after the three merges). Not deployed, not pushed; GEMINI.md untouched.
+
+### A crew's packs (the owner: a شلة has its packs, visible to all members without codes)
+
+- **The rule is `Crew.js`** now: `crewAddPackTo(meta, me, p)` (a member only - `me.server` for
+  `attachPack` -, a code of six of A-Z/0-9, `kind` 'quiz' | 'words', at most `CREW_MAX_PACKS`
+  = 30; the same code again is the same pack, whoever added it first keeps it) and
+  `crewRemovePackFrom(meta, me, code)` (whoever added it, or the manager). The Durable Object
+  (`rooms-worker/src/crew.js`) proves the key, then calls them; its own `addPack` is gone. A
+  crew keeps codes only; the packs stay in `PackStore`. `crewView`'s packs carry `byId` (a
+  member id, public on the page already) so the page knows who may take one off.
+- **In the shell** (`JS_CrewCore.html`): the page cache moved here (`CREW_CACHE`,
+  `crewCacheRead` / `crewCacheWrite`: `JS_Crew.html` declared it before, and two chunks can't
+  both declare one const), `crewPacksOf(code)` (from the cache), `crewRefresh(code)`,
+  `crewPackAddBtnHtml(code, kind, title)` (the «ضيفها للشلة» button: disabled with «موجودة في
+  الشلة» once every crew on the phone has it), `crewPackAdd` (at once with one crew, a pick
+  sheet with several), `crewPackAddTo`, `crewPacksChanged` (buttons, the crew page and the quiz
+  list follow), `crewOpenPack(code, kind)`, `crewWordsSync()`, `crewIso` (a title inside a
+  translated line, held apart). A phone in a crew asks for its page 5 s after start-up, at
+  most every 6 hours (`ashryCrewPacksAt`), so a pack another member added reaches it without
+  opening the crew's page.
+- **Where the button is**: a quiz's sheet (`qmOpenSheet`, a saved quiz with no changes since),
+  the words' sheet after saving (`wpOpenSheet`), and «كلماتنا» itself (`wpPaint`, a pack with a
+  code - opened by code too).
+- **The crew's page** (look ج, `JS_Crew.html`): a card «مسابقاتنا وكلماتنا» under the card and
+  its buttons (the side column on a phone's side and wider; above the tabs upright), the four
+  tabs untouched. The packs are a row that scrolls sideways (30 of them never push the tabs
+  away), each 🧠 / ✍️, its title and who added it; a tap opens it (`crewOpenPack`); ✕ for its
+  adder and the manager (a confirm); «＋ ضيف» lists what is on this phone with a code and not
+  on the crew (`packsKnownCodes`), or «اعمل مسابقتك». The row pops in once per list
+  (`motionFirst`), a pack just added alone.
+- **«من الشلة»** in the quiz list (`qmCrewHtml` in `qmPaintHub`, `setup-quizmaker`, which is
+  also the الأدوات entry): the current crew's packs, «على موبايلك» on the ones already here; the
+  hub asks the crew again at most every 30 s (`qmCrewRefresh`) and repaints only when the list
+  changed.
+- **Opening a crew pack** (`crewOpenPack`): a quiz is `openPackByCode` (its sheet, kept on the
+  phone). Words go through `openPackByCode` only when the phone has no word pack of its own (or
+  has this one); otherwise a sheet shows the words - never over the family's own pack, since
+  they are a category of their own anyway.
+- **The words in the word games**: a crew's word pack is fetched once and kept in
+  `ashryPacks_v1.crewWords` (`[{ code, title, words, crews, at }]`, `crewWordsSync`), dropped
+  when no crew on the phone lists it. `packWordPacks(min)` (JS_PackStore.html) is every word
+  pack the phone can deal from - its own first, id 'pack', then each crew's, id
+  'pack:<code>' - and everything that offered «كلماتنا» reads it: `spyCategoriesPlus` and
+  `packCatsPlus` (الجاسوس, بدون كلام, من أنا؟, a room's من أنا؟), الحرباء's list (`p.id` as the
+  option), على راسك's decks, the room lobbies (`packWordsLobbyHtml` lists them all;
+  `packWordsLobbyPick` returns the chosen code, the old saved value 'pack' still meaning the
+  own), الجاسوس's room list and payload (`packWordsCodeOfCat`). A crew pack whose title is the
+  same as the own one gets « · <crew name>».
+
+**Decided here** (open to change, each one place): the packs sit under the card, not in a
+tab (the owner's four tabs stay as they are); anyone in the crew adds, the adder or the
+manager removes (the crew's existing rule); the crew's words never replace the phone's own
+«كلماتنا» - they are a second category; the phone looks at its crew at most every 6 hours by
+itself.
+
+### «برنامج السهرة» on the crew's night
+
+- The night already counted a program's games (each is banked on `room.night` by
+  `programLeaveGame` → `bankNightPoints`, 5/3/2 and 1 for everyone else: `NIGHT_PLACES`).
+  Checked: the night's points equal the program's own table, and a crew keeps one night under
+  the room's id however many times it is sent.
+- `crewNightInput` adds `programs` (the last `CREW_PROGRAMS_KEPT` = 3 of
+  `room.nightx.programs`): `{ at, games: [ids, skipped left out], champions: [{ name, member }],
+  awards: [{ name, member, k, v, g, with, from }] }` (8 at most, computer players left out).
+  `crewCleanNight` keeps it as `prog: [{ at, g: [ids], c: [{ m, n }], aw: [{ m, n, k, v, g, w, f }] }]`;
+  `crewNightSummary` gives the page `prog: { n, games, champs: [names], aw: [{ k, name, v, g,
+  with, from }] }` (the night's last program). A program night is about 470 bytes more.
+- **The السهرات tab** (`crewNightProgHtml`): under the night's top three, a dashed line, the
+  badge «🌙 برنامج السهرة» (×2 when a night held two), «👑 بطل البرنامج: …», and the awards as
+  chips (the program's icons `CREW_PROG_ICONS`, the titles its own `prog_aw_<k>` keys).
+- Not done: program awards as crew titles (program.md's idea: buzz → fast …). They would
+  double-count the first places a title already counts; left for the owner.
+
+### Tests
+
+- `rules.mjs` "the links" (24 checks): a stranger can't add, a bad code, a member adds, the same
+  code again, 30 and the 31st refused, removing (not a member who didn't add it; the adder;
+  the manager; not a stranger), a server's own call held to the limit, the page's packs with
+  `byId` and no keys; a program of three buzzer games in a room opened for a crew: dealt,
+  finished, the night 12 / 11 / 8 = the program's own table, sent many times and one night,
+  the crew's night with its members and a guest, the program and its champion kept, the tab's
+  summary with its awards, the season table, the size, and a guest's view with none of the
+  crew's notes. `npm run test:rules`: all pass twice, the leak check clean.
+- Robots `--only=crewlink` (41 checks): a quiz and words created, a member adds, a wrong key and
+  another crew's key refused, the manager adds, a member sees them and no key, 30 and the 31st
+  refused, removal rules; then a program of three buzzer games in a crew room to its finale:
+  the night reaches the crew once, 5/3/2 a game (كريم 12, هالة 11), the program and its champion
+  on the night, the guest a guest, no crew key or member map in any room state. The `crew`
+  segment's points were updated to the 5/3/2 rule (it still expected 3/2/1 and failed on
+  master). With `crew`, `quiz` and `program`: 211 passed.
+- Screen test `fixes`: the crew's packs row (2 packs, ✕ for the manager), the crew's words in
+  the word games, «من الشلة» (2 rows), «ضيفها للشلة» on a quiz the crew hasn't got, a program night's
+  badge and awards, and the quiz list, the sheet and the nights tab swept at 375x812 and
+  1280x720 in Arabic light and English dark.
+- `tools/test-changed.mjs`: Crew.js / the crew's pages, the packs and the program map to the
+  `crewlink` segment too.

@@ -93,12 +93,51 @@ function qmPaintHub() {
       </div>
       <p class="field__hint">${escapeHTML(t.qm_open_code_hint || '')}</p>
     </section>
+    ${qmCrewHtml(t)}
     <button type="button" class="tool-item qm-words-link" onclick="setView('setup-wordpack')">
       <span class="tool-icon" aria-hidden="true">${iconHtml('art:wordpack')}</span>
       <span class="qm-item__body"><b>${escapeHTML(t.tool_wordpack || '')}</b><small>${escapeHTML(t.cat_wordpack || '')}</small></span>
       <span class="qm-item__go" aria-hidden="true">‹</span>
     </button>`;
   if (typeof motionRiseIn === 'function' && !motionOff()) motionRiseIn(box);
+  qmCrewRefresh();
+}
+
+/* «من الشلة»: the current crew's quizzes and words (the links, 30 Sep 2026) - a member sees them
+   without typing a code; a tap opens one (JS_CrewCore.html, crewOpenPack). The list is the crew's
+   page as this phone last saw it, asked again once in a while when the hub opens. */
+function qmCrewHtml(t) {
+  const crew = typeof crewCurrent === 'function' ? crewCurrent() : null;
+  if (!crew) return '';
+  const packs = crewPacksOf(crew.code);
+  const rows = packs.map(p => {
+    const onPhone = p.kind === 'quiz' ? !!packQuizByCode(p.code) : !!packCrewWordsAll().some(w => w.code === p.code) || ((packWordsLocal() || {}).code === p.code);
+    return `
+      <button type="button" class="qm-item qm-item--crew" onclick="crewOpenPack('${jsStringAttr(p.code)}', '${jsStringAttr(p.kind)}')">
+        <span class="qm-item__ic" aria-hidden="true">${p.kind === 'words' ? '✍️' : '🧠'}</span>
+        <span class="qm-item__body">
+          <b>${escapeHTML(p.title || p.code)}</b>
+          <small>${escapeHTML(p.kind === 'words' ? (t.crew_pack_words || '') : (t.crew_pack_quiz || ''))}${p.by ? ' · ' + escapeHTML(qmFill(t.crew_pack_by || '', { name: p.by })) : ''}</small>
+        </span>
+        ${onPhone ? `<span class="badge">${escapeHTML(t.crew_pack_on_phone || '')}</span>` : ''}
+        <span class="qm-item__go" aria-hidden="true">‹</span>
+      </button>`;
+  }).join('');
+  return `
+    <section class="card qm-crew">
+      <div class="eyebrow">🎉 ${escapeHTML(qmFill(t.qm_from_crew || '', { name: crew.name }))}</div>
+      <div class="qm-list">${rows || `<p class="empty">${escapeHTML(t.crew_packs_empty || '')}</p>`}</div>
+    </section>`;
+}
+const qmCrewAsked = {};
+function qmCrewRefresh() {
+  const crew = typeof crewCurrent === 'function' ? crewCurrent() : null;
+  if (!crew || (qmCrewAsked[crew.code] && Date.now() - qmCrewAsked[crew.code] < 30000)) return;
+  qmCrewAsked[crew.code] = Date.now();
+  const before = JSON.stringify(crewPacksOf(crew.code));
+  crewRefresh(crew.code).then(ok => {
+    if (ok && appState.currentView === 'setup-quizmaker' && JSON.stringify(crewPacksOf(crew.code)) !== before) qmPaintHub();
+  });
 }
 
 function qmNewQuiz() {
@@ -575,6 +614,7 @@ function qmOpenSheet(quiz) {
       ${way('buzzer', '🔔', t.qm_way_buzzer || '', t.qm_way_buzzer_d || '', false)}
     </div>
     <div class="modal-actions">
+      ${code && !quiz.dirty ? crewPackAddBtnHtml(code, 'quiz', quiz.title || '') : ''}
       ${code ? `<button type="button" class="btn btn--secondary" onclick="qmShare('${jsStringAttr(quiz.id)}')">📤 ${escapeHTML(t.qm_share || '')}</button>` : ''}
       ${packIsMine(quiz) ? '' : `<button type="button" class="btn btn--ghost" onclick="qmCopyMine('${jsStringAttr(quiz.id)}')">✏️ ${escapeHTML(t.qm_copy_mine || '')}</button>`}
       <button type="button" class="btn btn--ghost" onclick="closeModal('qm-save-modal')">${escapeHTML(t.close || '')}</button>
@@ -671,6 +711,7 @@ function wpPaint() {
       <div class="wp-chips" id="wp-chips">${chips || `<p class="empty">${escapeHTML(t.wp_empty || '')}</p>`}</div>
       <p class="field__hint">${escapeHTML(qmFill(t.wp_where || '', { t: w.title || t.wp_title_default || '' }))}</p>
     </section>
+    ${w.code && !w.dirty ? crewPackAddBtnHtml(w.code, 'words', w.title || '') : ''}
     <section class="card">
       <label class="field__label" for="wp-code-in">${escapeHTML(t.wp_open_label || '')}</label>
       <div class="input-group">
@@ -814,6 +855,7 @@ function wpOpenSheet(w) {
     <p class="field__hint">${escapeHTML(qmFill(t.wp_where || '', { t: w.title }))}</p>
     <div class="modal-actions">
       <button type="button" class="btn btn--primary btn--lg" onclick="wpShare()">📤 ${escapeHTML(t.qm_share || '')}</button>
+      ${crewPackAddBtnHtml(w.code, 'words', w.title || '')}
       <button type="button" class="btn btn--ghost" onclick="closeModal('qm-save-modal')">${escapeHTML(t.close || '')}</button>
     </div>`;
   modal.classList.remove('hidden');

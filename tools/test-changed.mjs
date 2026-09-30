@@ -55,7 +55,7 @@ const MAP = [
   // Error reports from players' phones (/err): the admin script that reads them.
   { files: /^tools\/errors\.mjs$/, robots: ['err'] },
   // «اعمل مسابقتك» and «كلماتنا»: the packs, their editor, and the rooms that deal them.
-  { files: /^(Packs\.js|JS_PackStore\.html|JS_QuizMaker\.html|rooms-worker\/src\/packs\.js)$/, robots: ['quiz', 'core'], ui: ['trivia', 'buzzer', 'imposter', 'chameleon', 'drawguess', 'whoami'], screens: true },
+  { files: /^(Packs\.js|JS_PackStore\.html|JS_QuizMaker\.html|rooms-worker\/src\/packs\.js)$/, robots: ['quiz', 'core', 'crewlink'], ui: ['trivia', 'buzzer', 'imposter', 'chameleon', 'drawguess', 'whoami'], screens: true },
   { files: /^JS_(Imposter|Chameleon|Spyfall|Bomb|Monkey|Stop|StopBus|WhoAmI|Charades|DescribeIt|TimesUp|NewGames|Emoji|Proverbs|FiveSeconds|TriviaBoard|TriviaBoardBank|Director|HeadsUp|Chooser)\.html$/, screens: true, ui: CORE_GAMES },
   { files: /^JS_RoomMafia\.html$/, robots: ['mafia'], ui: ['mafia'] },
   { files: /^(SkrewCards\.js|JS_RoomScrew\.html|JS_Screw\.html)$/, robots: ['screw'], ui: ['screw'], screens: true },
@@ -91,11 +91,11 @@ const MAP = [
   { files: /^(Witness\.js|RoomWitness\.js|JS_RoomWitness\.html)$/, robots: ['witness'], ui: ['witness'] },
   { files: /^(RoomExact\.js|JS_RoomExact\.html)$/, robots: ['exact'], ui: ['exact'] },
   // «الشلة»: the crew's rules and page (a room's night reaches its crew: the robots' crew segment; the page: screens and fixes).
-  { files: /^(Crew\.js|JS_Crew\.html|JS_CrewCore\.html)$/, robots: ['crew'], screens: true, fixes: true },
+  { files: /^(Crew\.js|JS_Crew\.html|JS_CrewCore\.html)$/, robots: ['crew', 'crewlink'], screens: true, fixes: true },
   { files: /^(Dark\.js|RoomDark\.js|JS_RoomDark\.html)$/, robots: ['darkroom'], ui: ['darkroom'] },
   { files: /^(RoomBox\.js|JS_RoomBox\.html)$/, robots: ['box'], ui: ['box'] },
   // برنامج السهرة: its robots, and the screen test's own part (the builder, the table, the finale).
-  { files: /^(RoomProgram\.js|JS_RoomProgram\.html)$/, robots: ['program'], program: true },
+  { files: /^(RoomProgram\.js|JS_RoomProgram\.html)$/, robots: ['program', 'crewlink'], program: true },
   // One sets, everyone solves, and the puzzle race: the same engine.
   { files: /^(SolveGames\.js|RoomSolve\.js|JS_RoomSolve\.html|WordleWords\.js|Countries\.js|JS_Wordle\.html|JS_GuessNumber\.html|JS_Flags\.html)$/, robots: ['solve', 'race'], ui: ['wordle', 'guessnum', 'flags', 'emoji'], screens: true },
   { files: /^(RoomRace\.js|JS_RoomRace\.html|SoloShared\.js|Sudoku\.js|Queens\.js|Tango\.js|Nonogram\.js|Mines\.js|Strands\.js|WordWheel\.js|Pinpoint\.js|QuizStreak\.js|ConnectionsWords\.js)$/, robots: ['race'], ui: RACE_GAMES, screens: true },

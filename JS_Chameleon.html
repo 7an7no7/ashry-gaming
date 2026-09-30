@@ -42,12 +42,12 @@ function renderChameleonCategories() {
   optRandom.innerText = '🎲 ' + (t.cham_random_cat || (appState.lang === 'en' ? 'Random category' : 'فئة عشوائية'));
   catSelect.appendChild(optRandom);
   // «كلماتنا»: a board of sixteen of the family's words, when there are sixteen.
-  if (packWordsList(16)) {
+  packWordPacks(16).forEach(p => {
     const opt = document.createElement('option');
-    opt.value = 'pack';
-    opt.innerText = packWordsCatName();
+    opt.value = p.id;
+    opt.innerText = p.name;
     catSelect.appendChild(opt);
-  }
+  });
   db.forEach((item, idx) => {
     const opt = document.createElement('option');
     opt.value = idx;
@@ -89,9 +89,10 @@ function startChameleonGame(again) {
   let chosen = null;
   if (!catSelect || catSelect.value === 'random' || !catSelect.value) {
     chosen = freshPick('chameleon:' + lang, db, 1, { key: c => c.category })[0];
-  } else if (catSelect.value === 'pack' && packWordsList(16)) {
-    chosen = { category: packWordsCatName().replace(/^✍️ /, ''), words: shuffleArray(packWordsList(16)).slice(0, 16) };
-    if (packWordsCode()) packPlayed(packWordsCode());
+  } else if (String(catSelect.value).indexOf('pack') === 0 && packWordPackById(catSelect.value, 16)) {
+    const wp = packWordPackById(catSelect.value, 16);
+    chosen = { category: wp.name.replace(/^✍️ /, ''), words: shuffleArray(wp.words.slice()).slice(0, 16) };
+    if (wp.code) packPlayed(wp.code);
   } else {
     const idx = parseInt(catSelect.value, 10);
     chosen = db[idx] || db[0];

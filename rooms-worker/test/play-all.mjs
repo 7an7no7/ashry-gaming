@@ -359,7 +359,7 @@ async function duelTourRobots() {
       await H.waitFor((s) => { const x = s.shared.tour.matches.find((y) => y.id === m.id); return x.state === 'done' && x.winner === stays && x.reason === 'left'; },
                       'connect4: a player who leaves before their match hands it over');
       await H.must('backToHub');
-      await H.waitFor((s) => s.phase === 'lobby' && (s.night[t.champion] || 0) === 3, 'connect4: the tournament\'s points go on the night\'s leaderboard');
+      await H.waitFor((s) => s.phase === 'lobby' && (s.night[t.champion] || 0) === 5, 'connect4: the tournament\'s points go on the night\'s leaderboard');
     } else if (game === 'dots') {
       await H.must('tourNew', { mode: 'stay', round: H.state.shared.round });
       await all(bots, (s) => !s.shared.tour && s.shared.phase === 'play' && s.shared.seats.length === 2 && s.shared.line.length === 3,
@@ -2825,7 +2825,7 @@ async function connect4Seg() {
               'connect4: the one who joined late sits down next, and moves first');
     const hostNow = byId(duelBots, first.state.hostId);
     await hostNow.must('backToHub');
-    await hostNow.waitFor((s) => s.phase === 'lobby' && (s.night[first.pid] || 0) === 3, 'connect4: the wins go on the night\'s leaderboard');
+    await hostNow.waitFor((s) => s.phase === 'lobby' && (s.night[first.pid] || 0) === 5, 'connect4: the wins go on the night\'s leaderboard');
     duelBots.forEach((b) => b.close());
   }
 

@@ -197,6 +197,7 @@ function doneSpyfallRevealStep() {
 function startSpyfallDiscussion(resume) {
   setView('play-spyfall');
   renderSpyfallLocationBoard();
+  renderSpyfallPlayers();
   setSpyfallPauseLabel(false);
 
   if (spyfallState.timerClock) spyfallState.timerClock.stop();
@@ -233,6 +234,21 @@ function updateSpyfallTimerUI(sec) {
   const s = sec % 60;
   el.innerText = `${String(m).padStart(2, '0')}:${s < 10 ? '0' : ''}${s}`;
   countdownUrgency(el, sec);
+  // The ring empties as the round's time runs out, and turns red in the last minute.
+  const ring = document.getElementById('spyfall-ring-fill');
+  if (ring) ring.style.strokeDashoffset = String(1 - Math.max(0, Math.min(1, sec / (spyfallState.timerSeconds || 480))));
+  document.getElementById('spyfall-dial')?.classList.toggle('is-low', sec > 0 && sec <= 60);
+}
+
+/** Who is playing, as الجاسوس's chips: an initial and the name. */
+function renderSpyfallPlayers() {
+  const box = document.getElementById('spyfall-players');
+  if (!box) return;
+  const initial = (name) => escapeHTML(Array.from(String(name).trim())[0] || '?');
+  box.innerHTML = spyfallState.players.map(p =>
+    `<span class="talk-person"><span class="talk-person__av" aria-hidden="true">${initial(p)}</span><span class="talk-person__name">${escapeHTML(p)}</span></span>`).join('');
+  const n = document.getElementById('spyfall-players-n');
+  if (n) n.textContent = `(${spyfallState.players.length})`;
 }
 
 function toggleSpyfallPause() {

@@ -24216,12 +24216,23 @@ body.is-tv-view .bz-quiz__ch b { width: 4vmin; height: 4vmin; font-size: 2vmin; 
 .wa-write__field { display: flex; gap: var(--sp-2); align-items: stretch; }
 
 /* --- الجاسوس: the talk (renderImposterBoard, updateImposterTimerUI) --- */
-.imp-talk__clock { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin-block-end: var(--sp-4); }
-.imp-talk__clock .gtm-dial.imp-dial { inline-size: min(11rem, 52vw, calc(var(--app-h, 100vh) * 0.3)); margin: 0 auto; }
-.imp-talk #imposter-director { margin-block-end: var(--sp-4); }
-.imp-talk__head { text-align: center; }
-.imp-people { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
-.imp-person {
+.talk__clock { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin-block-end: var(--sp-4); }
+.talk__clock .gtm-dial.talk-dial { inline-size: min(11rem, 52vw, calc(var(--app-h, 100vh) * 0.3)); margin: 0 auto; }
+/* A phone on its side: a small ring, so the players and the board are on the first screen. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .talk__clock .gtm-dial.talk-dial { inline-size: 7.5rem; }
+  .talk-dial > .metric { font-size: 1.85rem; }
+  .talk__clock { margin-block-end: var(--sp-2); }
+  /* The bar on one line: accuse, then the quiet pair beside it. */
+  .talk__actions { display: flex; align-items: center; gap: var(--sp-2); }
+  .talk__actions > .btn, .talk__actions > .imp1-live { flex: 1 1 0; min-width: 0; }
+  .talk__pair > .btn { padding-inline: var(--sp-2); }
+  .talk__actions > .talk__pair { flex: 1.25 1 0; min-width: 0; margin-block-start: 0; }
+}
+.talk #imposter-director { margin-block-end: var(--sp-4); }
+.talk__head { text-align: center; }
+.talk-people { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.talk-person {
   display: inline-flex; align-items: center; gap: var(--sp-2);
   padding-block: 0.3rem; padding-inline: 0.3rem 0.8rem;
   border-radius: var(--r-full);
@@ -24229,16 +24240,23 @@ body.is-tv-view .bz-quiz__ch b { width: 4vmin; height: 4vmin; font-size: 2vmin; 
   color: var(--text);
   font-weight: var(--fw-bold);
 }
-.imp-person__av {
+.talk-person__av {
   display: inline-grid; place-items: center;
   width: 1.8rem; height: 1.8rem;
   border-radius: var(--r-full);
   background: color-mix(in srgb, var(--accent) 18%, var(--surface-solid)); color: var(--accent-ink);
   font-size: var(--fs-sm); font-weight: var(--fw-black);
 }
-.imp-talk__actions .imp1-live { align-items: stretch; }
-.imp-talk__pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); margin-block-start: var(--sp-2); }
-.imp-talk__pair > .hidden + .btn { grid-column: 1 / -1; }
+.talk__actions .imp1-live { align-items: stretch; }
+/* Flex, not a grid: a button hidden once the round is decided leaves the other the whole row. */
+.talk__pair { display: flex; gap: var(--sp-2); margin-block-start: var(--sp-2); }
+.talk__pair > .btn { flex: 1 1 0; min-width: 0; }
+/* The same talk in الحرباء and الموقع السري: the one who speaks first lit, the spy's
+   own guess a half of the pair (it was a centred button of its own above the board). */
+.talk-person.is-first { background: var(--accent-soft); color: var(--accent-ink); }
+.talk-person.is-first .talk-person__av { background: var(--accent); color: var(--accent-on); }
+.talk__pair .spy1-guess-btn { width: 100%; margin: 0; justify-content: center; }
+#view-play-spyfall .talk, #view-play-chameleon .talk { margin-bottom: var(--sp-4); }
 
 /* --- خمّن الرقم: the entry and the guesses (drawGuessRow, JS_GuessNumber.html) --- */
 .gn-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-2); }

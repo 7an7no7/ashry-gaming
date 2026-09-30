@@ -555,7 +555,14 @@ OLDER SCREENS*):
   goes round once a minute (it counts up; `updateImposterTimerUI`); players as
   chips with an initial; «اتهموا حد» in the bar at the foot with «اكشف على طول»
   and «خروج» small under it (the reveal hides with the accusation once the round
-  is decided).
+  is decided). The same talk (`.talk`, `.talk-people`, `.talk-person`,
+  `.talk__actions`, `.talk__pair`) is الحرباء's and الموقع السري's since the
+  owner asked for it the same day: الموقع السري's clock in the ring, emptying
+  over the round and red in its last minute (`updateSpyfallTimerUI`), its
+  players (`renderSpyfallPlayers`), «اتهام لاعب» in the bar and «🕵️ أنا
+  الجاسوس» (the spy's own guess) beside «إنهاء»; الحرباء's speaking order as the
+  same chips with the place in the circle and the first speaker lit. On a phone
+  on its side the ring is small and the bar is one line.
 - **خمّن الرقم**: «رقمك» and a «خمّن» button instead of "?" and ✅; the guesses as
   chips, newest first (`drawGuessRow`: ⬆ higher, ⬇ lower, ✅); «لعبة جديدة» in
   the bar.

@@ -2602,9 +2602,9 @@
            ring goes round once a minute, updateImposterTimerUI), the ask director, who is playing,
            and the actions in the bar at the foot: accuse first, the quiet two under it. -->
       <div id="view-play-imposter" class="hidden">
-        <div class="card card--accent imp-talk">
-           <div class="imp-talk__clock">
-               <div class="gtm-dial imp-dial">
+        <div class="card card--accent talk">
+           <div class="talk__clock">
+               <div class="gtm-dial talk-dial">
                    <svg class="gtm-ring" viewBox="0 0 120 120" aria-hidden="true">
                        <circle class="gtm-ring__track" cx="60" cy="60" r="54" pathLength="1"></circle>
                        <circle class="gtm-ring__fill" id="imp-ring-fill" cx="60" cy="60" r="54" pathLength="1"></circle>
@@ -2614,14 +2614,14 @@
                <button onclick="toggleImposterTimer()" id="imp-pause-btn" class="btn btn--ghost btn--sm btn--auto" data-i18n="pause_btn">إيقاف مؤقت</button>
            </div>
            <div id="imposter-director" class="hidden"></div>
-           <h3 class="eyebrow imp-talk__head"><span data-i18n="imp_playing">بيلعبوا</span> <span id="imp-players-n" class="metric"></span></h3>
-           <div id="imposter-game-players" class="imp-people"></div>
+           <h3 class="eyebrow talk__head"><span data-i18n="imp_playing">بيلعبوا</span> <span id="imp-players-n" class="metric"></span></h3>
+           <div id="imposter-game-players" class="talk-people"></div>
         </div>
-        <div class="view-actions imp-talk__actions">
+        <div class="view-actions talk__actions">
            <div id="imp1-live" class="imp1-live">
              <button onclick="imp1OpenAccuse()" class="btn btn--danger btn--lg"><span class="btn__art" aria-hidden="true" data-art-icon="imposter"></span><span data-i18n="imp1_accuse_btn">اتهموا حد</span></button>
            </div>
-           <div class="imp-talk__pair">
+           <div class="talk__pair">
              <button onclick="revealImposterResult()" id="imp-reveal-direct" class="btn btn--ghost btn--sm" data-i18n="imp_reveal_now">اكشف على طول</button>
              <button onclick="setView('setup-imposter')" class="btn btn--ghost btn--sm" data-i18n="exit">خروج</button>
            </div>
@@ -3217,18 +3217,25 @@
         </div>
 
         <div class="card mb-4">
-          <div id="chameleon-4x4-grid" class="mb-4"></div>
-          <div class="eyebrow text-center mb-2" data-i18n="speaking_order">ترتيب الأدوار لإعطاء الكلمة</div>
-          <div id="chameleon-turn-order" class="flex flex-wrap gap-2 justify-center"></div>
+          <div id="chameleon-4x4-grid"></div>
+        </div>
+
+        <!-- Who says their word when, as الجاسوس's players (.talk-person): the place in the
+             circle, the one who starts lit (startChameleonTablePlay). -->
+        <div class="card card--accent talk">
+          <h3 class="eyebrow talk__head" data-i18n="speaking_order">ترتيب الأدوار لإعطاء الكلمة</h3>
+          <div id="chameleon-turn-order" class="talk-people"></div>
         </div>
 
         <div id="chameleon-guess-box" class="hidden card card--accent text-center mb-4">
           <p id="chameleon-guess-instruction" class="font-bold text-sm mb-3 tx-warning"></p>
         </div>
 
-        <div id="chameleon-play-actions" class="view-actions">
+        <div id="chameleon-play-actions" class="view-actions talk__actions">
           <button onclick="openChameleonAccuseModal()" class="btn btn--danger btn--lg" ><span class="btn__art" aria-hidden="true" data-art-icon="chameleon"></span><span data-i18n="accuse_chameleon_btn">اتهام الحرباء</span></button>
-          <button onclick="setupChameleon()" class="btn btn--ghost mt-3" data-i18n="finish">إنهاء</button>
+          <div class="talk__pair">
+            <button onclick="setupChameleon()" class="btn btn--ghost btn--sm" data-i18n="finish">إنهاء</button>
+          </div>
         </div>
       </div>
 
@@ -3310,24 +3317,36 @@
         </div>
       </div>
 
+      <!-- The talk, as الجاسوس's (.talk, Style.html): the clock in the ring, emptying as the
+           round's time runs out (updateSpyfallTimerUI), who is playing, the card of places,
+           and the actions in the bar - accuse first, the spy's own guess and the end under it. -->
       <div id="view-play-spyfall" class="hidden" data-accent="rose">
-        <div class="card card--tight flex items-center justify-between gap-2 mb-4">
-          <div class="flex items-center gap-3">
-            <span class="text-2xl font-black tabular-nums tx-danger" id="spyfall-timer-display">08:00</span>
-            <button id="spyfall-pause-btn" onclick="toggleSpyfallPause()" class="btn btn--ghost btn--xs" data-i18n="pause_btn">إيقاف مؤقت</button>
+        <div class="card card--accent talk">
+          <div class="talk__clock">
+            <div class="gtm-dial talk-dial" id="spyfall-dial">
+              <svg class="gtm-ring" viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="gtm-ring__track" cx="60" cy="60" r="54" pathLength="1"></circle>
+                <circle class="gtm-ring__fill" id="spyfall-ring-fill" cx="60" cy="60" r="54" pathLength="1"></circle>
+              </svg>
+              <div class="metric metric--xl" id="spyfall-timer-display">08:00</div>
+            </div>
+            <button id="spyfall-pause-btn" onclick="toggleSpyfallPause()" class="btn btn--ghost btn--sm btn--auto" data-i18n="pause_btn">إيقاف مؤقت</button>
           </div>
-          <button id="spyfall-accuse-btn" onclick="openSpyfallAccuseModal()" class="btn btn--danger btn--sm" data-i18n="accuse_player">اتهام لاعب 🚨</button>
+          <h3 class="eyebrow talk__head"><span data-i18n="imp_playing">بيلعبوا</span> <span id="spyfall-players-n" class="metric"></span></h3>
+          <div id="spyfall-players" class="talk-people"></div>
         </div>
-
-        <button id="spyfall-spyguess-btn" onclick="spy1VolunteerGuess()" class="btn btn--ghost btn--sm spy1-guess-btn"><span aria-hidden="true">🕵️ </span><span data-i18n="spy_guess_btn">أنا الجاسوس، هخمّن المكان</span></button>
 
         <div class="card mb-4">
           <div class="eyebrow text-center mb-2" data-i18n="possible_locations">الأماكن الممكنة (دوس على مكان تشطبه)</div>
           <div id="spyfall-locations-list" class="grid grid-cols-2 md:grid-cols-3 gap-2"></div>
         </div>
 
-        <div class="view-actions">
-          <button onclick="setupSpyfall()" class="btn btn--ghost" data-i18n="finish">إنهاء</button>
+        <div class="view-actions talk__actions">
+          <button id="spyfall-accuse-btn" onclick="openSpyfallAccuseModal()" class="btn btn--danger btn--lg" data-i18n="accuse_player">اتهام لاعب 🚨</button>
+          <div class="talk__pair">
+            <button id="spyfall-spyguess-btn" onclick="spy1VolunteerGuess()" class="btn btn--ghost btn--sm spy1-guess-btn"><span aria-hidden="true">🕵️ </span><span data-i18n="spy_guess_short">أنا الجاسوس</span></button>
+            <button onclick="setupSpyfall()" class="btn btn--ghost btn--sm" data-i18n="finish">إنهاء</button>
+          </div>
         </div>
       </div>
 

@@ -850,6 +850,7 @@ async function witnessRobots() {
     await A.must('done', { round });
     await all(people.concat([TV]), (s) => s.shared.phase === 'vote' && s.shared.lineup.length === 6 && s.shared.realIdx === null, `witness ${round}: the lineup goes up; which one is real stays hidden`);
     await jury[0].must('vote', { option: 's1', round });
+    await H.waitFor((s) => s.shared.vote && s.shared.vote.voted.length === 1, `witness ${round}: the host hears of the vote`);
     check(!H.state.shared.vote.results && H.state.shared.vote.voted.length === 1, `witness ${round}: who voted is public, not what`);
     await jury[1].must('vote', { option: 's2', round });
     await all(people.concat([TV]), (s) => s.shared.phase === 'reveal' && typeof s.shared.realIdx === 'number', `witness ${round}: the vote closes when the jury has voted, the real one shown`);
@@ -972,6 +973,8 @@ async function boxRobots() {
     }
     const bids = people.map((b, i) => (n * 37 + i * 53) % 260);
     await people[0].must('bid', { box: n, amount: bids[0] });
+    // The other phone hears of the bid a moment later (over the internet, after this phone's own answer).
+    await people[1].waitFor((s) => s.shared.done.indexOf(people[0].pid) !== -1, `box ${n + 1}: the table hears that a bid came in`);
     check(people[0].state.you.bid === bids[0] && !people[1].state.you.bid && people[1].state.shared.done.indexOf(people[0].pid) !== -1 && !people[1].state.shared.result,
       `box ${n + 1}: a bid is on its own phone only; the table sees who, not how much`);
     await people[0].must('bid', { box: n, amount: 5 });
@@ -1119,6 +1122,7 @@ async function darkroomRobots() {
   await M.must('stick', { vx: v[0], vy: v[1], run: s.run });
   await sleep(300);
   await M.must('stick', { vx: 0, vy: 0, run: s.run });
+  await H.waitFor((st) => Math.hypot(st.shared.pos.x - p0.x, st.shared.pos.y - p0.y) > 0.3, 'darkroom: the host hears the walk');
   const p1 = H.state.shared.pos;
   check(Math.hypot(p1.x - p0.x, p1.y - p0.y) > 0.3, 'darkroom: the stick walks the mover on the server');
   await H.must('backToHub');

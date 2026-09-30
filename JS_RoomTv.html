@@ -264,8 +264,9 @@ function tvStrip(state, t) {
   const board = state.phase !== 'lobby' && Array.isArray(s.board) && s.board.length && s.board[0].score !== undefined
     ? s.board : null;
   if (board) board.forEach(r => { scores[r.id] = r.score; });
+  const lobbyPop = state.phase === 'lobby' && typeof motionFirst === 'function';
   const chips = state.players.map(p => `
-    <span class="tv-chip ${p.online ? '' : 'is-away'}"${p.online ? '' : ` title="${escapeHTML(t.room_away || '')}"`}>
+    <span class="tv-chip ${p.online ? '' : 'is-away'}${lobbyPop && motionFirst('tvchip|' + state.code + '|' + p.id) ? ' is-new' : ''}"${p.online ? '' : ` title="${escapeHTML(t.room_away || '')}"`}>
       <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
       <span class="tv-chip__name">${roomNameHtml(state, p)}</span>
       ${board ? `<b class="tv-chip__score" dir="ltr">${scores[p.id] || 0}</b>` : ''}
@@ -359,10 +360,37 @@ function tvLobbySig(state) {
   ].join('|');
 }
 
+/* A TV that opened a room with nobody in yet (ideas batch: shell): the QR and
+   the code in the middle, twice the size, «امسحوا الكود» breathing under them.
+   When the first person comes in the list slides in beside it and the QR steps
+   aside (tv-lobby--arrive, once), and that person's chip pops in the strip. */
+let tvLobbyEmptyCode = '';
+
+function tvLobbyEmptyHtml(state, t, url, entry) {
+  return `
+    <div class="tv-lobby tv-lobby--empty">
+      <section class="tv-join">
+        <div id="tv-qr" class="tv-qr" aria-hidden="true"></div>
+        <div class="tv-join__code">${escapeHTML(state.code || '')}</div>
+        <p class="tv-join__cta"><span aria-hidden="true">📷</span> ${escapeHTML(t.tv_scan_cta || '')}</p>
+        ${url ? `<p class="tv-join__url" dir="ltr">${escapeHTML(url.replace(/^https?:\/\//, ''))}</p>` : ''}
+        <p class="tv-join__hint">${t.tv_join_hint || ''}</p>
+        ${entry ? `<p class="tv-join__game" data-accent="${entry.accent}">${escapeHTML(t.tv_empty_game || '')} ${iconHtml(entry.icon)} <b>${escapeHTML(t[entry.key] || entry.id)}</b></p>` : ''}
+      </section>
+    </div>`;
+}
+
 function tvLobby(state, t) {
   const url = roomJoinUrl(state.code);
   const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
   let control;
+  const nobody = state.youAreHost && !state.players.some(p => !p.bot);
+  if (nobody) {
+    tvLobbyEmptyCode = state.code || '';
+    return tvLobbyEmptyHtml(state, t, url, entry);
+  }
+  const arrive = !!tvLobbyEmptyCode && tvLobbyEmptyCode === state.code && !(typeof motionOff === 'function' && motionOff());
+  tvLobbyEmptyCode = '';
 
   if (!state.youAreHost) {
     // A TV that is not the host has nothing to press: its side shows who is in
@@ -435,7 +463,7 @@ function tvLobby(state, t) {
   }
 
   return `
-    <div class="tv-lobby">
+    <div class="tv-lobby${arrive ? ' tv-lobby--arrive' : ''}">
       <section class="tv-join">
         <div id="tv-qr" class="tv-qr" aria-hidden="true"></div>
         <div class="tv-join__code">${escapeHTML(state.code || '')}</div>

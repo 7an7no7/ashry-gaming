@@ -1030,8 +1030,26 @@ function lobbySkeleton(on) {
   }
 }
 
+/* «الليلة دي؟» answered "on the TV" on a laptop or TV: the next room is opened
+   by this device as its big screen, with the game chosen (ideas batch: shell). */
+let roomCreateScreenOnce = false;
+
 /** Entry point from a game's setup screen: "play on separate phones". */
 async function roomCreateFor(gameId) {
+  if (roomCreateScreenOnce) {
+    roomCreateScreenOnce = false;
+    try {
+      setSyncing(true);
+      await Room.create('', gameId, true);
+      setSyncing(false);
+      setView('room-tv');
+      if (Room.state) routeRoomState(Room.state);
+    } catch (err) {
+      setSyncing(false);
+      showToast(err.message || roomErrText('create'), 'error');
+    }
+    return;
+  }
   // The name this phone used last time goes straight in (the owner, 26 Sep
   // 2026: it used to be asked every time, one more tap for every room); the
   // lobby shows «أنت: منى ✏️» to change it. A phone with no name is asked.
@@ -1613,6 +1631,86 @@ if (typeof Room !== 'undefined') Room.onChange((state) => {
   if (code !== roomHubCode) { roomHubCode = code; roomHubGroup = ''; }
 });
 
+/* The host's list (ideas batch: shell): the games this room can start now
+   first, «تنفع دلوقتي (N)», and the rest folded under «محتاجين ناس أكتر (N) ▾»,
+   under the home's section heads (tvHubGroupOf) once opened. Nothing is taken
+   away; a family opened (chess's ways) is one list as before. */
+let roomHubMoreOpen = false;
+
+function roomHubPosterHtml(tile, state, t) {
+  const count = state.players.length;
+  const g = tile.g;
+  const off = !tile.open && typeof roomGameIsOff === 'function' && roomGameIsOff(g.id);
+  const enough = count >= tile.min && !off;
+  const cat = (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[g.id]) || null;
+  const isF2F = !!(cat && cat.faceToFace);
+  const showHint = roomHubLocation === 'apart' && isF2F;
+  const hint = showHint ? (t.room_hub_facetoface || 'أحسن وانتوا مع بعض') : '';
+  // A tile the room can't start yet says how many more it needs, in words.
+  const need = !enough ? (t.room_need_more ? t.room_need_more.replace('{n}', String(tile.min - count)) : `${tile.min}+`) : '';
+  const badge = off ? gameOffBadge(t) : need ? `<div class="game-card__need">${escapeHTML(need)}</div>` : '';
+  const hintEl = hint ? `<div class="game-card__hint">${escapeHTML(hint)}</div>` : '';
+  return `
+            <button type="button" class="game-card room-poster ${enough ? '' : 'is-disabled'} ${off ? 'is-off' : ''} ${tile.open ? 'room-poster--family' : ''}" data-accent="${g.accent}"
+                 ${off ? 'onclick="gameOffToast()" aria-disabled="true"' : enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomAct('chooseGame', { game: '${g.id}' })"`) : 'aria-disabled="true"'}>
+              <span class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</span>
+              <span class="game-title">${escapeHTML(roomHubTileName(tile, t))}</span>
+              ${hintEl}
+              ${badge}
+            </button>`;
+}
+
+function roomHubListHtml(state, t) {
+  const tiles = roomHubTiles();
+  const grid = (list) => `<div class="game-grid room-posters">${list.map(x => roomHubPosterHtml(x, state, t)).join('')}</div>`;
+  if (roomHubGroup) return grid(tiles);
+  const count = state.players.length;
+  const ready = tiles.filter(x => count >= x.min && !(!x.open && typeof roomGameIsOff === 'function' && roomGameIsOff(x.g.id)));
+  const rest = tiles.filter(x => ready.indexOf(x) === -1);
+  let more = '';
+  if (rest.length) {
+    let body;
+    if (typeof CATALOG_GROUPS !== 'undefined' && typeof tvHubGroupOf === 'function') {
+      const groups = CATALOG_GROUPS.map(gr => ({ gr: gr, tiles: [] }));
+      const other = { gr: null, tiles: [] };
+      rest.forEach(x => { (groups.find(y => y.gr.id === tvHubGroupOf(x.g.id)) || other).tiles.push(x); });
+      body = groups.concat([other]).filter(y => y.tiles.length).map(y => `
+        <div class="room-hub-sec">
+          ${y.gr ? `<h3 class="room-hub-sec__head"><span aria-hidden="true">${y.gr.icon}</span> ${escapeHTML(t[y.gr.title] || y.gr.id)}</h3>` : ''}
+          ${grid(y.tiles)}
+        </div>`).join('');
+    } else body = grid(rest);
+    // Nothing playable yet (one person, every game needs two): the rest is the list, open.
+    const open = roomHubMoreOpen || !ready.length;
+    more = `
+      <details class="room-hub-more" ${open ? 'open' : ''} data-r="${open ? 1 : 0}" ontoggle="roomHubMoreToggled(this)">
+        <summary class="room-hub-more__head">
+          <span>${escapeHTML(t.room_hub_more || '')} <span class="room-hub-count metric">(${rest.length})</span></span>
+          <span class="room-hub-more__chev" aria-hidden="true">▾</span>
+        </summary>
+        <div class="room-hub-more__body">${body}</div>
+      </details>`;
+  }
+  const now = ready.length ? `
+      <h3 class="room-hub-now"><span aria-hidden="true">✅</span> ${escapeHTML(t.room_hub_now || '')} <span class="room-hub-count metric">(${ready.length})</span></h3>
+      ${grid(ready)}` : '';
+  return now + more;
+}
+
+function roomHubMoreToggled(el) {
+  // A details drawn open fires its toggle too: only a tap on it is a choice.
+  const now = el.open ? '1' : '0';
+  if (el.dataset.r === now) return;
+  el.dataset.r = now;
+  roomHubMoreOpen = !!el.open;
+  haptic('light');
+  if (el.open && typeof motionOff === 'function' && !motionOff()) {
+    const body = el.querySelector('.room-hub-more__body');
+    if (body && body.animate) body.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 240, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+  }
+}
+
 /** The game picker. Everyone sees it; only the host can act on it. */
 function renderRoomHub(state) {
   const t = TRANSLATIONS[appState.lang];
@@ -1642,29 +1740,7 @@ function renderRoomHub(state) {
         <span class="section__rule"></span>
       </div>
       ${roomHubGroup ? roomHubBackHtml(t, false) : chips}
-      <div class="game-grid room-posters">
-        ${roomHubTiles().map(tile => {
-          const g = tile.g;
-          const off = !tile.open && typeof roomGameIsOff === 'function' && roomGameIsOff(g.id);
-          const enough = count >= tile.min && !off;
-          const cat = (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[g.id]) || null;
-          const isF2F = !!(cat && cat.faceToFace);
-          const showHint = roomHubLocation === 'apart' && isF2F;
-          const hint = showHint ? (t.room_hub_facetoface || 'أحسن وانتوا مع بعض') : '';
-          // A tile the room can't start yet says how many more it needs, in words.
-          const need = !enough ? (t.room_need_more ? t.room_need_more.replace('{n}', String(tile.min - count)) : `${tile.min}+`) : '';
-          const badge = off ? gameOffBadge(t) : need ? `<div class="game-card__need">${escapeHTML(need)}</div>` : '';
-          const hintEl = hint ? `<div class="game-card__hint">${escapeHTML(hint)}</div>` : '';
-          return `
-            <button type="button" class="game-card room-poster ${enough ? '' : 'is-disabled'} ${off ? 'is-off' : ''} ${tile.open ? 'room-poster--family' : ''}" data-accent="${g.accent}"
-                 ${off ? 'onclick="gameOffToast()" aria-disabled="true"' : enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomAct('chooseGame', { game: '${g.id}' })"`) : 'aria-disabled="true"'}>
-              <span class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</span>
-              <span class="game-title">${escapeHTML(roomHubTileName(tile, t))}</span>
-              ${hintEl}
-              ${badge}
-            </button>`;
-        }).join('')}
-      </div>
+      ${roomHubListHtml(state, t)}
     </div>
     ${night}`;
 }

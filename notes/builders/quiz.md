@@ -125,18 +125,36 @@ untouched (a ready index line and a draft `notes/games/quiz.md` are at the end).
   centred dialog everywhere else - the standing rule that popups are centred dialogs.
 - Nothing personal: no name, no address, no room is stored with a pack.
 
-## For «الشلة» (crews)
+## For «الشلة» (crews) - merged 30 Sep 2026
 
-A crew can store codes; the page's functions to list and open by code are in
-`JS_PackStore.html` (shell, always loaded):
+The crew already keeps pack codes: `crewAddPack(crewCode, { code, kind, title })`,
+`crewRemovePack(crewCode, packCode)` on the page (JS_CrewCore.html), `attachPack` /
+`listPacks` on its Durable Object, the list in `crew.packs` of `crewAct(code, 'get')`.
+What this side offers it (JS_PackStore.html, the shell, always loaded):
 
-- `packsKnownCodes()` → `[{ code, kind, title }]`, every code on this phone.
-- `packOpenByCode(code)` → `{ kind, id }`: fetches and keeps it (a quiz joins the list, the
-  words become the phone's word pack). Throws an Error whose message is an error code
-  (`packErrorText(code)` words it).
-- `packFetch(code)` → `{ code, kind, pack }` without keeping it.
-- `packQuizByCode(code)`, `packQuizById(id)`, `packWordsLocal()`.
-- Server: `POST /pack/get { code }`.
+- **`openPackByCode(code)`** - the one call from the crew's page: fetches the pack,
+  keeps it on the phone, and shows it - a quiz's sheet (its code and the three ways to
+  play: room, team board, buzzer), or «كلماتنا» for the words. It loads the editor's
+  chunk itself (`lzRun('quizmaker', …)`); a bad code says why in a toast. Resolves to
+  `{ kind, id }`, or null.
+- `packOpenByCode(code)` → `{ kind, id }` (keeps it, shows nothing), `packFetch(code)` →
+  `{ code, kind, pack }` (keeps nothing), `packsKnownCodes()` → `[{ code, kind, title }]`
+  (every code on this phone: what «ضيف للشلة» could offer), `packQuizByCode(code)`,
+  `packWordsLocal()`, `packErrorText(error)`. Server: `POST /pack/get { code }`.
+
+**How a crew's packs should show (not built, the crew link's job):**
+
+- On the crew's page, a «مسابقاتنا» list of `crew.packs` (title, kind icon ✍️ / 🧠, who
+  added it); a tap is `openPackByCode(p.code)`. «＋ ضيف مسابقة» lists `packsKnownCodes()`
+  not yet on the crew and calls `crewAddPack`; saving a new quiz in the editor could
+  offer «ضيفها للشلة» on the sheet (one more button beside «ابعت الكود», shown when
+  `crewCurrent()` is set).
+- In the editor's hub (`qmPaintHub`), a section «من الشلة» under «مسابقاتك»: the crew's
+  quiz codes not on this phone yet, each a row that opens with `openPackByCode` (so a
+  member sees them without typing a code). The words: when the phone has no word pack
+  and the crew has one, «كلماتنا» can offer «كلمات الشلة» the same way.
+- In the lobbies (`packSourceFieldHtml`) nothing changes: a crew quiz opened once is on
+  the phone, so it is in the list.
 
 ## Tests
 
@@ -156,6 +174,18 @@ A crew can store codes; the page's functions to list and open by code are in
   `rooms-worker/src/packs.js` map to the quiz and core segments and the trivia, buzzer,
   word games' screens.
 
+**Run after merging master (الشلة), 30 Sep 2026**: `npm run check` passes; `test:rules`
+all pass and the leak check clean; the robots 3,352 passed, 0 failed (the quiz segment 44,
+the crew's 50); the screen test's screens at 375x812, 667x375 and 1280x720 (both looks,
+the editor, the reload, the sheet) and the rooms for trivia, the buzzer, الجاسوس, الحرباء,
+ارسم وخمّن and من أنا؟ all pass; the site builds with the shell at 630 KB of its 710.
+Looked at in headless Chrome at 375x812, 667x375, 1280x720 and 1920x1080, Arabic light
+and English dark: the hub, the editor (emoji row, a question open, a reload mid-question,
+an error on its question), the sheet, the team board with a quiz and its card, «كلماتنا»
+and its sheet, the categories in the word games, a room of two phones and a TV through
+trivia and the buzzer with a quiz (a guest reloaded mid-question), الحرباء and ارسم وخمّن
+with the family's words; no console errors.
+
 ## Traps met
 
 - **The tools decode `\u` escapes** - not only the Edit tool: the Write tool and even a
@@ -168,14 +198,20 @@ A crew can store codes; the page's functions to list and open by code are in
 - **A screen opened from a chunk that names another chunk's screen** (`setView('setup-
   trivia')` in JS_QuizMaker) makes lazy-split see the screen in two chunks: it goes in
   `VIEW_CHUNKS` (`'setup-trivia': ['triviaboard']`).
-- **A new Durable Object class needs a migration** (`v5`, `PackStore` in
-  `rooms-worker/wrangler.toml`). The crews' branch may add its own class as `v5` too: at
-  the merge, one of them becomes `v6` (a tag is only a name; the order is what counts).
+- **A new Durable Object class needs a migration**: the crews' `Crew` is `v5`, so
+  `PackStore` is `v6` in `rooms-worker/wrangler.toml` (the merge of master, 30 Sep).
+- **A merge that adds to the end of the same file twice** (Style.html, rules.mjs):
+  git's hunks there can split a shared closing line (`}`) between the two sides, so a
+  union of both lost the crew block's last brace and cut a comment in two. Rebuild such a
+  file from master's version plus the one block, and check `{`/`}` and `/*`/`*/`.
+- **`wrangler dev` reloads itself when `wrangler.toml` changes**, and after the merge's
+  new class it came back half-broken (a crash, requests hanging) while holding its
+  `--persist-to` folder: kill its whole tree and start it on a fresh folder.
 
 ## To deploy
 
 1. `cd tools && npm run build:site` and commit `docs/`.
-2. `cd rooms-worker && npm run deploy` (a new Durable Object class and migration `v5`; no
+2. `cd rooms-worker && npm run deploy` (a new Durable Object class and migration `v6`; no
    secret needed), wait a minute, `npm run test:live` (the quiz segment is in it).
 3. `cd tools && npm run deploy:site`.
 

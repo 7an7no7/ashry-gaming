@@ -20,6 +20,7 @@
 
    For «الشلة» (a crew that owns packs) - the functions another screen needs:
      packsKnownCodes()        every code on this phone: [{ code, kind, title }]
+     openPackByCode(code)     the one call from another screen: fetch, keep, and show it
      packOpenByCode(code)     fetches a pack and keeps it on the phone -> { kind, id }
      packFetch(code)          fetches without keeping -> { code, kind, pack }
      packQuizByCode(code)     the phone's copy of a quiz, or null
@@ -91,6 +92,22 @@ async function packApi(path, body) {
     return { ok: false, error: 'offline' };
   }
   try { return await res.json(); } catch (e) { return { ok: false, error: 'server' }; }
+}
+
+/**
+ * The one door from anywhere (a crew's page, a link): opens a pack by its code
+ * and shows it - a quiz's sheet (its code and the three ways to play), or the
+ * family words on «كلماتنا». -> Promise<{ kind, id }>, or null after saying why.
+ */
+async function openPackByCode(code) {
+  let got;
+  try { got = await packOpenByCode(code); } catch (e) { showToast(packErrorText(e.message), 'error'); return null; }
+  if (got.kind === 'words') { setView('setup-wordpack'); return got; }
+  lzRun('quizmaker', () => {
+    const quiz = packQuizById(got.id);
+    if (quiz && typeof qmOpenSheet === 'function') qmOpenSheet(quiz);
+  });
+  return got;
 }
 
 /** A pack by its code, not kept: { code, kind, pack } or throws an Error whose message is its code. */

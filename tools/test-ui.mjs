@@ -162,6 +162,15 @@ async function ev(phone, expr) {
     throw e;
   }
 }
+/** A screen whose game's code is still on its way (JS_Lazy.html) is drawn once it has come. */
+async function chunkIn(phone, ms = 5000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    const busy = await ev(phone, `typeof lz !== 'undefined' && lz.busy > 0`).catch(() => false);
+    if (!busy) return;
+    await wait(40);
+  }
+}
 /** Loads a page and waits for the app to be up (the intro gone). */
 async function open(phone, url) {
   await send('Page.navigate', { url }, phone.sessionId);
@@ -250,6 +259,7 @@ if (ONLY.includes('screens')) {
       for (const id of views) {
         await ev(phone, `setView(${JSON.stringify(id)}); closeAllModals(); 1`);
         await wait(40);
+        await chunkIn(phone);
         const found = await sweep(phone);
         if (found && found.length) bad.push(id + ': ' + found.join('; '));
       }
@@ -265,6 +275,7 @@ if (ONLY.includes('screens')) {
       for (const id of setups) {
         await ev(phone, `setView(${JSON.stringify(id)}); closeAllModals(); 1`);
         await wait(150);
+        await chunkIn(phone);
         const started = await ev(phone, `(() => {
           const v = document.getElementById('view-${id}');
           const btn = v && [...v.querySelectorAll('.view-actions--start button, .view-actions button')].find(b => b.offsetWidth && !b.closest('.mode-online-panel'));
@@ -411,7 +422,8 @@ if (ONLY.includes('fixes')) {
   await ev(host, `(async () => { await Room.act('backToHub', {}); return 1; })()`);
 
   // حرب السفن: a sinking is not told before its shell lands.
-  const held = await ev(host, `(() => {
+  const held = await ev(host, `(async () => {
+    if (typeof lzEnsure === "function") await lzEnsure(lzChunksOfView("room-battleship"));
     const ai = bsRandomFleet(Math.random), sea = { grid: new Array(100).fill(BS_SEA), sunk: [] };
     const cells = bsShipCells(ai[4], BS_SHIPS[4].len);
     let res; cells.forEach(c => { res = bsFire(sea, ai, c); });
@@ -459,7 +471,9 @@ if (ONLY.includes('site')) {
   await appUp(phone);
 
   // In a game it waits, with the note; back on the home it switches.
-  await ev(phone, `(() => { setView('setup-sudoku'); const b = [...document.querySelectorAll('#view-setup-sudoku .view-actions button')].find(x => x.offsetWidth); if (b) b.click(); return appState.currentView; })()`);
+  await ev(phone, `setView('setup-sudoku'); 1`);
+  await chunkIn(phone);
+  await ev(phone, `(() => { const b = [...document.querySelectorAll('#view-setup-sudoku .view-actions button')].find(x => x.offsetWidth); if (b) b.click(); return appState.currentView; })()`);
   await wait(800);
   const before = await ev(phone, `window.BUILD_ID`);
   const puzzle = await ev(phone, `(appState.sudoku && appState.sudoku.puzzle) || ''`);

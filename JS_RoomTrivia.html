@@ -60,6 +60,7 @@ ROOM_GAMES.trivia = {
 
     const sig = ['trivia', s.phase, s.qIndex, iAnswered, (s.answered || []).length, state.youAreHost, appState.lang].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => triviaFrame(state, t, iAnswered));
+    if (rebuilt && s.phase === 'results') triviaRevealRun(el, state);
     if (rebuilt && s.phase === 'gameover' && typeof confetti === 'function') {
       afterReveal(el, () => confetti({ particleCount: 160, spread: 80 }));
     }
@@ -136,6 +137,9 @@ function triviaFrame(state, t, iAnswered) {
   const myPick = (s.picks || {})[Room.me];
   const gained = (s.gained || {})[Room.me];
   const last = s.qIndex + 1 >= s.totalQuestions;
+  // The answer (ideas batch: rooms): the wrong ones one by one, the right one last.
+  const plan = triviaRevealPlan(state, false);
+  const st = plan.st;
 
   let verdict = '';
   if (inRound) {
@@ -153,23 +157,47 @@ function triviaFrame(state, t, iAnswered) {
         const wrongPick = myPick === i && !right;
         const pct = Math.round(((counts[i] || 0) / total) * 100);
         return `
-          <div class="result-row trivia-result trivia-result--${i} ${right ? 'is-correct' : ''} ${wrongPick ? 'is-wrong' : ''}">
+          <div class="result-row trivia-result trivia-result--${i} ${right ? 'is-correct' : ''} ${wrongPick ? 'is-wrong' : ''}"${st.at(plan.at[i], right ? 'pop' : 'in')}>
             <div class="result-row__bar" style="width:${pct}%"></div>
             <div class="result-row__body">
               <span class="result-row__label">${right ? '✅' : (wrongPick ? '❌' : letters[i])} ${escapeHTML(c)}</span>
-              <span class="result-row__count">${counts[i] || 0}</span>
+              <span class="result-row__count">${st.count(counts[i] || 0, plan.at[i] + 200)}</span>
             </div>
           </div>`;
       }).join('')}
     </div>
-    ${verdict ? `<div class="waiting-note">${verdict}</div>` : ''}
-    ${renderScoreboard(s.board)}
+    ${verdict ? `<div class="waiting-note"${st.at(plan.rightAt + 450, 'in')}>${verdict}</div>` : ''}
+    ${st.board(renderScoreboard(s.board), plan.rightAt + 700)}
+    <span hidden${st.end(0)}></span>
     ${roomMoveOnHtml(state,
       `<div class="btn-stack">
            <button class="btn btn--primary btn--lg" onclick="roomAct('nextQuestion')">${last ? (t.trivia_final || '') : (t.next_q_btn || '')}</button>
          </div>`,
       `<div class="waiting-note">${t.room_wait_host || ''}</div>`)}
     ${renderRoomPlayerStrip(state)}`;
+}
+
+/* --- the answer, told slowly (ideas batch: rooms) ---------------------------------------
+   The wrong choices go one by one, about 0.8 s apart, and the right one pops last;
+   every count grows from 0 (countUp) at its choice's moment, and the board fades in
+   after, counting and sliding (animateScoreboards). Once a question per device. */
+function triviaRevealPlan(state, tv) {
+  const s = state.shared;
+  const st = stageReveal(['trivia-rev', tv ? 'tv' : 'ph', roomDealKey(state), s.qIndex].join('|'));
+  const at = [];
+  let k = 0;
+  (s.choices || []).forEach((c, i) => { if (i !== s.correctAnswer) at[i] = 350 + (k++) * 800; });
+  const rightAt = 350 + k * 800 + 250;
+  if (typeof s.correctAnswer === 'number') at[s.correctAnswer] = rightAt;
+  return { st, at, rightAt };
+}
+
+function triviaRevealRun(root, state) {
+  stageRun(root, state);
+  const plan = triviaRevealPlan(state, !!state.youAreScreen);   // the times only: its key is spent
+  if (!root || !root.querySelector('[data-rv]')) return;
+  (state.shared.choices || []).forEach((c, i) => { if (i !== state.shared.correctAnswer) stageSound(state, 'tick', plan.at[i]); });
+  stageSound(state, 'success', plan.rightAt + 150);
 }
 
 function chooseTriviaAnswer(choice) {

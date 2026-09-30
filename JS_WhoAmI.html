@@ -911,10 +911,50 @@ function renderManualInputScreen(keep) {
 
     const input = document.getElementById('manual-whoami-input');
     input.placeholder = secret ? (t.wa_write_secret || 'اكتب شخصية في السر…') : (t.wa_write_for || 'شخصية {name}…').replace('{name}', name);
+    const label = document.getElementById('wa-write-label');
+    if (label) label.textContent = secret ? (t.wa_write_label_secret || '') : (t.wa_write_label_for || '').replace('{name}', name);
+    const hint = document.getElementById('wa-write-hint');
+    if (hint) hint.textContent = secret ? (t.wa_write_hint_secret || '') : (t.wa_write_hint_for || '').replace('{name}', name);
+
+    // How many have written: a dot each, the one writing now drawn long.
+    const total = Math.max(1, Number(w.count) || (w.tempPlayers || []).length || 1);
+    const prog = document.getElementById('wa-write-prog');
+    if (prog) {
+        prog.innerHTML = Array.from({ length: total }, (_, i) =>
+            `<i class="${i < idx ? 'is-done' : i === idx ? 'is-now' : ''}"></i>`).join('');
+        prog.setAttribute('aria-label', (t.wa_write_prog || '{n}/{m}').replace('{n}', idx + 1).replace('{m}', total));
+    }
+    const go = document.getElementById('wa-write-go');
+    if (go) {
+        const k = idx >= total - 1 ? 'wa_write_start' : 'wa_write_next';
+        go.setAttribute('data-i18n', k);
+        go.textContent = t[k] || '';
+    }
+    // Written in secret: dots until the eye is tapped, every time the phone is passed.
     if (!keep) {
         input.value = '';
+        input.classList.add('is-hidden');
         input.focus();
     }
+    waWriteDots();
+    if (typeof iconHtml === 'function') {
+        document.querySelectorAll('#view-input-whoami [data-art-icon]').forEach(el => {
+            if (!el.firstChild) el.innerHTML = iconHtml('art:' + el.getAttribute('data-art-icon'));
+        });
+    }
+}
+
+/** A dot a letter over the hidden name (the .secret-field of المشنقة, which is in another chunk). */
+function waWriteDots() {
+    const input = document.getElementById('manual-whoami-input');
+    const dots = input && input.parentNode.querySelector('.secret-field__dots');
+    if (dots) dots.textContent = '•'.repeat(Array.from(input.value || '').length);
+}
+function waWriteEye(btn) {
+    const input = document.getElementById('manual-whoami-input');
+    if (!input) return;
+    input.classList.toggle('is-hidden');
+    input.focus();
 }
 
 function submitManualWhoAmI() {

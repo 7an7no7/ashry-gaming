@@ -2427,10 +2427,16 @@
            <button onclick="startUniversal()" class="btn btn--primary" data-i18n="start_counter">ابدأ العداد</button>
         </div>
       </div>
-      <div id="view-play-universal" class="hidden space-y-4">
-         <h2 class="card__title" data-i18n="universal_counter">العداد العام</h2>
-         <div id="universal-board" class="space-y-3"></div>
-         <button onclick="setView('setup-universal')" class="btn btn--ghost" data-i18n="finish">إنهاء</button>
+      <!-- Rows ranked by score, a big + at each row's end (renderUniversalBoard, JS_Utils.html);
+           the header names the screen. «صفّر الكل» resets at once and offers the scores back. -->
+      <div id="view-play-universal" class="hidden univ-view">
+         <div id="universal-board" class="univ-board"></div>
+         <div class="view-actions">
+           <div class="univ-bar">
+             <button id="univ-reset-btn" onclick="univResetTap()" class="btn btn--ghost" data-i18n="univ_reset_all">↺ صفّر الكل</button>
+             <button onclick="setView('setup-universal')" class="btn btn--secondary" data-i18n="univ_finish">🏁 إنهاء</button>
+           </div>
+         </div>
       </div>
 
       <div id="view-timers" class="hidden space-y-4">
@@ -2592,20 +2598,33 @@
            <button id="imposter-hold-next" onclick="hideRole()" class="btn btn--primary btn--lg hold-next is-waiting" data-i18n="got_it_next">فهمت، التالي</button>
         </div>
       </div>
-      <div id="view-play-imposter" class="hidden space-y-6">
-        <div class="card card--accent text-center">
-           <div class="mb-8">
-               <div id="imposter-timer-display" class="metric metric--xl metric--accent">00:00</div>
-               <button onclick="toggleImposterTimer()" id="imp-pause-btn" class="btn btn--secondary btn--sm btn--auto" data-i18n="pause_btn">إيقاف مؤقت</button>
+      <!-- The talk: its clock in the general timer's ring (a stopwatch - it counts up, and the
+           ring goes round once a minute, updateImposterTimerUI), the ask director, who is playing,
+           and the actions in the bar at the foot: accuse first, the quiet two under it. -->
+      <div id="view-play-imposter" class="hidden">
+        <div class="card card--accent imp-talk">
+           <div class="imp-talk__clock">
+               <div class="gtm-dial imp-dial">
+                   <svg class="gtm-ring" viewBox="0 0 120 120" aria-hidden="true">
+                       <circle class="gtm-ring__track" cx="60" cy="60" r="54" pathLength="1"></circle>
+                       <circle class="gtm-ring__fill" id="imp-ring-fill" cx="60" cy="60" r="54" pathLength="1"></circle>
+                   </svg>
+                   <div id="imposter-timer-display" class="metric metric--xl">00:00</div>
+               </div>
+               <button onclick="toggleImposterTimer()" id="imp-pause-btn" class="btn btn--ghost btn--sm btn--auto" data-i18n="pause_btn">إيقاف مؤقت</button>
            </div>
            <div id="imposter-director" class="hidden"></div>
-           <h3 class="eyebrow" data-i18n="players">قائمة اللاعبين</h3>
-           <div id="imposter-game-players" class="flex flex-wrap gap-2 justify-center mb-10"></div>
+           <h3 class="eyebrow imp-talk__head"><span data-i18n="imp_playing">بيلعبوا</span> <span id="imp-players-n" class="metric"></span></h3>
+           <div id="imposter-game-players" class="imp-people"></div>
+        </div>
+        <div class="view-actions imp-talk__actions">
            <div id="imp1-live" class="imp1-live">
              <button onclick="imp1OpenAccuse()" class="btn btn--danger btn--lg"><span class="btn__art" aria-hidden="true" data-art-icon="imposter"></span><span data-i18n="imp1_accuse_btn">اتهموا حد</span></button>
-             <button onclick="revealImposterResult()" class="btn btn--ghost btn--sm" data-i18n="imp_reveal_direct">كشف من غير تصويت</button>
            </div>
-           <button onclick="setView('setup-imposter')" class="btn btn--ghost mt-4" data-i18n="exit">خروج</button>
+           <div class="imp-talk__pair">
+             <button onclick="revealImposterResult()" id="imp-reveal-direct" class="btn btn--ghost btn--sm" data-i18n="imp_reveal_now">اكشف على طول</button>
+             <button onclick="setView('setup-imposter')" class="btn btn--ghost btn--sm" data-i18n="exit">خروج</button>
+           </div>
         </div>
       </div>
 
@@ -2985,12 +3004,15 @@
     <div id="view-setup-teams" class="hidden">
         <div class="card">
           
-          <label class="field__label" data-i18n="teams_count">عدد الفرق</label> 
-          <div class="flex gap-2 mb-6">
-              <button onclick="setTeamCount(2)" id="team-btn-2" class="btn btn--primary">2</button>
-              <button onclick="setTeamCount(3)" id="team-btn-3" class="btn btn--ghost">3</button>
-              <button onclick="setTeamCount(4)" id="team-btn-4" class="btn btn--ghost">4</button>
+          <label class="field__label" data-i18n="teams_count">عدد الفرق</label>
+          <!-- The app's segmented control, as every other setup picks one of a few; the line
+               under it says how the ticked players split (paintTeamsSplit, JS_NewGames.html). -->
+          <div class="segmented" role="group" data-i18n-title="teams_count" aria-label="عدد الفرق">
+              <button onclick="setTeamCount(2)" id="team-btn-2" class="segmented__item is-active" aria-pressed="true" data-i18n="teams_n2">فريقين</button>
+              <button onclick="setTeamCount(3)" id="team-btn-3" class="segmented__item" aria-pressed="false" data-i18n="teams_n3">٣ فرق</button>
+              <button onclick="setTeamCount(4)" id="team-btn-4" class="segmented__item" aria-pressed="false" data-i18n="teams_n4">٤ فرق</button>
           </div>
+          <p id="teams-split" class="field__hint teams-split" aria-live="polite"></p>
 
           <div class="group-picker">
     <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختار مجموعة محفوظة" data-i18n-title="a11y_pick_group">
@@ -3016,11 +3038,19 @@
         </div>
       </div>
 
+<!-- The teams as cards in their colours, side by side from tablet width (paintTeams,
+     JS_NewGames.html); the header already names the screen, so no heading here. -->
 <div id="view-results-teams" class="hidden">
-    <h2 class="card__title" data-i18n="generated_teams">الفرق العشوائية</h2>
-    <div id="teams-container" class="space-y-4"></div>
-    <button onclick="generateTeams()" class="btn btn--primary mt-4" data-i18n="reshuffle">وزّع تاني 🔄</button>
-    <button onclick="setView('menu')" class="btn btn--ghost mt-3" data-i18n="main_menu">الرئيسية</button>
+    <div id="teams-summary" class="teamres-summary"></div>
+    <div id="teams-container" class="teamres-grid"></div>
+    <p class="teamres-note" data-i18n="teams_kept_note">الفرق دي محفوظة لحد ما توزّع تاني</p>
+    <div class="view-actions">
+        <div class="teamres-bar">
+            <button onclick="teamsDrawAgain()" class="btn btn--primary btn--lg" data-i18n="reshuffle">وزّع تاني 🔄</button>
+            <button onclick="shareTeams()" class="btn btn--secondary btn--lg btn--auto teamres-share" data-i18n-title="teams_share" aria-label="شارك الفرق" title="شارك الفرق">📤</button>
+        </div>
+        <button onclick="setView('setup-teams')" class="btn btn--ghost mt-3" data-i18n="teams_change_players">✏️ غيّر اللاعبين</button>
+    </div>
 </div>
 
 <div id="view-setup-justone" class="hidden">
@@ -3760,25 +3790,28 @@
     </div>
 
     <div id="view-play-guessnum" class="hidden">
-        <div class="card text-center min-h-[60vh] flex flex-col">
+        <!-- A labelled field and a «خمّن» button, the guesses as a row of chips under them
+             (drawGuessRow, JS_GuessNumber.html), «لعبة جديدة» in the bar at the foot. -->
+        <div class="card text-center">
             <div class="flex justify-between items-center mb-6">
                  <span class="chip chip--plain play-chip"><span data-i18n="attempts">المحاولات</span> <b id="gn-attempts" class="metric">0</b></span>
             </div>
 
             <h3 id="gn-range-display" class="metric metric--md tx-muted mb-4" dir="ltr">1 - 100</h3>
             <div id="gn-char" class="gn-char mb-4"></div>
-            
+
             <div id="gn-feedback" class="text-xl font-bold mb-6 tx-muted animate-pop" aria-live="polite">...</div>
 
-            <div class="flex gap-2 mb-6">
-                <input type="number" id="gn-input" class="text-center field-big" placeholder="?" inputmode="numeric" enterkeyhint="go"
+            <div class="gn-entry">
+                <input type="number" id="gn-input" class="text-center field-big" data-i18n-ph="gn_your_guess" placeholder="رقمك" aria-label="رقمك" inputmode="numeric" enterkeyhint="go"
                        onkeydown="if (event.key === 'Enter') { event.preventDefault(); checkNumberGuess(); }">
-                <button onclick="checkNumberGuess()" class="btn btn--primary w-24">✅</button>
+                <button onclick="checkNumberGuess()" class="btn btn--primary btn--auto gn-entry__go" data-i18n="gn_guess_btn">خمّن</button>
             </div>
 
-            <div id="gn-history" class="gn-history flex-grow overflow-y-auto max-h-60 pt-4"></div>
-
-            <button onclick="setView('setup-guessnum')" class="btn btn--ghost mt-4" data-i18n="new_game">لعبة جديدة</button>
+            <div id="gn-history" class="gn-chips" aria-label="تخميناتك" data-i18n-title="gn_your_guesses"></div>
+        </div>
+        <div class="view-actions">
+            <button onclick="setView('setup-guessnum')" class="btn btn--ghost" data-i18n="new_game">لعبة جديدة</button>
         </div>
     </div>
 
@@ -3869,16 +3902,29 @@
          </div>
     </div>
 
+    <!-- Writing the characters by hand: the play screen's poster, how many are left
+         (wa-write-prog), and the name typed as dots until the eye is tapped - a text field,
+         never a password one (GEMINI.md, An iPhone gives a password field only its English
+         keyboard). renderManualInputScreen, JS_WhoAmI.html. -->
     <div id="view-input-whoami" class="hidden">
-        <div class="card text-center min-h-[60vh] flex flex-col justify-center">
-            <div class="text-6xl mb-6">✍️</div>
-            
-            <h3 id="manual-instruction" class="font-bold tx-muted mb-2">ادّي الموبايل لـ</h3>
-            <h2 id="manual-player-label" class="text-4xl font-black tx-accent mb-8">اللاعب 1</h2>
-            
-            <input type="text" id="manual-whoami-input" class="text-center mb-4">
-            
-            <button onclick="submitManualWhoAmI()" class="btn btn--primary btn--lg" data-i18n="confirm">تأكيد</button>
+        <div class="card wa-write">
+            <div class="pass-poster wa-write__poster">
+              <span class="pass-poster__icon" aria-hidden="true" data-art-icon="whoami"></span>
+              <h3 id="manual-instruction" class="pass-poster__label">ادّي الموبايل لـ</h3>
+              <h2 id="manual-player-label" class="pass-poster__name">اللاعب 1</h2>
+            </div>
+            <div id="wa-write-prog" class="wa-write__prog" role="img"></div>
+            <label for="manual-whoami-input" id="wa-write-label" class="field__label"></label>
+            <div class="wa-write__field">
+              <span class="secret-field"><input type="text" id="manual-whoami-input" class="is-hidden" maxlength="40"
+                     autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"
+                     oninput="waWriteDots()" onkeydown="if (event.key === 'Enter') { event.preventDefault(); submitManualWhoAmI(); }"><span class="secret-field__dots" aria-hidden="true"></span></span>
+              <button type="button" class="btn btn--ghost btn--auto" onclick="waWriteEye(this)" data-i18n-title="wa_show_name" aria-label="اظهر الاسم" title="اظهر الاسم">👁️</button>
+            </div>
+            <p id="wa-write-hint" class="field__hint"></p>
+        </div>
+        <div class="view-actions">
+            <button id="wa-write-go" onclick="submitManualWhoAmI()" class="btn btn--primary btn--lg" data-i18n="wa_write_next">تمام، اللي بعده</button>
         </div>
     </div>
 

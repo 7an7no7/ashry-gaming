@@ -3,15 +3,8 @@
 
 function setTeamCount(n) {
     appState.teams.count = [2, 3, 4].indexOf(Number(n)) !== -1 ? Number(n) : 2;
-    n = appState.teams.count;
     if (typeof saveToLocal === 'function') saveToLocal();
-    [2,3,4].forEach(i => {
-        const btn = document.getElementById(`team-btn-${i}`);
-        if (!btn) return;
-        // Selection is a button tier, not a hand-written colour pair.
-        btn.className = (i === n) ? 'btn btn--primary' : 'btn btn--ghost';
-        btn.setAttribute('aria-pressed', String(i === n));
-    });
+    paintTeamsSetup();
 }
 
 /** The setup screen as it was left: the saved number of teams lit (SETUP_PAINTERS). */
@@ -20,9 +13,35 @@ function paintTeamsSetup() {
     [2,3,4].forEach(i => {
         const btn = document.getElementById(`team-btn-${i}`);
         if (!btn) return;
-        btn.className = (i === n) ? 'btn btn--primary' : 'btn btn--ghost';
+        // A segmented item: its thumb slides on the class change (syncSegmented).
+        if (btn.classList.contains('is-active') !== (i === n)) btn.classList.toggle('is-active', i === n);
         btn.setAttribute('aria-pressed', String(i === n));
     });
+    paintTeamsSplit();
+}
+
+/** The teams' sizes for `players` in `count` teams, biggest first: 7 in 2 is [4, 3]. */
+function teamSizes(players, count) {
+    const k = Math.max(1, count);
+    return Array.from({ length: k }, (_, i) => Math.floor(players / k) + (i < players % k ? 1 : 0));
+}
+
+/** «٧ لاعبين ← فريق من ٤ وفريق من ٣» under the count, or how many more are needed. */
+function paintTeamsSplit() {
+    const el = document.getElementById('teams-split');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const k = Number(appState.teams.count) || 2;
+    const n = getSelectedPlayers().length;
+    if (n < k) {
+        el.textContent = (t.teams_split_need || '').replace('{k}', k);
+        return;
+    }
+    const sizes = teamSizes(n, k);
+    const even = sizes[0] === sizes[sizes.length - 1];
+    el.textContent = (even ? (t.teams_split_even || '') : (t.teams_split || ''))
+        .replace('{n}', n).replace('{k}', k).replace('{each}', sizes[0])
+        .replace('{sizes}', sizes.join(appState.lang === 'ar' ? ' و' : ', '));
 }
 
 function getSelectedPlayers() {
@@ -52,7 +71,23 @@ function generateTeams() {
         teams[index % appState.teams.count].push(player);
     });
 
-    renderTeams(teams);
+    renderTeams(teams, 'random');
+}
+
+/** «وزّع تاني» deals again the way the teams on screen were made: by lot, or by the stars. */
+function teamsDrawAgain() {
+    if (appState.teams.resultHow === 'fair') generateFairTeams();
+    else generateTeams();
+}
+
+/** The teams as text for the family's chat: the share sheet, or copied. */
+function shareTeams() {
+    const teams = appState.teams.result;
+    if (!teams || !teams.length) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const text = teams.map((team, i) => `${teamLabel(i)}: ${team.join('، ')}`).join('\n');
+    const url = (window.SERVER_DATA && window.SERVER_DATA.webAppUrl) || (location.origin + location.pathname);
+    shareOrCopy(url, text, t.teams_copied || t.link_copied || '');
 }
 
 function openSkillBalancer() {
@@ -147,14 +182,16 @@ function generateFairTeams() {
     const selected = getSelectedPlayers();
     const skills = appState.teams.playerSkills || {};
     closeModal('skill-modal');
-    renderTeams(balancedTeams(selected, appState.teams.count, (name) => skills[name] || 3));
+    renderTeams(balancedTeams(selected, appState.teams.count, (name) => skills[name] || 3), 'fair');
 }
 
-function renderTeams(teams) {
+function renderTeams(teams, how) {
     // Remembered so the screen can be rebuilt after a reload without
     // re-rolling the teams - the whole point of the screen is that this is the
-    // draw everyone already agreed to.
+    // draw everyone already agreed to. `how` (by lot / by the stars) is what
+    // «وزّع تاني» does again and what the summary says.
     appState.teams.result = teams;
+    appState.teams.resultHow = how === 'fair' ? 'fair' : 'random';
     saveToLocal();
     paintTeams(teams);
     setView('results-teams');
@@ -180,18 +217,18 @@ function dealTeams(container) {
     rows.forEach((row, i) => {
         setTimeout(() => {
             if (!row.isConnected) return;
-            // Lands on the name itself, not the middle of its full-width row.
-            const nameNode = [...row.childNodes].reverse().find(n => n.nodeType === 3 && n.textContent.trim());
+            // Lands on the name itself, not the middle of its tile.
+            const nameEl = row.querySelector('.teamres-name');
             let r = row.getBoundingClientRect();
-            if (nameNode) {
+            if (nameEl) {
                 const range = document.createRange();
-                range.selectNodeContents(nameNode);
+                range.selectNodeContents(nameEl);
                 const nr = range.getBoundingClientRect();
                 if (nr.width) r = nr;
             }
             const ghost = document.createElement('div');
             ghost.className = 'deal-ghost';
-            ghost.textContent = row.textContent.replace('●', '').trim();
+            ghost.textContent = row.dataset.name || row.textContent.trim();
             document.body.appendChild(ghost);
             const g = ghost.getBoundingClientRect();
             const toX = r.left + r.width / 2 - g.width / 2;
@@ -212,39 +249,46 @@ function dealTeams(container) {
 }
 
 /** Draws the team cards. Split out so a reload can redraw without re-rolling. */
+/** «فريق أ» / "Team 1". */
+function teamLabel(idx) {
+    const prefix = (TRANSLATIONS[appState.lang] || {}).team_name_prefix || 'Team';
+    return appState.lang === 'ar' ? `${prefix} ${['أ', 'ب', 'ج', 'د'][idx]}` : `${prefix} ${idx + 1}`;
+}
+
+/**
+ * The summary (how many, the split, by lot or by the stars) and a card per team in
+ * its colour (.teamres-team--0..3: red, blue, green, amber), the names in tiles of two
+ * with an initial. data-deal is the order the names were drawn in, for dealTeams.
+ */
 function paintTeams(teams) {
     const container = document.getElementById('teams-container');
     if (!container || !teams || !teams.length) return;
-    container.innerHTML = '';
-    
-    const colors = ['blue', 'red', 'green', 'orange'];
-    const names = ['أ', 'ب', 'ج', 'د'];
-    const teamPrefix = TRANSLATIONS[appState.lang].team_name_prefix || "Team";
-    
-    teams.forEach((team, idx) => {
-        const color = colors[idx];
-        const teamName = appState.lang === 'ar' 
-            ? `${teamPrefix} ${names[idx]}` 
-            : `${teamPrefix} ${idx + 1}`;
-        
-        // data-deal is the order the names were drawn in, for dealTeams.
-        const playersHtml = team.map((p, j) =>
-            `<div class="team-text-color team-divider font-bold text-lg last:border-0 py-3 flex items-center gap-2" data-deal="${j * teams.length + idx}">
-                <span class="text-xs opacity-50">●</span> ${escapeHTML(p)}
-             </div>`
-        ).join('');
-        
-        container.innerHTML += `
-            <div class="team-card-bg rounded-2xl p-0 border-t-8 border-${color}-500 shadow-lg overflow-hidden mb-4">
-                <div class="bg-${color}-50 dark:bg-${color}-900/20 p-4 border-b border-slate-100 dark:border-slate-700">
-                    <h3 class="text-2xl font-black text-${color}-600 dark:text-${color}-400 text-center">${teamName}</h3>
-                </div>
-                <div class="p-4">
-                    ${playersHtml}
-                </div>
+    const t = TRANSLATIONS[appState.lang] || {};
+    const total = teams.reduce((n, team) => n + team.length, 0);
+    const sizes = teams.map(team => team.length);
+    const vs = sizes.map(n => `<bdi class="metric">${n}</bdi>`).join(` ${escapeHTML(t.teams_vs || '·')} `);
+    const summary = document.getElementById('teams-summary');
+    if (summary) {
+        summary.innerHTML = `
+            <span class="chip chip--plain">👥 ${escapeHTML((t.teams_players_n || '{n}').replace('{n}', total))}</span>
+            <span class="chip chip--plain">⚖️ ${vs}</span>
+            <span class="chip chip--plain">${appState.teams.resultHow === 'fair' ? '⭐ ' + escapeHTML(t.teams_by_skill || '') : '🎲 ' + escapeHTML(t.teams_by_lot || '')}</span>`;
+    }
+    const initial = (name) => escapeHTML(Array.from(String(name).trim())[0] || '?');
+    container.innerHTML = teams.map((team, idx) => `
+        <section class="teamres-team teamres-team--${idx}">
+            <header class="teamres-team__head">
+                <h3 class="teamres-team__name">${escapeHTML(teamLabel(idx))}</h3>
+                <span class="teamres-team__n">${escapeHTML((t.teams_players_n || '{n}').replace('{n}', team.length))}</span>
+            </header>
+            <div class="teamres-team__list">
+                ${team.map((p, j) => `
+                <div class="teamres-mem" data-deal="${j * teams.length + idx}" data-name="${escapeHTML(p)}">
+                    <span class="teamres-av" aria-hidden="true">${initial(p)}</span>
+                    <span class="teamres-name">${escapeHTML(p)}</span>
+                </div>`).join('')}
             </div>
-        `;
-    });
+        </section>`).join('');
 }
 
 /* ================= JUST ONE LOGIC ================= */

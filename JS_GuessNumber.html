@@ -191,31 +191,19 @@ function renderGuessNumHistory() {
 }
 
 function drawGuessRow(guess, icon, type, attemptNo) {
+    // A chip per guess, newest first: the number and which way the answer is
+    // (⬆ higher, ⬇ lower, ✅ the one). The arrow is the verdict, so it keeps its colour.
     const container = document.getElementById('gn-history');
-    const div = document.createElement('div');
-    
-    let styles = "";
-    let textStyle = "";
-    
-    if (type === 'high') {
-        styles = "bg-red-50 border-red-200 dark:bg-red-900 dark:border-red-700";
-        textStyle = "text-red-700 dark:text-red-100";
-    } else if (type === 'low') {
-        styles = "bg-blue-50 border-blue-200 dark:bg-blue-900 dark:border-blue-700";
-        textStyle = "text-blue-700 dark:text-blue-100";
-    } else if (type === 'win') {
-        styles = "bg-green-100 border-green-500 dark:bg-green-900 dark:border-green-500";
-        textStyle = "text-green-800 dark:text-green-100";
-    }
-
-    div.className = `flex justify-between items-center p-3 rounded-xl border mb-2 ${styles}`;
-    
-    div.innerHTML = `
-        <span class="font-bold tx-muted text-sm">#${attemptNo}</span>
-        <span class="font-black text-2xl ${textStyle}">${guess}</span>
-        <span class="text-xl">${icon}</span>
-    `;
-    container.prepend(div);
+    if (!container) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const way = type === 'win' ? '✅' : type === 'low' ? '⬆' : '⬇';
+    const said = type === 'win' ? (t.gn_chip_right || '') : type === 'low' ? (t.gn_chip_higher || '') : (t.gn_chip_lower || '');
+    const chip = document.createElement('span');
+    chip.className = `gn-chip gn-chip--${type}`;
+    chip.title = `#${attemptNo}`;
+    chip.setAttribute('aria-label', `${guess}: ${said}`);
+    chip.innerHTML = `<b class="metric">${escapeHTML(String(guess))}</b><span class="gn-chip__way" aria-hidden="true">${way}</span>`;
+    container.prepend(chip);
 }
 
 /* ============================================================================

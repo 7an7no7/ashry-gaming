@@ -32,6 +32,8 @@ function renderActiveChips(containerId, resort) {
   if (!container) return;
 
   if (!appState.activePlayers) appState.activePlayers = [];
+  // مولد الفرق says under its count how the ticked players split.
+  if (containerId === 'teams-player-list' && typeof paintTeamsSplit === 'function') paintTeamsSplit();
   const t = TRANSLATIONS[appState.lang];
   const active = appState.activePlayers;
   const isOn = (name) => active.some(p => samePlayer(p, name));
@@ -709,6 +711,8 @@ function setupMoreToggled(el) {
       }
 
       if (players.length === 0) return askPlayers(1, () => startUniversal());
+      // A new counter: the last one's «رجّع النقط» is not on offer.
+      if (univUndo) { clearTimeout(univUndo.timer); univUndo = null; }
       appState.universal.players = players;
       renderUniversalBoard();
       setView('play-universal');
@@ -727,17 +731,18 @@ function setupMoreToggled(el) {
       const div = document.getElementById('universal-board');
       if (!div) return;
       const ps = appState.universal.players;
+      // The place (a 👑 for a lone leader), the name, a quiet −, the score and a big +
+      // at the row's end: + is what the table presses all evening.
       const rowHtml = (p, idx) => `
-          <div class="status-row univ-row" data-univ-row="${idx}">
-              <div class="status-row__name w-1/3 truncate"><span class="univ-crown" aria-hidden="true">👑</span>${escapeHTML(p.name)}</div>
-              <div class="metric metric--md tx-accent w-1/3 text-center" data-univ-score="${idx}">${p.score}</div>
-              <div class="status-row__actions">
-                  <button onclick="modUnivScore(${idx}, 1)" class="control-btn" aria-label="+1" data-hold-repeat>+</button>
-                  <button onclick="modUnivScore(${idx}, -1)" class="control-btn control-btn--danger" aria-label="-1" data-hold-repeat>−</button>
-              </div>
+          <div class="univ-row" data-univ-row="${idx}">
+              <span class="univ-rank" aria-hidden="true"><span class="univ-crown">👑</span><span class="univ-place metric"></span></span>
+              <span class="univ-name">${escapeHTML(p.name)}</span>
+              <button onclick="modUnivScore(${idx}, -1)" class="univ-minus" aria-label="${escapeHTML(p.name)} −1" data-hold-repeat>−</button>
+              <span class="univ-score metric" data-univ-score="${idx}">${p.score}</span>
+              <button onclick="modUnivScore(${idx}, 1)" class="univ-plus" aria-label="${escapeHTML(p.name)} +1" data-hold-repeat>+</button>
           </div>`;
       const rows = Array.from(div.querySelectorAll('.univ-row'));
-      const names = rows.map(r => r.querySelector('.status-row__name').textContent.replace('👑', ''));
+      const names = rows.map(r => r.querySelector('.univ-name').textContent);
       if (rows.length !== ps.length || rows.some((r, k) => !ps[Number(r.dataset.univRow)] || names[k] !== ps[Number(r.dataset.univRow)].name)) {
           div.innerHTML = univOrder().map(i => rowHtml(ps[i], i)).join('');
       } else {
@@ -757,8 +762,50 @@ function setupMoreToggled(el) {
       const top = Math.max.apply(null, ps.map(p => p.score));
       const leaders = ps.filter(p => p.score === top).length;
       div.querySelectorAll('.univ-row').forEach(r => {
-          r.classList.toggle('is-leader', ps.length > 1 && leaders === 1 && ps[Number(r.dataset.univRow)].score === top);
+          const p = ps[Number(r.dataset.univRow)];
+          r.classList.toggle('is-leader', ps.length > 1 && leaders === 1 && p.score === top);
+          // A place is one more than how many are ahead, so a tie shares it.
+          const place = r.querySelector('.univ-place');
+          const n = String(ps.filter(q => q.score > p.score).length + 1);
+          if (place && place.textContent !== n) place.textContent = n;
       });
+      paintUnivReset();
+  }
+
+  /*
+   * «صفّر الكل» sets every score to 0 at once, and for a few seconds the same
+   * button offers them back («↶ رجّع النقط»): an undo, not an "are you sure?".
+   */
+  const UNIV_UNDO_MS = 6000;
+  let univUndo = null;   // { scores, until, timer }
+  function univResetTap() {
+      const ps = appState.universal.players || [];
+      if (univUndo && Date.now() < univUndo.until) {
+          univUndo.scores.forEach((s, i) => { if (ps[i]) ps[i].score = s; });
+          clearTimeout(univUndo.timer);
+          univUndo = null;
+          haptic('light');
+      } else {
+          if (!ps.some(p => p.score)) return;
+          univUndo = { scores: ps.map(p => p.score), until: Date.now() + UNIV_UNDO_MS };
+          univUndo.timer = setTimeout(() => { univUndo = null; paintUnivReset(); }, UNIV_UNDO_MS);
+          ps.forEach(p => { p.score = 0; });
+          haptic('medium');
+      }
+      saveToLocal();
+      renderUniversalBoard();
+  }
+  function paintUnivReset() {
+      const btn = document.getElementById('univ-reset-btn');
+      if (!btn) return;
+      const t = TRANSLATIONS[appState.lang] || {};
+      const undo = !!(univUndo && Date.now() < univUndo.until);
+      const key = undo ? 'univ_undo_reset' : 'univ_reset_all';
+      if (btn.getAttribute('data-i18n') !== key) {
+          btn.setAttribute('data-i18n', key);
+          btn.textContent = t[key] || '';
+      }
+      btn.disabled = !undo && !(appState.universal.players || []).some(p => p.score);
   }
 
   /*

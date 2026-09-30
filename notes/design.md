@@ -526,6 +526,43 @@ worth rerunning after a big CSS change):
   source, 0.4 KB gzipped); the rest of the unused rules belong to states the
   run didn't reach.
 
+**Six older screens brought into the look** (the owner, 30 Sep 2026, "apply all
+6" from a before/after sheet of every screen; Style.html's last section, *SIX
+OLDER SCREENS*):
+
+- **The team results** (`paintTeams`, JS_NewGames.html): a summary line (how
+  many, «4 ضد 3», «قرعة» or «بالمهارة» from `appState.teams.resultHow`), a card
+  per team in `--team-red`, `--team-blue`, `--success-btn`, `--warning-btn`
+  with its count, the names in tiles of two with an initial, side by side from
+  640px (56rem wide on a laptop). «وزّع تاني» deals again the way it was dealt
+  (`teamsDrawAgain`), 📤 shares the teams as text (`shareTeams`, through
+  `shareOrCopy`), and «غيّر اللاعبين» goes back to the setup instead of home.
+  `dealTeams` flies each name by its `data-name` onto `.teamres-name`. On a
+  phone on its side the three buttons sit on one line.
+- **مولد الفرق's count** is the segmented control, and under it
+  `paintTeamsSplit` says how the ticked players split («7 لاعبين: فرق من 4 و3»);
+  `renderActiveChips('teams-player-list')` calls it.
+- **العداد العام** (`renderUniversalBoard`): each row is the place (👑 for a lone
+  leader; a tie shares a place), the name, a quiet −, the score and a big + in
+  the screen's colour at the end. «صفّر الكل» resets at once and for 6 s the same
+  button is «↶ رجّع النقط» (`univResetTap`), an undo instead of a confirm.
+- **من أنا؟'s writing step** (`renderManualInputScreen`): the play screen's pass
+  poster, a dot per writer (the one writing drawn long), a label, the name as
+  dots until 👁️ (`.secret-field`, with its own `waWriteDots` / `waWriteEye`
+  since المشنقة's helpers are in another chunk), a hint that follows the two
+  ways of writing, and «تمام، اللي بعده» / «تمام، يلا نلعب» for the last one.
+- **الجاسوس's talk** (one phone): the clock in the general timer's ring, which
+  goes round once a minute (it counts up; `updateImposterTimerUI`); players as
+  chips with an initial; «اتهموا حد» in the bar at the foot with «اكشف على طول»
+  and «خروج» small under it (the reveal hides with the accusation once the round
+  is decided).
+- **خمّن الرقم**: «رقمك» and a «خمّن» button instead of "?" and ✅; the guesses as
+  chips, newest first (`drawGuessRow`: ⬆ higher, ⬇ lower, ✅); «لعبة جديدة» in
+  the bar.
+
+The counter, the writing step, the talk and Guess the Number take a form's
+width (40rem) on a laptop, like the setups.
+
 ## From GEMINI.md: Layout: the app shell
 
 **Landscape phones.** A phone on its side is 360–430px tall, and laid out like

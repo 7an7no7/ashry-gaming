@@ -22261,10 +22261,10 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
 .gtm-presets .chip { min-block-size: 2.75rem; min-inline-size: 3.25rem; justify-content: center; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .gtm-ring__fill { transition: none; } }
 
-/* The counter: the leader wears the crown. */
-.univ-crown { display: none; margin-inline-end: 0.25rem; }
+/* The counter: the leader wears the crown (the rows themselves: «العداد العام» at the end). */
+.univ-crown { display: none; }
 .univ-row.is-leader .univ-crown { display: inline; }
-.univ-row.is-leader { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--pop) 60%, transparent); }
+.univ-row.is-leader .univ-place { display: none; }
 
 /* Hold to repeat: a held + or − never selects text or opens a menu. */
 .stepper__btn, .cs-step__btn, [data-hold-repeat] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
@@ -24089,6 +24089,181 @@ body.is-tv-view .bz-quiz__ch b { width: 4vmin; height: 4vmin; font-size: 2vmin; 
    the last way was cut off by the fade at the column's edge: they wrap onto a second line. */
 @media (min-width: 900px) {
   .hub-ways .filter-row { flex-wrap: wrap; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+}
+
+/* =====================================================================
+   SIX OLDER SCREENS IN THE APP'S LOOK (the owner, 30 Sep 2026, from a
+   before/after sheet): the team results, مولد الفرق's count, العداد العام,
+   من أنا؟'s writing step, الجاسوس's talk, خمّن الرقم. Tokens only; the
+   game's colour comes from the screen's data-accent.
+   ===================================================================== */
+
+/* --- The team results (paintTeams, JS_NewGames.html) --- */
+.teamres-summary { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-block-end: var(--sp-4); }
+.teamres-grid { display: grid; gap: var(--sp-3); }
+@media (min-width: 640px) { .teamres-grid { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); } }
+.teamres-team {
+  --tc: var(--team-red);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  box-shadow: var(--sh-2);
+}
+.teamres-team--1 { --tc: var(--team-blue); }
+.teamres-team--2 { --tc: var(--success-btn); }
+.teamres-team--3 { --tc: var(--warning-btn); }
+.teamres-team__head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--tc);
+  color: #ffffff;
+}
+.teamres-team--2 .teamres-team__head { color: var(--success-on); }
+.teamres-team--3 .teamres-team__head { color: var(--warning-on); }
+.teamres-team__name { margin: 0; font-size: var(--fs-h3); font-weight: var(--fw-black); }
+.teamres-team__n { flex: none; padding: 0.15rem 0.6rem; border-radius: var(--r-full); background: rgba(255, 255, 255, 0.22); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
+.teamres-team__list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); padding: var(--sp-3); }
+.teamres-mem {
+  display: flex; align-items: center; gap: var(--sp-2); min-width: 0;
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: var(--fw-bold);
+}
+.teamres-av {
+  flex: none; display: inline-grid; place-items: center;
+  width: 1.9rem; height: 1.9rem;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--tc) 16%, var(--surface-solid));
+  color: color-mix(in srgb, var(--tc) 80%, var(--text));
+  font-size: var(--fs-sm); font-weight: var(--fw-black);
+}
+.teamres-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.teamres-note { margin: var(--sp-3) 0 0; text-align: center; font-size: var(--fs-sm); color: var(--text-3); }
+.teamres-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-2); }
+.teamres-share { padding-inline: var(--sp-5); font-size: 1.25rem; }
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-results-teams { max-width: 56rem; }
+}
+/* A phone on its side: the three buttons on one line, so the bar doesn't cover the teams. */
+@media (orientation: landscape) and (max-height: 500px) {
+  #view-results-teams .view-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-2); align-items: center; }
+  #view-results-teams .view-actions > .btn { margin-top: 0; width: auto; }
+}
+
+/* --- مولد الفرق: how the players split, under the count --- */
+.teams-split { margin: var(--sp-2) 0 var(--sp-5); }
+
+/* --- العداد العام (renderUniversalBoard, JS_Utils.html) --- */
+.univ-board { display: grid; gap: var(--sp-2); }
+.univ-row {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+}
+.univ-row.is-leader {
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-solid));
+}
+.univ-rank { text-align: center; font-weight: var(--fw-bold); color: var(--text-3); font-size: var(--fs-sm); }
+.univ-row.is-leader .univ-rank { font-size: 1.15rem; }
+.univ-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-bold); color: var(--text); }
+.univ-score { min-width: 2.5ch; text-align: center; font-size: 1.75rem; font-weight: var(--fw-black); color: var(--accent-ink); }
+.univ-minus, .univ-plus {
+  display: inline-grid; place-items: center;
+  font-weight: var(--fw-black); line-height: 1;
+  touch-action: manipulation;
+}
+.univ-minus {
+  width: var(--tap); height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 1.35rem;
+}
+.univ-plus {
+  width: 3.25rem; height: 3.25rem;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 1.65rem;
+  box-shadow: 0 6px 14px -8px var(--accent);
+}
+.univ-minus:active, .univ-plus:active { transform: scale(0.92); }
+.univ-minus:focus-visible, .univ-plus:focus-visible { outline: 3px solid var(--accent-border); outline-offset: 2px; }
+.univ-bar { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+@media (hover: hover) {
+  .univ-plus:hover { background: var(--accent-hover); }
+  .univ-minus:hover { background: var(--surface-2); }
+}
+@media (max-width: 360px) { .univ-row { gap: var(--sp-2); } .univ-score { font-size: 1.5rem; } }
+
+/* --- من أنا؟: writing a character (renderManualInputScreen, JS_WhoAmI.html) --- */
+.wa-write__poster { margin-bottom: var(--sp-3); }
+.wa-write__prog { display: flex; justify-content: center; gap: 0.35rem; margin-block: 0 var(--sp-4); }
+.wa-write__prog i { width: 0.55rem; height: 0.55rem; border-radius: var(--r-full); background: var(--surface-3); }
+.wa-write__prog i.is-done { background: var(--accent); opacity: 0.55; }
+.wa-write__prog i.is-now { width: 1.4rem; background: var(--accent); }
+.wa-write__field { display: flex; gap: var(--sp-2); align-items: stretch; }
+
+/* --- الجاسوس: the talk (renderImposterBoard, updateImposterTimerUI) --- */
+.imp-talk__clock { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin-block-end: var(--sp-4); }
+.imp-talk__clock .gtm-dial.imp-dial { inline-size: min(11rem, 52vw, calc(var(--app-h, 100vh) * 0.3)); margin: 0 auto; }
+.imp-talk #imposter-director { margin-block-end: var(--sp-4); }
+.imp-talk__head { text-align: center; }
+.imp-people { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.imp-person {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  padding-block: 0.3rem; padding-inline: 0.3rem 0.8rem;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: var(--fw-bold);
+}
+.imp-person__av {
+  display: inline-grid; place-items: center;
+  width: 1.8rem; height: 1.8rem;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-solid)); color: var(--accent-ink);
+  font-size: var(--fs-sm); font-weight: var(--fw-black);
+}
+.imp-talk__actions .imp1-live { align-items: stretch; }
+.imp-talk__pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); margin-block-start: var(--sp-2); }
+.imp-talk__pair > .hidden + .btn { grid-column: 1 / -1; }
+
+/* --- خمّن الرقم: the entry and the guesses (drawGuessRow, JS_GuessNumber.html) --- */
+.gn-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-2); }
+.gn-entry > input { min-width: 0; }
+.gn-entry__go { padding-inline: var(--sp-6); }
+.gn-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-block-start: var(--sp-4); }
+.gn-chips:empty { display: none; }
+.gn-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: var(--fw-bold);
+}
+.gn-chip--low .gn-chip__way { color: var(--success-ink); }
+.gn-chip--high .gn-chip__way { color: var(--danger-ink); }
+.gn-chip--win { background: var(--success-btn); color: var(--success-on); }
+
+/* These play screens are a form's width on a laptop, like the setups. */
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-universal,
+  .shell__main > #view-input-whoami,
+  .shell__main > #view-play-guessnum,
+  .shell__main > #view-play-imposter { max-width: 40rem; }
 }
 
 </style>

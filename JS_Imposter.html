@@ -245,14 +245,16 @@
 
   function renderImposterBoard() {
       const container = document.getElementById('imposter-game-players');
-      container.innerHTML = '';
-      appState.imposter.players.forEach(p => {
-          container.innerHTML += `<div class="imposter-card m-1">${escapeHTML(p.name)}</div>`;
-      });
+      const initial = (name) => escapeHTML(Array.from(String(name).trim())[0] || '?');
+      container.innerHTML = appState.imposter.players.map(p =>
+          `<span class="imp-person"><span class="imp-person__av" aria-hidden="true">${initial(p.name)}</span><span class="imp-person__name">${escapeHTML(p.name)}</span></span>`).join('');
+      const n = document.getElementById('imp-players-n');
+      if (n) n.textContent = `(${appState.imposter.players.length})`;
       if (typeof paintDirector === 'function') paintDirector('imposter-director', appState.imposter, 'imposterDirectorNext()');
       // A round already decided (its result closed with the back button): no accusation left to make.
       const live = appState.imposter.phase !== 'done';
       document.getElementById('imp1-live')?.classList.toggle('hidden', !live);
+      document.getElementById('imp-reveal-direct')?.classList.toggle('hidden', !live);
   }
 
   function imposterDirectorNext() {
@@ -312,6 +314,14 @@
       const mins = Math.floor(appState.imposter.timer / 60).toString().padStart(2, '0');
       const secs = (appState.imposter.timer % 60).toString().padStart(2, '0');
       if (display) display.innerText = `${mins}:${secs}`;
+      // The ring goes round once a minute, like a stopwatch's hand (the talk has no set length).
+      const ring = document.getElementById('imp-ring-fill');
+      if (ring) {
+          const s = appState.imposter.timer % 60;
+          // At the top of each minute it starts again at once, not by sweeping back.
+          ring.style.transition = s === 0 ? 'none' : '';
+          ring.style.strokeDashoffset = String(1 - s / 60);
+      }
       if (btn) {
           // The key moves with the label, so a language change keeps the right word.
           btn.setAttribute('data-i18n', isPaused ? 'resume_btn' : 'pause_btn');

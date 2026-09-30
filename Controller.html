@@ -2562,7 +2562,10 @@
            <div id="imposter-director" class="hidden"></div>
            <h3 class="eyebrow" data-i18n="players">قائمة اللاعبين</h3>
            <div id="imposter-game-players" class="flex flex-wrap gap-2 justify-center mb-10"></div>
-           <button onclick="revealImposterResult()" class="btn btn--danger" ><span class="btn__art" aria-hidden="true" data-art-icon="imposter"></span><span data-i18n="reveal_imposters_btn">كشف الجواسيس</span></button>
+           <div id="imp1-live" class="imp1-live">
+             <button onclick="imp1OpenAccuse()" class="btn btn--danger btn--lg"><span class="btn__art" aria-hidden="true" data-art-icon="imposter"></span><span data-i18n="imp1_accuse_btn">اتهموا حد</span></button>
+             <button onclick="revealImposterResult()" class="btn btn--ghost btn--sm" data-i18n="imp_reveal_direct">كشف من غير تصويت</button>
+           </div>
            <button onclick="setView('setup-imposter')" class="btn btn--ghost mt-4" data-i18n="exit">خروج</button>
         </div>
       </div>
@@ -2630,6 +2633,28 @@
         </div>
         <div class="modal-actions">
           <button onclick="toggleCountriesModal()" class="btn btn--ghost" data-i18n="close">إغلاق</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ideas batch: party2 - الجاسوس on one phone: the accusation and the caught spy's guess -->
+    <div id="imp1-accuse-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('imp1-accuse-modal')">
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title" id="imp1-accuse-title">مين الجاسوس؟</div>
+        <p class="sheet__subtitle" data-i18n="imp1_accuse_hint">اتفقوا على واحد: دوسة تختاره، ودوسة كمان تأكّد</p>
+        <div id="imp1-accuse-list" class="modal-list space-y-2"></div>
+        <div class="modal-actions">
+          <button onclick="closeModal('imp1-accuse-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
+        </div>
+      </div>
+    </div>
+    <div id="imp1-guess-modal" class="modal-overlay hidden">
+      <div class="modal-content modal-content--simple">
+        <div class="sheet__title tx-danger" id="imp1-guess-title">🕵️</div>
+        <p class="sheet__subtitle"><b id="imp1-guess-pass"></b><br><span data-i18n="imp_guess_hint">اتمسكت! فرصة أخيرة: اختار الكلمة السرية.</span></p>
+        <div id="imp1-guess-list" class="modal-list imp1-guess-list"></div>
+        <div class="modal-actions">
+          <button onclick="imp1Guess(-1)" class="btn btn--ghost btn--sm" data-i18n="fa_skip_guess">إنهاء من غير تخمين</button>
         </div>
       </div>
     </div>
@@ -3219,6 +3244,8 @@
           </div>
           <button id="spyfall-accuse-btn" onclick="openSpyfallAccuseModal()" class="btn btn--danger btn--sm" data-i18n="accuse_player">اتهام لاعب 🚨</button>
         </div>
+
+        <button id="spyfall-spyguess-btn" onclick="spy1VolunteerGuess()" class="btn btn--ghost btn--sm spy1-guess-btn"><span aria-hidden="true">🕵️ </span><span data-i18n="spy_guess_btn">أنا الجاسوس، هخمّن المكان</span></button>
 
         <div class="card mb-4">
           <div class="eyebrow text-center mb-2" data-i18n="possible_locations">الأماكن الممكنة (دوس على مكان تشطبه)</div>
@@ -3846,6 +3873,7 @@
                     <div id="whoami-timer-display" class="metric metric--xl metric--accent">00:00</div>
                 </div>
                 <div id="whoami-director" class="hidden"></div>
+                <div id="wa1-got" class="wa1-got"></div>
 
                 <div class="btn-row btn-row--fit mb-6">
                     <button onclick="toggleWhoAmITimer()" id="whoami-pause-btn" class="btn btn--ghost" data-i18n="pause_btn">إيقاف</button>
@@ -3856,6 +3884,7 @@
             </div>
 
             <div id="whoami-result-ui" class="hidden flex-col">
+                <div id="wa1-podium" class="wa1-podium hidden"></div>
                 <h3 class="card__title" data-i18n="whoami_order_title">ترتيب الهويات</h3>
                 <div id="whoami-final-list" class="flex-grow overflow-y-auto space-y-2 mb-6 px-2"></div>
                 
@@ -4066,6 +4095,9 @@
         <div class="sheet__title tx-danger" data-i18n="spy_guess_title">فرصة الجاسوس الأخيرة!</div>
         <p class="sheet__subtitle" data-i18n="spy_guess_hint">اختر الموقع الذي تعتقد أن الجميع فيه:</p>
         <div id="spyfall-spy-guess-grid" class="modal-list grid grid-cols-2 gap-2"></div>
+        <div class="modal-actions">
+          <button id="spy1-guess-cancel" onclick="spy1CancelGuess()" class="btn btn--ghost hidden" data-i18n="cancel">إلغاء</button>
+        </div>
       </div>
     </div>
 

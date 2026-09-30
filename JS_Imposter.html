@@ -36,6 +36,12 @@
   }
 
   function startImposterGame(playersToUse) {
+      // «العب تاني» hands the same table back: the score carries on. After a reload
+      // lastSelectedPlayers is empty, so the table of the last deal is used.
+      if (Array.isArray(playersToUse) && !playersToUse.length && (appState.imposter.players || []).length >= 3) {
+          playersToUse = appState.imposter.players.map(p => p.name);
+      }
+      imp1Replay = Array.isArray(playersToUse) && playersToUse.length >= 3;
       const undercoverSwitch = document.getElementById('imposter-undercover-on');
       const undercover = !!(undercoverSwitch && undercoverSwitch.checked);
       if (!undercover) {
@@ -136,6 +142,9 @@
           secretWord = appState.imposter.secretWord;
       } else {
           const catSelect = document.getElementById('imposter-category-select');
+          // «العب تاني» after a reload: the setup's list was never painted, and an
+          // empty pick dealt no word at all.
+          if (catSelect && !catSelect.options.length) renderSpyCategories();
           const category = catSelect.value;
           if (category === 'manual') {
               secretWord = document.getElementById('imposter-manual-word').value.trim();
@@ -166,6 +175,21 @@
       let roles = Array(count).fill('Imposter').concat(Array(total - count).fill('Civilian'));
       roles = shuffleArray(roles);
       appState.imposter.players = orderedNames.map((name, idx) => ({ name: name, role: roles[idx] }));
+      // The room's round (JS_RoomImposter.html): the table accuses one, a caught spy
+      // picks the word from six, and a running score like the room's.
+      const im = appState.imposter;
+      if (!imp1Replay || !im.scores) { im.scores = {}; im.scoreId = Date.now(); }
+      imp1Replay = false;
+      orderedNames.forEach(n => { if (typeof im.scores[n] !== 'number') im.scores[n] = 0; });
+      const catSel = document.getElementById('imposter-category-select');
+      im.category = undercover ? '' : (catSel ? catSel.value : '');
+      im.phase = 'reveal';
+      im.accused = '';
+      im.picked = '';
+      im.outcome = null;
+      im.guess = null;
+      im.options = null;
+      im.dealId = Date.now();
       // Who asks whom, if the table asked for it (JS_Director.html).
       if (typeof directorStart === 'function') directorStart(appState.imposter, orderedNames, directorModeOf('imposter'));
       appState.imposter.secretWord = secretWord;
@@ -206,6 +230,7 @@
   function hideRole() {
       appState.imposter.revealIndex++;
       if (appState.imposter.revealIndex >= appState.imposter.players.length) {
+          appState.imposter.phase = 'play';
           playSound('success');
           renderImposterBoard();
           setView('play-imposter');
@@ -223,6 +248,9 @@
           container.innerHTML += `<div class="imposter-card m-1">${escapeHTML(p.name)}</div>`;
       });
       if (typeof paintDirector === 'function') paintDirector('imposter-director', appState.imposter, 'imposterDirectorNext()');
+      // A round already decided (its result closed with the back button): no accusation left to make.
+      const live = appState.imposter.phase !== 'done';
+      document.getElementById('imp1-live')?.classList.toggle('hidden', !live);
   }
 
   function imposterDirectorNext() {
@@ -290,8 +318,140 @@
   }
 
   function revealImposterResult() {
+      imp1Finish('revealed', null);
+  }
+
+  /* ---- The room's round on one phone (ideas batch: party2) --------------------
+     «اتهموا»: the table picks one name (a tap picks, a second confirms). A spy
+     named in الجاسوس picks the word from six (the secret among five others of its
+     category, IMPOSTER_GUESS_OPTIONS on the server); المختلف named is caught at
+     once (the room's rule). Caught: a point to everyone who isn't a spy; escaped
+     or guessed the word: two to each spy; revealed without a vote: nothing. */
+  let imp1Replay = false;
+  const IMP1_GUESS_OPTIONS = 6;
+
+  function imp1Live() {
+      const im = appState.imposter;
+      return appState.currentView === 'play-imposter' && im.phase !== 'done' && (im.players || []).length;
+  }
+
+  function imp1OpenAccuse() {
+      if (!imp1Live()) return;
+      // The guess's sheet closed with the back button: the button takes it back there.
+      if (appState.imposter.phase === 'guess') { imp1OpenGuess(); return; }
+      appState.imposter.picked = '';
+      imp1PaintAccuse();
+      const t = TRANSLATIONS[appState.lang] || {};
+      const title = document.getElementById('imp1-accuse-title');
+      if (title) title.textContent = appState.imposter.config.undercover ? (t.imp_und_accuse || '') : (t.imp1_accuse_title || '');
+      document.getElementById('imp1-accuse-modal').classList.remove('hidden');
+  }
+
+  function imp1PaintAccuse() {
+      const list = document.getElementById('imp1-accuse-list');
+      if (!list) return;
+      const t = TRANSLATIONS[appState.lang] || {};
+      const picked = appState.imposter.picked;
+      list.innerHTML = appState.imposter.players.map((p, i) => {
+          const on = p.name === picked;
+          return `<button type="button" class="ballot-option imp1-pick ${on ? 'is-picked' : ''}" aria-pressed="${on}" onclick="imp1Pick(${i})">
+              <span class="ballot-option__label">${escapeHTML(p.name)}</span>
+              <span class="badge ${on ? 'badge--danger imp1-pick__confirm' : 'badge--plain'}">${escapeHTML(on ? (t.imp1_confirm || '') : (t.accuse_badge || ''))}</span>
+            </button>`;
+      }).join('');
+  }
+
+  function imp1Pick(i) {
+      const im = appState.imposter;
+      const p = im.players[i];
+      if (!p || !imp1Live()) return;
+      if (im.picked !== p.name) {
+          im.picked = p.name;
+          imp1PaintAccuse();
+          haptic('light');
+          return;
+      }
+      closeModal('imp1-accuse-modal');
+      imp1Accuse(p.name);
+  }
+
+  function imp1Accuse(name) {
+      const im = appState.imposter;
+      if (!imp1Live()) return;
       stopImposterTimer();
-      playSound('success');
+      im.accused = name;
+      const spy = im.players.some(p => p.name === name && p.role === 'Imposter');
+      if (!spy) { imp1Finish('escaped', null); return; }
+      const options = im.config.undercover ? null : imp1GuessOptions();
+      if (!options) { imp1Finish('caught', null); return; }
+      im.options = options;
+      im.phase = 'guess';
+      saveToLocal();
+      playSound('alarm');
+      haptic('double');
+      imp1OpenGuess();
+  }
+
+  /** The secret among five others of its category; null where there is no list (a typed word). */
+  function imp1GuessOptions() {
+      const im = appState.imposter;
+      const cat = im.category || '';
+      let pool = [];
+      if (cat === 'countries') {
+          pool = typeof COUNTRIES !== 'undefined'
+              ? COUNTRIES.filter(c => c.tier === 1).map(c => contentLang() === 'en' ? c.en : c.ar) : [];
+          if (pool.indexOf(im.secretWord) === -1) pool = ((MONKEY_LISTS[contentLang()] || MONKEY_LISTS.ar).countries || []).slice();
+      } else if (cat && cat !== 'manual' && spyCategories()[cat]) {
+          pool = spyCategories()[cat].slice(cat.includes('🔒') ? 1 : 0);
+      }
+      const others = shuffleArray(pool.filter(w => w !== im.secretWord)).slice(0, IMP1_GUESS_OPTIONS - 1);
+      if (others.length < 2) return null;
+      return shuffleArray(others.concat([im.secretWord]));
+  }
+
+  function imp1OpenGuess() {
+      const im = appState.imposter;
+      const t = TRANSLATIONS[appState.lang] || {};
+      const title = document.getElementById('imp1-guess-title');
+      if (title) title.textContent = '🕵️ ' + im.accused;
+      const pass = document.getElementById('imp1-guess-pass');
+      if (pass) pass.textContent = (t.imp1_pass_to || '').replace('{name}', im.accused);
+      const list = document.getElementById('imp1-guess-list');
+      if (list) list.innerHTML = (im.options || []).map((w, i) =>
+          `<button type="button" class="ballot-option" onclick="imp1Guess(${i})"><span class="ballot-option__label">${escapeHTML(w)}</span></button>`).join('');
+      document.getElementById('imp1-guess-modal').classList.remove('hidden');
+  }
+
+  function imp1Guess(i) {
+      const im = appState.imposter;
+      if (im.phase !== 'guess') return;
+      const word = i === -1 ? null : (im.options || [])[i];
+      closeModal('imp1-guess-modal');
+      imp1Finish(word && word === im.secretWord ? 'stole' : 'caught', word || null);
+  }
+
+  /** The round's end: the score (as the room's finishImposter), then the result. */
+  function imp1Finish(outcome, guess) {
+      const im = appState.imposter;
+      if (im.phase === 'done' || !(im.players || []).length) return;
+      stopImposterTimer();
+      im.phase = 'done';
+      im.outcome = outcome;
+      im.guess = guess;
+      im.scores = im.scores || {};
+      if (outcome === 'caught') {
+          im.players.forEach(p => { if (p.role !== 'Imposter') im.scores[p.name] = (im.scores[p.name] || 0) + 1; });
+      } else if (outcome === 'escaped' || outcome === 'stole') {
+          im.players.forEach(p => { if (p.role === 'Imposter') im.scores[p.name] = (im.scores[p.name] || 0) + 2; });
+      }
+      saveToLocal();
+      imp1ShowResult();
+  }
+
+  function imp1ShowResult(quiet) {
+      const im = appState.imposter;
+      const outcome = im.outcome || 'revealed';
+      if (!quiet) playSound(outcome === 'escaped' || outcome === 'stole' ? 'alarm' : 'success');
       
       const undercover = !!(appState.imposter.config && appState.imposter.config.undercover);
       const wordTitle = undercover
@@ -313,12 +473,21 @@
 
       const t = TRANSLATIONS[appState.lang] || {};
       const spyCount = appState.imposter.players.filter(p => p.role === 'Imposter').length;
-      const revealKey = ['imp1', appState.imposter.secretWord, imposters, appState.imposter.revealIndex].join('|');
+      const revealKey = ['imp1', im.dealId || '', appState.imposter.secretWord, imposters, outcome].join('|');
       const cover = spyRevealParts(revealKey, spyCount > 1 ? t.reveal_spies_were : t.reveal_spy_was);
-      // The spy behind the card; there is no vote on one phone, so the table taps whether they caught him.
-      const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, 'ask', { kind: 'spy' }) : '';
+      // The spy behind the card plays what happened (the accusation), as in a room.
+      const verdict = typeof spyCastVerdict === 'function' ? spyCastVerdict(outcome) : '';
+      const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, verdict, { kind: 'spy' }) : '';
+      const lineState = { outcome: outcome, undercover: undercover, spies: im.players.filter(p => p.role === 'Imposter').map(p => p.name) };
+      // No vote, no line (the room's says "the host revealed", and there is no host here).
+      const line = outcome !== 'revealed' && typeof imposterOutcomeLine === 'function' ? imposterOutcomeLine(lineState, t) : '';
+      const won = outcome === 'caught';
+      const board = im.players.map(p => ({ id: p.name, name: p.name, score: (im.scores || {})[p.name] || 0 }))
+          .sort((a, b) => b.score - a.score);
       document.getElementById('winners-list').innerHTML = `${cast}
         <div class="result-reveal ${cover.cls}" ${cover.attrs}>${cover.cover}
+        ${line ? `<div class="imp1-line ${won ? 'tx-success' : (outcome === 'revealed' ? '' : 'tx-danger')}">${won ? '🎉 ' : ''}${escapeHTML(line)}</div>` : ''}
+        ${im.accused ? `<p class="imp1-sub">${escapeHTML(t.cham_accused || '')}: ${escapeHTML(im.accused)}${im.guess ? ` · ${escapeHTML(t.spy_guess_was || '')}: ${escapeHTML(im.guess)}` : ''}</p>` : ''}
         <div class="mb-4">
             <div class="eyebrow">${wordTitle}</div>
             <div class="result-word tx-success">${escapeHTML(appState.imposter.secretWord)}</div>
@@ -329,6 +498,7 @@
             <div class="result-word tx-danger">${imposters}</div>
         </div>
         </div>
+        <div class="modal-section imp1-board">${outcome === 'revealed' && !board.some(r => r.score) ? '' : renderScoreboard(board)}</div>
       `;
       
       // Clear specific screw chart stuff if any
@@ -341,6 +511,16 @@
       const fullBtn = document.getElementById('toggle-results-btn');
       if (fullBtn) fullBtn.classList.add('hidden');
       
-      document.getElementById('winner-modal').classList.remove('hidden');
+      const modal = document.getElementById('winner-modal');
+      modal.classList.remove('hidden');
+      if (typeof animateScoreboards === 'function') animateScoreboards({ code: 'imposter1', game: String(im.scoreId || '') });
+      if (won) afterReveal(document.getElementById('winners-list'), () => confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } }));
+  }
+
+  /** After a reload on the play screen: the accusation's guess, or the result, as they were. */
+  function imp1Restore() {
+      const im = appState.imposter;
+      if (im.phase === 'guess' && (im.options || []).length) setTimeout(() => { if (appState.currentView === 'play-imposter') imp1OpenGuess(); }, 0);
+      else if (im.phase === 'done') setTimeout(() => { if (appState.currentView === 'play-imposter') imp1ShowResult(true); }, 0);
   }
 </script>

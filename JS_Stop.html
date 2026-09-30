@@ -103,6 +103,7 @@ function startStopGame() {
   if (players.length < 2) { askPlayers(2, () => startStopGame()); return; }
   s.players = players;
   s.round = 0;
+  s.startedAt = Date.now();
   s.totals = {};
   players.forEach(p => { s.totals[p] = 0; });
   nextStopLetter();
@@ -162,6 +163,7 @@ function stopRound() {
   if (stopClock) stopClock.stop();
   stopClock = null;
   s.phase = 'score';
+  s.scoreCat = 0;
   s.roundScores = {};
   s.players.forEach(p => {
     s.roundScores[p] = {};
@@ -188,7 +190,7 @@ function paintStopPlay() {
   const left = s.endsAt ? Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000)) : null;
   el.innerHTML = `
     <div class="play-head">
-      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span> / <span class="metric">${s.rounds}</span></span>
+      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${ltrFrac(s.round, s.rounds)}</span></span>
       ${left === null ? `<span class="badge badge--plain">${escapeHTML(t.stop_no_timer || '')}</span>` : ''}
     </div>
     <div class="stop-letter-card">
@@ -238,7 +240,101 @@ const stopRoundTotal = (p) => {
   return s.cats.reduce((sum, c) => sum + (row[c] || 0), 0);
 };
 
+/* ---- Scoring one category at a time (ideas batch: party2) ---------------------
+   The table read a whole grid of 0-10-5 cycles, up to 48 taps, sideways on a
+   phone. Now each category is its own card: the letter, the category, and for
+   each player a three-way choice (فاضي 0 / مكررة 5 / لوحده 10), with «الكل
+   لوحده» for the usual case; after the last one, the whole table as before for
+   a final look (a column's head goes back to its category). s.scoreCat is the
+   card showing, s.cats.length the table; a deal saved before it has no scoreCat
+   and shows the table. */
+const STOP1_CHOICES = [{ v: 0, key: 'stop1_empty' }, { v: 5, key: 'stop1_shared' }, { v: 10, key: 'stop1_unique' }];
+
 function paintStopScore() {
+  const s = stopState();
+  if (typeof s.scoreCat === 'number' && s.scoreCat >= 0 && s.scoreCat < s.cats.length) { stop1PaintCat(); return; }
+  stop1PaintTable();
+}
+
+function stop1PaintCat() {
+  const s = stopState();
+  const t = TRANSLATIONS[appState.lang];
+  const el = document.getElementById('stop-stage');
+  if (!el) return;
+  const ci = s.scoreCat;
+  const cat = s.cats[ci];
+  const c = STOP_CATEGORIES.find(x => x.id === cat) || {};
+  const lastCat = ci >= s.cats.length - 1;
+  const fresh = typeof motionFirst === 'function' && motionFirst('stop1|' + s.round + '|' + s.letter + '|' + cat);
+  el.innerHTML = `
+    <div class="play-head">
+      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${ltrFrac(s.round, s.rounds)}</span></span>
+      <span class="badge badge--plain">${escapeHTML(t.stop_scoring || '')} <span class="metric">${ltrFrac(ci + 1, s.cats.length)}</span></span>
+    </div>
+    <div class="card card--tight stop1-cat ${fresh ? 'is-new' : ''}">
+      <div class="stop1-cat__head">
+        <div class="stop1-cat__letter" aria-label="${escapeHTML(t.stop_letter || '')}">${escapeHTML(s.letter)}</div>
+        <div class="stop1-cat__name"><span aria-hidden="true">${c.icon || ''}</span> ${escapeHTML(stopCatLabel(cat))}</div>
+      </div>
+      <p class="card__subtitle">${escapeHTML(t.stop1_cat_hint || '')}</p>
+      <div class="stop1-rows">
+        ${s.players.map((p, pi) => {
+          const v = (s.roundScores[p] || {})[cat] || 0;
+          return `<div class="stop1-row">
+            <span class="stop1-row__name">${escapeHTML(p)}</span>
+            <div class="segmented stop1-seg" role="group" aria-label="${escapeHTML(p)}" id="stop1-seg-${pi}">
+              ${STOP1_CHOICES.map(ch => `<button type="button" class="segmented__item stop1-seg__item stop1-v${ch.v} ${v === ch.v ? 'is-active' : ''}" data-value="${ch.v}" aria-pressed="${v === ch.v}" onclick="stop1Set(${pi}, ${ch.v})"><span>${escapeHTML(t[ch.key] || '')}</span><b class="metric">${ch.v}</b></button>`).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="btn-row stop1-quick">
+        <button type="button" class="btn btn--secondary btn--sm" onclick="stop1SetAll(10)">${escapeHTML(t.stop1_all_unique || '')}</button>
+        <button type="button" class="btn btn--ghost btn--sm" onclick="stop1SetAll(0)">${escapeHTML(t.stop1_all_empty || '')}</button>
+      </div>
+    </div>
+    <div class="view-actions">
+      <button class="btn btn--primary btn--lg" onclick="stop1Go(${ci + 1})">${escapeHTML(lastCat ? (t.stop1_check || '') : (t.stop1_next_cat || ''))}</button>
+      <div class="btn-row">
+        ${ci > 0 ? `<button class="btn btn--ghost btn--sm" onclick="stop1Go(${ci - 1})">${escapeHTML(t.stop1_prev_cat || '')}</button>` : ''}
+        <button class="btn btn--ghost btn--sm" onclick="stop1Go(${s.cats.length})">${escapeHTML(t.stop1_to_table || '')}</button>
+        <button class="btn btn--ghost btn--sm" onclick="setupStop()">${escapeHTML(t.exit || '')}</button>
+      </div>
+    </div>`;
+  if (typeof scrollToAction === 'function') scrollToAction();
+}
+
+function stop1Set(pi, v) {
+  const s = stopState();
+  const p = s.players[pi];
+  const cat = s.cats[s.scoreCat];
+  if (!p || !cat || !s.roundScores[p] || s.phase !== 'score') return;
+  s.roundScores[p][cat] = v;
+  saveToLocal();
+  document.querySelectorAll('#stop1-seg-' + pi + ' .segmented__item').forEach(b => {
+    const on = Number(b.dataset.value) === v;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', on);
+  });
+  haptic('light');
+}
+
+function stop1SetAll(v) {
+  const s = stopState();
+  s.players.forEach((p, pi) => stop1Set(pi, v));
+}
+
+/** To category `ci`, or the table (ci = the number of categories). */
+function stop1Go(ci) {
+  const s = stopState();
+  if (s.phase !== 'score') return;
+  s.scoreCat = Math.max(0, Math.min(s.cats.length, ci));
+  saveToLocal();
+  paintStopScore();
+  playSound('click');
+}
+
+function stop1PaintTable() {
   const s = stopState();
   const t = TRANSLATIONS[appState.lang];
   const el = document.getElementById('stop-stage');
@@ -246,8 +342,8 @@ function paintStopScore() {
   const last = s.round >= s.rounds;
   el.innerHTML = `
     <div class="play-head">
-      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span> / <span class="metric">${s.rounds}</span></span>
-      <span class="badge badge--plain">${escapeHTML(t.stop_letter || '')} <b>${escapeHTML(s.letter)}</b></span>
+      <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${ltrFrac(s.round, s.rounds)}</span></span>
+      <span class="stop1-letter-chip"><span>${escapeHTML(t.stop_letter || '')}</span> <b>${escapeHTML(s.letter)}</b></span>
     </div>
     <div class="card card--tight">
       <div class="card__title">${escapeHTML(t.stop_scoring || '')}</div>
@@ -256,7 +352,7 @@ function paintStopScore() {
         <table class="stop-table">
           <thead><tr>
             <th class="stop-th stop-th--name">${escapeHTML(t.players || '')}</th>
-            ${s.cats.map(c => `<th class="stop-th">${escapeHTML(stopCatLabel(c))}</th>`).join('')}
+            ${s.cats.map((c, ci) => `<th class="stop-th">${s.phase === 'score' ? `<button type="button" class="stop1-th-btn" onclick="stop1Go(${ci})">${escapeHTML(stopCatLabel(c))}</button>` : escapeHTML(stopCatLabel(c))}</th>`).join('')}
             <th class="stop-th stop-th--total">${escapeHTML(t.stop_total || 'Σ')}</th>
           </tr></thead>
           <tbody>
@@ -325,8 +421,11 @@ function showStopResult() {
   const title = document.getElementById('stop-result-title');
   const detail = document.getElementById('stop-result-detail');
   if (title) title.textContent = winners.length > 1 ? (t.stop_tie || '') : `🏆 ${winners[0]}`;
+  // The podium, as the room's result has it (renderPodium), then every place.
+  const board = rows.map(p => ({ id: p, name: p, score: s.totals[p] || 0 }));
+  const podium = typeof renderPodium === 'function' ? renderPodium({ code: 'stop1', game: String(s.startedAt || '') + ':' + s.rounds }, board) : '';
   if (detail) {
-    detail.innerHTML = `<div class="modal-list">${rows.map((p, i) => `
+    detail.innerHTML = podium + `<div class="modal-list">${rows.map((p, i) => `
       <div class="status-row">
         <span class="status-row__name">${['🥇', '🥈', '🥉'][i] || ''} ${escapeHTML(p)}</span>
         <b class="metric">${s.totals[p] || 0}</b>
@@ -335,13 +434,15 @@ function showStopResult() {
   const modal = document.getElementById('stop-result-modal');
   if (modal) modal.classList.remove('hidden');
   playSound('success');
-  if (typeof confetti === 'function') confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } });
+  const boom = () => { if (typeof confetti === 'function') confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } }); };
+  if (detail && podium && typeof afterReveal === 'function') afterReveal(detail, boom); else boom();
 }
 
 function replayStop() {
   closeModal('stop-result-modal');
   const s = stopState();
   s.round = 0;
+  s.startedAt = Date.now();
   s.totals = {};
   s.players.forEach(p => { s.totals[p] = 0; });
   nextStopLetter();

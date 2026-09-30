@@ -14,6 +14,10 @@
  *   POST /report  { game, text, lang }            «في غلطة؟»: an item a player says is wrong
  *   POST /err     { b, m, f, v }                  an error on a player's phone (build, message, frame, view)
  *   GET|DELETE /errors                            what /err kept (the admin key)
+ *   POST /pack/create { kind, pack }             «اعمل مسابقتك» / «كلماتنا»: -> { code, key }
+ *   POST /pack/get    { code }                     -> { kind, pack, updated }
+ *   POST /pack/save   { code, key, kind, pack }    the author's change (the key the create gave)
+ *   POST /pack/played { code }                     a pack played on one phone: its year starts again
  *   GET  /test                                    connection test page
  *
  * Bodies are JSON sent as text/plain, which browsers send without a CORS
@@ -23,14 +27,15 @@
  * Anything else is looked up in the built app (docs/, see [assets] in
  * wrangler.toml) before it reaches this code.
  */
-import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS } from '../generated/rules.js';
+import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS, PACK_ALPHABET, PACK_CODE_LEN, PACK_CODE_RE, packClean, packCode } from '../generated/rules.js';
 import { Room } from './room.js';
 import { PromptMemory } from './memory.js';
 import { LiveStats } from './live.js';
 import { WordLog } from './words.js';
+import { PackStore } from './packs.js';
 import TEST_PAGE from './page.js';
 
-export { Room, PromptMemory, LiveStats, WordLog };
+export { Room, PromptMemory, LiveStats, WordLog, PackStore };
 
 // Every phone looking at the مع بعض tab asks for the count; this Worker asks
 // LiveStats at most this often and answers the rest from what it last heard.
@@ -145,6 +150,75 @@ function errEntry(body, ua) {
   return { lang: build, cat: view, word: msg + ' @ ' + frame, long: true, keep: true, stamp: true, tag: os + '-' + br };
 }
 
+/* --- packs: «اعمل مسابقتك» and «كلماتنا» (30 Sep 2026) -------------------------
+   A light brake per address, per Worker instance, like /create: a family writes a
+   few quizzes an evening and saves each a few dozen times while writing. */
+const limiter = (limit, windowMs) => {
+  const by = new Map();
+  return (request) => {
+    const ip = request.headers.get('CF-Connecting-IP') || '';
+    if (!ip) return true;
+    const now = Date.now();
+    if (by.size > 5000) for (const [k, v] of by) if (now - v.since > windowMs) by.delete(k);
+    const seen = by.get(ip);
+    if (!seen || now - seen.since > windowMs) { by.set(ip, { n: 1, since: now }); return true; }
+    seen.n++;
+    return seen.n <= limit;
+  };
+};
+const packCreateAllowed = limiter(20, 10 * 60 * 1000);
+const packSaveAllowed = limiter(200, 10 * 60 * 1000);
+const packGetAllowed = limiter(400, 10 * 60 * 1000);
+const PACK_KINDS = ['quiz', 'words'];
+const packStub = (env, code) => env.PACKS.get(env.PACKS.idFromName('pack:' + code));
+
+const randomOf = (alphabet, n) => {
+  const bytes = new Uint8Array(n);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+};
+/** The edit key's SHA-256, hex: the only form the server keeps it in. */
+const keyHash = async (key) => {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(key || '')));
+  return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+async function handlePack(env, request, path, body) {
+  if (path === '/pack/create') {
+    if (!packCreateAllowed(request)) return { ok: false, error: 'busy' };
+    const kind = String(body.kind || '');
+    if (PACK_KINDS.indexOf(kind) === -1) return { ok: false, error: 'kind' };
+    const clean = packClean(kind, body.pack);
+    if (clean.error) return { ok: false, error: clean.error, at: clean.at };
+    const key = randomOf('abcdefghijkmnopqrstuvwxyz23456789', 24);
+    const hash = await keyHash(key);
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const code = randomOf(PACK_ALPHABET, PACK_CODE_LEN);
+      const res = await packStub(env, code).create(kind, clean.pack, hash);
+      if (!res.taken) return { ok: true, code, key, pack: clean.pack };
+    }
+    return { ok: false, error: 'busy' };
+  }
+  const code = packCode(body.code);
+  if (!PACK_CODE_RE.test(code)) return { ok: false, error: 'not_found' };
+  if (path === '/pack/get' || path === '/pack/played') {
+    if (!packGetAllowed(request)) return { ok: false, error: 'busy' };
+    const got = await packStub(env, code).get(path === '/pack/played');
+    if (!got) return { ok: false, error: 'not_found' };
+    return path === '/pack/played' ? { ok: true } : { ok: true, code, kind: got.kind, pack: got.pack, updated: got.updated };
+  }
+  // '/pack/save'
+  if (!packSaveAllowed(request)) return { ok: false, error: 'busy' };
+  const kind = String(body.kind || '');
+  const clean = packClean(kind, body.pack);
+  if (clean.error) return { ok: false, error: clean.error, at: clean.at };
+  const res = await packStub(env, code).save(kind, clean.pack, await keyHash(body.key));
+  if (res.gone) return { ok: false, error: 'not_found' };
+  if (res.denied) return { ok: false, error: 'denied' };
+  return { ok: true, code, pack: clean.pack, updated: res.updated };
+}
+const PACK_API = new Set(['/pack/create', '/pack/get', '/pack/save', '/pack/played']);
+
 const randomCode = () => {
   const bytes = new Uint8Array(ROOM_CODE_LEN);
   crypto.getRandomValues(bytes);
@@ -208,6 +282,24 @@ export default {
       } catch (err) {
         console.error(url.pathname, err && err.stack || err);
         return json({ ok: false, error: 'مش قادرين نوصل للسيرفر، جرّب تاني' }, 500);
+      }
+    }
+
+    if (PACK_API.has(url.pathname)) {
+      if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
+      let body;
+      try {
+        const text = await request.text();
+        if (text.length > MAX_BODY) throw new Error('too big');
+        body = JSON.parse(text || '{}') || {};
+      } catch (e) {
+        return json({ ok: false, error: 'too_big' }, 400);
+      }
+      try {
+        return json(await handlePack(env, request, url.pathname, body));
+      } catch (err) {
+        console.error(url.pathname, err && err.stack || err);
+        return json({ ok: false, error: 'server' }, 500);
       }
     }
 

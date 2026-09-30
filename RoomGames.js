@@ -57,6 +57,7 @@ const clearGameState = (room) => {
   // Every piece of server-side scratch, or the previous game's answer survives
   // into the next one.
   room._key = null;
+  room._pack = null;
   room._tourHidden = null;
   room._assignments = null;
   room._clueText = null;
@@ -233,6 +234,35 @@ const sameRoomName = (a, b) =>
  * up), and is dropped without an error when that no longer matches. A phone
  * too old to send it is trusted, as before.
  */
+/* ==========================================================================
+   «اعمل مسابقتك» and «كلماتنا» — WHAT THE FAMILY WRITES (30 Sep 2026)
+   A quiz or the family word pack, kept by the rooms server under a code
+   (Packs.js, rooms-worker/src/packs.js). The lobby names it (payload.pack on
+   start); room.js reads it from its store and hands it to this one move as
+   room._packIn - never a phone's copy, so a quiz's answers can't be forged or
+   seen. roomPackAdopt keeps it as room._pack for the rest of the game (play
+   again, the next round), never projected. A start that names no pack clears it.
+   ========================================================================== */
+const roomPackAdopt = (room, action, payload) => {
+  const code = payload && payload.pack ? packCode(payload.pack) : '';
+  if (code) {
+    const got = room._packIn;
+    if (!got || got.code !== code) throw new Error('مش لاقيين المسابقة أو الكلمات بالكود ده');
+    room._pack = { code: got.code, kind: got.kind, pack: got.pack };
+  } else if (action === 'start') {
+    room._pack = null;
+  }
+};
+/** The quiz this game plays, or null. */
+const roomPackQuiz = (room) => (room._pack && room._pack.kind === 'quiz' ? room._pack : null);
+/** The family's words this game deals from, or null. */
+const roomPackWords = (room) => (room._pack && room._pack.kind === 'words' ? room._pack.pack.words : null);
+/** A quiz's questions as a deck: the choices shuffled (the author often writes the right one first). */
+const roomPackDeck = (quiz) => quiz.pack.questions.map(q => {
+  const order = shuffled([0, 1, 2, 3]);
+  return { q: (q.e ? q.e + ' ' : '') + q.q, choices: order.map(k => q.c[k]), answer: order.indexOf(q.a) };
+});
+
 const staleTap = (payload, field, current) => {
   if (!payload || payload[field] === undefined || payload[field] === null) return false;
   return String(payload[field]) !== String(current);
@@ -644,6 +674,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
   // «⏸ استنى»: the count to the next round stops, for this round; «التالي» is by hand again.
   if (action === 'autoPause') { autoNextPause(room, playerId, payload); return; }
 
+  // «اعمل مسابقتك» / «كلماتنا»: a pack the lobby named, which room.js loaded (_packIn).
+  if (action === 'start' || action === 'playAgain') roomPackAdopt(room, action, payload);
+
   // What was there before the move, to tell whether it dealt something new.
   const sharedBefore = room.shared;
   const dealing = action === 'start' || action === 'nextRound' || action === 'playAgain';
@@ -1015,7 +1048,11 @@ const chameleonRoomAction = (room, playerId, action, payload) => {
     if (action === 'nextRound' && prev.phase !== 'results') return;
     const lang = roomLangOf(room, payload);
     const pool = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
-    const entry = nextPrompt(room, pool, 'cham_' + lang);
+    // «كلماتنا»: sixteen of the family's words (a pack of fewer isn't offered for this game).
+    const family = roomPackWords(room);
+    const entry = family && family.length >= CHAMELEON_GRID
+      ? { category: room._pack.pack.title, words: shuffled(family).slice(0, CHAMELEON_GRID) }
+      : nextPrompt(room, pool, 'cham_' + lang);
     const words = entry.words.slice(0, CHAMELEON_GRID);
     const secret = Math.floor(Math.random() * words.length);
     const roster = room.players.map(p => p.id);
@@ -1430,6 +1467,8 @@ const buzzerAction = (room, playerId, action, payload) => {
     if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
     room.secrets = {};
     room.shared = { round: 1, phase: 'armed', buzzes: [], out: [], scores: {}, last: null, roster: room.players.map(p => p.id) };
+    buzzerQuizDeal(room, 0);
+    buzzerQuizSync(room);
     room.shared.board = scoreboardOf(room);
     room.phase = 'playing';
     return;
@@ -1437,6 +1476,58 @@ const buzzerAction = (room, playerId, action, payload) => {
 
   const s = room.shared;
   if (!s || room.phase !== 'playing') throw new Error('اللعبة لم تبدأ بعد');
+  try { buzzerQuizMove(room, playerId, action, payload); } finally { buzzerQuizSync(room); }
+};
+
+/* «اعمل مسابقتك» on the buzzer: the host reads the family's question out loud,
+   every phone sees it and its four choices, and the right one is on the host's
+   phone only (room.secrets[host].answer; a TV host gets none - the TV is the
+   table's screen - and shows it with «اكشف الإجابة»). A right answer (the host's
+   ✅) or the host's reveal shows it to everyone and locks the buzzers until
+   «السؤال التالي». The questions: room._bzDeck, choices shuffled at the deal. */
+const buzzerQuizDeal = (room, idx) => {
+  const s = room.shared;
+  const quiz = roomPackQuiz(room);
+  if (!quiz) { delete s.quiz; room._bzDeck = null; return; }
+  if (idx === 0 || !room._bzDeck) room._bzDeck = roomPackDeck(quiz);
+  const q = room._bzDeck[idx];
+  if (!q) {
+    s.quiz = { title: quiz.pack.title, emoji: quiz.pack.emoji || '', code: quiz.code, n: room._bzDeck.length, total: room._bzDeck.length, done: true };
+    s.phase = 'locked';
+    s.buzzes = [];
+    return;
+  }
+  s.quiz = { title: quiz.pack.title, emoji: quiz.pack.emoji || '', code: quiz.code, n: idx, total: room._bzDeck.length, q: q.q, choices: q.choices, answer: null, done: false };
+};
+
+/** The right choice on the host's own phone, while it is still hidden. */
+const buzzerQuizSync = (room) => {
+  const s = room.shared || {};
+  const q = s.quiz && !s.quiz.done && room._bzDeck && room._bzDeck[s.quiz.n];
+  room.secrets = {};
+  if (q && s.quiz.answer === null && room.players.some(p => p.id === room.hostId)) {
+    room.secrets[room.hostId] = { answer: q.answer };
+  }
+};
+
+/** The host changed (room.js: handed on, or taken over): what only the host may see follows them. */
+const roomHostChanged = (room) => {
+  try {
+    if (room.game === 'buzzer' && room.shared && room.shared.quiz) buzzerQuizSync(room);
+  } catch (e) { /* never worth failing a handover */ }
+};
+
+const buzzerQuizReveal = (room) => {
+  const s = room.shared;
+  const q = s.quiz && room._bzDeck && room._bzDeck[s.quiz.n];
+  if (!q || s.quiz.answer !== null) return;
+  s.quiz.answer = q.answer;
+  s.phase = 'locked';
+  s.buzzes = [];
+};
+
+const buzzerQuizMove = (room, playerId, action, payload) => {
+  const s = room.shared;
 
   if (action === 'buzz') {
     // A press after the host locked, or a second press: nothing to record.
@@ -1472,6 +1563,27 @@ const buzzerAction = (room, playerId, action, payload) => {
     s.round += 1;
     freshRoster();
     s.board = scoreboardOf(room);
+    // A quiz question answered: its answer for everyone, the buzzers off until the next one.
+    if (s.quiz && !s.quiz.done) buzzerQuizReveal(room);
+    return;
+  }
+  // «اعمل مسابقتك»: nobody got it - the host shows the answer.
+  if (action === 'quizReveal') {
+    if (!s.quiz || s.quiz.done) return;
+    if (staleTap(payload, 'n', s.quiz.n)) return;
+    buzzerQuizReveal(room);
+    return;
+  }
+  // The next question of the quiz (after the last one, the quiz is done).
+  if (action === 'quizNext') {
+    if (!s.quiz || s.quiz.done) return;
+    if (staleTap(payload, 'n', s.quiz.n)) return;
+    s.buzzes = [];
+    s.last = null;
+    s.round += 1;
+    freshRoster();
+    s.phase = 'armed';
+    buzzerQuizDeal(room, s.quiz.n + 1);
     return;
   }
   if (action === 'wrong') {
@@ -1503,6 +1615,7 @@ const buzzerAction = (room, playerId, action, payload) => {
     s.round = 1;
     s.phase = 'armed';
     freshRoster();
+    buzzerQuizDeal(room, 0);
     s.board = scoreboardOf(room);
     return;
   }
@@ -1551,7 +1664,9 @@ const imposterAction = (room, playerId, action, payload) => {
     const pairsEn = payload.lang === 'en' && typeof SPY_PAIRS_EN !== 'undefined';
     const pairList = pairsEn ? SPY_PAIRS_EN : (typeof SPY_PAIRS !== 'undefined' ? SPY_PAIRS : []);
     const category = undercover ? '' : String(payload.category || '');
-    const words = undercover ? pairList.map(p => p[0]) : spyWords(category);
+    // «كلماتنا»: the family's words, when the lobby chose them (never المختلف: it needs pairs).
+    const familyWords = !undercover && payload.pack ? roomPackWords(room) : null;
+    const words = undercover ? pairList.map(p => p[0]) : (familyWords ? familyWords.slice() : spyWords(category));
     if (!undercover && !words.length) throw new Error('اختر مجموعة كلمات');
 
     // PromptMemory keys on the dealt value, so deal the pair as one string.
@@ -1559,7 +1674,7 @@ const imposterAction = (room, playerId, action, payload) => {
     // Either word can be the odd one: always the second of a list the page ships
     // meant holding "نسكافيه" told you you were the odd one out.
     if (pair && Math.random() < 0.5) pair.reverse();
-    const secret = undercover ? pair[0] : nextPrompt(room, words, 'imp_' + category);
+    const secret = undercover ? pair[0] : nextPrompt(room, words, familyWords ? 'imp_pack_' + room._pack.code : 'imp_' + category);
     const pairOther = undercover ? pair[1] : null;
     const spyCount = Math.max(1, Math.min(Number(payload.spies) || 1, room.players.length - 2));
     const order = shuffled(room.players.map(p => p.id));
@@ -3043,7 +3158,9 @@ const drawGuessAction = (room, playerId, action, payload) => {
 
     // The drawer rotates so everyone gets a turn.
     const drawer = room.players[(round - 1) % room.players.length];
-    const word = nextPrompt(room, DRAW_WORDS[lang], 'draw_' + lang);
+    // «كلماتنا»: the family's own words, when the lobby chose them.
+    const family = roomPackWords(room);
+    const word = family ? nextPrompt(room, family, 'draw_pack_' + room._pack.code) : nextPrompt(room, DRAW_WORDS[lang], 'draw_' + lang);
 
     room._word = word;
     room.secrets = {};
@@ -3141,7 +3258,7 @@ const drawGuessAction = (room, playerId, action, payload) => {
     const player = room.players.find(p => p.id === playerId);
     // Judged the way the table hears it (guessVerdict): طماطم is طماطماية, a
     // letter off in a long word still counts, and a near miss gets a nudge.
-    const verdict = guessVerdict(text, [room._word], DRAW_WORDS[s.lang] || DRAW_WORDS.ar);
+    const verdict = guessVerdict(text, [room._word], roomPackWords(room) || DRAW_WORDS[s.lang] || DRAW_WORDS.ar);
     const right = verdict === 'right';
     const close = verdict === 'close';
 
@@ -3485,19 +3602,26 @@ const triviaAction = (room, playerId, action, payload) => {
     if (action === 'playAgain' && room.shared.phase !== 'gameover') return;
 
     const lang = roomLangOf(room, payload);
-    const pool = TRIVIA_QUESTIONS[lang] || TRIVIA_QUESTIONS.ar;
-    // Play again comes without a count: it keeps the one this game had.
-    const asked = Number(payload && payload.count);
-    const count = TRIVIA_COUNTS.indexOf(asked) !== -1 ? asked : (room._triviaCount || TRIVIA_PER_GAME);
-    room._triviaCount = count;
-    // The bank puts the right answer second three times in four, so the
-    // choices are reordered for every question — otherwise "always B" wins.
-    room._deck = nextPrompts(room, pool, 'trivia_' + lang, count).map(q => {
-      const order = shuffled(q.choices.map((_, k) => k));
-      return { q: q.q, choices: order.map(k => q.choices[k]), answer: order.indexOf(q.answer) };
-    });
+    // «اعمل مسابقتك»: the family's own quiz, every question in the author's order.
+    const quiz = roomPackQuiz(room);
+    if (quiz) {
+      room._deck = roomPackDeck(quiz);
+    } else {
+      const pool = TRIVIA_QUESTIONS[lang] || TRIVIA_QUESTIONS.ar;
+      // Play again comes without a count: it keeps the one this game had.
+      const asked = Number(payload && payload.count);
+      const count = TRIVIA_COUNTS.indexOf(asked) !== -1 ? asked : (room._triviaCount || TRIVIA_PER_GAME);
+      room._triviaCount = count;
+      // The bank puts the right answer second three times in four, so the
+      // choices are reordered for every question — otherwise "always B" wins.
+      room._deck = nextPrompts(room, pool, 'trivia_' + lang, count).map(q => {
+        const order = shuffled(q.choices.map((_, k) => k));
+        return { q: q.q, choices: order.map(k => q.choices[k]), answer: order.indexOf(q.answer) };
+      });
+    }
     room._triviaFastest = {};
     room.shared = { scores: {}, lang: lang, roster: room.players.map(p => p.id) };
+    if (quiz) room.shared.quiz = { title: quiz.pack.title, emoji: quiz.pack.emoji || '', code: quiz.code };
     dealTriviaQuestion(room, 0);
     return;
   }
@@ -3592,6 +3716,7 @@ const dealTriviaQuestion = (room, idx) => {
     lang: prev.lang,
     roster: prev.roster || room.players.map(p => p.id)
   };
+  if (prev.quiz) room.shared.quiz = prev.quiz;
   room.shared.board = scoreboardOf(room);
   room.phase = 'play';
 };
@@ -4084,6 +4209,8 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'buzzer':
       if (Array.isArray(s.buzzes)) s.buzzes = s.buzzes.filter(b => b.id !== playerId);
+      // The room may have a new host: a quiz's answer goes to their phone.
+      if (s.quiz) buzzerQuizSync(room);
       return;
     case 'chairs':
       chairsPlayerLeft(room, playerId, name);

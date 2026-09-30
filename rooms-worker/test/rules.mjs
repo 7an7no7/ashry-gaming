@@ -6,7 +6,7 @@
  *   npm run test:rules      (builds generated/rules.js first)
  */
 import { readFileSync } from 'node:fs';
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
+import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
 let failed = 0;
 const check = (ok, label) => {
@@ -11410,6 +11410,120 @@ Date.now = duelTestClock;
   // A game without the switch: autoPause is refused, a start payload's autoNext ignored.
   const bz = an('buzzer', ['a', 'b'], { autoNext: true });
   check(threw2(() => applyRoomAction(bz, 'a', 'autoPause', {})) && !bz._autoNext, 'autonext: other games have no such switch');
+}
+
+/* --- «اعمل مسابقتك» and «كلماتنا» (30 Sep 2026): packs checked, dealt from the server's copy --- */
+{
+  console.log('• packs: a quiz and the family words, checked, dealt in trivia, the buzzer and the word games');
+  const threwP = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const Q = (q, a = 0, c) => ({ q, c: c || ['واحد', 'اتنين', 'تلاتة', 'أربعة'], a });
+  const good = { title: 'مسابقة العيد', emoji: '🎉', questions: [Q('مين أول واحد اتجوز؟', 2), Q('آخر مصيف كان فين؟', 1), Q('تيتا بتعمل كام كيلو كحك؟', 3)] };
+  check(!!packClean('quiz', good).pack, 'packs: a good quiz is kept');
+  check(packClean('quiz', { title: '', questions: good.questions }).error === 'title', 'packs: a quiz needs a title');
+  check(packClean('quiz', { title: 'x', questions: [] }).error === 'no_questions', 'packs: a quiz needs a question');
+  check(packClean('quiz', { title: 'x', questions: Array.from({ length: 61 }, (_, i) => Q('س' + i)) }).error === 'too_many', 'packs: at most 60 questions');
+  const bad = (qq) => packClean('quiz', { title: 'x', questions: [Q('ok'), qq] });
+  check(bad(Q('  ')).error === 'q_empty' && bad(Q('  ')).at === 1, 'packs: an empty question is named by its place');
+  check(bad({ q: 'x', c: ['a', 'b', 'c'], a: 0 }).error === 'choices_four', 'packs: four choices');
+  check(bad(Q('x', 0, ['a', '', 'c', 'd'])).error === 'choice_empty', 'packs: no empty choice');
+  check(bad(Q('x', 0, ['أحمد', 'احمد', 'c', 'd'])).error === 'choices_same', 'packs: two choices the same after the fold are refused');
+  check(bad(Q('x', 4)).error === 'no_right' && bad({ q: 'x', c: ['a', 'b', 'c', 'd'] }).error === 'no_right', 'packs: one right choice, 0 to 3');
+  const long = packClean('quiz', { title: 'ت'.repeat(90), questions: [Q('س'.repeat(300), 0, ['ا'.repeat(99), 'b', 'c', 'd'])] }).pack;
+  check(long.title.length === 40 && long.questions[0].q.length === 140 && long.questions[0].c[0].length === 60, 'packs: title 40, question 140, choice 60 characters');
+  check(packClean('quiz', { title: 'x', questions: [Object.assign(Q('x'), { e: 'hello' })] }).pack.questions[0].e === '', 'packs: a question\'s emoji is an emoji, not words');
+  const words = packClean('words', { title: 'كلماتنا', words: ['خالو حسن', 'الكنبة', 'بطاطس', 'خالو  حسن', '', 'المصيف', 'ماما', 'التكييف'] }).pack;
+  check(words && words.words.length === 6 && words.words[0] === 'خالو حسن', 'packs: words are cleaned and each kept once');
+  check(packClean('words', { title: 'x', words: ['a', 'b'] }).error === 'few_words', 'packs: a word pack needs six words');
+  check(packClean('words', { title: 'x', words: Array.from({ length: 301 }, (_, i) => 'w' + i) }).error === 'too_many_words', 'packs: at most 300 words');
+  check(packCode(' qz7-k2a ') === 'QZ7K2A' && PACK_CODE_RE.test('QZ7K2A') && !PACK_CODE_RE.test('QZ0K2A') && !PACK_CODE_RE.test('ABCD'), 'packs: a code is six of the room alphabet, never four');
+
+  const quizPack = { code: 'QZ7K2A', kind: 'quiz', pack: packClean('quiz', good).pack };
+  // Trivia with the family's quiz: room.js hands the move its pack (_packIn), as here.
+  const tq = newRoom(['a', 'b', 'c']);
+  applyRoomAction(tq, 'a', 'chooseGame', { game: 'trivia' });
+  check(threwP(() => applyRoomAction(structuredClone(tq), 'a', 'start', { lang: 'ar', pack: 'QZ7K2A' })), 'packs/trivia: a code the server didn\'t load is refused');
+  tq._packIn = quizPack;
+  applyRoomAction(tq, 'a', 'start', { lang: 'ar', count: 5, pack: 'QZ7K2A' });
+  delete tq._packIn;
+  check(tq._deck.length === 3 && tq.shared.totalQuestions === 3 && tq.shared.quiz.title === 'مسابقة العيد', 'packs/trivia: every question of the quiz, whatever the count');
+  check(tq.shared.question.indexOf('مين أول واحد اتجوز؟') !== -1 && !('correctAnswer' in tq.shared), 'packs/trivia: in the author\'s order, the answer on the server');
+  const first = tq._deck[0];
+  check(first.choices[first.answer] === 'تلاتة', 'packs/trivia: the right choice follows the shuffle');
+  let orders = new Set();
+  for (let k = 0; k < 20; k++) {
+    const r = newRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'trivia' });
+    r._packIn = quizPack;
+    applyRoomAction(r, 'a', 'start', { lang: 'ar', pack: 'QZ7K2A' });
+    orders.add(r._deck[0].choices.join(','));
+  }
+  check(orders.size > 1, 'packs/trivia: the choices are shuffled at the deal');
+  answerAll(tq, [['a', first.answer], ['b', (first.answer + 1) % 4], ['c', first.answer]]);
+  check(tq.shared.gained.a === 15 && tq.shared.gained.c === 14 && !tq.shared.gained.b, 'packs/trivia: scored like the bank\'s questions');
+  for (let i = 1; i < 3; i++) { applyRoomAction(tq, 'a', 'nextQuestion', { qIndex: i - 1 }); applyRoomAction(tq, 'a', 'closeQuestion', {}); }
+  applyRoomAction(tq, 'a', 'nextQuestion', { qIndex: 2 });
+  check(tq.shared.phase === 'gameover', 'packs/trivia: the game ends after the quiz\'s last question');
+  applyRoomAction(tq, 'a', 'playAgain', { lang: 'ar' });
+  check(tq._deck.length === 3 && tq.shared.quiz && tq.shared.quiz.code === 'QZ7K2A', 'packs/trivia: play again plays the same quiz');
+  applyRoomAction(tq, 'a', 'backToHub', {});
+  applyRoomAction(tq, 'a', 'chooseGame', { game: 'trivia' });
+  applyRoomAction(tq, 'a', 'start', { lang: 'ar', count: 5 });
+  check(tq._deck.length === 5 && !tq.shared.quiz && !tq._pack, 'packs/trivia: a start with no quiz deals the app\'s questions');
+
+  // The buzzer with a quiz: the question for everyone, the answer on the host's phone only.
+  const bq = newRoom(['h', 'x', 'y']);
+  applyRoomAction(bq, 'h', 'chooseGame', { game: 'buzzer' });
+  bq._packIn = quizPack;
+  applyRoomAction(bq, 'h', 'start', { pack: 'QZ7K2A' });
+  delete bq._packIn;
+  const bs = bq.shared;
+  check(bs.quiz && bs.quiz.n === 0 && bs.quiz.total === 3 && bs.quiz.choices.length === 4 && bs.quiz.answer === null, 'packs/buzzer: the first question and its choices, the answer hidden');
+  check(bq.secrets.h && bq.secrets.h.answer === bq._bzDeck[0].answer && !bq.secrets.x && !bq.secrets.y, 'packs/buzzer: the answer on the host\'s phone only');
+  applyRoomAction(bq, 'x', 'buzz', { round: 1 });
+  applyRoomAction(bq, 'h', 'correct', { id: 'x' });
+  check(bq.shared.quiz.answer === bq._bzDeck[0].answer && bq.shared.phase === 'locked' && !bq.secrets.h, 'packs/buzzer: a right answer shows it to everyone, the buzzers off');
+  applyRoomAction(bq, 'h', 'quizNext', { n: 0 });
+  applyRoomAction(bq, 'h', 'quizNext', { n: 0 });
+  check(bq.shared.quiz.n === 1 && bq.shared.phase === 'armed' && bq.shared.quiz.answer === null, 'packs/buzzer: the next question (a double tap moves one)');
+  check(threwP(() => applyRoomAction(structuredClone(bq), 'x', 'quizReveal', { n: 1 })), 'packs/buzzer: only the host shows the answer');
+  applyRoomAction(bq, 'h', 'quizReveal', { n: 1 });
+  check(bq.shared.quiz.answer !== null && bq.shared.phase === 'locked', 'packs/buzzer: nobody got it - the host shows the answer');
+  applyRoomAction(bq, 'h', 'quizNext', { n: 1 });
+  applyRoomAction(bq, 'h', 'quizNext', { n: 2 });
+  check(bq.shared.quiz.done && bq.shared.phase === 'locked', 'packs/buzzer: after the last question the quiz is done');
+  applyRoomAction(bq, 'h', 'playAgain', {});
+  check(bq.shared.quiz.n === 0 && !bq.shared.quiz.done && bq.secrets.h, 'packs/buzzer: play again starts the quiz over');
+  bq.hostId = 'y'; roomHostChanged(bq);
+  check(bq.secrets.y && !bq.secrets.h, 'packs/buzzer: a new host gets the answer');
+  const bn = newRoom(['h', 'x']);
+  applyRoomAction(bn, 'h', 'chooseGame', { game: 'buzzer' });
+  applyRoomAction(bn, 'h', 'start', {});
+  check(!bn.shared.quiz && !Object.keys(bn.secrets).length, 'packs/buzzer: no quiz, the buzzer as it always was');
+
+  // «كلماتنا» in the word games.
+  const wordsPack = { code: 'WRD234', kind: 'words', pack: packClean('words', { title: 'كلماتنا', words: Array.from({ length: 18 }, (_, i) => 'كلمة' + i) }).pack };
+  const im = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(im, 'a', 'chooseGame', { game: 'imposter' });
+  im._packIn = wordsPack;
+  applyRoomAction(im, 'a', 'start', { category: '✍️ كلماتنا', spies: 1, pack: 'WRD234' });
+  delete im._packIn;
+  check(wordsPack.pack.words.indexOf(im._impSecret) !== -1, 'packs/imposter: the word comes from the family\'s pack');
+  const ch = newRoom(['a', 'b', 'c']);
+  applyRoomAction(ch, 'a', 'chooseGame', { game: 'chameleon' });
+  ch._packIn = wordsPack;
+  applyRoomAction(ch, 'a', 'start', { lang: 'ar', pack: 'WRD234' });
+  delete ch._packIn;
+  check(ch.shared.words.length === 16 && ch.shared.words.every(w => wordsPack.pack.words.indexOf(w) !== -1) && ch.shared.category === 'كلماتنا', 'packs/chameleon: a board of sixteen of the family\'s words');
+  const dg = newRoom(['a', 'b', 'c']);
+  applyRoomAction(dg, 'a', 'chooseGame', { game: 'drawguess' });
+  dg._packIn = wordsPack;
+  applyRoomAction(dg, 'a', 'start', { lang: 'ar', pack: 'WRD234' });
+  delete dg._packIn;
+  check(wordsPack.pack.words.indexOf(dg._word) !== -1, 'packs/drawguess: the drawer\'s word is the family\'s');
+  const g = dg.players.find(p => p.id !== dg.shared.drawerId).id;
+  applyRoomAction(dg, g, 'guess', { guess: dg._word });
+  applyRoomAction(dg, 'a', 'nextRound', { lang: 'ar', round: 1 });
+  check(wordsPack.pack.words.indexOf(dg._word) !== -1, 'packs/drawguess: the next round too, with no code sent again');
 }
 
 Date.now = realNow;

@@ -671,8 +671,24 @@ function chessMoveInfo(p, m, legal) {
     capture: !!(flags & CHESS_F_CAP),
     ep: !!(flags & CHESS_F_EP),
     castle: flags & CHESS_F_CASTLE ? ((to & 7) === 6 ? 'short' : 'long') : '',
-    san: chessSanPos(p, m, legal)
+    san: chessSanPos(p, m, legal),
+    uci: chessUciOf(p, m)
   };
+}
+
+/**
+ * The move as stored in a game's record. Castling where the king doesn't go two squares (Chess960:
+ * king f1 and rook h1) is stored as the king taking its own rook - the king step to the same
+ * square is a different legal move, and chessFind takes the king-to-rook form as castling.
+ */
+function chessUciOf(p, m) {
+  const from = chessMFrom(m), to = chessMTo(m);
+  if ((chessMFlags(m) & CHESS_F_CASTLE) && Math.abs(to - from) !== 2) {
+    const isShort = (to & 7) === 6;
+    const rooks = p.rooks || [7, 0, 7, 0];
+    return chessSqName(from) + chessSqName((p.side ? 56 : 0) + rooks[p.side ? (isShort ? 2 : 3) : (isShort ? 0 : 1)]);
+  }
+  return chessSqName(from) + chessSqName(to) + chessPromoLetter(chessMPromo(m));
 }
 
 /** Every legal move of the game, for the page: which squares a piece can go to. */
@@ -1740,7 +1756,7 @@ function chessJudge(gBefore, played, before, after) {
 /* --- the review of a whole game, in slices ------------------------------------------ */
 
 /** 'e2e4', 'e7e8q' - a move as four or five letters, for a stored game. */
-const chessUci = (m) => (m ? m.from + m.to + (m.promo || '') + (m.hq ? '*' : '') : '');
+const chessUci = (m) => (!m ? '' : typeof m.uci === 'string' && m.uci ? m.uci : m.from + m.to + (m.promo || '') + (m.hq ? '*' : ''));
 // 'e2e5*' is a hidden queen's revealing move (الوزير المستخبي): the pawn on e2 turns into a queen, then goes to e5.
 const chessFromUci = (s) => {
   const t = String(s);

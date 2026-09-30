@@ -32,7 +32,7 @@
 
 // drop: the piece of your hand picked up (a letter); sel: the board piece picked up; early: your
 // move drawn before the server answers; swap: the partner's board big; seenGive: captures already flown.
-const bhLocal = { drop: '', sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, swap: false, seenGive: {}, seenDrop: {}, lastTick: 0, turnSince: {}, hostTimer: null, handSeen: '' };
+const bhLocal = { drop: '', sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, waitStart: false, swap: false, seenGive: {}, seenDrop: {}, lastTick: 0, turnSince: {}, hostTimer: null, handSeen: '' };
 
 const BH_KINDS = ['q', 'r', 'b', 'n', 'p'];
 
@@ -58,6 +58,12 @@ function bhNoteClock(state) {
   bhLocal.seenAt = 'n' + state.serverNow;
   const gap = (state.receivedAt || Date.now()) - state.serverNow;
   bhLocal.offset = bhLocal.offset === null ? gap : Math.min(bhLocal.offset, gap);
+}
+
+/** Have the clocks started (the first seconds are for looking at the boards)? Read by the server's time. */
+function bhStarted(state) {
+  const s = bhShared(state);
+  return !s.startAt || Date.now() - (bhLocal.offset || 0) >= s.startAt;
 }
 
 function bhClockLeft(state, b, side) {
@@ -87,9 +93,14 @@ function bhTickStart() {
   if (bhLocal.tick) return;
   bhLocal.tick = setInterval(() => {
     const st = Room.state;
-    if (!st || st.game !== 'bughouse' || !bhShared(st).boards) { bhTickStop(); return; }
+    const v = appState.currentView;
+    // Off the game's screen, or the game over: the clock stops, and starts again when the screen draws.
+    if (!st || st.game !== 'bughouse' || !bhShared(st).boards || bhShared(st).phase !== 'play' || (v !== 'room-bughouse' && v !== 'room-tv')) { bhTickStop(); return; }
     bhPaintClocks(st);
     const s = bhShared(st);
+    // The look at the boards is over: the board takes moves now.
+    if (bhLocal.waitStart && bhStarted(st)) { bhLocal.waitStart = false; bhRedraw(true); }
+    if (v !== 'room-bughouse') return;
     const seat = bhSeat(st);
     if (s.phase !== 'play' || seat < 0) return;
     const b = seat >> 1;
@@ -168,7 +179,7 @@ function bhPlay(mv) {
   if (!state || state.game !== 'bughouse') return false;
   const s = bhShared(state);
   const seat = bhSeat(state);
-  if (seat < 0 || s.phase !== 'play' || bhLocal.early) return false;
+  if (seat < 0 || s.phase !== 'play' || bhLocal.early || !bhStarted(state)) return false;
   const b = seat >> 1, color = seat & 1;
   const bd = s.boards[b];
   if (bd.g.turn !== color) return false;
@@ -235,7 +246,7 @@ function bhModel(state, b, still) {
   const s = bhShared(state);
   const view = bhBoardView(state, b);
   const seat = bhSeat(state);
-  const mine = seat >= 0 && (seat >> 1) === b && s.phase === 'play' && view.g.turn === (seat & 1) && !bhLocal.early;
+  const mine = seat >= 0 && (seat >> 1) === b && s.phase === 'play' && view.g.turn === (seat & 1) && !bhLocal.early && bhStarted(state);
   const selKey = [roomDealKey(state), s.round, b, view.n].join('|');
   if (bhLocal.selKey !== selKey) { bhLocal.selKey = selKey; bhLocal.sel = ''; bhLocal.drop = ''; }
   if (!mine) { bhLocal.sel = ''; bhLocal.drop = ''; }
@@ -580,7 +591,8 @@ function bhRender(state, still) {
   bhWireHand(el);
   const seat = bhSeat(state);
   const o = bhOrient(state, big);
-  const liveMe = seat >= 0 && (seat >> 1) === big && s.phase === 'play' && bhBoardView(state, big).g.turn === (seat & 1) && !bhLocal.early;
+  const liveMe = seat >= 0 && (seat >> 1) === big && s.phase === 'play' && bhBoardView(state, big).g.turn === (seat & 1) && !bhLocal.early && bhStarted(state);
+  if (s.phase === 'play' && !bhStarted(state)) bhLocal.waitStart = true;
   chViewShow(el.querySelector('[data-ch-host]'), bhModel(state, big, still));
   const myTurn = liveMe;
   bhSetHtml(el, '[data-bh-head]', `<p class="duel-status bh-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(bhStatus(state))}</p>${bhSubsHtml(state)}`);
@@ -736,6 +748,7 @@ TV_GAMES.bughouse = {
     if (over && state.youAreHost) foot.push(`<div class="tv-actions">${tvBtn('🔁 ' + chT('bh_again'), 'bhPlayAgain()', 'primary')}</div>`);
     bhSetHtml(view, '[data-bh-tvfoot]', foot.join(''));
     bhPaintClocks(state);
+    if (s.phase === 'play' && !bhStarted(state)) bhLocal.waitStart = true;
     if (s.phase === 'play') bhTickStart(); else bhTickStop();
     bhPlayMotion(view, state, -1);
     if (over && motionFirst('bhtvover|' + roomDealKey(state) + '|' + s.round)) {

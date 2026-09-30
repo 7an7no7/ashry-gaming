@@ -159,6 +159,8 @@ function bugPlay(room, seat, mv, now) {
   const b = bugSeatBoard(seat), color = bugSeatColor(seat);
   const bd = s.boards[b];
   if (bd.g.turn !== color) throw new Error('مش دورك');
+  // The first seconds are for looking at the boards: a move then would start the other clock early.
+  if (s.startAt && now < s.startAt) throw new Error('استنى لما الساعات تبدأ');
   if (chessClockFlagged(bd.clock, color, now, CHESS_GRACE_MS)) { bugEnd(room, seat, 'time', now); return; }
   const info = chessBugPlay(bd.g, mv.drop ? { drop: mv.drop, to: mv.to } : { from: mv.from, to: mv.to, promo: mv.promo });
   if (!info) throw new Error('النقلة دي مش مسموحة');

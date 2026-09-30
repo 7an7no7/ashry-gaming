@@ -92,7 +92,7 @@ function chPzJudge(s, g, mv) {
     const want = chessCloneGame(g);
     if (chessPlay(want, chessFromUci(exp)) && chPzPlace(want) === chPzPlace(mine)) return { ok: true, legal: true, line: true, uci: exp };
   }
-  const uci = info.from + info.to + (info.promo || '');
+  const uci = info.uci || info.from + info.to + (info.promo || '');
   if (info.status && info.status.reason === 'mate') return { ok: true, legal: true, mate: true, uci: uci };
   if (typeof chPzAltOk === 'function' && s.p.alt && chPzAltOk(s, g, info, mine)) return { ok: true, legal: true, alt: true, uci: uci };
   return { ok: false, legal: true, uci: uci };
@@ -596,6 +596,8 @@ function chPzStartStreak(fresh) {
 function chPzStreakContinue(s) {
   const st = s.streak;
   if (s.mode === 'streak' && s.p && s.phase === 'play') { setView('play-chesspuzzle'); chPzPaint({ still: true }); chPzAfter(); return; }
+  // The third heart went while its solution was still playing: the run is over, not dealt on.
+  if (st.lives <= 0) { chPzStreakFinish(s); return; }
   if (st.saved && st.saved.p) {
     // Back to the streak's own puzzle, where it was left.
     soloDailySetAside('chesspuzzle');
@@ -617,6 +619,7 @@ function chPzStreakContinue(s) {
 /** The next puzzle of the run: the unseen one nearest to the target rating. */
 function chPzStreakDeal(s) {
   const st = s.streak;
+  if (st.lives <= 0) { chPzStreakFinish(s); return; }
   const all = typeof CHESS_PUZZLES !== 'undefined' ? CHESS_PUZZLES : [];
   const inRun = new Set(st.seen);
   const recent = new Set(s.streakRecent || []);
@@ -750,7 +753,7 @@ function chPzFromRecord(rec, i, positions) {
   if (!m || !m.best || !pos || !rec.moves[i]) return null;
   const g = chessCloneGame(pos);
   if (chessStatus(g).over) return null;
-  const best = m.best.from + m.best.to + (m.best.promo || '');
+  const best = m.best.uci || m.best.from + m.best.to + (m.best.promo || '');
   const after = chessCloneGame(g);
   const info = chessPlay(after, chessFromUci(best));
   if (!info) return null;
@@ -836,7 +839,7 @@ function chPzScoreAfter(gAfter) {
 
 /** Another move as good as the best (within 50 cp), never the move played in the game. */
 function chPzAltOk(s, g, info, mine) {
-  const uci = info.from + info.to + (info.promo || '');
+  const uci = info.uci || info.from + info.to + (info.promo || '');
   if (uci === s.p.played) return false;
   if (typeof s.p.bestRef !== 'number') {
     const b = chessCloneGame(g);

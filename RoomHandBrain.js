@@ -152,9 +152,11 @@ const hbNewGame = (room, playerId, action, p) => {
   if (!room.players.some(x => !x.bot)) throw new Error('محتاجين لاعب واحد على الأقل');
   let teams;
   const here = room.players.map(x => x.id);
-  if (action === 'playAgain' && Array.isArray(prev.teams) && prev.teams.every(t => t.every(id => here.indexOf(id) !== -1))) {
+  if (action === 'playAgain' && Array.isArray(prev.teams) && prev.teams.length === 2 && prev.teams.every(t => Array.isArray(t) && t.length === 2)) {
+    // A seat whose player left during the result gets an easy computer player, so the table isn't drawn again.
+    const kept = hbFillSeats(room, prev.teams[0].concat(prev.teams[1]).map(id => (here.indexOf(id) !== -1 ? id : null)), p.botNames);
     // Roles swap in each team, and the colours swap: the old Black team has White.
-    teams = [[prev.teams[1][1], prev.teams[1][0]], [prev.teams[0][1], prev.teams[0][0]]];
+    teams = [[kept[3], kept[2]], [kept[1], kept[0]]];
   } else {
     const order = hbFillSeats(room, hbFitOrder(room, prev.lobby && prev.lobby.order), p.botNames);
     teams = [[order[0], order[1]], [order[2], order[3]]];

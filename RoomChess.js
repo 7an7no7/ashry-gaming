@@ -132,7 +132,7 @@ function chessBoardMove(bd, seat, payload, now, hq) {
   bd.moves++;
   const seen = hq ? info.hq : null;
   bd.sans.push(info.san + (seen && seen.reveal ? CHESS_HQ_MARK : ''));
-  bd.hist.push(hq ? info.uci : info.from + info.to + (info.promo || ''));
+  bd.hist.push(info.uci);
   if (info.capture) bd.lost[1 - seat].push(info.capture);
   bd.last = { from: info.from, to: info.to, san: info.san, piece: info.piece, capture: info.capture, captureSq: info.captureSq,
     castle: info.castle, promo: info.promo, check: info.check, seat: seat, n: bd.moves };

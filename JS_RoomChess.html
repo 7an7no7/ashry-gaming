@@ -122,10 +122,13 @@ function chRoomPaintMiniClocks(full) {
 function chRoomTickStart() {
   if (chRoomLocal.tick) return;
   chRoomLocal.tick = setInterval(() => {
+    // Off the game's screen the clocks stop (and their ticks with them); drawing the screen again starts them.
+    if (appState.currentView !== 'room-chess' && appState.currentView !== 'room-tv') { chRoomTickStop(); return; }
     const full = Room.state;
     const minis = full && full.game === 'chess' && full.shared && full.shared.tour ? chRoomPaintMiniClocks(full) : false;
     const st = chRoomLiveState();
-    if (!st) { if (!minis) chRoomTickStop(); return; }
+    // No board, or its game is over: nothing left to count (a tournament's other matches may still be).
+    if (!st || st.shared.chess.result) { if (!minis) chRoomTickStop(); return; }
     chRoomPaintClocks(st);
     const pl = chRoomHqPickLeft(st);
     if (pl !== null) document.querySelectorAll('[data-ch-hqclock]').forEach(el => { if (el.textContent !== String(pl)) el.textContent = String(pl); });

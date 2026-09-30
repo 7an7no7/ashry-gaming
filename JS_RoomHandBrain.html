@@ -91,7 +91,8 @@ function hbClockLeft(state, side) {
 
 function hbPaintClocks() {
   const st = Room.state;
-  if (!st || st.game !== 'handbrain' || !hbShared(st).chess) { hbTickStop(); return; }
+  // Off the game's screen the clocks stop; drawing the screen again starts them.
+  if (!st || st.game !== 'handbrain' || !hbShared(st).chess || (appState.currentView !== 'room-handbrain' && appState.currentView !== 'room-tv')) { hbTickStop(); return; }
   const bd = hbShared(st).chess;
   document.querySelectorAll('[data-hb-clock]').forEach(el => {
     const side = Number(el.dataset.hbClock);
@@ -100,6 +101,8 @@ function hbPaintClocks() {
     el.classList.toggle('is-running', !bd.result && bd.g.turn === side && !!(bd.clock && bd.clock.at));
     el.classList.toggle('is-low', left < 20000);
   });
+  // The game is over: the clocks are drawn as they stopped, and nothing ticks on.
+  if (bd.result) { hbTickStop(); return; }
   const mine = hbMine(st);
   const left = hbClockLeft(st, bd.g.turn);
   if (bd.clock && bd.clock.at && !bd.result && left < 10000 && left > 0 && ((mine && mine.team === bd.g.turn) || st.youAreScreen)) {

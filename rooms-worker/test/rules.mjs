@@ -5701,7 +5701,7 @@ Date.now = duelTestClock;
   const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
     '\nreturn { chessNew, chessFromFen, chessFen, chessPerft, chessPlay, chessStatus, chessLegalMoves, chessBestMove, chessInsufficient, chessCanMate,' +
     ' chessClockNew, chessClockPress, chessClockFlagged, chessClockLeft, chessFlagResult, chessMatchNext, chessArmageddonResult, chessKey, chessCheckSq,' +
-    ' chessEloSettings, chessEloBand, chessElo, chessClassify, chessMoveAccuracy, chessAnalyse, chessMoveGood, chessReview, chessThreats, chessPins, chessUci, chess960Start, chess960Random,' +
+    ' chessEloSettings, chessEloBand, chessElo, chessClassify, chessMoveAccuracy, chessAnalyse, chessMoveGood, chessReview, chessThreats, chessPins, chessUci, chessFromUci, chess960Start, chess960Random,' +
     ' chessHandicapFen, CHESS_CLOCK_IDS, CHESS_CLOCK_SPEC };')();
   const threwC = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const perft = (fen, depth) => CH.chessPerft(CH.chessFromFen(fen), depth);
@@ -5746,6 +5746,22 @@ Date.now = duelTestClock;
     const g2 = CH.chessFromFen('4k3/8/8/8/8/8/8/6KR w H - 0 1');
     const r2 = CH.chessPlay(g2, { from: 'g1', to: 'h1' });
     check(r2 && r2.san === 'O-O' && g2.board[6] === 6 && g2.board[5] === 4 && !g2.board[7], 'chess960: castling where king takes own rook on h1');
+  }
+  // Castling where the king goes one square is stored as king-takes-rook, so the record replays to the same place (audit of 30 Sep 2026).
+  {
+    const replays = (fen, moves) => {
+      const live = CH.chessFromFen(fen), hist = [];
+      for (const m of moves) { const info = CH.chessPlay(live, m); if (!info) return false; hist.push(info.uci); }
+      const again = CH.chessFromFen(fen);
+      return hist.every((u) => !!CH.chessPlay(again, CH.chessFromUci(u))) && CH.chessFen(again) === CH.chessFen(live) ? hist : false;
+    };
+    const s1 = replays('r4k1r/pppppppp/8/8/8/8/PPPPPPPP/R4K1R w AHah - 0 1', [{ from: 'f1', to: 'h1' }, { from: 'f8', to: 'h8' }]);
+    check(s1 && s1.join() === 'f1h1,f8h8', 'chess960: one-square short castling (both sides) is recorded as king-to-rook and replays to the live position');
+    const s2 = replays('r2k3r/pppppppp/8/8/8/8/PPPPPPPP/R2K3R w AHah - 0 1', [{ from: 'd1', to: 'a1' }, { from: 'd8', to: 'a8' }]);
+    check(s2 && s2.join() === 'd1a1,d8a8', 'chess960: one-square long castling (both sides) is recorded as king-to-rook and replays to the live position');
+    const s3 = replays('r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1', [{ from: 'e1', to: 'g1' }, { from: 'e8', to: 'c8' }]);
+    check(s3 && s3.join() === 'e1g1,e8c8', 'chess: standard castling is still recorded as e1g1 / e8c8 and replays the same');
+    check(CH.chessUci({ from: 'f1', to: 'g1', uci: 'f1h1' }) === 'f1h1' && CH.chessUci({ from: 'e2', to: 'e4' }) === 'e2e4', 'chess: chessUci keeps the stored form of a move');
   }
 
   const play = (g, list) => list.every((m) => { const [from, to, promo] = m.split(/[-=]/); return !!CH.chessPlay(g, { from, to, promo }); });
@@ -6303,6 +6319,8 @@ Date.now = duelTestClock;
     const [w1, b1, w2, b2] = s.seats;
     check(roomDeadline(r) === s.startAt + 180000 + 601, 'bughouse room: the server watches both clocks (White\'s, on both boards)');
     check(threwB(() => bhMove(r, b1, 'e7-e5')) && threwB(() => bhMove(r, w1, 'e2-e5')), 'bughouse room: Black can\'t move first, an illegal move is refused');
+    check(threwB(() => bhMove(r, w1, 'e2-e4')) && s.boards[0].moves === 0 && s.boards[0].clock.at === s.startAt,
+      'bughouse room: a move in the look before the clocks start is refused, and no clock moves early (audit of 30 Sep 2026)');
     clock += 4000;
     bhMove(r, w1, 'e2-e4');
     bhMove(r, w2, 'd2-d4');
@@ -7171,6 +7189,18 @@ Date.now = duelTestClock;
     const t = r.shared.teams;
     check(t[0].join() === 'd,c' && t[1].join() === 'b,a' && r.shared.settings.clock === '5+0' && r.shared.round === 2,
       'handbrain: play again - each team\'s roles swapped, the colours swapped, the clock kept');
+  }
+  // Someone leaves during the result: play again fills their seat with an easy computer player and still swaps (audit of 30 Sep 2026).
+  {
+    const r = hbRoom(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'd', 'resign', { round: 1 });
+    r.players = r.players.filter((p) => p.id !== 'c');
+    roomPlayerLeft(r, 'c', 'C');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    const t = r.shared.teams;
+    const bot = t[0][1];
+    check(t[0][0] === 'd' && t[1].join() === 'b,a' && bot !== 'c' && r.players.some((p) => p.id === bot && p.bot === 'easy'),
+      'handbrain: play again after a player left during the result - an easy computer player takes their seat, roles and colours still swapped');
   }
   // Flag: the clock is the team's.
   {

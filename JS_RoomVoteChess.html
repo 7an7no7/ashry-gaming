@@ -81,7 +81,8 @@ function vcLeft(state) {
 
 function vcPaintClock() {
   const st = Room.state;
-  if (!st || st.game !== 'votechess' || !vcShared(st).vote) { vcTickStop(); return; }
+  // No vote running, or off the game's screen: the clock stops; drawing the screen again starts it.
+  if (!st || st.game !== 'votechess' || !vcShared(st).vote || vcShared(st).phase === 'over' || (appState.currentView !== 'room-votechess' && appState.currentView !== 'room-tv')) { vcTickStop(); return; }
   const s = vcShared(st);
   const left = vcLeft(st);
   const secs = Math.ceil(left / 1000);

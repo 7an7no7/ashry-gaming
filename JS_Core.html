@@ -1,4 +1,66 @@
 <script>
+  /* --- ERRORS ON PLAYERS' PHONES ---
+     An error nobody sees on a guest's phone is an error the owner never hears of. The
+     published page sends each one to the rooms server (POST /err, kept by the "errors"
+     log; npm run errors in tools/ reads it): this build's id, the screen, a short
+     message and where in the page - never a name, a room code or anything typed (the
+     server blanks quoted text that isn't code). Each error once a page load, ten at
+     most, never offline, never from a browser extension or another site's script, and
+     not the noise every page gets (a cross-origin "Script error.", the ResizeObserver
+     loop, a network hiccup). The preview sends nothing unless window.ASHRY_ERR_REPORT
+     is set. Its own script, ES5, so an error in the big script below can't stop it. */
+  (function () {
+    var sent = {}, count = 0, MAX = 10;
+    var NOISE = /ResizeObserver loop|^Script error\.?$|Failed to fetch|Load failed|NetworkError|The (network|Internet) connection|AbortError|The operation was aborted|Network request failed|Importing a module script failed/i;
+    var FOREIGN = /(chrome|moz|safari|safari-web)-extension:|webkit-masked-url:|^about:|^blob:/;
+    function page(u) { try { return new URL(u, location.href).origin === location.origin; } catch (e) { return false; } }
+    // The first frame of our own page in a stack: "fn@index:1234:56".
+    function frameOf(stack, file, line, col) {
+      var lines = String(stack || '').split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        var m = /(?:at\s+([^\s(]+)\s+\()?((?:https?:)[^\s()]+?):(\d+):(\d+)\)?\s*$/.exec(lines[i])
+          || /^\s*([^@\s]*)@((?:https?:)[^\s]+?):(\d+):(\d+)\s*$/.exec(lines[i]);
+        if (m && page(m[2])) {
+          var p = new URL(m[2], location.href).pathname.split('/').pop() || 'index';
+          return (m[1] ? m[1].replace(/^Object\.|^async\s+/, '') + '@' : '') + p + ':' + m[3] + ':' + m[4];
+        }
+      }
+      if (file && page(file)) return (new URL(file, location.href).pathname.split('/').pop() || 'index') + ':' + (line || 0) + ':' + (col || 0);
+      return '';
+    }
+    function report(msg, stack, file, line, col) {
+      try {
+        if (!(window.STATIC_SITE || window.ASHRY_ERR_REPORT) || !window.ROOMS_URL || !navigator.sendBeacon) return;
+        if (navigator.onLine === false || count >= MAX) return;
+        msg = String(msg || '').replace(/\s+/g, ' ').trim();
+        if (!msg || NOISE.test(msg)) return;
+        if (FOREIGN.test(String(file || '')) || FOREIGN.test(String(stack || ''))) return;
+        var f = frameOf(stack, file, line, col);
+        if (!f) return;   // not our page's code: another site's script, an extension, the browser
+        var view = '';
+        try { view = String((typeof appState !== 'undefined' && appState && appState.currentView) || ''); } catch (e) {}
+        var b = String(window.BUILD_ID || '');
+        var key = b + '|' + msg + '|' + f + '|' + view;
+        if (sent[key]) return;
+        sent[key] = 1;
+        count++;
+        navigator.sendBeacon(String(window.ROOMS_URL).replace(/\/+$/, '') + '/err',
+          JSON.stringify({ b: b, m: msg.slice(0, 300), f: f, v: view }));
+      } catch (e) { /* a report never throws */ }
+    }
+    window.addEventListener('error', function (e) {
+      if (!e || e.target && e.target !== window) return;   // a missing image or script is not an error of ours
+      var err = e.error;
+      report((err && err.message) || e.message, err && err.stack, e.filename, e.lineno, e.colno);
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e && e.reason;
+      if (!r) return;
+      report(r.message || (typeof r === 'string' ? r : ''), r.stack, '', 0, 0);
+    });
+  })();
+</script>
+<script>
   /* --- SECURITY UTILS --- */
   function escapeHTML(str) {
       if (typeof str !== 'string') return str;

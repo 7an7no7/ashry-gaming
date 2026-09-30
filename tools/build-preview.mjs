@@ -59,6 +59,7 @@ html = html
   // Wherever the preview is served (port 4321 by the launch config): room links,
   // the QR and the share button pointed at a port nothing served.
   .replace('<?!= webAppUrl ?>', 'location.origin + location.pathname')
+  .replace('<?!= roomLinks ?>', 'false')
   .replace('</head>', () => `${STUB}\n</head>`);
 
 // Word lists the page shares with the rooms server: one file, both sides.

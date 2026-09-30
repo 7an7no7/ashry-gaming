@@ -1,4 +1,4 @@
-const CACHE = 'ashry-20260930131156';
+const CACHE = 'ashry-20260930131913';
 const SHELL = ['./manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
 const PINNED = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
@@ -50,6 +50,10 @@ self.addEventListener('fetch', (event) => {
 
   const cached = () => caches.match(req).then((hit) => hit || caches.match('./index.html'));
   if (req.mode !== 'navigate') { event.respondWith(fetch(req).then((res) => keep(req, res)).catch(cached)); return; }
+  // A room's link with a preview (/r/CODE, site-worker/): the page there only sends a
+  // browser on to ./?room=CODE, so a phone with the app goes there at once, on line or off.
+  const room = url.pathname.slice(new URL(self.registration.scope).pathname.length).match(/^r[/]([A-Za-z0-9]{4,8})[/]?$/);
+  if (room) { event.respondWith(Response.redirect(new URL('./?room=' + room[1].toUpperCase(), self.registration.scope).href, 302)); return; }
   // Opening the app (a room link's ?room= too): this build's saved page at once; the
   // network only when there is none yet. A newer build arrives as a newer worker.
   event.respondWith(caches.match('./index.html').then((hit) => (hit ? clean(hit) :

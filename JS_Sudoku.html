@@ -215,8 +215,14 @@ function enterSudoku(n) {
     const right = s.race ? !sudokuConflicts(s.cells).has(i) : s.solution[i] === String(n);
     if (!right && !s.race) {
       s.mistakes++;
-      haptic('heavy');
-      playSound('alarm');
+      // ideas batch: solo - a soft miss, a lighter buzz; the cell shakes and the count pops.
+      haptic('medium');
+      playSound('miss');
+      saveToLocal();
+      paintSudoku();
+      soloShake(document.querySelector(`#sdk-grid [data-i="${i}"]`));
+      if (typeof motionBump === 'function') motionBump(document.getElementById('sdk-mistakes'), 1.35);
+      return;
     } else if (right) {
       // The number is settled here: it can't be a candidate for its row, column or box.
       // The pencil marks it clears go on this move's undo step, so undo puts them back.

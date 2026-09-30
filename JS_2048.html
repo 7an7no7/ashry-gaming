@@ -16,6 +16,8 @@
 const G2048_SIZE = 4;
 const G2048_SLIDE_MS = 120;
 let g2048Busy = false;
+// ideas batch: solo - one swipe made during the slide waits for it instead of being dropped.
+let g2048Queued = null;
 
 function g2048State() {
   if (!appState.g2048) {
@@ -133,7 +135,9 @@ function g2048CanMove(s) {
 
 function move2048(dir) {
   const s = g2048State();
-  if (s.phase !== 'play' || g2048Busy) return;
+  if (s.phase !== 'play') return;
+  if (g2048Busy) { g2048Queued = dir; return; }
+  const topBefore = Math.max.apply(null, s.tiles.map(x => x.v).concat([0]));
   const before = { tiles: JSON.parse(JSON.stringify(s.tiles)), score: s.score, nextId: s.nextId, won: s.won };
   // The slide rewrites tile positions, so keep a copy of where the gone ones were headed.
   const snapshot = s.tiles.map(x => Object.assign({}, x));
@@ -172,6 +176,8 @@ function move2048(dir) {
   paint2048(false, gone);
   if (res.gained) playSound('click');
   const top = Math.max.apply(null, s.tiles.map(x => x.v));
+  if (res.gained) g2048Plus(res.gained);
+  if (top > topBefore && top >= 8) g2048TopBurst(top);
   // The sheets wait for the slide, and an undo inside that wait cancels them.
   if (top >= 2048 && !s.won) {
     s.won = true;
@@ -296,7 +302,46 @@ function paint2048(full, gone) {
   const undo = document.getElementById('g2048-undo');
   if (undo) undo.disabled = !s.prev;
   g2048Busy = !still && !full;
-  if (g2048Busy) setTimeout(() => { g2048Busy = false; }, G2048_SLIDE_MS);
+  if (g2048Busy) setTimeout(() => {
+    g2048Busy = false;
+    const q = g2048Queued;
+    g2048Queued = null;
+    if (q && appState.currentView === 'play-g2048') move2048(q);
+  }, G2048_SLIDE_MS);
+  else g2048Queued = null;
+}
+
+/** ideas batch: solo - "+N" rising from the score as a merge lands. */
+function g2048Plus(n) {
+  const score = document.getElementById('g2048-score');
+  if (!score || motionOff() || !document.body.animate) return;
+  const r = score.getBoundingClientRect();
+  if (!r.width) return;
+  const el = document.createElement('div');
+  el.className = 'g2048-plus';
+  el.textContent = '+' + n;
+  el.style.left = (r.left + r.width / 2) + 'px';
+  el.style.top = r.top + 'px';
+  document.body.appendChild(el);
+  el.animate([
+    { translate: '-50% 0', opacity: 0, scale: '0.7' },
+    { translate: '-50% -60%', opacity: 1, scale: '1.1', offset: 0.25 },
+    { translate: '-50% -180%', opacity: 0, scale: '1' }
+  ], { duration: 900, easing: 'ease-out', fill: 'forwards' });
+  setTimeout(() => el.remove(), 950);
+}
+
+/** ideas batch: solo - a new highest tile pops with a ring once it has landed. */
+function g2048TopBurst(v) {
+  if (motionOff()) return;
+  soloLater('g2048', G2048_SLIDE_MS + 20, () => {
+    const el = Array.from(document.querySelectorAll('#g2048-tiles .g2048-tile:not(.is-gone)')).find(x => Number(x.textContent) === v);
+    if (!el) return;
+    el.classList.remove('is-top');
+    void el.offsetWidth;
+    el.classList.add('is-top');
+    setTimeout(() => el.classList.remove('is-top'), 700);
+  });
 }
 
 function g2048BindSwipe(board) {
@@ -305,14 +350,17 @@ function g2048BindSwipe(board) {
     start = { x: e.clientX, y: e.clientY };
     try { board.setPointerCapture(e.pointerId); } catch (err) {}
   });
-  const end = (e) => {
+  // ideas batch: solo - the move goes as soon as the finger has travelled
+  // 24px, not when it lifts; one swipe is one move (start is cleared).
+  const fire = (e) => {
     if (!start) return;
     const dx = e.clientX - start.x, dy = e.clientY - start.y;
-    start = null;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+    start = null;
     move2048(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
   };
-  board.addEventListener('pointerup', end);
+  board.addEventListener('pointermove', fire);
+  board.addEventListener('pointerup', (e) => { fire(e); start = null; });
   board.addEventListener('pointercancel', () => { start = null; });
 }
 

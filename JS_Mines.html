@@ -132,7 +132,8 @@ function minesTap(i) {
     if (s.open[i]) {
       const around = minesNeighbours(s, i);
       const flagged = around.filter(k => s.flags[k]).length;
-      if (!minesNumAt(s, i) || flagged !== minesNumAt(s, i)) return;
+      if (minesNumAt(s, i) && flagged !== minesNumAt(s, i)) { minesPulse(s, i); return; }
+      if (!minesNumAt(s, i)) return;
       cells = around.filter(k => !s.open[k] && !s.flags[k]);
       if (!cells.length) return;
     }
@@ -152,7 +153,8 @@ function minesTap(i) {
     // A number with all its flags down opens the rest of its neighbours.
     const around = minesNeighbours(s, i);
     const flagged = around.filter(k => s.flags[k]).length;
-    if (!minesCount(s, i) || flagged !== minesCount(s, i)) return;
+    if (minesCount(s, i) && flagged !== minesCount(s, i)) { minesPulse(s, i); return; }
+    if (!minesCount(s, i)) return;
     around.forEach(k => { if (!s.open[k] && !s.flags[k]) opened = opened.concat(minesFlood(s, k)); });
   } else {
     opened = minesFlood(s, i);
@@ -192,18 +194,55 @@ function minesPointerDown(e, i) {
     minesToggleFlag(i);
     return;
   }
-  minesHold = { i: i, fired: false, timer: setTimeout(() => {
+  const s = minesState();
+  const cell = e && e.currentTarget;
+  // ideas batch: solo - a ring fills over the hold's time on a cell that can
+  // take a flag; moving the finger 8px (a scroll, a slip) cancels the hold.
+  let ring = null;
+  if (cell && !s.open[i] && (s.phase === 'play' || s.phase === 'ready') && !motionOff()) {
+    ring = document.createElement('span');
+    ring.className = 'mines-ring';
+    ring.style.setProperty('--hold', MINES_HOLD_MS + 'ms');
+    cell.appendChild(ring);
+  }
+  minesHold = { i: i, fired: false, x: e ? e.clientX : 0, y: e ? e.clientY : 0, ring: ring, timer: setTimeout(() => {
     minesHold.fired = true;
+    if (minesHold.ring) { minesHold.ring.remove(); minesHold.ring = null; }
     minesToggleFlag(i);
   }, MINES_HOLD_MS) };
 }
 
+/** ideas batch: solo - a finger that moves more than 8px isn't holding: no flag. */
+function minesPointerMove(e) {
+  if (!minesHold || minesHold.fired || !minesHold.timer) return;
+  if (Math.hypot(e.clientX - minesHold.x, e.clientY - minesHold.y) > 8) {
+    minesCancelHold();
+    minesHold.cancelled = true;
+  }
+}
+
 function minesCancelHold() {
-  if (minesHold) clearTimeout(minesHold.timer);
+  if (!minesHold) return;
+  clearTimeout(minesHold.timer);
+  minesHold.timer = 0;
+  if (minesHold.ring) { minesHold.ring.remove(); minesHold.ring = null; }
+}
+
+/** ideas batch: solo - a number tapped without enough flags round it: its closed neighbours pulse. */
+function minesPulse(s, i) {
+  haptic('light');
+  if (motionOff()) return;
+  minesNeighbours(s, i).forEach(k => {
+    if (s.open[k] || s.flags[k]) return;
+    const c = document.querySelector(`#mines-grid [data-i="${k}"]`);
+    if (c && c.animate) c.animate([{ scale: '1', opacity: 1 }, { scale: '0.82', opacity: 0.55, offset: 0.4 }, { scale: '1', opacity: 1 }], { duration: 420, easing: 'ease-in-out' });
+  });
 }
 
 function minesClick(e, i) {
   if (minesHold && minesHold.i === i && minesHold.fired) { minesHold = null; return; }
+  // A slide that cancelled the hold was a scroll, not a tap.
+  if (minesHold && minesHold.i === i && minesHold.cancelled) { minesHold = null; return; }
   minesCancelHold();
   minesHold = null;
   minesTap(i);
@@ -240,7 +279,7 @@ function paintMines(opened, from) {
           inner = '🚩';
         }
         return `<button type="button" class="${cls}" data-i="${i}"
-                  onpointerdown="minesPointerDown(event, ${i})" onpointerup="minesCancelHold()" onpointerleave="minesCancelHold()"
+                  onpointerdown="minesPointerDown(event, ${i})" onpointerup="minesCancelHold()" onpointerleave="minesCancelHold()" onpointercancel="minesCancelHold()" onpointermove="minesPointerMove(event)"
                   onclick="minesClick(event, ${i})">${inner}</button>`;
       }).join('')}
     </div>
@@ -271,6 +310,30 @@ function paintMines(opened, from) {
   }
 }
 
+/**
+ * ideas batch: solo - on a loss the other mines go off in a chain outward
+ * from the one hit: each pops in with a flash, later the farther it is.
+ * Drawn already (fill 'backwards'), so a cut animation leaves them shown.
+ * Returns how long the chain takes.
+ */
+function minesChain(s, hit) {
+  if (motionOff() || s.race) return 0;
+  const hr = Math.floor(hit / s.cols), hc = hit % s.cols;
+  let last = 0;
+  (s.mines || []).forEach(k => {
+    if (k === hit) return;
+    const c = document.querySelector(`#mines-grid [data-i="${k}"]`);
+    if (!c || !c.animate) return;
+    const d = Math.max(Math.abs(Math.floor(k / s.cols) - hr), Math.abs(k % s.cols - hc));
+    const delay = 200 + Math.min(d * 110, 1300);
+    last = Math.max(last, delay + 380);
+    c.animate([{ scale: '0.2', opacity: 0 }, { scale: '1.45', opacity: 1, offset: 0.45 }, { scale: '1', opacity: 1 }],
+      { duration: 380, delay: delay, easing: 'ease-out', fill: 'backwards' });
+    setTimeout(() => { if (c.isConnected) { c.classList.add('is-blown'); } }, delay);
+  });
+  return last;
+}
+
 /** The field shakes once: a mine went off. */
 function minesShake() {
   const grid = document.getElementById('mines-grid');
@@ -290,13 +353,14 @@ function minesLose(hit) {
   paintMines();
   haptic('heavy');
   minesShake();
+  const chainMs = minesChain(s, hit);
   let share = '';
   if (s.daily) {
     soloMarkDaily('mines', { lost: true }, s.daily);
     share = `${soloShareHeader(t, s.daily)}\n🚩 ${t.setup_mines || ''} 💥`;
   }
   // The sheet waits for the shake; a new board dealt meanwhile cancels it.
-  soloLater('mines', motionOff() ? 0 : 900, () => soloResult({
+  soloLater('mines', motionOff() ? 0 : Math.max(900, chainMs + 500), () => soloResult({
     icon: '💥', title: t.mines_lost || '', valueText: '💣', valueLabel: '',
     lines: [escapeHTML(t.mines_lost_line || '')], win: false, share: share,
     again: () => startMines(false), exit: setupMines

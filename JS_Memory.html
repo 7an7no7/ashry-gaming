@@ -160,6 +160,13 @@ function flipMemory(i) {
   const m = memoryState();
   if (m.phase !== 'play') return;
   const card = m.cards[i];
+  // ideas batch: solo - a tap during the pause after a miss doesn't wait for it:
+  // the missed pair turns back at once and, if it was another card, it turns up.
+  if (memoryFlipTimer && m.flipped.length >= 2 && card && !card.m) {
+    const hitOpen = m.flipped.indexOf(i) !== -1;
+    memoryCloseMiss();
+    if (hitOpen) return;
+  }
   if (!card || card.m || m.flipped.indexOf(i) !== -1 || m.flipped.length >= 2) return;
   m.flipped.push(i);
   const el = document.getElementById('mem-card-' + i);
@@ -187,15 +194,21 @@ function flipMemory(i) {
   // A miss: leave both up long enough to see them, then turn them back and,
   // with two players, hand the turn over.
   saveToLocal();
-  memoryFlipTimer = setTimeout(() => {
-    memoryFlipTimer = null;
-    m.flipped = [];
-    [a, b].forEach(k => { const c = document.getElementById('mem-card-' + k); if (c) { c.classList.remove('is-flipped'); memoryCardLabel(c, k, ''); } });
-    if (m.mode === 'duo') m.turn = 1 - m.turn;
-    memoryPaintBar();
-    saveToLocal();
-  }, 750);
+  memoryFlipTimer = setTimeout(memoryCloseMiss, 750);
   memoryPaintBar();
+}
+
+/** The missed pair turns back and, with two players, the turn passes (after the pause, or at once on the next tap). */
+function memoryCloseMiss() {
+  const m = memoryState();
+  if (memoryFlipTimer) clearTimeout(memoryFlipTimer);
+  memoryFlipTimer = null;
+  const pair = m.flipped.slice();
+  m.flipped = [];
+  pair.forEach(k => { const c = document.getElementById('mem-card-' + k); if (c) { c.classList.remove('is-flipped'); memoryCardLabel(c, k, ''); } });
+  if (m.mode === 'duo') m.turn = 1 - m.turn;
+  memoryPaintBar();
+  saveToLocal();
 }
 
 /**

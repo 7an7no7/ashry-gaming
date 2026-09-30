@@ -187,6 +187,43 @@ function soloLater(id, ms, fn) {
   }, ms || 0);
 }
 
+/* --- ideas batch: solo - small shared moments -------------------------------
+   soloShake(el): a short side-to-side shake (the `translate` property, so it
+   adds to a cell's own transform). soloPop(el): a pop in place. Both nothing
+   with motion off; neither leaves a fill behind. */
+function soloShake(el, px) {
+  if (!el || !el.animate || (typeof motionOff === 'function' && motionOff())) return;
+  const d = (px || 6) + 'px';
+  el.animate([{ translate: '0' }, { translate: d + ' 0' }, { translate: '-' + d + ' 0' }, { translate: d + ' 0' }, { translate: '0' }],
+    { duration: 360, easing: 'ease-in-out' });
+}
+function soloPop(el, k) {
+  if (!el || !el.animate || (typeof motionOff === 'function' && motionOff())) return;
+  el.animate([{ scale: '0.6', opacity: 0.4 }, { scale: String(k || 1.15), opacity: 1, offset: 0.55 }, { scale: '1', opacity: 1 }],
+    { duration: 300, easing: 'ease-out' });
+}
+
+/* ideas batch: solo - an undo stack for the puzzle boards (Queens, Tango,
+   Nonogram): s.hist holds the board before each change, the last 80. A game
+   saved when undo was one step (s.undo, a single board) still takes that one back. */
+const SOLO_UNDO_MAX = 80;
+function soloUndoPush(s, snap) {
+  if (!Array.isArray(s.hist)) s.hist = [];
+  s.hist.push(snap);
+  if (s.hist.length > SOLO_UNDO_MAX) s.hist.shift();
+  s.undo = null;
+}
+function soloUndoPop(s) {
+  if (Array.isArray(s.hist) && s.hist.length) return s.hist.pop();
+  const legacy = Array.isArray(s.undo) ? s.undo : null;
+  s.undo = null;
+  return legacy;
+}
+/** A line's words alone: no tags, no 🏆 / 🎉, trimmed (to recognise a game's "new best" line). */
+function soloPlainText(h) { return String(h || '').replace(/<[^>]*>/g, '').replace(/&[a-z#0-9]+;/gi, '').replace(/[\u{1F3C6}\u{1F389}]/gu, '').trim(); }
+function soloCanUndo(s) { return !!((Array.isArray(s.hist) && s.hist.length) || Array.isArray(s.undo)); }
+function soloUndoClear(s) { s.hist = []; s.undo = null; }
+
 /* --- Randomness that can repeat ---------------------------------------------- */
 
 // soloHash, soloRng, soloRandom, soloShuffle, soloPick and soloCategory are SoloShared.js
@@ -547,7 +584,30 @@ function soloResult(o) {
   set('solo-result-icon', o.icon || '🏁');
   set('solo-result-title', escapeHTML(o.title || ''));
   set('solo-result-label', escapeHTML(o.valueLabel || ''));
-  set('solo-result-detail', (o.lines || []).map(l => `<p class="sheet__subtitle">${l}</p>`).join(''));
+  // ideas batch: solo - a new record is a gold stamp that slams on once, not a
+  // small grey line: said by o.record, or by the game's own "new best" title
+  // or line (every caller already writes one); that line then goes.
+  const bestWords = [t.solo_new_best, t.bowl_new_best].filter(Boolean).map(w => soloPlainText(w));
+  const isBestLine = (l) => !!l && bestWords.indexOf(soloPlainText(l)) !== -1;
+  const record = !!(o.record || isBestLine(o.title) || (o.lines || []).some(isBestLine));
+  const lines = (o.lines || []).filter(l => !isBestLine(l));
+  set('solo-result-detail', lines.map(l => `<p class="sheet__subtitle">${l}</p>`).join(''));
+  // A title that only said "new best" gives its place to the stamp.
+  const titleEl = document.getElementById('solo-result-title');
+  if (titleEl) {
+    const bare = record && isBestLine(o.title);
+    if (bare) titleEl.textContent = '';
+    titleEl.classList.toggle('hidden', bare);
+  }
+  const stamp = document.getElementById('solo-result-stamp');
+  if (stamp) {
+    stamp.classList.toggle('hidden', !record);
+    stamp.classList.remove('is-slam');
+    if (record && !o.quiet && motionFirst('solo-rec|' + (g ? g.id + '|' + (soloEpochs[g.id] || 0) : '') + '|' + (o.title || '') + '|' + (o.value || o.valueText || ''))) {
+      void stamp.offsetWidth;
+      stamp.classList.add('is-slam');
+    }
+  }
   const valueEl = document.getElementById('solo-result-value');
   if (valueEl) {
     if (typeof o.value === 'number') {
@@ -559,8 +619,9 @@ function soloResult(o) {
   }
   const share = document.getElementById('solo-result-share');
   if (share) share.classList.toggle('hidden', !o.share);
+  // One «شارك» now (the picture, or the words where there is no picture to send): the text button stays hidden.
   const shareText = document.getElementById('solo-result-share-text');
-  if (shareText) shareText.classList.toggle('hidden', !o.share);
+  if (shareText) shareText.classList.add('hidden');
   const again = document.getElementById('solo-result-again');
   if (again) {
     again.classList.toggle('hidden', !o.again);
@@ -578,7 +639,7 @@ function soloResult(o) {
     playSound('success');
     if (typeof confetti === 'function') setTimeout(() => confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }), 250);
   } else {
-    playSound('alarm');
+    playSound('miss');
   }
 }
 
@@ -628,7 +689,8 @@ function soloResultShare() {
     icon: o.icon || '🏁',
     rows: rows,
     footer: soloResultActions.share.split('\n')[0] || '',
-    text: soloResultActions.share
+    text: soloResultActions.share,
+    textFallback: true
   });
 }
 

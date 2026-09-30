@@ -351,6 +351,11 @@ function roomNextUpCue(game, state, nextPid, moment) {
   roomNextUp.timer = setTimeout(roomNextUpClear, 6000);
 }
 
+// A game that holds its redraw while the last move animates (أونو) would leave the pill up into
+// this phone's own turn: the live state says it is your go, so it goes at once.
+if (typeof Room !== 'undefined' && Room.onChange) Room.onChange(state => {
+  if (roomNextUp.el && state && typeof roomTurnOf === 'function' && roomTurnOf(state)) roomNextUpClear();
+});
 if (typeof onLeaveScreen === 'function') onLeaveScreen(() => { roomNextUp.key = ''; roomNextUpClear(); });
 if (typeof onRoomClocksReset === 'function') onRoomClocksReset(() => { roomNextUp.key = ''; roomNextUpClear(); });
 </script>

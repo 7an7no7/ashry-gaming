@@ -614,7 +614,9 @@ function saveCardScoreRound(id) {
 function undoCardScoreRound(id) {
   const s = csState(id);
   if (!s.rounds.length) return;
-  delete s.editing;
+  // Fixing an older round: the first ↶ leaves the fix and puts back what was
+  // being typed for the new round (parked in newDraft), instead of dropping it.
+  if (typeof s.editing === 'number') { csCancelEdit(id); haptic('light'); return; }
   delete s.newDraft;
   const last = s.rounds.pop();
   s.draft = last.draft || {};

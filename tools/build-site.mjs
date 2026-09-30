@@ -227,6 +227,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+  // The worker's own file is never kept or answered from the cache: the page asks
+  // for it to learn whether a newer build is out, and offline that has to fail.
+  if (url.pathname.endsWith('/sw.js')) return;
 
   const cached = () => caches.match(req).then((hit) => hit || caches.match('./index.html'));
   if (req.mode !== 'navigate') { event.respondWith(fetch(req).then((res) => keep(req, res)).catch(cached)); return; }

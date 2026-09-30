@@ -679,9 +679,11 @@
       // A timed solo board counts its time from `startedAt`, not from the
       // ticker: stop that too, or the minutes spent reading land in the result.
       const g = typeof soloGameOnScreen === 'function' ? soloGameOnScreen() : null;
-      if (g && g.timed && g.state && !sheetPausedSolo) {
-          const s = g.state();
-          if (s && s.phase === 'play' && !s.pausedAt) { soloPause(s); sheetPausedSolo = s; }
+      // الذاكرة counts from `startedAt` the same way, without being a registered solo game.
+      const mem = !g && view === 'play-memory' && typeof memoryState === 'function' ? memoryState() : null;
+      if (((g && g.timed && g.state) || mem) && !sheetPausedSolo) {
+          const s = mem || g.state();
+          if (s && s.phase === 'play' && !s.pausedAt && typeof soloPause === 'function') { soloPause(s); sheetPausedSolo = s; }
       }
   }
   function resumeClocksAfterSheet() {
@@ -695,6 +697,8 @@
       if (g && g.state && g.state() === s) {
           soloResume(s);
           if (typeof soloClockRefresh === 'function') soloClockRefresh();
+      } else if (s && appState.currentView === 'play-memory' && typeof memoryState === 'function' && memoryState() === s) {
+          soloResume(s);
       }
       clocks.forEach(c => { if (activeClocks.has(c)) c.resume(); });
   }
@@ -1307,6 +1311,7 @@
       five_say3: "قول 3 من",
       five_ok: "عرف",
       five_fail: "مش عرف",
+      five_undo: "↶ رجّع آخر حكم",
       five_times_up: "خلص الوقت!",
       five_wait_judge: "المضيف يحكم…",
       five_skip: "عدّي اللاعب ده",
@@ -5821,6 +5826,7 @@
       five_say3: "Name 3",
       five_ok: "Made it",
       five_fail: "Missed",
+      five_undo: "↶ Undo the last verdict",
       five_times_up: "Time's up!",
       five_wait_judge: "The host decides…",
       five_skip: "Skip this player",
@@ -10152,10 +10158,14 @@
     // days and has no reload button. Not on a first visit, when there was no
     // worker before and nothing is out of date.
     let told = false;
+    let controlled = hadController;
     navigator.serviceWorker.addEventListener('controllerchange', async () => {
       // Settings → تحديث البيانات asked for the new build: it is here, so switch now.
       if (appUpdateAsked) { reloadApp(); return; }
-      if (!hadController || told) return;
+      // A first visit's first worker taking over is not news - but from then on the
+      // page is controlled, and a later build taking over is.
+      if (!controlled) { controlled = true; return; }
+      if (told) return;
       // A first visit, or a page that already is the new build (a phone that had no
       // copy yet went to the network), is not news: only a page older than the worker is.
       try {
@@ -10198,8 +10208,14 @@
   }
 
   function appUpdateQuiet() {
-    // Still on the intro: nothing is on screen yet.
-    if (typeof intro !== 'undefined' && intro.state !== 'done') return true;
+    // Still on the intro: nothing is on screen yet - unless the page was opened to
+    // join a room or to install (the build has taken ?room= / ?install=1 off the
+    // address, so a reload would lose them), or a room is already open.
+    if (typeof intro !== 'undefined' && intro.state !== 'done') {
+      const pending = (window.SERVER_DATA && window.SERVER_DATA.room) || window.OPEN_INSTALL
+        || (typeof Room !== 'undefined' && (Room.state || Room.isIn));
+      return !pending;
+    }
     // While someone is on a setup screen, choosing: only when the app goes to the background.
     if (!appUpdateSafeView() || (appState.currentView || '').indexOf('setup-') === 0) return false;
     if (document.querySelector('.modal-overlay:not(.hidden)')) return false;
@@ -10451,6 +10467,8 @@
     const set = (k) => { appVersionState = k; st.textContent = t['ver_' + k] || ''; };
     val.textContent = appVersionLabel();
     if (!window.STATIC_SITE || !window.BUILD_ID) { set('preview'); return; }
+    // Offline first: a copy of sw.js a browser cache still holds would say "latest".
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) { set('offline'); return; }
     set('checking');
     let latest = null;
     try {
@@ -10673,6 +10691,13 @@
   }
 
   function restoreSavedView() {
+    // A game switched off for a fix (DisabledGames.js) doesn't come back on a
+    // reload either: setView's own check never runs for a restored screen.
+    if (!/^room-/.test(appState.currentView || '') && typeof gameOffForView === 'function' && gameOffForView(appState.currentView)) {
+        setView('menu');
+        if (typeof gameOffToast === 'function') setTimeout(gameOffToast, 0);
+        return;
+    }
     document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
     // setView sets these, but a reload restores the screen without it: the
     // chess clock came back with the header and nav, and the big screen as a
@@ -12222,6 +12247,13 @@
       if (nav) nav.classList.remove('is-active');
   }
   function closeModal(id) {
+    // دوري المعرفة's card closed by the phone's back or the edge swipe: close it
+    // the card's own way, or its clock (and the steal) runs on behind the board.
+    // closeTriviaCell clears `open` first, so its own closeModal comes straight here.
+    if (id === 'tb-question-modal' && appState.triviaBoard && appState.triviaBoard.open && typeof closeTriviaCell === 'function') {
+      closeTriviaCell();
+      return;
+    }
     const el = document.getElementById(id);
     if (el) { modalExitGhost(el); el.classList.add('hidden'); }
     if (id === 'exit-modal' || id === 'help-modal') resumeClocksAfterSheet();

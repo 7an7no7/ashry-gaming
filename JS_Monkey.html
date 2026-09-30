@@ -541,6 +541,7 @@
 
   function monkeyUndoLetter() {
     const m = monkeyState();
+    if (m.phase === 'done') return;
     const l = m.letters.pop();
     if (!l) return;
     const idx = m.players.findIndex(p => p.row === l.by);
@@ -673,6 +674,8 @@
 
   function nextTurn() {
     const m = monkeyState();
+    // An ended game: the board's ⏭ (and the timeout sheet's) must not move it on.
+    if (m.phase === 'done') return;
     let loopCount = 0;
     let nextIndex = m.turnIndex;
     do {

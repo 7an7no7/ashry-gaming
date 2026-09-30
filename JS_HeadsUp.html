@@ -175,6 +175,8 @@ function huCountdown() {
   const tick = () => {
     huCountdownTimer = null;
     if (huState().phase !== 'countdown' || appState.currentView !== 'play-headsup') return;
+    // Help or the exit sheet over the countdown: it waits, as the turn's clock does.
+    if (document.querySelector('.modal-overlay:not(.hidden)')) { huCountdownTimer = setTimeout(tick, 300); return; }
     const el = document.getElementById('hu-count');
     if (n > 0) {
       if (el) {
@@ -231,6 +233,8 @@ function huOrientation(e) {
     if (card) card.dataset.rot = String(rot);
   }
   if (s.phase !== 'play') return;
+  // A sheet has paused the turn: the phone on a forehead must not score behind it.
+  if (huClock && !huClock.isRunning()) return;
   if (!huTilt.armed) {
     if (Math.abs(zUp) < 0.35) huTilt.armed = true;
     return;

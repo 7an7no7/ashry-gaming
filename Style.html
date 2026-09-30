@@ -22912,6 +22912,60 @@ body.dark .wit-tick.is-ok { color: var(--success); }
   .ludo-path--end.ludo-land, .snk-myring, .bank-nudge { animation: none; }
 }
 
+/* ===== A GAME'S CODE ON ITS WAY (JS_Lazy.html) =====
+   A small pill under the header while a game's chunk comes (only after a quarter
+   second: from the phone's own copy it is there in a few ms), or, when it can't
+   come (offline before it was ever saved), what happened and a way to try again. */
+.lz-status {
+  position: fixed;
+  top: calc(var(--safe-top) + var(--header-h) + var(--sp-2));
+  inset-inline: 0;
+  margin-inline: auto;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: 999px;
+  background: var(--surface-solid);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md, 0 6px 20px rgba(40, 20, 80, .18));
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  animation: lz-in 180ms var(--ease-out, ease-out);
+}
+.lz-status[hidden] { display: none; }
+.lz-status__spin {
+  width: 1rem; height: 1rem; flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--accent-soft, rgba(124, 58, 237, .25));
+  border-top-color: var(--accent, #7c3aed);
+  animation: lz-spin 700ms linear infinite;
+}
+.lz-status--fail { border-color: var(--danger); }
+.lz-status__btn {
+  min-height: 2.25rem;
+  padding: 0 var(--sp-3);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-on);
+  font-weight: 700;
+}
+.lz-status__x {
+  min-width: 2.25rem; min-height: 2.25rem;
+  border-radius: 50%;
+  color: var(--text-2);
+}
+@keyframes lz-spin { to { transform: rotate(360deg); } }
+@keyframes lz-in { from { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .lz-status { animation: none; }
+  .lz-status__spin { animation-duration: 1.6s; }
+}
+
 /* ===== NEXT BATCH: AUTONEXT ===== */
 /* «التالي لوحده»: the count to the next round under a room game's result
    (JS_RoomAutoNext.html). The slot is filled in place by autoNextPaint. */

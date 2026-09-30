@@ -1,0 +1,195 @@
+<script>
+/* ============================================================================
+   Each game's code loads when it opens (tools/lazy-split.mjs).
+
+   The page is the shell: the home, the nav, settings, help, the room engine,
+   the TV's frame and every registry the home reads. A game's own code is a
+   chunk - one file in g/ (docs/g/<id>.<hash>.js), the scripts of its JS_*.html
+   files one after another, run as a classic script so its functions are
+   globals exactly as they were on the one page. The build writes the map
+   (window.LZ_MANIFEST, just before this file): every chunk's file and the
+   chunks it needs, and which chunks a screen, a room game or a card of the
+   home needs. With no map (a page built whole) everything is loaded.
+
+   The doors: setView, catalogOpen / catalogQuickStart / tonightGo, «كمّل» on
+   the home, the daily hub, a room's state (the room engine holds a state back
+   until its game's chunk is in) and routeRoomState. A reload onto a game's
+   screen gets its chunk written into the page before it finishes loading
+   (lzBootWrite, at the end of the body), so nothing waits for it.
+   ========================================================================= */
+var LZ = window.LZ_MANIFEST || null;
+var lz = { loaded: {}, loading: {}, pending: {}, busy: 0, barTimer: null, fail: null };
+
+/** A chunk and everything it needs, in the order they must run. */
+function lzClosure(ids) {
+  if (!LZ) return [];
+  var seen = {}, stack = (ids || []).slice();
+  while (stack.length) {
+    var id = stack.pop();
+    if (!id || seen[id] || !LZ.chunks[id]) continue;
+    seen[id] = true;
+    (LZ.chunks[id].d || []).forEach(function (d) { stack.push(d); });
+  }
+  return LZ.order.filter(function (id) { return seen[id]; });
+}
+function lzReady(ids) { return !LZ || lzClosure(ids).every(function (id) { return lz.loaded[id]; }); }
+function lzChunksOfView(v) { return (LZ && v && LZ.views[v]) || []; }
+function lzChunksOfRoom(g) { return (LZ && g && LZ.rooms[g]) || []; }
+/** A card of the home: its setup screen's chunk, and the chunk its `open` calls (a tool). */
+function lzChunksOfGame(id) { return (LZ && id && LZ.games[id]) || []; }
+
+function lzLoadOne(id) {
+  if (lz.loaded[id]) return Promise.resolve();
+  if (lz.loading[id]) return lz.loading[id];
+  var c = LZ.chunks[id];
+  var p = new Promise(function (resolve, reject) {
+    var s = document.createElement('script');
+    s.src = LZ.base + c.f;
+    // Inserted scripts run in the order they were inserted: a chunk after what it needs.
+    s.async = false;
+    s.onload = function () { lz.loaded[id] = true; delete lz.loading[id]; resolve(); };
+    s.onerror = function () { delete lz.loading[id]; s.remove(); reject(new Error('chunk ' + id)); };
+    document.body.appendChild(s);
+  });
+  lz.loading[id] = p;
+  return p;
+}
+/** Loads the chunks (and what they need); resolves once they have run. */
+function lzEnsure(ids) {
+  if (!LZ) return Promise.resolve();
+  return Promise.all(lzClosure(ids).map(lzLoadOne));
+}
+
+/**
+ * The door: true when `ids` aren't loaded yet - they are being fetched, and
+ * `retry` runs once they are (only the latest thing asked for under `key`
+ * runs: a second tap while a game loads replaces the first). false: go on.
+ */
+function lzWait(ids, retry, key) {
+  if (lzReady(ids)) return false;
+  key = key || 'nav';
+  lz.pending[key] = retry;
+  lzBusy(1);
+  lzEnsure(ids).then(function () {
+    lzBusy(-1);
+    if (lz.pending[key] !== retry) return;
+    delete lz.pending[key];
+    retry();
+  }, function () {
+    lzBusy(-1);
+    if (lz.pending[key] !== retry) return;
+    delete lz.pending[key];
+    lzFailed(ids, retry, key);
+  });
+  return true;
+}
+/** Runs fn now if its chunks are here, or once they are. */
+function lzRun(ids, fn) {
+  if (typeof ids === 'string') ids = [ids];
+  if (!lzWait(ids, fn, 'nav')) fn();
+}
+
+/* --- what the page shows while a chunk comes ------------------------------
+   Nothing for the first quarter second (from the phone's own copy a chunk is
+   there in a few ms); after that a small pill under the header. A failure
+   (offline before the chunk was ever saved) says so, with a way to try again. */
+function lzPill() {
+  var el = document.getElementById('lz-status');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'lz-status';
+  el.className = 'lz-status';
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-live', 'polite');
+  el.hidden = true;
+  document.body.appendChild(el);
+  return el;
+}
+function lzText(key, fallback) {
+  try { var t = TRANSLATIONS[appState.lang] || {}; return t[key] || fallback; } catch (e) { return fallback; }
+}
+function lzBusy(d) {
+  lz.busy = Math.max(0, lz.busy + d);
+  var el = document.body ? lzPill() : null;
+  if (!el) return;
+  if (lz.busy > 0) {
+    if (lz.fail) return;
+    if (!lz.barTimer && el.hidden) lz.barTimer = setTimeout(function () {
+      lz.barTimer = null;
+      if (lz.busy <= 0 || lz.fail) return;
+      el.className = 'lz-status';
+      el.innerHTML = '<span class="lz-status__spin" aria-hidden="true"></span><span>' + escapeLz(lzText('lz_loading', 'لحظة…')) + '</span>';
+      el.hidden = false;
+    }, 250);
+  } else {
+    clearTimeout(lz.barTimer); lz.barTimer = null;
+    if (!lz.fail) el.hidden = true;
+  }
+}
+function escapeLz(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function lzFailed(ids, retry, key) {
+  var el = lzPill();
+  lz.fail = { ids: ids, retry: retry, key: key };
+  el.className = 'lz-status lz-status--fail';
+  el.innerHTML = '<span>' + escapeLz(lzText('lz_failed', 'مقدرناش نفتح اللعبة')) + '</span>' +
+    '<button type="button" class="lz-status__btn" onclick="lzRetry()">' + escapeLz(lzText('lz_retry', 'حاول تاني')) + '</button>' +
+    '<button type="button" class="lz-status__x" onclick="lzDismiss()" aria-label="' + escapeLz(lzText('close', 'إغلاق')) + '">✕</button>';
+  el.hidden = false;
+}
+function lzDismiss() {
+  lz.fail = null;
+  var el = document.getElementById('lz-status');
+  if (el) el.hidden = true;
+}
+function lzRetry() {
+  var f = lz.fail;
+  lzDismiss();
+  if (f && !lzWait(f.ids, f.retry, f.key)) f.retry();
+}
+// Back online with a failure showing: try again by itself.
+window.addEventListener('online', function () { if (lz.fail) lzRetry(); });
+
+/* --- a reload onto a game ---------------------------------------------------
+   Written by the build at the very end of the body, after the shell's own
+   scripts: the screen the phone is coming back to (and the game played last,
+   for «كمّل» on the home) gets its chunks written into the page as ordinary
+   scripts, so they run before DOMContentLoaded and initializeApp finds them.
+   A chunk that can't be had (offline before it was ever saved) sends the
+   saved screen home, so the app still opens. */
+function lzBootChunks() {
+  if (!LZ) return [];
+  var want = [];
+  try {
+    var saved = JSON.parse(localStorage.getItem('gameTrackerState_v1') || 'null');
+    var view = saved && saved.currentView;
+    if (view) want = want.concat(lzChunksOfView(view));
+  } catch (e) {}
+  try {
+    // The board left most recently: the home's «كمّل» card asks it whether it is still going.
+    var stamps = JSON.parse(localStorage.getItem('ashryContinue_v1') || '{}') || {};
+    var best = null, at = 0;
+    Object.keys(stamps).forEach(function (k) { if (Number(stamps[k]) > at) { at = Number(stamps[k]); best = k; } });
+    if (best && LZ.games[best]) want = want.concat(LZ.games[best]);
+  } catch (e) {}
+  return lzClosure(want);
+}
+function lzBootWrite() {
+  var ids = lzBootChunks();
+  ids.forEach(function (id) {
+    lz.loading[id] = true;
+    document.write('<script src="' + LZ.base + LZ.chunks[id].f + '" onload="lzBootDone(\'' + id + '\')" onerror="lzBootFail(\'' + id + '\')"><\/script>');
+  });
+}
+function lzBootDone(id) { lz.loaded[id] = true; delete lz.loading[id]; }
+function lzBootFail(id) {
+  delete lz.loading[id];
+  // The saved screen can't be drawn without it: open on the home instead.
+  try {
+    var saved = JSON.parse(localStorage.getItem('gameTrackerState_v1') || 'null');
+    if (saved && lzClosure(lzChunksOfView(saved.currentView)).indexOf(id) !== -1) {
+      saved.currentView = 'menu';
+      localStorage.setItem('gameTrackerState_v1', JSON.stringify(saved));
+    }
+  } catch (e) {}
+}
+</script>

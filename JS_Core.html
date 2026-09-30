@@ -5614,6 +5614,10 @@
       bank_col_br: "البني", bank_col_lb: "اللبني", bank_col_pk: "البمبي", bank_col_or: "البرتقاني",
       bank_col_rd: "الأحمر", bank_col_ye: "الأصفر", bank_col_gr: "الأخضر", bank_col_db: "الكحلي",
       bank_col_st: "محطات", bank_col_co: "شركات",
+      // a game's code loading (JS_Lazy.html)
+      lz_loading: "بنجهّز اللعبة…",
+      lz_failed: "مقدرناش نفتح اللعبة. اتأكد من النت",
+      lz_retry: "حاول تاني",
       // next batch: autonext
       an_switch: "⏭️ التالي لوحده",
       an_hint_on: "بعد كل نتيجة عدّاد صغير، والجولة اللي بعدها تيجي لوحدها. تقدر تدوس «التالي» بدري أو «⏸ استنى».",
@@ -10247,6 +10251,10 @@
       bank_col_br: "brown", bank_col_lb: "light blue", bank_col_pk: "pink", bank_col_or: "orange",
       bank_col_rd: "red", bank_col_ye: "yellow", bank_col_gr: "green", bank_col_db: "dark blue",
       bank_col_st: "stations", bank_col_co: "companies",
+      // a game's code loading (JS_Lazy.html)
+      lz_loading: "Getting the game ready…",
+      lz_failed: "Couldn't open the game. Check the connection",
+      lz_retry: "Try again",
       // next batch: autonext
       an_switch: "⏭️ Next by itself",
       an_hint_on: "After each result a short count, then the next round comes by itself. Press «Next» sooner, or «⏸ Wait».",
@@ -12454,6 +12462,9 @@
       if (typeof gameOffToast === 'function') setTimeout(gameOffToast, 0);
       viewId = 'menu';
     }
+    // A game's screen waits for its code (JS_Lazy.html): the screen on show stays
+    // until the chunk has run, then this is called again.
+    if (typeof lzWait === 'function' && lzWait(lzChunksOfView(viewId), () => setView(viewId))) return;
     if (BALOO_VIEWS.indexOf(viewId) !== -1) ensureBalooFont();
     if (typeof syncFxButton === 'function') syncFxButton(viewId);
     const previous = appState.currentView;

@@ -7,12 +7,13 @@
  *   npm run build:preview
  *   npx http-server ../.preview -p 4321     # or any static server
  */
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { assemble } from './lazy-split.mjs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const read = (name) => readFile(path.join(root, `${name}.html`), 'utf8');
 
 // Rooms need the rooms server. Locally that is `npm run dev` in rooms-worker/
 // (wrangler dev, port 8787); ROOMS_URL=... points the preview elsewhere, such
@@ -34,15 +35,14 @@ const [SPY_WORDS_EN, SPY_PAIRS_EN] = new Function(
 
 const STUB = `<script>window.ROOMS_URL = ${JSON.stringify(ROOMS_URL)};</script>`;
 
-let html = await read('Controller');
-
-// Resolve <?!= include('X'); ?> the way HtmlService would.
-const includes = [...html.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g)];
-for (const [tag, name] of includes) {
-  // A replacer function: $&, $' and $` in a replacement string are patterns.
-  const body = await read(name);
-  html = html.replace(tag, () => body);
-}
+// The page: the shell inlined, each game's code a file of its own in g/, unminified
+// with a banner per source file so it reads like the sources (tools/lazy-split.mjs).
+// LAZY=0 builds the whole page in one file, as before.
+const whole = process.env.LAZY === '0';
+// A chunk's name carries its hash, so a static server's cache never hands back an old one.
+const hashOf = (code) => createHash('sha1').update(code).digest('hex').slice(0, 10);
+const built = await assemble({ root, readFile, path, whole, banner: true, name: (c, code) => `${c.id}.${hashOf(code)}.js` });
+let html = built.html;
 
 // `--room CODE` opens the preview on the join screen with that code filled in,
 // the way a scanned join link opens the published site.
@@ -62,14 +62,6 @@ html = html
   .replace('<?!= roomLinks ?>', 'false')
   .replace('</head>', () => `${STUB}\n</head>`);
 
-// Word lists the page shares with the rooms server: one file, both sides.
-const SHARED_LISTS = ['DisabledGames.js', 'Dice.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js'];
-const sharedListsHtml = (await Promise.all(SHARED_LISTS.map(async (name) =>
-  `<script>\n${await readFile(path.join(root, name), 'utf8')}\n</script>`))).join('\n    ');
-const listsMark = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline the word lists[^\n]*-->/;
-if (!listsMark.test(html)) throw new Error('Controller.html: SHARED_LISTS comment not found');
-html = html.replace(listsMark, () => sharedListsHtml);
-
 const leftover = html.match(/<\?!?=?[\s\S]{0,40}\?>/);
 if (leftover) throw new Error(`unresolved template tag: ${leftover[0]}`);
 
@@ -77,5 +69,12 @@ if (leftover) throw new Error(`unresolved template tag: ${leftover[0]}`);
 const outDir = process.env.PREVIEW_OUT ? path.resolve(process.env.PREVIEW_OUT) : path.join(root, '.preview');
 await mkdir(outDir, { recursive: true });
 await writeFile(path.join(outDir, 'index.html'), html, 'utf8');
+// The chunks (the old ones go: the preview keeps no earlier build).
+await rm(path.join(outDir, 'g'), { recursive: true, force: true });
+if (built.chunks.length) {
+  await mkdir(path.join(outDir, 'g'), { recursive: true });
+  for (const c of built.chunks) await writeFile(path.join(outDir, 'g', c.file), c.code, 'utf8');
+  console.log(`g/: ${built.chunks.length} chunks`);
+}
 
 console.log(`.preview/index.html written (${(html.length / 1024).toFixed(0)} KB), rooms via ${ROOMS_URL}`);

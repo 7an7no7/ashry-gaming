@@ -83,7 +83,9 @@ function setupConnections() {
 
 // The content check loads this file in Node, where there is no page.
 if (typeof document !== 'undefined') {
-  document.addEventListener('DOMContentLoaded', () => { try { paintConnectLevel(); } catch (e) {} });
+  // Loaded with its chunk after the page is up (JS_Lazy.html): paint now.
+  const paint = () => { try { paintConnectLevel(); } catch (e) {} };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', paint); else paint();
 }
 // The level line is text drawn here, so it is drawn again whenever the setup
 // screen is reached (the back arrow skips setupConnections) and when the

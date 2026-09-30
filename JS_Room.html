@@ -127,6 +127,10 @@ const Room = (() => {
   const emit = (force) => {
     const sig = signatureOf(state);
     if (!force && sig === lastSignature) return;
+    // The game's code loads with its chunk (JS_Lazy.html): the state is held
+    // back until it has come, then everyone hears the latest one.
+    if (state && state.game && typeof lzWait === 'function' &&
+        lzWait(lzChunksOfRoom(state.game), () => emit(true), 'room')) return;
     lastSignature = sig;
     listeners.forEach(fn => { try { fn(state); } catch (e) { console.error('room listener', e); } });
   };
@@ -1861,6 +1865,8 @@ function lobbyOptsSummarise(root) {
 
 /** Draws whatever the room is doing now: its lobby, a spectator note, or the game. */
 function routeRoomState(state) {
+  if (state && state.game && typeof lzWait === 'function' &&
+      lzWait(lzChunksOfRoom(state.game), () => { if (Room.state) routeRoomState(Room.state); }, 'route')) return;
   // A big screen draws every phase itself (JS_RoomTv.html).
   if (state.youAreScreen) {
     renderRoomTv(state);
@@ -2145,4 +2151,26 @@ async function initRooms() {
   if (resumed && Room.state && onRoomView()) routeRoomState(Room.state);
   updateRoomBanner();
 }
+
+/**
+ * The host's "move on" button waits 40 seconds for a phone that is there but
+ * quiet, and with no clock nothing is pushed meanwhile: so when a wait starts
+ * (`local.since`), a redraw is set for when it ends. The TV's frame is rebuilt
+ * only on a new signature, so its signature is dropped first. Shared by
+ * المشنقة, the solve rooms and خمّن مين; cleared with the room's clocks.
+ */
+function roomQuietRedraw(local, game) {
+  clearTimeout(local.quietTimer);
+  local.quietTimer = setTimeout(() => {
+    const st = typeof Room !== 'undefined' ? Room.state : null;
+    if (!st || st.game !== game || !roomCanMoveOn(st)) return;
+    if (st.youAreScreen) {
+      if (appState.currentView !== 'room-tv') return;
+      const tv = document.getElementById('view-room-tv');
+      if (tv) delete tv.dataset.sig;
+    } else if (!onRoomView()) return;
+    routeRoomState(st);
+  }, 40500);
+}
+function roomQuietStop(local) { clearTimeout(local.quietTimer); local.quietTimer = null; }
 </script>

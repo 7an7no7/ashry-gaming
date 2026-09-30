@@ -406,7 +406,8 @@ function showTriviaCell() {
   if (typeof flagsEnsureFont === 'function') flagsEnsureFont();
   document.getElementById('tb-q-cat').innerHTML = (cat.icon ? '<span class="flag-emoji">' + escapeHTML(cat.icon) + '</span> ' : '') + escapeHTML(en ? cat.en : cat.ar);
   const pts = document.getElementById('tb-q-points');
-  pts.textContent = cell.dbl ? '×2 · ' + tbCellPoints(cell) : cell.points;
+  // ×2 held left to right, or an Arabic line turns it into "2×".
+  pts.innerHTML = cell.dbl ? '<bdi dir="ltr">×2</bdi> · ' + tbCellPoints(cell) : String(cell.points);
   pts.classList.toggle('tb-q-points--double', !!cell.dbl);
   document.getElementById('tb-q-text').textContent = en ? item[2] : item[0];
   document.getElementById('tb-q-answer-text').textContent = en ? item[3] : item[1];

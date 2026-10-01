@@ -359,7 +359,9 @@ function tvLobbySig(state) {
     // The night's table changes as games are banked, and it is drawn in the lobby.
     JSON.stringify(state.night || {}),
     // The chess group of the game list, open or not.
-    typeof roomHubGroup !== 'undefined' ? roomHubGroup : ''
+    typeof roomHubGroup !== 'undefined' ? roomHubGroup : '',
+    // 🕵️ المهمة السرية's cork board and the host's strip (JS_RoomMission.html, once its chunk is here).
+    typeof missionTvSig === 'function' ? missionTvSig(state) : (state.mission ? 'msn-wait' : '')
   ].join('|');
 }
 
@@ -416,7 +418,9 @@ function tvLobby(state, t) {
           <span class="tv-lobby__name"><bdi>${escapeHTML(p.name)}</bdi></span>
         </div>`).join('')}
       </div>`;
-    control = `${chosen}${people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
+    // 🕵️ المهمة السرية on: the cork board - each photo with its pile of closed files - in place of the tiles.
+    const board = typeof missionTvBoardHtml === 'function' && state.mission && state.mission.on ? missionTvBoardHtml(state) : '';
+    control = `${chosen}${board || people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
   } else if (!state.game) {
     const count = state.players.length;
     const tileHtml = (tile) => {
@@ -453,6 +457,7 @@ function tvLobby(state, t) {
     control = `
       ${roomHubBackHtml(t, true)}
       ${typeof roomProgramDoorHtml === 'function' ? roomProgramDoorHtml(state, t) : ''}
+      ${typeof roomMissionSlotHtml === 'function' ? roomMissionSlotHtml(state, true) : ''}
       <div class="tv-hub-box"><div class="tv-hub-scroll">${list}</div></div>`;
   } else {
     const game = ROOM_GAMES[state.game];

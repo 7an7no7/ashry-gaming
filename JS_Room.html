@@ -1485,6 +1485,12 @@ function renderRoomLobby(state, opts) {
     const html = crewLobbyHtml(state);
     if (crewEl.dataset.sig !== html) { crewEl.innerHTML = html; crewEl.dataset.sig = html; }
   }
+  // 🕵️ المهمة السرية: the host's switch, or the evening's file (JS_RoomMission.html).
+  const msnEl = document.getElementById('room-mission');
+  if (msnEl) {
+    const html = roomMissionSlotHtml(state);
+    if (msnEl.dataset.sig !== html) { msnEl.innerHTML = html; msnEl.dataset.sig = html; }
+  }
   // «أنت: منى ✏️» on a phone that plays (a screen has no name).
   const meBtn = document.getElementById('room-me');
   const mine = state.players.find(p => p.id === Room.me);
@@ -1863,6 +1869,46 @@ function roomProgramDoorHtml(state, t) {
       <span class="prog-door__chev" aria-hidden="true">›</span>
     </button>`;
 }
+/* 🕵️ المهمة السرية: not a game from the list but a switch on the room, running beside every
+   game (RoomMission.js). Its page is the chunk 'mission' (JS_RoomMission.html, with Missions.js),
+   loaded as soon as a state carries it; before that, the host's door is drawn from here. */
+function roomMissionSlotHtml(state, tv) {
+  if (!state || (state.youAreScreen && !(tv && state.youAreHost))) return '';
+  if (typeof missionLobbyHtml === 'function') return missionLobbyHtml(state, tv);
+  const m = state.mission;
+  if (m && (m.on || m.phase === 'reveal')) return '';       // the chunk is on its way; drawn when it lands
+  return roomMissionDoorHtml(state, TRANSLATIONS[appState.lang] || {});
+}
+function roomMissionDoorHtml(state, t) {
+  if (!state.youAreHost) return '';
+  return `
+    <button type="button" class="msn-door" onclick="roomOpenMission()" aria-pressed="false">
+      <span class="msn-door__icon" aria-hidden="true">🕵️</span>
+      <span class="msn-door__text">
+        <b>${escapeHTML(t.mission_title || '')}</b>
+        <small>${escapeHTML(t.mission_door_off || '')}</small>
+      </span>
+      <span class="msn-door__toggle" aria-hidden="true"><i></i></span>
+    </button>`;
+}
+function roomOpenMission() {
+  if (typeof lzRun === 'function') lzRun('mission', () => missionOpenSetup());
+  else if (typeof missionOpenSetup === 'function') missionOpenSetup();
+}
+/* Every state (on any screen of the app, during any game): the chunk when the room has a mission, then its sync. */
+Room.onChange((state) => {
+  const m = state && state.mission;
+  const wanted = !!(m && (m.on || m.phase === 'reveal'));
+  if (wanted && typeof lzWait === 'function' && lzWait(['mission'], () => {
+    const st = Room.state;
+    if (!st) return;
+    if (typeof missionSync === 'function') missionSync(st);
+    if (appState.currentView === 'room-lobby' && st.phase === 'lobby' && !st.youAreScreen) renderRoomLobby(st);
+    if (st.youAreScreen && typeof renderRoomTv === 'function' && onRoomView()) renderRoomTv(st);
+  }, 'mission')) return;
+  if (typeof missionSync === 'function') missionSync(state);
+});
+
 function roomOpenProgram() {
   if (typeof lzRun === 'function') lzRun('program', () => progOpenBuilder());
   else if (typeof progOpenBuilder === 'function') progOpenBuilder();

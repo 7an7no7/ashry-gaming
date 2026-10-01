@@ -6023,6 +6023,82 @@ async function leavemidSeg() {
  * one at a time, with nothing else running.
  */
 /* --- برنامج السهرة: a night of three games to its finale (RoomProgram.js) ------------------- */
+/* --- المهمة السرية (RoomMission.js): the switch beside every game --------------------------- */
+async function missionRobots() {
+  console.log('• the secret mission (a switch beside every game: files, the target\'s memo, yes and no, a game meanwhile, a latecomer, a leaver, the reveal)');
+  const H = await Bot.host('منى', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  let people = [H, J, K];
+  const everyone = () => people.concat([TV]);
+  const by = (pid) => people.find((b) => b.pid === pid);
+  check((await J.act('missionSet', { on: true })).ok === false, 'mission: only the host turns it on');
+  await H.must('missionSet', { on: true, place: 'cafe', co: 'family' });
+  await all(everyone(), (s) => s.mission && s.mission.on && s.mission.phase === 'on' && s.mission.place === 'cafe', 'mission: on, on every phone and the TV');
+  await all(people, (s) => s.mission.me && s.mission.me.m && s.mission.me.to && people.some((b) => b.pid === s.mission.me.to),
+    'mission: everyone has a target in the room and a mission');
+  check(people.every((b) => b.state.mission.me.to !== b.pid), 'mission: nobody is their own target');
+  check(TV.state.mission.me === null && TV.state.mission.asks.length === 0, 'mission: the TV holds no file');
+  // What a phone is sent of the mission: the public part, its own file, the memos waiting on it - nothing else.
+  const KEYS = 'asks,catch,co,feed,me,names,on,paused,phase,place,reveal,score,startedAt,swap';
+  check(everyone().every((b) => Object.keys(b.state.mission).sort().join(',') === KEYS), 'mission: no phone is sent anything of another\'s file');
+  check(H.state.chat.some((m) => m.sys === 'missionOn'), 'mission: the chat says it is on');
+  // Done → the target is asked → no → yes.
+  const doer = J;
+  const target = by(J.state.mission.me.to);
+  const n1 = J.state.mission.me.n;
+  await doer.must('missionDone', { n: n1 });
+  await target.waitFor((s) => s.mission.asks.length === 1 && s.mission.asks[0].by === doer.pid, 'mission: the target\'s phone is asked');
+  check(people.filter((b) => b !== target).every((b) => b.state.mission.asks.length === 0), 'mission: nobody else is asked');
+  await doer.waitFor((s) => s.mission.me.waiting, 'mission: the doer waits for the signature');
+  await target.must('missionAnswer', { id: target.state.mission.asks[0].id, yes: false });
+  await doer.waitFor((s) => !s.mission.me.waiting && s.mission.me.no > 0 && s.mission.me.n === n1, 'mission: «لأ» - the doer keeps the mission');
+  check((doer.state.mission.score[doer.pid] || 0) === 0, 'mission: no point for a no');
+  await doer.must('missionDone', { n: n1 });
+  await target.waitFor((s) => s.mission.asks.length === 1, 'mission: asked again');
+  await target.must('missionAnswer', { id: target.state.mission.asks[0].id, yes: true });
+  await doer.waitFor((s) => s.mission.score[doer.pid] === 1 && s.mission.me.n !== n1 && s.mission.me.won > 0, 'mission: «نعم» - a point and a fresh file');
+  await TV.waitFor((s) => s.mission.feed.length === 1 && s.mission.feed[0].by === doer.pid && s.mission.feed[0].to === target.pid && !!s.mission.feed[0].m,
+    'mission: the TV\'s ticker gets the closed file');
+  // Beside a game: the buzzer is played, the mission goes on.
+  await H.must('chooseGame', { game: 'buzzer' });
+  await H.must('start', {});
+  await all(people, (s) => s.game === 'buzzer' && s.phase !== 'lobby' && s.mission.on && !!s.mission.me, 'mission: still on during a game');
+  const sw = K.state.mission.me;
+  await K.must('missionSwap', { n: sw.n });
+  await K.waitFor((s) => s.mission.me.n !== sw.n && s.mission.me.to === sw.to && s.mission.me.swapAt > 0, 'mission: «غيّرها» mid-game - a new mission, the same target');
+  check((await K.act('missionSwap', { n: K.state.mission.me.n })).ok === false, 'mission: «غيّرها» again is refused for ten minutes');
+  // A wrong «كشفتك!»: someone who isn't working on you.
+  const victim = H;
+  const innocent = people.find((b) => b !== victim && b.state.mission.me.to !== victim.pid);
+  if (innocent) {
+    await victim.must('missionCatch', { who: innocent.pid });
+    await victim.waitFor((s) => s.mission.me.caught && s.mission.me.caught.ok === false && s.mission.me.catchAt > 0, 'mission: a wrong «كشفتك!» - a wait, nothing else');
+    check(innocent.state.mission.me.caught === null, 'mission: the wrong guess is told to the guesser alone');
+  }
+  await H.must('backToHub');
+  // A latecomer is dealt in; a leaver drops out and whoever aimed at them is retargeted.
+  const L = await Bot.join(H.code, 'ليلى');
+  people = people.concat([L]);
+  await L.waitFor((s) => s.mission.on && s.mission.me && s.mission.me.m && s.mission.me.to !== L.pid, 'mission: a latecomer gets a file at once');
+  const aimers = people.filter((b) => b !== K && b.state.mission.me.to === K.pid);
+  await api('/leave', { code: H.code, pid: K.pid, key: K.key });
+  K.close();
+  people = people.filter((b) => b !== K);
+  for (const b of aimers) await b.waitFor((s) => s.mission.me.to !== K.pid && people.some((o) => o.pid === s.mission.me.to), 'mission: a target who left is replaced');
+  // Off: the reveal everywhere, the champion's points on the night, then closed.
+  await H.must('missionSet', { on: false });
+  await all(everyone(), (s) => s.mission.phase === 'reveal' && s.mission.reveal && s.mission.reveal.story.length >= 1 && s.mission.reveal.champs.indexOf(doer.pid) !== -1 && s.mission.me === null,
+    'mission: off - the story and the champion on every phone and the TV, no file left');
+  await H.waitFor((s) => (s.night || {})[doer.pid] === 5, 'mission: the champion banks 5 on the night');
+  await H.waitFor((s) => s.chat.some((m) => m.sys === 'missionEnd'), 'mission: the chat names the champion');
+  check((await J.act('missionClose', {})).ok === false, 'mission: only the host closes the file');
+  await H.must('missionClose');
+  await all(everyone(), (s) => s.mission.phase === 'off' && !s.mission.on && !s.mission.reveal, 'mission: closed');
+  people.concat([TV]).forEach((b) => b.close());
+}
+
 async function programRobots() {
   console.log('• the night\'s program (three games on the server\'s clock: the line-up, the table between games, a pause, the finale)');
   const H = await Bot.host('منى', null);
@@ -6141,6 +6217,7 @@ const SEGMENTS = [
   { name: 'duels', run: duelTourRobots, secs: 126 },
   { name: 'leavemid', run: leavemidSeg, secs: 1 },
   { name: 'program', run: programRobots, secs: 60 },
+  { name: 'mission', run: missionRobots, secs: 12 },
   { name: 'crew', run: crewRobots, secs: 6 },
   { name: 'crewlink', run: crewLinkRobots, secs: 12 },
 ];

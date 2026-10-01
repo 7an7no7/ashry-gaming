@@ -423,6 +423,7 @@
         </button>
         <h1 id="app-title" class="shell__title"><svg class="mark mark--title" aria-hidden="true"><use href="#ashry-mark"/></svg><span id="app-title-icon" class="shell__title-icon" aria-hidden="true"></span><span id="app-title-text">عشرى جيمينج</span></h1>
         <div class="shell__tools">
+          <button type="button" id="mission-fab" class="iconbtn iconbtn--plain mission-fab" onclick="if (typeof missionFabTap === 'function') missionFabTap()" aria-label="📁" data-i18n-title="mission_title" title="📁">📁<span id="mission-fab-badge" class="chat-fab__badge mission-fab__badge" hidden></span></button>
           <button type="button" id="chat-fab" class="iconbtn iconbtn--plain chat-fab" onclick="openRoomChat()" aria-label="💬" data-i18n-title="chat_title" title="💬">💬<span id="chat-fab-badge" class="chat-fab__badge" hidden></span></button>
           <button type="button" id="fx-fab" class="iconbtn iconbtn--plain fx-fab" onclick="openSoundboard()" aria-label="🔊" data-i18n-title="sounds" title="🔊">🔊</button>
           <button id="nav-settings" class="iconbtn iconbtn--plain" onclick="openSettings()" aria-label="الإعدادات" data-i18n-title="settings">
@@ -2169,6 +2170,9 @@
         <!-- «الشلة»: which crew tonight counts for (the host changes it; a guest may join). -->
         <div id="room-crew"></div>
 
+        <!-- 🕵️ المهمة السرية: the host's switch, then the evening's file beside every game (JS_RoomMission.html). -->
+        <div id="room-mission"></div>
+
         <!-- The game chosen and its options (or the list of games) come before the
              players: that is what the room is deciding (the design review, 26 Sep 2026). -->
         <div id="room-host-setup"></div>
@@ -2761,6 +2765,15 @@
           <button type="button" onclick="closeModal('room-player-menu')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
       </div>
+    </div>
+
+    <!-- 🕵️ المهمة السرية: the host's setup, a player's file, the story at the end (JS_RoomMission.html). -->
+    <div id="mission-modal" class="modal-overlay hidden" onclick="if(event.target===this && typeof missionCloseModal==='function') missionCloseModal()">
+      <div class="modal-content modal-content--simple msn-sheet" id="mission-modal-body"></div>
+    </div>
+    <!-- 🕵️ The target's memo: «… حصل معاك فعلًا؟», over whatever is on screen, at a calm moment. -->
+    <div id="mission-ask" class="modal-overlay hidden">
+      <div class="modal-content msn-memo" id="mission-ask-body" role="dialog" aria-modal="true"></div>
     </div>
 
     <!-- برنامج السهرة: the host's builder - the games in order, each one's options (JS_RoomProgram.html). -->
@@ -4472,6 +4485,7 @@
     <?!= include('JS_RoomDark'); ?>
     <?!= include('JS_RoomExact'); ?>
     <?!= include('JS_RoomProgram'); ?>
+    <?!= include('JS_RoomMission'); ?>
     <?!= include('JS_Hangman'); ?>
     <?!= include('JS_RoomSolve'); ?>
     <?!= include('JS_RoomRace'); ?>

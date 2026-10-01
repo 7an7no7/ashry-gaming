@@ -652,8 +652,12 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   const ids = {}, ar = {}, en = {};
   MS.MISSIONS.forEach((m, i) => {
     const tag = `missions[${i}]${m && m[0] ? ' ' + m[0] : ''}`;
-    if (!Array.isArray(m) || m.length !== 5) { note(`${tag}: not [id, places, company, ar, en]`); return; }
-    const [id, places, co, a, e] = m;
+    if (!Array.isArray(m) || m.length !== 6) { note(`${tag}: not [id, places, company, ar, en, arF]`); return; }
+    const [id, places, co, a, e, af] = m;
+    // The Arabic to a girl: the same opening, the name once, and really another wording.
+    if (typeof af !== 'string' || !af.startsWith('خلّي {target} ') || af.split('{target}').length !== 2 || /[{}]/.test(af.replace('{target}', ''))) note(`${tag}: the girl's Arabic starts «خلّي {target} », the name once`);
+    else if (af === a) note(`${tag}: the girl's Arabic is the same as the boy's`);
+    else if (MS.missionQuote(id, 'ar', 'منى', 'سارة', true).indexOf('منى: «خلّي سارة ') !== 0) note(`${tag}: the ticker can't quote the girl's wording`);
     if (!/^[a-z]\d\d$/.test(id)) note(`${tag}: an id is a letter and two digits`);
     if (ids[id]) note(`${tag}: the id ${id} twice`); ids[id] = true;
     if (places !== '*' && !/^[hco]+$/.test(places)) note(`${tag}: places "${places}" (* or the letters h, c, o)`);

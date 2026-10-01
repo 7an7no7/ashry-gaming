@@ -15,7 +15,8 @@
      happens, they keep their mission. Nobody is ever out.
    - «غيّرها»: a new mission, once every MISSION_SWAP_MS. «كشفتك!»: name who you
      think works on you - right, you score 1 and they get a new file; wrong,
-     nothing, and no more guesses for MISSION_CATCH_WAIT_MS (decided while building).
+     the one you named scores 1 (the review of 1 Oct 2026: at 3-4 people a guess
+     was nearly a sure thing) and no more guesses for MISSION_CATCH_WAIT_MS.
    - Someone joining later is dealt in; someone leaving drops out, and whoever had
      them as a target gets a new one. Fewer than MISSION_MIN_PEOPLE: paused.
    - Turning it off ends the evening's file: the reveal «مين عمل في مين إيه», the
@@ -293,9 +294,7 @@ const missionAction = (room, pid, action, payload) => {
       // Asked you already about this very mission: they showed you their hand themselves, so it
       // doesn't count - refused as an ordinary wrong guess, so it says nothing either (the review of 1 Oct 2026).
       if (theirs.asked) {
-        h.wrongAt[pid] = now;
-        h.lastCatch = h.lastCatch || {};
-        h.lastCatch[pid] = { seq: room.mission.catchSeq, who: who, ok: false };
+        missionWrongCatch(room, pid, who, now);
         return true;
       }
       room.mission.score[pid] = (room.mission.score[pid] || 0) + 1;
@@ -308,13 +307,27 @@ const missionAction = (room, pid, action, payload) => {
       h.lastCatch = h.lastCatch || {};
       h.lastCatch[pid] = { seq: room.mission.catchSeq, who: who, ok: true };
     } else {
-      h.wrongAt[pid] = now;
-      h.lastCatch = h.lastCatch || {};
-      h.lastCatch[pid] = { seq: room.mission.catchSeq, who: who, ok: false };
+      missionWrongCatch(room, pid, who, now);
     }
     return true;
   }
   return true;
+};
+
+/**
+ * A wrong «كشفتك!»: the guesser waits, and the one wrongly named scores 1 (the review of
+ * 1 Oct 2026: with 3-4 people a guess was almost free). `room.mission.gift` says who got the
+ * point - public, as the score is - never who named them; the story at the end tells it.
+ */
+const missionWrongCatch = (room, pid, who, now) => {
+  const h = missionHidden(room);
+  h.wrongAt[pid] = now;
+  h.lastCatch = h.lastCatch || {};
+  h.lastCatch[pid] = { seq: room.mission.catchSeq, who: who, ok: false };
+  room.mission.score[who] = (room.mission.score[who] || 0) + 1;
+  room.mission.giftSeq = (room.mission.giftSeq || 0) + 1;
+  room.mission.gift = { seq: room.mission.giftSeq, to: who, at: now };
+  missionLog(room, { k: 'wrong', by: pid, to: who });
 };
 
 /** A phone joined (room.js join) or a screen became a player: dealt in. */
@@ -334,7 +347,7 @@ const missionView = (room, pid) => {
   const out = {
     on: !!m.on, phase: m.phase || 'off', place: m.place, co: m.co,
     swap: m.swap !== false, catch: m.catch !== false, paused: !!m.paused,
-    score: m.score || {}, names: m.names || {}, feed: m.feed || [], startedAt: m.startedAt || 0,
+    score: m.score || {}, names: m.names || {}, feed: m.feed || [], startedAt: m.startedAt || 0, gift: m.gift || null,
     reveal: m.reveal || null, me: null, asks: []
   };
   if (!missionLive(room) || !(room.players || []).some(p => p.id === pid && !p.bot)) return out;

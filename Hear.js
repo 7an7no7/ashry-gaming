@@ -79,7 +79,22 @@ const HEAR_THING_NAMES = {
   cup:     { ar: 'كوباية شاي', en: 'A cup of tea' },
   mushroom:{ ar: 'عيش الغراب', en: 'A mushroom' },
   balloon: { ar: 'بلالين', en: 'Balloons' },
-  traffic: { ar: 'إشارة مرور', en: 'Traffic lights' }
+  traffic: { ar: 'إشارة مرور', en: 'Traffic lights' },
+  // The review of 1 Oct 2026: twenty came round too often - fourteen more, Egyptian where they can be.
+  lantern: { ar: 'فانوس رمضان', en: 'A Ramadan lantern' },
+  felucca: { ar: 'فلوكة', en: 'A felucca' },
+  pyramids:{ ar: 'الأهرامات', en: 'The pyramids' },
+  kanaka:  { ar: 'كنكة', en: 'A coffee pot' },
+  foulcart:{ ar: 'عربية فول', en: 'A foul cart' },
+  tabla:   { ar: 'طبلة', en: 'A tabla drum' },
+  palm:    { ar: 'نخلة', en: 'A palm tree' },
+  umbrella:{ ar: 'شمسية بحر', en: 'A beach umbrella' },
+  melon:   { ar: 'بطيخة', en: 'A watermelon' },
+  camel:   { ar: 'جمل', en: 'A camel' },
+  fez:     { ar: 'طربوش', en: 'A fez' },
+  qolla:   { ar: 'قلة', en: 'A clay water jug' },
+  bike:    { ar: 'عجلة', en: 'A bicycle' },
+  teapot:  { ar: 'براد شاي', en: 'A teapot' }
 };
 const HEAR_SHAPES_NAME = { ar: 'أشكال على شبكة', en: 'Shapes on a grid' };
 
@@ -336,6 +351,176 @@ const HEAR_THINGS = {
     const extra = hearExtras(rnd, level, [
       () => hearLine([[50, 70], [50, 94]]),
       () => hearLine([[30, 94], [70, 94]])
+    ]);
+    return core.concat(extra);
+  },
+  lantern(rnd, level) {
+    const w = hearBetween(rnd, 14, 18), top = hearBetween(rnd, 36, 42), bot = hearBetween(rnd, 74, 80), mid = (top + bot) / 2;
+    const core = [hearPoly([[50 - w, top], [50 + w, top], [50 + w + 6, mid], [50 + w, bot], [50 - w, bot], [50 - w - 6, mid]]),
+      hearPoly([[50 - w, top], [50, top - hearBetween(rnd, 16, 20)], [50 + w, top]]), hearRect(50 - w * 0.7, bot, w * 1.4, 8)];
+    const ring = top - 22;
+    const extra = hearExtras(rnd, level, [
+      () => hearCircle(50, ring, 4),
+      () => hearLine([[50 - w - 6, mid], [50 + w + 6, mid]]),
+      () => hearEllipse(50, mid + (bot - mid) / 2, 3, 5),
+      () => [hearLine([[50, top], [50, bot]])]
+    ]);
+    return core.concat(extra);
+  },
+  felucca(rnd, level) {
+    const y = hearBetween(rnd, 64, 70), w = hearBetween(rnd, 34, 40), m = hearBetween(rnd, 46, 52);
+    const core = [hearPoly([[50 - w, y - 4], [50 + w, y], [50 + w - 10, y + 11], [50 - w + 12, y + 11]]), hearLine([[m, y], [m, y - 34]]),
+      hearPoly([[50 - w + 6, y - 6], [m + hearBetween(rnd, 28, 34), y - hearBetween(rnd, 58, 64)], [m + 8, y - 6]])];
+    const extra = hearExtras(rnd, level, [
+      () => hearLine([[4, 90], [20, 85], [36, 90], [52, 85], [68, 90], [84, 85], [96, 89]]),
+      () => hearCircle(hearPick(rnd, [12, 86]), 14, 6),
+      () => hearCircle(50 + w - 16, y - 6, 4)
+    ]);
+    return core.concat(extra);
+  },
+  pyramids(rnd, level) {
+    const g = 86, h1 = hearBetween(rnd, 44, 52), h2 = hearBetween(rnd, 26, 32);
+    const core = [hearPoly([[18, g], [50, g - h1], [82, g]]), hearPoly([[60, g], [79, g - h2], [98, g]])];
+    const extra = hearExtras(rnd, level, [
+      () => hearPoly([[2, g], [15, g - h2 * 0.7], [28, g]]),
+      () => hearCircle(hearPick(rnd, [14, 84]), 16, 7),
+      () => hearLine([[0, g], [100, g]]),
+      () => hearLine([[50, g - h1], [56, g]])
+    ]);
+    return core.concat(extra);
+  },
+  kanaka(rnd, level) {
+    const w = hearBetween(rnd, 12, 15), top = hearBetween(rnd, 42, 48), bot = 82, hl = hearBetween(rnd, 30, 36);
+    const core = [hearPoly([[50 - w, top], [50 + w, top], [50 + w + 5, bot], [50 - w - 5, bot]]),
+      hearPoly([[50 + w, top + 6], [50 + w + hl, top - 6], [50 + w + hl + 1, top - 1], [50 + w + 1, top + 11]])];
+    const extra = hearExtras(rnd, level, [
+      () => hearPoly([[50 - w, top], [50 - w - 7, top - 6], [50 - w + 3, top]]),
+      () => [hearLine([[46, top - 6], [42, top - 16], [46, top - 26]]), hearLine([[54, top - 6], [50, top - 16], [54, top - 26]])],
+      () => hearLine([[50 - w - 10, bot + 6], [50 + w + 10, bot + 6]]),
+      () => hearRect(8, bot - 14, 14, 14)
+    ]);
+    return core.concat(extra);
+  },
+  foulcart(rnd, level) {
+    const x = hearBetween(rnd, 10, 16), w = hearBetween(rnd, 56, 64), y = hearBetween(rnd, 54, 58), h = 20, r = hearBetween(rnd, 7, 9);
+    const px = x + w * 0.5, pw = hearBetween(rnd, 14, 18);
+    const core = [hearRect(x, y, w, h), hearCircle(x + w * 0.2, y + h + r - 2, r), hearCircle(x + w * 0.8, y + h + r - 2, r),
+      hearPoly([[px - pw, y], [px - pw - 5, y - 12], [px - pw * 0.6, y - 24], [px + pw * 0.6, y - 24], [px + pw + 5, y - 12], [px + pw, y]])];
+    const extra = hearExtras(rnd, level, [
+      () => hearLine([[x + w, y + 4], [x + w + 18, y - 4]]),
+      () => hearCircle(px, y - 28, 3),
+      () => hearRect(x + 6, y + 5, w * 0.3, 10),
+      () => hearLine([[2, y + h + r * 2], [98, y + h + r * 2]])
+    ]);
+    return core.concat(extra);
+  },
+  tabla(rnd, level) {
+    const R = hearBetween(rnd, 20, 24), top = hearBetween(rnd, 20, 26), neck = hearBetween(rnd, 56, 60), nw = hearBetween(rnd, 6, 8);
+    const core = [hearEllipse(50, top, R, 6), hearPoly([[50 - R, top], [50 + R, top], [50 + nw + 4, neck - 6], [50 + nw, neck], [50 + nw + 10, 88], [50 - nw - 10, 88], [50 - nw, neck], [50 - nw - 4, neck - 6]])];
+    const extra = hearExtras(rnd, level, [
+      () => hearLine([[50 - R + 4, top + 10], [50 - R / 2, top + 16], [50, top + 10], [50 + R / 2, top + 16], [50 + R - 4, top + 10]]),
+      () => hearLine([[50 - nw - 4, neck - 6], [50 + nw + 4, neck - 6]]),
+      () => hearEllipse(50, 88, nw + 10, 3)
+    ]);
+    return core.concat(extra);
+  },
+  palm(rnd, level) {
+    const bend = hearBetween(rnd, -6, 6), tx = 50 + bend, ty = hearBetween(rnd, 30, 36);
+    const core = [hearPoly([[46, 92], [54, 92], [tx + 2, ty], [tx - 2, ty]]),
+      hearLine([[tx, ty], [tx - 16, ty - 6], [tx - 30, ty + 6]]), hearLine([[tx, ty], [tx - 12, ty - 16], [tx - 26, ty - 18]]),
+      hearLine([[tx, ty], [tx + 12, ty - 16], [tx + 26, ty - 18]]), hearLine([[tx, ty], [tx + 16, ty - 6], [tx + 30, ty + 6]])];
+    const extra = hearExtras(rnd, level, [
+      () => [hearCircle(tx - 4, ty + 5, 3), hearCircle(tx + 4, ty + 5, 3)],
+      () => hearLine([[tx, ty], [tx - 2, ty - 18], [tx - 4, ty - 26]]),
+      () => hearLine([[6, 92], [94, 92]]),
+      () => [hearLine([[47, 78], [53, 78]]), hearLine([[48, 64], [53, 64]]), hearLine([[48, 50], [53, 50]])]
+    ]);
+    return core.concat(extra);
+  },
+  umbrella(rnd, level) {
+    const R = hearBetween(rnd, 32, 38), cy = hearBetween(rnd, 40, 46), tilt = hearBetween(rnd, -0.15, 0.15);
+    const arc = [];
+    for (let i = 0; i <= 8; i++) {
+      const a = Math.PI + (i / 8) * Math.PI + tilt;
+      arc.push([hearRound1(50 + Math.cos(a) * R), hearRound1(cy + Math.sin(a) * R * 0.7)]);
+    }
+    const core = [hearPoly(arc), hearLine([[50, cy - R * 0.7 * Math.cos(tilt)], [50 + tilt * 30, 90]])];
+    const extra = hearExtras(rnd, level, [
+      () => hearLine([[4, 90], [96, 90]]),
+      () => hearCircle(hearPick(rnd, [16, 84]), 82, 7),
+      () => [hearLine([[50, cy - R * 0.7], [arc[2][0], arc[2][1]]]), hearLine([[50, cy - R * 0.7], [arc[6][0], arc[6][1]]])],
+      () => hearRect(56, 84, 30, 6)
+    ]);
+    return core.concat(extra);
+  },
+  melon(rnd, level) {
+    const rx = hearBetween(rnd, 32, 38), ry = hearBetween(rnd, 20, 25), cx = 50, cy = hearBetween(rnd, 50, 56);
+    const core = [hearEllipse(cx, cy, rx, ry), hearLine([[cx - rx * 0.5, cy - ry * 0.85], [cx - rx * 0.6, cy], [cx - rx * 0.5, cy + ry * 0.85]]),
+      hearLine([[cx, cy - ry], [cx - 2, cy], [cx, cy + ry]]), hearLine([[cx + rx * 0.5, cy - ry * 0.85], [cx + rx * 0.6, cy], [cx + rx * 0.5, cy + ry * 0.85]])];
+    const extra = hearExtras(rnd, level, [
+      () => hearLine([[cx + 2, cy - ry], [cx + 6, cy - ry - 8]]),
+      () => hearEllipse(cx, cy + ry + 6, rx + 8, 4),
+      () => hearPoly([[cx + rx - 6, cy + ry + 2], [cx + rx + 14, cy + ry + 2], [cx + rx + 4, cy + ry - 14]])
+    ]);
+    return core.concat(extra);
+  },
+  camel(rnd, level) {
+    const by = hearBetween(rnd, 46, 52), bw = hearBetween(rnd, 22, 26), hx = 50 - bw * 0.2;
+    const core = [hearEllipse(46, by, bw, 11), hearPoly([[hx - 15, by - 7], [hx - 9, by - 20], [hx, by - hearBetween(rnd, 25, 29)], [hx + 9, by - 20], [hx + 15, by - 7]]),
+      hearPoly([[46 + bw - 6, by - 4], [80, by - 30], [86, by - 28], [46 + bw + 2, by + 4]]), hearEllipse(85, by - 32, 7, 4),
+      hearLine([[30, by + 8], [28, 90]]), hearLine([[38, by + 10], [38, 90]]), hearLine([[56, by + 10], [56, 90]]), hearLine([[62, by + 8], [64, 90]])];
+    const extra = hearExtras(rnd, level, [
+      () => hearLine([[46 - bw, by - 2], [46 - bw - 6, by + 12]]),
+      () => hearLine([[4, 90], [96, 90]]),
+      () => hearCircle(hearPick(rnd, [12, 88]), 12, 6),
+      () => hearRect(hx + 8, by - 14, 12, 6)
+    ]);
+    return core.concat(extra);
+  },
+  fez(rnd, level) {
+    const bw = hearBetween(rnd, 20, 24), tw = hearBetween(rnd, 12, 15), top = hearBetween(rnd, 30, 36), bot = 80;
+    const core = [hearPoly([[50 - bw, bot], [50 + bw, bot], [50 + tw, top], [50 - tw, top]]), hearEllipse(50, top, tw, 3),
+      hearLine([[50, top], [50 + tw + 6, top + 6], [50 + tw + 10, top + 24]])];
+    const extra = hearExtras(rnd, level, [
+      () => hearCircle(50 + tw + 10, top + 28, 3.5),
+      () => hearLine([[50 - bw + 3, bot - 10], [50 + bw - 3, bot - 10]]),
+      () => hearEllipse(50, bot + 5, bw + 10, 3)
+    ]);
+    return core.concat(extra);
+  },
+  qolla(rnd, level) {
+    const R = hearBetween(rnd, 22, 26), cy = hearBetween(rnd, 60, 64), nw = hearBetween(rnd, 7, 9), nh = hearBetween(rnd, 16, 20);
+    const ny = cy - R - nh + 3;
+    const core = [hearCircle(50, cy, R), hearRect(50 - nw, ny, nw * 2, nh), hearEllipse(50, ny, nw + 3, 3)];
+    const extra = hearExtras(rnd, level, [
+      () => hearLine([[50 - R + 4, cy - 6], [50 - R / 2, cy - 2], [50, cy - 6], [50 + R / 2, cy - 2], [50 + R - 4, cy - 6]]),
+      () => hearEllipse(50, cy + R + 3, R - 4, 3),
+      () => hearLine([[50 + nw, ny + 4], [50 + R * 0.8, cy - R * 0.6]])
+    ]);
+    return core.concat(extra);
+  },
+  bike(rnd, level) {
+    const r = hearBetween(rnd, 15, 18), y = hearBetween(rnd, 62, 68), a = 50 - hearBetween(rnd, 24, 28), b = 50 + hearBetween(rnd, 24, 28);
+    const sx = a + (b - a) * 0.38, hx = a + (b - a) * 0.8, fy = y - hearBetween(rnd, 22, 26);
+    const core = [hearCircle(a, y, r), hearCircle(b, y, r), hearLine([[a, y], [sx, fy], [hx, fy], [b, y]]), hearLine([[a, y], [50, y], [sx, fy]])];
+    const extra = hearExtras(rnd, level, [
+      () => [hearLine([[sx, fy], [sx - 2, fy - 6]]), hearLine([[sx - 8, fy - 6], [sx + 4, fy - 6]])],
+      () => hearLine([[hx, fy], [hx - 2, fy - 8], [hx + 6, fy - 10]]),
+      () => hearCircle(50, y, 3.5),
+      () => hearLine([[2, y + r + 2], [98, y + r + 2]])
+    ]);
+    return core.concat(extra);
+  },
+  teapot(rnd, level) {
+    const rx = hearBetween(rnd, 20, 24), ry = hearBetween(rnd, 16, 19), cy = hearBetween(rnd, 60, 64);
+    const core = [hearEllipse(48, cy, rx, ry), hearPoly([[48 - rx * 0.5, cy - ry + 2], [48, cy - ry - 9], [48 + rx * 0.5, cy - ry + 2]]),
+      hearPoly([[48 + rx - 2, cy - 2], [48 + rx + 18, cy - 18], [48 + rx + 20, cy - 14], [48 + rx, cy + 6]]),
+      hearLine([[48 - rx + 2, cy - 8], [48 - rx - 9, cy - 4], [48 - rx - 9, cy + 6], [48 - rx + 2, cy + 9]])];
+    const extra = hearExtras(rnd, level, [
+      () => hearCircle(48, cy - ry - 12, 3),
+      () => [hearLine([[44, cy - ry - 18], [40, cy - ry - 28]]), hearLine([[54, cy - ry - 18], [50, cy - ry - 28]])],
+      () => hearLine([[48 - rx - 14, cy + ry + 4], [48 + rx + 22, cy + ry + 4]]),
+      () => hearRect(48 + rx + 10, cy + 2, 10, 12)
     ]);
     return core.concat(extra);
   }

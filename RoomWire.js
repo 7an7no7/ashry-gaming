@@ -19,6 +19,12 @@
    its own. The holder of an order's control is never in it; who did an order
    is told once it is done (the table heard it anyway).
 
+   Mashing (the review of 1 Oct 2026): a phone's every WIRE_MASH_EVERY-th pointless
+   move in a row - a control changed or pressed that no open order waits on and that
+   fills none - costs the table WIRE_MASH_DMG damage and buzzes that phone («شكلك
+   بتلعب عشوائي!», the 'mash' event). Filling an order (by any move of yours) starts
+   the count again; so does a new level. Judged here only: a phone can't skip it.
+
    Surprises (a lobby switch, on by default): new panels every level, a
    control breaking (smoke to wipe, or turned upside down for a while), and
    «الكل يهز الموبايل!» - an order for everyone at once.
@@ -62,7 +68,7 @@ const wireAction = (room, playerId, action, payload) => {
     const surprises = typeof payload.surprises === 'boolean' ? payload.surprises : was.surprises !== false;
     const roster = people.slice(0, WIRE_MAX);
     room.secrets = {};
-    room._wire = { panels: {}, vals: {}, presses: {}, broken: {}, pend: {}, base: {}, last: {}, seq: 0, nextBreak: null, shakeAt: null };
+    room._wire = { panels: {}, vals: {}, presses: {}, broken: {}, pend: {}, base: {}, last: {}, mash: {}, seq: 0, nextBreak: null, shakeAt: null };
     room.shared = {
       settings: { place, surprises },
       place: place === 'random' ? wirePick(WIRE_PLACES) : place,
@@ -115,7 +121,13 @@ const wireAction = (room, playerId, action, payload) => {
       if (w.vals[cid] === v) return;
       w.vals[cid] = v;
     }
-    if (s.phase === 'play') wireCheck(room, cid, playerId, now);
+    if (s.phase === 'play') {
+      // Is any open order waiting on this control? Then the move is part of doing it, even
+      // when it fills nothing yet (the second of three presses, a dial on its way).
+      const wanted = Object.keys(s.orders).some(id => s.orders[id] && s.orders[id].c === cid);
+      if (wireCheck(room, cid, playerId, now)) wireMashReset(room, playerId);
+      else if (!wanted) wireMash(room, playerId, now);
+    }
     wireWrite(room);
     return;
   }
@@ -179,6 +191,7 @@ const wireReady = (room, level) => {
   w.pend = {};
   w.base = {};
   w.last = {};
+  w.mash = {};
   w.broken = {};
   w.nextBreak = s.settings.surprises ? s.startAt + wireRand(12000, 20000) : null;
   w.shakeAt = s.settings.surprises && level >= 2 && Math.random() < 0.7 ? s.startAt + wireRand(25000, 50000) : null;
@@ -219,10 +232,11 @@ const wireIssue = (room, pid, now) => {
   w.last[pid] = cid;
 };
 
-/** A control changed: every order it now satisfies is done. */
+/** A control changed: every order it now satisfies is done. How many it filled. */
 const wireCheck = (room, cid, by, now) => {
   const s = room.shared, w = room._wire;
   const c = wireControl(cid);
+  let filled = 0;
   Object.keys(s.orders).forEach(pid => {
     const o = s.orders[pid];
     if (!o || o.c !== cid || s.phase !== 'play') return;
@@ -232,9 +246,28 @@ const wireCheck = (room, cid, by, now) => {
     delete w.base[pid];
     w.pend[pid] = now + WIRE_GAP_MS;
     s.progress += 1;
+    filled += 1;
     wireEvent(room, { type: 'done', to: pid, by, c: cid, id: o.id, v: o.v, n: o.n });
     if (s.progress >= s.target) wireWin(room, now);
   });
+  return filled;
+};
+
+/** An order filled: this phone's run of pointless moves starts again. */
+const wireMashReset = (room, pid) => {
+  const w = room._wire;
+  if (w.mash) delete w.mash[pid];
+};
+
+/** A pointless move (no open order waits on that control): every third in a row is a quarter of a miss. */
+const wireMash = (room, pid, now) => {
+  const s = room.shared, w = room._wire;
+  w.mash = w.mash || {};
+  w.mash[pid] = (w.mash[pid] || 0) + 1;
+  if (w.mash[pid] % WIRE_MASH_EVERY !== 0) return;
+  s.damage = Math.round((s.damage + WIRE_MASH_DMG) * 100) / 100;
+  wireEvent(room, { type: 'mash', pid });
+  if (s.damage >= s.dmgMax) wireLose(room, 'damage');
 };
 
 const wireSetBest = (room) => {
@@ -429,6 +462,7 @@ const wirePlayerLeft = (room, playerId) => {
   delete s.orders[playerId];
   delete w.pend[playerId];
   delete w.base[playerId];
+  if (w.mash) delete w.mash[playerId];
   theirs.forEach(cid => { delete w.broken[cid]; });
   Object.keys(s.orders).forEach(pid => {
     const o = s.orders[pid];

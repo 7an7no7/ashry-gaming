@@ -577,7 +577,7 @@ function vtPaint(state, el) {
   if (hint) {
     let txt = '';
     if (side && s.settings.mistakes !== 'time' && side.strikes) txt = vtFill(t.vt_speed, { x: (1 + VAULT_SPEEDUP * side.strikes).toFixed(2).replace(/0$/, '') });
-    else if (side && s.settings.mistakes === 'time') txt = t.vt_minus;
+    else if (side && s.settings.mistakes === 'time') txt = vtFill(t.vt_minus, { s: vaultPenaltyMs(side.mistakes + 1) / 1000 });
     else if (locks.length > 1) txt = t.vt_swipe;
     else if (mine && !locks.length) txt = t.vt_read_out;
     if (hint.textContent !== txt) hint.textContent = txt;
@@ -736,7 +736,7 @@ function vtEvents(state, el) {
       vtPadJust(el, e.i);
       if (e.by === Room.me) { haptic('medium'); vtAutoNext(e.i); }
     } else if (e.type === 'mistake' && ours) {
-      vtStamp(el, 'bad', s.settings.mistakes === 'time' ? t.vt_minus15 : vtFill(t.vt_mistake_n, { n: (s.sides[e.side] || {}).strikes || e.n }));
+      vtStamp(el, 'bad', s.settings.mistakes === 'time' ? vtFill(t.vt_minus15, { s: e.pen || 15 }) : vtFill(t.vt_mistake_n, { n: (s.sides[e.side] || {}).strikes || e.n }));
       if (e.by === Room.me) haptic('heavy');
     } else if (e.type === 'lost' && ours) {
       vtStamp(el, 'bad', e.why === 'alarm' ? t.vt_lost_alarm : t.vt_lost_time);
@@ -966,7 +966,7 @@ function vtTvPaint(state, el) {
     const tx = tv.querySelector(`[data-vt-tx="${key}"]`);
     if (tx) {
       const html = s.settings.mistakes === 'time'
-        ? `<span>${escapeHTML(t.vt_tv_mistakes)}</span><b class="metric">${side.mistakes}</b>`
+        ? `<span>${escapeHTML(t.vt_tv_mistakes)}</span><b class="metric">${side.mistakes}</b>${side.done ? '' : `<span>· ${escapeHTML(vtFill(t.vt_tv_next_pen, { s: vaultPenaltyMs(side.mistakes + 1) / 1000 }))}</span>`}`
         : `<span>${escapeHTML(t.vt_tv_mistakes)}</span>${[0, 1, 2].map((k) => `<i class="${k < side.strikes ? 'is-on' : ''}">${k < side.strikes ? '✗' : '○'}</i>`).join('')}`;
       if (tx.dataset.h !== html) { tx.dataset.h = html; tx.innerHTML = html; }
     }
@@ -1012,7 +1012,7 @@ function vtTvMoment(state, el, e) {
   let msg = '';
   const who = e.by ? vtName(state, e.by) : '';
   if (e.type === 'open') msg = vtFill(who ? t.vt_tv_opened : t.vt_tv_opened_tv, { name: vtIso(who), lock: vtLockName(e.k) });
-  else if (e.type === 'mistake') msg = vtFill(t.vt_tv_mistake, { lock: vtLockName(e.k) }) + (s.settings.mistakes === 'time' ? ' · −15' : '');
+  else if (e.type === 'mistake') msg = vtFill(t.vt_tv_mistake, { lock: vtLockName(e.k) }) + (s.settings.mistakes === 'time' ? ' · −' + (e.pen || 15) : '');
   else if (e.type === 'lost') msg = (s.way === 'teams' ? t['vt_team_' + e.side] + ': ' : '') + (e.why === 'alarm' ? t.vt_lost_alarm : t.vt_lost_time);
   if (s.way === 'teams' && e.side && (e.type === 'open' || e.type === 'mistake')) msg = t['vt_team_' + e.side] + ': ' + msg;
   if (!motionOff()) {

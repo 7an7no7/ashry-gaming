@@ -22,7 +22,7 @@ Built 1 Oct 2026. The owner's rules as decided, what was decided while building,
   3-number code), النور (lights flash a colour pattern; the manual maps each colour to the button
   to press, and the map changes with the number of mistakes so far).
 - **Mistakes, the host picks:** «٣ غلطات» (each strike makes the clock run faster, the third
-  sets off the alarm and the safe is lost) or «من الوقت» (each mistake takes 15 s off).
+  sets off the alarm and the safe is lost) or «من الوقت» (each mistake takes time off: 15 s, then 30, 45…).
 - **Winning, a lobby switch:** endless levels (each safe harder, less time; the room's best kept
   for the evening; co-op, nothing on the night's board) or a fixed set of safes (3 / 5 / 7) with
   points, banked on the night's points.
@@ -50,8 +50,12 @@ All the numbers are in `Vault.js` (`vaultLevel` and the `VAULT_*` constants).
   a level, never under 2:00. «الكل» (every lock at once): 2:30, 10 s less a level, never under 1:15.
   A set of safes plays safe k at level k.
 - **Strikes:** the candle burns ×1.25 after the first, ×1.5 after the second; the third is the
-  alarm (`VAULT_SPEEDUP` 0.25). «من الوقت»: −15 s a mistake (`VAULT_PENALTY_MS`), no speed-up, the
-  safe lost when the candle is out. In «فريقين» each team has its own candle and its own mistakes.
+  alarm (`VAULT_SPEEDUP` 0.25). «من الوقت»: a safe's first mistake −15 s, the second −30, the third
+  −45… (`vaultPenaltyMs(n)` = `VAULT_PENALTY_MS` × n, back to 15 at every safe: the review of 1 Oct
+  2026 found a flat 15 s made guessing cheaper than reading), no speed-up, the safe lost when the
+  candle is out. The opener's phone says what the next one costs («الغلطة الجاية بتحرق 30 ثانية»),
+  the TV beside its mistakes count («الجاية −30 ث»), and the `mistake` event carries `pen` (seconds:
+  the stamp and the TV's line say −15, −30…; an older page's event without it reads 15). In «فريقين» each team has its own candle and its own mistakes.
 - **The safe's card:** 5 s before the candle is lit (the locks and pages are already there to
   read; nothing can be worked yet). A safe's result stays 6 s, then the next comes by itself (the
   host, or anyone once the host is away, can move on sooner: `nextSafe`, a move-on action).

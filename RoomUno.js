@@ -40,6 +40,8 @@ const UNO_CLOCKS = [0, 30, 60];
 const UNO_EVENTS = 40;
 const UNO_PILE_SHOWN = 8;          // the top of the pile the phones draw
 const UNO_GRACE_MS = 1500;
+const UNO_MAX_PLAYERS = 12;     // the catalog's players: [1, 12] (two decks from eleven)
+const UNO_DRAW_MS = 10000;      // a turn clock leaves at least this long to play or keep a card drawn
 const UNO_CATCH_DRAW = 2;          // caught without saying UNO: two cards
 const UNO_STACK_MODES = ['same', 'mixed'];
 
@@ -118,6 +120,7 @@ const unoNewGame = (room, playerId, action, p) => {
   if (action === 'playAgain' && prev.phase !== 'gameover') return;
   const n = room.players.length;
   if (n < 2) throw new Error('أونو محتاج لاعبين على الأقل: ضيف لاعب كمبيوتر');
+  if (n > UNO_MAX_PLAYERS) throw new Error('أونو لحد ' + UNO_MAX_PLAYERS + ' لاعب');
   const settings = unoSettings(p, action === 'playAgain' ? (prev.settings || {}) : {});
   const order = shuffled(room.players.map(pl => pl.id));
   room.secrets = {};
@@ -474,6 +477,8 @@ const unoDrawTurn = (room, me, until) => {
     g.drawnId = got[got.length - 1].i;
     s.turn.stage = 'drawn';
     s.turnSeq++;
+    // Drawing late used to leave a second or so to decide (review of 1 Oct 2026).
+    if (s.endsAt) s.endsAt = Math.max(s.endsAt, Date.now() + UNO_DRAW_MS);
     return;
   }
   if (!got.length) unoEvent(room, 'pass', { pid: me });

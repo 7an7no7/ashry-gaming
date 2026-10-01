@@ -1251,6 +1251,8 @@ const leave = (r, id, hook = true) => {
       'skrew: who voted is public, what they voted is not (not in shared, not in any slice, not in the events)');
     vote(r, s3, s1);
     check(r.shared.thiefVote.voted.length === 3 && r.shared.events.filter((e) => e.type === 'thiefVote').length === 3, 'skrew: a vote can be changed until the close');
+    check(r.secrets[s3].thiefVote === s1 && r.secrets[s1].thiefVote === s1 && r.secrets[s2].thiefVote === s1 && r.secrets[s0].thiefVote === null,
+      "skrew: each phone's own vote (the latest) is in its own slice, so a reload shows what it sent");
     check(threw(() => vote(r, 'zz', s1)) && threw(() => vote(r, s0, 'zz')), 'skrew: only a seated player votes, for a seated player or nobody');
     vote(r, s0, s2);
     let th = r.shared.results && r.shared.results.thief;
@@ -1898,6 +1900,27 @@ const leave = (r, id, hook = true) => {
     const seq = r.shared.turnSeq;
     applyRoomAction(r, r.hostId, 'skipTurn', { seq: seq - 1 });
     check(r.shared.turn.pid === p1, 'skrew: a stale skip is dropped');
+    {
+      // A drawn الحرامي / بونج can't be thrown: the skip puts it in one of the hand's slots at random.
+      const k = skStart(['a', 'b', 'c'], { edition: 'thief', turnClock: 30 });
+      begin(k, [['n1', 'n2'], ['n3'], ['n4']], ['n6', 'n6', 'thief'], ['n5']);
+      const k0 = k.shared.order[0];
+      sk(k, k0, 'draw');
+      check(k.secrets[k0].drawn === 'thief', 'skrew: (set-up) the thief drawn');
+      sk(k, k.hostId, 'skipTurn');
+      const kept = k._screw.hands[k0].filter((e) => e.card === 'thief');
+      const ev = k.shared.events.filter((e) => e.type === 'keep').pop();
+      check(kept.length === 1 && k._screw.hands[k0].length === 2 && ['n1', 'n2'].includes(k.shared.pile[k.shared.pile.length - 1]) &&
+        k._screw.pile.indexOf('thief') === -1 && ev && ev.pid === k0 && ev.slot === kept[0].id && k.shared.turn.pid === k.shared.order[1],
+        'skrew: a skipped turn keeps a drawn thief in a random slot (its card goes on the pile), never face up on the pile');
+      k._screw.deck.push('pong');
+      const k1 = k.shared.order[1];
+      sk(k, k1, 'draw');
+      clock += 32000;
+      roomTimeout(k, clock);
+      check(k._screw.hands[k1].map((e) => e.card).join() === 'pong' && k.shared.pile[k.shared.pile.length - 1] === 'n3',
+        'skrew: and the clock does the same with بونج');
+    }
     sk(r, p1, 'draw');
     leave(r, p1);
     check(r.shared.turn.pid === p2 && r.shared.order.length === 2 && r._screw.deck[0] === 'n2' && r._screw.deck[1] === 'n6' && !r.shared.hands[p1],
@@ -2461,6 +2484,13 @@ const leave = (r, id, hook = true) => {
   roomTimeout(d, d.shared.endsAt + 1600);
   check(d.shared.events.some((e) => e.type === 'auto' && e.pid === clockUp && e.why === 'clock') && (d.shared.turn !== clockUp || handOf(d, clockUp).length !== handsWas),
         'domino: when it runs out the phone plays for them (a tile, a draw, or a knock)');
+  // Drawing late leaves time to play what came up.
+  d = dStart(['a', 'b'], { turnClock: 30 });
+  rig(d, { a: ['0-1'], b: ['6-6'] }, [['5-5', 'R']], { turn: 'a', bone: ['2-2', '3-5', '4-4'] });
+  d.shared.endsAt = clock + 1000;
+  applyRoomAction(d, 'a', 'draw', { seq: d.shared.turnSeq });
+  check(d.shared.turn === 'a' && handOf(d, 'a').length > 1 && d.shared.endsAt === clock + 10000,
+        'domino: after a draw the turn clock leaves at least 10 seconds');
 
   // The host moves a quiet phone on, the same way.
   d = dStart(['a', 'b', 'c']);
@@ -3227,6 +3257,19 @@ Date.now = duelTestClock;
     check(threw(() => u(h, 'c', 'skipTurn')), 'uno: only the host skips a turn');
     u(h, 'a', 'skipTurn');
     check(hand(h, seat(h, 1)).length === 3 && up(h) === seat(h, 2), "uno: the host's skip plays for a quiet phone: one card, and on");
+    // Drawing late leaves time to play or keep what came up.
+    const late = unoStart(['a', 'b', 'c'], { turnClock: 30 });
+    setTable(late, [['b5', 'b6'], ['r1'], ['g2']], 'y9', { deck: ['y1', 'y2', 'y3'] });
+    late.shared.endsAt = clock + 1000;
+    u(late, seat(late, 0), 'draw');
+    check(late.shared.turn.stage === 'drawn' && late.shared.endsAt === clock + 10000 && !roomTimeout(late, clock + 2600),
+      'uno: a card drawn that fits gets at least 10 seconds on the clock');
+    // Up to twelve players.
+    const ids13 = 'abcdefghijklm'.split('');
+    const big = newRoom(ids13);
+    applyRoomAction(big, 'a', 'chooseGame', { game: 'uno' });
+    check(threw(() => applyRoomAction(big, 'a', 'start', {})) && big.phase === 'lobby', 'uno: thirteen players are refused');
+    check(unoStart(ids13.slice(0, 12)).shared.order.length === 12, 'uno: twelve are dealt');
   }
 
   {
@@ -9867,16 +9910,21 @@ Date.now = duelTestClock;
     G(r).hands[B] = G(r).hands[B].filter((i) => faceOf(r, B, i) === 'skull');
     clock = roomDeadline(r) + 1;
     roomTimeout(r, clock);
-    check(s.phase === 'bid' && s.bid.pid === B && s.bid.n === 1, 'skull: no flower in hand: the clock bets 1');
+    check(s.phase === 'add' && s.piles[B] === 2 && faceOf(r, B, G(r).piles[B][1]) === 'skull' && !s.bid && up(r) === C,
+      'skull: only the skull in hand: the clock adds it (a bet would tell the table the hand is the skull)');
+    G(r).hands[C] = [];
     clock = roomDeadline(r) + 1;
     roomTimeout(r, clock);
-    check(s.passed.indexOf(C) !== -1, 'skull: in the auction the clock passes');
+    check(s.phase === 'bid' && s.bid.pid === C && s.bid.n === 1, 'skull: nothing left in hand: the clock bets 1');
+    clock = roomDeadline(r) + 1;
+    roomTimeout(r, clock);
+    check(s.passed.indexOf(A) !== -1, 'skull: in the auction the clock passes');
     check(threw(() => applyRoomAction(r, s.order.find((id) => id !== r.hostId), 'skipTurn', { seq: s.turnSeq })), 'skull: "play for" is the host\'s');
     applyRoomAction(r, r.hostId, 'skipTurn', { seq: s.turnSeq });
     check(s.phase === 'guess', 'skull: the host plays for a quiet phone the way the clock would');
     clock = roomDeadline(r) + 1;
     roomTimeout(r, clock);
-    check(s.phase === 'flip' && up(r) === B, 'skull: «هيعملها؟» closes by itself');
+    check(s.phase === 'flip' && up(r) === C, 'skull: «هيعملها؟» closes by itself');
     clock = roomDeadline(r) + 1;
     roomTimeout(r, clock);
     check(S(r).flip.own === true, 'skull: when flipping, your own pile is turned over for you (or by the clock)');

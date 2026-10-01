@@ -488,8 +488,12 @@ const skullAuto = (room, why, only) => {
   const me = s.turn.pid;
   skullEvent(room, 'auto', { pid: me, why: why });
   if (s.phase === 'add') {
+    // A flower if they hold one, else the skull: bidding only when the hand holds
+    // nothing, so the clock's move never tells the table a hand is the skull alone
+    // (review of 1 Oct 2026: it used to bid whenever no flower was left).
     const disc = skullFlowerInHand(room, me);
-    if (disc !== undefined) skullAdd(room, me, disc);
+    const any = disc !== undefined ? disc : (g.hands[me] || [])[0];
+    if (any !== undefined) skullAdd(room, me, any);
     else skullBid(room, me, 1);
     return;
   }

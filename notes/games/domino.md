@@ -44,7 +44,8 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     their heads - and a tile that doesn't fit is still refused.
   - **A turn clock**, off by default, 30 or 60 seconds: when it runs out the
     phone plays for the player (the first tile that fits, else draw, else
-    knock). The host also gets a small button to play for a phone that went
+    knock). A draw leaves at least 10 seconds to play (`DOMINO_DRAW_MS`), and
+    «العب تاني» sends no options, so the server keeps the last game's. The host also gets a small button to play for a phone that went
     quiet, on the phone and the TV.
   - **Every lobby setting is remembered on the host's phone.**
   - **Computer players**: easy plays the first tile that fits; hard plays to

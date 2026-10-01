@@ -310,6 +310,18 @@ function csReplay(g, s, rounds, from) {
   return out;
 }
 
+/** The first round from `from` on whose typed input no longer passes its check against the game before it, or -1. */
+function csStaleRound(g, s, from, t) {
+  for (let k = from; k < s.rounds.length; k++) {
+    const r = s.rounds[k];
+    if (!r || !r.input) continue;
+    let problem = '';
+    try { problem = g.check(r.input, csAsOf(s, k), t); } catch (e) { problem = ''; }
+    if (problem) return k;
+  }
+  return -1;
+}
+
 function csTotals(id) {
   const s = csState(id);
   return s.seats.map((_, i) => csSum(s.rounds.map(r => r.points[i])));
@@ -582,6 +594,24 @@ function saveCardScoreRound(id) {
   if (typeof s.editing === 'number' && s.rounds[s.editing]) {
     s.rounds[s.editing] = roundObj;
     s.rounds = csReplay(g, s, s.rounds, s.editing + 1);
+    // A fix can change who was in a later round (كونكان: a player brought back
+    // under 101 had no points typed there, and was scored 0 silently - the
+    // review of 1 Oct 2026). The first later round that no longer passes its
+    // check opens for fixing, with a word saying why.
+    const stale = csStaleRound(g, s, s.editing + 1, t);
+    if (stale !== -1) {
+      s.draft = Object.assign({}, s.rounds[stale].draft || {});
+      s.editing = stale;
+      s.phase = 'play';
+      delete s.winTeam;
+      saveToLocal();
+      showToast((t.cs_fix_next || 'صلّح الجولة {n} كمان: اتغيّر مين بيلعب فيها').replace('{n}', stale + 1), 'error');
+      haptic('medium');
+      paintCardScore(id);
+      const entryNow = document.getElementById('cs-entry');
+      if (typeof scrollToAction === 'function') scrollToAction(entryNow);
+      return;
+    }
     delete s.editing;
     // Back to the new round's card as it was being typed before the fix.
     s.draft = s.newDraft || {};

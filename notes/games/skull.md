@@ -31,8 +31,10 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
       shown on every result and at the end; the night's board is games won.
     - **The result stays 6.5 s, then the next round deals itself**; the host
       (or anyone once the host is away) can deal it sooner.
-    - **The clock before a bet adds a flower, or bets 1 when the hand holds
-      only the skull** (nobody can pass before a bet); in the first laying it
+    - **The clock before a bet adds a flower, else the skull, and bets 1 only
+      when the hand is empty** (nobody can pass before a bet). It used to bet
+      when only the skull was left, which told the table so (the review of
+      1 Oct 2026, the owner approved the fix); in the first laying it
       lays a flower, or the skull; the host's "play for" lays for every quiet
       phone at once.
     - **Leaving**: a pile leaves the table with its player; a bet above what is

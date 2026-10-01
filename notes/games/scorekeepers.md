@@ -30,6 +30,11 @@ setup screen with the most common first. The engine draws the totals (the
 leader crowned; Konkan's `low` crowns the lowest), the round card, and the
 history with **take back the last round**: every round is saved with what was
 on the card (`csDraftOf`), so taking it back puts exactly that back to fix.
+A fixed earlier round scores the later ones again (`csReplay`); if one of them
+no longer passes its check against the game before it (كونكان: someone brought
+back under 101 has no points typed there, or the winner is now out), it opens
+for fixing next with «صلّح الجولة N كمان» (`csStaleRound`) instead of scoring
+the gap as 0. سكرو's table card refuses a thief holder who is the finisher.
 Totals count up from what each row showed before the round (a team row sums
 two seats). Upright it is one column; sideways and on wide screens the totals
 and history sit beside the round card (`.cs-layout`). All of it is restored

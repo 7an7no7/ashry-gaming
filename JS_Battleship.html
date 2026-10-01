@@ -2189,7 +2189,7 @@ if (typeof onLeaveScreen === 'function') {
 // fleet: the fleet this phone is placing (fleetKey: which deal it is for); aim: the square aimed at
 // this turn; peek: the sea asked for this turn; sent: a shot sent and not answered; flying: the shot
 // whose shell is in the air; seen: the newest shot this phone has shown.
-const bsRoomLocal = { fleet: null, fleetKey: '', aim: -1, aimKey: '', peek: null, peekKey: '', sent: '', flying: '', seen: null, turnKey: '', turnSince: 0, clock: null, clockKey: null };
+const bsRoomLocal = { fleet: null, fleetKey: '', aim: -1, aimKey: '', peek: null, peekKey: '', sent: '', flying: '', seen: null, turnKey: '', turnSince: 0, clock: null, clockKey: null, hostTimer: null, hostTimerKey: '' };
 const BS_DRAFT_KEY = 'ashryBsDraft';
 
 const bsRoomSeat = (state) => (state.youAreScreen ? -1 : ((state.shared || {}).seats || []).indexOf(Room.me));
@@ -2204,14 +2204,34 @@ function bsRoomDraft(state) {
     let saved = null;
     try { const d = JSON.parse(sessionStorage.getItem(BS_DRAFT_KEY) || 'null'); if (d && d.key === key && !bsFleetProblem(d.fleet)) saved = d.fleet; } catch (e) {}
     bsRoomLocal.fleet = saved || ((state.you || {}).fleet || null);
+    // A board kept across a reload: the server hears it again, so the clock sails with it.
+    if (saved && seat !== -1 && s.phase === 'place' && !(s.ready || [])[seat]) setTimeout(() => bsRoomSendDraft(saved), 0);
   }
   return bsRoomLocal.fleet;
+}
+
+/**
+ * The board as it stands, to the server (not ready): when placing time runs out, or the host
+ * sails for this phone, it sails with the fleet on this screen, not one it never saw. Quiet:
+ * a refusal (ready already, the game moved on, a server from before drafts) changes nothing here.
+ */
+function bsRoomSendDraft(fleet) {
+  const st = Room.state;
+  if (!st || st.game !== 'battleship' || !fleet || bsFleetProblem(fleet)) return;
+  let p = { fleet: fleet };
+  if (st.shared && st.shared.tour && typeof tourFocusState === 'function') {
+    const ms = tourFocusState(st);
+    if (!ms) return;
+    p = Object.assign(p, { match: ms.shared.tourMid, mg: ms.shared.tourGames });
+  }
+  try { Promise.resolve(Room.act('draft', p)).catch(() => {}); } catch (e) {}
 }
 
 function bsRoomSetFleet(fleet) {
   if (bsFleetProblem(fleet)) return;
   bsRoomLocal.fleet = fleet;
   try { sessionStorage.setItem(BS_DRAFT_KEY, JSON.stringify({ key: bsRoomLocal.fleetKey, fleet: fleet })); } catch (e) {}
+  bsRoomSendDraft(fleet);
   bsRoomRedraw();
 }
 
@@ -2453,10 +2473,30 @@ function bsHostRow(state, tv) {
     const p = (state.players || []).find(x => x.id === id);
     return p && id !== Room.me && (!p.online || Date.now() - bsRoomLocal.turnSince > 40000);
   });
-  if (!quiet) return '';
+  if (!quiet) {
+    // Nothing else may change in 40 seconds (the clock is off): the row is drawn when it is due.
+    if (bsRoomLocal.hostTimerKey !== key) {
+      bsRoomLocal.hostTimerKey = key;
+      clearTimeout(bsRoomLocal.hostTimer);
+      bsRoomLocal.hostTimer = setTimeout(bsHostRowDue, Math.max(0, bsRoomLocal.turnSince + 40500 - Date.now()));
+    }
+    return '';
+  }
   const label = '⏭️ ' + bsT(s.phase === 'place' ? 'bs_sail_for' : 'bs_play_for');
   const press = `duelAct('skipTurn', { seq: ${Number(s.turnSeq) || 0} })`;
   return tv ? `<div class="tv-actions">${tvBtn(label, press, 'ghost')}</div>` : roomHostRow([[label, press]]);
+}
+
+/** The host's row has come due: the screen showing the game draws it (the TV through its own renderer). */
+function bsHostRowDue() {
+  bsRoomLocal.hostTimer = null;
+  const st = Room.state;
+  if (!st || st.game !== 'battleship' || st.phase === 'lobby') return;
+  if (st.youAreScreen) {
+    if (appState.currentView === 'room-tv' && typeof onRoomView === 'function' && onRoomView()) routeRoomState(st);
+    return;
+  }
+  bsRoomRedraw();
 }
 
 /* --- the phone's clock ---------------------------------------------------------- */
@@ -2551,7 +2591,7 @@ ROOM_GAMES.battleship = {
     const hostRow = el.querySelector('[data-bs-hostrow]');
     if (hostRow) { const html = bsHostRow(state); if (hostRow._html !== html) { hostRow.innerHTML = html; hostRow._html = html; } }
     bsTickClock(state);
-    duelPillsAfter(el, 'bsr|' + state.code, {
+    duelPillsAfter(el, duelRoomPillKey('bsr', state), {
       turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1,
       scores: [0, 1].map(k => bsScoreShown((s.scores || {})[s.seats[k]], k, s.last, flying, s.phase === 'over'))
     });
@@ -2564,6 +2604,9 @@ ROOM_GAMES.battleship = {
 
 onRoomClocksReset(() => {
   bsStopClock();
+  clearTimeout(bsRoomLocal.hostTimer);
+  bsRoomLocal.hostTimer = null;
+  bsRoomLocal.hostTimerKey = '';
   bsRoomLocal.aim = -1;
   bsRoomLocal.peek = null;
   bsRoomLocal.sent = '';
@@ -2607,7 +2650,7 @@ TV_GAMES.battleship = {
       <div class="tv-scale">${duelRoomLineHtml(state, t, true)}</div>`;
     if (side && side._bsHtml !== html) { side.innerHTML = html; side._bsHtml = html; }
     bsTickClock(state);
-    duelPillsAfter(view, 'bstv|' + state.code, {
+    duelPillsAfter(view, duelRoomPillKey('bstv', state), {
       turn: flying && s.last ? s.last.seat : s.phase === 'play' ? s.turn : -1,
       scores: [0, 1].map(k => bsScoreShown((s.scores || {})[s.seats[k]], k, s.last, flying, s.phase === 'over'))
     });

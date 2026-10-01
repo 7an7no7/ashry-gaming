@@ -261,6 +261,8 @@ turn and the bar in a column beside it.
 on كونكت ٤'s or نقط ومربعات's setup while a game is left in the middle ends that game (its
 Continue goes), so the phone never takes a friend's seat.
 
+**The pills' memory is the pair's (the review of 1 Oct 2026).** `duelPillsAfter` in a room is keyed by `duelRoomPillKey(prefix, state)`: the room and the two seated ids, so the next in line's pill never counts up from the score of whoever sat there before (كونكت ٤, نقط ومربعات, إكس أو, and خمّن مين and حرب السفن, which share it).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

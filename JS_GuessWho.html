@@ -702,10 +702,11 @@ function gwTickClock(state) {
       const left = paint();
       const st = duelRoomState();
       const seats = (st && st.shared.seats) || [];
-      // Picking, the clock is everyone's who hasn't picked yet; playing, the one up's.
+      // Picking, the clock is everyone's who hasn't picked yet; playing, the one up's: the asker,
+      // or while a question waits for its answer, the one answering.
       const mine = st && st.game === 'guesswho' && (st.shared.phase === 'pick'
         ? seats.indexOf(Room.me) !== -1 && !(st.shared.picked || [])[seats.indexOf(Room.me)]
-        : seats[st.shared.turn] === Room.me);
+        : seats[st.shared.stage === 'answer' ? 1 - st.shared.turn : st.shared.turn] === Room.me);
       if (left > 0 && left <= 5 && (st && (st.youAreScreen || mine))) playSound('tick');
     },
     onEnd: () => { gwLocal.clock = null; paint(); }
@@ -855,7 +856,7 @@ ROOM_GAMES.guesswho = {
         if (card && el.contains(card)) gwTapFace(card);
       });
     }
-    duelPillsAfter(el, 'gw|' + state.code, {
+    duelPillsAfter(el, duelRoomPillKey('gw', state), {
       turn: s.phase === 'play' ? s.turn : -1,
       scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
     });
@@ -882,7 +883,8 @@ onRoomClocksReset(() => {
 /* --- the TV: both boards, the question between them ------------------------------ */
 
 TV_GAMES.guesswho = {
-  sig: (state) => gwSig(state),
+  // The seated two's presence too: the host's «play for» (gwHostRow) shows at once for one that's away.
+  sig: (state) => gwSig(state) + '|' + ((state.shared || {}).seats || []).map(id => { const p = (state.players || []).find(x => x.id === id); return p && p.online ? 1 : 0; }).join(''),
   frame(state, t) {
     const s = state.shared || {};
     if (!Array.isArray(s.faces)) return tvLookAtPhones(t);
@@ -915,7 +917,7 @@ TV_GAMES.guesswho = {
     if (!rebuilt || !view) return;
     const f = gwLocal.tvFalls || [[], []];
     [0, 1].forEach(i => gwFall(view.querySelector('[data-gw-seat="' + i + '"] .gw-board'), f[i]));
-    duelPillsAfter(view, 'gwtv|' + state.code, {
+    duelPillsAfter(view, duelRoomPillKey('gwtv', state), {
       turn: state.shared.phase === 'play' ? state.shared.turn : -1,
       scores: [(state.shared.scores || {})[state.shared.seats[0]] || 0, (state.shared.scores || {})[state.shared.seats[1]] || 0]
     });

@@ -104,7 +104,11 @@ const TOUR_CLIENT = {
 
 // view: null (by itself), 'bracket', or a match id picked to watch; autoKey: this phone's own match
 // the last time it was drawn; filled: the bracket slots already drawn, per tournament; dealt: the draws flown.
-const tourLocal = { view: null, autoKey: '', filled: {}, dealt: {}, loop: null };
+// tourKey: the tournament this phone last drew (a new one starts on its own screen again).
+const tourLocal = { view: null, autoKey: '', filled: {}, dealt: {}, loop: null, tourKey: '' };
+
+/** One tournament, unlike any other in the room: its id (its number on a server from before ids). */
+const tourKeyOf = (tr) => String((tr && (tr.id || tr.no)) || '');
 
 /**
  * The server's time as this phone best knows it: a match's startAt is the
@@ -180,7 +184,7 @@ function tourAutoId(state) {
 function tourSyncAuto(state) {
   const tr = state.shared.tour;
   const mine = tourMine(tr);
-  const key = [state.code, tr.no, mine ? mine.id + ':' + mine.state + ':' + mine.games : ''].join('|');
+  const key = [state.code, tourKeyOf(tr), mine ? mine.id + ':' + mine.state + ':' + mine.games : ''].join('|');
   if (key === tourLocal.autoKey) return;
   const wasNew = tourLocal.autoKey !== '';
   tourLocal.autoKey = key;
@@ -379,7 +383,7 @@ function tourPodiumHtml(state, tv) {
   if (tr.runnerUp) places.push({ id: tr.runnerUp, rank: 2, label: tourT('tour_runner') });
   (tr.semis || []).forEach(id => places.push({ id: id, rank: 3, label: tourT('tour_semi') }));
   if (!places.length) return '';
-  const rise = motionFirst(['tour-podium', state.code, tr.no, tv ? 'tv' : 'p'].join('|'));
+  const rise = motionFirst(['tour-podium', state.code, tourKeyOf(tr), tv ? 'tv' : 'p'].join('|'));
   const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
   // Third first, then second, the champion last.
   const atOf = (p, i) => 150 + (p.rank === 3 ? i % 2 * 180 : p.rank === 2 ? 900 : 1500);
@@ -571,7 +575,7 @@ function tourFly(fromRect, toEl, html, delay) {
 /** The draw: every first-round name flies in from the middle of the bracket into its slot, one after another. */
 function tourDealDraw(root, state) {
   const tr = state.shared.tour;
-  const key = [state.code, tr.no].join('|');
+  const key = [state.code, tourKeyOf(tr)].join('|');
   if (tourLocal.dealt[key]) return;
   tourLocal.dealt[key] = true;
   // Only a draw just made: a reload or a phone arriving later sees the bracket as it is.
@@ -593,7 +597,7 @@ function tourDealDraw(root, state) {
 /** A slot filled since this screen last drew the bracket: the winner's name flies there from the match they won. */
 function tourFlyWinners(root, state) {
   const tr = state.shared.tour;
-  const key = [state.code, tr.no].join('|');
+  const key = [state.code, tourKeyOf(tr)].join('|');
   const now = new Set();
   tr.matches.forEach(m => [0, 1].forEach(k => { if (m.r > 1 && m.p[k]) now.add(m.id + ':' + k); }));
   const seen = tourLocal.filled[key];
@@ -624,20 +628,20 @@ const tourSeen = new Set();
 function tourFirstSight(state) {
   const tr = (state.shared || {}).tour;
   if (!tr) return;
-  const k = state.code + '|' + tr.no;
+  const k = state.code + '|' + tourKeyOf(tr);
   if (tourSeen.has(k)) return;
   tourSeen.add(k);
   if (tr.phase !== 'over') return;
   ['p', 'tv'].forEach((w) => {
-    if (typeof motionFirst === 'function') motionFirst(['tour-podium', state.code, tr.no, w].join('|'));
-    duelOnce(['tour-cheer', state.code, tr.no, w].join('|'));
+    if (typeof motionFirst === 'function') motionFirst(['tour-podium', state.code, tourKeyOf(tr), w].join('|'));
+    duelOnce(['tour-cheer', state.code, tourKeyOf(tr), w].join('|'));
   });
 }
 
 /** The end, once per tournament on this screen: the podium has risen, then the confetti and the fanfare. */
 function tourCheer(root, state) {
   const tr = state.shared.tour;
-  if (tr.phase !== 'over' || !tr.champion || !duelOnce(['tour-cheer', state.code, tr.no, state.youAreScreen ? 'tv' : 'p'].join('|'))) return;
+  if (tr.phase !== 'over' || !tr.champion || !duelOnce(['tour-cheer', state.code, tourKeyOf(tr), state.youAreScreen ? 'tv' : 'p'].join('|'))) return;
   if (tr.champion === Room.me) haptic('double');
   afterReveal(root, () => {
     if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 160, spread: 90, origin: { y: 0.55 } });
@@ -665,7 +669,7 @@ function tourSig(state, focus) {
     const kind = TOUR_CLIENT[state.game];
     return [m.id, g.phase, g.moves, g.turn, g.turnSeq, g.shots, kind && kind.liveSig ? kind.liveSig(g) : ''].join(':');
   }).join(',') : '';
-  return ['tour', state.code, tr.no, tr.phase, focus || '', tourLocal.view || '', tr.featured || '', live,
+  return ['tour', state.code, tourKeyOf(tr), tr.phase, focus || '', tourLocal.view || '', tr.featured || '', live,
     JSON.stringify(tr.matches.map(m => [m.state, m.p, m.winner, m.games, m.draws, m.startAt])),
     JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name + (p.online ? 1 : 0)).join(','),
     state.youAreHost, appState.lang].join('|');
@@ -793,7 +797,7 @@ function tourWrap(id) {
     const tr = state.shared.tour;
     const focus = tourFocusId(state);
     const ms = focus ? tourMatchState(state, focus) : null;
-    return [state.code, 'tour', tr.no, tr.phase, focus || 'bracket', ms && orig.actionKey ? orig.actionKey(ms) : ''].join('|');
+    return [state.code, 'tour', tourKeyOf(tr), tr.phase, focus || 'bracket', ms && orig.actionKey ? orig.actionKey(ms) : ''].join('|');
   };
   game.lobbyOptions = (state) => (orig.lobbyOptions ? orig.lobbyOptions(state) : '') + tourLobbyHtml(state, id);
   game.startPayload = () => {
@@ -836,6 +840,8 @@ Object.keys(TOUR_CLIENT).forEach(tourWrap);
 onRoomClocksReset(() => {
   const st = Room.state;
   // A new tournament, another game or the hub: this phone shows its own screen again.
-  if (!st || !tourOn(st)) { tourLocal.view = null; tourLocal.autoKey = ''; }
+  const key = st && tourOn(st) ? tourKeyOf(st.shared.tour) : '';
+  if (!key || key !== tourLocal.tourKey) { tourLocal.view = null; tourLocal.autoKey = ''; }
+  tourLocal.tourKey = key;
 });
 </script>

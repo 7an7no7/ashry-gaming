@@ -5108,8 +5108,19 @@ Date.now = duelTestClock;
   r = bsRoom(['a', 'b'], { turnClock: 15 });
   s = r.shared;
   check(s.settings.turnClock === 15 && s.endsAt && roomDeadline(r) === s.endsAt + 1500, 'battleship room: with a clock on, placing has one too, on the server');
+  // The phone sends its board as a draft after every change (not ready): the clock sails with it.
+  const drafted = rows();
+  const dSeat = s.seats.indexOf('b');
+  applyRoomAction(r, 'b', 'draft', { fleet: touching });
+  check(JSON.stringify(r._bs.fleets[dSeat]) !== JSON.stringify(touching), 'battleship room: a draft with ships touching is dropped');
+  applyRoomAction(r, 'b', 'draft', { fleet: drafted });
+  check(!s.ready[dSeat] && s.phase === 'place' && JSON.stringify(r._bs.fleets[dSeat]) === JSON.stringify(drafted) &&
+    JSON.stringify(r.secrets.b.fleet) === JSON.stringify(drafted), 'battleship room: a draft keeps the board as it stands without making the player ready');
   roomTimeout(r, s.endsAt + 2000);
   check(s.phase === 'play' && s.ready[0] && s.ready[1] && s.endsAt > 0, 'battleship room: when placing runs out, both sail with the fleet on their board');
+  check(JSON.stringify(r._bs.fleets[dSeat]) === JSON.stringify(drafted), "battleship room: the fleet that sails is the one last on the phone's board, not one it never saw");
+  applyRoomAction(r, 'b', 'draft', { fleet: BS.bsRandomFleet() });
+  check(JSON.stringify(r._bs.fleets[dSeat]) === JSON.stringify(drafted), 'battleship room: a draft once the fleets are at sea changes nothing');
   const before = s.shots;
   const turnWas = s.turn;
   roomTimeout(r, s.endsAt + 2000);
@@ -6756,10 +6767,12 @@ Date.now = duelTestClock;
   {
     const r = room('connect4', people(4), { tournament: true });
     const t = r.shared.tour;
+    const firstDeals = new Set();
     for (let guard = 0; guard < 3000 && t.phase === 'play'; guard++) {
       const m = t.matches.find((x) => x.state === 'play');
       if (!m) { toClock(r); continue; }
       const g = r.shared.games[m.id];
+      firstDeals.add(g.dealId).add(g.round);
       try { applyRoomAction(r, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * 7), move: g.moves, match: m.id, mg: m.games }); } catch (e) {}
     }
     const champ = t.champion;
@@ -6790,7 +6803,15 @@ Date.now = duelTestClock;
     const g = r.shared;
     for (let guard = 0; guard < 200 && g.phase === 'play'; guard++) { try { applyRoomAction(r, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * 7), move: g.moves }); } catch (e) {} }
     applyRoomAction(r, 'a', 'tourNew', { mode: 'tour', round: r.shared.round });
-    check(r.shared.tour && r.shared.tour.no === 1 && Object.keys(r.shared.scores).length === 0, 'tournament: from winner stays, a tournament starts its points afresh');
+    check(r.shared.tour && r.shared.tour.phase === 'play' && Object.keys(r.shared.scores).length === 0, 'tournament: from winner stays, a tournament starts its points afresh');
+    // A third tournament (winner stays between) is still new to the phones: its number goes on, its id
+    // is its own, and its matches' deals and rounds are none of the first one's - the motion, the sounds
+    // and the confetti are keyed on them.
+    const t3 = r.shared.tour;
+    for (let guard = 0; guard < 20 && !t3.matches.some((x) => x.state === 'play'); guard++) toClock(r);
+    const g3 = r.shared.games[t3.matches.find((x) => x.state === 'play').id];
+    check(t3.no === 3 && t3.id && t3.id !== t.id && t3.id !== t2.id && !firstDeals.has(g3.dealId) && !firstDeals.has(g3.round),
+      'tournament: every tournament of a room has its own number and id, carried into the deals of its matches');
   }
 }
 

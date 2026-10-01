@@ -153,6 +153,8 @@ The owner's rules are in *The owner's specs*. Built on the duels:
   everything else in a column beside it. The TV is both boards and the
   question between them.
 
+**The answer's clock is the answerer's (the review of 1 Oct 2026).** While a question waits for its answer (`stage: 'answer'`) the last five seconds tick on the answerer's phone, not the asker's. The TV's signature carries the seated two's presence, so the host's «play for» shows on the TV as soon as one of them is away.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

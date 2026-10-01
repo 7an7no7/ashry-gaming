@@ -177,6 +177,8 @@ section (27):
   the TV is both seas across the stage with the pills, the fleets and the
   line beside them.
 
+**The board as it stands reaches the server (the review of 1 Oct 2026).** While placing, the phone sends its fleet as `draft { fleet }` after every move, turn and 🎲 (and once more after a reload that kept a board): checked with `bsFleetProblem`, stored in `room._bs.fleets[seat]` and the phone's own slice, never ready. So when the 90-second placing clock (with a turn clock on) runs out, or the host presses «sail for», everyone sails with the fleet on their own screen, not the server's first random one. A refused draft (ready already, at sea, an older server) is dropped quietly. The host's «play for» / «sail for» row has its own timer (`bsHostRowDue`), so it shows when its 40 seconds are up even if nothing else changes; the help says placing gets a minute and a half when the clock is on.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

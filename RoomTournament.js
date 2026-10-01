@@ -42,7 +42,7 @@
    The lobby's start carries `tournament: true`; shared, once it has begun:
      round     the tournament's number (tourNew carries it)
      settings  the lobby's choices, the same for every match
-     tour      { no, size, rounds, entrants, names, phase: 'play' | 'over',
+     tour      { no, id, size, rounds, entrants, names, phase: 'play' | 'over',
                  matches: [{ id, r, k, p: [a, b], out: [bye?, bye?], next, slot,
                              state: 'wait' | 'ready' | 'play' | 'done', startAt,
                              seats, games, draws, winner, loser, reason }],
@@ -254,7 +254,7 @@ const tourDeal = (room, m) => {
   v.shared = {
     // Unique across the evening's tournaments too: the phones key their play-once motion on it.
     round: (Number(t.no) || 0) * 1000 + t.gameSeq,
-    dealId: m.id + '.' + (m.games + 1),
+    dealId: (t.id ? t.id + '.' : '') + m.id + '.' + (m.games + 1),
     seats: seats.slice(),
     seatNames: seats.map(id => t.names[id] || roomPlayerName(room, id)),
     line: [], champ: null, prev: null, streak: null, scores: {}, board: [],
@@ -372,8 +372,13 @@ const tourStart = (room, playerId, payload, game) => {
   const b = tourBracket(entrants);
   const names = {};
   people.forEach(p => { names[p.id] = p.name; });
+  // `no` counts every tournament of the room, even with winner stays or the hub between two
+  // (room._tourNo): a match's round is built from it, and `id` is new for every tournament,
+  // so the phones' play-once keys (motion, sounds, confetti) never meet an earlier one.
+  const no = Math.max(prev.tour ? Number(prev.tour.no) || 0 : 0, Number(room._tourNo) || 0) + 1;
+  room._tourNo = no;
   const t = {
-    no: prev.tour ? (prev.tour.no || 0) + 1 : 1,
+    no: no, id: newDealId(),
     size: b.size, rounds: b.rounds, entrants: entrants, names: names,
     matches: b.matches, phase: 'play', gone: {}, gameSeq: 0, featured: null,
     champion: null, runnerUp: null, semis: []

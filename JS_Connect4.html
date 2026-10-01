@@ -82,6 +82,16 @@ const duelPillMemo = {};
  * a room), so a redraw for any other reason moves nothing.
  * o: { turn, scores: [a, b], againKey }.
  */
+/**
+ * A room board's key for duelPillsAfter: the room and the two in the seats. A new
+ * pair (the next in line, another match) starts its memory afresh, so a newcomer's
+ * pill never counts up from the score of whoever sat there before.
+ */
+function duelRoomPillKey(prefix, state) {
+  const s = (state && state.shared) || {};
+  return [prefix, state ? state.code : '', (s.seats || []).join(',')].join('|');
+}
+
 function duelPillsAfter(root, key, o) {
   const box = root && root.querySelector('.duel-pills');
   if (!box) return;

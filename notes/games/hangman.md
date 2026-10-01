@@ -156,6 +156,8 @@ The owner's rules are in *The owner's specs*.
   everyone solves»: the writer's chip lit, «مستنيين كلمة …» big, the others as big
   chips; the host's move-on buttons stay under it.
 
+**The held end frame shows the word that missed (the review of 1 Oct 2026).** A whole-word guess sets `hmRoom.lastGuess` too (the word, or the one letter typed alone, folded as the server folds it), so a whole-word miss that ends the board shows that word in the held frame, not "?". The TV's signature carries the writer's presence while a word is being written, so the host's ⏭️ shows there at once for a writer who's away.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

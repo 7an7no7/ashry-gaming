@@ -35,8 +35,9 @@
 
    Decided here: with a turn clock on, placing has BS_PLACE_SECS too, after
    which whoever isn't ready sails with the fleet they have on the board (the
-   server's random one, or the one they last sent); with the clock off the
-   host's "play for" does the same for a quiet phone.
+   server's random one, or the one they last sent - a phone sends its board
+   as a `draft` after every change, so it is the fleet they were looking at);
+   with the clock off the host's "play for" does the same for a quiet phone.
    ========================================================================= */
 const BS_GRACE_MS = 1500;       // the server's clock acts this long after the phones'
 const BS_PLACE_SECS = 90;
@@ -199,6 +200,17 @@ const battleshipAction = (room, playerId, action, payload) => {
     s.ready[seat] = true;
     s.turnSeq++;
     if (s.ready[0] && s.ready[1]) bsBeginPlay(room);
+    bsWriteSecrets(room);
+    return;
+  }
+
+  if (action === 'draft') {
+    // The fleet as it stands on the phone while it is still being arranged (sent after every
+    // move, turn and 🎲), not ready: what the clock or the host's «sail for» sails with.
+    if (s.phase !== 'place' || seat === -1 || s.ready[seat]) return;
+    const fleet = bsCleanFleet(p.fleet);
+    if (!fleet || bsFleetProblem(fleet)) return;
+    room._bs.fleets[seat] = fleet;
     bsWriteSecrets(room);
     return;
   }

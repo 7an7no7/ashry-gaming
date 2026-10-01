@@ -540,6 +540,10 @@ function hmRoomWhole(form) {
   const input = form.querySelector('input[name="w"]');
   const text = hmClean(input ? input.value : '');
   if (!text) return;
+  // What a miss would add to the board (the server's hmApply): the word, or one letter typed alone -
+  // the held end frame shows it, not a "?".
+  const letters = hmLettersOf(text);
+  hmRoom.lastGuess = letters.length === 1 ? hmFold(letters[0]) : text;
   haptic('light');
   roomAct('whole', { text: text, round: s.round });
 }
@@ -852,7 +856,13 @@ TV_GAMES.hangman = {
   // renderRoomTv works the signature out before it draws the frame, so the hold is decided here
   // first: asked only in frame(), the hold began after the signature had said "no hold", and the
   // redraw when it ended found the same signature and kept the held frame on the TV for good.
-  sig: (state) => { hmRoomHold(state, true); return hmRoomSig(state); },
+  // The writer's presence too: the host's ⏭️ (hmHostButtons) shows at once for a writer who's away.
+  sig: (state) => {
+    hmRoomHold(state, true);
+    const s = state.shared || {};
+    const w = s.phase === 'writing' && (state.players || []).find(x => x.id === s.setter);
+    return hmRoomSig(state) + '|' + (w && w.online ? 1 : 0);
+  },
   frame(state, t) {
     const s = state.shared || {};
     if (!s.settings) return tvLookAtPhones(t);

@@ -36,6 +36,16 @@ its own rules and board:
   the daily puzzle is dealt from the date, so every phone gets the same one and
   a new one at local midnight. Anything a daily deals goes through that source,
   never `Math.random`, or two phones get different puzzles.
+- **A daily that picks from a list walks it** (the review of 1 Oct 2026: an
+  independent seeded pick a day brought Connections back in ~11 days, the flags
+  in ~14, Wordle in ~29). `soloDailyCycle(id, pool, day, per)` (JS_Solo.html):
+  from `SOLO_CYCLE_FROM` (2 Oct 2026) the list goes round in an order shuffled
+  from the round's number - nothing comes back until all of it has been, and a
+  round never starts with what the last ended on (the nonogram's way). A day
+  before it keeps its old pick, so a half-played day and the archive don't
+  change. Used by Wordle, Connections, خمّن الدولة, ألغاز شطرنج (per level),
+  خيوط's theme and إيه اللي يجمعهم؟'s five categories (`per`); the dice those
+  two used still run, so the rest of a board is dealt as before.
 - **Bests and dailies** live in this phone's storage: `soloRecord(id, level,
   result, isBetter)` (`ashrySoloBest_v1`) and `soloMarkDaily(id, result)` /
   `soloStreak()` (`ashryDaily_v1`, two months kept). A setup screen's daily
@@ -43,6 +53,10 @@ its own rules and board:
 - **The result sheet** is `soloResult({ icon, title, value | valueText,
   valueLabel, lines, win, share, again, exit })` (`#solo-result-modal`): the
   number counts up, a daily result can be shared as text, confetti on a win.
+  The shared picture uses `shareLines` and `shareIcon` when given: a daily's
+  picture never carries the answer (Wordle's word, the country and its flag -
+  🌍 instead -, خيوط's theme, إيه اللي يجمعهم؟'s categories, the nonogram's
+  picture - 🖼️), since it goes to people who haven't played the day yet.
 - **Layout.** A board and its controls are `.solo-layout` with
   `.solo-layout__board` and `.solo-layout__side` (the stats bar, `soloBarHtml`,
   goes in the side): one column upright, with the bar on top through
@@ -101,7 +115,8 @@ The games (group `puzzle`, "ألغاز ومخ", on the home):
   `queensSolve` finds a second solution one of its crown cells is handed to a
   neighbouring region (keeping regions connected) until one solution is left
   (under 10ms). A tap cycles ✕ → 👑 → empty, a drag marks ✕, a crown breaking
-  a rule is outlined red. 6/7/8 wide; the region colours are a fixed pastel
+  a rule is outlined red. One finger at a time: a drag follows its own
+  `pointerId` and a second finger is ignored (the nonogram's painting too). 6/7/8 wide; the region colours are a fixed pastel
   set with dark ink, like the Connections groups.
 - **شمس وقمر** (`JS_Tango.html`): a full valid 6×6 grid (`tangoFill`, three
   of each per line, never three alike in a row), clues (given cells and =/×
@@ -128,7 +143,8 @@ the edge that is up (`xUp = -cos(beta)·sin(gamma)`). The decks (`HU_DECKS`)
 are the Charades and Who Am I categories matched by their emoji, plus the
 countries of خمّن الدولة: about 1,800 words in the Arabic mix. The play
 screen is full screen (`FULLSCREEN_VIEWS`) and keeps the screen on with the
-Wake Lock API; after a turn every word can be tapped to fix a wrong verdict;
+Wake Lock API (`huTakeWake`, taken again when the page comes back from hidden
+- a notification, the lock button - during a countdown or a turn); after a turn every word can be tapped to fix a wrong verdict;
 the end is a podium. A reload mid-turn goes back to that player's "ready".
 
 **ميني جولف's daily hole** (the owner, 24 Sep 2026): one hole drawn from all
@@ -185,7 +201,9 @@ six below has a list of its own:
   gathers every single word of 3-7 letters from the Chameleon, Wordle, Stop,
   Monkey, spy, Connections, Describe It (cards and forbidden words), Charades
   and Who Am I lists (not titles or people): about 3,200 Arabic and 2,600
-  English. A base word of 5/6/7 letters, every word its letters spell, and
+  English (`WHEEL_BONUS_WORDS` adds everyday verbs, adjectives and little
+  words - كتب, حلو, swim - that only ever count as a bonus, so a seeded board is
+  unchanged). A base word of 5/6/7 letters, every word its letters spell, and
   `wheelLayout` builds a crossword where each word crosses one already placed
   and touches nothing else; words that don't fit are bonus ⭐. Drag across the
   wheel (an SVG line follows) or tap and ✓. The grid's columns are a fixed

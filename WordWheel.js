@@ -62,6 +62,75 @@ function wheelDictionary(lang) {
   return WHEEL_DICT[lang];
 }
 
+/*
+ * Everyday words the banks don't have - verbs, adjectives, the little words (the review of
+ * 1 Oct 2026: كتب, لعب, حلو, سريع were "not a word"). They are only ever a bonus ⭐: the
+ * grid and the base word still come from wheelDictionary, so a daily's board is the same
+ * as it was, it just accepts more. Egyptian everyday Arabic and plain English, family-clean.
+ */
+const WHEEL_BONUS_WORDS = {
+  ar: ('كتب قرا لعب اكل شرب نام قام راح مشي جري وقف قعد رجع خرج دخل فتح قفل غسل طبخ رسم سمع شاف عرف فهم ' +
+    'ضحك سافر وصل نزل طلع ركب كسب خسر جاب اخد قال سال لبس مسح كنس زرع صحي درس نجح شال بنى عمل صنع طار عام ' +
+    'غنى رقص صلى صام زار حضن ساعد شكر فكر نسي افتكر حلم تعب فرح زعل خاف كسر لمس ذاق دفع سحب رمى مسك جمع ' +
+    'طرح قسم حسب وزن قاس لون لصق رتب نضف كوى خبز قلى سلق شوى عجن قطع ملا سخن برد كبر صغر طول قصر ذاكر ' +
+    'اشتغل استنى ضحكت كتبت لعبت اكلت شربت نمت رحت مشيت رجعت فتحت سمعت شفت عرفت فهمت حبيت قلت ' +
+    'يكتب يقرا يلعب ياكل يشرب ينام يقوم يروح يمشي يجري يقف يقعد يرجع يخرج يدخل يفتح يقفل يغسل يطبخ يرسم ' +
+    'يسمع يشوف يعرف يفهم يحب يضحك يسافر يوصل ينزل يطلع يركب يكسب يلبس يساعد يفكر يغني يرقص يطير يعوم ' +
+    'يدرس يذاكر يشتغل يحلم يلون يبني يعمل يزرع يصحى يستنى يقول يسال يجيب ياخد ' +
+    'اكتب اقرا العب اشرب انام اروح امشي اشوف اعرف احب افتح اقفل ارسم اسمع ' +
+    'كبير صغير طويل قصير جميل حلو وحش جديد قديم سريع بطيء تقيل خفيف سخن بارد حار ساقع نضيف فاضي مليان ' +
+    'سعيد فرحان زعلان تعبان جعان عطشان شبعان نعسان صاحي نايم غالي رخيص قريب بعيد عالي واطي واسع ضيق ' +
+    'ناعم خشن طري ناشف مبلول غني فقير قوي ضعيف ذكي شاطر كسلان هادي مبسوط لطيف ظريف طيب شجاع عريض رفيع ' +
+    'صعب سهل مهم كويس جامد حلوة كبيرة صغيرة جميلة جديدة قديمة سريعة طويلة قصيرة نضيفة سهلة صعبة ' +
+    'بكرة امبارح دلوقتي النهارده كمان برضه هنا هناك فين امتى ليه ازاي مين ايه كتير قليل شوية خالص اوي ' +
+    'جدا دايما ابدا لسه بعدين قبل بعد تحت فوق جنب قدام ورا جوه بره كل بعض اللي لازم ممكن عايز عاوز ' +
+    'عارف شايف فاكر جاي رايح ماشي قاعد واقف شكرا اهلا سلام مرحبا صباح مساء يلا تعالى خلاص طبعا').split(' '),
+  en: ('and the for but not you are was were his her she they them this that what when then than with from ' +
+    'have has had will would could should there their here where which while about after again also always ' +
+    'never every other some many much more most very just only even over under into onto upon out off down ' +
+    'our ours your yours its who whom whose why how yes nor yet too any all each both few own same such ' +
+    'today tonight often soon later early almost maybe please thanks sorry hello inside outside behind ' +
+    'before below above around across along among until since ' +
+    'act add ask ate bake beat become began begin bend bite blow boil borrow bought break bring brought ' +
+    'build built burn buy call came camp can care carry catch caught change chase cheer chew chop clap ' +
+    'clean climb close come cook copy count cover crawl cried cross cry cut dance dare dig dive does done ' +
+    'draw drawn dream dress drew drink drive drop dry dug eat eaten end enjoy enter fall feed feel fell ' +
+    'felt fetch fill find fit fix flew float fly fold follow forget forgot found freeze fry gave get give ' +
+    'given glow goes gone got grab grew grin grow grown guess hang happen hear heard held help hide hold ' +
+    'hop hope hug hum hunt hurry jog join joke jump keep kept kick knew knit knock know known laid land ' +
+    'last laugh lay lead lean learn leave led lend let lie lift like list listen live look lose lost love ' +
+    'made make mark may meet melt met might miss mix move must need nod note obey open order owe pack ' +
+    'paint pass pay peel pick plan plant play point pour pray press print pull push put race rain ran ' +
+    'reach read relax rest ride ring rise roll rub run rush said sail sang sat save saw say see seen sell ' +
+    'send sent set sew shake share shine shop shout show shut sing sink sit skate ski skip sleep slept ' +
+    'slide slip smell smile snow sold solve sort speak spell spend spent spill spin split spoke stand ' +
+    'start stay step stick stir stood stop study swam sweep swim swing take taken talk taste teach tell ' +
+    'test thank think threw throw tidy tie told took touch train tried try turn type use used visit wait ' +
+    'wake walk want warm wash watch wave wear went win wink wipe wish won wore work worry write wrote ' +
+    'yawn yell ' +
+    'able afraid alive alone angry asleep awake bad big black blue bold bored brave brief bright brown ' +
+    'busy calm cheap clear cold cool cozy cute damp dark dear deep dirty dull easy empty equal extra fair ' +
+    'false far fast fine first flat fond free fresh full funny fuzzy giant glad gold good grand gray great ' +
+    'green grey happy hard heavy high hot huge humid icy kind large late lazy light little long loose loud ' +
+    'lovely low lucky main messy mild minor moist near neat new next nice noisy odd old orange pale ' +
+    'perfect pink plain polite poor proud pure purple quick quiet rare raw ready real red rich ripe rough ' +
+    'round royal rude sad safe salty shiny short shy sick silly simple slow small smart smooth soft solid ' +
+    'sour spare spicy steep sticky stiff still strong sunny super sure sweet tall tame tasty thick thin ' +
+    'tiny tired tough true upset usual vast weak wet white whole wide wild windy wise wrong yellow young').split(' ')
+};
+const WHEEL_BONUS_DICT = {};
+
+/** The everyday words above, folded, that the banks don't already have: a bonus only. */
+function wheelBonusDictionary(lang) {
+  if (WHEEL_BONUS_DICT[lang]) return WHEEL_BONUS_DICT[lang];
+  const re = lang === 'en' ? /^[A-Z]{3,7}$/ : /^[ء-ي]{3,7}$/;
+  const known = new Set(wheelDictionary(lang));
+  const out = new Set();
+  (WHEEL_BONUS_WORDS[lang] || []).forEach(w => { const f = wheelFold(w, lang); if (re.test(f) && !known.has(f)) out.add(f); });
+  WHEEL_BONUS_DICT[lang] = [...out];
+  return WHEEL_BONUS_DICT[lang];
+}
+
 function wheelCounts(w) {
   const m = {};
   for (const ch of w) m[ch] = (m[ch] || 0) + 1;
@@ -141,10 +210,12 @@ function wheelMake(level, lang, rnd) {
     const layout = wheelLayout(ordered, rnd, L.max);
     if (layout.placed.length < L.min || layout.rows > 9 || layout.cols > 9) continue;
     const inGrid = new Set(layout.placed.map(p => p.w));
+    // The everyday words that fit join the bonus only (no dice used: a seeded board stays the same).
+    const everyday = wheelBonusDictionary(lang).filter(w => wheelFitsIn(w, pool));
     return {
       letters: soloShuffle(base.split(''), rnd),
       words: layout.placed,
-      bonus: ordered.filter(w => !inGrid.has(w)),
+      bonus: ordered.filter(w => !inGrid.has(w)).concat(everyday),
       rows: layout.rows, cols: layout.cols
     };
   }

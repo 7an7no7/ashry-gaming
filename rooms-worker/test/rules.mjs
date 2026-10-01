@@ -4341,6 +4341,12 @@ Date.now = duelTestClock;
   tie.shared.tries = { a: 9, b: 4 };
   applyRoomAction(tie, 'a', 'closeRound', { round: 1 });
   check(tie.shared.board[0].id === 'b' && tie.shared.board[1].id === 'a', 'solve: a tie on points goes to fewer tries');
+  const tn = sv('guessnum', ['a', 'b', 'c'], { mode: 'race', rounds: 3, max: 100 });
+  tn.shared.scores = { a: 30, b: 30 };
+  tn.shared.tries = { a: 4, b: 9 };
+  tn.shared.solves = { a: 1, b: 2 };
+  applyRoomAction(tn, 'a', 'closeRound', { round: 1 });
+  check(tn.shared.board[0].id === 'b', 'review/solve: a tie on points goes to more rounds solved before fewer tries');
 
   // The setter leaves before setting: the next one sets. The host can skip a quiet setter.
   r = sv('guessnum', ['a', 'b', 'c', 'd'], { rounds: 3, max: 50 });
@@ -8696,6 +8702,33 @@ Date.now = duelTestClock;
     check(tie.shared.board[0].id === 'a' && tie.shared.board[0].score === 15 && tie.shared.board[1].score === 15 && tie.shared.board[0].secs === 20 && tie.shared.board[1].secs === 40,
       'race: a tie on points goes to fewer seconds (20 s before 40 s)');
   }
+  {
+    // The review of 1 Oct 2026: a podium finisher who leaves doesn't lift a grace finisher onto the podium.
+    const fr = race(['a', 'b', 'c', 'd', 'e'], 'queens', {});
+    const fs = fr.shared;
+    const crowns = (rm) => { const m = new Array(49).fill(0); rm._solve.secret.solution.forEach((c, row) => { m[row * 7 + c] = 2; }); return m; };
+    ['a', 'b', 'c', 'd'].forEach((id) => { clock += 3000; applyRoomAction(fr, id, 'move', { marks: crowns(fr), round: 1 }); });
+    check(!!fs.closeAt && fs.progress.d.state === 'won', 'review/race Fast 3: three finish, the fourth inside the grace');
+    fr.players = fr.players.filter((p) => p.id !== 'a');
+    fr.hostId = 'b';
+    roomPlayerLeft(fr, 'a', 'A');
+    clock = fs.closeAt + 1600;
+    roomTimeout(fr, clock);
+    const fpts = (id) => (fs.result.rows.find((x) => x.id === id) || {}).pts;
+    check(fs.phase === 'result' && fpts('b') === 10 && fpts('c') === 7 && fpts('d') === 2 && fs.scores.d === 2,
+      'review/race Fast 3: the first finisher leaves - the podium moves up (10 / 7), the grace finisher still takes 2, not 5');
+    // A double tap on «the next round» deals one round, not two.
+    applyRoomAction(fr, 'b', 'nextRound', { round: 1 });
+    applyRoomAction(fr, 'b', 'nextRound', { round: 1 });
+    check(fs.round === 2 && fs.phase === 'solving', 'review/solve: nextRound pressed for round 1 twice deals round 2 only');
+    // A tie on points: more rounds solved first (the seconds are summed over the solves only).
+    const tb = race(['a', 'b'], 'queens', { finish: 'all' });
+    tb.shared.scores = { a: 30, b: 30 };
+    tb.shared.secs = { a: 20, b: 90 };
+    tb.shared.solves = { a: 1, b: 2 };
+    applyRoomAction(tb, 'a', 'closeRound', { round: 1 });
+    check(tb.shared.board[0].id === 'b' && tb.shared.board[0].solves === 2, 'review/race: a tie on points goes to more rounds solved before fewer seconds');
+  }
   applyRoomAction(r, 'a', 'nextRound', { round: 2 });
   // Leaving mid-round: the board goes, the round may end without them; play again keeps the ending.
   const leaver = 'c';
@@ -8753,6 +8786,19 @@ Date.now = duelTestClock;
     check(s.phase === 'result' && s.result.reveal.words.length === 6 && s.result.reveal.theme === s.pub.theme, 'race/strands: the result reveals the words');
     const en = race(['a', 'b'], 'strands', { lang: 'en' });
     check(en.shared.pub.lang === 'en' && /^[A-Z]+$/.test(en._solve.secret.words[0].w), 'race/strands: an English room deals English words');
+    {
+      // A deal records a theme at a time, the last of them the one played (it used to record eight to use one).
+      const C = new Function(['SoloShared.js', 'ChameleonWords.js'].map((f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8')).join('\n') + '\nreturn { CHAMELEON_DB, soloCategory };')();
+      let ok = true;
+      for (let k = 0; k < 6; k++) {
+        const rm = race(['a', 'b'], 'strands', { lang: k % 2 ? 'en' : 'ar' });
+        const key = 'race_strands_' + rm.shared.pub.lang;
+        const used = (rm._used || {})[key] || [];
+        const last = C.CHAMELEON_DB[rm.shared.pub.lang][used[used.length - 1]];
+        if (!used.length || used.length > 8 || !last || C.soloCategory(last.category).name !== rm.shared.pub.theme) ok = false;
+      }
+      check(ok, 'review/race/strands: a deal records the theme played in the prompt memory (not eight a deal)');
+    }
   }
 
   // The other eight, each through the same door: the puzzle public, the solution hidden, a move, the win.
@@ -8774,6 +8820,19 @@ Date.now = duelTestClock;
     check(s.progress.a.done === 1 && r.secrets.a.board.found[0].w === x.words[0] && r.secrets.b.board.found.length === 0, 'race/wordwheel: a grid word is found, on its own phone only');
     applyRoomAction(r, 'a', 'move', { word: x.words[0], round: 1 });
     check(s.progress.a.done === 1 && r.secrets.a.board.last === 'again', 'race/wordwheel: the same word again is nothing');
+    {
+      // The review of 1 Oct 2026: everyday verbs and adjectives count as bonus words (never grid words).
+      const fits = (w) => { const m = {}; for (const ch of x.pub.letters) m[ch] = (m[ch] || 0) + 1; for (const ch of w) { if (!m[ch]) return false; m[ch]--; } return true; };
+      const W = new Function(['SoloShared.js', 'WordWheel.js'].map((f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8')).join('\n') + '\nreturn { WHEEL_BONUS_WORDS };')();
+      const everyday = W.WHEEL_BONUS_WORDS.ar.filter((w) => w.length >= 3 && fits(w) && x.words.indexOf(w) === -1);
+      check(W.WHEEL_BONUS_WORDS.ar.indexOf('كتب') !== -1 && W.WHEEL_BONUS_WORDS.en.indexOf('SWIM') === -1 && W.WHEEL_BONUS_WORDS.en.indexOf('swim') !== -1,
+        'review/race/wordwheel: the everyday list has verbs (كتب, swim)');
+      check(everyday.every((w) => x.bonus.indexOf(w) !== -1), 'review/race/wordwheel: every everyday word the letters make is a bonus (' + everyday.length + ' here)');
+      if (everyday.length) {
+        applyRoomAction(r, 'b', 'move', { word: everyday[0], round: 1 });
+        check(r.secrets.b.board.last === 'bonus' && s.progress.b.done === 0, 'review/race/wordwheel: an everyday word is counted as a bonus');
+      }
+    }
     if (x.bonus.length) {
       applyRoomAction(r, 'a', 'move', { word: x.bonus[0], round: 1 });
       check(s.progress.a.done === 1 && r.secrets.a.board.bonus[0] === x.bonus[0] && r.secrets.a.board.last === 'bonus', 'race/wordwheel: a bonus word is counted, not a grid word');

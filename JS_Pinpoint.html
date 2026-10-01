@@ -56,9 +56,12 @@ function startPinpoint(daily, sure) {
   const lang = contentLang() === 'en' ? 'en' : 'ar';
   const cats = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
   const rnd = soloRandom(daily ? soloDaySeed('pinpoint:' + lang) : null);
-  const picks = daily
+  let picks = daily
     ? soloShuffle(cats, rnd).slice(0, PIN_ROUNDS)
     : freshPick('pinpoint:' + lang, cats, PIN_ROUNDS, { key: c => c.category });
+  // From SOLO_CYCLE_FROM the daily walks the categories (the shuffle above still runs, so a
+  // past day's rounds are dealt from the same dice as they always were).
+  if (daily && soloToday() >= SOLO_CYCLE_FROM) picks = soloDailyCycle('pinpoint:' + lang, cats, null, PIN_ROUNDS);
   Object.assign(s, {
     daily: daily ? soloToday() : '', lang: lang,
     rounds: picks.map(c => pinMakeRound(cats, c, rnd)),
@@ -226,9 +229,10 @@ function pinFinish() {
   paintPinpoint(false);
   const lines = [marks, s.rounds.map(r => `${r.icon} ${escapeHTML(r.name)}`).join(' · ')];
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.score}/${max}`);
+  const shareLines = s.daily ? lines.filter((l, i) => i !== 1) : lines;   // a daily's picture never names the categories
   soloResult({
     icon: '🔗', title: rec.record && score ? (t.solo_new_best || '') : (t.pin_result || ''),
-    value: score, valueLabel: `${t.pin_points || ''} / ${max}`, lines: lines, win: score >= max / 2, share: share,
+    value: score, valueLabel: `${t.pin_points || ''} / ${max}`, lines: lines, shareLines: shareLines, win: score >= max / 2, share: share,
     again: () => startPinpoint(false), exit: setupPinpoint
   });
 }

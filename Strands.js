@@ -57,11 +57,12 @@ function strandsCopies(grid, size, word) {
  * given, are tried first in that order (a room deals through its memory of
  * what it dealt lately), then the whole list.
  */
-function strandsMake(level, lang, rnd, themes) {
+function strandsMake(level, lang, rnd, themes, only) {
   const L = STRANDS_LEVELS[level] || STRANDS_LEVELS.easy;
   const letterRe = lang === 'en' ? /^[A-Z]+$/ : /^[ء-ي]+$/;
   const all = soloShuffle((CHAMELEON_DB[lang] || CHAMELEON_DB.ar), rnd);
-  const list = themes && themes.length ? themes.concat(all.filter(t => themes.indexOf(t) === -1)) : all;
+  // `only`: these themes and no others (the race's deal records the one it plays).
+  const list = themes && themes.length ? (only ? themes : themes.concat(all.filter(t => themes.indexOf(t) === -1))) : all;
   const dirs = lang === 'en'
     ? [[0, 1], [1, 0], [1, 1]].concat(L.reverse ? [[0, -1], [-1, 0], [1, -1]] : [])
     : [[0, -1], [1, 0], [1, -1]].concat(L.reverse ? [[0, 1], [-1, 0], [1, 1]] : []);
@@ -157,10 +158,17 @@ const STRANDS_RACE_LEVEL = 'medium';
 const STRANDS_RACE = {
   deal(rnd, st, pick) {
     const lang = st.lang === 'en' ? 'en' : 'ar';
-    const themes = pick && pick.many ? pick.many(CHAMELEON_DB[lang] || CHAMELEON_DB.ar, 'race_strands_' + lang, 8) : [];
-    // The generator can come back empty: try again (the easy size last), never deal nothing.
+    const db = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
     let made = null;
-    for (let i = 0; !made && i < 12; i++) made = strandsMake(i < 8 ? STRANDS_RACE_LEVEL : 'easy', lang, rnd, themes);
+    // The shared memory records the one theme played (the review of 1 Oct 2026: it took eight a
+    // deal to use one, so the list went round eight times too fast): a theme at a time, kept only
+    // when the board is really made from it.
+    for (let i = 0; !made && pick && pick.one && i < 8; i++) {
+      const theme = pick.one(db, 'race_strands_' + lang);
+      if (theme) made = strandsMake(STRANDS_RACE_LEVEL, lang, rnd, [theme], true);
+    }
+    // The generator can come back empty: try again (the easy size last), never deal nothing.
+    for (let i = 0; !made && i < 12; i++) made = strandsMake(i < 8 ? STRANDS_RACE_LEVEL : 'easy', lang, rnd, []);
     if (!made) throw new Error('ماعرفناش نجهّز اللوحة، جرّبوا تاني');
     return {
       pub: { size: made.size, theme: made.theme, icon: made.icon, grid: made.grid, lens: made.words.map(w => w.w.length), lang: lang },

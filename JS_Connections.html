@@ -120,9 +120,9 @@ function startConnections(daily, sure) {
   const lang = contentLang();
   const level = daily ? 'medium' : connectLevel();
   const pool = CONNECT_LEVELS[level].db()[lang];
-  const rnd = daily ? soloRng(soloDaySeed('connections')) : null;
+  // The daily walks the list (soloDailyCycle): nothing comes back until all of it has been.
   const puzzle = daily
-    ? soloPick(pool, rnd)
+    ? soloDailyCycle('connections', pool)[0]
     : freshPick(CONNECT_LEVELS[level].list + lang, pool, 1, { key: p => p.groups.map(g => g.name).join('|') })[0];
   // Today's daily in progress is kept aside, never lost, when another board is dealt.
   soloDailySetAside('connections');

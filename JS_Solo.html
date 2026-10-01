@@ -260,6 +260,47 @@ function soloDayIndex(day) {
   return Math.round((Date.UTC(p[0], p[1] - 1, p[2]) - Date.UTC(2026, 0, 1)) / 86400000);
 }
 
+/**
+ * A daily that picks from a list walks it (the review of 1 Oct 2026): an independent seeded
+ * pick a day brought Connections back in about 11 days. From SOLO_CYCLE_FROM the list goes
+ * round in an order shuffled from the round's number - nothing comes back until all of it has
+ * been, and a round never starts with what the last one ended on (as the nonogram's pictures
+ * do). Every phone gets the same, from the date alone. A day before it keeps the pick it
+ * always had, so a day half played or kept in the archive doesn't change under anyone.
+ * `per` items a day (Pinpoint's five categories): steps day*per … day*per+per-1, no repeats.
+ */
+const SOLO_CYCLE_FROM = '2026-10-02';
+
+function soloDailyCycle(id, pool, day, per) {
+  const n = pool.length;
+  const d = day || soloArchiveDay || soloToday();
+  const count = per || 1;
+  if (!n) return [];
+  if (d < SOLO_CYCLE_FROM) {
+    const rnd = soloRng(soloDaySeed(id, d));
+    return count === 1 ? [soloPick(pool, rnd)] : soloShuffle(pool, rnd).slice(0, count);
+  }
+  const orders = {};
+  const order = (k) => {
+    if (orders[k]) return orders[k];
+    const o = soloShuffle(pool.map((_, i) => i), soloRng(soloHash('ashry-daily-cycle:' + id + ':' + k)));
+    if (n > 1 && k !== 0) {
+      const before = order(k - 1);
+      if (o[0] === before[n - 1]) o.push(o.shift());
+    }
+    return (orders[k] = o);
+  };
+  const out = [];
+  const seen = {};
+  let step = (soloDayIndex(d) - soloDayIndex(SOLO_CYCLE_FROM)) * count;
+  for (let tries = 0; out.length < Math.min(count, n) && tries < count + n; tries++, step++) {
+    const round = Math.floor(step / n);
+    const i = order(round)[((step % n) + n) % n];
+    if (!seen[i]) { seen[i] = true; out.push(pool[i]); }
+  }
+  return out;
+}
+
 /* --- Bests --------------------------------------------------------------------- */
 
 const SOLO_BEST_KEY = 'ashrySoloBest_v1';
@@ -685,10 +726,12 @@ function soloResultShare() {
   const value = typeof o.value === 'number' ? String(o.value) : (o.valueText || '');
   const rows = [];
   if (value) rows.push({ name: shareCardText(o.valueLabel) || (o.title || ''), value: value });
-  (o.lines || []).forEach(l => { const line = shareCardText(l); if (line) rows.push(line); });
+  // A daily's picture goes to people who haven't played today: its lines leave the answer out
+  // (shareLines - the word, the country, the theme, the picture), and its icon is a bare emoji.
+  (Array.isArray(o.shareLines) ? o.shareLines : (o.lines || [])).forEach(l => { const line = shareCardText(l); if (line) rows.push(line); });
   return shareResultCard({
     title: o.title || '',
-    icon: o.icon || '🏁',
+    icon: o.shareIcon || o.icon || '🏁',
     rows: rows,
     footer: soloResultActions.share.split('\n')[0] || '',
     text: soloResultActions.share,

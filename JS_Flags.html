@@ -115,7 +115,7 @@ function startFlags(daily, sure) {
   const level = daily ? 'daily' : s.level;
   const pool = COUNTRIES.filter(c => level === 'easy' ? c.tier === 1 : (level === 'daily' ? c.tier <= 2 : true));
   const answer = daily
-    ? soloPick(pool, soloRng(soloDaySeed('flags')))
+    ? soloDailyCycle('flags', pool)[0]
     : freshPick('flags:' + level, pool, 1, { key: c => c.code })[0];
   Object.assign(s, {
     daily: daily ? soloToday() : '', playMode: mode, playLevel: level, lang: contentLang() === 'en' ? 'en' : 'ar',
@@ -332,12 +332,15 @@ function flagsFinish(won) {
   }
   const detail = [`<span class="flag-emoji">${flagEmoji(answer)}</span> ${escapeHTML(flagName(target, s.lang))}`];
   if (rec.prev && !rec.record && won) detail.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.guesses}`);
+  // The share picture: no country and no flag for a daily (🌍), and never the sheet's markup as its icon.
+  const shareLines = s.daily ? detail.slice(1) : detail;
+  const shareIcon = s.daily ? '🌍' : flagEmoji(answer);
   const flag = document.getElementById('flags-flag');
   if (flag && flag.animate && !motionOff()) flag.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25) rotate(-6deg)' }, { transform: 'none' }], { duration: 600, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
   soloLater('flags', motionOff() ? 0 : 900, () => soloResult({
     icon: `<span class="flag-emoji">${flagEmoji(answer)}</span>`,
     title: won ? (rec.record ? (t.solo_new_best || '') : (t.flags_won || '')) : (t.flags_lost || ''),
-    valueText: won ? `${tries}/${max}` : `X/${max}`, valueLabel: t.flags_tries || '', lines: detail, win: won, share: share,
+    valueText: won ? `${tries}/${max}` : `X/${max}`, valueLabel: t.flags_tries || '', lines: detail, shareLines: shareLines, shareIcon: shareIcon, win: won, share: share,
     again: () => startFlags(false), exit: setupFlags
   }));
 }

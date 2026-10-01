@@ -188,10 +188,17 @@ function setNonoMode(mode) {
 }
 
 /* A press sets a cell to the mode's mark (or clears it if it already has it); dragging copies that to every cell crossed. */
+let nonoDrag = null;   // the drag painting now ({ end }): one finger at a time
+
 function nonoDown(e, i) {
   const s = nonoState();
   if (s.phase !== 'play') return;
   e.preventDefault();
+  // A second finger while one paints is ignored; the drag only listens to its own pointer.
+  // A primary pointer can't be a second finger: a drag still set then lost its "up", and goes.
+  if (nonoDrag && !e.isPrimary) return;
+  if (nonoDrag) nonoDrag.end();
+  const pid = e.pointerId;
   const mark = s.mode === 'fill' ? 1 : 2;
   const target = s.cells[i] === mark ? 0 : mark;
   const before = s.cells.slice();   // ideas batch: solo - one undo step per drag
@@ -209,13 +216,13 @@ function nonoDown(e, i) {
   };
   apply(i);
   const move = (ev) => {
+    if (ev.pointerId !== pid) return;
     const cell = soloCellAt(ev.clientX, ev.clientY, '.nono-cell');
     if (cell) apply(Number(cell.dataset.i));
   };
-  const up = () => {
-    document.removeEventListener('pointermove', move);
-    document.removeEventListener('pointerup', up);
-    document.removeEventListener('pointercancel', up);
+  const up = (ev) => {
+    if (ev && ev.pointerId !== pid) return;
+    nonoDrag.end();
     if (s.cells.some((v, k) => v !== before[k])) soloUndoPush(s, before);
     saveToLocal();
     paintNonogram();
@@ -224,6 +231,14 @@ function nonoDown(e, i) {
   document.addEventListener('pointermove', move);
   document.addEventListener('pointerup', up);
   document.addEventListener('pointercancel', up);
+  nonoDrag = {
+    end: () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      nonoDrag = null;
+    }
+  };
 }
 
 /** Empties the board, after asking: it is every mark at once. */
@@ -316,9 +331,11 @@ function nonoCheck() {
   if (s.pic) lines.push(`${s.pic.e} <b>${escapeHTML(appState.lang === 'en' ? s.pic.en : s.pic.ar)}</b>`);
   if (s.hints) lines.push(`💡 ${escapeHTML(t.solo_hint || '')}: ${s.hints}`);
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  // A daily's picture never shows what the drawing is.
+  const shareLines = s.daily && s.pic ? lines.slice(1) : lines;
   soloLater('nonogram', motionOff() ? 0 : n * 2 * 30 + 500, () => soloResult({
     icon: s.pic ? s.pic.e : '🖼️', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
-    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, shareLines: shareLines, shareIcon: s.daily ? '🖼️' : '', win: true, share: share,
     again: () => startNonogram(false), exit: setupNonogram
   }));
 }

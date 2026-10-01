@@ -47,7 +47,7 @@ function startWordleGame(length, daily, sure) {
     appState.wordle.maxTries = length > 6 ? 7 : 6;
 
     const picked = daily
-        ? soloPick(db, soloRng(soloDaySeed('wordle')))
+        ? soloDailyCycle('wordle', db)[0]
         : freshPick('wordle:' + lang + ':' + length, db, 1)[0];
     // The Arabic keypad has a single alef, so a word spelled with أ, إ or آ
     // could never be typed and the game could not be won. It is played with
@@ -385,6 +385,7 @@ function wordleResultSoon(win) {
         valueText: win ? '' : `X/${max}`,
         valueLabel: (t.wordle_tries_of || '').replace('{max}', max),
         lines: [`${escapeHTML(t.wordle_word_was || '')} <b class="tx-accent">${escapeHTML(String(word || ''))}</b>`],
+        shareLines: [],   // the picture never says the word
         win: win, share: share,
         again: () => startWordleGame(s.wordLength || 5, false), exit: setupWordle
     }));

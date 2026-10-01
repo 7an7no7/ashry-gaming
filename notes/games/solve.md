@@ -15,7 +15,9 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     is, decided here (below).
   - **Scoring like المشنقة's race, in both ways**: each solver **10 + a bonus
     by order** (+5 first, +4 ... +1); **the setter 5 for every player who
-    didn't solve it**; **fewer tries break ties** on the board.
+    didn't solve it**; on a tie on the board, **more rounds solved first**
+    (the review of 1 Oct 2026: tries are summed over solves only, so fewer
+    solves used to win the tie), then **fewer tries**.
   - **خمن الكلمة**: the setter types a word, everyone guesses in their own
     grid with the right / present / absent colours; the race deals from the
     Wordle lists; the keyboard follows the word's alphabet.
@@ -120,8 +122,9 @@ emoji room (`room-emoji`), whose third way is the quiz.
   `reveal` and `mine`. Secrets: `room._solve = { secret, boards }`; each
   solver's `room.secrets[pid] = { board, state, n }` through the solving and
   the result, the setter's `{ mine }` while the others solve. Every move
-  carries `round` (`staleTap`). The board is `svBoard`: `scoreboardOf` with
-  `tries` on each row, fewer first on a tie.
+  carries `round` (`staleTap`), `nextRound` too. The board is `svBoard`:
+  `scoreboardOf` with `solves` (`shared.solves`, rounds solved) and `tries` on
+  each row; a tie goes to more solves, then fewer tries.
 - **`JS_RoomSolve.html`**: one renderer (`svRender`, `svTvFrame`) and the
   four games' pieces - the setter's forms (`svSetFormHtml`: the secret typed
   as dots with an eye, as المشنقة's; the country search with 🎲; the emoji

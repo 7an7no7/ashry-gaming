@@ -66,7 +66,9 @@ function startStrands(daily, sure) {
   const s = strandsState();
   const level = daily ? 'medium' : s.level;
   const lang = contentLang() === 'en' ? 'en' : 'ar';
-  let made = strandsMake(level, lang, soloRandom(daily ? soloDaySeed('strands:' + lang) : null));
+  // The daily's theme walks the list (soloDailyCycle) from SOLO_CYCLE_FROM; a day before keeps its dice alone.
+  const dayTheme = daily && soloToday() >= SOLO_CYCLE_FROM ? soloDailyCycle('strands:' + lang, CHAMELEON_DB[lang] || CHAMELEON_DB.ar) : null;
+  let made = strandsMake(level, lang, soloRandom(daily ? soloDaySeed('strands:' + lang) : null), dayTheme);
   // A free grid that couldn't be made gets one more go with other dice.
   if (!made && !daily) made = strandsMake(level, lang, soloRandom(null));
   if (!made) { showToast((TRANSLATIONS[appState.lang] || {}).solo_make_failed || '', 'error'); return; }
@@ -279,9 +281,10 @@ function strandsFinish() {
   }
   const lines = [`${s.icon || ''} <b>${escapeHTML(s.theme)}</b>`];
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  const shareLines = s.daily ? lines.slice(1) : lines;   // a daily's picture never names the theme
   soloLater('strands', motionOff() ? 0 : 900, () => soloResult({
     icon: '🧵', title: rec.record ? (t.solo_new_best || '') : (t.strands_done || ''),
-    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, shareLines: shareLines, win: true, share: share,
     again: () => startStrands(false), exit: setupStrands
   }));
 }

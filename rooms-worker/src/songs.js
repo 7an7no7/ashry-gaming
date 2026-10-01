@@ -19,7 +19,11 @@ const DEEZER = /^https:\/\/[a-z0-9.-]+\.dzcdn\.net\//;
 
 /** The preview's address for one pin, or null. `cf` is Cloudflare's cache options (absent in node). */
 export const SONG_SOURCES = {
-  async itunes(id, cf) {
+  // Apple's lookup answers 403 to Cloudflare's servers (1 Oct 2026; its audio files load
+  // fine from there), so an Apple pin carries its preview's address (`u`, kept current by
+  // `npm run check:songs -- --fix` in tools/) and the lookup is only a fallback, for node.
+  async itunes(id, cf, u) {
+    if (u && APPLE.test(u)) return u;
     const res = await fetch('https://itunes.apple.com/lookup?id=' + Number(id), cf ? { cf: { cacheTtl: 86400, cacheEverything: true } } : {});
     const data = res.ok ? await res.json() : null;
     const hit = data && (data.results || []).find((r) => r.trackId === Number(id));
@@ -43,7 +47,7 @@ export const songPins = (song) => [song, song && song.also].filter((p) => p && S
 export async function songStream(song, cf) {
   for (const pin of songPins(song)) {
     try {
-      const url = await SONG_SOURCES[pin.src](pin.id, cf);
+      const url = await SONG_SOURCES[pin.src](pin.id, cf, pin.u);
       if (!url) continue;
       const audio = await fetch(url, cf ? { cf: { cacheTtl: pin.src === 'itunes' ? 604800 : 3600, cacheEverything: true } } : {});
       if (!audio.ok || !audio.body) continue;

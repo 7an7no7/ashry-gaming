@@ -799,7 +799,7 @@ export class Room extends DurableObject {
     const h = this.room && this.room.game === 'hum' && this.room._hum;
     if (!h || !h.token || h.cur === null || h.cur === undefined || String(token) !== h.token) return null;
     const song = HUM_SONGS[h.cur];
-    return song ? { src: song.src, id: song.id, also: song.also || null } : null;
+    return song ? { src: song.src, id: song.id, u: song.u || null, also: song.also || null } : null;
   }
 
   /**

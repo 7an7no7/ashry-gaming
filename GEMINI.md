@@ -681,6 +681,15 @@ must paint at once when `document.readyState` isn't 'loading', and a registry a
 shell file reads once (`SOLO_LATE`) has to take late entries. A chunk is
 several scripts joined, so one that throws at load stops the rest of its chunk.
 
+**An outside service can answer your PC and refuse Cloudflare.** دندنها's songs
+streamed on `wrangler dev` and in every local test, and gave 0 bytes on the
+live server: Apple's lookup (`itunes.apple.com/lookup`) answers 403 to
+Cloudflare's servers (its search 429), while its audio files load fine from
+there (1 Oct 2026, found by `npm run test:live`). An Apple song keeps its
+preview's address in `Songs.js` (`u`, refreshed by `npm run check:songs --
+--fix`). Anything the rooms server fetches from outside is tried from the edge
+(`wrangler dev --remote` with a scratch Worker) before it is relied on.
+
 **A `wrangler dev` on a port already in use still prints "Ready".** Tests then
 hit another session's server. Check the port's owner first
 (`Get-NetTCPConnection -LocalPort …`). And two servers of the same Worker

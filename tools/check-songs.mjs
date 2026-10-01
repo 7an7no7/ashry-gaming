@@ -23,12 +23,21 @@
  *   npm run check:songs              the lookups
  *   npm run check:songs -- --play    and the previews themselves
  *   npm run check:songs -- --artists the artist each pin answers with, beside ours
+ *   npm run check:songs -- --fix     write Apple's current preview addresses into Songs.js
+ *
+ * Apple's lookup answers 403 to Cloudflare's servers (and its search 429), while its
+ * audio files load fine from there, so an Apple pin keeps its preview's address (`u`)
+ * in Songs.js and the rooms server fetches that directly. Apple changes an address
+ * now and then: this run reports a `u` that is missing or no longer Apple's current
+ * one, and --fix writes the current ones in (then build and deploy the rooms server).
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
-const SONGS = new Function(readFileSync(new URL('../Songs.js', import.meta.url), 'utf8') + ';return HUM_SONGS;')();
+const SONGS_FILE = new URL('../Songs.js', import.meta.url);
+const SONGS = new Function(readFileSync(SONGS_FILE, 'utf8') + ';return HUM_SONGS;')();
 const PLAY = process.argv.includes('--play');
 const ARTISTS = process.argv.includes('--artists');
+const FIX = process.argv.includes('--fix');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const getJson = async (url) => {
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -39,7 +48,7 @@ const getJson = async (url) => {
 };
 
 const pins = [];
-SONGS.forEach((x, i) => { pins.push({ i, src: x.src, id: x.id }); if (x.also) pins.push({ i, src: x.also.src, id: x.also.id, second: true }); });
+SONGS.forEach((x, i) => { pins.push({ i, src: x.src, id: x.id, u: x.u }); if (x.also) pins.push({ i, src: x.also.src, id: x.also.id, u: x.also.u, second: true }); });
 
 // What each pin answers: { preview, artist, title } or null.
 const found = new Map();
@@ -58,6 +67,7 @@ for (const p of pins.filter((x) => x.src === 'deezer')) {
 
 const playable = new Set();
 const broken = [];
+const fixes = new Map();   // Apple id → its current preview address (--fix)
 for (const p of pins) {
   const x = SONGS[p.i];
   const key = p.src + ':' + p.id;
@@ -66,6 +76,10 @@ for (const p of pins) {
   if (!r) { broken.push(tag + ': no longer there'); continue; }
   if (!r.preview) { broken.push(tag + ': no preview any more'); continue; }
   if (ARTISTS) console.log(`  · ${tag}: ${r.artist} | ${r.title}`);
+  if (p.src === 'itunes' && p.u !== r.preview) {
+    if (FIX) fixes.set(p.id, r.preview);
+    else { broken.push(tag + (p.u ? ': its saved address is not Apple\'s current one (--fix)' : ': no saved address (--fix)')); continue; }
+  }
   if (PLAY) {
     try {
       const res = await fetch(r.preview, { headers: { Range: 'bytes=0-1023' } });
@@ -74,6 +88,15 @@ for (const p of pins) {
     await sleep(120);
   }
   playable.add(p.i);
+}
+
+if (fixes.size) {
+  let src = readFileSync(SONGS_FILE, 'utf8');
+  fixes.forEach((url, id) => {
+    src = src.replace(new RegExp(`(src: 'itunes', id: ${id})(, u: '[^']*')?`, 'g'), `$1, u: '${url.replace(/'/g, '%27')}'`);
+  });
+  writeFileSync(SONGS_FILE, src);
+  console.log(`--fix: wrote ${fixes.size} Apple preview addresses into Songs.js (build and deploy the rooms server)`);
 }
 
 const lost = SONGS.map((x, i) => i).filter((i) => !playable.has(i));

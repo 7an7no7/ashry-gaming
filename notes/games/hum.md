@@ -41,7 +41,11 @@
   (Apple stays where it already worked); the songs Apple was missing brought
   back from Deezer, and the newest grown to 30+ from it, family-clean only.
   Deezer's preview addresses are signed and expire, so they are never stored:
-  the rooms server looks a song up when it plays it. The round counter reads
+  the rooms server looks a song up when it plays it. Apple's lookup answers 403
+  to Cloudflare's servers (found on the live server the day it shipped), so an
+  Apple pin keeps its preview's address (`u`) and the server plays that
+  directly; `npm run check:songs` reports an address Apple has changed and
+  `-- --fix` writes the current ones in. The round counter reads
   «الأغنية 3 من 10».
 - The server ends a round on its clock; the host can skip a song (a broken
   preview, a song nobody knows). The podium at the end, and the night's points

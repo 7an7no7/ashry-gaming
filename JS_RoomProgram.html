@@ -450,11 +450,11 @@ function progHostHtml(state, t, tv) {
   const can = typeof roomCanMoveOn === 'function' ? roomCanMoveOn(state) : state.youAreHost;
   if (!can) return `<p class="prog-wait">${escapeHTML(t.prog_wait_host || '')}</p>`;
   const b = (label, on, kind) => tv && typeof tvBtn === 'function' ? tvBtn(label, on, kind)
-    : `<button type="button" class="btn ${kind === 'ghost' ? 'btn--ghost' : kind === 'secondary' ? 'btn--secondary' : 'btn--primary'} btn--auto" onclick="${on}">${label}</button>`;
+    : `<button type="button" class="btn ${kind === 'ghost' ? 'btn--ghost' : kind === 'secondary' ? 'btn--secondary' : 'btn--primary'} btn--auto" onclick="${on}">${escapeHTML(label)}</button>`;
   return `<div class="prog-actions ${tv ? 'tv-actions' : ''}">
-      ${b('⏭ ' + escapeHTML(p.at < 0 ? (t.prog_go_first || '') : (t.prog_go_now || '')), 'progSkip()')}
-      ${b(p.paused ? '▶ ' + escapeHTML(t.prog_resume || '') : '⏸ ' + escapeHTML(t.prog_pause || ''), `progPause(${p.paused ? 'false' : 'true'})`, 'secondary')}
-      ${state.youAreHost ? b('⏹ ' + escapeHTML(t.prog_end || ''), 'progEnd()', 'ghost') : ''}
+      ${b('⏭ ' + (p.at < 0 ? (t.prog_go_first || '') : (t.prog_go_now || '')), 'progSkip()')}
+      ${b(p.paused ? '▶ ' + (t.prog_resume || '') : '⏸ ' + (t.prog_pause || ''), `progPause(${p.paused ? 'false' : 'true'})`, 'secondary')}
+      ${state.youAreHost ? b('⏹ ' + (t.prog_end || ''), 'progEnd()', 'ghost') : ''}
     </div>`;
 }
 
@@ -530,7 +530,7 @@ function progFinalHtml(state, t, tv) {
       </details>`;
   const share = !state.youAreScreen && champs.length ? `<button type="button" class="btn btn--secondary btn--auto" onclick="progShare()"><span aria-hidden="true">📸</span> ${escapeHTML(t.prog_share || '')}</button>` : '';
   const close = state.youAreHost
-    ? (tv && typeof tvBtn === 'function' ? tvBtn(escapeHTML(t.prog_close || ''), 'progClose()') : `<button type="button" class="btn btn--primary btn--auto" onclick="progClose()">${escapeHTML(t.prog_close || '')}</button>`)
+    ? (tv && typeof tvBtn === 'function' ? tvBtn(t.prog_close || '', 'progClose()') : `<button type="button" class="btn btn--primary btn--auto" onclick="progClose()">${escapeHTML(t.prog_close || '')}</button>`)
     : '';
   return `
     <div class="prog prog--final ${tv ? 'prog--tv' : ''}" data-accent="amber">

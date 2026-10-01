@@ -128,7 +128,9 @@ catalog, the help); the rules are named `wire` / `WIRE_`, the page's code
   drains the bars and the clock from the server's time (the smallest
   `receivedAt - serverNow`). `wrEvents` plays each event once per deal (a
   stamp ✓ / ✗ / the level, a buzz, the voice's sounds: `wrSound` - the alarm,
-  a chime, a crackle, a whistle, the danger beep, the ticks). The shake: a
+  a chime, a crackle, a whistle, the danger beep, the ticks), and only events
+  under 4 s old by the server's clock: a phone back from Help or a TV tab shown
+  again used to play everything it missed at once. The shake: a
   layer over the panel, `devicemotion` asked for inside the first tap on iOS
   (`wrOnMotion`: 12 m/s² without gravity, or 10 off gravity), three jolts or
   three taps. The end: a card over the bars (the levels cleared counting up,

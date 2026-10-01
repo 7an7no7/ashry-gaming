@@ -280,7 +280,8 @@ const chess4Action = (room, playerId, action, payload) => {
   }
 
   if (action === 'resign') {
-    if (s.phase !== 'play') return;
+    // A confirm pressed after «play again» was drawn for the last game: it doesn't resign the new one.
+    if (s.phase !== 'play' || staleTap(p, 'round', s.round)) return;
     const seat = s.seats.indexOf(playerId);
     if (seat === -1 || g.out[seat]) return;
     chess4RoomOut(room, seat, 'resign');

@@ -52,6 +52,20 @@ const witNameOf = (state, id) => ((state.players || []).find(p => p.id === id) |
 const witInitial = (name) => (String(name || '').trim().replace(/^ال/, '')[0] || '?');
 const witColorOf = (s, id) => WIT_COINS[Math.max(0, (s.roster || []).indexOf(id)) % WIT_COINS.length];
 const witRoundKey = (state) => roomDealKey(state) + '|' + ((state.shared || {}).round || 0);
+/* The first time this page sees the room (a reload, a late join, a TV coming on - the reveal waits
+   on the host, so it is often seen late), what is already on the table counts as seen: no coins,
+   stamp or sounds played again (GEMINI.md, «A play-once memory is empty after a reload»). */
+function witFirstSight(state) {
+  if (wit.sightRoom === state.code) return;
+  wit.sightRoom = state.code;
+  const s = state.shared || {};
+  const key = witRoundKey(state);
+  if (s.phase === 'look') witOnce('look|' + key);
+  if (s.phase === 'draw') witOnce('draw|' + key);
+  if (s.phase === 'vote') { motionFirst('wit-line|' + key); motionFirst('wit-tv-line|' + key); }
+  if (s.phase === 'reveal') { motionFirst('wit-rev|' + key); motionFirst('wit-tv-rev|' + key); witOnce('rev|' + key); }
+  if (s.phase === 'gameover') witOnce('over|' + roomDealKey(state));
+}
 
 /** Who this device is this round: the witness, the artist, a juror, watching, or a screen. */
 function witRole(state) {
@@ -518,6 +532,7 @@ ROOM_GAMES.witness = {
     const el = document.getElementById('view-room-witness');
     if (!el) return;
     witNoteTime(state);
+    witFirstSight(state);
     const s = state.shared || {};
     const role = witRole(state);
     const clock = s.phase === 'draw' ? s.drawEndsAt : s.phase === 'vote' ? s.voteEndsAt : null;
@@ -653,6 +668,7 @@ TV_GAMES.witness = {
       JSON.stringify(s.board || []), state.youAreHost, appState.lang, s.phase === 'draw' ? '' : s.sketchN].join('|');
   },
   frame(state, t) {
+    witFirstSight(state);
     const s = state.shared || {};
     const key = witRoundKey(state);
     const witness = witIso(witNameOf(state, s.witnessId));

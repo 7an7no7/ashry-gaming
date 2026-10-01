@@ -75,7 +75,10 @@ play, and every night's history. A night counts only when its room was opened
   (`dropNight`).
 - `crewMe { code, key }`: any player's phone that is a member says which member it
   is (sent once a room by `JS_CrewCore.html`), so a room name that differs from the
-  crew name still maps.
+  crew name still maps. Refused by the crew (the member taken out, the crew gone),
+  it isn't sent again for that room - it used to go out on every state - and the
+  phone asks the crew once (`crewRefresh`), which forgets it if it is out; a
+  network failure tries again after 30 s.
 - **When a night is sent**: whenever the night grows (a game banked on the way back
   to the hub, a guess settled - `act` compares `night` and `nightx` before and
   after) and when the room closes (`destroy`: the idle clean-up, or the last person

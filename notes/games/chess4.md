@@ -91,6 +91,10 @@ rules are named `chess4` / `CHESS4_` and the page's code `ch4`.
     out, +20 to themselves) or a pass (teams), the fifty-move rule and the
     600-move cap. `chess4Eliminate(g, seat, why)` is resigning, the clock and
     leaving (FFA: out and the turn moves on, judged again; teams: the loss).
+    `resign { round }` carries the game its confirm was drawn for (`staleTap`,
+    optional for older phones), so a confirm pressed after «play again» doesn't
+    resign the new game. The phone's clock tick and the host's 40 s timer stop
+    off the room screen (`ch4OnScreen`); drawing the screen starts them again.
   - **The computer** (`chess4BotMove(g, level, { nodes, rnd })`): easy is one
     move deep - a capture if there is one, bigger more likely, with chance in
     it; hard a paranoid alpha-beta (the bot, and in teams its partner, against

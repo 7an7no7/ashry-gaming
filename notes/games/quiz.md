@@ -33,7 +33,10 @@ untouched (a ready index line and a draft `notes/games/quiz.md` are at the end).
 - **Everything is kept as it is typed** (`qmKeep` → `packQuizPut`), so a reload in the
   middle of a question comes back to it, open (`ashryQuizEdit_v1` keeps which quiz and
   which question; `qmRestore` from `restoreView`). A quiz with a code that is changed on
-  the phone is `dirty` until «احفظ» sends it again.
+  the phone is `dirty` until «احفظ» sends it again. The server's answer to a save
+  (`qmSave`, `wpSave`) goes to the quiz or word pack that was sent, by its id, never to
+  whatever is open when it comes back; anything typed while it saved is kept and the
+  pack stays `dirty` (its `updated` stamp changed), and one deleted meanwhile is left gone.
 - **The editor, look ب «القايمة»**: a title card (the emoji tile cycles through ten; the
   title is an inline field; a line says how many questions, when it was last changed and
   whether it is saved). Every question is a row (its number, its text with its emoji, ✓

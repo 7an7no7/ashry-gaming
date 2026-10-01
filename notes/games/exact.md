@@ -126,8 +126,10 @@ and a hand on the table).
   the table's hands in place (`exPaintLive`) - a finger on the pad is never
   redrawn under it. The TV: the table big beside the order or the verdict,
   the podium and the record at the end (`.ex-tv--over`, half and half).
-- **The reveal** (`exReveal`, keyed with `motionFirst` on the round, so a
-  reload or a latecomer replays nothing): the hands lift off, then slam down
+- **The reveal** (`exReveal`, keyed with `motionFirst` on the round, and
+  `exFirstSight` marks a reveal or an ending already on the table as seen the
+  first time the page sees the room, so a reload, a latecomer or a TV coming on
+  replays nothing): the hands lift off, then slam down
   one by one in the order pressed (their ms after go); then the verdict card;
   then each wrong hand's moment - an extra one gets a slap from its
   neighbours and pulls back (`exSlap`), a hand in the trap is stung by a bee

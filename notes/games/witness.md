@@ -111,8 +111,9 @@ id `witness` everywhere (`room-witness`, `ROOM_GAMES.witness`,
   the coins drop one by one, the spotlight comes on and the stamp slams, the
   points count up; the sounds (`witSound`: a shutter, the file closing, the
   last seconds' ticks, the coins, the stamp) on the room's one voice
-  (`witVoice`). A reload or a latecomer replays nothing (`motionFirst`,
-  `witOnce` keyed on the round).
+  (`witVoice`). A reload, a latecomer or a TV coming on replays nothing
+  (`motionFirst`, `witOnce` keyed on the round; `witFirstSight` marks the
+  phase already on the table as seen the first time the page sees the room).
 - **Layout** (section 56): upright one column; a phone on its side and from
   900 px the case file beside the message, the mugshot beside the builder
   (as tall as the play area on a phone's side), the lineup six across, the

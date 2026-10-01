@@ -430,6 +430,11 @@ if (typeof Room !== 'undefined') Room.onChange((state) => {
   const k = state.code + '|' + state.crew.code + '|' + Room.me;
   if (crewMeSent[k]) return;
   crewMeSent[k] = true;
-  Room.act('crewMe', { code: e.code, key: e.key }).catch(() => { delete crewMeSent[k]; });
+  Room.act('crewMe', { code: e.code, key: e.key }).catch((err) => {
+    // Refused by the crew (taken out, or the crew is gone), not a network hiccup: don't ask again
+    // for this room - every state used to resend it - and ask the crew once, which forgets it if so.
+    if (err && /الشلة/.test(String(err.raw || err.message || ''))) { crewRefresh(e.code).catch(() => {}); return; }
+    setTimeout(() => { delete crewMeSent[k]; }, 30000);
+  });
 });
 </script>

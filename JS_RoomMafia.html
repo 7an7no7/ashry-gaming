@@ -1,4 +1,6 @@
 <script>
+// How many have tapped tonight: a count only (an older server sent the list).
+function mafiaActedCount(s) { return s.actedN != null ? s.actedN : (s.acted || []).length; }
 /* ============================================================================
    مافيا — ON SEPARATE PHONES, AND ON THE TV
    ----------------------------------------------------------------------------
@@ -432,7 +434,7 @@ ROOM_GAMES.mafia = {
       if (s.phase === 'night') {
         return head + `
           <div class="card mafia-nighthead" style="text-align:center"><div class="eyebrow">🌙 ${escapeHTML((t.mafia_night_n || '').replace('{n}', s.night))}</div>
-            <p class="field__hint">${escapeHTML(t.mafia_night_everyone || '')} · <span class="metric" data-mafia-acted>${(s.acted || []).length}/${(s.alive || []).length}</span></p></div>
+            <p class="field__hint">${escapeHTML(t.mafia_night_everyone || '')} · <span class="metric" data-mafia-acted>${mafiaActedCount(s)}/${(s.alive || []).length}</span></p></div>
           ${outNote}${mafiaNightHtml(state, t)}
           ${inGame && alive ? role : ''}
           ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('endNight')">${escapeHTML(t.mafia_end_night || '')}</button></div>`)}
@@ -497,7 +499,7 @@ ROOM_GAMES.mafia = {
     refreshMafiaSecret(el, state, t);
     if (s.phase === 'gameover' && rebuilt) mafiaEndRun(el, state);
     const acted = el.querySelector('[data-mafia-acted]');
-    if (acted) acted.textContent = `${(s.acted || []).length}/${(s.alive || []).length}`;
+    if (acted) acted.textContent = `${mafiaActedCount(s)}/${(s.alive || []).length}`;
     if ((s.phase === 'night' || s.phase === 'day') && s.endsAt) mafiaTickClock(s); else mafiaStopClock();
     if (s.phase === 'gameover' && rebuilt && typeof confetti === 'function' && motionFirst('mafia-over:' + roomDealKey(state) + ':' + JSON.stringify(s.scores || {}))) {
       afterReveal(el, () => confetti({ particleCount: 120, spread: 80 }));
@@ -559,7 +561,7 @@ TV_GAMES.mafia = {
   sig: (state) => {
     const s = state.shared;
     const v = s.vote || {};
-    return [s.phase, s.night, s.day, (s.acted || []).length, (v.voted || []).length, v.phase, (s.alive || []).length, s.endsAt].join('|');
+    return [s.phase, s.night, s.day, mafiaActedCount(s), (v.voted || []).length, v.phase, (s.alive || []).length, s.endsAt].join('|');
   },
   frame(state, t) {
     const s = state.shared;
@@ -579,7 +581,7 @@ TV_GAMES.mafia = {
       return `<div class="tv-center mafia-tv-night"><div class="tv-big-icon" aria-hidden="true">🌙</div>
         <div class="tv-title">${escapeHTML(t.mafia_city_sleeps || '')}</div>${clock}
         <div class="tv-note">${escapeHTML(t.mafia_night_everyone || '')}</div>
-        <div class="tv-legend tv-wait"><span class="tv-chip is-done">✓ <b class="metric">${ltrFrac((s.acted || []).length, (s.alive || []).length)}</b></span></div>
+        <div class="tv-legend tv-wait"><span class="tv-chip is-done">✓ <b class="metric">${ltrFrac(mafiaActedCount(s), (s.alive || []).length)}</b></span></div>
         ${moveOn(tvBtn(t.mafia_end_night, "roomAct('endNight')", 'ghost'))}</div>`;
     }
     if (s.phase === 'day') {

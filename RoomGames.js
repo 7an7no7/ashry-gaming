@@ -4624,7 +4624,7 @@ const mafiaPlayerLeft = (room, playerId, name) => {
     s.out = (s.out || []).concat([{ id: playerId, name: name || '', role: mafiaShownRole(room, playerId), night: s.phase === 'night', left: true }]);
   }
   if (mafiaCheckEnd(room)) return;
-  if (s.phase === 'night' && mafiaAlive(room).every(id => (s.acted || []).indexOf(id) !== -1)) { mafiaEndNight(room); return; }
+  if (s.phase === 'night' && mafiaAlive(room).every(id => (room._mafiaActed || []).indexOf(id) !== -1)) { mafiaEndNight(room); return; }
   if (s.phase === 'voting' && voteDropPlayer(room, playerId)) { mafiaResolveVote(room); return; }
   mafiaWriteSecrets(room);
 };
@@ -6189,9 +6189,13 @@ const mafiaAction = (room, playerId, action, payload) => {
     } else {
       night.suspects[playerId] = target;
     }
-    if (s.acted.indexOf(playerId) === -1) s.acted.push(playerId);
+    // Who has tapped stays on the server (the slow ones at night are the roles);
+    // the phones and the TV get the count.
+    room._mafiaActed = room._mafiaActed || [];
+    if (room._mafiaActed.indexOf(playerId) === -1) room._mafiaActed.push(playerId);
+    s.actedN = room._mafiaActed.length;
     mafiaWriteSecrets(room);
-    if (mafiaAlive(room).every(id => s.acted.indexOf(id) !== -1)) mafiaEndNight(room);
+    if (mafiaAlive(room).every(id => room._mafiaActed.indexOf(id) !== -1)) mafiaEndNight(room);
     return;
   }
 
@@ -6255,7 +6259,7 @@ const mafiaWriteSecrets = (room) => {
 const mafiaStartNight = (room) => {
   const s = room.shared;
   s.night = (s.night || 0) + 1;
-  s.acted = [];
+  room._mafiaActed = []; s.actedN = 0; delete s.acted;
   s.news = null;
   s.vote = null;
   s.endsAt = Date.now() + s.nightSeconds * 1000;
@@ -6292,7 +6296,7 @@ const mafiaEndNight = (room) => {
     s.news = { kind: 'quiet' };
   }
   m.night = null;
-  s.acted = [];
+  room._mafiaActed = []; s.actedN = 0; delete s.acted;
   if (mafiaCheckEnd(room)) return;
   s.day = (s.day || 0) + 1;
   s.endsAt = Date.now() + s.discuss * 60000;

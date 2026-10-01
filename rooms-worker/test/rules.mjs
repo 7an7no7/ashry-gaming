@@ -583,6 +583,19 @@ const leave = (r, id, hook = true) => {
     'mafia: a leave that leaves the mafia level ends the game, and the list still names who left');
 }
 {
+  // مافيا: who has tapped at night is the server's; the phones and the TV get the count.
+  const r = newRoom(['h', 'p2', 'p3', 'p4', 'p5']);
+  applyRoomAction(r, 'h', 'chooseGame', { game: 'mafia' });
+  applyRoomAction(r, 'h', 'start', { mode: 'classic' });
+  const boss = Object.keys(r._mafia.roles).find((id) => r._mafia.roles[id] === 'mafia');
+  const town = r.shared.roster.filter((id) => id !== boss);
+  applyRoomAction(r, 'h', 'startNight', {});
+  applyRoomAction(r, boss, 'nightPick', { target: town[0] });
+  check(r.shared.actedN === 1 && !('acted' in r.shared) && r._mafiaActed.length === 1, 'mafia: the night shows how many tapped, never who');
+  r.shared.roster.filter((id) => id !== boss).forEach((id) => applyRoomAction(r, id, 'nightPick', { target: boss }));
+  check(r.shared.phase === 'day' && r.shared.actedN === 0, 'mafia: and the night still ends when everyone has tapped');
+}
+{
   // مافيا, a room from before the hook: a player gone but still on the living list is not counted.
   const r = newRoom(['h', 'p2', 'p3', 'p4', 'p5']);
   applyRoomAction(r, 'h', 'chooseGame', { game: 'mafia' });

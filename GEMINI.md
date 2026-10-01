@@ -674,7 +674,10 @@ board built from it banked them on the night (in القنبلة, 0 strikes put a
 first), and a board with no `score` (ربع قرد) or no player rows (أسماء الرموز's
 cards) banked nothing. `nightBoardOf` (RoomGames.js) keeps the people who played
 and ranks teams through `PROGRAM_TEAMS`; a new game's board carries a `score`, best
-first, and is read through it.
+first, and is read through it. A board that is a tally across play-again (كدّاب, الشايب, جمجمة)
+is not this game's places: such a game registers its own result in `ROOM_RESULT_BOARDS`
+(and `NIGHT_FROM_RESULT`), and the room's night and برنامج السهرة both place a game through
+`nightPlacesOf` - one function, so the two tables never disagree (the review of 1 Oct 2026).
 
 **A chunk runs after DOMContentLoaded.** A game file that paints at start-up
 must paint at once when `document.readyState` isn't 'loading', and a registry a

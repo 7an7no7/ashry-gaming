@@ -60,14 +60,18 @@ const fail = (msg) => { failed = true; console.log('✗ ' + msg); };
 const local = cacheName(await readFile(path.join(root, 'docs', 'sw.js'), 'utf8'));
 console.log(`this folder's build: ${local}\n`);
 
+// A git call that fails returns null: that is a failure, never silence, or 'Live.' could be
+// printed with commits unpushed (git not on the PATH, a lock file, no origin/master yet).
 const dirty = git('status --porcelain');
-if (dirty) fail('uncommitted changes (commit them, docs/ included, and push):\n' + dirty.split('\n').map((l) => '    ' + l).join('\n'));
-else if (dirty === '') ok('everything is committed');
+if (dirty === null) fail('could not run git status');
+else if (dirty) fail('uncommitted changes (commit them, docs/ included, and push):\n' + dirty.split('\n').map((l) => '    ' + l).join('\n'));
+else ok('everything is committed');
 
 git('fetch -q origin master');
 const ahead = git('rev-list --count origin/master..HEAD');
-if (ahead && ahead !== '0') fail(`${ahead} commit(s) not pushed yet: git push origin master`);
-else if (ahead === '0') ok('everything is pushed');
+if (ahead === null) fail('could not compare with origin/master (git fetch or rev-list failed)');
+else if (ahead !== '0') fail(`${ahead} commit(s) not pushed yet: git push origin master`);
+else ok('everything is pushed');
 
 const built = (await stat(path.join(root, 'docs', 'index.html'))).mtimeMs;
 const sources = (await readdir(root)).filter((f) => /\.(html|js)$/.test(f));

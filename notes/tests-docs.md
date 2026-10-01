@@ -40,7 +40,11 @@ shards, 4 at a time, each with its own Chrome and its own copy of the site: the
 screens at 375x812, 667x375 and 1280x720 (`UI_SIZES`), the room games in thirds
 (`UI_ROOMS_SHARD=i/k`; `UI_ROOM_SHARDS` sets k, 3; 4 was no faster), fixes and site.
 `ONLY=` still picks parts; `UI_GAMES=uno,domino` plays only those room games.
-`npm run test:ui:one` is the old single process.
+`npm run test:ui:one` is the old single process. A part `ONLY` doesn't know, or a game
+`UI_GAMES` names that isn't in `ROOM_HUB_GAMES` (`tictactoe` for `xo`), stops the run at
+once: it used to run no check and print "0 passed, 0 failed", which read as green. The exit
+code is 1 on any failure, never the count (a POSIX shell keeps it mod 256: 256 failures
+exited 0).
 
 Three things the load showed, fixed in `test-ui.mjs`:
 - a check reading `appState` while the page was between two documents failed; `ev`
@@ -64,15 +68,30 @@ for another), maps them with `MAP` in `tools/test-changed.mjs`, prints the plan,
 | --- | --- |
 | notes, `*.md`, `docs/`, `.github/` | nothing |
 | anything else | `npm run check` |
-| a root `*.js` or `rooms-worker/src/` | `npm run test:rules` |
+| a root `*.js`, `rooms-worker/src/`, or `rooms-worker/test/rules.mjs` / `leaks.mjs` themselves | `npm run test:rules` |
 | `Room<X>.js`, `<X>.js` rules, `JS_Room<X>.html` | the robot segments of that game, and its room game in the screen test |
 | the party word lists, `JS_Room<party game>.html` | the `core` and `autonext` segments, the party room games |
 | a one-phone page file `JS_<X>.html` | the screens (and the race room games for the solo puzzles) |
 | `site-worker/`, the icons, `make-og.mjs` | the `site` part |
 | the core (`RoomGames.js`, `rooms-worker/src/`, `JS_Core/Room/RoomTv/...`, `Controller.html`, `Style.html`, the build and test scripts) or a file the map doesn't know | everything |
 
-`--dry` shows the plan only; `--files=RoomUno.js,JS_Sudoku.html` asks what a change to
+The sudoku race tile is in `RACE_GAMES` with the other puzzles (it was the one room
+game no line of the map ever sent to the screen test). `--dry` shows the plan only; `--files=RoomUno.js,JS_Sudoku.html` asks what a change to
 those files would run. A new game adds a line to `MAP` and a segment to `SEGMENTS`.
+
+## The checks behind `npm run check` (1 Oct 2026)
+
+- `check-i18n.js` reads `TRANSLATIONS` with a parser (acorn), not a line regex: the regex
+  saw only the first key of a line, so seven `bank_col_*` keys written several to a line
+  were invisible to the missing and duplicate checks.
+- `check-css-vars.js` (run at the end of `check-i18n.js`) fails on a `var(--x)` in
+  `Style.html`, `Controller.html` or a `JS_*.html` that no stylesheet, inline style or
+  `setProperty` defines. Its first run found seven (`--font-mono`, `--accent-btn`,
+  `--shadow-md`, `--fs-xl`/`lg`/`md`, `--pad-w`); they read the real tokens now (`--sh-3`,
+  `--fs-h1`/`h2`/`h3`, `--accent`, the pad's own `--pad`). `ALLOWED` in the file lets a name
+  through with its reason, and says when an entry is no longer needed.
+- `check-live.mjs` fails when a git call fails (it used to say nothing and could end on
+  "Live." with commits unpushed).
 
 ## Times (this PC, local rooms server on its own port, 30 Sep 2026)
 

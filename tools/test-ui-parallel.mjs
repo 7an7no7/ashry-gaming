@@ -22,13 +22,13 @@ import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('./', import.meta.url));
 const root = path.join(here, '..');
 const ROOMS = (process.argv.slice(2).find((a) => /^https?:/.test(a)) || process.env.ROOMS_URL || 'http://127.0.0.1:8787').replace(/\/$/, '');
-const ONLY = (process.env.ONLY || 'screens,rooms,fixes,program,site').split(',');
+const ONLY = (process.env.ONLY || 'screens,rooms,fixes,program,mission,site').split(',');
 const JOBS = Math.max(1, Number(process.env.JOBS || 4));
 const ROOM_SHARDS = Math.max(1, Number(process.env.UI_ROOM_SHARDS || 3));
 
 // A part or a room game that names nothing used to run no check and print "0 passed, 0 failed",
 // which reads as green (ONLY=screen, or UI_GAMES=tictactoe for xo): both are refused here.
-const PARTS = ['screens', 'rooms', 'fixes', 'program', 'site'];
+const PARTS = ['screens', 'rooms', 'fixes', 'program', 'mission', 'site'];
 const unknownParts = ONLY.filter((p) => !PARTS.includes(p));
 if (unknownParts.length) {
   console.error(`ONLY=${unknownParts.join(',')} names no part (${PARTS.join(', ')})`);
@@ -76,6 +76,7 @@ if (ONLY.includes('screens')) for (const size of ['375x812', '1280x720', '667x37
 if (ONLY.includes('fixes')) SHARDS.push({ name: 'fixes', env: { ONLY: 'fixes' }, secs: 60 });
 if (ONLY.includes('site')) SHARDS.push({ name: 'site', env: { ONLY: 'site' }, secs: 60 });
 if (ONLY.includes('program')) SHARDS.push({ name: 'program', env: { ONLY: 'program' }, secs: 50 });
+if (ONLY.includes('mission')) SHARDS.push({ name: 'mission', env: { ONLY: 'mission' }, secs: 40 });
 SHARDS.sort((a, b) => b.secs - a.secs);
 
 const results = [];

@@ -122,6 +122,11 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
   🚩 Minesweeper, 👑 Queens, ☀️ Tango, 🖼️ Nonogram; 🧵 خيوط, 🔡 كلمات من
   حروف, 🔗 إيه اللي يجمعهم؟, 🔥 سلسلة الإجابات, 🌍 خمّن الدولة; and a
   daily for 🟩 خمن الكلمة and تشابه too (not 2048).
+- **Beside every game, in rooms:** 🕵️ **The secret mission (المهمة السرية):** a switch the
+  host turns on in the room: everyone gets a secret target and a mission that fits the
+  place and the company (العيلة or الصحاب); the target confirms it on their phone, the TV
+  ticks off every file closed, and at the end the story of who did what to whom and the
+  best secret agent (*المهمة السرية*, `notes/games/mission.md`).
 - **Utility Tools:**
   - 👆 Who starts? (مين يبدأ؟), the finger chooser: one starts, two teams, or an order.
   - 🏆 Tournament Organizer, 👥 Team Generator, 🎡 Random Picker.

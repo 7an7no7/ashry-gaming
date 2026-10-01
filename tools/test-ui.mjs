@@ -3,7 +3,7 @@
  *
  *   npm run test:ui                      (the rooms server running: npm run dev in rooms-worker/)
  *   node test-ui.mjs http://127.0.0.1:8797          another rooms server
- *   ONLY=screens,rooms,fixes,program,site node test-ui.mjs  some parts only
+ *   ONLY=screens,rooms,fixes,program,mission,site node test-ui.mjs  some parts only
  *   CHROME=/path/to/chrome                          where Chrome is, if not in the usual place
  *
  * It builds its own copy of the app (the preview, and the published site for the offline copy)
@@ -21,6 +21,8 @@
  *            Battleship tells no result before the shell lands, Guess Who's face pick has a clock
  *   program  برنامج السهرة: the builder, the table between two games, a reload there, the finale,
  *            on five phones and a TV
+ *   mission  المهمة السرية: the host's switch and setup, the file held open on every phone, the
+ *            target's memo over a game, the TV's board, ticker and strings, a reload, the reveal
  *   site     the offline copy: the app opens from the phone, and a new build is switched to by
  *            itself on the home screen, never in a game; Settings says which version this is
  *
@@ -37,7 +39,7 @@ import { fileURLToPath } from 'node:url';
 const here = fileURLToPath(new URL('./', import.meta.url));
 const root = path.join(here, '..');
 const ROOMS = (process.argv.slice(2).find((a) => /^https?:/.test(a)) || process.env.ROOMS_URL || 'http://127.0.0.1:8787').replace(/\/$/, '');
-const ONLY = (process.env.ONLY || 'screens,rooms,fixes,program,site').split(',');
+const ONLY = (process.env.ONLY || 'screens,rooms,fixes,program,mission,site').split(',');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'ashry-ui-'));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // Side by side (tools/test-ui-parallel.mjs): which screen sizes this process sweeps, and which
@@ -772,6 +774,115 @@ if (ONLY.includes('program')) {
   await wait(1000);
   const hub = await showRoom(host);
   check(hub === 'room-lobby', 'program: closed, back to the room\'s list', hub);
+  for (const p of all) await closePhone(p);
+}
+
+/* --- المهمة السرية: the switch, the file, the target's memo, the TV, the reveal ------------ */
+if (ONLY.includes('mission')) {
+  console.log('• the secret mission: the host\'s switch, the file on every phone, the memo over a game, the TV\'s board, the reveal (five phones and a TV)');
+  const { phones, tv, all } = await roomOfFive();
+  const host = phones[0];
+  for (const p of all) await showRoom(p);
+  await wait(500);
+  all.forEach(takeErrors);
+  const modalCheck = async (p, id) => { await ev(p, SWEEP); return ev(p, `__uiCheck(document.getElementById(${JSON.stringify(id)}))`); };
+  const door = await ev(host, `!!document.querySelector('#room-mission .msn-door')`);
+  check(door, 'mission: the host sees its switch in the room');
+  const noDoor = await ev(phones[1], `!document.querySelector('#room-mission .msn-door')`);
+  check(noDoor, 'mission: a player sees no switch while it is off');
+  await ev(host, `roomOpenMission(); 1`);
+  await chunkIn(host, 8000);
+  await wait(600);
+  let found = await modalCheck(host, 'mission-modal');
+  const tabs = await ev(host, `document.querySelectorAll('#mission-modal .msn-tabs__tab').length`);
+  check(tabs === 4 && found && !found.length, 'mission: the setup (four places, two companies) laid out within the screen', JSON.stringify(found));
+  await ev(host, `missionSetPlace('out'); missionSetCo('friends'); 1`);
+  const ex = await ev(host, `document.querySelectorAll('#mission-modal .msn-ex li').length`);
+  check(ex === 3, 'mission: three examples of what the file holds', String(ex));
+  await ev(host, `missionSetupGo(); 1`);
+  await wait(1500);
+  for (const p of all) await chunkIn(p, 8000);
+  await wait(800);
+  const lookAll = async (label) => {
+    const bad = [];
+    for (const p of all) {
+      const view = await showRoom(p);
+      await wait(250);
+      const f = await sweep(p);
+      if (f && f.length) bad.push(p.name + ' (' + view + '): ' + f.join('; '));
+    }
+    const errs = all.flatMap((p) => takeErrors(p).map((e) => p.name + ': ' + e));
+    check(!bad.length && !errs.length, `mission: ${label}, on every phone and the TV, laid out without errors`, [...bad, ...new Set(errs)].join('\n      '));
+  };
+  await lookAll('the lobby with it on');
+  const fab = await Promise.all(phones.map((p) => ev(p, `getComputedStyle(document.getElementById('mission-fab')).display !== 'none'`)));
+  check(fab.every(Boolean), 'mission: the 📁 in the header on every phone', JSON.stringify(fab));
+  const board = await ev(tv, `!!document.querySelector('#view-room-tv .msn-cork--board') && !document.getElementById('mission-fab').offsetWidth`);
+  check(board, 'mission: the TV shows the cork board, and no 📁');
+  // The file on every phone, shut and held open.
+  const fileBad = [];
+  for (const p of phones) {
+    await ev(p, `missionOpenFile(); 1`);
+    await wait(400);
+    let f = await modalCheck(p, 'mission-modal');
+    await ev(p, `missionHoldDown(null); 1`);
+    await wait(300);
+    const open = await ev(p, `document.getElementById('msn-file').classList.contains('is-peek')`);
+    f = (f || []).concat(await modalCheck(p, 'mission-modal') || []);
+    await ev(p, `missionHoldUp(); 1`);
+    await wait(350);
+    const shut = await ev(p, `!document.getElementById('msn-file').classList.contains('is-peek') && !document.getElementById('msn-type-text').textContent`);
+    if (!open || !shut || f.length) fileBad.push(p.name + ': ' + JSON.stringify({ open, shut, f }));
+    await ev(p, `missionCloseModal(); 1`);
+  }
+  check(!fileBad.length, 'mission: every phone\'s file opens while held, shuts empty when let go, laid out within the screen', fileBad.join('\n      '));
+  // A game; a memo over it at a calm moment, on the target's phone only.
+  await ev(host, `(async () => { await Room.act('chooseGame', { game: 'buzzer' }); await Room.act('start', {}); return 1; })()`);
+  await wait(1500);
+  const doer = phones[1];
+  const to = await ev(doer, `Room.state.mission.me.to`);
+  const ids = await Promise.all(phones.map((p) => ev(p, `Room.me`)));
+  const target = phones[ids.indexOf(to)];
+  await ev(doer, `missionDone(); 1`);
+  let memo = false;
+  for (let i = 0; i < 40 && !memo; i++) { await wait(200); memo = await ev(target, `!document.getElementById('mission-ask').classList.contains('hidden')`); }
+  check(memo, 'mission: the target\'s phone gets the memo, over the game');
+  found = await modalCheck(target, 'mission-ask');
+  check(found && !found.length, 'mission: the memo laid out within the screen', JSON.stringify(found));
+  const others = await Promise.all(phones.filter((p) => p !== target).map((p) => ev(p, `document.getElementById('mission-ask').classList.contains('hidden')`)));
+  check(others.every(Boolean), 'mission: nobody else gets it');
+  await ev(target, `document.querySelector('#mission-ask .msn-stamp--yes').click(); 1`);
+  let ticker = false;
+  for (let i = 0; i < 30 && !ticker; i++) { await wait(200); ticker = await ev(tv, `!!document.querySelector('#msn-tv-ticker.is-on')`); }
+  check(ticker, 'mission: the TV\'s ticker says a file was closed');
+  await lookAll('a game with it on');
+  // A reload keeps it.
+  await send('Page.reload', {}, phones[2].sessionId);
+  await appUp(phones[2], 20000);
+  await wait(2500);
+  await chunkIn(phones[2], 8000);
+  const kept = await ev(phones[2], `!!(Room.state && Room.state.mission && Room.state.mission.on && document.body.classList.contains('has-mission'))`);
+  check(kept, 'mission: a phone reloaded mid-game still has its file');
+  // The end: the story on every phone, the strings and the champion on the TV.
+  await ev(host, `(async () => { await Room.act('backToHub', {}); await Room.act('missionSet', { on: false }); return 1; })()`);
+  await wait(2500);
+  const revealBad = [];
+  for (const p of phones) {
+    await ev(p, `missionOpenReveal(); 1`);
+    await wait(300);
+    const f = await modalCheck(p, 'mission-modal');
+    const has = await ev(p, `!!document.querySelector('#mission-modal .msn-champ') && document.querySelectorAll('#mission-modal .msn-story__line').length >= 1`);
+    if (!has || (f && f.length)) revealBad.push(p.name + ': ' + JSON.stringify({ has, f }));
+  }
+  check(!revealBad.length, 'mission: the story and the champion on every phone, laid out within the screen', revealBad.join('\n      '));
+  const strings = await ev(tv, `document.querySelectorAll('#msn-tv-reveal .msn-strings line').length`);
+  check(strings >= 1, 'mission: the TV\'s board joins who did what to whom with red strings', String(strings));
+  await ev(host, `(async () => { missionCloseModal(); await Room.act('missionClose', {}); return 1; })()`);
+  await wait(1200);
+  const gone = await ev(tv, `!document.getElementById('msn-tv-reveal')`);
+  check(gone, 'mission: closed - the TV is back to the room');
+  const errs = all.flatMap((p) => takeErrors(p).map((e) => p.name + ': ' + e));
+  check(!errs.length, 'mission: no console errors', [...new Set(errs)].join('\n      '));
   for (const p of all) await closePhone(p);
 }
 

@@ -14,8 +14,10 @@
    - company: 'a' gentle enough for the family (and so for friends too), 'f'
      the friends' cheekier ones - still clean: nothing adult, nothing that
      embarrasses or hurts anyone, nothing that bothers strangers at a café.
-   - ar always starts «خلّي {target} », en «Get {target} »: the ticker turns
-     it into «حسن خلّى منى …» / «Hassan got Mona …» (missionDeed).
+   - ar always starts «خلّي {target} », en «Get {target} », spoken to the doer
+     («يجيبلك», "bring you"): so the target's memo, the ticker and the story quote
+     it as the doer's file said it (missionQuote), never retell it - «حسن خلّى منى
+     يجيبلك…» would make the reader the one brought the water.
    tools/validate-content.js checks the tags, the openings, duplicates, and
    that every place × company has at least MISSION_MIN_POOL to deal from.
    No DOM, nothing that runs at load; every name starts with mission / MISSION_.
@@ -201,10 +203,9 @@ const missionText = (id, lang, target) => {
   return (lang === 'en' ? m[4] : m[3]).replace('{target}', target || '');
 };
 
-/** What the table reads once it is done: «حسن خلّى منى …» / «Hassan got Mona …». */
-const missionDeed = (id, lang, doer, target) => {
-  const m = missionById(id);
-  if (!m) return '';
-  if (lang === 'en') return m[4].replace(/^Get /, (doer || '') + ' got ').replace('{target}', target || '');
-  return m[3].replace(/^خلّي /, (doer || '') + ' خلّى ').replace('{target}', target || '');
+/** What the table reads once it is done: whose file it was, and the file as it said it. */
+const missionQuote = (id, lang, doer, target) => {
+  const text = missionText(id, lang, target);
+  if (!text) return '';
+  return lang === 'en' ? (doer || '') + ': “' + text + '”' : (doer || '') + ': «' + text + '»';
 };

@@ -97,7 +97,7 @@ const MAP = [
   // برنامج السهرة: its robots, and the screen test's own part (the builder, the table, the finale).
   { files: /^(RoomProgram\.js|JS_RoomProgram\.html)$/, robots: ['program', 'crewlink'], program: true },
   // المهمة السرية: a switch beside every game - its robots (and the night it banks), the lobby and the TV's lobby.
-  { files: /^(Missions\.js|RoomMission\.js|JS_RoomMission\.html)$/, robots: ['mission', 'crewlink'], ui: ['buzzer'], screens: true },
+  { files: /^(Missions\.js|RoomMission\.js|JS_RoomMission\.html)$/, robots: ['mission', 'crewlink'], screens: true, mission: true },
   // One sets, everyone solves, and the puzzle race: the same engine.
   { files: /^(SolveGames\.js|RoomSolve\.js|JS_RoomSolve\.html|WordleWords\.js|Countries\.js|JS_Wordle\.html|JS_GuessNumber\.html|JS_Flags\.html)$/, robots: ['solve', 'race'], ui: ['wordle', 'guessnum', 'flags', 'emoji'], screens: true },
   { files: /^(RoomRace\.js|JS_RoomRace\.html|SoloShared\.js|Sudoku\.js|Queens\.js|Tango\.js|Nonogram\.js|Mines\.js|Strands\.js|WordWheel\.js|Pinpoint\.js|QuizStreak\.js|ConnectionsWords\.js)$/, robots: ['race'], ui: RACE_GAMES, screens: true },
@@ -121,7 +121,7 @@ const changed = FILES_ARG ? FILES_ARG.slice(8).split(',').filter(Boolean) : [...
   ...git('ls-files', '--others', '--exclude-standard').split('\n'),
 ].filter(Boolean))];
 
-const plan = { check: false, rules: false, all: false, robots: new Set(), ui: new Set(), screens: false, fixes: false, program: false, site: false, why: [] };
+const plan = { check: false, rules: false, all: false, robots: new Set(), ui: new Set(), screens: false, fixes: false, program: false, mission: false, site: false, why: [] };
 // What test:rules has to run for: a file the server bundles, or the rules tests and leak check themselves.
 const BUNDLED = /^(rooms-worker\/src\/|rooms-worker\/test\/(rules|leaks)\.mjs$|[A-Z][A-Za-z0-9]*\.js$)/;
 for (const f of changed) {
@@ -136,6 +136,7 @@ for (const f of changed) {
   if (hit.screens) plan.screens = true;
   if (hit.site) plan.site = true;
   if (hit.program) plan.program = true;
+  if (hit.mission) plan.mission = true;
   if (hit.fixes) plan.fixes = true;
   if ((hit.ui || []).some((g) => ['hangman', 'guesswho', 'chess', 'battleship'].includes(g))) plan.fixes = true;
   plan.why.push(`${f}: ${[(hit.robots || []).length ? 'robots ' + hit.robots.join(',') : '', (hit.ui || []).length ? 'rooms ' + hit.ui.join(',') : '', hit.screens ? 'screens' : '', hit.site ? 'site' : ''].filter(Boolean).join('; ') || 'checks only'}`);
@@ -144,7 +145,7 @@ if (plan.all) plan.rules = true;
 
 console.log(`changes since ${BASE_REF} (${base.slice(0, 7)}): ${changed.length} files`);
 plan.why.forEach((w) => console.log('  ' + w));
-const uiParts = plan.all ? ['screens', 'rooms', 'fixes', 'program', 'site'] : [plan.screens && 'screens', plan.ui.size && 'rooms', plan.fixes && 'fixes', plan.program && 'program', plan.site && 'site'].filter(Boolean);
+const uiParts = plan.all ? ['screens', 'rooms', 'fixes', 'program', 'mission', 'site'] : [plan.screens && 'screens', plan.ui.size && 'rooms', plan.fixes && 'fixes', plan.program && 'program', plan.mission && 'mission', plan.site && 'site'].filter(Boolean);
 const steps = [];
 if (plan.check) steps.push({ label: 'npm run check', cwd: 'tools', cmd: ['npm', 'run', 'check'] });
 if (plan.rules) steps.push({ label: 'npm run test:rules', cwd: 'rooms-worker', cmd: ['npm', 'run', 'test:rules'] });

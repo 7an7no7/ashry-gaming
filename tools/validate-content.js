@@ -607,12 +607,12 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 }
 
 // المهمة السرية (Missions.js): every mission tagged with real places and a real company, written
-// to be dealt («خلّي {target} …» / «Get {target} …», the name once, so the ticker can say who did it),
+// to be dealt («خلّي {target} …» / «Get {target} …», the name once, quoted whole by the ticker),
 // no id or wording twice (Arabic spelling folded), and at least MISSION_MIN_POOL to deal from in
 // every place × company the host can pick (the owner: plenty for each, 40 or more).
 {
   const MS = new Function(fs.readFileSync(ROOT + 'Missions.js', 'utf8') +
-    '; return { MISSIONS, MISSION_PLACES, MISSION_COMPANIES, MISSION_MIN_POOL, missionPool, missionDeed };')();
+    '; return { MISSIONS, MISSION_PLACES, MISSION_COMPANIES, MISSION_MIN_POOL, missionPool, missionQuote };')();
   const fold = (s) => String(s).toLowerCase().replace(/[ً-ٰٟـ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[«»"'.,!?؟،()]/g, '').replace(/\s+/g, ' ').trim();
   const ids = {}, ar = {}, en = {};
   MS.MISSIONS.forEach((m, i) => {
@@ -628,7 +628,7 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
     if (!e.startsWith('Get {target} ')) note(`${tag}: the English starts "Get {target} "`);
     if (a.split('{target}').length !== 2 || e.split('{target}').length !== 2) note(`${tag}: {target} once in each language`);
     if (/[{}]/.test(a.replace('{target}', '')) || /[{}]/.test(e.replace('{target}', ''))) note(`${tag}: a stray brace`);
-    if (!/منى خلّى حسن /.test(MS.missionDeed(id, 'ar', 'منى', 'حسن')) || !/^Mona got Hassan /.test(MS.missionDeed(id, 'en', 'Mona', 'Hassan'))) note(`${tag}: the ticker can't say who did it`);
+    if (MS.missionQuote(id, 'ar', 'منى', 'حسن').indexOf('منى: «خلّي حسن ') !== 0 || MS.missionQuote(id, 'en', 'Mona', 'Hassan').indexOf('Mona: “Get Hassan ') !== 0) note(`${tag}: the ticker can't quote it`);
     const fa = fold(a), fe = fold(e);
     if (ar[fa]) note(`${tag}: the same Arabic as ${ar[fa]}`); ar[fa] = id;
     if (en[fe]) note(`${tag}: the same English as ${en[fe]}`); en[fe] = id;

@@ -105,7 +105,7 @@ function missionLobbyHtml(state, tv) {
       <span class="msn-card__tab">🕵️ ${escapeHTML(t.mission_title || '')}</span>
       <div class="msn-card__row">
         <span class="msn-card__text">
-          <b>${escapeHTML(t.mission_door_on || '')}</b>
+          <b>${escapeHTML(t.mission_running || '')}</b>
           <small>${escapeHTML(place)} · ${escapeHTML(co)}${me ? ' · ' + escapeHTML(missionFmt(t.mission_files_closed || '', { n: missionAr(mine) })) : ''}</small>
         </span>
         ${state.youAreHost ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="missionOpenSetup()">⚙️ ${escapeHTML(t.mission_settings || '')}</button>` : ''}
@@ -144,8 +144,14 @@ function missionSetupHtml(state) {
   const on = missionOn(state);
   const pool = missionPool(s.place, s.co);
   const lang = missionLang();
-  // Three of the missions that fit, the same three while the sheet stays on this choice.
-  const ex = pool.slice().sort((a, b) => ((a + s.place).charCodeAt(1) ^ 7) - ((b + s.place).charCodeAt(1) ^ 7)).slice(0, 3)
+  // Three of the missions that fit - two of the place's own and one of the talking ones (three of those
+  // «في أي حتة») - the same three while the sheet stays on this choice.
+  const own = pool.filter(id => missionById(id)[1] !== '*');
+  const talk = pool.filter(id => missionById(id)[1] === '*');
+  const at = s.co === 'friends' ? 3 : 0;
+  const nth = (list, part, of) => list.length ? list[(at + Math.floor(list.length * part / of)) % list.length] : null;
+  const ex = (own.length ? [nth(own, 0, 2), nth(own, 1, 2), nth(talk, 1, 3)] : [nth(talk, 0, 3), nth(talk, 1, 3), nth(talk, 2, 3)])
+    .filter((id, i, a) => id && a.indexOf(id) === i)
     .map(id => `<li>${escapeHTML(missionText(id, lang, lang === 'en' ? 'Mona' : 'منى'))}</li>`).join('');
   const tab = (p) => `<button type="button" class="msn-tabs__tab" role="tab" aria-selected="${s.place === p}" onclick="missionSetPlace('${p}')"><span aria-hidden="true">${MISSION_PLACE_ICON[p]}</span><span>${escapeHTML(t['mission_place_' + p] || p)}</span></button>`;
   const stamp = (c) => `<button type="button" class="msn-co" aria-pressed="${s.co === c}" onclick="missionSetCo('${c}')">${escapeHTML(t['mission_co_' + c] || c)}<small>${escapeHTML(t['mission_co_' + c + '_sub'] || '')}</small></button>`;
@@ -252,7 +258,7 @@ function missionFileHtml(state) {
   const swapLeft = me.swapAt ? me.swapAt - now : 0;
   const catchLeft = me.catchAt ? me.catchAt - now : 0;
   const others = state.players.filter(p => !p.bot && p.id !== Room.me);
-  const fileNo = missionAr(String(me.n || 0).padStart(3, '0'));
+  const fileNo = missionAr(me.n || 0);
   if (m.paused || !me.m) {
     return `<div class="msn-file-wrap"><p class="msn-paused">${escapeHTML(t.mission_paused || '')}</p>
       <div class="modal-actions"><button type="button" class="btn btn--ghost" onclick="missionCloseModal()">${escapeHTML(t.close || t.cancel || '')}</button></div></div>`;
@@ -509,6 +515,11 @@ function missionPaintAsk(state, ask) {
     </div>`;
   box.classList.remove('hidden');
   msn.askShown = true;
+  // The knock has done its job: it would sit over the memo's buttons on a phone on its side.
+  const knock = t.mission_knock || '';
+  document.querySelectorAll('#toast-stack > *').forEach(el => {
+    if (knock && el.textContent.indexOf(knock) !== -1 && typeof toastDismiss === 'function') toastDismiss(el);
+  });
   playSound('tick');
 }
 
@@ -533,7 +544,7 @@ function missionStoryLines(state) {
   const name = (id) => missionNameOf(state, id);
   const lines = [];
   (r.story || []).forEach(e => {
-    if (e.k === 'done') lines.push({ at: e.at, k: 'done', a: e.by, b: e.to, text: missionDeed(e.m, lang, name(e.by), name(e.to)) });
+    if (e.k === 'done') lines.push({ at: e.at, k: 'done', a: e.by, b: e.to, text: missionQuote(e.m, lang, name(e.by), name(e.to)) });
     else if (e.k === 'catch') lines.push({ at: e.at, k: 'catch', a: e.by, b: e.to, text: missionFmt(missionT().mission_ticker_catch || '', { a: name(e.by), b: name(e.to) }) });
   });
   (r.open || []).forEach(e => lines.push({ at: e.at, k: 'open', a: e.by, b: e.to, text: missionFmt(missionT().mission_open_left || '', { a: name(e.by), text: missionText(e.m, lang, name(e.to)) }) }));
@@ -558,7 +569,7 @@ function missionChampHtml(state, big) {
       <div class="msn-champ__text">
         <h3>${escapeHTML(t.mission_champ || '')}</h3>
         <h2><bdi>${escapeHTML(names)}</bdi></h2>
-        <p>${escapeHTML(missionFmt(t.mission_champ_line || '', { n: missionAr(n) }))}${never ? ' · ' + escapeHTML(t.mission_champ_never || '') : ''}</p>
+        <p>${escapeHTML(n === 1 ? (t.mission_champ_line_one || '') : missionFmt(t.mission_champ_line || '', { n: missionAr(n) }))}${never ? ' · ' + escapeHTML(t.mission_champ_never || '') : ''}</p>
         <span class="msn-champ__stamp">${escapeHTML(t.mission_champ_stamp || '')}</span>
       </div>
     </div>`;
@@ -667,7 +678,7 @@ function missionSync(state) {
     if (e.by === Room.me || e.to === Room.me) return;
     const lang = missionLang();
     const text = e.k === 'done'
-      ? '🕵️ ' + (t.mission_ticker_done || '') + ' ' + missionDeed(e.m, lang, missionNameOf(state, e.by), missionNameOf(state, e.to))
+      ? '🕵️ ' + (t.mission_ticker_done || '') + ' ' + missionQuote(e.m, lang, missionNameOf(state, e.by), missionNameOf(state, e.to))
       : '🕵️ ' + missionFmt(t.mission_ticker_catch || '', { a: missionNameOf(state, e.by), b: missionNameOf(state, e.to) });
     showToast(text);
   });
@@ -731,7 +742,7 @@ function missionTvSync(state) {
     const e = fresh[fresh.length - 1];
     const lang = missionLang();
     const text = e.k === 'done'
-      ? missionDeed(e.m, lang, missionNameOf(state, e.by), missionNameOf(state, e.to)) + ' 😂'
+      ? missionQuote(e.m, lang, missionNameOf(state, e.by), missionNameOf(state, e.to)) + ' 😂'
       : missionFmt(t.mission_ticker_catch || '', { a: missionNameOf(state, e.by), b: missionNameOf(state, e.to) });
     let el = document.getElementById('msn-tv-ticker');
     if (!el) { el = document.createElement('div'); el.id = 'msn-tv-ticker'; el.className = 'msn-tv-ticker'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
@@ -799,7 +810,7 @@ function missionTvRevealHtml(state) {
     // Two strings between the same two people: the second tag a little off the middle.
     const off = (j % 3 - 1) * 4;
     return `<div class="msn-tag" style="left:${((a.x + b.x) / 2).toFixed(1)}%;top:${((a.y + b.y) / 2 + off).toFixed(1)}%;--d:${(j * 0.8 + 0.5).toFixed(1)}s">
-      <small>${escapeHTML(missionTime(e.at))}</small>${escapeHTML(missionDeed(e.m, lang, missionNameOf(state, e.by), missionNameOf(state, e.to)))}</div>`;
+      <small>${escapeHTML(missionTime(e.at))}</small>${escapeHTML(missionText(e.m, lang, missionNameOf(state, e.to)))}</div>`;
   }).join('');
   const photos = ids.map((id, i) => `<div class="msn-pola msn-pola--pinned" style="left:${pos[id].x.toFixed(1)}%;top:${pos[id].y.toFixed(1)}%;--r:${[-3, 4, -2, 3][i % 4]}deg"><span class="msn-pin" aria-hidden="true"></span><span class="msn-face">${missionFaceSvg(missionNameOf(state, id))}</span><b><bdi>${escapeHTML(missionNameOf(state, id))}</bdi></b></div>`).join('');
   return `

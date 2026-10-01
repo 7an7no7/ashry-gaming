@@ -12009,6 +12009,76 @@ Date.now = duelTestClock;
   check(pv.packs.length === CR.CREW_MAX_PACKS && pv.packs.every((p) => p.code && p.kind && 'byId' in p) && !JSON.stringify(pv).includes('"keys"'),
     'crew link: the page gets every pack with who added it, and no keys');
 
+  // The keys (the review of 1 Oct 2026): the manager's power is a key's, never the member id's -
+  // the code alone lets anyone claim any name, the manager's included.
+  {
+    const K = (meta, m, how, at) => CR.crewIssueKey(meta, m, how, at, 'k' + m + how + at);
+    const km = { code: 'KEYCRW', managerId: 'mH', members: [{ id: 'mH', name: 'هالة', at: 1 }, { id: 'mK', name: 'كريم', at: 2 }], keys: {}, keysV: 2 };
+    const home = K(km, 'mH', 'create', 10);
+    const kk = K(km, 'mK', 'join', 20);
+    const thief = K(km, 'mH', 'claim', 30);
+    check(CR.crewKeyIsManager(km, home) && !CR.crewKeyIsManager(km, kk), 'crew keys: the key the crew was made with runs it, a member\'s doesn\'t');
+    check(CR.crewKeyRec(km, thief).m === 'mH' && !CR.crewKeyIsManager(km, thief), 'crew keys: claiming the manager\'s name gives a member key, not the manager\'s power');
+    check(CR.crewView(km, [], 50, 'mH', CR.crewKeyIsManager(km, thief)).mgr === false && CR.crewView(km, [], 50, 'mH', true).mgr === true,
+      'crew keys: the page says whether this phone runs the crew, not whether its name does');
+    check(threwL(() => CR.crewRemovePackFrom(Object.assign({}, km, { packs: [{ code: 'AA1111', byId: 'mK' }] }), { id: 'mH', manager: false }, 'AA1111')),
+      'crew keys: a claimed manager\'s name can\'t take someone else\'s pack off');
+    check(CR.crewKeyRec(km, 'nope') === null && CR.crewKeyRec(km, '') === null && CR.crewKeyRec(km, 'toString') === null && !CR.crewKeyIsManager(km, 'constructor'),
+      'crew keys: a wrong key proves nobody (nor a name the keys object inherits)');
+
+    // Claiming one name again and again only pushes out other claims: the phone the member joined with stays.
+    const kc = { code: 'KEYCRW', managerId: 'mH', members: [{ id: 'mH', name: 'هالة' }, { id: 'mK', name: 'كريم' }], keys: {}, keysV: 2 };
+    const h1 = K(kc, 'mH', 'create', 1);
+    const k1 = K(kc, 'mK', 'join', 2);
+    kc.keys[k1].u = 5;                                                  // كريم's phone, used
+    for (let i = 0; i < 40; i++) K(kc, 'mK', 'claim', 100 + i);
+    const kKeys = Object.keys(kc.keys).filter((k) => kc.keys[k].m === 'mK');
+    check(kKeys.length === CR.CREW_KEYS_PER_MEMBER && !!kc.keys[k1] && !!kc.keys[h1], 'crew keys: forty claims of one name leave its own phone in, at ' + CR.CREW_KEYS_PER_MEMBER + ' phones at most');
+    const second = Object.keys(kc.keys).find((k) => kc.keys[k].m === 'mK' && kc.keys[k].c);
+    kc.keys[second].u = 10000;                                          // a real second phone, used lately
+    for (let i = 0; i < 10; i++) K(kc, 'mK', 'claim', 200 + i);
+    check(!!kc.keys[second], 'crew keys: a claimed phone in use outlasts claims nobody uses (the least recently used goes)');
+    for (let i = 0; i < 10; i++) K(kc, 'mH', 'pair', 300 + i);
+    const mgrKeys = Object.keys(kc.keys).filter((k) => kc.keys[k].m === 'mH');
+    check(K(kc, 'mH', 'claim', 400) === null && mgrKeys.every((k) => !!kc.keys[k]) && Object.keys(kc.keys).filter((k) => kc.keys[k].m === 'mH').length === CR.CREW_KEYS_PER_MEMBER,
+      'crew keys: a claim never pushes out a manager\'s phone (refused when they are all the manager\'s)');
+
+    // Pairing: the manager's phone makes a code, the manager's other phone (a claim) types it.
+    const kp = { code: 'KEYCRW', managerId: 'mH', members: [{ id: 'mH', name: 'هالة' }, { id: 'mK', name: 'كريم' }], keys: {}, keysV: 2 };
+    const ph = K(kp, 'mH', 'create', 1);
+    const pk = K(kp, 'mK', 'join', 2);
+    const other = K(kp, 'mH', 'claim', 3);
+    check(threwL(() => CR.crewPairMake(kp, other, 1000, '123456')) && threwL(() => CR.crewPairMake(kp, pk, 1000, '123456')), 'crew keys: only a manager key makes a pairing code');
+    CR.crewPairMake(kp, ph, 1000, '123456');
+    check(threwL(() => CR.crewPairUse(kp, pk, '123456', 1001)) && !CR.crewKeyIsManager(kp, pk), 'crew keys: another member can\'t use the manager\'s pairing code');
+    check(threwL(() => CR.crewPairUse(kp, other, '000000', 1001)) && kp.pair && kp.pair.tries === 1, 'crew keys: a wrong code counts a try');
+    CR.crewPairUse(kp, other, '12 34 56', 1002);
+    check(CR.crewKeyIsManager(kp, other) && !kp.pair, 'crew keys: the right code makes the other phone a manager\'s, and is used up');
+    CR.crewPairMake(kp, ph, 2000, '654321');
+    const other2 = K(kp, 'mH', 'claim', 4);
+    for (let i = 0; i < CR.CREW_PAIR_TRIES; i++) threwL(() => CR.crewPairUse(kp, other2, '111111', 2001));
+    check(!kp.pair && threwL(() => CR.crewPairUse(kp, other2, '654321', 2002)) && !CR.crewKeyIsManager(kp, other2), 'crew keys: five wrong tries void the code');
+    CR.crewPairMake(kp, ph, 3000, '222222');
+    check(threwL(() => CR.crewPairUse(kp, other2, '222222', 3000 + 11 * 60 * 1000)) && !CR.crewKeyIsManager(kp, other2), 'crew keys: a code is good for ten minutes');
+
+    // Handing over: the new manager's own phones run it, not a phone that claimed their name; the old manager's stop.
+    const pk2 = K(kp, 'mK', 'claim', 5);
+    CR.crewSetManager(kp, 'mK');
+    check(CR.crewKeyIsManager(kp, pk) && !CR.crewKeyIsManager(kp, pk2) && !CR.crewKeyIsManager(kp, ph) && !CR.crewKeyIsManager(kp, other),
+      'crew keys: handing over gives the new manager\'s own phone the power, not a claim of their name; the old manager\'s phones lose it');
+    const kq = { code: 'KEYCRW', managerId: 'mH', members: [{ id: 'mH', name: 'هالة' }, { id: 'mK', name: 'كريم' }], keys: {}, keysV: 2 };
+    const onlyClaim = K(kq, 'mK', 'claim', 1);
+    CR.crewSetManager(kq, 'mK');
+    check(CR.crewKeyIsManager(kq, onlyClaim), 'crew keys: a new manager whose phones all came by a claim still gets to run the crew');
+
+    // Keys from before the kinds: every key the manager's id had keeps managing; a member's first key is its own phone.
+    const old = { code: 'OLDCRW', managerId: 'mH', members: [{ id: 'mH', name: 'هالة' }, { id: 'mK', name: 'كريم' }],
+      keys: { a1: { m: 'mH', at: 1 }, a2: { m: 'mH', at: 5 }, b1: { m: 'mK', at: 2 }, b2: { m: 'mK', at: 7 } } };
+    check(CR.crewKeysMigrate(old) && old.keysV === 2 && !CR.crewKeysMigrate(old), 'crew keys: the old keys are sorted once');
+    check(CR.crewKeyIsManager(old, 'a1') && CR.crewKeyIsManager(old, 'a2') && !CR.crewKeyIsManager(old, 'b1') && !old.keys.b1.c && old.keys.b2.c === 1,
+      'crew keys: a phone that ran the crew before still runs it; a member\'s first phone is their own, the rest count as claims');
+  }
+
   // A program played in a room opened for a crew: the night's rows are the program's places, banked once.
   const room = newRoom(['h', 'k', 'g']);
   room.players[0].name = 'هالة'; room.players[1].name = 'كريم'; room.players[2].name = 'ضيف';
@@ -12087,6 +12157,21 @@ Date.now = duelTestClock;
   check(packClean('words', { title: 'x', words: ['a', 'b'] }).error === 'few_words', 'packs: a word pack needs six words');
   check(packClean('words', { title: 'x', words: Array.from({ length: 301 }, (_, i) => 'w' + i) }).error === 'too_many_words', 'packs: at most 300 words');
   check(packCode(' qz7-k2a ') === 'QZ7K2A' && PACK_CODE_RE.test('QZ7K2A') && !PACK_CODE_RE.test('QZ0K2A') && !PACK_CODE_RE.test('ABCD'), 'packs: a code is six of the room alphabet, never four');
+
+  // The answers are the author's (the review of 1 Oct 2026): /pack/get without the edit key hides them,
+  // and the team board asks for one question's answer as it is played.
+  {
+    const PK = await import('../generated/rules.js');
+    const full = packClean('quiz', good).pack;
+    const hidden = PK.packHideAnswers(full);
+    check(hidden.questions.length === 3 && hidden.questions.every((x) => x.a === -1 && x.c.length === 4 && x.q) && !JSON.stringify(hidden).includes('"a":2') && full.questions[0].a === 2,
+      'packs: a quiz without its key has every question and choice, and no right one (the author\'s copy untouched)');
+    check(packClean('quiz', hidden).error === 'no_right' && PK.packCleanQuiz(hidden, true).pack.questions.every((x) => x.a === -1),
+      'packs: a quiz with its answers hidden is refused to the server, and kept as it is on a phone that plays it blind');
+    check(PK.packAnswerOf(full, 0, full.questions[0].q) === 2 && PK.packAnswerOf(full, 2, full.questions[2].q) === 3, 'packs: one question\'s answer, by its place and text');
+    check(PK.packAnswerOf(full, 0, full.questions[1].q) === 1, 'packs: a quiz changed since the phone opened it answers the question by its text');
+    check(PK.packAnswerOf(full, 0, 'سؤال مش موجود') === -1 && PK.packAnswerOf(full, 'x', '') === -1, 'packs: a question that isn\'t in the quiz has no answer');
+  }
 
   const quizPack = { code: 'QZ7K2A', kind: 'quiz', pack: packClean('quiz', good).pack };
   // Trivia with the family's quiz: room.js hands the move its pack (_packIn), as here.

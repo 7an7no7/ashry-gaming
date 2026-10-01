@@ -1,7 +1,8 @@
 # «الشلة» (the crew) - the builder's notes (30 Sep 2026)
 
-Built on the `crew` branch. Not deployed, not pushed; GEMINI.md untouched. At the
-end: a line ready for GEMINI.md's index and a draft of `notes/games/crew.md`.
+Built on the `crew` branch on 30 Sep 2026; live since (rooms server and site).
+The keys and the manager's power were reworked in the review of 1 Oct 2026
+(*The keys* below).
 
 ## What it is
 
@@ -22,7 +23,7 @@ play, and every night's history. A night counts only when its room was opened
   start less 6 hours - a night that runs past midnight stays on the day it began.
 - `crewNightInput(room)`: what a room sends its crew: `{ id, start, games, rows:
   [{ name, member, points }], wins: [{ name, member, g }], best, tally, pred }`,
-  from `room.night` (the night's leaderboard, 3/2/1 a game, `bankNightPoints`) and
+  from `room.night` (the night's leaderboard, 5/3/2 and 1 for everyone else who played, a game, `bankNightPoints`) and
   `room.nightx` (what `bankNightPoints` and `settlePredictions` note beside it:
   names, first places, record scores, the rooms' own tallies, right guesses).
   Computer players are left out; a leaver keeps their name.
@@ -48,20 +49,55 @@ play, and every night's history. A night counts only when its room was opened
 ### The server (`rooms-worker/src/crew.js`, the `Crew` Durable Object, binding `CREWS`, migration v5)
 
 - One object per code. Storage: `crew` (name, `managerId`, `members [{ id, name,
-  at }]`, `keys { key: { m, at } }`, `champs`, `packs`, `activeAt`) and one key a
-  night, `n:<id>`. At most 30 members, 400 nights (the oldest go; champions are
-  frozen first), 30 packs, 6 keys a member (the oldest phone's goes).
+  at }]`, `keys { key: { m, at, u, mg, c } }` (*The keys* below), `keysV`, `pair`,
+  `champs`, `packs`, `activeAt`) and one key a night, `n:<id>`. At most 30 members, 400
+  nights (the oldest go; champions are frozen first), 30 packs, 6 keys a member
+  (`CREW_KEYS_PER_MEMBER`; which one goes: *The keys*). The nights are read only after a key
+  has been checked and a page is to be drawn (`loadMeta` / `loadNights`): a wrong key costs
+  one storage read, not one per night (the review of 1 Oct 2026).
 - Endpoints (`index.js`, JSON as text/plain like the rooms): `/crew/create { name,
   me }`, `/crew/join { code, claim | name }` (a name already there, folded, is
   refused as `NAME_TAKEN` with its id: the sheet says "tap your name"), `/crew/peek
   { code }` (name and members, never a key or a night), `/crew/get { code, key }`,
   `/crew/act { code, key, action, payload }`. `create` and `join` are limited per
   address (30 in 10 minutes, `CREW_LIMIT`), and `peek` too (120 in 10 minutes,
-  `crewPeekAllowed`: a hit names every member, and a member is claimed with the code).
-- Actions: `rename`, `renameMember`, `removeMember`, `handOver` (the manager only:
-  `managerId === the key's member`), `leave` (anyone; a manager leaving hands the
-  crew to whoever has been in longest; the last member leaving deletes the crew),
-  `addPack` / `removePack` (any member / the one who added it or the manager).
+  `crewPeekAllowed`: a hit names every member, and a member is claimed with the code), and
+  `get` / `act` (600 in 10 minutes, `crewUseAllowed`: a script trying keys).
+- Actions: `rename`, `renameMember`, `removeMember`, `handOver`, `pairCode` (a manager key
+  only: `crewKeyIsManager`), `pair { code }` (the manager's other phone), `leave` (anyone; a
+  manager leaving hands the crew to whoever has been in longest; the last member leaving
+  deletes the crew; from a phone in by a claim only that phone goes, `{ phoneOnly: true }`),
+  `addPack` / `removePack` (any member / the one who added it or a manager key). The page
+  gets `mgr` (this phone runs the crew) beside `managerId` and draws the manager's buttons
+  from it (`crewIsMgr`; a page from before falls back to the id, the server decides).
+
+### The keys (the review of 1 Oct 2026)
+
+The code alone lets a phone in, and «إنت مين فيهم؟» (`/crew/join { claim }`) gives a key for
+any name, so a member id proves nothing: anyone with the code could claim the manager's
+name and take everyone out or delete the crew. The manager's power is now a **key's**
+(`Crew.js`, `crewIssueKey`, `crewKeyIsManager`):
+
+- a key is `{ m, at, u, mg, c }`: its member, issued, last used, a manager key, given by a claim;
+- `create` gives a manager key; joining as someone new a member key (the member's own phone);
+  a **claim** a member key marked `c` - never the manager's, whoever's name it is;
+- **«ضيف موبايلك التاني»** (the manager's members sheet): `pairCode` makes 6 digits for 10
+  minutes (`crewPairMake`); the manager's other phone taps their name, opens «الأعضاء» and
+  types it (`pair`, `crewPairUse`): its key becomes a manager key. Five wrong tries void it;
+  another member's key can't use it;
+- **handing over** and the manager leaving (`crewSetManager`): the new manager's own keys (not
+  claims) become manager keys - all of theirs if a claim gave every one, so a crew always has a
+  way to be run - and every other key stops being one;
+- **leaving from a claimed phone** forgets that phone only: a claim can't take a member out,
+  nor end the crew and its history by leaving as its last member;
+- **past 6 keys a member**, the least recently used *claimed* key goes (`u`, noted on every
+  get and act, kept with the next write), so claiming a name again and again only pushes out
+  other claims, never the phone the member joined with or a manager's; with no claimed key
+  left, a claim is refused («الاسم ده داخل من موبايلات كتير») and a pairing drops the least
+  recently used of the rest;
+- **keys from before** (`crewKeysMigrate`, once, `keysV: 2`): every key the manager's id held
+  becomes a manager key (a phone that ran the crew keeps running it, including one that
+  claimed it before the change), and each member's first key is their own, the rest claims.
 - A key that no longer proves a member answers `{ out: true }` (a member taken out:
   all their phones), a crew gone `{ gone: true }`; the page forgets it then.
 - A crew nobody touches for a year deletes itself (an alarm at `activeAt` + 1
@@ -133,7 +169,7 @@ play, and every night's history. A night counts only when its room was opened
 ## Decided while building (open to change)
 
 - **A night is one room session** opened for a crew: every game banked on its night
-  board, 3/2/1 a game (the room's existing «ليلتنا» points). Its date is the room's
+  board, 5/3/2 and 1 for everyone else who played, a game (the room's «ليلتنا» points, the rule of 30 Sep 2026). Its date is the room's
   opening, Cairo time, less 6 hours. The most points wins the night; a tie on top is
   a win for each tied member.
 - **Guests count on the night** (they can win it; then no member does), never on the
@@ -143,13 +179,15 @@ play, and every night's history. A night counts only when its room was opened
 - **A phone in a crew opens every new room for the crew it used last**; the host
   taps the line to change it or turn it off. (The owner: "the room shows the last
   used"; asking at every room would be a tap more each time.)
-- **Leave = out of the crew** (the member and all their phones); the manager leaving
+- **Leave = out of the crew** (the member and all their phones; from a phone that only
+  tapped the name, just that phone - 1 Oct 2026); the manager leaving
   hands management to the longest-standing member; the last one leaving deletes it.
   The manager taking someone out is the same, from their side.
 - **A member taken out keeps their past nights' rows** but leaves the table; a
   champion frozen on the wall keeps the name it had.
 - **Claiming a member needs only the code** (as rooms need only the code): «إنت مين
-  فيهم؟» gives any phone that member's key. A member may have 6 phones.
+  فيهم؟» gives any phone that member's key - a member's key: running the crew is a key's
+  power (*The keys*, the owner, 1 Oct 2026). A member may have 6 phones.
 - **Titles are the month's** (the season); records are over every night kept (400).
   Title groups: fast (الجرس، الكراسي، خمس ثواني، حط إيدك، عربيات التصادم + the room
   trivia's first right answers), liar (كدّاب، كذبة وصدقة، صدق ولا كذب + its best
@@ -244,7 +282,7 @@ owner's decisions:)
 ## The links, 30 Sep 2026
 
 The crew wired to «اعمل مسابقتك» / «كلماتنا» and «برنامج السهرة» (a branch of its own, on
-master after the three merges). Not deployed, not pushed; GEMINI.md untouched.
+master after the three merges), live since.
 
 ### A crew's packs (the owner: a شلة has its packs, visible to all members without codes)
 

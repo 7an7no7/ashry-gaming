@@ -110,22 +110,28 @@ async function openPackByCode(code) {
   return got;
 }
 
-/** A pack by its code, not kept: { code, kind, pack } or throws an Error whose message is its code. */
-async function packFetch(code) {
+/**
+ * A pack by its code, not kept: { code, kind, pack } or throws an Error whose message is its code.
+ * A quiz comes without its right choices (a: -1) unless `key` is its edit key: the answers are the
+ * author's (the review of 1 Oct 2026); the team board asks for each as it plays it (tbQuizAnswer).
+ */
+async function packFetch(code, key) {
   const c = packCode(code);
   if (!PACK_CODE_RE.test(c)) throw new Error('not_found');
-  const got = await packApi('/pack/get', { code: c });
+  const got = await packApi('/pack/get', key ? { code: c, key: key } : { code: c });
   if (!got.ok) throw new Error(got.error || 'server');
   return { code: c, kind: got.kind, pack: got.pack };
 }
 
 /**
  * Opens a pack from its code and keeps it on the phone: a quiz joins the list
- * (the phone's own copy of the same code is refreshed, its key kept); the words
- * become this phone's word pack. -> { kind, id }. Throws like packFetch.
+ * (the phone's own copy of the same code is refreshed, its key kept - and sent, so
+ * the author's copy keeps its answers); the words become this phone's word pack.
+ * -> { kind, id }. Throws like packFetch.
  */
 async function packOpenByCode(code) {
-  const got = await packFetch(code);
+  const mineBefore = packQuizByCode(code);
+  const got = await packFetch(code, mineBefore && mineBefore.key);
   const now = Date.now();
   if (got.kind === 'quiz') {
     const had = packQuizByCode(got.code);

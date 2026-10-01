@@ -161,12 +161,17 @@ function crewDraw(view, list, code, data) {
   if (data) crewAfterPacks(data);
 }
 
+/** Does this phone run the crew? Its key's power (`mgr`, the review of 1 Oct 2026), not the name:
+    a phone that tapped the manager's name is a member until it pairs. A page cached from before
+    `mgr` was sent falls back to the name (the server decides either way). */
+const crewIsMgr = (d) => !!d && (typeof d.mgr === 'boolean' ? d.mgr : d.managerId === d.you);
+
 /* --- the crew's packs: its quizzes and words, under the card (the links, 30 Sep 2026) ----
    Every member sees them without a code; a tap opens one (openPackByCode, or the words'
    sheet); «＋» adds a quiz or words from this phone; ✕ for whoever added it and the manager. */
 function crewPacksHtml(d, t) {
   const packs = d.packs || [];
-  const mgr = d.managerId === d.you;
+  const mgr = crewIsMgr(d);
   const chips = packs.map(p => {
     const canOff = mgr || (p.byId && p.byId === d.you);
     const kindLabel = p.kind === 'words' ? (t.crew_pack_words || '') : (t.crew_pack_quiz || '');
@@ -631,7 +636,7 @@ function crewOpenMembers() {
   const code = crewPage.code;
   const d = crewPage.data[code] || crewCacheRead()[code];
   if (!d) return;
-  const mgr = d.managerId === d.you;
+  const mgr = crewIsMgr(d);
   const rows = d.members.map(m => `
     <div class="crew-mem ${m.id === d.you ? 'is-you' : ''}">
       ${crewAvatar(m.name)}
@@ -644,12 +649,19 @@ function crewOpenMembers() {
         <button type="button" class="iconbtn" onclick="crewRemove('${jsStringAttr(m.id)}')" aria-label="${escapeHTML(t.crew_remove || '')}" title="${escapeHTML(t.crew_remove || '')}">✕</button>
       </span>` : (mgr ? `<span class="crew-mem__acts"><button type="button" class="iconbtn" onclick="crewRenameMember('${jsStringAttr(m.id)}')" aria-label="${escapeHTML(t.crew_rename_member || '')}" title="${escapeHTML(t.crew_rename_member || '')}">✏️</button></span>` : '')}
     </div>`).join('');
+  // The manager's name on a phone that isn't a manager's (in by a claim): the pairing code makes it one.
+  const pairHere = !mgr && d.you && d.you === d.managerId ? `
+    <label class="field"><span class="field__label">${escapeHTML(t.crew_pair_here || '')}</span>
+      <input type="text" id="crew-f-pair" inputmode="numeric" maxlength="7" autocomplete="one-time-code" dir="ltr" placeholder="${escapeHTML(t.crew_pair_ph || '')}" onkeydown="if(event.key==='Enter') crewPairGo()"></label>
+    <button type="button" class="btn btn--primary" id="crew-f-go" onclick="crewPairGo()">${escapeHTML(t.confirm || '')}</button>
+    <p class="field__error hidden" id="crew-f-err" role="alert"></p>` : '';
   crewModal(`
     <div class="sheet__title">${escapeHTML(crewFmt(t.crew_members_title, { n: d.members.length }))}</div>
     <p class="sheet__subtitle">${escapeHTML(mgr ? t.crew_members_mgr : t.crew_members_sub)}</p>
-    <div class="modal-list crew-mems">${rows}</div>
+    <div class="modal-list crew-mems">${rows}</div>${pairHere}
     <div class="modal-actions">
       ${mgr ? `<button type="button" class="btn btn--secondary" onclick="crewRenameCrew()">✏️ ${escapeHTML(t.crew_rename || '')}</button>` : ''}
+      ${mgr ? `<button type="button" class="btn btn--secondary" onclick="crewPairCode()"><span aria-hidden="true">📱</span> ${escapeHTML(t.crew_pair_add || '')}</button>` : ''}
       <button type="button" class="btn btn--danger-soft" onclick="crewLeave()">${escapeHTML(t.crew_leave || '')}</button>
       <button type="button" class="btn btn--ghost" onclick="closeModal('crew-modal')">${escapeHTML(t.close || t.cancel || '')}</button>
     </div>`);
@@ -710,6 +722,32 @@ function crewRemove(id) {
   closeModal('crew-modal');
   showConfirmModal(crewFmt(t.crew_remove_q, { name: m.name || '' }), () => crewMove('removeMember', { id }, true));
 }
+/* «ضيف موبايلك التاني» (the review of 1 Oct 2026): the manager's power is a key's, so the
+   manager's other phone - in by tapping their name - pairs with a 6-digit code this phone makes
+   (Crew.js, crewPairMake / crewPairUse; ten minutes, five tries). */
+async function crewPairCode() {
+  const t = crewT();
+  const code = crewPage.code;
+  const res = await crewAct(code, 'pairCode');
+  if (!res || !res.ok || !res.pair) { showToast(roomErrLocal((res && res.error) || '') || t.crew_err_net, 'error'); return; }
+  crewModal(`
+    <div class="modal-icon" aria-hidden="true">📱</div>
+    <div class="sheet__title">${escapeHTML(t.crew_pair_title || '')}</div>
+    <p class="sheet__subtitle">${escapeHTML(t.crew_pair_sub || '')}</p>
+    <div class="crew-invite__code" dir="ltr">${escapeHTML(res.pair.code)}</div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--ghost" onclick="crewOpenMembers()">${escapeHTML(t.close || t.cancel || '')}</button>
+    </div>`);
+}
+async function crewPairGo() {
+  const t = crewT();
+  const typed = String((document.getElementById('crew-f-pair') || {}).value || '').replace(/[^0-9٠-٩]/g, '')
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  if (typed.length !== 6) return crewFieldError(t.crew_pair_ph || '', 'crew-f-pair');
+  const res = await crewMove('pair', { code: typed }, true);
+  if (res && res.crew && crewIsMgr(res.crew)) showToast(t.crew_pair_ok || '', 'success');
+}
+
 function crewLeave() {
   const t = crewT();
   const code = crewPage.code;
@@ -722,7 +760,8 @@ function crewLeave() {
       crewCacheWrite(code, null);
       delete crewPage.data[code];
       crewPage.code = '';
-      showToast(t.crew_left || '', 'info');
+      // A phone in by tapping a name leaves alone; the member stays in the crew (crew.js 'leave').
+      showToast((res.phoneOnly ? t.crew_left_phone : t.crew_left) || '', 'info');
       renderCrew();
     } else showToast(roomErrLocal((res && res.error) || '') || t.crew_err_net, 'error');
   });

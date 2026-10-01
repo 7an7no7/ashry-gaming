@@ -43,8 +43,13 @@ export class PackStore extends DurableObject {
     return { ok: true };
   }
 
-  /** The pack as the phones get it; `touch` when it is being played (the year starts again). */
-  async get(touch) {
+  /**
+   * The whole pack, right choices included: for the Worker and a Room (which deals a quiz on the
+   * server); the Worker hides a quiz's answers from a phone without the edit key (index.js).
+   * `touch` when it is being played (the year starts again); `keyHash`, when given, says whether
+   * it is the author's key (`mine`).
+   */
+  async get(touch, keyHash) {
     const row = await this.read();
     if (!row) return null;
     const now = Date.now();
@@ -52,7 +57,7 @@ export class PackStore extends DurableObject {
       row.played = now;
       await this.keep(row);
     }
-    return { kind: row.kind, pack: row.pack, updated: row.updated };
+    return { kind: row.kind, pack: row.pack, updated: row.updated, mine: !!keyHash && row.keyHash === keyHash };
   }
 
   /** The author's change: only with the key the pack was made with, only the same kind. */

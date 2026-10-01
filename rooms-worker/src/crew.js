@@ -4,12 +4,14 @@
  * played; the tables, titles and records are worked out from the nights when a
  * page asks (Crew.js). No accounts: a phone joins with the code (a link or a QR)
  * and is given a key that is its proof of membership, as a room gives its phones
- * keys. The member who manages the crew proves it with their own key.
+ * keys. The manager's power is a KEY's, not a member id's (Crew.js, «the keys»):
+ * the code alone lets anyone claim any name, so a claim gives a member key only.
  *
  * Storage: 'crew' (the name, members, keys, the frozen champions, packs) and one
  * key per night, 'n:<id>' (a night is written again whenever its room banks more,
  * so it is replaced, never counted twice). A crew nobody has touched for a year
- * deletes itself.
+ * deletes itself. The nights are read only once a key has been checked and a page
+ * is about to be drawn (loadNights): a wrong key costs one read, not four hundred.
  *
  * Called by the Worker (index.js: /crew/create, /crew/join, /crew/peek, /crew/get,
  * /crew/act) and, server to server, by a Room (verify, recordNight, dropNight).
@@ -19,12 +21,12 @@
 import { DurableObject } from 'cloudflare:workers';
 import {
   CREW_MAX_MEMBERS, CREW_MAX_NIGHTS, CREW_MAX_PACKS, CREW_NAME_MAX, CREW_MEMBER_NAME_MAX,
-  crewFold, crewCleanName, crewCleanNight, crewView, crewFreezeChamps, crewAddPackTo, crewRemovePackFrom
+  crewFold, crewCleanName, crewCleanNight, crewView, crewFreezeChamps, crewAddPackTo, crewRemovePackFrom,
+  crewKeysMigrate, crewKeyRec, crewKeyIsManager, crewIssueKey, crewSetManager, crewPairMake, crewPairUse
 } from '../generated/rules.js';
 
 const YEAR_MS = 365 * 24 * 3600 * 1000;
 const TOUCH_EVERY_MS = 24 * 3600 * 1000;   // a page view keeps a crew alive, written at most once a day
-const KEYS_PER_MEMBER = 6;                  // phones a member can be on at once; the oldest key goes
 
 const newId = () => 'm' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
 const newKey = () => {
@@ -32,17 +34,33 @@ const newKey = () => {
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 };
+/** Six digits for pairing the manager's other phone (crewPairMake). */
+const newPairCode = () => {
+  const b = new Uint32Array(1);
+  crypto.getRandomValues(b);
+  return String(b[0] % 1000000).padStart(6, '0');
+};
 const fail = (error) => ({ ok: false, error });
 
 export class Crew extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.meta = undefined;    // undefined: not read yet; null: no crew
-    this.nights = null;       // Map id -> night
+    this.nights = null;       // Map id -> night, read only when needed (loadNights)
   }
 
-  async load() {
-    if (this.meta === undefined) this.meta = (await this.ctx.storage.get('crew')) || null;
+  /** The crew's record only (the keys among it). Keys from before their kinds are sorted once. */
+  async loadMeta() {
+    if (this.meta === undefined) {
+      this.meta = (await this.ctx.storage.get('crew')) || null;
+      if (this.meta && crewKeysMigrate(this.meta)) await this.save();
+    }
+    return this.meta;
+  }
+
+  /** The nights too: for drawing a page, or a room's night. */
+  async loadNights() {
+    await this.loadMeta();
     if (this.meta && !this.nights) {
       this.nights = new Map();
       const all = await this.ctx.storage.list({ prefix: 'n:' });
@@ -65,7 +83,7 @@ export class Crew extends DurableObject {
   }
 
   async alarm() {
-    await this.load();
+    await this.loadMeta();
     if (!this.meta) return;
     if (Date.now() - (this.meta.activeAt || 0) >= YEAR_MS - 60000) {
       await this.ctx.storage.deleteAll();
@@ -77,22 +95,19 @@ export class Crew extends DurableObject {
   }
 
   memberOfKey(key) {
-    const k = this.meta && this.meta.keys && this.meta.keys[String(key || '')];
-    if (!k) return null;
-    return this.meta.members.find((m) => m.id === k.m) || null;
+    const k = crewKeyRec(this.meta, key);
+    return k ? this.meta.members.find((m) => m.id === k.m) || null : null;
   }
 
-  issueKey(memberId) {
-    const keys = this.meta.keys = this.meta.keys || {};
-    const mine = Object.keys(keys).filter((k) => keys[k].m === memberId).sort((a, b) => keys[a].at - keys[b].at);
-    while (mine.length >= KEYS_PER_MEMBER) delete keys[mine.shift()];
-    const key = newKey();
-    keys[key] = { m: memberId, at: Date.now() };
-    return key;
+  /** A key used: its last use noted (kept with the next write; it orders which key goes first). */
+  used(key) {
+    const k = crewKeyRec(this.meta, key);
+    if (k) k.u = Date.now();
   }
 
-  view(memberId) {
-    return crewView(this.meta, [...this.nights.values()], Date.now(), memberId);
+  async view(memberId, key) {
+    await this.loadNights();
+    return crewView(this.meta, [...this.nights.values()], Date.now(), memberId, crewKeyIsManager(this.meta, key));
   }
 
   nameTaken(name, exceptId) {
@@ -103,7 +118,7 @@ export class Crew extends DurableObject {
   /* --- the Worker's calls ------------------------------------------------------ */
 
   async create(code, rawName, rawMe) {
-    await this.load();
+    await this.loadMeta();
     if (this.meta) return { taken: true };
     const name = crewCleanName(rawName, CREW_NAME_MAX);
     const me = crewCleanName(rawMe, CREW_MEMBER_NAME_MAX);
@@ -111,17 +126,17 @@ export class Crew extends DurableObject {
     if (!me) return fail('اكتب اسمك');
     const id = newId();
     const now = Date.now();
-    this.meta = { code, name, createdAt: now, activeAt: now, managerId: id, members: [{ id, name: me, at: now }], keys: {}, champs: [], packs: [] };
+    this.meta = { code, name, createdAt: now, activeAt: now, managerId: id, members: [{ id, name: me, at: now }], keys: {}, keysV: 2, champs: [], packs: [] };
     this.nights = new Map();
-    const key = this.issueKey(id);
+    const key = crewIssueKey(this.meta, id, 'create', now, newKey());
     await this.save();
     await this.touch(true);
-    return { ok: true, code, memberId: id, key, crew: this.view(id) };
+    return { ok: true, code, memberId: id, key, crew: await this.view(id, key) };
   }
 
   /** What the join sheet shows before joining: the name and who is in it (no keys, no nights). */
   async peek() {
-    await this.load();
+    await this.loadMeta();
     if (!this.meta) return fail('CREW_NOT_FOUND');
     return { ok: true, crew: { code: this.meta.code, name: this.meta.name, members: this.meta.members.map((m) => ({ id: m.id, name: m.name })) } };
   }
@@ -129,10 +144,11 @@ export class Crew extends DurableObject {
   /**
    * «إنت مين فيهم؟»: `claim` is an existing member's id (this phone is theirs),
    * otherwise `name` joins as someone new. No passwords, as with rooms: the code is
-   * what lets a phone in.
+   * what lets a phone in - and so a claim's key is a member's, never the manager's
+   * (the manager's other phone pairs: act 'pair').
    */
   async join(claim, rawName) {
-    await this.load();
+    await this.loadMeta();
     if (!this.meta) return fail('CREW_NOT_FOUND');
     let member;
     if (claim) {
@@ -146,35 +162,39 @@ export class Crew extends DurableObject {
       member = { id: newId(), name, at: Date.now() };
       this.meta.members.push(member);
     }
-    const key = this.issueKey(member.id);
+    const key = crewIssueKey(this.meta, member.id, claim ? 'claim' : 'join', Date.now(), newKey());
+    if (!key) return fail('الاسم ده داخل من موبايلات كتير');
     await this.save();
     await this.touch(true);
-    return { ok: true, code: this.meta.code, memberId: member.id, key, crew: this.view(member.id) };
+    return { ok: true, code: this.meta.code, memberId: member.id, key, crew: await this.view(member.id, key) };
   }
 
   async get(key) {
-    await this.load();
+    await this.loadMeta();
     if (!this.meta) return { ok: false, gone: true, error: 'CREW_NOT_FOUND' };
     const me = this.memberOfKey(key);
     if (!me) return { ok: false, out: true, error: 'NOT_IN_CREW' };
+    this.used(key);
     await this.touch(false);
-    return { ok: true, crew: this.view(me.id) };
+    return { ok: true, crew: await this.view(me.id, key) };
   }
 
-  /** A member's move: the manager's (rename, members), anyone's (leave, packs). */
+  /** A member's move: the manager's (rename, members, pairing), anyone's (leave, packs). */
   async act(key, action, payload) {
-    await this.load();
+    await this.loadMeta();
     if (!this.meta) return { ok: false, gone: true, error: 'CREW_NOT_FOUND' };
     const me = this.memberOfKey(key);
     if (!me) return { ok: false, out: true, error: 'NOT_IN_CREW' };
+    this.used(key);
     const p = payload && typeof payload === 'object' ? payload : {};
-    const manager = me.id === this.meta.managerId;
+    const manager = crewKeyIsManager(this.meta, key);
     const needManager = () => { if (!manager) throw new Error('ده للي ماسك الشلة بس'); };
     const target = () => {
       const m = this.meta.members.find((x) => x.id === String(p.id || ''));
       if (!m) throw new Error('مش في الشلة');
       return m;
     };
+    let extra = null;
     try {
       if (action === 'rename') {
         needManager();
@@ -196,8 +216,28 @@ export class Crew extends DurableObject {
       } else if (action === 'handOver') {
         needManager();
         const m = target();
-        this.meta.managerId = m.id;
+        crewSetManager(this.meta, m.id);
+      } else if (action === 'pairCode') {
+        // «ضيف موبايلك التاني»: a code for the manager's other phone (crewPairMake checks the key).
+        extra = { pair: crewPairMake(this.meta, key, Date.now(), newPairCode()) };
+      } else if (action === 'pair') {
+        // The manager's other phone, in by a claim of their name, types the code.
+        try {
+          crewPairUse(this.meta, key, p.code, Date.now());
+        } catch (err) {
+          await this.save();     // a wrong try counts, even though the move fails
+          throw err;
+        }
       } else if (action === 'leave') {
+        const k = crewKeyRec(this.meta, key);
+        if (k && k.c && !k.mg) {
+          // A phone in by a claim: only this phone goes. Anyone with the code can claim a name,
+          // so a claim can't take the member (or, the last one, the crew and its history) away.
+          delete this.meta.keys[String(key)];
+          await this.save();
+          await this.touch(true);
+          return { ok: true, left: true, phoneOnly: true };
+        }
         this.dropMember(me.id);
         if (!this.meta.members.length) {
           await this.ctx.storage.deleteAll();
@@ -211,7 +251,7 @@ export class Crew extends DurableObject {
       } else if (action === 'addPack') {
         crewAddPackTo(this.meta, me, p);            // Crew.js: the rule (a member, a code, CREW_MAX_PACKS)
       } else if (action === 'removePack') {
-        crewRemovePackFrom(this.meta, me, p.code);  // the one who added it, or the manager
+        crewRemovePackFrom(this.meta, Object.assign({ manager }, me), p.code);  // the one who added it, or the manager's key
       } else if (action !== 'get') {
         throw new Error('إجراء غير معروف');
       }
@@ -219,7 +259,7 @@ export class Crew extends DurableObject {
       return fail(String((err && err.message) || err));
     }
     if (action !== 'get') { await this.save(); await this.touch(true); }
-    return { ok: true, crew: this.view(me.id) };
+    return Object.assign({ ok: true, crew: await this.view(me.id, key) }, extra || {});
   }
 
   dropMember(id) {
@@ -228,7 +268,7 @@ export class Crew extends DurableObject {
     Object.keys(keys).forEach((k) => { if (keys[k].m === id) delete keys[k]; });
     // The manager leaving hands the crew to whoever has been in it longest.
     if (this.meta.managerId === id && this.meta.members.length) {
-      this.meta.managerId = this.meta.members.slice().sort((a, b) => (a.at || 0) - (b.at || 0))[0].id;
+      crewSetManager(this.meta, this.meta.members.slice().sort((a, b) => (a.at || 0) - (b.at || 0))[0].id);
     }
   }
 
@@ -236,7 +276,7 @@ export class Crew extends DurableObject {
 
   /** Server to server: a pack attached without a phone (another feature's own endpoint). */
   async attachPack(pack) {
-    await this.load();
+    await this.loadMeta();
     if (!this.meta) return fail('CREW_NOT_FOUND');
     try { crewAddPackTo(this.meta, { server: true, name: String((pack && pack.by) || '') }, pack || {}); } catch (err) { return fail(err.message); }
     await this.save();
@@ -245,7 +285,7 @@ export class Crew extends DurableObject {
   }
 
   async listPacks() {
-    await this.load();
+    await this.loadMeta();
     if (!this.meta) return fail('CREW_NOT_FOUND');
     return { ok: true, packs: (this.meta.packs || []).map((p) => ({ code: p.code, kind: p.kind, title: p.title, by: p.by, at: p.at })) };
   }
@@ -254,7 +294,7 @@ export class Crew extends DurableObject {
 
   /** A phone's key -> the member it proves, and the crew's name, or null. */
   async verify(key) {
-    await this.load();
+    await this.loadMeta();
     const m = this.memberOfKey(key);
     return m ? { ok: true, memberId: m.id, memberName: m.name, name: this.meta.name, code: this.meta.code } : { ok: false };
   }
@@ -265,7 +305,7 @@ export class Crew extends DurableObject {
    * night with no member on it is not kept (dropped if it was).
    */
   async recordNight(input) {
-    await this.load();
+    await this.loadNights();
     if (!this.meta) return fail('CREW_NOT_FOUND');
     const now = Date.now();
     const night = crewCleanNight(input, this.meta.members, now);
@@ -291,7 +331,7 @@ export class Crew extends DurableObject {
 
   /** The room moved to another crew (or none): this night is no longer this crew's. */
   async dropNight(id) {
-    await this.load();
+    await this.loadNights();
     if (!this.meta || !this.nights.has(String(id))) return { ok: true };
     this.nights.delete(String(id));
     await this.ctx.storage.delete('n:' + String(id));

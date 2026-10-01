@@ -221,7 +221,9 @@ function beginTriviaBoard() {
   } catch (e) {}
   // «اعمل مسابقتك»: the family's quiz, from the phone's own copy (it plays offline).
   const quiz = source && typeof packQuizById === 'function' ? packQuizById(source) : null;
-  const quizCopy = quiz && packCleanQuiz(quiz).pack;
+  // A quiz opened by its code has no right choices on this phone (a: -1, packHideAnswers):
+  // each comes from the server as its card is answered (tbQuizAnswer).
+  const quizCopy = quiz && packCleanQuiz(quiz, !packIsMine(quiz) && !!quiz.code).pack;
 
   stopTriviaTimer();
   cancelTriviaAdvance();
@@ -326,7 +328,8 @@ function tbColHead(s, col) {
 function tbCardItem(s, col, cell) {
   if (s && s.quiz && col.cat === null) {
     const q = s.quiz.questions[cell.q];
-    return q ? [(q.e ? q.e + ' ' : '') + q.q, q.c[q.a], q.c, q.a] : null;
+    // A right choice not here yet (a quiz opened by code): '…' until tbQuizAnswer brings it.
+    return q ? [(q.e ? q.e + ' ' : '') + q.q, q.a >= 0 ? q.c[q.a] : '…', q.c, q.a] : null;
   }
   const cat = tbCategory(col.cat);
   const item = cat && (cat.levels[cell.points] || [])[cell.q];
@@ -693,7 +696,10 @@ function paintTriviaAnswer() {
   document.getElementById('tb-q-answer').classList.remove('hidden');
   const o = s && s.open;
   const col = o && s.board[o.c];
-  if (col && col.cells[o.row]) tbPaintChoices(tbCardItem(s, col, col.cells[o.row]), true);
+  if (col && col.cells[o.row]) {
+    tbPaintChoices(tbCardItem(s, col, col.cells[o.row]), true);
+    tbQuizAnswer(s, col, col.cells[o.row]);
+  }
   const report = typeof reportBtnHtml === 'function' && !(s && s.quiz)
     ? reportBtnHtml('triviaboard', (document.getElementById('tb-q-text') || {}).textContent || '') : '';
   // The steal missed too: the answer for the table, and no points for anyone.
@@ -710,6 +716,31 @@ function paintTriviaAnswer() {
       <button class="btn btn--lg tb-award tb-award--b" onclick="awardTriviaCell(1)">${escapeHTML(tbTeamName(1))}</button>
     </div>
     <button class="btn btn--ghost" onclick="awardTriviaCell(-1)">${t.tb_nobody || 'محدش جاوب'}</button>${report}`;
+}
+
+/* A quiz opened by its code holds no right choices on this phone (the review of 1 Oct 2026:
+   the answers are the author's, /pack/get hides them without the edit key). Its card asks the
+   server for its own answer once it is shown (/pack/answer, the same as a room shows after
+   each question), keeps it in the game (so a reload has it) and lights it. Offline it says so. */
+const tbAnswerAsking = {};
+async function tbQuizAnswer(s, col, cell) {
+  const quiz = s && s.quiz;
+  const q = quiz && col && col.cat === null && cell ? quiz.questions[cell.q] : null;
+  if (!q || q.a >= 0 || !quiz.code || typeof packApi !== 'function') return;
+  const ask = quiz.code + ':' + cell.q;
+  if (tbAnswerAsking[ask]) return;
+  tbAnswerAsking[ask] = true;
+  const res = await packApi('/pack/answer', { code: quiz.code, i: cell.q, q: q.q });
+  delete tbAnswerAsking[ask];
+  const fine = res && res.ok && res.a >= 0 && res.a <= 3;
+  if (fine) { q.a = res.a; saveToLocal(); }
+  // Still this card on the screen: its answer now (or a dash and a word why).
+  const o = appState.triviaBoard === s && s.open;
+  if (!o || !o.revealed || s.board[o.c] !== col || col.cells[o.row] !== cell) return;
+  const text = document.getElementById('tb-q-answer-text');
+  if (text) text.textContent = fine ? q.c[q.a] : '—';
+  if (fine) tbPaintChoices(tbCardItem(s, col, cell), true);
+  else { const t = tbText(); showToast(t.qm_answer_net || '', 'error'); }
 }
 
 /** Closes the card without playing it - the host opened the wrong one. */

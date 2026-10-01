@@ -310,7 +310,7 @@ const crewNightSummary = (n, members) => {
  * Everything a member's page shows, worked out from the kept nights. `champs` is
  * the frozen wall of past months (kept even when nights are dropped).
  */
-const crewView = (meta, nights, now, you) => {
+const crewView = (meta, nights, now, you, mgr) => {
   const members = meta.members || [];
   const month = crewMonthOf(now + CREW_DAY_SHIFT_MS);   // "now" is today's date, not a night's start
   // The frozen wall, and any past month not frozen yet (its last room may still be closing).
@@ -326,6 +326,9 @@ const crewView = (meta, nights, now, you) => {
     managerId: meta.managerId,
     members: members.map(m => ({ id: m.id, name: m.name })),
     you: you || null,
+    // This phone holds the manager's power (a manager key, crewKeyIsManager): the manager's name
+    // on a phone that claimed it is not enough. Without `mgr` (a test), being the manager is.
+    mgr: mgr === undefined ? !!you && you === meta.managerId : !!mgr,
     month,
     table: crewTable(nights, members, month),
     champions: champs,
@@ -384,7 +387,132 @@ const crewRemovePackFrom = (meta, me, code) => {
   const c = String(code || '').trim().toUpperCase();
   const pack = (meta.packs || []).find(x => x.code === c);
   if (!pack) throw new Error('مش موجودة');
-  if (m.id !== meta.managerId && pack.byId !== m.id) throw new Error('اللي ضافها أو اللي ماسك الشلة بس');
+  // The manager is a key's power (`m.manager`, from the Durable Object), not a name: a phone that
+  // claimed the manager's name is a member like any other. Without it (a test), the member is.
+  const manager = 'manager' in m ? !!m.manager : m.id === meta.managerId;
+  if (!manager && pack.byId !== m.id) throw new Error('اللي ضافها أو اللي ماسك الشلة بس');
   meta.packs = meta.packs.filter(x => x !== pack);
   return pack;
+};
+
+/* --- the keys: who a phone is, and what it may do (the review of 1 Oct 2026) -----------------
+   A crew is joined with its code alone, and «إنت مين فيهم؟» gives a phone any member's key, so a
+   member's id proves nothing: the manager's power belongs to KEYS, not to the id. A key is
+   { m: the member, at: issued, u: last used, mg: a manager key, c: a claim gave it }:
+   - create (the manager's), and joining as someone new: the member's own phone;
+   - a claim (tapping a name already there): a member key, never the manager's whoever's name it
+     is, and «اخرج من الشلة» from it forgets only that phone (anyone with the code can claim any
+     name, so a claim can't take anyone out of the crew, or end it);
+   - pairing («ضيف موبايلك التاني»): the manager's phone makes a 6-digit code for 10 minutes and the
+     manager's other phone (in by a claim of their name) types it: that key becomes a manager key;
+   - handing over, and the manager leaving: the new manager's own phones become manager keys.
+   Keys kept before this had no kind: crewKeysMigrate, once, makes every key the manager's id had
+   a manager key (a phone that managed keeps managing) and every member's keys but the first claims. */
+const CREW_KEYS_PER_MEMBER = 6;               // phones a member can be on at once
+const CREW_PAIR_MS = 10 * 60 * 1000;          // a pairing code lives ten minutes
+const CREW_PAIR_TRIES = 5;                    // and is voided after five wrong tries
+
+/** Keys from before the kinds, once (meta.keysV): true when it changed something to save. */
+const crewKeysMigrate = (meta) => {
+  if (!meta || meta.keysV >= 2) return false;
+  const keys = meta.keys = meta.keys || {};
+  const first = {};
+  Object.keys(keys).forEach(k => {
+    const r = keys[k];
+    if (!first[r.m] || (keys[first[r.m]].at || 0) > (r.at || 0)) first[r.m] = k;
+  });
+  Object.keys(keys).forEach(k => {
+    const r = keys[k];
+    if (first[r.m] !== k) r.c = 1;
+    if (r.m === meta.managerId) r.mg = true;
+  });
+  meta.keysV = 2;
+  return true;
+};
+
+/** A key's record when it proves someone still in the crew, else null. */
+const crewKeyRec = (meta, key) => {
+  const k = String(key || '');
+  const r = k && meta && meta.keys && Object.prototype.hasOwnProperty.call(meta.keys, k) ? meta.keys[k] : null;
+  return r && (meta.members || []).some(m => m.id === r.m) ? r : null;
+};
+
+/** Does this key hold the manager's power? The manager's id and a manager key, both. */
+const crewKeyIsManager = (meta, key) => {
+  const r = crewKeyRec(meta, key);
+  return !!(r && r.mg && r.m === meta.managerId);
+};
+
+/**
+ * A new key `key` for a member, by `how` it came: 'create' (the manager's), 'join' (someone
+ * new), 'claim' (a name already there) or 'pair' (the manager's other phone). Past
+ * CREW_KEYS_PER_MEMBER one goes: the least recently used key a claim gave, so claiming a name
+ * again and again only pushes out other claims - never the phone the member joined with, nor a
+ * manager's. With no such key, the least recently used of the rest; a claim is then refused (null).
+ */
+const crewIssueKey = (meta, memberId, how, now, key) => {
+  const keys = meta.keys = meta.keys || {};
+  const used = (k) => keys[k].u || keys[k].at || 0;
+  for (;;) {
+    const mine = Object.keys(keys).filter(k => keys[k].m === memberId);
+    if (mine.length < CREW_KEYS_PER_MEMBER) break;
+    let pool = mine.filter(k => keys[k].c && !keys[k].mg);
+    if (!pool.length) {
+      if (how === 'claim') return null;
+      pool = mine;
+    }
+    pool.sort((a, b) => used(a) - used(b));
+    delete keys[pool[0]];
+  }
+  const rec = { m: memberId, at: now };
+  if (how === 'claim') rec.c = 1;
+  if (how === 'create' || how === 'pair') rec.mg = true;
+  keys[key] = rec;
+  return key;
+};
+
+/**
+ * The crew changes hands (handOver, the manager leaving): the manager keys become the new
+ * manager's own phones (not one a claim gave), or all of theirs if a claim gave every one, so a
+ * crew is never left with nobody able to run it. No one else's key is the manager's any more.
+ */
+const crewSetManager = (meta, memberId) => {
+  meta.managerId = memberId;
+  const keys = meta.keys = meta.keys || {};
+  Object.keys(keys).forEach(k => { delete keys[k].mg; });
+  const mine = Object.keys(keys).filter(k => keys[k].m === memberId);
+  const own = mine.filter(k => !keys[k].c);
+  (own.length ? own : mine).forEach(k => { keys[k].mg = true; });
+  delete meta.pair;
+};
+
+/** «ضيف موبايلك التاني»: the manager's phone makes a pairing code (`code`: six digits, made by the caller). */
+const crewPairMake = (meta, key, now, code) => {
+  if (!crewKeyIsManager(meta, key)) throw new Error('ده للي ماسك الشلة بس');
+  meta.pair = { code: String(code), m: meta.managerId, until: now + CREW_PAIR_MS, tries: 0 };
+  return { code: meta.pair.code, until: meta.pair.until };
+};
+
+/**
+ * The manager's other phone types the code: its key (a claim of the manager's name) becomes a
+ * manager key. A wrong code counts a try - the caller keeps `meta` even when this throws - and
+ * the code is voided at CREW_PAIR_TRIES; a right one is used up.
+ */
+const crewPairUse = (meta, key, code, now) => {
+  const r = crewKeyRec(meta, key);
+  const p = meta.pair;
+  if (!r || r.m !== meta.managerId) throw new Error('ده للي ماسك الشلة بس');
+  if (!p || p.m !== meta.managerId || p.until < now) {
+    delete meta.pair;
+    throw new Error('الكود ده خلص، اعمل كود جديد من موبايلك التاني');
+  }
+  if (String(code || '').replace(/[^0-9]/g, '') !== p.code) {
+    p.tries = (p.tries || 0) + 1;
+    if (p.tries >= CREW_PAIR_TRIES) delete meta.pair;
+    throw new Error('الكود غلط');
+  }
+  delete meta.pair;
+  r.mg = true;
+  delete r.c;
+  return true;
 };

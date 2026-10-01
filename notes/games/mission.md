@@ -43,7 +43,11 @@ evening. Built on the worktree branch of 1 Oct 2026 (four builders in parallel).
   right one gives the catcher 1 and the caught a new file (a new target too, not the
   catcher when there is a choice). **Someone who asked you «حصل؟» can't be caught for
   that mission** - they showed you their hand (else a target could say «لأ» and then
-  catch the asker for a point).
+  catch the asker for a point). Such a «كشفتك!» is refused exactly as a wrong one is
+  (the wait, «مش هو»), so it never tells the guesser who is after them (the review of
+  1 Oct 2026). Taking a memo back («اسحبه») before the target's phone showed it
+  (`missionSeen`, sent by that phone when the memo is drawn) leaves the doer catchable
+  again (`asked` reset); after it was shown, the target knows, and it stays.
 - **«غيّرها»**: a new mission for the **same target**, refused while a memo waits.
 - **The night's points**: turning it off banks the ranking of files closed (catches
   count as files) **once** on the night's board through `bankNightPoints`: 5 / 3 / 2
@@ -92,13 +96,15 @@ says it in its own language.
   paused, score: {pid: n}, names, feed: [last 5 {seq, k: 'done'|'catch', by, to, m?}],
   fileSeq, askSeq, catchSeq, startedAt, banked, reveal }`.
 - `room._mission` (private): `of[pid] = { to, m, n, at, swapAt, asked, no, won, busted }`,
-  `asks: [{ id, by, to, m, n }]`, `wrongAt`, `lastCatch`, `caught`, `log` (the story).
+  `asks: [{ id, by, to, m, n, seen }]`, `wrongAt`, `lastCatch`, `caught`, `log` (the story).
 - `missionView(room, pid)` (`view.js` sends it as `mission`): the public part, and for a
   person in it `me` (their own file and its waits) and `asks` (the memos waiting on
   them). A screen gets the public part only.
 - Actions, room-level, before any game's (`missionAction` in `applyRoomAction`):
   `missionSet { on, place, co, swap, catch }` (host), `missionClose` (host, the
-  reveal → off), `missionDone { n }`, `missionCancel`, `missionAnswer { id, yes }`
+  reveal → off), `missionDone { n }`, `missionCancel`, `missionSeen { id }` (the target's
+  phone, as the memo is drawn; room.js answers it to that phone alone, `SILENT_ACTIONS`),
+  `missionAnswer { id, yes }`
   (the target only), `missionSwap { n }`, `missionCatch { who }`. `n` is the file
   number the phone saw (`staleTap`).
 - `missionFill(room)` keeps every file valid after anything that changes who is here:

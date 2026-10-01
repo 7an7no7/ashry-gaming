@@ -65,6 +65,7 @@ const HUM_HUMMER_PTS = 2;          // the hummer, when at least one typed answer
 const HUM_TRIES = 40;              // typed tries a phone may send for one song
 const HUM_REDEALS = 3;             // songs a round may skip by itself (a preview that won't load)
 const HUM_SPARE = 8;               // songs dealt beyond the game's count, for those skips
+const HUM_BROKEN_PHONES = 2;       // «سمّع» once it plays: phones that must report a clip broken before it is dealt again
 
 /** Every title, alternative and English title: the bank a guess is held against (another song's name is never "close enough"). */
 const HUM_TITLES = HUM_SONGS.reduce((all, x) => all.concat([x.t], x.alt || [], [x.en]), []);
@@ -191,10 +192,18 @@ const humAction = (room, playerId, action, payload) => {
   }
   if (action === 'broken') {
     // The preview wouldn't load on a phone: the round deals another song by itself (nobody loses anything).
+    // «سمّع»: once the clip is playing, one phone's bad network is that phone's alone - the song is
+    // dealt again only when a second phone says so too (the review of 1 Oct 2026); during the
+    // count-in, before anyone has heard it, one report is enough. The phone says which on its own.
     if (staleTap(payload, 'deal', s.deal)) return;
     if (['listen', 'count', 'type'].indexOf(s.phase) === -1 || (s.right || []).length) return;
     if (s.mode === 'hum' ? playerId !== s.hummerId : (s.roster || []).indexOf(playerId) === -1) return;
     if ((s.redeals || 0) >= HUM_REDEALS) return;
+    if (s.mode === 'listen' && s.phase !== 'count' && h) {
+      if (!h.broken || h.broken.deal !== s.deal) h.broken = { deal: s.deal, ids: [] };
+      if (h.broken.ids.indexOf(playerId) === -1) h.broken.ids = h.broken.ids.concat([playerId]);
+      if (h.broken.ids.length < HUM_BROKEN_PHONES) return;
+    }
     s.redeals = (s.redeals || 0) + 1;
     humDeal(room);
     return;
@@ -261,6 +270,7 @@ const humDeal = (room) => {
   h.correct = null;
   h.picks = {};
   h.tries = {};
+  h.broken = null;
   room.secrets = {};
   s.deal = (s.deal || 0) + 1;
   s.right = [];
@@ -355,7 +365,8 @@ const humReveal = (room) => {
   const gain = (id, n) => { if (!n) return; addScore(room, id, n); s.gained[id] = (s.gained[id] || 0) + n; };
   (s.right || []).forEach(r => gain(r.id, r.pts));
   Object.keys(h.picks).forEach(id => { if (h.picks[id] === h.correct) gain(id, HUM_CHOICE_PTS); });
-  if (s.mode === 'hum' && s.hummerId && (s.right || []).length) gain(s.hummerId, HUM_HUMMER_PTS);
+  // A hummer who has left scores nothing (the review of 1 Oct 2026).
+  if (s.mode === 'hum' && s.hummerId && humHere(room, s.hummerId) && (s.right || []).length) gain(s.hummerId, HUM_HUMMER_PTS);
   s.history = (s.history || []).concat([{ round: s.round, hummerId: s.hummerId || null, right: (s.right || []).length, t: song.t }]);
   s.board = humBoard(room);
   room.secrets = {};
@@ -410,7 +421,8 @@ const humTimeout = (room, now) => {
 
 /**
  * Someone left. Too few left ends the game; a hummer gone before humming hands the
- * round to the next one (a new song); every "has everyone answered?" runs again.
+ * round to the next one (a new song), one gone while humming sends the round to the
+ * choices (and scores nothing); every "has everyone answered?" runs again.
  */
 const humPlayerLeft = (room, playerId) => {
   const s = room.shared;
@@ -430,6 +442,9 @@ const humPlayerLeft = (room, playerId) => {
     return;
   }
   if (s.phase === 'type' && humGuessers(room).every(id => humIsRight(s, id))) { humReveal(room); return; }
+  // «دندنة»: the hummer gone after «خلاص» - nobody is humming any more, so whoever hasn't
+  // got it goes straight to the four choices (the review of 1 Oct 2026).
+  if (s.phase === 'type' && s.mode === 'hum' && playerId === s.hummerId) { humOpenChoices(room); return; }
   if (s.phase === 'choices' && humAllAnswered(room)) { humReveal(room); return; }
   if (s.phase === 'reveal') s.board = humBoard(room);
 };

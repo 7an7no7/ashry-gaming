@@ -12151,9 +12151,25 @@ console.log('• the secret mission');
   const asker = 'k';
   const theirT = H().of[asker].to;
   act(asker, 'missionDone', { n: H().of[asker].n });
-  check(fails(theirT, 'missionCatch', { who: asker }), 'mission: whoever asked you showed their hand - no catch');
+  {
+    // The review of 1 Oct 2026: refused as an ordinary wrong guess (a wait, «مش هو»), never "he showed himself".
+    const sc = r.mission.score[theirT] || 0;
+    check(!fails(theirT, 'missionCatch', { who: asker }) && (r.mission.score[theirT] || 0) === sc && missionView(r, theirT).me.caught.ok === false && missionView(r, theirT).me.catchAt > clock,
+      'mission: whoever asked you showed their hand - no catch, and it looks like any wrong guess');
+    clock += MISSION_CATCH_WAIT_MS + 1;
+  }
   act(asker, 'missionCancel', {});
   check(!H().asks.some((a) => a.by === asker), 'mission: the doer takes the ask back');
+  // The review of 1 Oct 2026: taken back before the target's phone showed the memo: still catchable.
+  check(H().of[asker].asked === false, 'mission (review): «اسحبه» before the memo was shown - the doer can be caught again');
+  act(asker, 'missionDone', { n: H().of[asker].n });
+  act(theirT, 'missionSeen', { id: H().asks.find((a) => a.by === asker).id });
+  act(asker, 'missionCancel', {});
+  check(H().of[asker].asked === true, 'mission (review): taken back after the memo was shown - the target knows, no catch');
+  act(asker, 'missionDone', { n: H().of[asker].n });
+  check(!fails(['h', 'k', 'g'].find((x) => x !== theirT && x !== asker), 'missionSeen', { id: H().asks.find((a) => a.by === asker).id }) && !H().asks.find((a) => a.by === asker).seen,
+    'mission (review): only the target marks a memo shown');
+  act(asker, 'missionCancel', {});
   // Beside a game: the mission goes on through a game and the trip back to the hub.
   act('h', 'chooseGame', { game: 'trivia' });
   act('h', 'start', { lang: 'ar', count: 5 });
@@ -12405,6 +12421,22 @@ console.log('• the secret mission');
     applyRoomAction(r, 'late', 'hand', { round: 1, strokes: [] });
     check(r.shared.drawers.indexOf('late') === -1 && (r.shared.handed || []).indexOf('late') === -1 && r.shared.roster.indexOf('tv') === -1, 'hear: a latecomer watches until the next game');
   }
+
+  // The review of 1 Oct 2026: leaving is this game's alone (it fell through into دندنها's), and a page
+  // sent mid-drawing changes nothing any phone is shown (room.js answers it to that phone only: SILENT_ACTIONS).
+  {
+    const r = hearRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'start', {});
+    applyRoomAction(r, r.shared.describerId, 'go', { round: 1 });
+    const shown = () => JSON.stringify([r.shared, r.secrets, r.phase, r.game]);
+    const before = shown();
+    applyRoomAction(r, r.shared.drawers[0], 'ink', { round: 1, strokes: strokesOf(r._hear.pic.s) });
+    check(shown() === before && !!r._hear.ink[r.shared.drawers[0]], 'hear (review): a page sent mid-drawing changes nothing a phone is shown');
+    r.shared.drawers.slice().forEach((id) => applyRoomAction(r, id, 'hand', { round: 1, strokes: [] }));
+    check(r.shared.phase === 'grade', 'hear (review): graded');
+    gone(r, 'b'); gone(r, 'c');
+    check(r.shared.phase === 'grade' && !r.shared.armed && r.shared.board.length === 1, 'hear (review): two leaving the grading leave it as this game left it, not ended by دندنها\'s rules');
+  }
 }
 
 
@@ -12629,6 +12661,20 @@ console.log('• the secret mission');
     check(!s.tvOpens && s.sides.x.opener === 'a' && r.secrets.a.locks.length === 2 && !r.screenOnly && s.sides.x.open[s.locks[0].i], 'vault: a phone takes the TV\'s safe over, its progress kept');
   }
   {
+    // The review of 1 Oct 2026: the TV opener leaving (a screen never reaches roomPlayerLeft): the server's
+    // next look hands the safe to a phone; «خلّي موبايل يفتح» says which safe it was pressed on.
+    const r = vaultRoom(['a', 'b', 'c'], { opener: 'tv' }, ['scr']);
+    toPlay(r);
+    applyRoomAction(r, 'a', 'takeOver', { safe: r.shared.safeNo + 1 });
+    check(r.shared.tvOpens && r.shared.sides.x.opener === 'tv', 'vault (review): a take-over pressed on another safe does nothing');
+    r.screens = [];
+    const due = roomDeadline(r);
+    check(typeof due === 'number' && due <= clock + 1, 'vault (review): the TV opener gone: the server looks at once');
+    roomTimeout(r, clock);
+    check(!r.shared.tvOpens && r.shared.sides.x.opener === 'a' && r.secrets.a.locks.length === 2 && !r.screenOnly && r.shared.phase === 'play' && roomDeadline(r) > clock,
+      'vault (review): ...and a phone opens the safe, the candle still burning');
+  }
+  {
     // Someone who joins mid-game watches.
     const r = vaultRoom(['a', 'b']);
     r.players.push({ id: 'z', name: 'Z' });
@@ -12778,6 +12824,38 @@ console.log('• the secret mission');
     check(r.shared.phase === 'reveal', 'listen: someone who left isn\'t waited for');
     gone(r, 'b');
     check(r.shared.phase === 'gameover', 'listen: fewer than two ends the game');
+  }
+
+  // The review of 1 Oct 2026: «سمّع»'s clip broken on one phone once it plays is that phone's alone;
+  // «دندنة»'s hummer gone after «خلاص»: straight to the choices, and no points for them.
+  {
+    const r = humRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'start', { mode: 'listen', replay: 'full', count: 5 });
+    ['a', 'b', 'c'].forEach((id) => applyRoomAction(r, id, 'arm', {}));
+    let deal = r.shared.deal;
+    applyRoomAction(r, 'b', 'broken', { deal });
+    check(r.shared.deal === deal + 1 && r.shared.phase === 'count', 'hum (review): listen: a clip broken during the count-in is dealt again at once');
+    tick(r);
+    deal = r.shared.deal;
+    applyRoomAction(r, 'b', 'broken', { deal });
+    applyRoomAction(r, 'b', 'broken', { deal });
+    check(r.shared.deal === deal && r.shared.phase === 'type', 'hum (review): listen: one phone\'s broken clip once it plays deals nothing again, however often it says so');
+    applyRoomAction(r, 'c', 'broken', { deal });
+    check(r.shared.deal === deal + 1 && r.shared.phase === 'count', 'hum (review): listen: a second phone saying so deals another song');
+
+    const r2 = humRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r2, 'a', 'start', { mode: 'hum', count: 5 });
+    let H = r2.shared.hummerId;
+    if (H === 'a') { applyRoomAction(r2, 'a', 'skipSong', { deal: r2.shared.deal }); applyRoomAction(r2, 'a', 'nextRound', { round: 1 }); H = r2.shared.hummerId; }
+    applyRoomAction(r2, H, 'heard', { deal: r2.shared.deal });
+    const g = r2.shared.roster.filter((id) => id !== H);
+    applyRoomAction(r2, g[0], 'guess', { deal: r2.shared.deal, text: songOf(r2).t });
+    const before = r2.shared.scores[H] || 0;
+    gone(r2, H);
+    check(r2.shared.phase === 'choices' && r2.shared.choices.length === 4, 'hum (review): the hummer gone after «خلاص»: the rest go straight to the four choices');
+    g.slice(1).forEach((id) => applyRoomAction(r2, id, 'pick', { deal: r2.shared.deal, i: 0 }));
+    check(r2.shared.phase === 'reveal' && !r2.shared.gained[H] && (r2.shared.scores[H] || 0) === before && r2.shared.gained[g[0]] === 3,
+      'hum (review): a hummer who left scores nothing for the song; the typed answer keeps its points');
   }
 }
 

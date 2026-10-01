@@ -48,7 +48,12 @@ const IDLE_RECHECK_MS = 10 * 60 * 1000;
 const ALARM_FLOOR_MS = 1000;
 // Rapid moves (drawing, the dial) are saved at most this often; the phones get them at once.
 const QUICK_SAVE_MS = 1000;
-const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', 'stick']);
+const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', 'stick', 'ink']);
+// Moves that only touch what the server keeps to itself (ارسم اللي بتسمعه's drawings,
+// room._hear.ink, sent every second or so by every drawer; المهمة السرية's "the memo was
+// shown"): when nothing any phone is shown changed, only the phone that moved gets its
+// answer - no version, no broadcast.
+const SILENT_ACTIONS = new Set(['ink', 'missionSeen']);
 // Quick actions whose game has a clock that moves with them: the alarm is still
 // set for these (the dark room's joystick: its traps and goal come with the walk).
 const QUICK_WITH_ALARM = new Set(['stick']);
@@ -711,8 +716,11 @@ export class Room extends DurableObject {
       stopTaps = next._stopTaps;
       delete next._stopTaps;
     }
+    // A silent move that left everything the phones are shown as it was (SILENT_ACTIONS).
+    const shown = (r) => JSON.stringify([r.shared || null, r.secrets || null, r.phase || null, r.game || null, r.mission || null, r.screenOnly || null]);
+    const silent = SILENT_ACTIONS.has(action) && shown(next) === shown(before);
     this.room = next;
-    this.touch();
+    if (silent) this.room.updatedAt = Date.now(); else this.touch();
     if (!ws) this.polled.set(pid, Date.now());
     // «الشلة»: the night grew (a game banked on the way back to the hub, a guess settled):
     // the crew gets it again, replacing what it had. Not waited on: a move never waits for it.
@@ -748,7 +756,7 @@ export class Room extends DurableObject {
       patch = { t: 'strokes', from: before.version, v: next.version, add: now.slice(was.length) };
     }
 
-    this.broadcast({ skip: ws, patch });
+    if (!silent) this.broadcast({ skip: ws, patch });
     // Usually nothing to say; a player turning into a screen changes the count,
     // and a room in play refreshes its entry every few minutes.
     await this.reportLive();

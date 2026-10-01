@@ -515,6 +515,8 @@ function missionPaintAsk(state, ask) {
     </div>`;
   box.classList.remove('hidden');
   msn.askShown = true;
+  // The server learns the memo was shown: a hunter taking it back after this stays uncatchable by you.
+  if (msn.seenSent !== ask.id) { msn.seenSent = ask.id; Room.act('missionSeen', { id: ask.id }).catch(() => {}); }
   // The knock has done its job: it would sit over the memo's buttons on a phone on its side.
   const knock = t.mission_knock || '';
   document.querySelectorAll('#toast-stack > *').forEach(el => {

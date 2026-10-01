@@ -103,7 +103,11 @@ named `hear` / `HEAR_`, the page's code `hr` / `HR_`, the stylesheet section
   kept in the phone's `localStorage` (`ashryHearInk`, keyed on the deal and
   the round), so a reload or a rebuilt frame comes back with the drawing and
   the server already has it if the phone dies. One pencil colour (`#1f2a44`),
-  width 5 (of 255), the eraser three times that.
+  width 5 (of 255), the eraser three times that. On the server `ink` is a
+  quick action (`QUICK_ACTIONS` in `room.js`: saved at most once a second) and a
+  silent one (`SILENT_ACTIONS`: it changes only `room._hear.ink`, so only the
+  drawer's phone gets an answer - no broadcast to the table; the review of 1 Oct
+  2026, when every page was a full write and a push to every phone).
 
 ## How it is built
 

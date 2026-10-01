@@ -13,32 +13,28 @@
  */
 const fs = require('fs');
 const path = require('path');
+const acorn = require('acorn');
 
 const ROOT = path.join(__dirname, '..');
 const core = fs.readFileSync(path.join(ROOT, 'JS_Core.html'), 'utf8');
 
-/** Pulls the top-level keys out of one language block of TRANSLATIONS. */
-function keysOf(lang) {
-  const start = core.indexOf('const TRANSLATIONS');
-  const at = core.indexOf('\n    ' + lang + ': {', start);
-  if (at === -1) throw new Error('no ' + lang + ' block in TRANSLATIONS');
+// TRANSLATIONS read by a real parser: a line regex saw only the first key of a line, so
+// `bank_col_br: …, bank_col_lb: …` on one line hid the second from both checks below.
+const T = acorn.parseExpressionAt(core, core.indexOf('{', core.indexOf('const TRANSLATIONS')), { ecmaVersion: 'latest' });
+const propName = (p) => (p.key.type === 'Identifier' ? p.key.name : String(p.key.value));
 
-  // Walk braces from the opening one so nested objects don't end the block early.
-  let i = core.indexOf('{', at);
-  let depth = 0;
-  let end = i;
-  for (; i < core.length; i++) {
-    const c = core[i];
-    if (c === '{') depth++;
-    else if (c === '}') { depth--; if (depth === 0) { end = i; break; } }
-  }
-  const body = core.slice(core.indexOf('{', at) + 1, end);
+/** The top-level keys of one language block of TRANSLATIONS. */
+function keysOf(lang) {
+  const block = T.properties.find((p) => p.type === 'Property' && propName(p) === lang);
+  if (!block || block.value.type !== 'ObjectExpression') throw new Error('no ' + lang + ' block in TRANSLATIONS');
   // Counted, not just collected: a key defined twice is legal JS and the last
   // one silently wins, so a string can quietly become one nobody wrote there.
   const counts = new Map();
-  const re = /(?:^|\n)\s{6}([A-Za-z_][A-Za-z0-9_]*)\s*:/g;
-  let m;
-  while ((m = re.exec(body))) counts.set(m[1], (counts.get(m[1]) || 0) + 1);
+  for (const p of block.value.properties) {
+    if (p.type !== 'Property' || p.computed) throw new Error(lang + ': a spread or computed key in TRANSLATIONS can\'t be checked');
+    const k = propName(p);
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
   const keys = new Set(counts.keys());
   keys.duplicates = [...counts].filter(([, n]) => n > 1).map(([k, n]) => `${k} ×${n}`);
   return keys;
@@ -118,4 +114,8 @@ if (unused.length) {
 console.log('ar %d keys, en %d keys, %d data-i18n attributes',
             ar.size, en.size, attrKeys.size);
 console.log(errors ? 'FAILED' : 'i18n OK');
-process.exit(errors ? 1 : 0);
+
+// --- 5. every var(--x) the page reads is defined somewhere --------------
+// Its own file (node check-css-vars.js), run from here so `npm run check` runs it.
+const css = require('child_process').spawnSync(process.execPath, [path.join(__dirname, 'check-css-vars.js')], { stdio: 'inherit' });
+process.exit(errors || css.status !== 0 ? 1 : 0);

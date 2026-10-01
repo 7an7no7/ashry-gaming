@@ -41,11 +41,11 @@ const CORE = [
   /^tools\/(build-preview|build-site|test-ui|test-ui-parallel|test-changed)\.mjs$/, /^tools\/package/,
   /^rooms-worker\/test\/play-all\.mjs$/,
 ];
-const IGNORE = [/^notes\//, /\.md$/, /^\.claude\//, /^docs\//, /^\.github\//, /^rooms-worker\/test\/(rules|leaks)\.mjs$/];
+const IGNORE = [/^notes\//, /\.md$/, /^\.claude\//, /^docs\//, /^\.github\//];
 const CORE_GAMES = ['imposter', 'justone', 'whoami', 'codenames', 'fibbage', 'wouldyou', 'mostlikely', 'drawguess', 'fakeartist',
   'wavelength', 'trivia', 'buzzer', 'stop', 'chameleon', 'spyfall', 'bomb', 'twotruths', 'emoji', 'proverbs', 'fiveseconds',
   'telephone', 'monkey', 'herd', 'mind', 'timeline'];
-const RACE_GAMES = ['strands', 'wordwheel', 'connections', 'pinpoint', 'queens', 'tango', 'nonogram', 'mines', 'streak'];
+const RACE_GAMES = ['strands', 'wordwheel', 'connections', 'pinpoint', 'queens', 'tango', 'nonogram', 'mines', 'streak', 'sudoku'];
 const MAP = [
   // The party games the core segment plays in its one room (and their word lists).
   { files: /^(SpyWords|CodenamesWords|PartyContent|TriviaQuestions|ChameleonWords|SpyfallPlaces|BombPrompts|EmojiRiddles|Proverbs|MonkeyWords|StopWords|TimelineEvents)\.js$/, robots: ['core', 'autonext'], ui: CORE_GAMES, screens: true },
@@ -103,7 +103,9 @@ const MAP = [
   // The page's own screens and the offline copy.
   { files: /^JS_[A-Za-z0-9]+\.html$/, screens: true },
   { files: /^(site-worker\/|tools\/site\.config\.json$|tools\/(make-icons|make-og)\.mjs$)/, site: true },
-  { files: /^tools\/(validate-content\.js|check-i18n\.js)$/ },
+  { files: /^tools\/(validate-content\.js|check-i18n\.js|check-css-vars\.js)$/ },
+  // The rules tests and the leak check themselves: npm run test:rules runs both (BUNDLED below).
+  { files: /^rooms-worker\/test\/(rules|leaks)\.mjs$/ },
 ];
 
 /* --- the files that changed ------------------------------------------------------------------ */
@@ -118,7 +120,8 @@ const changed = FILES_ARG ? FILES_ARG.slice(8).split(',').filter(Boolean) : [...
 ].filter(Boolean))];
 
 const plan = { check: false, rules: false, all: false, robots: new Set(), ui: new Set(), screens: false, fixes: false, program: false, site: false, why: [] };
-const BUNDLED = /^(rooms-worker\/src\/|[A-Z][A-Za-z0-9]*\.js$)/;
+// What test:rules has to run for: a file the server bundles, or the rules tests and leak check themselves.
+const BUNDLED = /^(rooms-worker\/src\/|rooms-worker\/test\/(rules|leaks)\.mjs$|[A-Z][A-Za-z0-9]*\.js$)/;
 for (const f of changed) {
   if (IGNORE.some((r) => r.test(f))) continue;
   plan.check = true;

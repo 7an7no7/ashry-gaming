@@ -10,8 +10,8 @@
  * The app is built once (the preview and the site, into a temporary folder); each shard is a
  * test-ui.mjs process with its own Chrome and its own copy of the site, told which screen size or
  * which share of the room games is its own (UI_SIZES, UI_ROOMS_SHARD). A shard's output is printed
- * whole when it ends, then one summary; the exit code is the number of failed checks, or 1 when a
- * shard died without a result. `npm run test:ui:one` is the old single process.
+ * whole when it ends, then one summary; the exit code is 1 when any check failed or a shard died
+ * without a result. `npm run test:ui:one` is the old single process.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -25,6 +25,25 @@ const ROOMS = (process.argv.slice(2).find((a) => /^https?:/.test(a)) || process.
 const ONLY = (process.env.ONLY || 'screens,rooms,fixes,program,site').split(',');
 const JOBS = Math.max(1, Number(process.env.JOBS || 4));
 const ROOM_SHARDS = Math.max(1, Number(process.env.UI_ROOM_SHARDS || 3));
+
+// A part or a room game that names nothing used to run no check and print "0 passed, 0 failed",
+// which reads as green (ONLY=screen, or UI_GAMES=tictactoe for xo): both are refused here.
+const PARTS = ['screens', 'rooms', 'fixes', 'program', 'site'];
+const unknownParts = ONLY.filter((p) => !PARTS.includes(p));
+if (unknownParts.length) {
+  console.error(`ONLY=${unknownParts.join(',')} names no part (${PARTS.join(', ')})`);
+  process.exit(1);
+}
+if (process.env.UI_GAMES) {
+  const hub = fs.readFileSync(path.join(root, 'JS_Room.html'), 'utf8');
+  const from = hub.indexOf('const ROOM_HUB_GAMES = [');
+  const ids = new Set([...hub.slice(from, hub.indexOf('\n];', from)).matchAll(/\bid:\s*'([^']+)'/g)].map((m) => m[1]));
+  const unknownGames = process.env.UI_GAMES.split(',').filter((g) => !ids.has(g));
+  if (from === -1 || unknownGames.length) {
+    console.error(`UI_GAMES=${unknownGames.join(',') || process.env.UI_GAMES} names no room game in ROOM_HUB_GAMES (JS_Room.html)`);
+    process.exit(1);
+  }
+}
 
 try {
   const res = await fetch(ROOMS + '/health');
@@ -91,4 +110,5 @@ console.log(`\n${passed} passed, ${failed} failed, ${((Date.now() - t0) / 1000).
 const fails = results.flatMap((r) => r.fails);
 if (fails.length) console.log('failed:\n - ' + fails.join('\n - '));
 try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) {}
-process.exit(failed || (fails.length ? 1 : 0));
+// 1, never the count: a POSIX shell keeps the exit status mod 256, so 256 failures read as 0.
+process.exit(failed || fails.length ? 1 : 0);

@@ -569,6 +569,30 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   console.log(`game ids: ${appIds.length} (GAME_CATALOG ${catIds.length})`);
 }
 
+/* ------------------------------------------ ارسم اللي بتسمعه: the pictures the app makes */
+// Hear.js makes every picture from a seed: each thing at each level, and shapes, must stay inside the
+// page, have its name in both languages, and a trace of its own lines must score full marks.
+{
+  const H = load(ROOT + 'Hear.js', '{ hearPicture, hearOutlines, hearScore, HEAR_THING_IDS, HEAR_THING_NAMES }');
+  let n = 0;
+  H.HEAR_THING_IDS.forEach(id => {
+    const nm = H.HEAR_THING_NAMES[id];
+    if (!nm || !nm.ar || !nm.en) note(`Hear.js: '${id}' has no name in both languages`);
+  });
+  ['shapes', 'things'].forEach(kind => ['easy', 'mid', 'hard'].forEach(level => {
+    for (let i = 0; i < 60; i++) {
+      const pic = H.hearPicture(7 + i * 104729, kind, level, kind === 'things' ? H.HEAR_THING_IDS[i % H.HEAR_THING_IDS.length] : '');
+      n++;
+      const lines = H.hearOutlines(pic.s);
+      if (!lines.length) { note(`Hear.js: an empty ${kind}/${level} picture (seed ${7 + i * 104729})`); continue; }
+      if (lines.some(l => l.some(([x, y]) => !(x >= -0.5 && x <= 100.5 && y >= -0.5 && y <= 100.5)))) note(`Hear.js: a ${kind}/${level} ${pic.thing || ''} picture leaves the page (seed ${7 + i * 104729})`);
+      const trace = lines.map(l => ({ c: '#111', w: 5, p: l.flatMap(([x, y]) => [Math.round(x * 2.55), Math.round(y * 2.55)]) }));
+      if (H.hearScore(pic.s, trace) < 90) note(`Hear.js: its own lines score under 90% on a ${kind}/${level} ${pic.thing || ''} picture`);
+    }
+  }));
+  console.log(`hear: ${H.HEAR_THING_IDS.length} things, ${n} pictures checked`);
+}
+
 /* ------------------------------------------ السلم والتعبان: the sneak's crawl */
 // The owner's review (29 Sep 2026): the snake that catches a sneak crawls over the board to him and
 // back, and must never tie itself in a knot. Over 150 maps, every square beside a ladder's foot and the

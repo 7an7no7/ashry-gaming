@@ -876,6 +876,113 @@ async function witnessRobots() {
   people.filter((b) => b !== leaver).concat([TV, late]).forEach((x) => x.close());
 }
 
+/* --- ارسم اللي بتسمعه: the picture on the describer's phone only, the drawings on the server until the grading --- */
+async function hearRobots() {
+  console.log('• ارسم اللي بتسمعه (the picture on one phone, the drawings kept secret, the grading, «أغرب رسمة», the clock)');
+  const H = await Bot.host('سارة', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const L = await Bot.join(H.code, 'ليلى');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K, L];
+  const byPid = (id) => people.find((b) => b.pid === id);
+  // A drawing on the picture's own lines (0..100 → the toolbox's 0..255), and a scribble.
+  const outlines = (shapes) => shapes.map((s) => {
+    if (s.k === 'c' || s.k === 'e') { const rx = s.k === 'c' ? s.r : s.rx, ry = s.k === 'c' ? s.r : s.ry; return Array.from({ length: 33 }, (_, i) => [s.x + Math.cos(i / 32 * Math.PI * 2) * rx, s.y + Math.sin(i / 32 * Math.PI * 2) * ry]); }
+    if (s.k === 'r') return [[s.x, s.y], [s.x + s.w, s.y], [s.x + s.w, s.y + s.h], [s.x, s.y + s.h], [s.x, s.y]];
+    return s.k === 'p' ? s.p.concat([s.p[0]]) : s.p;
+  });
+  const trace = (shapes) => outlines(shapes).map((l) => {
+    const p = [];
+    for (let i = 1; i < l.length; i++) for (let k = 0; k < 6; k++) { const t = k / 6; p.push(Math.round((l[i - 1][0] + (l[i][0] - l[i - 1][0]) * t) * 2.55), Math.round((l[i - 1][1] + (l[i][1] - l[i - 1][1]) * t) * 2.55)); }
+    return { c: '#1f2a44', w: 5, p };
+  });
+  const scribble = () => ({ c: '#1f2a44', w: 5, p: Array.from({ length: 60 }, (_, i) => (i * 97) % 256) });
+
+  await H.must('chooseGame', { game: 'hear' });
+  check((await J.act('start', {})).ok === false, 'hear: only the host starts');
+  await H.must('start', { seconds: 60, kind: 'shapes', level: 'easy', laps: 1 });
+  await all(people.concat([TV]), (s) => s.game === 'hear' && s.shared.phase === 'ready' && s.shared.round === 1 && s.shared.rounds === 4,
+    'hear: round 1 waits for the describer on every phone and the TV');
+  const late = await Bot.join(H.code, 'متأخر');
+  check(late.state.inGame === false, 'hear: someone who joins mid-game watches');
+
+  // Round 1: by hand, start to end.
+  let s0 = H.state.shared;
+  let D = byPid(s0.describerId);
+  let drawers = people.filter((b) => b !== D);
+  await D.waitFor((s) => s.you && s.you.pic && s.you.pic.s.length === 3, 'hear 1: the picture reaches the describer\'s phone');
+  check(drawers.concat([TV, late]).every((b) => !(b.state.you && b.state.you.pic) && !b.state.shared.pic && !leaks(b, JSON.stringify(D.state.you.pic.s[0]))),
+    'hear 1: nobody else is sent the picture');
+  const first = JSON.stringify(D.state.you.pic);
+  await D.must('swap', { round: 1 });
+  await D.waitFor((s) => s.you && JSON.stringify(s.you.pic) !== first && s.shared.swaps === 1, 'hear 1: «صورة تانية» deals another picture');
+  await drawers[0].must('go', { round: 1 });
+  check(H.state.shared.phase === 'ready', 'hear 1: only the describer starts the clock');
+  await D.must('go', { round: 1 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'draw' && s.shared.endsAt > 0, 'hear 1: the drawing starts on every screen');
+  const pic = D.state.you.pic;
+  const mine = trace(pic.s);
+  await drawers[0].must('ink', { round: 1, strokes: mine });
+  await drawers[1].must('ink', { round: 1, strokes: [scribble()] });
+  await sleep(300);
+  const sig = JSON.stringify(mine[0].p.slice(0, 12)).slice(1, -1);
+  check(people.concat([TV, late]).every((b) => !leaks(b, sig)), 'hear 1: a drawing is on no phone (its own neither) before the grading');
+  await D.must('done', { round: 1 });
+  await H.waitFor((s) => s.shared.cut === true, 'hear 1: «خلّصت» cuts the clock');
+  await drawers[0].must('hand', { round: 1 });
+  await drawers[1].must('hand', { round: 1 });
+  check(H.state.shared.phase === 'draw' && (H.state.shared.handed || []).length === 2, 'hear 1: two pages handed in');
+  await drawers[2].must('hand', { round: 1, strokes: [] });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'grade' && s.shared.pic && s.shared.drawings && s.shared.drawings.length === 3, 'hear 1: all handed in: the picture and the drawings on every screen');
+  const g = H.state.shared;
+  const top = g.drawings.find((d) => d.id === drawers[0].pid);
+  const blank = g.drawings.find((d) => d.id === drawers[2].pid);
+  check(top.pct >= 90 && top.pts === 3 && blank.pct === 0 && blank.pts === 0, `hear 1: the traced page scores ${top.pct}% and 3 points; the blank one 0`);
+  check(g.descPts === Math.min(3, Math.floor(g.avg / 20)) && (g.gained[D.pid] || 0) === g.descPts, `hear 1: the describer +${g.descPts} for an average of ${g.avg}%`);
+  check(!D.state.you || !D.state.you.pic, 'hear 1: the picture leaves the describer\'s slice once it is public');
+  check((await J.act('toVote', { round: 1 })).ok === false, 'hear 1: only the host opens the vote early');
+  await H.must('toVote', { round: 1 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'vote' && s.shared.vote.options.length === 3, 'hear 1: «أغرب رسمة» opens');
+  const optOf = (b) => H.state.shared.vote.options.find((o) => o.ownerId === b.pid).id;
+  check((await drawers[2].act('vote', { round: 1, option: optOf(drawers[2]) })).ok === false, 'hear 1: nobody votes for their own drawing');
+  await D.must('vote', { round: 1, option: optOf(drawers[1]) });
+  await drawers[0].must('vote', { round: 1, option: optOf(drawers[1]) });
+  await H.waitFor((s) => s.shared.vote.voted.length === 2, 'hear 1: the host hears of the votes');
+  check(!H.state.shared.vote.results, 'hear 1: who voted is public, not what');
+  for (const b of drawers.slice(1)) if (H.state.shared.phase === 'vote') await b.must('vote', { round: 1, option: optOf(b === drawers[1] ? drawers[0] : drawers[1]) });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'result', 'hear 1: the vote closes when everyone has voted');
+  check((H.state.shared.weird || []).indexOf(drawers[1].pid) !== -1 && H.state.shared.gained[drawers[1].pid] >= 1, 'hear 1: the weirdest drawing +1');
+  await H.must('nextRound', { round: 1 });
+
+  // Round 2: on the server's clock - «خلّصت», time's up, the grading, the vote closing by itself.
+  await all(people, (s) => s.shared.round === 2 && s.shared.phase === 'ready', 'hear 2: the next describer');
+  s0 = H.state.shared;
+  D = byPid(s0.describerId);
+  drawers = people.filter((b) => b !== D);
+  check(D.pid !== g.describerId, 'hear 2: someone else describes');
+  await D.must('go', { round: 2 });
+  await drawers[0].must('ink', { round: 2, strokes: [scribble()] });
+  await D.must('done', { round: 2 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'grade', 'hear 2: time\'s up: the server grades what came in', 20000);
+  check(H.state.shared.drawings.find((d) => d.id === drawers[0].pid).strokes.length === 1, 'hear 2: the page sent while drawing is the one graded');
+  await all(people.concat([TV]), (s) => s.shared.phase === 'vote', 'hear 2: the vote opens by itself after the grading', 16000);
+  await H.must('closeVote', { round: 2 });
+  await all(people, (s) => s.shared.phase === 'result', 'hear 2: the host closes the vote');
+  await H.must('nextRound', { round: 2 });
+
+  // A drawer who leaves before the clock is off the table.
+  await H.waitFor((s) => s.shared.round === 3 && s.shared.phase === 'ready', 'hear 3: round 3 is dealt');
+  const s3 = H.state.shared;
+  const leaver = people.find((b) => b.pid !== s3.describerId && b.pid !== H.pid);
+  await api('/leave', { code: leaver.code, pid: leaver.pid, key: leaver.key });
+  await H.waitFor((s) => s.shared.phase === 'ready' && s.shared.drawers.indexOf(leaver.pid) === -1 && s.players.every((p) => p.id !== leaver.pid), 'hear 3: a player who leaves is off the table');
+  leaver.close();
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'hear: back in the hub');
+  people.filter((b) => b !== leaver).concat([TV, late]).forEach((x) => x.close());
+}
+
 /* --- «اعمل مسابقتك» and «كلماتنا»: packs kept by code, dealt by the server ------------------- */
 async function quizRobots() {
   console.log('• اعمل مسابقتك / كلماتنا (a pack by code, the author\'s key, trivia and the buzzer with a quiz, الجاسوس with the family words)');
@@ -6201,6 +6308,7 @@ const SEGMENTS = [
   { name: 'bowling', run: bowlingSeg, secs: 30 },
   { name: 'chairs', run: chairsRobots, secs: 40 },
   { name: 'witness', run: witnessRobots, secs: 17 },
+  { name: 'hear', run: hearRobots, secs: 40 },
   { name: 'quiz', run: quizRobots, secs: 6 },
   { name: 'wire', run: wireRobots, secs: 50 },
   { name: 'box', run: boxRobots, secs: 84 },

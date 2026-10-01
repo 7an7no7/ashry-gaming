@@ -89,6 +89,7 @@ const MAP = [
   { files: /^(RoomBumper\.js|JS_RoomBumper\.html)$/, robots: ['bumper'], ui: ['bumper'] },
   { files: /^(Wire\.js|RoomWire\.js|JS_RoomWire\.html)$/, robots: ['wire'], ui: ['wire'] },
   { files: /^(Witness\.js|RoomWitness\.js|JS_RoomWitness\.html)$/, robots: ['witness'], ui: ['witness'] },
+  { files: /^(Hear\.js|RoomHear\.js|JS_RoomHear\.html)$/, robots: ['hear'], ui: ['hear'] },
   { files: /^(RoomExact\.js|JS_RoomExact\.html)$/, robots: ['exact'], ui: ['exact'] },
   // «الشلة»: the crew's rules and page (a room's night reaches its crew: the robots' crew segment; the page: screens and fixes).
   { files: /^(Crew\.js|JS_Crew\.html|JS_CrewCore\.html)$/, robots: ['crew', 'crewlink'], screens: true, fixes: true },

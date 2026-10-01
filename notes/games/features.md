@@ -57,6 +57,12 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 - **Rooms only, a deduction game:** **The Witness (الشاهد):** one sees a
   face for 8 seconds and describes it, the next builds it on a face builder,
   the rest pick the real one from a lineup of six look-alikes (*الشاهد*).
+- **Rooms only, a drawing game:** 🎧 **Draw What You Hear (ارسم اللي
+  بتسمعه):** one describes a picture only their phone shows (shapes on a
+  grid, or a simple drawing the app makes), the rest draw it without a
+  question; the app marks every drawing with a %, the closest three score,
+  the describer by the average, and the table votes the weirdest
+  (*ارسم اللي بتسمعه*, `notes/games/hear.md`).
 - **Rooms only, a bluffing auction:** **The Auction (المزاد):** a
   game-show studio, eight boxes one at a time, a true secret clue on every
   phone, a minute of talk (and lies), one secret bid each; the highest takes

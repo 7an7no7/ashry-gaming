@@ -9318,6 +9318,34 @@ Date.now = duelTestClock;
     check(s.phase === 'result' && s.result.reveal.groups.length === 4 && s.result.reveal.groups[0].name === x.groups[0].name, 'race/connections: the result reveals every group');
   }
 
+  // إيه اللي يجمعهم؟'s choices (the review of 1 Oct 2026): a category sharing 4 or more words with
+  // the answer is never offered beside it - every category of both languages, several deals each.
+  {
+    const SRCP = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+    const P = new Function(SRCP('SoloShared.js') + SRCP('ChameleonWords.js') + SRCP('Pinpoint.js') +
+      '\nreturn { pinMakeRound, pinFold, soloRng, soloCategory, CHAMELEON_DB, PIN_OPTIONS, PIN_DECOY_MAX_SHARED };')();
+    let rounds = 0, bad = '', heavy = 0;
+    for (const lang of ['ar', 'en']) {
+      const cats = P.CHAMELEON_DB[lang];
+      const byHead = new Map(cats.map((c) => { const h = P.soloCategory(c.category); return [h.icon + h.name, c]; }));
+      cats.forEach((target, ti) => {
+        const own = new Set(target.words.map(P.pinFold));
+        const shared = (c) => c.words.filter((w) => own.has(P.pinFold(w))).length;
+        if (cats.some((c) => c !== target && shared(c) >= P.PIN_DECOY_MAX_SHARED)) heavy++;
+        for (let seed = 1; seed <= 6; seed++) {
+          const r = P.pinMakeRound(cats, target, P.soloRng((lang === 'en' ? 50000 : 0) + ti * 100 + seed));
+          rounds++;
+          if (r.options.length !== P.PIN_OPTIONS || byHead.get(r.options[r.answer].icon + r.options[r.answer].name) !== target) bad = bad || `${target.category}: six choices with the answer among them`;
+          r.options.forEach((o, i) => {
+            const c = byHead.get(o.icon + o.name);
+            if (i !== r.answer && (!c || shared(c) >= P.PIN_DECOY_MAX_SHARED)) bad = bad || `${target.category}: ${o.name} offered beside it`;
+          });
+        }
+      });
+    }
+    check(!bad && heavy > 0 && rounds > 1000, `pinpoint: no choice shares ${P.PIN_DECOY_MAX_SHARED} words with the answer (${rounds} rounds, ${heavy} answers with such a neighbour)${bad ? ' - ' + bad : ''}`);
+  }
+
   // RACE:pinpoint
   {
     r = race(['a', 'b'], 'pinpoint', { finish: 'all' });

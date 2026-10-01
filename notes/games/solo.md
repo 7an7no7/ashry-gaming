@@ -292,6 +292,50 @@ dailies once and draws its list again (`renderDaily.asked`), so a board left hal
 سلسلة الإجابات's question and answers are `dir="auto"` (a «?» at the right end). 2048 stamps
 «رقم جديد» on a tie only when this game raised the best itself (`s.raisedBest`, taken back with ↶).
 
+**Content of the review of 1 Oct 2026 (Part 2).**
+- **Wordle's soft dictionary** (`JS_Wordle.html`): a guess no word list of the app knows
+  shakes once with «مش في قاموسنا — دوس تاني لو متأكد» / "Not in our dictionary — press
+  again if you're sure" (`wordle_not_in_dict`), and Enter again on the same word sends it
+  (`wordleUnsure`). The known words (`wordleDictionary`) are the word wheel's banks whole -
+  `wheelBankWords(lang)` in `WordWheel.js`, which `wheelDictionary` now cuts its 3-7 letter
+  words from (same words, same order) - with `WHEEL_BONUS_WORDS` and every `WORDLE_DB`
+  length, folded by `wordleDictKey` (one alef, ة/ه, ى/ي, ؤ/و, ئ/ي); a plural (-S, -ES; ات,
+  ين, ون) or a leading «ال» counts when its stem is known. The banks live in the word
+  wheel's chunk, so a Wordle board fetches it in the background (`lzEnsure(['wordwheel'])`,
+  `LAZY_EDGES` 'JS_Wordle>WordWheel.js'); until it arrives every word is let through. One
+  phone only: a room's Wordle (set and solve, the race) still takes any letters.
+- **The daily's word** keeps to words a family spells one way: `wordleDailySafe(word, lang)`
+  and `WORDLE_DAILY_SKIP` in `WordleWords.js` - in Arabic a final ي or ى (كمثرى, كوبري), any
+  ء ئ ؤ (عصائر / عصاير, صحراء / صحرا), the loanwords (جاتوه, لاتيه, كافيه, شاليه, مايوه,
+  فوتيه, بودنج, مشروم …) and colloquial forms (دايرة, زايدة, كهربا, قزازة, مراية, دفاية …);
+  in English the British/American pairs (ARMOR, RUMOR, METER) and loanwords. 443 of the 540
+  Arabic and 353 of the 361 English 5-letter words are left for the daily; the free game
+  and rooms still deal them all. `wordleDailyPool` filters from `WORDLE_SAFE_FROM`
+  (2026-10-03): 1 and 2 Oct keep the whole list, so a word already dealt under the walk
+  (`soloDailyCycle`) stays the word it was; from 3 Oct the walk goes round the safe list.
+  `npm run check` fails on a skip word the list doesn't have, or fewer than 200 left.
+- **تشابه's hard puzzles had near copies**: 31-42 had mostly repeated 0-11 (the same five
+  "parts of …", the Korean brands twice, cheeses/breads/pasta/rice/soups twice, capitals in
+  three puzzles). Fifteen were rewritten in each language (15, 16, 31-42) as new themes:
+  rivers/mountains/deserts/islands/lakes, things in each room of a home, countries by region,
+  games (street, board, card, video, funfair), cooking, animal facts (young, homes, sounds,
+  coverings, egg-layers), animals by habitat, tools by trade, famous names, occasions
+  (wedding, Eid, Ramadan, شم النسيم, birthday), nature, the shops, shades of colour, buildings;
+  23 swapped its cookware and spices (13's and 41's) for nuts and cleaning tools. A medium
+  group «كلام بنقوله في المناسبات» is «تهاني ومجاملات». `validate-content.js` now fails when
+  two puzzles of one level share three category names (folded), or two hard puzzles share a
+  whole group (easy and medium are built of the basic kinds - seasons, colours - that can
+  only be one set of four, so a repeated group is allowed there).
+- **إيه اللي يجمعهم؟**: a category sharing `PIN_DECOY_MAX_SHARED` (4) or more words with the
+  answer is never one of its choices (`pinMakeRound`; English «Sports ⚽» and «Sports 🏅»
+  shared 11). The 🏅 one is «Olympic Sports» (Arabic was already «رياضات أولمبية»), and no
+  two Chameleon categories share an icon or a name in a language now (`validate-content.js`
+  checks): في الحديقة 🌷 (أشجار keeps 🌳), أجزاء العربية 🔧, أدوات الرسم 🖌️, ممثلين مصريين
+  🌟, لاعبين كورة 👟, في ماتش كورة 📣. Its share and stats card are 🧩 (🔗 is تشابه's).
+  `rules.mjs` deals every category of both languages six times and checks the choices.
+  The decoys draw from the same seeded dice, so a daily's rounds can differ from the
+  version before for a category that had such a neighbour.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -47,7 +47,7 @@ function startWordleGame(length, daily, sure) {
     appState.wordle.maxTries = length > 6 ? 7 : 6;
 
     const picked = daily
-        ? soloDailyCycle('wordle', db)[0]
+        ? soloDailyCycle('wordle', wordleDailyPool(db, lang))[0]
         : freshPick('wordle:' + lang + ':' + length, db, 1)[0];
     // The Arabic keypad has a single alef, so a word spelled with أ, إ or آ
     // could never be typed and the game could not be won. It is played with
@@ -62,19 +62,95 @@ function startWordleGame(length, daily, sure) {
     appState.wordle.daily = daily ? soloToday() : '';
     delete appState.wordle.archive;
 
+    wordleUnsure = '';
     renderWordleBoard();
     renderKeyboard();
     saveToLocal();
     setView('play-wordle');
+    wordleWarmDictionary();
 }
 
 const WORDLE_DAILY_LEN = 5;
+
+/*
+ * The daily's list: the 5-letter words a family spells one way (wordleDailySafe,
+ * WordleWords.js; the review of 1 Oct 2026). From WORDLE_SAFE_FROM on - the days
+ * before keep the whole list, so a word already dealt (1 and 2 Oct, a day in the
+ * archive) stays the word it was.
+ */
+const WORDLE_SAFE_FROM = '2026-10-03';
+
+function wordleDailyPool(db, lang) {
+    const day = soloArchiveDay || soloToday();
+    if (day < WORDLE_SAFE_FROM || typeof wordleDailySafe !== 'function') return db;
+    const safe = db.filter(w => wordleDailySafe(w, lang));
+    return safe.length ? safe : db;
+}
+
+/*
+ * The soft dictionary (the review of 1 Oct 2026): a guess no word list of the app
+ * knows shakes once with «مش في قاموسنا — دوس تاني لو متأكد», and Enter again on
+ * the same word sends it - so five random letters don't fish for free, and a real
+ * word our lists lack still plays. The words are the word wheel's banks whole
+ * (wheelBankWords, WordWheel.js: Chameleon, Stop, Monkey, the spy words,
+ * Connections, Describe It, Charades, Who Am I) with its everyday words
+ * (WHEEL_BONUS_WORDS) and every Wordle length. They live in the word wheel's chunk,
+ * which is fetched in the background when a board opens; until it is here every
+ * word is let through.
+ */
+const WORDLE_DICT = {};
+let wordleUnsure = '';
+
+/** One spelling for a lookup: one alef, ة as ه, ى as ي, ؤ as و, ئ as ي, upper case. */
+function wordleDictKey(w) {
+    return foldWordleWord(w).replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+        .replace(/[\u064B-\u0652\u0640]/g, '').toUpperCase();
+}
+
+/** The known words in `lang`, or null while the word wheel's chunk isn't loaded. */
+function wordleDictionary(lang) {
+    if (WORDLE_DICT[lang]) return WORDLE_DICT[lang];
+    if (typeof wheelBankWords !== 'function') {
+        if (typeof lzEnsure === 'function') lzEnsure(['wordwheel']).catch(() => {});
+        return null;
+    }
+    const set = new Set();
+    const add = (w) => String(w || '').split(/[\s\-]+/).forEach(p => { if (p) set.add(wordleDictKey(p)); });
+    wheelBankWords(lang).forEach(add);
+    if (typeof WHEEL_BONUS_WORDS !== 'undefined') (WHEEL_BONUS_WORDS[lang] || []).forEach(add);
+    Object.values(WORDLE_DB[lang] || {}).forEach(list => list.forEach(add));
+    WORDLE_DICT[lang] = set;
+    return set;
+}
+
+/** Fetch the dictionary's chunk early, so the first guess can already be checked. */
+function wordleWarmDictionary() {
+    wordleDictionary(wordleLang());
+}
+
+/** Whether a guess is a word we know (or one we can't check yet): plurals and "ال" count. */
+function wordleKnownWord(guess) {
+    const lang = wordleLang();
+    const dict = wordleDictionary(lang);
+    if (!dict) return true;
+    const k = wordleDictKey(guess);
+    if (k === wordleDictKey(appState.wordle.targetWord) || dict.has(k)) return true;
+    if (lang === 'en') return (/S$/.test(k) && dict.has(k.slice(0, -1))) || (/ES$/.test(k) && dict.has(k.slice(0, -2)));
+    const stems = [];
+    if (k.indexOf('ال') === 0) stems.push(k.slice(2));
+    stems.slice().concat([k]).forEach(s => {
+        if (/(ات|ين|ون)$/.test(s)) stems.push(s.slice(0, -2), s.slice(0, -2) + 'ه');
+        if (/ه$/.test(s)) stems.push(s.slice(0, -1));
+    });
+    return stems.some(s => s.length >= 2 && dict.has(s));
+}
 
 /** Back to the board in play (a daily set aside and brought back). */
 function continueWordle() {
     renderWordleBoard();
     renderKeyboard();
     setView('play-wordle');
+    wordleWarmDictionary();
 }
 
 /** The setup screen's daily line: play today's word, carry on with it, or that it's done. */
@@ -270,22 +346,37 @@ function handleWordleKey(key) {
     }
 }
 
+/** The row being typed shakes: the feedback every word game gives. */
+function wordleShakeRow() {
+    // `animate-shake` is the one Connections already uses. Removed on a timer
+    // as well, so a second short word shakes again (an animation that is
+    // suppressed fires no animationend at all).
+    const row = document.querySelectorAll('#wordle-grid .wordle-row')[appState.wordle.guesses.length];
+    if (row && typeof motionOff === 'function' && !motionOff()) {
+        row.classList.remove('animate-shake');
+        void row.offsetWidth;                       // restart it mid-shake
+        row.classList.add('animate-shake');
+        setTimeout(() => row.classList.remove('animate-shake'), 600);
+    }
+}
+
 function submitWordleGuess() {
+    if(appState.wordle.currentGuess.length === appState.wordle.wordLength
+        && wordleUnsure !== appState.wordle.currentGuess && !wordleKnownWord(appState.wordle.currentGuess)) {
+        // Once: the same word sent again goes through (a real word our lists lack).
+        wordleUnsure = appState.wordle.currentGuess;
+        playSound('thud');
+        const t = TRANSLATIONS[appState.lang] || {};
+        showToast(t.wordle_not_in_dict || '');
+        wordleShakeRow();
+        return;
+    }
+    wordleUnsure = '';
     if(appState.wordle.currentGuess.length !== appState.wordle.wordLength) {
         playSound('thud');
         const t = TRANSLATIONS[appState.lang] || {};
         showToast(t.wordle_too_short || '');
-        // The row you are typing in shakes: the feedback every word game gives.
-        // `animate-shake` is the one Connections already uses. Removed on a timer
-        // as well, so a second short word shakes again (an animation that is
-        // suppressed fires no animationend at all).
-        const row = document.querySelectorAll('#wordle-grid .wordle-row')[appState.wordle.guesses.length];
-        if (row && typeof motionOff === 'function' && !motionOff()) {
-            row.classList.remove('animate-shake');
-            void row.offsetWidth;                       // restart it mid-shake
-            row.classList.add('animate-shake');
-            setTimeout(() => row.classList.remove('animate-shake'), 600);
-        }
+        wordleShakeRow();
         return;
     }
 
@@ -410,6 +501,7 @@ function restoreWordle() {
     if (!s || !s.targetWord) return false;
     renderWordleBoard();
     renderKeyboard();
+    setTimeout(wordleWarmDictionary, 0);     // after start-up: the dictionary's chunk in the background
     return true;
 }
 

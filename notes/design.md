@@ -570,6 +570,29 @@ OLDER SCREENS*):
 The counter, the writing step, the talk and Guess the Number take a form's
 width (40rem) on a laptop, like the setups.
 
+**The second batch (1 Oct 2026)**, from a scan of every game mid-play, every
+room game on five phones and a TV, and the popups (the owner: "Apply all 10 and
+the small fixes"); the details are in each game's file:
+
+- One phone: إكس أو (the duel pills, one board of thin lines, a new «رجّع»
+  that takes back moves within a round - `duels.md`), خمّن الدولة (the
+  `.gn-entry` field and guesses as chips - `solo.md`), المشنقة's writing step
+  (the Who Am I layout, `hmWriteFormHtml({ local: true })` - `hangman.md`),
+  سلسلة الإجابات (hearts, a ring clock, bigger answers), فوازير إيموجي and كمّل
+  المثل (the card takes the screen, the reveal in the bar - `party-rooms.md`),
+  كلمات من حروف fitting upright, and the mid-screen «خروج» of a dozen games a
+  small quiet button at the foot (`.play-foot`, `.play-exit` - `solo.md`).
+- Rooms on the phones: ربع قرد (an 11-column keyboard that fits, the players as
+  chips with their state, the main pair in the bar - `monkey.md`), الجرس's host
+  (صح / غلط the main pair, the rest a quiet row, the buzz order as chips -
+  `buzzer.md`), خمس ثواني (compact standings, start in the bar), زي الكل's
+  standard send, and votes whose options are all players drawn as player tiles
+  (`roomPersonChip`; `notes/rooms.md`).
+- The TV: the race frame of the ten puzzle races as a card a player
+  (`raceTvCardsHtml` - `race.md`), جمجمة round a table (`sklTvFrame` -
+  `skull.md`), and one waiting stage while a player sets or writes
+  (`tvWaitStage` in JS_RoomTv.html - `solve.md`, `hangman.md`).
+
 ## From GEMINI.md: Layout: the app shell
 
 **Landscape phones.** A phone on its side is 360–430px tall, and laid out like

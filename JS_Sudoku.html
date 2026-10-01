@@ -4,8 +4,10 @@
    ----------------------------------------------------------------------------
    A 9×9 grid made in Sudoku.js (shared with the rooms server, which deals a
    race's grid): a full grid filled at random, then numbers taken away as
-   long as the puzzle still has exactly one solution. Easy keeps 40 numbers,
-   medium 32, hard 26. The daily one is built from soloDaySeed, so every phone
+   long as the puzzle still has exactly one solution and the level's grade
+   (sudokuGrade): easy is singles only (40 numbers), medium needs a pair or a
+   pointing step (30), hard a triple, an X-wing or an XY-wing (about 27);
+   none ever needs a guess. The daily one is built from soloDaySeed, so every phone
    gets the same puzzle that day.
 
    A number that isn't the solution's shows red and counts a mistake; notes
@@ -51,12 +53,25 @@ function paintSudokuSetup() {
   if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
   const daily = document.getElementById('sudoku-daily');
   if (daily) daily.innerHTML = soloDailyButtonHtml('sudoku', 'startSudoku(true)');
+  sudokuMakeAhead(s.level);
 }
 
 function setSudokuLevel(level) {
   sudokuState().level = level;
   saveToLocal();
   paintSudokuSetup();
+  sudokuMakeAhead(level);
+}
+
+/* A grid made ahead, while the phone is idle (the review of 1 Oct 2026): a medium or
+   hard grid graded by technique can take tens of milliseconds to make (a hard one on a
+   slow phone a few hundred), so the next free grid of the level on the setup screen is
+   made before Start is tapped. The daily is made from its seed, as always. */
+const sudokuAhead = {};
+function sudokuMakeAhead(level) {
+  if (!level || sudokuAhead[level] || level === 'easy') return;
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 300));
+  idle(() => { if (!sudokuAhead[level]) sudokuAhead[level] = sudokuMake(level, Math.random); }, { timeout: 3000 });
 }
 
 // A grid with numbers or notes in it: a new one asks first (soloConfirmNew).
@@ -69,7 +84,8 @@ function startSudoku(daily, sure) {
   soloNewGame('sudoku');
   const s = sudokuState();
   const level = daily ? 'medium' : s.level;
-  const made = sudokuMake(level, soloRandom(daily ? soloDaySeed('sudoku') : null));
+  const made = daily ? sudokuMake(level, soloRandom(soloDaySeed('sudoku'))) : (sudokuAhead[level] || sudokuMake(level, Math.random));
+  if (!daily) { delete sudokuAhead[level]; sudokuMakeAhead(level); }
   s.daily = daily ? soloToday() : '';
   s.playLevel = level;
   s.puzzle = made.puzzle.join('');

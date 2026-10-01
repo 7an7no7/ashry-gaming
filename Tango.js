@@ -12,8 +12,8 @@
    never three of the same side by side, and the signs between cells hold (=
    the same, × different). Made here: a full valid grid at random
    (tangoFill), then clues - given cells and signs - added in a random order
-   until tangoCount finds exactly one solution, and taken away again while it
-   still does. Easy keeps some of the removed givens back; hard stays minimal.
+   until tangoDeduce can finish it by reasoning alone (no guess), and taken
+   away again while it still can; the level is how much reasoning it takes.
    ========================================================================= */
 
 const TANGO_N = 6;
@@ -82,7 +82,123 @@ function tangoCount(givens, signs, limit) {
   return found;
 }
 
+/* --- solving by deduction (the review of 1 Oct 2026) ----------------------------------
+   About one board in five (two in five of the hard ones) had exactly one solution but
+   could only be finished by trying a cell and seeing it fail. A board is now dealt only
+   when it can be finished by what a person reasons, and its level is how much of the
+   deeper reasoning it needs:
+     the rules, cell by cell: a sign with one side known gives the other; two alike side
+       by side (or with a gap between them) give the other side to the cells next to
+       them; a line with three of a kind has the other kind in its other cells;
+     a whole line at once: of the ways a line can still be filled (three of each, no
+       three alike in a row, its own signs), a cell that is the same in all of them is
+       known - "if this were a sun, the line would need four moons".
+   Signs between two lines carry what one line learns into the other.
+   ------------------------------------------------------------------------------------ */
+const TANGO_LINES = (() => {
+  const out = [];
+  for (let m = 0; m < 64; m++) {
+    const v = Array.from({ length: 6 }, (_, k) => ((m >> k) & 1) + 1);
+    if (v.filter(x => x === 1).length !== 3) continue;
+    let ok = true;
+    for (let k = 0; k + 2 < 6; k++) if (v[k] === v[k + 1] && v[k] === v[k + 2]) ok = false;
+    if (ok) out.push(v);
+  }
+  return out;
+})();
+const TANGO_UNITS = [].concat(
+  Array.from({ length: TANGO_N }, (_, r) => Array.from({ length: TANGO_N }, (_, c) => r * TANGO_N + c)),
+  Array.from({ length: TANGO_N }, (_, c) => Array.from({ length: TANGO_N }, (_, r) => r * TANGO_N + c)));
+
+/**
+ * The board worked out the way a person would: { solved, lines (how many times a whole
+ * line had to be reasoned at once), cells }. `lineSteps: false` allows the cell rules only.
+ */
+function tangoDeduce(givens, signs, opts) {
+  const o = opts || {};
+  const g = givens.slice();
+  const bySign = {};
+  signs.forEach(s => { (bySign[s.a] = bySign[s.a] || []).push(s); (bySign[s.b] = bySign[s.b] || []).push(s); });
+  let lines = 0, left = g.filter(v => !v).length;
+  const set = (i, v) => { g[i] = v; left--; };
+  const cellRules = () => {
+    let moved = false;
+    signs.forEach(s => {
+      const x = g[s.a], y = g[s.b];
+      if (x && !y) { set(s.b, s.same ? x : 3 - x); moved = true; }
+      else if (y && !x) { set(s.a, s.same ? y : 3 - y); moved = true; }
+    });
+    for (const unit of TANGO_UNITS) {
+      for (const v of [1, 2]) {
+        if (unit.filter(i => g[i] === v).length === TANGO_N / 2) unit.forEach(i => { if (!g[i]) { set(i, 3 - v); moved = true; } });
+      }
+      for (let k = 0; k + 2 < TANGO_N; k++) {
+        const a = unit[k], b = unit[k + 1], c = unit[k + 2];
+        if (g[a] && g[a] === g[b] && !g[c]) { set(c, 3 - g[a]); moved = true; }
+        if (g[b] && g[b] === g[c] && !g[a]) { set(a, 3 - g[b]); moved = true; }
+        if (g[a] && g[a] === g[c] && !g[b]) { set(b, 3 - g[a]); moved = true; }
+      }
+    }
+    return moved;
+  };
+  const lineStep = () => {
+    for (const unit of TANGO_UNITS) {
+      if (unit.every(i => g[i])) continue;
+      const inLine = new Set(unit);
+      const own = [];
+      unit.forEach((i, k) => (bySign[i] || []).forEach(s => {
+        if (s.a === i && inLine.has(s.b)) own.push({ a: k, b: unit.indexOf(s.b), same: s.same });
+      }));
+      const fits = TANGO_LINES.filter(p => unit.every((i, k) => !g[i] || g[i] === p[k]) && own.every(s => (p[s.a] === p[s.b]) === s.same));
+      if (!fits.length) return false;
+      let moved = false;
+      unit.forEach((i, k) => {
+        if (!g[i] && fits.every(p => p[k] === fits[0][k])) { set(i, fits[0][k]); moved = true; }
+      });
+      if (moved) { lines++; return true; }
+    }
+    return false;
+  };
+  for (;;) {
+    while (left && cellRules()) { /* the cell rules as far as they go */ }
+    if (!left) break;
+    if (o.lineSteps === false || !lineStep()) break;
+  }
+  return { solved: !left, lines: lines, cells: g };
+}
+
+/* --- making a board -------------------------------------------------------------------
+   A full grid at random, then clues (given cells and signs) added in a random order
+   until tangoDeduce finishes it, and taken away again while it still does: every clue
+   left is needed, and nothing needs a guess. The level is how much reasoning that
+   leaves (TANGO_LEVELS): hard keeps the fewest clues and needs a whole line reasoned
+   at once at least three times; medium needs it once or twice (given cells handed
+   back until it does); easy is finished by the cell rules alone, with a few given
+   cells more. A board that can't be brought to its level is made again (at most
+   TANGO_TRIES times, then the closest one is dealt). Every draw is from `rnd`, so a
+   daily or a race is the same board on every phone.
+   ------------------------------------------------------------------------------------ */
+const TANGO_LEVELS = {
+  easy:   { min: 0, max: 0, extra: 2 },
+  medium: { min: 1, max: 2, extra: 0 },
+  hard:   { min: 3, max: 99, extra: 0 }
+};
+const TANGO_TRIES = 30;
+
 function tangoMake(level, rnd) {
+  const L = TANGO_LEVELS[level] || TANGO_LEVELS.medium;
+  let best = null;
+  for (let k = 0; k < TANGO_TRIES; k++) {
+    const made = tangoMakeOnce(L, rnd);
+    if (made.lines >= L.min && made.lines <= L.max) return made;
+    const miss = made.lines < L.min ? L.min - made.lines : made.lines - L.max;
+    if (!best || miss < best.miss) best = Object.assign(made, { miss: miss });
+  }
+  delete best.miss;
+  return best;
+}
+
+function tangoMakeOnce(L, rnd) {
   const N = TANGO_N;
   const solution = tangoFill(rnd);
   const pool = [];
@@ -91,7 +207,6 @@ function tangoMake(level, rnd) {
     if (i % N < N - 1) pool.push({ kind: 'sign', a: i, b: i + 1 });
     if (i + N < N * N) pool.push({ kind: 'sign', a: i, b: i + N });
   }
-  const chosen = [];
   const build = (list) => {
     const givens = new Array(N * N).fill(0);
     const signs = [];
@@ -101,25 +216,32 @@ function tangoMake(level, rnd) {
     });
     return { givens: givens, signs: signs };
   };
+  const solve = (list, opts) => { const b = build(list); return tangoDeduce(b.givens, b.signs, opts); };
+  const chosen = [];
   for (const clue of soloShuffle(pool, rnd)) {
     chosen.push(clue);
-    const b = build(chosen);
-    if (tangoCount(b.givens, b.signs, 2) === 1) break;
+    if (solve(chosen).solved) break;
   }
-  // Take clues away again while the solution stays the only one.
+  // Take clues away again while it can still be worked out.
   const removed = [];
   for (const clue of soloShuffle(chosen.slice(), rnd)) {
     const without = chosen.filter(x => x !== clue);
-    const b = build(without);
-    if (tangoCount(b.givens, b.signs, 2) === 1) { chosen.splice(chosen.indexOf(clue), 1); removed.push(clue); }
+    if (solve(without).solved) { chosen.splice(chosen.indexOf(clue), 1); removed.push(clue); }
   }
-  // Easy gets a few of the removed given cells back.
-  if (level !== 'hard') {
-    const extra = removed.filter(x => x.kind === 'cell').slice(0, level === 'easy' ? 5 : 2);
-    extra.forEach(x => chosen.push(x));
+  let res = solve(chosen);
+  // Too deep for the level: given cells back (the ones taken away first, then any) until it isn't.
+  const given = new Set(chosen.filter(x => x.kind === 'cell').map(x => x.i));
+  const back = removed.filter(x => x.kind === 'cell').concat(soloShuffle(solution.map((_, i) => i).filter(i => !given.has(i)), rnd).map(i => ({ kind: 'cell', i: i })))
+    .filter((x, k, all) => all.findIndex(y => y.i === x.i) === k);
+  while (res.lines > L.max && back.length) {
+    chosen.push(back.shift());
+    res = solve(chosen);
   }
+  // Easy: a few given cells more than it needs.
+  for (let k = 0; k < L.extra && back.length; k++) chosen.push(back.shift());
+  if (L.extra) res = solve(chosen);
   const b = build(chosen);
-  return { solution: solution, givens: b.givens, signs: b.signs };
+  return { solution: solution, givens: b.givens, signs: b.signs, lines: res.lines };
 }
 
 /** Cells breaking a rule right now: a row or column over three of a kind, three in a row, a sign. */

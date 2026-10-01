@@ -55,7 +55,14 @@ function chPzBank(level) {
 }
 
 /** A puzzle as the state keeps it (the bank's own fields, and where it came from). */
-const chPzCopy = (p, extra) => Object.assign({ id: p.id, fen: p.fen, moves: p.moves.slice(), theme: p.theme, mateIn: p.mateIn || 0, level: p.level, rating: p.rating }, extra || {});
+const chPzCopy = (p, extra) => Object.assign({ id: p.id, fen: p.fen, moves: p.moves.slice(), theme: p.theme, motif: p.motif || '', mateIn: p.mateIn || 0, level: p.level, rating: p.rating }, extra || {});
+
+/* The motif (the review of 1 Oct 2026): what the puzzle's idea is - a fork, a pin, a
+   skewer, a mate… - tagged by tools/make-chess-puzzles.mjs from what the line does.
+   It is the first hint (the idea, not the piece) and is said once the puzzle is over. */
+const CHPZ_MOTIFS = ['fork', 'pin', 'skewer', 'discovered', 'mate', 'promotion', 'hanging', 'sacrifice', 'material'];
+const chPzMotif = (s) => (s.p && CHPZ_MOTIFS.indexOf(s.p.motif) !== -1 ? s.p.motif : '');
+const chPzMotifName = (m) => chT('chpz_motif_' + m);
 
 /* --- the position ---------------------------------------------------------------- */
 
@@ -138,7 +145,7 @@ function chPzBegin(o) {
   }
   s.nonce = (s.nonce || 0) + 1;
   Object.assign(s, {
-    mode: o.mode || 'free', p: o.p, hist: [], wrong: 0, hint: -1, shown: false, showing: false, result: '',
+    mode: o.mode || 'free', p: o.p, hist: [], wrong: 0, hint: -1, hintLvl: 0, shown: false, showing: false, result: '',
     phase: 'play', daily: o.daily || '', from: o.from || null, uid: o.p.id + '|' + s.nonce, triedAt: 0
   });
   chPzLocal.sel = '';
@@ -263,6 +270,9 @@ function chPzSolved(s) {
   setTimeout(() => {
     if (appState.currentView !== 'play-chesspuzzle' || chPzState().uid !== uid) return;
     const stage = document.getElementById('chesspuzzle-stage');
+    // The motif's chip pops in as the cheer starts.
+    const tag = stage && stage.querySelector('.chpz-tag--motif');
+    if (tag && tag.animate && !motionOff()) tag.animate([{ transform: 'scale(0.6)', opacity: 0 }, { transform: 'scale(1.15)', opacity: 1, offset: 0.6 }, { transform: 'scale(1)', opacity: 1 }], { duration: 420, easing: 'ease-out' });
     afterReveal(stage, () => {
       duelSound('win');
       if (typeof confetti === 'function' && !motionOff()) confetti({ particleCount: 110, spread: 75, origin: { y: 0.6 } });
@@ -274,15 +284,19 @@ function chPzSolved(s) {
 
 /* --- the hint and the solution ----------------------------------------------------- */
 
-/** 💡: the piece to move, circled (the puzzle is no longer clean). */
+/** 💡: first the idea (the motif), then on a second tap the piece to move, circled (the puzzle is no longer clean). */
 function chPzHint() {
   const s = chPzState();
   if (!chPzCanMove(s) || !chPzHintOn(s)) return;
-  s.hint = s.hist.length;
+  if (s.hint === s.hist.length && chPzHintStep(s) === 1) s.hintLvl = 2;
+  else { s.hint = s.hist.length; s.hintLvl = chPzMotif(s) ? 1 : 2; }
   haptic('light');
   saveToLocal();
   chPzPaint();
 }
+
+/** How far the hint at this move has gone: 0 none, 1 the motif, 2 the piece (a hint kept from before the motifs is the piece). */
+const chPzHintStep = (s) => (s.hint === s.hist.length && !s.result ? (s.hintLvl === 1 ? 1 : 2) : 0);
 
 const chPzHintOn = (s) => s.mode !== 'streak';
 
@@ -329,7 +343,7 @@ const chPzSideName = (side) => chT(side ? 'ch_color_b' : 'ch_color_w');
 /** The line on top: whose move and what to find, then how it is going. */
 function chPzStatus(s, pos) {
   const side = chPzSideName(chPzSide(s));
-  if (s.result === 'solved') return chT(s.wrong || s.hint >= 0 ? 'chpz_solved' : 'chpz_solved_clean');
+  if (s.result === 'solved') return (chPzMotif(s) ? chPzMotifName(chPzMotif(s)) + '! ' : '') + chT(s.wrong || s.hint >= 0 ? 'chpz_solved' : 'chpz_solved_clean');
   if (s.mode === 'streak' && s.result === 'failed') return chT('chpz_failed');
   if (s.showing) return chT('chpz_showing');
   if (s.shown) return chT('chpz_shown');
@@ -351,6 +365,8 @@ function chPzTagsHtml(s) {
   if (typeof chPzModeTag === 'function') { const x = chPzModeTag(s); if (x) tags.push(x); }
   if (s.p.level) tags.push(`<span class="chpz-tag">${escapeHTML(chT(['', 'solo_lvl_easy', 'solo_lvl_medium', 'solo_lvl_hard'][s.p.level]))}</span>`);
   if (s.p.rating) tags.push(`<span class="chpz-tag chpz-tag--rating"><span aria-hidden="true">⭐</span> <b class="metric" dir="ltr">${s.p.rating}</b></span>`);
+  // The motif once the puzzle is over (solved, or its solution shown): never before, it would give it away.
+  if (s.result && chPzMotif(s)) tags.push(`<span class="chpz-tag chpz-tag--mode chpz-tag--motif"><span aria-hidden="true">🎯</span> ${escapeHTML(chPzMotifName(chPzMotif(s)))}</span>`);
   return `<div class="chpz-tags">${tags.join('')}</div>`;
 }
 
@@ -374,13 +390,14 @@ function chPzLineHtml(s, pos) {
 function chPzBarHtml(s) {
   const btns = [];
   if (!s.result && !s.showing) {
-    if (chPzHintOn(s)) btns.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chPzHint()" ${chPzCanMove(s) && s.hint !== s.hist.length ? '' : 'disabled'}>💡 ${escapeHTML(chT('chpz_hint'))}</button>`);
+    if (chPzHintOn(s)) btns.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chPzHint()" ${chPzCanMove(s) && chPzHintStep(s) < 2 ? '' : 'disabled'}>💡 ${escapeHTML(chT(chPzHintStep(s) === 1 ? 'chpz_hint_more' : 'chpz_hint'))}</button>`);
     if (s.mode !== 'streak') btns.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chPzShow()">👀 ${escapeHTML(chT('chpz_show'))}</button>`);
   }
   const done = (s.result && !s.showing) ? (typeof chPzDoneBarHtml === 'function' ? chPzDoneBarHtml(s) : '') ||
     `<button type="button" class="btn btn--primary btn--lg" onclick="chPzNext()">🧩 ${escapeHTML(chT('chpz_next'))}</button>` : '';
-  const hint = s.hint === s.hist.length && !s.result && chPzHintSq(s)
-    ? `<p class="ch-hintline">💡 ${escapeHTML(chT('chpz_hint_line', { piece: chPieceName('pnbrqk'[((chPzGame(s).g.board[chSqIndex(chPzHintSq(s))] & 7) || 1) - 1]) }))}</p>` : '';
+  const step = chPzHintSq(s) ? chPzHintStep(s) : 0;
+  const hint = step === 1 ? `<p class="ch-hintline">💡 ${escapeHTML(chT('chpz_motif_hint_' + chPzMotif(s)))}</p>`
+    : step === 2 ? `<p class="ch-hintline">💡 ${chPzMotif(s) ? escapeHTML(chT('chpz_motif_hint_' + chPzMotif(s))) + ' · ' : ''}${escapeHTML(chT('chpz_hint_line', { piece: chPieceName('pnbrqk'[((chPzGame(s).g.board[chSqIndex(chPzHintSq(s))] & 7) || 1) - 1]) }))}</p>` : '';
   return `${hint}${done ? `<div class="btn-stack">${done}</div>` : ''}${btns.length ? `<div class="ch-bar__row">${btns.join('')}</div>` : ''}`;
 }
 
@@ -401,7 +418,7 @@ function chPzPaint(opts) {
   };
   const marks = [];
   if (chPzLocal.flash) marks.push({ sq: chPzLocal.flash.sq, kind: chPzLocal.flash.kind === 'bad' ? 'mine' : 'theirs' });
-  if (s.hint === s.hist.length && !s.result && chPzHintSq(s)) marks.push({ sq: chPzHintSq(s), kind: 'user' });
+  if (chPzHintStep(s) === 2 && chPzHintSq(s)) marks.push({ sq: chPzHintSq(s), kind: 'user' });
   const status = chessStatus(pos.g);
   const model = {
     key: 'puz|' + s.uid,

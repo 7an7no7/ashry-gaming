@@ -7,8 +7,9 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 - **ألغاز شطرنج (chess puzzles)** - the owner's plan of 24 Sep 2026, approved
   as a whole (*ألغاز شطرنج*):
   - **Puzzles made by the app's own engine at build time**, nothing to look
-    after: `ChessPuzzles.js`, 1,505 of them (540 easy, 540 medium, 425 hard),
-    from `tools/make-chess-puzzles.mjs` (`npm run build:puzzles`, by hand).
+    after: `ChessPuzzles.js`, 1,500 of them (499 easy, 498 medium, 503 hard,
+    since the review of 1 Oct 2026), from `tools/make-chess-puzzles.mjs`
+    (`npm run build:puzzles`, by hand, about 25 minutes on 18 threads).
     Every step has exactly one winning move.
   - **Levels easy / medium / hard**; a free puzzle of a level is dealt
     through `freshPick`.
@@ -52,8 +53,42 @@ section 33 (`.chpz-*`). The game's id is **`chesspuzzle`**, the screens
 `chpz_*`.
 
 - **The bank** (`CHESS_PUZZLES`): `{ id, fen, moves (UCI: player, reply,
-  player …), theme: 'mate' | 'material', mateIn?, level: 1-3, rating }`; the
-  side to move is the player. `tools/validate-content.js` checks every line.
+  player …), theme: 'mate' | 'material', motif, mateIn?, level: 1-3, rating }`;
+  the side to move is the player. `tools/validate-content.js` checks every
+  line (and the motif).
+- **Rated by real difficulty** (the review of 1 Oct 2026: the ratings came in
+  three bands with gaps - easy 470-650, medium 1010-1270, hard 1570-1850 - and
+  339 of the 540 easy puzzles were one capture). The worker measures each
+  puzzle (`featuresOf`): the player's moves; how many positions the engine
+  needs before it settles on the first move (`hidNodes`, 50 to 150,000); the
+  tempting wrong moves - other moves that look about as good at one ply
+  (`tempt1`, within 1.5 pawns, every move scored with a full window) and at
+  two (`tempt`) - and the other checks and captures on offer; a quiet first
+  move, a sacrifice, the pieces on the board. `difficultyOf` in main weighs
+  them into one number (tuned without replaying the games); the bank is a
+  stride through the puzzles in that order, with at most `maxGrab` (120)
+  single captures and `maxMate1` (140) mates in one; ratings are the bank's
+  order spread evenly from 400 to 2000 (`rateBank`), the levels its thirds.
+  Now: easy 400-930, medium 940-1460, hard 1470-2000, about 185 puzzles in
+  every 200 points; easy is mates in one 176, forks 66, skewers 64, a piece
+  left hanging 79, promotions 54, other wins 55 (118 single captures in all).
+- **The motif** (`motif`): `mate`, `fork`, `skewer`, `pin`, `discovered`,
+  `promotion`, `hanging`, `sacrifice`, `material`, tagged by the worker
+  (`motifOf`) from what the line does: a fork is Chess.js's own reason
+  (`chessMoveGood` → `fork`) whose target the line then takes; a skewer a line
+  piece hitting a big piece that steps away and the piece behind it falling;
+  a pin a new pin (`chessPins`) whose pinned piece the line takes; a
+  discovered attack a bishop, rook or queen that stayed put and now checks or
+  takes what the move uncovered. On the page (`CHPZ_MOTIFS`, `chPzMotif`):
+  the first 💡 says the idea («دوّر على شوكة: …», `chpz_motif_hint_*`), the
+  second («تلميح تاني») circles the piece as before (`s.hintLvl` 1 / 2,
+  `chPzHintStep`); once the puzzle is over the status says «شوكة! ✅ اتحلّت»
+  and a 🎯 chip names the motif (`.chpz-tag--motif`, popped in on a solve).
+  A puzzle from your own mistakes has no motif: its hint is the piece.
+- The bank's file is 254 KB (61 KB gzipped, in the puzzles' own chunk; it was
+  230 / 58). The daily walks the bank (`soloDailyCycle`), so it is the same on
+  every phone of one build; a new bank deals new puzzles from the day it goes
+  live, and an archive day before it shows the new bank's puzzle of that day.
   `chessAnalyse(g, { lines: n })` gives real scores only inside its first n
   lines (moves outside get a bound): judge alternatives by analysing the
   position after each (T3.1's finding, used by the mistakes).

@@ -99,8 +99,23 @@ its own rules and board:
 The games (group `puzzle`, "ألغاز ومخ", on the home):
 
 - **سودوكو** (`JS_Sudoku.html`): `sudokuMake` fills a grid at random and
-  removes numbers while `sudokuCount` still finds exactly one solution (easy
-  40 givens, medium 32, hard 26; a few milliseconds). Mistakes, notes that
+  removes numbers while `sudokuCount` still finds exactly one solution and
+  the grid's grade stays the level's. **Graded by technique** (the review of
+  1 Oct 2026: medium played like easy, 38 of 40 grids finished by singles, and
+  hard could fall back to singles or need a guess): `sudokuGrade` solves the
+  way a person does, always the plainest step that does something, and
+  returns the hardest step needed - 1 naked/hidden singles, 2 naked/hidden
+  pairs, pointing and claiming, 3 naked/hidden triples, X-wing, swordfish,
+  XY-wing, 0 a guess (never dealt). Easy is grade 1 (40 givens), medium grade 2
+  (30: a grid that got its grade with fewer gets numbers back while the grade
+  holds), hard grade 3 (about 27); a grid that can't reach its grade is made
+  again (`SUDOKU_TRIES`, then the closest). Measured on 200 seeds: before,
+  medium was 96% grade 1 and hard 60% guess / 32% grade 2; after, medium is
+  100% grade 2 and hard 98.5% grade 3 (1.5% fall back to 2), none a guess.
+  On this PC easy 0.2 ms, medium median 4 ms (p90 13), hard median 14 ms
+  (p90 37, worst about 100): the setup screen makes the next free medium or
+  hard grid ahead in idle time (`sudokuMakeAhead`), so Start doesn't wait.
+  The same seed gives the same grid (the daily, the race). Mistakes, notes that
   clear themselves, undo, hints (a solve with hints is no best), and a row,
   column or box that comes right ripples. The daily is medium.
 - **2048** (`JS_2048.html`): tiles keep an id so the same element slides
@@ -109,7 +124,18 @@ The games (group `puzzle`, "ألغاز ومخ", on the home):
 - **كاسحة الألغام** (`JS_Mines.html`): the first tap is always safe (the mines
   are laid after it); a long press or 🚩 mode flags; a satisfied number opens
   its neighbours; an opened patch ripples out from the tap. The daily lays its
-  mines from the seed around a safe cell that opens by itself.
+  mines from the seed around a safe cell that opens by itself. **No guessing**
+  (the review of 1 Oct 2026: random mines left the daily and the race on a
+  pure 50/50): `minesLay` lays the mines again until `minesSolvable` clears the
+  field from the safe cell by a player's reasoning (a number with its mines
+  found frees the rest, a number with as many hidden cells as mines left
+  flags them, two numbers sharing hidden cells - the 1-2 at a wall, the 1-2-1 -
+  and the count of mines left), at most `MINES_TRIES` (400) layings, then the
+  one that got furthest. Before: 21% of easy, 66% of medium and 95% of hard
+  fields needed a guess somewhere; after: none in 900. Medium median 0.1 ms,
+  hard median 0.9 ms (p90 3, worst 10). A long press (or the right button) on an
+  opened number does what a tap does - opens its other neighbours once its
+  flags are down - instead of nothing.
 - **الملكات** (`JS_Queens.html`): crowns placed so none touch (`queensPlace`),
   one region grown from each at random (`queensGrow`), then while
   `queensSolve` finds a second solution one of its crown cells is handed to a
@@ -120,8 +146,18 @@ The games (group `puzzle`, "ألغاز ومخ", on the home):
   set with dark ink, like the Connections groups.
 - **شمس وقمر** (`JS_Tango.html`): a full valid 6×6 grid (`tangoFill`, three
   of each per line, never three alike in a row), clues (given cells and =/×
-  signs) added at random until `tangoCount` finds one solution, then removed
-  while it still does; easy and medium get a few removed givens back.
+  signs) added at random until `tangoDeduce` can finish it, then removed while
+  it still can. **Solved by reasoning, graded by depth** (the review of 1 Oct
+  2026: 13% of easy, 19% of medium and 33% of hard boards had one solution but
+  needed trial and error): `tangoDeduce` uses the cell rules (a sign with one
+  side known, two alike beside or around a cell, a line with three of a kind)
+  and, when they stop, a whole line at once (of the ways the line can still be
+  filled with its own signs, a cell the same in all of them); signs between
+  two lines carry it across. `lines` is how many times the whole-line step was
+  needed: easy 0 (and two given cells more), medium 1-2 (given cells handed
+  back while it needs more), hard 3 or more (`TANGO_LEVELS`; at most
+  `TANGO_TRIES`, then the closest). After: no board of any level needs a
+  guess (600 measured); under 1 ms a board (worst 5).
 - **نونوجرام** (`JS_Nonogram.html`): a board is one of `NONO_PICTURES` (drawn
   by hand, 8×8 and 10×10) or random, and is only used if `nonoSolvable` can
   finish it line by line (`nonoLineSolve` intersects every placement of a

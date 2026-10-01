@@ -48,6 +48,23 @@ up). Sounds `FX.mkBoing`, `mkChest`, `mkSlide` (registered in `JS_RoomMonkey.htm
 which loads after `JS_Sounds.html`): one phone plays them; in a room the loser's
 phone (a buzz always, the sound when there is no TV) and the TV.
 
+## The room phone's screen (1 Oct 2026, the before/after sheet)
+
+On the phone whose turn it is, the Arabic letters are one grid of 11 columns
+(`.mk-keypad--grid`, 32 letters as 11, 11, 10; `MONKEY_KEYS.ar` joined), so the
+keyboard fits its card from 320px to 430px and on a phone on its side (keys 44px
+tall, 40 sideways; `.mk-keypad--room`, the one-phone keypad is untouched). English
+keeps its three QWERTY rows. «حالة اللاعبين» is one strip of player chips under the
+head (`mkBoardHtml` → `roomPersonChip`, `.mk-person`): whose turn it is lit
+(`.is-first`), each chip carrying its state as a small badge (`.mk-person__q`: آمن,
+¼ ½ ¾, 🐵 for a monkey, the stage's full name as its title); the host's swap is a
+small row under the strip («🐵 تبديل: name», then who takes the place). كذّاب! and
+مفيش عندي are the main pair of the bottom bar (`.view-actions.talk__actions.mk-bar`,
+`.room-bar__pair`), the host's ↶ تراجع, تخطّي and +¼ وتخطّي small under them
+(`.talk__pair`; a non-host's تخطّي while the host is away). In the names and chain
+modes مفيش عندي moves to the bar too, and the send button is `btn--send`. The rules,
+the verdict, the flip, the moments and the TV are as they were.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

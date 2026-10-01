@@ -37,20 +37,51 @@ function roomNextArgs(state, extra) {
   return escapeHTML(JSON.stringify(o));
 }
 
-/** The ballot: one big tappable row per option. */
+/* The option this phone tapped, for the ballot of player tiles: kept for the vote it
+   was drawn for (the room, the deal, the round, the turn), so the tile stays lit
+   while the others vote. The server never says what a phone chose. */
+const ballotPicked = { key: '', option: '' };
+function ballotKey(state) {
+  const s = state.shared || {};
+  return [state.code, s.dealId, s.round, s.turn].join('|');
+}
+function ballotPick(btn, key, option) {
+  ballotPicked.key = key;
+  ballotPicked.option = option;
+  const box = btn && btn.closest('.ballot-people');
+  if (box) box.querySelectorAll('.ballot-person').forEach(b => b.classList.toggle('is-picked', b === btn));
+}
+
+/** Are this vote's options the players themselves (مين أكتر واحد, the accusations)? */
+function ballotIsPeople(state) {
+  const v = state.shared.vote;
+  const ids = (state.players || []).map(p => p.id);
+  return !!(v.options.length && v.options.every(o => ids.indexOf(o.id) !== -1));
+}
+
+/**
+ * The ballot: one big tappable row per option - or, when the options are the
+ * players, a grid of player tiles (the initial in its bubble, the name), the
+ * one tapped lit. `opts.bar`: the caller draws the count and «اقفل التصويت» in
+ * its bottom bar (renderBallotBar), so the progress line is left out here.
+ */
 function renderBallot(state, opts) {
   const v = state.shared.vote;
   const t = TRANSLATIONS[appState.lang];
   const iVoted = v.voted.indexOf(Room.me) !== -1;
   const canVote = v.eligible.indexOf(Room.me) !== -1;
+  const progress = () => (opts && opts.bar) ? '' : renderVoteProgress(state);
+  const people = ballotIsPeople(state);
+  const key = ballotKey(state);
 
   if (!canVote) {
     return `<div class="waiting-note">${t.vote_spectating || 'تتفرج على هذه الجولة'}</div>`
-         + renderVoteProgress(state);
+         + progress();
   }
   if (iVoted) {
     return `<div class="waiting-note"><span class="animate-pulse">🗳️</span> ${t.vote_waiting || 'في انتظار باقي الأصوات'}</div>`
-         + renderVoteProgress(state);
+         + (people && ballotPicked.key === key ? ballotPeopleHtml(state, opts, '', true) : '')
+         + progress();
   }
 
   // The round (and the storyteller's turn) the ballot was drawn for goes with
@@ -62,6 +93,7 @@ function renderBallot(state, opts) {
     if (typeof x === 'string' && x) return `, ${k}: '${jsStringAttr(x)}'`;
     return '';
   }).join('');
+  if (people) return ballotPeopleHtml(state, opts, stamp, false) + progress();
   return `<div class="btn-stack">
       ${v.options.map((o, i) => {
         const mine = isOwnVoteOption(state, o);
@@ -72,7 +104,38 @@ function renderBallot(state, opts) {
                   ${mine ? `<span class="badge">${escapeHTML((opts && opts.ownLabel) || t.vote_your_answer || 'إجابتك')}</span>` : ''}
                 </button>`;
       }).join('')}
-    </div>` + renderVoteProgress(state);
+    </div>` + progress();
+}
+
+/** The players as tiles; `done`: this phone has voted, the tiles stand still with its pick lit. */
+function ballotPeopleHtml(state, opts, stamp, done) {
+  const v = state.shared.vote;
+  const t = TRANSLATIONS[appState.lang];
+  const key = ballotKey(state);
+  const picked = ballotPicked.key === key ? ballotPicked.option : '';
+  return `<div class="ballot-people ${done ? 'is-done' : ''}">
+      ${v.options.map(o => {
+        const mine = isOwnVoteOption(state, o);
+        const on = picked === o.id;
+        return `<button type="button" class="ballot-person ${on ? 'is-picked' : ''} ${mine ? 'is-own' : ''}" ${mine || done ? 'disabled' : ''} ${on ? 'aria-pressed="true"' : ''}
+                        ${done ? '' : `onclick="ballotPick(this, '${jsStringAttr(key)}', '${jsStringAttr(o.id)}'); roomAct('vote', { option: '${jsStringAttr(o.id)}'${stamp} })"`}>
+                  <span class="talk-person__av ballot-person__av" aria-hidden="true">${roomInitial(o.label)}</span>
+                  <span class="ballot-person__name">${escapeHTML(o.label)}</span>
+                  ${mine ? `<span class="badge ballot-person__own">${escapeHTML((opts && opts.ownLabel) || t.vote_your_answer || 'إجابتك')}</span>` : ''}
+                </button>`;
+      }).join('')}
+    </div>`;
+}
+
+/** The bottom bar of a vote (مين أكتر واحد): who has voted, and the host's «اقفل التصويت». */
+function renderBallotBar(state) {
+  const v = state.shared.vote;
+  const t = TRANSLATIONS[appState.lang];
+  if (!v || v.phase !== 'voting') return '';
+  return `<div class="view-actions ballot-bar">
+      <div class="ballot-bar__count">${escapeHTML(t.vote_count || 'صوّت')}: <b>${ltrFrac(v.voted.length, v.eligible.length)}</b></div>
+      ${roomMoveOnHtml(state, `<button class="btn btn--secondary btn--lg" onclick="roomAct('closeVote')">🔒 ${escapeHTML(t.vote_close || 'اقفل التصويت')}</button>`)}
+    </div>`;
 }
 
 function renderVoteProgress(state) {
@@ -117,24 +180,35 @@ function renderVoteResults(state, opts) {
     </div>`;
 }
 
-/** `title` names a board that isn't points (أونو's wins); otherwise it is "the standings". */
-function renderScoreboard(board, title) {
+/**
+ * `title` names a board that isn't points (أونو's wins); otherwise it is "the standings".
+ * `o.grid`: a compact two-column grid of name + score tiles (خمس ثواني between turns),
+ * the same data-pid / data-score / data-count, so animateScoreboards still counts up.
+ */
+function renderScoreboard(board, title, o) {
   if (!board || !board.length) return '';
   const t = TRANSLATIONS[appState.lang];
+  const grid = !!(o && o.grid);
   // data-pid and data-score let animateScoreboards (JS_Motion.html) count up and slide.
   return `
-    <div class="section scoreboard">
+    <div class="section scoreboard ${grid ? 'scoreboard--grid' : ''}">
       <div class="section__head">
         <h2 class="section__title">${title ? escapeHTML(title) : (t.scoreboard || 'الترتيب')}</h2>
         <span class="section__rule"></span>
       </div>
-      ${board.map((p, i) => `
+      ${grid ? '<div class="scoreboard__tiles">' : ''}
+      ${board.map((p, i) => grid ? `
+        <div class="score-tile ${i === 0 && p.score > 0 ? 'is-top' : ''}" data-pid="${escapeHTML(String(p.id || p.name))}" data-score="${Number(p.score) || 0}">
+          <span class="score-tile__name">${i === 0 && p.score > 0 ? '👑 ' : ''}${escapeHTML(p.name)}</span>
+          <b class="score-tile__n metric" data-count>${p.score}</b>
+        </div>` : `
         <div class="status-row ${i === 0 && p.score > 0 ? 'status-row--turn' : ''}" data-pid="${escapeHTML(String(p.id || p.name))}" data-score="${Number(p.score) || 0}">
           <div class="status-row__body">
             <div class="status-row__name">${i === 0 && p.score > 0 ? '👑 ' : ''}${escapeHTML(p.name)}</div>
           </div>
           <span class="badge badge--accent" data-count>${p.score}</span>
         </div>`).join('')}
+      ${grid ? '</div>' : ''}
     </div>`;
 }
 
@@ -197,9 +271,10 @@ ROOM_GAMES.mostlikely = {
         <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
         <div class="prompt-text">${escapeHTML(state.shared.prompt || '')}</div>
       </div>
-      ${v.phase === 'voting' ? renderBallot(state) : renderVoteResults(state)}
+      ${v.phase === 'voting' ? renderBallot(state, { bar: true }) : renderVoteResults(state)}
       ${v.phase === 'results' ? renderScoreboard(state.shared.board) + renderRoundFooter(state, t.next_question || 'سؤال جديد') : ''}
-      ${renderRoomPlayerStrip(state)}`);
+      ${renderRoomPlayerStrip(state)}
+      ${renderBallotBar(state)}`);
     refreshRoomPlayerStrip(el, state);
   }
 };

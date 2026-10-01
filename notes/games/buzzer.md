@@ -17,6 +17,18 @@ in `room.players` is ignored. Everything is in `shared` (`board` is the sorted
 scoreboard the TV strip reads), and `TV_GAMES.buzzer` draws the first buzzer
 big, the queue, the scores and the host's buttons when the screen is the host.
 
+## The host's phone (1 Oct 2026, the before/after sheet)
+
+«ترتيب الضغط» is a row of player chips (`roomPersonChip`, `.bz-order`): the first to
+buzz lit (`.is-first`) with «بيجاوب», the rest with how far behind (`bzGapHtml`);
+nobody yet is the line «محدش ضغط لسه». The host's six buttons left their card for
+the bottom bar (`.bz-bar`): «✓ صح» and «✗ غلط» the main pair (success / danger, still
+`correct` / `wrong { id }` of the first buzz), «🔄 سؤال جديد», «🔒 اقفل» / «🔔 افتح»
+(`bz_lock_short`, `bz_arm_short`; the TV keeps the long words) and «لعبة أخرى» small
+under them; «تصفير النقاط» is a small button under the standings it clears
+(`.bz-reset`). The quiz's reveal / next sit under the quiz card. The players' bell
+is unchanged.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

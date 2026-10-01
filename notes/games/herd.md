@@ -18,6 +18,10 @@ for biggest scores nobody, and if exactly one player stands alone they take
 the sheep (`sheepId`) from whoever had it. Nobody holding the sheep can win:
 the first to the host's target (5, 8 or 10, `ashryHerdOpts`) without it wins.
 
+The room's send button is the standard one (1 Oct 2026): `btn btn--primary btn--send`
+with «إرسال» beside the field, as in ارسم وخمّن (it was a ✓ square).
+
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

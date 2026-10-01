@@ -96,24 +96,30 @@ function mkVerdictText(v, t) {
   return '';
 }
 
+/**
+ * «حالة اللاعبين» as one strip of player chips (the talk's .talk-person): whose turn
+ * it is lit, each chip carrying its state as a small badge - آمن, the quarters as
+ * ¼ ½ ¾, a 🐵 once a monkey (the stage's full name, and a monkey's «أنا قرد خلاص!»,
+ * as the chip's title). The host's swap (a monkey back in, someone else out) is a
+ * small row under the strip: pick the monkey, then who takes their place.
+ */
 function mkBoardHtml(s, state, t) {
-  const rows = (s.board || []).map(r => {
-    const stages = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];
-    const turn = r.id === s.turnId;
-    const swap = state.youAreHost && r.monkey && s.phase === 'play'
-      ? `<button class="btn btn--secondary btn--xs btn--auto" onclick="mkSwapPick('${jsStringAttr(r.id)}')">${escapeHTML(t.mk_switch || '')}</button>` : '';
-    const picker = mkRoom.swapFor === r.id
-      ? `<div class="chip-set" style="margin-top: var(--sp-2)">${(s.board || []).filter(x => !x.monkey).map(x => `<button class="chip" onclick="roomAct('swap', { monkeyId: '${jsStringAttr(r.id)}', targetId: '${jsStringAttr(x.id)}' }); mkRoom.swapFor = null;"><span class="chip__label">↔ ${escapeHTML(x.name)}</span></button>`).join('')}</div>` : '';
-    return `<div class="status-row mk-row ${turn ? 'status-row--turn' : ''} ${r.monkey ? 'status-row--out' : ''}">
-      <span class="mk-row-fig">${mkRoomFig(s, r.id, { mini: true })}</span>
-      <div class="status-row__body">
-        <div class="status-row__name">${escapeHTML(r.name)}${turn ? ' ⏳' : ''}</div>
-        <div><span class="badge ${r.monkey ? 'badge--danger' : r.quarters ? 'badge--warning' : 'badge--success'}">${escapeHTML(stages[Math.min(4, r.quarters)])}</span>${r.monkey ? mkRowBubHtml(t) : ''}${picker}</div>
-      </div>
-      <div class="status-row__actions">${swap}</div>
-    </div>`;
+  const stages = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];
+  const chips = (s.board || []).map(r => {
+    const q = Math.min(4, Math.max(0, Number(r.quarters) || 0));
+    const turn = r.id === s.turnId && s.phase === 'play';
+    const kind = r.monkey ? 'out' : q ? 'q' : 'safe';
+    const badge = r.monkey ? '🐵' : q ? ['', '¼', '½', '¾'][q] : (t.safe || '');
+    const title = stages[r.monkey ? 4 : q] + (r.monkey ? ' · ' + (t.mk_row_monkey || '') : '');
+    return roomPersonChip(r.name, `<span class="mk-person__q mk-person__q--${kind}" aria-label="${escapeHTML(stages[r.monkey ? 4 : q] || '')}">${escapeHTML(badge)}</span>`,
+      `mk-person${turn ? ' is-first' : ''}${r.monkey ? ' is-out' : ''}`, title);
   }).join('');
-  return `<div class="section"><div class="section__head"><h2 class="section__title">${escapeHTML(t.player_status || '')}</h2><span class="section__rule"></span></div>${rows}</div>`;
+  const monkeys = state.youAreHost && s.phase === 'play' ? (s.board || []).filter(r => r.monkey) : [];
+  const swaps = !monkeys.length ? '' : `<div class="chip-set mk-swaps">${monkeys.map(r =>
+      `<button type="button" class="btn ${mkRoom.swapFor === r.id ? 'btn--secondary' : 'btn--ghost'} btn--xs btn--auto" onclick="mkSwapPick('${jsStringAttr(r.id)}')">🐵 ${escapeHTML(t.mk_switch || '')}: ${escapeHTML(r.name)}</button>`).join('')}</div>` +
+    (mkRoom.swapFor && monkeys.some(r => r.id === mkRoom.swapFor)
+      ? `<div class="chip-set mk-swaps">${(s.board || []).filter(x => !x.monkey).map(x => `<button class="chip" onclick="roomAct('swap', { monkeyId: '${jsStringAttr(mkRoom.swapFor)}', targetId: '${jsStringAttr(x.id)}' }); mkRoom.swapFor = null;"><span class="chip__label">↔ ${escapeHTML(x.name)}</span></button>`).join('')}</div>` : '');
+  return `<div class="mk-people" role="group" aria-label="${escapeHTML(t.player_status || '')}"><div class="talk-people">${chips}</div>${swaps}</div>`;
 }
 /** The host picks a monkey to swap back in; the phone's and the TV's signatures both carry the pick. */
 function mkSwapPick(id) { mkRoom.swapFor = mkRoom.swapFor === id ? null : id; if (Room.state) routeRoomState(Room.state); }
@@ -232,15 +238,23 @@ ROOM_GAMES.monkey = {
     const verdictFig = s.verdict && !(amMonkey && s.verdict.loserId === Room.me) ? mkVerdictFigHtml(s) : '';
     const verdict = s.verdict ? `<div class="mk-verdict">${verdictFig}<span class="mk-verdict__text">${escapeHTML(mkVerdictText(s.verdict, t))}</span>${state.youAreHost && s.verdict.canFlip && !s.verdict.flipped ? ` <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('flip')">${escapeHTML(t.mk_flip || '')}</button>` : ''}</div>` : '';
     const monkeyNote = amMonkey ? `<div class="mk-verdict mk-verdict--monkey"><span class="mk-verdict__fig">${mkRoomFig(s, Room.me)}</span><span class="mk-verdict__text">${escapeHTML(t.mk_you_monkey || '')}</span></div>` : '';
+    // The bar: كذّاب! and مفيش عندي the main pair, the host's take-backs small under them.
     const hostRow = state.youAreHost ? `
-      <div class="btn-row" style="margin-bottom: var(--sp-4)">
+      <div class="talk__pair">
         ${s.mode === 'letters' ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('undo', { n: ${(s.letters || []).length} })" ${word ? '' : 'disabled'}>↶ ${escapeHTML(t.draw_undo || '')}</button>` : ''}
         <button class="btn btn--ghost btn--sm" onclick="${mkHostCall('skip', s)}">${escapeHTML(t.mk_skip || '')}</button>
         <button class="btn btn--ghost btn--sm" onclick="${mkHostCall('penalty', s)}">${escapeHTML(t.mk_penalty || '')}</button>
       </div>` : roomMoveOnHtml(state, `
-      <div class="btn-row" style="margin-bottom: var(--sp-4)">
+      <div class="talk__pair">
         <button class="btn btn--ghost btn--sm" onclick="${mkHostCall('skip', s)}">${escapeHTML(t.mk_skip || '')}</button>
       </div>`);
+    const canGiveUp = myTurn && !amMonkey;
+    const mainPair = [
+      s.mode === 'letters' ? `<button type="button" class="btn btn--danger btn--lg" onclick="roomAct('liar')" ${word && !lastMine && !amMonkey ? '' : 'disabled'}>🤥 ${escapeHTML(t.mk_liar || '')}</button>` : '',
+      canGiveUp ? `<button type="button" class="btn btn--warning btn--lg" onclick="roomAct('giveUp')">🐵 ${escapeHTML(t.mk_giveup || '')}</button>` : ''
+    ].filter(Boolean);
+    const bar = mainPair.length || hostRow.trim()
+      ? `<div class="view-actions talk__actions mk-bar">${mainPair.length ? `<div class="room-bar__pair">${mainPair.join('')}</div>` : ''}${hostRow}</div>` : '';
     const cat = `<span class="badge badge--accent">${escapeHTML(mkCatLabel(s.category))}</span>`;
     // The input survives presence flickers: the signature carries only what the screen shows.
     const sig = ['mk', s.mode, s.turnId, word, s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {}), myTurn, state.youAreHost, mkRoom.swapFor, appState.lang].join('|');
@@ -251,17 +265,16 @@ ROOM_GAMES.monkey = {
         const wordHtml = (s.letters || []).length
           ? (s.letters || []).map(l => `<span class="mk-letter" title="${escapeHTML(l.name || '')}">${escapeHTML(l.ch)}</span>`).join('')
           : `<span class="mk-word__empty">${escapeHTML(t.mk_word_empty || '')}</span>`;
-        const keys = myTurn && !amMonkey ? (MONKEY_KEYS[lang] || MONKEY_KEYS.ar).map(row =>
-          `<div class="keypad__row">${row.split('').map(ch => `<button type="button" class="key" onclick="roomAct('letter', { ch: '${ch}' })">${ch}</button>`).join('')}</div>`).join('') : '';
+        // Arabic is one grid of 11 columns (32 letters: 11, 11, 10), so it fits its
+        // card at every width; English keeps its three QWERTY rows.
+        const keys = myTurn && !amMonkey ? (lang === 'en'
+          ? MONKEY_KEYS.en.map(row => `<div class="keypad__row">${row.split('').map(ch => `<button type="button" class="key" onclick="roomAct('letter', { ch: '${ch}' })">${ch}</button>`).join('')}</div>`).join('')
+          : MONKEY_KEYS.ar.join('').split('').map(ch => `<button type="button" class="key" onclick="roomAct('letter', { ch: '${ch}' })">${ch}</button>`).join('')) : '';
         stage = `
           <div class="card card--tight" style="text-align:center">
             <div class="mk-word__head">${cat}<span class="field__hint">${escapeHTML(myTurn ? (t.mk_your_letter || '') : (t.mk_turn_letter || '').replace('{name}', s.turnName || ''))}</span></div>
             <div class="mk-word" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${wordHtml}</div>
-            ${keys ? `<div class="keypad mk-keypad" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${keys}</div>` : ''}
-          </div>
-          <div class="btn-row" style="margin-bottom: var(--sp-2)">
-            <button type="button" class="btn btn--danger-soft" onclick="roomAct('liar')" ${word && !lastMine && !amMonkey ? '' : 'disabled'}>🤥 ${escapeHTML(t.mk_liar || '')}</button>
-            ${myTurn && !amMonkey ? `<button type="button" class="btn btn--secondary" onclick="roomAct('giveUp')">🐵 ${escapeHTML(t.mk_giveup || '')}</button>` : ''}
+            ${keys ? `<div class="keypad mk-keypad mk-keypad--room ${lang === 'en' ? '' : 'mk-keypad--grid'}" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${keys}</div>` : ''}
           </div>`;
       } else {
         stage = `
@@ -273,13 +286,12 @@ ROOM_GAMES.monkey = {
             ${myTurn && !amMonkey ? `
               <div class="input-group" style="margin-top: var(--sp-3)">
                 <input type="text" id="mk-name" autocomplete="off" maxlength="40" placeholder="${escapeHTML(t.mk_name_ph || '')}" onkeydown="if(event.key==='Enter') mkSendName()">
-                <button type="button" class="btn btn--primary" onclick="mkSendName()">${escapeHTML(t.send || '')}</button>
-              </div>
-              <button type="button" class="btn btn--secondary btn--sm" style="margin-top: var(--sp-2)" onclick="roomAct('giveUp')">🐵 ${escapeHTML(t.mk_giveup || '')}</button>` : ''}
+                <button type="button" class="btn btn--primary btn--send" onclick="mkSendName()">${escapeHTML(t.send || '')}</button>
+              </div>` : ''}
             ${(s.used || []).length ? `<div class="chip-set mk-used">${(s.used || []).slice(0, 8).map(n => `<span class="chip chip--plain"><span class="chip__label">${escapeHTML(n)}</span></span>`).join('')}</div>` : ''}
           </div>`;
       }
-      return `${head}${verdict}${monkeyNote}${stage}${hostRow}${mkBoardHtml(s, state, t)}${renderRoomPlayerStrip(state)}`;
+      return `${head}${verdict}${monkeyNote}${mkBoardHtml(s, state, t)}${stage}${renderRoomPlayerStrip(state)}${bar}`;
     });
     armMkClock(s.endsAt);
     refreshRoomPlayerStrip(el, state);

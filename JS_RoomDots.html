@@ -80,7 +80,7 @@ ROOM_GAMES.dots = {
     const initials = dotsInitials(duelRoomNames(state));
     const sig = ['dotsr', s.round, s.phase, s.moves, s.turn, seat, JSON.stringify(s.line || []), s.champ,
                  JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name).join(','),
-                 state.youAreHost, appState.lang].join('|');
+                 state.youAreHost, appState.lang, duelRoomAwayAt(state)].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => `
       <div class="duel dots-game">
         <div class="duel-layout">
@@ -90,7 +90,7 @@ ROOM_GAMES.dots = {
           <div class="duel-layout__side">
             <div class="duel-head">
               ${dotsRoomPills(state, t, initials)}
-              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${again ? 'is-again' : ''}">${escapeHTML(duelRoomStatus(state, t, again))}</p>
+              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${again ? 'is-again' : ''}">${escapeHTML(duelRoomStatus(state, t, again))}</p>${duelRoomAwayHtml(state, t)}
             </div>
             ${s.phase === 'over' ? duelRoomOverHtml(state, t) : duelRoomWatchNote(state, t)}
             ${duelRoomLineHtml(state, t)}
@@ -124,6 +124,7 @@ ROOM_GAMES.dots = {
       duelRoomCheer(el, state, key);
     }
     refreshRoomPlayerStrip(el, state);
+    duelRoomAwayTick(state);
   },
   actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
 };
@@ -132,7 +133,7 @@ TV_GAMES.dots = {
   sig: (state) => {
     const s = state.shared || {};
     return ['dots', s.round, s.phase, s.moves, JSON.stringify(s.line || []), s.champ, JSON.stringify(s.scores || {}),
-            (state.players || []).map(p => p.id + p.name).join(','), state.youAreHost].join('|');
+            (state.players || []).map(p => p.id + p.name).join(','), state.youAreHost, duelRoomAwayAt(state)].join('|');
   },
   frame(state, t) {
     const s = state.shared || {};
@@ -147,6 +148,7 @@ TV_GAMES.dots = {
       </div>`;
   },
   after(state, rebuilt) {
+    duelRoomAwayTick(state);
     if (!rebuilt) return;
     const el = document.getElementById('view-room-tv');
     const s = state.shared || {};

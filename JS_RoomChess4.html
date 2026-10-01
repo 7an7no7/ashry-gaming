@@ -33,7 +33,7 @@ const CH4_TINTS = ['r', 'b', 'y', 'g', 'x'];        // the four colours, and gre
 const ch4Local = {
   sel: -1, early: null, seen: -1, seenKey: '', pcs: null, out: null, drag: null,
   offset: null, seenAt: '', tick: null, hostKey: '', turnSince: 0, hostTimer: null,
-  lobbySel: '', synced: '', turnMine: false, sending: false
+  lobbySel: '', synced: '', turnMine: false, sending: false, loupe: null
 };
 
 function ch4Opts() {
@@ -177,6 +177,15 @@ function ch4PaintClocks() {
     const text = ch4ClockText(left);
     if (el.textContent !== text) el.textContent = text;
     el.classList.toggle('is-low', left < 20000 && !ch4S(state).g.out[seat]);
+  });
+  // The first move's 45 s (ch4FirstHtml).
+  const first = ch4FirstLeft(state);
+  document.querySelectorAll('[data-ch4-first]').forEach(el => {
+    if (first === null) return;
+    const text = '⏱️ ' + chT('ch4_first_left') + ' ' + Math.ceil(first / 1000);
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle('badge--danger', first <= 10000);
+    el.classList.toggle('badge--accent', first > 10000);
   });
 }
 
@@ -403,7 +412,31 @@ function ch4StatusText(state) {
   let text = chT('ch4_turn_of', { name: ch4Iso(state, g.turn) });
   if (me >= 0 && g.out[me]) text = chT('ch4_you_out') + ' · ' + text;
   else if (me < 0 && !state.youAreScreen) text = chT('ch4_watching') + ' · ' + text;
+  if (ch4BotsOnly(state)) text += ' · ' + chT('ch4_bots_only');
   return text;
+}
+
+/** Nobody playing any more but computer players. Mirrors chess4BotsOnly in RoomChess4.js. */
+function ch4BotsOnly(state) {
+  const s = ch4S(state);
+  if (s.phase !== 'play' || !s.g || s.g.over) return false;
+  return [0, 1, 2, 3].every(k => s.g.out[k] || ch4IsBot(state, k));
+}
+
+const CH4_FIRST_MS = 45000;     // as in RoomChess4.js
+/** With a clock, the first move of the seat up (its clock doesn't run yet) has 45 s: ms left, or null. */
+function ch4FirstLeft(state) {
+  const s = ch4S(state);
+  const c = s.clock;
+  if (!c || s.phase !== 'play' || !s.g || s.g.over || (c.at !== null && c.at !== undefined) || typeof c.first !== 'number') return null;
+  return Math.max(0, c.first + CH4_FIRST_MS - (Date.now() - (ch4Local.offset || 0)));
+}
+
+/** That count, beside the status: everyone sees it, the player up most of all. */
+function ch4FirstHtml(state) {
+  const left = ch4FirstLeft(state);
+  if (left === null) return '';
+  return ` <span class="badge badge--accent metric ch4-first" data-ch4-first>⏱️ ${escapeHTML(chT('ch4_first_left'))} ${Math.ceil(left / 1000)}</span>`;
 }
 
 function ch4ResultText(state) {
@@ -478,10 +511,14 @@ function ch4BarHtml(state, tv) {
   const s = ch4S(state);
   const seat = ch4Seat(state);
   const host = ch4HostButtons(state);
-  if (tv) return host.map(b => tvBtn(b[0], b[1], 'ghost')).join('');
+  // «⏩ خلّصها»: everyone for themselves, only computer players still playing - the host ends it on points.
+  if (s.settings.mode === 'ffa' && ch4BotsOnly(state) && roomCanMoveOn(state)) {
+    host.unshift(['⏩ ' + chT('ch4_finish'), `roomAct('finish', { round: ${Number(s.round) || 0} })`, 'primary']);
+  }
+  if (tv) return host.map(b => tvBtn(b[0], b[1], b[2] || 'ghost')).join('');
   const resign = seat >= 0 && s.phase === 'play' && !s.g.out[seat]
     ? `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="ch4Resign()">🏳️ ${escapeHTML(chT('ch4_resign'))}</button>` : '';
-  const hostBtns = host.map(b => `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="${b[1]}">${escapeHTML(b[0])}</button>`).join('');
+  const hostBtns = host.map(b => `<button type="button" class="btn btn--${b[2] || 'ghost'} btn--sm btn--auto" onclick="${b[1]}">${escapeHTML(b[0])}</button>`).join('');
   return resign || hostBtns ? `<div class="ch4-bar">${hostBtns}${resign}</div>` : '';
 }
 
@@ -534,6 +571,75 @@ function ch4Send(from, to) {
   return true;
 }
 
+/* --- the magnifier (the review of 1 Oct 2026) ------------------------------------------
+   On a phone a square is about 24 px, under a finger 40 px wide. While a piece is
+   carried (or a square is being aimed at with one picked up), a round loupe above
+   the finger shows that part of the board about 56 px a square, the square under
+   the finger outlined (green where the piece can go). Letting go plays as ever: the
+   loupe only shows. It is a copy of the board taken when the finger goes down, in
+   <body> (fixed, so nothing in the room's frame moves), placed by the finger in
+   screen terms (left and top, which are physical on purpose), and only for a
+   finger or a pen on small squares - a mouse is precise enough. */
+const CH4_LOUPE_SMALL = 34;      // px a square below which the loupe helps
+const CH4_LOUPE_CELL = 56;       // px a square in the loupe
+
+function ch4LoupeShow(board, ev, carry) {
+  if (ev.pointerType === 'mouse' || ch4Local.loupe) return;
+  const r = board.getBoundingClientRect();
+  if (!r.width || r.width / 14 >= CH4_LOUPE_SMALL) return;
+  const d = Math.round(Math.min(150, window.innerWidth * 0.4, window.innerHeight * 0.4));
+  const zoom = Math.max(1.6, Math.min(3, CH4_LOUPE_CELL / (r.width / 14)));
+  const copy = board.cloneNode(true);
+  copy.removeAttribute('data-ch4-board');
+  copy.querySelectorAll('[data-ch4-corner], .ch4-pc.is-drag').forEach(el => el.remove());
+  copy.classList.remove('is-live');
+  const el = document.createElement('div');
+  el.className = 'ch4-loupe';
+  el.setAttribute('aria-hidden', 'true');
+  el.style.setProperty('--loupe-d', d + 'px');
+  el.innerHTML = `<div class="ch4-loupe__board" style="width:${r.width}px;height:${r.height}px"></div>${carry ? `<span class="ch4-loupe__carry">${ch4PieceSvg(carry)}</span>` : ''}`;
+  el.firstElementChild.appendChild(copy);
+  document.body.appendChild(el);
+  ch4Local.loupe = { el: el, d: d, zoom: zoom, aim: null };
+  ch4LoupeMove(board, ev);
+}
+
+function ch4LoupeMove(board, ev) {
+  const L = ch4Local.loupe;
+  if (!L) return;
+  const r = board.getBoundingClientRect();
+  const lx = Math.max(0, Math.min(r.width, ev.clientX - r.left));
+  const ly = Math.max(0, Math.min(r.height, ev.clientY - r.top));
+  const inner = L.el.firstElementChild;
+  inner.style.transform = `translate(${L.d / 2 - lx * L.zoom}px, ${L.d / 2 - ly * L.zoom}px) scale(${L.zoom})`;
+  // Above the finger; below it when there is no room; always on the screen.
+  const gap = 28;
+  let x = ev.clientX - L.d / 2;
+  let y = ev.clientY - L.d - gap;
+  if (y < 8) y = ev.clientY + gap;
+  x = Math.max(8, Math.min(window.innerWidth - L.d - 8, x));
+  y = Math.max(8, Math.min(window.innerHeight - L.d - 8, y));
+  L.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  // The square under the finger, outlined: green where the piece can go.
+  const sq = ch4BoardPoint(board, ev, Number(board.dataset.rot || 0));
+  const d = ch4Local.drag;
+  const from = d ? (d.el ? d.sq : d.hadSel) : -1;
+  const state = Room.state;
+  const ok = sq >= 0 && from >= 0 && sq !== from && state && state.game === 'chess4' && chess4Legal(ch4Game(state)).some(m => m.from === from && m.to === sq);
+  const key = sq + (ok ? '+' : '');
+  if (L.aim === key) return;
+  L.aim = key;
+  L.el.querySelectorAll('.is-aim').forEach(x2 => x2.classList.remove('is-aim', 'is-ok'));
+  const cell = sq >= 0 ? L.el.querySelector(`.ch4-sq[data-sq="${sq}"]`) : null;
+  if (cell) { cell.classList.add('is-aim'); if (ok) cell.classList.add('is-ok'); }
+}
+
+function ch4LoupeHide() {
+  const L = ch4Local.loupe;
+  ch4Local.loupe = null;
+  if (L && L.el) L.el.remove();
+}
+
 function ch4BoardPoint(board, ev, rot) {
   const r = board.getBoundingClientRect();
   const col = Math.floor((ev.clientX - r.left) / r.width * 14);
@@ -555,14 +661,19 @@ function ch4Wire(root) {
     const g = ch4Game(state);
     const code = g.board[sq];
     const mine = code && ((code >> 3) & 3) === ch4Seat(state);
-    ch4Local.drag = { sq: sq, x0: ev.clientX, y0: ev.clientY, el: mine ? ch4Local.pcs.get(sq) : null, started: false, id: ev.pointerId, hadSel: ch4Local.sel };
+    ch4Local.drag = { sq: sq, x0: ev.clientX, y0: ev.clientY, el: mine ? ch4Local.pcs.get(sq) : null, started: false, id: ev.pointerId, hadSel: ch4Local.sel, code: code };
     if (mine && ch4Local.sel !== sq) { ch4Local.sel = sq; ch4PaintSquares(root, state, g); chSound('pick'); }
     try { board.setPointerCapture(ev.pointerId); } catch (e) {}
+    // Aiming with a piece already picked up: the loupe shows where the finger is (the move is made as it lifts).
+    if (!mine && ch4Local.drag.hadSel >= 0) ch4LoupeShow(board, ev, 0);
   });
   board.addEventListener('pointermove', (ev) => {
     const d = ch4Local.drag;
-    if (!d || d.id !== ev.pointerId || !d.el) return;
+    if (!d || d.id !== ev.pointerId) return;
+    ch4LoupeMove(board, ev);
+    if (!d.el) return;
     if (!d.started && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < 8) return;
+    if (!d.started) ch4LoupeShow(board, ev, d.code);
     d.started = true;
     d.el.classList.add('is-drag');
     const r = board.getBoundingClientRect();
@@ -572,6 +683,7 @@ function ch4Wire(root) {
   const end = (ev, cancel) => {
     const d = ch4Local.drag;
     if (!d || d.id !== ev.pointerId) return;
+    ch4LoupeHide();
     ch4Local.drag = null;
     const state = Room.state;
     if (d.el) { d.el.classList.remove('is-drag'); d.el.style.transform = ''; }
@@ -695,7 +807,7 @@ function ch4Update(root, state, tv) {
   ch4PaintSquares(root, state, g);
   ch4PaintChips(root, state, rot);
   const set = (sel, html) => { const el = root.querySelector(sel); if (el && el._html !== html) { el.innerHTML = html; el._html = html; return el; } return null; };
-  set('[data-ch4-status]', escapeHTML(ch4StatusText(state)));
+  set('[data-ch4-status]', escapeHTML(ch4StatusText(state)) + ch4FirstHtml(state));
   set('[data-ch4-bar]', ch4BarHtml(state, tv));
   set('[data-ch4-over]', ch4OverHtml(state, tv));
   const logEl = set('[data-ch4-log]', ch4LogHtml(state));
@@ -896,6 +1008,7 @@ onRoomClocksReset(() => {
   ch4Local.sel = -1;
   ch4Local.early = null;
   ch4Local.drag = null;
+  ch4LoupeHide();
 });
 
 /* --- the TV: the board big, red at the bottom, the players in its corners, the log beside it --- */

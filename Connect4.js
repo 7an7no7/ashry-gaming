@@ -59,6 +59,18 @@ function c4LegalCols(board) {
   return out;
 }
 
+/**
+ * The one column player p can still drop in, when there is only one and the
+ * disc doesn't win - a move made for them in a room (ROOM_FORCED_GAMES.connect4);
+ * -1 otherwise. A winning disc stays the player's own tap (the owner's rule).
+ */
+function c4OnlyMove(board, p) {
+  const cols = c4LegalCols(board);
+  if (cols.length !== 1) return -1;
+  const res = c4Play(c4Clone(board), cols[0], p);
+  return res && !res.win ? cols[0] : -1;
+}
+
 const C4_DIRS = [[0, 1], [1, 0], [1, 1], [1, -1]];   // [down, across] steps: across, down, both diagonals
 
 /**

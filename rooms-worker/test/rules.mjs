@@ -2954,6 +2954,34 @@ Date.now = duelTestClock;
   applyRoomAction(lv, lv.shared.seats[1], 'move', { edge: 39, move: lv.shared.moves });
   check(lv.shared.phase === 'over' && lv.shared.result.draw && lv.shared.count[0] === 8 && lv.shared.count[1] === 8 && !lv.shared.scores[lv.shared.seats[1]],
         'duel dots: eight boxes each is a draw');
+
+  // «خسران غياب» (the review of 1 Oct 2026): the seat to move gone a minute loses this game, by the server's clock.
+  const aw = duel('xo', ['a', 'b', 'c'], {});
+  const [aw0, aw1] = aw.shared.seats;
+  const awWatcher = aw.shared.line[0];
+  check(roomDeadline(aw) === null, 'duel away: everyone here: no clock');
+  aw.lastSeen = { [aw1]: clock };
+  check(roomDeadline(aw) === null, 'duel away: the other seat gone is not the one to move: no clock yet');
+  aw.lastSeen = { [aw0]: clock };
+  const due = Math.max(clock, aw.shared.turnAt) + 60000;
+  check(roomDeadline(aw) === due, 'duel away: the seat to move gone: a minute from then');
+  check(!roomTimeout(aw, due - 1) && aw.shared.phase === 'play', 'duel away: not a moment before');
+  aw.lastSeen = {};
+  check(roomDeadline(aw) === null, 'duel away: back in time: the clock is gone');
+  aw.lastSeen = { [aw0]: clock - 300000 };
+  check(roomDeadline(aw) === aw.shared.turnAt + 60000, 'duel away: gone before the turn came: a minute from the turn');
+  roomTimeout(aw, aw.shared.turnAt + 60000);
+  check(aw.shared.phase === 'over' && aw.shared.result.reason === 'away' && aw.shared.result.winnerId === aw1 && aw.shared.scores[aw1] === 1 &&
+        aw.players.some((p) => p.id === aw0) && aw.shared.line[aw.shared.line.length - 1] === aw0 && aw.shared.line[0] === awWatcher,
+        'duel away: a loss for them, a win for the other; they stay in the room, at the back of the line');
+  check(roomDeadline(aw) === null, 'duel away: the game over, no clock');
+  // A move made in the meantime moves the turn on, and the clock with it.
+  const aw2 = duel('connect4', ['a', 'b'], {});
+  const mover = aw2.shared.seats[0];
+  aw2.lastSeen = { [aw2.shared.seats[1]]: clock - 5000 };
+  clock += 1000;
+  applyRoomAction(aw2, mover, 'move', { col: 3, move: 0 });
+  check(roomDeadline(aw2) === clock + 60000, 'duel away: the turn just came to a phone already gone: a minute from now');
 }
 
 /* --- أونو: the cards, every move, the bots, and what never leaves the server ------ */
@@ -3369,18 +3397,55 @@ Date.now = duelTestClock;
     off.shared.table = { line: [{ t: '5-6', a: 5, b: 6 }], root: '5-6', spinner: null, up: [], down: [] };
     check(roomForcedMove(off) === null, 'domino forced: helpers off: nothing is done - the player works it out');
 
-    // The duels: the last move is often the winning one, so it stays the player's (the owner, 21 Sep 2026).
+    // The duels (the review of 1 Oct 2026): the only move is made for you - but a winning one stays a tap.
     const c4r = newRoom(['a', 'b']);
     applyRoomAction(c4r, 'a', 'chooseGame', { game: 'connect4' });
     applyRoomAction(c4r, 'a', 'start', { mode: 4 });
     const cols = c4r.shared.cols;
     c4r.shared.grid = c4r.shared.grid.map((v, i) => (i % cols === 3 ? 0 : 1));
-    check(roomForcedMove(c4r) === null, 'duels: connect 4 with one open column: the player drops it');
+    check(roomForcedMove(c4r) === null, 'duels: connect 4 with one open column that wins: the player drops it');
+    // The same column, now a disc that makes no line: dropped for them.
+    const noLine4 = (i) => 1 + ((Math.floor(i / 7) + Math.floor((i % 7) / 2)) % 2);
+    c4r.shared.grid = c4r.shared.grid.map((v, i) => noLine4(i));
+    c4r.shared.grid[3] = 0;
+    c4r.shared.moves = 41;
+    c4r.shared.turn = noLine4(3) - 1;        // the one empty cell is the mover's own colour: no line
+    applyRoomAction(c4r, c4r.shared.seats[c4r.shared.turn], 'move', { col: 3, move: 0 });   // a stale tap: dropped, and the bots' clock looks again
+    const fc = roomForcedMove(c4r);
+    check(fc && fc.pid === c4r.shared.seats[c4r.shared.turn] && fc.move.action === 'move' && fc.move.payload.col === 3 && fc.move.payload.move === 41,
+      'duels: connect 4 with one open column that doesn\'t win: dropped for them');
+    check(c4r._botPid === fc.pid && c4r._botAt === clock + ROOM_FORCED_DELAY_MS, 'duels: after the usual beat');
+    roomTimeout(c4r, clock + ROOM_FORCED_DELAY_MS);
+    check(c4r.shared.phase === 'over' && c4r.shared.result.draw, 'duels: and the server plays it (here the board fills: a draw)');
     const dr = newRoom(['a', 'b']);
     applyRoomAction(dr, 'a', 'chooseGame', { game: 'dots' });
     applyRoomAction(dr, 'a', 'start', { size: 4 });
     dr.shared.lines = dr.shared.lines.map((v, e) => (e === 5 ? 0 : 1));
-    check(roomForcedMove(dr) === null, 'duels: dots with one line left: the player draws it');
+    check(roomForcedMove(dr) === null, 'duels: dots: a last line that wins the game is left to the player');
+    // The last line of a game the mover has lost anyway: drawn for them.
+    dr.shared.boxes = dr.shared.boxes.map((_, i) => (i < 12 ? 2 : 1));
+    dr.shared.lines = dr.shared.lines.map(() => 1);
+    dr.shared.boxes[15] = 0;
+    dr.shared.lines[39] = 0;
+    dr.shared.turn = 0;
+    const fd = roomForcedMove(dr);
+    check(fd && fd.move.payload.edge === 39 && fd.pid === dr.shared.seats[0], 'duels: dots: the last line, when it doesn\'t win, is drawn for them');
+    const xr = newRoom(['a', 'b']);
+    applyRoomAction(xr, 'a', 'chooseGame', { game: 'xo' });
+    applyRoomAction(xr, 'a', 'start', { three: false });
+    xr.shared.cells = ['X', 'O', 'X', 'X', 'O', 'O', 'O', 'X', ''];
+    xr.shared.turn = 0;
+    const fx = roomForcedMove(xr);
+    check(fx && fx.move.payload.cell === 8 && fx.pid === xr.shared.seats[0], 'duels: x-o: one square left that doesn\'t win: played for them');
+    xr.shared.cells = ['X', 'O', 'X', 'O', 'X', 'O', 'O', 'X', ''];
+    check(roomForcedMove(xr) === null, 'duels: x-o: one square left that wins: the player\'s own tap');
+    xr.shared.cells = ['X', 'O', 'X', 'X', 'O', 'O', 'O', '', ''];
+    check(roomForcedMove(xr) === null, 'duels: x-o: two squares: a choice, nothing done');
+    const x3 = newRoom(['a', 'b']);
+    applyRoomAction(x3, 'a', 'chooseGame', { game: 'xo' });
+    applyRoomAction(x3, 'a', 'start', { three: true });
+    x3.shared.cells = ['X', 'O', 'X', 'X', 'O', 'O', 'O', 'X', ''];
+    check(roomForcedMove(x3) === null, 'duels: x-o with 3 marks only: never forced');
   }
 
   {
@@ -7021,6 +7086,25 @@ Date.now = duelTestClock;
       'tournament: with everyone else gone, the last one standing is champion');
   }
 
+  // «خسران غياب» in a tournament (the review of 1 Oct 2026): a phone gone a minute on its turn loses that game.
+  {
+    const r = room('connect4', people(4), { tournament: true });
+    const t = r.shared.tour;
+    toClock(r);
+    const m = t.matches.find((x) => x.state === 'play');
+    const g = r.shared.games[m.id];
+    const quiet = g.seats[g.turn];
+    r.lastSeen = { [quiet]: clock };
+    check(roomDeadline(r) === Math.max(clock, g.turnAt) + 60000, 'tournament away: the match\'s clock is a minute after the phone went');
+    roomTimeout(r, clock + 59000);
+    check(m.state === 'play', 'tournament away: not before the minute');
+    clock = Math.max(clock, g.turnAt) + 60000;
+    roomTimeout(r, clock);
+    const out = r.shared.games[m.id];
+    check(m.state === 'done' && m.winner !== quiet && m.reason === 'away' && out.result.reason === 'away' && r.players.some((p) => p.id === quiet),
+      'tournament away: the match is lost by absence, the player still in the room');
+  }
+
   // Guess who and battleship: each match's secrets stay with that match's two phones.
   {
     const r = room('guesswho', people(6), { tournament: true, size: 16 });
@@ -7599,6 +7683,59 @@ Date.now = duelTestClock;
     check(t[0][0] === 'd' && t[1].join() === 'b,a' && bot !== 'c' && r.players.some((p) => p.id === bot && p.bot === 'easy'),
       'handbrain: play again after a player left during the result - an easy computer player takes their seat, roles and colours still swapped');
   }
+  // The review of 1 Oct 2026: the Brain may change the call for 3 s, or until the Hand touches a piece.
+  {
+    const r = hbRoom(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    applyRoomAction(r, 'a', 'name', { kind: 2, n: 0 });
+    const call = s.callSeq;
+    check(s.named.kind === 2 && s.named.at === clock && !s.named.touched && typeof call === 'number', 'handbrain recall: a call carries when it was made and its number');
+    check(refused(() => applyRoomAction(r, 'b', 'recall', { kind: 1, n: 0, call })), 'handbrain recall: the Hand can\'t change it');
+    check(refused(() => applyRoomAction(r, 'c', 'recall', { kind: 1, n: 0, call })), 'handbrain recall: nor the other team\'s Brain');
+    check(refused(() => applyRoomAction(r, 'a', 'recall', { kind: 5, n: 0, call })), 'handbrain recall: nor to a kind with no move');
+    clock += 1500;
+    applyRoomAction(r, 'a', 'recall', { kind: 1, n: 0, call });
+    check(s.named.kind === 1 && s.named.re && s.calls[s.calls.length - 1].kind === 1 && s.calls.length === 1 && s.callSeq === call + 1,
+      'handbrain recall: the Brain changes "the knight" to "the pawn" within the 3 s - the same call, changed');
+    applyRoomAction(r, 'a', 'recall', { kind: 2, n: 0, call });
+    check(s.named.kind === 1, 'handbrain recall: a change drawn for the call before is dropped');
+    applyRoomAction(r, 'b', 'move', { from: 'g1', to: 'f3', move: 0, call });
+    check(s.chess.moves === 0 && s.stage === 'move', 'handbrain recall: the Hand\'s move drawn for the old call is dropped, not refused');
+    applyRoomAction(r, 'b', 'touch', { move: 0, call: call });
+    check(!s.named.touched, 'handbrain recall: a touch for the old call doesn\'t close the new one');
+    applyRoomAction(r, 'c', 'touch', { move: 0, call: s.callSeq });
+    check(!s.named.touched, 'handbrain recall: only the Hand\'s touch counts');
+    applyRoomAction(r, 'b', 'touch', { move: 0, call: s.callSeq });
+    check(s.named.touched, 'handbrain recall: the Hand picks up a piece');
+    check(refused(() => applyRoomAction(r, 'a', 'recall', { kind: 2, n: 0, call: s.callSeq })) && s.named.kind === 1, 'handbrain recall: then the call is final');
+    applyRoomAction(r, 'b', 'move', { from: 'e2', to: 'e4', move: 0, call: s.callSeq });
+    check(s.chess.moves === 1 && s.chess.last.kind === 1, 'handbrain recall: and the Hand plays the kind named last');
+    applyRoomAction(r, 'c', 'name', { kind: 1, n: 1 });
+    clock += 3000 + 801;
+    check(refused(() => applyRoomAction(r, 'c', 'recall', { kind: 2, n: 1, call: s.callSeq })) && s.named.kind === 1, 'handbrain recall: past the 3 s (and the network\'s moment) the call is final');
+  }
+  // A computer Hand, and a move made for a person's Hand, wait out a person's Brain's 3 s.
+  {
+    const r = newRoom(['a']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'handbrain' });
+    applyRoomAction(r, 'a', 'seats', { order: ['a', null, null, null] });
+    applyRoomAction(r, 'a', 'start', { botNames: ['زيزو', 'بندق', 'سمسم'] });
+    check(r.shared.teams[0][0] === 'a' && botsOf(r).indexOf(r.shared.teams[0][1]) !== -1, 'handbrain recall: (a person\'s Brain, a computer Hand)');
+    const t0 = clock;
+    applyRoomAction(r, 'a', 'name', { kind: 2, n: 0 });
+    check(r._botAt >= t0 + 3000, 'handbrain recall: the computer Hand waits until the Brain can\'t change the call any more');
+    clock = t0 + 2000;
+    applyRoomAction(r, 'a', 'recall', { kind: 1, n: 0, call: r.shared.callSeq });
+    clock = r._botAt;
+    roomTimeout(r, clock);
+    check(r.shared.chess.moves === 1 && r.shared.chess.last.kind === 1, 'handbrain recall: and plays the kind named last');
+    const r2 = hbRoom(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd']);
+    r2.shared.chess.g = CH.chessFromFen('k7/8/8/8/8/P7/8/4K3 w - - 0 1');
+    const t1 = clock;
+    applyRoomAction(r2, 'a', 'name', { kind: 1, n: 0 });
+    const f = roomForcedMove(r2);
+    check(!!f && f.pid === 'b' && f.delay >= 3000 && r2._botAt >= t1 + 3000, 'handbrain recall: the Hand\'s only move is made for them only once the Brain\'s 3 s are over');
+  }
   // Flag: the clock is the team's.
   {
     const r = hbRoom(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd'], { clock: '5+0' });
@@ -7946,6 +8083,55 @@ Date.now = duelTestClock;
   applyRoomAction(f, 'h', 'start', {});
   leave(f, 'q');
   check(f.shared.g.out[2] && f.shared.g.why[2] === 'left' && f.shared.phase === 'play', 'chess4 room FFA: a player who leaves is out, their pieces walls');
+
+  // The review of 1 Oct 2026: only computer players left - they hurry, and the host can end it («⏩ خلّصها»).
+  {
+    const fb = newRoom(['h', 'p']);
+    applyRoomAction(fb, 'h', 'chooseGame', { game: 'chess4' });
+    applyRoomAction(fb, 'h', 'options', { mode: 'ffa' });
+    applyRoomAction(fb, 'h', 'start', { botNames: ['زيزو', 'بندق'] });
+    check(fb.shared.seats[0] === 'h' && fb.shared.seats[1] === 'p', 'chess4 bots only: (the two people in red and blue)');
+    check(refused(() => applyRoomAction(fb, 'h', 'finish', { round: fb.shared.round })), 'chess4 bots only: while a person still plays, the game can\'t be ended');
+    applyRoomAction(fb, 'h', 'resign', { round: fb.shared.round });
+    check(fb._botAt === null || fb._botAt - clock >= ROOM_FORCED_DELAY_MS - 300, 'chess4 bots only: with a person still in, the computer players take their usual time');
+    applyRoomAction(fb, 'p', 'resign', { round: fb.shared.round });
+    check(fb.shared.phase === 'play' && fb._botAt === clock + 250, 'chess4 bots only: nobody left but computer players: they move a quarter of a second apart');
+    check(refused(() => applyRoomAction(fb, 'p', 'finish', { round: fb.shared.round })), 'chess4 bots only: only the host ends it');
+    clock = fb._botAt + 1; roomTimeout(fb, clock);
+    clock = fb._botAt + 1; roomTimeout(fb, clock);
+    fb.shared.g.points = [3, 0, 9, 4];
+    applyRoomAction(fb, 'h', 'finish', { round: fb.shared.round - 1 });
+    check(fb.shared.phase === 'play', 'chess4 bots only: a «خلّصها» drawn for another game is dropped');
+    applyRoomAction(fb, 'h', 'finish', { round: fb.shared.round });
+    check(fb.shared.phase === 'over' && fb.phase === 'gameover' && fb.shared.g.result.reason === 'finish' && fb.shared.g.result.winners.join() === '2' &&
+          fb.shared.wins[fb.shared.seats[2]] === 1 && fb._botAt === null,
+      'chess4 bots only: «خلّصها» ends it at once, ranked by the points as they stand');
+    const tb = newRoom(['h']);
+    applyRoomAction(tb, 'h', 'chooseGame', { game: 'chess4' });
+    applyRoomAction(tb, 'h', 'start', {});
+    applyRoomAction(tb, 'h', 'resign', { round: tb.shared.round });
+    check(tb.shared.phase === 'over', 'chess4 teams: (resigning ends a team game: «خلّصها» is for everyone for themselves)');
+  }
+
+  // With a clock, a first move has 45 s (its clock doesn't run yet); then an easy move is played for them.
+  {
+    const fc = newRoom(['h', 'p']);
+    applyRoomAction(fc, 'h', 'chooseGame', { game: 'chess4' });
+    applyRoomAction(fc, 'h', 'options', { mode: 'ffa', clock: 1 });
+    const t0 = clock;
+    applyRoomAction(fc, 'h', 'start', { botNames: ['زيزو', 'بندق'] });
+    check(fc.shared.clock.at === null && fc.shared.clock.first === t0 && roomDeadline(fc) === t0 + 45000 + 600 + 1,
+      'chess4 first move: its clock doesn\'t run, but the server looks again after 45 s');
+    check(!roomTimeout(fc, t0 + 45000) && fc.shared.g.ply === 0, 'chess4 first move: not a moment early');
+    clock = t0 + 45000 + 601;
+    roomTimeout(fc, clock);
+    check(fc.shared.g.ply === 1 && fc.shared.g.turn === 1 && fc.shared.clock.moved[0] && fc.shared.clock.left[0] === 60000 &&
+          fc.shared.log.some((e) => e.k === 'mv' && e.seat === 0 && e.auto === 'time'),
+      'chess4 first move: time up: an easy move is played for them, marked, and their clock is untouched');
+    check(fc.shared.clock.first === clock && roomDeadline(fc) === clock + 45000 + 601, 'chess4 first move: the next seat\'s first move has its own 45 s');
+    applyRoomAction(fc, 'p', 'move', Object.assign({}, first(fc.shared), { seq: fc.shared.turnSeq }));
+    check(fc.shared.clock.moved[1] && fc.shared.g.turn === 2, 'chess4 first move: a move in time is just a move');
+  }
 
   // Whole games of computer players through the room's own door: both ways, easy and hard.
   const errorWas = console.error;

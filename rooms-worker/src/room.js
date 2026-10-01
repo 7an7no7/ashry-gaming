@@ -515,6 +515,15 @@ export class Room extends DurableObject {
         dirty = presence = true;
       }
     }
+    // A phone on the HTTP fallback that stopped asking is away too, since its last ask ran out
+    // (a game's clock may read it: the duels' «خسران غياب»).
+    for (const [pid, at] of this.polled) {
+      if (now - at < ONLINE_WINDOW_MS || online.has(pid)) continue;
+      this.polled.delete(pid);
+      if (this.room.lastSeen[pid] || !this.room.players.some((p) => p.id === pid)) continue;
+      this.room.lastSeen[pid] = at + ONLINE_WINDOW_MS;
+      dirty = presence = true;
+    }
 
     // A host who has been gone a while hands the room to someone still here.
     const hostId = this.room.hostId;
@@ -1121,5 +1130,7 @@ export class Room extends DurableObject {
     await this.reportLive(ws);
     // The stand-ins' moment first; the alarm then waits for the handover.
     if (pid === this.room.hostId) await this.scheduleAlarm(this.room.lastSeen[pid] + HOST_STAND_IN_MS + 500);
+    // A game may have a clock that starts when a phone goes (the duels' «خسران غياب»: roomDeadline reads lastSeen).
+    else await this.scheduleAlarm();
   }
 }

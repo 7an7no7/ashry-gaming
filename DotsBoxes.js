@@ -106,6 +106,20 @@ function dotsFree(board) {
 }
 
 /**
+ * The last line on the board, when it is player p's and doesn't win them the
+ * game (it takes the last box, so it ends it) - drawn for them in a room
+ * (ROOM_FORCED_GAMES.dots); -1 otherwise. A winning line stays their own tap.
+ */
+function dotsOnlyMove(board, p) {
+  const free = dotsFree(board);
+  if (free.length !== 1) return -1;
+  const b = dotsClone(board);
+  if (!dotsPlay(b, free[0], p)) return -1;
+  const c = dotsCounts(b);
+  return c[p] > c[3 - p] ? -1 : free[0];
+}
+
+/**
  * Player p draws line e. Null when it is already drawn or not a line;
  * otherwise { edge, boxes (the boxes it took), again (it took one, so p moves
  * again), over (every box is taken) }.

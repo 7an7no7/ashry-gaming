@@ -263,6 +263,39 @@ Continue goes), so the phone never takes a friend's seat.
 
 **The pills' memory is the pair's (the review of 1 Oct 2026).** `duelPillsAfter` in a room is keyed by `duelRoomPillKey(prefix, state)`: the room and the two seated ids, so the next in line's pill never counts up from the score of whoever sat there before (كونكت ٤, نقط ومربعات, إكس أو, and خمّن مين and حرب السفن, which share it).
 
+### The move made for you, and «خسران غياب» (the review of 1 Oct 2026)
+
+**One thing to do is done for you** (the owner's rule; it used to say "the duels register
+nothing"). `ROOM_FORCED_GAMES.connect4 / dots / xo` (`duelForced` in `RoomDuels.js`) play,
+after the usual beat (`ROOM_FORCED_DELAY_MS`), the only move of the seat to move: كونكت ٤'s
+one open column (`c4OnlyMove`), إكس أو's one empty square (`xoOnlyMove`; never with 3 marks
+only, which always leaves three), and نقط ومربعات's last line (`dotsOnlyMove`) - **never when
+that move wins**, which stays the player's own tap (a dots last line "wins" when the mover
+ends with more boxes). The helpers live in the shared rule files, so the phone asks the
+same question: `duelRoomOnly` turns «دورك» into `duel_auto_c4 / _dots / _xo`. In a
+tournament the hook looks at every match being played (the first with such a move; its
+payload carries `match` and `mg`).
+
+**«خسران غياب».** A seated phone gone `DUEL_AWAY_MS` (60 s) **on its turn** loses this game
+(`reason: 'away'`), exactly as a loss on the board: the other scores, the loser goes to the
+back of the line and stays in the room; in a tournament it is that game lost (the match's
+reason `away`). It is the server's clock: `duelAwayDeadline` = `max(room.lastSeen[pid],
+shared.turnAt) + 60 s` (`turnAt` is stamped at every deal and move), in `gameDeadline` /
+`gameTimeout` and in `tourDuelKind`'s `deadline` / `timeout` (`tourRoomOf` and
+`tourDeadline` pass `lastSeen` along). `room.lastSeen` is room.js's "gone since" - set when a
+phone's last socket closes, when the alarm closes a silent one, and now also when a phone
+on the HTTP fallback stops polling; `gone()` now re-arms the alarm for any player, not only
+the host. `view.js` projects `away` (that time) on an offline player, so every other phone
+and the TV draw a counting chip under the status (`duelRoomAwayHtml`, `duelRoomAwayTick`,
+`.duel-away`; part of every duel signature), and the result says «خسران غياب»
+(`duel_away_lost`, the tournament's badge too). A phone back in time removes `lastSeen`,
+and with it the clock. Limitation: a socket that is open but silent counts as gone only
+once the alarm closes it (its `lastSeen` is then backdated to when it was last heard), so
+such a phone can lose with little or no count shown.
+
+Tests: `rules.mjs`, "duels:" (forced, near the other games' forced moves), "duel away:" (in
+the duels-in-rooms block) and "tournament away:".
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

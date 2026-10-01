@@ -296,7 +296,7 @@ function tourMatchCellHtml(state, m, tv) {
   let badge = '';
   if (m.state === 'play') badge = `<span class="tour-m__live"><i aria-hidden="true"></i>${escapeHTML(tourT('tour_live'))}</span>`;
   else if (m.state === 'ready') badge = `<span class="tour-m__soon">${m.games ? '🤝 ' : '⏳ '}${tourCountHtml(m.startAt, m.games ? 'tour_replay_in' : 'tour_starts_in')}</span>`;
-  else if (m.state === 'done' && m.reason === 'left' && m.winner) badge = `<span class="tour-m__note">${escapeHTML(tourT('tour_walkover'))}</span>`;
+  else if (m.state === 'done' && (m.reason === 'left' || m.reason === 'away') && m.winner) badge = `<span class="tour-m__note">${escapeHTML(tourT(m.reason === 'away' ? 'duel_away_lost' : 'tour_walkover'))}</span>`;
   else if (m.state === 'done' && m.draws) {
     const kind = TOUR_CLIENT[state.game];
     badge = `<span class="tour-m__note">${kind && kind.drawNote ? kind.drawNote(m) : '🤝 ' + escapeHTML(tourT('tour_after_draws', { n: m.draws }))}</span>`;
@@ -502,7 +502,7 @@ function tourMatchOverCardHtml(state, id, tv) {
     head = nm
       ? escapeHTML(tourT('tour_through', { name: '⁨' + tourName(state, m.winner) + '⁩', round: tourRoundName(tr, nm.r) }))
       : escapeHTML(tourT('tour_champ_line', { name: '⁨' + tourName(state, m.winner) + '⁩' }));
-    if (m.reason === 'left') head += ' · ' + escapeHTML(tourT('tour_walkover'));
+    if (m.reason === 'left' || m.reason === 'away') head += ' · ' + escapeHTML(tourT(m.reason === 'away' ? 'duel_away_lost' : 'tour_walkover'));
     if (!tv && !state.youAreScreen) {
       if (m.winner === Room.me && nm) {
         if (nm.state === 'ready' || nm.state === 'play') {

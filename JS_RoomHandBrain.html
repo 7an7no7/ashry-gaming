@@ -16,7 +16,7 @@
 
 // sel: the piece picked up; early: the Hand's move drawn before the server answers;
 // offset: the server's clock against this phone's; tick: the clocks' redraw; swap: a seat picked in the lobby.
-const hbLocal = { sel: '', selKey: '', early: null, offset: null, seenAt: '', tick: null, swap: null, seatsKey: '', turnKey: '', turnSince: 0, hostTimer: null, hostTimerKey: '', lastTick: -1 };
+const hbLocal = { sel: '', selKey: '', early: null, offset: null, seenAt: '', tick: null, swap: null, seatsKey: '', turnKey: '', turnSince: 0, hostTimer: null, hostTimerKey: '', lastTick: -1, recall: null, recallKey: '', touchKey: '' };
 
 // The six pieces the Brain names, as Chess.js numbers them (6 king … 1 pawn), and their letters.
 const HB_NAME_ORDER = [6, 5, 4, 3, 2, 1];
@@ -125,6 +125,66 @@ function hbNameKind(kind) {
   roomAct('name', { kind: kind, n: s.chess.moves });
 }
 
+/* --- a wrong call taken back (the review of 1 Oct 2026) ---------------------------------
+   The Brain may change the call for 3 s, or until the Hand picks up a piece
+   ('recall' / 'touch' in RoomHandBrain.js, both carrying the call's number). */
+const HB_RECALL_PAGE_MS = 3000;     // as HB_RECALL_MS in RoomHandBrain.js
+
+/** How long the Brain may still change the call (by the server's time), or 0. */
+function hbRecallLeft(state) {
+  const s = hbShared(state);
+  if (s.phase !== 'play' || s.stage !== 'move' || !s.named || s.named.touched || typeof s.named.at !== 'number' || !s.chess || s.chess.result) return 0;
+  return Math.max(0, s.named.at + HB_RECALL_PAGE_MS - roomServerNow());
+}
+
+function hbRecallKind(kind) {
+  const state = Room.state;
+  const s = hbShared(state);
+  if (!state || !s.named || hbRecallLeft(state) <= 0) return;
+  const team = (s.teams || [])[s.chess.g.turn] || [];
+  if (team[0] !== Room.me || kind === s.named.kind) return;
+  if (hbKindsOf(s.chess.g).indexOf(kind) === -1) { chSound('refuse'); return; }
+  haptic('light');
+  roomAct('recall', { kind: kind, n: s.chess.moves, call: s.callSeq });
+}
+
+/** The Hand picked up a piece: the Brain's call is final now (sent once a call, only while it could change). */
+function hbTouch(state) {
+  const s = hbShared(state);
+  if (!s.named || s.named.touched || hbRecallLeft(state) <= 0 || hbIsBot(state, s.named.by)) return;
+  const key = [roomDealKey(state), s.chess.moves, s.callSeq].join('|');
+  if (hbLocal.touchKey === key) return;
+  hbLocal.touchKey = key;
+  Promise.resolve(Room.act('touch', { move: s.chess.moves, call: s.callSeq })).catch(() => {});
+}
+
+/** The Brain's count of its 3 s, and a redraw when they are over (the buttons go). */
+function hbRecallTick(state) {
+  const left = hbRecallLeft(state);
+  const s = hbShared(state);
+  const key = left > 0 ? [roomDealKey(state), s.chess.moves, s.callSeq].join('|') : '';
+  if (!key) { hbRecallStop(); return; }
+  const paint = () => {
+    const secs = String(Math.max(0, Math.ceil(hbRecallLeft(Room.state || state) / 1000)));
+    document.querySelectorAll('[data-hb-recall]').forEach(el => { if (el.textContent !== secs) el.textContent = secs; });
+  };
+  paint();
+  if (hbLocal.recallKey === key && hbLocal.recall && hbLocal.recall.isRunning()) return;
+  hbRecallStop();
+  hbLocal.recallKey = key;
+  hbLocal.recall = createClock({
+    ms: left,
+    onTick: paint,
+    onEnd: () => { hbLocal.recall = null; hbLocal.recallKey = ''; hbRedraw(true); }
+  });
+}
+
+function hbRecallStop() {
+  if (hbLocal.recall) hbLocal.recall.stop();
+  hbLocal.recall = null;
+  hbLocal.recallKey = '';
+}
+
 /** The Hand's move: drawn now, sent, and taken back if the server says no. */
 function hbPlay(from, to, promo) {
   const state = Room.state;
@@ -142,7 +202,7 @@ function hbPlay(from, to, promo) {
   hbLocal.sel = '';
   haptic('light');
   hbRedraw();
-  Promise.resolve(Room.act('move', { from: from, to: to, promo: promo, move: bd.moves })).then(() => {
+  Promise.resolve(Room.act('move', { from: from, to: to, promo: promo, move: bd.moves, call: s.callSeq })).then(() => {
     // Answered without taking the move (dropped quietly, as a stale one is):
     // the room's own board comes back.
     const e = hbLocal.early;
@@ -213,6 +273,9 @@ function hbModel(state, tv, still) {
       canMove: true, side: side,
       onPick: (sq, fromDrag) => {
         if (wrongKind(sq)) { chSound('refuse'); if (hbLocal.sel) { hbLocal.sel = ''; hbRedraw(); } return false; }
+        // A piece of the kind named, picked up: the Brain can't change the call any more.
+        const code = view.g.board[chSqIndex(sq)];
+        if (code && (code >> 3) === side) hbTouch(state);
         return chTapLogic(ctx, sq, fromDrag);
       },
       onDrop: (from, to) => (wrongKind(from) ? (chSound('refuse'), false) : chDropLogic(ctx, from, to))
@@ -247,10 +310,10 @@ function hbCallHtml(state, tv) {
   if (s.phase !== 'play' || s.stage !== 'move' || !s.named) return '';
   const k = s.named.kind;
   const team = s.chess.g.turn;
-  const fresh = motionFirst(['hbcall', roomDealKey(state), s.named.n, tv ? 'tv' : 'p'].join('|'));
+  const fresh = motionFirst(['hbcall', roomDealKey(state), s.named.n, s.callSeq || 0, tv ? 'tv' : 'p'].join('|'));
   return `<div class="hb-call ${fresh ? 'is-fresh' : ''}">
       <span class="hb-call__pc" aria-hidden="true">${chPieceSvg(k | (team ? 8 : 0))}</span>
-      <span class="hb-call__txt">${escapeHTML(chT('hb_said', { name: hbName(state, s.named.by) }))} <b>${escapeHTML(hbPieceName(k))}!</b></span>
+      <span class="hb-call__txt">${escapeHTML(chT('hb_said', { name: hbName(state, s.named.by) }))} <b>${escapeHTML(hbPieceName(k))}!</b>${s.named.re ? ` <span class="badge">↺ ${escapeHTML(chT('hb_changed'))}</span>` : ''}</span>
     </div>`;
 }
 
@@ -292,6 +355,18 @@ function hbBarHtml(state) {
           <span class="hb-kind__pc" aria-hidden="true">${chPieceSvg(k | side)}</span><span class="hb-kind__name">${escapeHTML(hbPieceName(k))}</span>
         </button>`;
     }).join('')}</div>`);
+  } else if (mine.role === 0 && mine.team === bd.g.turn && s.stage === 'move' && s.named && hbRecallLeft(state) > 0) {
+    // A wrong tap: the six again for 3 s (or until the Hand picks a piece up), the call lit.
+    const kinds = hbKindsOf(bd.g);
+    const side = bd.g.turn ? 8 : 0;
+    parts.push(`<div class="hb-kinds" role="group" aria-label="${escapeHTML(chT('hb_change_hint'))}">${HB_NAME_ORDER.map(k => {
+      const on = kinds.indexOf(k) !== -1;
+      const picked = k === s.named.kind;
+      return `<button type="button" class="hb-kind ${picked ? 'is-picked' : ''}" ${on ? '' : 'disabled'} aria-pressed="${picked}" onclick="hbRecallKind(${k})">
+          <span class="hb-kind__pc" aria-hidden="true">${chPieceSvg(k | side)}</span><span class="hb-kind__name">${escapeHTML(hbPieceName(k))}</span>
+        </button>`;
+    }).join('')}</div>
+      <p class="field__hint hb-change">${escapeHTML(chT('hb_change_hint'))} · <b class="metric" data-hb-recall>${Math.ceil(hbRecallLeft(state) / 1000)}</b></p>`);
   } else if (mine.role === 0 && mine.team === bd.g.turn && s.stage === 'move') {
     parts.push(`<p class="field__hint" style="text-align:center">${escapeHTML(chT('hb_brain_wait'))}</p>`);
   }
@@ -357,6 +432,7 @@ function hbRender(state, still) {
   const myUp = hbActorOf(state) === Room.me;
   chSetHtml(el, '[data-ch-head]', `${hbPills(state)}${hbCallHtml(state)}<p class="duel-status ${over ? 'is-done' : ''} ${myUp ? 'is-mine' : ''}">${escapeHTML(hbStatus(state))}</p>`);
   chSetHtml(el, '[data-ch-bar]', hbBarHtml(state));
+  hbRecallTick(state);
   const view = hbBoard(state);
   const side = [];
   if (over) side.push(hbOverHtml(state));
@@ -386,9 +462,10 @@ function hbFirstSight(state) {
   const s = hbShared(state);
   const deal = roomDealKey(state);
   const n = s.named ? s.named.n : null;
+  const cs = s.callSeq || 0;   // a call the Brain changed is a new call: it pops and chimes again
   duelRoomFirstSight(state, 'hb|' + deal, {
-    motion: n !== null ? [['hbcall', deal, n, 'p'].join('|'), ['hbcall', deal, n, 'tv'].join('|')] : [],
-    once: (n !== null ? [['hbcue', deal, n].join('|')] : []).concat(s.phase === 'over' ? ['hbcheer|' + deal] : [])
+    motion: n !== null ? [['hbcall', deal, n, cs, 'p'].join('|'), ['hbcall', deal, n, cs, 'tv'].join('|')] : [],
+    once: (n !== null ? [['hbcue', deal, n, cs].join('|')] : []).concat(s.phase === 'over' ? ['hbcheer|' + deal] : [])
   });
 }
 
@@ -398,7 +475,7 @@ function hbCue(state) {
   if (s.phase !== 'play' || s.stage !== 'move' || !s.named) return;
   const mine = hbMine(state);
   const loud = duelRoomLoud(state) || (mine && mine.team === s.chess.g.turn);
-  if (duelOnce(['hbcue', roomDealKey(state), s.named.n].join('|')) && loud) chSound('hint');
+  if (duelOnce(['hbcue', roomDealKey(state), s.named.n, s.callSeq || 0].join('|')) && loud) chSound('hint');
 }
 
 function hbCheer(el, state) {
@@ -528,6 +605,7 @@ onRoomClocksReset(() => {
   hbLocal.sel = '';
   hbLocal.early = null;
   hbLocal.swap = null;
+  hbRecallStop();
 });
 
 /* --- the TV: the board big (3D), both teams, the Brain's word, the clocks, the moves ---------- */

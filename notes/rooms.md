@@ -173,7 +173,7 @@ ever speak for it from outside.
   the last tile), لودو (one piece that can move, or two on the same
   square; never the roll, never the last piece home) and بنك الحظ (a debt
   nothing can cover: bankrupt; a place there is no way to pay for: leave
-  it) and إستميشن (the one card allowed, the last trick included) and جمجمة (your only disc laid, your own pile turned over). The duels register nothing: a last move there is often the
+  it) and إستميشن (the one card allowed, the last trick included) and جمجمة (your only disc laid, your own pile turned over). And the duels (1 Oct 2026: the last column, square or line, never a winning one; `notes/games/duels.md`). Before that they registered nothing: a last move there is often the
   winning one. `roomForcedMove` is exported for the rules tests. The phone draws a line (`uno_auto_*`, `dom_auto_*`) where the
   button would have been.
 - A new game with bots registers `ROOM_BOT_GAMES.<id> = { max, pending,

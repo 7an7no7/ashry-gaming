@@ -492,7 +492,11 @@ function chPzDailyLevel(day) {
 
 /** Today's puzzle from the bank (the seed and the level from the day). */
 function chPzDailyPuzzle(day) {
-  const bank = chPzBank(chPzDailyLevel(day));
+  const level = chPzDailyLevel(day);
+  const bank = chPzBank(level);
+  const d = day || soloToday();
+  // From SOLO_CYCLE_FROM each level's bank is walked (soloDailyCycle); a day before keeps its pick.
+  if (d >= SOLO_CYCLE_FROM) return soloDailyCycle('chesspuzzle:' + level, bank, d)[0] || null;
   const rnd = soloRng(soloDaySeed('chesspuzzle', day));
   return bank[Math.floor(rnd() * bank.length)] || null;
 }

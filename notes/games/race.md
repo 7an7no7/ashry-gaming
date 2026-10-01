@@ -93,8 +93,13 @@ list (`ROOM_HUB_GROUPS.race`, `ROOM_HUB_FAMILIES.race`, a drawn icon
   0; `svRaceCheckClose` closes Fast 3 (the third done starts
   `SV_RACE_GRACE_MS`); `svRaceRank` (score, then finish order) pays
   `SV_RACE_POINTS` [10, 7, 5] and `SV_RACE_GRACE_POINTS` 2, or the engine's
-  10 + `SV_SPEED_BONUS` in «الكل يخلّص»; `svBoard` sorts a race by score
-  then seconds. A board is done at `b.at` (the server's time) - a plug-in's
+  10 + `SV_SPEED_BONUS` in «الكل يخلّص»; `svBoard` sorts a race by score,
+  then rounds solved, then seconds (the review of 1 Oct 2026: seconds are summed
+  over solves only, so fewer solves used to win). A board's finishing place is
+  stamped at the solve (`b.svPlace`, server only) and the grace is read from
+  it: a podium finisher who leaves no longer lifts a grace finisher to 5.
+  خيوط's deal records only the theme it plays in the prompt memory (it took
+  eight a deal), and كلمات من حروف's bonus takes `WHEEL_BONUS_WORDS` too. A board is done at `b.at` (the server's time) - a plug-in's
   board must not use `at` for anything else (*Traps*).
 - **The page** (`JS_RoomRace.html`, section 42 of `Style.html`): the lobby
   (`raceLobbyHtml`: rounds, the ending; `recallOptions('raceRoom')`), the

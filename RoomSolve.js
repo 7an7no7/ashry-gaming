@@ -315,10 +315,15 @@ const svRaceRank = (room) => {
   const h = room._solve || { boards: {} };
   const K = SOLVE_KINDS[s.solve];
   const top = s.settings && s.settings.finish === 'fast3' ? SV_RACE_POINTS.length : Infinity;
+  // The grace is read from the place each board finished in (b.svPlace, stamped at the solve), not
+  // from its place in s.solved: a podium finisher who leaves must not lift a grace finisher onto it.
   return (s.solved || []).filter(pid => h.boards[pid] && h.boards[pid].state === 'won')
-    .map((pid, at) => ({ pid: pid, at: at, grace: at >= top ? 1 : 0, score: K.score ? K.score(h.boards[pid], h.secret, s.settings) : 0 }))
+    .map((pid, at) => {
+      const place = typeof h.boards[pid].svPlace === 'number' ? h.boards[pid].svPlace : at;
+      return { pid: pid, at: at, grace: place >= top ? 1 : 0, score: K.score ? K.score(h.boards[pid], h.secret, s.settings) : 0 };
+    })
     .sort((a, b) => a.grace - b.grace || b.score - a.score || a.at - b.at)
-    .map(r => ({ pid: r.pid, at: r.at, score: r.score }));
+    .map(r => ({ pid: r.pid, at: r.at, score: r.score, grace: !!r.grace }));
 };
 
 /** The setter of this secret: the next in the order who is still here (latecomers join the end). */
@@ -362,18 +367,22 @@ const svAllDone = (room) => {
   return Object.keys(s.progress || {}).filter(id => here.indexOf(id) !== -1).every(id => s.progress[id].state !== 'play');
 };
 
-/** The board of the game: points, best first; on a tie, fewer tries first. */
+/**
+ * The board of the game: points, best first; on a tie, more rounds solved first (the seconds
+ * and tries are summed over the solves only, so fewer solves would otherwise win the tie), then
+ * fewer tries - or, in a race, fewer seconds (the owner, 26 Sep 2026).
+ */
 const svBoard = (room) => {
   const s = room.shared;
   const tries = s.tries || {};
+  const solves = s.solves || {};
   if (s.race) {
-    // The night's board: fewer seconds on a tie (the owner, 26 Sep 2026).
     const secs = s.secs || {};
-    return scoreboardOf(room).map(r => Object.assign(r, { secs: secs[r.id] || 0 }))
-      .sort((a, b) => b.score - a.score || a.secs - b.secs);
+    return scoreboardOf(room).map(r => Object.assign(r, { secs: secs[r.id] || 0, solves: solves[r.id] || 0 }))
+      .sort((a, b) => b.score - a.score || b.solves - a.solves || a.secs - b.secs);
   }
-  return scoreboardOf(room).map(r => Object.assign(r, { tries: tries[r.id] || 0 }))
-    .sort((a, b) => b.score - a.score || a.tries - b.tries);
+  return scoreboardOf(room).map(r => Object.assign(r, { tries: tries[r.id] || 0, solves: solves[r.id] || 0 }))
+    .sort((a, b) => b.score - a.score || b.solves - a.solves || a.tries - b.tries);
 };
 
 /** The round ends: whoever is still solving has failed, and the points go on the board. */
@@ -387,10 +396,11 @@ const svEndRound = (room) => {
   let failed = 0;
   s.tries = s.tries || {};
   s.secs = s.secs || {};
+  s.solves = s.solves || {};
   // A race: the finished ranked (svRaceRank); Fast 3 pays the first three 10 / 7 / 5 and the
   // grace's finishers 2, «الكل يخلّص» the engine's 10 + the order's bonus.
   const ranks = {};
-  if (s.race) svRaceRank(room).forEach((r, i) => { ranks[r.pid] = { at: i, score: r.score }; });
+  if (s.race) svRaceRank(room).forEach((r, i) => { ranks[r.pid] = { at: i, score: r.score, grace: r.grace }; });
   Object.keys(h.boards).forEach(pid => {
     const b = h.boards[pid];
     // Still solving when the round closed: out of time (⏳), not beaten (💀).
@@ -398,9 +408,10 @@ const svEndRound = (room) => {
     const at = s.race ? (ranks[pid] ? ranks[pid].at : -1) : s.solved.indexOf(pid);
     let pts = 0;
     if (b.state === 'won') {
-      if (s.race && s.settings.finish === 'fast3') pts = at < SV_RACE_POINTS.length ? SV_RACE_POINTS[at] : SV_RACE_GRACE_POINTS;
+      if (s.race && s.settings.finish === 'fast3') pts = ranks[pid] && !ranks[pid].grace && at < SV_RACE_POINTS.length ? SV_RACE_POINTS[at] : SV_RACE_GRACE_POINTS;
       else pts = SV_SOLVE_POINTS + (at !== -1 ? (SV_SPEED_BONUS[at] || 0) : 0);
       s.tries[pid] = (s.tries[pid] || 0) + b.n;
+      s.solves[pid] = (s.solves[pid] || 0) + 1;
       if (s.race) s.secs[pid] = (s.secs[pid] || 0) + svSecs(room, b);
     } else if (here.indexOf(pid) !== -1) {
       failed++;
@@ -446,6 +457,7 @@ const svNewGame = (room, playerId, kind, payload, again) => {
     scores: {},
     tries: {},
     secs: {},
+    solves: {},
     board: []
   };
   room.phase = 'play';
@@ -488,7 +500,8 @@ const solveAction = (room, playerId, action, payload) => {
     if (out === 'won') b.state = 'won';
     else if (out === 'lost' || (max && b.n >= max)) b.state = 'lost';
     if (b.state !== 'play') b.at = Date.now();
-    if (b.state === 'won') { s.solved.push(playerId); svRaceCheckClose(room); }
+    // Its finishing place, kept on the board: whoever leaves later can't move it (Fast 3's grace).
+    if (b.state === 'won') { s.solved.push(playerId); b.svPlace = s.solved.length - 1; svRaceCheckClose(room); }
     s.progress[playerId] = svProgressOf(room, b, b.state === 'won' ? s.solved.length - 1 : null);
     if (svAllDone(room)) { svEndRound(room); return; }
     svWriteSecrets(room);
@@ -528,7 +541,8 @@ const solveAction = (room, playerId, action, payload) => {
 
   if (action === 'nextRound') {
     requireMoveOn(room, playerId);
-    if (s.phase !== 'result') return;
+    // The round it was pressed for: a double tap must not deal two rounds (phones send it).
+    if (s.phase !== 'result' || staleTap(p, 'round', s.round)) return;
     if (svTooFew(room)) throw new Error('اللعبة دي محتاجة لاعبين على الأقل');
     s.round++;
     room.phase = 'play';

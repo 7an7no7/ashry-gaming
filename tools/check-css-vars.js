@@ -26,11 +26,7 @@ const READ_FROM = pageFiles.filter((f) => f !== 'Tailwind.html' && f !== 'Logo.h
 
 // Names read but declared nowhere, each with the reason it is let through. Keep it empty:
 // an entry that is now defined or no longer read is reported, so it can be taken out.
-const ALLOWED = new Map([
-  // The undercover result line on the TV (JS_RoomTv.html) - an inline style that is dropped,
-  // so the line inherits the frame's size. It is to read var(--tv-md); remove this when it does.
-  ['--fs-xl', 'JS_RoomTv.html: the undercover result line, to become var(--tv-md)'],
-]);
+const ALLOWED = new Map([]);
 
 const defined = new Set();
 const used = new Map(); // name -> first "file:line"

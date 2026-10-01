@@ -129,6 +129,20 @@ catalog, the help); the rules are named `skull` / `SKULL_`, the page's code
   plays again until a skull has taken a disc and a pile was half turned), and
   `play-all.mjs` (`--only=skull`: two people, a computer player and a TV to the
   end of a game, and play again).
+- **The TV round a table (1 Oct 2026, the owner's sheet)**: `sklTvFrame` lays the
+  seats round an oval table in the middle (`.skl-ring*`, section 54): the seats in
+  turn order down one side and back up the other, one above the table from 3 and
+  5 players and one below from 6 (7-8: three a side, smaller piles). Each seat is
+  the phone's `sklSeatHtml` drawn big (the colour avatar, the name at 3.6vmin, the
+  pile face down with its count and the turned discs, the bets won, the discs left,
+  the hand); whose turn it is glows. The table holds the phase: «1/4» big and «كل
+  واحد يحط قرص مقلوب» while discs are laid, otherwise whose turn it is and the bet
+  (`sklBetHtml`, with the flip pips), «هيعملها؟» (`sklGuessHtml`) and the result
+  (`sklResultHtml`, unboxed) - the table's corners open out for those two
+  (`.is-wide`). The round, «رهانين = فوز» and the clock sit above; the latest move,
+  the host's buttons (`data-skl-host`, refreshed in place) and the last two moves
+  at the foot. The flights still find their places (`data-pc-at`: seat, pile, flip,
+  and `mid` on the table). The end of the game keeps its own frame.
 
 ## History
 

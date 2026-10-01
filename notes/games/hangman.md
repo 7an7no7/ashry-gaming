@@ -151,6 +151,11 @@ The owner's rules are in *The owner's specs*.
   the option and keeps its form and button as they were. On a phone on its
   side the bar is one line at the end of the form, not stuck over it.
 
+- **The TV while the writer writes (1 Oct 2026)**: the writing phase on the TV is
+  the shared waiting stage `tvWaitStage` (JS_RoomTv.html), as in «one sets,
+  everyone solves»: the writer's chip lit, «مستنيين كلمة …» big, the others as big
+  chips; the host's move-on buttons stay under it.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

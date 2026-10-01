@@ -333,7 +333,51 @@ if (typeof onLeaveScreen === 'function') {
   onLeaveScreen((from) => { if (String(from).indexOf('room-') === 0 && SV_RACE_IDS.indexOf(from.slice(5)) !== -1) raceStageClear(); });
 }
 
-/* --- the TV: the puzzle's name, everyone's bar, the order they finished in, the clock ----------- */
+/* --- the TV: everyone a card, the clock big, how the race is won ------------------------------
+   The owner's sheet of 1 Oct 2026: the strip of thin full-width bars left the top and bottom thirds
+   of a TV empty. A card a player in a grid that takes the height (one column up to 3 players, two
+   from 4, three from 7): a bubble with the initial (👑 on the leader), the name big, a thick bar and
+   the count; a finished card turns green with its place and time. The bars grow (scaleX) and a
+   card that finishes pops, as the strip's rows did. */
+
+function raceTvCardsHtml(kind, state) {
+  const s = state.shared;
+  const prog = s.progress || {};
+  const ui = RACE_UI[kind] || {};
+  const t = TRANSLATIONS[appState.lang] || {};
+  const ids = Object.keys(prog).sort((a, b) => {
+    const pa = prog[a], pb = prog[b];
+    const ra = pa.state === 'won' ? 0 : pa.state === 'play' ? 1 : 2, rb = pb.state === 'won' ? 0 : pb.state === 'play' ? 1 : 2;
+    return ra - rb || (ra === 0 ? (pa.at || 0) - (pb.at || 0) : (pb.done || 0) - (pa.done || 0));
+  });
+  if (!ids.length) return '';
+  const unit = t[ui.unit || ''] || '';
+  // The leader: whoever finished first, else the furthest on (nobody while everyone is at 0).
+  const lead = ids.find(id => prog[id].state === 'won' || (prog[id].state === 'play' && (Number(prog[id].done) || 0) > 0)) || null;
+  const cols = ids.length >= 7 ? 3 : ids.length >= 4 ? 2 : 1;
+  const cards = ids.map(id => {
+    const p = prog[id];
+    const total = Math.max(1, Number(p.total) || 1);
+    const done = Math.max(0, Math.min(total, Number(p.done) || 0));
+    const won = p.state === 'won';
+    const st = won ? `✅ ${escapeHTML(svT('hm_place', { n: (p.at || 0) + 1 }))}${typeof p.secs === 'number' ? ` · <span class="metric">${escapeHTML(soloTime(p.secs))}</span>` : ''}`
+      : p.state === 'lost' ? `<span aria-hidden="true">${p.timeUp ? '⏳' : '💀'}</span>` : `<span class="race-row__dots" aria-hidden="true"><i></i><i></i><i></i></span>`;
+    const pop = won && motionFirst(['race-won', state.code, s.dealId, s.round, id, 'tv'].join('|'));
+    const isLead = id === lead;
+    return `<div class="race-card is-${p.state} ${isLead ? 'is-lead' : ''} ${pop ? 'is-new' : ''}">
+        <span class="race-card__av" aria-hidden="true">${isLead ? '👑' : tvInitial(state, id)}</span>
+        <span class="race-card__mid">
+          <span class="race-card__name"><bdi>${escapeHTML(svName(state, id))}</bdi></span>
+          <span class="race-row__bar race-card__bar" aria-hidden="true"><i style="--p:${won ? 1 : done / total}"></i></span>
+        </span>
+        <span class="race-card__end">
+          <span class="race-card__n metric" dir="ltr">${won ? total : done}<small>/${total}</small></span>
+          <span class="race-card__st">${st}${unit && p.state === 'play' ? ` <small>${escapeHTML(unit)}</small>` : ''}</span>
+        </span>
+      </div>`;
+  }).join('');
+  return `<div class="race-cards race-cards--c${cols}">${cards}</div>`;
+}
 
 function raceTvFrame(kind, state, t) {
   const s = state.shared || {};
@@ -342,10 +386,13 @@ function raceTvFrame(kind, state, t) {
   const host = (buttons) => (state.youAreHost && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
   // The buttons that only move the game on: anyone's once the host is away (raceTvSig carries it).
   const moveOn = (buttons) => (roomCanMoveOn(state) && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
-  const top = `<div class="tv-top">
-      <span class="tv-pill">${raceIcon(kind)} ${escapeHTML(raceName(kind))} · ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
-      <span class="tv-pill">${escapeHTML(t[s.settings.finish === 'fast3' ? 'race_finish_fast3' : 'race_finish_all'] || '')}</span>
-      ${s.endsAt && s.phase === 'solving' ? '<span class="tv-pill" data-sv-clock></span>' : ''}
+  const fast3 = s.settings.finish === 'fast3';
+  const top = `<div class="tv-top race-tv__top">
+      <span class="race-tv__chips">
+        <span class="tv-pill">${raceIcon(kind)} ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
+        <span class="tv-pill">${escapeHTML(t[fast3 ? 'race_finish_fast3' : 'race_finish_all'] || '')}</span>
+      </span>
+      ${s.endsAt && s.phase === 'solving' ? '<span class="race-tv__clock metric" dir="ltr" data-sv-clock="mmss"></span>' : ''}
     </div>`;
   if (s.phase === 'gameover') {
     return `<div class="tv-vote" data-accent="${accent}">
@@ -362,13 +409,11 @@ function raceTvFrame(kind, state, t) {
   }
   const ui = RACE_UI[kind] || {};
   const line = ui.tvLine ? ui.tvLine(s.pub || {}, t) : '';
-  return `<div class="tv-trivia sv-tv race-tv" data-accent="${accent}">${top}
-      <div class="sv-tv__head">
-        <div class="tv-big-icon" aria-hidden="true">${raceIcon(kind)}</div>
-        ${line ? `<div class="tv-title">${line}</div>` : ''}
-        ${raceClosingHtml(state)}
-      </div>
-      ${raceRowsHtml(kind, state, true)}
+  const closing = raceClosingHtml(state);
+  return `<div class="tv-trivia race-tv" data-accent="${accent}">${top}
+      ${line || closing ? `<div class="sv-tv__head">${line ? `<div class="tv-title">${line}</div>` : ''}${closing}</div>` : ''}
+      ${raceTvCardsHtml(kind, state)}
+      <p class="race-tv__how">${escapeHTML(t[fast3 ? 'race_finish_fast3_hint' : 'race_finish_all_hint'] || '')}</p>
       ${moveOn(raceHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
     </div>`;
 }

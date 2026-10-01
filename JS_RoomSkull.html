@@ -1094,15 +1094,47 @@ function sklTvFrame(state, t) {
         <div class="skl-tv__side tv-scale">${sklOverHtml(state, true)}</div>
       </div>`;
   }
+  // The table in the middle of the screen, the seats round it in turn (the owner's sheet of 1 Oct
+  // 2026): the side columns first-to-last down one side and back up the other, a seat above and
+  // below the table from 5 and 6 players. The table holds the phase's line, the bet, «هيعملها؟» and
+  // the result; the latest move and the log under it.
+  const seats = sklSeats(state);
+  const n = seats.length;
+  const top = n === 3 || n >= 5 ? 1 : 0;
+  const bottom = n >= 6 ? 1 : 0;
+  const sideB = Math.floor((n - top - bottom) / 2);
+  const sideA = n - top - bottom - sideB;
+  const ring = seats.slice();
+  const take = (k) => ring.splice(0, k);
+  const topIds = take(top), aIds = take(sideA), bottomIds = take(bottom), bIds = take(sideB).reverse();
+  const seatsHtml = (ids) => ids.map(pid => sklSeatHtml(state, pid, true)).join('');
+  let line;
+  if (s.phase === 'place') {
+    line = `<div class="skl-ring__big metric" dir="ltr">${(s.placed || []).length}/${(s.alive || []).length}</div>
+      <div class="skl-ring__sub">${escapeHTML(pcT('skl_place_all'))}</div>
+      <p class="skl-total">${escapeHTML(pcT('skl_on_table', { n: Number(s.total) || 0 }))}</p>`;
+  } else {
+    // While discs are added the bubble already names whose turn it is.
+    const words = s.phase === 'add' ? '' : sklTurnWords(state);
+    line = `${words ? `<div class="skl-ring__turn">${escapeHTML(words)}</div>` : ''}${s.phase === 'result' ? '' : sklBetHtml(state, true)}`;
+  }
   const host = `<span data-skl-host class="skl-tv__host"></span>`;
-  return `<div class="skl-tv">
-      <div class="skl-tv__table">${sklTableHtml(state, true)}</div>
-      <div class="skl-tv__side">
-        ${sklHeadHtml(state)}
-        <div class="skl-tv__turn">${escapeHTML(sklTurnWords(state))}</div>
-        ${sklBetHtml(state, true)}
-        ${s.phase === 'guess' ? sklGuessHtml(state, true) : ''}
-        ${s.phase === 'result' ? sklResultHtml(state, true) : ''}
+  return `<div class="skl-tv skl-ring skl-ring--n${Math.min(n, 8)}">
+      <div class="skl-ring__top">${sklHeadHtml(state)}</div>
+      <div class="skl-ring__board">
+        <div class="skl-ring__side">${seatsHtml(aIds)}</div>
+        <div class="skl-ring__mid">
+          ${topIds.length ? `<div class="skl-ring__cap">${seatsHtml(topIds)}</div>` : ''}
+          <div class="skl-ring__table ${s.phase === 'result' || s.phase === 'guess' ? 'is-wide' : ''}" data-pc-at="mid">
+            ${line}
+            ${s.phase === 'guess' ? sklGuessHtml(state, true) : ''}
+            ${s.phase === 'result' ? sklResultHtml(state, true) : ''}
+          </div>
+          ${bottomIds.length ? `<div class="skl-ring__cap">${seatsHtml(bottomIds)}</div>` : ''}
+        </div>
+        <div class="skl-ring__side">${seatsHtml(bIds)}</div>
+      </div>
+      <div class="skl-ring__foot">
         ${sklLatestHtml(state, true)}
         <div class="tv-actions">${host}</div>
         ${sklLogHtml(state, 2)}

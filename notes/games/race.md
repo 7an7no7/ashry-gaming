@@ -134,6 +134,18 @@ list (`ROOM_HUB_GROUPS.race`, `ROOM_HUB_FAMILIES.race`, a drawn icon
   Chrome (three phones and a TV through a race of each game) at 375×812
   Arabic light and 1280×720 English dark, a reload mid-race, Help, no console
   errors.
+- **The TV during a race (1 Oct 2026, the owner's sheet)**: a card a player
+  (`raceTvCardsHtml` in `JS_RoomRace.html`, `.race-cards` / `.race-card` in section
+  42) in a grid that takes the stage's height - one column for 1-3 players, two from
+  4, three from 7 (`.race-cards--c1/2/3`, rows grow to 25vmin): a bubble with the
+  initial (👑 on the leader: the first finished, else the furthest on), the name at
+  4vmin, a thick bar (the strip's `race-row__bar`, scaleX) and the count big
+  (n/total); a finished card turns green with ✅ its place and time, a lost one
+  fades with ⏳/💀; a card that finishes pops once (`motionFirst`). The round and the
+  ending are pills at the top, the clock a big accent pill read in minutes
+  (`data-sv-clock="mmss"`, painted by `svTickClock`, red under 10 s), and the
+  ending's rule (`race_finish_all_hint` / `race_finish_fast3_hint`) is the line at
+  the foot. The result and the podium frames are as they were.
 
 ## History
 

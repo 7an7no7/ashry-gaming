@@ -92,7 +92,7 @@ All the numbers are in `Vault.js` (`vaultLevel` and the `VAULT_*` constants).
 
 Game id `vault` everywhere (`room-vault`, `ROOM_GAMES.vault`, `TV_GAMES.vault`, the catalog, the
 help); the rules are named `vault` / `VAULT_`, the page's code `vt` / `VT_`, the stylesheet
-section 61 (`.vt-*`). Accent amber; the party section; a drawn icon (`art:vault`: the chest with a
+section 63 (`.vt-*`). Accent amber; the party section; a drawn icon (`art:vault`: the chest with a
 brass padlock).
 
 - **`Vault.js`** (shared, no DOM; inlined into the page through `SHARED_LISTS`, bundled into the

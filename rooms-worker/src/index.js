@@ -220,6 +220,9 @@ const limiter = (limit, windowMs) => {
 const packCreateAllowed = limiter(20, 10 * 60 * 1000);
 const packSaveAllowed = limiter(200, 10 * 60 * 1000);
 const packGetAllowed = limiter(400, 10 * 60 * 1000);
+// «الشلة»'s lookup by code has its brake too: a hit answers with every member's id, and a
+// member is claimed with the code alone, so codes mustn't be tried one after another.
+const crewPeekAllowed = limiter(120, 10 * 60 * 1000);
 const PACK_KINDS = ['quiz', 'words'];
 const packStub = (env, code) => env.PACKS.get(env.PACKS.idFromName('pack:' + code));
 
@@ -364,7 +367,8 @@ export default {
       } catch (e) {
         return json({ ok: false, error: 'bad request' }, 400);
       }
-      if ((url.pathname === '/crew/create' || url.pathname === '/crew/join') && !crewAllowed(request)) {
+      if (((url.pathname === '/crew/create' || url.pathname === '/crew/join') && !crewAllowed(request)) ||
+          (url.pathname === '/crew/peek' && !crewPeekAllowed(request))) {
         return json({ ok: false, error: 'حاولت كتير في وقت قصير، استنى شوية وجرب تاني' }, 429);
       }
       try {

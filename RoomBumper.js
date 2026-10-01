@@ -156,9 +156,13 @@ const bumperEnd = (room, scores) => {
   if (s.reported && rows.length > 1 && winners.length && winners.length < rows.length) {
     winners.forEach(r => { s.wins[r.id] = (s.wins[r.id] || 0) + 1; });
   }
+  // The drivers of this round only (a phone that joined to watch isn't on it), the evening's
+  // wins first and level wins by this round's places (`tie`, boardRowKey in RoomGames.js).
+  const placeOf = (id) => { const r = s.reported ? rows.find(x => x.id === id) : null; return r ? r.place : null; };
   s.board = room.players
-    .map(p => ({ id: p.id, name: p.name, score: s.wins[p.id] || 0 }))
-    .sort((a, b) => b.score - a.score);
+    .filter(p => s.roster.indexOf(p.id) !== -1)
+    .map(p => ({ id: p.id, name: p.name, score: s.wins[p.id] || 0, tie: placeOf(p.id) }))
+    .sort((a, b) => (b.score - a.score) || ((a.tie || 99) - (b.tie || 99)));
   s.phase = 'over';
 };
 

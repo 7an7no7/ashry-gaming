@@ -54,7 +54,9 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
   «التالي لوحده» is set on for the games that have it (a program runs by itself). A game
   switched off since the program was set is skipped. The prompt memory is loaded for the
   alarm that deals (`programTimeoutDeals` in `roomTimeoutDeals`), and `programSkip` is a
-  `DEAL_ACTION` in `room.js`.
+  `DEAL_ACTION` in `room.js`. So is a family pack the next game's options name
+  («اعمل مسابقتك», «كلماتنا»): `programNextPack` in `room.js` reads it for the alarm and
+  the skip (or «لعبة أخرى») that deal it, as `_packIn` - it used to wait with "not found".
 - **The end of a game** (`programGameOver`): `roomGameIsOver` (gameover / over, a
   tournament's end, the one-round spy games' result), plus the games with no end of their
   own, ended after `PROGRAM_ROUNDS`: لو خيروك، مين أكثر واحد، موجة، كلمة واحدة، القنبلة 5,
@@ -67,7 +69,11 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
   شطرنج بالتصويت، المخ والإيد، باغ هاوس) place the winning side first and the other second.
   `PROGRAM_COOP` games, and a finished game where everyone is level, put everyone first
   (5 each, no first places counted). Someone who played but isn't on the board goes after
-  it. Computer players take their place but earn nothing and aren't on the table.
+  it. Computer players take their place but earn nothing and aren't on the table. A row's
+  standing is its score and its `tie` (`boardRowKey`, RoomGames.js): الكراسي and the bumper
+  cars break level wins by the game's places, so their one game ranks by the order out. The
+  room's own night reads a board the same way (`nightBoardOf`: the roster's rows only, a
+  team game with no board of its own as its sides).
 - **Leaving a game** (`programLeaveGame`): what the host's back-to-the-games does -
   `bankNightPoints` (so the room's own «ليلتنا» and a crew's night count the game as ever),
   `settlePredictions`, `clearGameState`, the bots parked.

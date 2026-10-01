@@ -142,7 +142,7 @@ const snakesNewRoomGame = (room, playerId, action, p) => {
     : (SNAKES_CLOCKS.indexOf(Number(was.turnClock)) !== -1 ? Number(was.turnClock) : 0);
   const filled = snakesFillColors(ids, colors);
   // Who starts: drawn at random; the rest follow in a random order.
-  const order = ids.slice().sort(() => Math.random() - 0.5);
+  const order = shuffled(ids);   // Fisher-Yates: a random comparator in sort() favours the first seats
   const g = snakesNewGame(order, filled, snakesNewSeed(Math.random), Date.now(), { teardown: action === 'playAgain' });
   // Carried over a play again, so a tap or an animation from the last game is never taken for this one.
   g.turnSeq = (prev.turnSeq || 0) + 1;

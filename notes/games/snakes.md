@@ -77,7 +77,9 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
       the table.
     - **Who starts is drawn at random**, and the others follow in a random
       order (no roll-off: nobody has a choice in it, and the building already
-      takes 5 seconds).
+      takes 5 seconds). A real shuffle (`shuffled`): the first version sorted
+      with a random comparator, which let the first in the room start 44% of
+      the time with three (the audit of 1 Oct 2026).
     - **Six colours** (red, blue, yellow, green, pink, violet), picked in the
       lobby like لودو's; with seven or more the host picks the six.
     - **One kind of computer player**: one lobby button with no level

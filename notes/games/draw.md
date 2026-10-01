@@ -69,6 +69,12 @@ Coordinates are quantised to a 0–255 grid and packed flat (`[x,y,x,y,…]`), w
 hard budget of `DRAW_MAX_POINTS`; a stroke that would exceed it is truncated, not
 dropped, so the drawing degrades rather than breaking.
 
+**الفنان المزيف: the fake leaving before the vote has named them** (the audit of 1 Oct
+2026) ends the round as الجاسوس, الحرباء and الموقع السري do: `roomPlayerLeft` sets
+`impostorLeft`, `fakeId`, `fakeName` (they are gone from the room) and `fakeCaught: false`,
+and `finishFakeArtist(room, 'revealed')` shows the word with nobody scoring. It used to draw
+on, vote without them, and tell the table the fake had escaped.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

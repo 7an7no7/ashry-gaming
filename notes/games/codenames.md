@@ -24,6 +24,11 @@ press (`cnLocal.pending`), so a mis-tap never costs the turn. The sides, the
 options and the score survive "play again" and a trip to the hub (`_teamsMemo`,
 `_cnMemo`).
 
+**The night counts it by team** (the audit of 1 Oct 2026): `shared.board` is the cards,
+so `nightBoardOf` (RoomGames.js) ranks the sides through `PROGRAM_TEAMS.codenames` - the
+winning team first - for the room's night, a crew's night and «مين هيكسب؟», as the
+program always did.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

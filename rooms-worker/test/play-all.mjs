@@ -906,7 +906,7 @@ async function quizRobots() {
   await H.must('chooseGame', { game: 'trivia' });
   check((await H.act('start', { lang: 'ar', pack: 'ZZZZZZ' })).ok === false, 'quiz/trivia: a code with no quiz is refused');
   await H.must('start', { lang: 'ar', count: 10, pack: made.code });
-  await all(people.concat([TV]), (s) => s.shared.phase === 'answering' && s.shared.quiz && s.shared.quiz.code === made.code && s.shared.totalQuestions === 3,
+  await all(people.concat([TV]), (s) => s.shared.phase === 'answering' && s.shared.quiz && !('code' in s.shared.quiz) && s.shared.totalQuestions === 3,
     'quiz/trivia: every screen gets the family\'s quiz, all three questions');
   check(people.concat([TV]).every((b) => !('correctAnswer' in b.state.shared) && !leaks(b, '"questions"')), 'quiz/trivia: the answer and the quiz itself stay on the server');
   check(H.state.shared.question.indexOf('مين أول واحد في العيلة اتجوز؟') !== -1, 'quiz/trivia: the first question is the author\'s first');

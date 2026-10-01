@@ -145,12 +145,27 @@ const crewCleanNight = (input, members, now) => {
   const inp = input || {};
   const byId = new Set(members.map(m => m.id));
   const byName = new Map(members.map(m => [crewFold(m.name), m.id]));
-  const who = (r) => {
-    const name = crewCleanName(r && r.name, CREW_MEMBER_NAME_MAX);
-    const m = r && byId.has(r.member) ? r.member : (byName.get(crewFold(name)) || null);
-    return { m, n: name };
+  // One room name per member: a member playing under another name with a proven link, and a
+  // guest whose name folds to theirs, were two rows of one member - their points and nights
+  // counted twice. A proven link is claimed first (the most points first), then a name match;
+  // a second claim on a member already taken is a guest.
+  const decided = new Map();   // room name -> member id, or null for a guest
+  const taken = new Set();
+  const claim = (n, m) => {
+    if (decided.has(n)) return;
+    if (m && !taken.has(m)) { taken.add(m); decided.set(n, m); } else decided.set(n, null);
   };
-  const rows = (Array.isArray(inp.rows) ? inp.rows : []).slice(0, 12).map(r => Object.assign(who(r), { p: Math.max(0, Math.floor(Number(r.points) || 0)) }))
+  const src = (Array.isArray(inp.rows) ? inp.rows : []).slice(0, 12).filter(r => r && typeof r === 'object')
+    .sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
+  const cleanName = (r) => crewCleanName(r && r.name, CREW_MEMBER_NAME_MAX);
+  src.forEach(r => { if (byId.has(r.member)) claim(cleanName(r), r.member); });
+  src.forEach(r => { const n = cleanName(r); claim(n, byName.get(crewFold(n)) || null); });
+  const who = (r) => {
+    const name = cleanName(r);
+    claim(name, r && byId.has(r.member) ? r.member : (byName.get(crewFold(name)) || null));
+    return { m: decided.get(name), n: name };
+  };
+  const rows = src.map(r => Object.assign(who(r), { p: Math.max(0, Math.floor(Number(r.points) || 0)) }))
     .filter(r => r.n && r.p > 0).sort((a, b) => b.p - a.p);
   const start = Number(inp.start) > 0 ? Number(inp.start) : now;
   const keep = (list, max, extra) => (Array.isArray(list) ? list : []).slice(0, max).map(r => Object.assign(who(r), extra(r))).filter(r => r.n);
@@ -190,8 +205,10 @@ const crewTable = (nights, members, month) => {
   const rows = members.map(m => ({ id: m.id, name: m.name, won: 0, points: 0, played: 0 }));
   const by = new Map(rows.map(r => [r.id, r]));
   nights.filter(n => n.month === month).forEach(n => {
-    (n.rows || []).forEach(r => { const row = r.m && by.get(r.m); if (row) { row.played++; row.points += r.p; } });
-    crewNightWinners(n).forEach(r => { const row = r.m && by.get(r.m); if (row) row.won++; });
+    // A member counts once a night (a night kept before crewCleanNight made it so may hold two rows).
+    const seen = new Set(), won = new Set();
+    (n.rows || []).forEach(r => { const row = r.m && !seen.has(r.m) && by.get(r.m); if (row) { seen.add(r.m); row.played++; row.points += r.p; } });
+    crewNightWinners(n).forEach(r => { const row = r.m && !won.has(r.m) && by.get(r.m); if (row) { won.add(r.m); row.won++; } });
   });
   return rows.sort((a, b) => b.won - a.won || b.points - a.points || b.played - a.played || String(a.name).localeCompare(String(b.name)));
 };

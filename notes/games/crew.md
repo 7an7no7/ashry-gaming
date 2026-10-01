@@ -28,7 +28,9 @@ play, and every night's history. A night counts only when its room was opened
   Computer players are left out; a leaver keeps their name.
 - `crewCleanNight(input, members, now)`: a night as the crew keeps it; a row's
   member is the id the room proved (`crewLinks`) or the folded name (`crewFold`,
-  أحمد = احمد); anyone else is a guest (`m: null`).
+  أحمد = احمد); anyone else is a guest (`m: null`). One room name per member a
+  night: a proven link claims first, then a name match; a second claim on a
+  member already taken is a guest (and `crewTable` counts a member once a night).
 - `crewTable(nights, members, month)`: every member, sorted by nights won, then
   points, then nights played. `crewNightWinners`: the rows on top (a tie is a win
   for each; a guest alone on top means no member won).
@@ -54,7 +56,8 @@ play, and every night's history. A night counts only when its room was opened
   refused as `NAME_TAKEN` with its id: the sheet says "tap your name"), `/crew/peek
   { code }` (name and members, never a key or a night), `/crew/get { code, key }`,
   `/crew/act { code, key, action, payload }`. `create` and `join` are limited per
-  address (30 in 10 minutes, `CREW_LIMIT`).
+  address (30 in 10 minutes, `CREW_LIMIT`), and `peek` too (120 in 10 minutes,
+  `crewPeekAllowed`: a hit names every member, and a member is claimed with the code).
 - Actions: `rename`, `renameMember`, `removeMember`, `handOver` (the manager only:
   `managerId === the key's member`), `leave` (anyone; a manager leaving hands the
   crew to whoever has been in longest; the last member leaving deletes the crew),

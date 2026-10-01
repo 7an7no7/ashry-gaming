@@ -65,6 +65,11 @@ small row under the strip («🐵 تبديل: name», then who takes the place).
 modes مفيش عندي moves to the bar too, and the send button is `btn--send`. The rules,
 the verdict, the flip, the moments and the TV are as they were.
 
+**The board carries a score** (the audit of 1 Oct 2026): `monkeyBoard`'s rows have
+`score` = the quarters, fewest first, so the room's night, «مين هيكسب؟» and the program
+rank ربع قرد by its places like every other game (it used to bank nothing, and the program
+gave everyone first place).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

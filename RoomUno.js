@@ -167,6 +167,13 @@ const unoSettings = (p, was) => {
 /** Deals a round: seven each, a card turned up, and that card's effect on the first player. */
 const unoDeal = (room) => {
   const s = room.shared;
+  // The seat after the last round's starter, counted in the order as it stands now (before
+  // anyone gone is taken out): s.round alone skipped a seat once someone before it had left.
+  // A starter who left mid-round left their successor in their seat (s.startSeat).
+  const old = s.order.slice();
+  const prevAt = s.round && s.start ? old.indexOf(s.start) : -1;
+  const from = prevAt !== -1 ? prevAt + 1 : (s.round && typeof s.startSeat === 'number' ? s.startSeat : 0);
+  s.startSeat = null;
   s.order = s.order.filter(id => unoHere(room, id));
   s.round = (s.round || 0) + 1;
   const n = s.order.length;
@@ -176,7 +183,11 @@ const unoDeal = (room) => {
   const g = { deck: kinds.map((k, j) => ({ i: ids[j], k: k })), pile: [], hands: {}, drawnId: null, nextId: kinds.length };
   room._uno = g;
   // The player after the dealer starts; the dealer moves on one seat every round.
-  const start = (s.round - 1) % n;
+  let start = 0;
+  for (let k = 0; k < old.length; k++) {
+    const at = s.order.indexOf(old[(from + k) % old.length]);
+    if (at !== -1) { start = at; break; }
+  }
   s.order.forEach(id => { g.hands[id] = []; });
   for (let c = 0; c < UNO_HAND; c++) {
     for (let k = 0; k < n; k++) g.hands[s.order[(start + k) % n]].push(g.deck.pop());
@@ -718,6 +729,8 @@ const unoPlayerLeft = (room, playerId, name) => {
     const next = s.order.length > 1 ? unoNext(room, playerId) : null;
     if (s.phase === 'play' && g.hands[playerId]) g.deck = g.hands[playerId].concat(g.deck);
     delete g.hands[playerId];
+    // The round's starter leaving: the next round starts from whoever now sits in that seat.
+    if (s.start === playerId) s.startSeat = seat;
     s.order.splice(seat, 1);
     s.said = (s.said || []).filter(id => id !== playerId);
     if (s.unoCatch === playerId) s.unoCatch = null;

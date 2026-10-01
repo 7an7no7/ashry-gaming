@@ -10265,9 +10265,10 @@ Date.now = duelTestClock;
   const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
   const witRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'witness' }); return r; };
   const gone = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id.toUpperCase()); };
-  // The lineup: six, one gender, never two alike, each look-alike close to the real one.
+  // The lineup: six, one gender, never two alike, each look-alike close to the real one,
+  // and the real one not given away by being the centre of the six (the audit of 1 Oct 2026).
   {
-    let ok = true, oneGender = true, close = true, names = true;
+    let ok = true, oneGender = true, close = true, names = true, centre = 0;
     const KEYS = ['hair', 'style', 'hijab', 'beard', 'mous', 'brows', 'eyes', 'mouth', 'freckles', 'rosy', 'mole', 'wrinkles', 'glasses', 'sun', 'phones', 'cap', 'ear', 'necklace', 'scarf', 'top', 'tie', 'pattern', 'shirt', 'skin'];
     const featureDiff = (a, b) => KEYS.filter((k) => JSON.stringify(a[k] === undefined ? null : a[k]) !== JSON.stringify(b[k] === undefined ? null : b[k])).length;
     for (let k = 0; k < 400; k++) {
@@ -10277,12 +10278,18 @@ Date.now = duelTestClock;
       if (L.faces.some((x) => x.g !== L.faces[0].g)) oneGender = false;
       if (new Set(L.faces.map((x) => x.name)).size !== 6) names = false;
       const real = L.faces[L.real];
-      // One to three changes; the rules may take off one more thing (a tie with the collar).
-      if (L.faces.some((x, i) => i !== L.real && (featureDiff(x, real) < 1 || featureDiff(x, real) > 5))) close = false;
+      // Every face is one to three changes of a hidden one (the rules may take off one more
+      // thing, a tie with the collar), so two faces are at most a handful apart.
+      if (L.faces.some((x, i) => i !== L.real && (featureDiff(x, real) < 1 || featureDiff(x, real) > 10))) close = false;
+      // A juror who never listens and picks the face nearest all the others (a tie at random).
+      const tot = L.faces.map((x) => L.faces.reduce((n, y) => n + featureDiff(x, y), 0));
+      const at = tot.map((t, i) => (t === Math.min(...tot) ? i : -1)).filter((i) => i !== -1);
+      if (at.indexOf(L.real) !== -1) centre += 1 / at.length;
     }
     check(ok, 'witness: a lineup is six faces, none two alike, the real one among them');
     check(oneGender && names, 'witness: a lineup is one gender, every suspect a different name');
     check(close, 'witness: every look-alike differs from the real face in a few features only');
+    check(centre / 400 < 0.3, 'witness: the face nearest all the others is the real one about 1 in 6, not nearly always (' + Math.round(centre / 4) + '%)');
   }
   // A sketch from a phone is only a face: unknown fields dropped, what can't be worn together fixed.
   {
@@ -11815,7 +11822,9 @@ Date.now = duelTestClock;
   applyRoomAction(tq, 'a', 'nextQuestion', { qIndex: 2 });
   check(tq.shared.phase === 'gameover', 'packs/trivia: the game ends after the quiz\'s last question');
   applyRoomAction(tq, 'a', 'playAgain', { lang: 'ar' });
-  check(tq._deck.length === 3 && tq.shared.quiz && tq.shared.quiz.code === 'QZ7K2A', 'packs/trivia: play again plays the same quiz');
+  check(tq._deck.length === 3 && tq.shared.quiz && tq._pack && tq._pack.code === 'QZ7K2A', 'packs/trivia: play again plays the same quiz');
+  // The code is never on the phones: /pack/get answers it with every right choice.
+  check(!('code' in tq.shared.quiz), 'packs/trivia: the quiz code is not in what the phones get');
   applyRoomAction(tq, 'a', 'backToHub', {});
   applyRoomAction(tq, 'a', 'chooseGame', { game: 'trivia' });
   applyRoomAction(tq, 'a', 'start', { lang: 'ar', count: 5 });
@@ -11875,6 +11884,200 @@ Date.now = duelTestClock;
   applyRoomAction(dg, g, 'guess', { guess: dg._word });
   applyRoomAction(dg, 'a', 'nextRound', { lang: 'ar', round: 1 });
   check(wordsPack.pack.words.indexOf(dg._word) !== -1, 'packs/drawguess: the next round too, with no code sent again');
+}
+
+/* --- the audit of 1 Oct 2026: every board is the roster's, and the rooms' other fixes --- */
+{
+  console.log('\nThe audit of 1 Oct 2026: the night counts who played');
+  const CR = await import('../generated/rules.js');
+  const tickA = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
+
+  // A watcher who joined after the deal is on a board made from room.players: never banked,
+  // never a first place (القنبلة: fewest strikes first), never «مين هيكسب؟»'s winner.
+  {
+    const bm = newRoom(['a', 'b', 'c']);
+    applyRoomAction(bm, 'a', 'chooseGame', { game: 'bomb' });
+    applyRoomAction(bm, 'a', 'start', { lang: 'ar', fuse: 'long' });
+    bm.players.push({ id: 'w', name: 'W' });
+    bm.shared.board = [{ id: 'w', name: 'W', score: 0 }, { id: 'a', name: 'A', score: 0 }, { id: 'b', name: 'B', score: 1 }, { id: 'c', name: 'C', score: 2 }];
+    bm.predict = { game: 'bomb', until: clock + 60000, picks: { b: 'w', c: 'a' } };
+    applyRoomAction(bm, 'a', 'backToHub', {});
+    check(bm.night.a === 5 && bm.night.b === 3 && bm.night.c === 2 && !('w' in bm.night), 'night: a watcher who joined mid-round is not banked, and takes no first place');
+    const pred = (bm.nightx || {}).pred || {};
+    check(pred.c === 1 && !pred.b, 'night: «مين هيكسب؟» is settled on the players\' rows (a pick of the watcher is not right)');
+  }
+  // ربع قرد: its board carries the quarters as its score, fewest first.
+  {
+    const mk = newRoom(['a', 'b', 'c']);
+    applyRoomAction(mk, 'a', 'chooseGame', { game: 'monkey' });
+    applyRoomAction(mk, 'a', 'start', { lang: 'ar', mode: 'letters', category: 'countries', timer: 0, winners: 1 });
+    applyRoomAction(mk, 'a', 'setQuarters', { playerId: 'b', n: 2 });
+    applyRoomAction(mk, 'a', 'setQuarters', { playerId: 'c', n: 3 });
+    check(mk.shared.board.every((r) => r.score === r.quarters), 'monkey: the board\'s score is the quarters');
+    applyRoomAction(mk, 'a', 'backToHub', {});
+    check(mk.night && mk.night.a === 5 && mk.night.b === 3 && mk.night.c === 2, 'night: ربع قرد banks its places, the fewest quarters first');
+  }
+  // أسماء الرموز: its board is the cards, so the night banks its sides, the winners first.
+  {
+    const cz = newRoom(['r1', 'r2', 'b1', 'b2']);
+    applyRoomAction(cz, 'r1', 'chooseGame', { game: 'codenames' });
+    [['r1', 'red', 'spymaster'], ['r2', 'red', 'operative'], ['b1', 'blue', 'spymaster'], ['b2', 'blue', 'operative']]
+      .forEach(([id, team, role]) => applyRoomAction(cz, id, 'setTeam', { team, role }));
+    applyRoomAction(cz, 'r1', 'start', { lang: 'en' });
+    cz.shared.winner = 'blue';
+    applyRoomAction(cz, 'r1', 'backToHub', {});
+    const n = cz.night || {};
+    check(n.b1 === 5 && n.b2 === 5 && n.r1 === n.r2 && n.r1 > 0 && n.r1 < 5, 'night: أسماء الرموز banks by team, the winning side first');
+  }
+  // الكراسي in a program: its one game ranked by the places (the winner, then the last out first).
+  {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'chairs' });
+    applyRoomAction(r, 'a', 'start', {});
+    for (const out of ['b', 'd', 'a']) {           // a false start each round: b, then d, then a out
+      applyRoomAction(r, out, 'sit', { round: r.shared.round, at: clock });
+      if (r.shared.phase === 'result') tickA(r);
+    }
+    check(r.shared.phase === 'gameover' && r.shared.winnerId === 'c', 'chairs: c wins, a out last, b first');
+    const pl = CR.programPlaces(r, false);
+    const place = (id) => (pl.rows.find((x) => x.id === id) || {}).place;
+    check(!pl.coop && place('c') === 1 && place('a') === 2 && place('d') === 3 && place('b') === 4, 'program: الكراسي ranks by the order out, not a tie for second');
+    r.players.push({ id: 'w', name: 'W' });
+    applyRoomAction(r, 'a', 'backToHub', {});
+    check(r.night.c === 5 && r.night.a === 3 && r.night.d === 2 && r.night.b === 1 && !('w' in r.night), 'night: الكراسي banks the order out too, and not the one who only watched');
+  }
+  // The bumper cars: the round's places from the TV.
+  {
+    const r = newRoom(['a', 'b', 'c']);
+    r.screens = [{ id: 'tvx' }];
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'bumper' });
+    applyRoomAction(r, 'a', 'start', { mode: 'points', secs: 60 });
+    applyRoomAction(r, 'a', 'endNow', {});
+    applyRoomAction(r, 'tvx', 'finish', { round: 1, scores: { a: { score: 2, place: 2 }, b: { score: 7, place: 1 }, c: { score: 0, place: 3 } } });
+    const pl = CR.programPlaces(r, false);
+    const place = (id) => (pl.rows.find((x) => x.id === id) || {}).place;
+    check(!pl.coop && place('b') === 1 && place('a') === 2 && place('c') === 3, 'program: the bumper cars rank by the round\'s places');
+  }
+
+  // الفنان المزيف: the fake leaving while the table draws ends the round, nobody scores.
+  {
+    const fa = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(fa, 'a', 'chooseGame', { game: 'fakeartist' });
+    applyRoomAction(fa, 'a', 'start', { lang: 'ar' });
+    const fake = fa._fakeId;
+    if (fake === 'a') fa.hostId = 'b';
+    leave(fa, fake);
+    const s = fa.shared;
+    check(s.phase === 'results' && s.winner === 'revealed' && s.impostorLeft && s.fakeId === fake && !s.fakeCaught && !!s.secretWord &&
+      !Object.values(s.scores || {}).some((n) => n), 'fakeartist: the fake leaving mid-drawing ends it, the word shown, nobody scores');
+  }
+
+  // أونو: the next round starts with the seat after the last starter, also when the starter left.
+  {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'uno' });
+    applyRoomAction(r, 'a', 'start', {});
+    const order = r.shared.order.slice();
+    check(r.shared.start === order[0], 'uno: the first round starts with the first seat');
+    r.shared.phase = 'roundOver';
+    applyRoomAction(r, 'a', 'nextRound', {});
+    check(r.shared.start === order[1], 'uno: the next round with the next seat');
+    if (order[1] === 'a') r.hostId = order[0];
+    leave(r, order[1]);
+    r.shared.phase = 'roundOver';
+    applyRoomAction(r, r.hostId, 'nextRound', {});
+    check(r.shared.start === order[2], 'uno: the starter leaving: the seat after them starts the next round, none skipped');
+  }
+  // سكرو: the same for the first seat.
+  {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'screw' });
+    applyRoomAction(r, 'a', 'start', { edition: 'classic', rounds: 5, screwFromLap: 1 });
+    const order = r.shared.order.slice();
+    const first = () => r.shared.order[r._screw.start];
+    check(first() === order[0], 'skrew: round 1 starts with the first seat');
+    r.shared.phase = 'reveal';
+    applyRoomAction(r, 'a', 'nextRound', {});
+    check(first() === order[1], 'skrew: round 2 with the next');
+    if (order[1] === 'a') r.hostId = order[0];
+    r.shared.phase = 'reveal';
+    leave(r, order[1]);
+    applyRoomAction(r, r.hostId, 'nextRound', {});
+    check(first() === order[2], 'skrew: the first seat leaving: the seat after them starts round 3, none skipped');
+  }
+
+  // باغ هاوس: a flag that fell on the other board first decides the game, not a move after it.
+  {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'bughouse' });
+    applyRoomAction(r, 'a', 'start', {});
+    const s = r.shared;
+    clock = s.startAt + 1000;
+    applyRoomAction(r, s.seats[0], 'move', { from: 'e2', to: 'e4', move: 0 });
+    clock = s.startAt + s.boards[1].clock.left[0] + 700;        // board 2's White is out of time; board 1's Black is not
+    applyRoomAction(r, s.seats[1], 'move', { from: 'e7', to: 'e5', move: 1 });
+    check(r.shared.phase === 'over' && r.shared.result.reason === 'time' && r.shared.result.board === 1 && r.shared.boards[0].moves === 1,
+      'bughouse: a move after the other board\'s flag fell is not played; the flag decides');
+  }
+
+  // الكراسي: a stamp of the stop moment itself is not first; a hand is never that fast.
+  {
+    const r = newRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'chairs' });
+    applyRoomAction(r, 'a', 'start', {});
+    tickA(r);
+    const s = r.shared;
+    const stop = s.stopAt;
+    clock = stop + 200;
+    applyRoomAction(r, 'b', 'sit', { round: s.round, at: stop + 110 });
+    applyRoomAction(r, 'c', 'sit', { round: s.round, at: stop });
+    check(s.phase === 'sit' && s.sits.every((x) => x.ms >= 120) && s.sits[0].id === 'b' && s.sits[1].id === 'c',
+      'chairs: no tap counts under 120 ms after the stop, and level ones go by arrival');
+  }
+
+  // «الشلة»: one member is one row a night, a proven link first.
+  {
+    const members = [{ id: 'm1', name: 'أحمد' }, { id: 'm2', name: 'منى' }];
+    const now = Date.UTC(2026, 9, 1, 20);
+    const night = CR.crewCleanNight({ id: 'N1', start: now, rows: [
+      { name: 'احمد', member: null, points: 9 }, { name: 'حمادة', member: 'm1', points: 8 }, { name: 'منى', member: null, points: 3 }] }, members, now);
+    const m = (n) => (night.rows.find((r) => r.n === n) || {}).m;
+    check(m('حمادة') === 'm1' && m('احمد') === null && m('منى') === 'm2', 'crew: a proven link keeps the member; a guest whose name folds to theirs stays a guest');
+    const row = CR.crewTable([night], members, night.month).find((r) => r.id === 'm1');
+    check(row.played === 1 && row.points === 8, 'crew: a member counts once a night');
+    const old = { month: night.month, rows: [{ m: 'm1', n: 'أحمد', p: 9 }, { m: 'm1', n: 'حمادة', p: 9 }] };
+    const r2 = CR.crewTable([old], members, night.month).find((r) => r.id === 'm1');
+    check(r2.played === 1 && r2.won === 1 && r2.points === 9, 'crew: a night kept with two rows of one member counts them once');
+  }
+
+  // برنامج السهرة: a game whose options name a family quiz starts with it from the program's clock
+  // (room.js loads the pack for that clock and for a skip, as _packIn).
+  {
+    const Q = (q, a = 0) => ({ q, c: ['واحد', 'اتنين', 'تلاتة', 'أربعة'], a });
+    const pack = { code: 'QZ9K3B', kind: 'quiz', pack: packClean('quiz', { title: 'مسابقتنا', questions: [Q('س١', 1), Q('س٢', 2), Q('س٣', 3)] }).pack };
+    const r = newRoom(['h', 'k', 'g']);
+    applyRoomAction(r, 'h', 'programStart', { games: [{ id: 'buzzer', opts: { pack: 'QZ9K3B' } }, { id: 'mind', opts: {} }, { id: 'buzzer', opts: {} }] });
+    r._packIn = pack;
+    tickA(r);
+    delete r._packIn;
+    check(r.program.phase === 'playing' && r.game === 'buzzer' && !!r.shared.quiz && r.shared.quiz.total === 3 && !('code' in r.shared.quiz),
+      'program: the first game starts with the family quiz its options name');
+  }
+
+  // A host leaving hands the answer of a buzzer family quiz to the heir (room.js calls roomHostChanged).
+  {
+    const Q = (q, a = 0) => ({ q, c: ['واحد', 'اتنين', 'تلاتة', 'أربعة'], a });
+    const pack = { code: 'QZ9K3C', kind: 'quiz', pack: packClean('quiz', { title: 'م', questions: [Q('س١', 1), Q('س٢', 2)] }).pack };
+    const r = newRoom(['h', 'k', 'g']);
+    applyRoomAction(r, 'h', 'chooseGame', { game: 'buzzer' });
+    r._packIn = pack;
+    applyRoomAction(r, 'h', 'start', { pack: 'QZ9K3C' });
+    delete r._packIn;
+    r.players = r.players.filter((p) => p.id !== 'h');
+    r.hostId = 'k';
+    roomHostChanged(r);
+    check(!!r.secrets.k && r.secrets.k.answer === r._bzDeck[0].answer && !r.secrets.h, 'buzzer quiz: the new host gets the answer');
+  }
 }
 
 Date.now = realNow;

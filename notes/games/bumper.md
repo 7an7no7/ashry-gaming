@@ -72,7 +72,9 @@ and *The TV as the console*). Game id `bumper` everywhere; the page's code is
   the host) only; before the clock only with `done` in Balloons and «آخر
   واحد». The places the TV gave order the table (ties share one); the first
   place wins, against somebody. No screen reporting: the server ends it on its
-  clock with no result. `ROOM_BOT_GAMES.bumper` exists only so the lobby can
+  clock with no result. The board is the round's drivers (`s.roster`), the
+  evening's wins first and level wins by this round's places (`tie`,
+  `boardRowKey`): the night and the program rank a round by its places. `ROOM_BOT_GAMES.bumper` exists only so the lobby can
   seat computer players; it never moves for them.
 - **The channel.** Nothing a car does goes through the rules. A phone sends
   `{ k: 'i', x, y }` (the stick) or `{ k: 'i', s, g }` (the tilt; `g` -100 is

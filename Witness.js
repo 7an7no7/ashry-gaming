@@ -149,21 +149,27 @@ const witnessAlike = (real, rnd, n) => {
 };
 
 /**
- * The lineup: the real face (gwRandomFace) and five look-alikes, shuffled, none
- * two alike, each with a name of its gender. Returns { faces, real } where
- * `real` is the index of the real one - the server's secret until the reveal.
+ * The lineup: six look-alikes of one hidden face (gwRandomFace), shuffled, none
+ * two alike, each with a name of its gender; one of them, at random, is the real
+ * one. Returns { faces, real } where `real` is the index of the real one - the
+ * server's secret until the reveal.
+ *
+ * The hidden face itself is never shown. When the lineup was the real face and
+ * five changes of it, the real one held the value most faces share in nearly every
+ * feature - the centre of the six - and a juror could find it without listening to
+ * the witness (the audit of 1 Oct 2026: 99.7% of lineups).
  */
 const witnessLineup = (rnd) => {
   const r = rnd || Math.random;
   const g = r() < 0.5 ? 'm' : 'f';
-  const real = gwRandomFace(r, g);
-  const faces = [real];
+  const base = gwRandomFace(r, g);
+  const faces = [];
   const seen = {};
-  seen[gwSignature(real)] = true;
+  seen[gwSignature(base)] = true;
   for (let guard = 0; faces.length < WITNESS_LINEUP && guard < 400; guard++) {
     // One change for about a third, two or three for the rest: close, never a copy.
     const n = [1, 1, 2, 2, 2, 3][Math.floor(r() * 6)];
-    const x = witnessAlike(real, r, n);
+    const x = witnessAlike(base, r, n);
     if (!x) continue;
     const sig = gwSignature(x);
     if (seen[sig]) continue;
@@ -176,5 +182,5 @@ const witnessLineup = (rnd) => {
   faces.forEach((x, i) => { x.name = names[i]; });
   const order = faces.map((_, i) => i);
   for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
-  return { faces: order.map(i => faces[i]), real: order.indexOf(0) };
+  return { faces: order.map(i => faces[i]), real: Math.floor(r() * faces.length) };
 };

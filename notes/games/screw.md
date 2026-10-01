@@ -176,7 +176,8 @@ default. Seats are shuffled at start and at play again.
   `pass` when the deck is empty and can't be refilled. The memorising at the
   start waits for every tap, or `memorizeSecs` (5 or 10) on a server clock.
   Laps count each time the turn passes the round's first seat, which moves on
-  each round. After سكرو only `finalLeft` plays, and the caller's side (the
+  each round (from the last one, `g.startId`, so a leaver skips nobody; a first
+  seat who left leaves `g.startSeat`). After سكرو only `finalLeft` plays, and the caller's side (the
   caller, and the partners in teams) can't be the target of a swap, give,
   see-and-swap or cannon, and takes no part in بوم or the scream; looking is
   allowed. بوم (`stage: 'boom'`, `shared.boom { waiting, picked }`,

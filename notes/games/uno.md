@@ -115,7 +115,8 @@ the cards in `UnoCards.js`), the owner's spec (see *The owner's specs*).
   take a waiting draw, keep a drawn card, or draw one and pass.
 - **The end.** `unoEndRound` counts the other hands (`unoHandPoints`); rounds
   mode banks it (`roundOver`, the host's `nextRound`, the first seat moving on
-  one each round), one round adds a win to `shared.wins` and goes straight to
+  one each round - from the last starter, `s.start`, so a leaver skips nobody;
+  a starter who left leaves `s.startSeat`), one round adds a win to `shared.wins` and goes straight to
   `gameover` - the points are still in `results` but no screen shows them. A player who leaves
   (`unoPlayerLeft`) puts their cards under the deck and passes their turn; fewer
   than two ends the game.

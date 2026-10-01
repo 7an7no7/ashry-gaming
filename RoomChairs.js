@@ -35,6 +35,7 @@ const CHAIRS_SIT_MS = 3000;             // after the stop, whoever hasn't tapped
 const CHAIRS_FAKE_MS = 600;             // a fake pause is this long
 const CHAIRS_BETWEEN_MS = 5500;         // the result stays this long before the next round
 const CHAIRS_GRACE_MS = 40;             // a tap may claim up to this before the server heard the stop land (clock drift)
+const CHAIRS_MIN_REACT_MS = 120;        // no hand is faster than this after the stop: a stamp claiming less counts as this
 
 const chairsRand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
@@ -92,9 +93,11 @@ const chairsAction = (room, playerId, action, payload) => {
     // and never after its arrival, so a stamp outside that is one the phone couldn't
     // have had: the arrival counts for it. A hair before the stop is clock drift.
     if (at < s.stopAt - CHAIRS_GRACE_MS || at > now) at = now;
-    at = Math.max(s.stopAt, Math.min(now, at));
-    s.sits.push({ id: playerId, name: roomPlayerName(room, playerId), ms: Math.max(0, at - s.stopAt) });
-    s.sits.sort((a, b) => a.ms - b.ms);
+    // stopAt is on every phone, so a page changed to send it as its stamp sat first every
+    // time: nobody is quicker than a hand can be, and taps held to that floor go by arrival.
+    at = Math.max(s.stopAt + CHAIRS_MIN_REACT_MS, Math.min(now, at));
+    s.sits.push({ id: playerId, name: roomPlayerName(room, playerId), ms: Math.max(0, at - s.stopAt), arr: now });
+    s.sits.sort((a, b) => a.ms - b.ms || (a.arr || 0) - (b.arr || 0));
     if (chairsAlive(room).every(id => s.sits.some(x => x.id === id))) chairsCloseSit(room);
     return;
   }
@@ -200,12 +203,22 @@ const chairsGameOver = (room) => {
   s.board = chairsBoard(room);
 };
 
-/** The night's board: the wins of the evening at this game, best first. */
-const chairsBoard = (room) =>
-  room.players
-    .filter(p => !p.bot)
-    .map(p => ({ id: p.id, name: p.name, score: ((room.shared || {}).wins || {})[p.id] || 0 }))
-    .sort((a, b) => b.score - a.score);
+/**
+ * The night's board: the wins of the evening at this game, best first, for the people in
+ * this game (its roster - a phone that joined to watch isn't on it). Level wins are told
+ * apart by the last game's places (`tie`, boardRowKey in RoomGames.js): one game is the
+ * winner, then the last out first, not everyone else tied for second.
+ */
+const chairsBoard = (room) => {
+  const s = room.shared || {};
+  const roster = Array.isArray(s.roster) ? s.roster : room.players.map(p => p.id);
+  const places = (s.places || []).map(x => x.id);
+  const placeOf = (id) => (places.indexOf(id) === -1 ? null : places.indexOf(id) + 1);
+  return room.players
+    .filter(p => !p.bot && roster.indexOf(p.id) !== -1)
+    .map(p => ({ id: p.id, name: p.name, score: (s.wins || {})[p.id] || 0, tie: placeOf(p.id) }))
+    .sort((a, b) => (b.score - a.score) || ((a.tie || 99) - (b.tie || 99)));
+};
 
 /** The server's next moment: a fake pause's start or end, the stop, the sit window, the next round. */
 const chairsDeadline = (room) => {

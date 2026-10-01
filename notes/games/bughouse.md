@@ -32,7 +32,9 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
       (`BUG_START_MS`), White to move on both boards; there is no free
       first move as in the chess room. A move reaching the server up to 0.6 s
       after the time ran out still counts (chess's `CHESS_GRACE_MS`); a flag
-      always loses (no "can't mate, so a draw": pieces can be dropped).
+      always loses (no "can't mate, so a draw": pieces can be dropped). A
+      flag that fell on the other board decides before any move or resign
+      (`bughouseTimeout` first in `bugPlay`): the alarm can come a second late.
     - **Empty seats at the start get easy computer players** named from the
       host's phone (`botNames`); the host adds hard ones with the lobby's
       buttons. With more than four people the first four of a random order

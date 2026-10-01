@@ -34,6 +34,12 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
       colour, eyes, brows, glasses, a beard or moustache, the mouth, marks,
       earrings and the rest, the clothes), never adding or taking away a
       hijab, and no two with the same `gwSignature`.
+    - **Every face is a look-alike of a hidden one** (the audit of 1 Oct
+      2026): the six are 1-3 changes each of a face nobody sees, and the real
+      one is any of them at random. When the five were changes of the real
+      face, it was the centre of the six (the value most faces share in
+      nearly every feature) and "pick the middle face" found it in 98% of
+      lineups without the witness; now 1 in 6 (`rules.mjs` measures it).
     - **The sketch starts as a plain man** with nothing on (`witnessBlank`);
       the artist's first category is man or woman. Every pick is sent to
       the room (a `sketch` move, only a newer one kept), so the witness and

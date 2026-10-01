@@ -397,6 +397,18 @@ export class Room extends DurableObject {
     }
   }
 
+  /**
+   * The pack the program's next game names in its options (room._progOpts), while the
+   * program is between two games - the next move or clock deals it (programDealNext in
+   * RoomProgram.js). Its start has no phone to load the pack for it.
+   */
+  programNextPack() {
+    const p = this.room && this.room.program;
+    if (!p || p.phase !== 'between') return null;
+    const opts = (this.room._progOpts || [])[p.at + 1];
+    return (opts && opts.pack) || null;
+  }
+
   async readMemory() {
     try {
       return { values: await this.memoryStub().read(), changed: {} };
@@ -452,11 +464,17 @@ export class Room extends DurableObject {
     let memory = null;
     const early = roomDeadline(this.room);
     if (early && now >= early && roomTimeoutDeals(this.room, now)) memory = await this.readMemory();
+    // برنامج السهرة's clock dealing a game whose options name a family pack: loaded for it.
+    const packRef = early && now >= early ? this.programNextPack() : null;
+    const pack = packRef ? await this.readPack(packRef) : null;
     const due = roomDeadline(this.room);
     if (due && now >= due) {
       const next = structuredClone(this.room);
+      if (pack) next._packIn = pack;
       try {
-        if (withPromptMemory(memory, () => roomTimeout(next, now))) {
+        const timedOut = withPromptMemory(memory, () => roomTimeout(next, now));
+        delete next._packIn;
+        if (timedOut) {
           // «الشلة»: a clock that banked a game on the night (برنامج السهرة moves on by its own
           // clock) sends the night to its crew, as a move does.
           const nightSig = (r) => JSON.stringify([r.night || null, r.nightx || null]);
@@ -634,7 +652,10 @@ export class Room extends DurableObject {
     const payload = rawPayload && typeof rawPayload === 'object' ? rawPayload : {};
     const memory = DEAL_ACTIONS.has(action) ? await this.readMemory() : null;
     // A quiz or word pack chosen in the lobby (payload.pack): loaded here, for this one move.
-    const pack = (action === 'start' || action === 'playAgain') && payload.pack ? await this.readPack(payload.pack) : null;
+    // برنامج السهرة's skip from the standings deals its next game, with the pack its options name.
+    const packRef = (action === 'start' || action === 'playAgain') ? payload.pack
+      : (action === 'programSkip' || action === 'backToHub' ? this.programNextPack() : null);
+    const pack = packRef ? await this.readPack(packRef) : null;
 
     // The memory read let other messages in; look at the room as it is now.
     problem = this.check(pid);
@@ -826,6 +847,9 @@ export class Room extends DurableObject {
       const heir = people.find((p) => online.has(p.id)) || people[0] ||
         room.screens.find((s) => online.has(s.id)) || room.screens[0];
       room.hostId = heir.id;
+      // What only the host may see follows them, as on the alarm's handover and makeHost
+      // (a TV host leaving a buzzer family quiz left the new host without the answer).
+      roomHostChanged(room);
       roomEvent(room, 'host', { name: heir.name || '📺' });
       newHost = true;
     }

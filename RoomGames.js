@@ -693,8 +693,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
   const OFF_MSG = 'اللعبة دي واقفة شوية عشان بنصلّحها، وهترجع قريب';
   if ((action === 'start' || action === 'playAgain') && roomGameIsOff(room.game)) throw new Error(OFF_MSG);
   if ((action === 'nextRound' || action === 'tourNew') && wasOver && roomGameIsOff(room.game)) throw new Error(OFF_MSG);
-  // The board the finished game ended on, for the audience's guesses if this deals the next one.
-  const boardBefore = (room.shared || {}).board;
+  // The board the finished game ended on (its players' rows), for the audience's guesses if this deals the next one.
+  const boardBefore = action === 'playAgain' || action === 'tourNew' ? nightBoardOf(room, (room.shared || {}).board) : null;
   // برنامج السهرة: what this move is about to wipe (the buzzer's line), for the awards.
   programBeforeMove(room, playerId, action, payload);
 
@@ -1492,7 +1492,8 @@ const buzzerAction = (room, playerId, action, payload) => {
    phone only (room.secrets[host].answer; a TV host gets none - the TV is the
    table's screen - and shows it with «اكشف الإجابة»). A right answer (the host's
    ✅) or the host's reveal shows it to everyone and locks the buzzers until
-   «السؤال التالي». The questions: room._bzDeck, choices shuffled at the deal. */
+   «السؤال التالي». The questions: room._bzDeck, choices shuffled at the deal.
+   shared.quiz never carries the pack's code: /pack/get answers a code with every answer. */
 const buzzerQuizDeal = (room, idx) => {
   const s = room.shared;
   const quiz = roomPackQuiz(room);
@@ -1500,12 +1501,12 @@ const buzzerQuizDeal = (room, idx) => {
   if (idx === 0 || !room._bzDeck) room._bzDeck = roomPackDeck(quiz);
   const q = room._bzDeck[idx];
   if (!q) {
-    s.quiz = { title: quiz.pack.title, emoji: quiz.pack.emoji || '', code: quiz.code, n: room._bzDeck.length, total: room._bzDeck.length, done: true };
+    s.quiz = { title: quiz.pack.title, emoji: quiz.pack.emoji || '', n: room._bzDeck.length, total: room._bzDeck.length, done: true };
     s.phase = 'locked';
     s.buzzes = [];
     return;
   }
-  s.quiz = { title: quiz.pack.title, emoji: quiz.pack.emoji || '', code: quiz.code, n: idx, total: room._bzDeck.length, q: q.q, choices: q.choices, answer: null, done: false };
+  s.quiz = { title: quiz.pack.title, emoji: quiz.pack.emoji || '', n: idx, total: room._bzDeck.length, q: q.q, choices: q.choices, answer: null, done: false };
 };
 
 /** The right choice on the host's own phone, while it is still hidden. */
@@ -2678,11 +2679,11 @@ function settlePredictions(room, boardOf) {
   if (!p || p.game !== room.game) return;
   const voters = Object.keys(p.picks || {});
   if (!voters.length) return;
-  const board = ((boardOf !== undefined ? boardOf : (room.shared || {}).board) || []).filter(r => r && r.id);
+  const board = boardOf !== undefined ? (boardOf || []).filter(r => r && r.id) : nightBoardOf(room, (room.shared || {}).board);
   if (!board.length) return;
-  const top = Number(board[0].score) || 0;
-  if (board.every(r => (Number(r.score) || 0) === top)) return;   // nobody ahead of anybody
-  const winners = board.filter(r => (Number(r.score) || 0) === top).map(r => r.id);
+  const top = boardRowKey(board[0]);
+  if (board.every(r => boardRowKey(r) === top)) return;   // nobody ahead of anybody
+  const winners = board.filter(r => boardRowKey(r) === top).map(r => r.id);
   const nameOf = (id) => ((room.players.find(x => x.id === id) || {}).name || '');
   const rightIds = voters.filter(v => winners.indexOf(p.picks[v]) !== -1);
   const right = rightIds.map(nameOf).filter(Boolean);
@@ -2711,17 +2712,53 @@ function settlePredictions(room, boardOf) {
 const NIGHT_PLACES = [5, 3, 2];
 const NIGHT_PLAYED = 1;   // everyone else on the board
 
+/* Every board is the roster's (the audit of 1 Oct 2026). Many boards are built from
+   room.players, so someone who joined after the deal and only watched was on them with 0:
+   1 point for a game they never played, and in القنبلة (fewest strikes first) a first
+   place. The night, «مين هيكسب؟» and the program read a board through these. */
+
+/** Who played the game in the room: its roster, seats, team lists and a tournament's entrants; null when it keeps none. */
+const nightPlayedIds = (room) => {
+  const s = room.shared || {};
+  const flat = (x) => (Array.isArray(x) ? x.reduce((a, y) => a.concat(flat(y)), []) : (typeof x === 'string' ? [x] : []));
+  const ids = [].concat(
+    s.tour && Array.isArray(s.tour.entrants) ? s.tour.entrants : [],
+    Array.isArray(s.roster) ? s.roster : [],
+    Array.isArray(s.seats) ? flat(s.seats) : [],
+    Array.isArray(s.teams) ? flat(s.teams) : []);
+  return ids.length ? ids : null;
+};
+
+/** A row's standing: its score, and what breaks a tie in it (`tie`: الكراسي's and the bumper cars'
+    place in the last game, under the evening's wins). Two rows share a place only when both match. */
+const boardRowKey = (r) => (Number(r && r.score) || 0) + '|' + (r && r.tie !== undefined && r.tie !== null ? r.tie : '');
+
+/** The game's board as the night counts it: best-first, only the people who played, every row
+    with a score. A team game whose board is something else (أسماء الرموز: the cards) is its sides,
+    the winners first (PROGRAM_TEAMS, as the program places it). */
+const nightBoardOf = (room, board) => {
+  let rows = (board || []).filter(r => r && r.id);
+  if (!rows.length && room.game && PROGRAM_TEAMS[room.game]) {
+    const teams = PROGRAM_TEAMS[room.game](room);
+    if (teams && teams.length > 1) {
+      rows = teams.reduce((all, ids, k) => all.concat(ids.map(id => ({ id, name: roomPlayerName(room, id), score: teams.length - k }))), []);
+    }
+  }
+  const played = nightPlayedIds(room);
+  return played ? rows.filter(r => played.indexOf(r.id) !== -1) : rows;
+};
+
 const bankNightPoints = (room, board) => {
-  const rows = (board || []).filter(r => r && r.id);
+  const rows = nightBoardOf(room, board);
   if (rows.length < 2) return false;
   if (!rows.some(r => (Number(r.score) || 0) !== 0)) return false;
   room.night = room.night || {};
   const x = nightExtras(room);
   let banked = false;
   rows.forEach(row => {
-    const score = Number(row.score) || 0;
+    const key = boardRowKey(row);
     // Standard competition ranking: the place is how many rows are ahead of this score.
-    const points = NIGHT_PLACES[rows.findIndex(r => (Number(r.score) || 0) === score)] || NIGHT_PLAYED;
+    const points = NIGHT_PLACES[rows.findIndex(r => boardRowKey(r) === key)] || NIGHT_PLAYED;
     room.night[row.id] = (room.night[row.id] || 0) + points;
     // Beside the points, for «الشلة» (Crew.js, crewNightInput): the name (kept for someone who
     // leaves), a first place in this game (the titles), and a computer player to leave out.
@@ -3666,7 +3703,8 @@ const triviaAction = (room, playerId, action, payload) => {
     }
     room._triviaFastest = {};
     room.shared = { scores: {}, lang: lang, roster: room.players.map(p => p.id) };
-    if (quiz) room.shared.quiz = { title: quiz.pack.title, emoji: quiz.pack.emoji || '', code: quiz.code };
+    // No code in it: /pack/get answers a code with the whole quiz, the right choices included.
+    if (quiz) room.shared.quiz = { title: quiz.pack.title, emoji: quiz.pack.emoji || '' };
     dealTriviaQuestion(room, 0);
     return;
   }
@@ -4251,6 +4289,16 @@ const gamePlayerLeft = (room, playerId, name) => {
       if (room.phase === 'drawing' && !s.word && !here(s.drawerId)) revealDrawWord(room);
       return;
     case 'fakeartist':
+      // The fake gone before the vote named them: the round ends as the others' did - the
+      // word and the fake shown, nobody scores (finishFakeArtist scores no 'revealed').
+      if ((s.phase === 'drawing' || s.phase === 'voting') && impostorsGone([room._fakeId])) {
+        s.impostorLeft = true;
+        s.fakeId = room._fakeId;
+        s.fakeCaught = false;
+        s.fakeName = name || '';   // for the line's {name}: they are no longer in the room
+        finishFakeArtist(room, 'revealed');
+        return;
+      }
       if (s.phase === 'drawing' && !here(s.currentDrawerId)) advanceFakeArtistTurn(room);
       else if (s.phase === 'voting' && voteClosed()) revealFakeArtist(room);
       if (s.phase === 'guessing' && !here(room._fakeId)) finishFakeArtist(room, 'artists');
@@ -5234,7 +5282,9 @@ const monkeyBoard = (room) => {
   const s = room.shared;
   return room.players
     .filter(p => s.order.indexOf(p.id) !== -1)
-    .map(p => ({ id: p.id, name: p.name, quarters: s.quarters[p.id] || 0, monkey: (s.quarters[p.id] || 0) >= 4 }))
+    // `score` is the quarters (fewest first, best-first like every board): the night, the
+    // program and «مين هيكسب؟» rank a board by its rows' scores.
+    .map(p => { const q = s.quarters[p.id] || 0; return { id: p.id, name: p.name, quarters: q, score: q, monkey: q >= 4 }; })
     .sort((a, b) => a.quarters - b.quarters);
 };
 
@@ -6635,9 +6685,20 @@ const screwDeckCards = (settings) => {
 const screwDeal = (room) => {
   const s = room.shared;
   const last = room._screw || {};
+  // The first seat moves on one every round: the seat after the last round's first, found
+  // by who it was (s.round alone skipped a seat once someone before it had left). A first
+  // seat who left mid-round left their successor in their seat (startSeat).
+  const old = s.order.slice();
+  const prevAt = last.startId ? old.indexOf(last.startId) : -1;
+  const from = prevAt !== -1 ? prevAt + 1 : (typeof last.startSeat === 'number' ? last.startSeat : 0);
   s.order = s.order.filter(id => screwHere(room, id));
   if (s.teams) s.teams = s.teams.map(t => t.filter(id => s.order.indexOf(id) !== -1));
   s.round = (s.round || 0) + 1;
+  let start = 0;
+  for (let k = 0; k < old.length; k++) {
+    const at = s.order.indexOf(old[(from + k) % old.length]);
+    if (at !== -1) { start = at; break; }
+  }
   const g = {
     deck: shuffled(screwDeckCards(s.settings)),
     pile: [],
@@ -6654,7 +6715,8 @@ const screwDeal = (room) => {
     // Slot ids never repeat within a game, so a phone can't mistake one for last round's.
     slotSeq: last.slotSeq || 0,
     turns: last.turns || 0,
-    start: (s.round - 1) % s.order.length,   // the first seat moves on one every round
+    start: start,
+    startId: s.order[start],                  // who it was, for the next round's first seat
     revealed: false
   };
   room._screw = g;
@@ -7612,6 +7674,7 @@ const screwPlayerLeft = (room, playerId) => {
     }
     delete g.seen[playerId];
     delete g.memorize[playerId];
+    if (playerId === g.startId) g.startSeat = seat;
     s.order.splice(seat, 1);
     if (seat < g.start) g.start--;
     if (g.start >= s.order.length) g.start = 0;

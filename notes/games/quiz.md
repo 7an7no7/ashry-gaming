@@ -20,7 +20,7 @@ untouched (a ready index line and a draft `notes/games/quiz.md` are at the end).
 | `Packs.js` | The one rule for what a pack may hold (`packCleanQuiz`, `packCleanWords`, `packClean`), the limits (`PACK_LIMITS`), the code alphabet and pattern (`PACK_CODE_RE`, 6 of the room alphabet), the year (`PACK_TTL_MS`). Shared: the page's shell lists (`SHELL_LISTS`, `SHARED_LISTS`) and the Worker (`FILES` in `rooms-worker/build.mjs`). Errors are codes; the page words them (`pk_err_<code>`). |
 | `rooms-worker/src/packs.js` | `PackStore`, a Durable Object per code (`env.PACKS.idFromName('pack:' + code)`): `{ kind, pack, keyHash, created, updated, played }`. `create`, `get(touch)`, `save`, and an alarm a year after the last play or save (plus the same check on every read). |
 | `rooms-worker/src/index.js` | `POST /pack/create { kind, pack }` → `{ code, key, pack }`; `/pack/get { code }`; `/pack/save { code, key, kind, pack }` (only with the key it was made with); `/pack/played { code }`. The server checks every pack with `packClean` again. Limits per address (per Worker instance, like `/create`): create 20, save 200, get 400 in 10 minutes. |
-| `rooms-worker/src/room.js` | A `start` or `playAgain` naming `payload.pack` reads the pack from `PackStore` (`readPack`, as played) and hands it to that one move as `room._packIn`; `roomHostChanged(room)` after `makeHost` and the 2-minute handover. |
+| `rooms-worker/src/room.js` | A `start` or `playAgain` naming `payload.pack` reads the pack from `PackStore` (`readPack`, as played) and hands it to that one move as `room._packIn`; `roomHostChanged(room)` after `makeHost`, the 2-minute handover and a host leaving (`removeDevice`). برنامج السهرة's next game names its pack in its options: room.js loads it for the clock and the skip that deal it (`programNextPack`). |
 | `RoomGames.js` | `roomPackAdopt` (in `applyRoomAction`, before the games) keeps the pack as `room._pack` for the game (play again, the next round) - a code the server didn't load is refused, a `start` with no pack clears it; `roomPackQuiz`, `roomPackWords`, `roomPackDeck` (choices shuffled at the deal). Trivia, the buzzer (`buzzerQuizDeal`, `buzzerQuizSync`, `buzzerQuizReveal`, actions `quizReveal` and `quizNext`), الجاسوس, الحرباء and ارسم وخمّن deal from it. `clearGameState` drops `_pack`. |
 | `JS_PackStore.html` | In the shell: the packs on this phone (`ashryPacks_v1`), the calls to `/pack/*`, and the helpers the lobbies and the word games use (`packRoomPick`, `packSourceFieldHtml`, `packWordsList`, `packWordsCatName`, `packWordsCode`, `spyCategoriesPlus`, `packCatsPlus`, `packWordsLobbyHtml`). |
 | `JS_QuizMaker.html` | A chunk (`quizmaker` in `tools/lazy-split.mjs`): the hub (`setup-quizmaker`), the editor (`play-quizmaker`), the word pack (`setup-wordpack`), the sheet (`#qm-save-modal`). |
@@ -65,10 +65,10 @@ untouched (a ready index line and a draft `notes/games/quiz.md` are at the end).
   «احفظها الأول»); the count list hides for a quiz. The start carries `pack: code`; the
   server loads it (never the phone's copy), deals every question in the author's order,
   each one's choices shuffled, and plays it exactly as the bank (15 s, 10 + the speed
-  bonus). `shared.quiz` = `{ title, emoji, code }` for the header. Play again plays it
+  bonus). `shared.quiz` = `{ title, emoji }` for the header (never the code: `/pack/get` answers a code with every right choice; the audit of 1 Oct 2026). Play again plays it
   again, reshuffled.
 - **The buzzer**: the lobby's «الأسئلة» (none - the host asks out loud, as always - or a
-  quiz). `shared.quiz` = `{ title, emoji, code, n, total, q, choices, answer, done }`:
+  quiz). `shared.quiz` = `{ title, emoji, n, total, q, choices, answer, done }`:
   the question and its four answers on every phone and the TV, `answer` null until it is
   shown; the right one in the host's slice only (`room.secrets[host].answer`; a TV host
   gets none and shows it with «اكشف الإجابة»). ✅ on a buzz scores as before and also

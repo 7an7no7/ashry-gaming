@@ -156,6 +156,9 @@ function bugEnd(room, loserSeat, reason, now) {
 /** One move or drop by the seat whose turn it is on its board. */
 function bugPlay(room, seat, mv, now) {
   const s = room.shared;
+  // Two clocks run at once, and the alarm that ends a game on time can come a second late:
+  // a flag that fell on either board before this move decides the game first.
+  if (bughouseTimeout(room, now)) return;
   const b = bugSeatBoard(seat), color = bugSeatColor(seat);
   const bd = s.boards[b];
   if (bd.g.turn !== color) throw new Error('مش دورك');
@@ -219,6 +222,7 @@ function bughouseAction(room, playerId, action, payload) {
     if (s.phase !== 'play') return;
     if (seat === -1) throw new Error('انت بتتفرج دلوقتي');
     if (staleTap(p, 'round', s.round)) return;
+    if (bughouseTimeout(room, now)) return;   // a flag that fell first wins over the resign
     bugEnd(room, seat, 'resign', now);
     return;
   }

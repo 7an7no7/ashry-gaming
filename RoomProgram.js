@@ -150,7 +150,9 @@ const programPlaces = (room, cut) => {
     return { coop: teams.length < 2, rows };
   }
   const board = ((room.shared || {}).board || []).filter(r => r && r.id && played.indexOf(r.id) !== -1);
-  const scores = board.map(r => Number(r.score) || 0);
+  // A row's standing is its score and its tie-break (boardRowKey, RoomGames.js): الكراسي and
+  // the bumper cars rank the one game a program plays by its places, the last out last.
+  const scores = board.map(boardRowKey);
   if (!board.length || scores.every(x => x === scores[0])) {
     // Nobody ahead of anybody (no board, or everyone level): a game played to its end
     // is everyone sharing the first place; one cut short before anybody scored is

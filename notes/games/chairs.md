@@ -33,7 +33,15 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
       the server keeps it only inside the window it can prove - not before the
       stop, not after the arrival; a stamp outside it counts as its arrival
       (`CHAIRS_GRACE_MS` of drift allowed). So a slow connection loses no
-      chair and a phone can't claim a time it never saw.
+      chair and a phone can't claim a time it never saw. No stamp counts
+      under `CHAIRS_MIN_REACT_MS` (120 ms) after the stop - `stopAt` is on
+      every phone, so a changed page sent it and always sat first - and taps
+      held to that floor go by arrival (the audit of 1 Oct 2026).
+    - **The board is the roster's**: the wins tally for the people dealt in
+      (a phone that joined to watch isn't on it), level wins told apart by the
+      last game's places (`tie`, `boardRowKey`). So the night and the program
+      rank one game by the order out (5 / 3 / 2 / 1), not everyone after the
+      winner tied for second.
     - **The next round starts by itself 5.5 s after the result**
       (`CHAIRS_BETWEEN_MS`); the host can start it sooner. The game flows
       like the real one, and there is nothing to read on the result.

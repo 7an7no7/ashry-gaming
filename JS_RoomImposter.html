@@ -344,6 +344,20 @@ function renderRoomPlayerStrip(state) {
     </div>`;
 }
 
+/** A name's first letter, for the round bubble of a player chip (.talk-person__av). */
+function roomInitial(name) {
+  return escapeHTML(Array.from(String(name || '').trim())[0] || '?');
+}
+
+/**
+ * A player as a chip (the talk's .talk-person): the initial in its bubble, the
+ * name, and `extra` (a small state badge) after it. `cls` adds .is-first (lit:
+ * whose turn it is, the first to buzz) or the game's own modifiers.
+ */
+function roomPersonChip(name, extra, cls, title) {
+  return `<span class="talk-person ${cls || ''}"${title ? ` title="${escapeHTML(title)}"` : ''}><span class="talk-person__av" aria-hidden="true">${roomInitial(name)}</span><span class="talk-person__name">${escapeHTML(name || '')}</span>${extra || ''}</span>`;
+}
+
 /**
  * The host's small recovery buttons (skip a quiet phone, close the writing
  * early), as one centred row: [[label, onclick], …]. Labels are escaped here.

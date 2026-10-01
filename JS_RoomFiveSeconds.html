@@ -123,19 +123,22 @@ ROOM_GAMES.fiveseconds = {
 
     if (s.phase === 'ready') {
       stopFiveClock();
+      // The start is the bar's main action (the player up, or the host for them);
+      // passing the player is small under it. The standings are a compact grid.
+      const go = me || state.youAreHost
+        ? `<button class="btn btn--primary btn--lg" onclick="roomAct('go')">⏱ ${escapeHTML(me ? (t.five_go || '') : (t.five_go_for || '').replace('{name}', s.turnName || ''))}</button>` : '';
+      const skip = roomMoveOnHtml(state, `<div class="talk__pair"><button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })">${escapeHTML(t.five_skip || '')}</button></div>`);
       renderRoomFrame(el, ['five-ready', s.round, s.turn, me, state.youAreHost, appState.lang].join('|'), () => `
         ${round}
-        <div class="card card--accent" style="text-align:center">
+        <div class="card card--accent five-up">
           <div class="eyebrow">${escapeHTML(t.five_turn || '')}</div>
-          <div class="metric metric--md">${escapeHTML(s.turnName || '')}</div>
-          ${me || state.youAreHost
-            ? `<button class="btn btn--primary btn--lg" style="margin-top: var(--sp-3)" onclick="roomAct('go')">${escapeHTML(me ? (t.five_go || '') : (t.five_go_for || '').replace('{name}', s.turnName || ''))}</button>`
-            : `<p class="sheet__subtitle">${escapeHTML(t.five_wait_turn || '')}</p>`}
+          <div class="five-up__name">${escapeHTML(s.turnName || '')}</div>
+          <p class="five-up__hint">${escapeHTML(me ? (t.five_up_hint_me || '') : state.youAreHost ? (t.five_up_hint || '') : (t.five_wait_turn || ''))}</p>
         </div>
         ${last}
-        ${renderScoreboard(s.board)}
-        ${roomMoveOnHtml(state, `<button class="btn btn--ghost btn--sm" onclick="roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })">${escapeHTML(t.five_skip || '')}</button>`)}
-        ${renderRoomPlayerStrip(state)}`);
+        ${renderScoreboard(s.board, '', { grid: true })}
+        ${renderRoomPlayerStrip(state)}
+        ${go || skip ? `<div class="view-actions talk__actions five-bar">${go}${skip}</div>` : ''}`);
       refreshRoomPlayerStrip(el, state);
       return;
     }

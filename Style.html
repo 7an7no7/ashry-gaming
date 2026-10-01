@@ -2747,6 +2747,38 @@ body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n
 .ballot-option.is-own { opacity: 0.5; cursor: default; }
 .ballot-option__label { flex: 1; overflow-wrap: anywhere; }
 
+/* The players as the ballot (مين أكتر واحد, the accusations): a grid of tiles,
+   the initial in its bubble; the one tapped lit in the screen's colour. */
+.ballot-people { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+@media (min-width: 640px) { .ballot-people { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.ballot-person {
+  display: flex; align-items: center; gap: var(--sp-2);
+  min-width: 0; min-height: 3.5rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 2px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font); font-size: 1rem; font-weight: 800;
+  text-align: start;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.ballot-person:active:not(:disabled) { transform: scale(0.97); }
+.ballot-person__av { flex: none; width: 2.25rem; height: 2.25rem; font-size: 1rem; }
+.ballot-person__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ballot-person__own { flex: none; }
+.ballot-person.is-own { opacity: 0.5; cursor: default; }
+.ballot-person.is-picked { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.ballot-person.is-picked .ballot-person__av { background: var(--accent); color: var(--accent-on); }
+.ballot-people.is-done .ballot-person { cursor: default; }
+.ballot-people.is-done .ballot-person:not(.is-picked) { opacity: 0.55; }
+.ballot-bar { display: grid; gap: var(--sp-2); }
+.ballot-bar__count { text-align: center; font-size: var(--fs-sm); font-weight: 800; color: var(--text-2); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .ballot-bar { grid-template-columns: auto minmax(0, 1fr); align-items: center; }
+}
+
 .vote-progress {
   display: flex;
   align-items: center;
@@ -5344,6 +5376,13 @@ body.has-audience .shell__main { --main-pb: 9rem; }
 .bz-rank__n { display: block; margin: var(--sp-2) 0; font-size: var(--fs-h1); font-weight: 900; color: var(--text-strong); }
 .bz-rank.is-first .bz-rank__n { color: var(--success-ink); }
 .bz-last { margin-bottom: var(--sp-3); text-align: center; font-size: var(--fs-h3); font-weight: 900; }
+/* «ترتيب الضغط» as chips, the first lit; resetting the scores small by the scores. */
+.bz-order { margin-bottom: var(--sp-3); text-align: center; }
+.bz-order > .eyebrow { margin-bottom: var(--sp-2); }
+.bz-order .waiting-note { padding-block: var(--sp-2); }
+.bz-order__tag { font-size: var(--fs-xs); font-weight: 800; opacity: 0.85; }
+.bz-order .talk-person .bz-gap { height: 1.25rem; }
+.bz-reset { display: flex; justify-content: center; margin-top: var(--sp-2); }
 .tv-pulse { animation: bzPulse 1.5s ease-in-out infinite; }
 .tv-strip-inline { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6vmin; margin: 1vmin 0; }
 
@@ -5894,6 +5933,26 @@ body.dark .home-hero {
 .five-ring--big { width: 30vmin; height: 30vmin; }
 .five-ring--big::before { inset: 2.2vmin; }
 .five-ring--big .metric { font-size: 12vmin; }
+/* Between turns: who is up, the standings as a compact grid, the start in the bar. */
+.five-up { text-align: center; }
+.five-up__name { font-size: 2.2rem; font-weight: 900; line-height: 1.2; color: var(--accent-ink); overflow-wrap: anywhere; }
+.five-up__hint { margin: var(--sp-1) 0 0; font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); }
+.scoreboard--grid .scoreboard__tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+@media (min-width: 640px) { .scoreboard--grid .scoreboard__tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.score-tile {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
+  min-width: 0; padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 800;
+}
+.score-tile__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-tile__n { flex: none; color: var(--accent-ink); font-size: 1.1rem; }
+.score-tile.is-top { background: var(--accent-soft); color: var(--accent-ink); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .five-up__name { font-size: 1.75rem; }
+}
 
 /* --- العقل ------------------------------------------------------------------------ */
 /* The cards are the whole game, so they are big enough to read across a table
@@ -6077,6 +6136,27 @@ body.has-fx.has-chat:not(.is-tv-view) .chat-fab { display: inline-flex; }
 }
 .mk-word__empty { font-size: var(--fs-sm); font-weight: 700; color: var(--text-3); }
 .mk-keypad { margin-top: var(--sp-2); }
+/* Arabic letters as one grid of 11 columns (32 letters: 11, 11, 10), so the keyboard
+   fits its card at every width; the rows are only the English one's. Room phones only (.mk-keypad--room). */
+.mk-keypad--grid { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 3px; }
+.mk-keypad--room .key { height: 2.75rem; font-size: 1.05rem; }
+.mk-keypad--room .key.key { min-width: 0; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .mk-keypad--room .key { height: 2.5rem; }
+}
+/* «حالة اللاعبين» as one strip of chips: whose turn lit, the state a small badge. */
+.mk-people { margin-bottom: var(--sp-3); }
+.mk-person__q {
+  display: inline-grid; place-items: center;
+  min-width: 1.5rem; height: 1.5rem; padding-inline: 0.4rem;
+  border-radius: var(--r-full);
+  font-size: var(--fs-xs); font-weight: 900; line-height: 1;
+}
+.mk-person__q--safe { background: var(--success-soft); color: var(--success-ink); }
+.mk-person__q--q { background: var(--warning-soft); color: var(--warning-ink); font-size: var(--fs-sm); }
+.mk-person__q--out { background: var(--danger-soft); color: var(--danger-ink); }
+.mk-person.is-out { opacity: 0.6; }
+.mk-swaps { justify-content: center; margin-top: var(--sp-2); }
 .mk-required { font-size: 3rem; font-weight: 900; line-height: 1.1; color: var(--accent-ink); }
 .mk-verdict {
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
@@ -6208,6 +6288,17 @@ body.has-fx.has-chat:not(.is-tv-view) .chat-fab { display: inline-flex; }
 .room-moveon-not { display: contents; }
 body.room-host-away .room-moveon { display: contents; }
 body.room-host-away .room-moveon-not { display: none; }
+
+/* --- a room screen's bottom bar (ربع قرد, الجرس, خمس ثواني, مين أكتر واحد): the
+   two main actions side by side in .talk__actions, the quiet ones in .talk__pair
+   under them; on a phone on its side it is one line (section SIX OLDER SCREENS). --- */
+.room-bar__pair { display: flex; gap: var(--sp-2); }
+.room-bar__pair > .btn { flex: 1 1 0; min-width: 0; padding-inline: var(--sp-2); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .talk__actions > .room-bar__pair { flex: 1.5 1 0; min-width: 0; }
+  /* The bar stands over a short screen: the main buttons at the default height. */
+  .room-bar__pair > .btn--lg, .five-bar > .btn--lg, .ballot-bar .btn--lg { --btn-h: 3rem; }
+}
 .room-host-away-note {
   position: fixed;
   z-index: var(--z-float);

@@ -58,6 +58,15 @@ pair keeps the exit. The answer pops once on the tap (`emojiJustRevealed`,
 فوازير إيموجي · كمّل المثل block of `Style.html` (`.quiz1-*`); on a phone on its
 side the bar is one line (the talk's rule).
 
+**خمس ثواني between turns** (1 Oct 2026, the before/after sheet): the card says who is
+up (`.five-up`, «قول 3 حاجات في 5 ثواني» on their own phone, `five_up_hint` on the
+host's, «استنى دورك…» on the rest); the standings are a compact grid of name +
+score tiles (`renderScoreboard(board, '', { grid: true })`, `.scoreboard--grid`,
+`.score-tile`, the same `data-pid` / `data-score` so `animateScoreboards` still counts
+up); «⏱ جاهز؟ ابدأ الـ5 ثواني» is the bottom bar's main action (`.five-bar`) for the
+player up or the host, «عدّي اللاعب ده» small under it.
+
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -191,6 +191,22 @@ scratch that is never projected — so a phone cannot watch the tally form and
 change its mind. `openVote` takes an optional `ownerId` per option, which is how
 Fibbage stops you voting for your own lie.
 
+**Player tiles on a ballot** (1 Oct 2026). When every option of a vote is a
+player (مين أكتر واحد, and the accusations of الجاسوس, الحرباء, الموقع السري,
+الفنان المزيف, مافيا - `ballotIsPeople`), `renderBallot` draws a grid of tiles
+(`ballotPeopleHtml`, `.ballot-people`, `.ballot-person`: the initial in its bubble,
+the name) instead of the bare rows; the one tapped is lit (`ballotPick`, kept per
+vote in `ballotPicked`, keyed on the room, deal, round and turn, since the server
+never says what a phone chose), and after voting the tiles stay, still, with the
+pick lit, under «في انتظار باقي الأصوات». Any other ballot (لو خيروك, فيبج, صدق ولا
+كذب) is the old rows. مين أكتر واحد passes `{ bar: true }` and draws
+`renderBallotBar` at the foot: «صوّت: N/M» above the host's «🔒 اقفل التصويت» (anyone's
+while the host is away). `roomPersonChip(name, extra, cls, title)` and
+`roomInitial(name)` (JS_RoomImposter.html) draw a player as the talk's chip in any
+room screen; `.room-bar__pair` is a room bar's main pair (Style.html, beside
+`.room-moveon`).
+
+
 When whose option is whose is itself the secret, `openVote(room, options,
 eligible, { hideOwners: true })` keeps the owners in `room._voteOwners` and
 tells each owner only their own option (`you.voteOwn`); `results[].ownerId`

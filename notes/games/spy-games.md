@@ -53,6 +53,18 @@ new category, so it is in `DEAL_ACTIONS` in `room.js`. The three phone
 renderers carry their own `TV_GAMES` entries (`JS_RoomChameleon.html`,
 `JS_RoomSpyfall.html`, `JS_RoomBomb.html`).
 
+**On one phone, a caught spy's guess is kept** (the audit of 1 Oct 2026). الموقع
+السري saves `spyfallState.caught` when the table accuses the real spy: the accuse
+button (and «أنا الجاسوس») takes the back-closed guess sheet back up, and a reload
+comes back to it with no clock. A saved `left` of 0 is a round whose time ran out:
+a reload reopens the vote instead of a full clock (a new deal saves `null`).
+الحرباء keeps `chameleonState.guessing` the same way, so a reload during the caught
+chameleon's last guess comes back to the clickable grid, not the accuse bar.
+الجاسوس remembers the deal's language (`im.lang`) for the caught spy's six words,
+and its category list escapes the «كلماتنا» / crew titles it shows (a 🔒 asks a
+password only for the app's own lists).
+
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -110,6 +110,7 @@ function startSpyfallGame(again) {
   closeModal('spyfall-spy-guess-modal');
   playSound('click');
   spyfallState.left = null;
+  spyfallState.caught = '';
   spyfallSave();
   showSpyfallRevealStep();
   setView('reveal-spyfall');
@@ -128,7 +129,7 @@ function spyfallSave() {
       players: st.players, location: st.location, spies: st.spies, playerRoles: st.playerRoles,
       revealIndex: st.revealIndex, timerSeconds: st.timerSeconds, left: st.left,
       crossed: [...st.crossedLocations], scores: st.scores, scoreId: st.scoreId,
-      done: st.done, lang: st.lang, card: st.card
+      done: st.done, lang: st.lang, card: st.card, caught: st.caught || ''
     }));
   } catch (e) {}
 }
@@ -205,8 +206,22 @@ function startSpyfallDiscussion(resume) {
   // A round already decided (its result closed with the phone's back): the board, no clock.
   if (spyfallState.done) { updateSpyfallTimerUI(0); return; }
 
+  // A spy already caught is guessing the place: no clock, the guess back up.
+  if (spyfallState.caught) {
+    updateSpyfallTimerUI(spyfallState.left || 0);
+    if (resume) setTimeout(() => { if (appState.currentView === 'play-spyfall') openSpyfallGuessModal(spyfallState.caught); }, 0);
+    return;
+  }
   // Back from a reload: the time it had left, paused until the table is ready.
-  let left = resume && spyfallState.left > 0 ? spyfallState.left : spyfallState.timerSeconds;
+  // 0 is a round whose time ran out (a new deal saves null): the vote again,
+  // not a full clock.
+  const saved = resume && typeof spyfallState.left === 'number' ? spyfallState.left : null;
+  if (saved === 0) {
+    updateSpyfallTimerUI(0);
+    setTimeout(() => { if (appState.currentView === 'play-spyfall') openSpyfallAccuseModal(); }, 0);
+    return;
+  }
+  let left = saved > 0 ? saved : spyfallState.timerSeconds;
   updateSpyfallTimerUI(left);
 
   spyfallState.timerClock = createClock({
@@ -293,6 +308,8 @@ function toggleSpyfallCrossLocation(locName) {
 
 function openSpyfallAccuseModal() {
   if (spyfallState.done) return;
+  // The caught spy's guess closed with the phone's back: the button takes it back there.
+  if (spyfallState.caught) { openSpyfallGuessModal(spyfallState.caught); return; }
   const t = TRANSLATIONS[appState.lang] || {};
   const list = document.getElementById('spyfall-accuse-list');
   if (list) {
@@ -316,7 +333,10 @@ function voteSpyfallAccused(player) {
   const t = TRANSLATIONS[appState.lang] || {};
 
   if (isSpy) {
-    // Spy caught! Spy gets one chance to guess the location!
+    // Spy caught! Spy gets one chance to guess the location! Kept, so the back
+    // or a reload comes back to the guess instead of a table free to accuse again.
+    spyfallState.caught = player;
+    spyfallSave();
     playSound('alarm');
     openSpyfallGuessModal(player);
   } else {
@@ -352,6 +372,7 @@ let spy1PausedForGuess = false;
 /** «أنا الجاسوس، هخمّن المكان»: the clock stands still while the spy picks. */
 function spy1VolunteerGuess() {
   if (spyfallState.done) return;
+  if (spyfallState.caught) { openSpyfallGuessModal(spyfallState.caught); return; }
   spy1PausedForGuess = !!(spyfallState.timerClock && spyfallState.timerClock.isRunning());
   if (spy1PausedForGuess) { spyfallState.timerClock.pause(); setSpyfallPauseLabel(true); }
   haptic('medium');

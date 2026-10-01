@@ -522,6 +522,9 @@
       const refill = shuffleArray(older.slice(0, Math.max(need, Math.ceil(older.length / 2)))).slice(0, need);
       picks = shuffleArray(unseen).concat(refill);
       pool.forEach(x => dealt.delete(keyOf(x)));
+      // The cards already up this round (avoid) were dealt from this pool too:
+      // they open the new cycle with the picks, or they come straight back.
+      pool.forEach(x => { if (avoid.has(keyOf(x))) dealt.add(keyOf(x)); });
       picks.forEach(x => dealt.add(keyOf(x)));
     }
 
@@ -11836,7 +11839,8 @@
     // A room screen restored after a reload is not reached through setView.
     if (typeof syncFxButton === 'function') syncFxButton(appState.currentView);
     
-    const viewEl = document.getElementById('view-' + appState.currentView);
+    const restoring = appState.currentView;
+    const viewEl = document.getElementById('view-' + restoring);
     
     if (viewEl) {
         // --- RESTORE GAME LOGIC ---
@@ -12010,6 +12014,10 @@
             }
         }
         
+        // A branch that found nothing to restore may have moved on (setView to
+        // its setup, or reveal to play): that screen is showing already, and
+        // un-hiding the saved one here put the two on top of each other.
+        if (appState.currentView !== restoring) return;
         const meta = VIEW_META[appState.currentView];
         if (meta && meta.accent) viewEl.setAttribute('data-accent', meta.accent);
         viewEl.classList.remove('hidden');
@@ -12792,7 +12800,7 @@
          and snapping back,
        - one more while a popup is open: back closes it.
      Entries are tokens ('play-sudoku', and 'play-sudoku+' for the extras). */
-  const nav = { stack: [], index: 0, expect: null, dirty: false, soon: false, uaAnimated: false, ready: false, session: '' };
+  const nav = { stack: [], index: 0, expect: null, dirty: false, soon: false, uaAnimated: false, ready: false, session: '', staleWalk: 0 };
   const navState = (token, i) => ({ ashry: 1, s: nav.session, t: token, i: i });
 
   function navDesired() {
@@ -12991,9 +12999,22 @@
       nav.expect = null;
       nav.stack = [];
       nav.index = 0;
+      clearTimeout(nav.staleWalk);
+      // A reload keeps the history below it, so stale entries lie only under
+      // this session's home: back from the home landed on one, was answered by
+      // making it the home again, and every press was eaten once per entry
+      // before the app could close. On the home with nothing open, keep going
+      // back; if nothing happens (the stale entry was the tab's first), take
+      // this entry over as before.
+      if (appState.currentView === 'menu' && !document.querySelector('.modal-overlay:not(.hidden)')) {
+        nav.staleWalk = setTimeout(navSoon, 400);
+        history.back();
+        return;
+      }
       navSoon();
       return;
     }
+    clearTimeout(nav.staleWalk);
     // Our own history.go arriving.
     if (nav.expect !== null && st.i === nav.expect) {
       nav.expect = null;

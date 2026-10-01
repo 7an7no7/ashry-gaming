@@ -3009,6 +3009,7 @@ function chNewGame(opts) {
   s.lost = o.lost ? [o.lost[0].slice(), o.lost[1].slice()] : [[], []];
   s.lostStart = [s.lost[0].slice(), s.lost[1].slice()];
   s.last = null;
+  s.tb = 0;
   s.result = null;
   s.comment = null;
   s.flip = false;
@@ -3280,6 +3281,8 @@ function chCoachPrepare() {
   setTimeout(() => {
     const st = chState();
     if (st.phase !== 'play' || st.gameId + '|' + st.hist.length !== key || appState.currentView !== 'play-shatranj') return;
+    // Continue and a new game reach here twice (setView's hook and their own call): one look is enough.
+    if (chLocal.coachKey === key) return;
     chLocal.coachBefore = chessAnalyse(st.g, { nodes: CH_COACH_NODES, ms: 900 });
     chLocal.coachKey = key;
     chPaint();
@@ -3357,11 +3360,19 @@ function chCoachTakeBack() {
   s.phase = 'play';
   s.result = null;
   s.last = null;
+  // The move played instead has the same number: counted apart (chTakeBackKey), or it
+  // would snap in silence and a hidden queen's reveal at that move would never pop.
+  s.tb = (s.tb || 0) + 1;
   chLocal.pending = null;
   chLocal.sel = '';
   saveToLocal();
   chPaint({ still: true });
   chAfterMove();
+}
+
+/** What makes a move number this game's own: ↶ and the coach's take back each count. */
+function chTakeBackKey(s) {
+  return s.gameId + '|' + ((s.help && s.help.undo) || 0) + '.' + (s.tb || 0);
 }
 
 /** The warning closed without its buttons (✕, the backdrop, the phone's back): the move stands,
@@ -3547,7 +3558,7 @@ function chPaint(opts) {
     board: s.g.board, orient: chOrient(s), loud: true, preable: s.vs === 'phone',
     last: s.last ? { from: s.last.from, to: s.last.to } : null,
     // The undo count is in the key: after ↶ the same move number is another move (else the piece snaps).
-    anim: s.last ? chAnimOf(s.last, s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n, o.still) : null,
+    anim: s.last ? chAnimOf(s.last, chTakeBackKey(s) + '|' + s.last.n, o.still) : null,
     check: chessCheckSq(s.g),
     mate: ended && s.result.reason === 'mate' ? chMateKing(s.g) : '',
     sel: picking ? '' : humanTurn ? chLocal.sel : preOn ? chLocal.presel : '',
@@ -3564,7 +3575,7 @@ function chPaint(opts) {
   chViewShow(el.querySelector('[data-ch-host]'), bply >= 0 ? chBrowseModel(model, chReplayPositions(s.start, s.hist, s.lostStart), bply) : model);
   // Not over a position being looked back at: the moment is the game's, not that move's.
   if (hq && s.last && s.last.hq && !o.still && bply < 0) {
-    const k = s.gameId + '|' + ((s.help && s.help.undo) || 0) + '|' + s.last.n;
+    const k = chTakeBackKey(s) + '|' + s.last.n;
     if (s.last.hq.reveal) chHqMoment('reveal', k + '|r');
     if (s.last.hq.captured) chHqMoment('captured', k + '|c');
   }

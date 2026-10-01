@@ -257,6 +257,10 @@ the round is decided (the tally isn't taken back). On a phone on its side and
 from 900px the card opens up: the board in a card of its own, the pills, the
 turn and the bar in a column beside it.
 
+**The opponent belongs to the game** (the audit of 1 Oct 2026): changing «الموبايل / صاحبك»
+on كونكت ٤'s or نقط ومربعات's setup while a game is left in the middle ends that game (its
+Continue goes), so the phone never takes a friend's seat.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -934,7 +934,7 @@ function bankContinue() {
 function bankLocalDo(action, p) {
   const s = bankState();
   const g = s.g;
-  if (!g || g.phase !== 'play') return;
+  if (!g || g.phase !== 'play' || bankFx.pending) return;
   const now = Date.now();
   try {
     switch (action) {
@@ -1048,10 +1048,15 @@ function paintBank(opts) {
   if (!el || !s.g) return;
   if (o.still || o.fresh) bankFxCancel();
   if (!o.still && !o.fresh && !o.keep && bankFx.busyUntil > Date.now()) {
+    // The move is made, its frame waits for the motion: the buttons on screen are the
+    // last frame's, so they rest until it is drawn (a second «اشتري» hit the rules' «مش وقتها»).
+    bankFx.pending = true;
+    el.querySelectorAll('button[onclick^="bankDo("]').forEach(b => { b.disabled = true; });
     bankStopBot();
     bankBotTimer = setTimeout(() => { bankBotTimer = null; paintBank(); }, bankFx.busyUntil - Date.now() + 40);
     return;
   }
+  bankFx.pending = false;
   bankUiFor(s.g);
   const c = bankLocalCtx(o);
   el.innerHTML = bankFrameHtml(c);

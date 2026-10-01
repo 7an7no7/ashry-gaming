@@ -53,6 +53,7 @@ function start2048() {
   s.won = false;
   s.keepGoing = false;
   s.prev = null;
+  s.raisedBest = false;
   s.phase = 'play';
   g2048Spawn(s);
   g2048Spawn(s);
@@ -138,7 +139,7 @@ function move2048(dir) {
   if (s.phase !== 'play') return;
   if (g2048Busy) { g2048Queued = dir; return; }
   const topBefore = Math.max.apply(null, s.tiles.map(x => x.v).concat([0]));
-  const before = { tiles: JSON.parse(JSON.stringify(s.tiles)), score: s.score, nextId: s.nextId, won: s.won };
+  const before = { tiles: JSON.parse(JSON.stringify(s.tiles)), score: s.score, nextId: s.nextId, won: s.won, gameRaised: !!s.raisedBest };
   // The slide rewrites tile positions, so keep a copy of where the gone ones were headed.
   const snapshot = s.tiles.map(x => Object.assign({}, x));
   const res = g2048Slide(s, dir);
@@ -161,6 +162,7 @@ function move2048(dir) {
   if (res.gained && (!best || s.score > best.score)) {
     before.best = best;
     before.raisedBest = true;
+    s.raisedBest = true;
     soloRecord('g2048', '', { score: s.score, tile: Math.max.apply(null, s.tiles.map(x => x.v)) }, () => true);
     const bestEl = document.getElementById('g2048-bestv');
     if (bestEl) bestEl.textContent = s.score;
@@ -208,6 +210,7 @@ function undo2048() {
   s.score = s.prev.score;
   s.nextId = s.prev.nextId;
   s.won = s.prev.won;
+  s.raisedBest = !!s.prev.gameRaised;
   s.prev = null;
   saveToLocal();
   paint2048(true);
@@ -369,7 +372,9 @@ function g2048End(won) {
   const t = TRANSLATIONS[appState.lang];
   const top = Math.max.apply(null, s.tiles.map(x => x.v).concat([0]));
   const rec = soloRecord('g2048', '', { score: s.score, tile: top }, (a, b) => a.score > b.score || (a.score === b.score && a.tile > b.tile));
-  if (!rec.record && rec.prev && rec.prev.score === s.score) rec.record = true;
+  // The best this game already raised move by move is still a new best; an
+  // older best it only tied is not (s.raisedBest, set when a move raised it).
+  if (!rec.record && rec.prev && rec.prev.score === s.score && s.raisedBest) rec.record = true;
   const bestEl = document.getElementById('g2048-bestv');
   if (bestEl && rec.record) bestEl.textContent = s.score;
   if (won) {

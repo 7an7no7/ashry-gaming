@@ -108,6 +108,15 @@ function renderDaily() {
     </div>`;
   const streakEl = document.getElementById('daily-streak');
   if (first && streak > 1 && streakEl && typeof countUp === 'function' && !motionOff()) countUp(streakEl, 0, streak);
+  // A board left half done lives in its game's own state, which only its chunk
+  // can read: until it loads, «كمّل» read «العب». Fetch the chunks of today's
+  // unfinished games once, then draw the list again (as the home's «كمّل» card does).
+  const need = DAILY_GAMES.filter(g => !SOLO_GAMES[g.id] && !soloDailyResult(g.id))
+    .reduce((all, g) => all.concat(typeof lzChunksOfGame === 'function' ? lzChunksOfGame(g.id) : []), []);
+  if (need.length && !renderDaily.asked && typeof lzEnsure === 'function' && !lzReady(need)) {
+    renderDaily.asked = true;
+    lzEnsure(need).then(() => { if (appState.currentView === 'setup-daily') renderDaily(); }, () => {});
+  }
 }
 
 /** Plays a daily from here: its game's own start, which continues one already begun. */

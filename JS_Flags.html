@@ -187,9 +187,12 @@ function paintFlags(freshIndex) {
   const over = s.phase !== 'play';
   const hints = over ? [] : flagsHints(s, t);
   const showFlag = s.playMode === 'flag' || over;
+  // A past day from the archive is dealt at the daily's level, which has no
+  // name of its own: its 📅 badge below says what it is, so no empty «المستوى».
+  const levelName = t['solo_lvl_' + s.playLevel];
   const levelChip = s.daily
     ? `<span class="chip chip--plain play-chip">📅 <b>${escapeHTML(t.daily_title || '')}</b></span>`
-    : `<span class="chip chip--plain play-chip">${escapeHTML(t.solo_level || '')} <b>${escapeHTML(t['solo_lvl_' + s.playLevel] || '')}</b></span>`;
+    : levelName ? `<span class="chip chip--plain play-chip">${escapeHTML(t.solo_level || '')} <b>${escapeHTML(levelName)}</b></span>` : '';
   const archive = s.archive ? `<span class="badge badge--warning">📅 ${escapeHTML(t.daily_archive_badge || '')} ${escapeHTML(s.archive)}</span>` : '';
   const guesses = s.guesses.map((g, i) => flagsGuessChip(g, i === freshIndex, t)).reverse().join('');
   el.innerHTML = `

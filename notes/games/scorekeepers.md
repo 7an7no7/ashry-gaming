@@ -131,6 +131,11 @@ The numbers, researched on 16 Sep 2026:
   26-26 split carries the 30 to the next deck. Target 101/121/150, 121 by
   default (Egyptian tables); 2-4 players or two teams.
 
+**Typed numbers** (the audit of 1 Oct 2026): `csVal` reads a typed value as a whole
+number held to its stepper's min..max (as − and + are), so a bid of 7.5 can't score NaN and a
+leftover of 999 counts as 400. The field itself isn't rewritten (it runs on every key); the
+preview shows what counts.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

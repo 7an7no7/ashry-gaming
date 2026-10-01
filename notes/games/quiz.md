@@ -1,7 +1,7 @@
 # «اعمل مسابقتك» and «كلماتنا» - the builder's notes (30 Sep 2026)
 
-Built on the worktree branch of the quiz agent. Not deployed, not pushed; GEMINI.md
-untouched (a ready index line and a draft `notes/games/quiz.md` are at the end).
+Built on the worktree branch of the quiz agent on 30 Sep 2026; live since (rooms server and
+site). A quiz's answers are the author's since the review of 1 Oct 2026 (*The answers* below).
 
 ## What it is
 
@@ -19,7 +19,7 @@ untouched (a ready index line and a draft `notes/games/quiz.md` are at the end).
 | --- | --- |
 | `Packs.js` | The one rule for what a pack may hold (`packCleanQuiz`, `packCleanWords`, `packClean`), the limits (`PACK_LIMITS`), the code alphabet and pattern (`PACK_CODE_RE`, 6 of the room alphabet), the year (`PACK_TTL_MS`). Shared: the page's shell lists (`SHELL_LISTS`, `SHARED_LISTS`) and the Worker (`FILES` in `rooms-worker/build.mjs`). Errors are codes; the page words them (`pk_err_<code>`). |
 | `rooms-worker/src/packs.js` | `PackStore`, a Durable Object per code (`env.PACKS.idFromName('pack:' + code)`): `{ kind, pack, keyHash, created, updated, played }`. `create`, `get(touch)`, `save`, and an alarm a year after the last play or save (plus the same check on every read). |
-| `rooms-worker/src/index.js` | `POST /pack/create { kind, pack }` → `{ code, key, pack }`; `/pack/get { code }`; `/pack/save { code, key, kind, pack }` (only with the key it was made with); `/pack/played { code }`. The server checks every pack with `packClean` again. Limits per address (per Worker instance, like `/create`): create 20, save 200, get 400 in 10 minutes. |
+| `rooms-worker/src/index.js` | `POST /pack/create { kind, pack }` → `{ code, key, pack }`; `/pack/get { code, key? }` (a quiz's right choices only with its edit key, `answers`), `/pack/answer { code, i, q }` (one question's right choice); `/pack/save { code, key, kind, pack }` (only with the key it was made with); `/pack/played { code }`. The server checks every pack with `packClean` again. Limits per address (per Worker instance, like `/create`): create 20, save 200, get 400 in 10 minutes. |
 | `rooms-worker/src/room.js` | A `start` or `playAgain` naming `payload.pack` reads the pack from `PackStore` (`readPack`, as played) and hands it to that one move as `room._packIn`; `roomHostChanged(room)` after `makeHost`, the 2-minute handover and a host leaving (`removeDevice`). برنامج السهرة's next game names its pack in its options: room.js loads it for the clock and the skip that deal it (`programNextPack`). |
 | `RoomGames.js` | `roomPackAdopt` (in `applyRoomAction`, before the games) keeps the pack as `room._pack` for the game (play again, the next round) - a code the server didn't load is refused, a `start` with no pack clears it; `roomPackQuiz`, `roomPackWords`, `roomPackDeck` (choices shuffled at the deal). Trivia, the buzzer (`buzzerQuizDeal`, `buzzerQuizSync`, `buzzerQuizReveal`, actions `quizReveal` and `quizNext`), الجاسوس, الحرباء and ارسم وخمّن deal from it. `clearGameState` drops `_pack`. |
 | `JS_PackStore.html` | In the shell: the packs on this phone (`ashryPacks_v1`), the calls to `/pack/*`, and the helpers the lobbies and the word games use (`packRoomPick`, `packSourceFieldHtml`, `packWordsList`, `packWordsCatName`, `packWordsCode`, `spyCategoriesPlus`, `packCatsPlus`, `packWordsLobbyHtml`). |
@@ -68,7 +68,7 @@ untouched (a ready index line and a draft `notes/games/quiz.md` are at the end).
   «احفظها الأول»); the count list hides for a quiz. The start carries `pack: code`; the
   server loads it (never the phone's copy), deals every question in the author's order,
   each one's choices shuffled, and plays it exactly as the bank (15 s, 10 + the speed
-  bonus). `shared.quiz` = `{ title, emoji }` for the header (never the code: `/pack/get` answers a code with every right choice; the audit of 1 Oct 2026). Play again plays it
+  bonus). `shared.quiz` = `{ title, emoji }` for the header (never the code: `/pack/get` answered a code with every right choice; the audit of 1 Oct 2026 - it hides them now without the edit key, *The answers*, and the code still stays off the phones). Play again plays it
   again, reshuffled.
 - **The buzzer**: the lobby's «الأسئلة» (none - the host asks out loud, as always - or a
   quiz). `shared.quiz` = `{ title, emoji, n, total, q, choices, answer, done }`:
@@ -91,7 +91,8 @@ untouched (a ready index line and a draft `notes/games/quiz.md` are at the end).
 ### On one phone
 
 - **دوري المعرفة**: the setup's «الأسئلة» (the app's, or any quiz on the phone, with or
-  without a code - it plays from the phone's copy, offline too). A quiz board: 25
+  without a code - it plays from the phone's copy, offline too; a quiz opened by its code
+  asks for each answer as its card shows it, *The answers*). A quiz board: 25
   questions a board, a row at a time (the first five at 100, the next at 200…), columns
   named with the quiz and a number, fewer columns and rows for a short quiz, the last
   row's empty places blank; the rounds are as many boards as it fills (at most 4, the
@@ -143,7 +144,34 @@ What this side offers it (JS_PackStore.html, the shell, always loaded):
 - `packOpenByCode(code)` → `{ kind, id }` (keeps it, shows nothing), `packFetch(code)` →
   `{ code, kind, pack }` (keeps nothing), `packsKnownCodes()` → `[{ code, kind, title }]`
   (every code on this phone: what «ضيف للشلة» could offer), `packQuizByCode(code)`,
-  `packWordsLocal()`, `packErrorText(error)`. Server: `POST /pack/get { code }`.
+  `packWordsLocal()`, `packErrorText(error)`. Server: `POST /pack/get { code, key? }`.
+
+### The answers (the review of 1 Oct 2026)
+
+A crew keeps its quizzes' codes where every member sees them, and `/pack/get` answered a code
+with every right choice: a member could read the quiz's answers before the night. Now:
+
+- `/pack/get` without the pack's edit key sends a quiz with every question and its four
+  choices and `a: -1` (`packHideAnswers`, Packs.js), `answers: false`; with the key (the
+  author's phone refreshing its own copy: `packOpenByCode` sends it) the whole quiz. Word
+  packs are unchanged.
+- **Rooms** read the PackStore on the server (`room.js`), so trivia and the buzzer deal and
+  score as before.
+- **The team board** on a phone without the key plays the quiz blind (`packCleanQuiz(quiz,
+  true)` keeps `a: -1`): a card shows «…» until its answer is shown, then asks
+  `/pack/answer { code, i, q }` (`tbQuizAnswer`, JS_TriviaBoard.html) - one question's answer
+  as it is played, the same as a room shows after each question - keeps it in the game (a
+  reload has it) and lights it; offline it shows «—» and says so. `q` is the question as the
+  phone has it, so a quiz changed since it was opened answers by the text (`packAnswerOf`).
+  It needs the network for each answer; the author's own phone plays offline as before.
+- «اعمل نسخة ليا» from such a quiz copies the questions with no answer ticked (the editor's
+  «اختار الإجابة الصح» on each). The quiz's sheet says the answers stay with the author
+  (`qm_answers_hidden`).
+- A page from before this gets the quiz without answers too: its board falls back to the
+  app's questions for such a quiz (it refused a quiz with no right choice), and an author's
+  phone on it reopening its own code by code loses its ticks until the page updates.
+- This stops reading the answers off the code; it can't stop someone who plays the quiz
+  through beforehand (on the board or in a room), which shows each answer as it goes.
 
 **How a crew's packs should show (not built, the crew link's job):**
 

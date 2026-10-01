@@ -19,9 +19,10 @@
  *   POST /crew/join   { code, claim | name }    -> the same, for a member claimed or someone new
  *   POST /crew/peek   { code }                  -> the crew's name and members (the join sheet)
  *   POST /crew/get    { code, key }             -> the crew's page (a member's key)
- *   POST /crew/act    { code, key, action, payload }  rename, renameMember, removeMember, handOver, leave, addPack, removePack
+ *   POST /crew/act    { code, key, action, payload }  rename, renameMember, removeMember, handOver, pairCode, pair, leave, addPack, removePack
  *   POST /pack/create { kind, pack }             «اعمل مسابقتك» / «كلماتنا»: -> { code, key }
- *   POST /pack/get    { code }                     -> { kind, pack, updated }
+ *   POST /pack/get    { code, key? }               -> { kind, pack, updated, answers }: a quiz's right choices only with its edit key
+ *   POST /pack/answer { code, i, q }               -> { a }: one question's right choice, as it is played (the team board)
  *   POST /pack/save   { code, key, kind, pack }    the author's change (the key the create gave)
  *   POST /pack/played { code }                     a pack played on one phone: its year starts again
  *   GET  /test                                    connection test page
@@ -33,7 +34,7 @@
  * Anything else is looked up in the built app (docs/, see [assets] in
  * wrangler.toml) before it reaches this code.
  */
-import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS, CREW_CODE_RE, crewNewCode, PACK_ALPHABET, PACK_CODE_LEN, PACK_CODE_RE, packClean, packCode } from '../generated/rules.js';
+import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS, CREW_CODE_RE, crewNewCode, PACK_ALPHABET, PACK_CODE_LEN, PACK_CODE_RE, packClean, packCode, packHideAnswers, packAnswerOf } from '../generated/rules.js';
 import { Room } from './room.js';
 import { PromptMemory } from './memory.js';
 import { LiveStats } from './live.js';
@@ -225,6 +226,9 @@ const packGetAllowed = limiter(400, 10 * 60 * 1000);
 // «الشلة»'s lookup by code has its brake too: a hit answers with every member's id, and a
 // member is claimed with the code alone, so codes mustn't be tried one after another.
 const crewPeekAllowed = limiter(120, 10 * 60 * 1000);
+// A member's page and moves: far above a household (every phone opening the page, the rooms'
+// lists asking again now and then), and a script trying keys can't keep a crew busy.
+const crewUseAllowed = limiter(600, 10 * 60 * 1000);
 const PACK_KINDS = ['quiz', 'words'];
 const packStub = (env, code) => env.PACKS.get(env.PACKS.idFromName('pack:' + code));
 
@@ -259,9 +263,25 @@ async function handlePack(env, request, path, body) {
   if (!PACK_CODE_RE.test(code)) return { ok: false, error: 'not_found' };
   if (path === '/pack/get' || path === '/pack/played') {
     if (!packGetAllowed(request)) return { ok: false, error: 'busy' };
-    const got = await packStub(env, code).get(path === '/pack/played');
+    // A quiz's right choices go only to its author's key (the review of 1 Oct 2026: a crew's
+    // members could read the answers before the night). A room deals a quiz on the server
+    // (room.js reads the PackStore itself), and the team board asks /pack/answer as it plays.
+    const hash = path === '/pack/get' && body.key ? await keyHash(body.key) : '';
+    const got = await packStub(env, code).get(path === '/pack/played', hash);
     if (!got) return { ok: false, error: 'not_found' };
-    return path === '/pack/played' ? { ok: true } : { ok: true, code, kind: got.kind, pack: got.pack, updated: got.updated };
+    if (path === '/pack/played') return { ok: true };
+    const answers = got.kind !== 'quiz' || got.mine;
+    return { ok: true, code, kind: got.kind, pack: answers ? got.pack : packHideAnswers(got.pack), updated: got.updated, answers };
+  }
+  if (path === '/pack/answer') {
+    // One question's right choice, as the team board plays it on a phone without the key: the
+    // same as a room shows after each question. `q` is the question as the phone has it, so a
+    // quiz changed since the phone opened it answers for the right question, or not at all.
+    if (!packGetAllowed(request)) return { ok: false, error: 'busy' };
+    const got = await packStub(env, code).get(false);
+    if (!got || got.kind !== 'quiz') return { ok: false, error: 'not_found' };
+    const a = packAnswerOf(got.pack, Number(body.i), body.q);
+    return a < 0 ? { ok: false, error: 'changed' } : { ok: true, a };
   }
   // '/pack/save'
   if (!packSaveAllowed(request)) return { ok: false, error: 'busy' };
@@ -273,7 +293,7 @@ async function handlePack(env, request, path, body) {
   if (res.denied) return { ok: false, error: 'denied' };
   return { ok: true, code, pack: clean.pack, updated: res.updated };
 }
-const PACK_API = new Set(['/pack/create', '/pack/get', '/pack/save', '/pack/played']);
+const PACK_API = new Set(['/pack/create', '/pack/get', '/pack/answer', '/pack/save', '/pack/played']);
 
 /* --- دندنها: a round's song by its opaque token (1 Oct 2026) ----------------------
    GET /song/CODE/TOKEN: the room (Room.songOf) says which song the token stands for -
@@ -406,7 +426,8 @@ export default {
         return json({ ok: false, error: 'bad request' }, 400);
       }
       if (((url.pathname === '/crew/create' || url.pathname === '/crew/join') && !crewAllowed(request)) ||
-          (url.pathname === '/crew/peek' && !crewPeekAllowed(request))) {
+          (url.pathname === '/crew/peek' && !crewPeekAllowed(request)) ||
+          ((url.pathname === '/crew/get' || url.pathname === '/crew/act') && !crewUseAllowed(request))) {
         return json({ ok: false, error: 'حاولت كتير في وقت قصير، استنى شوية وجرب تاني' }, 429);
       }
       try {

@@ -1106,6 +1106,11 @@ async function quizRobots() {
   check(!bad.ok && bad.error === 'choices_same' && bad.at === 0, 'quiz: the server refuses two answers the same, naming the question');
   const got = await api('/pack/get', { code: made.code.toLowerCase() });
   check(got.ok && got.kind === 'quiz' && got.pack.questions.length === 3 && got.pack.title === 'مسابقة العيد', 'quiz: anyone opens it by its code (in any case)');
+  check(got.answers === false && got.pack.questions.every((x) => x.a === -1 && x.c.length === 4), 'quiz: without the edit key it comes with no right answers (the review of 1 Oct 2026)');
+  const own = await api('/pack/get', { code: made.code, key: made.key });
+  check(own.ok && own.answers === true && own.pack.questions[0].a === 1, "quiz: the author's key gets the answers");
+  const ans = await api('/pack/answer', { code: made.code, i: 0, q: got.pack.questions[0].q });
+  check(ans.ok && ans.a === 1 && (await api('/pack/answer', { code: made.code, i: 0, q: 'سؤال مش موجود' })).ok === false, "quiz: the team board gets one question's answer as it plays it");
   const denied = await api('/pack/save', { code: made.code, key: 'not-the-key', kind: 'quiz', pack: quiz });
   check(!denied.ok && denied.error === 'denied', 'quiz: only the author\'s key changes it');
   const edited = await api('/pack/save', { code: made.code, key: made.key, kind: 'quiz', pack: Object.assign({}, quiz, { title: 'مسابقة العيد الكبير' }) });
@@ -1834,6 +1839,20 @@ async function crewRobots() {
   const claim = await crew('join', { code, claim: made.memberId });
   check(claim.ok && claim.memberId === made.memberId && claim.key !== made.key, 'crew: a second phone claims a member and gets its own key');
   check((await crew('get', { code, key: 'nope' })).ok === false, 'crew: a wrong key sees nothing');
+  // The manager's power is a key's (the review of 1 Oct 2026): claiming the manager's name gives a member key.
+  check(made.crew.mgr === true && claim.crew.mgr === false, "crew: the phone that made it runs it; a phone that tapped the manager's name doesn't");
+  check((await crew('act', { code, key: claim.key, action: 'removeMember', payload: { id: kk.memberId } })).ok === false &&
+    (await crew('act', { code, key: claim.key, action: 'rename', payload: { name: 'مسروقة' } })).ok === false, "crew: a claim of the manager's name can't take someone out or rename the crew");
+  const stray = await crew('join', { code, claim: kk.memberId });
+  const strayLeft = await crew('act', { code, key: stray.key, action: 'leave' });
+  const kkStill = await crew('get', { code, key: kk.key });
+  check(strayLeft.ok && strayLeft.phoneOnly && kkStill.ok && kkStill.crew.members.some((m) => m.id === kk.memberId), "crew: leaving from a phone that tapped a name drops that phone, not the member");
+  const pairBad = await crew('act', { code, key: claim.key, action: 'pairCode' });
+  const paired = await crew('act', { code, key: made.key, action: 'pairCode' });
+  check(!pairBad.ok && paired.ok && /^[0-9]{6}$/.test(paired.pair.code), "crew: only the manager's phone makes a pairing code");
+  check((await crew('act', { code, key: kk.key, action: 'pair', payload: { code: paired.pair.code } })).ok === false, "crew: another member can't use it");
+  const pairOk = await crew('act', { code, key: claim.key, action: 'pair', payload: { code: paired.pair.code } });
+  check(pairOk.ok && pairOk.crew.mgr === true, "crew: the manager's other phone types it and runs the crew too");
 
   // A room opened for the crew: the host proves membership with the crew key (checked server to server).
   const H = await Bot.host('هالة', 'buzzer');

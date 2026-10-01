@@ -62,7 +62,12 @@ const packEmoji = (raw) => {
   return /[\p{L}]/u.test(e) || /^[0-9]+$/.test(e) ? '' : e;
 };
 
-function packCleanQuiz(raw) {
+/**
+ * `blind`: a quiz as a phone without its edit key holds it (packHideAnswers): a question with
+ * no right choice keeps a: -1 instead of failing. Only the page passes it (the team board);
+ * the server always asks for every answer.
+ */
+function packCleanQuiz(raw, blind) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const title = packText(src.title, PACK_LIMITS.title);
   if (!title) return { error: 'title' };
@@ -80,12 +85,34 @@ function packCleanQuiz(raw) {
     if (c.some((x) => !x)) return { error: 'choice_empty', at: i };
     const folded = c.map(packFold);
     if (new Set(folded).size !== 4) return { error: 'choices_same', at: i };
-    const a = Number(item.a);
-    if (!(a >= 0 && a <= 3 && a === Math.floor(a))) return { error: 'no_right', at: i };
+    let a = Number(item.a);
+    if (!(a >= 0 && a <= 3 && a === Math.floor(a))) {
+      if (!blind) return { error: 'no_right', at: i };
+      a = -1;
+    }
     questions.push({ q, e: packEmoji(item.e), c, a });
   }
   return { pack: { title, emoji: packEmoji(src.emoji), questions } };
 }
+
+/**
+ * A quiz as a phone without its edit key gets it (/pack/get, the review of 1 Oct 2026): every
+ * question and its four choices, no right one (a: -1) - so a crew's members can't read the
+ * answers before the night. A room deals the quiz on the server; the team board asks for each
+ * question's answer as it is played (/pack/answer, packAnswerOf).
+ */
+const packHideAnswers = (pack) => Object.assign({}, pack, {
+  questions: ((pack && pack.questions) || []).map((x) => ({ q: x.q, e: x.e || '', c: (x.c || []).slice(), a: -1 }))
+});
+
+/** Question `i`'s right choice when its text is still `q` (else the one question with that text): 0..3, or -1. */
+const packAnswerOf = (pack, i, q) => {
+  const list = (pack && pack.questions) || [];
+  const text = packText(q, PACK_LIMITS.q);
+  if (!text) return -1;
+  const at = list[i] && list[i].q === text ? list[i] : list.find((x) => x.q === text);
+  return at && at.a >= 0 && at.a <= 3 ? at.a : -1;
+};
 
 function packCleanWords(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};

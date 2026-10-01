@@ -13,7 +13,10 @@ six (`shared.options`, the secret among five others of the same category).
 `SPY_WORDS_EN` (the same eleven categories under English names - Animals,
 Food, Jobs, Places, Things, Brands, Famous people, Transport, Sports,
 Countries & cities, Musical instruments - about as many words each as the
-Arabic) and `SPY_PAIRS_EN` (المختلف's 74 pairs). The builds put them in the
+Arabic) and `SPY_PAIRS_EN` (المختلف's pairs: 74, then 231 in each language
+since the review of 1 Oct 2026 - animals, food, jobs, places, things, sports,
+transport, countries, instruments and days out, the same pair on the same line in
+both lists). The builds put them in the
 page (`SERVER_DATA.spyDataEn` / `spyPairsEn`, `window.SPY_WORDS_EN` /
 `SPY_PAIRS_EN`), and the page asks `spyCategories()` and `spyPairs()` in
 `JS_Core.html`, which answer in `contentLang()`: the one-phone setup, the room
@@ -87,6 +90,37 @@ chameleon's last guess comes back to the clickable grid, not the accuse bar.
 and its category list escapes the «كلماتنا» / crew titles it shows (a 🔒 asks a
 password only for the app's own lists).
 
+
+## الجاسوس / المختلف in rooms: who asks first, a limit, the vote as bars (the review of 1 Oct 2026)
+
+- **A first asker**: `imposterPickFirst` draws `shared.firstId` from the round's
+  roster at `start`, anyone, the spy as likely as the rest (as الموقع السري's
+  `firstId`). The reveal and the discussion show «🎤 يبدأ الأسئلة: X»
+  (`imposterFirstHtml`, `spy_first`) on every phone and on the TV. If that person
+  leaves before the vote, `roomPlayerLeft` draws again from whoever is still here.
+- **An optional discussion limit**: the lobby's «حد للنقاش» (`imp_limit`) is من غير
+  / 3 / 5 / 8 minutes (`IMPOSTER_LIMITS`, `IMPOSTER_ROOM_LIMITS`; remembered in
+  `ashryImposterRoomOpts.limit`), off by default. `start` keeps it in
+  `shared.limit` (anything else, or an older phone's missing field, is 0);
+  `beginDiscussion` sets `shared.endsAt`; `gameDeadline` gives it
+  `IMPOSTER_GRACE_MS` and `gameTimeout` opens the vote (`openImposterVote`, which
+  `startVote` uses too and which clears `endsAt`). The phone and TV clock count
+  down to it («فاضل على التصويت», red under 30 s, `countdownUrgency`, the alarm at
+  0) instead of counting up; without a limit it counts up as before.
+- **The vote as bars, before the reveal**, in الجاسوس / المختلف, الحرباء and الموقع
+  السري, on the phone and the TV: `roomSpyVoteBars(state, ids, where)`
+  (JS_RoomVoting.html) draws the closed vote through `renderVoteResults` keyed on
+  the deal, with the impostor's own bar (`highlightIds`: `shared.spyIds`,
+  `chameleonId`, or the caught one in the guess phase) rising last, lit and tagged
+  🕵️ / 🎭 / 🦎 (`tag`, fading in with the light, `.result-row__tag`). It returns
+  when that bar starts, and the result card waits for it: `spyRevealParts(key,
+  label, after)` holds the turn back (`--cover-at` on the card, Style.html section
+  14) and `spyCastHtml(..., { after })` holds the living spy (a positive
+  `--spc-late`). The guess phase of a caught spy / chameleon gets the same bars
+  and a face-down «الجاسوس كان…» card; the result then shows the bars settled
+  (the same key). The TV's result line sits under a cover too (`.tv-spy-reveal`),
+  and its confetti waits through `afterReveal`. No vote (the host's reveal, a
+  spy's guess during play, someone leaving) draws no bars.
 
 **كلمة واحدة and من أنا؟ in rooms, the review of 1 Oct 2026.** كلمة واحدة's guesser
 walks a shuffled order (`roomTurnStep`, `shared.turnOrder` / `turnAt`, as ارسم وخمّن's

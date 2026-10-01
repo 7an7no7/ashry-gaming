@@ -6772,6 +6772,14 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
   animation: vote-win 620ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
   animation-delay: calc(var(--at, 0ms) + 520ms);
 }
+/* The spy's mark on his own bar (roomSpyVoteBars) comes with the bar's light, not before. */
+.result-list--reveal .result-row__tag {
+  display: inline-block;
+  animation: vote-fade 320ms var(--ease-out) both;
+  animation-delay: calc(var(--at, 0ms) + 520ms);
+}
+/* The vote above a spy game's result card, which waits for it. */
+.spy-votes { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
 /* transform, not width: a width animation lays the row out on every frame, on
    the main thread, while the results screen is still drawing. */
 @keyframes vote-bar  { from { transform: scaleX(0); } }
@@ -6783,10 +6791,13 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
 }
 
 /* A round's result card lies face down for a beat, then turns over
-   (spyRevealParts: 1100ms face down, a 560ms turn, edge-on at 1380ms). */
+   (spyRevealParts: 1100ms face down, a 560ms turn, edge-on at 1380ms).
+   --cover-at on the card holds the whole of it back (spyRevealParts' `after`:
+   the vote's bars rise first, roomSpyVoteBars). */
 .spy-reveal {
   position: relative;
   animation: spy-turn 560ms cubic-bezier(0.45, 0, 0.55, 1) 1100ms both;
+  animation-delay: calc(var(--cover-at, 0ms) + 1100ms);
 }
 .spy-reveal__cover {
   position: absolute;
@@ -6804,9 +6815,14 @@ body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
     var(--accent);
   color: var(--accent-on);
   animation: spy-cover 1380ms linear both;
+  animation-delay: var(--cover-at, 0ms);
 }
-.spy-reveal__q { font-size: 3rem; font-weight: 900; line-height: 1; animation: spy-q 380ms ease-in-out 3 alternate both; }
+.spy-reveal__q { font-size: 3rem; font-weight: 900; line-height: 1; animation: spy-q 380ms ease-in-out 3 alternate both; animation-delay: var(--cover-at, 0ms); }
 .spy-reveal__label { font-size: var(--fs-h3); font-weight: 900; }
+/* The same card on the big screen (a result line held under its cover). */
+.tv-spy-reveal { border-radius: 2vmin; padding: 1.2vmin 2vmin; }
+.tv-spy-reveal .spy-reveal__q { font-size: 6vmin; }
+.tv-spy-reveal .spy-reveal__label { font-size: var(--tv-sm); }
 @keyframes spy-turn {
   0%   { transform: perspective(60rem) rotateY(0); }
   50%  { transform: perspective(60rem) rotateY(90deg); }

@@ -1786,6 +1786,26 @@ const unlockedSpyWords = () => {
 };
 
 const IMPOSTER_GUESS_OPTIONS = 6;
+// The lobby's discussion limit (the review of 1 Oct 2026): off, or these minutes, after
+// which the vote opens by itself (roomDeadline / roomTimeout). A moment's grace lets the
+// phones' own clocks reach 0 first.
+const IMPOSTER_LIMITS = [3, 5, 8];
+const IMPOSTER_GRACE_MS = 1500;
+
+/** Anyone still here may ask first, the spy included (as الموقع السري's firstId). */
+const imposterPickFirst = (room) => {
+  const s = room.shared;
+  const here = (s.roster || []).filter(id => room.players.some(p => p.id === id));
+  s.firstId = here.length ? here[Math.floor(Math.random() * here.length)] : null;
+};
+
+/** The vote on who the spy is: everyone in the round, nobody on themselves. */
+const openImposterVote = (room) => {
+  const s = room.shared;
+  openVote(room, room.players.filter(p => s.roster.indexOf(p.id) !== -1).map(p => ({ id: p.id, label: p.name, ownerId: p.id })), s.roster);
+  s.endsAt = null;
+  room.phase = 'voting';
+};
 
 const imposterAction = (room, playerId, action, payload) => {
   if (action === 'start') {
@@ -1836,8 +1856,12 @@ const imposterAction = (room, playerId, action, payload) => {
       scores: room._impScores || {},
       roster: room.players.map(p => p.id),
       vote: null,
-      outcome: null
+      outcome: null,
+      // Minutes of discussion before the vote opens by itself; 0 is no limit (an older phone sends none).
+      limit: IMPOSTER_LIMITS.indexOf(Number(payload.limit)) !== -1 ? Number(payload.limit) : 0,
+      endsAt: null
     };
+    imposterPickFirst(room);
     room.shared.board = scoreboardOf(room);
     room.phase = 'reveal';
     return;
@@ -1850,14 +1874,14 @@ const imposterAction = (room, playerId, action, payload) => {
     if (room.phase !== 'reveal') return;
     room.phase = 'discuss';
     s.startedAt = Date.now();
+    s.endsAt = s.limit ? s.startedAt + s.limit * 60000 : null;
     return;
   }
 
   if (action === 'startVote') {
     requireMoveOn(room, playerId);
     if (room.phase !== 'discuss') return;
-    openVote(room, room.players.filter(p => s.roster.indexOf(p.id) !== -1).map(p => ({ id: p.id, label: p.name, ownerId: p.id })), s.roster);
-    room.phase = 'voting';
+    openImposterVote(room);
     return;
   }
   if (action === 'vote') {
@@ -3654,10 +3678,14 @@ const fakeArtistAction = (room, playerId, action, payload) => {
     // out from the order alone.
     const fakeId = order[Math.floor(Math.random() * order.length)];
     const word = nextPrompt(room, DRAW_WORDS[lang], 'draw_' + lang);
+    // The fake is told the word's category, as in the original game (the review of
+    // 1 Oct 2026); the painters see it too, so every slice carries one. The word never
+    // reaches the fake's.
+    const category = drawWordCategory(lang, word);
 
     room.secrets = {};
     order.forEach(id => {
-      room.secrets[id] = id === fakeId ? { isFake: true } : { isFake: false, word: word };
+      room.secrets[id] = id === fakeId ? { isFake: true, category: category } : { isFake: false, word: word, category: category };
     });
     room._word = word;
     room._fakeId = fakeId;
@@ -4232,6 +4260,7 @@ const gameDeadline = (room) => {
     return s.endsAt + CODENAMES_GRACE_MS;
   }
   if (room.game === 'spyfall' && s.phase === 'play' && s.endsAt) return s.endsAt + SPYFALL_GRACE_MS;
+  if (room.game === 'imposter' && room.phase === 'discuss' && s.endsAt) return s.endsAt + IMPOSTER_GRACE_MS;
   if (room.game === 'bomb' && s.phase === 'ticking' && room._bombEndsAt) {
     const total = room._bombEndsAt - room._bombStart;
     const heat = s.heat || 0;
@@ -4322,6 +4351,12 @@ const gameTimeout = (room, now) => {
     // Time's up: the table has to vote now.
     if (room.shared.phase !== 'play') return false;
     openSpyfallVote(room);
+    return true;
+  }
+  if (room.game === 'imposter') {
+    // The discussion's limit ran out: the vote opens by itself.
+    if (room.phase !== 'discuss') return false;
+    openImposterVote(room);
     return true;
   }
   if (room.game === 'bomb') {
@@ -4493,6 +4528,8 @@ const gamePlayerLeft = (room, playerId, name) => {
       }
       if (room.phase === 'voting' && voteClosed()) resolveImposterVote(room);
       if (room.phase === 'guess' && !here(s.guesserId)) finishImposter(room, 'caught', null);
+      // The one who was to ask first has gone before the questions got going: someone else starts.
+      if ((room.phase === 'reveal' || room.phase === 'discuss') && s.firstId && !here(s.firstId)) imposterPickFirst(room);
       return;
     case 'chameleon':
       if (s.phase !== 'guess' && s.phase !== 'results' && impostorsGone([room._chamId])) {

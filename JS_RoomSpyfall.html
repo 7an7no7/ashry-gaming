@@ -141,8 +141,11 @@ function spyfallFrame(state, t) {
   }
   if (s.phase === 'guess') {
     const mine = s.guesserId === Room.me;
-    return head + `
-      <div class="card card--accent" style="text-align:center">
+    // The vote first, the caught spy's bar rising last; their card stays face down till then.
+    const bars = roomSpyVoteBars(state, [s.guesserId], 'phone');
+    const cover = spyRevealParts(['spy-guess', roomDealKey(state, s.round), s.guesserId].join('|'), t.reveal_spy_was, bars.ms);
+    return head + `${bars.html}
+      <div class="card card--accent ${cover.cls}" ${cover.attrs} style="text-align:center; --cover-at:${cover.at}ms">${cover.cover}
         <div class="metric metric--md">🕵️ ${escapeHTML(s.guesserName || '')}</div>
         <p class="sheet__subtitle">${escapeHTML(mine ? (t.spy_room_guess_hint || '') : (t.spy_guessing || ''))}</p>
       </div>
@@ -153,10 +156,12 @@ function spyfallFrame(state, t) {
   const won = s.outcome === 'caught';
   const line = s.impostorLeft ? (t.room_impostor_left || '') : s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
   const revealKey = ['spy', roomDealKey(state, s.round), s.outcome, s.location].join('|');
-  const cover = spyRevealParts(revealKey, (s.spyNames || []).length > 1 ? t.reveal_spies_were : t.reveal_spy_was);
-  const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, spyCastVerdict(s.outcome), { kind: 'spyfall', loud: spyCastLoud(state) }) : '';
-  return head + `${cast}
-    <div class="card ${won ? 'card--accent' : ''} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
+  // The vote as bars first, the spy's own rising last and lit; the card and the spy wait for it.
+  const bars = roomSpyVoteBars(state, s.spyIds || [], 'phone');
+  const cover = spyRevealParts(revealKey, (s.spyNames || []).length > 1 ? t.reveal_spies_were : t.reveal_spy_was, bars.ms);
+  const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, spyCastVerdict(s.outcome), { kind: 'spyfall', loud: spyCastLoud(state), after: cover.at }) : '';
+  return head + `${bars.html}${cast}
+    <div class="card ${won ? 'card--accent' : ''} ${cover.cls}" ${cover.attrs} style="text-align:center; --cover-at:${cover.at}ms">${cover.cover}
       <div class="metric metric--md ${won ? 'tx-success' : 'tx-danger'}">${won ? '🎉' : '🕵️'} ${escapeHTML(line.replace('{name}', (s.spyNames || []).join(' · ')))}</div>
       <p class="sheet__subtitle">📍 ${escapeHTML(s.location || '')}${s.accusedName ? ` · ${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}` : ''}${s.guess ? ` · ${escapeHTML(t.spy_guess_was || '')}: ${escapeHTML(s.guess)}` : ''}</p>
     </div>
@@ -256,15 +261,23 @@ TV_GAMES.spyfall = {
     }
     if (s.phase === 'voting') return `<div class="tv-vote">${head}<div class="tv-question">${t.accuse_player || ''}</div>${tvVoteProgress(state, t)}</div>`;
     if (s.phase === 'guess') {
-      return `<div class="tv-vote">${head}<div class="tv-question">🕵️ ${escapeHTML(s.guesserName || '')} · ${t.spy_guessing || ''}</div>${places}
+      // The vote's bars first, the caught spy's last; the line under its cover until then.
+      const bars = roomSpyVoteBars(state, [s.guesserId], 'tv');
+      const cover = spyRevealParts(['spy-guess-tv', roomDealKey(state, s.round), s.guesserId].join('|'), t.reveal_spy_was, bars.ms);
+      return `<div class="tv-vote">${head}${bars.html ? `<div class="tv-scale">${bars.html}</div>` : ''}
+        <div class="tv-spy-reveal ${cover.cls}" ${cover.attrs} style="--cover-at:${cover.at}ms">${cover.cover}<div class="tv-question">🕵️ ${escapeHTML(s.guesserName || '')} · ${t.spy_guessing || ''}</div></div>${places}
         ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>`)}</div>`;
     }
     const line = s.impostorLeft ? (t.room_impostor_left || '') : s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
+    const revealKey = ['spy', roomDealKey(state, s.round), s.outcome, s.location].join('|');
+    // The vote as bars first, the spy's own rising last; then the line turns over and he plays it.
+    const bars = roomSpyVoteBars(state, s.spyIds || [], 'tv');
+    const cover = spyRevealParts(revealKey + '|tv', (s.spyNames || []).length > 1 ? t.reveal_spies_were : t.reveal_spy_was, bars.ms);
     const cast = typeof spyCastHtml === 'function'
-      ? spyCastHtml(['spy', roomDealKey(state, s.round), s.outcome, s.location].join('|'), spyCastVerdict(s.outcome), { kind: 'spyfall', tv: true })
+      ? spyCastHtml(revealKey, spyCastVerdict(s.outcome), { kind: 'spyfall', tv: true, after: cover.at })
       : '';
-    return `<div class="tv-vote">${head}${cast}
-      <div class="tv-question">${s.outcome === 'caught' ? '🎉' : '🕵️'} ${escapeHTML(line.replace('{name}', (s.spyNames || []).join(' · ')))} · 📍 ${escapeHTML(s.location || '')}</div>
+    return `<div class="tv-vote">${head}${bars.html ? `<div class="tv-scale">${bars.html}</div>` : ''}${cast}
+      <div class="tv-spy-reveal ${cover.cls}" ${cover.attrs} style="--cover-at:${cover.at}ms">${cover.cover}<div class="tv-question">${s.outcome === 'caught' ? '🎉' : '🕵️'} ${escapeHTML(line.replace('{name}', (s.spyNames || []).join(' · ')))} · 📍 ${escapeHTML(s.location || '')}</div></div>
       <div class="tv-scale">${renderScoreboard(s.board)}</div>
       ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}${state.youAreHost ? tvBtn(t.room_another_game, "tvBackToHub()", 'ghost') : ''}</div>`)}</div>`;
   },

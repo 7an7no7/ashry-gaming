@@ -156,7 +156,10 @@ function renderVoteResults(state, opts) {
   const total = Math.max(1, v.totalVotes || 0);
   const rows = v.results.slice().sort((a, b) => b.count - a.count);
   const highlight = (opts && opts.highlightId) || null;
-  const isWin = (r) => (highlight ? r.id === highlight : r.count === rows[0].count && r.count > 0);
+  // `highlightIds`: several rows lit (two spies); `tag` is shown beside each lit row, in its own time.
+  const many = opts && Array.isArray(opts.highlightIds) ? opts.highlightIds : null;
+  const tag = (opts && opts.tag) || '';
+  const isWin = (r) => (many ? many.indexOf(r.id) !== -1 : highlight ? r.id === highlight : r.count === rows[0].count && r.count > 0);
   // The first time this result is on this phone, the bars grow one at a time
   // and the winner's comes last (JS_Motion.html, section 7).
   const key = ['vote', state.code, state.game, state.shared.round, state.shared.turn,
@@ -171,13 +174,34 @@ function renderVoteResults(state, opts) {
           <div class="result-row ${win ? 'is-top' : ''}" ${times ? `style="--at:${times.get(r)}ms"` : ''}>
             <div class="result-row__bar" style="width:${pct}%"></div>
             <div class="result-row__body">
-              <span class="result-row__label">${escapeHTML(r.label)}</span>
+              <span class="result-row__label">${win && tag ? `<span class="result-row__tag" aria-hidden="true">${escapeHTML(tag)}</span> ` : ''}${escapeHTML(r.label)}</span>
               <span class="result-row__count">${r.count}</span>
             </div>
             ${r.voters.length ? `<div class="result-row__voters">${r.voters.map(escapeHTML).join('، ')}</div>` : ''}
           </div>`;
       }).join('')}
     </div>`;
+}
+
+/**
+ * The vote of a round with a hidden impostor (الجاسوس / المختلف, الحرباء, الموقع السري), as
+ * bars in suspense with the impostor's own bar rising last, lit and tagged (the review of
+ * 1 Oct 2026). Drawn above the result card, which waits for it: `ms` is when that last bar
+ * starts (0 when the bars were already shown here), for spyRevealParts' `after`.
+ * `where` keeps the phone's and the TV's suspense apart. Nothing when there was no vote.
+ */
+function roomSpyVoteBars(state, spyIds, where) {
+  const s = (state && state.shared) || {};
+  const v = s.vote;
+  if (!v || v.phase !== 'results' || !(v.results || []).length) return { html: '', ms: 0 };
+  const t = TRANSLATIONS[appState.lang] || {};
+  // Keyed on the deal: a room's next round starts again at the same numbers.
+  const voteState = { code: state.code, game: state.game, shared: { round: roomDealKey(state, s.round), turn: 'spyvote-' + where, vote: v } };
+  const kind = state.game === 'chameleon' ? '🦎' : (s.undercover ? '🎭' : '🕵️');
+  const bars = renderVoteResults(voteState, { highlightIds: (spyIds || []).filter(Boolean), tag: kind });
+  const m = /data-reveal-ms="(\d+)"/.exec(bars);
+  const html = `<div class="spy-votes"><div class="eyebrow">🗳️ ${escapeHTML(t.imp_votes_title || '')}</div>${bars}</div>`;
+  return { html: html, ms: m ? Math.max(0, Number(m[1]) - 1000) : 0 };
 }
 
 /**

@@ -120,6 +120,14 @@ function setHeadsUpOption(key, value) {
   haptic('light');
 }
 
+/**
+ * A saved «كلماتنا» deck can vanish (the crew left, the own list cut short):
+ * it dealt nothing, and a whole turn ran on a blank card. The mix instead.
+ */
+function huKeepDeck(s) {
+  if (!huDecksNow().some(d => d.id === s.deck) || !huDeckWords(s.deck, s.lang).length) s.deck = 'mix';
+}
+
 function startHeadsUp() {
   const s = huState();
   const players = (appState.activePlayers || []).slice();
@@ -131,6 +139,7 @@ function startHeadsUp() {
   s.round = 1;
   s.cards = [];
   s.lang = contentLang() === 'en' ? 'en' : 'ar';
+  huKeepDeck(s);
   s.phase = 'ready';
   saveToLocal();
   setView('play-headsup');
@@ -171,6 +180,7 @@ function huCountdown() {
   const s = huState();
   window.addEventListener('deviceorientation', huOrientation);
   huTilt = { armed: false, lastAt: 0, sensor: false, rot: 0 };
+  huKeepDeck(s);
   const pool = huDeckWords(s.deck, s.lang);
   s.deal = freshPick(`headsup:${s.deck}:${s.lang}`, pool, HU_DEAL);
   s.cards = [];

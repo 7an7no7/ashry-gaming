@@ -23,14 +23,20 @@ function setFiveRounds(n) {
   haptic('light');
 }
 
-/** The ring: five seconds counting down, ticking on the player's own phone and the TV. */
-function armFiveClock(endsAt, loud, onEnd) {
+/**
+ * The ring: five seconds counting down, ticking on the player's own phone and the TV.
+ * `local`: a one-phone turn, stamped by this phone's clock - read by the room's
+ * (roomServerNow) it was cut short or ran long by the gap to the server while a
+ * room was still open.
+ */
+function armFiveClock(endsAt, loud, onEnd, local) {
+  const now = () => local ? Date.now() : roomServerNow();
   // Help or the exit sheet pauses the clock on one phone (pauseClocksForSheet):
   // the ring stands still with it, and carries on from there, by the time the
   // clock was paused (`shift`), so it and the alarm agree.
   let pausedAt = 0, shift = 0;
   const paint = () => {
-    const left = Math.max(0, (endsAt + shift - (pausedAt || roomServerNow())) / 1000);
+    const left = Math.max(0, (endsAt + shift - (pausedAt || now())) / 1000);
     const ring = document.getElementById('five-ring');
     const num = document.getElementById('five-num');
     if (ring) ring.style.setProperty('--five-p', String(Math.max(0, Math.min(1, left / 5))));
@@ -48,8 +54,8 @@ function armFiveClock(endsAt, loud, onEnd) {
   // (stopFiveClock), which ends the loop, so it never runs on the next screen.
   const smooth = () => {
     const c = five.clock;
-    if (c && !c.isRunning()) { if (!pausedAt) pausedAt = roomServerNow(); }
-    else if (pausedAt) { shift += roomServerNow() - pausedAt; pausedAt = 0; }
+    if (c && !c.isRunning()) { if (!pausedAt) pausedAt = now(); }
+    else if (pausedAt) { shift += now() - pausedAt; pausedAt = 0; }
     paint();
     if (five.clockKey !== endsAt || !c) return;
     // A clock stopped without its end (setView stops every clock) with no ring
@@ -59,7 +65,7 @@ function armFiveClock(endsAt, loud, onEnd) {
   };
   raf = requestAnimationFrame(smooth);
   five.clock = createClock({
-    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
+    seconds: Math.max(0, Math.ceil((endsAt - now()) / 1000)),
     onTick: () => { if (loud) playRoomFx('tick'); },
     onEnd: () => { cancelAnimationFrame(raf); paint(); if (loud) playRoomFx('alarm'); five.clock = null; if (onEnd) onEnd(); }
   });

@@ -21,6 +21,7 @@ const chameleonState = {
   chameleonPlayer: "",
   revealIndex: 0,
   accusedPlayer: "",
+  guessing: false, // the caught chameleon is picking the word
   scores: {},
   scoreId: 0,
   done: false   // the round's result is out: a second accusation must not score it again
@@ -113,6 +114,7 @@ function startChameleonGame(again) {
   chameleonState.chameleonPlayer = shuffledPlayers[Math.floor(Math.random() * shuffledPlayers.length)];
   chameleonState.revealIndex = 0;
   chameleonState.accusedPlayer = '';
+  chameleonState.guessing = false;
   chameleonState.done = false;
 
   resetChameleonTable();
@@ -204,6 +206,9 @@ function startChameleonTablePlay() {
   if (chameleonState.done) document.getElementById('chameleon-play-actions')?.classList.add('hidden');
   setView('play-chameleon');
   renderChameleonGrid();
+  // Back from a reload during the caught chameleon's last guess: the guess, not
+  // the accuse bar (a second accusation handed the chameleon the win).
+  if (chameleonState.guessing && !chameleonState.done) openChameleonGuessPhase();
 
   document.getElementById('chameleon-play-category').innerText = chameleonState.category;
 
@@ -282,7 +287,9 @@ function voteChameleonAccused(player) {
   const isCorrectCatch = (player === chameleonState.chameleonPlayer);
 
   if (isCorrectCatch) {
-    // Chameleon was caught! But they get one last guess!
+    // Chameleon was caught! But they get one last guess! Kept, so a reload comes back to it.
+    chameleonState.guessing = true;
+    chameleonSave();
     playSound('alarm');
     openChameleonGuessPhase();
   } else {

@@ -9,8 +9,10 @@
       
       let html = `<option value="countries">${countriesLabel}</option><option value="manual">${manualLabel}</option>`;
       // «كلماتنا» first, when the phone has the family's words (JS_PackStore.html).
+      // A crew's pack title is anyone's typing: escaped, a quote in it no longer
+      // cut the value short (an empty word dealt) or let markup into the list.
       for(const cat in spyCategoriesPlus()) {
-          html += `<option value="${cat}">${cat}</option>`;
+          html += `<option value="${escapeHTML(cat)}">${escapeHTML(cat)}</option>`;
       }
       // Rebuilt on every visit: the pick goes back to the one last chosen on
       // this phone (data-remember), not the first in the list.
@@ -48,7 +50,8 @@
       if (!undercover) {
           const catSelect = document.getElementById('imposter-category-select');
           const category = catSelect.value;
-          if (category.includes('🔒')) {
+          // Only the app's own lists lock; a pack title with a 🔒 in it is just a name.
+          if (category.includes('🔒') && spyCategories()[category]) {
               const expectedPw = spyCategories()[category][0]; 
               if (appState.imposter.unlockedCategories && 
                   !Array.isArray(appState.imposter.unlockedCategories) && 
@@ -73,7 +76,7 @@
       const input = document.getElementById('category-password-input').value;
       const catSelect = document.getElementById('imposter-category-select');
       const category = catSelect.value;
-      const expectedPw = spyCategories()[category][0];
+      const expectedPw = (spyCategories()[category] || [])[0];
       if (input === expectedPw) {
           playSound('success');
           if (!appState.imposter.unlockedCategories || Array.isArray(appState.imposter.unlockedCategories)) {
@@ -168,7 +171,7 @@
           } else if (spyCategoriesPlus()[category]) {
               let list = spyCategoriesPlus()[category];
               if (packWordsCodeOfCat(category)) packPlayed(packWordsCodeOfCat(category));
-              if (category.includes('🔒')) list = list.slice(1);
+              if (category.includes('🔒') && spyCategories()[category]) list = list.slice(1);
               secretWord = freshPick('imposter:' + category, list, 1)[0];
           }
       }
@@ -185,6 +188,9 @@
       orderedNames.forEach(n => { if (typeof im.scores[n] !== 'number') im.scores[n] = 0; });
       const catSel = document.getElementById('imposter-category-select');
       im.category = undercover ? '' : (catSel ? catSel.value : '');
+      // The caught spy's six words come from the deal's language, not whatever
+      // the games' language is switched to before the accusation.
+      im.lang = contentLang();
       im.phase = 'reveal';
       im.accused = '';
       im.picked = '';
@@ -408,13 +414,18 @@
   function imp1GuessOptions() {
       const im = appState.imposter;
       const cat = im.category || '';
+      const lang = im.lang || contentLang();
       let pool = [];
       if (cat === 'countries') {
           pool = typeof COUNTRIES !== 'undefined'
-              ? COUNTRIES.filter(c => c.tier === 1).map(c => contentLang() === 'en' ? c.en : c.ar) : [];
-          if (pool.indexOf(im.secretWord) === -1) pool = ((MONKEY_LISTS[contentLang()] || MONKEY_LISTS.ar).countries || []).slice();
-      } else if (cat && cat !== 'manual' && spyCategoriesPlus()[cat]) {
-          pool = spyCategoriesPlus()[cat].slice(cat.includes('🔒') ? 1 : 0);
+              ? COUNTRIES.filter(c => c.tier === 1).map(c => lang === 'en' ? c.en : c.ar) : [];
+          if (pool.indexOf(im.secretWord) === -1) pool = ((MONKEY_LISTS[lang] || MONKEY_LISTS.ar).countries || []).slice();
+      } else if (cat && cat !== 'manual') {
+          // The deal's lists: the family's words have no language, the app's do.
+          const app = (lang === 'en' && window.SPY_WORDS_EN ? window.SPY_WORDS_EN : SPY_CATEGORIES) || {};
+          const pack = (typeof packWordPacks === 'function' ? packWordPacks() : []).find(p => p.name === cat);
+          if (pack) pool = pack.words.slice();
+          else if (app[cat]) pool = app[cat].slice(cat.includes('🔒') ? 1 : 0);
       }
       const others = shuffleArray(pool.filter(w => w !== im.secretWord)).slice(0, IMP1_GUESS_OPTIONS - 1);
       if (others.length < 2) return null;

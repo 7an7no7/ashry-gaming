@@ -67,6 +67,12 @@ up); «⏱ جاهز؟ ابدأ الـ5 ثواني» is the bottom bar's main act
 player up or the host, «عدّي اللاعب ده» small under it.
 
 
+**One-phone خمس ثواني reads its own clock.** `armFiveClock(endsAt, loud, onEnd,
+local)`: the one-phone turn passes `local`, since its `endsAt` is the phone's
+`Date.now()`; read through `roomServerNow()` it was cut short or ran long by the gap
+to the server whenever a room was still open on the phone.
+
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

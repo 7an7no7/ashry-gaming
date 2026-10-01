@@ -158,6 +158,7 @@ function revealEmoji() {
   const e = emojiState();
   e.revealed = true;
   saveToLocal();
+  emojiJustRevealed = true;
   paintEmoji();
   playSound('success');
 }
@@ -179,12 +180,51 @@ function finishEmojiGame() {
   }
 }
 
+/* --- The play screen (فوازير إيموجي and كمّل المثل share it) -----------------
+   The card takes the screen: the category and the round as chips on it, the
+   round's dots under it (ten to a row, the current one long: the من أنا؟
+   writing step's .wa-write__prog, generalised as .quiz1-dots), and the bar at
+   the foot (.talk__actions): the main action full width (reveal, then next),
+   the quiet pair under it (skip, and exit or finish). */
+
+/** Ten dots to a row: the rounds of this ten played, the current one long. The game has no end, so the row starts over. */
+function quizRoundDots(n) {
+  const at = Math.max(0, (n || 1) - 1) % 10;
+  let dots = '';
+  for (let i = 0; i < 10; i++) dots += `<i class="${i < at ? 'is-done' : i === at ? 'is-now' : ''}"></i>`;
+  return `<div class="wa-write__prog quiz1-dots" aria-hidden="true">${dots}</div>`;
+}
+
+/** The chips on the card: the category (when there is one) and the round. */
+function quizCardChips(cat, label, n) {
+  return `<div class="quiz1-chips">
+      ${cat ? `<span class="chip chip--plain">${escapeHTML(cat)}</span>` : ''}
+      <span class="chip chip--plain">${escapeHTML(label || '')} <b class="metric">${n}</b></span>
+    </div>`;
+}
+
+/** The bar: `main` [label, onclick]; the pair: skip (before the answer) and exit/finish. */
+function quizPlayBar(t, main, skipFn, scoring, finishFn, exitFn) {
+  return `<div class="view-actions talk__actions quiz1-bar">
+      <button class="btn btn--primary btn--lg" onclick="${main[1]}">${escapeHTML(main[0] || '')}</button>
+      <div class="talk__pair">
+        ${skipFn ? `<button class="btn btn--ghost btn--sm" onclick="${skipFn}">${escapeHTML(t.emoji_skip || '')}</button>` : ''}
+        ${scoring
+          ? `<button class="btn btn--ghost btn--sm" onclick="${finishFn}">🏁 ${escapeHTML(t.tb_finish || '')}</button>`
+          : `<button class="btn btn--ghost btn--sm" onclick="${exitFn}">${escapeHTML(t.exit || '')}</button>`}
+      </div>
+    </div>`;
+}
+
+let emojiJustRevealed = false;   // the answer pops once, on the tap - not on a redraw or a reload
+
 function paintEmoji() {
   const e = emojiState();
   const stage = document.getElementById('emoji-stage');
   if (!stage) return;
   const t = TRANSLATIONS[appState.lang];
   if (e.phase === 'over') {
+    stage.classList.remove('quiz1-stage');
     stage.innerHTML = quizOverHtml(e, t, 'emoji', 'emojiPlayAgain()', 'setupEmoji()');
     quizSettleBoard(e, 'emoji');
     if (typeof scrollToAction === 'function') scrollToAction();   // the podium rises at the top
@@ -193,30 +233,27 @@ function paintEmoji() {
   if (!e.riddle) return;
   const r = e.riddle;
   const scoring = quizScoring(e);
+  const pop = e.revealed && emojiJustRevealed && !motionOff();
+  emojiJustRevealed = false;
+  stage.classList.add('quiz1-stage');
   stage.innerHTML = `
-    <div class="cn-score">
-      <span class="cn-score__role">${escapeHTML(t.emoji_riddle_n || '')} ${e.n}</span>
-      <span class="badge badge--accent">${escapeHTML(r.c || '')}</span>
-    </div>
-    <div class="card" style="text-align:center">
-      <div class="emoji-card"><div class="emoji-card__e">${escapeHTML(r.e)}</div></div>
+    <div class="card quiz1-card">
+      ${quizCardChips(r.c, t.emoji_riddle_n, e.n)}
+      <div class="emoji-card quiz1-card__body"><div class="emoji-card__e">${escapeHTML(r.e)}</div></div>
       ${e.revealed
-        ? `<div class="eyebrow" style="margin-top: var(--sp-3)">${escapeHTML(t.quiz_answer || '')}</div>
-           <div class="metric metric--md metric--accent">${escapeHTML(r.a)}</div>
-           ${typeof reportBtnHtml === 'function' ? reportBtnHtml('emoji', r.a + ' ' + r.e) : ''}`
-        : `<p class="sheet__subtitle">${escapeHTML(t.emoji_device_hint || '')}</p>`}
+        ? `<div class="quiz1-answer ${pop ? 'animate-pop' : ''}">
+             <div class="eyebrow">${escapeHTML(t.quiz_answer || '')}</div>
+             <div class="metric metric--md metric--accent">${escapeHTML(r.a)}</div>
+             ${typeof reportBtnHtml === 'function' ? reportBtnHtml('emoji', r.a + ' ' + r.e) : ''}
+           </div>`
+        : `<p class="quiz1-hint">${escapeHTML(t.emoji_device_hint || '')}</p>`}
     </div>
+    ${quizRoundDots(e.n)}
     ${quizWhoGotHtml(e, t, 'emojiGot')}
-    <div class="btn-stack">
-      ${e.revealed
-        ? `<button class="btn btn--primary btn--lg" onclick="nextEmojiRiddle()">${escapeHTML(t.emoji_next || '')}</button>`
-        : `<button class="btn btn--primary btn--lg" onclick="revealEmoji()">${escapeHTML(t.emoji_reveal || '')}</button>
-           <button class="btn btn--ghost btn--sm" onclick="nextEmojiRiddle()">${escapeHTML(t.emoji_skip || '')}</button>`}
-      ${scoring
-        ? `<button class="btn btn--ghost" onclick="finishEmojiGame()">🏁 ${escapeHTML(t.tb_finish || '')}</button>`
-        : `<button class="btn btn--ghost" onclick="setupEmoji()">${escapeHTML(t.exit || '')}</button>`}
-    </div>
-    ${scoring ? renderScoreboard(quizPointsBoard(e)) : ''}`;
+    ${scoring ? renderScoreboard(quizPointsBoard(e)) : ''}
+    ${quizPlayBar(t,
+      e.revealed ? [t.emoji_next, 'nextEmojiRiddle()'] : ['👀 ' + (t.emoji_reveal || ''), 'revealEmoji()'],
+      e.revealed ? '' : 'nextEmojiRiddle()', scoring, 'finishEmojiGame()', 'setupEmoji()')}`;
   if (scoring) quizSettleBoard(e, 'emoji');
 }
 

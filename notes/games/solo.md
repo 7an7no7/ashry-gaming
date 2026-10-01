@@ -226,6 +226,26 @@ six below has a list of its own:
   loads the Twemoji country-flag font (`country-flag-emoji-polyfill`, pinned on
   jsDelivr) for `.flag-emoji`.
 
+### The bar of the solo games, and كلمات من حروف upright (1 Oct 2026)
+
+From the owner's sheet: «خروج» was a full-width ghost floating in the middle of
+the screen, a second exit beside the header's arrow. In سودوكو, 2048, كاسحة
+الألغام, الملكات, تانجو, النونوجرام, خيوط, كلمات من حروف, إيه اللي يجمعهم؟ and لعبة
+الذاكرة it is a small quiet button (`btn--ghost btn--sm btn--auto play-exit`,
+centred) in the bar (`.view-actions.play-foot`), and upright on a phone the bar
+sits at the foot of the screen: the view and its stage are a flex column the bar
+is pushed to the end of (the `.play-foot` block after `.view-actions` in
+`Style.html`, ids listed there). On a phone on its side and on a big screen each
+game keeps its own layout (the bar in the column beside the board). 2048's row
+(رجوع, لعبة جديدة, خروج) moved to the foot the same way.
+
+كلمات من حروف upright: a 7-row crossword put ⌫, لخبط, تلميح and ✓ half under the
+tab bar at 375x812. The crossword and the ring now share what the screen has
+left after its fixed parts (`--ww-room`, `--ww-ring` on `#view-play-wordwheel`,
+portrait phones only): the ring about half, the crossword the rest by its rows,
+the letters sized off the ring. The tools fit at 375x812, 390x844 and 375x667;
+the exit under them may need a scroll.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

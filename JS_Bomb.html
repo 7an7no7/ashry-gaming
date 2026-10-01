@@ -393,11 +393,19 @@ function paintBomb() {
       <div class="bomb-card__sub">${escapeHTML(b.kind === 'letter' ? (t.bomb_letter_hint || '') : (t.bomb_category_hint || ''))}</div>
     </div>
     ${order}
-    <div class="view-actions ${scoring ? 'bm1-actions' : ''}">
-      ${scoring ? `<button class="btn btn--primary btn--lg" onclick="bombOnePass()">💣 ${escapeHTML(t.bm1_pass || '')}</button>` : ''}
-      <button class="btn btn--secondary ${scoring ? '' : 'btn--lg'}" onclick="bombSwapPrompt()">${escapeHTML(t.bomb_swap || '')}</button>
-      <button class="btn btn--ghost" onclick="exitBomb()">${escapeHTML(t.exit || '')}</button>
-    </div>`;
+    ${scoring
+      // With names: pass it in the bar, another category and the exit the quiet pair under it.
+      ? `<div class="view-actions talk__actions play-foot">
+          <button class="btn btn--primary btn--lg" onclick="bombOnePass()">💣 ${escapeHTML(t.bm1_pass || '')}</button>
+          <div class="talk__pair">
+            <button class="btn btn--ghost btn--sm" onclick="bombSwapPrompt()">${escapeHTML(t.bomb_swap || '')}</button>
+            <button class="btn btn--ghost btn--sm" onclick="exitBomb()">${escapeHTML(t.exit || '')}</button>
+          </div>
+        </div>`
+      : `<div class="view-actions play-foot">
+          <button class="btn btn--secondary btn--lg" onclick="bombSwapPrompt()">${escapeHTML(t.bomb_swap || '')}</button>
+          <button class="btn btn--ghost btn--sm btn--auto play-exit" onclick="exitBomb()">${escapeHTML(t.exit || '')}</button>
+        </div>`}`;
 }
 
 /** After a reload: carry on if the fuse is still burning; if it ran out meanwhile, the boom (whose hands?). */

@@ -54,6 +54,17 @@ const exFill = (str, vars) => String(str || '').replace(/\{(\w+)\}/g, (m, k) => 
 const exIso = (s) => '⁨' + s + '⁩';
 const exOnce = (key) => { if (!key || ex.seen.has(key)) return false; if (ex.seen.size > 400) ex.seen.clear(); ex.seen.add(key); return true; };
 const exRoundKey = (state) => roomDealKey(state) + '|' + ((state.shared || {}).round || 0);
+/* The first time this page sees the room (a reload, a late join, a TV coming on), a reveal or an
+   ending already on the table counts as seen: it is drawn settled, not slammed and sung again
+   (GEMINI.md, «A play-once memory is empty after a reload»). */
+function exFirstSight(state) {
+  if (ex.sightRoom === state.code) return;
+  ex.sightRoom = state.code;
+  const s = state.shared || {};
+  const key = exRoundKey(state);
+  if (s.phase === 'reveal') { motionFirst('ex-reveal|' + key); motionFirst('ex-reveal-tv|' + key); }
+  if (s.phase === 'gameover') { motionFirst('ex-over|' + roomDealKey(state)); exOnce('over|' + roomDealKey(state)); }
+}
 const exNameOf = (state, id) => ((state.players || []).find((p) => p.id === id) || {}).name || '';
 const exInitial = (name) => (String(name || '').trim().replace(/^ال/, '')[0] || '?');
 const exInRoster = (state) => ((state.shared || {}).roster || []).indexOf(Room.me) !== -1 && !state.youAreScreen;
@@ -306,6 +317,7 @@ ROOM_GAMES.exact = {
     const play = s.phase === 'ready' || s.phase === 'go';
     const res = s.result || {};
     const key = exRoundKey(state);
+    exFirstSight(state);
     const revealFirst = s.phase === 'reveal' && ex.revealKey !== key && motionFirst('ex-reveal|' + key);
     if (s.phase === 'reveal' && revealFirst) ex.revealKey = key;
     const sig = ['ex', roomDealKey(state), play ? 'play' : s.phase, s.round, s.level, s.lives, (s.roster || []).join(','),
@@ -952,6 +964,7 @@ TV_GAMES.exact = {
     const s = state.shared || {};
     const play = s.phase === 'ready' || s.phase === 'go';
     const key = exRoundKey(state);
+    exFirstSight(state);
     const revealFirst = s.phase === 'reveal' && ex.revealKey !== 'tv|' + key && motionFirst('ex-reveal-tv|' + key);
     if (revealFirst) ex.revealKey = 'tv|' + key;
     ex.tvRevealFirst = revealFirst;

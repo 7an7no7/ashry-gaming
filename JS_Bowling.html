@@ -1903,11 +1903,11 @@ function bowlHostButtons(state) {
   const key = state.code + '|' + s.turnSeq;
   if (bowlRoom.hostKey !== key) {
     bowlRoom.hostKey = key;
-    bowlRoom.turnSince = Math.max(Date.now(), s.readyAt || 0);
+    bowlRoom.turnSince = Math.max(roomServerNow(), s.readyAt || 0);   // readyAt is the server's stamp: read on its clock
     clearTimeout(bowlRoom.hostTimer);
-    bowlRoom.hostTimer = setTimeout(() => { const st = Room.state; if (st && st.game === 'bowling') bowlRoomHost(st); }, Math.max(0, bowlRoom.turnSince + 40500 - Date.now()));
+    bowlRoom.hostTimer = setTimeout(() => { const st = Room.state; if (st && st.game === 'bowling') bowlRoomHost(st); }, Math.max(0, bowlRoom.turnSince + 40500 - roomServerNow()));
   }
-  const quiet = !p || !p.online || Date.now() - bowlRoom.turnSince > 40000;
+  const quiet = !p || !p.online || roomServerNow() - bowlRoom.turnSince > 40000;
   if (!quiet || s.turn.pid === Room.me) return [];
   return [['⏭️ ' + bowlT('bowl_play_for', { name: p ? p.name : '' }), 'bowlRoomSkip()']];
 }

@@ -180,11 +180,13 @@ function ch4PaintClocks() {
   });
 }
 
+const ch4OnScreen = () => appState.currentView === 'room-chess4' || appState.currentView === 'room-tv';
 function ch4TickStart() {
   if (ch4Local.tick) return;
   ch4Local.tick = setInterval(() => {
     const st = Room.state;
-    if (!st || st.game !== 'chess4' || !ch4S(st).clock || ch4S(st).phase !== 'play') { ch4TickStop(); return; }
+    // Off its screen (the menu, a tool; the room open behind the banner) it stops: drawing the screen starts it again.
+    if (!st || st.game !== 'chess4' || !ch4S(st).clock || ch4S(st).phase !== 'play' || !ch4OnScreen()) { ch4TickStop(); return; }
     ch4PaintClocks();
   }, 250);
 }
@@ -454,7 +456,7 @@ function ch4HostButtons(state) {
     ch4Local.hostKey = key;
     ch4Local.turnSince = Date.now();
     clearTimeout(ch4Local.hostTimer);
-    ch4Local.hostTimer = setTimeout(() => { const st = Room.state; if (st && st.game === 'chess4') ch4Refresh(st); }, 40500);
+    ch4Local.hostTimer = setTimeout(() => { const st = Room.state; if (st && st.game === 'chess4' && ch4OnScreen()) ch4Refresh(st); }, 40500);
   }
   if (pid === Room.me) return [];
   const quiet = !p || !p.online || Date.now() - ch4Local.turnSince > 40000;
@@ -466,7 +468,9 @@ function ch4Resign() {
   const s = ch4S(state);
   const seat = ch4Seat(state);
   if (seat < 0 || s.phase !== 'play' || s.g.out[seat]) return;
-  showConfirmModal(chT(s.settings.mode === 'teams' ? 'ch4_resign_confirm_teams' : 'ch4_resign_confirm_ffa'), () => roomAct('resign', {}));
+  // The game it was drawn for: a confirm pressed after «play again» must not resign the new one.
+  const round = Number(s.round) || 0;
+  showConfirmModal(chT(s.settings.mode === 'teams' ? 'ch4_resign_confirm_teams' : 'ch4_resign_confirm_ffa'), () => roomAct('resign', { round: round }));
 }
 
 /** The row under the board: resigning, the host's "play for". */

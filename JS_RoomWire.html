@@ -498,7 +498,11 @@ function wrEvents(state, el) {
   if (!(key in wr.seen)) { wr.seen = {}; wr.seen[key] = last; return; }   // a reload or a late join replays nothing
   const from = wr.seen[key];
   wr.seen[key] = last;
-  const fresh = evs.filter((e) => e.seq > from);
+  // Only what just happened (by the server's clock): a phone back from Help or the menu, or a TV
+  // tab shown again, used to play every event it missed - up to 30 klaxons at once. 4 s covers
+  // a phone polling over HTTP (every 2.5 s).
+  const now = wrNow();
+  const fresh = evs.filter((e) => e.seq > from && now - (e.at || 0) < 4000);
   if (!fresh.length) return;
   const me = Room.me;
   const voice = wrIsVoice(state);

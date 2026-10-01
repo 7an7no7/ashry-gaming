@@ -2658,8 +2658,15 @@ function mg3Play(id, sim, off, opts) {
   const o = opts || {};
   const from = o.from || [sim.sx, sim.sy];
   // A roll this screen is still showing, of this ball or of one knocking it, ends at once (a screen that fell behind).
-  const settle = (ball) => { if (ball && ball.play) mg3StepBall(ball, performance.now() + 1e7, 0); };
-  settle(b);
+  const settle = (ball, quiet) => {
+    if (!ball || !ball.play) return;
+    if (quiet) ball.play.onEnd = null;
+    mg3StepBall(ball, performance.now() + 1e7, 0);
+  };
+  // This ball's own roll is replaced by the one starting now, so it ends without its banner,
+  // sounds and confetti: the phone's own putt that the clock or the host's «putt for» beat
+  // to the server never counted (bowling's bowlRoomOwnLanded does the same).
+  settle(b, true);
   if (b.drivenBy) { settle(MG3.balls.get(b.drivenBy)); b.drivenBy = null; }
   (sim.others || []).forEach(ob => { const ball = MG3.balls.get(ob.id); if (ball) { settle(ball); if (ball.drivenBy && ball.drivenBy !== id) settle(MG3.balls.get(ball.drivenBy)); } });
   b.play = {

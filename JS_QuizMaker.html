@@ -551,18 +551,27 @@ async function qmSave() {
   qmEdit.saving = true;
   qmEdit.err = null;
   qmRender();
+  // The answer belongs to the quiz that was sent, by its id: the author may have typed on, opened
+  // another quiz or deleted this one while the network was slow.
+  const id = quiz.id, sentAt = quiz.updated;
   const res = await packPublish('quiz', quiz);
-  qmEdit.saving = false;
-  const now = qmQuiz();
+  const here = qmEdit.id === id;
+  if (here) qmEdit.saving = false;
+  const now = packQuizById(id);
   if (!res.ok) {
+    if (!here) return;
     qmRender();
     if (typeof res.at === 'number') qmShowError(res.error, res.at);
     else showToast(packErrorText(res.error), 'error');
     return;
   }
-  Object.assign(now, { code: res.code, key: res.key, title: res.pack.title, emoji: res.pack.emoji, questions: res.pack.questions,
-    savedAt: Date.now(), dirty: false });
+  if (!now) return;
+  // Edits made while it saved stay, and the quiz says it has changed since its code.
+  const changed = now.updated !== sentAt;
+  Object.assign(now, { code: res.code, key: res.key, savedAt: Date.now() },
+    changed ? { dirty: true } : { title: res.pack.title, emoji: res.pack.emoji, questions: res.pack.questions, dirty: false });
   packQuizPut(now);
+  if (!here) return;
   qmEdit.open = -1;
   qmRemember();
   qmRender();
@@ -829,11 +838,16 @@ async function wpSave() {
   }
   const btn = document.getElementById('wp-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = t.qm_saving || ''; }
+  const id = w.id, sentAt = w.updated;
   const res = await packPublish('words', w);
   if (btn) { btn.disabled = false; btn.textContent = t.wp_save || ''; }
   if (!res.ok) { showToast(packErrorText(res.error), 'error'); return; }
-  const now = packWordsLocal() || w;
-  Object.assign(now, { code: res.code, key: res.key, title: res.pack.title, words: res.pack.words, savedAt: Date.now(), dirty: false });
+  // Other words opened by their code meanwhile aren't overwritten; words added while it saved stay.
+  const now = packWordsLocal();
+  if (!now || now.id !== id) return;
+  const changed = now.updated !== sentAt;
+  Object.assign(now, { code: res.code, key: res.key, savedAt: Date.now() },
+    changed ? { dirty: true } : { title: res.pack.title, words: res.pack.words, dirty: false });
   packWordsPut(now);
   wpPaint();
   playSound('success');

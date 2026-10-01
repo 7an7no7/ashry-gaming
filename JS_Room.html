@@ -351,7 +351,8 @@ const Room = (() => {
           (state.screens || []).forEach(x => { x.online = res.online.indexOf(x.id) !== -1; });
           // The host away (room.js): no move, but the stand-ins' buttons open or close.
           if (typeof res.hostAway === 'boolean') state.hostAway = res.hostAway;
-        } else if (res.state && res.state.code === session.code) {
+        } else if (res.state && res.state.code === session.code && notOlder(res.state)) {
+          // A poll sent before a move over /act can answer after it: never step back to its older state.
           state = arrived(res.state);
         }
         setSyncing(false);
@@ -1380,7 +1381,7 @@ async function roomStartGame() {
 // Who was already in the lobby, so only someone who joins after that pops in.
 const lobbySeen = { code: '', ids: null };
 
-function renderRoomLobby(state) {
+function renderRoomLobby(state, opts) {
   lobbySkeleton(false);
   const codeEl = document.getElementById('room-code-display');
   // A new code drops in letter by letter; the same code is left alone.
@@ -1495,7 +1496,9 @@ function renderRoomLobby(state) {
     }
   }
 
-  if (setup) {
+  // A mid-round joiner's panel is the spectator note (renderRoomSpectator): the hub written here
+  // first and the note straight after was two rewrites on every state, the hub flashing between.
+  if (setup && !(opts && opts.spectator)) {
     const html = inHub
       ? renderRoomHub(state)
       : renderChosenGame(state, game);
@@ -2166,8 +2169,9 @@ function renderRoomSpectator(state) {
 
   // Lobby first: it rewrites the same nodes, so writing the spectator note
   // before it meant the note was replaced by the game picker straight away and
-  // a mid-round joiner never saw why they were waiting.
-  renderRoomLobby(state);
+  // a mid-round joiner never saw why they were waiting. It leaves the setup
+  // panel to the note below.
+  renderRoomLobby(state, { spectator: true });
 
   if (startBtn) startBtn.classList.add('hidden');
   if (waitNote) waitNote.classList.add('hidden');

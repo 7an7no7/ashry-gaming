@@ -567,6 +567,17 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
     });
   });
   console.log(`game ids: ${appIds.length} (GAME_CATALOG ${catIds.length})`);
+  // «الليلة دي؟» ranks games by TONIGHT_ORDER, and a game missing from it always came last
+  // (the review of 1 Oct 2026: every game from 27 Sep on). Every game with its own card has a place.
+  const order = ((/const TONIGHT_ORDER = \[([\s\S]*?)\];/.exec(cat) || [])[1] || '').match(/'[^']+'/g) || [];
+  const tonight = order.map(x => x.slice(1, -1));
+  const ownCards = (block.match(/^\s*\{\s*id:\s*'[^']+'.*$/mg) || [])
+    .filter(l => /players:/.test(l) && !/group:\s*'tools'/.test(l) && !/hub:\s*'/.test(l))
+    .map(l => /'([^']+)'/.exec(l)[1]);
+  if (!tonight.length) note('JS_Catalog.html: could not read TONIGHT_ORDER');
+  ownCards.filter(id => tonight.indexOf(id) === -1).forEach(id => note(`JS_Catalog.html: '${id}' has no place in TONIGHT_ORDER («الليلة دي؟»)`));
+  tonight.filter(id => catIds.indexOf(id) === -1).forEach(id => note(`JS_Catalog.html: TONIGHT_ORDER names '${id}', not in GAME_CATALOG`));
+  tonight.filter((id, k) => tonight.indexOf(id) !== k).forEach(id => note(`JS_Catalog.html: '${id}' is in TONIGHT_ORDER twice`));
 }
 
 /* ------------------------------------------ ارسم اللي بتسمعه: the pictures the app makes */

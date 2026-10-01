@@ -12,8 +12,11 @@ phone / own phones / TV), then three games that fit, the ones a first evening
 goes best with first (`TONIGHT_ORDER`; the three dealt through `freshPick`
 from the best nine, «غيرهم» deals again). The answers are remembered
 (`recallOptions('tonight')`). It replaced "pick for us", which picked any one
-game at random. A new game that belongs among the first a table should try
-goes into `TONIGHT_ORDER`.
+game at random. Every game with its own card (not a tool, not a way inside a hub)
+has a place in `TONIGHT_ORDER`, party and talking games first, then the ones to sit
+down to, the duels, and the puzzles last; a game missing from it used to rank last
+for ever (every game from 27 Sep on, the review of 1 Oct 2026), so `npm run check`
+(`validate-content.js`) now fails on one.
 
 **The first visit is a simple start** (the owner, 26 Sep 2026: "people who
 open it should not have to do a lot of clicks to start a game; I don't want

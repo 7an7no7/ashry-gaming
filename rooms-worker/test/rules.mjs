@@ -10410,20 +10410,42 @@ Date.now = duelTestClock;
   check(maps.every((m) => m.snakes.some((x) => S.snakesRowOf(x.h) === 9) && m.snakes.some((x) => S.snakesRowOf(x.h) === 8)), 'snakes: always a snake in 91-99 and in 81-90');
   check(maps.every((m) => inBands(m.ladders, S.SNAKES_LADDER_BANDS.concat(Array(m.ladders.length - S.SNAKES_LADDER_BANDS.length).fill(S.SNAKES_LADDER_EXTRA)), (x) => S.snakesRowOf(x.f))), 'snakes: every map has a ladder foot in each band, the first two rows included');
   check(maps.every((m) => { const d = m.snakes.reduce((n, x) => n + x.h - x.t, 0) / m.ladders.reduce((n, x) => n + x.t - x.f, 0); return d >= S.SNAKES_BALANCE[0] && d <= S.SNAKES_BALANCE[1]; }), 'snakes: the drop of the snakes and the climb of the ladders are in balance on every map');
+  // The dice checks run on a seeded byte source standing in for crypto.getRandomValues, so a fair die
+  // can't fail them by chance (a chi-square at 99.9% fails one run in a thousand per check: 1 Oct 2026).
+  // What they test is how the bytes become a die (1-6, the bytes of 252 and up drawn again) and that every
+  // real roll goes through it. The real source gets one check with a bound a fair die never reaches.
+  const diceSrc = readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8');
+  const seededCrypto = (seed) => {
+    let a = seed >>> 0;
+    const next = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0); };
+    return { getRandomValues: (arr) => { for (let i = 0; i < arr.length; i++) arr[i] = next() & 255; return arr; } };
+  };
+  const withCrypto = (crypto, more, names) => new Function('__crypto', 'const globalThis = { crypto: __crypto };\n' + diceSrc + '\n' + more + '\nreturn { ' + names + ' };')(crypto);
+  const spread = (roll, n) => { const f = [0, 0, 0, 0, 0, 0, 0, 0]; for (let k = 0; k < n; k++) { const v = roll(); f[v >= 1 && v <= 6 ? v : 7]++; } const e = n / 6; return { bad: f[0] + f[7], chi: f.slice(1, 7).reduce((x, o) => x + (o - e) * (o - e) / e, 0) }; };
   {
-    const f = [0, 0, 0, 0, 0, 0, 0];
-    for (let k = 0; k < 600000; k++) f[S.snakesDie()]++;
-    const chi = f.slice(1).reduce((n, o) => n + (o - 100000) * (o - 100000) / 100000, 0);
-    check(f[0] === 0 && chi < 20.5, `snakes: the die is 1-6 and even over 600,000 rolls (chi-square ${chi.toFixed(1)}, under 20.5 at 99.9%)`);
+    const snakesSrc = readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8');
+    const sd = spread(withCrypto(seededCrypto(20261001), snakesSrc, 'snakesDie').snakesDie, 600000);
+    check(!sd.bad && sd.chi < 20.5, `snakes: the die is 1-6 and even over 600,000 rolls (chi-square ${sd.chi.toFixed(1)}, under 20.5 at 99.9%)`);
+    const a = withCrypto(seededCrypto(5), snakesSrc, 'snakesDie'), b = withCrypto(seededCrypto(5), '', 'fairDie');
+    check(Array.from({ length: 200 }, () => a.snakesDie()).join() === Array.from({ length: 200 }, () => b.fairDie()).join(), 'snakes: its die is the shared die');
   }
   {
     // Every real roll in the app is Dice.js's fairDie: the shared die, in لودو's room, بنك الحظ with the real random source.
-    const D = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
-      '\nreturn { fairDie, bankRoll6, bankDice };')();
-    const spread = (roll, n) => { const f = [0, 0, 0, 0, 0, 0, 0, 0]; for (let k = 0; k < n; k++) { const v = roll(); f[v >= 1 && v <= 6 ? v : 7]++; } const e = n / 6; return { bad: f[0] + f[7], chi: f.slice(1, 7).reduce((x, o) => x + (o - e) * (o - e) / e, 0) }; };
+    const bankSrc = readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8');
+    const D = withCrypto(seededCrypto(77), bankSrc, 'fairDie, bankRoll6, bankDice');
     const fd = spread(D.fairDie, 600000), bk = spread(() => D.bankRoll6(Math.random), 120000), bk2 = spread(() => D.bankRoll6(), 120000);
     check(!fd.bad && fd.chi < 20.5, `dice: the app's one die is 1-6 and even over 600,000 rolls (chi-square ${fd.chi.toFixed(1)})`);
     check(!bk.bad && bk.chi < 20.5 && !bk2.bad && bk2.chi < 20.5, 'dice: real rolls in بنك الحظ are the shared die, even over 120,000 rolls');
+    const B1 = withCrypto(seededCrypto(9), bankSrc, 'bankRoll6'), B2 = withCrypto(seededCrypto(9), '', 'fairDie');
+    check(Array.from({ length: 200 }, (_, k) => (k % 2 ? B1.bankRoll6(Math.random) : B1.bankRoll6())).join() === Array.from({ length: 200 }, () => B2.fairDie()).join(),
+      'dice: بنك الحظ with the real random source rolls exactly the shared die');
+    // Not a check that always passes: a byte source that gives 0 a fifth of the time is caught at once.
+    let z = 1;
+    const stuck = { getRandomValues: (arr) => { for (let i = 0; i < arr.length; i++) { z = (z * 16807) % 2147483647; arr[i] = z % 5 === 0 ? 0 : z & 255; } return arr; } };
+    check(spread(withCrypto(stuck, '', 'fairDie').fairDie, 60000).chi > 100, 'dice: the even-die check catches an uneven die');
+    // The real source, with a bound (chi-square 45: about one in fifty million for a fair die) only a broken die reaches.
+    const real = spread(new Function(diceSrc + '\nreturn fairDie;')(), 600000);
+    check(!real.bad && real.chi < 45, `dice: the real random source is 1-6 and even (chi-square ${real.chi.toFixed(1)})`);
     const seeded = (seed) => { let a = seed; return () => { a = (a * 16807) % 2147483647; return a / 2147483647; }; };
     const r1 = seeded(42), r2 = seeded(42);
     check(Array.from({ length: 50 }, () => D.bankRoll6(r1)).join() === Array.from({ length: 50 }, () => D.bankRoll6(r2)).join(), 'dice: a seeded source still gives the بنك الحظ tests the same rolls');
@@ -12169,6 +12191,12 @@ Date.now = duelTestClock;
   check(titles.some((t) => t.key === 'fast' && t.id === 'mH' && t.n === 3), "crew: أسرع إيد from the room trivia's own tally (3 first right answers beat كريم's buzzer and chairs, 2)");
   check(titles.some((t) => t.key === 'oracle' && t.id === 'mS' && t.n === 2), 'crew: العرّاف from the audience\'s right guesses');
   check(!titles.some((t) => t.key === 'cards'), 'crew: one first place is no title (2 at least)');
+  // Every room game counts toward a title (the review of 1 Oct 2026: seven had none), the trivia as the mastermind's.
+  const titleOf = (g) => (CR.crewTitles([{ month: '2026-09', wins: [{ g, m: 'mK' }, { g, m: 'mK' }] }], members, '2026-09')[0] || {}).key;
+  const untitled = CR.ROOM_GAME_IDS.filter((g) => !titleOf(g));
+  check(!untitled.length, 'crew: every room game has a title group' + (untitled.length ? ' (none for ' + untitled.join(', ') + ')' : ''));
+  check(titleOf('trivia') === 'brain' && titleOf('timeline') === 'brain' && titleOf('vault') === 'brain', 'crew: the trivia, قبل ولا بعد and الخزنة count for العقل المدبر');
+  check(titleOf('mostlikely') === 'words' && titleOf('telephone') === 'words' && titleOf('wire') === 'fast', 'crew: the newer games have their groups');
   const recs = CR.crewRecords(nights, members, []);
   check(recs.some((r) => r.key === 'best_bowling' && r.value === 180 && r.id === 'mK'), 'crew: the bowling record');
   check(recs.some((r) => r.key === 'streak' && r.value === 3 && r.id === 'mK'), 'crew: the longest run of nights won (كريم, 3 in a row)');
@@ -12878,6 +12906,11 @@ console.log('• the secret mission');
   // A round, start to end.
   {
     check(threw(() => applyRoomAction(hearRoom(['a', 'b']), 'a', 'start', {})), 'hear: three players at least');
+    // The pictures dealt from a seed, not Math.random: a perfect trace scores 94-100% (the strokes are
+    // rounded to the toolbox's 0-255), so a random picture failed «98 or more» one run in twenty (1 Oct 2026).
+    const randomWas = Math.random;
+    let hearSeed = 20261001;
+    Math.random = () => { hearSeed = (hearSeed * 16807) % 2147483647; return hearSeed / 2147483647; };
     const r = hearRoom(['a', 'b', 'c', 'd']);
     applyRoomAction(r, 'a', 'start', { seconds: 90, kind: 'things', level: 'easy', laps: 2 });
     let s = r.shared;
@@ -12916,7 +12949,8 @@ console.log('• the secret mission');
     applyRoomAction(r, z, 'hand', { round: 1, strokes: [] });
     check(s.phase === 'grade' && !!s.pic && s.drawings.length === 3 && !r.secrets[D] && !r._hear, 'hear: everyone in: the picture and the drawings go to every phone');
     const byId = {}; s.drawings.forEach((d) => { byId[d.id] = d; });
-    check(byId[x].pct >= 98 && byId[x].pts === 3 && byId[y].pts === 2 && byId[z].pct === 0 && byId[z].pts === 0, 'hear: the closest 3, the next 2, a blank page nothing');
+    Math.random = randomWas;
+    check(byId[x].pct >= 90 && byId[x].pts === 3 && byId[y].pts === 2 && byId[z].pct === 0 && byId[z].pts === 0, 'hear: the closest 3, the next 2, a blank page nothing');
     const avg = Math.round((byId[x].pct + byId[y].pct + byId[z].pct) / 3);
     check(s.avg === avg && s.descPts === H.hearDescPoints(avg) && (s.scores[D] || 0) === s.descPts, 'hear: the describer scores by the drawers\' average (' + avg + '% → +' + s.descPts + ')');
     check(threw(() => applyRoomAction(r, x === 'a' ? y : x, 'toVote', { round: 1 })), 'hear: only the host (or a stand-in) opens the vote early');

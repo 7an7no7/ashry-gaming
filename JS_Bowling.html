@@ -205,7 +205,7 @@ function bowlGfxBuild() {
   g.canvas = canvas;
   g.renderer = renderer;
   const small = Math.min(window.screen.width || 800, window.screen.height || 800) < 700;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(threeGfxRatio());
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFSoftShadowMap;
   renderer.toneMapping = T.ACESFilmicToneMapping;
@@ -422,6 +422,8 @@ function bowlGfxBuild() {
   g.guide = null;
   g.v = { up: new T.Vector3(0, 1, 0), a: new T.Vector3(), b: new T.Vector3(), q: new T.Quaternion(), ray: new T.Raycaster(), ndc: new T.Vector2(), plane: new T.Plane(new T.Vector3(0, 1, 0), 0) };
   g.camNow = { x: 0, y: 1.1, z: 4.2, lx: 0, ly: 0.15, lz: -10 };
+  // A phone that can't keep up draws fewer pixels and plainer shadows (JS_Three.html).
+  g.tune = threeGfxTuner(T, renderer, scene, [sun]);
   return true;
 }
 
@@ -555,6 +557,7 @@ function bowlGfxFrame(now) {
   // A tab that was away: the ball does not wait for it (a replay catches up at once).
   if (away && g.mode === 'roll' && g.sim) { while (!g.sim.done) bowlStep(g.sim); g.acc = 0; }
   bowlGfxUpdate(dt);
+  if (g.tune) g.tune.frame(now, true);
   g.renderer.render(g.scene, g.cam);
   if (bowlGfxBusy()) g.raf = requestAnimationFrame(bowlGfxFrame);
 }

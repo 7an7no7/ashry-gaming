@@ -189,12 +189,15 @@ name and take everyone out or delete the crew. The manager's power is now a **ke
   فيهم؟» gives any phone that member's key - a member's key: running the crew is a key's
   power (*The keys*, the owner, 1 Oct 2026). A member may have 6 phones.
 - **Titles are the month's** (the season); records are over every night kept (400).
-  Title groups: fast (الجرس، الكراسي، خمس ثواني، حط إيدك، عربيات التصادم + the room
+  Title groups: fast (الجرس، الكراسي، خمس ثواني، حط إيدك، عربيات التصادم، الحقوا! + the room
   trivia's first right answers), liar (كدّاب، كذبة وصدقة، صدق ولا كذب + its best
   liar, المزاد، جمجمة), detective (the spy games, مافيا، الفنان المزيف، الشاهد، خمّن
-  مين), cards, brain (chess and puzzles, the duels, حرب السفن، العقل…), words, sport
-  (بولينج، ميني جولف), luck (لودو، السلم، بنك الحظ، القنبلة), oracle (the audience's
-  right guesses). Never a "worst" title.
+  مين), cards, brain (تحدي المعلومات، قبل ولا بعد، الخزنة, chess and puzzles, the duels,
+  حرب السفن، العقل…), words (the talking and drawing games, دندنها، لو خيروك، مين
+  أكثر واحد…), sport (بولينج، ميني جولف), luck (لودو، السلم، بنك الحظ، القنبلة), oracle
+  (the audience's right guesses). Every room game is in one group (`rules.mjs` fails on one
+  that isn't; the review of 1 Oct 2026 added seven and moved the trivia from words to
+  brain); a tournament counts as its duel. Never a "worst" title.
 - **The link carries the crew's name** (`/s/CODE?n=…`) so the site worker's preview
   needs no lookup (nothing to look after, no cross-worker call); `?crew=CODE` on the
   preview build and GitHub Pages.

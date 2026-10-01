@@ -205,7 +205,7 @@ function mg3Create() {
   const canvas = document.createElement('canvas');
   canvas.className = 'mg-canvas';
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(threeGfxRatio());
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -260,6 +260,8 @@ function mg3Create() {
   sun.shadow.normalBias = 0.02;
   scene.add(sun); scene.add(sun.target);
   MG3.sun = sun;
+  // A phone that can't keep up draws fewer pixels and plainer shadows (JS_Three.html).
+  MG3.tune = threeGfxTuner(THREE, renderer, scene, [sun]);
 
   // Shared geometry for the balls; the pull's arrow and rubber band; the aim guide.
   MG3.geo.ball = new THREE.SphereGeometry(GOLF.BALL_R, 32, 20);
@@ -321,7 +323,7 @@ function mg3Resize() {
   if (!mg3Ready() || !MG3.host) return;
   const r = MG3.host.getBoundingClientRect();
   const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
-  MG3.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  MG3.renderer.setPixelRatio(threeGfxRatio());
   MG3.renderer.setSize(w, h, false);
   MG3.cam.aspect = w / h;
   MG3.cam.updateProjectionMatrix();
@@ -3017,6 +3019,8 @@ function mg3Loop(now) {
     return;
   }
   mg3Tick(now, dt);
+  // Measured only while the course is drawn every frame (not resting, not at its 30 a second, not a test's cap).
+  if (MG3.tune) MG3.tune.frame(now, gap === 0 && !MG3.fpsCap);
   mg3Draw();
   MG3.raf = requestAnimationFrame(mg3Loop);
 }

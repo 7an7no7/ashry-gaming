@@ -140,3 +140,13 @@ and *The TV as the console*). Game id `bumper` everywhere; the page's code is
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.
+
+## Weak phones draw less (the review of 1 Oct 2026)
+
+The renderer starts at pixel ratio 2 (`threeGfxRatio()`), antialias and soft shadows, and is
+tuned by `threeGfxTuner` (JS_Three.html, the shell, shared by بولينج, ميني جولف and عربيات
+التصادم): about 2 s of frames drawn back to back are measured after half a second of warm-up
+(a pause, a hidden tab, a resting or 30-a-second course and a test's `fpsCap` are not counted);
+under 45 a second it steps to ratio 1.25 with plain 1024 shadows, and if still slow to ratio 1
+with no shadows. The level lasts the page's life, so the next 3D screen starts there; every
+`setPixelRatio` (a resize too) asks `threeGfxRatio()`.

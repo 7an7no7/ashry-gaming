@@ -1,8 +1,9 @@
 # «برنامج السهرة» (the night's program) - the builder's notes (30 Sep 2026)
 
-Built on the worktree branch `worktree-agent-af94d802e8a9e27a5`, `master` (with «الشلة»)
-merged in. Not deployed, not pushed; GEMINI.md untouched. At the end: a line ready for
-GEMINI.md's index and a draft of `notes/games/program.md`.
+Built 30 Sep 2026 on a worktree branch, merged into `master` and live since (rooms server and
+both addresses); its line is in GEMINI.md's index. The night's points are one rule everywhere
+(`NIGHT_PLACES` 5 / 3 / 2, `NIGHT_PLAYED` 1), placed by `nightPlacesOf` for the program, the room's
+own night and «الشلة» alike (the review of 1 Oct 2026).
 
 ## The owner's decisions (all asked; not to be changed)
 
@@ -110,18 +111,16 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
   table: [{ id, name, pts, firsts, place }], champions: [ids], awards: [...] }` (ids are the
   room's player ids). It keeps it on `room._nightSummary` and appends it to
   **`room.nightx.programs`** (the last 5), beside what `bankNightPoints` notes for the crew.
-- The crew already gets every game of a program: each is banked on `room.night` (3/2/1) as
-  the hub would. `room.js` sends the night to its crew whenever `night` / `nightx` change -
+- The crew already gets every game of a program: each is banked on `room.night` (5/3/2/1,
+  exactly the places the program banked) as the hub would. `room.js` sends the night to its crew whenever `night` / `nightx` change -
   after a move, and now also **after the alarm** (a program moves on by its own clock; the
   alarm compares the two before and after `roomTimeout` and calls `recordCrew`).
-- **What the crew should do with it** (not built here - Crew.js untouched): in
-  `crewNightInput(room)` read `(room.nightx || {}).programs` and send each as, for example,
-  `programs: [{ at, games: [ids], table: [{ name, member: room.crewLinks[id] || null, pts,
-  firsts, place }], champions: [{ name, member }], awards: [{ k, name, member, v, g, with }] }]`,
-  leaving out computer players (none are on a program's table). A crew can then show «بطل
-  السهرة» of a night that was a program, count program championships, and turn the awards
-  into its titles (buzz → fast, liar / catcher → liar, detective / sly → detective, strike →
-  sport, prophet → oracle).
+- **The crew's side is built** (`notes/games/crew.md`): `crewNightInput(room)` reads
+  `(room.nightx || {}).programs` and sends the night's last `CREW_PROGRAMS_KEPT` (3) with their
+  games, champions and awards (names mapped to members, computer players left out); the crew's
+  page shows «بطل السهرة» and the award chips of a night that was a program. Still an idea: the
+  program's awards as crew titles (buzz → fast, liar / catcher → liar, detective / sly →
+  detective, strike → sport, prophet → oracle).
 
 ### The page (`JS_RoomProgram.html`, its own chunk `program`)
 
@@ -183,8 +182,8 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
   game's options; only the two seated (or the entrants) are placed.
 - **The champion's title is «بطل الليلة»** (the generic masculine: a name doesn't say
   which), «أبطال الليلة: منى وSara» for a tie; the award titles are the sheet's.
-- **The room's own «ليلتنا» (3/2/1) still banks every game** of a program; the program's
-  table is its own, next to it.
+- **The room's own «ليلتنا» (5/3/2/1) banks every game** of a program with the same places the
+  program banked, so the two tables agree.
 - The play counter (`/count`) counts a game started by the host's tap only; the program's
   own deals (from the alarm) aren't counted.
 
@@ -265,19 +264,7 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
 
 ## Not done
 
-- The crew's side of the hook (reading `room.nightx.programs` in `crewNightInput` and
-  showing a program's champion and awards on the crew's page): described above, for the
-  crew's code.
+- The program's awards as crew titles (the crew reads and shows them; they don't count
+  toward a title yet).
 - A TV host builds a program with the same sheet (the door is on the TV's list too); only
   a phone host was looked at.
-
-## Ready to paste into GEMINI.md's index ("The app around the games")
-
-- «برنامج السهرة» (the night as a show: the host's line-up of room games, the table between
-  two games on the server's clock, places → 5/3/2/1, the finale with the podium and awards,
-  the crew hook `nightProgramFinished` / `room.nightx.programs`; `RoomProgram.js`,
-  `JS_RoomProgram.html`) - `notes/games/program.md`.
-
-## Draft of notes/games/program.md
-
-(The sections above from "The owner's decisions" to "Traps met", as they stand.)

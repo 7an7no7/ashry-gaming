@@ -275,7 +275,9 @@ bomb's holder, the drawer, a Codenames spymaster with no clue given or
 operatives with one, the psychic, a writer who hasn't sent, an unanswered
 question, an uncast vote with an option that isn't their own, the player up
 in خمس ثواني or ربع قرد, an accused spy or chameleon or a caught fake who
-guesses. If so, a banner (`#turn-banner`), a sound and a buzz, and a tap goes
+guesses, من أنا؟ while your own character is still to find (`turn_whoami`), أونو
+when you are down to one card without saying it and can be caught (`s.unoCatch`,
+`turn_uno`, before the turn itself; the review of 1 Oct 2026). If so, a banner (`#turn-banner`), a sound and a buzz, and a tap goes
 back to the room. While hidden but still receiving, the tab title says it.
 Nothing fires while the screen is being looked at. A new room game with a
 turn needs its case in `roomTurnOf`.

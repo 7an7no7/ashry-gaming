@@ -1712,7 +1712,9 @@ dealing through `freshPick` (one phone) or `nextPrompts` (rooms); its content
 checked by `tools/validate-content.js`; the motion toolkit above; and in rooms
 also a `RoomGames.js` branch, `ROOM_GAMES` and `TV_GAMES` renderers,
 `ROOM_HUB_GAMES`, a `roomTurnOf` case if a turn waits on one phone, a round in
-`rooms-worker/test/play-all.mjs`, and a deploy.
+`rooms-worker/test/play-all.mjs`, and a deploy. Every game with its own card also takes a place in
+`TONIGHT_ORDER` («الليلة دي؟», `npm run check` fails without it), and a room game a
+`CREW_TITLE_GAMES` group in `Crew.js` (`test:rules` fails without it).
 
 **Never hardcode a colour.** Use the tokens: `--accent` / `--accent-soft` /
 `--accent-ink` / `--accent-on` for the current screen's colour, `--text` /

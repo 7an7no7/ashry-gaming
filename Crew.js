@@ -64,16 +64,21 @@ const crewDateOf = (ts) => {
 };
 const crewMonthOf = (ts) => crewDateOf(ts).slice(0, 7);
 
-/* --- the games a title counts (a first place in one of these, a game of the night) --- */
+/* --- the games a title counts (a first place in one of these, a game of the night) ---
+   Every room game is in one group (a cooperative one - العقل, الحقوا!, الأوضة المضلمة, حط إيدك!,
+   ارسم واكتب, لو خيروك - banks no first place, but is listed for when it does). A tournament
+   counts as its own duel's id (room.game stays connect4, dots, xo...). The review of 1 Oct 2026
+   found seven missing and the trivia under "words"; rules.mjs fails on a room game with no group. */
 const CREW_TITLE_GAMES = {
-  fast: ['buzzer', 'chairs', 'fiveseconds', 'exact', 'bumper'],
+  fast: ['buzzer', 'chairs', 'fiveseconds', 'exact', 'bumper', 'wire'],
   liar: ['doubt', 'fibbage', 'twotruths', 'box', 'skull'],
   detective: ['imposter', 'chameleon', 'spyfall', 'mafia', 'fakeartist', 'witness', 'guesswho'],
   cards: ['screw', 'uno', 'domino', 'oldmaid', 'estimation'],
-  brain: ['chess', 'votechess', 'handbrain', 'bughouse', 'chess4', 'connect4', 'dots', 'xo', 'battleship', 'mind',
-    'wordle', 'guessnum', 'flags', 'hangman', 'sudoku', 'queens', 'tango', 'nonogram', 'mines', 'strands',
-    'wordwheel', 'connections', 'pinpoint', 'streak'],
-  words: ['hum', 'stop', 'monkey', 'drawguess', 'hear', 'emoji', 'proverbs', 'herd', 'codenames', 'wavelength', 'justone', 'whoami', 'trivia'],
+  brain: ['trivia', 'timeline', 'vault', 'chess', 'votechess', 'handbrain', 'bughouse', 'chess4', 'connect4', 'dots', 'xo',
+    'battleship', 'mind', 'wordle', 'guessnum', 'flags', 'hangman', 'sudoku', 'queens', 'tango', 'nonogram', 'mines',
+    'strands', 'wordwheel', 'connections', 'pinpoint', 'streak'],
+  words: ['hum', 'stop', 'monkey', 'drawguess', 'hear', 'telephone', 'emoji', 'proverbs', 'herd', 'codenames', 'wavelength',
+    'justone', 'whoami', 'wouldyou', 'mostlikely', 'darkroom'],
   sport: ['bowling', 'minigolf'],
   luck: ['ludo', 'snakes', 'bank', 'bomb']
 };

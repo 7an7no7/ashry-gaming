@@ -47,4 +47,76 @@ function threeCanDraw() {
   } catch (e) { threeWebglOk = false; }
   return threeWebglOk;
 }
+/* --- Drawing less on a phone that can't keep up (the review of 1 Oct 2026) ---------
+   بولينج, ميني جولف and عربيات التصادم draw at twice the pixels with soft shadows of
+   2048. Each renderer is tuned the same way: its first ~2 s of frames drawn back to
+   back are measured (a pause, a hidden tab or a game's own slower pace is not
+   counted), and under 45 a second it steps down - level 1: pixel ratio 1.25 and plain
+   shadows of 1024; level 2: ratio 1 and no shadows - and measures again. The level
+   is kept for the page's life, so the next 3D screen starts where this one ended.
+   The game asks threeGfxRatio() wherever it sets the pixel ratio (a resize too). */
+const THREE_GFX_MIN_FPS = 45;
+const THREE_GFX_WARM_MS = 500;      // shaders compile and textures upload: not counted
+const THREE_GFX_SAMPLE_MS = 2000;
+let threeGfxLevel = 0;
+
+/** The pixel ratio for the level this phone is at. */
+function threeGfxRatio() {
+  const dpr = window.devicePixelRatio || 1;
+  return threeGfxLevel >= 2 ? 1 : Math.min(dpr, threeGfxLevel >= 1 ? 1.25 : 2);
+}
+
+/**
+ * Tunes one renderer: applies the level now (call it once the scene and its lights are
+ * made), then `frame(now, steady)` before each render - `steady` false when the game
+ * chose to wait before this frame (a resting course drawn 5 times a second).
+ * `lights` are the shadow casters whose maps shrink.
+ */
+function threeGfxTuner(T, renderer, scene, lights) {
+  let applied = -1;
+  let last = 0, lastSteady = false, warm = 0, spent = 0, frames = 0, done = false;
+  const apply = (level, live) => {
+    if (level === applied) return;
+    applied = level;
+    renderer.setPixelRatio(threeGfxRatio());
+    if (level >= 1) {
+      renderer.shadowMap.type = T.PCFShadowMap;
+      (lights || []).forEach(l => {
+        if (!l || !l.shadow) return;
+        const n = Math.min(1024, l.shadow.mapSize.x);
+        if (l.shadow.mapSize.x !== n) {
+          l.shadow.mapSize.set(n, n);
+          if (l.shadow.map) { l.shadow.map.dispose(); l.shadow.map = null; }
+        }
+      });
+    }
+    if (level >= 2) renderer.shadowMap.enabled = false;
+    renderer.shadowMap.needsUpdate = true;
+    // A shadow setting is part of every material's program: built again on the next frame.
+    if (live && scene) scene.traverse(o => {
+      const m = o.material;
+      (Array.isArray(m) ? m : m ? [m] : []).forEach(x => { x.needsUpdate = true; });
+    });
+  };
+  apply(threeGfxLevel, false);
+  return {
+    frame(now, steady) {
+      if (applied !== threeGfxLevel) apply(threeGfxLevel, true);   // another screen stepped down
+      if (done) return;
+      const dt = now - last;
+      const counted = steady !== false && lastSteady && dt > 0 && dt < 250;
+      last = now; lastSteady = steady !== false;
+      if (!counted) return;
+      if (warm < THREE_GFX_WARM_MS) { warm += dt; return; }
+      spent += dt; frames++;
+      if (spent < THREE_GFX_SAMPLE_MS) return;
+      const fps = frames * 1000 / spent;
+      spent = 0; frames = 0; warm = 0;
+      if (fps >= THREE_GFX_MIN_FPS || threeGfxLevel >= 2) { done = true; return; }
+      threeGfxLevel = Math.max(threeGfxLevel, applied) + 1;
+      apply(threeGfxLevel, true);
+    },
+    level: () => applied
+  };
+}
 </script>

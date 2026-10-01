@@ -706,6 +706,49 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   console.log(`vault: ${V.VAULT_SYMBOL_IDS.length} symbols, ${V.VAULT_SHAPE_IDS.length} shapes, 300 notebooks and ${safes} safes sound`);
 }
 
+/* ------------------------------------------------------ دندنها: the songs */
+// Songs.js (1 Oct 2026), offline: every field there, a pin to one source - { src: 'itunes' | 'deezer', id: a
+// whole number } - and, if it has one, a second pin (`also`) to the other source; one of the three eras; no
+// song twice (by any of its pins, or by a name folded the way a guess is - a title, one of its alternatives or
+// its English title must name one song only), and enough in every era for the four choices to come from it.
+// `npm run check:songs` (check-songs.mjs) asks Apple and Deezer that every pin still has its preview.
+{
+  const SONGS = load(ROOT + 'Songs.js', 'HUM_SONGS');
+  const ERAS = ['classic', 'pop', 'new'];
+  const owner = {};
+  const ids = {};
+  const byEra = {};
+  SONGS.forEach((x, i) => {
+    const tag = `Songs.js[${i}] ${x && x.t}`;
+    const SOURCES = ['itunes', 'deezer'];
+    const pinOk = (p) => !!p && SOURCES.indexOf(p.src) !== -1 && Number.isInteger(p.id) && p.id > 0;
+    if (!pinOk(x)) note(`${tag}: no pin (src 'itunes' or 'deezer', and a whole-number id)`);
+    if (x && x.also !== undefined && (!pinOk(x.also) || x.also.src === x.src)) note(`${tag}: its second pin must be the other source`);
+    ['t', 's', 'en', 'se'].forEach(k => { if (!x || typeof x[k] !== 'string' || !x[k].trim()) note(`${tag}: no ${k}`); });
+    if (!x || !Array.isArray(x.alt)) note(`${tag}: alt must be a list`);
+    if (!x || ERAS.indexOf(x.era) === -1) note(`${tag}: era must be one of ${ERAS.join(', ')}`);
+    if (!x) return;
+    [x].concat(x.also ? [x.also] : []).forEach(p => {
+      const key = p.src + ':' + p.id;
+      if (ids[key] !== undefined) note(`${tag}: ${key} is also song ${ids[key]}`);
+      ids[key] = i;
+    });
+    byEra[x.era] = (byEra[x.era] || 0) + 1;
+    // The English title is an answer too (a Latin keyboard), so it must name one song only as well.
+    [x.t].concat(x.alt || [], [x.en]).forEach(name => {
+      const k = fold(name).replace(/[^\p{L}\p{N}]/gu, '');
+      if (!k) return note(`${tag}: an empty name`);
+      if (owner[k] !== undefined && owner[k] !== i) note(`${tag}: "${name}" also names song ${owner[k]} (${SONGS[owner[k]].t})`);
+      owner[k] = i;
+    });
+    if (fold(x.t).replace(/[^\p{L}\p{N}]/gu, '') === fold(x.s).replace(/[^\p{L}\p{N}]/gu, '')) note(`${tag}: the title is the singer's name`);
+  });
+  if (SONGS.length < 150) note(`Songs.js: ${SONGS.length} songs, fewer than 150`);
+  ERAS.forEach(e => { if ((byEra[e] || 0) < 4) note(`Songs.js: ${byEra[e] || 0} songs of the ${e} era; the choices need 4`); });
+  const bySrc = SONGS.reduce((m, x) => { m[x.src] = (m[x.src] || 0) + 1; return m; }, {});
+  console.log(`songs: ${SONGS.length} (${ERAS.map(e => e + ' ' + (byEra[e] || 0)).join(', ')}; from ${Object.keys(bySrc).map(k => k + ' ' + bySrc[k]).join(', ')}, ${SONGS.filter(x => x.also).length} with a second source)`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

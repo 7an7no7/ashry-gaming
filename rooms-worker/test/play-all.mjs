@@ -16,6 +16,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { stopDictionary, stopAnswerFits, stopWordKnown, foldStopAnswer } from '../generated/rules.js';
+// دندنها's sound, the Worker's own code: a real preview from each source.
+import { songStream } from '../src/songs.js';
 
 // سكرو's cards, read by the robots to decide what to do with what they drew and
 // to check the score at the reveal. They only ever learn a card the way a
@@ -983,6 +985,111 @@ async function hearRobots() {
   await H.must('backToHub');
   await H.waitFor((s) => s.phase === 'lobby', 'hear: back in the hub');
   people.filter((b) => b !== leaver).concat([TV, late]).forEach((x) => x.close());
+}
+
+/* --- دندنها: the hummer's song on their phone only, the typed race, the choices, «سمّع» on the server's clock --- */
+async function humRobots() {
+  console.log('• دندنها (the song and its sound on the hummer\'s phone only, typed answers, the choices, «سمّع»)');
+  // Each source on its own, through the Worker's own code (src/songs.js): Apple's AAC, Deezer's mp3, and a
+  // song whose first pin is gone playing from its second.
+  const HS = new Function(readFileSync(new URL('../../Songs.js', import.meta.url), 'utf8') + ';return HUM_SONGS;')();
+  for (const src of ['itunes', 'deezer']) {
+    const x = HS.find((y) => y.src === src);
+    const got = await songStream(x).catch(() => null);
+    const bytes = got ? (await new Response(got.body).arrayBuffer()).byteLength : 0;
+    check(got && got.src === src && /^audio\//.test(got.type) && bytes > 50000, `hum: a ${src} song streams its preview (${bytes} bytes, ${got ? got.type : '-'})`);
+  }
+  {
+    const x = HS.find((y) => y.also);
+    const got = await songStream({ src: x.src, id: 1, also: x.also }).catch(() => null);
+    if (got) await new Response(got.body).arrayBuffer();
+    check(got && got.src === x.also.src, 'hum: a song whose first pin is gone plays from its second');
+  }
+  const H = await Bot.host('حسام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const L = await Bot.join(H.code, 'ليلى');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K, L];
+  const byPid = (id) => people.find((b) => b.pid === id);
+  await H.must('chooseGame', { game: 'hum' });
+  check((await J.act('start', { mode: 'hum', count: 5 })).ok === false, 'hum: only the host starts');
+  await H.must('start', { mode: 'hum', count: 5 });
+  await all(people.concat([TV]), (s) => s.game === 'hum' && s.shared.phase === 'listen' && s.shared.round === 1 && s.shared.rounds === 5,
+    'hum: song 1, the hummer listening, on every phone and the TV');
+  const late = await Bot.join(H.code, 'متأخر');
+  check(late.state.inGame === false, 'hum: someone who joins mid-game watches');
+  const s1 = H.state.shared;
+  const M = byPid(s1.hummerId);
+  const G = people.filter((b) => b !== M);
+  await M.waitFor((s) => s.you && s.you.song && s.you.song.t && typeof s.you.token === 'string', 'hum: the song and its token reach the hummer');
+  const title = M.state.you.song.t;
+  const token = M.state.you.token;
+  check(G.concat([TV, late]).every((b) => !b.state.you && JSON.stringify(b.state).indexOf(title) === -1 && JSON.stringify(b.state).indexOf(token) === -1),
+    'hum: no guesser, the TV or a watcher is sent the song or its token');
+  // The sound: Apple's preview through the room's opaque address, and nothing for a wrong token.
+  try {
+    const res = await fetch(BASE + '/song/' + H.code + '/' + token);
+    const buf = res.ok ? await res.arrayBuffer() : null;
+    check(res.ok && /audio/.test(res.headers.get('content-type') || '') && buf && buf.byteLength > 50000 && res.headers.get('access-control-allow-origin') === '*',
+      'hum: /song streams the preview (' + (buf ? buf.byteLength : 0) + ' bytes) to the token');
+    const bad = await fetch(BASE + '/song/' + H.code + '/' + token.split('').reverse().join(''));
+    check(bad.status === 404, 'hum: a wrong token gets nothing');
+  } catch (e) { check(false, 'hum: /song answered (' + e.message + ')'); }
+  check((await G[0].act('heard', { deal: s1.deal })).ok && H.state.shared.phase === 'listen', 'hum: only the hummer says «خلاص»');
+  await M.must('heard', { deal: s1.deal });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'type' && s.shared.typeEndsAt > s.shared.typeStartAt, 'hum: the typing opens on every phone');
+  check((await M.act('guess', { deal: s1.deal, text: title })).ok === false, 'hum: the hummer can\'t answer their own song');
+  await G[0].must('guess', { deal: s1.deal, text: 'أغنية مش موجودة خالص' });
+  await G[0].waitFor((s) => s.you && s.you.miss && s.you.miss.n === 1, 'hum: a wrong answer comes back to that phone only');
+  check(!(G[1].state.you && G[1].state.you.miss), 'hum: nobody else hears of it');
+  await G[0].must('guess', { deal: s1.deal, text: title });
+  await G[1].must('guess', { deal: s1.deal, text: title });
+  await all(people.concat([TV]), (s) => (s.shared.right || []).length === 2 && s.shared.right[0].id === G[0].pid && s.shared.right[0].pts === 3 && s.shared.right[1].pts === 2,
+    'hum: the front row fills, 3 then 2, on every screen');
+  // G[2] waits out the 15 seconds: the four choices come down on the server's clock.
+  await all(people.concat([TV]), (s) => s.shared.phase === 'choices' && (s.shared.choices || []).length === 4 && typeof s.shared.correct !== 'number',
+    'hum: after 15 seconds four choices, which one hidden', 20000);
+  const right = H.state.shared.choices.findIndex((c) => c.t === title);
+  check(right !== -1, 'hum: the right title is among the four');
+  await G[2].must('pick', { deal: s1.deal, i: right });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'reveal' && s.shared.song && s.shared.song.t === title && s.shared.correct === right,
+    'hum: everyone answered: the song is out');
+  const gained = H.state.shared.gained;
+  check(gained[G[0].pid] === 3 && gained[G[1].pid] === 2 && gained[G[2].pid] === 1 && gained[M.pid] === 2,
+    'hum: 3 and 2 typed, 1 for the right choice, 2 to the hummer');
+  await H.must('nextRound', { round: 1 });
+  await H.waitFor((s) => s.shared.round === 2 && s.shared.phase === 'listen', 'hum: song 2 is dealt');
+  const M2 = byPid(H.state.shared.hummerId);
+  check(M2 !== M, 'hum: the next hummer in turn');
+  const deal2 = H.state.shared.deal;
+  await M2.must('broken', { deal: deal2 });
+  await H.waitFor((s) => s.shared.deal === deal2 + 1 && s.shared.round === 2 && s.shared.hummerId === M2.pid, 'hum: a preview that won\'t load: another song, the same hummer');
+  await H.must('skipSong', { deal: deal2 + 1 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'reveal' && s.shared.skipped === true && !Object.keys(s.shared.gained || {}).length, 'hum: the host skips a song');
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'hum: back in the hub');
+
+  // «سمّع»: everyone taps ▶, the clip on the server's clock, everyone races.
+  await H.must('chooseGame', { game: 'hum' });
+  await H.must('start', { mode: 'listen', replay: 'once10', count: 5 });
+  const racers = people.concat([late]);
+  await all(racers, (s) => s.shared.phase === 'arm' && s.shared.mode === 'listen', 'listen: the ▶ round first');
+  for (const b of racers) await b.must('arm', {});
+  await all(racers.concat([TV]), (s) => s.shared.phase === 'count' && typeof s.shared.token === 'string' && !s.you, 'listen: every ▶ in: the countdown, one opaque token for all');
+  const ltoken = H.state.shared.token;
+  try {
+    const res = await fetch(BASE + '/song/' + H.code + '/' + ltoken);
+    check(res.ok && (await res.arrayBuffer()).byteLength > 50000, 'listen: every phone can load the clip by the token');
+  } catch (e) { check(false, 'listen: the clip loads (' + e.message + ')'); }
+  await all(racers, (s) => s.shared.phase === 'type', 'listen: the clip plays at the server\'s moment', 8000);
+  // The robots can't hear: they read nothing of the song, so they try every title until the server says right.
+  check(racers.every((b) => JSON.stringify(b.state).indexOf('apple.com') === -1), 'listen: no Apple address on any phone');
+  await H.must('skipSong', { deal: H.state.shared.deal });
+  await all(racers.concat([TV]), (s) => s.shared.phase === 'reveal' && s.shared.song && s.shared.song.t, 'listen: the song shown to all');
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'listen: back in the hub');
+  people.concat([TV, late]).forEach((x) => x.close());
 }
 
 /* --- «اعمل مسابقتك» and «كلماتنا»: packs kept by code, dealt by the server ------------------- */
@@ -6431,6 +6538,7 @@ const SEGMENTS = [
   { name: 'chairs', run: chairsRobots, secs: 40 },
   { name: 'witness', run: witnessRobots, secs: 17 },
   { name: 'hear', run: hearRobots, secs: 40 },
+  { name: 'hum', run: humRobots, secs: 30 },
   { name: 'quiz', run: quizRobots, secs: 6 },
   { name: 'wire', run: wireRobots, secs: 50 },
   { name: 'vault', run: vaultRobots, secs: 27 },

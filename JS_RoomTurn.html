@@ -53,6 +53,12 @@ function roomTurnOf(state) {
       return (s.phase === 'talk' || s.phase === 'bid') && (s.roster || []).indexOf(me) !== -1 && (s.done || []).indexOf(me) === -1 ? 'turn_box' : null;
     case 'darkroom':
       return s.phase === 'play' && s.moverId === me ? 'turn_darkroom' : null;
+    case 'hum':
+      if (s.phase === 'arm') return (s.roster || []).indexOf(me) !== -1 && (s.armed || []).indexOf(me) === -1 ? 'turn_hum_arm' : null;
+      if (s.phase === 'listen') return s.hummerId === me ? 'turn_hum' : null;
+      if ((s.phase === 'type' || s.phase === 'choices') && (s.roster || []).indexOf(me) !== -1 && !(s.mode === 'hum' && s.hummerId === me) &&
+        !(s.right || []).some(r => r.id === me) && (s.picked || []).indexOf(me) === -1) return 'turn_hum_guess';
+      return null;
     case 'exact':
       return (s.phase === 'ready' || s.phase === 'go') && (s.roster || []).indexOf(me) !== -1 ? 'turn_exact' : null;
     case 'hear':

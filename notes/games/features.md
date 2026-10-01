@@ -77,6 +77,10 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
   the whole table after a countdown («بالظبط ٣ منكم يحطوا إيدهم!», nobody,
   in turn, all at once…), hands slammed on a wooden table, three tea glasses
   that spill, levels until the tea is gone (*بالظبط ٣!*).
+- **Rooms only, a music game:** 🎵 **Hum It (دندنها):** Egyptian songs,
+  from Umm Kulthum to the mahraganat: one hums the song they hear in their ear,
+  or every phone plays the same clip; the rest type its name, four choices after
+  15 s, the fastest three in the front row (`notes/games/hum.md`).
 - **Rooms only, a party game:** 🪑 **Musical chairs (الكراسي الموسيقية):**
   every phone is a player, the music stops at a secret moment, the fastest
   taps get the chairs, one out a round (*الكراسي الموسيقية*).

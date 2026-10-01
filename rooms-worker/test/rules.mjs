@@ -12637,6 +12637,150 @@ console.log('• the secret mission');
   }
 }
 
+/* --- دندنها (1 Oct 2026): a song hummed or heard, its name typed, four choices after 15 s --- */
+{
+  console.log('\nHum it');
+  const HS = new Function(readFileSync(new URL('../../Songs.js', import.meta.url), 'utf8') + ';return HUM_SONGS;')();
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
+  const humRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'hum' }); return r; };
+  const songOf = (r) => HS[r._hum.cur];
+  const gone = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id.toUpperCase()); };
+
+  // The list: enough songs in every era, nothing twice, every song pinned to Apple or Deezer.
+  {
+    const eras = HS.reduce((m, x) => { m[x.era] = (m[x.era] || 0) + 1; return m; }, {});
+    const keys = HS.map((x) => normaliseClue(x.t));
+    const pins = HS.reduce((all, x) => all.concat([x.src + ':' + x.id], x.also ? [x.also.src + ':' + x.also.id] : []), []);
+    check(HS.length >= 150 && eras.classic >= 4 && eras.pop >= 4 && eras.new >= 30 && new Set(keys).size === keys.length && new Set(pins).size === pins.length,
+      'hum: 150+ songs over the three eras (30+ of the newest), no title or pin twice (' + HS.length + ')');
+    check(HS.every((x) => ['itunes', 'deezer'].indexOf(x.src) !== -1 && (!x.also || (x.also.src !== x.src && ['itunes', 'deezer'].indexOf(x.also.src) !== -1))),
+      'hum: every song is pinned to Apple or Deezer, a second pin to the other one');
+  }
+
+  // «دندنة»: the hummer, the typing, the points.
+  {
+    const r = humRoom(['a', 'b', 'c', 'd', 'e']);
+    check(threw(() => applyRoomAction(r, 'b', 'start', { mode: 'hum', count: 5 })), 'hum: only the host starts');
+    applyRoomAction(r, 'a', 'start', { mode: 'hum', count: 5 });
+    let s = r.shared;
+    const H = s.hummerId;
+    const guessers = s.roster.filter((id) => id !== H);
+    check(r.phase === 'play' && s.phase === 'listen' && s.round === 1 && s.rounds === 5 && r._hum.deck.length >= 5,
+      'hum: the game starts on the first hummer listening, five songs dealt');
+    check(r.secrets[H] && r.secrets[H].song.t === songOf(r).t && r.secrets[H].token === r._hum.token && Object.keys(r.secrets).length === 1 && !s.token,
+      'hum: the song and its token are the hummer\'s alone');
+    applyRoomAction(r, guessers[0], 'heard', { deal: s.deal });
+    check(r.shared.phase === 'listen', 'hum: only the hummer says they have heard it');
+    applyRoomAction(r, guessers[0], 'guess', { deal: s.deal, text: songOf(r).t });
+    check(!r.shared.right.length, 'hum: nobody types while the hummer listens');
+    applyRoomAction(r, H, 'heard', { deal: s.deal });
+    s = r.shared;
+    check(s.phase === 'type' && s.typeEndsAt - clock === 15000 && roomDeadline(r) === s.typeEndsAt + 600, 'hum: «خلاص» opens 15 seconds of typing, on the server\'s clock');
+    check(threw(() => applyRoomAction(r, H, 'guess', { deal: s.deal, text: songOf(r).t })), 'hum: the hummer can\'t answer their own song');
+    applyRoomAction(r, guessers[0], 'guess', { deal: s.deal, text: songOf(r).s });
+    check(!s.right.length && r.secrets[guessers[0]].miss.n === 1, 'hum: the singer alone is not the answer');
+    clock += 1000; applyRoomAction(r, guessers[1], 'guess', { deal: s.deal, text: songOf(r).t });
+    clock += 1000; applyRoomAction(r, guessers[0], 'guess', { deal: s.deal, text: 'ال' + songOf(r).t });
+    clock += 1000; applyRoomAction(r, guessers[2], 'guess', { deal: s.deal + 7, text: songOf(r).t });
+    check(s.right.length === 2, 'hum: a guess sent for another song is dropped');
+    applyRoomAction(r, guessers[2], 'guess', { deal: s.deal, text: songOf(r).t });
+    check(s.right.map((x) => x.id).join() === [guessers[1], guessers[0], guessers[2]].join() && s.right.map((x) => x.pts).join() === '3,2,1',
+      'hum: the fastest three typed answers score 3, 2, 1');
+    applyRoomAction(r, guessers[1], 'guess', { deal: s.deal, text: songOf(r).t });
+    check(s.right.length === 3, 'hum: a phone that has it can\'t answer again');
+    tick(r);
+    s = r.shared;
+    check(s.phase === 'choices' && s.choices.length === 4 && s.choices.some((c) => c.t === songOf(r).t) && typeof s.correct !== 'number' && roomDeadline(r) === s.choiceEndsAt + 600,
+      'hum: after 15 s four choices come down (the right one among them), which one hidden');
+    const right = r._hum.correct;
+    check(new Set(s.choices.map((c) => normaliseClue(c.t))).size === 4 && s.choices.every((c) => HS.find((x) => x.t === c.t).era === songOf(r).era),
+      'hum: four different songs, from the same era');
+    applyRoomAction(r, guessers[1], 'pick', { deal: s.deal, i: right });
+    check(!s.picked.length, 'hum: a phone that typed it right doesn\'t pick');
+    applyRoomAction(r, guessers[3], 'pick', { deal: s.deal, i: right });
+    applyRoomAction(r, guessers[3], 'pick', { deal: s.deal, i: (right + 1) % 4 });
+    s = r.shared;
+    check(s.picks && s.picks[guessers[3]] === right && Object.keys(s.picks).length === 1, 'hum: one pick each');
+    check(s.phase === 'reveal' && s.song.t === songOf(r).t && s.correct === right && s.token === r._hum.token,
+      'hum: everyone answered: the song, the right choice, and its sound for all');
+    check(s.gained[guessers[1]] === 3 && s.gained[guessers[0]] === 2 && s.gained[guessers[2]] === 1 && s.gained[guessers[3]] === 1 && s.gained[H] === 2,
+      'hum: 3 / 2 / 1 typed, 1 for the right choice, 2 to the hummer');
+    check(!Object.keys(r.secrets).length && s.board[0].score === 3, 'hum: the board is up, no secret left');
+    applyRoomAction(r, 'a', 'nextRound', { round: 99 });
+    check(r.shared.phase === 'reveal', 'hum: a stale next song is dropped');
+    applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+    s = r.shared;
+    check(s.phase === 'listen' && s.round === 2 && s.hummerId === s.order[(s.order.indexOf(H) + 1) % 5] && !s.right.length && !s.choices,
+      'hum: song 2: the next hummer in turn, nothing of the last song left');
+    // A preview that won't load: another song, same round, same hummer.
+    const deal = s.deal, H2 = s.hummerId, was = r._hum.cur;
+    applyRoomAction(r, s.roster.find((id) => id !== H2), 'broken', { deal });
+    check(r.shared.deal === deal, 'hum: only the hummer says the song won\'t play');
+    applyRoomAction(r, H2, 'broken', { deal });
+    check(r.shared.deal === deal + 1 && r.shared.round === 2 && r.shared.hummerId === H2 && r._hum.cur !== was && r.secrets[H2].song.t === songOf(r).t,
+      'hum: a song that won\'t play is dealt again by itself, nobody loses anything');
+    // Nobody has it: no points; the hummer gets nothing either.
+    tick(r);
+    check(r.shared.phase === 'type', 'hum: the hummer\'s 30 seconds end by themselves');
+    tick(r); tick(r);
+    s = r.shared;
+    check(s.phase === 'reveal' && !Object.keys(s.gained).length, 'hum: nobody right, no points, none for the hummer');
+    // The host skips a song nobody knows.
+    applyRoomAction(r, 'a', 'nextRound', { round: 2 });
+    applyRoomAction(r, r.shared.hummerId, 'heard', { deal: r.shared.deal });
+    check(threw(() => applyRoomAction(r, 'b' === r.hostId ? 'c' : 'b', 'skipSong', { deal: r.shared.deal })), 'hum: only the host (or a stand-in) skips a song');
+    applyRoomAction(r, 'a', 'skipSong', { deal: r.shared.deal });
+    check(r.shared.phase === 'reveal' && r.shared.skipped === true, 'hum: the host skips a song: it is shown, the round is over');
+    // Someone leaves while listening: the next hummer gets a new song.
+    applyRoomAction(r, 'a', 'nextRound', { round: 3 });
+    const quiet = r.shared.hummerId;
+    if (quiet !== 'a') {
+      gone(r, quiet);
+      check(r.shared.phase === 'listen' && r.shared.hummerId !== quiet && r.secrets[r.shared.hummerId], 'hum: a hummer who leaves while listening hands the song on');
+    } else check(true, 'hum: a hummer who leaves while listening hands the song on');
+    while (r.shared.phase !== 'gameover') { if (r.shared.phase === 'reveal') applyRoomAction(r, 'a', 'nextRound', { round: r.shared.round }); else tick(r); }
+    check(r.shared.round === 5 && r.shared.board.length >= 3 && roomDeadline(r) === null, 'hum: five songs, then the board');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.phase === 'listen' && r.shared.round === 1 && r.shared.rounds === 5 && r.shared.mode === 'hum', 'hum: play again keeps the way and the count');
+  }
+
+  // «سمّع»: the ▶ round, the countdown, the clip on the server's clock, «بتطول»'s bonus.
+  {
+    const r = humRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'start', { mode: 'listen', replay: 'grow', count: 10 });
+    let s = r.shared;
+    check(s.phase === 'arm' && s.rounds === 10 && s.replay === 'grow' && roomDeadline(r) === s.armEndsAt, 'listen: everyone taps ▶ first, on a clock');
+    ['a', 'b'].forEach((id) => applyRoomAction(r, id, 'arm', {}));
+    check(r.shared.phase === 'arm', 'listen: the song waits for the last ▶');
+    applyRoomAction(r, 'c', 'arm', {});
+    s = r.shared;
+    check(s.phase === 'count' && !s.hummerId && typeof s.token === 'string' && s.token.length === 24 && !Object.keys(r.secrets).length && s.playAt - clock === 4000,
+      'listen: every ▶ in: the countdown, an opaque token for every phone, no hummer');
+    applyRoomAction(r, 'b', 'guess', { deal: s.deal, text: songOf(r).t });
+    check(!s.right.length, 'listen: no answers before the clip plays');
+    tick(r);
+    s = r.shared;
+    check(s.phase === 'type' && s.typeStartAt === s.playAt && s.typeEndsAt - s.playAt === 22000, 'listen: the clip plays at the server\'s moment; «بتطول» types for 22 s');
+    clock = s.playAt + 1500; applyRoomAction(r, 'b', 'guess', { deal: s.deal, text: songOf(r).t });
+    clock = s.playAt + 6000; applyRoomAction(r, 'c', 'guess', { deal: s.deal, text: songOf(r).t });
+    check(r.shared.phase === 'type', 'listen: the host plays too; the round waits for them');
+    clock = s.playAt + 12000; applyRoomAction(r, 'a', 'guess', { deal: s.deal, text: songOf(r).t });
+    s = r.shared;
+    check(s.phase === 'reveal' && s.gained.b === 5 && s.gained.c === 3 && s.gained.a === 1,
+      'listen: on the 2-second clip +2, on the 5-second +1, on the 10-second nothing more (b 3+2, c 2+1, a 1); everyone has it: the reveal');
+    applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+    check(r.shared.phase === 'count' && r.shared.round === 2, 'listen: the next song counts down again, no ▶ round');
+    gone(r, 'c');
+    tick(r);
+    applyRoomAction(r, 'b', 'guess', { deal: r.shared.deal, text: songOf(r).t });
+    applyRoomAction(r, 'a', 'guess', { deal: r.shared.deal, text: songOf(r).t });
+    check(r.shared.phase === 'reveal', 'listen: someone who left isn\'t waited for');
+    gone(r, 'b');
+    check(r.shared.phase === 'gameover', 'listen: fewer than two ends the game');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

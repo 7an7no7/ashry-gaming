@@ -92,6 +92,7 @@ const MAP = [
   { files: /^(Witness\.js|RoomWitness\.js|JS_RoomWitness\.html)$/, robots: ['witness'], ui: ['witness'] },
   { files: /^(Hear\.js|RoomHear\.js|JS_RoomHear\.html)$/, robots: ['hear'], ui: ['hear'] },
   { files: /^(RoomExact\.js|JS_RoomExact\.html)$/, robots: ['exact'], ui: ['exact'] },
+  { files: /^(Songs\.js|RoomHum\.js|JS_RoomHum\.html)$/, robots: ['hum'], ui: ['hum'] },
   // «الشلة»: the crew's rules and page (a room's night reaches its crew: the robots' crew segment; the page: screens and fixes).
   { files: /^(Crew\.js|JS_Crew\.html|JS_CrewCore\.html)$/, robots: ['crew', 'crewlink'], screens: true, fixes: true },
   { files: /^(Dark\.js|RoomDark\.js|JS_RoomDark\.html)$/, robots: ['darkroom'], ui: ['darkroom'] },
@@ -107,7 +108,7 @@ const MAP = [
   // The page's own screens and the offline copy.
   { files: /^JS_[A-Za-z0-9]+\.html$/, screens: true },
   { files: /^(site-worker\/|tools\/site\.config\.json$|tools\/(make-icons|make-og)\.mjs$)/, site: true },
-  { files: /^tools\/(validate-content\.js|check-i18n\.js|check-css-vars\.js)$/ },
+  { files: /^tools\/(validate-content\.js|check-i18n\.js|check-css-vars\.js|check-songs\.mjs)$/ },
   // The rules tests and the leak check themselves: npm run test:rules runs both (BUNDLED below).
   { files: /^rooms-worker\/test\/(rules|leaks)\.mjs$/ },
 ];

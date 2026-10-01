@@ -10,6 +10,7 @@
  *   POST /leave   { code, pid, key }
  *   GET  /ws?code=&pid=&key=                     the live connection
  *   GET  /live                                    -> { players, rooms } playing right now
+ *   GET  /song/CODE/TOKEN                         دندنها: the round's song (Apple's preview), by its opaque token
  *   POST /count   { game }                        a game started on one phone (counted, nothing else kept)
  *   POST /report  { game, text, lang }            «في غلطة؟»: an item a player says is wrong
  *   POST /err     { b, m, f, v }                  an error on a player's phone (build, message, frame, view)
@@ -40,6 +41,7 @@ import { WordLog } from './words.js';
 import { Crew } from './crew.js';
 import { PackStore } from './packs.js';
 import TEST_PAGE from './page.js';
+import { songStream, songPins } from './songs.js';
 
 export { Room, PromptMemory, LiveStats, WordLog, Crew, PackStore };
 
@@ -273,6 +275,39 @@ async function handlePack(env, request, path, body) {
 }
 const PACK_API = new Set(['/pack/create', '/pack/get', '/pack/save', '/pack/played']);
 
+/* --- دندنها: a round's song by its opaque token (1 Oct 2026) ----------------------
+   GET /song/CODE/TOKEN: the room (Room.songOf) says which song the token stands for -
+   only the song on now, only to its own token - and this streams its 30-second
+   preview back (songs.js: Apple or Deezer, the song's second pin if the first
+   fails; each looked up at play time, since Deezer's preview addresses are signed
+   and expire). Apple's lookup and clip are cached at Cloudflare's edge (a day, a
+   week), Deezer's for minutes. Nothing in the address or the answer names the song
+   or its source: no title, no id, no upstream address in a header - which is what
+   keeps it out of a guesser's traffic. A phone fetches its round's clip once (into a
+   blob it plays from), so ~one request a phone a song; the brake is far above a table. */
+const SONG_PATH = /^\/song\/([A-Z0-9]{4,8})\/([a-z0-9]{16,40})$/;
+const songAllowed = limiter(900, 10 * 60 * 1000);
+async function songResponse(env, request, url) {
+  const head = { ...CORS, 'cache-control': 'no-store' };
+  const m = url.pathname.match(SONG_PATH);
+  if (request.method !== 'GET' || !m) return new Response('not found', { status: 404, headers: head });
+  if (!songAllowed(request)) return new Response('busy', { status: 429, headers: head });
+  let song = null;
+  try { song = await roomStub(env, m[1]).songOf(m[2]); } catch (e) { song = null; }
+  if (!song || !songPins(song).length) return new Response('not found', { status: 404, headers: head });
+  try {
+    const got = await songStream(song, true);
+    if (!got) return new Response('gone', { status: 502, headers: head });
+    return new Response(got.body, {
+      status: 200,
+      headers: { ...CORS, 'content-type': got.type, 'cache-control': 'private, max-age=900', 'x-content-type-options': 'nosniff' }
+    });
+  } catch (err) {
+    console.error('/song', (err && err.message) || err);
+    return new Response('gone', { status: 502, headers: head });
+  }
+}
+
 const randomCode = () => {
   const bytes = new Uint8Array(ROOM_CODE_LEN);
   crypto.getRandomValues(bytes);
@@ -317,6 +352,9 @@ export default {
       if (!CODE_PATTERN.test(code)) return new Response('bad room code', { status: 400 });
       return roomStub(env, code).fetch(request);
     }
+
+    // دندنها: a round's song, streamed by its opaque token (songResponse above).
+    if (url.pathname.startsWith('/song/')) return songResponse(env, request, url);
 
     if (API.has(url.pathname)) {
       if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);

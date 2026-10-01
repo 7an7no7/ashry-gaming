@@ -25862,4 +25862,378 @@ html[dir="ltr"] .vt-tv--op .vt-ttl { translate: -50% 0; }
   .vt, .vt *, .vt-tv, .vt-tv * { animation: none !important; transition: none !important; }
 }
 
+/* =========================================================================
+   64. دندنها (HUM IT in rooms, JS_RoomHum.html, 1 Oct 2026)
+   Look ج «الفرح: المسرح والجمهور»: the phone is a wedding hall - the crowd
+   at the top raising signs, fifteen bulbs over the stage going out as the
+   clock, the stage between red curtains (the singer, or the hummer's mic and
+   the DJ's envelope), the front row of the fastest three on a wooden bench,
+   and the sign in your hand at the bottom. The TV is one stage with its
+   curtains and valance, the crowd along the bottom, a banner unrolling for the
+   answer and a 1-2-3 podium. The scene keeps its own colours in both themes
+   (like a board); the words round it are the page's tokens. Everything that
+   moves moves with transform and opacity.
+   ========================================================================= */
+:root {
+  --dnd-ink: #15121f;
+  --dnd-hall: #1c0f33;
+  --dnd-hall-2: #5b2a86;
+  --dnd-stage: #3b1f5e;
+  --dnd-wood: #7a4a26;
+  --dnd-bench: #5b3a24;
+  --dnd-seat: #8a5a3a;
+  --dnd-curtain: #c0174a;
+  --dnd-curtain-2: #8a0e2e;
+  --dnd-gold: #ffd166;
+  --dnd-gold-2: #f59e0b;
+  --dnd-hot: #ff5f57;
+  --dnd-pink: #e5387b;
+  --dnd-paper: #fff8e7;
+  --dnd-on-gold: #221f36;
+}
+.dnd { display: flex; flex-direction: column; gap: var(--sp-3); }
+.dnd-hall {
+  position: relative; overflow: hidden; border-radius: 24px; color: #fff;
+  background: radial-gradient(ellipse at 50% 32%, var(--dnd-hall-2), var(--dnd-hall) 75%);
+  border: 3px solid var(--dnd-ink);
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 0;
+}
+.dnd-hall__main, .dnd-hall__side { display: flex; flex-direction: column; min-width: 0; }
+.dnd-top {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2);
+  padding: 10px 14px 2px; font-size: 0.8125rem; font-weight: 700; color: #f3e8ff;
+}
+.dnd-top__mode { font-family: var(--font-display); color: var(--dnd-gold); font-size: 0.9375rem; }
+
+/* The crowd: a head and a name each, a sign that rises when they answer */
+.dnd-crowd {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(3.25rem, 1fr)); justify-items: center; align-items: end;
+  gap: 2px 4px; padding: 30px 10px 2px; min-height: 5.5rem;
+}
+.dnd-head { position: relative; width: 100%; max-width: 4.25rem; text-align: center; font-size: 0.6875rem; font-weight: 700; line-height: 1.3; }
+.dnd-head svg { width: 2.6rem; height: 2.75rem; display: block; margin: 0 auto; }
+.dnd-head b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dnd-sign {
+  position: absolute; bottom: calc(2.75rem + 1.35em); inset-inline-start: 50%; translate: -50% 0;
+  background: #fff; color: var(--dnd-on-gold); border: 3px solid var(--dnd-ink); border-radius: 6px;
+  padding: 0 7px; font-weight: 900; font-size: 0.8125rem; white-space: nowrap; line-height: 1.5;
+  opacity: 0; transform: translateY(22px); transition: transform 0.35s cubic-bezier(.3,1.6,.5,1), opacity 0.2s;
+  pointer-events: none; z-index: 2;
+}
+html[dir="rtl"] .dnd-sign { translate: 50% 0; }
+.dnd-sign::after { content: ""; position: absolute; top: 100%; inset-inline-start: 50%; width: 4px; height: 9px; margin-inline-start: -2px; background: #c98b5a; }
+.dnd-sign:empty { display: none; }
+.dnd-head.on .dnd-sign { opacity: 1; transform: none; }
+.dnd-head.is-hop svg { animation: dnd-hop 0.5s; }
+@keyframes dnd-hop { 40% { transform: translateY(-8px); } }
+
+/* The bulbs over the stage: the clock */
+.dnd-bulbs { position: relative; display: flex; justify-content: space-between; padding: 6px 18px 4px; }
+.dnd-bulbs::before { content: ""; position: absolute; inset-inline: 14px; top: 12px; height: 3px; background: var(--dnd-ink); }
+.dnd-bulbs i { position: relative; width: 13px; height: 13px; border-radius: 50%; background: #4b4270; border: 2px solid var(--dnd-ink); }
+.dnd-bulbs i::after {
+  content: ""; position: absolute; inset: -2px; border-radius: 50%; background: var(--dnd-gold);
+  box-shadow: 0 0 9px var(--dnd-gold); opacity: 0; transform: scale(0.6); transition: opacity 0.3s, transform 0.3s;
+}
+.dnd-bulbs i.on::after { opacity: 1; transform: none; }
+.is-hurry .dnd-bulbs i::after { background: var(--dnd-hot); box-shadow: 0 0 9px var(--dnd-hot); }
+
+/* The stage between its curtains */
+.dnd-stg {
+  position: relative; flex: 1; min-height: 13.5rem; margin: 2px 10px 0; overflow: hidden;
+  border: 4px solid #000; border-bottom: 0; border-radius: 18px 18px 0 0;
+  background: radial-gradient(ellipse 60% 70% at 50% 0, rgba(255, 236, 170, 0.5), transparent 70%), linear-gradient(var(--dnd-stage) 0 82%, var(--dnd-wood) 82%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 32px 38px 16px; text-align: center;
+}
+.dnd-stg::before, .dnd-stg::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 30px; z-index: 1;
+  background: repeating-linear-gradient(90deg, var(--dnd-curtain) 0 7px, var(--dnd-curtain-2) 7px 14px);
+}
+.dnd-stg::before { inset-inline-start: 0; border-end-end-radius: 30px; }
+.dnd-stg::after { inset-inline-end: 0; border-end-start-radius: 30px; }
+.dnd-stg > * { position: relative; z-index: 2; }
+.dnd-stg__clk {
+  position: absolute; top: 6px; inset-inline-end: 38px; background: var(--dnd-ink); border-radius: 99px;
+  padding: 0 10px; font-size: 1rem; font-weight: 800; color: var(--dnd-gold); min-width: 2.2em; z-index: 3;
+}
+.is-hurry .dnd-stg__clk, .is-hurry .dnd-tv__clk { color: var(--dnd-hot); }
+.dnd-status { margin: 0; font-family: var(--font-display); font-weight: 900; font-size: 0.9375rem; line-height: 1.45; text-shadow: 0 2px 0 #000; }
+.dnd-big { font-size: 3.25rem; line-height: 1; }
+.dnd-cnt { font-size: 4rem; font-weight: 800; line-height: 1.05; color: #fff; }
+.dnd-last { font-size: 0.75rem; font-weight: 700; background: rgba(0, 0, 0, 0.45); border-radius: 99px; padding: 0 10px; min-height: 1.4em; }
+.dnd-last:empty { visibility: hidden; }
+
+/* The singer, the mic, the envelope */
+.dnd-singer { position: relative; width: 6.9rem; height: 7.75rem; }
+.dnd-singer svg { width: 100%; height: 100%; }
+.dnd-singer__t {
+  position: absolute; bottom: -4px; inset-inline-start: 50%; translate: -50% 0; white-space: nowrap;
+  background: var(--dnd-gold); color: var(--dnd-on-gold); border: 3px solid var(--dnd-ink); border-radius: 99px; padding: 0 10px; font-size: 0.75rem; font-weight: 900;
+}
+html[dir="rtl"] .dnd-singer__t { translate: 50% 0; }
+.dnd-note {
+  position: absolute; top: 18px; inset-inline-start: 0; font-size: 1.6rem; font-weight: 900; color: var(--dnd-gold);
+  text-shadow: 0 2px 0 var(--dnd-ink); opacity: 0; pointer-events: none; animation: dnd-note 2.4s ease-out infinite;
+}
+.dnd-note:nth-of-type(2) { animation-delay: 0.8s; }
+.dnd-note:nth-of-type(3) { animation-delay: 1.6s; }
+@keyframes dnd-note { 0% { opacity: 0; transform: translate(0, 10px) rotate(-10deg) scale(0.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-24px, -70px) rotate(14deg) scale(1.1); } }
+.dnd--listen .dnd-singer .dnd-note, .dnd-tv--listen .dnd-note, .dnd-tv--arm .dnd-note { animation-play-state: paused; opacity: 0; }
+.dnd-mic {
+  background: none; border: 0; padding: 0; width: 5rem; height: 6.3rem; flex: none; cursor: pointer;
+  filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.4)); transition: transform 0.1s; -webkit-tap-highlight-color: transparent;
+}
+.dnd-mic:active { transform: scale(0.94); }
+.dnd-mic svg { width: 100%; height: 100%; }
+.dnd.is-playing .dnd-mic { animation: dnd-glow 1s ease-in-out infinite alternate; }
+@keyframes dnd-glow { to { transform: scale(1.04); } }
+.dnd-mic__l { font-size: 0.78rem; font-weight: 700; opacity: 0.9; }
+.dnd-env {
+  position: relative; width: 100%; max-width: 15rem; background: var(--dnd-paper); color: var(--dnd-on-gold);
+  border: 3px solid var(--dnd-ink); border-radius: 8px; padding: 4px 10px; cursor: pointer; touch-action: none;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.dnd-env small { display: block; font-size: 0.6875rem; font-weight: 700; color: #8a5a2a; }
+.dnd-env b { display: block; font-family: var(--font-display); font-size: 1.0625rem; line-height: 1.3; }
+.dnd-env span { font-size: 0.78rem; font-weight: 700; color: #5d5875; }
+.dnd-env__cv {
+  position: absolute; inset: 0; border-radius: 5px; background: linear-gradient(160deg, #ffe3a3 0 49%, #f7cf78 50%);
+  display: grid; place-items: center; align-content: center; font-family: var(--font-display); font-weight: 900; font-size: 0.9375rem;
+  color: #6b4a2a; line-height: 1.4; transition: opacity 0.25s, transform 0.25s;
+}
+.dnd-env__cv small { color: #6b4a2a; font-family: inherit; font-weight: 700; }
+.dnd-env.is-peek .dnd-env__cv { opacity: 0; transform: scale(0.9) rotate(-4deg); }
+.dnd-wave { display: none; align-items: center; justify-content: center; gap: 4px; height: 2.4rem; color: var(--dnd-gold); }
+.dnd.is-playing .dnd-wave { display: flex; }
+.dnd-wave i { width: 6px; height: 2.2rem; border-radius: 4px; background: currentColor; transform: scaleY(0.25); animation: dnd-wv 0.7s ease-in-out infinite alternate; }
+.dnd-wave i:nth-child(2n) { animation-delay: -0.2s; }
+.dnd-wave i:nth-child(3n) { animation-delay: -0.45s; animation-duration: 0.55s; }
+.dnd-wave i:nth-child(5n) { animation-delay: -0.1s; animation-duration: 0.9s; }
+@keyframes dnd-wv { to { transform: scaleY(1); } }
+.dnd-speaker { font-size: 3rem; line-height: 1; display: flex; flex-direction: column; align-items: center; }
+.dnd-grow { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.dnd-grow span { background: #3a3450; color: #cfc8e8; border: 2px solid var(--dnd-ink); border-radius: 99px; padding: 0 10px; font-size: 0.78rem; font-weight: 800; }
+.dnd-grow span.on { background: var(--dnd-gold); color: var(--dnd-on-gold); }
+.dnd-again, .dnd-tap {
+  background: rgba(0, 0, 0, 0.45); color: #fff; border: 3px solid var(--dnd-gold); border-radius: 999px;
+  min-height: 44px; padding: 0 16px; font-weight: 800; font-size: 0.9375rem; cursor: pointer;
+}
+.dnd-tap { display: none; background: var(--dnd-gold); color: var(--dnd-on-gold); border-color: var(--dnd-ink); }
+.needs-tap .dnd-tap { display: inline-flex; align-items: center; }
+
+/* The banner: the song, unrolling */
+.dnd-ban {
+  background: var(--dnd-gold); color: var(--dnd-on-gold); border: 4px solid var(--dnd-ink); border-radius: 8px;
+  padding: 6px 14px; text-align: center; transform-origin: top; max-width: 100%;
+}
+.dnd-ban small { display: block; font-size: 0.72rem; font-weight: 700; }
+.dnd-ban b { display: block; font-family: var(--font-display); font-size: 1.375rem; line-height: 1.3; }
+.dnd-ban span { font-size: 0.8125rem; font-weight: 700; }
+.dnd-ban em, .dnd-latin { display: block; font-style: normal; font-size: 0.72rem; font-weight: 700; opacity: 0.75; direction: ltr; unicode-bidi: isolate; }
+.dnd-ban--in { animation: dnd-unroll 0.7s cubic-bezier(.3,1.4,.5,1) both; }
+@keyframes dnd-unroll { from { transform: scaleY(0); } }
+
+/* The front row */
+.dnd-front {
+  margin: 0 10px; background: var(--dnd-bench); border: 4px solid #000; border-top-width: 3px; padding: 4px 8px 8px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
+}
+.dnd-front__l { grid-column: 1 / -1; font-size: 0.6875rem; font-weight: 700; color: #f6e7c9; text-align: center; }
+.dnd-slot {
+  min-height: 2.5rem; border-radius: 14px 14px 4px 4px; border: 3px solid #000; background: var(--dnd-seat);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 5px; font-size: 0.8125rem; font-weight: 700; color: #f6e7c9; min-width: 0; padding: 1px 4px; line-height: 1.25;
+}
+.dnd-slot b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; max-width: 100%; }
+.dnd-slot i { font-style: normal; background: var(--dnd-pink); color: #fff; border-radius: 99px; padding: 0 6px; font-size: 0.75rem; direction: ltr; unicode-bidi: isolate; }
+.dnd-slot.on { background: var(--dnd-gold); color: var(--dnd-on-gold); }
+.dnd-slot.is-in { animation: dnd-slot 0.5s cubic-bezier(.3,1.6,.5,1); }
+@keyframes dnd-slot { from { transform: translateY(-16px) scale(0.8); opacity: 0; } }
+
+/* The bottom: the sign in your hand, the four signs */
+.dnd-btm { padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.dnd-sgn {
+  position: relative; display: block; background: #fff; color: var(--dnd-on-gold); border: 4px solid var(--dnd-ink); border-radius: 10px;
+  padding: 2px 12px 4px; transform: rotate(-1.5deg); box-shadow: 0 5px 0 rgba(0, 0, 0, 0.35);
+}
+.dnd-sgn small { display: block; font-size: 0.6875rem; font-weight: 700; color: #7a6f8f; }
+.dnd-sgn input {
+  width: 100%; box-sizing: border-box; border: 0; outline: none; background: transparent; color: var(--dnd-on-gold);
+  font-size: 1.25rem; font-family: var(--font-display); height: 2.6rem; padding: 0;
+}
+.dnd-sgn input::placeholder { color: #9b93ad; }
+.dnd-raise {
+  background: var(--dnd-gold); color: var(--dnd-on-gold); border: 4px solid var(--dnd-ink); border-radius: 14px;
+  min-height: 50px; font-weight: 900; font-size: 1rem; box-shadow: 0 5px 0 #000; cursor: pointer; padding: 0 14px;
+}
+.dnd-raise:active { transform: translateY(4px); box-shadow: 0 1px 0 #000; }
+.dnd-raise--big { min-height: 58px; font-size: 1.125rem; }
+.dnd-err { margin: 0; min-height: 1.3em; text-align: center; font-weight: 800; font-size: 0.8125rem; color: #ffb4ab; }
+.dnd-err.is-close { color: var(--dnd-gold); }
+.dnd-hint { margin: 0; text-align: center; font-size: 0.78rem; color: #e9dcf5; }
+.dnd-chs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 8px; }
+.dnd-ch {
+  background: #fff; color: var(--dnd-on-gold); border: 4px solid var(--dnd-ink); border-radius: 8px; min-height: 58px; padding: 4px 6px;
+  box-shadow: 0 5px 0 #000; display: grid; align-content: center; text-align: center; cursor: pointer; font: inherit; min-width: 0;
+}
+.dnd-ch b { font-family: var(--font-display); font-size: 0.9375rem; line-height: 1.3; }
+.dnd-ch small { font-size: 0.6875rem; font-weight: 700; color: #5d5875; }
+.dnd-ch:nth-child(odd) { transform: rotate(-2deg); }
+.dnd-ch:nth-child(even) { transform: rotate(1.5deg); }
+.dnd-ch:active { box-shadow: 0 1px 0 #000; }
+.dnd-ch.is-picked { background: var(--dnd-gold); }
+.dnd-ch.is-right { background: #b8f0cb; }
+.dnd-ch.is-wrong { background: #ffc2bd; }
+.dnd-chs--done .dnd-ch { cursor: default; }
+.dnd-note-box {
+  background: rgba(0, 0, 0, 0.4); border: 3px solid var(--dnd-gold); border-radius: 14px; padding: 8px;
+  text-align: center; font-weight: 700; font-size: 0.875rem; line-height: 1.45;
+}
+.dnd-note-box--res { font-family: var(--font-display); font-size: 0.9375rem; }
+.dnd-ear {
+  display: flex; gap: 10px; align-items: center; border: 3px solid var(--dnd-ink); border-radius: 14px; padding: 8px 10px;
+  font-size: 0.8125rem; font-weight: 700; line-height: 1.45; background: var(--dnd-paper); color: var(--dnd-on-gold); text-align: start;
+}
+.dnd-ear svg { width: 2.75rem; height: 2.75rem; flex: none; }
+
+/* Your own answer, stamped across the hall */
+.dnd-stamp {
+  position: absolute; inset-inline: 0; top: 40%; text-align: center; font-family: var(--font-display); font-weight: 900; font-size: 2rem;
+  color: #7dffb0; pointer-events: none; opacity: 0; z-index: 5;
+  text-shadow: 0 3px 0 var(--dnd-ink), 0 -2px 0 var(--dnd-ink), 2px 0 0 var(--dnd-ink), -2px 0 0 var(--dnd-ink);
+}
+.dnd-stamp.is-on { animation: dnd-stamp 1.4s both; }
+@keyframes dnd-stamp { 0% { opacity: 0; transform: scale(0.5) rotate(-8deg); } 20% { opacity: 1; transform: scale(1.12) rotate(-5deg); } 80% { opacity: 1; transform: scale(1) rotate(-5deg); } 100% { opacity: 0; transform: translateY(-20px) rotate(-5deg); } }
+/* The hummer listening has nothing in the front row yet: the stage and the button get the room. */
+.dnd--hummer.dnd--listen .dnd-front { display: none; }
+.dnd-over { text-align: center; }
+.dnd-over__t { font-family: var(--font-display); font-weight: 900; font-size: 1.5rem; color: var(--text-strong); }
+
+/* A phone on its side and a wide screen: the hall beside its bench and signs */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) {
+  .dnd-hall { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+  .dnd-top { grid-column: 1 / -1; }
+  .dnd-hall__side { justify-content: flex-start; padding-top: 30px; }
+  .dnd-stg { border-radius: 18px 18px 0 0; margin-bottom: 0; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .dnd-top { padding-top: 6px; }
+  .dnd-crowd { padding-top: 24px; min-height: 4rem; }
+  .dnd-slot { flex-direction: column; flex-wrap: nowrap; gap: 0; font-size: 0.75rem; }
+  .dnd-slot i { font-size: 0.6875rem; padding: 0 5px; }
+  .dnd-head svg { width: 2.1rem; height: 2.2rem; }
+  .dnd-sign { bottom: calc(2.2rem + 1.35em); }
+  .dnd-stg { min-height: 9.5rem; padding-top: 26px; padding-bottom: 10px; }
+  .dnd-env b { font-size: 0.9375rem; }
+  .dnd-singer { width: 5rem; height: 5.6rem; }
+  .dnd-mic { width: 4.25rem; height: 5.4rem; }
+}
+
+/* --- the TV: one stage, curtains, the crowd along the bottom --------------------------- */
+.dnd-tv {
+  position: relative; flex: 1; min-height: 62vmin; overflow: hidden; border-radius: 2vmin; color: #fff;
+  background: #1b1236; display: grid; grid-template-rows: auto 1fr auto auto; isolation: isolate;
+}
+.dnd-tv__scene, .dnd-tv__scene > * { position: absolute; pointer-events: none; }
+.dnd-tv__scene { inset: 0; z-index: -1; }
+.dnd-tv__light { inset: 0; background: radial-gradient(ellipse 34% 48% at 50% 46%, #3b1f5e 0 99%, transparent 100%); }
+.dnd-tv__light::after {
+  content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(255, 236, 170, 0.2), rgba(255, 236, 170, 0) 80%);
+  clip-path: polygon(34% 0, 66% 0, 50% 70%);
+}
+.dnd-tv__curtain {
+  top: 0; bottom: 16%; width: 15%; border: 0.6vmin solid var(--dnd-ink);
+  background: repeating-linear-gradient(90deg, var(--dnd-curtain) 0 2.2vmin, var(--dnd-curtain-2) 2.2vmin 3.2vmin);
+}
+.dnd-tv__curtain--s { left: 0; border-radius: 0 0 6vmin 0; }
+.dnd-tv__curtain--e { right: 0; border-radius: 0 0 0 6vmin; }
+.dnd-tv__valance {
+  top: 0; left: 0; right: 0; height: 7.5vmin; background: var(--dnd-curtain);
+  -webkit-mask: radial-gradient(4vmin 3vmin at 50% 100%, transparent 98%, #000 100%) 0 0 / 8vmin 100%;
+  mask: radial-gradient(4vmin 3vmin at 50% 100%, transparent 98%, #000 100%) 0 0 / 8vmin 100%;
+}
+.dnd-tv__floor {
+  left: 6%; right: 6%; bottom: 0; height: 22%; border: 0.6vmin solid var(--dnd-ink); border-bottom: 0;
+  background: linear-gradient(#8a5530, #5b3a24); clip-path: polygon(6% 0, 94% 0, 100% 100%, 0 100%);
+}
+.dnd-bulbs--tv { margin: 9vmin 13% 0; padding: 0; }
+.dnd-bulbs--tv::before { inset-inline: 0; top: 1.3vmin; height: 0.5vmin; }
+.dnd-bulbs--tv i { width: 2.6vmin; height: 2.6vmin; border-width: 0.45vmin; }
+.dnd-bulbs--tv i::after { box-shadow: 0 0 1.8vmin var(--dnd-gold); }
+.dnd-tv__clk {
+  position: absolute; top: 13vmin; inset-inline-end: 17%; background: var(--dnd-ink); border: 0.4vmin solid var(--dnd-gold);
+  border-radius: 99px; padding: 0 1.6vmin; font-size: 3.4vmin; font-weight: 800; color: var(--dnd-gold);
+}
+.dnd-tv__mid { display: flex; align-items: center; justify-content: center; gap: 3vmin; padding: 1vmin 18%; min-height: 0; }
+.dnd-tv__words { display: flex; flex-direction: column; align-items: center; gap: 1.8vmin; text-align: center; min-width: 0; }
+.dnd-tv__singer { position: relative; width: 17vmin; height: 20vmin; flex: none; }
+.dnd-tv__singer svg { width: 100%; height: 100%; transform-origin: 50% 100%; }
+.dnd-tv__singer.is-humming svg { animation: dnd-sway 0.8s ease-in-out infinite alternate; }
+@keyframes dnd-sway { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+.dnd-tv__singer .dnd-note, .dnd-tv__speaker .dnd-note { font-size: 4vmin; }
+.dnd-tv__singer .dnd-singer__t { font-size: 2vmin; border-width: 0.4vmin; }
+.dnd-tv--listen .dnd-tv__singer .dnd-note { display: none; }
+.dnd-tv__speaker { position: relative; font-size: 12vmin; line-height: 1; }
+.dnd-marq {
+  background: #7c1d3f; border: 0.7vmin solid var(--dnd-ink); border-radius: 2vmin; padding: 1.2vmin 3.4vmin; text-align: center;
+  box-shadow: 0 0 0 0.7vmin var(--dnd-gold), 0 0 0 1.2vmin var(--dnd-ink); max-width: 70vw;
+}
+.dnd-marq small { display: block; font-size: 2.1vmin; font-weight: 700; color: #ffd9e6; }
+.dnd-marq b { font-family: var(--font-display); font-size: 4.4vmin; font-weight: 900; line-height: 1.35; }
+.dnd-tv__cap { margin: 0; font-size: 2.6vmin; font-weight: 700; background: rgba(0, 0, 0, 0.55); padding: 0.5vmin 2vmin; border-radius: 99px; }
+.dnd-tv__cap--top { font-size: 3vmin; }
+.dnd-tv__count b { display: block; font-family: var(--font-display); font-size: 7.5vmin; font-weight: 900; color: var(--dnd-gold); text-shadow: 0 0.5vmin 0 var(--dnd-ink); line-height: 1.2; }
+.dnd-tv__count .dnd-cnt { font-size: 9vmin; }
+.dnd-tv__pill { margin: 0; background: var(--dnd-gold); color: var(--dnd-on-gold); border: 0.4vmin solid var(--dnd-ink); border-radius: 99px; padding: 0 2vmin; font-weight: 900; font-size: 2.4vmin; }
+.dnd-plc4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2vmin; width: min(100%, 110vmin); }
+.dnd-plc4 span {
+  background: #fff; color: var(--dnd-on-gold); border: 0.6vmin solid var(--dnd-ink); border-radius: 1.2vmin; padding: 1.2vmin 0.8vmin;
+  text-align: center; box-shadow: 0 0.9vmin 0 var(--dnd-ink); min-width: 0;
+}
+.dnd-plc4 span b { display: block; font-family: var(--font-display); font-weight: 900; font-size: 2.4vmin; line-height: 1.3; }
+.dnd-plc4 span em { display: block; font-style: normal; font-size: 1.6vmin; color: #5d5875; }
+.dnd-plc4 span:nth-child(odd) { transform: rotate(-3deg); }
+.dnd-plc4 span:nth-child(even) { transform: rotate(2deg); }
+.dnd-ban--tv { border-width: 0.7vmin; border-radius: 1.2vmin; padding: 1vmin 4vmin; }
+.dnd-ban--tv small { font-size: 2vmin; }
+.dnd-ban--tv b { font-size: 4.6vmin; }
+.dnd-ban--tv span { font-size: 2.4vmin; }
+.dnd-pod { display: flex; align-items: flex-end; gap: 1.4vmin; }
+.dnd-pb { width: 17vmin; display: grid; justify-items: center; gap: 0.4vmin; font-weight: 900; font-size: 2.3vmin; }
+.dnd-pb b { white-space: nowrap; text-shadow: 0 0.3vmin 0 var(--dnd-ink); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.dnd-pb i { font-style: normal; color: #7dffb0; direction: ltr; unicode-bidi: isolate; }
+.dnd-pb__b {
+  width: 100%; border: 0.6vmin solid var(--dnd-ink); border-radius: 1vmin 1vmin 0 0; background: var(--dnd-pink);
+  display: grid; place-items: center; font-size: 4.2vmin; color: #fff; transform-origin: bottom;
+}
+.dnd-pb--1 .dnd-pb__b { height: 11vmin; background: var(--dnd-gold); color: var(--dnd-on-gold); }
+.dnd-pb--2 .dnd-pb__b { height: 8vmin; }
+.dnd-pb--3 .dnd-pb__b { height: 6vmin; background: #7c3aed; }
+.dnd-pb--h { width: auto; align-self: center; }
+.dnd-pod--rise .dnd-pb__b { animation: dnd-rise 0.7s cubic-bezier(.3,1.4,.5,1) both 0.8s; }
+.dnd-pod--rise .dnd-pb--3 .dnd-pb__b { animation-delay: 1.05s; }
+.dnd-pod--rise .dnd-pb--1 .dnd-pb__b { animation-delay: 1.3s; }
+@keyframes dnd-rise { from { transform: scaleY(0); } }
+.dnd-tv__host { display: flex; justify-content: center; padding: 0 18%; }
+.dnd-tv__host:empty { display: none; }
+.dnd-crowd--tv {
+  display: flex; justify-content: center; align-items: flex-end; gap: 2.4vmin; flex-wrap: nowrap;
+  padding: 7vmin 2vmin 1.2vmin; background: linear-gradient(transparent, rgba(0, 0, 0, 0.6)); min-height: 0; overflow: hidden;
+}
+.dnd-crowd--tv .dnd-head { width: 9.5vmin; max-width: none; font-size: 1.8vmin; }
+.dnd-crowd--tv .dnd-head svg { width: 8vmin; height: 8.4vmin; }
+.dnd-crowd--tv .dnd-sign { bottom: calc(8.4vmin + 1.4em); font-size: 2.4vmin; border-width: 0.45vmin; padding: 0 1.2vmin; }
+.dnd-crowd--tv .dnd-sign::after { width: 0.6vmin; height: 1.8vmin; margin-inline-start: -0.3vmin; }
+.dnd-tv--over { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 3vmin; align-items: center; padding: 3vmin; background: radial-gradient(ellipse at 50% 30%, var(--dnd-hall-2), #1b1236 75%); }
+.dnd-tv--over .dnd-over__t { color: var(--dnd-gold); font-size: 5vmin; text-shadow: 0 0.4vmin 0 var(--dnd-ink); }
+.dnd-tv__over { display: flex; flex-direction: column; align-items: center; gap: 2vmin; }
+.dnd-tv--over .podium__name, .dnd-tv--over .podium__score { color: #fff; text-shadow: 0 2px 0 var(--dnd-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dnd-sign, .dnd-bulbs i::after, .dnd-env__cv { transition: none; }
+  .dnd-head.is-hop svg, .dnd-note, .dnd-wave i, .dnd.is-playing .dnd-mic, .dnd-ban--in, .dnd-slot.is-in,
+  .dnd-tv__singer.is-humming svg, .dnd-pod--rise .dnd-pb__b { animation: none; }
+  .dnd-note { opacity: 0; }
+  .dnd-stamp.is-on { animation: none; opacity: 0; }
+}
+
 </style>

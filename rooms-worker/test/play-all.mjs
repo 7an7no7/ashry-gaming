@@ -4544,7 +4544,7 @@ async function screwSeg() {
     await skDo(bot, 'draw');
     const card = bot.state.you.drawn;
     check(!!card && sks().turn.stage === 'drawn' && sks().turnSeq === seq0 + 1, 'skrew: a draw moves the turn on to its next stage');
-    check(skBots.every((b) => b === bot || JSON.stringify(b.state.you) === '{"memorize":null,"drawn":null,"seen":null,"khoshaf":null}') && skTV.state.you === null &&
+    check(skBots.every((b) => b === bot || JSON.stringify(b.state.you) === '{"memorize":null,"drawn":null,"seen":null,"khoshaf":null,"thiefVote":null}') && skTV.state.you === null &&
       !('card' in sks().events.slice(-1)[0]), "skrew: the drawn card reaches the drawer's phone only; the draw event doesn't carry it");
     const stale = await bot.act('draw', { seq: seq0 });
     await skSettle(stale.state.version);
@@ -6450,10 +6450,11 @@ async function missionRobots() {
   people = people.filter((b) => b !== K);
   for (const b of aimers) await b.waitFor((s) => s.mission.me.to !== K.pid && people.some((o) => o.pid === s.mission.me.to), 'mission: a target who left is replaced');
   // Off: the reveal everywhere, the champion's points on the night, then closed.
+  const nightBefore = (H.state.night || {})[doer.pid] || 0;
   await H.must('missionSet', { on: false });
   await all(everyone(), (s) => s.mission.phase === 'reveal' && s.mission.reveal && s.mission.reveal.story.length >= 1 && s.mission.reveal.champs.indexOf(doer.pid) !== -1 && s.mission.me === null,
     'mission: off - the story and the champion on every phone and the TV, no file left');
-  await H.waitFor((s) => (s.night || {})[doer.pid] === 5, 'mission: the champion banks 5 on the night');
+  await H.waitFor((s) => (s.night || {})[doer.pid] === nightBefore + 5, 'mission: the champion banks 5 on the night');
   await H.waitFor((s) => s.chat.some((m) => m.sys === 'missionEnd'), 'mission: the chat names the champion');
   check((await J.act('missionClose', {})).ok === false, 'mission: only the host closes the file');
   await H.must('missionClose');

@@ -353,7 +353,7 @@ const SPY_PAIRS = [
   ['شنطة', 'محفظة'], ['ساعة', 'أسورة'], ['نظارة شمس', 'نظارة طبية'], ['جزمة', 'شبشب'],
   ['تيشيرت', 'قميص'], ['بنطلون', 'شورت'],
   ['صيدلية', 'مستشفى'], ['بنك', 'مكتب بريد'], ['سوبر ماركت', 'بقالة'], ['مول', 'سوق'],
-  ['كافيه', 'مطعم'], ['فرن', 'محل حلويات'],
+  ['كافيه', 'مطعم'], ['فرن', 'محل حلويات'],
   // More pairs (the review of 1 Oct 2026), from the same kinds as the spy lists.
   ['أسد', 'نمر'], ['حصان', 'حمار'], ['قطة', 'كلب'], ['فرخة', 'بطة'],
   ['جمل', 'زرافة'], ['قرد', 'غوريلا'], ['دلفين', 'حوت'], ['نسر', 'صقر'],
@@ -654,7 +654,7 @@ const SPY_PAIRS_EN = [
   ['Handbag', 'Wallet'], ['Watch', 'Bracelet'], ['Sunglasses', 'Reading Glasses'], ['Shoes', 'Slippers'],
   ['T-shirt', 'Shirt'], ['Trousers', 'Shorts'],
   ['Pharmacy', 'Hospital'], ['Bank', 'Post Office'], ['Supermarket', 'Corner Shop'], ['Shopping Mall', 'Market'],
-  ['Café', 'Restaurant'], ['Bakery', 'Sweet Shop'],
+  ['Café', 'Restaurant'], ['Bakery', 'Sweet Shop'],
   // More pairs (the review of 1 Oct 2026), from the same kinds as the spy lists.
   ['Lion', 'Tiger'], ['Horse', 'Donkey'], ['Cat', 'Dog'], ['Chicken', 'Duck'],
   ['Camel', 'Giraffe'], ['Monkey', 'Gorilla'], ['Dolphin', 'Whale'], ['Eagle', 'Hawk'],

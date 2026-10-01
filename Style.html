@@ -5070,26 +5070,6 @@ body.has-audience .shell__main { --main-pb: 9rem; }
 .mem-card.is-matched { pointer-events: none; }
 
 /* --- إكس أو --- */
-.xo-tally { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--sp-2); margin-bottom: var(--sp-3); }
-.xo-tally__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: var(--sp-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface-solid);
-  font-size: var(--fs-xs);
-  font-weight: 800;
-  color: var(--text-2);
-  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
-}
-.xo-tally__item .metric { font-size: 1.35rem; }
-.xo-tally__item small { font-size: 0.65rem; color: var(--text-3); }
-.xo-tally__item.is-turn { border-color: var(--accent); background: var(--accent-soft); }
-.xo-status { min-height: 1.5em; margin-bottom: var(--sp-3); text-align: center; font-weight: 800; color: var(--text-2); }
-.xo-status.is-done { font-size: var(--fs-h2); color: var(--accent-ink); }
 .xo-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); width: min(100%, 22rem); margin: 0 auto var(--sp-4); }
 .xo-cell {
   aspect-ratio: 1;
@@ -5129,11 +5109,64 @@ body.has-audience .shell__main { --main-pb: 9rem; }
 }
 .xo-rule { margin: calc(-1 * var(--sp-2)) 0 var(--sp-3); text-align: center; font-size: var(--fs-sm, 0.8125rem); font-weight: var(--fw-body); color: var(--text-3); }
 
+/* إكس أو on one phone (paintXO, 1 Oct 2026): one card - the duel pills on top
+   (✕ blue, ◯ red, the draws between), a 3×3 grid of thin lines, whose turn
+   under it - and «رجّع» / «خروج» as a quiet pair in the bar. The room's board
+   (.duel .xo-board) is left as it was. */
+.xo-solo { --duel-c1: var(--team-blue); --duel-c2: var(--team-red); }
+.xo-solo__card { display: flex; flex-direction: column; gap: var(--sp-4); }
+.xo-solo__side { display: contents; }
+.xo-solo__side > .duel-pills { order: -1; }
+.xo-solo__status { order: 1; margin: 0; min-height: 1.5em; text-align: center; font-weight: var(--fw-bold); color: var(--accent-ink); }
+.xo-solo__status.is-done { font-family: var(--font-display); font-size: var(--fs-h2); }
+.xo-solo__status.is-thinking { color: var(--text-2); animation: duelThinking 1.3s var(--ease-in-out) infinite; }
+.xo-solo .xo-rule { order: 2; margin: 0; }
+.xo-glyph { display: inline-block; font-family: var(--font-display); font-weight: var(--fw-black); line-height: 1; }
+.xo-glyph.is-x { color: var(--team-blue-ink); }
+.xo-glyph.is-o { color: var(--team-red-ink); }
+.xo-solo .duel-pill { gap: var(--sp-1); padding-inline: var(--sp-2) var(--sp-3); }
+.duel-pill__mark .xo-glyph { width: 1.3rem; font-size: 1.25rem; text-align: center; }
+@media (max-width: 420px) { .card.xo-solo__card { padding: var(--sp-4); } }
+.xo-board.xo-board--lines { gap: 0; width: min(100%, 20rem); margin: 0 auto; container-type: inline-size; }
+.xo-board--lines .xo-cell {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--font-display);
+  font-size: 22cqw;
+  line-height: 1;
+  transition: background-color var(--dur-2) var(--ease-out);
+}
+/* The lines: each cell draws the one after it and the one under it. */
+.xo-board--lines .xo-cell:not(:nth-child(3n)) { border-inline-end: 2px solid var(--border-strong); }
+.xo-board--lines .xo-cell:nth-child(-n+6) { border-block-end: 2px solid var(--border-strong); }
+.xo-board--lines .xo-cell:active:not(:disabled) { transform: none; background: var(--surface-2); }
+.xo-board--lines .xo-cell.is-x, .xo-board--lines .xo-cell__gone.is-x { color: var(--team-blue-ink); }
+.xo-board--lines .xo-cell.is-o, .xo-board--lines .xo-cell__gone.is-o { color: var(--team-red-ink); }
+.xo-board--lines .xo-cell.is-win { background: var(--success-soft); }
+/* A side's oldest mark (3 marks only) fades on its own; the lines stay. */
+.xo-board--lines .xo-cell.is-leaving { opacity: 1; }
+.xo-board--lines .xo-cell.is-leaving .xo-cell__mark { opacity: 0.35; }
+.xo-cell__mark { display: inline-block; }
+/* The mark lands and the line lights on the mark, not the square, so the lines hold still. */
+.xo-board.xo-board--lines .xo-cell.is-new, .xo-board.xo-board--lines.is-lighting .xo-cell.is-win { animation: none; }
+.xo-board--lines .xo-cell.is-new .xo-cell__mark { animation: xo-land 420ms var(--ease-spring) both; }
+.xo-board.xo-board--lines.is-lighting .xo-cell.is-win .xo-cell__mark { animation: xo-win 520ms var(--ease-spring) both; animation-delay: calc(var(--k, 0) * 160ms); }
+@media (hover: hover) {
+  .xo-board--lines .xo-cell:not(:disabled):hover { background: var(--surface-2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xo-solo__status.is-thinking,
+  .xo-board--lines .xo-cell.is-new .xo-cell__mark,
+  .xo-board.xo-board--lines.is-lighting .xo-cell.is-win .xo-cell__mark { animation: none; }
+}
+
 /* A phone on its side, and every wide screen: the board takes the height and
    the tally, the turn and the buttons sit in a column beside it (the owner,
    21 Sep 2026: the play area gets the space). */
 @media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
-  #xo-stage, #memory-stage {
+  #memory-stage {
     display: grid;
     grid-template-columns: auto minmax(12rem, 20rem);
     grid-template-rows: auto auto auto minmax(0, 1fr);
@@ -5141,17 +5174,36 @@ body.has-audience .shell__main { --main-pb: 9rem; }
     column-gap: var(--sp-6);
     align-items: start;
   }
-  #xo-stage { grid-template-areas: "board tally" "board status" "board rule" "board actions" "board ."; grid-template-rows: auto auto auto auto minmax(0, 1fr); }
-  #xo-stage .xo-tally { grid-area: tally; }
-  #xo-stage .xo-status { grid-area: status; }
-  #xo-stage .xo-rule { grid-area: rule; margin-top: 0; }
-  #xo-stage .xo-board { grid-area: board; width: min(calc(var(--app-h, 100vh) - var(--header-h) - 3rem), 60vw); margin: 0; container-type: inline-size; }
-  #xo-stage .xo-cell { font-size: 18cqw; }
+  /* إكس أو: the card opens up - the board in a card of its own, the pills, the
+     turn and the bar in a column beside it. */
+  #xo-stage .xo-solo {
+    display: grid;
+    grid-template-columns: auto minmax(12rem, 20rem);
+    grid-template-rows: auto minmax(0, 1fr);
+    justify-content: center;
+    column-gap: var(--sp-6);
+    row-gap: var(--sp-3);
+    align-items: start;
+  }
+  #xo-stage .xo-solo__card { display: contents; }
+  #xo-stage .xo-solo__board {
+    grid-column: 1; grid-row: 1 / span 2;
+    padding: var(--sp-3);
+    border: 1px solid var(--hairline, var(--border));
+    border-radius: var(--r-xl);
+    background: var(--surface);
+    box-shadow: var(--sh-2);
+  }
+  #xo-stage .xo-solo__side { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  #xo-stage .xo-board--lines { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 4.5rem), 60vw); }
   #memory-stage { grid-template-areas: "grid bar" "grid actions" "grid ." "grid ."; }
   #memory-stage .mem-bar { grid-area: bar; }
   #memory-stage .mem-grid { grid-area: grid; width: min(calc((var(--app-h, 100vh) - var(--header-h) - 3.25rem) * var(--mem-cols, 4) / var(--mem-rows, 4)), 62vw); margin: 0; container-type: inline-size; }
   #memory-stage .mem-card__face--front { font-size: calc(46cqw / var(--mem-cols, 4)); }
-  #xo-stage .view-actions, #memory-stage .view-actions { grid-area: actions; position: static; margin: 0; padding: 0; background: none; }
+  #memory-stage .view-actions { grid-area: actions; position: static; margin: 0; padding: 0; background: none; }
+  #xo-stage .xo-solo__actions { grid-column: 2; grid-row: 2; position: static; margin: 0; padding: 0; background: none; }
+  #xo-stage .xo-solo__actions { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+  #xo-stage .xo-solo__actions > * { flex: none; margin: 0; }
 }
 
 /* --- مين يبدأ (full screen) --- */
@@ -7575,6 +7627,39 @@ body.dark .mines-cell.is-open { background: var(--surface-sunken); }
 .streak-hearts { display: inline-flex; gap: 1px; font-size: 0.95rem; }
 .streak-heart { display: inline-block; }
 .streak-heart.is-lost { opacity: 0.6; }
+/* سلسلة الإجابات on one phone (paintStreak, 1 Oct 2026, from a before/after sheet):
+   one card - the hearts as a row (a lost one dimmed) and the score as a chip, the
+   seconds in a ring that empties above the question (.gtm-dial, red in the last
+   five), the answers as big bordered tiles. The race (سباق ألغاز) keeps its board. */
+.stk-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--sp-2); margin-block-end: var(--sp-3); }
+.streak-hearts.stk-hearts { gap: 0.2rem; font-size: 1.3rem; line-height: 1; }
+.stk-hearts .streak-heart.is-lost { opacity: 0.25; filter: grayscale(1); }
+.stk-q { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
+.gtm-dial.stk-dial { inline-size: min(6.5rem, 30vw); margin: 0 auto; }
+.stk-dial > .metric { font-size: 1.9rem; font-weight: var(--fw-black); color: var(--text-strong); }
+.stk-card .streak-card { max-width: none; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.solo-choices.stk-choices { margin: var(--sp-4) 0 0; }
+.stk-choices .solo-choice { min-height: 4rem; border-width: 2px; border-radius: var(--r-lg); font-weight: 800; }
+/* A phone on its side: the ring and the question on one side, the score and the answers on the other. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .stk-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    grid-template-areas: "q head" "q choices";
+    column-gap: var(--sp-4);
+    align-items: start;
+  }
+  .stk-head { grid-area: head; margin-block-end: var(--sp-2); }
+  .stk-q { grid-area: q; gap: var(--sp-2); }
+  .gtm-dial.stk-dial { inline-size: 4.5rem; }
+  .stk-dial > .metric { font-size: 1.4rem; }
+  .solo-choices.stk-choices { grid-area: choices; margin: 0; }
+  .stk-choices .solo-choice { min-height: 3rem; }
+}
+/* A laptop: a form's width. */
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-streak { max-width: 40rem; }
+}
 
 /* --- حاسبة الورق --- */
 .cs-board { display: grid; gap: var(--sp-1); margin-bottom: var(--sp-3); }
@@ -8149,6 +8234,54 @@ button.herd-group { cursor: pointer; }
 .flags-guesses { order: 1; }
 .solo-layout__side > .solo-bar:has(+ .flags-input), .flags-layout .solo-layout__side > .solo-bar { order: -2; }
 #solo-result-icon .flag-emoji { font-size: 3.5rem; line-height: 1; }
+
+/* خمّن الدولة on one phone (paintFlags, 1 Oct 2026, from a before/after sheet):
+   one card - the level and the guesses left as two chips, the flag, the field
+   «اسم الدولة» with «خمّن» (.gn-entry), the suggestions, and the guesses as
+   chips newest first (.gn-chips): a wrong one says how far and which way and
+   is filled as far as it was close, the right one is green. The room's board
+   (.sv-board--flags) keeps its rows. */
+.flg-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--sp-2); margin-block-end: var(--sp-3); }
+.flg-target { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin-block-end: var(--sp-4); text-align: center; }
+.flg-target__flag { font-size: clamp(4rem, 24vw, 6.5rem); line-height: 1.05; }
+.flg-target__ask { color: var(--text-2); font-weight: var(--fw-bold); text-wrap: balance; }
+.flg-target__ask b { color: var(--text-strong); font-size: var(--fs-h1); }
+.flg-entry > .field__label { text-align: start; }
+.flg-guess { max-width: 100%; }
+.flg-guess:not(.gn-chip--win) {
+  background: linear-gradient(var(--flg-dir, to right), color-mix(in srgb, var(--accent) 20%, var(--surface-2)) calc(var(--p, 0) * 100%), var(--surface-2) 0);
+}
+[dir="rtl"] .flg-guess { --flg-dir: to left; }
+.flg-guess__flag { font-size: 1.15rem; line-height: 1; }
+.flg-guess__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flg-guess__km { color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; }
+.flg-guess__arrow { width: 1.35rem; height: 1.35rem; font-size: 0.8rem; }
+.flg-guess__p { color: var(--text-3); font-size: var(--fs-xs); }
+.flg-guess.is-new { animation: streak-in 300ms var(--ease-out) both; }
+.flg-guess.is-new .flg-guess__arrow { animation: flags-turn 900ms cubic-bezier(0.34, 1.56, 0.64, 1) 150ms both; }
+@media (prefers-reduced-motion: reduce) {
+  .flg-guess.is-new, .flg-guess.is-new .flg-guess__arrow { animation: none; }
+}
+/* A phone on its side: the flag on one side, the chips, the field and the guesses beside it. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .flg-card {
+    display: grid;
+    grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
+    grid-template-areas: "target head" "target entry" "target guesses";
+    column-gap: var(--sp-4);
+    align-items: start;
+  }
+  .flg-head { grid-area: head; margin-block-end: var(--sp-2); }
+  .flg-target { grid-area: target; margin: 0; }
+  .flg-target__flag { font-size: 4rem; }
+  .flg-target__ask b { font-size: var(--fs-h2); }
+  .flg-entry { grid-area: entry; }
+  .flg-guesses { grid-area: guesses; justify-content: flex-start; margin-block-start: var(--sp-2); }
+}
+/* A laptop: a form's width, like خمّن الرقم. */
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-flags { max-width: 40rem; }
+}
 
 /* A phone held sideways, and a laptop or TV: the board on one side, its keys
    and tools on the other. The board is sized off the shell's height, so it
@@ -12233,6 +12366,22 @@ body.dark .hm-gallows .hm-hair { fill: #4a3626; }
 }
 .secret-field input:not(.is-hidden) + .secret-field__dots { display: none; }
 .hm-write__err:empty { display: none; }
+/* The writing step on one phone (paintHangman, 1 Oct 2026): من أنا؟'s writing
+   layout (.wa-write, the poster), the fields under their labels, and a short
+   «جاهزة» in the bar with what comes after as a small line over it. */
+.hm-write-card--local { gap: 0; margin-block-start: var(--sp-3); }
+.hm-write-card--local .hm-write__away { margin: 0 0 var(--sp-3); text-align: center; }
+.hm-write-card--local .hm-write { gap: var(--sp-2); }
+.hm-write-card--local .hm-write > .field__label { margin: 0; }
+.hm-write-card--local .hm-write__label { margin-block-start: var(--sp-2); }
+.hm-write-card--local .hm-write .field__hint { margin: 0; }
+.hm-write-actions__then { margin: 0 0 var(--sp-2); text-align: center; }
+/* A phone on its side: «جاهزة» and its line side by side, so the bar stays one line. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .hm-write-actions { display: flex; align-items: center; gap: var(--sp-3); position: static; margin: 0; padding: 0; background: none; }
+  .hm-write-actions > .btn { flex: 1 1 0; min-width: 0; }
+  .hm-write-actions__then { flex: 1 1 0; min-width: 0; margin: 0; text-align: start; }
+}
 .hm-hint { font-size: 0.875rem; font-weight: 700; color: var(--accent-ink); background: var(--accent-soft); border-radius: var(--r-full); padding: 0.125rem 0.625rem; }
 .hm-board__who { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; min-width: 0; }
 .hm-end { text-align: center; display: flex; flex-direction: column; gap: var(--sp-2); align-items: stretch; }

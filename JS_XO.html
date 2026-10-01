@@ -75,6 +75,9 @@ function xoNewRound() {
   if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
   x.board = Array(9).fill('');
   x.order = { X: [], O: [] };
+  x.hist = [];
+  x.last = -1;
+  x.seq = (x.seq || 0) + 1;
   x.rule3 = !!x.three;
   xoGone = null;
   x.turn = x.first;
@@ -98,9 +101,13 @@ function xoPlay(i) {
 
 function xoPlace(i) {
   const x = xoState();
+  if (x.phase !== 'play' || x.board[i]) return;
+  xoSnapshot(x);
   // The fourth mark takes the place of this side's oldest (3 marks only).
   const placed = xoMark(x.board, x.order, x.rule3, i, x.turn);
-  if (!placed) return;
+  if (!placed) { x.hist.pop(); return; }
+  x.last = i;
+  x.seq = (x.seq || 0) + 1;
   if (placed.gone >= 0) xoGone = { cell: placed.gone, mark: x.turn };
   playSound('click');
   const result = xoWinner(x.board);
@@ -289,17 +296,32 @@ function xo3BestMove(x) {
   return choices[Math.floor(Math.random() * choices.length)];
 }
 
+/* The marks as drawn on this phone: ✕ in the blue team colour, ◯ in the red. */
+const XO_GLYPH = { X: '✕', O: '◯' };
+const xoGlyph = (m) => `<span class="xo-glyph is-${m.toLowerCase()}" aria-hidden="true">${XO_GLYPH[m] || ''}</span>`;
+
+/**
+ * The board as one card (the owner, 1 Oct 2026, from a before/after sheet):
+ * the duel pills on top (duelPillsHtml, JS_Connect4.html: ✕ and ◯, the draws
+ * in the middle), a 3×3 grid of thin lines, whose turn under it, and «رجّع» /
+ * «خروج» as a quiet pair in the bar at the foot. On a phone on its side and a
+ * big screen the card opens up: the board beside the pills and the turn.
+ */
 function paintXO() {
   const x = xoState();
   const t = TRANSLATIONS[appState.lang];
   const el = document.getElementById('xo-stage');
   if (!el) return;
-  const nameOf = (m) => x.vs === 'phone' ? (m === x.human ? (t.xo_you || '') : (t.xo_phone || '')) : `${t.xo_player || ''} ${m}`;
+  const nameOf = (m) => x.vs === 'phone' ? (m === x.human ? (t.xo_you || '') : (t.xo_phone || '')) : `${t.xo_player || ''} ${m === 'X' ? 1 : 2}`;
+  const phoneTurn = x.vs === 'phone' && x.phase === 'play' && x.turn !== x.human;
   let status;
   if (x.phase === 'done') {
-    status = x.winner === 'D' ? (t.xo_draw || '') : `🏆 ${nameOf(x.winner)}`;
+    status = escapeHTML(x.winner === 'D' ? (t.xo_draw || '') : `🏆 ${nameOf(x.winner)}`);
+  } else if (phoneTurn) {
+    status = escapeHTML(t.xo_thinking || '');
   } else {
-    status = x.vs === 'phone' && x.turn !== x.human ? (t.xo_thinking || '') : `${t.xo_turn || ''} ${nameOf(x.turn)}`;
+    const line = x.vs === 'phone' ? (t.xo_turn_you || '{mark}') : (t.xo_turn_of || '{name}: {mark}').replace('{name}', duelIso(nameOf(x.turn)));
+    status = escapeHTML(line).replace('{mark}', xoGlyph(x.turn));
   }
   // With 3 marks only: the mark this move will take off, faded for the side
   // about to move - never the other side's, which is theirs to remember.
@@ -307,30 +329,83 @@ function paintXO() {
   if (x.rule3 && x.phase === 'play') { const o = x.order[x.turn] || []; if (o.length >= XO_KEEP) leaving[o[0]] = true; }
   const gone = xoGone;
   xoGone = null;
+  // The mark just played lands, and a winning line lights, once each (a redraw
+  // for the language or a reload doesn't play them again).
+  const seq = x.seq || 0;
+  const fresh = typeof x.last === 'number' && x.last >= 0 && x.board[x.last] && typeof motionFirst === 'function' && motionFirst('xo1|' + seq) ? x.last : -1;
+  const lighting = x.phase === 'done' && !!x.line && typeof motionFirst === 'function' && motionFirst('xo1|' + seq + '|win');
+  const canUndo = xoUndoAt(x) !== -1;
+  const turnSeat = x.phase === 'play' ? (x.turn === 'X' ? 0 : 1) : -1;
   el.innerHTML = `
-    <div class="xo-tally">
-      <div class="xo-tally__item xo-tally__item--x ${x.turn === 'X' && x.phase === 'play' ? 'is-turn' : ''}">
-        <span>${escapeHTML(nameOf('X'))}</span><b class="metric">${x.scores.X}</b><small>X</small>
+    <div class="xo-solo">
+      <div class="card xo-solo__card">
+        <div class="xo-solo__side">
+          ${duelPillsHtml({
+            players: [{ name: nameOf('X'), score: x.scores.X, mark: xoGlyph('X') }, { name: nameOf('O'), score: x.scores.O, mark: xoGlyph('O') }],
+            turn: turnSeat,
+            draws: x.scores.D || 0
+          })}
+          <p class="xo-solo__status ${x.phase === 'done' ? 'is-done' : ''} ${phoneTurn ? 'is-thinking' : ''}" aria-live="polite">${status}</p>
+          ${x.rule3 && x.phase === 'play' ? `<p class="xo-rule">${escapeHTML(t.xo_three_play || '')}</p>` : ''}
+        </div>
+        <div class="xo-solo__board">
+          <div class="xo-board xo-board--lines ${x.phase === 'done' ? 'is-done' : ''} ${lighting ? 'is-lighting' : ''}" dir="ltr">
+            ${x.board.map((v, i) => {
+              const k = x.line ? x.line.indexOf(i) : -1;
+              const cls = [v ? 'is-' + v.toLowerCase() : '', k !== -1 ? 'is-win' : '', leaving[i] ? 'is-leaving' : '', fresh === i ? 'is-new' : ''].join(' ');
+              return `<button type="button" class="xo-cell ${cls}" style="--k:${Math.max(0, k)}"
+                      onclick="xoPlay(${i})" ${v || x.phase !== 'play' ? 'disabled' : ''} aria-label="${i + 1}${v ? ' ' + v : ''}">${v ? `<span class="xo-cell__mark">${XO_GLYPH[v]}</span>` : ''}${gone && gone.cell === i && !v
+                        ? `<span class="xo-cell__gone is-${gone.mark.toLowerCase()}" aria-hidden="true">${XO_GLYPH[gone.mark]}</span>` : ''}</button>`;
+            }).join('')}
+          </div>
+        </div>
       </div>
-      <div class="xo-tally__item"><span>${escapeHTML(t.xo_draws || '')}</span><b class="metric">${x.scores.D}</b><small>=</small></div>
-      <div class="xo-tally__item xo-tally__item--o ${x.turn === 'O' && x.phase === 'play' ? 'is-turn' : ''}">
-        <span>${escapeHTML(nameOf('O'))}</span><b class="metric">${x.scores.O}</b><small>O</small>
+      <div class="view-actions talk__actions xo-solo__actions">
+        ${x.phase === 'done'
+          ? `<button class="btn btn--primary btn--go btn--lg" onclick="xoNewRound()">${escapeHTML(t.xo_next_round || '')}</button>`
+          : ''}
+        <div class="talk__pair">
+          ${x.phase === 'play' ? `<button class="btn btn--ghost btn--sm" onclick="xoUndo()" ${canUndo ? '' : 'disabled'}>↶ ${escapeHTML(t.xo_undo || '')}</button>` : ''}
+          <button class="btn btn--ghost btn--sm" onclick="setupXO()">${escapeHTML(t.exit || '')}</button>
+        </div>
       </div>
-    </div>
-    <div class="xo-status ${x.phase === 'done' ? 'is-done' : ''}">${escapeHTML(status)}</div>
-    ${x.rule3 && x.phase === 'play' ? `<p class="xo-rule">${escapeHTML(t.xo_three_play || '')}</p>` : ''}
-    <div class="xo-board ${x.phase === 'done' ? 'is-done' : ''}">
-      ${x.board.map((v, i) => `
-        <button type="button" class="xo-cell ${v ? 'is-' + v.toLowerCase() : ''} ${x.line && x.line.indexOf(i) !== -1 ? 'is-win' : ''} ${leaving[i] ? 'is-leaving' : ''}"
-                onclick="xoPlay(${i})" ${v || x.phase !== 'play' ? 'disabled' : ''} aria-label="${i + 1}${v ? ' ' + v : ''}">${v}${gone && gone.cell === i && !v
-                  ? `<span class="xo-cell__gone is-${gone.mark.toLowerCase()}" aria-hidden="true">${gone.mark}</span>` : ''}</button>`).join('')}
-    </div>
-    <div class="view-actions">
-      ${x.phase === 'done'
-        ? `<button class="btn btn--primary btn--go btn--lg" onclick="xoNewRound()">${escapeHTML(t.xo_next_round || '')}</button>`
-        : ''}
-      <button class="btn btn--ghost btn--sm" onclick="setupXO()">${escapeHTML(t.exit || '')}</button>
     </div>`;
+  duelPillsAfter(el, 'xo-local', { turn: turnSeat, scores: [x.scores.X || 0, x.scores.O || 0] });
+}
+
+/* --- رجّع: takes back the last move; against the phone, your move and its answer --- */
+const XO_HIST_MAX = 60;
+
+function xoSnapshot(x) {
+  if (!Array.isArray(x.hist)) x.hist = [];
+  x.hist.push({ board: x.board.slice(), order: { X: x.order.X.slice(), O: x.order.O.slice() }, turn: x.turn, last: typeof x.last === 'number' ? x.last : -1 });
+  if (x.hist.length > XO_HIST_MAX) x.hist.splice(0, x.hist.length - XO_HIST_MAX);
+}
+
+/** Where an undo goes back to in x.hist, or -1 (nothing to take back, or the round is over). */
+function xoUndoAt(x) {
+  if (x.phase !== 'play' || !Array.isArray(x.hist) || !x.hist.length) return -1;
+  if (x.vs !== 'phone') return x.hist.length - 1;
+  for (let i = x.hist.length - 1; i >= 0; i--) if (x.hist[i].turn === x.human) return i;
+  return -1;
+}
+
+function xoUndo() {
+  const x = xoState();
+  const at = xoUndoAt(x);
+  if (at === -1) return;
+  if (xoPhoneTimer) { clearTimeout(xoPhoneTimer); xoPhoneTimer = null; }
+  const snap = x.hist[at];
+  x.hist.length = at;
+  x.board = snap.board.slice();
+  x.order = { X: snap.order.X.slice(), O: snap.order.O.slice() };
+  x.turn = snap.turn;
+  x.last = -1;
+  x.seq = (x.seq || 0) + 1;
+  xoGone = null;
+  saveToLocal();
+  paintXO();
+  xoMaybePhone();
 }
 
 /** After a reload: the board as it was; the phone moves if it was its turn. */

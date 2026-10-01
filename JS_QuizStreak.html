@@ -140,7 +140,19 @@ if (typeof onLeaveScreen === 'function') {
 }
 
 function streakHearts(s) {
-  return Array.from({ length: STREAK_LIVES }, (_, i) => `<span class="streak-heart${i < s.lives ? '' : ' is-lost'}" data-h="${i}">${i < s.lives ? '❤️' : '🤍'}</span>`).join('');
+  return Array.from({ length: STREAK_LIVES }, (_, i) => `<span class="streak-heart${i < s.lives ? '' : ' is-lost'}" data-h="${i}">❤️</span>`).join('');
+}
+
+/* The question's seconds as a ring that empties (the general timer's .gtm-dial),
+   red in the last five. */
+const STREAK_LOW = 5;
+function streakRingPaint(v) {
+  const n = document.getElementById('streak-left');
+  if (n) n.textContent = v;
+  const fill = document.getElementById('streak-ring');
+  if (fill) fill.style.strokeDashoffset = String(1 - Math.max(0, Math.min(1, v / STREAK_SECONDS)));
+  const dial = document.getElementById('streak-dial');
+  if (dial) dial.classList.toggle('is-low', v <= STREAK_LOW);
 }
 
 function paintStreak(fresh) {
@@ -155,37 +167,67 @@ function paintStreak(fresh) {
   const prompt = q.kind === 'proverbs'
     ? escapeHTML(q.prompt).replace('___', `<span class="streak-blank">${/[\u0600-\u06FF]/.test(q.prompt) ? '؟' : '?'}</span>`)
     : escapeHTML(q.prompt);
-  const bar = soloBarHtml(s.race ? [
-    { label: t.race_unit_questions || '', value: `${Math.min(s.asked + 1, s.total || 10)}/${s.total || 10}`, id: 'streak-asked' },
-    { label: t.streak_score || '', value: s.score, id: 'streak-score' }
-  ] : [
-    { label: t.streak_lives || '', value: `<span class="streak-hearts" id="streak-hearts">${streakHearts(s)}</span>` },
-    { label: streakDecked(s) ? `📅 ${s.asked + 1}/${s.deck.length}` : (t.streak_score || ''), value: s.score, id: 'streak-score' },
-    { label: t.streak_time || '', value: Math.ceil(answered ? 0 : left), id: 'streak-left' }
-  ]);
-  el.innerHTML = `
-    <div class="solo-layout">
-      <div class="solo-layout__board">
+  const card = `
         <div class="streak-card${fresh ? ' is-new' : ''}">
           ${q.tag ? `<span class="eyebrow">${escapeHTML(q.tag)}</span>` : ''}
           ${q.big ? `<div class="streak-emoji" dir="ltr">${escapeHTML(q.big)}</div>` : ''}
           ${prompt ? `<p class="streak-prompt">${prompt}</p>` : `<p class="streak-prompt streak-prompt--sub">${escapeHTML(t.streak_emoji_q || '')}</p>`}
-          ${s.race ? '' : `<div class="streak-timer${answered ? ' is-stopped' : ''}" aria-hidden="true"><i style="animation-duration:${STREAK_SECONDS}s; animation-delay:-${(STREAK_SECONDS - left).toFixed(2)}s"></i></div>`}
-        </div>
+        </div>`;
+  const options = (cls) => `
+        <div class="solo-choices${cls}" id="streak-options">
+          ${q.options.map((o, i) => {
+            const c = answered ? (i === q.answer ? ' is-right' : (i === q.picked ? ' is-wrong' : '')) : '';
+            return `<button type="button" class="solo-choice${c}" data-i="${i}" onclick="answerStreak(${i})" ${answered ? 'disabled' : ''}><span>${escapeHTML(o)}</span></button>`;
+          }).join('')}
+        </div>`;
+  if (s.race) {
+    // سباق ألغاز: the race's own board, as it was (no hearts, no question clock).
+    const bar = soloBarHtml([
+      { label: t.race_unit_questions || '', value: `${Math.min(s.asked + 1, s.total || 10)}/${s.total || 10}`, id: 'streak-asked' },
+      { label: t.streak_score || '', value: s.score, id: 'streak-score' }
+    ]);
+    el.innerHTML = `
+    <div class="solo-layout">
+      <div class="solo-layout__board">${card}
       </div>
       <div class="solo-layout__side">
-        ${bar}
-        <div class="solo-choices" id="streak-options">
-          ${q.options.map((o, i) => {
-            const cls = answered ? (i === q.answer ? ' is-right' : (i === q.picked ? ' is-wrong' : '')) : '';
-            return `<button type="button" class="solo-choice${cls}" data-i="${i}" onclick="answerStreak(${i})" ${answered ? 'disabled' : ''}><span>${escapeHTML(o)}</span></button>`;
-          }).join('')}
+        ${bar}${options('')}
+      </div>
+    </div>`;
+    return;
+  }
+  // One card (the owner, 1 Oct 2026, from a before/after sheet): the hearts as a row
+  // (a lost one dimmed) and the score as one chip, the seconds in a ring that empties
+  // above the question, the answers as big bordered tiles, «خروج» small in the bar.
+  const shown = Math.ceil(answered ? 0 : left);
+  const label = streakDecked(s) ? `📅 ${s.asked + 1}/${s.deck.length}` : (t.streak_score || '');
+  const archive = s.archive ? `<span class="badge badge--warning">📅 ${escapeHTML(t.daily_archive_badge || '')} ${escapeHTML(s.archive)}</span>` : '';
+  el.innerHTML = `
+    <div class="stk">
+      <div class="card stk-card">
+        <div class="stk-head">
+          <span class="streak-hearts stk-hearts" id="streak-hearts" role="img" aria-label="${escapeHTML(t.streak_lives || '')}: ${s.lives}/${STREAK_LIVES}">${streakHearts(s)}</span>
+          ${archive}
+          <span class="chip chip--plain play-chip">${escapeHTML(label)} <b class="metric" id="streak-score">${s.score}</b></span>
+        </div>
+        <div class="stk-q">
+          <div class="gtm-dial stk-dial${shown <= STREAK_LOW ? ' is-low' : ''}" id="streak-dial" role="timer" aria-label="${escapeHTML(t.streak_time || '')}">
+            <svg class="gtm-ring" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="gtm-ring__track" cx="60" cy="60" r="54" pathLength="1"></circle>
+              <circle class="gtm-ring__fill" id="streak-ring" cx="60" cy="60" r="54" pathLength="1" style="stroke-dashoffset:${(1 - (answered ? 0 : left) / STREAK_SECONDS).toFixed(3)}"></circle>
+            </svg>
+            <b class="metric" id="streak-left">${shown}</b>
+          </div>
+          ${card}
+        </div>
+        ${options(' stk-choices')}
+      </div>
+      <div class="view-actions talk__actions stk-actions">
+        <div class="talk__pair">
+          <button class="btn btn--ghost btn--sm" onclick="setupStreak()">${escapeHTML(t.exit || '')}</button>
         </div>
       </div>
-    </div>
-    ${s.race ? '' : `<div class="view-actions">
-      <button class="btn btn--ghost btn--sm" onclick="setupStreak()">${escapeHTML(t.exit || '')}</button>
-    </div>`}`;
+    </div>`;
   if (s.race) return;
   if (answered) {
     streakNextTimer = setTimeout(streakAdvance, 1300);
@@ -193,7 +235,7 @@ function paintStreak(fresh) {
   }
   const clock = createClock({
     seconds: Math.ceil(left),
-    onTick: (v) => { const n = document.getElementById('streak-left'); if (n) n.textContent = v; },
+    onTick: (v) => streakRingPaint(v),
     onEnd: () => answerStreak(-1)
   });
   // Help or the exit sheet pauses this clock (pauseClocksForSheet): the question's
@@ -201,8 +243,9 @@ function paintStreak(fresh) {
   const pause = clock.pause;
   clock.pause = () => {
     if (!q.pausedAt) q.pausedAt = Date.now();
-    const bar = el.querySelector('.streak-timer i');
-    if (bar) bar.style.animationPlayState = 'paused';
+    // The ring stops where it is: its last second's sweep is cut short.
+    const fill = document.getElementById('streak-ring');
+    if (fill) { fill.style.transition = 'none'; fill.style.strokeDashoffset = getComputedStyle(fill).strokeDashoffset; }
     return pause();
   };
   clock.resume = () => {

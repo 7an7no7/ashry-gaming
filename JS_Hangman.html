@@ -243,8 +243,25 @@ function hmWriteError(text) {
  * in Arabic), and never -webkit-text-security either (Safari takes a dotted
  * field for a password and offers to save the word when the game is left -
  * the owner, 24 Sep 2026).
+ * o.local (two on one phone, 1 Oct 2026): each field under a label, and no
+ * button inside - «جاهزة» is in the bar at the foot (form="hm-write-form").
  */
-function hmWriteFormHtml(submit, placeholderName) {
+function hmWriteFormHtml(submit, placeholderName, o) {
+  const local = !!(o && o.local);
+  if (local) {
+    return `<form class="hm-write" id="hm-write-form" onsubmit="event.preventDefault(); ${submit}(this)">
+      <label class="field__label" for="hm-write-input">${escapeHTML(hmT('hm_write_ph'))}</label>
+      <div class="hm-write__row wa-write__field">
+        <span class="secret-field"><input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="28" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"><span class="secret-field__dots" aria-hidden="true"></span></span>
+        <button type="button" class="btn btn--ghost btn--auto hm-write__eye" onclick="hmToggleEye(this)" aria-label="${escapeHTML(hmT('hm_show_word'))}" title="${escapeHTML(hmT('hm_show_word'))}">👁️</button>
+      </div>
+      <p class="field__hint">${escapeHTML(hmT('hm_write_hint'))}</p>
+      <label class="field__label hm-write__label" for="hm-write-hint">${escapeHTML(hmT('hm_hint_label'))}</label>
+      <input type="text" name="h" id="hm-write-hint" class="hm-write__hint" maxlength="${HM_HINT_MAX}" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"
+        placeholder="${escapeHTML(hmT('hm_hint_ph_short'))}">
+      <p class="field__hint tx-danger hm-write__err" role="alert"></p>
+    </form>`;
+  }
   return `<form class="hm-write" onsubmit="event.preventDefault(); ${submit}(this)">
       <div class="hm-write__row">
         <span class="secret-field"><input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="28" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
@@ -446,11 +463,23 @@ function paintHangman(fx) {
   const guesser = names[1 - s.setter];
   const tally = hmTallyHtml(names, s.tally, s.setter);
   if (s.step === 'write' || !s.board) {
+    // The writing step in من أنا؟'s look (the owner, 1 Oct 2026): the poster with
+    // who writes, a line for the other to look away, the word and the hint under
+    // their labels, and a short «جاهزة» in the bar, what comes after in a small line just above it
+    // (under it, the line sat behind the nav's round button).
     el.innerHTML = `${tally}
-      <div class="card hm-write-card">
-        <p class="sheet__title">✍️ ${escapeHTML(hmT('hm_write_title', { name: writer }))}</p>
-        <p class="sheet__subtitle">${escapeHTML(hmT('hm_write_hide', { name: guesser }))}</p>
-        ${hmWriteFormHtml('hmLocalWrite', hmT('hm_write_go_to', { name: guesser }))}
+      <div class="card wa-write hm-write-card hm-write-card--local">
+        <div class="pass-poster wa-write__poster">
+          <span class="pass-poster__icon" aria-hidden="true">${typeof iconHtml === 'function' ? iconHtml('art:hangman') : ''}</span>
+          <h3 class="pass-poster__label">${escapeHTML(hmT('hm_write_poster', { name: writer }))}</h3>
+          <h2 class="pass-poster__name">${escapeHTML(writer)}</h2>
+        </div>
+        <p class="field__hint hm-write__away">${escapeHTML(hmT('hm_write_hide', { name: guesser }))}</p>
+        ${hmWriteFormHtml('hmLocalWrite', '', { local: true })}
+      </div>
+      <div class="view-actions hm-write-actions">
+        <p class="field__hint hm-write-actions__then">${escapeHTML(hmT('hm_write_then', { name: guesser }))}</p>
+        <button type="submit" form="hm-write-form" class="btn btn--primary btn--lg">${escapeHTML(hmT('hm_write_ready'))}</button>
       </div>`;
     return;
   }

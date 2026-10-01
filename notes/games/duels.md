@@ -229,6 +229,27 @@ at a time, your own mark lands as your finger lifts (`duelRoomSend`'s early
 step), and the oldest mark is faded only on its owner's phone, on their turn.
 The setup screen gained the one phone / own phones switch.
 
+**إكس أو on one phone, in the app's look** (1 Oct 2026, from the owner's
+before/after sheet): `paintXO` draws one card (`.xo-solo`, `.xo-solo__card`):
+the duels' pills on top (`duelPillsHtml` / `duelPillsAfter` from
+`JS_Connect4.html`, already in the xo chunk's reach since the room's XO uses
+them; «أنت» / «الموبايل», or «لاعب 1» / «لاعب 2», the draws in the middle),
+the board as a 3×3 grid of thin lines (`.xo-board--lines`: each square draws
+the line after it and under it, so the room's `.duel .xo-board` is untouched),
+✕ in `--team-blue-ink` and ◯ in `--team-red-ink` (`XO_GLYPH`, `xoGlyph`; the
+state still says `X` / `O`), and «الدور عليك: ✕» under it (`xo_turn_you`,
+`xo_turn_of`). A new mark lands and the winning line lights on the mark
+(`.xo-cell__mark`, `motionFirst('xo1|' + seq)`), so the lines hold still. The
+bar is «رجّع» and «خروج» as a quiet pair (`.talk__pair`), with «جولة جديدة»
+above it once a round is over. **«رجّع» is new**: every move saves a snapshot
+(`xoSnapshot`, `x.hist`, at most 60, kept in `appState.xo` so a reload keeps
+it); `xoUndo` goes back one move with two on one phone, and to your last turn
+against the phone (your move and its answer), 3 marks only included (the
+snapshot holds `order`). It is greyed with nothing to take back and gone once
+the round is decided (the tally isn't taken back). On a phone on its side and
+from 900px the card opens up: the board in a card of its own, the pills, the
+turn and the bar in a column beside it.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

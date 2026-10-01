@@ -138,6 +138,18 @@ The owner's rules are in *The owner's specs*.
   (`TV_GAMES.hangman`, `data-accent="orange"` so the man keeps the game's
   colour in the room's frame) shows the kind of word, its blanks and every
   player's man.
+- **The writing step on one phone** (1 Oct 2026, from the owner's
+  before/after sheet) is من أنا؟'s writing layout: `.wa-write` with the
+  `.pass-poster` («{name} يكتب كلمة», the name big, the drawn icon), «{name}،
+  عينك بعيد عن الشاشة 🙈» under it, then the word in the `.secret-field` with
+  👁️ under the label «الكلمة», the rules line, and the hint under «تلميح
+  (اختياري)». `hmWriteFormHtml(submit, label, { local: true })` draws that
+  form with an id (`hm-write-form`) and no button inside; the bar holds a
+  short «جاهزة» (`form="hm-write-form"`, so Enter still submits) with «وبعدها
+  ادّي الموبايل لـ{name}» as a small line above it (under it, the line sat
+  behind the nav's round button). The room calls `hmWriteFormHtml` without
+  the option and keeps its form and button as they were. On a phone on its
+  side the bar is one line at the end of the form, not stuck over it.
 
 ## History
 

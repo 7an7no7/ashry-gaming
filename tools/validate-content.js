@@ -606,6 +606,40 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   console.log(`snakes: the sneak's crawl clean in ${cases - tangled} of ${cases} cases (${turned} with him behind the snake's head)`);
 }
 
+/* ------------------------------------------------------------- الخزنة */
+// Every safe and notebook is generated (Vault.js): the drawings are distinct, and over many seeds
+// every notebook is sound (codes distinct, read backwards a different code, the light rows never
+// press a colour itself) and every safe has one answer the notebook gives (one column of symbols).
+{
+  const V = new Function(fs.readFileSync(ROOT + 'Vault.js', 'utf8') + '; return { VAULT_SYMBOLS, VAULT_SYMBOL_IDS, VAULT_SHAPES, VAULT_SHAPE_IDS, VAULT_LOCKS, VAULT_LIGHT_COLORS, VAULT_COLS, VAULT_COL_LEN, vaultManual, vaultMakeSafe, vaultLevel, vaultSymbolCol, vaultWireAnswer, vaultUnits, vaultPageData };')();
+  const paths = V.VAULT_SYMBOL_IDS.map((id) => V.VAULT_SYMBOLS[id]);
+  if (new Set(paths).size !== paths.length) note('vault: two symbols drawn the same');
+  if (V.VAULT_SYMBOL_IDS.length < V.VAULT_COLS * 3) note(`vault: ${V.VAULT_SYMBOL_IDS.length} symbols is too few for ${V.VAULT_COLS} columns`);
+  if (V.VAULT_SHAPE_IDS.length < 9 || V.VAULT_SHAPE_IDS.some((s) => !V.VAULT_SHAPES[s].ar || !V.VAULT_SHAPES[s].en || !V.VAULT_SHAPES[s].d)) note('vault: a dial shape without its names or drawing');
+  let safes = 0;
+  for (let seed = 1; seed <= 300; seed++) {
+    const m = V.vaultManual(seed * 7907);
+    const codes = V.VAULT_SHAPE_IDS.map((s) => m.dial.codes[s].join(''));
+    if (new Set(codes).size !== codes.length || V.VAULT_SHAPE_IDS.some((s) => { const c = m.dial.codes[s]; return c[0] === c[2] || codes.indexOf(c.slice().reverse().join('')) !== -1; })) note(`vault: notebook ${seed}: dial codes not distinct both ways`);
+    if (m.lights.some((row) => V.VAULT_LIGHT_COLORS.some((c) => row[c] === c))) note(`vault: notebook ${seed}: a light presses its own colour`);
+    if (m.symbols.some((col) => new Set(col).size !== V.VAULT_COL_LEN)) note(`vault: notebook ${seed}: a column with a symbol twice`);
+    [3, 4, 5, 6].forEach((n) => { if (!m.wires[n] || m.wires[n].length !== 4 || m.wires[n][3].if !== null) note(`vault: notebook ${seed}: ${n} wires have no three rules and an otherwise`); });
+    for (let lv = 1; lv <= 7; lv++) {
+      const L = V.vaultLevel(lv, 'one');
+      const safe = V.vaultMakeSafe(seed * 31 + lv, m, V.VAULT_LOCKS, L);
+      safes++;
+      safe.locks.forEach((l) => {
+        if (l.k === 'wires' && !(l.sol >= 0 && l.sol < l.look.wires.length && l.sol === V.vaultWireAnswer(m.wires, l.look.wires))) note(`vault: safe ${seed}/${lv}: no wire to cut`);
+        if (l.k === 'symbols' && (V.vaultSymbolCol(m.symbols, l.look.syms) < 0 || l.sol.length !== L.syms)) note(`vault: safe ${seed}/${lv}: the symbols are not in exactly one column`);
+        if (l.k === 'dial' && !(l.sol && l.sol.length === 3)) note(`vault: safe ${seed}/${lv}: the dial has no code`);
+      });
+    }
+    // Every page a reader can be dealt reads back from the notebook.
+    V.vaultUnits(V.VAULT_LOCKS, 8).forEach((u) => { const p = V.vaultPageData(m, u); if (!p || p.k !== u.split('.')[0]) note(`vault: page ${u} reads nothing`); });
+  }
+  console.log(`vault: ${V.VAULT_SYMBOL_IDS.length} symbols, ${V.VAULT_SHAPE_IDS.length} shapes, 300 notebooks and ${safes} safes sound`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

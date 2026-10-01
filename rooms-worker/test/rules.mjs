@@ -12080,6 +12080,235 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- الخزنة (1 Oct 2026): the locks and the notebook, the three ways, mistakes, levels and a set, leaving --- */
+{
+  console.log('\nThe vault');
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const V = new Function(readFileSync(new URL('../../Vault.js', import.meta.url), 'utf8') + ';return { vaultLevel, vaultUnits, vaultDealUnits, vaultManual, vaultMakeSafe, vaultWireAnswer, vaultSymbolOrder, vaultDialCode, vaultTwistOn, vaultLightAnswer, VAULT_LOCKS, VAULT_PENALTY_MS, VAULT_READY_MS, VAULT_BETWEEN_MS };')();
+  const vaultRoom = (ids, payload, screens) => {
+    const r = newRoom(ids);
+    if (screens) r.screens = screens.map((id) => ({ id }));
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'vault' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({ way: 'one', mistakes: 'strikes', win: 'levels' }, payload || {}));
+    return r;
+  };
+  const tickTo = (r, t) => { clock = Math.max(clock + 1, t); roomTimeout(r, clock); };
+  const toPlay = (r) => { if (r.shared.phase === 'ready') tickTo(r, r.shared.startAt); };
+  const holderOf = (r, key, i) => (r.shared.sides[key].opener === 'tv' ? 'scr' : Object.keys(r.shared.sides[key].holders).find((id) => r.shared.sides[key].holders[id].locks.indexOf(i) !== -1));
+  /** Opens lock i of a side the right way, from the phone that holds it. */
+  const solveLock = (r, key, i) => {
+    const s = r.shared, lock = r._vault.safe.locks[i], who = holderOf(r, key, i);
+    if (lock.k === 'wires') applyRoomAction(r, who, 'cut', { i, w: lock.sol, safe: s.safeNo });
+    else if (lock.k === 'symbols') lock.sol.forEach((x) => applyRoomAction(r, who, 'sym', { i, s: x, safe: s.safeNo }));
+    else if (lock.k === 'dial') applyRoomAction(r, who, 'dial', { i, code: lock.sol, safe: s.safeNo });
+    else V.vaultLightAnswer(r._vault.manual.lights, lock.look.seq, s.sides[key].mistakes).forEach((c) => applyRoomAction(r, who, 'light', { i, c, safe: s.safeNo }));
+  };
+  const solveSafe = (r, key) => r.shared.locks.forEach((l) => { if (!r.shared.sides[key].open[l.i] && !r.shared.sides[key].done) solveLock(r, key, l.i); });
+  /** A wrong move on lock i: a wire not the one, a symbol out of order, a code off by one, a wrong light. */
+  const wrongMove = (r, key, i) => {
+    const s = r.shared, lock = r._vault.safe.locks[i], who = holderOf(r, key, i);
+    if (lock.k === 'wires') applyRoomAction(r, who, 'cut', { i, w: lock.look.wires.findIndex((c, w) => w !== lock.sol && r._vault.prog[key][i].cut.indexOf(w) === -1), safe: s.safeNo });
+    else if (lock.k === 'symbols') applyRoomAction(r, who, 'sym', { i, s: lock.sol[lock.sol.length - 1], safe: s.safeNo });
+    else if (lock.k === 'dial') applyRoomAction(r, who, 'dial', { i, code: lock.sol.map((d) => (d + 1) % 10), safe: s.safeNo });
+    else { const ans = V.vaultLightAnswer(r._vault.manual.lights, lock.look.seq, s.sides[key].mistakes); applyRoomAction(r, who, 'light', { i, c: ['r', 'b', 'g', 'y'].find((c) => c !== ans[0]), safe: s.safeNo }); }
+  };
+
+  // The numbers and the notebook.
+  const l1 = V.vaultLevel(1, 'one'), l2 = V.vaultLevel(2, 'one'), l3 = V.vaultLevel(3, 'one'), l9 = V.vaultLevel(9, 'one');
+  check(l1.locks === 2 && l2.locks === 3 && l3.locks === 4 && l1.ms === 150000 && l2.ms === 180000 && l3.ms === 210000 && l9.ms === 120000,
+    'vault: 2, 3, then 4 locks; the candle 2:30, 3:00, 3:30, then 15 s less a level down to 2:00');
+  check(V.vaultLevel(1, 'all').ms === 150000 && V.vaultLevel(20, 'all').ms === 75000 && V.vaultLevel(5, 'one').lights === 5 && V.vaultLevel(5, 'one').syms === 5 && V.vaultLevel(5, 'one').wires[0] === 4,
+    'vault: «الكل» 2:30 down to 1:15; from level 5 five symbols, five lights, 4-6 wires');
+  check(V.vaultUnits(['wires', 'dial'], 1).join() === 'wires,dial' && V.vaultUnits(['wires', 'dial'], 3).join() === 'wires.1,wires.2,dial' && V.vaultUnits(['wires', 'dial'], 5).length === 4,
+    'vault: the notebook in whole pages, halved one lock at a time while readers outnumber them');
+  check(JSON.stringify(V.vaultDealUnits(['a', 'b', 'c', 'd'], ['x', 'y', 'z'])) === '[["a","b"],["c"],["d"]]' && JSON.stringify(V.vaultDealUnits(['a', 'b'], ['x', 'y', 'z'])) === '[["a"],["b"],["a"]]',
+    'vault: pages shared out to readers, a reader holding more when there are fewer readers');
+  {
+    const m = V.vaultManual(12345), m2 = V.vaultManual(12345);
+    check(JSON.stringify(m) === JSON.stringify(m2) && JSON.stringify(V.vaultMakeSafe(99, m, V.VAULT_LOCKS, l3)) === JSON.stringify(V.vaultMakeSafe(99, m, V.VAULT_LOCKS, l3)),
+      'vault: the same seed, the same notebook and the same safe');
+    const code = m.dial.codes.heart;
+    check(JSON.stringify(V.vaultDialCode(m.dial, 'heart', V.vaultTwistOn(m.dial.twist, '1111') ? '1111' : '2222')) === JSON.stringify(code.slice().reverse()) || !V.vaultTwistOn(m.dial.twist, '1111') && !V.vaultTwistOn(m.dial.twist, '2222'),
+      'vault: the chest\'s number reads the dial\'s code backwards when the notebook says so');
+    check(JSON.stringify(V.vaultLightAnswer(m.lights, ['r', 'g'], 0)) !== JSON.stringify(V.vaultLightAnswer(m.lights, ['r', 'g'], 1)) || m.lights[0].r === m.lights[1].r,
+      'vault: the lights\' table changes after a mistake');
+  }
+
+  {
+    const r = newRoom(['a']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'vault' });
+    check(threw(() => applyRoomAction(r, 'a', 'start', {})), 'vault: one player is refused');
+    const r3 = newRoom(['a', 'b', 'c']);
+    applyRoomAction(r3, 'a', 'chooseGame', { game: 'vault' });
+    check(threw(() => applyRoomAction(r3, 'a', 'start', { way: 'teams' })) && threw(() => applyRoomAction(r3, 'b', 'start', {})), 'vault: two teams need four; only the host starts');
+  }
+  {
+    // «واحد بيفتح»: the opener has the safe and no page; every reader a different page and no lock.
+    const r = vaultRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared, side = s.sides.x;
+    check(r.phase === 'play' && s.phase === 'ready' && s.safeNo === 1 && s.locks.length === 2 && side.opener === 'a' && roomDeadline(r) === s.startAt,
+      'vault: a game opens on the first safe\'s card: two locks, the host opens first');
+    const sa = r.secrets.a;
+    check(sa.locks.length === 2 && sa.pages.length === 0 && sa.locks.every((l) => l.look && !('sol' in l)),
+      'vault: the opener is sent the locks\' looks, no answer and no page');
+    const readers = ['b', 'c', 'd'].map((id) => r.secrets[id]);
+    const units = [].concat(...readers.map((x) => x.pages.map((p) => p.u)));
+    check(readers.every((x) => x.locks.length === 0 && x.pages.length >= 1) && new Set(units).size === units.length && !JSON.stringify(readers).includes('"look"'),
+      'vault: each reader a different page, no lock');
+    check(!JSON.stringify(s).includes('"sol"') && !JSON.stringify(s).includes('"look"') && !('manual' in s), 'vault: the table\'s state holds no look, page or answer');
+    const i0 = s.locks[0].i;
+    applyRoomAction(r, 'a', 'cut', { i: i0, w: 0, safe: 1 });
+    check(side.mistakes === 0 && !side.open[i0], 'vault: nothing is worked on the card before the candle is lit');
+    toPlay(r);
+    check(s.phase === 'play' && roomDeadline(r) === side.at + side.left, 'vault: the candle lights; the server looks again when it burns out');
+    check(threw(() => applyRoomAction(r, 'b', 'dial', { i: i0, code: [1, 2, 3], safe: 1 })), 'vault: a reader can\'t work a lock');
+    // Three mistakes: faster, faster, the alarm.
+    wrongMove(r, 'x', i0);
+    check(side.strikes === 1 && side.rate === 1.25 && s.events.some((e) => e.type === 'mistake'), 'vault: a mistake is a strike, and the candle burns 25% faster');
+    applyRoomAction(r, 'a', 'cut', { i: i0, w: 0, safe: 0 });
+    check(side.strikes === 1, 'vault: a tap from another safe is dropped');
+    wrongMove(r, 'x', s.locks[1].i);
+    check(side.strikes === 2 && side.rate === 1.5, 'vault: the second, 50% faster');
+    wrongMove(r, 'x', s.locks[r._vault.safe.locks[i0].k === 'wires' ? 1 : 0].i);
+    check(s.phase === 'gameover' && s.why === 'alarm' && s.levelsWon === 0 && !Object.keys(r.secrets).length, 'vault: the third sets off the alarm: the safe is lost and, endless, the game');
+  }
+  {
+    // Levels: a safe opened is a level; the next is harder and someone else opens it; the best is kept.
+    const r = vaultRoom(['a', 'b', 'c']);
+    const s = r.shared;
+    toPlay(r);
+    solveSafe(r, 'x');
+    check(s.phase === 'result' && s.result.open && s.levelsWon === 1 && s.best === 1 && roomDeadline(r) === s.nextAt, 'vault: every lock open: the safe is open, a level cleared, the next safe coming');
+    check(threw(() => applyRoomAction(r, 'b', 'nextSafe', { safe: 1 })), 'vault: only the host moves on to the next safe');
+    applyRoomAction(r, 'a', 'nextSafe', { safe: 1 });
+    applyRoomAction(r, 'a', 'nextSafe', { safe: 1 });
+    check(s.safeNo === 2 && s.locks.length === 3 && s.sides.x.opener === 'b' && r.secrets.b.locks.length === 3 && r.secrets.a.pages.length >= 1, 'vault: level 2: three locks, the next player opens, the last opener reads');
+    toPlay(r);
+    // The symbols one by one; out of order, back to none (a safe with them, however many deals it takes).
+    let q = r, sym = s.locks.find((l) => l.k === 'symbols'), by = 'b', no = 2;
+    for (let k = 0; !sym && k < 40; k++) { q = vaultRoom(['a', 'b']); toPlay(q); sym = q.shared.locks.find((l) => l.k === 'symbols'); by = 'a'; no = 1; }
+    const lock = q._vault.safe.locks[sym.i];
+    applyRoomAction(q, by, 'sym', { i: sym.i, s: lock.sol[0], safe: no });
+    const one = q.secrets[by].locks.find((l) => l.i === sym.i).prog.pressed.length === 1;
+    applyRoomAction(q, by, 'sym', { i: sym.i, s: lock.sol[2], safe: no });
+    check(one && q._vault.prog.x[sym.i].pressed.length === 0 && q.shared.sides.x.mistakes === 1, 'vault: the symbols one by one in order; out of order, a mistake and they start again');
+    // The candle burning out.
+    tickTo(r, s.sides.x.at + s.sides.x.left / s.sides.x.rate);
+    check(s.phase === 'gameover' && s.why === 'time' && s.levelsWon === 1 && s.best === 1, 'vault: the candle burnt out: the game ends with one level cleared');
+    applyRoomAction(r, 'a', 'playAgain', { way: 'one', mistakes: 'time', win: 'levels' });
+    check(r.shared.phase === 'ready' && r.shared.best === 1 && !r.shared.newBest && r.shared.settings.mistakes === 'time', 'vault: play again keeps the room\'s best');
+  }
+  {
+    // «من الوقت»: 15 s off the candle, and the lights' table follows the mistakes.
+    const r = vaultRoom(['a', 'b', 'c', 'd', 'e'], { mistakes: 'time' });
+    const s = r.shared, side = s.sides.x;
+    toPlay(r);
+    const left = side.left;
+    wrongMove(r, 'x', s.locks[0].i);
+    check(side.strikes === 0 && side.mistakes === 1 && side.rate === 1 && Math.abs(side.left - (left - (clock - s.startAt) - V.VAULT_PENALTY_MS)) < 5, 'vault: «من الوقت»: a mistake burns 15 s, the candle\'s pace stays');
+  }
+  {
+    // The lights at level 3+: the table read with the mistakes so far.
+    let r, s, li;
+    for (let k = 0; k < 20; k++) {
+      r = vaultRoom(['a', 'b']);
+      s = r.shared;
+      toPlay(r); solveSafe(r, 'x'); applyRoomAction(r, 'a', 'nextSafe', { safe: 1 }); toPlay(r); solveSafe(r, 'x'); applyRoomAction(r, 'a', 'nextSafe', { safe: 2 }); toPlay(r);
+      li = s.locks.find((l) => l.k === 'lights');
+      if (li) break;
+    }
+    const lock = r._vault.safe.locks[li.i], who = holderOf(r, 'x', li.i);
+    const before = V.vaultLightAnswer(r._vault.manual.lights, lock.look.seq, 0);
+    wrongMove(r, 'x', s.locks.find((l) => l.k !== 'lights').i);
+    const after = V.vaultLightAnswer(r._vault.manual.lights, lock.look.seq, 1);
+    after.forEach((c) => applyRoomAction(r, who, 'light', { i: li.i, c, safe: s.safeNo }));
+    check(s.sides.x.open[li.i] && s.sides.x.mistakes === 1 && (before.join() !== after.join() || r._vault.manual.lights[0][lock.look.seq[0]] === r._vault.manual.lights[1][lock.look.seq[0]]),
+      'vault: after a mistake the lights open by the table\'s second column');
+  }
+  {
+    // A set of 3 with points: the opener 3, each reader 2, +1 a clean safe; the night banks it.
+    const r = vaultRoom(['a', 'b', 'c'], { win: 'set', count: 3 });
+    const s = r.shared;
+    toPlay(r); solveSafe(r, 'x');
+    check(s.phase === 'result' && s.scores.a === 4 && s.scores.b === 3 && s.scores.c === 3 && s.board[0].id === 'a', 'vault: a safe opened clean: opener 3+1, readers 2+1');
+    applyRoomAction(r, 'a', 'nextSafe', { safe: 1 }); toPlay(r);
+    tickTo(r, s.sides.x.at + s.sides.x.left);
+    check(s.phase === 'result' && !s.result.open && s.scores.b === 3, 'vault: a lost safe scores nothing, and the set goes on');
+    tickTo(r, s.nextAt); toPlay(r); wrongMove(r, 'x', s.locks[0].i); solveSafe(r, 'x');
+    check(s.phase === 'result' && s.scores.c === 3 + 3, 'vault: the third opener scores 3, no clean point after a mistake');
+    tickTo(r, s.nextAt);
+    check(s.phase === 'gameover' && s.why === 'done' && s.board.length === 3 && s.board[0].score >= s.board[2].score, 'vault: after the last safe, the board');
+    applyRoomAction(r, 'a', 'backToHub', {});
+    check((r.night || {}).a > 0 && (r.night || {}).c > 0, 'vault: a set banks the night\'s points');
+  }
+  {
+    // Endless is co-op: nothing on the night.
+    const r = vaultRoom(['a', 'b']);
+    toPlay(r); tickTo(r, r.shared.sides.x.at + r.shared.sides.x.left);
+    applyRoomAction(r, 'a', 'backToHub', {});
+    check(!r.night || !Object.keys(r.night).length || !r.night.a, 'vault: endless levels bank nothing');
+  }
+  {
+    // «الكل»: a lock each, and a page of another kind.
+    const r = vaultRoom(['a', 'b', 'c', 'd', 'e'], { way: 'all', win: 'set', count: 3 });
+    const s = r.shared, side = s.sides.x;
+    const ok = ['a', 'b', 'c', 'd', 'e'].every((id) => { const x = r.secrets[id]; return x.locks.length === 1 && x.pages.length >= 1 && x.pages.every((p) => p.k !== x.locks[0].k); });
+    const kinds = s.locks.map((l) => l.k);
+    const read = new Set([].concat(...['a', 'b', 'c', 'd', 'e'].map((id) => r.secrets[id].pages.map((p) => p.k))));
+    check(s.locks.length === 5 && ok && kinds.every((k) => read.has(k)) && side.ms === 150000, 'vault: «الكل»: five locks, one on each phone, each with a page for someone else\'s; every lock\'s page is held');
+    toPlay(r); solveSafe(r, 'x');
+    const first = r._vault.first.x, firstBy = holderOf(r, 'x', first);
+    check(s.phase === 'result' && ['a', 'b', 'c', 'd', 'e'].every((id) => s.scores[id] >= 2 + 1 + 1 + 1) && s.scores[firstBy] >= 6 && s.board[0].score > s.board[4].score,
+      'vault: «الكل»: a lock 2, +1 clean, +1 the first to open; its page 1; the clean chest 1 - and someone ahead');
+  }
+  {
+    // «فريقين»: the same safe, the first team to open it takes it.
+    const r = vaultRoom(['a', 'b', 'c', 'd', 'e'], { way: 'teams', win: 'levels', count: 3 });
+    const s = r.shared;
+    check(s.settings.win === 'set' && s.teams.a.length === 3 && s.teams.b.length === 2 && s.sides.a.opener && s.sides.b.opener, 'vault: two teams; a race is always a set of safes');
+    const oa = r.secrets[s.sides.a.opener], ob = r.secrets[s.sides.b.opener];
+    check(JSON.stringify(oa.locks.map((l) => l.look)) === JSON.stringify(ob.locks.map((l) => l.look)), 'vault: both teams have the same safe');
+    toPlay(r);
+    wrongMove(r, 'b', s.locks[0].i); wrongMove(r, 'b', s.locks[0].i); wrongMove(r, 'b', s.locks[1].i);
+    check(s.sides.b.done === 'lost' && s.phase === 'play', 'vault: a team\'s third mistake is its alarm; the other team plays on');
+    check(threw(() => applyRoomAction(r, s.sides.a.opener, 'dial', { i: 9, code: [1, 1, 1], safe: 1 })), 'vault: a lock that isn\'t there is refused');
+    solveSafe(r, 'a');
+    check(s.phase === 'result' && s.result.side === 'a' && s.scores[s.sides.a.opener] >= 3 && !s.scores[s.sides.b.opener], 'vault: team a opens it: their points, nothing for the other team');
+  }
+  {
+    // Leaving: the safe and the pages are dealt again; progress stays with the lock.
+    const r = vaultRoom(['a', 'b', 'c', 'd'], {});
+    const s = r.shared;
+    toPlay(r);
+    solveLock(r, 'x', s.locks[0].i);
+    roomPlayerLeft(r, 'a', 'A');
+    check(s.sides.x.opener === 'b' && r.secrets.b.locks.length === 2 && s.sides.x.open[s.locks[0].i] && !r.secrets.a, 'vault: the opener leaves: the next phone takes the safe, the lock already open stays open');
+    const pages = [].concat(...['c', 'd'].map((id) => r.secrets[id].pages.map((p) => p.u)));
+    check(pages.length >= 2 && s.locks.every((l) => pages.some((u) => u.indexOf(l.k) === 0)), 'vault: the pages dealt again to who is left');
+    roomPlayerLeft(r, 'c', 'C'); roomPlayerLeft(r, 'd', 'D');
+    check(s.phase === 'gameover' && s.why === 'left', 'vault: a table of one ends the game');
+  }
+  {
+    // The TV opens: its slice has the looks, no phone has a lock; a phone can take over.
+    const r = vaultRoom(['a', 'b', 'c'], { opener: 'tv' }, ['scr']);
+    const s = r.shared;
+    check(s.tvOpens && s.sides.x.opener === 'tv' && r.screenOnly && r.screenOnly.locks.length === 2 && ['a', 'b', 'c'].every((id) => r.secrets[id].locks.length === 0 && r.secrets[id].pages.length >= 1),
+      'vault: the TV opens: the looks on the screen alone, every phone reads');
+    toPlay(r);
+    solveLock(r, 'x', s.locks[0].i);
+    check(s.sides.x.open[s.locks[0].i], 'vault: the screen works the locks');
+    applyRoomAction(r, 'a', 'takeOver', {});
+    check(!s.tvOpens && s.sides.x.opener === 'a' && r.secrets.a.locks.length === 2 && !r.screenOnly && s.sides.x.open[s.locks[0].i], 'vault: a phone takes the TV\'s safe over, its progress kept');
+  }
+  {
+    // Someone who joins mid-game watches.
+    const r = vaultRoom(['a', 'b']);
+    r.players.push({ id: 'z', name: 'Z' });
+    toPlay(r);
+    check(!r.secrets.z && r.shared.roster.indexOf('z') === -1, 'vault: a latecomer watches until play again');
+  }
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

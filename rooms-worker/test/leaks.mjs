@@ -30,6 +30,9 @@ const DARK = new Function(readFileSync(new URL('../../Dark.js', import.meta.url)
 // خمّن مين's faces, to know the real face of الشاهد by what can be seen of it.
 const WIT = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') + ';return { gwSignature };')();
 
+// الخزنة's notebook, to know a page's words when they are found on a phone.
+const VAULT = new Function(readFileSync(new URL('../../Vault.js', import.meta.url), 'utf8') + ';return { vaultPageData, vaultLightAnswer };')();
+
 const realNow = Date.now;
 let clock = realNow();
 Date.now = () => clock;
@@ -893,6 +896,70 @@ const PROBES = {
       })
     ];
   },
+  // الخزنة: a lock's look only on the phone that holds it (or the screen when the TV opens), a page
+  // only on the phone it was dealt to, the opener never the page for its own lock, no answer anywhere.
+  vault(room) {
+    const v = room._vault;
+    const s = room.shared || {};
+    const live = !!(v && v.safe && s.sides) && s.phase !== 'gameover';
+    if (!live) return [probe('vault: a phone is sent exactly what it holds', false, () => null), probe("vault: a lock's look reaches only its holder", false, () => null),
+      probe('vault: a page reaches only the phone it was dealt to', false, () => null), probe('vault: no phone holds a lock and the page that opens it', false, () => null),
+      probe('vault: the table\'s state holds no look, page or answer', false, () => null)];
+    const holders = {};       // pid -> { locks: [i], pages: [u] }, across the sides
+    let tvOpens = false;
+    Object.keys(s.sides).forEach((k) => {
+      const side = s.sides[k];
+      if (side.opener === 'tv') tvOpens = true;
+      Object.keys(side.holders).forEach((pid) => { holders[pid] = side.holders[pid]; });
+    });
+    const lookJson = v.safe.locks.map((l) => JSON.stringify(l.look));
+    const pageJson = (u) => JSON.stringify(VAULT.vaultPageData(v.manual, u));
+    const allUnits = [...new Set([].concat(...Object.values(holders).map((h) => h.pages)))];
+    const lone = (pid) => Object.keys(s.sides).some((k) => s.sides[k].ids.length === 1 && s.sides[k].ids[0] === pid);
+    return [
+      probe('vault: a phone is sent exactly what it holds', true, (view, pid) => {
+        if (pid === SCREEN) {
+          if (!tvOpens) return view.screen ? 'screen' : null;
+          const got = ((view.screen || {}).locks || []).map((l) => l.i).join();
+          return got === s.locks.map((l) => l.i).join() ? null : 'screen.locks';
+        }
+        const h = holders[pid];
+        const you = view.you || {};
+        if (!h) return view.you ? 'you (not at the table)' : null;
+        if ((you.locks || []).map((l) => l.i).join() !== h.locks.join()) return 'you.locks';
+        if ((you.pages || []).map((p) => p.u).join() !== h.pages.join()) return 'you.pages';
+        return null;
+      }),
+      probe("vault: a lock's look reaches only its holder", true, (view, pid) => {
+        const json = JSON.stringify(view);
+        for (let i = 0; i < lookJson.length; i++) {
+          const mayLook = pid === SCREEN ? tvOpens : !!(holders[pid] && holders[pid].locks.indexOf(i) !== -1)
+            // «فريقين»: both openers see the same safe; a look equal to the one they hold is theirs.
+            || (holders[pid] && holders[pid].locks.some((j) => lookJson[j] === lookJson[i]));
+          if (!mayLook && json.indexOf(lookJson[i]) !== -1) return 'the look of lock ' + i;
+        }
+        return null;
+      }),
+      probe('vault: a page reaches only the phone it was dealt to', allUnits.length > 0, (view, pid) => {
+        const json = JSON.stringify(view);
+        const mine = (holders[pid] || {}).pages || [];
+        const hit = allUnits.find((u) => mine.indexOf(u) === -1 && json.indexOf(pageJson(u)) !== -1);
+        return hit ? 'page ' + hit : null;
+      }),
+      probe('vault: no phone holds a lock and the page that opens it', true, (view, pid) => {
+        const you = view.you || {};
+        if (!you.locks || !you.locks.length || lone(pid)) return null;
+        const kinds = you.locks.map((l) => l.k);
+        // «الكل» with every kind on one phone (a table shrunk by leavers) has no other page to give.
+        const p = (you.pages || []).find((x) => kinds.indexOf(x.k) !== -1);
+        return p ? 'you.pages ' + p.u : null;
+      }),
+      probe('vault: the table\'s state holds no look, page or answer', true, (view) => {
+        const json = JSON.stringify(view.shared || {});
+        return ['"look"', '"sol"', '"manual"', '"seed"', '"rules"', '"cols"', '"codes"', '"prog"'].find((k) => json.indexOf(k) !== -1) || null;
+      })
+    ];
+  },
   // افتح يا صندوق: the box's contents on no phone before it opens (a key's peek on its holder's alone);
   // every clue on its own phone only; the bids hidden until all are in.
   box(room) {
@@ -1188,6 +1255,47 @@ const S = (T) => T.room.shared || {};
 const seatOf = (T, pid) => T.room.players.find((p) => p.id === pid);
 
 /* --- a whole game of each ----------------------------------------------------------- */
+
+/* الخزنة: the table works the locks - each move from the phone (or screen) holding the lock, right
+   or wrong, the answer read from the server's own safe; the candles burn now and then. The first
+   safe of a game is always played right, so a game always gets past it. */
+const vaultBurn = (T, ms) => {
+  clock += ms;
+  const due = roomDeadline(T.room);
+  if (due === null || due > clock) return;
+  const next = structuredClone(T.room);
+  if (roomTimeout(next, clock)) { T.room = next; scan(T, 'the clock'); }
+};
+const vaultPlay = (T, pRight, maxMoves) => {
+  for (let guard = 0; guard < maxMoves && S(T).phase !== 'gameover'; guard++) {
+    const s = S(T), v = T.room._vault;
+    if (s.phase !== 'play') { runClock(T, (r) => r.shared.phase === 'play' || r.shared.phase === 'gameover', 6); continue; }
+    const keys = Object.keys(s.sides).filter((k) => !s.sides[k].done);
+    if (!keys.length) { runClock(T, (r) => r.shared.phase !== 'play', 4); continue; }
+    const key = pick(keys), side = s.sides[key];
+    const l = pick(s.locks.filter((x) => !side.open[x.i]));
+    const lock = v.safe.locks[l.i];
+    const who = side.opener === 'tv' ? SCREEN : Object.keys(side.holders).find((id) => side.holders[id].locks.indexOf(l.i) !== -1);
+    const right = s.safeNo === 1 || Math.random() < pRight;
+    const pay = { i: l.i, safe: s.safeNo };
+    const pr = v.prog[key][l.i];
+    if (lock.k === 'wires') {
+      const w = right ? lock.sol : lock.look.wires.findIndex((c, x) => x !== lock.sol && pr.cut.indexOf(x) === -1);
+      act(T, who, 'cut', Object.assign(pay, { w: w < 0 ? lock.sol : w }));
+    } else if (lock.k === 'symbols') {
+      const want = lock.sol[pr.pressed.length];
+      act(T, who, 'sym', Object.assign(pay, { s: right ? want : (lock.sol.find((x) => x !== want && pr.pressed.indexOf(x) === -1) || want) }));
+    } else if (lock.k === 'dial') {
+      act(T, who, 'dial', Object.assign(pay, { code: right ? lock.sol : lock.sol.map((d) => (d + 3) % 10) }));
+    } else {
+      const ans = VAULT.vaultLightAnswer(v.manual.lights, lock.look.seq, side.mistakes);
+      act(T, who, 'light', Object.assign(pay, { c: right ? ans[pr.n] : ['r', 'b', 'g', 'y'].find((c) => c !== ans[pr.n]) }));
+    }
+    if (Math.random() < 0.12) vaultBurn(T, 12000);
+  }
+};
+
+PROBES['vault:all'] = PROBES['vault:teams'] = PROBES['vault:tv'] = PROBES.vault;
 
 const DRIVERS = {
   imposter() {
@@ -2188,6 +2296,20 @@ const DRIVERS = {
     }
     return S(T).phase === 'gameover' && played > 10;
   },
+  vault() {
+    // «واحد بيفتح», endless: the opener works the locks from what it was sent (right three times in four),
+    // the readers' pages unread, levels until a safe is lost; a reader leaves on the way, play again.
+    const T = table('vault', 5);
+    must(T, T.host, 'start', { way: 'one', mistakes: 'strikes', win: 'levels' });
+    vaultPlay(T, 0.78, 900);
+    if (S(T).phase !== 'gameover' || S(T).levelsWon < 1) return false;
+    must(T, T.host, 'playAgain', { way: 'one', mistakes: 'time', win: 'levels' });
+    vaultPlay(T, 0.9, 40);
+    T.room.players = T.room.players.filter((p) => p.id !== 'p3');
+    const next = structuredClone(T.room); roomPlayerLeft(next, 'p3', 'X'); T.room = next; scan(T, 'left');
+    vaultPlay(T, 0.6, 900);
+    return S(T).phase === 'gameover';
+  },
   chess4() {
     // Two people and computer players, both ways: random moves for the people, the host playing
     // for someone now and then, a resignation (FFA), the clock running out.
@@ -2544,6 +2666,33 @@ const VARIANT_DRIVERS = {
     must(T2, 'p1', 'buzz', { round: S(T2).round });
     must(T2, T2.host, 'quizReveal', { n: 0 });
     return done && S(T2).quiz.answer !== null;
+  },
+  'vault:all'() {
+    // «الكل», a set of 3: every phone its lock and someone else's page; the set to its board.
+    const T = table('vault:all', 5, { gameId: 'vault' });
+    must(T, T.host, 'start', { way: 'all', mistakes: 'strikes', win: 'set', count: 3 });
+    vaultPlay(T, 0.8, 1500);
+    return S(T).phase === 'gameover' && S(T).why === 'done' && S(T).board.some((r) => r.score > 0);
+  },
+  'vault:teams'() {
+    // «فريقين»: the same safe on both openers, the readers of each team their own pages; a leaver.
+    const T = table('vault:teams', 6, { gameId: 'vault' });
+    must(T, T.host, 'start', { way: 'teams', mistakes: 'time', count: 3 });
+    vaultPlay(T, 0.85, 60);
+    T.room.players = T.room.players.filter((p) => p.id !== 'p6');
+    const next = structuredClone(T.room); roomPlayerLeft(next, 'p6', 'X'); T.room = next; scan(T, 'left');
+    vaultPlay(T, 0.85, 1500);
+    return S(T).phase === 'gameover';
+  },
+  'vault:tv'() {
+    // The TV opens: its slice alone has the looks, every phone a page; a phone takes over half way.
+    const T = table('vault:tv', 3, { gameId: 'vault' });
+    must(T, T.host, 'start', { way: 'one', opener: 'tv', mistakes: 'strikes', win: 'set', count: 3 });
+    if (!S(T).tvOpens) return false;
+    vaultPlay(T, 0.85, 15);
+    must(T, T.host, 'takeOver', {});
+    vaultPlay(T, 0.85, 1500);
+    return S(T).phase === 'gameover' && !S(T).tvOpens;
   },
   'imposter:words'() {
     const T = table('imposter:words', 4, { gameId: 'imposter' });

@@ -138,6 +138,10 @@ The owner's rules are in *The owner's specs*.
   (`TV_GAMES.hangman`, `data-accent="orange"` so the man keeps the game's
   colour in the room's frame) shows the kind of word, its blanks and every
   player's man.
+- **The TV while the writer writes (1 Oct 2026)**: the writing phase on the TV is
+  the shared waiting stage `tvWaitStage` (JS_RoomTv.html), as in «one sets,
+  everyone solves»: the writer's chip lit, «مستنيين كلمة …» big, the others as big
+  chips; the host's move-on buttons stay under it.
 
 ## History
 

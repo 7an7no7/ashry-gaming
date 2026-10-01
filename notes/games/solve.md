@@ -175,6 +175,11 @@ emoji room (`room-emoji`), whose third way is the quiz.
   (`gnBrr`, `gnHmm`, `gnWarm`, `gnSizzle` in `FX`), on the guessing phone only.
   Decided here: the bands' edges; the man is never shown to anyone but the one
   guessing, and the TV keeps its progress cards as they were.
+- **The TV while the setter writes (1 Oct 2026)**: the setting phase on the TV is
+  the shared waiting stage `tvWaitStage` (JS_RoomTv.html, `.tv-waitstage*` next to
+  `.tv-wait` in Style.html): the setter in a lit chip with their initial and ✍️, the
+  line («مستنيين كلمة …») at 5.5vmin, and a big chip for everyone else in the order
+  (a ✓ on any the state says is done). `svTvSig` carries the players while setting.
 
 ## History
 

@@ -948,6 +948,41 @@ function tvWaitChips(state, ids, doneIds) {
   return chips ? `<div class="tv-legend tv-wait">${chips}</div>` : '';
 }
 
+/** A player's initial for a bubble on the TV (🤖 for a computer player). */
+function tvInitial(state, pid) {
+  const p = (state.players || []).find(x => x.id === pid);
+  if (p && p.bot) return '🤖';
+  return escapeHTML(Array.from(String(p ? p.name : '?').trim())[0] || '?');
+}
+
+/**
+ * The TV while one player writes or sets something and the table waits (one sets, everyone
+ * solves; المشنقة's writer): the line big, the one everyone waits for in a lit chip, and a row of
+ * everyone else, a ✓ on each the state says is done. `who` is that player's id, `ids` the table
+ * in order, `done` the ids already done, `note` a line under it, `actions` the host's row.
+ */
+function tvWaitStage(state, o) {
+  const done = o.done || [];
+  const here = (state.players || []).map(p => p.id);
+  const ids = (o.ids || here).filter(id => here.indexOf(id) !== -1 && id !== o.who);
+  const nameOf = (id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+  const who = o.who && here.indexOf(o.who) !== -1
+    ? `<div class="tv-waitstage__who"><span class="tv-waitstage__av" aria-hidden="true">${tvInitial(state, o.who)}</span><bdi>${escapeHTML(nameOf(o.who))}</bdi><span class="tv-waitstage__pen" aria-hidden="true">${o.icon || '✍️'}</span></div>`
+    : `<div class="tv-big-icon" aria-hidden="true">${o.icon || '✍️'}</div>`;
+  const chips = ids.map(id => {
+    const ok = done.indexOf(id) !== -1;
+    return `<span class="tv-waitstage__chip ${ok ? 'is-done' : ''}">
+        <span class="tv-waitstage__cav" aria-hidden="true">${ok ? '✓' : tvInitial(state, id)}</span><bdi>${escapeHTML(nameOf(id))}</bdi></span>`;
+  }).join('');
+  return `<div class="tv-waitstage">
+      ${who}
+      <div class="tv-waitstage__line">${escapeHTML(o.line || '')}</div>
+      ${o.note ? `<div class="tv-note">${escapeHTML(o.note)}</div>` : ''}
+      ${chips ? `<div class="tv-waitstage__people">${chips}</div>` : ''}
+      ${o.actions || ''}
+    </div>`;
+}
+
 function tvVoteProgress(state, t) {
   const v = state.shared.vote;
   return `

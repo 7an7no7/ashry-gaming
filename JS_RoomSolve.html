@@ -611,8 +611,10 @@ function svTickClock(state) {
   const paint = () => {
     const left = endsAt ? Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)) : 0;
     document.querySelectorAll('[data-sv-clock]').forEach(el => {
-      el.textContent = '⏱️ ' + left;
+      // The TV's big pill reads minutes (3:57); a phone's badge the seconds.
+      el.textContent = el.getAttribute('data-sv-clock') === 'mmss' ? Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') : '⏱️ ' + left;
       el.classList.toggle('badge--danger', left <= 10);
+      el.classList.toggle('is-low', left <= 10);
     });
     return left;
   };
@@ -811,11 +813,8 @@ function svTvFrame(kind, state, t) {
   }
   if (s.phase === 'setting') {
     return `<div class="tv-trivia" data-accent="${accent}">${top}
-        <div class="tv-center">
-          <div class="tv-big-icon" aria-hidden="true">✍️</div>
-          <div class="tv-title">${escapeHTML(svT('sv_setting_' + kind, { name: s.setterName || '' }))}</div>
-        </div>
-        ${moveOn(svHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
+        ${tvWaitStage(state, { who: s.setter, ids: s.order || s.roster, line: svT('sv_setting_' + kind, { name: s.setterName || '' }),
+          actions: moveOn(svHostButtons(state).map(b => [b[0], b[1], 'ghost'])) })}
       </div>`;
   }
   return `<div class="tv-trivia sv-tv" data-accent="${accent}">${top}
@@ -833,7 +832,9 @@ const SV_UI_ACCENTS = { wordle: 'green', guessnum: 'blue', flags: 'blue', emoji:
 function svTvSig(state) {
   const s = state.shared || {};
   return ['svtv', s.solve, s.dealId || '', s.round, s.phase, s.setter || '', JSON.stringify(s.progress || {}), JSON.stringify(s.result || null),
-    s.endsAt || '', JSON.stringify(s.board || []), state.youAreHost, !!state.hostAway, appState.lang].join('|');
+    s.endsAt || '', JSON.stringify(s.board || []), state.youAreHost, !!state.hostAway, appState.lang,
+    // The waiting stage draws a chip for everyone at the table.
+    s.phase === 'setting' ? (state.players || []).map(p => p.id + ':' + p.name).join(',') : ''].join('|');
 }
 
 function svTvAfter(state) {

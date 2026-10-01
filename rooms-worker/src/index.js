@@ -10,6 +10,7 @@
  *   POST /leave   { code, pid, key }
  *   GET  /ws?code=&pid=&key=                     the live connection
  *   GET  /live                                    -> { players, rooms } playing right now
+ *   GET  /song/CODE/TOKEN                         دندنها: the round's song (Apple's preview), by its opaque token
  *   POST /count   { game }                        a game started on one phone (counted, nothing else kept)
  *   POST /report  { game, text, lang }            «في غلطة؟»: an item a player says is wrong
  *   POST /err     { b, m, f, v }                  an error on a player's phone (build, message, frame, view)
@@ -273,6 +274,43 @@ async function handlePack(env, request, path, body) {
 }
 const PACK_API = new Set(['/pack/create', '/pack/get', '/pack/save', '/pack/played']);
 
+/* --- دندنها: a round's song by its opaque token (1 Oct 2026) ----------------------
+   GET /song/CODE/TOKEN: the room (Room.songOf) says which iTunes track the token
+   stands for - only the song on now, only to its own token - and this streams
+   Apple's 30-second preview back. The lookup and the clip are cached at Cloudflare's
+   edge (a day, a week), so a table of twelve phones costs Apple one fetch. Nothing
+   in the address or the answer names the song: no title, no trackId, no Apple
+   address in a header, which is what keeps it out of a guesser's traffic. A phone
+   fetches its round's clip once (into a blob it plays from), so ~one request a
+   phone a song; the brake is far above a table. */
+const SONG_PATH = /^\/song\/([A-Z0-9]{4,8})\/([a-z0-9]{16,40})$/;
+const songAllowed = limiter(900, 10 * 60 * 1000);
+async function songResponse(env, request, url) {
+  const head = { ...CORS, 'cache-control': 'no-store' };
+  const m = url.pathname.match(SONG_PATH);
+  if (request.method !== 'GET' || !m) return new Response('not found', { status: 404, headers: head });
+  if (!songAllowed(request)) return new Response('busy', { status: 429, headers: head });
+  let song = null;
+  try { song = await roomStub(env, m[1]).songOf(m[2]); } catch (e) { song = null; }
+  if (!song || !song.id) return new Response('not found', { status: 404, headers: head });
+  try {
+    const look = await fetch('https://itunes.apple.com/lookup?id=' + Number(song.id), { cf: { cacheTtl: 86400, cacheEverything: true } });
+    const data = look.ok ? await look.json() : null;
+    const hit = data && (data.results || []).find((r) => r.trackId === song.id);
+    const src = hit && hit.previewUrl;
+    if (!src || !/^https:\/\/[a-z0-9.-]+\.apple\.com\//.test(src)) return new Response('gone', { status: 502, headers: head });
+    const audio = await fetch(src, { cf: { cacheTtl: 604800, cacheEverything: true } });
+    if (!audio.ok || !audio.body) return new Response('gone', { status: 502, headers: head });
+    return new Response(audio.body, {
+      status: 200,
+      headers: { ...CORS, 'content-type': 'audio/mp4', 'cache-control': 'private, max-age=900', 'x-content-type-options': 'nosniff' }
+    });
+  } catch (err) {
+    console.error('/song', (err && err.message) || err);
+    return new Response('gone', { status: 502, headers: head });
+  }
+}
+
 const randomCode = () => {
   const bytes = new Uint8Array(ROOM_CODE_LEN);
   crypto.getRandomValues(bytes);
@@ -317,6 +355,9 @@ export default {
       if (!CODE_PATTERN.test(code)) return new Response('bad room code', { status: 400 });
       return roomStub(env, code).fetch(request);
     }
+
+    // دندنها: a round's song, streamed by its opaque token (songResponse above).
+    if (url.pathname.startsWith('/song/')) return songResponse(env, request, url);
 
     if (API.has(url.pathname)) {
       if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);

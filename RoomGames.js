@@ -115,6 +115,7 @@ const clearGameState = (room) => {
   room._dark = null;     // الأوضة المضلمة: the map's seed and the near misses (RoomDark.js)
   room.screenOnly = null; // the screen's own slice (src/view.js): الأوضة المضلمة's map for the TV
   room._exact = null;    // حط إيدك!: each phone's secret and every tap's events (RoomExact.js)
+  room._hum = null;      // دندنها: the deck of songs, the one on now, its token, the right choice, the picks (RoomHum.js)
   // The engine's secret and boards (RoomSolve.js).
   room._solve = null;
   // A bot's next move belonged to the game that was cleared.
@@ -187,7 +188,9 @@ const ROOM_GAME_IDS = [
   // الأوضة المضلمة (RoomDark.js): one walks blind, the rest guide with the map under a lens.
   'darkroom',
   // حط إيدك! (RoomExact.js): an order for the whole table, judged from the phones' stamps.
-  'exact'
+  'exact',
+  // دندنها (RoomHum.js): a song hummed (or heard) on the phones, its name typed, four choices after 15 s.
+  'hum'
 ];
 
 const ROOM_CHAT_MAX = 60;       // lines a room keeps, events included
@@ -738,6 +741,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'wire':       wireAction(room, playerId, action, payload); break;        // RoomWire.js
     case 'box':        boxAction(room, playerId, action, payload); break;         // RoomBox.js
     case 'exact':      exactAction(room, playerId, action, payload); break;       // RoomExact.js
+    case 'hum':        humAction(room, playerId, action, payload); break;         // RoomHum.js
     case 'bumper':     bumperAction(room, playerId, action, payload); break;      // RoomBumper.js
     case 'darkroom':   darkAction(room, playerId, action, payload); break;        // RoomDark.js
     case 'chess':      chessAction(room, playerId, action, payload); break;       // RoomChess.js
@@ -3869,6 +3873,7 @@ const AUTONEXT_VOTE_MS = 12000;
 const AUTONEXT_WAVE_MS = 11000;
 const AUTONEXT_HERD_MS = 12000;
 const AUTONEXT_TT_MS = 13000;
+const AUTONEXT_HUM_MS = 10000;
 // فيبج: the lies turn over 0.9 s apart, then the truth (+1.5 s), the board (+1 s): ~3.7 s + 0.9 s a lie.
 const AUTONEXT_FIB_MS = (s) => {
   const lies = ((s.vote || {}).results || []).length - 1;
@@ -3881,7 +3886,9 @@ const AUTONEXT_GAMES = {
   fibbage:    { action: 'nextRound', deals: true, ms: AUTONEXT_FIB_MS, ready: (s) => s.phase === 'results', key: (s) => 'r' + s.round, args: (s) => ({ lang: s.lang, round: s.round }) },
   wavelength: { action: 'nextRound', deals: true, ms: AUTONEXT_WAVE_MS, ready: (s) => s.phase === 'results', key: (s) => 'r' + s.round, args: (s) => ({ lang: s.lang, round: s.round }) },
   herd:       { action: 'nextRound', deals: true, ms: AUTONEXT_HERD_MS, ready: (s) => s.phase === 'result', key: (s) => 'r' + s.round, args: (s) => ({ round: s.round }) },
-  twotruths:  { action: 'next', deals: false, ms: AUTONEXT_TT_MS, ready: (s) => s.phase === 'result', key: (s) => 't' + s.turn, args: (s) => ({ turn: s.turn }) }
+  twotruths:  { action: 'next', deals: false, ms: AUTONEXT_TT_MS, ready: (s) => s.phase === 'result', key: (s) => 't' + s.turn, args: (s) => ({ turn: s.turn }) },
+  // دندنها (RoomHum.js): the banner, the front row and the points take about 3 s; the songs were dealt at the start.
+  hum:        { action: 'nextRound', deals: false, ms: AUTONEXT_HUM_MS, ready: (s) => s.phase === 'reveal', key: (s) => 'r' + s.round + '.' + s.deal, args: (s) => ({ round: s.round }) }
 };
 
 /** Starts the count once per result, or takes it away once the result is gone (or the switch is off). */
@@ -4033,6 +4040,7 @@ const gameDeadline = (room) => {
   if (room.game === 'wire') return wireDeadline(room);
   if (room.game === 'box') return boxDeadline(room);
   if (room.game === 'exact') return exactDeadline(room);
+  if (room.game === 'hum') return humDeadline(room);
   if (room.game === 'bumper') return bumperDeadline(room);
   if (room.game === 'darkroom') return darkDeadline(room);
   if (svKindOf(room)) return svDeadline(room);   // RoomSolve.js
@@ -4177,6 +4185,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'wire') return wireTimeout(room, now);
   if (room.game === 'box') return boxTimeout(room, now);
   if (room.game === 'exact') return exactTimeout(room, now);
+  if (room.game === 'hum') return humTimeout(room, now);
   if (room.game === 'bumper') return bumperTimeout(room, now);
   if (room.game === 'darkroom') return darkTimeout(room, now);
   return false;
@@ -4330,6 +4339,9 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'exact':
       exactPlayerLeft(room, playerId);
+      return;
+    case 'hum':
+      humPlayerLeft(room, playerId);
       return;
     case 'bumper':
       bumperPlayerLeft(room, playerId);

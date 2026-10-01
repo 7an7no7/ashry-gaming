@@ -27,6 +27,9 @@ const SOLVE_LISTS = new Function(readFileSync(new URL('../../Countries.js', impo
 // الأوضة المضلمة's maps, for its driver to find a way through a level.
 const DARK = new Function(readFileSync(new URL('../../Dark.js', import.meta.url), 'utf8') + ';return { darkMap, darkBlocked, darkDynCell, DARK_DIRS, DARK_TICK };')();
 
+// دندنها's songs: the answer key for the probes, and the right title for the driver to type.
+const HUM = new Function(readFileSync(new URL('../../Songs.js', import.meta.url), 'utf8') + ';return { HUM_SONGS };')();
+
 // خمّن مين's faces, to know the real face of الشاهد by what can be seen of it.
 const WIT = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') + ';return { gwSignature };')();
 
@@ -1067,7 +1070,41 @@ const PROBES = {
     ];
   },
   // شطرنج الأربعة: the whole game is on the table too.
-  chess4: () => []
+  chess4: () => [],
+  // دندنها: the song - its title, the names it goes by, the singer, the trackId, Apple's address - is on no
+  // guesser's phone and not the screen until the reveal (the four choices aside, where the right title sits
+  // among three others); in «دندنة» the hummer alone holds it and the round's token; the right choice's place
+  // and the picks wait for the reveal; a phone's pick and near miss are its own.
+  hum(room) {
+    const s = room.shared || {};
+    const h = room._hum;
+    const open = !!h && h.cur !== null && h.cur !== undefined && ['listen', 'count', 'type', 'choices'].indexOf(s.phase) !== -1;
+    const song = open ? HUM.HUM_SONGS[h.cur] : null;
+    const allowed = s.mode === 'hum' && s.hummerId ? [s.hummerId] : [];
+    const choices = ['shared.choices'];
+    return [
+      secret("the song's title is on no guesser's phone or the screen before the reveal (the four choices aside)", song && song.t, allowed, { except: choices }),
+      secret('the names the song goes by are on no guesser\'s phone before the reveal', song && (song.alt || [])[0], allowed),
+      secret("the singer is on no guesser's phone or the screen before the reveal (the four choices aside)", song && song.s, allowed, { except: choices }),
+      secret('the song in English is on no guesser\'s phone before the reveal', song && song.en, allowed),
+      probe("the trackId and Apple's address reach no phone and not the screen", open, (view, pid, idx) =>
+        idx.find(song.id) || (JSON.stringify(view).indexOf('apple.com') !== -1 ? 'an apple.com address' : null)),
+      probe("in «دندنة» the round's token is the hummer's alone", open && s.mode === 'hum', (view, pid, idx) => (pid === s.hummerId ? null : idx.find(h.token))),
+      probe('which choice is right, and the picks, stay hidden until the reveal', open && s.phase === 'choices', (view) => {
+        const sv = view.shared || {};
+        if (typeof sv.correct === 'number') return 'shared.correct';
+        if (sv.picks) return 'shared.picks';
+        return sv.song ? 'shared.song' : null;
+      }),
+      probe("a phone's pick and its near misses are its own", open && Object.keys(room.secrets || {}).length > 0, (view, pid) => {
+        const y = view.you;
+        if (!y) return null;
+        if (typeof y.pick === 'number' && h.picks[pid] !== y.pick) return 'you.pick (not its own)';
+        if (y.miss && !(room.secrets[pid] && room.secrets[pid].miss)) return 'you.miss (not its own)';
+        return null;
+      })
+    ];
+  }
 };
 
 /*
@@ -2345,6 +2382,71 @@ const DRIVERS = {
       must(T, s.seats[s.turn], 'move', { edge: pick(free), move: s.moves });
     }
     return S(T).phase === 'over';
+  },
+  hum() {
+    // «دندنة» with four: the hummer in turn, a preview that won't load (a new song by itself), wrong, close and
+    // right typed answers, the hummer refused, the choices on the clock, a skip, a leaver mid-song - to the board.
+    // Then «سمّع» «بتطول» with three: the ▶ round, the countdown, the clips growing, the choices, play again.
+    const withAlt = HUM.HUM_SONGS.findIndex((x) => (x.alt || []).length);
+    const playHum = (T, round) => {
+      const s = S(T);
+      const h = T.room._hum;
+      const song = HUM.HUM_SONGS[h.cur];
+      if (s.phase === 'listen') {
+        if (round === 2 && !s.redeals) { must(T, s.hummerId, 'broken', { deal: s.deal }); return; }
+        if (round === 3) { runClock(T, (r) => r.shared.phase !== 'listen', 3); return; }
+        must(T, s.hummerId, 'heard', { deal: s.deal });
+        return;
+      }
+      if (s.phase === 'count') { runClock(T, (r) => r.shared.phase !== 'count', 3); return; }
+      if (s.phase === 'type') {
+        const guessers = s.roster.filter((id) => id !== s.hummerId && T.room.players.some((p) => p.id === id));
+        if (s.hummerId) act(T, s.hummerId, 'guess', { deal: s.deal, text: song.t });
+        act(T, guessers[0], 'guess', { deal: s.deal, text: 'مش عارف' });
+        act(T, guessers[0], 'guess', { deal: s.deal, text: song.t.slice(0, Math.max(2, song.t.length - 3)) });
+        if (round === 4 && s.mode === 'hum') { must(T, T.host, 'skipSong', { deal: s.deal }); return; }
+        act(T, guessers[0], 'guess', { deal: s.deal, text: (song.alt || [])[0] || song.t });
+        if (round === 5 && s.mode === 'hum' && guessers.length > 2) {
+          // Someone leaves mid-song: the table goes on without them.
+          const gone = guessers[guessers.length - 1];
+          T.room.players = T.room.players.filter((p) => p.id !== gone);
+          const next = structuredClone(T.room);
+          roomPlayerLeft(next, gone, 'X');
+          T.room = next;
+          scan(T, 'left');
+        }
+        if (round % 2 === 0 && S(T).phase === 'type') guessers.slice(1).forEach((id) => act(T, id, 'guess', { deal: s.deal, text: song.t }));
+        if (S(T).phase === 'type') runClock(T, (r) => r.shared.phase !== 'type', 3);
+        return;
+      }
+      if (s.phase === 'choices') {
+        const left = s.roster.filter((id) => id !== s.hummerId && !s.right.some((r) => r.id === id) && T.room.players.some((p) => p.id === id));
+        left.slice(0, Math.max(1, left.length - 1)).forEach((id) => act(T, id, 'pick', { deal: s.deal, i: Math.floor(Math.random() * 4) }));
+        if (S(T).phase === 'choices') runClock(T, (r) => r.shared.phase !== 'choices', 3);
+        return;
+      }
+      if (s.phase === 'reveal') { must(T, T.host, 'nextRound', { round: s.round }); return; }
+    };
+    const T = table('hum', 4);
+    must(T, T.host, 'start', { mode: 'hum', count: 5 });
+    // The second round's song (dealt after the one that "won't load") has a name it goes by: swapped in,
+    // so no song is dealt twice.
+    const deck = T.room._hum.deck, at = deck.indexOf(withAlt);
+    if (at > 0) deck[at] = deck[2];
+    if (at !== 0) deck[2] = withAlt;
+    for (let guard = 0; guard < 120 && S(T).phase !== 'gameover'; guard++) playHum(T, S(T).round);
+    if (S(T).phase !== 'gameover') return false;
+    const L = table('hum', 3);
+    must(L, L.host, 'start', { mode: 'listen', replay: 'grow', count: 5 });
+    act(L, L.ids[1], 'arm', {});
+    must(L, L.host, 'go', {});
+    for (let guard = 0; guard < 120 && S(L).phase !== 'gameover'; guard++) playHum(L, S(L).round);
+    if (S(L).phase !== 'gameover') return false;
+    must(L, L.host, 'playAgain', {});
+    act(L, L.ids[0], 'arm', {});
+    act(L, L.ids[1], 'arm', {});
+    act(L, L.ids[2], 'arm', {});
+    return S(L).phase === 'count' && S(L).round === 1;
   }
 };
 

@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode } from '../generated/rules.js';
+import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, HUM_SONGS } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -774,6 +774,19 @@ export class Room extends DurableObject {
     if (this.check(pid, key)) return { ok: true };
     await this.removeDevice(pid, 'left');
     return { ok: true };
+  }
+
+  /**
+   * دندنها (RoomHum.js): the iTunes track behind a round's opaque token, for /song
+   * (index.js) to stream. Only the song on now answers, and only to its token: the
+   * address names nothing, so a guesser's traffic never holds a title or a trackId.
+   */
+  async songOf(token) {
+    await this.load();
+    const h = this.room && this.room.game === 'hum' && this.room._hum;
+    if (!h || !h.token || h.cur === null || h.cur === undefined || String(token) !== h.token) return null;
+    const song = HUM_SONGS[h.cur];
+    return song ? { id: song.id } : null;
   }
 
   /**

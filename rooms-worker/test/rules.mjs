@@ -12122,7 +12122,7 @@ Date.now = duelTestClock;
 
   // The judge: a trace scores full, a rough copy well, a blank 0, a scribble, a big X or another picture low.
   {
-    const perfect = [], rough = [], blank = [], scribble = [], other = [], cross = [], erased = [], half = [];
+    const perfect = [], rough = [], blank = [], scribble = [], other = [], cross = [], erased = [], half = [], thrown = [], zig = [];
     let seed = 7;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     for (let i = 0; i < 60; i++) {
@@ -12137,10 +12137,15 @@ Date.now = duelTestClock;
       other.push(H.hearScore(pic.s, strokesOf(H.hearPicture(99999 + i * 13, pic.kind, 'mid').s)));
       erased.push(H.hearScore(pic.s, strokesOf(pic.s).concat(strokesOf(pic.s).map((st) => Object.assign({}, st, { c: '#ffffff', w: 16 })))));
       half.push(H.hearScore(pic.s, strokesOf(pic.s.filter((_, k) => k % 2 === 0))));
+      // Five long lines thrown across the page, and a zigzag: they come near a lot of the picture, never along it.
+      const e = () => (rnd() < 0.5 ? [rnd() * 100, rnd() < 0.5 ? 3 : 97] : [rnd() < 0.5 ? 3 : 97, rnd() * 100]);
+      thrown.push(H.hearScore(pic.s, [0, 1, 2, 3, 4].map(() => lineStroke([e(), e()]))));
+      zig.push(H.hearScore(pic.s, [lineStroke([[10, 10], [90, 20], [10, 40], [90, 60], [20, 90]])]));
     }
-    check(perfect.every((n) => n >= 98), 'hear: a drawing on the picture\'s lines scores 98% or more');
+    check(perfect.every((n) => n >= 95), 'hear: a drawing on the picture\'s lines scores 95% or more');
     check(blank.every((n) => n === 0), 'hear: a blank page scores 0');
-    check(med(rough) >= 75 && rough.filter((n) => n >= 55).length >= 54, 'hear: a rough copy (shaken, shifted, smaller) scores well (median ' + med(rough) + '%)');
+    check(med(rough) >= 65 && rough.filter((n) => n >= 45).length >= 54, 'hear: a rough copy (shaken, shifted, smaller) scores well (median ' + med(rough) + '%)');
+    check(med(thrown) <= 25 && med(zig) <= 30, 'hear: lines thrown across the page score low (median ' + med(thrown) + '%, a zigzag ' + med(zig) + '%)');
     check(med(scribble) <= 25 && Math.max(...scribble) <= 45, 'hear: scribbling the page over scores low (median ' + med(scribble) + '%)');
     check(med(cross) <= 35, 'hear: a big X scores low (median ' + med(cross) + '%)');
     check(med(other) <= 45 && other.filter((n, k) => n < rough[k]).length >= 54, 'hear: another picture scores below a rough copy (median ' + med(other) + '%)');

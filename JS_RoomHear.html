@@ -1,0 +1,739 @@
+<script>
+/* ============================================================================
+   ارسم اللي بتسمعه — DRAW WHAT YOU HEAR on the phones and the TV (1 Oct 2026)
+   ----------------------------------------------------------------------------
+   The rules are RoomHear.js; the pictures and the judge Hear.js (inlined here
+   too: hearSvg draws a picture). A round: the describer looks at the picture
+   (and may ask for another), taps «يلا», and talks; everyone else draws on
+   their phone what they hear - no questions, no pointing - with Draw & Guess's
+   drawing surface in its local mode (JS_RoomDraw.html: the strokes stay on the
+   phone and go to the room every moment the pencil rests, and in one piece at
+   «سلّمت» or when time is up). Then the teacher marks: every page with its %
+   in a red circle, stars for the three closest; then «أغرب رسمة».
+
+   Look أ «كراسة الرسم» (the owner, 1 Oct 2026, from the design sheet): the
+   phone a squared exercise book with a red margin, the page taped on, the
+   tools in a pencil case along the bottom, the clock a pencil getting
+   shorter; the describer's picture chalked on a green board; on the TV the
+   board in the middle of a classroom and the notebooks round it, marked in
+   red pen. The scene keeps its own colours in both themes, like a board
+   (section 61 of Style.html); the words round it are the page's tokens.
+
+   Every name here starts with hr / HR_.
+   ========================================================================= */
+const HR_PEN = '#1f2a44';         // the pencil's ink (the eraser paints DRAW_PAPER, which the judge rubs out)
+const HR_PEN_W = 5;               // in the toolbox's 0..255; the eraser is three times that (activeWidth)
+const HR_SYNC_MS = 900;           // a drawing goes to the room this long after the pencil rests
+const HR_INK_KEY = 'ashryHearInk';
+const HR_COVERS = ['#2f6fd6', '#e5387b', '#1f9d55', '#f59e0b', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#475569', '#b45309', '#0f766e'];
+
+const hr = {
+  surfaceKey: null,     // the round whose page draw.pending holds
+  handedFor: null,      // the round this phone has handed its page in for
+  tool: 'p',
+  inkSig: '', inkSentSig: '', inkAt: 0,
+  timer: null,
+  seen: new Set(),
+  tick: -1
+};
+
+/* --- small helpers ------------------------------------------------------------ */
+function hrT(key, vars) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let s = t[key] || key;
+  Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
+  return s;
+}
+const hrIso = (s) => '⁨' + s + '⁩';
+const hrOnce = (key) => { if (!key || hr.seen.has(key)) return false; if (hr.seen.size > 300) hr.seen.clear(); hr.seen.add(key); return true; };
+const hrNameOf = (state, id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+const hrRoundKey = (state) => roomDealKey(state, ((state && state.shared) || {}).round || 0);
+const hrCover = (s, id) => HR_COVERS[Math.max(0, (s.roster || []).indexOf(id)) % HR_COVERS.length];
+const hrPct = (n) => hrIso((Number(n) || 0) + '%');
+
+/** Who this device is this round. */
+function hrRole(state) {
+  const s = state.shared || {};
+  if (state.youAreScreen) return 'screen';
+  const me = Room.me;
+  if ((s.roster || []).indexOf(me) === -1) return 'watch';
+  if (me === s.describerId) return 'describer';
+  if ((s.drawers || []).indexOf(me) !== -1) return 'drawer';
+  return 'watch';
+}
+
+/** The TV is the room's one voice; with no screen, the host's phone. */
+function hrVoice(state) {
+  const screens = (state.screens || []).filter(x => x.online).map(x => x.id).sort();
+  if (state.youAreScreen) return screens[0] === Room.me;
+  return !!state.youAreHost && !screens.length;
+}
+
+/** No one left to describe after this round: the next tap ends the game. */
+function hrLast(state) {
+  const s = state.shared || {};
+  const here = (id) => (state.players || []).some(p => p.id === id);
+  const present = (s.roster || []).filter(here).length;
+  if (present < HEAR_MIN) return true;
+  for (let k = (s.turn || 0) + 1; k < (s.rounds || 0); k++) if (here(s.order[k % s.order.length])) return false;
+  return true;
+}
+
+/* --- the pieces of the scene ---------------------------------------------------- */
+
+/** The clock as a pencil getting shorter; painted in place from the server's time. */
+function hrPencilHtml(until, total, cls) {
+  return `<div class="hr-pencil ${cls || ''}" data-hr-pencil="${until || 0}" data-hr-total="${total || 1}" style="--t:1" role="timer">
+      <span class="hr-pencil__shaft"><span class="hr-pencil__body"></span><svg class="hr-pencil__tip" viewBox="0 0 34 26" aria-hidden="true" focusable="false"><path d="M2 13 L32 1 V25Z" fill="#f2c9a0" stroke="#221f36" stroke-width="3" stroke-linejoin="round"/><path d="M2 13 L12 9 V17Z" fill="#221f36"/></svg></span>
+      <span class="hr-pencil__band"></span><span class="hr-pencil__rub"></span>
+      <b class="hr-pencil__t metric" data-hr-clock="${until || 0}">…</b>
+    </div>`;
+}
+
+/** The bar at the top: the class, the round, who describes. */
+function hrTopHtml(state) {
+  const s = state.shared || {};
+  const who = hrNameOf(state, s.describerId);
+  return `<div class="hr-top">
+      <span class="hr-top__round">${escapeHTML(hrT('hear_round'))} ${ltrFrac(s.round || 1, s.rounds || 1)}</span>
+      <b class="hr-top__who">🎧 <bdi>${escapeHTML(who)}</bdi></b>
+      <span class="hr-top__class">${escapeHTML(hrT('hear_class'))}</span>
+    </div>`;
+}
+
+/** The picture on the green board, in chalk. */
+function hrBoardHtml(pic, o) {
+  const opt = o || {};
+  const grid = pic && pic.kind === 'shapes' ? ' hr-board__pic--thirds' : '';
+  return `<div class="hr-board ${opt.cls || ''}">
+      ${opt.title !== false ? `<h3 class="hr-board__title">${escapeHTML(opt.title || hrT('hear_model'))}${pic ? ` — ${escapeHTML(hearPictureName(pic, contentLang()))}` : ''}</h3>` : ''}
+      <div class="hr-board__pic${grid}">${pic ? hearSvg(pic.s, { cls: 'hr-chalk', width: 2.6 }) : (opt.inner || '')}</div>
+    </div>`;
+}
+
+/** A notebook page with its tape: a canvas painted from strokes (data-hr-ink), the model laid over it if asked. */
+function hrPageHtml(o) {
+  const opt = o || {};
+  return `<div class="hr-page ${opt.cls || ''}">
+      ${opt.cap ? `<div class="hr-page__cap">${escapeHTML(opt.cap)}</div>` : ''}
+      <div class="hr-pad">
+        ${opt.canvas || `<canvas class="hr-ink" data-hr-ink="${escapeHTML(opt.ink || '')}" width="480" height="480"></canvas>`}
+        ${opt.model ? `<div class="hr-model">${hearSvg(opt.model.s, { cls: 'hr-model__svg', width: 2.2 })}</div>` : ''}
+        ${opt.over || ''}
+      </div>
+    </div>`;
+}
+
+/** The red circle the teacher writes the % in. */
+function hrGradeHtml(pct, st, at, cls) {
+  return `<span class="hr-grade ${cls || ''}"${st ? st.at(at, 'pop') : ''}><b class="metric">${st ? st.count(pct, at + 120) : (Number(pct) || 0)}</b><i aria-hidden="true">%</i></span>`;
+}
+
+/** A star for the first three, with the place on it. */
+function hrStarHtml(place, st, at) {
+  const fill = ['#f5b800', '#c9cfd8', '#d08a4b'][place] || '#f5b800';
+  return `<span class="hr-star"${st ? st.at(at, 'pop') : ''}><svg viewBox="0 0 60 60" aria-hidden="true" focusable="false"><path d="M30 3 L37 22 L57 22 L41 34 L47 54 L30 42 L13 54 L19 34 L3 22 L23 22Z" fill="${fill}" stroke="#221f36" stroke-width="3" stroke-linejoin="round"/></svg><b>${place + 1}</b></span>`;
+}
+
+/** The drawings in the order they are shown: closest first. */
+function hrRanked(s) {
+  return (s.drawings || []).slice().sort((a, b) => (b.pct - a.pct) || ((s.roster || []).indexOf(a.id) - (s.roster || []).indexOf(b.id)));
+}
+
+/** A small notebook: the page, the name, the grade, a star and its points. o: { st, at, vote, mine, picked, weird, tv } */
+function hrNotebookHtml(state, d, o) {
+  const s = state.shared || {};
+  const opt = o || {};
+  const name = hrNameOf(state, d.id) || '…';
+  const star = d.place >= 0 && d.place < 3 && d.pts ? hrStarHtml(d.place, opt.st, (opt.at || 0) + 900) : '';
+  const plus = d.pts ? `<span class="hr-plus"${opt.st ? opt.st.at((opt.at || 0) + 1100, 'pop') : ''}>+${d.pts}</span>` : '';
+  const weird = opt.weird ? `<span class="hr-weird">${escapeHTML(hrT('hear_weird_won'))}</span>` : '';
+  const tag = opt.vote ? 'button' : 'div';
+  const attrs = opt.vote ? ` type="button" onclick="hrVote('${escapeHTML(opt.vote)}')" ${opt.mine ? 'disabled' : ''} aria-pressed="${opt.picked ? 'true' : 'false'}"` : '';
+  return `<${tag} class="hr-nb ${opt.mine ? 'is-mine' : ''} ${opt.picked ? 'is-picked' : ''} ${opt.weird ? 'is-weird' : ''}" style="--cv:${hrCover(s, d.id)};${opt.pos || ''}"${attrs}>
+      <span class="hr-nb__pg"><canvas class="hr-ink" data-hr-ink="${escapeHTML(d.id)}" width="300" height="300"></canvas>
+        ${opt.grade !== false ? hrGradeHtml(d.pct, opt.st, opt.at || 0) : ''}${star}${plus}${weird}
+        ${opt.vote && opt.mine ? `<span class="hr-nb__mine">${escapeHTML(hrT('hear_weird_mine'))}</span>` : ''}</span>
+      <b class="hr-nb__n"><bdi>${escapeHTML(name)}</bdi></b>
+    </${tag}>`;
+}
+
+/** The describer's line at the grading: the average and the points. */
+function hrDescLine(state) {
+  const s = state.shared || {};
+  return hrT('hear_desc_line', { name: hrIso(hrNameOf(state, s.describerId) || '…'), avg: hrIso(String(s.avg || 0)), n: s.descPts || 0 });
+}
+
+/* --- the pencil case ------------------------------------------------------------- */
+function hrCaseHtml() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const tool = (id, icon, label, on) => `<button type="button" class="hr-tool ${on ? 'is-on' : ''}" ${id ? `data-hr-tool="${id}" onclick="hrSetTool('${id}')" aria-pressed="${on}"` : ''}>${icon}<small>${escapeHTML(label)}</small></button>`;
+  const act = (fn, icon, label) => `<button type="button" class="hr-tool" onclick="${fn}">${icon}<small>${escapeHTML(label)}</small></button>`;
+  const pen = '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M6 26 L8 19 L22 5 L27 10 L13 24Z" fill="#ffd166" stroke="#221f36" stroke-width="2.4" stroke-linejoin="round"/><path d="M6 26 L8 19 L13 24Z" fill="#f2c9a0" stroke="#221f36" stroke-width="2.4" stroke-linejoin="round"/><path d="M19 8 L24 13" stroke="#221f36" stroke-width="2.4"/></svg>';
+  const rub = '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="5" y="11" width="22" height="12" rx="3" transform="rotate(-30 16 17)" fill="#ff9ab0" stroke="#221f36" stroke-width="2.4"/><path d="M9 21 L15 11" stroke="#221f36" stroke-width="2.4" transform="rotate(0)"/><path d="M5 28 H27" stroke="#221f36" stroke-width="2" stroke-dasharray="3 3"/></svg>';
+  const undo = '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M11 9 L5 15 L11 21" fill="none" stroke="#221f36" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 15 H19 A7 7 0 0 1 19 29 H13" fill="none" stroke="#221f36" stroke-width="3" stroke-linecap="round"/></svg>';
+  const bin = '<svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M8 10 H24 L22 28 H10Z" fill="#e4ecf7" stroke="#221f36" stroke-width="2.4" stroke-linejoin="round"/><path d="M6 10 H26 M13 6 H19" stroke="#221f36" stroke-width="2.4" stroke-linecap="round"/><path d="M13 14 V24 M19 14 V24" stroke="#221f36" stroke-width="2"/></svg>';
+  return `<div class="hr-case" role="toolbar" aria-label="${escapeHTML(hrT('hear_tools'))}">
+      ${tool('p', pen, t.draw_tool_pen || '', hr.tool === 'p')}
+      ${tool('e', rub, t.draw_tool_erase || '', hr.tool === 'e')}
+      ${act('hrUndo()', undo, t.draw_undo || '')}
+      ${act('hrClear()', bin, t.draw_clear || '')}
+    </div>`;
+}
+
+function hrSetTool(id) {
+  hr.tool = id === 'e' ? 'e' : 'p';
+  draw.tool = hr.tool;
+  document.querySelectorAll('#view-room-hear [data-hr-tool]').forEach(b => {
+    const on = b.dataset.hrTool === hr.tool;
+    b.classList.toggle('is-on', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  haptic('light');
+}
+function hrUndo() {
+  if (!draw.pending.length) return;
+  draw.redo.push(draw.pending.pop());
+  paintStrokesFromScratch();
+  haptic('light');
+  hrSync(false);
+}
+function hrClear() {
+  if (!draw.pending.length) return;
+  draw.pending = [];
+  draw.redo = [];
+  clearSurface();
+  draw.painted = 0;
+  haptic('medium');
+  hrSync(false);
+}
+
+/* --- the page, kept and sent ---------------------------------------------------------- */
+function hrSaveInk(key, strokes) {
+  try { localStorage.setItem(HR_INK_KEY, JSON.stringify({ key, strokes })); } catch (e) {}
+}
+function hrLoadInk(key) {
+  try {
+    const v = JSON.parse(localStorage.getItem(HR_INK_KEY) || 'null');
+    return v && v.key === key && Array.isArray(v.strokes) ? v.strokes : null;
+  } catch (e) { return null; }
+}
+
+/** The page goes to the room once the pencil has rested HR_SYNC_MS (or at once, `now`). */
+function hrSync(now) {
+  const st = Room.state;
+  const s = st && st.game === 'hear' && st.shared;
+  if (!s || (s.phase !== 'draw' && s.phase !== 'collect') || hrRole(st) !== 'drawer') return;
+  const key = hrRoundKey(st);
+  if (hr.surfaceKey !== key || hr.handedFor === key || (s.handed || []).indexOf(Room.me) !== -1) return;
+  const strokes = draw.pending;
+  const last = strokes[strokes.length - 1];
+  const sig = key + '|' + strokes.length + '|' + (last ? (last.p || []).length + ':' + (last.p || []).slice(-2).join(',') : '');
+  if (sig !== hr.inkSig) { hr.inkSig = sig; hr.inkAt = Date.now(); hrSaveInk(key, strokes); }
+  if (hr.inkSentSig === sig || draw.drawing) return;
+  if (!now && Date.now() - hr.inkAt < HR_SYNC_MS) return;
+  hr.inkSentSig = sig;
+  Room.act('ink', { round: s.round, strokes: strokes.slice() }).catch(() => { hr.inkSentSig = ''; });
+}
+
+/** «سلّمت الكراسة» (or the clock): the page as it is, for good. */
+async function hrHand(auto) {
+  const st = Room.state;
+  const s = st && st.game === 'hear' && st.shared;
+  if (!s || hrRole(st) !== 'drawer') return;
+  const key = hrRoundKey(st);
+  if (hr.handedFor === key) return;
+  hr.handedFor = key;
+  const strokes = hr.surfaceKey === key ? draw.pending.slice() : (hrLoadInk(key) || []);
+  try {
+    await Room.act('hand', { round: s.round, strokes });
+    if (!auto) { playSound('success'); haptic('medium'); }
+  } catch (e) {
+    hr.handedFor = null;
+    if (!auto) showToast(e.message || '', 'error');
+  }
+}
+
+// Time's up: this phone hands in what it drew, wherever its player is looking.
+Room.onChange((state) => {
+  const s = state && state.game === 'hear' && state.shared;
+  if (!s || s.phase !== 'collect' || hrRole(state) !== 'drawer') return;
+  if ((s.handed || []).indexOf(Room.me) !== -1) return;
+  hrHand(true);
+});
+
+function hrGo() {
+  const st = Room.state;
+  if (!st) return;
+  haptic('medium');
+  roomAct('go', { round: st.shared.round });
+}
+function hrSwap() {
+  const st = Room.state;
+  if (!st) return;
+  haptic('light');
+  roomAct('swap', { round: st.shared.round });
+}
+function hrDone() {
+  const st = Room.state;
+  if (!st) return;
+  haptic('medium');
+  roomAct('done', { round: st.shared.round });
+}
+
+/* --- the vote ---------------------------------------------------------------------- */
+function hrMyVote(state) {
+  try { const v = JSON.parse(sessionStorage.getItem('hrVote') || 'null'); return v && v.key === hrRoundKey(state) ? v.o : null; } catch (e) { return null; }
+}
+function hrVote(option) {
+  const st = Room.state;
+  if (!st || (st.shared || {}).phase !== 'vote') return;
+  try { sessionStorage.setItem('hrVote', JSON.stringify({ key: hrRoundKey(st), o: option })); } catch (e) {}
+  haptic('light');
+  const el = document.getElementById(st.youAreScreen ? 'view-room-tv' : 'view-room-hear');
+  if (el) {
+    el.querySelectorAll('button.hr-nb').forEach(b => {
+      const on = (b.getAttribute('onclick') || '').indexOf("'" + option + "'") !== -1;
+      b.classList.toggle('is-picked', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    const line = el.querySelector('[data-hr-mine]');
+    if (line) line.textContent = hrT('hear_vote_changed');
+  }
+  roomAct('vote', { option, round: st.shared.round });
+}
+
+/* --- the phone's frames -------------------------------------------------------------- */
+function hrSig(state) {
+  const s = state.shared || {};
+  const role = hrRole(state);
+  const me = Room.me;
+  const handed = (s.handed || []).indexOf(me) !== -1 || hr.handedFor === hrRoundKey(state);
+  const drawing = s.phase === 'draw' || s.phase === 'collect';
+  return ['hear', s.round, drawing ? 'draw' : s.phase, role, role === 'drawer' && drawing ? handed : '',
+    role === 'describer' ? JSON.stringify((state.you || {}).pic || null).length + ':' + (s.swaps || 0) + ':' + !!s.cut : '',
+    s.phase === 'vote' ? hrMyVote(state) : '', s.phase === 'result' || s.phase === 'gameover' ? JSON.stringify(s.board || []) : '',
+    state.youAreHost, appState.lang].join('|');
+}
+
+function hrHostBtns(state) {
+  const s = state.shared || {};
+  const t = TRANSLATIONS[appState.lang] || {};
+  const r = s.round;
+  if (s.phase === 'ready') return roomMoveOnHtml(state, roomHostRow([[hrT('hear_skip'), `roomAct('skipTurn', { round: ${r} })`]]));
+  if (s.phase === 'draw') return roomMoveOnHtml(state, roomHostRow([[hrT('hear_close_draw'), `roomAct('closeDraw', { round: ${r} })`]]));
+  if (s.phase === 'grade') return roomMoveOnHtml(state, `<div class="btn-stack hr-next"><button type="button" class="btn btn--secondary btn--lg" onclick="roomAct('toVote', { round: ${r} })">${escapeHTML(hrT('hear_to_vote'))}</button></div>`);
+  if (s.phase === 'vote') return roomMoveOnHtml(state, roomHostRow([[hrT('hear_close_vote'), `roomAct('closeVote', { round: ${r} })`]]));
+  if (s.phase === 'result') {
+    const last = hrLast(state);
+    return roomMoveOnHtml(state, `<div class="btn-stack hr-next"><button type="button" class="btn btn--go btn--lg" onclick="roomAct('nextRound', { round: ${r} })">${escapeHTML(hrT(last ? 'hear_final' : 'hear_next'))}</button></div>`,
+      `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`);
+  }
+  if (s.phase === 'gameover' && state.youAreHost) {
+    return `<div class="btn-row hr-next"><button class="btn btn--go" onclick="roomAct('playAgain', ROOM_GAMES.hear.startPayload())">▶ ${escapeHTML(t.play_again || '')}</button><button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button></div>`;
+  }
+  return '';
+}
+
+/** The body of a phone's frame, by the phase and who this phone is. */
+function hrPhoneBody(state) {
+  const s = state.shared || {};
+  const role = hrRole(state);
+  const who = hrIso(hrNameOf(state, s.describerId) || '…');
+  const key = hrRoundKey(state);
+  const pic = (state.you || {}).pic || null;
+
+  if (s.phase === 'ready') {
+    if (role === 'describer') {
+      const left = HEAR_SWAPS - (s.swaps || 0);
+      return `<div class="hr-say">${escapeHTML(hrT('hear_you_describe'))}</div>
+        ${hrBoardHtml(pic)}
+        <div class="hr-hush">${escapeHTML(hrT('hear_hush'))}<small>${escapeHTML(hrT(pic && pic.kind === 'shapes' ? 'hear_tip_shapes' : 'hear_tip_things'))}</small></div>
+        <div class="hr-row">
+          <button type="button" class="btn btn--lg hr-cb hr-cb--paper" onclick="hrSwap()" ${left > 0 ? '' : 'disabled'}>${escapeHTML(hrT('hear_swap'))}<span class="hr-cb__n metric">${left}</span></button>
+          <button type="button" class="btn btn--lg hr-cb hr-cb--go" onclick="hrGo()">${escapeHTML(hrT('hear_go'))}</button>
+        </div>`;
+    }
+    return `${hrPageHtml({ cls: 'is-wait', cap: hrT('hear_no_ask'), canvas: '<div class="hr-wait"><span class="hr-wait__q" aria-hidden="true">🎧</span><b>' + escapeHTML(hrT('hear_wait_look', { name: who })) + '</b></div>' })}
+      ${role === 'watch' ? `<div class="waiting-note">${escapeHTML(hrT('hear_watching'))}</div>` : `<p class="hr-hint">${escapeHTML(hrT('hear_rules_line'))}</p>`}`;
+  }
+
+  if (s.phase === 'draw' || s.phase === 'collect') {
+    const clock = s.phase === 'draw' ? hrPencilHtml(s.endsAt, (s.seconds || 90) * 1000) : `<div class="hr-down">${escapeHTML(hrT('hear_pencils_down'))}</div>`;
+    const count = `<p class="hr-hint">${escapeHTML(hrT('hear_handed_n'))} <span data-hr-handed>${ltrFrac((s.handed || []).length, (s.drawers || []).length)}</span></p>`;
+    if (role === 'describer') {
+      return `${clock}
+        ${hrBoardHtml(pic)}
+        <div class="hr-hush">${escapeHTML(hrT('hear_hush'))}<small>${escapeHTML(hrT('hear_no_peek'))}</small></div>
+        <div class="hr-row hr-row--one">
+          <button type="button" class="btn btn--lg hr-cb hr-cb--done" onclick="hrDone()" ${s.cut || s.phase !== 'draw' ? 'disabled' : ''}>${escapeHTML(hrT(s.cut ? 'hear_cut' : 'hear_done'))}</button>
+        </div>${count}`;
+    }
+    if (role === 'drawer') {
+      const handed = (s.handed || []).indexOf(Room.me) !== -1 || hr.handedFor === key;
+      if (handed) {
+        return `${clock}${hrPageHtml({ cls: 'is-handed', cap: hrT('hear_handed'), ink: '__mine', over: '<span class="hr-stamp-ok" aria-hidden="true">✓</span>' })}${count}`;
+      }
+      return `${clock}
+        <div class="hr-desk">
+          ${hrPageHtml({ cap: hrT('hear_no_ask'), canvas: '<canvas id="draw-canvas" width="600" height="600"></canvas>' })}
+          <div class="hr-desk__side">
+            ${hrCaseHtml()}
+            <button type="button" class="btn btn--lg hr-cb hr-cb--hand" onclick="hrHand(false)" ${s.phase !== 'draw' ? 'disabled' : ''}>${escapeHTML(hrT('hear_hand'))}</button>
+          </div>
+        </div>`;
+    }
+    return `${clock}${hrPageHtml({ cls: 'is-wait', canvas: '<div class="hr-wait"><span class="hr-wait__q" aria-hidden="true">✏️</span><b>' + escapeHTML(hrT('hear_watch_draw')) + '</b></div>' })}
+      <div class="waiting-note">${escapeHTML(hrT('hear_watching'))}</div>${count}`;
+  }
+
+  if (s.phase === 'grade' || s.phase === 'vote' || s.phase === 'result') {
+    const ranked = hrRanked(s);
+    const mine = (s.drawings || []).find(d => d.id === Room.me);
+    const st = s.phase === 'grade' ? stageReveal(['hr-grade', 'ph', key].join('|'), state) : null;
+    const stepMs = Math.min(380, Math.round(2400 / Math.max(1, ranked.length)));
+    const weird = s.weird || [];
+    let head = '';
+    if (s.phase === 'grade') {
+      head = `<div class="hr-say">${escapeHTML(hrT('hear_grading'))}</div>
+        <p class="hr-was">${escapeHTML(hrT('hear_it_was', { name: hearPictureName(s.pic, contentLang()) }))}</p>`;
+    } else if (s.phase === 'vote') {
+      const v = s.vote || {};
+      const voter = (v.eligible || []).indexOf(Room.me) !== -1;
+      head = `<div class="hr-say">${escapeHTML(hrT('hear_weird_q'))}</div>
+        <p class="hr-hint" data-hr-mine>${escapeHTML(voter ? (hrMyVote(state) ? hrT('hear_vote_changed') : hrT('hear_weird_hint')) : hrT('hear_vote_wait'))}</p>`;
+    } else {
+      head = `<div class="hr-say">${escapeHTML(weird.length ? hrT('hear_weird_is', { name: weird.map(id => hrIso(hrNameOf(state, id))).join('، ') }) : hrT('hear_weird_none'))}</div>`;
+    }
+    // My own page, big, with the model laid over it, at the grading.
+    const minePage = s.phase === 'grade' && mine ? `<div class="hr-mine">
+        ${hrPageHtml({ cap: hrT('hear_your_page'), ink: mine.id, model: s.pic })}
+        ${hrGradeHtml(mine.pct, st, 200, 'hr-grade--big')}
+        <div class="hr-mine__stars"${st ? st.at(1400, 'pop') : ''}>${mine.pts ? hrStarHtml(mine.place, null, 0) + `<b class="hr-plus hr-plus--flat">+${mine.pts}</b>` : `<span class="hr-try">${escapeHTML(hrT('hear_try_again'))}</span>`}</div>
+      </div>` : '';
+    const model = s.phase === 'grade' && !mine ? hrBoardHtml(s.pic, { cls: 'hr-board--small', title: hrT('hear_model') }) : '';
+    const v = s.vote || {};
+    const voter = s.phase === 'vote' && (v.eligible || []).indexOf(Room.me) !== -1;
+    const myVote = hrMyVote(state);
+    const optOf = (id) => ((v.options || []).find(o => o.ownerId === id) || {}).id;
+    const shown = s.phase === 'result' ? ranked.slice().sort((a, b) => (weird.indexOf(b.id) !== -1) - (weird.indexOf(a.id) !== -1)) : ranked;
+    const books = shown.map((d, i) => hrNotebookHtml(state, d, {
+      st, at: 600 + i * stepMs,
+      vote: voter ? optOf(d.id) : '', mine: d.id === Room.me, picked: voter && myVote && myVote === optOf(d.id),
+      weird: s.phase === 'result' && weird.indexOf(d.id) !== -1
+    })).join('');
+    const desc = `<p class="hr-desc"${st ? st.at(600 + ranked.length * stepMs + 600, 'in') : ''}>${escapeHTML(hrDescLine(state))}</p>`;
+    const voted = s.phase === 'vote' ? `<p class="hr-hint">${escapeHTML(hrT('hear_voted_n'))} <span data-hr-voted>${ltrFrac((v.voted || []).length, (v.eligible || []).length)}</span></p>` : '';
+    const results = s.phase === 'result' && v.results ? renderVoteResults(state, {}) : '';
+    const gains = s.phase === 'result' ? hrGainsHtml(state) + renderScoreboard(s.board) : '';
+    return `<div class="hr-grading"${st ? st.end(900) : ''}>${head}${minePage}${model}
+        <div class="hr-books ${voter ? 'hr-books--vote' : ''}">${books}</div>
+        ${s.phase !== 'vote' ? desc : ''}${voted}${results}${gains}</div>`;
+  }
+
+  if (s.phase === 'gameover') {
+    return `<div class="hr-over"><div class="hr-say">${escapeHTML(hrT('hear_over_title'))}</div>${renderPodium(state, s.board)}${renderScoreboard(s.board)}
+      ${typeof roomShareBtnHtml === 'function' ? roomShareBtnHtml(state, s.board) : ''}</div>`;
+  }
+  return '';
+}
+
+/** The round's points, each player a chip. */
+function hrGainsHtml(state) {
+  const s = state.shared || {};
+  const rows = Object.keys(s.gained || {}).filter(id => s.gained[id] > 0).sort((a, b) => s.gained[b] - s.gained[a]);
+  if (!rows.length) return '';
+  return `<div class="hr-gains"><span class="hr-gains__k">${escapeHTML(hrT('hear_round_pts'))}</span>${rows.map(id => `<span class="hr-gain" style="--cv:${hrCover(s, id)}"><bdi>${escapeHTML(hrNameOf(state, id))}</bdi> <b class="metric">+${s.gained[id]}</b></span>`).join('')}</div>`;
+}
+
+/* --- the room game ----------------------------------------------------------------- */
+function hrOpt(key, dflt) { return recallOptions('hear', {})[key] || dflt; }
+function hrOptTap(btn, key, value) {
+  rememberOptions('hear', { [key]: value });
+  btn.parentNode.querySelectorAll('.segmented__item').forEach(b => { b.classList.toggle('is-active', b === btn); b.setAttribute('aria-pressed', String(b === btn)); });
+}
+
+ROOM_GAMES.hear = {
+  lateJoin: true,     // someone who joins mid-game watches the drawings come in, and plays the next game
+  lobbyOptions(state) {
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(hrT('hear_lobby_hint'))}</p>`;
+    const seg = (key, list, dflt, label) => {
+      const cur = String(hrOpt(key, dflt));
+      return `<div class="field"><span class="field__label">${escapeHTML(hrT(label))}</span>
+        <div class="segmented" role="group">${list.map(([v, l]) => `<button type="button" class="segmented__item ${String(v) === cur ? 'is-active' : ''}" aria-pressed="${String(v) === cur}" onclick="hrOptTap(this, '${key}', '${v}')">${escapeHTML(l)}</button>`).join('')}</div></div>`;
+    };
+    return `<div class="card card--tight">
+        ${seg('kind', [['mix', hrT('hear_kind_mix')], ['shapes', hrT('hear_kind_shapes')], ['things', hrT('hear_kind_things')]], 'mix', 'hear_opt_kind')}
+        ${seg('level', [['easy', hrT('hear_level_easy')], ['mid', hrT('hear_level_mid')], ['hard', hrT('hear_level_hard')]], 'mid', 'hear_opt_level')}
+        ${seg('seconds', HEAR_SECONDS.map(n => [n, n + ' ' + (TRANSLATIONS[appState.lang].seconds_short || '')]), HEAR_SECONDS_DEFAULT, 'hear_opt_seconds')}
+        ${seg('laps', [[1, hrT('hear_laps_1')], [2, hrT('hear_laps_2')]], 1, 'hear_opt_laps')}
+        <p class="field__hint" style="text-align:center">${escapeHTML(hrT('hear_lobby_hint'))}</p>
+      </div>`;
+  },
+  startPayload() {
+    return { kind: hrOpt('kind', 'mix'), level: hrOpt('level', 'mid'), seconds: Number(hrOpt('seconds', HEAR_SECONDS_DEFAULT)), laps: Number(hrOpt('laps', 1)) };
+  },
+  actionKey(state) {
+    const s = state.shared || {};
+    const phase = s.phase === 'collect' ? 'draw' : s.phase;
+    return [roomDealKey(state), s.round, phase].join('|');
+  },
+  render(state) {
+    if (appState.currentView !== 'room-hear') setView('room-hear');
+    const el = document.getElementById('view-room-hear');
+    if (!el) return;
+    const s = state.shared || {};
+    const role = hrRole(state);
+    const fresh = renderRoomFrame(el, hrSig(state), () => `
+      <div class="hr hr--${s.phase} hr--${role}">
+        ${hrTopHtml(state)}
+        <div class="hr-body">${hrPhoneBody(state)}</div>
+        ${hrHostBtns(state)}
+        ${renderRoomPlayerStrip(state)}
+      </div>`);
+    refreshRoomPlayerStrip(el, state);
+    hrAfter(state, el, fresh);
+  }
+};
+
+/** The drawing surface, bound once a drawer's page is on screen; the strokes so far kept across a rebuild or a reload. */
+function hrBindPad(state) {
+  const key = hrRoundKey(state);
+  const keep = hr.surfaceKey === key ? { pending: draw.pending, redo: draw.redo } : (() => { const saved = hrLoadInk(key); return saved ? { pending: saved, redo: [] } : null; })();
+  resetDrawSurface();
+  draw.local = true;
+  hr.surfaceKey = key;
+  draw.colour = HR_PEN;
+  draw.width = HR_PEN_W;
+  draw.tool = hr.tool;
+  if (keep) { draw.pending = keep.pending; draw.redo = keep.redo || []; }
+  bindDrawSurface(true);
+  draw.onUndo = hrUndo;
+  draw.onRedo = null;
+  if (draw.pending.length) paintStrokesFromScratch();
+}
+
+/** Strokes onto a canvas of its own: transparent, so the squared paper shows; the eraser rubs out. */
+function hrPaintInk(cv, strokes) {
+  const ctx = cv.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  (strokes || []).forEach(st => {
+    const erase = String(st.c || '').toLowerCase() === DRAW_PAPER;
+    ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over';
+    drawStroke(ctx, erase ? Object.assign({}, st, { c: '#000000' }) : st, cv.width);
+  });
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/** After every paint: the pad, the pages, the clocks, the counts, the sounds. */
+function hrAfter(state, el, fresh) {
+  const s = state.shared || {};
+  const key = hrRoundKey(state);
+  const role = hrRole(state);
+  // The pad, on a page rebuilt with innerHTML (it takes its canvas with it).
+  if (!state.youAreScreen && fresh && (s.phase === 'draw' || s.phase === 'collect') && el.querySelector('#draw-canvas')) hrBindPad(state);
+  // The pages painted from strokes: this phone's own after handing in, everyone's from the grading on.
+  el.querySelectorAll('canvas[data-hr-ink]').forEach(cv => {
+    const id = cv.dataset.hrInk;
+    const strokes = id === '__mine' ? (hr.surfaceKey === key ? draw.pending : (hrLoadInk(key) || [])) : ((s.drawings || []).find(d => d.id === id) || {}).strokes;
+    const sig = key + '|' + id + '|' + (strokes || []).length;
+    if (cv.dataset.painted === sig) return;
+    cv.dataset.painted = sig;
+    hrPaintInk(cv, strokes || []);
+  });
+  el.querySelectorAll('[data-hr-handed]').forEach(n => {
+    const txt = ltrFrac((s.handed || []).length, (s.drawers || []).length);
+    if (n.textContent !== txt) n.textContent = txt;
+  });
+  el.querySelectorAll('[data-hr-voted]').forEach(n => {
+    const v = s.vote || {};
+    const txt = ltrFrac((v.voted || []).length, (v.eligible || []).length);
+    if (n.textContent !== txt) n.textContent = txt;
+  });
+  if (s.phase === 'grade') stageRun(el, state);
+  if (s.phase === 'result' || s.phase === 'gameover') animateScoreboards(state);
+  // The sounds, on the room's one voice.
+  const voice = hrVoice(state);
+  if (s.phase === 'draw' && hrOnce('go|' + key) && (voice || role === 'describer')) hrSound('go');
+  if ((s.phase === 'collect' || s.phase === 'grade') && hrOnce('bell|' + key) && voice) hrSound('bell');
+  if (s.phase === 'grade' && hrOnce('grade|' + key) && voice && !motionOff()) {
+    const n = (s.drawings || []).length;
+    const stepMs = Math.min(380, Math.round(2400 / Math.max(1, n)));
+    for (let i = 0; i < n; i++) setTimeout(() => hrSound('mark', i), 600 + i * stepMs + 200);
+  }
+  if (s.phase === 'gameover' && hrOnce('over|' + roomDealKey(state))) {
+    if (voice) hrSound('win');
+    const top = (s.board || [])[0];
+    if (top && top.score > 0 && (state.youAreScreen || (s.board || []).some(r => r.id === Room.me && r.score === top.score))) {
+      afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } }); });
+    }
+  }
+  // The pencil clock, painted in place; the page sent while the pencil rests.
+  if (hr.timer) clearInterval(hr.timer);
+  hr.timer = null;
+  const paint = () => {
+    const st = Room.state;
+    if (!st || st.game !== 'hear') { hrStop(); return; }
+    const now = roomServerNow();
+    el.querySelectorAll('[data-hr-pencil]').forEach(p => {
+      const until = Number(p.dataset.hrPencil), total = Number(p.dataset.hrTotal) || 1;
+      const frac = Math.max(0, Math.min(1, (until - now) / total));
+      p.style.setProperty('--t', frac.toFixed(3));
+      p.classList.toggle('is-hurry', frac < 0.25);
+    });
+    el.querySelectorAll('[data-hr-clock]').forEach(c => {
+      const left = Math.max(0, Math.ceil((Number(c.dataset.hrClock) - now) / 1000));
+      const txt = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+      if (c.textContent !== txt) {
+        c.textContent = txt;
+        if (left > 0 && left <= 5 && hr.tick !== left && (st.shared || {}).phase === 'draw' && hrVoice(st)) { hr.tick = left; hrSound('tick'); }
+      }
+    });
+    hrSync(false);
+  };
+  paint();
+  if (s.phase === 'draw' || s.phase === 'collect') hr.timer = setInterval(paint, 250);
+}
+
+function hrStop() {
+  if (hr.timer) clearInterval(hr.timer);
+  hr.timer = null;
+  hr.tick = -1;
+}
+onLeaveScreen((from) => { if (from === 'room-hear' || from === 'room-tv') { hrSync(true); hrStop(); } });
+onRoomClocksReset(() => { hrStop(); hr.handedFor = null; });
+
+/** The class's sounds: the pencil going, the bell, the red pen's tick, the last seconds, the end. */
+function hrSound(kind, i) {
+  try {
+    const at = fxCtx().currentTime + 0.01;
+    if (kind === 'go') {
+      fxNoise('bandpass', 2600, 1.4, [[0, 0.18], [0.09, 0.02], [0.14, 0.16], [0.26, 0.001]], at);
+    } else if (kind === 'bell') {
+      for (let k = 0; k < 4; k++) fxTone('triangle', [[0, 1320]], [[0, 0.16], [0.11, 0.001]], at + k * 0.12);
+      fxTone('sine', [[0, 660]], [[0, 0.06], [0.6, 0.001]], at);
+    } else if (kind === 'mark') {
+      const hz = 900 + Math.min(10, i || 0) * 60;
+      fxNoise('highpass', 3200, 0.8, [[0, 0.12], [0.06, 0.001]], at);
+      fxTone('triangle', [[0, hz], [0.05, hz * 1.4]], [[0, 0.12], [0.16, 0.001]], at + 0.02);
+    } else if (kind === 'tick') {
+      fxTone('square', [[0, 1100]], [[0, 0.07], [0.05, 0.001]], at);
+    } else if (kind === 'win') {
+      playFx('tada');
+    }
+  } catch (e) {}
+}
+
+/* --- the big screen: the classroom ------------------------------------------------- */
+/** Where each notebook sits round the board: half on each side, in columns of the board's height. */
+function hrTvSeats(n) {
+  const cols = n <= 4 ? 1 : 2;               // notebooks a side, across
+  const per = Math.ceil(n / 2);
+  const rows = Math.max(1, Math.ceil(per / cols));
+  return { cols, rows, at: (i) => {
+    const side = i < per ? 0 : 1;            // the first half on the start side
+    const k = side ? i - per : i;
+    const col = side ? cols + 2 + (k % cols) : 1 + (k % cols);
+    return { col, row: 1 + Math.floor(k / cols) };
+  } };
+}
+
+TV_GAMES.hear = {
+  sig(state) {
+    const s = state.shared || {};
+    const v = s.vote || {};
+    return ['hear', roomDealKey(state), s.phase === 'collect' ? 'draw' : s.phase, s.round, s.describerId, (s.drawers || []).join(','),
+      (s.handed || []).join(','), (v.voted || []).join(','), JSON.stringify(s.weird || null), JSON.stringify(s.board || []),
+      s.phase, state.youAreHost, appState.lang].join('|');
+  },
+  frame(state, t) {
+    const s = state.shared || {};
+    const key = hrRoundKey(state);
+    const who = hrIso(hrNameOf(state, s.describerId) || '…');
+    const host = (() => {
+      const r = s.round;
+      if (s.phase === 'ready') return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(hrT('hear_skip'), `roomAct('skipTurn', { round: ${r} })`, 'ghost')}</div>`);
+      if (s.phase === 'draw') return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(hrT('hear_close_draw'), `roomAct('closeDraw', { round: ${r} })`, 'ghost')}</div>`);
+      if (s.phase === 'grade') return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(hrT('hear_to_vote'), `roomAct('toVote', { round: ${r} })`, 'secondary')}</div>`);
+      if (s.phase === 'vote') return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(hrT('hear_close_vote'), `roomAct('closeVote', { round: ${r} })`, 'ghost')}</div>`);
+      if (s.phase === 'result') return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(hrT(hrLast(state) ? 'hear_final' : 'hear_next'), `roomAct('nextRound', { round: ${r} })`)}</div>`);
+      if (s.phase === 'gameover' && state.youAreHost) return `<div class="tv-actions">${tvBtn('▶ ' + (t.play_again || ''), "roomAct('playAgain', ROOM_GAMES.hear.startPayload())")}${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>`;
+      return '';
+    })();
+    const head = `<div class="hr-tv__head"><b>📒 ${escapeHTML(hrT('hear_class'))}</b>
+        <span class="hr-tv__who">🎧 <bdi>${escapeHTML(hrNameOf(state, s.describerId) || '')}</bdi></span>
+        <span class="hr-tv__pill">${escapeHTML(hrT('hear_round'))} ${ltrFrac(s.round || 1, s.rounds || 1)}</span></div>`;
+
+    if (s.phase === 'gameover') {
+      return `<div class="hr-tv hr-tv--over">${head}
+        <div class="hr-tv__over">
+          <div class="hr-tv__main"><div class="hr-say">${escapeHTML(hrT('hear_over_title'))}</div>${renderPodium(state, s.board)}</div>
+          <div class="hr-tv__side tv-scale">${renderScoreboard(s.board)}${host}</div>
+        </div></div>`;
+    }
+
+    // The notebooks round the board: the drawers of this round (the drawings' owners from the grading on).
+    const graded = s.phase === 'grade' || s.phase === 'vote' || s.phase === 'result';
+    const ids = graded ? (s.drawings || []).map(d => d.id) : (s.drawers || []);
+    const seats = hrTvSeats(ids.length);
+    const st = s.phase === 'grade' ? stageReveal(['hr-grade', 'tv', key].join('|'), state) : null;
+    const order = graded ? hrRanked(s).map(d => d.id) : ids;
+    const stepMs = Math.min(380, Math.round(2400 / Math.max(1, ids.length)));
+    const weird = s.weird || [];
+    const books = ids.map((id, i) => {
+      const at = seats.at(i);
+      const seat = (html) => `<div class="hr-tv__seat" style="grid-column:${at.col};grid-row:${at.row}">${html}</div>`;
+      if (!graded) {
+        const handed = (s.handed || []).indexOf(id) !== -1;
+        if (s.phase === 'ready') {
+          return seat(`<div class="hr-nb hr-nb--cover" style="--cv:${hrCover(s, id)};--i:${i}"><span class="hr-nb__label"><bdi>${escapeHTML(hrNameOf(state, id))}</bdi></span><small>${escapeHTML(hrT('hear_notebook'))}</small></div>`);
+        }
+        return seat(`<div class="hr-nb hr-nb--busy ${handed ? 'is-handed' : ''}" style="--cv:${hrCover(s, id)};--i:${i}">
+            <span class="hr-nb__pg"><span class="hr-nb__scrib" aria-hidden="true"></span><span class="hr-nb__pen" aria-hidden="true">✏️</span>${handed ? `<span class="hr-nb__ok">${escapeHTML(hrT('hear_cover_handed'))}</span>` : ''}</span>
+            <b class="hr-nb__n"><bdi>${escapeHTML(hrNameOf(state, id))}</bdi></b></div>`);
+      }
+      const d = (s.drawings || []).find(x => x.id === id);
+      return seat(hrNotebookHtml(state, d, { st, at: 600 + order.indexOf(id) * stepMs, weird: s.phase === 'result' && weird.indexOf(id) !== -1 }));
+    }).join('');
+
+    let board = '', cap = '';
+    if (s.phase === 'ready') {
+      board = `<div class="hr-tv__say"><b>${escapeHTML(hrT('hear_tv_ready', { name: who }))}</b><span>${escapeHTML(hrT('hear_tv_ready_sub'))}</span></div>`;
+      cap = `${escapeHTML(hrT('hear_tv_rules'))}<small>${escapeHTML(hrT('hear_tv_ready_cap', { name: who }))}</small>`;
+    } else if (s.phase === 'draw' || s.phase === 'collect') {
+      board = `<div class="hr-tv__say"><b>${escapeHTML(hrT('hear_tv_draw', { name: who }))}</b><span class="hr-tv__q" aria-hidden="true">؟</span>
+          ${s.phase === 'draw' ? hrPencilHtml(s.endsAt, (s.seconds || 90) * 1000, 'hr-pencil--tv') : `<span class="hr-down hr-down--tv">${escapeHTML(hrT('hear_pencils_down'))}</span>`}</div>`;
+      cap = `${escapeHTML(hrT('hear_tv_draw_sub'))}<small>${escapeHTML(hrT('hear_handed_n'))} ${ltrFrac((s.handed || []).length, (s.drawers || []).length)}</small>`;
+    } else if (s.phase === 'grade') {
+      board = `<div class="hr-tv__model">${hearSvg((s.pic || {}).s, { cls: 'hr-chalk', width: 3 })}</div>`;
+      cap = `${escapeHTML(hrT('hear_grading'))}<small${st ? st.at(600 + ids.length * stepMs + 600, 'in') : ''}>${escapeHTML(hrDescLine(state))}</small>`;
+    } else if (s.phase === 'vote') {
+      const v = s.vote || {};
+      board = `<div class="hr-tv__say"><b>${escapeHTML(hrT('hear_weird_q'))}</b><span>${escapeHTML(hrT('hear_tv_vote_sub'))}</span>${tvWaitChips(state, v.eligible || [], v.voted || [])}</div>`;
+      cap = `${escapeHTML(hrT('hear_it_was', { name: hearPictureName(s.pic, contentLang()) }))}<small>${escapeHTML(hrDescLine(state))}</small>`;
+    } else if (s.phase === 'result') {
+      const gained = s.gained || {};
+      board = `<div class="hr-tv__sheet"><h3>${escapeHTML(hrT('hear_sheet'))}</h3>
+          <table><thead><tr><th>${escapeHTML(hrT('hear_name_col'))}</th><th>${escapeHTML(hrT('hear_round_pts'))}</th><th>${escapeHTML(hrT('hear_total'))}</th></tr></thead>
+          <tbody>${(s.board || []).map((r, i) => `<tr class="${i === 0 && r.score > 0 ? 'is-lead' : ''}"><td><bdi>${escapeHTML(r.name)}</bdi></td><td class="metric">+${gained[r.id] || 0}</td><td class="metric">${r.score}</td></tr>`).join('')}</tbody></table></div>`;
+      cap = `${escapeHTML(weird.length ? hrT('hear_weird_is', { name: weird.map(id => hrIso(hrNameOf(state, id))).join('، ') }) : hrT('hear_weird_none'))}<small>${escapeHTML(hrDescLine(state))}</small>`;
+    }
+    return `<div class="hr-tv hr-tv--${s.phase}" ${st ? st.end(900) : ''}>${head}
+        <div class="hr-tv__room" style="--cols:${seats.cols};--rows:${seats.rows}">
+          <div class="hr-tv__front" style="grid-column:${seats.cols + 1};grid-row:1 / span ${seats.rows}">
+            <div class="hr-tv__board ${graded && s.phase !== 'result' && s.phase !== 'vote' ? 'is-pic' : ''}">${board}</div>
+            ${cap ? `<div class="hr-tv__cap">${cap}</div>` : ''}
+            ${host}
+          </div>
+          ${books}
+        </div>
+        <div class="hr-tv__floor" aria-hidden="true"></div>
+      </div>`;
+  },
+  after(state) {
+    const el = document.getElementById('view-room-tv');
+    if (el) hrAfter(state, el, false);
+  }
+};
+</script>

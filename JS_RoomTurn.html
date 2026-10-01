@@ -55,6 +55,9 @@ function roomTurnOf(state) {
       return s.phase === 'play' && s.moverId === me ? 'turn_darkroom' : null;
     case 'exact':
       return (s.phase === 'ready' || s.phase === 'go') && (s.roster || []).indexOf(me) !== -1 ? 'turn_exact' : null;
+    case 'hear':
+      if (s.phase === 'ready' && s.describerId === me) return 'turn_hear';
+      return s.phase === 'draw' && (s.drawers || []).indexOf(me) !== -1 && (s.handed || []).indexOf(me) === -1 ? 'turn_draw' : null;
     case 'witness':
       if (s.phase === 'ready' && s.witnessId === me) return 'turn_witness';
       return s.phase === 'draw' && s.artistId === me ? 'turn_draw' : null;

@@ -487,6 +487,9 @@ const HEAR_NEAR = 1.2;         // a cell this close (in cells) to the other's in
 const HEAR_FAR = 4.5;          // and nothing from this far (about 7% of the page)
 const HEAR_INK_SLACK = 2.0;    // a drawing may use this much more ink than the picture before it is scaled down
 const HEAR_BETA = 1.5;         // recall weighs this much more than precision: a part left out costs more than a shaky line
+const HEAR_ORIENT_W = 0.6;    // how much a line's direction counts: along the picture's line full marks, across it this much less
+const HEAR_BLOCKS = 4;         // the page in 4 x 4 parts, for where the ink is (hearLayout)
+const HEAR_LAYOUT_W = 0.5;     // how much that weighs in the %
 const HEAR_STROKE_GRID = 255;  // the drawing toolbox's coordinates
 const HEAR_PAPER = '#ffffff';  // the eraser's colour
 
@@ -551,30 +554,66 @@ function hearRasterStrokes(strokes) {
   return g;
 }
 
-/** Distance (in cells) from every cell to the nearest ink, by a two-pass chamfer (1, √2). */
+/**
+ * Distance (in cells) from every cell to the nearest ink, by a two-pass chamfer
+ * (1, √2), and which ink cell that is ({ d, at }).
+ */
 function hearDistance(g) {
   const N = HEAR_GRID, INF = 1e6, D = 1.41421356;
-  const d = new Float64Array(N * N);
-  for (let i = 0; i < N * N; i++) d[i] = g[i] ? 0 : INF;
+  const d = new Float64Array(N * N), at = new Int32Array(N * N);
+  for (let i = 0; i < N * N; i++) { d[i] = g[i] ? 0 : INF; at[i] = g[i] ? i : -1; }
+  const take = (i, j, step) => { if (d[j] + step < d[i]) { d[i] = d[j] + step; at[i] = at[j]; } };
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const i = y * N + x;
-    if (x > 0) d[i] = Math.min(d[i], d[i - 1] + 1);
+    if (x > 0) take(i, i - 1, 1);
     if (y > 0) {
-      d[i] = Math.min(d[i], d[i - N] + 1);
-      if (x > 0) d[i] = Math.min(d[i], d[i - N - 1] + D);
-      if (x < N - 1) d[i] = Math.min(d[i], d[i - N + 1] + D);
+      take(i, i - N, 1);
+      if (x > 0) take(i, i - N - 1, D);
+      if (x < N - 1) take(i, i - N + 1, D);
     }
   }
   for (let y = N - 1; y >= 0; y--) for (let x = N - 1; x >= 0; x--) {
     const i = y * N + x;
-    if (x < N - 1) d[i] = Math.min(d[i], d[i + 1] + 1);
+    if (x < N - 1) take(i, i + 1, 1);
     if (y < N - 1) {
-      d[i] = Math.min(d[i], d[i + N] + 1);
-      if (x < N - 1) d[i] = Math.min(d[i], d[i + N + 1] + D);
-      if (x > 0) d[i] = Math.min(d[i], d[i + N - 1] + D);
+      take(i, i + N, 1);
+      if (x < N - 1) take(i, i + N + 1, D);
+      if (x > 0) take(i, i + N - 1, D);
     }
   }
-  return d;
+  return { d, at };
+}
+
+/**
+ * Which way the line runs at every ink cell: the structure tensor of the ink's
+ * gradients over a 5 x 5 window, as a unit vector of the doubled angle (so a
+ * line and the same line drawn the other way agree). Two cells' vectors dotted
+ * is cos(2 * the angle between them): 1 along, -1 across.
+ */
+function hearOrient(g) {
+  const N = HEAR_GRID;
+  const v = (x, y) => (x < 0 || y < 0 || x >= N || y >= N ? 0 : g[y * N + x]);
+  const gx = new Float64Array(N * N), gy = new Float64Array(N * N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    // Sobel on the ink.
+    gx[y * N + x] = (v(x + 1, y - 1) + 2 * v(x + 1, y) + v(x + 1, y + 1)) - (v(x - 1, y - 1) + 2 * v(x - 1, y) + v(x - 1, y + 1));
+    gy[y * N + x] = (v(x - 1, y + 1) + 2 * v(x, y + 1) + v(x + 1, y + 1)) - (v(x - 1, y - 1) + 2 * v(x, y - 1) + v(x + 1, y - 1));
+  }
+  const c = new Float64Array(N * N), sn = new Float64Array(N * N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x;
+    if (!g[i]) continue;
+    let jxx = 0, jyy = 0, jxy = 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const X = x + dx, Y = y + dy;
+      if (X < 0 || Y < 0 || X >= N || Y >= N) continue;
+      const k = Y * N + X;
+      jxx += gx[k] * gx[k]; jyy += gy[k] * gy[k]; jxy += gx[k] * gy[k];
+    }
+    const a = jxx - jyy, b2 = 2 * jxy, m = Math.hypot(a, b2);
+    if (m > 1e-9) { c[i] = a / m; sn[i] = b2 / m; }
+  }
+  return { c, s: sn };
 }
 
 /** How much a cell at distance d counts: fully up to HEAR_NEAR, nothing from HEAR_FAR. */
@@ -592,18 +631,45 @@ function hearScore(shapes, strokes) {
   let nO = 0, nD = 0;
   for (let i = 0; i < O.length; i++) { nO += O[i]; nD += Dg[i]; }
   if (!nO || !nD) return 0;
-  const dToO = hearDistance(O), dToD = hearDistance(Dg);
+  const toO = hearDistance(O), toD = hearDistance(Dg);
+  const oO = hearOrient(O), oD = hearOrient(Dg);
+  // How alike two cells' directions are, 0 (across) .. 1 (along); a cell with no direction (a dot) counts as alike.
+  const along = (i, j, A, B) => {
+    if ((!A.c[i] && !A.s[i]) || (!B.c[j] && !B.s[j])) return 1;
+    return (1 + A.c[i] * B.c[j] + A.s[i] * B.s[j]) / 2;
+  };
+  const w = (near, sim) => near * ((1 - HEAR_ORIENT_W) + HEAR_ORIENT_W * sim);
   let p = 0, r = 0;
   for (let i = 0; i < O.length; i++) {
-    if (Dg[i]) p += hearNearness(dToO[i]);
-    if (O[i]) r += hearNearness(dToD[i]);
+    if (Dg[i] && toO.at[i] >= 0) p += w(hearNearness(toO.d[i]), along(i, toO.at[i], oD, oO));
+    if (O[i] && toD.at[i] >= 0) r += w(hearNearness(toD.d[i]), along(i, toD.at[i], oO, oD));
   }
   p /= nD; r /= nO;
   if (p + r <= 0) return 0;
   const b2 = HEAR_BETA * HEAR_BETA;
   const f = ((1 + b2) * p * r) / (b2 * p + r);
   const waste = Math.min(1, (HEAR_INK_SLACK * nO) / nD);
-  return Math.max(0, Math.min(100, Math.round(100 * f * waste)));
+  return Math.max(0, Math.min(100, Math.round(100 * f * waste * hearLayout(O, Dg, nO, nD))));
+}
+
+/**
+ * Whether the ink is where the picture's is, over the page: the share of each
+ * one's ink in each of HEAR_BLOCKS x HEAR_BLOCKS parts of the page, and how much
+ * of the two shares overlap (1: the same spread). Lines thrown across the whole
+ * page come near a lot of the picture, but their ink is everywhere; a picture's
+ * is where its shapes are. Weighed in by HEAR_LAYOUT_W.
+ */
+function hearLayout(O, Dg, nO, nD) {
+  const N = HEAR_GRID, B = HEAR_BLOCKS, cell = N / B;
+  const o = new Float64Array(B * B), d = new Float64Array(B * B);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x, k = Math.floor(y / cell) * B + Math.floor(x / cell);
+    if (O[i]) o[k]++;
+    if (Dg[i]) d[k]++;
+  }
+  let same = 0;
+  for (let k = 0; k < B * B; k++) same += Math.min(o[k] / nO, d[k] / nD);
+  return (1 - HEAR_LAYOUT_W) + HEAR_LAYOUT_W * same;
 }
 
 /** The describer's points: one for every HEAR_DESC_STEP of the drawers' average, at most HEAR_DESC_MAX. */

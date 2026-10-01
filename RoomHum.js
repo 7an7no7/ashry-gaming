@@ -66,8 +66,8 @@ const HUM_TRIES = 40;              // typed tries a phone may send for one song
 const HUM_REDEALS = 3;             // songs a round may skip by itself (a preview that won't load)
 const HUM_SPARE = 8;               // songs dealt beyond the game's count, for those skips
 
-/** Every title and alternative, the bank a guess is held against (another song's name is never "close enough"). */
-const HUM_TITLES = HUM_SONGS.reduce((all, x) => all.concat([x.t], x.alt || []), []);
+/** Every title, alternative and English title: the bank a guess is held against (another song's name is never "close enough"). */
+const HUM_TITLES = HUM_SONGS.reduce((all, x) => all.concat([x.t], x.alt || [], [x.en]), []);
 const HUM_INDEX = HUM_SONGS.map((x, i) => i);
 
 const humHere = (room, id) => room.players.some(p => p.id === id);
@@ -159,7 +159,8 @@ const humAction = (room, playerId, action, payload) => {
     h.tries[playerId] = (h.tries[playerId] || 0) + 1;
     if (h.tries[playerId] > HUM_TRIES) return;
     const song = HUM_SONGS[h.cur];
-    const verdict = guessVerdict(text, [song.t].concat(song.alt || []), HUM_TITLES);
+    // The English title too, for a phone with a Latin keyboard (guessVerdict forgives a letter in a long one).
+    const verdict = guessVerdict(text, [song.t].concat(song.alt || [], [song.en]), HUM_TITLES);
     const now = Date.now();
     if (verdict === 'right') {
       const rank = s.right.length + 1;
@@ -324,7 +325,7 @@ const humOpenChoices = (room) => {
   if (others.length < 3) others = others.concat(pickFrom(HUM_INDEX).slice(0, 3 - others.length));
   const four = shuffled([h.cur].concat(others));
   h.correct = four.indexOf(h.cur);
-  s.choices = four.map(i => ({ t: HUM_SONGS[i].t, s: HUM_SONGS[i].s }));
+  s.choices = four.map(i => ({ t: HUM_SONGS[i].t, s: HUM_SONGS[i].s, en: HUM_SONGS[i].en, se: HUM_SONGS[i].se }));
   s.phase = 'choices';
   s.typeEndsAt = null;
   s.choiceEndsAt = Date.now() + HUM_CHOICE_MS;

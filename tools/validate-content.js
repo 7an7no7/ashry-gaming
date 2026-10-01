@@ -627,7 +627,8 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
     if (ids[x.id] !== undefined) note(`${tag}: trackId ${x.id} is also song ${ids[x.id]}`);
     ids[x.id] = i;
     byEra[x.era] = (byEra[x.era] || 0) + 1;
-    [x.t].concat(x.alt || []).forEach(name => {
+    // The English title is an answer too (a Latin keyboard), so it must name one song only as well.
+    [x.t].concat(x.alt || [], [x.en]).forEach(name => {
       const k = fold(name).replace(/[^\p{L}\p{N}]/gu, '');
       if (!k) return note(`${tag}: an empty name`);
       if (owner[k] !== undefined && owner[k] !== i) note(`${tag}: "${name}" also names song ${owner[k]} (${SONGS[owner[k]].t})`);

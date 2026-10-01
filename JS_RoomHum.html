@@ -59,9 +59,13 @@ function dndT(key, vars) {
 }
 const dndIso = (s) => '⁨' + s + '⁩';
 const dndPlus = (n) => '<bdi dir="ltr">+' + Number(n || 0) + '</bdi>';
+/** Points in plain text, held left to right inside an Arabic line («+3», never «3+»). */
+const dndPts = (n) => '\u2066+' + Number(n || 0) + '\u2069';
 const dndOnce = (key) => { if (!key || dnd.seen.has(key)) return false; if (dnd.seen.size > 400) dnd.seen.clear(); dnd.seen.add(key); return true; };
 const dndNameOf = (state, id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
 const dndColorOf = (s, id) => DND_COLS[Math.max(0, (s.roster || []).indexOf(id)) % DND_COLS.length];
+/** A song's Latin title under its Arabic one, for a table playing in English. */
+const dndLatin = (c) => (appState.lang === 'en' && c && c.en ? `<em class="dnd-latin">${escapeHTML(c.en)}</em>` : '');
 const dndSongKey = (state) => roomDealKey(state) + '|' + ((state.shared || {}).deal || 0);
 const dndRightOf = (s, id) => (s.right || []).find(r => r.id === id) || null;
 
@@ -351,6 +355,7 @@ function dndBannerHtml(state, o) {
       <small>${escapeHTML(dndT(s.skipped ? 'dnd_status_skipped' : 'dnd_status_reveal'))}</small>
       <b>${escapeHTML(s.song.t)}</b>
       <span>${escapeHTML(s.song.s)}</span>
+      ${appState.lang === 'en' && s.song.en ? `<em>${escapeHTML(s.song.en + ' · ' + (s.song.se || ''))}</em>` : ''}
     </div>`;
 }
 
@@ -372,7 +377,7 @@ function dndMyNote(state) {
   const hummer = dndIso(dndNameOf(state, s.hummerId));
   const typed = (s.right || []).length;
   if (role === 'hummer') {
-    return typed ? dndT('dnd_res_hummer_ok', { n: typed, p: '+' + ((s.gained || {})[Room.me] || 0) }) : dndT('dnd_res_hummer_no');
+    return typed ? dndT('dnd_res_hummer_ok', { n: typed, p: dndPts((s.gained || {})[Room.me] || 0) }) : dndT('dnd_res_hummer_no');
   }
   if (role !== 'guess') return '';
   const r = dndRightOf(s, Room.me);
@@ -381,7 +386,7 @@ function dndMyNote(state) {
   else if (s.picks && typeof s.picks[Room.me] === 'number') line = s.picks[Room.me] === s.correct ? dndT('dnd_res_pick_ok') : dndT('dnd_res_pick_no');
   else line = dndT('dnd_res_none');
   const got = (s.gained || {})[Room.me] || 0;
-  if (got) line += ' · +' + got;
+  if (got) line += ' · ' + dndPts(got);
   if (s.mode === 'hum' && s.hummerId) line += ' — ' + (typed ? dndT('dnd_res_h_got', { h: hummer }) : dndT('dnd_res_h_none', { h: hummer }));
   return line;
 }
@@ -438,7 +443,7 @@ function dndStageHtml(state) {
     const again = s.replay === 'full' && role !== 'screen' ? `<button type="button" class="dnd-again" onclick="dndPlayTap()">${escapeHTML(dndT('dnd_again'))}</button>` : '';
     const grow = s.replay === 'grow' ? `<div class="dnd-grow" data-dnd-grow>${DND_GROW.map((g, k) => `<span data-k="${k}">${dndT('dnd_grow_n', { n: g.len / 1000 })}${g.bonus ? ' · ' + dndPlus(g.bonus) : ''}</span>`).join('')}</div>` : '';
     body = `<div class="dnd-speaker">🔊${DND_WAVE}</div>
-      <p class="dnd-status" data-dnd-listen-status>${escapeHTML(dndT(s.phase === 'choices' ? 'dnd_choices_h' : 'dnd_listen_type'))}</p>
+      <p class="dnd-status" data-dnd-listen-status>${escapeHTML(dndT(s.phase === 'choices' ? (role === 'guess' && !dndRightOf(s, Room.me) && !(state.you && typeof state.you.pick === 'number') ? 'dnd_choices_h' : 'dnd_choices_wait') : 'dnd_listen_type'))}</p>
       ${grow}${again}
       <button type="button" class="dnd-tap" data-dnd-tap onclick="dndTapSound()">${escapeHTML(dndT('dnd_tap_sound'))}</button>`;
   } else if (role === 'hummer' && (s.phase === 'listen' || s.phase === 'type' || s.phase === 'choices')) {
@@ -449,7 +454,7 @@ function dndStageHtml(state) {
       ${DND_WAVE}
       <p class="dnd-status">${escapeHTML(dndT(listening ? 'dnd_h_listen' : 'dnd_hum_now'))}</p>`;
   } else if (s.mode === 'hum' && (s.phase === 'listen' || s.phase === 'type' || s.phase === 'choices')) {
-    body = `${singer(hummer)}<p class="dnd-status">${escapeHTML(dndT(s.phase === 'listen' ? 'dnd_g_listen' : s.phase === 'type' ? 'dnd_g_type' : 'dnd_choices_h', { h: hummer }))}</p>`;
+    body = `${singer(hummer)}<p class="dnd-status">${escapeHTML(dndT(s.phase === 'listen' ? 'dnd_g_listen' : s.phase === 'type' ? 'dnd_g_type' : (role === 'guess' && !dndRightOf(s, Room.me) && !(state.you && typeof state.you.pick === 'number') ? 'dnd_choices_h' : 'dnd_choices_wait'), { h: hummer }))}</p>`;
   } else if (s.phase === 'reveal') {
     const unroll = motionFirst('dnd-ban|' + dndSongKey(state));
     body = `${dndBannerHtml(state, { unroll })}
@@ -473,8 +478,8 @@ function dndBottomHtml(state) {
   if (role === 'watch') return `<div class="dnd-note-box">${escapeHTML(dndT('dnd_watch'))}</div>`;
   if (role === 'hummer') {
     if (s.phase === 'listen') {
-      return `<div class="dnd-ear">${DND_EAR}<span>${escapeHTML(dndT('dnd_ear'))}</span></div>
-        <button type="button" class="dnd-raise" onclick="dndHeard()">${escapeHTML(dndT('dnd_heard_btn'))}</button>`;
+      return `<button type="button" class="dnd-raise" onclick="dndHeard()">${escapeHTML(dndT('dnd_heard_btn'))}</button>
+        <div class="dnd-ear">${DND_EAR}<span>${escapeHTML(dndT('dnd_ear'))}</span></div>`;
     }
     if (s.phase === 'type' || s.phase === 'choices') return `<div class="dnd-note-box">${escapeHTML(dndT('dnd_hummer_wait'))}</div>`;
   }
@@ -489,7 +494,7 @@ function dndBottomHtml(state) {
         <p class="dnd-err" data-dnd-err aria-live="polite"></p>`;
     }
     if (s.phase === 'choices' && !mine && typeof you.pick !== 'number') {
-      return `<div class="dnd-chs">${(s.choices || []).map((c, i) => `<button type="button" class="dnd-ch" onclick="dndPick(${i})"><b>${escapeHTML(c.t)}</b><small>${escapeHTML(c.s)}</small></button>`).join('')}</div>`;
+      return `<div class="dnd-chs">${(s.choices || []).map((c, i) => `<button type="button" class="dnd-ch" onclick="dndPick(${i})"><b>${escapeHTML(c.t)}</b><small>${escapeHTML(c.s)}</small>${dndLatin(c)}</button>`).join('')}</div>`;
     }
     if (s.phase === 'type' || s.phase === 'choices') {
       return `<div class="dnd-note-box">${escapeHTML(dndT(mine ? 'dnd_done' : 'dnd_picked'))}</div>`;
@@ -497,7 +502,7 @@ function dndBottomHtml(state) {
   }
   if (s.phase === 'reveal') {
     const picks = (s.choices || []).length && s.picks && Object.keys(s.picks).length;
-    const chs = picks ? `<div class="dnd-chs dnd-chs--done">${s.choices.map((c, i) => `<div class="dnd-ch ${i === s.correct ? 'is-right' : ''} ${(s.picks || {})[Room.me] === i && i !== s.correct ? 'is-wrong' : ''}"><b>${escapeHTML(c.t)}</b><small>${escapeHTML(c.s)}</small></div>`).join('')}</div>` : '';
+    const chs = picks ? `<div class="dnd-chs dnd-chs--done">${s.choices.map((c, i) => `<div class="dnd-ch ${i === s.correct ? 'is-right' : ''} ${(s.picks || {})[Room.me] === i && i !== s.correct ? 'is-wrong' : ''}"><b>${escapeHTML(c.t)}</b><small>${escapeHTML(c.s)}</small>${dndLatin(c)}</div>`).join('')}</div>` : '';
     const note = dndMyNote(state);
     return `${note ? `<div class="dnd-note-box dnd-note-box--res">${escapeHTML(note)}</div>` : ''}${chs}`;
   }
@@ -599,8 +604,8 @@ function dndPaint(state, el) {
     if (s.phase === 'arm') { if ((s.armed || []).indexOf(id) !== -1) { txt = '🎧'; cls = 'on'; } }
     else if (s.phase === 'reveal') {
       const g = (s.gained || {})[id] || 0;
-      if (r || (s.picks && typeof s.picks[id] === 'number')) { txt = g ? '+' + g : '✗'; cls = 'on'; }
-    } else if (r) { txt = '✓ ' + r.rank; cls = 'on'; }
+      if (r || (s.picks && typeof s.picks[id] === 'number')) { txt = g ? dndPts(g) : '✗'; cls = 'on'; }
+    } else if (r) { txt = '\u2066✓ ' + r.rank + '\u2069'; cls = 'on'; }
     else if ((s.picked || []).indexOf(id) !== -1) { txt = '✋'; cls = 'on'; }
     const sign = head.querySelector('[data-dnd-sign]');
     if (sign && sign.textContent !== txt) sign.textContent = txt;
@@ -631,7 +636,7 @@ function dndPaint(state, el) {
     if (last.textContent !== txt) last.textContent = txt;
   }
   // The bulbs and the clock.
-  let frac = 1, secs = null, hurry = false;
+  let frac = 1, secs = null, hurry = false, cnt = null;
   if (s.phase === 'type' && s.typeEndsAt) {
     const total = Math.max(1, s.typeEndsAt - (s.typeStartAt || s.typeEndsAt - 15000));
     frac = Math.max(0, Math.min(1, (s.typeEndsAt - now) / total));
@@ -642,7 +647,7 @@ function dndPaint(state, el) {
   } else if (s.phase === 'listen' && s.listenEndsAt) {
     secs = Math.max(0, Math.ceil((s.listenEndsAt - now) / 1000));
   } else if (s.phase === 'count' && s.playAt) {
-    secs = Math.max(0, Math.ceil((s.playAt - now) / 1000));
+    cnt = Math.max(0, Math.ceil((s.playAt - now) / 1000));
   } else if (s.phase === 'arm' && s.armEndsAt) {
     secs = Math.max(0, Math.ceil((s.armEndsAt - now) / 1000));
   } else if (s.phase === 'reveal' || s.phase === 'gameover') frac = 0;
@@ -656,7 +661,7 @@ function dndPaint(state, el) {
     if (c.textContent !== txt) c.textContent = txt;
     c.hidden = secs === null;
   });
-  el.querySelectorAll('[data-dnd-cnt]').forEach(c => { const txt = secs > 0 ? String(secs) : '🎧'; if (c.textContent !== txt) c.textContent = txt; });
+  el.querySelectorAll('[data-dnd-cnt]').forEach(c => { const txt = cnt > 0 ? String(cnt) : '🎧'; if (c.textContent !== txt) c.textContent = txt; });
   // The last three seconds of the bulbs tick on the room's voice; the bulbs going out buzz once.
   if (s.phase === 'type' && secs !== null && secs <= 3 && secs > 0 && dnd.tick !== secs && dndVoice(state)) { dnd.tick = secs; dndSound('tick'); }
   if (s.phase === 'choices' && dndVoice(state) && dndOnce('bulbs|' + key + '|' + el.id)) dndSound('bulbs');
@@ -695,7 +700,7 @@ function dndPaintMine(state, el) {
   const mine = dndRightOf(s, Room.me);
   const stamp = el.querySelector('[data-dnd-stamp]');
   if (stamp && mine && (s.phase === 'type' || s.phase === 'choices') && dndOnce('stamp|' + key + '|' + el.id)) {
-    stamp.textContent = (mine.rank <= 3 ? dndT('dnd_rank_' + mine.rank) : dndT('dnd_res_late')) + ' +' + mine.pts;
+    stamp.textContent = (mine.rank <= 3 ? dndT('dnd_rank_' + mine.rank) : dndT('dnd_res_late')) + ' ' + dndPts(mine.pts);
     stamp.classList.remove('is-on'); void stamp.offsetWidth; stamp.classList.add('is-on');
     haptic('medium');
     playSound('success');
@@ -868,7 +873,7 @@ TV_GAMES.hum = {
     })();
     if (s.phase === 'gameover') {
       return `<div class="dnd-tv dnd-tv--over">
-          <div class="dnd-tv__over"><div class="dnd-over__t">${escapeHTML(dndT('dnd_over_title'))}</div>${renderPodium(state, s.board)}</div>
+          <div class="dnd-tv__over"><div class="dnd-over__t">${escapeHTML(dndT('dnd_over_title'))}</div><div class="tv-scale">${renderPodium(state, s.board)}</div></div>
           <div class="dnd-tv__board tv-scale">${renderScoreboard(s.board)}${host}</div>
         </div>`;
     }

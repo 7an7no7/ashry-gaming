@@ -34,6 +34,43 @@ The title at the end (`shared.fastest`, who was first right most often) says
 what its number is: «⚡ أسرع إجابة: منى · في 3 أسئلة» (`renderAward`'s
 `countHtml`, `awardFirstTimes`; the number held left to right).
 
+**The host picks a category** (the review of 1 Oct 2026). Every question in
+`TriviaQuestions.js` carries `c`: `egypt`, `geography`, `science` (science and
+nature: animals, space, the body, inventions, computers), `sport`, `film`
+(arts: film, TV, cartoons, music, books, painting) or `general` (numbers,
+colours, languages, everyday things, and the little world history there is -
+too few for a category of its own). Arabic: egypt 52, geography 160, science
+166, sport 50, film 54, general 95; English: 51, 153, 167, 50, 54, 104.
+Egyptian films and singers are `film` and Egyptian football `sport`; `egypt`
+is the country itself (its history, places, customs). The lobby's «الفئة»
+select (`#trivia-cat`, `TRIVIA_ROOM_CATS` in `JS_RoomTrivia.html`, «كله»
+first and the default, remembered in `ashryTriviaCat`) is drawn by
+`lobbyOptions`, so the TV hosting a room has it too; it hides with the count
+when the host plays their own quiz. The start sends `cat`; the server
+(`TRIVIA_CATS`, `triviaCategoryOf`) keeps it in `room._triviaCat`, play again
+keeps it, and a start with none (an older phone) or an unknown one is
+everything. Dealing goes through `nextPrompts(room, pool, key, count, accept)`
+with the same `trivia_<lang>` memory as the whole list: the category's unseen
+questions first; when the category has all been dealt lately its own cycle
+starts over (the rest of the list's memory untouched); when the whole category
+is already in this deal (a category shorter than the game), the rest of the
+list fills it. `npm run check` fails on a question with no known category, on
+`TRIVIA_ROOM_CATS` and `TRIVIA_CATS` disagreeing, and on a category under 40
+questions in either language.
+
+**The bank's content sweep** (the same review): the Arabic "longest river"
+offered الأمازون (arguably longer) - now نهر الكونغو; "how many continents"
+(5, 6 or 7 depending on the school) became "the largest continent"; Egypt's
+continent no longer offers آسيا (Sinai); "the largest gulf", "the most
+populous Arab country" and "most populous country in 2023" (rankings) were
+replaced; distractors that a table could argue for went (لاهاي / The Hague,
+بورتسودان, Aden, Hargeisa, the red belt in karate, the guitar from the oud,
+Cairo's Blue Mosque, سمكة السيف); snooker asks about the famous 147 break,
+sushi where it is best known, the Model T "the first moving assembly line";
+Darwin became Mendel's peas; two questions that mixed فصحى and عامية in one
+sentence are فصحى now. Questions that are عامية all through, or ask «أي ...»
+with an Egyptian verb, were left as they are.
+
 The team board (*دوري المعرفة*) is single-screen: `JS_TriviaBoard.html`, with its
 own bank in `JS_TriviaBoardBank.html` — ten categories, sixteen or more questions
 at each of 100–500, the higher the harder. Only facts that don't change (no

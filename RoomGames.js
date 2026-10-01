@@ -3091,7 +3091,7 @@ const writeSeen = (key, size, used) => {
  * list over once all of it has been used. One read and one write however many
  * are dealt, since each Properties call is a round trip.
  */
-const nextPrompts = (room, pool, poolKey, count) => {
+const nextPrompts = (room, pool, poolKey, count, accept) => {
   const key = poolKey || ('pool' + pool.length);
   room._used = room._used || {};
   // Older rooms may hold an array from before this was keyed.
@@ -3100,13 +3100,26 @@ const nextPrompts = (room, pool, poolKey, count) => {
   let used = readSeen(key, pool.length) || room._used[key] || [];
   const picks = [];
   const want = Math.min(count, pool.length);
+  // `accept(item)` (optional): deal from these first - one category of
+  // trivia's questions - in the same memory as the whole list. Once the
+  // category has all been dealt lately its own cycle starts over; once all of
+  // it is in this very deal, the rest of the list fills the deal.
+  const ok = accept ? pool.map(item => !!accept(item)) : null;
   for (let n = 0; n < want; n++) {
     if (used.length >= pool.length) used = [];
-    const taken = {};
+    let taken = {};
     used.forEach(i => { taken[i] = true; });
     picks.forEach(i => { taken[i] = true; });
-    const open = [];
-    for (let i = 0; i < pool.length; i++) if (!taken[i]) open.push(i);
+    if (ok && !pool.some((_, i) => ok[i] && !taken[i]) && pool.some((_, i) => ok[i] && picks.indexOf(i) === -1)) {
+      used = used.filter(i => !ok[i] || picks.indexOf(i) !== -1);
+      taken = {};
+      used.forEach(i => { taken[i] = true; });
+      picks.forEach(i => { taken[i] = true; });
+    }
+    let open = [];
+    if (ok) for (let i = 0; i < pool.length; i++) if (ok[i] && !taken[i]) open.push(i);
+    if (!open.length) for (let i = 0; i < pool.length; i++) if (!taken[i]) open.push(i);
+    if (!open.length && ok) for (let i = 0; i < pool.length; i++) if (picks.indexOf(i) === -1) open.push(i);
     const idx = open.length ? open[Math.floor(Math.random() * open.length)] : Math.floor(Math.random() * pool.length);
     picks.push(idx);
     used.push(idx);
@@ -3939,6 +3952,15 @@ const TRIVIA_SECONDS = 15;
 // counts. Once this has passed too, the server closes the question itself.
 const TRIVIA_GRACE_MS = 2000;
 
+// The categories a host can pick (a question's `c` in TriviaQuestions.js);
+// TRIVIA_ROOM_CATS in JS_RoomTrivia.html draws them.
+const TRIVIA_CATS = ['egypt', 'geography', 'science', 'sport', 'film', 'general'];
+const triviaCategoryOf = (payload, fallback) => {
+  const asked = payload && payload.cat;
+  if (asked === 'all' || TRIVIA_CATS.indexOf(asked) !== -1) return asked;
+  return fallback || 'all';
+};
+
 const triviaAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'playAgain') {
     requireHost(room, playerId);
@@ -3956,11 +3978,17 @@ const triviaAction = (room, playerId, action, payload) => {
       const asked = Number(payload && payload.count);
       const count = TRIVIA_COUNTS.indexOf(asked) !== -1 ? asked : (room._triviaCount || TRIVIA_PER_GAME);
       room._triviaCount = count;
+      // The host's category (the lobby's «الفئة»): a question's `c`. A phone
+      // that sends none (an older page) gets everything; play again keeps it.
+      const cat = triviaCategoryOf(payload, action === 'playAgain' ? room._triviaCat : 'all');
+      room._triviaCat = cat;
+      const accept = cat === 'all' ? null : (q => q.c === cat);
       // The bank puts the right answer second three times in four, so the
       // choices are reordered for every question — otherwise "always B" wins.
-      room._deck = nextPrompts(room, pool, 'trivia_' + lang, count).map(q => {
+      // One memory for the whole list, whatever the category.
+      room._deck = nextPrompts(room, pool, 'trivia_' + lang, count, accept).map(q => {
         const order = shuffled(q.choices.map((_, k) => k));
-        return { q: q.q, choices: order.map(k => q.choices[k]), answer: order.indexOf(q.answer) };
+        return { q: q.q, choices: order.map(k => q.choices[k]), answer: order.indexOf(q.answer), c: q.c };
       });
     }
     room._triviaFastest = {};

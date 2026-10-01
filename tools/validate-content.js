@@ -177,29 +177,50 @@ for (const [lang, list] of Object.entries(WL)) {
 }
 
 const TRIV = load(ROOT + 'TriviaQuestions.js', 'TRIVIA_QUESTIONS');
+// The server's categories, and the lobby's (JS_RoomTrivia.html), which adds 'all'.
+const listIn = (file, name) => {
+  const m = fs.readFileSync(ROOT + file, 'utf8').match(new RegExp('const ' + name + ' = (\\[[^\\]]*\\])'));
+  if (!m) throw new Error(name + ' not found in ' + file);
+  return JSON.parse(m[1].replace(/'/g, '"'));
+};
+const TRIVIA_CATS = listIn('RoomGames.js', 'TRIVIA_CATS');
+if (listIn('JS_RoomTrivia.html', 'TRIVIA_ROOM_CATS').join() !== ['all'].concat(TRIVIA_CATS).join()) {
+  note('trivia: TRIVIA_ROOM_CATS (JS_RoomTrivia.html) must be \'all\' and then TRIVIA_CATS (RoomGames.js)');
+}
 for (const [lang, list] of Object.entries(TRIV)) {
   list.forEach((item, i) => {
     if (!item.q || !item.q.trim()) note(`trivia.${lang}[${i}]: empty question`);
     if (!Array.isArray(item.choices) || item.choices.length !== 4) note(`trivia.${lang}[${i}]: expected 4 choices`);
     if (typeof item.answer !== 'number' || item.answer < 0 || item.answer > 3) note(`trivia.${lang}[${i}]: invalid answer index`);
+    // The room's lobby deals one category (TRIVIA_CATS in RoomGames.js).
+    if (TRIVIA_CATS.indexOf(item.c) === -1) note(`trivia.${lang}[${i}]: category "${item.c}" is not one of ${TRIVIA_CATS.join(', ')}`);
   });
   const dup = list.map(x => x.q).filter((v, i, a) => a.indexOf(v) !== i);
   if (dup.length) note(`trivia.${lang}: duplicate questions ${JSON.stringify(dup)}`);
-  console.log(`trivia.${lang}: ${list.length} questions`);
+  // A category under a full game (20) is topped up from the rest: fine now and
+  // then, but a category the lobby offers should mostly deal itself.
+  const byCat = {};
+  list.forEach(item => { byCat[item.c] = (byCat[item.c] || 0) + 1; });
+  TRIVIA_CATS.forEach(c => { if ((byCat[c] || 0) < 40) note(`trivia.${lang}: only ${byCat[c] || 0} questions in "${c}" (40 or more)`); });
+  console.log(`trivia.${lang}: ${list.length} questions (${TRIVIA_CATS.map(c => c + ' ' + (byCat[c] || 0)).join(', ')})`);
 }
 
 /* --------------------------------------------------- قبل ولا بعد (timeline) */
-// Two cards with the same year would make a placement right and wrong at the
-// same time, and a card missing a language would deal blank to that table.
+// A card missing a language would deal blank to that table, and an event
+// listed twice could be dealt twice in one game. Two cards may share a year:
+// timelineFits (RoomGames.js) takes a card beside one of its own year on
+// either side (the review of 1 Oct 2026).
 const TL = load(ROOT + 'TimelineEvents.js', 'TIMELINE_EVENTS');
 {
-  const years = {};
+  const seen = {};
   TL.forEach((e, i) => {
     if (typeof e.y !== 'number' || !Number.isInteger(e.y)) note(`timeline[${i}]: no year`);
     if (!e.ar || !String(e.ar).trim()) note(`timeline[${i}] (${e.y}): no Arabic`);
     if (!e.en || !String(e.en).trim()) note(`timeline[${i}] (${e.y}): no English`);
-    if (years[e.y]) note(`timeline: two cards on ${e.y} - "${years[e.y]}" and "${e.ar}"`);
-    years[e.y] = e.ar;
+    for (const k of ['ar:' + String(e.ar || '').trim(), 'en:' + String(e.en || '').toLowerCase().trim()]) {
+      if (seen[k]) note(`timeline: "${k}" is listed twice (${seen[k]} and ${e.y})`);
+      seen[k] = e.y;
+    }
   });
   const span = TL.map(e => e.y);
   console.log(`timeline: ${TL.length} events, ${Math.min(...span)}-${Math.max(...span)}`);

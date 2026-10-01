@@ -33,6 +33,26 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
   African currencies in the hard Connections, «رياضات ⚽» and «رياضات
   أولمبية» overlapping. Every list keeps its size; `npm run check` passes.
 
+- **The review of 1 Oct 2026, content** ("apply the improvements"):
+  - **قبل ولا بعد's bank grew from 42 to 163 events** (`TimelineEvents.js`,
+    622-2022): a four-player game deals 21, so two games went through it.
+    Only years that are settled facts - inventions, famous buildings and
+    bridges, sport firsts, Egyptian history and culture (the Citadel, the
+    Khedivial Opera and Aida, the Egyptian Museum, Cairo University, Banque
+    Misr, the radio, the TV, the Cairo Tower, «إنت عمري», Abu Simbel's move,
+    the book fair, the film festival, the metro lines, Zewail's Nobel), space,
+    games and everyday things. Left out on purpose: anything political or
+    divisive, events whose name holds their year (ثورة 1919, ويندوز 95), firsts
+    that are argued about (the first cartoon feature, the first photograph,
+    the radio), and Paris or London Olympics (each city held several).
+    **Two cards may share a year** now: `timelineFits` already took a card
+    beside one of its own year on either side, so the one-card-a-year check
+    became "no event twice".
+  - **Trivia** (`TriviaQuestions.js`): every question tagged with a category
+    for the room lobby's pick, and the bank swept for disputed facts and
+    distractors, rankings that go stale and mixed فصحى/عامية (the list is in
+    `notes/games/trivia.md`); the count stays 577 Arabic, 579 English.
+
 - **The owner's content decisions of 26 Sep 2026** (the review of 25 Sep,
   `notes/review-2026-09-25/`, asked each question; the owner answered):
   - **Cut**: prompts about height («أطول/أقصر واحد في العيلة» in لو خيروك,

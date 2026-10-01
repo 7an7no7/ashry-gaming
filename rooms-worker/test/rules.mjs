@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, stopLettersFor, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
 import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION_CATCH_WAIT_MS } from '../generated/rules.js';
+import { nextPrompts } from '../generated/rules.js';
 let failed = 0;
 const check = (ok, label) => {
   console.log((ok ? '  ✓ ' : '  ✗ ') + label);
@@ -116,6 +117,44 @@ check(again.shared.fastest === null, 'trivia: play again starts the tally over')
 
 const solo = playTrivia(['a'], ['a', 'a']);
 check(solo.shared.fastest === null, 'trivia: one player alone takes no title');
+
+/* --- the host's category (the lobby's «الفئة», the review of 1 Oct 2026) ---- */
+{
+  const catRoom = (payload) => {
+    const r = newRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'trivia' });
+    applyRoomAction(r, 'a', 'start', payload);
+    return r;
+  };
+  const eg = catRoom({ lang: 'ar', count: 20, cat: 'egypt' });
+  check(eg._deck.length === 20 && eg._deck.every((q) => q.c === 'egypt'), 'trivia/category: a game of «مصر» deals only Egypt questions');
+  check(!('c' in eg.shared) && JSON.stringify(eg.shared).indexOf('"egypt"') === -1, 'trivia/category: the deck stays on the server');
+  const sp = catRoom({ lang: 'en', count: 10, cat: 'sport' });
+  check(sp._deck.every((q) => q.c === 'sport'), 'trivia/category: and in English too');
+  // Three games of 20 from one category of about fifty: its own cycle starts
+  // over, so the third game is still all that category and has no repeat.
+  for (let g = 0; g < 2; g++) {
+    for (let i = 0; i < 20; i++) { applyRoomAction(eg, 'a', 'closeQuestion', {}); applyRoomAction(eg, 'a', 'nextQuestion', {}); }
+    applyRoomAction(eg, 'a', 'playAgain', { lang: 'ar' });
+  }
+  check(eg._deck.every((q) => q.c === 'egypt') && new Set(eg._deck.map((q) => q.q)).size === 20,
+        'trivia/category: play again keeps the category, and a category dealt through starts over within itself');
+  const old = catRoom({ lang: 'ar', count: 20 });
+  check(old._triviaCat === 'all' && new Set(old._deck.map((q) => q.c)).size > 1, 'trivia/category: no category sent (an older phone) is everything');
+  const odd = catRoom({ lang: 'ar', count: 5, cat: 'nope' });
+  check(odd._triviaCat === 'all' && odd._deck.length === 5, 'trivia/category: an unknown category is everything');
+
+  // A category shorter than the game: all of it, then the rest of the list.
+  const pool = Array.from({ length: 12 }, (_, i) => ({ id: i, c: i < 3 ? 'x' : 'y' }));
+  const r = { players: [] };
+  const first = nextPrompts(r, pool, 'cat-test', 6, (q) => q.c === 'x');
+  check(first.length === 6 && first.filter((q) => q.c === 'x').length === 3 && new Set(first.map((q) => q.id)).size === 6,
+        'trivia/category: a short category is dealt whole and the rest of the list fills the game');
+  const second = nextPrompts(r, pool, 'cat-test', 2, (q) => q.c === 'x');
+  check(second.every((q) => q.c === 'x'), 'trivia/category: next time the short category starts over rather than leaving it');
+  const plain = nextPrompts(r, pool, 'cat-test', 4);
+  check(plain.length === 4 && new Set(plain.map((q) => q.id)).size === 4, 'trivia/category: the same memory still deals the whole list');
+}
 
 /* --- صدق ولا كذب: who fooled the most ------------------------------------- */
 const tt = newRoom(['a', 'b', 'c']);
@@ -2292,7 +2331,10 @@ const leave = (r, id, hook = true) => {
   check(['a', 'b', 'c'].every((id) => Object.keys(tl.secrets[id]).join() === 'cards' && JSON.stringify(tl.secrets[id]).indexOf('"y"') === -1),
         'timeline: and nothing else - no year anywhere in what a phone is sent');
   check(hand(tl, 'a').every((c) => typeof c.y === 'number'), 'timeline: the server keeps the real years');
-  const unplayed = ['a', 'b', 'c'].reduce((acc, id) => acc.concat(hand(tl, id).map((c) => c.y)), []);
+  // Two cards may share a year, so a hand's year that the line already shows is no leak.
+  const lineYears = tl.shared.timeline.map((c) => c.y);
+  const unplayed = ['a', 'b', 'c'].reduce((acc, id) => acc.concat(hand(tl, id).map((c) => c.y)), [])
+    .filter((y) => lineYears.indexOf(y) === -1);
   const publishedYears = JSON.stringify(tl.shared);
   check(!unplayed.some((y) => publishedYears.indexOf('"y":' + y) !== -1),
         'timeline: no unplayed year appears anywhere in shared');
@@ -2347,6 +2389,22 @@ const leave = (r, id, hook = true) => {
     check(!(tl.shared.scores || {})[who] || (tl.shared.scores || {})[who] === 1, 'timeline: a wrong placement scores nothing');
   }
 
+  // Two cards of the same year: either side of the other is right (the bank
+  // has shared years since the review of 1 Oct 2026).
+  {
+    const same = tlStart(['a', 'b']);
+    const who = up(same);
+    const card = hand(same, who)[0];
+    same.shared.timeline = [{ id: 'twin', text: 'twin', y: card.y }];
+    applyRoomAction(same, who, 'place', { card: card.id, at: 0 });
+    check(same.shared.last.right === true, 'timeline: a card before one of its own year is right');
+    const next = up(same);
+    const other = hand(same, next)[0];
+    same.shared.timeline = [{ id: 'twin2', text: 'twin2', y: other.y }];
+    applyRoomAction(same, next, 'place', { card: other.id, at: 1 });
+    check(same.shared.last.right === true, 'timeline: and so is a card after it');
+  }
+
   // The same event never appears twice in one game.
   {
     const two = tlStart(['a', 'b']);
@@ -2399,9 +2457,10 @@ const leave = (r, id, hook = true) => {
     const seven = tlStart('abcdefg'.split(''));
     check(seven._timeline.deck.length >= 7, 'timeline: 7 players leave at least one spare card each');
     const twelve = tlStart('abcdefghijkl'.split(''));
-    // The bank is 42 cards since 25 Sep 2026: 12 players get two each and 17 spares.
-    const bank = 1 + 12 * twelve.shared.handSize + twelve._timeline.deck.length;
-    check(twelve.shared.handSize >= 1 && twelve._timeline.deck.length >= 12 && twelve._timeline.deck.length < 12 + 12 && bank <= 42,
+    // The bank is 160-odd cards since the review of 1 Oct 2026: 12 players get the full hand of
+    // three each and two spares each (1 + 12 × (3 + 2) cards are asked for).
+    check(twelve.shared.handSize === 3 && twelve._timeline.deck.length >= 12 &&
+          ['a', 'l'].every((id) => hand(twelve, id).length === 3),
           'timeline: 12 players get an even hand and keep a spare card each for the rest');
   }
 

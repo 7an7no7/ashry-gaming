@@ -8,7 +8,7 @@
  * Hidden information stays behind: `secrets` leaves only as `you`, and only
  * for the player it belongs to; a screen is never sent one.
  */
-import { chatFor } from '../generated/rules.js';
+import { chatFor, missionView } from '../generated/rules.js';
 
 export const roomView = (room, pid, online, extra) => {
   const screens = room.screens || [];
@@ -37,6 +37,9 @@ export const roomView = (room, pid, online, extra) => {
     // برنامج السهرة (RoomProgram.js): the list, where it is, the night's table, the finale.
     // Public by design: each game's options and the awards' raw log stay behind (room._prog*).
     program: room.program || null,
+    // المهمة السرية (RoomMission.js): the switch and the evening's file for everyone; a person's own
+    // file and the asks waiting on them only on their own phone (a screen: the public part).
+    mission: missionView(room, pid),
     // «الشلة» the night counts for ({ code, name }), or null. Who is which member stays here.
     crew: room.crew || null,
     // The audience (RoomGames.js): the last cheer, and the guesses of who will win.

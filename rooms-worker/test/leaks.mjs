@@ -18,7 +18,7 @@
  * the run too, so a probe can't pass by never looking.
  */
 import { readFileSync } from 'node:fs';
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, ROOM_GAME_IDS, roomPlayerLeft } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, ROOM_GAME_IDS, roomPlayerLeft, missionJoined, missionPlayerLeft } from '../generated/rules.js';
 import { roomView } from '../src/view.js';
 
 // The countries, for the engine's خمّن الدولة driver to guess with (one sets, everyone solves).
@@ -1122,7 +1122,8 @@ const scan = (T, after) => {
   // A night's program (T.dynamic) plays several games: each step is held to the probes of the game on now.
   const probeGame = T.dynamic ? room.game : game;
   const probes = GENERIC(room).concat(T.tourOf ? tourProbes(room, T.tourOf) : (PROBES[probeGame] || (() => []))(room))
-    .concat(T.dynamic ? PROGRAM_PROBES(room) : []);
+    .concat(T.dynamic ? PROGRAM_PROBES(room) : [])
+    .concat(MISSION_PROBES(room));
   for (const p of probes) {
     if (!r.probes.has(p.name)) r.probes.set(p.name, 0);
     if (!p.active) continue;
@@ -2462,7 +2463,107 @@ const PROGRAM_PROBES = (room) => {
   ];
 };
 
+/* المهمة السرية (RoomMission.js): a phone holds its own file and nobody else's, an ask reaches its
+   target alone, a screen holds nothing private, a wrong «كشفتك!» is told to the guesser alone,
+   and the public part carries no open file. Held on every move, beside the game on now. */
+const MISSION_PROBES = (room) => {
+  const m = room.mission;
+  if (!m) return [];
+  const h = room._mission || {};
+  const of = h.of || {};
+  const people = room.players.filter((p) => !p.bot).map((p) => p.id);
+  const live = !!(m.on && m.phase === 'on');
+  const PUBLIC = ['on', 'phase', 'place', 'co', 'swap', 'catch', 'paused', 'score', 'names', 'feed', 'startedAt', 'reveal', 'me', 'asks'];
+  return [
+    probe('mission: a phone holds its own file and no one else\'s', live && Object.keys(of).length > 0, (view, pid) => {
+      const mine = (view.mission || {}).me;
+      const f = of[pid];
+      if (pid === SCREEN || people.indexOf(pid) === -1) return mine ? 'mission.me on a screen' : null;
+      if (!f) return mine && mine.m ? 'mission.me with no file' : null;
+      return mine && mine.m === f.m && mine.to === f.to && mine.n === f.n ? null : 'mission.me';
+    }),
+    probe('mission: an ask reaches its target alone', live && (h.asks || []).length > 0, (view, pid) => {
+      const asks = (view.mission || {}).asks || [];
+      const want = (h.asks || []).filter((a) => a.to === pid).map((a) => a.id).sort().join(',');
+      return asks.map((a) => a.id).sort().join(',') === want ? null : 'mission.asks';
+    }),
+    probe('mission: a wrong «كشفتك!» is told to the guesser alone', live && Object.keys(h.lastCatch || {}).length > 0, (view, pid) => {
+      const me = (view.mission || {}).me;
+      const got = me && me.caught ? JSON.stringify(me.caught) : 'null';
+      const want = (h.lastCatch || {})[pid] ? JSON.stringify(h.lastCatch[pid]) : 'null';
+      return got === want ? null : 'mission.me.caught';
+    }),
+    probe('mission: the public part carries no open file', true, (view) => {
+      const v = view.mission || {};
+      const extra = Object.keys(v).find((k) => PUBLIC.indexOf(k) === -1);
+      if (extra) return 'mission.' + extra;
+      if (live && v.reveal) return 'mission.reveal while it runs';
+      // The ticker names a file once it is closed, never one still open (its holder's next is dealt).
+      const open = (v.feed || []).find((e) => e.k !== 'done' && e.m);
+      if (open) return 'mission.feed (a mission that is not done)';
+      const held = (v.feed || []).find((e) => e.k === 'done' && of[e.by] && of[e.by].m === e.m && of[e.by].to === e.to);
+      return held ? 'mission.feed (the doer\'s open file)' : null;
+    })
+  ];
+};
+
 const VARIANT_DRIVERS = {
+  mission() {
+    // المهمة السرية beside a night: files done (yes and no), swapped, caught right and wrong, taken
+    // back; a game of المختلف played meanwhile; someone joining and someone leaving; then off - the
+    // reveal - and closed.
+    const ids = ['p1', 'p2', 'p3', 'p4', 'p5'];
+    const room = {
+      code: 'LEAK', version: 1, game: null, phase: 'lobby', hostId: 'p1',
+      players: ids.map((id, i) => ({ id, name: NAMES[i] })), screens: [{ id: SCREEN }], shared: {}, secrets: {}
+    };
+    if (!report.has('mission')) report.set('mission', { moves: 0, probes: new Map(), leaks: new Map() });
+    const T = { room, game: 'mission', ids, host: 'p1', dynamic: true };
+    const H = () => T.room._mission || {};
+    const tally = { yes: 0, no: 0, swap: 0, right: 0, wrong: 0 };
+    must(T, 'p1', 'missionSet', { on: true, place: 'home', co: 'friends' });
+    const step = () => {
+      const people = T.room.players.filter((p) => !p.bot).map((p) => p.id);
+      const pid = pick(people);
+      const f = H().of && H().of[pid];
+      const ask = (H().asks || []).find((a) => a.to === pid);
+      if (ask) {
+        const yes = Math.random() < 0.7;
+        if (act(T, pid, 'missionAnswer', { id: ask.id, yes })) tally[yes ? 'yes' : 'no']++;
+        return;
+      }
+      if (!f) return;
+      const r = Math.random();
+      if (r < 0.45) act(T, pid, 'missionDone', { n: f.n });
+      else if (r < 0.55) { clock += 11 * 60 * 1000; if (act(T, pid, 'missionSwap', { n: f.n })) tally.swap++; }
+      else if (r < 0.7) {
+        clock += 6 * 60 * 1000;
+        const who = pick(people.filter((x) => x !== pid));
+        const right = H().of[who] && H().of[who].to === pid && !H().of[who].asked;
+        if (act(T, pid, 'missionCatch', { who })) tally[right ? 'right' : 'wrong']++;
+      } else if (r < 0.75) act(T, pid, 'missionCancel', {});
+    };
+    for (let i = 0; i < 120; i++) step();
+    // A game beside it.
+    must(T, 'p1', 'chooseGame', { game: 'imposter' });
+    must(T, 'p1', 'start', { category: 'حيوانات', spies: 1 });
+    for (let i = 0; i < 30; i++) step();
+    must(T, 'p1', 'beginDiscussion');
+    must(T, 'p1', 'startVote');
+    for (const id of ids) { act(T, id, 'vote', { option: pick(ids.filter((x) => x !== id)) }); step(); }
+    act(T, 'p1', 'closeVote');
+    must(T, 'p1', 'backToHub');
+    // Someone joins, someone leaves.
+    T.room.players.push({ id: 'p6', name: NAMES[5] });
+    missionJoined(T.room); scan(T, 'a join');
+    T.room.players = T.room.players.filter((p) => p.id !== 'p2');
+    missionPlayerLeft(T.room); scan(T, 'a leave');
+    for (let i = 0; i < 120; i++) step();
+    must(T, 'p1', 'missionSet', { on: false });
+    must(T, 'p1', 'missionClose');
+    return T.room.mission.phase === 'off' && tally.yes > 2 && tally.no > 0 && tally.swap > 0 && tally.right + tally.wrong > 0;
+  },
+
   program() {
     // A night of three games: كدّاب played out by its turn clock (lies and calls on the pile),
     // المختلف cut short by the host, the trivia played out by its own clocks, to the finale.

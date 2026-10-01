@@ -538,6 +538,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
       room.players = room.players.filter(p => p.id !== playerId);
       room.screens.push({ id: playerId });
       if (room.shared && room.shared.teams) delete room.shared.teams[playerId];
+      missionFill(room);   // المهمة السرية: a screen holds no file, and nobody aims at it
       return;
     }
     if (!room.screens.some(s => s.id === playerId)) return;              // already a player
@@ -549,6 +550,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     }
     room.screens = room.screens.filter(s => s.id !== playerId);
     room.players.push({ id: playerId, name: name });
+    missionFill(room);   // المهمة السرية: dealt in
     return;
   }
 
@@ -565,6 +567,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
       throw new Error('الاسم ده مستخدم في الغرفة، اختار اسم تاني');
     }
     me.name = name;
+    missionFill(room);   // المهمة السرية keeps the names it tells the story with
     return;
   }
 
@@ -615,6 +618,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
     p.picks[playerId] = target;
     return;
   }
+
+  // المهمة السرية (RoomMission.js): the room's switch and each person's file, beside any game.
+  if (missionAction(room, playerId, action, payload)) return;
 
   // The host sits a computer player down, takes one out, or changes its level.
   if (roomBotAction(room, playerId, action, payload)) return;

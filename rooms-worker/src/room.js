@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode } from '../generated/rules.js';
+import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -53,7 +53,8 @@ const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', '
 // set for these (the dark room's joystick: its traps and goal come with the walk).
 const QUICK_WITH_ALARM = new Set(['stick']);
 // The actions that deal prompts, which need the shared prompt memory.
-const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap', 'programSkip']);
+// المهمة السرية deals a mission on these too (RoomMission.js), so the shared memory keeps them fresh.
+const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap', 'programSkip', 'missionSet', 'missionAnswer', 'missionSwap', 'missionCatch', 'becomePlayer']);
 const MAX_MESSAGE = 64 * 1024;
 const MAX_LIVE = 8 * 1024;
 // A controller's message (a stick, a ping): a few numbers.
@@ -609,6 +610,9 @@ export class Room extends DurableObject {
 
   async join(rawName, screen) {
     await this.load();
+    // المهمة السرية on: whoever comes in later is dealt a file, with the shared memory as a deal
+    // has it - read before anything changes, so the room is looked at again after the wait.
+    const memory = !screen && this.room && this.room.mission && this.room.mission.on ? await this.readMemory() : null;
     const room = this.room;
     if (!room) return { ok: false, error: 'ROOM_NOT_FOUND' };
 
@@ -630,6 +634,15 @@ export class Room extends DurableObject {
       }
       room.players.push({ id: pid, name });
       roomEvent(room, 'joined', { name });
+      // المهمة السرية on: whoever comes in later is dealt a file (with the shared memory, as a deal).
+      if (room.mission && room.mission.on) {
+        try {
+          withPromptMemory(memory, () => missionJoined(room));
+          if (memory && Object.keys(memory.changed).length) this.memoryStub().write(memory.changed).catch(() => {});
+        } catch (err) {
+          console.error('missionJoined', errorText(err));
+        }
+      }
     }
     room.keys = room.keys || {};
     room.keys[pid] = key;
@@ -863,6 +876,11 @@ export class Room extends DurableObject {
     if (!people.length && !room.screens.length) {
       await this.destroy();
       return;
+    }
+
+    // المهمة السرية: their file goes, files aimed at them get a new target (or the file pauses).
+    if (leaving && room.mission && room.mission.on) {
+      try { missionPlayerLeft(room); } catch (err) { console.error('missionPlayerLeft', errorText(err)); }
     }
 
     // The round stops waiting for them. On a copy: a rule that throws must

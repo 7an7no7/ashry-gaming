@@ -606,6 +606,48 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   console.log(`snakes: the sneak's crawl clean in ${cases - tangled} of ${cases} cases (${turned} with him behind the snake's head)`);
 }
 
+// المهمة السرية (Missions.js): every mission tagged with real places and a real company, written
+// to be dealt («خلّي {target} …» / «Get {target} …», the name once, so the ticker can say who did it),
+// no id or wording twice (Arabic spelling folded), and at least MISSION_MIN_POOL to deal from in
+// every place × company the host can pick (the owner: plenty for each, 40 or more).
+{
+  const MS = new Function(fs.readFileSync(ROOT + 'Missions.js', 'utf8') +
+    '; return { MISSIONS, MISSION_PLACES, MISSION_COMPANIES, MISSION_MIN_POOL, missionPool, missionDeed };')();
+  const fold = (s) => String(s).toLowerCase().replace(/[ً-ٰٟـ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[«»"'.,!?؟،()]/g, '').replace(/\s+/g, ' ').trim();
+  const ids = {}, ar = {}, en = {};
+  MS.MISSIONS.forEach((m, i) => {
+    const tag = `missions[${i}]${m && m[0] ? ' ' + m[0] : ''}`;
+    if (!Array.isArray(m) || m.length !== 5) { note(`${tag}: not [id, places, company, ar, en]`); return; }
+    const [id, places, co, a, e] = m;
+    if (!/^[a-z]\d\d$/.test(id)) note(`${tag}: an id is a letter and two digits`);
+    if (ids[id]) note(`${tag}: the id ${id} twice`); ids[id] = true;
+    if (places !== '*' && !/^[hco]+$/.test(places)) note(`${tag}: places "${places}" (* or the letters h, c, o)`);
+    if (places !== '*' && new Set(places).size !== places.length) note(`${tag}: a place twice in "${places}"`);
+    if (co !== 'a' && co !== 'f') note(`${tag}: company "${co}" (a: everyone, f: friends only)`);
+    if (!a.startsWith('خلّي {target} ')) note(`${tag}: the Arabic starts «خلّي {target} »`);
+    if (!e.startsWith('Get {target} ')) note(`${tag}: the English starts "Get {target} "`);
+    if (a.split('{target}').length !== 2 || e.split('{target}').length !== 2) note(`${tag}: {target} once in each language`);
+    if (/[{}]/.test(a.replace('{target}', '')) || /[{}]/.test(e.replace('{target}', ''))) note(`${tag}: a stray brace`);
+    if (!/منى خلّى حسن /.test(MS.missionDeed(id, 'ar', 'منى', 'حسن')) || !/^Mona got Hassan /.test(MS.missionDeed(id, 'en', 'Mona', 'Hassan'))) note(`${tag}: the ticker can't say who did it`);
+    const fa = fold(a), fe = fold(e);
+    if (ar[fa]) note(`${tag}: the same Arabic as ${ar[fa]}`); ar[fa] = id;
+    if (en[fe]) note(`${tag}: the same English as ${en[fe]}`); en[fe] = id;
+  });
+  const sizes = [];
+  MS.MISSION_PLACES.forEach((pl) => MS.MISSION_COMPANIES.forEach((co) => {
+    const n = MS.missionPool(pl, co).length;
+    sizes.push(`${pl}×${co} ${n}`);
+    if (n < MS.MISSION_MIN_POOL) note(`missions: only ${n} for ${pl} × ${co} (at least ${MS.MISSION_MIN_POOL})`);
+  }));
+  // «في أي حتة» deals the talking missions only, so a place's own must not be talking ones by mistake:
+  // every place has missions of its own too.
+  ['h', 'c', 'o'].forEach((l) => {
+    const own = MS.MISSIONS.filter((m) => m[1] !== '*' && m[1].indexOf(l) !== -1).length;
+    if (own < 10) note(`missions: only ${own} of the place ${l}'s own`);
+  });
+  console.log(`missions: ${MS.MISSIONS.length} (${sizes.join(', ')})`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

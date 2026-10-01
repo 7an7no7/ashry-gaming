@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
+import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION_CATCH_WAIT_MS } from '../generated/rules.js';
 let failed = 0;
 const check = (ok, label) => {
   console.log((ok ? '  ✓ ' : '  ✗ ') + label);
@@ -12078,6 +12079,125 @@ Date.now = duelTestClock;
     roomHostChanged(r);
     check(!!r.secrets.k && r.secrets.k.answer === r._bzDeck[0].answer && !r.secrets.h, 'buzzer quiz: the new host gets the answer');
   }
+}
+
+/* --- المهمة السرية (RoomMission.js): a switch beside every game ---------------------------- */
+console.log('• the secret mission');
+{
+  const MS = new Function(readFileSync(new URL('../../Missions.js', import.meta.url), 'utf8') + ';return { missionById, missionFits, missionPool };')();
+  const r = newRoom(['h', 'k']);
+  const act = (pid, action, payload) => applyRoomAction(r, pid, action, payload || {});
+  const fails = (pid, action, payload) => { try { act(pid, action, payload); return false; } catch (e) { return true; } };
+  const H = () => r._mission || {};
+  check(fails('k', 'missionSet', { on: true }), 'mission: only the host turns it on');
+  act('h', 'missionSet', { on: true, place: 'any', co: 'family' });
+  check(r.mission.on && r.mission.paused && !Object.keys(H().of).length, 'mission: two people, paused, nobody dealt');
+  check(fails('h', 'missionDone', {}), 'mission: nothing moves while paused');
+  r.players.push({ id: 'g', name: 'G' });
+  missionJoined(r);
+  const of = H().of;
+  check(!r.mission.paused && ['h', 'k', 'g'].every((id) => of[id] && of[id].to && of[id].to !== id && ['h', 'k', 'g'].indexOf(of[id].to) !== -1),
+    'mission: a third joins, everyone has a target that is someone else in the room');
+  check(['h', 'k', 'g'].every((id) => { const m = MS.missionById(of[id].m); return m && m[1] === '*' && m[2] === 'a'; }), 'mission: «في أي حتة» with the family deals talking, gentle missions only');
+  r.players.push({ id: 'bot1', name: 'Bot', bot: 'easy' });
+  missionJoined(r);
+  check(!of.bot1 && !Object.values(H().of).some((f) => f.to === 'bot1'), 'mission: a computer player is never dealt or aimed at');
+  // Views: each phone its own file only, a screen nothing private.
+  const vh = missionView(r, 'h'), vk = missionView(r, 'k'), vs = missionView(r, 'tv');
+  check(vh.me && vh.me.m === of.h.m && vh.me.to === of.h.to && vk.me.m === of.k.m && vs.me === null && vs.asks.length === 0, 'mission: a phone sees its own file, a screen none');
+  // Done: the target is asked, nobody else.
+  const doer = 'h', tgt = of.h.to, other = ['k', 'g'].find((x) => x !== tgt);
+  act(doer, 'missionDone', { n: of.h.n });
+  act(doer, 'missionDone', { n: of.h.n });
+  check(H().asks.length === 1 && missionView(r, tgt).asks.length === 1 && missionView(r, other).asks.length === 0 && missionView(r, doer).me.waiting,
+    'mission: «خلصت» asks the target alone (a double tap asks once)');
+  check(fails(other, 'missionAnswer', { id: H().asks[0].id, yes: true }), 'mission: only the target answers');
+  const keepM = of.h.m;
+  act(tgt, 'missionAnswer', { id: H().asks[0].id, yes: false });
+  check(r.mission.score.h === 0 && H().of.h.m === keepM && !missionView(r, doer).me.waiting && missionView(r, doer).me.no > 0, 'mission: «لأ» - nothing happens, the mission stays');
+  const n0 = H().of.h.n;
+  act(doer, 'missionDone', { n: n0 });
+  act(tgt, 'missionAnswer', { id: H().asks[0].id, yes: true });
+  check(r.mission.score.h === 1 && H().of.h.n !== n0 && H().of.h.to !== tgt && r.mission.feed.length === 1 && r.mission.feed[0].by === 'h' && r.mission.feed[0].to === tgt,
+    'mission: «نعم» - a point, a fresh file aimed at someone else, a line on the ticker');
+  act(doer, 'missionDone', { n: n0 });
+  check(!H().asks.some((a) => a.by === 'h'), 'mission: a «خلصت» for the old file is dropped');
+  // Swap: once every ten minutes.
+  const sw = H().of.k;
+  act('k', 'missionSwap', { n: sw.n });
+  check(H().of.k.n !== sw.n && H().of.k.to === sw.to, 'mission: «غيّرها» - a new mission, the same target');
+  check(fails('k', 'missionSwap', { n: H().of.k.n }), 'mission: «غيّرها» again too soon is refused');
+  clock += MISSION_SWAP_MS + 1;
+  act('k', 'missionSwap', { n: H().of.k.n });
+  check(H().of.k.swapAt === clock, 'mission: «غيّرها» again after ten minutes');
+  // Catch: wrong, then a wait; right, a point and a new file for the caught.
+  // Set up who aims at whom: h at g, k at h (the deal is random).
+  H().of.h.to = 'g'; H().of.k.to = 'h';
+  const victim = 'g', hunter = 'h', innocent = 'k';
+  {
+    act(victim, 'missionCatch', { who: innocent });
+    check(missionView(r, victim).me.catchAt > clock && missionView(r, victim).me.caught.ok === false, 'mission: a wrong «كشفتك!» - nothing, and a wait');
+    check(fails(victim, 'missionCatch', { who: hunter }), 'mission: no second guess during the wait');
+    clock += MISSION_CATCH_WAIT_MS + 1;
+  }
+  check(!!hunter, 'mission: someone aims at every person with a file (three people)');
+  if (hunter) {
+    H().of[hunter].asked = false;
+    const before = r.mission.score[victim] || 0;
+    act(victim, 'missionCatch', { who: hunter });
+    check(r.mission.score[victim] === before + 1 && H().of[hunter].to !== victim && missionView(r, hunter).me.busted > 0, 'mission: a right «كشفتك!» - a point, and the caught get a new file');
+  }
+  // Someone who asked you can't be caught for it.
+  const asker = 'k';
+  const theirT = H().of[asker].to;
+  act(asker, 'missionDone', { n: H().of[asker].n });
+  check(fails(theirT, 'missionCatch', { who: asker }), 'mission: whoever asked you showed their hand - no catch');
+  act(asker, 'missionCancel', {});
+  check(!H().asks.some((a) => a.by === asker), 'mission: the doer takes the ask back');
+  // Beside a game: the mission goes on through a game and the trip back to the hub.
+  act('h', 'chooseGame', { game: 'trivia' });
+  act('h', 'start', { lang: 'ar', count: 5 });
+  act('k', 'missionDone', { n: H().of.k.n });
+  check(r.mission.on && H().asks.some((a) => a.by === 'k'), 'mission: it runs beside a game');
+  act('h', 'backToHub', {});
+  check(r.mission.on && Object.keys(H().of).length === 3, 'mission: the hub keeps every file');
+  // A new place redeals only what no longer fits; the targets stay.
+  const tos = { h: H().of.h.to, k: H().of.k.to, g: H().of.g.to };
+  act('h', 'missionSet', { place: 'cafe', co: 'friends' });
+  check(['h', 'k', 'g'].every((id) => H().of[id].to === tos[id] && MS.missionFits(MS.missionById(H().of[id].m), 'cafe', 'friends')), 'mission: a new place keeps the targets, every mission fits');
+  check(['home', 'cafe', 'out', 'any'].every((pl) => MS.missionPool(pl, 'family').length >= 40 && MS.missionPool(pl, 'friends').length >= 40), 'mission: 40 or more to deal from in every place and company');
+  // Leaving: files aimed at the leaver get a new target; two left, paused.
+  r.players.push({ id: 'z', name: 'Z' });
+  missionJoined(r);
+  check(!!H().of.z, 'mission: a latecomer is dealt in');
+  const aimedAtZ = Object.keys(H().of).filter((id) => H().of[id].to === 'z');
+  r.players = r.players.filter((p) => p.id !== 'z');
+  missionPlayerLeft(r);
+  check(!H().of.z && aimedAtZ.every((id) => H().of[id] && H().of[id].to !== 'z'), 'mission: a leaver drops out, whoever aimed at them gets a new target');
+  r.players = r.players.filter((p) => p.id !== 'g');
+  missionPlayerLeft(r);
+  check(r.mission.paused && fails('h', 'missionDone', {}), 'mission: fewer than three - paused');
+  r.players.push({ id: 'g', name: 'G' });
+  missionJoined(r);
+  check(!r.mission.paused && !!H().of.g, 'mission: back to three - on again');
+  // The end: the story, the champion, the night's points once.
+  const champ = Object.keys(r.mission.score).sort((a, b) => r.mission.score[b] - r.mission.score[a])[0];
+  const nightBefore = (r.night || {})[champ] || 0;
+  act('h', 'missionSet', { on: false });
+  const rv = r.mission.reveal;
+  check(r.mission.phase === 'reveal' && !r.mission.on && rv.story.length >= 1 && rv.open.length >= 3 && rv.champs.indexOf(champ) !== -1 && r._mission === null,
+    'mission: off - the reveal (the story, the files still open), the champion');
+  check((r.night[champ] || 0) === nightBefore + 5, 'mission: the champion banks 5 on the night');
+  check(missionView(r, 'h').me === null && missionView(r, 'h').reveal.table.length >= 3, 'mission: the reveal is everyone\'s, no file left on any phone');
+  check(fails('h', 'missionDone', {}), 'mission: nothing to do once it is off');
+  act('h', 'missionClose', {});
+  check(r.mission.phase === 'off' && r.mission.place === 'cafe' && !r.mission.reveal, 'mission: the host closes the file; the place is remembered');
+  act('h', 'missionSet', { on: true });
+  check(r.mission.on && Object.values(r.mission.score).every((n) => n === 0), 'mission: on again - a fresh evening');
+  // Fresh across deals: a run of swaps doesn't repeat a mission straight away.
+  const seen = [];
+  for (let i = 0; i < 8; i++) { clock += MISSION_SWAP_MS + 1; act('h', 'missionSwap', { n: r._mission.of.h.n }); seen.push(r._mission.of.h.m); }
+  check(seen.every((m, i) => i === 0 || m !== seen[i - 1]), 'mission: a swap never deals the same mission again');
 }
 
 Date.now = realNow;

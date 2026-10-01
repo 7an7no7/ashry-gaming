@@ -236,7 +236,10 @@ default. Seats are shuffled at start and at play again.
   fade.
 - **Clocks and leaving.** The turn clock (0, 30 or 60 seconds) is a server
   deadline that does what the host's `skipTurn` does, and closes the thief
-  vote too. A player who leaves puts their cards under the deck and their turn
+  vote too. A drawn card the skip cuts short goes on the pile, except الحرامي
+  and بونج (`drawn: 'keep'`): those go into one of the player's slots at random
+  and that slot's card goes on the pile (`screwDropPending`; the review of 1 Oct
+  2026, the owner approved - it used to put the thief face up on the pile). A player who leaves puts their cards under the deck and their turn
   moves on; a caller who leaves brings the reveal at once, with no caller; and
   the game ends when fewer than two (or one side) are left, without scoring
   the round in progress. A latecomer watches
@@ -288,7 +291,9 @@ builder, `skrCardHtml`, sized by `--skr-w`.
   columns; كعب داير steps through the players with a count. Protected hands
   after سكرو come from `skrProtected` (the caller's side in teams).
 - **The thief vote** runs on every seated phone (`skrVoteHtml`; this phone's
-  own choice is kept in sessionStorage, since a changed vote sends no event)
+  own choice is kept in sessionStorage, since a changed vote sends no event,
+  and the server sends it back in the phone's own slice, `you.thiefVote`, so a
+  reload or another tab shows it)
   and on the TV. The reveal plays the votes as `renderVoteResults` bars, then a
   `spyRevealParts` card, then the hands turning one by one, the ×2 stamp on a
   beaten caller and a life jacket's value turning into the card it copies. A

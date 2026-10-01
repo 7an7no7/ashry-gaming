@@ -43,6 +43,7 @@
    ========================================================================= */
 
 const DOMINO_GRACE_MS = 1500;      // the server's clock acts this long after the phones'
+const DOMINO_DRAW_MS = 10000;      // a turn clock leaves at least this long to play after a draw
 const DOMINO_EVENTS = 40;          // the moves every phone can still animate
 
 /** The table's players in seat order, still in the room. */
@@ -313,6 +314,8 @@ const dominoDrawUntil = (room, pid) => {
     dominoEvent(room, 'draw', { pid: pid, n: n });
   }
   s.turnSeq = (s.turnSeq || 0) + 1;
+  // Drawing late used to leave a second or so to play what came up (review of 1 Oct 2026).
+  if (s.endsAt) s.endsAt = Math.max(s.endsAt, Date.now() + DOMINO_DRAW_MS);
   return n;
 };
 

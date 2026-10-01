@@ -337,6 +337,8 @@ CS_GAMES.konkan = {
   check(input, s, t) {
     if (input.winner === null) return t.cs_konkan_need_winner;
     const w = Number(input.winner);
+    // A fixed earlier round can put this round's winner out over 101 (csStaleRound).
+    if (CS_GAMES.konkan.inGame(s).indexOf(w) === -1) return t.cs_konkan_need_winner;
     const partner = s.opts.teams === 'pairs' ? s.seats.findIndex((seat, i) => i !== w && seat.team === s.seats[w].team) : -1;
     const missing = CS_GAMES.konkan.inGame(s).some(i => i !== w && i !== partner && input.pts[i] === null && !input.never[i]);
     return missing ? t.cs_konkan_need_points : '';

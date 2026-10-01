@@ -6938,9 +6938,22 @@ const screwReceive = (room, me, card, from) => {
 const screwDropPending = (room, toDeck) => {
   const s = room.shared;
   const g = room._screw;
+  const pid = s.turn && s.turn.pid;
+  const hand = pid ? g.hands[pid] || [] : [];
   if (g.drawn) {
     if (toDeck) g.deck.unshift(g.drawn);
-    else {
+    else if ((SKREW_CARDS[g.drawn] || {}).drawn === 'keep' && hand.length) {
+      // الحرامي and بونج can't be thrown (review of 1 Oct 2026: a skip used to put a
+      // drawn thief face up on the pile): it goes into one of the player's slots at
+      // random, as a steal's skip picks, and that slot's card goes on the pile.
+      const e = hand[Math.floor(Math.random() * hand.length)];
+      const old = e.card;
+      e.card = g.drawn;
+      e.shown = false;
+      g.pile.push(old);
+      screwEvent(room, 'keep', { pid: pid, slot: e.id, card: old });
+      screwArrived(room, e, g.drawnFrom === 'khoshaf' ? 'khoshaf' : 'deck', pid, null, { known: null, looks: [pid] });
+    } else {
       g.pile.push(g.drawn);
       screwEvent(room, 'discard', { pid: s.turn && s.turn.pid, card: g.drawn });
     }
@@ -7678,7 +7691,10 @@ const screwSync = (room) => {
       memorize: s.phase === 'memorize' && g.memorize[id] ? g.memorize[id] : null,
       drawn: t.pid === id && t.stage === 'drawn' ? g.drawn : null,
       seen: playing && g.seen[id] ? g.seen[id] : null,
-      khoshaf: t.pid === id && t.stage === 'khoshaf' ? g.khoshaf : null
+      khoshaf: t.pid === id && t.stage === 'khoshaf' ? g.khoshaf : null,
+      // This phone's own thief vote (a player id, or null for "nobody"), so a reload shows
+      // what it sent; whether it voted at all is shared.thiefVote.voted.
+      thiefVote: s.phase === 'thiefGuess' && g.votes && g.votes[id] !== undefined ? g.votes[id] : null
     };
   });
   s.board = screwBoard(room);

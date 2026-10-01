@@ -41,7 +41,9 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     and the board is the wins, counted across play again.
   - **A turn clock** (off, 30 or 60 seconds): when it runs out the phone plays
     for the player - takes a waiting draw, or draws one and passes - and the
-    host has a skip for a phone that went quiet.
+    host has a skip for a phone that went quiet. A card drawn that fits leaves
+    at least 10 seconds to play or keep it (`UNO_DRAW_MS`).
+  - **Up to 12 players**: a 13th is refused at the start (`UNO_MAX_PLAYERS`).
   - **Cards you can play are always lit** (no switch); one that can't is refused.
   - **Every lobby choice is remembered** on the host's phone.
   - **Computer players**: easy plays the first card that fits; hard plays to

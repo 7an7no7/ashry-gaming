@@ -68,7 +68,8 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     no longer be called, and a turn of theirs passes (a lead goes to the
     next seat, a follow counts as a pass, which can put the pile out);
     fewer than two holding cards ends the game, and a first place nobody
-    earned at the table (everyone else left) is not counted as a win; the
+    earned at the table (everyone else left) is not counted as a win (the
+    phone and the TV both say «db_over_left» then, not "won"); the
     clock's truthful card is one of the rank the hand holds most.
 
 - **الشايب (Old Maid)** - the owner's spec of 23 Sep 2026, every rule asked

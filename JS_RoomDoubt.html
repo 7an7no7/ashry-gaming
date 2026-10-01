@@ -931,11 +931,13 @@ TV_GAMES.doubt = {
       const places = s.places || [];
       const first = (s.winners || [])[0];
       const placesMode = (s.settings || {}).end === 'places';
+      const win = (s.events || []).filter(e => e.type === 'win').slice(-1)[0] || {};
+      const title = !first ? pcT('db_over_none') : win.why === 'left' ? pcT('db_over_left', { name: pcName(state, first) }) : pcT('db_won', { name: pcName(state, first) });
       const host = state.youAreHost ? `<div class="tv-actions">${tvBtn(t.play_again || '', "dbAct(this, 'playAgain')")}${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>` : '';
       const chips = (s.board || []).some(r => r.score > 0) ? `<div class="tv-eyebrow">${escapeHTML(pcT('db_wins_board'))}</div><div class="tv-strip-inline">${(s.board || []).map((row, i) => `<span class="tv-chip ${i === 0 && row.score > 0 ? 'is-done' : ''}">${i === 0 && row.score > 0 ? '👑 ' : ''}${escapeHTML(row.name || '')} <b class="tv-chip__score">${row.score}</b></span>`).join('')}</div>` : '';
       return `<div class="db-tvres">
           <div class="tv-big-icon" aria-hidden="true">🏆</div>
-          <div class="tv-title tv-center-text">${escapeHTML(first ? pcT('db_won', { name: pcName(state, first) }) : pcT('db_over_none'))}</div>
+          <div class="tv-title tv-center-text">${escapeHTML(title)}</div>
           ${placesMode && places.length > 1 ? `<div class="tv-scale">${pcPlacesPodium(state, places, 'tv' + (s.dealId || ''))}</div>` : ''}
           ${chips}
           ${host}

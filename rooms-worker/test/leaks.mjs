@@ -30,6 +30,9 @@ const DARK = new Function(readFileSync(new URL('../../Dark.js', import.meta.url)
 // خمّن مين's faces, to know the real face of الشاهد by what can be seen of it.
 const WIT = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') + ';return { gwSignature };')();
 
+// ارسم اللي بتسمعه's pictures, for its driver to trace one.
+const HEAR = new Function(readFileSync(new URL('../../Hear.js', import.meta.url), 'utf8') + ';return { hearOutlines };')();
+
 const realNow = Date.now;
 let clock = realNow();
 Date.now = () => clock;
@@ -872,6 +875,32 @@ const PROBES = {
         if (sv.picks) return 'shared.picks';
         if (view.you && view.you.face) return 'you.face';
         return null;
+      })
+    ];
+  },
+  // ارسم اللي بتسمعه: the picture on the describer's phone only, and no drawing on any phone, until the grading.
+  hear(room) {
+    const s = room.shared || {};
+    const h = room._hear;
+    const before = s.phase === 'ready' || s.phase === 'draw' || s.phase === 'collect';
+    const picSig = h && h.pic && h.pic.s.length ? JSON.stringify(h.pic.s[0]) : null;
+    const inks = h && h.ink ? Object.keys(h.ink).map((id) => ({ id, strokes: h.ink[id] })).filter((x) => x.strokes.length) : [];
+    return [
+      probe("the picture is on the describer's phone only, until the grading", before && !!picSig, (view, pid) => {
+        if (pid === s.describerId) return null;
+        if (view.you && view.you.pic) return 'you.pic';
+        if (view.shared && view.shared.pic) return 'shared.pic';
+        return JSON.stringify(view).indexOf(picSig) !== -1 ? 'the picture' : null;
+      }),
+      probe('what the picture is (its thing) stays off the other phones until the grading', before && !!(h && h.pic && h.pic.thing), (view, pid) => {
+        if (pid === s.describerId) return null;
+        return JSON.stringify(view).indexOf('"' + h.pic.thing + '"') !== -1 ? 'the thing' : null;
+      }),
+      probe('no drawing reaches any phone (its own neither) before the grading', before && inks.length > 0, (view) => {
+        const all = JSON.stringify(view);
+        const hit = inks.find((x) => x.strokes.some((st) => all.indexOf(JSON.stringify(st.p)) !== -1));
+        if (hit) return 'the drawing of ' + hit.id;
+        return view.shared && view.shared.drawings ? 'shared.drawings' : null;
       })
     ];
   },
@@ -2069,6 +2098,63 @@ const DRIVERS = {
         continue;
       }
       if (s.phase === 'reveal') { must(T, T.host, 'nextRound', { round: s.round }); continue; }
+    }
+    return S(T).phase === 'gameover';
+  },
+  hear() {
+    // Five at the table, everyone describes once: a picture swapped, drawings sent and handed in (one a
+    // trace of the picture, one blank, one scribbled), «خلّصت», a round on the clock, the host closing a
+    // drawing and a vote, a quiet describer passed over, a drawer leaving mid-drawing - to the board.
+    const T = table('hear', 5);
+    must(T, T.host, 'start', { seconds: 60, kind: 'mix', level: 'hard', laps: 1 });
+    const scribble = () => ({ c: '#111827', w: 5, p: Array.from({ length: 40 }, () => Math.floor(Math.random() * 256)) });
+    const trace = () => HEAR.hearOutlines(T.room._hear.pic.s).map((l) => ({ c: '#111827', w: 5, p: l.flatMap(([x, y]) => [Math.round(x * 2.55), Math.round(y * 2.55)]) }));
+    for (let guard = 0; guard < 80 && S(T).phase !== 'gameover'; guard++) {
+      const s = S(T);
+      if (s.phase === 'ready') {
+        if (s.round === 3) { must(T, T.host, 'skipTurn', { round: s.round }); continue; }
+        if (s.round === 1) { must(T, s.describerId, 'swap', { round: s.round }); must(T, s.describerId, 'swap', { round: s.round }); }
+        must(T, s.describerId, 'go', { round: s.round });
+        continue;
+      }
+      if (s.phase === 'draw') {
+        const drawers = s.drawers.slice();
+        drawers.forEach((id, i) => {
+          const strokes = i === 0 ? trace() : i === 1 ? [] : [scribble(), scribble()];
+          must(T, id, 'ink', { round: s.round, strokes });
+        });
+        if (s.round === 2) { must(T, s.describerId, 'done', { round: s.round }); runClock(T, (r) => r.shared.phase === 'grade', 6); continue; }
+        if (s.round === 4) {
+          const gone = drawers[drawers.length - 1];
+          T.room.players = T.room.players.filter((p) => p.id !== gone);
+          const next = structuredClone(T.room);
+          roomPlayerLeft(next, gone, 'X');
+          T.room = next;
+          scan(T, 'left');
+          must(T, T.host, 'closeDraw', { round: s.round });
+          runClock(T, (r) => r.shared.phase === 'grade', 4);
+          continue;
+        }
+        drawers.forEach((id) => act(T, id, 'hand', { round: s.round }));
+        continue;
+      }
+      if (s.phase === 'collect') { runClock(T, (r) => r.shared.phase !== 'collect', 3); continue; }
+      if (s.phase === 'grade') {
+        if (s.round === 1) runClock(T, (r) => r.shared.phase !== 'grade', 3);
+        else must(T, T.host, 'toVote', { round: s.round });
+        continue;
+      }
+      if (s.phase === 'vote') {
+        const v = s.vote;
+        if (s.round === 2) { runClock(T, (r) => r.shared.phase !== 'vote', 3); continue; }
+        v.eligible.slice(0, -1).forEach((id) => {
+          const opt = v.options.find((o) => o.ownerId !== id);
+          act(T, id, 'vote', { option: opt.id, round: s.round });
+        });
+        if (S(T).phase === 'vote') must(T, T.host, 'closeVote', { round: s.round });
+        continue;
+      }
+      if (s.phase === 'result') { must(T, T.host, 'nextRound', { round: s.round }); continue; }
     }
     return S(T).phase === 'gameover';
   },

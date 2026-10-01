@@ -12080,6 +12080,209 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- ارسم اللي بتسمعه (1 Oct 2026): one describes a picture only their phone shows, the rest draw it --- */
+{
+  console.log('\nDraw what you hear');
+  const H = new Function(readFileSync(new URL('../../Hear.js', import.meta.url), 'utf8') +
+    ';return { hearPicture, hearScore, hearOutlines, hearDescPoints, hearPictureName, HEAR_THING_IDS, HEAR_THING_NAMES, HEAR_CUT_MS, HEAR_SWAPS, HEAR_SECONDS };')();
+  const tick = (r) => { const due = roomDeadline(r); if (due === null) return false; clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
+  const hearRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'hear' }); return r; };
+  const gone = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id.toUpperCase()); };
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  // A drawing as the toolbox sends it: every outline of a picture, moved and shaken by f (0..100 in, 0..255 out).
+  const dense = (l) => { const out = []; for (let i = 1; i < l.length; i++) { const [ax, ay] = l[i - 1], [bx, by] = l[i]; const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 3)); for (let k = 0; k < n; k++) out.push([ax + (bx - ax) * k / n, ay + (by - ay) * k / n]); } out.push(l[l.length - 1]); return out; };
+  const lineStroke = (l, f) => ({ c: '#111827', w: 5, p: dense(l).flatMap(([x, y]) => { const [a, b] = f ? f(x, y) : [x, y]; return [Math.max(0, Math.min(255, Math.round(a * 2.55))), Math.max(0, Math.min(255, Math.round(b * 2.55)))]; }) });
+  const strokesOf = (shapes, f) => H.hearOutlines(shapes).map((l) => lineStroke(l, f));
+  const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
+
+  // The pictures: inside the page, the same from the same seed, the levels' sizes, every thing drawable, variants.
+  {
+    let inside = true, same = true, sizes = true, things = true;
+    const kinds = ['shapes', 'things'];
+    for (let i = 0; i < 300; i++) {
+      const kind = kinds[i % 2], level = ['easy', 'mid', 'hard'][i % 3];
+      const pic = H.hearPicture(1 + i * 7919, kind, level);
+      H.hearOutlines(pic.s).forEach((l) => l.forEach(([x, y]) => { if (!(x >= -0.5 && x <= 100.5 && y >= -0.5 && y <= 100.5)) inside = false; }));
+      if (JSON.stringify(H.hearPicture(1 + i * 7919, kind, level)) !== JSON.stringify(pic)) same = false;
+      if (kind === 'shapes') { const n = pic.s.length; if (level === 'easy' ? n !== 3 : level === 'mid' ? n !== 4 : (n < 5 || n > 7)) sizes = false; }
+      else if (!pic.thing || !H.HEAR_THING_NAMES[pic.thing] || pic.s.length < 2) things = false;
+    }
+    check(inside, 'hear: every picture stays inside the page');
+    check(same, 'hear: the same seed makes the same picture');
+    check(sizes, 'hear: shapes are 3 easy, 4 mid, 5-7 hard');
+    check(things && H.HEAR_THING_IDS.every((id) => H.HEAR_THING_NAMES[id] && H.HEAR_THING_NAMES[id].ar && H.HEAR_THING_NAMES[id].en &&
+      ['easy', 'mid', 'hard'].every((lv) => H.hearPicture(5, 'things', lv, id).thing === id)), 'hear: every thing draws at every level, with its name in both languages');
+    const houses = new Set();
+    for (let i = 0; i < 40; i++) houses.add(JSON.stringify(H.hearPicture(100 + i, 'things', 'mid', 'house').s));
+    check(houses.size >= 38, 'hear: a thing is a generator of variants (40 seeds, ' + houses.size + ' different houses)');
+    const easy = H.hearPicture(9, 'things', 'easy', 'face').s.length, hard = H.hearPicture(9, 'things', 'hard', 'face').s.length;
+    check(hard > easy, 'hear: a harder level adds parts to a thing');
+    check(H.hearPictureName({ kind: 'things', thing: 'house' }, 'ar') === 'بيت' && H.hearPictureName({ kind: 'shapes' }, 'en') === 'Shapes on a grid', 'hear: a picture is named in either language');
+  }
+
+  // The judge: a trace scores full, a rough copy well, a blank 0, a scribble, a big X or another picture low.
+  {
+    const perfect = [], rough = [], blank = [], scribble = [], other = [], cross = [], erased = [], half = [];
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 60; i++) {
+      const pic = H.hearPicture(1000 + i * 31, i % 2 ? 'things' : 'shapes', ['easy', 'mid', 'hard'][i % 3]);
+      perfect.push(H.hearScore(pic.s, strokesOf(pic.s)));
+      const ox = (rnd() - 0.5) * 8, oy = (rnd() - 0.5) * 8, a = rnd() * 6;
+      rough.push(H.hearScore(pic.s, strokesOf(pic.s, (x, y) => [50 + (x - 50) * 0.92 + ox + 2 * Math.sin(y / 9 + a), 50 + (y - 50) * 0.92 + oy + 2 * Math.cos(x / 11 + a)])));
+      blank.push(H.hearScore(pic.s, []));
+      const zz = []; for (let y = 5; y < 96; y += 4) zz.push([[3, y], [97, y + 2]]);
+      scribble.push(H.hearScore(pic.s, zz.map((l) => lineStroke(l))));
+      cross.push(H.hearScore(pic.s, [[[5, 5], [95, 95]], [[95, 5], [5, 95]]].map((l) => lineStroke(l))));
+      other.push(H.hearScore(pic.s, strokesOf(H.hearPicture(99999 + i * 13, pic.kind, 'mid').s)));
+      erased.push(H.hearScore(pic.s, strokesOf(pic.s).concat(strokesOf(pic.s).map((st) => Object.assign({}, st, { c: '#ffffff', w: 16 })))));
+      half.push(H.hearScore(pic.s, strokesOf(pic.s.filter((_, k) => k % 2 === 0))));
+    }
+    check(perfect.every((n) => n >= 98), 'hear: a drawing on the picture\'s lines scores 98% or more');
+    check(blank.every((n) => n === 0), 'hear: a blank page scores 0');
+    check(med(rough) >= 75 && rough.filter((n) => n >= 55).length >= 54, 'hear: a rough copy (shaken, shifted, smaller) scores well (median ' + med(rough) + '%)');
+    check(med(scribble) <= 25 && Math.max(...scribble) <= 45, 'hear: scribbling the page over scores low (median ' + med(scribble) + '%)');
+    check(med(cross) <= 35, 'hear: a big X scores low (median ' + med(cross) + '%)');
+    check(med(other) <= 45 && other.filter((n, k) => n < rough[k]).length >= 54, 'hear: another picture scores below a rough copy (median ' + med(other) + '%)');
+    check(erased.every((n) => n === 0), 'hear: what the eraser rubbed out does not count');
+    check(half.every((n, k) => n > 0 && n <= perfect[k]) && med(half) < med(perfect), 'hear: half the parts scores less than all of them');
+    check([0, 19, 20, 39, 40, 59, 60, 99, 100].map(H.hearDescPoints).join(',') === '0,0,1,1,2,2,3,3,3', 'hear: the describer gets a point for every 20% of the average, at most 3');
+  }
+
+  // A round, start to end.
+  {
+    check(threw(() => applyRoomAction(hearRoom(['a', 'b']), 'a', 'start', {})), 'hear: three players at least');
+    const r = hearRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'start', { seconds: 90, kind: 'things', level: 'easy', laps: 2 });
+    let s = r.shared;
+    check(s.phase === 'ready' && s.rounds === 8 && s.seconds === 90 && s.kind === 'things' && s.level === 'easy', 'hear: twice around is two rounds a player; the host\'s options kept');
+    const D = s.describerId;
+    check(s.drawers.length === 3 && s.drawers.indexOf(D) === -1, 'hear: everyone else draws');
+    check(!!(r.secrets[D] && r.secrets[D].pic) && Object.keys(r.secrets).length === 1 && !s.pic, 'hear: the picture is the describer\'s alone');
+    const first = JSON.stringify(r._hear.pic);
+    applyRoomAction(r, D, 'swap', { round: 1 });
+    applyRoomAction(r, D, 'swap', { round: 1 });
+    const second = JSON.stringify(r._hear.pic);
+    applyRoomAction(r, D, 'swap', { round: 1 });
+    check(first !== second && JSON.stringify(r._hear.pic) === second && s.swaps === H.HEAR_SWAPS, 'hear: another picture, twice at most');
+    const other = s.drawers[0];
+    applyRoomAction(r, other, 'go', { round: 1 });
+    check(s.phase === 'ready', 'hear: only the describer starts the clock');
+    applyRoomAction(r, D, 'go', { round: 0 });
+    check(s.phase === 'ready', 'hear: a tap from another round does nothing');
+    applyRoomAction(r, D, 'go', { round: 1 });
+    check(s.phase === 'draw' && s.endsAt > clock + 89000, 'hear: «يلا» starts the drawing clock');
+    const pic = r._hear.pic;
+    const [x, y, z] = s.drawers;
+    applyRoomAction(r, x, 'ink', { round: 1, strokes: strokesOf(pic.s) });
+    applyRoomAction(r, y, 'ink', { round: 1, strokes: strokesOf(pic.s.slice(0, 1)) });
+    check(!!r._hear.ink[x] && !JSON.stringify(s).includes(JSON.stringify(r._hear.ink[x][0].p)), 'hear: a drawing goes to the server only');
+    applyRoomAction(r, D, 'ink', { round: 1, strokes: strokesOf(pic.s) });
+    check(!r._hear.ink[D], 'hear: the describer draws nothing');
+    applyRoomAction(r, D, 'done', { round: 1 });
+    check(s.cut && s.endsAt <= clock + H.HEAR_CUT_MS, 'hear: «خلّصت» leaves the drawers ten seconds');
+    applyRoomAction(r, x, 'hand', { round: 1 });
+    applyRoomAction(r, x, 'ink', { round: 1, strokes: [] });
+    check(r._hear.ink[x].length > 0, 'hear: a page handed in can\'t be changed');
+    tick(r);
+    check(s.phase === 'collect', 'hear: time\'s up gives the phones a moment to send');
+    applyRoomAction(r, y, 'hand', { round: 1 });
+    applyRoomAction(r, z, 'hand', { round: 1, strokes: [] });
+    check(s.phase === 'grade' && !!s.pic && s.drawings.length === 3 && !r.secrets[D] && !r._hear, 'hear: everyone in: the picture and the drawings go to every phone');
+    const byId = {}; s.drawings.forEach((d) => { byId[d.id] = d; });
+    check(byId[x].pct >= 98 && byId[x].pts === 3 && byId[y].pts === 2 && byId[z].pct === 0 && byId[z].pts === 0, 'hear: the closest 3, the next 2, a blank page nothing');
+    const avg = Math.round((byId[x].pct + byId[y].pct + byId[z].pct) / 3);
+    check(s.avg === avg && s.descPts === H.hearDescPoints(avg) && (s.scores[D] || 0) === s.descPts, 'hear: the describer scores by the drawers\' average (' + avg + '% → +' + s.descPts + ')');
+    check(threw(() => applyRoomAction(r, x === 'a' ? y : x, 'toVote', { round: 1 })), 'hear: only the host (or a stand-in) opens the vote early');
+    tick(r);
+    check(s.phase === 'vote' && s.vote.options.length === 3, 'hear: «أغرب رسمة» opens after the grading by itself');
+    const optOf = (id) => s.vote.options.find((o) => o.ownerId === id).id;
+    check(threw(() => applyRoomAction(r, x, 'vote', { round: 1, option: optOf(x) })), 'hear: nobody votes for their own drawing');
+    applyRoomAction(r, D, 'vote', { round: 1, option: optOf(z) });
+    applyRoomAction(r, x, 'vote', { round: 1, option: optOf(z) });
+    applyRoomAction(r, y, 'vote', { round: 1, option: optOf(x) });
+    applyRoomAction(r, z, 'vote', { round: 1, option: optOf(x) });
+    check(s.phase === 'result' && s.weird.length === 2 && s.scores[z] === 1 && s.scores[x] === 4, 'hear: a tie at the top with two votes: both weirdest, +1 each');
+    check(s.board[0].id === x && s.board.every((row, i) => !i || s.board[i - 1].score >= row.score), 'hear: the board is best first');
+    check(threw(() => applyRoomAction(r, 'b', 'nextRound', { round: 1 })) && r.shared.round === 1, 'hear: a player can\'t move the round on while the host is here');
+    r._hostAway = true; applyRoomAction(r, 'b', 'nextRound', { round: 1 }); delete r._hostAway;
+    check(r.shared.round === 2 && r.shared.phase === 'ready', 'hear: with the host away anyone moves it on');
+    s = r.shared;
+    // One vote each: nobody is the weirdest.
+    applyRoomAction(r, s.describerId, 'go', { round: 2 });
+    s.drawers.forEach((id) => applyRoomAction(r, id, 'hand', { round: 2, strokes: strokesOf(r._hear.pic.s.slice(0, 1)) }));
+    applyRoomAction(r, 'a', 'toVote', { round: 2 });
+    const opts = s.vote.options.map((o) => o.id);
+    s.vote.eligible.slice().forEach((v, k) => {
+      const mine = s.vote.options.find((o) => o.ownerId === v);
+      const pick = opts.filter((o) => !mine || o !== mine.id);
+      applyRoomAction(r, v, 'vote', { round: 2, option: pick[k % pick.length] });
+    });
+    check(s.phase === 'result' && (s.weirdVotes >= 2 || s.weird.length === 0), 'hear: fewer than two votes makes no weirdest');
+    // The clock alone: draw → collect → grade → vote → result.
+    applyRoomAction(r, 'a', 'nextRound', { round: 2 });
+    applyRoomAction(r, r.shared.describerId, 'go', { round: 3 });
+    for (let k = 0; k < 4; k++) tick(r);
+    check(r.shared.phase === 'result' && r.shared.drawings.length === 3 && r.shared.drawings.every((d) => d.pct === 0), 'hear: a round nobody touched ends on the clock alone');
+  }
+
+  // The defaults; the mix alternates; the host passes a quiet describer; the end; play again.
+  {
+    const r = hearRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'start', {});
+    const s = r.shared;
+    check(s.kind === 'mix' && s.level === 'mid' && s.laps === 1 && s.seconds === 90 && s.rounds === 3, 'hear: the defaults: mixed pictures, medium, 90 seconds, once around');
+    check(r._hear.pic.kind === 'things', 'hear: mixed starts with a drawing');
+    applyRoomAction(r, 'a', 'skipTurn', { round: 1 });
+    check(s.round === 2 && r._hear.pic.kind === 'shapes', 'hear: the host passes a quiet describer over; the next picture is shapes');
+    for (let guard = 0; guard < 40 && r.shared.phase !== 'gameover'; guard++) {
+      const st = r.shared;
+      if (st.phase === 'ready') applyRoomAction(r, st.describerId, 'go', { round: st.round });
+      else if (st.phase === 'draw') { st.drawers.forEach((id, k) => applyRoomAction(r, id, 'hand', { round: st.round, strokes: k ? [] : strokesOf(r._hear.pic.s) })); }
+      else if (st.phase === 'result') applyRoomAction(r, 'a', 'nextRound', { round: st.round });
+      else tick(r);
+    }
+    check(r.shared.phase === 'gameover' && r.shared.board.length === 3 && bankNightPoints({ night: {}, players: r.players }, r.shared.board), 'hear: the end: a board the night banks');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.phase === 'ready' && r.shared.kind === 'mix' && r.shared.round === 1, 'hear: play again');
+  }
+
+  // Leaving: a describer before the clock, a drawer, a describer mid-drawing, too few.
+  {
+    const r = hearRoom(['a', 'b', 'c', 'd', 'e']);
+    applyRoomAction(r, 'a', 'start', {});
+    let D = r.shared.describerId;
+    gone(r, D);
+    check(r.shared.round === 2 && r.shared.describerId !== D && r.shared.phase === 'ready', 'hear: a describer who leaves before the clock passes the round on');
+    D = r.shared.describerId;
+    applyRoomAction(r, D, 'go', { round: 2 });
+    const [x, y, z] = r.shared.drawers;
+    applyRoomAction(r, x, 'ink', { round: 2, strokes: strokesOf(r._hear.pic.s) });
+    applyRoomAction(r, y, 'hand', { round: 2, strokes: [] });
+    gone(r, z);
+    check(r.shared.phase === 'draw' && r.shared.drawers.length === 2, 'hear: a drawer who leaves takes their page');
+    gone(r, D);
+    check(r.shared.phase === 'grade' && r.shared.drawings.length === 2 && !r.shared.descPts, 'hear: a describer who leaves mid-drawing sends the pages to the grading');
+    applyRoomAction(r, r.hostId, 'toVote', { round: 2 });
+    check(r.shared.phase === 'vote', 'hear: the vote after a describer left');
+    applyRoomAction(r, r.hostId, 'closeVote', { round: 2 });
+    applyRoomAction(r, r.hostId, 'nextRound', { round: 2 });
+    check(r.shared.phase === 'gameover', 'hear: fewer than three to start a round ends the game');
+  }
+
+  // A latecomer watches; the TV is no player.
+  {
+    const r = hearRoom(['a', 'b', 'c']);
+    r.screens = [{ id: 'tv' }];
+    applyRoomAction(r, 'a', 'start', {});
+    r.players.push({ id: 'late', name: 'LATE' });
+    applyRoomAction(r, r.shared.describerId, 'go', { round: 1 });
+    applyRoomAction(r, 'late', 'hand', { round: 1, strokes: [] });
+    check(r.shared.drawers.indexOf('late') === -1 && (r.shared.handed || []).indexOf('late') === -1 && r.shared.roster.indexOf('tv') === -1, 'hear: a latecomer watches until the next game');
+  }
+}
+
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

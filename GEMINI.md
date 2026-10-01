@@ -74,7 +74,7 @@ file and a new line.
 - ✍️ «اعمل مسابقتك» (the family's own quiz: a room, the team board, the buzzer) and «كلماتنا» (the family's words as a category in the word games), kept by a 6-letter code (`Packs.js`, `rooms-worker/src/packs.js`, `JS_PackStore.html`, `JS_QuizMaker.html`, `/pack/*`) - `notes/games/quiz.md`.
 - 🌙 «برنامج السهرة» (the night as a show: the host's line-up of room games run on the server's clock, the table between games, places → 5/3/2/1, the finale with the podium and awards; `RoomProgram.js`, `JS_RoomProgram.html`) - `notes/games/program.md`.
 - **The night's points are one rule everywhere** (the owner, 30 Sep 2026): each game banks 5 / 3 / 2 for the first three places and 1 for everyone else who played (`NIGHT_PLACES`, `NIGHT_PLAYED` in `RoomGames.js`): the room's night board, الشلة's nights and the program.
-- 🎵 دندنها (Egyptian songs: one hums in turn or every phone hears the same clip, the names typed, four choices after 15 s; `Songs.js` pinned to iTunes previews, `/song/CODE/TOKEN`) - `notes/games/hum.md`.
+- 🎵 دندنها (Egyptian songs: one hums in turn or every phone hears the same clip, the names typed, four choices after 15 s; `Songs.js` pinned to Apple or Deezer previews, looked up at play time, `/song/CODE/TOKEN`) - `notes/games/hum.md`.
 - The five of 29 Sep: الحقوا! - `notes/games/wire.md`; الأوضة المضلمة - `notes/games/darkroom.md`; حط إيدك! - `notes/games/exact.md`; الشاهد - `notes/games/witness.md`; المزاد - `notes/games/box.md`.
 
 ### The app around the games

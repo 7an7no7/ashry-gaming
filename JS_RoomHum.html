@@ -66,6 +66,8 @@ const dndNameOf = (state, id) => ((state.players || []).find(p => p.id === id) |
 const dndColorOf = (s, id) => DND_COLS[Math.max(0, (s.roster || []).indexOf(id)) % DND_COLS.length];
 /** A song's Latin title under its Arabic one, for a table playing in English. */
 const dndLatin = (c) => (appState.lang === 'en' && c && c.en ? `<em class="dnd-latin">${escapeHTML(c.en)}</em>` : '');
+/** «الأغنية 3 من 10» / «Song 3 of 10», the design sheet's words: a round counter with no slash cannot read backwards in an Arabic line (GEMINI.md, the trap about «1 / 3»). */
+const dndSongOf = (s) => dndT('dnd_song_of', { n: Math.max(1, s.round || 1), m: s.rounds || 1 });
 const dndSongKey = (state) => roomDealKey(state) + '|' + ((state.shared || {}).deal || 0);
 const dndRightOf = (s, id) => (s.right || []).find(r => r.id === id) || null;
 
@@ -515,7 +517,7 @@ function dndPhoneFrame(state) {
   const role = dndRole(state);
   const t = TRANSLATIONS[appState.lang] || {};
   const me = (s.scores || {})[Room.me] || 0;
-  const top = `<div class="dnd-top"><span>${escapeHTML(dndT('dnd_song_n'))} ${ltrFrac(Math.max(1, s.round || 1), s.rounds || 1)}</span>
+  const top = `<div class="dnd-top"><span>${escapeHTML(dndSongOf(s))}</span>
       <span class="dnd-top__mode">${escapeHTML(dndT(s.mode === 'listen' ? 'dnd_mode_listen' : 'dnd_mode_hum'))}</span>
       <span>${role === 'guess' || role === 'hummer' ? escapeHTML(dndT('dnd_score', { n: me })) : ''}</span></div>`;
   if (s.phase === 'gameover') {
@@ -878,7 +880,7 @@ TV_GAMES.hum = {
         </div>`;
     }
     let mid = '';
-    const marq = (big) => `<div class="dnd-marq"><small>${escapeHTML(dndT('dnd_song_n'))} ${ltrFrac(Math.max(1, s.round || 1), s.rounds || 1)} — ${escapeHTML(dndT(s.mode === 'listen' ? 'dnd_mode_listen' : 'dnd_mode_hum'))}</small><b>${big}</b></div>`;
+    const marq = (big) => `<div class="dnd-marq"><small>${escapeHTML(dndSongOf(s))} — ${escapeHTML(dndT(s.mode === 'listen' ? 'dnd_mode_listen' : 'dnd_mode_hum'))}</small><b>${big}</b></div>`;
     if (s.phase === 'arm') mid = marq(escapeHTML(dndT('dnd_tv_arm'))) + `<p class="dnd-tv__cap">${escapeHTML(dndT('dnd_arm_hint'))}</p>`;
     else if (s.phase === 'listen') mid = marq(escapeHTML(dndT('dnd_tv_card', { h: hummer }))) + `<p class="dnd-tv__cap">${escapeHTML(dndT('dnd_tv_listen_hum', { h: hummer }))}</p>`;
     else if (s.phase === 'count') mid = `<div class="dnd-tv__count"><b>${escapeHTML(dndT('dnd_tv_count'))}</b><span class="dnd-cnt metric" data-dnd-cnt>3</span><p class="dnd-tv__cap">${escapeHTML(dndT('dnd_count_line'))}</p></div>`;

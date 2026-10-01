@@ -777,7 +777,7 @@ export class Room extends DurableObject {
   }
 
   /**
-   * دندنها (RoomHum.js): the iTunes track behind a round's opaque token, for /song
+   * دندنها (RoomHum.js): the song (its source and id, and its second pin) behind a round's opaque token, for /song
    * (index.js) to stream. Only the song on now answers, and only to its token: the
    * address names nothing, so a guesser's traffic never holds a title or a trackId.
    */
@@ -786,7 +786,7 @@ export class Room extends DurableObject {
     const h = this.room && this.room.game === 'hum' && this.room._hum;
     if (!h || !h.token || h.cur === null || h.cur === undefined || String(token) !== h.token) return null;
     const song = HUM_SONGS[h.cur];
-    return song ? { id: song.id } : null;
+    return song ? { src: song.src, id: song.id, also: song.also || null } : null;
   }
 
   /**

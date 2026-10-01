@@ -1087,8 +1087,10 @@ const PROBES = {
       secret('the names the song goes by are on no guesser\'s phone before the reveal', song && (song.alt || [])[0], allowed),
       secret("the singer is on no guesser's phone or the screen before the reveal (the four choices aside)", song && song.s, allowed, { except: choices }),
       secret('the song in English is on no guesser\'s phone before the reveal (the four choices aside)', song && song.en, allowed, { except: choices }),
-      probe("the trackId and Apple's address reach no phone and not the screen", open, (view, pid, idx) =>
-        idx.find(song.id) || (JSON.stringify(view).indexOf('apple.com') !== -1 ? 'an apple.com address' : null)),
+      probe("the song's ids and its sources' addresses reach no phone and not the screen", open, (view, pid, idx) => {
+        const text = JSON.stringify(view);
+        return idx.find(song.id) || (song.also ? idx.find(song.also.id) : null) || ['apple.com', 'dzcdn', 'deezer', 'itunes'].find((w) => text.indexOf(w) !== -1) || null;
+      }),
       probe("in «دندنة» the round's token is the hummer's alone", open && s.mode === 'hum', (view, pid, idx) => (pid === s.hummerId ? null : idx.find(h.token))),
       probe('which choice is right, and the picks, stay hidden until the reveal', open && s.phase === 'choices', (view) => {
         const sv = view.shared || {};

@@ -12090,12 +12090,15 @@ Date.now = duelTestClock;
   const songOf = (r) => HS[r._hum.cur];
   const gone = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id.toUpperCase()); };
 
-  // The list: enough songs in every era, nothing twice.
+  // The list: enough songs in every era, nothing twice, every song pinned to Apple or Deezer.
   {
     const eras = HS.reduce((m, x) => { m[x.era] = (m[x.era] || 0) + 1; return m; }, {});
     const keys = HS.map((x) => normaliseClue(x.t));
-    check(HS.length >= 150 && eras.classic >= 4 && eras.pop >= 4 && eras.new >= 4 && new Set(keys).size === keys.length && new Set(HS.map((x) => x.id)).size === HS.length,
-      'hum: 150+ songs over the three eras, no title or trackId twice (' + HS.length + ')');
+    const pins = HS.reduce((all, x) => all.concat([x.src + ':' + x.id], x.also ? [x.also.src + ':' + x.also.id] : []), []);
+    check(HS.length >= 150 && eras.classic >= 4 && eras.pop >= 4 && eras.new >= 30 && new Set(keys).size === keys.length && new Set(pins).size === pins.length,
+      'hum: 150+ songs over the three eras (30+ of the newest), no title or pin twice (' + HS.length + ')');
+    check(HS.every((x) => ['itunes', 'deezer'].indexOf(x.src) !== -1 && (!x.also || (x.also.src !== x.src && ['itunes', 'deezer'].indexOf(x.also.src) !== -1))),
+      'hum: every song is pinned to Apple or Deezer, a second pin to the other one');
   }
 
   // «دندنة»: the hummer, the typing, the points.

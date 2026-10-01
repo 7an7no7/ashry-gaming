@@ -16,6 +16,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { stopDictionary, stopAnswerFits, stopWordKnown, foldStopAnswer } from '../generated/rules.js';
+// دندنها's sound, the Worker's own code: a real preview from each source.
+import { songStream } from '../src/songs.js';
 
 // سكرو's cards, read by the robots to decide what to do with what they drew and
 // to check the score at the reveal. They only ever learn a card the way a
@@ -879,6 +881,21 @@ async function witnessRobots() {
 /* --- دندنها: the hummer's song on their phone only, the typed race, the choices, «سمّع» on the server's clock --- */
 async function humRobots() {
   console.log('• دندنها (the song and its sound on the hummer\'s phone only, typed answers, the choices, «سمّع»)');
+  // Each source on its own, through the Worker's own code (src/songs.js): Apple's AAC, Deezer's mp3, and a
+  // song whose first pin is gone playing from its second.
+  const HS = new Function(readFileSync(new URL('../../Songs.js', import.meta.url), 'utf8') + ';return HUM_SONGS;')();
+  for (const src of ['itunes', 'deezer']) {
+    const x = HS.find((y) => y.src === src);
+    const got = await songStream(x).catch(() => null);
+    const bytes = got ? (await new Response(got.body).arrayBuffer()).byteLength : 0;
+    check(got && got.src === src && /^audio\//.test(got.type) && bytes > 50000, `hum: a ${src} song streams its preview (${bytes} bytes, ${got ? got.type : '-'})`);
+  }
+  {
+    const x = HS.find((y) => y.also);
+    const got = await songStream({ src: x.src, id: 1, also: x.also }).catch(() => null);
+    if (got) await new Response(got.body).arrayBuffer();
+    check(got && got.src === x.also.src, 'hum: a song whose first pin is gone plays from its second');
+  }
   const H = await Bot.host('حسام', null);
   const J = await Bot.join(H.code, 'Jana');
   const K = await Bot.join(H.code, 'كريم');

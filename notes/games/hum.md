@@ -35,6 +35,14 @@
   clip is heard: «أول ١٠ ثواني مرة واحدة» / «الـ٣٠ ثانية كلها وتعيد براحتك» /
   «بتطول: ٢ث ثم ٥ث ثم ١٠ث» (the clip grows; answering on a shorter clip is
   worth more).
+- **A second source, Deezer, beside Apple** (the owner, 1 Oct 2026, after the
+  first build): each song pinned to ONE source, `{ src: 'itunes', id }` or
+  `{ src: 'deezer', id }`, whichever has the singer's original with a preview
+  (Apple stays where it already worked); the songs Apple was missing brought
+  back from Deezer, and the newest grown to 30+ from it, family-clean only.
+  Deezer's preview addresses are signed and expire, so they are never stored:
+  the rooms server looks a song up when it plays it. The round counter reads
+  «الأغنية 3 من 10».
 - The server ends a round on its clock; the host can skip a song (a broken
   preview, a song nobody knows). The podium at the end, and the night's points
   (5/3/2/1).
@@ -98,15 +106,31 @@ catalog, the help); the rules are named `hum` / `HUM_`, the page's code
 `dnd` / `DND_`, the stylesheet section 61 (`.dnd-*`).
 
 - **`Songs.js`** (server-only, `rooms-worker/build.mjs` FILES; the page never
-  needs it): `HUM_SONGS`, 203 songs (106 classic, 86 pop, 11 new), each `{ id
-  (the trackId), t, alt, s, era, en, se }`. Every trackId was looked up and is
-  the singer's own recording with a preview; belly-dance, instrumental, karaoke
-  and cover albums were left out (several Farid and Umm Kulthum ids were swapped
-  for vocal ones). `tools/validate-content.js` checks the fields, the eras (4 at
-  least each), no trackId twice, no name (title, alternative, English title)
-  naming two songs; `npm run check:songs` (`tools/check-songs.mjs`, `--play`
-  fetches each preview's first bytes, `--artists` prints iTunes' artist beside
-  ours) - all 203 playable on 1 Oct 2026.
+  needs it): `HUM_SONGS`, 237 songs - 116 classic, 87 pop, 34 new; 209 pinned
+  to Apple, 28 to Deezer, and 100 of the Apple ones with a second pin (`also`)
+  to the same recording on Deezer - each `{ src, id, also?, t, alt, s, era, en,
+  se }`. Every pin was looked up and is the singer's own recording with a
+  preview; belly-dance, instrumental, karaoke, remix and cover albums were left
+  out (several Farid and Umm Kulthum ids were swapped for vocal ones). From
+  Deezer: الأطلال، ألف ليلة وليلة، أمل حياتي، دارت الأيام، حب إيه، فات الميعاد،
+  بعيد عنك، انساك، فكروني (أم كلثوم), الجندول (عبد الوهاب), حدوتة مصرية، علي
+  صوتك، شجر الليمون (منير), and the newest: البخت، باظت (ويجز), اختياراتي، اليوم
+  الحلو ده، سيد الناس، مكسرات (أحمد سعد), خطفوني، قدام مرايتها، معدي الناس
+  (عمرو دياب), يمكن خير (رامي صبري), آه لو لعبت يا زهر (أحمد شيبة), داري يا قلبي
+  (حمزة نمرة), أيام، قولوا له سماح (تامر عاشور), الوتر الحساس (شيرين); from Apple
+  also بقالك قلب (أنغام), عمري ابتدا (تامر حسني), بتمنى أنساك (شيرين), عودوني،
+  واحدة واحدة، حاجة مش طبيعية. The era is the release year: 2016 and later is
+  'new' (five Apple songs moved there: تيجي نسيب، ليلة العمر، عيش بشوقك،
+  ناسيني ليه، باين حبيت). The Deezer second pins were found by the singer's own
+  Deezer page having the same title (folded), never a remix. Left out on
+  purpose: «بنت الجيران» (its drug line), «مفيش صاحب يتصاحب» (more than one
+  singer claims it), live-only or unclear recordings. `tools/validate-content.js`
+  checks the fields, a pin's source and id, a second pin on the other source,
+  the eras (4 at least each), no pin twice, no name (title, alternative, English
+  title) naming two songs; `npm run check:songs` (`tools/check-songs.mjs`) asks
+  both sources about every pin, `--play` fetches each preview's first bytes,
+  `--artists` prints each source's artist beside ours - all 237 songs and all
+  337 pins playable on 1 Oct 2026.
 - **`RoomHum.js`** (bundled after `RoomBox.js`): `shared` holds `roster`,
   `mode`, `replay`, `rounds`, `round`, `deal` (every song dealt, redeals
   included: the stale-tap key), `order` / `turn` / `hummerId`, `phase` ('arm' →
@@ -122,11 +146,17 @@ catalog, the help); the rules are named `hum` / `HUM_`, the page's code
   replay, count, autoNext }`), `arm`, `go`, `heard`, `guess { deal, text }`,
   `pick { deal, i }`, `broken { deal }`, `skipSong { deal }`, `nextRound { round
   }`. `humDeadline` / `humTimeout`, `humPlayerLeft`.
-- **The sound** (`rooms-worker/src/index.js` `songResponse`, `Room.songOf`): `GET
-  /song/CODE/TOKEN` - the room says which trackId the token stands for (only the
-  song on now, only its token), the Worker looks it up on iTunes and streams the
-  preview back (`audio/mp4`, CORS open), both cached at Cloudflare's edge (a
-  day, a week). Nothing in the address or the answer names the song.
+- **The sound** (`rooms-worker/src/index.js` `songResponse`, `Room.songOf`,
+  `rooms-worker/src/songs.js`): `GET /song/CODE/TOKEN` - the room says which song
+  the token stands for (only the song on now, only its token: its pin and second
+  pin), and `songStream` looks the pin up at play time (Apple's lookup, or
+  Deezer's `/track/<id>` → `.preview`, a signed address that expires within
+  hours, which is why only ids are stored) and streams the preview back -
+  `audio/mp4` from Apple, `audio/mpeg` from Deezer, CORS open - trying the
+  second pin when the first fails. Apple's lookup and clip are cached at
+  Cloudflare's edge (a day, a week), Deezer's for minutes. Deezer's API sends no
+  CORS headers, which doesn't matter: the Worker asks it, never a phone. Nothing
+  in the address or the answer names the song or its source.
 - **`JS_RoomHum.html`** (look ج): the hall (`dndPhoneFrame`): the top line, the
   crowd (`dndCrowdHtml`: a face and a name each, a sign that rises - ✓ and the
   place, ✋ for a pick, the points at the reveal; 🎧 in the ▶ round), the bulbs
@@ -152,11 +182,12 @@ catalog, the help); the rules are named `hum` / `HUM_`, the page's code
   `motionFirst`).
 - Tests: `rules.mjs` ("Hum it": the list, both ways, the points, the bonus, the
   stale taps, a redeal, the skip, leaving), `leaks.mjs` (`PROBES.hum`: the title,
-  a name it goes by, the singer, the English title, the trackId and any apple.com
-  address, the token in «دندنة», the right choice and the picks, each phone's own
+  a name it goes by, the singer, the English title, the song's ids (both pins),
+  the words apple.com, itunes, deezer and dzcdn, the token in «دندنة», the right choice and the picks, each phone's own
   slice - each leak put back in a scratch build was caught; `DRIVERS.hum`: both
   ways to the board), `play-all.mjs` (`--only=hum`: four phones and a TV, the
-  `/song` stream itself, the choices on the server's clock, a redeal, a skip,
+  `/song` stream itself, each source through `songStream` (and a song whose first
+  pin is gone playing from its second), the choices on the server's clock, a redeal, a skip,
   «سمّع» with every ▶).
 
 ## History

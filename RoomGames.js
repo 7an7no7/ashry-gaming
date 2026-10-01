@@ -4448,6 +4448,7 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'hear':
       hearPlayerLeft(room, playerId);
+      return;
     case 'hum':
       humPlayerLeft(room, playerId);
       return;

@@ -83,8 +83,12 @@ All the numbers are in `Vault.js` (`vaultLevel` and the `VAULT_*` constants).
   cutter is not a strike. Symbols, lights and the dial's «لِف وافتح» are single taps (the
   dial's digits are set freely before).
 - **The TV as opener** needs a screen in the room when the game starts; its looks go to the
-  screens only (`room.screenOnly`). If the TV goes, any action (or the host's «📱 خلّي موبايل
-  يفتح», `takeOver`) hands the safe to the first phone, progress kept.
+  screens only (`room.screenOnly`). If the TV goes, the server's next look hands the safe to the
+  first phone, progress kept: a screen leaving never reaches `vaultPlayerLeft`, so
+  `vaultDeadline` asks for a look at once while `tvOpens` has no screen (`vaultTvGone`) and
+  `vaultTimeout` does the handover (the review of 1 Oct 2026: nobody could open the safe until
+  the candle burnt out). The host's «📱 خلّي موبايل يفتح» (`takeOver { safe }`) does it by hand,
+  after a confirm (`vt_take_over_confirm`). The chest number on the phone's foot is `.metric`.
 - **A leaver:** their locks and pages are dealt again to who is left on their side (a lock's
   progress stays with the lock); a side with nobody, or a table of one, ends the game ('left').
 
@@ -112,7 +116,7 @@ brass padlock).
   Each holder's slice (`vaultWrite`): `{ side, safe, locks: [{ i, k, look, prog }], pages:
   [vaultPageData] }`. Moves: `cut { i, w, safe }`, `sym { i, s }`, `dial { i, code }`, `light
   { i, c }` (from the holder of lock `i`, or a screen when the TV opens; a stale `safe` dropped),
-  the host's `start` / `playAgain`, and the move-ons `nextSafe { safe }` and `takeOver`.
+  the host's `start` / `playAgain`, and the move-ons `nextSafe { safe }` and `takeOver { safe }` (a stale `safe` dropped; optional).
   `vaultTimeout` lights the candles and goes on to the burnt-out check in the same pass.
 - **`JS_RoomVault.html`**: the phone (`vtPhoneHtml`): the top (the candle `vtCandleHtml` and its
   clock, the hasp of padlocks `vtPadSvg`, a team ribbon), the stage (`vtStageHtml`: one lock big,

@@ -585,8 +585,9 @@ function vtPaint(state, el) {
   const serial = root.querySelector('[data-vt-serial]');
   if (serial) {
     const show = locks.length || s.way === 'all';
-    const txt = show && s.serial ? t.vt_chest_no + ' ' + s.serial : (mine && !locks.length ? t.vt_ask_chest : '');
-    if (serial.textContent !== txt) serial.textContent = txt;
+    // The number held left to right (.metric), as on the TV's chest.
+    const html = show && s.serial ? `${escapeHTML(t.vt_chest_no)} <b class="metric">${escapeHTML(s.serial)}</b>` : escapeHTML(mine && !locks.length ? t.vt_ask_chest : '');
+    if (serial.dataset.h !== html) { serial.dataset.h = html; serial.innerHTML = html; }
   }
   root.classList.toggle('is-wait', s.phase !== 'play');
   // The result of the safe, over everything: the treasure, or the alarm.
@@ -608,11 +609,17 @@ function vtPaint(state, el) {
       host.dataset.key = key;
       const rows = [];
       if (s.phase === 'result') rows.push([t.vt_next_now, `roomAct('nextSafe', { safe: ${Number(s.safeNo) || 0} })`, 'secondary']);
-      if (s.tvOpens && s.phase !== 'gameover') rows.push([t.vt_take_over, "roomAct('takeOver', {})"]);
+      if (s.tvOpens && s.phase !== 'gameover') rows.push([t.vt_take_over, `vtTakeOver(${Number(s.safeNo) || 0})`]);
       host.innerHTML = rows.length ? roomMoveOnHtml(state, roomHostRow(rows)) : '';
     }
   }
   vtFrame();
+}
+
+/** «خلّي موبايل يفتح»: asked first (it takes the safe off the TV for good), and sent for the safe it was pressed on. */
+function vtTakeOver(safe) {
+  const t = vtT();
+  showConfirmModal(t.vt_take_over_confirm, () => roomAct('takeOver', { safe: safe }));
 }
 
 /** The card over the table between two safes (and on the safe's card before the candle). */

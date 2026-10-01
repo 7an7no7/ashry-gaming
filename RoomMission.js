@@ -38,7 +38,7 @@ const MISSION_SWAP_MS = 10 * 60 * 1000;      // «غيّرها»: the owner's "o
 const MISSION_CATCH_WAIT_MS = 5 * 60 * 1000; // after a wrong «كشفتك!» (decided while building)
 const MISSION_FEED_MAX = 5;                  // closed files the ticker keeps
 const MISSION_LOG_MAX = 120;                 // what the reveal tells
-const MISSION_EVENT_ACTIONS = ['missionSet', 'missionClose', 'missionDone', 'missionCancel', 'missionAnswer', 'missionSwap', 'missionCatch'];
+const MISSION_EVENT_ACTIONS = ['missionSet', 'missionClose', 'missionDone', 'missionCancel', 'missionSeen', 'missionAnswer', 'missionSwap', 'missionCatch'];
 
 /** The people who take part: players who aren't computer players. */
 const missionPeople = (room) => (room.players || []).filter(p => !p.bot);
@@ -240,7 +240,18 @@ const missionAction = (room, pid, action, payload) => {
   }
 
   if (action === 'missionCancel') {
+    // «اسحبه»: taken back before the target's phone showed the memo (missionSeen), the target
+    // never learnt who was after them, so they can still catch you (the review of 1 Oct 2026).
+    const mine = h.asks.filter(a => a.by === pid);
     h.asks = h.asks.filter(a => a.by !== pid);
+    if (file && mine.length && !mine.some(a => a.seen)) file.asked = false;
+    return true;
+  }
+
+  if (action === 'missionSeen') {
+    // The target's phone has put the memo on the screen: from now on they know.
+    const ask = h.asks.find(a => String(a.id) === String(p.id));
+    if (ask && ask.to === pid) ask.seen = true;
     return true;
   }
 
@@ -279,8 +290,14 @@ const missionAction = (room, pid, action, payload) => {
     const theirs = h.of[who];
     room.mission.catchSeq = (room.mission.catchSeq || 0) + 1;
     if (theirs && theirs.to === pid) {
-      // Asked you already about this very mission: they showed you their hand themselves.
-      if (theirs.asked) throw new Error('هو كشف نفسه لما سألك، دي مش بتتحسب');
+      // Asked you already about this very mission: they showed you their hand themselves, so it
+      // doesn't count - refused as an ordinary wrong guess, so it says nothing either (the review of 1 Oct 2026).
+      if (theirs.asked) {
+        h.wrongAt[pid] = now;
+        h.lastCatch = h.lastCatch || {};
+        h.lastCatch[pid] = { seq: room.mission.catchSeq, who: who, ok: false };
+        return true;
+      }
       room.mission.score[pid] = (room.mission.score[pid] || 0) + 1;
       h.caught[who] = (h.caught[who] || 0) + 1;
       missionLog(room, { k: 'catch', by: pid, to: who, m: theirs.m });

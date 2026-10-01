@@ -88,7 +88,12 @@
 - **A song that won't load**: the hummer's phone («دندنة») or any player's
   («سمّع») says so (`broken`), up to **3 times a round** (`HUM_REDEALS`), before
   anyone has it; the round deals another song, same hummer. Eight spare songs
-  are dealt with the game (`HUM_SPARE`).
+  are dealt with the game (`HUM_SPARE`). In «سمّع» one phone is enough only
+  during the count-in; once the clip plays, it takes **two phones**
+  (`HUM_BROKEN_PHONES`, kept in `room._hum.broken`) - one phone's bad network
+  used to re-deal the song for everyone (the review of 1 Oct 2026); that phone
+  is told «الأغنية مش راضية تشتغل على موبايلك» (`dnd_broken_mine`) and guesses
+  from the sound around it.
 - **The host's skip** (`skipSong`) shows the song now and scores what was right
   so far; the round is over.
 - **The song is heard by everyone at the reveal** (its token goes public): a
@@ -100,8 +105,10 @@
   (`art:hum`: the stage's mic under its light, a note, a sign with a tick).
 - «التالي لوحده» works here (`AUTONEXT_GAMES.hum`, 10 s after the reveal).
 - Leaving: fewer than two ends the game; a hummer gone while listening hands
-  the round to the next hummer with a new song; every "has everyone
-  answered?" runs again. A latecomer watches and plays the next game.
+  the round to the next hummer with a new song; a hummer gone after «خلاص»
+  (typing) sends whoever hasn't got it straight to the four choices, and a
+  hummer who has left scores nothing at the reveal (the review of 1 Oct 2026);
+  every "has everyone answered?" runs again. A latecomer watches and plays the next game.
 
 ## How it is built
 

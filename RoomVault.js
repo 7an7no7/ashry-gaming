@@ -173,7 +173,8 @@ const vaultAction = (room, playerId, action, payload) => {
   if (action === 'takeOver') {
     // The TV that had the safe isn't showing it (gone, or nobody near it): a phone takes it.
     requireMoveOn(room, playerId);
-    if (!s.tvOpens || s.phase === 'gameover') return;
+    // Sent for the safe it was pressed on (optional, for an older page): a double tap does nothing more.
+    if (!s.tvOpens || s.phase === 'gameover' || staleTap(payload, 'safe', s.safeNo)) return;
     vaultPhoneTakesOver(room);
     vaultWrite(room);
     return;
@@ -285,6 +286,12 @@ const vaultDealHolders = (room, key) => {
     else vaultDealUnits(units, readers).forEach((list, n) => { holders[readers[n]].pages = list; });
   }
   side.holders = holders;
+};
+
+/** The TV opens the safe and no screen is left in the room. */
+const vaultTvGone = (room) => {
+  const s = room.shared || {};
+  return !!s.tvOpens && s.phase !== 'gameover' && !(room.screens || []).length;
 };
 
 /** The TV that held the safe is gone: the side's first phone opens it now. */
@@ -454,6 +461,9 @@ const vaultWrite = (room) => {
 const vaultDeadline = (room) => {
   const s = room.shared || {};
   if (room.phase !== 'play' || !room._vault) return null;
+  // The TV that opened the safe has gone (a screen leaving never reaches vaultPlayerLeft):
+  // look at once, and vaultTimeout hands the safe to a phone (the review of 1 Oct 2026).
+  if (vaultTvGone(room)) return Date.now();
   if (s.phase === 'ready') return s.startAt;
   if (s.phase === 'result') return s.nextAt || null;
   if (s.phase !== 'play') return null;
@@ -465,14 +475,19 @@ const vaultTimeout = (room, now) => {
   const s = room.shared || {};
   if (room.phase !== 'play' || !room._vault) return false;
   let changed = false;
+  if (vaultTvGone(room)) {
+    vaultPhoneTakesOver(room);
+    vaultWrite(room);
+    changed = true;
+  }
   if (s.phase === 'ready') {
-    if (now < s.startAt) return false;
+    if (now < s.startAt) return changed;
     // The candles light (at = startAt, set with the safe); their ends are in the future.
     s.phase = 'play';
     changed = true;
   }
   if (s.phase === 'result') {
-    if (!s.nextAt || now < s.nextAt) return false;
+    if (!s.nextAt || now < s.nextAt) return changed;
     vaultAfterResult(room);
     return true;
   }

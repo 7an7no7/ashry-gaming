@@ -177,7 +177,8 @@ function dndLoad(token) {
   return promise;
 }
 
-/** A clip that won't load or play: the room deals another song by itself («دندنة»: the hummer's phone says so). */
+/** A clip that won't load or play: the room deals another song by itself («دندنة»: the hummer's phone says so;
+ *  «سمّع» once it plays: only when a second phone says so too - this phone hears it from the others meanwhile). */
 function dndClipFailed(token) {
   dnd.failed = token;
   const st = Room.state;
@@ -189,7 +190,7 @@ function dndClipFailed(token) {
   const key = dndSongKey(st);
   if (dnd.reported === key) return;
   dnd.reported = key;
-  showToast(dndT('dnd_broken'), 'info');
+  showToast(dndT(s.mode === 'listen' && s.phase !== 'count' ? 'dnd_broken_mine' : 'dnd_broken'), 'info');
   roomAct('broken', { deal: s.deal });
 }
 

@@ -342,6 +342,8 @@ The owner's rules are in *The owner's specs*.
   - Past nine holes the scorecard is two tables (`mg-card--two`): the first
     nine with their sum («أول 9»), then the rest with the total.
 
+**The review of 1 Oct 2026: «ضربة هادية».** A phone that can't draw the course (no WebGL, or three.js never arrived) shows a «⛳ ضربة هادية» button when it may putt (`mgRoomPlain`, shown by `mgRoomChrome` while `mgNo3d`, which `mgMountIn` sets through its new `onFail`); it sends `putt { hole, n, auto: true }` and the server plays the clock's gentle putt for that phone's own ball (`golfAutoShot`, `auto` on the shot), in turn as any putt - as bowling's plain throw does.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

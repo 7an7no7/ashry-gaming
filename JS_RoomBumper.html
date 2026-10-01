@@ -158,6 +158,8 @@ ROOM_GAMES.bumper = {
   bots: { max: 8 },
   lobbyOptions(state) { return bmpLobbyHtml(state); },
   startPayload() { return bmpLobbyOpts(); },
+  // The cars drive on the big screen: Start waits for one to be online (the server refuses it too).
+  startBlock(state) { const t = bmpT(); return bmpHasScreen(state) ? '' : '📺 ' + t.bmp_start_need_tv; },
 
   render(state) {
     if (appState.currentView !== 'room-bumper') setView('room-bumper');
@@ -739,11 +741,18 @@ function bmpEngineOff() {
 TV_GAMES.bumper = {
   sig(state) {
     const s = state.shared || {};
-    return ['bmp', s.round, s.phase, s.phase === 'over' ? JSON.stringify(s.results) : '', state.youAreHost, appState.lang].join('|');
+    return ['bmp', s.round, s.phase, s.phase === 'over' ? JSON.stringify(s.results) : '', state.youAreHost, appState.lang,
+      s.phase === 'play' ? bmpIsLead(state) : ''].join('|');
   },
   frame(state, t) {
     const s = state.shared || {};
     if (s.phase === 'over') return `<div class="bmp-tv bmp-tv--over tv-scale">${bmpOverHtml(state, s, t, true)}</div>`;
+    // A second screen in the room: the rink runs on the lead one only (bmpIsLead), so two
+    // screens never play two different games; this one says where it is (the review of 1 Oct 2026).
+    if (!bmpIsLead(state)) {
+      const host = state.youAreHost ? `<div class="tv-actions">${tvBtn(t.bmp_end_now, "roomAct('endNow', {})", 'ghost')}</div>` : '';
+      return `<div class="bmp-tv bmp-tv--other tv-scale"><div class="waiting-note">📺 ${escapeHTML(t.bmp_tv_other)}</div>${host}</div>`;
+    }
     const st = bmpSettings(s);
     const host = state.youAreHost ? `<div class="tv-actions">${tvBtn(t.bmp_end_now, "roomAct('endNow', {})", 'ghost')}</div>` : '';
     return `<div class="bmp-tv">
@@ -762,7 +771,7 @@ TV_GAMES.bumper = {
   after(state, rebuilt) {
     bmpNoteTime(state);
     const s = state.shared || {};
-    if (s.phase !== 'play') { bmpTvStop(true); return; }
+    if (s.phase !== 'play' || !bmpIsLead(state)) { bmpTvStop(true); return; }
     bmpTvStart(state, rebuilt);
   }
 };
@@ -781,6 +790,7 @@ function bmpTvStart(state, rebuilt) {
     bmp.tv = { key, round: s.round, st: bmpSettings(s), cars: {}, sparks: [], pops: [], pairs: {}, sndPairs: {}, reported: false,
       msgs: [], sent: [], raf: 0, tick: null, last: 0, uiAt: 0, statusAt: 0, snd: { cd: null, go: false, tick: null, end: false },
       wallAt: 0, elim: 0, view: null, done: false, lead: false };
+    bmpTvRestore(bmp.tv);
   }
   const g = bmp.tv;
   g.lead = bmpIsLead(state);
@@ -791,8 +801,37 @@ function bmpTvStart(state, rebuilt) {
   if (!g.tick) g.tick = setInterval(() => {
     const st = Room.state;
     if (bmp.tv !== g || !st || st.game !== 'bumper' || !st.youAreScreen || (st.shared || {}).phase !== 'play') return;
+    bmpTvSave(g);
     if ((bmpServerNow() >= st.shared.endsAt || g.done) && !g.reported) bmpTvReport(st);
   }, 1000);
+}
+/*
+ * The rink across a reload: the lead screen keeps the cars, the scores and the balloons in
+ * sessionStorage (this tab only) every second, keyed on the deal and the round, and a reload
+ * into the same round picks them up (the review of 1 Oct 2026: a reload used to start the
+ * round over, everyone back on their spot with nothing scored).
+ */
+const BMP_TV_SAVE = 'ashryBmpTv';
+const BMP_CAR_KEEP = ['id', 'name', 'bot', 'x', 'y', 'vx', 'vy', 'h', 'hits', 'taken', 'lives', 'ghost', 'out', 'fall',
+  'safeUntil', 'boostAt', 'lastTouch', 'elimAt'];
+function bmpTvSave(g) {
+  if (!g || !g.lead) return;
+  const cars = {};
+  Object.values(g.cars).forEach((c) => { const o = {}; BMP_CAR_KEEP.forEach((k) => { o[k] = c[k]; }); cars[c.id] = o; });
+  try { sessionStorage.setItem(BMP_TV_SAVE, JSON.stringify({ key: g.key, cars, elim: g.elim, done: g.done, doneAt: g.doneAt || 0 })); } catch (e) {}
+}
+function bmpTvRestore(g) {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(BMP_TV_SAVE) || 'null'); } catch (e) {}
+  if (!saved || saved.key !== g.key || !saved.cars) return;
+  Object.values(saved.cars).forEach((o) => {
+    if (!o || !o.id) return;
+    g.cars[o.id] = Object.assign({ input: null, inAt: 0, hits: 0, taken: 0, lives: BMP_LIVES, ghost: false, out: false, fall: null,
+      safeUntil: 0, boostAt: 0, boostFx: 0, hornAt: 0, hornFx: 0, lastTouch: null, elimAt: 0, ping: null, flash: 0, rate: [], ai: null, sent: '' }, o);
+  });
+  g.elim = saved.elim || 0;
+  g.done = !!saved.done;
+  if (saved.doneAt) g.doneAt = saved.doneAt;
 }
 function bmpTvStop(all) {
   const g = bmp.tv;
@@ -1498,7 +1537,8 @@ function bmp3dView(g, stage, T) {
         const sg = new T.BufferGeometry().setFromPoints([new T.Vector3(-0.42, 0.45, 0), new T.Vector3(-0.5, 1.16 + (i === 1 ? 0.18 : 0), z)]);
         const str = new T.Line(sg, strMat);
         grp.add(b); grp.add(str);
-        bl.push({ b, str, sg, gone: false, popT: 0 });
+        // A car brought back after a reload (bmpTvRestore) has only the balloons it had left.
+        bl.push({ b, str, sg, gone: i < BMP_LIVES - Math.max(0, Math.min(BMP_LIVES, c.lives)), popT: 0 });
       }
     }
     const lab = label(c.name + (c.bot ? ' 🤖' : ''), color);

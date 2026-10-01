@@ -83,7 +83,7 @@ const darkAction = (room, playerId, action, payload) => {
       level: 0,
       hearts: DARK_HEARTS,
       cleared: 0,
-      best: prev.best || 0,
+      best: room._darkBest || prev.best || 0,
       run: 0,
       ev: [], evN: 0,
       phase: 'play'
@@ -208,7 +208,9 @@ const darkWon = (room, now) => {
   s.phase = 'won';
   s.vel = [0, 0];
   s.cleared = (s.cleared || 0) + 1;
-  s.best = Math.max(s.best || 0, s.cleared);
+  // The room's best lives outside the shared state, which a trip to the hub clears.
+  room._darkBest = Math.max(room._darkBest || 0, s.best || 0, s.cleared);
+  s.best = room._darkBest;
   s.nextAt = now + DARK_WIN_MS;
   darkEv(room, { type: 'won', lv: s.level });
 };

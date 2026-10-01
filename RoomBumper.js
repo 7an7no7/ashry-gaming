@@ -60,6 +60,10 @@ const bumperAction = (room, playerId, action, payload) => {
     if (action === 'playAgain' && prev.phase !== 'over') return;
     const drivers = room.players.slice(0, BUMPER_MAX);
     if (!drivers.some(p => !p.bot)) throw new Error('محتاجين لاعب واحد على الأقل');
+    // The cars drive on the big screen: no screen online, no round (the review of 1 Oct 2026).
+    // room.js names the screens online for this move (_onlineScreens); without it, any screen.
+    const screensOn = Array.isArray(room._onlineScreens) ? room._onlineScreens.length : (room.screens || []).length;
+    if (!screensOn) throw new Error('افتح شاشة العرض الأول: العربيات بتجري عليها');
     const settings = bumperSettings(payload, prev.settings);
     if (drivers.length < 2 && bumperLastStanding(settings)) throw new Error('الطريقة دي محتاجة عربيتين على الأقل: ضيف عربية كمبيوتر');
     const roster = drivers.map(p => p.id);

@@ -3206,23 +3206,123 @@ function chComputerSoon() {
     if (st.clk && st.clk.at) ms = Math.min(ms, Math.max(80, chessClockLeft(st.clk, st.g.turn, st.g.turn, Date.now()) / 25));
     const t0 = Date.now();
     const hqs = chHqOf(st);
-    const mv = chessBestMove(st.g, { elo: chOppElo(st), ms: ms, style: (st.opp && st.opp.style) || undefined, hq: hqs ? hqs.sq[st.g.turn] : -1 });
-    // A move found at once still waits a human moment, so it can be seen coming.
-    const pause = Math.max(0, 450 - (Date.now() - t0));
-    chLocal.thinking = setTimeout(() => {
-      chLocal.thinking = null;
-      const s2 = chState();
-      if (appState.currentView !== 'play-shatranj' || s2.phase !== 'play' || s2.g.turn === s2.me) return;
-      if (mv) chApplyMove(s2, mv);
-      chPaint();
-      chAfterMove();
-    }, pause);
+    // The search runs off the page (a Web Worker) so the board, the clock and the buttons
+    // keep moving while it thinks; the answer counts only for the position it was asked about.
+    const ask = chEngine.seq;
+    const plies = st.hist.length;
+    chLocal.thinking = 'search';
+    chEngineThink(st.g, { elo: chOppElo(st), ms: ms, style: (st.opp && st.opp.style) || undefined, hq: hqs ? hqs.sq[st.g.turn] : -1 }).then((mv) => {
+      if (ask !== chEngine.seq) return;
+      if (chState() !== st || st.hist.length !== plies) {
+        // The position moved on without the timers stopping (they move chEngine.seq): think again for the new one.
+        if (chLocal.thinking === 'search') { chLocal.thinking = null; if (chState() === st) chAfterMove(); }
+        return;
+      }
+      // A move found at once still waits a human moment, so it can be seen coming.
+      const pause = Math.max(0, 450 - (Date.now() - t0));
+      chLocal.thinking = setTimeout(() => {
+        chLocal.thinking = null;
+        const s2 = chState();
+        if (ask !== chEngine.seq || s2 !== st || s2.hist.length !== plies) return;
+        if (appState.currentView !== 'play-shatranj' || s2.phase !== 'play' || s2.g.turn === s2.me) return;
+        if (mv) chApplyMove(s2, mv);
+        chPaint();
+        chAfterMove();
+      }, pause);
+    });
   }, wait);
+}
+
+/* --- the computer's search in a Web Worker (the review of 1 Oct 2026) ---------
+   A strong computer searched for up to 1.5 s on the page's own thread, and the
+   page stood still the whole time. The worker is built from Chess.js as it is
+   on the page (cut out between chessSrcBegin and chessSrcEnd: an inline script
+   on the one page, the chess chunk's file under chunks, offline from the
+   worker's cache), so the engine, its ratings and its results are the same.
+   Anything that fails - no Worker, no source, a worker error - falls back to
+   the search on the page, as before. chStopTimers moves chEngine.seq on, so an
+   answer that comes after leaving the board or starting a new game is dropped. */
+const chEngine = { worker: null, broken: false, src: null, seq: 0, ids: 0, waits: {} };
+
+async function chEngineSource() {
+  if (chEngine.src !== null) return chEngine.src;
+  const begin = /function chessSrcBegin\s*\(\s*\)\s*\{\s*\}/, end = /function chessSrcEnd\s*\(\s*\)\s*\{\s*\}/;
+  const cut = (text) => {
+    const a = text.search(begin);
+    if (a < 0) return '';
+    const m = end.exec(text.slice(a));
+    return m ? text.slice(a, a + m.index + m[0].length) : '';
+  };
+  let found = '';
+  for (const sc of Array.from(document.scripts)) {
+    if (found) break;
+    if (!sc.src) { if (sc.text.indexOf('chessSrcBegin') !== -1) found = cut(sc.text); continue; }
+    // Under chunks: the chess chunk's own file (g/chess.<hash>.js), answered by the worker's cache offline.
+    if (!/\/chess\.[^/]*\.js(\?|$)/.test(sc.src)) continue;
+    try { found = cut(await (await fetch(sc.src)).text()); } catch (e) { found = ''; }
+  }
+  chEngine.src = found;
+  return found;
+}
+
+async function chEngineWorker() {
+  if (chEngine.worker || chEngine.broken) return chEngine.worker;
+  try {
+    if (typeof Worker !== 'function' || typeof Blob !== 'function' || !window.URL || !URL.createObjectURL) throw new Error('no worker');
+    const src = await chEngineSource();
+    if (!src) throw new Error('no engine source');
+    if (chEngine.worker) return chEngine.worker;
+    const code = src + ';self.onmessage = function (e) { var d = e.data || {}; var mv = null, bad = false;'
+      + ' try { mv = chessBestMove(d.g, d.opts); } catch (err) { bad = true; } self.postMessage({ id: d.id, mv: mv, bad: bad }); };';
+    const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+    const w = new Worker(url);
+    w.onmessage = (e) => {
+      const d = e.data || {};
+      const done = chEngine.waits[d.id];
+      if (!done) return;
+      delete chEngine.waits[d.id];
+      done(d.bad ? undefined : d.mv);
+    };
+    w.onerror = (e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      chEngineBroken();
+    };
+    chEngine.worker = w;
+    return w;
+  } catch (e) {
+    chEngine.broken = true;
+    return null;
+  }
+}
+
+/** The worker failed: every search waiting on it is done on the page instead, and so are the next ones. */
+function chEngineBroken() {
+  chEngine.broken = true;
+  try { if (chEngine.worker) chEngine.worker.terminate(); } catch (e) {}
+  chEngine.worker = null;
+  const waits = chEngine.waits;
+  chEngine.waits = {};
+  Object.keys(waits).forEach((id) => waits[id](undefined));
+}
+
+/** chessBestMove(g, opts), off the page when it can be; the page's own search when it can't. */
+function chEngineThink(g, opts) {
+  const here = () => chessBestMove(g, opts);
+  return chEngineWorker().then((w) => {
+    if (!w) return here();
+    const id = ++chEngine.ids;
+    return new Promise((resolve) => {
+      chEngine.waits[id] = (mv) => resolve(mv === undefined ? here() : mv);
+      try { w.postMessage({ id, g: g, opts: opts }); } catch (e) { delete chEngine.waits[id]; resolve(here()); }
+    });
+  }).catch(() => here());
 }
 
 function chStopTimers() {
   if (chLocal.thinking) clearTimeout(chLocal.thinking);
   chLocal.thinking = null;
+  // A search still running elsewhere answers a position that is gone: its answer is dropped.
+  chEngine.seq++;
   if (chLocal.tick) clearInterval(chLocal.tick);
   chLocal.tick = null;
 }

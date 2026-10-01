@@ -423,6 +423,17 @@ function bhPlayMotion(root, state, bigB) {
   const s = bhShared(state);
   if (!s.boards) return;
   const deal = roomDealKey(state) + '|' + s.round;
+  // The first time this page sees the game (a reload, a late joiner, a TV coming on): the last
+  // move on each board is taken as shown - no piece flies, no tick - and a game already over as
+  // cheered (the review of 1 Oct 2026). A game first seen mid-way still cheers when it ends.
+  if (duelRoomFirstSight(state, 'bh|' + deal, { motion: s.phase === 'over' ? ['bhover|' + deal, 'bhtvover|' + deal] : [] })) {
+    s.boards.forEach((bd, b) => {
+      if (!bd.last) return;
+      const key = deal + '|' + b + '|' + bd.last.n;
+      bhLocal.seenGive[key] = true;
+      bhLocal.seenDrop[key] = true;
+    });
+  }
   s.boards.forEach((bd, b) => {
     const last = bd.last;
     if (!last) return;

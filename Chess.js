@@ -38,6 +38,10 @@
    (chessMatchNext below - the bracket's adapter).
    ========================================================================= */
 
+/* The engine's first and last lines: the page cuts this file out of its own code between
+   the two to run the computer's search in a Web Worker (chEngineSource, JS_Chess.html). */
+function chessSrcBegin() {}
+
 const CHESS_FILES = 'abcdefgh';
 const CHESS_START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const CHESS_LETTERS = ' pnbrqk';            // a kind's letter, lower case
@@ -2245,3 +2249,5 @@ function chessBugBotMove(g, opts) {
   const mv = chessBestMove(g, hard ? { elo: 1500, depth: 2, nodes: 2500, ms: 60, rnd: rnd } : { elo: 600, depth: 1, nodes: 400, ms: 30, rnd: rnd });
   return mv || moves[0];
 }
+
+function chessSrcEnd() {}

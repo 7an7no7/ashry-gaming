@@ -350,6 +350,7 @@ function hbRender(state, still) {
   if (!el || !s.chess) return;
   renderRoomFrame(el, ['hb', state.code, appState.lang].join('|'), () => chLayoutHtml());
   hbNoteClock(state);
+  hbFirstSight(state);
   chViewShow(el.querySelector('[data-ch-host]'), hbModel(state, false, still));
   const bd = s.chess;
   const over = s.phase === 'over';
@@ -374,6 +375,21 @@ function hbRender(state, still) {
   if (myUp && duelOnce(['hbturn', roomDealKey(state), bd.moves, s.stage].join('|'))) haptic('medium');
   if (over) hbCheer(el, state);
   if (typeof animateScoreboards === 'function') animateScoreboards(state);
+}
+
+/**
+ * The first time this page sees a deal (a reload, a late joiner, a TV coming on): the Brain's
+ * last call is marked as heard and shown, and a game already over as cheered, so none of them
+ * plays again (the review of 1 Oct 2026). A deal first seen mid-game still cheers when it ends.
+ */
+function hbFirstSight(state) {
+  const s = hbShared(state);
+  const deal = roomDealKey(state);
+  const n = s.named ? s.named.n : null;
+  duelRoomFirstSight(state, 'hb|' + deal, {
+    motion: n !== null ? [['hbcall', deal, n, 'p'].join('|'), ['hbcall', deal, n, 'tv'].join('|')] : [],
+    once: (n !== null ? [['hbcue', deal, n].join('|')] : []).concat(s.phase === 'over' ? ['hbcheer|' + deal] : [])
+  });
 }
 
 /** The Brain's word is heard once per move on each screen that speaks for the table. */
@@ -529,6 +545,7 @@ TV_GAMES.handbrain = {
     const view = document.getElementById('view-room-tv');
     const s = hbShared(state);
     if (!view || !s.chess) return;
+    hbFirstSight(state);
     const host = view.querySelector('[data-ch-host]');
     if (!host) return;
     hbNoteClock(state);

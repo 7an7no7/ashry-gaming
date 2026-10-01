@@ -1476,8 +1476,13 @@ function renderRoomLobby(state, opts) {
     const people = state.players.filter(p => !p.bot).length;
     const short = hub && state.youAreHost ? Math.max(0, (hub.min || 0) - people) : 0;
     const tt = TRANSLATIONS[appState.lang] || {};
-    needEl.classList.toggle('hidden', !short);
+    // A game that can't start yet for another reason says why there (startBlock: عربيات التصادم
+    // with no big screen online), and its Start is greyed until then; the server refuses it too.
+    const block = !short && game && state.youAreHost && typeof game.startBlock === 'function' ? (game.startBlock(state) || '') : '';
+    if (startBtn) startBtn.disabled = !!block;
+    needEl.classList.toggle('hidden', !short && !block);
     if (short) needEl.textContent = (tt.room_need_more || '').replace('{n}', String(short));
+    else if (block) needEl.textContent = block;
     // Enough are in now: the Start that can go breathes once (JS_Motion.html section 13).
     needEl.dataset.short = String(short);
     if (wasShort > 0 && !short && startBtn && typeof motionNudge === 'function') motionNudge(startBtn);

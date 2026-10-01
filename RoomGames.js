@@ -113,7 +113,7 @@ const clearGameState = (room) => {
   room._vault = null;    // الخزنة: the notebook's seed, the safe, each side's progress (RoomVault.js); the room's best (_vaultBest) stays
   room._wire = null;     // الحقوا!: the panels, the controls' states, what is broken (RoomWire.js); the room's best (_wireBest) stays
   room._box = null;      // المزاد: the eight boxes, the clues, the bids, a key's peek (RoomBox.js)
-  room._dark = null;     // الأوضة المضلمة: the map's seed and the near misses (RoomDark.js)
+  room._dark = null;     // الأوضة المضلمة: the map's seed and the near misses (RoomDark.js); the room's best (_darkBest) stays
   room.screenOnly = null; // the screen's own slice (src/view.js): الأوضة المضلمة's map for the TV
   room._exact = null;    // حط إيدك!: each phone's secret and every tap's events (RoomExact.js)
   room._hear = null;     // ارسم اللي بتسمعه: the picture and every drawing until the grading (RoomHear.js)

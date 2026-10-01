@@ -4828,6 +4828,17 @@ Date.now = duelTestClock;
   applyRoomAction(r, 'a', 'playFor', { target: s.turn, hole: 0, n: s.balls[s.turn].n });
   check(s.shots[first].auto === true && s.turn === second, 'minigolf: the host\'s "play for" is the phone\'s gentle putt');
   check(refused(() => applyRoomAction(r, 'b', 'playFor', { target: 'b', hole: 0 })), 'minigolf: only the host plays for someone');
+  // The review of 1 Oct 2026: a phone that can't draw the course asks for the gentle putt for its own ball («ضربة هادية»).
+  {
+    const r2 = mg(['a', 'b'], { mode: 'turns', holes: 3 });
+    const s2 = r2.shared;
+    s2.holes[0] = 'first';
+    Object.keys(s2.balls).forEach((id) => { s2.balls[id].at = H('first').tee.slice(); });
+    const up = s2.turn, other = s2.order.find((id) => id !== up);
+    check(refused(() => applyRoomAction(r2, other, 'putt', { hole: 0, n: 0, auto: true })), 'minigolf: a plain putt out of turn is refused too');
+    applyRoomAction(r2, up, 'putt', { hole: 0, n: 0, auto: true });
+    check(s2.shots[up] && s2.shots[up].auto === true && s2.balls[up].n >= 1 && s2.turn === other, 'minigolf: a phone with no 3D putts with the gentle putt, and the turn moves on');
+  }
   // Finish hole 1, a putt a turn: `second` holes out on a way solved from
   // where the clock's putt left it (with the other ball where it lies), `first` picks up.
   const from1 = Object.assign({}, HID(s.holes[0]), { tee: s.balls[second].at.slice(), id: 'first-from' });
@@ -8133,6 +8144,9 @@ Date.now = duelTestClock;
     const s = r.shared;
     const hostSeat = s.seats.indexOf('a');
     const other = 1 - hostSeat;
+    // The review of 1 Oct 2026: naming the host's own seat is refused, and picks nothing.
+    check(threwH(() => applyRoomAction(r, 'a', 'skipTurn', { move: 0, seat: hostSeat })) && !r.shared.chess.hq.picked[hostSeat] && !r.shared.chess.hq.picked[other],
+      'hidden queen room: the host\'s "pick for" their own seat is refused');
     applyRoomAction(r, 'a', 'skipTurn', { move: 0, seat: other });
     check(r.shared.chess.hq.picking && r.shared.chess.hq.picked[other] && !r.shared.chess.hq.picked[hostSeat] && r._chq.pick[hostSeat] === -1,
       'audit/hq: the host\'s "pick for" a quiet phone picks that seat only - the host still picks their own pawn');
@@ -9051,6 +9065,19 @@ Date.now = duelTestClock;
 {
   console.log('\nBumper cars');
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  // The review of 1 Oct 2026: no screen online, no round (the cars drive on the screen).
+  {
+    const n = newRoom(['a', 'b']);
+    applyRoomAction(n, 'a', 'chooseGame', { game: 'bumper' });
+    check(threw(() => applyRoomAction(n, 'a', 'start', { mode: 'points', secs: 60 })) && n.phase === 'lobby', 'bumper: Start with no screen in the room is refused');
+    n.screens = [{ id: 'tvy' }];
+    n._onlineScreens = [];
+    check(threw(() => applyRoomAction(n, 'a', 'start', { mode: 'points', secs: 60 })) && n.phase === 'lobby', 'bumper: Start with the room\'s screen offline is refused');
+    n._onlineScreens = ['tvy'];
+    applyRoomAction(n, 'a', 'start', { mode: 'points', secs: 60 });
+    delete n._onlineScreens;
+    check(n.phase === 'play', 'bumper: with a screen online the round starts');
+  }
   const r = newRoom(['a', 'b', 'c']);
   r.screens = [{ id: 'tvx' }];
   applyRoomAction(r, 'a', 'chooseGame', { game: 'bumper' });
@@ -9104,6 +9131,7 @@ Date.now = duelTestClock;
 
   // Computer players: the host seats them in the lobby; one person alone can't play a way that needs two cars.
   const r2 = newRoom(['solo']);
+  r2.screens = [{ id: 'tvx' }];
   applyRoomAction(r2, 'solo', 'chooseGame', { game: 'bumper' });
   check(threw(() => applyRoomAction(r2, 'solo', 'start', { mode: 'balloons' })), 'bumper: Balloons alone is refused');
   applyRoomAction(r2, 'solo', 'addBot', { level: 'hard', name: 'زيزو' });
@@ -11043,6 +11071,18 @@ Date.now = duelTestClock;
     s.best = 4;
     applyRoomAction(r, 'a', 'playAgain', {});
     check(r.shared.phase === 'play' && r.shared.hearts === 3 && r.shared.level === 1 && r.shared.best === 4 && r.shared.story === 'home', 'darkroom: play again: three hearts, level 1, the room\'s best kept');
+  }
+  // The room's best survives a trip to the hub (the review of 1 Oct 2026): it lives in room._darkBest.
+  {
+    const r = dkRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'start', { story: 'home', mode: 'steps' });
+    clock = Math.max(clock, r.shared.t0);
+    walkToGoal(r);
+    const won = r.shared.best === 1 && r._darkBest === 1;
+    applyRoomAction(r, 'a', 'backToHub', {});
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'darkroom' });
+    applyRoomAction(r, 'a', 'start', { story: 'home', mode: 'steps' });
+    check(won && r.shared.best === 1 && r.shared.cleared === 0, 'darkroom: the room\'s best is kept across a trip to the hub');
   }
   // The joystick on the server: a push walks, a wall stops it.
   {

@@ -125,6 +125,8 @@ The owner's rules are in *The owner's specs*. Game id `handbrain`, view
   clocks.
 - Tests: `rules.mjs`, `leaks.mjs` (`DRIVERS.handbrain`), `play-all.mjs`.
 
+**The review of 1 Oct 2026.** A reload, a late joiner or a TV coming on doesn't replay the end's sound and confetti, the last tally's reveal or the Brain's last call (`vcFirstSight`, `hbFirstSight`, through `duelRoomFirstSight`); a deal first seen mid-game still cheers when it ends.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

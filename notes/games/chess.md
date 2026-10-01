@@ -644,6 +644,8 @@ take back and is part of the move's animation key and the hidden queen's moment
 (`chTakeBackKey`), so the move played instead slides and sounds; `chCoachPrepare` looks at
 a position once even when Continue or a new game call it twice.
 
+**The review of 1 Oct 2026.** The computer's move on one phone is searched in a Web Worker (`chEngineThink`, `chEngineWorker` in `JS_Chess.html`): the worker is built from `Chess.js` cut out of the page's own code between `chessSrcBegin()` and `chessSrcEnd()` (an inline script on the one page, the chess chunk's file under chunks, fetched through the offline cache), so the ratings and results are the same and the page no longer stands still for up to 1.5 s. No Worker, no source or a worker error falls back to `chessBestMove` on the page. `chStopTimers` moves `chEngine.seq` on, so an answer arriving after leaving the board or starting a new game is dropped, and one for a position that moved on asks again. In rooms, a game first seen already over (a reload, a late joiner, a TV coming on) doesn't cheer again (`chRoomFirstSight`, through `duelRoomFirstSight`). الوزير المستخبي: the host's «pick for» naming their own seat is refused on the server.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

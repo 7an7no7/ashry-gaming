@@ -3116,27 +3116,35 @@ function mgScreenHtml(o) {
 const mgPart = (root, name) => root && root.querySelector('[data-mg-' + name + ']');
 function mgSet(el, html) { if (el && el._mgHtml !== html) { el.innerHTML = html; el._mgHtml = html; } }
 
-/** The 3D course in `root`'s stage, or a plain message when this device can't draw it. */
-function mgMountIn(root, onReady) {
+/** Whether the last mount found no course to draw (no 3D, or three.js never arrived): a room's phone then putts with a button. */
+let mgNo3d = false;
+/** The 3D course in `root`'s stage, or a plain message when this device can't draw it (`onFail` then). */
+function mgMountIn(root, onReady, onFail) {
   const host = mgPart(root, 'canvas'), msg = mgPart(root, 'msg');
   if (!host) return;
-  if (mg3Ready() && MG3.canvas.parentNode === host) { if (msg) msg.classList.add('hidden'); return; }
-  if (typeof threeCanDraw === 'function' && !threeCanDraw()) { if (msg) { msg.textContent = mgT('mg_no_3d'); msg.classList.remove('hidden'); } return; }
+  if (mg3Ready() && MG3.canvas.parentNode === host) { mgNo3d = false; if (msg) msg.classList.add('hidden'); return; }
+  if (typeof threeCanDraw === 'function' && !threeCanDraw()) {
+    if (msg) { msg.textContent = mgT('mg_no_3d'); msg.classList.remove('hidden'); }
+    if (!mgNo3d) { mgNo3d = true; if (onFail) onFail(); }
+    return;
+  }
   if (msg) { msg.textContent = mgT('mg_loading'); msg.classList.remove('hidden'); }
   mg3Mount(host).then(ok => {
     if (!host.isConnected) return;
     if (!ok) {
+      if (!mgNo3d) { mgNo3d = true; if (onFail) onFail(); }
       if (!msg) return;
       // three.js never arrived (offline before a first 3D visit): say so, with a way to try
       // again, as the bowling lanes do; a device that can't draw 3D keeps the plain message.
       if (!window.THREE) {
         msg.innerHTML = `<p>${escapeHTML(mgT('mg_offline'))}</p><button type="button" class="btn btn--primary btn--sm btn--auto" data-mg-retry>${escapeHTML(mgT('bowl_retry'))}</button>`;
         const again = msg.querySelector('[data-mg-retry]');
-        if (again) again.onclick = () => mgMountIn(root, onReady);
+        if (again) again.onclick = () => mgMountIn(root, onReady, onFail);
       } else msg.textContent = mgT('mg_no_3d');
       msg.classList.remove('hidden');
       return;
     }
+    mgNo3d = false;
     if (msg) msg.classList.add('hidden');
     if (onReady) onReady();
   });
@@ -3665,6 +3673,19 @@ function mgRoomPutt(shot) {
   });
 }
 
+/** No 3D on this phone: the server putts gently toward the hole for it (golfAutoShot, the clock's putt). */
+function mgRoomPlain() {
+  const state = Room.state;
+  if (!state || state.game !== 'minigolf' || !mgRoomCanPutt(state)) return;
+  const s = state.shared;
+  const b = s.balls[Room.me];
+  mgRoom.pending = { n: b.n, hole: s.hole, key: state.code + '|' + s.dealId, auto: true };
+  haptic('medium');
+  mgSound('putt');
+  const done = () => { mgRoom.pending = null; const st = Room.state; if (st && st.game === 'minigolf') routeRoomState(st); };
+  Room.act('putt', { hole: s.hole, n: b.n, auto: true }).then(done).catch((err) => { showToast((err && err.message) || '', 'error'); done(); });
+}
+
 /** A ball of this room stopped rolling on this screen: the banner, and whatever waited for it. */
 function mgRoomEnded(pid, sim, known) {
   const state = Room.state;
@@ -3914,7 +3935,11 @@ function mgRoomChrome(state, root, tv) {
   const host = mgPart(root, 'host');
   if (host) {
     const b = mgHostButtons(state);
-    mgSet(host, tv ? (b.length ? `<div class="tv-actions">${b.map(x => tvBtn(x[0], x[1], 'ghost')).join('')}</div>` : '') : roomHostRow(b));
+    // No course on this phone (no 3D, or three.js never came): a gentle putt at the hole for
+    // its ball, the one the clock makes, so the game never waits on it (as bowling's plain throw).
+    const plain = !tv && mine && mgNo3d && !mg3Ready() && mgRoomCanPutt(state)
+      ? `<div class="mg-plain"><button type="button" class="btn btn--primary btn--sm btn--auto" onclick="mgRoomPlain()">⛳ ${escapeHTML(mgT('mg_plain_putt'))}</button></div>` : '';
+    mgSet(host, tv ? (b.length ? `<div class="tv-actions">${b.map(x => tvBtn(x[0], x[1], 'ghost')).join('')}</div>` : '') : plain + roomHostRow(b));
   }
   // The card between holes and the end wait for the last roll to land on this screen.
   const panel = mgPart(root, 'panel');
@@ -3948,7 +3973,8 @@ function mgRoomRender(state, root, tv) {
     root.innerHTML = mgScreenHtml({ tv });
   }
   MG3.pad = tv ? { top: 0.1, bottom: 0.04, side: 0.03 } : { top: 0.12, bottom: 0.12, side: 0.04 };
-  mgMountIn(root, () => { const st = Room.state; if (st && st.game === 'minigolf') { mgRoomCourse(st, root, tv); mgRoomChrome(st, root, tv); } });
+  mgMountIn(root, () => { const st = Room.state; if (st && st.game === 'minigolf') { mgRoomCourse(st, root, tv); mgRoomChrome(st, root, tv); } },
+    () => { const st = Room.state; if (st && st.game === 'minigolf' && st.shared) mgRoomChrome(st, root, tv); });
   if (mg3Ready() && MG3.canvas.parentNode === mgPart(root, 'canvas')) mgRoomCourse(state, root, tv);
   // A new hole's card flies in (once, on every screen that sees it start).
   if (s.phase === 'play') mgNameCard(root, s.hole, mgRoomHole(s), [state.code, s.dealId, s.hole].join('|'));

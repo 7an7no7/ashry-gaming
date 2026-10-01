@@ -153,6 +153,8 @@ catalog, the help); the rules are named `wire` / `WIRE_`, the page's code
   both), `play-all.mjs` (`--only=wire`: three phones and a TV through a level
   won, a miss, the damage, play again with a latecomer, a leave).
 
+**The review of 1 Oct 2026.** A slider is sent once, where the finger lets go: dragging it shows the value on the phone (`wr.dragging` keeps the local value showing however long the drag) and sends nothing until `pointerup`; it used to send every value it passed, and so filled every order on the way. The arrow keys still send each step.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

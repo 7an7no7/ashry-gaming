@@ -135,6 +135,8 @@ and *The TV as the console*). Game id `bumper` everywhere; the page's code is
   computer players), `leaks.mjs` (a driver; nothing is hidden), `play-all.mjs`
   (`--only=bumper`: the relay on a live server).
 
+**The review of 1 Oct 2026.** No round without a big screen: `start` and `playAgain` are refused unless a screen is online (`room._onlineScreens`, set by `room.js` for the one move; a test or a program's clock without it counts any screen in the room), and the lobby greys Start with «تبدأ لما شاشة العرض تفتح في الغرفة» under it (`ROOM_GAMES.bumper.startBlock`, read by the lobby in `JS_Room.html`). A TV reloaded mid-round picks the round up: the lead screen keeps the cars, scores, balloons and eliminations in `sessionStorage` (`ashryBmpTv`, keyed on `roomDealKey` and the round) every second, and `bmpTvStart` restores them (`bmpTvSave`, `bmpTvRestore`; a 3D car keeps only the balloons it had). With two screens only the lead one (`bmpIsLead`) runs the rink; the other shows «اللعبة شغالة على الشاشة التانية» (and the host's «end now») and takes over, from the start positions, if the lead goes.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -162,6 +162,8 @@ id `darkroom` everywhere (`room-darkroom`, `ROOM_GAMES.darkroom`,
   `shared`, the mover sent nothing but the echo, no trap's square public;
   proved by planting each), `play-all.mjs` (`--only=darkroom`).
 
+**The review of 1 Oct 2026.** The room's best is kept in `room._darkBest` (as `_wireBest`, `_exactBest`), so a trip to the hub and back no longer forgets it; `shared.best` is read from it at every start and win.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

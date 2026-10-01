@@ -426,7 +426,12 @@ function chessAction(room, playerId, action, payload) {
     if (s.phase !== 'play' || bd.result || staleTap(p, 'move', bd.moves)) return;
     // The hidden queen's pick waiting on a quiet phone: a random pawn for whoever hasn't picked.
     // The seat the host named (an older phone names none: every seat still to pick).
-    if (bd.hq && bd.hq.picking) { chessHqAutoPick(room, p.seat === 0 || p.seat === 1 ? p.seat : undefined); return; }
+    // Never the presser's own seat: whoever sits there picks their own pawn (the review of 1 Oct 2026).
+    if (bd.hq && bd.hq.picking) {
+      if ((seat === 0 || seat === 1) && p.seat === seat) throw new Error('اختار عسكريك بنفسك');
+      chessHqAutoPick(room, p.seat === 0 || p.seat === 1 ? p.seat : undefined);
+      return;
+    }
     const up = bd.g.turn;
     const hq = bd.hq ? room._chq : undefined;
     const mv = chessHostMove(bd.g, hq ? hq.sq[up] : -1);

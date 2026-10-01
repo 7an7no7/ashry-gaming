@@ -300,6 +300,7 @@ function vcRender(state, still) {
   if (!el || !s.chess) return;
   renderRoomFrame(el, ['vc', state.code, appState.lang].join('|'), () => chLayoutHtml());
   vcNoteClock(state);
+  vcFirstSight(state);
   // The echo of this phone's vote has come back (or the move was played): the local copy goes.
   const echo = state.you && state.you.vote;
   if (vcLocal.mine && (vcLocal.mine.key !== vcVoteKey(state) || (echo && vcKeyOfVote(echo) === vcKeyOfVote(vcLocal.mine.v)))) vcLocal.mine = null;
@@ -325,6 +326,21 @@ function vcRender(state, still) {
   if (mineUp && duelOnce(['vcturn', vcVoteKey(state)].join('|'))) haptic('medium');
   if (over) vcCheer(el, state);
   if (typeof animateScoreboards === 'function') animateScoreboards(state);
+}
+
+/**
+ * The first time this page sees a deal (a reload, a late joiner, a TV coming on): the last
+ * tally is marked as shown and a game already over as cheered, so neither plays again
+ * (the review of 1 Oct 2026). A deal first seen mid-game still cheers when it ends.
+ */
+function vcFirstSight(state) {
+  const s = vcShared(state);
+  const deal = roomDealKey(state);
+  const tl = (s.tallies || [])[(s.tallies || []).length - 1];
+  duelRoomFirstSight(state, 'vc|' + deal, {
+    motion: tl ? [['vctally', deal, tl.n, 'p'].join('|'), ['vctally', deal, tl.n, 'tv'].join('|')] : [],
+    once: s.phase === 'over' ? ['vccheer|' + deal] : []
+  });
 }
 
 /** The end: the winning team's phones (and the TV) cheer, the others hear the low chord. */
@@ -442,6 +458,7 @@ TV_GAMES.votechess = {
     const view = document.getElementById('view-room-tv');
     const s = vcShared(state);
     if (!view || !s.chess) return;
+    vcFirstSight(state);
     const host = view.querySelector('[data-ch-host]');
     if (!host) return;
     vcNoteClock(state);

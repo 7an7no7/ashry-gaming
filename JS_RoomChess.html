@@ -512,6 +512,7 @@ function chRoomRender(state, still) {
       preDropped = pre.from;
     }
   }
+  chRoomFirstSight(state);
   const model = chRoomModel(state, false, still);
   const bd = s.chess;
   // Looking back at an earlier move (players and watchers alike): that position, nothing to move; the room plays on.
@@ -550,6 +551,16 @@ function chRoomRender(state, still) {
   chRoomHqMoments(state);
   if (preDropped) chPremoveDropped(preDropped);
   if (over) { chRoomKeepGame(state); duelRoomCheer(el, state, ['ch', roomDealKey(state), s.round].join('|')); }
+}
+
+/**
+ * The first time this page sees a game (a reload, a late joiner, a TV coming on): a game
+ * already over is marked as cheered, so its sound and confetti don't play again (the review
+ * of 1 Oct 2026). The board's last move never replays: a fresh board is drawn without motion.
+ */
+function chRoomFirstSight(state) {
+  const s = state.shared || {};
+  duelRoomFirstSight(state, ['ch', roomDealKey(state), s.round].join('|'));
 }
 
 /* --- the lobby: the clock, the host's choice, remembered on their phone ---------- */
@@ -676,6 +687,7 @@ TV_GAMES.chess = {
     if (!host) return;
     const t = TRANSLATIONS[appState.lang] || {};
     chRoomNoteClock(state);
+    chRoomFirstSight(state);
     chViewShow(host, chRoomModel(state, true));
     const bd = s.chess;
     const over = s.phase === 'over';

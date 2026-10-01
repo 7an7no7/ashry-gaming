@@ -136,6 +136,8 @@ the client's are both **`bughouse`** (`room-bughouse`, `ROOM_GAMES.bughouse`,
   (`DRIVERS.bughouse`: no slice sent, both boards and hands everywhere),
   `play-all.mjs` (two people and two computer players on a live server).
 
+**The review of 1 Oct 2026.** The first time a page sees a game (a reload, a late joiner, a TV coming on), each board's last move is taken as shown - no piece flies to a hand, no tick - and a game already over doesn't throw its confetti again (`bhPlayMotion`'s first sight, through `duelRoomFirstSight`).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

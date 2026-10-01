@@ -251,7 +251,8 @@ function wrWire(el) {
     const cid = ctl ? ctl.dataset.c : '';
     if (act === 'slide') {
       e.preventDefault();
-      drag = { el: hit, cid };
+      drag = { el: hit, cid, v: 0 };
+      wr.dragging = cid;
       try { hit.setPointerCapture(e.pointerId); } catch (err) {}
       wrSlideTo(drag, e);
       return;
@@ -265,7 +266,17 @@ function wrWire(el) {
     }
   });
   root.addEventListener('pointermove', (e) => { if (drag) wrSlideTo(drag, e); });
-  const end = () => { if (drag) { wrPaintNow(); drag = null; } };
+  // The slider goes to the server once, where the finger lets go: sending every value it
+  // passed filled every order on the way (the review of 1 Oct 2026).
+  const end = () => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    wr.dragging = null;
+    const x = wrMine(d.cid);
+    if (d.v && (!x || x.v !== d.v)) { wrLocal(d.cid, d.v); wrSend('ctl', { c: d.cid, v: d.v }); }
+    else wrPaintNow();
+  };
   root.addEventListener('pointerup', end);
   root.addEventListener('pointercancel', end);
   root.addEventListener('click', (e) => {
@@ -312,9 +323,10 @@ function wrSlideTo(drag, e) {
   const f = vert ? (r.bottom - e.clientY) / r.height : (e.clientX - r.left) / r.width;
   const v = 1 + Math.round(Math.max(0, Math.min(1, f)) * (WIRE_VALUES - 1));
   if (v === wrValue(drag.cid)) return;
+  // Shown here while the finger moves; sent when it lets go (end, in wrWire).
+  drag.v = v;
   wrLocal(drag.cid, v);
   haptic('light'); wrClick(0.6 + v * 0.15);
-  wrSend('ctl', { c: drag.cid, v });
 }
 
 function wrSend(action, payload) {
@@ -333,7 +345,7 @@ function wrValue(cid) {
   const l = wr.local[cid];
   const x = wrMine(cid);
   const server = x ? x.v : 0;
-  if (l && Date.now() - l.at < 1500 && l.v !== server) return l.v;
+  if (l && (wr.dragging === cid || (Date.now() - l.at < 1500 && l.v !== server))) return l.v;
   return server;
 }
 function wrLocal(cid, v) {

@@ -288,7 +288,8 @@ const minigolfAction = (room, playerId, action, payload) => {
       if (action === 'playFor') return;
       throw new Error('مش دورك');
     }
-    if (action === 'playFor') mgPutt(room, target, golfAutoShot(mgHole(s), b.at, Date.now() - s.startedAt), true);
+    // «ضربة هادية»: a phone that can't draw the course asks for the clock's gentle putt for its own ball.
+    if (action === 'playFor' || p.auto) mgPutt(room, target, golfAutoShot(mgHole(s), b.at, Date.now() - s.startedAt), true);
     else mgPutt(room, target, p, false);
     s.stamp = Date.now();
     return;

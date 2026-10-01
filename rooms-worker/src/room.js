@@ -691,6 +691,9 @@ export class Room extends DurableObject {
     if (pid !== before.hostId && this.hostAway()) next._hostAway = true;
     // The pack for this move only (roomPackAdopt in RoomGames.js keeps what the game needs).
     if (pack) next._packIn = pack;
+    // The screens online for this move only (عربيات التصادم starts only with one).
+    const onlineNow = this.onlineIds();
+    next._onlineScreens = (next.screens || []).filter((x) => x.id === pid || onlineNow.has(x.id)).map((x) => x.id);
     try {
       withPromptMemory(memory, () => applyRoomAction(next, pid, action, payload));
     } catch (err) {
@@ -698,6 +701,7 @@ export class Room extends DurableObject {
     }
     delete next._hostAway;
     delete next._packIn;
+    delete next._onlineScreens;
     // A cheer the rules let go (too many too fast, or no game on): nothing changed,
     // so nothing is saved or sent to the others - a tap-happy watcher used to push a
     // whole state to every phone on each tap. The phone that sent it gets its own view.

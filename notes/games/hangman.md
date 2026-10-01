@@ -158,6 +158,15 @@ The owner's rules are in *The owner's specs*.
 
 **The held end frame shows the word that missed (the review of 1 Oct 2026).** A whole-word guess sets `hmRoom.lastGuess` too (the word, or the one letter typed alone, folded as the server folds it), so a whole-word miss that ends the board shows that word in the held frame, not "?". The TV's signature carries the writer's presence while a word is being written, so the host's ⏭️ shows there at once for a writer who's away.
 
+## The writer's points (the review of 1 Oct 2026)
+
+A word nobody could get paid its writer the most (5 for each guesser hanged). Now the
+writer takes 5 for each guesser who didn't solve it **only if at least one guesser solved
+it**, and **never more than the best solver took for that word** (`hmEndWord`: `top`, the
+highest solver's points, is the ceiling; 15 for a first solve). Help updated in both
+languages; `rules.mjs` checks a word nobody solved (0) and four hanged against one solve
+(15, not 20). The solve engine's setter (RoomSolve.js) is unchanged.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

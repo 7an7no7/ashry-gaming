@@ -2106,7 +2106,7 @@ const leave = (r, id, hook = true) => {
   // Nothing anywhere in shared is a number somebody is still holding. Walked
   // value by value: a text search for ":1" also finds "level":1 and "lives":3,
   // which failed this check whenever a 1 or a 3 was dealt.
-  const COUNTERS = new Set(['level', 'lives', 'lostSeq', 'held']);
+  const COUNTERS = new Set(['level', 'maxLevel', 'lives', 'lostSeq', 'held']);
   const sharedNumbers = [];
   const walk = (v, key) => {
     if (COUNTERS.has(key)) return;
@@ -2190,6 +2190,42 @@ const leave = (r, id, hook = true) => {
   win.shared.phase = 'levelDone';
   applyRoomAction(win, 'a', 'nextLevel', {});
   check(win.shared.phase === 'gameover' && win.shared.won === true, 'mind: playing out the deck is a win');
+
+  // The level cap (the review of 1 Oct 2026): 12 levels for two, 10 for three, 8 for four or more.
+  check(mindStart(['a', 'b']).shared.maxLevel === 12 && mindStart(['a', 'b', 'c']).shared.maxLevel === 10 &&
+        mindStart(['a', 'b', 'c', 'd']).shared.maxLevel === 8 && mindStart(['a', 'b', 'c', 'd', 'e', 'f']).shared.maxLevel === 8,
+        'mind: the level that wins is 12 for two, 10 for three, 8 for four or more');
+  check(mindStart('abcdefghijklm'.split('')).shared.maxLevel === 7 && mindStart('abcdefghijkl'.split('')).shared.maxLevel === 8, 'mind: and never more levels than the deck can deal');
+  // Clearing the last level wins at once, with no "next level" between.
+  const capped = mindStart(['a', 'b', 'c']);
+  capped.shared.level = 9;
+  capped.shared.phase = 'levelDone';
+  applyRoomAction(capped, 'a', 'nextLevel', {});
+  check(capped.shared.level === 10 && capped.shared.phase === 'play' && ['a', 'b', 'c'].every((id) => cards(capped, id).length === 10),
+        'mind: the last level is dealt like any other');
+  for (let i = 0; i < 30 && capped.shared.phase === 'play'; i++) applyRoomAction(capped, lowestHolder(capped), 'play', {});
+  check(capped.shared.phase === 'gameover' && capped.shared.won === true && capped.phase === 'gameover',
+        'mind: clearing the last level wins the game');
+  check(threw(() => applyRoomAction(capped, 'a', 'nextLevel', {})) || capped.shared.level === 10, 'mind: no level after the last');
+  // A level below the cap still waits for the host's next level.
+  const below = mindStart(['a', 'b']);
+  below.shared.level = 11;
+  below.shared.phase = 'levelDone';
+  applyRoomAction(below, 'a', 'nextLevel', {});
+  for (let i = 0; i < 30 && below.shared.phase === 'play'; i++) applyRoomAction(below, lowestHolder(below), 'play', {});
+  check(below.shared.level === 12 && below.shared.won === true, 'mind: two players win on clearing level 12');
+  // The last card of the last level played out of order: the heart goes first.
+  const late = mindStart(['a', 'b']);
+  late.shared.level = 11;
+  late.shared.phase = 'levelDone';
+  applyRoomAction(late, 'a', 'nextLevel', {});
+  late.shared.lives = 1;
+  const topHolder = cards(late, 'a')[11] > cards(late, 'b')[11] ? 'a' : 'b';
+  late.secrets[topHolder] = { cards: [cards(late, topHolder)[11]] };
+  const otherHolder = topHolder === 'a' ? 'b' : 'a';
+  late.secrets[otherHolder] = { cards: [cards(late, otherHolder)[0]] };
+  applyRoomAction(late, topHolder, 'play', {});
+  check(late.shared.phase === 'gameover' && late.shared.won === false, 'mind: losing the last heart on the last card is still a loss');
 }
 
 /* --- قبل ولا بعد: the years of a hand never leave the server -------------- */
@@ -4316,7 +4352,34 @@ Date.now = duelTestClock;
   applyRoomAction(r, p0, 'answer', { yes: true, seq: s.turnSeq });
   check(s.stage === 'flip' && s.q.answer === true && s.log[s.log.length - 1].kind === 'typed' && s.log[s.log.length - 1].text === 'لابسة طرحة؟',
     'guesswho: a typed answer is taken as given and logged with its text');
+  // «غلطت» (the review of 1 Oct 2026): the one who answered takes a mis-tap back while the asker flips.
+  {
+    const before = s.down[1].slice();
+    const logLen = s.log.length;
+    applyRoomAction(r, p1, 'flip', { face: 2, down: true });
+    applyRoomAction(r, p1, 'flip', { face: 7, down: true });
+    check(refused(() => applyRoomAction(r, p1, 'unanswer', { seq: s.turnSeq, log: s.logSeq })), 'guesswho: the asker can\'t take the answer back');
+    check(refused(() => applyRoomAction(r, watcher, 'unanswer', { seq: s.turnSeq, log: s.logSeq })), 'guesswho: nor someone in the line');
+    const seqU = s.turnSeq, logU = s.logSeq;
+    applyRoomAction(r, p0, 'unanswer', { seq: seqU, log: logU });
+    check(s.stage === 'answer' && s.q.answer === null && s.q.text === 'لابسة طرحة؟' && JSON.stringify(s.down[1]) === JSON.stringify(before) &&
+      s.log.length === logLen && s.log[s.log.length - 1].kind === 'undo' && s.log[s.log.length - 1].seat === 0,
+      'guesswho: «غلطت» puts the question back to its answer, the faces flipped on it stand up again');
+    applyRoomAction(r, p0, 'unanswer', { seq: seqU, log: logU });
+    check(s.stage === 'answer' && s.log[s.log.length - 1].kind === 'undo', 'guesswho: a second tap on «غلطت» does nothing');
+    applyRoomAction(r, p0, 'answer', { yes: false, seq: s.turnSeq });
+    check(s.stage === 'flip' && s.q.answer === false && s.log[s.log.length - 1].kind === 'typed' && s.log[s.log.length - 1].answer === false,
+      'guesswho: and the right answer is given again');
+    applyRoomAction(r, p0, 'unanswer', { seq: seqU, log: logU });
+    check(s.stage === 'flip' && s.q.answer === false, 'guesswho: a take-back drawn for the old answer is dropped');
+  }
   applyRoomAction(r, p1, 'done', { seq: s.turnSeq });
+  {
+    const seqD = s.turnSeq;
+    check(s.stage === 'ask', 'guesswho: the turn passed');
+    applyRoomAction(r, p1, 'unanswer', { seq: seqD, log: s.logSeq });
+    check(s.stage === 'ask' && s.turn === 0, 'guesswho: once the asker is done, the answer stands');
+  }
   check(refused(() => applyRoomAction(r, p0, 'typed', { text: '   ', seq: s.turnSeq })), 'guesswho: an empty typed question is refused');
   // A wrong guess loses the game (the default).
   const wrongFace = up(r, 0).find((i) => i !== r._gw.secret[1]);
@@ -4471,6 +4534,25 @@ Date.now = duelTestClock;
     'hangman: the word ends when all are done; the first solve is 10 + 5 with a writer too, the writer 5 for each who was hanged');
   applyRoomAction(r, 'a', 'nextRound', { round: 1 });
   check(s.round === 2 && s.phase === 'writing' && s.setter !== setter && !s.cat, 'hangman: the next word has the next writer, and no hint yet');
+  {
+    // The writer's points (the review of 1 Oct 2026): nothing for a word nobody solved,
+    // and never more than the best solver took.
+    const hang = (x, id) => ['ث', 'ج', 'ح', 'خ', 'ذ', 'ز'].forEach((l) => applyRoomAction(x, id, 'guess', { letter: l, round: x.shared.round }));
+    const none = hm(['a', 'b', 'c'], { rounds: 3 });
+    const w0 = none.shared.setter;
+    applyRoomAction(none, w0, 'setWord', { word: 'مدرسة', round: 1 });
+    none.shared.roster.filter((x) => x !== w0).forEach((x) => hang(none, x));
+    check(none.shared.phase === 'result' && !none.shared.result.setterPts && !none.shared.scores[w0],
+      'hangman: a word nobody solved earns its writer nothing');
+    const six = hm(['a', 'b', 'c', 'd', 'e', 'f'], { rounds: 3 });
+    const w1 = six.shared.setter;
+    applyRoomAction(six, w1, 'setWord', { word: 'مدرسة', round: 1 });
+    const g = six.shared.roster.filter((x) => x !== w1);
+    applyRoomAction(six, g[0], 'whole', { text: 'مدرسة', round: 1 });
+    g.slice(1).forEach((x) => hang(six, x));
+    check(six.shared.phase === 'result' && six.shared.scores[g[0]] === 15 && six.shared.result.setterPts === 15 && six.shared.scores[w1] === 15,
+      'hangman: four hanged would be 20, but the writer takes no more than the best solver (15)');
+  }
   {
     // A double tap on «skip the writer» skips one writer, not two.
     const x = hm(['a', 'b', 'c', 'd'], { rounds: 3 });
@@ -11647,6 +11729,57 @@ Date.now = duelTestClock;
   check(bz.shared.buzzes.length === 0, 'buzzer: a press for the last question can\'t lead the next one');
   applyRoomAction(bz, 'b', 'buzz', { round: 2 });
   check(bz.shared.buzzes.length === 1 && bz.shared.buzzes[0].id === 'b', 'buzzer: out last question, in again this one');
+
+  // الجرس: the line is by when each phone was pressed, not by arrival (the owner, 1 Oct 2026).
+  {
+    const fair = newRoom(['h', 'b', 'c', 'd']);
+    applyRoomAction(fair, 'h', 'chooseGame', { game: 'buzzer' });
+    applyRoomAction(fair, 'h', 'start', {});
+    const t0 = clock;
+    // b's press reaches the server first, but c pressed 60 ms earlier on a slower network.
+    clock = t0 + 100; applyRoomAction(fair, 'b', 'buzz', { round: 1, at: t0 + 80 });
+    clock = t0 + 200; applyRoomAction(fair, 'c', 'buzz', { round: 1, at: t0 + 20 });
+    check(fair.shared.buzzes.map((x) => x.id).join() === 'c,b', 'buzzer: a later arrival with an earlier press goes first');
+    check(fair.shared.buzzes[0].at === t0 + 20 && fair.shared.buzzes[0].arr === t0 + 200, 'buzzer: each press keeps its time and its arrival');
+    // d arrives 30 ms after c (nobody settled yet) claiming a press long before: held at
+    // its arrival less 400 ms, which is still the earliest, so d leads.
+    clock = t0 + 230; applyRoomAction(fair, 'd', 'buzz', { round: 1, at: t0 - 5000 });
+    check(fair.shared.buzzes.find((x) => x.id === 'd').at === t0 + 230 - 400, 'buzzer: an early claim is held at arrival less 400 ms');
+    check(fair.shared.buzzes.map((x) => x.id).join() === 'd,c,b', 'buzzer: within the settling time, the earlier press leads');
+    // A press that settled is never passed, whatever a later claim says.
+    const late = newRoom(['h', 'b', 'c']);
+    applyRoomAction(late, 'h', 'chooseGame', { game: 'buzzer' });
+    applyRoomAction(late, 'h', 'start', {});
+    const t1 = clock;
+    clock = t1 + 100; applyRoomAction(late, 'b', 'buzz', { round: 1, at: t1 + 90 });
+    clock = t1 + 400; applyRoomAction(late, 'c', 'buzz', { round: 1, at: t1 + 10 });
+    check(late.shared.buzzes.map((x) => x.id).join() === 'b,c', 'buzzer: a press settled 150 ms after arriving is not passed');
+    // A claim later than its arrival is held at the arrival.
+    const fut = newRoom(['h', 'b']);
+    applyRoomAction(fut, 'h', 'chooseGame', { game: 'buzzer' });
+    applyRoomAction(fut, 'h', 'start', {});
+    applyRoomAction(fut, 'b', 'buzz', { round: 1, at: clock + 99999 });
+    check(fut.shared.buzzes[0].at === clock, 'buzzer: a claim from the future is held at the arrival');
+    // An older phone sends no time: its arrival is its press, in arrival order.
+    const old = newRoom(['h', 'b', 'c']);
+    applyRoomAction(old, 'h', 'chooseGame', { game: 'buzzer' });
+    applyRoomAction(old, 'h', 'start', {});
+    const t2 = clock;
+    clock = t2 + 10; applyRoomAction(old, 'b', 'buzz', { round: 1 });
+    clock = t2 + 20; applyRoomAction(old, 'c', 'buzz', { round: 1, at: 'soon' });
+    check(old.shared.buzzes.map((x) => x.id).join() === 'b,c' && old.shared.buzzes[0].at === t2 + 10, 'buzzer: a press with no time is ordered by its arrival');
+    // The host's verdict names who it was for: a tap on the first before a fairer press took the lead is dropped.
+    applyRoomAction(fair, 'h', 'correct', { id: 'c' });
+    check(fair.shared.round === 1 && !fair.shared.scores.c, 'buzzer: a verdict for someone no longer first is dropped');
+    applyRoomAction(fair, 'h', 'wrong', { id: 'd' });
+    const seq = fair.shared.last.seq;
+    applyRoomAction(fair, 'h', 'undoVerdict', { seq });
+    check(fair.shared.buzzes[0].id === 'd' && fair.shared.out.length === 0, 'buzzer: undo still puts them back first in line');
+    // Timing the clock changes nothing.
+    const v = JSON.stringify(fair.shared);
+    applyRoomAction(fair, 'b', 'bzClock', {});
+    check(JSON.stringify(fair.shared) === v, 'buzzer: bzClock changes nothing');
+  }
 
   // القنبلة: a send-back names the pass it undoes.
   const bm = newRoom(['a', 'b', 'c']);

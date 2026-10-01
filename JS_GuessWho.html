@@ -419,6 +419,12 @@ function gwBarHtml(state, seat) {
   const mine = s.turn === seat;
   if (!mine) {
     if (s.stage === 'answer') return gwAnswerCardHtml(state, seat);
+    // Just answered, and the asker is still putting faces down: a mis-tap can be taken back.
+    const q = s.q || {};
+    if (s.stage === 'flip' && q.kind !== 'guess' && typeof q.answer === 'boolean') {
+      return `<p class="gw-bar__say">${escapeHTML(gwT('gw_undo_hint', { a: q.answer ? gwT('gw_yes') : gwT('gw_no'), name: duelIso(other) }))}</p>
+        <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="duelAct('unanswer', { seq: ${seq}, log: ${gwLogSeq(s)} })">↶ ${escapeHTML(gwT('gw_undo'))}</button>`;
+    }
     return `<p class="gw-bar__say gw-bar__say--quiet">${escapeHTML(gwT('gw_flip_any'))}</p>`;
   }
   if (s.stage === 'answer') {
@@ -569,6 +575,12 @@ function gwMoments(state, loud) {
     if (loud) gwSound(last.answer ? 'yes' : 'no');
     if (quiet) return;
     gwOverlay(`<span class="gw-bubble ${last.answer ? 'is-yes' : 'is-no'}">${escapeHTML(last.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>`, 'gw-over--bubble', 1100);
+    return;
+  }
+  if (last.kind === 'undo') {
+    // An answer taken back («غلطت»): said once on every screen, the question waits again.
+    if (quiet) return;
+    gwOverlay(`<span class="gw-bubble is-undo">${escapeHTML('↶ ' + gwT('gw_undone', { name: duelIso(names[last.seat] || '') }))}</span>`, 'gw-over--bubble', 1100);
     return;
   }
   if (last.kind === 'guess') {

@@ -36,7 +36,7 @@
      turnSeq   raised at every turn and stage; moves carry it as `seq`
      q         the last question or guess { seat, kind: 'loud' | 'typed' | 'guess',
                text, answer (null until answered), face, right }
-     log       the last questions and guesses, newest last
+     log       the last questions and guesses, newest last (and { kind: 'undo' }, an answer taken back)
      endsAt    the turn clock · reveal  [seat 0's face, seat 1's], once over
    ========================================================================= */
 const GW_GRACE_MS = 1500;       // the server's clock acts this long after the phones'
@@ -156,11 +156,33 @@ const gwWaitAnswer = (room) => {
 const gwTakeAnswer = (room, yes) => {
   const s = room.shared;
   const q = s.q;
+  // What «غلطت» puts back: the asker's board as it was when the answer came (server-only).
+  room._gwUndo = { down: (s.down[s.turn] || []).slice() };
   s.q = Object.assign({}, q, { answer: yes });
   gwLog(s, q.kind === 'typed' ? { seat: q.seat, kind: 'typed', text: q.text, answer: yes } : { seat: q.seat, kind: 'loud', answer: yes });
   s.stage = 'flip';
   s.turnSeq = (s.turnSeq || 0) + 1;
+  room._gwUndo.turnSeq = s.turnSeq;
+  room._gwUndo.logSeq = s.logSeq;
   gwStartClock(room);
+};
+
+/**
+ * «غلطت» (the review of 1 Oct 2026): the one who answered tapped the wrong one. While the
+ * asker is still putting faces down, the answer is taken back: the faces they put down on it
+ * stand up again, the answer leaves the log, and the question waits for its answer again.
+ */
+const gwUnanswer = (room) => {
+  const s = room.shared;
+  const u = room._gwUndo;
+  room._gwUndo = null;
+  s.down[s.turn] = u.down.slice();
+  const log = (s.log || []).slice();
+  if (log.length && (log[log.length - 1].kind === 'loud' || log[log.length - 1].kind === 'typed')) log.pop();
+  s.log = log;
+  gwLog(s, { seat: 1 - s.turn, kind: 'undo' });
+  s.q = Object.assign({}, s.q, { answer: null });
+  gwWaitAnswer(room);
 };
 
 /** A typed question, cleaned: one line, no control characters, at most GW_TYPED_MAX. */
@@ -281,6 +303,17 @@ const guessWhoAction = (room, playerId, action, payload) => {
     if (s.phase !== 'play' || s.stage !== 'answer' || !s.q || staleTap(p, 'seq', s.turnSeq)) return;
     if (seat === -1 || seat === s.turn) throw new Error('الإجابة على اللي اتسأل');
     gwTakeAnswer(room, !!p.yes);
+    return;
+  }
+
+  if (action === 'unanswer') {
+    // Only the answer just given, before the asker is done: named by the turn's seq and the log's.
+    if (s.phase !== 'play' || s.stage !== 'flip' || !s.q || s.q.kind === 'guess') return;
+    if (staleTap(p, 'seq', s.turnSeq) || staleTap(p, 'log', s.logSeq)) return;
+    if (seat === -1 || seat === s.turn) throw new Error('اللي جاوب بس يقدر يرجّع إجابته');
+    const u = room._gwUndo;
+    if (!u || u.turnSeq !== s.turnSeq || u.logSeq !== s.logSeq) return;
+    gwUnanswer(room);
     return;
   }
 

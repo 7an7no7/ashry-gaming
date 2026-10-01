@@ -24,6 +24,50 @@ function mindLivesHtml(s) {
   return `<span class="mind-lives" aria-hidden="true">${out}</span>`;
 }
 
+/** «المستوى 3 من 10»: the level, and the one that wins (an older game has no cap). */
+function mindLevelText(s, t) {
+  const n = Number(s.level) || 0, max = Number(s.maxLevel) || 0;
+  return max ? (t.mind_level_of || '').replace('{n}', n).replace('{max}', max) : `${t.mind_level || ''} ${n}`;
+}
+
+/** What the next level deals - «المستوى الأخير» when it is the one that wins. */
+function mindNextText(s, t) {
+  const last = s.maxLevel && s.level + 1 >= s.maxLevel;
+  return ((last ? t.mind_last_level : t.mind_next_deals) || '').replace('{n}', s.level + 1);
+}
+
+/**
+ * The end of the game, on the phone and the TV: the level the table reached
+ * counts up from nothing, out of the levels there were. Won, it is every level,
+ * and confetti follows once the number lands (mindOverAfter).
+ */
+function mindOverHtml(s, t, tv) {
+  const n = Number(s.level) || 0, max = Number(s.maxLevel) || 0;
+  const count = `<span class="metric" data-mind-count="${n}">${n}</span>${max ? `<span class="tx-muted"> / ${max}</span>` : ''}`;
+  const sub = s.won && max ? (t.mind_won_all || '').replace('{max}', max) : (t.mind_reached || '').replace('{n}', n);
+  return tv
+    ? `<div class="tv-big-icon" aria-hidden="true">${s.won ? '🧠' : '💔'}</div>
+       <div class="tv-title tv-center-text">${escapeHTML(s.won ? (t.mind_won || '') : (t.mind_lost || ''))}</div>
+       <div class="tv-clock" dir="ltr">${count}</div>
+       <div class="tv-note">${escapeHTML(sub)}</div>`
+    : `<div class="mind-big" aria-hidden="true">${s.won ? '🧠' : '💔'}</div>
+       <p class="sheet__title">${escapeHTML(s.won ? (t.mind_won || '') : (t.mind_lost || ''))}</p>
+       <div class="mind-big" dir="ltr">${count}</div>
+       <p class="sheet__subtitle">${escapeHTML(sub)}</p>`;
+}
+
+/** Once per game end on this device: the level counts up, then the confetti if they won. */
+function mindOverAfter(el, state) {
+  const s = state.shared;
+  const num = el && el.querySelector('[data-mind-count]');
+  if (!num || !motionFirst(['mind-over', roomDealKey(state), s.won, s.level].join('|'))) {
+    if (num && s.won && motionOff() && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 160, spread: 90 }));
+    return;
+  }
+  countUp(num, 0, Number(num.dataset.mindCount) || 0);
+  if (s.won && typeof confetti === 'function') setTimeout(() => afterReveal(el, () => confetti({ particleCount: 160, spread: 90 })), 760);
+}
+
 /** The last card played, or the empty table before the first one. */
 function mindPileHtml(s, t) {
   const top = (s.pile || [])[(s.pile || []).length - 1];
@@ -130,11 +174,9 @@ ROOM_GAMES.mind = {
     mindShakeOnLoss(el, state);
 
     if (s.phase === 'gameover') {
-      const fresh = renderRoomFrame(el, ['mind-over', s.won, s.level, state.youAreHost, appState.lang].join('|'), () => `
+      const fresh = renderRoomFrame(el, ['mind-over', s.won, s.level, s.maxLevel, state.youAreHost, appState.lang].join('|'), () => `
         <div class="card card--accent" style="text-align:center">
-          <div class="mind-big" aria-hidden="true">${s.won ? '🧠' : '💔'}</div>
-          <p class="sheet__title">${escapeHTML(s.won ? (t.mind_won || '') : (t.mind_lost || ''))}</p>
-          <p class="sheet__subtitle">${escapeHTML((t.mind_reached || '').replace('{n}', s.level))}</p>
+          ${mindOverHtml(s, t)}
         </div>
         ${state.youAreHost
           ? `<div class="btn-stack">
@@ -143,13 +185,13 @@ ROOM_GAMES.mind = {
              </div>`
           : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
         ${renderRoomPlayerStrip(state)}`);
-      if (fresh && s.won && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 160, spread: 90 }));
+      if (fresh) mindOverAfter(el, state);
       refreshRoomPlayerStrip(el, state);
       return;
     }
 
     const head = `<div class="cn-score">
-        <span class="cn-score__role">💯 ${escapeHTML(t.mind_level || '')} ${s.level}</span>
+        <span class="cn-score__role">💯 ${escapeHTML(mindLevelText(s, t))}</span>
         ${mindLivesHtml(s)}
       </div>`;
 
@@ -159,7 +201,7 @@ ROOM_GAMES.mind = {
         <div class="card card--accent" style="text-align:center">
           <div class="mind-big" aria-hidden="true">✅</div>
           <p class="sheet__title">${escapeHTML((t.mind_level_done || '').replace('{n}', s.level))}</p>
-          <p class="sheet__subtitle">${escapeHTML((t.mind_next_deals || '').replace('{n}', s.level + 1))}</p>
+          <p class="sheet__subtitle">${escapeHTML(mindNextText(s, t))}</p>
           ${roomMoveOnHtml(state,
             `<button class="btn btn--primary btn--lg" style="margin-top: var(--sp-3)" onclick="roomAct('nextLevel')">${escapeHTML(t.mind_next_level || '')}</button>`,
             `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
@@ -192,7 +234,7 @@ ROOM_GAMES.mind = {
 
 /* --- the TV ------------------------------------------------------------------ */
 TV_GAMES.mind = {
-  sig: (state) => ['mind', state.shared.phase, state.shared.level, state.shared.lives,
+  sig: (state) => ['mind', state.shared.phase, state.shared.level, state.shared.maxLevel, state.shared.won, state.shared.lives,
                    (state.shared.pile || []).join(','), (state.shared.discarded || []).join(','),
                    JSON.stringify(state.shared.held || {}), state.youAreHost].join('|'),
   frame(state, t) {
@@ -201,14 +243,12 @@ TV_GAMES.mind = {
     if (s.phase === 'gameover') {
       return `
         <div class="tv-vote">
-          <div class="tv-big-icon" aria-hidden="true">${s.won ? '🧠' : '💔'}</div>
-          <div class="tv-title tv-center-text">${escapeHTML(s.won ? (t.mind_won || '') : (t.mind_lost || ''))}</div>
-          <div class="tv-note">${escapeHTML((t.mind_reached || '').replace('{n}', s.level))}</div>
+          ${mindOverHtml(s, t, true)}
           ${host(tvBtn(t.play_again, "roomAct('playAgain')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
         </div>`;
     }
     const top = `<div class="tv-top">
-        <span class="tv-pill">💯 ${escapeHTML(t.mind_level || '')} ${s.level}</span>
+        <span class="tv-pill">💯 ${escapeHTML(mindLevelText(s, t))}</span>
         <span class="tv-pill">${mindLivesHtml(s)}</span>
       </div>`;
     if (s.phase === 'levelDone') {
@@ -217,6 +257,7 @@ TV_GAMES.mind = {
           <div class="tv-center">
             <div class="tv-big-icon" aria-hidden="true">✅</div>
             <div class="tv-title">${escapeHTML((t.mind_level_done || '').replace('{n}', s.level))}</div>
+            <div class="tv-note">${escapeHTML(mindNextText(s, t))}</div>
             ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.mind_next_level, "roomAct('nextLevel')")}</div>`)}
           </div>
         </div>`;
@@ -233,6 +274,9 @@ TV_GAMES.mind = {
         </div>
         <div class="tv-scale">${mindHandsHtml(state, s, t)}</div>
       </div>`;
+  },
+  after(state, rebuilt) {
+    if (rebuilt && state.shared.phase === 'gameover') mindOverAfter(document.getElementById('view-room-tv'), state);
   }
 };
 </script>

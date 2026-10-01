@@ -25,6 +25,22 @@ was tapped onto the pile, and a heart lost shakes the screen once - checked
 **before** the phase branches, because losing the last card of a level costs a
 heart and clears the level in the same move.
 
+## The level that wins (the review of 1 Oct 2026)
+
+"As many levels as the deck can carry" was 50 levels for two players and 33 for three,
+so the win was out of reach. The game now ends in a win when the table clears
+`shared.maxLevel`, fixed at the start by how many sit down (`mindMaxLevel`): **12 for two,
+10 for three, 8 for four or more**, and never more than the deck can deal (`floor(100 / n)`,
+7 for 13). Clearing it goes straight to `gameover` with `won: true` (`mindCheckLevel`); a
+heart lost on that last card still loses first. Someone leaving doesn't change the cap. A
+room started before this has no `maxLevel` and plays on the old way.
+
+Phones and the TV say «المستوى 3 من 10» (`mindLevelText`), the level-done card says when
+the next is the last (`mindNextText`, `mind_last_level`). The end, phone and TV
+(`mindOverHtml`): 🧠 or 💔, the level reached counting up from 0 out of the cap
+(`countUp` on `[data-mind-count]`, `mindOverAfter`, once per end through `motionFirst`), and
+on a win the confetti once the number lands (`afterReveal`); the TV through its `after`.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

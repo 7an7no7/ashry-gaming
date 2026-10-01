@@ -41,13 +41,16 @@ const Room = (() => {
   // When each projection reached this phone, beside the server's time on it (serverNow): the
   // two together are the network's delay, whenever the screen gets round to drawing it.
   // The smallest gap seen for this room is the network's share at most: roomServerNow() reads by it.
-  let clock = { code: '', gap: null };
+  // A move's answer also gives a round trip (sent → answered): the server's time is then read
+  // from its middle (`mid`), the smallest round trip seen kept - nearer the truth than `gap`,
+  // which leans early by the network's one-way delay. الجرس stamps its presses with it.
+  let clock = { code: '', gap: null, rtt: null, mid: null };
   const arrived = (s) => {
     if (s && typeof s === 'object') {
       s.receivedAt = Date.now();
       if (typeof s.serverNow === 'number') {
         const gap = s.receivedAt - s.serverNow;
-        if (clock.code !== s.code) clock = { code: s.code, gap: gap };
+        if (clock.code !== s.code) clock = { code: s.code, gap: gap, rtt: null, mid: null };
         else clock.gap = Math.min(clock.gap, gap);
       }
     }
@@ -308,7 +311,7 @@ const Room = (() => {
 
   function settleAck(msg) {
     if (msg.patch) applyStrokes(msg.patch);
-    else if (msg.state) { state = arrived(msg.state); emit(false); }
+    else if (msg.state) { state = arrived(msg.state); timeRoundTrip(pending.get(msg.id), msg.state); emit(false); }
 
     const waiter = pending.get(msg.id);
     if (!waiter) return;
@@ -317,6 +320,15 @@ const Room = (() => {
     if (msg.ok) { waiter.resolve(state); return; }
     if (msg.gone || msg.kicked) handleDropped(msg.gone ? DROPPED.gone : DROPPED.kicked);
     waiter.reject(roomError(msg.error || roomErrText('action')));
+  }
+
+  /** A move's round trip: the server's clock is read from its middle (the shortest trip kept). */
+  function timeRoundTrip(waiter, s) {
+    if (!waiter || !waiter.sentAt || !s || typeof s.serverNow !== 'number' || clock.code !== s.code) return;
+    const rtt = s.receivedAt - waiter.sentAt;
+    if (!(rtt >= 0) || (clock.rtt !== null && rtt >= clock.rtt)) return;
+    clock.rtt = rtt;
+    clock.mid = s.receivedAt - s.serverNow - rtt / 2;
   }
 
   function failPending(message, quiet) {
@@ -407,6 +419,8 @@ const Room = (() => {
     get heardAt() { return heardAt; },
     /** This phone's clock less the server's, as closely as the answers so far show it (0 before any). */
     get clockGap() { return state && clock.code === state.code && clock.gap !== null ? clock.gap : 0; },
+    /** The same, read from the middle of a timed round trip once a move has made one (null before). */
+    get clockMid() { return state && clock.code === state.code && clock.mid !== null ? clock.mid : null; },
 
     onChange(fn) { listeners.push(fn); return () => { listeners = listeners.filter(f => f !== fn); }; },
 
@@ -441,7 +455,7 @@ const Room = (() => {
             reject(new Error(roomErrText('timeout')));
             ping(3000);
           }, ACK_TIMEOUT);
-          pending.set(id, { resolve, reject, timer });
+          pending.set(id, { resolve, reject, timer, sentAt: Date.now() });
           if (!send({ t: 'act', id: id, action: action, payload: payload || {} })) {
             pending.delete(id);
             clearTimeout(timer);

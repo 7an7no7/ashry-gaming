@@ -7,7 +7,8 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 **The Buzzer (الجرس)** has no content at all: the host asks their own questions
 out loud and every phone is a buzzer. `buzzerAction` in `RoomGames.js` keeps
 `shared.buzzes` in the order the presses reached the server, which is the one
-thing a phone cannot be trusted with. The host's verdict (`correct` scores the
+thing a phone cannot be trusted with (replaced on 1 Oct 2026 by the order they
+were pressed, held near the arrival: *Fair presses* below). The host's verdict (`correct` scores the
 first in line and clears the queue; `wrong` drops them so the next in line
 answers the same question, and **they are out for that question** - `s.out`,
 cleared by the next question; the owner, 30 Sep 2026 - and every press carries
@@ -46,6 +47,31 @@ another game.
   (round, buzzes, out, roster - a quiz's answer, once shown, stays shown); a ❌ gives
   back the point it cost and puts the player first in line again (while the buzzers
   are live). Only the last verdict, once; a new question, arm or reset clears it.
+
+## Fair presses (the owner, 1 Oct 2026)
+
+This replaces "the order the presses reached the server". The line is by **when each phone
+was pressed**:
+
+- The phone stamps the press on the server's clock before anything else the tap does
+  (`pressBuzzer` → `buzz { round, at }`, `bzServerNow`). The clock is read from the middle
+  of a timed round trip (`Room.clockMid` in `JS_Room.html`: every move's ack, the shortest
+  kept, `timeRoundTrip`), which doesn't lean early by the one-way delay as `clockGap` does;
+  a phone that hasn't moved in this room yet times one when the buzzer opens (`bzClock`, a
+  move that changes nothing: `SILENT_ACTIONS` and `QUICK_ACTIONS` in `room.js`, no
+  broadcast), and before any trip falls back on `roomServerNow()`.
+- The server (`buzzerPressAt`) holds a claim between its arrival less `BZ_CLAIM_MAX_MS`
+  (400 ms) and its arrival - a phone can't buy a lead it never had - and a press with no
+  `at` (an older page) is its arrival. Each buzz keeps `at` (the press; the gaps «+0.18ث»
+  and the TV's photo finish read it) and `arr` (its arrival).
+- `buzzerInsert` puts a press ahead of every press it beat that arrived less than
+  `BZ_SETTLE_MS` (150 ms) before it, and never ahead of one settled longer ago, so an order
+  the host has seen doesn't change.
+- On the phone, while the first in line is under 150 ms old the pressed phone shows
+  «ضغطت!» / «ثانية… بنشوف مين ضغط الأول» (`bz_pressed`, `bz_settling`, `bzSettled` redraws
+  when it settles), then its place; the button's label turns to «ضغطت!» on the tap itself.
+  The host's ✓ / ✗ still name the first (`staleTap` on `id`), so a verdict aimed at someone
+  a fairer press just passed is dropped; `undoVerdict` is unchanged.
 
 ## History
 

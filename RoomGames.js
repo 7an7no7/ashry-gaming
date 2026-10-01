@@ -1524,11 +1524,42 @@ const bombBoard = (room) =>
 
 /* ==========================================================================
    الجرس — THE BUZZER
-   The host asks questions out loud; every phone is a buzzer. The server keeps
-   the order the presses arrived in, so "who was first" is settled here and
-   nowhere else. Nothing is secret: the order, the verdicts and the scores are
-   all in shared, and the TV shows them.
+   The host asks questions out loud; every phone is a buzzer. "Who was first"
+   is settled here and nowhere else. Nothing is secret: the order, the
+   verdicts and the scores are all in shared, and the TV shows them.
+
+   The order is by when each phone was pressed, not when its press arrived
+   (the owner, 1 Oct 2026 - it was arrival order, and a phone on a slower
+   network lost a press it had won). A phone sends its press time read on the
+   server's clock ({ at }, JS_RoomBuzzer.html); the server believes it only
+   between its arrival less BZ_CLAIM_MAX_MS and its arrival, so a phone can't
+   claim a press it never made. A press may still go ahead of one that
+   arrived up to BZ_SETTLE_MS before it, never of one settled longer ago
+   (the host has seen that order). A phone on an older page sends no time:
+   its arrival is its press. Each buzz keeps `at` (its press, which the gaps
+   on the screens read) and `arr` (its arrival, when it settles).
    ========================================================================== */
+const BZ_SETTLE_MS = 150;       // a press settles this long after it arrived (JS_RoomBuzzer.html mirrors it)
+const BZ_CLAIM_MAX_MS = 400;    // a phone's press time is believed at most this long before its arrival
+
+/** Where a press goes in the line: ahead of every unsettled press it beat, behind the rest. */
+const buzzerInsert = (buzzes, entry) => {
+  let i = buzzes.length;
+  while (i > 0) {
+    const prev = buzzes[i - 1];
+    const prevArr = Number(prev.arr) || Number(prev.at) || 0;
+    if (entry.arr - prevArr > BZ_SETTLE_MS || !(Number(prev.at) > entry.at)) break;
+    i--;
+  }
+  buzzes.splice(i, 0, entry);
+};
+
+/** The press time a phone claims, held between its arrival less the allowance and its arrival. */
+const buzzerPressAt = (payload, arr) => {
+  const claim = Number(payload && payload.at);
+  if (!isFinite(claim) || claim <= 0) return arr;
+  return Math.round(Math.min(arr, Math.max(arr - BZ_CLAIM_MAX_MS, claim)));
+};
 const buzzerAction = (room, playerId, action, payload) => {
   if (action === 'start') {
     requireHost(room, playerId);
@@ -1608,9 +1639,15 @@ const buzzerQuizMove = (room, playerId, action, payload) => {
     if (s.buzzes.some(b => b.id === playerId)) return;
     // Answered wrong: out until the next question (the owner's rule).
     if ((s.out || []).indexOf(playerId) !== -1) return;
-    s.buzzes.push({ id: playerId, name: player.name, at: Date.now() });
+    const arr = Date.now();
+    buzzerInsert(s.buzzes, { id: playerId, name: player.name, at: buzzerPressAt(payload, arr), arr: arr });
     return;
   }
+
+  // A phone measuring its clock against the server's before its first press
+  // (the answer's serverNow and the round trip): nothing changes, nothing is sent
+  // to the others (SILENT_ACTIONS in room.js).
+  if (action === 'bzClock') return;
 
   requireHost(room, playerId);
 
@@ -5771,10 +5808,19 @@ const scoreHerd = (room) => {
    than the one played goes face up on the discard - the real game's rule,
    and what keeps a level moving instead of stalling on a card somebody has
    already missed. Lives start at the number of players; at zero the game is
-   over. Clear every level the deck can carry and the table has won.
+   over. Clear the last level and the table has won: 12 levels for two
+   players, 10 for three, 8 for four or more (the review of 1 Oct 2026 - "as
+   many as the deck can carry" was 50 levels for two, out of reach), and never
+   more than the deck can deal (shared.maxLevel, fixed when the game starts).
    ========================================================================== */
 const MIND_MAX = 100;          // the numbers are 1..100
 const MIND_MIN_PLAYERS = 2;
+
+/** The level that wins the game, by how many sit down at the start. */
+const mindMaxLevel = (players) => {
+  const n = Math.max(1, Number(players) || 1);
+  return Math.max(1, Math.min(n <= 2 ? 12 : n === 3 ? 10 : 8, Math.floor(MIND_MAX / n)));
+};
 
 /** Who is still at the table and holding cards, in seating order. */
 const mindSeated = (room) => activeRoster(room, room.shared.roster);
@@ -5835,6 +5881,13 @@ const mindCheckLevel = (room) => {
     return;
   }
   if (!mindHeld(room).length) {
+    // The last level cleared: the table has won (an older game has no maxLevel).
+    if (s.maxLevel && s.level >= s.maxLevel) {
+      s.phase = 'gameover';
+      s.won = true;
+      room.phase = 'gameover';
+      return;
+    }
     s.phase = 'levelDone';
     room.phase = 'levelDone';
   }
@@ -5849,6 +5902,7 @@ const mindAction = (room, playerId, action, payload) => {
     room.shared = {
       phase: 'play',
       level: 0,
+      maxLevel: mindMaxLevel(roster.length),
       lives: roster.length,
       pile: [],
       discarded: [],

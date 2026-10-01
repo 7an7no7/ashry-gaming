@@ -9,7 +9,8 @@
 
    Nothing here is secret; the whole game is in state.shared:
      phase   armed (buzzers live) or locked (the host is reading)
-     buzzes  who pressed, in order
+     buzzes  who pressed, in the order they pressed: each with `at` (the press, on
+             the server's clock: this phone sends it) and `arr` (when it arrived)
      scores  the running tally, and board the same sorted for the screen
      last    the last verdict, so everyone sees who got it and how
    ========================================================================= */
@@ -24,6 +25,42 @@ function setBuzzerPenalty(on) {
   const setup = document.getElementById('room-host-setup');
   if (setup) delete setup.dataset.sig;
   if (Room.state) routeRoomState(Room.state);
+}
+
+/* --- fair presses (the owner, 1 Oct 2026) ---------------------------------------------
+   The line is by when each phone was pressed: the press sends its time on the server's
+   clock (`at`), read from the middle of a timed round trip (Room.clockMid) - a phone that
+   hasn't moved yet in this room times one first (`bzClock`, which changes nothing) - or,
+   before that, from the smallest gap seen (roomServerNow). The server holds a claim
+   between its arrival less 400 ms and its arrival, and lets a press go ahead of another
+   only while that one is under BZ_SETTLE_MS old (RoomGames.js); until the first in line
+   has settled, this phone says «ضغطت!» rather than a place that may still change. */
+const BZ_SETTLE_MS = 150;   // RoomGames.js BZ_SETTLE_MS
+const bzLocal = { clockFor: '', settleTimer: null };
+
+/** The server's time now, as fairly as this phone can tell it. */
+function bzServerNow() {
+  const mid = Room.clockMid;
+  return mid === null || mid === undefined ? roomServerNow() : Date.now() - mid;
+}
+
+/** Times a round trip once per room, for a phone that hasn't made a move here yet. */
+function bzTimeClock(state) {
+  if (state.youAreScreen || Room.clockMid !== null || bzLocal.clockFor === state.code) return;
+  bzLocal.clockFor = state.code;
+  Room.act('bzClock', {}).catch(() => {});
+}
+
+/** Whether the first in line can no longer be passed; if not, a redraw when it can. */
+function bzSettled(first) {
+  if (!first || !first.arr) return true;
+  const left = Number(first.arr) + BZ_SETTLE_MS - roomServerNow();
+  if (left <= 0) return true;
+  clearTimeout(bzLocal.settleTimer);
+  bzLocal.settleTimer = setTimeout(() => {
+    if (Room.state && Room.state.game === 'buzzer' && appState.currentView === 'room-buzzer') routeRoomState(Room.state);
+  }, Math.min(1000, left + 30));
+  return false;
 }
 
 ROOM_GAMES.buzzer = {
@@ -63,8 +100,11 @@ ROOM_GAMES.buzzer = {
     const first = buzzes[0];
     // Answered this question wrong: out until the next one (RoomGames.js, s.out).
     const out = (s.out || []).indexOf(Room.me) !== -1;
+    bzTimeClock(state);
+    // Pressed, but the line may still change for a moment: «ضغطت!», then the place.
+    const settled = rank === -1 || bzSettled(first);
 
-    const sig = ['bz', s.phase, s.round, buzzes.map(b => b.id).join(','), out,
+    const sig = ['bz', s.phase, s.round, buzzes.map(b => b.id).join(','), out, settled,
                  JSON.stringify(s.scores || {}), state.youAreHost, JSON.stringify(s.last || null), appState.lang,
                  JSON.stringify(s.quiz || null), JSON.stringify((state.you || {}).answer === undefined ? null : state.you.answer)].join('|');
 
@@ -86,6 +126,13 @@ ROOM_GAMES.buzzer = {
             <span class="bz-button__icon" aria-hidden="true">🔔</span>
             <span class="bz-button__label">${escapeHTML(t.bz_press || '')}</span>
           </button></div>`;
+      } else if (!settled) {
+        stage = `<div class="bz-stage">
+          <div class="bz-rank">
+            <span class="bz-rank__medal" aria-hidden="true">🔔</span>
+            <span class="bz-rank__n">${escapeHTML(t.bz_pressed || '')}</span>
+            <p>${escapeHTML(t.bz_settling || '')}</p>
+          </div></div>`;
       } else {
         const medal = ['🥇', '🥈', '🥉'][rank] || '🔔';
         stage = `<div class="bz-stage">
@@ -147,8 +194,9 @@ function bzUndoHtml(state, t, tv) {
 }
 
 /* --- how close it was (ideas batch: rooms) -------------------------------------------
-   The server stamps every press with its own clock as it arrives (buzzes[].at,
-   RoomGames.js), so the gap behind the first press is a fact, not a guess:
+   Every press carries its time on the server's clock (buzzes[].at, the phone's claim
+   held near its arrival by RoomGames.js), so the gap behind the first press is the
+   gap between the presses:
    «+0.18ث» beside each press after the first, and on the TV a photo-finish strip. */
 function bzGapMs(buzzes, i) {
   const a = buzzes[0] && Number(buzzes[0].at), b = buzzes[i] && Number(buzzes[i].at);
@@ -185,7 +233,15 @@ function bzFinishHtml(buzzes) {
 
 /** The press has to feel instant: the button locks before the server answers. */
 function pressBuzzer(btn, round) {
-  if (btn) { btn.classList.add('is-pressed'); btn.disabled = true; }
+  // The press time first, before anything else this tap does.
+  const at = Math.round(bzServerNow());
+  if (btn) {
+    btn.classList.add('is-pressed');
+    btn.disabled = true;
+    const label = btn.querySelector('.bz-button__label');
+    const t = TRANSLATIONS[appState.lang] || {};
+    if (label && t.bz_pressed) label.textContent = t.bz_pressed;
+  }
   haptic('heavy');
   // A ring off the button, so the press reads across the table. Removed by a
   // timer, because a suppressed animation fires no animationend at all.
@@ -196,7 +252,8 @@ function pressBuzzer(btn, round) {
     setTimeout(() => { if (ring.isConnected) ring.remove(); }, 700);
   }
   // The question it was pressed for: a late press can't lead the next one.
-  roomAct('buzz', round ? { round: round } : {});
+  // And when it was pressed: the line is by that, not by arrival.
+  roomAct('buzz', round ? { round: round, at: at } : { at: at });
 }
 
 /* --- «اعمل مسابقتك» on the buzzer (30 Sep 2026) ----------------------------------------

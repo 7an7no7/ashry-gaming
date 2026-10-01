@@ -52,6 +52,8 @@ const withPromptMemory = (memory, run) => {
 // What this bundle was built from (fingerprint.mjs): /health reports it and
 // tools/check-live.mjs compares it with the folder's.
 const RULES_HASH = await rulesFingerprint(FILES);
+// The dealer itself, for the test of dealing from one category (trivia's lobby).
+EXPORTS.push('nextPrompts');
 const out = PRELUDE + `\nconst RULES_HASH = ${JSON.stringify(RULES_HASH)};\n\n` + sources.join('\n\n') + `\n\nexport { ${EXPORTS.join(', ')} };\n`;
 await mkdir(path.join(here, 'generated'), { recursive: true });
 await writeFile(path.join(here, 'generated', 'rules.js'), out, 'utf8');

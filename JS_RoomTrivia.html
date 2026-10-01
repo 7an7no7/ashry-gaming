@@ -34,11 +34,32 @@ function rememberTriviaCount(value) {
   try { localStorage.setItem(TRIVIA_COUNT_KEY, String(value)); } catch (e) {}
 }
 
+// The host's category: 'all', or a question's `c` (TRIVIA_CATS in RoomGames.js
+// holds the same ids). A category shorter than the game is filled from the rest.
+const TRIVIA_ROOM_CATS = ['all', 'egypt', 'geography', 'science', 'sport', 'film', 'general'];
+const TRIVIA_CAT_KEY = 'ashryTriviaCat';
+
+function triviaCatChoice() {
+  const select = document.getElementById('trivia-cat');
+  if (select && TRIVIA_ROOM_CATS.indexOf(select.value) !== -1) return select.value;
+  try {
+    const saved = localStorage.getItem(TRIVIA_CAT_KEY);
+    return TRIVIA_ROOM_CATS.indexOf(saved) !== -1 ? saved : 'all';
+  } catch (e) {
+    return 'all';
+  }
+}
+
+function rememberTriviaCat(value) {
+  try { localStorage.setItem(TRIVIA_CAT_KEY, String(value)); } catch (e) {}
+}
+
 ROOM_GAMES.trivia = {
   lobbyOptions(state) {
     if (!state.youAreHost) return '';
     const t = TRANSLATIONS[appState.lang];
     const chosen = triviaCountChoice();
+    const cat = triviaCatChoice();
     // «اعمل مسابقتك»: the family's own quiz instead of the app's questions (played whole).
     const quiz = typeof packRoomPick === 'function' ? packRoomPick('triviaRoom') : '';
     return `
@@ -48,13 +69,17 @@ ROOM_GAMES.trivia = {
         <label class="field__label" for="trivia-count">${t.trivia_count || ''}</label>
         <select id="trivia-count" onchange="rememberTriviaCount(this.value)">
           ${TRIVIA_COUNTS.map(n => `<option value="${n}" ${n === chosen ? 'selected' : ''}>${n}</option>`).join('')}
+        </select>
+        <label class="field__label" for="trivia-cat">${t.trivia_cat || ''}</label>
+        <select id="trivia-cat" onchange="rememberTriviaCat(this.value)">
+          ${TRIVIA_ROOM_CATS.map(c => `<option value="${c}" ${c === cat ? 'selected' : ''}>${escapeHTML(t['trivia_cat_' + c] || c)}</option>`).join('')}
         </select>`}
         <p class="field__hint" style="text-align:center">${t.trivia_hint || ''}</p>
       </div>` + autoNextLobbyHtml(state, 'trivia');
   },
   startPayload: () => {
     const quiz = typeof packRoomPick === 'function' ? packRoomPick('triviaRoom') : '';
-    const out = { lang: VOTE_LANG(), count: triviaCountChoice(), autoNext: autoNextChoice('trivia') };
+    const out = { lang: VOTE_LANG(), count: triviaCountChoice(), cat: triviaCatChoice(), autoNext: autoNextChoice('trivia') };
     if (quiz) out.pack = quiz;
     return out;
   },

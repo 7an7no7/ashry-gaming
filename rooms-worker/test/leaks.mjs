@@ -542,9 +542,13 @@ const PROBES = {
   },
   timeline(room) {
     const hands = (room._timeline && room._timeline.hands) || {};
+    const s = room.shared || {};
+    // Two cards may share a year: one the table has seen (on the line, or the
+    // last card shown) is out in the open, whichever card carries it.
+    const shown = ((s.timeline || []).map((c) => c.y)).concat(s.last ? [s.last.y] : []);
     const out = [];
     for (const id of Object.keys(hands)) for (const card of hands[id]) {
-      out.push(secret('a card\'s year stays on the server while it is in a hand', card.y, []));
+      if (shown.indexOf(card.y) === -1) out.push(secret('a card\'s year stays on the server while it is in a hand', card.y, []));
       out.push(secret('a card in a hand is on that phone only', card.id, [id]));
     }
     return out;

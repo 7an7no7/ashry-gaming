@@ -42,8 +42,8 @@
 
 const PROGRAM_MIN_GAMES = 3;
 const PROGRAM_MAX_GAMES = 8;
-const PROGRAM_PLACE_POINTS = [5, 3, 2];   // 1st, 2nd, 3rd; everyone else who played: 1
-const PROGRAM_PLAYED_POINTS = 1;
+const PROGRAM_PLACE_POINTS = NIGHT_PLACES;   // 1st, 2nd, 3rd: 5, 3, 2 (the night's, RoomGames.js)
+const PROGRAM_PLAYED_POINTS = NIGHT_PLAYED;  // everyone else who played: 1
 const PROGRAM_FIRST_MS = 8000;            // the line-up before the first game
 const PROGRAM_BETWEEN_MS = 10000;         // the standings card between two games
 const PROGRAM_RESULT_MS = 9000;           // a game's own result, before the standings
@@ -92,20 +92,6 @@ const programGameOver = (room) => {
 
 /* --- places ------------------------------------------------------------------ */
 
-/** Who played the game: the seats of a table or a duel, a tournament's entrants, else the roster. */
-const programPlayedIds = (room) => {
-  const s = room.shared || {};
-  const p = room.program || {};
-  const flat = (x) => (Array.isArray(x) ? x.reduce((a, y) => a.concat(flat(y)), []) : (typeof x === 'string' ? [x] : []));
-  let ids = null;
-  if (s.tour && Array.isArray(s.tour.entrants)) ids = s.tour.entrants;
-  else if (Array.isArray(s.seats) && flat(s.seats).length) ids = flat(s.seats);
-  else if (Array.isArray(s.teams) && flat(s.teams).length) ids = flat(s.teams);
-  else if (Array.isArray(s.roster) && s.roster.length) ids = s.roster;
-  else ids = p.present || room.players.map(x => x.id);
-  return ids.filter((id, i) => id && ids.indexOf(id) === i);
-};
-
 /* Team games: the winning side first, the other after it (dense: the losing side is second). */
 const PROGRAM_TEAMS = {
   codenames: (room) => {
@@ -135,35 +121,11 @@ const programTwoTeams = (room) => {
 /**
  * The places of the game that just ended: [{ id, place }] for everyone who played
  * (computer players included - they take a place, the points skip them), and
- * whether it was a co-op game (or everyone level). The game's own board is best-first (some win low),
- * so a place is where a row sits: competition ranking, tied rows share one.
+ * whether it was a co-op game (or everyone level). One rule with the room's own night:
+ * nightPlacesOf (RoomGames.js) places a game for both, and bankNightPoints banks inside a
+ * program exactly what programBank banked (the review of 1 Oct 2026).
  */
-const programPlaces = (room, cut) => {
-  const game = room.game;
-  const played = programPlayedIds(room);
-  if (PROGRAM_COOP[game]) return { coop: true, rows: played.map(id => ({ id, place: 1 })) };
-  const teams = PROGRAM_TEAMS[game] && PROGRAM_TEAMS[game](room);
-  if (teams) {
-    const rows = [];
-    teams.forEach((group, k) => group.forEach(id => { if (!rows.some(r => r.id === id)) rows.push({ id, place: k + 1 }); }));
-    played.forEach(id => { if (!rows.some(r => r.id === id)) rows.push({ id, place: teams.length + 1 }); });
-    return { coop: teams.length < 2, rows };
-  }
-  const board = ((room.shared || {}).board || []).filter(r => r && r.id && played.indexOf(r.id) !== -1);
-  // A row's standing is its score and its tie-break (boardRowKey, RoomGames.js): الكراسي and
-  // the bumper cars rank the one game a program plays by its places, the last out last.
-  const scores = board.map(boardRowKey);
-  if (!board.length || scores.every(x => x === scores[0])) {
-    // Nobody ahead of anybody (no board, or everyone level): a game played to its end
-    // is everyone sharing the first place; one cut short before anybody scored is
-    // only "played" for everyone (PROGRAM_PLAYED_POINTS) - nobody won anything yet.
-    return { coop: true, rows: played.map(id => ({ id, place: cut ? 99 : 1 })) };
-  }
-  const rows = board.map((r, i) => ({ id: r.id, place: 1 + scores.findIndex(x => x === scores[i]) }));
-  // Someone who played and isn't on the board (they scored nothing it keeps): after everyone on it.
-  played.forEach(id => { if (!rows.some(r => r.id === id)) rows.push({ id, place: board.length + 1 }); });
-  return { coop: false, rows };
-};
+const programPlaces = (room, cut) => nightPlacesOf(room, (room.shared || {}).board, cut);
 
 const programPointsFor = (place) => PROGRAM_PLACE_POINTS[place - 1] || PROGRAM_PLAYED_POINTS;
 
@@ -312,9 +274,9 @@ const programFinish = (room) => {
  *                         with room.crewLinks, as it does the night's rows (notes/builders/program.md);
  *   room._nightSummary    the last one, for anything else that wants it (kept until the program is
  *                         closed or another starts).
- * Every game of a program is also banked on the room's own night table (3/2/1, bankNightPoints) as
- * the hub would, so a crew's night counts a program's games like any other; the program's own
- * table (5/3/2/1) and its awards are the extra this hook adds.
+ * Every game of a program is also banked on the room's own night table (bankNightPoints), with the
+ * very places the program banked, so a crew's night counts a program's games like any other and the
+ * two tables agree; the program's own table and its awards are the extra this hook adds.
  */
 function nightProgramFinished(room, summary) {
   room._nightSummary = summary;

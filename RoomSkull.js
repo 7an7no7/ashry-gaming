@@ -563,7 +563,25 @@ const skullSync = (room) => {
   s.board = skullBoard(room);
 };
 
-/** The night's board: the games won at this table, most first. */
+/* The game just played, best first (ROOM_RESULT_BOARDS, RoomGames.js): the night, the program and
+   «مين هيكسب؟» count this game's places, not the evening's tally below (the review of 1 Oct 2026:
+   with the tally everyone but the winner tied). The winner, then the others still in by bets won
+   this game, then the ones out of discs, by bets won. */
+ROOM_RESULT_BOARDS.skull = (room) => {
+  const s = room.shared || {};
+  if (s.phase !== 'gameover') return null;
+  const here = (s.order || []).filter(id => skullHere(room, id));
+  const winner = (s.winners || [])[0];
+  const wins = s.wins || {};
+  const byWins = (ids) => ids.map(id => wins[id] || 0).filter((n, i, a) => a.indexOf(n) === i).sort((a, b) => b - a)
+    .map(n => ids.filter(id => (wins[id] || 0) === n));
+  const alive = s.alive || [];
+  return roomResultRows(room, [winner && here.indexOf(winner) !== -1 ? [winner] : []]
+    .concat(byWins(here.filter(id => id !== winner && alive.indexOf(id) !== -1)))
+    .concat(byWins(here.filter(id => id !== winner && alive.indexOf(id) === -1))));
+};
+
+/** The board on the screens: the games won at this table, most first. */
 const skullBoard = (room) => {
   const s = room.shared;
   return (s.order || []).filter(id => skullHere(room, id))

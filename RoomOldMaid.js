@@ -372,7 +372,20 @@ const omSync = (room) => {
   s.board = omBoard(room);
 };
 
-/** The night's board: the fewest times left holding الشايب first. */
+/* The game just played, best first (ROOM_RESULT_BOARDS, RoomGames.js): the night, the program and
+   «مين هيكسب؟» count this game's places, not the evening's tally of losses below (the review of
+   1 Oct 2026: with the tally every non-loser banked 5). Safe in the order out, then anyone still
+   holding cards (a game ended by people leaving), then the one left with الشايب. */
+ROOM_RESULT_BOARDS.oldmaid = (room) => {
+  const s = room.shared || {};
+  if (s.phase !== 'gameover' || !Array.isArray(s.out)) return null;
+  const here = (s.order || []).filter(id => omHere(room, id));
+  const loser = s.loser && here.indexOf(s.loser) !== -1 ? s.loser : null;
+  return roomResultRows(room, s.out.filter(id => here.indexOf(id) !== -1).map(id => [id])
+    .concat([here.filter(id => id !== loser)], [loser ? [loser] : []]));
+};
+
+/** The board on the screens: the fewest times left holding الشايب first. */
 const omBoard = (room) => {
   const s = room.shared;
   return (s.order || []).filter(id => omHere(room, id))

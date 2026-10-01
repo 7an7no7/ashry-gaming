@@ -92,14 +92,24 @@ const snakesSeat = (room, playerId, p) => {
   }
 };
 
-/** Everyone at the table, with their wins at this game tonight: the board and the night's table. */
+/** Everyone at the table, with their wins at this game tonight: the board and the night's table.
+    Level wins are told apart by this game's places (`tie`, boardRowKey in RoomGames.js), so one
+    game banks 5 / 3 / 2 / 1 and not a 3 for everyone after the winner (the review of 1 Oct 2026). */
 const snakesBoard = (room) => {
   const s = room.shared;
   const wins = s.wins || {};
+  const places = s.places || [];
+  const placeOf = (id) => (places.indexOf(id) === -1 ? null : places.indexOf(id) + 1);
   return (s.seats || [])
     .filter(id => room.players.some(p => p.id === id))
-    .map(id => ({ id: id, name: roomPlayerName(room, id), score: wins[id] || 0 }))
-    .sort((a, b) => b.score - a.score);
+    .map(id => ({ id: id, name: roomPlayerName(room, id), score: wins[id] || 0, tie: placeOf(id) }))
+    .sort((a, b) => (b.score - a.score) || ((a.tie || 99) - (b.tie || 99)));
+};
+
+/** The game just played, for «مين هيكسب؟»: its places, once it is over. */
+ROOM_RESULT_BOARDS.snakes = (room) => {
+  const s = room.shared || {};
+  return s.phase === 'gameover' && Array.isArray(s.places) && s.places.length ? roomResultRows(room, s.places.map(id => [id]).concat([s.seats || []])) : null;
 };
 
 /** After anything that moved the game on: the clock for the new turn, the board, the winner's win. */
@@ -129,8 +139,14 @@ const snakesNewRoomGame = (room, playerId, action, p) => {
   let ids;
   let colors;
   if (action === 'playAgain') {
+    // Whoever is still here - and a free seat goes to someone who watched (joined late, or a seat
+    // emptied), as the lobby would seat them; never to anyone the host benched (the review of
+    // 1 Oct 2026: a watcher was never dealt in).
     ids = (prev.seats || []).filter(id => room.players.some(x => x.id === id));
-    colors = Object.assign({}, prev.colors || {});
+    const benched = (prev.lobby && prev.lobby.benched) || [];
+    room.players.forEach(x => { if (ids.length < SNAKES_MAX_PLAYERS && ids.indexOf(x.id) === -1 && benched.indexOf(x.id) === -1) ids.push(x.id); });
+    colors = {};
+    Object.keys(prev.colors || {}).forEach(id => { if (ids.indexOf(id) !== -1) colors[id] = prev.colors[id]; });
   } else {
     ids = snakesLobbySeated(room);
     colors = snakesLobbyColors(room);

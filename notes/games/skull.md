@@ -144,6 +144,12 @@ catalog, the help); the rules are named `skull` / `SKULL_`, the page's code
   at the foot. The flights still find their places (`data-pc-at`: seat, pile, flip,
   and `mid` on the table). The end of the game keeps its own frame.
 
+## The night and «مين هيكسب؟» (the review of 1 Oct 2026, the owner approved)
+
+- The board on the screens stays the evening's tally of games won, but the night, the program and
+  «مين هيكسب؟» count the game just played (`ROOM_RESULT_BOARDS.skull`, `NIGHT_FROM_RESULT` in
+  RoomGames.js): the winner, then those still in by bets won this game, then those out of discs.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

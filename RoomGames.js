@@ -709,7 +709,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
   if ((action === 'start' || action === 'playAgain') && roomGameIsOff(room.game)) throw new Error(OFF_MSG);
   if ((action === 'nextRound' || action === 'tourNew') && wasOver && roomGameIsOff(room.game)) throw new Error(OFF_MSG);
   // The board the finished game ended on (its players' rows), for the audience's guesses if this deals the next one.
-  const boardBefore = action === 'playAgain' || action === 'tourNew' ? nightBoardOf(room, (room.shared || {}).board) : null;
+  const boardBefore = action === 'playAgain' || action === 'tourNew' ? nightBoardOf(room, (room.shared || {}).board, true) : null;
   // برنامج السهرة: what this move is about to wipe (the buzzer's line), for the awards.
   programBeforeMove(room, playerId, action, payload);
 
@@ -2697,7 +2697,7 @@ function settlePredictions(room, boardOf) {
   if (!p || p.game !== room.game) return;
   const voters = Object.keys(p.picks || {});
   if (!voters.length) return;
-  const board = boardOf !== undefined ? (boardOf || []).filter(r => r && r.id) : nightBoardOf(room, (room.shared || {}).board);
+  const board = boardOf !== undefined ? (boardOf || []).filter(r => r && r.id) : nightBoardOf(room, (room.shared || {}).board, true);
   if (!board.length) return;
   const top = boardRowKey(board[0]);
   if (board.every(r => boardRowKey(r) === top)) return;   // nobody ahead of anybody
@@ -2735,29 +2735,64 @@ const NIGHT_PLAYED = 1;   // everyone else on the board
    1 point for a game they never played, and in القنبلة (fewest strikes first) a first
    place. The night, «مين هيكسب؟» and the program read a board through these. */
 
-/** Who played the game in the room: its roster, seats, team lists and a tournament's entrants; null when it keeps none. */
+/** Who played the game in the room: a tournament's entrants, else the seats, else the team lists,
+    else its roster - the first of them the game keeps (someone benched from a table's seats is on
+    the roster and only watched); null when it keeps none. */
 const nightPlayedIds = (room) => {
   const s = room.shared || {};
   const flat = (x) => (Array.isArray(x) ? x.reduce((a, y) => a.concat(flat(y)), []) : (typeof x === 'string' ? [x] : []));
-  const ids = [].concat(
-    s.tour && Array.isArray(s.tour.entrants) ? s.tour.entrants : [],
-    Array.isArray(s.roster) ? s.roster : [],
-    Array.isArray(s.seats) ? flat(s.seats) : [],
-    Array.isArray(s.teams) ? flat(s.teams) : []);
-  return ids.length ? ids : null;
+  let ids = null;
+  if (s.tour && Array.isArray(s.tour.entrants) && s.tour.entrants.length) ids = s.tour.entrants;
+  else if (Array.isArray(s.seats) && flat(s.seats).length) ids = flat(s.seats);
+  else if (Array.isArray(s.teams) && flat(s.teams).length) ids = flat(s.teams);
+  else if (Array.isArray(s.roster) && s.roster.length) ids = s.roster;
+  return ids ? ids.filter((id, i) => id && ids.indexOf(id) === i) : null;
 };
 
-/** A row's standing: its score, and what breaks a tie in it (`tie`: الكراسي's and the bumper cars'
-    place in the last game, under the evening's wins). Two rows share a place only when both match. */
+/* A game whose own board is the evening's tally of wins at its table (لودو, السلم, بنك الحظ,
+   كدّاب, الشايب, جمجمة) gives the result of the game just played here: rows best first, or null
+   before its end (the review of 1 Oct 2026). Each game's file registers its own.
+   «مين هيكسب؟» is settled on it (the guess was about that game, not the evening); the night and
+   the program bank it for the games in NIGHT_FROM_RESULT, whose tally board tied everyone but the
+   winner (6 players banked 5/3/3/3/3/3; in الشايب every non-loser 5). لودو, السلم and بنك الحظ
+   bank their tally board, its level wins told apart by this game's places (`tie`). */
+const ROOM_RESULT_BOARDS = {};
+const NIGHT_FROM_RESULT = { doubt: true, oldmaid: true, skull: true };
+
+/* A way of a game the owner put on no table at all (الخزنة's endless levels: "co-op, nothing on
+   the night's board"): no places, so neither the night nor the program banks it. */
+const NIGHT_NO_PLACES = {
+  vault: (room) => (((room.shared || {}).settings || {}).win || 'levels') !== 'set'
+};
+
+/** Result rows from places: `groups` best first, each a list of ids sharing one place (an id
+    already placed in an earlier group is left out of a later one, so the last group can be "the
+    rest of the table"); the score is the place counted from the bottom, so boardRowKey ranks it. */
+const roomResultRows = (room, groups) => {
+  const seen = [];
+  const kept = groups.map(g => (g || []).filter(id => {
+    if (!id || seen.indexOf(id) !== -1) return false;
+    seen.push(id);
+    return true;
+  })).filter(g => g.length);
+  return kept.reduce((all, g, k) => all.concat(g.map(id => ({ id, name: roomPlayerName(room, id), score: kept.length - k }))), []);
+};
+
+/** A row's standing: its score, and what breaks a tie in it (`tie`: this game's place under the
+    evening's wins - الكراسي, the bumper cars, لودو, السلم, بنك الحظ). Two rows share a place only
+    when both match. */
 const boardRowKey = (r) => (Number(r && r.score) || 0) + '|' + (r && r.tie !== undefined && r.tie !== null ? r.tie : '');
 
 /** The game's board as the night counts it: best-first, only the people who played, every row
     with a score. A team game whose board is something else (أسماء الرموز: the cards) is its sides,
-    the winners first (PROGRAM_TEAMS, as the program places it). */
-const nightBoardOf = (room, board) => {
-  let rows = (board || []).filter(r => r && r.id);
-  if (!rows.length && room.game && PROGRAM_TEAMS[room.game]) {
-    const teams = PROGRAM_TEAMS[room.game](room);
+    the winners first (PROGRAM_TEAMS, as the program places it). `result`: the game just played
+    where the game keeps one (ROOM_RESULT_BOARDS), as «مين هيكسب؟» reads it. */
+const nightBoardOf = (room, board, result) => {
+  const g = room.game;
+  const own = g && ROOM_RESULT_BOARDS[g] && (NIGHT_FROM_RESULT[g] || result);
+  let rows = (own ? (ROOM_RESULT_BOARDS[g](room) || []) : (board || [])).filter(r => r && r.id);
+  if (!rows.length && g && PROGRAM_TEAMS[g]) {
+    const teams = PROGRAM_TEAMS[g](room);
     if (teams && teams.length > 1) {
       rows = teams.reduce((all, ids, k) => all.concat(ids.map(id => ({ id, name: roomPlayerName(room, id), score: teams.length - k }))), []);
     }
@@ -2766,30 +2801,91 @@ const nightBoardOf = (room, board) => {
   return played ? rows.filter(r => played.indexOf(r.id) !== -1) : rows;
 };
 
+/**
+ * The places of the game in the room: { coop, rows: [{ id, place }] } for everyone who played
+ * (computer players included). The one source of truth for the room's night (bankNightPoints) and
+ * برنامج السهرة (programBank), so the two never disagree (the review of 1 Oct 2026):
+ * - a co-op game (PROGRAM_COOP) puts everyone who played first (5 each, no first places counted);
+ * - a team game puts its winning side first and the other second;
+ * - else the board, best first, tied rows sharing a place (competition ranking: 5, 5, 2), and
+ *   anyone who played but isn't on it after everyone on it;
+ * - nobody ahead of anybody: a game played to its end is everyone first; one cut short
+ *   (`cut`) is everyone "played" (place 99: 1 point) - nobody won anything yet.
+ */
+const nightPlacesOf = (room, board, cut) => {
+  const game = room.game;
+  const p = room.program || {};
+  // Who played: what the game keeps, else who was in the program's game, else the room (a board
+  // banked with no game in the room - the secret mission's - is its own list of who played).
+  const played = nightPlayedIds(room) || (Array.isArray(p.present) ? p.present.slice()
+    : (game ? (room.players || []).map(x => x.id) : (board || []).filter(r => r && r.id).map(r => r.id)));
+  if (game && NIGHT_NO_PLACES[game] && NIGHT_NO_PLACES[game](room)) return { coop: true, rows: [] };
+  if (game && PROGRAM_COOP[game]) return { coop: true, rows: played.map(id => ({ id, place: 1 })) };
+  const teams = game && PROGRAM_TEAMS[game] && PROGRAM_TEAMS[game](room);
+  if (teams) {
+    const rows = [];
+    teams.forEach((group, k) => group.forEach(id => { if (!rows.some(r => r.id === id)) rows.push({ id, place: k + 1 }); }));
+    played.forEach(id => { if (!rows.some(r => r.id === id)) rows.push({ id, place: teams.length + 1 }); });
+    return { coop: teams.length < 2, rows };
+  }
+  const on = nightBoardOf(room, board).filter(r => played.indexOf(r.id) !== -1);
+  const keys = on.map(boardRowKey);
+  if (!on.length || keys.every(k => k === keys[0])) {
+    return { coop: true, rows: played.map(id => ({ id, place: cut ? 99 : 1 })) };
+  }
+  const rows = on.map((r, i) => ({ id: r.id, place: 1 + keys.indexOf(keys[i]) }));
+  played.forEach(id => { if (!rows.some(r => r.id === id)) rows.push({ id, place: on.length + 1 }); });
+  return { coop: false, rows };
+};
+
+const nightPointsFor = (place) => NIGHT_PLACES[place - 1] || NIGHT_PLAYED;
+
+/**
+ * Banks the game in the room on the night's table. Inside برنامج السهرة it banks exactly what the
+ * program banked for this game (its places), and nothing for a game the program didn't count (the
+ * host ending the program mid-game). Elsewhere the same places (nightPlacesOf), a game left before
+ * its end counted as cut short. A game chosen and never dealt adds nothing; and with no game in the
+ * room (the secret mission's own rows) a board with nobody ahead of anybody adds nothing.
+ */
 const bankNightPoints = (room, board) => {
-  const rows = nightBoardOf(room, board);
-  if (rows.length < 2) return false;
-  if (!rows.some(r => (Number(r.score) || 0) !== 0)) return false;
+  // Chosen and never dealt: in the lobby, no roster stamped (every start stamps one) and nobody scored.
+  if (room.game && room.phase === 'lobby' && !(room.shared || {}).roster &&
+      !(board || []).some(r => r && r.id && (Number(r.score) || 0) !== 0)) return false;
+  const prog = room.program;
+  const cur = room.game && prog && prog.phase !== 'final' ? programCurrent(room) : null;
+  let res;
+  if (cur && cur.id === room.game) {
+    const done = prog.banked === prog.at ? prog.done[prog.done.length - 1] : null;
+    if (!done || done.id !== room.game || !done.places.length) return false;
+    res = { coop: !!done.coop, rows: done.places.map(x => ({ id: x.id, place: x.place })) };
+  } else {
+    if (!room.game) {
+      const keys = (board || []).filter(r => r && r.id).map(boardRowKey);
+      if (keys.every(k => k === keys[0])) return false;
+    }
+    res = nightPlacesOf(room, board, !roomGameIsOver(room));
+    if (res.rows.length < 2) return false;
+  }
   room.night = room.night || {};
   const x = nightExtras(room);
   let banked = false;
-  rows.forEach(row => {
-    const key = boardRowKey(row);
-    // Standard competition ranking: the place is how many rows are ahead of this score.
-    const points = NIGHT_PLACES[rows.findIndex(r => boardRowKey(r) === key)] || NIGHT_PLAYED;
+  res.rows.forEach(row => {
+    const points = nightPointsFor(row.place);
     room.night[row.id] = (room.night[row.id] || 0) + points;
     // Beside the points, for «الشلة» (Crew.js, crewNightInput): the name (kept for someone who
     // leaves), a first place in this game (the titles), and a computer player to leave out.
     const who = (room.players || []).find(p => p.id === row.id);
-    x.names[row.id] = (who && who.name) || row.name || x.names[row.id] || '';
+    const onBoard = (board || []).find(r => r && r.id === row.id);
+    x.names[row.id] = (who && who.name) || (onBoard && onBoard.name) || x.names[row.id] || '';
     if (who && who.bot && x.bots.indexOf(row.id) === -1) x.bots.push(row.id);
-    if (points === NIGHT_PLACES[0] && room.game) x.wins = x.wins.concat([{ id: row.id, g: room.game }]).slice(-60);
+    if (row.place === 1 && !res.coop && room.game) x.wins = x.wins.concat([{ id: row.id, g: room.game }]).slice(-60);
     banked = true;
   });
   if (banked && room.game) {
     x.games = x.games.concat([room.game]).slice(-40);
     // A record score (the top row, a game where higher is better) and the rooms' own titles' tallies.
     const s = room.shared || {};
+    const rows = nightBoardOf(room, board);
     if (CREW_RECORD_GAMES.indexOf(room.game) !== -1 && rows[0] && Number(rows[0].score) > 0) {
       x.best = x.best.concat([{ id: rows[0].id, g: room.game, s: Number(rows[0].score) }]).slice(-20);
     }

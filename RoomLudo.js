@@ -25,6 +25,9 @@
    ========================================================================= */
 
 const LUDO_GRACE_MS = 1500;       // the server's clock acts this long after the phones'
+// The roll-off as the phones show it (ludoRollOffPanel, JS_Ludo.html): a round of dice each, then who starts.
+const LUDO_ROLLOFF_ROUND_MS = 1150;
+const LUDO_ROLLOFF_TAIL_MS = 1500;
 
 const ludoRoll6 = () => fairDie();
 
@@ -98,20 +101,30 @@ const ludoSeat = (room, playerId, p) => {
   }
 };
 
-/** Everyone at the table, with their wins at this game tonight: the board and the night's table. */
+/** Everyone at the table, with their wins at this game tonight: the board and the night's table.
+    Level wins are told apart by this game's places (`tie`, boardRowKey in RoomGames.js), so one
+    game banks 5 / 3 / 2 / 1 and not a 3 for everyone after the winner (the review of 1 Oct 2026). */
 const ludoBoard = (room) => {
   const s = room.shared;
   const wins = s.wins || {};
+  const places = s.places || [];
+  const placeOf = (id) => (places.indexOf(id) === -1 ? null : places.indexOf(id) + 1);
   return (s.seats || [])
     .filter(id => room.players.some(p => p.id === id))
-    .map(id => ({ id: id, name: roomPlayerName(room, id), score: wins[id] || 0 }))
-    .sort((a, b) => b.score - a.score);
+    .map(id => ({ id: id, name: roomPlayerName(room, id), score: wins[id] || 0, tie: placeOf(id) }))
+    .sort((a, b) => (b.score - a.score) || ((a.tie || 99) - (b.tie || 99)));
+};
+
+/** The game just played, for «مين هيكسب؟»: its places, once it is over. */
+ROOM_RESULT_BOARDS.ludo = (room) => {
+  const s = room.shared || {};
+  return s.phase === 'gameover' && Array.isArray(s.places) && s.places.length ? roomResultRows(room, s.places.map(id => [id]).concat([s.seats || []])) : null;
 };
 
 const ludoStartTurnClock = (room) => {
   const s = room.shared;
   const secs = (s.settings || {}).turnClock || 0;
-  s.endsAt = s.phase === 'play' && secs && s.turn && s.turn.pid ? Date.now() + secs * 1000 : null;
+  s.endsAt = s.phase === 'play' && secs && s.turn && s.turn.pid ? Math.max(Date.now(), s.readyAt || 0) + secs * 1000 : null;
   s.clockSeq = s.turnSeq;
 };
 
@@ -140,9 +153,14 @@ const ludoNewRoomGame = (room, playerId, action, p) => {
   let ids;
   let colors;
   if (action === 'playAgain') {
-    // The same table, the same colours: whoever is still here.
+    // The same table, the same colours: whoever is still here - and a free seat goes to someone
+    // who watched (joined late, or a seat emptied), as the lobby would seat them; never to anyone
+    // the host benched (the review of 1 Oct 2026: a watcher was never dealt in).
     ids = (prev.seats || []).filter(id => room.players.some(x => x.id === id));
-    colors = Object.assign({}, prev.colors || {});
+    const benched = (prev.lobby && prev.lobby.benched) || [];
+    room.players.forEach(x => { if (ids.length < LUDO_MAX_PLAYERS && ids.indexOf(x.id) === -1 && benched.indexOf(x.id) === -1) ids.push(x.id); });
+    colors = {};
+    Object.keys(prev.colors || {}).forEach(id => { if (ids.indexOf(id) !== -1) colors[id] = prev.colors[id]; });
   } else {
     ids = ludoLobbySeated(room);
     colors = ludoLobbyColors(room);
@@ -167,7 +185,9 @@ const ludoNewRoomGame = (room, playerId, action, p) => {
     wins: prev.wins || {},
     counted: false,
     endsAt: null,
-    clockSeq: null
+    clockSeq: null,
+    // The first turn's clock starts once the phones have shown the roll-off (ludoRollOffPanel).
+    readyAt: Date.now() + off.rounds.length * LUDO_ROLLOFF_ROUND_MS + LUDO_ROLLOFF_TAIL_MS
   });
   room.phase = 'play';
   ludoAfter(room);

@@ -25,6 +25,7 @@
    ========================================================================= */
 
 const BANK_GRACE_MS = 1500;
+const BANK_QUIET_MS = 60000;      // a turn held this long with nothing happening may be played for (JS_RoomBank.html)
 
 /** The players who would play if the game started now: the host's choice, or the first six. */
 const bankLobbySeated = (room) => {
@@ -91,13 +92,23 @@ const bankSeat = (room, playerId, p) => {
   }
 };
 
-/** Everyone at the table with their wins at this game tonight: the board and the night's table. */
+/** Everyone at the table with their wins at this game tonight: the board and the night's table.
+    Level wins are told apart by this game's places (`tie`, boardRowKey in RoomGames.js), so one
+    game banks 5 / 3 / 2 / 1 and not a 3 for everyone after the winner (the review of 1 Oct 2026). */
 const bankBoard = (room) => {
   const s = room.shared;
   const wins = s.wins || {};
+  const places = s.places || [];
+  const placeOf = (id) => (places.indexOf(id) === -1 ? null : places.indexOf(id) + 1);
   return (s.seats || []).filter(id => room.players.some(p => p.id === id))
-    .map(id => ({ id: id, name: roomPlayerName(room, id), score: wins[id] || 0 }))
-    .sort((a, b) => b.score - a.score);
+    .map(id => ({ id: id, name: roomPlayerName(room, id), score: wins[id] || 0, tie: placeOf(id) }))
+    .sort((a, b) => (b.score - a.score) || ((a.tie || 99) - (b.tie || 99)));
+};
+
+/** The game just played, for «مين هيكسب؟»: its places, once it is over. */
+ROOM_RESULT_BOARDS.bank = (room) => {
+  const s = room.shared || {};
+  return s.phase === 'gameover' && Array.isArray(s.places) && s.places.length ? roomResultRows(room, s.places.map(id => [id]).concat([s.seats || []])) : null;
 };
 
 /** After anything that moved the game on: the turn clock, the winner's win, the board. */
@@ -117,6 +128,9 @@ const bankRoomAfter = (room) => {
     if (!secs) s.clockEndsAt = null;
     else if (s.clockTurnNo !== s.turnNo) { s.clockTurnNo = s.turnNo; s.clockEndsAt = Date.now() + secs * 1000; }
   }
+  // When the table last saw something happen on this turn (the phones' turnSince): «العب بداله».
+  const quietKey = s.turnSeq + '|' + s.eventSeq;
+  if (room._bank && room._bank.quietKey !== quietKey) { room._bank.quietKey = quietKey; room._bank.quietAt = Date.now(); }
   s.board = bankBoard(room);
 };
 
@@ -181,6 +195,13 @@ const bankAction = (room, playerId, action, payload) => {
   if (action === 'skipTurn') {
     requireMoveOn(room, playerId);
     if (bankStale(s, p, 'seq')) return;
+    // «العب بداله» is for a phone that went quiet - gone, or holding the turn BANK_QUIET_MS with
+    // nothing happening - as the phones draw it (bankHostButtons). The server checks it too, or
+    // anyone could play anyone's turn once the host was away (the review of 1 Oct 2026). Who is
+    // connected comes from room.js for this one move (`_online`); without it, nobody counts as here.
+    const up = s.turn && s.turn.pid;
+    const here = Array.isArray(room._online) && room._online.indexOf(up) !== -1;
+    if (here && now - (priv.quietAt || 0) < BANK_QUIET_MS) throw new Error('استنى شوية: لسه بيلعب دوره');
     bankEvent(s, 'auto', { pid: s.turn.pid, why: 'host' });
     bankAuto(s, priv, s.turn.pid, Math.random, now);
     bankRoomAfter(room);

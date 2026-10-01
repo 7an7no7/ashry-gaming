@@ -391,7 +391,8 @@ const leave = (r, id, hook = true) => {
   applyRoomAction(r, 'a', 'start', { lang: 'ar', count: 5 });
   check(JSON.stringify(r.night) === afterOne, 'night: dealing the next game keeps the evening so far');
 
-  // لو خيروك and مين أكثر واحد are polls: they keep no score, so they add nothing.
+  // لو خيروك is a poll everyone plays together: one rule with برنامج السهرة (nightPlacesOf, the
+  // review of 1 Oct 2026) - a co-op game puts everyone who played first.
   const poll = newRoom(['a', 'b', 'c']);
   applyRoomAction(poll, 'a', 'chooseGame', { game: 'wouldyou' });
   applyRoomAction(poll, 'a', 'start', { lang: 'ar' });
@@ -399,7 +400,19 @@ const leave = (r, id, hook = true) => {
   applyRoomAction(poll, 'b', 'vote', { option: 'a' });
   applyRoomAction(poll, 'c', 'vote', { option: 'b' });
   applyRoomAction(poll, 'a', 'backToHub', {});
-  check(!poll.night || !Object.keys(poll.night).length, 'night: a game with no score at all adds nothing to the evening');
+  check(JSON.stringify(poll.night) === JSON.stringify({ a: 5, b: 5, c: 5 }) && !(poll.nightx.wins || []).length,
+    'night: a co-op game (لو خيروك) is everyone first, as in the program: 5 each, no first places');
+
+  // A game left before anybody scored is "played" for everyone (1 each); one chosen and never dealt adds nothing.
+  const cutr = newRoom(['a', 'b', 'c']);
+  applyRoomAction(cutr, 'a', 'chooseGame', { game: 'trivia' });
+  applyRoomAction(cutr, 'a', 'backToHub', {});
+  check(!cutr.night || !Object.keys(cutr.night).length, 'night: a game chosen and never started adds nothing');
+  applyRoomAction(cutr, 'a', 'chooseGame', { game: 'trivia' });
+  applyRoomAction(cutr, 'a', 'start', { lang: 'ar', count: 5 });
+  cutr.players.push({ id: 'late', name: 'LATE' });   // joined to watch
+  applyRoomAction(cutr, 'a', 'backToHub', {});
+  check(JSON.stringify(cutr.night) === JSON.stringify({ a: 1, b: 1, c: 1 }), 'night: a game cut short before anybody scored is 1 each for who played, nothing for a watcher');
 }
 
 {
@@ -3463,7 +3476,8 @@ Date.now = duelTestClock;
   check(lr.phase === 'play' && ls.seats.length === 4 && ls.seats.indexOf('r') === -1 && ls.colors.p === 'G' && ls.colors.s === 'Y' && new Set(Object.values(ls.colors)).size === 4,
     'ludo room: the four seated play, in the colours they picked and the rest filled in');
   check(ls.events[0].type === 'rolloff' && ls.events[0].first === ls.turn.pid && ls.roster.indexOf('r') !== -1, 'ludo room: the roll-off decides who starts; the fifth watches the board');
-  check(ls.endsAt === clock + 15000, "ludo room: the host's turn clock starts");
+  check(ls.endsAt === clock + 15000 + ls.events[0].rounds.length * 1150 + 1500 && ls.readyAt === ls.endsAt - 15000,
+    "ludo room: the host's turn clock starts once the roll-off has been shown (readyAt)");
   // The clock runs out: the phone rolls and moves for whoever is up.
   const upT = ls.turn.pid;
   check(roomTimeout(lr, ls.endsAt + 2000) === true && lr.shared.events.some((e) => e.type === 'auto' && e.pid === upT && e.why === 'clock'),
@@ -3528,6 +3542,44 @@ Date.now = duelTestClock;
   check(!!f && f.pid === who && f.move.action === 'move' && f.move.payload.piece === 0, 'ludo room: one piece to move is moved for the player after a beat');
   fs.turn.stage = 'roll';
   check(!roomForcedMove(fm), "ludo room: the roll is always the player's own tap");
+
+  // The review of 1 Oct 2026: a whole game of four banks 5 / 3 / 2 / 1 by its places, «مين هيكسب؟»
+  // is settled on the game just played, and play again seats a watcher in a free seat.
+  {
+    const wr = newRoom(['h', 'p', 'q', 'r']);
+    applyRoomAction(wr, 'h', 'chooseGame', { game: 'ludo' });
+    applyRoomAction(wr, 'h', 'start', {});
+    let guard = 0;
+    while (wr.shared.phase === 'play' && guard++ < 20000) applyRoomAction(wr, 'h', 'skipTurn', { seq: wr.shared.turnSeq });
+    const pl = wr.shared.places;
+    check(wr.shared.phase === 'gameover' && pl.length === 4 && wr.shared.board.map((x) => x.id).join() === pl.join(),
+      'ludo room: the board ranks level wins by this game\'s places');
+    const nr = structuredClone(wr);
+    applyRoomAction(nr, 'h', 'backToHub', {});
+    check(pl.map((id) => nr.night[id]).join() === '5,3,2,1', 'ludo room: one game of four banks 5 / 3 / 2 / 1, not a 3 for everyone after the winner');
+    // The evening's tally led by someone else: the guess on this game's winner is still right.
+    const pr = structuredClone(wr);
+    pr.shared.wins = { [pl[1]]: 3, [pl[0]]: 1 };
+    pr.shared.board = [pl[1], pl[0], pl[2], pl[3]].map((id) => ({ id, name: id, score: pr.shared.wins[id] || 0 }));
+    pr.predict = { game: 'ludo', until: clock + 60000, picks: { [pl[2]]: pl[0], [pl[3]]: pl[1] } };
+    applyRoomAction(pr, 'h', 'backToHub', {});
+    check(pr.nightx.pred[pl[2]] === 1 && !pr.nightx.pred[pl[3]], '«مين هيكسب؟» on لودو is settled on the game just played, not the evening\'s tally');
+    // Play again: a seat emptied and a latecomer watching: they are dealt in.
+    const ar = structuredClone(wr);
+    ar.players = ar.players.filter((x) => x.id !== pl[3]);
+    ar.players.push({ id: 'z', name: 'Z' });
+    applyRoomAction(ar, 'h', 'playAgain', {});
+    check(ar.shared.phase === 'play' && ar.shared.seats.length === 4 && ar.shared.seats.indexOf('z') !== -1 && ar.shared.colors.z,
+      'ludo room: play again seats a latecomer in a free seat, with a colour');
+    const two = newRoom(['h', 'p']);
+    applyRoomAction(two, 'h', 'chooseGame', { game: 'ludo' });
+    applyRoomAction(two, 'h', 'start', {});
+    two.shared.phase = 'gameover'; two.phase = 'gameover';
+    two.players = two.players.filter((x) => x.id !== 'p');
+    two.players.push({ id: 'z', name: 'Z' });
+    check(!threw(() => applyRoomAction(two, 'h', 'playAgain', {})) && two.shared.seats.slice().sort().join() === 'h,z',
+      'ludo room: play again with one left and a watcher doesn\'t refuse: the watcher sits down');
+  }
 }
 
 /* --- بنك الحظ: the board, every rule, the room, and whole games of computer players ------ */
@@ -3792,6 +3844,7 @@ Date.now = duelTestClock;
   let ended = 0;
   let games = 0;
   let conserved = true;
+  let bankFour = null;
   for (const n of [2, 3, 4, 6]) {
     for (const lvl of ['easy', 'hard', 'mix']) {
       games++;
@@ -3812,12 +3865,19 @@ Date.now = duelTestClock;
       }
       if (r.shared.phase === 'gameover' && r.shared.places.length === n) ended++;
       else console.log('  ! bank game', n, lvl, r.shared.phase, r.shared.turn && r.shared.turn.stage, JSON.stringify(r.shared.cash));
+      if (n === 4 && lvl === 'easy' && r.shared.phase === 'gameover') bankFour = structuredClone(r);
     }
   }
   console.error = errorWas;
   check(ended === games, `bank bots: ${games} whole games of bots, 2-6 players, easy and hard, played to the end of the time (${ended})`);
   check(!errors.length, 'bank bots: no bot move was ever refused' + (errors.length ? ': ' + errors[0] : ''));
   check(conserved, 'bank: nobody\'s cash ever goes below nothing');
+  if (bankFour) {
+    // The review of 1 Oct 2026: one game of four banks 5 / 3 / 2 / 1 by its places.
+    const pl = bankFour.shared.places.slice();
+    applyRoomAction(bankFour, 'h', 'backToHub', {});
+    check(pl.map((id) => bankFour.night[id]).join() === '5,3,2,1', 'bank room: one game of four banks 5 / 3 / 2 / 1, not a 3 for everyone after the winner');
+  } else check(false, 'bank room: a game of four bots ended, for the night\'s check');
 
   // The room keeps the decks to itself.
   const rr = newRoom(['h', 'p']);
@@ -3962,6 +4022,29 @@ Date.now = duelTestClock;
     rr.shared.phase = 'gameover'; rr.phase = 'gameover';
     applyRoomAction(rr, 'h', 'playAgain', {});
     check(rr.shared.clock === 60, 'bank room: play again keeps the turn clock');
+
+    // «العب بداله» once the host is away: only for a phone that went quiet - gone, or holding the
+    // turn 60 s with nothing happening (the review of 1 Oct 2026: it was checked on the phones only).
+    const qr = newRoom(['h', 'p', 'q']);
+    applyRoomAction(qr, 'h', 'chooseGame', { game: 'bank' });
+    applyRoomAction(qr, 'h', 'start', {});
+    const upQ = qr.shared.turn.pid;
+    const other = ['h', 'p', 'q'].find((id) => id !== upQ && id !== 'h') || ['h', 'p', 'q'].find((id) => id !== upQ);
+    const seqQ = qr.shared.turnSeq;
+    qr._hostAway = true; qr._online = ['h', 'p', 'q'];
+    check(threw(() => applyRoomAction(qr, other, 'skipTurn', { seq: seqQ })) && qr.shared.turnSeq === seqQ,
+      'bank room: a stand-in can\'t play for someone here and playing their turn');
+    qr._online = ['h', 'p', 'q'].filter((id) => id !== upQ);
+    applyRoomAction(qr, other, 'skipTurn', { seq: seqQ });
+    check(qr.shared.turnSeq !== seqQ && qr.shared.events.some((e) => e.type === 'auto' && e.pid === upQ), 'bank room: a phone that is gone can be played for');
+    const upQ2 = qr.shared.turn.pid;
+    const seqQ2 = qr.shared.turnSeq;
+    const other2 = ['h', 'p', 'q'].find((id) => id !== upQ2);
+    qr._online = ['h', 'p', 'q'];
+    clock += 60001;
+    check(!threw(() => applyRoomAction(qr, other2, 'skipTurn', { seq: seqQ2 })) && qr.shared.turnSeq !== seqQ2,
+      'bank room: and so can a turn held a minute with nothing happening');
+    delete qr._hostAway; delete qr._online;
   }
 }
 
@@ -5510,6 +5593,14 @@ Date.now = duelTestClock;
     d(r, D, 'pass');
     check(r.shared.phase === 'gameover' && r.shared.places.join() === [A, B, C, D].join() && r.shared.winners[0] === A,
       'doubt: places: the game ends with one left, every place given');
+    // The review of 1 Oct 2026: the night banks this game's places, and «مين هيكسب؟» is settled on
+    // this game's winner, even with the evening's tally led by someone else.
+    const nr = structuredClone(r);
+    nr.shared.wins = { [D]: 3, [A]: 1 };
+    nr.predict = { game: 'doubt', until: clock + 60000, picks: { [B]: A, [C]: D } };
+    applyRoomAction(nr, nr.hostId, 'backToHub', {});
+    check([A, B, C, D].map((id) => nr.night[id]).join() === '5,3,2,1', 'doubt: one game of four banks 5 / 3 / 2 / 1 by its places, not the tally');
+    check(nr.nightx.pred[B] === 1 && !nr.nightx.pred[C], 'doubt: «مين هيكسب؟» is settled on the game just played');
   }
 
   {
@@ -5713,6 +5804,13 @@ Date.now = duelTestClock;
     check(s.phase === 'gameover' && s.loser === A && s.losses[A] === 1 && s.reveal.pid === A && s.reveal.cards.join() === 'OM',
       'oldmaid: the last holding cards holds الشايب and loses; only now is it shown');
     check(s.board[s.board.length - 1].id === A && s.board[0].score === 0, 'oldmaid: the board puts the fewest times الشايب first');
+    {
+      // The review of 1 Oct 2026: the night banks this game's places (safe in order, الشايب last),
+      // not the tally where every non-loser was first.
+      const nr = structuredClone(r);
+      applyRoomAction(nr, 'a', 'backToHub', {});
+      check(nr.night[A] === 2 && [nr.night[B], nr.night[C]].sort().join() === '3,5', 'oldmaid: one game banks 5 / 3 by the order out and 2 for الشايب');
+    }
     applyRoomAction(r, 'a', 'playAgain', {});
     check(r.shared.phase === 'play' && r.shared.losses[A] === 1 && !r.shared.reveal && !r.shared.loser, 'oldmaid: play again keeps the tally, and hides everything again');
   }
@@ -9792,6 +9890,16 @@ Date.now = duelTestClock;
     }
     check(s.phase === 'gameover' && s.winners.join() === B && s.why === 'wins' && s.tally[B] === 1 && s.board[0].id === B,
       'skull: two won bets win the game, counted on the night\'s board');
+    {
+      // The review of 1 Oct 2026: the night and «مين هيكسب؟» go by this game, not the evening's tally.
+      const nr = structuredClone(r);
+      nr.shared.tally = { [s.order.find((id) => id !== B)]: 4, [B]: 1 };
+      const voter = s.order.find((id) => id !== B);
+      nr.predict = { game: 'skull', until: clock + 60000, picks: { [voter]: B } };
+      applyRoomAction(nr, nr.hostId, 'backToHub', {});
+      check(nr.night[B] === 5 && s.order.filter((id) => id !== B).every((id) => nr.night[id] === 3) && nr.nightx.pred[voter] === 1,
+        'skull: this game\'s winner banks 5 and is the right guess, whoever leads the evening\'s tally');
+    }
     applyRoomAction(r, r.hostId, 'playAgain', {});
     check(s !== r.shared && r.shared.phase === 'place' && r.shared.tally[B] === 1 && !Object.keys(r.shared.wins).length,
       'skull: play again keeps the tally, and the bets start over');
@@ -10237,6 +10345,17 @@ Date.now = duelTestClock;
   check(s.phase === 'gameover' && r.phase === 'gameover' && s.places.length === 4, 'snakes room: the clock, the host and the computer player play a whole game to its end');
   check(whys.has('clock') && whys.has('host'), 'snakes room: the clock and the host\'s "play for" roll for a quiet phone');
   check(s.wins[s.places[0]] === 1 && s.board[0].id === s.places[0], 'snakes room: the winner\'s win counts on the night\'s board');
+  {
+    // The review of 1 Oct 2026: one game of four banks 5 / 3 / 2 / 1 by its places (the computer
+    // player takes its place), and play again deals in someone who joined to watch.
+    const nr = structuredClone(r);
+    applyRoomAction(nr, 'h', 'backToHub', {});
+    check(s.places.map((id) => nr.night[id]).join() === '5,3,2,1', 'snakes room: one game of four banks 5 / 3 / 2 / 1, not a 3 for everyone after the winner');
+    const ar = structuredClone(r);
+    ar.players.push({ id: 'z', name: 'Z' });
+    applyRoomAction(ar, 'h', 'playAgain', {});
+    check(ar.shared.seats.length === 5 && ar.shared.seats.indexOf('z') !== -1 && ar.shared.colors.z, 'snakes room: play again seats a latecomer, with a colour');
+  }
   const seqBefore = s.turnSeq, seedBefore = s.map.seed;
   applyRoomAction(r, 'h', 'playAgain', {});
   check(r.shared.phase === 'play' && r.shared.map.seed !== seedBefore && r.shared.turnSeq > seqBefore && r.shared.wins[s.places[0]] === 1 &&
@@ -11519,6 +11638,11 @@ Date.now = duelTestClock;
   check(r0.nightx && Array.isArray(r0.nightx.programs) && r0.nightx.programs.length === 1 && r0.nightx.programs[0].table[0].pts === 11,
     'program: the finale is kept on the night (room.nightx.programs) for the crew night recording');
   check(f0.awards.some((x) => x.k === 'trivia' && x.id === 'a'), 'program: an award from real play (the quickest right answer)', JSON.stringify(f0.awards));
+  // One source of truth (the review of 1 Oct 2026): a scored game, one cut short and a co-op game
+  // cut short, and a leaver - the room's own night has exactly the program's points.
+  check(Object.keys(r0.program.table).every((id) => (r0.night[id] || 0) === r0.program.table[id].pts) &&
+    Object.keys(r0.night).every((id) => r0.program.table[id]),
+    'program: the room\'s night («ليالينا», الشلة) and the program\'s table agree, game by game', JSON.stringify({ night: r0.night, table: r0.program.table }));
   check(threwP(() => applyRoomAction(r0, 'b', 'programClose', {})), 'program: only the host closes the finale');
   applyRoomAction(r0, 'a', 'programClose', {});
   check(r0.program === null && !r0._progLog, 'program: closed, the room is back to its hub');
@@ -11598,6 +11722,31 @@ Date.now = duelTestClock;
   }
   const g5 = r4.program.gained || {};
   check(r4.program.phase === 'result' && g5.a === 5 && g5.b === 5 && r4.program.table.a.firsts === 0, 'program: العقل played to its end: 5 each, and no first places', JSON.stringify({ g5, ph: r4.shared.phase, rp: r4.phase }));
+  {
+    // The review of 1 Oct 2026: a co-op game with someone who joined to watch, then a game where
+    // everyone is level - the night and the program bank the same, the watcher nothing.
+    const r6 = P(['a', 'b']);
+    play3(r6, [{ id: 'mind' }, { id: 'buzzer' }, { id: 'buzzer' }]);
+    tickTo(r6, 8000);
+    r6.players.push({ id: 'z', name: 'Z' });   // joined mid-game: watches
+    for (let i = 0; i < 60 && r6.program.phase === 'playing'; i++) {
+      if (r6.phase === 'levelDone') { applyRoomAction(r6, 'a', 'nextLevel', {}); continue; }
+      const low = (id) => Math.min(...(((r6.secrets || {})[id] || {}).cards || [1000]));
+      const who = ['a', 'b'].filter((id) => low(id) < 1000).sort((x, y) => low(y) - low(x))[0];
+      if (!who) break;
+      try { applyRoomAction(r6, who, 'play', {}); } catch (e) { break; }
+    }
+    tickTo(r6, 9000);   // the result gives way: the room leaves the game and banks its night
+    const agree = (r) => Object.keys(r.program.table).every((id) => (((r.night || {})[id]) || 0) === r.program.table[id].pts);
+    check(r6.program.phase === 'between' && r6.night.a === 5 && r6.night.b === 5 && !r6.night.z && agree(r6),
+      'program: a co-op game: the night gives everyone who played 5, as the program does, and the watcher nothing', JSON.stringify({ n: r6.night, t: r6.program.table }));
+    // The buzzer, everyone level at its end (nobody right): first for all, on both tables.
+    tickTo(r6, 10000);
+    for (let q = 0; q < 12 && r6.program.phase === 'playing'; q++) applyRoomAction(r6, 'a', 'reset', {});
+    check(r6.program.phase === 'result', 'program: the buzzer with nobody right ends after its questions');
+    tickTo(r6, 9000);
+    check(agree(r6), 'program: a game everyone finished level: the night and the program agree, latecomer included', JSON.stringify({ n: r6.night, t: r6.program.table }));
+  }
 
   // An endless game ends after its rounds: لو خيروك, five rounds.
   const r5 = P(['a', 'b', 'c']);

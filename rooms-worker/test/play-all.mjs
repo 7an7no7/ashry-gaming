@@ -6403,7 +6403,7 @@ async function missionRobots() {
   check(people.every((b) => b.state.mission.me.to !== b.pid), 'mission: nobody is their own target');
   check(TV.state.mission.me === null && TV.state.mission.asks.length === 0, 'mission: the TV holds no file');
   // What a phone is sent of the mission: the public part, its own file, the memos waiting on it - nothing else.
-  const KEYS = 'asks,catch,co,feed,me,names,on,paused,phase,place,reveal,score,startedAt,swap';
+  const KEYS = 'asks,catch,co,feed,gift,me,names,on,paused,phase,place,reveal,score,startedAt,swap';
   check(everyone().every((b) => Object.keys(b.state.mission).sort().join(',') === KEYS), 'mission: no phone is sent anything of another\'s file');
   check(H.state.chat.some((m) => m.sys === 'missionOn'), 'mission: the chat says it is on');
   // Done → the target is asked → no → yes.

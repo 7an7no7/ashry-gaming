@@ -80,6 +80,16 @@ to the server whenever a room was still open on the phone.
 card starts with none of the three marked (`ttLie = null`), and «إرسال» asks for one
 (`tt_need_lie`); the server already refused a sheet without `lie`.
 
+**The English lists grown** (the review of 1 Oct 2026). كمّل المثل in English had 73
+proverbs and فوازير إيموجي 128 riddles (the Arabic 160 and 198); now 164 and 232: the
+sayings an English-speaking family finishes without thinking (Better safe than ___,
+Haste makes ___, Once bitten, twice ___), and riddles in the five kinds already there -
+Movies (Star Wars, Mary Poppins, Paddington), Animated films (Monsters, Inc., Mulan,
+Peppa Pig), Idioms (Break a leg, Couch potato, Over the moon), Food (Koshari, Molokhia,
+Cotton candy) and Places (Luxor, Venice, the Great Wall of China). The checks are the
+ones the lists already had: one blank, the answer not written in the proverb, no answer
+or emoji twice.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

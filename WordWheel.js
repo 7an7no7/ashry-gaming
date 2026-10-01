@@ -38,7 +38,19 @@ function wheelDictionary(lang) {
   if (WHEEL_DICT[lang]) return WHEEL_DICT[lang];
   const re = lang === 'en' ? /^[A-Z]{3,7}$/ : /^[ء-ي]{3,7}$/;
   const set = new Set();
-  const add = (w) => { const f = wheelFold(w, lang); if (re.test(f)) set.add(f); };
+  wheelBankWords(lang).forEach((w) => { const f = wheelFold(w, lang); if (re.test(f)) set.add(f); });
+  WHEEL_DICT[lang] = [...set];
+  return WHEEL_DICT[lang];
+}
+
+/**
+ * Every entry of the banks at hand in one language, as written (any length, phrases
+ * too): the wheel's dictionary is cut from it, and Wordle's soft "not in our
+ * dictionary" check reads it whole (JS_Wordle.html, the review of 1 Oct 2026).
+ */
+function wheelBankWords(lang) {
+  const out = [];
+  const add = (w) => { if (w) out.push(String(w)); };
   const addAll = (list) => (list || []).forEach(add);
   if (typeof CHAMELEON_DB !== 'undefined') (CHAMELEON_DB[lang] || []).forEach(x => addAll(x.words));
   if (typeof WORDLE_DB !== 'undefined' && WORDLE_DB[lang]) Object.values(WORDLE_DB[lang]).forEach(addAll);
@@ -58,8 +70,7 @@ function wheelDictionary(lang) {
     const cats = (db && db[lang]) || {};
     Object.keys(cats).filter(k => !people.test(k)).forEach(k => addAll(cats[k]));
   });
-  WHEEL_DICT[lang] = [...set];
-  return WHEEL_DICT[lang];
+  return out;
 }
 
 /*

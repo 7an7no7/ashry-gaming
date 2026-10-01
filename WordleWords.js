@@ -342,3 +342,33 @@ const WORDLE_LAYOUTS = {
     en: ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'],
     ar: ['ضصثقفغعهخحجد', 'شسيبلاتنمكط', 'ئءؤرذىةوزظ']
 };
+
+/*
+ * The daily's answer is one word for everyone, so it keeps to words a family spells
+ * one way (the review of 1 Oct 2026). Every word stays in the free game and in rooms;
+ * only تحدي اليوم skips these. In Arabic: a final ي or ى (written either way in
+ * Egypt: كمثرى, كوبري), a hamza on a seat or alone (عصائر / عصاير, صحراء / صحرا), and
+ * the list below - loanwords written with ة or ه or a letter more or less (جاتوه,
+ * بودنج), and colloquial forms beside their proper ones (دايرة, كهربا, قزازة). In
+ * English: the words with a British and an American spelling, and loanwords.
+ * `npm run check` fails on a word here that the 5-letter list doesn't have.
+ */
+const WORDLE_DAILY_SKIP = {
+    ar: [
+        "جاتوه", "لاتيه", "فوتيه", "مايوه", "كافيه", "شاليه", "تورتة", "بودنج", "مشروم", "نودلز",
+        "ناجتس", "درامز", "زومبا", "سيفون", "توستر", "راوتر", "سبيكر", "سايبر", "بلوفر", "بالطو",
+        "كولون", "كوريك", "فلاشة", "شنيور", "رسيفر", "ريموت", "صنفرة", "كاتشب", "مكياج", "بسكوت",
+        "سلمون", "ماموث", "دارتس", "تشيلو", "استاد", "تابلت", "تريلا", "بوسطة", "إيميل", "سنونو",
+        "دايرة", "زايدة", "كهربا", "قزازة", "مراية", "ملاية", "دفاية", "حداية", "شفايف", "ركنية",
+        "جاروف", "بصارة", "شبورة", "طبلية", "صبارة", "مطافي"
+    ],
+    en: ["ARMOR", "RUMOR", "METER", "CHILI", "KOFTA", "PADEL", "PLAIT", "LORRY"]
+};
+
+/** Whether `word` may be a daily's answer in `lang` (WORDLE_DAILY_SKIP and its rules). */
+function wordleDailySafe(word, lang) {
+    const w = String(word || '');
+    if ((WORDLE_DAILY_SKIP[lang] || []).indexOf(w) !== -1) return false;
+    if (lang === 'ar' && (/[يى]$/.test(w) || /[ءئؤ]/.test(w))) return false;
+    return true;
+}

@@ -50,6 +50,34 @@ for (const [dbName, groupCount] of [['CONNECTIONS_EASY', 3], ['CONNECTIONS_DB', 
   }
 }
 
+// Near-duplicate puzzles (the review of 1 Oct 2026: two hard puzzles with the same five
+// "parts of …" groups, the same Korean brands twice). Within one level, two puzzles may not
+// share three category names (folded: case, hamza, ة/ه, ى/ي, "ال"/"the", spaces); a hard
+// puzzle may not repeat another hard puzzle's whole group, either (the same four words, in
+// any order). Easy and medium boards are made of the basic kinds - the seasons, the colours -
+// which can only be one set of four, so a repeated group is allowed there.
+{
+  const foldName = (s) => String(s).toLowerCase().replace(/[\u064B-\u0652\u0640]/g, '').replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[^a-z0-9\u0621-\u064A]/g, '').replace(/^(ال|the)/, '');
+  for (const dbName of ['CONNECTIONS_EASY', 'CONNECTIONS_DB', 'CONNECTIONS_HARD']) {
+    const CONN = load(ROOT + 'ConnectionsWords.js', dbName);
+    for (const [lang, puzzles] of Object.entries(CONN)) {
+      const names = puzzles.map(p => p.groups.map(g => foldName(g.name)));
+      const sets = puzzles.map(p => p.groups.map(g => g.words.map(foldName).sort().join('|')));
+      for (let a = 0; a < puzzles.length; a++) {
+        for (let b = a + 1; b < puzzles.length; b++) {
+          const shared = names[a].filter(n => names[b].indexOf(n) !== -1);
+          if (shared.length >= 3) note(`${dbName}.${lang}[${a}] and [${b}]: ${shared.length} category names in common - one is a near copy of the other`);
+          if (dbName === 'CONNECTIONS_HARD') {
+            const same = puzzles[a].groups.filter((g, i) => sets[b].indexOf(sets[a][i]) !== -1).map(g => g.name);
+            if (same.length) note(`${dbName}.${lang}[${a}] and [${b}]: the same group twice (${same.join(', ')})`);
+          }
+        }
+      }
+    }
+  }
+}
+
 /* -------------------------------------------------------- Party content */
 const PC = ROOT + 'PartyContent.js';
 const WYR = load(PC, 'WOULD_YOU_RATHER');
@@ -222,6 +250,18 @@ for (const [lang, cats] of Object.entries(CHAM)) {
   console.log(`chameleon.${lang}: ${cats.length} categories`);
 }
 if (CHAM.ar.length !== CHAM.en.length) note(`chameleon: ${CHAM.ar.length} ar categories vs ${CHAM.en.length} en`);
+// إيه اللي يجمعهم؟ offers six of these side by side as an icon and a name, so in one language
+// no two categories share either (the review of 1 Oct 2026: two "Sports", two 🌳).
+{
+  const head = load(G + 'SoloShared.js', 'soloCategory');
+  for (const [lang, cats] of Object.entries(CHAM)) {
+    const heads = cats.map(c => head(c.category));
+    const twice = (key) => [...new Set(heads.map(key).filter((v, i, a) => !v || a.indexOf(v) !== i))];
+    const icons = twice(h => h.icon), names = twice(h => h.name.toLowerCase());
+    if (icons.length) note(`chameleon.${lang}: the same icon on two categories (or none) ${JSON.stringify(icons)}`);
+    if (names.length) note(`chameleon.${lang}: two categories with the same name ${JSON.stringify(names)}`);
+  }
+}
 
 // The spy's guess is matched on the location's name, so names must be unique.
 const SPY = load(G + 'SpyfallPlaces.js', 'SPYFALL_DB');
@@ -266,6 +306,20 @@ for (const [lang, byLen] of Object.entries(WORD)) {
     if (dup.length) note(`wordle.${lang}.${len}: duplicates ${JSON.stringify(dup)}`);
   }
   console.log(`wordle.${lang}: ${Object.values(byLen).reduce((n, l) => n + l.length, 0)} words`);
+}
+// The daily's skip list names words the 5-letter list has (a typo there would skip nothing),
+// and leaves the daily a list long enough to go round for months.
+{
+  const SKIP = load(G + 'WordleWords.js', 'WORDLE_DAILY_SKIP');
+  const safe = load(G + 'WordleWords.js', 'wordleDailySafe');
+  for (const [lang, list] of Object.entries(SKIP)) {
+    const five = (WORD[lang] || {})[5] || [];
+    const missing = list.filter(w => five.indexOf(w) === -1);
+    if (missing.length) note(`wordle daily skip ${lang}: not in the 5-letter list ${JSON.stringify(missing)}`);
+    const left = five.filter(w => safe(w, lang)).length;
+    if (left < 200) note(`wordle daily ${lang}: only ${left} words left for the daily`);
+    console.log(`wordle daily ${lang}: ${left} of ${five.length} words`);
+  }
 }
 
 // Describe It: three forbidden words, and no card twice.

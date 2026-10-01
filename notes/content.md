@@ -56,3 +56,20 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     champion"; the White Nile out of Lake Victoria became the Blue Nile out of
     Lake Tana. Golf's «الهرم» is «هرم سقارة المدرّج» (its name only).
   - **الجاسوس in English**: its own words and pairs (*الجاسوس in English*).
+
+- **The review of 1 Oct 2026, content** (Part 2; the owner: "apply the improvements").
+  - **English lists grown**: كمّل المثل 73 → 164 proverbs, فوازير إيموجي 128 → 232
+    riddles, in the kinds already there (`notes/games/party-rooms.md`).
+  - **Wordle's daily keeps to one spelling**: no final ي/ى, no hamza (ء ئ ؤ), no loanword
+    written with ة or ه or a letter more or less, no colloquial form beside its proper one
+    (`WORDLE_DAILY_SKIP`, `wordleDailySafe`); the free game still deals them. Wordle checks
+    a guess against the app's word lists, softly: unknown shakes once, Enter again sends it.
+  - **تشابه**: the near-copy hard puzzles rewritten (15 in each language, 23 two groups),
+    «كلام بنقوله في المناسبات» named «تهاني ومجاملات» (a phrase read as a kind), and a check
+    against near copies (three shared category names in a level; a whole group twice among
+    the hard puzzles).
+  - **The Chameleon's categories** are one icon and one name each in a language (English
+    «Sports 🏅» is «Olympic Sports»; في الحديقة 🌷, أجزاء العربية 🔧, أدوات الرسم 🖌️, ممثلين
+    مصريين 🌟, لاعبين كورة 👟, في ماتش كورة 📣), since إيه اللي يجمعهم؟ offers them side by
+    side; it never offers a category sharing four words with the answer
+    (`notes/games/solo.md`).

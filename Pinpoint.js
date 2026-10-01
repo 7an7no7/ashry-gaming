@@ -18,6 +18,10 @@
 const PIN_ROUNDS = 5;
 const PIN_CLUES = 5;
 const PIN_OPTIONS = 6;
+// A choice sharing this many words with the answer is never offered: 4 of the 5 clues could
+// be its words too, and the round would be a coin toss (the review of 1 Oct 2026: Sports ⚽
+// and Olympic Sports 🏅 share 11).
+const PIN_DECOY_MAX_SHARED = 4;
 
 /** A word as one plain spelling: no diacritics, أ إ آ as ا, ة as ه, ى as ي, lower case (the page's foldWord, letters only). */
 function pinFold(w) {
@@ -28,8 +32,8 @@ function pinFold(w) {
 function pinMakeRound(cats, target, rnd) {
   const fold = pinFold;
   const own = new Set(target.words.map(fold));
-  const others = cats.filter(c => c !== target);
   const overlap = (c) => c.words.filter(w => own.has(fold(w))).length;
+  const others = cats.filter(c => c !== target && overlap(c) < PIN_DECOY_MAX_SHARED);
   const neighbours = soloShuffle(others.filter(c => overlap(c) > 0), rnd).slice(0, 3);
   const decoys = neighbours.concat(soloShuffle(others.filter(c => neighbours.indexOf(c) === -1), rnd)).slice(0, PIN_OPTIONS - 1);
   const decoyWords = new Set();

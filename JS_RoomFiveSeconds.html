@@ -119,10 +119,13 @@ ROOM_GAMES.fiveseconds = {
     const t = TRANSLATIONS[appState.lang];
     const s = state.shared;
     const me = s.turnId === Room.me;
-    const judge = roomMoveOnHtml(state, `
+    // The verdict names the turn it was drawn for (a double tap can't judge the next
+    // player's), and is given once the five seconds are up.
+    const turnKey = fiveRoomTurnKey(s);
+    const judge = s.phase !== 'judging' ? '' : roomMoveOnHtml(state, `
       <div class="btn-row" style="margin-top: var(--sp-3)">
-        <button class="btn btn--success" onclick="roomAct('judge', { ok: true })">✅ ${escapeHTML(t.five_ok || '')}</button>
-        <button class="btn btn--danger-soft" onclick="roomAct('judge', { ok: false })">❌ ${escapeHTML(t.five_fail || '')}</button>
+        <button class="btn btn--success" onclick="roomAct('judge', { ok: true, turn: '${turnKey}' })">✅ ${escapeHTML(t.five_ok || '')}</button>
+        <button class="btn btn--danger-soft" onclick="roomAct('judge', { ok: false, turn: '${turnKey}' })">❌ ${escapeHTML(t.five_fail || '')}</button>
       </div>`, `<div class="waiting-note">${escapeHTML(t.five_wait_judge || '')}</div>`);
     const round = `<div class="cn-score"><span class="cn-score__role">${escapeHTML(t.five_round || '')} ${ltrFrac(s.round, s.rounds)}</span></div>`;
     const last = s.lastName ? `<p class="field__hint" style="text-align:center">${escapeHTML(s.lastName)} ${s.verdict ? '✅' : '❌'} · ${escapeHTML(s.lastPrompt || '')}</p>` : '';
@@ -184,6 +187,9 @@ ROOM_GAMES.fiveseconds = {
   }
 };
 
+/** Which turn a verdict is for: the round and the place in the order (the server's `judge { turn }`). */
+function fiveRoomTurnKey(s) { return (Number(s.round) || 0) + '.' + (Number(s.turn) || 0); }
+
 /* --- the TV ------------------------------------------------------------------ */
 TV_GAMES.fiveseconds = {
   sig: (state) => [state.shared.phase, state.shared.round, state.shared.turn, state.shared.lastName, JSON.stringify(state.shared.scores || {})].join('|'),
@@ -210,7 +216,7 @@ TV_GAMES.fiveseconds = {
             <div class="tv-eyebrow">${escapeHTML(s.turnName || '')}</div>
             ${fivePromptHtml(s, t, true)}
             ${s.phase === 'counting' ? fiveRingHtml(s, true) : `<div class="tv-title tv-danger">⏰ ${escapeHTML(t.five_times_up || '')}</div>`}
-            ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn('✅ ' + (t.five_ok || ''), "roomAct('judge', { ok: true })", 'success') + tvBtn('❌ ' + (t.five_fail || ''), "roomAct('judge', { ok: false })", 'danger-soft')}</div>`)}
+            ${s.phase !== 'judging' ? '' : roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn('✅ ' + (t.five_ok || ''), `roomAct('judge', { ok: true, turn: '${fiveRoomTurnKey(s)}' })`, 'success') + tvBtn('❌ ' + (t.five_fail || ''), `roomAct('judge', { ok: false, turn: '${fiveRoomTurnKey(s)}' })`, 'danger-soft')}</div>`)}
           </div>
         </div>`;
     }

@@ -35,6 +35,18 @@ A TV hosting the room has the phone host's «↺ السؤال من الأول» 
 quiz is done and «صفّر النقاط» always (both `playAgain`), beside 🔄 and
 another game.
 
+## Take-backs (the review of 1 Oct 2026)
+
+- «تصفير النقاط» (the phone and the TV) asks first (`bzResetScores`, `bz_reset_confirm`):
+  it wipes the evening's tally.
+- «↶ رجّع» for the host, under the last verdict (`bzUndoHtml`, phone and TV), sends
+  `undoVerdict { seq }`. Every verdict carries `shared.last.seq` (from
+  `room._bzSeq`, never reused) and the server keeps what it changed in
+  `room._bzUndo`: a ✅ gives its point back and reopens the question with its line
+  (round, buzzes, out, roster - a quiz's answer, once shown, stays shown); a ❌ gives
+  back the point it cost and puts the player first in line again (while the buzzers
+  are live). Only the last verdict, once; a new question, arm or reset clears it.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

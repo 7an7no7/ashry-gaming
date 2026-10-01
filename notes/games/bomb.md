@@ -45,6 +45,12 @@ the big button and «خروج» is a small quiet one under it (`.play-exit`), si
 side on a phone on its side. Upright the bar sits at the foot of the screen
 (`.play-foot`, *The bar of the solo games* in `notes/games/solo.md`).
 
+**The review of 1 Oct 2026.** `swap` carries `swaps` (how many times the host has
+swapped this round, `shared.swaps`): a double tap used to burn two categories. And
+the heat steps are no longer fixed at 40/65/85% of the fuse: each round draws its own
+(`bombHeatSteps`, each moved up to ±8% and kept in order, in `room._bombHeatAt` on
+the server), so timing the first step no longer tells the table when it goes off.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

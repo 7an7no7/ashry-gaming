@@ -34,6 +34,12 @@ axis like Wavelength's spectrum, and mirrored in Arabic it would read 2015
 before 1869. A gap is a button only on your turn and only once you have picked
 a card.
 
+**A board ending names everyone level at the top** (the review of 1 Oct 2026):
+`timelineEndOnBoard` sets `shared.winnerIds` / `winnerNames` to all of them
+(`winnerId` the first, `winnerName` all the names, for an older phone), and the
+phone and the TV say them with `tlWinnersText`. The hidden year on a card is `؟` in
+Arabic and `?` in English.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

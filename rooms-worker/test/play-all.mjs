@@ -6325,12 +6325,19 @@ async function leavemidSeg() {
   await L1.must('backToHub');
   await L1.must('chooseGame', { game: 'justone' });
   await L1.must('start', {});
-  await all([L1, L2, L3], (s) => s.phase === 'writing' && s.shared.guesserId === L1.pid, 'just one for three');
-  await L2.must('submitClue', { clue: 'واحدة' });
+  // The guesser comes from a shuffled order: L3 leaves either way, as the last writer or as the guesser.
+  await all([L1, L2, L3], (s) => s.phase === 'writing' && !!s.shared.guesserId, 'just one for three');
+  const joGuesser = L1.state.shared.guesserId;
+  await (joGuesser === L1.pid ? L2 : L1).must('submitClue', { clue: 'واحدة' });
   await api('/leave', { code: L1.code, pid: L3.pid, key: L3.key });
   L3.close();
-  await all([L1, L2], (s) => s.players.length === 2 && s.phase === 'guessing' && s.shared.clues.length === 1,
-    'the last writer leaving moves the round on to the guess');
+  if (joGuesser === L3.pid) {
+    await all([L1, L2], (s) => s.players.length === 2 && s.phase === 'result' && s.shared.lastResult === 'skipped',
+      'the guesser leaving ends the round');
+  } else {
+    await all([L1, L2], (s) => s.players.length === 2 && s.phase === 'guessing' && s.shared.clues.length === 1,
+      'the last writer leaving moves the round on to the guess');
+  }
 
   // The bomb: whoever holds it leaves, and it goes on to the next player.
   const L6 = await Bot.join(L1.code, 'لين');

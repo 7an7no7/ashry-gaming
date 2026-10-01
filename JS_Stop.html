@@ -112,7 +112,10 @@ function startStopGame() {
 function nextStopLetter() {
   const s = stopState();
   s.round += 1;
-  s.letter = freshPick('stop:letters:' + contentLang(), STOP_LETTERS[contentLang()] || STOP_LETTERS.ar, 1)[0];
+  // Only letters every chosen category can answer (stopLettersFor, StopWords.js), as in the room.
+  const all = STOP_LETTERS[contentLang()] || STOP_LETTERS.ar;
+  const pool = typeof stopLettersFor === 'function' ? stopLettersFor(contentLang(), s.cats, all) : all;
+  s.letter = freshPick('stop:letters:' + contentLang() + (pool.length === all.length ? '' : ':' + s.cats.slice().sort().join('.')), pool, 1)[0];
   s.endsAt = s.timer ? Date.now() + s.timer * 1000 : 0;
   s.phase = 'play';
   s.roundScores = {};

@@ -6,7 +6,7 @@
  *   npm run test:rules      (builds generated/rules.js first)
  */
 import { readFileSync } from 'node:fs';
-import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
+import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, stopLettersFor, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
 import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION_CATCH_WAIT_MS } from '../generated/rules.js';
 let failed = 0;
@@ -140,6 +140,15 @@ check(tt.shared.phase === 'gameover', 'صدق ولا كذب: every storyteller h
 check(tt.shared.caught === null && tt.shared.fooled === null, 'صدق ولا كذب: the round data is cleared at the end, as before');
 check(!!tt.shared.bestLiar && tt.shared.bestLiar.n === 2, 'صدق ولا كذب: the one who fooled the most takes the title');
 check(tt.shared.bestLiar.id === tt.shared.order[0], 'صدق ولا كذب: and it is the right player');
+{
+  // A sheet with no lie marked is refused: the phone no longer marks statement 1 by default.
+  const t2 = newRoom(['a', 'b', 'c']);
+  applyRoomAction(t2, 'a', 'chooseGame', { game: 'twotruths' });
+  applyRoomAction(t2, 'a', 'start', {});
+  let noLie = false;
+  try { applyRoomAction(t2, 'b', 'submit', { statements: ['x', 'y', 'z'] }); } catch (e) { noLie = true; }
+  check(noLie && (t2.shared.submitted || []).indexOf('b') === -1, 'صدق ولا كذب: a sheet with no lie marked is refused');
+}
 
 /* --- codenames: the options and the server's own clock -------------------- */
 const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
@@ -202,6 +211,23 @@ const ess = stopRound('S', {
 });
 check(ess.pts('a') === '5,5,10' && ess.pts('b') === '5,5,5' && ess.pts('c') === '10,10,5',
       'stop: case and "the" are ignored in English');
+
+/* Stop: a letter is dealt only when every chosen category has words on it (وقف needs a full sheet). */
+{
+  const r = newRoom(['a', 'b', 'c']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'stop' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', cats: ['name', 'country', 'color'], timer: 0, rounds: 10 });
+  const dealt = [r.shared.letter];
+  for (let i = 1; i < 10; i++) {
+    ['a', 'b', 'c'].forEach((id) => applyRoomAction(r, id, 'submit', { answers: {}, round: r.shared.round }));
+    applyRoomAction(r, 'a', 'nextRound', {});
+    dealt.push(r.shared.letter);
+  }
+  const ok = stopLettersFor('ar', ['name', 'country', 'color'], 'ا ب ت ث ج ح خ د ر ز س ش ص ض ط ع غ ف ق ك ل م ن ه و ي'.split(' '));
+  check(dealt.length === 10 && dealt.every((l) => ok.indexOf(l) !== -1) && ok.indexOf('ث') === -1 && ok.indexOf('ض') === -1,
+        'stop: ten rounds of a name, a country and a colour deal no letter one of them has no words on');
+  check(stopLettersFor('ar', ['color'], ['ث', 'ظ']).join() === 'ث,ظ', 'stop: when no letter fits every category, any letter is dealt');
+}
 
 /* Stop: وقف needs a full sheet, and the dictionary marks what it doesn't know. */
 check(stopAnswerFits('الأسد', 'ar', 'ا') && stopAnswerFits('سمك', 'ar', 'س') && !stopAnswerFits('س', 'ar', 'س') && !stopAnswerFits('قطة', 'ar', 'س'),
@@ -478,14 +504,64 @@ const leave = (r, id, hook = true) => {
   const r = newRoom(['a', 'b', 'c', 'd']);
   applyRoomAction(r, 'a', 'chooseGame', { game: 'justone' });
   applyRoomAction(r, 'a', 'start', {});
-  applyRoomAction(r, 'b', 'submitClue', { clue: 'زززز' });
-  applyRoomAction(r, 'c', 'submitClue', { clue: 'الزززز' });
-  leave(r, 'd');
+  // The guesser is drawn from a shuffled order: the writers are whoever else is at the table.
+  const guesser = r.shared.guesserId;
+  const writers = ['a', 'b', 'c', 'd'].filter((id) => id !== guesser);
+  applyRoomAction(r, writers[0], 'submitClue', { clue: 'زززز' });
+  applyRoomAction(r, writers[1], 'submitClue', { clue: 'الزززز' });
+  leave(r, writers[2]);
   check(r.shared.phase === 'guessing' && r.shared.clues.length === 2 && r.shared.clues.every((c) => c.removed && c.text === '') && JSON.stringify(r.shared).indexOf('زززز') === -1,
     'just one: the last writer leaving hands on the clues, the removed ones without their text');
-  leave(r, 'a');
+  leave(r, guesser);
   check(r.shared.phase === 'result' && r.shared.lastResult === 'skipped' && !!r.shared.secretWord && r.shared.clues.some((c) => c.text === 'الزززز'),
     'just one: the guesser leaving ends the round, the word and the clues shown');
+}
+
+{
+  // ارسم وخمّن and كلمة واحدة: the drawer / guesser walks a shuffled order - once each a lap,
+  // and nobody twice (nor skipped) when someone before the pointer leaves.
+  const walk = (game, start, next, upOf) => {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game });
+    applyRoomAction(r, 'a', 'start', start);
+    const ups = [upOf(r)];
+    for (let i = 0; i < 5; i++) { next(r); ups.push(upOf(r)); }
+    const order = r.shared.turnOrder.slice();
+    check(new Set(ups.slice(0, 4)).size === 4 && ups.join() === order.concat(order.slice(0, 2)).join(),
+      game + ': four rounds, four different players up, then the same order again');
+    // The pointer is on order[1]: order[0] leaves, and order[2] is next.
+    const gone = order[0];
+    if (gone === r.hostId) r.hostId = order[1];
+    leave(r, gone);
+    next(r);
+    check(upOf(r) === order[2], game + ': someone before the pointer leaves, and the next in the order is up');
+    return r;
+  };
+  walk('drawguess', { lang: 'ar' }, (r) => { applyRoomAction(r, r.hostId, 'giveUp', {}); applyRoomAction(r, r.hostId, 'nextRound', {}); }, (r) => r.shared.drawerId);
+  const joNext = (r) => {
+    if (r.shared.phase === 'writing') applyRoomAction(r, r.hostId, 'closeWriting', {});
+    if (r.shared.phase === 'guessing') applyRoomAction(r, r.hostId, 'skipGuess', {});
+    applyRoomAction(r, r.hostId, 'nextRound', {});
+  };
+  walk('justone', {}, joNext, (r) => r.shared.guesserId);
+
+  // كلمة واحدة and من أنا؟ deal through the prompt memory: no word again until the list is through.
+  const jo = newRoom(['a', 'b', 'c']);
+  applyRoomAction(jo, 'a', 'chooseGame', { game: 'justone' });
+  applyRoomAction(jo, 'a', 'start', { words: ['ق1', 'ق2', 'ق3'], lang: 'ar' });
+  const joWords = [jo._joWord];
+  for (let i = 0; i < 2; i++) { joNext(jo); joWords.push(jo._joWord); }
+  check(new Set(joWords).size === 3 && !!jo._used && Object.keys(jo._used).some((k) => k.indexOf('justone_') === 0),
+    'just one: three rounds of a list of three deal each word once, through the prompt memory');
+  const wa = newRoom(['a', 'b', 'c']);
+  applyRoomAction(wa, 'a', 'chooseGame', { game: 'whoami' });
+  const cast = ['ش1', 'ش2', 'ش3', 'ش4', 'ش5', 'ش6'];
+  applyRoomAction(wa, 'a', 'start', { words: cast, cat: 'ناس', lang: 'ar' });
+  const first = Object.values(wa._assignments);
+  applyRoomAction(wa, 'a', 'restart', {});
+  applyRoomAction(wa, 'a', 'start', { words: cast, cat: 'ناس', lang: 'ar' });
+  const second = Object.values(wa._assignments);
+  check(new Set(first.concat(second)).size === 6, 'whoami: a second game in the room deals none of the first one\'s characters');
 }
 
 {
@@ -568,6 +644,17 @@ const leave = (r, id, hook = true) => {
   applyRoomAction(r, 'a', 'submit', { text: 'x', round });
   check(r.shared.submitted.length === 0, 'herd: an answer to the last question is dropped');
 }
+{
+  // زي الكل: out of rounds with nobody at the target, everyone level at the top wins, not only the first row.
+  const r = newRoom(['a', 'b', 'c']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'herd' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', target: 10 });
+  r.shared.scores = { a: 3, b: 3, c: 1 };
+  r.shared.round = 40;
+  [['a', 'قطة'], ['b', 'كلب'], ['c', 'حصان']].forEach(([id, text]) => applyRoomAction(r, id, 'submit', { text }));
+  applyRoomAction(r, 'a', 'score', {});
+  check(r.shared.phase === 'gameover' && (r.shared.winners || []).slice().sort().join() === 'A,B', 'herd: the 40-round end names everyone tied at the top');
+}
 
 {
   // ارسم واكتب: nobody waits on a leaver, and a late drawing is not filed on the next step.
@@ -608,6 +695,26 @@ const leave = (r, id, hook = true) => {
   const order = bomb.shared.order;
   leave(bomb, holder);
   check(bomb.shared.holderId === order[(order.indexOf(holder) + 1) % 3], 'bomb: the holder leaves, the next in the order holds it');
+}
+
+{
+  // خمس ثواني: the verdict waits for the five seconds, and names the turn it is for.
+  const r = newRoom(['a', 'b', 'c']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'fiveseconds' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', rounds: 1 });
+  const first = r.shared.turnId;
+  applyRoomAction(r, first, 'go', {});
+  applyRoomAction(r, 'a', 'judge', { ok: true });
+  check(r.shared.phase === 'counting' && !(r.shared.scores || {})[first], 'five seconds: no verdict while the five seconds run');
+  roomTimeout(r, r.shared.endsAt + 1000);
+  const turnKey = r.shared.round + '.' + r.shared.turn;
+  applyRoomAction(r, 'a', 'judge', { ok: true, turn: turnKey });
+  check(r.shared.scores[first] === 1 && r.shared.phase === 'ready', 'five seconds: the verdict for the turn the phone saw counts');
+  const second = r.shared.turnId;
+  applyRoomAction(r, second, 'go', {});
+  roomTimeout(r, r.shared.endsAt + 1000);
+  applyRoomAction(r, 'a', 'judge', { ok: true, turn: turnKey });
+  check(r.shared.phase === 'judging' && !(r.shared.scores || {})[second], 'five seconds: a second tap on the last verdict doesn\'t judge the next player');
 }
 
 {
@@ -2205,6 +2312,19 @@ const leave = (r, id, hook = true) => {
     check(r.shared.last.right === false && r.shared.phase === 'gameover' && r.shared.ended === 'deck',
           'timeline: a wrong placement with the deck empty ends the game');
     check(r.shared.winnerId !== who || (r.shared.scores || {})[who] > 0, 'timeline: and emptying a hand that way wins nothing');
+  }
+  // Ended on the board with two level at the top: both win, not only the first row.
+  {
+    const r = tlStart(['a', 'b', 'c']);
+    const who = up(r);
+    const others = ['a', 'b', 'c'].filter((id) => id !== who);
+    r.shared.scores = { [who]: 0, [others[0]]: 2, [others[1]]: 2 };
+    r._timeline.deck = [];
+    const card = hand(r, who)[0];
+    r.shared.timeline = [{ id: 'seed', text: 'seed', y: card.y - 1 }];
+    applyRoomAction(r, who, 'place', { card: card.id, at: 0 });
+    check(r.shared.phase === 'gameover' && r.shared.ended === 'deck' && (r.shared.winnerIds || []).slice().sort().join() === others.slice().sort().join() &&
+          r.shared.winnerNames.length === 2, 'timeline: a board ending names everyone level at the top');
   }
 
   // Seat 0 leaving on their turn hands it to seat 1, not seat 2.
@@ -11323,6 +11443,56 @@ Date.now = duelTestClock;
   applyRoomAction(mk, 'a', 'letter', { ch: 'م' });
   leave(mk, 'a');
   check(mk.shared.letters.length === 0, 'monkey: a word whose last letter was the leaver\'s starts over');
+
+  // ربع قرد: a flip that takes back the quarter that made a monkey: not the new monkey any more.
+  const mf2 = newRoom(['a', 'b', 'c']);
+  applyRoomAction(mf2, 'a', 'chooseGame', { game: 'monkey' });
+  applyRoomAction(mf2, 'a', 'start', { lang: 'ar', mode: 'letters', category: 'countries', timer: 0, winners: 1 });
+  mf2.shared.quarters = { a: 0, b: 4, c: 0 };
+  mf2.shared.newMonkey = 'b';
+  mf2.shared.verdict = { kind: 'liar-right', loserId: 'b', otherId: 'c', loser: 'B', canFlip: true };
+  applyRoomAction(mf2, 'a', 'flip', {});
+  check(mf2.shared.quarters.b === 3 && !mf2.shared.newMonkey, 'monkey: a flip clears the monkey it undid');
+
+  // الجرس: «↶ رجّع» takes the last verdict back - once.
+  const bu = newRoom(['a', 'b', 'c']);
+  applyRoomAction(bu, 'a', 'chooseGame', { game: 'buzzer' });
+  applyRoomAction(bu, 'a', 'start', {});
+  applyRoomAction(bu, 'b', 'buzz', { round: 1 });
+  applyRoomAction(bu, 'c', 'buzz', { round: 1 });
+  applyRoomAction(bu, 'a', 'wrong', { id: 'b', penalty: true });
+  const seqW = bu.shared.last.seq;
+  applyRoomAction(bu, 'a', 'undoVerdict', { seq: seqW });
+  check(bu.shared.buzzes.map((x) => x.id).join() === 'b,c' && bu.shared.out.length === 0 && !bu.shared.scores.b && bu.shared.last === null,
+    'buzzer: undoing a wrong answer puts them first in line again, with the point it cost');
+  applyRoomAction(bu, 'a', 'undoVerdict', { seq: seqW });
+  check(bu.shared.buzzes.length === 2 && !bu.shared.scores.b, 'buzzer: a second tap on undo does nothing');
+  applyRoomAction(bu, 'a', 'correct', { id: 'b' });
+  const seqC = bu.shared.last.seq;
+  check(seqC !== seqW && bu.shared.round === 2 && bu.shared.scores.b === 1, 'buzzer: a right answer after an undo');
+  applyRoomAction(bu, 'a', 'undoVerdict', { seq: seqC });
+  check(bu.shared.round === 1 && bu.shared.buzzes.map((x) => x.id).join() === 'b,c' && !bu.shared.scores.b,
+    'buzzer: undoing a right answer takes the point back and reopens the question with its line');
+  applyRoomAction(bu, 'a', 'undoVerdict', { seq: seqC });
+  check(bu.shared.round === 1 && !bu.shared.scores.b, 'buzzer: and only once');
+
+  // القنبلة: a double tap on «غيّر» swaps one category; the heat steps move from round to round.
+  const bs = newRoom(['a', 'b', 'c']);
+  applyRoomAction(bs, 'a', 'chooseGame', { game: 'bomb' });
+  applyRoomAction(bs, 'a', 'start', { lang: 'ar', fuse: 'long' });
+  applyRoomAction(bs, 'a', 'swap', { swaps: 0 });
+  applyRoomAction(bs, 'a', 'swap', { swaps: 0 });
+  check(bs.shared.swaps === 1, 'bomb: a double tap on «غيّر» swaps one category');
+  check(Array.isArray(bs._bombHeatAt) && bs._bombHeatAt.length === 3 && bs._bombHeatAt.every((f, i, a) => f >= 0.2 && f <= 0.95 && (!i || f > a[i - 1])) &&
+    !('_bombHeatAt' in bs.shared), 'bomb: the heat steps are in order, and kept on the server');
+  const heats = new Set();
+  for (let i = 0; i < 8; i++) {
+    const b2 = newRoom(['a', 'b']);
+    applyRoomAction(b2, 'a', 'chooseGame', { game: 'bomb' });
+    applyRoomAction(b2, 'a', 'start', { lang: 'ar', fuse: 'long' });
+    heats.add(b2._bombHeatAt.join());
+  }
+  check(heats.size > 1, 'bomb: the heat steps are not the same every round');
 
   // الجاسوس, الحرباء, الموقع السري: every impostor gone before the vote: revealed, nobody scores.
   const im = newRoom(['a', 'b', 'c', 'd']);

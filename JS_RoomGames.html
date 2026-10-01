@@ -66,7 +66,7 @@ ROOM_GAMES.justone = {
     const all = Object.keys(cats)
       .filter(k => k.indexOf('🔒') === -1)
       .reduce((acc, k) => acc.concat(cats[k]), []);
-    return { words: all };
+    return { words: all, lang: contentLang() };
   },
 
   render(state) {
@@ -237,7 +237,7 @@ ROOM_GAMES.whoami = {
     const sel = document.getElementById('room-whoami-cat');
     const db = packCatsPlus((typeof WHOAMI_DB !== 'undefined' ? WHOAMI_DB[contentLang()] : {}) || {});
     const cat = sel ? sel.value : (matchCategoryKey(Object.keys(db), whoamiRoomCat()) || Object.keys(db)[0]);
-    return { words: (db[cat] || []).slice() };
+    return { words: (db[cat] || []).slice(), cat: cat, lang: contentLang() };
   },
 
   render(state) {

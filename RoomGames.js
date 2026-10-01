@@ -21,6 +21,27 @@ const shuffled = (arr) => {
 };
 
 /**
+ * A turn that goes round the table (ارسم وخمّن's drawer, كلمة واحدة's guesser):
+ * a shuffled order kept in shared (`turnOrder`, `turnAt`) and stepped through.
+ * Whoever has left is dropped, and the pointer moves back one for each of them at
+ * or before it, so nobody goes twice and nobody is skipped; latecomers join the end.
+ * `prev` is the last round's shared, or {} for a new game (a fresh shuffle).
+ */
+const roomTurnStep = (prev, players) => {
+  const here = players.map(p => p.id);
+  let at = prev && typeof prev.turnAt === 'number' ? prev.turnAt : -1;
+  const order = [];
+  ((prev && Array.isArray(prev.turnOrder)) ? prev.turnOrder : []).forEach((id, i) => {
+    if (here.indexOf(id) !== -1) order.push(id);
+    else if (i <= at) at -= 1;
+  });
+  if (!order.length) { at = -1; shuffled(here).forEach(id => order.push(id)); }
+  else here.forEach(id => { if (order.indexOf(id) === -1) order.push(id); });
+  at = (at + 1) % order.length;
+  return { order: order, at: at, player: players.find(p => p.id === order[at]) };
+};
+
+/**
  * Host-only moves. `standIn` marks a move that only gets the room moving (the
  * next round, closing a vote, playing for a quiet phone): once the host has been
  * away HOST_STAND_IN_MS (the owner, 28 Sep 2026: 20 seconds), anyone in the room
@@ -978,7 +999,11 @@ const dealStopLetter = (room) => {
   const o = room._stopOpts;
   room._stopRound += 1;
   room._answers = {};
-  const letter = nextPrompt(room, STOP_LETTERS_BY_LANG[o.lang] || STOP_LETTERS_BY_LANG.ar, 'stop_' + o.lang);
+  // Only letters every chosen category can answer (stopLettersFor, StopWords.js): وقف needs a full sheet.
+  // The full list keeps its memory key; a narrower one has its own, per set of categories.
+  const all = STOP_LETTERS_BY_LANG[o.lang] || STOP_LETTERS_BY_LANG.ar;
+  const pool = stopLettersFor(o.lang, o.cats, all);
+  const letter = nextPrompt(room, pool, pool.length === all.length ? 'stop_' + o.lang : 'stop_' + o.lang + '_' + o.cats.slice().sort().join('.'));
   room.secrets = {};
   room.shared = {
     lang: o.lang,
@@ -1332,8 +1357,9 @@ const finishSpyfall = (room, outcome, guess, spyId) => {
    one phone at a time: the holder says a word and presses pass, and it jumps
    to the next player in `order`. The fuse is a server clock nobody can read:
    the deadline stays in room._bombEndsAt, and what phones get is `heat`
-   (0-3), bumped by the alarm at 40%, 65% and 85% of the fuse, which is what
-   makes the ticking speed up. When it goes off the server knows who was
+   (0-3), bumped by the alarm at about 40%, 65% and 85% of the fuse, which is what
+   makes the ticking speed up. The steps move a little every round (room._bombHeatAt,
+   bombHeatSteps), so timing one doesn't tell the table when the bomb goes off. When it goes off the server knows who was
    holding it, so the strike is automatic; the host can still correct it.
    The strikes are the scoreboard - fewest wins.
    ========================================================================== */
@@ -1342,6 +1368,17 @@ const BOMB_FUSES_ROOM = { short: [15, 30], normal: [25, 55], long: [40, 80] };
 // anything was said, so the table settles it. The host is not on the clock.
 const BOMB_SEND_BACK_MS = 15000;
 const BOMB_HEAT_AT = [0.4, 0.65, 0.85];
+// How far each heat step may move from BOMB_HEAT_AT, either way, each round.
+const BOMB_HEAT_JITTER = 0.08;
+
+/** This round's heat steps: BOMB_HEAT_AT, each moved at random, still in order. Kept in room._bombHeatAt. */
+const bombHeatSteps = () => {
+  const out = BOMB_HEAT_AT.map(f => f + (Math.random() * 2 - 1) * BOMB_HEAT_JITTER);
+  for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1] + 0.05);
+  return out.map(f => Math.min(0.95, Math.max(0.2, f)));
+};
+/** The steps of the round being played (a room from before the jitter: the fixed ones). */
+const bombHeatAt = (room) => (Array.isArray(room._bombHeatAt) && room._bombHeatAt.length === BOMB_HEAT_AT.length ? room._bombHeatAt : BOMB_HEAT_AT);
 
 const bombRoomAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'nextRound' || action === 'playAgain') {
@@ -1367,9 +1404,13 @@ const bombRoomAction = (room, playerId, action, payload) => {
   if (action === 'swap') {
     requireHost(room, playerId);
     if (s.phase !== 'ticking') return;
+    // For the category the host saw (`swaps`, how many times it was swapped): a double tap
+    // used to burn two categories.
+    if (staleTap(payload, 'swaps', s.swaps || 0)) return;
     const next = bombPrompt(room, s.lang, s.mode);
     s.prompt = next.text;
     s.kind = next.kind;
+    s.swaps = (s.swaps || 0) + 1;
     return;
   }
   if (action === 'pass') {
@@ -1451,6 +1492,7 @@ const dealBomb = (room, o) => {
   const holder = prev.loserId && roster.indexOf(prev.loserId) !== -1 ? prev.loserId : order[Math.floor(Math.random() * order.length)];
   room._bombStart = Date.now();
   room._bombEndsAt = room._bombStart + seconds * 1000;
+  room._bombHeatAt = bombHeatSteps();
   room.secrets = {};
   room.shared = {
     round: o.round,
@@ -1585,7 +1627,9 @@ const buzzerQuizMove = (room, playerId, action, payload) => {
     if (staleTap(payload, 'id', first && first.id)) return;
     if (!first) return;
     addScore(room, first.id, 1);
-    s.last = { id: first.id, name: first.name, ok: true };
+    s.last = { id: first.id, name: first.name, ok: true, seq: (room._bzSeq = (Number(room._bzSeq) || 0) + 1) };
+    // What «↶ رجّع» puts back: the question and its line as they were (server-only).
+    room._bzUndo = { seq: s.last.seq, pts: 1, round: s.round, buzzes: s.buzzes.slice(), out: (s.out || []).slice(), roster: (s.roster || []).slice(), quiz: !!(s.quiz && !s.quiz.done) };
     s.buzzes = [];
     s.round += 1;
     freshRoster();
@@ -1620,7 +1664,32 @@ const buzzerQuizMove = (room, playerId, action, payload) => {
     // Out for the rest of this question: no second go at the same one.
     s.out = (s.out || []).concat([first.id]);
     if (payload && payload.penalty) addScore(room, first.id, -1);
-    s.last = { id: first.id, name: first.name, ok: false };
+    s.last = { id: first.id, name: first.name, ok: false, seq: (room._bzSeq = (Number(room._bzSeq) || 0) + 1) };
+    room._bzUndo = { seq: s.last.seq, pts: payload && payload.penalty ? -1 : 0, round: s.round, buzz: first };
+    s.board = scoreboardOf(room);
+    return;
+  }
+  // «↶ رجّع»: the last verdict was a mis-tap. A right answer gives its point back and the
+  // question its line again (a quiz's answer, once shown, stays shown); a wrong one gives
+  // back the point it cost and puts the player first in line again. Named by its `seq`, so
+  // a double tap can't undo twice; gone once a new question or verdict has come.
+  if (action === 'undoVerdict') {
+    const u = room._bzUndo;
+    if (!s.last || !u || u.seq !== s.last.seq) return;
+    if (staleTap(payload, 'seq', s.last.seq)) return;
+    const id = s.last.id;
+    if (u.pts) addScore(room, id, -u.pts);
+    if (s.last.ok && !u.quiz) {
+      s.round = u.round;
+      s.buzzes = u.buzzes;
+      s.out = u.out;
+      s.roster = u.roster;
+    } else if (!s.last.ok && s.round === u.round) {
+      s.out = (s.out || []).filter(x => x !== id);
+      if (s.phase === 'armed' && room.players.some(p => p.id === id) && !s.buzzes.some(b => b.id === id)) s.buzzes.unshift(u.buzz);
+    }
+    s.last = null;
+    room._bzUndo = null;
     s.board = scoreboardOf(room);
     return;
   }
@@ -1856,18 +1925,22 @@ const justOneAction = (room, playerId, action, payload) => {
     if (room.players.length < 3) throw new Error('تحتاج 3 لاعبين على الأقل');
 
     const roundNo = (prev.round || 0) + 1;
-    // Deals against whoever is present right now; the roster is stamped after.
-    const guesserIndex = (roundNo - 1) % room.players.length;
-    const guesser = room.players[guesserIndex];
+    // Deals against whoever is present right now; the roster is stamped after. The guesser
+    // walks a shuffled order (roomTurnStep): `round % players` made someone guess twice when
+    // the table changed.
+    const turn = roomTurnStep(action === 'start' ? {} : prev, room.players);
+    const guesser = turn.player;
 
     // The host's list is kept for the rounds after: a stand-in's next round (the
     // host away, requireHost) deals from it, never from a list of its own phone's.
-    if (room.hostId === playerId && Array.isArray(payload.words) && payload.words.length) room._joWords = payload.words.slice(0, 2000);
-    else if (action === 'start') room._joWords = null;
-    const words = room._joWords && room._joWords.length
-      ? room._joWords
-      : unlockedSpyWords();
-    const secret = words[Math.floor(Math.random() * words.length)];
+    if (room.hostId === playerId && Array.isArray(payload.words) && payload.words.length) {
+      room._joWords = payload.words.slice(0, 2000);
+      room._joKey = 'justone_' + (payload.lang === 'en' ? 'en' : payload.lang === 'ar' ? 'ar' : 'x');
+    } else if (action === 'start') room._joWords = null;
+    const own = room._joWords && room._joWords.length;
+    const words = own ? room._joWords : unlockedSpyWords();
+    // Through the shared prompt memory, so tonight's word isn't one of last night's.
+    const secret = nextPrompt(room, words, own ? (room._joKey || 'justone_x') : 'justone_spy');
 
     room.secrets = {};
     room.players.forEach(p => {
@@ -1880,6 +1953,8 @@ const justOneAction = (room, playerId, action, payload) => {
       score: prev.score || 0,
       guesserId: guesser.id,
       guesserName: guesser.name,
+      turnOrder: turn.order,
+      turnAt: turn.at,
       clues: [],            // {id, name} only — text stays hidden until reveal
       submitted: [],
       phase: 'writing'
@@ -2055,9 +2130,14 @@ const whoAmIAction = (room, playerId, action, payload) => {
     requireHost(room, playerId);
     if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
 
-    const pool = (payload.words && payload.words.length) ? shuffled(payload.words) : [];
-    if (pool.length < room.players.length) throw new Error('الكلمات أقل من عدد اللاعبين');
+    const words = Array.isArray(payload.words) ? payload.words.slice(0, 2000) : [];
+    if (words.length < room.players.length) throw new Error('الكلمات أقل من عدد اللاعبين');
 
+    // Through the shared prompt memory (keyed on the category when the phone names it), so
+    // the same characters don't come back night after night.
+    const lang = payload.lang === 'en' ? 'en' : payload.lang === 'ar' ? 'ar' : 'x';
+    const key = 'whoami_' + lang + '_' + (payload.cat ? String(payload.cat).slice(0, 40) : 'n' + words.length);
+    const pool = nextPrompts(room, words, key, room.players.length);
     const assignments = {};
     room.players.forEach((p, i) => { assignments[p.id] = pool[i]; });
 
@@ -3256,8 +3336,9 @@ const drawGuessAction = (room, playerId, action, payload) => {
     const seconds = Math.max(DRAW_ROUND_MIN,
                              Math.min(DRAW_ROUND_MAX, Math.round(asked || DRAW_ROUND_SECONDS)));
 
-    // The drawer rotates so everyone gets a turn.
-    const drawer = room.players[(round - 1) % room.players.length];
+    // The drawer walks a shuffled order so everyone gets a turn, once each, however the table changes.
+    const turn = roomTurnStep(action === 'start' ? {} : (room.shared || {}), room.players);
+    const drawer = turn.player;
     // «كلماتنا»: the family's own words, when the lobby chose them.
     const family = roomPackWords(room);
     const word = family ? nextPrompt(room, family, 'draw_pack_' + room._pack.code) : nextPrompt(room, DRAW_WORDS[lang], 'draw_' + lang);
@@ -3272,6 +3353,8 @@ const drawGuessAction = (room, playerId, action, payload) => {
       lang: lang,
       drawerId: drawer.id,
       drawerName: drawer.name,
+      turnOrder: turn.order,
+      turnAt: turn.at,
       strokes: [],
       guesses: [],
       winnerId: null,
@@ -4019,7 +4102,8 @@ const gameDeadline = (room) => {
   if (room.game === 'bomb' && s.phase === 'ticking' && room._bombEndsAt) {
     const total = room._bombEndsAt - room._bombStart;
     const heat = s.heat || 0;
-    return heat < BOMB_HEAT_AT.length ? room._bombStart + total * BOMB_HEAT_AT[heat] : room._bombEndsAt;
+    const steps = bombHeatAt(room);
+    return heat < steps.length ? room._bombStart + total * steps[heat] : room._bombEndsAt;
   }
   if (room.game === 'stop' && s.phase === 'writing' && s.endsAt) return s.endsAt + STOP_GRACE_MS;
   if (room.game === 'stop' && s.phase === 'collecting' && s.collectEndsAt) return s.collectEndsAt + STOP_GRACE_MS;
@@ -4113,7 +4197,8 @@ const gameTimeout = (room, now) => {
     if (now >= room._bombEndsAt) { explodeBomb(room); return true; }
     const total = room._bombEndsAt - room._bombStart;
     let bumped = false;
-    while ((s.heat || 0) < BOMB_HEAT_AT.length && now >= room._bombStart + total * BOMB_HEAT_AT[s.heat || 0]) {
+    const steps = bombHeatAt(room);
+    while ((s.heat || 0) < steps.length && now >= room._bombStart + total * steps[s.heat || 0]) {
       s.heat = (s.heat || 0) + 1;
       bumped = true;
     }
@@ -4873,10 +4958,12 @@ const fiveSecondsAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'judge') {
-    // From the judging phase, or early: a player who named three things in two
-    // seconds doesn't have to wait for the clock.
+    // Once the five seconds are up (a verdict during the count was a double tap on the
+    // last turn's, landing on the next player's), and for the turn the phone saw
+    // (`turn`: the round and the place in the order; optional, for an older phone).
     requireMoveOn(room, playerId);
-    if (s.phase !== 'judging' && s.phase !== 'counting') return;
+    if (s.phase !== 'judging') return;
+    if (staleTap(payload, 'turn', s.round + '.' + s.turn)) return;
     const ok = !!(payload && payload.ok);
     if (ok) addScore(room, s.turnId, 1);
     s.verdict = ok;
@@ -5195,6 +5282,8 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
     if (!v || !v.canFlip || v.flipped) return;
     const wasOver = s.phase === 'gameover';
     if ((s.quarters[v.loserId] || 0) > 0) s.quarters[v.loserId]--;
+    // The quarter taken back may be the one that made them a monkey: they are not the new one any more.
+    if (s.newMonkey === v.loserId && (s.quarters[v.loserId] || 0) < 4) delete s.newMonkey;
     monkeyQuarter(room, v.otherId);
     v.flipped = true;
     const swap = v.loserId; v.loserId = v.otherId; v.otherId = swap;
@@ -5556,7 +5645,11 @@ const scoreHerd = (room) => {
   const winners = s.board.filter(p => p.score >= s.target && p.id !== s.sheepId && s.roster.indexOf(p.id) !== -1);
   if (winners.length || s.round >= HERD_MAX_ROUNDS) {
     const best = winners.length ? winners[0].score : 0;
-    s.winners = (winners.length ? winners.filter(p => p.score === best) : s.board.filter(p => p.id !== s.sheepId).slice(0, 1)).map(p => p.name);
+    // Out of rounds with nobody at the target: everyone level at the top (the sheep and the
+    // watchers aside), not only the first row.
+    const rest = s.board.filter(p => p.id !== s.sheepId && s.roster.indexOf(p.id) !== -1);
+    const restTop = rest.length ? rest[0].score : 0;
+    s.winners = (winners.length ? winners.filter(p => p.score === best) : rest.filter(p => p.score === restTop)).map(p => p.name);
     s.phase = 'gameover';
     room.phase = 'gameover';
     return;
@@ -5789,10 +5882,15 @@ const timelineEndOnBoard = (room, why) => {
   const s = room.shared;
   s.board = scoreboardOf(room);
   const top = s.board[0];
+  // Everyone level at the top shares it, not only the first row (winnerIds / winnerNames;
+  // winnerId and winnerName stay for an older phone, the name all of them).
+  const tied = top && top.score > 0 ? s.board.filter(p => p.score === top.score) : [];
   s.phase = 'gameover';
   s.ended = why;
-  s.winnerId = top && top.score > 0 ? top.id : null;
-  s.winnerName = top && top.score > 0 ? top.name : '';
+  s.winnerIds = tied.map(p => p.id);
+  s.winnerNames = tied.map(p => p.name);
+  s.winnerId = tied.length ? tied[0].id : null;
+  s.winnerName = s.winnerNames.join(' · ');
   room.phase = 'gameover';
 };
 
@@ -5909,6 +6007,8 @@ const timelineAction = (room, playerId, action, payload) => {
       s.ended = 'out';
       s.winnerId = playerId;
       s.winnerName = roomPlayerName(room, playerId);
+      s.winnerIds = [playerId];
+      s.winnerNames = [s.winnerName];
       room.phase = 'gameover';
       return;
     }
@@ -5942,6 +6042,8 @@ const timelinePlayerLeft = (room, playerId) => {
     s.phase = 'gameover';
     s.winnerId = null;
     s.winnerName = '';
+    s.winnerIds = [];
+    s.winnerNames = [];
     room.phase = 'gameover';
     return;
   }

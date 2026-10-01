@@ -1264,8 +1264,9 @@ TV_GAMES.buzzer = {
         ${tvBtn(armed ? '🔒 ' + (t.bz_lock || '') : '🔔 ' + (t.bz_arm || ''), armed ? "roomAct('lock')" : "roomAct('arm')", 'secondary')}
         ${s.quiz && !s.quiz.done ? (typeof s.quiz.answer === 'number' ? '' : tvBtn(t.bz_quiz_reveal || '', `roomAct('quizReveal', { n: ${s.quiz.n} })`, 'secondary')) + tvBtn(t.bz_quiz_next || '', `roomAct('quizNext', { n: ${s.quiz.n} })`, 'primary') : ''}
         ${s.quiz && s.quiz.done ? tvBtn('↺ ' + (t.bz_quiz_again || ''), "roomAct('playAgain')", 'primary') : ''}
+        ${typeof bzUndoHtml === 'function' ? bzUndoHtml(state, t, true) : ''}
         ${tvBtn('🔄 ' + (t.bz_reset || ''), "roomAct('reset')", 'ghost')}
-        ${tvBtn(t.bz_reset_scores || '', "roomAct('playAgain')", 'ghost')}
+        ${tvBtn(t.bz_reset_scores || '', "bzResetScores()", 'ghost')}
         ${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}
       </div>`;
     return `<div class="tv-vote">${head}${typeof bzQuizHtml === 'function' ? bzQuizHtml(state, t) : ''}${status}${queue ? `<div class="tv-strip-inline">${queue}</div>` : ''}${last}<div class="tv-scale">${renderScoreboard(s.board)}</div>${host}</div>`;

@@ -606,6 +606,40 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   console.log(`snakes: the sneak's crawl clean in ${cases - tangled} of ${cases} cases (${turned} with him behind the snake's head)`);
 }
 
+/* ------------------------------------------------------ دندنها: the songs */
+// Songs.js (1 Oct 2026), offline: every field there, an iTunes trackId that is a whole number, one of the
+// three eras, no song twice (by trackId, or by a name folded the way a guess is - a title or one of its
+// alternatives must name one song only), and enough in every era for the four choices to come from it.
+// `npm run check:songs` (check-songs.mjs) asks iTunes that every trackId still has its preview.
+{
+  const SONGS = load(ROOT + 'Songs.js', 'HUM_SONGS');
+  const ERAS = ['classic', 'pop', 'new'];
+  const owner = {};
+  const ids = {};
+  const byEra = {};
+  SONGS.forEach((x, i) => {
+    const tag = `Songs.js[${i}] ${x && x.t}`;
+    if (!x || !Number.isInteger(x.id) || x.id <= 0) note(`${tag}: no iTunes trackId`);
+    ['t', 's', 'en', 'se'].forEach(k => { if (!x || typeof x[k] !== 'string' || !x[k].trim()) note(`${tag}: no ${k}`); });
+    if (!x || !Array.isArray(x.alt)) note(`${tag}: alt must be a list`);
+    if (!x || ERAS.indexOf(x.era) === -1) note(`${tag}: era must be one of ${ERAS.join(', ')}`);
+    if (!x) return;
+    if (ids[x.id] !== undefined) note(`${tag}: trackId ${x.id} is also song ${ids[x.id]}`);
+    ids[x.id] = i;
+    byEra[x.era] = (byEra[x.era] || 0) + 1;
+    [x.t].concat(x.alt || []).forEach(name => {
+      const k = fold(name).replace(/[^\p{L}\p{N}]/gu, '');
+      if (!k) return note(`${tag}: an empty name`);
+      if (owner[k] !== undefined && owner[k] !== i) note(`${tag}: "${name}" also names song ${owner[k]} (${SONGS[owner[k]].t})`);
+      owner[k] = i;
+    });
+    if (fold(x.t).replace(/[^\p{L}\p{N}]/gu, '') === fold(x.s).replace(/[^\p{L}\p{N}]/gu, '')) note(`${tag}: the title is the singer's name`);
+  });
+  if (SONGS.length < 150) note(`Songs.js: ${SONGS.length} songs, fewer than 150`);
+  ERAS.forEach(e => { if ((byEra[e] || 0) < 4) note(`Songs.js: ${byEra[e] || 0} songs of the ${e} era; the choices need 4`); });
+  console.log(`songs: ${SONGS.length} (${ERAS.map(e => e + ' ' + (byEra[e] || 0)).join(', ')})`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

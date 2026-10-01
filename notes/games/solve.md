@@ -133,8 +133,13 @@ emoji room (`room-emoji`), whose third way is the quiz.
   is never redrawn under it**: the frame's signature (`svSig`) is this
   phone's own state, and the table's progress, the host's buttons, the
   board between rounds and the clock are refreshed in place
-  (`svPaintLive`). The emoji room keeps the quiz's renderer (`SV_EMOJI_QUIZ`)
-  and hands a room on the engine to `svRender`; its lobby has the three ways.
+  (`svPaintLive`). The emoji room's router (`svRouter: true` on
+  `ROOM_GAMES.emoji` / `TV_GAMES.emoji`) reads the quiz's renderer when it
+  needs it (`svQuiz()`: `window.EMOJI_QUIZ_ROOM` / `EMOJI_QUIZ_TV`, which
+  JS_RoomQuiz publishes) and hands a room on the engine to `svRender`; its
+  lobby has the three ways. The quiz chunk runs after solve's and leaves the
+  router in place (until 1 Oct 2026 it put the quiz back over it, and only the
+  quiz could be played).
   `roomSolveTurn` answers `roomTurnOf`.
 - **Motion**: a new Wordle row flips, a verdict pops, a distance counts up
   (`countUp`), a wrong riddle shakes; at the end of a round the secret turns

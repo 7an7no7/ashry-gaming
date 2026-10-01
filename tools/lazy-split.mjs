@@ -302,6 +302,9 @@ export function plan({ sources, order, controller, roomGameIds }) {
   };
   ids.forEach((id) => visit(id, []));
 
+  // A file that sets, reads or wraps a room game's entry runs after what it needs, in both orders.
+  checkRegistryOrder({ order, code, fileChunk, shellSet, sorted, deps: Object.fromEntries(Object.entries(deps).map(([k, v]) => [k, [...v]])) });
+
   // Screens: a view id named in a chunk's files belongs to that chunk.
   const viewIds = [...controller.matchAll(/id="view-([a-z0-9-]+)"/g)].map((m) => m[1]);
   const text = (f) => code.get(f).join('\n');
@@ -390,6 +393,169 @@ export function chunkCode(chunk, sources, banner) {
     const parts = /\.js$/.test(f) ? [src] : [...src.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
     return parts.map((p) => (banner ? `/* ==== ${f} ==== */\n` : '') + p.replace(/\s+$/, '') + '\n;').join('\n');
   }).join('\n');
+}
+
+/* --- the registries' load order ----------------------------------------------
+   ROOM_GAMES, TV_GAMES and RACE_UI are filled by whichever file runs, and on
+   the one page that was the page's order; under chunks it is the chunks' order,
+   which can be the other way round. Two bugs of 30 Sep 2026 came from that:
+   the tournament wrapped the duels' renderers at its own load (tourWrap),
+   before dots, X-O, خمّن مين, حرب السفن and chess - in chunks that run after
+   it - had registered, so none of them got the tournament; and فوازير إيموجي's
+   router (JS_RoomSolve) read the quiz's entry at load and replaced it, then
+   the quiz chunk ran second and put the quiz back over the router. So, in both
+   orders (the page's and the chunks'), an entry:
+   - is written at load, without a guard, by one chunk only (a second writer
+     yields: \`if (!(ROOM_GAMES.x && ROOM_GAMES.x.flag)) ROOM_GAMES.x = …\`);
+   - is read at load (to keep or patch it) only after it was written, by a chunk
+     that always loads the writer's chunk first;
+   - wrapped by a wrapper (a function that reads ROOM_GAMES[its first
+     parameter]), is wrapped by a call that runs after its last write, when the
+     wrapper exists (a guarded \`if (typeof w === 'function') w('x')\` at the
+     end of the writer's file does it). */
+const REGISTRIES = ['ROOM_GAMES', 'TV_GAMES', 'RACE_UI'];
+
+function registryFacts(scripts, file) {
+  const out = { writes: [], reads: [], wrapCalls: [], wrappers: [], arrays: {}, objects: {}, forEachWrites: [] };
+  scripts.forEach((src, si) => {
+    const ast = acorn.parse(src, { ecmaVersion: 'latest', sourceType: 'script', allowReturnOutsideFunction: true });
+    const at = (n) => [si, n.start];
+    for (const st of ast.body) {
+      if (st.type === 'VariableDeclaration') for (const d of st.declarations) {
+        if (d.id.type !== 'Identifier' || !d.init) continue;
+        if (d.init.type === 'ArrayExpression' && d.init.elements.every((e) => e && e.type === 'Literal' && typeof e.value === 'string')) out.arrays[d.id.name] = d.init.elements.map((e) => e.value);
+        if (d.init.type === 'ObjectExpression') out.objects[d.id.name] = d.init.properties.filter((p) => p.type === 'Property' && !p.computed).map((p) => p.key.name || p.key.value);
+      }
+      if (st.type === 'FunctionDeclaration' && st.id && st.params[0] && st.params[0].type === 'Identifier') {
+        const p = st.params[0].name;
+        let reads = false;
+        walk.full(st.body, (n) => {
+          if (n.type === 'MemberExpression' && n.computed && n.object.type === 'Identifier' && REGISTRIES.includes(n.object.name) &&
+              n.property.type === 'Identifier' && n.property.name === p) reads = true;
+        });
+        if (reads) out.wrappers.push(st.id.name);
+      }
+    }
+    const fnsOf = (anc) => anc.slice(0, -1).filter((a) => /Function/.test(a.type));
+    // a load-time `<list>.forEach(fn)`: the list's ids, or null
+    const listOf = (obj) => {
+      if (obj.type === 'ArrayExpression') return { lit: obj.elements.map((e) => e && e.type === 'Literal' ? e.value : null).filter(Boolean) };
+      if (obj.type === 'Identifier') return { arr: obj.name };
+      if (obj.type === 'CallExpression' && obj.callee.type === 'MemberExpression' && obj.callee.object.name === 'Object' &&
+          obj.callee.property.name === 'keys' && obj.arguments[0] && obj.arguments[0].type === 'Identifier') return { obj: obj.arguments[0].name };
+      return null;
+    };
+    walk.fullAncestor(ast, (node, _st, anc) => {
+      const parent = anc[anc.length - 2];
+      const fns = fnsOf(anc);
+      // ROOM_GAMES[kind] = … inside `list.forEach(kind => …)` at load
+      if (node.type === 'AssignmentExpression' && node.left.type === 'MemberExpression' && node.left.computed &&
+          node.left.object.type === 'Identifier' && REGISTRIES.includes(node.left.object.name) && node.left.property.type === 'Identifier') {
+        const fn = fns[fns.length - 1];
+        if (fns.length === 1 && fn.params[0] && fn.params[0].name === node.left.property.name) {
+          const call = anc[anc.indexOf(fn) - 1];
+          if (call && call.type === 'CallExpression' && call.callee.type === 'MemberExpression' && call.callee.property.name === 'forEach') {
+            const list = listOf(call.callee.object);
+            if (list) out.forEachWrites.push({ reg: node.left.object.name, list, at: at(call) });
+          }
+        }
+        return;
+      }
+      if (node.type === 'MemberExpression' && !node.computed && node.object.type === 'Identifier' && REGISTRIES.includes(node.object.name)) {
+        if (fns.length) return; // inside a function: runs later, when everything is in
+        const key = { reg: node.object.name, id: node.property.name, at: at(node) };
+        const name = `${key.reg}.${key.id}`;
+        if (parent && parent.type === 'AssignmentExpression' && parent.left === node) {
+          const guarded = anc.some((a, i) => a.type === 'IfStatement' && anc[i + 1] !== a.test && src.slice(a.test.start, a.test.end).includes(name));
+          out.writes.push({ ...key, guarded });
+          return;
+        }
+        // an existence check (if (…), a && …, typeof …) is not a read that needs the entry
+        const check = anc.some((a, i) => (a.type === 'IfStatement' && anc[i + 1] === a.test) ||
+          (a.type === 'ConditionalExpression' && anc[i + 1] === a.test) ||
+          (a.type === 'LogicalExpression' && anc[i + 1] === a.left) || (a.type === 'UnaryExpression' && a.operator === 'typeof'));
+        if (!check) out.reads.push(key);
+        return;
+      }
+      if (node.type === 'CallExpression' && !fns.length) {
+        if (node.callee.type === 'Identifier' && node.arguments[0] && node.arguments[0].type === 'Literal') {
+          out.wrapCalls.push({ fn: node.callee.name, list: { lit: [node.arguments[0].value] }, at: at(node) });
+        }
+        if (node.callee.type === 'MemberExpression' && node.callee.property.name === 'forEach' && node.arguments[0] && node.arguments[0].type === 'Identifier') {
+          const list = listOf(node.callee.object);
+          if (list) out.wrapCalls.push({ fn: node.arguments[0].name, list, at: at(node) });
+        }
+      }
+    });
+  });
+  return out;
+}
+
+/** Throws when an entry's writes, reads and wraps can run in the wrong order (see above). */
+export function checkRegistryOrder({ order, code, fileChunk, shellSet, sorted, deps }) {
+  const facts = new Map();
+  for (const f of order) {
+    if (f === 'Style' || f === 'Tailwind' || f === 'Logo' || /\.js$/.test(f)) continue;
+    facts.set(f, registryFacts(code.get(f), f));
+  }
+  const arrays = {}, objects = {}, wrapperFile = {};
+  for (const [f, x] of facts) {
+    Object.assign(arrays, x.arrays); Object.assign(objects, x.objects);
+    x.wrappers.forEach((w) => { wrapperFile[w] = f; });
+  }
+  const ids = (list) => list.lit || arrays[list.arr] || objects[list.obj] || [];
+  const pagePos = new Map(order.map((f, i) => [f, i]));
+  const chunkIdx = new Map(sorted.map((id, i) => [id, i]));
+  const closure = (id) => {
+    const seen = new Set(), stack = [id];
+    while (stack.length) { const c = stack.pop(); if (seen.has(c)) continue; seen.add(c); (deps[c] || []).forEach((d) => stack.push(d)); }
+    return seen;
+  };
+  // Every event of every entry, with its file and place in the file.
+  const ev = new Map(); // 'ROOM_GAMES.dots' -> [{kind, file, at, guarded}]
+  const add = (reg, id, e) => { const k = `${reg}.${id}`; if (!ev.has(k)) ev.set(k, []); ev.get(k).push(e); };
+  for (const [f, x] of facts) {
+    x.writes.forEach((w) => add(w.reg, w.id, { kind: 'write', file: f, at: w.at, guarded: w.guarded }));
+    x.forEachWrites.forEach((w) => ids(w.list).forEach((id) => add(w.reg, id, { kind: 'write', file: f, at: w.at, guarded: false })));
+    x.reads.forEach((r) => add(r.reg, r.id, { kind: 'read', file: f, at: r.at }));
+    x.wrapCalls.forEach((c) => {
+      if (!wrapperFile[c.fn]) return;
+      for (const id of ids(c.list)) for (const reg of ['ROOM_GAMES', 'TV_GAMES']) add(reg, id, { kind: 'wrap', file: f, at: c.at, fn: c.fn });
+    });
+  }
+  const problems = [];
+  for (const mode of ['page', 'chunks']) {
+    // Where a file runs: the page's order, or its chunk's place (the shell first).
+    const place = (f) => (mode === 'page' ? [pagePos.get(f)] : [shellSet.has(f) ? -1 : chunkIdx.get(fileChunk.get(f)), pagePos.get(f)]);
+    const key = (e) => [...place(e.file), ...e.at];
+    const before = (a, b) => { for (let i = 0; i < Math.max(a.length, b.length); i++) { const x = a[i] ?? -1, y = b[i] ?? -1; if (x !== y) return x < y; } return false; };
+    const chunkOf = (f) => (shellSet.has(f) ? null : fileChunk.get(f));
+    // b's chunk is always there when a's runs: the shell, the same chunk, or one a's chunk loads first.
+    const loadedWith = (a, b) => mode === 'page' || !chunkOf(b) || chunkOf(a) === chunkOf(b) || (chunkOf(a) && closure(chunkOf(a)).has(chunkOf(b)));
+    for (const [name, list] of ev) {
+      const writes = list.filter((e) => e.kind === 'write');
+      if (!writes.length) continue;
+      const plain = writes.filter((e) => !e.guarded);
+      const owners = [...new Set(plain.map((e) => (mode === 'page' ? e.file : chunkOf(e.file) || e.file)))];
+      if (owners.length > 1) problems.push(`${mode}: ${name} is set at load by ${[...new Set(plain.map((e) => e.file))].join(' and ')} - whichever runs second wins; make one yield (if (!(${name} && ${name}.<flag>)) …)`);
+      for (const r of list.filter((e) => e.kind === 'read')) {
+        const ok = writes.some((w) => before(key(w), key(r)) && loadedWith(r.file, w.file));
+        if (!ok) problems.push(`${mode}: ${r.file} reads ${name} at load before it is set (by ${[...new Set(writes.map((w) => w.file))].join(', ')}) - read it when it is needed`);
+      }
+      const wraps = list.filter((e) => e.kind === 'wrap');
+      if (wraps.length) {
+        const last = writes.reduce((m, w) => (before(key(m), key(w)) ? w : m));
+        const ok = wraps.some((c) => {
+          const def = wrapperFile[c.fn];
+          // A function is there from the start of its script: its file on the page, its whole chunk.
+          const exists = mode === 'page' ? (c.file === def || pagePos.get(def) < pagePos.get(c.file)) : place(def)[0] <= place(c.file)[0];
+          return exists && before(key(last), key(c)) && loadedWith(c.file, def);
+        });
+        if (!ok) problems.push(`${mode}: ${name} is wrapped (${[...new Set(wraps.map((c) => c.fn))].join(', ')}) before ${last.file} sets it - end ${last.file} with if (typeof ${wraps[0].fn} === 'function') ${wraps[0].fn}('${name.split('.')[1]}')`);
+      }
+    }
+  }
+  if (problems.length) throw new Error(`lazy-split: the registries can run in the wrong order:\n  ${[...new Set(problems)].join('\n  ')}`);
 }
 
 /* Word lists the page shares with the rooms server: one file, both sides

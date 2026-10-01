@@ -18,7 +18,9 @@
    (lzBootWrite, at the end of the body), so nothing waits for it.
    ========================================================================= */
 var LZ = window.LZ_MANIFEST || null;
-var lz = { loaded: {}, loading: {}, pending: {}, busy: 0, barTimer: null, fail: null };
+var lz = { loaded: {}, loading: {}, pending: {}, from: {}, boot: {}, tags: {}, busy: 0, barTimer: null, fail: null };
+var LZ_TIMEOUT_MS = 15000;
+function lzView() { try { return appState.currentView; } catch (e) { return null; } }
 
 /** A chunk and everything it needs, in the order they must run. */
 function lzClosure(ids) {
@@ -41,15 +43,27 @@ function lzChunksOfGame(id) { return (LZ && id && LZ.games[id]) || []; }
 function lzLoadOne(id) {
   if (lz.loaded[id]) return Promise.resolve();
   if (lz.loading[id]) return lz.loading[id];
-  var c = LZ.chunks[id];
-  var p = new Promise(function (resolve, reject) {
-    var s = document.createElement('script');
-    s.src = LZ.base + c.f;
+  // A script still on its way from an earlier try is waited for again, never
+  // inserted twice (a chunk run twice throws on its own `const`s).
+  var s = lz.tags[id];
+  if (!s) {
+    s = lz.tags[id] = document.createElement('script');
+    s.src = LZ.base + LZ.chunks[id].f;
     // Inserted scripts run in the order they were inserted: a chunk after what it needs.
     s.async = false;
-    s.onload = function () { lz.loaded[id] = true; delete lz.loading[id]; resolve(); };
-    s.onerror = function () { delete lz.loading[id]; s.remove(); reject(new Error('chunk ' + id)); };
+    s.addEventListener('load', function () { lz.loaded[id] = true; delete lz.tags[id]; });
+    s.addEventListener('error', function () { delete lz.tags[id]; s.remove(); });
     document.body.appendChild(s);
+  }
+  var p = new Promise(function (resolve, reject) {
+    // A connection that takes the request and sends nothing fires neither load nor
+    // error: after LZ_TIMEOUT_MS the door gives up and shows «حاول تاني».
+    var timer = setTimeout(function () {
+      if (lz.loading[id] === p) delete lz.loading[id];
+      reject(new Error('chunk timeout ' + id));
+    }, LZ_TIMEOUT_MS);
+    s.addEventListener('load', function () { clearTimeout(timer); if (lz.loading[id] === p) delete lz.loading[id]; resolve(); });
+    s.addEventListener('error', function () { clearTimeout(timer); if (lz.loading[id] === p) delete lz.loading[id]; reject(new Error('chunk ' + id)); });
   });
   lz.loading[id] = p;
   return p;
@@ -64,25 +78,32 @@ function lzEnsure(ids) {
  * The door: true when `ids` aren't loaded yet - they are being fetched, and
  * `retry` runs once they are (only the latest thing asked for under `key`
  * runs: a second tap while a game loads replaces the first). false: go on.
+ * A 'nav' door is a tap on the screen showing then: if the player has gone to
+ * another screen meanwhile (a tab, back), the late chunk opens nothing - it
+ * used to pull them off the screen they chose into the game.
  */
 function lzWait(ids, retry, key) {
   if (lzReady(ids)) return false;
   key = key || 'nav';
   lz.pending[key] = retry;
+  lz.from[key] = lzView();
   lzBusy(1);
   lzEnsure(ids).then(function () {
     lzBusy(-1);
     if (lz.pending[key] !== retry) return;
     delete lz.pending[key];
+    if (lzLeft(key)) return;
     retry();
   }, function () {
     lzBusy(-1);
     if (lz.pending[key] !== retry) return;
     delete lz.pending[key];
+    if (lzLeft(key)) return;
     lzFailed(ids, retry, key);
   });
   return true;
 }
+function lzLeft(key) { return key === 'nav' && lz.from[key] !== lzView(); }
 /** Runs fn now if its chunks are here, or once they are. */
 function lzRun(ids, fn) {
   if (typeof ids === 'string') ids = [ids];
@@ -129,7 +150,7 @@ function lzBusy(d) {
 function escapeLz(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 function lzFailed(ids, retry, key) {
   var el = lzPill();
-  lz.fail = { ids: ids, retry: retry, key: key };
+  lz.fail = { ids: ids, retry: retry, key: key, from: lzView() };
   el.className = 'lz-status lz-status--fail';
   el.innerHTML = '<span>' + escapeLz(lzText('lz_failed', 'مقدرناش نفتح اللعبة')) + '</span>' +
     '<button type="button" class="lz-status__btn" onclick="lzRetry()">' + escapeLz(lzText('lz_retry', 'حاول تاني')) + '</button>' +
@@ -146,8 +167,13 @@ function lzRetry() {
   lzDismiss();
   if (f && !lzWait(f.ids, f.retry, f.key)) f.retry();
 }
-// Back online with a failure showing: try again by itself.
-window.addEventListener('online', function () { if (lz.fail) lzRetry(); });
+// Back online with a failure showing: try again by itself - unless it was a
+// screen's door and the player has gone elsewhere since (minutes, maybe).
+window.addEventListener('online', function () {
+  if (!lz.fail) return;
+  if (lz.fail.key === 'nav' && lz.fail.from !== lzView()) { lzDismiss(); return; }
+  lzRetry();
+});
 
 /* --- a reload onto a game ---------------------------------------------------
    Written by the build at the very end of the body, after the shell's own
@@ -176,13 +202,20 @@ function lzBootChunks() {
 function lzBootWrite() {
   var ids = lzBootChunks();
   ids.forEach(function (id) {
-    lz.loading[id] = true;
+    // A promise, as lzLoadOne keeps: a door reached while this script downloads
+    // waits for it (a bare `true` let Promise.all resolve at once).
+    lz.loading[id] = new Promise(function (res, rej) { lz.boot[id] = { res: res, rej: rej }; });
+    lz.loading[id].catch(function () {});
     document.write('<script src="' + LZ.base + LZ.chunks[id].f + '" onload="lzBootDone(\'' + id + '\')" onerror="lzBootFail(\'' + id + '\')"><\/script>');
   });
 }
-function lzBootDone(id) { lz.loaded[id] = true; delete lz.loading[id]; }
+function lzBootDone(id) {
+  lz.loaded[id] = true; delete lz.loading[id];
+  if (lz.boot[id]) { lz.boot[id].res(); delete lz.boot[id]; }
+}
 function lzBootFail(id) {
   delete lz.loading[id];
+  if (lz.boot[id]) { lz.boot[id].rej(new Error('chunk ' + id)); delete lz.boot[id]; }
   // The saved screen can't be drawn without it: open on the home instead.
   try {
     var saved = JSON.parse(localStorage.getItem('gameTrackerState_v1') || 'null');

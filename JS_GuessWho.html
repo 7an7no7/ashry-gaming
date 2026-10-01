@@ -923,4 +923,9 @@ TV_GAMES.guesswho = {
     if (state.shared.phase === 'over') duelRoomCheer(view, state, ['gw', roomDealKey(state), state.shared.round].join('|'));
   }
 };
+// The tournament wraps its renderers (JS_RoomTournament.html). Its chunk, duels,
+// runs before this one now that games load as chunks, so its own pass at load
+// found no guesswho yet: wrap here, once both entries exist. On the one page this
+// file runs first and the tournament's pass does it.
+if (typeof tourWrap === 'function') tourWrap('guesswho');
 </script>

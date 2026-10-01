@@ -78,9 +78,18 @@ function paintDiceCount() {
   if (b2) b2.classList.toggle('is-active', n === 2);
 }
 
+// The roll's and the toss's landings: left behind with the tool, they would ring
+// «success» over the next screen and write into the hidden one.
+let diceTimer = null, coinTimer = null;
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from) => { if (from === 'tool-dice') { clearTimeout(diceTimer); clearTimeout(coinTimer); diceTimer = coinTimer = null; } });
+}
+
 /** The tool as it was last left on this phone: one die or two, the dice or the coin. */
 function paintDiceTool() {
   if (appState.dice.count !== 2) appState.dice.count = 1;
+  // A roll cut short by leaving never landed: the buttons are free again.
+  document.querySelectorAll('[onclick="rollDice()"], [onclick="flipCoin()"]').forEach(b => { b.disabled = false; });
   paintDiceCount();
   setDiceTab(appState.dice.tab === 'coin' ? 'coin' : 'dice', true);
   paintDiceTray();
@@ -108,7 +117,9 @@ function rollDice() {
   });
 
   const still = reducedMotion();
-  setTimeout(() => {
+  clearTimeout(diceTimer);
+  diceTimer = setTimeout(() => {
+    diceTimer = null;
     resultEl.innerText = values.reduce((a, b) => a + b, 0);
     playSound('success');
     if (btn) btn.disabled = false;
@@ -151,7 +162,9 @@ function flipCoin() {
     }
   }
 
-  setTimeout(() => {
+  clearTimeout(coinTimer);
+  coinTimer = setTimeout(() => {
+    coinTimer = null;
     if (resultEl) resultEl.innerText = isHeads ? (t.coin_heads || '') : (t.coin_tails || '');
     playSound('success');
     if (btn) btn.disabled = false;

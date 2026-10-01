@@ -75,9 +75,10 @@ function shareCardFit(ctx, text, maxWidth) {
 
 /** The plain words of a line that may carry markup (a solo result's lines are HTML). */
 function shareCardText(html) {
-  const box = document.createElement('div');
-  box.innerHTML = String(html == null ? '' : html);
-  return (box.textContent || '').replace(/\s+/g, ' ').trim();
+  // Parsed in an inert document: a room's footer carries players' names, and a div
+  // of this page, even never attached, loads an <img> and runs its onerror.
+  const doc = new DOMParser().parseFromString(String(html == null ? '' : html), 'text/html');
+  return ((doc.body && doc.body.textContent) || '').replace(/\s+/g, ' ').trim();
 }
 
 /**

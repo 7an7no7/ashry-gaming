@@ -97,7 +97,7 @@ ROOM_GAMES.buzzer = {
       }
 
       const last = s.last
-        ? `<div class="bz-last ${s.last.ok ? 'tx-success' : 'tx-danger'}">${s.last.ok ? '✅' : '❌'} ${escapeHTML(s.last.name)}</div>`
+        ? `<div class="bz-last ${s.last.ok ? 'tx-success' : 'tx-danger'}">${s.last.ok ? '✅' : '❌'} ${escapeHTML(s.last.name)}</div>${bzUndoHtml(state, t)}`
         : '';
 
       // «ترتيب الضغط» as chips: the first to buzz lit and answering, the rest with how far behind.
@@ -123,13 +123,28 @@ ROOM_GAMES.buzzer = {
             <button class="btn btn--ghost btn--sm" onclick="tvBackToHub()">${escapeHTML(t.room_another_game || '')}</button>
           </div>
         </div>`;
-      const resetScores = !state.youAreHost ? '' : `<div class="bz-reset"><button class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('playAgain')">${escapeHTML(t.bz_reset_scores || '')}</button></div>`;
+      const resetScores = !state.youAreHost ? '' : `<div class="bz-reset"><button class="btn btn--ghost btn--xs btn--auto" onclick="bzResetScores()">${escapeHTML(t.bz_reset_scores || '')}</button></div>`;
 
       return head + bzQuizHtml(state, t) + bzQuizHostHtml(state, t) + stage + last + order + renderScoreboard(s.board) + resetScores + renderRoomPlayerStrip(state) + host;
     });
     refreshRoomPlayerStrip(el, state);
   }
 };
+
+/** «تصفير النقاط» wipes the whole evening's tally: asked first (the phone and the TV). */
+function bzResetScores() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  showConfirmModal(t.bz_reset_confirm || '', () => roomAct('playAgain'));
+}
+
+/** «↶ رجّع» for the host: takes the last verdict back (RoomGames.js `undoVerdict`, named by its seq). */
+function bzUndoHtml(state, t, tv) {
+  const last = (state.shared || {}).last;
+  if (!state.youAreHost || !last || !last.seq) return '';
+  const call = `roomAct('undoVerdict', { seq: ${Number(last.seq) || 0} })`;
+  return tv ? tvBtn('↶ ' + (t.bz_undo || ''), call, 'ghost')
+    : `<div class="bz-reset"><button class="btn btn--ghost btn--xs btn--auto" onclick="${call}">↶ ${escapeHTML(t.bz_undo || '')}</button></div>`;
+}
 
 /* --- how close it was (ideas batch: rooms) -------------------------------------------
    The server stamps every press with its own clock as it arrives (buzzes[].at,

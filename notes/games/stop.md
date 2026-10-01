@@ -102,6 +102,14 @@ rules push `{ lang, cat, word }` onto `room._stopTaps` (never projected);
 stop-words` prints them by category, most-tapped first, saying which are
 already in `StopWords.js`. Words that come up often go into the lists by hand.
 
+**Letters every category can answer** (the review of 1 Oct 2026). وقف needs a full
+sheet, so a letter a chosen category has no words on (a country on ث, a colour on ظ)
+was a round nobody could stop. `stopLettersFor(lang, cats, letters)` in StopWords.js
+keeps the letters on which every chosen category's dictionary has at least
+`STOP_LETTER_MIN_WORDS` (3) words - all of them if none qualifies - and both the room
+(`dealStopLetter`, its own memory key per set of categories when the list is
+narrowed) and the one-phone game (`nextStopLetter`) deal from it.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

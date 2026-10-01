@@ -27,7 +27,10 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
   `BOMB_PROMPTS` at `start` (`room._fiveDeck`, `order × rounds`), so no
   per-turn action has to be a `DEAL_ACTION`. `go` (the player up, or the
   host) starts a five-second server clock; `roomTimeout` moves it to
-  `judging`, and the host's `judge` (allowed early too) scores and advances.
+  `judging`, and the host's `judge` scores and advances - only once the five seconds are up
+  (`judging`), and for the turn the phone drew it for (`turn`: `round.turn`,
+  `fiveRoomTurnKey`; the review of 1 Oct 2026: an early verdict was a double tap
+  landing on the next player).
 - **ارسم واكتب** (`telephoneAction`) starts one chain per player with a
   phrase from `DRAW_WORDS`. Step k gives chain c to player `(c + k) % n`,
   drawing on odd steps and writing on even ones; the previous step
@@ -72,6 +75,10 @@ local)`: the one-phone turn passes `local`, since its `endsAt` is the phone's
 `Date.now()`; read through `roomServerNow()` it was cut short or ran long by the gap
 to the server whenever a room was still open on the phone.
 
+
+**صدق ولا كذب: no lie marked by default** (the review of 1 Oct 2026). The writing
+card starts with none of the three marked (`ttLie = null`), and «إرسال» asks for one
+(`tt_need_lie`); the server already refused a sheet without `lie`.
 
 ## History
 

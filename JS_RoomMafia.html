@@ -575,10 +575,11 @@ TV_GAMES.mafia = {
         ${moveOn(tvBtn('🌙 ' + (t.mafia_start_night || ''), "roomAct('startNight')"))}</div>`;
     }
     if (s.phase === 'night') {
+      // How many have tapped, never who: the names still waiting would be the roles still deciding.
       return `<div class="tv-center mafia-tv-night"><div class="tv-big-icon" aria-hidden="true">🌙</div>
         <div class="tv-title">${escapeHTML(t.mafia_city_sleeps || '')}</div>${clock}
         <div class="tv-note">${escapeHTML(t.mafia_night_everyone || '')}</div>
-        ${tvWaitChips(state, s.alive || [], s.acted || [])}
+        <div class="tv-legend tv-wait"><span class="tv-chip is-done">✓ <b class="metric">${ltrFrac((s.acted || []).length, (s.alive || []).length)}</b></span></div>
         ${moveOn(tvBtn(t.mafia_end_night, "roomAct('endNight')", 'ghost'))}</div>`;
     }
     if (s.phase === 'day') {

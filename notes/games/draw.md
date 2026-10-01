@@ -81,6 +81,14 @@ no "caught"/"escaped" cast and a neutral card, instead of «الفنان الم�
 A rebuild on my turn (a new host, the language) keeps my unsent line and turns
 its Send back on; the caught fake's guess box keeps what was typed (`keep`).
 
+**The drawer walks a shuffled order** (the review of 1 Oct 2026). ارسم وخمّن used to
+pick the drawer as `round % players`, so a join or a leave made someone draw twice
+and someone never. `roomTurnStep` (RoomGames.js, shared with كلمة واحدة) keeps a
+shuffled order in `shared.turnOrder` and the pointer in `shared.turnAt`; each
+`nextRound` drops whoever left (moving the pointer back for each one at or before
+it, like المشنقة's `setterAt`), adds latecomers at the end, and steps on. A new game
+(`start`) shuffles afresh.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

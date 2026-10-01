@@ -88,6 +88,14 @@ and its category list escapes the «كلماتنا» / crew titles it shows (a �
 password only for the app's own lists).
 
 
+**كلمة واحدة and من أنا؟ in rooms, the review of 1 Oct 2026.** كلمة واحدة's guesser
+walks a shuffled order (`roomTurnStep`, `shared.turnOrder` / `turnAt`, as ارسم وخمّن's
+drawer) instead of `round % players`. Both deal through `nextPrompts` now (their
+`start` / `nextRound` are `DEAL_ACTIONS`): كلمة واحدة's word under `justone_<lang>`
+(the host's list) or `justone_spy`, من أنا؟'s characters under
+`whoami_<lang>_<category>` - the phone sends `cat` and `lang` with the words (both
+optional; an older phone's list is keyed on its length).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

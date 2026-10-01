@@ -59,22 +59,30 @@ function tlLineHtml(s, t, live) {
   return `<div class="tl-line" dir="ltr">${out}</div>`;
 }
 
+/** Who won: everyone level at the top when the board decided it (winnerNames), in the app's language. */
+function tlWinnersText(s) {
+  const names = Array.isArray(s.winnerNames) && s.winnerNames.length ? s.winnerNames : (s.winnerName ? [s.winnerName] : []);
+  return names.join(appState.lang === 'ar' ? '، ' : ', ');
+}
+
 /** This phone's own cards, with no years on them. */
 function tlMyCardsHtml(state, s, t) {
   const mine = (state.you || {}).cards || [];
   if (!mine.length) return `<div class="waiting-note">${escapeHTML(t.tl_none || '')}</div>`;
   const myTurn = s.turnId === Room.me && s.phase === 'play';
+  // The year hidden: the question mark of the app's language (؟ reads backwards in English).
+  const unknownYear = appState.lang === 'ar' ? '؟' : '?';
   return `<div class="tl-hand">
       <div class="eyebrow">${escapeHTML(t.tl_your_cards || '')}</div>
       <div class="tl-hand__cards">
         ${mine.map(c => (myTurn
           ? `<button type="button" class="tl-card tl-card--mine ${tlLocal.pick === c.id ? 'is-picked' : ''}" onclick="tlPick('${jsStringAttr(c.id)}')">
                <span class="tl-card__text">${escapeHTML(c.text || '')}</span>
-               <span class="tl-card__year">؟</span>
+               <span class="tl-card__year">${unknownYear}</span>
              </button>`
           : `<span class="tl-card tl-card--mine is-waiting">
                <span class="tl-card__text">${escapeHTML(c.text || '')}</span>
-               <span class="tl-card__year">؟</span>
+               <span class="tl-card__year">${unknownYear}</span>
              </span>`)).join('')}
       </div>
       ${myTurn
@@ -129,7 +137,7 @@ ROOM_GAMES.timeline = {
         <div class="card card--accent" style="text-align:center">
           <div class="eyebrow">${escapeHTML(t.tl_over || '')}</div>
           ${s.ended === 'deck' ? `<p class="field__hint">${escapeHTML(t.tl_deck_out || '')}</p>` : ''}
-          ${renderPodium(state, s.board) || (s.winnerName ? `<div class="metric metric--md">🏆 ${escapeHTML(s.winnerName)}</div>` : `<p class="field__hint">${escapeHTML(t.tl_nobody || '')}</p>`)}
+          ${renderPodium(state, s.board) || (s.winnerName ? `<div class="metric metric--md">🏆 ${escapeHTML(tlWinnersText(s))}</div>` : `<p class="field__hint">${escapeHTML(t.tl_nobody || '')}</p>`)}
         </div>
         ${tlLineHtml(s, t, false)}
         ${renderScoreboard(s.board)}
@@ -190,7 +198,7 @@ TV_GAMES.timeline = {
       return `
         <div class="tv-vote">
           ${s.ended === 'deck' ? `<div class="tv-note tv-center-text">${escapeHTML(t.tl_deck_out || '')}</div>` : ''}
-          <div class="tv-title tv-center-text">${s.winnerName ? '🏆 ' + escapeHTML(s.winnerName) : escapeHTML(t.tl_nobody || '')}</div>
+          <div class="tv-title tv-center-text">${s.winnerName ? '🏆 ' + escapeHTML(tlWinnersText(s)) : escapeHTML(t.tl_nobody || '')}</div>
           <div class="tv-scale">${tlLineHtml(s, t, false)}</div>
           <div class="tv-scale">${renderScoreboard(s.board)}</div>
           ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.timeline.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}

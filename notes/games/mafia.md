@@ -76,6 +76,9 @@ there is no voice for the language it says **nothing at all** - an Arabic line
 read by an English voice is worse than silence. Leaving the screen, or the
 room moving on (`onRoomClocksReset`), cancels whatever is being said.
 
+**The TV at night shows a count, not names** (the review of 1 Oct 2026): «✓ 3/5»
+instead of a chip per player - the names still waiting were the roles still deciding.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

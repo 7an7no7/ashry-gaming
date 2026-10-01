@@ -237,6 +237,9 @@ ROOM_GAMES.monkey = {
     // A monkey's own phone shows its monkey in the note instead, so the verdict carries no second one.
     const verdictFig = s.verdict && !(amMonkey && s.verdict.loserId === Room.me) ? mkVerdictFigHtml(s) : '';
     const verdict = s.verdict ? `<div class="mk-verdict">${verdictFig}<span class="mk-verdict__text">${escapeHTML(mkVerdictText(s.verdict, t))}</span>${state.youAreHost && s.verdict.canFlip && !s.verdict.flipped ? ` <button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('flip')">${escapeHTML(t.mk_flip || '')}</button>` : ''}</div>` : '';
+    // The clock ran out with the automatic quarter off (s.timedOut): the turn waits on the host's
+    // verdict, so the band says so - to the host as the question, to the rest as the fact.
+    const timedOut = s.timedOut ? `<div class="mk-verdict"><span class="mk-verdict__text tx-danger">⏰ ${escapeHTML(state.youAreHost ? (t.mk_timed_out_host || '') : (t.mk_timed_out || ''))}</span></div>` : '';
     const monkeyNote = amMonkey ? `<div class="mk-verdict mk-verdict--monkey"><span class="mk-verdict__fig">${mkRoomFig(s, Room.me)}</span><span class="mk-verdict__text">${escapeHTML(t.mk_you_monkey || '')}</span></div>` : '';
     // The bar: كذّاب! and مفيش عندي the main pair, the host's take-backs small under them.
     const hostRow = state.youAreHost ? `
@@ -259,7 +262,7 @@ ROOM_GAMES.monkey = {
     // The input survives presence flickers: the signature carries only what the screen shows.
     // And a rebuild within the same turn (the host flipping the last verdict, a new host)
     // keeps a half-typed name; one sent and taken (`used` grew) starts the box empty.
-    const sig = ['mk', s.mode, s.turnId, word, s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {}), myTurn, state.youAreHost, mkRoom.swapFor, appState.lang].join('|');
+    const sig = ['mk', s.mode, s.turnId, word, s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {}), !!s.timedOut, myTurn, state.youAreHost, mkRoom.swapFor, appState.lang].join('|');
 
     renderRoomFrame(el, sig, () => {
       let stage = '';
@@ -293,7 +296,7 @@ ROOM_GAMES.monkey = {
             ${(s.used || []).length ? `<div class="chip-set mk-used">${(s.used || []).slice(0, 8).map(n => `<span class="chip chip--plain"><span class="chip__label">${escapeHTML(n)}</span></span>`).join('')}</div>` : ''}
           </div>`;
       }
-      return `${head}${verdict}${monkeyNote}${mkBoardHtml(s, state, t)}${stage}${renderRoomPlayerStrip(state)}${bar}`;
+      return `${head}${timedOut}${verdict}${monkeyNote}${mkBoardHtml(s, state, t)}${stage}${renderRoomPlayerStrip(state)}${bar}`;
     }, ['mk-name', s.turnId, (s.used || []).length].join('|'));
     armMkClock(s.endsAt);
     refreshRoomPlayerStrip(el, state);
@@ -302,7 +305,7 @@ ROOM_GAMES.monkey = {
 
 /* --- the TV ------------------------------------------------------------------ */
 TV_GAMES.monkey = {
-  sig: (state) => { const s = state.shared; return [s.phase, s.turnId, (s.letters || []).map(l => l.ch).join(''), s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {}), mkRoom.swapFor || ''].join('|'); },
+  sig: (state) => { const s = state.shared; return [s.phase, s.turnId, (s.letters || []).map(l => l.ch).join(''), s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {}), !!s.timedOut, mkRoom.swapFor || ''].join('|'); },
   frame(state, t) {
     const s = state.shared;
     const lang = s.lang === 'en' ? 'en' : 'ar';
@@ -348,6 +351,7 @@ TV_GAMES.monkey = {
           <div class="tv-eyebrow">${escapeHTML(t.current_turn || '')}</div>
           <div class="tv-title">${escapeHTML(s.turnName || '')}</div>
           ${word}
+          ${s.timedOut ? `<div class="tv-note tv-danger">⏰ ${escapeHTML(state.youAreHost ? (t.mk_timed_out_host || '') : (t.mk_timed_out || ''))}</div>` : ''}
           ${verdict}
         </div>
       </div>

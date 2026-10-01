@@ -118,7 +118,8 @@ ROOM_GAMES.twotruths = {
   }
 };
 
-let ttLie = 0;
+// None marked until the writer marks one: statement 1 used to be the lie by default.
+let ttLie = null;
 function ttPickLie(i) {
   ttLie = i;
   document.querySelectorAll('.tt-lie').forEach(b => {
@@ -133,11 +134,12 @@ async function ttSubmit() {
   const t = TRANSLATIONS[appState.lang];
   const statements = [0, 1, 2].map(i => ((document.getElementById('tt-s' + i) || {}).value || '').trim());
   if (statements.some(x => !x)) { showToast(t.tt_need_three || '', 'error'); return; }
-  // The lie goes back to the first only once the room has it: a send that
+  if (ttLie === null) { showToast(t.tt_need_lie || '', 'error'); return; }
+  // The mark is cleared only once the room has it: a send that
   // failed leaves the frame (and its marked lie) up, and the retry must send it.
   try {
     await Room.act('submit', { statements: statements, lie: ttLie });
-    ttLie = 0;
+    ttLie = null;
   } catch (err) {
     if (!err.quiet) showToast(err.message || 'تعذر تنفيذ الإجراء', 'error');
   }

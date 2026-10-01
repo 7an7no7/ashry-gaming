@@ -355,3 +355,36 @@ const stopWordKnown = (lang, cat, text) => {
   }
   return false;
 };
+
+/* --- The letters a sheet can be filled on ------------------------------------
+   وقف needs every box filled, so a letter a chosen category has (almost) no word
+   for is a round nobody can stop (a country on ث, a colour on ظ). A round's letter
+   is dealt from the letters every chosen category's dictionary has at least
+   STOP_LETTER_MIN_WORDS words on - all the letters, if no letter does. The room
+   and the one-phone game both deal through stopLettersFor. */
+const STOP_LETTER_MIN_WORDS = 3;
+const STOP_LETTER_COUNTS = {};
+
+/** How many words of a category's dictionary start with each (folded) letter; null with no dictionary. */
+const stopLetterCounts = (lang, cat) => {
+  const key = (lang === 'en' ? 'en' : 'ar') + ':' + cat;
+  if (STOP_LETTER_COUNTS[key]) return STOP_LETTER_COUNTS[key];
+  const dict = stopDictionary(lang, cat);
+  if (!dict) return null;
+  const counts = {};
+  dict.forEach((w) => { const c = w.charAt(0); counts[c] = (counts[c] || 0) + 1; });
+  STOP_LETTER_COUNTS[key] = counts;
+  return counts;
+};
+
+/** The letters of `letters` every one of `cats` can answer; all of them when none can. */
+const stopLettersFor = (lang, cats, letters) => {
+  const ok = (letters || []).filter((l) => {
+    const f = foldStopAnswer(l, lang);
+    return (cats || []).every((cat) => {
+      const counts = stopLetterCounts(lang, cat);
+      return !counts || (counts[f] || 0) >= STOP_LETTER_MIN_WORDS;
+    });
+  });
+  return ok.length ? ok : (letters || []).slice();
+};

@@ -22,6 +22,10 @@ The room's send button is the standard one (1 Oct 2026): `btn btn--primary btn--
 with «إرسال» beside the field, as in ارسم وخمّن (it was a ✓ square).
 
 
+**Out of rounds, ties share it** (the review of 1 Oct 2026): at `HERD_MAX_ROUNDS` with
+nobody at the target, `shared.winners` is everyone level at the top (the sheep and
+the watchers aside), not only the first row.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

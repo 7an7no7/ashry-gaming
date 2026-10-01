@@ -936,7 +936,7 @@ async function hearRobots() {
   await H.waitFor((s) => s.shared.cut === true, 'hear 1: «خلّصت» cuts the clock');
   await drawers[0].must('hand', { round: 1 });
   await drawers[1].must('hand', { round: 1 });
-  check(H.state.shared.phase === 'draw' && (H.state.shared.handed || []).length === 2, 'hear 1: two pages handed in');
+  await H.waitFor((s) => s.shared.phase === 'draw' && (s.shared.handed || []).length === 2, 'hear 1: two pages handed in');
   await drawers[2].must('hand', { round: 1, strokes: [] });
   await all(people.concat([TV]), (s) => s.shared.phase === 'grade' && s.shared.pic && s.shared.drawings && s.shared.drawings.length === 3, 'hear 1: all handed in: the picture and the drawings on every screen');
   const g = H.state.shared;

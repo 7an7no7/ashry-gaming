@@ -53,6 +53,29 @@ new category, so it is in `DEAL_ACTIONS` in `room.js`. The three phone
 renderers carry their own `TV_GAMES` entries (`JS_RoomChameleon.html`,
 `JS_RoomSpyfall.html`, `JS_RoomBomb.html`).
 
+## Every phone looks the same (the audit of 1 Oct 2026)
+
+Phones lie on the table for the whole round, so nothing on one phone may say
+"spy" from across the room; only the words, read up close, differ.
+
+- **الجاسوس**: the room card (`.room-role`) is the game's colour for every
+  role. `role-card--spy` (red) is no longer used there, and the spy's card
+  shows ❓ where a word would be, as الموقع السري's does, instead of the big
+  drawn spy.
+- **الحرباء**: the grid has no lit cell on any phone during the clues and the
+  vote (the secret cell used to be lit on everyone's board but the
+  chameleon's); the role card names the word. After a catch the grid lights it
+  again, since the chameleon is known.
+- **الموقع السري**: the spy's way to guess during play is one quiet
+  «🕵️ أنا الجاسوس» (ghost, small) on every phone in the round, as on one
+  phone; a non-spy's tap only says it is the spy's button
+  (`spy_guess_only_spy`) and changes nothing. A red button on the spy's phone
+  alone named the spy. Kept as a button rather than a hidden gesture so the
+  spy can still find it under the clock.
+- **الجاسوس's discussion clock** is painted first and kept only while it runs
+  (`roomDiscussClock.isRunning()`): coming back to the room from the menu used
+  to leave it at 00:00.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

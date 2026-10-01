@@ -29,6 +29,12 @@ under them; «تصفير النقاط» is a small button under the standings it
 (`.bz-reset`). The quiz's reveal / next sit under the quiz card. The players' bell
 is unchanged.
 
+## A TV host (1 Oct 2026)
+
+A TV hosting the room has the phone host's «↺ السؤال من الأول» once a family
+quiz is done and «صفّر النقاط» always (both `playAgain`), beside 🔄 and
+another game.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

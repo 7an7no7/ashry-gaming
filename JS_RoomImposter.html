@@ -118,9 +118,13 @@ function renderImposterReveal(el, state, t) {
         ? `<div class="role-card animate-pop">
              <div class="role-card__value">${escapeHTML(you.word || '')}</div>
            </div>`
-        : `<div class="role-card ${isSpy ? 'role-card--spy' : ''} animate-pop">
-             <div class="role-card__label">${isSpy ? (t.you_are_spy || 'أنت الجاسوس') : (t.secret_word || 'الكلمة السرية')}</div>
-             <div class="role-card__value">${isSpy ? `<span class="role-card__art" aria-hidden="true">${iconHtml('art:imposter')}</span>` : escapeHTML(you.word || '')}</div>
+        // One poster, the same colour for every role (as in الحرباء and
+        // الموقع السري): the card stays open until the discussion starts, and
+        // a red one, or the spy's big drawing, told the table who it was from
+        // across the room. Only the words differ.
+        : `<div class="role-card animate-pop">
+             <div class="role-card__label">${isSpy ? '🕵️ ' + (t.you_are_spy || 'أنت الجاسوس') : (t.secret_word || 'الكلمة السرية')}</div>
+             <div class="role-card__value">${isSpy ? '❓' : escapeHTML(you.word || '')}</div>
              ${isSpy ? `<div class="role-card__hint">${t.spy_hint || 'حاول أن تعرف الكلمة دون أن ينكشف أمرك'}</div>` : ''}
            </div>`)
     : `<button class="role-card role-card--closed" onclick="imposterFlipCard()">
@@ -218,10 +222,9 @@ onRoomClocksReset(stopRoomDiscussClock);
 function startRoomDiscussClock(startedAt) {
   const base = startedAt || roomServerNow();
   // Restarting on every render threw the tick away each poll for no gain; the
-  // reading is anchored to the shared start time either way.
-  if (roomDiscussClock && roomDiscussBase === base) return;
-  if (roomDiscussClock) roomDiscussClock.stop();
-  roomDiscussBase = base;
+  // reading is anchored to the shared start time either way. It is painted
+  // first, and kept only while it runs: leaving the room screen stops every
+  // clock, and coming back rebuilds the frame at 00:00.
   const paint = () => {
     const el = document.getElementById('room-imp-timer');
     if (!el) return;
@@ -231,6 +234,9 @@ function startRoomDiscussClock(startedAt) {
     el.innerText = `${m}:${s}`;
   };
   paint();
+  if (roomDiscussClock && roomDiscussBase === base && roomDiscussClock.isRunning()) return;
+  if (roomDiscussClock) roomDiscussClock.stop();
+  roomDiscussBase = base;
   roomDiscussClock = createClock({ countUp: true, onTick: paint });
 }
 

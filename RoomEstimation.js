@@ -58,7 +58,11 @@ const estimationAction = (room, playerId, action, payload) => {
   if (action === 'skipTurn') {
     requireMoveOn(room, playerId);
     if (staleTap(p, 'seq', s.turnSeq)) return;
-    estApply(room, () => estAuto(room, 'host'));
+    // For the dash the host's phone names the quiet phones (`pids`, as جمجمة's
+    // laying does): only they are answered for, not someone online still deciding.
+    // A phone on an older page sends none, and every seat still open is answered.
+    const only = Array.isArray(p.pids) ? p.pids.map(String) : null;
+    estApply(room, () => estAuto(room, 'host', only));
     return;
   }
   const k = estSeatOf(s, playerId);
@@ -393,11 +397,12 @@ const estGameOver = (room) => {
  * What the phone does for a player who didn't: no dash, a pass in the auction,
  * a sensible call (what the hand looks good for), the lowest card allowed.
  */
-const estAuto = (room, why) => {
+const estAuto = (room, why, only) => {
   const s = room.shared;
   const g = room._est;
   if (s.phase === 'dash') {
-    const quiet = s.dash.map((d, k) => (d === null ? k : -1)).filter(k => k !== -1);
+    const quiet = s.dash.map((d, k) => (d === null ? k : -1))
+      .filter(k => k !== -1 && (!only || only.indexOf(String(s.seats[k])) !== -1));
     quiet.forEach(k => estEvent(room, 'auto', { k: k, why: why }));
     quiet.forEach(k => { if (s.phase === 'dash') estDash(room, k, false); });
     return;

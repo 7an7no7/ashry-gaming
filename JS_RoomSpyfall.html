@@ -112,8 +112,11 @@ function spyfallFrame(state, t) {
     : `<div class="role-card"><div class="role-card__label">📍 ${escapeHTML(t.spy_location || '')}</div><div class="role-card__value">${escapeHTML(you.location || '')}</div><div class="role-card__hint">🧑‍💼 ${escapeHTML(t.spy_your_job || '')}: <b>${escapeHTML(you.job || '')}</b></div></div>`);
 
   if (s.phase === 'play') {
-    const guessBtn = iAmSpy && inRound
-      ? `<button class="btn ${spyfallRoom.guessing ? 'btn--ghost' : 'btn--danger-soft'}" onclick="spyfallToggleGuess()">${escapeHTML(spyfallRoom.guessing ? (t.cancel || '') : (t.spy_guess_btn || ''))}</button>`
+    // The spy's way to guess is the same quiet button on every phone in the
+    // round, as on one phone: a red «أنا الجاسوس» on the spy's phone alone
+    // named the spy to anyone glancing at it. A non-spy's tap only says so.
+    const guessBtn = inRound
+      ? `<button class="btn btn--ghost btn--sm" onclick="spyfallToggleGuess()">${spyfallRoom.guessing ? escapeHTML(t.cancel || '') : `<span aria-hidden="true">🕵️ </span>${escapeHTML(t.spy_guess_short || '')}`}</button>`
       : '';
     return head + card + `
       <p class="field__hint" style="text-align:center">🎤 ${escapeHTML(t.spy_first || '')}: <b>${escapeHTML(nameOf(s.firstId))}</b></p>
@@ -174,6 +177,11 @@ function spyfallCross(loc) {
 }
 
 function spyfallToggleGuess() {
+  const me = (Room.state && Room.state.you) || {};
+  if (me.role !== 'spy') {
+    showToast(TRANSLATIONS[appState.lang].spy_guess_only_spy || (appState.lang === 'en' ? 'Only the spy guesses the place: you already know it' : 'الزرار ده للجاسوس بس: أنت عارف المكان'));
+    return;
+  }
   spyfallRoom.guessing = !spyfallRoom.guessing;
   if (Room.state) ROOM_GAMES.spyfall.render(Room.state);
 }

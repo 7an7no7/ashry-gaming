@@ -40,11 +40,21 @@ ROOM_GAMES.fakeartist = {
     const sig = ['fa', s.round, s.turnIndex, s.phase, (s.strokes || []).length, myTurn,
                  s.vote ? s.vote.voted.length : '', state.youAreHost, drawerAway, appState.lang].join('|');
 
-    if (renderRoomFrame(el, sig, () => fakeArtistFrame(state, t, myTurn, drawerAway))) {
+    // `keep`: the caught fake's guess survives a rebuild for a new host or the language.
+    if (renderRoomFrame(el, sig, () => fakeArtistFrame(state, t, myTurn, drawerAway), ['fa', s.round, s.turnIndex, s.phase].join('|'))) {
       // The turn moved on (sent, or skipped by the host): nothing of ours is pending.
       if (!myTurn) fakeArt.line = null;
       bindFakeArtistCanvas(myTurn, (s.colors || {})[Room.me] || '#111827');
       paintFakeArtist(s.strokes || []);
+      // Rebuilt on my turn with my line still unsent: the new Send starts
+      // disabled, and the canvas refuses a second line while one is pending,
+      // so without this the only way to send was «أعد».
+      if (myTurn && fakeArt.line && !fakeArt.sending) {
+        fakeArt.drawing = false;
+        const send = document.getElementById('fa-send');
+        if (fakeArt.line.length >= 4) { if (send) send.disabled = false; }
+        else { fakeArt.line = null; paintFakeArtist(s.strokes || []); }
+      }
     }
     refreshRoomPlayerStrip(el, state);
   }
@@ -65,6 +75,21 @@ function faOnline(state, id) {
 function faName(state, id) {
   const p = state.players.find(x => x.id === id);
   return p ? p.name : '—';
+}
+
+/** The fake's name for the result: a fake who left is no longer in the room's
+ *  players, so the server's note of it comes first. */
+function faFakeName(state) {
+  const s = state.shared;
+  return s.fakeName || faName(state, s.fakeId);
+}
+
+/** The result's line: a fake who left mid-round ends it with nobody scoring
+ *  (as الجاسوس, الحرباء and الموقع السري do), not with "the fake escaped". */
+function faResultLine(state, t) {
+  const s = state.shared;
+  if (s.impostorLeft) return (t.room_impostor_left || '').replace('{name}', faFakeName(state));
+  return !s.fakeCaught ? t.fa_escaped : (s.winner === 'fake' ? t.fa_stole : t.fa_artists_win);
 }
 
 function faDot(state, id) {
@@ -148,16 +173,17 @@ function fakeArtistFrame(state, t, myTurn, drawerAway) {
   let results = '';
   if (s.phase === 'results') {
     const fakeWon = s.winner === 'fake';
-    const line = !s.fakeCaught ? t.fa_escaped : (fakeWon ? t.fa_stole : t.fa_artists_win);
+    const left = !!s.impostorLeft;
+    const line = faResultLine(state, t);
     const revealKey = ['fa', roomDealKey(state, s.round), s.fakeId, s.secretWord].join('|');
     const cover = spyRevealParts(revealKey, t.reveal_fake_was);
-    const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, s.fakeCaught && !fakeWon ? 'caught' : 'escaped', { kind: 'fake', loud: spyCastLoud(state) }) : '';
+    const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, left ? '' : s.fakeCaught && !fakeWon ? 'caught' : 'escaped', { kind: 'fake', loud: spyCastLoud(state) }) : '';
     results = `${cast}
-      <div class="card ${fakeWon ? 'plate-danger' : 'plate-success'} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
+      <div class="card ${left ? '' : fakeWon ? 'plate-danger' : 'plate-success'} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
         <div class="eyebrow">${t.fa_word_was || ''}</div>
         <div class="metric metric--md">${escapeHTML(s.secretWord || '')}</div>
-        <div class="card__title" style="margin: var(--sp-2) 0 0">${fakeWon ? '🦹' : '🎉'} ${line || ''}</div>
-        <p style="margin: var(--sp-1) 0 0">${t.fa_fake_was || ''} ${faDot(state, s.fakeId)} <b>${escapeHTML(faName(state, s.fakeId))}</b>${
+        <div class="card__title" style="margin: var(--sp-2) 0 0">${left ? '🚪' : fakeWon ? '🦹' : '🎉'} ${escapeHTML(line || '')}</div>
+        <p style="margin: var(--sp-1) 0 0">${t.fa_fake_was || ''} ${faDot(state, s.fakeId)} <b>${escapeHTML(faFakeName(state))}</b>${
           s.fakeGuessWord ? ` · ${t.fa_guessed || ''} «${escapeHTML(s.fakeGuessWord)}»` : ''}</p>
       </div>
       ${(s.vote && s.vote.results) ? renderVoteResults(state, { highlightId: s.fakeId, delay: cover.ms }) : ''}

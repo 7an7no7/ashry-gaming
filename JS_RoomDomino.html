@@ -1063,8 +1063,10 @@ ROOM_GAMES.domino = {
     domSyncPick(state);
     const server = domServerSig(state);
     // A tile is still flying: the table it lands on stays until it has landed.
+    // Your own move doesn't queue behind it (as in أونو): it is drawn the moment
+    // the server takes it, or the tapped tile sat in the hand for a second.
     const changed = !!(el.dataset.sig && el._domServer && el._domServer !== server);
-    if (changed && domFx.busyUntil > Date.now()) {
+    if (changed && domFx.busyUntil > Date.now() && !domOwnMoveWaiting(state)) {
       domDeferRedraw();
       domRefreshInPlace(el, state, false);
       return;
@@ -1292,6 +1294,14 @@ function domSound(name) {
  * already watching this room plays from the deal; a reload, a late joiner or
  * a phone that was on another screen starts from the end of the list.
  */
+/** A move of this phone's own the screen hasn't drawn yet (never on a TV). */
+function domOwnMoveWaiting(state) {
+  const s = domShared(state);
+  if (state.youAreScreen || domFx.deal !== state.code + '|' + (s.dealId || '')) return false;
+  return (s.events || []).some(e => e && (Number(e.seq) || 0) > domFx.lastSeq && e.pid === Room.me &&
+    ['play', 'draw', 'pass'].indexOf(e.type) !== -1);
+}
+
 function domEventsToPlay(state) {
   const s = domShared(state);
   const events = s.events || [];

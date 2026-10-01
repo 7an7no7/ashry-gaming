@@ -36,12 +36,15 @@ ROOM_GAMES.wavelength = {
     if (!el) return;
     const t = TRANSLATIONS[appState.lang];
     const s = state.shared;
-    const psychicAway = s.phase === 'clue' && !wlOnline(state, s.psychicId);
+    // The psychic's own phone is never "away" to itself (on the HTTP fallback
+    // its own flag can read offline), and its clue survives a rebuild for a new
+    // host or the language through `keep`.
+    const psychicAway = s.phase === 'clue' && s.psychicId !== Room.me && !wlOnline(state, s.psychicId);
 
     // The dial is left out on purpose: it moves constantly, and rebuilding for
     // it would yank the slider out from under whoever is dragging it.
     const sig = ['wl', s.round, s.phase, state.youAreHost, psychicAway, appState.lang].join('|');
-    if (renderRoomFrame(el, sig, () => wavelengthFrame(state, t, psychicAway)) && s.phase === 'results') wlRevealRun(el, state);
+    if (renderRoomFrame(el, sig, () => wavelengthFrame(state, t, psychicAway), 'wl-clue|' + s.round) && s.phase === 'results') wlRevealRun(el, state);
     paintWavelengthDial(s.dial);
     refreshRoomPlayerStrip(el, state);
   }

@@ -824,15 +824,16 @@ TV_GAMES.fakeartist = {
         ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>`)}`;
     } else {
       const fakeWon = s.winner === 'fake';
-      const line = !s.fakeCaught ? t.fa_escaped : (fakeWon ? t.fa_stole : t.fa_artists_win);
+      const left = !!s.impostorLeft;   // the fake left mid-round: nobody scores
+      const line = faResultLine(state, t);
       const cast = typeof spyCastHtml === 'function'
-        ? spyCastHtml(['fa', roomDealKey(state, s.round), s.fakeId, s.secretWord].join('|'), s.fakeCaught && !fakeWon ? 'caught' : 'escaped', { kind: 'fake', tv: true, cls: 'spc--side' })
+        ? spyCastHtml(['fa', roomDealKey(state, s.round), s.fakeId, s.secretWord].join('|'), left ? '' : s.fakeCaught && !fakeWon ? 'caught' : 'escaped', { kind: 'fake', tv: true, cls: 'spc--side' })
         : '';
       panel = `${cast}
         <div class="tv-eyebrow">${t.fa_word_was || ''}</div>
         <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
-        <div class="tv-note">${fakeWon ? '🦹' : '🎉'} ${line || ''}</div>
-        <div class="tv-note">${t.fa_fake_was || ''} ${who(s.fakeId)}${s.fakeGuessWord ? ` · ${t.fa_guessed || ''} «${escapeHTML(s.fakeGuessWord)}»` : ''}</div>
+        <div class="tv-note">${left ? '🚪' : fakeWon ? '🦹' : '🎉'} ${escapeHTML(line || '')}</div>
+        <div class="tv-note">${t.fa_fake_was || ''} ${faDot(state, s.fakeId)} ${escapeHTML(faFakeName(state))}${s.fakeGuessWord ? ` · ${t.fa_guessed || ''} «${escapeHTML(s.fakeGuessWord)}»` : ''}</div>
         <div class="tv-scale">${renderScoreboard(s.board)}</div>
         ${tvNextFooter(state, t, t.next_round)}`;
     }
@@ -1250,12 +1251,16 @@ TV_GAMES.buzzer = {
         : `<div class="tv-center"><div class="tv-big-icon tv-pulse" aria-hidden="true">🔔</div><div class="tv-title">${t.bz_tv_armed || ''}</div></div>`;
     const queue = buzzes.slice(1, 6).map((b, i) => `<span class="tv-chip"><b class="metric">${i + 2}</b> <bdi>${escapeHTML(b.name)}</bdi> ${bzGapHtml(buzzes, i + 1)}</span>`).join('');
     const last = s.last ? `<div class="tv-note tv-center-text">${s.last.ok ? '✅' : '❌'} ${escapeHTML(s.last.name)}</div>` : '';
+    // The phone host's «↺ again» for a finished quiz and «صفّر النقاط» (JS_RoomBuzzer.html)
+    // are here too: a TV hosting the room has no phone to press them on.
     const host = !state.youAreHost ? '' : `
       <div class="tv-actions">
         ${first ? tvBtn('✅ ' + (t.bz_correct || ''), `roomAct('correct', { id: '${jsStringAttr(first.id)}' })`, 'success') + tvBtn('❌ ' + (t.bz_wrong || ''), `roomAct('wrong', { id: '${jsStringAttr(first.id)}', penalty: buzzerPenalty() })`, 'danger-soft') : ''}
         ${tvBtn(armed ? '🔒 ' + (t.bz_lock || '') : '🔔 ' + (t.bz_arm || ''), armed ? "roomAct('lock')" : "roomAct('arm')", 'secondary')}
         ${s.quiz && !s.quiz.done ? (typeof s.quiz.answer === 'number' ? '' : tvBtn(t.bz_quiz_reveal || '', `roomAct('quizReveal', { n: ${s.quiz.n} })`, 'secondary')) + tvBtn(t.bz_quiz_next || '', `roomAct('quizNext', { n: ${s.quiz.n} })`, 'primary') : ''}
+        ${s.quiz && s.quiz.done ? tvBtn('↺ ' + (t.bz_quiz_again || ''), "roomAct('playAgain')", 'primary') : ''}
         ${tvBtn('🔄 ' + (t.bz_reset || ''), "roomAct('reset')", 'ghost')}
+        ${tvBtn(t.bz_reset_scores || '', "roomAct('playAgain')", 'ghost')}
         ${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}
       </div>`;
     return `<div class="tv-vote">${head}${typeof bzQuizHtml === 'function' ? bzQuizHtml(state, t) : ''}${status}${queue ? `<div class="tv-strip-inline">${queue}</div>` : ''}${last}<div class="tv-scale">${renderScoreboard(s.board)}</div>${host}</div>`;

@@ -640,6 +640,31 @@ const leave = (r, id, hook = true) => {
   };
   walk('justone', {}, joNext, (r) => r.shared.guesserId);
 
+  {
+    // The audit of 1 Oct 2026: two leaving at or before the pointer at once - the next is still the next.
+    const r = newRoom(['a', 'b', 'c', 'd', 'e']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'drawguess' });
+    applyRoomAction(r, 'a', 'start', { lang: 'ar' });
+    applyRoomAction(r, 'a', 'giveUp', {});
+    r.shared.turnOrder = ['a', 'b', 'c', 'd', 'e'];
+    r.shared.turnAt = 2;
+    leave(r, 'b');
+    leave(r, 'c');
+    if (!r.shared.word) applyRoomAction(r, 'a', 'giveUp', {});
+    applyRoomAction(r, 'a', 'nextRound', {});
+    check(r.shared.drawerId === 'd', 'drawguess (audit): b and c leave after c drew - d draws next, nobody skipped');
+  }
+  {
+    // The audit of 1 Oct 2026: أسماء الرموز's sides are an object - someone on neither side only watched.
+    const r = newRoom(['a', 'b', 'c', 'd', 'w']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'codenames' });
+    r.shared.teams = { a: { team: 'red', role: 'spymaster' }, b: { team: 'red', role: 'operative' }, c: { team: 'blue', role: 'spymaster' }, d: { team: 'blue', role: 'operative' } };
+    applyRoomAction(r, 'a', 'start', { lang: 'en' });
+    r.shared.winner = 'red'; r.phase = 'gameover';
+    bankNightPoints(r, r.shared.board);
+    check(r.night.a === 5 && r.night.c === 3 && !r.night.w, 'codenames (audit): the winning side 5, the other 3, a watcher on neither side nothing');
+  }
+
   // كلمة واحدة and من أنا؟ deal through the prompt memory: no word again until the list is through.
   const jo = newRoom(['a', 'b', 'c']);
   applyRoomAction(jo, 'a', 'chooseGame', { game: 'justone' });
@@ -8816,6 +8841,9 @@ Date.now = duelTestClock;
     const s = r.shared;
     check(threwH(() => applyRoomAction(r, 'b', 'skipTurn', { move: 0 })), 'hidden queen room: only the host plays for someone');
     applyRoomAction(r, 'a', 'skipTurn', { move: 0 });
+    // The host's own pawn is never picked for them (the audit of 1 Oct 2026): they pick it themselves.
+    const ownSeat = s.seats.indexOf('a');
+    applyRoomAction(r, 'a', 'hqPick', { sq: ownSeat === 0 ? 'a2' : 'a7', round: s.round });
     check(!r.shared.chess.hq.picking && r._chq.pick[0] >= 8 && r._chq.pick[0] < 16 && r._chq.pick[1] >= 48, 'hidden queen room: the host\'s "play for" picks a random pawn for whoever hasn\'t');
     // A whole game of host moves: every move legal, the end reveals both.
     let guard = 0;
@@ -8833,6 +8861,13 @@ Date.now = duelTestClock;
     // The review of 1 Oct 2026: naming the host's own seat is refused, and picks nothing.
     check(threwH(() => applyRoomAction(r, 'a', 'skipTurn', { move: 0, seat: hostSeat })) && !r.shared.chess.hq.picked[hostSeat] && !r.shared.chess.hq.picked[other],
       'hidden queen room: the host\'s "pick for" their own seat is refused');
+    {
+      // The audit of 1 Oct 2026: an older phone sends no seat - the host's own pawn is still theirs to pick.
+      const r2 = hqRoom(['a', 'b']);
+      const own = r2.shared.seats.indexOf('a');
+      applyRoomAction(r2, 'a', 'skipTurn', { move: 0 });
+      check(!r2.shared.chess.hq.picked[own] && r2.shared.chess.hq.picked[1 - own], 'hidden queen room (audit): a "pick for" with no seat picks only the other seat');
+    }
     applyRoomAction(r, 'a', 'skipTurn', { move: 0, seat: other });
     check(r.shared.chess.hq.picking && r.shared.chess.hq.picked[other] && !r.shared.chess.hq.picked[hostSeat] && r._chq.pick[hostSeat] === -1,
       'audit/hq: the host\'s "pick for" a quiet phone picks that seat only - the host still picks their own pawn');
@@ -13344,6 +13379,15 @@ console.log('• the secret mission');
   check(!fails(['h', 'k', 'g'].find((x) => x !== theirT && x !== asker), 'missionSeen', { id: H().asks.find((a) => a.by === asker).id }) && !H().asks.find((a) => a.by === asker).seen,
     'mission (review): only the target marks a memo shown');
   act(asker, 'missionCancel', {});
+  // The audit of 1 Oct 2026: a memo the target already saw stays known, whatever is taken back later.
+  check(H().of[asker].asked === true, 'mission (audit): a later memo taken back unseen - the target still knows from the first, no catch');
+  {
+    const was = H().of[asker];
+    was.swapAt = 0;
+    act(asker, 'missionSwap', { n: was.n });
+    check(H().of[asker].to === theirT && H().of[asker].asked === true,
+      'mission (audit): «غيّرها» keeps the target - and the hunter they already saw stays uncatchable by them');
+  }
   // Beside a game: the mission goes on through a game and the trip back to the hub.
   act('h', 'chooseGame', { game: 'trivia' });
   act('h', 'start', { lang: 'ar', count: 5 });

@@ -48,13 +48,16 @@ const IDLE_RECHECK_MS = 10 * 60 * 1000;
 const ALARM_FLOOR_MS = 1000;
 // Rapid moves (drawing, the dial) are saved at most this often; the phones get them at once.
 const QUICK_SAVE_MS = 1000;
-const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', 'stick', 'ink', 'bzClock']);
+const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', 'stick', 'ink', 'bzClock', 'draft']);
 // Moves that only touch what the server keeps to itself (ارسم اللي بتسمعه's drawings,
 // room._hear.ink, sent every second or so by every drawer; المهمة السرية's "the memo was
 // shown"): when nothing any phone is shown changed, only the phone that moved gets its
 // answer - no version, no broadcast.
 // الجرس's bzClock: a phone timing a round trip before its first press, nothing changed.
 const SILENT_ACTIONS = new Set(['ink', 'missionSeen', 'bzClock']);
+// Moves that change only the mover's own slice (حرب السفن's draft: the fleet being arranged, sent on
+// every drag): answered to that phone alone when nobody else's view changed (the audit of 1 Oct 2026).
+const SELF_ACTIONS = new Set(['draft']);
 // Quick actions whose game has a clock that moves with them: the alarm is still
 // set for these (the dark room's joystick: its traps and goal come with the walk).
 const QUICK_WITH_ALARM = new Set(['stick']);
@@ -735,7 +738,9 @@ export class Room extends DurableObject {
     }
     // A silent move that left everything the phones are shown as it was (SILENT_ACTIONS).
     const shown = (r) => JSON.stringify([r.shared || null, r.secrets || null, r.phase || null, r.game || null, r.mission || null, r.screenOnly || null]);
-    const silent = SILENT_ACTIONS.has(action) && shown(next) === shown(before);
+    const others = (r) => JSON.stringify([r.shared || null, Object.keys(r.secrets || {}).filter((k) => k !== pid).sort().map((k) => [k, r.secrets[k]]), r.phase || null, r.game || null, r.mission || null, r.screenOnly || null]);
+    const silent = (SILENT_ACTIONS.has(action) && shown(next) === shown(before)) ||
+      (SELF_ACTIONS.has(action) && others(next) === others(before));
     this.room = next;
     if (silent) this.room.updatedAt = Date.now(); else this.touch();
     if (!ws) this.polled.set(pid, Date.now());

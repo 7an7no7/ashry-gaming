@@ -85,7 +85,9 @@ function startSudoku(daily, sure) {
   const s = sudokuState();
   const level = daily ? 'medium' : s.level;
   const made = daily ? sudokuMake(level, soloRandom(soloDaySeed('sudoku'))) : (sudokuAhead[level] || sudokuMake(level, Math.random));
-  if (!daily) { delete sudokuAhead[level]; sudokuMakeAhead(level); }
+  // The next grid is made ahead on the setup screen (paintSudokuSetup), not here: made now, it
+  // took a block of the phone's time just as the player started tapping (the audit of 1 Oct 2026).
+  if (!daily) delete sudokuAhead[level];
   s.daily = daily ? soloToday() : '';
   s.playLevel = level;
   s.puzzle = made.puzzle.join('');

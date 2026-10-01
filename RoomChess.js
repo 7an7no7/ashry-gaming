@@ -429,7 +429,9 @@ function chessAction(room, playerId, action, payload) {
     // Never the presser's own seat: whoever sits there picks their own pawn (the review of 1 Oct 2026).
     if (bd.hq && bd.hq.picking) {
       if ((seat === 0 || seat === 1) && p.seat === seat) throw new Error('اختار عسكريك بنفسك');
-      chessHqAutoPick(room, p.seat === 0 || p.seat === 1 ? p.seat : undefined);
+      // An older phone names no seat: a seated presser's is then the other one, never their own.
+      const forSeat = p.seat === 0 || p.seat === 1 ? p.seat : (seat === 0 || seat === 1 ? 1 - seat : undefined);
+      chessHqAutoPick(room, forSeat);
       return;
     }
     const up = bd.g.turn;

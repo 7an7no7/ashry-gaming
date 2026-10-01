@@ -1,9 +1,13 @@
 import { DurableObject } from 'cloudflare:workers';
-import { PACK_TTL_MS } from '../generated/rules.js';
+import { PACK_TTL_MS, packAnswerOf } from '../generated/rules.js';
 
 // A pack played again within a day doesn't need its clock written again: the
 // free plan meters writes, and a room dealing it every round would write each time.
 const TOUCH_EVERY_MS = 24 * 60 * 60 * 1000;
+// One quiz answer per address at most this often (/pack/answer, the audit of 1 Oct 2026). A card on the
+// team board is read, answered and judged before its answer is asked for - far longer than this - but a
+// script reading every answer before the night now waits this long per question. Kept in memory only.
+const PACK_ANSWER_GAP_MS = 6000;
 
 /**
  * One pack («اعمل مسابقتك» or «كلماتنا»), one instance per code
@@ -58,6 +62,22 @@ export class PackStore extends DurableObject {
       await this.keep(row);
     }
     return { kind: row.kind, pack: row.pack, updated: row.updated, mine: !!keyHash && row.keyHash === keyHash };
+  }
+
+  /**
+   * One question's right choice for the team board (index.js /pack/answer): -1 when the quiz changed under
+   * the phone, { wait } when this address asked for another answer less than PACK_ANSWER_GAP_MS ago.
+   */
+  async answer(i, q, who) {
+    const row = await this.read();
+    if (!row || row.kind !== 'quiz') return null;
+    const now = Date.now();
+    this.asked = this.asked || new Map();
+    const last = this.asked.get(who) || 0;
+    if (who && now - last < PACK_ANSWER_GAP_MS) return { wait: PACK_ANSWER_GAP_MS - (now - last) };
+    if (who) this.asked.set(who, now);
+    if (this.asked.size > 500) for (const [k, at] of this.asked) if (now - at > PACK_ANSWER_GAP_MS) this.asked.delete(k);
+    return { a: packAnswerOf(row.pack, i, q) };
   }
 
   /** The author's change: only with the key the pack was made with, only the same kind. */

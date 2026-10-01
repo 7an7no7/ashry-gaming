@@ -29,11 +29,14 @@ const shuffled = (arr) => {
  */
 const roomTurnStep = (prev, players) => {
   const here = players.map(p => p.id);
-  let at = prev && typeof prev.turnAt === 'number' ? prev.turnAt : -1;
+  // Who left is counted against where the pointer was, not where it has moved to: two
+  // leaving at or before it used to move it back only once, and the next player was skipped.
+  const was = prev && typeof prev.turnAt === 'number' ? prev.turnAt : -1;
+  let at = was;
   const order = [];
   ((prev && Array.isArray(prev.turnOrder)) ? prev.turnOrder : []).forEach((id, i) => {
     if (here.indexOf(id) !== -1) order.push(id);
-    else if (i <= at) at -= 1;
+    else if (i <= was) at -= 1;
   });
   if (!order.length) { at = -1; shuffled(here).forEach(id => order.push(id)); }
   else here.forEach(id => { if (order.indexOf(id) === -1) order.push(id); });
@@ -509,6 +512,7 @@ const scheduleBots = (room) => {
 };
 
 /** The bot that is up makes its move. True when the room changed. */
+const ROOM_BOT_BURST_MS = 1000;
 const runRoomBot = (room) => {
   const hook = room.game && ROOM_BOT_GAMES[room.game];
   const pid = room._botPid;
@@ -2886,6 +2890,8 @@ const nightPlayedIds = (room) => {
   if (s.tour && Array.isArray(s.tour.entrants) && s.tour.entrants.length) ids = s.tour.entrants;
   else if (Array.isArray(s.seats) && flat(s.seats).length) ids = flat(s.seats);
   else if (Array.isArray(s.teams) && flat(s.teams).length) ids = flat(s.teams);
+  // أسماء الرموز keeps its sides as { pid: { team, role } }: someone on neither side only watched.
+  else if (s.teams && typeof s.teams === 'object' && !Array.isArray(s.teams) && Object.keys(s.teams).length) ids = Object.keys(s.teams);
   else if (Array.isArray(s.roster) && s.roster.length) ids = s.roster;
   return ids ? ids.filter((id, i) => id && ids.indexOf(id) === i) : null;
 };
@@ -4344,7 +4350,14 @@ const roomTimeout = (room, now) => {
   let changed = false;
   // برنامج السهرة: a result that gives way to the standings, the standings to the next game.
   if (programTimeout(room, now)) return true;
-  if (typeof room._botAt === 'number' && now >= room._botAt) changed = runRoomBot(room);
+  if (typeof room._botAt === 'number' && now >= room._botAt) {
+    changed = runRoomBot(room);
+    // A game whose computer players move faster than the room's alarm can wake (ALARM_FLOOR_MS in
+    // room.js: a second) plays the next few in this same pass (`burst`: شطرنج الأربعة once only
+    // computer players are left - their 250 ms was really a second, the audit of 1 Oct 2026).
+    const hook = () => room.game && ROOM_BOT_GAMES[room.game];
+    for (let k = 0; k < 3 && hook() && hook().burst && typeof room._botAt === 'number' && room._botAt - Date.now() < ROOM_BOT_BURST_MS; k++) runRoomBot(room);
+  }
   const due = gameDeadline(room);
   if (due && now >= due && gameTimeout(room, now)) {
     changed = true;

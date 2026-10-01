@@ -181,3 +181,5 @@ slot, the two modals), `JS_Core.html` (translations, `GAME_RULES`), `JS_Utils.ht
 (`HELP_ENTRIES`), `tools/lazy-split.mjs` (`CHUNKS.mission`, `SHARED_LISTS`),
 `tools/validate-content.js`, `tools/test-changed.mjs`, `tools/test-ui.mjs`,
 `tools/test-ui-parallel.mjs`, `rooms-worker/test/{rules,leaks,play-all}.mjs`.
+
+- **The audit of 1 Oct 2026:** a memo the target has seen marks the file (`shown`): a later «اسحبه» or a «غيّرها» (same target) never makes that hunter catchable by them again.

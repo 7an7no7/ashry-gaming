@@ -271,7 +271,7 @@ function soloDayIndex(day) {
  */
 const SOLO_CYCLE_FROM = '2026-10-02';
 
-function soloDailyCycle(id, pool, day, per) {
+function soloDailyCycle(id, pool, day, per, at) {
   const n = pool.length;
   const d = day || soloArchiveDay || soloToday();
   const count = per || 1;
@@ -292,7 +292,9 @@ function soloDailyCycle(id, pool, day, per) {
   };
   const out = [];
   const seen = {};
-  let step = (soloDayIndex(d) - soloDayIndex(SOLO_CYCLE_FROM)) * count;
+  // `at`: the place in the walk when a list isn't dealt every day (the chess daily's levels go by
+  // the weekday): counting calendar days skipped six in seven and repeated early.
+  let step = (typeof at === 'number' ? at : soloDayIndex(d) - soloDayIndex(SOLO_CYCLE_FROM)) * count;
   for (let tries = 0; out.length < Math.min(count, n) && tries < count + n; tries++, step++) {
     const round = Math.floor(step / n);
     const i = order(round)[((step % n) + n) % n];

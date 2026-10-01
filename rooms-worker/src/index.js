@@ -34,7 +34,7 @@
  * Anything else is looked up in the built app (docs/, see [assets] in
  * wrangler.toml) before it reaches this code.
  */
-import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS, CREW_CODE_RE, crewNewCode, PACK_ALPHABET, PACK_CODE_LEN, PACK_CODE_RE, packClean, packCode, packHideAnswers, packAnswerOf } from '../generated/rules.js';
+import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS, CREW_CODE_RE, crewNewCode, PACK_ALPHABET, PACK_CODE_LEN, PACK_CODE_RE, packClean, packCode, packHideAnswers } from '../generated/rules.js';
 import { Room } from './room.js';
 import { PromptMemory } from './memory.js';
 import { LiveStats } from './live.js';
@@ -209,11 +209,18 @@ function errEntry(body, ua) {
    few quizzes an evening and saves each a few dozen times while writing. */
 const limiter = (limit, windowMs) => {
   const by = new Map();
+  let swept = 0;
   return (request) => {
     const ip = request.headers.get('CF-Connecting-IP') || '';
     if (!ip) return true;
     const now = Date.now();
-    if (by.size > 5000) for (const [k, v] of by) if (now - v.since > windowMs) by.delete(k);
+    // Old entries go at most once a minute: a map kept full of fresh addresses used to be walked
+    // whole on every request (the audit of 1 Oct 2026).
+    if (by.size > 5000 && now - swept > 60 * 1000) {
+      swept = now;
+      for (const [k, v] of by) if (now - v.since > windowMs) by.delete(k);
+    }
+    if (by.size > 20000 && !by.has(ip)) return false;
     const seen = by.get(ip);
     if (!seen || now - seen.since > windowMs) { by.set(ip, { n: 1, since: now }); return true; }
     seen.n++;
@@ -278,10 +285,12 @@ async function handlePack(env, request, path, body) {
     // same as a room shows after each question. `q` is the question as the phone has it, so a
     // quiz changed since the phone opened it answers for the right question, or not at all.
     if (!packGetAllowed(request)) return { ok: false, error: 'busy' };
-    const got = await packStub(env, code).get(false);
-    if (!got || got.kind !== 'quiz') return { ok: false, error: 'not_found' };
-    const a = packAnswerOf(got.pack, Number(body.i), body.q);
-    return a < 0 ? { ok: false, error: 'changed' } : { ok: true, a };
+    // At most one answer per address every few seconds (PackStore.answer): the board never asks faster.
+    const who = await keyHash('ip:' + (request.headers.get('CF-Connecting-IP') || ''));
+    const got = await packStub(env, code).answer(Number(body.i), body.q, who);
+    if (!got) return { ok: false, error: 'not_found' };
+    if (got.wait) return { ok: false, error: 'wait', in: got.wait };
+    return got.a < 0 ? { ok: false, error: 'changed' } : { ok: true, a: got.a };
   }
   // '/pack/save'
   if (!packSaveAllowed(request)) return { ok: false, error: 'busy' };

@@ -83,7 +83,10 @@ function renderCrew() {
   }
   if (!list.some(c => c.code === crewPage.code)) crewPage.code = list[0].code;
   const code = crewPage.code;
-  const data = crewPage.data[code] || crewCacheRead()[code] || null;
+  // The copy kept on the phone is drawn while the page asks again, without the manager's buttons:
+  // a hand-over since it was kept would show them to someone who no longer runs the crew.
+  const kept = crewPage.data[code] ? null : crewCacheRead()[code];
+  const data = crewPage.data[code] || (kept ? Object.assign({}, kept, { mgr: false }) : null);
   crewDraw(view, list, code, data);
   // Asked again when the page opens, and at most every 20 s while it stays.
   if (!crewPage.busy[code] && (!crewPage.at[code] || Date.now() - crewPage.at[code] > 20000)) crewFetch(code);

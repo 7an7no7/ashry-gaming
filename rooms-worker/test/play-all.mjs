@@ -600,7 +600,10 @@ async function hiddenQueenRobots() {
     'hq: play again - a new pick for both');
   check(!(H.state.you || {}).hq && !(J.state.you || {}).hq, 'hq: the last game\'s secrets are gone');
   await H.must('skipTurn', { move: 0 });
-  await all(two, (s) => s.shared.chess.hq.picking === false && s.you && /^[a-h][27]$/.test(s.you.hq), 'hq: the host picks a random pawn for both');
+  // The audit of 1 Oct 2026: the host's own pawn is never picked for them - they pick it, then the game goes on.
+  const hostSeat = H.state.shared.seats.indexOf(H.pid);
+  await H.must('hqPick', { sq: hostSeat === 0 ? 'a2' : 'a7', round: H.state.shared.round });
+  await all(two, (s) => s.shared.chess.hq.picking === false && s.you && /^[a-h][27]$/.test(s.you.hq), 'hq: the host picks a random pawn for the other seat, and their own themselves');
   await H.must('backToHub');
   two.concat([S]).forEach((b) => b.close());
 }
@@ -1110,7 +1113,10 @@ async function quizRobots() {
   const own = await api('/pack/get', { code: made.code, key: made.key });
   check(own.ok && own.answers === true && own.pack.questions[0].a === 1, "quiz: the author's key gets the answers");
   const ans = await api('/pack/answer', { code: made.code, i: 0, q: got.pack.questions[0].q });
-  check(ans.ok && ans.a === 1 && (await api('/pack/answer', { code: made.code, i: 0, q: 'سؤال مش موجود' })).ok === false, "quiz: the team board gets one question's answer as it plays it");
+  check(ans.ok && ans.a === 1, "quiz: the team board gets one question's answer as it plays it");
+  // The audit of 1 Oct 2026: one answer per address every few seconds, so a script can't read them all at once.
+  const again = await api('/pack/answer', { code: made.code, i: 1, q: got.pack.questions[1] ? got.pack.questions[1].q : '' });
+  check(again.ok === false && again.error === 'wait' && again.in > 0, 'quiz: a second answer asked for at once waits its turn');
   const denied = await api('/pack/save', { code: made.code, key: 'not-the-key', kind: 'quiz', pack: quiz });
   check(!denied.ok && denied.error === 'denied', 'quiz: only the author\'s key changes it');
   const edited = await api('/pack/save', { code: made.code, key: made.key, kind: 'quiz', pack: Object.assign({}, quiz, { title: 'مسابقة العيد الكبير' }) });

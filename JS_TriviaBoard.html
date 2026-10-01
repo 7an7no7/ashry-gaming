@@ -730,7 +730,12 @@ async function tbQuizAnswer(s, col, cell) {
   const ask = quiz.code + ':' + cell.q;
   if (tbAnswerAsking[ask]) return;
   tbAnswerAsking[ask] = true;
-  const res = await packApi('/pack/answer', { code: quiz.code, i: cell.q, q: q.q });
+  let res = await packApi('/pack/answer', { code: quiz.code, i: cell.q, q: q.q });
+  // The server hands out one answer every few seconds per address: two cards revealed back to back wait.
+  for (let k = 0; k < 3 && res && res.error === 'wait'; k++) {
+    await new Promise(r => setTimeout(r, Math.min(7000, Number(res.in) || 3000) + 200));
+    res = await packApi('/pack/answer', { code: quiz.code, i: cell.q, q: q.q });
+  }
   delete tbAnswerAsking[ask];
   const fine = res && res.ok && res.a >= 0 && res.a <= 3;
   if (fine) { q.a = res.a; saveToLocal(); }

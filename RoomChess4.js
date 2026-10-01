@@ -372,6 +372,8 @@ const chess4PlayerLeft = (room, playerId, name) => {
 
 ROOM_BOT_GAMES.chess4 = {
   max: 4,
+  // Only computer players left: the next few moves come in one pass of the room's clock (roomTimeout).
+  burst: true,
   pending: (room) => {
     const s = room.shared || {};
     if (s.phase !== 'play' || !s.g || s.g.over) return null;

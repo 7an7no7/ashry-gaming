@@ -507,13 +507,28 @@ function chPzDailyLevel(day) {
   return wd === 6 ? 1 : wd === 5 ? 3 : 2;
 }
 
+/** How many days of `level` there were from SOLO_CYCLE_FROM up to (not including) `day`. */
+function chPzLevelDays(day, level) {
+  const p = String(SOLO_CYCLE_FROM).split('-').map(Number);
+  const q = String(day).split('-').map(Number);
+  const from = Date.UTC(p[0], p[1] - 1, p[2]), to = Date.UTC(q[0], q[1] - 1, q[2]);
+  let n = 0;
+  for (let t = from; t < to; t += 86400000) {
+    const wd = new Date(t).getUTCDay();
+    if ((wd === 6 ? 1 : wd === 5 ? 3 : 2) === level) n++;
+  }
+  return n;
+}
+
 /** Today's puzzle from the bank (the seed and the level from the day). */
 function chPzDailyPuzzle(day) {
   const level = chPzDailyLevel(day);
   const bank = chPzBank(level);
   const d = day || soloToday();
-  // From SOLO_CYCLE_FROM each level's bank is walked (soloDailyCycle); a day before keeps its pick.
-  if (d >= SOLO_CYCLE_FROM) return soloDailyCycle('chesspuzzle:' + level, bank, d)[0] || null;
+  // From SOLO_CYCLE_FROM each level's bank is walked (soloDailyCycle), one step per day of that level,
+  // so nothing comes back until the level's bank is used up. A day before keeps the old way of picking
+  // (the bank itself was made again on 1 Oct 2026, so those days show its puzzles, not the ones played then).
+  if (d >= SOLO_CYCLE_FROM) return soloDailyCycle('chesspuzzle:' + level, bank, d, 1, chPzLevelDays(d, level))[0] || null;
   const rnd = soloRng(soloDaySeed('chesspuzzle', day));
   return bank[Math.floor(rnd() * bank.length)] || null;
 }

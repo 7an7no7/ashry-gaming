@@ -324,12 +324,16 @@ function sudokuGrade(grid) {
    ------------------------------------------------------------------------------------ */
 const SUDOKU_LEVEL_GRADE = { easy: 1, medium: 2, hard: 3 };
 const SUDOKU_TRIES = 40;
+// Hard needs more tries before its grade comes up: at 40, about 1 hard grid in 80 fell back to
+// a medium one (the audit of 1 Oct 2026). Made ahead on the setup screen, so the wait isn't seen.
+const SUDOKU_TRIES_HARD = 160;
 
 /** { puzzle, solution, grade } as arrays of 81, with exactly one solution and the level's grade. */
 function sudokuMake(level, rnd) {
   const want = SUDOKU_LEVEL_GRADE[level] || 1;
   let best = null;
-  for (let k = 0; k < SUDOKU_TRIES; k++) {
+  const tries = level === 'hard' ? SUDOKU_TRIES_HARD : SUDOKU_TRIES;
+  for (let k = 0; k < tries; k++) {
     const made = sudokuMakeOnce(level, rnd);
     if (made.grade === want) return made;
     // Closest: the higher grade (never one that needs a guess: those are never kept).

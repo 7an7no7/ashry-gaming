@@ -87,10 +87,14 @@ const missionDeal = (room, pid, opts) => {
   const h = missionHidden(room);
   const old = h.of[pid] || null;
   const o = opts || {};
-  const to = o.keepTo && old && old.to ? old.to : missionPickTarget(room, pid, old ? old.to : (o.avoid || null));
+  const keep = !!(o.keepTo && old && old.to);
+  const to = keep ? old.to : missionPickTarget(room, pid, old ? old.to : (o.avoid || null));
   if (!to) { delete h.of[pid]; return; }
   room.mission.fileSeq = (room.mission.fileSeq || 0) + 1;
-  h.of[pid] = { to: to, m: missionPickId(room, old ? old.m : null), n: room.mission.fileSeq, at: Date.now(), swapAt: old ? old.swapAt || 0 : 0, asked: false };
+  h.of[pid] = { to: to, m: missionPickId(room, old ? old.m : null), n: room.mission.fileSeq, at: Date.now(), swapAt: old ? old.swapAt || 0 : 0,
+    // «غيّرها» keeps the target: one who already saw this hunter's memo still knows who it is, so the
+    // hunter stays uncatchable by them (a swap after a «لأ» used to hand the target a sure catch).
+    asked: keep && !!old.asked, shown: keep && !!old.shown };
   h.asks = h.asks.filter(a => a.by !== pid);
 };
 
@@ -245,14 +249,19 @@ const missionAction = (room, pid, action, payload) => {
     // never learnt who was after them, so they can still catch you (the review of 1 Oct 2026).
     const mine = h.asks.filter(a => a.by === pid);
     h.asks = h.asks.filter(a => a.by !== pid);
-    if (file && mine.length && !mine.some(a => a.seen)) file.asked = false;
+    if (file && mine.length && !mine.some(a => a.seen) && !file.shown) file.asked = false;
     return true;
   }
 
   if (action === 'missionSeen') {
     // The target's phone has put the memo on the screen: from now on they know.
     const ask = h.asks.find(a => String(a.id) === String(p.id));
-    if (ask && ask.to === pid) ask.seen = true;
+    if (ask && ask.to === pid) {
+      ask.seen = true;
+      // The file remembers it: a later memo taken back unseen doesn't make the hunter catchable again.
+      const theirs = h.of[ask.by];
+      if (theirs && theirs.n === ask.n) theirs.shown = true;
+    }
     return true;
   }
 
@@ -263,6 +272,7 @@ const missionAction = (room, pid, action, payload) => {
     h.asks = h.asks.filter(a => a !== ask);
     const theirs = h.of[ask.by];
     if (!theirs || theirs.n !== ask.n) return true;           // their file moved on meanwhile
+    theirs.shown = true;                                      // answered: the target has seen who asked
     if (!p.yes) { theirs.no = ask.id; return true; }
     room.mission.score[ask.by] = (room.mission.score[ask.by] || 0) + 1;
     missionLog(room, { k: 'done', by: ask.by, to: ask.to, m: ask.m });

@@ -789,7 +789,16 @@ function dndStop() {
   dnd.tick = -1;
   dndStopSound();
 }
-onLeaveScreen((from) => { if (from === 'room-hum' || from === 'room-tv') dndStop(); });
+onLeaveScreen((from, to) => {
+  if (from !== 'room-hum' && from !== 'room-tv') return;
+  dndStop();
+  // Off the room's screens altogether: the last clip (about half a megabyte) goes too.
+  if (to !== 'room-hum' && to !== 'room-tv' && dnd.blob) {
+    try { URL.revokeObjectURL(dnd.blob.url); } catch (e) {}
+    if (dnd.audio) { try { dnd.audio.removeAttribute('src'); dnd.audio.load(); } catch (e) {} }
+    dnd.blob = null;
+  }
+});
 onRoomClocksReset(() => { if (dnd.timer || dnd.cur) dndStop(); });
 
 /* --- the room game ----------------------------------------------------------------- */

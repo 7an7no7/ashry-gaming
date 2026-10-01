@@ -258,7 +258,7 @@ export class Crew extends DurableObject {
     } catch (err) {
       return fail(String((err && err.message) || err));
     }
-    if (action !== 'get') { await this.save(); await this.touch(true); }
+    if (action !== 'get') { await this.save(); await this.touch(true); } else await this.touch(false);
     return Object.assign({ ok: true, crew: await this.view(me.id, key) }, extra || {});
   }
 

@@ -271,3 +271,5 @@ are, with the log line for `notes/log.md`:
 >   server (`PackStore`, deleted after a year unplayed) and on the phone; the editor is
 >   look ب «القايمة». Rules tests, three leak drivers, a robot segment (`--only=quiz`), the
 >   editor and the sheet in the screen test.
+
+- **The audit of 1 Oct 2026:** `/pack/answer` gives one answer per address every 6 s (`PackStore.answer`, kept in the pack instance's memory); the team board waits and asks again. It slows a script reading every answer before the night; it cannot stop someone playing the board through beforehand (an owner's call left as built).

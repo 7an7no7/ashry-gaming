@@ -246,7 +246,8 @@ const hbRename = (room, kind) => {
 const hbRecallWait = (room, now) => {
   const s = room.shared;
   if (!hbCanRecall(s, now) || isRoomBot(room, s.named.by)) return 0;
-  return Math.max(0, s.named.at + HB_RECALL_MS + 200 - now);
+  // As long as hbCanRecall takes a change (its grace included), or a late change is dropped unseen.
+  return Math.max(0, s.named.at + HB_RECALL_MS + HB_RECALL_GRACE_MS + 50 - now);
 };
 
 /** The Hand plays a move of the named kind. */

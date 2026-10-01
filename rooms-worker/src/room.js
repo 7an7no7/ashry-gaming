@@ -48,12 +48,13 @@ const IDLE_RECHECK_MS = 10 * 60 * 1000;
 const ALARM_FLOOR_MS = 1000;
 // Rapid moves (drawing, the dial) are saved at most this often; the phones get them at once.
 const QUICK_SAVE_MS = 1000;
-const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', 'stick', 'ink']);
+const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', 'stick', 'ink', 'bzClock']);
 // Moves that only touch what the server keeps to itself (ارسم اللي بتسمعه's drawings,
 // room._hear.ink, sent every second or so by every drawer; المهمة السرية's "the memo was
 // shown"): when nothing any phone is shown changed, only the phone that moved gets its
 // answer - no version, no broadcast.
-const SILENT_ACTIONS = new Set(['ink', 'missionSeen']);
+// الجرس's bzClock: a phone timing a round trip before its first press, nothing changed.
+const SILENT_ACTIONS = new Set(['ink', 'missionSeen', 'bzClock']);
 // Quick actions whose game has a clock that moves with them: the alarm is still
 // set for these (the dark room's joystick: its traps and goal come with the walk).
 const QUICK_WITH_ALARM = new Set(['stick']);

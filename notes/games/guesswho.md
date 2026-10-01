@@ -155,6 +155,20 @@ The owner's rules are in *The owner's specs*. Built on the duels:
 
 **The answer's clock is the answerer's (the review of 1 Oct 2026).** While a question waits for its answer (`stage: 'answer'`) the last five seconds tick on the answerer's phone, not the asker's. The TV's signature carries the seated two's presence, so the host's «play for» shows on the TV as soon as one of them is away.
 
+## «غلطت»: an answer taken back (the review of 1 Oct 2026)
+
+A mis-tapped أيوه / لأ could not be taken back. While the asker is putting faces down
+(`stage: 'flip'`), the one who answered has «↶ غلطت» under a line saying what they answered
+(`gwBarHtml`, `gw_undo`, `gw_undo_hint`), sending `unanswer { seq: turnSeq, log: logSeq }`.
+The server (`gwUnanswer`) puts the asker's board back as it was when the answer came
+(`room._gwUndo`, kept by `gwTakeAnswer` with the turn's and the log's numbers), takes the
+answer out of the log and logs `{ kind: 'undo', seat }` in its place, and the question
+waits for its answer again (`gwWaitAnswer`: the answerer's clock starts over). Only the
+answerer, only that answer: a tap drawn for an older seq or log is dropped, and once the
+asker taps «خلصت» the answer stands. Every phone and the TV play the take-back once as an
+amber bubble («↶ منى رجّع إجابته», `gw_undone`, `.gw-bubble.is-undo`, `gwMoments`); the
+history skips it.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -15,7 +15,9 @@
    Scoring: a solve is 10 plus a bonus by the order the solves came in (+5,
    +4 ... +1), in both ways (the owner, 24 Sep 2026: the first to get it gets
    the most); with a writer, the writer also scores 5 for every guesser who
-   didn't. No computer players.
+   didn't - only when somebody solved it, and never more than the best solver
+   took for that word (the review of 1 Oct 2026: a word nobody could get paid
+   its writer most). No computer players.
 
    What is hidden: the word (room._hm.word) until the word ends, and each
    board's letters, which reach their own phone only (room.secrets[pid]); the
@@ -156,6 +158,7 @@ const hmEndWord = (room) => {
   const here = hmHere(room);
   const rows = [];
   let failed = 0;
+  let top = 0;      // the best solver's points for this word: the writer's ceiling
   Object.keys(h.boards).forEach(pid => {
     const b = h.boards[pid];
     if (b.state === 'play') b.state = 'lost';
@@ -167,12 +170,15 @@ const hmEndWord = (room) => {
       failed++;
     }
     if (pts) addScore(room, pid, pts);
+    if (pts > top) top = pts;
     s.progress[pid] = hmProgressOf(h.word, b, s.solved.indexOf(pid) === -1 ? null : s.solved.indexOf(pid));
     if (here.indexOf(pid) !== -1) rows.push({ id: pid, name: roomPlayerName(room, pid), state: b.state, miss: b.miss.length, pts: pts });
   });
   let setterPts = 0;
   if (!race && s.setter && here.indexOf(s.setter) !== -1) {
-    setterPts = failed * HM_SETTER_POINTS;
+    // A word nobody solved earns its writer nothing, and a word only a few solved
+    // can't pay the writer more than the best of them took.
+    setterPts = top ? Math.min(failed * HM_SETTER_POINTS, top) : 0;
     if (setterPts) addScore(room, s.setter, setterPts);
   }
   rows.sort((a, b) => b.pts - a.pts);

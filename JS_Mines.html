@@ -3,12 +3,13 @@
    كاسحة الألغام — MINESWEEPER
    ----------------------------------------------------------------------------
    Open every cell that isn't a mine. A number says how many mines touch it.
-   Flag a mine with a long press, or with 🚩 mode on; tap a number whose flags
-   are all placed to open the cells around it.
+   Flag a mine with a long press, or with 🚩 mode on; tap (or long-press) a
+   number whose flags are all placed to open the cells around it.
 
    The field's rules are Mines.js (shared with the rooms server, which lays a
    race's mines). The first tap is always safe: the mines are laid after it,
-   away from it and its neighbours. The daily board can't wait for a tap (it
+   away from it and its neighbours, and laid so that the field never needs a
+   guess (minesSolvable). The daily board can't wait for a tap (it
    has to be the same on every phone), so its mines are laid from soloDaySeed
    around a safe cell of its own, which opens by itself when the game starts.
    Opening a patch ripples outwards from the tap. The board is in appState.mines.
@@ -188,13 +189,24 @@ function toggleMinesFlagMode() {
    button flags at once (the grid swallows its menu). */
 function minesPointerDown(e, i) {
   minesCancelHold();
+  const s = minesState();
+  // An opened number takes no flag: a long press (or the right button) on it does what a
+  // tap does - opens the rest of its neighbours once its flags are down (the review of
+  // 1 Oct 2026: a long press there used to do nothing at all).
+  const openNum = !!(s.open && s.open[i]);
   if (e && e.button === 2) {
     e.preventDefault();
     minesHold = { i: i, fired: true, timer: 0 };
-    minesToggleFlag(i);
+    if (openNum) minesTap(i); else minesToggleFlag(i);
     return;
   }
-  const s = minesState();
+  if (openNum) {
+    minesHold = { i: i, fired: false, x: e ? e.clientX : 0, y: e ? e.clientY : 0, ring: null, timer: setTimeout(() => {
+      minesHold.fired = true;
+      minesTap(i);
+    }, MINES_HOLD_MS) };
+    return;
+  }
   const cell = e && e.currentTarget;
   // ideas batch: solo - a ring fills over the hold's time on a cell that can
   // take a flag; moving the finger 8px (a scroll, a slip) cancels the hold.

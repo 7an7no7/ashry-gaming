@@ -10,7 +10,9 @@
 
    A field is { cols, rows, count, mines: [cells], open: [0|1], flags: [0|1] }.
    The mines are laid after the first tap, away from it and its neighbours,
-   so the first tap is always safe; opening a zero opens everything round it.
+   so the first tap is always safe, and laid so that the field can be cleared
+   from there without a guess (minesSolvable); opening a zero opens
+   everything round it.
    ========================================================================= */
 
 const MINES_LEVELS = {
@@ -29,12 +31,107 @@ function minesNeighbours(s, i) {
   return out;
 }
 
-/** Lays the mines anywhere but `safe` and its neighbours. */
+/* --- no guessing (the review of 1 Oct 2026) -------------------------------------------
+   Mines laid at random could leave the daily and the race on a pure 50/50 at the end.
+   Mines are laid again until minesSolvable clears the whole field from the safe cell
+   by reasoning alone, the way a player does: a number whose mines are all found makes
+   its other neighbours safe; a number with as many hidden neighbours as mines left
+   makes them all mines; one number's hidden neighbours inside another's tell what is in
+   the rest (the 1-2 at a wall); and the count of mines left, at the end. At most
+   MINES_TRIES layings; after that the one that got furthest is kept. Every draw is from
+   `rnd`, so a daily and a race lay the same field on every phone.
+   ------------------------------------------------------------------------------------ */
+const MINES_TRIES = 400;
+
+/** Lays the mines anywhere but `safe` and its neighbours, so that the field never needs a guess. */
 function minesLay(s, safe, rnd) {
   const keepClear = new Set([safe].concat(minesNeighbours(s, safe)));
   const cells = [];
   for (let i = 0; i < s.cols * s.rows; i++) if (!keepClear.has(i)) cells.push(i);
-  s.mines = soloShuffle(cells, rnd).slice(0, s.count).sort((a, b) => a - b);
+  let best = null, bestLeft = Infinity;
+  for (let k = 0; k < MINES_TRIES; k++) {
+    const mines = soloShuffle(cells, rnd).slice(0, s.count).sort((a, b) => a - b);
+    const left = minesSolvable({ cols: s.cols, rows: s.rows, count: s.count, mines: mines }, safe);
+    if (!left) { s.mines = mines; return; }
+    if (left < bestLeft) { best = mines; bestLeft = left; }
+  }
+  s.mines = best;
+}
+
+/**
+ * How many safe cells are still closed when reasoning from `safe` gets stuck: 0 means
+ * the field can be cleared without a guess.
+ */
+function minesSolvable(f, safe) {
+  const n = f.cols * f.rows;
+  const isMine = new Uint8Array(n);
+  f.mines.forEach(i => { isMine[i] = 1; });
+  const nb = [];
+  const num = new Int8Array(n);
+  for (let i = 0; i < n; i++) {
+    nb.push(minesNeighbours(f, i));
+    num[i] = nb[i].reduce((c, k) => c + isMine[k], 0);
+  }
+  const open = new Uint8Array(n), flag = new Uint8Array(n);
+  let opened = 0, flagged = 0;
+  const reveal = (start) => {
+    const queue = [start];
+    while (queue.length) {
+      const i = queue.pop();
+      if (open[i]) continue;
+      open[i] = 1; opened++;
+      if (!num[i]) nb[i].forEach(k => { if (!open[k]) queue.push(k); });
+    }
+  };
+  reveal(safe);
+  const safeTotal = n - f.mines.length;
+  // A number's hidden neighbours and the mines still among them.
+  const constraint = (i) => {
+    const hidden = [];
+    let m = num[i];
+    nb[i].forEach(k => { if (flag[k]) m--; else if (!open[k]) hidden.push(k); });
+    return { hidden: hidden, m: m };
+  };
+  for (;;) {
+    if (opened === safeTotal) return 0;
+    let moved = false;
+    const cons = [];
+    for (let i = 0; i < n; i++) {
+      if (!open[i] || !num[i]) continue;
+      const c = constraint(i);
+      if (!c.hidden.length) continue;
+      if (c.m === 0) { c.hidden.forEach(k => reveal(k)); moved = true; }
+      else if (c.m === c.hidden.length) { c.hidden.forEach(k => { if (!flag[k]) { flag[k] = 1; flagged++; } }); moved = true; }
+      else cons.push(c);
+    }
+    if (moved) continue;
+    // Two numbers that share hidden cells: A has at least A.m - |A only| mines in the
+    // shared cells, so B has at most B.m minus that in its own; when that is 0, B's own
+    // cells are safe, and when A's own cells must hold all A has left, they are mines
+    // (the 1-2 at a wall, the 1-2-1).
+    for (let a = 0; a < cons.length && !moved; a++) {
+      const A = cons[a];
+      for (let b = 0; b < cons.length && !moved; b++) {
+        if (a === b) continue;
+        const B = cons[b];
+        const shared = A.hidden.filter(k => B.hidden.indexOf(k) !== -1).length;
+        if (!shared) continue;
+        const onlyA = A.hidden.filter(k => B.hidden.indexOf(k) === -1);
+        const onlyB = B.hidden.filter(k => A.hidden.indexOf(k) === -1);
+        const inShared = A.m - onlyA.length;                // at least this many of A's mines are shared
+        if (onlyB.length && inShared > 0 && B.m - inShared === 0) { onlyB.forEach(k => reveal(k)); moved = true; }
+        else if (onlyA.length && A.m - Math.min(B.m, shared) === onlyA.length) { onlyA.forEach(k => { if (!flag[k]) { flag[k] = 1; flagged++; } }); moved = true; }
+      }
+    }
+    if (moved) continue;
+    // The count of mines left: all found, or as many as the closed cells.
+    const closed = [];
+    for (let i = 0; i < n; i++) if (!open[i] && !flag[i]) closed.push(i);
+    const minesLeft = f.mines.length - flagged;
+    if (minesLeft === 0) { closed.forEach(k => reveal(k)); continue; }
+    if (minesLeft === closed.length) return 0;
+    return safeTotal - opened;
+  }
 }
 
 function minesCount(s, i) {

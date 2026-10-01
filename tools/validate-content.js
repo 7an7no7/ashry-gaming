@@ -517,6 +517,9 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
     if (!(p.level in levels)) note(`${tag}: level ${p.level} is not 1, 2 or 3`);
     else levels[p.level]++;
     if (p.theme !== 'mate' && p.theme !== 'material') note(`${tag}: theme "${p.theme}"`);
+    // The motif (the review of 1 Oct 2026): the first hint and the word said once it is solved.
+    if (['mate', 'fork', 'pin', 'skewer', 'discovered', 'promotion', 'hanging', 'sacrifice', 'material'].indexOf(p.motif) === -1) note(`${tag}: motif "${p.motif}"`);
+    else if ((p.motif === 'mate') !== (p.theme === 'mate')) note(`${tag}: motif "${p.motif}" with theme "${p.theme}"`);
     if (typeof p.rating !== 'number' || !(p.rating > 0)) note(`${tag}: no rating`);
     if (!Array.isArray(p.moves) || !p.moves.length || p.moves.length % 2 !== 1) { note(`${tag}: the moves must be player, reply, …, player`); return; }
     let g;

@@ -9255,11 +9255,20 @@ Date.now = duelTestClock;
     check(s.progress.a.done === half.filter((v, i) => v && !s.pub.givens[i]).length && s.progress.a.state === 'play' && s.progress.a.total === s.pub.givens.filter(v => !v).length, 'race/tango: the bar counts the cells filled beyond the givens');
     applyRoomAction(r, 'a', 'move', { cells: x.solution, round: 1 });
     check(s.progress.a.state === 'won', 'race/tango: the solution wins');
-    const T = new Function(SRC8('SoloShared.js') + SRC8('Tango.js') + '\nreturn { tangoProblems, tangoMake, tangoCount, soloRng };')();
+    const T = new Function(SRC8('SoloShared.js') + SRC8('Tango.js') + '\nreturn { tangoProblems, tangoMake, tangoCount, tangoDeduce, soloRng };')();
     const bad = x.solution.slice(); bad[0] = bad[1] = bad[2] = 1;
     check(T.tangoProblems(bad, x.pub ? [] : []).size >= 3 && T.tangoProblems(x.solution, s.pub.signs).size === 0, 'tango: three in a row conflict, the solution never does');
     const m = T.tangoMake('medium', T.soloRng(3));
     check(T.tangoCount(m.givens, m.signs, 2) === 1, 'tango: a made grid has exactly one solution');
+    // The review of 1 Oct 2026: every board is worked out by reasoning alone, and the levels differ.
+    const dx = T.tangoDeduce(s.pub.givens, s.pub.signs);
+    check(dx.solved && dx.cells.every((v, i) => v === x.solution[i]), 'tango: the race\'s board is worked out without a guess');
+    const lv = { easy: [], medium: [], hard: [] };
+    let guessed = 0;
+    Object.keys(lv).forEach(L => { for (let k = 0; k < 12; k++) { const b = T.tangoMake(L, T.soloRng(100 + k)); const d = T.tangoDeduce(b.givens, b.signs); if (!d.solved) guessed++; lv[L].push(d.lines); } });
+    check(guessed === 0, 'tango: no board of any level needs a guess (36 made)');
+    check(lv.easy.every(n => n === 0) && lv.medium.every(n => n >= 1 && n <= 2) && lv.hard.every(n => n >= 3),
+      'tango: easy needs the cell rules only, medium a whole line reasoned once or twice, hard three times or more');
   }
 
   // RACE:nonogram
@@ -9308,6 +9317,14 @@ Date.now = duelTestClock;
     for (let k = 0; k < allSafe.length && s.progress.b.state === 'play'; k += 5) applyRoomAction(r, 'b', 'move', { cells: allSafe.slice(k, k + 5), round: 1 });
     check(s.progress.b.state === 'won' && s.progress.b.done === nCells - 22 && s.phase === 'result', 'race/mines: every safe cell open wins');
     check(r.secrets.a.board.mines.length === 22 && r.secrets.a.board.all === true, 'audit3/race/mines: once the round is over, the whole field');
+    // The review of 1 Oct 2026: the field is cleared from the safe cell without a guess.
+    const MS = new Function(SRC8('SoloShared.js') + SRC8('Mines.js') + '\nreturn { minesSolvable, minesLay, MINES_LEVELS, soloRng };')();
+    check(MS.minesSolvable({ cols: 9, rows: 13, mines: x.mines }, s.pub.safe) === 0, 'race/mines: the field needs no guess');
+    let stuck = 0;
+    ['easy', 'medium', 'hard'].forEach(L => { const lv = MS.MINES_LEVELS[L]; for (let k = 0; k < 10; k++) { const rnd = MS.soloRng(70 + k); const f = { cols: lv.cols, rows: lv.rows, count: lv.mines, mines: [] }; const safe = Math.floor(rnd() * lv.cols * lv.rows); MS.minesLay(f, safe, rnd); if (f.mines.length !== lv.mines || f.mines.indexOf(safe) !== -1 || MS.minesSolvable(f, safe)) stuck++; } });
+    check(stuck === 0, 'mines: 30 fields of every level are laid so that none needs a guess');
+    // A 50/50 at a wall (two cells, one mine, nothing else to tell them apart) is found.
+    check(MS.minesSolvable({ cols: 3, rows: 3, mines: [6] }, 2) === 0 && MS.minesSolvable({ cols: 2, rows: 4, mines: [6] }, 0) > 0, 'mines: the solver clears a plain field and stops at a 50/50');
   }
 
   // RACE:streak
@@ -9361,6 +9378,16 @@ Date.now = duelTestClock;
     check(SD.sudokuConflicts(dup.join('')).has(e0) && SD.sudokuConflicts(dup.join('')).size >= 2 && SD.sudokuConflicts(x.solution).size === 0, 'sudoku: a number twice in a row conflicts, the solution never does');
     const made = SD.sudokuMake('easy', SD.soloRng(11));
     check(SD.sudokuCount(made.puzzle, 2) === 1 && made.puzzle.filter(Boolean).length === 40, 'sudoku: a made easy puzzle has 40 givens and one solution');
+    // The review of 1 Oct 2026: each level is graded by the hardest technique it needs, never a guess.
+    const SG = new Function(SRC8('SoloShared.js') + SRC8('Sudoku.js') + '\nreturn { sudokuGrade, sudokuMake, sudokuCount, soloRng };')();
+    check(SG.sudokuGrade(s.pub.puzzle) === 1, 'sudoku: the race\'s easy grid is singles only');
+    const grades = { easy: 1, medium: 2, hard: 3 };
+    Object.keys(grades).forEach(L => {
+      let ok = 0;
+      for (let k = 0; k < 4; k++) { const m2 = SG.sudokuMake(L, SG.soloRng(500 + k)); if (SG.sudokuCount(m2.puzzle, 2) === 1 && SG.sudokuGrade(m2.puzzle) === grades[L]) ok++; }
+      check(ok === 4, `sudoku: ${L} grids have one solution and grade ${grades[L]} (${ok}/4)`);
+    });
+    check(SG.sudokuMake('medium', SG.soloRng(9)).puzzle.join('') === SG.sudokuMake('medium', SG.soloRng(9)).puzzle.join(''), 'sudoku: the same seed makes the same grid (the daily)');
   }
 }
 /* --- «أنت: منى ✏️»: a name changed from the lobby (26 Sep 2026) ------------------- */

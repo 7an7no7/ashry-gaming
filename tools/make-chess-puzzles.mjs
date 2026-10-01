@@ -21,6 +21,11 @@
  *      must really win material by its end (two pawns or more, after the reply).
  *   4. Recaptures that only restore the balance, positions where every legal
  *      move takes the same piece, and a forced first move are thrown out.
+ *   5. Each puzzle is measured (featuresOf: moves, positions the engine needs,
+ *      tempting wrong moves) and its motif tagged (motifOf: fork, skewer, pin,
+ *      discovered, mate, ...); the selection in main rates the bank by
+ *      difficulty, evenly from 400 to 2000, and its thirds are the levels.
+ *      PUZZLE_OUT=<file> writes the bank somewhere else (to look before keeping).
  *
  * The second-best move is measured by playing each of the strongest few
  * alternatives and analysing the position after it with a full window (a
@@ -63,16 +68,16 @@ const CFG = {
   branchRate: 0.5,           // how often a position also tries a mistake the game didn't make
   maxBranches: 30,           // ... at most this many a game
   plainRate: 0.15,           // how often a slip that just leaves a piece hanging is tried
-  simpleRate: 0.3,
+  simpleRate: 0.15,
   mateRate: 0.5,             // how often a slip into a mate is preferred to the subtlest slip           // how often a candidate the shallowest search solves with a capture is checked
-  per: { 1: 540, 2: 540, 3: 500 }, minPer: 400, maxBytes: 250 * 1024,
+  total: 1500, maxGrab: 120, maxMate1: 140, minPer: 400, maxBytes: 270 * 1024,   // the bank: how many, how many single grabs at most
   rateDepth: 6,              // how deep the rating's search goes to find the first move
   hidden: 4,                 // the engine had to look this deep (or deeper) to find it: one level up
   samePly: 6,                // puzzles of one game at least this many plies apart
   sampleNodes: 1000000, sampleCount: 30
 };
 // Settings only the selection reads: changing them doesn't need the games played again.
-const MAIN_ONLY = ['games', 'per', 'minPer', 'maxBytes', 'hidden', 'samePly', 'sampleNodes', 'sampleCount'];
+const MAIN_ONLY = ['games', 'total', 'maxGrab', 'maxMate1', 'minPer', 'maxBytes', 'hidden', 'samePly', 'sampleNodes', 'sampleCount'];
 // What a game's result depends on: the settings, the engine and the worker's code
 // (not the selection below it), so the kept results are reused only when they would be the same.
 function workerSource() {
@@ -84,7 +89,7 @@ const CFG_HASH = createHash('sha1').update(JSON.stringify(Object.fromEntries(Obj
 /* ---- the engine, loaded the way rooms-worker/test/rules.mjs does ---- */
 function loadEngine() {
   const src = readFileSync(path.join(ROOT, 'Chess.js'), 'utf8');
-  const CH = new Function(src + '\nreturn { chessNew, chessFromFen, chessFen, chessPlay, chessStatus, chessLegalMoves, chessBestMove, chessAnalyse, chess960Random, chessIsSacrifice, chessHanging, chessMaterialDiff, chessCloneGame, chessPos, chessLegalPos, chessSanPos, chessSqName, chessMFrom, chessMTo, chessMPromo, chessPromoLetter, CHESS_MATE };')();
+  const CH = new Function(src + '\nreturn { chessNew, chessFromFen, chessFen, chessPlay, chessStatus, chessLegalMoves, chessBestMove, chessAnalyse, chess960Random, chessIsSacrifice, chessHanging, chessMaterialDiff, chessCloneGame, chessPos, chessLegalPos, chessSanPos, chessSqName, chessMFrom, chessMTo, chessMPromo, chessPromoLetter, chessMoveGood, chessForked, chessPins, chessAttacksFrom, chessSq, CHESS_MATE, CHESS_VALUE };')();
   const op = readFileSync(path.join(ROOT, 'JS_ChessOpenings.html'), 'utf8').replace(/^\s*<script>/, '').replace(/<\/script>\s*$/, '');
   const OPEN = new Function(op + '; return CH_OPENINGS;')();
   return { CH, OPEN };
@@ -226,7 +231,85 @@ function workerMain() {
       const a = CH.chessAnalyse(g0, { depth: d, nodes: CFG.bestNodes, now: still });
       if (a.move && uci(a.move) === p.moves[0]) { hid = d; break; }
     }
-    return { n, cap, sac, hid };
+    // Tempting wrong moves: what looks as good as the answer at a glance (two plies,
+    // every move scored with a full window), and the other checks and captures on offer.
+    const legal = CH.chessLegalMoves(g0);
+    const A2 = CH.chessAnalyse(g0, { depth: 2, nodes: CFG.rankNodes, lines: legal.length, now: still });
+    const lines = A2.lines || [];
+    const mine = lines.find(l => uci(l.move) === p.moves[0]);
+    const bar = Math.min(mine ? mine.score : -Infinity, lines.length ? lines[0].score : -Infinity) - 60;
+    const tempt = lines.filter(l => uci(l.move) !== p.moves[0] && l.score >= bar).length;
+    const forcingAlts = legal.filter(m => uci(m) !== p.moves[0] && (m.capture || sanOf(g0, m).includes('+'))).length;
+    // ... and at one ply (with its captures played out): the moves within a pawn and a half.
+    const A1 = CH.chessAnalyse(g0, { depth: 1, nodes: CFG.rankNodes, lines: legal.length, now: still });
+    const l1 = A1.lines || [];
+    const mine1 = l1.find(l => uci(l.move) === p.moves[0]);
+    const tempt1 = mine1 ? l1.filter(l => uci(l.move) !== p.moves[0] && l.score >= mine1.score - 150).length : l1.length;
+    // How many positions the engine needs to look at before it settles on the answer.
+    let hidNodes = 0;
+    for (const nodes of [50, 150, 500, 1500, 5000, 15000, 50000]) {
+      const a = CH.chessAnalyse(g0, { nodes, now: still });
+      if (a.move && uci(a.move) === p.moves[0]) { hidNodes = nodes; break; }
+    }
+    return { n, cap, sac, hid, tempt, tempt1, forcingAlts, legal: legal.length, hidNodes: hidNodes || 150000 };
+  }
+
+  // The motif, from what the line does (Chess.js's own reasons, chessMoveGood, for the
+  // fork): mate, fork, skewer, pin, a discovered attack, a promotion, a piece left
+  // hanging, a sacrifice, or plain material.
+  function motifOf(p, g0, feat) {
+    if (p.theme === 'mate') return 'mate';
+    const g = CH.chessFromFen(p.fen);
+    const me = g.turn;
+    const mv = p.moves.map(fromUci);
+    const SQ = CH.chessSq;
+    const dir = (a, b) => [Math.sign((b & 7) - (a & 7)), Math.sign((b >> 3) - (a >> 3))];
+    const onRay = (a, b) => { const df = (b & 7) - (a & 7), dr = (b >> 3) - (a >> 3); return df === 0 || dr === 0 || Math.abs(df) === Math.abs(dr); };
+    const seq = [];                 // every position before each move
+    for (let k = 0; k < mv.length; k++) { seq.push(CH.chessCloneGame(g)); CH.chessPlay(g, mv[k]); }
+    const laterTakes = (k, sq) => { for (let j = k + 2; j < mv.length; j += 2) if (mv[j].to === sq) return j; return -1; };
+    for (let k = 0; k < mv.length; k += 2) {
+      const before = seq[k];
+      const after = CH.chessCloneGame(before);
+      const info = CH.chessPlay(after, mv[k]);
+      if (!info) break;
+      const to = SQ(mv[k].to), from = SQ(mv[k].from);
+      const kind = after.board[to] & 7;
+      // A fork: the moved piece hits two worth having (chessMoveGood's reason), and the line cashes one.
+      const fork = CH.chessMoveGood(before, mv[k], null).find(r => r.k === 'fork');
+      if (fork && fork.targets.some(t => laterTakes(k, t) >= 0)) return 'fork';
+      // A skewer: a line piece hits something big, it steps away, the piece behind it falls.
+      if ((kind === 3 || kind === 4 || kind === 5) && k + 2 < mv.length) {
+        const away = SQ(mv[k + 1].from), take = SQ(mv[k + 2].to);
+        if (SQ(mv[k + 2].from) === to && CH.chessAttacksFrom(after.board, to).includes(away) && onRay(to, take)) {
+          const d1 = dir(to, away), d2 = dir(to, take);
+          const front = after.board[away], back = after.board[take];
+          if (d1[0] === d2[0] && d1[1] === d2[1] && Math.max(Math.abs((take & 7) - (to & 7)), Math.abs((take >> 3) - (to >> 3))) > Math.max(Math.abs((away & 7) - (to & 7)), Math.abs((away >> 3) - (to >> 3))) &&
+              front && back && ((front & 7) === 6 || CH.CHESS_VALUE[front & 7] >= CH.CHESS_VALUE[back & 7])) return 'skewer';
+        }
+      }
+      // A pin: the move pins one of theirs, and the line takes the pinned piece.
+      const pinsBefore = CH.chessPins(before.board, me ^ 1).map(x => x.sq);
+      const pin = CH.chessPins(after.board, me ^ 1).find(x => x.by === mv[k].to && !pinsBefore.includes(x.sq));
+      if (pin && laterTakes(k, pin.sq) >= 0) return 'pin';
+      // A discovered attack: the move uncovers another piece of ours (a bishop, rook or
+      // queen that stayed put) that now checks, or that later takes what it uncovered.
+      for (let s = 0; s < 64; s++) {
+        const pc = after.board[s];
+        if (!pc || (pc >> 3) !== me || s === to || [3, 4, 5].indexOf(pc & 7) === -1) continue;
+        const was = CH.chessAttacksFrom(before.board, s), now = CH.chessAttacksFrom(after.board, s);
+        const fresh = now.filter(t => !was.includes(t) && after.board[t] && (after.board[t] >> 3) !== me);
+        if (fresh.some(t => (after.board[t] & 7) === 6) && mv.length > k + 2) return 'discovered';
+        for (const t of fresh) {
+          const j = laterTakes(k, CH.chessSqName(t));
+          if (j >= 0 && SQ(mv[j].from) === s && CH.CHESS_VALUE[after.board[t] & 7] >= 300) return 'discovered';
+        }
+      }
+      if (info.promo || mv[k].promo) return 'promotion';
+    }
+    if (p.plain) return 'hanging';
+    if (feat.sac) return 'sacrifice';
+    return 'material';
   }
 
   function playGame(i) {
@@ -263,6 +346,7 @@ function workerMain() {
       const rec = { fen: p.fen, moves: p.moves, sans: p.sans, theme: p.theme, feat: featuresOf(p, g0), game: i, ply, how };
       if (p.mateIn) rec.mateIn = p.mateIn;
       rec.plain = plainGrab(p, g0);
+      rec.motif = motifOf(rec, g0, rec.feat);
       found.push(rec);
     };
     for (let ply = 0; ply < CFG.maxPly; ply++) {
@@ -339,28 +423,51 @@ function workerMain() {
 
 /* === main ================================================================ */
 
-// The level, by how long and how hidden (the runbook's rule): mate in n is level n; one
-// move that takes something (or promotes) is 1; two moves, or a quiet first move (not a
-// capture, a check or a promotion), 2; three moves, a sacrifice leading a longer line, or
-// both of level 2's (two moves opened by a quiet one) 3; and one up when the engine had
-// to look deep to find the first move.
+// How hard a puzzle really is, as one number (the review of 1 Oct 2026: the old rule gave
+// three bands of ratings with gaps between them, and easy was nearly all one capture):
+// the player's moves; how many positions the engine needed before it settled on the
+// first move (hidNodes); the tempting wrong moves - how many others look about as good
+// at one ply and at two (tempt1, tempt) - and how many other checks and captures are on
+// offer; a quiet first move; a sacrifice; a busy board. A piece simply left hanging is
+// the plainest of all.
 const forcing = (p) => p.feat.cap || /[+#=]/.test(p.sans[0]);
-function levelOf(p) {
-  if (p.theme === 'mate') return Math.min(3, p.mateIn);
+function difficultyOf(p) {
   const f = p.feat;
-  const quiet = !forcing(p);
-  let L = f.n >= 3 || (f.sac && f.n >= 2) || (f.n === 2 && quiet) ? 3 : (f.n === 2 || quiet || f.sac) ? 2 : 1;
-  if (L < 3 && f.hid >= CFG.hidden) L++;
-  return L;
+  const pieces = p.fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length;
+  let d = (f.n - 1) * 0.6;
+  d += 0.35 * Math.log10(Math.max(1, (f.hidNodes || 50) / 50));
+  d += 0.08 * Math.min(15, f.tempt1 || 0);
+  d += 0.15 * Math.min(6, f.tempt || 0);
+  d += 0.05 * Math.min(10, f.forcingAlts || 0);
+  if (!forcing(p)) d += 0.6;
+  if (f.sac) d += 0.5;
+  if (p.motif === 'hanging') d -= 0.4;
+  d += Math.min(0.4, pieces * 0.012);
+  return Math.round(d * 1000) / 1000;
 }
 
-// About 600 / 1100 / 1600, more when the engine needed more positions to find it, the
-// line is longer or it mates.
-function ratingOf(p) {
-  const base = { 1: 600, 2: 1100, 3: 1600 }[p.level];
-  const f = p.feat;
-  const r = base - 150 + (f.hid - 1) * 60 + (f.n - 1) * 50 + (f.sac ? 60 : 0) + (forcing(p) ? 0 : 60) + (p.theme === 'mate' ? 30 : 0) + Math.min(90, p.fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length * 3);
-  return Math.max(base - 250, Math.min(base + 250, Math.round(r / 10) * 10));
+// One move that takes something (the plainest kind): the bank keeps only so many.
+const isGrab = (p) => p.theme !== 'mate' && p.feat.n === 1 && p.feat.cap;
+// A mate in one: plenty of those too.
+const isMate1 = (p) => p.theme === 'mate' && p.mateIn === 1;
+
+// The ratings: the bank in order of difficulty, spread evenly from RATING_LO to RATING_HI
+// (equal difficulty, equal rating), and the levels its thirds.
+const RATING_LO = 400, RATING_HI = 2000;
+function rateBank(bank) {
+  const order = bank.slice().sort((a, b) => a.diff - b.diff || a.game - b.game || a.ply - b.ply);
+  const n = order.length;
+  let i = 0;
+  while (i < n) {
+    let j = i;
+    while (j + 1 < n && order[j + 1].diff === order[i].diff) j++;
+    const mid = (i + j) / 2;
+    const r = Math.round((RATING_LO + (RATING_HI - RATING_LO) * (n > 1 ? mid / (n - 1) : 0)) / 10) * 10;
+    for (let k = i; k <= j; k++) order[k].rating = r;
+    i = j + 1;
+  }
+  const cut1 = RATING_LO + (RATING_HI - RATING_LO) / 3, cut2 = RATING_LO + 2 * (RATING_HI - RATING_LO) / 3;
+  bank.forEach(p => { p.level = p.rating < cut1 ? 1 : p.rating < cut2 ? 2 : 3; });
 }
 async function main() {
   const t0 = Date.now();
@@ -411,60 +518,66 @@ async function main() {
       if (seen.has(k) || p.ply - lastPly <= CFG.samePly) return;
       seen.add(k);
       lastPly = p.ply;
-      p.level = levelOf(p);
-      p.rating = ratingOf(p);
+      p.diff = difficultyOf(p);
       all.push(p);
     });
   });
-  const by = { 1: [], 2: [], 3: [] };
-  all.forEach(p => by[p.level].push(p));
-  console.log(`found ${all.length} distinct puzzles: level 1 ${by[1].length}, level 2 ${by[2].length}, level 3 ${by[3].length}`);
-  for (const L of [1, 2, 3]) if (by[L].length < CFG.minPer) console.log(`  WARNING: level ${L} has ${by[L].length} < ${CFG.minPer}`);
+  const motifCount = (list) => { const m = {}; list.forEach(p => { m[p.motif] = (m[p.motif] || 0) + 1; }); return Object.entries(m).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(', '); };
+  console.log(`found ${all.length} distinct puzzles (${all.filter(isGrab).length} single grabs): ${motifCount(all)}`);
 
-  // The bank: the quota per level, spread over the games (a stride, not the first ones).
+  // The bank: spread over the whole range of difficulty (a stride through the puzzles in
+  // order of difficulty), with at most maxGrab single grabs and maxMate1 mates in one, so
+  // the easy third is made of forks, skewers and short mates too, and not only "take the
+  // free piece".
   const spread = (list, n) => {
     if (list.length <= n) return list.slice();
     const out = [];
     for (let j = 0; j < n; j++) out.push(list[Math.floor(j * list.length / n)]);
     return out;
   };
+  const byDiff = (list) => list.slice().sort((a, b) => a.diff - b.diff || a.game - b.game || a.ply - b.ply);
   const line = (p) => {
-    const o = { id: p.id, fen: p.fen, moves: p.moves, theme: p.theme };
+    const o = { id: p.id, fen: p.fen, moves: p.moves, theme: p.theme, motif: p.motif };
     if (p.mateIn) o.mateIn = p.mateIn;
     o.level = p.level; o.rating = p.rating;
     return JSON.stringify(o);
   };
-  // Level 1: the tactics first; a piece simply left hanging only to make up the number.
-  const pickLevel = (L, n) => {
-    const list = by[L];
-    const sharp = list.filter(p => !p.plain);
-    if (sharp.length >= n) return spread(sharp, n);
-    const plain = spread(list.filter(p => p.plain), n - sharp.length);
-    return list.filter(p => sharp.includes(p) || plain.includes(p));
-  };
-  let per = { ...CFG.per };
+  const grabs = byDiff(all.filter(isGrab)), mate1 = byDiff(all.filter(isMate1)), rest = byDiff(all.filter(p => !isGrab(p) && !isMate1(p)));
+  let size = CFG.total;
   let bank, text;
   for (;;) {
-    bank = [];
-    for (const L of [1, 2, 3]) pickLevel(L, per[L]).forEach(p => bank.push(p));
+    const nGrab = Math.min(CFG.maxGrab, grabs.length, Math.round(size * CFG.maxGrab / CFG.total));
+    const nMate1 = Math.min(CFG.maxMate1, mate1.length, Math.round(size * CFG.maxMate1 / CFG.total));
+    bank = spread(rest, size - nGrab - nMate1).concat(spread(grabs, nGrab), spread(mate1, nMate1));
+    rateBank(bank);
+    // Each level in the order its games were played, so a level's neighbours differ.
+    bank.sort((a, b) => a.level - b.level || a.game - b.game || a.ply - b.ply);
     bank.forEach((p, j) => { p.id = j + 1; });
     text = header(bank) + 'const CHESS_PUZZLES = [\n' + bank.map(line).join(',\n') + '\n];\n';
-    if (Buffer.byteLength(text) <= CFG.maxBytes) break;
-    for (const L of [1, 2, 3]) per[L] = Math.max(CFG.minPer, Math.floor(per[L] * 0.95));
-    if (per[1] === CFG.minPer && per[2] === CFG.minPer && per[3] === CFG.minPer) break;
+    if (Buffer.byteLength(text) <= CFG.maxBytes || size <= 3 * CFG.minPer) break;
+    size = Math.floor(size * 0.97);
   }
-  const out = path.join(ROOT, 'ChessPuzzles.js');
+  for (const L of [1, 2, 3]) { const n = bank.filter(p => p.level === L).length; if (n < CFG.minPer) console.log(`  WARNING: level ${L} has ${n} < ${CFG.minPer}`); }
+  const out = process.env.PUZZLE_OUT ? path.resolve(process.env.PUZZLE_OUT) : path.join(ROOT, 'ChessPuzzles.js');
   writeFileSync(out, text, 'utf8');
   const counts = [1, 2, 3].map(L => bank.filter(p => p.level === L).length);
   console.log(`wrote ChessPuzzles.js: ${bank.length} puzzles (level 1 ${counts[0]}, level 2 ${counts[1]}, level 3 ${counts[2]}), ${statSync(out).size} bytes`);
   const themes = { mate: 0, material: 0 };
   bank.forEach(p => { themes[p.theme]++; });
   console.log(`themes: ${themes.mate} mates, ${themes.material} material`);
+  for (const L of [1, 2, 3]) {
+    const lv = bank.filter(p => p.level === L);
+    const rs = lv.map(p => p.rating);
+    console.log(`level ${L}: ratings ${Math.min(...rs)}-${Math.max(...rs)}, ${lv.filter(isGrab).length} single grabs, ${lv.filter(isMate1).length} mates in one, motifs: ${motifCount(lv)}, moves 1/2/3: ${[1, 2, 3].map(n => lv.filter(p => p.feat.n === n).length).join('/')}`);
+  }
+  const hist = {};
+  bank.forEach(p => { const b = Math.floor(p.rating / 200) * 200; hist[b] = (hist[b] || 0) + 1; });
+  console.log('ratings by 200: ' + Object.keys(hist).sort((a, b) => a - b).map(k => `${k}: ${hist[k]}`).join(', '));
 
   // Ten of each level, to look at.
   for (const L of [1, 2, 3]) {
     console.log(`\n--- level ${L}, ten puzzles ---`);
-    spread(bank.filter(p => p.level === L), 10).forEach(p => console.log(`#${p.id} [${p.theme}${p.mateIn ? ' in ' + p.mateIn : ''}, ${p.rating}] ${p.fen}  ${p.sans.join(' ')}`));
+    spread(bank.filter(p => p.level === L), 10).forEach(p => console.log(`#${p.id} [${p.motif}${p.mateIn ? ' in ' + p.mateIn : ''}, ${p.rating}, d ${p.diff}] ${p.fen}  ${p.sans.join(' ')}`));
   }
 
   // A sample of 30 checked again with five times the nodes.
@@ -497,7 +610,9 @@ function header(bank) {
  * do not edit by hand. Inlined into the page (SHARED_LISTS), not the rooms server.
  *
  * { id, fen, moves: [player, reply, player, ...] in UCI (e2e4, e7e8q),
- *   theme: 'mate' | 'material', mateIn?, level: 1 | 2 | 3, rating }
+ *   theme: 'mate' | 'material', motif: 'mate' | 'fork' | 'pin' | 'skewer' |
+ *   'discovered' | 'promotion' | 'hanging' | 'sacrifice' | 'material',
+ *   mateIn?, level: 1 | 2 | 3, rating (400-2000, spread by difficulty) }
  * The side to move in fen is the player; every player move is the only one
  * that wins there. Checked by tools/validate-content.js.
  */

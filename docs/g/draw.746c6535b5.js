@@ -1,0 +1,211 @@
+const DRAW_GRID=255,DRAW_FLUSH_MS=200,DRAW_LIVE_MS=80,DRAW_COLOURS=["#111827","#6b7280","#78350f","#e11d48","#f97316","#facc15","#65a30d","#059669","#0891b2","#2563eb","#1e3a8a","#7c3aed","#db2777","#f5cba7","#ffffff"],DRAW_PAPER="#ffffff",DRAW_ROUND_CHOICES=[60,90,120,180],DRAW_TOOLBOX=[{id:"p",icon:"✏️",key:"draw_tool_pen"},{id:"l",icon:"╱",key:"draw_tool_line"},{id:"r",icon:"▭",key:"draw_tool_rect"},{id:"o",icon:"◯",key:"draw_tool_circle"},{id:"b",icon:"🪣",key:"draw_tool_fill"},{id:"e",icon:"🧽",key:"draw_tool_erase"}],draw={canvas:null,ctx:null,drawing:!1,current:null,pending:[],redo:[],onUndo:null,onRedo:null,local:!1,painted:0,paintedMark:null,colour:DRAW_COLOURS[0],width:5,tool:"p",snapshot:null,flushTimer:null,clock:null,clockEndsAt:null,liveSeq:0,liveSent:0,liveAt:0,live:null,liveShown:!1,round:null},DRAW_SECONDS_KEY="ashryDrawRoomSeconds";function drawRoomSeconds(state){try{const saved=Number(localStorage.getItem(DRAW_SECONDS_KEY));if(DRAW_ROUND_CHOICES.indexOf(saved)!==-1)return saved}catch(e){}const last=state&&state.shared&&state.shared.roundSeconds;return DRAW_ROUND_CHOICES.indexOf(last)!==-1?last:90}function setDrawRoomSeconds(value){try{localStorage.setItem(DRAW_SECONDS_KEY,String(Number(value)))}catch(e){}}ROOM_GAMES.drawguess={lobbyOptions(state){if(!state.youAreHost)return"";const t=TRANSLATIONS[appState.lang],current=drawRoomSeconds(state);return`
+      <div class="card card--tight">
+        <label class="field__label" for="draw-seconds">${t.draw_round_length||""}</label>
+        <select id="draw-seconds" onchange="setDrawRoomSeconds(this.value)">
+          ${DRAW_ROUND_CHOICES.map(sec=>`
+            <option value="${sec}" ${sec===current?"selected":""}>
+              ${sec} ${t.seconds_short||""}${sec===90?" · "+(t.default_label||""):""}
+            </option>`).join("")}
+        </select>
+        <p class="field__hint" style="text-align:center">${t.draw_hint||""}</p>
+      </div>`+packWordsLobbyHtml("drawRoom")},startPayload:()=>{const sel=document.getElementById("draw-seconds"),out={lang:contentLang(),seconds:sel?Number(sel.value):drawRoomSeconds(Room.state)};return packWordsLobbyPick("drawRoom")&&(out.pack=packWordsLobbyPick("drawRoom")),out},render(state){appState.currentView!=="room-drawguess"&&(resetDrawSurface(),setView("room-drawguess"));const el=document.getElementById("view-room-drawguess");if(!el)return;const t=TRANSLATIONS[appState.lang],s=state.shared,amDrawer=s.drawerId===Room.me,over=!!s.word,roundKey=roomDealKey(state,s.round);draw.round!==roundKey&&(draw.round=roundKey,draw.redo=[]);const sig=[roundKey,amDrawer,over,s.winnerId||"",state.youAreHost,appState.lang].join("|");if(el.dataset.sig!==sig){const typed=document.getElementById("draw-guess"),guessText=typed?typed.value:"",guessFocused=!!typed&&document.activeElement===typed;el.dataset.sig=sig,el.innerHTML=drawFrame(state,amDrawer,over,t),bindDrawSurface(amDrawer&&!over),draw.painted=0;const box=document.getElementById("draw-guess");box&&guessText&&(box.value=guessText,guessFocused&&box.focus())}if(paintStrokes(s.strokes||[]),paintGuessList(s.guesses||[]),refreshRoomPlayerStrip(el,state),s.word&&s.winnerId&&!motionOff()&&typeof motionFirst=="function"&&motionFirst("draw-stamp|"+roomDealKey(state)+"|"+s.round)){const wrap=el.querySelector(".draw-wrap");if(wrap&&!wrap.querySelector(".draw-stamp")){const stamp=document.createElement("div");stamp.className="draw-stamp",stamp.textContent=t.draw_stamp_right||"خمّن صح!",wrap.appendChild(stamp)}}if(over?stopDrawClock():startDrawClock(s.endsAt),over){const board=document.getElementById("draw-board");board&&(board.innerHTML=renderScoreboard(s.board))}}};function drawFrame(state,amDrawer,over,t){const s=state.shared,header=over?`<div class="card card--accent" style="text-align:center">
+         <div class="eyebrow">${s.winnerId?t.draw_guessed_by||"خمّنها":t.draw_nobody||"محدش عرفها"}</div>
+         <div class="metric metric--md metric--accent">${escapeHTML(s.word||"")}</div>
+       </div>`:`<div class="cn-score">
+         <span class="cn-score__role">${amDrawer?"✏️ "+(t.draw_you_draw||"أنت الرسام"):(t.draw_drawer||"الرسام")+": "+escapeHTML(s.drawerName||"")}</span>
+         <span id="draw-timer" class="badge badge--accent">--</span>
+       </div>
+       ${!amDrawer&&s.hint?drawHintHtml(s.hint,t):""}
+       ${amDrawer?`<div class="card card--accent" style="text-align:center; margin-bottom: var(--sp-2)">
+               <div class="eyebrow">${t.draw_your_word||"ارسم هذه الكلمة"}</div>
+               <div class="metric metric--md metric--accent">${escapeHTML(state.you&&state.you.word||"")}</div>
+             </div>`:""}`,tools=amDrawer&&!over?drawToolsHtml(t,{undo:"undoDrawStroke()",redo:"redoDrawStroke()",clear:"clearDrawCanvas()"}):"",guessBox=!amDrawer&&!over?`
+      <div class="input-group" style="margin-top: var(--sp-3)">
+        <input type="text" id="draw-guess" autocomplete="off" maxlength="40"
+               placeholder="${t.draw_guess_ph||"اكتب تخمينك"}"
+               onkeydown="if(event.key==='Enter') submitDrawGuess()">
+        <button onclick="submitDrawGuess()" class="btn btn--primary btn--send">${t.send||"إرسال"}</button>
+      </div>`:"",footer=over?roomMoveOnHtml(state,`<div class="btn-stack" style="margin-top: var(--sp-3)">
+             <button onclick="roomAct('nextRound', ${roomNextArgs(state)})" class="btn btn--primary btn--lg">${t.draw_next||"جولة جديدة"}</button>
+             ${state.youAreHost?`<button onclick="tvBackToHub()" class="btn btn--ghost">${t.room_another_game||"لعبة أخرى"}</button>`:""}
+           </div>`,`<div class="waiting-note">${t.room_wait_host}</div>`):amDrawer||state.youAreHost?`<button onclick="roomAct('giveUp')" class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)">${t.draw_reveal||"كشف الكلمة"}</button>`:"";return`<div class="draw-layout">
+      <div class="draw-layout__head">${header}</div>
+      <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>
+      <div class="draw-layout__side">
+        ${tools}
+        ${guessBox}
+        <div id="draw-guesses" class="draw-guesses"></div>
+        <div id="draw-board"></div>
+        ${footer}
+      </div>
+    </div>
+    ${renderRoomPlayerStrip(state)}`}function drawToolsHtml(t,h){const custom=DRAW_COLOURS.indexOf(draw.colour)===-1;return`
+      <div class="draw-tools">
+        <div class="draw-tools__row" role="group" aria-label="${escapeHTML(t.draw_tools||"")}">
+          ${DRAW_TOOLBOX.map(tool=>`
+            <button class="draw-tool ${tool.id===draw.tool?"is-active":""}"
+                    aria-pressed="${tool.id===draw.tool}"
+                    title="${escapeHTML(t[tool.key]||"")}" aria-label="${escapeHTML(t[tool.key]||"")}"
+                    onclick="setDrawTool('${tool.id}')">${tool.icon}</button>`).join("")}
+        </div>
+        <div class="draw-tools__row draw-tools__row--palette" role="group" aria-label="${escapeHTML(t.draw_colours||"")}">
+          ${DRAW_COLOURS.map(c=>`
+            <button class="draw-swatch ${c===draw.colour?"is-active":""}"
+                    style="background:${c}" aria-label="${c}"
+                    onclick="setDrawColour('${c}')"></button>`).join("")}
+          <label class="draw-swatch draw-swatch--custom ${custom?"is-active":""}" style="${custom?"background:"+draw.colour:""}"
+                 title="${escapeHTML(t.draw_custom_colour||"")}" aria-label="${escapeHTML(t.draw_custom_colour||"")}">
+            <input type="color" value="${custom?draw.colour:"#ff8800"}" oninput="setDrawColour(this.value)">
+          </label>
+        </div>
+        <div class="draw-tools__row draw-tools__row--acts">
+          ${[2,5,10,20].map(w=>`
+            <button class="draw-width ${w===draw.width?"is-active":""}"
+                    aria-label="${w}" onclick="setDrawWidth(${w})">
+              <span class="draw-width__dot" style="width:${Math.min(22,w+4)}px;height:${Math.min(22,w+4)}px"></span>
+            </button>`).join("")}
+          <span class="draw-tools__gap"></span>
+          <button class="draw-tool draw-tool--act" onclick="${h.undo}" title="${escapeHTML(t.draw_undo||"")}" aria-label="${escapeHTML(t.draw_undo||"")}">↶</button>
+          <button class="draw-tool draw-tool--act" onclick="${h.redo}" title="${escapeHTML(t.draw_redo||"")}" aria-label="${escapeHTML(t.draw_redo||"")}">↷</button>
+          <button class="draw-tool draw-tool--danger" onclick="${h.clear}" title="${escapeHTML(t.draw_clear||"")}" aria-label="${escapeHTML(t.draw_clear||"")}">🗑️</button>
+        </div>
+      </div>`}document.addEventListener("keydown",e=>{if(!(e.ctrlKey||e.metaKey)||!draw.canvas||!draw.canvas.isConnected||!draw.canvas.offsetParent||/^(INPUT|TEXTAREA|SELECT)$/.test(e.target&&e.target.tagName||""))return;const k=String(e.key||"").toLowerCase();k==="z"&&!e.shiftKey?draw.onUndo&&(e.preventDefault(),draw.onUndo()):(k==="y"||k==="z"&&e.shiftKey)&&draw.onRedo&&(e.preventDefault(),draw.onRedo())});function drawHintHtml(hint,t){const marks=String(hint||"").replace(/ +/g,m=>m.length>1?"|":"").split(""),letters=marks.filter(m=>m==="_").length;return`<div class="draw-hint">
+      <span class="eyebrow">${escapeHTML(t.draw_hint_label||"")} · <span class="metric">${letters}</span></span>
+      <span class="draw-hint__slots" dir="ltr">${marks.map(m=>m==="_"?'<i class="draw-hint__slot"></i>':'<i class="draw-hint__gap"></i>').join("")}</span>
+    </div>`}function paintStrokes(strokes){const c=draw.canvas,ctx=draw.ctx;if(!c||!ctx||draw.drawing)return;const mark=draw.paintedMark,changed=!!(mark&&mark.n===draw.painted&&draw.painted>0&&(strokes.length<mark.n||strokeMark(strokes[mark.n-1])!==mark.sig));if((strokes.length<draw.painted||changed)&&(clearSurface(),draw.painted=0,draw.live=null,draw.liveShown=!1),strokes.length!==draw.painted){draw.liveShown&&(clearSurface(),draw.painted=0,draw.liveShown=!1);for(let i=draw.painted;i<strokes.length;i++)drawStroke(ctx,strokes[i],c.width);draw.painted=strokes.length,draw.paintedMark=strokes.length?{n:strokes.length,sig:strokeMark(strokes[strokes.length-1])}:null,draw.live&&draw.live.n>=strokes.length?(drawStroke(ctx,draw.live,c.width),draw.liveShown=!0):draw.live=null,draw.snapshot=null}}function strokeMark(st){try{return JSON.stringify(st)}catch(e){return""}}function drawStroke(ctx,st,size){const pts=st.p||[],k=size/255,X=i=>pts[i]*k;if(st.t==="b"){pts.length>=2&&floodFill(ctx,Math.round(X(0)),Math.round(X(1)),st.c||"#111");return}if(!(pts.length<2)){if(ctx.strokeStyle=st.c||"#111",ctx.lineWidth=(st.w||4)*k,ctx.lineCap="round",ctx.lineJoin="round",ctx.beginPath(),st.t==="l"&&pts.length>=4)ctx.moveTo(X(0),X(1)),ctx.lineTo(X(2),X(3));else if(st.t==="r"&&pts.length>=4)ctx.rect(X(0),X(1),X(2)-X(0),X(3)-X(1));else if(st.t==="o"&&pts.length>=4){const cx=(X(0)+X(2))/2,cy=(X(1)+X(3))/2;ctx.ellipse(cx,cy,Math.abs(X(2)-X(0))/2,Math.abs(X(3)-X(1))/2,0,0,Math.PI*2)}else{if(pts.length<6){ctx.moveTo(X(0),X(1)),ctx.lineTo(X(2),X(3)),ctx.stroke();return}ctx.moveTo(X(0),X(1));for(let i=2;i<pts.length-2;i+=2)ctx.quadraticCurveTo(X(i),X(i+1),(X(i)+X(i+2))/2,(X(i+1)+X(i+3))/2);ctx.lineTo(X(pts.length-2),X(pts.length-1)),ctx.stroke();return}ctx.stroke()}}function floodFill(ctx,x0,y0,hex){const w=ctx.canvas.width,h=ctx.canvas.height;if(x0<0||y0<0||x0>=w||y0>=h)return;const img=ctx.getImageData(0,0,w,h),d=img.data,at=(x,y)=>(y*w+x)*4,start=at(x0,y0),sr=d[start],sg=d[start+1],sb=d[start+2],to=hexToRgb(hex);if(!to||Math.abs(sr-to.r)<4&&Math.abs(sg-to.g)<4&&Math.abs(sb-to.b)<4)return;const TOL=40,matches=i=>Math.abs(d[i]-sr)<=TOL&&Math.abs(d[i+1]-sg)<=TOL&&Math.abs(d[i+2]-sb)<=TOL,stack=[[x0,y0]];for(;stack.length;){const[sx,sy]=stack.pop();let x=sx;for(;x>0&&matches(at(x-1,sy));)x--;let spanUp=!1,spanDown=!1;for(;x<w&&matches(at(x,sy));x++){const i=at(x,sy);if(d[i]=to.r,d[i+1]=to.g,d[i+2]=to.b,d[i+3]=255,sy>0){const up=matches(at(x,sy-1));up&&!spanUp?(stack.push([x,sy-1]),spanUp=!0):up||(spanUp=!1)}if(sy<h-1){const dn=matches(at(x,sy+1));dn&&!spanDown?(stack.push([x,sy+1]),spanDown=!0):dn||(spanDown=!1)}}}ctx.putImageData(img,0,0)}function hexToRgb(hex){const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(String(hex).trim());return m?{r:parseInt(m[1],16),g:parseInt(m[2],16),b:parseInt(m[3],16)}:null}function clearSurface(){!draw.ctx||!draw.canvas||(draw.ctx.fillStyle=DRAW_PAPER,draw.ctx.fillRect(0,0,draw.canvas.width,draw.canvas.height),draw.snapshot=null)}function activeColour(){return draw.tool==="e"?DRAW_PAPER:draw.colour}function activeWidth(){return draw.tool==="e"?Math.max(12,draw.width*3):draw.width}function activeToolLetter(){return draw.tool==="p"||draw.tool==="e"?"f":draw.tool}function bindDrawSurface(canDraw){if(draw.canvas=document.getElementById("draw-canvas"),!draw.canvas||(draw.ctx=draw.canvas.getContext("2d",{willReadFrequently:!0}),draw.drawing=!1,draw.current=null,draw.snapshot=null,clearSurface(),draw.painted=0,draw.live=null,draw.liveShown=!1,draw.local||(draw.onUndo=canDraw?undoDrawStroke:null,draw.onRedo=canDraw?redoDrawStroke:null),!canDraw))return;const pos=e=>{const r=draw.canvas.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*255,y=(e.clientY-r.top)/r.height*255;return[Math.max(0,Math.min(255,Math.round(x))),Math.max(0,Math.min(255,Math.round(y)))]};draw.canvas.onpointerdown=e=>{e.preventDefault();const[x,y]=pos(e);if(draw.tool==="b"){const stroke={t:"b",c:draw.colour,w:1,p:[x,y]};drawStroke(draw.ctx,stroke,draw.canvas.width),draw.pending.push(stroke),draw.redo=[],draw.snapshot=null,playSound("tick"),scheduleFlush();return}draw.canvas.setPointerCapture(e.pointerId),draw.drawing=!0;const letter=activeToolLetter();draw.current={c:activeColour(),w:activeWidth(),p:[x,y]},draw.liveSeq++,draw.liveSent=0,draw.liveAt=0,letter!=="f"&&(draw.current.t=letter,draw.current.p=[x,y,x,y],draw.snapshot=draw.ctx.getImageData(0,0,draw.canvas.width,draw.canvas.height))},draw.canvas.onpointermove=e=>{if(!draw.drawing||!draw.current)return;e.preventDefault();const[x,y]=pos(e),cur=draw.current;if(cur.t){if(cur.p[2]=x,cur.p[3]=y,!draw.snapshot){const keep=draw.drawing;draw.drawing=!1,paintStrokesFromScratch(),draw.drawing=keep,draw.snapshot=draw.ctx.getImageData(0,0,draw.canvas.width,draw.canvas.height)}draw.ctx.putImageData(draw.snapshot,0,0),drawStroke(draw.ctx,cur,draw.canvas.width);return}const p=cur.p;Math.abs(p[p.length-2]-x)<2&&Math.abs(p[p.length-1]-y)<2||(p.push(x,y),drawStroke(draw.ctx,{c:cur.c,w:cur.w,p:p.slice(-4)},draw.canvas.width),shareLiveStroke(!1,cur))};const finish=()=>{if(!draw.drawing)return;draw.drawing=!1;const cur=draw.current;if(draw.current=null,draw.snapshot=null,!!cur){if(cur.t&&cur.p[0]===cur.p[2]&&cur.p[1]===cur.p[3]){paintStrokesFromScratch();return}cur.t||shareLiveStroke(!0,cur),cur.p.length>=2&&(draw.pending.push(cur),draw.redo=[]),scheduleFlush()}};draw.canvas.onpointerup=finish,draw.canvas.onpointercancel=finish,draw.canvas.onpointerleave=finish}function paintStrokesFromScratch(){if(!draw.ctx)return;const shared=Room.state&&Room.state.shared||{},wasDrawing=draw.drawing;draw.drawing=!1,clearSurface(),draw.painted=0,paintStrokes(shared.strokes||[]),draw.pending.forEach(st=>drawStroke(draw.ctx,st,draw.canvas.width)),draw.drawing=wasDrawing}function shareLiveStroke(force,cur){if(!cur||cur.t||!Room.isIn)return;const now=Date.now();if(!force&&now-draw.liveAt<80||cur.p.length<=draw.liveSent)return;const from=Math.max(0,draw.liveSent-2);Room.sendLive({s:draw.liveSeq,n:draw.painted+draw.pending.length,i:from,c:cur.c,w:cur.w,p:cur.p.slice(from)})&&(draw.liveSent=cur.p.length,draw.liveAt=now)}function onDrawLive(d){const state=Room.state,watching=appState.currentView==="room-drawguess"||appState.currentView==="room-tv";if(!d||!state||state.game!=="drawguess"||!watching)return;const s=state.shared||{};if(!draw.ctx||!draw.canvas||s.drawerId===Room.me||s.word||!Array.isArray(d.p)||d.p.length<2||d.p.length>6e3||(s.strokes||[]).length>d.n)return;let live=draw.live;if(!live||live.s!==d.s){if(d.i!==0)return;live=draw.live={s:d.s,n:d.n,c:String(d.c||"#111"),w:Number(d.w)||4,p:[]}}const start=Math.max(0,live.p.length-2);if(d.i!==start)return;const pts=d.p.map(v=>Math.max(0,Math.min(255,Math.round(Number(v)||0))));live.p=live.p.slice(0,start).concat(pts),drawStroke(draw.ctx,{c:live.c,w:live.w,p:live.p.slice(start)},draw.canvas.width),draw.liveShown=!0}Room.onLive(onDrawLive);function scheduleFlush(){draw.local||draw.flushTimer||(draw.flushTimer=setTimeout(async()=>{if(draw.flushTimer=null,!!draw.pending.length)try{await flushDrawNow()}catch(e){showToast(e.message||"تعذر إرسال الرسمة","error")}},200))}function setDrawColour(c){draw.colour=c,draw.tool==="e"&&(draw.tool="p"),refreshDrawTools(),playSound("click")}function setDrawWidth(w){draw.width=w,refreshDrawTools(),playSound("click")}function setDrawTool(id){draw.tool=id,refreshDrawTools(),playSound("click"),haptic("light")}function refreshDrawTools(){document.querySelectorAll('.draw-tool[onclick^="setDrawTool"]').forEach(b=>{const on=b.getAttribute("onclick").indexOf("'"+draw.tool+"'")!==-1;b.classList.toggle("is-active",on),b.setAttribute("aria-pressed",String(on))}),document.querySelectorAll(".draw-swatch").forEach(b=>b.classList.toggle("is-active",b.getAttribute("aria-label")===draw.colour)),document.querySelectorAll(".draw-width").forEach(b=>b.classList.toggle("is-active",Number(b.getAttribute("aria-label"))===draw.width));const custom=document.querySelector(".draw-swatch--custom");if(custom){const on=DRAW_COLOURS.indexOf(draw.colour)===-1;custom.classList.toggle("is-active",on),custom.style.background=on?draw.colour:""}}async function flushDrawNow(){if(clearTimeout(draw.flushTimer),draw.flushTimer=null,draw.local||!draw.pending.length)return;const batch=draw.pending.splice(0,draw.pending.length);draw.painted+=batch.length;const state=await Room.act("addStrokes",{strokes:batch}),strokes=state&&state.shared&&state.shared.strokes;strokes&&(draw.painted=strokes.length,draw.drawing||paintStrokesFromScratch())}async function undoDrawStroke(){try{await flushDrawNow();const shared=Room.state&&Room.state.shared||{},last=(shared.strokes||[])[(shared.strokes||[]).length-1];last&&draw.redo.push(last),await Room.act("undoStroke",{}),paintStrokesFromScratch(),playSound("tick"),haptic("light")}catch(e){showToast(e.message||"تعذر التراجع","error")}}async function redoDrawStroke(){const st=draw.redo.pop();if(st){draw.pending.push(st),paintStrokesFromScratch();try{await flushDrawNow()}catch(e){showToast(e.message||"تعذر الإعادة","error")}playSound("tick"),haptic("light")}}async function clearDrawCanvas(){clearSurface(),draw.pending=[],draw.painted=0,clearTimeout(draw.flushTimer),draw.flushTimer=null,await roomAct("clearCanvas")}async function submitDrawGuess(){const input=document.getElementById("draw-guess"),guess=(input.value||"").trim();guess&&(input.value="",await roomAct("guess",{guess}))}function paintGuessList(guesses){const el=document.getElementById("draw-guesses");if(!el)return;const html=guesses.slice(-6).reverse().map(g=>`
+      <div class="draw-guess ${g.right?"is-right":""} ${g.close?"is-close":""}">
+        <span class="draw-guess__who">${escapeHTML(g.name)}</span>
+        <span>${escapeHTML(g.text)}</span>
+        ${g.right?'<span aria-hidden="true">✅</span>':g.close?`<span class="draw-guess__close">🔥 ${escapeHTML((TRANSLATIONS[appState.lang]||{}).draw_close||"")}</span>`:""}
+      </div>`).join("");el.dataset.sig!==html&&(el.innerHTML=html,el.dataset.sig=html)}function startDrawClock(endsAt){if(!endsAt||draw.clockEndsAt===endsAt)return;stopDrawClock(),draw.clockEndsAt=endsAt;const paint=()=>{const el=document.getElementById("draw-timer");if(!el)return;const left=Math.max(0,Math.ceil((endsAt-roomServerNow())/1e3));el.innerText=left+"s"};paint(),draw.clock=createClock({seconds:Math.max(0,Math.ceil((endsAt-roomServerNow())/1e3)),onTick:paint,onEnd:()=>{draw.clock=null;const st=Room.state;!Room.isHost||!st||st.game!=="drawguess"||!st.shared||st.shared.word||st.shared.endsAt!==endsAt||roomAct("giveUp")}})}function stopDrawClock(){draw.clock&&(draw.clock.stop(),draw.clock=null),draw.clockEndsAt=null}onRoomClocksReset(()=>{stopDrawClock(),clearTimeout(draw.flushTimer),draw.flushTimer=null,draw.local||(draw.pending=[])});function resetDrawSurface(){draw.tool="p",draw.local=!1,draw.snapshot=null,stopDrawClock(),clearTimeout(draw.flushTimer),draw.flushTimer=null,draw.pending=[],draw.redo=[],draw.onUndo=null,draw.onRedo=null,draw.current=null,draw.drawing=!1,draw.painted=0}const FA_GRID=255,FA_MAX_POINTS=150,fakeArt={canvas:null,ctx:null,drawing:!1,line:null,colour:"#111827",sending:!1};ROOM_GAMES.fakeartist={lobbyOptions:state=>langLobbyOptions(state,"fa_hint"),startPayload:()=>({lang:VOTE_LANG()}),render(state){appState.currentView!=="room-fakeartist"&&setView("room-fakeartist");const el=document.getElementById("view-room-fakeartist");if(!el)return;const t=TRANSLATIONS[appState.lang],s=state.shared,myTurn=s.phase==="drawing"&&s.currentDrawerId===Room.me,drawerAway=s.phase==="drawing"&&!myTurn&&!faOnline(state,s.currentDrawerId),sig=["fa",s.round,s.turnIndex,s.phase,(s.strokes||[]).length,myTurn,s.vote?s.vote.voted.length:"",state.youAreHost,drawerAway,appState.lang].join("|");if(renderRoomFrame(el,sig,()=>fakeArtistFrame(state,t,myTurn,drawerAway),["fa",s.round,s.turnIndex,s.phase].join("|"))&&(myTurn||(fakeArt.line=null),bindFakeArtistCanvas(myTurn,(s.colors||{})[Room.me]||"#111827"),paintFakeArtist(s.strokes||[]),myTurn&&fakeArt.line&&!fakeArt.sending)){fakeArt.drawing=!1;const send=document.getElementById("fa-send");fakeArt.line.length>=4?send&&(send.disabled=!1):(fakeArt.line=null,paintFakeArtist(s.strokes||[]))}refreshRoomPlayerStrip(el,state)}};function faSkipTurnCall(s){const args={turn:s.turnIndex};return typeof s.round=="number"&&(args.round=s.round),`roomAct('skipTurn', ${escapeHTML(JSON.stringify(args))})`}function faOnline(state,id){const p=state.players.find(x=>x.id===id);return!!(p&&p.online)}function faName(state,id){const p=state.players.find(x=>x.id===id);return p?p.name:"—"}function faFakeName(state){const s=state.shared;return s.fakeName||faName(state,s.fakeId)}function faResultLine(state,t){const s=state.shared;return s.impostorLeft?(t.room_impostor_left||"").replace("{name}",faFakeName(state)):s.fakeCaught?s.winner==="fake"?t.fa_stole:t.fa_artists_win:t.fa_escaped}function faDot(state,id){return`<span class="fa-dot" style="background:${(state.shared.colors||{})[id]||"#111827"}" aria-hidden="true"></span>`}function fakeArtistFrame(state,t,myTurn,drawerAway){const s=state.shared,you=state.you||{},header=s.phase==="drawing"?`
+      <div class="cn-score">
+        <span class="cn-score__role">${faDot(state,s.currentDrawerId)} ${myTurn?t.your_stroke_turn||"":escapeHTML(faName(state,s.currentDrawerId))+" "+(t.fa_is_drawing||"")}</span>
+        <span class="badge badge--accent">${t.round||""} ${s.round}/${s.totalRounds}</span>
+      </div>`:"",roleCard=(label,value,hint)=>`<div class="card card--accent" style="text-align:center">
+         <div class="eyebrow">${label}</div>
+         <div class="metric metric--md metric--accent">${value}</div>
+         <p class="field__hint" style="margin:0">${hint}</p>
+       </div>`,role=s.phase==="results"?"":you.isFake?roleCard("🦹 "+escapeHTML(t.fake_artist_role||""),"❓",escapeHTML(t.fake_artist_hint||"")):you.word?roleCard(escapeHTML(t.real_artist_word||""),escapeHTML(you.word),escapeHTML(t.real_artist_hint||"")):"",legend=`
+      <div class="chip-set fa-legend">
+        ${(s.drawerOrder||[]).map(id=>`
+          <span class="chip chip--plain ${id===s.currentDrawerId?"is-turn":""}">
+            ${faDot(state,id)}<span class="chip__label">${escapeHTML(faName(state,id))}</span>
+          </span>`).join("")}
+      </div>`,canvas='<div class="draw-wrap fa-wrap"><canvas id="fa-canvas" width="512" height="512"></canvas></div>',controls=myTurn?`
+      <div class="btn-row">
+        <button class="btn btn--ghost" onclick="clearFakeArtistLine()">${t.fa_redo||""}</button>
+        <button id="fa-send" class="btn btn--primary" onclick="submitFakeArtistLine()" disabled>${t.send_stroke_btn||""}</button>
+      </div>
+      <p class="field__hint" style="text-align:center">${t.fa_one_line||""}</p>`:"",skip=drawerAway?roomMoveOnHtml(state,`
+      <div class="btn-stack">
+        <button class="btn btn--ghost btn--sm" onclick="${faSkipTurnCall(s)}">${t.fa_skip_turn||""}</button>
+      </div>`):"",voting=s.phase==="voting"?`
+      <div class="card">
+        <div class="card__title" style="text-align:center">${t.fa_vote_title||""}</div>
+        ${renderBallot(state,{ownLabel:t.vote_you})}
+      </div>`:"";let guessing="";s.phase==="guessing"&&(guessing=s.fakeId===Room.me?`<div class="card card--accent">
+           <div class="card__title" style="text-align:center">${t.fake_guess_prompt||""}</div>
+           <div class="input-group">
+             <input type="text" id="fa-guess" autocomplete="off" maxlength="40"
+                    placeholder="${escapeHTML(t.draw_guess_ph||"")}"
+                    onkeydown="if(event.key==='Enter') submitFakeArtistGuess()">
+             <button class="btn btn--primary" onclick="submitFakeArtistGuess()" aria-label="${escapeHTML(t.submit_guess_btn||"")}">↵</button>
+           </div>
+         </div>`:`<div class="card" style="text-align:center">
+           <div class="eyebrow">${t.fa_caught||""}</div>
+           <div class="card__title">${faDot(state,s.fakeId)} ${escapeHTML(faName(state,s.fakeId))}</div>
+           <div class="waiting-note"><span class="animate-pulse">🤔</span> ${t.fa_guessing_wait||""}</div>
+           ${roomMoveOnHtml(state,`<button class="btn btn--ghost btn--sm" onclick="roomAct('skipGuess')">${t.fa_skip_guess||""}</button>`)}
+         </div>`);let results="";if(s.phase==="results"){const fakeWon=s.winner==="fake",left=!!s.impostorLeft,line=faResultLine(state,t),revealKey=["fa",roomDealKey(state,s.round),s.fakeId,s.secretWord].join("|"),cover=spyRevealParts(revealKey,t.reveal_fake_was);results=`${typeof spyCastHtml=="function"?spyCastHtml(revealKey,left?"":s.fakeCaught&&!fakeWon?"caught":"escaped",{kind:"fake",loud:spyCastLoud(state)}):""}
+      <div class="card ${left?"":fakeWon?"plate-danger":"plate-success"} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
+        <div class="eyebrow">${t.fa_word_was||""}</div>
+        <div class="metric metric--md">${escapeHTML(s.secretWord||"")}</div>
+        <div class="card__title" style="margin: var(--sp-2) 0 0">${left?"🚪":fakeWon?"🦹":"🎉"} ${escapeHTML(line||"")}</div>
+        <p style="margin: var(--sp-1) 0 0">${t.fa_fake_was||""} ${faDot(state,s.fakeId)} <b>${escapeHTML(faFakeName(state))}</b>${s.fakeGuessWord?` · ${t.fa_guessed||""} «${escapeHTML(s.fakeGuessWord)}»`:""}</p>
+      </div>
+      ${s.vote&&s.vote.results?renderVoteResults(state,{highlightId:s.fakeId,delay:cover.ms}):""}
+      ${renderScoreboard(s.board)}
+      ${renderRoundFooter(state,t.next_round||"")}`}return'<div class="draw-layout"><div class="draw-layout__head">'+header+role+"</div>"+canvas+'<div class="draw-layout__side">'+legend+controls+skip+"</div></div>"+voting+guessing+results+renderRoomPlayerStrip(state)}function bindFakeArtistCanvas(canDraw,colour){const c=document.getElementById("fa-canvas");if(fakeArt.canvas=c,fakeArt.ctx=c?c.getContext("2d"):null,fakeArt.colour=colour,fakeArt.drawing=!1,!c||!canDraw)return;const pos=e=>{const r=c.getBoundingClientRect();return[Math.max(0,Math.min(FA_GRID,Math.round((e.clientX-r.left)/r.width*FA_GRID))),Math.max(0,Math.min(FA_GRID,Math.round((e.clientY-r.top)/r.height*FA_GRID)))]};c.onpointerdown=e=>{if(e.preventDefault(),fakeArt.line){showToast(TRANSLATIONS[appState.lang].fa_one_line_toast||"");return}c.setPointerCapture(e.pointerId),fakeArt.drawing=!0,fakeArt.line=pos(e)},c.onpointermove=e=>{if(!fakeArt.drawing)return;e.preventDefault();const[x,y]=pos(e),p=fakeArt.line;Math.abs(p[p.length-2]-x)<3&&Math.abs(p[p.length-1]-y)<3||p.length>=FA_MAX_POINTS*2||(p.push(x,y),faStroke(fakeArt.ctx,fakeArt.colour,p.slice(-4)))};const finish=()=>{if(!fakeArt.drawing)return;if(fakeArt.drawing=!1,!fakeArt.line||fakeArt.line.length<4){fakeArt.line=null,repaintFakeArtist();return}const btn=document.getElementById("fa-send");btn&&(btn.disabled=!1)};c.onpointerup=finish,c.onpointercancel=finish}function faStroke(ctx,colour,pts){if(!ctx||!pts||pts.length<4)return;const k=ctx.canvas.width/FA_GRID;ctx.strokeStyle=colour,ctx.lineWidth=5*k,ctx.lineCap="round",ctx.lineJoin="round",ctx.beginPath(),ctx.moveTo(pts[0]*k,pts[1]*k);for(let i=2;i+1<pts.length;i+=2)ctx.lineTo(pts[i]*k,pts[i+1]*k);ctx.stroke()}function paintFakeArtist(strokes){const ctx=fakeArt.ctx;ctx&&(ctx.fillStyle="#ffffff",ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height),(strokes||[]).forEach(st=>faStroke(ctx,st.c,st.p)),fakeArt.line&&faStroke(ctx,fakeArt.colour,fakeArt.line))}function repaintFakeArtist(){paintFakeArtist(Room.state&&Room.state.shared&&Room.state.shared.strokes||[])}function clearFakeArtistLine(){fakeArt.line=null,fakeArt.drawing=!1;const btn=document.getElementById("fa-send");btn&&(btn.disabled=!0),repaintFakeArtist()}async function submitFakeArtistLine(){if(!fakeArt.line||fakeArt.sending)return;const btn=document.getElementById("fa-send");btn&&(btn.disabled=!0),fakeArt.sending=!0;try{await Room.act("sendStroke",{stroke:{p:fakeArt.line}}),fakeArt.line=null,playSound("click"),haptic("light")}catch(err){showToast(err.message||"تعذر الإرسال","error"),btn&&(btn.disabled=!1)}finally{fakeArt.sending=!1}}async function submitFakeArtistGuess(){const input=document.getElementById("fa-guess"),guess=input?input.value.trim():"";if(guess){input&&(input.disabled=!0);try{await Room.act("fakeGuess",{guess})}catch(err){input&&(input.disabled=!1),showToast(err.message||"تعذر الإرسال","error")}}}const tele={clock:null,clockKey:null,sentFor:null,surfaceKey:null,draft:{key:"",text:""}};function teleStepKey(state){const task=state&&state.you&&state.you.task;return roomDealKey(state,(state&&state.shared?state.shared.step:"")+":"+(task?task.chain:""))}function teleDraft(value){tele.draft={key:teleStepKey(Room.state),text:String(value||"")}}function armTeleClock(endsAt){const paint=()=>{const el=document.getElementById("tele-clock");el&&(el.textContent=String(Math.max(0,Math.ceil((endsAt-roomServerNow())/1e3))))};paint(),!(tele.clockKey===endsAt&&tele.clock&&tele.clock.isRunning())&&(stopTeleClock(),tele.clockKey=endsAt,tele.clock=createClock({seconds:Math.max(0,Math.ceil((endsAt-roomServerNow())/1e3)),onTick:paint,onEnd:()=>{tele.clock=null}}))}function stopTeleClock(){tele.clock&&tele.clock.stop(),tele.clock=null,tele.clockKey=null}onRoomClocksReset(stopTeleClock),Room.onChange(state=>{const s=state&&state.game==="telephone"&&state.shared;!s||s.phase!=="collecting"||!state.you||!state.you.task||(s.submitted||[]).indexOf(Room.me)!==-1||tele.sentFor===teleStepKey(state)||teleSubmit(!0)});async function teleSubmit(auto){const st=Room.state;if(!st||st.game!=="telephone"||!st.you||!st.you.task)return;const task=st.you.task,key=teleStepKey(st);if(tele.sentFor===key)return;tele.sentFor=key;const step=st.shared.step;try{if(task.kind==="draw"){const strokes=tele.surfaceKey===key?draw.pending.slice():[];await Room.act("submit",{strokes,step})}else{const input=document.getElementById("tele-text"),text=((input&&input.dataset.key===key?input.value:tele.draft.key===key?tele.draft.text:"")||"").trim();if(!text&&!auto){tele.sentFor=null,showToast(TRANSLATIONS[appState.lang].tele_write_first||"","error");return}await Room.act("submit",{text,step})}playSound("success")}catch(e){tele.sentFor=null,showToast(e.message||"تعذر الإرسال","error")}}function teleUndo(){const st=draw.pending.pop();st&&(draw.redo.push(st),paintStrokesFromScratch(),playSound("tick"),haptic("light"))}function teleRedo(){const st=draw.redo.pop();st&&(draw.pending.push(st),paintStrokesFromScratch(),playSound("tick"),haptic("light"))}function teleClear(){draw.pending=[],draw.redo=[],clearSurface(),draw.painted=0,haptic("light")}function teleToolsHtml(t){return drawToolsHtml(t,{undo:"teleUndo()",redo:"teleRedo()",clear:"teleClear()"})}function teleStepHtml(step,t,big,first){return step?step.kind==="text"?`<div class="card card--accent" style="text-align:center">
+      <div class="eyebrow">${escapeHTML(step.byName&&!first?(t.tele_wrote||"").replace("{name}",step.byName):t.tele_started_with||"")}</div>
+      <div class="metric metric--md metric--accent">${escapeHTML(step.text||"")||"—"}</div>
+    </div>`:`<div class="eyebrow" style="text-align:center">${escapeHTML((t.tele_drew||"").replace("{name}",step.byName||"…"))}</div>
+    <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>`:""}ROOM_GAMES.telephone={lobbyOptions(state){const t=TRANSLATIONS[appState.lang];return`<p class="field__hint" style="text-align:center">${escapeHTML(t.tele_lobby_hint||"")}</p>`},startPayload(){return{lang:contentLang()}},render(state){appState.currentView!=="room-telephone"&&setView("room-telephone");const el=document.getElementById("view-room-telephone");if(!el)return;const t=TRANSLATIONS[appState.lang],s=state.shared,task=state.you&&state.you.task,sent=(s.submitted||[]).indexOf(Room.me)!==-1;if(s.phase==="working"||s.phase==="collecting"){const key=teleStepKey(state),head=`<div class="cn-score">
+          <span class="cn-score__role">${escapeHTML(t.tele_step||"")} ${ltrFrac(s.step,s.steps-1)}</span>
+          <span id="tele-clock" class="badge badge--accent">${s.seconds||""}</span>
+        </div>`;if(renderRoomFrame(el,["tele",s.step,s.kind,!!task,sent,appState.lang].join("|"),()=>!task||sent?`${head}
+            <div class="card" style="text-align:center">
+              <div class="metric metric--md">${sent?"✅":"👀"}</div>
+              <p class="sheet__subtitle">${escapeHTML(sent?t.tele_waiting||"":t.vote_spectating||"")}</p>
+              <div id="tele-progress" class="vote-progress"></div>
+            </div>
+            ${renderRoomPlayerStrip(state)}`:task.kind==="draw"?`${head}
+            <div class="draw-layout">
+              <div class="draw-layout__head">
+                <div class="card card--accent" style="text-align:center; margin-bottom: var(--sp-2)">
+                  <div class="eyebrow">${escapeHTML(t.tele_draw_this||"")}</div>
+                  <div class="metric metric--md metric--accent">${escapeHTML(task.prev.text||"")}</div>
+                </div>
+              </div>
+              <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>
+              <div class="draw-layout__side">
+                ${teleToolsHtml(t)}
+                <button class="btn btn--primary btn--lg" style="margin-top: var(--sp-3)" onclick="teleSubmit(false)">${escapeHTML(t.tele_done||"")}</button>
+              </div>
+            </div>
+            ${renderRoomPlayerStrip(state)}`:`${head}
+          <div class="draw-layout">
+            <div class="draw-layout__head">
+              <div class="eyebrow" style="text-align:center">${escapeHTML(t.tele_describe_this||"")}</div>
+            </div>
+            <div class="draw-wrap"><canvas id="draw-canvas" width="512" height="512"></canvas></div>
+            <div class="draw-layout__side">
+              <div class="input-group" style="margin-top: var(--sp-3)">
+                <input type="text" id="tele-text" data-key="${escapeHTML(key)}" autocomplete="off" maxlength="60" placeholder="${escapeHTML(t.tele_write_ph||"")}"
+                       value="${escapeHTML(tele.draft.key===key?tele.draft.text:"")}"
+                       oninput="teleDraft(this.value)" onkeydown="if(event.key==='Enter') teleSubmit(false)">
+                <button class="btn btn--primary" onclick="teleSubmit(false)">${escapeHTML(t.send||"")}</button>
+              </div>
+            </div>
+          </div>
+          ${renderRoomPlayerStrip(state)}`)&&task&&!sent){const keep=tele.surfaceKey===key?{pending:draw.pending,redo:draw.redo}:null;resetDrawSurface(),draw.local=!0,tele.surfaceKey=key,task.kind==="draw"?(keep&&(draw.pending=keep.pending,draw.redo=keep.redo),bindDrawSurface(!0),draw.onUndo=teleUndo,draw.onRedo=teleRedo,draw.pending.length&&paintStrokesFromScratch()):(bindDrawSurface(!1),paintStrokes(task.prev.strokes||[]))}const prog=document.getElementById("tele-progress");prog&&(prog.innerHTML=`<span>${escapeHTML(t.tele_progress||"")}: ${ltrFrac((s.submitted||[]).length,(s.roster||[]).length)}</span>`),s.endsAt?armTeleClock(s.endsAt):stopTeleClock(),refreshRoomPlayerStrip(el,state);return}if(stopTeleClock(),s.phase==="reveal"){const r=s.reveal||{chain:0,step:0},chain=s.chain||{steps:[]},step=chain.steps[r.step];renderRoomFrame(el,["tele-reveal",r.chain,r.step,state.youAreHost,appState.lang].join("|"),()=>`
+        <div class="cn-score">
+          <span class="cn-score__role">${escapeHTML((t.tele_chain_of||"").replace("{name}",chain.ownerName||""))}</span>
+          <span class="badge badge--accent">🔗 ${ltrFrac(r.chain+1,s.chainCount||1)} · ${escapeHTML(t.tele_step||"")} ${ltrFrac(r.step+1,chain.steps.length)}</span>
+        </div>
+        ${r.step>0&&chain.steps[0]?`<p class="field__hint" style="text-align:center">${escapeHTML(t.tele_started_with||"")}: <b>${escapeHTML(chain.steps[0].text||"")}</b></p>`:""}
+        ${teleStepHtml(step,t,!1,r.step===0)}
+        ${roomMoveOnHtml(state,`<div class="btn-row" style="margin-top: var(--sp-3)">
+               <button class="btn btn--ghost" onclick="roomAct('revealBack', { at: '${r.chain}:${r.step}' })" ${r.chain===0&&r.step===0?"disabled":""}>${escapeHTML(t.tele_back||"")}</button>
+               <button class="btn btn--primary" onclick="roomAct('revealNext', { at: '${r.chain}:${r.step}' })">${escapeHTML(t.tele_next||"")}</button>
+             </div>`,`<div class="waiting-note">${t.room_wait_host}</div>`)}
+        ${renderRoomPlayerStrip(state)}`)&&step&&step.kind==="draw"&&(resetDrawSurface(),bindDrawSurface(!1),paintStrokes(step.strokes||[])),refreshRoomPlayerStrip(el,state);return}renderRoomFrame(el,["tele-done",state.youAreHost,appState.lang].join("|"),()=>`
+      <div class="card">
+        <div class="card__title">${escapeHTML(t.tele_done_title||"")}</div>
+        ${(s.summary||[]).map(row=>`
+          <div class="status-row"><div class="status-row__body">
+            <div class="status-row__name">${escapeHTML(row.ownerName)}</div>
+            <div class="tele-summary"><b>${escapeHTML(row.first||"")}</b> ← <span>${escapeHTML(row.last||"—")}</span></div>
+          </div></div>`).join("")}
+      </div>
+      ${state.youAreHost?`<div class="btn-stack">
+             <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.telephone.startPayload())">${t.play_again||""}</button>
+             <button class="btn btn--ghost" onclick="roomAct('backToHub')">${t.room_another_game||""}</button>
+           </div>`:`<div class="waiting-note">${t.room_wait_host}</div>`}
+      ${renderRoomPlayerStrip(state)}`),refreshRoomPlayerStrip(el,state)}},TV_GAMES.telephone={sig:state=>{const s=state.shared,r=s.reveal||{};return[s.phase,s.step,(s.submitted||[]).length,r.chain,r.step].join("|")},frame(state,t){const s=state.shared,host=html=>state.youAreHost?`<div class="tv-actions">${html}</div>`:"";if(s.phase==="working"||s.phase==="collecting")return`
+        <div class="tv-center">
+          <div class="tv-big-icon" aria-hidden="true">${s.kind==="draw"?"🎨":"✍️"}</div>
+          <div class="tv-title">${escapeHTML(s.kind==="draw"?t.tele_tv_working_draw||"":t.tele_tv_working_write||"")}</div>
+          <div class="tv-note">${escapeHTML(t.tele_step||"")} ${ltrFrac(s.step,s.steps-1)}</div>
+          ${tvWaitChips(state,s.roster||[],s.submitted||[])}
+          <div id="tele-clock" class="tv-clock">${s.seconds||""}</div>
+        </div>`;if(s.phase==="reveal"){const r=s.reveal||{chain:0,step:0},chain=s.chain||{steps:[]},step=chain.steps[r.step]||{};return`
+        <div class="tv-trivia">
+          <div class="tv-top"><span class="tv-pill">${escapeHTML((t.tele_chain_of||"").replace("{name}",chain.ownerName||""))}</span><span class="tv-pill">🔗 ${ltrFrac(r.chain+1,s.chainCount||1)} · ${escapeHTML(t.tele_step||"")} ${ltrFrac(r.step+1,chain.steps.length)}</span></div>
+          ${step.kind==="text"?`<div class="tv-center"><div class="tv-eyebrow">${escapeHTML(step.byName&&r.step>0?(t.tele_wrote||"").replace("{name}",step.byName):t.tele_started_with||"")}</div><div class="tv-title">${escapeHTML(step.text||"")||"—"}</div></div>`:`<div class="tv-eyebrow tv-center-text">${escapeHTML((t.tele_drew||"").replace("{name}",step.byName||"…"))}</div><div class="tv-canvas"><canvas id="draw-canvas" width="512" height="512"></canvas></div>`}
+          ${roomMoveOnHtml(state,`<div class="tv-actions">${tvBtn(t.tele_back,`roomAct('revealBack', { at: '${r.chain}:${r.step}' })`,"ghost")+tvBtn(t.tele_next,`roomAct('revealNext', { at: '${r.chain}:${r.step}' })`)}</div>`)}
+        </div>`}return`
+      <div class="tv-trivia">
+        <div class="tv-title tv-center-text">${escapeHTML(t.tele_done_title||"")}</div>
+        <div class="tv-ids">${(s.summary||[]).map(row=>`<div class="tv-panel"><div class="tv-eyebrow">${escapeHTML(row.ownerName)}</div><div class="tv-title">${escapeHTML(row.first||"")} ← ${escapeHTML(row.last||"—")}</div></div>`).join("")}</div>
+        ${host(tvBtn(t.play_again,"roomAct('playAgain', ROOM_GAMES.telephone.startPayload())")+tvBtn(t.room_another_game,"roomAct('backToHub')","ghost"))}
+      </div>`},after(state,rebuilt){const s=state.shared;if(s.phase==="working"&&s.endsAt?armTeleClock(s.endsAt):stopTeleClock(),rebuilt&&s.phase==="reveal"){const step=((s.chain||{}).steps||[])[(s.reveal||{}).step];step&&step.kind==="draw"&&(resetDrawSurface(),bindDrawSurface(!1),paintStrokes(step.strokes||[]))}}};

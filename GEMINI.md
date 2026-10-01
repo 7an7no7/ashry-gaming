@@ -648,6 +648,30 @@ keypad follows the content language too, since it types the word.
 
 ### Traps this codebase has already fallen into
 
+**A file that patches another file's registry entry depends on load order.**
+After the lazy split (30 Sep 2026) the tournament wrapped the duels when its own
+chunk ran - before dots, X-O, خمّن مين, حرب السفن and شطرنج had registered - and
+the quiz chunk overwrote the emoji router the solve chunk had installed: on the one
+page the include order hid both, and no test switched a room to a tournament (the
+audit of 1 Oct 2026). A game wraps itself when it registers (`tourWrap('dots')` at
+the end of its file), a second writer of an entry yields to the first
+(`svRouter`), and `checkRegistryOrder` in `tools/lazy-split.mjs` fails the build
+on an entry set twice, read before it is set, or wrapped before it registers.
+
+**Text from a player is never parsed as HTML, not even in an element that is never
+shown.** `shareCardText` read the share card's footer (champions' names) through
+`innerHTML` on a detached `div`; an `<img onerror>` fires there too, so two
+room names of 20 and 11 letters ran script on the phone that tapped 📸 (the audit
+of 1 Oct 2026). Read markup's text through `new DOMParser().parseFromString(...)`,
+an inert document.
+
+**A board is the roster's.** A latecomer watching is in `room.players`, so a
+board built from it banked them on the night (in القنبلة, 0 strikes put a watcher
+first), and a board with no `score` (ربع قرد) or no player rows (أسماء الرموز's
+cards) banked nothing. `nightBoardOf` (RoomGames.js) keeps the people who played
+and ranks teams through `PROGRAM_TEAMS`; a new game's board carries a `score`, best
+first, and is read through it.
+
 **A chunk runs after DOMContentLoaded.** A game file that paints at start-up
 must paint at once when `document.readyState` isn't 'loading', and a registry a
 shell file reads once (`SOLO_LATE`) has to take late entries. A chunk is

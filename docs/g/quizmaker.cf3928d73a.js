@@ -1,0 +1,161 @@
+const QM_EDIT_KEY="ashryQuizEdit_v1",QM_EMOJIS=["😂","🎉","🍰","🏖️","⚽","💍","🎂","🏠","🚗","🍕","📺","🎓","🐱","🌍","🎵","❤️"],QM_QUIZ_EMOJIS=["🎉","🧠","👨‍👩‍👧‍👦","🌙","🎂","⚽","🏖️","💍","🎓","🍰"];let qmEdit={id:null,open:-1,err:null,emojiFor:-1,saving:!1},qmSaveTimer=null;function qmT(){return TRANSLATIONS[appState.lang]||{}}const qmFill=(text,map)=>String(text||"").replace(/\{(\w+)\}/g,(m,k)=>k in map?map[k]:m),qmLetters=()=>String(qmT().qm_letters||"أبجد").split("");function qmRemember(){try{localStorage.setItem(QM_EDIT_KEY,JSON.stringify({id:qmEdit.id,open:qmEdit.open}))}catch(e){}}function qmRecall(){try{return JSON.parse(localStorage.getItem(QM_EDIT_KEY)||"{}")||{}}catch(e){return{}}}function qmQuiz(){return qmEdit.id?packQuizById(qmEdit.id):null}function qmKeep(quiz){quiz.updated=Date.now(),quiz.code&&(quiz.dirty=!0),packQuizPut(quiz),clearTimeout(qmSaveTimer),qmSaveTimer=setTimeout(qmPaintStatus,250)}function openQuizMaker(){setView("setup-quizmaker")}function qmPaintHub(){const box=document.getElementById("qm-hub");if(!box)return;const t=qmT(),rows=packsQuizzes().map(q=>{const n=(q.questions||[]).length,state=q.code?q.dirty?t.qm_changed||"":qmFill(t.qm_code||"",{c:q.code}):t.qm_unsaved||"",tag=packIsMine(q)?"":`<span class="badge">${escapeHTML(t.qm_opened||"")}</span>`;return`
+      <button type="button" class="qm-item" onclick="qmOpenItem('${jsStringAttr(q.id)}')">
+        <span class="qm-item__ic" aria-hidden="true">${escapeHTML(q.emoji||"🧠")}</span>
+        <span class="qm-item__body">
+          <b>${escapeHTML(q.title||t.qm_title_ph||"")}</b>
+          <small>${escapeHTML(qmFill(t.qm_count||"",{n}))} · <bdi>${escapeHTML(state)}</bdi></small>
+        </span>
+        ${tag}
+        <span class="qm-item__go" aria-hidden="true">‹</span>
+      </button>`}).join("");box.innerHTML=`
+    <section class="card">
+      <div class="eyebrow">${escapeHTML(t.qm_mine||"")}</div>
+      <div class="qm-list">${rows||`<p class="empty">${escapeHTML(t.qm_empty||"")}</p>`}</div>
+      <button type="button" class="qadd qm-add" onclick="qmNewQuiz()">${escapeHTML(t.qm_new||"")}</button>
+    </section>
+    <section class="card">
+      <label class="field__label" for="qm-code-in">${escapeHTML(t.qm_open_code_label||"")}</label>
+      <div class="input-group">
+        <input type="text" id="qm-code-in" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false"
+               dir="ltr" class="qm-code-in" placeholder="${escapeHTML(t.qm_open_code_ph||"")}"
+               onkeydown="if(event.key==='Enter') qmOpenCode('qm-code-in')">
+        <button type="button" class="btn btn--secondary btn--auto" onclick="qmOpenCode('qm-code-in')">${escapeHTML(t.qm_open_btn||"")}</button>
+      </div>
+      <p class="field__hint">${escapeHTML(t.qm_open_code_hint||"")}</p>
+    </section>
+    ${qmCrewHtml(t)}
+    <button type="button" class="tool-item qm-words-link" onclick="setView('setup-wordpack')">
+      <span class="tool-icon" aria-hidden="true">${iconHtml("art:wordpack")}</span>
+      <span class="qm-item__body"><b>${escapeHTML(t.tool_wordpack||"")}</b><small>${escapeHTML(t.cat_wordpack||"")}</small></span>
+      <span class="qm-item__go" aria-hidden="true">‹</span>
+    </button>`,typeof motionRiseIn=="function"&&!motionOff()&&motionRiseIn(box),qmCrewRefresh()}function qmCrewHtml(t){const crew=typeof crewCurrent=="function"?crewCurrent():null;if(!crew)return"";const rows=crewPacksOf(crew.code).map(p=>{const onPhone=p.kind==="quiz"?!!packQuizByCode(p.code):!!packCrewWordsAll().some(w=>w.code===p.code)||(packWordsLocal()||{}).code===p.code;return`
+      <button type="button" class="qm-item qm-item--crew" onclick="crewOpenPack('${jsStringAttr(p.code)}', '${jsStringAttr(p.kind)}')">
+        <span class="qm-item__ic" aria-hidden="true">${p.kind==="words"?"✍️":"🧠"}</span>
+        <span class="qm-item__body">
+          <b>${escapeHTML(p.title||p.code)}</b>
+          <small>${escapeHTML(p.kind==="words"?t.crew_pack_words||"":t.crew_pack_quiz||"")}${p.by?" · "+escapeHTML(qmFill(t.crew_pack_by||"",{name:p.by})):""}</small>
+        </span>
+        ${onPhone?`<span class="badge">${escapeHTML(t.crew_pack_on_phone||"")}</span>`:""}
+        <span class="qm-item__go" aria-hidden="true">‹</span>
+      </button>`}).join("");return`
+    <section class="card qm-crew">
+      <div class="eyebrow">🎉 ${escapeHTML(qmFill(t.qm_from_crew||"",{name:crew.name}))}</div>
+      <div class="qm-list">${rows||`<p class="empty">${escapeHTML(t.crew_packs_empty||"")}</p>`}</div>
+    </section>`}const qmCrewAsked={};function qmCrewRefresh(){const crew=typeof crewCurrent=="function"?crewCurrent():null;if(!crew||qmCrewAsked[crew.code]&&Date.now()-qmCrewAsked[crew.code]<3e4)return;qmCrewAsked[crew.code]=Date.now();const before=JSON.stringify(crewPacksOf(crew.code));crewRefresh(crew.code).then(ok=>{ok&&appState.currentView==="setup-quizmaker"&&JSON.stringify(crewPacksOf(crew.code))!==before&&qmPaintHub()})}function qmNewQuiz(){const t=qmT(),quiz={id:packNewId(),code:null,key:null,title:"",emoji:QM_QUIZ_EMOJIS[0],questions:[qmBlank()],updated:Date.now(),savedAt:0,dirty:!1};packQuizPut(quiz),qmEdit={id:quiz.id,open:0,err:null,emojiFor:-1,saving:!1},qmRemember(),setView("play-quizmaker"),qmRender(),setTimeout(()=>{const el=document.getElementById("qm-title-in");el&&el.focus()},60),t&&haptic("light")}const qmBlank=()=>({q:"",e:"",c:["","","",""],a:-1});function qmOpenItem(id){const quiz=packQuizById(id);if(quiz){if(!packIsMine(quiz)){qmOpenSheet(quiz);return}qmEdit={id,open:-1,err:null,emojiFor:-1,saving:!1},qmRemember(),setView("play-quizmaker"),qmRender()}}async function qmOpenCode(inputId){const el=document.getElementById(inputId),t=qmT(),code=packCode(el?el.value:"");if(!PACK_CODE_RE.test(code)){el&&typeof blockStartAt=="function"?blockStartAt(el,packErrorText("not_found")):showToast(packErrorText("not_found"),"error");return}showToast(t.qm_opening||"","info");try{const got=await packOpenByCode(code);if(el&&(el.value=""),got.kind==="quiz"){const quiz=packQuizById(got.id);showToast(qmFill(t.qm_opened_ok||"",{t:quiz?quiz.title:""}),"success"),appState.currentView==="setup-quizmaker"&&qmPaintHub(),quiz&&qmOpenSheet(quiz)}else{const w=packWordsLocal();showToast(qmFill(t.qm_words_opened||"",{t:w?w.title:""}),"success"),setView("setup-wordpack")}}catch(e){showToast(packErrorText(e.message),"error")}}function qmRestore(){const saved=qmRecall(),quiz=saved.id?packQuizById(saved.id):null;if(!quiz||!packIsMine(quiz)){setView("setup-quizmaker");return}qmEdit={id:quiz.id,open:typeof saved.open=="number"?saved.open:-1,err:null,emojiFor:-1,saving:!1},qmRender()}function qmWhen(ms){const t=qmT(),mins=Math.round((Date.now()-(ms||0))/6e4);if(mins<2)return t.qm_just_now||"";if(mins<60)return qmFill(t.qm_mins_ago||"",{n:mins});const hours=Math.round(mins/60);return hours<48?qmFill(t.qm_hours_ago||"",{n:hours}):qmFill(t.qm_days_ago||"",{n:Math.round(hours/24)})}function qmMissing(q){return!!packCleanQuiz({title:"x",questions:[q]}).error}function qmRowHtml(q,i){const t=qmT(),right=q.a>=0&&q.c[q.a]?"✓ "+q.c[q.a]:"",missing=qmMissing(q);return`
+    <div class="qrow${missing?" is-missing":""}" data-qm-row="${i}">
+      <button type="button" class="qrow__open" onclick="qmOpenQ(${i})" aria-label="${escapeHTML(qmFill(t.qm_q||"",{n:i+1}))}">
+        <span class="qrow__n">${i+1}</span>
+        <span class="qrow__t">${escapeHTML((q.e?q.e+" ":"")+(q.q||t.qm_q_ph||""))}</span>
+        ${missing?`<span class="qrow__miss">${escapeHTML(t.qm_row_missing||"")}</span>`:`<span class="qrow__a">${escapeHTML(right)}</span>`}
+      </button>
+      <span class="qrow__drag" role="button" tabindex="-1" aria-label="${escapeHTML(t.qm_drag||"")}" onpointerdown="qmDragStart(event, ${i})">⋮⋮</span>
+    </div>`}function qmOpenHtml(q,i,n){const t=qmT(),letters=qmLetters(),err=qmEdit.err&&qmEdit.err.at===i?`<p class="qopen__err" role="alert">${escapeHTML(packErrorText(qmEdit.err.error,i))}</p>`:"",emojiRow=qmEdit.emojiFor===i?`
+      <div class="qm-emoji-row" role="group" aria-label="${escapeHTML(t.qm_emoji||"")}">
+        ${QM_EMOJIS.map(e=>`<button type="button" class="qm-emoji${q.e===e?" is-on":""}" aria-pressed="${q.e===e}" onclick="qmSetEmoji(${i}, '${e}')">${e}</button>`).join("")}
+        <button type="button" class="qm-emoji qm-emoji--none${q.e?"":" is-on"}" onclick="qmSetEmoji(${i}, '')" aria-label="${escapeHTML(t.qm_no_emoji||"")}">∅</button>
+      </div>`:"",choices=[0,1,2,3].map(k=>`
+        <div class="qm-ch${q.a===k?" is-right":""}">
+          <button type="button" class="qm-ch__tick" role="radio" aria-checked="${q.a===k}" aria-label="${escapeHTML((t.qm_tick||"")+" "+letters[k])}" onclick="qmSetRight(${i}, ${k})">✓</button>
+          <input type="text" class="qm-ch__in" maxlength="${PACK_LIMITS.choice}" autocomplete="off" value="${escapeHTML(q.c[k]||"")}"
+                 placeholder="${escapeHTML(qmFill(t.qm_choice_ph||"",{l:letters[k]}))}" aria-label="${escapeHTML(qmFill(t.qm_choice_ph||"",{l:letters[k]}))}"
+                 oninput="qmSetChoice(${i}, ${k}, this.value)" onkeydown="qmChoiceKey(event, ${i}, ${k})">
+        </div>`).join("");return`
+    <div class="qopen" data-qm-row="${i}" id="qm-open">
+      <div class="qopen__head"><span>${escapeHTML(qmFill(t.qm_q||"",{n:i+1}))}</span><span>${escapeHTML(t.qm_editing||"")}</span></div>
+      <div class="qopen__qrow">
+        <button type="button" class="qopen__emoji" onclick="qmToggleEmoji(${i})" aria-label="${escapeHTML(t.qm_emoji||"")}" aria-expanded="${qmEdit.emojiFor===i}">${q.e?escapeHTML(q.e):"😀"}</button>
+        <textarea id="qm-q-in" class="qopen__q" rows="2" maxlength="${PACK_LIMITS.q}" placeholder="${escapeHTML(t.qm_q_ph||"")}"
+                  aria-label="${escapeHTML(t.qm_q_ph||"")}" oninput="qmSetQ(${i}, this.value)">${escapeHTML(q.q||"")}</textarea>
+      </div>
+      ${emojiRow}
+      <div class="qopen__grid" role="radiogroup" aria-label="${escapeHTML(t.qm_tick||"")}">${choices}</div>
+      ${q.a<0?`<p class="field__hint qopen__tickhint">${escapeHTML(t.qm_tick_hint||"")}</p>`:""}
+      ${err}
+      <div class="qopen__tools">
+        <button type="button" class="qopen__tool" onclick="qmMove(${i}, -1)" ${i===0?"disabled":""} aria-label="${escapeHTML(t.qm_up||"")}">▲</button>
+        <button type="button" class="qopen__tool" onclick="qmMove(${i}, 1)" ${i===n-1?"disabled":""} aria-label="${escapeHTML(t.qm_down||"")}">▼</button>
+        <button type="button" class="qopen__tool" onclick="qmDuplicate(${i})" ${n>=PACK_LIMITS.questions?"disabled":""}>⧉ ${escapeHTML(t.qm_dup||"")}</button>
+        <button type="button" class="qopen__tool" onclick="qmDelete(${i})">🗑️ ${escapeHTML(t.qm_del||"")}</button>
+        <button type="button" class="qopen__tool qopen__done" onclick="qmCloseQ()">${escapeHTML(t.qm_done||"")} ✓</button>
+      </div>
+    </div>`}function qmRender(){const box=document.getElementById("qm-editor"),quiz=qmQuiz();if(!box)return;if(!quiz){setView("setup-quizmaker");return}const t=qmT(),qs=quiz.questions||[];qmEdit.open>=qs.length&&(qmEdit.open=-1);const rows=qs.map((q,i)=>i===qmEdit.open?qmOpenHtml(q,i,qs.length):qmRowHtml(q,i)).join(""),full=qs.length>=PACK_LIMITS.questions;box.innerHTML=`
+    <div class="qz-title">
+      <button type="button" class="qz-title__ic" onclick="qmCycleQuizEmoji()" aria-label="${escapeHTML(t.qm_emoji||"")}">${escapeHTML(quiz.emoji||"🧠")}</button>
+      <div class="qz-title__body">
+        <input type="text" id="qm-title-in" class="qz-title__in" maxlength="${PACK_LIMITS.title}" autocomplete="off"
+               value="${escapeHTML(quiz.title||"")}" placeholder="${escapeHTML(t.qm_title_ph||"")}" aria-label="${escapeHTML(t.qm_title_ph||"")}"
+               oninput="qmSetTitle(this.value)">
+        <small id="qm-status"></small>
+      </div>
+    </div>
+    <div class="ql" id="qm-list">${rows}</div>
+    ${full?`<p class="field__hint qm-full">${escapeHTML(packErrorText("too_many"))}</p>`:`<button type="button" class="qadd" onclick="qmAddQ()">${escapeHTML(t.qm_add||"")}</button>`}
+    <button type="button" class="btn btn--ghost btn--sm qm-del-quiz" onclick="qmDeleteQuiz()">${escapeHTML(t.qm_delete_quiz||"")}</button>`,qmPaintStatus();const btn=document.getElementById("qm-save-btn");btn&&(btn.disabled=qmEdit.saving,btn.textContent=qmEdit.saving?t.qm_saving||"":t.qm_save||"")}function qmPaintStatus(){const el=document.getElementById("qm-status"),quiz=qmQuiz();if(!el||!quiz)return;const t=qmT(),n=(quiz.questions||[]).length,state=quiz.code?quiz.dirty?t.qm_changed||"":qmFill(t.qm_code||"",{c:quiz.code}):t.qm_saved_local||"";el.textContent=qmFill(t.qm_count||"",{n})+" · "+qmFill(t.qm_last_edit||"",{when:qmWhen(quiz.updated)})+" · "+state;const open=qmEdit.open;if(open>=0){const row=document.querySelector("#qm-list .qopen");if(row){const q=quiz.questions[open],hint=row.querySelector(".qopen__tickhint");hint&&q&&q.a>=0&&hint.remove()}}}function qmOpenQ(i){const quiz=qmQuiz();if(!quiz)return;qmEdit.open=i,qmEdit.emojiFor=-1,qmEdit.err&&qmEdit.err.at!==i&&(qmEdit.err=null),qmRemember(),qmRender();const card=document.getElementById("qm-open");if(card){typeof motionFirst=="function"&&!motionOff()&&card.classList.add("is-opening"),card.scrollIntoView({block:"nearest",behavior:motionOff()?"auto":"smooth"});const q=quiz.questions[i],field=q&&!q.q?card.querySelector("#qm-q-in"):null;field&&field.focus()}}function qmCloseQ(){qmEdit.open=-1,qmEdit.emojiFor=-1,qmRemember(),qmRender()}function qmSetTitle(v){const quiz=qmQuiz();quiz&&(quiz.title=String(v||"").slice(0,PACK_LIMITS.title),qmKeep(quiz))}function qmCycleQuizEmoji(){const quiz=qmQuiz();if(!quiz)return;const i=QM_QUIZ_EMOJIS.indexOf(quiz.emoji);quiz.emoji=QM_QUIZ_EMOJIS[(i+1)%QM_QUIZ_EMOJIS.length],qmKeep(quiz);const ic=document.querySelector(".qz-title__ic");ic&&(ic.textContent=quiz.emoji,typeof motionBump=="function"&&motionBump(ic))}function qmSetQ(i,v){const quiz=qmQuiz();!quiz||!quiz.questions[i]||(quiz.questions[i].q=String(v||"").slice(0,PACK_LIMITS.q),qmKeep(quiz))}function qmSetChoice(i,k,v){const quiz=qmQuiz();!quiz||!quiz.questions[i]||(quiz.questions[i].c[k]=String(v||"").slice(0,PACK_LIMITS.choice),qmKeep(quiz))}function qmChoiceKey(e,i,k){if(e.key!=="Enter")return;e.preventDefault();const ins=document.querySelectorAll("#qm-open .qm-ch__in");k<3&&ins[k+1]?ins[k+1].focus():qmCloseQ()}function qmSetRight(i,k){const quiz=qmQuiz();if(!quiz||!quiz.questions[i])return;quiz.questions[i].a=k,qmKeep(quiz),haptic("light"),document.querySelectorAll("#qm-open .qm-ch").forEach((el,j)=>{el.classList.toggle("is-right",j===k);const b=el.querySelector(".qm-ch__tick");b&&b.setAttribute("aria-checked",String(j===k)),j===k&&typeof motionBump=="function"&&motionBump(b)});const hint=document.querySelector("#qm-open .qopen__tickhint");if(hint&&hint.remove(),qmEdit.err&&qmEdit.err.at===i&&qmEdit.err.error==="no_right"){qmEdit.err=null;const e=document.querySelector("#qm-open .qopen__err");e&&e.remove()}}function qmToggleEmoji(i){qmEdit.emojiFor=qmEdit.emojiFor===i?-1:i,qmKeepTyping(()=>qmRender())}function qmSetEmoji(i,e){const quiz=qmQuiz();!quiz||!quiz.questions[i]||(quiz.questions[i].e=e,qmEdit.emojiFor=-1,qmKeep(quiz),qmKeepTyping(()=>qmRender()))}function qmKeepTyping(redraw){const a=document.activeElement,sel=a&&a.closest&&a.closest("#qm-open")?a.id==="qm-q-in"?"#qm-q-in":a.classList.contains("qm-ch__in")?".qm-ch__in":"":"",idx=sel===".qm-ch__in"?[...document.querySelectorAll("#qm-open .qm-ch__in")].indexOf(a):0,pos=sel?a.selectionStart:0;if(redraw(),!sel)return;const el=document.querySelectorAll("#qm-open "+sel)[idx];if(el){el.focus();try{el.setSelectionRange(pos,pos)}catch(e){}}}function qmAddQ(){const quiz=qmQuiz();if(!quiz||quiz.questions.length>=PACK_LIMITS.questions)return;quiz.questions.push(qmBlank()),qmKeep(quiz),qmOpenQ(quiz.questions.length-1);const card=document.getElementById("qm-open");card&&!motionOff()&&card.classList.add("is-new")}function qmDuplicate(i){const quiz=qmQuiz();if(!quiz||!quiz.questions[i]||quiz.questions.length>=PACK_LIMITS.questions)return;quiz.questions.splice(i+1,0,JSON.parse(JSON.stringify(quiz.questions[i]))),qmKeep(quiz),qmOpenQ(i+1);const card=document.getElementById("qm-open");card&&!motionOff()&&card.classList.add("is-new")}function qmDelete(i){const quiz=qmQuiz();if(!quiz||!quiz.questions[i])return;const q=quiz.questions[i],go=()=>{const now=qmQuiz();now&&(now.questions.splice(i,1),now.questions.length||now.questions.push(qmBlank()),qmKeep(now),qmEdit.open=-1,qmEdit.err=null,qmRemember(),qmRender(),haptic("medium"))};q.q||q.c.some(Boolean)?showConfirmModal(qmT().qm_del_confirm||"",go):go()}function qmMove(i,dir){const quiz=qmQuiz();if(!quiz)return;const j=i+dir;if(j<0||j>=quiz.questions.length)return;const[q]=quiz.questions.splice(i,1);quiz.questions.splice(j,0,q),qmKeep(quiz),qmEdit.open===i&&(qmEdit.open=j),qmRemember();const list=document.getElementById("qm-list");list&&typeof flipGrid=="function"?flipGrid(list,()=>qmRender(),{animate:!motionOff()}):qmRender()}function qmDeleteQuiz(){const quiz=qmQuiz();quiz&&showConfirmModal(qmFill(qmT().qm_delete_quiz_confirm||"",{t:quiz.title||""}),()=>{packQuizRemove(quiz.id),qmEdit={id:null,open:-1,err:null,emojiFor:-1,saving:!1},qmRemember(),setView("setup-quizmaker")})}let qmDrag=null;function qmDragStart(e,i){const quiz=qmQuiz(),list=document.getElementById("qm-list"),row=list&&list.querySelector(`[data-qm-row="${i}"]`);if(!quiz||!row)return;e.preventDefault();const rows=[...list.querySelectorAll("[data-qm-row]")];qmDrag={from:i,to:i,y0:e.clientY,row,rows,mids:rows.map(r=>{const b=r.getBoundingClientRect();return b.top+b.height/2}),h:row.getBoundingClientRect().height+8},row.classList.add("is-dragging");try{row.setPointerCapture(e.pointerId)}catch(err){}const move=ev=>qmDragMove(ev),up=()=>{document.removeEventListener("pointermove",move),document.removeEventListener("pointerup",up),document.removeEventListener("pointercancel",up),qmDragEnd()};document.addEventListener("pointermove",move),document.addEventListener("pointerup",up),document.addEventListener("pointercancel",up),haptic("light")}function qmDragMove(e){const d=qmDrag;if(!d)return;const dy=e.clientY-d.y0;d.row.style.transform=`translateY(${dy}px)`;const y=d.mids[d.from]+dy;let to=d.from;d.mids.forEach((m,k)=>{k<d.from&&y<m&&(to=Math.min(to,k)),k>d.from&&y>m&&(to=Math.max(to,k))}),to!==d.to&&(d.to=to,haptic("light")),d.rows.forEach((r,k)=>{if(k===d.from)return;const shift=d.from<k&&k<=to?-d.h:to<=k&&k<d.from?d.h:0;r.style.transform=shift?`translateY(${shift}px)`:""})}function qmDragEnd(){const d=qmDrag;if(qmDrag=null,!d||(d.rows.forEach(r=>{r.style.transform="",r.classList.remove("is-dragging")}),d.to===d.from))return;const quiz=qmQuiz();if(!quiz)return;const[q]=quiz.questions.splice(d.from,1);quiz.questions.splice(d.to,0,q),qmEdit.open===d.from?qmEdit.open=d.to:qmEdit.open>d.from&&qmEdit.open<=d.to?qmEdit.open--:qmEdit.open<d.from&&qmEdit.open>=d.to&&qmEdit.open++,qmKeep(quiz),qmRemember(),qmRender();const moved=document.querySelector(`#qm-list [data-qm-row="${d.to}"]`);moved&&typeof motionBump=="function"&&motionBump(moved,.03)}async function qmSave(){const quiz=qmQuiz();if(!quiz||qmEdit.saving)return;const t=qmT(),check=packCleanQuiz({title:quiz.title,emoji:quiz.emoji,questions:quiz.questions});if(check.error){qmShowError(check.error,check.at);return}qmEdit.saving=!0,qmEdit.err=null,qmRender();const id=quiz.id,sentAt=quiz.updated,res=await packPublish("quiz",quiz),here=qmEdit.id===id;here&&(qmEdit.saving=!1);const now=packQuizById(id);if(!res.ok){if(!here)return;qmRender(),typeof res.at=="number"?qmShowError(res.error,res.at):showToast(packErrorText(res.error),"error");return}if(!now)return;const changed=now.updated!==sentAt;Object.assign(now,{code:res.code,key:res.key,savedAt:Date.now()},changed?{dirty:!0}:{title:res.pack.title,emoji:res.pack.emoji,questions:res.pack.questions,dirty:!1}),packQuizPut(now),here&&(qmEdit.open=-1,qmRemember(),qmRender(),playSound("success"),qmOpenSheet(now),t&&haptic("medium"))}function qmShowError(error,at){if(typeof at=="number"){qmEdit.err={error,at},qmOpenQ(at);const card=document.getElementById("qm-open");card&&typeof soloShake=="function"?soloShake(card):card&&(card.classList.remove("is-shake"),card.offsetWidth,card.classList.add("is-shake"))}else if(error==="title"){const el=document.getElementById("qm-title-in");if(el&&typeof blockStartAt=="function"){blockStartAt(el,packErrorText(error));return}}showToast(packErrorText(error,at),"error")}function qmOpenSheet(quiz){const box=document.getElementById("qm-sheet-body"),modal=document.getElementById("qm-save-modal");if(!box||!modal)return;const t=qmT(),n=(quiz.questions||[]).length,code=quiz.code||"",way=(id,icon,title,desc,main)=>`
+    <button type="button" class="bway${main?" bway--main":""}" onclick="qmPlay('${jsStringAttr(quiz.id)}', '${id}')" ${code||id==="board"?"":"disabled"}>
+      <span class="bway__e" aria-hidden="true">${icon}</span>
+      <span class="bway__t"><b>${escapeHTML(title)}</b><span>${escapeHTML(desc)}</span></span>
+    </button>`;box.innerHTML=`
+    <div class="bsheet__grab" aria-hidden="true"></div>
+    <div class="sheet__title" id="qm-sheet-title">${escapeHTML(quiz.emoji||"🧠")} ${escapeHTML(qmFill(t.qm_sheet_ready||"",{t:quiz.title||""}))}</div>
+    <p class="sheet__subtitle">${escapeHTML(qmFill(t.qm_count||"",{n}))}</p>
+    ${code?`
+    <div class="bsheet__row">
+      <button type="button" class="bsheet__code" onclick="qmShare('${jsStringAttr(quiz.id)}')" aria-label="${escapeHTML(t.qm_share||"")}"><span class="code" dir="ltr">${escapeHTML(code)}</span></button>
+      <p>${escapeHTML(t.qm_sheet_code_hint||"")}</p>
+    </div>`:`<p class="sheet__subtitle">${escapeHTML(t.qm_sheet_no_code||"")}</p>`}
+    <div class="bways">
+      ${way("room","📱",t.qm_way_room||"",t.qm_way_room_d||"",!0)}
+      ${way("board","🏆",t.qm_way_board||"",t.qm_way_board_d||"",!1)}
+      ${way("buzzer","🔔",t.qm_way_buzzer||"",t.qm_way_buzzer_d||"",!1)}
+    </div>
+    <div class="modal-actions">
+      ${code&&!quiz.dirty?crewPackAddBtnHtml(code,"quiz",quiz.title||""):""}
+      ${code?`<button type="button" class="btn btn--secondary" onclick="qmShare('${jsStringAttr(quiz.id)}')">📤 ${escapeHTML(t.qm_share||"")}</button>`:""}
+      ${packIsMine(quiz)?"":`<button type="button" class="btn btn--ghost" onclick="qmCopyMine('${jsStringAttr(quiz.id)}')">✏️ ${escapeHTML(t.qm_copy_mine||"")}</button>`}
+      <button type="button" class="btn btn--ghost" onclick="closeModal('qm-save-modal')">${escapeHTML(t.close||"")}</button>
+    </div>`,modal.classList.remove("hidden");const c=box.querySelector(".bsheet__code");c&&typeof motionFirst=="function"&&!motionOff()&&motionFirst("qm-code|"+code+"|"+(quiz.savedAt||0))&&c.classList.add("is-landing")}function qmShare(id){const quiz=packQuizById(id);if(!quiz||!quiz.code)return;const t=qmT(),url=window.SERVER_DATA&&SERVER_DATA.webAppUrl||location.href.split("?")[0];shareOrCopy(url,qmFill(t.qm_share_text||"",{t:quiz.title,c:quiz.code}),t.link_copied||"")}function qmCopyMine(id){const from=packQuizById(id);if(!from)return;const quiz={id:packNewId(),code:null,key:null,title:from.title,emoji:from.emoji,questions:JSON.parse(JSON.stringify(from.questions||[])),updated:Date.now(),savedAt:0,dirty:!1};packQuizPut(quiz),closeModal("qm-save-modal"),qmEdit={id:quiz.id,open:-1,err:null,emojiFor:-1,saving:!1},qmRemember(),setView("play-quizmaker"),qmRender()}function qmPlay(id,way){const quiz=packQuizById(id);if(quiz){if(closeModal("qm-save-modal"),way==="board"){try{const saved=JSON.parse(localStorage.getItem("ashryTriviaTeams")||"{}")||{};saved.source=quiz.id,localStorage.setItem("ashryTriviaTeams",JSON.stringify(saved))}catch(e){}typeof playModeOnce!="undefined"&&(playModeOnce={id:"trivia",mode:"device"}),setView("setup-trivia");return}if(quiz.code){if(way==="room"){rememberOptions("triviaRoom",{pack:quiz.code}),roomCreateFor("trivia");return}way==="buzzer"&&(rememberOptions("buzzerRoom",{pack:quiz.code}),roomCreateFor("buzzer"))}}}function wpDraft(){const w=packWordsLocal();return w||{id:packNewId(),code:null,key:null,title:"",words:[],updated:Date.now(),savedAt:0,dirty:!1}}function wpKeep(w){w.updated=Date.now(),w.code&&(w.dirty=!0),packWordsPut(w)}function wpPaint(){const box=document.getElementById("wp-root");if(!box)return;const t=qmT(),w=wpDraft(),mine=packIsMine(w),n=w.words.length,state=w.code?w.dirty?t.qm_changed||"":qmFill(t.qm_code||"",{c:w.code}):t.qm_saved_local||"",chips=w.words.map((word,i)=>`
+      <span class="wp-chip">${escapeHTML(word)}${mine?`<button type="button" class="wp-chip__x" onclick="wpRemove(${i})" aria-label="${escapeHTML((t.qm_del||"")+" "+word)}">✕</button>`:""}</span>`).join("");box.innerHTML=`
+    ${mine?"":`
+    <div class="card card--tight wp-readonly">
+      <p>${escapeHTML(qmFill(t.wp_readonly||"",{c:w.code||""}))}</p>
+      <button type="button" class="btn btn--secondary btn--sm" onclick="wpCopyMine()">✏️ ${escapeHTML(t.wp_copy_mine||"")}</button>
+    </div>`}
+    <section class="card">
+      <label class="field__label" for="wp-title-in">${escapeHTML(t.wp_title_label||"")}</label>
+      <input type="text" id="wp-title-in" maxlength="${PACK_LIMITS.title}" autocomplete="off" value="${escapeHTML(w.title||"")}"
+             placeholder="${escapeHTML(t.wp_title_ph||"")}" ${mine?"":"disabled"} oninput="wpSetTitle(this.value)">
+      ${mine?`
+      <label class="field__label wp-add-label" for="wp-add-in">${escapeHTML(t.wp_add_label||"")}</label>
+      <div class="input-group">
+        <input type="text" id="wp-add-in" maxlength="400" autocomplete="off" placeholder="${escapeHTML(t.wp_add_ph||"")}"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();wpAdd();}" onpaste="wpPasted(event)">
+        <button type="button" class="btn btn--secondary btn--auto" onclick="wpAdd()">${escapeHTML(t.wp_add||"")}</button>
+      </div>
+      <p class="field__hint">${escapeHTML(t.wp_hint||"")}</p>`:""}
+      <div class="wp-head"><span class="eyebrow">${escapeHTML(qmFill(t.wp_count||"",{n}))}</span><small>${escapeHTML(state)}</small></div>
+      <div class="wp-chips" id="wp-chips">${chips||`<p class="empty">${escapeHTML(t.wp_empty||"")}</p>`}</div>
+      <p class="field__hint">${escapeHTML(qmFill(t.wp_where||"",{t:w.title||t.wp_title_default||""}))}</p>
+    </section>
+    ${w.code&&!w.dirty?crewPackAddBtnHtml(w.code,"words",w.title||""):""}
+    <section class="card">
+      <label class="field__label" for="wp-code-in">${escapeHTML(t.wp_open_label||"")}</label>
+      <div class="input-group">
+        <input type="text" id="wp-code-in" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" dir="ltr"
+               class="qm-code-in" placeholder="${escapeHTML(t.qm_open_code_ph||"")}" onkeydown="if(event.key==='Enter') wpOpenCode()">
+        <button type="button" class="btn btn--secondary btn--auto" onclick="wpOpenCode()">${escapeHTML(t.qm_open_btn||"")}</button>
+      </div>
+    </section>
+    ${packWordsLocal()?`<button type="button" class="btn btn--ghost btn--sm qm-del-quiz" onclick="wpForget()">${escapeHTML(t.wp_remove||"")}</button>`:""}`;const save=document.getElementById("wp-save-btn");save&&save.classList.toggle("hidden",!mine)}function wpSetTitle(v){const w=wpDraft();w.title=String(v||"").slice(0,PACK_LIMITS.title),wpKeep(w)}function wpSplit(text){return String(text||"").split(/[\n,،؛;]+/).map(x=>packText(x,PACK_LIMITS.word)).filter(Boolean)}function wpAddWords(list){const w=wpDraft(),seen=new Set(w.words.map(packFold));let added=0;return list.forEach(word=>{const f=packFold(word);!f||seen.has(f)||w.words.length>=PACK_LIMITS.words||(seen.add(f),w.words.push(word),added++)}),added&&wpKeep(w),added}function wpAdd(){const el=document.getElementById("wp-add-in");if(!el)return;const list=wpSplit(el.value);if(!list.length)return;const had=wpDraft().words.length,added=wpAddWords(list);!added&&wpDraft().words.length>=PACK_LIMITS.words&&showToast(packErrorText("too_many_words"),"error"),el.value="",wpPaint();const box=document.getElementById("wp-chips");box&&added&&!motionOff()&&[...box.querySelectorAll(".wp-chip")].slice(had).forEach(c=>c.classList.add("is-new"));const again=document.getElementById("wp-add-in");again&&again.focus(),added&&haptic("light")}function wpPasted(e){const text=(e.clipboardData||window.clipboardData||{getData:()=>""}).getData("text");if(!/[\n,،؛;]/.test(text||""))return;e.preventDefault();const el=document.getElementById("wp-add-in");el&&(el.value=text),wpAdd()}function wpRemove(i){const w=wpDraft(),chip=document.querySelectorAll("#wp-chips .wp-chip")[i],go=()=>{w.words.splice(i,1),wpKeep(w),wpPaint()};chip&&!motionOff()?(chip.classList.add("is-leaving"),setTimeout(go,160)):go()}function wpCopyMine(){const from=packWordsLocal();from&&(packWordsPut({id:packNewId(),code:null,key:null,title:from.title,words:from.words.slice(),updated:Date.now(),savedAt:0,dirty:!1}),wpPaint())}function wpForget(){showConfirmModal(qmT().wp_remove_confirm||"",()=>{packWordsPut(null),wpPaint()})}async function wpOpenCode(){const el=document.getElementById("wp-code-in"),code=packCode(el?el.value:""),had=packWordsLocal(),go=async()=>{try{const got=await packFetch(code);if(got.kind!=="words"){await packOpenByCode(code),showToast(qmFill(qmT().qm_opened_ok||"",{t:got.pack.title}),"success"),setView("setup-quizmaker");return}await packOpenByCode(code),el&&(el.value=""),showToast(qmFill(qmT().qm_words_opened||"",{t:got.pack.title}),"success"),wpPaint()}catch(e){showToast(packErrorText(e.message),"error")}};if(!PACK_CODE_RE.test(code)){showToast(packErrorText("not_found"),"error");return}had&&packIsMine(had)&&had.code!==code&&had.words.length?showConfirmModal(qmT().wp_replace_confirm||"",go):go()}async function wpSave(){const w=packWordsLocal(),t=qmT();if(!w||!packIsMine(w))return;const check=packCleanWords(w);if(check.error){const el=check.error==="title"?document.getElementById("wp-title-in"):document.getElementById("wp-add-in");el&&typeof blockStartAt=="function"?blockStartAt(el,packErrorText(check.error)):showToast(packErrorText(check.error),"error");return}const btn=document.getElementById("wp-save-btn");btn&&(btn.disabled=!0,btn.textContent=t.qm_saving||"");const id=w.id,sentAt=w.updated,res=await packPublish("words",w);if(btn&&(btn.disabled=!1,btn.textContent=t.wp_save||""),!res.ok){showToast(packErrorText(res.error),"error");return}const now=packWordsLocal();if(!now||now.id!==id)return;const changed=now.updated!==sentAt;Object.assign(now,{code:res.code,key:res.key,savedAt:Date.now()},changed?{dirty:!0}:{title:res.pack.title,words:res.pack.words,dirty:!1}),packWordsPut(now),wpPaint(),playSound("success"),wpOpenSheet(now)}function wpOpenSheet(w){const box=document.getElementById("qm-sheet-body"),modal=document.getElementById("qm-save-modal");if(!box||!modal)return;const t=qmT();box.innerHTML=`
+    <div class="bsheet__grab" aria-hidden="true"></div>
+    <div class="sheet__title">✍️ ${escapeHTML(qmFill(t.wp_sheet_ready||"",{t:w.title}))}</div>
+    <p class="sheet__subtitle">${escapeHTML(qmFill(t.wp_count||"",{n:w.words.length}))}</p>
+    <div class="bsheet__row">
+      <button type="button" class="bsheet__code is-landing" onclick="wpShare()"><span class="code" dir="ltr">${escapeHTML(w.code)}</span></button>
+      <p>${escapeHTML(t.wp_sheet_hint||"")}</p>
+    </div>
+    <p class="field__hint">${escapeHTML(qmFill(t.wp_where||"",{t:w.title}))}</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" onclick="wpShare()">📤 ${escapeHTML(t.qm_share||"")}</button>
+      ${crewPackAddBtnHtml(w.code,"words",w.title||"")}
+      <button type="button" class="btn btn--ghost" onclick="closeModal('qm-save-modal')">${escapeHTML(t.close||"")}</button>
+    </div>`,modal.classList.remove("hidden")}function wpShare(){const w=packWordsLocal();if(!w||!w.code)return;const t=qmT(),url=window.SERVER_DATA&&SERVER_DATA.webAppUrl||location.href.split("?")[0];shareOrCopy(url,qmFill(t.wp_share_text||"",{t:w.title,c:w.code}),t.link_copied||"")}typeof onLanguageChange=="function"&&onLanguageChange(view=>{view==="play-quizmaker"&&qmRender()});

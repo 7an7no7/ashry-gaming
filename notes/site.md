@@ -57,7 +57,9 @@ hand back the build before), and keeps it under `./` and `./index.html` both -
 it used to download the whole page twice. Only good answers are cached,
 and the pinned CDN files are cache first (an opaque answer from them is kept
 too: the fonts' stylesheet is fetched without CORS, and refusing it left the
-app with no fonts offline). **Everything outside rooms works offline after
+app with no fonts offline), in a cache of their own kept across builds,
+`cdn-pinned` (1 Oct 2026: in the build's cache every release deleted
+three.js, the fonts and the confetti and QR copies). **Everything outside rooms works offline after
 one visit**: the fonts, confetti and the QR load before the worker is in
 charge on a first visit, so once a worker controls the page it asks for them
 again through it (`warm` in `registerServiceWorker`, five seconds in, almost

@@ -235,9 +235,13 @@ const prevFiles = before.filter((f) => !nowFiles.includes(f));
    build: installing a build fetches every chunk it doesn't hold yet (a game that
    didn't change keeps its file name, so only the changed ones come), and a chunk is
    answered from there first. Activating keeps this build's chunks and the build
-   before's (a page still open on that build loads its own), and drops the rest. */
+   before's (a page still open on that build loads its own), and drops the rest.
+   The pinned CDN files are kept from build to build too, in cdn-pinned: in the
+   build's own cache every release deleted three.js, the fonts and the confetti
+   and QR copies, and bowling or golf opened once no longer played offline. */
 const SW = `const CACHE = 'ashry-${buildId}';
 const CHUNKS = 'g-chunks';
+const CDN = 'cdn-pinned';
 const GAME_FILES = ${JSON.stringify(nowFiles.map((f) => './g/' + f))};
 const KEEP_FILES = GAME_FILES.concat(${JSON.stringify(prevFiles.map((f) => './g/' + f))});
 const SHELL = ['./manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png', './favicon-64.png'];
@@ -265,7 +269,7 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== CHUNKS).map((k) => caches.delete(k))))
+    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== CHUNKS && k !== CDN).map((k) => caches.delete(k))))
     .then(() => caches.open(CHUNKS)).then((g) => g.keys().then((reqs) => Promise.all(reqs
       .filter((r) => KEEP_FILES.indexOf('./g/' + new URL(r.url).pathname.split('/').pop()) === -1)
       .map((r) => g.delete(r)))))
@@ -276,7 +280,7 @@ self.addEventListener('activate', (event) => {
 // stylesheet is asked for without CORS, so its status can't be read - and
 // refusing it left the app with no fonts offline.
 const keep = (req, res, pinned) => {
-  if (res && (res.ok || (pinned && res.type === 'opaque'))) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
+  if (res && (res.ok || (pinned && res.type === 'opaque'))) { const copy = res.clone(); caches.open(pinned ? CDN : CACHE).then((c) => c.put(req, copy)); }
   return res;
 };
 

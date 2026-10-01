@@ -864,29 +864,32 @@ function roomSolveTurn(state) {
 
 // فوازير إيموجي in a room plays three ways (the owner, 23 Sep 2026: a player writing the riddle is a
 // way of the same game): a player writes it, the app's riddles as a race (both on the engine), or the
-// quiz it always was, where the table sees every wrong guess. The quiz's own renderer is kept as it is.
-const SV_EMOJI_QUIZ = ROOM_GAMES.emoji;
-const SV_EMOJI_QUIZ_TV = TV_GAMES.emoji;
+// quiz it always was, where the table sees every wrong guess. The quiz's own renderer is kept as it is,
+// read when it is needed: under the lazy chunks this file runs before JS_RoomQuiz (solve before quiz),
+// which then leaves this router in place (`svRouter`) and only publishes its renderers.
+const svQuiz = () => window.EMOJI_QUIZ_ROOM;
+const svQuizTv = () => window.EMOJI_QUIZ_TV;
 const svEmojiWay = () => { const w = recallOptions('solveRoom_emoji', { way: 'setter' }).way; return w === 'race' || w === 'quiz' ? w : 'setter'; };
 
 ROOM_GAMES.emoji = {
+  svRouter: true,
   lobbyOptions(state) {
     const way = svEmojiWay();
     if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(svT('sv_emoji_lobby_hint'))}</p>`;
     const o = svRoomOpts('emoji');
     const ways = svSeg(svT('sv_lobby_mode'), 'emoji', 'way', [['setter', svT('sv_mode_setter')], ['race', svT('sv_mode_race')], ['quiz', svT('sv_mode_quiz')]], way,
       way === 'quiz' ? '' : svT(way === 'race' ? 'sv_race_hint_emoji' : 'sv_setter_hint_emoji'));
-    if (way === 'quiz') return `<div class="card card--tight">${ways}</div>${SV_EMOJI_QUIZ.lobbyOptions(state)}`;
+    if (way === 'quiz') return `<div class="card card--tight">${ways}</div>${svQuiz().lobbyOptions(state)}`;
     return `<div class="card card--tight">${ways}${svLobbyFields('emoji', o)}</div>`;
   },
   startPayload() {
     const way = svEmojiWay();
-    if (way === 'quiz') return Object.assign({ way: 'quiz' }, SV_EMOJI_QUIZ.startPayload());
+    if (way === 'quiz') return Object.assign({ way: 'quiz' }, svQuiz().startPayload());
     return svStartPayload('emoji');
   },
   render(state) {
     if (state.shared && state.shared.solve) svRender('emoji', state);
-    else SV_EMOJI_QUIZ.render(state);
+    else svQuiz().render(state);
   },
   actionKey(state) {
     const s = state.shared || {};
@@ -895,11 +898,12 @@ ROOM_GAMES.emoji = {
 };
 
 TV_GAMES.emoji = {
-  sig: (state) => (state.shared && state.shared.solve ? svTvSig(state) : 'quiz|' + SV_EMOJI_QUIZ_TV.sig(state)),
-  frame: (state, t) => (state.shared && state.shared.solve ? svTvFrame('emoji', state, t) : SV_EMOJI_QUIZ_TV.frame(state, t)),
+  svRouter: true,
+  sig: (state) => (state.shared && state.shared.solve ? svTvSig(state) : 'quiz|' + svQuizTv().sig(state)),
+  frame: (state, t) => (state.shared && state.shared.solve ? svTvFrame('emoji', state, t) : svQuizTv().frame(state, t)),
   after(state, rebuilt) {
     if (state.shared && state.shared.solve) svTvAfter(state);
-    else if (SV_EMOJI_QUIZ_TV.after) SV_EMOJI_QUIZ_TV.after(state, rebuilt);
+    else if (svQuizTv().after) svQuizTv().after(state, rebuilt);
   }
 };
 </script>

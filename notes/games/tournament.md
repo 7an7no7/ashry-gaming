@@ -105,7 +105,12 @@ action, payload, '<id>')` first thing, its client code reads the room through
 A test of each is in `rules.mjs`, `leaks.mjs` (`TOUR_DRIVERS`: a tournament's
 views held to the game's own probes, match by match) and `play-all.mjs`.
 
-**On the page** the duels' renderers are wrapped at load (`tourWrap`): with
+**On the page** the duels' renderers are wrapped (`tourWrap`) - at the
+tournament's load for those already there (connect4), and at the end of each
+duel's own file for the rest, whose chunks run after the duels' chunk
+(`if (typeof tourWrap === 'function') tourWrap('dots')`; until 1 Oct 2026
+only connect4 was wrapped, and `tools/lazy-split.mjs` now fails the build on
+a duel wrapped before it registers): with
 no tournament on they run as before; with one on, a phone shows a match -
 through the game's own renderer, given `tourMatchState` (the match's game as
 `shared`, with `tourMid` and `tourGames`, and `you` only when the secret names

@@ -14,6 +14,8 @@
  *            no error in the console; and every game started from its setup
  *   rooms    every room game started with five phones (each its own browser profile, so its own
  *            storage) and a big screen: the same checks on every phone and the TV
+ *            and the two lobbies the chunks' order broke: the duels' winner stays / tournament
+ *            switch (sent, and a tournament drawn), and فوازير إيموجي's three ways
  *   fixes    what the audit of 23 Sep 2026 fixed on the page (and «الشلة»'s page with a night on it): a word being typed in a room survives
  *            the others' moves, a room link fills its code, a chess clock is right after a reload,
  *            Battleship tells no result before the shell lands, Guess Who's face pick has a clock
@@ -22,7 +24,8 @@
  *   site     the offline copy: the app opens from the phone, and a new build is switched to by
  *            itself on the home screen, never in a game; Settings says which version this is
  *
- * Every check prints ✓ or ✗; the exit code is the number of ✗ (0 when all pass).
+ * Every check prints ✓ or ✗; the exit code is 1 when any failed, 0 when all pass (a count
+ * would wrap: 256 ✗ exit 0 on a POSIX shell).
  */
 import http from 'node:http';
 import fs from 'node:fs';
@@ -411,6 +414,101 @@ if (ONLY.includes('rooms')) {
     if (AFTER[game]) await AFTER[game]();
     await wait(400);
   }
+  // Two lobbies the chunks' load order broke on 30 Sep 2026 (tools/lazy-split.mjs checks the
+  // order now): the duels' tournament wraps each duel's renderers, and فوازير إيموجي's router
+  // holds its three ways. Played once, by the first shard (or when UI_GAMES names the game).
+  const wants = (g) => (ONLY_GAMES ? ONLY_GAMES.includes(g) : ROOMS_SHARD[0] === 0);
+  const toHub = () => ev(host, `(async () => { try { await Room.act('backToHub', {}); } catch (e) {} return 1; })()`);
+  const choose = async (g) => {
+    const r = await ev(host, `(async () => { try { await Room.act('chooseGame', { game: ${JSON.stringify(g)} }); return 'ok'; } catch (e) { return 'choose: ' + e.message; } })()`);
+    await showRoom(host);
+    await wait(800);
+    await chunkIn(host);
+    for (const p of all) await chunkIn(p);
+    return r;
+  };
+  // Every phone and the TV: on a room screen, laid out, no errors; `extra` is asked on each.
+  const lookAll = async (extra) => {
+    const bad = [];
+    for (const p of all) {
+      const view = await showRoom(p);
+      await wait(250);
+      const found = await sweep(p);
+      if (found && found.length) bad.push(p.name + ' (' + view + '): ' + found.join('; '));
+      if (!/^room-/.test(view || '') || view === 'room-lobby') bad.push(p.name + ': on ' + view);
+      const why = extra ? await ev(p, extra) : '';
+      if (why) bad.push(p.name + ': ' + why);
+    }
+    const errs = all.flatMap((p) => takeErrors(p).map((e) => p.name + ': ' + e));
+    return [...bad, ...new Set(errs)];
+  };
+
+  for (const g of ['dots', 'xo', 'guesswho', 'battleship', 'chess'].filter(wants)) {
+    all.forEach(takeErrors);
+    const chose = await choose(g);
+    // The host's lobby carries the switch (five people, no computer players), and its payload the choice.
+    const lobby = await ev(host, `(() => {
+      const g = ROOM_GAMES[${JSON.stringify(g)}];
+      if (!g) return 'no ROOM_GAMES.${g}';
+      if (!g._tourWrapped) return 'not wrapped by the tournament';
+      if (!document.querySelector('#view-room-lobby .tour-lobby')) return 'no winner-stays / tournament switch in the lobby';
+      setTourMode(${JSON.stringify(g)}, 'stay');
+      if (g.startPayload().tournament) return 'winner stays still sends tournament';
+      setTourMode(${JSON.stringify(g)}, 'tour');
+      if (g.startPayload().tournament !== true) return 'the tournament choice is not in the start payload';
+      return 'ok'; })()`);
+    let detail = [chose !== 'ok' ? chose : '', lobby !== 'ok' ? lobby : ''].filter(Boolean);
+    // Two of them played as a tournament: every phone and the TV draw it.
+    if (!detail.length && (g === 'dots' || g === 'xo')) {
+      const started = await ev(host, `(async () => { try { await Room.act('start', ROOM_GAMES[${JSON.stringify(g)}].startPayload()); } catch (e) { return 'start: ' + e.message; } return 'ok'; })()`);
+      await wait(1800);
+      if (started !== 'ok') detail.push(started);
+      else detail = detail.concat(await lookAll(`(() => {
+        if (!Room.state || !tourOn(Room.state)) return 'no tournament in the room';
+        if (!ROOM_GAMES[${JSON.stringify(g)}]._tourWrapped) return 'its renderer is not wrapped';
+        if (Room.state.youAreScreen && !TV_GAMES[${JSON.stringify(g)}]) return 'no TV_GAMES entry';
+        const v = document.getElementById('view-' + appState.currentView);
+        return v && v.textContent.trim() ? '' : 'an empty screen'; })()`));
+    }
+    await ev(host, `(() => { setTourMode(${JSON.stringify(g)}, 'stay'); return 1; })()`);
+    check(!detail.length, `${g}: the host's lobby offers winner stays or a tournament, and it is sent${g === 'dots' || g === 'xo' ? ' and drawn on every phone and the TV' : ''}`, detail.join('\n      '));
+    await toHub();
+    await wait(400);
+  }
+
+  if (wants('emoji')) {
+    all.forEach(takeErrors);
+    const chose = await choose('emoji');
+    const router = `(() => (ROOM_GAMES.emoji && ROOM_GAMES.emoji.svRouter && TV_GAMES.emoji && TV_GAMES.emoji.svRouter ? '' : 'the quiz replaced the ways router'))()`;
+    const picker = await ev(host, `(() => {
+      const r = ${router};
+      if (r) return r;
+      const ways = [...document.querySelectorAll('#view-room-lobby [onclick*="setSvRoomOpt(\\'emoji\\', \\'way\\'"]')].length;
+      return ways === 3 ? 'ok' : 'the lobby shows ' + ways + ' ways, not 3'; })()`);
+    check(chose === 'ok' && picker === 'ok', 'emoji: the host\'s lobby offers its three ways', [chose, picker].filter((x) => x !== 'ok').join('\n      '));
+    for (const way of ['setter', 'race', 'quiz']) {
+      if (chose !== 'ok') break;
+      await choose('emoji');
+      const started = await ev(host, `(async () => {
+        setSvRoomOpt('emoji', 'way', '${way}');
+        const p = ROOM_GAMES.emoji.startPayload();
+        if (p.way !== '${way}') return 'the payload says ' + p.way;
+        try { await Room.act('start', p); } catch (e) { return 'start: ' + e.message; }
+        return 'ok'; })()`);
+      await wait(1800);
+      const solve = way !== 'quiz';
+      const bad = started !== 'ok' ? [started] : await lookAll(`(() => {
+        const r = ${router};
+        if (r) return r;
+        if (!!(Room.state.shared && Room.state.shared.solve) !== ${solve}) return 'the room is not on the ${solve ? 'solve engine' : 'quiz'}';
+        const v = document.getElementById('view-' + appState.currentView);
+        return v && v.textContent.trim() ? '' : 'an empty screen'; })()`);
+      check(!bad.length, `emoji, way ${way}: started, drawn on every phone and the TV`, bad.join('\n      '));
+      await toHub();
+      await wait(400);
+    }
+    await ev(host, `(() => { setSvRoomOpt('emoji', 'way', 'setter'); return 1; })()`);
+  }
   for (const p of all) await closePhone(p);
 }
 
@@ -745,4 +843,4 @@ if (process.env.UI_CHILD) console.log('@@RESULT ' + JSON.stringify({ passed, fai
 try { ws.close(); } catch (e) {}
 chrome.kill();
 server.close();
-setTimeout(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) {} process.exit(failed); }, 500);
+setTimeout(() => { try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) {} process.exit(failed ? 1 : 0); }, 500);

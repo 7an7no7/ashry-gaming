@@ -43,6 +43,21 @@ first visit so every game still works offline.
 - **Room games to chunks**: the chunk of `view-room-<id>`, and every chunk that
   registers `ROOM_GAMES.<id>`, `TV_GAMES.<id>` or `RACE_UI.<id>`, plus
   `ROOM_CHUNKS` (the emoji room's quiz and solve ways).
+- **The registries' order is checked** (`checkRegistryOrder`, the audit of
+  1 Oct 2026): a chunk runs where the chunk order puts it, which can be the
+  page's order reversed. Two bugs came from that: the tournament wrapped the
+  duels' renderers at its own load (`tourWrap`, chunk duels), before dots,
+  X-O, خمّن مين, حرب السفن and chess - chunks that run after it - had
+  registered, so none of them had the tournament; and the quiz chunk (after
+  solve) put the quiz back over فوازير إيموجي's router of three ways. In both
+  orders, the page's and the chunks', the build now fails when an entry of
+  `ROOM_GAMES` / `TV_GAMES` / `RACE_UI` is set at load, unguarded, by two
+  chunks (the second yields: `if (!(ROOM_GAMES.x && ROOM_GAMES.x.flag))`), is
+  read at load before it is set or from a chunk that doesn't load the setter's
+  first, or is wrapped by a wrapper (a function that reads
+  `ROOM_GAMES[its first parameter]`) only before its last write. The duels'
+  files end with `if (typeof tourWrap === 'function') tourWrap('<id>')`.
+  Proved against the sources before the fix: both bugs fail it.
 - **Home cards to chunks**: the chunk of the card's `setup` screen and of the
   function its `open` calls.
 - `assemble()` writes the page: the shell's includes inlined, a chunk's
@@ -69,6 +84,14 @@ first visit so every game still works offline.
 - `lzWait(ids, retry, key)`: the door. Returns false when the chunks are here;
   otherwise fetches them, returns true, and runs `retry` once they have come -
   only the latest thing asked for under `key` (a second tap replaces the first).
+  A `nav` door remembers the screen it was asked from: if the player has gone
+  to another screen meanwhile (a tab, back), the late chunk opens nothing, and a
+  failure left behind is not retried when the phone comes back online.
+- A chunk that neither loads nor fails (a connection that takes the request and
+  sends nothing) gives up after 15 s (`LZ_TIMEOUT_MS`) and shows «حاول تاني»;
+  the try again waits on the same `<script>` if it is still coming
+  (`lz.tags`), so a chunk never runs twice. The boot chunks are promises in
+  `lz.loading` too (`lz.boot`), so a door reached while one downloads waits.
 - The doors: `setView` (every screen), `catalogOpen`, `catalogQuickStart`,
   `tonightGo`, «كمّل» (`homeContGo`, and `homeContPick` fetches the chunk of a
   board left earlier to ask whether it's still going, then redraws the card),

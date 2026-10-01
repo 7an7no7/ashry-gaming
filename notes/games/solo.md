@@ -266,6 +266,14 @@ portrait phones only): the ring about half, the crossword the rest by its rows,
 the letters sized off the ring. The tools fit at 375x812, 390x844 and 375x667;
 the exit under them may need a scroll.
 
+**Fixes of the audit of 1 Oct 2026.** The solo Wordle board and keypad take the word's
+direction (`dir` from `wordleLang()`, as the room board does), so an English word under the
+Arabic interface no longer reads backwards. تحدي اليوم fetches the chunks of today's unfinished
+dailies once and draws its list again (`renderDaily.asked`), so a board left half done says
+«كمّل», not «العب». خمّن الدولة from the archive shows only its 📅 badge, not an empty «المستوى».
+سلسلة الإجابات's question and answers are `dir="auto"` (a «?» at the right end). 2048 stamps
+«رقم جديد» on a tie only when this game raised the best itself (`s.raisedBest`, taken back with ↶).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

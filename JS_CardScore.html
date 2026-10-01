@@ -769,7 +769,16 @@ function csKeep(input) {
 
 const csVal = (key) => {
   const input = document.getElementById('cs-in-' + key);
-  return input && input.value !== '' ? Number(input.value) : null;
+  if (!input || input.value === '') return null;
+  // A typed number isn't held to the field's range the way − and + are (a bid of
+  // 7.5 scored NaN, a leftover of 999 counted as typed): whole, and inside min..max.
+  const n = Math.round(Number(input.value));
+  if (!Number.isFinite(n)) return null;
+  const lo = input.min !== '' && Number.isFinite(Number(input.min)) ? Number(input.min) : -Infinity;
+  const hi = input.max !== '' && Number.isFinite(Number(input.max)) ? Number(input.max) : Infinity;
+  // Not written back into the field: this runs on every key (the preview), and a
+  // bid's "1" on its way to "13" would become the least bid, 2. The preview shows what counts.
+  return Math.max(lo, Math.min(hi, n));
 };
 
 /** A row of choices, one pressed: seats, or any list of { v, label }. */

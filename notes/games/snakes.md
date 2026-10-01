@@ -459,6 +459,10 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
   three computer players on the clock; nothing is hidden), `play-all.mjs`
   (`--only=snakes`: two people, a computer player and a TV on a live server).
 
+**A reload on a wide screen** (the audit of 1 Oct 2026): `snkFit` doesn't measure a
+layout that is still hidden (a reload paints before the screen shows, and set a 166px board);
+it looks again on the next frames, up to 120 of them.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

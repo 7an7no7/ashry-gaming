@@ -149,6 +149,9 @@ function renderWordleBoard(opts) {
     // shape to do it — an 8-letter board gets a seventh row.
     container.style.setProperty('--wordle-cols', len);
     container.style.setProperty('--wordle-rows', appState.wordle.maxTries);
+    // The word's own direction, not the page's: an English word under the
+    // Arabic interface (Settings → لغة الألعاب) read backwards, as the room board doesn't.
+    container.dir = wordleLang() === 'ar' ? 'rtl' : 'ltr';
     container.innerHTML = rows.map(cells =>
         `<div class="wordle-row" style="grid-template-columns: repeat(${len}, 1fr)">${cells}</div>`
     ).join('');
@@ -238,6 +241,8 @@ function renderKeyboard() {
     );
 
     kbContainer.className = 'keypad';
+    // Q on the left for English and ض on the right for Arabic, whatever the page's direction.
+    kbContainer.dir = wordleLang() === 'ar' ? 'rtl' : 'ltr';
     kbContainer.innerHTML = rows.join('');
 }
 

@@ -151,6 +151,10 @@ The owner's rules are in *The owner's specs*. Built the way لودو is:
   and TV frames, the turn clock and the host's "play for" a phone that went
   quiet for a minute.
 
+**Taps while the motion plays** (the audit of 1 Oct 2026): against the phone, a move whose
+frame waits for the token to land marks `bankFx.pending` and greys the last frame's buttons;
+`bankLocalDo` ignores taps until the frame is drawn (a second «اشتري» used to toast «مش وقتها»).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

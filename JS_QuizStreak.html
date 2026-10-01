@@ -167,17 +167,19 @@ function paintStreak(fresh) {
   const prompt = q.kind === 'proverbs'
     ? escapeHTML(q.prompt).replace('___', `<span class="streak-blank">${/[\u0600-\u06FF]/.test(q.prompt) ? '؟' : '?'}</span>`)
     : escapeHTML(q.prompt);
+  // The question and its answers take their own language's direction (dir="auto"):
+  // an English question under the Arabic interface had its «?» at the wrong end.
   const card = `
         <div class="streak-card${fresh ? ' is-new' : ''}">
           ${q.tag ? `<span class="eyebrow">${escapeHTML(q.tag)}</span>` : ''}
           ${q.big ? `<div class="streak-emoji" dir="ltr">${escapeHTML(q.big)}</div>` : ''}
-          ${prompt ? `<p class="streak-prompt">${prompt}</p>` : `<p class="streak-prompt streak-prompt--sub">${escapeHTML(t.streak_emoji_q || '')}</p>`}
+          ${prompt ? `<p class="streak-prompt" dir="auto">${prompt}</p>` : `<p class="streak-prompt streak-prompt--sub">${escapeHTML(t.streak_emoji_q || '')}</p>`}
         </div>`;
   const options = (cls) => `
         <div class="solo-choices${cls}" id="streak-options">
           ${q.options.map((o, i) => {
             const c = answered ? (i === q.answer ? ' is-right' : (i === q.picked ? ' is-wrong' : '')) : '';
-            return `<button type="button" class="solo-choice${c}" data-i="${i}" onclick="answerStreak(${i})" ${answered ? 'disabled' : ''}><span>${escapeHTML(o)}</span></button>`;
+            return `<button type="button" class="solo-choice${c}" data-i="${i}" onclick="answerStreak(${i})" ${answered ? 'disabled' : ''}><span dir="auto">${escapeHTML(o)}</span></button>`;
           }).join('')}
         </div>`;
   if (s.race) {

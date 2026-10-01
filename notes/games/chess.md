@@ -639,6 +639,11 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
   a scratch build that put the squares in `shared` and gave each phone the
   other's), `play-all.mjs` (`hiddenQueenRobots`, `--only=hq`).
 
+**The coach's take back is counted** (the audit of 1 Oct 2026): `s.tb` goes up on every
+take back and is part of the move's animation key and the hidden queen's moment
+(`chTakeBackKey`), so the move played instead slides and sounds; `chCoachPrepare` looks at
+a position once even when Continue or a new game call it twice.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

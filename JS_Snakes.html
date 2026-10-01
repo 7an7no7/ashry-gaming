@@ -311,6 +311,13 @@ function snkFit() {
   if (!lay) return;
   const cs = getComputedStyle(lay);
   if (cs.display !== 'grid') { lay.style.removeProperty('--snk-bw'); lay.style.removeProperty('--snk-fh'); return; }
+  // A reload paints the board while its screen is still hidden (0 wide): measuring then
+  // set a 166px board that stayed until the next roll. Look again once it shows, for a while.
+  if (!lay.getClientRects().length) {
+    if (snkFitTries++ < 120) { cancelAnimationFrame(snkFitT); snkFitT = requestAnimationFrame(snkFit); }
+    return;
+  }
+  snkFitTries = 0;
   const side = lay.querySelector('.snk-layout__side');
   let availH;
   if (lay.closest('.snk--tv')) availH = lay.clientHeight;
@@ -330,7 +337,7 @@ function snkFit() {
   if (lay.style.getPropertyValue('--snk-bw') !== bw) lay.style.setProperty('--snk-bw', bw);
   if (lay.style.getPropertyValue('--snk-fh') !== fh) lay.style.setProperty('--snk-fh', fh);
 }
-let snkFitT = 0;
+let snkFitT = 0, snkFitTries = 0;
 window.addEventListener('resize', () => { cancelAnimationFrame(snkFitT); snkFitT = requestAnimationFrame(snkFit); });
 
 /* --- the map on the board ------------------------------------------------------------ */

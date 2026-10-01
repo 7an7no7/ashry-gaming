@@ -76,6 +76,15 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
       clock, and the host's phone plays the sounds; with one, the TV is the
       only voice. A phone plays its own control clicks and buzzes. The tense
       beep comes at one damage from the end, and the last 10 s tick.
+    - **Mashing** (the review of 1 Oct 2026: mashing beat listening): every
+      third pointless move in a row by one phone - a control changed or
+      pressed that no open order waits on and that fills none - costs the
+      table ¼ damage (`WIRE_MASH_EVERY` 3, `WIRE_MASH_DMG` 0.25) and buzzes
+      that phone «شكلك بتلعب عشوائي! 🙉 −¼» (the `mash { pid }` event). A
+      move on a control an order waits on never counts (the second of three
+      presses, a dial on its way); filling an order starts the phone's count
+      again, and so does a new level; nothing counts on the level's card.
+      Judged on the server only (`room._wire.mash`).
     - **A player who leaves**: their panel goes and orders on its controls are
       cancelled with no damage (they are given again); fewer than two ends the
       game. A latecomer watches and is dealt in by play again.
@@ -97,14 +106,14 @@ catalog, the help); the rules are named `wire` / `WIRE_`, the page's code
   `wireName(cid, lang)`, `wireOrderText(order, lang)` (a button «اضرب الكلاكس
   مرتين», a switch its on or off, a dial or a slider «الكاسيت على 4»).
 - **`RoomWire.js`** (bundled last): `room._wire = { panels, vals, presses,
-  broken, pend, base, last, seq, nextBreak, shakeAt }`, never projected; each
+  broken, pend, base, last, mash, seq, nextBreak, shakeAt }`, never projected; each
   seated phone's slice `{ lv, panel: [{ c, v?, b? }] }` (`wireWrite`: its own
   controls, their values, what is broken on them). `shared`: `settings { place,
   surprises }`, `place`, `roster`, `alive`, `level`, `levelsWon`, `best`,
   `newBest`, `progress`, `damage`, `target`, `dmgMax`, `orderMs`, `orders { pid:
   { id, c, at, ends, v | n } }`, `shake { id, ends, done } | null`, `events`
   (the last 30: `level`, `done { to, by, c, v | n }`, `miss`, `break { c, pid,
-  k }`, `fixed`, `shake`, `shakeOk`, `shakeFail`, `won`, `lost`), `phase`
+  k }`, `fixed`, `mash { pid }`, `shake`, `shakeOk`, `shakeFail`, `won`, `lost`), `phase`
   ('ready' → 'play' → 'won' → … → 'gameover'), `why` ('damage' | 'time' |
   'left'), `startAt`, `endsAt`, `nextAt`. Moves: `ctl { c, v, lv }`, `press {
   c, lv }`, `wipe { c, lv }` (from the phone holding the control only; a

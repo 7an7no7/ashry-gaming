@@ -36,6 +36,8 @@ const WIRE_FLIP_MS = 9000;          // a control turned upside down this long
 const WIRE_SHAKE_MS = 7000;         // «الكل يهز الموبايل!»: this long to shake
 const WIRE_SHAKE_BONUS = 2;         // a shake everyone made: progress
 const WIRE_VALUES = 5;              // a dial or a slider: 1..5
+const WIRE_MASH_EVERY = 3;          // every third pointless move in a row by one phone (a change no order waits on)…
+const WIRE_MASH_DMG = 0.25;         // …costs the table a quarter of a miss (the review of 1 Oct 2026: mashing beat listening)
 
 /** How many controls a phone gets: 6 with three at the table, 4 from six (8 × 4 = 32 of a place's 34). */
 const wirePanelSize = (n) => (n <= 3 ? 6 : n <= 5 ? 5 : 4);

@@ -37,7 +37,9 @@ const VAULT_READY_MS = 5000;       // the safe's card before the clock starts
 const VAULT_BETWEEN_MS = 6000;     // a safe's result before the next one comes by itself
 const VAULT_STRIKES = 3;           // «٣ غلطات»: the third sets off the alarm
 const VAULT_SPEEDUP = 0.25;        // each strike: the candle burns 25% faster (×1.25, ×1.5)
-const VAULT_PENALTY_MS = 15000;    // «من الوقت»: each mistake burns 15 s
+const VAULT_PENALTY_MS = 15000;    // «من الوقت»: the first mistake of a safe burns 15 s, the next 30, then 45…
+/** «من الوقت»: what the n-th mistake of a safe burns (15 s, 30, 45…; the review of 1 Oct 2026: a flat 15 s made guessing cheaper than reading). */
+const vaultPenaltyMs = (n) => VAULT_PENALTY_MS * Math.max(1, Math.floor(n) || 1);
 const VAULT_SET_COUNTS = [3, 5, 7];
 const VAULT_PTS_OPENER = 3;        // a safe opened, set of safes: the opener
 const VAULT_PTS_READER = 2;        //   each reader on that side

@@ -10711,6 +10711,24 @@ Date.now = duelTestClock;
     check(threw(() => applyRoomAction(r, 'a', 'start', {})), 'witness: fewer than three is refused');
   }
   {
+    // The crimes (the review of 1 Oct 2026: 8 came round too often): 24, none twice in a game, and a
+    // room's next games deal the ones not seen yet before any comes back.
+    const W2 = new Function(readFileSync(new URL('../../Witness.js', import.meta.url), 'utf8') + ';return { WITNESS_CRIMES };')();
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
+    const r = witRoom(ids);
+    const seen = [];
+    let ok = true;
+    for (let g = 0; g < 4; g++) {
+      if (g) { applyRoomAction(r, 'a', 'backToHub', {}); applyRoomAction(r, 'a', 'chooseGame', { game: 'witness' }); }
+      applyRoomAction(r, 'a', 'start', {});
+      const c = r.shared.crimes;
+      if (c.length !== ids.length || new Set(c).size !== c.length || c.some((x) => !(x >= 0 && x < W2.WITNESS_CRIMES))) ok = false;
+      seen.push(...c);
+    }
+    check(W2.WITNESS_CRIMES >= 20 && ok && new Set(seen.slice(0, W2.WITNESS_CRIMES)).size === W2.WITNESS_CRIMES,
+      'witness: 24 crimes, none twice in a game, every one dealt before any comes back');
+  }
+  {
     const r = witRoom(['a', 'b', 'c', 'd']);
     check(threw(() => applyRoomAction(r, 'b', 'start', {})), 'witness: only the host starts');
     applyRoomAction(r, 'a', 'start', {});
@@ -10819,7 +10837,7 @@ Date.now = duelTestClock;
 {
   console.log('\nCut wire');
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
-  const WIRE = new Function(readFileSync(new URL('../../Wire.js', import.meta.url), 'utf8') + ';return { WIRE_CONTROLS, WIRE_PLACES, wireLevel, wirePanelSize, wireOrderText, WIRE_DMG_MAX, WIRE_LEVEL_MS, WIRE_READY_MS, WIRE_GRACE_MS, WIRE_SHAKE_MS, WIRE_WIPES };')();
+  const WIRE = new Function(readFileSync(new URL('../../Wire.js', import.meta.url), 'utf8') + ';return { WIRE_CONTROLS, WIRE_PLACES, wireLevel, wirePanelSize, wireOrderText, WIRE_DMG_MAX, WIRE_LEVEL_MS, WIRE_READY_MS, WIRE_GRACE_MS, WIRE_SHAKE_MS, WIRE_WIPES, WIRE_MASH_EVERY, WIRE_MASH_DMG };')();
   const wireRoom = (ids, payload) => {
     const r = newRoom(ids);
     applyRoomAction(r, ids[0], 'chooseGame', { game: 'wire' });
@@ -10930,6 +10948,47 @@ Date.now = duelTestClock;
     applyRoomAction(r, 'a', 'playAgain', { place: 'kitchen', surprises: true });
     check(r.shared.phase === 'ready' && r.shared.level === 1 && r.shared.best === 1 && !r.shared.newBest && r.shared.place === 'kitchen' && r.shared.settings.surprises,
       'wire: play again keeps the room\'s best and takes the new place');
+  }
+  {
+    // Mashing (the review of 1 Oct 2026): every third move in a row on a control no order waits on is
+    // a quarter of a miss; a move toward an open order is never pointless, and filling one starts again.
+    const r = wireRoom(['a', 'b', 'c']);
+    const s = r.shared, w = r._wire;
+    const wantedC = (cid) => Object.values(s.orders).some((o) => o && o.c === cid);
+    const ctlOf = (cid) => WIRE.WIRE_CONTROLS[s.place].find((c) => s.place + '.' + c.id === cid);
+    const move = (pid, cid) => {
+      const c = ctlOf(cid);
+      if (c.t === 'btn') applyRoomAction(r, pid, 'press', { c: cid, lv: s.level });
+      else applyRoomAction(r, pid, 'ctl', { c: cid, lv: s.level, v: c.t === 'sw' ? (w.vals[cid] ? 0 : 1) : (w.vals[cid] % 5) + 1 });
+    };
+    // On the level's card the panel is there to learn: nothing counts.
+    const idle = w.panels.a.filter((cid) => !wantedC(cid));
+    for (let k = 0; k < 3; k++) move('a', idle[0]);
+    check(s.damage === 0 && !s.events.some((e) => e.type === 'mash'), 'wire: moves on the level\'s card cost nothing');
+    toPlay(r);
+    const free = w.panels.a.filter((cid) => !wantedC(cid));
+    move('a', free[0]); move('a', free[0]);
+    check(s.damage === 0, 'wire: two pointless moves cost nothing yet');
+    move('a', free[0]);
+    check(s.damage === 0.25 && s.events.some((e) => e.type === 'mash' && e.pid === 'a') && !('mash' in s), 'wire: the third pointless move in a row is a quarter of a miss, told to that phone (the count stays on the server)');
+    // An order on one of a's controls, three presses or a value: moves toward it never count.
+    const aim = free[1];
+    const c = ctlOf(aim);
+    const want = c.t === 'btn' ? { n: 3 } : { v: c.t === 'sw' ? (w.vals[aim] ? 0 : 1) : (w.vals[aim] % 5) + 1 };
+    s.orders.b = Object.assign({ id: 999, c: aim, at: clock, ends: clock + 10000 }, want);
+    w.base.b = w.presses[aim] || 0;
+    move('a', free[0]); move('a', free[0]);
+    check(s.damage === 0.25 && w.mash.a === 5, 'wire: two more pointless moves, still a quarter');
+    if (c.t === 'btn') { move('a', aim); move('a', aim); check(w.mash.a === 5 && s.orders.b, 'wire: presses toward an open order are never pointless'); move('a', aim); }
+    else applyRoomAction(r, 'a', 'ctl', { c: aim, v: want.v, lv: s.level });
+    check(!s.orders.b && !(w.mash && w.mash.a), 'wire: filling an order starts the count again');
+    move('a', free[0]); move('a', free[0]);
+    check(s.damage === 0.25, 'wire: after an order, two pointless moves cost nothing');
+    move('a', free[0]);
+    check(s.damage === 0.5, 'wire: the next third costs another quarter');
+    w.mash.b = 2;
+    leave(r, 'b');
+    check(!('b' in (w.mash || {})), 'wire: a leaver\'s count goes with them');
   }
   {
     // Lost by the damage.
@@ -12669,7 +12728,12 @@ Date.now = duelTestClock;
 /* --- المهمة السرية (RoomMission.js): a switch beside every game ---------------------------- */
 console.log('• the secret mission');
 {
-  const MS = new Function(readFileSync(new URL('../../Missions.js', import.meta.url), 'utf8') + ';return { missionById, missionFits, missionPool };')();
+  const MS = new Function(readFileSync(new URL('../../Missions.js', import.meta.url), 'utf8') + ';return { missionById, missionFits, missionPool, missionText, missionQuote, MISSIONS };')();
+  // هو / هي (the review of 1 Oct 2026): every mission has a girl's Arabic, the English needs none.
+  check(MS.MISSIONS.every((m) => m.length === 6 && m[5] !== m[3]) && MS.missionText('h01', 'ar', 'منى', true) === 'خلّي منى تجيبلك كوباية مية'
+    && MS.missionText('h01', 'ar', 'حسن') === 'خلّي حسن يجيبلك كوباية مية' && MS.missionText('h01', 'en', 'Mona', true) === MS.missionText('h01', 'en', 'Mona')
+    && MS.missionQuote('t32', 'ar', 'حسن', 'منى', true) === 'حسن: «خلّي منى تقول «أنا جعانة»»',
+    'mission: a phone can say each mission to a girl in Arabic; English is the same either way');
   const r = newRoom(['h', 'k']);
   const act = (pid, action, payload) => applyRoomAction(r, pid, action, payload || {});
   const fails = (pid, action, payload) => { try { act(pid, action, payload); return false; } catch (e) { return true; } };
@@ -12720,8 +12784,14 @@ console.log('• the secret mission');
   H().of.h.to = 'g'; H().of.k.to = 'h';
   const victim = 'g', hunter = 'h', innocent = 'k';
   {
+    const was = r.mission.score[innocent] || 0, mine = r.mission.score[victim] || 0;
     act(victim, 'missionCatch', { who: innocent });
-    check(missionView(r, victim).me.catchAt > clock && missionView(r, victim).me.caught.ok === false, 'mission: a wrong «كشفتك!» - nothing, and a wait');
+    check(missionView(r, victim).me.catchAt > clock && missionView(r, victim).me.caught.ok === false, 'mission: a wrong «كشفتك!» - a wait');
+    // The review of 1 Oct 2026: at 3-4 people a guess was nearly free - the one wrongly named scores.
+    const vOther = missionView(r, hunter);
+    check(r.mission.score[innocent] === was + 1 && (r.mission.score[victim] || 0) === mine && vOther.gift && vOther.gift.to === innocent && !('by' in vOther.gift),
+      'mission: a wrong «كشفتك!» - the one named gets a point; the room is told who got it, never who named them');
+    check((H().log || []).some((e) => e.k === 'wrong' && e.by === victim && e.to === innocent), 'mission: the story at the end tells the wrong «كشفتك!»');
     check(fails(victim, 'missionCatch', { who: hunter }), 'mission: no second guess during the wait');
     clock += MISSION_CATCH_WAIT_MS + 1;
   }
@@ -12738,9 +12808,9 @@ console.log('• the secret mission');
   act(asker, 'missionDone', { n: H().of[asker].n });
   {
     // The review of 1 Oct 2026: refused as an ordinary wrong guess (a wait, «مش هو»), never "he showed himself".
-    const sc = r.mission.score[theirT] || 0;
-    check(!fails(theirT, 'missionCatch', { who: asker }) && (r.mission.score[theirT] || 0) === sc && missionView(r, theirT).me.caught.ok === false && missionView(r, theirT).me.catchAt > clock,
-      'mission: whoever asked you showed their hand - no catch, and it looks like any wrong guess');
+    const sc = r.mission.score[theirT] || 0, sa = r.mission.score[asker] || 0;
+    check(!fails(theirT, 'missionCatch', { who: asker }) && (r.mission.score[theirT] || 0) === sc && (r.mission.score[asker] || 0) === sa + 1 && missionView(r, theirT).me.caught.ok === false && missionView(r, theirT).me.catchAt > clock,
+      'mission: whoever asked you showed their hand - no catch, and it looks like any wrong guess (a point to them too)');
     clock += MISSION_CATCH_WAIT_MS + 1;
   }
   act(asker, 'missionCancel', {});
@@ -12831,6 +12901,8 @@ console.log('• the secret mission');
     check(inside, 'hear: every picture stays inside the page');
     check(same, 'hear: the same seed makes the same picture');
     check(sizes, 'hear: shapes are 3 easy, 4 mid, 5-7 hard');
+    check(H.HEAR_THING_IDS.length >= 32 && ['lantern', 'felucca', 'pyramids', 'foulcart', 'camel'].every((id) => H.HEAR_THING_IDS.indexOf(id) !== -1),
+      'hear: 34 drawings, the Egyptian ones among them (the review of 1 Oct 2026: 20 came round too often)');
     check(things && H.HEAR_THING_IDS.every((id) => H.HEAR_THING_NAMES[id] && H.HEAR_THING_NAMES[id].ar && H.HEAR_THING_NAMES[id].en &&
       ['easy', 'mid', 'hard'].every((lv) => H.hearPicture(5, 'things', lv, id).thing === id)), 'hear: every thing draws at every level, with its name in both languages');
     const houses = new Set();
@@ -13029,7 +13101,7 @@ console.log('• the secret mission');
 {
   console.log('\nThe vault');
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
-  const V = new Function(readFileSync(new URL('../../Vault.js', import.meta.url), 'utf8') + ';return { vaultLevel, vaultUnits, vaultDealUnits, vaultManual, vaultMakeSafe, vaultWireAnswer, vaultSymbolOrder, vaultDialCode, vaultTwistOn, vaultLightAnswer, VAULT_LOCKS, VAULT_PENALTY_MS, VAULT_READY_MS, VAULT_BETWEEN_MS };')();
+  const V = new Function(readFileSync(new URL('../../Vault.js', import.meta.url), 'utf8') + ';return { vaultLevel, vaultUnits, vaultDealUnits, vaultManual, vaultMakeSafe, vaultWireAnswer, vaultSymbolOrder, vaultDialCode, vaultTwistOn, vaultLightAnswer, VAULT_LOCKS, VAULT_PENALTY_MS, vaultPenaltyMs, VAULT_READY_MS, VAULT_BETWEEN_MS };')();
   const vaultRoom = (ids, payload, screens) => {
     const r = newRoom(ids);
     if (screens) r.screens = screens.map((id) => ({ id }));
@@ -13151,6 +13223,21 @@ console.log('• the secret mission');
     const left = side.left;
     wrongMove(r, 'x', s.locks[0].i);
     check(side.strikes === 0 && side.mistakes === 1 && side.rate === 1 && Math.abs(side.left - (left - (clock - s.startAt) - V.VAULT_PENALTY_MS)) < 5, 'vault: «من الوقت»: a mistake burns 15 s, the candle\'s pace stays');
+    // The penalty grows within a safe: 15 s, then 30, then 45 (the review of 1 Oct 2026: guessing beat reading).
+    const l1 = side.left;
+    wrongMove(r, 'x', s.locks[1].i);
+    const l2 = side.left;
+    wrongMove(r, 'x', s.locks[0].i);
+    const pens = s.events.filter((e) => e.type === 'mistake').map((e) => e.pen).join();
+    check(side.mistakes === 3 && Math.abs(l1 - l2 - 30000) < 5 && Math.abs(l2 - side.left - 45000) < 5 && pens === '15,30,45',
+      'vault: «من الوقت»: the second mistake of a safe burns 30 s, the third 45, and each event says how much');
+    check(V.vaultPenaltyMs(1) === 15000 && V.vaultPenaltyMs(4) === 60000 && V.vaultPenaltyMs(0) === 15000, 'vault: the penalty for the n-th mistake is 15 s × n');
+    solveSafe(r, 'x');
+    applyRoomAction(r, 'a', 'nextSafe', { safe: 1 });
+    toPlay(r);
+    const s2 = r.shared.sides.x, before = s2.left;
+    wrongMove(r, 'x', r.shared.locks[0].i);
+    check(s2.mistakes === 1 && Math.abs(before - s2.left - 15000) < 5, 'vault: «من الوقت»: the next safe starts again at 15 s');
   }
   {
     // The lights at level 3+: the table read with the mistakes so far.

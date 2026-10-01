@@ -43,14 +43,17 @@ named `hear` / `HEAR_`, the page's code `hr` / `HR_`, the stylesheet section
   once before any comes again; easy only circles, squares and triangles, all
   big; medium adds wide and tall rectangles and lines; hard adds an upside-down
   triangle, a diamond, upright and slanted lines, more jitter, and now and then
-  a small shape inside a big one. **Drawings** are 20 things (بيت، عربية، وش،
+  a small shape inside a big one. **Drawings** are 34 things (بيت، عربية، وش،
   شجرة، مركب، سمكة، رجل التلج، صاروخ، وردة، روبوت، طيارة ورق، آيس كريم، ساعة
-  حيطة، شمس، قطر، أباجورة، كوباية شاي، عيش الغراب، بلالين، إشارة مرور), each a
+  حيطة، شمس، قطر، أباجورة، كوباية شاي، عيش الغراب، بلالين، إشارة مرور; and
+  since the review of 1 Oct 2026 فانوس رمضان، فلوكة، الأهرامات، كنكة، عربية فول،
+  طبلة، نخلة، شمسية بحر، بطيخة، جمل، طربوش، قلة، عجلة، براد شاي), each a
   generator: its sizes and parts drawn from the seed, the core parts always,
   the extras by the level (easy none, medium half, hard all), then scaled to
   82-100% of the page and placed off the middle. A thing is dealt through the
   shared prompt memory (`nextPrompts`, key `hear_things`), so no thing comes
-  back until all 20 have.
+  back until all 34 have. An older page shown a thing it doesn't know draws it
+  all the same (the picture travels whole) with no name.
 - **The mix** (the host's lobby choice, «الصور»): مخلوط (default: drawings on
   odd rounds, shapes on even), أشكال or رسومات. **The level** (الصعوبة):
   سهل / متوسط (default) / صعب.

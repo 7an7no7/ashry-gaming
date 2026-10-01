@@ -536,6 +536,11 @@ function wrEvents(state, el) {
       if (e.type === 'shakeFail') wrStamp(el, 'bad', t.wr_shake_fail);
       const root = el.querySelector('[data-wr-root]');
       if (root && !motionOff()) { root.classList.remove('is-hurt'); void root.offsetWidth; root.classList.add('is-hurt'); }
+    } else if (e.type === 'mash' && e.pid === me) {
+      // A third pointless move in a row: a quarter of a miss, on this phone's buzz alone.
+      wrStamp(el, 'bad', t.wr_mash);
+      wrSound('danger');
+      haptic('heavy');
     } else if (e.type === 'break' && e.pid === me) {
       haptic('medium');
     } else if (e.type === 'shake') {

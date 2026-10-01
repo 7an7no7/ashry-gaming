@@ -20,7 +20,7 @@ const WITNESS_LINEUP = 6;
 const WITNESS_LOOK_MS = 8000;      // the owner's 8 seconds
 const WITNESS_DRAW_MS = 90000;     // the owner's 90 seconds, or less when the artist says done
 const WITNESS_VOTE_MS = 45000;     // the jury's clock (decided while building)
-const WITNESS_CRIMES = 8;          // the family crimes, by number; their words are the page's (wit_crime_0..7)
+const WITNESS_CRIMES = 24;         // the family crimes, by number; their words are the page's (wit_crime_0..23), dealt fresh across rooms (nextPrompts)
 
 const WITNESS_STYLES = { m: ['short', 'curly', 'spiky', 'bald'], f: ['long', 'bun', 'curly', 'ponytail', 'braids'] };
 const WITNESS_MOUTHS = ['smile', 'laugh', 'serious'];

@@ -319,7 +319,7 @@ const vaultOpenLock = (room, key, i, by, now) => {
   }
 };
 
-/** A mistake: a strike (the candle burns faster; the third, the alarm) or 15 s off the candle. */
+/** A mistake: a strike (the candle burns faster; the third, the alarm) or time off the candle (15 s, then 30, 45… in one safe). */
 const vaultMistake = (room, key, i, by, now) => {
   const s = room.shared;
   const side = s.sides[key];
@@ -327,13 +327,16 @@ const vaultMistake = (room, key, i, by, now) => {
   side.at = now;
   side.mistakes += 1;
   room._vault.prog[key][i].miss += 1;
+  let pen = 0;
   if (s.settings.mistakes === 'time') {
-    side.left = Math.max(0, side.left - VAULT_PENALTY_MS);
+    // Each mistake of this safe costs more than the last: 15 s, 30, 45… (side.mistakes starts at 0 every safe).
+    pen = vaultPenaltyMs(side.mistakes);
+    side.left = Math.max(0, side.left - pen);
   } else {
     side.strikes += 1;
     side.rate = 1 + VAULT_SPEEDUP * side.strikes;
   }
-  vaultEvent(room, { type: 'mistake', side: key, i, k: s.locks[i].k, by, n: side.mistakes });
+  vaultEvent(room, { type: 'mistake', side: key, i, k: s.locks[i].k, by, n: side.mistakes, pen: pen ? Math.round(pen / 1000) : undefined });
   if (s.settings.mistakes !== 'time' && side.strikes >= VAULT_STRIKES) vaultSideLost(room, key, 'alarm', now);
   else if (side.left <= 0) vaultSideLost(room, key, 'time', now);
 };

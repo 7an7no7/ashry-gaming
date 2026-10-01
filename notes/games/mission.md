@@ -38,13 +38,17 @@ evening. Built on the worktree branch of 1 Oct 2026 (four builders in parallel).
 - **Fewer than 3 people: paused** (`MISSION_MIN_PEOPLE`): files stay, nothing can be
   done, swapped or caught; at 3 again everyone without a file is dealt one. Computer
   players and screens never take part (never dealt, never a target).
-- **A wrong «كشفتك!»**: nothing happens to anyone, only the guesser learns it was
-  wrong, and they can't guess again for **5 minutes** (`MISSION_CATCH_WAIT_MS`). A
+- **A wrong «كشفتك!»**: the one named **scores 1** (the review of 1 Oct 2026: at 3-4
+  people a guess was nearly a sure thing), and the guesser can't guess again for **5
+  minutes** (`MISSION_CATCH_WAIT_MS`). `room.mission.gift { seq, to, at }` says who got
+  the point, never who named them: their phone «حد قالك «كشفتك!» غلط · +١ ليك 🎁», the
+  TV's ticker «حد اتّهم … غلط · +١ 🎁»; the story at the end tells it (`log` `k: 'wrong'`,
+  «… قال لـ… «كشفتك!» غلط»). A
   right one gives the catcher 1 and the caught a new file (a new target too, not the
   catcher when there is a choice). **Someone who asked you «حصل؟» can't be caught for
   that mission** - they showed you their hand (else a target could say «لأ» and then
   catch the asker for a point). Such a «كشفتك!» is refused exactly as a wrong one is
-  (the wait, «مش هو»), so it never tells the guesser who is after them (the review of
+  (the wait, «مش هو», and the point to the one named), so it never tells the guesser who is after them (the review of
   1 Oct 2026). Taking a memo back («اسحبه») before the target's phone showed it
   (`missionSeen`, sent by that phone when the memo is drawn) leaves the doer catchable
   again (`asked` reset); after it was shown, the target knows, and it stays.
@@ -78,7 +82,16 @@ evening. Built on the worktree branch of 1 Oct 2026 (four builders in parallel).
 
 ## The missions (`Missions.js`, root, shared)
 
-140 missions, each `[id, places, company, ar, en]`: places `*` (talking, anywhere) or
+140 missions, each `[id, places, company, ar, en, arF]` (`arF`: the Arabic to a girl,
+«خلّي {target} تجيبلك…», added 1 Oct 2026 - every mission had been written to a man; the
+English says "they" and needs none). **هو / هي**: the server never knows anyone's gender;
+the doer's file has a quiet «هو ⇄ هي» (Arabic content only) that flips the wording for its
+target, remembered on that phone per target name (`ashryMissionShe_v1`, folded with
+`foldWord`), and every line that phone draws for that name (the file, the memo, the
+ticker, the story) uses it (`missionIsShe`, `missionText(id, lang, target, she)`). The
+button shows no state - anyone looking over a shoulder would learn the target's - the file
+shows it when held. `validate-content.js` checks every `arF`.
+Places: `*` (talking, anywhere) or
 the letters `h` `c` `o`; company `a` (everyone) or `f` (friends only). Arabic always
 «خلّي {target} …», English "Get {target} …". Pools: home × family 75, home × friends 99,
 café × family 69, café × friends 91, out × family 70, out × friends 92, anywhere ×
@@ -94,7 +107,7 @@ says it in its own language.
 
 - `room.mission` (public): `{ on, phase: 'on'|'reveal'|'off', place, co, swap, catch,
   paused, score: {pid: n}, names, feed: [last 5 {seq, k: 'done'|'catch', by, to, m?}],
-  fileSeq, askSeq, catchSeq, startedAt, banked, reveal }`.
+  fileSeq, askSeq, catchSeq, giftSeq, gift, startedAt, banked, reveal }`.
 - `room._mission` (private): `of[pid] = { to, m, n, at, swapAt, asked, no, won, busted }`,
   `asks: [{ id, by, to, m, n, seen }]`, `wrongAt`, `lastCatch`, `caught`, `log` (the story).
 - `missionView(room, pid)` (`view.js` sends it as `mission`): the public part, and for a

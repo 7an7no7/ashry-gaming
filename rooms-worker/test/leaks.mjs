@@ -2784,7 +2784,7 @@ const MISSION_PROBES = (room) => {
   const of = h.of || {};
   const people = room.players.filter((p) => !p.bot).map((p) => p.id);
   const live = !!(m.on && m.phase === 'on');
-  const PUBLIC = ['on', 'phase', 'place', 'co', 'swap', 'catch', 'paused', 'score', 'names', 'feed', 'startedAt', 'reveal', 'me', 'asks'];
+  const PUBLIC = ['on', 'phase', 'place', 'co', 'swap', 'catch', 'paused', 'score', 'names', 'feed', 'startedAt', 'reveal', 'me', 'asks', 'gift'];
   return [
     probe('mission: a phone holds its own file and no one else\'s', live && Object.keys(of).length > 0, (view, pid) => {
       const mine = (view.mission || {}).me;
@@ -2809,6 +2809,8 @@ const MISSION_PROBES = (room) => {
       const extra = Object.keys(v).find((k) => PUBLIC.indexOf(k) === -1);
       if (extra) return 'mission.' + extra;
       if (live && v.reveal) return 'mission.reveal while it runs';
+      // A wrong «كشفتك!» gives the one named a point: who got it, never who named them.
+      if (v.gift && Object.keys(v.gift).some((k) => ['seq', 'to', 'at'].indexOf(k) === -1)) return 'mission.gift (more than who got the point)';
       // The ticker names a file once it is closed, never one still open (its holder's next is dealt).
       const open = (v.feed || []).find((e) => e.k !== 'done' && e.m);
       if (open) return 'mission.feed (a mission that is not done)';

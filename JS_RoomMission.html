@@ -17,7 +17,7 @@
    ========================================================================= */
 
 const msn = {
-  code: '', feedSeen: null, noSeen: {}, wonSeen: 0, bustSeen: 0, catchSeen: 0,
+  code: '', feedSeen: null, noSeen: {}, wonSeen: 0, bustSeen: 0, catchSeen: 0, giftSeen: 0,
   asking: null, askQueue: [], askTimer: null, calmRuns: 0,
   mode: '', sig: '', hold: false, typeTimer: null, catchOpen: false, tick: null,
   setup: null, revealShown: '', tvTickerTimer: null, tvRevealKey: '', tvRevealClosed: ''
@@ -27,6 +27,30 @@ const MISSION_SEEN_KEY = 'ashryMissionSeen_v1';
 
 function missionT() { return TRANSLATIONS[appState.lang] || {}; }
 function missionLang() { return typeof contentLang === 'function' ? contentLang() : appState.lang; }
+/* هو / هي: the Arabic missions to a girl (Missions.js, arF). The server never knows anyone's
+   gender: this phone remembers, per target name, the wording its doer picked (the review of
+   1 Oct 2026), and every line it draws for that name - the file, the memo, the ticker, the
+   story - uses it. */
+const MISSION_SHE_KEY = 'ashryMissionShe_v1';
+function missionSheKey(name) { const s = String(name || '').trim(); return typeof foldWord === 'function' ? foldWord(s) || s : s; }
+function missionSheMap() {
+  try { return JSON.parse(localStorage.getItem(MISSION_SHE_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+function missionIsShe(name) { return !!name && !!missionSheMap()[missionSheKey(name)]; }
+/* The هو ⇄ هي on the file: flips the wording for my target. It says nothing of which one is on
+   (anyone looking over a shoulder would learn the target's): the file shows it when held. */
+function missionFlipShe() {
+  const st = Room.state;
+  const me = st && st.mission && st.mission.me;
+  if (!me || !me.to) return;
+  const key = missionSheKey(missionNameOf(st, me.to));
+  if (!key) return;
+  const map = missionSheMap();
+  if (map[key]) delete map[key]; else map[key] = 1;
+  try { localStorage.setItem(MISSION_SHE_KEY, JSON.stringify(map)); } catch (e) {}
+  haptic('light');
+  showToast(missionT().mission_form_flipped || '');
+}
 function missionOn(state) { return !!(state && state.mission && state.mission.on && state.mission.phase === 'on'); }
 function missionNameOf(state, id) {
   const p = ((state && state.players) || []).find(x => x.id === id);
@@ -152,7 +176,7 @@ function missionSetupHtml(state) {
   const nth = (list, part, of) => list.length ? list[(at + Math.floor(list.length * part / of)) % list.length] : null;
   const ex = (own.length ? [nth(own, 0, 2), nth(own, 1, 2), nth(talk, 1, 3)] : [nth(talk, 0, 3), nth(talk, 1, 3), nth(talk, 2, 3)])
     .filter((id, i, a) => id && a.indexOf(id) === i)
-    .map(id => `<li>${escapeHTML(missionText(id, lang, lang === 'en' ? 'Mona' : 'منى'))}</li>`).join('');
+    .map(id => `<li>${escapeHTML(missionText(id, lang, lang === 'en' ? 'Mona' : 'منى', true))}</li>`).join('');
   const tab = (p) => `<button type="button" class="msn-tabs__tab" role="tab" aria-selected="${s.place === p}" onclick="missionSetPlace('${p}')"><span aria-hidden="true">${MISSION_PLACE_ICON[p]}</span><span>${escapeHTML(t['mission_place_' + p] || p)}</span></button>`;
   const stamp = (c) => `<button type="button" class="msn-co" aria-pressed="${s.co === c}" onclick="missionSetCo('${c}')">${escapeHTML(t['mission_co_' + c] || c)}<small>${escapeHTML(t['mission_co_' + c + '_sub'] || '')}</small></button>`;
   const opt = (k, key) => `
@@ -290,6 +314,7 @@ function missionFileHtml(state) {
         </div>
       </div>
       <p class="msn-state" aria-live="polite">${escapeHTML(me.waiting ? (t.mission_state_wait || '') : (t.mission_state_ready || ''))}</p>
+      ${missionLang() === 'en' ? '' : `<button type="button" class="btn btn--ghost btn--xs btn--auto msn-heshe" onclick="missionFlipShe()" aria-label="${escapeHTML(t.mission_he_she_aria || '')}">${escapeHTML(t.mission_he_she || '')}</button>`}
       <div class="msn-acts">
         ${me.waiting
           ? `<button type="button" class="msn-stamp msn-stamp--paper" onclick="missionCancel()">${escapeHTML(t.mission_take_back || '')}</button>`
@@ -317,7 +342,7 @@ function missionHoldDown(e) {
   haptic('light');
   // The mission types out from the start every time it is opened.
   const out = document.getElementById('msn-type-text');
-  const full = missionText(me.m, missionLang(), missionNameOf(st, me.to));
+  const full = missionText(me.m, missionLang(), missionNameOf(st, me.to), missionIsShe(missionNameOf(st, me.to)));
   clearInterval(msn.typeTimer);
   if (!out) return;
   if (typeof motionOff === 'function' && motionOff()) { out.textContent = full; return; }
@@ -507,7 +532,7 @@ function missionPaintAsk(state, ask) {
     <div class="msn-memo__top"><span>${escapeHTML(t.mission_memo || '')}</span><b>${escapeHTML(t.mission_secret_short || '')}</b></div>
     <div class="msn-memo__who"><span class="msn-memo__face">${missionFaceSvg(by)}</span>
       <p class="msn-memo__q">${escapeHTML(missionFmt(t.mission_ask_who || '', { name: by }))}</p></div>
-    <p class="msn-memo__deed">${escapeHTML(missionText(ask.m, missionLang(), myName))}</p>
+    <p class="msn-memo__deed">${escapeHTML(missionText(ask.m, missionLang(), myName, missionIsShe(myName)))}</p>
     <p class="msn-memo__ask">${escapeHTML(t.mission_ask_q || '')}</p>
     <div class="msn-memo__btns">
       <button type="button" class="msn-stamp msn-stamp--yes" onclick="missionAnswer(${Number(ask.id)}, true)">${escapeHTML(t.mission_yes || '')}</button>
@@ -546,10 +571,11 @@ function missionStoryLines(state) {
   const name = (id) => missionNameOf(state, id);
   const lines = [];
   (r.story || []).forEach(e => {
-    if (e.k === 'done') lines.push({ at: e.at, k: 'done', a: e.by, b: e.to, text: missionQuote(e.m, lang, name(e.by), name(e.to)) });
+    if (e.k === 'done') lines.push({ at: e.at, k: 'done', a: e.by, b: e.to, text: missionQuote(e.m, lang, name(e.by), name(e.to), missionIsShe(name(e.to))) });
+    else if (e.k === 'wrong') lines.push({ at: e.at, k: 'wrong', a: e.by, b: e.to, text: missionFmt(missionT().mission_story_wrong || '', { a: name(e.by), b: name(e.to) }) });
     else if (e.k === 'catch') lines.push({ at: e.at, k: 'catch', a: e.by, b: e.to, text: missionFmt(missionT().mission_ticker_catch || '', { a: name(e.by), b: name(e.to) }) });
   });
-  (r.open || []).forEach(e => lines.push({ at: e.at, k: 'open', a: e.by, b: e.to, text: missionFmt(missionT().mission_open_left || '', { a: name(e.by), text: missionText(e.m, lang, name(e.to)) }) }));
+  (r.open || []).forEach(e => lines.push({ at: e.at, k: 'open', a: e.by, b: e.to, text: missionFmt(missionT().mission_open_left || '', { a: name(e.by), text: missionText(e.m, lang, name(e.to), missionIsShe(name(e.to))) }) }));
   return lines;
 }
 function missionTime(at) {
@@ -625,6 +651,7 @@ function missionSync(state) {
     msn.noSeen = {}; msn.wonSeen = m && m.me ? m.me.won || 0 : 0;
     msn.bustSeen = m && m.me ? m.me.busted || 0 : 0;
     msn.catchSeen = m && m.me && m.me.caught ? m.me.caught.seq : 0;
+    msn.giftSeen = m && m.gift ? m.gift.seq : 0;
     if (m && m.me && m.me.no) msn.noSeen[m.me.n] = m.me.no;
     if (!inRoom || !m) {
       if (missionModalOpen()) missionCloseModal();
@@ -672,6 +699,11 @@ function missionSync(state) {
       if (me.caught.ok) { playSound('success'); haptic('success'); }
     }
   }
+  // Someone named me with a wrong «كشفتك!»: a point for me (never who it was).
+  if (m.gift && m.gift.seq > msn.giftSeen) {
+    msn.giftSeen = m.gift.seq;
+    if (m.gift.to === Room.me) { showToast(t.mission_toast_gift || ''); playSound('success'); haptic('success'); }
+  }
   // Someone else's file closed: a line for the table (the doer and the target already know).
   const feed = m.feed || [];
   const top = feed.reduce((x, e) => Math.max(x, e.seq), 0);
@@ -680,7 +712,7 @@ function missionSync(state) {
     if (e.by === Room.me || e.to === Room.me) return;
     const lang = missionLang();
     const text = e.k === 'done'
-      ? '🕵️ ' + (t.mission_ticker_done || '') + ' ' + missionQuote(e.m, lang, missionNameOf(state, e.by), missionNameOf(state, e.to))
+      ? '🕵️ ' + (t.mission_ticker_done || '') + ' ' + missionQuote(e.m, lang, missionNameOf(state, e.by), missionNameOf(state, e.to), missionIsShe(missionNameOf(state, e.to)))
       : '🕵️ ' + missionFmt(t.mission_ticker_catch || '', { a: missionNameOf(state, e.by), b: missionNameOf(state, e.to) });
     showToast(text);
   });
@@ -744,7 +776,7 @@ function missionTvSync(state) {
     const e = fresh[fresh.length - 1];
     const lang = missionLang();
     const text = e.k === 'done'
-      ? missionQuote(e.m, lang, missionNameOf(state, e.by), missionNameOf(state, e.to)) + ' 😂'
+      ? missionQuote(e.m, lang, missionNameOf(state, e.by), missionNameOf(state, e.to), missionIsShe(missionNameOf(state, e.to))) + ' 😂'
       : missionFmt(t.mission_ticker_catch || '', { a: missionNameOf(state, e.by), b: missionNameOf(state, e.to) });
     let el = document.getElementById('msn-tv-ticker');
     if (!el) { el = document.createElement('div'); el.id = 'msn-tv-ticker'; el.className = 'msn-tv-ticker'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
@@ -756,7 +788,21 @@ function missionTvSync(state) {
     if (typeof playSound === 'function') playSound(e.k === 'done' ? 'success' : 'ding');
     clearTimeout(msn.tvTickerTimer);
     msn.tvTickerTimer = setTimeout(() => { const x = document.getElementById('msn-tv-ticker'); if (x) x.classList.remove('is-on'); }, 7000);
+  } else if (m && m.gift && m.gift.seq > msn.giftSeen) {
+    // A wrong «كشفتك!»: the one wrongly named gets a point (who named them stays for the story).
+    const name = missionNameOf(state, m.gift.to);
+    let el = document.getElementById('msn-tv-ticker');
+    if (!el) { el = document.createElement('div'); el.id = 'msn-tv-ticker'; el.className = 'msn-tv-ticker'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.innerHTML = `<span class="msn-tv-ticker__tab">${escapeHTML(t.mission_ticker_tab || '')}</span>
+      <span class="msn-tv-ticker__stamp">🎁</span>
+      <span class="msn-tv-ticker__face">${missionFaceSvg(name)}</span>
+      <b class="msn-tv-ticker__text">${escapeHTML(missionFmt(t.mission_ticker_gift || '', { b: name }))}</b>`;
+    el.classList.remove('is-on'); void el.offsetWidth; el.classList.add('is-on');
+    if (typeof playSound === 'function') playSound('ding');
+    clearTimeout(msn.tvTickerTimer);
+    msn.tvTickerTimer = setTimeout(() => { const x = document.getElementById('msn-tv-ticker'); if (x) x.classList.remove('is-on'); }, 7000);
   }
+  if (m && m.gift) msn.giftSeen = Math.max(msn.giftSeen || 0, m.gift.seq);
   // The reveal on the cork board: in the lobby (not over a game being played), until the host closes it.
   const key = m && m.phase === 'reveal' && m.reveal ? state.code + '|' + m.reveal.at : '';
   const show = key && state.phase === 'lobby' && msn.tvRevealClosed !== key;
@@ -812,7 +858,7 @@ function missionTvRevealHtml(state) {
     // Two strings between the same two people: the second tag a little off the middle.
     const off = (j % 3 - 1) * 4;
     return `<div class="msn-tag" style="left:${((a.x + b.x) / 2).toFixed(1)}%;top:${((a.y + b.y) / 2 + off).toFixed(1)}%;--d:${(j * 0.8 + 0.5).toFixed(1)}s">
-      <small>${escapeHTML(missionTime(e.at))}</small>${escapeHTML(missionText(e.m, lang, missionNameOf(state, e.to)))}</div>`;
+      <small>${escapeHTML(missionTime(e.at))}</small>${escapeHTML(missionText(e.m, lang, missionNameOf(state, e.to), missionIsShe(missionNameOf(state, e.to))))}</div>`;
   }).join('');
   const photos = ids.map((id, i) => `<div class="msn-pola msn-pola--pinned" style="left:${pos[id].x.toFixed(1)}%;top:${pos[id].y.toFixed(1)}%;--r:${[-3, 4, -2, 3][i % 4]}deg"><span class="msn-pin" aria-hidden="true"></span><span class="msn-face">${missionFaceSvg(missionNameOf(state, id))}</span><b><bdi>${escapeHTML(missionNameOf(state, id))}</bdi></b></div>`).join('');
   return `

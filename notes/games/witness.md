@@ -49,9 +49,17 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
       closed when every juror has voted, on a 45 s clock
       (`WITNESS_VOTE_MS`) or by the host. A round with no juror left goes
       straight to the reveal.
-    - **Eight family crimes** (`wit_crime_0..7`: the kunafa, the stuffed vine
-      leaves, the remote, the basbousa…), dealt in a shuffled order, one a
-      round.
+    - **24 family crimes** (`wit_crime_0..23`, `WITNESS_CRIMES`: the kunafa,
+      the stuffed vine leaves, the remote, the basbousa, the last mango, the
+      molokhia, the slippers, the charger…; 8 until the review of 1 Oct 2026),
+      one a round, dealt at the game's start through the shared prompt memory
+      (`nextPrompts`, key `witness_crimes`): none twice in a game, and none
+      back until all have been dealt.
+    - **🤐 The witness is silent during the vote** (the review of 1 Oct 2026:
+      they could just name the suspect): their phone shows «🤐 الشاهد ساكت
+      دلوقتي · ولا كلمة لحد ما التصويت يقفل» big over the lineup, the TV
+      shows «🤐 الشاهد ساكت دلوقتي» beside the votes (`.wit-hush`), and the
+      rules say it. A table rule, not enforced.
     - **The next case is the host's tap** after the reveal (a pause the table
       uses to laugh at the sketch); anyone once the host is away.
     - **Leaving**: an artist who leaves before drawing hands it to the next

@@ -45,7 +45,8 @@ const witnessAction = (room, playerId, action, payload) => {
     const prev = room.shared || {};
     if (action === 'playAgain' && prev.phase !== 'gameover') return;
     const roster = people.slice(0, WITNESS_MAX);
-    const crimes = shuffled(Array.from({ length: WITNESS_CRIMES }, (_, i) => i));
+    // A crime a round, none twice in a game and the least recently dealt first across rooms (the review of 1 Oct 2026).
+    const crimes = nextPrompts(room, Array.from({ length: WITNESS_CRIMES }, (_, i) => i), 'witness_crimes', roster.length);
     room.secrets = {};
     room._witness = null;
     room._ballots = null;

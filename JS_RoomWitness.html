@@ -478,7 +478,10 @@ function witPhoneBody(state) {
     const juror = role === 'jury' && (s.vote && (s.vote.eligible || []).indexOf(Room.me) !== -1);
     const rise = motionFirst('wit-line|' + key);
     const voted = ((s.vote || {}).voted || []);
+    // The witness can't just name the suspect aloud: their phone says so, big (the review of 1 Oct 2026).
+    const hush = role === 'witness' ? `<div class="wit-hush" role="status"><b>${escapeHTML(witT('wit_hush'))}</b><span>${escapeHTML(witT('wit_hush_me'))}</span></div>` : '';
     return `<div class="wit-vote">
+        ${hush}
         <div class="wit-vote__head">
           <div class="wit-clip wit-clip--small">${s.sketch ? witFace(s.sketch, '#ffffff') : ''}</div>
           <div>
@@ -721,6 +724,7 @@ TV_GAMES.witness = {
           </div>
           <div class="wit-tv__side">
             ${witCompareHtml(state, { turn: reveal && rise, turnAt: stampAt })}
+            ${reveal ? '' : `<div class="wit-hush wit-hush--tv" role="status"><b>${escapeHTML(witT('wit_hush'))}</b></div>`}
             ${reveal ? witTallyHtml(state, stampAt + 900, { tv: true }) + witVerdictHtml(state) + witGainedHtml(state) : `${s.voteEndsAt ? `<div class="wit-pill wit-pill--clock metric" data-wit-clock="${s.voteEndsAt}">…</div>` : ''}${tvWaitChips(state, v.eligible || [], v.voted || [])}`}
             ${host}
           </div>

@@ -69,11 +69,17 @@ Coordinates are quantised to a 0–255 grid and packed flat (`[x,y,x,y,…]`), w
 hard budget of `DRAW_MAX_POINTS`; a stroke that would exceed it is truncated, not
 dropped, so the drawing degrades rather than breaking.
 
-**الفنان المزيف: the fake leaving before the vote has named them** (the audit of 1 Oct
-2026) ends the round as الجاسوس, الحرباء and الموقع السري do: `roomPlayerLeft` sets
-`impostorLeft`, `fakeId`, `fakeName` (they are gone from the room) and `fakeCaught: false`,
-and `finishFakeArtist(room, 'revealed')` shows the word with nobody scoring. It used to draw
-on, vote without them, and tell the table the fake had escaped.
+## الفنان المزيف: the fake leaves mid-round (1 Oct 2026)
+
+When the fake's phone leaves during the drawing or the vote the server ends
+the round as a reveal (`shared.impostorLeft`, `fakeId`, `fakeCaught: false`,
+nobody scores), as the three spy games do. The phone and the TV then say
+`room_impostor_left` with the fake's name (`faResultLine`, `faFakeName`:
+`shared.fakeName` first, since the fake is no longer among the players), with
+no "caught"/"escaped" cast and a neutral card, instead of «الفنان المزيف عدّى».
+
+A rebuild on my turn (a new host, the language) keeps my unsent line and turns
+its Send back on; the caught fake's guess box keeps what was typed (`keep`).
 
 ## History
 

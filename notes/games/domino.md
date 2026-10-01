@@ -272,6 +272,13 @@ opposite (seats 1 & 3 against 2 & 4, `shared.teams`, keys `A` and `B`).
   and the TV; helpFit off: none.
 - `ONLY=screens,rooms npm run test:ui http://127.0.0.1:8821`: see the final report.
 
+## Your own move is drawn at once (1 Oct 2026)
+
+While another player's tile is still flying (`domFx.busyUntil`) the table
+waits for it, but not for your own move: `domOwnMoveWaiting` (a `play`,
+`draw` or `pass` of this phone's not yet drawn) lets it through at once, as in
+أونو, كدّاب and الشايب; the TV still waits.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

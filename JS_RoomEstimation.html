@@ -599,16 +599,33 @@ function esOverFrame(state) {
 
 /* --- the host's way past a phone that went quiet ------------------------------------ */
 
+/** A seat whose phone has gone quiet (not a computer player). */
+function esSeatQuiet(state, k) {
+  const p = (state.players || []).find(x => x.id === esSeats(state)[k]);
+  return !!(p && !p.online && !p.bot);
+}
+
+/** The players still owing a dash answer whose phones dropped. */
+function esQuietDashers(state) {
+  const s = esShared(state);
+  return [0, 1, 2, 3].filter(k => (s.dash || [])[k] === null && esSeatQuiet(state, k)).map(k => esSeats(state)[k]);
+}
+
+/** «كمّل من غير اللي فصلوا» answers only for the phones that dropped, named at the
+ *  tap (`pids`, as جمجمة's laying does): someone online still deciding keeps their
+ *  own answer. The clock still answers for everyone. */
+function esSkipDash(btn) {
+  const st = Room.state;
+  if (!st || st.game !== 'estimation') return;
+  esAct(btn, 'skipTurn', { pids: esQuietDashers(st) });
+}
+
 function esHostButtons(state) {
   const s = esShared(state);
   if (!roomCanMoveOn(state) || ['dash', 'bid', 'call', 'play'].indexOf(s.phase) === -1) return [];
-  const quiet = (k) => {
-    const p = (state.players || []).find(x => x.id === esSeats(state)[k]);
-    return p && !p.online && !p.bot;
-  };
+  const quiet = (k) => esSeatQuiet(state, k);
   if (s.phase === 'dash') {
-    const waiting = [0, 1, 2, 3].filter(k => (s.dash || [])[k] === null && quiet(k));
-    return waiting.length ? [['⏭️ ' + esT('es_skip_dash'), "esAct(this, 'skipTurn')"]] : [];
+    return esQuietDashers(state).length ? [['⏭️ ' + esT('es_skip_dash'), 'esSkipDash(this)']] : [];
   }
   if (!s.turn || !quiet(s.turn.k)) return [];
   return [['⏭️ ' + esT('es_skip_turn', { name: esNameOf(state, s.turn.k) }), "esAct(this, 'skipTurn')"]];
@@ -1068,9 +1085,12 @@ TV_GAMES.estimation = {
   sig(state) {
     const cur = esServerSig(Object.assign({}, state, { you: null }));
     const view = document.getElementById('view-room-tv');
+    // A held frame answers with the signature it was drawn with, suffix and all
+    // (as كدّاب's and الشايب's do): without the suffix it never matched, and
+    // the new state was drawn at once over a card still in flight.
     if (esFx.tvSig && cur !== esFx.tvSig) {
-      if (esFx.busyUntil > Date.now()) { pcDeferRedraw(esFx, 'estimation'); return esFx.tvSig; }
-      if (view && esPlayEnding(view, state)) { esFx.tvEnding = true; pcDeferRedraw(esFx, 'estimation'); return esFx.tvSig; }
+      if (esFx.busyUntil > Date.now()) { pcDeferRedraw(esFx, 'estimation'); return esFx.tvSig + '|' + esLocal.hideTrickNo; }
+      if (view && esPlayEnding(view, state)) { esFx.tvEnding = true; pcDeferRedraw(esFx, 'estimation'); return esFx.tvSig + '|' + esLocal.hideTrickNo; }
     }
     return cur + '|' + esLocal.hideTrickNo;
   },

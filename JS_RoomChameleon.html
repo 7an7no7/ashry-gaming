@@ -62,7 +62,9 @@ function chameleonFrame(state, t) {
     </div>`;
   // One card, the same shape and colour for every role (like مافيا's night):
   // phones lie on the table while the clues go round, and a red card on one of
-  // them used to say who the chameleon was. Only the words differ.
+  // them used to say who the chameleon was. Only the words differ. The grid
+  // is the same on every phone too: the secret cell lit on every board but
+  // one pointed at the chameleon (and showed a chameleon peeking the word).
   const secretWord = !iAmCham && typeof you.secret === 'number' ? (s.words || [])[you.secret] : '';
   const role = !inRound ? '' : `<div class="role-card">
       <div class="role-card__label">${iAmCham
@@ -72,7 +74,7 @@ function chameleonFrame(state, t) {
     </div>`;
 
   if (s.phase === 'clues') {
-    return head + role + chameleonGridHtml(s, { mine: iAmCham ? -1 : you.secret }) + `
+    return head + role + chameleonGridHtml(s, {}) + `
       <div class="card card--tight">
         <div class="eyebrow">${escapeHTML(t.speaking_order || '')}</div>
         <div class="chip-set">${(s.order || []).map((id, i) => `<span class="chip chip--plain"><b class="metric">${i + 1}</b>&nbsp;${escapeHTML(nameOf(id))}</span>`).join('')}</div>
@@ -83,7 +85,7 @@ function chameleonFrame(state, t) {
       ${renderRoomPlayerStrip(state)}`;
   }
   if (s.phase === 'voting') {
-    return head + chameleonGridHtml(s, { mine: iAmCham ? -1 : you.secret }) + `
+    return head + chameleonGridHtml(s, {}) + `
       <div class="card card--tight">
         <div class="eyebrow">${escapeHTML(t.accuse_chameleon || '')}</div>
         ${renderBallot(state, { ownLabel: t.vote_you })}

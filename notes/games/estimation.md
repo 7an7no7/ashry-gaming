@@ -151,6 +151,16 @@ are named `est` / `EST_` (shared and server), the page's own code `es` / `ES_`.
   the clock), `play-all.mjs` (`estimationRobots`, `--only=estimation`: one
   person, three computer players and a TV through a round and into the next).
 
+## The host's «كمّل من غير اللي فصلوا» in the dash (1 Oct 2026)
+
+The button answers "no dash" only for the phones that dropped: the phone names
+them at the tap (`skipTurn { seq, pids }`, `esSkipDash`, as جمجمة's laying
+does) and `estAuto(room, 'host', only)` answers for those seats alone; someone
+online still deciding keeps their own answer. A phone on an older page sends no
+`pids` and every open seat is answered, as before; the clock still answers for
+everyone. The TV's held frame (a card still flying) now answers with the
+signature it was drawn with, `|hideTrickNo` included, so it really holds.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

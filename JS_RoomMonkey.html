@@ -257,6 +257,8 @@ ROOM_GAMES.monkey = {
       ? `<div class="view-actions talk__actions mk-bar">${mainPair.length ? `<div class="room-bar__pair">${mainPair.join('')}</div>` : ''}${hostRow}</div>` : '';
     const cat = `<span class="badge badge--accent">${escapeHTML(mkCatLabel(s.category))}</span>`;
     // The input survives presence flickers: the signature carries only what the screen shows.
+    // And a rebuild within the same turn (the host flipping the last verdict, a new host)
+    // keeps a half-typed name; one sent and taken (`used` grew) starts the box empty.
     const sig = ['mk', s.mode, s.turnId, word, s.required, (s.used || []).length, JSON.stringify(s.verdict || null), JSON.stringify(s.quarters || {}), myTurn, state.youAreHost, mkRoom.swapFor, appState.lang].join('|');
 
     renderRoomFrame(el, sig, () => {
@@ -292,7 +294,7 @@ ROOM_GAMES.monkey = {
           </div>`;
       }
       return `${head}${verdict}${monkeyNote}${mkBoardHtml(s, state, t)}${stage}${renderRoomPlayerStrip(state)}${bar}`;
-    });
+    }, ['mk-name', s.turnId, (s.used || []).length].join('|'));
     armMkClock(s.endsAt);
     refreshRoomPlayerStrip(el, state);
   }

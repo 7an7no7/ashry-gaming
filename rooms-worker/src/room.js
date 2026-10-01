@@ -694,6 +694,8 @@ export class Room extends DurableObject {
     // For this one move only: whether the host has been away long enough for
     // anyone to press their "move on" buttons (requireHost in RoomGames.js).
     if (pid !== before.hostId && this.hostAway()) next._hostAway = true;
+    // And who is connected, for a "play for" that only a quiet phone may get (بنك الحظ's skipTurn).
+    if (action === 'skipTurn') next._online = Array.from(this.onlineIds());
     // The pack for this move only (roomPackAdopt in RoomGames.js keeps what the game needs).
     if (pack) next._packIn = pack;
     // The screens online for this move only (عربيات التصادم starts only with one).
@@ -705,6 +707,7 @@ export class Room extends DurableObject {
       return { ok: false, error: errorText(err) };
     }
     delete next._hostAway;
+    delete next._online;
     delete next._packIn;
     delete next._onlineScreens;
     // A cheer the rules let go (too many too fast, or no game on): nothing changed,

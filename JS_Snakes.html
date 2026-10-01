@@ -2184,12 +2184,12 @@ function startSnakes() {
   const again = !!(s.g && appState.currentView === 'play-snakes');
   const ids = ['me'];
   for (let k = 1; k <= s.opp; k++) ids.push('b' + k);
-  const pool = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).slice().sort(() => Math.random() - 0.5);
+  const pool = shuffleArray(ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar);
   const names = { me: snkT('xo_you') };
   const bots = {};
   ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = 'easy'; });
   const colors = snakesFillColors(ids, { me: s.color });
-  const order = ids.slice().sort(() => Math.random() - 0.5);
+  const order = shuffleArray(ids);   // Fisher-Yates: a random comparator in sort() favours the first seats
   const g = snakesNewGame(order, colors, snakesNewSeed(Math.random), Date.now(), { teardown: again });
   s.g = g;
   s.names = names;

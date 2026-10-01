@@ -155,6 +155,19 @@ The owner's rules are in *The owner's specs*. Built the way لودو is:
 frame waits for the token to land marks `bankFx.pending` and greys the last frame's buttons;
 `bankLocalDo` ignores taps until the frame is drawn (a second «اشتري» used to toast «مش وقتها»).
 
+## The night, «مين هيكسب؟» and play again (the review of 1 Oct 2026)
+
+- The board (`bankBoard`, RoomBank.js) is still the evening's wins at this game, but level wins are told
+  apart by this game's places (`tie`, as الكراسي and the bumper cars do, `boardRowKey` in
+  RoomGames.js): one game of four banks 5 / 3 / 2 / 1 on the night, not 5 and a 3 for everyone else.
+- «مين هيكسب؟» is settled on the game just played (`ROOM_RESULT_BOARDS` in RoomGames.js: its
+  places once it is over), not on the evening's tally.
+- «العب بداله» (`skipTurn`) is checked on the server as on the phones: only for a player who is
+  gone or has held the turn `BANK_QUIET_MS` (60 s) with nothing happening. room.js gives the rules
+  who is connected for that one move (`room._online`); the turn's last change is
+  `room._bank.quietAt` (stamped in `bankRoomAfter`). Before, once the host was away, anyone could
+  play anyone's turn.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

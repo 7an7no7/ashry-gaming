@@ -206,6 +206,22 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
 - **A floating pill over a game covers its top** (العقل's hearts): the pill shows only
   between games, never while one is played.
 
+## One rule with the room's night (the review of 1 Oct 2026)
+
+- `programPlaces` is `nightPlacesOf` (RoomGames.js), the one place a game is placed for both the
+  program and the room's own night («ليالينا», الشلة): co-op games everyone first, team games by
+  side, else the board (`nightBoardOf`: the roster's rows, a tally game's own result), anyone who
+  played but isn't on it after it, a level board everyone first (or 1 each when cut short).
+- Inside a program `bankNightPoints` banks exactly the places `programBank` banked for the game,
+  and nothing for a game the program didn't count (the host ending it mid-game) - the two tables
+  can no longer disagree. Outside a program the hub banks the same places, a game left before its
+  end counted as cut short; a game chosen and never dealt adds nothing.
+- So the night now follows the program where they differed: a co-op game (لو خيروك, العقل…) is 5
+  each on the night too, a finished game where everyone is level 5 each, one cut short 1 each.
+  الخزنة's endless levels stay off both tables (its owner's spec: "nothing on the night's board",
+  `NIGHT_NO_PLACES`).
+- `PROGRAM_PLACE_POINTS` / `PROGRAM_PLAYED_POINTS` are the night's `NIGHT_PLACES` / `NIGHT_PLAYED`.
+
 ## Tests (30 Sep 2026, a local rooms server on :8793)
 
 - `npm run check`: passes (4,800 keys in each language after the merge).

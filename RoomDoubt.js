@@ -372,7 +372,22 @@ const doubtSync = (room) => {
   s.board = doubtBoard(room);
 };
 
-/** The night's board: the wins at this table, most first. */
+/* The game just played, best first (ROOM_RESULT_BOARDS, RoomGames.js): the night, the program and
+   «مين هيكسب؟» count this game's places, not the evening's tally of wins below (the review of
+   1 Oct 2026: with the tally 6 players banked 5/3/3/3/3/3). The places out of cards in order,
+   then whoever still held cards, fewer cards first. */
+ROOM_RESULT_BOARDS.doubt = (room) => {
+  const s = room.shared || {};
+  if (s.phase !== 'gameover' || !Array.isArray(s.places)) return null;
+  const here = (s.order || []).filter(id => doubtHere(room, id));
+  const rest = here.filter(id => s.places.indexOf(id) === -1);
+  const counts = s.counts || {};
+  const levels = rest.map(id => counts[id] || 0).filter((n, i, a) => a.indexOf(n) === i).sort((a, b) => a - b);
+  return roomResultRows(room, s.places.filter(id => here.indexOf(id) !== -1).map(id => [id])
+    .concat(levels.map(n => rest.filter(id => (counts[id] || 0) === n))));
+};
+
+/** The board on the screens: the wins at this table, most first. */
 const doubtBoard = (room) => {
   const s = room.shared;
   return (s.order || []).filter(id => doubtHere(room, id))

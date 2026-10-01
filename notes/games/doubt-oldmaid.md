@@ -294,6 +294,15 @@ three), الشايب from two. Both have `GAME_RULES`, `HELP_ENTRIES`
 `roomTurnOf` case (`turn_up` for the player up). Lobby choices are kept on
 the host's phone (`recallOptions('doubt' | 'oldmaid')`).
 
+## The night and «مين هيكسب؟» (the review of 1 Oct 2026, the owner approved)
+
+- The board on the screens stays the evening's tally (كدّاب's wins, الشايب's losses), but the
+  night, the program and «مين هيكسب؟» count the game just played (`ROOM_RESULT_BOARDS.doubt` /
+  `.oldmaid`, `NIGHT_FROM_RESULT` in RoomGames.js): كدّاب by its places, whoever still held cards
+  after them fewer cards first; الشايب safe in the order out, then anyone still holding (a game ended
+  by leaving), الشايب's holder last. With the tally 6 players banked 5/3/3/3/3/3, and in الشايب every
+  non-loser 5.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

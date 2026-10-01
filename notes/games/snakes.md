@@ -463,6 +463,18 @@ the shared and server names are `snakes` / `SNAKES_`, the page's `snk` /
 layout that is still hidden (a reload paints before the screen shows, and set a 166px board);
 it looks again on the next frames, up to 120 of them.
 
+## The night, «مين هيكسب؟» and play again (the review of 1 Oct 2026)
+
+- The board (`snakesBoard`, RoomSnakes.js) is still the evening's wins at this game, but level wins are told
+  apart by this game's places (`tie`, as الكراسي and the bumper cars do, `boardRowKey` in
+  RoomGames.js): one game of four banks 5 / 3 / 2 / 1 on the night, not 5 and a 3 for everyone else.
+- «مين هيكسب؟» is settled on the game just played (`ROOM_RESULT_BOARDS` in RoomGames.js: its
+  places once it is over), not on the evening's tally.
+- «العب تاني» gives a free seat to someone who watched (joined late, or a seat emptied), never to
+  anyone the host benched.
+- One phone: who starts and the computer players' names are drawn with `shuffleArray`
+  (Fisher-Yates), not `sort(() => Math.random() - 0.5)`, which favoured the first seats.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

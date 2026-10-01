@@ -23,8 +23,9 @@
      line       who is waiting, in order; anyone who joins goes to the back
      champ      set when a game ends: who stays (the winner; on a draw, the
                 one who was defending the seat - seats[1])
-     result     { winner (seat or null), draw, reason: line | full | boxes | left,
+     result     { winner (seat or null), draw, reason: line | full | boxes | left | away,
                   winnerId, winnerName, loserId, loserName }
+     turnAt     when the seat to move got the turn (the server's clock): «خسران غياب» counts from it
      prev       the result of the game before this one, for "last game" lines
      streak     { id, n }: the champion's wins in a row
      scores / board   wins so far, best first: the night's leaderboard banks it
@@ -43,8 +44,21 @@
    leaves mid-game loses by forfeit (the other gets the win) and the next in
    line sits down when the game after is dealt; anyone in the room can deal
    the next game, since whoever is left at the table has to be able to.
+
+   The review of 1 Oct 2026 (the owner: "apply the improvements"):
+   - One thing to do is done for you: the last column of كونكت ٤, the last
+     square of إكس أو and the last line of نقط ومربعات are played for the
+     player after a beat (ROOM_FORCED_GAMES at the end) - never when that move
+     wins, which stays the player's own tap.
+   - «خسران غياب»: a seated phone that has been gone DUEL_AWAY_MS on its turn
+     loses this game, as a loss on the board would (the line moves on, the
+     player stays in the room; in a tournament it is that game lost). The
+     server's clock does it (duelAwayDeadline / duelAwayTimeout), from
+     room.lastSeen (room.js: when a phone's last socket went), so no phone
+     has to be awake; every other phone and the TV count it down.
    ========================================================================== */
 const DUEL_MIN_PLAYERS = 2;
+const DUEL_AWAY_MS = 60000;
 
 /** What each duel does differently: its options, a fresh board, and one move. */
 const DUEL_KINDS = {
@@ -63,6 +77,10 @@ const DUEL_KINDS = {
       if (res.win) { s.win = res.cells; return { end: true, winner: seat, reason: 'line' }; }
       if (res.draw) return { end: true, winner: null, reason: 'full' };
       return { end: false, again: false };
+    },
+    only: (s, seat) => {
+      const col = c4OnlyMove({ cols: s.cols, rows: s.rows, n: s.n, grid: s.grid || [] }, seat + 1);
+      return col < 0 ? null : { col: col };
     }
   },
   dots: {
@@ -81,6 +99,10 @@ const DUEL_KINDS = {
       s.last = { seat: seat, edge: res.edge, boxes: res.boxes };
       if (res.over) return { end: true, winner: c[1] > c[2] ? 0 : (c[2] > c[1] ? 1 : null), reason: 'boxes' };
       return { end: false, again: res.again };
+    },
+    only: (s, seat) => {
+      const e = dotsOnlyMove({ n: s.size, lines: s.lines || [], boxes: s.boxes || [] }, seat + 1);
+      return e < 0 ? null : { edge: e };
     }
   },
   // إكس أو in rooms (23 Sep 2026): seat 0 is X and moves first; the lobby's
@@ -104,6 +126,10 @@ const DUEL_KINDS = {
       if (w && w.mark !== 'D') { s.win = w.line; return { end: true, winner: seat, reason: 'line' }; }
       if (w) return { end: true, winner: null, reason: 'full' };
       return { end: false, again: false };
+    },
+    only: (s, seat) => {
+      const cell = xoOnlyMove(s.cells || [], !!s.rule3, seat === 0 ? 'X' : 'O');
+      return cell < 0 ? null : { cell: cell };
     }
   }
 };
@@ -191,6 +217,7 @@ const duelDeal = (room, kind) => {
   const s = room.shared;
   s.turn = 0;
   s.moves = 0;
+  s.turnAt = Date.now();
   s.last = null;
   s.result = null;
   s.roster = duelHere(room);
@@ -237,6 +264,7 @@ const duelAction = (room, playerId, action, payload, kind) => {
     s.moves++;
     if (out.end) { duelEnd(room, out.winner, out.reason); return; }
     if (!out.again) s.turn = 1 - s.turn;
+    s.turnAt = Date.now();
     return;
   }
 
@@ -276,4 +304,70 @@ const duelPlayerLeft = (room, playerId) => {
   }
   if (s.champ === playerId) s.champ = null;
   s.board = scoreboardOf(room);
+};
+
+/* --- the review of 1 Oct 2026: the move made for you, and «خسران غياب» ------------- */
+
+/** The seat to move's only move, when it is known and doesn't win: { seat, payload }, or null. */
+const duelOnlyMove = (s, kind) => {
+  const k = DUEL_KINDS[kind];
+  if (!s || s.phase !== 'play' || !k || !k.only || !Array.isArray(s.seats)) return null;
+  const payload = k.only(s, s.turn);
+  return payload ? { seat: s.turn, payload: payload } : null;
+};
+
+/**
+ * ROOM_FORCED_GAMES for a duel: the only move of whoever is up - in winner
+ * stays, or in a tournament's matches (the first one with such a move; the
+ * next once it is made).
+ */
+const duelForced = (kind) => (room) => {
+  const s = room.shared || {};
+  if (s.tour) {
+    const t = s.tour;
+    if (t.phase !== 'play') return null;
+    for (const m of t.matches) {
+      if (m.state !== 'play') continue;
+      const g = (s.games || {})[m.id];
+      const f = duelOnlyMove(g, kind);
+      if (!f) continue;
+      return {
+        pid: g.seats[f.seat],
+        key: ['tm', m.id, m.games, g.moves].join('|'),
+        move: { action: 'move', payload: Object.assign({ match: m.id, mg: m.games, move: g.moves }, f.payload) }
+      };
+    }
+    return null;
+  }
+  const f = duelOnlyMove(s, kind);
+  if (!f) return null;
+  return { pid: s.seats[f.seat], key: [s.round, s.moves].join('|'), move: { action: 'move', payload: Object.assign({ move: s.moves }, f.payload) } };
+};
+ROOM_FORCED_GAMES.connect4 = duelForced('connect4');
+ROOM_FORCED_GAMES.dots = duelForced('dots');
+ROOM_FORCED_GAMES.xo = duelForced('xo');
+
+/**
+ * When the seat to move loses by being away: DUEL_AWAY_MS after their phone
+ * went (room.lastSeen, kept by room.js), or after the turn came to them if
+ * they were gone already. Null while they are here. `v` is the room, or a
+ * tournament match's small room (tourRoomOf).
+ */
+const duelAwayDeadline = (v) => {
+  const s = (v && v.shared) || {};
+  if (s.phase !== 'play' || !Array.isArray(s.seats)) return null;
+  const pid = s.seats[s.turn];
+  const since = pid && v.lastSeen ? Number(v.lastSeen[pid]) || 0 : 0;
+  if (!since) return null;
+  return Math.max(since, Number(s.turnAt) || 0) + DUEL_AWAY_MS;
+};
+
+/** The seat to move has been gone long enough: they lose this game. True when it ended. */
+const duelAwayTimeout = (v, now) => {
+  const due = duelAwayDeadline(v);
+  if (due === null || now < due) return false;
+  const s = v.shared;
+  s.moves = (s.moves || 0) + 1;
+  duelEnd(v, 1 - s.turn, 'away');
+  return true;
 };

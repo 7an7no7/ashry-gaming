@@ -32,6 +32,11 @@
    - One thing to do is done for you: a Brain with only one kind that can move
      names it after a beat; a Hand with one legal move of the named kind plays
      it - unless it ends the game (a winning move stays a tap).
+   - A wrong tap isn't final (the review of 1 Oct 2026): the Brain may change
+     the call for HB_RECALL_MS, or until the Hand touches a piece ('touch') or
+     moves, whichever comes first ('recall', carrying callSeq). A computer
+     Hand, and the move made for a Hand, wait out that window when the Brain
+     is a person.
 
    shared:
      phase     'play' | 'over'
@@ -40,7 +45,9 @@
      teams     [[brain, hand], [brain, hand]]   index = colour (0 White)
      names     { pid: name }
      stage     'name' | 'move'
-     named     { kind, n, by } | null            what the Brain said for move n
+     named     { kind, n, by, at, touched, re } | null   what the Brain said for move n: when
+               (the server's clock), whether the Hand has touched a piece since, re: changed once
+     callSeq   raised by every call and every change of one (a tap carries it: staleTap)
      calls     [{ n, team, kind, by }]           the last few names, for the log
      chess     ONE BOARD (chessBoardNew), with the clock chosen
      result    { result, reason, winner: 0 | 1 | null }
@@ -52,6 +59,10 @@
 const HB_CLOCKS = ['off', '5+0', '10+0'];
 const HB_SEATS = 4;
 const HB_CALLS_KEPT = 10;
+const HB_RECALL_MS = 3000;          // the Brain may change the call this long (the phone counts it down)
+const HB_RECALL_GRACE_MS = 800;     // and a change on its way when the count ends still counts
+const HB_HARD_NODES = 600;          // positions the hard computer Hand looks at for each move of the named kind
+const HB_HARD_BUDGET_MS = 90;       // its whole decision; past this the rest get one ply
 // A piece's kind as Chess.js numbers it: 1 pawn, 2 knight, 3 bishop, 4 rook, 5 queen, 6 king.
 const HB_KINDS = [6, 5, 4, 3, 2, 1];
 
@@ -207,9 +218,35 @@ const hbName = (room, kind) => {
   const bd = s.chess;
   const k = Number(kind);
   if (hbKinds(bd.g).indexOf(k) === -1) throw new Error('القطعة دي مالهاش نقلة دلوقتي');
-  s.named = { kind: k, n: bd.moves, by: hbActor(s) };
+  s.named = { kind: k, n: bd.moves, by: hbActor(s), at: Date.now(), touched: false };
   s.calls = (s.calls || []).concat([{ n: bd.moves, team: bd.g.turn, kind: k, by: s.named.by }]).slice(-HB_CALLS_KEPT);
+  s.callSeq = (s.callSeq || 0) + 1;
   s.stage = 'move';
+};
+
+/** Can the Brain still change the call? Until the Hand touches a piece, and HB_RECALL_MS (+ the network's grace). */
+const hbCanRecall = (s, now) => !!(s && s.phase === 'play' && s.stage === 'move' && s.named && !s.named.touched &&
+  typeof s.named.at === 'number' && now <= s.named.at + HB_RECALL_MS + HB_RECALL_GRACE_MS);
+
+/** The Brain changes the call: the same move, another kind; the window it had is not lengthened. */
+const hbRename = (room, kind) => {
+  const s = room.shared;
+  const bd = s.chess;
+  const k = Number(kind);
+  if (hbKinds(bd.g).indexOf(k) === -1) throw new Error('القطعة دي مالهاش نقلة دلوقتي');
+  if (k === s.named.kind) return;
+  s.named.kind = k;
+  s.named.re = true;
+  const last = (s.calls || [])[s.calls.length - 1];
+  if (last && last.n === bd.moves) last.kind = k;
+  s.callSeq = (s.callSeq || 0) + 1;
+};
+
+/** While the Brain may still change the call, a person's Brain: how long a computer Hand (or a move made for a Hand) waits. */
+const hbRecallWait = (room, now) => {
+  const s = room.shared;
+  if (!hbCanRecall(s, now) || isRoomBot(room, s.named.by)) return 0;
+  return Math.max(0, s.named.at + HB_RECALL_MS + 200 - now);
 };
 
 /** The Hand plays a move of the named kind. */
@@ -241,9 +278,9 @@ const hbBotKind = (g, level) => {
 
 /**
  * The move a computer Hand plays of the named kind: a mate at once; otherwise
- * each move looked at one reply deep (captures followed), the best kept. Easy
- * plays one at random now and then. A few hundred positions a move at most:
- * the server's time is short.
+ * each move looked at one reply deep (easy) or two (hard), captures followed,
+ * the best kept. Easy plays one at random now and then. Hard looks at about 600
+ * positions a move, inside a budget for the whole decision: the server's time is short.
  */
 const hbBotMove = (g, kind, level) => {
   const moves = hbMovesOf(g, kind);
@@ -251,7 +288,11 @@ const hbBotMove = (g, kind, level) => {
   if (moves.length === 1) return moves[0];
   if (level !== 'hard' && Math.random() < 0.35) return moves[Math.floor(Math.random() * moves.length)];
   let best = null, bestScore = -Infinity;
-  const nodes = level === 'hard' ? 140 : 50;
+  // Hard (the review of 1 Oct 2026): two plies and ~600 positions a move (it was one ply and 140),
+  // inside HB_HARD_BUDGET_MS for the whole decision - past it, the rest get the quick look.
+  // Measured over random middlegames: about 11 ms a decision, 130 at the worst.
+  const hard = level === 'hard';
+  const t0 = Date.now();
   moves.forEach(m => {
     const q = chessCloneGame(g);
     const info = chessPlay(q, m);
@@ -259,7 +300,9 @@ const hbBotMove = (g, kind, level) => {
     let sc;
     if (info.status.over) sc = info.status.reason === 'mate' ? 1e7 : 0;
     else {
-      const a = chessAnalyse(q, { depth: 1, nodes: nodes, ms: 12 });
+      const look = !hard ? { depth: 1, nodes: 50, ms: 12 }
+        : Date.now() - t0 < HB_HARD_BUDGET_MS ? { depth: 2, nodes: HB_HARD_NODES, ms: 8 } : { depth: 1, nodes: 140, ms: 4 };
+      const a = chessAnalyse(q, look);
       sc = -a.score + (Math.random() * (level === 'hard' ? 4 : 30));
     }
     if (sc > bestScore) { bestScore = sc; best = m; }
@@ -293,9 +336,30 @@ const handBrainAction = (room, playerId, action, payload) => {
     return;
   }
 
+  if (action === 'recall') {
+    // The Brain's wrong tap, taken back: drawn for this call (callSeq), in time, before the Hand touched a piece.
+    if (s.phase !== 'play' || bd.result || s.stage !== 'move' || !s.named) return;
+    if (staleTap(p, 'n', bd.moves) || staleTap(p, 'call', s.callSeq)) return;
+    const team = (s.teams || [])[bd.g.turn] || [];
+    if (team[0] !== playerId) throw new Error('المخ بس هو اللي يغيّر القطعة');
+    if (!hbCanRecall(s, Date.now())) throw new Error(s.named.touched ? 'الإيد مسكت القطعة خلاص' : 'الوقت خلص، الإيد هتلعب');
+    hbRename(room, p.kind);
+    return;
+  }
+
+  if (action === 'touch') {
+    // The Hand has picked up a piece: the call can't change any more. Only the Hand, only for this call.
+    if (s.phase !== 'play' || bd.result || s.stage !== 'move' || !s.named || s.named.touched) return;
+    if (staleTap(p, 'move', bd.moves) || staleTap(p, 'call', s.callSeq)) return;
+    if (hbActor(s) !== playerId) return;
+    s.named.touched = true;
+    return;
+  }
+
   if (action === 'move') {
     if (s.phase !== 'play' || bd.result || s.stage !== 'move') return;
-    if (staleTap(p, 'move', bd.moves)) return;
+    // Drawn for a call the Brain has since changed (or a move already played): dropped.
+    if (staleTap(p, 'move', bd.moves) || staleTap(p, 'call', s.callSeq)) return;
     if (hbActor(s) !== playerId) throw new Error(seat && seat.role === 1 ? 'مش دور فريقك' : 'الإيد بس هي اللي تحرّك');
     hbMove(room, p);
     return;
@@ -368,7 +432,10 @@ ROOM_BOT_GAMES.handbrain = {
     const s = room.shared;
     const pid = hbActor(s);
     if (!pid || !isRoomBot(room, pid)) return null;
-    return { pid: pid, key: ['hb', s.round, s.chess.moves, s.stage].join('|') };
+    const key = ['hb', s.round, s.chess.moves, s.stage, s.stage === 'move' ? s.callSeq || 0 : ''].join('|');
+    // A computer Hand waits while a person's Brain may still change the call (and thinks as long as ever).
+    const wait = s.stage === 'move' ? hbRecallWait(room, Date.now()) : 0;
+    return wait ? { pid: pid, key: key, delay: Math.max(wait, ROOM_BOT_DELAY_MS[0] + Math.floor(Math.random() * (ROOM_BOT_DELAY_MS[1] - ROOM_BOT_DELAY_MS[0]))) } : { pid: pid, key: key };
   },
   decide(room, pid) { return hbAutoMove(room, roomBotLevel(room, pid) || 'easy'); },
   fallback(room) {
@@ -395,5 +462,10 @@ ROOM_FORCED_GAMES.handbrain = (room) => {
   // A move that ends the game stays the player's own tap.
   const info = chessPlay(chessCloneGame(bd.g), moves[0]);
   if (!info || info.status.over) return null;
-  return { pid: pid, key: key, move: { action: 'move', payload: { from: moves[0].from, to: moves[0].to, promo: '', move: bd.moves } } };
+  // Not while a person's Brain may still change the call (the key carries the call, so a change looks again).
+  return {
+    pid: pid, key: key + '|' + (s.callSeq || 0),
+    delay: Math.max(ROOM_FORCED_DELAY_MS, hbRecallWait(room, Date.now())),
+    move: { action: 'move', payload: { from: moves[0].from, to: moves[0].to, promo: '', move: bd.moves, call: s.callSeq } }
+  };
 };

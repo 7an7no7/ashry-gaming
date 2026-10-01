@@ -26,7 +26,10 @@ export const roomView = (room, pid, online, extra) => {
     // A computer player (`bot`: its level) is always here: it has no phone to lose.
     players: room.players.map((p) => (p.bot
       ? { id: p.id, name: p.name, online: true, bot: p.bot }
-      : { id: p.id, name: p.name, online: online.has(p.id) })),
+      : (online.has(p.id) || !(room.lastSeen && room.lastSeen[p.id])
+        ? { id: p.id, name: p.name, online: online.has(p.id) }
+        // Gone since when (the server's clock), for a clock that counts from it (the duels' «خسران غياب»).
+        : { id: p.id, name: p.name, online: false, away: room.lastSeen[p.id] }))),
     // Big screens showing the room. Not players: dealt nothing, counted nowhere.
     screens: screens.map((s) => ({ id: s.id, online: online.has(s.id) })),
     youAreScreen: isScreen,

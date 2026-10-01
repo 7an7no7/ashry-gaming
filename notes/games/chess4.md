@@ -168,6 +168,30 @@ rules are named `chess4` / `CHESS4_` and the page's code `ch4`.
   replaced, resigning, play again; FFA with one person and three bots on the
   clock).
 
+### The review of 1 Oct 2026
+
+- **Only computer players left** (`chess4BotsOnly`: every seat out or a bot): they move
+  every `CHESS4_FAST_BOT_MS` (250 ms; `ROOM_BOT_GAMES.chess4.pending` returns that delay),
+  the status says so (`ch4_bots_only`), and in everyone for themselves the host (or a
+  stand-in while the host is away, `requireMoveOn`) has **«⏩ خلّصها»** on the phone and the
+  TV: action `finish { round }` ends the game at once through `chess4End(g, 'finish')`,
+  ranked by the points (`ch4_why_finish`). Before that it is refused («لسه فيه ناس بتلعب»).
+- **The first move has 45 s** (with a clock only - without one nothing is timed): a seat's
+  clock still starts after its first move, but `clock.first` (set by `chess4ClockTurn`,
+  kept by `chess4RoomOut` like `at`) makes `chess4Deadline` look again after
+  `CHESS4_FIRST_MS`, and `chess4Timeout` plays an easy move for them (`auto: 'time'`, the
+  log's 🤖), their clock bank untouched. Every phone and the TV show the count beside the
+  status (`ch4FirstHtml`, painted by `ch4PaintClocks`).
+- **The magnifier** (24 px squares at 375): while a piece is carried, or a square is aimed
+  at with one picked up, a round loupe above the finger (below it when there is no room,
+  always on the screen) shows that part of the board at about 56 px a square, the square
+  under the finger outlined - green where the piece can go - and the carried piece in the
+  middle (`ch4LoupeShow / Move / Hide`, `.ch4-loupe`). It is a copy of the board taken as the
+  finger goes down, fixed in `<body>`, sized `min(150px, 40% of the width and of the
+  height)`, so it fits 375×667 and 667×375; only for a finger or pen, and only while a
+  square is under 34 px (a laptop or TV never sees it). Letting go plays exactly as before.
+- Tests: `rules.mjs`, "chess4 bots only:" and "chess4 first move:".
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

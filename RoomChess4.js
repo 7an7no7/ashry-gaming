@@ -23,6 +23,11 @@
        marked as such.
      - Someone who leaves: FFA - out, their pieces grey walls; teams - a
        computer player takes their seat for the rest of the game.
+     - The review of 1 Oct 2026: once nobody but computer players is still
+       playing, they move every CHESS4_FAST_BOT_MS, and in FFA the host has
+       «⏩ خلّصها» ('finish'): the game ends now, ranked by the points. With a
+       clock, a seat's first move (whose clock doesn't run yet) has
+       CHESS4_FIRST_MS; then an easy move is played for them (auto 'time').
 
    Nothing is hidden: the whole game is in `shared`. Every move carries `seq`
    (shared.turnSeq, raised whenever the turn moves), so a tap that arrives
@@ -31,6 +36,9 @@
 
 const CHESS4_GRACE_MS = 600;       // a move reaching the server this long after the flag still counts
 const CHESS4_LOG_MAX = 80;
+// The review of 1 Oct 2026:
+const CHESS4_FIRST_MS = 45000;     // with a clock, a seat's first move (before its clock runs) has this long, then it is played for them
+const CHESS4_FAST_BOT_MS = 250;    // nobody left playing but computer players: they move this quickly
 
 const chess4Shared = (room) => room.shared || (room.shared = {});
 
@@ -114,12 +122,24 @@ const chess4SeatBot = (room, name, level) => {
   return bot;
 };
 
-/** The clock of the player now up: it runs once they have made their first move of the game. */
+/**
+ * The clock of the player now up: it runs once they have made their first move
+ * of the game. Before that, the first move has CHESS4_FIRST_MS (`first`: when
+ * that wait began), and then a move is played for them.
+ */
 const chess4ClockTurn = (s, now) => {
   const c = s.clock;
   if (!c) return;
   const g = s.g;
   c.at = !g.over && c.moved[g.turn] ? now : null;
+  c.first = !g.over && !c.moved[g.turn] ? now : null;
+};
+
+/** Nobody is playing any more but computer players (everyone else out, or left): true. */
+const chess4BotsOnly = (room) => {
+  const s = room.shared || {};
+  if (s.phase !== 'play' || !s.g || s.g.over || !Array.isArray(s.seats)) return false;
+  return [0, 1, 2, 3].every(k => s.g.out[k] || isRoomBot(room, s.seats[k]));
 };
 
 /** After anything that moved the game on: the turn's clock, the end, the wins, the board. */
@@ -135,7 +155,7 @@ const chess4After = (room, info) => {
   if (g.over) {
     s.phase = 'over';
     room.phase = 'gameover';
-    if (s.clock) s.clock.at = null;
+    if (s.clock) { s.clock.at = null; s.clock.first = null; }
     if (!s.counted) {
       s.counted = true;
       s.wins = s.wins || {};
@@ -239,9 +259,10 @@ const chess4RoomOut = (room, seat, why) => {
   // back) and their turn's number stays, so a move they sent meanwhile counts.
   const same = s.g.turn === was && !s.g.over;
   const keepAt = same && s.clock ? s.clock.at : undefined;
+  const keepFirst = same && s.clock ? s.clock.first : undefined;
   chess4After(room, events);
   if (same) {
-    if (s.clock) s.clock.at = keepAt;
+    if (s.clock) { s.clock.at = keepAt; s.clock.first = keepFirst; }
     s.turnSeq = seq;
   }
 };
@@ -279,6 +300,16 @@ const chess4Action = (room, playerId, action, payload) => {
     return;
   }
 
+  if (action === 'finish') {
+    // «⏩ خلّصها» (the review of 1 Oct 2026): everyone for themselves, nobody left playing but
+    // computer players - the host ends it now, ranked by the points as they stand.
+    requireMoveOn(room, playerId);
+    if (s.phase !== 'play' || g.over || staleTap(p, 'round', s.round)) return;
+    if (g.mode !== 'ffa' || !chess4BotsOnly(room)) throw new Error('لسه فيه ناس بتلعب');
+    chess4After(room, [chess4End(g, 'finish')]);
+    return;
+  }
+
   if (action === 'resign') {
     // A confirm pressed after «play again» was drawn for the last game: it doesn't resign the new one.
     if (s.phase !== 'play' || staleTap(p, 'round', s.round)) return;
@@ -296,14 +327,25 @@ const chess4Action = (room, playerId, action, payload) => {
 const chess4Deadline = (room) => {
   const s = room.shared || {};
   const c = s.clock;
-  if (s.phase !== 'play' || !c || c.at === null || c.at === undefined || !s.g) return null;
+  if (s.phase !== 'play' || !c || !s.g || s.g.over) return null;
+  // The first move of a seat: its clock doesn't run yet, but the table doesn't wait for ever.
+  if ((c.at === null || c.at === undefined) && typeof c.first === 'number') return c.first + CHESS4_FIRST_MS + CHESS4_GRACE_MS + 1;
+  if (c.at === null || c.at === undefined) return null;
   return c.at + c.left[s.g.turn] + CHESS4_GRACE_MS + 1;
 };
 
 const chess4Timeout = (room, now) => {
   const d = chess4Deadline(room);
   if (d === null || now < d) return false;
-  chess4RoomOut(room, room.shared.g.turn, 'time');
+  const s = room.shared;
+  if (s.clock.at === null || s.clock.at === undefined) {
+    // The first move's time is up: an easy move is played for them, marked as such.
+    const mv = chess4BotMove(s.g, 'easy') || chess4Legal(s.g)[0];
+    if (!mv) return false;
+    chess4ApplyMove(room, mv, 'time');
+    return true;
+  }
+  chess4RoomOut(room, s.g.turn, 'time');
   return true;
 };
 
@@ -334,7 +376,9 @@ ROOM_BOT_GAMES.chess4 = {
     const s = room.shared || {};
     if (s.phase !== 'play' || !s.g || s.g.over) return null;
     const pid = s.seats[s.g.turn];
-    return pid && isRoomBot(room, pid) ? { pid: pid, key: s.turnSeq } : null;
+    if (!pid || !isRoomBot(room, pid)) return null;
+    // Only computer players left at the table: nobody is watching them think (the review of 1 Oct 2026).
+    return chess4BotsOnly(room) ? { pid: pid, key: s.turnSeq, delay: CHESS4_FAST_BOT_MS } : { pid: pid, key: s.turnSeq };
   },
   decide: (room, pid) => {
     const s = room.shared;

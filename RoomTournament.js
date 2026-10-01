@@ -67,6 +67,9 @@ const tourDuelKind = (kind) => ({
     if (action !== 'move') throw new Error('إجراء غير معروف');
     duelAction(v, pid, 'move', payload, kind);
   },
+  // «خسران غياب»: a seated phone gone a minute on its turn loses that game (RoomDuels.js).
+  deadline: (v) => duelAwayDeadline(v),
+  timeout: (v, now) => duelAwayTimeout(v, now),
   left: (v, pid) => duelPlayerLeft(v, pid),
   stay: (room, pid, settings) => duelAction(room, pid, 'start', Object.assign({}, settings), kind)
 });
@@ -217,7 +220,9 @@ const tourRoomOf = (room, m) => {
   const v = {
     code: room.code, game: room.game, hostId: room.hostId, phase: 'play',
     players: room.players.filter(p => seats.indexOf(p.id) !== -1),
-    screens: [], shared: s.games[m.id] || {}, secrets: secrets
+    screens: [], shared: s.games[m.id] || {}, secrets: secrets,
+    // When each phone went (room.js), for a game's clock (the duels' «خسران غياب»); never written back.
+    lastSeen: room.lastSeen || {}
   };
   Object.keys(hidden).forEach(k => { v[k] = hidden[k]; });
   // The host away for this one move (room.js): a stand-in may play for a quiet phone in any match.
@@ -327,7 +332,7 @@ const tourCheck = (room, m, now) => {
   const r = g.result || {};
   const seats = g.seats || m.seats || [];
   if (r.winner === 0 || r.winner === 1) {
-    tourFinish(room, m, seats[r.winner], r.reason === 'left' ? 'left' : 'won');
+    tourFinish(room, m, seats[r.winner], r.reason === 'left' || r.reason === 'away' ? r.reason : 'won');
   } else {
     m.draws = (m.draws || 0) + 1;
     const kind = TOUR_KINDS[room.game];
@@ -481,7 +486,7 @@ const tourDeadline = (room) => {
   const sooner = (x) => { if (typeof x === 'number' && (due === null || x < due)) due = x; };
   t.matches.forEach(m => {
     if (m.state === 'ready') sooner(m.startAt);
-    else if (m.state === 'play' && kind.deadline) sooner(kind.deadline({ shared: s.games[m.id] || {} }));
+    else if (m.state === 'play' && kind.deadline) sooner(kind.deadline({ shared: s.games[m.id] || {}, lastSeen: room.lastSeen || {} }));
   });
   return due;
 };
@@ -498,7 +503,7 @@ const tourTimeout = (room, now) => {
       tourDeal(room, m);
       changed = true;
     } else if (m.state === 'play' && kind.timeout && kind.deadline) {
-      const due = kind.deadline({ shared: s.games[m.id] || {} });
+      const due = kind.deadline({ shared: s.games[m.id] || {}, lastSeen: room.lastSeen || {} });
       if (!due || now < due) return;
       const v = tourRoomOf(room, m);
       if (kind.timeout(v, now)) {

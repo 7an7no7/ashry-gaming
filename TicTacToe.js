@@ -49,3 +49,19 @@ function xoMark(board, order, rule3, cell, mark) {
   }
   return { gone: gone };
 }
+
+/**
+ * The one empty square left for `mark`, when it doesn't make three in a row -
+ * played for them in a room (ROOM_FORCED_GAMES.xo); -1 otherwise. With the
+ * 3-marks rule there are always three squares free, so never.
+ */
+function xoOnlyMove(board, rule3, mark) {
+  if (rule3) return -1;
+  const free = [];
+  board.forEach((v, i) => { if (!v) free.push(i); });
+  if (free.length !== 1) return -1;
+  const b = board.slice();
+  b[free[0]] = mark;
+  const w = xoWinner(b);
+  return w && w.mark === mark ? -1 : free[0];
+}

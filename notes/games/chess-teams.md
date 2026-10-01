@@ -127,6 +127,27 @@ The owner's rules are in *The owner's specs*. Game id `handbrain`, view
 
 **The review of 1 Oct 2026.** A reload, a late joiner or a TV coming on doesn't replay the end's sound and confetti, the last tally's reveal or the Brain's last call (`vcFirstSight`, `hbFirstSight`, through `duelRoomFirstSight`); a deal first seen mid-game still cheers when it ends.
 
+### المخ والإيد: a wrong call taken back, a stronger Hand (the review of 1 Oct 2026)
+
+- **The Brain may change the call** for `HB_RECALL_MS` (3 s, plus 800 ms for the network on
+  the server) **or until the Hand touches a piece**, whichever comes first. `shared.named`
+  carries `at` (the server's time) and `touched`; `shared.callSeq` rises on every call and
+  every change. Actions: `recall { kind, n, call }` (the Brain of the side to move; the same
+  call, its kind changed, `named.re`, the log's last entry too; the window is not lengthened)
+  - **not** `rename`, which is the room's own "change my name" action and never reaches a
+  game - and `touch { move, call }` (the Hand, as it picks up a piece of the named kind,
+  sent once a call). The Hand's `move` carries `call`, so a move drawn for the old call is
+  dropped quietly (the phone puts its board back). On the Brain's phone the six stay for the
+  3 s with the call lit and a count (`hbRecallLeft`, `hbRecallTick`, `.hb-kind.is-picked`,
+  `hb_change_hint`); the call card pops and chimes again on a change and says «غيّر رأيه».
+- A computer Hand, and the move made for a person's Hand (`ROOM_FORCED_GAMES.handbrain`),
+  wait out a **person's** Brain's window (`hbRecallWait`); their keys carry `callSeq`.
+- **The hard computer Hand** looks two plies and 600 positions at each move of the kind
+  named (it was one ply and 140), inside 90 ms for the whole decision, then one ply for the
+  rest (`HB_HARD_NODES`, `HB_HARD_BUDGET_MS`). Measured over random middlegames: about 11 ms a
+  decision, 130 ms at the worst.
+- Tests: `rules.mjs`, "handbrain recall:".
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

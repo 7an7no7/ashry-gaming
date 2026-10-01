@@ -137,7 +137,7 @@ ROOM_GAMES.xo = {
     const moveKey = s.last ? key + '|' + s.moves : '';
     const sig = ['xor', s.round, s.phase, s.moves, s.turn, seat, JSON.stringify(s.line || []), s.champ,
                  JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name).join(','),
-                 state.youAreHost, appState.lang].join('|');
+                 state.youAreHost, appState.lang, duelRoomAwayAt(state)].join('|');
     // A reload or a late join shows the board as it is (never over this phone's own mark drawn early).
     if (!(moveKey && duelRoomLocal.early && duelRoomLocal.early.key === moveKey)) {
       duelRoomFirstSight(state, key, { motion: [moveKey, key + '|light'], once: [moveKey && 'snd|' + moveKey] });
@@ -153,7 +153,7 @@ ROOM_GAMES.xo = {
           <div class="duel-layout__side">
             <div class="duel-head">
               ${xoRoomPills(state, t)}
-              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(duelRoomStatus(state, t))}</p>
+              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(duelRoomStatus(state, t))}</p>${duelRoomAwayHtml(state, t)}
               ${myTurn && leaving >= 0 ? `<p class="xo-rule xo-rule--room">${escapeHTML(t.xo_three_play || '')}</p>` : ''}
             </div>
             ${s.phase === 'over' ? duelRoomOverHtml(state, t) : duelRoomWatchNote(state, t)}
@@ -174,6 +174,7 @@ ROOM_GAMES.xo = {
       duelRoomCheer(el, state, key);
     }
     refreshRoomPlayerStrip(el, state);
+    duelRoomAwayTick(state);
   },
   // A mark is not a new step to scroll to: the board is what everyone is watching.
   actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
@@ -183,7 +184,7 @@ TV_GAMES.xo = {
   sig: (state) => {
     const s = state.shared || {};
     return ['xo', s.round, s.phase, s.moves, JSON.stringify(s.line || []), s.champ, JSON.stringify(s.scores || {}),
-            (state.players || []).map(p => p.id + p.name).join(','), state.youAreHost].join('|');
+            (state.players || []).map(p => p.id + p.name).join(','), state.youAreHost, duelRoomAwayAt(state)].join('|');
   },
   frame(state, t) {
     const s = state.shared || {};
@@ -201,6 +202,7 @@ TV_GAMES.xo = {
       </div>`;
   },
   after(state, rebuilt) {
+    duelRoomAwayTick(state);
     if (!rebuilt) return;
     const el = document.getElementById('view-room-tv');
     const s = state.shared || {};

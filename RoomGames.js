@@ -4277,6 +4277,8 @@ const gameDeadline = (room) => {
   if (room.game === 'mafia' && (s.phase === 'night' || s.phase === 'day') && s.endsAt) return s.endsAt + MAFIA_GRACE_MS;
   if (room.game === 'screw' && (s.phase === 'memorize' || s.phase === 'play' || s.phase === 'thiefGuess') && s.endsAt) return s.endsAt + SKREW_GRACE_MS;
   if (room.game === 'uno') return unoDeadline(room);
+  // «خسران غياب»: the seat to move gone a minute (RoomDuels.js).
+  if (room.game === 'connect4' || room.game === 'dots' || room.game === 'xo') return duelAwayDeadline(room);
   if (room.game === 'domino') return dominoDeadline(room);
   if (room.game === 'ludo') return ludoDeadline(room);
   if (room.game === 'snakes') return snakesDeadline(room);
@@ -4431,6 +4433,7 @@ const gameTimeout = (room, now) => {
     });
   }
   if (room.game === 'uno') return unoTimeout(room, now);
+  if (room.game === 'connect4' || room.game === 'dots' || room.game === 'xo') return duelAwayTimeout(room, now);
   if (room.game === 'domino') return dominoTimeout(room, now);
   if (room.game === 'ludo') return ludoTimeout(room, now);
   if (room.game === 'snakes') return snakesTimeout(room, now);

@@ -77,6 +77,7 @@ file and a new line.
 - **The night's points are one rule everywhere** (the owner, 30 Sep 2026): each game banks 5 / 3 / 2 for the first three places and 1 for everyone else who played (`NIGHT_PLACES`, `NIGHT_PLAYED` in `RoomGames.js`): the room's night board, الشلة's nights and the program.
 - 🎧 ارسم اللي بتسمعه (one describes a picture the app made, the rest draw it; the app marks each drawing with a %; rooms) - `notes/games/hear.md`.
 - The five of 29 Sep: الحقوا! - `notes/games/wire.md`; الأوضة المضلمة - `notes/games/darkroom.md`; حط إيدك! - `notes/games/exact.md`; الشاهد - `notes/games/witness.md`; المزاد - `notes/games/box.md`.
+- 🔐 الخزنة («صندوق جدّو», rooms: one sees the locks, the others read grandpa's notebook; three ways, 3 strikes or time, endless levels or a set; `Vault.js`, `RoomVault.js`, `JS_RoomVault.html`) - `notes/games/vault.md`.
 
 ### The app around the games
 
@@ -210,8 +211,8 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `Snakes.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Skull.js`, `Battleship.js`, `Witness.js`, `Dark.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, `Wire.js`, and the game files bundled after
-  `RoomGames.js`, `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`, `RoomWire.js`, `RoomWitness.js`, `RoomExact.js`, `RoomDark.js`, `RoomBox.js`, `rooms-worker/src/`, `docs/` first: the
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `Snakes.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Skull.js`, `Battleship.js`, `Witness.js`, `Dark.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, `Wire.js`, `Vault.js`, and the game files bundled after
+  `RoomGames.js`, `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomBumper.js`, `RoomWire.js`, `RoomVault.js`, `RoomWitness.js`, `RoomExact.js`, `RoomDark.js`, `RoomBox.js`, `rooms-worker/src/`, `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.
 - **The main address** (`cd tools && npm run deploy:site`): `site-worker/` is

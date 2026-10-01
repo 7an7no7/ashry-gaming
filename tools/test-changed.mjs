@@ -88,6 +88,7 @@ const MAP = [
   { files: /^(RoomChairs\.js|JS_RoomChairs\.html)$/, robots: ['chairs'], ui: ['chairs'] },
   { files: /^(RoomBumper\.js|JS_RoomBumper\.html)$/, robots: ['bumper'], ui: ['bumper'] },
   { files: /^(Wire\.js|RoomWire\.js|JS_RoomWire\.html)$/, robots: ['wire'], ui: ['wire'] },
+  { files: /^(Vault\.js|RoomVault\.js|JS_RoomVault\.html)$/, robots: ['vault'], ui: ['vault'] },
   { files: /^(Witness\.js|RoomWitness\.js|JS_RoomWitness\.html)$/, robots: ['witness'], ui: ['witness'] },
   { files: /^(Hear\.js|RoomHear\.js|JS_RoomHear\.html)$/, robots: ['hear'], ui: ['hear'] },
   { files: /^(RoomExact\.js|JS_RoomExact\.html)$/, robots: ['exact'], ui: ['exact'] },

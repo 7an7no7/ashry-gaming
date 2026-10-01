@@ -76,6 +76,7 @@ export const CHUNKS = {
   chooser: ['JS_Chooser'],
   smallrooms: ['JS_RoomBuzzer', 'JS_RoomChairs', 'JS_RoomTwoTruths', 'JS_RoomHerd', 'JS_RoomMafia', 'JS_RoomMind', 'JS_RoomTimeline'],
   wire: ['JS_RoomWire', 'Wire.js'],
+  vault: ['JS_RoomVault', 'Vault.js'],
   bumper: ['JS_RoomBumper'],
   quiz: ['JS_Emoji', 'JS_Proverbs', 'JS_RoomQuiz'],
   uno: ['JS_RoomUno', 'UnoCards.js'],
@@ -563,7 +564,7 @@ export function checkRegistryOrder({ order, code, fileChunk, shellSet, sorted, d
 
 /* Word lists the page shares with the rooms server: one file, both sides
    (and ChessPuzzles.js, which only the page has). */
-export const SHARED_LISTS = ['DisabledGames.js', 'Dice.js', 'Packs.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Hear.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js', 'Missions.js'];
+export const SHARED_LISTS = ['DisabledGames.js', 'Dice.js', 'Packs.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Vault.js', 'Hear.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js', 'Missions.js'];
 
 /** Reads Controller.html, every file it includes and the shared lists. */
 export async function readPage(root, readFile, path) {

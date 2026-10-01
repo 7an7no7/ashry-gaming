@@ -41,6 +41,8 @@ const GW = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.ur
 // شطرنج's legal moves (and باغ هاوس's drops), for the robots of a chess tournament and of bughouse.
 // الأوضة المضلمة's map, rebuilt from the seed the guides and the TV are sent (never the mover).
 const DARKM = new Function(readFileSync(new URL('../../Dark.js', import.meta.url), 'utf8') + ';return { darkMap, darkBlocked, darkPath, DARK_DIRS };')();
+// الخزنة's answers, worked out by the robots from the opener's look and the readers' pages (never the server's).
+const VAULTR = new Function(readFileSync(new URL('../../Vault.js', import.meta.url), 'utf8') + ';return { vaultWireAnswer, vaultSymbolOrder, vaultTwistOn };')();
 const CHM = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
 
 const ARGS = process.argv.slice(2);
@@ -1120,6 +1122,126 @@ async function wireRobots() {
   await H.must('backToHub');
   await H.waitFor((s) => s.phase === 'lobby', 'wire: back in the hub');
   [H, J, late, TV].forEach((x) => x.close());
+}
+
+/* --- الخزنة: the opener sees the locks, the readers hold the pages; the robots "talk" by putting both together --- */
+/** A lock's answer, worked out the way the table does: the opener's look and the readers' pages, nothing else. */
+function vaultRobotAnswer(lock, pages, serial, mistakes) {
+  // A page two phones hold (copies) is read once.
+  const of = (k) => pages.filter((p, n) => p.k === k && pages.findIndex((q) => q.u === p.u) === n);
+  if (lock.k === 'wires') {
+    const rules = {};
+    of('wires').forEach((p) => Object.assign(rules, p.rules));
+    return rules[lock.look.wires.length] ? VAULTR.vaultWireAnswer(rules, lock.look.wires) : null;
+  }
+  if (lock.k === 'symbols') {
+    const cols = [].concat(...of('symbols').map((p) => p.cols.map((c) => c.syms)));
+    return VAULTR.vaultSymbolOrder(cols, lock.look.syms);
+  }
+  if (lock.k === 'dial') {
+    const page = of('dial').find((p) => p.codes.some((x) => x.s === lock.look.shape));
+    if (!page) return null;
+    const code = page.codes.find((x) => x.s === lock.look.shape).c;
+    return VAULTR.vaultTwistOn(page.twist, serial) ? code.slice().reverse() : code;
+  }
+  const row = Math.min(2, mistakes);
+  const map = {};
+  of('lights').forEach((p) => p.colors.forEach((c, ci) => { map[c] = p.rows[row][ci]; }));
+  return lock.look.seq.every((c) => map[c]) ? lock.look.seq.map((c) => map[c]) : null;
+}
+/** Opens every lock a robot holds (or n of them), reading every page at the table. */
+async function vaultRobotOpen(holders, readers, n = 99) {
+  const pages = [].concat(...readers.map((b) => ((b.state.you || {}).pages) || []));
+  for (const b of holders) {
+    const st = b.state, s = st.shared;
+    const key = Object.keys(s.sides).find((k) => s.sides[k].holders[b.pid]);
+    const mine = s.sides[key];
+    for (const lock of ((st.you || {}).locks || [])) {
+      if (n-- <= 0) return;
+      if (mine.open[lock.i]) continue;
+      const ans = vaultRobotAnswer(lock, pages, s.serial, b.state.shared.sides[key].mistakes);
+      if (ans === null || ans === undefined) { check(false, 'vault: the pages at the table answer every lock'); continue; }
+      const pay = { i: lock.i, safe: s.safeNo };
+      if (lock.k === 'wires') await b.act('cut', Object.assign(pay, { w: ans }));
+      else if (lock.k === 'symbols') { for (const x of ans) await b.act('sym', Object.assign({}, pay, { s: x })); }
+      else if (lock.k === 'dial') await b.act('dial', Object.assign(pay, { code: ans }));
+      else { for (const c of ans) await b.act('light', Object.assign({}, pay, { c })); }
+    }
+  }
+}
+
+async function vaultRobots() {
+  console.log('• الخزنة (the opener and the readers, a strike, a safe opened, the alarm, «الكل» as a set, a leaver, the night)');
+  const H = await Bot.host('هبة', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const L = await Bot.join(H.code, 'Lina');
+  const TV = await Bot.join(H.code, '', true);
+  const four = [H, J, K, L];
+  await H.must('chooseGame', { game: 'vault' });
+  check((await J.act('start', {})).ok === false, 'vault: only the host starts');
+  await H.must('start', { way: 'one', mistakes: 'strikes', win: 'levels' });
+  await all(four.concat([TV]), (s) => s.game === 'vault' && s.shared.phase === 'ready' && s.shared.safeNo === 1 && s.shared.locks.length === 2, 'vault: the first safe\'s card, two locks, on every phone and the TV');
+  const opener = byId(four, H.state.shared.sides.x.opener);
+  const readers = four.filter((b) => b !== opener);
+  check(opener === H && opener.state.you.locks.length === 2 && !opener.state.you.pages.length, 'vault: the host opens the first safe: the locks, no page');
+  check(readers.every((b) => !b.state.you.locks.length && b.state.you.pages.length >= 1), 'vault: every reader holds a page and no lock');
+  check(TV.state.you === null && !leaks(TV, '"look"') && !leaks(TV, '"rules"') && !leaks(TV, '"cols"'), 'vault: the TV holds no lock and no page');
+  check(readers.every((b) => !leaks(b, '"look"')), 'vault: no reader is sent a lock\'s look');
+  const late = await Bot.join(H.code, 'متأخر');
+  check(late.state.inGame === false && !late.state.you, 'vault: someone who joins mid-game watches');
+  await all(four, (s) => s.shared.phase === 'play', 'vault: the candle lights', 9000);
+  // A wrong cut (or a wrong code): a strike everyone sees, the candle faster.
+  const lk = opener.state.you.locks[0];
+  const pagesAll = [].concat(...readers.map((b) => b.state.you.pages));
+  const right = vaultRobotAnswer(lk, pagesAll, opener.state.shared.serial, 0);
+  if (lk.k === 'wires') await opener.act('cut', { i: lk.i, w: (right + 1) % lk.look.wires.length, safe: 1 });
+  else if (lk.k === 'dial') await opener.act('dial', { i: lk.i, code: right.map((d) => (d + 1) % 10), safe: 1 });
+  else if (lk.k === 'symbols') await opener.act('sym', { i: lk.i, s: right[right.length - 1], safe: 1 });
+  else await opener.act('light', { i: lk.i, c: ['r', 'b', 'g', 'y'].find((c) => c !== right[0]), safe: 1 });
+  await all(four.concat([TV]), (s) => s.shared.sides.x.strikes === 1 && s.shared.sides.x.rate === 1.25, 'vault: a mistake: a strike on every screen, the candle 25% faster');
+  check((await J.act('cut', { i: lk.i, w: 0, safe: 1 })).ok === false, 'vault: a reader can\'t work a lock');
+  await vaultRobotOpen([opener], readers);
+  await all(four.concat([TV]), (s) => s.shared.phase === 'result' && s.shared.result.open && s.shared.levelsWon === 1, 'vault: the safe opened by talking: a level cleared on every screen');
+  check((await J.act('nextSafe', { safe: 1 })).ok === false, 'vault: only the host moves on');
+  await H.must('nextSafe', { safe: 1 });
+  await all(four, (s) => s.shared.safeNo === 2 && s.shared.locks.length === 3 && s.shared.sides.x.opener !== H.pid, 'vault: the next safe: three locks, another opener');
+  await all(four, (s) => s.shared.phase === 'play', 'vault: the second candle lights', 9000);
+  // Three wrong codes on one lock (or wires): the alarm, and the endless game ends.
+  const op2 = byId(four, H.state.shared.sides.x.opener);
+  for (let k = 0; k < 3 && op2.state.shared.phase === 'play'; k++) {
+    const lock = op2.state.you.locks.find((l) => !op2.state.shared.sides.x.open[l.i] && (l.k !== 'wires' || l.prog.cut.length < l.look.wires.length - 1));
+    const ans = vaultRobotAnswer(lock, [].concat(...four.filter((b) => b !== op2).map((b) => b.state.you.pages)), op2.state.shared.serial, op2.state.shared.sides.x.mistakes);
+    if (lock.k === 'wires') await op2.act('cut', { i: lock.i, w: lock.look.wires.findIndex((c, w) => w !== ans && lock.prog.cut.indexOf(w) === -1), safe: 2 });
+    else if (lock.k === 'dial') await op2.act('dial', { i: lock.i, code: ans.map((d) => (d + 5) % 10), safe: 2 });
+    else if (lock.k === 'symbols') await op2.act('sym', { i: lock.i, s: ans[ans.length - 1], safe: 2 });
+    else await op2.act('light', { i: lock.i, c: ['r', 'b', 'g', 'y'].find((c) => c !== ans[0]), safe: 2 });
+    await sleep(150);
+  }
+  await all(four.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.why === 'alarm' && s.shared.best === 1, 'vault: the third mistake sets off the alarm: the game over, the room\'s best 1');
+  // Play again, «الكل» as a set of 3: the latecomer is dealt in, a lock and a page each.
+  await H.must('playAgain', { way: 'all', mistakes: 'time', win: 'set', count: 3 });
+  const five = four.concat([late]);
+  await all(five, (s) => s.shared.phase === 'ready' && s.shared.way === 'all' && s.shared.locks.length === 5 && s.you && s.you.locks.length === 1 && s.you.pages.length >= 1 && s.you.pages.every((p) => p.k !== s.you.locks[0].k),
+    'vault: «الكل»: every phone a lock, and a page for someone else\'s');
+  for (let safe = 1; safe <= 3; safe++) {
+    await all(five, (s) => s.shared.safeNo === safe && s.shared.phase === 'play', 'vault: «الكل»: safe ' + safe + ' lit', 9000);
+    if (safe === 2) {
+      // A leaver: their lock and page dealt again to who is left.
+      await api('/leave', { code: K.code, pid: K.pid, key: K.key });
+      five.splice(five.indexOf(K), 1);
+      K.close();
+      await all(five, (s) => s.shared.sides.x.ids.length === 4 && Object.keys(s.shared.sides.x.holders).indexOf(K.pid) === -1 && s.you.locks.length >= 1, 'vault: a leaver\'s lock goes to someone still here');
+    }
+    await vaultRobotOpen(five, five);
+    await all(five, (s) => s.shared.safeNo === safe && s.shared.phase === 'result' && s.shared.result.open, 'vault: «الكل»: safe ' + safe + ' opened by everyone at once', 8000);
+    if (safe < 3) await H.must('nextSafe', { safe });
+  }
+  await H.must('nextSafe', { safe: 3 });
+  await all(five.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.why === 'done' && s.shared.board.length >= 4 && s.shared.board[0].score >= 9, 'vault: the set over: the board on every screen');
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby' && Object.keys(s.night || {}).length >= 4, 'vault: back in the hub, the set on the night\'s board');
+  five.concat([TV]).forEach((x) => x.close());
 }
 
 /* --- افتح يا صندوق: four people and the TV, eight boxes to the end (run alone with --only=box) --- */
@@ -6311,6 +6433,7 @@ const SEGMENTS = [
   { name: 'hear', run: hearRobots, secs: 40 },
   { name: 'quiz', run: quizRobots, secs: 6 },
   { name: 'wire', run: wireRobots, secs: 50 },
+  { name: 'vault', run: vaultRobots, secs: 27 },
   { name: 'box', run: boxRobots, secs: 84 },
   { name: 'darkroom', run: darkroomRobots, secs: 18 },
   { name: 'exact', run: exactRobots, secs: 36 },

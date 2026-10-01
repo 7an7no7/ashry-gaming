@@ -110,6 +110,7 @@ const clearGameState = (room) => {
   room._est = null;
   room._chairs = null;   // الكراسي الموسيقية: the stop moment and the fake pauses (RoomChairs.js)
   room._witness = null;  // الشاهد: the real face and its place in the lineup (RoomWitness.js)
+  room._vault = null;    // الخزنة: the notebook's seed, the safe, each side's progress (RoomVault.js); the room's best (_vaultBest) stays
   room._wire = null;     // الحقوا!: the panels, the controls' states, what is broken (RoomWire.js); the room's best (_wireBest) stays
   room._box = null;      // المزاد: the eight boxes, the clues, the bids, a key's peek (RoomBox.js)
   room._dark = null;     // الأوضة المضلمة: the map's seed and the near misses (RoomDark.js)
@@ -159,6 +160,8 @@ const ROOM_GAME_IDS = [
   'chairs',
   // الحقوا! (RoomWire.js): every phone a panel, orders shouted across the table, levels until you lose.
   'wire',
+  // الخزنة (RoomVault.js): grandpa's chest - the locks on one phone, the notebook on the others; talk.
+  'vault',
   // عربيات التصادم (RoomBumper.js): the TV runs the game, every phone steers a car (the controllers test).
   'bumper',
   // كدّاب (RoomDoubt.js) and الشايب (RoomOldMaid.js): the playing cards.
@@ -745,6 +748,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'chairs':     chairsAction(room, playerId, action, payload); break;      // RoomChairs.js
     case 'witness':    witnessAction(room, playerId, action, payload); break;     // RoomWitness.js
     case 'wire':       wireAction(room, playerId, action, payload); break;        // RoomWire.js
+    case 'vault':      vaultAction(room, playerId, action, payload); break;       // RoomVault.js
     case 'box':        boxAction(room, playerId, action, payload); break;         // RoomBox.js
     case 'exact':      exactAction(room, playerId, action, payload); break;       // RoomExact.js
     case 'hear':       hearAction(room, playerId, action, payload); break;        // RoomHear.js
@@ -4041,6 +4045,7 @@ const gameDeadline = (room) => {
   if (room.game === 'chairs') return chairsDeadline(room);
   if (room.game === 'witness') return witnessDeadline(room);
   if (room.game === 'wire') return wireDeadline(room);
+  if (room.game === 'vault') return vaultDeadline(room);
   if (room.game === 'box') return boxDeadline(room);
   if (room.game === 'exact') return exactDeadline(room);
   if (room.game === 'hear') return hearDeadline(room);
@@ -4186,6 +4191,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'chairs') return chairsTimeout(room, now);
   if (room.game === 'witness') return witnessTimeout(room, now);
   if (room.game === 'wire') return wireTimeout(room, now);
+  if (room.game === 'vault') return vaultTimeout(room, now);
   if (room.game === 'box') return boxTimeout(room, now);
   if (room.game === 'exact') return exactTimeout(room, now);
   if (room.game === 'hear') return hearTimeout(room, now);
@@ -4336,6 +4342,9 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'wire':
       wirePlayerLeft(room, playerId);
+      return;
+    case 'vault':
+      vaultPlayerLeft(room, playerId);
       return;
     case 'box':
       boxPlayerLeft(room, playerId);

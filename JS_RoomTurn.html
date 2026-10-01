@@ -61,6 +61,11 @@ function roomTurnOf(state) {
     case 'witness':
       if (s.phase === 'ready' && s.witnessId === me) return 'turn_witness';
       return s.phase === 'draw' && s.artistId === me ? 'turn_draw' : null;
+    case 'vault': {
+      // A lock waiting on this phone while the candle burns (the notebook's readers are talked to, not alerted).
+      const side = Object.keys(s.sides || {}).map((k) => s.sides[k]).find((x) => x.holders && x.holders[me]);
+      return s.phase === 'play' && side && !side.done && side.holders[me].locks.some((i) => !side.open[i]) ? 'turn_vault' : null;
+    }
     case 'wire':
       return s.phase === 'play' && (s.alive || []).indexOf(me) !== -1 && !!(s.orders || {})[me] ? 'turn_wire' : null;
     case 'chairs':

@@ -229,6 +229,13 @@ at a time, your own mark lands as your finger lifts (`duelRoomSend`'s early
 step), and the oldest mark is faded only on its owner's phone, on their turn.
 The setup screen gained the one phone / own phones switch.
 
+### The exit on one phone (1 Oct 2026)
+
+On one phone (`paintConnect4`, `paintDots`) «خروج» is a small quiet button
+(`.play-exit`) in the bar, and upright the bar sits at the foot of the screen
+(`.play-foot`; `notes/games/solo.md`, *The bar of the solo games*). إكس أو is not
+part of this change.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

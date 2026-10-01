@@ -40,6 +40,24 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
   time (`publishTelephoneChain`): a whole evening's drawings in every
   state push would be most of a phone's data. No scores.
 
+### فوازير إيموجي and كمّل المثل on one phone: the play screen (1 Oct 2026)
+
+From the owner's before/after sheet (it was three full-width buttons stacked under
+the card and half the screen empty). `paintEmoji` and `paintProverb` draw one
+screen, with the helpers in `JS_Emoji.html`: the card (`.quiz1-card`) takes the
+height left, with the category and the round as chips on it (`quizCardChips`;
+كمّل المثل has no category, so only «مثل N») and the emoji bigger; under it the
+round's dots (`quizRoundDots`, the من أنا؟ writing step's `.wa-write__prog` with
+`.quiz1-dots`): the game has no end, so they are ten to a row and the row starts
+over every ten. Then "who got it?" and the board when names are kept, and the bar
+at the foot (`quizPlayBar`, `.talk__actions`): «👀 كشف الإجابة» / «كشف الكلمة»
+full width, «عدّي» and «خروج» (or «🏁 إنهاء اللعبة» when scoring) the quiet pair
+under it; after the reveal «فزورة تانية» / «مثل تاني» takes the main slot and the
+pair keeps the exit. The answer pops once on the tap (`emojiJustRevealed`,
+`provJustRevealed`, `animate-pop`), not on a redraw or a reload. The CSS is in the
+فوازير إيموجي · كمّل المثل block of `Style.html` (`.quiz1-*`); on a phone on its
+side the bar is one line (the talk's rule).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -56,6 +56,7 @@ function revealProverb() {
   const p = provState();
   p.revealed = true;
   saveToLocal();
+  provJustRevealed = true;
   paintProverb();
   playSound('success');
 }
@@ -83,6 +84,7 @@ function paintProverb() {
   if (!stage) return;
   const t = TRANSLATIONS[appState.lang];
   if (p.phase === 'over') {
+    stage.classList.remove('quiz1-stage');
     stage.innerHTML = quizOverHtml(p, t, 'proverbs', 'proverbsPlayAgain()', 'setupProverbs()');
     quizSettleBoard(p, 'proverbs');
     if (typeof scrollToAction === 'function') scrollToAction();   // the podium rises at the top
@@ -91,30 +93,29 @@ function paintProverb() {
   if (!p.item) return;
   const scoring = quizScoring(p);
   const parts = String(p.item.p).split('___');
+  const pop = p.revealed && provJustRevealed && !motionOff();
+  provJustRevealed = false;
   const blank = p.revealed
-    ? `<span class="prov-blank is-shown">${escapeHTML(p.item.a)}</span>`
+    ? `<span class="prov-blank is-shown ${pop ? 'animate-pop' : ''}">${escapeHTML(p.item.a)}</span>`
     : `<span class="prov-blank">......</span>`;
+  // The bar, the chips and the dots are فوازير إيموجي's (quizPlayBar, JS_Emoji.html).
+  stage.classList.add('quiz1-stage');
   stage.innerHTML = `
-    <div class="cn-score">
-      <span class="cn-score__role">${escapeHTML(t.prov_n || '')} ${p.n}</span>
+    <div class="card quiz1-card">
+      ${quizCardChips('', t.prov_n, p.n)}
+      <div class="prov-card quiz1-card__body">${escapeHTML(parts[0] || '')}${blank}${escapeHTML(parts[1] || '')}</div>
+      ${p.revealed ? (typeof reportBtnHtml === 'function' ? reportBtnHtml('proverbs', p.item.p) : '') : `<p class="quiz1-hint">${escapeHTML(t.prov_device_hint || '')}</p>`}
     </div>
-    <div class="card" style="text-align:center">
-      <div class="prov-card">${escapeHTML(parts[0] || '')}${blank}${escapeHTML(parts[1] || '')}</div>
-      ${p.revealed ? (typeof reportBtnHtml === 'function' ? reportBtnHtml('proverbs', p.item.p) : '') : `<p class="sheet__subtitle">${escapeHTML(t.prov_device_hint || '')}</p>`}
-    </div>
+    ${quizRoundDots(p.n)}
     ${quizWhoGotHtml(p, t, 'proverbGot')}
-    <div class="btn-stack">
-      ${p.revealed
-        ? `<button class="btn btn--primary btn--lg" onclick="nextProverb()">${escapeHTML(t.prov_next || '')}</button>`
-        : `<button class="btn btn--primary btn--lg" onclick="revealProverb()">${escapeHTML(t.prov_reveal || '')}</button>
-           <button class="btn btn--ghost btn--sm" onclick="nextProverb()">${escapeHTML(t.emoji_skip || '')}</button>`}
-      ${scoring
-        ? `<button class="btn btn--ghost" onclick="finishProverbsGame()">🏁 ${escapeHTML(t.tb_finish || '')}</button>`
-        : `<button class="btn btn--ghost" onclick="setupProverbs()">${escapeHTML(t.exit || '')}</button>`}
-    </div>
-    ${scoring ? renderScoreboard(quizPointsBoard(p)) : ''}`;
+    ${scoring ? renderScoreboard(quizPointsBoard(p)) : ''}
+    ${quizPlayBar(t,
+      p.revealed ? [t.prov_next, 'nextProverb()'] : ['👀 ' + (t.prov_reveal || ''), 'revealProverb()'],
+      p.revealed ? '' : 'nextProverb()', scoring, 'finishProverbsGame()', 'setupProverbs()')}`;
   if (scoring) quizSettleBoard(p, 'proverbs');
 }
+
+let provJustRevealed = false;   // the word pops once, on the tap - not on a redraw or a reload
 
 function restoreProverbs() {
   const p = provState();

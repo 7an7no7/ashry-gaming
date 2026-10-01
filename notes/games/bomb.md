@@ -36,6 +36,15 @@ when the name is picked). It plays once a round, only on a page that saw that
 round's fuse burning (`bombFx.sawTicking`; a reload or a late join sees the
 remains), and a redraw in the middle carries on from `--bm-late`.
 
+### The one-phone bar (1 Oct 2026)
+
+With names kept, the bar is the talk's (`.talk__actions`): «💣 سلّم القنبلة»
+full width, «فئة تانية» and «خروج» the quiet pair under it (one row on a phone on
+its side; the old `.bm1-actions` grid is gone). Without names, «فئة تانية» stays
+the big button and «خروج» is a small quiet one under it (`.play-exit`), side by
+side on a phone on its side. Upright the bar sits at the foot of the screen
+(`.play-foot`, *The bar of the solo games* in `notes/games/solo.md`).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

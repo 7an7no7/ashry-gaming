@@ -946,6 +946,28 @@ body.theme-transition *:not(#app-loader):not(#app-loader *) {
   background: linear-gradient(to top, var(--bg) 42%, transparent);
   z-index: 5;
 }
+/* A one-phone game's bar (.play-foot; the owner's sheet of 1 Oct 2026): its «خروج»
+   was a full-width ghost floating in the middle of the screen, a second exit beside
+   the header's arrow. It is a small quiet button in the bar now (.play-exit),
+   and upright on a phone the bar sits at the foot of the screen: the view and its
+   stage are a column the bar is pushed to the end of. On its side and on a big
+   screen each game keeps its own layout (the bar in the column beside the board). */
+.view-actions.play-foot:not(.talk__actions) { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
+.view-actions.play-foot:not(.talk__actions) > :not(.play-exit) { width: 100%; }
+.play-exit { min-width: 8.5rem; }
+.view-actions.play-foot > .btn + .btn, .view-actions.play-foot > .btn-row { margin-top: 0; }
+@media (orientation: portrait) and (max-width: 899px) {
+  :is(#view-play-bomb, #view-play-memory, #view-play-sudoku, #view-play-g2048, #view-play-mines, #view-play-queens,
+      #view-play-tango, #view-play-nonogram, #view-play-strands, #view-play-pinpoint, #view-play-connect4, #view-play-dots):not(.hidden) {
+    display: flex; flex-direction: column;
+  }
+  :is(#bomb-stage, #memory-stage, #sudoku-stage, #g2048-stage, #mines-stage, #queens-stage, #tango-stage,
+      #nonogram-stage, #strands-stage, #pinpoint-stage, #connect4-stage, #dots-stage) { flex: 1 0 auto; display: flex; flex-direction: column; }
+  :is(#connect4-stage, #dots-stage) > .duel { flex: 1 0 auto; display: flex; flex-direction: column; }
+  :is(#connect4-stage, #dots-stage) > .duel > .duel-layout { flex: 1 0 auto; }
+  :is(#bomb-stage, #memory-stage, #sudoku-stage, #g2048-stage, #mines-stage, #queens-stage, #tango-stage,
+      #nonogram-stage, #strands-stage, #pinpoint-stage, #connect4-stage, #dots-stage) .view-actions.play-foot { margin-top: auto; }
+}
 
 /* ==========================================================================
    6. CARDS, TILES, ROWS
@@ -5770,6 +5792,33 @@ body.dark .home-hero {
 .prov-card--big { font-size: clamp(1.8rem, 9vmin, 8.5rem); line-height: 1.5; text-wrap: balance; }
 .prov-blank { display: inline-block; min-width: 4ch; padding: 0 0.3em; margin: 0 0.15em; border-bottom: 3px solid var(--accent); color: var(--accent-ink); }
 .prov-blank.is-shown { background: var(--accent-soft); border-radius: var(--r-xs); }
+/* One phone (paintEmoji, paintProverb; the owner's before/after sheet of 1 Oct 2026):
+   the card takes the screen with the category and the round as chips on it, the
+   round's dots under it (.wa-write__prog), and the bar at the foot (.talk__actions):
+   the main action full width, the quiet pair under it. */
+#view-play-emoji:not(.hidden), #view-play-proverbs:not(.hidden) { display: flex; flex-direction: column; }
+.quiz1-stage { flex: 1 0 auto; display: flex; flex-direction: column; }
+.quiz1-card {
+  flex: 1 0 auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sp-3);
+  min-height: 15rem;
+  margin-bottom: var(--sp-3);
+  text-align: center;
+}
+.quiz1-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.quiz1-card__body.emoji-card { padding: 0; }
+.quiz1-card .emoji-card__e { font-size: clamp(3.4rem, 14vmin, 5.5rem); line-height: 1.2; }
+.quiz1-card__body.prov-card { padding: 0; }
+.quiz1-hint { margin: 0; font-size: var(--fs-sm); color: var(--text-3); }
+.quiz1-answer { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
+.wa-write__prog.quiz1-dots { margin-block: 0 var(--sp-3); }
+.quiz1-bar { margin-top: auto; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .quiz1-card { min-height: 0; gap: var(--sp-2); }
+  .quiz1-card .emoji-card__e { font-size: 2.75rem; }
+  .wa-write__prog.quiz1-dots { margin-block-end: var(--sp-2); }
+}
 .quiz-feed { display: flex; flex-direction: column; gap: 4px; margin-top: var(--sp-3); }
 .quiz-feed__row { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); padding: 6px 10px; background: var(--surface-2); border-radius: var(--r-sm); text-align: start; }
 .quiz-feed__row.is-right { color: var(--success-ink); background: var(--success-soft); }
@@ -7524,6 +7573,23 @@ body.dark .mines-cell.is-open { background: var(--surface-sunken); }
 /* Upright, the sticky «خروج» bar sat over ✓, the hint and ⌫ whenever the
    crossword made the page scroll; the exit follows the tools instead. */
 #view-play-wordwheel .view-actions { position: static; }
+/* Upright on a phone, the crossword and the ring share what the screen has left
+   after the header, the bar, the stats, the word being made and the tools
+   (--ww-room, about 22rem of fixed parts): at 375x812 a 7-row crossword put ⌫,
+   لخبط, تلميح and ✓ half under the bar, to be scrolled to. The ring takes about
+   half, the crossword the rest (sized by its rows), and the letters follow the
+   ring. A phone on its side and a big screen have their own layout below. */
+@media (orientation: portrait) and (max-width: 899px) {
+  #view-play-wordwheel {
+    --ww-room: calc(var(--app-h, 100vh) - 22rem);
+    --ww-ring: clamp(9.5rem, calc(var(--ww-room) * 0.47), min(15rem, 70vw));
+  }
+  #view-play-wordwheel .wheel-grid {
+    max-width: min(calc(var(--ww-cols) * 2.8rem), max(calc(var(--ww-cols) * 1.6rem), calc((var(--ww-room) - var(--ww-ring)) * var(--ww-cols) / var(--ww-rows, 5))));
+  }
+  #view-play-wordwheel .wheel-ring { width: var(--ww-ring); }
+  #view-play-wordwheel .wheel-letter { width: clamp(2.6rem, calc(var(--ww-ring) * 0.23), 3.4rem); height: clamp(2.6rem, calc(var(--ww-ring) * 0.23), 3.4rem); }
+}
 
 /* --- What links them? --- */
 .pin-clues { display: grid; gap: var(--sp-2); max-width: 26rem; margin: 0 auto; perspective: 700px; }
@@ -22332,10 +22398,13 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
 /* The one-phone bomb: who holds it (bombOneOrderHtml). */
 .bm1-holding { margin: 0 0 var(--sp-2); text-align: center; color: var(--danger-ink); font-weight: var(--fw-bold); }
 .bm1-chip { min-height: 2.75rem; cursor: pointer; font-family: var(--font); font-size: var(--fs-body); }
-/* On a phone on its side the three buttons share one row, so the bar doesn't cover the bomb. */
+/* Its bar is the talk's (.talk__actions): on a phone on its side pass, another
+   category and the exit share one row, so the bar doesn't cover the bomb; so do
+   another category and the exit when nobody's names are kept. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .bm1-actions { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: var(--sp-2); align-items: stretch; }
-  .bm1-actions > .btn { margin: 0; min-height: var(--btn-h, 3rem); }
+  #bomb-stage .view-actions.play-foot:not(.talk__actions) { flex-direction: row; }
+  #bomb-stage .view-actions.play-foot:not(.talk__actions) > .btn--lg { flex: 1 1 0; min-width: 0; --btn-h: 2.625rem; }
+  #bomb-stage .view-actions.play-foot:not(.talk__actions) > .play-exit { flex: none; }
 }
 
 /* كلمة واحدة on one phone: the writers' check (joPaintCheck) and the guesser's cards. */

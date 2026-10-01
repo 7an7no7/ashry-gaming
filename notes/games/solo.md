@@ -208,7 +208,15 @@ six below has a list of its own:
   of the category, so a year question showed one year among three words and
   gave itself away (reported by the owner, 16 Sep 2026). The question keeps its deadline,
   so a reload comes back with the time it has left, or counts it as missed.
-  The daily is ten seeded questions.
+  The daily is ten seeded questions. **Since 1 Oct 2026** (the owner's
+  before/after sheet) the one-phone screen is one card (`.stk`, `.stk-card`):
+  the hearts as a row of ❤️, a lost one dimmed (`.is-lost`), and the score as
+  one chip; the seconds in a ring above the question (the general timer's
+  `.gtm-dial` / `.gtm-ring`, `#streak-dial`, `streakRingPaint`), emptying
+  second by second and red in the last five (`STREAK_LOW`); the answers as
+  big bordered tiles (`.stk-choices`, the same right / wrong states); «خروج»
+  small in the bar. A sheet that pauses the clock freezes the ring where it
+  is. The race (سباق ألغاز) draws its own board as before (`s.race` branch).
 - **خمّن الدولة** (`JS_Flags.html`, id `flags`): from the flag (6 guesses) or
   by distance alone (8). `COUNTRIES` (`Countries.js` since 23 Sep 2026, shared with the rooms server) is the one new list of the batch, because
   nothing else knew where a country is: 196 countries with their code, the
@@ -224,7 +232,19 @@ six below has a list of its own:
   on Windows**: a flag emoji is two letters there ("EG"), so
   `flagsEnsureFont` draws one to a canvas and, when it comes out as letters,
   loads the Twemoji country-flag font (`country-flag-emoji-polyfill`, pinned on
-  jsDelivr) for `.flag-emoji`.
+  jsDelivr) for `.flag-emoji`. **Since 1 Oct 2026** (the owner's
+  before/after sheet) the one-phone screen is one card (`.flg`, `.flg-card`):
+  the level and the guesses left as two chips, the big flag (or 🧭), the
+  question and its hints, the field «اسم الدولة» with «خمّن» (`.gn-entry`;
+  the button guesses the first suggestion, as Enter does) and the
+  suggestions under it, and the guesses as chips newest first
+  (`flagsGuessChip`, `.gn-chips`): a wrong one carries its flag, name,
+  distance, the turned arrow, the closeness and ✗, filled as far as it was
+  close; the right one is a green chip. The six empty rows went. There is no
+  hint button: the hints come by themselves, as before. «خروج» (and «لعبة
+  جديدة» when it's over) in the bar. On a phone on its side the flag sits
+  beside the rest; from 900px it is a form's width. The room's board
+  (`.sv-board--flags`) keeps its rows.
 
 ### The bar of the solo games, and كلمات من حروف upright (1 Oct 2026)
 

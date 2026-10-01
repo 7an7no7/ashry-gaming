@@ -146,21 +146,37 @@ function flagsHints(s, t) {
   return hints;
 }
 
-function flagsGuessRow(g, i, fresh, t) {
+/**
+ * A guess as a chip (the owner, 1 Oct 2026: the six empty rows went): its flag
+ * and name, then - for a wrong one - how far it is and which way, with the
+ * chip filled as far as the guess was close; the right one is a green chip.
+ */
+function flagsGuessChip(g, fresh, t) {
   const c = flagCountry(g.code);
   const s = flagsState();
   const right = g.code === s.answer;
-  return `<li class="flags-row${right ? ' is-right' : ''}${fresh ? ' is-new' : ''}" style="--p:${right ? 1 : g.p / 100}">
-    <span class="flags-row__fill" aria-hidden="true"></span>
-    <span class="flag-emoji flags-row__flag" aria-hidden="true">${flagEmoji(g.code)}</span>
-    <b class="flags-row__name">${escapeHTML(flagName(c, s.lang))}</b>
-    ${right ? `<span class="flags-row__win">🎉</span>` : `
-      <span class="flags-row__km"><span class="metric" data-km="${g.km}">${g.km.toLocaleString('en-US')}</span> ${escapeHTML(t.flags_km || '')}</span>
-      <span class="flags-row__arrow" style="--deg:${Math.round(g.deg)}deg" aria-label="${Math.round(g.deg)}°">↑</span>
-      <span class="flags-row__p metric">${g.p}%</span>`}
-  </li>`;
+  if (right) {
+    return `<span class="gn-chip gn-chip--win flg-guess${fresh ? ' is-new' : ''}">
+      <span class="flag-emoji flg-guess__flag" aria-hidden="true">${flagEmoji(g.code)}</span>
+      <b>${escapeHTML(flagName(c, s.lang))}</b><span aria-hidden="true">🎉</span></span>`;
+  }
+  return `<span class="gn-chip gn-chip--high flg-guess${fresh ? ' is-new' : ''}" style="--p:${g.p / 100}">
+    <span class="flag-emoji flg-guess__flag" aria-hidden="true">${flagEmoji(g.code)}</span>
+    <b class="flg-guess__name">${escapeHTML(flagName(c, s.lang))}</b>
+    <span class="flg-guess__km"><span class="metric" data-km="${g.km}">${g.km.toLocaleString('en-US')}</span> ${escapeHTML(t.flags_km || '')}</span>
+    <span class="flags-row__arrow flg-guess__arrow" style="--deg:${Math.round(g.deg)}deg" aria-label="${Math.round(g.deg)}°">↑</span>
+    <span class="flg-guess__p metric">${g.p}%</span>
+    <span class="gn-chip__way" aria-hidden="true">✗</span>
+  </span>`;
 }
 
+/**
+ * The game as one card: the level and the guesses left as two chips, the flag
+ * (or the compass, by distance), the question and its hints, then the field
+ * «اسم الدولة» with «خمّن» (it guesses the first suggestion, as Enter does) and
+ * the suggestions under it, and the guesses as chips, newest first. «خروج»
+ * (and «العب تاني» once it is over) in the bar at the foot.
+ */
 function paintFlags(freshIndex) {
   const s = flagsState();
   const t = TRANSLATIONS[appState.lang];
@@ -170,43 +186,46 @@ function paintFlags(freshIndex) {
   const max = FLAG_MODES[s.playMode].guesses;
   const over = s.phase !== 'play';
   const hints = over ? [] : flagsHints(s, t);
-  const bar = soloBarHtml([
-    s.daily ? { label: t.daily_title || '', value: '📅' } : { label: t.solo_level || '', value: escapeHTML(t['solo_lvl_' + s.playLevel] || '') },
-    { label: t.flags_left || '', value: max - s.guesses.length, id: 'flags-left' }
-  ]);
   const showFlag = s.playMode === 'flag' || over;
+  const levelChip = s.daily
+    ? `<span class="chip chip--plain play-chip">📅 <b>${escapeHTML(t.daily_title || '')}</b></span>`
+    : `<span class="chip chip--plain play-chip">${escapeHTML(t.solo_level || '')} <b>${escapeHTML(t['solo_lvl_' + s.playLevel] || '')}</b></span>`;
+  const archive = s.archive ? `<span class="badge badge--warning">📅 ${escapeHTML(t.daily_archive_badge || '')} ${escapeHTML(s.archive)}</span>` : '';
+  const guesses = s.guesses.map((g, i) => flagsGuessChip(g, i === freshIndex, t)).reverse().join('');
   el.innerHTML = `
-    <div class="solo-layout flags-layout">
-      <div class="solo-layout__board">
-        <div class="flags-target${over ? ' is-over' : ''}">
-          ${showFlag ? `<span class="flag-emoji flags-target__flag" id="flags-flag">${flagEmoji(s.answer)}</span>` : `<span class="flags-target__flag" aria-hidden="true">🧭</span>`}
-          <span class="flags-target__ask">${over ? `<b>${escapeHTML(flagName(target, s.lang))}</b>` : escapeHTML(s.playMode === 'flag' ? (t.flags_ask_flag || '') : (t.flags_ask_far || ''))}</span>
+    <div class="flg">
+      <div class="card flg-card">
+        <div class="flg-head">
+          ${levelChip}${archive}
+          <span class="chip chip--plain play-chip">${escapeHTML(t.flags_left || '')} <b class="metric" id="flags-left">${max - s.guesses.length}</b></span>
+        </div>
+        <div class="flg-target${over ? ' is-over' : ''}">
+          ${showFlag ? `<span class="flag-emoji flg-target__flag" id="flags-flag">${flagEmoji(s.answer)}</span>` : `<span class="flg-target__flag" aria-hidden="true">🧭</span>`}
+          <span class="flg-target__ask">${over ? `<b>${escapeHTML(flagName(target, s.lang))}</b>` : escapeHTML(s.playMode === 'flag' ? (t.flags_ask_flag || '') : (t.flags_ask_far || ''))}</span>
           ${hints.length ? `<span class="flags-hints">${hints.join(' · ')}</span>` : ''}
         </div>
-        <ol class="flags-guesses" id="flags-guesses">
-          ${s.guesses.map((g, i) => flagsGuessRow(g, i, i === freshIndex, t)).join('')}
-          ${over ? '' : Array.from({ length: max - s.guesses.length }, () => '<li class="flags-row is-empty"></li>').join('')}
-        </ol>
-      </div>
-      <div class="solo-layout__side">
-        ${bar}
-        ${over ? `
-          <div class="btn-stack flags-over">
-            <button type="button" class="btn btn--primary" onclick="startFlags(false)">${escapeHTML(t.play_again || '')}</button>
-          </div>` : `
-          <div class="flags-input">
-            <input type="text" id="flags-query" autocomplete="off" autocorrect="off" spellcheck="false"
-              dir="auto" placeholder="${escapeHTML(t.flags_type || '')}" aria-label="${escapeHTML(t.flags_type || '')}" aria-controls="flags-suggest" value="${escapeHTML(s.query || '')}"
-              oninput="flagsSuggest(this.value)" onkeydown="flagsKey(event)">
+        ${over ? '' : `
+          <div class="flg-entry">
+            <label class="field__label" for="flags-query">${escapeHTML(t.flags_name_label || '')}</label>
+            <div class="gn-entry">
+              <input type="text" id="flags-query" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go"
+                dir="auto" placeholder="${escapeHTML(t.flags_name_label || '')}" aria-controls="flags-suggest" value="${escapeHTML(s.query || '')}"
+                oninput="flagsSuggest(this.value)" onkeydown="flagsKey(event)">
+              <button type="button" class="btn btn--primary btn--auto gn-entry__go" onclick="flagsPickFirst()">${escapeHTML(t.gn_guess_btn || '')}</button>
+            </div>
             <div class="flags-suggest" id="flags-suggest" onkeydown="flagsKey(event)"></div>
           </div>`}
+        <div class="gn-chips flg-guesses" id="flags-guesses" aria-label="${escapeHTML(t.gn_your_guesses || '')}">${guesses}</div>
       </div>
-    </div>
-    <div class="view-actions">
-      <button class="btn btn--ghost btn--sm" onclick="setupFlags()">${escapeHTML(t.exit || '')}</button>
+      <div class="view-actions talk__actions flg-actions">
+        ${over ? `<button type="button" class="btn btn--primary btn--lg" onclick="startFlags(false)">${escapeHTML(t.play_again || '')}</button>` : ''}
+        <div class="talk__pair">
+          <button class="btn btn--ghost btn--sm" onclick="setupFlags()">${escapeHTML(t.exit || '')}</button>
+        </div>
+      </div>
     </div>`;
   if (!over) flagsSuggest(s.query || '', true);
-  const fresh = typeof freshIndex === 'number' ? document.querySelector(`#flags-guesses .flags-row:nth-child(${freshIndex + 1}) [data-km]`) : null;
+  const fresh = typeof freshIndex === 'number' ? document.querySelector('#flags-guesses .flg-guess.is-new [data-km]') : null;
   if (fresh && typeof countUp === 'function' && !motionOff()) {
     const km = Number(fresh.dataset.km);
     countUp(fresh, 0, km);

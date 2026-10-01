@@ -104,7 +104,7 @@ const MAP = [
   // The page's own screens and the offline copy.
   { files: /^JS_[A-Za-z0-9]+\.html$/, screens: true },
   { files: /^(site-worker\/|tools\/site\.config\.json$|tools\/(make-icons|make-og)\.mjs$)/, site: true },
-  { files: /^tools\/(validate-content\.js|check-i18n\.js|check-css-vars\.js)$/ },
+  { files: /^tools\/(validate-content\.js|check-i18n\.js|check-css-vars\.js|check-songs\.mjs)$/ },
   // The rules tests and the leak check themselves: npm run test:rules runs both (BUNDLED below).
   { files: /^rooms-worker\/test\/(rules|leaks)\.mjs$/ },
 ];

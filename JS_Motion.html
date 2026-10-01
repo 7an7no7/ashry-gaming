@@ -410,10 +410,13 @@ const SPY_REVEAL_MS = 1660;
  * result is drawn on this phone: `cls` and `attrs` go on the card, `cover`
  * first inside it. All empty afterwards.
  */
-function spyRevealParts(key, label) {
-  if (!motionFirst(key)) return { cls: '', attrs: '', cover: '', ms: 0 };
+function spyRevealParts(key, label, after) {
+  if (!motionFirst(key)) return { cls: '', attrs: '', cover: '', ms: 0, at: 0 };
+  // `after`: the whole turn waits this long (the vote's bars rise first, roomSpyVoteBars);
+  // the caller puts it on the card as --cover-at (Style.html, section 14).
+  const at = Math.max(0, Math.round(Number(after) || 0));
   // Three soft ticks while it lies face down: a drumroll the table hears together.
-  [0, 380, 760].forEach((ms) => setTimeout(() => { if (!document.hidden) playSound('tick'); }, ms));
+  [0, 380, 760].forEach((ms) => setTimeout(() => { if (!document.hidden) playSound('tick'); }, at + ms));
   // The cover is taken away by its animation; a timer takes it away too, since
   // an animation that never runs (a hidden tab, a stalled compositor) never ends
   // (the design review, 26 Sep 2026: every end state also set by a timer).
@@ -427,15 +430,16 @@ function spyRevealParts(key, label) {
       else el.remove();
     });
   };
-  setTimeout(() => sweep(12), SPY_REVEAL_MS + 250);
+  setTimeout(() => sweep(12), at + SPY_REVEAL_MS + 250);
   return {
     cls: 'spy-reveal',
-    attrs: 'data-reveal-ms="' + SPY_REVEAL_MS + '"',
+    attrs: 'data-reveal-ms="' + (at + SPY_REVEAL_MS) + '"',
     cover: '<div class="spy-reveal__cover" data-cover-id="' + coverId + '" aria-hidden="true">' +
              '<span class="spy-reveal__q">?</span>' +
              '<span class="spy-reveal__label">' + escapeHTML(label || '') + '</span>' +
            '</div>',
-    ms: SPY_REVEAL_MS
+    ms: at + SPY_REVEAL_MS,
+    at: at
   };
 }
 
@@ -527,13 +531,16 @@ function spyCastHtml(key, verdict, o) {
   const kind = ['chameleon', 'spyfall', 'fake'].indexOf(opt.kind) !== -1 ? opt.kind : 'spy';
   const k = 'spc|' + (opt.tv ? 'tv|' : '') + key;
   const total = SPC_T[verdict];
+  // `after`: he waits this long first, with the card he stands behind (spyRevealParts' `after`).
+  const after = Math.max(0, Math.round(Number(opt.after) || 0));
   let late = 0, live = false;
   if (motionFirst(k)) {
-    spcLive.set(k, Date.now());
+    spcLive.set(k, Date.now() + after);
     if (spcLive.size > 40) spcLive.delete(spcLive.keys().next().value);
     live = true;
+    late = -after;
     const snd = SPC_SOUND[verdict];
-    if (snd && opt.loud !== false) spcSoundLater(snd[1], snd[0]);
+    if (snd && opt.loud !== false) spcSoundLater(snd[1], snd[0] + after);
   } else if (spcLive.has(k) && Date.now() - spcLive.get(k) < total && !motionOff()) {
     late = Date.now() - spcLive.get(k);
     live = true;
@@ -551,7 +558,8 @@ function spcWrapHtml(kind, verdict, live, late, extra, total) {
          <button type="button" class="btn btn--sm btn--auto btn--ghost" onclick="spcVerdict(this, 'escaped')">${escapeHTML(t.spc_escaped_btn || '')}</button></div>`
     : '';
   // A settle timer too, never only the animation (a hidden tab never runs it).
-  return `<div class="${cls}" data-spc-kind="${kind}" style="--spc-late: -${Math.max(0, Math.round(late))}ms" ${live ? `data-spc-until="${Date.now() - late + total}"` : ''}>
+  // A negative `late` is a wait still to come (spyCastHtml's `after`): a positive delay.
+  return `<div class="${cls}" data-spc-kind="${kind}" style="--spc-late: ${-Math.round(late)}ms" ${live ? `data-spc-until="${Date.now() - late + total}"` : ''}>
       ${ask}<div class="spc-stage">${spcFigureSvg(kind, verdict)}</div></div>`;
 }
 

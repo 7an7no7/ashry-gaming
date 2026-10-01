@@ -483,6 +483,49 @@ const leave = (r, id, hook = true) => {
 }
 
 {
+  // الجاسوس / المختلف (the review of 1 Oct 2026): a first asker, anyone - the spy included -
+  // and an optional discussion limit that opens the vote by itself.
+  let spyFirst = false;
+  let everyone = new Set();
+  for (let i = 0; i < 60; i++) {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'imposter' });
+    applyRoomAction(r, 'a', 'start', { category: 'حيوانات', spies: 1 });
+    everyone.add(r.shared.firstId);
+    if (r.shared.firstId === r._impSpies[0]) spyFirst = true;
+  }
+  check(spyFirst && everyone.size === 4, 'imposter: anyone may ask first, the spy included');
+
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(r, 'a', 'start', { category: 'حيوانات', spies: 1 });
+  check(r.shared.limit === 0 && roomDeadline(r) === null, 'imposter: no limit unless the lobby set one');
+  applyRoomAction(r, 'a', 'beginDiscussion', {});
+  check(r.shared.endsAt === null && roomDeadline(r) === null, 'imposter: without a limit the discussion has no clock');
+  const asker = r.shared.firstId;
+  leave(r, asker);
+  check(r.phase === 'discuss' || r.phase === 'result', 'imposter: someone leaving mid-discussion keeps the round');
+  if (r.phase === 'discuss') check(!!r.shared.firstId && r.shared.firstId !== asker && r.players.some((p) => p.id === r.shared.firstId),
+    'imposter: the first asker leaving hands the first question to someone still here');
+
+  const u = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(u, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(u, 'a', 'start', { undercover: true, spies: 1, limit: 3 });
+  check(u.shared.limit === 3 && !u.shared.endsAt, 'imposter: the limit is kept, its clock waits for the discussion');
+  applyRoomAction(u, 'a', 'beginDiscussion', {});
+  check(u.shared.endsAt === clock + 3 * 60000, 'imposter: the discussion of 3 minutes ends 3 minutes on');
+  check(roomTimeout(u, u.shared.endsAt) === false && u.phase === 'discuss', 'imposter: at 0 the phones get their moment first');
+  check(roomTimeout(u, roomDeadline(u)) === true && u.phase === 'voting' && !!u.shared.vote && u.shared.endsAt === null,
+    'imposter: when the limit runs out the vote opens by itself');
+  applyRoomAction(u, 'a', 'startVote', {});
+  check(u.phase === 'voting' && (u.shared.vote.voted || []).length === 0, 'imposter: a late «vote» tap changes nothing');
+  const odd = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(odd, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(odd, 'a', 'start', { category: 'حيوانات', spies: 1, limit: 7 });
+  check(odd.shared.limit === 0, 'imposter: a limit the lobby does not offer is no limit');
+}
+
+{
   // The English spy words (the owner, 26 Sep 2026): an English category deals
   // English words and a guess from six English words; المختلف with lang 'en'
   // deals an English pair; the Arabic game is as it was.
@@ -4132,6 +4175,21 @@ Date.now = duelTestClock;
     if (r.shared.drawerOrder[0] === r._fakeId) fakeFirst = true;
   }
   check(fakeFirst, 'fake artist: the fake can be the first to draw');
+
+  // الفنان المزيف: the fake is told the word's category, never the word (the review of 1 Oct 2026).
+  {
+    const DC = new Function(readFileSync(new URL('../../PartyContent.js', import.meta.url), 'utf8') + '\nreturn DRAW_WORD_CATS;')();
+    for (const lang of ['ar', 'en']) {
+      const r = newRoom(['a', 'b', 'c', 'd']);
+      applyRoomAction(r, 'a', 'chooseGame', { game: 'fakeartist' });
+      applyRoomAction(r, 'a', 'start', { lang });
+      const fake = r.secrets[r._fakeId];
+      const painter = r.secrets[['a', 'b', 'c', 'd'].find((id) => id !== r._fakeId)];
+      check(!!fake.category && (DC[lang][fake.category] || []).indexOf(r._word) !== -1 && !('word' in fake) && JSON.stringify(fake).indexOf(r._word) === -1,
+        `fake artist (${lang}): the fake gets the word's category and not the word`);
+      check(painter.word === r._word && painter.category === fake.category, `fake artist (${lang}): the painters see the same category with the word`);
+    }
+  }
 
   // كلمة واحدة: the word itself is refused as a clue.
   {

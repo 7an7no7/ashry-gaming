@@ -2890,387 +2890,449 @@ const FIBBAGE = {
    وقت، حلم، ذكرى، صوت، سر — which are unguessable from a drawing. These are
    concrete and visually distinct from each other.
    -------------------------------------------------------------------------- */
+/* Grouped by kind (the review of 1 Oct 2026): الفنان المزيف shows the fake the
+   word's category, as the original game does. A category names a kind of thing,
+   never a riddle; every word is in exactly one. Draw & Guess, the telephone and
+   the fake artist all deal from the flat list below, built from these. */
+const DRAW_WORD_CATS = {
+  ar: {
+    'حيوانات': [
+      'أسد', 'فيل', 'زرافة', 'قرد', 'قطة', 'كلب', 'حصان', 'جمل',
+      'سمكة', 'أخطبوط', 'سلحفاة', 'ثعبان', 'نحلة', 'فراشة', 'بطريق', 'فرخة',
+      'بومة', 'حوت', 'دلفين', 'عقرب', 'أرنب', 'خروف', 'بقرة', 'تمساح',
+      'ديك', 'بطة', 'حمامة', 'نسر', 'ببغاء', 'فأر', 'سنجاب', 'قنفذ',
+      'غزال', 'كنغر', 'باندا', 'دب', 'ذئب', 'ثعلب', 'خفاش', 'فرس النهر',
+      'وحيد القرن', 'حمار وحشي', 'نمر', 'حلزون', 'دودة', 'نملة', 'عنكبوت', 'خنفساء',
+      'كابوريا', 'جمبري', 'فقمة', 'ديناصور', 'تنين', 'حصان البحر', 'سمكة قرش', 'بجعة',
+      'طاووس', 'ضفدع', 'سحلية', 'كوالا', 'دب قطبي', 'دبور', 'ناموسة',
+      'دعسوقة', 'نعامة', 'وزة', 'كتكوت', 'غراب', 'صقر', 'هدهد', 'حرباء',
+      'استاكوزا', 'سمكة منفوخة', 'جاموسة', 'ماعز', 'حمار', 'لاما', 'غوريلا', 'شمبانزي',
+      'فهد', 'ضبع', 'كوبرا', 'سلحفاة بحرية', 'عصفور', 'نورس', 'ماموث', 'حصان بجناحين',
+      'يونيكورن', 'ديك رومي', 'فلامنجو', 'سمكة ذهبية', 'حوت أزرق', 'جمل بسنامين', 'يرقة',
+      'نحلة على وردة', 'ثور', 'هامستر', 'نقار الخشب', 'ذبابة', 'صرصار', 'جرادة', 'أم أربعة وأربعين',
+      'تي ريكس', 'نجم بحر', 'قنديل بحر', 'بيضة ديناصور'
+    ],
+    'أكل وشرب': [
+      'بيتزا', 'برجر', 'موزة', 'تفاحة', 'بطيخة', 'عنب', 'آيس كريم', 'كيكة',
+      'بيضة', 'سمكة مشوية', 'فنجان قهوة', 'كوباية شاي', 'رغيف عيش', 'جبنة', 'عنقود موز', 'شاورما',
+      'عصير مانجو', 'كانز', 'فراولة', 'أناناس', 'ليمونة', 'كوز ذرة',
+      'طماطم', 'جزرة', 'قرن فلفل', 'بطاطس محمرة', 'هوت دوج', 'دونات', 'كب كيك', 'بسكويتة',
+      'كرواسون', 'مصاصة', 'غزل البنات', 'فطيرة', 'ساندوتش', 'طبق شوربة', 'بيضة مقلية', 'خيارة',
+      'بصلة', 'كمثرى', 'كرز', 'خوخة', 'جوز هند', 'رمانة', 'مشروم',
+      'لوح شوكولاتة', 'فشار', 'سوشي', 'مكرونة', 'سلطة', 'كشري', 'فرخة مشوية', 'بان كيك',
+      'وافل', 'كورنيه آيس كريم', 'برطمان عسل', 'عصير برتقال', 'مشمش', 'كيوي', 'تين', 'بلح',
+      'ثوم', 'فلفل رومي', 'باذنجانة', 'كوسة', 'بطاطس', 'قرنبيط', 'بروكلي', 'فول سوداني',
+      'جبنة مثلثات', 'كيس شيبسي', 'علبة لبن', 'مانجو', 'برتقالة', 'توت', 'جوافة',
+      'شمام', 'تين شوكي', 'أفوكادو', 'يوسفي', 'بطاطا', 'قرع', 'كرنب', 'بسلة',
+      'فجل', 'توست', 'بيض مسلوق'
+    ],
+    'حاجات البيت': [
+      'باب', 'شباك', 'كرسي', 'ترابيزة', 'سرير', 'مفتاح', 'ساعة', 'مراية',
+      'شمعة', 'لمبة', 'مكنسة', 'مفتاح نور', 'ثلاجة', 'مروحة', 'جرس',
+      'منبه', 'كرتونة', 'برميل', 'جردل', 'سلة زبالة', 'ممسحة', 'حلة', 'غلاية',
+      'خلاط', 'فرن', 'حوض مطبخ', 'حنفية', 'بانيو', 'دش', 'كنبة', 'دولاب',
+      'أباجورة', 'ستارة', 'مخدة', 'شماعة', 'مشبك غسيل', 'كرسي هزاز', 'نجفة', 'تكييف',
+      'سجادة', 'غسالة', 'بوتاجاز', 'ميكروويف', 'معلقة',
+      'شوكة', 'سكينة', 'إبريق', 'كوباية', 'طبق', 'ترمس', 'صينية', 'مصفاة',
+      'مبشرة', 'فتاحة علب', 'محفظة', 'فرشاة أسنان', 'معجون أسنان', 'صابونة', 'فوطة حمام', 'فرشاة شعر',
+      'مشط', 'إبرة وخيط', 'سلة غسيل', 'حبل غسيل', 'سرير أطفال', 'مكواة',
+      'أسانسير', 'بلكونة', 'مكتبة', 'مكنسة كهربا',
+      'كنكة', 'توستر', 'نشابة', 'سشوار', 'برواز', 'فازة', 'ولاعة', 'علبة كبريت',
+      'برطمان', 'سجادة صلاة', 'سبحة', 'عربية أطفال', 'تواليت', 'ميزان',
+      'أصيص زرع', 'فيشة كهربا', 'ساعة رملية', 'زمزمية',
+      'قزازة', 'براد شاي', 'طاسة بيض', 'شواية فحم', 'قفص عصافير', 'حوض سمك',
+      'صندوق', 'دكة', 'لوحة رسم', 'حصالة', 'مكتب'
+    ],
+    'عدة وأدوات': [
+      'مقص', 'سلم', 'قفل', 'جاروف', 'خرطوم مية', 'مفتاح إنجليزي',
+      'شاكوش', 'منشار', 'مسمار', 'مفك', 'كماشة', 'شنيور', 'متر قياس', 'فأس',
+      'عربية يد', 'مرشة زرع', 'فرشة دهان', 'شريط لاصق', 'مغناطيس', 'كشاف يدوي',
+      'سنارة', 'سلسلة', 'شبكة', 'حبل', 'سلسلة مفاتيح'
+    ],
+    'مدرسة ومكتب': [
+      'قلم رصاص', 'أستيكة', 'مسطرة', 'كتاب', 'شنطة ضهر', 'براية', 'كراسة',
+      'سبورة', 'طباشير', 'علبة ألوان', 'فرشاة رسم', 'مقلمة', 'دباسة', 'مشبك ورق', 'ظرف',
+      'طابع بريد', 'كرة أرضية', 'آلة حاسبة', 'ميكروسكوب', 'تلسكوب', 'خرامة', 'برجل', 'منقلة',
+      'ختم', 'نوتة'
+    ],
+    'أجهزة': [
+      'تليفون', 'كمبيوتر', 'كاميرا', 'راديو', 'موبايل', 'كيبورد', 'طابعة', 'بطارية',
+      'تليفزيون', 'ريموت كنترول', 'شاحن موبايل', 'ماوس كمبيوتر', 'لابتوب', 'فلاشة', 'سماعات ودن',
+      'تابلت', 'راوتر', 'كاميرا مراقبة', 'دراع بلايستيشن', 'درون', 'ميكروفون'
+    ],
+    'لبس وإكسسوارات': [
+      'قميص', 'بنطلون', 'جزمة', 'برنيطة', 'خاتم', 'تاج', 'نظارة شمس', 'شنطة سفر',
+      'ساعة يد', 'بدلة رسمية', 'كوتشي', 'عقد لؤلؤ', 'حلق', 'كرافتة', 'بابيون',
+      'طاقية', 'كاب', 'جاكيت', 'فستان', 'جيبة', 'شورت', 'شبشب', 'شراب',
+      'جوانتي', 'كوفية', 'بيجامة', 'مايوه', 'حزام', 'تيشيرت', 'جينز', 'جلابية',
+      'عباية', 'بلوفر', 'بالطو', 'صندل', 'كعب عالي', 'طرحة', 'أسورة', 'سوستة',
+      'مريلة', 'طربوش', 'شمسية', 'نظارة', 'شنطة يد', 'زرار', 'تاج ورد'
+    ],
+    'مواصلات': [
+      'عربية', 'أتوبيس', 'قطر', 'طيارة', 'صاروخ', 'مركب', 'عجلة', 'موتوسيكل',
+      'غواصة', 'تاكسي', 'سفينة فضاء', 'عربية إسعاف', 'عربية مطافي', 'جرار زراعي',
+      'توكتوك', 'ترام', 'عربية كارو', 'يخت', 'مركب شراعي', 'منطاد', 'هليكوبتر', 'سكوتر',
+      'زلاجة', 'سكيت بورد', 'ميكروباص', 'مترو', 'فلوكة', 'سفينة', 'باراشوت', 'عربية شرطة',
+      'ونش', 'لودر', 'شاحنة', 'حنطور', 'عجلة بثلاث عجلات', 'عربية سباق', 'أتوبيس دورين', 'تلفريك',
+      'جيت سكي', 'قمر صناعي', 'مرساة'
+    ],
+    'أماكن ومباني': [
+      'بيت', 'مدرسة', 'مستشفى', 'برج', 'كوبري', 'قلعة', 'خيمة', 'كنيسة',
+      'مسجد', 'هرم', 'منارة', 'ملعب', 'بوابة', 'محطة قطر', 'مخزن بضائع', 'محطة بنزين',
+      'كشك', 'ناطحة سحاب', 'كوخ', 'قصر', 'أبو الهول', 'برج إيفل', 'تمثال الحرية', 'برج بيزا',
+      'طاحونة هوا', 'ساقية', 'حمام سباحة', 'عجلة ملاهي', 'زحليقة أطفال', 'مرجيحة', 'عمارة', 'إجلو',
+      'سد', 'مصنع', 'نافورة', 'بير', 'جراج', 'إشارة مرور', 'عمود نور', 'صندوق بريد',
+      'ساعة بيج بن', 'سور الصين', 'سجن', 'تمثال حجري', 'نفق'
+    ],
+    'طبيعة': [
+      'شمس', 'قمر', 'نجمة', 'سحابة', 'مطر', 'شجرة', 'وردة', 'جبل',
+      'بحر', 'نار', 'قوس قزح', 'بركان', 'صبار', 'ورقة شجر', 'ثلج', 'موجة',
+      'نخلة', 'جزيرة', 'شلال', 'كهف', 'صحراء', 'بحيرة', 'نهر',
+      'برق', 'إعصار', 'عباد الشمس', 'قطرة مية', 'دخان', 'كوكب زحل', 'نيزك', 'واحة',
+      'غابة', 'صخرة', 'مذنب', 'شروق الشمس', 'غروب الشمس', 'هلال', 'قلعة رمل', 'شجرة تفاح',
+      'شاطئ', 'جبل جليد', 'عش عصفور', 'ريشة', 'خلية نحل', 'صدفة بحر'
+    ],
+    'جسم الإنسان': [
+      'عين', 'إيد', 'قدم', 'قلب', 'مناخير', 'ودن', 'سن', 'عضلات',
+      'صباع', 'لسان', 'شنب', 'دقن', 'جمجمة', 'بصمة', 'بق', 'مخ',
+      'هيكل عظمي', 'ضفيرة', 'شفايف', 'عضمة'
+    ],
+    'رياضة ولعب': [
+      'كرة', 'سلة', 'زهر', 'ميدالية ذهبية', 'كأس بطولة',
+      'صفارة حكم', 'طاولة بلياردو', 'مضرب تنس', 'كرة قدم', 'كرة سلة', 'دمبل', 'حبل نط', 'خوذة',
+      'جوانتي ملاكمة', 'ساعة إيقاف', 'ورق كوتشينة', 'دومينو', 'كورة طايرة', 'كورة تنس', 'مضرب بينج بونج', 'جون',
+      'ترامبولين', 'يويو', 'دبدوب', 'مكعبات', 'بازل', 'شطرنج', 'طاولة زهر', 'بولينج',
+      'دارتس', 'مسدس مية', 'طيارة ورق'
+    ],
+    'آلات موسيقية': [
+      'جيتار', 'بيانو', 'طبلة', 'كمان', 'ناي', 'عود', 'دف', 'مزمار',
+      'أكورديون', 'هارمونيكا', 'درامز'
+    ],
+    'ناس وشخصيات': [
+      'روبوت', 'شبح', 'ملك', 'طيار', 'دكتور', 'حرامي', 'عروسة', 'ساحر',
+      'مهرج', 'رجل ثلج', 'ملكة', 'أميرة', 'فارس', 'قرصان', 'نينجا', 'رائد فضاء',
+      'كائن فضائي', 'مومياء', 'فرعون', 'عروسة بحر', 'جني المصباح', 'ساحرة', 'عسكري', 'طباخ',
+      'رسام', 'حارس مرمى', 'ممرضة', 'مزارع', 'صياد', 'غواص', 'رجل مطافي', 'عامل بناء',
+      'مصور', 'عريس وعروسة', 'بابا نويل', 'سوبرمان', 'سبايدر مان', 'باتمان', 'ميكي ماوس', 'سبونج بوب',
+      'مصاص دماء', 'زومبي', 'عملاق', 'قزم', 'ساحرة على مقشة', 'لاعب كورة', 'خيال المآتة'
+    ],
+    'حواديت ومغامرات': [
+      'قوس وسهم', 'سيف', 'درع', 'خريطة', 'بوصلة', 'قنبلة', 'كنز',
+      'كرة كريستال', 'قبعة ساحر', 'عصا ساحر', 'فانوس سحري'
+    ],
+    'أعياد ومناسبات': [
+      'هدية', 'بالونة', 'فانوس رمضان', 'زينة رمضان', 'كحك العيد', 'خروف العيد',
+      'شجرة كريسماس', 'تورتة عيد ميلاد'
+    ],
+    'رموز وعلامات': [
+      'سهم', 'علم مصر', 'بصمة قدم', 'قلب مكسور', 'وش ضاحك', 'وش زعلان', 'علامة استفهام', 'علامة تعجب'
+    ],
+    'حاجات طبية': [
+      'عكاز', 'كرسي متحرك', 'سماعة دكتور', 'حقنة', 'ترمومتر'
+    ]
+  },
+  en: {
+    'Animals': [
+      'Lion', 'Elephant', 'Giraffe', 'Monkey', 'Cat', 'Dog', 'Horse', 'Camel',
+      'Fish', 'Octopus', 'Turtle', 'Snake', 'Bee', 'Butterfly', 'Penguin', 'Chicken',
+      'Owl', 'Whale', 'Dolphin', 'Scorpion', 'Rabbit', 'Sheep', 'Cow', 'Crocodile',
+      'Starfish', 'Jellyfish', 'Rooster', 'Duck', 'Pigeon', 'Eagle', 'Parrot', 'Mouse',
+      'Squirrel', 'Hedgehog', 'Deer', 'Kangaroo', 'Panda', 'Bear',
+      'Wolf', 'Fox', 'Bat', 'Hippo', 'Rhino', 'Zebra',
+      'Tiger', 'Snail', 'Worm', 'Ant', 'Spider', 'Beetle',
+      'Crab', 'Shrimp', 'Seal', 'Dinosaur', 'Dragon', 'Seahorse',
+      'Shark', 'Swan', 'Peacock', 'Frog', 'Lizard',
+      'Koala', 'Polar Bear', 'Wasp', 'Mosquito', 'Dragonfly', 'Ladybug',
+      'Ostrich', 'Goose', 'Chick', 'Crow', 'Hawk', 'Chameleon',
+      'Lobster', 'Pufferfish', 'Buffalo', 'Goat', 'Donkey', 'Llama',
+      'Gorilla', 'Chimpanzee', 'Cheetah', 'Hyena', 'Cobra', 'Sea Turtle',
+      'Sparrow', 'Seagull', 'Mammoth', 'Unicorn', 'Pegasus', 'Turkey',
+      'Flamingo', 'Toucan', 'Caterpillar', 'Cocoon', 'Goldfish', 'Blue Whale',
+      'Moose', 'Raccoon', 'Skunk', 'Beaver', 'Otter', 'Walrus',
+      'Squid', 'Stingray', 'Pig', 'Reindeer',
+      'Leopard', 'Gazelle', 'Bull', 'Calf', 'Pony', 'Mule',
+      'Lamb', 'Rat', 'Hamster', 'Guinea Pig',
+      'Porcupine', 'Mole', 'Orangutan', 'Baboon', 'Lemur', 'Sloth',
+      'Anteater', 'Armadillo', 'Meerkat', 'Alpaca', 'Puppy', 'Kitten', 'Wild Boar',
+      'Platypus', 'Sea Lion', 'Orca', 'Mountain Goat',
+      'Canary', 'Hoopoe', 'Stork', 'Hummingbird', 'Woodpecker',
+      'Swallow', 'Robin', 'Pelican', 'Vulture', 'Cockatoo',
+      'Sea Urchin', 'Oyster', 'Clam', 'Clownfish', 'Swordfish',
+      'Eel', 'Sardine', 'Tuna', 'Salmon', 'Narwhal',
+      'Whale Shark', 'Mussel', 'Hammerhead Shark',
+      'Tortoise', 'Python', 'Viper', 'Gecko', 'Iguana',
+      'Komodo Dragon', 'Salamander', 'Anaconda', 'Rattlesnake', 'Tree Frog',
+      'Fly', 'Moth', 'Cockroach', 'Grasshopper', 'Firefly',
+      'Slug', 'Flea', 'Praying Mantis', 'Centipede', 'Tarantula', 'Queen Bee',
+      'T-Rex', 'Triceratops', 'Stegosaurus', 'Pterodactyl', 'Sabre-toothed Tiger', 'Dodo'
+    ],
+    'Food and drink': [
+      'Pizza', 'Burger', 'Banana', 'Apple', 'Watermelon', 'Grapes', 'Ice cream', 'Cake',
+      'Egg', 'Coffee cup', 'Bread', 'Cheese', 'Doughnut', 'Lollipop', 'Popcorn',
+      'Mango juice', 'Soda can', 'Pasta bowl', 'Hot dog', 'Slice of pizza', 'Strawberry', 'Pineapple',
+      'Lemon', 'Corn on the cob', 'Tomato', 'Carrot', 'Chilli pepper', 'French fries',
+      'Cupcake', 'Cookie', 'Croissant', 'Cotton candy', 'Pie', 'Sandwich',
+      'Fried egg', 'Cucumber', 'Onion', 'Pear', 'Cherries',
+      'Peach', 'Coconut', 'Pomegranate', 'Mushroom',
+      'Chocolate Bar', 'Sushi', 'Spaghetti', 'Soup', 'Salad',
+      'Taco', 'Burrito', 'Noodles', 'Dumpling', 'Kebab', 'Meatball',
+      'Roast Chicken', 'Bowl of Rice', 'Pretzel', 'Bagel', 'Muffin',
+      'Pancakes', 'Waffle', 'Ice Cream Cone', 'Honey Jar', 'Jam Jar', 'Milk Carton',
+      'Orange Juice', 'Lemonade', 'Apricot', 'Kiwi', 'Fig',
+      'Dates', 'Garlic', 'Bell Pepper', 'Eggplant', 'Zucchini', 'Potato',
+      'Cauliflower', 'Broccoli', 'Lettuce', 'Peanut',
+      'Fish and Chips', 'Cheese Wedge', 'Bag of Chips',
+      'Mango', 'Orange', 'Avocado',
+      'Toast', 'Butter', 'Sausage', 'Crackers', 'Steak',
+      'Tangerine', 'Lime', 'Grapefruit', 'Raspberry', 'Blueberry', 'Blackberry',
+      'Plum', 'Guava', 'Melon', 'Cantaloupe', 'Prickly Pear', 'Papaya',
+      'Lychee', 'Dragon Fruit', 'Raisins', 'Passion Fruit',
+      'Sweet Potato', 'Pumpkin', 'Okra', 'Spinach',
+      'Cabbage', 'Peas', 'Green Beans', 'Sweetcorn', 'Radish', 'Turnip',
+      'Beetroot', 'Celery', 'Mint', 'Artichoke', 'Ginger', 'Asparagus',
+      'Brussels Sprouts', 'Spring Onion',
+      'Lasagne', 'Falafel', 'Hummus', 'Tabbouleh', 'Samosa', 'Shawarma',
+      'Grilled Fish', 'Omelette', 'Scrambled Eggs', 'Boiled Egg',
+      'Chicken Nuggets', 'Macaroni Cheese', 'Paella', 'Ramen',
+      'Spring Rolls', 'Kofta', 'Stuffed Vine Leaves', 'Koshari',
+      'Ful Medames', 'Shakshuka', 'Cereal',
+      'Nachos', 'Sausage Roll', 'Club Sandwich', 'Grilled Cheese', 'Cheeseburger',
+      'Chicken Wings', 'Juice Box', 'Lamb Chops',
+      'Brownie', 'Cheesecake', 'Marshmallow', 'Biscuit',
+      'Apple Pie', 'Cinnamon Roll', 'Baklava', 'Kunafa', 'Basbousa', 'Rice Pudding',
+      'Jelly', 'Crème Caramel', 'Chewing Gum', 'Macaron', 'Tiramisu', 'Gingerbread',
+      'Pudding', 'Chocolate Mousse', 'Jam Tart', 'Eclair', 'Sundae',
+      'Cappuccino', 'Hot Chocolate', 'Milkshake', 'Smoothie', 'Apple Juice', 'Sugarcane Juice', 'Iced Tea',
+      'Cola', 'Cocoa', 'Ice Cube', 'Ice Lolly'
+    ],
+    'Around the house': [
+      'Teapot', 'Door', 'Window', 'Chair', 'Table', 'Bed', 'Key', 'Clock', 'Mirror',
+      'Candle', 'Lamp', 'Broom', 'Switch', 'Fridge', 'Fan', 'Bell',
+      'Scales', 'Basket', 'Cup', 'Plate', 'Spoon', 'Fork',
+      'Knife', 'Kettle', 'Bottle', 'Box',
+      'Ceiling fan', 'Air conditioner', 'Clothes iron', 'Washing machine',
+      'Toothbrush', 'Plunger', 'Barbecue grill', 'Frying pan', 'Thermos',
+      'Lantern', 'Chopsticks', 'Hairbrush', 'Comb',
+      'Toothpaste', 'Needle and thread', 'Wall clock', 'Alarm clock', 'Cardboard box',
+      'Barrel', 'Bucket', 'Trash can', 'Mop', 'Cooking pot',
+      'Blender', 'Oven', 'Kitchen sink', 'Tap', 'Bathtub', 'Shower',
+      'Sofa', 'Wardrobe', 'Curtain', 'Pillow', 'Coat hanger',
+      'Clothes peg', 'Rocking chair',
+      'Spatula', 'Water Bottle', 'Teacup', 'Aquarium', 'Dog Lead',
+      'Desk Lamp', 'Chandelier', 'Blanket', 'Rug', 'Thimble', 'Stairs',
+      'Dustpan', 'Stove', 'Microwave', 'Glass', 'Tray', 'Sieve',
+      'Grater', 'Can Opener',
+      'Soap', 'Towel', 'Sink', 'Toilet', 'Laundry Basket', 'Clothesline',
+      'Tablecloth', 'Crib',
+      'Hourglass', 'Light Bulb', 'Plug', 'Keyhole', 'Doorbell', 'Flower Pot',
+      'Doghouse', 'Fishbowl', 'Keyring', 'Bird Cage', 'Coin',
+      'Safety Pin', 'Ironing Board', 'Picnic Basket', 'Ball of Wool', 'Knitting Needles', 'Sewing Machine',
+      'Shopping Bag', 'Banknote',
+      'Birdhouse', 'Drinking Straw', 'Mousetrap', 'Hot Water Bottle', 'Pepper Grinder',
+      'Bird Bath', 'Sleeping Bag',
+      'Deck Chair', 'Beach Umbrella', 'Salt Shaker', 'Oven Glove', 'Dummy',
+      'High Chair', 'Bunk Bed', 'Baby Bottle',
+      'Lift', 'Balcony', 'Armchair', 'Dining Table', 'Mattress', 'Bedsheet',
+      'Bedside Table', 'Dressing Table', 'Shelf', 'Bookcase', 'Heater', 'Water Heater',
+      'Freezer', 'Dishwasher', 'Vacuum Cleaner', 'Clothes Horse', 'Saucepan',
+      'Casserole Dish', 'Baking Tray', 'Bowl', 'Mug', 'Jug', 'Coffee Pot',
+      'Ladle', 'Bottle Opener', 'Juicer',
+      'Toaster', 'Pestle and Mortar', 'Chopping Board', 'Rolling Pin', 'Kitchen Scales', 'Shampoo',
+      'Hairdryer', 'Nail Clippers', 'Razor', 'Bathrobe', 'Tissues', 'Loofah',
+      'Toilet Roll', 'Bath Mat', 'Picture Frame', 'Painting', 'Vase', 'Candlestick',
+      'Lighter', 'Matches', 'Extension Lead',
+      'Smoke Alarm', 'Plastic Bag', 'Jar', 'Tin', 'Cushion', 'Prayer Mat',
+      'Doormat', 'Photo Album', 'Pram', 'Toothpick', 'Hammock',
+      'Shopping Trolley', 'Drawer', 'Whisk', 'Cradle', 'Doorknob'
+    ],
+    'Tools': [
+      'Scissors', 'Ladder', 'Padlock', 'Hammer', 'Saw', 'Nail',
+      'Fishing rod', 'Screwdriver', 'Wrench', 'Chain', 'Net', 'Rope',
+      'Flashlight', 'Binoculars', 'Garden hose',
+      'Magnet', 'Pliers', 'Drill', 'Tape Measure',
+      'Axe', 'Shovel', 'Wheelbarrow', 'Watering Can', 'Hedge Shears',
+      'Paint Roller', 'Paint Bucket', 'Hard Hat', 'Magnifying Glass', 'Anvil',
+      'Swiss Army Knife', 'Horseshoe',
+      'Screw', 'Spirit Level', 'File', 'Chisel', 'Rake',
+      'Sandpaper', 'Soldering Iron', 'Glue Gun', 'Chainsaw', 'Nut and Bolt', 'Toolbox',
+      'Work Gloves', 'Welding Mask', 'Tin Snips', 'Sickle', 'Pickaxe', 'Crowbar', 'Pitchfork'
+    ],
+    'School and office': [
+      'Telescope', 'Envelope', 'Postcard', 'Calendar', 'Pencil', 'Eraser', 'Ruler',
+      'Book', 'Backpack',
+      'Pencil Sharpener', 'Notebook', 'Blackboard', 'Chalk', 'Crayons',
+      'Paintbrush', 'Pencil Case', 'Stapler', 'Paper Clip', 'Stamp', 'Globe',
+      'Calculator', 'Microscope', 'Clipboard', 'Bookmark',
+      'Glue Stick', 'Palette', 'Sticky Note', 'Magazine', 'Newspaper', 'Cash Register',
+      'Sticky Tape', 'Glue',
+      'Pen', 'Coloured Pencil', 'Sharpener',
+      'Textbook', 'Whiteboard', 'Marker', 'Hole Punch', 'Paper', 'Protractor',
+      'Set Square', 'Dictionary', 'Atlas', 'Diary', 'Desk', 'Office Chair',
+      'Folder', 'Rubber Stamp', 'Noticeboard', 'School Bell', 'Lunchbox', 'Easel'
+    ],
+    'Gadgets': [
+      'Phone', 'Computer', 'Camera', 'Microphone', 'Television',
+      'Headphones', 'Phone charger', 'Computer mouse', 'Laptop',
+      'Flash drive', 'Remote control', 'Spotlight', 'Radio',
+      'Mobile phone', 'Keyboard', 'Printer', 'Battery', 'Screen',
+      'Film Reel', 'Clapperboard', 'Cassette', 'Record Player', 'Megaphone',
+      'Satellite Dish', 'Cable', 'Tripod',
+      'Tablet', 'Power Bank', 'USB Cable', 'USB Stick',
+      'Hard Drive', 'Router', 'CCTV Camera', 'Smartwatch', 'VR Headset', 'Games Console',
+      'Controller', 'Earphones', 'Projector', 'Speaker', 'Drone', 'Robot Vacuum',
+      'Photocopier'
+    ],
+    'Clothes and accessories': [
+      'Umbrella', 'Glasses', 'Bag',
+      'Shirt', 'Trousers', 'Shoe', 'Hat', 'Ring', 'Crown',
+      'Diamond ring', 'Sneakers', 'Sunglasses', 'Suitcase', 'Wristwatch', 'Tuxedo',
+      'Buckle', 'Button', 'Pearl necklace', 'Tiara',
+      'Handbag', 'Wallet', 'Necklace',
+      'Earrings', 'Tie', 'Bow Tie', 'Top Hat', 'Beanie', 'Baseball Cap',
+      'Jacket', 'Dress', 'Skirt', 'Shorts', 'Boots', 'Flip Flops',
+      'Socks', 'Gloves', 'Scarf', 'Pajamas', 'Swimsuit', 'Belt',
+      'Flower Crown', 'Lipstick', 'Hair Clip', 'Perfume', 'Nail Polish',
+      'Rain Boots', 'Cowboy Hat', 'Sun Hat', 'Bib',
+      'T-shirt', 'Jeans', 'Blouse', 'Jumper', 'Hoodie', 'Coat',
+      'Leather Jacket', 'Suit', 'Waistcoat', 'Tights',
+      'Shoes', 'Slippers', 'Sandals', 'High Heels',
+      'Headscarf', 'Mittens', 'Bracelet', 'Anklet',
+      'Brooch', 'Zip', 'Handkerchief', 'Apron', 'Uniform',
+      'Turban', 'Fez', 'Raincoat'
+    ],
+    'Transport': [
+      'Car', 'Bus', 'Train', 'Plane', 'Rocket', 'Boat', 'Bicycle', 'Motorcycle',
+      'Submarine', 'Taxi', 'Anchor',
+      'Spaceship', 'Ambulance', 'Fire truck', 'Tractor',
+      'Tuk-tuk', 'Tram', 'Horse cart', 'Yacht',
+      'Sailboat', 'Hot air balloon', 'Helicopter', 'Scooter', 'Sled', 'Skateboard',
+      'Satellite', 'Hovercraft',
+      'Minibus', 'Subway Train', 'Ship', 'Canoe',
+      'Parachute', 'Police Car', 'Crane', 'Bulldozer', 'Truck',
+      'Carriage', 'Tricycle', 'Race Car', 'Double Decker Bus', 'Fishing Boat',
+      'Lifeboat', 'Cable Car', 'Jet Ski',
+      'Tow Truck', 'Bin Lorry', 'Forklift', 'Steamroller',
+      'Oar', 'Rowing Boat', 'Ice Cream Van', 'Monster Truck',
+      'Raft', 'Go-kart', 'Cement Mixer', 'Pirate Ship',
+      'UFO', 'Unicycle', 'Glider', 'Tank',
+      'Felucca', 'Speedboat', 'Digger',
+      'Van', 'Pickup Truck', 'Gondola', 'Donkey Cart', 'Ferry',
+      'Bullet Train', 'Jeep'
+    ],
+    'Places and buildings': [
+      'House', 'School', 'Hospital', 'Tower', 'Bridge', 'Castle', 'Tent', 'Church',
+      'Pyramid', 'Lighthouse', 'Stadium', 'Windmill', 'Bench',
+      'Suspension bridge', 'Train station', 'Warehouse', 'Carousel',
+      'Minaret', 'Stone statue',
+      'Gas station', 'Kiosk', 'Skyscraper', 'Hut', 'Palace', 'Sphinx',
+      'Eiffel Tower', 'Statue of Liberty', 'Leaning Tower of Pisa', 'Water wheel', 'Tunnel',
+      'Swimming pool', 'Ferris wheel',
+      'Apartment Block', 'Igloo', 'Mosque', 'Dam', 'Factory', 'Football Pitch',
+      'Slide', 'Swing', 'Fountain', 'Well', 'Garage',
+      'Traffic Light', 'Street Lamp', 'Postbox', 'Big Ben', 'Great Wall of China',
+      'Jail', 'Bus Stop', 'Clock Tower',
+      'Seesaw', 'Sandpit', 'Windsock', 'Sundial', 'Fire Hydrant',
+      'Totem Pole', 'Barn', 'Phone Box', 'Log Cabin', 'Treehouse', 'Space Station',
+      'Cash Machine'
+    ],
+    'Nature': [
+      'Sun', 'Moon', 'Star', 'Cloud', 'Rain', 'Tree', 'Rose', 'Mountain',
+      'Sea', 'Fire', 'Rainbow', 'Volcano', 'Cactus', 'Leaf', 'Snowflake', 'Wave',
+      'Bird nest', 'Bird feather', 'Beehive', 'Seashell',
+      'Palm tree', 'Island', 'Waterfall', 'Cave', 'Desert', 'Lake', 'River',
+      'Lightning', 'Tornado', 'Sunflower', 'Water drop', 'Smoke', 'Saturn', 'Meteor',
+      'Acorn', 'Snowball', 'Icicle', 'Four-leaf Clover',
+      'Snow', 'Oasis', 'Forest', 'Sand', 'Rock', 'Comet',
+      'Sunrise', 'Sunset', 'Crescent Moon', 'Sandcastle', 'Apple Tree', 'Campfire',
+      'Pinecone', 'Haystack', 'Tulip', 'Puddle', 'Cobweb',
+      'Daisy', 'Bamboo', 'Log', 'Tree Stump',
+      'Thunder', 'Storm', 'Hill', 'Mud', 'Stone',
+      'Flower', 'Grass', 'Branch', 'Root', 'Seed', 'Ocean',
+      'Beach', 'Bay', 'Coral Reef', 'Planet', 'Galaxy',
+      'Full Moon', 'Solar Eclipse', 'Lunar Eclipse', 'Sky', 'Ice', 'Iceberg',
+      'North Pole', 'South Pole', 'Glacier'
+    ],
+    'The body': [
+      'Eye', 'Hand', 'Foot', 'Heart', 'Nose', 'Ear', 'Tooth', 'Skull',
+      'Finger', 'Tongue', 'Moustache', 'Beard', 'Fingerprint',
+      'Mouth', 'Teeth', 'Brain', 'Skeleton', 'Plait', 'Muscle',
+      'Knee', 'Back', 'Tummy',
+      'Head', 'Hair', 'Face', 'Forehead', 'Eyebrows', 'Eyelashes',
+      'Cheek', 'Lips', 'Chin', 'Neck', 'Shoulder', 'Arm',
+      'Elbow', 'Palm', 'Thumb', 'Fingernail', 'Chest', 'Belly Button',
+      'Waist', 'Leg', 'Ankle', 'Heel', 'Toe', 'Lungs',
+      'Stomach', 'Bone'
+    ],
+    'Sports and toys': [
+      'Ball', 'Kite', 'Dice', 'Trophy', 'Treadmill',
+      'Gold medal', 'Referee whistle', 'Pool table', 'Tennis racket',
+      'Football', 'Basketball', 'Dumbbell', 'Jump rope', 'Helmet', 'Boxing glove',
+      'Stopwatch', 'Playing cards', 'Dominoes',
+      'Rocking Horse', 'Beach Ball', 'Snorkel', 'Goggles',
+      'Volleyball', 'Tennis Ball', 'Ping Pong Paddle', 'Goal', 'Whistle',
+      'Rattle', 'Surfboard', 'Trampoline', 'Yo-yo', 'Doll', 'Teddy Bear',
+      'Building Blocks', 'Jigsaw Puzzle', 'Chess', 'Backgammon', 'Bowling Pin', 'Darts',
+      'Water Pistol', 'Toy Box', 'Piggy Bank', 'Rubber Duck',
+      'Puppet', 'Paper Plane', 'Frisbee',
+      'Toy Car', 'Toy Train', 'Bubble Wand', 'Music Box', 'Hockey Stick', 'Stilts',
+      'Snowboard', 'Paper Boat', 'Pogo Stick', 'Hula Hoop',
+      'Saddle', 'Golf Ball', 'Cricket Bat',
+      'Pinwheel', 'Golf Club', 'Boomerang', 'Marbles', 'Spinning Top',
+      'Baseball Bat', 'Roller Skates', 'Basketball Hoop', 'Life Jacket', 'Flippers',
+      'Swim Ring', 'Rugby Ball', 'Skis', 'Ice Skates'
+    ],
+    'Musical instruments': [
+      'Guitar', 'Piano', 'Drum', 'Violin', 'Flute', 'Horn',
+      'Oud', 'Tambourine', 'Trumpet', 'Saxophone', 'Accordion',
+      'Harmonica', 'Xylophone',
+      'Cello', 'Electric Guitar', 'Drum Kit',
+      'Clarinet', 'Trombone', 'Harp', 'Bagpipes', 'Banjo', 'Ukulele',
+      'Maracas', 'Triangle', 'Tuba', 'Recorder'
+    ],
+    'People and characters': [
+      'Robot', 'Ghost', 'King', 'Pilot', 'Doctor', 'Thief', 'Bride', 'Wizard', 'Clown', 'Snowman',
+      'Queen', 'Princess', 'Knight', 'Pirate',
+      'Ninja', 'Astronaut', 'Alien', 'Mummy', 'Pharaoh', 'Mermaid',
+      'Genie', 'Witch', 'Police officer', 'Chef', 'Painter', 'Goalkeeper',
+      'Nurse', 'Farmer', 'Fisherman', 'Diver',
+      'Firefighter', 'Builder', 'Photographer', 'Bride and Groom', 'Santa Claus', 'Superman',
+      'Spider-Man', 'Batman', 'Mickey Mouse', 'SpongeBob', 'Vampire', 'Zombie',
+      'Giant', 'Elf', 'Footballer', 'Scarecrow'
+    ],
+    'Magic and adventure': [
+      'Bow and arrow', 'Sword', 'Shield', 'Treasure chest', 'Map', 'Compass', 'Bomb',
+      'Broomstick', 'Cauldron', 'Mushroom House', 'Treasure Map', 'Treasure Island',
+      'Quiver', 'Magic Wand', 'Crystal Ball', 'Message in a Bottle',
+      'Sceptre', 'Drawbridge', 'Catapult', 'Cannon', 'Lasso',
+      'Throne', 'Magic Lamp', 'Magic Carpet'
+    ],
+    'Holidays and parties': [
+      'Ribbon', 'Gift', 'Birthday cake', 'Balloon',
+      'Candy Cane', 'Gingerbread Man', 'Snow Globe',
+      'Birthday Candles', 'Party Hat', 'Ramadan Lantern', 'Christmas Tree',
+      'Fireworks', 'Theatre Mask', 'Pinata', 'Party Popper', 'Disco Ball', 'Wreath'
+    ],
+    'Signs and symbols': [
+      'Arrow', 'Flag', 'Footprint', 'Broken Heart',
+      'Smiley Face', 'Sad Face', 'Question Mark', 'Exclamation Mark',
+      'Traffic Cone', 'Stop Sign', 'Paw Print', 'Zebra Crossing'
+    ],
+    'Medical things': [
+      'Bandage', 'Stethoscope', 'Syringe', 'First Aid Kit', 'Pill',
+      'Crutches', 'Walking Stick', 'Wheelchair'
+    ]
+  }
+};
+
 const DRAW_WORDS = {
-  ar: [
-    // حيوانات
-    'أسد', 'فيل', 'زرافة', 'قرد', 'قطة', 'كلب', 'حصان', 'جمل',
-    'سمكة', 'أخطبوط', 'سلحفاة', 'ثعبان', 'نحلة', 'فراشة', 'بطريق', 'فرخة',
-    'بومة', 'حوت', 'دلفين', 'عقرب', 'أرنب', 'خروف', 'بقرة', 'تمساح',
-    'ديك', 'بطة', 'حمامة', 'نسر', 'ببغاء', 'فأر', 'سنجاب', 'قنفذ',
-    'غزال', 'كنغر', 'باندا', 'دب', 'ذئب', 'ثعلب', 'خفاش', 'فرس النهر',
-    'وحيد القرن', 'حمار وحشي', 'نمر', 'حلزون', 'دودة', 'نملة', 'عنكبوت', 'خنفساء',
-    'كابوريا', 'جمبري', 'فقمة', 'ديناصور', 'تنين', 'حصان البحر', 'سمكة قرش', 'بجعة',
-    'طاووس', 'ضفدع', 'سحلية', 'كوالا', 'دب قطبي', 'دبور', 'ناموسة',
-    'دعسوقة', 'نعامة', 'وزة', 'كتكوت', 'غراب', 'صقر', 'هدهد', 'حرباء',
-    'استاكوزا', 'سمكة منفوخة', 'جاموسة', 'ماعز', 'حمار', 'لاما', 'غوريلا', 'شمبانزي',
-    'فهد', 'ضبع', 'كوبرا', 'سلحفاة بحرية', 'عصفور', 'نورس', 'ماموث', 'حصان بجناحين',
-    'يونيكورن', 'ديك رومي', 'فلامنجو', 'سمكة ذهبية', 'حوت أزرق', 'جمل بسنامين', 'يرقة',
-    'نحلة على وردة', 'ثور', 'هامستر', 'نقار الخشب', 'ذبابة', 'صرصار', 'جرادة', 'أم أربعة وأربعين',
-    'تي ريكس', 'عش عصفور', 'ريشة', 'خلية نحل', 'صدفة بحر', 'نجم بحر', 'قنديل بحر',
-    // أكل وشرب
-    'بيتزا', 'برجر', 'موزة', 'تفاحة', 'بطيخة', 'عنب', 'آيس كريم', 'كيكة',
-    'بيضة', 'سمكة مشوية', 'فنجان قهوة', 'كوباية شاي', 'رغيف عيش', 'جبنة', 'عنقود موز', 'شاورما',
-    'عصير مانجو', 'كانز', 'عكاز', 'كرسي متحرك', 'فراولة', 'أناناس', 'ليمونة', 'كوز ذرة',
-    'طماطم', 'جزرة', 'قرن فلفل', 'بطاطس محمرة', 'هوت دوج', 'دونات', 'كب كيك', 'بسكويتة',
-    'كرواسون', 'مصاصة', 'غزل البنات', 'فطيرة', 'ساندوتش', 'طبق شوربة', 'بيضة مقلية', 'خيارة',
-    'بصلة', 'كمثرى', 'كرز', 'خوخة', 'جوز هند', 'رمانة', 'مشروم', 'سماعة دكتور',
-    'لوح شوكولاتة', 'فشار', 'سوشي', 'مكرونة', 'سلطة', 'كشري', 'فرخة مشوية', 'بان كيك',
-    'وافل', 'كورنيه آيس كريم', 'برطمان عسل', 'عصير برتقال', 'مشمش', 'كيوي', 'تين', 'بلح',
-    'ثوم', 'فلفل رومي', 'باذنجانة', 'كوسة', 'بطاطس', 'قرنبيط', 'بروكلي', 'فول سوداني',
-    'قزازة', 'جبنة مثلثات', 'كيس شيبسي', 'علبة لبن', 'مانجو', 'برتقالة', 'توت', 'جوافة',
-    'شمام', 'تين شوكي', 'أفوكادو', 'يوسفي', 'بطاطا', 'قرع', 'كرنب', 'بسلة',
-    'فجل', 'توست', 'بيض مسلوق', 'تورتة عيد ميلاد', 'براد شاي', 'طاسة بيض', 'شواية فحم',
-    // في البيت
-    'باب', 'شباك', 'كرسي', 'ترابيزة', 'سرير', 'مفتاح', 'ساعة', 'مراية',
-    'شمعة', 'لمبة', 'مقص', 'مكنسة', 'سلم', 'شمسية', 'نظارة', 'شنطة يد',
-    'مفتاح نور', 'ثلاجة', 'تليفون', 'كمبيوتر', 'كاميرا', 'مروحة', 'جرس', 'قفل',
-    'حقنة', 'منبه', 'راديو', 'موبايل', 'كيبورد', 'طابعة', 'بطارية',
-    'كرتونة', 'برميل', 'جردل', 'خرطوم مية', 'سلة زبالة', 'ممسحة', 'حلة', 'غلاية',
-    'خلاط', 'فرن', 'حوض مطبخ', 'حنفية', 'بانيو', 'دش', 'كنبة', 'دولاب',
-    'أباجورة', 'ستارة', 'مخدة', 'شماعة', 'مشبك غسيل', 'كرسي هزاز', 'نجفة', 'تكييف',
-    'تليفزيون', 'ريموت كنترول', 'سجادة', 'جاروف', 'غسالة', 'بوتاجاز', 'ميكروويف', 'معلقة',
-    'شوكة', 'سكينة', 'إبريق', 'كوباية', 'طبق', 'ترمس', 'صينية', 'مصفاة',
-    'مبشرة', 'فتاحة علب', 'محفظة', 'فرشاة أسنان', 'معجون أسنان', 'صابونة', 'فوطة حمام', 'فرشاة شعر',
-    'مشط', 'إبرة وخيط', 'زرار', 'سلة غسيل', 'حبل غسيل', 'سرير أطفال', 'مكواة', 'شاحن موبايل',
-    'ماوس كمبيوتر', 'لابتوب', 'فلاشة', 'سماعات ودن', 'أسانسير', 'بلكونة', 'مكتبة', 'مكنسة كهربا',
-    'كنكة', 'توستر', 'نشابة', 'سشوار', 'برواز', 'فازة', 'ولاعة', 'علبة كبريت',
-    'برطمان', 'سجادة صلاة', 'نوتة', 'سبحة', 'عربية أطفال', 'تواليت', 'مفتاح إنجليزي', 'ميزان',
-    'شاكوش', 'منشار', 'مسمار', 'مفك', 'كماشة', 'شنيور', 'متر قياس', 'فأس',
-    'عربية يد', 'مرشة زرع', 'أصيص زرع', 'فرشة دهان', 'شريط لاصق', 'فيشة كهربا', 'مغناطيس', 'ساعة رملية',
-    'كشاف يدوي', 'قلم رصاص', 'أستيكة', 'مسطرة', 'كتاب', 'شنطة ضهر', 'براية', 'كراسة',
-    'سبورة', 'طباشير', 'علبة ألوان', 'فرشاة رسم', 'مقلمة', 'دباسة', 'مشبك ورق', 'ظرف',
-    'طابع بريد', 'كرة أرضية', 'آلة حاسبة', 'ميكروسكوب', 'تلسكوب', 'خرامة', 'برجل', 'منقلة',
-    'مكتب', 'ختم', 'زمزمية', 'تابلت', 'راوتر', 'كاميرا مراقبة', 'دراع بلايستيشن', 'درون',
-    // ملابس وزينة
-    'قميص', 'بنطلون', 'جزمة', 'برنيطة', 'خاتم', 'تاج', 'نظارة شمس', 'شنطة سفر',
-    'ساعة يد', 'ترمومتر', 'بدلة رسمية', 'كوتشي', 'عقد لؤلؤ', 'حلق', 'كرافتة', 'بابيون',
-    'طاقية', 'كاب', 'جاكيت', 'فستان', 'جيبة', 'شورت', 'شبشب', 'شراب',
-    'جوانتي', 'كوفية', 'بيجامة', 'مايوه', 'حزام', 'تيشيرت', 'جينز', 'جلابية',
-    'عباية', 'بلوفر', 'بالطو', 'صندل', 'كعب عالي', 'طرحة', 'أسورة', 'سوستة',
-    'مريلة', 'طربوش',
-    // مواصلات
-    'عربية', 'أتوبيس', 'قطر', 'طيارة', 'صاروخ', 'مركب', 'عجلة', 'موتوسيكل',
-    'غواصة', 'خيال المآتة', 'طيارة ورق', 'تاكسي', 'سفينة فضاء', 'عربية إسعاف', 'عربية مطافي', 'جرار زراعي',
-    'توكتوك', 'ترام', 'عربية كارو', 'يخت', 'مركب شراعي', 'منطاد', 'هليكوبتر', 'سكوتر',
-    'زلاجة', 'سكيت بورد', 'ميكروباص', 'مترو', 'فلوكة', 'سفينة', 'باراشوت', 'عربية شرطة',
-    'ونش', 'لودر', 'شاحنة', 'حنطور', 'عجلة بثلاث عجلات', 'عربية سباق', 'أتوبيس دورين', 'تلفريك',
-    'جيت سكي', 'قمر صناعي',
-    // أماكن ومباني
-    'بيت', 'مدرسة', 'مستشفى', 'برج', 'كوبري', 'قلعة', 'خيمة', 'كنيسة',
-    'مسجد', 'هرم', 'منارة', 'ملعب', 'بوابة', 'محطة قطر', 'مخزن بضائع', 'محطة بنزين',
-    'كشك', 'ناطحة سحاب', 'كوخ', 'قصر', 'أبو الهول', 'برج إيفل', 'تمثال الحرية', 'برج بيزا',
-    'طاحونة هوا', 'ساقية', 'حمام سباحة', 'عجلة ملاهي', 'زحليقة أطفال', 'مرجيحة', 'عمارة', 'إجلو',
-    'سد', 'مصنع', 'نافورة', 'بير', 'جراج', 'إشارة مرور', 'عمود نور', 'صندوق بريد',
-    'ساعة بيج بن', 'سور الصين', 'سجن', 'تمثال حجري', 'لوحة رسم',
-    // طبيعة
-    'شمس', 'قمر', 'نجمة', 'سحابة', 'مطر', 'شجرة', 'وردة', 'جبل',
-    'بحر', 'نار', 'قوس قزح', 'بركان', 'صبار', 'ورقة شجر', 'ثلج', 'موجة',
-    'نخلة', 'جزيرة', 'شلال', 'كهف', 'صحراء', 'بحيرة', 'نهر', 'نفق',
-    'برق', 'إعصار', 'عباد الشمس', 'قطرة مية', 'دخان', 'كوكب زحل', 'نيزك', 'واحة',
-    'غابة', 'صخرة', 'مذنب', 'شروق الشمس', 'غروب الشمس', 'هلال', 'قلعة رمل', 'شجرة تفاح',
-    'بيضة ديناصور', 'شاطئ', 'جبل جليد',
-    // جسم ووش
-    'عين', 'إيد', 'قدم', 'قلب', 'مناخير', 'ودن', 'سن', 'عضلات',
-    'صباع', 'لسان', 'شنب', 'دقن', 'جمجمة', 'بصمة', 'بق', 'مخ',
-    'هيكل عظمي', 'ضفيرة', 'شفايف', 'عضمة',
-    // رياضة ولعب ومزيكا
-    'كرة', 'قفص عصافير', 'قوس وسهم', 'سيف', 'درع', 'سنارة', 'سلة', 'جيتار',
-    'بيانو', 'طبلة', 'كمان', 'ناي', 'ميكروفون', 'زهر', 'ميدالية ذهبية', 'كأس بطولة',
-    'صفارة حكم', 'طاولة بلياردو', 'مضرب تنس', 'كرة قدم', 'كرة سلة', 'دمبل', 'حبل نط', 'خوذة',
-    'جوانتي ملاكمة', 'ساعة إيقاف', 'ورق كوتشينة', 'دومينو', 'كورة طايرة', 'كورة تنس', 'مضرب بينج بونج', 'جون',
-    'ترامبولين', 'يويو', 'دبدوب', 'مكعبات', 'بازل', 'شطرنج', 'طاولة زهر', 'بولينج',
-    'دارتس', 'مسدس مية', 'عود', 'دف', 'مزمار', 'أكورديون',
-    'هارمونيكا', 'حصالة', 'درامز',
-    // ناس وشخصيات
-    'روبوت', 'شبح', 'ملك', 'طيار', 'دكتور', 'حرامي', 'عروسة', 'ساحر',
-    'مهرج', 'رجل ثلج', 'ملكة', 'أميرة', 'فارس', 'قرصان', 'نينجا', 'رائد فضاء',
-    'كائن فضائي', 'مومياء', 'فرعون', 'عروسة بحر', 'جني المصباح', 'ساحرة', 'عسكري', 'طباخ',
-    'رسام', 'حارس مرمى', 'ممرضة', 'مزارع', 'صياد', 'غواص', 'رجل مطافي', 'عامل بناء',
-    'مصور', 'عريس وعروسة', 'بابا نويل', 'سوبرمان', 'سبايدر مان', 'باتمان', 'ميكي ماوس', 'سبونج بوب',
-    'مصاص دماء', 'زومبي', 'عملاق', 'قزم', 'ساحرة على مقشة', 'لاعب كورة',
-    // حاجات تانية بتترسم
-    'خريطة', 'بوصلة', 'هدية', 'بالونة', 'سلسلة', 'شبكة', 'حبل', 'سهم',
-    'قنبلة', 'صندوق', 'دكة', 'فانوس رمضان', 'زينة رمضان', 'كحك العيد', 'خروف العيد', 'علم مصر',
-    'تاج ورد', 'كنز', 'مرساة', 'سلسلة مفاتيح', 'كرة كريستال', 'حوض سمك', 'قبعة ساحر', 'عصا ساحر',
-    'فانوس سحري', 'بصمة قدم', 'قلب مكسور', 'وش ضاحك', 'وش زعلان', 'علامة استفهام', 'علامة تعجب', 'شجرة كريسماس'
-  ],
-  en: [
-    'Lion', 'Elephant', 'Giraffe', 'Monkey', 'Cat', 'Dog', 'Horse', 'Camel',
-    'Fish', 'Octopus', 'Turtle', 'Snake', 'Bee', 'Butterfly', 'Penguin', 'Chicken',
-    'Owl', 'Whale', 'Dolphin', 'Scorpion', 'Rabbit', 'Sheep', 'Cow', 'Crocodile',
-    'Pizza', 'Burger', 'Banana', 'Apple', 'Watermelon', 'Grapes', 'Ice cream', 'Cake',
-    'Egg', 'Coffee cup', 'Teapot', 'Bread', 'Cheese', 'Doughnut', 'Lollipop', 'Popcorn',
-    'Door', 'Window', 'Chair', 'Table', 'Bed', 'Key', 'Clock', 'Mirror',
-    'Candle', 'Lamp', 'Scissors', 'Broom', 'Ladder', 'Umbrella', 'Glasses', 'Bag',
-    'Switch', 'Fridge', 'Phone', 'Computer', 'Camera', 'Fan', 'Bell', 'Padlock',
-    'Car', 'Bus', 'Train', 'Plane', 'Rocket', 'Boat', 'Bicycle', 'Motorcycle',
-    'Submarine', 'Balloon', 'Kite', 'Taxi',
-    'House', 'School', 'Hospital', 'Tower', 'Bridge', 'Castle', 'Tent', 'Church',
-    'Pyramid', 'Lighthouse', 'Stadium', 'Windmill',
-    'Sun', 'Moon', 'Star', 'Cloud', 'Rain', 'Tree', 'Rose', 'Mountain',
-    'Sea', 'Fire', 'Rainbow', 'Volcano', 'Cactus', 'Leaf', 'Snowflake', 'Wave',
-    'Eye', 'Hand', 'Foot', 'Heart', 'Nose', 'Ear', 'Tooth', 'Skull',
-    'Ball', 'Ribbon', 'Bow and arrow', 'Sword', 'Shield', 'Hammer', 'Saw', 'Nail',
-    'Fishing rod', 'Screwdriver', 'Scales', 'Basket', 'Cup', 'Plate', 'Spoon', 'Fork',
-    'Knife', 'Kettle', 'Bottle', 'Wrench',
-    'Guitar', 'Piano', 'Drum', 'Violin', 'Flute', 'Microphone', 'Television', 'Dice',
-    'Shirt', 'Trousers', 'Shoe', 'Hat', 'Ring', 'Crown', 'Robot', 'Ghost',
-    'King', 'Pilot', 'Doctor', 'Thief', 'Bride', 'Wizard', 'Clown', 'Snowman',
-    'Treasure chest', 'Map', 'Compass', 'Telescope', 'Envelope', 'Gift', 'Birthday cake', 'Anchor',
-    'Chain', 'Net', 'Rope', 'Arrow', 'Bomb', 'Box', 'Bench', 'Trophy',
-    'Diamond ring', 'Sneakers', 'Broomstick', 'Sunglasses', 'Suitcase', 'Wristwatch', 'Treadmill', 'Tuxedo',
-    'Headphones', 'Ceiling fan', 'Air conditioner', 'Clothes iron', 'Washing machine', 'Phone charger', 'Computer mouse', 'Laptop',
-    'Flash drive', 'Remote control', 'Toothbrush', 'Plunger', 'Postcard', 'Barbecue grill', 'Frying pan', 'Thermos',
-    'Mango juice', 'Soda can', 'Bandage', 'Pasta bowl', 'Hot dog', 'Slice of pizza', 'Strawberry', 'Pineapple',
-    'Lemon', 'Corn on the cob', 'Tomato', 'Carrot', 'Chilli pepper', 'Spaceship', 'Ambulance', 'Fire truck',
-    'Tractor', 'Suspension bridge', 'Train station', 'Warehouse', 'Carousel', 'Lantern', 'Flashlight', 'Buckle',
-    'Calendar', 'Minaret', 'Stone statue', 'Gold medal', 'Binoculars', 'Referee whistle', 'Pool table', 'Tennis racket',
-    'Bird nest', 'Bird feather', 'Beehive', 'Seashell', 'Starfish', 'Jellyfish', 'Chopsticks', 'Cauldron',
-    'Rooster', 'Duck', 'Pigeon', 'Eagle', 'Parrot', 'Mouse',
-    'Squirrel', 'Hedgehog', 'Deer', 'Kangaroo', 'Panda', 'Bear',
-    'Wolf', 'Fox', 'Bat', 'Hippo', 'Rhino', 'Zebra',
-    'Tiger', 'Snail', 'Worm', 'Ant', 'Spider', 'Beetle',
-    'Crab', 'Shrimp', 'Seal', 'Dinosaur', 'Dragon', 'Seahorse',
-    'Shark', 'Swan', 'Peacock', 'Frog', 'Lizard', 'French fries',
-    'Cupcake', 'Cookie', 'Croissant', 'Cotton candy', 'Pie', 'Sandwich',
-    'Spotlight', 'Fried egg', 'Cucumber', 'Onion', 'Pear', 'Cherries',
-    'Peach', 'Coconut', 'Pomegranate', 'Mushroom', 'Hairbrush', 'Comb',
-    'Toothpaste', 'Needle and thread', 'Button', 'Pencil', 'Eraser', 'Ruler',
-    'Book', 'Backpack', 'Pearl necklace', 'Wall clock', 'Alarm clock', 'Radio',
-    'Mobile phone', 'Keyboard', 'Printer', 'Battery', 'Horn', 'Cardboard box',
-    'Barrel', 'Bucket', 'Garden hose', 'Trash can', 'Mop', 'Cooking pot',
-    'Blender', 'Oven', 'Kitchen sink', 'Tap', 'Bathtub', 'Shower',
-    'Sofa', 'Wardrobe', 'Tiara', 'Curtain', 'Pillow', 'Coat hanger',
-    'Clothes peg', 'Rocking chair', 'Tuk-tuk', 'Tram', 'Horse cart', 'Yacht',
-    'Sailboat', 'Hot air balloon', 'Helicopter', 'Scooter', 'Sled', 'Skateboard',
-    'Gas station', 'Kiosk', 'Skyscraper', 'Hut', 'Palace', 'Sphinx',
-    'Eiffel Tower', 'Statue of Liberty', 'Leaning Tower of Pisa', 'Water wheel', 'Palm tree', 'Island',
-    'Waterfall', 'Cave', 'Desert', 'Lake', 'River', 'Tunnel',
-    'Swimming pool', 'Ferris wheel', 'Queen', 'Princess', 'Knight', 'Pirate',
-    'Ninja', 'Astronaut', 'Alien', 'Mummy', 'Pharaoh', 'Mermaid',
-    'Genie', 'Witch', 'Police officer', 'Chef', 'Painter', 'Goalkeeper',
-    'Nurse', 'Farmer', 'Fisherman', 'Diver', 'Lightning', 'Tornado',
-    'Sunflower', 'Water drop', 'Smoke', 'Saturn', 'Satellite', 'Meteor',
-    'Football', 'Basketball', 'Dumbbell', 'Jump rope', 'Helmet', 'Boxing glove',
-    'Stopwatch', 'Playing cards', 'Dominoes', 'Finger', 'Tongue', 'Moustache',
-    'Beard', 'Fingerprint',
+  ar: Object.keys(DRAW_WORD_CATS.ar).reduce((all, c) => all.concat(DRAW_WORD_CATS.ar[c]), []),
+  en: Object.keys(DRAW_WORD_CATS.en).reduce((all, c) => all.concat(DRAW_WORD_CATS.en[c]), [])
+};
 
-    // animals, birds and bugs
-    'Koala', 'Polar Bear', 'Wasp', 'Mosquito', 'Dragonfly', 'Ladybug',
-    'Ostrich', 'Goose', 'Chick', 'Crow', 'Hawk', 'Chameleon',
-    'Lobster', 'Pufferfish', 'Buffalo', 'Goat', 'Donkey', 'Llama',
-    'Gorilla', 'Chimpanzee', 'Cheetah', 'Hyena', 'Cobra', 'Sea Turtle',
-    'Sparrow', 'Seagull', 'Mammoth', 'Unicorn', 'Pegasus', 'Turkey',
-    'Flamingo', 'Toucan', 'Caterpillar', 'Cocoon', 'Goldfish', 'Blue Whale',
-    'Moose', 'Raccoon', 'Skunk', 'Beaver', 'Otter', 'Walrus',
-    'Squid', 'Stingray', 'Pig',
-
-    // food and drink
-    'Acorn', 'Chocolate Bar', 'Sushi', 'Spaghetti', 'Soup', 'Salad',
-    'Taco', 'Burrito', 'Noodles', 'Dumpling', 'Kebab', 'Meatball',
-    'Roast Chicken', 'Bowl of Rice', 'Spatula', 'Pretzel', 'Bagel', 'Muffin',
-    'Pancakes', 'Waffle', 'Ice Cream Cone', 'Honey Jar', 'Jam Jar', 'Milk Carton',
-    'Orange Juice', 'Lemonade', 'Rocking Horse', 'Apricot', 'Kiwi', 'Fig',
-    'Dates', 'Garlic', 'Bell Pepper', 'Eggplant', 'Zucchini', 'Potato',
-    'Cauliflower', 'Broccoli', 'Lettuce', 'Peanut', 'Water Bottle', 'Teacup',
-    'Beach Ball', 'Aquarium', 'Fish and Chips', 'Cheese Wedge', 'Bag of Chips', 'Snowball',
-    'Snorkel', 'Mango', 'Orange', 'Avocado', 'Stethoscope', 'Candy Cane',
-    'Gingerbread Man', 'Toast', 'Butter', 'Sausage', 'Crackers', 'Steak',
-    'Dog Lead',
-
-    // around the house
-    'Desk Lamp', 'Chandelier', 'Blanket', 'Rug', 'Thimble', 'Stairs',
-    'Dustpan', 'Stove', 'Microwave', 'Glass', 'Tray', 'Sieve',
-    'Grater', 'Can Opener', 'Icicle', 'Handbag', 'Wallet', 'Necklace',
-    'Earrings', 'Tie', 'Bow Tie', 'Top Hat', 'Beanie', 'Baseball Cap',
-    'Jacket', 'Dress', 'Skirt', 'Shorts', 'Boots', 'Flip Flops',
-    'Socks', 'Gloves', 'Scarf', 'Pajamas', 'Swimsuit', 'Belt',
-    'Soap', 'Towel', 'Sink', 'Toilet', 'Laundry Basket', 'Clothesline',
-    'Tablecloth', 'Crib',
-
-    // school, work and gadgets
-    'Pencil Sharpener', 'Notebook', 'Hovercraft', 'Blackboard', 'Chalk', 'Crayons',
-    'Paintbrush', 'Pencil Case', 'Stapler', 'Paper Clip', 'Stamp', 'Globe',
-    'Calculator', 'Screen', 'Microscope', 'Magnet', 'Hourglass', 'Light Bulb',
-    'Plug', 'Keyhole', 'Doorbell', 'Pliers', 'Drill', 'Tape Measure',
-    'Axe', 'Shovel', 'Wheelbarrow', 'Watering Can', 'Flower Pot', 'Hedge Shears',
-    'Paint Roller', 'Paint Bucket', 'Hard Hat',
-
-    // getting around
-    'Minibus', 'Clipboard', 'Subway Train', 'Four-leaf Clover', 'Ship', 'Canoe',
-    'Parachute', 'Doghouse', 'Police Car', 'Crane', 'Bulldozer', 'Truck',
-    'Goggles', 'Carriage', 'Tricycle', 'Race Car', 'Double Decker Bus', 'Fishing Boat',
-    'Lifeboat', 'Cable Car', 'Jet Ski',
-
-    // nature
-    'Snow', 'Oasis', 'Forest', 'Sand', 'Rock', 'Comet',
-    'Sunrise', 'Sunset', 'Crescent Moon', 'Sandcastle', 'Apple Tree', 'Mushroom House',
-
-    // places and buildings
-    'Apartment Block', 'Igloo', 'Mosque', 'Dam', 'Factory', 'Football Pitch',
-    'Slide', 'Swing', 'Fountain', 'Well', 'Garage', 'Fishbowl',
-    'Traffic Light', 'Street Lamp', 'Postbox', 'Big Ben', 'Great Wall of China', 'Treasure Map',
-    'Treasure Island', 'Jail', 'Campfire',
-
-    // sport, toys and music
-    'Volleyball', 'Tennis Ball', 'Ping Pong Paddle', 'Goal', 'Whistle', 'Bookmark',
-    'Rattle', 'Surfboard', 'Trampoline', 'Yo-yo', 'Doll', 'Teddy Bear',
-    'Building Blocks', 'Jigsaw Puzzle', 'Chess', 'Backgammon', 'Bowling Pin', 'Darts',
-    'Water Pistol', 'Oud', 'Tambourine', 'Trumpet', 'Saxophone', 'Accordion',
-    'Harmonica', 'Xylophone', 'Toy Box', 'Piggy Bank', 'Rubber Duck',
-
-    // people and characters
-    'Firefighter', 'Builder', 'Photographer', 'Bride and Groom', 'Santa Claus', 'Superman',
-    'Spider-Man', 'Batman', 'Mickey Mouse', 'SpongeBob', 'Vampire', 'Zombie',
-    'Giant', 'Elf', 'Snow Globe', 'Footballer',
-
-    // the body
-    'Mouth', 'Teeth', 'Brain', 'Skeleton', 'Plait', 'Muscle',
-    'Knee', 'Back', 'Tummy',
-
-    // occasions and other things
-    'Quiver', 'Puppet', 'Birthday Candles', 'Party Hat', 'Ramadan Lantern', 'Flag',
-    'Flower Crown', 'Magic Wand', 'Keyring', 'Crystal Ball', 'Footprint', 'Broken Heart',
-    'Smiley Face', 'Sad Face', 'Question Mark', 'Exclamation Mark', 'Christmas Tree', 'Reindeer',
-    'Fireworks', 'Paper Plane', 'Message in a Bottle', 'Frisbee', 'Magnifying Glass', 'Bird Cage',
-
-    // mammals
-    'Leopard', 'Glue Stick', 'Palette', 'Film Reel', 'Coin', 'Theatre Mask',
-    'Gazelle', 'Clapperboard', 'Bull', 'Calf', 'Pony', 'Mule',
-    'Lamb', 'Pinata', 'Toy Car', 'Rat', 'Hamster', 'Guinea Pig',
-    'Porcupine', 'Mole', 'Orangutan', 'Baboon', 'Lemur', 'Sloth',
-    'Anteater', 'Armadillo', 'Tow Truck', 'Sceptre', 'Meerkat', 'Toy Train',
-    'Alpaca', 'Bin Lorry', 'Puppy', 'Kitten', 'Lipstick', 'Wild Boar',
-    'Platypus', 'Sea Lion', 'Orca', 'Drawbridge', 'Catapult', 'Bubble Wand',
-    'Cannon', 'Mountain Goat',
-
-    // birds
-    'Sticky Note', 'Magazine', 'Newspaper', 'Canary', 'Safety Pin', 'Forklift',
-    'Ironing Board', 'Hoopoe', 'Picnic Basket', 'Stork', 'Hummingbird', 'Woodpecker',
-    'Ball of Wool', 'Swallow', 'Robin', 'Knitting Needles', 'Pelican', 'Vulture',
-    'Sewing Machine', 'Cockatoo', 'Hair Clip',
-
-    // sea
-    'Perfume', 'Sea Urchin', 'Oyster', 'Clam', 'Clownfish', 'Swordfish',
-    'Eel', 'Sardine', 'Tuna', 'Salmon', 'Shopping Bag', 'Narwhal',
-    'Whale Shark', 'Mussel', 'Hammerhead Shark',
-
-    // reptiles
-    'Music Box', 'Tortoise', 'Python', 'Viper', 'Gecko', 'Iguana',
-    'Komodo Dragon', 'Party Popper', 'Salamander', 'Nail Polish', 'Anaconda', 'Rattlesnake',
-    'Tree Frog',
-
-    // bugs
-    'Fly', 'Moth', 'Lasso', 'Cockroach', 'Grasshopper', 'Cassette',
-    'Record Player', 'Firefly', 'Banknote', 'Slug', 'Flea', 'Praying Mantis',
-    'Centipede', 'Cash Register', 'Tarantula', 'Disco Ball', 'Queen Bee', 'Hockey Stick',
-
-    // extinct
-    'T-Rex', 'Triceratops', 'Stegosaurus', 'Pterodactyl', 'Sabre-toothed Tiger', 'Dodo',
-
-    // fruit
-    'Tangerine', 'Lime', 'Grapefruit', 'Raspberry', 'Blueberry', 'Blackberry',
-    'Plum', 'Guava', 'Melon', 'Cantaloupe', 'Prickly Pear', 'Papaya',
-    'Lychee', 'Dragon Fruit', 'Raisins', 'Anvil', 'Passion Fruit', 'Stilts',
-    'Bus Stop', 'Steamroller', 'Clock Tower',
-
-    // vegetables
-    'Sweet Potato', 'Megaphone', 'Oar', 'Pumpkin', 'Okra', 'Spinach',
-    'Cabbage', 'Peas', 'Green Beans', 'Sweetcorn', 'Radish', 'Turnip',
-    'Beetroot', 'Celery', 'Rowing Boat', 'Ice Cream Van', 'Monster Truck', 'Mint',
-    'Raft', 'Go-kart', 'Artichoke', 'Cement Mixer', 'Ginger', 'Asparagus',
-    'Pirate Ship', 'Brussels Sprouts', 'Spring Onion',
-
-    // dishes
-    'Lasagne', 'Birdhouse', 'Seesaw', 'Sandpit', 'Falafel', 'Hummus',
-    'Tabbouleh', 'Snowboard', 'Rain Boots', 'Samosa', 'Shawarma', 'Drinking Straw',
-    'Grilled Fish', 'Mousetrap', 'Omelette', 'Scrambled Eggs', 'Boiled Egg', 'Throne',
-    'Chicken Nuggets', 'Magic Lamp', 'Macaroni Cheese', 'Windsock', 'Paella', 'Ramen',
-    'Sundial', 'Spring Rolls', 'Kofta', 'Paper Boat', 'Stuffed Vine Leaves', 'Koshari',
-    'Ful Medames', 'Shakshuka', 'Hot Water Bottle', 'Cereal', 'Traffic Cone', 'Stop Sign',
-    'Nachos', 'Pogo Stick', 'Sausage Roll', 'Club Sandwich', 'Grilled Cheese', 'Cheeseburger',
-    'Chicken Wings', 'Swiss Army Knife', 'Fire Hydrant', 'Hula Hoop', 'Juice Box', 'Lamb Chops',
-    'Pepper Grinder',
-
-    // sweets
-    'Scarecrow', 'Brownie', 'Cheesecake', 'Pinecone', 'Marshmallow', 'Biscuit',
-    'Apple Pie', 'Cinnamon Roll', 'Baklava', 'Kunafa', 'Basbousa', 'Rice Pudding',
-    'Jelly', 'Bird Bath', 'Crème Caramel', 'Chewing Gum', 'Cowboy Hat', 'Totem Pole',
-    'Sleeping Bag', 'Paw Print', 'Macaron', 'Tiramisu', 'Zebra Crossing', 'Gingerbread',
-    'Syringe', 'Pudding', 'Chocolate Mousse', 'Jam Tart', 'Eclair', 'Barn',
-    'Sundae',
-
-    // drinks
-    'Deck Chair', 'Beach Umbrella', 'Cappuccino', 'Salt Shaker', 'Oven Glove', 'Hot Chocolate',
-    'Sun Hat', 'Milkshake', 'Smoothie', 'Apple Juice', 'Sugarcane Juice', 'Iced Tea',
-    'Dummy', 'Bib', 'Phone Box', 'First Aid Kit', 'Cola', 'Cocoa',
-    'High Chair', 'Bunk Bed', 'UFO', 'Log Cabin', 'Treehouse', 'Space Station',
-    'Ice Cube', 'Baby Bottle', 'Pill',
-
-    // household
-    'Lift', 'Balcony', 'Armchair', 'Dining Table', 'Mattress', 'Bedsheet',
-    'Bedside Table', 'Dressing Table', 'Shelf', 'Bookcase', 'Heater', 'Water Heater',
-    'Freezer', 'Saddle', 'Dishwasher', 'Vacuum Cleaner', 'Clothes Horse', 'Saucepan',
-    'Casserole Dish', 'Baking Tray', 'Bowl', 'Mug', 'Jug', 'Coffee Pot',
-    'Crutches', 'Ladle', 'Golf Ball', 'Bottle Opener', 'Cricket Bat', 'Juicer',
-    'Toaster', 'Pestle and Mortar', 'Chopping Board', 'Rolling Pin', 'Kitchen Scales', 'Shampoo',
-    'Hairdryer', 'Nail Clippers', 'Razor', 'Bathrobe', 'Tissues', 'Loofah',
-    'Toilet Roll', 'Bath Mat', 'Picture Frame', 'Painting', 'Vase', 'Candlestick',
-    'Lighter', 'Matches', 'Satellite Dish', 'Extension Lead', 'Cable', 'Horseshoe',
-    'Smoke Alarm', 'Plastic Bag', 'Jar', 'Tin', 'Cushion', 'Prayer Mat',
-    'Doormat', 'Photo Album', 'Pram', 'Toothpick', 'Hammock', 'Haystack',
-
-    // tools
-    'Screw', 'Walking Stick', 'Spirit Level', 'File', 'Chisel', 'Shopping Trolley',
-    'Rake', 'Unicycle', 'Tulip', 'Tripod', 'Sticky Tape', 'Glue',
-    'Sandpaper', 'Soldering Iron', 'Glue Gun', 'Chainsaw', 'Nut and Bolt', 'Toolbox',
-    'Work Gloves', 'Welding Mask', 'Tin Snips', 'Sickle', 'Pickaxe', 'Crowbar',
-
-    // clothes
-    'T-shirt', 'Jeans', 'Blouse', 'Jumper', 'Hoodie', 'Coat',
-    'Leather Jacket', 'Suit', 'Waistcoat', 'Pinwheel', 'Golf Club', 'Tights',
-    'Shoes', 'Boomerang', 'Slippers', 'Sandals', 'High Heels', 'Marbles',
-    'Headscarf', 'Mittens', 'Puddle', 'Spinning Top', 'Bracelet', 'Anklet',
-    'Brooch', 'Zip', 'Handkerchief', 'Apron', 'Uniform', 'Glider',
-    'Turban', 'Fez', 'Raincoat',
-
-    // school
-    'Pen', 'Magic Carpet', 'Coloured Pencil', 'Pitchfork', 'Sharpener', 'Tank',
-    'Textbook', 'Whiteboard', 'Marker', 'Hole Punch', 'Paper', 'Protractor',
-    'Set Square', 'Dictionary', 'Atlas', 'Diary', 'Desk', 'Office Chair',
-    'Drawer', 'Folder', 'Rubber Stamp', 'Noticeboard', 'School Bell', 'Lunchbox',
-
-    // tech
-    'Tablet', 'Wreath', 'Whisk', 'Power Bank', 'USB Cable', 'USB Stick',
-    'Hard Drive', 'Router', 'CCTV Camera', 'Smartwatch', 'VR Headset', 'Games Console',
-    'Controller', 'Earphones', 'Projector', 'Speaker', 'Drone', 'Robot Vacuum',
-    'Photocopier', 'Cash Machine',
-
-    // vehicles
-    'Cradle', 'Cobweb', 'Felucca', 'Speedboat', 'Digger', 'Ice Lolly',
-    'Van', 'Pickup Truck', 'Gondola', 'Donkey Cart', 'Easel', 'Ferry',
-    'Bullet Train', 'Doorknob', 'Jeep',
-
-    // instruments
-    'Daisy', 'Bamboo', 'Cello', 'Log', 'Electric Guitar', 'Drum Kit',
-    'Clarinet', 'Trombone', 'Harp', 'Bagpipes', 'Banjo', 'Ukulele',
-    'Maracas', 'Triangle', 'Tuba', 'Tree Stump', 'Recorder',
-
-    // nature
-    'Thunder', 'Storm', 'Baseball Bat', 'Hill', 'Mud', 'Stone',
-    'Flower', 'Grass', 'Branch', 'Root', 'Seed', 'Ocean',
-    'Beach', 'Bay', 'Coral Reef', 'Planet', 'Galaxy', 'Wheelchair',
-    'Full Moon', 'Solar Eclipse', 'Lunar Eclipse', 'Sky', 'Ice', 'Iceberg',
-    'North Pole', 'South Pole', 'Glacier',
-
-    // body
-    'Head', 'Hair', 'Face', 'Forehead', 'Eyebrows', 'Eyelashes',
-    'Cheek', 'Lips', 'Chin', 'Neck', 'Shoulder', 'Arm',
-    'Elbow', 'Palm', 'Thumb', 'Fingernail', 'Chest', 'Belly Button',
-    'Waist', 'Leg', 'Ankle', 'Heel', 'Toe', 'Lungs',
-    'Roller Skates', 'Stomach', 'Basketball Hoop', 'Bone', 'Life Jacket', 'Flippers',
-    'Swim Ring', 'Rugby Ball', 'Skis', 'Ice Skates'
-  ]
+/** The category a drawing word is filed under, in its own language ('' when it isn't in the list). */
+const drawWordCategory = (lang, word) => {
+  const cats = DRAW_WORD_CATS[lang] || DRAW_WORD_CATS.ar;
+  return Object.keys(cats).find(c => cats[c].indexOf(word) !== -1) || '';
 };
 
 

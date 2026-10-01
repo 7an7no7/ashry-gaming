@@ -92,8 +92,11 @@ function chameleonFrame(state, t) {
       </div>` + renderRoomPlayerStrip(state);
   }
   if (s.phase === 'guess') {
-    return head + `
-      <div class="card card--accent" style="text-align:center">
+    // The vote first, the caught chameleon's bar rising last; their card stays face down till then.
+    const bars = roomSpyVoteBars(state, [s.chameleonId], 'phone');
+    const cover = spyRevealParts(['cham-guess', roomDealKey(state, s.round), s.chameleonId].join('|'), t.reveal_chameleon_was, bars.ms);
+    return head + `${bars.html}
+      <div class="card card--accent ${cover.cls}" ${cover.attrs} style="text-align:center; --cover-at:${cover.at}ms">${cover.cover}
         <div class="metric metric--md">🦎 ${escapeHTML(s.chameleonName || '')}</div>
         <p class="sheet__subtitle">${escapeHTML(iAmCham ? (t.cham_guess_hint || '') : (t.cham_guessing || ''))}</p>
       </div>
@@ -105,10 +108,12 @@ function chameleonFrame(state, t) {
   const won = s.outcome === 'caught';
   const line = s.impostorLeft ? (t.room_impostor_left || '') : s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
   const revealKey = ['cham', roomDealKey(state, s.round), s.outcome, s.chameleonName].join('|');
-  const cover = spyRevealParts(revealKey, t.reveal_chameleon_was);
-  const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, spyCastVerdict(s.outcome), { kind: 'chameleon', loud: spyCastLoud(state) }) : '';
-  return head + `${cast}
-    <div class="card ${won ? 'card--accent' : ''} ${cover.cls}" ${cover.attrs} style="text-align:center">${cover.cover}
+  // The vote as bars first, the chameleon's own rising last and lit; the card waits for it.
+  const bars = roomSpyVoteBars(state, [s.chameleonId], 'phone');
+  const cover = spyRevealParts(revealKey, t.reveal_chameleon_was, bars.ms);
+  const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, spyCastVerdict(s.outcome), { kind: 'chameleon', loud: spyCastLoud(state), after: cover.at }) : '';
+  return head + `${bars.html}${cast}
+    <div class="card ${won ? 'card--accent' : ''} ${cover.cls}" ${cover.attrs} style="text-align:center; --cover-at:${cover.at}ms">${cover.cover}
       <div class="metric metric--md ${won ? 'tx-success' : 'tx-warning'}">${won ? '🎉' : '🦎'} ${escapeHTML(line.replace('{name}', s.chameleonName || ''))}</div>
       <p class="sheet__subtitle">${escapeHTML(t.secret_word || '')}: <b>${escapeHTML(s.secretWord || '')}</b>${s.accusedName ? ` · ${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}` : ''}</p>
     </div>
@@ -149,15 +154,23 @@ TV_GAMES.chameleon = {
     }
     if (s.phase === 'voting') return `<div class="tv-vote">${head}${grid}${tvVoteProgress(state, t)}</div>`;
     if (s.phase === 'guess') {
-      return `<div class="tv-vote">${head}<div class="tv-question">🦎 ${escapeHTML(s.chameleonName || '')} · ${t.cham_guessing || ''}</div>${grid}
+      // The vote's bars first, the caught chameleon's last; the line under its cover until then.
+      const bars = roomSpyVoteBars(state, [s.chameleonId], 'tv');
+      const cover = spyRevealParts(['cham-guess-tv', roomDealKey(state, s.round), s.chameleonId].join('|'), t.reveal_chameleon_was, bars.ms);
+      return `<div class="tv-vote">${head}${bars.html ? `<div class="tv-scale">${bars.html}</div>` : ''}
+        <div class="tv-spy-reveal ${cover.cls}" ${cover.attrs} style="--cover-at:${cover.at}ms">${cover.cover}<div class="tv-question">🦎 ${escapeHTML(s.chameleonName || '')} · ${t.cham_guessing || ''}</div></div>${grid}
         ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>`)}</div>`;
     }
     const line = s.impostorLeft ? (t.room_impostor_left || '') : s.outcome === 'escaped' ? (t.cham_escaped || '') : s.outcome === 'stole' ? (t.cham_stole || '') : (t.cham_caught || '');
+    const revealKey = ['cham', roomDealKey(state, s.round), s.outcome, s.chameleonName].join('|');
+    // The vote as bars first, the chameleon's own rising last; then the line turns over.
+    const bars = roomSpyVoteBars(state, [s.chameleonId], 'tv');
+    const cover = spyRevealParts(revealKey + '|tv', t.reveal_chameleon_was, bars.ms);
     const cast = typeof spyCastHtml === 'function'
-      ? spyCastHtml(['cham', roomDealKey(state, s.round), s.outcome, s.chameleonName].join('|'), spyCastVerdict(s.outcome), { kind: 'chameleon', tv: true, cls: 'spc--tv-short' })
+      ? spyCastHtml(revealKey, spyCastVerdict(s.outcome), { kind: 'chameleon', tv: true, cls: 'spc--tv-short', after: cover.at })
       : '';
-    return `<div class="tv-vote">${head}${cast}
-      <div class="tv-question">${s.outcome === 'caught' ? '🎉' : '🦎'} ${escapeHTML(line.replace('{name}', s.chameleonName || ''))} · ${escapeHTML(s.secretWord || '')}</div>
+    return `<div class="tv-vote">${head}${bars.html ? `<div class="tv-scale">${bars.html}</div>` : ''}${cast}
+      <div class="tv-spy-reveal ${cover.cls}" ${cover.attrs} style="--cover-at:${cover.at}ms">${cover.cover}<div class="tv-question">${s.outcome === 'caught' ? '🎉' : '🦎'} ${escapeHTML(line.replace('{name}', s.chameleonName || ''))} · ${escapeHTML(s.secretWord || '')}</div></div>
       ${grid}<div class="tv-scale">${renderScoreboard(s.board)}</div>
       ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}${state.youAreHost ? tvBtn(t.room_another_game, "tvBackToHub()", 'ghost') : ''}</div>`)}</div>`;
   }

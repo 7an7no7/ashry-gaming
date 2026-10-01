@@ -89,6 +89,24 @@ shuffled order in `shared.turnOrder` and the pointer in `shared.turnAt`; each
 it, like المشنقة's `setterAt`), adds latecomers at the end, and steps on. A new game
 (`start`) shuffles afresh.
 
+## الفنان المزيف: the fake knows the category (the review of 1 Oct 2026)
+
+As in the original game, the fake is told what kind of thing the word is.
+`DRAW_WORDS` is now built from `DRAW_WORD_CATS` in `PartyContent.js`: every
+drawing word filed under one category (18 kinds in each language: حيوانات, أكل
+وشرب, حاجات البيت, عدة وأدوات, مدرسة ومكتب, أجهزة, لبس وإكسسوارات, مواصلات, أماكن
+ومباني, طبيعة, جسم الإنسان, رياضة ولعب, آلات موسيقية, ناس وشخصيات, حواديت ومغامرات,
+أعياد ومناسبات, رموز وعلامات, حاجات طبية; the English list the same kinds), with
+`DRAW_WORDS.ar` / `.en` the flat lists every drawing game deals from, so ارسم وخمّن
+and ارسم واكتب are unchanged. `drawWordCategory(lang, word)` finds a word's
+category; `fakeArtistAction`'s deal puts `category` in every slice (the fake's
+`{ isFake, category }`, the painters' `{ isFake, word, category }`), and the role
+card shows «الفئة: …» under the word or the ❓ (`fa_category`). An older server
+deals none and the line is left out. `validate-content.js` checks every category
+has 5+ words and that no word is spelled inside its own category's name (مكتب sat
+in «مدرسة ومكتب» and moved to the house), and `rules.mjs` that the fake's slice
+has the category and never the word.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

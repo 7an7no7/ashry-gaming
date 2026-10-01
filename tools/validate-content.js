@@ -118,6 +118,17 @@ for (const [lang, list] of Object.entries(DRAW)) {
   list.forEach((w, i) => { if (!w || !w.trim()) note(`draw.${lang}[${i}]: empty`); });
   console.log(`draw.${lang}: ${list.length} words`);
 }
+// The same words grouped by kind (الفنان المزيف tells the fake the category): every
+// category has words, a category is a name of its own in each language, and no word
+// is spelled inside its own category's name (the fake would be told it).
+const DRAW_CATS = load(PC, 'DRAW_WORD_CATS');
+for (const [lang, cats] of Object.entries(DRAW_CATS)) {
+  for (const [cat, words] of Object.entries(cats)) {
+    if (!cat.trim() || !Array.isArray(words) || words.length < 5) note(`draw.${lang} "${cat}": a category needs a name and 5+ words`);
+    (words || []).forEach((w) => { if (clueKey(cat).indexOf(clueKey(w)) !== -1) note(`draw.${lang} "${cat}": the word "${w}" is inside its category's name`); });
+  }
+  console.log(`draw.${lang}: ${Object.keys(cats).length} categories`);
+}
 
 // A Codenames board is 25 cards drawn without replacement.
 for (const [lang, list] of Object.entries(CN)) {

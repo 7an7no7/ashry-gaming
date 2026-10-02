@@ -3079,6 +3079,23 @@ const VARIANT_DRIVERS = {
     must(T, T.host, 'playAgain', {});
     return S(T).round === 1 && S(T).solve === S(T).settings.lineup[0];
   },
+  'xo:big'() {
+    // «إكس أو الكبير»: nothing is secret on the nine boards; the generic probes (no `_` key, nobody else's
+    // slice) are held over a whole game and the next, every move on the board the robot was sent to.
+    const XB = new Function(readFileSync(new URL('../../TicTacToe.js', import.meta.url), 'utf8') + ';return { xoBigLegal };')();
+    const T = table('xo:big', 3, { gameId: 'xo' });
+    const play = () => {
+      for (let guard = 0; guard < 120 && S(T).phase === 'play'; guard++) {
+        const s = S(T);
+        act(T, s.seats[s.turn], 'move', { cell: pick(XB.xoBigLegal({ cells: s.cells, minis: s.minis, send: s.send })), move: s.moves });
+      }
+    };
+    must(T, T.host, 'start', { size: 'big' });
+    play();
+    must(T, T.host, 'nextRound', { round: S(T).round });
+    play();
+    return S(T).phase === 'over' && S(T).big === true;
+  },
   mission() {
     // المهمة السرية beside a night: files done (yes and no), swapped, caught right and wrong, taken
     // back; a game of المختلف played meanwhile; someone joining and someone leaving; then off - the

@@ -30,6 +30,15 @@ function xoRoomBoardHtml(s, o) {
   const win = s.win || [];
   const last = s.last || null;
   const pop = !!o.popKey && typeof motionFirst === 'function' && motionFirst(o.popKey);
+  // «إكس أو الكبير»: the nine boards (JS_XO.html), the mark drawn with a pen and a board taken stamped.
+  if (s.big) {
+    return xoBigBoardHtml(s, {
+      playable: !!o.playable, tap: 'xoRoomTap', last: last ? last.cell : -1,
+      fresh: pop && last ? last.cell : -1,
+      stamp: pop && last && (last.took === 'X' || last.took === 'O') ? Math.floor(last.cell / 9) : -1,
+      lighting: o.lighting
+    });
+  }
   const gone = pop && last && last.gone >= 0 ? { cell: last.gone, mark: last.seat === 0 ? 'X' : 'O' } : null;
   return `<div class="xo-board xo-board--room ${s.phase === 'over' ? 'is-done' : ''} ${o.lighting ? 'is-lighting' : ''}" dir="ltr">
       ${(s.cells || []).map((v, i) => {
@@ -50,12 +59,12 @@ function xoRoomPills(state, t) {
   const s = state.shared;
   const names = duelRoomNames(state);
   const scores = s.scores || {};
-  const pill = (i) => ({
-    name: names[i],
-    score: scores[s.seats[i]] || 0,
-    mark: xoRoomChip(i),
-    sub: s.seats[i] === Room.me && !state.youAreScreen ? escapeHTML(t.xo_you || '') : ''
-  });
+  const count = s.big ? xoBigCount(s.minis) : null;
+  const pill = (i) => {
+    const you = s.seats[i] === Room.me && !state.youAreScreen ? (t.xo_you || '') : '';
+    const boards = count ? xoBigText().boards + ' ' + count[i === 0 ? 'X' : 'O'] : '';
+    return { name: names[i], score: scores[s.seats[i]] || 0, mark: xoRoomChip(i), sub: escapeHTML([you, boards].filter(Boolean).join(' · ')) };
+  };
   return duelPillsHtml({ players: [pill(0), pill(1)], turn: s.phase === 'play' ? s.turn : -1, draws: null });
 }
 
@@ -73,6 +82,7 @@ function xoRoomTap(cell) {
   if (!state || state.game !== 'xo') return;
   const s = state.shared;
   if (s.phase !== 'play' || (s.seats || [])[s.turn] !== Room.me || (s.cells || [])[cell]) return;
+  if (s.big && xoBigLegal({ cells: s.cells, minis: s.minis || [], send: s.send }).indexOf(cell) === -1) return;
   duelRoomSend(state, { cell: cell }, () => xoRoomEarly(state, cell));
 }
 
@@ -82,10 +92,18 @@ function xoRoomEarly(state, cell) {
   const seat = (s.seats || []).indexOf(Room.me);
   const cells = (s.cells || []).slice();
   const order = { X: ((s.order || {}).X || []).slice(), O: ((s.order || {}).O || []).slice() };
-  const placed = xoMark(cells, order, s.rule3, cell, seat === 0 ? 'X' : 'O');
-  if (!placed) return;
+  let next;
+  if (s.big) {
+    const g = { cells: cells, minis: (s.minis || []).slice(), send: s.send };
+    const r = xoBigMark(g, cell, seat === 0 ? 'X' : 'O');
+    if (!r) return;
+    next = Object.assign({}, s, { cells: g.cells, minis: g.minis, send: g.send, last: { seat: seat, cell: cell, gone: -1, took: r.took }, win: [] });
+  } else {
+    const placed = xoMark(cells, order, s.rule3, cell, seat === 0 ? 'X' : 'O');
+    if (!placed) return;
+    next = Object.assign({}, s, { cells: cells, order: order, last: { seat: seat, cell: cell, gone: placed.gone }, win: [] });
+  }
   const key = ['xo', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
-  const next = Object.assign({}, s, { cells: cells, order: order, last: { seat: seat, cell: cell, gone: placed.gone }, win: [] });
   duelRoomDrawEarly('xo', key, xoRoomBoardHtml(next, { popKey: key }), () => {
     // With a TV in the room it is the room's one voice (كونكت ٤'s early drop asks the same).
     if (duelOnce('snd|' + key) && duelRoomLoud(state)) duelSound('drop');
@@ -98,13 +116,28 @@ function setXORoomThree(on) {
   duelLobbyRedraw();
 }
 
+/** «المقاس» in the lobby, remembered with the one-phone game's (appState.xo.size). */
+function setXORoomSize(big) {
+  xoState().size = big ? 'big' : 'normal';
+  saveToLocal();
+  duelLobbyRedraw();
+}
+
+/** The line under the status on the big board: a board just taken, and where the side to move was sent. */
+function xoRoomWhereHtml(s) {
+  if (!s.big || s.phase !== 'play') return '';
+  const last = s.last || null;
+  const took = last && last.took ? { board: Math.floor(last.cell / 9), mark: last.took } : null;
+  return xoBigWhereHtml(s.send, took, (m) => xoRoomChip(m === 'X' ? 0 : 1));
+}
+
 /** The mark sounds once per move; a win lights the line one square after another. */
 function xoRoomAfter(root, state, key, loud) {
   const s = state.shared || {};
   const moveKey = s.last ? key + '|' + s.moves : '';
   if (moveKey && duelOnce('snd|' + moveKey) && loud) duelSound('drop');
   if (s.phase === 'over' && s.win && s.win.length) {
-    const board = root.querySelector('.xo-board');
+    const board = root.querySelector('.xo-board, .xob');
     if (board && typeof motionFirst === 'function' && motionFirst(key + '|light')) {
       board.classList.add('is-lighting');
       board.dataset.revealMs = String(s.win.length * 160 + 520);
@@ -116,18 +149,28 @@ ROOM_GAMES.xo = {
   // Someone who joins mid-game joins the line and watches this game (routeRoomState).
   lateJoin: true,
   lobbyOptions(state) {
-    const t = TRANSLATIONS[appState.lang] || {};
+    const t = xoTr();
+    const tx = xoBigText();
     const three = !!xoState().three;
-    return duelLobbyHtml(state, t, t.xo_rule_label || '', [[false, t.xo_rule_classic || ''], [true, t.xo_rule_three || '']], three,
-      'setXORoomThree', three ? t.xo_three_hint : '');
+    const big = xoState().size === 'big';
+    // «المقاس: عادي / كبير» (2 Oct 2026); the 3-marks switch is the normal size's only.
+    // duelLobbyHtml's card, with a second field for the rules while the size is normal.
+    const rules = big ? '' : `<div class="field">
+        <label class="field__label">${escapeHTML(t.xo_rule_label || '')}</label>
+        <div class="segmented" role="group">
+          ${[[false, t.xo_rule_classic || ''], [true, t.xo_rule_three || '']].map(v => `<button type="button" class="segmented__item ${v[0] === three ? 'is-active' : ''}" onclick="setXORoomThree(${v[0]})">${escapeHTML(v[1])}</button>`).join('')}
+        </div>
+        ${three ? `<p class="field__hint">${escapeHTML(t.xo_three_hint || '')}</p>` : ''}
+      </div>`;
+    return duelLobbyHtml(state, t, tx.size_label, [[false, tx.size_normal], [true, tx.size_big]], big, 'setXORoomSize', big ? tx.size_hint : '', rules);
   },
-  startPayload() { return { three: !!xoState().three }; },
+  startPayload() { return { three: !!xoState().three, size: xoState().size === 'big' ? 'big' : 'normal' }; },
 
   render(state) {
     if (appState.currentView !== 'room-xo') setView('room-xo');
     const el = document.getElementById('view-room-xo');
     if (!el) return;
-    const t = TRANSLATIONS[appState.lang] || {};
+    const t = xoTr();
     const s = state.shared;
     if (!s || !Array.isArray(s.cells)) return;
     const seat = (s.seats || []).indexOf(Room.me);
@@ -153,7 +196,7 @@ ROOM_GAMES.xo = {
           <div class="duel-layout__side">
             <div class="duel-head">
               ${xoRoomPills(state, t)}
-              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(duelRoomStatus(state, t))}</p>${duelRoomAwayHtml(state, t)}
+              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(duelRoomStatus(state, t))}</p>${xoRoomWhereHtml(s)}${duelRoomAwayHtml(state, t)}
               ${myTurn && leaving >= 0 ? `<p class="xo-rule xo-rule--room">${escapeHTML(t.xo_three_play || '')}</p>` : ''}
             </div>
             ${s.phase === 'over' ? duelRoomOverHtml(state, t) : duelRoomWatchNote(state, t)}
@@ -193,6 +236,21 @@ TV_GAMES.xo = {
     const moveKey = s.last ? key + '|' + s.moves : '';
     // A TV coming on shows the board as it is: nothing already played pops or sounds again.
     duelRoomFirstSight(state, key, { motion: [moveKey, key + '|light'], once: [moveKey && 'snd|' + moveKey] });
+    // The big board (look أ's TV): the pills on one side, the boards in the middle, what is happening on the other.
+    if (s.big) {
+      const tx = xoBigText();
+      return `
+      <div class="duel-tv xo-game xob-tv" data-accent="blue">
+        <div class="xob-tv__pills">
+          <div class="tv-scale">${xoRoomPills(state, t)}</div>
+          <p class="xob-tv__tag">${escapeHTML(tx.size_label + ': ' + tx.size_big + ' · ' + tx.rule_line)}</p>
+        </div>
+        <div class="duel-tv__board" style="--duel-aspect:1">
+          ${xoRoomBoardHtml(s, { playable: false, popKey: s.last ? key + '|' + s.moves : '' })}
+        </div>
+        ${duelTvSide(state, t, `<div class="xob-tv__where">${xoRoomWhereHtml(s)}</div>`)}
+      </div>`;
+    }
     return `
       <div class="duel-tv xo-game" data-accent="blue">
         <div class="duel-tv__board" style="--duel-aspect:1">

@@ -26,7 +26,7 @@ let xoGone = null;          // the mark a move just took off, for its fade: { ce
 function xoState() {
   if (!appState.xo) {
     appState.xo = { vs: 'phone', level: 'hard', board: Array(9).fill(''), turn: 'X', first: 'X', human: 'X',
-                    phase: 'setup', winner: '', line: null, scores: { X: 0, O: 0, D: 0 }, three: false };
+                    phase: 'setup', winner: '', line: null, scores: { X: 0, O: 0, D: 0 }, three: false, size: 'normal' };
   }
   const x = appState.xo;
   if (!x.order) x.order = { X: [], O: [] };      // a game saved before the rule existed
@@ -53,6 +53,19 @@ function paintXOSetup() {
   if (sideField) sideField.classList.toggle('hidden', x.vs !== 'phone');
   const three = document.getElementById('xo-three');
   if (three) three.checked = !!x.three;
+  // «المقاس: عادي / كبير» (2 Oct 2026): the 3-marks switch is the normal size's only.
+  const big = x.size === 'big';
+  document.querySelectorAll('#xo-size .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === (big ? 'big' : 'normal')));
+  const threeField = document.getElementById('xo-three-field');
+  if (threeField) threeField.classList.toggle('hidden', big);
+  const tx = xoBigText();
+  const setText = (id, v) => { const el = document.getElementById(id); if (el && el.textContent !== v) el.textContent = v; };
+  setText('xo-size-label', tx.size_label);
+  setText('xo-size-normal', tx.size_normal);
+  setText('xo-size-big', tx.size_big);
+  setText('xo-size-hint', tx.size_hint);
+  const hint = document.getElementById('xo-size-hint');
+  if (hint) hint.classList.toggle('hidden', !big);
 }
 
 function setXOOption(key, value) {
@@ -73,12 +86,21 @@ function startXO() {
 function xoNewRound() {
   const x = xoState();
   if (xoPhoneTimer) clearTimeout(xoPhoneTimer);
-  x.board = Array(9).fill('');
+  // A round keeps the size it was dealt (x.big): the setup changes the next one.
+  x.big = x.size === 'big';
+  if (x.big) {
+    const g = xoBigNew();
+    x.board = g.cells; x.minis = g.minis; x.send = g.send;
+  } else {
+    x.board = Array(9).fill('');
+    delete x.minis; delete x.send;
+  }
+  x.took = null;
   x.order = { X: [], O: [] };
   x.hist = [];
   x.last = -1;
   x.seq = (x.seq || 0) + 1;
-  x.rule3 = !!x.three;
+  x.rule3 = !!x.three && !x.big;
   xoGone = null;
   x.turn = x.first;
   x.winner = '';
@@ -102,6 +124,7 @@ function xoPlay(i) {
 function xoPlace(i) {
   const x = xoState();
   if (x.phase !== 'play' || x.board[i]) return;
+  if (x.big) { xoBigPlace(x, i); return; }
   xoSnapshot(x);
   // The fourth mark takes the place of this side's oldest (3 marks only).
   const placed = xoMark(x.board, x.order, x.rule3, i, x.turn);
@@ -165,6 +188,7 @@ if (typeof onLeaveScreen === 'function') {
 const XO_OPENINGS = [4, 0, 2, 6, 8];
 
 function xoPhoneMove(x) {
+  if (x.big) return xoBigBestMove({ cells: x.board, minis: x.minis, send: x.send }, x.turn, x.level);
   const empty = x.board.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
   if (x.level === 'easy' && Math.random() < 0.35) return empty[Math.floor(Math.random() * empty.length)];
   if (empty.length === 9) return XO_OPENINGS[Math.floor(Math.random() * XO_OPENINGS.length)];
@@ -309,7 +333,8 @@ const xoGlyph = (m) => `<span class="xo-glyph is-${m.toLowerCase()}" aria-hidden
  */
 function paintXO() {
   const x = xoState();
-  const t = TRANSLATIONS[appState.lang];
+  if (x.big) { paintXOBig(x); return; }
+  const t = xoTr();
   const el = document.getElementById('xo-stage');
   if (!el) return;
   const nameOf = (m) => x.vs === 'phone' ? (m === x.human ? (t.xo_you || '') : (t.xo_phone || '')) : `${t.xo_player || ''} ${m === 'X' ? 1 : 2}`;
@@ -378,7 +403,8 @@ const XO_HIST_MAX = 60;
 
 function xoSnapshot(x) {
   if (!Array.isArray(x.hist)) x.hist = [];
-  x.hist.push({ board: x.board.slice(), order: { X: x.order.X.slice(), O: x.order.O.slice() }, turn: x.turn, last: typeof x.last === 'number' ? x.last : -1 });
+  x.hist.push({ board: x.board.slice(), order: { X: x.order.X.slice(), O: x.order.O.slice() }, turn: x.turn, last: typeof x.last === 'number' ? x.last : -1,
+                minis: x.big ? x.minis.slice() : undefined, send: x.big ? x.send : undefined });
   if (x.hist.length > XO_HIST_MAX) x.hist.splice(0, x.hist.length - XO_HIST_MAX);
 }
 
@@ -400,6 +426,8 @@ function xoUndo() {
   x.board = snap.board.slice();
   x.order = { X: snap.order.X.slice(), O: snap.order.O.slice() };
   x.turn = snap.turn;
+  if (x.big && Array.isArray(snap.minis)) { x.minis = snap.minis.slice(); x.send = snap.send; }
+  x.took = null;
   x.last = -1;
   x.seq = (x.seq || 0) + 1;
   xoGone = null;
@@ -415,6 +443,208 @@ function restoreXO() {
   paintXO();
   xoMaybePhone();
   return true;
+}
+
+/* ============================================================================
+   «إكس أو الكبير» - nine boards in one (the owner, 2 Oct 2026)
+   ----------------------------------------------------------------------------
+   The rules are TicTacToe.js (xoBigMark, xoBigWinner, xoBigBestMove), the
+   same the room judges with. The look is «تسع كروت» (look أ of the owner's
+   sheet): nine small boards as cards; the board the side to move was sent to
+   grows a little and lights in the screen's accent while the rest fade;
+   sent to a won or full board («play anywhere») every open board gets a
+   dashed, pulsing outline; a won board gets a big stamped ✕ / ◯; a mark is
+   drawn with a pen stroke; and a line under the turn says where you were
+   sent by the place's name («فوق يمين»). This file's text is XOB_TEXT, kept
+   in the game's own chunk (the shell's budget is full). The room's phones and
+   the TV draw the same board (JS_RoomXO.html).
+   ========================================================================= */
+const XOB_TEXT = {
+  ar: {
+    size_label: 'المقاس', size_normal: 'عادي', size_big: 'كبير',
+    size_hint: 'تسع لوحات في لوحة: المربع اللي بتلعبه بيبعت اللي قصادك للوحة اللي في مكانه. اللي يكسب ٣ لوحات على خط يكسب.',
+    places: ['فوق شمال', 'فوق في النص', 'فوق يمين', 'النص شمال', 'النص', 'النص يمين', 'تحت شمال', 'تحت في النص', 'تحت يمين'],
+    sent: 'اتبعت للوحة {place}', any: 'العب في أي لوحة منورة',
+    took: '{mark} كسب لوحة {place}!', drawn: 'لوحة {place} اتملت تعادل',
+    boards: 'لوحات', rule_line: '٣ لوحات على خط تكسب',
+    end_boards: 'مفيش خط ممكن تاني: الأكتر لوحات كسب', end_boards_draw: 'مفيش خط ممكن تاني، واللوحات متعادلة',
+    more_boards: 'لوحات أكتر'
+  },
+  en: {
+    size_label: 'Size', size_normal: 'Normal', size_big: 'Big',
+    size_hint: 'Nine boards in one: the square you play sends your opponent to the board in that place. Win three boards in a row.',
+    places: ['top-left', 'top', 'top-right', 'left', 'middle', 'right', 'bottom-left', 'bottom', 'bottom-right'],
+    sent: 'Sent to the {place} board', any: 'Play in any lit board',
+    took: '{mark} took the {place} board!', drawn: 'The {place} board filled up: a draw',
+    boards: 'Boards', rule_line: 'Three boards in a row win',
+    end_boards: 'No line left: most boards wins', end_boards_draw: 'No line left, and the boards are even',
+    more_boards: 'more boards'
+  }
+};
+const xoBigText = () => XOB_TEXT[appState.lang] || XOB_TEXT.ar;
+
+/* The game's own lines, read only by this chunk (JS_XO, JS_RoomXO): kept here, out of
+   TRANSLATIONS, since the shell's budget is full (notes/lazy-load.md). xoTr() is
+   TRANSLATIONS with these on top, so the code still reads t.xo_*. */
+const XO_TR = {
+  ar: { xo_three_play: "3 علامات بس: العلامة الباهتة هتختفي مع حركتك", xo_player: "لاعب", xo_draw: "تعادل", xo_turn_you: "الدور عليك: {mark}", xo_turn_of: "الدور على {name}: {mark}", xo_undo: "رجّع", xo_next_round: "جولة جديدة", xo_rule_label: "القواعد", xo_rule_classic: "عادي", xo_rule_three: "3 علامات بس" },
+  en: { xo_three_play: "3 marks only: the faded mark goes with this move", xo_player: "Player", xo_draw: "Draw", xo_turn_you: "Your turn: {mark}", xo_turn_of: "{name}'s turn: {mark}", xo_undo: "Undo", xo_next_round: "Next round", xo_rule_label: "Rules", xo_rule_classic: "Classic", xo_rule_three: "3 marks only" }
+};
+const xoTrCache = {};
+function xoTr() {
+  const l = appState.lang;
+  return xoTrCache[l] || (xoTrCache[l] = Object.assign(Object.create(TRANSLATIONS[l] || {}), XO_TR[l] || XO_TR.ar));
+}
+
+/* A mark drawn with a pen: two strokes for ✕, one round for ◯ (stroke-dashoffset on .is-new). */
+const XOB_PEN = {
+  X: '<svg class="xob-g is-x" viewBox="0 0 100 100" aria-hidden="true"><path pathLength="100" d="M26 26L74 74"/><path pathLength="100" d="M74 26L26 74"/></svg>',
+  O: '<svg class="xob-g is-o" viewBox="0 0 100 100" aria-hidden="true"><circle pathLength="100" cx="50" cy="50" r="27" transform="rotate(-90 50 50)"/></svg>'
+};
+const xoPen = (m) => XOB_PEN[m] || '';
+
+/**
+ * The nine boards. g: { cells, minis, send, phase, win }.
+ * o: { playable, tap (the handler's name), last, fresh (the square to draw
+ * with the pen), stamp (the board whose stamp lands now), lighting }.
+ */
+function xoBigBoardHtml(g, o) {
+  o = o || {};
+  const over = g.phase === 'over' || g.phase === 'done';
+  const any = !over && !(g.send >= 0);
+  const legal = o.playable && !over ? new Set(xoBigLegal({ cells: g.cells, minis: g.minis, send: g.send })) : null;
+  const win = g.win || [];
+  const tx = xoBigText();
+  const boards = (g.minis || []).map((r, b) => {
+    const k = win.indexOf(b);
+    const won = r === 'X' || r === 'O';
+    const cls = ['xob-b', !over && g.send === b ? 'is-target' : '', !over && !r ? 'is-open' : '',
+      won ? 'is-won is-' + r.toLowerCase() : '', r === 'D' ? 'is-drawn' : '', k !== -1 ? 'is-win' : ''].join(' ');
+    let cells = '';
+    for (let i = 0; i < 9; i++) {
+      const at = b * 9 + i;
+      const v = g.cells[at];
+      const can = !!legal && legal.has(at);
+      cells += `<button type="button" class="xob-cell ${at === o.last ? 'is-last' : ''} ${at === o.fresh ? 'is-new' : ''}" ${can && o.tap ? `onclick="${o.tap}(${at})"` : ''} ${can ? '' : 'disabled'} aria-label="${escapeHTML(tx.places[b])} ${i + 1}${v ? ' ' + v : ''}">${v ? xoPen(v) : ''}</button>`;
+    }
+    const stamp = won ? `<span class="xob-stamp ${o.stamp === b ? 'is-new' : ''}" aria-hidden="true">${xoPen(r)}</span>` : '';
+    return `<div class="${cls}" style="--k:${Math.max(0, k)}">${cells}${stamp}</div>`;
+  }).join('');
+  return `<div class="xob ${over ? 'is-done' : (any ? 'is-any' : 'has-target')} ${o.lighting ? 'is-lighting' : ''}" dir="ltr">${boards}</div>`;
+}
+
+/**
+ * The line under the turn: a board just taken, then where the side to move
+ * was sent («اتبعت للوحة فوق يمين») or «العب في أي لوحة منورة». `took` is
+ * { board, mark } for the move just made, or null; `markHtml(m)` draws a mark.
+ */
+function xoBigWhereHtml(send, took, markHtml) {
+  const tx = xoBigText();
+  const parts = [];
+  if (took && (took.mark === 'X' || took.mark === 'O')) {
+    parts.push(escapeHTML(tx.took.replace('{place}', tx.places[took.board] || '')).replace('{mark}', markHtml(took.mark)));
+  } else if (took && took.mark === 'D') {
+    parts.push(escapeHTML(tx.drawn.replace('{place}', tx.places[took.board] || '')));
+  }
+  parts.push(escapeHTML(send >= 0 ? tx.sent.replace('{place}', tx.places[send] || '') : tx.any));
+  return `<p class="xob-where ${send >= 0 ? '' : 'is-any'} ${took ? 'is-took' : ''}" aria-live="polite">${parts.join(' · ')}</p>`;
+}
+
+/** A mark on the big board, on one phone (xoPlace hands it here). */
+function xoBigPlace(x, at) {
+  xoSnapshot(x);
+  const g = { cells: x.board, minis: x.minis, send: x.send };
+  const r = xoBigMark(g, at, x.turn);
+  if (!r) { x.hist.pop(); return; }
+  x.send = g.send;
+  x.last = at;
+  x.seq = (x.seq || 0) + 1;
+  x.took = r.took ? { board: r.board, mark: r.took, seq: x.seq } : null;
+  playSound('click');
+  const result = r.took ? xoBigWinner(x.minis) : null;
+  if (result) {
+    x.phase = 'done';
+    x.winner = result.mark;
+    x.line = result.line;
+    x.byBoards = !!result.boards;
+    x.scores[result.mark] = (x.scores[result.mark] || 0) + 1;
+    x.first = xoOther(x.first);
+    saveToLocal();
+    paintXO();
+    if (result.mark !== 'D' && (x.vs === 'friend' || result.mark === x.human)) {
+      playSound('success');
+      if (typeof confetti === 'function') confetti({ particleCount: 90, spread: 60, origin: { y: 0.7 } });
+    } else {
+      playSound('tick');
+    }
+    return;
+  }
+  x.byBoards = false;
+  x.turn = xoOther(x.turn);
+  saveToLocal();
+  paintXO();
+  xoMaybePhone();
+}
+
+/** The big board on one phone: the same card as the normal size (paintXO), the nine boards in it. */
+function paintXOBig(x) {
+  const t = xoTr();
+  const tx = xoBigText();
+  const el = document.getElementById('xo-stage');
+  if (!el) return;
+  const nameOf = (m) => x.vs === 'phone' ? (m === x.human ? (t.xo_you || '') : (t.xo_phone || '')) : `${t.xo_player || ''} ${m === 'X' ? 1 : 2}`;
+  const phoneTurn = x.vs === 'phone' && x.phase === 'play' && x.turn !== x.human;
+  let status;
+  if (x.phase === 'done') {
+    status = escapeHTML(x.winner === 'D' ? (t.xo_draw || '') : `🏆 ${nameOf(x.winner)}`);
+  } else if (phoneTurn) {
+    status = escapeHTML(t.xo_thinking || '');
+  } else {
+    const line = x.vs === 'phone' ? (t.xo_turn_you || '{mark}') : (t.xo_turn_of || '{name}: {mark}').replace('{name}', duelIso(nameOf(x.turn)));
+    status = escapeHTML(line).replace('{mark}', xoGlyph(x.turn));
+  }
+  const seq = x.seq || 0;
+  const took = x.took && x.took.seq === seq ? x.took : null;
+  const fresh = typeof x.last === 'number' && x.last >= 0 && x.board[x.last] && typeof motionFirst === 'function' && motionFirst('xob1|' + seq) ? x.last : -1;
+  const stamp = took && (took.mark === 'X' || took.mark === 'O') && typeof motionFirst === 'function' && motionFirst('xob1|' + seq + '|stamp') ? took.board : -1;
+  const lighting = x.phase === 'done' && !!x.line && typeof motionFirst === 'function' && motionFirst('xob1|' + seq + '|win');
+  const where = x.phase === 'play' ? xoBigWhereHtml(x.send, took, xoGlyph)
+    : (x.byBoards ? `<p class="xob-where">${escapeHTML(x.winner === 'D' ? tx.end_boards_draw : tx.end_boards)}</p>` : '');
+  const count = xoBigCount(x.minis);
+  const canUndo = xoUndoAt(x) !== -1;
+  const turnSeat = x.phase === 'play' ? (x.turn === 'X' ? 0 : 1) : -1;
+  const myTurn = x.phase === 'play' && !phoneTurn;
+  el.innerHTML = `
+    <div class="xo-solo xo-solo--big">
+      <div class="card xo-solo__card">
+        <div class="xo-solo__side">
+          ${duelPillsHtml({
+            players: [
+              { name: nameOf('X'), score: x.scores.X, mark: xoGlyph('X'), sub: escapeHTML(tx.boards + ' ' + count.X) },
+              { name: nameOf('O'), score: x.scores.O, mark: xoGlyph('O'), sub: escapeHTML(tx.boards + ' ' + count.O) }
+            ],
+            turn: turnSeat,
+            draws: x.scores.D || 0
+          })}
+          <p class="xo-solo__status ${x.phase === 'done' ? 'is-done' : ''} ${phoneTurn ? 'is-thinking' : ''}" aria-live="polite">${status}</p>
+          ${where}
+        </div>
+        <div class="xo-solo__board">
+          ${xoBigBoardHtml({ cells: x.board, minis: x.minis, send: x.send, phase: x.phase, win: x.line || [] },
+            { playable: myTurn, tap: 'xoPlay', last: x.last, fresh: fresh, stamp: stamp, lighting: lighting })}
+        </div>
+      </div>
+      <div class="view-actions talk__actions xo-solo__actions">
+        ${x.phase === 'done'
+          ? `<button class="btn btn--primary btn--go btn--lg" onclick="xoNewRound()">${escapeHTML(t.xo_next_round || '')}</button>`
+          : ''}
+        <div class="talk__pair">
+          ${x.phase === 'play' ? `<button class="btn btn--ghost btn--sm" onclick="xoUndo()" ${canUndo ? '' : 'disabled'}>↶ ${escapeHTML(t.xo_undo || '')}</button>` : ''}
+          <button class="btn btn--ghost btn--sm" onclick="setupXO()">${escapeHTML(t.exit || '')}</button>
+        </div>
+      </div>
+    </div>`;
+  duelPillsAfter(el, 'xo-local', { turn: turnSeat, scores: [x.scores.X || 0, x.scores.O || 0] });
 }
 
 if (typeof onLanguageChange === 'function') {

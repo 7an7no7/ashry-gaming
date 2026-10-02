@@ -8011,6 +8011,129 @@ Date.now = duelTestClock;
     check(w.shared.phase === 'over' && !w.shared.result.draw && w.shared.win.length === 3, 'xo room: 3 marks only ends on a line, never a draw');
   }
 
+  // «إكس أو الكبير» (the owner, 2 Oct 2026): nine boards in one, the square played sends the other side.
+  {
+    const XB = new Function(readFileSync(new URL('../../TicTacToe.js', import.meta.url), 'utf8') +
+      '\nreturn { xoBigNew, xoBigMark, xoBigLegal, xoBigWinner, xoBigOnlyMove, xoBigBestMove };')();
+    const seededB = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    const g = XB.xoBigNew();
+    check(g.cells.length === 81 && g.send === -1 && XB.xoBigLegal(g).length === 81, 'xo big: an empty game - 81 squares, the first move anywhere');
+    XB.xoBigMark(g, 4 * 9 + 2, 'X');
+    check(g.send === 2 && XB.xoBigLegal(g).every((at) => Math.floor(at / 9) === 2) && XB.xoBigLegal(g).length === 9,
+      'xo big: the square played (top right of its board) sends the other side to the top right board');
+    check(XB.xoBigMark(g, 0, 'O') === null, 'xo big: a square outside the board you were sent to is refused');
+    // X takes board 0 (its top row), then someone is sent there: anywhere.
+    const h = XB.xoBigNew();
+    h.cells[0] = 'X'; h.cells[1] = 'X';
+    const took = XB.xoBigMark(h, 2, 'X');
+    check(took.took === 'X' && h.minis[0] === 'X' && h.send === 2, 'xo big: three in a row on a small board takes it');
+    h.send = 5;
+    XB.xoBigMark(h, 5 * 9 + 0, 'O');
+    check(h.send === -1 && XB.xoBigLegal(h).every((at) => Math.floor(at / 9) !== 0) && XB.xoBigLegal(h).length === 71,
+      'xo big: sent to a board already won: play in any open board (the won one is closed)');
+    // A full small board with no line counts for nobody, and sending to it is anywhere too.
+    const f = XB.xoBigNew();
+    ['X', 'O', 'X', '', 'O', 'X', 'O', 'X', 'O'].forEach((v, i) => { f.cells[3 * 9 + i] = v; });
+    f.send = 3;
+    const fr = XB.xoBigMark(f, 3 * 9 + 3, 'X');
+    check(fr.took === 'D' && f.minis[3] === 'D' && f.send === -1, 'xo big: a full board with no line is drawn, and the move (its own place) sends anywhere');
+    check(XB.xoBigWinner(['X', 'X', 'X', '', '', '', '', '', '']).mark === 'X' && XB.xoBigWinner(['X', 'X', 'X', '', '', '', '', '', '']).line.join() === '0,1,2',
+      'xo big: three small boards in a row win');
+    check(XB.xoBigWinner(['X', 'D', 'X', '', '', '', '', '', '']) === null, 'xo big: a drawn board in a line doesn\'t count for anyone, the game goes on');
+    // No line left for either side: the most boards won wins, equal is a draw.
+    const noLine = ['X', 'O', '', 'X', 'O', 'O', 'O', 'X', ''];
+    check(XB.xoBigWinner(noLine) === null, 'xo big: one open board still makes a line possible: the game goes on');
+    const most = XB.xoBigWinner(['X', 'O', 'X', 'X', 'O', 'O', 'O', 'X', 'D']);
+    check(most && most.boards && most.mark === 'D', 'xo big: no line possible, four boards each: a draw');
+    const most2 = XB.xoBigWinner(['X', 'O', 'X', 'X', 'O', 'D', 'O', 'X', 'X']);
+    check(most2 && most2.boards && most2.mark === 'X' && most2.line === null, 'xo big: no line possible: the most boards won wins');
+    // The phone's player: every move legal, hard beats random play, a clock that stands still can't hold it.
+    let legalOnly = true, hardWins = 0, slowest = 0;
+    for (let game = 0; game < 6; game++) {
+      const s = XB.xoBigNew();
+      const rnd = seededB(game + 11);
+      const hard = game % 2 ? 'X' : 'O';
+      let turn = 'X';
+      for (let k = 0; k < 81; k++) {
+        const legal = XB.xoBigLegal(s);
+        const t0 = realNow();
+        const at = turn === hard ? XB.xoBigBestMove(s, turn, 'hard', { rand: rnd, now: realNow, budget: 25 })
+          : (game < 3 ? legal[Math.floor(rnd() * legal.length)] : XB.xoBigBestMove(s, turn, 'easy', { rand: rnd, now: realNow }));
+        slowest = Math.max(slowest, realNow() - t0);
+        if (legal.indexOf(at) === -1 || !XB.xoBigMark(s, at, turn)) { legalOnly = false; break; }
+        const w = XB.xoBigWinner(s.minis);
+        if (w) { if (w.mark === hard) hardWins++; break; }
+        turn = turn === 'X' ? 'O' : 'X';
+      }
+    }
+    check(legalOnly, 'xo big: the phone\'s player, easy and hard, only ever plays a legal square');
+    check(hardWins === 6, `xo big: hard beats random play and easy (${hardWins} of 6)`);
+    check(slowest < 400, `xo big: a move takes at most 400ms (the slowest ${slowest}ms)`);
+    const still = XB.xoBigNew();
+    XB.xoBigMark(still, 40, 'X');
+    const t1 = realNow();
+    const stillMove = XB.xoBigBestMove(still, 'O', 'hard', { now: () => 0 });
+    check(XB.xoBigLegal(still).indexOf(stillMove) !== -1 && realNow() - t1 < 3000, 'xo big: with a clock standing still the node ceiling ends the search');
+    const winNow = XB.xoBigNew();
+    ['X', 'X', '', '', '', '', '', '', ''].forEach((v, i) => { winNow.minis[i] = v; });
+    winNow.cells[2 * 9 + 0] = 'X'; winNow.cells[2 * 9 + 1] = 'X'; winNow.send = 2;
+    check(XB.xoBigBestMove(winNow, 'X', 'easy', { rand: () => 0 }) === 2 * 9 + 2, 'xo big: even easy takes the game in one move');
+
+    // In a room: the lobby's size, winner stays.
+    const r = room('xo', ['a', 'b', 'c'], { size: 'big', three: true });
+    const s = r.shared;
+    const bm = (cell) => applyRoomAction(r, s.seats[s.turn], 'move', { cell, move: s.moves });
+    check(s.big === true && s.cells.length === 81 && s.minis.length === 9 && s.send === -1 && s.rule3 === false,
+      'xo big room: the big size deals 81 squares, and 3 marks only is off for it');
+    bm(4 * 9 + 8);
+    check(s.send === 8 && s.turn === 1 && s.last.cell === 44, 'xo big room: a move sends the other seat to the board in its place');
+    check(refused(() => applyRoomAction(r, s.seats[1], 'move', { cell: 0, move: s.moves })), 'xo big room: a square on another board is refused');
+    // X takes boards 0, 4 and 8 for a diagonal: lay the boards out and play the last square.
+    const r2 = room('xo', ['a', 'b'], { size: 'big' });
+    const s2 = r2.shared;
+    s2.minis[0] = 'X'; s2.minis[4] = 'X';
+    s2.cells[8 * 9 + 0] = 'X'; s2.cells[8 * 9 + 4] = 'X'; s2.send = 8; s2.turn = 0;
+    applyRoomAction(r2, s2.seats[0], 'move', { cell: 8 * 9 + 8, move: s2.moves });
+    check(s2.phase === 'over' && s2.result.winner === 0 && s2.result.reason === 'line' && s2.win.join() === '0,4,8' && s2.last.took === 'X',
+      'xo big room: three boards in a row win the game');
+    const r3 = room('xo', ['a', 'b'], { size: 'big' });
+    const s3 = r3.shared;
+    ['X', 'O', 'X', 'X', 'O', 'D', 'O', 'X', ''].forEach((v, i) => { s3.minis[i] = v; });
+    ['X', 'X', '', 'O', 'O', '', '', '', ''].forEach((v, i) => { s3.cells[8 * 9 + i] = v; });
+    s3.send = 8; s3.turn = 0;
+    applyRoomAction(r3, s3.seats[0], 'move', { cell: 8 * 9 + 2, move: s3.moves });
+    check(s3.phase === 'over' && s3.result.reason === 'boards' && s3.result.winner === 0 && s3.scores[s3.seats[0]] === 1,
+      'xo big room: no line possible any more: the most boards won wins');
+    // The one square left is played for them, unless it takes a board.
+    const r4 = room('xo', ['a', 'b'], { size: 'big' });
+    const s4 = r4.shared;
+    ['X', 'O', 'X', 'X', 'O', 'O', 'O', '', ''].forEach((v, i) => { s4.cells[6 * 9 + i] = v; });
+    s4.cells[6 * 9 + 7] = 'O'; s4.send = 6; s4.turn = 0;
+    const f4 = roomForcedMove(r4);
+    check(f4 && f4.move.payload.cell === 6 * 9 + 8 && f4.pid === s4.seats[0], 'xo big room: one square left that takes nothing: played for them');
+    ['X', 'X', '', 'O', 'O', 'X', 'O', 'X', 'O'].forEach((v, i) => { s4.cells[6 * 9 + i] = v; });
+    check(roomForcedMove(r4) === null, 'xo big room: one square left that takes the board: the player\'s own tap');
+    // Back to normal: the next game in a room keeps the size; a normal start clears the big state.
+    applyRoomAction(r2, 'a', 'nextRound', { round: s2.round });
+    check(r2.shared.big === true && r2.shared.cells.length === 81 && r2.shared.cells.every((v) => !v), 'xo big room: the next game keeps the big size');
+    const rn = room('xo', ['a', 'b'], { size: 'normal', three: true });
+    check(!rn.shared.big && rn.shared.cells.length === 9 && rn.shared.rule3 === true && rn.shared.minis === undefined, 'xo room: the normal size keeps its 3-marks switch');
+    // A big tournament to the end, random legal moves.
+    const rt = room('xo', people(5), { tournament: true, size: 'big' });
+    for (let guard = 0; guard < 20000 && rt.shared.tour.phase === 'play'; guard++) {
+      const live = rt.shared.tour.matches.filter((m) => m.state === 'play');
+      if (!live.length) { toClock(rt); continue; }
+      for (const m of live) {
+        const gm = rt.shared.games[m.id];
+        if (!gm || gm.phase !== 'play') continue;
+        const legal = XB.xoBigLegal({ cells: gm.cells, minis: gm.minis, send: gm.send });
+        applyRoomAction(rt, gm.seats[gm.turn], 'move', { cell: legal[Math.floor(Math.random() * legal.length)], move: gm.moves, match: m.id, mg: m.games });
+      }
+    }
+    check(rt.shared.tour.phase === 'over' && !!rt.shared.tour.champion && rt.shared.settings.size === 'big',
+      'xo big tournament: every match on the big board, played to a champion');
+  }
+
   // The switch: four people or more, and not with three people and a computer player.
   {
     const three = newRoom(['a', 'b', 'c']);

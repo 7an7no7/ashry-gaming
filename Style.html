@@ -5125,6 +5125,55 @@ body.has-audience .shell__main { --main-pb: 9rem; }
   .xo-board.xo-board--lines.is-lighting .xo-cell.is-win .xo-cell__mark { animation: none; }
 }
 
+/* «إكس أو الكبير» (2 Oct 2026, look أ «تسع كروت» of the owner's sheet; xoBigBoardHtml
+   in JS_XO.html, on one phone, in a room, on the TV and in the tournament's cards):
+   nine small boards as cards. The board the side to move was sent to grows a little
+   and lights in the screen's accent while the rest fade; «play anywhere» gives every
+   open board a dashed outline whose glow pulses; a won board is stamped with its mark;
+   a mark is drawn with a pen (its dash, from nothing, only while it lands). */
+.xob { --xo-cx: var(--team-blue-ink); --xo-co: var(--team-red-ink); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); width: min(100%, 26rem); margin: 0 auto; }
+.xo-game .xob { --xo-cx: var(--accent-ink); --xo-co: var(--danger-ink); }
+.xob-b { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: var(--sp-1); border: 2px solid transparent; border-radius: var(--r-md); background: var(--surface-3); transition: opacity var(--dur-3), transform var(--dur-3) var(--ease-out); }
+.xob.has-target .xob-b { opacity: 0.45; }
+.xob.has-target .xob-b.is-target { opacity: 1; transform: scale(1.04); z-index: 1; border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-soft), var(--sh-2); }
+.xob.is-any .xob-b.is-open { border: 2px dashed var(--accent); isolation: isolate; }
+.xob.is-any .xob-b.is-open::before { content: ''; position: absolute; inset: -5px; z-index: -1; border-radius: var(--r-lg); background: var(--accent-soft); animation: xob-any 1.2s var(--ease-in-out) infinite; }
+@keyframes xob-any { 50% { opacity: 0.25; } }
+.xob-cell { aspect-ratio: 1; min-width: 0; display: grid; padding: 12%; border: 0; border-radius: var(--r-xs); background: var(--surface-solid); }
+.xob-cell.is-last { background: var(--accent-soft); }
+.xob-b.is-won .xob-cell, .xob-b.is-drawn .xob-cell { opacity: 0.3; }
+.xob-b.is-win { border-color: var(--success); }
+.xob-g { width: 100%; height: 100%; overflow: visible; fill: none; stroke-linecap: round; stroke-width: 13; stroke: var(--xo-cx); }
+.xob-g.is-o { stroke: var(--xo-co); }
+.xob-cell.is-new .xob-g > * { animation: xob-pen 320ms var(--ease-out) both; }
+.xob-cell.is-new .xob-g > * + * { animation-delay: 140ms; }
+@keyframes xob-pen { from { stroke-dasharray: 100; stroke-dashoffset: 100; } to { stroke-dasharray: 100; stroke-dashoffset: 0; } }
+.xob-stamp { position: absolute; inset: 8%; display: grid; pointer-events: none; }
+.xob-stamp.is-new { animation: xob-stamp 550ms var(--ease-spring) both; }
+@keyframes xob-stamp { from { transform: scale(1.8) rotate(-12deg); opacity: 0; } }
+.xob.is-lighting .xob-b.is-win { animation: xo-win 520ms var(--ease-spring) both; animation-delay: calc(var(--k, 0) * 160ms); }
+/* Where the side to move was sent, by the place's name. */
+.xob-where { order: 1; margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+.xob-where.is-any { background: var(--accent-soft); color: var(--accent-ink); }
+.xob-where > * { width: auto; font-size: 1em; }
+.duel-head .xob-where { margin-top: var(--sp-2); }
+.duel .xob, .duel-tv .xob, .tour-mini__board .xob { width: 100%; }
+/* The TV (the sheet's): the pills on one side, the boards in the middle, what is happening on the other. */
+.duel-tv.xob-tv { grid-template-columns: minmax(0, 22rem) auto minmax(0, 26rem); }
+.xob-tv__pills { display: grid; gap: var(--tv-gap); }
+.xob-tv .duel-pills { grid-template-columns: minmax(0, 1fr); grid-template-areas: "p0" "p1"; }
+.xob-tv__tag { margin: 0; text-align: center; font-size: var(--tv-sm); color: var(--text-3); }
+.duel-tv.xob-tv .duel-tv__board { width: min(calc(var(--app-h, 100vh) - 22vmin), 46vw); }
+.duel-tv .xob, .tour-mini__board .xob { gap: 1vmin; }
+.duel-tv .xob-b, .tour-mini__board .xob-b { gap: 0.4vmin; padding: 0.6vmin; border-radius: 1.4vmin; }
+@media (orientation: portrait) { .duel-tv.xob-tv { grid-template-columns: minmax(0, 1fr); } }
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  #xo-stage .xob { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 4.5rem), 60vw); }
+  #xo-stage .xob-where { order: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xob-b::before, .xob-cell.is-new .xob-g > *, .xob-stamp.is-new, .xob.is-lighting .xob-b.is-win { animation: none !important; }
+}
 /* A phone on its side, and every wide screen: the board takes the height and
    the tally, the turn and the buttons sit in a column beside it (the owner,
    21 Sep 2026: the play area gets the space). */

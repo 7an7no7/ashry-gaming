@@ -3013,6 +3013,8 @@ const VARIANT_DRIVERS = {
     play();
     must(T, T.host, 'nextRound', { round: S(T).round });
     must(T, T.host, 'skipTurn', { move: 0 });
+    // A host sitting at the board picks their own pawn (the skip only picks for the other seat).
+    [0, 1].forEach((c) => { if (S(T).chess.hq.picking && !S(T).chess.hq.picked[c]) must(T, S(T).seats[c], 'hqPick', { sq: c ? 'e7' : 'e2', round: S(T).round }); });
     play();
     s = S(T);
     return s.phase === 'over' && !!s.chess.hq.end;

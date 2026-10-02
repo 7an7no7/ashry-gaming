@@ -693,6 +693,23 @@ async function bumperRobots() {
   await H.must('endNow', {});
   await TV.must('finish', { round: 1, scores: { [J.pid]: { hits: 3, taken: 0 }, [H.pid]: { hits: 1, taken: 3 } } });
   await all([H, J, TV], (s) => s.shared.phase === 'over' && s.shared.results[0].id === J.pid && s.shared.wins[J.pid] === 1, 'bumper: the TV\'s scores are the result on every phone');
+
+  // «كورة التصادم»: sides on the phones, the TV's goals on every phone, the host ends it.
+  await H.must('lobbyMode', { mode: 'ball' });
+  await J.must('side', { side: 'blue' });
+  await H.must('side', { side: 'blue' });
+  await all([H, J, TV], (s) => s.shared.lobbyMode === 'ball' && s.shared.picks[J.pid] === 'blue' && s.shared.picks[H.pid] === 'blue', 'ball: every phone sees the way and who picked which side');
+  await H.must('playAgain', { mode: 'ball', ballSecs: 120 });
+  await all([H, J, TV], (s) => s.shared.phase === 'play' && s.shared.settings.mode === 'ball' && s.shared.sides[J.pid] === 'blue' && s.shared.sides['cpu-red'] === 'red',
+    'ball: both on blue, a computer player fills red');
+  await sleep(Math.max(0, TV.state.shared.startAt - TV.state.serverNow) + 300);
+  await TV.must('goal', { round: TV.state.shared.round, n: 1, side: 'blue', by: J.pid });
+  await TV.must('goal', { round: TV.state.shared.round, n: 1, side: 'blue', by: J.pid });
+  await all([H, J, TV], (s) => s.shared.score.blue === 1 && s.shared.goals.length === 1 && s.shared.goals[0].by === J.pid, 'ball: the TV\'s goal reaches every phone, once');
+  check((await J.act('goal', { round: J.state.shared.round, n: 2, side: 'blue', by: J.pid })).ok && J.state.shared.score.blue === 1, 'ball: a phone can\'t score by saying so');
+  await H.must('endNow', {});
+  await all([H, J, TV], (s) => s.shared.phase === 'over' && s.shared.winner === 'blue' && s.shared.results.filter((r) => r.place === 1).length === 2,
+    'ball: the side ahead wins, both its drivers first');
   await H.must('backToHub');
   [H, J, TV].forEach((x) => x.close());
 }

@@ -314,3 +314,5 @@ has to paint at once when `document.readyState` isn't 'loading'; a registry a
 shell file consumes once (`SOLO_LATE`) has to take late entries.
 
 **The budget was full on 2 Oct 2026.** السلم والتعبان's third round and المشنقة's next round took the shell to 713 KB; the speech bubbles of their board moments (`snk_b_*`, `hm_end_*`) moved out of `TRANSLATIONS` into their chunks (`SNK_BUBBLES` in JS_Snakes.html, `HM_END_TEXT` in JS_HangmanEnd.html, read through `snkT` / `hmT`), back to 710. Text only a game's own chunk reads goes in that chunk the same way; the next real saving is still the CSS, section by section.
+
+**A chunk can bring styles that are only its own (2 Oct 2026).** «كورة التصادم» took the shell to 712 KB; its CSS (every class new, nothing in Style.html restyles it) went into its chunk as `BMP_BALL_CSS`, put into the page once as the chunk runs, before anything of it is drawn (JS_RoomBumper.html). A rule that competes with a shell rule of the same weight has to outweigh it (`.bmp-tv.bmp-tv--ball`), since the order is not guaranteed. Back to 710.

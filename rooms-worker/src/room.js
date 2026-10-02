@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS } from '../generated/rules.js';
+import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -661,6 +661,8 @@ export class Room extends DurableObject {
           console.error('missionJoined', errorText(err));
         }
       }
+      // «كورة التصادم» mid-match: a newcomer's car is put on the smaller side for good.
+      try { bumperJoined(room, pid); } catch (err) { console.error('bumperJoined', errorText(err)); }
     }
     room.keys = room.keys || {};
     room.keys[pid] = key;

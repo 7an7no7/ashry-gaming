@@ -38,9 +38,26 @@ const hr = {
 };
 
 /* --- small helpers ------------------------------------------------------------ */
+// Text only this game's chunk reads (the extras of 2 Oct 2026): here, not in TRANSLATIONS (the shell's size budget, notes/lazy-load.md).
+const HR_TEXT = {
+  ar: {
+    hear_over_short: "✓ {line}",
+    hear_over_tag: "✓ {line} وأكتر",
+    hear_better_short: "📈",
+    hear_better_word: "📈 اتحسنت",
+    hear_better_tag: "📈 اتحسنت عن {prev}"
+  },
+  en: {
+    hear_over_short: "✓ {line}",
+    hear_over_tag: "✓ {line} or more",
+    hear_better_short: "📈",
+    hear_better_word: "📈 Better",
+    hear_better_tag: "📈 Better than {prev}"
+  }
+};
 function hrT(key, vars) {
   const t = TRANSLATIONS[appState.lang] || {};
-  let s = t[key] || key;
+  let s = (HR_TEXT[appState.lang] || HR_TEXT.ar)[key] || t[key] || key;
   Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
   return s;
 }
@@ -146,16 +163,39 @@ function hrNotebookHtml(state, d, o) {
   const opt = o || {};
   const name = hrNameOf(state, d.id) || '…';
   const star = d.place >= 0 && d.place < 3 && d.pts ? hrStarHtml(d.place, opt.st, (opt.at || 0) + 900) : '';
-  const plus = d.pts ? `<span class="hr-plus"${opt.st ? opt.st.at((opt.at || 0) + 1100, 'pop') : ''}>+${d.pts}</span>` : '';
+  const total = hrDrawingPts(d);
+  // The red pen's +N: the place's points first, counting up as the extras land beside it.
+  const plus = total ? `<span class="hr-plus"${opt.st ? opt.st.at((opt.at || 0) + 1100, 'pop') : ''}><span dir="ltr">+${opt.st && d.bonus ? opt.st.count(total, (opt.at || 0) + 1500, d.pts || 0) : total}</span></span>` : '';
+  const extras = hrExtrasHtml(d, opt.st, (opt.at || 0) + 1250, opt.tv ? 'tv' : 'nb');
   const weird = opt.weird ? `<span class="hr-weird">${escapeHTML(hrT('hear_weird_won'))}</span>` : '';
   const tag = opt.vote ? 'button' : 'div';
   const attrs = opt.vote ? ` type="button" onclick="hrVote('${escapeHTML(opt.vote)}')" ${opt.mine ? 'disabled' : ''} aria-pressed="${opt.picked ? 'true' : 'false'}"` : '';
   return `<${tag} class="hr-nb ${opt.mine ? 'is-mine' : ''} ${opt.picked ? 'is-picked' : ''} ${opt.weird ? 'is-weird' : ''}" style="--cv:${hrCover(s, d.id)};${opt.pos || ''}"${attrs}>
       <span class="hr-nb__pg"><canvas class="hr-ink" data-hr-ink="${escapeHTML(d.id)}" width="300" height="300"></canvas>
-        ${opt.grade !== false ? hrGradeHtml(d.pct, opt.st, opt.at || 0) : ''}${star}${plus}${weird}
+        ${opt.grade !== false ? hrGradeHtml(d.pct, opt.st, opt.at || 0) : ''}${star}${plus}${weird}${extras}
         ${opt.vote && opt.mine ? `<span class="hr-nb__mine">${escapeHTML(hrT('hear_weird_mine'))}</span>` : ''}</span>
       <b class="hr-nb__n"><bdi>${escapeHTML(name)}</bdi></b>
     </${tag}>`;
+}
+
+/** A drawing's points this round before the vote: its place, +1 at 50%+, «اتحسنت» +1 (the owner, 2 Oct 2026). */
+function hrDrawingPts(d) {
+  return ((d && d.pts) || 0) + ((d && d.bonus) || 0);
+}
+
+/**
+ * The extras a drawing earned (the owner, 2 Oct 2026), as red-pen tags: «✓ 50% وأكتر +1» and
+ * «📈 اتحسنت عن 29% +1». size: 'big' (my own page: the whole line), 'tv' (a notebook on the TV:
+ * «✓ 50%», «📈 اتحسنت»), 'nb' (a phone's small notebook: «✓ 50%», «📈»).
+ */
+function hrExtrasHtml(d, st, at, size) {
+  if (!d || !(d.over || d.better)) return '';
+  const tag = (cls, text, n, i) => `<span class="hr-extra ${cls}"${st ? st.at(at + i * 220, 'pop') : ''}>${escapeHTML(text)} <b class="metric">+${n}</b></span>`;
+  const parts = [];
+  const better = size === 'nb' ? 'hear_better_short' : size === 'tv' || typeof d.prev !== 'number' ? 'hear_better_word' : 'hear_better_tag';
+  if (d.over) parts.push(tag('hr-extra--over', hrT(size === 'big' ? 'hear_over_tag' : 'hear_over_short', { line: hrPct(HEAR_OVER_PCT) }), d.over, parts.length));
+  if (d.better) parts.push(tag('hr-extra--better', hrT(better, { prev: hrPct(d.prev) }), d.better, parts.length));
+  return `<span class="hr-extras ${size === 'big' ? '' : 'hr-extras--nb'}">${parts.join('')}</span>`;
 }
 
 /** The describer's line at the grading: the average and the points. */
@@ -409,7 +449,8 @@ function hrPhoneBody(state) {
     const minePage = s.phase === 'grade' && mine ? `<div class="hr-mine">
         ${hrPageHtml({ cap: hrT('hear_your_page'), ink: mine.id, model: s.pic })}
         ${hrGradeHtml(mine.pct, st, 200, 'hr-grade--big')}
-        <div class="hr-mine__stars"${st ? st.at(1400, 'pop') : ''}>${mine.pts ? hrStarHtml(mine.place, null, 0) + `<b class="hr-plus hr-plus--flat">+${mine.pts}</b>` : `<span class="hr-try">${escapeHTML(hrT('hear_try_again'))}</span>`}</div>
+        <div class="hr-mine__stars"${st ? st.at(1400, 'pop') : ''}>${hrDrawingPts(mine) ? (mine.pts ? hrStarHtml(mine.place, null, 0) : '') + `<b class="hr-plus hr-plus--flat" dir="ltr">+${st && mine.bonus ? st.count(hrDrawingPts(mine), 2100, mine.pts || 0) : hrDrawingPts(mine)}</b>` : `<span class="hr-try">${escapeHTML(hrT('hear_try_again'))}</span>`}</div>
+        ${hrExtrasHtml(mine, st, 1700, 'big')}
       </div>` : '';
     const model = s.phase === 'grade' && !mine ? hrBoardHtml(s.pic, { cls: 'hr-board--small', title: hrT('hear_model') }) : '';
     const v = s.vote || {};
@@ -694,7 +735,7 @@ TV_GAMES.hear = {
             <b class="hr-nb__n"><bdi>${escapeHTML(hrNameOf(state, id))}</bdi></b></div>`);
       }
       const d = (s.drawings || []).find(x => x.id === id);
-      return seat(hrNotebookHtml(state, d, { st, at: 600 + order.indexOf(id) * stepMs, weird: s.phase === 'result' && weird.indexOf(id) !== -1 }));
+      return seat(hrNotebookHtml(state, d, { st, at: 600 + order.indexOf(id) * stepMs, weird: s.phase === 'result' && weird.indexOf(id) !== -1, tv: true }));
     }).join('');
 
     let board = '', cap = '';

@@ -184,3 +184,48 @@ const witnessLineup = (rnd) => {
   for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
   return { faces: order.map(i => faces[i]), real: Math.floor(r() * faces.length) };
 };
+
+/* --- «الرسم مطابق 78%»: the sketch held against the real face (the owner, 2 Oct 2026) ---
+   Feature by feature, each the same weight: the builder's own categories (the
+   page's WIT_CATS keys), only those that show on the real face (no hair colour
+   under a hijab or on a bald head, no hair style under a hijab, no eye colour
+   behind sunglasses, a beard only on a man, a scarf and the extras only without
+   a hijab, a tie only on a collar). A feature of several switches (the marks,
+   the extras) is right when every one of them matches. The server works it out
+   at the reveal (it alone has the real face before then) and publishes it as
+   shared.match; at WITNESS_MATCH_LINE or more the witness and the artist each
+   get WITNESS_MATCH_POINTS on top of their jury points. */
+const WITNESS_MATCH_LINE = 70;     // the owner's 70%
+const WITNESS_MATCH_POINTS = 1;    // to the witness and to the artist, each
+const witnessNoHijab = (x) => x.hijab === null || x.hijab === undefined;
+const witnessOn = (x, keys) => keys.map(k => (x[k] ? 1 : 0)).join('');
+const WITNESS_FEATURES = [
+  { k: 'g', get: x => x.g },
+  { k: 'skin', get: x => Number(x.skin) || 0 },
+  { k: 'style', when: witnessNoHijab, get: x => (witnessNoHijab(x) ? x.style : 'hijab') },
+  { k: 'hair', when: x => witnessNoHijab(x) && x.style !== 'bald', get: x => x.hair },
+  { k: 'head', get: x => (x.cap !== null && x.cap !== undefined ? 'c' + x.cap : !witnessNoHijab(x) ? 'h' + x.hijab : 'none') },
+  { k: 'glasses', get: x => (x.sun ? 'sun' : x.glasses ? 'glasses' : 'none') },
+  { k: 'eyes', when: x => !x.sun, get: x => x.eyes },
+  { k: 'brows', get: x => x.brows || '' },
+  { k: 'beard', when: x => x.g === 'm', get: x => (x.beard ? 'b' : '') + (x.mous ? 'm' : '') },
+  { k: 'mouth', get: x => x.mouth },
+  { k: 'marks', get: x => witnessOn(x, ['mole', 'freckles', 'rosy', 'wrinkles']) },
+  { k: 'extras', when: witnessNoHijab, get: (x, real) => witnessOn(x, (real.g === 'f' ? ['ear'] : []).concat(['necklace', 'phones'])) },
+  { k: 'scarf', when: witnessNoHijab, get: x => (x.scarf === null || x.scarf === undefined ? 'none' : 's' + x.scarf) },
+  { k: 'top', get: x => x.top },
+  { k: 'tie', when: x => x.top === 'collar', get: x => x.tie || '' },
+  { k: 'shirt', get: x => Number(x.shirt) },
+  { k: 'pattern', get: x => x.pattern }
+];
+
+/** { feats: [{ k, ok }], ok, of, pct }: the sketch against the real face, over the features the real face shows. */
+const witnessMatch = (sketch, real) => {
+  if (!real) return { feats: [], ok: 0, of: 0, pct: 0 };
+  const a = witnessClean(sketch || witnessBlank('m'));
+  const b = witnessClean(real);
+  const feats = WITNESS_FEATURES.filter(f => !f.when || f.when(b))
+    .map(f => ({ k: f.k, ok: String(f.get(a, b)) === String(f.get(b, b)) }));
+  const ok = feats.filter(f => f.ok).length;
+  return { feats, ok, of: feats.length, pct: feats.length ? Math.round(ok * 100 / feats.length) : 0 };
+};

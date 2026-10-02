@@ -23492,9 +23492,32 @@ body.is-tv-view .tv-trivia-board .status-row { padding-block: 0.3rem; min-height
 .wit-tick.is-ok { border-color: var(--success); color: var(--success-ink); background: var(--success-soft); }
 .wit-tick.is-off { color: var(--danger); }
 body.dark .wit-tick.is-ok { color: var(--success); }
-.wit-tally__sum { font-family: var(--font-display); font-weight: 900; font-size: 1.125rem; color: var(--text-strong); }
 .wit-tally--tv .wit-tick { font-size: calc(var(--tv-sm) * 0.8); }
-.wit-tally--tv .wit-tally__sum { font-size: var(--tv-md); }
+/* «الرسم مطابق 78%» (2 Oct 2026): the % beside the ticks, a bar with the 70% line, the +1 or the laugh. */
+.wit-match { display: grid; grid-template-columns: auto auto; align-items: baseline; justify-content: center; column-gap: var(--sp-2); row-gap: 0.35rem; width: 100%; max-width: 18rem; }
+.wit-match__k { font-weight: 800; color: var(--text-2); font-size: var(--fs-sm); }
+.wit-match__pct { font-family: var(--font-display); font-weight: 900; font-size: 2rem; line-height: 1; color: var(--text-strong); }
+.wit-match__pct i { font-style: normal; font-size: 0.6em; margin-inline-start: 0.1em; }
+.wit-match.is-won .wit-match__pct { color: var(--success-ink); }
+body.dark .wit-match.is-won .wit-match__pct { color: var(--success); }
+.wit-match__bar { grid-column: 1 / -1; position: relative; display: block; height: 0.5rem; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; direction: ltr; }
+.wit-match__fill { position: absolute; inset: 0; border-radius: inherit; background: var(--text-3); transform-origin: left center; transform: scaleX(var(--p, 0)); }
+.wit-match.is-won .wit-match__fill { background: var(--success); }
+.wit-match__fill[data-rv="grow"] { animation-name: wit-match-grow; animation-duration: 720ms; }
+@keyframes wit-match-grow { from { transform: scaleX(0); } }
+.wit-match__line { position: absolute; inset-block: 0; left: var(--l, 70%); width: 2px; background: var(--text-strong); opacity: 0.55; }
+.wit-match__n { grid-column: 1 / -1; text-align: center; font-weight: 800; font-size: var(--fs-sm); color: var(--text-2); }
+.wit-match__bonus { font-weight: 800; font-size: var(--fs-sm); color: var(--text-2); text-align: center; }
+.wit-match__bonus.is-won { padding: 0.3rem 0.8rem; border-radius: var(--r-full); background: var(--success-soft); color: var(--success-ink); border: 1px solid var(--success); }
+body.dark .wit-match__bonus.is-won { color: var(--success); }
+.wit-tally--tv .wit-match { max-width: none; }
+/* The reveal's side column holds the faces, the meter, the ticks, the verdict and the points: smaller faces, so it all fits a 16:9 screen. */
+.wit-tv.wit--reveal .wit-compare { max-width: 36vmin; }
+.wit-tv.wit--reveal .wit-tv__side { gap: 1.2vmin; }
+.wit-tv.wit--reveal .wit-tally { margin-block: 0; gap: 1vmin; }
+.wit-tally--tv .wit-match__k, .wit-tally--tv .wit-match__n, .wit-tally--tv .wit-match__bonus { font-size: var(--tv-sm); }
+.wit-tally--tv .wit-match__pct { font-size: var(--tv-lg); }
+.wit-tally--tv .wit-match__bar { height: 1.1vmin; min-height: 0.5rem; }
 
 @media (prefers-reduced-motion: reduce) {
   [data-rv], .rv-cover { animation: none; }
@@ -25155,6 +25178,21 @@ button.hr-nb.is-picked { box-shadow: 0 0 0 4px var(--hr-red), 0 6px 0 rgba(34, 3
 button.hr-nb:disabled { opacity: 0.55; cursor: default; }
 .hr-nb__mine { position: absolute; inset: auto 0 0.4rem; margin: auto; width: max-content; padding: 0 0.5rem; border-radius: var(--r-full); background: var(--hr-ink); color: #ffffff; font-size: var(--fs-xs); font-weight: 800; }
 .hr-nb.is-weird { box-shadow: 0 0 0 4px var(--hr-pencil), 0 5px 0 rgba(34, 31, 54, 0.25); }
+/* The extras of 2 Oct 2026, in red pen: «فوق 50% +1» and «📈 اتحسنت +1» (on the page's top corner in a notebook). */
+.hr-extras { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.35rem; }
+.hr-extra {
+  display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.05rem 0.5rem; white-space: nowrap;
+  border: 2px solid var(--hr-red); border-radius: var(--r-full); background: rgba(255, 255, 255, 0.92); color: var(--hr-red);
+  font: 800 var(--fs-sm)/1.4 var(--font-display); transform: rotate(-3deg);
+}
+.hr-extra .metric { color: inherit; }
+.hr-mine > .hr-extras { margin-top: var(--sp-2); }
+.hr-extra--better { border-color: var(--hr-ink); color: var(--hr-ink); transform: rotate(2deg); }
+/* Top left in both languages: the red circle (direction ltr) always sits top right. */
+.hr-extras--nb { position: absolute; z-index: 3; top: 0.15rem; left: 0.15rem; flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+.hr-extras--nb .hr-extra { padding: 0 0.35rem; font-size: 0.66rem; border-width: 1.5px; }
+.hr-tv .hr-extras--nb { top: 0.4vmin; left: 0.4vmin; gap: 0.4vmin; }
+.hr-tv .hr-extras--nb .hr-extra { font-size: 1.6vmin; padding: 0 0.8vmin; border-width: 0.25vmin; }
 
 .hr-desc {
   margin: 0.4rem 0.4rem 0; padding: 0.45rem 0.8rem; text-align: center; font-weight: 700;
@@ -25190,6 +25228,7 @@ body.dark .hr-grading .scoreboard, body.dark .hr-grading .result-list { backgrou
   .hr-mine .hr-page { width: min(21rem, calc(var(--app-h, 100vh) - 9rem)); }
   .hr-mine .hr-grade--big { position: static; transform: rotate(-12deg); }
   .hr-mine__stars { grid-column: 2; }
+  .hr-mine > .hr-extras { grid-column: 2; flex-direction: column; }
 }
 
 /* --- the big screen: the classroom --- */

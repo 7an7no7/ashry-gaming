@@ -899,6 +899,8 @@ const PROBES = {
         const sv = view.shared || {};
         if (typeof sv.realIdx === 'number') return 'shared.realIdx';
         if (sv.picks) return 'shared.picks';
+        // «الرسم مطابق» measures the sketch against the real face: its ticks would name it (2 Oct 2026).
+        if (sv.match) return 'shared.match';
         if (view.you && view.you.face) return 'you.face';
         return null;
       })

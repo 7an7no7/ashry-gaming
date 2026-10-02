@@ -6,9 +6,10 @@
    board, or a simple drawing built of shapes), and only theirs: they describe
    it out loud, no pointing, no questions, and never see the drawings while
    the clock runs. Then the app grades every drawing against the picture (a %),
-   the three closest take 3 / 2 / 1, the describer a point for every 20% of the
-   drawers' average (at most 3), and the table votes «أغرب رسمة» (never your
-   own) for +1. Everyone describes once (or twice, the host's pick); the board
+   the three closest take 3 / 2 / 1, every drawing at 50% or more +1, a drawer
+   who beats their own last % «اتحسنت» +1 (the owner, 2 Oct 2026), the
+   describer a point for every 20% of the drawers' average (at most 3), and the
+   table votes «أغرب رسمة» (never your own) for +1. Everyone describes once (or twice, the host's pick); the board
    at the end, the night's points through it.
 
    What is hidden (never in shared until the grading):
@@ -73,6 +74,7 @@ const hearAction = (room, playerId, action, payload) => {
       laps, seconds, kind, level,
       scores: {},
       gained: {},
+      lastPct: {},                 // each drawer's % from the last drawing they made («اتحسنت»)
       board: [],
       history: [],
       phase: 'ready'
@@ -237,11 +239,20 @@ const hearGrade = (room) => {
     const place = d.pct > 0 ? ranked.findIndex(r => r.pct === d.pct) : -1;
     d.place = place;
     d.pts = place >= 0 && place < HEAR_PLACE_POINTS.length ? HEAR_PLACE_POINTS[place] : 0;
+    // The owner's extras of 2 Oct 2026, on top of the places: +1 at 50% or more, and «اتحسنت» +1 for
+    // beating your own % from the last drawing you made (shared.lastPct; nothing to beat the first time).
+    const prev = (s.lastPct || {})[d.id];
+    d.prev = typeof prev === 'number' ? prev : null;
+    d.over = d.pct >= HEAR_OVER_PCT ? HEAR_OVER_POINTS : 0;
+    d.better = d.prev !== null && d.pct > d.prev ? HEAR_BETTER_POINTS : 0;
+    d.bonus = d.over + d.better;
   });
+  s.lastPct = Object.assign({}, s.lastPct || {});
+  drawings.forEach(d => { s.lastPct[d.id] = d.pct; });
   const avg = drawings.length ? Math.round(drawings.reduce((n, d) => n + d.pct, 0) / drawings.length) : 0;
   const descPts = hearHere(room, s.describerId) ? hearDescPoints(avg) : 0;
   s.gained = {};
-  drawings.forEach(d => { if (d.pts) { addScore(room, d.id, d.pts); s.gained[d.id] = d.pts; } });
+  drawings.forEach(d => { const n = d.pts + d.bonus; if (n) { addScore(room, d.id, n); s.gained[d.id] = n; } });
   if (descPts) { addScore(room, s.describerId, descPts); s.gained[s.describerId] = descPts; }
   s.phase = 'grade';
   s.pic = h.pic;

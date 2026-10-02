@@ -859,7 +859,7 @@ async function witnessRobots() {
     await A.must('sketch', { round, n: 1, face });
     await TV.waitFor((s) => s.shared.sketch && s.shared.sketch.g === 'f' && s.shared.sketch.glasses === true && s.shared.sketchN === 1, `witness ${round}: the TV sees the sketch as it is built`);
     await A.must('done', { round });
-    await all(people.concat([TV]), (s) => s.shared.phase === 'vote' && s.shared.lineup.length === 6 && s.shared.realIdx === null, `witness ${round}: the lineup goes up; which one is real stays hidden`);
+    await all(people.concat([TV]), (s) => s.shared.phase === 'vote' && s.shared.lineup.length === 6 && s.shared.realIdx === null && !s.shared.match, `witness ${round}: the lineup goes up; which one is real (and how close the sketch is) stays hidden`);
     await jury[0].must('vote', { option: 's1', round });
     await H.waitFor((s) => s.shared.vote && s.shared.vote.voted.length === 1, `witness ${round}: the host hears of the vote`);
     check(!H.state.shared.vote.results && H.state.shared.vote.voted.length === 1, `witness ${round}: who voted is public, not what`);
@@ -867,8 +867,12 @@ async function witnessRobots() {
     await all(people.concat([TV]), (s) => s.shared.phase === 'reveal' && typeof s.shared.realIdx === 'number', `witness ${round}: the vote closes when the jury has voted, the real one shown`);
     const sh = H.state.shared;
     const right = sh.right.length;
-    check((sh.gained[W.pid] || 0) === right && (sh.gained[A.pid] || 0) === right && jury.every((b) => (sh.gained[b.pid] || 0) === (sh.right.indexOf(b.pid) !== -1 ? 1 : 0)),
-      `witness ${round}: a juror right scores 1; the witness and the artist 1 for each`);
+    const m = sh.match || {};
+    const extra = m.won ? 1 : 0;
+    check(Array.isArray(m.feats) && m.feats.length === m.of && m.of > 0 && m.pct === Math.round(m.ok * 100 / m.of) && m.won === (m.pct >= 70 && !m.blank),
+      `witness ${round}: the sketch is measured against the real face, feature by feature (${m.ok}/${m.of}, ${m.pct}%)`);
+    check((sh.gained[W.pid] || 0) === right + extra && (sh.gained[A.pid] || 0) === right + extra && jury.every((b) => (sh.gained[b.pid] || 0) === (sh.right.indexOf(b.pid) !== -1 ? 1 : 0)),
+      `witness ${round}: a juror right scores 1; the witness and the artist 1 for each (and +1 each at 70%+)`);
     await H.must('nextRound', { round });
   }
   await H.waitFor((s) => s.shared.round === 3 && s.shared.phase === 'ready', 'witness: round 3 is dealt');
@@ -947,6 +951,9 @@ async function hearRobots() {
   const blank = g.drawings.find((d) => d.id === drawers[2].pid);
   check(top.pct >= 90 && top.pts === 3 && blank.pct === 0 && blank.pts === 0, `hear 1: the traced page scores ${top.pct}% and 3 points; the blank one 0`);
   check(g.descPts === Math.min(3, Math.floor(g.avg / 20)) && (g.gained[D.pid] || 0) === g.descPts, `hear 1: the describer +${g.descPts} for an average of ${g.avg}%`);
+  check(top.over === 1 && blank.over === 0 && g.drawings.every((d) => d.better === 0 && d.prev === null) && g.gained[drawers[0].pid] === 3 + 1,
+    'hear 1: +1 for 50% or more on top of the place; no «اتحسنت» in round 1');
+  const pct1 = {}; g.drawings.forEach((d) => { pct1[d.id] = d.pct; });
   check(!D.state.you || !D.state.you.pic, 'hear 1: the picture leaves the describer\'s slice once it is public');
   check((await J.act('toVote', { round: 1 })).ok === false, 'hear 1: only the host opens the vote early');
   await H.must('toVote', { round: 1 });
@@ -968,11 +975,21 @@ async function hearRobots() {
   D = byPid(s0.describerId);
   drawers = people.filter((b) => b !== D);
   check(D.pid !== g.describerId, 'hear 2: someone else describes');
+  await D.waitFor((s) => s.you && s.you.pic, 'hear 2: the picture reaches the describer');
+  const pic2 = D.state.you.pic;
+  // The drawer with the lowest % last time traces this picture: «اتحسنت».
+  const upBot = drawers.filter((b) => b !== drawers[0] && typeof pct1[b.pid] === 'number').sort((a, b) => pct1[a.pid] - pct1[b.pid])[0];
   await D.must('go', { round: 2 });
   await drawers[0].must('ink', { round: 2, strokes: [scribble()] });
+  if (upBot) await upBot.must('ink', { round: 2, strokes: trace(pic2.s) });
   await D.must('done', { round: 2 });
   await all(people.concat([TV]), (s) => s.shared.phase === 'grade', 'hear 2: time\'s up: the server grades what came in', 20000);
   check(H.state.shared.drawings.find((d) => d.id === drawers[0].pid).strokes.length === 1, 'hear 2: the page sent while drawing is the one graded');
+  if (upBot) {
+    const u = H.state.shared.drawings.find((d) => d.id === upBot.pid);
+    check(u.prev === pct1[upBot.pid] && u.pct > u.prev && u.better === 1 && u.over === 1 && H.state.shared.gained[upBot.pid] === u.pts + 2,
+      `hear 2: «اتحسنت» +1 (${u.prev}% → ${u.pct}%) and the 50% point, stacked`);
+  }
   await all(people.concat([TV]), (s) => s.shared.phase === 'vote', 'hear 2: the vote opens by itself after the grading', 16000);
   await H.must('closeVote', { round: 2 });
   await all(people, (s) => s.shared.phase === 'result', 'hear 2: the host closes the vote');

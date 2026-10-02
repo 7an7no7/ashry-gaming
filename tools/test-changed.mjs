@@ -70,7 +70,7 @@ const MAP = [
   { files: /^(BankAlhaz\.js|RoomBank\.js|JS_Bank\.html|JS_RoomBank\.html)$/, robots: ['bank'], ui: ['bank'], screens: true },
   { files: /^GuessWho\.js$/, robots: ['guesswho', 'witness', 'duels'], ui: ['guesswho', 'witness'] },
   { files: /^(RoomGuessWho\.js|JS_GuessWho\.html)$/, robots: ['guesswho', 'duels'], ui: ['guesswho'] },
-  { files: /^(Hangman\.js|RoomHangman\.js|JS_Hangman\.html)$/, robots: ['hangman'], ui: ['hangman'], screens: true },
+  { files: /^(Hangman\.js|RoomHangman\.js|JS_Hangman\.html|JS_HangmanEnd\.html)$/, robots: ['hangman'], ui: ['hangman'], screens: true },
   { files: /^(Battleship\.js|RoomBattleship\.js|JS_Battleship\.html)$/, robots: ['battleship', 'duels'], ui: ['battleship'], screens: true },
   { files: /^(Chess\.js|RoomChess\.js)$/, robots: ['chess', 'teamchess', 'hq', 'bughouse', 'duels'], ui: ['chess', 'votechess', 'handbrain', 'bughouse'], screens: true },
   { files: /^JS_(Chess|ChessOpenings|ChessPosition|ChessPuzzles|ChessReview|RoomChess)\.html$/, robots: [], ui: ['chess', 'votechess', 'handbrain', 'bughouse'], screens: true },

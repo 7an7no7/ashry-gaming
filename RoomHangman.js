@@ -19,26 +19,55 @@
    took for that word (the review of 1 Oct 2026: a word nobody could get paid
    its writer most). No computer players.
 
-   What is hidden: the word (room._hm.word) until the word ends, and each
-   board's letters, which reach their own phone only (room.secrets[pid]); the
-   writer's phone gets the word. `shared.progress` is what the table may see
-   of each board: how many of the word's letters it shows, how many misses,
-   and whether it is solved or hanged - never which letters.
+   The next round (the owner, 2 Oct 2026):
+   - A third way, team against team: two teams (the host's split in the lobby);
+     one member of one team writes (in turn), the other team guesses on one
+     board out loud and its captain (in turn, a new one every word) taps the
+     letters; the teams swap every word. The team's points go to every member,
+     so the room's board, the night and the program read the teams.
+     Decided here: a team's solve is 10 (no order, one board), the streak and
+     the lifelines as below; a word the team fails scores nobody (both teams
+     write alike, and a writer must not gain by an impossible word).
+   - Levels: Easy 8 misses, Normal 6, Hard 4 (settings.level). The race's level
+     picks the words' length too, and Hard hides the category.
+   - The race's category: «من كل حاجة», or one of the app's lists (HM_CATS).
+   - Lifelines, each once a word on each board: «اكشف حرف» (reveal) and «شيل ٣
+     حروف غلط» (remove); each used takes 3 off that word's points if solved.
+   - The writer's hints: up to 3; the first from the start (shared.cat), the
+     2nd on a board's 2nd miss, the 3rd on its 4th - on that board's own phone.
+   - The streak: the 2nd word solved in a row +2, the 3rd +4 … up to +10; a
+     fail resets it (shared.streak, by player, or by team).
+   - The endings: each board that is solved or hanged gets one of eight
+     endings of its kind (progress.end / tb.end), never the one picked last.
+
+   What is hidden: the word (room._hm.word) until the word ends, the hints not
+   yet opened (room._hm.hints), and each board's letters, which reach their
+   own phone only (room.secrets[pid]); the writer's phone gets the word and its
+   hints. `shared.progress` is what the table may see of each board: how many
+   of the word's letters it shows, how many misses, whether it is solved or
+   hanged, and its ending - never which letters. In the team way the one board
+   is the table's (shared.tb: the team talks it over out loud), the word still
+   only on the writer's phone.
 
    shared:
      phase     'writing' | 'guessing' | 'result' | 'gameover'
-     settings  { mode: 'setter' | 'race', rounds, clock }
+     settings  { mode: 'setter' | 'race' | 'teams', rounds, clock, lang, level, cat }
+     max       the misses a board takes (the level)
      round     the word number (1..rounds) · rounds
      order     the writers' order (setter) · setter, setterName
      len       the word's letters · shape  each word's length, for the blanks
-     alpha     'ar' | 'en' · cat  the hint: the race's category, or the writer's (optional)
-     progress  { pid: { n, miss, state, at } } · solved  [pid, …] in order
+     alpha     'ar' | 'en' · cat  the first hint: the race's category, or the writer's (optional)
+     progress  { pid: { n, miss, state, at, end } } · solved  [pid, …] in order
+     streak    { pid | 't0' | 't1': words solved in a row }
      endsAt    the word's clock
-     result    { word, cat, setter, setterName, setterPts, rows: [{ id, name, state, miss, pts }] }
+     teams     [[ids], [ids]] · gt the team guessing this word · captain, captainName
+     tpts      [team 0's points, team 1's] · tb the team's board { pattern, g, miss, x, state, lr, lx, hints, end }
+     result    { word, cat, setter, setterName, setterPts, rows: [{ id, name, state, miss, pts, end, run, life }], team }
      scores / board   the game's points, best first
    ========================================================================= */
 const HM_GRACE_MS = 1500;
 const HM_ROUNDS = [3, 5, 10];
+const HM_ROUNDS_TEAMS = [4, 6, 10];
 const HM_CLOCKS = [0, 60, 90];
 const HM_SOLVE_POINTS = 10;
 const HM_SPEED_BONUS = [5, 4, 3, 2, 1];
@@ -47,17 +76,23 @@ const HM_SETTER_POINTS = 5;
 const hmRoomOptions = (payload, prev) => {
   const p = payload || {};
   const was = prev || {};
-  const mode = p.mode === 'race' || p.mode === 'setter' ? p.mode : (was.mode === 'race' ? 'race' : 'setter');
+  const modes = ['setter', 'race', 'teams'];
+  const mode = modes.indexOf(p.mode) !== -1 ? p.mode : (modes.indexOf(was.mode) !== -1 ? was.mode : 'setter');
   const pickN = (list, v, w, dflt) => (list.indexOf(Number(v)) !== -1 ? Number(v) : (list.indexOf(Number(w)) !== -1 ? Number(w) : dflt));
+  const rounds = mode === 'teams' ? HM_ROUNDS_TEAMS : HM_ROUNDS;
   return {
     mode: mode,
-    rounds: pickN(HM_ROUNDS, p.rounds, was.rounds, 5),
+    rounds: pickN(rounds, p.rounds, was.rounds, mode === 'teams' ? 6 : 5),
     clock: pickN(HM_CLOCKS, p.clock, was.clock, 0),
-    lang: p.lang === 'en' ? 'en' : (p.lang === 'ar' ? 'ar' : (was.lang === 'en' ? 'en' : 'ar'))
+    lang: p.lang === 'en' ? 'en' : (p.lang === 'ar' ? 'ar' : (was.lang === 'en' ? 'en' : 'ar')),
+    // Every field new on 2 Oct 2026 is optional: a phone on an older page plays Normal, «من كل حاجة».
+    level: hmLevelOf(p.level !== undefined ? p.level : was.level),
+    cat: hmCatKey(p.cat !== undefined ? p.cat : was.cat)
   };
 };
 
 const hmHere = (room) => room.players.map(p => p.id);
+const hmTeamsWay = (s) => !!(s && s.settings && s.settings.mode === 'teams');
 
 /** Who guesses this word: everyone at the table but the writer. */
 const hmGuessers = (room) => {
@@ -65,39 +100,79 @@ const hmGuessers = (room) => {
   return hmHere(room).filter(id => id !== s.setter);
 };
 
-/** Each board's letters to its own phone; the word to the writer's. */
+/** The hints a board has opened: the first from the start, the next on its 2nd and 4th miss. */
+const hmOpenHints = (room, b) => {
+  const hints = ((room._hm || {}).hints || []);
+  return hints.slice(0, hmHintsOpen(b ? b.miss.length : 0));
+};
+
+/** What one board looks like to whoever may see it: its letters, never the word. */
+const hmBoardView = (room, b) => {
+  const h = room._hm || {};
+  const v = { g: b.g.slice(), miss: b.miss.slice(), state: b.state, pattern: hmPattern(h.word, b.g) };
+  if (b.x && b.x.length) v.x = b.x.slice();
+  if (b.lr) v.lr = true;
+  if (b.lx) v.lx = true;
+  if (b.end !== undefined) v.end = b.end;
+  const hints = hmOpenHints(room, b);
+  if (hints.length > 1) v.hints = hints;
+  return v;
+};
+
+/** Each board's letters to its own phone; the word (and its hints) to the writer's. In the team way the board is the table's. */
 const hmWriteSecrets = (room) => {
   const s = room.shared;
   const h = room._hm || {};
   room.secrets = {};
   if (s.phase !== 'guessing') return;
-  Object.keys(h.boards || {}).forEach(pid => {
-    const b = h.boards[pid];
-    room.secrets[pid] = { g: b.g.slice(), miss: b.miss.slice(), state: b.state, pattern: hmPattern(h.word, b.g) };
-  });
-  if (s.setter && h.word) room.secrets[s.setter] = { word: h.word };
+  if (hmTeamsWay(s)) {
+    const b = h.boards && h.boards.team;
+    if (b) s.tb = hmBoardView(room, b);
+  } else {
+    Object.keys(h.boards || {}).forEach(pid => { room.secrets[pid] = hmBoardView(room, h.boards[pid]); });
+  }
+  if (s.setter && h.word) room.secrets[s.setter] = { word: h.word, hints: (h.hints || []).slice() };
 };
 
 /** What the table sees of one board. */
-const hmProgressOf = (word, b, at) => ({
-  n: hmFound(hmPattern(word, b.g)),
-  miss: b.miss.length,
-  state: b.state,
-  at: at
-});
+const hmProgressOf = (word, b, at) => {
+  const out = { n: hmFound(hmPattern(word, b.g)), miss: b.miss.length, state: b.state, at: at };
+  if (b.end !== undefined) out.end = b.end;
+  return out;
+};
 
-/** The word is out: every guesser gets a board, the clock starts. */
-const hmBeginGuessing = (room, word, cat) => {
+/**
+ * A board that has just been solved or has run out of misses gets its ending: one of the eight of
+ * its kind, never the last one picked in the room nor this player's own last (the owner: never the
+ * same twice in a row). A board the clock or the host closes keeps the frozen man (⏰), no ending.
+ */
+const hmGiveEnd = (room, id, b) => {
+  if (b.end !== undefined || b.state === 'play') return;
+  const kind = b.state === 'won' ? 'won' : 'lost';
+  const mem = room._hmEnd || (room._hmEnd = { won: -1, lost: -1, by: {} });
+  const mine = mem.by[id] || (mem.by[id] = {});
+  b.end = hmPickEnd([mem[kind], mine[kind]]);
+  mem[kind] = b.end;
+  mine[kind] = b.end;
+};
+
+/** The word is out: every guesser gets a board (the team one board), the clock starts. */
+const hmBeginGuessing = (room, word, hints) => {
   const s = room.shared;
-  const guessers = hmGuessers(room);
-  room._hm = { word: word, boards: {} };
+  const list = (hints || []).filter(Boolean);
+  room._hm = { word: word, boards: {}, hints: list };
   s.progress = {};
-  guessers.forEach(pid => { room._hm.boards[pid] = hmNewBoard(); s.progress[pid] = hmProgressOf(word, room._hm.boards[pid], null); });
   s.solved = [];
+  if (hmTeamsWay(s)) {
+    room._hm.boards.team = hmNewBoard(s.max);
+  } else {
+    hmGuessers(room).forEach(pid => { room._hm.boards[pid] = hmNewBoard(s.max); s.progress[pid] = hmProgressOf(word, room._hm.boards[pid], null); });
+  }
   s.len = hmLettersOf(word).length;
   s.shape = hmShape(word);
   s.alpha = hmAlphaOf(word);
-  s.cat = cat || '';
+  s.cat = list[0] || '';
+  s.hintsN = list.length;
   s.phase = 'guessing';
   s.roster = hmHere(room);
   s.endsAt = s.settings.clock ? Date.now() + s.settings.clock * 1000 : null;
@@ -115,6 +190,75 @@ const hmNextSetter = (room) => {
   return s.order[s.setterAt];
 };
 
+/* --- the team way ---------------------------------------------------------------- */
+
+/** The team (0 or 1) a player is on, or -1. */
+const hmTeamOf = (s, pid) => ((s.teams || [])[0] || []).indexOf(pid) !== -1 ? 0 : (((s.teams || [])[1] || []).indexOf(pid) !== -1 ? 1 : -1);
+
+/** The members of team k still here. */
+const hmTeamHere = (room, k) => {
+  const here = hmHere(room);
+  return (((room.shared.teams || [])[k]) || []).filter(id => here.indexOf(id) !== -1);
+};
+
+/** Whoever is here and on no team (a latecomer) joins the smaller one, with that team's points so far. */
+const hmTeamsFit = (room) => {
+  const s = room.shared;
+  s.teams = s.teams || [[], []];
+  const here = hmHere(room);
+  s.teams = s.teams.map(t => t.filter(id => here.indexOf(id) !== -1));
+  here.forEach(id => {
+    if (hmTeamOf(s, id) !== -1) return;
+    const k = s.teams[0].length <= s.teams[1].length ? 0 : 1;
+    s.teams[k].push(id);
+    s.scores = s.scores || {};
+    s.scores[id] = (s.tpts || [0, 0])[k] || 0;
+  });
+};
+
+/** The next of team k in its turn (`key`: 'wAt' the writers, 'cAt' the captains). */
+const hmTeamNext = (room, k, key) => {
+  const s = room.shared;
+  const list = hmTeamHere(room, k);
+  if (!list.length) return null;
+  s[key] = s[key] || [-1, -1];
+  s[key][k] = ((typeof s[key][k] === 'number' ? s[key][k] : -1) + 1) % list.length;
+  return list[s[key][k]];
+};
+
+/** The team that hasn't anyone here any more: the game can't go on. */
+const hmTeamsShort = (room) => hmTeamHere(room, 0).length < 1 || hmTeamHere(room, 1).length < 1;
+
+/** The team guessing word `round`: they swap every word, the first one drawn at the start. */
+const hmGuessTeam = (s) => ((s.round - 1) + (s.firstTeam || 0)) % 2;
+
+/** A new word in the team way: the other team's next writer writes, this team's next captain taps. */
+const hmTeamDeal = (room) => {
+  const s = room.shared;
+  hmTeamsFit(room);
+  s.gt = hmGuessTeam(s);
+  s.tb = null;
+  s.setter = hmTeamNext(room, 1 - s.gt, 'wAt');
+  s.setterName = roomPlayerName(room, s.setter);
+  s.captain = hmTeamNext(room, s.gt, 'cAt');
+  s.captainName = roomPlayerName(room, s.captain);
+  s.phase = 'writing';
+  s.roster = hmHere(room);
+  room.secrets = {};
+};
+
+/** Places for the night and the program (PROGRAM_TEAMS in RoomProgram.js): the team that won first, or both level. */
+const hmProgramTeams = (room) => {
+  const s = room.shared || {};
+  if (!hmTeamsWay(s) || s.phase !== 'gameover' || !Array.isArray(s.teams)) return null;
+  const p = s.tpts || [0, 0];
+  const t = s.teams;
+  if (p[0] === p[1]) return [t[0].concat(t[1])];
+  return p[0] > p[1] ? [t[0].slice(), t[1].slice()] : [t[1].slice(), t[0].slice()];
+};
+
+/* --- dealing ----------------------------------------------------------------------- */
+
 /** A new word: a writer to write one, or the app's for the race. */
 const hmDeal = (room) => {
   const s = room.shared;
@@ -123,18 +267,22 @@ const hmDeal = (room) => {
   s.solved = [];
   s.endsAt = null;
   s.cat = '';
+  s.hintsN = 0;
   s.len = 0;
   s.shape = [];
-  room._hm = { word: '', boards: {} };
+  room._hm = { word: '', boards: {}, hints: [] };
   if (s.settings.mode === 'race') {
     const pool = hmPool(s.settings.lang);
     if (!pool.length) throw new Error('مفيش كلمات');
-    const pick = nextPrompt(room, pool, 'hangman_' + s.settings.lang);
+    const accept = hmDealFilter(pool, s.settings.cat, s.settings.level);
+    const pick = accept ? nextPrompts(room, pool, 'hangman_' + s.settings.lang, 1, accept)[0] : nextPrompt(room, pool, 'hangman_' + s.settings.lang);
     s.setter = null;
     s.setterName = '';
-    hmBeginGuessing(room, pick.w, pick.c);
+    // Hard hides the category (the owner, 2 Oct 2026).
+    hmBeginGuessing(room, pick.w, s.settings.level === 'hard' ? [] : [pick.c]);
     return;
   }
+  if (hmTeamsWay(s)) { hmTeamDeal(room); return; }
   s.setter = hmNextSetter(room);
   s.setterName = roomPlayerName(room, s.setter);
   s.phase = 'writing';
@@ -142,18 +290,24 @@ const hmDeal = (room) => {
   room.secrets = {};
 };
 
-/** Every guesser still here is done: solved or hanged. */
+/** Every guesser still here is done: solved or hanged (in the team way, the one board). */
 const hmAllDone = (room) => {
   const s = room.shared;
+  if (hmTeamsWay(s)) { const b = room._hm && room._hm.boards.team; return !b || b.state !== 'play'; }
   const here = hmHere(room);
   return Object.keys(s.progress || {}).filter(id => here.indexOf(id) !== -1).every(id => s.progress[id].state !== 'play');
 };
+
+/** A word's points for a solve: 10, the order's bonus, the streak's, less 3 a lifeline. */
+const hmSolvePoints = (bonus, run, b) => Math.max(0, HM_SOLVE_POINTS + (bonus || 0) + hmStreakBonus(run) - HM_LIFE_COST * hmLifeUsed(b));
 
 /** The word ends: whoever is still guessing has failed, and the points go on the board. */
 const hmEndWord = (room) => {
   const s = room.shared;
   const h = room._hm || { boards: {} };
   if (s.phase !== 'guessing') return;
+  s.streak = s.streak || {};
+  if (hmTeamsWay(s)) { hmEndTeamWord(room); return; }
   const race = s.settings.mode === 'race';
   const here = hmHere(room);
   const rows = [];
@@ -162,17 +316,24 @@ const hmEndWord = (room) => {
   Object.keys(h.boards).forEach(pid => {
     const b = h.boards[pid];
     if (b.state === 'play') b.state = 'lost';
+    const present = here.indexOf(pid) !== -1;
     let pts = 0;
     if (b.state === 'won') {
       const at = s.solved.indexOf(pid);
-      pts = HM_SOLVE_POINTS + (at !== -1 ? (HM_SPEED_BONUS[at] || 0) : 0);
-    } else if (here.indexOf(pid) !== -1) {
-      failed++;
+      s.streak[pid] = (s.streak[pid] || 0) + 1;
+      pts = hmSolvePoints(at !== -1 ? (HM_SPEED_BONUS[at] || 0) : 0, s.streak[pid], b);
+    } else {
+      s.streak[pid] = 0;
+      if (present) failed++;
     }
     if (pts) addScore(room, pid, pts);
     if (pts > top) top = pts;
     s.progress[pid] = hmProgressOf(h.word, b, s.solved.indexOf(pid) === -1 ? null : s.solved.indexOf(pid));
-    if (here.indexOf(pid) !== -1) rows.push({ id: pid, name: roomPlayerName(room, pid), state: b.state, miss: b.miss.length, pts: pts });
+    if (present) {
+      const row = { id: pid, name: roomPlayerName(room, pid), state: b.state, miss: b.miss.length, pts: pts, run: s.streak[pid], life: hmLifeUsed(b) };
+      if (b.end !== undefined) row.end = b.end;
+      rows.push(row);
+    }
   });
   let setterPts = 0;
   if (!race && s.setter && here.indexOf(s.setter) !== -1) {
@@ -182,7 +343,37 @@ const hmEndWord = (room) => {
     if (setterPts) addScore(room, s.setter, setterPts);
   }
   rows.sort((a, b) => b.pts - a.pts);
-  s.result = { word: h.word, cat: s.cat, setter: s.setter || null, setterName: s.setterName || '', setterPts: setterPts, rows: rows };
+  s.result = { word: h.word, cat: s.cat, setter: s.setter || null, setterName: s.setterName || '', setterPts: setterPts, rows: rows, hints: (h.hints || []).slice() };
+  hmFinishWord(room);
+};
+
+/** The team's word ends: a solve pays every member of the team guessing; a fail pays nobody. */
+const hmEndTeamWord = (room) => {
+  const s = room.shared;
+  const h = room._hm || { boards: {} };
+  const b = h.boards.team || hmNewBoard(s.max);
+  if (b.state === 'play') b.state = 'lost';
+  const key = 't' + s.gt;
+  s.tpts = s.tpts || [0, 0];
+  let pts = 0;
+  if (b.state === 'won') {
+    s.streak[key] = (s.streak[key] || 0) + 1;
+    pts = hmSolvePoints(0, s.streak[key], b);
+    s.tpts[s.gt] += pts;
+    (s.teams[s.gt] || []).forEach(id => addScore(room, id, pts));
+  } else {
+    s.streak[key] = 0;
+  }
+  s.tb = hmBoardView(room, b);
+  const row = { id: key, team: s.gt, state: b.state, miss: b.miss.length, pts: pts, run: s.streak[key], life: hmLifeUsed(b) };
+  if (b.end !== undefined) row.end = b.end;
+  s.result = { word: h.word, cat: s.cat, setter: s.setter || null, setterName: s.setterName || '', setterPts: 0, rows: [row], team: s.gt,
+    captainName: s.captainName || '', hints: (h.hints || []).slice() };
+  hmFinishWord(room);
+};
+
+const hmFinishWord = (room) => {
+  const s = room.shared;
   s.endsAt = null;
   s.board = scoreboardOf(room);
   s.phase = s.round >= s.rounds ? 'gameover' : 'result';
@@ -190,30 +381,93 @@ const hmEndWord = (room) => {
   room.secrets = {};
 };
 
-/** Room-level: fewer than two left means there is nobody to guess, or nobody to write for. */
-const hmTooFew = (room) => room.players.length < 2;
+/** Room-level: fewer than two left means there is nobody to guess, or nobody to write for (or a team is empty). */
+const hmTooFew = (room) => room.players.length < 2 || (hmTeamsWay(room.shared) && hmTeamsShort(room));
+
+/** The host's split for the team way, before a game (vote chess's: `{ shuffle }` draws again, `{ move: pid }` swaps one). */
+const hmLobbySides = (room, playerId, p) => {
+  requireHost(room, playerId);
+  if (room.phase !== 'lobby') return;
+  const ids = hmHere(room);
+  room.shared = room.shared || {};
+  const was = (room.shared.lobby && room.shared.lobby.sides) || null;
+  let sides;
+  if (p.shuffle || !was) sides = vcRandomSides(ids);
+  else {
+    sides = Object.assign({}, was);
+    const who = String(p.move || '');
+    if (ids.indexOf(who) !== -1 && (sides[who] === 0 || sides[who] === 1)) sides[who] = 1 - sides[who];
+    sides = vcFitSides(ids, sides);
+  }
+  room.shared.lobby = { sides: sides };
+};
 
 const hmNewRoomGame = (room, playerId, payload, again) => {
   requireHost(room, playerId);
-  if (hmTooFew(room)) throw new Error('المشنقة محتاجة لاعبين على الأقل');
+  if (room.players.length < 2) throw new Error('المشنقة محتاجة لاعبين على الأقل');
   const prev = room.shared || {};
   const settings = hmRoomOptions(again ? prev.settings : payload, prev.settings);
   room.shared = {
     settings: settings,
+    max: hmMaxOf(settings.level),
     round: 1,
     rounds: settings.rounds,
     order: shuffled(hmHere(room)),
     setterAt: -1,
     scores: {},
+    streak: {},
     board: []
   };
+  if (settings.mode === 'teams') {
+    const ids = hmHere(room);
+    let sides;
+    if (again && Array.isArray(prev.teams)) {
+      // Play again keeps the teams; the team that guessed second goes first.
+      sides = {};
+      prev.teams.forEach((t, k) => t.forEach(id => { sides[id] = k; }));
+      room.shared.firstTeam = 1 - (prev.firstTeam || 0);
+    } else {
+      sides = (prev.lobby && prev.lobby.sides) || vcRandomSides(ids);
+      room.shared.firstTeam = 0;
+    }
+    sides = vcFitSides(ids, sides);
+    room.shared.teams = [ids.filter(id => sides[id] === 0), ids.filter(id => sides[id] === 1)];
+    room.shared.tpts = [0, 0];
+    room.shared.wAt = [-1, -1];
+    room.shared.cAt = [-1, -1];
+  }
   room.phase = 'play';
   hmDeal(room);
   room.shared.board = scoreboardOf(room);
 };
 
+/** The board this move plays on: the player's own, or in the team way the team's - and only its captain taps. */
+const hmBoardFor = (room, playerId) => {
+  const s = room.shared;
+  const h = room._hm;
+  if (hmTeamsWay(s)) {
+    if (playerId !== s.captain) throw new Error(playerId === s.setter ? 'انت اللي كاتب الكلمة' : 'الكابتن بس اللي بيدوس، قولّه الحرف');
+    return { id: 't' + s.gt, b: h && h.boards.team };
+  }
+  const b = h && h.boards[playerId];
+  if (!b) throw new Error(playerId === s.setter ? 'انت اللي كاتب الكلمة' : 'انت بتتفرج الكلمة دي');
+  return { id: playerId, b: b };
+};
+
+/** After a move on a board: its progress, its ending, and whether the word is over. */
+const hmAfterMove = (room, playerId, who, out) => {
+  const s = room.shared;
+  const h = room._hm;
+  if (out === 'won' && !hmTeamsWay(s)) s.solved.push(playerId);
+  if (out === 'won' || out === 'lost') hmGiveEnd(room, who.id, who.b);
+  if (!hmTeamsWay(s)) s.progress[playerId] = hmProgressOf(h.word, who.b, out === 'won' ? s.solved.length - 1 : (s.progress[playerId] || {}).at);
+  if (hmAllDone(room)) { hmEndWord(room); return; }
+  hmWriteSecrets(room);
+};
+
 const hangmanAction = (room, playerId, action, payload) => {
   const p = payload || {};
+  if (action === 'sides') { hmLobbySides(room, playerId, p); return; }
   if (action === 'start') { hmNewRoomGame(room, playerId, p, false); return; }
   const s = room.shared;
   if (!s || !s.settings) throw new Error('اللعبة لم تبدأ بعد');
@@ -229,25 +483,34 @@ const hangmanAction = (room, playerId, action, payload) => {
     if (playerId !== s.setter) throw new Error('مش انت اللي بتكتب الكلمة دي');
     const problem = hmWordProblem(p.word);
     if (problem) throw new Error(problem === 'sentence' ? 'كلمة أو اسم لحد 3 كلمات بس، مش جملة' : 'اكتب كلمة أو اسم من 3 لـ 20 حرف، حروف بس');
-    if (hmGuessers(room).length < 1) throw new Error('مفيش حد يخمّن');
-    // The hint is the writer's choice: a few words above the boxes, or nothing.
-    const hint = hmCleanHint(p.hint);
-    if (hmHintProblem(hint, p.word)) throw new Error('التلميح فيه الكلمة نفسها');
-    hmBeginGuessing(room, hmClean(p.word), hint);
+    if (!hmTeamsWay(s) && hmGuessers(room).length < 1) throw new Error('مفيش حد يخمّن');
+    // The hints are the writer's choice: up to three (`hints`), or the one `hint` of an older page.
+    const raw = Array.isArray(p.hints) ? p.hints.slice(0, HM_HINTS_MAX) : [p.hint];
+    const hints = raw.map(hmCleanHint).filter(Boolean);
+    if (hints.some(x => hmHintProblem(x, p.word))) throw new Error('التلميح فيه الكلمة نفسها');
+    hmBeginGuessing(room, hmClean(p.word), hints);
     return;
   }
 
   if (action === 'guess' || action === 'whole') {
     if (s.phase !== 'guessing' || staleTap(p, 'round', s.round)) return;
-    const h = room._hm;
-    const b = h && h.boards[playerId];
-    if (!b) throw new Error(playerId === s.setter ? 'انت اللي كاتب الكلمة' : 'انت بتتفرج الكلمة دي');
-    const out = hmApply(b, h.word, action === 'whole' ? p.text : p.letter, action === 'whole');
+    const who = hmBoardFor(room, playerId);
+    if (!who.b) return;
+    const out = hmApply(who.b, room._hm.word, action === 'whole' ? p.text : p.letter, action === 'whole');
     if (!out) return;
-    if (out === 'won') s.solved.push(playerId);
-    s.progress[playerId] = hmProgressOf(h.word, b, out === 'won' ? s.solved.length - 1 : (s.progress[playerId] || {}).at);
-    if (hmAllDone(room)) { hmEndWord(room); return; }
-    hmWriteSecrets(room);
+    hmAfterMove(room, playerId, who, out);
+    return;
+  }
+
+  if (action === 'reveal' || action === 'remove') {
+    // A lifeline: decided here, where the word is.
+    if (s.phase !== 'guessing' || staleTap(p, 'round', s.round)) return;
+    const who = hmBoardFor(room, playerId);
+    if (!who.b) return;
+    if (action === 'reveal') {
+      if (!hmReveal(who.b, room._hm.word)) return;
+    } else if (!hmRemoveWrong(who.b, room._hm.word).length) return;
+    hmAfterMove(room, playerId, who, 'hit');
     return;
   }
 
@@ -263,7 +526,21 @@ const hangmanAction = (room, playerId, action, payload) => {
     requireMoveOn(room, playerId);
     // The writer it was pressed for, too: a double tap must not skip the next writer as well.
     if (s.phase !== 'writing' || staleTap(p, 'round', s.round) || staleTap(p, 'setter', s.setter)) return;
+    if (hmTeamsWay(s)) {
+      s.setter = hmTeamNext(room, 1 - s.gt, 'wAt');
+      s.setterName = roomPlayerName(room, s.setter);
+      return;
+    }
     hmDeal(room);
+    return;
+  }
+
+  if (action === 'nextCaptain') {
+    // The team way: the captain's phone went quiet - the next one on the team taps.
+    requireMoveOn(room, playerId);
+    if (!hmTeamsWay(s) || (s.phase !== 'guessing' && s.phase !== 'writing') || staleTap(p, 'round', s.round) || staleTap(p, 'captain', s.captain)) return;
+    s.captain = hmTeamNext(room, s.gt, 'cAt');
+    s.captainName = roomPlayerName(room, s.captain);
     return;
   }
 
@@ -298,6 +575,9 @@ const hmTimeout = (room, now) => {
    A guesser's board goes with them, and the word may be over without them. A
    writer who leaves before writing hands the word to the next; after writing,
    the word plays on without their points. Fewer than two left ends the game.
+   In the team way: a captain who leaves hands the board to the next on the
+   team, a writer who leaves before writing to the next on theirs, and a team
+   with nobody left ends the game.
    ------------------------------------------------------------------------------ */
 const hmPlayerLeft = (room, playerId) => {
   const s = room.shared;
@@ -307,6 +587,15 @@ const hmPlayerLeft = (room, playerId) => {
   const leftAt = (s.order || []).indexOf(playerId);
   if (leftAt !== -1 && typeof s.setterAt === 'number' && leftAt <= s.setterAt) s.setterAt -= 1;
   s.order = (s.order || []).filter(id => id !== playerId);
+  const team = hmTeamsWay(s) ? hmTeamOf(s, playerId) : -1;
+  if (team !== -1) {
+    // The same for each team's turns: the ones after the leaver move back one.
+    ['wAt', 'cAt'].forEach(key => {
+      const at = (s.teams[team] || []).indexOf(playerId);
+      if (s[key] && at !== -1 && typeof s[key][team] === 'number' && at <= s[key][team]) s[key][team] -= 1;
+    });
+    s.teams[team] = s.teams[team].filter(id => id !== playerId);
+  }
   if (s.phase === 'guessing' && room._hm && room._hm.boards[playerId]) {
     delete room._hm.boards[playerId];
     delete s.progress[playerId];
@@ -322,9 +611,18 @@ const hmPlayerLeft = (room, playerId) => {
     return;
   }
   if (s.phase === 'writing' && s.setter === playerId) {
+    if (hmTeamsWay(s)) {
+      s.setter = hmTeamNext(room, 1 - s.gt, 'wAt');
+      s.setterName = roomPlayerName(room, s.setter);
+      return;
+    }
     // The one who left was up (setterAt has moved back one above): the next in the order writes.
     hmDeal(room);
     return;
+  }
+  if (hmTeamsWay(s) && s.captain === playerId && (s.phase === 'writing' || s.phase === 'guessing')) {
+    s.captain = hmTeamNext(room, s.gt, 'cAt');
+    s.captainName = roomPlayerName(room, s.captain);
   }
   if (s.phase === 'guessing') {
     if (hmAllDone(room)) { hmEndWord(room); return; }

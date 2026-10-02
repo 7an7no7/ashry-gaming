@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, stopLettersFor, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
 import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION_CATCH_WAIT_MS } from '../generated/rules.js';
-import { nextPrompts } from '../generated/rules.js';
+import { nextPrompts, programPlaces } from '../generated/rules.js';
 let failed = 0;
 const check = (ok, label) => {
   console.log((ok ? '  ✓ ' : '  ✗ ') + label);
@@ -4798,6 +4798,222 @@ Date.now = duelTestClock;
   applyRoomAction(r, 'a', 'playAgain', {});
   check(r.shared.phase === 'guessing' && r.shared.round === 1 && r.shared.settings.mode === 'race' && r.shared.settings.clock === 60,
     'hangman: play again keeps the way of playing');
+}
+
+/* --- المشنقة, the next round (the owner, 2 Oct 2026): levels, categories, lifelines, hints, the
+   streak, the endings and team against team ---------------------------------------------------- */
+{
+  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const HM = new Function(src('ChameleonWords.js') + src('EmojiRiddles.js') + src('Hangman.js') +
+    '\nreturn { hmApply, hmNewBoard, hmManOf, hmMaxOf, hmPool, HM_CATS, CHAMELEON_DB, hmLevelFits, hmShape, hmReveal, hmRemoveWrong, hmStreakBonus, hmHintsOpen, hmPickEnd, hmFold, hmLettersOf };')();
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const hm = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'hangman' });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const WRONG = ['ث', 'ج', 'ح', 'خ', 'ذ', 'ز', 'ش', 'ص', 'ض'];
+
+  // Levels: Easy 8 misses, Normal 6, Hard 4.
+  const missesTo = (max) => { const b = HM.hmNewBoard(max); let n = 0; while (b.state === 'play' && n < 12) { HM.hmApply(b, 'برتقال', WRONG[n]); n++; } return n; };
+  check(missesTo(HM.hmMaxOf('easy')) === 8 && missesTo(HM.hmMaxOf('normal')) === 6 && missesTo(HM.hmMaxOf('hard')) === 4 && missesTo(undefined) === 6,
+    'hangman/levels: Easy hangs him on the 8th miss, Normal on the 6th (as always), Hard on the 4th');
+  check(HM.hmManOf(2, 4).n === 2 && HM.hmManOf(3, 4).n === 4 && HM.hmManOf(4, 4).n === 6 && HM.hmManOf(3, 4).fresh.length === 4,
+    'hangman/levels: four misses draw the man in bigger pieces (both arms at once, both legs at once)');
+  check(HM.hmManOf(3, 8).on.indexOf('handL') === -1 && HM.hmManOf(4, 8).on.indexOf('handL') !== -1 && HM.hmManOf(8, 8).n === 6 && HM.hmManOf(6, 6).n === 6,
+    'hangman/levels: eight misses split the pieces further (each hand a miss of its own); all six pieces at the last miss');
+  let r = hm(['a', 'b', 'c'], { mode: 'race', rounds: 3, lang: 'ar', level: 'easy' });
+  check(r.shared.max === 8 && r.shared.settings.level === 'easy' && Object.values(r._hm.boards).every((b) => b.max === 8),
+    'hangman/levels: the level is the room\'s and every board\'s');
+  r = hm(['a', 'b', 'c'], { mode: 'race', rounds: 3, lang: 'ar' });
+  check(r.shared.max === 6 && r.shared.settings.level === 'normal' && r.shared.settings.cat === 'all', 'hangman/levels: a start without the new fields plays Normal, «من كل حاجة»');
+
+  // The race's categories: the app's own lists, grouped.
+  const arNames = HM.CHAMELEON_DB.ar.map((b) => b.category);
+  check(HM.HM_CATS.every((c) => c.boards.every((n) => arNames.indexOf(n) !== -1)),
+    'hangman/categories: every category names Chameleon boards that exist');
+  const pools = { ar: HM.hmPool('ar'), en: HM.hmPool('en') };
+  const thin = [];
+  HM.HM_CATS.forEach((c) => ['ar', 'en'].forEach((l) => { if (pools[l].filter((x) => x.k === c.k).length < 8) thin.push(l + ':' + c.k); }));
+  check(!thin.length, 'hangman/categories: every category deals at least 8 entries in each language ' + (thin.join(' ') || ''));
+  let dealtOk = true;
+  for (let i = 0; i < 6; i++) {
+    const x = hm(['a', 'b'], { mode: 'race', rounds: 3, lang: i % 2 ? 'en' : 'ar', cat: 'animals' });
+    const w = x._hm.word;
+    if (!pools[i % 2 ? 'en' : 'ar'].some((e) => e.w === w && e.k === 'animals')) dealtOk = false;
+  }
+  check(dealtOk, 'hangman/categories: a category chosen deals only from its lists');
+  let easyOk = true, hardOk = true;
+  for (let i = 0; i < 8; i++) {
+    const e = hm(['a', 'b'], { mode: 'race', rounds: 3, lang: 'ar', level: 'easy' });
+    const sh = HM.hmShape(e._hm.word);
+    if (sh.length !== 1 || sh[0] > 6 || !e.shared.cat) easyOk = false;
+    const h = hm(['a', 'b'], { mode: 'race', rounds: 3, lang: 'ar', level: 'hard' });
+    const hs = HM.hmShape(h._hm.word);
+    if ((hs.length === 1 && hs[0] < 6) || h.shared.cat) hardOk = false;
+  }
+  check(easyOk, 'hangman/levels: the race at Easy deals a single word of up to 6 letters, with its category');
+  check(hardOk, 'hangman/levels: the race at Hard deals longer words and names, and hides the category');
+
+  // Lifelines: once a word each, decided on the server, 3 off a solve for each used.
+  const lb = HM.hmNewBoard();
+  const shown = HM.hmReveal(lb, 'برتقال');
+  check(!!shown && lb.g.indexOf(shown) !== -1 && HM.hmLettersOf('برتقال').map(HM.hmFold).indexOf(shown) !== -1 && HM.hmReveal(lb, 'برتقال') === '',
+    'hangman/lifelines: «اكشف حرف» shows one letter of the word, once');
+  const rb = HM.hmNewBoard();
+  const grey = HM.hmRemoveWrong(rb, 'برتقال');
+  check(grey.length === 3 && grey.every((k) => HM.hmLettersOf('برتقال').map(HM.hmFold).indexOf(k) === -1) && HM.hmRemoveWrong(rb, 'برتقال').length === 0,
+    'hangman/lifelines: «شيل ٣ حروف غلط» greys three keys not in the word, once');
+  check(HM.hmApply(rb, 'برتقال', grey[0]) === '' && rb.miss.length === 0, 'hangman/lifelines: a greyed key costs nothing');
+  const last = HM.hmNewBoard();
+  ['ب', 'ر', 'ت', 'ق', 'ا'].forEach((l) => HM.hmApply(last, 'برتقال', l));
+  check(HM.hmReveal(last, 'برتقال') === '' && last.state === 'play', 'hangman/lifelines: the last letter left is never revealed (it would solve the word)');
+  r = hm(['a', 'b', 'c'], { mode: 'race', rounds: 3, lang: 'ar' });
+  let word = r._hm.word;
+  applyRoomAction(r, 'a', 'reveal', { round: 1 });
+  applyRoomAction(r, 'a', 'remove', { round: 1 });
+  check(r.secrets.a.lr && r.secrets.a.lx && r.secrets.a.x.length === 3 && !r.secrets.b.x && r.secrets.a.g.length === 1 && r.shared.progress.a.n >= 1,
+    'hangman/lifelines: each lifeline is on its own board, on its own phone');
+  applyRoomAction(r, 'a', 'whole', { text: word, round: 1 });
+  applyRoomAction(r, 'b', 'whole', { text: word, round: 1 });
+  applyRoomAction(r, 'a', 'closeWord', { round: 1 });
+  check(r.shared.scores.a === 15 - 6 && r.shared.scores.b === 14 && r.shared.result.rows.find((x) => x.id === 'a').life === 2,
+    'hangman/lifelines: two lifelines take 6 off the first solve (15 → 9)');
+
+  // The writer's hints: up to 3, the 2nd on a board's 2nd miss, the 3rd on its 4th.
+  r = hm(['a', 'b', 'c'], { rounds: 3 });
+  let s = r.shared;
+  const w = s.setter;
+  const [g1, g2] = ['a', 'b', 'c'].filter((x) => x !== w);
+  check(refused(() => applyRoomAction(r, w, 'setWord', { word: 'برتقال', hints: ['فاكهة', 'برتقال بالعصير'], round: 1 })),
+    'hangman/hints: any hint that spells the word out is refused');
+  applyRoomAction(r, w, 'setWord', { word: 'برتقال', hints: ['فاكهة', 'لونها مميز', 'عصير الصبح'], round: 1 });
+  const hidden2 = (v) => JSON.stringify(v).indexOf('لونها مميز') === -1;
+  const hidden3 = (v) => JSON.stringify(v).indexOf('عصير الصبح') === -1;
+  check(s.cat === 'فاكهة' && s.hintsN === 3 && hidden2(s) && hidden3(s) && hidden2(r.secrets[g1]) && r.secrets[w].hints.length === 3,
+    'hangman/hints: the first is above the boxes for everyone; the others only on the writer\'s phone');
+  applyRoomAction(r, g1, 'guess', { letter: 'ث', round: 1 });
+  check(hidden2(r.secrets[g1]), 'hangman/hints: one miss opens nothing');
+  applyRoomAction(r, g1, 'guess', { letter: 'ج', round: 1 });
+  check(!hidden2(r.secrets[g1]) && hidden3(r.secrets[g1]) && hidden2(r.secrets[g2]) && hidden2(s),
+    'hangman/hints: a board\'s 2nd miss opens the 2nd hint, on that phone only');
+  applyRoomAction(r, g1, 'guess', { letter: 'ح', round: 1 });
+  applyRoomAction(r, g1, 'guess', { letter: 'خ', round: 1 });
+  check(!hidden3(r.secrets[g1]) && hidden3(r.secrets[g2]), 'hangman/hints: its 4th opens the 3rd');
+  applyRoomAction(r, g1, 'whole', { text: 'برتقال', round: 1 });
+  applyRoomAction(r, g2, 'whole', { text: 'برتقال', round: 1 });
+  check(s.scores[g1] === 15 && s.scores[g2] === 14, 'hangman/hints: the points don\'t change with the hints');
+
+  // The streak: +2 per word in a row, up to +10, a fail resets it.
+  check([1, 2, 3, 4, 5, 6, 7, 9].map(HM.hmStreakBonus).join(',') === '0,2,4,6,8,10,10,10', 'hangman/streak: the 2nd in a row +2, the 3rd +4 … never more than +10');
+  r = hm(['a', 'b'], { mode: 'race', rounds: 10, lang: 'ar' });
+  s = r.shared;
+  const got = [];
+  for (let k = 1; k <= 7; k++) {
+    const before = s.scores.a || 0;
+    if (k === 4) { applyRoomAction(r, 'a', 'closeWord', { round: k }); }
+    else applyRoomAction(r, 'a', 'whole', { text: r._hm.word, round: k });
+    if (s.phase === 'guessing') applyRoomAction(r, 'a', 'closeWord', { round: k });
+    got.push((s.scores.a || 0) - before + ':' + s.streak.a);
+    applyRoomAction(r, 'a', 'nextRound', { round: k });
+  }
+  check(got.join(' ') === '15:1 17:2 19:3 0:0 15:1 17:2 19:3',
+    'hangman/streak: three solves in a row take 15, 17, 19; a word not solved scores 0 and starts it over (' + got.join(' ') + ')');
+
+  // The endings: one per board solved or hanged, never the one picked last; the clock gives none.
+  r = hm(['a', 'b', 'c'], { mode: 'race', rounds: 10, lang: 'ar' });
+  s = r.shared;
+  const picks = { won: [], lost: [] };
+  let gaveAll = true;
+  for (let k = 1; k <= 10; k++) {
+    word = r._hm.word;
+    const wrong = HM.hmLettersOf(word).map(HM.hmFold);
+    const miss = ['ا', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'].filter((l) => wrong.indexOf(l) === -1);
+    applyRoomAction(r, 'a', 'whole', { text: word, round: k });
+    picks.won.push(s.progress.a.end);
+    for (let i = 0; i < 6 && s.phase === 'guessing' && s.progress.b.state === 'play'; i++) applyRoomAction(r, 'b', 'guess', { letter: miss[i], round: k });
+    picks.lost.push(s.progress.b.end);
+    if (s.phase === 'guessing') applyRoomAction(r, 'a', 'closeWord', { round: k });
+    if (s.progress.c.end !== undefined || s.result.rows.find((x) => x.id === 'c').end !== undefined) gaveAll = false;
+    if (k < 10) applyRoomAction(r, 'a', 'nextRound', { round: k });
+  }
+  const inRange = (l) => l.every((x) => Number.isInteger(x) && x >= 0 && x < 8);
+  const noRepeat = (l) => l.every((x, i) => !i || x !== l[i - 1]);
+  check(inRange(picks.won) && inRange(picks.lost) && noRepeat(picks.won) && noRepeat(picks.lost),
+    'hangman/endings: every board solved or hanged gets one of 8 endings of its kind, never the same twice in a row (' + picks.won.join('') + ' / ' + picks.lost.join('') + ')');
+  check(gaveAll, 'hangman/endings: a board the clock or the host closed keeps the frozen man, no ending');
+  let spread = new Set();
+  for (let i = 0; i < 200; i++) spread.add(HM.hmPickEnd([3]));
+  check(spread.size === 7 && !spread.has(3), 'hangman/endings: a pick may be any of the other seven');
+
+  // Team against team.
+  r = newRoom(['a', 'b', 'c', 'd', 'e']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'hangman' });
+  applyRoomAction(r, 'a', 'sides', {});
+  const sides = r.shared.lobby.sides;
+  check(Object.keys(sides).length === 5 && [0, 1].every((k) => Object.values(sides).filter((x) => x === k).length >= 2),
+    'hangman/teams: the host\'s lobby draws two teams');
+  const big = Object.values(sides).filter((x) => x === 0).length > 2 ? 0 : 1;   // 3 and 2: one of the 3 moves, 2 and 3 after
+  const mover = Object.keys(sides).find((id) => sides[id] === big);
+  applyRoomAction(r, 'a', 'sides', { move: mover });
+  check(r.shared.lobby.sides[mover] === 1 - big, 'hangman/teams: the host moves one to the other team');
+  check(refused(() => applyRoomAction(r, 'b', 'sides', { shuffle: true })), 'hangman/teams: only the host splits the teams');
+  const split = Object.assign({}, r.shared.lobby.sides);
+  applyRoomAction(r, 'a', 'start', { mode: 'teams', rounds: 4 });
+  s = r.shared;
+  const T0 = s.teams[0], T1 = s.teams[1];
+  check(s.rounds === 4 && T0.every((id) => split[id] === 0) && T1.every((id) => split[id] === 1) && T0.length + T1.length === 5,
+    'hangman/teams: the game plays the lobby\'s teams');
+  check(s.phase === 'writing' && s.gt === 0 && T1.indexOf(s.setter) !== -1 && T0.indexOf(s.captain) !== -1,
+    'hangman/teams: one of the other team writes, this team\'s captain taps');
+  const w1 = s.setter, c1 = s.captain;
+  const notCap = T0.find((id) => id !== c1);
+  applyRoomAction(r, w1, 'setWord', { word: 'مدرسة', hints: ['مكان'], round: 1 });
+  check(s.phase === 'guessing' && r.secrets[w1].word === 'مدرسة' && Object.keys(r.secrets).length === 1 && JSON.stringify(s).indexOf('مدرس') === -1 &&
+    s.tb && Array.isArray(s.tb.pattern), 'hangman/teams: the word on the writer\'s phone only; the team\'s board is the table\'s');
+  check(refused(() => applyRoomAction(r, notCap, 'guess', { letter: 'م', round: 1 })) && refused(() => applyRoomAction(r, w1, 'guess', { letter: 'م', round: 1 })),
+    'hangman/teams: only the captain taps (the team says it out loud)');
+  applyRoomAction(r, c1, 'guess', { letter: 'د', round: 1 });
+  applyRoomAction(r, c1, 'reveal', { round: 1 });
+  check(s.tb.pattern[1] === 'د' && s.tb.lr, 'hangman/teams: the captain\'s letters and lifelines are on the team\'s board');
+  applyRoomAction(r, c1, 'whole', { text: 'مدرسة', round: 1 });
+  check(s.phase === 'result' && s.tpts[0] === 7 && T0.every((id) => s.scores[id] === 7) && T1.every((id) => !s.scores[id]) && s.result.team === 0 && s.tb.end !== undefined,
+    'hangman/teams: a solve is 10 less 3 for the lifeline, to every member of the team; the writer\'s team scores nothing');
+  applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+  check(s.gt === 1 && T0.indexOf(s.setter) !== -1 && T1.indexOf(s.captain) !== -1, 'hangman/teams: the teams swap every word');
+  const w2 = s.setter, c2 = s.captain;
+  applyRoomAction(r, w2, 'setWord', { word: 'قطة', round: 2 });
+  ['ث', 'ج', 'ح', 'خ', 'ذ', 'ز'].forEach((l) => applyRoomAction(r, c2, 'guess', { letter: l, round: 2 }));
+  check(s.phase === 'result' && s.tpts[1] === 0 && s.tb.state === 'lost' && s.tb.end !== undefined, 'hangman/teams: a word the team fails scores nobody');
+  applyRoomAction(r, 'a', 'nextRound', { round: 2 });
+  check(s.gt === 0 && s.captain !== c1 && T0.indexOf(s.captain) !== -1 && s.setter !== w1 && T1.indexOf(s.setter) !== -1,
+    'hangman/teams: the captain and the writer change every time their team is up');
+  // The captain leaves mid-word: the next on the team taps.
+  const w3 = s.setter;
+  applyRoomAction(r, w3, 'setWord', { word: 'زرافة', round: 3 });
+  const c3 = s.captain;
+  r.players = r.players.filter((p) => p.id !== c3);
+  roomPlayerLeft(r, c3, 'C');
+  check(s.phase === 'guessing' && !!s.captain && s.captain !== c3 && s.teams[0].indexOf(s.captain) !== -1, 'hangman/teams: a captain who leaves hands the board to the next on the team');
+  applyRoomAction(r, s.captain, 'whole', { text: 'زرافة', round: 3 });
+  applyRoomAction(r, 'a', 'nextRound', { round: 3 });
+  applyRoomAction(r, s.setter, 'setWord', { word: 'سمكة', round: 4 });
+  applyRoomAction(r, 'a', 'closeWord', { round: 4 });
+  check(s.phase === 'gameover', 'hangman/teams: the game ends after its words');
+  const placed = programPlaces(r).rows;
+  const won = s.tpts[0] > s.tpts[1] ? 0 : 1;
+  check(s.tpts[0] !== s.tpts[1] && s.teams[won].every((id) => placed.find((x) => x.id === id).place === 1) && s.teams[1 - won].every((id) => placed.find((x) => x.id === id).place === 2),
+    'hangman/teams: the night and the program place the winning team first, the other second');
+  applyRoomAction(r, 'a', 'playAgain', {});
+  check(r.shared.settings.mode === 'teams' && JSON.stringify(r.shared.teams) === JSON.stringify(s.teams) && r.shared.gt === 1,
+    'hangman/teams: play again keeps the teams, and the other team guesses first');
+  // A team left with nobody ends the game.
+  const one = hm(['a', 'b'], { mode: 'teams', rounds: 4 });
+  const lone = one.shared.teams[1][0];
+  one.players = one.players.filter((p) => p.id !== lone);
+  roomPlayerLeft(one, lone, 'L');
+  check(one.shared.phase === 'gameover', 'hangman/teams: a team with nobody left ends the game');
 }
 
 /* --- one sets, everyone solves (RoomSolve.js): the engine and its four games ---- */

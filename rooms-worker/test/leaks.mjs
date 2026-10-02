@@ -662,16 +662,39 @@ const PROBES = {
     const s = room.shared || {};
     const h = room._hm || { boards: {} };
     const live = s.phase === 'guessing';
+    const teams = !!(s.settings && s.settings.mode === 'teams');
+    const hints = h.hints || [];
+    const opens = (b) => [0, 2, 4].filter((m) => (b ? b.miss.length : 0) >= m).length;
     return [
       secret('the word is on the writer\'s phone only, until the word ends', live ? h.word : null, s.setter ? [s.setter] : []),
-      probe('a board\'s letters reach its own phone only', live, (view, pid) => {
+      probe('a board\'s letters reach its own phone only', live && !teams, (view, pid) => {
         if (!view.you || view.you.word !== undefined) return null;
         const b = h.boards[pid];
         return !b || JSON.stringify(view.you.g) !== JSON.stringify(b.g) ? 'you.g' : null;
       }),
+      probe('a lifeline\'s letters (shown or greyed) reach their own board\'s phone only', live && !teams && Object.values(h.boards).some((b) => b.lr || b.lx), (view, pid) => {
+        if (view.shared.tb) return 'shared.tb';
+        if (!view.you || view.you.word !== undefined) return null;
+        const b = h.boards[pid];
+        if (!b) return view.you.x || view.you.g ? 'you' : null;
+        return JSON.stringify(view.you.x || []) !== JSON.stringify(b.x || []) || !!view.you.lr !== !!b.lr ? 'you.x' : null;
+      }),
+      probe('a hint the writer wrote opens on a board\'s 2nd and 4th miss, on that board\'s phone only', live && hints.length > 1, (view, pid, idx) => {
+        if (pid === s.setter) return null;
+        const b = teams ? h.boards.team : h.boards[pid];
+        const open = opens(b);
+        for (let i = open; i < hints.length; i++) { const at = idx.find(hints[i]); if (at) return at + ' (hint ' + (i + 1) + ')'; }
+        return null;
+      }),
+      probe('the team\'s board is the table\'s, and only the word stays on the writer\'s phone', live && teams, (view, pid) => {
+        const b = h.boards.team;
+        if (!b || !view.shared.tb) return 'shared.tb';
+        if (JSON.stringify(view.shared.tb.g) !== JSON.stringify(b.g)) return 'shared.tb.g';
+        return view.you && pid !== s.setter ? 'you' : null;
+      }),
       probe('the table sees how far each board is, never its letters', live, (view) => {
         const bad = Object.keys(view.shared.progress || {}).find((id) =>
-          Object.keys(view.shared.progress[id]).some((k) => ['n', 'miss', 'state', 'at'].indexOf(k) === -1));
+          Object.keys(view.shared.progress[id]).some((k) => ['n', 'miss', 'state', 'at', 'end'].indexOf(k) === -1));
         return bad ? 'shared.progress.' + bad : null;
       })
     ];
@@ -1985,26 +2008,49 @@ const DRIVERS = {
     return S(T).phase === 'over';
   },
   hangman() {
-    const T = table('hangman', 3);
+    let T = table('hangman', 3);
     const AR = 'ا ب ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ف ق ك ل م ن ه و ي'.split(' ');
+    // A guess, now and then a lifeline (once a word each, refused after) or a whole word.
+    // The first two moves are the lifelines, so their probe always has its case.
+    let moves = 0;
+    const move = (id, s) => {
+      const r = moves < 2 ? moves * 0.1 : Math.random();
+      moves++;
+      if (r < 0.06) act(T, id, 'reveal', { round: s.round });
+      else if (r < 0.12) act(T, id, 'remove', { round: s.round });
+      else if (r < 0.18) act(T, id, 'whole', { text: pick(['موز', 'مدرسه', 'برتقال']), round: s.round });
+      else act(T, id, 'guess', { letter: pick(AR), round: s.round });
+    };
+    // The writer gives one hint, three, or none (the 2nd and 3rd open on a board's misses).
+    // In turn, three first, so the probe of the hints always has its case (never left to chance).
+    let hintTurn = 0;
+    const hints = () => [['حاجة', 'بنشوفها كتير', 'في كل حتة'], [], ['مكان']][hintTurn++ % 3];
     const play = () => {
-      for (let guard = 0; guard < 400 && S(T).phase !== 'gameover'; guard++) {
+      for (let guard = 0; guard < 600 && S(T).phase !== 'gameover'; guard++) {
         const s = S(T);
-        if (s.phase === 'writing') { must(T, s.setter, 'setWord', { word: pick(['مدرسة', 'برتقال', 'قطة', 'زرافة']), round: s.round }); continue; }
+        if (s.phase === 'writing') { must(T, s.setter, 'setWord', { word: pick(['مدرسة', 'برتقال', 'قطة', 'زرافة']), hints: hints(), round: s.round }); continue; }
         if (s.phase === 'result') { must(T, T.host, 'nextRound', { round: s.round }); continue; }
+        if (s.settings.mode === 'teams') {
+          if (!s.tb || s.tb.state !== 'play') break;
+          move(s.captain, s);
+          continue;
+        }
         const playing = Object.keys(s.progress).filter((id) => s.progress[id].state === 'play');
         if (!playing.length) break;
-        for (const id of playing) {
-          if (Math.random() < 0.08) act(T, id, 'whole', { text: pick(['موز', 'مدرسه', 'برتقال']), round: s.round });
-          else act(T, id, 'guess', { letter: pick(AR), round: s.round });
-        }
+        for (const id of playing) move(id, s);
       }
     };
-    must(T, T.host, 'start', { rounds: 3 });
+    must(T, T.host, 'start', { rounds: 3, level: 'easy' });
     play();
     must(T, T.host, 'backToHub');
     must(T, T.host, 'chooseGame', { game: 'hangman' });
-    must(T, T.host, 'start', { mode: 'race', rounds: 3, lang: 'ar', clock: 60 });
+    must(T, T.host, 'start', { mode: 'race', rounds: 3, lang: 'ar', clock: 60, level: 'hard', cat: 'food' });
+    play();
+    if (S(T).phase !== 'gameover') return false;
+    // Team against team: four players, the host's split, a captain tapping for each team (play() reads T).
+    T = table('hangman', 4);
+    must(T, T.host, 'sides', {});
+    must(T, T.host, 'start', { mode: 'teams', rounds: 4 });
     play();
     return S(T).phase === 'gameover';
   },

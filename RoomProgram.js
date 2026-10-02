@@ -101,6 +101,8 @@ const PROGRAM_TEAMS = {
     return [ids.filter(id => s.teams[id].team === s.winner), ids.filter(id => s.teams[id].team !== s.winner)];
   },
   votechess: (room) => programTwoTeams(room),
+  // المشنقة's team way (RoomHangman.js); its other ways place by the board (null here).
+  hangman: (room) => hmProgramTeams(room),
   handbrain: (room) => programTwoTeams(room),
   bughouse: (room) => {
     const s = room.shared || {};

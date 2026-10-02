@@ -12513,8 +12513,8 @@ body.dark .hm-gallows .hm-hair { fill: #4a3626; }
   .hm-board {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas: "head head" "stage keys" "stage whole";
-    grid-template-rows: auto auto 1fr;
+    grid-template-areas: "head head" "stage keys" "stage life" "stage whole";
+    grid-template-rows: auto auto auto 1fr;
     align-items: start;
     column-gap: var(--sp-4);
   }
@@ -12522,6 +12522,7 @@ body.dark .hm-gallows .hm-hair { fill: #4a3626; }
   .hm-stage { grid-area: stage; }
   .hm-keys { grid-area: keys; }
   .hm-whole { grid-area: whole; }
+  .hm-life { grid-area: life; }
   #hangman-stage, .hm-layout__board { max-width: 58rem; }
 }
 /* Beside the board only where there is room for both; a phone on its side has the others under it. */
@@ -12532,6 +12533,7 @@ body.dark .hm-gallows .hm-hair { fill: #4a3626; }
 @media (orientation: landscape) and (max-height: 500px) {
   .hm-stage { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
   .hm-gallows { width: 5.75rem; }
+  .hm-stage .hme-svg { width: 10rem; }
   .hm-tile { width: 2rem; height: 2.375rem; font-size: 1.125rem; }
   .hm-keys .key { height: 2.375rem; font-size: 1rem; }
   .hm-board { row-gap: var(--sp-2); }
@@ -12539,6 +12541,7 @@ body.dark .hm-gallows .hm-hair { fill: #4a3626; }
 @media (min-width: 900px) and (min-height: 501px) {
   .shell__main > #view-room-hangman { max-width: 64rem; }
   .hm-gallows { width: min(13rem, 40%); }
+  .hm-stage .hme-svg { width: min(22rem, 72%); }
   .hm-tile { width: 2.75rem; height: 3.125rem; font-size: 1.5rem; }
 }
 
@@ -12556,8 +12559,77 @@ body.dark .hm-gallows .hm-hair { fill: #4a3626; }
 .hm-result--tv .hm-tile { width: 6.4vmin; height: 7.4vmin; font-size: 3.8vmin; }
 .hm-tv-result { width: min(100%, 60rem); margin-inline: auto; }
 
+/* The next round (the owner, 2 Oct 2026). The levels: at Easy a hand is a miss of its own (hidden
+   until then, popping in like a piece). The lifelines under the keys, a greyed key struck out. The
+   writer's hints as pills, a lock for each still to come. The streak's 🔥 beside a name. */
+.hm-nohand .hm-hand { display: none; }
+.hm-hand { transform-box: fill-box; transform-origin: center; }
+.hm-hand.is-new { animation: hm-pop-in 480ms var(--ease-out) both; }
+.hm-keys .hm-key--off { text-decoration: line-through; opacity: 0.3; }
+.hm-life { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.hm-life__btn { gap: var(--sp-1); min-width: 0; line-height: 1.2; }
+.hm-life__cost { font-size: 0.75rem; color: var(--danger-ink); direction: ltr; unicode-bidi: isolate; }
+.hm-life__btn:disabled { opacity: 0.45; }
+.hm-hints { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.hm-hint--locked { background: var(--surface-2); color: var(--text-3); font-weight: 600; }
+.hm-hint.is-new { animation: hm-hint-in 480ms var(--ease-out) both; }
+@keyframes hm-hint-in { from { opacity: 0; transform: translateY(-4px) scale(0.9); } to { opacity: 1; transform: none; } }
+.hm-fire { display: inline-flex; align-items: center; gap: 0.0625rem; margin-inline: 0.25rem; font-size: 0.8125rem; font-weight: 800; color: var(--accent-ink); white-space: nowrap; }
+.hm-captain { font-size: 0.8125rem; font-weight: 700; color: var(--text-2); }
+.hm-say { margin: 0; text-align: center; }
+.hm-result__hints { margin: 0; font-size: 0.8125rem; color: var(--text-2); }
+.hm-res__life { font-size: 0.75rem; color: var(--danger-ink); margin-inline-start: 0.25rem; direction: ltr; unicode-bidi: isolate; display: inline-block; }
+.hm-end__pts { margin: 0; font-weight: 800; color: var(--accent-ink); }
+.hm-more-hints > summary { cursor: pointer; display: flex; align-items: center; gap: var(--sp-1); min-height: 2.75rem; font-size: 0.875rem; font-weight: 700; color: var(--accent-ink); list-style: none; }
+.hm-more-hints > summary::-webkit-details-marker { display: none; }
+.hm-more-hints > summary::after { content: "▾"; transition: transform var(--dur-2) var(--ease-out); }
+.hm-more-hints[open] > summary::after { transform: rotate(180deg); }
+.hm-more-hints__body { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+/* The endings (JS_HangmanEnd.html): the sheet's drawing at the board's place, wider than the gallows
+   (props come in from the sides), every joint moved by its script; the small men show the last frame. */
+.hme-svg { display: block; width: min(18rem, 80%); height: auto; overflow: hidden; }
+.hme-svg .hm-sleeve { stroke-linecap: round; }
+.hme-nofill { fill: none; }
+.hme-floor { fill: none; stroke: var(--text-3); stroke-width: 1.5; opacity: 0.25; stroke-dasharray: 3 5; }
+.hme-ink-s { stroke: var(--hm-ink); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.hme-ink-t { stroke: var(--hm-ink); stroke-width: 1; stroke-linejoin: round; stroke-linecap: round; }
+.hme-bub-box { fill: var(--surface-solid); stroke: var(--text); stroke-width: 1.4; stroke-linejoin: round; }
+.hme-bub-t { font-family: var(--font); font-size: 8.5px; font-weight: 700; fill: var(--text); }
+.hme-fx-t { font-family: var(--font-display); font-size: 7px; font-weight: 800; fill: #23213a; }
+.hme-tiny-t { font-family: var(--font); font-size: 4.6px; font-weight: 700; }
+.hme-svg--mini { width: 5.5rem; max-width: 100%; }
+.hme-svg--res { width: 4.25rem; flex: 0 0 auto; }
+.hm-result--tv .hme-svg--res { width: 12vmin; }
+.hm-rows--tv .hme-svg--mini { width: 24vmin; }
+.hme-svg.hme-pop { animation: hm-pop-in 520ms var(--ease-out) both; animation-delay: var(--hm-late, 0ms); }
+
+/* The team way: the two teams on top, the one guessing lit; the TV's one big board. */
+.hm-teams { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.hm-team { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+.hm-team.is-up { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-border); }
+.hm-team__top { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; }
+.hm-team__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
+.hm-team--0 .hm-team__name, .hm-side--0 .vc-side__head { color: var(--team-red-ink); }
+.hm-team--1 .hm-team__name, .hm-side--1 .vc-side__head { color: var(--team-blue-ink); }
+.hm-team__pts { font-size: 1.25rem; color: var(--text-strong); }
+.hm-team__who { min-height: 1.1em; font-size: 0.75rem; font-weight: 700; color: var(--text-2); }
+.hm-team__members { font-size: 0.75rem; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-final { display: flex; flex-direction: column; gap: var(--sp-3); text-align: center; }
+.hm-teams--tv { gap: var(--tv-gap); }
+.hm-teams--tv .hm-team { padding: 1.4vmin 2vmin; border-radius: var(--tv-r); }
+.hm-teams--tv .hm-team__name { font-size: var(--tv-sm); }
+.hm-teams--tv .hm-team__pts { font-size: var(--tv-md); }
+.hm-teams--tv .hm-team__who, .hm-teams--tv .hm-team__members { font-size: 1.8vmin; }
+.hm-tv__board { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--tv-gap); }
+.hm-tv__board .hm-gallows { width: 28vmin; }
+.hm-tv__board .hme-svg { width: 48vmin; }
+.hm-tv__board .hm-wrong { font-size: var(--tv-sm); }
+.hm-tv__board .hm-hint { font-size: var(--tv-sm); }
+
 @media (prefers-reduced-motion: reduce) {
   .gw-card, .gw-card::after { transition: none; }
+  .hme-svg.hme-pop, .hm-hand.is-new, .hm-hint.is-new { animation: none !important; }
   .hm-fig, .hm-lean, .hm-head, .hm-part, .hm-pop, .hm-eyes, .hm-drop, .hm-shoe, .hm-shoe--r, .hm-rope, .hm-clock, .hm-bub, .hm-dust__p, .hm-res.is-rise { animation: none !important; }
   .hm-bub { opacity: 1; }
   .hm-face { transition: none; }

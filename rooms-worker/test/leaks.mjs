@@ -844,12 +844,18 @@ const PROBES = {
     ];
   },
   // الكراسي الموسيقية: the stop moment (and the fake pauses) never leave the server while the music plays.
+  // «الدي جي»: in a DJ's round the stop is the DJ's press, and no phone (theirs included) is sent a
+  // moment before it; once the server takes a round over (the DJ gone) its stop is a secret again.
   chairs(room) {
     const h = room._chairs;
     const live = (room.shared || {}).phase === 'music' && !!h;
     return [
-      secret('the stop moment stays on the server', live ? h.stopAt : null, []),
-      probe('no fake pause is announced before it comes', live && h.fakes.length > 0, (view) => (hasKey(view.shared, 'fakes') ? 'shared.fakes' : null))
+      secret('the stop moment stays on the server', live && !h.dj ? h.stopAt : null, []),
+      probe('no fake pause is announced before it comes', live && h.fakes.length > 0, (view) => (hasKey(view.shared, 'fakes') ? 'shared.fakes' : null)),
+      probe("a DJ's round: no stop moment on any phone (the DJ's too) before the DJ presses", live && !!h.dj,
+        (view, pid, idx) => (hasKey(view.shared, 'stopAt') ? 'shared.stopAt' : view.you ? 'you' : idx.find(h.stopAt))),
+      probe('a round the server took over from its DJ: the secret stop again', live && !h.dj && !!(room.shared || {}).djLost,
+        (view, pid, idx) => idx.find(h.stopAt))
     ];
   },
   // بالظبط ٣!: a phone's secret (a colour, a shape, a number, a word) on its own phone only, and on no
@@ -2435,7 +2441,42 @@ const DRIVERS = {
         runClock(T, (r) => r.shared.phase !== 'sit', 6);                                             // the last never taps
       }
     }
-    return S(T).phase === 'gameover' && !!S(T).winnerId;
+    if (!(S(T).phase === 'gameover' && !!S(T).winnerId)) return false;
+    // «الدي جي»: a false start, then a DJ's fake that catches one, then a DJ whose phone goes away.
+    must(T, T.host, 'playAgain', { fake: true, dj: true });
+    let djRounds = 0;
+    let tookOver = false;
+    for (let guard = 0; guard < 200 && S(T).phase !== 'gameover'; guard++) {
+      const s = S(T);
+      if (s.phase === 'result') { runClock(T, (r) => r.shared.phase !== 'result', 6); continue; }
+      if (s.phase === 'sit') {
+        s.alive.slice(0, s.alive.length - 1).forEach((id, i) => must(T, id, 'sit', { round: s.round, at: s.stopAt + 100 + i * 50 }));
+        runClock(T, (r) => r.shared.phase !== 'sit', 6);
+        continue;
+      }
+      if (s.phase !== 'music') break;
+      if (!s.dj) {
+        if (s.round === 1) { must(T, s.alive[1], 'sit', { round: s.round, at: clock }); continue; }
+        runClock(T, (r) => r.shared.phase !== 'music', 12);
+        continue;
+      }
+      djRounds++;
+      clock = Math.max(clock, s.startAt + 4500);
+      if (djRounds === 1) {
+        must(T, s.dj, 'djFake', { round: s.round });
+        must(T, s.alive[1], 'sit', { round: s.round, at: clock });           // caught by the fake
+        continue;
+      }
+      if (!tookOver) {
+        tookOver = true;
+        T.room.lastSeen = { [s.dj]: clock };
+        runClock(T, (r) => !r.shared.dj, 6);
+        delete T.room.lastSeen;
+        continue;
+      }
+      must(T, s.dj, 'djStop', { round: s.round });
+    }
+    return S(T).phase === 'gameover' && djRounds >= 2 && tookOver && !!S(T).bestDj;
   },
   wire() {
     // Four at the kitchen with the surprises on: most orders done by whoever holds them, some let

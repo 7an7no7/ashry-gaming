@@ -167,6 +167,20 @@ highest solver's points, is the ceiling; 15 for a first solve). Help updated in 
 languages; `rules.mjs` checks a word nobody solved (0) and four hanged against one solve
 (15, not 20). The solve engine's setter (RoomSolve.js) is unchanged.
 
+## The next round: answered, not built yet (the owner, 2 Oct 2026)
+
+Picked by the owner from a list of ideas; every rule answered in the session of 2 Oct 2026. Looks (the endings) still to come from a design sheet.
+
+- **Team against team** (rooms): **a captain taps** the team's letter after talking it over out loud (the captain rotates each word); **one member of the other team writes** the word, rotating, then the teams swap.
+- **Levels: Easy 8 misses, Normal 6, Hard 4**, in **every way to play**; the man has more or fewer pieces to match. In the race the level also picks the words' length, and Hard hides the category.
+- **The race's category**: **«من كل حاجة»** by default, or **one of the app's lists** (countries, animals, food, films, footballers, singers, actors…), the host's choice.
+- **Lifelines**, each **once per word**: «اكشف حرف» and «شيل ٣ حروف غلط»; **each used takes 3 points off that word's score** if solved.
+- **The writer's hints, step by step**: up to 3 (all optional); the first shows from the start, the next ones **open on a guesser's 2nd and 4th miss**; points unchanged.
+- **Streak**: a solve in a row adds **+2 per word** (2nd +2, 3rd +4 … up to +10); a fail resets it; a 🔥 counter beside the name.
+- **Random endings, for wins and losses**: about 5 escapes when solved (runs off, a balloon, a dance, the family pulls him free…) and about 5 friendly cartoon losses (he faints, a pie in the face, stuck upside down…), never grim; the server picks, the same on every phone and the TV, never twice in a row.
+- **All 16 endings, not 5 and 5** (the owner, 2 Oct 2026: "apply all, why just 5", from https://claude.ai/artifact/W1SLKhuZahgPhUeuZ1CDn9, `notes/hangman-endings-sheet.html`): wins فكّ وجري, منطاد الأقصر, التنورة, العيلة شدّته, حمام الغيّة, تحية للجمهور, توكتوك على السريع, مهرجان وصواريخ; losses أغمى عليه, طبق فول طاير, متشعلق بالمقلوب, جردل من البلكونة, اتلف زي الطرد, العربية الكارو, المشنقة اتكسرت, اللقلق خطفه. Each 2.6-3.2 s, then the end frame holds the word.
+- **Everywhere they fit**: levels, lifelines, hints and the streak on two-on-one-phone too; teams and categories in rooms.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

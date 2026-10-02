@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>خريطة الصحرا</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;800&family=Noto+Kufi+Arabic:wght@600;800&family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#f7f1e6; --ink:#2a1d10; --muted:#6a5a48; --card:#ffffff; --line:#eadfcc;
+  --accent:#b8601c; --accent-soft:#f8e6cf; --pop:#f2a93b;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#15100a; --ink:#f3e9da; --muted:#b9a68c; --card:#211910; --line:#3a2c1c;
+    --accent:#f0a35a; --accent-soft:#3a2814; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15100a; --ink:#f3e9da; --muted:#b9a68c; --card:#211910; --line:#3a2c1c;
+  --accent:#f0a35a; --accent-soft:#3a2814; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:15px;line-height:1.65;
+  padding-block:28px 56px;padding-inline:16px;overflow-x:hidden}
+.wrap{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
+h1{font-family:"Noto Kufi Arabic","IBM Plex Sans Arabic",sans-serif;font-weight:800;font-size:clamp(22px,4vw,32px);margin:0;text-wrap:balance}
+.lead{margin:0;color:var(--muted);max-width:70ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.chips li{background:var(--accent-soft);border-radius:999px;padding:4px 12px;font-size:13px}
+.moves{display:grid;gap:10px;grid-template-columns:1fr}
+@media (min-width:760px){.moves{grid-template-columns:1fr 1fr}}
+.moves div{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 16px}
+.moves h2{margin:0 0 4px;font-size:15px;font-family:"Noto Kufi Arabic",sans-serif}
+.moves ul{margin:0;padding-inline-start:20px;color:var(--muted);font-size:14px}
+.look{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:16px;
+  display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:980px){.look{grid-template-columns:minmax(0,640px) 1fr;align-items:start;padding:22px}}
+.board{display:flex;flex-direction:column;gap:10px;min-width:0}
+.stage{width:100%;max-width:100%;aspect-ratio:1/1;display:block;border-radius:18px;touch-action:manipulation}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bar button{font:inherit;font-size:14px;font-weight:600;border:1px solid var(--line);background:var(--bg);color:var(--ink);
+  border-radius:999px;padding:8px 14px;min-height:42px;cursor:pointer}
+.bar button:hover{border-color:var(--accent)}
+.bar button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.bar button.main{background:var(--pop);border-color:var(--pop);color:#2a1600}
+.now{font-size:14px;color:var(--muted);min-height:1.65em}
+.info{display:flex;flex-direction:column;gap:12px}
+.info__head{display:flex;align-items:baseline;gap:10px}
+.tag{font-family:"Noto Kufi Arabic",sans-serif;font-weight:800;font-size:26px;color:var(--accent)}
+.name{font-family:"Noto Kufi Arabic",sans-serif;font-weight:800;font-size:22px}
+.info p{margin:0;color:var(--muted)}
+.info ul{margin:0;padding-inline-start:20px;color:var(--muted);font-size:14px;display:flex;flex-direction:column;gap:4px}
+.foot{color:var(--muted);font-size:13px;margin:0}
+
+/* the board's own life */
+.look:not(.on) .stage *{animation-play-state:paused!important}
+.tongue{transform-box:fill-box;transform-origin:50% 0%;animation:flick 3.6s infinite}
+@keyframes flick{0%,80%,100%{transform:scaleY(0)}84%,93%{transform:scaleY(1)}88%{transform:scaleY(.65)}}
+.lid{transform-box:fill-box;transform-origin:50% 0%;transform:scaleY(0);animation:blink 5s infinite}
+@keyframes blink{0%,93%,100%{transform:scaleY(0)}96%{transform:scaleY(1)}}
+.m-sleep .lid{animation:none;transform:scaleY(1)}
+.zz{opacity:0}.m-sleep .zz{opacity:1;animation:zz 2s ease-in-out infinite}
+@keyframes zz{0%{transform:translate(0,0);opacity:0}30%{opacity:1}100%{transform:translate(8px,-14px);opacity:0}}
+.spi{opacity:0}.m-spiral .spi{opacity:1}.m-spiral .pup{opacity:0}
+.spin{transform-box:fill-box;transform-origin:50% 50%;animation:spin 1.1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.brow{opacity:0}.m-wow .brow{opacity:1}
+.m-wow .pup{transform:scale(.7)}
+.cup{transform-box:fill-box;transform-origin:50% 100%;animation:cup 3s ease-in-out infinite}
+@keyframes cup{50%{transform:rotate(-5deg) translateY(-2px)}}
+.lg{transform-box:fill-box;transform-origin:50% 0%;animation:leg .7s ease-in-out infinite alternate}
+.lg.b{animation-delay:-.35s}
+@keyframes leg{from{transform:rotate(16deg)}to{transform:rotate(-16deg)}}
+.bob{animation:bob .7s ease-in-out infinite alternate}
+@keyframes bob{to{transform:translateY(-1.2px)}}
+.rays{transform-box:fill-box;transform-origin:50% 50%;animation:spin 40s linear infinite}
+.shim{animation:shim 4.5s ease-in-out infinite}
+.shim.b{animation-delay:-2.2s}
+@keyframes shim{0%,100%{transform:translateX(0);opacity:.15}50%{transform:translateX(14px);opacity:.6}}
+.ripple{animation:rip 3s ease-in-out infinite}
+@keyframes rip{50%{transform:translateX(5px);opacity:.3}}
+.sway{transform-box:fill-box;transform-origin:50% 100%;animation:sway 4s ease-in-out infinite}
+.sway.b{animation-delay:-1.6s}
+@keyframes sway{50%{transform:rotate(3deg)}}
+.leafs{transform-box:fill-box;transform-origin:50% 50%;animation:leafs 3.4s ease-in-out infinite}
+@keyframes leafs{50%{transform:rotate(-3deg) scale(1.02)}}
+.scuttle{animation:scut .25s steps(2) infinite}
+@keyframes scut{to{transform:translateY(.6px)}}
+</style>
+</head>
+<body>
+<div class="wrap" dir="rtl">
+  <header style="display:flex;flex-direction:column;gap:12px"><nav class="mapnav" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px"><a href="index.html" onclick="if(history.length>1&&document.referrer){history.back();return false}" style="color:inherit;font-weight:700;padding:6px 14px;border-radius:999px;border:1px solid rgba(127,127,127,.45);text-decoration:none">→ كل الخرايط</a><a href="nile.html" style="color:inherit;padding:6px 12px;border-radius:999px;border:1px solid rgba(127,127,127,.45);text-decoration:none">🐊 النيل</a><a href="metro.html" style="color:inherit;padding:6px 12px;border-radius:999px;border:1px solid rgba(127,127,127,.45);text-decoration:none">🚇 المترو</a><span aria-current="page" style="font-weight:800;padding:6px 12px;border-radius:999px;border:2px solid currentColor">🏜️ الصحرا</span><a href="hara.html" style="color:inherit;padding:6px 12px;border-radius:999px;border:1px solid rgba(127,127,127,.45);text-decoration:none">🏙️ الحارة</a></nav>
+    <h1>🏜️ خريطة الصحرا</h1>
+    <p class="lead">السلم والتعبان في صحرا مصر: كوبرا بطرحة مكان التعابين، ونخل وسلالم جريد مكان السلالم، وجمال وأهرامات وواحة. تلات أشكال للرقعة، كل واحد بيرصّها بطريقة مختلفة، وكل رقعة بتلعب لوحدها بأربع عساكر عشان تشوف كل الحركات.</p>
+    <ul class="chips">
+      <li>نفس القواعد: ١٠٠ بالظبط، ٦ تلعب تاني</li>
+      <li>من ٦ لـ٨ كوبرا ومن ٦ لـ٨ نخلات، متوزعين على الرقعة كلها</li>
+      <li>الخريطة عادلة ومتشافة قبل اللعب</li>
+      <li>الأرقام فوق أي حاجة</li>
+      <li>الزهر هنا متظبّط عشان تيجي الحركات كتير</li>
+    </ul>
+    <div class="moves">
+      <div><h2>🐍 حركات الكوبرا (واحدة بالصدفة كل مرة)</h2><ul>
+        <li>«هَمّ!» تبلعه، وبطنها تنتفخ لحد ديلها، وتتفّه في الرملة</li>
+        <li>تزحلق رملي: ينزل على ضهرها بلوح زي اللي على الكتبان</li>
+        <li>خماسين: تفرد طرحتها، والعاصفة تلفّه وترميه عند ديلها</li>
+        <li>المزمار: الكوبرا تزمّر وهو يرقص بلدي لحد ديلها</li></ul></div>
+      <div><h2>🌴 حركات النخلة</h2><ul>
+        <li>الطلّاع: يربط الحبل حوالين النخلة ويطلع عقدة عقدة</li>
+        <li>الجمل يمد رقبته زي الأسانسير ويطلّعه</li>
+        <li>بالون الأقصر ينزل ياخده لفوق</li>
+        <li>بلحة تقع على راسه في نص الطلعة، يتزحلق ويمسك نفسه وياكلها</li></ul></div>
+    </div>
+  </header>
+  <div id="looks" style="display:flex;flex-direction:column;gap:26px"></div>
+  <p class="foot">نفس العساكر والحركات في التلاتة؛ اللي بيفرق طريقة رص الرقعة: رقعة كلاسيك متلبّسة صحرا، منظر واحد مرسوم تحت الخانات، ولا ماكيت على ترابيزة. الصفحة بتتحرك حتى لو الحركة مقفولة في الجهاز؛ في التطبيق بتمشي على إعداد «الحركة».</p>
+</div>
+
+<script>
+(function(){
+const N=10,C=60,STEP=4,SVGNS='http://www.w3.org/2000/svg';
+const reduced=false; // a sheet about motion plays whatever the device says
+const INK='#2a1a0c';
+const PS=.72; // the pieces stand in the lower half of their square
+
+const LOOKS=[
+ {id:'classic',tag:'أ',name:'على الكلاسيك',vb:[-30,660],up:'trunk',
+  desc:'نفس رقعة النهارده بالظبط: ١٠×١٠ مربعات بالتبادل في إطار، والأرقام كبيرة في النص؛ بس كل حاجة لابسة صحرا.',
+  ours:['المربعات رملي فاتح وطوبي بالتبادل، والأرقام الكبيرة في نص كل خانة زي ما هي',
+        'الكوبرا مكان التعبان: جسم مخطط وطرحة حوالين راسها، وواحدة لابسة عمّة صعيدي وشنب',
+        'النخلة مكان السلم: جذع بعُقد بيطلع عليه، وفوقه جريد وسباطة بلح',
+        'الإطار حجر منقوش أهرامات وموج وشموس، وجمل ماشي فوقه وجعران بيلف حواليه',
+        'عند ١٠٠ هرم صغير والكاس الدهب فوقه، و«ابدأ» يافطة تحت ١'],
+  tileA:'#fbe9c2',tileB:'#e3a457',num:'#4a2608',
+  cobras:['#e0a32e','#3a2f28','#b9542a','#7c8f2e','#d0803a','#8a5a2b','#d9b45a','#5b6f8a']},
+ {id:'place',tag:'ب',name:'المكان',vb:[-30,660],up:'jareed',
+  desc:'الرقعة نفسها صحرا: منظر واحد مرسوم تحت الخانات من السما والأهرامات لحد الأرض، والخانات خطوط خفيفة فوقه.',
+  ours:['منظر واحد ماشي تحت الخانات: سما وأهرامات بعيد فوق، وكتبان رملة نازلة لتحت',
+        'الخانات خطوط خفيفة، والأرقام على يافطات صغيرة عشان تتقري فوق الرسمة',
+        'واحة فيها مية ونخل في النص، وقافلة جمال ماشية على الكتيب، وشجر سنط',
+        'السلم سلم جريد مربوط بحبل ونخلة صغيرة فوقه؛ والكوبرا ألوانها أغمق عشان تبان على الرملة',
+        'مافيش إطار: السما والشمس هي الحافة فوق، والأرض والخيمة عند «ابدأ» تحت',
+        'لما الخريطة تتبني الرملة بتطلع طبقة طبقة والأهرامات بتبان'],
+  cobras:['#3a2e28','#b0402a','#e8a72a','#5d4a8a','#2f6b5a','#8a3b1a','#d87a2a','#4a4038']},
+ {id:'model',tag:'ج',name:'ماكيت',vb:[-46,692],up:'model',drop:true,
+  desc:'الرقعة مجسّم على ترابيزة خشب: صينية رملة وفيها ١٠٠ طوبة حجر ليها سمك، وكل حاجة واقفة عليها ليها ضل.',
+  ours:['كل خانة طوبة حجر جيري ليها سمك وجنب غامق، وبين الطوب مجاري',
+        'الأرقام محفورة في وش الطوبة',
+        'الكوبرا والنخل مجسمات صغيرة واقفة على الطوب وليها ضل',
+        'هرم ماكيت عند ١٠٠، وجمل ونخلة وسنطة واقفين على الترابيزة حوالين الصينية',
+        'لما الخريطة تتبني الطوب بيقع من فوق ويتنطط في مكانه'],
+  tileA:'#f3dcab',tileB:'#d9a35e',num:'#5a3412',
+  cobras:['#e0a32e','#3a2f28','#b9542a','#7c8f2e','#d0803a','#8a5a2b','#d9b45a','#5b6f8a']}
+];
+const PLAYERS=[{name:'الأحمر',col:'#e5383b'},{name:'الأزرق',col:'#1e6fd9'},{name:'الأصفر',col:'#f2b705'},{name:'الأخضر',col:'#2a9d4a'}];
+
+// ---------- geometry ----------
+const cellXY=n=>{const i=n-1,r=Math.floor(i/N),k=i%N,col=r%2?N-1-k:k;return{x:col*C+C/2,y:(N-1-r)*C+C/2};};
+const rowOf=n=>Math.floor((n-1)/N);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t;
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2,easeIn=t=>t*t,easeOut=t=>1-(1-t)*(1-t),lin=t=>t;
+const backOut=t=>{const c=1.7;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2);};
+function segDist(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;let t=l?((p.x-a.x)*dx+(p.y-a.y)*dy)/l:0;t=clamp(t,0,1);return Math.hypot(p.x-a.x-dx*t,p.y-a.y-dy*t);}
+function segCross(a,b,c,d){const o=(p,q,r)=>Math.sign((q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x));return o(a,b,c)!==o(a,b,d)&&o(c,d,a)!==o(c,d,b);}
+function cr(p0,p1,p2,p3,t){const t2=t*t,t3=t2*t;const f=(a,b,c,d)=>.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3);return{x:f(p0.x,p1.x,p2.x,p3.x),y:f(p0.y,p1.y,p2.y,p3.y)};}
+function sampleSpline(P){const Q=[P[0],...P,P[P.length-1]],dense=[];
+  for(let i=1;i<Q.length-2;i++)for(let k=0;k<28;k++)dense.push(cr(Q[i-1],Q[i],Q[i+1],Q[i+2],k/28));dense.push(P[P.length-1]);
+  const acc=[0];for(let i=1;i<dense.length;i++)acc.push(acc[i-1]+Math.hypot(dense[i].x-dense[i-1].x,dense[i].y-dense[i-1].y));
+  const L=acc[acc.length-1],out=[];let j=0;
+  for(let a=0;a<=L;a+=STEP){while(j<acc.length-2&&acc[j+1]<a)j++;const f=(a-acc[j])/((acc[j+1]-acc[j])||1);out.push({x:lerp(dense[j].x,dense[j+1].x,f),y:lerp(dense[j].y,dense[j+1].y,f),a});}
+  out.forEach((p,i)=>{const q=out[Math.min(out.length-1,i+1)],r=out[Math.max(0,i-1)],dx=q.x-r.x,dy=q.y-r.y,l=Math.hypot(dx,dy)||1;p.nx=-dy/l;p.ny=dx/l;});
+  return{pts:out,L:out[out.length-1].a};}
+
+// ---------- a fair random map: the game's generator (6-8 of each, spread by bands) ----------
+const SNAKE_BANDS=[[9,9],[8,8],[6,7],[4,5],[2,3]],LADDER_BANDS=[[0,0],[1,1],[2,3],[4,5],[6,7]],SNAKE_EXTRA=[1,8],LADDER_EXTRA=[0,6];
+function fairAvg(snakes,ladders){const jump={};snakes.forEach(s=>jump[s.h]=s.t);ladders.forEach(l=>jump[l.f]=l.t);
+  let tot=0,worst=0;for(let g=0;g<120;g++){let pos=0,turns=0;while(pos!==100&&turns<400){turns++;let again=true;
+    while(again&&pos!==100){const v=1+Math.floor(Math.random()*6);again=v===6;let t=pos+v;if(t>100)t=200-t;pos=jump[t]||t;}}tot+=turns;worst=Math.max(worst,turns);}
+  return{avg:tot/120,worst};}
+function genMap(){let fallback=null;
+  const cd=(a,b)=>{const p=cellXY(a),q=cellXY(b);return Math.hypot(p.x-q.x,p.y-q.y)/C;};
+  const inRows=(lo,hi)=>lo*10+1+Math.floor(Math.random()*(hi-lo+1)*10);
+  const count=()=>6+Math.floor(Math.random()*3);let nS=count(),nL=count();
+  for(let tries=0;tries<800;tries++){
+    if(tries&&tries%200===0){if(nS>=nL&&nS>6)nS--;else if(nL>6)nL--;}
+    const used=new Set([1,100]),snakes=[],ladders=[];let ok=true;
+    const sB=SNAKE_BANDS.slice(),lB=LADDER_BANDS.slice();for(let k=nS-sB.length;k>0;k--)sB.push(SNAKE_EXTRA);for(let k=nL-lB.length;k>0;k--)lB.push(LADDER_EXTRA);
+    for(let i=0;i<sB.length&&ok;i++){let placed=false;for(let t=0;t<140&&!placed;t++){
+      const h=inRows(sB[i][0],sB[i][1]),tl=h-(11+Math.floor(Math.random()*35));
+      if(h>99||h<12||tl<2||used.has(h)||used.has(tl))continue;
+      if(snakes.some(s=>cd(s.h,h)<2.1||cd(s.t,tl)<1.6||cd(s.h,tl)<1.2||cd(s.t,h)<1.2))continue;
+      const a=cellXY(h),b=cellXY(tl);if(Math.abs(a.x-b.x)>4*C||a.y-b.y>-C)continue;
+      if(snakes.some(o=>{const c1=cellXY(o.h),c2=cellXY(o.t);return segCross(a,b,c1,c2)||segDist(a,c1,c2)<55||segDist(b,c1,c2)<45||segDist(c1,a,b)<55;}))continue;
+      snakes.push({h,t:tl});used.add(h);used.add(tl);placed=true;}ok=placed;}
+    for(let i=0;i<lB.length&&ok;i++){let placed=false;for(let t=0;t<140&&!placed;t++){
+      const f=Math.max(2,inRows(lB[i][0],lB[i][1])),top=f+14+Math.floor(Math.random()*24);
+      if(top>99||used.has(f)||used.has(top)||rowOf(top)-rowOf(f)<2)continue;
+      const a=cellXY(f),b=cellXY(top);if(Math.abs(a.x-b.x)>2*C||(a.y-b.y)<Math.abs(a.x-b.x)*1.1||Math.hypot(a.x-b.x,a.y-b.y)>5*C)continue;
+      if(ladders.some(l=>{const c1=cellXY(l.f),c2=cellXY(l.t);return segCross(a,b,c1,c2)||segDist(a,c1,c2)<32||segDist(b,c1,c2)<32;}))continue;
+      if(snakes.some(s=>segDist(cellXY(s.h),a,b)<40||segDist(cellXY(s.t),a,b)<26))continue;
+      if(snakes.filter(s=>segCross(a,b,cellXY(s.h),cellXY(s.t))).length>1)continue;
+      ladders.push({f,t:top});used.add(f);used.add(top);placed=true;}ok=placed;}
+    if(!ok)continue;
+    const drop=snakes.reduce((n,s)=>n+s.h-s.t,0),climb=ladders.reduce((n,l)=>n+l.t-l.f,0),bal=drop/climb;
+    if(bal<.75||bal>1.35)continue;
+    const st=fairAvg(snakes,ladders);const m={snakes,ladders,avg:st.avg};
+    if(!fallback)fallback=m;
+    if(st.avg<14||st.avg>32||st.worst>220)continue;
+    return m;}
+  return fallback;}
+function snakeWay(s){const H0=cellXY(s.h),T=cellXY(s.t),H={x:H0.x+(T.x>=H0.x?19:-19),y:H0.y-19},dx=T.x-H.x,dy=T.y-H.y,L=Math.hypot(dx,dy),px=-dy/L,py=dx/L;
+  const m=clamp(Math.round(L/95),1,4),sign=Math.random()<.5?1:-1,P=[{x:H.x,y:H.y}];
+  P.push({x:H.x+dx*.08,y:H.y+dy*.08+10});
+  for(let j=1;j<=m;j++){const f=j/(m+1),amp=(18+Math.random()*20)*(j%2?1:-1)*sign;P.push({x:clamp(H.x+dx*f+px*amp,16,584),y:clamp(H.y+dy*f+py*amp,16,584)});}
+  P.push({x:T.x,y:T.y});return P;}
+
+// ---------- drawing: the cast ----------
+const tint=(hex,k)=>{const n=parseInt(hex.slice(1),16),r=n>>16,g=n>>8&255,b=n&255,f=v=>Math.round(k>0?v+(255-v)*k:v*(1+k));return'#'+[f(r),f(g),f(b)].map(v=>v.toString(16).padStart(2,'0')).join('');};
+const lum=hex=>{const n=parseInt(hex.slice(1),16);return((n>>16)*.3+(n>>8&255)*.59+(n&255)*.11)/255;};
+function personSVG(col){return`<g class="pbody">
+  <ellipse cx="0" cy="17" rx="12" ry="3.6" fill="rgba(60,30,0,.3)"/>
+  <g class="armsUp" opacity="0"><path d="M-8 0 L-15 -14 M8 0 L15 -14" stroke="${col}" stroke-width="4.2" stroke-linecap="round" fill="none"/><path d="M-8 0 L-15 -14 M8 0 L15 -14" stroke="${INK}" stroke-width="1" stroke-linecap="round" fill="none" opacity=".5"/></g>
+  <g class="armsFwd" opacity="0"><path d="M-8 1 L-16 5 M8 1 L16 5" stroke="${col}" stroke-width="4.2" stroke-linecap="round" fill="none"/></g>
+  <path d="M-5 12 L-5 18 M5 12 L5 18" stroke="${INK}" stroke-width="3.4" stroke-linecap="round"/>
+  <rect x="-9.5" y="-5" width="19" height="19" rx="8" fill="${col}" stroke="${INK}" stroke-width="1.6"/>
+  <circle cy="-13" r="10" fill="#ffd9b3" stroke="${INK}" stroke-width="1.6"/>
+  <path d="M-10 -15 Q-8 -25 0 -24 Q8 -25 10 -15 Q5 -20 0 -19 Q-5 -20 -10 -15Z" fill="#3b2412"/>
+  <g class="eN"><circle cx="-3.6" cy="-13" r="1.8" fill="${INK}"/><circle cx="3.6" cy="-13" r="1.8" fill="${INK}"/></g>
+  <g class="eS" opacity="0"><g transform="translate(-3.6 -13)"><path class="spin" d="M0 0 a1 1 0 1 1 1.4 .3 a2 2 0 1 1 -3 -.6" stroke="${INK}" stroke-width=".9" fill="none"/></g><g transform="translate(3.6 -13)"><path class="spin" d="M0 0 a1 1 0 1 1 1.4 .3 a2 2 0 1 1 -3 -.6" stroke="${INK}" stroke-width=".9" fill="none"/></g></g>
+  <circle cx="-6.5" cy="-9" r="1.8" fill="#ff8aa0" opacity=".55"/><circle cx="6.5" cy="-9" r="1.8" fill="#ff8aa0" opacity=".55"/>
+  <path class="smile" d="M-3.5 -8.5 Q0 -5.5 3.5 -8.5" stroke="${INK}" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <ellipse class="gasp" cx="0" cy="-7.5" rx="2.2" ry="2.8" fill="${INK}" opacity="0"/>
+  <path class="sweat" d="M11 -20 q3 4 0 6 q-3 -2 0 -6z" fill="#6ec6ff" stroke="${INK}" stroke-width=".7" opacity="0"/>
+  <g class="dizzy" opacity="0" transform="translate(0 -30)"><g class="spin"><path d="M-13 0 l2 -4.5 l2 4.5 l-4.5 -2.8 h5z" fill="#ffd23f" stroke="${INK}" stroke-width=".5"/><path d="M10 -2 l2 -4.5 l2 4.5 l-4.5 -2.8 h5z" fill="#ffd23f" stroke="${INK}" stroke-width=".5"/><circle cx="0" cy="6" r="2" fill="#fff"/></g></g>
+ </g>`;}
+// a worker in a hard hat, a keffiyeh tail behind it for the desert
+function workerSVG(){return`<g class="wkb"><ellipse cx="0" cy="17" rx="10" ry="3" fill="rgba(60,30,0,.25)"/>
+  <path d="M-4 10 L-5 17 M4 10 L5 17" stroke="#3a3a4a" stroke-width="3.2" stroke-linecap="round"/>
+  <rect x="-8" y="-4" width="16" height="16" rx="6" fill="#ff7a1a" stroke="${INK}" stroke-width="1.3"/><rect x="-8" y="2" width="16" height="2.6" fill="#fff3a0"/>
+  <path d="M-8 -11 Q-13 -4 -11 4 L-7 2 Z" fill="#fff" stroke="${INK}" stroke-width="1"/><path d="M-10 -6 h3 M-10.6 -2 h3" stroke="#c0392b" stroke-width="1"/>
+  <circle cy="-11" r="8" fill="#d9a77a" stroke="${INK}" stroke-width="1.3"/>
+  <path d="M-9.5 -13 Q0 -25 9.5 -13 Z" fill="#ffd23f" stroke="${INK}" stroke-width="1.3"/><rect x="-11" y="-14" width="22" height="2.6" rx="1.3" fill="#ffd23f" stroke="${INK}" stroke-width="1"/>
+  <circle cx="-3" cy="-10" r="1.3" fill="${INK}"/><circle cx="3" cy="-10" r="1.3" fill="${INK}"/><path d="M-2.5 -6.5 Q0 -5 2.5 -6.5" stroke="${INK}" fill="none" stroke-width="1"/>
+  <g class="hammer" transform="translate(8 1)"><path d="M0 0 L10 -10" stroke="#7a4a18" stroke-width="2.6" stroke-linecap="round"/><rect x="7" y="-16" width="9" height="6" rx="1.2" fill="#5a5f6a" stroke="${INK}" stroke-width=".8" transform="rotate(45 11.5 -13)"/></g></g>`;}
+// the cobra's head: the app's friendly snake face in front of a hood
+function headSVG(col,acc){const belly=tint(col,.5),dark=tint(col,-.4),light=lum(col)<.35;const mark=light?tint(col,.6):dark;
+  return`<g class="hdi">
+  <g class="hood">
+   <path d="M0 -29 C21 -29 35 -13 33 4 C31 17 17 24 0 24 C-17 24 -31 17 -33 4 C-35 -13 -21 -29 0 -29Z" fill="${tint(col,light?.18:-.16)}" stroke="${INK}" stroke-width="2.4"/>
+   <path d="M0 -23 C14 -23 26 -11 24 3 C22 13 12 18 0 18 C-12 18 -22 13 -24 3 C-26 -11 -14 -23 0 -23Z" fill="${belly}" opacity=".75"/>
+   <path d="M-27 -6 q4 -6 9 -1 M27 -6 q-4 -6 -9 -1 M-27 6 q4 -5 9 0 M27 6 q-4 -5 -9 0" stroke="${mark}" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+   <path d="M-6 21 Q0 17 6 21" stroke="${mark}" stroke-width="2" fill="none" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(0 10)"><path class="tongue" d="M0 0 V10 l-3.5 4.5 M0 10 l3.5 4.5" stroke="#e0263b" stroke-width="2.2" fill="none" stroke-linecap="round"/></g>
+  <ellipse rx="13.5" ry="13" fill="${col}" stroke="${INK}" stroke-width="2.2"/>
+  <ellipse cy="6" rx="8.5" ry="5.5" fill="${belly}" opacity=".7"/>
+  <circle cx="-9.5" cy="4" r="2.6" fill="#ff6f96" opacity=".45"/><circle cx="9.5" cy="4" r="2.6" fill="#ff6f96" opacity=".4"/>
+  <circle cx="-3" cy="3" r="1.2" fill="${INK}"/><circle cx="3" cy="3" r="1.2" fill="${INK}"/>
+  <path class="smile" d="M-6 8.5 Q0 12.5 6 8.5" stroke="${INK}" stroke-width="1.7" fill="none" stroke-linecap="round"/>
+  <g class="mawg" transform="translate(0 9) scale(1 0.01)"><ellipse rx="8" ry="6.5" fill="#5a0f1c" stroke="${INK}" stroke-width="1.6"/><ellipse cy="3" rx="4.2" ry="2.4" fill="#e0263b"/></g>
+  ${acc.mus?`<path d="M-9 6 Q-5 1.5 0 4.6 Q5 1.5 9 6 Q5 5 0 7 Q-5 5 -9 6Z" fill="#231510"/>`:''}
+  ${[-5.6,5.6].map(x=>`<g transform="translate(${x} -4.5)"><circle r="5" fill="#fff" stroke="${INK}" stroke-width="1.7"/><circle class="pup" r="2.6" fill="#161022"/><circle class="pup" cx="-.9" cy="-1" r=".9" fill="#fff"/>
+    <g class="spi"><path class="spin" d="M0 0 a1.2 1.2 0 1 1 1.6 .4 a2.6 2.6 0 1 1 -3.6 -.8 a3.8 3.8 0 1 1 5.6 1" stroke="#161022" stroke-width="1.1" fill="none"/></g>
+    <circle class="lid" cx="0" cy="0" r="5.3" fill="${col}" stroke="${INK}" stroke-width="1.2"/></g>`).join('')}
+  <path class="brow" d="M-10 -13 Q-6 -16 -2 -13 M2 -13 Q6 -16 10 -13" stroke="${INK}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  ${acc.fez?`<g transform="translate(0 -12)"><ellipse rx="14" ry="6.5" fill="#fffaf0" stroke="${INK}" stroke-width="1.5"/><path d="M-13 0 Q0 -7 13 1 M-12 3 Q0 -3 12 4" stroke="#d9cfc0" stroke-width="1.2" fill="none"/><ellipse cy="-5" rx="9.5" ry="5.5" fill="#fffaf0" stroke="${INK}" stroke-width="1.4"/><path d="M-8 -5 Q0 -9 8 -4" stroke="#d9cfc0" stroke-width="1.2" fill="none"/></g>`:''}
+  <text class="zz" x="14" y="-18" font-size="11" font-weight="800" fill="${INK}" font-family="Baloo Bhaijaan 2,sans-serif">z</text>
+ </g>`;}
+function pipsSVG(v){const P={1:[[0,0]],2:[[-5,-5],[5,5]],3:[[-5,-5],[0,0],[5,5]],4:[[-5,-5],[5,-5],[-5,5],[5,5]],5:[[-5,-5],[5,-5],[0,0],[-5,5],[5,5]],6:[[-5,-6],[5,-6],[-5,0],[5,0],[-5,6],[5,6]]}[v];
+  return P.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.3" fill="${v===1?'#e0263b':INK}"/>`).join('');}
+
+// ---------- drawing: the desert's props ----------
+const CAMEL='#c98f55';
+function camelBody(blanket){return`<ellipse cx="0" cy="1" rx="19" ry="3" fill="rgba(60,30,0,.25)"/>
+  ${[[-11,'a'],[-6,'b'],[8,'b'],[13,'a']].map(([x,k])=>`<g class="lg ${k}"><path d="M${x} -13 V0" stroke="${INK}" stroke-width="4.4" stroke-linecap="round"/><path d="M${x} -13 V-.5" stroke="${tint(CAMEL,k==='a'?-.12:0)}" stroke-width="2.4" stroke-linecap="round"/></g>`).join('')}
+  <path d="M15 -16 q6 1 5 8" stroke="${INK}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <path d="M-15 -12 Q-18 -22 -7 -23 Q1 -37 12 -23 Q19 -20 16 -11 Q0 -7 -15 -12Z" fill="${CAMEL}" stroke="${INK}" stroke-width="1.6"/>
+  ${blanket?`<path d="M-5 -24 Q2 -33 10 -23 L9 -17 Q2 -21 -4 -17Z" fill="#c0392b" stroke="${INK}" stroke-width="1"/><path d="M-4.5 -19 Q2 -23 9 -19" stroke="#ffd23f" stroke-width="1.4" fill="none"/>`:''}`;}
+function camelHead(){return`<ellipse cx="0" cy="0" rx="7" ry="4.2" fill="${CAMEL}" stroke="${INK}" stroke-width="1.5" transform="rotate(-8)"/><path d="M3 -3 l2 -3" stroke="${INK}" stroke-width="1.6" stroke-linecap="round"/><circle cx="1" cy="-1.4" r="1" fill="${INK}"/><path d="M-6.5 1 q1.5 1.5 3 0" stroke="${INK}" stroke-width="1" fill="none"/>`;}
+function camelSVG(blanket){return`<g class="bob">${camelBody(blanket)}<path d="M-12 -18 Q-21 -21 -21 -31" stroke="${INK}" stroke-width="8.6" fill="none" stroke-linecap="round"/><path d="M-12 -18 Q-21 -21 -21 -31" stroke="${CAMEL}" stroke-width="6" fill="none" stroke-linecap="round"/><g transform="translate(-25 -32)">${camelHead()}</g></g>`;}
+function crownSVG(x,y,r,dates){const A=[-172,-140,-108,-76,-44,-10,22,158];let s='',d='';
+  A.forEach((deg,i)=>{const a=deg*Math.PI/180,rr=r*(i%2?.92:1.05),dr=r*.42*Math.abs(Math.cos(a))+r*.12,tx=x+Math.cos(a)*rr,ty=y+Math.sin(a)*rr*.85+dr,cx=x+Math.cos(a)*rr*.5,cy=y+Math.sin(a)*rr*.5-r*.28;
+    const p=`M${x.toFixed(1)} ${y.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)}`;s+=p;});
+  if(dates)[[-5,5],[5,5]].forEach(([dx,dy])=>{for(let k=0;k<4;k++)d+=`<circle cx="${(x+dx+(k%2?2.4:-2.4)).toFixed(1)}" cy="${(y+dy+Math.floor(k/2)*3.6).toFixed(1)}" r="2.3" fill="#b4531c" stroke="${INK}" stroke-width=".6"/>`;});
+  return`<g class="leafs"><path d="${s}" stroke="${INK}" stroke-width="${(r*.36).toFixed(1)}" stroke-linecap="round" fill="none"/><path d="${s}" stroke="#4d9a39" stroke-width="${(r*.24).toFixed(1)}" stroke-linecap="round" fill="none"/><path d="${s}" stroke="#8fd16a" stroke-width="${(r*.06).toFixed(1)}" stroke-linecap="round" fill="none"/></g>${d}`;}
+function palmSVG(h,r,cls){const tx=h*.12;return`<g class="sway${cls?' '+cls:''}"><path d="M0 0 Q${tx*.2} ${-h*.55} ${tx} ${-h}" stroke="${INK}" stroke-width="8" fill="none" stroke-linecap="round"/><path d="M0 0 Q${tx*.2} ${-h*.55} ${tx} ${-h}" stroke="#9a6a35" stroke-width="5.4" fill="none" stroke-linecap="round" stroke-dasharray="3 2"/>${crownSVG(tx,-h,r,true)}</g>`;}
+function acaciaSVG(s){return`<g transform="scale(${s})"><path d="M0 0 L0 -18 M0 -14 L-10 -26 M0 -16 L9 -27 M-5 -20 L-14 -27" stroke="${INK}" stroke-width="5" stroke-linecap="round" fill="none"/><path d="M0 0 L0 -18 M0 -14 L-10 -26 M0 -16 L9 -27 M-5 -20 L-14 -27" stroke="#7a4f2a" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M-30 -27 Q-28 -38 -12 -37 Q-4 -44 8 -38 Q26 -40 30 -29 Q28 -24 0 -25 Q-24 -23 -30 -27Z" fill="#8aa83e" stroke="${INK}" stroke-width="1.8"/><path d="M-22 -31 Q-8 -35 4 -32 M8 -34 Q18 -35 24 -31" stroke="#b5cf62" stroke-width="1.6" fill="none" stroke-linecap="round"/></g>`;}
+function pyramidSVG(w,h,model){const l=model?'#efd08e':'#f0c97c',r=model?'#c18b45':'#d9a35c';
+  let lines='';for(let k=1;k<5;k++){const y=-h+h*k/5,hw=w/2*k/5;lines+=`M${-hw} ${y} L${hw} ${y}`;}
+  return`<path d="M${-w/2} 0 L0 ${-h} L${w*.14} 0Z" fill="${l}"/><path d="M${w*.14} 0 L0 ${-h} L${w/2} 0Z" fill="${r}"/><path d="${lines}" stroke="rgba(90,50,10,.28)" stroke-width="1"/><path d="M${-w/2} 0 L0 ${-h} L${w/2} 0Z M0 ${-h} L${w*.14} 0" fill="none" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/>`;}
+function sunSVG(r){let rays='';for(let k=0;k<12;k++){const a=k*Math.PI/6;rays+=`M${(Math.cos(a)*(r+4)).toFixed(1)} ${(Math.sin(a)*(r+4)).toFixed(1)} L${(Math.cos(a)*(r+11)).toFixed(1)} ${(Math.sin(a)*(r+11)).toFixed(1)}`;}
+  return`<g class="rays"><path d="${rays}" stroke="#ffb72b" stroke-width="3.2" stroke-linecap="round"/></g><circle r="${r}" fill="#ffd23f" stroke="${INK}" stroke-width="1.8"/><circle cx="${-r*.32}" cy="${-r*.1}" r="1.6" fill="${INK}"/><circle cx="${r*.32}" cy="${-r*.1}" r="1.6" fill="${INK}"/><path d="M${-r*.3} ${r*.25} Q0 ${r*.5} ${r*.3} ${r*.25}" stroke="${INK}" stroke-width="1.5" fill="none" stroke-linecap="round"/>`;}
+function scarabSVG(){return`<g class="scuttle"><path d="M-5 -3 l-4 -2 M-5 0 l-5 0 M-5 3 l-4 2 M5 -3 l4 -2 M5 0 l5 0 M5 3 l4 2" stroke="${INK}" stroke-width="1.2" stroke-linecap="round"/><ellipse cx="0" cy="1" rx="5.5" ry="7" fill="#1f6f7a" stroke="${INK}" stroke-width="1.2"/><path d="M0 -5 V8" stroke="${INK}" stroke-width=".8"/><ellipse cx="-2" cy="-1" rx="1.2" ry="2.6" fill="#7fe0d8" opacity=".7"/><ellipse cx="0" cy="-7.5" rx="3.4" ry="2.2" fill="#174a52" stroke="${INK}" stroke-width="1"/></g>`;}
+function tentSVG(){return`<path d="M-26 0 L-20 -18 L0 -24 L22 -17 L28 0Z" fill="#4a3426" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/><path d="M-22 -12 L24 -11 M-24 -6 L26 -5" stroke="#d9b98a" stroke-width="2"/><path d="M-5 0 L0 -14 L5 0Z" fill="#1a110a"/><path d="M-20 -18 L-30 4 M22 -17 L33 4" stroke="${INK}" stroke-width=".9"/>`;}
+function cupSVG(){return`<g class="cup"><path d="M-12 -16 H12 V-8 Q12 4 0 6 Q-12 4 -12 -8Z" fill="#ffc930" stroke="${INK}" stroke-width="1.8"/><path d="M-12 -12 Q-20 -12 -18 -4 Q-16 1 -10 0 M12 -12 Q20 -12 18 -4 Q16 1 10 0" stroke="${INK}" stroke-width="1.8" fill="none"/><rect x="-3" y="5" width="6" height="5" fill="#e0a810" stroke="${INK}" stroke-width="1.2"/><rect x="-9" y="10" width="18" height="5" rx="2" fill="#8a5a2b" stroke="${INK}" stroke-width="1.4"/><path d="M-6 -13 Q-6 -3 -1 1" stroke="#fff" stroke-width="2.2" opacity=".6" fill="none" stroke-linecap="round"/></g>`;}
+function balloonSVG(){return`<path d="M-7 -12 L-12 -38 M7 -12 L12 -38 M0 -12 V-36" stroke="${INK}" stroke-width=".9"/>
+  <path d="M-15 -42 Q-22 -62 0 -70 Q22 -62 15 -42 Q8 -34 0 -34 Q-8 -34 -15 -42Z" fill="#ffd23f" stroke="${INK}" stroke-width="1.8"/>
+  <path d="M-8 -36 Q-15 -55 -6 -69 M8 -36 Q15 -55 6 -69" stroke="#e5383b" stroke-width="4.5" fill="none"/><path d="M0 -34 V-70" stroke="#1e6fd9" stroke-width="4"/>
+  <path d="M-15 -42 Q-22 -62 0 -70 Q22 -62 15 -42 Q8 -34 0 -34 Q-8 -34 -15 -42Z" fill="none" stroke="${INK}" stroke-width="1.8"/>
+  <rect x="-8" y="-13" width="16" height="11" rx="2" fill="#a8743a" stroke="${INK}" stroke-width="1.5"/><path d="M-8 -9 H8 M-8 -5.5 H8" stroke="#6b4423" stroke-width=".9"/>`;}
+function mizmarSVG(){return`<path d="M0 0 L18 -7" stroke="${INK}" stroke-width="4.8" stroke-linecap="round"/><path d="M0 0 L18 -7" stroke="#c08a3e" stroke-width="3" stroke-linecap="round"/><path d="M17 -7 l6 -6 l3 6Z" fill="#c08a3e" stroke="${INK}" stroke-width="1.3" stroke-linejoin="round"/><circle cx="6" cy="-2.4" r=".9" fill="${INK}"/><circle cx="10" cy="-4" r=".9" fill="${INK}"/>`;}
+
+// ---------- the board, one per look ----------
+function numText(x,y,n,size,fill,halo){const st=halo?` stroke="${halo}" stroke-width="4" stroke-linejoin="round" style="paint-order:stroke"`:'';
+  return`<text x="${x}" y="${y}" text-anchor="middle" font-family="Baloo Bhaijaan 2,system-ui,sans-serif" font-weight="800" font-size="${size}" fill="${fill}"${st}>${n}</text>`;}
+const mixC=(a,b,k)=>{const A=parseInt(a.slice(1),16),B=parseInt(b.slice(1),16),f=s=>Math.round(((A>>s)&255)*(1-k)+((B>>s)&255)*k);return'#'+[16,8,0].map(s=>f(s).toString(16).padStart(2,'0')).join('');};
+const hash=n=>{const s=Math.sin(n*12.9898)*43758.5453;return s-Math.floor(s);};
+function boardSVG(lk,ci){const [v0,vs]=lk.vb;
+  let s=`<svg class="stage" viewBox="${v0} ${v0} ${vs} ${vs}" dir="ltr" role="img" aria-label="رقعة سلم وتعبان في الصحرا: ${lk.name}"><defs>`;
+  let back='',tiles='',nums='',deco='',trophy='';
+  const t100=cellXY(100);
+  if(lk.id==='classic'){
+    s+=`<pattern id="fr${ci}" x="-21" y="-21" width="42" height="14" patternUnits="userSpaceOnUse"><rect width="42" height="14" fill="#e2b062"/>
+      <path d="M3 11.5 L8.5 3 L14 11.5Z" fill="#8a5424"/><path d="M17 7.5 q2 -3 4 0 t4 0 t4 0" stroke="#8a5424" stroke-width="1.5" fill="none"/>
+      <circle cx="36" cy="7" r="3.2" fill="none" stroke="#8a5424" stroke-width="1.4"/><circle cx="36" cy="7" r="1" fill="#8a5424"/></pattern>`;
+    back+=`<rect x="-30" y="-30" width="660" height="660" fill="#f5deac"/><rect x="-27" y="-27" width="654" height="654" rx="16" fill="#7a4a1e"/>
+      <rect x="-21" y="-21" width="642" height="642" rx="10" fill="url(#fr${ci})"/><rect x="-7" y="-7" width="614" height="614" rx="4" fill="#7a4a1e"/>`;
+    for(let n=1;n<=100;n++){const p=cellXY(n),x=p.x-C/2,y=p.y-C/2,alt=(rowOf(n)+Math.round(x/C))%2,fill=alt?lk.tileB:lk.tileA;
+      tiles+=`<g class="tile" data-n="${n}" data-cx="${p.x}" data-cy="${p.y}"><rect x="${x}" y="${y}" width="${C}" height="${C}" fill="${fill}"/>`;
+      if(hash(n)<.4)tiles+=`<path d="M${x+8} ${y+50} q6 -4 12 0 M${x+36} ${y+12} q6 -4 12 0" stroke="${tint(fill,-.18)}" stroke-width="1.6" fill="none" stroke-linecap="round"/>`;
+      tiles+=`</g>`;
+      nums+=`<g class="num" data-n="${n}">`+(n===100?numText(p.x,p.y+28,100,12,lk.num,fill):numText(p.x,p.y+1,n,21,lk.num,fill))+`</g>`;}
+    trophy=`<g transform="translate(${t100.x} ${t100.y+18})">${pyramidSVG(40,24,false)}</g><g transform="translate(${t100.x} ${t100.y-12}) scale(.62)">${cupSVG()}</g>`;
+    deco+=`<g transform="translate(612 -12)">${sunSVG(12)}</g>
+      <g><g transform="scale(.48)">${camelSVG(true)}</g><animateMotion dur="26s" repeatCount="indefinite" path="M690 -9 H-90"/></g>
+      <g><g transform="rotate(90)">${scarabSVG()}</g><animateMotion dur="34s" repeatCount="indefinite" rotate="auto" path="M-14 640 V-60"/></g>
+      <g transform="translate(616 624)">${palmSVG(30,13,'')}</g>
+      <g transform="translate(30 615)"><rect x="-21" y="-9" width="42" height="15" rx="5" fill="#fff3d6" stroke="${INK}" stroke-width="1.3"/><text y="2.6" text-anchor="middle" font-size="10.5" font-weight="800" fill="${INK}" font-family="Noto Kufi Arabic,sans-serif">ابدأ</text></g>`;
+  }
+  if(lk.id==='place'){
+    s+=`<linearGradient id="sky${ci}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#86cdee"/><stop offset="1" stop-color="#ffe6b0"/></linearGradient>
+      <clipPath id="clip${ci}"><rect x="-30" y="-30" width="660" height="660" rx="22"/></clipPath>`;
+    const dune=(d,fill,ridge)=>`<path d="${d} V640 H-40Z" fill="${fill}"/><path d="${ridge}" stroke="rgba(150,80,20,.16)" stroke-width="16" fill="none" transform="translate(0 10)"/><path d="${ridge}" stroke="#fff4d4" stroke-width="2.2" fill="none" opacity=".8"/>`;
+    const R1='M-40 128 C 80 112 180 140 300 122 S 520 108 640 126',R2='M-40 252 C 90 212 200 262 330 234 S 540 206 640 240',
+          R3='M-40 400 C 120 352 250 420 380 382 S 560 352 640 374',R4='M-40 508 C 100 482 230 536 360 502 S 560 472 640 500',R5='M-40 596 C 150 584 400 604 640 590';
+    back+=`<g clip-path="url(#clip${ci})"><g class="scene">
+      <g class="lay"><rect x="-40" y="-40" width="700" height="240" fill="url(#sky${ci})"/><g transform="translate(560 6)">${sunSVG(22)}</g>
+        <path d="M60 22 q8 -5 16 0 q8 -5 16 0" stroke="#5b4a3a" stroke-width="1.6" fill="none"/><path d="M110 46 q6 -4 12 0 q6 -4 12 0" stroke="#5b4a3a" stroke-width="1.4" fill="none"/></g>
+      <g class="lay"><g opacity=".9"><g transform="translate(170 126)">${pyramidSVG(96,64)}</g><g transform="translate(270 128)">${pyramidSVG(128,88)}</g><g transform="translate(372 126)">${pyramidSVG(74,48)}</g></g>
+        <path class="shim" d="M40 112 q10 -3 20 0 t20 0 t20 0" stroke="#fff" stroke-width="1.6" fill="none"/><path class="shim b" d="M440 104 q10 -3 20 0 t20 0 t20 0 t20 0" stroke="#fff" stroke-width="1.6" fill="none"/></g>
+      <g class="lay">${dune(R1,'#f5d596',R1)}</g>
+      <g class="lay">${dune(R2,'#edbf77',R2)}
+        <g><g transform="scale(-.5 .5)">${camelSVG(true)}</g><animateMotion dur="46s" repeatCount="indefinite" path="${R2.replace('M-40','M-60')}" rotate="auto"/></g>
+        <g><g transform="scale(-.5 .5)">${camelSVG(false)}</g><animateMotion dur="46s" begin="-2.2s" repeatCount="indefinite" path="${R2.replace('M-40','M-60')}" rotate="auto"/></g>
+        <g><g transform="scale(-.5 .5)">${camelSVG(true)}</g><animateMotion dur="46s" begin="-4.4s" repeatCount="indefinite" path="${R2.replace('M-40','M-60')}" rotate="auto"/></g>
+        <g transform="translate(450 302)"><ellipse rx="70" ry="22" fill="#5ab9df" stroke="#2f86ad" stroke-width="2.5"/><path class="ripple" d="M-40 -4 q8 -3 16 0 M6 6 q8 -3 16 0 M-14 10 q6 -2 12 0" stroke="#e8f8ff" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+          <path d="M-72 2 l-3 -9 M-68 6 l1 -10 M66 -2 l3 -10 M70 4 l5 -8" stroke="#4a8a2a" stroke-width="2" stroke-linecap="round"/></g>
+        <g transform="translate(392 302)">${palmSVG(58,20,'')}</g><g transform="translate(512 296)">${palmSVG(48,17,'b')}</g><g transform="translate(470 290)">${palmSVG(36,14,'')}</g>
+        <g transform="translate(150 330)">${acaciaSVG(1)}</g></g>
+      <g class="lay">${dune(R3,'#f3cb85',R3)}<g transform="translate(70 452)">${acaciaSVG(.8)}</g>
+        <path d="M200 440 q30 12 60 4 t70 10 t80 -6" stroke="#c98f55" stroke-width="2" stroke-dasharray="2 6" fill="none" stroke-linecap="round"/></g>
+      <g class="lay">${dune(R4,'#e9b468',R4)}<g transform="translate(560 552)">${acaciaSVG(.9)}</g>
+        <g><g transform="rotate(90)">${scarabSVG()}</g><animateMotion dur="30s" repeatCount="indefinite" rotate="auto" path="M-20 560 C 120 540 260 580 400 548 S 600 540 660 560"/></g></g>
+      <g class="lay">${dune(R5,'#d99a4e',R5)}<g transform="translate(118 626)">${tentSVG()}</g>
+        <circle cx="300" cy="618" r="3" fill="#b07a3e"/><circle cx="430" cy="614" r="2.2" fill="#b07a3e"/><circle cx="560" cy="620" r="3.4" fill="#b07a3e"/></g>
+    </g></g>`;
+    for(let n=1;n<=100;n++){const p=cellXY(n),x=p.x-C/2,y=p.y-C/2,alt=(rowOf(n)+Math.round(x/C))%2;
+      tiles+=`<g class="tile" data-n="${n}" data-cx="${p.x}" data-cy="${p.y}"><rect x="${x}" y="${y}" width="${C}" height="${C}" fill="${alt?'rgba(255,255,255,.13)':'rgba(255,255,255,0)'}" stroke="rgba(110,60,15,.28)" stroke-width="1"/></g>`;
+      const w=n<10?22:n<100?30:34,cy=n===100?p.y+21:p.y-5;
+      nums+=`<g class="num" data-n="${n}"><rect x="${p.x-w/2}" y="${cy-10}" width="${w}" height="${n===100?18:20}" rx="7" fill="#fff8e6" fill-opacity=".94" stroke="#6b3d14" stroke-width="1.3"/>`+numText(p.x,cy+(n===100?4.6:5.6),n,n===100?13:16,'#4a2608','')+`</g>`;}
+    trophy=`<g transform="translate(${t100.x} ${t100.y+11})">${pyramidSVG(44,26,false)}</g><g transform="translate(${t100.x} ${t100.y-18}) scale(.6)">${cupSVG()}</g>`;
+    deco+=`<g transform="translate(30 622)"><rect x="-20" y="-9" width="40" height="15" rx="5" fill="#fff3d6" stroke="${INK}" stroke-width="1.3"/><text y="2.6" text-anchor="middle" font-size="10.5" font-weight="800" fill="${INK}" font-family="Noto Kufi Arabic,sans-serif">ابدأ</text></g>`;
+  }
+  if(lk.id==='model'){
+    let grain='';for(let k=0;k<12;k++){const y=-40+k*58+hash(k)*20;grain+=`M-50 ${y.toFixed(0)} C 120 ${(y+14).toFixed(0)} 360 ${(y-12).toFixed(0)} 650 ${(y+6).toFixed(0)}`;}
+    back+=`<rect x="-46" y="-46" width="692" height="692" fill="#7a4b26"/><path d="${grain}" stroke="#5f3819" stroke-width="2" fill="none" opacity=".55"/><path d="M-46 150 H650 M-46 420 H650" stroke="#4f2e14" stroke-width="2.5" opacity=".6"/>
+      <rect x="-12" y="-6" width="636" height="636" rx="12" fill="rgba(20,8,0,.28)"/><rect x="-16" y="-12" width="632" height="636" rx="12" fill="rgba(20,8,0,.18)"/>
+      <rect x="-20" y="-20" width="640" height="644" rx="12" fill="#8a5a2b" stroke="${INK}" stroke-width="2"/>
+      <rect x="-20" y="-20" width="640" height="634" rx="12" fill="#c99555" stroke="${INK}" stroke-width="2"/>
+      <rect x="-6" y="-6" width="612" height="612" rx="5" fill="#6e4520"/>`;
+    for(let n=1;n<=100;n++){const p=cellXY(n),x=p.x-C/2,y=p.y-C/2,alt=(rowOf(n)+Math.round(x/C))%2,f=tint(alt?lk.tileB:lk.tileA,(hash(n)-.5)*.14);
+      tiles+=`<g class="tile" data-n="${n}" data-cx="${p.x}" data-cy="${p.y}"><rect x="${x+2.5}" y="${y+6}" width="55" height="52" rx="5" fill="${mixC(f,'#5a2e0e',.5)}"/><rect x="${x+2.5}" y="${y+2}" width="55" height="49" rx="5" fill="${f}"/><path d="M${x+6} ${y+3.6} H${x+54}" stroke="rgba(255,255,255,.55)" stroke-width="1.6" stroke-linecap="round"/>`;
+      if(hash(n+7)<.3)tiles+=`<circle cx="${x+46}" cy="${y+40}" r="1.3" fill="${tint(f,-.2)}"/><circle cx="${x+12}" cy="${y+12}" r="1" fill="${tint(f,-.2)}"/>`;
+      tiles+=`</g>`;
+      nums+=`<g class="num" data-n="${n}">`+(n===100?numText(p.x+.8,p.y+23.8,100,12,'rgba(255,255,255,.6)','')+numText(p.x,p.y+23,100,12,lk.num,''):numText(p.x+.9,p.y+.4,n,21,'rgba(255,248,230,.75)',f)+numText(p.x,p.y-.6,n,21,lk.num,''))+`</g>`;}
+    trophy=`<g transform="translate(${t100.x} ${t100.y+14})"><path d="M-22 0 L0 -26 L30 2Z" fill="rgba(20,8,0,.25)" transform="translate(5 3)"/>${pyramidSVG(42,26,true)}</g><g transform="translate(${t100.x} ${t100.y-15}) scale(.6)">${cupSVG()}</g>`;
+    const sh=(x,y,rx)=>`<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${rx*.32}" fill="rgba(20,8,0,.35)"/>`;
+    deco+=`${sh(630,640,16)}<g transform="translate(628 640)">${palmSVG(56,20,'')}</g>
+      ${sh(-26,-8,14)}<g transform="translate(-28 -6)">${acaciaSVG(.75)}</g>
+      <g><g transform="scale(.6)">${camelSVG(true)}</g><animateMotion dur="30s" repeatCount="indefinite" path="M700 641 H-90"/></g>
+      <g><g transform="rotate(90)">${scarabSVG()}</g><animateMotion dur="28s" repeatCount="indefinite" rotate="auto" path="M-33 560 V60"/></g>
+      <g transform="translate(30 614)"><rect x="-21" y="-7" width="42" height="15" rx="5" fill="#5a3412" transform="translate(1.5 2)"/><rect x="-21" y="-9" width="42" height="15" rx="5" fill="#fff3d6" stroke="${INK}" stroke-width="1.3"/><text y="2.6" text-anchor="middle" font-size="10.5" font-weight="800" fill="${INK}" font-family="Noto Kufi Arabic,sans-serif">ابدأ</text></g>`;
+  }
+  s+=`</defs>${back}<g class="tiles">${tiles}</g><g class="holes"></g><g class="shadows"></g><g class="ladders"></g><g class="snakes"></g><g class="heads"></g>
+    <g class="trophy"><g class="cupw">${trophy}</g></g><g class="nums" style="pointer-events:none">${nums}</g><g class="deco">${deco}</g>`;
+  s+=`<g class="under"></g><g class="pieces">${PLAYERS.map((p,i)=>`<g class="piece" data-i="${i}">${personSVG(p.col)}</g>`).join('')}</g>`;
+  s+=`<g class="die" opacity="0"><rect x="-15" y="-15" width="30" height="30" rx="7" fill="#fff" stroke="${INK}" stroke-width="2"/><g class="pips"></g></g><g class="fx"></g>`;
+  return s+`</svg>`;}
+const el=(tag,attrs,parent)=>{const e=document.createElementNS(SVGNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;};
+const TR=(e,x,y,s,r)=>e.setAttribute('transform',`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(r||0).toFixed(1)}) scale(${(s==null?1:s).toFixed(3)})`);
+
+// ---------- a card ----------
+function makeCard(lk,ci){
+  const sec=document.createElement('section');sec.className='look';
+  sec.innerHTML=`<div class="board">${boardSVG(lk,ci)}<div class="now" aria-live="polite"></div>
+    <div class="bar"><button class="main" data-a="map">🗺️ خريطة جديدة</button><button data-a="snake">🐍 كوبرا</button><button data-a="ladder">🌴 نخلة</button><button data-a="end">🏆 النهاية</button><button data-a="pause">⏸ وقّف</button></div></div>
+    <div class="info"><div class="info__head"><span class="tag">${lk.tag}</span><span class="name">«${lk.name}»</span></div><p>${lk.desc}</p>
+    <ul>${lk.ours.map(x=>`<li>${x}</li>`).join('')}</ul></div>`;
+  const svg=sec.querySelector('svg');
+  const c={sec,svg,lk,ci,gen:0,cur:0,visible:false,paused:false,force:null,lastSnake:'',lastLadder:'',
+    tiles:[...svg.querySelectorAll('.tile')].map(g=>({g,num:svg.querySelector(`.num[data-n="${g.dataset.n}"]`),cx:+g.dataset.cx,cy:+g.dataset.cy})),
+    holesL:svg.querySelector('.holes'),shadowsL:svg.querySelector('.shadows'),headsL:svg.querySelector('.heads'),laddersL:svg.querySelector('.ladders'),snakesL:svg.querySelector('.snakes'),under:svg.querySelector('.under'),fx:svg.querySelector('.fx'),
+    trophy:svg.querySelector('.cupw'),die:svg.querySelector('.die'),now:sec.querySelector('.now'),lays:[...svg.querySelectorAll('.lay')],
+    players:[...svg.querySelectorAll('.piece')].map((e,i)=>({e,i,n:1,x:0,y:0,...PLAYERS[i]}))};
+  sec.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>action(c,b.dataset.a,b));
+  return c;}
+
+// the up piece: a palm trunk (أ), a ladder of palm ribs tied with rope (ب), a model palm with its shadow (ج)
+function drawUp(c,l,inner){const lk=c.lk,{A,B,ux,uy,L}=l,vx=-uy,vy=ux;
+  if(lk.up==='jareed'){const W=8.5,rails=`M${A.x-vx*W} ${A.y-vy*W} L${B.x-vx*W} ${B.y-vy*W} M${A.x+vx*W} ${A.y+vy*W} L${B.x+vx*W} ${B.y+vy*W}`;let rungs='',knots='';
+    for(let d=11;d<L+4;d+=12){const cx=A.x+ux*d,cy=A.y+uy*d;rungs+=`M${cx-vx*W} ${cy-vy*W} L${cx+vx*W} ${cy+vy*W}`;knots+=`M${cx-vx*W-1.6} ${cy-vy*W} a1.6 1.6 0 1 0 3.2 0 a1.6 1.6 0 1 0 -3.2 0 M${cx+vx*W-1.6} ${cy+vy*W} a1.6 1.6 0 1 0 3.2 0 a1.6 1.6 0 1 0 -3.2 0`;}
+    el('path',{d:rails+rungs,stroke:'rgba(80,40,0,.2)','stroke-width':5,'stroke-linecap':'round',fill:'none',transform:'translate(4 5)'},inner);
+    el('path',{d:rungs,stroke:INK,'stroke-width':5,'stroke-linecap':'round',fill:'none'},inner);
+    el('path',{d:rungs,stroke:'#a8743a','stroke-width':3,'stroke-linecap':'round',fill:'none'},inner);
+    el('path',{d:rails,stroke:INK,'stroke-width':6,'stroke-linecap':'round',fill:'none'},inner);
+    el('path',{d:rails,stroke:'#cdb36a','stroke-width':3.8,'stroke-linecap':'round',fill:'none'},inner);
+    el('path',{d:rails,stroke:'#8fae4a','stroke-width':1.2,'stroke-linecap':'round',fill:'none','stroke-dasharray':'10 8'},inner);
+    el('path',{d:knots,fill:'#7a5226',stroke:INK,'stroke-width':.7},inner);
+    const cr=el('g',{},inner);cr.innerHTML=crownSVG(B.x,B.y-2,18,true);return;}
+  const W0=lk.up==='model'?14:12.5,W1=9,left=[],right=[],mid=[];
+  for(let k=0;k<=12;k++){const t=k/12,cx=lerp(A.x,B.x,t),cy=lerp(A.y,B.y,t),w=lerp(W0,W1,t)/2;left.push(`${(cx+vx*w).toFixed(1)} ${(cy+vy*w).toFixed(1)}`);right.push(`${(cx-vx*w).toFixed(1)} ${(cy-vy*w).toFixed(1)}`);mid.push({cx,cy,w});}
+  const trunk='M'+left.join('L')+'L'+right.reverse().join('L')+'Z';
+  let notch='';for(let d=7;d<L-2;d+=9.5){const t=d/L,w=lerp(W0,W1,t)/2*.92,cx=A.x+ux*d,cy=A.y+uy*d;notch+=`M${(cx+vx*w).toFixed(1)} ${(cy+vy*w).toFixed(1)}L${(cx+ux*3.4).toFixed(1)} ${(cy+uy*3.4).toFixed(1)}L${(cx-vx*w).toFixed(1)} ${(cy-vy*w).toFixed(1)}`;}
+  if(lk.up==='model'){const sh=el('g',{transform:'translate(9 11)',opacity:.3},c.shadowsL);el('path',{d:trunk,fill:'#1a0a00'},sh);el('circle',{cx:B.x,cy:B.y+4,r:17,fill:'#1a0a00'},sh);l.shadow=sh;
+    el('ellipse',{cx:A.x,cy:A.y+5,rx:12,ry:5,fill:'#a07138',stroke:INK,'stroke-width':1.5},inner);}
+  else el('path',{d:trunk,fill:'rgba(80,40,0,.18)',transform:'translate(4 5)'},inner);
+  el('path',{d:trunk,fill:'#9a6a35',stroke:INK,'stroke-width':2,'stroke-linejoin':'round'},inner);
+  if(lk.up==='model'){el('path',{d:`M${A.x+vx*3} ${A.y+vy*3} L${B.x+vx*2} ${B.y+vy*2}`,stroke:'#d5a46a','stroke-width':3,'stroke-linecap':'round',opacity:.85},inner);
+    el('path',{d:`M${A.x-vx*5} ${A.y-vy*5} L${B.x-vx*3.4} ${B.y-vy*3.4}`,stroke:'#6a4220','stroke-width':2.4,'stroke-linecap':'round',opacity:.9},inner);}
+  el('path',{d:notch,stroke:'#5b3613','stroke-width':1.6,fill:'none','stroke-linejoin':'round'},inner);
+  if(lk.up==='model'){const sc=el('g',{transform:'translate(1.5 2.5)',opacity:.45},inner);sc.innerHTML=crownSVG(B.x,B.y,21,false).replace(/#4d9a39|#8fd16a/g,'#1f4a14');}
+  const cr=el('g',{},inner);cr.innerHTML=crownSVG(B.x,B.y,lk.up==='model'?21:20,true);}
+
+function mountMap(c,m){c.map=m;c.snakesL.innerHTML='';c.headsL.innerHTML='';c.holesL.innerHTML='';c.laddersL.innerHTML='';c.shadowsL.innerHTML='';
+  const lk=c.lk,cols=[...lk.cobras].sort(()=>Math.random()-.5);const fezAt=Math.floor(Math.random()*m.snakes.length);const model=lk.id==='model';
+  c.snakes=m.snakes.map((s,i)=>{const col=cols[i%cols.length],{pts,L}=sampleSpline(snakeWay(s));
+    const hole=el('g',{},c.holesL);const tp=pts[pts.length-1];
+    el('ellipse',{cx:tp.x,cy:tp.y+4,rx:15,ry:8,fill:'#e6c27e',stroke:INK,'stroke-width':1.4},hole);
+    el('ellipse',{cx:tp.x,cy:tp.y+4,rx:10,ry:5,fill:'#3a2410'},hole);
+    const shadow=model?el('path',{fill:'#1a0a00',opacity:.28,transform:'translate(6 8)'},c.shadowsL):null;
+    const hshadow=model?el('ellipse',{rx:10,ry:5,fill:'#1a0a00',opacity:.28},c.shadowsL):null;
+    const g=el('g',{class:'snake'},c.snakesL);
+    const body=el('path',{fill:col,stroke:INK,'stroke-width':2.3,'stroke-linejoin':'round'},g);
+    const dk=lum(col)<.35;const spots=el('path',{fill:dk?tint(col,.62):tint(col,-.42),opacity:.95},g);
+    const side=model?el('path',{fill:'none',stroke:tint(col,-.35),'stroke-width':3,'stroke-linecap':'round',opacity:.8},g):null;
+    const shine=el('path',{fill:'none',stroke:'#fff','stroke-opacity':.38,'stroke-width':3.2,'stroke-linecap':'round'},g);
+    const hd=el('g',{},c.headsL);hd.innerHTML=headSVG(col,{fez:i===fezAt,mus:i===fezAt});
+    hd.querySelector('.tongue').style.animationDelay=(Math.random()*3).toFixed(2)+'s';hd.querySelectorAll('.lid').forEach(l=>l.style.animationDelay=(Math.random()*4).toFixed(2)+'s');
+    return{...s,col,pts,L,W:15+Math.random()*2,g,body,spots,shine,side,shadow,hshadow,hd,hdi:hd.querySelector('.hdi'),hood:hd.querySelector('.hood'),maw:hd.querySelector('.mawg'),smile:hd.querySelector('.smile'),pups:[...hd.querySelectorAll('.pup')],
+      hole,holeK:1,s:0,dir:1,amp:2.2,ph:Math.random()*6,bulge:null,jaw:0,lunge:{x:0,y:0,s:1},mood:'',tilt:0,sway:0,hoodK:1,pox:0,poy:0,spotStyle:i%3===2?0:1};});
+  c.ladders=m.ladders.map(l=>{const a=cellXY(l.f),b=cellXY(l.t),dx=b.x-a.x,dy=b.y-a.y,L0=Math.hypot(dx,dy),ux=dx/L0,uy=dy/L0;
+    const A={x:a.x-ux*6,y:a.y-uy*6},B={x:b.x+ux*6,y:b.y+uy*6},L=L0+12;
+    const g=el('g',{},c.laddersL),inner=el('g',{},g);const o={...l,g,a,b,A,B,ux,uy,L,side:(a.x+b.x)/2<300?-1:1};drawUp(c,o,inner);return o;});}
+
+// ---------- the cobras, drawn every frame ----------
+function wave(sn,b,t){return reduced?0:sn.amp*Math.sin(b.a*.05-t*2.3+sn.ph)*Math.min(1,(b.a-sn.s)/30);}
+function spineAt(sn,a,t){const i=clamp(Math.round(a/STEP),0,sn.pts.length-1),b=sn.pts[i],o=wave(sn,b,t);return{x:b.x+b.nx*o,y:b.y+b.ny*o,nx:b.nx,ny:b.ny};}
+function renderSnake(c,sn,t){
+  const n=sn.pts.length,i0=clamp(Math.round(sn.s/STEP),0,n-1);
+  const hide=i0>=n-2;sn.g.setAttribute('opacity',hide?0:1);sn.hd.setAttribute('opacity',hide?0:1);if(sn.shadow){sn.shadow.setAttribute('opacity',hide?0:.28);sn.hshadow.setAttribute('opacity',hide?0:.28);}
+  sn.hole.setAttribute('transform',`translate(${sn.pts[n-1].x} ${sn.pts[n-1].y}) scale(${sn.holeK.toFixed(3)}) translate(${-sn.pts[n-1].x} ${-sn.pts[n-1].y})`);
+  if(hide)return;
+  const Lf=[],Rf=[],P=[];
+  for(let i=i0;i<n;i++){const b=sn.pts[i],d=b.a-sn.s,dt=sn.L-b.a;let w=sn.W;
+    if(d<16)w*=.72+.28*d/16;w*=Math.min(1,.1+dt/(.42*sn.L));
+    if(sn.bulge!=null)w+=13*Math.exp(-Math.pow((b.a-sn.bulge)/12,2));
+    const o=wave(sn,b,t),x=b.x+b.nx*o,y=b.y+b.ny*o;P.push({x,y,w,nx:b.nx,ny:b.ny,a:b.a});
+    Lf.push(`${(x+b.nx*w/2).toFixed(1)} ${(y+b.ny*w/2).toFixed(1)}`);Rf.push(`${(x-b.nx*w/2).toFixed(1)} ${(y-b.ny*w/2).toFixed(1)}`);}
+  const d='M'+Lf.join('L')+'L'+Rf.reverse().join('L')+'Z';sn.body.setAttribute('d',d);if(sn.shadow)sn.shadow.setAttribute('d',d);
+  let sp='',sh='',sd='';
+  for(let k=4;k<P.length-4;k+=5){const q=P[k],side=(Math.round(q.a/20)%2)?1:-1,r=q.w*.24;
+    if(sn.spotStyle===1){const q2=P[Math.min(P.length-1,k+1)];sp+=`M${(q.x+q.nx*q.w*.44).toFixed(1)} ${(q.y+q.ny*q.w*.44).toFixed(1)}L${(q.x-q.nx*q.w*.44).toFixed(1)} ${(q.y-q.ny*q.w*.44).toFixed(1)}L${(q2.x-q2.nx*q2.w*.44).toFixed(1)} ${(q2.y-q2.ny*q2.w*.44).toFixed(1)}L${(q2.x+q2.nx*q2.w*.44).toFixed(1)} ${(q2.y+q2.ny*q2.w*.44).toFixed(1)}Z`;}
+    else if(r>1.2){const cx=q.x+q.nx*q.w*.17*side,cy=q.y+q.ny*q.w*.17*side;sp+=`M${(cx-r).toFixed(1)} ${cy.toFixed(1)}a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(2*r).toFixed(1)} 0a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(-2*r).toFixed(1)} 0`;}}
+  for(let k=4;k<P.length-6;k+=2){const q=P[k];sh+=(sh?'L':'M')+`${(q.x+q.nx*q.w*.3).toFixed(1)} ${(q.y+q.ny*q.w*.3).toFixed(1)}`;if(sn.side)sd+=(sd?'L':'M')+`${(q.x-q.nx*q.w*.32).toFixed(1)} ${(q.y-q.ny*q.w*.32).toFixed(1)}`;}
+  sn.spots.setAttribute('d',sp);sn.shine.setAttribute('d',sh);if(sn.side)sn.side.setAttribute('d',sd);
+  const h=P[0],h2=P[Math.min(P.length-1,4)];let fx=h.x-h2.x;const fl=Math.hypot(fx,h.y-h2.y)||1;fx/=fl;
+  const hx=h.x,hy=h.y-1;sn.hx=hx;sn.hy=hy;
+  let near=null,nd=1e9;c.players.forEach(p=>{if(p.hidden)return;const dd=Math.hypot(p.x-hx,p.y-hy);if(dd<nd){nd=dd;near=p;}});
+  let tt=sn.dir<0?-fx*25:fx*18,px=Math.sin(t*.7+sn.ph)*1.2,py=Math.cos(t*.5+sn.ph)*.8;
+  if(near&&nd<C*2.6&&sn.mood!=='sleep'){tt=clamp((near.x-hx)/nd*24,-24,24);px=(near.x-hx)/nd*2.4;py=(near.y-hy)/nd*2.2;}
+  sn.tilt=lerp(sn.tilt,tt,.12);sn.pox=lerp(sn.pox,px,.25);sn.poy=lerp(sn.poy,py,.25);
+  const br=reduced?1:1+.025*Math.sin(t*2+sn.ph);
+  TR(sn.hd,hx+sn.lunge.x,hy+sn.lunge.y,sn.lunge.s*br*.62,sn.tilt+sn.sway);
+  if(sn.hshadow){sn.hshadow.setAttribute('cx',(hx+sn.lunge.x+6).toFixed(1));sn.hshadow.setAttribute('cy',(hy+sn.lunge.y+12).toFixed(1));}
+  sn.hood.setAttribute('transform',`scale(${sn.hoodK.toFixed(3)} ${(1+(sn.hoodK-1)*.5).toFixed(3)})`);
+  sn.pups.forEach(p=>p.setAttribute('transform',`translate(${sn.pox.toFixed(2)} ${sn.poy.toFixed(2)})`));
+  sn.maw.setAttribute('transform',`translate(0 9) scale(1 ${Math.max(.01,sn.jaw).toFixed(3)})`);sn.smile.setAttribute('opacity',sn.jaw>.1?0:1);
+  const cls='hdi'+(sn.mood?' m-'+sn.mood:'');if(sn.hdi.getAttribute('class')!==cls)sn.hdi.setAttribute('class',cls);}
+function renderCard(c,t){c.time=t;if(c.snakes)c.snakes.forEach(sn=>renderSnake(c,sn,t));}
+
+// ---------- helpers ----------
+function tween(c,g,ms,fn,ez){ez=ez||ease;return new Promise(res=>{const t0=performance.now();
+  const step=now=>{if(c.gen!==g){res(false);return;}const r=Math.min(1,(now-t0)/ms);fn(ez(r),r);if(r<1)requestAnimationFrame(step);else res(true);};requestAnimationFrame(step);});}
+const wait=(c,g,ms)=>tween(c,g,ms,()=>{},lin);
+const alive=(c,g)=>c.gen===g;
+function say(c,s){c.now.textContent=s;}
+function face(p,m){const q=s=>p.e.querySelector(s);const set=(s,v)=>q(s).setAttribute('opacity',v);
+  set('.smile',/gasp|zombie/.test(m)?0:1);set('.gasp',/gasp/.test(m)?1:0);set('.armsUp',/up/.test(m)?1:0);set('.armsFwd',/fwd/.test(m)?1:0);
+  set('.dizzy',/dizzy/.test(m)?1:0);set('.sweat',/sweat/.test(m)?1:0);set('.eN',/zombie/.test(m)?0:1);set('.eS',/zombie/.test(m)?1:0);}
+function setP(p,x,y,s,r){p.x=x;p.y=y;TR(p.e,x,y,(s==null?1:s)*PS,r);}
+function spot(c,p,n){n=n==null?p.n:n;const q=cellXY(n),on=c.players.filter(o=>o.n===n&&!o.hidden);
+  if(on.length<=1)return{x:q.x,y:q.y+17};const O=[[-13,17],[13,17],[-5,20],[5,20]],k=Math.max(0,on.indexOf(p));return{x:q.x+O[k][0],y:q.y+O[k][1]};}
+function settleAll(c){c.players.forEach(p=>{if(p.hidden)return;const s=spot(c,p);setP(p,s.x,s.y);});}
+function bubble(c,x,y,txt,ms){const g=el('g',{},c.fx);const w=Math.max(40,txt.length*9+20);
+  el('rect',{x:-w/2,y:-15,width:w,height:26,rx:13,fill:'#fff',stroke:INK,'stroke-width':1.6},g);el('path',{d:'M-5 10 L0 18 L5 10',fill:'#fff',stroke:INK,'stroke-width':1.6},g);el('rect',{x:-6,y:7,width:12,height:4,fill:'#fff'},g);
+  const tx=el('text',{y:4,'text-anchor':'middle','font-size':14,'font-weight':800,fill:INK,'font-family':'Noto Kufi Arabic,sans-serif',direction:'rtl'},g);tx.textContent=txt;
+  const bx=clamp(x,w/2-24,624-w/2),by=Math.max(0,y-40);const t0=performance.now();
+  (function f(now){const k=clamp((now-t0)/220,0,1);TR(g,bx,by,backOut(k));if(k<1)requestAnimationFrame(f);})(t0);
+  setTimeout(()=>g.remove(),ms||1300);}
+function puff(c,x,y,n,col,spread){for(let i=0;i<(n||6);i++){const e=el('circle',{cx:x,cy:y,r:3,fill:col||'#fff',stroke:INK,'stroke-width':.8,opacity:.9},c.fx);
+  const a=Math.random()*Math.PI*2,d=(spread||22)*(0.6+Math.random()*.6),t0=performance.now();
+  (function f(now){const k=clamp((now-t0)/650,0,1);e.setAttribute('cx',x+Math.cos(a)*d*easeOut(k));e.setAttribute('cy',y+Math.sin(a)*d*easeOut(k)-k*8);e.setAttribute('r',3+k*6);e.setAttribute('opacity',.9*(1-k));if(k<1)requestAnimationFrame(f);else e.remove();})(t0);}}
+function floatUp(c,x,y,txt,col){const e=el('text',{x:0,y:0,'font-size':15,'font-weight':800,fill:col||INK,stroke:'#fff','stroke-width':3,style:'paint-order:stroke','text-anchor':'middle'},c.fx);e.textContent=txt;
+  const t0=performance.now(),dx=(Math.random()-.5)*26;(function f(now){const k=clamp((now-t0)/1100,0,1);TR(e,x+dx*k+Math.sin(k*9)*4,y-34*k,1);e.setAttribute('opacity',(1-k*k).toFixed(2));if(k<1)requestAnimationFrame(f);else e.remove();})(t0);}
+function sparkle(c,x,y){const e=el('path',{d:'M0 -6 L1.5 -1.5 L6 0 L1.5 1.5 L0 6 L-1.5 1.5 L-6 0 L-1.5 -1.5Z',fill:'#ffe27a',stroke:INK,'stroke-width':.6},c.fx);const t0=performance.now(),dx=(Math.random()-.5)*30;
+  (function f(now){const k=clamp((now-t0)/700,0,1);TR(e,x+dx*k,y-20*k,1-k*.6,k*180);e.setAttribute('opacity',1-k);if(k<1)requestAnimationFrame(f);else e.remove();})(t0);}
+const SAND='#f0cf8a';
+
+// ---------- moving ----------
+async function hopTo(c,g,p,to){const dir=to>p.n?1:-1;
+  while(p.n!==to){const from={x:p.x,y:p.y};p.n+=dir;const s=spot(c,p);
+    const ok=await tween(c,g,200,t=>setP(p,lerp(from.x,s.x,t),lerp(from.y,s.y,t)-Math.sin(t*Math.PI)*18,1+Math.sin(t*Math.PI)*.06),lin);if(!ok)return false;}
+  settleAll(c);return true;}
+async function rollDie(c,g,p,v){const d=c.die,pips=d.querySelector('.pips');d.setAttribute('opacity',1);const x=clamp(p.x,30,570),y=Math.max(20,p.y-62);
+  let last=0;const ok=await tween(c,g,650,(t,r)=>{if(r<.82&&r-last>.07){last=r;pips.innerHTML=pipsSVG(1+Math.floor(Math.random()*6));}if(r>=.82)pips.innerHTML=pipsSVG(v);
+    TR(d,x,y-Math.sin(r*Math.PI)*16,backOut(Math.min(1,r*2.2))*1.15,(1-t)*540);},lin);
+  if(!ok)return false;await wait(c,g,320);d.setAttribute('opacity',0);return alive(c,g);}
+async function dizzy(c,g,p,ms){face(p,'dizzy');const x=p.x,y=p.y;await tween(c,g,ms||1100,t=>setP(p,x,y,1,Math.sin(t*Math.PI*6)*9*(1-t)),lin);face(p,'');}
+
+// ---------- the cobra's four moves ----------
+async function sGulp(c,g,p,sn){face(p,'gasp');bubble(c,p.x,p.y-20,'لأااا!',1000);const x0=p.x,y0=p.y;
+  await tween(c,g,330,t=>{sn.jaw=t;sn.hoodK=1+.3*t;sn.lunge={x:(x0-sn.hx)*.3*t,y:(y0-sn.hy)*.3*t,s:1+.2*t};});if(!alive(c,g))return;
+  await tween(c,g,320,t=>setP(p,lerp(x0,sn.hx+sn.lunge.x,t),lerp(y0,sn.hy+sn.lunge.y+8,t),1-t*.9,t*140),easeIn);p.e.setAttribute('opacity',0);p.hidden=true;
+  await tween(c,g,300,t=>{sn.jaw=1-t;sn.hoodK=1.3-.3*t;sn.lunge={x:sn.lunge.x*(1-t),y:sn.lunge.y*(1-t),s:1+.2*(1-t)+Math.sin(t*Math.PI)*.18};});
+  if(!alive(c,g))return;bubble(c,sn.hx,sn.hy-10,'هَمّ!',900);sn.amp=4.5;
+  await tween(c,g,1800,t=>{sn.bulge=lerp(sn.s+14,sn.L-12,t);},ease);sn.bulge=null;sn.amp=2.2;if(!alive(c,g))return;
+  const tp=spineAt(sn,sn.L-4,c.time||0);p.n=sn.t;p.hidden=false;p.e.setAttribute('opacity',1);bubble(c,tp.x,tp.y-10,'تُف!',900);puff(c,tp.x,tp.y,8,SAND,26);
+  const s=spot(c,p);await tween(c,g,560,t=>setP(p,lerp(tp.x,s.x,t),lerp(tp.y,s.y,t)-Math.sin(t*Math.PI)*34,.3+.7*backOut(Math.min(1,t*1.3)),(1-t)*-300),lin);
+  settleAll(c);puff(c,p.x,p.y+10,5,SAND,16);await dizzy(c,g,p);}
+async function sSandboard(c,g,p,sn){face(p,'gasp up');bubble(c,p.x,p.y-20,'تزحلق رملي!',1200);
+  const bd=el('g',{},c.fx);el('rect',{x:-14,y:-3,width:28,height:6,rx:3,fill:'#e5383b',stroke:INK,'stroke-width':1.4},bd);el('path',{d:'M-9 0 H9',stroke:'#ffd23f','stroke-width':1.6},bd);
+  let last=0;await tween(c,g,1700,(t,r)=>{const a=lerp(sn.s+8,sn.L-8,t),q=spineAt(sn,a,c.time||0),q2=spineAt(sn,a+8,c.time||0);let ang=Math.atan2(q2.y-q.y,q2.x-q.x)*180/Math.PI;if(ang>90)ang-=180;if(ang<-90)ang+=180;
+    setP(p,q.x,q.y-13,1,clamp(ang*.4,-30,30));TR(bd,q.x,q.y-1,1,clamp(ang,-50,50));
+    if(r-last>.07){last=r;puff(c,q.x-(q2.x-q.x)*1.2,q.y+2,2,SAND,10);}},easeIn);bd.remove();if(!alive(c,g))return;
+  p.n=sn.t;const s=spot(c,p),x0=p.x,y0=p.y;puff(c,x0,y0+10,7,SAND,22);
+  await tween(c,g,420,t=>setP(p,lerp(x0,s.x,t),lerp(y0,s.y,t)-Math.abs(Math.sin(t*Math.PI*2))*(1-t)*20,1,(1-t)*40),lin);settleAll(c);await dizzy(c,g,p);}
+async function sStorm(c,g,p,sn){sn.mood='wow';const x0=p.x,y0=p.y;face(p,'sweat');
+  await tween(c,g,700,t=>{sn.hoodK=1+.6*t;sn.lunge={x:0,y:-4*t,s:1+.12*t};},easeOut);if(!alive(c,g))return;
+  bubble(c,sn.hx,sn.hy-16,'خماسين!',1300);face(p,'gasp up');
+  const grains=[];for(let i=0;i<26;i++)grains.push({e:el('circle',{r:1.4+Math.random()*2,fill:i%3?'#e7c07a':'#c98f55',opacity:.85},c.fx),a:Math.random()*6.3,r:10+Math.random()*22,v:5+Math.random()*5});
+  p.n=sn.t;const s=spot(c,p);
+  await tween(c,g,1600,(t,r)=>{const a=lerp(sn.s+8,sn.L-6,t),q=spineAt(sn,a,c.time||0),lift=Math.sin(Math.min(1,r*1.1)*Math.PI)*46,px=lerp(x0,q.x,Math.min(1,r*4)),py=lerp(y0,q.y,Math.min(1,r*4))-lift;
+    setP(p,px,py,1,r*900);grains.forEach(o=>{o.a+=o.v*.016;o.e.setAttribute('cx',(px+Math.cos(o.a)*o.r).toFixed(1));o.e.setAttribute('cy',(py-6+Math.sin(o.a)*o.r*.55).toFixed(1));o.e.setAttribute('opacity',(.85*(1-r*r)).toFixed(2));});
+    sn.hoodK=1.6-.6*r;sn.lunge={x:0,y:-4*(1-r),s:1+.12*(1-r)};},ease);
+  grains.forEach(o=>o.e.remove());sn.mood='';sn.hoodK=1;sn.lunge={x:0,y:0,s:1};if(!alive(c,g))return;
+  const x1=p.x,y1=p.y;await tween(c,g,320,t=>setP(p,lerp(x1,s.x,t),lerp(y1,s.y,t),1+Math.sin(t*Math.PI)*.2,0),lin);puff(c,s.x,s.y+10,5,SAND,16);settleAll(c);await dizzy(c,g,p);}
+async function sMizmar(c,g,p,sn){const fl=el('g',{},c.fx);fl.innerHTML=mizmarSVG();const sd=sn.hx<p.x?1:-1;
+  bubble(c,sn.hx,sn.hy-18,'♪ تيرارا تيرا ♪',1500);let lastN=0;
+  const place=()=>TR(fl,sn.hx+sn.lunge.x+sd*3,sn.hy+sn.lunge.y+5,.9,sd>0?0:180);
+  await tween(c,g,1100,(t,r)=>{sn.sway=Math.sin(r*Math.PI*6)*12;sn.hoodK=1+.25*t;place();if(r-lastN>.18){lastN=r;floatUp(c,sn.hx+sd*20,sn.hy-6,r*10%2<1?'♪':'♫','#8a3b1a');}},lin);if(!alive(c,g)){fl.remove();return;}
+  face(p,'up');bubble(c,p.x,p.y-24,'يا سلام!',1100);
+  await tween(c,g,2600,(t,r)=>{const a=lerp(sn.s+8,sn.L-8,t),q=spineAt(sn,a,c.time||0),k=Math.sin(r*Math.PI*10);sn.sway=Math.sin(r*Math.PI*12)*12;place();
+    setP(p,q.x,q.y-10-Math.abs(k)*5,1,k*16);face(p,k>0?'up':'fwd');
+    if(r-lastN>.1){lastN=r;floatUp(c,sn.hx+sd*20,sn.hy-6,r*20%2<1?'♪':'♫','#8a3b1a');}},lin);
+  fl.remove();sn.sway=0;sn.hoodK=1;if(!alive(c,g))return;
+  p.n=sn.t;const s=spot(c,p);setP(p,s.x,s.y);face(p,'gasp');
+  await tween(c,g,500,t=>setP(p,s.x,s.y,1,Math.sin(t*Math.PI*6)*12),lin);bubble(c,p.x,p.y-24,'أنا جيت هنا إزاي؟',1300);face(p,'');settleAll(c);await wait(c,g,500);}
+const SNAKE_MOVES=[['gulp',sGulp],['board',sSandboard],['storm',sStorm],['mizmar',sMizmar]];
+
+// ---------- the palm's four moves ----------
+function ladPt(l,u){return{x:lerp(l.a.x,l.b.x,u),y:lerp(l.a.y+4,l.b.y+4,u)};}
+async function stepUp(c,g,p,l,u0,u1,ms,steps,each){face(p,'up');return tween(c,g,ms,(t,r)=>{const k=Math.floor(r*steps),f=ease(clamp(r*steps-k,0,1)),u=lerp(u0,u1,(k+f)/steps),q=ladPt(l,u);
+  setP(p,q.x,q.y-Math.sin(f*Math.PI)*4,1,Math.sin(r*steps*Math.PI)*9);if(each)each(q);},lin);}
+async function lClimber(c,g,p,l){bubble(c,p.x,p.y-20,'طالع النخلة!',1000);
+  const rope=el('ellipse',{rx:11,ry:4,fill:'none',stroke:'#c9a25a','stroke-width':2.4},c.fx),ang=Math.atan2(l.uy,l.ux)*180/Math.PI+90;
+  await stepUp(c,g,p,l,0,1,1900,10,q=>{rope.setAttribute('transform',`translate(${q.x.toFixed(1)} ${(q.y-6).toFixed(1)}) rotate(${ang.toFixed(1)})`);});rope.remove();
+  if(alive(c,g))bubble(c,p.x,p.y-24,'وصلت!',800);}
+async function lCamel(c,g,p,l){const sd=l.side,f=-sd;// the camel stands beside the foot, facing the trunk
+  const cam=el('g',{},c.fx);cam.innerHTML=`<g class="bob">${camelBody(true)}</g>`;const nk1=el('path',{fill:'none',stroke:INK,'stroke-width':9,'stroke-linecap':'round'},c.fx),nk2=el('path',{fill:'none',stroke:CAMEL,'stroke-width':6.4,'stroke-linecap':'round'},c.fx);
+  const hd=el('g',{},c.fx);hd.innerHTML=camelHead();const S=.9,cx=l.a.x+sd*26,cy=l.a.y+24,far=cx+sd*260;
+  const draw=(x,hx,hy)=>{cam.setAttribute('transform',`translate(${x.toFixed(1)} ${cy}) scale(${(f<0?S:-S).toFixed(2)} ${S})`);const s0={x:x+(f<0?-12:12)*S,y:cy-18*S};
+    const mx=(s0.x+hx)/2+(f<0?-10:10),my=Math.min(s0.y,hy)+(hy<s0.y-30?10:-6);const d=`M${s0.x.toFixed(1)} ${s0.y.toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${hx.toFixed(1)} ${hy.toFixed(1)}`;nk1.setAttribute('d',d);nk2.setAttribute('d',d);
+    hd.setAttribute('transform',`translate(${hx.toFixed(1)} ${hy.toFixed(1)}) scale(${(f<0?1:-1)*S} ${S})`);};
+  const rest=x=>({x:x+(f<0?-21:21)*S,y:cy-31*S});
+  bubble(c,p.x,p.y-24,'يا جمل!',900);
+  await tween(c,g,650,t=>{const x=lerp(far,cx,t),h=rest(x);draw(x,h.x,h.y);},easeOut);if(!alive(c,g))return cam.remove(),nk1.remove(),nk2.remove(),hd.remove();
+  const r0=rest(cx),x0=p.x,y0=p.y;face(p,'up');
+  await tween(c,g,380,t=>setP(p,lerp(x0,r0.x,t),lerp(y0,r0.y-9,t)-Math.sin(t*Math.PI)*22,1,0),lin);
+  bubble(c,r0.x,r0.y-30,'رقبة أسانسير!',1200);
+  const ok=await tween(c,g,1500,t=>{const q=ladPt(l,t),hx=lerp(r0.x,q.x,Math.min(1,t*3)),hy=lerp(r0.y,q.y,Math.min(1,t*3))-(t<1/3?0:0);draw(cx,hx,hy);setP(p,hx,hy-9,1,Math.sin(t*20)*3);},ease);
+  if(ok){const top=spot(c,{...p,n:l.t},l.t),x1=p.x,y1=p.y;await tween(c,g,300,t=>setP(p,lerp(x1,top.x,t),lerp(y1,top.y,t)-Math.sin(t*Math.PI)*16,1,0),lin);
+    await tween(c,g,520,t=>{const q=ladPt(l,1-t);draw(cx,lerp(q.x,r0.x,t),lerp(q.y,r0.y,t));},ease);
+    await tween(c,g,650,t=>{const x=lerp(cx,far,t),h=rest(x);draw(x,h.x,h.y);},easeIn);}
+  cam.remove();nk1.remove();nk2.remove();hd.remove();}
+async function lBalloon(c,g,p,l){const b=el('g',{},c.fx);b.innerHTML=balloonSVG();const fx=l.a.x,fy=l.a.y+24;
+  bubble(c,p.x,p.y-24,'بالون الأقصر!',1100);
+  await tween(c,g,700,t=>TR(b,fx+Math.sin(t*6)*3,lerp(fy-200,fy,t),1),easeOut);if(!alive(c,g))return b.remove();
+  const x0=p.x,y0=p.y;face(p,'up');await tween(c,g,320,t=>setP(p,lerp(x0,fx,t),lerp(y0,fy-12,t)-Math.sin(t*Math.PI)*20,1,0),lin);
+  let last=0;const ok=await tween(c,g,1500,(t,r)=>{const q=ladPt(l,t),sw=Math.sin(r*Math.PI*3)*4,bx=q.x+sw,by=q.y+20;TR(b,bx,by,1,sw*.8);setP(p,bx,by-12,1,sw*.8);if(r-last>.15){last=r;sparkle(c,bx+(Math.random()-.5)*30,by-40);}},ease);
+  if(ok){const top=spot(c,{...p,n:l.t},l.t),x1=p.x,y1=p.y;await tween(c,g,300,t=>setP(p,lerp(x1,top.x,t),lerp(y1,top.y,t)-Math.sin(t*Math.PI)*14,1,0),lin);
+    const bx=p.x,by=l.b.y+24;await tween(c,g,800,t=>{TR(b,lerp(l.b.x,l.b.x+l.side*40,t),lerp(by,by-160,t),1);b.setAttribute('opacity',(1-t).toFixed(2));},easeIn);}
+  b.remove();}
+async function lDates(c,g,p,l){bubble(c,p.x,p.y-20,'نخلة!',800);await stepUp(c,g,p,l,0,.6,1100,6);if(!alive(c,g))return;
+  const dt=el('ellipse',{rx:2.8,ry:3.8,fill:'#a0461a',stroke:INK,'stroke-width':.8},c.fx),sx=l.B.x+4,sy=l.B.y+6,hx=p.x,hy=p.y-16;
+  await tween(c,g,420,t=>TR(dt,lerp(sx,hx,t),lerp(sy,hy,t),1,t*300),easeIn);dt.remove();if(!alive(c,g))return;
+  sparkle(c,hx,hy-4);face(p,'gasp up sweat');bubble(c,p.x,p.y-24,'بُم!',700);
+  await tween(c,g,300,t=>{const q=ladPt(l,lerp(.6,.38,t));setP(p,q.x,q.y,1,(1-t)*14);},easeIn);if(!alive(c,g))return;
+  const q=ladPt(l,.38);await tween(c,g,380,t=>setP(p,q.x+Math.sin(t*Math.PI*6)*3*(1-t),q.y,1,Math.sin(t*Math.PI*6)*8),lin);face(p,'');bubble(c,p.x,p.y-24,'بلحة زغلول!',1000);await wait(c,g,500);
+  await stepUp(c,g,p,l,.38,1,900,6);}
+const LADDER_MOVES=[['climb',lClimber],['camel',lCamel],['balloon',lBalloon],['dates',lDates]];
+const pick=(list,last)=>{const o=list.filter(v=>v[0]!==last);return o[Math.floor(Math.random()*o.length)];};
+
+// ---------- other moments ----------
+async function nearMiss(c,g,p,sn){const x0=p.x,y0=p.y;sn.mood='wow';
+  await tween(c,g,420,(t,r)=>{const k=Math.sin(r*Math.PI);sn.jaw=k;sn.hoodK=1+.45*k;sn.lunge={x:(x0-sn.hx)*.35*k,y:(y0-sn.hy)*.35*k,s:1+.18*k};},lin);
+  bubble(c,sn.hx,sn.hy-14,'ششش!',800);sn.jaw=0;sn.hoodK=1;sn.lunge={x:0,y:0,s:1};sn.mood='';face(p,'gasp sweat');
+  await tween(c,g,380,t=>setP(p,x0,y0-Math.sin(t*Math.PI)*26),lin);bubble(c,p.x,p.y-24,'يا ساتر!',1100);await wait(c,g,650);face(p,'');}
+async function bounceBack(c,g,p,over){bubble(c,p.x,p.y-24,'قرّبت!',700);if(!await hopTo(c,g,p,100))return false;
+  const x=p.x,y=p.y;face(p,'gasp');await tween(c,g,380,t=>{setP(p,x,y-Math.sin(t*Math.PI)*12,1,-t*20);TR(c.trophy,0,0,1,Math.sin(t*Math.PI*4)*3);},lin);
+  bubble(c,p.x,p.y-24,'خبطت في الهرم!',900);face(p,'dizzy');TR(c.trophy,0,0,1,0);const ok=await hopTo(c,g,p,100-over);face(p,'');return ok;}
+async function win(c,g,p){say(c,`${p.name} كسب!`);face(p,'up');bubble(c,p.x,p.y-26,'كسبت!',2400);const x=p.x,y=p.y;
+  const conf=[];const cols=['#e5383b','#1e6fd9','#f2b705','#2a9d4a','#ff6fb1','#7b5cff'];
+  for(let i=0;i<90;i++)conf.push({e:el('rect',{width:6,height:10,rx:1.5,fill:cols[i%6]},c.fx),x:300+(Math.random()-.5)*80,y:-20,vx:(Math.random()-.5)*9,vy:-Math.random()*7-3,r:Math.random()*360});
+  await tween(c,g,2600,(t,r)=>{setP(p,x,y-Math.abs(Math.sin(r*Math.PI*5))*20,1,Math.sin(r*Math.PI*5)*10);c.snakes.forEach((sn,i)=>sn.sway=Math.sin(r*Math.PI*8+i)*10);
+    conf.forEach(o=>{o.vy+=.35;o.x+=o.vx;o.y+=o.vy;o.r+=8;o.e.setAttribute('transform',`translate(${o.x.toFixed(1)} ${o.y.toFixed(1)}) rotate(${o.r.toFixed(0)})`);});},lin);
+  conf.forEach(o=>o.e.remove());c.snakes.forEach(sn=>sn.sway=0);face(p,'');}
+
+// ---------- the map taken apart and built ----------
+async function carry(c,g,l,inward,delay){await wait(c,g,delay||0);if(!alive(c,g))return;
+  const w=el('g',{},c.under);w.innerHTML=workerSVG();const hm=w.querySelector('.hammer');const mx=(l.a.x+l.b.x)/2,my=(l.a.y+l.b.y)/2,far=l.side*720;
+  const bob=r=>-Math.abs(Math.sin(r*Math.PI*8))*3;const mv=v=>{l.g.setAttribute('transform',v);if(l.shadow)l.shadow.setAttribute('transform',v?v.replace(/translate\(([-\d.]+) ([-\d.]+)\)/,(m,a,b)=>`translate(${+a+9} ${+b+11})`):'translate(9 11)');};
+  if(inward){await tween(c,g,1050,(t,r)=>{const dx=lerp(far,0,t);mv(`translate(${dx} ${-10+bob(r)})`);TR(w,mx+dx,my+18+bob(r),1,0);},easeOut);
+    if(!alive(c,g)){w.remove();return;}mv('');const fx=l.a.x+18*l.side,fy=l.a.y+10;
+    await tween(c,g,260,(t,r)=>TR(w,lerp(mx,fx,t),lerp(my+18,fy,t)+bob(r),1,0),lin);
+    for(let k=0;k<2;k++){await tween(c,g,200,t=>hm.setAttribute('transform',`translate(8 1) rotate(${lerp(-70,25,t)})`),easeIn);
+      mv('translate(0 2)');puff(c,l.a.x,l.a.y+14,2,SAND,10);await wait(c,g,70);mv('');}
+    await tween(c,g,700,(t,r)=>{TR(w,lerp(fx,fx+l.side*700,t),fy+bob(r),1,0);},easeIn);w.remove();}
+  else{await tween(c,g,520,(t,r)=>TR(w,lerp(mx+far*.6,mx,t),my+18+bob(r),1,0),easeOut);if(!alive(c,g)){w.remove();return;}
+    await tween(c,g,850,(t,r)=>{const dx=lerp(0,far,t);mv(`translate(${dx} ${-10+bob(r)})`);TR(w,mx+dx,my+18+bob(r),1,0);},easeIn);w.remove();}}
+function tileK(c,tl,k){let tr,op;
+  if(c.lk.drop){tr=`translate(0 ${(-(1-k)*90).toFixed(1)})`;op=clamp(k*2.5,0,1).toFixed(2);}
+  else{tr=`translate(${tl.cx} ${tl.cy}) scale(${Math.max(.001,k).toFixed(3)}) translate(${-tl.cx} ${-tl.cy})`;op=clamp(k*1.6,0,1).toFixed(2);}
+  [tl.g,tl.num].forEach(e=>{e.setAttribute('transform',tr);e.setAttribute('opacity',op);});}
+function layK(c,r,out){c.lays.forEach((L,i)=>{const k=out?1-easeIn(clamp(r*1.8-(c.lays.length-1-i)*.12,0,1)):backOut(clamp(r*1.8-i*.13,0,1));L.setAttribute('transform',`translate(0 ${((1-k)*(i?240:0)).toFixed(1)})`);L.setAttribute('opacity',clamp(k*1.5,0,1).toFixed(2));});}
+async function teardown(c,g){say(c,'الخريطة القديمة بتتشال…');
+  await Promise.all(c.players.map(p=>tween(c,g,520,t=>{setP(p,lerp(p.x,-40,t*.2),p.y-Math.sin(t*Math.PI)*20,1-t,0);},easeIn).then(()=>{p.e.setAttribute('opacity',0);p.hidden=true;})));
+  if(!alive(c,g))return;
+  await Promise.all([...c.snakes.map((sn,i)=>wait(c,g,i*90).then(()=>{sn.dir=-1;sn.amp=5;return tween(c,g,1000,t=>{sn.s=lerp(0,sn.L,t);},easeIn);}).then(()=>tween(c,g,250,t=>sn.holeK=1-t))),
+    ...c.ladders.map((l,i)=>carry(c,g,l,false,i*110))]);
+  if(!alive(c,g))return;
+  await tween(c,g,900,(t,r)=>{c.tiles.forEach((tl,i)=>tileK(c,tl,1-easeIn(clamp(r*2.2-(99-i)*.012,0,1))));if(c.lays.length)layK(c,r,true);},lin);}
+async function build(c,g,fresh){
+  if(c.built&&fresh)await teardown(c,g);if(!alive(c,g))return;c.built=false;
+  if(fresh||!c.map)mountMap(c,genMap());
+  c.tiles.forEach(tl=>tileK(c,tl,0));if(c.lays.length)layK(c,0,false);c.snakes.forEach(sn=>{sn.s=sn.L;sn.holeK=0;sn.dir=1;sn.amp=5;sn.bulge=null;sn.jaw=0;sn.mood='';sn.sway=0;sn.hoodK=1;sn.lunge={x:0,y:0,s:1};});
+  c.ladders.forEach(l=>{l.g.setAttribute('transform',`translate(${l.side*720} 0)`);if(l.shadow)l.shadow.setAttribute('transform',`translate(${l.side*720} 0)`);});c.players.forEach(p=>{p.n=1;p.hidden=true;p.e.setAttribute('opacity',0);face(p,'');});c.trophy.setAttribute('transform','scale(0.001)');
+  if(c.lays.length){say(c,'خريطة جديدة: الرملة بتتفرش…');await tween(c,g,1300,(t,r)=>layK(c,r,false),lin);if(!alive(c,g))return;}
+  say(c,c.lk.drop?'خريطة جديدة: الطوب بيقع في مكانه…':'خريطة جديدة: الخانات بتنزل…');
+  await tween(c,g,1500,(t,r)=>c.tiles.forEach((tl,i)=>tileK(c,tl,c.lk.drop?backOut(clamp(r*2.4-(i%10+Math.floor(i/10))*.06,0,1)):backOut(clamp(r*2.3-i*.013,0,1)))),lin);if(!alive(c,g))return;
+  const t100=cellXY(100);await tween(c,g,380,t=>c.trophy.setAttribute('transform',`translate(${t100.x} ${t100.y+20}) scale(${Math.max(.001,backOut(t)).toFixed(3)}) translate(${-t100.x} ${-t100.y-20})`),lin);
+  say(c,'العمال بيزرعوا النخل، والكوبرا طالعة من جحورها…');
+  await Promise.all([...c.ladders.map((l,i)=>carry(c,g,l,true,i*170)),
+    ...c.snakes.map((sn,i)=>wait(c,g,300+i*190).then(()=>tween(c,g,260,t=>sn.holeK=backOut(t),lin)).then(()=>tween(c,g,1400,t=>{sn.s=lerp(sn.L,0,t);},easeOut)).then(()=>{sn.amp=2.2;}))]);
+  if(!alive(c,g))return;
+  say(c,'العساكر داخلين…');
+  for(let i=0;i<4;i++){const p=c.players[i];p.hidden=false;p.e.setAttribute('opacity',1);const s=spot(c,p,1);
+    tween(c,g,650,(t,r)=>setP(p,lerp(-40,s.x,t),s.y-Math.abs(Math.sin(r*Math.PI*3))*14,1,0),lin);await wait(c,g,160);}
+  await wait(c,g,650);if(!alive(c,g))return;settleAll(c);c.built=true;c.cur=0;
+  say(c,`خريطة جاهزة · ${c.map.snakes.length} كوبرا و${c.map.ladders.length} نخلات · متوسط اللعبة حوالي ${Math.round(c.map.avg)} دور لكل لاعب`);await wait(c,g,900);}
+
+// ---------- one turn ----------
+function chooseRoll(c,p){const m=c.map;const hit=v=>{const t=p.n+v;return m.snakes.some(s=>s.h===t)?'s':m.ladders.some(l=>l.f===t)?'l':t>100?'o':'';};
+  const all=[1,2,3,4,5,6];
+  if(c.force==='snake'){const v=all.find(v=>hit(v)==='s');if(v){c.force=null;return v;}}
+  if(c.force==='ladder'){const v=all.find(v=>hit(v)==='l');if(v){c.force=null;return v;}}
+  if(p.n>=94&&Math.random()<.45){const v=all.filter(v=>p.n+v>100);if(v.length)return v[Math.floor(Math.random()*v.length)];}
+  if(p.n>=94){const v=all.find(v=>p.n+v===100);if(v&&Math.random()<.5)return v;}
+  const good=all.filter(v=>hit(v)==='s'||hit(v)==='l');if(good.length&&Math.random()<.55)return good[Math.floor(Math.random()*good.length)];
+  return 1+Math.floor(Math.random()*6);}
+async function forcePlace(c,g,p,kind){
+  const list=kind==='snake'?c.map.snakes.map(s=>s.h):c.map.ladders.map(l=>l.f);const target=list[Math.floor(Math.random()*list.length)];
+  const k=2+Math.floor(Math.random()*4),n=Math.max(1,target-k);if(n===p.n)return;
+  const from={x:p.x,y:p.y};p.n=n;const s=spot(c,p);bubble(c,from.x,from.y-24,'نط!',700);
+  await tween(c,g,650,t=>setP(p,lerp(from.x,s.x,t),lerp(from.y,s.y,t)-Math.sin(t*Math.PI)*90,1,t*360),lin);settleAll(c);}
+async function turn(c,g){const p=c.players[c.cur];say(c,`دور ${p.name}`);
+  if(c.force==='snake'||c.force==='ladder'){await forcePlace(c,g,p,c.force);if(!alive(c,g))return;}
+  let v;
+  if(c.force==='end'){c.force=null;const from={x:p.x,y:p.y};p.n=96;const s=spot(c,p);bubble(c,from.x,from.y-24,'نط!',700);
+    await tween(c,g,800,t=>setP(p,lerp(from.x,s.x,t),lerp(from.y,s.y,t)-Math.sin(t*Math.PI)*120,1,t*360),lin);settleAll(c);if(!alive(c,g))return;v=6;c.endPid=p.i;}
+  else if(c.endPid===p.i&&100-p.n<=6&&100-p.n>0){v=100-p.n;c.endPid=null;}
+  else v=chooseRoll(c,p);
+  if(!await rollDie(c,g,p,v))return;
+  if(p.n+v>100){if(!await bounceBack(c,g,p,p.n+v-100))return;}
+  else if(!await hopTo(c,g,p,p.n+v))return;
+  const m=c.map,lad=m.ladders.find(l=>l.f===p.n),sn=c.snakes.find(s=>s.h===p.n);
+  if(lad){const L=c.ladders.find(l=>l.f===lad.f),mv=pick(LADDER_MOVES,c.lastLadder);c.lastLadder=mv[0];await mv[1](c,g,p,L);if(!alive(c,g))return;p.n=lad.t;settleAll(c);face(p,'');const hx=p.x,hy=p.y;
+    await tween(c,g,400,t=>setP(p,hx,hy-Math.abs(Math.sin(t*Math.PI*2))*10),lin);setP(p,hx,hy);}
+  else if(sn){const mv=pick(SNAKE_MOVES,c.lastSnake);c.lastSnake=mv[0];await wait(c,g,200);await mv[1](c,g,p,sn);if(!alive(c,g))return;settleAll(c);}
+  else{const close=c.snakes.find(s=>Math.abs(s.h-p.n)===1&&Math.hypot(s.hx-p.x,s.hy-p.y)<C*1.3);
+    const missed=m.ladders.find(l=>l.f===p.n+1||l.f===p.n-1);
+    if(close)await nearMiss(c,g,p,close);else if(missed){bubble(c,p.x,p.y-24,'فاتتني النخلة!',1000);face(p,'gasp');await wait(c,g,900);face(p,'');}}
+  if(!alive(c,g))return;
+  if(p.n===100){await win(c,g,p);return'win';}
+  if(v===6){bubble(c,p.x,p.y-24,'ستة! تاني',800);await wait(c,g,500);return'again';}
+  c.cur=(c.cur+1)%4;return'next';}
+
+// ---------- the loop ----------
+function normalize(c){c.fx.innerHTML='';c.under.innerHTML='';c.die.setAttribute('opacity',0);
+  if(c.snakes)c.snakes.forEach(sn=>{sn.bulge=null;sn.jaw=0;sn.mood='';sn.sway=0;sn.hoodK=1;sn.lunge={x:0,y:0,s:1};sn.amp=2.2;});
+  if(c.built){c.tiles.forEach(tl=>[tl.g,tl.num].forEach(e=>{e.removeAttribute('transform');e.setAttribute('opacity',1);}));c.lays.forEach(L=>{L.removeAttribute('transform');L.setAttribute('opacity',1);});
+    c.snakes.forEach(sn=>{sn.s=0;sn.holeK=1;sn.dir=1;});c.ladders.forEach(l=>{l.g.setAttribute('transform','');if(l.shadow)l.shadow.setAttribute('transform','translate(9 11)');});
+    c.trophy.setAttribute('transform','');c.players.forEach(p=>{p.hidden=false;p.e.setAttribute('opacity',1);face(p,'');});settleAll(c);}}
+async function loop(c,g,fresh){
+  if(!c.built||fresh)await build(c,g,fresh);
+  while(alive(c,g)){const r=await turn(c,g);if(!alive(c,g))return;
+    if(r==='win'){await wait(c,g,700);if(!alive(c,g))return;await build(c,g,true);}else await wait(c,g,450);}}
+function start(c,fresh){c.gen++;normalize(c);c.paused=false;syncPause(c);loop(c,c.gen,fresh);}
+function stop(c){c.gen++;normalize(c);}
+function syncPause(c){const b=c.sec.querySelector('[data-a="pause"]');b.textContent=c.paused?'▶ كمّل':'⏸ وقّف';}
+function action(c,a){
+  if(a==='pause'){if(c.paused){start(c,false);}else{stop(c);c.paused=true;syncPause(c);say(c,'واقفة');}return;}
+  if(a==='map'){start(c,true);return;}
+  c.force=a;start(c,false);}
+
+// ---------- start ----------
+const host=document.getElementById('looks');
+const cards=LOOKS.map((lk,i)=>{const c=makeCard(lk,i);host.appendChild(c.sec);
+  mountMap(c,genMap());c.built=true;normalize(c);c.players.forEach(p=>{p.n=1;});settleAll(c);renderCard(c,0);say(c,'بتبدأ لوحدها لما توصل لها');
+  try{c.svg.pauseAnimations();}catch(e){}return c;});
+function frame(now){const t=now/1000;cards.forEach(c=>{if(c.visible)renderCard(c,t);});requestAnimationFrame(frame);}
+requestAnimationFrame(frame);
+const show=(c,on)=>{c.visible=on;c.sec.classList.toggle('on',on);try{on?c.svg.unpauseAnimations():c.svg.pauseAnimations();}catch(e){}};
+if('IntersectionObserver' in window){
+  const io=new IntersectionObserver(es=>es.forEach(e=>{const c=cards.find(k=>k.sec===e.target);if(!c)return;show(c,e.isIntersecting);
+    if(e.isIntersecting&&!c.paused&&!c.running){c.running=true;start(c,!c.startedOnce);c.startedOnce=true;}
+    else if(!e.isIntersecting&&c.running){c.running=false;stop(c);}}),{threshold:.25});
+  cards.forEach(c=>io.observe(c.sec));
+}else cards.forEach(c=>{show(c,true);start(c,true);});
+})();
+</script>
+</body>
+</html>

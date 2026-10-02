@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>خريطة المترو</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;800&family=Noto+Kufi+Arabic:wght@600;800&family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#f3f5f9; --ink:#17203a; --muted:#56607a; --card:#ffffff; --line:#dde3ee;
+  --accent:#d23b3b; --accent-soft:#fde8e6; --pop:#f2b705;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d111c; --ink:#e9edf7; --muted:#a2abc2; --card:#161c2b; --line:#28314a;
+    --accent:#ff7b6e; --accent-soft:#3a1f22; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d111c; --ink:#e9edf7; --muted:#a2abc2; --card:#161c2b; --line:#28314a;
+  --accent:#ff7b6e; --accent-soft:#3a1f22; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{direction:rtl}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;font-size:15px;line-height:1.65;
+  padding-block:28px 56px;padding-inline:16px}
+.wrap{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
+.back{color:var(--accent);font-weight:600;text-decoration:none;font-size:14px;align-self:flex-start}
+.back:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+h1{font-family:"Noto Kufi Arabic","IBM Plex Sans Arabic",sans-serif;font-weight:800;font-size:clamp(24px,4.5vw,34px);margin:0;text-wrap:balance}
+.lead{margin:0;color:var(--muted);max-width:70ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.chips li{background:var(--accent-soft);border-radius:999px;padding:4px 12px;font-size:13px}
+.look{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:16px;
+  display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:980px){.look{grid-template-columns:minmax(0,640px) 1fr;align-items:start;padding:22px}}
+.board{display:flex;flex-direction:column;gap:10px;min-width:0}
+.stage{width:100%;max-width:100%;aspect-ratio:1/1;display:block;border-radius:18px;touch-action:manipulation}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bar button{font:inherit;font-size:14px;font-weight:600;border:1px solid var(--line);background:var(--bg);color:var(--ink);
+  border-radius:999px;padding:8px 14px;min-height:42px;cursor:pointer}
+.bar button:hover{border-color:var(--accent)}
+.bar button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.bar button.main{background:var(--pop);border-color:var(--pop);color:#2a1600}
+.now{font-size:14px;color:var(--muted);min-height:1.65em}
+.info{display:flex;flex-direction:column;gap:12px}
+.info__head{display:flex;align-items:baseline;gap:10px}
+.tag{font-family:"Noto Kufi Arabic",sans-serif;font-weight:800;font-size:26px;color:var(--accent)}
+.name{font-family:"Noto Kufi Arabic",sans-serif;font-weight:800;font-size:22px}
+.info p{margin:0;color:var(--muted)}
+.info h3{margin:6px 0 0;font-size:14px;font-family:"Noto Kufi Arabic",sans-serif}
+.info ul,.moves ul{margin:0;padding-inline-start:20px;color:var(--muted);font-size:14px}
+.moves{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:18px;display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.moves{grid-template-columns:1fr 1fr}}
+.moves h2{font-family:"Noto Kufi Arabic",sans-serif;font-size:17px;margin:0 0 4px}
+.foot{color:var(--muted);font-size:13px;margin:0}
+
+/* the boards' own life */
+.esc{animation:escmove .55s linear infinite}
+.esc.y{animation-name:escmoveY}
+.stopped .esc{animation-play-state:paused}
+@keyframes escmove{to{stroke-dashoffset:-6}}
+@keyframes escmoveY{from{stroke-dashoffset:-1.3}to{stroke-dashoffset:-7.3}}
+.trainA{animation:trainA 12s linear infinite}
+@keyframes trainA{0%{transform:translateX(-260px)}55%{transform:translateX(900px)}100%{transform:translateX(900px)}}
+.trainB{animation:trainB 10s linear infinite}
+@keyframes trainB{0%{transform:translateX(-430px)}50%{transform:translateX(700px)}100%{transform:translateX(700px)}}
+.cloud{animation:cloud 40s linear infinite}
+@keyframes cloud{0%{transform:translateX(0)}50%{transform:translateX(40px)}100%{transform:translateX(0)}}
+.blink{animation:blink 1.6s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+.spin{transform-box:fill-box;transform-origin:50% 50%;animation:spin 1.1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.cup{transform-box:fill-box;transform-origin:50% 100%;animation:cup 3s ease-in-out infinite}
+@keyframes cup{50%{transform:rotate(-5deg) translateY(-2px)}}
+.flag{transform-box:fill-box;transform-origin:0% 50%;animation:flag 1.4s ease-in-out infinite}
+@keyframes flag{50%{transform:scaleX(.7) skewY(8deg)}}
+.stage.off *{animation-play-state:paused!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:12px"><nav class="mapnav" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px"><a href="index.html" onclick="if(history.length>1&&document.referrer){history.back();return false}" style="color:inherit;font-weight:700;padding:6px 14px;border-radius:999px;border:1px solid rgba(127,127,127,.45);text-decoration:none">→ كل الخرايط</a><a href="nile.html" style="color:inherit;padding:6px 12px;border-radius:999px;border:1px solid rgba(127,127,127,.45);text-decoration:none">🐊 النيل</a><span aria-current="page" style="font-weight:800;padding:6px 12px;border-radius:999px;border:2px solid currentColor">🚇 المترو</span><a href="desert.html" style="color:inherit;padding:6px 12px;border-radius:999px;border:1px solid rgba(127,127,127,.45);text-decoration:none">🏜️ الصحرا</a><a href="hara.html" style="color:inherit;padding:6px 12px;border-radius:999px;border:1px solid rgba(127,127,127,.45);text-decoration:none">🏙️ الحارة</a></nav>
+    <a class="back" href="index.html">→ كل الخرايط</a>
+    <h1>🚇 خريطة المترو</h1>
+    <p class="lead">السلم والتعبان في مترو القاهرة: السلالم بقت سلالم كهربا بتطلّعك، والتعابين بقت زحاليق ملونة وسلالم مكسورة بتنزّلك. نفس القواعد ونفس العساكر؛ تلات طرق مختلفة نرسم بيها الرقعة، وكل واحدة بتلعب لوحدها لما توصل لها.</p>
+    <ul class="chips">
+      <li>⬆️ سلم كهربا مكان السلم، ودرجاته بتطلع على طول</li>
+      <li>🛝 زحليقة أو 🚧 سلم مكسور مكان التعبان</li>
+      <li>🏆 الكاس عند ١٠٠ في «آخر محطة»، و«ابدأ» عند ١</li>
+      <li>٦ لـ ٨ من كل نوع، متوزعين على الرقعة، والخريطة متشافة إنها عادلة</li>
+      <li>الصفحة بتتحرك حتى لو الحركة مقفولة في الويندوز</li>
+    </ul>
+  </header>
+  <div id="looks" style="display:flex;flex-direction:column;gap:26px"></div>
+  <section class="moves">
+    <div><h2>النزلة (مكان التعبان)</h2><ul>
+      <li>الزحليقة: «وييييي!» ويقع على المرتبة الزرقا</li>
+      <li>الزحليقة: يلف حوالين نفسه لحد تحت</li>
+      <li>الزحليقة: يركب تذكرة المترو زي الزلاجة</li>
+      <li>السلم المكسور: «كراك!» الدرج يقع وراه وهو بيتدحرج، وبعدين يتصلّح</li>
+      <li>السلم المكسور: الدرج يتفرد ويبقى زحليقة</li>
+      <li>ونجا بالعافية جنب راس النزلة: «يا ساتر!»</li>
+    </ul></div>
+    <div><h2>الطلعة (مكان السلم)</h2><ul>
+      <li>«بيب!» يعدّي البوابة ويقف والسلم يطلّعه</li>
+      <li>مستعجل: يجري على السلم وهو بيطلع</li>
+      <li>السلم يعطل في النص («عطلان!») فيكمّل على رجله ويتنهج</li>
+      <li>يركب عكس ويمشي لورا، وبعدين يستسلم ويطلع</li>
+      <li>العمال بالخوذة بيشيلوا السلالم الكهربا ويركّبوها مع كل خريطة</li>
+    </ul></div>
+  </section>
+  <p class="foot">نفس الخريطة العادلة ونفس الحركات في التلاتة؛ اللي بيفرق هو طريقة رسم الرقعة نفسها.</p>
+</div>
+
+<script>
+(function(){
+const N=10,C=60,STEP=4,SVGNS='http://www.w3.org/2000/svg';
+const reduced=false; // a sheet about motion plays whatever the device says
+const INK='#1d1830',PS=.8,HS=.8;
+const LINE={red:'#d8363a',blue:'#2a68d4',green:'#23a055'};
+const ESC_COLS=[LINE.red,LINE.blue,LINE.green];
+const SLIDE_COLS=['#ff7a1a','#ffc21a','#ff4f9a','#1fbfa2','#9b5cf0','#36b5ff','#7cd13a','#ff5a4f'];
+
+const LOOKS=[
+ {id:'classic',tag:'أ',name:'على الكلاسيك',m:30,kinds:['slide'],
+  desc:'نفس رقعة اللعبة النهارده: ١٠٠ مربع بالتبادل في إطار، والأرقام كبيرة وتخينة في نص كل مربع. اللي اتغيّر إنها لابسة مترو.',
+  notes:['المربعات سيراميك محطة كريمي، بالتبادل مع ألوان الخطوط فاتحة: أحمر وأزرق وأخضر',
+    'مكان التعبان: زحليقة ملاعب ملونة، راسها برج صغير بعلم، وفي آخرها مرتبة زرقا',
+    'مكان السلم: سلم كهربا جنبه بلون خطه، ودرجاته بتطلع لفوق على طول',
+    'الإطار رصيف: شريط أصفر منقّط زي حافة الرصيف، ويافطة «آخر محطة» فوق ١٠٠',
+    'قطر صغير بيعدّي على الإطار تحت الرقعة كل شوية، وتذاكر مرمية على الجناب']},
+ {id:'place',tag:'ب',name:'المكان',m:30,kinds:['slide','stairs'],
+  desc:'الرقعة هي المحطة نفسها، مرسومة بالعرض: فوق الشارع والعماير والسما، في النص صالة التذاكر والرصيف والقطر، وتحت الأرض والمواسير. المربعات خطوط رفيعة فوق المنظر.',
+  notes:['الأرقام على يفط بيضا صغيرة زي يفط المحطة، عشان تتقري فوق أي حتة في المنظر',
+    'قطر حقيقي بيعدّي على القضبان في نص الرقعة، وبوابات التذاكر وشباك «تذاكر» في الصالة',
+    'النزلات خليط: زحاليق ملونة وسلالم مكسورة عليها حاجز «تحت الصيانة»',
+    'السلالم الكهربا بتوصّل بين الأدوار: من تحت الأرض للرصيف للشارع',
+    'الإطار اتشال: حرف الرقعة هو السما فوق والأرض تحت (وفيها خُلد بيبص)',
+    'الكاس فوق في السما جنب يافطة «آخر محطة»']},
+ {id:'model',tag:'ج',name:'ماكيت',m:60,kinds:['stairs','slide'],solid:true,
+  desc:'الرقعة مجسّم على ترابيزة خشب، زي ماكيت القطر: كل مربع بلوكة ليها سُمك وجنب غامق، والحاجات واقفة عليها بضلّها. لسه متشافة من فوق عشان الأرقام تتقري.',
+  notes:['كل مربع بلوكة مرفوعة، والرقم مطبوع على وشّها',
+    'قطر لعبة بيلف حوالين الرقعة على قضبان، ويدخل تحت مظلة محطة «آخر محطة»',
+    'السلالم الكهربا والزحاليق والسلالم المكسورة مجسّمات ليها جنب وضل على البلوكات',
+    'بوابتين تذاكر صغيرين جنب «ابدأ»، وشجر وكشك تذاكر على الترابيزة',
+    'النزلات خليط: سلالم مكسورة وزحاليق، والعمال بيركّبوا السلالم الكهربا']}
+];
+const PLAYERS=[{name:'الأحمر',col:'#e5383b'},{name:'الأزرق',col:'#1e6fd9'},{name:'الأصفر',col:'#f2b705'},{name:'الأخضر',col:'#2a9d4a'}];
+
+// ---------- geometry ----------
+const cellXY=n=>{const i=n-1,r=Math.floor(i/N),k=i%N,col=r%2?N-1-k:k;return{x:col*C+C/2,y:(N-1-r)*C+C/2};};
+const rowOf=n=>Math.floor((n-1)/N);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),lerp=(a,b,t)=>a+(b-a)*t;
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2,easeIn=t=>t*t,easeOut=t=>1-(1-t)*(1-t),lin=t=>t;
+const backOut=t=>{const c=1.7;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2);};
+function segDist(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;let t=l?((p.x-a.x)*dx+(p.y-a.y)*dy)/l:0;t=clamp(t,0,1);return Math.hypot(p.x-a.x-dx*t,p.y-a.y-dy*t);}
+function segCross(a,b,c,d){const o=(p,q,r)=>Math.sign((q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x));return o(a,b,c)!==o(a,b,d)&&o(c,d,a)!==o(c,d,b);}
+function cr(p0,p1,p2,p3,t){const t2=t*t,t3=t2*t;const f=(a,b,c,d)=>.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3);return{x:f(p0.x,p1.x,p2.x,p3.x),y:f(p0.y,p1.y,p2.y,p3.y)};}
+function sampleSpline(P){const Q=[P[0],...P,P[P.length-1]],dense=[];
+  for(let i=1;i<Q.length-2;i++)for(let k=0;k<28;k++)dense.push(cr(Q[i-1],Q[i],Q[i+1],Q[i+2],k/28));dense.push(P[P.length-1]);
+  const acc=[0];for(let i=1;i<dense.length;i++)acc.push(acc[i-1]+Math.hypot(dense[i].x-dense[i-1].x,dense[i].y-dense[i-1].y));
+  const L=acc[acc.length-1],out=[];let j=0;
+  for(let a=0;a<=L;a+=STEP){while(j<acc.length-2&&acc[j+1]<a)j++;const f=(a-acc[j])/((acc[j+1]-acc[j])||1);out.push({x:lerp(dense[j].x,dense[j+1].x,f),y:lerp(dense[j].y,dense[j+1].y,f),a});}
+  out.forEach((p,i)=>{const q=out[Math.min(out.length-1,i+1)],r=out[Math.max(0,i-1)],dx=q.x-r.x,dy=q.y-r.y,l=Math.hypot(dx,dy)||1;p.nx=-dy/l;p.ny=dx/l;});
+  return{pts:out,L:out[out.length-1].a};}
+
+// ---------- a fair random map (the game's generator: 6-8 of each, spread by bands) ----------
+const S_BANDS=[[9,9],[8,8],[6,7],[4,5],[2,3]],L_BANDS=[[0,0],[1,1],[2,3],[4,5],[6,7]],S_EXTRA=[1,8],L_EXTRA=[0,6];
+function fairAvg(snakes,ladders){const jump={};snakes.forEach(s=>jump[s.h]=s.t);ladders.forEach(l=>jump[l.f]=l.t);
+  let tot=0,worst=0;for(let g=0;g<120;g++){let pos=0,turns=0;while(pos!==100&&turns<400){turns++;let again=true;
+    while(again&&pos!==100){const v=1+Math.floor(Math.random()*6);again=v===6;let t=pos+v;if(t>100)t=200-t;pos=jump[t]||t;}}tot+=turns;worst=Math.max(worst,turns);}
+  return{avg:tot/120,worst};}
+function genMap(){const rnd=Math.random;let fallback=null;
+  const cd=(a,b)=>{const p=cellXY(a),q=cellXY(b);return Math.hypot(p.x-q.x,p.y-q.y)/C;};
+  const inRows=(lo,hi)=>lo*10+1+Math.floor(rnd()*(hi-lo+1)*10);
+  const count=()=>6+Math.floor(rnd()*3);let nS=count(),nL=count();
+  for(let tries=0;tries<800;tries++){
+    if(tries&&tries%200===0){if(nS>=nL&&nS>6)nS--;else if(nL>6)nL--;}
+    const used=new Set([1,100]),snakes=[],ladders=[];let ok=true;
+    const sB=S_BANDS.slice(),lB=L_BANDS.slice();for(let k=nS-sB.length;k>0;k--)sB.push(S_EXTRA);for(let k=nL-lB.length;k>0;k--)lB.push(L_EXTRA);
+    for(let i=0;i<sB.length&&ok;i++){let placed=false;for(let t=0;t<140&&!placed;t++){
+      const h=inRows(sB[i][0],sB[i][1]),tl=h-(11+Math.floor(rnd()*35));
+      if(h>99||h<12||tl<2||used.has(h)||used.has(tl))continue;
+      if(snakes.some(s=>cd(s.h,h)<2.1||cd(s.t,tl)<1.6||cd(s.h,tl)<1.2||cd(s.t,h)<1.2))continue;
+      const a=cellXY(h),b=cellXY(tl);if(Math.abs(a.x-b.x)>4*C||a.y-b.y>-C)continue;
+      if(snakes.some(o=>{const c1=cellXY(o.h),c2=cellXY(o.t);return segCross(a,b,c1,c2)||segDist(a,c1,c2)<55||segDist(b,c1,c2)<45||segDist(c1,a,b)<55;}))continue;
+      snakes.push({h,t:tl});used.add(h);used.add(tl);placed=true;}ok=placed;}
+    for(let i=0;i<lB.length&&ok;i++){let placed=false;for(let t=0;t<140&&!placed;t++){
+      const f=Math.max(2,inRows(lB[i][0],lB[i][1])),top=f+14+Math.floor(rnd()*24);
+      if(top>99||used.has(f)||used.has(top)||rowOf(top)-rowOf(f)<2)continue;
+      const a=cellXY(f),b=cellXY(top);if(Math.abs(a.x-b.x)>2*C||(a.y-b.y)<Math.abs(a.x-b.x)*1.1||Math.hypot(a.x-b.x,a.y-b.y)>5*C)continue;
+      if(ladders.some(l=>{const c1=cellXY(l.f),c2=cellXY(l.t);return segCross(a,b,c1,c2)||segDist(a,c1,c2)<32||segDist(b,c1,c2)<32;}))continue;
+      if(snakes.some(s=>segDist(cellXY(s.h),a,b)<40||segDist(cellXY(s.t),a,b)<26))continue;
+      if(snakes.filter(s=>segCross(a,b,cellXY(s.h),cellXY(s.t))).length>1)continue;
+      ladders.push({f,t:top});used.add(f);used.add(top);placed=true;}ok=placed;}
+    if(!ok)continue;
+    const drop=snakes.reduce((n,s)=>n+s.h-s.t,0),climb=ladders.reduce((n,l)=>n+l.t-l.f,0),bal=drop/climb;
+    if(bal<.75||bal>1.35)continue;
+    const st=fairAvg(snakes,ladders),m={snakes,ladders,avg:st.avg};
+    if(!fallback)fallback=m;
+    if(st.avg<14||st.avg>32||st.worst>220)continue;
+    return m;}
+  return fallback;}
+function downWay(s,kind){const H0=cellXY(s.h),T=cellXY(s.t),H={x:H0.x+(T.x>=H0.x?19:-19),y:H0.y-19};
+  if(kind==='stairs')return[{x:H.x,y:H.y},{x:T.x,y:T.y}];
+  const dx=T.x-H.x,dy=T.y-H.y,L=Math.hypot(dx,dy),px=-dy/L,py=dx/L;
+  const m=clamp(Math.round(L/100),1,3),sign=Math.random()<.5?1:-1,P=[{x:H.x,y:H.y}];
+  P.push({x:H.x+dx*.08,y:H.y+dy*.08+8});
+  for(let j=1;j<=m;j++){const f=j/(m+1),amp=(14+Math.random()*16)*(j%2?1:-1)*sign;P.push({x:clamp(H.x+dx*f+px*amp,16,584),y:clamp(H.y+dy*f+py*amp,16,584)});}
+  P.push({x:T.x,y:T.y});return P;}
+
+// ---------- drawing helpers ----------
+const tint=(hex,k)=>{const n=parseInt(hex.slice(1),16),r=n>>16,g=n>>8&255,b=n&255,f=v=>Math.round(k>0?v+(255-v)*k:v*(1+k));return'#'+[f(r),f(g),f(b)].map(v=>v.toString(16).padStart(2,'0')).join('');};
+const rr=(x,y,w,h,r)=>`M${x+r} ${y}H${x+w-r}A${r} ${r} 0 0 1 ${x+w} ${y+r}V${y+h-r}A${r} ${r} 0 0 1 ${x+w-r} ${y+h}H${x+r}A${r} ${r} 0 0 1 ${x} ${y+h-r}V${y+r}A${r} ${r} 0 0 1 ${x+r} ${y}Z`;
+const KUFI='Noto Kufi Arabic,sans-serif',BALOO='Baloo Bhaijaan 2,system-ui,sans-serif';
+function roundel(x,y,r){return`<g transform="translate(${x} ${y})"><circle r="${r}" fill="${LINE.red}" stroke="${INK}" stroke-width="1.6"/><circle r="${r*.74}" fill="none" stroke="#fff" stroke-width="${r*.14}"/><text y="${r*.36}" text-anchor="middle" font-family="${KUFI}" font-weight="800" font-size="${r*1.05}" fill="#fff">م</text></g>`;}
+function ticketStub(x,y,rot,col){return`<g transform="translate(${x} ${y}) rotate(${rot})"><rect x="-10" y="-5.5" width="20" height="11" rx="1.5" fill="${col}" stroke="${INK}" stroke-width="1"/><path d="M4 -5.5V5.5" stroke="${INK}" stroke-width=".8" stroke-dasharray="1.4 1.4"/><path d="M-7 -1.5H1M-7 1.8H-1" stroke="${INK}" stroke-width=".8" opacity=".6"/></g>`;}
+function carSide(x,y,w,h,engine,stripe){let s=`<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h*.2}" fill="#e6ebf1" stroke="${INK}" stroke-width="1.6"/>`;
+  if(engine)s+=`<path d="M${x+w-4} ${y+h*.1} Q${x+w+h*.35} ${y+h*.2} ${x+w+h*.3} ${y+h*.9} L${x+w-4} ${y+h*.95}Z" fill="#e6ebf1" stroke="${INK}" stroke-width="1.6"/><path d="M${x+w} ${y+h*.2} Q${x+w+h*.25} ${y+h*.28} ${x+w+h*.24} ${y+h*.5} L${x+w} ${y+h*.5}Z" fill="#2d4a6e"/>`;
+  s+=`<rect x="${x}" y="${y+h*.64}" width="${w}" height="${h*.11}" fill="${stripe}"/>`;
+  for(let wx=x+h*.25;wx<x+w-h*.5;wx+=h*.62){s+=`<rect x="${wx.toFixed(1)}" y="${y+h*.18}" width="${h*.4}" height="${h*.3}" rx="${h*.05}" fill="#2d4a6e"/>`;}
+  s+=`<circle cx="${x+h*.45}" cy="${y+h+h*.06}" r="${h*.11}" fill="#2b2b33"/><circle cx="${x+w-h*.45}" cy="${y+h+h*.06}" r="${h*.11}" fill="#2b2b33"/></g>`;return s;}
+function tree(x,y,k){k=k||1;return`<g transform="translate(${x} ${y}) scale(${k})"><ellipse cx="6" cy="6" rx="11" ry="5" fill="rgba(40,20,0,.25)"/><rect x="-2" y="-4" width="4" height="10" fill="#7a4a22" stroke="${INK}" stroke-width="1"/><circle cx="-4" cy="-8" r="7" fill="#3faa4f" stroke="${INK}" stroke-width="1.3"/><circle cx="4" cy="-10" r="7.5" fill="#4fbe5c" stroke="${INK}" stroke-width="1.3"/><circle cx="0" cy="-15" r="6" fill="#62cf6c" stroke="${INK}" stroke-width="1.3"/><circle cx="2" cy="-17" r="2" fill="#fff" opacity=".35"/></g>`;}
+
+function personSVG(col){return`<g class="pbody">
+  <ellipse cx="0" cy="17" rx="12" ry="3.6" fill="rgba(0,0,0,.28)"/>
+  <g class="armsUp" opacity="0"><path d="M-8 0 L-15 -14 M8 0 L15 -14" stroke="${col}" stroke-width="4.2" stroke-linecap="round" fill="none"/></g>
+  <g class="armsFwd" opacity="0"><path d="M-8 1 L-16 5 M8 1 L16 5" stroke="${col}" stroke-width="4.2" stroke-linecap="round" fill="none"/></g>
+  <path d="M-5 12 L-5 18 M5 12 L5 18" stroke="${INK}" stroke-width="3.4" stroke-linecap="round"/>
+  <rect x="-9.5" y="-5" width="19" height="19" rx="8" fill="${col}" stroke="${INK}" stroke-width="1.6"/>
+  <circle cy="-13" r="10" fill="#ffd9b3" stroke="${INK}" stroke-width="1.6"/>
+  <path d="M-10 -15 Q-8 -25 0 -24 Q8 -25 10 -15 Q5 -20 0 -19 Q-5 -20 -10 -15Z" fill="#3b2412"/>
+  <g class="eN"><circle cx="-3.6" cy="-13" r="1.8" fill="${INK}"/><circle cx="3.6" cy="-13" r="1.8" fill="${INK}"/></g>
+  <circle cx="-6.5" cy="-9" r="1.8" fill="#ff8aa0" opacity=".55"/><circle cx="6.5" cy="-9" r="1.8" fill="#ff8aa0" opacity=".55"/>
+  <path class="smile" d="M-3.5 -8.5 Q0 -5.5 3.5 -8.5" stroke="${INK}" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <ellipse class="gasp" cx="0" cy="-7.5" rx="2.2" ry="2.8" fill="${INK}" opacity="0"/>
+  <path class="sweat" d="M11 -20 q3 4 0 6 q-3 -2 0 -6z" fill="#6ec6ff" stroke="${INK}" stroke-width=".7" opacity="0"/>
+  <g class="dizzy" opacity="0" transform="translate(0 -30)"><g class="spin"><path d="M-13 0 l2 -4.5 l2 4.5 l-4.5 -2.8 h5z" fill="#ffd23f" stroke="${INK}" stroke-width=".5"/><path d="M10 -2 l2 -4.5 l2 4.5 l-4.5 -2.8 h5z" fill="#ffd23f" stroke="${INK}" stroke-width=".5"/><circle cx="0" cy="6" r="2" fill="#fff"/></g></g>
+ </g>`;}
+function workerSVG(){return`<g class="wkb"><ellipse cx="0" cy="17" rx="10" ry="3" fill="rgba(0,0,0,.25)"/>
+  <path d="M-4 10 L-5 17 M4 10 L5 17" stroke="#3a3a4a" stroke-width="3.2" stroke-linecap="round"/>
+  <rect x="-8" y="-4" width="16" height="16" rx="6" fill="#ff7a1a" stroke="${INK}" stroke-width="1.3"/><rect x="-8" y="2" width="16" height="2.6" fill="#fff3a0"/>
+  <circle cy="-11" r="8" fill="#e8b98c" stroke="${INK}" stroke-width="1.3"/>
+  <path d="M-9.5 -13 Q0 -25 9.5 -13 Z" fill="#ffd23f" stroke="${INK}" stroke-width="1.3"/><rect x="-11" y="-14" width="22" height="2.6" rx="1.3" fill="#ffd23f" stroke="${INK}" stroke-width="1"/>
+  <circle cx="-3" cy="-10" r="1.3" fill="${INK}"/><circle cx="3" cy="-10" r="1.3" fill="${INK}"/><path d="M-2.5 -6.5 Q0 -5 2.5 -6.5" stroke="${INK}" fill="none" stroke-width="1"/>
+  <g class="hammer" transform="translate(8 1)"><path d="M0 0 L10 -10" stroke="#7a4a18" stroke-width="2.6" stroke-linecap="round"/><rect x="7" y="-16" width="9" height="6" rx="1.2" fill="#5a5f6a" stroke="${INK}" stroke-width=".8" transform="rotate(45 11.5 -13)"/></g></g>`;}
+// the top of a down piece: a slide's little tower, or the broken stairs' barrier
+function slideTopSVG(col){return`<g class="hdi">
+  <ellipse cx="3" cy="12" rx="14" ry="4" fill="rgba(0,0,0,.25)"/>
+  <rect x="-12" y="-6" width="24" height="17" rx="4" fill="${tint(col,-.3)}" stroke="${INK}" stroke-width="1.8"/>
+  <path d="M-13 -4 Q0 -21 13 -4 Z" fill="${col}" stroke="${INK}" stroke-width="1.8"/>
+  <ellipse cx="0" cy="3" rx="7" ry="5" fill="#2a1630" stroke="${INK}" stroke-width="1.2"/>
+  <path d="M-8 -6 Q-4 -12 2 -13.5" stroke="#fff" stroke-opacity=".6" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M0 -12 V-25" stroke="${INK}" stroke-width="1.6"/><path class="flag" d="M0 -25 L10 -22 L0 -19Z" fill="#fff" stroke="${INK}" stroke-width="1"/>
+ </g>`;}
+function stairsTopSVG(){return`<g class="hdi">
+  <ellipse cx="2" cy="11" rx="14" ry="3.5" fill="rgba(0,0,0,.25)"/>
+  <path d="M-10 10 L-8 -1 M10 10 L8 -1" stroke="${INK}" stroke-width="2.4" stroke-linecap="round"/>
+  <rect x="-14" y="-6" width="28" height="8" rx="2" fill="#ffd23f" stroke="${INK}" stroke-width="1.6"/>
+  <path d="M-9 -6h4l-4 8h-4zM-1 -6h4l-4 8h-4zM7 -6h4l-4 8h-4z" fill="${INK}"/>
+  <path d="M0 -25 L10 -9 H-10Z" fill="#ff9a1f" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/>
+  <text x="0" y="-11" text-anchor="middle" font-size="11" font-weight="800" fill="${INK}" font-family="${BALOO}">!</text>
+ </g>`;}
+function pipsSVG(v){const P={1:[[0,0]],2:[[-5,-5],[5,5]],3:[[-5,-5],[0,0],[5,5]],4:[[-5,-5],[5,-5],[-5,5],[5,5]],5:[[-5,-5],[5,-5],[0,0],[-5,5],[5,5]],6:[[-5,-6],[5,-6],[-5,0],[5,0],[-5,6],[5,6]]}[v];
+  return P.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.3" fill="${v===1?'#e0263b':INK}"/>`).join('');}
+function cupSVG(){return`<g class="cup"><path d="M-12 -16 H12 V-8 Q12 4 0 6 Q-12 4 -12 -8Z" fill="#ffc930" stroke="${INK}" stroke-width="1.8"/><path d="M-12 -12 Q-20 -12 -18 -4 Q-16 1 -10 0 M12 -12 Q20 -12 18 -4 Q16 1 10 0" stroke="${INK}" stroke-width="1.8" fill="none"/><rect x="-3" y="5" width="6" height="5" fill="#e0a810" stroke="${INK}" stroke-width="1.2"/><rect x="-9" y="10" width="18" height="5" rx="2" fill="#8a5a2b" stroke="${INK}" stroke-width="1.4"/><path d="M-6 -13 Q-6 -3 -1 1" stroke="#fff" stroke-width="2.2" opacity=".6" fill="none" stroke-linecap="round"/></g>`;}
+
+// ---------- أ: the classic board, dressed as a platform ----------
+function sceneA(ci){let s=`<defs><pattern id="tac${ci}" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#f4c21c"/><circle cx="3.5" cy="3.5" r="1.5" fill="#c99700"/></pattern>
+  <clipPath id="trA${ci}"><rect x="-28" y="603" width="656" height="26"/></clipPath></defs>`;
+  s+=`<rect x="-30" y="-30" width="660" height="660" fill="#dfe6ef"/>`;
+  s+=`<rect x="-29" y="-29" width="658" height="658" rx="18" fill="#26344d"/>`;
+  s+=`<rect x="-14" y="-14" width="628" height="628" rx="9" fill="url(#tac${ci})" stroke="${INK}" stroke-width="1.2"/>`;
+  s+=`<rect x="-6" y="-6" width="612" height="612" rx="4" fill="#1b2638"/>`;
+  [[-21,150,78,'#f6d36b'],[-20,420,-64,'#9fd0ff'],[621,250,70,'#ffb3a8'],[620,520,-82,'#f6d36b']].forEach(t=>s+=ticketStub(t[0],t[1],t[2],t[3]));
+  return s;}
+function propsA(ci){let s='';
+  s+=`<g transform="translate(4 -28)"><rect width="96" height="21" rx="5" fill="#fff" stroke="${INK}" stroke-width="1.6"/><rect width="8" height="21" rx="3" fill="${LINE.red}"/><text x="52" y="15" text-anchor="middle" font-family="${KUFI}" font-weight="800" font-size="12" fill="${INK}">آخر محطة</text></g>`;
+  s+=`<g transform="translate(250 -17)">${[LINE.red,LINE.blue,LINE.green].map((c,i)=>`<g transform="translate(${i*30} 0)"><circle r="9.5" fill="${c}" stroke="${INK}" stroke-width="1.4"/><text y="4.5" text-anchor="middle" font-family="${BALOO}" font-weight="800" font-size="13" fill="#fff">${i+1}</text></g>`).join('')}</g>`;
+  s+=roundel(612,-14,13)+roundel(-14,612,12);
+  s+=`<g clip-path="url(#trA${ci})"><g class="trainA">${carSide(0,607,62,16,false,LINE.red)}${carSide(66,607,62,16,false,LINE.red)}${carSide(132,607,62,16,true,LINE.red)}</g></g>`;
+  return s;}
+function tileA(n,p,x,y,alt){const r=rowOf(n),fill=alt?['#f7b9b1','#b4ccf5','#b7e3c3'][r%3]:'#f8f2e4';
+  return{fill,svg:`<rect x="${x}" y="${y}" width="${C}" height="${C}" fill="${fill}"/><path d="M${x+30} ${y}v60M${x} ${y+30}h60" stroke="rgba(30,40,60,.08)" stroke-width="1.2"/><rect x="${x+.5}" y="${y+.5}" width="${C-1}" height="${C-1}" fill="none" stroke="rgba(30,40,60,.12)"/>`};}
+function numA(n,p,halo){const st=` stroke="${halo}" stroke-width="4" stroke-linejoin="round" style="paint-order:stroke"`;let s='';
+  if(n===1)s+=`<text x="${p.x}" y="${p.y-17}" text-anchor="middle" font-size="10" font-weight="800" fill="${LINE.red}" font-family="${KUFI}"${st}>ابدأ</text>`;
+  if(n!==100)s+=`<text x="${p.x}" y="${p.y+(n===1?3:4)}" text-anchor="middle" font-family="${BALOO}" font-weight="800" font-size="${n===1?18:21}" fill="${INK}"${st}>${n}</text>`;
+  else s+=`<text x="${p.x}" y="${p.y+24}" text-anchor="middle" font-family="${BALOO}" font-weight="800" font-size="15" fill="${INK}"${st}>100</text>`;
+  return s;}
+
+// ---------- ب: the board is the station, in cross-section ----------
+function sceneB(ci){let s=`<defs><linearGradient id="sky${ci}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc8f5"/><stop offset="1" stop-color="#d9f1ff"/></linearGradient>
+  <pattern id="wall${ci}" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="12" height="12" fill="#f3ecdc"/><path d="M0 .5H12M.5 0V12" stroke="rgba(80,60,30,.13)" stroke-width="1"/></pattern>
+  <pattern id="tacB${ci}" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#f4c21c"/><circle cx="3" cy="3" r="1.3" fill="#c99700"/></pattern>
+  <linearGradient id="tun${ci}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4b4540"/><stop offset="1" stop-color="#2e2a27"/></linearGradient>
+  <clipPath id="clB${ci}"><rect x="-29" y="-29" width="658" height="658" rx="18"/></clipPath>
+  <clipPath id="trB${ci}"><rect x="-29" y="404" width="658" height="70"/></clipPath></defs>`;
+  s+=`<rect x="-30" y="-30" width="660" height="660" fill="#dfe6ef"/><g clip-path="url(#clB${ci})">`;
+  // sky, sun, clouds
+  s+=`<rect x="-30" y="-30" width="660" height="175" fill="url(#sky${ci})"/><circle cx="575" cy="18" r="20" fill="#ffd54a" stroke="${INK}" stroke-width="1.4"/>`;
+  const cloud=(x,y,k)=>`<g class="cloud"><g transform="translate(${x} ${y}) scale(${k})"><path d="M-22 6 Q-26 -6 -12 -6 Q-8 -18 6 -12 Q18 -18 22 -4 Q32 -2 28 6Z" fill="#fff" stroke="${INK}" stroke-width="1.1" opacity=".95"/></g></g>`;
+  s+=cloud(110,10,1)+cloud(360,-6,.8)+cloud(470,36,.7);
+  // the skyline (seeded, so every map shares it)
+  let r=11;const rnd=()=>{r=(r*16807)%2147483647;return r/2147483647;};
+  const bc=['#e8c9a0','#d9a87a','#f1dcc0','#c98d6a','#e7b8a6','#cfc6b8','#e2b37c'];let x=-34,k=0;
+  while(x<634){const w=36+Math.floor(rnd()*34),h=46+Math.floor(rnd()*72),y=141-h,col=bc[k++%bc.length];
+    if(x>270&&x<330){x=332;continue;}
+    s+=`<rect x="${x}" y="${y}" width="${w}" height="${h+2}" fill="${col}" stroke="${INK}" stroke-width="1.3"/><rect x="${x-2}" y="${y-4}" width="${w+4}" height="5" fill="${tint(col,-.25)}" stroke="${INK}" stroke-width="1"/>`;
+    for(let wy=y+9;wy<130;wy+=15){for(let wx=x+6;wx<x+w-9;wx+=12){const lit=rnd()<.25;s+=`<rect x="${wx}" y="${wy}" width="6" height="8" fill="${lit?'#ffe7a0':'#5d7fa6'}" stroke="${INK}" stroke-width=".6"/>`;}
+      if(rnd()<.35)s+=`<path d="M${x+4} ${wy+10}H${x+w-4}" stroke="${INK}" stroke-width="1.6"/>`;}
+    if(rnd()<.5)s+=`<g transform="translate(${x+w*.7} ${y-6})"><path d="M-4 0 A5 5 0 0 1 4 -3Z" fill="#eee" stroke="${INK}" stroke-width=".8"/></g>`;
+    x+=w+2;}
+  // a minaret
+  s+=`<g transform="translate(300 0)"><rect x="-6" y="38" width="12" height="104" fill="#efe2c8" stroke="${INK}" stroke-width="1.3"/><rect x="-10" y="66" width="20" height="5" fill="#d9c49c" stroke="${INK}" stroke-width="1"/><rect x="-9" y="40" width="18" height="4" fill="#d9c49c" stroke="${INK}" stroke-width="1"/><path d="M-5 38 Q0 16 5 38Z" fill="#c9a86a" stroke="${INK}" stroke-width="1.1"/><path d="M0 18V10" stroke="${INK}" stroke-width="1.2"/><circle cy="9" r="1.8" fill="#ffd23f" stroke="${INK}" stroke-width=".6"/></g>`;
+  // the street
+  s+=`<rect x="-30" y="140" width="660" height="12" fill="#c9c2b5" stroke="${INK}" stroke-width="1.2"/><rect x="-30" y="152" width="660" height="26" fill="#4a4d55"/><path d="M-30 165H630" stroke="#f3f3f3" stroke-width="2" stroke-dasharray="14 12"/>`;
+  s+=`<g transform="translate(150 158)"><rect x="-18" y="-6" width="36" height="12" rx="4" fill="#ffcf2e" stroke="${INK}" stroke-width="1.2"/><rect x="-9" y="-10" width="16" height="6" rx="2" fill="#bfe3ff" stroke="${INK}" stroke-width="1"/><circle cx="-10" cy="7" r="3" fill="#222"/><circle cx="10" cy="7" r="3" fill="#222"/><path d="M-18 0H18" stroke="${INK}" stroke-width=".8"/></g>`;
+  s+=`<path d="M420 112V141" stroke="${INK}" stroke-width="2.4"/>${roundel(420,104,10)}<rect x="432" y="142" width="44" height="9" fill="#2b2a30" stroke="${INK}" stroke-width="1"/><path d="M438 142v9M445 142v9M452 142v9M459 142v9M466 142v9" stroke="#8a8790" stroke-width="1"/>`;
+  // the slab, the concourse
+  s+=`<rect x="-30" y="178" width="660" height="18" fill="#9a9184" stroke="${INK}" stroke-width="1.2"/><path d="M-30 196${Array.from({length:34},(_,i)=>`M${-30+i*20} 194l14 -14`).join('')}" stroke="rgba(0,0,0,.18)" stroke-width="1.4"/>`;
+  s+=`<rect x="-30" y="196" width="660" height="178" fill="url(#wall${ci})"/><rect x="-30" y="220" width="660" height="12" fill="${LINE.red}"/><rect x="-30" y="234" width="660" height="4" fill="${LINE.blue}"/>`;
+  s+=`<g transform="translate(40 250)"><rect width="128" height="26" rx="4" fill="#1f4fa8" stroke="${INK}" stroke-width="1.4"/><text x="64" y="18" text-anchor="middle" font-family="${KUFI}" font-weight="800" font-size="13" fill="#fff">محطة عشري</text></g>`;
+  s+=`<g transform="translate(410 250)"><rect width="130" height="26" rx="4" fill="#1f4fa8" stroke="${INK}" stroke-width="1.4"/><text x="72" y="18" text-anchor="middle" font-family="${KUFI}" font-weight="800" font-size="12" fill="#fff">الخط الأحمر</text>${roundel(14,13,9)}</g>`;
+  s+=`<g transform="translate(300 266)"><circle r="14" fill="#fff" stroke="${INK}" stroke-width="1.6"/><path d="M0 0V-9M0 0L6 3" stroke="${INK}" stroke-width="1.6" stroke-linecap="round"/></g>`;
+  s+=`<g transform="translate(212 292)"><rect width="40" height="50" rx="2" fill="#ffd166" stroke="${INK}" stroke-width="1.2"/><circle cx="20" cy="20" r="9" fill="#ef476f"/><rect x="8" y="36" width="24" height="4" fill="${INK}" opacity=".5"/></g>`;
+  s+=`<g transform="translate(360 296)"><rect width="38" height="46" rx="2" fill="#7fd1c7" stroke="${INK}" stroke-width="1.2"/><path d="M6 36 L19 12 L32 36Z" fill="#fff" opacity=".8"/></g>`;
+  [70,108,146].forEach(tx=>{s+=`<g transform="translate(${tx} 372)"><rect x="-8" y="-28" width="16" height="28" rx="2" fill="#b9c2cf" stroke="${INK}" stroke-width="1.3"/><rect x="-8" y="-28" width="16" height="5" fill="#8d97a6"/><circle cx="0" cy="-19" r="2.4" fill="#33d17a" class="blink"/><path d="M8 -15 H22" stroke="#e33" stroke-width="3" stroke-linecap="round"/></g>`;});
+  s+=`<g transform="translate(470 320)"><rect width="84" height="54" rx="3" fill="#c98d5a" stroke="${INK}" stroke-width="1.4"/><rect x="10" y="10" width="64" height="24" rx="3" fill="#bfe3ff" stroke="${INK}" stroke-width="1.2"/><rect x="14" y="0" width="56" height="10" fill="#fff" stroke="${INK}" stroke-width="1"/><text x="42" y="8.5" text-anchor="middle" font-family="${KUFI}" font-weight="800" font-size="8" fill="${INK}">تذاكر</text></g>`;
+  s+=ticketStub(200,378,12,'#f6d36b')+ticketStub(420,380,-20,'#9fd0ff');
+  // the platform and the track
+  s+=`<rect x="-30" y="374" width="660" height="26" fill="#bdb4a5" stroke="${INK}" stroke-width="1.2"/><rect x="-30" y="398" width="660" height="8" fill="url(#tacB${ci})" stroke="${INK}" stroke-width="1"/>`;
+  s+=`<rect x="-30" y="406" width="660" height="68" fill="url(#tun${ci})"/><path d="M-30 466H630" stroke="#5a4632" stroke-width="7" stroke-dasharray="5 9"/><path d="M-30 462H630M-30 469H630" stroke="#a7b0bb" stroke-width="2"/>`;
+  s+=`<g clip-path="url(#trB${ci})"><g class="trainB">${carSide(0,414,124,42,false,LINE.red)}${carSide(130,414,124,42,false,LINE.red)}${carSide(260,414,124,42,true,LINE.red)}</g></g>`;
+  // under the ground
+  s+=`<rect x="-30" y="474" width="660" height="160" fill="#8b5d3b" stroke="${INK}" stroke-width="1.2"/>`;
+  s+=`<path d="M-30 528 Q80 516 170 530 T370 526 T560 532 T660 524 V640 H-30Z" fill="#76492f"/><path d="M-30 582 Q100 570 220 585 T450 579 T660 587 V640 H-30Z" fill="#5f3a26"/>`;
+  s+=`<rect x="-30" y="496" width="660" height="11" fill="#3f8fd0" stroke="${INK}" stroke-width="1.2"/>${Array.from({length:8},(_,i)=>`<rect x="${i*90+20}" y="493" width="7" height="17" rx="1" fill="#2f74ad" stroke="${INK}" stroke-width="1"/>`).join('')}`;
+  s+=`<path d="M-30 552 Q150 546 300 556 T630 550" stroke="#e8c33a" stroke-width="3" fill="none"/><path d="M-30 557 Q150 551 300 561 T630 555" stroke="#d1495b" stroke-width="3" fill="none"/>`;
+  [[60,540,9,6],[250,600,12,7],[390,540,8,5],[560,606,10,6],[180,520,6,4]].forEach(o=>s+=`<ellipse cx="${o[0]}" cy="${o[1]}" rx="${o[2]}" ry="${o[3]}" fill="#a58a6c" stroke="${INK}" stroke-width="1"/>`);
+  s+=`<g transform="translate(470 598)"><path d="M-12 -14 Q-16 0 -8 12 H8 Q16 0 12 -14Z" fill="#c4683a" stroke="${INK}" stroke-width="1.3"/><rect x="-9" y="-18" width="18" height="5" rx="2" fill="#b0582c" stroke="${INK}" stroke-width="1.1"/><path d="M-11 -4 Q0 0 11 -4" stroke="#7a3a1c" stroke-width="1.2" fill="none"/></g>`;
+  s+=`<g transform="translate(130 610)"><ellipse cx="0" cy="6" rx="14" ry="6" fill="#3a2414"/><circle cy="-2" r="9" fill="#6b4c3b" stroke="${INK}" stroke-width="1.3"/><circle cx="-3" cy="-4" r="1.3" fill="${INK}"/><circle cx="3" cy="-4" r="1.3" fill="${INK}"/><ellipse cx="0" cy="0" rx="2.6" ry="1.8" fill="#ff8aa0" stroke="${INK}" stroke-width=".6"/></g>`;
+  s+=`</g>`;
+  return s;}
+function propsB(ci){return`<g transform="translate(4 -27)"><rect width="96" height="21" rx="4" fill="#1f4fa8" stroke="${INK}" stroke-width="1.6"/><text x="48" y="15" text-anchor="middle" font-family="${KUFI}" font-weight="800" font-size="12" fill="#fff">آخر محطة</text></g><path d="M20 -6V0M84 -6V0" stroke="${INK}" stroke-width="1.6"/>`;}
+function tileB(n,p,x,y){return{fill:'#fff',svg:`<rect x="${x}" y="${y}" width="${C}" height="${C}" fill="rgba(255,255,255,.07)" stroke="rgba(20,28,48,.32)" stroke-width="1"/><rect x="${x+1.5}" y="${y+1.5}" width="${C-3}" height="${C-3}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1"/>`};}
+function numB(n,p){const plate=(w,h,y)=>`<rect x="${p.x-w/2}" y="${y}" width="${w}" height="${h}" rx="5" fill="#fdfcf7" stroke="${INK}" stroke-width="1.3"/><rect x="${p.x-w/2+3}" y="${y+1.6}" width="${w-6}" height="2.2" rx="1" fill="${LINE.blue}" opacity=".85"/>`;
+  if(n===1)return plate(46,19,p.y-26)+`<text x="${p.x-12}" y="${p.y-11.5}" text-anchor="middle" font-family="${BALOO}" font-weight="800" font-size="15" fill="${INK}">1</text><text x="${p.x+7}" y="${p.y-12}" text-anchor="middle" font-family="${KUFI}" font-weight="800" font-size="9" fill="${LINE.red}">ابدأ</text>`;
+  if(n===100)return plate(30,18,p.y+12)+`<text x="${p.x}" y="${p.y+26}" text-anchor="middle" font-family="${BALOO}" font-weight="800" font-size="13" fill="${INK}">100</text>`;
+  const w=n<10?22:28;return plate(w,20,p.y-19)+`<text x="${p.x}" y="${p.y-2.5}" text-anchor="middle" font-family="${BALOO}" font-weight="800" font-size="15" fill="${INK}">${n}</text>`;}
+
+// ---------- ج: a tabletop model ----------
+function sceneC(ci){let s=`<defs><path id="trk${ci}" d="${rr(-46,-46,692,692,36)}"/></defs>`;
+  s+=`<rect x="-60" y="-60" width="720" height="720" fill="#c08a55"/>`;
+  for(let i=0;i<14;i++){const y=-50+i*52;s+=`<path d="M-60 ${y} Q100 ${y+(i%2?10:-8)} 300 ${y+4} T660 ${y-4}" stroke="rgba(90,50,20,.16)" stroke-width="2.2" fill="none"/>`;}
+  s+=`<path d="${rr(-46,-46,692,692,36)}" fill="none" stroke="#a89c8a" stroke-width="20"/><path d="${rr(-46,-46,692,692,36)}" fill="none" stroke="#6e4b2c" stroke-width="15" stroke-dasharray="3.5 6"/>`;
+  s+=`<path d="${rr(-50.5,-50.5,701,701,40)}" fill="none" stroke="#8c95a3" stroke-width="2.4"/><path d="${rr(-41.5,-41.5,683,683,31)}" fill="none" stroke="#8c95a3" stroke-width="2.4"/>`;
+  // the toy train (engine first)
+  const veh=(k,engine)=>`<g><animateMotion dur="26s" repeatCount="indefinite" rotate="auto" begin="${(-k*.32).toFixed(2)}s"><mpath href="#trk${ci}"/></animateMotion>
+    <rect x="-13" y="-6" width="28" height="15" rx="3" fill="rgba(40,20,0,.25)"/>
+    <rect x="-14" y="-8" width="28" height="15" rx="4" fill="${engine?LINE.red:'#e6ebf1'}" stroke="${INK}" stroke-width="1.4"/>
+    <rect x="-11" y="-5" width="${engine?14:22}" height="9" rx="2" fill="${engine?'#ffd6d2':'#cfd7e2'}" stroke="${INK}" stroke-width=".8"/>
+    ${engine?`<path d="M14 -8 Q20 -0.5 14 7Z" fill="${LINE.red}" stroke="${INK}" stroke-width="1.3"/><circle cx="8" cy="-0.5" r="2.4" fill="#ffe27a" stroke="${INK}" stroke-width=".7"/>`:`<path d="M-14 4H14" stroke="${LINE.red}" stroke-width="2"/>`}</g>`;
+  s+=veh(0,false)+veh(1,false)+veh(2,true);
+  // the board's plinth
+  s+=`<rect x="-10" y="-4" width="632" height="640" rx="8" fill="rgba(40,20,0,.28)"/><rect x="-16" y="-16" width="632" height="644" rx="8" fill="#2b3240"/><rect x="-16" y="-16" width="632" height="632" rx="8" fill="#465064" stroke="${INK}" stroke-width="1.4"/>`;
+  return s;}
+function propsC(ci){let s='';
+  // the station canopy over the track at the top-left: «آخر محطة»
+  s+=`<g><rect x="-52" y="-25" width="122" height="8" fill="rgba(40,20,0,.28)"/><rect x="-44" y="-30" width="6" height="12" fill="#7a8394" stroke="${INK}" stroke-width="1"/><rect x="50" y="-30" width="6" height="12" fill="#7a8394" stroke="${INK}" stroke-width="1"/>
+    <rect x="-58" y="-60" width="124" height="28" rx="3" fill="#e9e1d0" stroke="${INK}" stroke-width="1.5"/><rect x="-58" y="-33" width="124" height="6" rx="2" fill="#b9ad96" stroke="${INK}" stroke-width="1.2"/>
+    <rect x="-40" y="-55" width="88" height="18" rx="4" fill="${LINE.red}" stroke="${INK}" stroke-width="1.3"/><text x="4" y="-41.5" text-anchor="middle" font-family="${KUFI}" font-weight="800" font-size="11" fill="#fff">آخر محطة</text></g>`;
+  // two toy turnstiles beside «ابدأ»
+  [566,590].forEach(ty=>{s+=`<g transform="translate(-8 ${ty})"><rect x="-4" y="-2" width="12" height="10" rx="2" fill="rgba(40,20,0,.3)"/><rect x="-6" y="-6" width="11" height="9" rx="2" fill="#c7d0dc" stroke="${INK}" stroke-width="1.1"/><rect x="-6" y="3" width="11" height="4" rx="1" fill="#7f8a9a" stroke="${INK}" stroke-width="1"/><circle cx="-0.5" cy="-1.5" r="1.6" fill="#33d17a" class="blink"/><path d="M5 -1.5H12" stroke="#e33" stroke-width="2.2" stroke-linecap="round"/></g>`;});
+  s+=tree(-48,652,.9)+tree(650,-46,.9)+tree(636,-54,.7);
+  s+=`<g transform="translate(648 646)"><rect x="-8" y="-10" width="18" height="18" rx="2" fill="rgba(40,20,0,.28)"/><rect x="-11" y="-14" width="18" height="16" rx="2" fill="#4a8fd6" stroke="${INK}" stroke-width="1.2"/><rect x="-11" y="2" width="18" height="4" fill="#2f6aa8" stroke="${INK}" stroke-width="1"/><rect x="-8" y="-10" width="12" height="6" fill="#d9efff" stroke="${INK}" stroke-width=".8"/></g>`;
+  s+=ticketStub(-48,300,70,'#f6d36b')+ticketStub(650,330,-60,'#9fd0ff')+ticketStub(300,650,8,'#ffb3a8');
+  return s;}
+function tileC(n,p,x,y,alt){const top=alt?'#cfe2f2':'#f6eedb',side=tint(top,-.32);
+  return{fill:top,svg:`<rect x="${x+2}" y="${y+C-13}" width="${C-4}" height="12" rx="3" fill="${side}" stroke="rgba(0,0,0,.35)" stroke-width=".8"/><rect x="${x+2}" y="${y+1.5}" width="${C-4}" height="${C-9}" rx="3.5" fill="${top}" stroke="rgba(0,0,0,.3)" stroke-width=".8"/><path d="M${x+5} ${y+3.5}H${x+C-7}" stroke="#fff" stroke-opacity=".7" stroke-width="1.4" stroke-linecap="round"/>`};}
+function numC(n,p,halo){const st=` stroke="${halo}" stroke-width="3.5" stroke-linejoin="round" style="paint-order:stroke"`,col='#26304a';let s='';
+  if(n===1)s+=`<text x="${p.x}" y="${p.y-17}" text-anchor="middle" font-size="9.5" font-weight="800" fill="${LINE.red}" font-family="${KUFI}"${st}>ابدأ</text>`;
+  if(n!==100)s+=`<text x="${p.x}" y="${p.y+(n===1?2:1)}" text-anchor="middle" font-family="${BALOO}" font-weight="800" font-size="${n===1?16:19}" fill="${col}"${st}>${n}</text>`;
+  else s+=`<text x="${p.x}" y="${p.y+20}" text-anchor="middle" font-family="${BALOO}" font-weight="800" font-size="13" fill="${col}"${st}>100</text>`;
+  return s;}
+
+function boardSVG(lk,ci){const m=lk.m,vb=600+2*m;
+  let s=`<svg class="stage" viewBox="${-m} ${-m} ${vb} ${vb}" dir="ltr" role="img" aria-label="رقعة المترو: ${lk.name}">`;
+  s+=lk.id==='classic'?sceneA(ci):lk.id==='place'?sceneB(ci):sceneC(ci);
+  let nums='';s+=`<g class="tiles">`;
+  for(let n=1;n<=100;n++){const p=cellXY(n),x=p.x-C/2,y=p.y-C/2,col=Math.round(x/C),alt=(rowOf(n)+col)%2;
+    const t=lk.id==='classic'?tileA(n,p,x,y,alt):lk.id==='place'?tileB(n,p,x,y):tileC(n,p,x,y,alt);
+    s+=`<g class="tile" data-n="${n}" data-cx="${p.x}" data-cy="${p.y}">${t.svg}</g>`;
+    nums+=`<g class="num" data-n="${n}">${lk.id==='classic'?numA(n,p,t.fill):lk.id==='place'?numB(n,p):numC(n,p,t.fill)}</g>`;}
+  s+=`</g><g class="holes"></g><g class="ups"></g><g class="downs"></g><g class="heads"></g><g class="nums" style="pointer-events:none">${nums}</g>`;
+  const t=cellXY(100);
+  s+=`<g class="trophy" transform="translate(${t.x} ${t.y-(lk.id==='model'?6:3)})"><g class="cupw">${lk.solid?'<ellipse cx="4" cy="15" rx="12" ry="3.5" fill="rgba(40,20,0,.3)"/>':''}${cupSVG()}</g></g>`;
+  s+=lk.id==='classic'?propsA(ci):lk.id==='place'?propsB(ci):propsC(ci);
+  s+=`<g class="under"></g><g class="pieces">${PLAYERS.map((p,i)=>`<g class="piece" data-i="${i}">${personSVG(p.col)}</g>`).join('')}</g>`;
+  s+=`<g class="die" opacity="0"><rect x="-15" y="-15" width="30" height="30" rx="7" fill="#fff" stroke="${INK}" stroke-width="2"/><g class="pips"></g></g><g class="fx"></g>`;
+  return s+`</svg>`;}
+const el=(tag,attrs,parent)=>{const e=document.createElementNS(SVGNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;};
+const TR=(e,x,y,s,r)=>e.setAttribute('transform',`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(r||0).toFixed(1)}) scale(${(s==null?1:s).toFixed(3)})`);
+
+// ---------- a card ----------
+function makeCard(lk,ci){
+  const sec=document.createElement('section');sec.className='look';
+  sec.innerHTML=`<div class="board">${boardSVG(lk,ci)}<div class="now" aria-live="polite"></div>
+    <div class="bar"><button class="main" data-a="map">🗺️ خريطة جديدة</button><button data-a="snake">🛝 نزلة</button><button data-a="ladder">⬆️ سلم كهربا</button><button data-a="end">🏆 النهاية</button><button data-a="pause">⏸ وقّف</button></div></div>
+    <div class="info"><div class="info__head"><span class="tag">${lk.tag}</span><span class="name">«${lk.name}»</span></div><p>${lk.desc}</p>
+    <h3>اللي بيفرق في الشكل ده</h3><ul>${lk.notes.map(x=>`<li>${x}</li>`).join('')}</ul></div>`;
+  const svg=sec.querySelector('svg');
+  const c={sec,svg,lk,ci,gen:0,cur:0,visible:false,paused:false,force:null,lastDown:'',lastUp:'',
+    tiles:[...svg.querySelectorAll('.tile')].map(g=>({g,num:svg.querySelector(`.num[data-n="${g.dataset.n}"]`),cx:+g.dataset.cx,cy:+g.dataset.cy})),
+    holesL:svg.querySelector('.holes'),headsL:svg.querySelector('.heads'),upsL:svg.querySelector('.ups'),downsL:svg.querySelector('.downs'),under:svg.querySelector('.under'),fx:svg.querySelector('.fx'),
+    trophy:svg.querySelector('.cupw'),die:svg.querySelector('.die'),now:sec.querySelector('.now'),
+    players:[...svg.querySelectorAll('.piece')].map((e,i)=>({e,i,n:1,x:0,y:0,...PLAYERS[i]}))};
+  sec.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>action(c,b.dataset.a,b));
+  return c;}
+
+function mountMap(c,m){c.map=m;c.downsL.innerHTML='';c.headsL.innerHTML='';c.holesL.innerHTML='';c.upsL.innerHTML='';
+  const lk=c.lk,cols=[...SLIDE_COLS].sort(()=>Math.random()-.5),k0=Math.floor(Math.random()*lk.kinds.length);
+  c.downs=m.snakes.map((s,i)=>{const kind=lk.kinds[(i+k0)%lk.kinds.length],col=cols[i%cols.length],{pts,L}=sampleSpline(downWay(s,kind));
+    const tp=pts[pts.length-1],pad=el('g',{},c.holesL);
+    if(kind==='slide'){if(lk.solid)el('rect',{x:tp.x-12,y:tp.y-1,width:30,height:15,rx:5,fill:'rgba(40,20,0,.25)'},pad);
+      el('rect',{x:tp.x-15,y:tp.y-4,width:30,height:15,rx:5,fill:'#3d8ee8',stroke:INK,'stroke-width':1.6},pad);
+      el('path',{d:`M${tp.x-11} ${tp.y+3.5}H${tp.x+11}M${tp.x} ${tp.y-1}V${tp.y+8}`,stroke:'#fff','stroke-width':1,'stroke-dasharray':'2 2',opacity:.8},pad);}
+    else{el('ellipse',{cx:tp.x,cy:tp.y+5,rx:15,ry:7,fill:'#b8ab95',stroke:INK,'stroke-width':1.4},pad);
+      [[-7,2,3.5],[5,3,3],[0,6,2.6],[9,7,2]].forEach(q=>el('circle',{cx:tp.x+q[0],cy:tp.y+q[1],r:q[2],fill:'#8f8473',stroke:INK,'stroke-width':.8},pad));}
+    const g=el('g',{class:'down'},c.downsL),d={...s,kind,col,pts,L,W:kind==='slide'?13:19,g,pad,padK:1,e:L,headK:1,fall:0,flat:0,lunge:{x:0,y:0,s:1},key:''};
+    if(lk.solid){d.shadow=el('path',{fill:'rgba(40,20,0,.22)',transform:'translate(7 9)'},g);d.side=el('path',{fill:kind==='slide'?tint(col,-.5):'#8a7f6d',stroke:INK,'stroke-width':1.2,transform:'translate(0 5)'},g);}
+    else d.shadow=el('path',{fill:'rgba(0,0,0,.16)',transform:'translate(3 4)'},g);
+    if(kind==='slide'){d.rim=el('path',{fill:tint(col,-.18),stroke:INK,'stroke-width':2,'stroke-linejoin':'round'},g);
+      d.bed=el('path',{fill:tint(col,.45)},g);d.shine=el('path',{fill:'none',stroke:'#fff','stroke-opacity':.7,'stroke-width':2,'stroke-linecap':'round'},g);}
+    else{d.rim=el('path',{fill:'#a99c85',stroke:INK,'stroke-width':2,'stroke-linejoin':'round'},g);d.inner=el('path',{fill:'#ece3d1'},g);
+      d.gaps=el('path',{fill:'#2a1d14'},g);d.treads=el('path',{fill:'none',stroke:'#8f8471','stroke-width':2},g);
+      d.chunk=el('path',{fill:'#2a1d14',stroke:INK,'stroke-width':1,'stroke-linejoin':'round'},g);d.cracks=el('path',{fill:'none',stroke:INK,'stroke-width':1.3,'stroke-linejoin':'round','stroke-linecap':'round'},g);
+      d.crackAt=[.22+Math.random()*.1,.74+Math.random()*.1];d.chunkAt=.42+Math.random()*.16;d.seed=Math.random()*9;}
+    const hd=el('g',{},c.headsL);hd.innerHTML=kind==='slide'?slideTopSVG(col):stairsTopSVG();d.hd=hd;
+    return d;});
+  c.ups=m.ladders.map((l,i)=>{const a=cellXY(l.f),b=cellXY(l.t),dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy),ux=dx/L,uy=dy/L,W=9,col=ESC_COLS[i%3];
+    const A={x:a.x-ux*7,y:a.y-uy*7},B={x:b.x+ux*7,y:b.y+uy*7},line=`M${A.x.toFixed(1)} ${A.y.toFixed(1)}L${B.x.toFixed(1)} ${B.y.toFixed(1)}`,vx=-uy,vy=ux;
+    const g=el('g',{},c.upsL),inner=el('g',{},g);
+    if(c.lk.solid){el('path',{d:line,stroke:'rgba(40,20,0,.24)','stroke-width':2*W+6,'stroke-linecap':'round',transform:'translate(7 10)'},inner);
+      el('path',{d:line,stroke:INK,'stroke-width':2*W+5,'stroke-linecap':'round',transform:'translate(0 6)'},inner);
+      el('path',{d:line,stroke:tint(col,-.45),'stroke-width':2*W+2,'stroke-linecap':'round',transform:'translate(0 6)'},inner);}
+    else el('path',{d:line,stroke:'rgba(0,0,0,.18)','stroke-width':2*W+4,'stroke-linecap':'round',transform:'translate(3 4)'},inner);
+    el('path',{d:line,stroke:INK,'stroke-width':2*W+5,'stroke-linecap':'round'},inner);
+    el('path',{d:line,stroke:col,'stroke-width':2*W+1.6,'stroke-linecap':'round'},inner);
+    el('path',{d:line,stroke:'#aab4c2','stroke-width':2*W-6},inner);
+    const steps=el('g',{class:'escg'},inner);
+    el('path',{d:line,stroke:'#4b5262','stroke-width':2*W-6,'stroke-dasharray':'1.3 4.7',class:'esc'},steps);
+    el('path',{d:line,stroke:'#ffd23f','stroke-width':2*W-6,'stroke-dasharray':'1.1 4.9','stroke-dashoffset':'-1.3',class:'esc y'},steps);
+    let ch='';for(let d=14;d<L-4;d+=22){const P={x:a.x+ux*d,y:a.y+uy*d};ch+=`M${(P.x-ux*3+vx*3.5).toFixed(1)} ${(P.y-uy*3+vy*3.5).toFixed(1)}L${(P.x+ux*1.5).toFixed(1)} ${(P.y+uy*1.5).toFixed(1)}L${(P.x-ux*3-vx*3.5).toFixed(1)} ${(P.y-uy*3-vy*3.5).toFixed(1)}`;}
+    el('path',{d:ch,stroke:'#fff','stroke-opacity':.85,'stroke-width':1.6,fill:'none','stroke-linecap':'round','stroke-linejoin':'round',class:'chev'},inner);
+    const off=W-1.6;let hr='';[-1,1].forEach(sg=>{hr+=`M${(A.x+vx*off*sg).toFixed(1)} ${(A.y+vy*off*sg).toFixed(1)}L${(B.x+vx*off*sg).toFixed(1)} ${(B.y+vy*off*sg).toFixed(1)}`;});
+    el('path',{d:hr,stroke:'#121319','stroke-width':2.8,'stroke-linecap':'round'},inner);
+    el('path',{d:hr,stroke:'#fff','stroke-opacity':.3,'stroke-width':.8,'stroke-linecap':'round'},inner);
+    const comb=(P)=>`M${(P.x+vx*(W-3)).toFixed(1)} ${(P.y+vy*(W-3)).toFixed(1)}L${(P.x-vx*(W-3)).toFixed(1)} ${(P.y-vy*(W-3)).toFixed(1)}`;
+    el('path',{d:comb({x:A.x+ux*2,y:A.y+uy*2})+comb({x:B.x-ux*2,y:B.y-uy*2}),stroke:'#aab3c0','stroke-width':3.2},inner);
+    return{...l,g,a,b,steps,side:(a.x+b.x)/2<300?-1:1};});}
+
+// ---------- the down pieces, drawn when they change ----------
+function at(d,a){const i=clamp(Math.round(a/STEP),0,d.pts.length-1);return d.pts[i];}
+function outline(d,i1,wf){const Lf=[],Rf=[];for(let i=0;i<=i1;i++){const b=d.pts[i],w=wf(b);
+  Lf.push(`${(b.x+b.nx*w/2).toFixed(1)} ${(b.y+b.ny*w/2).toFixed(1)}`);Rf.push(`${(b.x-b.nx*w/2).toFixed(1)} ${(b.y-b.ny*w/2).toFixed(1)}`);}
+  return'M'+Lf.join('L')+'L'+Rf.reverse().join('L')+'Z';}
+function renderDown(c,d){
+  const key=`${d.e.toFixed(1)}|${d.fall.toFixed(1)}|${d.flat.toFixed(2)}|${d.headK.toFixed(3)}|${d.padK.toFixed(3)}|${d.lunge.x.toFixed(1)}|${d.lunge.y.toFixed(1)}|${d.lunge.s.toFixed(3)}`;
+  if(key===d.key)return;d.key=key;
+  const n=d.pts.length,i1=clamp(Math.round(d.e/STEP),0,n-1),tp=d.pts[n-1];
+  d.pad.setAttribute('transform',`translate(${tp.x} ${tp.y}) scale(${Math.max(.001,d.padK).toFixed(3)}) translate(${-tp.x} ${-tp.y})`);
+  const h=d.pts[0];TR(d.hd,h.x+d.lunge.x,h.y+d.lunge.y,Math.max(.001,d.headK*d.lunge.s*HS),0);
+  const vis=i1>=1;d.g.setAttribute('opacity',vis?1:0);if(!vis)return;
+  const W=d.W,wf=b=>{const dt=d.L-b.a;return W*(dt<20?1+.45*(1-dt/20):1);};
+  const out=outline(d,i1,wf);d.shadow.setAttribute('d',out);if(d.side)d.side.setAttribute('d',out);d.rim.setAttribute('d',out);
+  if(d.kind==='slide'){d.bed.setAttribute('d',outline(d,i1,b=>wf(b)*.5));
+    let sh='';for(let i=2;i<=i1;i+=1){const b=d.pts[i];sh+=(sh?'L':'M')+`${(b.x+b.nx*W*.1).toFixed(1)} ${(b.y+b.ny*W*.1).toFixed(1)}`;}d.shine.setAttribute('d',sh);return;}
+  // broken stairs: chipped side walls, the steps, the gaps where steps fell, a broken hole, cracks
+  const jag=b=>wf(b)+Math.sin(b.a*.9+d.seed)*Math.sin(b.a*2.3)*1.8;d.rim.setAttribute('d',outline(d,i1,jag));d.shadow.setAttribute('d',outline(d,i1,jag));if(d.side)d.side.setAttribute('d',outline(d,i1,jag));
+  d.inner.setAttribute('d',outline(d,i1,b=>W*.66));
+  let tr='',gp='',ck='',ch='';const hw=W*.33,tg=b=>({x:b.ny,y:-b.nx});
+  for(let a=5;a<=Math.min(d.e,d.L-3);a+=6){const b=at(d,a),x1=b.x+b.nx*hw,y1=b.y+b.ny*hw,x2=b.x-b.nx*hw,y2=b.y-b.ny*hw;
+    if(a<d.fall){const t=tg(b),tx=t.x*3,ty=t.y*3;gp+=`M${(x1-tx).toFixed(1)} ${(y1-ty).toFixed(1)}L${(x2-tx).toFixed(1)} ${(y2-ty).toFixed(1)}L${(x2+tx).toFixed(1)} ${(y2+ty).toFixed(1)}L${(x1+tx).toFixed(1)} ${(y1+ty).toFixed(1)}Z`;}
+    else tr+=`M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}`;}
+  d.treads.setAttribute('d',tr);d.gaps.setAttribute('d',gp);
+  d.crackAt.forEach(f=>{const a=f*d.L;if(a>d.e)return;const b=at(d,a),t=tg(b);
+    ck+='M'+[-.36,-.18,0,.17,.34].map((k,j)=>{const o=j%2?3.2:-3.2;return`${(b.x+b.nx*W*k+t.x*o).toFixed(1)} ${(b.y+b.ny*W*k+t.y*o).toFixed(1)}`;}).join('L');});
+  const ca=d.chunkAt*d.L;
+  if(ca+8<d.e&&d.fall<ca){const b=at(d,ca),t=tg(b),pt=(k,o)=>`${(b.x+b.nx*W*k+t.x*o).toFixed(1)} ${(b.y+b.ny*W*k+t.y*o).toFixed(1)}`;
+    ch='M'+[[-.4,-5],[-.2,-8],[0,-4],[.2,-8],[.4,-5],[.42,6],[.2,9],[0,5],[-.2,9],[-.42,6]].map(q=>pt(q[0],q[1])).join('L')+'Z';
+    ck+='M'+pt(.3,-8)+'L'+pt(.38,-13)+'L'+pt(.2,-17)+'M'+pt(-.3,9)+'L'+pt(-.15,14);}
+  const op=(1-d.flat).toFixed(2);d.cracks.setAttribute('d',ck);d.chunk.setAttribute('d',ch);[d.cracks,d.chunk,d.treads].forEach(e=>e.setAttribute('opacity',op));
+  d.inner.setAttribute('fill',d.flat>0?'#f3ecdf':'#ece3d1');}
+function renderCard(c,t){c.time=t;if(c.downs)c.downs.forEach(d=>renderDown(c,d));}
+
+// ---------- helpers ----------
+function tween(c,g,ms,fn,ez){ez=ez||ease;return new Promise(res=>{const t0=performance.now();
+  const step=now=>{if(c.gen!==g){res(false);return;}const r=Math.min(1,(now-t0)/ms);fn(ez(r),r);if(r<1)requestAnimationFrame(step);else res(true);};requestAnimationFrame(step);});}
+const wait=(c,g,ms)=>tween(c,g,ms,()=>{},lin);
+const alive=(c,g)=>c.gen===g;
+function say(c,s){c.now.textContent=s;}
+function face(p,m){const q=s=>p.e.querySelector(s);const set=(s,v)=>q(s).setAttribute('opacity',v);
+  set('.smile',/gasp/.test(m)?0:1);set('.gasp',/gasp/.test(m)?1:0);set('.armsUp',/up/.test(m)?1:0);set('.armsFwd',/fwd/.test(m)?1:0);
+  set('.dizzy',/dizzy/.test(m)?1:0);set('.sweat',/sweat/.test(m)?1:0);}
+function setP(p,x,y,s,r){p.x=x;p.y=y;TR(p.e,x,y,(s==null?1:s)*PS,r);}
+function spot(c,p,n){n=n==null?p.n:n;const q=cellXY(n),on=c.players.filter(o=>o.n===n&&!o.hidden);
+  if(on.length<=1)return{x:q.x,y:q.y+15};const O=[[-12,10],[12,10],[-12,18],[12,18]],k=on.indexOf(p);return{x:q.x+O[k<0?0:k][0],y:q.y+O[k<0?0:k][1]};}
+function settleAll(c){c.players.forEach(p=>{if(p.hidden)return;const s=spot(c,p);setP(p,s.x,s.y);});}
+function bubble(c,x,y,txt,ms){const g=el('g',{},c.fx);const w=Math.max(40,txt.length*9+20);
+  el('rect',{x:-w/2,y:-15,width:w,height:26,rx:13,fill:'#fff',stroke:INK,'stroke-width':1.6},g);el('path',{d:'M-5 10 L0 18 L5 10',fill:'#fff',stroke:INK,'stroke-width':1.6},g);el('rect',{x:-6,y:7,width:12,height:4,fill:'#fff'},g);
+  const tx=el('text',{y:4,'text-anchor':'middle','font-size':14,'font-weight':800,fill:INK,'font-family':KUFI,direction:'rtl'},g);tx.textContent=txt;
+  const bx=clamp(x,w/2-24,624-w/2),by=Math.max(0,y-44);const t0=performance.now();
+  (function f(now){const k=clamp((now-t0)/220,0,1);TR(g,bx,by,backOut(k));if(k<1)requestAnimationFrame(f);})(t0);
+  setTimeout(()=>g.remove(),ms||1300);}
+function puff(c,x,y,n,col,spread){for(let i=0;i<(n||6);i++){const e=el('circle',{cx:x,cy:y,r:3,fill:col||'#fff',stroke:INK,'stroke-width':.8,opacity:.9},c.fx);
+  const a=Math.random()*Math.PI*2,d=(spread||22)*(0.6+Math.random()*.6),t0=performance.now();
+  (function f(now){const k=clamp((now-t0)/650,0,1);e.setAttribute('cx',x+Math.cos(a)*d*easeOut(k));e.setAttribute('cy',y+Math.sin(a)*d*easeOut(k)-k*8);e.setAttribute('r',3+k*6);e.setAttribute('opacity',.9*(1-k));if(k<1)requestAnimationFrame(f);else e.remove();})(t0);}}
+function sparkle(c,x,y){const e=el('path',{d:'M0 -6 L1.5 -1.5 L6 0 L1.5 1.5 L0 6 L-1.5 1.5 L-6 0 L-1.5 -1.5Z',fill:'#ffe27a',stroke:INK,'stroke-width':.6},c.fx);const t0=performance.now(),dx=(Math.random()-.5)*30;
+  (function f(now){const k=clamp((now-t0)/700,0,1);TR(e,x+dx*k,y-20*k,1-k*.6,k*180);e.setAttribute('opacity',1-k);if(k<1)requestAnimationFrame(f);else e.remove();})(t0);}
+
+// ---------- moving ----------
+async function hopTo(c,g,p,to){const dir=to>p.n?1:-1;
+  while(p.n!==to){const from={x:p.x,y:p.y};p.n+=dir;const s=spot(c,p);
+    const ok=await tween(c,g,200,t=>setP(p,lerp(from.x,s.x,t),lerp(from.y,s.y,t)-Math.sin(t*Math.PI)*18,1+Math.sin(t*Math.PI)*.06),lin);if(!ok)return false;}
+  settleAll(c);return true;}
+async function rollDie(c,g,p,v){const d=c.die,pips=d.querySelector('.pips');d.setAttribute('opacity',1);const x=clamp(p.x,30,570),y=Math.max(20,p.y-62);
+  let last=0;const ok=await tween(c,g,650,(t,r)=>{if(r<.82&&r-last>.07){last=r;pips.innerHTML=pipsSVG(1+Math.floor(Math.random()*6));}if(r>=.82)pips.innerHTML=pipsSVG(v);
+    TR(d,x,y-Math.sin(r*Math.PI)*16,backOut(Math.min(1,r*2.2))*1.15,(1-t)*540);},lin);
+  if(!ok)return false;await wait(c,g,320);d.setAttribute('opacity',0);return alive(c,g);}
+async function dizzy(c,g,p,ms){face(p,'dizzy');const x=p.x,y=p.y;await tween(c,g,ms||1100,t=>setP(p,x,y,1,Math.sin(t*Math.PI*6)*9*(1-t)),lin);face(p,'');}
+function along(d,t,lift){const a=lerp(4,d.L-6,t),q=at(d,a),q2=at(d,a+8);return{x:q.x,y:q.y-(lift==null?8:lift),ang:Math.atan2(q2.y-q.y,q2.x-q.x)*180/Math.PI};}
+async function land(c,g,p,d,col){p.n=d.t;const s=spot(c,p),x0=p.x,y0=p.y;puff(c,x0,y0+10,6,col||'#bfe3ff');
+  await tween(c,g,420,t=>setP(p,lerp(x0,s.x,t),lerp(y0,s.y,t)-Math.abs(Math.sin(t*Math.PI*2))*(1-t)*20,1,(1-t)*40),lin);settleAll(c);await dizzy(c,g,p);}
+
+// ---------- the down piece's moves: a slide, or broken stairs ----------
+async function dWhoosh(c,g,p,d){face(p,'gasp up');bubble(c,p.x,p.y-20,'وييييي!',1300);
+  await tween(c,g,1500,t=>{const q=along(d,t);setP(p,q.x,q.y,1,clamp((q.ang-90)*.35,-35,35));},easeIn);if(!alive(c,g))return;await land(c,g,p,d);}
+async function dSpin(c,g,p,d){face(p,'gasp');bubble(c,p.x,p.y-20,'يا لهوي!',1200);let last=0;
+  await tween(c,g,1700,(t,r)=>{const q=along(d,t);setP(p,q.x,q.y,1,t*1080);if(r-last>.12){last=r;puff(c,q.x,q.y+8,1,'#ffffff',8);}},easeIn);if(!alive(c,g))return;await land(c,g,p,d);}
+async function dTicket(c,g,p,d){bubble(c,p.x,p.y-20,'تذكرة… زحليقة!',1300);const tk=el('g',{},c.fx);tk.innerHTML=ticketStub(0,0,0,'#ffcf2e').replace('translate(0 0)','scale(1.6)');
+  face(p,'up');await tween(c,g,300,t=>TR(tk,p.x,p.y+12,backOut(t),0),lin);if(!alive(c,g)){tk.remove();return;}
+  await tween(c,g,1400,t=>{const q=along(d,t);setP(p,q.x,q.y-2,1,clamp((q.ang-90)*.3,-30,30));TR(tk,q.x,q.y+10,1,clamp((q.ang-90)*.3,-30,30));},easeIn);
+  const x0=p.x,y0=p.y;tween(c,g,700,t=>{TR(tk,x0+t*50,y0-Math.sin(t*Math.PI)*60,1-t*.5,t*500);tk.setAttribute('opacity',1-t);},lin).then(()=>tk.remove());
+  if(!alive(c,g))return;await land(c,g,p,d,'#ffe9a8');}
+async function dCrumble(c,g,p,d){face(p,'sweat');bubble(c,d.pts[0].x,d.pts[0].y-14,'كراك!',900);const x0=p.x,y0=p.y;
+  await tween(c,g,500,(t,r)=>{setP(p,x0+Math.sin(r*60)*1.6,y0);d.lunge={x:Math.sin(r*70)*1.5,y:0,s:1};},lin);d.lunge={x:0,y:0,s:1};if(!alive(c,g))return;
+  face(p,'gasp up');let last=0,said=false;
+  await tween(c,g,2000,(t,r)=>{const a=lerp(4,d.L-6,t),q=at(d,a),step=Math.abs(Math.sin(a/7*Math.PI));setP(p,q.x,q.y-6-step*6,1,Math.sin(a/7*Math.PI)*14);d.fall=a+8;
+    if(r-last>.14){last=r;puff(c,q.x,q.y,2,'#cbbfa8',14);}if(!said&&r>.45){said=true;bubble(c,q.x,q.y-24,'آي! أوه!',900);}},lin);
+  d.fall=d.L+10;if(!alive(c,g))return;await land(c,g,p,d,'#cbbfa8');if(!alive(c,g))return;
+  bubble(c,d.pts[0].x,d.pts[0].y-14,'اتصلّحت',800);const f0=d.fall;await tween(c,g,700,(t,r)=>{d.fall=f0*(1-t);},easeOut);d.fall=0;}
+async function dRamp(c,g,p,d){bubble(c,d.pts[0].x,d.pts[0].y-14,'السلم بقى زحليقة!',1500);face(p,'gasp');
+  await tween(c,g,450,t=>{d.flat=t;},lin);if(!alive(c,g))return;face(p,'gasp up');
+  await tween(c,g,1300,t=>{const q=along(d,t,5);setP(p,q.x,q.y,1,clamp((q.ang-90)*.35,-35,35));},easeIn);if(!alive(c,g))return;
+  await land(c,g,p,d,'#cbbfa8');await tween(c,g,400,t=>{d.flat=1-t;},lin);d.flat=0;}
+const SLIDE_MOVES=[['whoosh',dWhoosh],['spin',dSpin],['ticket',dTicket]];
+const STAIRS_MOVES=[['crumble',dCrumble],['ramp',dRamp]];
+
+// ---------- the escalator's moves ----------
+function escPt(l,u){return{x:lerp(l.a.x,l.b.x,u),y:lerp(l.a.y+2,l.b.y+2,u)};}
+async function stepUp(c,g,p,l,u0,u1,ms,steps){return tween(c,g,ms,(t,r)=>{const k=Math.floor(r*steps),f=ease(clamp(r*steps-k,0,1)),u=lerp(u0,u1,(k+f)/steps),q=escPt(l,u);
+  setP(p,q.x,q.y-Math.sin(f*Math.PI)*4,1,Math.sin(r*steps*Math.PI)*8);},lin);}
+async function beep(c,g,p){bubble(c,p.x,p.y-20,'بيب!',700);const tk=el('g',{},c.fx);tk.innerHTML=ticketStub(0,0,0,'#9fd0ff');const x=p.x,y=p.y;
+  await tween(c,g,450,t=>{TR(tk,x+14,y-6-t*26,1,t*40);tk.setAttribute('opacity',1-t*.8);},easeOut);tk.remove();}
+async function uRide(c,g,p,l){await beep(c,g,p);if(!alive(c,g))return;face(p,'');
+  await tween(c,g,1900,(t,r)=>{const q=escPt(l,t);setP(p,q.x,q.y-2,1,0);if(r>.7)face(p,'up');},ease);}
+async function uRun(c,g,p,l){bubble(c,p.x,p.y-20,'مستعجل!',900);puff(c,p.x,p.y+12,5,'#e8d8b0');face(p,'up');let last=0;
+  await tween(c,g,800,(t,r)=>{const q=escPt(l,t);setP(p,q.x,q.y-Math.abs(Math.sin(r*Math.PI*8))*4,1,Math.sin(r*Math.PI*8)*6);if(r-last>.1){last=r;const e=el('path',{d:`M${q.x-8} ${q.y+22} l-6 14 M${q.x+8} ${q.y+22} l6 14`,stroke:INK,'stroke-width':1.6,'stroke-linecap':'round',opacity:.6},c.fx);setTimeout(()=>e.remove(),240);}},ease);}
+async function uBroken(c,g,p,l){await beep(c,g,p);if(!alive(c,g))return;
+  await tween(c,g,1000,t=>{const q=escPt(l,t*.45);setP(p,q.x,q.y-2,1,0);},easeOut);if(!alive(c,g))return;
+  l.steps.classList.add('stopped');face(p,'gasp');bubble(c,p.x,p.y-24,'عطلان!',1000);const q=escPt(l,.45);
+  await tween(c,g,500,t=>setP(p,q.x,q.y-2,1,Math.sin(t*Math.PI*4)*6),lin);if(!alive(c,g))return;face(p,'sweat');
+  await stepUp(c,g,p,l,.45,1,1700,7);if(!alive(c,g))return;bubble(c,p.x,p.y-24,'هوف… وصلت',900);l.steps.classList.remove('stopped');}
+async function uWrong(c,g,p,l){bubble(c,p.x,p.y-20,'ده رايح فين؟',1000);face(p,'gasp');
+  await tween(c,g,1300,(t,r)=>{const u=.28*Math.sin(t*Math.PI*.5)-.1*Math.sin(r*Math.PI*6)*(1-t),q=escPt(l,Math.max(0,u));setP(p,q.x,q.y-2-Math.abs(Math.sin(r*Math.PI*10))*3,1,Math.sin(r*Math.PI*10)*10);},lin);
+  if(!alive(c,g))return;bubble(c,p.x,p.y-24,'خلاص هركب',900);face(p,'up');const u0=.28;
+  await tween(c,g,1300,t=>{const q=escPt(l,lerp(u0,1,t));setP(p,q.x,q.y-2,1,0);},ease);}
+const UP_MOVES=[['ride',uRide],['run',uRun],['broken',uBroken],['wrong',uWrong]];
+const pick=(list,last)=>{const o=list.filter(v=>v[0]!==last);return o[Math.floor(Math.random()*o.length)];};
+
+// ---------- other moments ----------
+async function nearMiss(c,g,p,d){const x0=p.x,y0=p.y;
+  await tween(c,g,420,(t,r)=>{const k=Math.sin(r*Math.PI);d.lunge={x:0,y:-k*4,s:1+.25*k};},lin);d.lunge={x:0,y:0,s:1};face(p,'gasp sweat');
+  await tween(c,g,380,t=>setP(p,x0,y0-Math.sin(t*Math.PI)*26),lin);bubble(c,p.x,p.y-24,'يا ساتر!',1100);await wait(c,g,650);face(p,'');}
+async function bounceBack(c,g,p,over){bubble(c,p.x,p.y-24,'قرّبت!',700);if(!await hopTo(c,g,p,100))return false;
+  const x=p.x,y=p.y;face(p,'gasp');await tween(c,g,380,t=>{setP(p,x,y-Math.sin(t*Math.PI)*12,1,-t*20);TR(c.trophy,0,0,1,Math.sin(t*Math.PI*4)*14);},lin);
+  bubble(c,p.x,p.y-24,'أوبس! ارجع',900);face(p,'dizzy');const ok=await hopTo(c,g,p,100-over);face(p,'');return ok;}
+async function win(c,g,p){say(c,`${p.name} وصل آخر محطة وكسب!`);face(p,'up');bubble(c,p.x,p.y-26,'آخر محطة!',2400);const x=p.x,y=p.y;
+  const conf=[];const cols=['#e5383b','#1e6fd9','#f2b705','#2a9d4a','#ff6fb1','#7b5cff'];
+  for(let i=0;i<90;i++)conf.push({e:el('rect',{width:6,height:10,rx:1.5,fill:cols[i%6]},c.fx),x:300+(Math.random()-.5)*80,y:-20,vx:(Math.random()-.5)*9,vy:-Math.random()*7-3,r:Math.random()*360});
+  await tween(c,g,2600,(t,r)=>{setP(p,x,y-Math.abs(Math.sin(r*Math.PI*5))*20,1,Math.sin(r*Math.PI*5)*10);TR(c.trophy,0,-Math.abs(Math.sin(r*Math.PI*5))*6,1+.1*Math.sin(r*Math.PI*10),0);
+    conf.forEach(o=>{o.vy+=.35;o.x+=o.vx;o.y+=o.vy;o.r+=8;o.e.setAttribute('transform',`translate(${o.x.toFixed(1)} ${o.y.toFixed(1)}) rotate(${o.r.toFixed(0)})`);});},lin);
+  conf.forEach(o=>o.e.remove());TR(c.trophy,0,0,1,0);face(p,'');}
+
+// ---------- the map taken apart and built ----------
+async function carry(c,g,l,inward,delay){await wait(c,g,delay||0);if(!alive(c,g))return;
+  const w=el('g',{},c.under);w.innerHTML=workerSVG();const hm=w.querySelector('.hammer');const mx=(l.a.x+l.b.x)/2,my=(l.a.y+l.b.y)/2,far=l.side*760;
+  const bob=r=>-Math.abs(Math.sin(r*Math.PI*8))*3;
+  if(inward){await tween(c,g,1050,(t,r)=>{const dx=lerp(far,0,t);l.g.setAttribute('transform',`translate(${dx} ${-10+bob(r)})`);TR(w,mx+dx,my+18+bob(r),1,0);},easeOut);
+    if(!alive(c,g)){w.remove();return;}l.g.setAttribute('transform','');const fx=l.a.x+18*l.side,fy=l.a.y+10;
+    await tween(c,g,260,(t,r)=>TR(w,lerp(mx,fx,t),lerp(my+18,fy,t)+bob(r),1,0),lin);
+    for(let k=0;k<2;k++){await tween(c,g,200,t=>hm.setAttribute('transform',`translate(8 1) rotate(${lerp(-70,25,t)})`),easeIn);
+      l.g.setAttribute('transform','translate(0 2)');puff(c,l.a.x,l.a.y+14,2,'#e8d8b0',10);await wait(c,g,70);l.g.setAttribute('transform','');}
+    await tween(c,g,700,(t,r)=>{TR(w,lerp(fx,fx+l.side*720,t),fy+bob(r),1,0);},easeIn);w.remove();}
+  else{await tween(c,g,520,(t,r)=>TR(w,lerp(mx+far*.6,mx,t),my+18+bob(r),1,0),easeOut);if(!alive(c,g)){w.remove();return;}
+    await tween(c,g,850,(t,r)=>{const dx=lerp(0,far,t);l.g.setAttribute('transform',`translate(${dx} ${-10+bob(r)})`);TR(w,mx+dx,my+18+bob(r),1,0);},easeIn);w.remove();}}
+function tileK(tl,k){const tr=`translate(${tl.cx} ${tl.cy}) scale(${Math.max(.001,k).toFixed(3)}) translate(${-tl.cx} ${-tl.cy})`,op=clamp(k*1.6,0,1).toFixed(2);[tl.g,tl.num].forEach(e=>{e.setAttribute('transform',tr);e.setAttribute('opacity',op);});}
+async function teardown(c,g){say(c,'الخريطة القديمة بتتشال…');
+  await Promise.all(c.players.map(p=>tween(c,g,520,t=>{setP(p,lerp(p.x,-40,t*.2),p.y-Math.sin(t*Math.PI)*20,1-t,0);},easeIn).then(()=>{p.e.setAttribute('opacity',0);p.hidden=true;})));
+  if(!alive(c,g))return;
+  await Promise.all([...c.downs.map((d,i)=>wait(c,g,i*90).then(()=>tween(c,g,250,t=>{d.padK=1-t;})).then(()=>tween(c,g,800,t=>{d.e=lerp(d.L,0,t);},easeIn)).then(()=>tween(c,g,220,t=>{d.headK=1-t;}))),
+    ...c.ups.map((l,i)=>carry(c,g,l,false,i*110))]);
+  if(!alive(c,g))return;
+  await tween(c,g,900,(t,r)=>c.tiles.forEach((tl,i)=>tileK(tl,1-easeIn(clamp(r*2.2-(99-i)*.012,0,1)))),lin);}
+async function build(c,g,fresh){
+  if(c.built&&fresh)await teardown(c,g);if(!alive(c,g))return;c.built=false;
+  if(fresh||!c.map)mountMap(c,genMap());
+  c.tiles.forEach(tl=>tileK(tl,0));c.downs.forEach(d=>{d.e=0;d.headK=0;d.padK=0;d.fall=0;d.flat=0;d.lunge={x:0,y:0,s:1};});
+  c.ups.forEach(l=>l.g.setAttribute('transform',`translate(${l.side*760} 0)`));c.players.forEach(p=>{p.n=1;p.hidden=true;p.e.setAttribute('opacity',0);face(p,'');});c.trophy.setAttribute('transform','scale(0.001)');
+  say(c,'خريطة جديدة: الخانات بتنزل…');
+  await tween(c,g,1500,(t,r)=>c.tiles.forEach((tl,i)=>tileK(tl,backOut(clamp(r*2.3-i*.013,0,1)))),lin);if(!alive(c,g))return;
+  await tween(c,g,380,t=>c.trophy.setAttribute('transform',`scale(${backOut(t).toFixed(3)})`),lin);
+  say(c,'العمال بيركّبوا السلالم الكهربا، والزحاليق والسلالم المكسورة بتتمد…');
+  await Promise.all([...c.ups.map((l,i)=>carry(c,g,l,true,i*170)),
+    ...c.downs.map((d,i)=>wait(c,g,300+i*190).then(()=>tween(c,g,280,t=>{d.headK=backOut(t);},lin)).then(()=>tween(c,g,1100,t=>{d.e=lerp(0,d.L,t);},easeOut)).then(()=>tween(c,g,260,t=>{d.padK=backOut(t);},lin)))]);
+  if(!alive(c,g))return;
+  say(c,'العساكر داخلين من البوابة…');
+  for(let i=0;i<4;i++){const p=c.players[i];p.hidden=false;p.e.setAttribute('opacity',1);const s=spot(c,p,1);
+    tween(c,g,650,(t,r)=>setP(p,lerp(-40,s.x,t),s.y-Math.abs(Math.sin(r*Math.PI*3))*14,1,0),lin);await wait(c,g,160);}
+  await wait(c,g,650);if(!alive(c,g))return;settleAll(c);c.built=true;c.cur=0;
+  say(c,`خريطة جاهزة: ${c.map.snakes.length} نزلات و${c.map.ladders.length} سلالم كهربا · متوسط اللعبة حوالي ${Math.round(c.map.avg)} دور لكل لاعب`);await wait(c,g,900);}
+
+// ---------- one turn ----------
+function chooseRoll(c,p){const m=c.map;const hit=v=>{const t=p.n+v;return m.snakes.some(s=>s.h===t)?'s':m.ladders.some(l=>l.f===t)?'l':t>100?'o':'';};
+  const all=[1,2,3,4,5,6];
+  if(c.force==='snake'){const v=all.find(v=>hit(v)==='s');if(v){c.force=null;return v;}}
+  if(c.force==='ladder'){const v=all.find(v=>hit(v)==='l');if(v){c.force=null;return v;}}
+  if(p.n>=94&&Math.random()<.45){const v=all.filter(v=>p.n+v>100);if(v.length)return v[Math.floor(Math.random()*v.length)];}
+  if(p.n>=94){const v=all.find(v=>p.n+v===100);if(v&&Math.random()<.5)return v;}
+  const good=all.filter(v=>hit(v)==='s'||hit(v)==='l');if(good.length&&Math.random()<.55)return good[Math.floor(Math.random()*good.length)];
+  return 1+Math.floor(Math.random()*6);}
+async function forcePlace(c,g,p,kind){
+  const list=kind==='snake'?c.map.snakes.map(s=>s.h):c.map.ladders.map(l=>l.f);const target=list[Math.floor(Math.random()*list.length)];
+  const k=2+Math.floor(Math.random()*4),n=Math.max(1,target-k);if(n===p.n)return;
+  const from={x:p.x,y:p.y};p.n=n;const s=spot(c,p);bubble(c,from.x,from.y-24,'نط!',700);
+  await tween(c,g,650,t=>setP(p,lerp(from.x,s.x,t),lerp(from.y,s.y,t)-Math.sin(t*Math.PI)*90,1,t*360),lin);settleAll(c);}
+async function turn(c,g){const p=c.players[c.cur];say(c,`دور ${p.name}`);
+  if(c.force==='snake'||c.force==='ladder'){await forcePlace(c,g,p,c.force);if(!alive(c,g))return;}
+  let v;
+  if(c.force==='end'){c.force=null;const from={x:p.x,y:p.y};p.n=96;const s=spot(c,p);bubble(c,from.x,from.y-24,'نط!',700);
+    await tween(c,g,800,t=>setP(p,lerp(from.x,s.x,t),lerp(from.y,s.y,t)-Math.sin(t*Math.PI)*120,1,t*360),lin);settleAll(c);if(!alive(c,g))return;v=6;c.endPid=p.i;}
+  else if(c.endPid===p.i&&100-p.n<=6&&100-p.n>0){v=100-p.n;c.endPid=null;}
+  else v=chooseRoll(c,p);
+  if(!await rollDie(c,g,p,v))return;
+  if(p.n+v>100){if(!await bounceBack(c,g,p,p.n+v-100))return;}
+  else if(!await hopTo(c,g,p,p.n+v))return;
+  const up=c.ups.find(l=>l.f===p.n),dn=c.downs.find(s=>s.h===p.n);
+  if(up){const mv=pick(UP_MOVES,c.lastUp);c.lastUp=mv[0];await mv[1](c,g,p,up);if(!alive(c,g))return;p.n=up.t;settleAll(c);face(p,'');const hx=p.x,hy=p.y;
+    await tween(c,g,400,t=>setP(p,hx,hy-Math.abs(Math.sin(t*Math.PI*2))*10),lin);setP(p,hx,hy);}
+  else if(dn){const mv=pick(dn.kind==='slide'?SLIDE_MOVES:STAIRS_MOVES,c.lastDown);c.lastDown=mv[0];await wait(c,g,200);await mv[1](c,g,p,dn);if(!alive(c,g))return;settleAll(c);}
+  else{const close=c.downs.find(s=>Math.abs(s.h-p.n)===1&&Math.hypot(s.pts[0].x-p.x,s.pts[0].y-p.y)<C*1.3);
+    const missed=c.ups.find(l=>l.f===p.n+1||l.f===p.n-1);
+    if(close)await nearMiss(c,g,p,close);else if(missed){bubble(c,p.x,p.y-24,'فاتني السلم!',1000);face(p,'gasp');await wait(c,g,900);face(p,'');}}
+  if(!alive(c,g))return;
+  if(p.n===100){await win(c,g,p);return'win';}
+  if(v===6){bubble(c,p.x,p.y-24,'ستة! تاني',800);await wait(c,g,500);return'again';}
+  c.cur=(c.cur+1)%4;return'next';}
+
+// ---------- the loop ----------
+function normalize(c){c.fx.innerHTML='';c.under.innerHTML='';c.die.setAttribute('opacity',0);
+  if(c.ups)c.ups.forEach(l=>l.steps.classList.remove('stopped'));
+  if(c.built){c.tiles.forEach(tl=>[tl.g,tl.num].forEach(e=>{e.removeAttribute('transform');e.setAttribute('opacity',1);}));
+    c.downs.forEach(d=>{d.e=d.L;d.headK=1;d.padK=1;d.fall=0;d.flat=0;d.lunge={x:0,y:0,s:1};});c.ups.forEach(l=>l.g.setAttribute('transform',''));
+    c.trophy.setAttribute('transform','');c.players.forEach(p=>{p.hidden=false;p.e.setAttribute('opacity',1);face(p,'');});settleAll(c);}
+  renderCard(c,c.time||0);}
+async function loop(c,g,fresh){
+  if(!c.built||fresh)await build(c,g,fresh);
+  while(alive(c,g)){const r=await turn(c,g);if(!alive(c,g))return;
+    if(r==='win'){await wait(c,g,700);if(!alive(c,g))return;await build(c,g,true);}else await wait(c,g,450);}}
+function start(c,fresh){c.gen++;normalize(c);c.paused=false;syncPause(c);loop(c,c.gen,fresh);}
+function stop(c){c.gen++;normalize(c);}
+function syncPause(c){const b=c.sec.querySelector('[data-a="pause"]');b.textContent=c.paused?'▶ كمّل':'⏸ وقّف';}
+function setLive(c,on){c.svg.classList.toggle('off',!on);try{on?c.svg.unpauseAnimations():c.svg.pauseAnimations();}catch(e){}}
+function action(c,a){
+  if(a==='pause'){if(c.paused){start(c,false);}else{stop(c);c.paused=true;syncPause(c);say(c,'واقفة');}return;}
+  if(a==='map'){start(c,true);return;}
+  c.force=a;start(c,false);}
+
+// ---------- start ----------
+const host=document.getElementById('looks');
+const cards=LOOKS.map((lk,i)=>{const c=makeCard(lk,i);host.appendChild(c.sec);
+  mountMap(c,genMap());c.built=true;normalize(c);c.players.forEach(p=>{p.n=1;});settleAll(c);renderCard(c,0);setLive(c,false);say(c,'بتبدأ لوحدها لما توصل لها');return c;});
+function frame(now){const t=now/1000;cards.forEach(c=>{if(c.visible)renderCard(c,t);});requestAnimationFrame(frame);}
+requestAnimationFrame(frame);
+if('IntersectionObserver' in window){
+  const io=new IntersectionObserver(es=>es.forEach(e=>{const c=cards.find(k=>k.sec===e.target);if(!c)return;c.visible=e.isIntersecting;setLive(c,e.isIntersecting);
+    if(reduced)return;
+    if(e.isIntersecting&&!c.paused&&!c.running){c.running=true;start(c,!c.startedOnce);c.startedOnce=true;}
+    else if(!e.isIntersecting&&c.running){c.running=false;stop(c);}}),{threshold:.25});
+  cards.forEach(c=>io.observe(c.sec));
+}else cards.forEach(c=>{c.visible=true;setLive(c,true);});
+})();
+</script>
+</body>
+</html>

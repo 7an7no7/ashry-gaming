@@ -411,16 +411,17 @@ function tvLobby(state, t) {
           ${cat && t[cat.desc] ? `<span>${escapeHTML(t[cat.desc])}</span>` : ''}
         </span>
       </div>` : '';
-    const people = `
-      <div class="tv-lobby__players">${state.players.map(p => `
+    const tile = (p) => `
         <div class="tv-lobby__player${typeof motionFirst === 'function' && motionFirst('tvlp|' + state.code + '|' + p.id) ? ' is-new' : ''}">
           <span class="tv-lobby__avatar" aria-hidden="true">${p.bot ? '🤖' : escapeHTML(Array.from(String(p.name || '?').trim())[0] || '?')}</span>
           <span class="tv-lobby__name"><bdi>${escapeHTML(p.name)}</bdi></span>
-        </div>`).join('')}
-      </div>`;
+        </div>`;
+    // A game whose lobby splits people up (السلم والتعبان's teams) draws them its own way here.
+    const own = state.game && ROOM_GAMES[state.game] && typeof ROOM_GAMES[state.game].tvLobbyPlayers === 'function' ? ROOM_GAMES[state.game].tvLobbyPlayers(state, tile) : '';
+    const people = own ? '' : `<div class="tv-lobby__players">${state.players.map(tile).join('')}</div>`;
     // 🕵️ المهمة السرية on: the cork board - each photo with its pile of closed files - in place of the tiles.
     const board = typeof missionTvBoardHtml === 'function' && state.mission && state.mission.on ? missionTvBoardHtml(state) : '';
-    control = `${chosen}${board || people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
+    control = `${chosen}${board || own || people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
   } else if (!state.game) {
     const count = state.players.length;
     const tileHtml = (tile) => {

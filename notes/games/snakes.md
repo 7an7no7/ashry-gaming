@@ -506,3 +506,5 @@ Every part is optional on a game and decided on the server (or, on one phone, by
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.
+
+**Two leftovers fixed (2 Oct 2026, the owner):** the log speaks each map's language - `snkEvKey` / `snkEvIcon` in JS_Snakes.html pick `snk_ev_snake_<theme>`, `snk_ev_ladder_<theme>`, `snk_ev_move(_eat)_<theme>` and the icon (🐊 🌴, 🛝 🪜, 🐍 🌴, 🐈 🪜), kept in `SNK_BUBBLES` (the chunk, not the shell); and a TV that isn't the host shows the teams in the lobby, a box each, through a new hook any room game can give: `ROOM_GAMES.<id>.tvLobbyPlayers(state, tile)` (JS_RoomTv.html's `tvLobby`), returning '' to keep the plain tiles.

@@ -394,6 +394,21 @@ function snkRoomFeed(root, state, tv) {
 
 ROOM_GAMES.snakes = {
   bots: { max: SNAKES_MAX_PLAYERS, one: true },
+  // A TV that isn't the host shows the teams the host has made, each in its own box.
+  tvLobbyPlayers(state, tile) {
+    const teams = snkRoomTeams(state);
+    if (!teams) return '';
+    const byId = {};
+    state.players.forEach(p => { byId[p.id] = p; });
+    const inTeams = {};
+    const boxes = teams.map((tm, i) => {
+      tm.forEach(id => { inTeams[id] = true; });
+      return `<div class="tv-panel"><b>${escapeHTML(snkT('snk_team_n', { n: i + 1 }))}</b><div class="tv-lobby__players">${tm.map(id => byId[id] ? tile(byId[id]) : '').join('')}</div></div>`;
+    }).join('');
+    // Anyone watching (not seated) still shows, under the teams.
+    const rest = state.players.filter(p => !inTeams[p.id]);
+    return boxes + (rest.length ? `<div class="tv-lobby__players">${rest.map(tile).join('')}</div>` : '');
+  },
   // Someone who joins in the middle watches the board, and plays the next game.
   lateJoin: true,
 

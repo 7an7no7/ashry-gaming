@@ -71,6 +71,23 @@ const SNK_BOT_MS = [650, 1100];             // the phone "thinking" before a com
 // so they live here and not in TRANSLATIONS (the shell's size budget).
 const SNK_BUBBLES = {
   ar: {
+    // The log, in each themed map's own words (snkEvKey).
+    snk_ev_snake_nile: "التمساح نزّل {name} من {from} لـ {to}",
+    snk_ev_ladder_nile: "{name} طلع النخلة من {from} لـ {to}",
+    snk_ev_move_nile: "تمساح عام من {from} لـ {to}",
+    snk_ev_move_eat_nile: "تمساح عام لـ {to} وكل {name}",
+    snk_ev_snake_metro: "{name} اتزحلق على الزحليقة من {from} لـ {to}",
+    snk_ev_ladder_metro: "{name} طلع بالسلم الكهربا من {from} لـ {to}",
+    snk_ev_move_metro: "زحليقة اتنقلت من {from} لـ {to}",
+    snk_ev_move_eat_metro: "زحليقة اتنقلت لـ {to} وزحلقت {name}",
+    snk_ev_snake_desert: "{name} نزل بالكوبرا من {from} لـ {to}",
+    snk_ev_ladder_desert: "{name} طلع النخلة من {from} لـ {to}",
+    snk_ev_move_desert: "كوبرا زحفت من {from} لـ {to}",
+    snk_ev_move_eat_desert: "كوبرا زحفت لـ {to} وكلت {name}",
+    snk_ev_snake_hara: "القطة نزّلت {name} في الماسورة من {from} لـ {to}",
+    snk_ev_ladder_hara: "{name} طلع على الحبل من {from} لـ {to}",
+    snk_ev_move_hara: "ماسورة اتنقلت من {from} لـ {to}",
+    snk_ev_move_eat_hara: "ماسورة اتنقلت لـ {to} ونزّلت {name}",
     snk_b_no: "لأااا!",
     snk_b_ham: "هَمّ!",
     snk_b_tuf: "تُف!",
@@ -188,6 +205,23 @@ const SNK_BUBBLES = {
     snk_b_hara_ful: "فول",
   },
   en: {
+    // The log, in each themed map's own words (snkEvKey).
+    snk_ev_snake_nile: "A crocodile took {name} down from {from} to {to}",
+    snk_ev_ladder_nile: "{name} climbed a palm from {from} to {to}",
+    snk_ev_move_nile: "A crocodile swam from {from} to {to}",
+    snk_ev_move_eat_nile: "A crocodile swam to {to} and ate {name}",
+    snk_ev_snake_metro: "{name} went down a slide from {from} to {to}",
+    snk_ev_ladder_metro: "{name} rode an escalator from {from} to {to}",
+    snk_ev_move_metro: "A slide moved from {from} to {to}",
+    snk_ev_move_eat_metro: "A slide moved to {to} and sent {name} down",
+    snk_ev_snake_desert: "{name} slid down a cobra from {from} to {to}",
+    snk_ev_ladder_desert: "{name} climbed a palm from {from} to {to}",
+    snk_ev_move_desert: "A cobra crawled from {from} to {to}",
+    snk_ev_move_eat_desert: "A cobra crawled to {to} and ate {name}",
+    snk_ev_snake_hara: "The cat chased {name} down a pipe from {from} to {to}",
+    snk_ev_ladder_hara: "{name} climbed a rope from {from} to {to}",
+    snk_ev_move_hara: "A pipe moved from {from} to {to}",
+    snk_ev_move_eat_hara: "A pipe moved to {to} and sent {name} down",
     snk_b_no: "Nooo!",
     snk_b_ham: "Gulp!",
     snk_b_tuf: "Ptooey!",
@@ -3307,6 +3341,17 @@ function snkStripHtml(k) {
 /** A team's name: its members' names joined. */
 const snkTeamName = (k, tm) => (tm || []).filter(id => (k.g.seats || []).indexOf(id) !== -1).map(id => k.names[id] || '…').join(' + ');
 
+/** A log line's key and icon in this map's own words: 🐊 a crocodile on the Nile, not 🐍. */
+const SNK_THEME_ICONS = { nile: ['🐊', '🌴'], metro: ['🛝', '🪜'], desert: ['🐍', '🌴'], hara: ['🐈', '🪜'] };
+const snkEvKey = (k, key) => {
+  const th = k && k.g && k.g.theme;
+  return th && SNK_THEME_ICONS[th] && SNK_BUBBLES.ar[key + '_' + th] ? key + '_' + th : key;
+};
+const snkEvIcon = (k, down) => {
+  const ic = SNK_THEME_ICONS[k && k.g && k.g.theme];
+  return ic ? ic[down ? 0 : 1] : (down ? '🐍' : '🪜');
+};
+
 /** One event as a line for the log. */
 function snkEventText(k, e) {
   const name = (pid) => k.names[pid] || '…';
@@ -3315,8 +3360,8 @@ function snkEventText(k, e) {
     case 'roll': {
       // In teams: who rolled for whom, first.
       const pre = e.by ? snkT('snk_ev_for', { by: name(e.by), name: name(e.pid) }) + ' · ' : '';
-      if (e.jump && e.jump.k === 's') return '🐍 ' + pre + snkT('snk_ev_snake', { name: name(e.pid), from: e.walk, to: e.to });
-      if (e.jump && e.jump.k === 'l') return '🪜 ' + pre + snkT('snk_ev_ladder', { name: name(e.pid), from: e.walk, to: e.to });
+      if (e.jump && e.jump.k === 's') return snkEvIcon(k, true) + ' ' + pre + snkT(snkEvKey(k, 'snk_ev_snake'), { name: name(e.pid), from: e.walk, to: e.to });
+      if (e.jump && e.jump.k === 'l') return snkEvIcon(k, false) + ' ' + pre + snkT(snkEvKey(k, 'snk_ev_ladder'), { name: name(e.pid), from: e.walk, to: e.to });
       if (e.charmed) return '🪈 ' + pre + snkT('snk_ev_charmed', { name: name(e.pid), n: e.walk });
       if (e.surp) {
         const s = e.surp;
@@ -3332,7 +3377,7 @@ function snkEventText(k, e) {
     case 'auto': return '⏱️ ' + snkT(e.why === 'host' ? 'snk_ev_host' : 'snk_ev_clock', { name: name(e.pid) });
     case 'left': return snkT('snk_ev_left', { name: e.name || name(e.pid) });
     case 'nap': return '😴 ' + snkT('snk_ev_nap', { name: name(e.pid) });
-    case 'move': return '🐍 ' + snkT(e.eat && e.eat.length ? 'snk_ev_move_eat' : 'snk_ev_move', { from: e.from.h, to: e.to.h, name: (e.eat || []).map(name).join('، ') });
+    case 'move': return snkEvIcon(k, true) + ' ' + snkT(snkEvKey(k, e.eat && e.eat.length ? 'snk_ev_move_eat' : 'snk_ev_move'), { from: e.from.h, to: e.to.h, name: (e.eat || []).map(name).join('، ') });
     default: return '';
   }
 }

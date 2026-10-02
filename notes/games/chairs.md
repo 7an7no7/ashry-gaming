@@ -153,8 +153,27 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
   on after the plain one); `play-all.mjs --only=chairs-dj` (a fake that catches, a DJ's phone
   closing and the server taking over, «أحلى دي جي», the DJ's own stop on every phone).
 
+### The TV fits 1920x1080 and 1280x720 with 5-8 people (2 Oct 2026)
+
+With five at 1920x1080 the end's side column was about 1,476 px tall: the wins list and the bottom
+of the ring were cut off, and in the music the hint under the ring was clipped. Now (`Style.html`,
+the TV block of الكراسي; `TV_GAMES.chairs.frame`, `mchOverHtml(state, s, tv)`):
+- `.mch-tv` is one row the stage's height (`grid-template-rows: minmax(0, 1fr)`, `overflow: clip` -
+  the orbit's turning corners, empty, used to give the TV a scrollbar); the ring is `min(64vmin,
+  100%)`, so the round line, the ring and the hint fit; the side never stretches the row
+  (`max-height: 100%`, scrolling only as a last resort).
+- **The end on the TV** is the places alone (`.mch-over--tv`, no `tv-scale` zoom): sized in the TV's
+  units (`--tv-md`, the winner `--tv-lg`), in two columns from five places (`MCH_TV_PLACES_TWO_COLS`,
+  the winner across both), «أحلى دي جي» as its foot. The wins of the evening are not repeated
+  there: the TV's strip of players carries them (`tvStrip` reads the board). Phones keep the board.
+- **The music and the result** keep the side's list zoomed (`tv-scale`) with compact rows, in two
+  columns past six people (`.mch-tv__side.is-many`).
+- Checked at 1920x1080 and 1280x720 with 5 and 8 people (scratchpad shots `chairs-*`).
+
 ### Decided here (open to change)
 
+- **The TV's end shows no wins board** (the strip under it has the wins); two columns of places from
+  five people; the side's lists in two columns past six.
 - **Who is DJ when the latest one out can't be**: the one out before them who is here (away phones
   and computer players are skipped); nobody - the secret stop. (`chairsPickDj`)
 - **A DJ "goes offline"** when their phone has had no socket for 3 s (`CHAIRS_DJ_AWAY_MS`); the

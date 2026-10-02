@@ -252,8 +252,14 @@ function mchRingListHtml(state, s) {
   return `<div class="card card--tight mch-order"><div class="eyebrow">${escapeHTML(t.mch_in_ring)}</div>${rows}</div>`;
 }
 
-/** The end: the winner crowned, the places (the last out first), the wins of the evening. */
-function mchOverHtml(state, s) {
+/**
+ * The end: the winner crowned, the places (the last out first), the wins of the evening.
+ * On the TV (tv) the wins are on its strip of players already (tvStrip reads the board), so
+ * the side holds the places alone, sized in the TV's units and in two columns from
+ * MCH_TV_PLACES_TWO_COLS places on (a ring of eight fits 1280x720 with the buttons).
+ */
+const MCH_TV_PLACES_TWO_COLS = 5;
+function mchOverHtml(state, s, tv) {
   const t = mchT();
   const places = s.places || [];
   const medals = ['🥇', '🥈', '🥉'];
@@ -267,9 +273,10 @@ function mchOverHtml(state, s) {
         <div><div class="eyebrow">${escapeHTML(mchDjT().mch_best_dj)}</div>
         <div class="mch-best-dj__name">${escapeHTML((s.bestDj.names || []).join(' · '))}</div>
         <div class="mch-best-dj__n">${escapeHTML(mchFill(mchDjT().mch_best_dj_n, { n: s.bestDj.n }))}</div></div></div>` : '';
-  return `<div class="card mch-over ${rise ? 'mch-over--rise' : ''}" data-reveal-ms="${rise ? 700 + places.length * 140 : 0}">
-      <div class="eyebrow">${escapeHTML(t.mch_places)}</div>${list}${best}</div>
-    ${renderScoreboard(s.board, t.mch_wins)}`;
+  const two = tv && places.length >= MCH_TV_PLACES_TWO_COLS ? ' is-two' : '';
+  return `<div class="card mch-over ${tv ? 'mch-over--tv' : ''} ${rise ? 'mch-over--rise' : ''}" data-reveal-ms="${rise ? 700 + places.length * 140 : 0}">
+      <div class="eyebrow">${escapeHTML(t.mch_places)}</div><div class="mch-over__places${two}">${list}</div>${best}</div>
+    ${tv ? '' : renderScoreboard(s.board, t.mch_wins)}`;
 }
 
 /**
@@ -695,11 +702,14 @@ TV_GAMES.chairs = {
       : !state.youAreHost ? '' : (s.phase === 'result'
       ? ''
       : s.phase === 'gameover' ? `<div class="tv-actions">${tvBtn('▶ ' + t.mch_play_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : '');
-    const side = s.phase === 'gameover' ? mchOverHtml(state, s) : (mchOrderHtml(state, s) || mchRingListHtml(state, s));
+    const over = s.phase === 'gameover';
+    const side = over ? mchOverHtml(state, s, true) : (mchOrderHtml(state, s) || mchRingListHtml(state, s));
     const hint = s.phase === 'music' ? `<div class="tv-note">${escapeHTML(t.mch_tap_hint)}</div>` : '';
+    // A list of up to eight in the side's phone components, zoomed (tv-scale); the end in the TV's own sizes.
+    const many = (s.roster || []).length > 6 ? ' is-many' : '';
     return `<div class="mch-tv">
       <div class="mch-tv__stage">${head}${mchRingHtml(state, s, { tv: true })}${hint}</div>
-      <div class="mch-tv__side tv-scale">${side}${host}</div>
+      <div class="mch-tv__side${over ? ' is-over' : ' tv-scale'}${many}">${side}${host}</div>
     </div>`;
   },
   after(state, rebuilt) {

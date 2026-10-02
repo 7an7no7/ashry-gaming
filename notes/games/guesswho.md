@@ -224,8 +224,14 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
 - Tests: `rules.mjs` («guesswho teams: …»), `leaks.mjs` (a five-person team game with proposals, cancels and a lapse,
   then a side moved and the next game), `play-all.mjs` (segment `guesswho`, «guess who in teams»).
 
+- **The team pills on a phone** (2 Oct 2026): a team's members wrap onto as many lines as they need
+  (`.gw-team-sub` inside the pill's sub line: the names, then «انت · باقي N»), the pill a rounded card
+  (`.gw-team-pills`, `--r-lg`) - on a 375px phone the members used to be cut off after the first name.
+
 ### Decided here (open to change)
 
+- **Every member's name stays on the pill**, wrapped (no count with names on a tap): a team is at most
+  half a room, and two or three lines fit the pill on every size.
 - **In teams the secret face is always dealt at random** (one face a team; "each picks" is a two-player switch and
   is hidden while teams is on).
 - **Someone who didn't pick a side** when Start is pressed joins the smaller side (ties to red); Start still needs

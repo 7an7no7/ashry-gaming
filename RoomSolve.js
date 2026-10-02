@@ -32,7 +32,7 @@
    carries only what the table may see: the public part (`pub`: a word's
    length, the range, the flag in the flag way, the emoji clue) and each
    board's tries, state and order - and for خمن الكلمة the colours of each row
-   without its letters, for خمّن الدولة the closest a player has come.
+   without its letters, for خمّن الدولة the closest a player has come and its wrong guesses' pins, once the round is over.
 
    سباق ألغاز (the owner, 26 Sep 2026) rides on the same engine: the ten solo
    puzzles as a race, always the app's pick (never a setter), a fixed clock
@@ -161,13 +161,14 @@ const SOLVE_KINDS = {
       if (b.state === 'play' && misses >= at.letter) hints.letter = svCountryLetter(target, st.lang);
       return { g: b.g.map(r => ({ code: r.code, km: r.km, deg: r.deg, p: r.p })), hints: hints };
     },
-    // The closest a player has come, as a share, and the pins of their wrong guesses for the TV's map
-    // (idea 450): a country and how warm it is in the map's five steps, never the kilometres, and
-    // never the right guess - that pin would stand on the answer.
-    progress: (b, x) => ({
+    // While the round is played the table sees the tries only (the owner, 2 Oct 2026: the TV must not
+    // show anyone's guesses mid-round). Once it is over: the closest a player came, as a share, and the
+    // pins of their wrong guesses for the TV's map (idea 450), which drop onto it together - a country
+    // and how warm it is in the map's five steps, never the kilometres, and never the right guess.
+    progress: (b, x, st, over) => (over ? {
       best: b.g.reduce((m, r) => Math.max(m, r.p), 0),
       pins: b.g.filter(r => r.code !== x.code).map(r => ({ c: r.code, s: flagsStep(r.km) }))
-    }),
+    } : {}),
     reveal: (x) => ({ code: x.code }),
     mine: (x) => ({ code: x.code })
   },
@@ -264,9 +265,9 @@ const svWriteSecrets = (room) => {
 };
 
 /** What the table sees of one board: its tries, its state, its place, and whatever the game adds. */
-const svProgressOf = (room, b, at) => {
+const svProgressOf = (room, b, at, over) => {
   const s = room.shared;
-  const out = Object.assign({ n: b.n, state: b.state, at: at }, SOLVE_KINDS[s.solve].progress(b, room._solve.secret, s.settings));
+  const out = Object.assign({ n: b.n, state: b.state, at: at }, SOLVE_KINDS[s.solve].progress(b, room._solve.secret, s.settings, !!over));
   if (s.race && b.state !== 'play') out.secs = svSecs(room, b);
   if (b.timeUp) out.timeUp = true;
   return out;
@@ -424,7 +425,7 @@ const svEndRound = (room) => {
       failed++;
     }
     if (pts) addScore(room, pid, pts);
-    s.progress[pid] = svProgressOf(room, b, at === -1 ? null : at);
+    s.progress[pid] = svProgressOf(room, b, at === -1 ? null : at, true);
     if (here.indexOf(pid) !== -1) {
       const row = { id: pid, name: roomPlayerName(room, pid), state: b.state, n: b.n, pts: pts };
       if (s.race) { row.secs = svSecs(room, b); row.score = ranks[pid] ? ranks[pid].score : 0; row.gave = !!b.gave; row.timeUp = !!b.timeUp; }

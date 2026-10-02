@@ -571,29 +571,23 @@ function svProgressHtml(kind, state, tv) {
   return `<div class="sv-rows ${tv ? 'sv-rows--tv' : ''}">${rows}</div>`;
 }
 
-/* خمّن الدولة's map in a room (idea 450). On a solver's phone its own guesses (svBoardHtml); on the TV
-   everyone's wrong guesses as pins with each player's first letter (shared.progress[pid].pins: a country
-   and a colour step, never the right guess); the continent glows and the answer's gold pin drops only
-   at the end, on the TV as on every phone. The pins seen of a deal are remembered, so only new ones drop,
-   and a TV or phone that comes in mid-round takes what is there as seen (svfSeen). */
-const svfSeen = { key: '', pins: new Set() };
+/* خمّن الدولة's map in a room (idea 450). On a solver's phone its own guesses (svBoardHtml). The TV shows
+   nobody's guesses while the round is played, only how many each has made (the owner, 2 Oct 2026; the
+   server sends no pins before the end); when it is over everyone's wrong guesses drop onto it together,
+   each with its player's first letter (shared.progress[pid].pins: a country and a colour step), then the
+   continent glows and the answer's gold pin drops - on the TV as on every phone. */
+const SVF_PIN_STAGGER = 0.12; // seconds between one pin and the next as they drop at the end
+const SVF_PIN_STAGGER_MAX = 1.2;
 
-function svFlagsTablePins(state, deal) {
+function svFlagsTablePins(state) {
   const s = state.shared || {};
-  const first = svfSeen.key !== deal;
-  if (first) { svfSeen.key = deal; svfSeen.pins = new Set(); }
   const pins = [];
   Object.keys(s.progress || {}).forEach((pid) => {
     const name = svName(state, pid) || '?';
     const label = Array.from(String(name).trim())[0] || '?';
-    (s.progress[pid].pins || []).forEach((p) => {
-      const key = pid + '|' + p.c;
-      const fresh = !first && !svfSeen.pins.has(key);
-      svfSeen.pins.add(key);
-      pins.push({ code: p.c, step: p.s, label: label, fresh: fresh });
-    });
+    (s.progress[pid].pins || []).forEach((p) => pins.push({ code: p.c, step: p.s, label: label }));
   });
-  return { pins: pins, anim: !first && !motionOff() };
+  return pins;
 }
 
 /** The map at the end of a round: the guesses (this phone's, or the table's), the continent, the gold pin. */
@@ -612,10 +606,12 @@ function svFlagsEndMapHtml(state, tv) {
     pins.forEach((p) => { p.fresh = drop && !!p.gold; });
     return fmapHtml({ pins: pins, calls: true, glow: c.cont, anim: drop });
   }
-  const table = svFlagsTablePins(state, deal);
-  table.pins.forEach((p) => { p.fresh = false; });
-  table.pins.push({ code: code, gold: true, fresh: drop });
-  return fmapHtml({ pins: table.pins, calls: false, glow: c.cont, anim: drop });
+  // Everyone's pins drop together, a beat apart, and the gold one after them.
+  const pins = svFlagsTablePins(state);
+  const step = pins.length ? Math.min(SVF_PIN_STAGGER, SVF_PIN_STAGGER_MAX / pins.length) : 0;
+  pins.forEach((p, i) => { p.fresh = drop; p.delay = i * step; });
+  pins.push({ code: code, gold: true, fresh: drop, delay: pins.length * step });
+  return fmapHtml({ pins: pins, calls: false, glow: c.cont, anim: drop });
 }
 
 /** The secret turns over for everyone, then who took what. */
@@ -860,11 +856,10 @@ function svTvFrame(kind, state, t) {
       </div>`;
   }
   if (kind === 'flags') {
-    // Everyone's guesses as pins with their first letter, coloured by how close; the continent only at the end.
-    const table = svFlagsTablePins(state, [state.code, s.dealId, s.round].join('|'));
+    // The map stays empty while the round is played (only how many guesses, beside it); the pins come at the end.
     return `<div class="tv-trivia sv-tv" data-accent="${accent}">${top}
         <div class="svf-tv">
-          <div class="svf-tv__map">${fmapHtml({ pins: table.pins, calls: false, glow: '', anim: table.anim })}${fmapSumHtml([], '', 'ar')}</div>
+          <div class="svf-tv__map">${fmapHtml({ pins: [], calls: false, glow: '', anim: false })}${fmapSumHtml([], '', 'ar')}</div>
           <div class="svf-tv__side">
             <div class="tv-title">${escapeHTML(s.setter ? svT('sv_secret_of', { name: s.setterName || '' }) : svT('sv_race_title_' + kind))}</div>
             ${svPubHtml(kind, s, true)}

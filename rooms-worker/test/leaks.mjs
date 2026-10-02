@@ -410,6 +410,14 @@ const PROBES = {
       }
       return null;
     }));
+    // The owner, 2 Oct 2026: while a round of خمّن الدولة is played nobody - the TV included - sees
+    // anyone's guesses, only how many; the pins and the closest share come when it is over.
+    if (s.solve === 'flags') out.push(probe('خمّن الدولة: no guess of a board reaches the table before the round is over',
+      Object.keys(h.boards || {}).some((id) => h.boards[id].g.length > 0), (view) => {
+        const prog = view.shared.progress || {};
+        const id = Object.keys(prog).find((k) => hasKey(prog[k], 'pins') || hasKey(prog[k], 'best'));
+        return id ? 'shared.progress.' + id + (hasKey(prog[id], 'pins') ? '.pins' : '.best') + ' (mid-round)' : null;
+      }));
     return out;
   },
   // سباق ألغاز (RoomRace.js): the ten solo puzzles as a race on the engine. The puzzle reaches

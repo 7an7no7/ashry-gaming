@@ -12143,6 +12143,10 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 /* «فريق ضد فريق»: the two teams' colours (the lobby's sides, the pills, the TV). */
 .gw-dot--t0 { background: var(--team-red); }
 .gw-dot--t1 { background: var(--team-blue); }
+.gw-team-sub { display: flex; flex-direction: column; white-space: normal; overflow-wrap: anywhere; }
+.gw-team-sub > bdi { color: var(--text-2); }
+.gw-team-pills .duel-pill { border-radius: var(--r-lg); align-items: flex-start; }
+.gw-team-pills .duel-pill__mark, .gw-team-pills .duel-pill__score { align-self: center; }
 .gw-tv-team--0 { color: var(--team-red-ink); }
 .gw-tv-team--1 { color: var(--team-blue-ink); }
 .gw-tv__members { font-size: var(--tv-sm); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -15992,6 +15996,16 @@ button.tour-live { cursor: pointer; }
 .tour-tv__live > :nth-child(n+5) .tour-mini__board, .tour-tv__live:has(> :nth-child(5)) .tour-mini__board { max-width: 15vmin; }
 .tour-mini__board .xo-cell { font-size: 20cqw; border-radius: 0.8vmin; box-shadow: none; }
 .tour-mini__board .xo-board { gap: 0.6vmin; }
+/* «إكس أو الكبير» small (2 Oct 2026): a bigger box, square cells with their marks, the nine boards plain to see. */
+.tour-mini__board.tour-mini__board--big { max-width: 34vmin; }
+.tour-tv__live > :nth-child(n+5) .tour-mini__board.tour-mini__board--big, .tour-tv__live:has(> :nth-child(5)) .tour-mini__board.tour-mini__board--big { max-width: 22vmin; }
+.tour-mini__board .xob { gap: 0.7vmin; }
+.tour-mini__board .xob-b { gap: 0.25vmin; padding: 0.35vmin; border-width: 1px; border-radius: 0.8vmin; background: var(--surface-3); }
+.tour-mini__board .xob-cell { padding: 6%; border-radius: 0.25vmin; }
+.tour-mini__board .xob-g { stroke-width: 17; }
+.tour-mini__board .xob.has-target .xob-b { opacity: 0.75; }
+.tour-mini__board .xob.has-target .xob-b.is-target { transform: none; box-shadow: none; }
+.tour-mini__board .xob.is-any .xob-b.is-open::before { content: none; }
 .tour-mini__count { display: flex; align-items: baseline; justify-content: center; gap: 2vmin; font-size: 1.8vmin; color: var(--text-3); }
 .tour-mini__count span { display: flex; align-items: baseline; gap: 0.6vmin; }
 .tour-mini__count b { font-size: 4.5vmin; color: var(--text-strong); }
@@ -20708,10 +20722,12 @@ html[dir="rtl"] .mch-window > i { transform-origin: right; }
   .mch-av__name { display: none; }
 }
 
-/* The TV: the ring as tall as the stage, the order beside it. */
-.mch-tv { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(24vmin, 1fr); gap: 3vmin; align-items: center; height: 100%; }
-.mch-tv__stage { display: flex; flex-direction: column; align-items: center; gap: 1.5vmin; }
-.mch-ring--tv { width: min(74vh, 100%); max-width: none; }
+/* The TV: the ring as tall as the stage, the order beside it. One row the stage's height: the
+   side never stretches it (a tall side used to push the ring and its hint off the bottom), and the
+   orbit's turning corners (empty) never give the TV a scrollbar. */
+.mch-tv { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(24vmin, 1fr); grid-template-rows: minmax(0, 1fr); gap: 3vmin; align-items: center; height: 100%; min-height: 0; overflow: clip; }
+.mch-tv__stage { display: flex; flex-direction: column; align-items: center; gap: 1.5vmin; min-height: 0; }
+.mch-ring--tv { width: min(64vmin, 100%); max-width: none; }
 .mch-ring--tv .mch-av__face { font-size: 3vmin; }
 .mch-ring--tv .mch-av__name { font-size: 1.6vmin; max-width: 12vmin; }
 .mch-ring--tv .mch-eq { height: 8vmin; gap: 0.8vmin; }
@@ -20719,7 +20735,25 @@ html[dir="rtl"] .mch-window > i { transform-origin: right; }
 .mch-ring--tv .mch-mid__big { font-size: 5vmin; }
 .mch-ring--tv .mch-mid__big--out { font-size: 3.6vmin; }
 .mch-ring--tv .mch-mid__line { font-size: 2.2vmin; }
-.mch-tv__side { display: flex; flex-direction: column; gap: 1.5vmin; }
+.mch-tv__side { display: flex; flex-direction: column; gap: 1.5vmin; min-height: 0; max-height: 100%; overflow-y: auto; }
+/* Who is in the ring, and who sat first: compact rows, and two columns past six people (2 Oct 2026). */
+.mch-tv__side .mch-order .status-row { min-height: 2.75rem; padding-block: var(--sp-1); margin-bottom: var(--sp-1); }
+.mch-tv__side.is-many .mch-order { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--sp-2); align-items: start; }
+.mch-tv__side.is-many .mch-order > .eyebrow { grid-column: 1 / -1; }
+.mch-tv__side.is-many .mch-order .status-row { gap: var(--sp-2); padding-inline: var(--sp-2); }
+/* The end on the TV (2 Oct 2026): the places in the TV's sizes, two columns for five or more. */
+.mch-over--tv { padding: var(--tv-gap) calc(var(--tv-gap) * 1.5); }
+.mch-over--tv .eyebrow { font-size: var(--tv-xs); }
+.mch-over__places.is-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--tv-gap); }
+.mch-over__places.is-two > .mch-place:first-child { grid-column: 1 / -1; }
+.mch-over--tv .mch-place { gap: calc(var(--tv-gap) * 0.6); padding: 0.5vmin 0; font-size: var(--tv-md); min-width: 0; }
+.mch-over--tv .mch-place__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mch-over--tv .mch-place__medal { font-size: var(--tv-md); }
+.mch-over--tv .mch-place:first-child .mch-place__name { font-size: var(--tv-lg); }
+.mch-over--tv .mch-best-dj { gap: var(--tv-gap); margin-top: var(--tv-gap); padding-top: var(--tv-gap); }
+.mch-over--tv .mch-best-dj__icon { font-size: var(--tv-lg); }
+.mch-over--tv .mch-best-dj__name { font-size: var(--tv-md); }
+.mch-over--tv .mch-best-dj__n { font-size: var(--tv-xs); }
 
 /* «الدي جي» (2 Oct 2026): the one out runs the music - their panel, the badge, the title at the end. */
 .mch-dj { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); width: 100%; }

@@ -358,6 +358,11 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
 - The ✕ / ◯ colours are the ones X-O already uses: on one phone the team blue and red ink, in a room the accent and danger ink.
 - The marks on the big board are a pen stroke on one phone too (the normal size keeps its glyphs).
 - The last square played is tinted (`is-last`), so the table sees where the send came from.
+- **The TV tournament's small live boards** (2 Oct 2026): a big game's mini gets its own box
+  (`tour-mini__board--big`, `TOUR_CLIENT.xo.mini`: 34vmin, 22vmin from five matches) with square
+  cells (a small radius, thicker pen strokes), the nine boards on their grey card, the sent-to board
+  outlined but not scaled, the others only a little faded and no pulsing halo - the squares used to
+  be round dots too small for a mark.
 
 Tests: `rules.mjs` "xo big" (the rules, the phone's player, a room, the forced move, a big tournament), `leaks.mjs` `xo:big`, `play-all.mjs` (segment `duels`: a big game in winner stays and a big tournament of four).
 

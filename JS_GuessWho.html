@@ -461,10 +461,12 @@ function gwPills(state) {
       name: gwT('gw_short_' + i),
       score: (s.tw || [])[i] || 0,
       mark: `<span class="gw-dot gw-dot--t${i}">${s.teams[i].length}</span>`,
-      sub: (mine === i ? escapeHTML(gwT('gw_you')) + ' · ' : '') + `<bdi>${escapeHTML(gwTeamNames(state, i).join(gwListSep()))}</bdi> · ` +
-        escapeHTML(gwT('gw_left', { n: gwUp(s.faces, s.down[i]).length }))
+      // The members wrap onto as many lines as they need (a pill is a third of a 375px phone): every name shows.
+      sub: `<span class="gw-team-sub"><bdi>${escapeHTML(gwTeamNames(state, i).join(gwListSep()))}</bdi>` +
+        `<span>${(mine === i ? escapeHTML(gwT('gw_you')) + ' · ' : '') + escapeHTML(gwT('gw_left', { n: gwUp(s.faces, s.down[i]).length }))}</span></span>`
     });
-    return duelPillsHtml({ players: [team(0), team(1)], turn: s.phase === 'play' ? s.turn : -1, draws: null });
+    return duelPillsHtml({ players: [team(0), team(1)], turn: s.phase === 'play' ? s.turn : -1, draws: null })
+      .replace('class="duel-pills', 'class="duel-pills gw-team-pills');
   }
   const pill = (i) => ({
     name: names[i],

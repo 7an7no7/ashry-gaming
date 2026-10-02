@@ -5723,17 +5723,16 @@ Date.now = duelTestClock;
   const fa = r.secrets.a.board;
   const target = SV.flagCountry(code);
   check(fa.g[0].km === SV.flagsDistance(SV.flagCountry(wrong[0]), target) && fa.g[0].deg === Math.round(SV.flagsBearing(SV.flagCountry(wrong[0]), target)) &&
-    fa.hints.cont === target.cont && !fa.hints.letter && !r.secrets.b.board.hints.cont && s.progress.a.best === Math.max(...fa.g.map((g) => g.p)),
+    fa.hints.cont === target.cont && !fa.hints.letter && !r.secrets.b.board.hints.cont,
     'solve/flags: the distance and the direction from the server; the continent after three misses, on that phone only');
   applyRoomAction(r, 'a', 'guess', { code: wrong[3], round: 1 });
   applyRoomAction(r, 'a', 'guess', { code: wrong[4], round: 1 });
   check(!!r.secrets.a.board.hints.letter, 'solve/flags: and the first letter after five');
   applyRoomAction(r, 'c', 'guess', { code: code, round: 1 });
   check(s.phase === 'solving' && !s.scores.c, 'solve: points go on the board when the round ends, not before');
-  // The TV's map (idea 450): each wrong guess's country and its colour step; the right one, standing on the answer, never.
-  check(s.progress.a.pins.length === 5 && s.progress.a.pins.every((p, i) => p.c === wrong[i] && p.s === SV.flagsStep(SV.flagsDistance(SV.flagCountry(wrong[i]), target))) &&
-    s.progress.c.pins.length === 0 && JSON.stringify(s).indexOf('"' + code + '"') === -1,
-    'solve/flags: the table\'s map gets each wrong guess as a country and a colour; the right one\'s pin never');
+  // The owner, 2 Oct 2026: mid-round the table (the TV too) sees how many guesses, never where they went.
+  check(['a', 'b', 'c'].every((id) => !('pins' in s.progress[id]) && !('best' in s.progress[id])) && s.progress.a.n === 5 && JSON.stringify(s).indexOf('"' + code + '"') === -1,
+    'solve/flags: while the round is played the table sees how many guesses each board made, not their pins or how close');
   check(SV.flagsStep(12000) === 0 && SV.flagsStep(9000) === 1 && SV.flagsStep(3000) === 2 && SV.flagsStep(1500) === 3 && SV.flagsStep(0) === 4,
     'solve/flags: the map\'s five colours run from far to close');
   check(roomDeadline(r) === s.endsAt + 1500, 'solve: the clock is a server deadline');
@@ -5741,6 +5740,10 @@ Date.now = duelTestClock;
   roomTimeout(r, clock);
   check(s.phase === 'result' && s.scores.c === 15 && s.result.rows.find((x) => x.id === 'b').state === 'lost' && s.result.reveal.code === code && !s.result.setterPts,
     'solve: when the clock runs out whoever hasn\'t solved it has failed; the race has no setter');
+  // The TV's map (idea 450) once it is over: each wrong guess's country and its colour step, all at once; the right one, standing on the answer, never.
+  check(s.progress.a.pins.length === 5 && s.progress.a.pins.every((p, i) => p.c === wrong[i] && p.s === SV.flagsStep(SV.flagsDistance(SV.flagCountry(wrong[i]), target))) &&
+    s.progress.c.pins.length === 0 && s.progress.b.pins.length === 0 && s.progress.a.best === Math.max(...fa.g.map((g) => g.p)),
+    'solve/flags: when the round is over the table\'s map gets every wrong guess as a country and a colour, together; the right one\'s pin never');
   applyRoomAction(r, 'a', 'nextRound', { round: 1 });
   applyRoomAction(r, 'a', 'closeRound', { round: 2 });
   applyRoomAction(r, 'a', 'nextRound', { round: 2 });

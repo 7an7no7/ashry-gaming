@@ -341,24 +341,31 @@ six below has a list of its own:
   - **Rooms** (`JS_RoomSolve.html`): a solver's phone draws its own guesses
     the same way (`svBoardHtml`, the glow when the server's view sends
     `hints.cont`); the result card adds the map with the gold pin
-    (`svFlagsEndMapHtml`). The TV draws everyone's wrong guesses as pins with
-    each player's first letter (`svFlagsTablePins`, from
-    `shared.progress[pid].pins` = `[{ c, s }]`, a country and a colour step,
-    `RoomSolve.js`'s flags `progress`), the flag and the cards beside it
-    (`.svf-tv`); only new pins drop (`svfSeen`, a TV that comes in mid-round
-    takes what is there as seen). The TV's glow and gold pin wait for the
-    result. Tests: `rules.mjs` (the pins and the steps), `leaks.mjs` (a pin is
-    `{c, s}` only, never on the answer, only in خمّن الدولة; proved by putting
-    the right guess back in: it fails), `play-all.mjs` (the TV gets Egypt as
-    `{"c":"EG","s":0}` against Japan, never "JP").
+    (`svFlagsEndMapHtml`). **The TV shows nobody's guesses while the round is
+    played** (the owner, 2 Oct 2026): its map is empty beside the flag and
+    the cards, which say only how many guesses each has made; the server
+    sends no pins (nor the closest %) before the round is over
+    (`RoomSolve.js`'s flags `progress(b, x, st, over)`). At the end everyone's
+    wrong guesses drop onto it together, each with its player's first letter
+    (`svFlagsTablePins`, from `shared.progress[pid].pins` = `[{ c, s }]`, a
+    country and a colour step), a beat apart (`SVF_PIN_STAGGER` 0.12 s, the
+    whole drop within `SVF_PIN_STAGGER_MAX` 1.2 s: the pin's `delay` →
+    `--pd` in `fmapHtml`), then the continent glows and the gold pin drops
+    after the last of them. A reload on the result draws them still.
+    Tests: `rules.mjs` (no pins or % mid-round; at the end the pins and the
+    steps), `leaks.mjs` (a pin is `{c, s}` only, never on the answer, only in
+    خمّن الدولة; and «no guess of a board reaches the table before the round
+    is over», proved by putting the old always-on pins back: it fails),
+    `play-all.mjs` (mid-round no pins on the TV or a phone; at the end the TV
+    gets Egypt as `{"c":"EG","s":0}` against Japan, never "JP").
   - **CSS** is in the chunk (`fmapStyle`, one `<style>` added to the body
     once, every class `fmap-` / `svf-`): the shell is at its 710 KB budget.
   - Decided here (open to change): the glow comes with the continent hint, so
     by distance at the fourth miss (the owner said "after the third guess",
     from the flag); the TV shows each player's wrong guesses with their
-    colour (the owner's look, which the engine's "nobody sees the others'
-    guesses" now allows on the TV - a phone still shows only its own); the
-    TV's map shows no continent until the end; 5 colour steps (the sheet's)
+    colour only at the end (the owner, 2 Oct 2026 - a phone shows only its
+    own); the closest % of each board is held back with the pins (the owner:
+    "only how many guesses" mid-round); the TV's map shows no continent until the end; 5 colour steps (the sheet's)
     and only the step of each guess goes to the table, never the kilometres;
     the right guess is never a pin before the round ends; no country names on
     the map (callouts name your own guesses only).

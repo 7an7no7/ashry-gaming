@@ -6213,9 +6213,10 @@ async function solveSeg() {
       check(b.state.you.board.g.length === 0 && JSON.stringify(prog(b)).indexOf(JSON.stringify(G.wrong[Object.keys(G.wrong)[0]])) === -1,
             game + ': and never what they were');
       if (game === 'flags') {
-        await S.waitFor((s) => (s.shared.progress[a.pid].pins || []).length === 1, 'flags: the TV gets the wrong guess as a pin');
-        check(JSON.stringify(S.state.shared.progress[a.pid].pins) === '[{"c":"EG","s":0}]' && JSON.stringify(b.state.shared.progress[a.pid].pins) === '[{"c":"EG","s":0}]',
-              'flags: a pin is the country and how warm it is (Egypt is over 9,000 km from Japan: red), never the kilometres');
+        // The owner, 2 Oct 2026: mid-round the TV shows how many guesses, not where they went.
+        await S.waitFor((s) => s.shared.progress[a.pid].n === 1, 'flags: the TV counts the guess');
+        check(!('pins' in S.state.shared.progress[a.pid]) && !('best' in S.state.shared.progress[a.pid]) && !('pins' in b.state.shared.progress[a.pid]),
+              'flags: while the round is played no screen gets another board\'s guesses as pins, nor how close it came');
       }
       await b.must('guess', Object.assign({ round: 1 }, G.rightG));
       await a.must('guess', Object.assign({ round: 1 }, G.rightG));
@@ -6224,6 +6225,11 @@ async function solveSeg() {
         check(JSON.stringify(S.state.shared.progress).indexOf('"JP"') === -1, 'flags: the right guess is never a pin - it would stand on the answer');
       }
       await all(svBots.concat([S]), (s) => s.shared.phase === 'result' && !!s.shared.result.reveal, game + ': the round ends once every board is done, and the secret is shown');
+      if (game === 'flags') {
+        check(JSON.stringify(S.state.shared.progress[a.pid].pins) === '[{"c":"EG","s":0}]' && JSON.stringify(b.state.shared.progress[a.pid].pins) === '[{"c":"EG","s":0}]' &&
+              JSON.stringify(S.state.shared.progress[b.pid].pins) === '[]',
+              'flags: at the end the TV gets every wrong guess as a pin - the country and how warm it is (Egypt is over 9,000 km from Japan: red), never the kilometres or the right guess');
+      }
       check(H.state.shared.scores[b.pid] === 15 && H.state.shared.scores[a.pid] === 14 && !H.state.shared.scores[setter.pid],
             game + ': the first solve is 10 + 5, the second 10 + 4; nobody failed, so the setter has nothing');
       check(H.state.shared.board[0].id === b.pid && H.state.shared.board[0].tries === 1, game + ': the board keeps the tries for a tie');

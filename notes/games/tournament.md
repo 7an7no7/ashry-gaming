@@ -146,6 +146,9 @@ the host's phone per game (`recallOptions('tourMode')`).
 
 **Every tournament is new to the phones (the review of 1 Oct 2026).** `tour.no` keeps counting across the room's tournaments even with winner stays or the hub between them (`room._tourNo`), and `tour.id` is a fresh `newDealId()` at every start, carried into each match's `dealId` (`<id>.<match>.<game>`). The client's play-once keys (the draw, the flights, the podium, the cheer, the signature) read `tourKeyOf(tr)` (the id, or the number from an older server), and a new tournament resets the phone's own view (`tourLocal.tourKey` in its `onRoomClocksReset`).
 
+- «إكس أو الكبير»'s small live boards on the TV have a bigger box of their own (`tour-mini__board--big`,
+  2 Oct 2026; notes/games/duels.md).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

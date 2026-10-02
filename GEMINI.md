@@ -1193,7 +1193,9 @@ after a reload.
 stylesheet is a `<link>` without `crossorigin`, so it is fetched without CORS
 and its answer is opaque: status 0, `ok` false. A worker that keeps only
 `res.ok` never saved it, and offline the fonts were gone even though their
-files were cached. Keep opaque answers from the pinned hosts. And test
+files were cached. Keep opaque answers from the pinned hosts. But an opaque copy answers only a no-CORS request: handed to a CORS
+one for the same address (an extension, a preload) the browser turns it into a
+network error and the fonts fail (2 Oct 2026); such a request goes to the network. And test
 offline with the server really switched off (`curl` it): a page a worker
 controls sends every one of its fetches through that worker, whatever the
 address, so a fetch from the page can't tell you whether the server is up.

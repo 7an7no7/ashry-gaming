@@ -166,7 +166,7 @@ const rememberedTeams = (room) => {
 const ROOM_GAME_IDS = [
   'imposter', 'justone', 'whoami', 'codenames',
   'wouldyou', 'mostlikely', 'fibbage', 'drawguess',
-  'fakeartist', 'wavelength', 'trivia', 'buzzer', 'stop',
+  'fakeartist', 'trivia', 'buzzer', 'stop',
   'chameleon', 'spyfall', 'bomb',
   'twotruths', 'emoji', 'proverbs', 'fiveseconds', 'telephone', 'monkey',
   'herd', 'mafia', 'screw', 'mind', 'timeline', 'uno', 'domino',
@@ -748,7 +748,6 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'fibbage':    fibbageAction(room, playerId, action, payload); break;
     case 'drawguess':  drawGuessAction(room, playerId, action, payload); break;
     case 'fakeartist': fakeArtistAction(room, playerId, action, payload); break;
-    case 'wavelength': wavelengthAction(room, playerId, action, payload); break;
     case 'trivia':     triviaAction(room, playerId, action, payload); break;
     case 'buzzer':     buzzerAction(room, playerId, action, payload); break;
     case 'stop':       stopAction(room, playerId, action, payload); break;
@@ -3850,98 +3849,6 @@ const finishFakeArtist = (room, winner) => {
 };
 
 /* ==========================================================================
-   على نفس الموجة — WAVELENGTH
-   One psychic sees where the target sits between two opposites and gives a
-   clue; everyone else turns the dial. Co-operative, with one shared score.
-   ========================================================================== */
-
-// Distance from the target on a 0–100 dial → points. The client draws the same
-// bands on the reveal, so the zone you see is the zone that scored.
-const WAVELENGTH_BANDS = [
-  { within: 3, points: 4 },
-  { within: 8, points: 3 },
-  { within: 15, points: 2 }
-];
-
-const wavelengthAction = (room, playerId, action, payload) => {
-  if (action === 'start' || action === 'nextRound') {
-    requireHost(room, playerId, action === 'nextRound');
-    const prev = room.shared || {};
-    // From the results only (a double tap must not skip someone's turn as
-    // psychic) — unless the host is deliberately skipping a silent psychic.
-    if (action === 'nextRound' && prev.phase !== 'results' && !(payload && payload.skip)) return;
-    // The skip names the round it was pressed on: a double tap must not skip two psychics.
-    if (action === 'nextRound' && staleTap(payload, 'round', prev.round)) return;
-    if (room.players.length < 2) throw new Error('الحد الأدنى لاعبان');
-
-    const lang = roomLangOf(room, payload);
-    const round = action === 'start' ? 1 : (prev.round || 0) + 1;
-    const psychic = room.players[(round - 1) % room.players.length];
-    const pair = nextPrompt(room, WAVELENGTH_PAIRS[lang] || WAVELENGTH_PAIRS.ar, 'wavelength_' + lang);
-    // Kept off the very ends, where any clue at all gives it away.
-    const target = 8 + Math.floor(Math.random() * 85);
-
-    room.secrets = {};
-    room.secrets[psychic.id] = { target: target };
-    room._target = target;
-    room.shared = {
-      round: round,
-      psychicId: psychic.id,
-      psychicName: psychic.name,
-      leftLabel: pair.left,
-      rightLabel: pair.right,
-      clue: null,
-      dial: 50,
-      phase: 'clue',
-      scores: action === 'start' ? { team: 0 } : (prev.scores || { team: 0 }),
-      lang: lang,
-      roster: room.players.map(p => p.id)
-    };
-    room.phase = 'play';
-    return;
-  }
-
-  const s = room.shared;
-
-  if (action === 'giveClue') {
-    if (s.phase !== 'clue') throw new Error('التلميح اتبعت خلاص');
-    if (playerId !== s.psychicId) throw new Error('القارئ الذهني فقط');
-    const clue = String((payload && payload.clue) || '').trim().slice(0, 60);
-    if (!clue) throw new Error('اكتب تلميحاً');
-    s.clue = clue;
-    s.phase = 'dial';
-    return;
-  }
-
-  if (action === 'setDial') {
-    // A drag that lands just after the lock is not an error worth a toast.
-    if (s.phase !== 'dial') return;
-    // The psychic knows where the target is; letting them steer ends the game.
-    if (playerId === s.psychicId) throw new Error('القارئ الذهني لا يحرك المؤشر');
-    const dial = Number(payload && payload.dial);
-    if (!isFinite(dial)) throw new Error('قيمة غير صحيحة');
-    // Not `|| 50`: zero is a real position, the far left end.
-    s.dial = Math.max(0, Math.min(100, Math.round(dial)));
-    return;
-  }
-
-  if (action === 'lockDial') {
-    requireMoveOn(room, playerId);
-    // Once only: a second tap must not score the same round twice.
-    if (s.phase !== 'dial') return;
-    const diff = Math.abs(s.dial - room._target);
-    const band = WAVELENGTH_BANDS.find(b => diff <= b.within);
-    s.pointsEarned = band ? band.points : 0;
-    s.scores.team = (s.scores.team || 0) + s.pointsEarned;
-    s.target = room._target;
-    s.phase = 'results';
-    return;
-  }
-
-  throw new Error('إجراء غير معروف');
-};
-
-/* ==========================================================================
    تحدي المعلومات — TRIVIA
    The host picks how many questions (5, 10, 15 or 20); everyone answers at
    once. A right answer is 10 points, and the fastest right answers get more:
@@ -4158,11 +4065,10 @@ const closeTriviaQuestion = (room) => {
                   nextFor the result it was set for; nextPaused after «استنى».
    ========================================================================== */
 // The pause after each result, its reveal counted in: the trivia answer is told
-// over ~3.7 s (triviaRevealPlan), a vote's bars ~3 s (voteRevealTimes), the dial
-// ~2.3 s (wlReveal), فيبج's cards one by one (fibRevealPlan).
+// over ~3.7 s (triviaRevealPlan), a vote's bars ~3 s (voteRevealTimes),
+// فيبج's cards one by one (fibRevealPlan).
 const AUTONEXT_TRIVIA_MS = 10000;
 const AUTONEXT_VOTE_MS = 12000;
-const AUTONEXT_WAVE_MS = 11000;
 const AUTONEXT_HERD_MS = 12000;
 const AUTONEXT_TT_MS = 13000;
 const AUTONEXT_HUM_MS = 10000;
@@ -4176,7 +4082,6 @@ const AUTONEXT_GAMES = {
   wouldyou:   { action: 'nextRound', deals: true, ms: AUTONEXT_VOTE_MS, ready: (s) => !!(s.vote && s.vote.phase === 'results'), key: (s) => 'r' + s.round, args: (s) => ({ lang: s.lang, round: s.round }) },
   mostlikely: { action: 'nextRound', deals: true, ms: AUTONEXT_VOTE_MS, ready: (s) => s.phase === 'results', key: (s) => 'r' + s.round, args: (s) => ({ lang: s.lang, round: s.round }) },
   fibbage:    { action: 'nextRound', deals: true, ms: AUTONEXT_FIB_MS, ready: (s) => s.phase === 'results', key: (s) => 'r' + s.round, args: (s) => ({ lang: s.lang, round: s.round }) },
-  wavelength: { action: 'nextRound', deals: true, ms: AUTONEXT_WAVE_MS, ready: (s) => s.phase === 'results', key: (s) => 'r' + s.round, args: (s) => ({ lang: s.lang, round: s.round }) },
   herd:       { action: 'nextRound', deals: true, ms: AUTONEXT_HERD_MS, ready: (s) => s.phase === 'result', key: (s) => 'r' + s.round, args: (s) => ({ round: s.round }) },
   twotruths:  { action: 'next', deals: false, ms: AUTONEXT_TT_MS, ready: (s) => s.phase === 'result', key: (s) => 't' + s.turn, args: (s) => ({ turn: s.turn }) },
   // دندنها (RoomHum.js): the banner, the front row and the points take about 3 s; the songs were dealt at the start.
@@ -4803,7 +4708,6 @@ const gamePlayerLeft = (room, playerId, name) => {
       duelPlayerLeft(room, playerId);
       return;
     default:
-      // على نفس الموجة: the host's skip deals the next psychic.
       return;
   }
 };

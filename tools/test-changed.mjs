@@ -43,15 +43,15 @@ const CORE = [
 ];
 const IGNORE = [/^notes\//, /\.md$/, /^\.claude\//, /^docs\//, /^\.github\//];
 const CORE_GAMES = ['imposter', 'justone', 'whoami', 'codenames', 'fibbage', 'wouldyou', 'mostlikely', 'drawguess', 'fakeartist',
-  'wavelength', 'trivia', 'buzzer', 'stop', 'chameleon', 'spyfall', 'bomb', 'twotruths', 'emoji', 'proverbs', 'fiveseconds',
+  'trivia', 'buzzer', 'stop', 'chameleon', 'spyfall', 'bomb', 'twotruths', 'emoji', 'proverbs', 'fiveseconds',
   'telephone', 'monkey', 'herd', 'mind', 'timeline'];
 const RACE_GAMES = ['strands', 'wordwheel', 'connections', 'pinpoint', 'queens', 'tango', 'nonogram', 'mines', 'streak', 'sudoku'];
 const MAP = [
   // The party games the core segment plays in its one room (and their word lists).
   { files: /^(SpyWords|CodenamesWords|PartyContent|TriviaQuestions|ChameleonWords|SpyfallPlaces|BombPrompts|EmojiRiddles|Proverbs|MonkeyWords|StopWords|TimelineEvents)\.js$/, robots: ['core', 'autonext'], ui: CORE_GAMES, screens: true },
-  { files: /^JS_Room(Imposter|Codenames|Buzzer|Stop|Chameleon|Spyfall|Bomb|Draw|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|FakeArtist|Wavelength|Trivia|Herd|Mind|Timeline)\.html$/, robots: ['core', 'autonext'], ui: CORE_GAMES },
+  { files: /^JS_Room(Imposter|Codenames|Buzzer|Stop|Chameleon|Spyfall|Bomb|Draw|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|FakeArtist|Trivia|Herd|Mind|Timeline)\.html$/, robots: ['core', 'autonext'], ui: CORE_GAMES },
   // «التالي لوحده»: the next round by itself in the vote and quiz games.
-  { files: /^JS_RoomAutoNext\.html$/, robots: ['autonext'], ui: ['trivia', 'wouldyou', 'mostlikely', 'fibbage', 'herd', 'twotruths', 'wavelength'] },
+  { files: /^JS_RoomAutoNext\.html$/, robots: ['autonext'], ui: ['trivia', 'wouldyou', 'mostlikely', 'fibbage', 'herd', 'twotruths'] },
   // Error reports from players' phones (/err): the admin script that reads them.
   { files: /^tools\/errors\.mjs$/, robots: ['err'] },
   // «اعمل مسابقتك» and «كلماتنا»: the packs, their editor, and the rooms that deal them.

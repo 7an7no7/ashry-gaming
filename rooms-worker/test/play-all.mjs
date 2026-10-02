@@ -2806,23 +2806,6 @@ async function coreSeg() {
   await all(bots, (s) => s.shared.phase === 'results' && s.shared.winner === 'artists' && s.shared.secretWord === faWord, 'fake artist result');
   await A.must('backToHub');
 
-  /* --- على نفس الموجة ------------------------------------------------------- */
-  console.log('• wavelength');
-  await A.must('chooseGame', { game: 'wavelength' });
-  await A.must('start', { lang: 'ar' });
-  await all(bots, (s) => s.shared.phase === 'clue', 'wavelength dealt');
-  const psychic = byId(bots, A.state.shared.psychicId);
-  const target = psychic.state.you.target;
-  check(typeof target === 'number' && bots.filter((b) => b !== psychic).every((b) => b.state.you === null), 'only the psychic sees the target');
-  await psychic.must('giveClue', { clue: 'سخن' });
-  const dialer = bots.find((b) => b !== psychic);
-  check((await psychic.act('setDial', { dial: target })).ok === false, 'the psychic cannot move the dial');
-  await dialer.must('setDial', { dial: target });
-  await all(bots, (s) => s.shared.dial === target, 'the dial moves on every phone');
-  await A.must('lockDial');
-  await all(bots, (s) => s.shared.phase === 'results' && s.shared.pointsEarned === 4 && s.shared.target === target, 'wavelength scores a bullseye');
-  await A.must('backToHub');
-
   /* --- تحدي المعلومات ------------------------------------------------------- */
   console.log('• trivia (waits ~17s for the server clock)');
   await A.must('chooseGame', { game: 'trivia' });

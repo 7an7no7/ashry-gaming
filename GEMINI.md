@@ -123,6 +123,7 @@ content decisions (words cut, kept, spelled) in `notes/content.md`.
 - **Everything built stays, and motion is everywhere** (26 Sep 2026): a simplification folds, hides or reorders (behind «كل الألعاب», «خيارات أكتر», a shelf's «الكل») and never removes a game, tool, option or way in; every screen and popup enters with motion, transform and opacity only, still under reduced motion.
 - **Nothing is waiting on the owner** (23 Sep 2026): سكرو deals 62 cards for Classic + الحرامي, and طرنيب ٤١ scores a failed 13 as 0 and lets team 1 win when both qualify in one round - closed as built.
 - Rooms stay on Cloudflare; WebRTC was rejected. Firebase, if ever, on a different Google account from the one already tried.
+- **على نفس الموجة (Wavelength) was removed** (2 Oct 2026, the owner: not needed): its room game, TV screen, list and tests are gone; don't bring it back.
 - Not built, on purpose: صراحة أو جرأة (too tame when family-clean), تخمين السعر (prices go stale), Hot Takes-style opinion games (for adults), Web Push (not worth it yet), an "open in the app" banner for room links (impossible on iPhone).
 
 **Content**
@@ -434,7 +435,7 @@ with the new state, as it always did.
   and only accepted from the current drawer.
 
 **Where state lives.** The room object is kept in memory and saved to the
-Durable Object's storage on every move (drawing and the Wavelength dial at most
+Durable Object's storage on every move (drawing at most
 once a second). A sleeping room costs nothing and wakes with its state intact.
 A room deletes itself after 6 hours with no moves and nobody connected, or 24
 hours with no moves at all. A host whose phone has been gone 2 minutes hands the
@@ -568,7 +569,6 @@ each game through its `TV_GAMES.<id>` renderer:
 Every renderer draws the host's buttons too, because a room hosted from a laptop
 has no phone to press them on. Rules that let the table act from the screen check
 `isRoomScreen`: a Codenames guess or pass counts for the team whose turn it is.
-The Wavelength dial accepts anyone except the psychic.
 
 **The lobby** (`tvLobby`): the QR and the code on one side, the players on the
 other, both columns from the top and the pair in the middle of the stage's
@@ -1499,9 +1499,9 @@ choices as it deals. Anything with a positional answer is shuffled at deal time
 rather than trusted to have been varied by hand.
 
 **A physical axis stays left-to-right in Arabic.** Under `dir="rtl"` a range
-input runs right to left while `left: 40%` still measures from the left, so
-Wavelength's slider, needle and end labels disagreed in Arabic. The spectrum is
-wrapped in `dir="ltr"`. The same goes for anything that maps a value to a
+input runs right to left while `left: 40%` still measures from the left, so a
+slider, its needle and its end labels disagree in Arabic: wrap such a line in
+`dir="ltr"`. The same goes for anything that maps a value to a
 position on screen - and for the seats round a table: الدومينو's seat row is
 the one before you on the left and the one after you on the right, and a grid
 in an Arabic page put them the other way round until the row was given
@@ -1557,7 +1557,7 @@ the nav slide up a row (a stretched nav, or none at all on a long page).
 **Per-round buttons get double-tapped.** `nextRound`, `nextQuestion`, `lockDial`,
 `closeVote` and `playAgain` each check the phase they are allowed from and return
 quietly otherwise. Without that, a second tap skipped a trivia question, dealt two
-rounds, or scored a Wavelength round twice.
+rounds, or scored a round twice.
 
 **Random is not "new".** Players kept seeing the same cards after a couple of
 games, and a longer list didn't fix it: most games picked with `Math.random()`,

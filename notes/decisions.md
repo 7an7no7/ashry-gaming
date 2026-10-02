@@ -4,6 +4,8 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 
 ## From GEMINI.md: Decided, and why
 
+- **على نفس الموجة (Wavelength) was removed** (the owner, 2 Oct 2026: "we don't need على نفس الموجة, remove it"). The owner's own exception to *Everything built stays*: the game is deleted, not hidden or switched off (`DisabledGames.js` is for a game being fixed). Its room game, TV screen, list, help and tests are gone; don't bring it back.
+
 - **Everything built stays, and motion is everywhere** (the owner, 26 Sep
   2026, while approving the arcade look's follow-ups: "Everything we built
   stays, just less in the way" and "Smooth, nice motion everywhere, on every

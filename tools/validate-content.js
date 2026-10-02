@@ -166,16 +166,7 @@ for (const [lang, list] of Object.entries(CN)) {
   console.log(`codenames.${lang}: ${list.length} words`);
 }
 
-/* ------------------------------------------------ Wavelength & Trivia */
-const WL = load(PC, 'WAVELENGTH_PAIRS');
-for (const [lang, list] of Object.entries(WL)) {
-  list.forEach((pair, i) => {
-    if (!pair.left || !pair.left.trim()) note(`wavelength.${lang}[${i}]: empty left`);
-    if (!pair.right || !pair.right.trim()) note(`wavelength.${lang}[${i}]: empty right`);
-  });
-  console.log(`wavelength.${lang}: ${list.length} pairs`);
-}
-
+/* ------------------------------------------------ Trivia */
 const TRIV = load(ROOT + 'TriviaQuestions.js', 'TRIVIA_QUESTIONS');
 // The server's categories, and the lobby's (JS_RoomTrivia.html), which adds 'all'.
 const listIn = (file, name) => {

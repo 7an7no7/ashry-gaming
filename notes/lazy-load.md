@@ -186,7 +186,6 @@ win room.
 | spy | JS_Imposter | 4.9 | w-monkey, w-countries |
 | codenames | JS_RoomCodenames | 7.3 |  |
 | draw | JS_RoomDraw, JS_RoomFakeArtist, JS_RoomTelephone | 11.3 |  |
-| wavelength | JS_RoomWavelength | 2.7 |  |
 | trivia | JS_RoomTrivia | 3.2 |  |
 | triviaboard | JS_TriviaBoardBank, JS_TriviaBoard | 52.1 | flags |
 | chameleon | JS_Chameleon, JS_RoomChameleon | 5.3 | w-chameleon |

@@ -26,7 +26,7 @@ export const SHELL_FILES = [
   'Logo', 'Tailwind', 'Style',
   'JS_Lazy', 'JS_Core', 'JS_Catalog', 'JS_Room', 'JS_Utils',
   'JS_PackStore',      // «اعمل مسابقتك» / «كلماتنا» on the phone: the lobbies and the word games' lists read it
-  'JS_RoomAutoNext',   // «التالي لوحده»: trivia, the voting games, موجة, زي الكل, صدق ولا كذب
+  'JS_RoomAutoNext',   // «التالي لوحده»: trivia, the voting games, زي الكل, صدق ولا كذب
   'JS_RoomImposter',   // renderRoomFrame, roomAct, roomHostRow: every room screen's helpers
   'JS_RoomGames',      // the play-mode switch, كلمة واحدة and من أنا؟ rooms
   'JS_RoomVoting',     // the voting engine and renderScoreboard, used by most rooms
@@ -52,7 +52,6 @@ export const CHUNKS = {
   monkey: ['JS_Monkey', 'JS_RoomMonkey'],
   codenames: ['JS_RoomCodenames'],
   draw: ['JS_RoomDraw', 'JS_RoomFakeArtist', 'JS_RoomTelephone'],
-  wavelength: ['JS_RoomWavelength'],
   trivia: ['JS_RoomTrivia'],
   connections: ['JS_Connections', 'ConnectionsWords.js'],
   triviaboard: ['JS_TriviaBoardBank', 'JS_TriviaBoard'],

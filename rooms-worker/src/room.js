@@ -46,9 +46,9 @@ const ABANDONED_MS = 24 * 3600 * 1000;
 const IDLE_RECHECK_MS = 10 * 60 * 1000;
 // No alarm is ever set sooner than this, whatever a game's deadline says.
 const ALARM_FLOOR_MS = 1000;
-// Rapid moves (drawing, the dial) are saved at most this often; the phones get them at once.
+// Rapid moves (drawing, cheers) are saved at most this often; the phones get them at once.
 const QUICK_SAVE_MS = 1000;
-const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'setDial', 'cheer', 'stick', 'ink', 'bzClock', 'draft']);
+const QUICK_ACTIONS = new Set(['addStrokes', 'undoStroke', 'cheer', 'stick', 'ink', 'bzClock', 'draft']);
 // Moves that only touch what the server keeps to itself (ارسم اللي بتسمعه's drawings,
 // room._hear.ink, sent every second or so by every drawer; المهمة السرية's "the memo was
 // shown"): when nothing any phone is shown changed, only the phone that moved gets its

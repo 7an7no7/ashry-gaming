@@ -12259,14 +12259,6 @@ Date.now = duelTestClock;
   applyRoomAction(cz, 'tv', 'guess', { index: cz._key.indexOf('neutral'), turn: other });
   check(cz.shared.board.filter((c) => !c.revealed).length === hidden && cz.shared.turn === up, 'codenames: a screen\'s pick for a turn that passed is dropped');
 
-  // موجة: a skip names the round it was pressed on.
-  const wl = newRoom(['a', 'b', 'c']);
-  applyRoomAction(wl, 'a', 'chooseGame', { game: 'wavelength' });
-  applyRoomAction(wl, 'a', 'start', { lang: 'ar' });
-  applyRoomAction(wl, 'a', 'nextRound', { skip: true, round: 1 });
-  applyRoomAction(wl, 'a', 'nextRound', { skip: true, round: 1 });
-  check(wl.shared.round === 2, 'wavelength: a double tap on "skip the psychic" skips one');
-
   // كمّل المثل: a guess typed for a card that closed is not judged on the next.
   const qz = newRoom(['a', 'b', 'c']);
   applyRoomAction(qz, 'a', 'chooseGame', { game: 'proverbs' });
@@ -12454,15 +12446,6 @@ Date.now = duelTestClock;
   check(fb.shared.phase === 'results' && fb.shared.nextMs === 9000 + 3700 + 900 * 2, 'autonext/fibbage: the pause counts the lies\' reveal in (3 lies: 14.5 s)');
   fire(fb);
   check(fb.shared.round === 2 && fb.shared.phase === 'writing', 'autonext/fibbage: the next question deals itself');
-
-  // موجة
-  const wl2 = an('wavelength', ['a', 'b', 'c'], { autoNext: true });
-  applyRoomAction(wl2, wl2.shared.psychicId, 'giveClue', { clue: 'x' });
-  applyRoomAction(wl2, 'a', 'lockDial', {});
-  check(wl2.shared.phase === 'results' && wl2.shared.nextAt === clock + 11000, 'autonext/wavelength: the result sets nextAt');
-  const psy1 = wl2.shared.psychicId;
-  fire(wl2);
-  check(wl2.shared.round === 2 && wl2.shared.phase === 'clue' && wl2.shared.psychicId !== psy1, 'autonext/wavelength: the next psychic is dealt');
 
   // زي الكل: the reveal stays the host's (merging is a judgement); the result counts
   const hd = an('herd', ['a', 'b', 'c'], { autoNext: true, target: 10 });

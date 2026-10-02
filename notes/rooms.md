@@ -450,7 +450,7 @@ Of the five questions the ideas batch left, the owner said yes to four (the «�
 
 The owner approved a lobby switch «التالي لوحده» / "Next by itself" for the older
 room games that wait for the host's «التالي» after each result: تحدي المعلومات
-(room trivia), لو خيروك, مين أكثر واحد, فيبج, موجة (Wavelength), زي الكل, صدق ولا
+(room trivia), لو خيروك, مين أكثر واحد, فيبج, زي الكل, صدق ولا
 كذب. Off by default, per game, the host's lobby choice, remembered on the host's
 phone. Off is exactly today's flow (no new field in `shared`).
 

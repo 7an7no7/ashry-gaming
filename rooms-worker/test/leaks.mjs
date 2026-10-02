@@ -297,12 +297,6 @@ const PROBES = {
         (hasKey(view.shared, 'fakeId') ? 'shared.fakeId' : null))
     ];
   },
-  wavelength(room) {
-    const s = room.shared || {};
-    const open = s.phase === 'clue' || s.phase === 'dial';
-    return [probe('only the psychic sees the target', open, (view, pid) =>
-      (hasKey(view.shared, 'target') ? 'shared.target' : (pid !== s.psychicId && view.you && 'target' in view.you ? 'you.target' : null)))];
-  },
   trivia(room) {
     const s = room.shared || {};
     const out = [probe('the right answer stays on the server while answering', s.phase === 'answering', (view) =>
@@ -1478,15 +1472,6 @@ const DRIVERS = {
     const fake = T.room._fakeId;
     for (const id of T.ids) must(T, id, 'vote', { option: id === fake ? T.ids.find((x) => x !== fake) : fake });
     if (S(T).phase === 'guessing') must(T, fake, 'fakeGuess', { guess: 'مش عارف' });
-    return S(T).phase === 'results';
-  },
-  wavelength() {
-    const T = table('wavelength', 3);
-    must(T, T.host, 'start', { lang: 'ar' });
-    const s = S(T);
-    must(T, s.psychicId, 'giveClue', { clue: 'سخن' });
-    must(T, T.ids.find((id) => id !== s.psychicId), 'setDial', { dial: 40 });
-    must(T, T.host, 'lockDial');
     return S(T).phase === 'results';
   },
   trivia() {

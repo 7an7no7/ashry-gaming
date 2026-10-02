@@ -77,7 +77,7 @@ const CREW_TITLE_GAMES = {
   brain: ['trivia', 'timeline', 'vault', 'chess', 'votechess', 'handbrain', 'bughouse', 'chess4', 'connect4', 'dots', 'xo',
     'battleship', 'mind', 'wordle', 'guessnum', 'flags', 'hangman', 'sudoku', 'queens', 'tango', 'nonogram', 'mines',
     'strands', 'wordwheel', 'connections', 'pinpoint', 'streak'],
-  words: ['hum', 'stop', 'monkey', 'drawguess', 'hear', 'telephone', 'emoji', 'proverbs', 'herd', 'codenames', 'wavelength',
+  words: ['hum', 'stop', 'monkey', 'drawguess', 'hear', 'telephone', 'emoji', 'proverbs', 'herd', 'codenames',
     'justone', 'whoami', 'wouldyou', 'mostlikely', 'darkroom'],
   sport: ['bowling', 'minigolf'],
   luck: ['ludo', 'snakes', 'bank', 'bomb']

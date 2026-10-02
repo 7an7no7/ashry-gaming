@@ -994,6 +994,8 @@
       // Still plain timers: the picker's spin animation and the reaction game's
       // random start delay.
       if (appState.reaction.timeoutId) clearTimeout(appState.reaction.timeoutId);
+      clearTimeout(appState.reaction.fakeId);       // «خدعة»: the fake signal and its end
+      clearTimeout(appState.reaction.fakeEndId);
       if (typeof pickerInterval !== 'undefined' && pickerInterval) {
           clearInterval(pickerInterval);
           pickerInterval = null;
@@ -1684,6 +1686,7 @@
       turn_title: "دورك!",
       turn_bomb: "القنبلة معاك: قول ومرّر",
       turn_chairs: "الموسيقى وقفت: اقعد!",
+      turn_reaction: "خضرا: دوس!",
       turn_wire: "في أمر مستنيك!",
       turn_vault: "الصندوق مستنيك!",
       turn_draw: "ارسم",
@@ -2705,6 +2708,7 @@
       sv_send_riddle: "ابعت الفزورة",
       sv_online_desc_wordle: "واحد يكتب كلمة والباقي يخمّنها كل واحد في شبكته على موبايله، أو سباق على كلمة من التطبيق. التلفزيون بيوري ألوان كل واحد من غير الحروف.",
       sv_online_desc_guessnum: "واحد يختار رقم والباقي يخمّنوه بأعلى وأقل، كل واحد على موبايله، أو سباق على رقم من التطبيق.",
+      sv_online_desc_reaction: "كل الشاشات تخضرّ مع بعض: ٥ جولات، وأسرع تلاتة ياخدوا نقط.",
       sv_online_desc_flags: "واحد يختار دولة والباقي يخمّنوها من العلم أو بالمسافة، كل واحد على موبايله، أو سباق على دولة من التطبيق.",
       // سباق ألغاز (JS_RoomRace.html): the solo puzzles as a race in a room.
       race_title: "سباق ألغاز",
@@ -4384,7 +4388,7 @@
       cs_basra_need_aj: "الآسات والولاد مجموعهم 8 (دلوقتي {n})",
       cat_xo: "3 في صف واحد. ضد صاحبك أو ضد الموبايل.",
       cat_guessnum: "رقم مخفي: أعلى ولا أقل؟ لوحدك أو مع صاحبك.",
-      cat_reaction: "اتنين على شاشة واحدة: أول واحد يضغط لما تبقى خضرا.",
+      cat_reaction: "موبايل واحد أو كل واحد بموبايله: أول واحد يدوس لما تخضرّ.",
       cat_chooser: "كل واحد يحط صباعه على الشاشة، والموبايل يختار مين يبدأ.",
       setup_bomb: "القنبلة",
       setup_stop: "أتوبيس كومبليت",
@@ -5347,12 +5351,10 @@
       group_replace: "استبدال المجموعة 🔄",
       group_update_hint: "<b>إضافة:</b> يضيف اللاعبين المحددين فوق المجموعة الحالية.<br><b>استبدال:</b> يمسح المجموعة الحالية ويضع المحددين فقط.",
       setup_reaction: "اختبار السرعة",
-      reaction_wait: "استنى...",
-      reaction_tap: "دوس!",
-      reaction_too_soon: "بدري أوي! ❌",
-      reaction_winner: "كسبت! 🏆",
-      reaction_ms: "مللي ثانية",
       reaction_desc: "حطوا الموبايل على الترابيزة بينك وبين صاحبك. أول ما الشاشة تخضرّ دوس بأسرع ما تقدر! بس أوعى تدوس قبل ما تخضرّ.",
+      // رد الفعل: «خدعة» (the rest of the game's words are RX_TEXT, JS_RoomReaction.html)
+      rx_fakes: "خدعة",
+      rx_fakes_hint: "مرة كل تلات جولات تقريباً تيجي إشارة مزيفة قبل الخضرا (أصفر، 🐱، «استنى!»): اللي يدوس عليها يخسر.",
       tmr_minus1: "\u2066-1\u2069 د",
       tmr_plus1: "\u2066+1\u2069 د",
       tmr_plus5: "\u2066+5\u2069 د",
@@ -7162,6 +7164,7 @@
       turn_title: "Your turn!",
       turn_bomb: "The bomb is with you: say it and pass",
       turn_chairs: "The music stopped: sit!",
+      turn_reaction: "Green: tap!",
       turn_wire: "An order is waiting for you!",
       turn_vault: "The chest is waiting for you!",
       turn_draw: "Time to draw",
@@ -8183,6 +8186,7 @@
       sv_send_riddle: "Send the riddle",
       sv_online_desc_wordle: "One writes a word and the others guess it in their own grid on their own phone, or race on the app's word. The TV shows everyone's colours, never the letters.",
       sv_online_desc_guessnum: "One picks a number and the others find it with higher and lower, each on their own phone, or race on the app's number.",
+      sv_online_desc_reaction: "Every screen turns green at once: 5 rounds, the fastest three score.",
       sv_online_desc_flags: "One picks a country and the others guess it from its flag or by distance, each on their own phone, or race on the app's country.",
       // سباق ألغاز (JS_RoomRace.html): the solo puzzles as a race in a room.
       race_title: "Puzzle race",
@@ -9862,7 +9866,7 @@
       cs_basra_need_aj: "Aces and jacks add up to 8 (it's {n})",
       cat_xo: "Three in a row. Against a friend or the phone.",
       cat_guessnum: "A hidden number: higher or lower?",
-      cat_reaction: "Two on one screen: first to tap when it turns green.",
+      cat_reaction: "On one phone or each on their own: first to tap when it turns green.",
       cat_chooser: "Everyone puts a finger on the screen; the phone picks who starts.",
       setup_bomb: "The Bomb",
       setup_stop: "Stop the Bus",
@@ -10825,12 +10829,10 @@
       group_replace: "Replace Group 🔄",
       group_update_hint: "<b>Add:</b> Adds selected players to the current group.<br><b>Replace:</b> Overwrites the group with only selected players.",
       setup_reaction: "Reaction Test",
-      reaction_wait: "Wait...",
-      reaction_tap: "TAP!",
-      reaction_too_soon: "Too Soon! ❌",
-      reaction_winner: "Winner! 🏆",
-      reaction_ms: "ms",
       reaction_desc: "Place the phone on the table between you and your friend. When the screen turns GREEN, tap as fast as you can! But don't tap before it turns green.",
+      // Reaction: the fakes (the rest of the game's words are RX_TEXT, JS_RoomReaction.html)
+      rx_fakes: "Fakes",
+      rx_fakes_hint: "About one round in three a fake signal comes before the green (yellow, a 🐱, «Wait!»): tap on it and you lose.",
       tmr_minus1: "-1m",
       tmr_plus1: "+1m",
       tmr_plus5: "+5m",
@@ -13117,6 +13119,7 @@
     'play-chooser':    { title: 'tool_chooser',     up: 'tools',          accent: 'orange' },
     'room-buzzer':     { title: 'setup_buzzer',     up: 'menu',           accent: 'rose' },
     'room-chairs':     { title: 'setup_chairs',     up: 'menu',           accent: 'amber' },
+    'room-reaction':   { title: 'setup_reaction',   up: 'menu',           accent: 'rose' },
     'room-witness':    { title: 'setup_witness',    up: 'menu',           accent: 'indigo' },
     'room-hear':       { title: 'setup_hear',       up: 'menu',           accent: 'green' },
     'room-wire':       { title: 'setup_wire',       up: 'menu',           accent: 'orange' },
@@ -14105,6 +14108,7 @@
      the back button or a reload - so they always show what is saved. */
   const SETUP_PAINTERS = {
     'setup-bomb': 'paintBombSetup',
+    'setup-reaction': 'paintReactionSetup',
     'setup-emoji': 'paintEmojiSetup',
     'setup-monkey': 'paintMonkeySetup',
     'setup-fiveseconds': 'paintFiveSetup',
@@ -16125,6 +16129,11 @@ const GAME_RULES = {
                 <li>حط الموبايل بينك وبين صاحبك، كل واحد على نص.</li>
                 <li>استنوا الشاشة تبقى خضرا: أول واحد يضغط نصه يكسب.</li>
                 <li>الضغط والشاشة حمرا = خسارة فورية.</li>
+                <li><b>خدعة</b>: مرة كل تلات جولات تقريباً إشارة مزيفة (أصفر، 🐱، «استنى!»)، واللي يدوس عليها يخسر.</li>
+            </ul>
+            <p class="help-sub">👥 كل واحد بموبايله</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>كله يخضرّ في نفس اللحظة بساعة السيرفر. ٥ جولات: أسرع تلاتة ياخدوا ٣ و٢ و١، واللي يدوس قبل الخضرا ✖. بعد الخامسة المنصة ونقط السهرة.</li>
             </ul>`,
 
         chooser: `
@@ -18117,6 +18126,11 @@ const GAME_RULES = {
                 <li>Put the phone between you and a friend, one half each.</li>
                 <li>Wait for the screen to turn green: the first to tap their half wins.</li>
                 <li>Tapping while it is red is an instant loss.</li>
+                <li><b>Fakes</b>: about one round in three a fake signal (yellow, a 🐱, «Wait!»); tap on it and you lose.</li>
+            </ul>
+            <p class="help-sub">👥 Each on their own phone</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>All turn green at once, on the server's clock. 5 rounds: the fastest three get 3, 2 and 1, a tap before the green is ✖. After the fifth, the podium and the night's points.</li>
             </ul>`,
 
         chooser: `

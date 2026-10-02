@@ -133,6 +133,7 @@ const clearGameState = (room) => {
   room._skull = null;   // جمجمة: every disc, hand and pile, the «هيعملها؟» answers (RoomSkull.js)
   room._est = null;
   room._chairs = null;   // الكراسي الموسيقية: the stop moment and the fake pauses (RoomChairs.js)
+  room._reaction = null; // رد الفعل «أسرع إيد»: the green moment and the fakes (RoomReaction.js)
   room._witness = null;  // الشاهد: the real face and its place in the lineup (RoomWitness.js)
   room._vault = null;    // الخزنة: the notebook's seed, the safe, each side's progress (RoomVault.js); the room's best (_vaultBest) stays
   room._wire = null;     // الحقوا!: the panels, the controls' states, what is broken (RoomWire.js); the room's best (_wireBest) stays
@@ -715,6 +716,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'xo':         xoRoomAction(room, playerId, action, payload); break;     // RoomDuels.js
     case 'battleship': battleshipAction(room, playerId, action, payload); break;  // RoomBattleship.js
     case 'chairs':     chairsAction(room, playerId, action, payload); break;      // RoomChairs.js
+    case 'reaction':   reactionAction(room, playerId, action, payload); break;    // RoomReaction.js
     case 'witness':    witnessAction(room, playerId, action, payload); break;     // RoomWitness.js
     case 'wire':       wireAction(room, playerId, action, payload); break;        // RoomWire.js
     case 'vault':      vaultAction(room, playerId, action, payload); break;       // RoomVault.js
@@ -1443,6 +1445,7 @@ const gameDeadline = (room) => {
   if (room.game === 'estimation') return estDeadline(room);
   if (room.game === 'minigolf') return mgDeadline(room);
   if (room.game === 'chairs') return chairsDeadline(room);
+  if (room.game === 'reaction') return reactionDeadline(room);
   if (room.game === 'witness') return witnessDeadline(room);
   if (room.game === 'wire') return wireDeadline(room);
   if (room.game === 'vault') return vaultDeadline(room);
@@ -1605,6 +1608,7 @@ const gameTimeout = (room, now) => {
   if (room.game === 'estimation') return estTimeout(room, now);
   if (room.game === 'minigolf') return mgTimeout(room, now);
   if (room.game === 'chairs') return chairsTimeout(room, now);
+  if (room.game === 'reaction') return reactionTimeout(room, now);
   if (room.game === 'witness') return witnessTimeout(room, now);
   if (room.game === 'wire') return wireTimeout(room, now);
   if (room.game === 'vault') return vaultTimeout(room, now);
@@ -1755,6 +1759,9 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'chairs':
       chairsPlayerLeft(room, playerId, name);
+      return;
+    case 'reaction':
+      reactionPlayerLeft(room, playerId);
       return;
     case 'witness':
       witnessPlayerLeft(room, playerId);

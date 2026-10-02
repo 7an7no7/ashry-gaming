@@ -751,6 +751,62 @@ async function chairsRobots() {
   [H, J, K, late, TV].forEach((x) => x.close());
 }
 
+/* --- رد الفعل «أسرع إيد»: one green for everyone on the server's clock, a tap on red, fair taps, 3/2/1, the end --- */
+async function reactionRobots() {
+  console.log('• رد الفعل «أسرع إيد» (one green on every screen, a tap on red is ✖, taps ranked by their stamps, five rounds)');
+  const H = await Bot.host('حسام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  const all3 = [H, J, K];
+  await H.must('chooseGame', { game: 'reaction' });
+  check((await J.act('start', { fakes: false })).ok === false, 'reaction: only the host starts');
+  await H.must('start', { fakes: false });
+  await all(all3.concat([TV]), (s) => s.game === 'reaction' && s.shared.phase === 'wait' && s.shared.round === 1 && s.shared.rounds === 5 && !s.shared.greenAt,
+    'reaction: every phone and the TV start red, no green moment in sight');
+  check(TV.state.you === null, 'reaction: the TV has no secret');
+  const late = await Bot.join(H.code, 'متأخر');
+  check(late.state.inGame === false && late.state.shared.roster.indexOf(late.pid) === -1, 'reaction: someone who joins mid-game watches');
+  // A tap on red: ✖ for that round, and the round goes on.
+  await K.must('tap', { round: 1 });
+  await all(all3, (s) => s.shared.phase === 'wait' && s.shared.taps.length === 1 && s.shared.taps[0].id === K.pid && s.shared.taps[0].foul === 'early',
+    'reaction: a tap on red is ✖ on every screen, and the round goes on');
+  await all(all3.concat([TV]), (s) => s.shared.phase === 'go' && typeof s.shared.greenAt === 'number', 'reaction: green on every phone and the TV, from the server', 9000);
+  const green = H.state.shared.greenAt;
+  await sleep(500);          // the stamps must be in the past when they arrive
+  await J.must('tap', { round: 1, at: green + 300 });
+  await H.must('tap', { round: 1, at: green + 180 });
+  await all(all3.concat([TV]), (s) => s.shared.phase === 'result' && s.shared.rows.length === 3 && s.shared.rows[0].id === H.pid && s.shared.rows[0].ms === 180 &&
+    s.shared.rows[0].pts === 3 && s.shared.rows[1].pts === 2 && s.shared.rows[2].id === K.pid && s.shared.rows[2].pts === 0,
+    'reaction: everyone in closes the round; ranked by the stamps, 3 and 2, the ✖ nothing');
+  check((await J.act('nextRound', { round: 1 })).ok === false, 'reaction: only the host moves a round on');
+  // Rounds 2-5: the host moves on at once; one phone never taps.
+  for (let round = 2; round <= 5; round++) {
+    if (round === 2) await H.must('nextRound', { round: 1 });
+    await H.waitFor((s) => s.shared.round === round && s.shared.phase === 'go', `reaction: round ${round} turns green`, 9000);
+    const g = H.state.shared.greenAt;
+    await sleep(400);
+    await J.must('tap', { round, at: g + 200 });
+    await H.must('tap', { round, at: g + 250 });
+    if (round < 5) {
+      await H.waitFor((s) => s.shared.phase === 'result' && s.shared.round === round, `reaction: round ${round} closes 2.5 s after the green with a quiet phone`, 5000);
+      await H.must('nextRound', { round });
+    }
+  }
+  await all(all3.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.history.length === 5 && s.shared.board[0].id === J.pid && s.shared.board[0].score === 14 &&
+    s.shared.board[1].id === H.pid && s.shared.board[1].score === 11, 'reaction: after the fifth round the totals reach every screen, best first', 6000);
+  await H.must('playAgain', {});
+  await all(all3.concat([late]), (s) => s.shared.phase === 'wait' && s.shared.round === 1 && s.shared.roster.length === 4 && s.shared.settings.fakes === false,
+    'reaction: play again deals in whoever joined and keeps the switch');
+  // A leave mid-round: the round closes on those left.
+  await api('/leave', { code: K.code, pid: K.pid, key: K.key });
+  await H.waitFor((s) => s.shared.roster.indexOf(K.pid) !== -1 && !s.players.some((p) => p.id === K.pid), 'reaction: a player who leaves is gone from the room');
+  K.close();
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'reaction: back in the hub');
+  [H, J, late, TV].forEach((x) => x.close());
+}
+
 /* --- بالظبط ٣!: the order on every screen, hands live, the server's window, the glasses, the end ------- */
 async function exactRobots() {
   console.log('• بالظبط ٣! (the order on every phone, taps stamped with the server time, the verdict, the glasses, the end)');
@@ -6628,6 +6684,7 @@ const SEGMENTS = [
   { name: 'minigolf', run: minigolfSeg, secs: 9 },
   { name: 'bowling', run: bowlingSeg, secs: 30 },
   { name: 'chairs', run: chairsRobots, secs: 40 },
+  { name: 'reaction', run: reactionRobots, secs: 35 },
   { name: 'witness', run: witnessRobots, secs: 17 },
   { name: 'hear', run: hearRobots, secs: 40 },
   { name: 'hum', run: humRobots, secs: 30 },

@@ -1825,6 +1825,7 @@
 
       <div id="view-room-buzzer" class="hidden" data-accent="rose"></div>
       <div id="view-room-chairs" class="hidden" data-accent="amber"></div>
+      <div id="view-room-reaction" class="hidden" data-accent="rose"></div>
       <div id="view-room-witness" class="hidden" data-accent="indigo"></div>
       <div id="view-room-hear" class="hidden" data-accent="green"></div>
       <div id="view-room-wire" class="hidden" data-accent="orange"></div>
@@ -4072,30 +4073,50 @@
       </div>
     </div>
 
-    <div id="view-setup-reaction" class="hidden">
-        <div class="card text-center py-8">
-            <p class="tx-muted font-bold leading-relaxed" data-i18n="reaction_desc">
-                ضع الهاتف على الطاولة بينك وبين صديقك. عندما تتحول الشاشة للون الأخضر، اضغط بأسرع ما يمكن! لكن احذر أن تضغط قبل اللون الأخضر.
-            </p>
-            <div class="view-actions view-actions--start">
-              <button onclick="startReactionRound()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ التحدي</button>
+    <div id="view-setup-reaction" class="hidden" data-accent="rose">
+        <div class="card text-center">
+            <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+              <button class="segmented__item is-active" data-mode="device" onclick="setPlayMode('reaction', 'device')" data-i18n="mode_device">موبايل واحد</button>
+              <button class="segmented__item" data-mode="online" onclick="setPlayMode('reaction', 'online')" data-i18n="mode_online">كل واحد بموبايله</button>
+            </div>
+            <div class="mode-online-panel hidden">
+              <p class="card__subtitle" data-i18n="sv_online_desc_reaction"></p>
+              <div class="btn-stack">
+                <button onclick="roomCreateFor('reaction')" class="btn btn--primary btn--lg" data-i18n="room_create">افتح غرفة</button>
+                <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">ادخل غرفة</button>
+              </div>
+            </div>
+            <div class="mode-device-panel">
+              <p class="tx-muted font-bold leading-relaxed" data-i18n="reaction_desc">
+                  حطوا الموبايل على الترابيزة بينك وبين صاحبك. أول ما الشاشة تخضرّ دوس بأسرع ما تقدر! بس أوعى تدوس قبل ما تخضرّ.
+              </p>
+              <div class="field" style="text-align: start">
+                <label class="switch-row" for="rx-fakes">
+                  <span class="field__label" data-i18n="rx_fakes">خدعة</span>
+                  <span class="switch"><input type="checkbox" id="rx-fakes" role="switch" checked onchange="rxSetFakes(this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+                </label>
+                <p class="field__hint" data-i18n="rx_fakes_hint"></p>
+              </div>
+              <div class="view-actions view-actions--start">
+                <button onclick="startReactionRound()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ التحدي</button>
+              </div>
             </div>
         </div>
       </div>
 
-      <div id="view-play-reaction" class="hidden fixed top-0 left-0 w-full h-full flex flex-col bg-gray-900 overflow-hidden select-none touch-none" style="z-index: 99999;">
-          
+      <div id="view-play-reaction" class="hidden fixed top-0 left-0 w-full h-full flex flex-col overflow-hidden select-none touch-none" style="z-index: 99999;">
+
           <button id="reaction-exit-btn" onclick="exitReactionGame(event)" class="btn btn--neutral btn--sm btn--auto hidden" style="position:absolute; inset-inline-start:24px; top:32px; z-index:100000;" data-i18n="exit">
               خروج
           </button>
 
-          <div id="reaction-p2" onclick="handleReactionTap(2)" class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-100 transform rotate-180 p-4">
+          <div id="reaction-p2" onclick="handleReactionTap(2)" class="rx-half rx-half--flip is-idle">
               <div id="reaction-msg2" class="w-full"></div>
           </div>
 
-          <div class="reaction-divider h-2 w-full bg-black bg-opacity-60 shadow-2xl" style="z-index: 100000;"></div>
+          <div class="reaction-divider" style="z-index: 100000;"></div>
 
-          <div id="reaction-p1" onclick="handleReactionTap(1)" class="flex-1 flex flex-col items-center justify-center cursor-pointer transition-colors duration-100 p-4">
+          <div id="reaction-p1" onclick="handleReactionTap(1)" class="rx-half is-idle">
               <div id="reaction-msg1" class="w-full"></div>
           </div>
       </div>
@@ -4470,6 +4491,7 @@
     <?!= include('JS_Chooser'); ?>
     <?!= include('JS_RoomBuzzer'); ?>
     <?!= include('JS_RoomChairs'); ?>
+    <?!= include('JS_RoomReaction'); ?>
     <?!= include('JS_RoomWire'); ?>
     <?!= include('JS_RoomVault'); ?>
     <?!= include('JS_RoomBumper'); ?>

@@ -76,6 +76,8 @@ function roomTurnOf(state) {
       return s.phase === 'play' && (s.alive || []).indexOf(me) !== -1 && !!(s.orders || {})[me] ? 'turn_wire' : null;
     case 'chairs':
       return s.phase === 'sit' && (s.alive || []).indexOf(me) !== -1 && !(s.sits || []).some(x => x.id === me) ? 'turn_chairs' : null;
+    case 'reaction':
+      return s.phase === 'go' && (s.roster || []).indexOf(me) !== -1 && !(s.taps || []).some(x => x.id === me) ? 'turn_reaction' : null;
     case 'drawguess':
       return state.phase === 'drawing' && s.drawerId === me && !s.word ? 'turn_draw' : null;
     case 'fakeartist':

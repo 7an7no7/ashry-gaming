@@ -89,6 +89,8 @@ export const CHUNKS = {
   box: ['JS_RoomBox'],
   dark: ['JS_RoomDark', 'Dark.js'],
   exact: ['JS_RoomExact'],
+  // رد الفعل: the room game, and the words and styles the one-phone test (newgames) reads too.
+  reaction: ['JS_RoomReaction'],
   hum: ['JS_RoomHum'],
   // برنامج السهرة: the builder, the table between two games, the finale (the room engine opens it).
   program: ['JS_RoomProgram'],

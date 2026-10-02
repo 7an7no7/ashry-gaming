@@ -852,6 +852,20 @@ const PROBES = {
       probe('no fake pause is announced before it comes', live && h.fakes.length > 0, (view) => (hasKey(view.shared, 'fakes') ? 'shared.fakes' : null))
     ];
   },
+  // رد الفعل «أسرع إيد»: the green moment, which rounds have a fake, and a fake's moment and kind
+  // never leave the server before they happen.
+  reaction(room) {
+    const s = room.shared || {};
+    const h = room._reaction;
+    const red = s.phase === 'wait' && !!h;
+    const fakeAhead = red && !!h.fake && !h.fake.shown;
+    return [
+      secret('the green moment stays on the server until it comes', red ? h.greenAt : null, []),
+      secret("a fake's moment stays on the server until it comes", fakeAhead ? h.fake.at : null, []),
+      probe('no fake is on the screens before it comes', fakeAhead, (view) => (hasKey(view.shared, 'fake') ? 'shared.fake' : null)),
+      probe('the rounds with a fake are never sent', !!h, (view) => (hasKey(view.shared, 'plan') ? 'shared.plan' : null))
+    ];
+  },
   // بالظبط ٣!: a phone's secret (a colour, a shape, a number, a word) on its own phone only, and on no
   // other screen until the verdict publishes them all; every tap's exact events stay on the server.
   exact(room) {
@@ -2436,6 +2450,37 @@ const DRIVERS = {
       }
     }
     return S(T).phase === 'gameover' && !!S(T).winnerId;
+  },
+  reaction() {
+    // Four phones: a tap on red (✖), taps timed by their stamps, one phone that never taps, the
+    // host moving a round on; played again until a game has shown a fake and someone fell for it
+    // (the plan is random, so a check can't pass by never looking).
+    const T = table('reaction', 4);
+    must(T, T.host, 'start', { fakes: true });
+    let sawFake = false, fooled = false;
+    for (let guard = 0; guard < 400 && !(S(T).phase === 'gameover' && sawFake && fooled); guard++) {
+      if (S(T).phase === 'gameover') { must(T, T.host, 'playAgain', { fakes: true }); continue; }
+      const s = S(T);
+      if (s.fake) {
+        sawFake = true;
+        if (!fooled) { must(T, T.ids[1], 'tap', { round: s.round, at: clock }); fooled = true; continue; }
+      }
+      if (s.phase === 'wait') {
+        if (guard === 0) { must(T, T.ids[2], 'tap', { round: s.round, at: clock }); continue; }    // on red
+        runClock(T, (r) => r.shared.phase !== 'wait' || (!fooled && !!r.shared.fake), 12);
+        continue;
+      }
+      if (s.phase === 'go') {
+        T.ids.slice(0, 3).forEach((id, i) => { if (!s.taps.some((x) => x.id === id)) act(T, id, 'tap', { round: s.round, at: s.greenAt + 150 + i * 60 }); });
+        runClock(T, (r) => r.shared.phase !== 'go', 6);                                              // the fourth never taps
+        continue;
+      }
+      if (s.phase === 'result') {
+        if (guard % 3 === 0) must(T, T.host, 'nextRound', { round: s.round });
+        else runClock(T, (r) => r.shared.phase !== 'result', 6);
+      }
+    }
+    return S(T).phase === 'gameover' && sawFake && fooled && S(T).board.length === 4;
   },
   wire() {
     // Four at the kitchen with the surprises on: most orders done by whoever holds them, some let

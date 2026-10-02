@@ -10340,6 +10340,132 @@ Date.now = duelTestClock;
   }
 }
 
+/* --- رد الفعل «أسرع إيد» (2 Oct 2026): the green is a server secret, taps fair by server time, 3/2/1 a round --- */
+{
+  console.log('\nReaction (rooms)');
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const rxRoom = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'reaction' });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  // Runs the server's clock to the green, skipping any fake.
+  const toGreen = (r) => { for (let k = 0; k < 6 && r.shared.phase === 'wait'; k++) { clock = Math.max(clock + 1, roomDeadline(r)); roomTimeout(r, clock); } };
+  {
+    const r = newRoom(['a']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'reaction' });
+    check(threw(() => applyRoomAction(r, 'a', 'start', {})), 'reaction: one alone is refused');
+  }
+  {
+    const r = rxRoom(['a', 'b', 'c', 'd'], { fakes: false });
+    const s = r.shared;
+    check(r.phase === 'play' && s.phase === 'wait' && s.round === 1 && s.rounds === 5 && s.settings.fakes === false && s.roster.length === 4,
+      'reaction: five rounds, round 1 starts red');
+    check(r._reaction && r._reaction.greenAt >= clock + 2000 && r._reaction.greenAt <= clock + 6000 && !s.greenAt && r._reaction.plan.length === 0,
+      'reaction: the green is 2-6 s away and lives on the server only; the switch off plans no fake');
+    check(roomDeadline(r) === r._reaction.greenAt, 'reaction: the server wakes at the green');
+    applyRoomAction(r, 'b', 'tap', { round: 0, at: clock });
+    check(s.taps.length === 0, 'reaction: a tap for an old round is dropped');
+    applyRoomAction(r, 'b', 'tap', { round: 1, at: clock });
+    check(s.phase === 'wait' && s.taps.length === 1 && s.taps[0].ms === null && s.taps[0].foul === 'early', 'reaction: a tap on red is ✖ for that player, and the round goes on');
+    applyRoomAction(r, 'b', 'tap', { round: 1, at: clock });
+    check(s.taps.length === 1, 'reaction: one tap a round');
+    toGreen(r);
+    const green = s.greenAt;
+    check(s.phase === 'go' && green === clock && roomDeadline(r) === green + 2500, 'reaction: green on every screen at one server moment; 2.5 s to tap');
+    clock = green + 600;
+    applyRoomAction(r, 'a', 'tap', { round: 1, at: green + 300 });
+    applyRoomAction(r, 'c', 'tap', { round: 1, at: green + 5000 });          // a time the phone can't have had: the arrival counts
+    applyRoomAction(r, 'd', 'tap', { round: 1, at: green + 20 });            // under a hand's floor: the floor
+    const ms = (id) => s.taps.find((x) => x.id === id).ms;
+    check(ms('a') === 300 && ms('c') === 600 && ms('d') === 100, 'reaction: a tap is timed by its stamp inside [the green, the arrival], never under 100 ms');
+    check(s.phase === 'result', 'reaction: everyone in (a time or ✖) closes the round at once');
+    const pts = (id) => s.rows.find((x) => x.id === id).pts;
+    check(pts('d') === 3 && pts('a') === 2 && pts('c') === 1 && pts('b') === 0 && s.rows[3].id === 'b', 'reaction: the fastest three get 3 / 2 / 1, the ✖ last with nothing');
+    check(s.board[0].id === 'd' && s.board[0].score === 3 && s.nextAt === clock + 4500, 'reaction: the board is the points so far; the next round in 4.5 s');
+    check(threw(() => applyRoomAction(r, 'b', 'nextRound', { round: 1 })), 'reaction: only the host moves a round on');
+    applyRoomAction(r, 'a', 'nextRound', { round: 0 });
+    check(s.phase === 'result', 'reaction: a stale next round is dropped');
+    applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+    check(s.phase === 'wait' && s.round === 2 && s.taps.length === 0, 'reaction: the host starts the next round sooner');
+    // A tap made on red that arrives after the green is ✖ too.
+    toGreen(r);
+    clock = s.greenAt + 200;
+    applyRoomAction(r, 'c', 'tap', { round: 2, at: s.greenAt - 150 });
+    check(s.taps[0].id === 'c' && s.taps[0].foul === 'early', 'reaction: a stamp from before the green, arriving after it, is ✖');
+    applyRoomAction(r, 'a', 'tap', { round: 2, at: s.greenAt + 180 });
+    clock = s.greenAt + 2500;
+    roomTimeout(r, clock);
+    check(s.phase === 'result' && s.rows.find((x) => x.id === 'b').ms === null && !s.rows.find((x) => x.id === 'b').foul && s.rows.find((x) => x.id === 'b').pts === 0,
+      'reaction: no tap in 2.5 s is no time and no points (not ✖)');
+    for (let k = 0; k < 3; k++) {
+      clock = Math.max(clock + 1, roomDeadline(r)); roomTimeout(r, clock);
+      toGreen(r);
+      ['a', 'b', 'c', 'd'].forEach((id, i) => applyRoomAction(r, id, 'tap', { round: s.round, at: s.greenAt + 200 + i * 50 }));
+      clock = s.greenAt + 400;
+    }
+    check(s.phase === 'gameover' && s.round === 5 && s.history.length === 5 && roomDeadline(r) === null && !r._reaction, 'reaction: after the fifth round the game is over');
+    // a: 2 + 3 + 3*3 = 14; d: 3 + 0 + 3*0 = 3 ...
+    check(s.board[0].id === 'a' && s.board[0].score === 14 && s.board.every((x, i) => i === 0 || s.board[i - 1].score >= x.score), 'reaction: the board is the points of the five rounds, best first');
+    bankNightPoints(r, s.board);
+    check(r.night.a === 5, "reaction: the night's points come from the board");
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.phase === 'wait' && r.shared.round === 1 && r.shared.settings.fakes === false && !Object.keys(r.shared.points).length, 'reaction: play again keeps the switch and starts the points again');
+  }
+  {
+    // «خدعة»: one or two rounds of five with a fake, its moment and kind secret until it comes; a tap on it is ✖ «اتضحك عليك!».
+    let planned = 0, kinds = new Set();
+    const ok = { plan: true, inside: true, shown: true, fooled: true, gone: true };
+    for (let n = 0; n < 40; n++) {
+      const r = rxRoom(['a', 'b', 'c']);
+      planned += r._reaction.plan.length;
+      ok.plan = ok.plan && r.shared.settings.fakes === true && r._reaction.plan.length >= 1 && r._reaction.plan.length <= 2;
+      while (r.shared.phase !== 'gameover') {
+        const s = r.shared;
+        if (s.phase === 'wait' && r._reaction.fake && !r._reaction.fake.shown) {
+          const f = r._reaction.fake;
+          ok.inside = ok.inside && f.at > s.startAt + 1000 && f.at < r._reaction.greenAt - 1000 && roomDeadline(r) === f.at && !s.fake;
+          clock = f.at; roomTimeout(r, clock);
+          kinds.add(s.fake && s.fake.kind);
+          ok.shown = ok.shown && s.phase === 'wait' && !!s.fake && s.fake.until === f.at + 700 && roomDeadline(r) === s.fake.until;
+          applyRoomAction(r, 'b', 'tap', { round: s.round, at: clock + 200 });
+          ok.fooled = ok.fooled && s.taps[0].id === 'b' && s.taps[0].foul === 'fake';
+          clock = s.fake.until; roomTimeout(r, clock);
+          ok.gone = ok.gone && !s.fake && s.phase === 'wait';
+        }
+        clock = Math.max(clock + 1, roomDeadline(r)); roomTimeout(r, clock);
+      }
+    }
+    check(ok.plan, 'reaction: the switch is on by default; one or two fake rounds a game');
+    check(ok.inside, 'reaction: a fake comes well inside the red, and only the server knows when');
+    check(ok.shown, 'reaction: the fake reaches the screens as it comes, for 0.7 s');
+    check(ok.fooled, 'reaction: a tap on the fake is ✖ (fooled)');
+    check(ok.gone, 'reaction: the fake goes, and the red goes on');
+    check(planned >= 40 && planned <= 80 && kinds.size === 3, 'reaction: about one round in three has a fake, of all three kinds');
+  }
+  {
+    // Leaving.
+    const r = rxRoom(['a', 'b', 'c'], { fakes: false });
+    const s = r.shared;
+    toGreen(r);
+    applyRoomAction(r, 'a', 'tap', { round: 1, at: s.greenAt + 200 });
+    applyRoomAction(r, 'b', 'tap', { round: 1, at: s.greenAt + 250 });
+    leave(r, 'c');
+    check(s.phase === 'result' && s.rows.length === 2 && s.board.length === 2, 'reaction: a round waiting only on a leaver closes; the leaver is off the board');
+    leave(r, 'b');
+    check(s.phase === 'gameover', 'reaction: one left ends the game');
+  }
+  {
+    const r = rxRoom(['a', 'b']);
+    const late = { id: 'z', name: 'z' };
+    r.players.push(late);
+    toGreen(r);
+    applyRoomAction(r, 'z', 'tap', { round: 1, at: r.shared.greenAt + 150 });
+    check(r.shared.taps.length === 0, 'reaction: someone who joined mid-game watches');
+  }
+}
+
 /* --- بالظبط ٣! (29 Sep 2026): every order judged from the phones' stamps, the glasses, the levels --- */
 {
   console.log('\nExactly 3');

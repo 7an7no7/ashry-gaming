@@ -96,6 +96,7 @@ export const CHUNKS = {
   mission: ['JS_RoomMission', 'Missions.js'],
   hangman: ['JS_Hangman', 'JS_HangmanEnd', 'Hangman.js'],
   solve: ['JS_RoomSolve', 'JS_RoomRace', 'SolveGames.js'],
+  flagsmap: ['JS_FlagsMap'],   // خمّن الدولة's map: the solo game's and the room's
   bowling: ['JS_Bowling', 'Bowling.js'],
   battleship: ['JS_Battleship', 'Battleship.js'],
   minigolf: ['JS_MiniGolf', 'MiniGolf.js'],

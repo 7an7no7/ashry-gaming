@@ -5810,10 +5810,21 @@ async function solveSeg() {
       await a.must('guess', Object.assign({ round: 1 }, G.wrong));
       check(G.mark(a.state.you), game + ': ' + G.markLabel);
       await b.waitFor((s) => s.shared.progress[a.pid].n === 1, game + ': the table sees how many tries a board has made');
-      check(b.state.you.board.g.length === 0 && JSON.stringify(b.state.shared.progress).indexOf(JSON.stringify(G.wrong[Object.keys(G.wrong)[0]])) === -1,
+      // خمّن الدولة's map (idea 450): the TV shows each wrong guess as a pin - its country and a colour, nothing more.
+      const prog = (bot) => Object.assign({}, bot.state.shared.progress[a.pid], { pins: undefined });
+      check(b.state.you.board.g.length === 0 && JSON.stringify(prog(b)).indexOf(JSON.stringify(G.wrong[Object.keys(G.wrong)[0]])) === -1,
             game + ': and never what they were');
+      if (game === 'flags') {
+        await S.waitFor((s) => (s.shared.progress[a.pid].pins || []).length === 1, 'flags: the TV gets the wrong guess as a pin');
+        check(JSON.stringify(S.state.shared.progress[a.pid].pins) === '[{"c":"EG","s":0}]' && JSON.stringify(b.state.shared.progress[a.pid].pins) === '[{"c":"EG","s":0}]',
+              'flags: a pin is the country and how warm it is (Egypt is over 9,000 km from Japan: red), never the kilometres');
+      }
       await b.must('guess', Object.assign({ round: 1 }, G.rightG));
       await a.must('guess', Object.assign({ round: 1 }, G.rightG));
+      if (game === 'flags') {
+        await S.waitFor((s) => s.shared.progress[b.pid].state === 'won', 'flags: a solve reaches the TV');
+        check(JSON.stringify(S.state.shared.progress).indexOf('"JP"') === -1, 'flags: the right guess is never a pin - it would stand on the answer');
+      }
       await all(svBots.concat([S]), (s) => s.shared.phase === 'result' && !!s.shared.result.reveal, game + ': the round ends once every board is done, and the secret is shown');
       check(H.state.shared.scores[b.pid] === 15 && H.state.shared.scores[a.pid] === 14 && !H.state.shared.scores[setter.pid],
             game + ': the first solve is 10 + 5, the second 10 + 4; nobody failed, so the setter has nothing');

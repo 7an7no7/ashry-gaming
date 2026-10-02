@@ -161,8 +161,13 @@ const SOLVE_KINDS = {
       if (b.state === 'play' && misses >= at.letter) hints.letter = svCountryLetter(target, st.lang);
       return { g: b.g.map(r => ({ code: r.code, km: r.km, deg: r.deg, p: r.p })), hints: hints };
     },
-    // The closest a player has come, as a share: it names no country.
-    progress: (b) => ({ best: b.g.reduce((m, r) => Math.max(m, r.p), 0) }),
+    // The closest a player has come, as a share, and the pins of their wrong guesses for the TV's map
+    // (idea 450): a country and how warm it is in the map's five steps, never the kilometres, and
+    // never the right guess - that pin would stand on the answer.
+    progress: (b, x) => ({
+      best: b.g.reduce((m, r) => Math.max(m, r.p), 0),
+      pins: b.g.filter(r => r.code !== x.code).map(r => ({ c: r.code, s: flagsStep(r.km) }))
+    }),
     reveal: (x) => ({ code: x.code }),
     mine: (x) => ({ code: x.code })
   },

@@ -102,7 +102,7 @@ const MAP = [
   // المهمة السرية: a switch beside every game - its robots (and the night it banks), the lobby and the TV's lobby.
   { files: /^(Missions\.js|RoomMission\.js|JS_RoomMission\.html)$/, robots: ['mission', 'crewlink'], screens: true, mission: true },
   // One sets, everyone solves, and the puzzle race: the same engine.
-  { files: /^(SolveGames\.js|RoomSolve\.js|JS_RoomSolve\.html|WordleWords\.js|Countries\.js|JS_Wordle\.html|JS_GuessNumber\.html|JS_Flags\.html)$/, robots: ['solve', 'race'], ui: ['wordle', 'guessnum', 'flags', 'emoji'], screens: true },
+  { files: /^(SolveGames\.js|RoomSolve\.js|JS_RoomSolve\.html|WordleWords\.js|Countries\.js|JS_Wordle\.html|JS_GuessNumber\.html|JS_Flags\.html|JS_FlagsMap\.html)$/, robots: ['solve', 'race'], ui: ['wordle', 'guessnum', 'flags', 'emoji'], screens: true },
   { files: /^(RoomRace\.js|JS_RoomRace\.html|SoloShared\.js|Sudoku\.js|Queens\.js|Tango\.js|Nonogram\.js|Mines\.js|Strands\.js|WordWheel\.js|Pinpoint\.js|QuizStreak\.js|ConnectionsWords\.js)$/, robots: ['race'], ui: RACE_GAMES, screens: true },
   { files: /^JS_(Sudoku|Queens|Tango|Nonogram|Mines|WordSearch|WordWheel|Pinpoint|QuizStreak|Connections|2048|Memory)\.html$/, ui: RACE_GAMES, screens: true },
   // The page's own screens and the offline copy.

@@ -399,9 +399,14 @@ const PROBES = {
     out.push(probe('the table sees how far each board is, never a guess', true, (view) => {
       const prog = view.shared.progress || {};
       for (const id of Object.keys(prog)) {
-        const bad = Object.keys(prog[id]).find((k) => ['n', 'state', 'at', 'rows', 'best'].indexOf(k) === -1);
+        const bad = Object.keys(prog[id]).find((k) => ['n', 'state', 'at', 'rows', 'best', 'pins'].indexOf(k) === -1);
         if (bad) return 'shared.progress.' + id + '.' + bad;
         if ((prog[id].rows || []).some((r) => !/^[cpa]+$/.test(r))) return 'shared.progress.' + id + '.rows (a letter)';
+        // خمّن الدولة's map on the TV (idea 450): a wrong guess's country and its colour step, never the
+        // kilometres, never a pin on the answer (the right guess), and only for a game of countries.
+        const pins = prog[id].pins;
+        if (pins && s.solve !== 'flags') return 'shared.progress.' + id + '.pins (not a game of countries)';
+        if ((pins || []).some((p) => Object.keys(p).join() !== 'c,s' || p.c === x.code || !(p.s >= 0 && p.s <= 4))) return 'shared.progress.' + id + '.pins (the answer, or more than a colour)';
       }
       return null;
     }));

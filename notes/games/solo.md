@@ -297,8 +297,71 @@ six below has a list of its own:
   close; the right one is a green chip. The six empty rows went. There is no
   hint button: the hints come by themselves, as before. «خروج» (and «لعبة
   جديدة» when it's over) in the bar. On a phone on its side the flag sits
-  beside the rest; from 900px it is a form's width. The room's board
-  (`.sv-board--flags`) keeps its rows.
+  beside the rest; from 900px it is a form's width. Since 2 Oct 2026 the
+  guess chips (and the room's rows) are the map below.
+- **خمّن الدولة's small map** (idea 450, the owner's look ج «التخمينات على
+  الخريطة»; built 2 Oct 2026). `JS_FlagsMap.html`, its own chunk
+  (`flagsmap`), read by the flags chunk and the room's (solve):
+  - **The world** is baked once in the file: `FMAP_LAND`, one compact path a
+    continent in a 720 x 284 box (x = (lon + 180) * 2, y = (84 - lat) * 2,
+    equirectangular, 84 N to 58 S), grouped by `Countries.js`'s continent
+    codes so the glow lights what the hint names - Russia (eu there) whole
+    with Europe, Turkey and the Caucasus with Asia, Sinai with Africa, New
+    Guinea's halves with Asia and Oceania - and `FMAP_SEA` (the Black Sea with
+    Azov, the Caspian) laid over as water. About 6 KB. Drawn by hand as
+    [lon, lat] rings (`tools/flags-world.mjs`; `node tools/make-flags-map.mjs`
+    bakes them into the file) and checked against every country's middle in
+    `COUNTRIES` (all on their continent's land but small islands, whose pins
+    stand in the sea). No names on it.
+  - **Pins** stand on a country's middle (`fmapAt`), coloured in five steps
+    by distance from the answer (`flagsStep(km)` in `Countries.js`:
+    `FLAG_STEPS_KM` 9,000 / 5,000 / 2,500 / 1,200 km, red → green; the
+    colours are `--fmap-0..4` on `.fmap`, lighter in dark), numbered in the
+    order guessed. The right guess, or the answer once a game is lost, is the
+    gold pin (★) that drops with three rings (`fmap-drop`, `.fmap__ring`).
+  - **Callouts** (`fmapGuessPins` → `fmapHtml({ calls: true })`): each guess
+    a small card above or below the map - its flag, «n · name», the km (counts
+    up, `fmapCountKm`), the turned arrow, the % - with a dotted line to its
+    pin. `fmapLayout` places them so none overlaps at any width: each takes
+    the band on its pin's side unless that band is already two ahead (decided
+    once, in guess order, so a callout keeps its band as guesses come); in a
+    band they are sorted by pin x, dealt into as few rows as fit (item i to
+    row i % k), and each row is pushed apart and back inside the edges; row
+    0 sits nearest the map. It runs after every draw, on a width change
+    (`ResizeObserver`) and when fonts arrive. Under them «أقرب لحد دلوقتي»
+    and the legend «بعيد … قريب» (`fmapSumHtml`).
+  - **The glow**: the answer's continent (`.is-glow`, the screen's accent,
+    pulsing three times) with the chip «🌍 في أفريقيا» under the question
+    (`fmapHintHtml`, it replaced the 🧭 hint text) from the third miss from
+    the flag, the fourth by distance (`flagsContAt`, the continent hint's
+    turn); at the end on every map.
+  - **One phone** (`paintFlags`): the map card is `#flags-guesses`; a reload
+    or «كمّل» draws it again, still (motion only for a fresh guess). The daily
+    is the same screen.
+  - **Rooms** (`JS_RoomSolve.html`): a solver's phone draws its own guesses
+    the same way (`svBoardHtml`, the glow when the server's view sends
+    `hints.cont`); the result card adds the map with the gold pin
+    (`svFlagsEndMapHtml`). The TV draws everyone's wrong guesses as pins with
+    each player's first letter (`svFlagsTablePins`, from
+    `shared.progress[pid].pins` = `[{ c, s }]`, a country and a colour step,
+    `RoomSolve.js`'s flags `progress`), the flag and the cards beside it
+    (`.svf-tv`); only new pins drop (`svfSeen`, a TV that comes in mid-round
+    takes what is there as seen). The TV's glow and gold pin wait for the
+    result. Tests: `rules.mjs` (the pins and the steps), `leaks.mjs` (a pin is
+    `{c, s}` only, never on the answer, only in خمّن الدولة; proved by putting
+    the right guess back in: it fails), `play-all.mjs` (the TV gets Egypt as
+    `{"c":"EG","s":0}` against Japan, never "JP").
+  - **CSS** is in the chunk (`fmapStyle`, one `<style>` added to the body
+    once, every class `fmap-` / `svf-`): the shell is at its 710 KB budget.
+  - Decided here (open to change): the glow comes with the continent hint, so
+    by distance at the fourth miss (the owner said "after the third guess",
+    from the flag); the TV shows each player's wrong guesses with their
+    colour (the owner's look, which the engine's "nobody sees the others'
+    guesses" now allows on the TV - a phone still shows only its own); the
+    TV's map shows no continent until the end; 5 colour steps (the sheet's)
+    and only the step of each guess goes to the table, never the kilometres;
+    the right guess is never a pin before the round ends; no country names on
+    the map (callouts name your own guesses only).
 
 ### The bar of the solo games, and كلمات من حروف upright (1 Oct 2026)
 
@@ -382,7 +445,7 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
 
 - **(444) خيوط from «كلماتنا»**: on the setup, «من كلماتنا» lists the packs saved on this phone (or a 6-letter code). **The family's words are the ones to find**, words of 3-8 letters in the grid's alphabet, longer ones skipped; the long «الخيط الملوّن» is the pack's name or its longest word. **If the pack has too few fitting words, the normal خيوط bank tops it up**, those words marked «من عندنا» so the theme still reads right. Never the daily. Arabic and English packs both.
 
-- **(450) خمّن الدولة, a small map**: **always shown under the guesses** - a flat drawn world (the outlines baked once, no new data beyond them), each guess a pin coloured by distance (red far → green close), the answer's pin dropping with a flourish at the end; on one phone, the daily and the TV in rooms. **After the third guess the answer's continent glows** (a small help the owner asked for).
+- **(450) خمّن الدولة, a small map**: **always shown under the guesses** - a flat drawn world (the outlines baked once, no new data beyond them), each guess a pin coloured by distance (red far → green close), the answer's pin dropping with a flourish at the end; on one phone, the daily and the TV in rooms. **After the third guess the answer's continent glows** (a small help the owner asked for). **Built 2 Oct 2026** (look ج; *خمّن الدولة's small map* above).
 
 - **(451) «جولة حول العالم», a flag streak**: a third way inside خمّن الدولة (not a card, not in the race for now), one phone. **A flag and four names; a wrong answer costs a heart, three hearts**; the first 10 flags from tier 1, then tier 2, then tier 3 (`Countries.js`'s tiers); the wrong names from the same continent; no clock; the best kept.
 

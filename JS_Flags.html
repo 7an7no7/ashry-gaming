@@ -135,46 +135,23 @@ function continueFlags() {
 
 /* --- Play ----------------------------------------------------------------------------------------- */
 
+// The continent (it glows on the map, JS_FlagsMap.html, with its chip) after 3 misses from the flag, 4 by distance.
+const flagsContAt = (s) => (s.playMode === 'flag' ? 3 : 4);
+
 function flagsHints(s, t) {
   const target = flagCountry(s.answer);
   const misses = s.guesses.length;
   const hints = [];
-  const contAt = s.playMode === 'flag' ? 3 : 4;
   const letterAt = s.playMode === 'flag' ? 5 : 6;
-  if (misses >= contAt) hints.push(`🧭 ${escapeHTML(t['flags_cont_' + target.cont] || '')}`);
   if (misses >= letterAt) hints.push(`🔤 ${escapeHTML(flagName(target, s.lang).replace(/^ال/, '').charAt(0))}…`);
   return hints;
-}
-
-/**
- * A guess as a chip (the owner, 1 Oct 2026: the six empty rows went): its flag
- * and name, then - for a wrong one - how far it is and which way, with the
- * chip filled as far as the guess was close; the right one is a green chip.
- */
-function flagsGuessChip(g, fresh, t) {
-  const c = flagCountry(g.code);
-  const s = flagsState();
-  const right = g.code === s.answer;
-  if (right) {
-    return `<span class="gn-chip gn-chip--win flg-guess${fresh ? ' is-new' : ''}">
-      <span class="flag-emoji flg-guess__flag" aria-hidden="true">${flagEmoji(g.code)}</span>
-      <b>${escapeHTML(flagName(c, s.lang))}</b><span aria-hidden="true">🎉</span></span>`;
-  }
-  return `<span class="gn-chip gn-chip--high flg-guess${fresh ? ' is-new' : ''}" style="--p:${g.p / 100}">
-    <span class="flag-emoji flg-guess__flag" aria-hidden="true">${flagEmoji(g.code)}</span>
-    <b class="flg-guess__name">${escapeHTML(flagName(c, s.lang))}</b>
-    <span class="flg-guess__km"><span class="metric" data-km="${g.km}">${g.km.toLocaleString('en-US')}</span> ${escapeHTML(t.flags_km || '')}</span>
-    <span class="flags-row__arrow flg-guess__arrow" style="--deg:${Math.round(g.deg)}deg" aria-label="${Math.round(g.deg)}°">↑</span>
-    <span class="flg-guess__p metric">${g.p}%</span>
-    <span class="gn-chip__way" aria-hidden="true">✗</span>
-  </span>`;
 }
 
 /**
  * The game as one card: the level and the guesses left as two chips, the flag
  * (or the compass, by distance), the question and its hints, then the field
  * «اسم الدولة» with «خمّن» (it guesses the first suggestion, as Enter does) and
- * the suggestions under it, and the guesses as chips, newest first. «خروج»
+ * the suggestions under it, and the guesses on the map (JS_FlagsMap.html). «خروج»
  * (and «العب تاني» once it is over) in the bar at the foot.
  */
 function paintFlags(freshIndex) {
@@ -194,7 +171,14 @@ function paintFlags(freshIndex) {
     ? `<span class="chip chip--plain play-chip">📅 <b>${escapeHTML(t.daily_title || '')}</b></span>`
     : levelName ? `<span class="chip chip--plain play-chip">${escapeHTML(t.solo_level || '')} <b>${escapeHTML(levelName)}</b></span>` : '';
   const archive = s.archive ? `<span class="badge badge--warning">📅 ${escapeHTML(t.daily_archive_badge || '')} ${escapeHTML(s.archive)}</span>` : '';
-  const guesses = s.guesses.map((g, i) => flagsGuessChip(g, i === freshIndex, t)).reverse().join('');
+  // The map (the owner's look ج): each guess a pin and a callout, the continent glowing from the
+  // hint's turn, and at the end the answer's gold pin; a reload draws it all again, still.
+  const contAt = flagsContAt(s);
+  const glow = over || s.guesses.length >= contAt ? target.cont : '';
+  const fresh = typeof freshIndex === 'number' ? freshIndex : -1;
+  const map = fmapHtml({ pins: fmapGuessPins(s.guesses, { answer: s.answer, over: over, fresh: fresh, lang: s.lang }), calls: true, glow: glow, anim: fresh >= 0 && !motionOff() })
+    + fmapSumHtml(s.guesses, s.answer, s.lang);
+  const contChip = !over && glow ? fmapHintHtml(glow, fresh === contAt - 1) : '';
   el.innerHTML = `
     <div class="flg">
       <div class="card flg-card">
@@ -205,7 +189,7 @@ function paintFlags(freshIndex) {
         <div class="flg-target${over ? ' is-over' : ''}">
           ${showFlag ? `<span class="flag-emoji flg-target__flag" id="flags-flag">${flagEmoji(s.answer)}</span>` : `<span class="flg-target__flag" aria-hidden="true">🧭</span>`}
           <span class="flg-target__ask">${over ? `<b>${escapeHTML(flagName(target, s.lang))}</b>` : escapeHTML(s.playMode === 'flag' ? (t.flags_ask_flag || '') : (t.flags_ask_far || ''))}</span>
-          ${hints.length ? `<span class="flags-hints">${hints.join(' · ')}</span>` : ''}
+          ${contChip}${hints.length ? `<span class="flags-hints">${hints.join(' · ')}</span>` : ''}
         </div>
         ${over ? '' : `
           <div class="flg-entry">
@@ -218,7 +202,7 @@ function paintFlags(freshIndex) {
             </div>
             <div class="flags-suggest" id="flags-suggest" onkeydown="flagsKey(event)"></div>
           </div>`}
-        <div class="gn-chips flg-guesses" id="flags-guesses" aria-label="${escapeHTML(t.gn_your_guesses || '')}">${guesses}</div>
+        <div class="flg-guesses fmap-card" id="flags-guesses" aria-label="${escapeHTML(t.gn_your_guesses || '')}">${map}</div>
       </div>
       <div class="view-actions talk__actions flg-actions">
         ${over ? `<button type="button" class="btn btn--primary btn--lg" onclick="startFlags(false)">${escapeHTML(t.play_again || '')}</button>` : ''}
@@ -228,11 +212,8 @@ function paintFlags(freshIndex) {
       </div>
     </div>`;
   if (!over) flagsSuggest(s.query || '', true);
-  const fresh = typeof freshIndex === 'number' ? document.querySelector('#flags-guesses .flg-guess.is-new [data-km]') : null;
-  if (fresh && typeof countUp === 'function' && !motionOff()) {
-    const km = Number(fresh.dataset.km);
-    countUp(fresh, 0, km);
-  }
+  fmapMount(el);
+  if (fresh >= 0) fmapCountKm(el);
 }
 
 function flagsMatches(query) {

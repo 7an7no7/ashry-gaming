@@ -109,7 +109,7 @@ const GAME_LIST = [
   { id: 'battleship', icon: 'art:battleship',   title: 'setup_battleship', desc: 'cat_battleship', accent: 'teal',   players: [1, 2],  mins: 10, modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-battleship', room: { min: 2 }, crew: 'brain', open: 'setupBattleship' },
   { id: 'shatranj',   icon: 'art:chess', title: 'setup_shatranj', desc: 'cat_shatranj', accent: 'amber',  players: [1, 12],  mins: 20, modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-shatranj', room: { id: 'chess', min: 2 }, crew: 'brain', open: 'setupShatranj' },
   { id: 'guessnum',   icon: 'art:guessnum',   title: 'setup_guessnum',   desc: 'cat_guessnum',   accent: 'blue',   players: [1, 12], mins: 3,  modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-guessnum', room: { min: 2 }, crew: 'brain', open: 'setupGuessNumber' },
-  { id: 'reaction',   icon: 'art:reaction',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 2],  mins: 2,  modes: ['device'],               group: 'duo', setup: 'setup-reaction' },
+  { id: 'reaction',   icon: 'art:reaction',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 12], mins: 2,  modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-reaction', room: { min: 2 }, crew: 'fast' },
 
   /* --- رياضة: the sports games, in real 3D (three.js, loaded when the game opens) --- */
   { id: 'minigolf',   icon: 'art:minigolf',   title: 'setup_minigolf',   desc: 'cat_minigolf',   accent: 'green',  players: [1, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'sports', setup: 'setup-minigolf', room: { min: 1 }, crew: 'sport', open: 'setupMiniGolf' },
@@ -166,7 +166,7 @@ const GAME_LIST = [
    A room game not named here comes at the end; a name that is no game is skipped. */
 const ROOM_LIST_ORDER = [
   'imposter', 'justone', 'whoami', 'codenames', 'fibbage', 'wouldyou', 'mostlikely', 'drawguess',
-  'fakeartist', 'trivia', 'buzzer', 'stop', 'chameleon', 'spyfall', 'bomb', 'chairs', 'witness',
+  'fakeartist', 'trivia', 'buzzer', 'stop', 'chameleon', 'spyfall', 'bomb', 'chairs', 'reaction', 'witness',
   'hear', 'wire', 'vault', 'box', 'darkroom', 'exact', 'hum', 'bumper', 'twotruths', 'emoji',
   'proverbs', 'fiveseconds', 'telephone', 'monkey', 'herd', 'mafia', 'screw', 'mind', 'timeline',
   'uno', 'domino', 'ludo', 'snakes', 'bank', 'connect4', 'dots', 'xo', 'battleship', 'chess',

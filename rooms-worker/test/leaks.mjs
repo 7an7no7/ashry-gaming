@@ -609,14 +609,28 @@ const PROBES = {
     const s = room.shared || {};
     const g = room._gw || { secret: [] };
     const live = s.phase === 'play' || s.phase === 'pick';
-    return [
-      probe('a secret face is on its own phone only', live, (view, pid) => {
+    // «فريق ضد فريق»: a "seat" is a team; its face and its proposed guess are its members' only.
+    const teams = !!(s.settings && s.settings.teams && Array.isArray(s.teams));
+    const seatOf = (pid) => (teams ? [0, 1].find((k) => (s.teams[k] || []).indexOf(pid) !== -1) : (s.seats || []).indexOf(pid));
+    const out = [
+      probe('a secret face is on its own phone only (in teams, the team\'s phones)', live, (view, pid) => {
         if (!view.you || view.you.face === undefined) return null;
-        const seat = (s.seats || []).indexOf(pid);
-        return seat === -1 || g.secret[seat] !== view.you.face ? 'you.face' : null;
+        const seat = seatOf(pid);
+        return seat === undefined || seat === -1 || g.secret[seat] !== view.you.face ? 'you.face' : null;
       }),
       probe('the faces are shown only once the game is over', live, (view) => (hasKey(view.shared, 'reveal') ? 'shared.reveal' : null))
     ];
+    if (teams) {
+      const pr = g.propose;
+      out.push(probe('a team\'s proposed guess is on that team\'s phones only, until agreed', live && !!pr, (view, pid) => {
+        if (hasKey(view.shared.propose || {}, 'face')) return 'shared.propose.face';
+        const mine = seatOf(pid) === pr.team;
+        const has = !!view.you && view.you.propose !== undefined;
+        if (has && (!mine || view.you.propose !== pr.face)) return 'you.propose';
+        return null;
+      }));
+    }
+    return out;
   },
   battleship(room) {
     const s = room.shared || {};
@@ -2013,7 +2027,38 @@ const DRIVERS = {
     must(T, T.host, 'chooseGame', { game: 'guesswho' });
     must(T, T.host, 'start', { pick: 'choose', wrong: 'turn', size: 16 });
     play();
-    return S(T).phase === 'over';
+    if (S(T).phase !== 'over') return false;
+
+    // «فريق ضد فريق»: five people, sides picked on the phones, one board and one face a team, the
+    // final guess proposed by one and agreed by another (now and then cancelled, or left to lapse).
+    const U = table('guesswho', 5);
+    must(U, U.host, 'gwTeams', { on: true });
+    U.ids.forEach((id, i) => { if (i < 4) must(U, id, 'side', { side: i % 2 }); });
+    const playTeams = () => {
+      for (let guard = 0; guard < 300 && S(U).phase === 'play'; guard++) {
+        const s = S(U);
+        const mine = s.teams[s.turn], theirs = s.teams[1 - s.turn], seq = s.turnSeq;
+        if (s.stage === 'answer') { must(U, pick(theirs), 'answer', { yes: Math.random() < 0.5, seq }); continue; }
+        if (s.stage === 'flip') { act(U, pick(mine), 'flip', { face: pick(up(s, s.turn)), down: true }); must(U, pick(mine), 'done', { seq: S(U).turnSeq }); continue; }
+        if (s.propose) {
+          const r = Math.random();
+          if (r < 0.15) { must(U, s.propose.by, 'unpropose', { n: s.propose.n }); continue; }
+          if (r < 0.25) { runClock(U, (x) => !x.shared.propose, 30); continue; }
+          must(U, pick(mine.filter((id) => id !== s.propose.by)), 'agree', { n: s.propose.n, seq });
+          continue;
+        }
+        const left = up(s, s.turn);
+        if (left.length <= 3 || guard > 40 || Math.random() < 0.2) { must(U, pick(mine), 'propose', { face: pick(left.length ? left : s.faces.map((_, i) => i)), seq }); continue; }
+        if (Math.random() < 0.5) { must(U, pick(mine), 'loud', { seq }); continue; }
+        must(U, pick(mine), 'typed', { text: pick(['لابسة طرحة؟', 'Is she smiling?']), seq });
+      }
+    };
+    must(U, U.host, 'start', { wrong: 'turn', size: 16 });
+    playTeams();
+    must(U, U.ids[1], 'side', { side: 0 });
+    must(U, U.host, 'nextRound', { round: S(U).round });
+    playTeams();
+    return S(U).phase === 'over';
   },
   hangman() {
     let T = table('hangman', 3);

@@ -4648,6 +4648,124 @@ Date.now = duelTestClock;
   check(refused(() => applyRoomAction(r, 'h', 'addBot', { level: 'hard', name: 'Robo' })) && r.players.length === 1,
     'guesswho: no computer player can be seated');
   check(refused(() => applyRoomAction(r, 'h', 'start', {})), 'guesswho: one person alone can\'t start it');
+
+  /* «فريق ضد فريق» (the owner, 2 Oct 2026): sides picked on each phone, one face and one board a team. */
+  {
+    const ids = ['a', 'b', 'c', 'd', 'e'];
+    const T = newRoom(ids);
+    applyRoomAction(T, 'a', 'chooseGame', { game: 'guesswho' });
+    applyRoomAction(T, 'b', 'side', { side: 0 });
+    check(!(T.shared.lobby && T.shared.lobby.sides && T.shared.lobby.sides.b === 0), 'guesswho teams: no side to pick while the switch is off');
+    check(refused(() => applyRoomAction(T, 'b', 'gwTeams', { on: true })), 'guesswho teams: only the host turns the switch on');
+    applyRoomAction(T, 'a', 'gwTeams', { on: true });
+    applyRoomAction(T, 'a', 'side', { side: 0 });
+    applyRoomAction(T, 'b', 'side', { side: 0 });
+    applyRoomAction(T, 'c', 'side', { side: 0 });
+    check(refused(() => applyRoomAction(T, 'a', 'start', {})) && T.phase === 'lobby', 'guesswho teams: Start needs someone on each side');
+    applyRoomAction(T, 'd', 'side', { side: 1 });
+    applyRoomAction(T, 'a', 'start', { size: 16, pick: 'choose', tournament: true });
+    let s = T.shared;
+    check(s.phase === 'play' && !s.tour && s.settings.teams === true && s.settings.pick === 'random' && s.faces.length === 16 &&
+      JSON.stringify(s.teams) === '[["a","b","c"],["d","e"]]' && !s.seats,
+      'guesswho teams: the sides as picked, whoever didn\'t pick on the smaller one, faces dealt, the tournament not asked for');
+    check(T.secrets.a.face === T._gw.secret[0] && T.secrets.c.face === T._gw.secret[0] && T.secrets.d.face === T._gw.secret[1] &&
+      T.secrets.e.face === T._gw.secret[1] && JSON.stringify(s).indexOf('"secret"') === -1,
+      'guesswho teams: each team\'s phones hold the team\'s face, and only theirs');
+    const up = s.turn;
+    const mine = s.teams[up], theirs = s.teams[1 - up];
+    check(refused(() => applyRoomAction(T, theirs[0], 'loud', { seq: s.turnSeq })), 'guesswho teams: the other team can\'t ask on this team\'s turn');
+    applyRoomAction(T, mine[1], 'loud', { seq: s.turnSeq });
+    check(s.stage === 'answer' && s.q.by === mine[1], 'guesswho teams: anyone on the team up asks');
+    check(refused(() => applyRoomAction(T, mine[0], 'answer', { yes: true, seq: s.turnSeq })), 'guesswho teams: the team asking can\'t answer');
+    const seqA = s.turnSeq;
+    applyRoomAction(T, theirs[1], 'answer', { yes: true, seq: seqA });
+    applyRoomAction(T, theirs[0], 'answer', { yes: false, seq: seqA });
+    check(s.stage === 'flip' && s.q.answer === true && s.q.answerBy === theirs[1] && s.log.length === 1,
+      'guesswho teams: anyone on the other team answers, and the first tap counts');
+    check(refused(() => applyRoomAction(T, theirs[0], 'unanswer', { seq: s.turnSeq, log: s.logSeq })) && s.stage === 'flip',
+      'guesswho teams: only the one who answered takes it back');
+    applyRoomAction(T, mine[0], 'flip', { face: 2, down: true });
+    applyRoomAction(T, mine[1], 'flip', { face: 3, down: true });
+    check(JSON.stringify(s.down[up]) === '[2,3]' && s.down[1 - up].length === 0, 'guesswho teams: anyone on the team puts faces down on the team\'s one board');
+    applyRoomAction(T, mine[1], 'done', { seq: s.turnSeq });
+    check(s.turn === 1 - up && s.stage === 'ask', 'guesswho teams: done passes the turn to the other team');
+    // The final guess: proposed by one, agreed by a second.
+    const g = s.turn;
+    const team = s.teams[g];
+    check(refused(() => applyRoomAction(T, team[0], 'guess', { face: 0, seq: s.turnSeq })), 'guesswho teams: no guess in one tap');
+    const right = T._gw.secret[1 - g];
+    const wrong = s.faces.map((_, i) => i).find((i) => i !== right);
+    applyRoomAction(T, team[0], 'propose', { face: wrong, seq: s.turnSeq });
+    check(s.propose && s.propose.by === team[0] && s.propose.face === undefined && s.stage === 'ask' &&
+      team.every((id) => T.secrets[id].propose === wrong) && s.teams[1 - g].every((id) => T.secrets[id].propose === undefined),
+      'guesswho teams: a proposed face is on the team\'s phones only, and nothing is guessed yet');
+    check(refused(() => applyRoomAction(T, team[0], 'agree', { n: s.propose.n, seq: s.turnSeq })) && s.phase === 'play',
+      'guesswho teams: the one who proposed can\'t agree to it alone');
+    check(refused(() => applyRoomAction(T, s.teams[1 - g][0], 'agree', { n: s.propose.n, seq: s.turnSeq })), 'guesswho teams: nor the other team');
+    const n1 = s.propose.n;
+    applyRoomAction(T, team[0], 'unpropose', { n: n1 });
+    check(!s.propose && !T._gw.propose && T.secrets[team[0]].propose === undefined, 'guesswho teams: the proposer can cancel');
+    applyRoomAction(T, team[1], 'agree', { n: n1, seq: s.turnSeq });
+    check(s.phase === 'play' && s.log.every((e) => e.kind !== 'guess'), 'guesswho teams: an agree drawn for a cancelled proposal is dropped');
+    // A proposal lapses on its clock.
+    applyRoomAction(T, team[1], 'propose', { face: wrong, seq: s.turnSeq });
+    check(roomDeadline(T) === s.propose.endsAt + 1500, 'guesswho teams: a proposal waiting for «متفقين» is a server deadline');
+    clock = s.propose.endsAt + 2000;
+    roomTimeout(T, clock);
+    check(!s.propose && s.phase === 'play' && s.turn === g, 'guesswho teams: a proposal nobody agrees to lapses, and the turn stays');
+    applyRoomAction(T, team[0], 'propose', { face: wrong, seq: s.turnSeq });
+    applyRoomAction(T, team[1], 'agree', { n: s.propose.n, seq: s.turnSeq });
+    check(s.phase === 'over' && s.result.team === true && s.result.winner === 1 - g && s.result.reason === 'wrong' &&
+      s.log[s.log.length - 1].by === team[0] && JSON.stringify(s.reveal) === JSON.stringify(T._gw.secret) &&
+      s.teams[1 - g].every((id) => s.scores[id] === 1) && team.every((id) => !s.scores[id]) && s.tw[1 - g] === 1,
+      'guesswho teams: agreed, it is the guess; wrong loses, and every member of the other team scores the win');
+    {
+      const N = structuredClone(T);
+      N.night = {};
+      bankNightPoints(N, N.shared.board);
+      check(s.teams[1 - g].every((id) => N.night[id] === 5) && team.every((id) => N.night[id] > 0 && N.night[id] < 5),
+        'guesswho teams: on the night the winning team shares first place (5 each)');
+    }
+    // Between games: move sides, and the next game keeps them, the other team starting.
+    const firstWas = s.first;
+    applyRoomAction(T, 'e', 'side', { side: 0 });
+    applyRoomAction(T, 'b', 'nextRound', { round: s.round });
+    s = T.shared;
+    check(s.phase === 'play' && s.round === 2 && s.teams[0].indexOf('e') !== -1 && s.first === 1 - firstWas && s.turn === s.first &&
+      s.down[0].length === 0 && T.secrets.e.face === T._gw.secret[0],
+      'guesswho teams: the next game keeps the sides (a move between games counts), and the other team starts');
+    // A team of one guesses alone; a team emptied loses.
+    const S = newRoom(['h', 'p', 'q', 'r']);
+    applyRoomAction(S, 'h', 'chooseGame', { game: 'guesswho' });
+    applyRoomAction(S, 'h', 'gwTeams', { on: true });
+    applyRoomAction(S, 'h', 'side', { side: 0 });
+    ['p', 'q', 'r'].forEach((id) => applyRoomAction(S, id, 'side', { side: 1 }));
+    applyRoomAction(S, 'h', 'start', {});
+    const ss = S.shared;
+    check(JSON.stringify(ss.teams) === '[["h"],["p","q","r"]]', 'guesswho teams: lopsided sides are allowed');
+    if (ss.turn !== 0) { applyRoomAction(S, 'p', 'loud', { seq: ss.turnSeq }); applyRoomAction(S, 'h', 'answer', { yes: true, seq: ss.turnSeq }); applyRoomAction(S, 'q', 'done', { seq: ss.turnSeq }); }
+    applyRoomAction(S, 'h', 'propose', { face: S._gw.secret[1], seq: ss.turnSeq });
+    check(ss.phase === 'over' && ss.result.winner === 0 && ss.result.reason === 'guess' && ss.scores.h === 1, 'guesswho teams: a team of one sends its guess alone');
+    const U = newRoom(['h', 'p', 'q', 'r']);
+    applyRoomAction(U, 'h', 'chooseGame', { game: 'guesswho' });
+    applyRoomAction(U, 'h', 'gwTeams', { on: true });
+    applyRoomAction(U, 'h', 'side', { side: 0 });
+    ['p', 'q', 'r'].forEach((id) => applyRoomAction(U, id, 'side', { side: 1 }));
+    applyRoomAction(U, 'h', 'start', {});
+    const us = U.shared;
+    U.players = U.players.filter((p) => p.id !== 'q');
+    roomPlayerLeft(U, 'q', 'X');
+    check(us.phase === 'play' && !U.secrets.q && U.secrets.p.face === U._gw.secret[1], 'guesswho teams: someone leaving a team that still has people: the game goes on');
+    U.players = U.players.filter((p) => p.id !== 'h');
+    roomPlayerLeft(U, 'h', 'X');
+    check(us.phase === 'over' && us.result.winner === 1 && us.result.reason === 'left', 'guesswho teams: a team left with nobody loses by forfeit');
+    const V = newRoom(['h', 'p', 'q']);
+    applyRoomAction(V, 'h', 'chooseGame', { game: 'guesswho' });
+    applyRoomAction(V, 'h', 'gwTeams', { on: true });
+    applyRoomAction(V, 'h', 'side', { side: 0 });
+    applyRoomAction(V, 'p', 'side', { side: 1 });
+    check(refused(() => applyRoomAction(V, 'h', 'start', {})), 'guesswho teams: three people can\'t play it (four or more)');
+  }
 }
 
 /* --- المشنقة: the letters, the fold, the two ways a room plays ---------------- */

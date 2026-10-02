@@ -38,21 +38,51 @@
                text, answer (null until answered), face, right }
      log       the last questions and guesses, newest last (and { kind: 'undo' }, an answer taken back)
      endsAt    the turn clock · reveal  [seat 0's face, seat 1's], once over
+
+   «فريق ضد فريق» (teams; the owner, 2 Oct 2026): a lobby switch from GW_TEAMS_MIN people,
+   off by default (shared.lobby.teams, the host's `gwTeams { on }`); everyone picks a side on
+   their own phone (`side { side }`, shared.lobby.sides { pid: 0 | 1 }), and Start needs at
+   least one on each side (lopsided is fine; anyone who hasn't picked joins the smaller side).
+   Then a "seat" is a team: settings.teams, teams [[red ids], [blue ids]], down [red's board,
+   blue's], turn the team up - so the stages above are the same. Anyone on the team up asks
+   and flips (one board for the team, its flips on every phone of the team at once); anyone
+   on the other team answers, the first tap counting (q.by, the log's by / byName); only the
+   one who answered can take it back. The final guess needs two phones: one proposes a face
+   (`propose { face, seq }`), a second teammate taps «متفقين» (`agree { n, seq }`) and only then
+   is it a guess; the proposer cancels (`unpropose { n }`, a teammate's «لأ» too), and it lapses
+   after GW_AGREE_SECS. A team of one sends it alone. The proposed face is the team's own
+   (room._gw.propose, each member's secrets[pid].propose); shared.propose says only who and
+   until when. The secret face is always dealt in teams (one per team, room._gw.secret by team,
+   each member's secrets[pid].face). No line and no champion: the winning team's members score
+   a win each (scores, so the night shares first place between them) and tw counts the teams'
+   wins; result { team: true, winner, reason, winners, losers }. «اللعبة الجاية» keeps the sides
+   (a latecomer joins the smaller one; `side` in 'over' moves you for the next game) and the
+   other team starts (first). Which faces a team put down is public, as in the two-player way
+   (the TV and anyone watching see both boards); a team's phones draw only their own board.
    ========================================================================= */
 const GW_GRACE_MS = 1500;       // the server's clock acts this long after the phones'
 const GW_LOG_MAX = 8;
 const GW_TYPED_MAX = 80;        // a typed question, in characters
 
-const gwSeatOf = (s, pid) => (s.seats || []).indexOf(pid);
+const gwTeamsOn = (s) => !!(s && s.settings && s.settings.teams && Array.isArray(s.teams));
+/** The team (0 red, 1 blue) a player is on in the teams' way, or -1. */
+const gwTeamOf = (s, pid) => (((s.teams || [])[0] || []).indexOf(pid) !== -1 ? 0 : ((((s.teams || [])[1] || []).indexOf(pid) !== -1) ? 1 : -1));
+/** In the teams' way a "seat" is a team: the turn, the boards and the secret faces are each team's. */
+const gwSeatOf = (s, pid) => (gwTeamsOn(s) ? gwTeamOf(s, pid) : (s.seats || []).indexOf(pid));
+/** The members of team k still in the room. */
+const gwTeamHere = (room, k) => (((room.shared.teams || [])[k]) || []).filter(id => room.players.some(p => p.id === id));
 
 const gwOptions = (payload, prev) => {
   const p = payload || {};
   const was = prev || {};
   const pickOf = (v) => (v === 'choose' || v === 'random' ? v : null);
   const wrongOf = (v) => (v === 'lose' || v === 'turn' ? v : null);
+  const teams = p.teams === true;
   return {
     size: gwSize(p.size !== undefined ? p.size : was.size),
-    pick: pickOf(p.pick) || pickOf(was.pick) || 'random',
+    // In teams the secret face is always dealt (decided here): one face a team, nobody to pick it alone.
+    pick: teams ? 'random' : (pickOf(p.pick) || pickOf(was.pick) || 'random'),
+    teams: teams,
     wrong: wrongOf(p.wrong) || wrongOf(was.wrong) || 'lose',
     turnClock: GW_CLOCKS.indexOf(Number(p.turnClock)) !== -1 ? Number(p.turnClock)
       : (GW_CLOCKS.indexOf(Number(was.turnClock)) !== -1 ? Number(was.turnClock) : 0)
@@ -80,6 +110,15 @@ const gwWriteSecrets = (room) => {
   const s = room.shared;
   const g = room._gw || { secret: [null, null] };
   room.secrets = {};
+  if (gwTeamsOn(s)) {
+    // Each member of a team holds the team's face, and the face a teammate proposes to guess.
+    [0, 1].forEach(k => gwTeamHere(room, k).forEach(pid => {
+      if (typeof g.secret[k] !== 'number') return;
+      room.secrets[pid] = { face: g.secret[k] };
+      if (g.propose && g.propose.team === k) room.secrets[pid].propose = g.propose.face;
+    }));
+    return;
+  }
   (s.seats || []).forEach((pid, seat) => {
     if (typeof g.secret[seat] === 'number') room.secrets[pid] = { face: g.secret[seat] };
   });
@@ -91,7 +130,7 @@ const gwBeginPlay = (room) => {
   s.phase = 'play';
   room.phase = 'play';
   s.picked = null;
-  s.turn = 0;
+  s.turn = gwTeamsOn(s) ? (s.first || 0) : 0;
   s.stage = 'ask';
   s.turnSeq = (s.turnSeq || 0) + 1;
   gwStartClock(room);
@@ -110,9 +149,10 @@ const gwDeal = (room) => {
   s.turn = 0;
   s.stage = null;
   s.endsAt = null;
+  s.propose = null;
   s.roster = duelHere(room);
   s.turnSeq = (s.turnSeq || 0) + 1;
-  room._gw = { secret: [null, null] };
+  room._gw = { secret: [null, null], propose: null };
   if (s.settings.pick === 'choose') {
     s.phase = 'pick';
     room.phase = 'play';
@@ -130,7 +170,8 @@ const gwDeal = (room) => {
 /** The game is over: the duel's line moves on, and both faces are shown. */
 const gwEnd = (room, winner, reason) => {
   const s = room.shared;
-  duelEnd(room, winner, reason);
+  gwDropPropose(room);
+  if (gwTeamsOn(s)) gwTeamEnd(room, winner, reason); else duelEnd(room, winner, reason);
   s.stage = null;
   s.endsAt = null;
   s.reveal = ((room._gw || {}).secret || [null, null]).slice();
@@ -138,6 +179,7 @@ const gwEnd = (room, winner, reason) => {
 
 const gwNextTurn = (room) => {
   const s = room.shared;
+  gwDropPropose(room);
   s.turn = 1 - s.turn;
   s.stage = 'ask';
   s.turnSeq = (s.turnSeq || 0) + 1;
@@ -153,13 +195,15 @@ const gwWaitAnswer = (room) => {
 };
 
 /** The answer to the question waiting, taken as given: the asker puts the faces down by hand, then ends the turn. */
-const gwTakeAnswer = (room, yes) => {
+const gwTakeAnswer = (room, yes, by) => {
   const s = room.shared;
   const q = s.q;
-  // What «غلطت» puts back: the asker's board as it was when the answer came (server-only).
-  room._gwUndo = { down: (s.down[s.turn] || []).slice() };
-  s.q = Object.assign({}, q, { answer: yes });
-  gwLog(s, q.kind === 'typed' ? { seat: q.seat, kind: 'typed', text: q.text, answer: yes } : { seat: q.seat, kind: 'loud', answer: yes });
+  // What «غلطت» puts back: the asker's board as it was when the answer came (server-only), and who answered.
+  room._gwUndo = { down: (s.down[s.turn] || []).slice(), by: by || null };
+  s.q = Object.assign({}, q, { answer: yes }, gwTeamsOn(s) ? { answerBy: by, answerByName: roomPlayerName(room, by) } : {});
+  const entry = q.kind === 'typed' ? { seat: q.seat, kind: 'typed', text: q.text, answer: yes } : { seat: q.seat, kind: 'loud', answer: yes };
+  if (gwTeamsOn(s)) { entry.by = q.by; entry.byName = q.byName; }
+  gwLog(s, entry);
   s.stage = 'flip';
   s.turnSeq = (s.turnSeq || 0) + 1;
   room._gwUndo.turnSeq = s.turnSeq;
@@ -180,8 +224,8 @@ const gwUnanswer = (room) => {
   const log = (s.log || []).slice();
   if (log.length && (log[log.length - 1].kind === 'loud' || log[log.length - 1].kind === 'typed')) log.pop();
   s.log = log;
-  gwLog(s, { seat: 1 - s.turn, kind: 'undo' });
-  s.q = Object.assign({}, s.q, { answer: null });
+  gwLog(s, Object.assign({ seat: 1 - s.turn, kind: 'undo' }, gwTeamsOn(s) && u.by ? { by: u.by, byName: roomPlayerName(room, u.by) } : {}));
+  s.q = Object.assign({}, s.q, { answer: null, answerBy: undefined, answerByName: undefined });
   gwWaitAnswer(room);
 };
 
@@ -189,12 +233,14 @@ const gwUnanswer = (room) => {
 const gwCleanTyped = (text) => String(text || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, GW_TYPED_MAX);
 
 /** A guess at the other player's face. */
-const gwGuess = (room, seat, face) => {
+const gwGuess = (room, seat, face, by) => {
   const s = room.shared;
   if (!(face >= 0 && face < s.faces.length)) throw new Error('وش غير معروف');
   const right = room._gw.secret[1 - seat] === face;
   s.q = { seat: seat, kind: 'guess', face: face, right: right };
-  gwLog(s, { seat: seat, kind: 'guess', face: face, right: right });
+  const entry = { seat: seat, kind: 'guess', face: face, right: right };
+  if (gwTeamsOn(s) && by) { entry.by = by; entry.byName = roomPlayerName(room, by); }
+  gwLog(s, entry);
   if (right) { gwEnd(room, seat, 'guess'); return; }
   if (s.settings.wrong === 'lose') { gwEnd(room, 1 - seat, 'wrong'); return; }
   if (s.down[seat].indexOf(face) === -1) s.down[seat] = s.down[seat].concat([face]);
@@ -214,11 +260,89 @@ const gwAuto = (room, why) => {
     return;
   }
   if (s.phase !== 'play') return;
+  gwDropPropose(room);
   // Nobody answers for anyone: a question left unanswered is dropped. Who was waited on: the one answering, or the one up (asking, or putting faces down).
   const answering = s.stage === 'answer';
   if (answering) s.q = null;
   gwLog(s, { seat: answering ? 1 - s.turn : s.turn, kind: 'skip', why: why, stage: s.stage || 'ask' });
   gwNextTurn(room);
+};
+
+/* --- «فريق ضد فريق»: the teams' way (the owner, 2 Oct 2026) ----------------------- */
+
+/** The lobby's teams switch and the sides people picked: { teams, sides { pid: 0 | 1 } }. */
+const gwLobby = (room) => {
+  room.shared = room.shared || {};
+  const lobby = room.shared.lobby || (room.shared.lobby = {});
+  if (!lobby.sides || typeof lobby.sides !== 'object') lobby.sides = {};
+  return lobby;
+};
+
+/** The sides for a game: whoever picked keeps theirs, anyone here who hasn't joins the smaller one. */
+const gwFitTeams = (room, teams) => {
+  const here = duelHere(room);
+  const out = [0, 1].map(k => ((teams || [])[k] || []).filter((id, i, a) => here.indexOf(id) !== -1 && a.indexOf(id) === i));
+  out[1] = out[1].filter(id => out[0].indexOf(id) === -1);
+  here.forEach(id => { if (out[0].indexOf(id) === -1 && out[1].indexOf(id) === -1) out[out[0].length <= out[1].length ? 0 : 1].push(id); });
+  return out;
+};
+
+/** A team's proposal (the final guess before a second teammate agrees) is dropped: the turn moved on, it was cancelled, or it lapsed. */
+const gwDropPropose = (room) => {
+  const s = room.shared || {};
+  const had = !!(room._gw && room._gw.propose) || !!s.propose;
+  if (room._gw) room._gw.propose = null;
+  s.propose = null;
+  if (had) gwWriteSecrets(room);
+};
+
+/** The game is over in the teams' way: each member of the winning team still here scores a win. */
+const gwTeamEnd = (room, winner, reason) => {
+  const s = room.shared;
+  const winners = ((s.teams || [])[winner] || []).slice();
+  const losers = ((s.teams || [])[1 - winner] || []).slice();
+  winners.forEach(id => { if (room.players.some(p => p.id === id)) addScore(room, id, 1); });
+  s.tw = (Array.isArray(s.tw) ? s.tw : [0, 0]).slice();
+  s.tw[winner] = (s.tw[winner] || 0) + 1;
+  s.result = { team: true, winner: winner, reason: reason, winners: winners, losers: losers };
+  s.board = scoreboardOf(room);
+  s.phase = 'over';
+  room.phase = 'over';
+};
+
+const gwNewTeamGame = (room, playerId, payload) => {
+  requireHost(room, playerId);
+  const here = duelHere(room);
+  if (here.length < GW_TEAMS_MIN) throw new Error('فريق ضد فريق محتاج ' + GW_TEAMS_MIN + ' على الأقل');
+  const prev = room.shared || {};
+  const sides = gwLobby(room).sides;
+  const picked = [0, 1].map(k => here.filter(id => sides[id] === k));
+  if (!picked[0].length || !picked[1].length) throw new Error('محتاجين واحد على الأقل في كل فريق');
+  room.shared = {
+    round: 1,
+    teams: gwFitTeams(room, picked),
+    first: Math.random() < 0.5 ? 0 : 1,
+    tw: [0, 0],
+    scores: {},
+    board: [],
+    settings: gwOptions(Object.assign({}, payload, { teams: true }), prev.settings),
+    turnSeq: prev.turnSeq || 0
+  };
+  gwDeal(room);
+  room.shared.board = scoreboardOf(room);
+};
+
+/** A teammate proposes the final guess; a team of one (here) sends it at once. */
+const gwPropose = (room, playerId, seat, face) => {
+  const s = room.shared;
+  if (!(face >= 0 && face < s.faces.length)) throw new Error('وش غير معروف');
+  if (room._gw.propose) return;   // one at a time: the one waiting is agreed to or cancelled first
+  if (gwTeamHere(room, seat).length < 2) { gwGuess(room, seat, face, playerId); return; }
+  s.proposeN = (s.proposeN || 0) + 1;
+  const endsAt = Date.now() + GW_AGREE_SECS * 1000;
+  room._gw.propose = { team: seat, by: playerId, face: face, n: s.proposeN, endsAt: endsAt };
+  s.propose = { team: seat, by: playerId, byName: roomPlayerName(room, playerId), n: s.proposeN, endsAt: endsAt };
+  gwWriteSecrets(room);
 };
 
 const gwNewRoomGame = (room, playerId, payload) => {
@@ -245,6 +369,31 @@ const gwNewRoomGame = (room, playerId, payload) => {
 
 const guessWhoAction = (room, playerId, action, payload) => {
   const p = payload || {};
+  // «فريق ضد فريق»: the lobby's switch and sides, and a start with it on - before the tournament,
+  // whose own start the same lobby could ask for (the teams' way wins; its phones hide that choice).
+  if (action === 'gwTeams') {
+    requireHost(room, playerId);
+    if (room.phase !== 'lobby') return;
+    gwLobby(room).teams = p.on === true;
+    return;
+  }
+  if (action === 'side') {
+    const k = Number(p.side);
+    if (k !== 0 && k !== 1) throw new Error('فريق غير معروف');
+    if (!room.players.some(x => x.id === playerId)) throw new Error('انت شاشة، مش لاعب');
+    if (room.phase === 'lobby') {
+      if (!gwLobby(room).teams) return;
+      gwLobby(room).sides[playerId] = k;
+      return;
+    }
+    // Between games in the teams' way: you move for the next one.
+    const sv = room.shared || {};
+    if (!gwTeamsOn(sv) || sv.phase !== 'over') return;
+    sv.teams = [0, 1].map(j => sv.teams[j].filter(id => id !== playerId));
+    sv.teams[k].push(playerId);
+    return;
+  }
+  if (action === 'start' && room.phase === 'lobby' && gwLobby(room).teams) { gwNewTeamGame(room, playerId, p); return; }
   // A knockout tournament (RoomTournament.js) runs these same rules, one board per match.
   if (tourAction(room, playerId, action, payload, 'guesswho')) return;
   if (action === 'start') { gwNewRoomGame(room, playerId, p); return; }
@@ -255,6 +404,18 @@ const guessWhoAction = (room, playerId, action, payload) => {
   if (action === 'nextRound') {
     if (s.phase !== 'over') return;
     if (!room.players.some(x => x.id === playerId) && room.hostId !== playerId) throw new Error('لست في الغرفة');
+    if (gwTeamsOn(s)) {
+      // The same sides (a latecomer on the smaller one, a leaver off), the other team starting.
+      const teams = gwFitTeams(room, s.teams);
+      if (!teams[0].length || !teams[1].length) throw new Error('محتاجين واحد على الأقل في كل فريق');
+      s.teams = teams;
+      s.first = 1 - (s.first || 0);
+      s.prev = s.result;
+      s.round = (s.round || 1) + 1;
+      gwDeal(room);
+      s.board = scoreboardOf(room);
+      return;
+    }
     duelSeatNext(room);
     s.prev = s.result;
     s.round = (s.round || 1) + 1;
@@ -302,7 +463,8 @@ const guessWhoAction = (room, playerId, action, payload) => {
     // The other player answers the question waiting, out loud or typed: taken as given.
     if (s.phase !== 'play' || s.stage !== 'answer' || !s.q || staleTap(p, 'seq', s.turnSeq)) return;
     if (seat === -1 || seat === s.turn) throw new Error('الإجابة على اللي اتسأل');
-    gwTakeAnswer(room, !!p.yes);
+    // In teams anyone on the other team answers: the first tap counts (the stage has moved on for the second).
+    gwTakeAnswer(room, !!p.yes, playerId);
     return;
   }
 
@@ -313,7 +475,31 @@ const guessWhoAction = (room, playerId, action, payload) => {
     if (seat === -1 || seat === s.turn) throw new Error('اللي جاوب بس يقدر يرجّع إجابته');
     const u = room._gwUndo;
     if (!u || u.turnSeq !== s.turnSeq || u.logSeq !== s.logSeq) return;
+    // In teams only the one who tapped it takes it back.
+    if (gwTeamsOn(s) && u.by && u.by !== playerId) throw new Error('اللي جاوب بس يقدر يرجّع إجابته');
     gwUnanswer(room);
+    return;
+  }
+
+  if (action === 'propose' || action === 'agree' || action === 'unpropose') {
+    // The teams' final guess: one proposes, a second teammate agrees, and then it is a guess.
+    if (!gwTeamsOn(s) || s.phase !== 'play') return;
+    if (seat === -1) throw new Error('انت بتتفرج دلوقتي');
+    if (action === 'unpropose') {
+      // The proposer takes it back, or a teammate says «لأ».
+      const pr = room._gw.propose;
+      if (!pr || pr.team !== seat || staleTap(p, 'n', pr.n)) return;
+      gwDropPropose(room);
+      return;
+    }
+    if (staleTap(p, 'seq', s.turnSeq)) return;
+    if (seat !== s.turn) throw new Error('مش دور فريقك');
+    if (s.stage !== 'ask') return;
+    if (action === 'propose') { gwPropose(room, playerId, seat, Number(p.face)); return; }
+    const pr = room._gw.propose;
+    if (!pr || pr.team !== seat || staleTap(p, 'n', pr.n)) return;
+    if (pr.by === playerId) throw new Error('محتاج حد تاني من فريقك يوافق');
+    gwGuess(room, seat, pr.face, pr.by);
     return;
   }
 
@@ -327,7 +513,14 @@ const guessWhoAction = (room, playerId, action, payload) => {
       return;
     }
     if (s.stage !== 'ask') return;
-    if (action === 'guess') { gwGuess(room, seat, Number(p.face)); return; }
+    if (action === 'guess') {
+      // In teams a guess is proposed and agreed to (two phones), never sent by one tap.
+      if (gwTeamsOn(s)) throw new Error('التخمين في الفرق محتاج اتنين يتفقوا');
+      gwGuess(room, seat, Number(p.face));
+      return;
+    }
+    // Asking instead: a guess half agreed is let go.
+    gwDropPropose(room);
     // Out loud or typed: the other player answers on their phone.
     if (action === 'typed') {
       const text = gwCleanTyped(p.text);
@@ -336,6 +529,7 @@ const guessWhoAction = (room, playerId, action, payload) => {
     } else {
       s.q = { seat: seat, kind: 'loud', answer: null };
     }
+    if (gwTeamsOn(s)) { s.q.by = playerId; s.q.byName = roomPlayerName(room, playerId); }
     gwWaitAnswer(room);
     return;
   }
@@ -347,14 +541,20 @@ const guessWhoAction = (room, playerId, action, payload) => {
 
 const gwDeadline = (room) => {
   const s = room.shared || {};
-  return (s.phase === 'play' || s.phase === 'pick') && s.endsAt ? s.endsAt + GW_GRACE_MS : null;
+  if (s.phase !== 'play' && s.phase !== 'pick') return null;
+  // A team's proposal waiting for «متفقين» lapses on its own clock too.
+  const at = [s.endsAt, s.propose && s.propose.endsAt].filter(x => typeof x === 'number' && x > 0);
+  return at.length ? Math.min.apply(null, at) + GW_GRACE_MS : null;
 };
 
 const gwTimeout = (room, now) => {
   const s = room.shared || {};
-  if ((s.phase !== 'play' && s.phase !== 'pick') || !s.endsAt || now < s.endsAt + GW_GRACE_MS) return false;
-  gwAuto(room, 'clock');
-  return true;
+  if (s.phase !== 'play' && s.phase !== 'pick') return false;
+  let acted = false;
+  // Everything due in one pass (a timeout that leaves its deadline in the past rests 30 s).
+  if (s.propose && now >= s.propose.endsAt + GW_GRACE_MS) { gwDropPropose(room); acted = true; }
+  if (s.endsAt && now >= s.endsAt + GW_GRACE_MS) { gwAuto(room, 'clock'); acted = true; }
+  return acted;
 };
 
 /* --- someone leaves: a seated player loses by forfeit, as in the duels ----------- */
@@ -362,6 +562,18 @@ const gwTimeout = (room, now) => {
 const gwPlayerLeft = (room, playerId) => {
   const s = room.shared;
   if (!s || !s.phase || !Array.isArray(s.faces)) return;
+  if (gwTeamsOn(s)) {
+    // The teams' way: a team left with nobody here loses by forfeit; else the game goes on without them.
+    const live = s.phase === 'play' || s.phase === 'pick';
+    if (room._gw && room._gw.propose && room._gw.propose.by === playerId) gwDropPropose(room);
+    if (live) {
+      const empty = [0, 1].find(k => gwTeamHere(room, k).length === 0);
+      if (empty !== undefined) { gwEnd(room, 1 - empty, 'left'); return; }
+      gwWriteSecrets(room);
+    }
+    s.board = scoreboardOf(room);
+    return;
+  }
   s.line = (s.line || []).filter(id => id !== playerId);
   if (s.streak && s.streak.id === playerId) s.streak = null;
   const seat = gwSeatOf(s, playerId);

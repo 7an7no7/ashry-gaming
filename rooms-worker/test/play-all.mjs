@@ -5446,6 +5446,57 @@ async function guesswhoSeg() {
     P.close();
   }
 
+  /* --- «فريق ضد فريق»: sides on the phones, one face and one board a team, the guess agreed by two --- */
+  console.log('• guess who in teams (sides picked on each phone, the team\'s face, one board, first answer counts, the guess needs two)');
+  {
+    const H = await Bot.host('هدى', null);
+    const B = await Bot.join(H.code, 'باسم');
+    const C = await Bot.join(H.code, 'سلمى');
+    const D = await Bot.join(H.code, 'ضياء');
+    const E = await Bot.join(H.code, 'إيمان');
+    const S = await Bot.join(H.code, '', true);
+    const bots = [H, B, C, D, E];
+    await H.must('chooseGame', { game: 'guesswho' });
+    await H.must('gwTeams', { on: true });
+    await H.must('side', { side: 0 });
+    await B.must('side', { side: 0 });
+    check((await H.act('start', { size: 16 })).ok === false, 'guesswho teams: Start waits for someone on each side');
+    await C.must('side', { side: 1 });
+    await D.must('side', { side: 1 });
+    await all(bots, (st) => st.shared.lobby && st.shared.lobby.teams === true && st.shared.lobby.sides[D.pid] === 1, 'guesswho teams: every phone sees the sides picked');
+    await H.must('start', { size: 16 });
+    await all(bots.concat([S]), (st) => st.shared.phase === 'play' && st.shared.settings.teams === true && st.shared.teams[0].length + st.shared.teams[1].length === 5,
+              'guesswho teams: everyone is on a side, whoever didn\'t pick on the smaller one');
+    const sh = H.state.shared;
+    const red = bots.filter((b) => sh.teams[0].indexOf(b.pid) !== -1), blue = bots.filter((b) => sh.teams[1].indexOf(b.pid) !== -1);
+    check(red.every((b) => b.state.you.face === red[0].state.you.face) && blue.every((b) => b.state.you.face === blue[0].state.you.face) && S.state.you === null,
+          'guesswho teams: each team\'s phones hold the team\'s face, the TV none');
+    const up = sh.turn === 0 ? red : blue, other = sh.turn === 0 ? blue : red;
+    await up[1].must('loud', { seq: sh.turnSeq });
+    await other[0].waitFor((st) => st.shared.stage === 'answer', 'guesswho teams: the question waits on the other team');
+    const seqA = other[0].state.shared.turnSeq;
+    await other[0].must('answer', { yes: true, seq: seqA });
+    await other[1].act('answer', { yes: false, seq: seqA });
+    await all(bots, (st) => st.shared.stage === 'flip' && st.shared.q.answer === true, 'guesswho teams: the first answer counts');
+    await up[0].must('flip', { face: 1, down: true });
+    await all(up, (st) => st.shared.down[sh.turn].indexOf(1) !== -1, 'guesswho teams: a face put down is down on every phone of the team');
+    await up[1].must('done', { seq: up[1].state.shared.turnSeq });
+    await all(bots, (st) => st.shared.turn === 1 - sh.turn && st.shared.stage === 'ask', 'guesswho teams: the turn passes to the other team');
+    // The guess: one proposes, a second agrees.
+    const g = other[0].state.shared;
+    const right = up[0].state.you.face;
+    await other[0].must('propose', { face: right, seq: g.turnSeq });
+    await other[1].waitFor((st) => st.shared.propose && st.you.propose === right, 'guesswho teams: the proposed face reaches the team');
+    check(up.every((b) => !b.state.you || b.state.you.propose === undefined) && !leaks(S, '"propose":' + right), 'guesswho teams: and not the other team or the TV');
+    await other[1].must('agree', { n: other[1].state.shared.propose.n, seq: other[1].state.shared.turnSeq });
+    await all(bots.concat([S]), (st) => st.shared.phase === 'over' && st.shared.result.team === true && st.shared.result.reason === 'guess' && Array.isArray(st.shared.reveal),
+              'guesswho teams: agreed, the right face wins, and both faces are shown');
+    await E.must('nextRound', { round: H.state.shared.round });
+    await all(bots, (st) => st.shared.phase === 'play' && st.shared.round === 2, 'guesswho teams: the next game keeps the sides');
+    await H.must('backToHub');
+    bots.concat([S]).forEach((b) => b.close());
+  }
+
 }
 
 async function battleshipSeg() {

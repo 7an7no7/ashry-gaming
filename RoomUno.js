@@ -51,6 +51,9 @@ const unoAction = (room, playerId, action, payload) => {
     unoNewGame(room, playerId, action, p);
     return;
   }
+  // «أونو اتنين اتنين»: the lobby's switch and everyone's pick of a team.
+  if (action === 'teams') { unoTeamsSwitch(room, playerId, p); return; }
+  if (action === 'team') { unoPickTeam(room, playerId, p); return; }
   const s = room.shared;
   const g = room._uno;
   if (!s || !s.phase || !g) throw new Error('اللعبة لم تبدأ بعد');
@@ -62,6 +65,7 @@ const unoAction = (room, playerId, action, payload) => {
     return;
   }
   if (action === 'callUno') { unoApply(room, () => unoCall(room, playerId)); return; }
+  if (action === 'signal') { unoApply(room, () => unoSignal(room, playerId, p)); return; }
   if (action === 'catchUno') { unoApply(room, () => unoCatch(room, playerId, p)); return; }
   if (action === 'jump') {
     const top = unoTop(g);
@@ -106,6 +110,25 @@ const unoNext = (room, pid, steps) => {
   return seats[(((at + k) % n) + n) % n];
 };
 
+/** In teams, pid's partner still at the table; null otherwise. */
+const unoMate = (room, pid) => {
+  const s = room.shared;
+  return s && s.settings && s.settings.teams ? unoMateOf(s.teams, s.order, pid) : null;
+};
+
+/** Whether `k` would land a Skip, +2 or +4 on pid's own partner (refused, in teams). */
+const unoHitsPartner = (room, pid, k) => {
+  const s = room.shared;
+  return unoHitsMate(k, s.order, s.dir, pid, unoMate(room, pid));
+};
+
+/** The one rule for what pid may throw now: unoCanPlay, and in teams never onto the partner. */
+const unoLegal = (room, pid, k) => {
+  const s = room.shared;
+  const top = unoTop(room._uno);
+  return unoCanPlay(k, top ? top.k : null, s.color, s.pending, s.settings) && !unoHitsPartner(room, pid, k);
+};
+
 const unoEvent = (room, type, fields) => {
   const s = room.shared;
   s.eventSeq = (s.eventSeq || 0) + 1;
@@ -122,7 +145,11 @@ const unoNewGame = (room, playerId, action, p) => {
   if (n < 2) throw new Error('أونو محتاج لاعبين على الأقل: ضيف لاعب كمبيوتر');
   if (n > UNO_MAX_PLAYERS) throw new Error('أونو لحد ' + UNO_MAX_PLAYERS + ' لاعب');
   const settings = unoSettings(p, action === 'playAgain' ? (prev.settings || {}) : {});
-  const order = shuffled(room.players.map(pl => pl.id));
+  // Teams of two: the lobby's switch on a start, the last game's on a play again.
+  const lobby = action === 'start' ? (prev.lobby || {}) : null;
+  settings.teams = action === 'start' ? !!lobby.on : !!(prev.settings && prev.settings.teams);
+  const teams = settings.teams ? unoTeamsToDeal(room, action, prev) : null;
+  const order = teams ? unoTeamSeating(shuffled(teams.map(t => shuffled(t.ids)))) : shuffled(room.players.map(pl => pl.id));
   room.secrets = {};
   room._uno = { deck: [], pile: [], hands: {}, drawnId: null };
   room.shared = {
@@ -136,6 +163,8 @@ const unoNewGame = (room, playerId, action, p) => {
     // wins are counted across play again, and they are the board.
     wins: action === 'playAgain' && prev.wins ? prev.wins : {},
     winners: null,
+    // «أونو اتنين اتنين»: [{ t, ids: [a, b] }] (t the lobby's team, 0-5), null playing each for themselves.
+    teams: teams,
     // Carried over a play again, so a tap or an animation from the last game is never taken for this one.
     turnSeq: (prev.turnSeq || 0) + 1,
     eventSeq: prev.eventSeq || 0
@@ -166,6 +195,120 @@ const unoSettings = (p, was) => {
     turnClock: pick('turnClock', UNO_CLOCKS, 0)
   };
 };
+
+/* --- «أونو اتنين اتنين»: teams of two (the owner, 2 Oct 2026) ------------------------------
+   A lobby switch, off by default (`shared.lobby.on`, the host's). Everyone picks a team
+   (`shared.lobby.pick[pid]`, 0-5, `team { team }`; the same team again lets go); a computer
+   player without a pick sits beside someone alone (unoTeamSlots in UnoCards.js), and the host
+   may move one (`team { team, playerId }`). Every team is exactly two, so 4 to 12 play; the
+   Start names who has no team or no partner yet. Partners sit opposite (unoTeamSeating), the
+   first partner out wins the round for both, a pair scores the cards left in the other teams'
+   hands, a Skip, +2 or +4 can't land on your partner (unoLegal), and the three signals
+   (`signal { kind }`) are seen by everyone. */
+const UNO_SIGNALS = ['r', 'y', 'g', 'b', 'help', 'mine'];
+const UNO_SIGNAL_MS = 4000;          // one signal a player every four seconds
+
+const unoLobby = (room) => {
+  room.shared = room.shared || {};
+  const lobby = room.shared.lobby || (room.shared.lobby = {});
+  if (!lobby.pick || typeof lobby.pick !== 'object') lobby.pick = {};
+  return lobby;
+};
+
+const unoTeamsSwitch = (room, playerId, p) => {
+  requireHost(room, playerId);
+  if (room.phase !== 'lobby') return;
+  unoLobby(room).on = p.on === true;
+};
+
+const unoPickTeam = (room, playerId, p) => {
+  if (room.phase !== 'lobby') return;
+  const lobby = unoLobby(room);
+  if (!lobby.on) throw new Error('الفرق مش شغّالة');
+  const who = p.playerId && String(p.playerId) !== playerId ? String(p.playerId) : playerId;
+  if (who !== playerId && !(room.hostId === playerId && isRoomBot(room, who))) throw new Error('اختار فريقك انت بس');
+  if (!unoHere(room, who)) return;
+  const t = Number(p.team);
+  if (p.team === null || p.team === undefined || t === -1) { delete lobby.pick[who]; return; }
+  if (!(t >= 0 && t < UNO_TEAM_MAX && Math.floor(t) === t)) throw new Error('فريق غير معروف');
+  if (lobby.pick[who] === t) { delete lobby.pick[who]; return; }       // the same team again: let go
+  // A computer player sitting in it by itself makes room; two who picked it fill it.
+  const picked = room.players.filter(x => x.id !== who && lobby.pick[x.id] === t).length;
+  if (picked >= 2) throw new Error('الفريق ده كامل');
+  lobby.pick[who] = t;
+};
+
+/** The teams to deal: the lobby's on a start, the last game's on a play again - each exactly two. */
+const unoTeamsToDeal = (room, action, prev) => {
+  const names = (ids) => ids.map(id => roomPlayerName(room, id)).join('، ');
+  if (action === 'playAgain') {
+    const was = Array.isArray(prev.teams) ? prev.teams : [];
+    const inTeams = [].concat.apply([], was.map(t => t.ids));
+    const broken = was.filter(t => t.ids.some(id => !unoHere(room, id))).map(t => t.ids.filter(id => unoHere(room, id))).reduce((a, b) => a.concat(b), []);
+    const fresh = room.players.map(x => x.id).filter(id => inTeams.indexOf(id) === -1);
+    if (broken.length || fresh.length) {
+      throw new Error((broken.length ? 'ملهمش شريك دلوقتي: ' + names(broken) : 'لسه ملهمش فريق: ' + names(fresh)) + '. ارجعوا للقائمة واختاروا أونو تاني عشان الفرق');
+    }
+    return was.filter(t => t.ids.length === 2).map(t => ({ t: t.t, ids: t.ids.slice() }));
+  }
+  const lobby = unoLobby(room);
+  const out = unoTeamSlots(room.players, lobby.pick);
+  if (out.unplaced.length) throw new Error('لسه مختاروش فريق: ' + names(out.unplaced));
+  const alone = out.slots.filter(sl => sl.length === 1).map(sl => sl[0]);
+  if (alone.length) throw new Error('لسه ملهمش شريك: ' + names(alone) + ' (ضيفوا لاعب كمبيوتر شريك، أو حد يختار فريقهم)');
+  const teams = out.slots.map((ids, t) => ({ t: t, ids: ids })).filter(x => x.ids.length === 2);
+  if (teams.length < 2) throw new Error('أونو اتنين اتنين محتاج فريقين على الأقل: ٤ لاعبين');
+  return teams;
+};
+
+/** A quick signal to the partner, seen by everyone: a colour, «الحقني» or «سيبه ليا». Never a card. */
+const unoSignal = (room, me, p) => {
+  const s = room.shared;
+  const g = room._uno;
+  if (!s.settings || !s.settings.teams) throw new Error('الإشارات في أونو اتنين اتنين بس');
+  if (s.phase !== 'play') return;
+  if (unoSeated(room).indexOf(me) === -1) throw new Error('ستدخل من الجولة القادمة');
+  const kind = String(p.kind || '');
+  if (UNO_SIGNALS.indexOf(kind) === -1) throw new Error('إشارة غير معروفة');
+  const now = Date.now();
+  g.signalAt = g.signalAt || {};
+  if (now - (g.signalAt[me] || 0) < UNO_SIGNAL_MS) return;     // too soon: dropped quietly (the phone waits too)
+  g.signalAt[me] = now;
+  unoEvent(room, 'signal', { pid: me, kind: kind });
+  s.signals = Object.assign({}, s.signals || {});
+  s.signals[me] = { kind: kind, seq: s.eventSeq };
+};
+
+/** The teams in their places once the game is over (the night, the program, «مين هيكسب؟»): null without teams. */
+const unoTeamResult = (room) => {
+  const s = room.shared || {};
+  if (!s.settings || !s.settings.teams || s.phase !== 'gameover' || !Array.isArray(s.teams)) return null;
+  const teams = s.teams.map(tm => tm.ids.filter(id => unoHere(room, id))).filter(t => t.length);
+  if (!teams.length) return null;
+  if (s.settings.length === 'rounds') {
+    const score = (t) => s.scores[t[0]] || 0;
+    const sorted = teams.slice().sort((a, b) => score(b) - score(a));
+    const out = [];
+    sorted.forEach(t => {
+      const last = out[out.length - 1];
+      if (last && score(last) === score(t)) last.push.apply(last, t); else out.push(t.slice());
+    });
+    return out;
+  }
+  const won = Array.isArray(s.winners) ? s.winners : [];
+  const first = teams.filter(t => t.some(id => won.indexOf(id) !== -1));
+  const rest = teams.filter(t => first.indexOf(t) === -1);
+  return [].concat(first.length ? [[].concat.apply([], first)] : [], rest.length ? [[].concat.apply([], rest)] : []);
+};
+
+/** «مين هيكسب؟» on a game of pairs: the pairs in their places; otherwise the board, as before. */
+ROOM_RESULT_BOARDS.uno = (room) => {
+  const teams = unoTeamResult(room);
+  return teams ? roomResultRows(room, teams) : ((room.shared || {}).board || null);
+};
+
+/** Teams with someone still at the table. */
+const unoTeamsLeft = (room) => (room.shared.teams || []).filter(tm => tm.ids.some(id => (room.shared.order || []).indexOf(id) !== -1)).length;
 
 /** Deals a round: seven each, a card turned up, and that card's effect on the first player. */
 const unoDeal = (room) => {
@@ -216,6 +359,7 @@ const unoDeal = (room) => {
   s.turn = null;
   s.endsAt = null;
   s.events = [];
+  s.signals = {};
   s.start = s.order[start];
   unoEvent(room, 'deal', { round: s.round, start: s.order[start], first: { i: first.i, k: first.k }, returned: returned });
 
@@ -330,6 +474,8 @@ const unoPlay = (room, me, p, jump) => {
     if (s.turn.stage === 'drawn' && String(card.i) !== String(g.drawnId)) throw new Error('بعد السحب تقدر تلعب الكارت اللي سحبته بس');
     if (!unoCanPlay(card.k, top ? top.k : null, s.color, s.pending, s.settings)) throw new Error('الكارت ده مينفعش على اللي على الأرض');
   }
+  // In teams a Skip, +2 or +4 never lands on your own partner (the owner, 2 Oct 2026).
+  if (unoHitsPartner(room, me, card.k)) throw new Error('مينفعش: الكارت ده هيقع على شريكك');
   let color = unoColorOf(card.k);
   if (unoIsWild(card.k)) {
     color = String(p.color || '');
@@ -469,7 +615,7 @@ const unoDrawTurn = (room, me, until) => {
     if (!one.length) break;
     g.hands[me].push(one[0]);
     got.push(one[0]);
-    fits = unoCanPlay(one[0].k, top ? top.k : null, s.color, null, s.settings);
+    fits = unoCanPlay(one[0].k, top ? top.k : null, s.color, null, s.settings) && !unoHitsPartner(room, me, one[0].k);
     if (fits || !until) break;
   }
   unoEvent(room, 'draw', { pid: me, n: got.length });
@@ -589,6 +735,7 @@ const unoCatch = (room, me, p) => {
   if (s.phase !== 'play') return;
   if (unoSeated(room).indexOf(me) === -1) throw new Error('ستدخل من الجولة القادمة');
   if (target === me) throw new Error('مش هتمسك نفسك');
+  if (target && unoMate(room, me) === target) throw new Error('ده شريكك');
   // Too late - someone was quicker, they said it, or the next move was made: nothing to do.
   if (!target || s.unoCatch !== target) return;
   s.unoCatch = null;
@@ -603,24 +750,29 @@ const unoEndRound = (room, winner) => {
   const hands = {};
   const points = {};
   let gained = 0;
+  // In teams the first partner out wins the round for both, and the pair scores the cards
+  // left in the other teams' hands - never the partner's own (the owner, 2 Oct 2026).
+  const mate = unoMate(room, winner);
+  const side = mate ? [winner, mate] : [winner];
   unoSeated(room).forEach(id => {
     hands[id] = (g.hands[id] || []).map(c => c.k);
     points[id] = unoHandPoints(hands[id]);
-    if (id !== winner) gained += points[id];
+    if (side.indexOf(id) === -1) gained += points[id];
   });
   s.turn = null;
   s.endsAt = null;
   s.pending = null;
   s.unoCatch = null;
   s.results = { round: s.round, winner: winner, hands: hands, points: points, gained: gained };
-  unoEvent(room, 'win', { pid: winner, gained: gained });
+  if (s.settings.teams) s.results.team = side;
+  unoEvent(room, 'win', { pid: winner, gained: gained, team: s.settings.teams ? side : undefined });
   if (s.settings.length !== 'rounds') {
     s.wins = s.wins || {};
-    s.wins[winner] = (s.wins[winner] || 0) + 1;
+    side.forEach(id => { s.wins[id] = (s.wins[id] || 0) + 1; });
   }
   if (s.settings.length === 'rounds') {
-    // The round's winner scores the cards left in everyone else's hand.
-    s.scores[winner] = (s.scores[winner] || 0) + gained;
+    // The round's winner scores the cards left in everyone else's hand (a pair, both of them).
+    side.forEach(id => { s.scores[id] = (s.scores[id] || 0) + gained; });
     if (s.round < s.rounds) {
       s.phase = 'roundOver';
       room.phase = 'roundOver';
@@ -641,6 +793,11 @@ const unoGameOver = (room) => {
   if (s.settings.length === 'rounds') {
     const best = ids.length ? Math.max.apply(null, ids.map(id => s.scores[id] || 0)) : 0;
     s.winners = ids.filter(id => (s.scores[id] || 0) === best);
+  } else if (s.settings.teams) {
+    // The pair of the first out; or, with the other teams gone, whoever is still here.
+    const w = s.results && s.results.winner;
+    const side = w ? [w, unoMateOf(s.teams, ids, w)].filter(id => id && ids.indexOf(id) !== -1) : [];
+    s.winners = side.length ? side : ids.slice();
   } else {
     // One round: the first out wins (or, when everyone else left, the one still here).
     const w = s.results && s.results.winner;
@@ -658,11 +815,15 @@ const unoBoard = (room) => {
   const s = room.shared;
   const ids = (s.order || []).filter(id => unoHere(room, id));
   const name = (id) => (room.players.find(p => p.id === id) || {}).name || '';
+  // In teams each row carries its team (`team`, the lobby's 0-5), partners side by side.
+  const teamOf = (id) => { const tm = (s.teams || []).find(x => x.ids.indexOf(id) !== -1); return tm ? tm.t : null; };
+  const row = (id, score) => (s.teams ? { id: id, name: name(id), score: score, team: teamOf(id) } : { id: id, name: name(id), score: score });
+  const byScore = (a, b) => (b.score - a.score) || ((a.team === undefined ? 0 : a.team) - (b.team === undefined ? 0 : b.team));
   if (s.settings && s.settings.length === 'rounds') {
-    return ids.map(id => ({ id: id, name: name(id), score: s.scores[id] || 0 })).sort((a, b) => b.score - a.score);
+    return ids.map(id => row(id, s.scores[id] || 0)).sort(byScore);
   }
   const wins = s.wins || {};
-  return ids.map(id => ({ id: id, name: name(id), score: wins[id] || 0 })).sort((a, b) => b.score - a.score);
+  return ids.map(id => row(id, wins[id] || 0)).sort(byScore);
 };
 
 /* --- what the table sees -------------------------------------------------------------- */
@@ -739,9 +900,11 @@ const unoPlayerLeft = (room, playerId, name) => {
     s.order.splice(seat, 1);
     s.said = (s.said || []).filter(id => id !== playerId);
     if (s.unoCatch === playerId) s.unoCatch = null;
+    if (s.signals && s.signals[playerId]) { s.signals = Object.assign({}, s.signals); delete s.signals[playerId]; }
     if (s.phase === 'gameover') return;
     unoEvent(room, 'left', { pid: playerId, name: name || '' });
-    if (s.order.length < 2) {
+    // In teams a partner who leaves leaves the other playing alone; one team left ends the game.
+    if (s.order.length < 2 || (s.settings && s.settings.teams && unoTeamsLeft(room) < 2)) {
       unoGameOver(room);
       return;
     }
@@ -772,7 +935,7 @@ const UNO_BOT_JUMP_MS = [1100, 1800];
 const unoBotRand = (range) => range[0] + Math.floor(Math.random() * (range[1] - range[0]));
 
 /** The hard bots that could catch `target` now. */
-const unoBotHunters = (room, target) => unoSeated(room).filter(id => id !== target && roomBotLevel(room, id) === 'hard');
+const unoBotHunters = (room, target) => unoSeated(room).filter(id => id !== target && roomBotLevel(room, id) === 'hard' && unoMate(room, id) !== target);
 
 /** A hard bot holding the very card on top, out of turn, when jump-in is on. */
 const unoBotJumper = (room) => {
@@ -780,7 +943,7 @@ const unoBotJumper = (room) => {
   const top = s.pile && s.pile[s.pile.length - 1];
   if (!s.settings.jumpIn || !top || unoIsWild(top.k) || !s.turn || s.turn.stage === 'color') return null;
   const id = unoSeated(room).find(pid => pid !== s.turn.pid && roomBotLevel(room, pid) === 'hard' &&
-    ((room.secrets[pid] || {}).hand || []).some(c => unoSameCard(c.k, top.k)));
+    ((room.secrets[pid] || {}).hand || []).some(c => unoSameCard(c.k, top.k) && !unoHitsPartner(room, pid, c.k)));
   return id || null;
 };
 
@@ -794,14 +957,34 @@ const unoBotColor = (hand, without) => {
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
+/** In teams: the colour the partner asked for (their last signal), while they are close to going out (three cards or fewer). */
+const unoBotMateColor = (room, pid) => {
+  const s = room.shared;
+  const mate = unoMate(room, pid);
+  const sig = mate && s.signals ? s.signals[mate] : null;
+  if (!sig || UNO_COLORS.indexOf(sig.kind) === -1) return null;
+  return ((s.counts || {})[mate] || 0) <= 3 ? sig.kind : null;
+};
+
+/** In teams: the partner's last signal, if it is one of the words («الحقني» help, «سيبه ليا» mine). */
+const unoBotMateWord = (room, pid) => {
+  const s = room.shared;
+  const mate = unoMate(room, pid);
+  const sig = mate && s.signals ? s.signals[mate] : null;
+  return sig && (sig.kind === 'help' || sig.kind === 'mine') ? sig.kind : null;
+};
+
 /** Everything a play needs besides the card: a colour for a wild, someone to swap with for a 7, UNO. */
 const unoBotPayload = (room, pid, hand, card, level, extra) => {
   const s = room.shared;
   const out = Object.assign({ card: card.i }, extra || {});
-  if (unoIsWild(card.k)) out.color = unoBotColor(hand, card.i);
+  if (unoIsWild(card.k)) out.color = unoBotMateColor(room, pid) || unoBotColor(hand, card.i);
   const left = hand.length - 1;
   if (s.settings.sevenO && unoValueOf(card.k) === '7' && left > 0) {
-    const others = unoSeated(room).filter(id => id !== pid);
+    // In teams it swaps with the other side, never with its own partner (unless nobody else is left).
+    const mate = unoMate(room, pid);
+    const all = unoSeated(room).filter(id => id !== pid);
+    const others = all.filter(id => id !== mate).length ? all.filter(id => id !== mate) : all;
     const counts = s.counts || {};
     if (level === 'hard') {
       const fewest = Math.min.apply(null, others.map(id => counts[id] || 0));
@@ -819,11 +1002,15 @@ const unoBotPayload = (room, pid, hand, card, level, extra) => {
 const unoBotBest = (room, pid, hand, legal) => {
   const s = room.shared;
   const counts = s.counts || {};
-  const others = unoSeated(room).filter(id => id !== pid);
+  // In teams it plays for the pair: the danger is the other side's, and the partner is never a target.
+  const mate = unoMate(room, pid);
+  const others = unoSeated(room).filter(id => id !== pid && id !== mate);
   const next = unoNext(room, pid);
   const prev = unoNext(room, pid, -1);
   const danger = others.length ? Math.min.apply(null, others.map(id => counts[id] || 0)) : 9;
-  const nextClose = (counts[next] || 0) <= 2;
+  const nextClose = next !== mate && (counts[next] || 0) <= 2;
+  const word = unoBotMateWord(room, pid);
+  const mateColor = unoBotMateColor(room, pid);
   const late = hand.length <= 2 || danger <= 2;
   const held = {};
   hand.forEach(c => { const col = unoColorOf(c.k); if (col) held[col] = (held[col] || 0) + 1; });
@@ -836,6 +1023,11 @@ const unoBotBest = (room, pid, hand, legal) => {
     if (nextClose && v === 'v' && others.length > 1 && (counts[prev] || 0) > 2) sc += 22;
     sc += unoPoints(c.k) * (danger <= 2 ? 0.6 : 0.12);                     // shed the big ones when someone is close
     if (v === 'd') sc += 5;
+    // The partner's signals: «الحقني» - slow the other side down; a colour - keep it in play;
+    // «سيبه ليا» - they have it in hand: no need to spend a wild or an action card.
+    if (word === 'help' && next !== mate && (v === 's' || v === 'd' || c.k === 'w4')) sc += 20;
+    if (word === 'mine' && (unoIsWild(c.k) || unoIsAction(c.k))) sc -= 10;
+    if (mateColor && unoColorOf(c.k) === mateColor) sc += 12;
     if (s.settings.sevenO && v === '7' && hand.length > 1) {
       const fewest = others.length ? Math.min.apply(null, others.map(id => counts[id] || 0)) : 99;
       sc += fewest < hand.length - 1 ? 26 + (hand.length - 1 - fewest) * 4 : -24;
@@ -860,14 +1052,15 @@ const unoBotTurn = (room, pid, level) => {
   if (s.turn.stage === 'color') return { action: 'pickColor', payload: { color: unoBotColor(hand, null), seq: seq } };
   if (s.turn.stage === 'drawn') {
     const card = hand.find(c => String(c.i) === String(mine.drawn));
-    if (!card) return { action: 'keep', payload: { seq: seq } };
+    if (!card || unoHitsPartner(room, pid, card.k)) return { action: 'keep', payload: { seq: seq } };
     // A hard bot keeps a wild it drew for later, while nobody is close to going out.
     const counts = s.counts || {};
     const danger = Math.min.apply(null, unoSeated(room).filter(id => id !== pid).map(id => counts[id] || 0).concat([9]));
     if (level === 'hard' && unoIsWild(card.k) && hand.length > 3 && danger > 2) return { action: 'keep', payload: { seq: seq } };
     return { action: 'play', payload: unoBotPayload(room, pid, hand, card, level, { seq: seq }) };
   }
-  const legal = hand.filter(c => unoCanPlay(c.k, topK, s.color, s.pending, s.settings));
+  // In teams a card that would land on the partner is not on the list (unoLegal): with none left, it draws.
+  const legal = hand.filter(c => unoCanPlay(c.k, topK, s.color, s.pending, s.settings) && !unoHitsPartner(room, pid, c.k));
   if (s.pending) {
     if (!legal.length) return { action: 'take', payload: { seq: seq } };
     // Stack: a hard bot answers with a +2 before spending a +4.
@@ -891,8 +1084,7 @@ ROOM_FORCED_GAMES.uno = (room) => {
   const g = room._uno;
   if (s.phase !== 'play' || !s.turn || !g || s.turn.stage !== 'play') return null;
   const pid = s.turn.pid;
-  const top = g.pile[g.pile.length - 1];
-  if ((g.hands[pid] || []).some(c => unoCanPlay(c.k, top ? top.k : null, s.color, s.pending, s.settings))) return null;
+  if ((g.hands[pid] || []).some(c => unoLegal(room, pid, c.k))) return null;
   const action = s.pending ? 'take' : 'draw';
   return {
     pid: pid,
@@ -932,7 +1124,7 @@ ROOM_BOT_GAMES.uno = {
     if (unoBotJumper(room) === pid) {
       const top = s.pile[s.pile.length - 1];
       const hand = (room.secrets[pid] || {}).hand || [];
-      const card = hand.find(c => unoSameCard(c.k, top.k));
+      const card = hand.find(c => unoSameCard(c.k, top.k) && !unoHitsPartner(room, pid, c.k));
       if (card) return { action: 'jump', payload: unoBotPayload(room, pid, hand, card, level, { top: top.i }) };
     }
     return null;

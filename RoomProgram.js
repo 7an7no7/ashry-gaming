@@ -102,6 +102,8 @@ const PROGRAM_TEAMS = {
   },
   // السلم والتعبان in teams (2 Oct 2026): the teams in the order they got home (null playing each for themselves).
   snakes: (room) => snakesTeamResult(room),
+  // «أونو اتنين اتنين» (2 Oct 2026): the pairs in their places (null playing each for themselves).
+  uno: (room) => unoTeamResult(room),
   votechess: (room) => programTwoTeams(room),
   // المشنقة's team way (RoomHangman.js); its other ways place by the board (null here).
   hangman: (room) => hmProgramTeams(room),

@@ -3150,7 +3150,7 @@ Date.now = duelTestClock;
 /* --- أونو: the cards, every move, the bots, and what never leaves the server ------ */
 {
   const UNO = new Function(readFileSync(new URL('../../UnoCards.js', import.meta.url), 'utf8') +
-    '\nreturn { unoDeck, unoCanPlay, unoPoints, unoHandPoints, unoSameCard, unoDecksFor, unoSorted, unoDrawOf, unoColorOf };')();
+    '\nreturn { unoDeck, unoCanPlay, unoPoints, unoHandPoints, unoSameCard, unoDecksFor, unoSorted, unoDrawOf, unoColorOf, unoValueOf, unoTeamSlots, unoMateOf, unoHitsMate };')();
   const same = { stacking: true, stackMode: 'same' };
   const mixed = { stacking: true, stackMode: 'mixed' };
   const off = { stacking: false, stackMode: 'same' };
@@ -3657,6 +3657,223 @@ Date.now = duelTestClock;
       'uno: a player up who leaves: their cards go under the deck, the turn moves on');
     leave(r, C);
     check(r.shared.phase === 'gameover' && r.shared.winners.join() === A, 'uno: fewer than two left ends the game');
+  }
+
+  {
+    // «أونو اتنين اتنين»: teams of two (the owner, 2 Oct 2026).
+    const errOf = (fn) => { try { fn(); return ''; } catch (e) { return e.message || String(e); } };
+    const lobbyRoom = (ids) => {
+      const r = newRoom(ids);
+      applyRoomAction(r, ids[0], 'chooseGame', { game: 'uno' });
+      return r;
+    };
+    const plain = unoStart(['a', 'b', 'c', 'd']);
+    check(!plain.shared.settings.teams && !plain.shared.teams, 'uno teams: off by default: the normal game is unchanged');
+
+    const r = lobbyRoom(['a', 'b', 'c', 'd', 'e']);
+    check(threw(() => applyRoomAction(r, 'b', 'teams', { on: true })) && !(r.shared.lobby || {}).on, 'uno teams: only the host turns them on');
+    check(threw(() => applyRoomAction(r, 'b', 'team', { team: 0 })), 'uno teams: no picking a team while they are off');
+    applyRoomAction(r, 'a', 'teams', { on: true });
+    check(r.shared.lobby.on === true, 'uno teams: the host turns the switch on in the lobby');
+    applyRoomAction(r, 'a', 'team', { team: 0 });
+    applyRoomAction(r, 'b', 'team', { team: 0 });
+    check(threw(() => applyRoomAction(r, 'c', 'team', { team: 0 })), 'uno teams: a team is two, no more');
+    check(threw(() => applyRoomAction(r, 'b', 'team', { team: 1, playerId: 'c' })), 'uno teams: a person picks only their own team');
+    applyRoomAction(r, 'c', 'team', { team: 1 });
+    let msg = errOf(() => applyRoomAction(r, 'a', 'start', {}));
+    check(r.phase === 'lobby' && msg.indexOf('D') !== -1 && msg.indexOf('E') !== -1 && /مختاروش/.test(msg), 'uno teams: Start says who has not picked a team: ' + msg);
+    applyRoomAction(r, 'd', 'team', { team: 2 });
+    applyRoomAction(r, 'e', 'team', { team: 2 });
+    msg = errOf(() => applyRoomAction(r, 'a', 'start', {}));
+    check(r.phase === 'lobby' && msg.indexOf('C') !== -1 && /شريك/.test(msg), 'uno teams: and who still has no partner: ' + msg);
+    applyRoomAction(r, 'c', 'team', { team: 1 });
+    check(r.shared.lobby.pick.c === undefined, 'uno teams: the same team again lets go');
+    // A computer player fills the seat beside someone alone.
+    applyRoomAction(r, 'c', 'team', { team: 1 });
+    applyRoomAction(r, 'a', 'addBot', { level: 'easy', name: 'زيزو' });
+    const bot = r.players.find((p) => p.bot).id;
+    const slots = UNO.unoTeamSlots(r.players, r.shared.lobby.pick).slots;
+    check(slots[1].indexOf(bot) !== -1 && slots[1].indexOf('c') !== -1, 'uno teams: a computer player added sits beside the one alone');
+    check(threw(() => applyRoomAction(r, 'b', 'team', { team: 3, playerId: bot })), 'uno teams: only the host moves a computer player');
+    applyRoomAction(r, 'a', 'start', {});
+    const s = r.shared;
+    check(s.phase === 'play' && s.settings.teams === true && s.teams.length === 3 && s.teams.every((t) => t.ids.length === 2), 'uno teams: six people, three pairs');
+    const n = s.order.length;
+    check(s.teams.every((t) => Math.abs(s.order.indexOf(t.ids[0]) - s.order.indexOf(t.ids[1])) === n / 2), 'uno teams: partners sit opposite (A1 B1 C1 A2 B2 C2)');
+    const teamAB = s.teams.find((t) => t.ids.indexOf('a') !== -1);
+    check(teamAB.ids.indexOf('b') !== -1 && teamAB.t === 0, 'uno teams: the pairs are the ones picked');
+    check(r.secrets.a && r.secrets.a.hand && !JSON.stringify(r.secrets.a).includes(String(r._uno.hands.b[0].i) + ',"k"') && r.secrets.b.hand.length === 7,
+      'uno teams: partners never get each other\'s cards');
+
+    // Odd or too few.
+    const three = lobbyRoom(['a', 'b', 'c']);
+    applyRoomAction(three, 'a', 'teams', { on: true });
+    ['a', 'b'].forEach((id) => applyRoomAction(three, id, 'team', { team: 0 }));
+    applyRoomAction(three, 'c', 'team', { team: 1 });
+    check(threw(() => applyRoomAction(three, 'a', 'start', {})) && three.phase === 'lobby', 'uno teams: three people cannot be pairs');
+    const two = lobbyRoom(['a', 'b']);
+    applyRoomAction(two, 'a', 'teams', { on: true });
+    ['a', 'b'].forEach((id) => applyRoomAction(two, id, 'team', { team: 0 }));
+    check(/فريقين/.test(errOf(() => applyRoomAction(two, 'a', 'start', {}))), 'uno teams: one pair is not a game: two teams at least');
+
+    // A table of four in teams, for the rules.
+    const t4 = () => {
+      const x = lobbyRoom(['a', 'b', 'c', 'd']);
+      applyRoomAction(x, 'a', 'teams', { on: true });
+      applyRoomAction(x, 'a', 'team', { team: 0 });
+      applyRoomAction(x, 'b', 'team', { team: 0 });
+      applyRoomAction(x, 'c', 'team', { team: 1 });
+      applyRoomAction(x, 'd', 'team', { team: 1 });
+      applyRoomAction(x, 'a', 'start', {});
+      return x;
+    };
+    const mateOf = (x, id) => x.shared.teams.find((t) => t.ids.indexOf(id) !== -1).ids.find((y) => y !== id);
+
+    // The first partner out wins the round for both; the pair scores the other side's cards, never the partner's.
+    const w = t4();
+    const [W0, W1, W2, W3] = w.shared.order;
+    setTable(w, [['r1'], ['b5', 'b6'], ['g2', 'w'], ['y3']], 'r9');
+    u(w, W0, 'play', { card: idOf(w, W0, 'r1') });
+    check(w.shared.phase === 'gameover' && w.shared.winners.slice().sort().join() === [W0, W2].sort().join(),
+      'uno teams: the first partner out wins the round for both');
+    check(w.shared.results.gained === 11 + 3 && w.shared.results.team.slice().sort().join() === [W0, W2].sort().join(),
+      'uno teams: the pair scores the cards in the other side\'s hands, never the partner\'s');
+    check(w.shared.wins[W0] === 1 && w.shared.wins[W2] === 1 && !w.shared.wins[W1], 'uno teams: one round: the win is both partners\'');
+    check(w.shared.board.every((row) => typeof row.team === 'number'), 'uno teams: the board carries each row\'s team');
+    const places = programPlaces(w);
+    const placeOf = (id) => places.rows.find((p) => p.id === id).place;
+    check(placeOf(W0) === 1 && placeOf(W2) === 1 && placeOf(W1) === 2 && placeOf(W3) === 2, 'uno teams: the night places the pairs: the winners first');
+    applyRoomAction(w, 'a', 'playAgain', {});
+    check(w.shared.phase === 'play' && w.shared.teams.length === 2 && w.shared.teams.every((t) => Math.abs(w.shared.order.indexOf(t.ids[0]) - w.shared.order.indexOf(t.ids[1])) === 2) &&
+      w.shared.wins[W0] === 1, 'uno teams: play again keeps the pairs, opposite again, and the wins');
+
+    // Rounds: the pair banks it, both of them; the most points wins as a pair.
+    const rr = lobbyRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(rr, 'a', 'teams', { on: true });
+    [['a', 0], ['b', 0], ['c', 1], ['d', 1]].forEach(([id, t]) => applyRoomAction(rr, id, 'team', { team: t }));
+    applyRoomAction(rr, 'a', 'start', { length: 'rounds', rounds: 3 });
+    const [R0, R1, R2, R3] = rr.shared.order;
+    setTable(rr, [['r1'], ['b5', 'b6'], ['g2', 'w'], ['y3']], 'r9');
+    u(rr, R0, 'play', { card: idOf(rr, R0, 'r1') });
+    check(rr.shared.phase === 'roundOver' && rr.shared.scores[R0] === 14 && rr.shared.scores[R2] === 14 && !rr.shared.scores[R1],
+      'uno teams: rounds: both partners bank the pair\'s points');
+
+    // A Skip, +2 or +4 can't land on your own partner: only once someone has left can a partner sit next.
+    const p = t4();
+    const [P0, P1, P2] = p.shared.order;
+    check(mateOf(p, P0) === P2, 'uno teams: seats 1 and 3 are partners');
+    leave(p, P1);
+    check(p.shared.phase === 'play' && p.shared.order.join() === [P0, P2, p.shared.order[2]].join(), 'uno teams: a partner who leaves leaves the other playing alone');
+    setTable(p, [['rs', 'rd', 'w4', 'r5', 'gv'], ['b1', 'b2'], ['y1', 'y2']], 'r9');
+    const P3 = p.shared.order[2];
+    for (const k of ['rs', 'rd', 'w4']) {
+      const e = errOf(() => u(p, P0, 'play', { card: idOf(p, P0, k), color: 'b' }));
+      check(/شريكك/.test(e), 'uno teams: ' + k + ' would land on the partner: refused, and the phone says why');
+    }
+    u(p, P0, 'play', { card: idOf(p, P0, 'r5') });
+    check(topK(p) === 'r5' && up(p) === P2, 'uno teams: an ordinary card still goes');
+    // Reversed, the partner is no longer next: the skip lands on the other side.
+    setTable(p, [['rs', 'r5'], ['b1', 'b2'], ['y1', 'y2']], 'r9', { dir: -1 });
+    u(p, P0, 'play', { card: idOf(p, P0, 'rs') });
+    check(topK(p) === 'rs' && p.shared.events.some((e) => e.type === 'skip' && e.pid === P3), 'uno teams: after a Reverse the same Skip lands on the other side');
+    // Every playable card refused: the server draws for them, as with nothing that fits.
+    setTable(p, [['rs', 'rd'], ['b1', 'b2'], ['y1', 'y2']], 'r9');
+    check(p._botPid === P0, 'uno teams: with every card refused, the draw is done for them (a forced move)');
+    clock = Math.max(clock, p._botAt) + 1;
+    roomTimeout(p, clock);
+    check(hand(p, P0).length === 3 && p.shared.events.some((e) => e.type === 'draw' && e.pid === P0), 'uno teams: and they draw as normal');
+    // One team left ends the game.
+    leave(p, P3);
+    check(p.shared.phase === 'gameover' && p.shared.winners.slice().sort().join() === [P0, P2].sort().join(), 'uno teams: one team left at the table ends the game');
+
+    // Play again with a pair broken: the host is told to pick teams again.
+    const broke = t4();
+    setTable(broke, [['r1'], ['b5'], ['g2'], ['y3']], 'r9');
+    u(broke, broke.shared.order[0], 'play', { card: idOf(broke, broke.shared.order[0], 'r1') });
+    leave(broke, broke.shared.order[1]);
+    check(/شريك/.test(errOf(() => applyRoomAction(broke, broke.hostId, 'playAgain', {}))) && broke.shared.phase === 'gameover', 'uno teams: play again with a pair broken asks for the teams again');
+
+    // Signals: everyone sees them, a few seconds apart, never cards.
+    const g = t4();
+    const G0 = g.shared.order[0];
+    applyRoomAction(g, G0, 'signal', { kind: 'g' });
+    check(g.shared.signals[G0].kind === 'g' && g.shared.events.slice(-1)[0].type === 'signal', 'uno teams: a signal is on the table for everyone');
+    applyRoomAction(g, G0, 'signal', { kind: 'help' });
+    check(g.shared.signals[G0].kind === 'g', 'uno teams: one signal every few seconds');
+    clock += 4100;
+    applyRoomAction(g, G0, 'signal', { kind: 'help' });
+    check(g.shared.signals[G0].kind === 'help', 'uno teams: then the next');
+    check(threw(() => applyRoomAction(g, G0, 'signal', { kind: 'r7' })), 'uno teams: only the three kinds of signal');
+    check(threw(() => applyRoomAction(plain, plain.shared.order[0], 'signal', { kind: 'g' })), 'uno teams: no signals in the normal game');
+    // No catching your own partner.
+    setTable(g, [['r1', 'r2'], ['b5', 'b6'], ['g2', 'g3'], ['y3', 'y4']], 'r9');
+    u(g, G0, 'play', { card: idOf(g, G0, 'r1') });
+    check(g.shared.unoCatch === G0 && threw(() => applyRoomAction(g, mateOf(g, G0), 'catchUno', { target: G0 })), 'uno teams: nobody catches their own partner');
+
+    // Computer players: whole games of pairs, every bot move legal, none ever hits its partner.
+    const errors = [];
+    const errorWas = console.error;
+    console.error = (...args) => { errors.push(args.join(' ')); };
+    let ended = 0;
+    let hitMate = false;
+    for (let k = 0; k < 18; k++) {
+      const x = newRoom(['a']);
+      applyRoomAction(x, 'a', 'chooseGame', { game: 'uno' });
+      applyRoomAction(x, 'a', 'teams', { on: true });
+      applyRoomAction(x, 'a', 'team', { team: 0 });
+      const bots = k % 3 === 0 ? 3 : k % 3 === 1 ? 5 : 7;
+      for (let i = 0; i < bots; i++) applyRoomAction(x, 'a', 'addBot', { level: i % 2 ? 'hard' : 'easy', name: 'b' + i });
+      applyRoomAction(x, 'a', 'start', [{}, { length: 'rounds', rounds: 3 }, { sevenO: true, jumpIn: true, stackMode: 'mixed' }][k % 3]);
+      for (let step = 0; step < 5000 && x.shared.phase !== 'gameover'; step++) {
+        // Now and then a computer player leaves mid-game: then partners may sit side by side.
+        if (k % 3 === 2 && step === 40 && x.shared.phase === 'play' && x.shared.order.length > 4) leave(x, x.shared.order.find((id) => id !== 'a'));
+        if (x.shared.phase === 'roundOver') { applyRoomAction(x, 'a', 'nextRound', { round: x.shared.round }); continue; }
+        if (up(x) === 'a') {
+          // The person plays the first card the rules let them.
+          const st = x.shared.turn.stage;
+          if (st === 'color') u(x, 'a', 'pickColor', { color: 'r' });
+          else if (st === 'drawn') u(x, 'a', 'keep');
+          else {
+            const xs = x.shared; const xt = x._uno.pile[x._uno.pile.length - 1].k;
+            const fit = x.secrets.a.hand.find((c) => UNO.unoCanPlay(c.k, xt, xs.color, xs.pending, xs.settings) && !UNO.unoHitsMate(c.k, xs.order, xs.dir, 'a', UNO.unoMateOf(xs.teams, xs.order, 'a')));
+            if (fit) u(x, 'a', 'play', { card: fit.i, color: 'b', target: x.shared.order.find((id) => id !== 'a'), uno: true });
+            else u(x, 'a', x.shared.pending ? 'take' : 'draw');
+          }
+          continue;
+        }
+        if (typeof x._botAt !== 'number') break;
+        const before = (x.shared.events || []).length ? x.shared.eventSeq : 0;
+        clock = Math.max(clock, x._botAt) + 1;
+        roomTimeout(x, clock);
+        (x.shared.events || []).filter((e) => e.seq > before && e.type === 'play').forEach((e) => {
+          const v = UNO.unoValueOf(e.card.k);
+          if (v === 's' || v === 'd' || e.card.k === 'w4') {
+            const hit = x.shared.events.find((h) => h.seq > e.seq && (h.type === 'skip' || h.type === 'hit'));
+            if (hit && mateOf(x, e.pid) === hit.pid) hitMate = true;
+          }
+        });
+      }
+      if (x.shared.phase === 'gameover') ended++;
+    }
+    console.error = errorWas;
+    check(ended === 18, `uno teams bots: 18 games of pairs, all end (${ended})`);
+    check(!errors.length, 'uno teams bots: no bot move was ever refused' + (errors.length ? ': ' + errors[0] : ''));
+    check(!hitMate, 'uno teams bots: a computer player never hits its own partner');
+
+    // A bot names the colour its partner asked for, when the partner is close to going out.
+    const c = newRoom(['a']);
+    applyRoomAction(c, 'a', 'chooseGame', { game: 'uno' });
+    applyRoomAction(c, 'a', 'teams', { on: true });
+    applyRoomAction(c, 'a', 'team', { team: 0 });
+    for (let i = 0; i < 3; i++) applyRoomAction(c, 'a', 'addBot', { level: 'hard', name: 'h' + i });
+    applyRoomAction(c, 'a', 'start', {});
+    const cm = mateOf(c, 'a');
+    const co = c.shared.order;
+    setTable(c, co.map((id) => (id === cm ? ['w', 'r3', 'r4', 'r5'] : id === 'a' ? ['y1', 'y2'] : ['b1', 'b2', 'b3'])), 'g9', { up: co.indexOf(cm) });
+    applyRoomAction(c, 'a', 'signal', { kind: 'y' });
+    clock = Math.max(clock, c._botAt) + 1;
+    roomTimeout(c, clock);
+    check(topK(c) === 'w' && c.shared.color === 'y', 'uno teams bots: a wild names the colour the partner signalled');
   }
 
   {

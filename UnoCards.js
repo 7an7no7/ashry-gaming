@@ -94,3 +94,64 @@ const unoSortKey = (k) => {
   return ci * 100 + UNO_SORT_VALUES.indexOf(unoValueOf(k));
 };
 const unoSorted = (cards) => (cards || []).slice().sort((a, b) => (unoSortKey(a.k) - unoSortKey(b.k)) || (Number(a.i) - Number(b.i)));
+
+/* --- «أونو اتنين اتنين»: teams of two (the owner, 2 Oct 2026) ----------------------------
+   Shared, so the lobby on every phone draws the teams with the server's own function and a
+   phone greys exactly the cards the server refuses. */
+const UNO_TEAM_MAX = 6;                       // twelve players at most: six pairs
+
+/**
+ * The lobby's teams as they stand: six slots of up to two. Each person's pick
+ * (`pick[pid]`, 0-5) is kept while its team has room; then a computer player
+ * without a pick fills the seat beside someone alone, or starts a new pair -
+ * so a bot added to the room is the lonely one's partner. `unplaced`: the
+ * people with no team yet.
+ */
+const unoTeamSlots = (players, pick) => {
+  const slots = [];
+  for (let k = 0; k < UNO_TEAM_MAX; k++) slots.push([]);
+  const p = pick || {};
+  const loose = [];
+  (players || []).forEach(pl => {
+    const t = p[pl.id];
+    if (typeof t === 'number' && t >= 0 && t < UNO_TEAM_MAX && slots[t].length < 2) slots[t].push(pl.id);
+    else loose.push(pl);
+  });
+  loose.filter(pl => pl.bot).forEach(b => {
+    let at = slots.findIndex(s => s.length === 1);
+    if (at === -1) at = slots.findIndex(s => s.length === 0);
+    if (at !== -1) slots[at].push(b.id);
+  });
+  const placed = (id) => slots.some(s => s.indexOf(id) !== -1);
+  return { slots: slots, unplaced: loose.filter(pl => !placed(pl.id)).map(pl => pl.id) };
+};
+
+/** The seats: one of each team in turn, then the second of each - A1 B1 C1 A2 B2 C2 - so partners sit opposite. */
+const unoTeamSeating = (teams) => {
+  const out = [];
+  [0, 1].forEach(k => teams.forEach(t => { if (t[k]) out.push(t[k]); }));
+  return out;
+};
+
+/** pid's partner still at the table (`order`), or null. `teams`: [{ t, ids }]. */
+const unoMateOf = (teams, order, pid) => {
+  const tm = (teams || []).find(x => x.ids.indexOf(pid) !== -1);
+  const mate = tm ? tm.ids.find(id => id !== pid) : null;
+  return mate && (order || []).indexOf(mate) !== -1 ? mate : null;
+};
+
+/**
+ * A Skip, +2 or +4 can't land on your own partner (the owner): true when `k`,
+ * played by pid, would hit the seat after them in the direction of play and
+ * that seat is their partner. With partners opposite that only happens once
+ * someone has left the table.
+ */
+const unoHitsMate = (k, order, dir, pid, mate) => {
+  if (!mate || !k) return false;
+  const v = unoValueOf(k);
+  if (v !== 's' && v !== 'd' && k !== 'w4') return false;
+  const n = (order || []).length;
+  const at = n ? order.indexOf(pid) : -1;
+  if (at === -1) return false;
+  return order[(((at + (dir === -1 ? -1 : 1)) % n) + n) % n] === mate;
+};

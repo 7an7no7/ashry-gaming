@@ -198,7 +198,7 @@ the cards in `UnoCards.js`), the owner's spec (see *The owner's specs*).
   (`unoT` wraps it in LRI...PDI, and card names do the same), or it reads
   "2+".
 
-## «أونو اتنين اتنين» (teams of two): answered, not built yet (the owner, 2 Oct 2026)
+## «أونو اتنين اتنين» (teams of two): built 2 Oct 2026 (the owner's answers of 2 Oct 2026)
 
 Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
 
@@ -208,6 +208,26 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
   - **A Skip, +2 or +4 can't land on your own partner**: the phone refuses it and says why (it can only happen next to your partner, after a Reverse).
   - **You always see your partner's card count**, and can send one of three quick signals everyone sees: a colour (🔴🟢🔵🟡), «الحقني» or «سيبه ليا». Never the cards themselves.
   - A lobby switch, off by default; the normal game is unchanged.
+
+**How it is built.**
+
+- **Shared** (`UnoCards.js`, so the lobby on every phone and the server agree): `unoTeamSlots(players, pick)` - six slots of up to two; a pick (`pick[pid]`, 0-5) is kept while its team has room, then a computer player without a pick sits beside someone alone, or starts a new pair; `unplaced` is who has no team. `unoTeamSeating(teams)` seats one of each team then the second of each (A1 B1 C1 A2 B2 C2). `unoMateOf(teams, order, pid)` and `unoHitsMate(k, order, dir, pid, mate)` - the partner rule: a Skip, +2 or +4 whose next seat in the direction of play is the partner.
+- **The lobby** (`RoomUno.js`): `shared.lobby.on` (the host's `teams { on }`), `shared.lobby.pick` (`team { team }` - your own; the same team again lets go; the host may place a computer player with `team { team, playerId }`). Two who picked a team fill it; a bot sitting in by itself makes room for a person. On the page `ROOM_GAMES.uno.lobbyTop` (a new hook, `renderChosenGame` in JS_Room.html: drawn above the folded options for everyone) draws `unoLobbyTeamsHtml`: the host's switch, a box a team (🦁 🐯 🦊 🐼 🐸 🐵 + «فريق N», reusing `.snk-lteams`), «ادخل هنا» / «اخرج», a tap on a bot chip then on a team moves it; `startBlock` greys the Start and says who has no team or no partner (the server says the same on a Start: `unoTeamsToDeal`); the TV host gets the same panel in its options, a TV that isn't the host the teams through `tvLobbyPlayers`.
+- **The game**: `shared.settings.teams`, `shared.teams` (`[{ t, ids }]`, t the lobby's team). `unoLegal` / `unoHitsPartner` refuse a card onto the partner in `unoPlay` (turn or jump), a card drawn onto the partner doesn't "fit" (the turn ends), `ROOM_FORCED_GAMES.uno` draws when every card is refused; the phone greys it (`unoMateBlocked` in `unoPlayable` / `unoJumpable`) and a tap says «مينفعش: الكارت ده هيقع على شريكك». The end (`unoEndRound`): the first out's pair is `results.team`, `gained` counts only the other teams' hands, wins and round points go to both partners (`scores` per player, equal for a pair), `winners` is the pair; `unoBoard` rows carry `team`; `PROGRAM_TEAMS.uno` / `ROOM_RESULT_BOARDS.uno` (`unoTeamResult`) place the pairs for the night, the program and «مين هيكسب؟».
+- **Signals**: `signal { kind }` (`r y g b help mine`), one a player every 4 s (`UNO_SIGNAL_MS`, `room._uno.signalAt`), a `signal` event and `shared.signals[pid] = { kind, seq }` (reset each deal). On the page: the row of six under the bar (`unoSigBarHtml`, resting 4 s after a send), the glyph on the sender's seat (`unoSigChipHtml`, popping in once), the word rising off the seat with a ring in its colour (`unoPlay`'s `signal`), a line in the log. Your partner's seat is tinted (`.uno-seat.is-mate`) and «🤝 شريكك: X · N» sits above your hand.
+- **Results**: the title «X وY كسبوا!» (`unoResultTitle`), the pair's rows first (the partner's with no points of their own), the boards and the podium as pairs (`unoTeamBoard`, names isolated so «و» never sticks to a Latin name).
+- **Computer players**: never hit the partner (the legal list), never catch it (`unoBotHunters`), never swap a 7 with it; the danger they watch is the other side's; a wild names the colour the partner signalled while the partner holds three or fewer (`unoBotMateColor`); «الحقني» makes a Skip or draw card on the next opponent worth more, «سيبه ليا» makes them keep their wilds and action cards.
+- **Text**: the game's words in `UNO_TEXT` (JS_RoomUno.html, the chunk - the shell is at its budget); one short help line in `GAME_RULES.uno` («👥 اتنين اتنين»).
+- **Tests**: `rules.mjs` («uno teams»: the switch, picks, a full team, Start naming who, a bot filling the seat, seating opposite, the round for both and the score, rounds, the night's places, play again, the partner rule after a leave and after a Reverse, the forced draw, one team left, signals and their limit, no catching your partner, 18 bot games of pairs with leavers and no bot move refused, a bot naming the signalled colour); `leaks.mjs` (a game of three pairs on the clock: no partner sees the other's cards); `play-all.mjs --only=uno` (picks on four phones, the Start's word, seating, a signal on every phone and its limit, a round to the end, play again).
+
+**Decided here (open to change):**
+- With partners opposite, the partner rule can only bite once someone has left (A1 A2 side by side); it is checked always, one rule (`unoHitsMate`). A last card that would hit the partner is refused too (no exception for the last card).
+- A partner who leaves leaves the other playing alone (no partner rule for them); one team left at the table ends the game, that team winning (a one-round game left this way is not counted as a win).
+- Play again keeps the pairs; with a pair broken or someone new in the room it is refused with a word («ارجعوا للقائمة واختاروا أونو تاني عشان الفرق») - the teams are picked again in the lobby.
+- The switch isn't remembered on the host's phone: it is the lobby's, off each time أونو is chosen (play again keeps it).
+- One round: the winning pair first and every other pair second on the night; rounds: the pairs by points, tied pairs sharing a place.
+- Nobody may catch their own partner (the server refuses, the button is hidden for them).
+- The team names are an animal and a number (🦁 فريق 1 …), not colours, so they never read as an Uno colour.
 
 ## History
 

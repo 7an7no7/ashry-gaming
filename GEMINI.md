@@ -55,7 +55,7 @@ file and a new line.
 - 🚏 أتوبيس كومبليت (Stop, the bus, the dictionary, the word log) - `notes/games/stop.md`.
 - 🧠 تحدي المعلومات: room trivia and دوري المعرفة (the steal) - `notes/games/trivia.md`.
 - 🃏 سكرو (the core game; rooms, TV, the table calculator) - `notes/games/screw.md`.
-- 🌈 أونو - `notes/games/uno.md`. 🀄 الدومينو - `notes/games/domino.md`.
+- 🌈 أونو (and «اتنين اتنين», teams of two) - `notes/games/uno.md`. 🀄 الدومينو - `notes/games/domino.md`.
 - كدّاب, الشايب, the playing cards and «المسرح» - `notes/games/doubt-oldmaid.md`.
 - إستميشن (rooms) - `notes/games/estimation.md`. جمجمة - `notes/games/skull.md`.
 - Card score keepers (إستميشن, طرنيب, تريكس, كونكان, باصرة) - `notes/games/scorekeepers.md`.

@@ -1924,7 +1924,23 @@ const DRIVERS = {
   // The four with computer players: one person, bots for the rest, the turn clock for the person.
   // One person and three computer players, 13 rounds, the clock playing for the person.
   estimation: () => DRIVERS.withBots('estimation', 3, { turnClock: 30, rounds: 13 }),
-  uno: () => DRIVERS.withBots('uno', 3, { turnClock: 30 }),
+  // A game each for themselves, then «أونو اتنين اتنين»: the person and five computer players in
+  // three pairs, the partners never seeing each other's cards (2 Oct 2026).
+  uno() {
+    const solo = DRIVERS.withBots('uno', 3, { turnClock: 30 });
+    const T = table('uno', 1);
+    for (let i = 0; i < 5; i++) must(T, T.host, 'addBot', { level: i % 2 ? 'hard' : 'easy', name: 'زيزو' });
+    must(T, T.host, 'teams', { on: true });
+    must(T, T.host, 'team', { team: 2 });
+    must(T, T.host, 'start', { turnClock: 30, length: 'rounds', rounds: 3 });
+    for (let round = 0; round < 5; round++) {
+      runClock(T, (r) => r.shared.phase === 'gameover' || r.shared.phase === 'roundOver', 4000);
+      if (S(T).phase !== 'roundOver') break;
+      must(T, T.host, 'nextRound', { round: S(T).round });
+    }
+    // A long round of six can outlast the steps: what matters is that the pairs were played, every move checked.
+    return solo && Array.isArray(S(T).teams) && S(T).teams.length === 3 && (S(T).round > 1 || S(T).phase !== 'lobby');
+  },
   domino: () => DRIVERS.withBots('domino', 3, { turnClock: 30 }),
   ludo: () => DRIVERS.withBots('ludo', 3, { turnClock: 15 }),
   // The third round (2 Oct 2026): teams of 2, a themed map, the surprise squares and the moving map, on the clock.

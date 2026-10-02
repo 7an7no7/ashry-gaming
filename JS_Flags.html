@@ -7,7 +7,9 @@
    direction. By distance (8 guesses): nothing is shown at all, only the
    distance and the direction after each guess, like finding a place on a
    globe. A hint appears after a few misses: the continent, then the first
-   letter.
+   letter. A third way, «جولة حول العالم» (a flag and four names, three
+   hearts), is JS_FlagsTour.html: playMode 'tour' hands this file's paint,
+   start and restore to it.
 
    The countries (COUNTRIES, with each one's place, continent and tier) are
    Countries.js, shared with the rooms server since a room plays this game
@@ -80,9 +82,17 @@ function paintFlagsSetup() {
   const t = TRANSLATIONS[appState.lang];
   document.querySelectorAll('#flags-mode .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.mode));
   document.querySelectorAll('#flags-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  // «جولة حول العالم» (JS_FlagsTour.html) has no level: its stages are the tiers, and its best is a run.
+  const tour = s.mode === 'tour';
+  const levelField = document.getElementById('flags-level-field');
+  if (levelField) levelField.classList.toggle('hidden', tour);
+  const tourHint = document.getElementById('flags-tour-hint');
+  if (tourHint) { tourHint.classList.toggle('hidden', !tour); tourHint.textContent = tour ? fltT().hint : ''; }
+  const tourBest = document.getElementById('flags-tour-best');
+  if (tourBest) { tourBest.classList.toggle('hidden', !tour); tourBest.textContent = tour && typeof flagTourBestText === 'function' ? flagTourBestText() : ''; }
   const best = soloBest('flags', s.mode + ':' + s.level);
   const el = document.getElementById('flags-best');
-  if (el) el.textContent = best ? `${t.solo_best || ''}: ${best.guesses} ${t.flags_tries || ''}` : '';
+  if (el) el.textContent = best && !tour ? `${t.solo_best || ''}: ${best.guesses} ${t.flags_tries || ''}` : '';
   const cont = document.getElementById('flags-continue');
   if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
   const daily = document.getElementById('flags-daily');
@@ -91,7 +101,7 @@ function paintFlagsSetup() {
 }
 
 function setFlagsMode(mode) {
-  flagsState().mode = FLAG_MODES[mode] ? mode : 'flag';
+  flagsState().mode = FLAG_MODES[mode] || mode === 'tour' ? mode : 'flag';
   saveToLocal();
   paintFlagsSetup();
 }
@@ -103,9 +113,11 @@ function setFlagsLevel(level) {
 }
 
 // A game with a guess made: a new one asks first (soloConfirmNew).
-const flagsHasWork = (s) => (s.guesses || []).length > 0;
+const flagsHasWork = (s) => (s.guesses || []).length > 0
+  || !!(s.playMode === 'tour' && s.tour && (s.tour.score > 0 || s.tour.hearts < FLAG_TOUR_HEARTS));
 
 function startFlags(daily, sure) {
+  if (!daily && flagsState().mode === 'tour') { startFlagTour(sure); return; }
   if (!sure && soloConfirmNew('flags', flagsHasWork, () => startFlags(daily, true))) return;
   if (daily && soloDailyResume('flags')) return;
   soloDailySetAside('flags');
@@ -179,6 +191,7 @@ function flagsGuessChip(g, fresh, t) {
  */
 function paintFlags(freshIndex) {
   const s = flagsState();
+  if (s.playMode === 'tour') { paintFlagTour(); return; }
   const t = TRANSLATIONS[appState.lang];
   const el = document.getElementById('flags-stage');
   const target = flagCountry(s.answer);
@@ -347,6 +360,7 @@ function flagsFinish(won) {
 
 function restoreFlags() {
   const s = flagsState();
+  if (s.playMode === 'tour') return restoreFlagTour();
   if (!s.answer || (s.phase !== 'play' && s.phase !== 'done')) return false;
   paintFlags();
   flagsEnsureFont();

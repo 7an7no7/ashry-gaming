@@ -1119,7 +1119,8 @@ ROOM_BOT_GAMES.uno = {
     const s = room.shared || {};
     if (s.phase !== 'play' || !s.turn) return null;
     const level = roomBotLevel(room, pid) || 'easy';
-    if (s.unoCatch && s.unoCatch !== pid && level === 'hard') return { action: 'catchUno', payload: { target: s.unoCatch } };
+    // Never its own partner (the server refuses it): the bot up whose partner forgot UNO just plays.
+    if (s.unoCatch && s.unoCatch !== pid && level === 'hard' && unoMate(room, pid) !== s.unoCatch) return { action: 'catchUno', payload: { target: s.unoCatch } };
     if (s.turn.pid === pid) return unoBotTurn(room, pid, level);
     if (unoBotJumper(room) === pid) {
       const top = s.pile[s.pile.length - 1];

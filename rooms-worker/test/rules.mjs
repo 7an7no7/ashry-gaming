@@ -4025,6 +4025,71 @@ Date.now = duelTestClock;
     check(!errors.length, 'uno teams bots: no bot move was ever refused' + (errors.length ? ': ' + errors[0] : ''));
     check(!hitMate, 'uno teams bots: a computer player never hits its own partner');
 
+    // A hard bot up whose own partner forgot UNO plays on: it never tries to catch its partner
+    // (it used to, from decide(), and the server refused it: «ده شريكك»).
+    {
+      const caughtErrs = [];
+      const was = console.error;
+      console.error = (...args) => { caughtErrs.push(args.join(' ')); };
+      const m = newRoom(['a']);
+      applyRoomAction(m, 'a', 'chooseGame', { game: 'uno' });
+      applyRoomAction(m, 'a', 'teams', { on: true });
+      applyRoomAction(m, 'a', 'team', { team: 0 });
+      ['hard', 'easy', 'easy'].forEach((lv, i) => applyRoomAction(m, 'a', 'addBot', { level: lv, name: 'm' + i }));
+      applyRoomAction(m, 'a', 'start', {});
+      const mm = mateOf(m, 'a');
+      const mo = m.shared.order;
+      setTable(m, mo.map((id) => (id === 'a' ? ['y1'] : id === mm ? ['r3', 'b7', 'b8'] : ['b1', 'b2', 'b3'])), 'r9', { up: mo.indexOf(mm) });
+      m.shared.unoCatch = 'a';
+      clock = Math.max(clock, m._botAt || clock) + 1;
+      roomTimeout(m, clock);
+      console.error = was;
+      check(!caughtErrs.length && hand(m, 'a').length === 1 && m.shared.events.some((e) => e.type === 'play' && e.pid === mm),
+        'uno teams bots: a hard bot never catches its own partner; it plays its turn' + (caughtErrs.length ? ': ' + caughtErrs[0] : ''));
+    }
+
+    // Hammered: many games of pairs where the person never says UNO (a catch in reach of every hard bot),
+    // hard and easy bots, stacking, 7-0 and jump-in, and a computer player leaving mid-game: no bot move refused.
+    {
+      const errs = [];
+      const was = console.error;
+      console.error = (...args) => { errs.push(args.join(' ')); };
+      let done = 0;
+      const N = 120;
+      for (let k = 0; k < N; k++) {
+        const x = newRoom(['a']);
+        applyRoomAction(x, 'a', 'chooseGame', { game: 'uno' });
+        applyRoomAction(x, 'a', 'teams', { on: true });
+        applyRoomAction(x, 'a', 'team', { team: k % 2 });
+        const bots = [3, 5, 7][k % 3];
+        for (let i = 0; i < bots; i++) applyRoomAction(x, 'a', 'addBot', { level: (i + k) % 3 ? 'hard' : 'easy', name: 'z' + i });
+        applyRoomAction(x, 'a', 'start', [{}, { sevenO: true, jumpIn: true }, { stackMode: 'mixed', jumpIn: true }, { stacking: false, drawUntil: true }][k % 4]);
+        for (let step = 0; step < 4000 && x.shared.phase === 'play'; step++) {
+          if (k % 5 === 4 && step === 30 && x.shared.order.length > 4) leave(x, x.shared.order.find((id) => id !== 'a'));
+          if (x.shared.phase !== 'play') break;
+          if (up(x) === 'a') {
+            const st = x.shared.turn.stage;
+            if (st === 'color') u(x, 'a', 'pickColor', { color: 'g' });
+            else if (st === 'drawn') u(x, 'a', 'keep');
+            else {
+              const xs = x.shared; const xt = x._uno.pile[x._uno.pile.length - 1].k;
+              const fit = x.secrets.a.hand.find((c) => UNO.unoCanPlay(c.k, xt, xs.color, xs.pending, xs.settings) && !UNO.unoHitsMate(c.k, xs.order, xs.dir, 'a', UNO.unoMateOf(xs.teams, xs.order, 'a')));
+              if (fit) u(x, 'a', 'play', { card: fit.i, color: 'y', target: x.shared.order.find((id) => id !== 'a'), uno: false });
+              else u(x, 'a', x.shared.pending ? 'take' : 'draw');
+            }
+            continue;
+          }
+          if (typeof x._botAt !== 'number') break;
+          clock = Math.max(clock, x._botAt) + 1;
+          roomTimeout(x, clock);
+        }
+        if (x.shared.phase === 'gameover') done++;
+      }
+      console.error = was;
+      check(done === N, `uno teams bots: ${N} hammered games of pairs all end (${done})`);
+      check(!errs.length, 'uno teams bots: hammered, no bot move was ever refused' + (errs.length ? ' (' + errs.length + '): ' + errs[0] : ''));
+    }
+
     // A bot names the colour its partner asked for, when the partner is close to going out.
     const c = newRoom(['a']);
     applyRoomAction(c, 'a', 'chooseGame', { game: 'uno' });

@@ -60,7 +60,7 @@ file and a new line.
 - إستميشن (rooms) - `notes/games/estimation.md`. جمجمة - `notes/games/skull.md`.
 - Card score keepers (إستميشن, طرنيب, تريكس, كونكان, باصرة) - `notes/games/scorekeepers.md`.
 - 🎲 لودو - `notes/games/ludo.md`. 🐍 السلم والتعبان (four themed maps, surprise squares and a moving map as switches, teams in rooms, the awards' replay; `JS_Snakes*.html`) - `notes/games/snakes.md`. 🏦 بنك الحظ - `notes/games/bank.md`.
-- 🔴 كونكت ٤, 🔲 نقط ومربعات, ⭕ إكس أو (the duels, winner stays on) - `notes/games/duels.md`.
+- 🔴 كونكت ٤, 🔲 نقط ومربعات, ⭕ إكس أو (the duels, winner stays on; كونكت ٤ team against team) - `notes/games/duels.md`.
 - 🏆 The duels' tournament - `notes/games/tournament.md`.
 - خمّن مين - `notes/games/guesswho.md`. المشنقة (one writes, the race by category, team against team; levels, lifelines, hints, the streak, 16 endings in `JS_HangmanEnd.html`) - `notes/games/hangman.md`. 🚢 حرب السفن - `notes/games/battleship.md`.
 - ♞ شطرنج (and الوزير المستخبي, 960, the coach, the review) - `notes/games/chess.md`.

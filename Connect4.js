@@ -71,6 +71,29 @@ function c4OnlyMove(board, p) {
   return res && !res.win ? cols[0] : -1;
 }
 
+/**
+ * The column the app drops in for a team whose 20 seconds ran out (كونكت ٤ in teams,
+ * the owner, 2 Oct 2026): one that doesn't hand the other side a win on its next
+ * disc, picked at random - and not one that wins, which stays a player's own tap.
+ * If every column hands the other side a win, a winning one (the game ends there);
+ * failing that any column with room. -1 on a full board. `rnd` is Math.random's shape.
+ */
+function c4SafeCol(board, p, rnd) {
+  const pick = (list) => list[Math.floor((rnd || Math.random)() * list.length) % list.length];
+  const cols = c4LegalCols(board);
+  if (!cols.length) return -1;
+  const safe = [], wins = [];
+  cols.forEach(c => {
+    const b = c4Clone(board);
+    const res = c4Play(b, c, p);
+    if (res.win) { wins.push(c); return; }
+    if (c4WinningCol(b, 3 - p) === -1) safe.push(c);
+  });
+  if (safe.length) return pick(safe);
+  if (wins.length) return pick(wins);
+  return pick(cols);
+}
+
 const C4_DIRS = [[0, 1], [1, 0], [1, 1], [1, -1]];   // [down, across] steps: across, down, both diagonals
 
 /**

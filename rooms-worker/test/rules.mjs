@@ -3147,6 +3147,171 @@ Date.now = duelTestClock;
   check(roomDeadline(aw2) === clock + 60000, 'duel away: the turn just came to a phone already gone: a minute from now');
 }
 
+/* --- كونكت ٤ team against team, «أحمر ضد أصفر» (the owner, 2 Oct 2026) ------------- */
+{
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const lobby = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'connect4' }); return r; };
+  const drop = (r, col) => applyRoomAction(r, r.shared.upId, 'move', { col, move: r.shared.moves });
+
+  const r = lobby(['a', 'b', 'c', 'd', 'e']);
+  check(refused(() => applyRoomAction(r, 'b', 'side', { side: 0 })), 'c4 teams: no sides to pick while the switch is off');
+  check(refused(() => applyRoomAction(r, 'b', 'teams', { on: true })), 'c4 teams: the switch is the host\'s');
+  applyRoomAction(r, 'a', 'teams', { on: true });
+  applyRoomAction(r, 'a', 'side', { side: 0 });
+  applyRoomAction(r, 'b', 'side', { side: 1 });
+  applyRoomAction(r, 'a', 'side', { side: 1, playerId: 'c' });
+  check(refused(() => applyRoomAction(r, 'b', 'side', { side: 0, playerId: 'd' })), 'c4 teams: a player picks only their own side (the host may move anyone)');
+  check(r.shared.lobby.teams && r.shared.lobby.sides.a === 0 && r.shared.lobby.sides.b === 1 && r.shared.lobby.sides.c === 1,
+        'c4 teams: the switch on, everyone picks a side on their phone');
+  applyRoomAction(r, 'a', 'start', { mode: 4, tournament: true });
+  const s = r.shared;
+  check(s.teamMode && r.phase === 'play' && !s.tour && !s.seats && s.teams[0].length + s.teams[1].length === 5 &&
+        s.teams[0].indexOf('a') !== -1 && s.teams[1].indexOf('b') !== -1 && s.teams[1].indexOf('c') !== -1 &&
+        s.teams[0].indexOf('d') !== -1 && Math.abs(s.teams[0].length - s.teams[1].length) <= 1,
+        'c4 teams: Start deals the teams (not a tournament); who picked no side goes to the smaller one');
+  check(s.cols === 7 && s.grid.length === 42 && s.upId === s.teams[s.turn][0] && s.endsAt === clock + 20000 && s.roster.length === 5,
+        'c4 teams: the first of the starting team is up, with 20 seconds on the server\'s clock');
+  const startTeam = s.turn;
+  const other = s.teams[1 - startTeam][0];
+  check(refused(() => applyRoomAction(r, other, 'move', { col: 0, move: 0 })), 'c4 teams: the other team cannot drop now');
+  const second = s.teams[startTeam][1];
+  check(refused(() => applyRoomAction(r, second, 'move', { col: 0, move: 0 })), 'c4 teams: nor a teammate whose turn it is not (a relay)');
+  drop(r, 0);
+  applyRoomAction(r, s.teams[startTeam][0], 'move', { col: 0, move: 0 });
+  check(s.moves === 1 && s.turn === 1 - startTeam && s.upId === other && s.last.pid === s.teams[startTeam][0],
+        'c4 teams: a disc passes the turn to the other team\'s first; a stale tap is dropped');
+  drop(r, 1);
+  check(s.upId === second, 'c4 teams: then the starting team\'s second member drops');
+
+  // The clock: a disc that doesn't hand the other team a win.
+  clock += 5000;
+  check(roomDeadline(r) === s.endsAt + 800, 'c4 teams: the server looks again when the 20 seconds (and a grace) are up');
+  s.grid = s.grid.map(() => 0);
+  const opp = 2 - startTeam;                  // the other team's disc
+  [0, 1, 2].forEach((c) => { s.grid[5 * 7 + c] = opp; });
+  const was = s.upId;
+  roomTimeout(r, roomDeadline(r));
+  check(s.grid[5 * 7 + 3] === startTeam + 1 && s.auto && s.auto.col === 3 && s.auto.pid === was && s.turn === 1 - startTeam,
+        'c4 teams: time up: the app drops where the other team would have won, and says so');
+  check(s.endsAt === clock + 20000, 'c4 teams: the next member gets a fresh 20 seconds');
+  drop(r, 6);
+  check(s.auto === null, 'c4 teams: a disc dropped by a person clears the clock\'s note');
+  let safeEvery = true;
+  for (let i = 0; i < 60; i++) {
+    const b = { cols: 7, rows: 6, n: 4, grid: Array.from({ length: 42 }, () => 0) };
+    for (let k = 0; k < 12; k++) {
+      const cols = [0, 1, 2, 3, 4, 5, 6].filter((c) => !b.grid[c]);
+      const c = cols[Math.floor(Math.random() * cols.length)];
+      for (let row = 5; row >= 0; row--) if (!b.grid[row * 7 + c]) { b.grid[row * 7 + c] = 1 + (k % 2); break; }
+    }
+    // Skip boards already won.
+    const win = (p) => b.grid.some((v, idx) => v === p && [[0, 1], [1, 0], [1, 1], [1, -1]].some(([dr, dc]) =>
+      [1, 2, 3].every((m) => { const rr = Math.floor(idx / 7) + dr * m, cc = idx % 7 + dc * m; return rr >= 0 && rr < 6 && cc >= 0 && cc < 7 && b.grid[rr * 7 + cc] === p; })));
+    if (win(1) || win(2)) continue;
+    const t = lobby(['p', 'q', 'u', 'v']);
+    applyRoomAction(t, 'p', 'teams', { on: true });
+    applyRoomAction(t, 'p', 'side', { side: 0 });
+    applyRoomAction(t, 'q', 'side', { side: 1 });
+    applyRoomAction(t, 'p', 'start', {});
+    t.shared.grid = b.grid.slice();
+    t.shared.turn = 0; t.shared.upId = t.shared.teams[0][0];
+    const before = t.shared.grid.slice();
+    roomTimeout(t, t.shared.endsAt + 800);
+    const col = t.shared.auto ? t.shared.auto.col : -1;
+    // Was there a column that kept the other side from winning next? Then the app took one.
+    const handsWin = (c) => {
+      const g = before.slice();
+      let row = -1; for (let rr = 5; rr >= 0; rr--) if (!g[rr * 7 + c]) { g[rr * 7 + c] = 1; row = rr; break; }
+      if (row < 0) return true;
+      return [0, 1, 2, 3, 4, 5, 6].some((c2) => {
+        const h = g.slice(); let r2 = -1; for (let rr = 5; rr >= 0; rr--) if (!h[rr * 7 + c2]) { h[rr * 7 + c2] = 2; r2 = rr; break; }
+        if (r2 < 0) return false;
+        return [[0, 1], [1, 0], [1, 1], [1, -1]].some(([dr, dc]) => {
+          let n = 1;
+          for (const sgn of [1, -1]) for (let m = 1; m < 4; m++) { const rr = r2 + dr * m * sgn, cc = c2 + dc * m * sgn; if (rr < 0 || rr >= 6 || cc < 0 || cc >= 7 || h[rr * 7 + cc] !== 2) break; n++; }
+          return n >= 4;
+        });
+      });
+    };
+    const anySafe = [0, 1, 2, 3, 4, 5, 6].some((c) => !before[c] && !handsWin(c));
+    if (col < 0 || (anySafe && handsWin(col) && t.shared.phase !== 'over')) safeEvery = false;
+  }
+  check(safeEvery, 'c4 teams: over 60 random boards, the clock\'s disc never hands the other team a win while a safe column is left');
+
+  // A game won: every member of the team scores it.
+  const w = lobby(['a', 'b', 'c', 'd']);
+  applyRoomAction(w, 'a', 'teams', { on: true });
+  check(refused(() => applyRoomAction(w, 'a', 'start', {})), 'c4 teams: Start needs at least one on each side');
+  ['a', 'b'].forEach((id) => applyRoomAction(w, id, 'side', { side: 0 }));
+  applyRoomAction(w, 'c', 'side', { side: 1 });
+  applyRoomAction(w, 'a', 'start', {});
+  const ws = w.shared;
+  check(ws.teams[0].length === 2 && ws.teams[1].length === 2, 'c4 teams: lopsided picks, the one left goes to the smaller side');
+  const T = ws.turn;
+  [0, 1, 0, 1, 0, 1, 0].forEach((c) => drop(w, c));
+  check(ws.phase === 'over' && w.phase === 'over' && ws.result.winner === T && ws.teamWins[T] === 1 && ws.endsAt === null &&
+        ws.teams[T].every((id) => ws.scores[id] === 1) && ws.teams[1 - T].every((id) => !ws.scores[id]) && roomDeadline(w) === null,
+        'c4 teams: four in a row wins it for the team, a win for each of its members');
+  const relay = ws.relay.slice();
+  w.players.push({ id: 'f', name: 'F' });
+  applyRoomAction(w, 'f', 'nextRound', { round: ws.round });
+  check(ws.phase === 'play' && ws.round === 2 && ws.turn === 1 - T && ws.starts === 1 - T && ws.teams[0].length + ws.teams[1].length === 5 &&
+        (ws.teams[0].indexOf('f') !== -1 || ws.teams[1].indexOf('f') !== -1) && ws.relay[0] === relay[0] && ws.relay[1] === relay[1],
+        'c4 teams: «ماتش كمان»: the other team starts, the relay carries on, a latecomer joins a side');
+  applyRoomAction(w, 'f', 'nextRound', { round: 1 });
+  check(ws.round === 2 && ws.moves === 0, 'c4 teams: a second «ماتش كمان» is dropped');
+
+  // Leaving: the member up's turn passes on; a team left empty loses.
+  const up = ws.upId;
+  const k = ws.teams[0].indexOf(up) !== -1 ? 0 : 1;
+  clock += 7000;
+  leave(w, up);
+  check(ws.phase === 'play' && ws.teams[k].indexOf(up) === -1 && ws.upId && ws.teams[k].indexOf(ws.upId) !== -1 && ws.endsAt === clock + 20000,
+        'c4 teams: the member up leaves: the next of the team is up, with 20 seconds');
+  ws.teams[k].slice().forEach((id) => leave(w, id));
+  check(ws.phase === 'over' && ws.result.reason === 'left' && ws.result.winner === 1 - k && ws.teamWins[1 - k] >= 1,
+        'c4 teams: a team left with nobody loses, the other wins');
+
+  // The night: the team with more wins first, every member sharing the place.
+  const n = lobby(['a', 'b', 'c', 'd', 'e']);
+  applyRoomAction(n, 'a', 'teams', { on: true });
+  ['a', 'b'].forEach((id) => applyRoomAction(n, id, 'side', { side: 0 }));
+  ['c', 'd', 'e'].forEach((id) => applyRoomAction(n, id, 'side', { side: 1 }));
+  applyRoomAction(n, 'a', 'start', {});
+  const nt = n.shared.turn;
+  [0, 1, 0, 1, 0, 1, 0].forEach((c) => drop(n, c));
+  applyRoomAction(n, 'a', 'backToHub');
+  const winners = nt === 0 ? ['a', 'b'] : ['c', 'd', 'e'];
+  const losers = nt === 0 ? ['c', 'd', 'e'] : ['a', 'b'];
+  check(winners.every((id) => n.night[id] === 5) && losers.every((id) => n.night[id] === 3),
+        'c4 teams: the night: 5 for every member of the winning team, 3 for every member of the other');
+  applyRoomAction(n, 'a', 'chooseGame', { game: 'connect4' });
+  applyRoomAction(n, 'a', 'teams', { on: true });
+  check(n.shared.lobby.sides.a === 0 && n.shared.lobby.sides.e === 1, 'c4 teams: switched on again, the sides of the last team game come back');
+  applyRoomAction(n, 'a', 'teams', { on: false });
+  applyRoomAction(n, 'a', 'start', {});
+  check(!n.shared.teamMode && n.shared.seats.length === 2 && n.shared.line.length === 3, 'c4 teams: switched off, winner stays as it always was');
+
+  // Too few for teams; the one column left is dropped for the member up.
+  const few = lobby(['a', 'b', 'c']);
+  applyRoomAction(few, 'a', 'teams', { on: true });
+  applyRoomAction(few, 'a', 'side', { side: 0 });
+  applyRoomAction(few, 'b', 'side', { side: 1 });
+  check(refused(() => applyRoomAction(few, 'a', 'start', {})), 'c4 teams: refused with fewer than four people');
+  const fm = lobby(['a', 'b', 'c', 'd']);
+  applyRoomAction(fm, 'a', 'teams', { on: true });
+  applyRoomAction(fm, 'a', 'side', { side: 0 });
+  applyRoomAction(fm, 'b', 'side', { side: 1 });
+  applyRoomAction(fm, 'a', 'start', {});
+  const noLine = (i) => 1 + ((Math.floor(i / 7) + Math.floor((i % 7) / 2)) % 2);
+  fm.shared.grid = fm.shared.grid.map((_, i) => noLine(i));
+  fm.shared.grid[0] = 0;                       // the one empty cell is red's colour
+  fm.shared.turn = 0;
+  fm.shared.upId = fm.shared.teams[0][0];
+  const f = roomForcedMove(fm);
+  check(f && f.pid === fm.shared.upId && f.move.payload.col === 0, 'c4 teams: one column left: dropped for the member up after a beat');
+}
+
 /* --- أونو: the cards, every move, the bots, and what never leaves the server ------ */
 {
   const UNO = new Function(readFileSync(new URL('../../UnoCards.js', import.meta.url), 'utf8') +

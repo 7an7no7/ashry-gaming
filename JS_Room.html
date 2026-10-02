@@ -1899,7 +1899,8 @@ const LOBBY_OPTS_UNFOLDED = { codenames: 1, domino: 1, ludo: 1, snakes: 1, chess
 const lobbyOptsOpen = {};
 
 function lobbyOptionsFold(state, options, t) {
-  if (!options || !state.youAreHost || LOBBY_OPTS_UNFOLDED[state.game]) return options;
+  const g = ROOM_GAMES[state.game];
+  if (!options || !state.youAreHost || LOBBY_OPTS_UNFOLDED[state.game] || (g && g.lobbyUnfolded && g.lobbyUnfolded(state))) return options;
   const seen = recallOptions('lobbyOptsSeen', {});
   const open = lobbyOptsOpen[state.game] !== undefined ? lobbyOptsOpen[state.game] : !seen[state.game];
   return `

@@ -296,15 +296,36 @@ such a phone can lose with little or no count shown.
 Tests: `rules.mjs`, "duels:" (forced, near the other games' forced moves), "duel away:" (in
 the duels-in-rooms block) and "tournament away:".
 
-## كونكت ٤ teams and «إكس أو الكبير»: answered, not built yet (the owner, 2 Oct 2026)
+## كونكت ٤ team against team, «أحمر ضد أصفر»: built 2 Oct 2026
 
-Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea 350) and every rule asked. The owner's spec:
 
 - **(350) كونكت ٤, team against team («أحمر ضد أصفر»)**:
   - **A lobby switch «فرق» from 4 people, off by default**; winner-stays and the tournament stay as they are.
   - **Everyone picks a side** (أحمر / أصفر); Start needs at least one on each side, lopsided allowed.
   - **A relay**: team members drop the team's disc in turn, one by one; the one whose turn it is decides, the rest may shout.
   - **20 s a turn**; when it runs out the app drops in a column that doesn't hand the other team a win, and says so.
+
+
+**How it is built.** The rules are at the end of `RoomDuels.js` (`c4tAction`, called first thing by `duelAction` for connect4, so it is ahead of the tournament and winner stays). In the lobby the host's `teams { on }` and everyone's `side { side: 0 | 1 | null, playerId? }` (a player their own; the host anyone, a TV host included) live in `shared.lobby = { teams, sides }`; `start` with the switch on deals teams (`c4tStart`) whatever the start payload says (the tournament's `tournament: true` is ignored). The game is `shared.teamMode` with `teams` ([[red ids in relay order], [yellow ids]]: red is team 0 and disc 1), `turn` (the team), `relay` (each team's next member, counted on), `upId` and `endsAt` (the member up and their 20 s, `C4T_TURN_MS`), `starts`, `teamWins`, `auto` (the disc the clock dropped: `{ team, pid, col, moves }`, kept until a person drops one), `result { winner, draw, reason: line | full | left }`, and the board fields of `DUEL_KINDS.connect4` (`last` also carries `pid`). There is no `shared.seats` in teams, so `nightPlayedIds` reads the teams and the winner-stays helpers stay out of it. The server's clock: `c4tDeadline` / `c4tTimeout` (in `gameDeadline` / `gameTimeout` ahead of the duels' «خسران غياب», with `C4T_GRACE_MS` 800 ms after the phones reach 0) drops `c4SafeCol` (`Connect4.js`): a random column that doesn't hand the other side a win on its next disc and doesn't win either; failing that a winning one; failing that any. The one column left that doesn't win is dropped for the member up after the usual beat (`c4tForced` through `duelForced`). «ماتش كمان» (`nextRound`, anyone, `{ round }`): `c4tNextTeams` keeps who is still here, puts latecomers on the smaller side and never leaves a side empty, and the other team starts. Leaving (`c4tPlayerLeft`, from `duelPlayerLeft`): off the team, the relay index kept on the next member, a fresh 20 s if it was their turn; a team left with nobody loses (`reason: 'left'`). The night: `PROGRAM_TEAMS.connect4` (`c4TeamPlaces`) puts the team with more wins first, every member sharing the place (5 / 3), both first when level; each member's wins are `scores` / `board`. Sides are remembered on the room (`room._c4Sides`) and come back the next time teams are switched on.
+
+**On the page** (the end of `JS_RoomConnect4.html`, its words in `C4T_TEXT` / `c4tT`, not the shell's `TRANSLATIONS`): the lobby's card (`c4tLobbyHtml`: the host's switch from four people, the hint, «اختار فريقك» as a segmented pair on every phone, the two sides and «لسه ماختاروش» as boxes - a tap on a name moves that person for the host); the lobby's options are never folded while teams are on (`lobbyUnfolded`, read by `lobbyOptionsFold` in `JS_Room.html`), the tournament's switch hides (`tourHidden`, read by `tourLobbyHtml`), Start waits with a word (`startBlock`: fewer than four, or a side nobody picked), and a TV that isn't the host shows the sides (`tvLobbyPlayers`). In the game (`c4tRender`, `TV_GAMES.connect4` through `c4tTvFrame` / `c4tTvAfter`): the duels' pills as the two teams (their wins, who drops next), the status («دورك! نزّل قرص الأحمر» / «الدور على X (الأصفر)») with the turn's clock (`c4tClockTick`, by `roomServerNow()`, ticking the last five seconds on the phone up, stopped through `onRoomClocksReset`), the clock's note (`c4tAutoHtml`), the relay as two boxes with the member up lit (`c4tRelayHtml`, `.c4t-*` in section 18 of `Style.html`), the same disc fall, early drop and lit line as winner stays (`c4AfterPaint`, `duelRoomSend`), and at the end a two-step podium of the teams (`c4tPodiumHtml`, the app's `.podium` and its cheerers), the winners' names, who starts next, «ماتش كمان» (anyone) and «لعبة تانية» (the host); confetti on the winning team's phones and the TV (`c4tCheer`). «دورك!» is `roomTurnOf`'s connect4 case (`s.upId`).
+
+**Decided here (open to change):**
+- Someone who hasn't picked a side when Start is pressed goes to the smaller side (a coin on a tie); the host may move anyone in the lobby.
+- Each team's relay order is drawn at the start and kept; the relay carries on into the next game; the team that started goes second next game; the first game's starting team is random.
+- The clock never takes a win for the team that ran out of time unless every other column hands the other team the win; among the safe columns it picks at random (no strategy given away).
+- The phones' clocks reach 0 and the server drops 0.8 s later.
+- Latecomers watch the game and join the smaller side at «ماتش كمان»; a side left empty there takes one member of the other side at random; with one person left there is no next game (the host's «لعبة تانية»).
+- Computer players sit teams out (the duels have none in rooms anyway); a team game needs four people at the start, then plays on with fewer.
+- No «خسران غياب» in teams: the clock plays for a phone that is away.
+- The night: the team with more wins across the games first (5 each), the other second (3 each); level, everyone first.
+
+Tests: `rules.mjs` («c4 teams:», 27 checks: the switch and sides, the deal, the relay, the clock's disc over 60 random boards, a win, «ماتش كمان», leaving, the night, winner stays untouched, fewer than four, the forced column), `leaks.mjs` (the connect4 driver plays a team game, half its discs by the clock), `play-all.mjs --only=c4teams` (sides on each phone and the TV, a relay, a real 20 s time-out, a win, the night by team), and the screen test's rooms part (`connect4 teams:` the switch, every phone's side, the relay drawn on five phones and the TV).
+
+## «إكس أو الكبير»: answered, not built yet (the owner, 2 Oct 2026)
+
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea 361) and every rule asked.
 
 - **(361) «إكس أو الكبير», nine boards in one**:
   - The square you play sends your opponent to that small board; **sent to a board already won or full, they may play anywhere** (every open board lit).

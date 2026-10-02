@@ -190,7 +190,7 @@ function duelLobbyHtml(state, t, label, values, current, setter, hint, extra) {
         ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
       </div>
       ${extra || ''}
-      ${typeof tourModeOf === 'function' && tourModeOf(state.game) === 'tour' && tourCanStart(state) ? '' : `<p class="field__hint" style="text-align:center">${escapeHTML(t.duel_lobby_hint || '')}</p>`}
+      ${(typeof tourModeOf === 'function' && tourModeOf(state.game) === 'tour' && tourCanStart(state)) || c4tLobbyOn(state) ? '' : `<p class="field__hint" style="text-align:center">${escapeHTML(t.duel_lobby_hint || '')}</p>`}
     </div>`;
 }
 
@@ -383,9 +383,16 @@ ROOM_GAMES.connect4 = {
   lobbyOptions(state) {
     const t = TRANSLATIONS[appState.lang] || {};
     const mode = c4State().mode;
+    // Teams on: a player sees the sides, not the "two play, the rest watch" line.
+    if (c4tLobbyOn(state) && !state.youAreHost) return c4tLobbyHtml(state, t);
     return duelLobbyHtml(state, t, t.c4_line_label || '', [[4, t.c4_mode_4 || '4'], [5, t.c4_mode_5 || '5']], mode, 'setC4RoomMode',
-      Number(mode) === 5 ? t.c4_mode_5_hint : t.c4_mode_4_hint);
+      Number(mode) === 5 ? t.c4_mode_5_hint : t.c4_mode_4_hint) + c4tLobbyHtml(state, t);
   },
+  // Teams (2 Oct 2026): the sides are where the table is seated, never folded; the tournament's switch goes while they are on.
+  lobbyUnfolded: (state) => c4tLobbyOn(state),
+  tourHidden: (state) => c4tLobbyOn(state),
+  startBlock: (state) => c4tStartBlock(state),
+  tvLobbyPlayers: (state, tile) => c4tTvLobbyPlayers(state, tile),
   startPayload() { return { mode: c4State().mode }; },
 
   render(state) {
@@ -395,6 +402,8 @@ ROOM_GAMES.connect4 = {
     const t = TRANSLATIONS[appState.lang] || {};
     const s = state.shared;
     if (!s || !s.grid) return;
+    // Team against team (2 Oct 2026, the end of this file).
+    if (s.teamMode) { c4tRender(state, el, t); return; }
     const seat = (s.seats || []).indexOf(Room.me);
     const myTurn = s.phase === 'play' && seat === s.turn;
     const sig = ['c4r', s.round, s.phase, s.moves, s.turn, seat, JSON.stringify(s.line || []), s.champ,
@@ -518,12 +527,14 @@ function duelTvSide(state, t, pills, again) {
 TV_GAMES.connect4 = {
   sig: (state) => {
     const s = state.shared || {};
+    if (s.teamMode) return c4tSig(state, true);
     return ['c4', s.round, s.phase, s.moves, JSON.stringify(s.line || []), s.champ, JSON.stringify(s.scores || {}),
             (state.players || []).map(p => p.id + p.name).join(','), state.youAreHost, duelRoomAwayAt(state)].join('|');
   },
   frame(state, t) {
     const s = state.shared || {};
     if (!s.grid) return tvLookAtPhones(t);
+    if (s.teamMode) return c4tTvFrame(state, t);
     const board = c4RoomBoard(s);
     return `
       <div class="duel-tv c4-game">
@@ -534,6 +545,7 @@ TV_GAMES.connect4 = {
       </div>`;
   },
   after(state, rebuilt) {
+    if ((state.shared || {}).teamMode) { c4tTvAfter(state, rebuilt); return; }
     duelRoomAwayTick(state);
     if (!rebuilt) return;
     const el = document.getElementById('view-room-tv');
@@ -556,4 +568,436 @@ TV_GAMES.connect4 = {
     duelRoomCheer(el, state, key);
   }
 };
+
+/* --- كونكت ٤ team against team, «أحمر ضد أصفر» (the owner, 2 Oct 2026) ------------------
+   The rules are c4tAction in RoomDuels.js. In the lobby the host's switch «فرق» (from four
+   people) and everyone's side, picked on their own phone (shared.lobby); in the game a relay:
+   the team's members drop the team's disc one by one, 20 seconds each on the server's clock,
+   and when it runs out the app drops a disc that doesn't hand the other team a win
+   (shared.auto, said on every screen). The words are this chunk's (C4T_TEXT), not the shell's. */
+
+const C4T_TEXT = {
+  ar: {
+    switch: '👥 فرق: أحمر ضد أصفر',
+    hint: 'كل فريق ليه قرص، وأعضاؤه بينزّلوه بالدور واحد ورا واحد. اللي عليه الدور بيقرر، والباقي يقول رأيه بصوت عالي. 20 ثانية للدور.',
+    need4: 'الفرق محتاجة 4 أشخاص على الأقل في الغرفة',
+    need_both: 'محتاجين واحد على الأقل في كل فريق',
+    pick: 'اختار فريقك',
+    none: 'لسه ماختاروش',
+    none_hint: 'اللي مايختارش هيدخل الفريق الأقل عددًا',
+    host_hint: 'اضغط على اسم عشان تنقله للفريق التاني',
+    up_you: 'دورك! نزّل قرص {team}',
+    up_of: 'الدور على {name} ({team})',
+    next_of: 'بعده: {name}',
+    auto: '⏱️ الوقت خلص: الموبايل نزّل لـ {name} في عمود {n}',
+    won: 'فريق {team} كسب!',
+    won_you: 'فريقك كسب!',
+    left: 'الفريق التاني خرج كله',
+    draw: 'تعادل، اللوحة اتملت',
+    watch: '👀 بتتفرج: هتدخل فريق في الماتش الجاي',
+    next_starts: 'الماتش الجاي يبدأه {team}',
+    members: '{team}: {names}'
+  },
+  en: {
+    switch: '👥 Teams: red vs yellow',
+    hint: 'Each team has a colour, and its members drop it in turn, one after another. Whoever is up decides; the rest may shout. 20 seconds a turn.',
+    need4: 'Teams need at least 4 people in the room',
+    need_both: 'At least one on each side',
+    pick: 'Pick your side',
+    none: 'No side yet',
+    none_hint: 'Anyone without a side joins the smaller one',
+    host_hint: 'Tap a name to move them to the other side',
+    up_you: 'Your turn! Drop {team}\'s disc',
+    up_of: '{name} is up ({team})',
+    next_of: 'Next: {name}',
+    auto: '⏱️ Time\'s up: the app dropped for {name} in column {n}',
+    won: '{team} wins!',
+    won_you: 'Your team wins!',
+    left: 'the other side all left',
+    draw: 'A draw: the board is full',
+    watch: '👀 Watching: you join a side next game',
+    next_starts: '{team} starts the next game',
+    members: '{team}: {names}'
+  }
+};
+
+function c4tT(key, vars) {
+  const b = C4T_TEXT[appState.lang] || C4T_TEXT.ar;
+  let s = b[key] || C4T_TEXT.ar[key] || '';
+  Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(String(vars[k])); });
+  return s;
+}
+
+const c4tTeamName = (k) => { const t = TRANSLATIONS[appState.lang] || {}; return (k === 1 ? t.c4_yellow : t.c4_red) || ''; };
+const c4tChip = (k) => `<span class="c4-chip c4-disc--${k + 1}" aria-hidden="true"></span>`;
+const c4tPeopleOf = (state) => (state.players || []).filter(p => !p.bot);
+
+/* --- the lobby ------------------------------------------------------------------------------ */
+
+const c4tLobbyOn = (state) => !!(state && state.game === 'connect4' && state.phase === 'lobby' && ((state.shared || {}).lobby || {}).teams);
+
+/** The lobby's sides as the server will count them: [red, yellow, no side yet], people only. */
+function c4tLobbySides(state) {
+  const sides = (((state.shared || {}).lobby || {}).sides) || {};
+  const out = [[], [], []];
+  c4tPeopleOf(state).forEach(p => { out[sides[p.id] === 0 ? 0 : sides[p.id] === 1 ? 1 : 2].push(p); });
+  return out;
+}
+
+function c4tTeamsTap(on) {
+  haptic('light');
+  Promise.resolve(roomAct('teams', { on: !!on })).then(duelLobbyRedraw);
+}
+
+function c4tSideTap(side, pid) {
+  haptic('light');
+  Promise.resolve(roomAct('side', pid ? { side: side, playerId: pid } : { side: side })).then(duelLobbyRedraw);
+}
+
+/** The host moves someone: no side → red → yellow → red. */
+function c4tMoveTap(pid) {
+  const sides = (((Room.state || {}).shared || {}).lobby || {}).sides || {};
+  c4tSideTap(sides[pid] === 0 ? 1 : 0, pid);
+}
+
+/** The switch (the host, from four people) and, with it on, the sides. */
+function c4tLobbyHtml(state, t) {
+  const on = c4tLobbyOn(state);
+  const people = c4tPeopleOf(state);
+  const host = !!state.youAreHost;
+  if (!on && (!host || people.length < 4)) return '';
+  const sw = host ? `
+      <label class="switch-row" for="c4t-switch">
+        <span class="field__label">${escapeHTML(c4tT('switch'))}</span>
+        <span class="switch">
+          <input type="checkbox" id="c4t-switch" role="switch" ${on ? 'checked' : ''} onchange="c4tTeamsTap(this.checked)">
+          <span class="switch__track" aria-hidden="true"></span>
+        </span>
+      </label>` : `<p class="field__label">${escapeHTML(c4tT('switch'))}</p>`;
+  if (!on) return `<div class="card card--tight c4t-lobby flex flex-col gap-3">${sw}<p class="field__hint">${escapeHTML(c4tT('hint'))}</p></div>`;
+  const groups = c4tLobbySides(state);
+  const me = people.find(p => p.id === Room.me);
+  const mine = me ? (groups[0].indexOf(me) !== -1 ? 0 : groups[1].indexOf(me) !== -1 ? 1 : -1) : -1;
+  const pick = me && !state.youAreScreen ? `
+      <div class="field">
+        <span class="field__label">${escapeHTML(c4tT('pick'))}</span>
+        <div class="segmented" role="group">
+          ${[0, 1].map(k => `<button type="button" class="segmented__item ${mine === k ? 'is-active' : ''}" onclick="c4tSideTap(${k})">${c4tChip(k)} ${escapeHTML(c4tTeamName(k))}</button>`).join('')}
+        </div>
+      </div>` : '';
+  const who = (p) => host
+    ? `<button type="button" class="chip ${p.id === Room.me ? 'is-selected' : ''}" onclick="c4tMoveTap('${jsStringAttr(p.id)}')"><bdi>${escapeHTML(p.name)}</bdi></button>`
+    : `<span class="chip ${p.id === Room.me ? 'is-selected' : ''}"><bdi>${escapeHTML(p.name)}</bdi></span>`;
+  const box = (k) => `
+      <div class="c4t-side c4t-side--${k}">
+        <span class="c4t-side__label">${c4tChip(k)} ${escapeHTML(c4tTeamName(k))} <b class="metric">${groups[k].length}</b></span>
+        <div class="flex flex-wrap gap-1">${groups[k].map(who).join('')}</div>
+      </div>`;
+  const none = groups[2].length ? `
+      <div class="c4t-side c4t-side--none">
+        <span class="c4t-side__label">${escapeHTML(c4tT('none'))}</span>
+        <div class="flex flex-wrap gap-1">${groups[2].map(who).join('')}</div>
+        <p class="field__hint">${escapeHTML(c4tT('none_hint'))}</p>
+      </div>` : '';
+  return `<div class="card card--tight c4t-lobby flex flex-col gap-3">
+      ${sw}
+      <p class="field__hint">${escapeHTML(c4tT('hint'))}</p>
+      ${people.length < 4 ? `<p class="field__hint tx-warning">${escapeHTML(c4tT('need4'))}</p>` : ''}
+      ${pick}
+      <div class="grid grid-cols-2 gap-2">${box(0)}${box(1)}</div>
+      ${none}
+      ${host ? `<p class="field__hint">${escapeHTML(c4tT('host_hint'))}</p>` : ''}
+    </div>`;
+}
+
+/** Why Start waits (the server refuses it too): fewer than four, or a side nobody picked. */
+function c4tStartBlock(state) {
+  if (!c4tLobbyOn(state)) return '';
+  if (c4tPeopleOf(state).length < 4) return c4tT('need4');
+  const g = c4tLobbySides(state);
+  return !g[0].length || !g[1].length ? c4tT('need_both') : '';
+}
+
+/** A TV that isn't the host: the two sides, a box each, and anyone still without one. */
+function c4tTvLobbyPlayers(state, tile) {
+  if (!c4tLobbyOn(state)) return '';
+  const g = c4tLobbySides(state);
+  const box = (k) => `<div class="tv-panel c4t-side c4t-side--${k}"><b class="c4t-side__label">${c4tChip(k)} ${escapeHTML(c4tTeamName(k))}</b><div class="tv-lobby__players">${g[k].map(tile).join('')}</div></div>`;
+  return box(0) + box(1) + (g[2].length ? `<div class="tv-lobby__players">${g[2].map(tile).join('')}</div>` : '');
+}
+
+/* --- the game ------------------------------------------------------------------------------- */
+
+/** Team k's member up next (the one up, for the team to move). */
+function c4tNextOf(s, k) {
+  const tm = (s.teams || [])[k] || [];
+  if (!tm.length) return null;
+  const i = Number((s.relay || [])[k]) || 0;
+  return tm[((i % tm.length) + tm.length) % tm.length];
+}
+
+const c4tName = (state, id) => (id === Room.me && !state.youAreScreen ? ((TRANSLATIONS[appState.lang] || {}).xo_you || '') : duelRoomPlayerName(state, id)) || '…';
+const c4tMyTeam = (state) => { const s = state.shared || {}; return (s.teams || []).findIndex(tm => tm.indexOf(Room.me) !== -1); };
+
+/** The two teams as the duels' pills: the colour, the wins, and who drops next. */
+function c4tPills(state) {
+  const s = state.shared;
+  const pill = (k) => {
+    const next = c4tNextOf(s, k);
+    return {
+      name: c4tTeamName(k),
+      score: (s.teamWins || [])[k] || 0,
+      mark: c4tChip(k),
+      sub: next && s.phase === 'play' ? escapeHTML(c4tName(state, next)) : ''
+    };
+  };
+  return duelPillsHtml({ players: [pill(0), pill(1)], turn: s.phase === 'play' ? s.turn : -1, draws: null });
+}
+
+/** The relay: each team's members in order, the one up marked (and the next of the other team). */
+function c4tRelayHtml(state, tv) {
+  const s = state.shared;
+  const box = (k) => {
+    const next = c4tNextOf(s, k);
+    const up = s.phase === 'play' && s.turn === k;
+    return `<div class="c4t-side c4t-side--${k} ${up ? 'is-turn' : ''}">
+        <span class="c4t-side__label">${c4tChip(k)} ${escapeHTML(c4tTeamName(k))}</span>
+        <ol class="c4t-relay grid gap-1">${((s.teams || [])[k] || []).map((id, i) => `<li class="c4t-relay__who ${id === next && s.phase === 'play' ? (up ? 'is-up' : 'is-next') : ''} ${id === Room.me && !state.youAreScreen ? 'is-me' : ''}"><b class="metric">${i + 1}</b><bdi>${escapeHTML(duelRoomPlayerName(state, id) || '…')}</bdi></li>`).join('')}</ol>
+      </div>`;
+  };
+  return `<div class="grid grid-cols-2 gap-2">${box(0)}${box(1)}</div>`;
+}
+
+function c4tStatus(state) {
+  const s = state.shared;
+  const r = s.result || {};
+  if (s.phase === 'over') {
+    if (r.draw) return c4tT('draw');
+    const line = '🏆 ' + (c4tMyTeam(state) === r.winner && !state.youAreScreen ? c4tT('won_you') : c4tT('won', { team: duelIso(c4tTeamName(r.winner)) }));
+    return r.reason === 'left' ? line + ' · ' + c4tT('left') : line;
+  }
+  if (s.upId === Room.me && !state.youAreScreen) {
+    // One column left that doesn't win: the server drops it for you (c4tForced).
+    if (c4OnlyMove(c4RoomBoard(s), s.turn + 1) >= 0) return (TRANSLATIONS[appState.lang] || {}).duel_auto_c4 || '';
+    return c4tT('up_you', { team: c4tTeamName(s.turn) });
+  }
+  return c4tT('up_of', { name: duelIso(duelRoomPlayerName(state, s.upId) || ''), team: c4tTeamName(s.turn) });
+}
+
+/** «الوقت خلص: الموبايل نزّل لـ …» while the next turn is being played. */
+function c4tAutoHtml(state) {
+  const s = state.shared;
+  const a = s.auto;
+  if (!a || s.phase !== 'play' || a.moves !== s.moves) return '';
+  return `<p class="badge badge--warning c4t-auto" role="status">${escapeHTML(c4tT('auto', { name: duelIso(duelRoomPlayerName(state, a.pid) || ''), n: a.col + 1 }))}</p>`;
+}
+
+const c4tClockHtml = (state) => (state.shared.phase === 'play' && state.shared.endsAt
+  ? `<span class="badge badge--accent metric c4t-clock" data-c4t-clock>⏱️ ${c4tLeft(state.shared.endsAt)}</span>` : '');
+const c4tLeft = (endsAt) => Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000));
+
+/* The turn's clock on every phone and the TV, by the server's time; the server drops the disc. */
+const c4tLocal = { clock: null, key: 0 };
+function c4tClockStop() {
+  if (c4tLocal.clock) c4tLocal.clock.stop();
+  c4tLocal.clock = null;
+  c4tLocal.key = 0;
+}
+onRoomClocksReset(c4tClockStop);
+
+function c4tClockTick(state) {
+  const s = state.shared || {};
+  const endsAt = s.phase === 'play' && s.teamMode ? s.endsAt : 0;
+  if (!endsAt) { c4tClockStop(); return; }
+  const paint = () => {
+    const left = c4tLeft(endsAt);
+    document.querySelectorAll('[data-c4t-clock]').forEach(el => {
+      const text = '⏱️ ' + left;
+      if (el.textContent !== text) el.textContent = text;
+      el.classList.toggle('badge--danger', left <= 5);
+      el.classList.toggle('badge--accent', left > 5);
+    });
+    return left;
+  };
+  paint();
+  if (c4tLocal.key === endsAt && c4tLocal.clock && c4tLocal.clock.isRunning()) return;
+  c4tClockStop();
+  c4tLocal.key = endsAt;
+  c4tLocal.clock = createClock({
+    seconds: c4tLeft(endsAt),
+    onTick: () => {
+      const left = paint();
+      const st = Room.state;
+      if (left > 0 && left <= 5 && st && st.game === 'connect4' && (st.shared || {}).endsAt === endsAt && st.shared.upId === Room.me && !st.youAreScreen) playSound('tick');
+    },
+    onEnd: () => { c4tLocal.clock = null; paint(); }
+  });
+}
+
+/** The winning team on two steps (the app's podium, its cheerers and all); a draw has none. */
+function c4tPodiumHtml(state) {
+  const s = state.shared;
+  const r = s.result || {};
+  if (r.draw || (r.winner !== 0 && r.winner !== 1)) return '';
+  const rise = motionFirst(['c4tpod', roomDealKey(state), s.round].join('|'));
+  const order = [r.winner, 1 - r.winner];
+  const atOf = (i) => 150 + (1 - i) * 520;
+  return `<div class="podium c4t-podium${rise ? ' podium--rise" data-reveal-ms="' + (atOf(0) + 620) + '"' : '"'}>
+      ${order.map((k, i) => `<div class="podium__place podium__place--${i + 1} podium__place--rank${i + 1}" style="--at:${atOf(i)}ms">
+          <div class="podium__who">
+            <span class="podium__medal" aria-hidden="true">${i ? '🥈' : '🥇'}</span>
+            <span class="podium__name">${escapeHTML(c4tTeamName(k))}</span>
+            <span class="podium__score metric">${(s.teamWins || [])[k] || 0}</span>
+          </div>
+          <div class="podium__block"><span class="metric">${i + 1}</span></div>
+        </div>`).join('')}
+    </div>`;
+}
+
+/** The winners' names under the podium: «الأحمر: منى، أحمد». */
+function c4tMembersLine(state) {
+  const s = state.shared;
+  const r = s.result || {};
+  if (r.draw || (r.winner !== 0 && r.winner !== 1)) return '';
+  const names = ((s.teams || [])[r.winner] || []).map(id => duelRoomPlayerName(state, id)).filter(Boolean);
+  return `<p class="duel-result__next">${escapeHTML(c4tT('members', { team: c4tTeamName(r.winner), names: names.map(duelIso).join('، ') }))}</p>`;
+}
+
+/** The card once a game is over: the podium, who starts next, «ماتش كمان» (anyone) and another game (the host). */
+function c4tOverHtml(state, t, tv) {
+  const s = state.shared;
+  const press = `roomAct('nextRound', { round: ${Number(s.round) || 0} })`;
+  const canDeal = state.youAreHost || (state.players || []).some(p => p.id === Room.me);
+  const next = `<p class="duel-result__next">${escapeHTML(c4tT('next_starts', { team: c4tTeamName(s.starts === 1 ? 0 : 1) }))}</p>`;
+  if (tv) {
+    return `<div class="tv-note">${c4tMembersLine(state)}${next}</div>
+      ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.duel_next_game, press)}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+  }
+  return `<div class="card card--accent duel-result c4t-result">
+      ${c4tPodiumHtml(state)}${c4tMembersLine(state)}${next}
+      <div class="btn-stack">
+        ${canDeal ? `<button class="btn btn--primary btn--lg" onclick="${press}">${escapeHTML(t.duel_next_game || '')}</button>` : ''}
+        ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>` : ''}
+      </div>
+    </div>`;
+}
+
+function c4tSig(state, tv) {
+  const s = state.shared || {};
+  return ['c4t', tv ? 'tv' : '', s.round, s.phase, s.moves, s.turn, s.upId, s.endsAt, JSON.stringify(s.teams || []), JSON.stringify(s.teamWins || []),
+          (state.players || []).map(p => p.id + p.name).join(','), state.youAreHost, appState.lang, s.auto ? s.auto.moves : ''].join('|');
+}
+
+/** Your disc falls as your finger lifts; the room's board carries the fall on (as in winner stays). */
+function c4tDrop(col) {
+  const state = Room.state;
+  if (!state || state.game !== 'connect4') return;
+  const s = state.shared || {};
+  if (!s.teamMode || s.phase !== 'play' || s.upId !== Room.me) return;
+  if (c4DropRow(c4RoomBoard(s), col) < 0) { c4Refuse(document.querySelector('#view-room-connect4 .c4')); return; }
+  duelRoomSend(state, { col: col }, () => {
+    const board = c4Clone(c4RoomBoard(s));
+    const res = c4Play(board, col, s.turn + 1);
+    if (!res) return;
+    const key = ['c4', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
+    duelRoomDrawEarly('connect4', key, c4BoardHtml(board, { last: { row: res.row, col: res.col }, playable: false, next: 2 - s.turn }),
+      (box) => c4AfterPaint(box, { dropKey: key, sound: duelRoomLoud(state) }));
+  });
+}
+
+/** Confetti for the winning team's phones and the TV, a sigh for the other's, once a game. */
+function c4tCheer(el, state, key) {
+  const s = state.shared;
+  if (s.phase !== 'over' || !s.result || !duelOnce(key + '|cheer')) return;
+  const r = s.result;
+  const mine = c4tMyTeam(state);
+  const won = !r.draw && mine !== -1 && mine === r.winner && !state.youAreScreen;
+  const lost = !r.draw && mine !== -1 && mine !== r.winner && !state.youAreScreen;
+  afterReveal(el, () => {
+    if (won || (state.youAreScreen && !r.draw)) {
+      duelSound('win');
+      if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+    } else if (lost) duelSound('lose');
+    else if (r.draw && duelRoomLoud(state)) duelSound('draw');
+  });
+  if (won) haptic('double');
+}
+
+/** The board's motion, the pills, the clock and the cheer: the phone's and the TV's. */
+function c4tAfter(el, state, rebuilt, tv) {
+  const s = state.shared;
+  c4tClockTick(state);
+  if (!rebuilt) return;
+  const key = ['c4', roomDealKey(state), s.round].join('|');
+  const dropKey = s.last ? key + '|' + s.moves : '';
+  const endKey = s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '';
+  const earlyHere = !tv && !!(dropKey && duelRoomLocal.early && duelRoomLocal.early.key === dropKey);
+  if (!earlyHere) duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey] });
+  c4AfterPaint(el, {
+    onDrop: tv ? undefined : c4tDrop,
+    dropKey: dropKey,
+    early: tv ? null : duelRoomEarlyFor(dropKey),
+    win: s.win, draw: !!(s.result && s.result.draw),
+    endKey: endKey,
+    sound: tv ? true : duelRoomLoud(state)
+  });
+  duelPillsAfter(el, ['c4t', tv ? 'tv' : '', state.code, roomDealKey(state)].join('|'), {
+    turn: s.phase === 'play' ? s.turn : -1,
+    scores: [(s.teamWins || [])[0] || 0, (s.teamWins || [])[1] || 0]
+  });
+  if (!tv && s.phase === 'play' && s.upId === Room.me && duelOnce(['c4tturn', roomDealKey(state), s.round, s.moves].join('|'))) haptic('medium');
+  c4tCheer(el, state, key);
+}
+
+function c4tRender(state, el, t) {
+  const s = state.shared;
+  const mine = s.phase === 'play' && s.upId === Room.me && !state.youAreScreen;
+  const board = c4RoomBoard(s);
+  const watching = !state.youAreScreen && c4tMyTeam(state) === -1;
+  const rebuilt = renderRoomFrame(el, c4tSig(state), () => `
+      <div class="duel c4-game c4t">
+        <div class="duel-layout">
+          <div class="duel-layout__board" style="--duel-aspect:${c4Aspect(board)}">
+            ${c4BoardHtml(board, { win: s.win, last: s.last, playable: mine, next: s.turn + 1 })}
+          </div>
+          <div class="duel-layout__side">
+            <div class="duel-head">
+              ${c4tPills(state)}
+              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${mine ? 'is-mine' : ''}">${escapeHTML(c4tStatus(state))} ${c4tClockHtml(state)}</p>
+              ${c4tAutoHtml(state)}
+            </div>
+            ${s.phase === 'over' ? c4tOverHtml(state, t) : (watching ? `<p class="field__hint duel-hint">${escapeHTML(c4tT('watch'))}</p>` : '')}
+            ${c4tRelayHtml(state)}
+            ${s.phase === 'over' ? roomShareBtnHtml(state, s.board) : ''}
+            ${renderRoomPlayerStrip(state)}
+          </div>
+        </div>
+      </div>`);
+  c4tAfter(el, state, rebuilt, false);
+  refreshRoomPlayerStrip(el, state);
+}
+
+function c4tTvFrame(state, t) {
+  const s = state.shared;
+  const board = c4RoomBoard(s);
+  return `
+    <div class="duel-tv c4-game c4t">
+      <div class="duel-tv__board" style="--duel-aspect:${c4Aspect(board, true)}">
+        ${c4BoardHtml(board, { win: s.win, last: s.last, playable: false, next: s.turn + 1, ghost: false })}
+      </div>
+      <div class="duel-tv__side">
+        <div class="tv-scale">${c4tPills(state)}</div>
+        <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(c4tStatus(state))}</div>
+        ${s.phase === 'play' ? `<div class="tv-scale c4t-tvclock">${c4tClockHtml(state)}${c4tAutoHtml(state)}</div>` : ''}
+        ${s.phase === 'over' ? c4tOverHtml(state, t, true) : ''}
+        <div class="tv-scale">${c4tRelayHtml(state, true)}</div>
+      </div>
+    </div>`;
+}
+
+function c4tTvAfter(state, rebuilt) {
+  const el = document.getElementById('view-room-tv');
+  if (!el || !(state.shared || {}).grid) return;
+  c4tAfter(el, state, rebuilt, true);
+}
 </script>

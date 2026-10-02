@@ -104,6 +104,8 @@ const PROGRAM_TEAMS = {
   snakes: (room) => snakesTeamResult(room),
   // «أونو اتنين اتنين» (2 Oct 2026): the pairs in their places (null playing each for themselves).
   uno: (room) => unoTeamResult(room),
+  // كونكت ٤ team against team (2 Oct 2026): the side with more wins first (null in winner stays).
+  connect4: (room) => c4TeamPlaces(room),
   votechess: (room) => programTwoTeams(room),
   // المشنقة's team way (RoomHangman.js); its other ways place by the board (null here).
   hangman: (room) => hmProgramTeams(room),

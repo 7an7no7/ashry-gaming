@@ -174,16 +174,16 @@ const listIn = (file, name) => {
   if (!m) throw new Error(name + ' not found in ' + file);
   return JSON.parse(m[1].replace(/'/g, '"'));
 };
-const TRIVIA_CATS = listIn('RoomGames.js', 'TRIVIA_CATS');
+const TRIVIA_CATS = listIn('RoomTrivia.js', 'TRIVIA_CATS');
 if (listIn('JS_RoomTrivia.html', 'TRIVIA_ROOM_CATS').join() !== ['all'].concat(TRIVIA_CATS).join()) {
-  note('trivia: TRIVIA_ROOM_CATS (JS_RoomTrivia.html) must be \'all\' and then TRIVIA_CATS (RoomGames.js)');
+  note('trivia: TRIVIA_ROOM_CATS (JS_RoomTrivia.html) must be \'all\' and then TRIVIA_CATS (RoomTrivia.js)');
 }
 for (const [lang, list] of Object.entries(TRIV)) {
   list.forEach((item, i) => {
     if (!item.q || !item.q.trim()) note(`trivia.${lang}[${i}]: empty question`);
     if (!Array.isArray(item.choices) || item.choices.length !== 4) note(`trivia.${lang}[${i}]: expected 4 choices`);
     if (typeof item.answer !== 'number' || item.answer < 0 || item.answer > 3) note(`trivia.${lang}[${i}]: invalid answer index`);
-    // The room's lobby deals one category (TRIVIA_CATS in RoomGames.js).
+    // The room's lobby deals one category (TRIVIA_CATS in RoomTrivia.js).
     if (TRIVIA_CATS.indexOf(item.c) === -1) note(`trivia.${lang}[${i}]: category "${item.c}" is not one of ${TRIVIA_CATS.join(', ')}`);
   });
   const dup = list.map(x => x.q).filter((v, i, a) => a.indexOf(v) !== i);
@@ -623,30 +623,40 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   console.log(`chess puzzles: ${(PUZ || []).length} (level 1 ${levels[1]}, level 2 ${levels[2]}, level 3 ${levels[3]})`);
 }
 
-/* ------------------------------------------------ the ids the rooms server counts */
-// GameIds.js (the audit of 28 Sep 2026): /count keeps only a GAME_CATALOG id and
-// /report only those and the report-only ids, so the two lists must agree.
+/* ------------------------------------------------ the games (Games.js) */
+// GAME_LIST is the one list of games: the home's catalog, a room's list, the server's room
+// games, the ids /count and /report take (the audit of 28 Sep 2026), «التالي لوحده», the
+// program's rounds and الشلة's titles are all built from it (2 Oct 2026).
 {
-  const cat = fs.readFileSync(ROOT + 'JS_Catalog.html', 'utf8');
-  const block = (/const GAME_CATALOG = \[([\s\S]*?)\r?\n\];/.exec(cat) || [])[1] || '';
-  const catIds = (block.match(/^\s*\{\s*id:\s*'[^']+'/mg) || []).map(x => /'([^']+)'/.exec(x)[1]);
-  const appIds = load(ROOT + 'GameIds.js', 'APP_GAME_IDS');
-  const reportIds = load(ROOT + 'GameIds.js', 'APP_REPORT_IDS');
-  if (!catIds.length) note('GameIds.js: could not read the ids of GAME_CATALOG');
-  catIds.filter(id => appIds.indexOf(id) === -1).forEach(id => note(`GameIds.js: '${id}' is in GAME_CATALOG but not in APP_GAME_IDS`));
-  appIds.filter(id => catIds.indexOf(id) === -1).forEach(id => note(`GameIds.js: '${id}' is in APP_GAME_IDS but not in GAME_CATALOG`));
-  // A merge once left two half-lines of it side by side: an id listed twice is a bad merge.
-  appIds.filter((id, k) => appIds.indexOf(id) !== k).forEach(id => note(`GameIds.js: '${id}' is listed twice in APP_GAME_IDS`));
-  catIds.filter((id, k) => catIds.indexOf(id) !== k).forEach(id => note(`JS_Catalog.html: '${id}' is in GAME_CATALOG twice`));
+  const gamesJs = fs.readFileSync(ROOT + 'Games.js', 'utf8');
+  const G = new Function(gamesJs + '\nreturn { GAME_LIST, ROOM_LIST_ORDER, APP_REPORT_IDS, ROOM_GAME_IDS };')();
+  const block = (/const GAME_LIST = \[([\s\S]*?)\r?\n\];/.exec(gamesJs) || [])[1] || '';
+  const catIds = G.GAME_LIST.map(g => g.id);
+  const reportIds = G.APP_REPORT_IDS;
+  const titles = load(ROOT + 'Crew.js', 'CREW_TITLES');
+  if (!catIds.length) note('Games.js: GAME_LIST is empty');
+  // A merge once left two half-lines side by side: an id listed twice is a bad merge.
+  catIds.filter((id, k) => catIds.indexOf(id) !== k).forEach(id => note(`Games.js: '${id}' is in GAME_LIST twice`));
+  G.ROOM_GAME_IDS.filter((id, k) => G.ROOM_GAME_IDS.indexOf(id) !== k).forEach(id => note(`Games.js: the room game '${id}' twice`));
+  G.GAME_LIST.forEach(g => {
+    ['icon', 'title', 'accent', 'group'].forEach(k => { if (!g[k]) note(`Games.js: '${g.id}' has no ${k}`); });
+    if (g.room && !(g.room.min >= 1)) note(`Games.js: '${g.id}' is a room game with no room.min`);
+    if (g.room && !(g.modes || []).includes('room')) note(`Games.js: '${g.id}' has room but no 'room' in modes`);
+    if (g.crew && titles.indexOf(g.crew) === -1) note(`Games.js: '${g.id}' counts toward '${g.crew}', not a title in CREW_TITLES`);
+    if (g.room && !g.crew) note(`Games.js: the room game '${g.id}' has no crew title (CREW_TITLES)`);
+    if (!g.open && !g.setup && !g.room) note(`Games.js: '${g.id}' has no open, setup or room: its card does nothing`);
+  });
+  G.ROOM_LIST_ORDER.filter(id => G.ROOM_GAME_IDS.indexOf(id) === -1).forEach(id => note(`Games.js: ROOM_LIST_ORDER names '${id}', not a room game`));
   // Every «في غلطة؟» button names an id the server takes.
   fs.readdirSync(ROOT).filter(f => /^JS_.*\.html$/.test(f)).forEach(f => {
     const src = fs.readFileSync(ROOT + f, 'utf8');
     (src.match(/reportBtnHtml\('([^']+)'/g) || []).forEach(m => {
       const id = /'([^']+)'/.exec(m)[1];
-      if (reportIds.indexOf(id) === -1) note(`${f}: reportBtnHtml('${id}') is not in APP_REPORT_IDS (GameIds.js)`);
+      if (reportIds.indexOf(id) === -1) note(`${f}: reportBtnHtml('${id}') is not in APP_REPORT_IDS (Games.js)`);
     });
   });
-  console.log(`game ids: ${appIds.length} (GAME_CATALOG ${catIds.length})`);
+  console.log(`games: ${catIds.length} (room games ${G.ROOM_GAME_IDS.length})`);
+  const cat = fs.readFileSync(ROOT + 'JS_Catalog.html', 'utf8');
   // «الليلة دي؟» ranks games by TONIGHT_ORDER, and a game missing from it always came last
   // (the review of 1 Oct 2026: every game from 27 Sep on). Every game with its own card has a place.
   const order = ((/const TONIGHT_ORDER = \[([\s\S]*?)\];/.exec(cat) || [])[1] || '').match(/'[^']+'/g) || [];

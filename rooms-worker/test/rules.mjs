@@ -12763,6 +12763,9 @@ Date.now = duelTestClock;
   const titleOf = (g) => (CR.crewTitles([{ month: '2026-09', wins: [{ g, m: 'mK' }, { g, m: 'mK' }] }], members, '2026-09')[0] || {}).key;
   const untitled = CR.ROOM_GAME_IDS.filter((g) => !titleOf(g));
   check(!untitled.length, 'crew: every room game has a title group' + (untitled.length ? ' (none for ' + untitled.join(', ') + ')' : ''));
+  // Games.js (2 Oct 2026): the lobby's «التالي لوحده» switch and the server's AUTONEXT_GAMES name the same games.
+  check([...CR.AUTONEXT_ROOM_GAMES].sort().join() === Object.keys(CR.AUTONEXT_GAMES).sort().join(), 'games: «التالي لوحده» is the same games on the page (room.autoNext) and the server (AUTONEXT_GAMES)');
+  check(CR.ROOM_GAME_IDS.every((id) => CR.GAME_LIST.some((g) => g.room && (g.room.id || g.id) === id)), 'games: every room game is a GAME_LIST entry');
   check(titleOf('trivia') === 'brain' && titleOf('timeline') === 'brain' && titleOf('vault') === 'brain', 'crew: the trivia, قبل ولا بعد and الخزنة count for العقل المدبر');
   check(titleOf('mostlikely') === 'words' && titleOf('telephone') === 'words' && titleOf('wire') === 'fast', 'crew: the newer games have their groups');
   const recs = CR.crewRecords(nights, members, []);

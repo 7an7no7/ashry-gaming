@@ -35,7 +35,7 @@ const ROOMS = (ARGS.find((a) => /^https?:/.test(a)) || process.env.ROOMS_URL || 
  */
 const CORE = [
   /^rooms-worker\/src\//, /^rooms-worker\/build\.mjs$/, /^rooms-worker\/fingerprint\.mjs$/, /^rooms-worker\/package/,
-  /^rooms-worker\/wrangler/, /^RoomGames\.js$/, /^GameIds\.js$/, /^DisabledGames\.js$/,
+  /^rooms-worker\/wrangler/, /^RoomGames\.js$/, /^Room(Stop|Chameleon|Spyfall|Bomb|Buzzer|Imposter|JustOne|WhoAmI|Codenames|WouldYou|MostLikely|Fibbage|Draw|FakeArtist|Trivia|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|Herd|Mind|Timeline)\.js$/, /^Games\.js$/, /^DisabledGames\.js$/,
   /^Controller\.html$/, /^Style\.html$/, /^Tailwind\.html$/, /^Logo\.html$/,
   /^JS_(Core|Room|RoomGames|RoomTv|RoomTurn|RoomChat|RoomAudience|RoomVoting|Motion|Utils|Catalog|Sounds|Three|ShareCard|Solo|Daily|TeamRelay)\.html$/,
   /^tools\/(build-preview|build-site|test-ui|test-ui-parallel|test-changed)\.mjs$/, /^tools\/package/,
@@ -57,8 +57,8 @@ const MAP = [
   // «اعمل مسابقتك» and «كلماتنا»: the packs, their editor, and the rooms that deal them.
   { files: /^(Packs\.js|JS_PackStore\.html|JS_QuizMaker\.html|rooms-worker\/src\/packs\.js)$/, robots: ['quiz', 'core', 'crewlink'], ui: ['trivia', 'buzzer', 'imposter', 'chameleon', 'drawguess', 'whoami'], screens: true },
   { files: /^JS_(Imposter|Chameleon|Spyfall|Bomb|Monkey|Stop|StopBus|WhoAmI|Charades|DescribeIt|TimesUp|NewGames|Emoji|Proverbs|FiveSeconds|TriviaBoard|TriviaBoardBank|Director|HeadsUp|Chooser)\.html$/, screens: true, ui: CORE_GAMES },
-  { files: /^JS_RoomMafia\.html$/, robots: ['mafia'], ui: ['mafia'] },
-  { files: /^(SkrewCards\.js|JS_RoomScrew\.html|JS_Screw\.html)$/, robots: ['screw'], ui: ['screw'], screens: true },
+  { files: /^(RoomMafia\.js|JS_RoomMafia\.html)$/, robots: ['mafia'], ui: ['mafia'] },
+  { files: /^(SkrewCards\.js|RoomScrew\.js|JS_RoomScrew\.html|JS_Screw\.html)$/, robots: ['screw'], ui: ['screw'], screens: true },
   { files: /^(UnoCards\.js|RoomUno\.js|JS_RoomUno\.html)$/, robots: ['uno'], ui: ['uno'] },
   { files: /^(DominoTiles\.js|RoomDomino\.js|JS_RoomDomino\.html|JS_Domino\.html)$/, robots: ['domino'], ui: ['domino'], screens: true },
   { files: /^(RoomDuels\.js)$/, robots: ['connect4', 'dots', 'duels', 'guesswho', 'battleship', 'chess'], ui: ['connect4', 'dots', 'xo', 'guesswho', 'battleship', 'chess'] },

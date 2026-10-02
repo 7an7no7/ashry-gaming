@@ -39,7 +39,9 @@ The icon flies to the setup's hero only if the game stops there; back from
 the game it flies home to the recent tile (`catalogReturn.kind` 'start').
 
 `GAME_CATALOG` in `JS_Catalog.html` is the registry of everything the app can
-play: id, icon, title and description keys, accent, `players: [min, max]` (a
+play, built from `GAME_LIST` in `Games.js` (2 Oct 2026; the one list the page and the
+rooms server share, with each game's `room` and `crew` too, and `open` as a function's
+name, defaulting to its setup or a room): id, icon, title and description keys, accent, `players: [min, max]` (a
 room game that computer players fill says 1, since you can play it alone - the
 owner, 26 Sep 2026),
 `mins`, `modes` (`device` = pass one phone, `room` = everyone on their own

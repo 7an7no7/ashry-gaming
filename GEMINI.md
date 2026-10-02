@@ -22,7 +22,8 @@
 
 ### Architecture
 - **Source files at the root** are still written the Apps Script way: `Controller.html` pulls the other `.html` files in with `<?!= include('X'); ?>` and has a few `<?!= … ?>` template values. Nothing runs them on Apps Script any more; `tools/build-site.mjs` (and `build-preview.mjs`) inline the includes and fill the values in.
-- **Rooms server (`rooms-worker/`):** one Durable Object per room code. The game rules are `RoomGames.js` at the root, bundled into the Worker with the word lists by `rooms-worker/build.mjs`. See *Multiplayer rooms*.
+- **One list of games (`Games.js`, 2 Oct 2026):** `GAME_LIST` has one entry per game - its card's fields, `room` (min players, the room id when it differs, program `rounds`, `autoNext`), `crew` (الشلة's title) and `open` - shared by the page (first of `SHARED_LISTS`) and the rooms server (first of `FILES`). The home's `GAME_CATALOG`, a room's `ROOM_HUB_GAMES`, the server's `ROOM_GAME_IDS`, `APP_GAME_IDS` (what /count and /report take), `AUTONEXT_ROOM_GAMES`, `PROGRAM_ROUNDS` and `CREW_TITLE_GAMES` are built from it. **Adding or removing a game's card is one entry there**; `ROOM_LIST_ORDER` orders a room's list (a game not in it goes last).
+- **Rooms server (`rooms-worker/`):** one Durable Object per room code. `RoomGames.js` at the root is the room engine (dispatch, votes, clocks, leaving, computer players, «التالي لوحده»); every room game's rules are in its own `Room<Game>.js` (since 2 Oct 2026 the older ones too: `RoomStop.js`, `RoomImposter.js`, `RoomTrivia.js`, `RoomScrew.js`…), bundled after it with the word lists by `rooms-worker/build.mjs`. See *Multiplayer rooms*.
 - **Frontend Entry Point (`Controller.html`):** The main HTML structure that includes styles, scripts, and various game views.
 - **Modular JavaScript (`JS_*.html`):** Game logic is organized into separate HTML files acting as JS modules (e.g., `JS_Core.html`, `JS_Monkey.html`, `JS_Utils.html`), included into the main template.
 - **Styling (`Tailwind.html` + `Style.html`):** `Tailwind.html` is generated - it holds
@@ -209,7 +210,7 @@ Two browser tabs on the preview behave like two phones in one room.
   is worked out the same way. Contents, not dates: the first version compared
   commit dates, and a deploy comes before its commit.
 - **The rooms server:** `npm run deploy` in `rooms-worker/`. Needed whenever
-  `RoomGames.js`, any list it bundles (the `FILES` in `rooms-worker/build.mjs`:
+  `Games.js`, `RoomGames.js`, any `Room*.js`, any list it bundles (the `FILES` in `rooms-worker/build.mjs`:
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
@@ -587,14 +588,16 @@ game needs its `TV_GAMES` entry as well.
 
 **Adding a game to the room layer**
 
-1. Add a branch to `applyRoomAction` in `RoomGames.js`. Put anything private in
+1. Write its rules in a `Room<Game>.js` of its own, add it to `FILES` in
+   `rooms-worker/build.mjs` (after `RoomGames.js`) and its branch to
+   `applyRoomAction` in `RoomGames.js`. Put anything private in
    `room.secrets[playerId]`, anything shared in `room.shared`.
 2. Register `ROOM_GAMES.<id>` on the client with `lobbyOptions(state)`,
    `startPayload()` and `render(state)`.
 3. Add a `view-room-<id>` container and a `VIEW_META` entry.
-4. Add it to `ROOM_HUB_GAMES` in `JS_Room.html` (icon, i18n key, accent, and the
-   minimum player count that greys out its hub tile) and to `ROOM_GAME_IDS` in
-   `RoomGames.js`.
+4. Give its `GAME_LIST` entry in `Games.js` a `room: { min }` (the fewest people
+   to start it; it greys out its tile below that): that puts it in a room's list
+   (`ROOM_HUB_GAMES`) and the server's `ROOM_GAME_IDS`, and its `crew` title.
 
 5. If it has a clock, add it to `roomDeadline` / `roomTimeout`. If it deals from
    a list, deal through `nextPrompts` from an action named `start`, `nextRound`
@@ -605,8 +608,8 @@ game needs its `TV_GAMES` entry as well.
    on a room game it can't play - then `npm run build:site` in `tools/` and
    `npm run deploy` in `rooms-worker/` — in that order, because the deploy
    uploads `docs/`.
-7. Give it a `GAME_CATALOG` entry (see *The catalog and the home screen*) with
-   `modes: ['room', 'tv']`, or it is not on the menu, and a `TV_GAMES` entry.
+7. Its `GAME_LIST` entry (`Games.js`; see *The catalog and the home screen*) has
+   `modes: ['room', 'tv']`, or it is not on the menu; and a `TV_GAMES` entry.
 8. Give it a case in `roomPlayerLeft` (what happens when someone leaves
    mid-round), guard its per-round host actions with `staleTap` on what the
    phone saw, register its phone clocks with `onRoomClocksReset`, and give the
@@ -1704,17 +1707,17 @@ own rules in the help sheet and answers a search by name. Chess is the model
 with its own name that people ask for gets its own card.
 
 **A new game, start to finish.** The pieces a game needs to be whole, each
-described in its own section of this guide: a `GAME_CATALOG` entry (or it is
-not on the menu); `VIEW_META` for every view (title, `up`, accent); its text in
+described in its own section of this guide: a `GAME_LIST` entry in `Games.js`
+(or it is not on the menu; with `room` and `crew` for a room game); `VIEW_META` for every view (title, `up`, accent); its text in
 both `TRANSLATIONS` blocks; its rules in `GAME_RULES`, `HELP_ENTRIES` and
 `HELP_FOR_VIEW`; `validViews` and a `restoreView` branch for its play views;
 dealing through `freshPick` (one phone) or `nextPrompts` (rooms); its content
 checked by `tools/validate-content.js`; the motion toolkit above; and in rooms
-also a `RoomGames.js` branch, `ROOM_GAMES` and `TV_GAMES` renderers,
-`ROOM_HUB_GAMES`, a `roomTurnOf` case if a turn waits on one phone, a round in
+also its `Room<Game>.js` and a branch in `applyRoomAction`, `ROOM_GAMES` and
+`TV_GAMES` renderers, a `roomTurnOf` case if a turn waits on one phone, a round in
 `rooms-worker/test/play-all.mjs`, and a deploy. Every game with its own card also takes a place in
 `TONIGHT_ORDER` («الليلة دي؟», `npm run check` fails without it), and a room game a
-`CREW_TITLE_GAMES` group in `Crew.js` (`test:rules` fails without it).
+`crew` title in its `Games.js` entry (`npm run check` and `test:rules` fail without it).
 
 **Never hardcode a colour.** Use the tokens: `--accent` / `--accent-soft` /
 `--accent-ink` / `--accent-on` for the current screen's colour, `--text` /
@@ -1913,7 +1916,7 @@ only collapse among themselves within 70ms.
 tile or frame: a little bigger, a soft drop shadow, and a faint round halo
 of the game's colour behind them (a radial gradient with no edge), which
 the owner asked for in place of the squares. A game's icon has to be the
-same in `GAME_CATALOG`, `HELP_ENTRIES` and `ROOM_HUB_GAMES`.
+same in `GAME_LIST` (Games.js; the room list takes it from there) and `HELP_ENTRIES`.
 
 ### Arabic and RTL
 

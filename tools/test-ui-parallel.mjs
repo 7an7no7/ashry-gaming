@@ -35,12 +35,10 @@ if (unknownParts.length) {
   process.exit(1);
 }
 if (process.env.UI_GAMES) {
-  const hub = fs.readFileSync(path.join(root, 'JS_Room.html'), 'utf8');
-  const from = hub.indexOf('const ROOM_HUB_GAMES = [');
-  const ids = new Set([...hub.slice(from, hub.indexOf('\n];', from)).matchAll(/\bid:\s*'([^']+)'/g)].map((m) => m[1]));
+  const ids = new Set(new Function(fs.readFileSync(path.join(root, 'Games.js'), 'utf8') + '\nreturn ROOM_GAME_IDS;')());
   const unknownGames = process.env.UI_GAMES.split(',').filter((g) => !ids.has(g));
-  if (from === -1 || unknownGames.length) {
-    console.error(`UI_GAMES=${unknownGames.join(',') || process.env.UI_GAMES} names no room game in ROOM_HUB_GAMES (JS_Room.html)`);
+  if (unknownGames.length) {
+    console.error(`UI_GAMES=${unknownGames.join(',')} names no room game (ROOM_GAME_IDS, Games.js)`);
     process.exit(1);
   }
 }

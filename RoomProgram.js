@@ -58,7 +58,7 @@ const PROGRAM_COOP = { mind: true, wire: true, darkroom: true, exact: true, tele
 
 /* Games with no end of their own (round after round until the host moves on): in a
    program they end after this many rounds - decided while building, open to change. */
-const PROGRAM_ROUNDS = { wouldyou: 5, mostlikely: 5, fibbage: 4, justone: 5, bomb: 5, buzzer: 10, drawguess: 6 };
+// PROGRAM_ROUNDS: `room.rounds` in Games.js.
 
 const programOn = (room) => !!(room.program && room.program.phase !== 'final');
 const programCurrent = (room) => {

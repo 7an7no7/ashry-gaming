@@ -58,7 +58,7 @@ each game's full spec and how it is built is in `notes/games/<id>.md`, the log i
    `Style.html`, `RoomGames.js`, the word lists). Never edit `docs/` by hand.
 2. Added a Tailwind class to the markup? `cd tools && npm run build:css`.
 3. `cd tools && npm run check` — content and translations. Must pass.
-4. Touched anything rooms run (`RoomGames.js`, any word list the server
+4. Touched anything rooms run (`Games.js`, `RoomGames.js`, any `Room*.js`, any word list the server
    bundles - the `FILES` in `rooms-worker/build.mjs` - or `rooms-worker/src/`)?
    `cd rooms-worker && npm run test:rules`, then, with `npm run dev` running,
    `npm test`. Every check must pass.

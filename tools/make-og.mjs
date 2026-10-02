@@ -13,8 +13,8 @@
  * WhatsApp skips a preview picture over about 300 KB.
  *
  * Everything comes from the page's own source, so a new room game gets its picture
- * by being in ROOM_HUB_GAMES with a drawn icon:
- *   ROOM_HUB_GAMES (JS_Room.html)  id, icon, i18n key, accent
+ * by being a room game in GAME_LIST with a drawn icon (and a removed one loses it):
+ *   GAME_LIST (Games.js)           the room games: id, icon, name's i18n key, accent
  *   ICON_ART (JS_Core.html)        the drawn icons (64x64 SVG bodies)
  *   TRANSLATIONS (JS_Core.html)    the games' names
  *   Style.html                     each accent's colours
@@ -23,7 +23,7 @@
  * Run by build-site.mjs (makeOg), or alone: node make-og.mjs [out-dir]
  * Not in sw.js's list: a phone never downloads these.
  */
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
@@ -45,12 +45,14 @@ const evalLiteral = (text) => new Function(`return (${text});`)();
 
 async function sources() {
   const core = await readFile(path.join(root, 'JS_Core.html'), 'utf8');
-  const room = await readFile(path.join(root, 'JS_Room.html'), 'utf8');
+  const gamesJs = await readFile(path.join(root, 'Games.js'), 'utf8');
   const style = await readFile(path.join(root, 'Style.html'), 'utf8');
   const logo = await readFile(path.join(root, 'Logo.html'), 'utf8');
   const T = evalLiteral(literalAfter(core, 'const TRANSLATIONS = {', '  };'));
   const ART = evalLiteral(literalAfter(core, 'const ICON_ART = {', '  };'));
-  const HUB = evalLiteral(literalAfter(room, 'const ROOM_HUB_GAMES = [', '];'));
+  // A room's list, as ROOM_HUB_GAMES (JS_Room.html) builds it.
+  const HUB = new Function(gamesJs + '\nreturn ROOM_GAME_LIST;')()
+    .map((r) => ({ id: r.id, icon: r.game.icon, key: r.game.title, accent: r.game.accent }));
   const accents = {};
   for (const m of style.matchAll(/^\[data-accent="(\w+)"\]\s*\{\s*--accent:(#[0-9a-f]{6});\s*--accent-hover:(#[0-9a-f]{6})/gim)) {
     accents[m[1]] = [m[2], m[3]];
@@ -142,6 +144,9 @@ export async function makeOg(out) {
     }
     games[g.id] = { ...name, img };
   }
+  // A picture of a game that is gone (no longer a room game) goes too.
+  const made = new Set(['app.jpg', ...Object.values(games).map((g) => g.img)]);
+  for (const f of await readdir(dir)) if (/\.jpg$/.test(f) && !made.has(f)) await unlink(path.join(dir, f));
   const index = { app: { ar: T.ar.title, en: T.en.title }, games };
   const json = JSON.stringify(index);
   await writeFile(path.join(dir, 'games.json'), json, 'utf8');

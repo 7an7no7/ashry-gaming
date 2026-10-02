@@ -468,7 +468,7 @@ export default {
         const text = await request.text();
         const body = JSON.parse(text.length < 200 ? text : '{}') || {};
         const game = String(body.game || '');
-        // Only a game the app has (GameIds.js): the log keeps what it has once full, so a made-up id is never kept.
+        // Only a game the app has (APP_GAME_IDS, Games.js): the log keeps what it has once full, so a made-up id is never kept.
         if (APP_GAME_IDS.indexOf(game) !== -1 && countAllowed(request)) {
           await env.WORDS.get(env.WORDS.idFromName('plays'))
             .add([{ lang: 'device', cat: new Date().toISOString().slice(0, 7), word: game, keep: true }]);

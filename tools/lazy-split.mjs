@@ -34,7 +34,7 @@ export const SHELL_FILES = [
   'JS_Sounds', 'JS_RoomChat', 'JS_RoomAudience', 'JS_RoomTurn', 'JS_Motion', 'JS_ShareCard', 'JS_Three',
   'JS_CrewCore'        // «الشلة»: which crews this phone is in, the room's pick, the doors (the page is the chunk 'crew')
 ];
-export const SHELL_LISTS = ['DisabledGames.js', 'Dice.js', 'SoloShared.js', 'Packs.js'];
+export const SHELL_LISTS = ['Games.js', 'DisabledGames.js', 'Dice.js', 'SoloShared.js', 'Packs.js'];
 
 /* The chunks: a game, or a family of games that share their code. The order of
    files inside a chunk is always the page's own order. */
@@ -366,17 +366,17 @@ export function plan({ sources, order, controller, roomGameIds }) {
     if (set.size) rooms[g] = [...set];
   }
 
-  // Cards of the home: the chunk of the function its `open` calls (a tool with no setup screen).
+  // Cards of the home: the chunk of the function its `open` names (a tool with no setup screen).
   // (the page asks it before catalogOpen, «كمّل», the daily hub and «الليلة دي؟»).
   const games = {};
-  const catalog = sources.get('JS_Catalog');
+  const catalog = sources.get('Games.js');
   for (const line of catalog.split('\n')) {
     const id = /^\s*\{\s*id:\s*'([\w-]+)'/.exec(line);
     if (!id) continue;
     const set = new Set(GAME_CHUNKS[id[1]] || []);
     const setup = /\bsetup:\s*'([\w-]+)'/.exec(line);
     if (setup && views[setup[1]]) views[setup[1]].forEach((c) => set.add(c));
-    const open = /\bopen:\s*\(\)\s*=>\s*([A-Za-z_$][\w$]*)\(/.exec(line);
+    const open = /\bopen:\s*\[?\s*'([A-Za-z_$][\w$]*)'/.exec(line);
     if (open) (declaredBy.get(open[1]) || []).forEach((f) => { if (fileChunk.get(f)) set.add(fileChunk.get(f)); });
     if (set.size) games[id[1]] = [...set];
   }
@@ -566,7 +566,7 @@ export function checkRegistryOrder({ order, code, fileChunk, shellSet, sorted, d
 
 /* Word lists the page shares with the rooms server: one file, both sides
    (and ChessPuzzles.js, which only the page has). */
-export const SHARED_LISTS = ['DisabledGames.js', 'Dice.js', 'Packs.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Vault.js', 'Hear.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js', 'Missions.js'];
+export const SHARED_LISTS = ['Games.js', 'DisabledGames.js', 'Dice.js', 'Packs.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Vault.js', 'Hear.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js', 'Missions.js'];
 
 /** Reads Controller.html, every file it includes and the shared lists. */
 export async function readPage(root, readFile, path) {
@@ -578,15 +578,15 @@ export async function readPage(root, readFile, path) {
   // On the page the lists come after the styles and before the scripts.
   const styles = includes.filter((n) => !/^JS_/.test(n));
   const order = [...styles, ...SHARED_LISTS, ...includes.filter((n) => /^JS_/.test(n))];
-  const roomGameIds = roomGameIdsOf(await readFile(path.join(root, 'RoomGames.js'), 'utf8'));
+  const roomGameIds = roomGameIdsOf(sources.get('Games.js'));
   return { controller, includes, sources, order, roomGameIds };
 }
 
-/** The ids of the room games (ROOM_GAME_IDS in RoomGames.js). */
-export function roomGameIdsOf(roomGamesJs) {
-  const m = /ROOM_GAME_IDS\s*=\s*\[([\s\S]*?)\]/.exec(roomGamesJs);
-  if (!m) throw new Error('lazy-split: ROOM_GAME_IDS not found in RoomGames.js');
-  return [...m[1].matchAll(/'([\w-]+)'/g)].map((x) => x[1]);
+/** The ids of the room games (ROOM_GAME_IDS, built from GAME_LIST in Games.js). */
+export function roomGameIdsOf(gamesJs) {
+  const ids = new Function(gamesJs + '\nreturn ROOM_GAME_IDS;')();
+  if (!ids || !ids.length) throw new Error('lazy-split: no room games in Games.js');
+  return ids;
 }
 
 /* --- putting the page together ------------------------------------------------

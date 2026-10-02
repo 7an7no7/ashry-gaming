@@ -194,16 +194,18 @@ const witnessLineup = (rnd) => {
    the extras) is right when every one of them matches. The server works it out
    at the reveal (it alone has the real face before then) and publishes it as
    shared.match; at WITNESS_MATCH_LINE or more the witness and the artist each
-   get WITNESS_MATCH_POINTS on top of their jury points. */
+   get WITNESS_MATCH_POINTS on top of their jury points. Man/woman, the hair's
+   style and its colour weigh 2 (`w`), every other feature 1 (the owner, 2 Oct
+   2026: a sketch with the wrong gender, hair and glasses scored 81% at equal weights). */
 const WITNESS_MATCH_LINE = 70;     // the owner's 70%
 const WITNESS_MATCH_POINTS = 1;    // to the witness and to the artist, each
 const witnessNoHijab = (x) => x.hijab === null || x.hijab === undefined;
 const witnessOn = (x, keys) => keys.map(k => (x[k] ? 1 : 0)).join('');
 const WITNESS_FEATURES = [
-  { k: 'g', get: x => x.g },
+  { k: 'g', w: 2, get: x => x.g },
   { k: 'skin', get: x => Number(x.skin) || 0 },
-  { k: 'style', when: witnessNoHijab, get: x => (witnessNoHijab(x) ? x.style : 'hijab') },
-  { k: 'hair', when: x => witnessNoHijab(x) && x.style !== 'bald', get: x => x.hair },
+  { k: 'style', w: 2, when: witnessNoHijab, get: x => (witnessNoHijab(x) ? x.style : 'hijab') },
+  { k: 'hair', w: 2, when: x => witnessNoHijab(x) && x.style !== 'bald', get: x => x.hair },
   { k: 'head', get: x => (x.cap !== null && x.cap !== undefined ? 'c' + x.cap : !witnessNoHijab(x) ? 'h' + x.hijab : 'none') },
   { k: 'glasses', get: x => (x.sun ? 'sun' : x.glasses ? 'glasses' : 'none') },
   { k: 'eyes', when: x => !x.sun, get: x => x.eyes },

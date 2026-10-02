@@ -239,7 +239,7 @@ a room's state; `lzWait`, `lzRun`, `lzEnsure`); a reload onto a game gets its
 chunk written in before start-up (`lzBootWrite`). The worker keeps chunks in
 `g-chunks` across builds and fetches them all when a build installs, so one
 visit still plays every game offline; `docs/g/` keeps the last four builds'
-files. The budget is the shell's (710 KB gzipped); `LAZY=0` builds one page.
+files. The budget is the shell's (720 KB gzipped; raised from 710 by the owner on 2 Oct 2026); `LAZY=0` builds one page.
 
 - **A new game file goes into `CHUNKS` in `tools/lazy-split.mjs`** (or
   `SHELL_FILES` when every screen needs it); a screen it can't place goes into

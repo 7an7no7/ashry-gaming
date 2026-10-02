@@ -1,0 +1,266 @@
+<script>
+/* ============================================================================
+   خمّن الدولة — «جولة حول العالم», A FLAG STREAK (the owner, 2 Oct 2026)
+   ----------------------------------------------------------------------------
+   A third way inside خمّن الدولة (beside 🏳️ from the flag and 🧭 by distance),
+   one phone, no clock: a flag and four names. A right answer flies the flag
+   into the score; a wrong one breaks a heart (three hearts). The first 10
+   flags come from tier 1 of Countries.js, the next 10 from tier 2, then tier 3
+   (FLAG_TOUR_TIER_AT); a tier that has run out within the run hands over to the
+   next. The three wrong names are from the flag's own continent, nearest tier
+   first (flagTourDecoys). Flags are dealt through freshPick per tier, so a new
+   run doesn't open on the last run's flags. The best run (flags right) is kept
+   under soloBest('flags', 'tour').
+
+   It lives in appState.flags beside the other two ways (playMode 'tour', the
+   run in s.tour = { hearts, score, asked, cur, choices, picked }), on the same
+   screen (#flags-stage): paintFlags, startFlags, restoreFlags and
+   flagsHasWork (JS_Flags.html) hand a tour to the functions here. A reload
+   mid-run comes back on the same flag; one that came after an answer and
+   before the next flag deals the next one (or ends the run) at once.
+   ========================================================================= */
+
+/* The run's own words, here in its chunk rather than the shell's TRANSLATIONS (the shell's
+   budget; notes/lazy-load.md, *The budget was full*). */
+const FLT_TEXT = {
+  ar: {
+    hint: "علم و4 أسامي ومعاك 3 قلوب، من غير وقت. كل 10 أعلام الدول بتبقى أصعب.",
+    hearts: "القلوب",
+    stage_1: "دول مشهورة",
+    stage_2: "أصعب شوية",
+    stage_3: "بعيدة وصغيرة",
+    unit: "علم",
+    unit_long: "علم صح",
+    best: "أحسن جولة",
+    reached: "وصلت لـ",
+    over: "خلصت القلوب",
+    world: "لفّيت العالم كله! 🌍"
+  },
+  en: {
+    hint: "A flag and four names, three hearts, no clock. Every 10 flags the countries get harder.",
+    hearts: "Hearts",
+    stage_1: "Well-known",
+    stage_2: "A bit harder",
+    stage_3: "Far and small",
+    unit: "flags",
+    unit_long: "flags right",
+    best: "Best run",
+    reached: "Reached",
+    over: "Out of hearts",
+    world: "You went round the whole world! 🌍"
+  }
+};
+const fltT = () => FLT_TEXT[appState.lang] || FLT_TEXT.ar;
+
+const FLAG_TOUR_HEARTS = 3;
+const FLAG_TOUR_TIER_AT = [10, 20];          // flags shown before tier 2, before tier 3
+const FLAG_TOUR_NEXT_MS = { right: 950, wrong: 1600 };   // the answer stays up this long
+
+const flagTourTierOf = (shown) => (shown < FLAG_TOUR_TIER_AT[0] ? 1 : (shown < FLAG_TOUR_TIER_AT[1] ? 2 : 3));
+
+/** The next flag of the run: its tier by how many were shown, never one asked this run. False when the world is done. */
+function flagTourDeal(s) {
+  const tr = s.tour;
+  const asked = new Set(tr.asked);
+  const want = flagTourTierOf(tr.asked.length);
+  // The tier the run is in; if this run has used all of it, the next one up, then any left.
+  const order = [1, 2, 3].filter(t => t >= want).concat([1, 2, 3].filter(t => t < want).reverse());
+  let pick = null;
+  for (const tier of order) {
+    const pool = COUNTRIES.filter(c => c.tier === tier && !asked.has(c.code));
+    if (!pool.length) continue;
+    pick = freshPick('flags:tour:' + tier, pool, 1, { key: c => c.code })[0];
+    if (pick) break;
+  }
+  if (!pick) return false;
+  tr.cur = pick.code;
+  tr.asked.push(pick.code);
+  tr.choices = soloShuffle([pick].concat(flagTourDecoys(pick))).map(c => c.code);
+  tr.picked = '';
+  s.answer = pick.code;
+  return true;
+}
+
+/** Three wrong names from the flag's own continent, the nearest tier first; another continent only if it has too few. */
+function flagTourDecoys(answer) {
+  const others = soloShuffle(COUNTRIES.filter(c => c.code !== answer.code));
+  const near = (c) => Math.abs(c.tier - answer.tier);
+  const same = others.filter(c => c.cont === answer.cont).sort((a, b) => near(a) - near(b));
+  const rest = others.filter(c => c.cont !== answer.cont).sort((a, b) => near(a) - near(b));
+  return same.concat(rest).slice(0, 3);
+}
+
+function startFlagTour(sure) {
+  if (!sure && soloConfirmNew('flags', flagsHasWork, () => startFlagTour(true))) return;
+  soloDailySetAside('flags');
+  soloNewGame('flags');
+  const s = flagsState();
+  Object.assign(s, {
+    daily: '', playMode: 'tour', playLevel: 'tour', lang: contentLang() === 'en' ? 'en' : 'ar',
+    guesses: [], query: '', phase: 'play', startedAt: Date.now(),
+    tour: { hearts: FLAG_TOUR_HEARTS, score: 0, asked: [], cur: '', choices: [], picked: '' }
+  });
+  flagTourDeal(s);
+  saveToLocal();
+  setView('play-flags');
+  paintFlagTour('in');
+  flagsEnsureFont();
+}
+
+function flagTourHearts(tr) {
+  return Array.from({ length: FLAG_TOUR_HEARTS }, (_, i) => `<span class="streak-heart${i < tr.hearts ? '' : ' is-lost'}" data-h="${i}">❤️</span>`).join('');
+}
+
+/**
+ * The run as one card: the hearts, the stage and the flags right as chips, the
+ * big flag, «علم أنهي دولة ده؟» and the four names. `fx`: 'in' a new flag pops
+ * in, 'right' the flag flies into the score, 'wrong' a heart breaks.
+ */
+function paintFlagTour(fx) {
+  const s = flagsState();
+  const tr = s.tour;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const el = document.getElementById('flags-stage');
+  const target = tr && flagCountry(tr.cur);
+  if (!el || !target) return;
+  const over = s.phase !== 'play';
+  const answered = !!tr.picked || over;
+  const stage = flagTourTierOf(Math.max(0, tr.asked.length - 1));
+  const choices = tr.choices.map(code => {
+    const c = flagCountry(code);
+    const cls = !answered ? '' : (code === tr.cur ? ' is-right' : (code === tr.picked ? ' is-wrong' : ''));
+    return `<button type="button" class="solo-choice flt-choice${cls}" data-code="${code}" ${answered ? 'disabled' : ''} onclick="flagTourAnswer('${code}')">${escapeHTML(flagName(c, s.lang))}</button>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="flg flt">
+      <div class="card flg-card flt-card">
+        <div class="flg-head flt-head">
+          <span class="streak-hearts stk-hearts" id="flt-hearts" role="img" aria-label="${escapeHTML(fltT().hearts || '')}: ${tr.hearts}/${FLAG_TOUR_HEARTS}">${flagTourHearts(tr)}</span>
+          <span class="chip chip--plain play-chip">${escapeHTML(fltT()['stage_' + stage] || '')}</span>
+          <span class="chip chip--plain play-chip">🌍 <b class="metric" id="flt-score">${tr.score}</b> ${escapeHTML(fltT().unit || '')}</span>
+        </div>
+        <div class="flg-target flt-target">
+          <span class="flag-emoji flg-target__flag" id="flt-flag">${flagEmoji(tr.cur)}</span>
+          <span class="flg-target__ask">${over ? `<b>${escapeHTML(flagName(target, s.lang))}</b>` : escapeHTML(t.flags_ask_flag || '')}</span>
+        </div>
+        <div class="solo-choices stk-choices flt-choices" id="flt-choices">${choices}</div>
+      </div>
+      <div class="view-actions talk__actions flg-actions">
+        ${over ? `<button type="button" class="btn btn--primary btn--lg" onclick="startFlagTour()">${escapeHTML(t.play_again || '')}</button>` : ''}
+        <div class="talk__pair">
+          <button class="btn btn--ghost btn--sm" onclick="setupFlags()">${escapeHTML(t.exit || '')}</button>
+        </div>
+      </div>
+    </div>`;
+  flagTourMotion(fx, tr);
+}
+
+/** The moments: a new flag pops in; a right answer flies the flag into the score; a lost heart breaks and falls. */
+function flagTourMotion(fx, tr) {
+  if (!fx || motionOff()) return;
+  const flag = document.getElementById('flt-flag');
+  if (fx === 'in') {
+    if (flag && flag.animate) flag.animate([{ transform: 'scale(0.4) rotate(-12deg)', opacity: 0 }, { transform: 'scale(1.12) rotate(3deg)', opacity: 1, offset: 0.6 }, { transform: 'none', opacity: 1 }],
+      { duration: 460, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+    return;
+  }
+  if (fx === 'right') {
+    const right = document.querySelector('#flt-choices .is-right');
+    soloPop(right, 1.08);
+    const score = document.getElementById('flt-score');
+    if (flag && score) {
+      const rect = flag.getBoundingClientRect();
+      const px = parseFloat(getComputedStyle(flag).fontSize) || 64;
+      flyEmoji(flagEmoji(tr.cur), rect, px, score, { arc: 60, duration: 620 });
+      setTimeout(() => { if (document.getElementById('flt-score') === score) countUp(score, tr.score - 1, tr.score); }, 600);
+    }
+    return;
+  }
+  if (fx === 'wrong') {
+    soloShake(document.getElementById('flt-choices'), 7);
+    if (flag && flag.animate) flag.animate([{ transform: 'none' }, { transform: 'rotate(-8deg) scale(0.94)' }, { transform: 'rotate(6deg)' }, { transform: 'none' }], { duration: 420, easing: 'ease-in-out' });
+    const heart = document.querySelector(`#flt-hearts [data-h="${tr.hearts}"]`);
+    if (heart && heart.animate) {
+      // The heart that went: it cracks (💔), jumps and falls, then sits dimmed with the others lost.
+      heart.textContent = '💔';
+      heart.classList.remove('is-lost');
+      const a = heart.animate([
+        { transform: 'scale(1)', opacity: 1 },
+        { transform: 'scale(1.7) rotate(-14deg)', opacity: 1, offset: 0.35 },
+        { transform: 'translateY(0.6em) rotate(18deg) scale(0.9)', opacity: 0.25 }
+      ], { duration: 720, easing: 'ease-in' });
+      const settle = () => { heart.textContent = '❤️'; heart.classList.add('is-lost'); };
+      a.onfinish = settle;
+      setTimeout(settle, 1200);
+    }
+  }
+}
+
+function flagTourAnswer(code) {
+  const s = flagsState();
+  const tr = s.tour;
+  if (s.phase !== 'play' || s.playMode !== 'tour' || !tr || tr.picked || tr.choices.indexOf(code) === -1) return;
+  tr.picked = code;
+  const right = code === tr.cur;
+  if (right) tr.score++; else tr.hearts--;
+  saveToLocal();
+  haptic(right ? 'light' : 'medium');
+  playSound(right ? 'success' : 'miss');
+  paintFlagTour(right ? 'right' : 'wrong');
+  soloLater('flags', right ? FLAG_TOUR_NEXT_MS.right : FLAG_TOUR_NEXT_MS.wrong, flagTourNext);
+}
+
+/** After an answer: the next flag, or the end of the run (no hearts left, or every country seen). */
+function flagTourNext() {
+  const s = flagsState();
+  const tr = s.tour;
+  if (s.phase !== 'play' || s.playMode !== 'tour' || !tr || !tr.picked) return;
+  if (tr.hearts <= 0) { flagTourFinish(false); return; }
+  if (!flagTourDeal(s)) { flagTourFinish(true); return; }
+  saveToLocal();
+  paintFlagTour('in');
+}
+
+function flagTourFinish(world) {
+  const s = flagsState();
+  const tr = s.tour;
+  const t = TRANSLATIONS[appState.lang] || {};
+  s.phase = 'done';
+  saveToLocal();
+  const score = tr.score;
+  const rec = score > 0 ? soloRecord('flags', 'tour', { score: score }, (a, b) => a.score > b.score) : { record: false, prev: soloBest('flags', 'tour') };
+  paintFlagTour();
+  const stage = flagTourTierOf(Math.max(0, tr.asked.length - 1));
+  const lines = [`${escapeHTML(fltT().reached || '')}: <b>${escapeHTML(fltT()['stage_' + stage] || '')}</b>`];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(fltT().best || '')}: ${rec.prev.score}`);
+  soloLater('flags', motionOff() ? 0 : 500, () => soloResult({
+    icon: '🌍',
+    title: world ? (fltT().world || '') : (rec.record ? (t.solo_new_best || '') : (fltT().over || '')),
+    value: score, valueLabel: fltT().unit_long || fltT().unit || '', lines: lines, win: world || rec.record,
+    again: () => startFlagTour(), exit: setupFlags
+  }));
+}
+
+/** A reload: back on the same flag; an answer already given moves on now. */
+function restoreFlagTour() {
+  const s = flagsState();
+  const tr = s.tour;
+  if (!tr || !tr.cur || (s.phase !== 'play' && s.phase !== 'done')) return false;
+  flagsEnsureFont();
+  if (s.phase === 'play' && tr.picked) {
+    // The answer was given before the reload: the next flag, or the run's end, as it would have come.
+    if (tr.hearts <= 0) { paintFlagTour(); setTimeout(() => flagTourFinish(false), 0); return true; }
+    if (!flagTourDeal(s)) { paintFlagTour(); setTimeout(() => flagTourFinish(true), 0); return true; }
+    saveToLocal();
+  }
+  paintFlagTour();
+  return true;
+}
+
+/** The setup's line under the ways: the best run. */
+function flagTourBestText() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const best = soloBest('flags', 'tour');
+  return best ? `${fltT().best || ''}: ${best.score} ${fltT().unit || ''}` : '';
+}
+</script>

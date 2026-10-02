@@ -69,7 +69,7 @@ export const CHUNKS = {
   wordsolo: ['JS_WordSearch', 'JS_Pinpoint', 'Strands.js', 'Pinpoint.js'],
   wordwheel: ['JS_WordWheel', 'WordWheel.js'],   // its dictionary is every word list's
   streak: ['JS_QuizStreak', 'QuizStreak.js', 'TriviaQuestions.js'],
-  flags: ['JS_Flags'],
+  flags: ['JS_Flags', 'JS_FlagsTour'],
   headsup: ['JS_HeadsUp'],
   cardscore: ['JS_CardScore', 'JS_CardRules'],
   chooser: ['JS_Chooser'],

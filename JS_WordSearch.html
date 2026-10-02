@@ -17,6 +17,18 @@
    play the room's puzzle: the words are on the server, so every traced line
    is sent (`move { cells }`) and the words found come back and land in their
    slots with the same flight. No hint in a race.
+
+   «من كلماتنا» (the owner, 2 Oct 2026): the setup's «الكلمات» switch deals
+   the family's words instead (s.source 'pack'): a word pack on this phone
+   (packWordPacks, JS_PackStore.html: the own «كلماتنا» and the crews') or one
+   opened by its 6-letter code (packFetch; kept in s.codePack, not as the
+   phone's own pack). strandsPackMake hides the words of 3-8 letters in the
+   grid's alphabet (the one most of them are written in, so English packs
+   play in English); «الخيط الملوّن» (span: true, its own colour) is the
+   pack's name when it is one word that fits, else its longest word; too
+   few, and a theme of the app's bank tops it up (ours: true, «من عندنا» on
+   its slot). Never the daily, and no best kept (every family's grid is its
+   own).
    ========================================================================= */
 
 let strandsTimer = null;
@@ -42,7 +54,10 @@ function paintStrandsSetup() {
   const s = strandsState();
   const t = TRANSLATIONS[appState.lang];
   document.querySelectorAll('#strands-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
-  const best = soloBest('strands', s.level);
+  const fromPack = s.source === 'pack';
+  document.querySelectorAll('#strands-source .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === (fromPack ? 'pack' : 'app')));
+  strandsPaintPack();
+  const best = fromPack ? null : soloBest('strands', s.level);
   const el = document.getElementById('strands-best');
   if (el) el.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
   const cont = document.getElementById('strands-continue');
@@ -57,10 +72,262 @@ function setStrandsLevel(level) {
   paintStrandsSetup();
 }
 
+/* --- «من كلماتنا»: the family's words as the words to find ---------------------------- */
+
+/* The game's own words, here in its chunk rather than the shell's TRANSLATIONS (the shell's
+   budget; notes/lazy-load.md, *The budget was full*). */
+const STRANDS_TEXT = {
+  ar: {
+    theme_label: "الموضوع",
+    found: "لقيت",
+    done: "لقيت كل الكلمات! 🧵",
+    label: "أنهي كلمات؟",
+    none: "مفيش «كلماتنا» على الموبايل ده. افتحها بكودها، أو اعملها من الأدوات.",
+    code: "أو افتح كلمات بكودها",
+    make: "✍️ اعمل كلماتنا",
+    hint: "الكلمات اللي من 3 لـ 8 حروف بتستخبى في الشبكة، والأطول بتتشال. لو مش كفاية بنكمّل بكلمات من عندنا.",
+    opened: "اتفتحت: {t}",
+    notwords: "الكود ده لمسابقة، مش كلمات",
+    offline: "مش متصل بالنت، جرّب تاني لما يرجع",
+    few: "مفيش كلمات كفاية تنفع في الشبكة دي",
+    span: "الخيط الملوّن",
+    ours: "من عندنا",
+    theme: "كلمات العيلة"
+  },
+  en: {
+    theme_label: "Theme",
+    found: "Found",
+    done: "Every word found! 🧵",
+    label: "Which words?",
+    none: "No «Our words» on this phone. Open them by their code, or make them in Tools.",
+    code: "Or open words by their code",
+    make: "✍️ Make our words",
+    hint: "Words of 3 to 8 letters are hidden in the grid; longer ones are left out. Too few, and we top up with words of ours.",
+    opened: "Opened: {t}",
+    notwords: "That code is a quiz, not words",
+    offline: "Not online, try again when you are",
+    few: "Not enough words that fit in this grid",
+    span: "The coloured thread",
+    ours: "From us",
+    theme: "The family's words"
+  }
+};
+const strandsT = () => STRANDS_TEXT[appState.lang] || STRANDS_TEXT.ar;
+
+const STRANDS_PACK_MIN = 3, STRANDS_PACK_MAX = 8;   // letters a family word may have to be hidden
+const STRANDS_PACK_OWN = 2;                          // family words (the thread among them) a grid needs at least
+
+function setStrandsSource(source) {
+  strandsState().source = source === 'pack' ? 'pack' : 'app';
+  saveToLocal();
+  paintStrandsSetup();
+}
+
+/** Every word pack the setup offers: this phone's (its own and its crews'), then the one opened by code. */
+function strandsPackList() {
+  const s = strandsState();
+  const out = (typeof packWordPacks === 'function' ? packWordPacks() : []).map(p => ({ id: p.id, code: p.code, title: p.title, name: p.name, words: p.words }));
+  const cp = s.codePack;
+  if (cp && cp.code && Array.isArray(cp.words) && !out.some(p => p.code === cp.code)) {
+    out.push({ id: 'code:' + cp.code, code: cp.code, title: cp.title || '', name: '✍️ ' + (cp.title || '') + ' · ' + cp.code, words: cp.words });
+  }
+  return out;
+}
+
+function strandsPackPicked() {
+  const list = strandsPackList();
+  return list.find(p => p.id === strandsState().packId) || list[0] || null;
+}
+
+function setStrandsPack(id) {
+  strandsState().packId = String(id || '');
+  saveToLocal();
+}
+
+/** The «من كلماتنا» panel: the packs as a list, a code to open, and what fits. */
+function strandsPaintPack() {
+  const box = document.getElementById('strands-pack');
+  if (!box) return;
+  const s = strandsState();
+  const t = TRANSLATIONS[appState.lang] || {};
+  box.classList.toggle('hidden', s.source !== 'pack');
+  if (s.source !== 'pack') return;
+  const typed = (document.getElementById('strands-pack-code') || {}).value || '';
+  const list = strandsPackList();
+  const pick = strandsPackPicked();
+  box.innerHTML = `
+    ${list.length ? `
+      <label class="field__label" for="strands-pack-pick">${escapeHTML(strandsT().label || '')}</label>
+      <select id="strands-pack-pick" onchange="setStrandsPack(this.value)">
+        ${list.map(p => `<option value="${escapeHTML(p.id)}" ${pick && p.id === pick.id ? 'selected' : ''}>${escapeHTML(p.name)} · ${p.words.length}</option>`).join('')}
+      </select>` : `<p class="field__hint">${escapeHTML(strandsT().none || '')}</p>`}
+    <label class="field__label" for="strands-pack-code">${escapeHTML(strandsT().code || '')}</label>
+    <div class="input-group">
+      <input type="text" id="strands-pack-code" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false"
+             dir="ltr" class="qm-code-in" placeholder="${escapeHTML(t.qm_open_code_ph || '')}" value="${escapeHTML(typed)}"
+             onkeydown="if(event.key==='Enter') strandsOpenCode()">
+      <button type="button" class="btn btn--secondary btn--auto" onclick="strandsOpenCode()">${escapeHTML(t.qm_open_btn || '')}</button>
+    </div>
+    ${list.length ? '' : `<button type="button" class="btn btn--ghost btn--sm" onclick="catalogOpen('wordpack')">${escapeHTML(strandsT().make || '')}</button>`}
+    <p class="field__hint">${escapeHTML(strandsT().hint || '')}</p>`;
+}
+
+/** A pack by its code: fetched (not made the phone's own «كلماتنا»), kept for this game, and picked. */
+async function strandsOpenCode() {
+  const s = strandsState();
+  const t = TRANSLATIONS[appState.lang] || {};
+  const input = document.getElementById('strands-pack-code');
+  const code = packCode(input ? input.value : '');
+  if (!PACK_CODE_RE.test(code)) { showToast(packErrorText('not_found'), 'error'); return; }
+  const have = strandsPackList().find(p => p.code === code);
+  if (have) {
+    s.packId = have.id;
+    if (input) input.value = '';
+    saveToLocal();
+    strandsPaintPack();
+    return;
+  }
+  showToast(t.qm_opening || '', 'info');
+  let got;
+  try { got = await packFetch(code); } catch (e) {
+    showToast(e.message === 'offline' ? (strandsT().offline || '') : packErrorText(e.message), 'error');
+    return;
+  }
+  if (got.kind !== 'words' || !got.pack || !Array.isArray(got.pack.words)) { showToast(strandsT().notwords || '', 'error'); return; }
+  const now = strandsState();
+  now.codePack = { code: got.code, title: got.pack.title || '', words: got.pack.words.slice() };
+  now.packId = 'code:' + got.code;
+  now.source = 'pack';
+  const field = document.getElementById('strands-pack-code');
+  if (field) field.value = '';
+  saveToLocal();
+  showToast((strandsT().opened || '').replace('{t}', got.pack.title || ''), 'success');
+  if (appState.currentView === 'setup-strands') paintStrandsSetup();
+}
+
+/**
+ * A grid from a word pack: { size, lang, grid, words: [{ w, cells, span?, ours?, label? }] } or null.
+ * The thread (span) goes in first, then the family's words, then the bank's (ours) for the rest.
+ */
+function strandsPackMake(pack, level, rnd) {
+  const L = STRANDS_LEVELS[level] || STRANDS_LEVELS.easy;
+  const words = (pack.words || []).map(w => String(w || '').trim()).filter(Boolean);
+  // The grid's alphabet is the one most of the family's words are written in.
+  const arCount = words.filter(w => /[ء-ي]/.test(w)).length;
+  const enCount = words.filter(w => /[A-Za-z]/.test(w)).length;
+  const lang = enCount > arCount ? 'en' : 'ar';
+  const re = lang === 'en' ? /^[A-Z]+$/ : /^[ء-ي]+$/;
+  const fits = (w) => re.test(w) && w.length >= STRANDS_PACK_MIN && w.length <= STRANDS_PACK_MAX;
+  const seen = new Set();
+  let mine = [];
+  words.forEach(w => {
+    const f = strandsFold(w, lang);
+    if (fits(f) && !seen.has(f)) { seen.add(f); mine.push(f); }
+  });
+  // «الخيط الملوّن»: the pack's name when it is one word that fits, else its longest word.
+  const title = strandsFold(String(pack.title || '').trim(), lang);
+  let thread = null;
+  if (fits(title)) {
+    thread = { w: title, span: true, label: String(pack.title).trim() };
+    seen.add(title);
+    mine = mine.filter(w => w !== title);
+  } else if (mine.length) {
+    const longest = mine.reduce((a, b) => (b.length > a.length ? b : a));
+    thread = { w: longest, span: true };
+    mine = mine.filter(w => w !== longest);
+  }
+  if (!thread || mine.length + 1 < STRANDS_PACK_OWN) return null;
+  const size = Math.max(L.size, thread.w.length, ...mine.map(w => w.length));
+  // The top-up: the app's own themes (freshPick, so they go round), never a word the family has.
+  const bank = [];
+  const db = CHAMELEON_DB[lang] || CHAMELEON_DB.ar;
+  const themes = freshPick('strands:ours:' + lang, db, Math.min(3, db.length), { key: th => th.category });
+  themes.forEach(th => soloShuffle(th.words, rnd).forEach(w => {
+    const f = strandsFold(w, lang);
+    if (re.test(f) && f.length >= 3 && f.length <= size && !seen.has(f)) { seen.add(f); bank.push({ w: f, ours: true }); }
+  }));
+  const dirs = lang === 'en'
+    ? [[0, 1], [1, 0], [1, 1]].concat(L.reverse ? [[0, -1], [-1, 0], [1, -1]] : [])
+    : [[0, -1], [1, 0], [1, -1]].concat(L.reverse ? [[0, 1], [-1, 0], [1, 1]] : []);
+  let fallback = null;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const order = [thread].concat(soloShuffle(mine, rnd).map(w => ({ w: w })), bank);
+    const grid = new Array(size * size).fill('');
+    const placed = [];
+    for (const item of order) {
+      if (placed.length >= L.words) break;
+      const w = item.w;
+      const back = w.split('').reverse().join('');
+      // A word inside another placed word (either way round) would be found twice.
+      if (placed.some(p => p.w.indexOf(w) !== -1 || w.indexOf(p.w) !== -1 || p.w.indexOf(back) !== -1 || back.indexOf(p.w) !== -1)) continue;
+      let cellsAt = null;
+      const starts = soloShuffle(Array.from({ length: size * size }, (_, k) => k), rnd);
+      for (const start of starts) {
+        for (const [dr, dc] of soloShuffle(dirs, rnd)) {
+          const r0 = Math.floor(start / size), c0 = start % size;
+          const cells = [];
+          let ok = true;
+          for (let k = 0; k < w.length; k++) {
+            const r = r0 + dr * k, c = c0 + dc * k;
+            if (r < 0 || r >= size || c < 0 || c >= size) { ok = false; break; }
+            const i = r * size + c;
+            if (grid[i] && grid[i] !== w[k]) { ok = false; break; }
+            cells.push(i);
+          }
+          if (ok) { cellsAt = cells; break; }
+        }
+        if (cellsAt) break;
+      }
+      if (!cellsAt) { if (item.span) break; continue; }
+      cellsAt.forEach((i, k) => { grid[i] = w[k]; });
+      placed.push(Object.assign({}, item, { cells: cellsAt }));
+    }
+    if (placed.length < L.words || !placed[0] || !placed[0].span) continue;
+    if (placed.filter(p => !p.ours).length < STRANDS_PACK_OWN) continue;
+    const letters = placed.map(p => p.w).join('').split('');
+    const empty = [];
+    for (let i = 0; i < grid.length; i++) if (!grid[i]) empty.push(i);
+    let clean = false;
+    for (let fill = 0; fill < 12 && !clean; fill++) {
+      empty.forEach(i => { grid[i] = letters[Math.floor(rnd() * letters.length)]; });
+      clean = placed.every(p => strandsCopies(grid, size, p.w) === 1);
+    }
+    const made = { size: size, lang: lang, grid: grid, words: placed };
+    if (clean) return made;
+    fallback = fallback || made;
+  }
+  return fallback;
+}
+
+function startStrandsPack(sure) {
+  if (!sure && soloConfirmNew('strands', strandsHasWork, () => startStrandsPack(true))) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const s = strandsState();
+  const pack = strandsPackPicked();
+  if (!pack) { showToast(strandsT().none || '', 'error'); return; }
+  const made = strandsPackMake(pack, s.level, soloRandom(null));
+  if (!made) { showToast(strandsT().few || '', 'error'); return; }
+  soloDailySetAside('strands');
+  soloNewGame('strands');
+  Object.assign(s, {
+    // The theme names the pack, unless the pack's name is the thread itself: then it would give it away.
+    daily: '', playLevel: s.level, lang: made.lang, size: made.size, icon: '✍️',
+    theme: made.words[0].label ? (strandsT().theme || '') : (pack.title || t.wp_title_default || ''),
+    grid: made.grid, words: made.words, found: [], hints: [], startedAt: Date.now(), pausedAt: 0, seconds: 0, phase: 'play',
+    pack: { code: pack.code || '', title: pack.title || '' }
+  });
+  if (pack.code && typeof packPlayed === 'function') packPlayed(pack.code);
+  saveToLocal();
+  setView('play-strands');
+  paintStrands();
+  strandsArmTimer();
+}
+
 // A grid with a word found: a new one asks first (soloConfirmNew).
 const strandsHasWork = (s) => (s.found || []).length > 0;
 
 function startStrands(daily, sure) {
+  if (!daily && strandsState().source === 'pack') { startStrandsPack(sure); return; }
   if (!sure && soloConfirmNew('strands', strandsHasWork, () => startStrands(daily, true))) return;
   if (daily && soloDailyResume('strands')) return;
   const s = strandsState();
@@ -75,6 +342,7 @@ function startStrands(daily, sure) {
   soloDailySetAside('strands');
   soloNewGame('strands');
   s.daily = daily ? soloToday() : '';
+  s.pack = null;
   s.playLevel = level;
   s.lang = lang;
   s.size = made.size;
@@ -120,9 +388,10 @@ function paintStrands() {
   const el = soloStage('strands-stage');
   if (!el || !s.grid.length) return;
   const foundCells = {};
-  s.found.forEach((wi, n) => (s.words[wi].cells || []).forEach(i => { foundCells[i] = (foundCells[i] || []).concat(n % 6); }));
+  // «الخيط الملوّن» has its own colour (fs); the rest take the six in turn.
+  s.found.forEach((wi, n) => (s.words[wi].cells || []).forEach(i => { foundCells[i] = (foundCells[i] || []).concat(s.words[wi].span ? 's' : n % 6); }));
   const bar = soloBarHtml([
-    { label: t.strands_found || '', value: `${s.found.length}/${s.words.length}`, id: 'strands-count' },
+    { label: strandsT().found || '', value: `${s.found.length}/${s.words.length}`, id: 'strands-count' },
     { label: t.solo_time || '', value: soloTime(s.phase === 'play' ? (Date.now() - s.startedAt) / 1000 : s.seconds), id: 'strands-time' }
   ]);
   el.innerHTML = `
@@ -134,13 +403,15 @@ function paintStrands() {
       </div>
       <div class="solo-layout__side">
         <div class="strands-theme"><span class="strands-theme__icon" aria-hidden="true">${s.icon || '🧵'}</span>
-          <span><span class="eyebrow">${escapeHTML(t.strands_theme || '')}</span><b>${escapeHTML(s.theme)}</b></span>${s.daily ? ' <span class="badge">📅</span>' : ''}</div>
+          <span><span class="eyebrow">${escapeHTML(strandsT().theme_label || '')}</span><b>${escapeHTML(s.theme)}</b></span>${s.daily ? ' <span class="badge">📅</span>' : ''}</div>
         ${bar}
         <div class="strands-words" id="strands-words">
           ${s.words.map((w, wi) => {
             const found = s.found.indexOf(wi) !== -1;
             const hinted = s.hints.indexOf(wi) !== -1;
-            return `<span class="strands-word${found ? ' is-found' : ''}" data-w="${wi}">${found ? escapeHTML(w.w) : `${hinted ? escapeHTML(w.w[0]) : ''}${'<i></i>'.repeat(strandsLen(w) - (hinted ? 1 : 0))}`}</span>`;
+            const tag = w.span ? `<span class="strands-word__tag">🧵 ${escapeHTML(strandsT().span || '')}</span>`
+              : (w.ours ? `<span class="strands-word__tag">${escapeHTML(strandsT().ours || '')}</span>` : '');
+            return `<span class="strands-word${found ? ' is-found' : ''}${w.span ? ' strands-word--span' : ''}${w.ours ? ' strands-word--ours' : ''}" data-w="${wi}">${tag}${found ? escapeHTML(w.label || w.w) : `${hinted ? escapeHTML(w.w[0]) : ''}${'<i></i>'.repeat(strandsLen(w) - (hinted ? 1 : 0))}`}</span>`;
           }).join('')}
         </div>
         ${s.race ? '' : `<div class="sdk-tools">
@@ -272,7 +543,9 @@ function strandsFinish() {
   s.seconds = seconds;
   saveToLocal();
   const level = s.playLevel || s.level;
-  const rec = s.hints.length || s.archive ? { record: false, prev: soloBest('strands', level) }
+  // A family's grid («من كلماتنا») keeps no best: every pack is its own puzzle.
+  const rec = s.pack ? { record: false, prev: null }
+    : s.hints.length || s.archive ? { record: false, prev: soloBest('strands', level) }
     : soloRecord('strands', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
   let share = '';
   if (s.daily) {
@@ -283,7 +556,7 @@ function strandsFinish() {
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
   const shareLines = s.daily ? lines.slice(1) : lines;   // a daily's picture never names the theme
   soloLater('strands', motionOff() ? 0 : 900, () => soloResult({
-    icon: '🧵', title: rec.record ? (t.solo_new_best || '') : (t.strands_done || ''),
+    icon: '🧵', title: rec.record ? (t.solo_new_best || '') : (strandsT().done || ''),
     valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, shareLines: shareLines, win: true, share: share,
     again: () => startStrands(false), exit: setupStrands
   }));
@@ -299,7 +572,7 @@ function restoreStrands() {
 
 soloRegister('strands', {
   setup: 'setup-strands', play: 'play-strands', paintSetup: paintStrandsSetup, restore: restoreStrands,
-  state: strandsState, resume: continueStrands, repaint: paintStrands, timed: true, prefs: ['level']
+  state: strandsState, resume: continueStrands, repaint: paintStrands, timed: true, prefs: ['level', 'source', 'packId', 'codePack']
 });
 
 /* --- سباق ألغاز: the same grid, raced (JS_RoomRace.html) ------------------------------ */

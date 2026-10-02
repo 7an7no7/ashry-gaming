@@ -101,6 +101,16 @@ help); the rules are named `chairs` / `CHAIRS_`, the page's code `mch` / `MCH_`.
   false start, taps ranked by their stamps, a quiet phone, the end, play
   again with a latecomer, a leave).
 
+## «الدي جي» - the one out stops the music: answered, not built yet (the owner, 2 Oct 2026)
+
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
+
+- **(248) A player who is out runs the music.** This changes the 27 Sep rule that the stop is a server secret, only while the switch is on (fair because the DJ is already out).
+  - **A lobby switch «دي جي من اللي خرج», off by default**: off, the game is exactly as today. Round 1 always uses the secret stop (nobody is out yet).
+  - **The latest one out is the DJ**: each round the job passes to whoever just went out.
+  - **The DJ has «وقّف» and, if the fake-stops switch is on, «وقفة خداعية».** The stop can't come in the first 4 s of the music; **if the DJ hasn't stopped by 25 s, the server stops it** by itself.
+  - **No points for the DJ**; the end shows the title «أحلى دي جي» for whoever caught the most people with a fake stop.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

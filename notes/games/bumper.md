@@ -137,6 +137,16 @@ and *The TV as the console*). Game id `bumper` everywhere; the page's code is
 
 **The review of 1 Oct 2026.** No round without a big screen: `start` and `playAgain` are refused unless a screen is online (`room._onlineScreens`, set by `room.js` for the one move; a test or a program's clock without it counts any screen in the room), and the lobby greys Start with «تبدأ لما شاشة العرض تفتح في الغرفة» under it (`ROOM_GAMES.bumper.startBlock`, read by the lobby in `JS_Room.html`). A TV reloaded mid-round picks the round up: the lead screen keeps the cars, scores, balloons and eliminations in `sessionStorage` (`ashryBmpTv`, keyed on `roomDealKey` and the round) every second, and `bmpTvStart` restores them (`bmpTvSave`, `bmpTvRestore`; a 3D car keeps only the balloons it had). With two screens only the lead one (`bmpIsLead`) runs the rink; the other shows «اللعبة شغالة على الشاشة التانية» (and the host's «end now») and takes over, from the start positions, if the lead goes.
 
+## «كورة التصادم» - a fourth way: answered, not built yet (the owner, 2 Oct 2026)
+
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
+
+- **(254) A big ball, two goals, two teams by car colour** - a fourth way in the lobby, inside the same card.
+  - **The clock ends it** (2, 3 or 5 minutes, like the other clocked ways; 3 by default); **a draw goes to a golden goal**: the next goal wins, at most one more minute, then a draw.
+  - **Everyone picks a side** (red or blue). Uneven sides are allowed; a computer player fills a side only when it is empty (1 v 1 works).
+  - **After a goal**: «جوووول!» big on the TV with the scorer's name, cars back to their own halves, the ball to the middle, 3-2-1, play.
+  - **Bumps push and score nothing**; only goals score. Turbo as always (every 4 s). No items (the 28 Sep decision stands).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

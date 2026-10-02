@@ -178,6 +178,15 @@ named `hear` / `HEAR_`, the page's code `hr` / `HR_`, the stylesheet section
   hand and one on the server's clock, a leaver), `validate-content.js` (360
   pictures: inside the page, names, a trace scoring 90%+).
 
+## Points for everyone over a line: answered, not built yet (the owner, 2 Oct 2026)
+
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
+
+- **(57) Extra points so the slow drawer stays in the game**, on top of 3 / 2 / 1 for the closest three and «أغرب رسمة»:
+  - **+1 to everyone whose drawing scores 50% or more** (the % from `hearScore`).
+  - **«اتحسنت» +1 to anyone who beats their own % from the last round** (not in round 1, there is nothing to beat). The two stack: one drawing can earn both.
+  - Always on, rooms and the TV.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

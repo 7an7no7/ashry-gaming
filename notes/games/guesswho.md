@@ -169,6 +169,17 @@ asker taps «خلصت» the answer stands. Every phone and the TV play the take-
 amber bubble («↶ منى رجّع إجابته», `gw_undone`, `.gw-bubble.is-undo`, `gwMoments`); the
 history skips it.
 
+## «فريق ضد فريق» (teams): answered, not built yet (the owner, 2 Oct 2026)
+
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
+
+- **(241) Two teams, one secret face each and one shared board per team.** Everything stays by hand, as the rework of 29 Sep decided (no list, nothing automatic, no computer players).
+  - **Everyone picks a side** on their phone in the lobby. Start needs at least one person on each side; lopsided sides are allowed.
+  - **Anyone on the team flips faces down**, and a flip goes down on every phone of that team at once - the arguing out loud is the game.
+  - **Anyone on the team answers** the other team's question: the first tap of نعم / لأ counts.
+  - **The final guess needs two phones**: one teammate picks the face, a second taps «متفقين» before it is sent.
+  - **A lobby switch from 4 people, off by default**; two-player خمّن مين stays as it is.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

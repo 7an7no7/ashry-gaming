@@ -152,6 +152,15 @@ list (`ROOM_HUB_GROUPS.race`, `ROOM_HUB_FAMILIES.race`, a drawn icon
   ending's rule (`race_finish_all_hint` / `race_finish_fast3_hint`) is the line at
   the foot. The result and the podium frames are as they were.
 
+## «خماسي السهرة» - a different puzzle each round: answered, not built yet (the owner, 2 Oct 2026)
+
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
+
+- **(454) A lobby choice where every round is a different puzzle**:
+  - **The app draws the line-up, all different, from the ten; the host can tap one to change it**; every phone sees the line-up before Start.
+  - **3 or 5 rounds** (the race's own choice); **each round gives the race's usual places and points, the totals make the podium**; the ending rule («الكل يخلّص» / the fast three) applies to every round.
+  - 2048 stays out (the 26 Sep decision).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

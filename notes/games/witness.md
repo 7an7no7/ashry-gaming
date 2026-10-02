@@ -141,6 +141,15 @@ id `witness` everywhere (`room-witness`, `ROOM_GAMES.witness`,
   `play-all.mjs` (`--only=witness`: four phones and a TV to the podium, and
   play again).
 
+## «الرسم مطابق 78%»: answered, not built yet (the owner, 2 Oct 2026)
+
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
+
+- **(228) At the reveal the app measures the sketch against the real face.**
+  - **Feature by feature, each feature the same weight** (hair, eyes, nose, mouth, beard, glasses… whatever the builder has); the TV ticks ✓ / ✗ beside the two faces while the % counts up (`countUp`).
+  - **At 70% or more the witness and the artist each get +1**, on top of their jury points. Under 70% the % is only for the laugh.
+  - Always on, rooms and the TV.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

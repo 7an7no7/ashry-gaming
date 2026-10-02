@@ -198,6 +198,17 @@ the cards in `UnoCards.js`), the owner's spec (see *The owner's specs*).
   (`unoT` wraps it in LRI...PDI, and card names do the same), or it reads
   "2+".
 
+## «أونو اتنين اتنين» (teams of two): answered, not built yet (the owner, 2 Oct 2026)
+
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
+
+- **(268) Partners, seated opposite each other** (play goes A1, B1, A2, B2…).
+  - **Everyone picks a team** in the lobby; **every team is exactly two**, as many teams as pairs (4, 6, 8, 10 or 12 players). Start says who still has no partner; a computer player can fill an empty seat.
+  - **The first partner out wins the round for both.** In rounds mode the pair scores the cards left in every opponent's hand; the partner's own leftover cards don't count against them.
+  - **A Skip, +2 or +4 can't land on your own partner**: the phone refuses it and says why (it can only happen next to your partner, after a Reverse).
+  - **You always see your partner's card count**, and can send one of three quick signals everyone sees: a colour (🔴🟢🔵🟡), «الحقني» or «سيبه ليا». Never the cards themselves.
+  - A lobby switch, off by default; the normal game is unchanged.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

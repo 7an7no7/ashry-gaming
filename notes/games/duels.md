@@ -296,6 +296,22 @@ such a phone can lose with little or no count shown.
 Tests: `rules.mjs`, "duels:" (forced, near the other games' forced moves), "duel away:" (in
 the duels-in-rooms block) and "tournament away:".
 
+## كونكت ٤ teams and «إكس أو الكبير»: answered, not built yet (the owner, 2 Oct 2026)
+
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
+
+- **(350) كونكت ٤, team against team («أحمر ضد أصفر»)**:
+  - **A lobby switch «فرق» from 4 people, off by default**; winner-stays and the tournament stay as they are.
+  - **Everyone picks a side** (أحمر / أصفر); Start needs at least one on each side, lopsided allowed.
+  - **A relay**: team members drop the team's disc in turn, one by one; the one whose turn it is decides, the rest may shout.
+  - **20 s a turn**; when it runs out the app drops in a column that doesn't hand the other team a win, and says so.
+
+- **(361) «إكس أو الكبير», nine boards in one**:
+  - The square you play sends your opponent to that small board; **sent to a board already won or full, they may play anywhere** (every open board lit).
+  - **Win three small boards in a row**; a drawn small board counts for nobody; if no line is possible any more, the most boards won wins, equal is a draw.
+  - **A size choice «المقاس: عادي / كبير»** everywhere X-O is: one phone, rooms with winner-stays and the tournament, the TV; computer players easy and hard. The 3-marks switch stays for the normal size only.
+  - **No move clock** (a thinking game, like normal X-O).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

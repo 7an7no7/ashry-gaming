@@ -372,6 +372,20 @@ dailies once and draws its list again (`renderDaily.asked`), so a board left hal
   The decoys draw from the same seeded dice, so a daily's rounds can differ from the
   version before for a category that had such a neighbour.
 
+## Sudoku for kids, 2048 sizes, خيوط from «كلماتنا», the flags map and streak: answered, not built yet (the owner, 2 Oct 2026)
+
+Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
+
+- **(415) سودوكو «للصغيرين»**: two kid sizes beside the normal levels, **4x4 and 6x6, with pictures instead of digits** (fruit or animals, the child picks the set; a 1-2-3 switch shows digits). **A mistake glows red at once and costs nothing**, a big 💡 fills one square, no limit; confetti and a star at the end; the time only if the parent turns it on.
+
+- **(420) 2048 board sizes**: **3x3 (wins at 256), 4x4 (2048, today's game) and 5x5 (4096)**, each with its own best, the size remembered. **Free play only**: no daily changes, and 2048 stays out of the race (the 26 Sep decision).
+
+- **(444) خيوط from «كلماتنا»**: on the setup, «من كلماتنا» lists the packs saved on this phone (or a 6-letter code). **The family's words are the ones to find**, words of 3-8 letters in the grid's alphabet, longer ones skipped; the long «الخيط الملوّن» is the pack's name or its longest word. **If the pack has too few fitting words, the normal خيوط bank tops it up**, those words marked «من عندنا» so the theme still reads right. Never the daily. Arabic and English packs both.
+
+- **(450) خمّن الدولة, a small map**: **always shown under the guesses** - a flat drawn world (the outlines baked once, no new data beyond them), each guess a pin coloured by distance (red far → green close), the answer's pin dropping with a flourish at the end; on one phone, the daily and the TV in rooms. **After the third guess the answer's continent glows** (a small help the owner asked for).
+
+- **(451) «جولة حول العالم», a flag streak**: a third way inside خمّن الدولة (not a card, not in the race for now), one phone. **A flag and four names; a wrong answer costs a heart, three hearts**; the first 10 flags from tier 1, then tier 2, then tier 3 (`Countries.js`'s tiers); the wrong names from the same continent; no clock; the best kept.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

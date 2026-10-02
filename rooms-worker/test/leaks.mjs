@@ -2251,7 +2251,16 @@ const DRIVERS = {
     must(T, T.host, 'playAgain', { mode: 'ring', ringWin: 'clock' });
     clock += 200000;
     runClock(T, (r) => r.shared.phase === 'over', 3);
-    return S(T).phase === 'over' && S(T).round === 4;
+    // «كورة التصادم»: sides picked between matches, goals from the screen, a golden goal.
+    must(T, 'p2', 'side', { side: 'blue' });
+    must(T, T.host, 'playAgain', { mode: 'ball', ballSecs: 120 });
+    clock = S(T).startAt + 1000;
+    must(T, SCREEN, 'goal', { round: S(T).round, n: 1, side: 'blue', by: 'p2' });
+    must(T, SCREEN, 'goal', { round: S(T).round, n: 2, side: 'red', by: 'p1' });
+    clock = S(T).endsAt + 1500;
+    runClock(T, (r) => r.shared.golden, 3);
+    must(T, SCREEN, 'goal', { round: S(T).round, n: 3, side: 'red', by: 'p3' });
+    return S(T).phase === 'over' && S(T).round === 5 && S(T).winner === 'red';
   },
   skull() {
     // Three people and two computer players: every person lays, adds, bets, passes, answers

@@ -6,7 +6,7 @@
  *   npm run test:rules      (builds generated/rules.js first)
  */
 import { readFileSync } from 'node:fs';
-import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, stopLettersFor, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
+import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, stopLettersFor, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, bumperJoined, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
 import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION_CATCH_WAIT_MS } from '../generated/rules.js';
 import { nextPrompts, programPlaces } from '../generated/rules.js';
@@ -11041,6 +11041,121 @@ Date.now = duelTestClock;
   check(r3.shared.roster.join() === 'a,b', "bumper: a player who leaves mid-round leaves the round's roster");
   applyRoomAction(r3, 'tvx', 'finish', { round: 2, done: true, scores: { a: { place: 2 }, b: { place: 1, lives: 1 } } });
   check(r3.shared.results.map(x => x.id).join() === 'b,a' && r3.shared.wins.b === 1, 'bumper: the leaver is not in the result');
+
+  // «كورة التصادم» (2 Oct 2026): sides picked on the phones, goals from the TV, the clock, the golden goal.
+  {
+    const b = newRoom(['a', 'b', 'c', 'd']);
+    b.screens = [{ id: 'tvb' }];
+    applyRoomAction(b, 'a', 'chooseGame', { game: 'bumper' });
+    check(threw(() => applyRoomAction(b, 'b', 'lobbyMode', { mode: 'ball' })) && !b.shared.lobbyMode, 'ball: only the host names the way in the lobby');
+    applyRoomAction(b, 'a', 'lobbyMode', { mode: 'ball' });
+    check(b.shared.lobbyMode === 'ball', 'ball: the host\'s way reaches every phone\'s lobby (the side picker)');
+    check(threw(() => applyRoomAction(b, 'b', 'side', { side: 'green' })), 'ball: a side is red or blue');
+    applyRoomAction(b, 'a', 'side', { side: 'blue' });
+    applyRoomAction(b, 'b', 'side', { side: 'blue' });
+    applyRoomAction(b, 'c', 'side', { side: 'blue' });
+    applyRoomAction(b, 'tvb', 'side', { side: 'red' });
+    check(b.shared.picks.a === 'blue' && b.shared.picks.c === 'blue' && !b.shared.picks.tvb, 'ball: each person picks a side on their phone; a screen has no car');
+    applyRoomAction(b, 'a', 'start', { mode: 'ball' });
+    let s = b.shared;
+    check(s.settings.mode === 'ball' && s.settings.ballSecs === 180 && s.endsAt - s.startAt === 180000, 'ball: three minutes by default');
+    check(s.sides.a === 'blue' && s.sides.b === 'blue' && s.sides.c === 'blue' && s.sides.d === 'red' && !Object.keys(s.cpu).length,
+      'ball: uneven sides are allowed; whoever didn\'t pick goes to the smaller side');
+    check(s.colors.a === 1 && s.colors.d === 0 && s.score.red === 0 && s.score.blue === 0, 'ball: the cars wear their side\'s colour, 0 - 0');
+    check(threw(() => applyRoomAction(b, 'b', 'side', { side: 'red' })) === false && s.sides.b === 'blue', 'ball: nobody changes sides mid-match');
+    clock = s.startAt + 1000;
+    applyRoomAction(b, 'b', 'goal', { round: s.round, n: 1, side: 'blue', by: 'b' });
+    check(s.score.blue === 0, 'ball: a player can\'t say there was a goal');
+    applyRoomAction(b, 'tvb', 'goal', { round: s.round, n: 1, side: 'blue', by: 'b' });
+    applyRoomAction(b, 'tvb', 'goal', { round: s.round, n: 1, side: 'blue', by: 'b' });
+    check(s.score.blue === 1 && s.goals.length === 1 && s.goals[0].name === 'B' && !s.goals[0].own, 'ball: the TV\'s goal counts once, however often it is sent');
+    applyRoomAction(b, 'tvb', 'goal', { round: s.round, n: 2, side: 'red', by: 'a' });
+    check(s.score.red === 1 && s.goals[1].own === true, 'ball: a goal in your own net is the other side\'s, an own goal');
+    applyRoomAction(b, 'tvb', 'finish', { round: s.round, done: true, scores: { a: { place: 1 } } });
+    check(s.phase === 'play', 'ball: the TV\'s result doesn\'t end a match: the clock does');
+    applyRoomAction(b, 'tvb', 'goal', { round: s.round, n: 3, side: 'blue', by: 'c' });
+    check(roomDeadline(b) === s.endsAt + 1500, 'ball: the server looks again at the whistle');
+    clock = s.endsAt + 1500;
+    roomTimeout(b, clock);
+    check(s.phase === 'over' && s.winner === 'blue' && s.results.filter(x => x.place === 1).map(x => x.id).sort().join() === 'a,b,c' &&
+      s.results.find(x => x.id === 'd').place === 2 && s.wins.a === 1 && s.wins.c === 1 && !s.wins.d,
+      'ball: at the whistle the side ahead wins, every member sharing first place');
+    check(s.results.find(x => x.id === 'b').score === 1 && s.results.find(x => x.id === 'a').taken === 1, 'ball: each driver\'s goals, an own goal apart');
+    check(s.board.length === 4 && s.board.filter(r => r.tie === 1).length === 3, 'ball: the night\'s board places the winners together');
+    applyRoomAction(b, 'd', 'side', { side: 'blue' });
+    applyRoomAction(b, 'a', 'side', { side: 'red' });
+    check(s.picks.d === 'blue' && s.picks.a === 'red', 'ball: between matches the sides can change');
+
+    // A draw at the whistle: a golden goal, at most a minute, then a draw.
+    applyRoomAction(b, 'a', 'playAgain', { mode: 'ball', ballSecs: 120 });
+    s = b.shared;
+    check(s.endsAt - s.startAt === 120000 && s.sides.a === 'red' && s.sides.d === 'blue' && s.round === 2, 'ball: play again keeps the way, takes the new length and sides');
+    clock = s.endsAt + 1500;
+    roomTimeout(b, clock);
+    check(s.phase === 'play' && s.golden === true && roomDeadline(b) === s.endsAt + 61500, '0 - 0 at the whistle: a golden goal, a minute at most');
+    clock = s.endsAt + 20000;
+    applyRoomAction(b, 'tvb', 'goal', { round: s.round, n: 1, side: 'blue', by: 'd' });
+    check(s.phase === 'over' && s.winner === 'blue' && s.wins.d === 1, 'ball: the golden goal wins it at once');
+    applyRoomAction(b, 'a', 'playAgain', { mode: 'ball', ballSecs: 300 });
+    s = b.shared;
+    check(s.endsAt - s.startAt === 300000, 'ball: five minutes');
+    clock = s.startAt + 5000;
+    applyRoomAction(b, 'tvb', 'goal', { round: s.round, n: 1, side: 'red', by: 'a' });
+    applyRoomAction(b, 'tvb', 'goal', { round: s.round, n: 2, side: 'blue', by: 'd' });
+    clock = s.endsAt + 1500; roomTimeout(b, clock);
+    check(s.golden && s.phase === 'play', '1 - 1: golden goal');
+    clock = s.endsAt + 61500; roomTimeout(b, clock);
+    check(s.phase === 'over' && s.winner === null && s.results.every(x => x.place === 1) && b.shared.wins.d === 1,
+      'ball: no golden goal in the minute: a draw, nobody wins');
+    // The host ends a match by hand: no golden goal.
+    applyRoomAction(b, 'a', 'playAgain', { mode: 'ball' });
+    s = b.shared;
+    applyRoomAction(b, 'a', 'endNow', {});
+    check(s.phase === 'over' && s.cut === true && s.winner === null, 'ball: the host\'s «end now» ends it as it stands, no golden goal');
+  }
+  {
+    // One person: a computer player takes the empty side (1 v 1); the room's computer player first.
+    const b = newRoom(['solo']);
+    b.screens = [{ id: 'tvb' }];
+    applyRoomAction(b, 'solo', 'chooseGame', { game: 'bumper' });
+    applyRoomAction(b, 'solo', 'side', { side: 'blue' });
+    applyRoomAction(b, 'solo', 'start', { mode: 'ball' });
+    let s = b.shared;
+    check(s.sides.solo === 'blue' && s.sides['cpu-red'] === 'red' && s.cpu['cpu-red'] === 'easy' && s.bots['cpu-red'] === 'easy' && s.roster.join() === 'solo',
+      'ball: alone, a computer player fills the empty side (1 v 1)');
+    applyRoomAction(b, 'solo', 'backToHub');
+    applyRoomAction(b, 'solo', 'chooseGame', { game: 'bumper' });
+    applyRoomAction(b, 'solo', 'addBot', { level: 'hard', name: 'زيزو' });
+    applyRoomAction(b, 'solo', 'addBot', { level: 'easy', name: 'بندق' });
+    applyRoomAction(b, 'solo', 'side', { side: 'blue' });
+    applyRoomAction(b, 'solo', 'start', { mode: 'ball' });
+    s = b.shared;
+    const zizo = b.players.find(p => p.name === 'زيزو').id;
+    check(s.sides[zizo] === 'red' && s.bots[zizo] === 'hard' && s.roster.length === 2 && !Object.keys(s.cpu).length,
+      'ball: the room\'s first computer player fills the empty side; the rest sit this one out');
+  }
+  {
+    // Someone leaves and their side is empty: a computer player takes over; a latecomer joins the smaller side.
+    const b = newRoom(['a', 'b', 'c']);
+    b.screens = [{ id: 'tvb' }];
+    applyRoomAction(b, 'a', 'chooseGame', { game: 'bumper' });
+    applyRoomAction(b, 'a', 'side', { side: 'red' });
+    applyRoomAction(b, 'b', 'side', { side: 'red' });
+    applyRoomAction(b, 'c', 'side', { side: 'blue' });
+    applyRoomAction(b, 'a', 'start', { mode: 'ball' });
+    const s = b.shared;
+    leave(b, 'c');
+    check(s.sides['cpu-blue'] === 'blue' && s.cpu['cpu-blue'] && s.roster.join() === 'a,b', 'ball: a side left empty gets a computer player');
+    b.players.push({ id: 'late', name: 'LATE' });
+    bumperJoined(b, 'late');
+    check(s.sides.late === 'blue' && s.colors.late === 1, 'ball: someone who joins mid-match is put on the side with fewer cars here, for good');
+    clock = s.startAt + 2000;
+    applyRoomAction(b, 'tvb', 'goal', { round: s.round, n: 1, side: 'blue', by: 'late' });
+    check(s.goals[0].by === 'late' && s.goals[0].own === false, 'ball: someone who joined mid-match plays on the smaller side and can score');
+    clock = s.endsAt + 1500; roomTimeout(b, clock);
+    check(s.phase === 'over' && s.winner === 'blue' && s.results.find(x => x.id === 'late').place === 1 && s.roster.indexOf('late') !== -1,
+      'ball: the latecomer is in the result and on the board');
+  }
 }
 
 /* --- الكراسي الموسيقية (27 Sep 2026): the stop is a server secret, taps are ranked fairly, one out a round --- */

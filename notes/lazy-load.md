@@ -320,3 +320,4 @@ On 2 Oct 2026 (ارسم اللي بتسمعه's and الشاهد's extras) the s
 
 **The budget raised to 720 KB (the owner, 2 Oct 2026).** Asked whether to keep 710 and move more out or raise it, the owner chose to raise it: `BUDGET_KB` in tools/build-site.mjs is 720.
 On 2 Oct 2026 «إكس أو الكبير» took it to 711 again; X-O's own lines that only its chunk reads went the same way (`XO_TR` in JS_XO.html, read through `xoTr()`, which puts them over `TRANSLATIONS` so the code still reads `t.xo_*`), and its help was kept short: 710.4.
+**A chunk can bring styles that are only its own (2 Oct 2026).** «كورة التصادم» took the shell to 712 KB; its CSS (every class new, nothing in Style.html restyles it) went into its chunk as `BMP_BALL_CSS`, put into the page once as the chunk runs, before anything of it is drawn (JS_RoomBumper.html). A rule that competes with a shell rule of the same weight has to outweigh it (`.bmp-tv.bmp-tv--ball`), since the order is not guaranteed. Back to 710.

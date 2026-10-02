@@ -31,6 +31,49 @@
 
 const raceRoom = { seen: {}, scoreKey: '', myScore: 0, liveHtml: {} };
 
+/* The race's own words, in its chunk (2 Oct 2026: moved out of TRANSLATIONS for the shell's budget, when
+   «خماسي السهرة» came): only this file reads them, through t.race_* and svT() as before - they join
+   TRANSLATIONS when the chunk loads. */
+const RACE_TEXT = {
+  ar: {
+    race_lobby_hint: "المضيف بيختار عدد الجولات وطريقة النهاية. نفس اللغز للكل، وكل واحد بيحلّه على موبايله.",
+    race_lobby_rounds: "كام جولة؟",
+    race_lobby_finish: "النهاية",
+    race_finish_all: "الكل يخلّص",
+    race_finish_fast3: "Fast 3",
+    race_finish_all_hint: "الجولة تخلص لما الكل يخلّص أو الوقت يخلص. الحل 10 نقط + بونص للأسرع (+5، +4…).",
+    race_finish_fast3_hint: "أول 3 يخلّصوا ياخدوا 10 و7 و5، وبعدها 10 ثواني لأي حد يلحق ياخد 2، والجولة تقفل.",
+    race_clock_hint: "⏱️ الوقت {m} دقايق للغز ده، ثابت مش بيتغير.",
+    race_you_done: "🎉 خلصت! المركز {n}",
+    race_you_lost: "💀 خسرت الجولة دي",
+    race_you_gave: "🏳️ استسلمت الجولة دي",
+    race_give_up: "استسلم",
+    race_give_up_confirm: "تستسلم في اللغز ده؟ هتاخد 0 الجولة دي عشان الباقي يكمّلوا.",
+    race_closing: "10 ثواني وتقفل!",
+    race_watching: "انت بتتفرج السباق ده",
+    race_round_over: "خلصت الجولة",
+  },
+  en: {
+    race_lobby_hint: "The host picks the rounds and the ending. The same puzzle for everyone, each solving on their own phone.",
+    race_lobby_rounds: "Rounds",
+    race_lobby_finish: "The ending",
+    race_finish_all: "Everyone finishes",
+    race_finish_fast3: "Fast 3",
+    race_finish_all_hint: "The round ends when everyone is done or the clock runs out. A solve is 10 points plus a bonus for the fastest (+5, +4…).",
+    race_finish_fast3_hint: "The first three to finish score 10, 7 and 5; anyone finishing in the ten seconds after scores 2, then the round closes.",
+    race_clock_hint: "⏱️ {m} minutes for this puzzle, fixed.",
+    race_you_done: "🎉 Done! Place {n}",
+    race_you_lost: "💀 You lost this round",
+    race_you_gave: "🏳️ You gave up this round",
+    race_give_up: "Give up",
+    race_give_up_confirm: "Give up this puzzle? You score 0 this round so the others can finish.",
+    race_closing: "10 seconds and it closes!",
+    race_watching: "You are watching this race",
+    race_round_over: "Round over",
+  }
+};
+['ar', 'en'].forEach(l => { Object.keys(RACE_TEXT[l]).forEach(k => { if (!(k in TRANSLATIONS[l])) TRANSLATIONS[l][k] = RACE_TEXT[l][k]; }); });
+
 const raceIcon = (kind) => (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[kind] ? iconHtml(CATALOG_BY_ID[kind].icon) : '🏁');
 const raceName = (kind) => { const t = TRANSLATIONS[appState.lang] || {}; return t['setup_' + kind] || kind; };
 
@@ -49,13 +92,17 @@ function raceFinishOf(state) {
 
 function setRaceOpt(key, value) {
   rememberOptions('raceRoom', { [key]: value });
+  // «خماسي السهرة» on: the line-up has as many puzzles as rounds (the server keeps the ones there).
+  const st = Room.state;
+  if (key === 'rounds' && st && st.youAreHost && Array.isArray((st.shared || {}).lineup)) roomAct('raceLineup', { on: true, rounds: value });
   duelLobbyRedraw();
 }
 
 function raceLobbyHtml(kind, state) {
   const t = TRANSLATIONS[appState.lang] || {};
   const mins = Math.round((SV_RACE_CLOCKS[kind] || 120) / 60);
-  const clockLine = `<p class="field__hint">${escapeHTML(svT('race_clock_hint', { m: mins }))}</p>`;
+  const mix = Array.isArray((state.shared || {}).lineup);
+  const clockLine = `<p class="field__hint">${escapeHTML(mix ? rmT('clock') : svT('race_clock_hint', { m: mins }))}</p>`;
   if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.race_lobby_hint || '')}</p>${clockLine}`;
   const o = raceOpts();
   const finish = raceFinishOf(state);
@@ -64,7 +111,14 @@ function raceLobbyHtml(kind, state) {
       <div class="segmented" role="group">${values.map(v => `<button type="button" class="segmented__item ${String(v[0]) === String(current) ? 'is-active' : ''}" onclick="setRaceOpt('${key}', ${typeof v[0] === 'string' ? `'${v[0]}'` : v[0]})">${escapeHTML(v[1])}</button>`).join('')}</div>
       ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
     </div>`;
+  // «خماسي السهرة»: one puzzle every round, or the line-up (drawn on the server, shown above the options to everyone).
+  const mixSeg = `<div class="field">
+      <label class="field__label">${escapeHTML(rmT('label'))}</label>
+      <div class="segmented" role="group">${[[false, rmT('one')], [true, rmT('title')]].map(v => `<button type="button" class="segmented__item ${v[0] === mix ? 'is-active' : ''}" onclick="raceMixSet(${v[0]})">${escapeHTML(v[1])}</button>`).join('')}</div>
+      <p class="field__hint">${escapeHTML(rmT(mix ? 'hint_on' : 'hint_off'))}</p>
+    </div>`;
   return `<div class="card card--tight">
+      ${mixSeg}
       ${seg(t.race_lobby_rounds || '', 'rounds', SV_RACE_ROUNDS.map(n => [n, String(n)]), SV_RACE_ROUNDS.indexOf(Number(o.rounds)) !== -1 ? o.rounds : 3)}
       ${seg(t.race_lobby_finish || '', 'finish', [['all', t.race_finish_all || ''], ['fast3', t.race_finish_fast3 || '']], finish, t[finish === 'fast3' ? 'race_finish_fast3_hint' : 'race_finish_all_hint'] || '')}
       ${clockLine}
@@ -74,6 +128,140 @@ function raceLobbyHtml(kind, state) {
 function raceStartPayload(kind) {
   const o = raceOpts();
   return { rounds: SV_RACE_ROUNDS.indexOf(Number(o.rounds)) !== -1 ? o.rounds : 3, finish: raceFinishOf(Room.state), lang: contentLang() };
+}
+
+/* --- «خماسي السهرة»: a different puzzle every round (the owner, 2 Oct 2026) ------------------
+   A lobby choice (RoomRace.js): the app draws the line-up - as many different puzzles of the
+   ten as rounds - every phone and the TV see it above the options (raceMixLobbyHtml, the
+   ROOM_GAMES entry's lobbyTop), and the host taps one to swap it. The room's game stays the
+   puzzle the lobby was opened with; each round is drawn as a race of its own puzzle
+   (raceKindOf: shared.solve) on that puzzle's own screen, room-<id>. The line-up rides along
+   at the top (raceMixStripHtml), and between rounds the next puzzle is announced: its name
+   spins through the ten and lands (spinLetter), its icon pops (raceNextHtml, raceNextSpin) -
+   on the phones and the TV. Its words live here, in the race's chunk (RACE_MIX_TEXT). */
+
+const RACE_MIX_TEXT = {
+  ar: {
+    label: 'الألغاز', one: 'لغز واحد', title: 'خماسي السهرة',
+    hint_off: 'نفس اللغز كل الجولات.',
+    hint_on: 'كل جولة لغز مختلف، والتطبيق اختارهم. مجموع نقط الجولات بيعمل المنصة.',
+    clock: '⏱️ كل لغز بوقته (من 2 لـ 4 دقايق).',
+    tap: 'دوس على أي لغز يتغيّر بلغز تاني.', wait: 'دي الألغاز بالترتيب، والمضيف ممكن يغيّر أي واحد.',
+    swap: 'غيّر', next: 'اللغز الجاي', mins: '⏱️ {m} دقايق', rounds: '{n} جولات'
+  },
+  en: {
+    label: 'Puzzles', one: 'One puzzle', title: 'Puzzle pentathlon',
+    hint_off: 'The same puzzle every round.',
+    hint_on: 'A different puzzle every round, drawn by the app. The rounds\' totals make the podium.',
+    clock: '⏱️ Each puzzle keeps its own time (2 to 4 minutes).',
+    tap: 'Tap a puzzle to swap it for another.', wait: 'The puzzles in order; the host can swap any of them.',
+    swap: 'Swap', next: 'Next puzzle', mins: '⏱️ {m} min', rounds: '{n} rounds'
+  }
+};
+const rmT = (key, vars) => {
+  let s = (RACE_MIX_TEXT[appState.lang] || RACE_MIX_TEXT.ar)[key] || '';
+  Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
+  return s;
+};
+
+/** The game's line-up once it is dealt, or null (one puzzle every round). */
+function raceLineupOf(state) {
+  const s = (state && state.shared) || {};
+  return s.race && s.settings && Array.isArray(s.settings.lineup) ? s.settings.lineup : null;
+}
+
+/** The puzzle this round is: the line-up's (shared.solve), else the room's own game. */
+function raceKindOf(state, kind) {
+  const s = (state && state.shared) || {};
+  return raceLineupOf(state) && SV_RACE_IDS.indexOf(s.solve) !== -1 ? s.solve : kind;
+}
+
+const raceAccent = (kind) => (typeof CATALOG_BY_ID !== 'undefined' && CATALOG_BY_ID[kind] && CATALOG_BY_ID[kind].accent) || 'violet';
+
+function raceMixSet(on) {
+  const st = Room.state;
+  if (!st || !st.youAreHost || on === Array.isArray((st.shared || {}).lineup)) return;
+  haptic('light');
+  const o = raceOpts();
+  roomAct('raceLineup', on ? { on: true, rounds: SV_RACE_ROUNDS.indexOf(Number(o.rounds)) !== -1 ? Number(o.rounds) : 3 } : { on: false });
+}
+
+/** The host's tap on a puzzle of the line-up: another one, not in it yet (`was`: a double tap swaps once). */
+function raceMixSwap(at, was) {
+  const st = Room.state;
+  if (!st || !st.youAreHost) return;
+  haptic('light');
+  roomAct('raceLineup', { at: at, was: was });
+}
+
+/** The lobby's line-up, for everyone (the host's puzzles are buttons): above the folded options. */
+function raceMixLobbyHtml(state, tv) {
+  const list = (state.shared || {}).lineup;
+  if (!Array.isArray(list) || !list.length) return '';
+  const host = !!state.youAreHost;
+  const items = list.map((id, i) => {
+    const pop = motionFirst(['race-mix', state.code, i, id, tv ? 'tv' : 'p'].join('|'));
+    const inner = `<span class="race-mix__n metric">${i + 1}</span>
+        <span class="race-mix__icon" aria-hidden="true">${raceIcon(id)}</span>
+        <span class="race-mix__name">${escapeHTML(raceName(id))}</span>
+        ${host ? '<span class="race-mix__swap" aria-hidden="true">🔄</span>' : ''}`;
+    const cls = `race-mix__item ${pop ? 'is-new' : ''}`;
+    return `<li data-accent="${raceAccent(id)}">${host
+      ? `<button type="button" class="${cls}" style="--at:${i * 70}ms" onclick="raceMixSwap(${i}, '${id}')" aria-label="${escapeHTML(rmT('swap') + ': ' + raceName(id))}">${inner}</button>`
+      : `<span class="${cls}" style="--at:${i * 70}ms">${inner}</span>`}</li>`;
+  }).join('');
+  return `<div class="card card--tight race-mix">
+      <p class="eyebrow">🏅 ${escapeHTML(rmT('title'))} · ${escapeHTML(rmT('rounds', { n: list.length }))}</p>
+      <ol class="race-mix__list">${items}</ol>
+      <p class="field__hint">${escapeHTML(rmT(host ? 'tap' : 'wait'))}</p>
+    </div>`;
+}
+
+/** The line-up during the game: the puzzles played dimmed, this round's with its name. */
+function raceMixStripHtml(state, tv) {
+  const list = raceLineupOf(state);
+  if (!list) return '';
+  const s = state.shared;
+  const at = (Number(s.round) || 1) - 1;
+  const over = s.phase === 'result' || s.phase === 'gameover';
+  const html = `<ol class="race-strip" aria-label="${escapeHTML(rmT('title'))}">${list.map((id, i) => {
+    const cls = i < at || (i === at && over) ? 'is-done' : (i === at ? 'is-now' : '');
+    return `<li class="${cls}" data-accent="${raceAccent(id)}" title="${escapeHTML(raceName(id))}"><span aria-hidden="true">${raceIcon(id)}</span>${i === at ? `<b>${escapeHTML(raceName(id))}</b>` : ''}</li>`;
+  }).join('')}</ol>`;
+  return tv ? `<div class="tv-scale">${html}</div>` : html;
+}
+
+/** Between two rounds: the next puzzle, its name to spin and land once (raceNextSpin). */
+function raceNextHtml(state, tv) {
+  const list = raceLineupOf(state);
+  const s = state.shared;
+  if (!list || s.phase !== 'result' || s.round >= list.length) return '';
+  const id = list[s.round];
+  const spin = motionFirst(['race-next', state.code, s.dealId, s.round, tv ? 'tv' : 'p'].join('|')) && !motionOff();
+  const html = `<div class="card card--accent race-next" data-accent="${raceAccent(id)}" ${spin ? `data-race-spin="${id}"` : ''}>
+      <p class="eyebrow">${escapeHTML(rmT('next'))} · ${escapeHTML(svT('sv_round', { n: s.round + 1, m: list.length }))}</p>
+      <div class="race-next__pick">
+        <span class="race-next__icon ${spin ? 'is-waiting' : ''}" aria-hidden="true">${raceIcon(id)}</span>
+        <b class="race-next__name">${spin ? '&nbsp;' : escapeHTML(raceName(id))}</b>
+      </div>
+      <p class="field__hint">${escapeHTML(rmT('mins', { m: Math.round((SV_RACE_CLOCKS[id] || 120) / 60) }))}</p>
+    </div>`;
+  return tv ? `<div class="tv-scale">${html}</div>` : html;
+}
+
+/** The next puzzle's name runs through the ten and lands; its icon pops in as it does. */
+function raceNextSpin(el) {
+  const card = el && el.querySelector('[data-race-spin]');
+  if (!card) return;
+  const id = card.dataset.raceSpin;
+  delete card.dataset.raceSpin;
+  const name = card.querySelector('.race-next__name');
+  const icon = card.querySelector('.race-next__icon');
+  const land = () => {
+    if (icon) { icon.classList.remove('is-waiting'); icon.classList.add('motion-landed'); }
+    haptic('light');
+  };
+  spinLetter(name, raceName(id), SV_RACE_IDS.map(raceName), land);
 }
 
 /* --- a move, and giving up ------------------------------------------------------------ */
@@ -216,11 +404,12 @@ function raceRender(kind, state) {
   const ui = RACE_UI[kind];
   const head = `<div class="cn-score race-head"><span class="cn-score__role">${raceIcon(kind)} ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
       <span class="badge">${escapeHTML(t[s.settings && s.settings.finish === 'fast3' ? 'race_finish_fast3' : 'race_finish_all'] || '')}</span>
-      ${s.endsAt && s.phase === 'solving' ? '<span class="badge badge--accent" data-sv-clock></span>' : ''}</div>`;
+      ${s.endsAt && s.phase === 'solving' ? '<span class="badge badge--accent" data-sv-clock></span>' : ''}</div>${raceMixStripHtml(state)}`;
   const rebuilt = renderRoomFrame(el, raceSig(state), () => {
     if (s.phase === 'gameover') {
       const podium = renderPodium(state, s.board);
       return `<div class="sv-room race-room">
+          ${raceMixStripHtml(state)}
           ${s.result ? raceResultHtml(kind, state) : ''}
           ${podium || renderScoreboard(s.board)}
           ${state.youAreHost
@@ -234,6 +423,7 @@ function raceRender(kind, state) {
     if (s.phase === 'result') {
       return `<div class="sv-room race-room">${head}
           ${raceResultHtml(kind, state)}
+          ${raceNextHtml(state)}
           ${renderScoreboard(s.board)}
           ${roomMoveOnHtml(state,
             `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(t.sv_next_round || '')}</button>`,
@@ -315,6 +505,8 @@ function raceAfter(el, kind, state) {
   raceRoom.scoreKey = key;
   raceRoom.myScore = now;
   if (s.phase === 'result' || s.phase === 'gameover') {
+    // «خماسي السهرة»: the next puzzle is announced once the result has turned over.
+    if (el.querySelector('[data-race-spin]')) afterReveal(el, () => raceNextSpin(el));
     const card = el.querySelector('.race-result');
     const row = el.querySelector(`[data-pid="${CSS.escape(Room.me || '')}"]`);
     if (gain > 0 && card && row && typeof flyPoints === 'function') afterReveal(el, () => flyPoints('+' + gain, card.getBoundingClientRect(), row));
@@ -393,7 +585,7 @@ function raceTvFrame(kind, state, t) {
         <span class="tv-pill">${escapeHTML(t[fast3 ? 'race_finish_fast3' : 'race_finish_all'] || '')}</span>
       </span>
       ${s.endsAt && s.phase === 'solving' ? '<span class="race-tv__clock metric" dir="ltr" data-sv-clock="mmss"></span>' : ''}
-    </div>`;
+    </div>${raceMixStripHtml(state, true)}`;
   if (s.phase === 'gameover') {
     return `<div class="tv-vote" data-accent="${accent}">
         <div class="tv-title tv-center-text">🏆</div>
@@ -403,7 +595,7 @@ function raceTvFrame(kind, state, t) {
   }
   if (s.phase === 'result') {
     return `<div class="tv-trivia" data-accent="${accent}">${top}
-        <div class="tv-center sv-tv-result">${raceResultHtml(kind, state, true)}</div>
+        <div class="tv-center sv-tv-result">${raceResultHtml(kind, state, true)}${raceNextHtml(state, true)}</div>
         ${moveOn([[svT('sv_next_round'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`]])}
       </div>`;
   }
@@ -426,14 +618,24 @@ function raceTvSig(state) {
 
 /* --- the ten rooms ---------------------------------------------------------------------------- */
 
+/** The TV after a redraw: the clock, and the next puzzle's spin once the result has turned. */
+function raceTvAfter(state, rebuilt) {
+  svTickClock(state);
+  const el = document.getElementById('view-room-tv');
+  if (rebuilt && el && el.querySelector('[data-race-spin]')) afterReveal(el, () => raceNextSpin(el));
+}
+
 SV_RACE_IDS.forEach(kind => {
   ROOM_GAMES[kind] = {
     lobbyOptions: (state) => raceLobbyHtml(kind, state),
+    // «خماسي السهرة»'s line-up, shown to everyone above the (folded) options.
+    lobbyTop: (state, tv) => raceMixLobbyHtml(state, tv),
     startPayload: () => raceStartPayload(kind),
-    render: (state) => raceRender(kind, state),
+    // A line-up's round is drawn as a race of its own puzzle, on that puzzle's screen.
+    render: (state) => raceRender(raceKindOf(state, kind), state),
     // A move is not a new step; a new puzzle, its result and the end are.
     actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
   };
-  TV_GAMES[kind] = { sig: raceTvSig, frame: (state, t) => raceTvFrame(kind, state, t), after: (state) => svTickClock(state) };
+  TV_GAMES[kind] = { sig: raceTvSig, frame: (state, t) => raceTvFrame(raceKindOf(state, kind), state, t), after: raceTvAfter };
 });
 </script>

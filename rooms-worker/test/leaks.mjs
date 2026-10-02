@@ -1418,6 +1418,28 @@ const vaultPlay = (T, pRight, maxMoves) => {
 
 PROBES['vault:all'] = PROBES['vault:teams'] = PROBES['vault:tv'] = PROBES.vault;
 
+/* «خماسي السهرة» (RoomRace.js): every round held to the race's probes for its own puzzle; the
+   line-up is the puzzles' names and nothing else; and between rounds the only puzzle on any
+   phone is the one just played - the next is dealt when its round starts. */
+const MIX_IDS = ['strands', 'wordwheel', 'connections', 'pinpoint', 'queens', 'tango', 'nonogram', 'mines', 'streak', 'sudoku'];
+PROBES['race:mix'] = (room) => {
+  const s = room.shared || {};
+  const lineup = (s.settings && s.settings.lineup) || s.lineup;
+  const h = room._solve || {};
+  return PROBES.race(room).concat([
+    probe('pentathlon: the line-up is the puzzles\' names, nothing of their content', !!lineup, (view) => {
+      const v = view.shared || {};
+      const l = (v.settings && v.settings.lineup) || v.lineup;
+      return Array.isArray(l) && l.every((id) => MIX_IDS.indexOf(id) !== -1) ? null : 'shared.lineup';
+    }),
+    probe('pentathlon: between rounds nothing of the next puzzle is dealt', s.phase === 'result' && !!(s.settings || {}).lineup && !!h.secret, (view) => {
+      const v = view.shared;
+      if (v.solve !== v.settings.lineup[v.round - 1]) return 'shared.solve';
+      return JSON.stringify(v.pub) === JSON.stringify(h.secret.pub) ? null : 'shared.pub';
+    })
+  ]);
+};
+
 const DRIVERS = {
   imposter() {
     const T = table('imposter', 5);
@@ -2995,6 +3017,23 @@ const MISSION_PROBES = (room) => {
 };
 
 const VARIANT_DRIVERS = {
+  'race:mix'() {
+    // «خماسي السهرة»: five rounds, five puzzles - a swap in the lobby, a give-up, the clock, the host's close, play again.
+    const T = table('race:mix', 4, { gameId: 'queens' });
+    must(T, T.host, 'raceLineup', { on: true, rounds: 5 });
+    must(T, T.host, 'raceLineup', { at: 2, was: S(T).lineup[2] });
+    must(T, T.host, 'start', { finish: 'all', lang: 'ar' });
+    for (let round = 1; round <= 5; round++) {
+      if (S(T).solve !== S(T).settings.lineup[round - 1]) return false;
+      must(T, 'p2', 'giveUp', { round });
+      if (round % 2) runClock(T, (r) => r.shared.phase !== 'solving', 30);
+      else must(T, T.host, 'closeRound', { round });
+      if (round < 5) must(T, T.host, 'nextRound', { round });
+    }
+    if (S(T).phase !== 'gameover') return false;
+    must(T, T.host, 'playAgain', {});
+    return S(T).round === 1 && S(T).solve === S(T).settings.lineup[0];
+  },
   mission() {
     // المهمة السرية beside a night: files done (yes and no), swapped, caught right and wrong, taken
     // back; a game of المختلف played meanwhile; someone joining and someone leaving; then off - the

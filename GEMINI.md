@@ -69,8 +69,8 @@ file and a new line.
 - 🎳 بولينج - `notes/games/bowling.md`. ⛳ ميني جولف - `notes/games/minigolf.md`.
 - Solo games (Sudoku, 2048, Minesweeper, Queens, Tango, Nonogram, خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات, خمّن الدولة, على راسك), تحدي اليوم and the dailies (Wordle, Connections) - `notes/games/solo.md`.
 - One sets, everyone solves (Wordle, the number, the country, the emoji riddle in rooms) - `notes/games/solve.md`.
-- سباق ألغاز (the ten puzzles as a race) - `notes/games/race.md`.
 - رد الفعل (the reaction test on one phone, «خدعة» its fake signals, and «أسرع إيد» in rooms: one green on every screen by the server's clock, 5 rounds of 3/2/1; `RoomReaction.js`, `JS_RoomReaction.html`, its words and styles in its chunk) - `notes/games/reaction.md`.
+- سباق ألغاز (the ten puzzles as a race; «خماسي السهرة», a different puzzle each round) - `notes/games/race.md`.
 - الكراسي الموسيقية - `notes/games/chairs.md`. عربيات التصادم (the TV as the console) - `notes/games/bumper.md`.
 - 🎉 «الشلة» (the crew: a family's or friends' monthly table, champions, titles, its quizzes and words; a room opened for it - asked «للشلة؟» every time - records its night once; `Crew.js`, `rooms-worker/src/crew.js`, `JS_CrewCore.html`, `JS_Crew.html`, `/crew/*`, `/s/CODE`) - `notes/games/crew.md`.
 - ✍️ «اعمل مسابقتك» (the family's own quiz: a room, the team board, the buzzer) and «كلماتنا» (the family's words as a category in the word games), kept by a 6-letter code (`Packs.js`, `rooms-worker/src/packs.js`, `JS_PackStore.html`, `JS_QuizMaker.html`, `/pack/*`) - `notes/games/quiz.md`.

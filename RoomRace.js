@@ -89,3 +89,63 @@ SV_RACE_IDS.forEach(id => { SOLVE_KINDS[id] = svRaceKind(id); });
 
 /** Every room game that is a race on the engine. */
 const svIsRace = (game) => SV_RACE_IDS.indexOf(game) !== -1;
+
+/* --- «خماسي السهرة»: a different puzzle every round (the owner, 2 Oct 2026) -----------------
+   A lobby choice: the app draws the line-up - as many puzzles as rounds (3 or 5), all
+   different, from the ten (2048 was never one of them) - and the host can tap one to swap it
+   for another not in it yet; every phone and the TV see it before Start (room.shared.lineup,
+   names only). Each round is the race as always - its puzzle dealt here when the round starts,
+   on its own clock, the same ending and points - and the totals make the podium.
+   Decided here (open to change): the puzzle the host opened the lobby with is the first of the
+   line-up (a swap can change it); a swap draws at random from the puzzles left; a game switched
+   off for a fix is never drawn; play again keeps the line-up (the table saw and agreed it).
+   ------------------------------------------------------------------------------------------- */
+
+/** A puzzle the line-up may hold: one of the ten, not switched off for a fix. */
+const svRaceOn = (id) => SV_RACE_IDS.indexOf(id) !== -1 && !(typeof roomGameIsOff === 'function' && roomGameIsOff(id));
+
+/** A line-up as the engine takes it: 3 or 5 different puzzles of the ten, else null. */
+const svRaceLineupOk = (list) => {
+  if (!Array.isArray(list) || SV_RACE_ROUNDS.indexOf(list.length) === -1) return null;
+  const out = list.map(String);
+  return out.every((id, i) => SV_RACE_IDS.indexOf(id) !== -1 && out.indexOf(id) === i) ? out : null;
+};
+
+/** `n` puzzles: what is kept first (else the one the lobby was opened with), the rest drawn. */
+const svRaceLineupDraw = (room, keep, n) => {
+  const out = [];
+  (keep || []).forEach(id => { if (svRaceOn(id) && out.indexOf(id) === -1) out.push(id); });
+  if (!out.length && svRaceOn(room.game)) out.push(room.game);
+  shuffled(SV_RACE_IDS.filter(id => svRaceOn(id) && out.indexOf(id) === -1)).forEach(id => out.push(id));
+  return out.slice(0, n);
+};
+
+/**
+ * The lobby's line-up (the host's): { on: true, rounds } draws it (or resizes it, keeping what
+ * is there), { at, was } swaps one - `was` is the puzzle the tap was for, so a double tap swaps
+ * once - and { on: false } puts it away (one puzzle every round again).
+ */
+const svRaceLineupAction = (room, playerId, p) => {
+  requireHost(room, playerId);
+  if (room.phase !== 'lobby' || !svIsRace(room.game)) return;
+  const s = room.shared = room.shared || {};
+  if (p.on === false) { delete s.lineup; return; }
+  if (p.at !== undefined && p.at !== null) {
+    const list = s.lineup;
+    const at = Number(p.at);
+    if (!Array.isArray(list) || !list[at] || staleTap(p, 'was', list[at])) return;
+    const pool = SV_RACE_IDS.filter(id => svRaceOn(id) && list.indexOf(id) === -1);
+    if (pool.length) list[at] = pool[Math.floor(Math.random() * pool.length)];
+    return;
+  }
+  s.lineup = svRaceLineupDraw(room, s.lineup, svPick(SV_RACE_ROUNDS, p.rounds, (s.lineup || []).length, 3));
+};
+
+/** Before each deal of a line-up: the round's puzzle, and its own clock (SV_RACE_CLOCKS). */
+const svRaceRoundKind = (room) => {
+  const s = room.shared;
+  const list = s.settings && s.settings.lineup;
+  if (!Array.isArray(list) || !list.length) return;
+  s.solve = list[Math.min(list.length, Math.max(1, Number(s.round) || 1)) - 1];
+  s.settings.clock = SV_RACE_CLOCKS[s.solve] || 120;
+};

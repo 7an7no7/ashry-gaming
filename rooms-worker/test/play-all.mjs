@@ -1734,6 +1734,41 @@ async function snakesRobots() {
   await H.waitFor((s) => s.shared.seats.indexOf(J.pid) === -1 && !(J.pid in s.shared.pos), 'snakes: a player who leaves takes their piece off, and play goes on');
   await H.must('backToHub');
   await H.waitFor((s) => s.phase === 'lobby', 'snakes: back in the hub');
+
+  // The third round (2 Oct 2026): teams of 2 arranged in the lobby, a themed map, the surprise squares and the moving map.
+  await H.must('chooseGame', { game: 'snakes' });
+  // Four at the table: the three people and the computer player (still in the room), one more if it went.
+  if ((H.state.players || []).length < 4) await H.must('addBot', { level: 'easy', name: 'زيزو' });
+  const four = [H, K, late];
+  await H.must('teamMode', { size: 2 });
+  await all(four.concat([TV]), (s) => s.shared && s.shared.lobby && s.shared.lobby.teamSize === 2 && (s.shared.lobby.teams || []).length === 2, 'snakes: teams of 2 drawn in the lobby, on every phone and the TV');
+  check((await K.act('teamMode', { size: 0 })).ok === false, 'snakes: only the host sets the teams');
+  const lt = H.state.shared.lobby.teams;
+  await H.must('teamSwap', { a: lt[0][0], b: lt[1][0] });
+  await H.waitFor((s) => s.shared.lobby.teams[0].indexOf(lt[1][0]) !== -1, 'snakes: the host swaps two people between teams');
+  await H.must('start', { turnClock: 15, theme: 'hara', surprises: true, moving: true });
+  await all(four.concat([TV]), (s) => s.game === 'snakes' && s.shared.phase === 'play' && Array.isArray(s.shared.teams) && s.shared.teams.length === 2 && s.shared.theme === 'hara' &&
+    s.shared.map.surp && Object.keys(s.shared.map.surp).length === 6 && s.shared.opts.moving, 'snakes: two teams of 2, the alley map, its surprise squares and the moving map on every phone and the TV');
+  const st = sS(H);
+  const teamOf = (id) => st.teams.findIndex((t) => t.indexOf(id) !== -1);
+  check(st.seats.every((id, i) => !i || teamOf(id) !== teamOf(st.seats[i - 1])), 'snakes: the teams take turns, one of each in turn');
+  let rolled2 = 0;
+  const t1 = Date.now();
+  while (Date.now() - t1 < 40000 && rolled2 < 5) {
+    const s = sS(H);
+    if (s.phase !== 'play') break;
+    const who = four.find((p) => p.pid === s.turn.pid);
+    if (who) {
+      await sleep(Math.max(0, readyLocal(s) - Date.now()) + 60);
+      const seq = s.turnSeq;
+      const res = await who.act('roll', { seq: seq });
+      if (res.ok && res.state && res.state.shared && res.state.shared.turnSeq !== seq) rolled2++;
+    }
+    await sleep(300);
+  }
+  check(rolled2 >= 3 && sS(H).events.some((e) => e.type === 'roll'), 'snakes: in teams, people roll on their turn');
+  check(sS(TV).map.seed === sS(H).map.seed && JSON.stringify(sS(TV).map.surp) === JSON.stringify(sS(H).map.surp), 'snakes: the TV has the same map and surprise squares');
+  await H.must('backToHub');
   [H, K, late, TV].forEach((x) => x.close());
 }
 

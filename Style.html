@@ -21292,12 +21292,166 @@ button.skl-hdisc { cursor: pointer; min-width: 44px; min-height: 44px; }
 .snk-star { animation: snkTwinkle 2.4s ease-in-out infinite; }
 @keyframes snkTwinkle { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 
+/* --- the third round (the owner, 2 Oct 2026): the map's theme, the switches, teams, the surprise
+   squares' objects (look ج «حاجة واقفة»), the awards' replay (look ج «لقطة»), and each themed map's
+   own small loops (JS_Snakes<Theme>.html). --- */
+.snk-themes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.snk-theme {
+  min-width: 0; min-height: 3.25rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: var(--sp-2);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform var(--dur-2, 200ms) var(--ease-out, ease-out), box-shadow var(--dur-2, 200ms) ease;
+}
+.snk-theme__ic { font-size: 1.35rem; line-height: 1; }
+.snk-theme__name { font-size: 0.78rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.snk-theme.is-active { border-color: transparent; box-shadow: 0 0 0 2px var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+
+.snk-lteams { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: var(--sp-2); }
+.snk-lteam { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: var(--sp-2); border-radius: 14px; background: var(--surface-2); }
+.snk-lteam__label { width: 100%; font-size: 0.78rem; font-weight: 800; color: var(--text-2); }
+.snk-lteams__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-block-start: var(--sp-2); }
+.snk-lteams__row .field__hint { margin: 0; flex: 1; min-width: 10rem; }
+
+.snk-strip--teams { grid-template-columns: minmax(0, 1fr); }
+.snk-team { min-width: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); gap: 6px; padding: 6px; border-radius: 16px; background: var(--surface-2); }
+.snk-team__label { grid-column: 1 / -1; padding-inline: 4px; font-size: 0.74rem; font-weight: 800; color: var(--text-2); }
+.snk-team.is-done .snk-team__label { color: var(--text); }
+.snk-podium__cols { display: inline-flex; gap: 3px; }
+
+/* The surprise squares' objects stand and move a little by themselves. */
+.snk-sp-bob { transform-box: fill-box; transform-origin: 50% 100%; animation: snkSpBob 2.2s ease-in-out infinite; }
+@keyframes snkSpBob { 50% { transform: translateY(-2.5px) rotate(-6deg); } }
+.snk-sp-sway { transform-box: fill-box; transform-origin: 50% 100%; animation: snkSpSway 2.8s ease-in-out infinite; }
+@keyframes snkSpSway { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(9deg); } }
+.snk-sp-glint { animation: snkSpGlint 2.6s ease-in-out infinite; }
+@keyframes snkSpGlint { 50% { opacity: 0.25; } }
+.snk-sp-zzz text, .snk-zzz text { opacity: 0; transform-box: fill-box; animation: snkSpZz 2.4s linear infinite; }
+.snk-sp-zzz text:nth-child(2), .snk-zzz text:nth-child(2) { animation-delay: 0.8s; }
+.snk-sp-zzz text:nth-child(3), .snk-zzz text:nth-child(3) { animation-delay: 1.6s; }
+@keyframes snkSpZz { 0% { opacity: 0; transform: translate(0, 0) scale(0.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(12px, -24px) scale(1.25); } }
+.snk-zzz { font-family: system-ui, sans-serif; font-weight: 800; fill: #1d1830; stroke: #ffffff; stroke-width: 2.5px; paint-order: stroke; }
+.snk-slow { animation-duration: 7s; }
+.m-charm .snk-lid { animation: none; transform: scaleY(0.55); }
+
+/* The awards' replay: over the board, in the board's own root (a redrawn frame doesn't cut it). */
+.snk-board { position: relative; }
+.snk-aw { position: absolute; inset: 0; z-index: 2; border-radius: 18px; overflow: hidden; animation: snkAwIn 0.32s var(--ease-out, ease-out) both; }
+.snk-aw svg { display: block; width: 100%; height: 100%; }
+@keyframes snkAwIn { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+.snk-aw__dot { animation: snkSpGlint 1.2s ease-in-out infinite; }
+.snk-aw__x {
+  position: absolute; inset-block-start: 0.5rem; inset-inline-start: 0.5rem;
+  width: 2.75rem; height: 2.75rem; border-radius: 50%;
+  border: 0; background: rgba(255, 255, 255, 0.16); color: #ffffff; font-size: 1.1rem; font-weight: 800; cursor: pointer;
+}
+.snk-over__aw { align-self: center; }
+
+/* SNK_THEME_CSS:nile */
+/* The Nile (JS_SnakesNile.html): papyrus and reeds sway, the sakia turns, the pools ripple, egrets fly over, crocodile tears. */
+.snn-sway { transform-box: fill-box; transform-origin: 50% 100%; animation: snnSway 4s ease-in-out infinite; }
+@keyframes snnSway { 50% { transform: rotate(4deg); } }
+.snn-slowspin { transform-box: fill-box; transform-origin: 50% 50%; animation: snkSpin 7s linear infinite; }
+.snn-ripple { transform-box: fill-box; transform-origin: 50% 50%; animation: snnRipple 2.6s ease-out infinite; }
+@keyframes snnRipple { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(1.5); opacity: 0; } }
+.snn-fly { animation: snnFlyA 18s linear infinite; }
+.snn-fly.b { animation: snnFlyB 24s linear infinite; }
+@keyframes snnFlyA { 0% { transform: translate(-40px, 180px); } 25% { transform: translate(210px, 60px); } 50% { transform: translate(470px, 250px); } 75% { transform: translate(260px, 470px); } 100% { transform: translate(-40px, 180px); } }
+@keyframes snnFlyB { 0% { transform: translate(660px, 520px); } 33% { transform: translate(380px, 350px); } 66% { transform: translate(120px, 530px); } 100% { transform: translate(660px, 520px); } }
+.snn-wing { transform-box: fill-box; transform-origin: 50% 100%; animation: snnFlap 0.32s ease-in-out infinite alternate; }
+@keyframes snnFlap { to { transform: scaleY(-0.6); } }
+.snn-tears { opacity: 0; }
+.m-cry .snn-tears { opacity: 1; }
+.m-cry .snn-drop { animation: snnDrop 0.7s ease-in infinite; }
+.m-cry .snn-drop.b { animation-delay: 0.35s; }
+@keyframes snnDrop { 0% { transform: translate(0, 0); opacity: 1; } 100% { transform: translate(-2px, 14px); opacity: 0; } }
+.m-cry .snk-pup { transform: translate(0, 1.2px); }
+/* SNK_THEME_CSS:metro */
+/* The Metro (JS_SnakesMetro.html): a train passes along the bottom of the frame, the escalators' steps move up (stopped when one breaks), the slides' flags flutter. */
+.snm-train { animation: snmTrain 13s linear infinite; }
+@keyframes snmTrain { 0% { transform: translateX(-240px); } 62%, 100% { transform: translateX(880px); } }
+.snm-run { animation: snmSteps 0.55s linear infinite; }
+@keyframes snmSteps { from { transform: translateX(0); } to { transform: translateX(6px); } }
+.snm-stopped .snm-run { animation-play-state: paused; }
+.snm-flag { transform-box: fill-box; transform-origin: 0% 50%; animation: snmFlag 1.4s ease-in-out infinite; }
+@keyframes snmFlag { 50% { transform: scaleX(0.7) skewY(8deg); } }
+.m-wow .snm-flag, .m-charm .snm-flag { animation-duration: 0.45s; }
+.m-sleep .snm-flag { animation: none; transform: scaleX(0.6) skewY(40deg); }
+.snm-wow { opacity: 0; }
+.m-wow .snm-wow { opacity: 1; }
+/* SNK_THEME_CSS:desert */
+/* The Desert (JS_SnakesDesert.html): a camel walks the top of the frame and turns, a scarab scuttles up and down its side, the palms and fronds sway, the sun turns. */
+.snd-walk { transform: translate(420px, -3px) scale(0.46, 0.46); animation: sndWalk 44s linear infinite; }
+@keyframes sndWalk { 0% { transform: translate(586px, -3px) scale(0.46, 0.46); } 46% { transform: translate(198px, -3px) scale(0.46, 0.46); } 50% { transform: translate(198px, -3px) scale(-0.46, 0.46); } 96% { transform: translate(586px, -3px) scale(-0.46, 0.46); } 100% { transform: translate(586px, -3px) scale(0.46, 0.46); } }
+.snd-bob { animation: sndBob 0.7s ease-in-out infinite alternate; }
+@keyframes sndBob { to { transform: translateY(-1.2px); } }
+.snd-lg { transform-box: fill-box; transform-origin: 50% 0%; animation: sndLeg 0.7s ease-in-out infinite alternate; }
+.snd-lg.b { animation-delay: -0.35s; }
+@keyframes sndLeg { from { transform: rotate(16deg); } to { transform: rotate(-16deg); } }
+.snd-scarab { transform: translate(-11px, 300px); animation: sndScarab 52s linear infinite; }
+@keyframes sndScarab { 0% { transform: translate(-11px, 596px) rotate(0deg); } 47% { transform: translate(-11px, 24px) rotate(0deg); } 50% { transform: translate(-11px, 24px) rotate(180deg); } 97% { transform: translate(-11px, 596px) rotate(180deg); } 100% { transform: translate(-11px, 596px) rotate(360deg); } }
+.snd-scuttle { animation: sndScut 0.25s steps(2) infinite; }
+@keyframes sndScut { to { transform: translateY(0.6px); } }
+.snd-sway { transform-box: fill-box; transform-origin: 50% 100%; animation: sndSway 4s ease-in-out infinite; }
+.snd-sway.b { animation-delay: -1.6s; }
+@keyframes sndSway { 50% { transform: rotate(3deg); } }
+.snd-leafs { transform-box: fill-box; transform-origin: 50% 50%; animation: sndLeafs 3.4s ease-in-out infinite; }
+@keyframes sndLeafs { 50% { transform: rotate(-3deg) scale(1.02); } }
+.snd-rays { transform-box: fill-box; transform-origin: 50% 50%; animation: snkSpin 40s linear infinite; }
+/* SNK_THEME_CSS:hara */
+/* The Hara (JS_SnakesHara.html): the cats' tails and moods, laundry swaying, pigeons pecking and flying, the ful pot steaming, drips, the tuk-tuk going by. */
+.snh-ctail { transform-box: fill-box; transform-origin: 5% 95%; animation: snhSwish 2.6s ease-in-out infinite; }
+.m-hiss .snh-ctail { animation-duration: 0.5s; }
+@keyframes snhSwish { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(12deg); } }
+.snh-fur { opacity: 0; }
+.m-hiss .snh-fur { opacity: 1; }
+.snh-pup { transform-box: fill-box; transform-origin: 50% 50%; }
+.m-wow .snh-pup { transform: scale(2.2, 1.15); }
+.m-hiss .snh-pup { transform: scale(0.6, 1); }
+.snh-tongue { opacity: 0; transform-box: fill-box; transform-origin: 50% 0%; }
+.m-lick .snh-tongue { opacity: 1; animation: snhLick 0.4s ease-in-out infinite alternate; }
+@keyframes snhLick { to { transform: scaleY(0.4); } }
+.snh-cl { transform-box: fill-box; transform-origin: 50% 0%; animation: snhSway 2.8s ease-in-out infinite; }
+@keyframes snhSway { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(6deg); } }
+.snh-peck { transform-box: fill-box; transform-origin: 20% 100%; animation: snhPeck 3.2s ease-in-out infinite; }
+@keyframes snhPeck { 0%, 80%, 100% { transform: rotate(0); } 86% { transform: rotate(26deg); } 92% { transform: rotate(0); } }
+.snh-pwing { transform-box: fill-box; transform-origin: 50% 100%; animation: snhFlap 0.17s ease-in-out infinite alternate; }
+@keyframes snhFlap { to { transform: scaleY(-0.7); } }
+.snh-fly { animation: snhFlyA 17s linear infinite; }
+.snh-fly.b { animation: snhFlyB 23s linear infinite; animation-delay: -5s; }
+@keyframes snhFlyA { 0% { transform: translate(-40px, 160px); } 25% { transform: translate(220px, 60px); } 50% { transform: translate(480px, 250px); } 75% { transform: translate(260px, 470px); } 100% { transform: translate(-40px, 160px); } }
+@keyframes snhFlyB { 0% { transform: translate(660px, 520px); } 33% { transform: translate(380px, 330px); } 66% { transform: translate(120px, 520px); } 100% { transform: translate(660px, 520px); } }
+.snh-steam { opacity: 0; animation: snhSteam 2.4s ease-in infinite; }
+@keyframes snhSteam { 0% { transform: translateY(0); opacity: 0; } 30% { opacity: 0.85; } 100% { transform: translateY(-14px); opacity: 0; } }
+.snh-drip { opacity: 0; animation: snhDrip 2s ease-in infinite; }
+@keyframes snhDrip { 0%, 45% { transform: translateY(0); opacity: 0; } 55% { opacity: 1; } 100% { transform: translateY(11px); opacity: 0; } }
+.snh-tuk { animation: snhTuk 15s linear infinite; }
+@keyframes snhTuk { 0% { transform: translateX(590px); opacity: 1; } 52% { transform: translateX(-150px); opacity: 1; } 55% { transform: translateX(-170px); opacity: 0; } 100% { transform: translateX(-170px); opacity: 0; } }
+.snh-tukb { animation: snhTukB 0.18s ease-in-out infinite alternate; }
+@keyframes snhTukB { to { transform: translateY(-1.2px); } }
+
 @media (prefers-reduced-motion: reduce) {
   .snk-piece .snk-pb, .snk-piece .snk-legR, .snk-piece .snk-yawnM, .snk-piece .snk-armsUp, .snk-piece .snk-armsFwd, .snk-piece .snk-eN, .snk-piece .snk-eW,
   .m-lick .snk-tongue, .snk-cupglow, .snk-star { animation: none; }
   .snk-dusk, .snk-stars { transition: none; }
   .snk-tongue, .snk-lid, .m-sleep .snk-zz, .snk-spin, .snk-fly, .snk-fly.b, .snk-wing, .snk-cup, .snk-shine, .snk-bar.is-ready .snk-bar__roll { animation: none; }
-  .snk-chip, .snk-swatch { transition: none; }
+  .snk-chip, .snk-swatch, .snk-theme { transition: none; }
+  .snk-sp-bob, .snk-sp-sway, .snk-sp-glint, .snk-sp-zzz text, .snk-zzz text, .snk-aw, .snk-aw__dot { animation: none; }
+  .snk-sp-zzz text, .snk-zzz text { opacity: 1; }
+  /* SNK_THEME_RM:nile */
+  .snn-sway, .snn-slowspin, .snn-ripple, .snn-fly, .snn-fly.b, .snn-wing, .m-cry .snn-drop { animation: none; }
+  .snn-fly { display: none; }
+  /* SNK_THEME_RM:metro */
+  .snm-train, .snm-run, .snm-flag { animation: none; }
+  /* SNK_THEME_RM:desert */
+  .snd-walk, .snd-bob, .snd-lg, .snd-scarab, .snd-scuttle, .snd-sway, .snd-leafs, .snd-rays { animation: none; }
+  /* SNK_THEME_RM:hara */
+  .snh-ctail, .m-hiss .snh-ctail, .m-lick .snh-tongue, .snh-cl, .snh-peck, .snh-pwing, .snh-fly, .snh-fly.b, .snh-steam, .snh-drip, .snh-tuk, .snh-tukb { animation: none; }
+  .snh-fly { display: none; }
 }
 
 /* =========================================================================

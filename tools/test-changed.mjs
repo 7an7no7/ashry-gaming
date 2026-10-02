@@ -66,7 +66,7 @@ const MAP = [
   { files: /^(RoomTournament\.js|JS_RoomTournament\.html|JS_Tournament\.html)$/, robots: ['duels'], ui: ['connect4', 'xo'], screens: true },
   { files: /^Dice\.js$/, robots: ['ludo', 'snakes', 'bank'], ui: ['ludo', 'snakes', 'bank'], screens: true },
   { files: /^(Ludo\.js|RoomLudo\.js|JS_Ludo\.html|JS_RoomLudo\.html)$/, robots: ['ludo'], ui: ['ludo'], screens: true },
-  { files: /^(Snakes\.js|RoomSnakes\.js|JS_Snakes\.html|JS_RoomSnakes\.html)$/, robots: ['snakes'], ui: ['snakes'], screens: true },
+  { files: /^(Snakes\.js|RoomSnakes\.js|JS_Snakes[A-Za-z]*\.html|JS_RoomSnakes\.html)$/, robots: ['snakes'], ui: ['snakes'], screens: true },
   { files: /^(BankAlhaz\.js|RoomBank\.js|JS_Bank\.html|JS_RoomBank\.html)$/, robots: ['bank'], ui: ['bank'], screens: true },
   { files: /^GuessWho\.js$/, robots: ['guesswho', 'witness', 'duels'], ui: ['guesswho', 'witness'] },
   { files: /^(RoomGuessWho\.js|JS_GuessWho\.html)$/, robots: ['guesswho', 'duels'], ui: ['guesswho'] },

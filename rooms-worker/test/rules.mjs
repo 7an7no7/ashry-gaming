@@ -11378,6 +11378,377 @@ Date.now = duelTestClock;
   check(big.shared.seats.length === 6 && big.shared.seats.indexOf('b') === -1, 'snakes room: with seven or more the host picks the six who play');
 }
 
+/* --- السلم والتعبان, the third round (2 Oct 2026): themes, surprise squares, the moving map, teams, awards --- */
+{
+  console.log('\nSnakes & Ladders, the third round');
+  const S = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8') +
+    '\nreturn { snakesGenMap, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesRollMs, snakesCellXY, snakesRowOf, snakesSpecial, snakesPieceOf, snakesMoveSpot, snakesMaybeMove, snakesAwards, snakesTeamGroups, snakesShuffle, ' +
+    'SNAKES_THEMES, SNAKES_THEME_MOVES, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_SURPRISES, SNAKES_SURP_MS, SNAKES_WORKER_STEP_MS, SNAKES_CHARMED_MS, SNAKES_NAP_MS, SNAKES_PEEL_BACK, SNAKES_MOVE_EVERY, SNAKES_MOVE_SNAKE_MS, SNAKES_MOVE_EAT_MS, ' +
+    'SNAKES_SNAKE_BANDS, SNAKES_SNAKE_EXTRA, SNAKES_FAIR_TURNS, SNAKES_BALANCE, SNAKES_AWARD_CAP, SNAKES_AWARDS_MAX, SNAKES_TEAM_SIZES };')();
+  const throws = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const seeded = (seed) => S.snakesRng(seed);
+  const cols = (ids) => Object.fromEntries(ids.map((id, i) => [id, 'rbygpv'[i]]));
+
+  // --- The classic stays the classic: a game with every switch off is the same object as before.
+  {
+    const g = S.snakesNewGame(['a', 'b'], cols(['a', 'b']), 4242, 0);
+    check(!('theme' in g) && !('opts' in g) && !('charm' in g) && !('nap' in g) && !('teams' in g) && !('took' in g) && !g.map.surp,
+      'snakes 3: with the switches off and the classic map, a game has no theme, options, surprises or teams');
+    check(JSON.stringify(S.snakesGenMap(777)) === JSON.stringify(S.snakesGenMap(777, {})) && !S.snakesGenMap(777).surp,
+      'snakes 3: a seed\'s classic map is the same as before (no surprise squares unless asked)');
+  }
+
+  // --- Themes: each theme's own moves, never the same twice in a row, every one coming up, each counted in the roll's time.
+  {
+    let ok = true, msOk = true;
+    const seen = {};
+    S.SNAKES_THEMES.forEach((th) => {
+      const g = S.snakesNewGame(['a', 'b'], cols(['a', 'b']), 99, 0, { theme: th });
+      g.map = { seed: 1, snakes: [{ h: 50, t: 10 }], ladders: [{ f: 5, t: 40 }] };
+      const want = S.SNAKES_THEME_MOVES[th] || { s: Object.fromEntries(S.SNAKES_SNAKE_MOVES.map((v) => [v, 1])), l: Object.fromEntries(S.SNAKES_LADDER_MOVES.map((v) => [v, 1])) };
+      let prevS = '', prevL = '';
+      const ss = new Set(), sl = new Set();
+      for (let k = 0; k < 300; k++) {
+        g.phase = 'play'; g.places = []; g.turn = { pid: 'a', sixes: 0 }; g.pos.a = k % 2 ? 45 : 0;
+        const e = S.snakesRoll(g, 'a', 5, Math.random, k);
+        const k2 = e.jump.k, v = e.jump.v;
+        if (!(v in want[k2])) ok = false;
+        if (k2 === 's') { if (v === prevS) ok = false; prevS = v; ss.add(v); } else { if (v === prevL) ok = false; prevL = v; sl.add(v); }
+        const bare = S.snakesRollMs(Object.assign({}, e, { jump: null }), th);
+        const moveMs = S.SNAKES_THEME_MOVES[th] ? S.SNAKES_THEME_MOVES[th][k2][v] : null;
+        if (moveMs && e.ms - bare !== moveMs) msOk = false;
+      }
+      seen[th] = ss.size === Object.keys(want.s).length && sl.size === Object.keys(want.l).length;
+      if (th !== 'classic' && g.theme !== th) ok = false;
+    });
+    check(ok && Object.values(seen).every(Boolean), 'snakes 3: every map\'s own down and up moves come up (the classic\'s 7 and 5, each theme\'s 3-4 and 4), never the same twice in a row');
+    check(msOk, 'snakes 3: a themed move\'s own time is counted in the roll\'s time');
+    check(Object.values(S.SNAKES_THEME_MOVES).every((t) => Object.values(t.s).concat(Object.values(t.l)).every((ms) => ms >= 1000 && ms <= 3200)), 'snakes 3: every themed move takes 1 to 3.2 seconds');
+    const unknown = S.snakesNewGame(['a', 'b'], cols(['a', 'b']), 99, 0, { theme: 'mars' });
+    check(!('theme' in unknown), 'snakes 3: an unknown theme is the classic');
+  }
+
+  // --- Surprise squares on the map: six, one of each, on free squares, apart, the map still fair.
+  {
+    const maps = [];
+    for (let k = 1; k <= 60; k++) maps.push(S.snakesGenMap(k * 7919 + 13, { surprises: true }));
+    const fine = maps.every((m) => {
+      const sp = m.surp;
+      if (!sp) return false;
+      const ns = Object.keys(sp).map(Number).sort((a, b) => a - b);
+      if (ns.length !== 6 || new Set(Object.values(sp)).size !== 6 || !S.SNAKES_SURPRISES.every((k) => Object.values(sp).indexOf(k) !== -1)) return false;
+      const ends = m.snakes.flatMap((s) => [s.h, s.t]).concat(m.ladders.flatMap((l) => [l.f, l.t]));
+      if (ns.some((n) => n < 5 || n > 96 || ends.indexOf(n) !== -1)) return false;
+      if (ns.some((n, i) => i && n - ns[i - 1] < 4)) return false;
+      const at = (kind) => Number(Object.keys(sp).find((n) => sp[n] === kind));
+      const maxH = Math.max(...m.snakes.map((s) => s.h));
+      if (at('charm') > maxH - 6) return false;
+      const busy = (n) => ends.indexOf(n) !== -1 || !!sp[n];
+      if (busy(at('peel') - S.SNAKES_PEEL_BACK)) return false;
+      if (![3, 4, 5].some((d) => at('worker') + d < 100 && !busy(at('worker') + d))) return false;
+      return true;
+    });
+    check(fine, 'snakes 3: the surprise squares: six a map, one of each, on free squares 4 apart, the charm with a snake ahead of it, the peel and the worker with somewhere to go');
+    const fair = maps.map((m) => S.snakesFairness(m.snakes, m.ladders, seeded(m.seed + 7), 300, m.surp).avg);
+    check(fair.every((a) => a >= 10 && a <= 40), `snakes 3: a map with its surprise squares is still fair: ${Math.min(...fair).toFixed(1)}-${Math.max(...fair).toFixed(1)} turns on average (14-32 when made)`);
+    check(JSON.stringify(S.snakesGenMap(31337, { surprises: true })) === JSON.stringify(S.snakesGenMap(31337, { surprises: true })), 'snakes 3: the same seed gives the same surprise squares on every screen');
+  }
+
+  // --- What each surprise does, on a map of our own.
+  {
+    const surpMap = () => ({ seed: 5, snakes: [{ h: 50, t: 10 }, { h: 97, t: 60 }], ladders: [{ f: 5, t: 40 }], surp: { 20: 'charm', 25: 'swap', 30: 'again', 35: 'worker', 45: 'peel', 55: 'nap' } });
+    const fresh = (pos, ids) => {
+      const who = ids || ['a', 'b', 'c'];
+      const g = S.snakesNewGame(who, cols(who), 9, 0, { surprises: true });
+      g.map = surpMap();
+      g.turn = { pid: who[0], sixes: 0 };
+      Object.assign(g.pos, pos || {});
+      return g;
+    };
+    const bare = (e) => S.snakesRollMs(Object.assign({}, e, { surp: undefined, charmed: undefined }));
+    // The charm: kept, then the next snake lets him pass (he stays on its head), then a snake eats him again.
+    let g = fresh({ a: 17 });
+    let e = S.snakesRoll(g, 'a', 3, Math.random, 1);
+    check(e.surp && e.surp.k === 'charm' && g.charm.a === true && e.to === 20 && e.ms - bare(e) === S.SNAKES_SURP_MS.charm, 'snakes 3: 🪈 the charmer\'s square gives him the flute');
+    g.turn = { pid: 'a', sixes: 0 }; g.pos.a = 46;
+    e = S.snakesRoll(g, 'a', 4, Math.random, 2);
+    check(e.charmed && e.charmed.h === 50 && !e.jump && e.to === 50 && g.pos.a === 50 && !g.charm.a && e.ms - bare(e) === S.SNAKES_CHARMED_MS, 'snakes 3: 🪈 the next snake he lands on sways to the flute and lets him pass; the charm is used up');
+    g.turn = { pid: 'a', sixes: 0 }; g.pos.a = 46;
+    e = S.snakesRoll(g, 'a', 4, Math.random, 3);
+    check(e.jump && e.jump.k === 's' && e.to === 10, 'snakes 3: 🪈 without the charm the snake eats him as ever');
+    // Swap: with the player just ahead (the nearest above him), and nobody ahead swaps nothing.
+    g = fresh({ a: 21, b: 40, c: 33 });
+    e = S.snakesRoll(g, 'a', 4, Math.random, 1);
+    check(e.surp.k === 'swap' && e.surp.with === 'c' && g.pos.a === 33 && g.pos.c === 25 && e.to === 33 && e.ms - bare(e) === S.SNAKES_SURP_MS.swap, 'snakes 3: 🔄 he swaps places with the player just ahead of him');
+    g = fresh({ a: 21, b: 3, c: 0 });
+    e = S.snakesRoll(g, 'a', 4, Math.random, 1);
+    check(e.surp.k === 'swap' && e.surp.none && g.pos.a === 25 && g.pos.b === 3 && e.ms - bare(e) === S.SNAKES_SURP_MS.none, 'snakes 3: 🔄 with nobody ahead of him nothing changes');
+    // Again: he rolls again.
+    g = fresh({ a: 27 });
+    e = S.snakesRoll(g, 'a', 3, Math.random, 1);
+    check(e.surp.k === 'again' && g.turn.pid === 'a' && e.ms - bare(e) === S.SNAKES_SURP_MS.again, 'snakes 3: ⭐ a star: he rolls again');
+    // The worker: 3 to 5 on, never onto a snake, a ladder or another surprise.
+    let bad = false, by = new Set();
+    for (let k = 0; k < 400; k++) {
+      g = fresh({ a: 31 });
+      e = S.snakesRoll(g, 'a', 4, Math.random, k);
+      if (e.surp.k !== 'worker' || e.surp.none || [3, 4, 5].indexOf(e.surp.by) === -1 || e.to !== 35 + e.surp.by || S.snakesSpecial(g.map, e.to) || e.ms - bare(e) !== S.SNAKES_SURP_MS.worker + e.surp.by * S.SNAKES_WORKER_STEP_MS) bad = true;
+      by.add(e.surp.by);
+    }
+    check(!bad && by.size === 3, 'snakes 3: 💨 the worker carries him 3, 4 or 5 squares, never onto a snake, a ladder or a surprise');
+    g = fresh({ a: 31 });
+    g.map.snakes.push({ h: 38, t: 2 }, { h: 39, t: 3 }); g.map.ladders.push({ f: 40, t: 70 });
+    e = S.snakesRoll(g, 'a', 4, Math.random, 1);
+    check(e.surp.none && e.to === 35, 'snakes 3: 💨 with nowhere free to go the worker is on a break');
+    // The peel: back 3.
+    g = fresh({ a: 41 });
+    e = S.snakesRoll(g, 'a', 4, Math.random, 1);
+    check(e.surp.k === 'peel' && e.to === 42 && g.pos.a === 42 && e.ms - bare(e) === S.SNAKES_SURP_MS.peel, 'snakes 3: 🍌 a banana peel takes him 3 back');
+    // The nap: he misses his next turn (the turn passes him by, with a nap event), and a six doesn't roll again.
+    g = fresh({ a: 49, b: 0, c: 0 });
+    e = S.snakesRoll(g, 'a', 6, Math.random, 1000);
+    check(e.surp.k === 'nap' && g.nap.a === true && g.turn.pid === 'b', 'snakes 3: 😴 a nap: even with a six he doesn\'t roll again');
+    S.snakesRoll(g, 'b', 2, Math.random, 2000);
+    const r0 = g.readyAt;
+    e = S.snakesRoll(g, 'c', 2, Math.random, 3000);
+    const nap = g.events.filter((x) => x.type === 'nap').pop();
+    check(nap && nap.pid === 'a' && !g.nap.a && g.turn.pid === 'b' && g.readyAt === 3000 + e.ms + S.SNAKES_NAP_MS, 'snakes 3: 😴 his next turn passes him by («نايم!», waited for), and he wakes for the one after');
+    void r0;
+    // A surprise square takes the place of a near miss, a tail or a sneak, and «بس كده؟».
+    g = fresh({ a: 19 });
+    e = S.snakesRoll(g, 'a', 1, Math.random, 1);
+    check(e.surp && !e.near && !e.tail && !e.sneak && e.ms === S.snakesRollMs(e), 'snakes 3: a surprise square is the moment of the roll (no near miss or «بس كده؟» on top)');
+  }
+
+  // --- The moving map: every 3 rounds a snake moves to a spot in its band, the map still fair, anyone on its new head eaten.
+  {
+    let ok = true, fairOk = true, n = 0, bandOk = true, timing = true;
+    const bandOf = (row) => S.SNAKES_SNAKE_BANDS.find((b) => row >= b[0] && row <= b[1]) || S.SNAKES_SNAKE_EXTRA;
+    for (let gi = 0; gi < 40; gi++) {
+      const ids = ['a', 'b', 'c'];
+      const g = S.snakesNewGame(ids, cols(ids), 1000 + gi, 0, { moving: true, surprises: gi % 2 === 0 });
+      const rnd = seeded(77 + gi);
+      let guard = 0;
+      while (g.phase === 'play' && guard++ < 3000) {
+        const before = JSON.stringify(g.map.snakes);
+        const bands = g.map.snakes.map((s) => bandOf(S.snakesRowOf(s.h)));
+        const roller = g.turn.pid;
+        const tookBefore = Object.assign({}, g.took);
+        const e = S.snakesRoll(g, roller, 1 + Math.floor(rnd() * 6), rnd, guard);
+        const mv = g.events.find((x) => x.type === 'move' && x.seq > e.seq);
+        if (!mv) continue;
+        n++;
+        // When: the round (everyone still playing has had another 3 turns) has just ended.
+        const live = g.seats.filter((id) => g.places.indexOf(id) === -1);
+        if (Math.min(...live.map((id) => g.took[id] || 0)) < g.moves * S.SNAKES_MOVE_EVERY) timing = false;
+        void tookBefore;
+        const s = g.map.snakes[mv.i];
+        if (JSON.stringify(g.map.snakes) === before || s.h !== mv.to.h || s.t !== mv.to.t || !s.w || !s.was) ok = false;
+        const b = bands[mv.i];
+        if (S.snakesRowOf(s.h) < b[0] || S.snakesRowOf(s.h) > b[1]) bandOk = false;
+        const ends = g.map.snakes.flatMap((x) => [x.h, x.t]).concat(g.map.ladders.flatMap((l) => [l.f, l.t]));
+        if (new Set(ends).size !== ends.length || ends.some((x) => x <= 1 || x >= 100) || (g.map.surp && ends.some((x) => g.map.surp[x]))) ok = false;
+        const f = S.snakesFairness(g.map.snakes, g.map.ladders, seeded(5), 200, g.map.surp).avg;
+        if (f < 10 || f > 40) fairOk = false;
+        if (mv.ms !== S.SNAKES_MOVE_SNAKE_MS + (mv.eat ? S.SNAKES_MOVE_EAT_MS : 0)) ok = false;
+      }
+    }
+    check(n > 40 && ok, `snakes 3: «الخريطة بتتحرك»: a snake moves to a new spot (${n} moves in 40 games), its ends free, never on a surprise, its curve drawn from its own number`);
+    check(timing, 'snakes 3: «الخريطة بتتحرك»: a snake moves once everyone still playing has had 3 more turns');
+    check(bandOk, 'snakes 3: «الخريطة بتتحرك»: the head stays in its band (a snake still lies near 100)');
+    check(fairOk, 'snakes 3: «الخريطة بتتحرك»: the map is still fair after every move');
+    // The eat: a piece standing where the new head comes is eaten and slides down to the new tail.
+    let eaten = null;
+    for (let k = 0; k < 200 && !eaten; k++) {
+      const ids = ['a', 'b'];
+      const g = S.snakesNewGame(ids, cols(ids), 500 + k, 0, { moving: true });
+      g.took = { a: 3, b: 3 };
+      const spot = S.snakesMoveSpot(JSON.parse(JSON.stringify(g)), seeded(k + 1));
+      if (!spot) continue;
+      g.pos.b = spot.h;
+      const r0 = g.readyAt;
+      const e = S.snakesMaybeMove(g, seeded(k + 1));
+      if (e && e.eat) eaten = { e, g, spot, r0 };
+    }
+    check(eaten && eaten.e.eat.join() === 'b' && eaten.g.pos.b === eaten.spot.t && eaten.g.stats.eaten.b === 1 && eaten.g.readyAt === eaten.r0 + eaten.e.ms,
+      'snakes 3: «الخريطة بتتحرك»: anyone on the new head is eaten and slides down to the new tail (counted for the awards, the next roll waits)');
+    const off = S.snakesNewGame(['a', 'b'], cols(['a', 'b']), 1, 0, {});
+    off.took = { a: 9, b: 9 };
+    check(S.snakesMaybeMove(off, Math.random) === null, 'snakes 3: with the switch off no snake moves');
+  }
+
+  // --- Teams: a team wins when all its members are home; a member home rolls for the teammate furthest behind.
+  {
+    // 2 teams of 2: A = a, c; B = b, d; seats a b c d.
+    let g = S.snakesNewGame(['a', 'b', 'c', 'd'], cols(['a', 'b', 'c', 'd']), 11, 0, { teams: [['a', 'c'], ['b', 'd']] });
+    g.map = { seed: 1, snakes: [], ladders: [] };
+    g.pos = { a: 98, b: 10, c: 20, d: 30 };
+    let e = S.snakesRoll(g, 'a', 2, Math.random, 1);
+    check(e.place === 1 && g.phase === 'play' && g.teamPlaces.length === 0, 'snakes 3: teams: one member home is not a win');
+    S.snakesRoll(g, 'b', 1, Math.random, 2);
+    S.snakesRoll(g, 'c', 1, Math.random, 3);
+    S.snakesRoll(g, 'd', 1, Math.random, 4);
+    check(g.turn.pid === 'a' && S.snakesPieceOf(g, 'a') === 'c', 'snakes 3: teams: a member home still has turns, and rolls for the partner');
+    e = S.snakesRoll(g, 'a', 3, Math.random, 5);
+    check(e.pid === 'c' && e.by === 'a' && g.pos.c === 24 && g.pos.a === 100, 'snakes 3: teams: the home member\'s roll moves the partner (the event says who rolled for whom)');
+    g.pos.c = 99; g.turn = { pid: 'a', sixes: 0 };
+    e = S.snakesRoll(g, 'a', 1, Math.random, 6);
+    check(g.phase === 'gameover' && g.teamPlaces.join() === '0,1' && g.events.some((x) => x.type === 'teamDone' && x.team === 0 && x.place === 1),
+      'snakes 3: teams: the team wins when all its members are home, and with two teams the other takes second');
+    // 3 teams of 2: the game goes on after the first team; the furthest behind rule.
+    g = S.snakesNewGame(['a', 'b', 'c', 'd', 'e', 'f'], cols(['a', 'b', 'c', 'd', 'e', 'f']), 12, 0, { teams: [['a', 'd'], ['b', 'e'], ['c', 'f']] });
+    g.map = { seed: 1, snakes: [], ladders: [] };
+    g.pos = { a: 100, b: 10, c: 20, d: 100, e: 30, f: 40 };
+    g.places = ['a', 'd']; g.teamPlaces = [0];
+    g.turn = { pid: 'b', sixes: 0 };
+    S.snakesRoll(g, 'b', 2, Math.random, 1);
+    check(g.turn.pid === 'c' && g.phase === 'play', 'snakes 3: 3 teams of 2: a team done no longer rolls, the other two play on');
+    g.pos.b = 100; g.places.push('b');
+    g.turn = { pid: 'b', sixes: 0 };
+    e = S.snakesRoll(g, 'b', 1, Math.random, 2);
+    check(e.pid === 'e' && e.by === 'b', 'snakes 3: 3 teams of 2: the member home rolls for his partner');
+    // 2 teams of 3: the furthest behind, and on a tie the next in turn order.
+    g = S.snakesNewGame(['a', 'b', 'c', 'd', 'e', 'f'], cols(['a', 'b', 'c', 'd', 'e', 'f']), 13, 0, { teams: [['a', 'c', 'e'], ['b', 'd', 'f']] });
+    g.map = { seed: 1, snakes: [], ladders: [] };
+    g.pos = { a: 100, b: 10, c: 40, d: 20, e: 25, f: 30 };
+    g.places = ['a'];
+    check(S.snakesPieceOf(g, 'a') === 'e', 'snakes 3: 2 teams of 3: the member home rolls for the teammate furthest behind');
+    g.pos.c = 25;
+    check(S.snakesPieceOf(g, 'a') === 'c', 'snakes 3: 2 teams of 3: on a tie, for the one next in turn order');
+  }
+  {
+    // A whole 2-teams-of-3 game to its end.
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
+    const g = S.snakesNewGame(ids, cols(ids), 14, 0, { teams: [['a', 'c', 'e'], ['b', 'd', 'f']] });
+    const rnd = seeded(3);
+    let guard = 0, fine = true;
+    while (g.phase === 'play' && guard++ < 6000) {
+      const roller = g.turn.pid, piece = S.snakesPieceOf(g, roller);
+      if (g.places.indexOf(piece) !== -1) fine = false;
+      const e = S.snakesRoll(g, roller, 1 + Math.floor(rnd() * 6), rnd, guard);
+      if (e.pid !== piece) fine = false;
+    }
+    check(g.phase === 'gameover' && fine && g.teamPlaces.length === 2 && g.places.length === 6 && g.teams[g.teamPlaces[0]].every((id) => g.places.indexOf(id) !== -1),
+      'snakes 3: 2 teams of 3: a whole game, every roll moving the right piece, the first team all home');
+  }
+  check(throws(() => { const g = S.snakesNewGame(['a', 'b'], cols(['a', 'b']), 1, 0); S.snakesRoll(g, 'a', 75, Math.random, 1); }), 'snakes 3: a die of 75 is refused');
+  check(JSON.stringify(S.snakesTeamGroups(['a', 'b', 'c', 'd'], 2, [['a', 'b'], ['c', 'd']])) === '[["a","b"],["c","d"]]' &&
+    JSON.stringify(S.snakesTeamGroups(['a', 'b', 'c', 'd', 'e', 'f'], 3, [['a', 'b'], ['c', 'd']])) === '[["a","b","e"],["c","d","f"]]' &&
+    S.snakesTeamGroups(['a', 'b', 'c', 'd', 'e'], 2, null) === null && S.snakesTeamGroups(['a', 'b', 'c', 'd'], 3, null) === null,
+    'snakes 3: the lobby\'s teams: kept as the host made them, the unplaced filled in, and none when the size doesn\'t fit the table');
+
+  // --- Awards: up to three, the most dramatic (each over its cap), the biggest last, with their moments' squares.
+  {
+    const g = S.snakesNewGame(['a', 'b', 'c'], cols(['a', 'b', 'c']), 15, 0);
+    g.stats = { eaten: { a: 2, b: 3 }, sixes: { c: 7 }, eats: { b: [{ h: 50, t: 10 }, { h: 60, t: 20 }, { h: 50, t: 10 }] }, lead: { eaten: { pid: 'b', val: 3 }, sixes: { pid: 'c', val: 7 } },
+      fall: { pid: 'a', from: 98, to: 12, val: 86 }, ladder: { pid: 'c', from: 23, to: 40, val: 17 } };
+    const aw = S.snakesAwards(g);
+    // Scores: fall 86/90 .96, sixes 7/9 .78, eaten 3/6 .5, ladder 17/90 .19 → the three biggest, the biggest last.
+    check(aw.length === 3 && aw.map((a) => a.k).join() === 'eaten,sixes,fall' && aw[2].from === 98 && aw[2].to === 12 && aw[0].eats.length === 3 && aw[1].val === 7,
+      'snakes 3: the awards: the three most dramatic of four, each measured over its cap, revealed with the biggest last, the moments\' squares kept');
+    g.stats.lead = {}; g.stats.fall = null; g.stats.ladder = { pid: 'a', from: 3, to: 40, val: 37 };
+    check(S.snakesAwards(g).map((a) => a.k).join() === 'ladder', 'snakes 3: the awards: only the ones the game had (one sixes, no eats: no award for them)');
+    // In a real game: the first to reach the most keeps it, and the awards come with the end.
+    const ids = ['a', 'b', 'c'];
+    const h = S.snakesNewGame(ids, cols(ids), 16, 0);
+    const rnd = seeded(8);
+    const eatCount = {}, sixCount = {};
+    let guard = 0;
+    while (h.phase === 'play' && guard++ < 3000) {
+      const roller = h.turn.pid;
+      const v = 1 + Math.floor(rnd() * 6);
+      const e = S.snakesRoll(h, roller, v, rnd, guard);
+      if (e.jump && e.jump.k === 's') eatCount[e.pid] = (eatCount[e.pid] || 0) + 1;
+      if (v === 6) sixCount[roller] = (sixCount[roller] || 0) + 1;
+    }
+    const maxEat = Math.max(0, ...Object.values(eatCount)), maxSix = Math.max(0, ...Object.values(sixCount));
+    check(h.phase === 'gameover' && Array.isArray(h.awards) && h.awards.length <= 3 && h.stats.lead.eaten.val === maxEat && h.stats.lead.sixes.val === maxSix &&
+      h.awards.every((a) => ids.indexOf(a.pid) !== -1 && a.val > 0),
+      `snakes 3: the awards in a real game: counted as it is played (most eaten ${maxEat}, most sixes ${maxSix}), at most three, ready at the end`);
+  }
+
+  // --- The room: options in the start payload, teams in the lobby, team places on the night.
+  {
+    const r = newRoom(['h', 'p', 'q']);
+    applyRoomAction(r, 'h', 'chooseGame', { game: 'snakes' });
+    applyRoomAction(r, 'h', 'addBot', { level: 'easy', name: 'زيزو' });
+    check(throws(() => applyRoomAction(r, 'p', 'teamMode', { size: 2 })), 'snakes 3 room: only the host sets teams');
+    applyRoomAction(r, 'h', 'teamMode', { size: 2 });
+    const lob = r.shared.lobby;
+    check(lob.teamSize === 2 && Array.isArray(lob.teams) && lob.teams.length === 2 && lob.teams.every((t) => t.length === 2), 'snakes 3 room: 4 at the table: teams of 2 drawn at once');
+    const before = JSON.stringify(lob.teams);
+    const a = lob.teams[0][0], b = lob.teams[1][1];
+    applyRoomAction(r, 'h', 'teamSwap', { a: a, b: b });
+    check(r.shared.lobby.teams[0].indexOf(b) !== -1 && r.shared.lobby.teams[1].indexOf(a) !== -1, 'snakes 3 room: the host swaps two people between teams');
+    applyRoomAction(r, 'h', 'teamDeal', {});
+    check(r.shared.lobby.teams.length === 2 && JSON.stringify(r.shared.lobby.teams.flat().sort()) === JSON.stringify(JSON.parse(before).flat().sort()), 'snakes 3 room: «وزّع» draws the teams again');
+    const teams = JSON.parse(JSON.stringify(r.shared.lobby.teams));
+    applyRoomAction(r, 'h', 'start', { turnClock: 0, theme: 'nile', surprises: true, moving: true });
+    const s = r.shared;
+    check(s.theme === 'nile' && s.opts.surprises && s.opts.moving && s.map.surp && Object.keys(s.map.surp).length === 6 && s.settings.theme === 'nile',
+      'snakes 3 room: the host\'s theme and switches go into the game');
+    check(JSON.stringify(s.teams) === JSON.stringify(teams) && s.seats.every((id, i) => i === 0 || teams.findIndex((t) => t.indexOf(id) !== -1) !== teams.findIndex((t) => t.indexOf(s.seats[i - 1]) !== -1)),
+      'snakes 3 room: the lobby\'s teams are the game\'s, one of each team in turn');
+    // Play it to the end on the clock (everyone quiet: the host moves each turn on).
+    let guard = 0;
+    while (r.shared.phase === 'play' && guard++ < 8000) {
+      clock = Math.max(clock + 50, (r.shared.readyAt || 0) + 10);
+      const up = r.shared.turn.pid;
+      if (r.players.find((x) => x.id === up && x.bot)) applyRoomAction(r, 'h', 'skipTurn', { seq: r.shared.turnSeq });
+      else applyRoomAction(r, up, 'roll', { seq: r.shared.turnSeq });
+    }
+    const ss = r.shared;
+    const win = ss.teams[ss.teamPlaces[0]], lose = ss.teams[ss.teamPlaces[1]];
+    check(ss.phase === 'gameover' && win.every((id) => ss.wins[id] === 1) && lose.every((id) => !ss.wins[id]), 'snakes 3 room: the winning team\'s members each get the win');
+    check(Array.isArray(ss.awards) && ss.awards.length <= 3, 'snakes 3 room: the awards come with the end');
+    const nr = structuredClone(r);
+    applyRoomAction(nr, 'h', 'backToHub', {});
+    check(win.every((id) => nr.night[id] === 5) && lose.every((id) => nr.night[id] === 3), 'snakes 3 room: the night counts the teams\' places: 5 each for the winners, 3 each for the second');
+    // Play again keeps the teams and the options.
+    const pr = structuredClone(r);
+    applyRoomAction(pr, 'h', 'playAgain', {});
+    check(pr.shared.theme === 'nile' && pr.shared.opts.surprises && JSON.stringify(pr.shared.teams.map((t) => t.slice().sort()).sort()) === JSON.stringify(ss.teams.map((t) => t.slice().sort()).sort()),
+      'snakes 3 room: play again keeps the map, the switches and the teams');
+  }
+  {
+    // 6 people: 3 teams of 2 or 2 teams of 3; the night 5 / 3 / 2 by team; a teammate leaving.
+    const r = newRoom(['h', 'b', 'c', 'd', 'e', 'f']);
+    applyRoomAction(r, 'h', 'chooseGame', { game: 'snakes' });
+    applyRoomAction(r, 'h', 'teamMode', { size: 3 });
+    check(r.shared.lobby.teams.length === 2 && r.shared.lobby.teams.every((t) => t.length === 3), 'snakes 3 room: 6 at the table: 2 teams of 3');
+    applyRoomAction(r, 'h', 'teamMode', { size: 2 });
+    check(r.shared.lobby.teams.length === 3 && r.shared.lobby.teams.every((t) => t.length === 2), 'snakes 3 room: 6 at the table: or 3 teams of 2');
+    applyRoomAction(r, 'h', 'start', {});
+    // A member leaves: the team plays on with the other.
+    const t0 = r.shared.teams[0];
+    clock = r.shared.readyAt + 10;
+    roomPlayerLeft(r, t0[0], 'X');
+    r.players = r.players.filter((x) => x.id !== t0[0]);
+    check(r.shared.teams[0].join() === t0[1] && r.shared.phase === 'play', 'snakes 3 room: a teammate leaving: the team plays on with the others');
+    let guard = 0;
+    while (r.shared.phase === 'play' && guard++ < 8000) {
+      clock = Math.max(clock + 50, (r.shared.readyAt || 0) + 10);
+      applyRoomAction(r, r.shared.turn.pid, 'roll', { seq: r.shared.turnSeq });
+    }
+    const ss = r.shared;
+    const nr = structuredClone(r);
+    applyRoomAction(nr, 'h', 'backToHub', {});
+    const pts = ss.teamPlaces.map((ti) => ss.teams[ti].map((id) => nr.night[id]));
+    check(ss.phase === 'gameover' && ss.teamPlaces.length === 3 && pts[0].every((x) => x === 5) && pts[1].every((x) => x === 3) && pts[2].every((x) => x === 2),
+      'snakes 3 room: 3 teams of 2: the night banks 5 / 3 / 2 by team');
+  }
+  {
+    // Teams need 4 or 6: 5 at the table refuses teams with a word, and the classic start still works.
+    const r = newRoom(['h', 'b', 'c', 'd', 'e']);
+    applyRoomAction(r, 'h', 'chooseGame', { game: 'snakes' });
+    applyRoomAction(r, 'h', 'teamMode', { size: 2 });
+    check(throws(() => applyRoomAction(r, 'h', 'start', {})), 'snakes 3 room: teams with 5 at the table are refused');
+    applyRoomAction(r, 'h', 'teamMode', { size: 0 });
+    applyRoomAction(r, 'h', 'start', {});
+    check(r.shared.phase === 'play' && !r.shared.teams && !r.shared.theme && !r.shared.opts, 'snakes 3 room: an older phone\'s start (no new fields) is the classic, each for themselves');
+  }
+}
+
 /* --- الشاهد (29 Sep 2026): a face seen 8 s, a sketch, a lineup of six very alike, the jury's vote --- */
 {
   console.log('\nThe witness');

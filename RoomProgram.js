@@ -100,6 +100,8 @@ const PROGRAM_TEAMS = {
     const ids = Object.keys(s.teams);
     return [ids.filter(id => s.teams[id].team === s.winner), ids.filter(id => s.teams[id].team !== s.winner)];
   },
+  // السلم والتعبان in teams (2 Oct 2026): the teams in the order they got home (null playing each for themselves).
+  snakes: (room) => snakesTeamResult(room),
   votechess: (room) => programTwoTeams(room),
   // المشنقة's team way (RoomHangman.js); its other ways place by the board (null here).
   hangman: (room) => hmProgramTeams(room),

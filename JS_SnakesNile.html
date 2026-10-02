@@ -1,0 +1,396 @@
+<script>
+/* ============================================================================
+   السلم والتعبان — the Nile map (النيل), look أ «على الكلاسيك» (the owner, 2 Oct 2026,
+   from the sheet https://claude.ai/artifact/BkcUaiWYKKnQMiPAtTyRHQ, notes/snakes-themes/nile.html)
+   ----------------------------------------------------------------------------
+   Today's 10 × 10 board in its frame, dressed in the Nile: sand and turquoise squares (a little wave
+   on the water ones, sand grains on the others), a green frame with a gold lotus border, crocodiles
+   for the snakes (a long body on the same curve, a ridged back and bumps, short paddling legs, the
+   head in profile at the top corner of its square, one in a طربوش and a moustache, each coming out of
+   a pool at its tail), notched palm trunks with fronds and dates for the ladders, papyrus, reeds, a
+   sakia and egrets round the edge. The crocodile's four moves (gulp, ride, tears, chase) and the
+   palm's four (climb, rope, slip, egret) are the sheet's, each shortened to fit its time in
+   SNAKES_THEME_MOVES (Snakes.js). Everything else on the board is JS_Snakes.html's.
+   ========================================================================= */
+(function () {
+  const I = SNK_INK;
+  const NL = {
+    tileA: '#f6ebcb', tileB: '#5fb4c0', numA: '#173b2c', numB: '#0f2d33', frame: '#1d4f33', frame2: '#2f7a50', bg: '#e3eed8',
+    crocs: ['#5f9a2c', '#7ea233', '#47864a', '#93a52a', '#3d7f55', '#6e9440', '#a2aa34', '#58852a']
+  };
+
+  /* --- the Nile's props ----------------------------------------------------------------------- */
+  function papyrus(x, y, s) {
+    let o = `<g transform="translate(${x} ${y}) scale(${s})"><g class="snn-sway">`;
+    [[-9, -34], [-3, -44], [4, -38], [10, -30], [0, -28]].forEach(([dx, h]) => {
+      o += `<path d="M0 0 Q${dx * 0.4} ${h * 0.5} ${dx} ${h}" stroke="#3e7a2a" stroke-width="2.2" fill="none"/>`;
+      o += `<g transform="translate(${dx} ${h})">`;
+      for (let k = -3; k <= 3; k++) o += `<path d="M0 0 L${k * 3.4} ${-9 + Math.abs(k) * 1.5}" stroke="#5ea33a" stroke-width="1.4"/>`;
+      o += '<circle r="1.6" fill="#3e7a2a"/></g>';
+    });
+    return o + `<path d="M-8 0 Q0 -6 8 0" stroke="${I}" stroke-width="1" fill="#5e8a35"/></g></g>`;
+  }
+  function reeds(x, y, s) {
+    let o = `<g transform="translate(${x} ${y}) scale(${s})"><g class="snn-sway">`;
+    [[-6, -30], [-2, -38], [3, -33], [7, -26]].forEach(([dx, h]) => { o += `<path d="M${dx * 0.3} 0 Q${dx * 0.6} ${h * 0.5} ${dx} ${h}" stroke="#4d7a2c" stroke-width="1.8" fill="none"/><rect x="${dx - 1.8}" y="${h + 2}" width="3.6" height="8" rx="1.8" fill="#7a4b22" stroke="${I}" stroke-width=".6"/>`; });
+    [[-10, -16], [9, -14]].forEach(([dx, h]) => { o += `<path d="M0 0 Q${dx * 0.5} ${h * 0.6} ${dx} ${h}" stroke="#6aa33f" stroke-width="2" fill="none"/>`; });
+    return o + '</g></g>';
+  }
+  function sakia(x, y, s) {
+    let sp = '', pots = '';
+    for (let k = 0; k < 8; k++) {
+      const a = k * Math.PI / 4, cx = Math.cos(a) * 18, cy = Math.sin(a) * 18;
+      sp += `M0 0 L${cx.toFixed(1)} ${cy.toFixed(1)}`;
+      pots += `<rect x="${(cx - 3).toFixed(1)}" y="${(cy - 3).toFixed(1)}" width="6" height="7" rx="2" fill="#b4612c" stroke="${I}" stroke-width=".8"/>`;
+    }
+    return `<g transform="translate(${x} ${y}) scale(${s})"><g class="snn-slowspin"><circle r="18" fill="none" stroke="#6b3d16" stroke-width="4"/><circle r="18" fill="none" stroke="${I}" stroke-width="1"/><path d="${sp}" stroke="#7a4a1e" stroke-width="2.6"/>${pots}<circle r="3.5" fill="#4a2a10" stroke="${I}"/></g></g>`;
+  }
+  /** أبو قردان in flight. */
+  function egret() {
+    return `<g><path class="snn-wing" d="M-2 -1 Q-10 -14 -20 -12 Q-12 -6 -6 1Z" fill="#fff" stroke="${I}" stroke-width=".9"/><ellipse cx="0" cy="0" rx="10" ry="4.6" fill="#fff" stroke="${I}" stroke-width="1"/><path d="M8 -2 Q12 -7 15 -5" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M8 -2 Q12 -7 15 -5" stroke="${I}" stroke-width=".8" fill="none" opacity=".6"/><circle cx="15.5" cy="-5.5" r="3" fill="#fff" stroke="${I}" stroke-width=".9"/><path d="M18 -6 L25 -4.5 L18 -4.4Z" fill="#f2b705" stroke="${I}" stroke-width=".6"/><circle cx="16.2" cy="-6.2" r=".7" fill="${I}"/><path d="M-9 1 L-16 3 M-9 2 L-15 6" stroke="#2b2b2b" stroke-width="1.2"/><path class="snn-wing" d="M0 -1 Q-6 -16 -16 -16 Q-9 -7 -3 1Z" fill="#f4f4f4" stroke="${I}" stroke-width=".9"/></g>`;
+  }
+
+  /** A crocodile's head in profile, looking to +x (flipped for the other side). */
+  function crocHead(col, fez) {
+    const dark = snkTint(col, -0.3), light = snkTint(col, 0.35);
+    const eye = (x, y) => `<g transform="translate(${x} ${y})"><circle r="5.6" fill="#fff8d6" stroke="${I}" stroke-width="1.7"/><g class="snk-pup"><ellipse rx="1.6" ry="3" fill="#161022"/><circle cx="-.6" cy="-1.2" r=".7" fill="#fff"/></g>
+      <circle class="snk-lid" cx="0" cy="0" r="5.9" fill="${col}" stroke="${I}" stroke-width="1.2"/></g>`;
+    return `<g class="snk-hdi">
+    <path d="M-12 3 L22 3 L19 9 Q4 11 -10 8Z" fill="#7a1424" stroke="${I}" stroke-width="1.4"/>
+    <g class="snn-lowj"><path d="M-13 3 L20 3 Q25 4 23 8 Q12 12 -9 9.5 Q-14 8 -13 3Z" fill="${light}" stroke="${I}" stroke-width="1.8"/>
+      <path d="M5 3.5 l1.6 -3 l1.6 3Z M11 3.5 l1.6 -3 l1.6 3Z M17 3.5 l1.4 -2.6 l1.4 2.6Z" fill="#fff" stroke="${I}" stroke-width=".7"/></g>
+    <g class="snn-upj"><path d="M-17 -1 Q-17 -14 -5 -14 Q4 -13 8 -7 L22 -6 Q28 -5 27 0 Q26 4 21 4 L-11 4 Q-17 3.5 -17 -1Z" fill="${col}" stroke="${I}" stroke-width="2"/>
+      <path d="M8 -6.5 L21 -5.5" stroke="${dark}" stroke-width="1.2" opacity=".6"/>
+      <path d="M2 -3 h3 M9 -2 h3 M15 -1.5 h3" stroke="${dark}" stroke-width="1.3" stroke-linecap="round" opacity=".7"/>
+      <path d="M7 4 l1.6 3.2 l1.6 -3.2Z M13 4 l1.6 3.2 l1.6 -3.2Z M19 4 l1.4 2.8 l1.4 -2.8Z" fill="#fff" stroke="${I}" stroke-width=".7"/>
+      <circle cx="23.5" cy="-5.2" r="2.3" fill="${col}" stroke="${I}" stroke-width="1.2"/><circle cx="24" cy="-5.4" r=".7" fill="${I}"/>
+      <path class="snn-smile" d="M-8 4.5 Q-12 5.5 -13.5 1.5" stroke="${I}" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="-7" cy="0" r="3" fill="#ff7f8f" opacity=".45"/></g>
+    ${eye(-10, -12.5)}${eye(-2.5, -13)}
+    <path class="snk-brow" d="M-15 -20 Q-11 -23 -7 -20 M-6 -21 Q-2 -24 2 -21" stroke="${I}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <g class="snn-tears"><path class="snn-drop" d="M-4 -7 q2.4 3.4 0 5 q-2.4 -1.6 0 -5z" fill="#7fd0ff" stroke="${I}" stroke-width=".6"/><path class="snn-drop b" d="M-12 -7 q2.4 3.4 0 5 q-2.4 -1.6 0 -5z" fill="#7fd0ff" stroke="${I}" stroke-width=".6"/></g>
+    ${fez ? `<g transform="translate(-14 -16) rotate(-14)"><path d="M-6 0 L-4.5 -10 L4.5 -10 L6 0 Z" fill="#c62828" stroke="${I}" stroke-width="1.4"/><path d="M0 -10 Q-4 -9 -5 -3" stroke="${I}" stroke-width="1.1" fill="none"/><circle cx="-5" cy="-2.5" r="1.6" fill="${I}"/></g>
+      <path d="M14 1.5 Q18 -1.5 21 1 Q24 -1.5 28 1.5 Q24 1.2 21 3 Q18 1.2 14 1.5Z" fill="#231510"/>` : ''}
+    <text class="snk-zz" x="-2" y="-22" font-size="11" font-weight="800" fill="${I}" font-family="system-ui,sans-serif">z</text>
+   </g>`;
+  }
+
+  /** A splash where a piece drops into a pool. */
+  function splash(c, x, y) {
+    snkPuff(c, x, y, 8, '#9fdcf5', 30);
+    if (c.fast || snkStill()) return;
+    for (let i = 0; i < 5; i++) {
+      const e = snkEl('path', { d: 'M0 0 q2 -6 0 -10 q-2 4 0 10z', fill: '#7cc4e6', stroke: I, 'stroke-width': 0.6 }, c.fx);
+      const a = (i - 2) * 0.5, t0 = performance.now();
+      (function f(now) {
+        const k = snkClamp((now - t0) / 600, 0, 1);
+        snkTR(e, x + Math.sin(a) * 24 * k, y - Math.sin(k * Math.PI) * 22, 1, a * 40);
+        e.setAttribute('opacity', (1 - k).toFixed(2));
+        if (k < 1 && e.isConnected) requestAnimationFrame(f); else e.remove();
+      })(t0);
+    }
+  }
+
+  /* --- the crocodile's four moves (each inside its time in SNAKES_THEME_MOVES.nile) ------------ */
+  async function cGulp(c, g, p, sn) {
+    snkFace(p, 'gasp'); snkBubble(c, p.x, p.y - 20, snkT('snk_b_no'), 900);
+    const x0 = p.x, y0 = p.y;
+    await snkTween(c, g, 300, t => { sn.jaw = t; sn.lunge = { x: (x0 - sn.hx) * 0.3 * t, y: (y0 - sn.hy) * 0.3 * t, s: 1 + 0.25 * t }; });
+    if (!snkAlive(c, g)) return;
+    await snkTween(c, g, 280, t => snkSetP(p, snkLerp(x0, sn.hx + sn.lunge.x + 6 * sn.face, t), snkLerp(y0, sn.hy + sn.lunge.y + 4, t), 1 - t * 0.9, t * 140), snkEaseIn);
+    p.e.setAttribute('opacity', 0); p.hidden = true;
+    snkSound(c, 'snkGulp', p.mine);
+    await snkTween(c, g, 260, t => { sn.jaw = 1 - t; sn.lunge = { x: sn.lunge.x * (1 - t), y: sn.lunge.y * (1 - t), s: 1 + 0.25 * (1 - t) + Math.sin(t * Math.PI) * 0.18 }; });
+    if (!snkAlive(c, g)) return;
+    snkBubble(c, sn.hx, sn.hy - 10, snkT('snk_b_ham'), 800); sn.amp = 3.5;
+    await snkTween(c, g, 1100, t => { sn.bulge = snkLerp(sn.s + 14, sn.L - 14, t); }, snkEase);
+    sn.bulge = null; sn.amp = 1.8;
+    if (!snkAlive(c, g)) return;
+    const tp = snkSpineAt(sn, sn.L - 4, c.time || 0);
+    p.n = sn.t; p.hidden = false; p.e.setAttribute('opacity', 1);
+    snkBubble(c, tp.x, tp.y - 10, snkT('snk_b_tuf'), 800); splash(c, tp.x, tp.y + 3);
+    const s = snkSpot(c, p);
+    p.k = s.k;
+    await snkTween(c, g, 480, t => snkSetP(p, snkLerp(tp.x, s.x, t), snkLerp(tp.y, s.y, t) - Math.sin(t * Math.PI) * 34, 0.3 + 0.7 * snkBackOut(Math.min(1, t * 1.3)), (1 - t) * -300), snkLin);
+    snkSettleAll(c);
+    await snkDizzy(c, g, p, 400);
+  }
+
+  async function cRide(c, g, p, sn) {
+    snkFace(p, 'gasp up'); snkBubble(c, p.x, p.y - 20, snkT('snk_b_nile_tick'), 1200);
+    snkSound(c, 'snkSlide', p.mine);
+    await snkTween(c, g, 1650, (t, r) => {
+      const a = snkLerp(sn.s + 8, sn.L - 8, t), q = snkSpineAt(sn, a, c.time || 0), q2 = snkSpineAt(sn, a + 8, c.time || 0), ang = Math.atan2(q2.y - q.y, q2.x - q.x) * 180 / Math.PI;
+      const bump = Math.abs(Math.sin(a * 0.42)) * 5;
+      snkSetP(p, q.x, q.y - 11 - bump, 1, snkClamp((ang - 90) * 0.3, -30, 30) + Math.sin(a * 0.42) * 6);
+    }, snkEaseIn);
+    if (!snkAlive(c, g)) return;
+    p.n = sn.t;
+    const s = snkSpot(c, p), x0 = p.x, y0 = p.y;
+    p.k = s.k;
+    splash(c, x0, y0 + 8);
+    await snkTween(c, g, 380, t => snkSetP(p, snkLerp(x0, s.x, t), snkLerp(y0, s.y, t) - Math.abs(Math.sin(t * Math.PI * 2)) * (1 - t) * 20, 1, (1 - t) * 40), snkLin);
+    snkSettleAll(c);
+    await snkDizzy(c, g, p, 400);
+  }
+
+  async function cTears(c, g, p, sn) {
+    sn.mood = 'cry'; snkBubble(c, sn.hx, sn.hy - 16, snkT('snk_b_nile_waa'), 1000);
+    snkFace(p, 'sweat');
+    const x0 = p.x, y0 = p.y;
+    await snkTween(c, g, 650, (t, r) => { sn.lunge = { x: 0, y: Math.sin(r * Math.PI * 6) * 1.2, s: 1 }; }, snkLin);
+    if (!snkAlive(c, g)) return;
+    snkBubble(c, p.x, p.y - 24, snkT('snk_b_nile_sorry'), 800);
+    await snkTween(c, g, 420, (t, r) => snkSetP(p, x0 + Math.sin(r * Math.PI * 4) * 3, y0, 1, Math.sin(r * Math.PI * 4) * 8), snkLin);
+    if (!snkAlive(c, g)) return;
+    snkBubble(c, sn.hx, sn.hy - 16, snkT('snk_b_nile_tears'), 1200); snkFace(p, 'gasp up');
+    const pad = snkEl('g', {}, c.under);
+    pad.innerHTML = `<path d="M0 0 L14 -3 A14 9 0 1 1 14 3Z" fill="#4f9a3e" stroke="${I}" stroke-width="1.2"/><path d="M-6 -3 Q-9 -8 -7 -12 Q-5 -8 -4 -12 Q-3 -8 -1 -11 Q-1 -6 -6 -3Z" fill="#f49ac1" stroke="${I}" stroke-width=".7"/>`;
+    let lastD = 0;
+    await snkTween(c, g, 1300, (t, r) => {
+      const a = snkLerp(sn.s + 10, sn.L - 8, t), q = snkSpineAt(sn, a, c.time || 0), bob = Math.sin(r * Math.PI * 10) * 2;
+      snkTR(pad, q.x, q.y + 7 + bob, 1, Math.sin(r * Math.PI * 4) * 10);
+      snkSetP(p, q.x, q.y - 8 + bob, 1, Math.sin(r * Math.PI * 4) * 6);
+      if (r - lastD > 0.14) { lastD = r; snkPuff(c, q.x + (Math.random() - 0.5) * 16, q.y + 8, 1, '#9fdcf5', 8); }
+    }, snkEase);
+    sn.mood = ''; sn.lunge = { x: 0, y: 0, s: 1 };
+    if (!snkAlive(c, g)) { pad.remove(); return; }
+    p.n = sn.t;
+    const s = snkSpot(c, p), x1 = p.x, y1 = p.y;
+    p.k = s.k;
+    splash(c, x1, y1 + 8); pad.remove();
+    await snkTween(c, g, 330, t => snkSetP(p, snkLerp(x1, s.x, t), snkLerp(y1, s.y, t) - Math.sin(t * Math.PI) * 20), snkLin);
+    snkSettleAll(c);
+    snkFace(p, 'sweat'); snkBubble(c, p.x, p.y - 24, snkT('snk_b_nile_wet'), 900);
+    await snkWait(c, g, 250);
+    snkFace(p, '');
+  }
+
+  async function cChase(c, g, p, sn) {
+    snkFace(p, 'gasp fwd sweat');
+    const x0 = p.x, y0 = p.y;
+    snkSound(c, 'snkHiss', p.mine);
+    await snkTween(c, g, 350, (t, r) => { const k = Math.sin(r * Math.PI); sn.jaw = k; sn.lunge = { x: (x0 - sn.hx) * 0.3 * k, y: (y0 - sn.hy) * 0.3 * k, s: 1 + 0.2 * k }; }, snkLin);
+    snkBubble(c, sn.hx, sn.hy - 12, snkT('snk_b_nile_snap'), 600);
+    if (!snkAlive(c, g)) return;
+    snkBubble(c, p.x, p.y - 24, snkT('snk_b_nile_help'), 1000);
+    const sd = (Number(sn.h) + Number(sn.t)) % 2 ? 1 : -1;
+    let lastS = 0;
+    await snkTween(c, g, 1380, (t, r) => {
+      const a = snkLerp(sn.s + 12, sn.L - 6, t), q = snkSpineAt(sn, a, c.time || 0), off = (sn.W * 0.5 + 9) * sd * Math.min(1, (sn.L - a) / 30 + 0.25);
+      snkSetP(p, q.x + q.nx * off, q.y + q.ny * off - 6 - Math.abs(Math.sin(r * Math.PI * 14)) * 5, 1, Math.sin(r * Math.PI * 14) * 8);
+      sn.jaw = r < 0.55 ? Math.abs(Math.sin(r * Math.PI * 7)) : 0;
+      if (r < 0.55 && r - lastS > 0.18) { lastS = r; snkBubble(c, sn.hx, sn.hy - 12, snkT('snk_b_nile_snap'), 350); }
+    }, snkLin);
+    sn.jaw = 0;
+    if (!snkAlive(c, g)) return;
+    const tp = snkSpineAt(sn, sn.L - 2, c.time || 0);
+    p.n = sn.t;
+    const x1 = p.x, y1 = p.y;
+    await snkTween(c, g, 280, t => snkSetP(p, snkLerp(x1, tp.x, t), snkLerp(y1, tp.y, t) - Math.sin(t * Math.PI) * 16, 1 - t * 0.5, t * 90), snkEaseIn);
+    if (!snkAlive(c, g)) return;
+    splash(c, tp.x, tp.y + 2); snkBubble(c, tp.x, tp.y - 14, snkT('snk_b_nile_plop'), 700);
+    const s = snkSpot(c, p);
+    p.k = s.k;
+    await snkTween(c, g, 420, t => snkSetP(p, snkLerp(tp.x, s.x, t), snkLerp(tp.y, s.y, t) - Math.sin(t * Math.PI) * 24, 0.5 + 0.5 * t, 0), snkLin);
+    snkSettleAll(c);
+    await snkDizzy(c, g, p, 400);
+  }
+
+  /* --- the palm's four moves (each inside its time, less the hop at the top) ------------------ */
+  function stepUp(c, g, p, l, u0, u1, ms, steps, onF) {
+    snkFace(p, 'up');
+    return snkTween(c, g, ms, (t, r) => {
+      const k = Math.floor(r * steps), f = snkEase(snkClamp(r * steps - k, 0, 1)), u = snkLerp(u0, u1, Math.min(1, (k + f) / steps)), q = snkLadPt(l, u);
+      snkSetP(p, q.x, q.y - Math.sin(f * Math.PI) * 4, 1, Math.sin(r * steps * Math.PI) * 9);
+      if (onF) onF(q, f, r);
+    }, snkLin);
+  }
+  async function pClimb(c, g, p, l) {
+    snkBubble(c, p.x, p.y - 20, snkT('snk_b_nile_heave'), 900);
+    snkSound(c, 'snkUp', p.mine);
+    await stepUp(c, g, p, l, 0, 1, 1600, 10);
+  }
+  async function pRope(c, g, p, l) {
+    snkBubble(c, p.x, p.y - 20, snkT('snk_b_nile_rope'), 1000);
+    snkSound(c, 'snkUp', p.mine);
+    const rope = snkEl('ellipse', { rx: 13, ry: 5, fill: 'none', stroke: '#c99a4a', 'stroke-width': 2.4 }, c.fx);
+    await stepUp(c, g, p, l, 0, 1, 1750, 5, (q, f) => snkTR(rope, q.x, q.y + 4 - Math.sin(f * Math.PI) * 4, 1, -15 + Math.sin(f * Math.PI) * 25));
+    rope.remove();
+    if (snkAlive(c, g)) { snkBubble(c, p.x, p.y - 24, snkT('snk_b_nile_dates'), 800); for (let i = 0; i < 3; i++) snkPuff(c, p.x + (i - 1) * 8, p.y - 10, 1, '#8a4515', 14); }
+  }
+  async function pSlip(c, g, p, l) {
+    snkBubble(c, p.x, p.y - 20, snkT('snk_b_nile_palm'), 800);
+    await stepUp(c, g, p, l, 0, 0.62, 1000, 6);
+    if (!snkAlive(c, g)) return;
+    snkFace(p, 'gasp up sweat'); snkBubble(c, p.x, p.y - 24, snkT('snk_b_ah'), 700);
+    await snkTween(c, g, 260, t => { const q = snkLadPt(l, snkLerp(0.62, 0.38, t)); snkSetP(p, q.x, q.y, 1, (1 - t) * 14); }, snkEaseIn);
+    if (!snkAlive(c, g)) return;
+    const q = snkLadPt(l, 0.38);
+    await snkTween(c, g, 340, t => snkSetP(p, q.x + Math.sin(t * Math.PI * 6) * 3 * (1 - t), q.y, 1, Math.sin(t * Math.PI * 6) * 8), snkLin);
+    snkBubble(c, p.x, p.y - 24, snkT('snk_b_caught'), 800);
+    await stepUp(c, g, p, l, 0.38, 1, 800, 6);
+  }
+  async function pEgret(c, g, p, l) {
+    const bird = snkEl('g', {}, c.fx);
+    bird.innerHTML = `<g transform="scale(1.2)">${egret()}</g>`;
+    const sx = p.x + (l.side > 0 ? -200 : 200), sy = p.y - 180, x0 = p.x, y0 = p.y;
+    snkBubble(c, p.x, p.y - 24, snkT('snk_b_nile_egret'), 900);
+    await snkTween(c, g, 500, t => snkTR(bird, snkLerp(sx, x0, t), snkLerp(sy, y0 - 28, t), 1, 0), snkEaseOut);
+    if (!snkAlive(c, g)) { bird.remove(); return; }
+    snkFace(p, 'up');
+    await snkTween(c, g, 1250, (t, r) => { const q = snkLadPt(l, t), sw = Math.sin(r * Math.PI * 6) * 10; snkTR(bird, q.x, q.y - 30 - Math.sin(r * Math.PI * 6) * 3, 1, 0); snkSetP(p, q.x, q.y - 6, 1, sw); }, snkEase);
+    if (!snkAlive(c, g)) { bird.remove(); return; }
+    snkBubble(c, p.x, p.y - 24, snkT('snk_b_nile_thanks'), 700);
+    const bx = p.x, by = p.y - 30;
+    await snkTween(c, g, 450, t => snkTR(bird, bx + t * 220 * l.side, by - t * 160, 1, 0), snkEaseIn);
+    bird.remove();
+  }
+
+  /* --- the drawing ------------------------------------------------------------------------------ */
+  SNK_THEMES.nile = {
+    id: 'nile',
+    bg: NL.bg,
+    frame: NL.frame,
+    cols: NL.crocs,
+    amp: 1.8,
+    crawls: true,
+    noFlies: true,
+    mat: { a: '#b98a4a', b: '#efdca4', ink: '#4a2b12' },
+    back() {
+      return `<defs><pattern id="snk-nile-lot" width="22" height="14" patternUnits="userSpaceOnUse"><rect width="22" height="14" fill="${NL.frame}"/><path d="M11 12 Q4 9 6 2 Q9 6 11 1 Q13 6 16 2 Q18 9 11 12Z" fill="#e8c25e"/><circle cx="0" cy="7" r="1.4" fill="#e8c25e"/></pattern></defs>
+        <rect x="-22" y="-22" width="644" height="644" rx="16" fill="url(#snk-nile-lot)" stroke="${I}" stroke-width="2"/><rect x="-8" y="-8" width="616" height="616" rx="6" fill="${NL.frame2}" stroke="${I}" stroke-width="1.5"/>`;
+    },
+    tile(n, x, y, alt) {
+      const fill = alt ? NL.tileB : NL.tileA;
+      let svg = `<rect x="${x}" y="${y}" width="${SNK_C}" height="${SNK_C}" fill="${fill}"/>`;
+      if (alt) svg += `<path d="M${x + 7} ${y + 50} q6 -4 12 0 t12 0 t12 0 t12 0" stroke="#fff" stroke-width="1.6" fill="none" opacity=".35"/>`;
+      else svg += `<circle cx="${x + 9}" cy="${y + 51}" r="1.4" fill="#d9c48f"/><circle cx="${x + 50}" cy="${y + 10}" r="1.4" fill="#d9c48f"/>`;
+      return { fill: fill, svg: svg, num: alt ? NL.numB : NL.numA };
+    },
+    outer() {
+      // Round the edge only: never over a square, the mat or the pieces home on the top of the frame.
+      return papyrus(606, 664, 0.85) + reeds(566, 664, 0.85) + papyrus(262, 664, 0.7) + reeds(300, 664, 0.6) + sakia(604, -22, 0.6) +
+        ['a', 'b'].map((k, i) => `<g class="snn-fly${i ? ' b' : ''}"><g transform="scale(${i ? -0.8 : 0.8} 0.8)">${egret()}</g></g>`).join('');
+    },
+    worker() {
+      return `<g class="wkb"><ellipse cx="0" cy="17" rx="10" ry="3" fill="rgba(0,0,0,.25)"/>
+        <path d="M-4 13 L-4.5 17 M4 13 L4.5 17" stroke="#3a3a4a" stroke-width="3" stroke-linecap="round"/>
+        <path d="M-7 -4 Q-9 6 -9 14 H9 Q9 6 7 -4 Q0 -7 -7 -4Z" fill="#3f78c6" stroke="${I}" stroke-width="1.3"/><path d="M0 -4 V6" stroke="${I}" stroke-width=".8" opacity=".5"/>
+        <circle cy="-11" r="8" fill="#c99668" stroke="${I}" stroke-width="1.3"/>
+        <path d="M-9.5 -13 Q0 -25 9.5 -13 Z" fill="#ffd23f" stroke="${I}" stroke-width="1.3"/><rect x="-11" y="-14" width="22" height="2.6" rx="1.3" fill="#ffd23f" stroke="${I}" stroke-width="1"/>
+        <circle cx="-3" cy="-10" r="1.3" fill="${I}"/><circle cx="3" cy="-10" r="1.3" fill="${I}"/><path d="M-4 -6.8 Q0 -8.4 4 -6.8" stroke="#2b1a0c" fill="none" stroke-width="1.6"/><path d="M-2.5 -5 Q0 -3.6 2.5 -5" stroke="${I}" fill="none" stroke-width="1"/>
+        <g class="snk-hammer" transform="translate(8 1)"><path d="M0 0 L10 -10" stroke="#7a4a18" stroke-width="2.6" stroke-linecap="round"/><rect x="7" y="-16" width="9" height="6" rx="1.2" fill="#5a5f6a" stroke="${I}" stroke-width=".8" transform="rotate(45 11.5 -13)"/></g></g>`;
+    },
+    /** The crocodile's curve: the classic's, with a little less of a wave. */
+    way(s, rnd) {
+      const H0 = snakesCellXY(s.h), T = snakesCellXY(s.t), H = { x: H0.x + (T.x >= H0.x ? 19 : -19), y: H0.y - 19 }, dx = T.x - H.x, dy = T.y - H.y, L = Math.hypot(dx, dy), px = -dy / L, py = dx / L;
+      const m = snkClamp(Math.round(L / 95), 1, 4), sign = rnd() < 0.5 ? 1 : -1, P = [{ x: H.x, y: H.y }];
+      P.push({ x: H.x + dx * 0.08, y: H.y + dy * 0.08 + 10 });
+      for (let j = 1; j <= m; j++) { const f = j / (m + 1), amp = (16 + rnd() * 16) * (j % 2 ? 1 : -1) * sign; P.push({ x: snkClamp(H.x + dx * f + px * amp, 16, 584), y: snkClamp(H.y + dy * f + py * amp, 16, 584) }); }
+      P.push({ x: T.x, y: T.y });
+      return P;
+    },
+    width(rnd) { return 22 + rnd() * 2; },
+    mountDown(c, s, i, d) {
+      const col = d.col, tp = d.pts[d.pts.length - 1];
+      // The pool it comes out of, at its tail.
+      const hole = snkEl('g', {}, c.holesL);
+      snkEl('ellipse', { cx: tp.x, cy: tp.y + 3, rx: 16, ry: 9, fill: '#3f97c8', stroke: I, 'stroke-width': 1.6 }, hole);
+      snkEl('ellipse', { cx: tp.x - 3, cy: tp.y + 1, rx: 8, ry: 3.5, fill: '#9fdcf5', opacity: 0.7 }, hole);
+      snkEl('ellipse', { class: 'snn-ripple', cx: tp.x, cy: tp.y + 3, rx: 12, ry: 6, fill: 'none', stroke: '#e6f7ff', 'stroke-width': 1.2 }, hole);
+      const g = snkEl('g', { class: 'snn-croc' }, c.snakesL);
+      const legsI = snkEl('path', { fill: 'none', stroke: I, 'stroke-width': 10, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
+      const legsC = snkEl('path', { fill: 'none', stroke: snkTint(col, -0.12), 'stroke-width': 6.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
+      const body = snkEl('path', { fill: col, stroke: I, 'stroke-width': 2.3, 'stroke-linejoin': 'round' }, g);
+      const bumps = snkEl('path', { fill: snkTint(col, -0.28), opacity: 0.9 }, g);
+      const ridge = snkEl('path', { fill: 'none', stroke: snkTint(col, -0.45), 'stroke-width': 1.7, 'stroke-linejoin': 'round' }, g);
+      const shine = snkEl('path', { fill: 'none', stroke: '#fff', 'stroke-opacity': 0.32, 'stroke-width': 2.6, 'stroke-linecap': 'round' }, g);
+      const hd = snkEl('g', {}, c.headsL);
+      hd.innerHTML = crocHead(col, d.fez);
+      hd.querySelectorAll('.snk-lid').forEach((l, k) => { l.style.animationDelay = (d.lids[k] || 0).toFixed(2) + 's'; });
+      const H0 = snakesCellXY(s.h), T = snakesCellXY(s.t);
+      return {
+        g: g, hd: hd, hole: hole, hdi: hd.querySelector('.snk-hdi'), legsI: legsI, legsC: legsC, body: body, bumps: bumps, ridge: ridge, shine: shine,
+        lowj: hd.querySelector('.snn-lowj'), upj: hd.querySelector('.snn-upj'), pups: [...hd.querySelectorAll('.snk-pup')],
+        face: T.x >= H0.x ? 1 : -1, legPh: 0
+      };
+    },
+    renderDown(c, sn, t) {
+      const len = sn.L - sn.s;
+      const P = snkBodyPts(c, sn, t, (b, d) => {
+        let w = sn.W;
+        if (d < 12) w *= 0.82 + 0.18 * d / 12;
+        if (d > len * 0.4) w *= Math.max(0.05, 1 - (d - len * 0.4) / (len * 0.62));   // a long tail that tapers to a point
+        return w;
+      });
+      if (!P) return;
+      const R = snkR;
+      sn.body.setAttribute('d', snkOutline(P));
+      const still = snkStillNow;
+      // Stubby legs, front and back, paddling a little.
+      let lg = '';
+      const sw = still ? 0 : Math.sin(t * 3 + sn.ph) * 2.2 + sn.legPh;
+      [0.13, 0.38].forEach((f, j) => {
+        const k = snkClamp(Math.round(len * f / SNK_STEP), 2, P.length - 3), q = P[k];
+        if (!q) return;
+        [1, -1].forEach(sd => {
+          const bx = q.x + q.nx * q.w * 0.34 * sd, by = q.y + q.ny * q.w * 0.34 * sd, sx = sw * (sd * (j ? -1 : 1));
+          const ex = bx + q.nx * 12 * sd - q.tx * (6 + sx), ey = by + q.ny * 12 * sd - q.ty * (6 + sx);
+          lg += `M${R(bx)} ${R(by)}L${R(ex)} ${R(ey)}`;
+          lg += `M${R(ex)} ${R(ey)}l${R(q.nx * 3 * sd + q.tx * 2)} ${R(q.ny * 3 * sd + q.ty * 2)}M${R(ex)} ${R(ey)}l${R(q.nx * 3.6 * sd)} ${R(q.ny * 3.6 * sd)}`;
+        });
+      });
+      sn.legsI.setAttribute('d', lg); sn.legsC.setAttribute('d', lg);
+      // The back: two rows of bumps, a jagged ridge down the tail, a shine.
+      let bp = '', rg = '', sh = '';
+      for (let k = 4; k < P.length - 3; k += 2) {
+        const q = P[k], r = q.w * 0.13;
+        if (r < 0.9) continue;
+        [-1, 1].forEach(sd => { const cx = q.x + q.nx * q.w * 0.22 * sd, cy = q.y + q.ny * q.w * 0.22 * sd; bp += `M${R(cx - r)} ${R(cy)}a${R(r)} ${R(r)} 0 1 0 ${R(2 * r)} 0a${R(r)} ${R(r)} 0 1 0 ${R(-2 * r)} 0`; });
+      }
+      for (let k = 3; k < P.length - 1; k++) { const q = P[k], o = (k % 2 ? 1 : -1) * Math.min(3.2, q.w * 0.2); rg += (rg ? 'L' : 'M') + `${R(q.x + q.nx * o)} ${R(q.y + q.ny * o)}`; }
+      for (let k = 3; k < P.length * 0.55; k += 2) { const q = P[k]; sh += (sh ? 'L' : 'M') + `${R(q.x + q.nx * q.w * 0.36)} ${R(q.y + q.ny * q.w * 0.36)}`; }
+      sn.bumps.setAttribute('d', bp); sn.ridge.setAttribute('d', rg); sn.shine.setAttribute('d', sh);
+      // The head, looking about, at a piece that comes near, dozing now and then.
+      const h = P[0], hx = h.x, hy = h.y - 1;
+      const life = snkHeadLife(c, sn, t, hx, hy), near = life.near, nd = life.nd;
+      let tt = still ? 0 : Math.sin(t * 0.6 + sn.ph) * 4, px = still ? 0 : Math.sin(t * 0.7 + sn.ph), py = 0;
+      if (near && nd < SNK_C * 2.6 && sn.mood !== 'sleep') { tt = snkClamp((near.y - hy) / nd * 18, -6, 18) * ((near.x > hx) === (sn.face > 0) ? 1 : -0.4); px = (near.x - hx) / nd * 1.6 * sn.face; py = (near.y - hy) / nd * 1.4; }
+      if (c.crowd && !still) tt = Math.sin(t * 5) * 10;
+      sn.tilt = snkLerp(sn.tilt, tt, 0.1); sn.pox = snkLerp(sn.pox, px, 0.25); sn.poy = snkLerp(sn.poy, py, 0.25);
+      const br = still ? 1 : 1 + 0.02 * Math.sin(t * 1.6 + sn.ph), s = sn.lunge.s * br * 0.72;
+      sn.hd.setAttribute('transform', `translate(${R(hx + sn.lunge.x)} ${R(hy + sn.lunge.y)}) rotate(${R((sn.tilt + (sn.lunge.r || 0)) * sn.face)}) scale(${(s * sn.face).toFixed(3)} ${s.toFixed(3)})`);
+      sn.pups.forEach(p => p.setAttribute('transform', `translate(${sn.pox.toFixed(2)} ${sn.poy.toFixed(2)})`));
+      const jaw = Math.max(0, sn.jaw);
+      sn.lowj.setAttribute('transform', `rotate(${(jaw * 30).toFixed(1)} -12 3)`);
+      sn.upj.setAttribute('transform', `rotate(${(-jaw * 9).toFixed(1)} -12 2)`);
+      snkHeadMood(sn, 'snk-hdi');
+    },
+    mountUp(c, l) {
+      const a = l.a, b = l.b, dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, vx = -uy, vy = ux;
+      const A = { x: a.x - ux * 8, y: a.y - uy * 8 }, B = { x: b.x + ux * 2, y: b.y + uy * 2 }, w0 = 7, w1 = 4.6;
+      const poly = `M${A.x - vx * w0} ${A.y - vy * w0} L${B.x - vx * w1} ${B.y - vy * w1} L${B.x + vx * w1} ${B.y + vy * w1} L${A.x + vx * w0} ${A.y + vy * w0}Z`;
+      // The soil at the foot stays when the palm is carried away.
+      const base = snkEl('g', {}, c.laddersL);
+      snkEl('ellipse', { cx: A.x, cy: A.y + 2, rx: 11, ry: 5, fill: '#b98a4a', stroke: I, 'stroke-width': 1.2 }, base);
+      const g = snkEl('g', {}, c.laddersL), inner = snkEl('g', {}, g);
+      snkEl('path', { d: poly, fill: 'rgba(0,0,0,.16)', transform: 'translate(4 5)' }, inner);
+      snkEl('path', { d: poly, fill: '#b27a3c', stroke: I, 'stroke-width': 2, 'stroke-linejoin': 'round' }, inner);
+      let notch = '';
+      for (let d = 8; d < L + 4; d += 8) { const t = d / (L + 10), w = snkLerp(w0, w1, t), cx = A.x + ux * d, cy = A.y + uy * d; notch += `M${cx - vx * w * 0.9} ${cy - vy * w * 0.9} L${cx - ux * 3.5} ${cy - uy * 3.5} L${cx + vx * w * 0.9} ${cy + vy * w * 0.9}`; }
+      snkEl('path', { d: notch, stroke: '#6d431c', 'stroke-width': 1.8, fill: 'none', 'stroke-linecap': 'round', class: 'snk-shine' }, inner);
+      // The crown, just past its top square's middle: fronds and a bunch of dates.
+      const crown = snkEl('g', { transform: `translate(${(B.x + ux * 6).toFixed(1)} ${(B.y + uy * 6).toFixed(1)})` }, inner);
+      const base0 = Math.atan2(uy, ux) * 180 / Math.PI;
+      let fr = '';
+      for (let k = 0; k < 7; k++) { const ang = base0 + (k - 3) * 46 + (k % 2 ? 8 : 0); fr += `<path transform="rotate(${ang.toFixed(1)})" d="M0 0 Q10 -7 24 1 Q11 2 0 0Z" fill="${k % 2 ? '#3f9a3c' : '#5ab64b'}" stroke="${I}" stroke-width="1.1"/><path transform="rotate(${ang.toFixed(1)})" d="M2 0 Q12 -3 22 1" stroke="#2c6e2a" stroke-width=".8" fill="none"/>`; }
+      crown.innerHTML = `${fr}<circle cx="-2" cy="3" r="2.6" fill="#7a3b12" stroke="${I}" stroke-width=".6"/><circle cx="2.5" cy="4" r="2.6" fill="#8a4515" stroke="${I}" stroke-width=".6"/><circle cx="0" cy="6.5" r="2.4" fill="#6b3010" stroke="${I}" stroke-width=".6"/>`;
+      const glowL = snkEl('path', { d: poly, fill: 'none', stroke: '#ffe27a', 'stroke-width': 6, opacity: 0 }, inner);
+      return { g: g, inner: inner, glowL: glowL, base: base };
+    },
+    downMoves: { gulp: cGulp, ride: cRide, tears: cTears, chase: cChase },
+    upMoves: { climb: pClimb, rope: pRope, slip: pSlip, egret: pEgret }
+  };
+})();
+</script>

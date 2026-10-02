@@ -74,7 +74,10 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     - **What the table sees of a board**: its tries, its state and its place;
       for خمن الكلمة the colours of each row without the letters (a Wordle
       grid as people share it); for خمّن الدولة the closest a player has come
-      as a percentage. For خمّن الرقم the tries only - another solver's
+      as a percentage and, since 2 Oct 2026 (idea 450, the small map), each
+      wrong guess as a pin on the TV's map - its country and one of five
+      colour steps (`progress.pins`, `flagsStep`), never the kilometres and
+      never the right guess (notes/games/solo.md). For خمّن الرقم the tries only - another solver's
       narrowed range would give the number away - and the same for the
       riddles.
     - **The flag is the clue itself** in the flag way, so it reaches every

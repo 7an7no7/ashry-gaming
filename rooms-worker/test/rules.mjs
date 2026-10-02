@@ -5585,7 +5585,7 @@ Date.now = duelTestClock;
 {
   const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
   const SV = new Function(src('WordleWords.js') + src('Countries.js') + src('SolveGames.js') +
-    '\nreturn { svWordleColours, svWordleProblem, svWordleFold, svWordleTries, svNumTries, svNumVerdict, svNumProblem, svEmojiClueProblem, svEmojiAnswerProblem, svCountryLetter, svFlagHintsAt, flagCountry, flagsDistance, flagsBearing, flagsProximity, WORDLE_DB, COUNTRIES };')();
+    '\nreturn { svWordleColours, svWordleProblem, svWordleFold, svWordleTries, svNumTries, svNumVerdict, svNumProblem, svEmojiClueProblem, svEmojiAnswerProblem, svCountryLetter, svFlagHintsAt, flagCountry, flagsDistance, flagsBearing, flagsProximity, flagsStep, WORDLE_DB, COUNTRIES };')();
   const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
 
   // The board rules, each game's own.
@@ -5730,6 +5730,12 @@ Date.now = duelTestClock;
   check(!!r.secrets.a.board.hints.letter, 'solve/flags: and the first letter after five');
   applyRoomAction(r, 'c', 'guess', { code: code, round: 1 });
   check(s.phase === 'solving' && !s.scores.c, 'solve: points go on the board when the round ends, not before');
+  // The TV's map (idea 450): each wrong guess's country and its colour step; the right one, standing on the answer, never.
+  check(s.progress.a.pins.length === 5 && s.progress.a.pins.every((p, i) => p.c === wrong[i] && p.s === SV.flagsStep(SV.flagsDistance(SV.flagCountry(wrong[i]), target))) &&
+    s.progress.c.pins.length === 0 && JSON.stringify(s).indexOf('"' + code + '"') === -1,
+    'solve/flags: the table\'s map gets each wrong guess as a country and a colour; the right one\'s pin never');
+  check(SV.flagsStep(12000) === 0 && SV.flagsStep(9000) === 1 && SV.flagsStep(3000) === 2 && SV.flagsStep(1500) === 3 && SV.flagsStep(0) === 4,
+    'solve/flags: the map\'s five colours run from far to close');
   check(roomDeadline(r) === s.endsAt + 1500, 'solve: the clock is a server deadline');
   clock = s.endsAt + 2000;
   roomTimeout(r, clock);

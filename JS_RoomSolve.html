@@ -321,20 +321,6 @@ function svFlagsSet(btn) {
   svSend('setSecret', { code: code, round: svRound(s) }, btn.closest('.sv-set-flags'));
 }
 
-function svFlagRowHtml(g, lang, fresh) {
-  const c = flagCountry(g.code);
-  const right = g.km === 0 && g.p === 100;
-  return `<li class="flags-row${right ? ' is-right' : ''}${fresh ? ' is-new' : ''}" style="--p:${right ? 1 : g.p / 100}">
-    <span class="flags-row__fill" aria-hidden="true"></span>
-    <span class="flag-emoji flags-row__flag" aria-hidden="true">${flagEmoji(g.code)}</span>
-    <b class="flags-row__name">${escapeHTML(flagName(c, lang))}</b>
-    ${right ? '<span class="flags-row__win">🎉</span>' : `
-      <span class="flags-row__km"><span class="metric" data-km="${g.km}">${Number(g.km).toLocaleString('en-US')}</span> ${escapeHTML(svT('flags_km'))}</span>
-      <span class="flags-row__arrow" style="--deg:${Math.round(g.deg)}deg" aria-label="${Math.round(g.deg)}°">↑</span>
-      <span class="flags-row__p metric">${g.p}%</span>`}
-  </li>`;
-}
-
 /* --- the forms a setter fills ---------------------------------------------------------------- */
 
 function svWordleSet(form) {
@@ -499,20 +485,21 @@ function svBoardHtml(kind, state, fx) {
   if (kind === 'flags') {
     const h = b.hints || {};
     const hints = [];
-    if (h.cont) hints.push('🧭 ' + escapeHTML(svT('flags_cont_' + h.cont)));
     if (h.letter) hints.push('🔤 ' + escapeHTML(h.letter) + '…');
+    // The map (idea 450): this phone's own guesses as pins and callouts, its continent glowing once the
+    // server sends the hint (after 3 misses from the flag, 4 by distance); the right guess is the gold pin.
+    const right = you.state === 'won' ? (b.g.find((g) => g.p === 100 && !g.km) || {}).code : '';
+    const contFresh = !!fx.fresh && b.g.length === svFlagHintsAt(s.pub.clue).cont;
+    const map = fmapHtml({ pins: fmapGuessPins(b.g, { answer: right || '', fresh: newest, lang: lang }), calls: true, glow: h.cont || '', anim: !!fx.fresh && !motionOff() });
     return `<div class="sv-board sv-board--flags">
         <div class="sv-board__head">${tries}</div>
         <div class="flags-target">
           ${svPubHtml('flags', s, false)}
           <span class="flags-target__ask">${escapeHTML(s.pub.clue === 'flag' ? svT('flags_ask_flag') : svT('flags_ask_far'))}</span>
-          ${hints.length ? `<span class="flags-hints">${hints.join(' · ')}</span>` : ''}
+          ${h.cont ? fmapHintHtml(h.cont, contFresh) : ''}${hints.length ? `<span class="flags-hints">${hints.join(' · ')}</span>` : ''}
         </div>
         ${on ? svCountrySearchHtml('svFlagsGuess', s.pub.clue !== 'flag') : ''}
-        <ol class="flags-guesses">
-          ${b.g.map((g, i) => svFlagRowHtml(g, lang, i === newest)).join('')}
-          ${on ? Array.from({ length: Math.max(0, (s.maxTries || 0) - b.g.length) }, () => '<li class="flags-row is-empty"></li>').join('') : ''}
-        </ol>
+        <div class="flags-guesses fmap-card">${map}${fmapSumHtml(b.g, right, lang)}</div>
       </div>`;
   }
   return `<div class="sv-board sv-board--emoji">
@@ -584,6 +571,53 @@ function svProgressHtml(kind, state, tv) {
   return `<div class="sv-rows ${tv ? 'sv-rows--tv' : ''}">${rows}</div>`;
 }
 
+/* خمّن الدولة's map in a room (idea 450). On a solver's phone its own guesses (svBoardHtml); on the TV
+   everyone's wrong guesses as pins with each player's first letter (shared.progress[pid].pins: a country
+   and a colour step, never the right guess); the continent glows and the answer's gold pin drops only
+   at the end, on the TV as on every phone. The pins seen of a deal are remembered, so only new ones drop,
+   and a TV or phone that comes in mid-round takes what is there as seen (svfSeen). */
+const svfSeen = { key: '', pins: new Set() };
+
+function svFlagsTablePins(state, deal) {
+  const s = state.shared || {};
+  const first = svfSeen.key !== deal;
+  if (first) { svfSeen.key = deal; svfSeen.pins = new Set(); }
+  const pins = [];
+  Object.keys(s.progress || {}).forEach((pid) => {
+    const name = svName(state, pid) || '?';
+    const label = Array.from(String(name).trim())[0] || '?';
+    (s.progress[pid].pins || []).forEach((p) => {
+      const key = pid + '|' + p.c;
+      const fresh = !first && !svfSeen.pins.has(key);
+      svfSeen.pins.add(key);
+      pins.push({ code: p.c, step: p.s, label: label, fresh: fresh });
+    });
+  });
+  return { pins: pins, anim: !first && !motionOff() };
+}
+
+/** The map at the end of a round: the guesses (this phone's, or the table's), the continent, the gold pin. */
+function svFlagsEndMapHtml(state, tv) {
+  const s = state.shared || {};
+  const r = s.result || {};
+  const code = r.reveal && r.reveal.code;
+  const c = code && flagCountry(code);
+  if (!c) return '';
+  const deal = [state.code, s.dealId, s.round].join('|');
+  const drop = motionFirst(['svf-gold', deal, tv ? 'tv' : 'phone'].join('|'));
+  const lang = (s.settings && s.settings.lang) || contentLang();
+  const b = !tv && state.you && state.you.board;
+  if (b) {
+    const pins = fmapGuessPins(b.g, { answer: code, over: true, lang: lang });
+    pins.forEach((p) => { p.fresh = drop && !!p.gold; });
+    return fmapHtml({ pins: pins, calls: true, glow: c.cont, anim: drop });
+  }
+  const table = svFlagsTablePins(state, deal);
+  table.pins.forEach((p) => { p.fresh = false; });
+  table.pins.push({ code: code, gold: true, fresh: drop });
+  return fmapHtml({ pins: table.pins, calls: false, glow: c.cont, anim: drop });
+}
+
 /** The secret turns over for everyone, then who took what. */
 function svResultHtml(kind, state, tv) {
   const s = state.shared;
@@ -594,6 +628,7 @@ function svResultHtml(kind, state, tv) {
   return `<div class="card card--accent sv-result ${tv ? 'sv-result--tv' : ''} ${turn ? 'is-turning' : ''}" ${turn ? 'data-reveal-ms="700"' : ''}>
       <p class="eyebrow">${escapeHTML(r.setter ? svT('sv_secret_of', { name: r.setterName || '' }) : svT('sv_the_answer'))}</p>
       <div class="sv-result__secret">${svSecretHtml(kind, r.reveal, s)}</div>
+      ${kind === 'flags' && !tv ? svFlagsEndMapHtml(state, false) : ''}
       <ul class="sv-results">${rows}${setter}</ul>
     </div>`;
 }
@@ -759,8 +794,7 @@ function svRender(kind, state) {
 /** After a redraw: a count-up, a cheer, the points flying to the board, focus back in the field. */
 function svAfter(el, state, fx) {
   const s = state.shared;
-  const km = fx.fresh ? el.querySelector('.flags-row.is-new [data-km]') : null;
-  if (km && !motionOff()) countUp(km, 0, Number(km.dataset.km));
+  if (state.shared && state.shared.solve === 'flags') { fmapMount(el); if (fx.fresh) fmapCountKm(el); }
   if (fx.fresh) { playSound(fx.won ? 'success' : 'click'); haptic(fx.won ? 'double' : 'light'); }
   if (fx.lost) playSound('wrong');
   if (fx.won) afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 110, spread: 75, origin: { y: 0.6 } }); });
@@ -805,6 +839,14 @@ function svTvFrame(kind, state, t) {
         ${host([[t.play_again, "roomAct('playAgain')"], [t.room_another_game, "roomAct('backToHub')", 'ghost']])}
       </div>`;
   }
+  if (s.phase === 'result' && kind === 'flags') {
+    // The map beside the answer: everyone's pins, the continent, the answer's gold pin dropping.
+    return `<div class="tv-trivia" data-accent="${accent}">${top}
+        <div class="svf-tv"><div class="svf-tv__map">${svFlagsEndMapHtml(state, true)}</div>
+          <div class="svf-tv__side">${svResultHtml(kind, state, true)}</div></div>
+        ${moveOn([[svT('sv_next_round'), `roomAct('nextRound', { round: ${svRound(s)} })`]])}
+      </div>`;
+  }
   if (s.phase === 'result') {
     return `<div class="tv-trivia" data-accent="${accent}">${top}
         <div class="tv-center sv-tv-result">${svResultHtml(kind, state, true)}</div>
@@ -815,6 +857,21 @@ function svTvFrame(kind, state, t) {
     return `<div class="tv-trivia" data-accent="${accent}">${top}
         ${tvWaitStage(state, { who: s.setter, ids: s.order || s.roster, line: svT('sv_setting_' + kind, { name: s.setterName || '' }),
           actions: moveOn(svHostButtons(state).map(b => [b[0], b[1], 'ghost'])) })}
+      </div>`;
+  }
+  if (kind === 'flags') {
+    // Everyone's guesses as pins with their first letter, coloured by how close; the continent only at the end.
+    const table = svFlagsTablePins(state, [state.code, s.dealId, s.round].join('|'));
+    return `<div class="tv-trivia sv-tv" data-accent="${accent}">${top}
+        <div class="svf-tv">
+          <div class="svf-tv__map">${fmapHtml({ pins: table.pins, calls: false, glow: '', anim: table.anim })}${fmapSumHtml([], '', 'ar')}</div>
+          <div class="svf-tv__side">
+            <div class="tv-title">${escapeHTML(s.setter ? svT('sv_secret_of', { name: s.setterName || '' }) : svT('sv_race_title_' + kind))}</div>
+            ${svPubHtml(kind, s, true)}
+            ${svProgressHtml(kind, state, true)}
+          </div>
+        </div>
+        ${moveOn(svHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
       </div>`;
   }
   return `<div class="tv-trivia sv-tv" data-accent="${accent}">${top}
@@ -839,6 +896,7 @@ function svTvSig(state) {
 
 function svTvAfter(state) {
   svTickClock(state);
+  if (state.shared && state.shared.solve === 'flags' && typeof fmapMount === 'function') fmapMount(document.getElementById('view-room-tv'));
   if (state.shared && state.shared.solve === 'flags' && typeof flagsEnsureFont === 'function') flagsEnsureFont();
 }
 

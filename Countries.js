@@ -134,3 +134,8 @@ function flagsBearing(a, b) {
 }
 
 const flagsProximity = (km) => Math.max(0, Math.round(100 * (1 - km / 20015)));
+
+// The map's five colours (JS_FlagsMap.html): 0 more than 9,000 km away (red) … 4 within 1,200 (green).
+// A room's table sees only this step of each guess, never the kilometres (RoomSolve.js).
+const FLAG_STEPS_KM = [9000, 5000, 2500, 1200];
+const flagsStep = (km) => FLAG_STEPS_KM.filter((t) => km <= t).length;

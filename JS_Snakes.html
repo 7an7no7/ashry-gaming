@@ -858,7 +858,7 @@ function snkBodyPts(c, sn, t, wFn) {
     const b = sn.pts[i], d = b.a - sn.s, dt = sn.L - b.a;
     let w = wFn(b, d, dt);
     if (sn.bulge != null) w += 13 * Math.exp(-Math.pow((b.a - sn.bulge) / 12, 2));
-    if (cr) { const q = snkCrawlAt(sn, cr.d - b.a); P.push({ x: q.x, y: q.y, w: w, nx: 0, ny: 0, a: b.a }); continue; }
+    if (cr) { const q = snkCrawlAt(sn, cr.d - b.a * (cr.k || 1)); P.push({ x: q.x, y: q.y, w: w, nx: 0, ny: 0, a: b.a }); continue; }
     let o = snkWave(sn, b, t);
     if (sn.tailFlick && dt < 70) o += sn.tailFlick * (1 - dt / 70) * 18;
     P.push({ x: b.x + b.nx * o, y: b.y + b.ny * o, w: w, nx: b.nx, ny: b.ny, a: b.a });
@@ -2513,6 +2513,40 @@ function snkCrawlTo(pts, to, W) {
   return best;
 }
 
+/** A polyline as points SNK_STEP apart along it (what snkCrawlPoint indexes), with its length. */
+function snkEvenly(poly) {
+  const out = [{ x: poly[0].x, y: poly[0].y, a: 0 }];
+  let a = 0, next = SNK_STEP;
+  for (let i = 1; i < poly.length; i++) {
+    const p = poly[i - 1], q = poly[i], l = Math.hypot(q.x - p.x, q.y - p.y);
+    while (l && next <= a + l) { const f = (next - a) / l; out.push({ x: snkLerp(p.x, q.x, f), y: snkLerp(p.y, q.y, f), a: next }); next += SNK_STEP; }
+    a += l;
+  }
+  return { pts: out, L: out[out.length - 1].a };
+}
+
+/**
+ * The moving map's crawl (snkMoveSnake): from the head's own place to just behind its new tail
+ * (`nwPts` is the new curve, head first), then up the new curve to its new head - the way that
+ * tangles least with the body following it (snkCrawlKnots). Returns { way, D }.
+ */
+function snkMoveWay(pts, nwPts, W) {
+  const T = nwPts[nwPts.length - 1], U = nwPts[Math.max(0, nwPts.length - 5)];
+  // Come in from behind the tail, in line with the curve, so there's no hairpin onto it.
+  const ux = T.x - U.x, uy = T.y - U.y, ul = Math.hypot(ux, uy) || 1;
+  const pre = { x: snkClamp(T.x + ux / ul * 34, 14, 586), y: snkClamp(T.y + uy / ul * 34, 14, 586) };
+  const up = nwPts.slice().reverse();
+  let best = null;
+  [[0, 0, 15], [0, 0, -15], [0, 0, 0], [1, 55, 12], [-1, 55, 12], [1, 75, 0], [-1, 75, 0]].forEach(([turn, R, amp]) => {
+    const w = snkCrawlWayOf(pts, pre, turn, R || 55, amp);
+    const full = snkEvenly(w.pts.concat(up));
+    const knots = snkCrawlKnots(pts, full.pts, W);
+    const score = knots * 1000 + full.L + (turn ? 10 : 0);
+    if (!best || score < best.score) best = { way: full.pts, D: full.L, score: score };
+  });
+  return best;
+}
+
 /** Points along a polyline, each with its place along it and its normal (a body's resting shape for snkBodyPts). */
 function snkPtsOf(poly) {
   let a = 0;
@@ -2569,25 +2603,22 @@ async function snkMoveSnake(c, g, e) {
   let sn;
   if (c.fast || snkStill()) sn = snkRemountSnake(c, i, s2);
   else if (!c.th || c.th.crawls) {
-    // It crawls to its new spot, the body following the head, and settles into its new curve.
+    // It crawls to its new spot on one path, every part of the body following the head (the owner,
+    // 2 Oct 2026: the body used to wait and then move into its new curve as one piece). The path goes
+    // to just behind its new tail and then up its new curve, so when the head reaches its new square
+    // the body already lies in its new shape; the body eases to its new length on the way (`k`).
     const nw = snkSample(snkWayOf(c)(s2, snakesRng(s2.w)));
-    const plan = snkCrawlTo(old.pts, nw.pts[0], old.W);
+    const plan = snkMoveWay(old.pts, nw.pts, old.W);
     c.animatingSnake = old;
     old.mood = 'wow';
-    old.crawl = { way: plan.way, d: 0 };
-    const D = plan.D, L0 = old.L;
-    await snkTween(c, g, 1500, t => { old.crawl.d = D * t; old.holeK = snkClamp(1 - (D * t - L0 * 0.6) / (L0 * 0.4), 0, 1); }, snkEase);
-    if (!snkAlive(c, g)) return;
-    const N = Math.max(old.pts.length, nw.pts.length), A = [], B = [];
-    for (let k = 0; k < N; k++) {
-      const f = k / (N - 1);
-      A.push(snkCrawlPoint(old.pts, plan.way, D - f * L0));
-      const b = nw.pts[Math.round(f * (nw.pts.length - 1))];
-      B.push({ x: b.x, y: b.y });
-    }
+    old.crawl = { way: plan.way, d: 0, k: 1 };
+    const D = plan.D, L0 = old.L, kEnd = nw.L / (L0 || 1);
+    await snkTween(c, g, 2600, t => {
+      old.crawl.d = D * t;
+      old.crawl.k = snkLerp(1, kEnd, t);
+      old.holeK = snkClamp(1 - (D * t - L0 * 0.6) / (L0 * 0.4), 0, 1);
+    }, snkEase);
     old.crawl = null;
-    old.holeK = 0;
-    await snkTween(c, g, 900, t => { old.pts = snkPtsOf(A.map((a, k) => ({ x: snkLerp(a.x, B[k].x, t), y: snkLerp(a.y, B[k].y, t) }))); old.L = old.pts[old.pts.length - 1].a; }, snkEase);
     c.animatingSnake = null;
     if (!snkAlive(c, g)) return;
     sn = snkRemountSnake(c, i, s2);

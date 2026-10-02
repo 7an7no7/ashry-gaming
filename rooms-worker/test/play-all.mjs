@@ -3210,6 +3210,88 @@ async function connect4Seg() {
 
 }
 
+async function c4TeamsSeg() {
+  /* --- كونكت ٤ team against team, «أحمر ضد أصفر» (2 Oct 2026) ------------------------ */
+  console.log('• connect 4 in teams (sides picked on each phone, a relay, the 20 s clock, the night by team)');
+  const H = await Bot.host('هند', null);
+  const J = await Bot.join(H.code, 'جمال');
+  const K = await Bot.join(H.code, 'كريم');
+  const M = await Bot.join(H.code, 'منى');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K, M];
+  const everyone = people.concat([TV]);
+  await H.must('chooseGame', { game: 'connect4' });
+  check((await J.act('teams', { on: true })).ok === false, 'c4 teams: the switch is the host\'s');
+  await H.must('teams', { on: true });
+  await H.must('side', { side: 0 });
+  await J.must('side', { side: 1 });
+  await K.must('side', { side: 0 });
+  await all(everyone, (s) => s.shared.lobby && s.shared.lobby.teams && s.shared.lobby.sides[H.pid] === 0 && s.shared.lobby.sides[J.pid] === 1 &&
+                             s.shared.lobby.sides[K.pid] === 0, 'c4 teams: everyone picks a side on their phone, every phone and the TV see them');
+  await H.must('side', { side: 1, playerId: K.pid });
+  await H.must('start', { mode: 4 });
+  await all(everyone, (s) => s.phase === 'play' && s.shared.teamMode && s.shared.teams[0].length === 2 && s.shared.teams[1].length === 2 &&
+                             s.shared.teams[1].indexOf(K.pid) !== -1 && s.shared.teams[0].indexOf(M.pid) !== -1 && !!s.shared.upId && s.shared.endsAt > 0,
+            'c4 teams: the host moved one across; the one with no side goes to the smaller side; the first member is up');
+  check((await TV.act('move', { col: 0, move: 0 })).ok === false, 'c4 teams: the TV cannot drop');
+  const up = () => byId(people, H.state.shared.upId);
+  const notUp = people.find((b) => b.pid !== H.state.shared.upId);
+  check((await notUp.act('move', { col: 0, move: 0 })).ok === false, 'c4 teams: only the member up drops');
+  const t0 = H.state.shared.turn;
+  // The starting team builds down column 3, the other down column 4; relays alternate inside each team.
+  const seen = [];
+  const drop = async (col) => {
+    const s = H.state.shared;
+    const bot = up();
+    seen.push(bot.pid);
+    await bot.must('move', { col, move: s.moves });
+    await H.waitFor((x) => x.shared.moves === s.moves + 1, 'c4 teams: (a disc lands)');
+  };
+  await drop(3);
+  await drop(4);
+  await drop(3);
+  check(seen[0] !== seen[2] && H.state.shared.teams[t0].indexOf(seen[2]) !== -1, 'c4 teams: the team\'s second member drops its next disc (a relay)');
+  // Nobody drops: after 20 seconds the server drops for the member up, and every screen is told.
+  const waiting = H.state.shared.upId;
+  const movesBefore = H.state.shared.moves;
+  await all(everyone, (s) => s.shared.moves === movesBefore + 1 && s.shared.auto && s.shared.auto.pid === waiting && s.shared.auto.moves === s.shared.moves,
+            'c4 teams: 20 seconds with no disc: the server drops one for the member up, and says so on every screen', 30000);
+  // Play it out: whoever is up takes a win when there is one, else the team's own column.
+  const winCol = (grid, p) => [0, 1, 2, 3, 4, 5, 6].find((c) => {
+    let r = -1; for (let rr = 5; rr >= 0; rr--) if (!grid[rr * 7 + c]) { r = rr; break; }
+    if (r < 0) return false;
+    const g = grid.slice(); g[r * 7 + c] = p;
+    return [[0, 1], [1, 0], [1, 1], [1, -1]].some(([dr, dc]) => {
+      let n = 1;
+      for (const sg of [1, -1]) for (let m = 1; m < 4; m++) { const y = r + dr * m * sg, x = c + dc * m * sg; if (y < 0 || y > 5 || x < 0 || x > 6 || g[y * 7 + x] !== p) break; n++; }
+      return n >= 4;
+    });
+  });
+  for (let guard = 0; guard < 42 && H.state.shared.phase === 'play'; guard++) {
+    const s = H.state.shared;
+    const win = winCol(s.grid, s.turn + 1);
+    const own = s.turn === t0 ? [3, 2, 1, 0, 5, 6, 4] : [4, 5, 6, 0, 1, 2, 3];
+    await drop(win !== undefined ? win : own.find((c) => s.grid[c] === 0));
+  }
+  await all(everyone, (s) => s.shared.phase === 'over' && (s.shared.result.winner === 0 || s.shared.result.winner === 1) && s.shared.win.length >= 4,
+            'c4 teams: four in a row ends it, on every phone and the TV');
+  const W = H.state.shared.result.winner;
+  check(H.state.shared.teams[W].every((id) => H.state.shared.scores[id] === 1) && H.state.shared.teamWins[W] === 1,
+        'c4 teams: a win for every member of the winning team');
+  await J.must('nextRound', { round: H.state.shared.round });
+  await all(everyone, (s) => s.shared.phase === 'play' && s.shared.round === 2 && s.shared.turn === s.shared.starts && s.shared.prev.winner === W,
+            'c4 teams: «ماتش كمان» from any phone');
+  check(H.state.shared.starts !== t0, 'c4 teams: the other team starts the next game');
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'c4 teams: back in the hub');
+  const night = H.state.night || {};
+  const sides = [[], []];
+  people.forEach((b) => { const k = b.pid === H.pid || b.pid === M.pid ? 0 : 1; sides[k].push(b.pid); });
+  check(sides[W].every((id) => night[id] === 5) && sides[1 - W].every((id) => night[id] === 3),
+        'c4 teams: the night: 5 for each member of the winning team, 3 for each of the other');
+  everyone.forEach((b) => b.close());
+}
+
 async function dotsSeg() {
   /* --- نقط ومربعات --------------------------------------------------------------- */
   console.log('• dots & boxes (a box keeps the turn, two alternate, the TV cannot move)');
@@ -6608,6 +6690,7 @@ const SEGMENTS = [
   { name: 'err', run: errRobots, secs: 5 },
   { name: 'core', run: coreSeg, secs: 47 },
   { name: 'connect4', run: connect4Seg, secs: 1 },
+  { name: 'c4teams', run: c4TeamsSeg, secs: 30 },
   { name: 'dots', run: dotsSeg, secs: 1 },
   { name: 'uno', run: unoSeg, secs: 72 },
   { name: 'domino', run: dominoSeg, secs: 58 },

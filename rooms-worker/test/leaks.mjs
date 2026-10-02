@@ -1959,7 +1959,21 @@ const DRIVERS = {
       const cols = Array.from({ length: s.cols || 7 }, (_, c) => c).sort(() => Math.random() - 0.5);
       for (const col of cols) if (act(T, s.seats[s.turn], 'move', { col, move: s.moves })) break;
     }
-    return S(T).phase === 'over';
+    if (S(T).phase !== 'over') return false;
+    // Team against team (2 Oct 2026): sides picked in the lobby, a relay, and half the discs dropped by the clock.
+    const R = table('connect4', 5);
+    must(R, R.host, 'teams', { on: true });
+    must(R, R.ids[0], 'side', { side: 0 });
+    must(R, R.ids[1], 'side', { side: 1 });
+    must(R, R.ids[2], 'side', { side: 1 });
+    must(R, R.host, 'start', { mode: 4 });
+    for (let guard = 0; guard < 80 && S(R).phase === 'play'; guard++) {
+      const s = S(R);
+      if (guard % 2) { runClock(R, (r) => r.shared.moves > s.moves || r.shared.phase !== 'play', 3); continue; }
+      const cols = Array.from({ length: s.cols || 7 }, (_, c) => c).sort(() => Math.random() - 0.5);
+      for (const col of cols) if (act(R, s.upId, 'move', { col, move: s.moves })) break;
+    }
+    return S(R).phase === 'over';
   },
   battleship() {
     const T = table('battleship', 3);

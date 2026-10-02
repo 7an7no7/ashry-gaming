@@ -102,6 +102,8 @@ const PROGRAM_TEAMS = {
   },
   // السلم والتعبان in teams (2 Oct 2026): the teams in the order they got home (null playing each for themselves).
   snakes: (room) => snakesTeamResult(room),
+  // كونكت ٤ team against team (2 Oct 2026): the side with more wins first (null in winner stays).
+  connect4: (room) => c4TeamPlaces(room),
   votechess: (room) => programTwoTeams(room),
   // المشنقة's team way (RoomHangman.js); its other ways place by the board (null here).
   hangman: (room) => hmProgramTeams(room),

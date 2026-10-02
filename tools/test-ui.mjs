@@ -478,6 +478,46 @@ if (ONLY.includes('rooms')) {
     await wait(400);
   }
 
+  // كونكت ٤ team against team (2 Oct 2026): the switch, the sides on every phone, the relay on every screen.
+  if (wants('connect4')) {
+    all.forEach(takeErrors);
+    const chose = await choose('connect4');
+    const lobby = await ev(host, `(async () => {
+      if (!document.querySelector('#view-room-lobby #c4t-switch')) return 'no «فرق» switch in the host\\'s lobby';
+      await Room.act('teams', { on: true });
+      return 'ok'; })()`);
+    for (let i = 0; i < phones.length; i++) await ev(phones[i], `(async () => { try { await Room.act('side', { side: ${i % 2} }); } catch (e) {} return 1; })()`);
+    await wait(800);
+    const bad = chose !== 'ok' || lobby !== 'ok' ? [chose, lobby].filter((x) => x !== 'ok') : [];
+    for (const p of all) {
+      const view = await showRoom(p);
+      await wait(250);
+      const found = await sweep(p);
+      if (found && found.length) bad.push(p.name + ' lobby (' + view + '): ' + found.join('; '));
+      const sides = await ev(p, `document.querySelectorAll('.c4t-side').length`);
+      if (sides < 2) bad.push(p.name + ': the lobby shows no sides');
+    }
+    if (!bad.length) {
+      const started = await ev(host, `(async () => { try { await Room.act('start', ROOM_GAMES.connect4.startPayload()); } catch (e) { return 'start: ' + e.message; } return 'ok'; })()`);
+      await wait(1500);
+      if (started !== 'ok') bad.push(started);
+      // Two discs from whoever is up, then every screen.
+      for (let k = 0; k < 2 && started === 'ok'; k++) {
+        for (const p of phones) await ev(p, `(async () => { const s = Room.state.shared; if (s.upId === Room.me) { try { await Room.act('move', { col: 3, move: s.moves }); } catch (e) {} } return 1; })()`);
+        await wait(700);
+      }
+      bad.push(...await lookAll(`(() => {
+        const s = Room.state.shared;
+        if (!s.teamMode) return 'not in teams';
+        if (s.moves < 2) return 'the relay did not move (' + s.moves + ')';
+        return document.querySelector('#view-' + appState.currentView + ' .c4t') && document.querySelectorAll('#view-' + appState.currentView + ' .c4t-relay').length === 2 ? '' : 'no team board / relay on screen'; })()`));
+    }
+    await ev(host, `(async () => { try { await Room.act('backToHub', {}); await Room.act('chooseGame', { game: 'connect4' }); await Room.act('teams', { on: false }); } catch (e) {} return 1; })()`);
+    check(!bad.length, 'connect4 teams: the switch, every phone\'s side, and the relay drawn on every phone and the TV', bad.join('\n      '));
+    await toHub();
+    await wait(400);
+  }
+
   if (wants('emoji')) {
     all.forEach(takeErrors);
     const chose = await choose('emoji');

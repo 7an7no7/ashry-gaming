@@ -1423,6 +1423,8 @@ const gameDeadline = (room) => {
   if (room.game === 'screw' && (s.phase === 'memorize' || s.phase === 'play' || s.phase === 'thiefGuess') && s.endsAt) return s.endsAt + SKREW_GRACE_MS;
   if (room.game === 'uno') return unoDeadline(room);
   // «خسران غياب»: the seat to move gone a minute (RoomDuels.js).
+  // كونكت ٤ in teams: the member up has 20 seconds (RoomDuels.js).
+  if (room.game === 'connect4' && s.teamMode) return c4tDeadline(room);
   if (room.game === 'connect4' || room.game === 'dots' || room.game === 'xo') return duelAwayDeadline(room);
   if (room.game === 'domino') return dominoDeadline(room);
   if (room.game === 'ludo') return ludoDeadline(room);
@@ -1585,6 +1587,7 @@ const gameTimeout = (room, now) => {
     });
   }
   if (room.game === 'uno') return unoTimeout(room, now);
+  if (room.game === 'connect4' && (room.shared || {}).teamMode) return c4tTimeout(room, now);
   if (room.game === 'connect4' || room.game === 'dots' || room.game === 'xo') return duelAwayTimeout(room, now);
   if (room.game === 'domino') return dominoTimeout(room, now);
   if (room.game === 'ludo') return ludoTimeout(room, now);

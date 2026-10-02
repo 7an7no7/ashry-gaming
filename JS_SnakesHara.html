@@ -488,7 +488,10 @@
       return {
         g: g, hd: hd, hole: hole, hdi: hd.querySelector('.snk-hdi'), side: side, shadow: shadow, body: body, dark: dark, hi: hi, br: br, br2: br2, hop: hop,
         spout: spout, spT: { x: T.x, y: T.y, a: ang }, maw: hd.querySelector('.snh-maw'), smile: hd.querySelector('.snh-smile'), gaze: [...hd.querySelectorAll('.snh-gz')],
-        catXY: null, pk: '', fk: 0
+        catXY: null, pk: '', fk: 0,
+        // A pipe in the top row (or on 81, under 100's label) seats its cat low at the funnel's corner,
+        // not up on the frame where the pieces home stand.
+        low: s.h >= 91 || s.h === 81
       };
     },
     renderDown(c, sn, t) {
@@ -527,6 +530,7 @@
       const kOff = sn.catXY ? 0 : snkClamp(sn.s / 36, 0, 1);
       let x, y, rot = 0;
       if (sn.catXY) { x = sn.catXY.x; y = sn.catXY.y; rot = sn.catXY.r || 0; }
+      else if (sn.low) { x = H0.x + sn.side * (13 + kOff * 21); y = H0.y + 9 - Math.sin(kOff * Math.PI) * 22 + kOff * 8; }
       else { x = H0.x + sn.side * kOff * 34; y = H0.y - 13 - Math.sin(kOff * Math.PI) * 22 + kOff * 8; }
       const life = snkHeadLife(c, sn, t, x, y - 4), near = life.near, nd = life.nd;
       sn.hd.setAttribute('opacity', (1 - kOff).toFixed(2));
@@ -534,7 +538,7 @@
       if (near && nd < SNK_C * 2.6 && sn.mood !== 'sleep') { tt = snkClamp((near.x - x) / nd * 14, -14, 14); px = (near.x - x) / nd * 1.8; py = (near.y - y) / nd * 1.6; }
       if (c.crowd && !still) tt = Math.sin(t * 5) * 10;
       sn.tilt = snkLerp(sn.tilt, tt, 0.12); sn.pox = snkLerp(sn.pox, px, 0.25); sn.poy = snkLerp(sn.poy, py, 0.25);
-      const br = still ? 1 : 1 + 0.025 * Math.sin(t * 2.2 + sn.ph), s = 0.66 * sn.lunge.s * br * (1 - kOff * 0.3);
+      const br = still ? 1 : 1 + 0.025 * Math.sin(t * 2.2 + sn.ph), s = (sn.low && !sn.catXY ? 0.5 : 0.66) * sn.lunge.s * br * (1 - kOff * 0.3);
       sn.hd.setAttribute('transform', `translate(${R(x + sn.lunge.x)} ${R(y + sn.lunge.y)}) rotate(${R(sn.tilt + rot + (sn.lunge.r || 0))}) scale(${s.toFixed(3)})`);
       sn.gaze.forEach(e => e.setAttribute('transform', `translate(${(sn.pox * sn.side).toFixed(2)} ${sn.poy.toFixed(2)})`));
       const jaw = Math.max(0, sn.jaw);

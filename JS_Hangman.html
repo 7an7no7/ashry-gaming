@@ -170,10 +170,11 @@ const hmLtr = (s) => String.fromCharCode(0x2066) + s + String.fromCharCode(0x206
 /** The two lifelines under the keys, each once a word, each −3 if the word is solved. */
 function hmLifeHtml(o) {
   if (!o.on || !o.reveal) return '';
-  const btn = (used, fn, label) => `<button type="button" class="btn btn--secondary btn--sm hm-life__btn" ${used ? 'disabled' : `onclick="${fn}()"`}>${escapeHTML(label)} <span class="hm-life__cost metric">${hmLtr('−' + HM_LIFE_COST)}</span></button>`;
+  // The icon goes on a narrow phone (Style.html), so «شيل ٣ حروف غلط» keeps to one line.
+  const btn = (used, fn, label, ico) => `<button type="button" class="btn btn--secondary btn--sm hm-life__btn" ${used ? 'disabled' : `onclick="${fn}()"`}><span class="hm-life__ico" aria-hidden="true">${ico}</span>${escapeHTML(label)} <span class="hm-life__cost metric">${hmLtr('−' + HM_LIFE_COST)}</span></button>`;
   return `<div class="hm-life" role="group" aria-label="${escapeHTML(hmT('hm_life_label'))}">
-      ${btn(o.lr, o.reveal, '🔍 ' + hmT('hm_life_reveal'))}
-      ${btn(o.lx, o.remove, '🧹 ' + hmT('hm_life_remove'))}
+      ${btn(o.lr, o.reveal, hmT('hm_life_reveal'), '🔍')}
+      ${btn(o.lx, o.remove, hmT('hm_life_remove'), '🧹')}
     </div>`;
 }
 

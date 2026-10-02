@@ -820,7 +820,10 @@ function snkMountSurprises(c, m) {
 
 /* --- the snakes, drawn every frame ------------------------------------------------------- */
 
-const snkStill = () => (typeof motionOff === 'function' ? motionOff() : false);
+// The board plays its moves even when the device asks for less motion (Windows' animation effects
+// off, an iPhone's Reduce Motion): the owner's spec, 'still under motion off'. Only the app's own
+// setting (الحركة → مقفولة) and a page that isn't showing still it - as المشنقة's endings (hmEndsStill).
+const snkStill = () => (typeof motionPref === 'function' && motionPref() === 'off') || document.hidden;
 /** The motion setting, read once a frame (not once a point: 1,000 points a frame). */
 let snkStillNow = false;
 /** A number with one decimal, for the paths drawn every frame (faster than toFixed). */

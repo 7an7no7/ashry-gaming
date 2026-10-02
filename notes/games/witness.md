@@ -141,7 +141,7 @@ id `witness` everywhere (`room-witness`, `ROOM_GAMES.witness`,
   `play-all.mjs` (`--only=witness`: four phones and a TV to the podium, and
   play again).
 
-## «الرسم مطابق 78%»: answered, not built yet (the owner, 2 Oct 2026)
+## «الرسم مطابق 78%»: built 2 Oct 2026 (the owner, 2 Oct 2026)
 
 Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
 
@@ -149,6 +149,42 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
   - **Feature by feature, each feature the same weight** (hair, eyes, nose, mouth, beard, glasses… whatever the builder has); the TV ticks ✓ / ✗ beside the two faces while the % counts up (`countUp`).
   - **At 70% or more the witness and the artist each get +1**, on top of their jury points. Under 70% the % is only for the laugh.
   - Always on, rooms and the TV.
+
+**How it is built.** `Witness.js` (shared): `WITNESS_MATCH_LINE` 70, `WITNESS_MATCH_POINTS` 1,
+`WITNESS_FEATURES` (the builder's own categories, the page's `WIT_CATS` keys: man/woman, skin,
+hair style, hair colour, on the head, glasses, eyes, brows, beard, mouth, marks, extras, scarf,
+top, tie, shirt colour, pattern; each a `get` and a `when` it shows) and `witnessMatch(sketch,
+real)` → `{ feats: [{ k, ok }], ok, of, pct }`, both faces through `witnessClean` first. The
+server works it out in `witnessReveal` (RoomWitness.js) - it alone has the real face before then -
+and publishes `shared.match` with the reveal (`null` from a round's start; `blank` and `won` on
+it), adding `WITNESS_MATCH_POINTS` to the witness and the artist (and `s.gained`) when `won`.
+On the page `witTallyHtml` (JS_RoomWitness.html, `witMatchOf`: `shared.match`, or the same
+`witnessMatch` from the two faces for a room on an older server) draws «الرسم مطابق 93%» -
+the % counting up (`stageReveal`'s `count`) to land with the last tick, a bar with the 70% line
+(`.wit-match__fill` grows by `transform`), «الرسام جاب 14/15» under it - then the ✓ / ✗ chips one
+by one, then «🎯 70% وأكتر: +1 للشاهد و+1 للرسام» or «تحت 70%: للضحك بس 😄», on every phone and
+beside the two faces on the TV (section «IDEAS BATCH: ROOMS» of Style.html, `.wit-match*`; the
+TV's reveal column has smaller faces and tighter gaps so it all fits 16:9). The tally of the
+ideas batch (`witFeatureMatches`, worked out on the page) is replaced by it. The game's words
+are in `WIT_TEXT` in the chunk (all the `wit_*` keys moved out of `TRANSLATIONS`, the shell's
+budget). Tests: `rules.mjs` (the real face against itself 100%; one feature off is one tick;
+only features that show; the line; an exact sketch wins +1 each; an untouched sketch wins
+nothing; no match before the reveal), `leaks.mjs` (`shared.match` before the reveal is a leak -
+proved by leaking it), `play-all.mjs --only=witness` (the match measured and the +1 on top of
+the jury points).
+
+**Decided here (open to change):**
+- **Only features that show on the real face count**: no hair colour under a hijab or on a bald
+  head, no hair style under a hijab, no eye colour behind sunglasses, a beard only on a man, the
+  scarf and the extras only without a hijab, a tie only on a collar - so a face has 10 to 17
+  features (about 15). Man/woman is one feature like any other (the owner: each the same weight),
+  so a sketch of the wrong gender can still pass 70%.
+- **The marks and the extras are one feature each**, right only when every switch in them matches
+  (the builder shows them as one tab each).
+- **A sketch the artist never touched** (still the plain man it starts as) is measured for the
+  laugh but wins nothing, whatever its % («الرسام ما لمسش الرسمة: من غير نقط»).
+- **The witness and the artist get the +1 even if they have left the room** by the reveal, as the
+  jury points already were.
 
 ## History
 

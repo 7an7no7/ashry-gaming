@@ -7,7 +7,9 @@
    words (the jury hears it too); the artist builds it on a face builder, 90
    seconds or less. Then the jury - everyone else - votes on a lineup of six
    faces very alike. The jury a point each for the right face; the witness and
-   the artist a point each for every juror right. Everyone is the witness
+   the artist a point each for every juror right, and +1 each more when the
+   sketch matches the real face 70% or more, feature by feature (witnessMatch,
+   shared.match at the reveal; the owner, 2 Oct 2026). Everyone is the witness
    once. 3-12 players, the TV optional.
 
    What is hidden (never in shared until the reveal):
@@ -162,6 +164,7 @@ const witnessStartRound = (room) => {
   s.right = null;
   s.picks = null;
   s.jury = null;
+  s.match = null;
   s.gained = {};
   s.early = false;
 };
@@ -237,6 +240,18 @@ const witnessReveal = (room) => {
     addScore(room, id, right.length);
     s.gained[id] = (s.gained[id] || 0) + right.length;
   });
+  // «الرسم مطابق»: the sketch against the real face, feature by feature; at the line, +1 each to the witness and the artist.
+  // A sketch the artist never touched (still the plain man it starts as) is measured for the laugh but wins nothing.
+  s.match = witnessMatch(s.sketch, h.faces[h.real]);
+  s.match.blank = JSON.stringify(witnessClean(s.sketch || witnessBlank('m'))) === JSON.stringify(witnessClean(witnessBlank('m')));
+  s.match.won = !s.match.blank && s.match.pct >= WITNESS_MATCH_LINE;
+  if (s.match.won) {
+    [s.witnessId, s.artistId].forEach(id => {
+      if (!id) return;
+      addScore(room, id, WITNESS_MATCH_POINTS);
+      s.gained[id] = (s.gained[id] || 0) + WITNESS_MATCH_POINTS;
+    });
+  }
   s.history = (s.history || []).concat([{ round: s.round, witnessId: s.witnessId, artistId: s.artistId, right: right.length, jury: (s.jury || []).length }]);
   s.board = witnessBoard(room);
   room._witness = null;

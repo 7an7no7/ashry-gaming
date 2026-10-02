@@ -41,9 +41,326 @@ function witNoteTime(state) {
 }
 const witServerNow = () => (isFinite(wit.gap) ? Date.now() - wit.gap : Date.now());
 const witIso = (s) => '⁨' + s + '⁩';
+// The game's text: only this game's chunk reads it (through witT), so it lives here, not in TRANSLATIONS (the shell's size budget, notes/lazy-load.md).
+const WIT_TEXT = {
+  ar: {
+    wit_station: "قسم شرطة العيلة",
+    wit_case_n: "قضية",
+    wit_file: "ملف {n}",
+    wit_case_q: "القضية: {crime}",
+    wit_hush: "🤐 الشاهد ساكت دلوقتي",
+    wit_hush_me: "ولا كلمة لحد ما التصويت يقفل - المحلفين بيختاروا لوحدهم",
+    wit_role_witness: "👁️ الشاهد",
+    wit_role_artist: "🖍️ الرسام",
+    wit_you_witness: "إنت الشاهد!",
+    wit_ready_hint: "لما تدوس هتشوف الوش ٨ ثواني بس. بعدها اوصفه لـ{artist} بكلامك، والكل سامع.",
+    wit_ready_btn: "👁️ وريني الوش",
+    wit_ready_wait: "مستنيين الشاهد {witness} يفتح ملف القضية…",
+    wit_ready_artist: "إنت الرسام! الشاهد {witness} هيوصفلك الوش، وإنت ترسمه",
+    wit_ready_jury: "اسمعوا الوصف كويس: في الآخر هتختاروا من طابور ٦ وشوش شبه بعض جدًا.",
+    wit_look_focus: "ركّز كويس في الوش!",
+    wit_look_others: "الشاهد {witness} بيبص على الوش دلوقتي…",
+    wit_look_artist: "استعد! هترسم من كلام الشاهد {witness}",
+    wit_describe: "اتكلم! اوصف الوش لـ{artist} بكلامك 🗣️",
+    wit_hint_1: "الشعر؟",
+    wit_hint_2: "النضارة؟",
+    wit_hint_3: "الدقن؟",
+    wit_hint_4: "اللبس؟",
+    wit_hint_5: "علامات؟",
+    wit_artist_listen: "اسمع الشاهد {witness} وارسم",
+    wit_done_btn: "خلّصت الرسم ✓",
+    wit_plate: "المشتبه فيه · رسم {artist}",
+    wit_jury_draw: "اسمعوا الوصف كويس: هتختاروا من طابور شبه بعض جدًا",
+    wit_tv_drawing: "الرسام {artist} بيرسم من كلام الشاهد {witness}",
+    wit_lineup_title: "🚓 طابور التعرّف · مين فيهم؟",
+    wit_vote_hint: "دوس على المشتبه اللي شبه الوصف",
+    wit_vote_mine: "صوتك: رقم {n} · تقدر تغيّره لحد ما التصويت يقفل",
+    wit_vote_wait: "المحلفين بيختاروا…",
+    wit_voted_n: "صوّتوا:",
+    wit_suspect_n: "المشتبه رقم {n}",
+    wit_close_vote: "اقفل التصويت",
+    wit_close_draw: "خلّص الرسم دلوقتي",
+    wit_skip: "عدّي الشاهد ده",
+    wit_is_it: "هو ده!",
+    wit_sketch_by: "رسم {artist}",
+    wit_real: "الوش الحقيقي",
+    wit_locked: "متقفل لحد التصويت",
+    wit_right_n: "{n} من {m} عرفوه",
+    wit_nobody: "محدش عرفه!",
+    wit_all: "الكل عرفه! 🎉",
+    wit_no_jury: "مفيش محلفين المرة دي",
+    wit_pts_team: "+{n} للشاهد و+{n} للرسام",
+    wit_next: "القضية الجاية ←",
+    wit_final: "النتيجة النهائية 🏆",
+    wit_over_title: "كل القضايا اتقفلت!",
+    wit_watching: "بتتفرج دلوقتي، وهتلعب اللعبة الجاية",
+    wit_lobby_hint: "كل واحد يبقى الشاهد مرة، واللي بعده الرسام. الشاهد يشوف الوش ٨ ثواني ويوصفه بكلامه، والرسام عنده ٩٠ ثانية، والباقي يختار من طابور ٦ وشوش.",
+    wit_skin_n: "درجة {n}",
+    wit_cat_g: "راجل ولا ست",
+    wit_cat_skin: "البشرة",
+    wit_cat_style: "الشعر",
+    wit_cat_hair: "لون الشعر",
+    wit_cat_head: "على الراس",
+    wit_cat_glasses: "النضارة",
+    wit_cat_eyes: "العينين",
+    wit_cat_brows: "الحواجب",
+    wit_cat_beard: "دقن وشنب",
+    wit_cat_mouth: "البُق",
+    wit_cat_marks: "علامات",
+    wit_cat_extras: "إكسسوار",
+    wit_cat_scarf: "كوفية",
+    wit_cat_top: "اللبس",
+    wit_cat_tie: "كرافتة",
+    wit_cat_shirt: "لون اللبس",
+    wit_cat_pattern: "نقشة",
+    wit_o_man: "راجل",
+    wit_o_woman: "ست",
+    wit_o_short: "قصير",
+    wit_o_curly: "كيرلي",
+    wit_o_spiky: "واقف",
+    wit_o_bald: "أصلع",
+    wit_o_long: "طويل",
+    wit_o_bun: "كحكة",
+    wit_o_ponytail: "ديل حصان",
+    wit_o_braids: "ضفاير",
+    wit_o_h_black: "أسود",
+    wit_o_h_brown: "بني",
+    wit_o_h_blonde: "أصفر",
+    wit_o_h_red: "أحمر",
+    wit_o_h_grey: "شايب",
+    wit_o_none: "ولا حاجة",
+    wit_o_cap: "كاب",
+    wit_o_hijab: "طرحة",
+    wit_o_no_glasses: "من غير",
+    wit_o_glasses: "نضارة",
+    wit_o_sun: "نضارة شمس",
+    wit_o_e_brown: "بني",
+    wit_o_e_blue: "أزرق",
+    wit_o_e_green: "أخضر",
+    wit_o_thin: "رفيعة",
+    wit_o_thick: "تقيلة",
+    wit_o_mous: "شنب",
+    wit_o_beard: "دقن",
+    wit_o_both: "الاتنين",
+    wit_o_smile: "مبتسم",
+    wit_o_laugh: "بيضحك",
+    wit_o_serious: "جد",
+    wit_o_mole: "حسنة",
+    wit_o_freckles: "نمش",
+    wit_o_rosy: "خدود حمرا",
+    wit_o_wrinkles: "تجاعيد",
+    wit_o_ear: "حلق",
+    wit_o_necklace: "سلسلة",
+    wit_o_phones: "سماعات",
+    wit_o_tee: "تيشيرت",
+    wit_o_hoodie: "هودي",
+    wit_o_collar: "قميص",
+    wit_o_no_tie: "من غير",
+    wit_o_tie: "كرافتة",
+    wit_o_bow: "بابيون",
+    wit_o_plain: "سادة",
+    wit_o_stripes: "مقلّم",
+    wit_o_dots: "منقّط",
+    wit_col_0: "أحمر",
+    wit_col_1: "أزرق",
+    wit_col_2: "أخضر",
+    wit_col_3: "أصفر",
+    wit_col_4: "بنفسجي",
+    wit_col_5: "برتقاني",
+    wit_col_6: "بمبي",
+    wit_col_7: "رمادي",
+    wit_artist_got: "الرسام جاب {n}",
+    wit_feat_g: "راجل/ست",
+    wit_crime_0: "مين كل آخر حتة كنافة؟",
+    wit_crime_1: "مين شرب آخر كوباية شاي بالنعناع؟",
+    wit_crime_2: "مين خبّى الريموت؟",
+    wit_crime_3: "مين خلّص المحشي من الحلة؟",
+    wit_crime_4: "مين كل البسبوسة من غير ما يستأذن؟",
+    wit_crime_5: "مين قفل الواي فاي؟",
+    wit_crime_6: "مين خد الشاحن ومرجّعهوش؟",
+    wit_crime_7: "مين كل الكحك قبل العيد؟",
+    wit_crime_8: "مين كل آخر مانجاية؟",
+    wit_crime_9: "مين خلّص الملوخية ومسابش لحد؟",
+    wit_crime_10: "مين لبس الشبشب بتاعي ومرجّعهوش؟",
+    wit_crime_11: "مين كسر الكوباية وخبّى الحتت؟",
+    wit_crime_12: "مين ساب الحنفية مفتوحة؟",
+    wit_crime_13: "مين كل عيش الفينو بتاع الفطار؟",
+    wit_crime_14: "مين غيّر القناة وقت الماتش؟",
+    wit_crime_15: "مين ساب النور والع في الحمام؟",
+    wit_crime_16: "مين خلّص الشيبسي ورجّع الكيس فاضي؟",
+    wit_crime_17: "مين كل الجبنة الرومي اللي في التلاجة؟",
+    wit_crime_18: "مين أكّل القطة من طبق الفراخ؟",
+    wit_crime_19: "مين نسي البيض على النار لحد ما اتحرق؟",
+    wit_crime_20: "مين شرب العصير وساب الكرتونة فاضية في التلاجة؟",
+    wit_crime_21: "مين خلّص باقة النت على الفيديوهات؟",
+    wit_crime_22: "مين خد المخدّة بتاعتي؟",
+    wit_crime_23: "مين قعد على النضّارة؟",
+    wit_match_k: "الرسم مطابق",
+    wit_match_won: "🎯 {line}% وأكتر: +{n} للشاهد و+{n} للرسام",
+    wit_match_laugh: "تحت {line}%: للضحك بس 😄",
+    wit_match_blank: "الرسام ما لمسش الرسمة: من غير نقط"
+  },
+  en: {
+    wit_station: "Family Police Station",
+    wit_case_n: "Case",
+    wit_file: "File {n}",
+    wit_case_q: "The case: {crime}",
+    wit_hush: "🤐 The witness is silent now",
+    wit_hush_me: "Not a word until the vote closes - the jury picks on their own",
+    wit_role_witness: "👁️ Witness",
+    wit_role_artist: "🖍️ Artist",
+    wit_you_witness: "You are the witness!",
+    wit_ready_hint: "Tap and you see the face for 8 seconds only. Then describe it to {artist} in your own words, out loud.",
+    wit_ready_btn: "👁️ Show me the face",
+    wit_ready_wait: "Waiting for the witness {witness} to open the case file…",
+    wit_ready_artist: "You are the artist! The witness {witness} describes the face and you draw it",
+    wit_ready_jury: "Listen closely: at the end you pick from a lineup of six very alike faces.",
+    wit_look_focus: "Look closely at the face!",
+    wit_look_others: "The witness {witness} is looking at the face now…",
+    wit_look_artist: "Get ready! You draw from what {witness} says",
+    wit_describe: "Talk! Describe the face to {artist} in your own words 🗣️",
+    wit_hint_1: "Hair?",
+    wit_hint_2: "Glasses?",
+    wit_hint_3: "Beard?",
+    wit_hint_4: "Clothes?",
+    wit_hint_5: "Marks?",
+    wit_artist_listen: "Listen to {witness} and draw",
+    wit_done_btn: "Done drawing ✓",
+    wit_plate: "Suspect · drawn by {artist}",
+    wit_jury_draw: "Listen closely: you will pick from a lineup of look-alikes",
+    wit_tv_drawing: "{artist} is drawing from what {witness} says",
+    wit_lineup_title: "🚓 The lineup · which one?",
+    wit_vote_hint: "Tap the suspect who fits the description",
+    wit_vote_mine: "Your vote: number {n} · you can change it until the vote closes",
+    wit_vote_wait: "The jury is choosing…",
+    wit_voted_n: "Voted:",
+    wit_suspect_n: "Suspect number {n}",
+    wit_close_vote: "Close the vote",
+    wit_close_draw: "Finish the drawing now",
+    wit_skip: "Skip this witness",
+    wit_is_it: "That's him!",
+    wit_sketch_by: "Drawn by {artist}",
+    wit_real: "The real face",
+    wit_locked: "Sealed until the vote",
+    wit_right_n: "{n} of {m} got it",
+    wit_nobody: "Nobody got it!",
+    wit_all: "Everyone got it! 🎉",
+    wit_no_jury: "No jury this time",
+    wit_pts_team: "+{n} to the witness and +{n} to the artist",
+    wit_next: "Next case →",
+    wit_final: "Final result 🏆",
+    wit_over_title: "All the cases are closed!",
+    wit_watching: "You are watching; you play the next game",
+    wit_lobby_hint: "Everyone is the witness once, and the next in turn draws. The witness sees the face 8 seconds and describes it in their own words, the artist has 90 seconds, and the rest pick from a lineup of six.",
+    wit_skin_n: "Shade {n}",
+    wit_cat_g: "Man or woman",
+    wit_cat_skin: "Skin",
+    wit_cat_style: "Hair",
+    wit_cat_hair: "Hair colour",
+    wit_cat_head: "On the head",
+    wit_cat_glasses: "Glasses",
+    wit_cat_eyes: "Eyes",
+    wit_cat_brows: "Eyebrows",
+    wit_cat_beard: "Beard",
+    wit_cat_mouth: "Mouth",
+    wit_cat_marks: "Marks",
+    wit_cat_extras: "Extras",
+    wit_cat_scarf: "Scarf",
+    wit_cat_top: "Clothes",
+    wit_cat_tie: "Tie",
+    wit_cat_shirt: "Colour",
+    wit_cat_pattern: "Pattern",
+    wit_o_man: "Man",
+    wit_o_woman: "Woman",
+    wit_o_short: "Short",
+    wit_o_curly: "Curly",
+    wit_o_spiky: "Spiky",
+    wit_o_bald: "Bald",
+    wit_o_long: "Long",
+    wit_o_bun: "Bun",
+    wit_o_ponytail: "Ponytail",
+    wit_o_braids: "Braids",
+    wit_o_h_black: "Black",
+    wit_o_h_brown: "Brown",
+    wit_o_h_blonde: "Blonde",
+    wit_o_h_red: "Red",
+    wit_o_h_grey: "Grey",
+    wit_o_none: "None",
+    wit_o_cap: "Cap",
+    wit_o_hijab: "Hijab",
+    wit_o_no_glasses: "None",
+    wit_o_glasses: "Glasses",
+    wit_o_sun: "Sunglasses",
+    wit_o_e_brown: "Brown",
+    wit_o_e_blue: "Blue",
+    wit_o_e_green: "Green",
+    wit_o_thin: "Thin",
+    wit_o_thick: "Thick",
+    wit_o_mous: "Moustache",
+    wit_o_beard: "Beard",
+    wit_o_both: "Both",
+    wit_o_smile: "Smiling",
+    wit_o_laugh: "Laughing",
+    wit_o_serious: "Serious",
+    wit_o_mole: "Mole",
+    wit_o_freckles: "Freckles",
+    wit_o_rosy: "Rosy cheeks",
+    wit_o_wrinkles: "Wrinkles",
+    wit_o_ear: "Earrings",
+    wit_o_necklace: "Necklace",
+    wit_o_phones: "Headphones",
+    wit_o_tee: "T-shirt",
+    wit_o_hoodie: "Hoodie",
+    wit_o_collar: "Shirt",
+    wit_o_no_tie: "None",
+    wit_o_tie: "Tie",
+    wit_o_bow: "Bow tie",
+    wit_o_plain: "Plain",
+    wit_o_stripes: "Stripes",
+    wit_o_dots: "Dots",
+    wit_col_0: "Red",
+    wit_col_1: "Blue",
+    wit_col_2: "Green",
+    wit_col_3: "Yellow",
+    wit_col_4: "Purple",
+    wit_col_5: "Orange",
+    wit_col_6: "Pink",
+    wit_col_7: "Grey",
+    wit_artist_got: "The artist got {n}",
+    wit_feat_g: "Man/woman",
+    wit_crime_0: "Who ate the last piece of kunafa?",
+    wit_crime_1: "Who drank the last glass of mint tea?",
+    wit_crime_2: "Who hid the remote?",
+    wit_crime_3: "Who finished the stuffed vine leaves?",
+    wit_crime_4: "Who ate the basbousa without asking?",
+    wit_crime_5: "Who switched off the Wi-Fi?",
+    wit_crime_6: "Who took the charger and never gave it back?",
+    wit_crime_7: "Who ate the Eid cookies before Eid?",
+    wit_crime_8: "Who ate the last mango?",
+    wit_crime_9: "Who finished the molokhia and left none for anyone?",
+    wit_crime_10: "Who wore my slippers and never brought them back?",
+    wit_crime_11: "Who broke the glass and hid the pieces?",
+    wit_crime_12: "Who left the tap running?",
+    wit_crime_13: "Who ate the breakfast bread rolls?",
+    wit_crime_14: "Who changed the channel in the middle of the match?",
+    wit_crime_15: "Who left the bathroom light on?",
+    wit_crime_16: "Who finished the crisps and put the empty bag back?",
+    wit_crime_17: "Who ate the Roumy cheese in the fridge?",
+    wit_crime_18: "Who fed the cat from the chicken dish?",
+    wit_crime_19: "Who left the eggs on the stove until they burnt?",
+    wit_crime_20: "Who drank the juice and left the empty carton in the fridge?",
+    wit_crime_21: "Who used up the internet bundle on videos?",
+    wit_crime_22: "Who took my pillow?",
+    wit_crime_23: "Who sat on the glasses?",
+    wit_match_k: "The sketch matches",
+    wit_match_won: "🎯 {line}% or more: +{n} to the witness and +{n} to the artist",
+    wit_match_laugh: "Under {line}%: just for the laugh 😄",
+    wit_match_blank: "The artist never touched the sketch: no points"
+  }
+};
 function witT(key, vars) {
   const t = TRANSLATIONS[appState.lang] || {};
-  let s = t[key] || key;
+  let s = (WIT_TEXT[appState.lang] || WIT_TEXT.ar)[key] || t[key] || key;
   Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
   return s;
 }
@@ -203,34 +520,47 @@ function witCompareHtml(state, o) {
     </div>`;
 }
 
-/* --- the sketch, feature by feature (ideas batch: rooms) --------------------------------
+/* --- «الرسم مطابق 78%»: the sketch, feature by feature (the owner, 2 Oct 2026) ----------
    At the reveal the sketch is held against the real face one feature at a time, the
-   builder's own categories (WIT_CATS, only those the real face has): «الشعر ✓
-   النضارة ✗ …», ending «الرسام جاب 7/10». Worked out here on the page from the two
-   faces the reveal publishes; nothing new from the server. */
-function witFeatureMatches(sketch, real) {
-  if (!sketch || !real) return [];
-  return witCatsFor(real).map(c => {
-    const opts = c.opts(real);
-    const ok = c.multi
-      ? opts.every(o => !!c.on(sketch, o[0]) === !!c.on(real, o[0]))
-      : String(c.get(sketch)) === String(c.get(real));
-    return { k: c.k, ok };
-  });
+   builder's own categories (only those the real face shows), each the same weight:
+   «الشعر ✓ النضارة ✗ …» tick in one by one while the % counts up to land with the
+   last, then «الرسام جاب 12/17» and, at WITNESS_MATCH_LINE or more, +1 to the witness
+   and +1 to the artist. The server works it out (witnessMatch in Witness.js, published
+   as shared.match with the reveal); a page on an older server works it out the same
+   way from the two faces. */
+function witMatchOf(state) {
+  const s = state.shared || {};
+  if (s.match && Array.isArray(s.match.feats)) return s.match;
+  const real = (s.lineup || [])[s.realIdx];
+  return real && s.sketch ? witnessMatch(s.sketch, real) : null;
 }
 
 function witTallyHtml(state, startAt, o) {
-  const s = state.shared || {};
-  const real = (s.lineup || [])[s.realIdx];
-  const rows = witFeatureMatches(s.sketch, real);
+  const m = witMatchOf(state);
+  const rows = (m && m.feats) || [];
   if (!rows.length) return '';
-  const st = stageReveal(['wit-tally', (o && o.tv) ? 'tv' : 'ph', witRoundKey(state)].join('|'), state);
+  const tv = !!(o && o.tv);
+  const st = stageReveal(['wit-tally', tv ? 'tv' : 'ph', witRoundKey(state)].join('|'), state);
   const step = Math.min(220, Math.round(2200 / rows.length));
   const n = rows.filter(r => r.ok).length;
+  const won = typeof m.won === 'boolean' ? m.won : m.pct >= WITNESS_MATCH_LINE;
+  const ticksEnd = startAt + rows.length * step;
   const chips = rows.map((r, i) => `<span class="wit-tick ${r.ok ? 'is-ok' : 'is-off'}"${st.at(startAt + i * step, 'pop')}>${escapeHTML(witT(r.k === 'g' ? 'wit_feat_g' : 'wit_cat_' + r.k))} <b aria-hidden="true">${r.ok ? '✓' : '✗'}</b></span>`).join('');
-  return `<div class="wit-tally ${(o && o.tv) ? 'wit-tally--tv' : ''}">
+  // The % counts up beside the ticks and lands with the last one (countUp runs 720 ms).
+  const countAt = Math.max(startAt + 120, ticksEnd - 600);
+  const meter = `<div class="wit-match ${won ? 'is-won' : ''}"${st.at(startAt, 'pop')}>
+      <span class="wit-match__k">${escapeHTML(witT('wit_match_k'))}</span>
+      <b class="wit-match__pct metric">${st.count(m.pct, countAt)}<i aria-hidden="true">%</i></b>
+      <span class="wit-match__bar" aria-hidden="true"><span class="wit-match__fill" style="--p:${Math.max(0, Math.min(100, m.pct)) / 100};--rv-at:${countAt}ms"${st.on ? ' data-rv="grow"' : ''}></span><span class="wit-match__line" style="--l:${WITNESS_MATCH_LINE}%"></span></span>
+      <span class="wit-match__n"${st.at(ticksEnd + 250, 'in')}>${escapeHTML(witT('wit_artist_got', { n: ltrFrac(n, rows.length) }))}</span>
+    </div>`;
+  const bonus = won
+    ? `<div class="wit-match__bonus is-won"${st.at(ticksEnd + 500, 'pop')}>${escapeHTML(witT('wit_match_won', { line: WITNESS_MATCH_LINE, n: WITNESS_MATCH_POINTS }))}</div>`
+    : `<div class="wit-match__bonus"${st.at(ticksEnd + 500, 'in')}>${escapeHTML(witT(m.blank ? 'wit_match_blank' : 'wit_match_laugh', { line: WITNESS_MATCH_LINE }))}</div>`;
+  return `<div class="wit-tally ${tv ? 'wit-tally--tv' : ''}">
+      ${meter}
       <div class="wit-tally__chips">${chips}</div>
-      <div class="wit-tally__sum"${st.at(startAt + rows.length * step + 250, 'pop')}>${escapeHTML(witT('wit_artist_got', { n: ltrFrac(n, rows.length) }))}</div>
+      ${bonus}
     </div>`;
 }
 

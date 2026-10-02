@@ -314,3 +314,5 @@ has to paint at once when `document.readyState` isn't 'loading'; a registry a
 shell file consumes once (`SOLO_LATE`) has to take late entries.
 
 **The budget was full on 2 Oct 2026.** السلم والتعبان's third round and المشنقة's next round took the shell to 713 KB; the speech bubbles of their board moments (`snk_b_*`, `hm_end_*`) moved out of `TRANSLATIONS` into their chunks (`SNK_BUBBLES` in JS_Snakes.html, `HM_END_TEXT` in JS_HangmanEnd.html, read through `snkT` / `hmT`), back to 710. Text only a game's own chunk reads goes in that chunk the same way; the next real saving is still the CSS, section by section.
+
+On 2 Oct 2026 (ارسم اللي بتسمعه's and الشاهد's extras) the shell was at 711 KB; every `wit_*` text (127 keys a language: the crimes, the builder's options, the station's lines) moved out of `TRANSLATIONS` into `WIT_TEXT` in JS_RoomWitness.html, read through `witT` (which falls back to `TRANSLATIONS`), and hear's new tags into `HR_TEXT` (through `hrT`): 707 KB.

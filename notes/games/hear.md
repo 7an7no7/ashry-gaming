@@ -178,7 +178,7 @@ named `hear` / `HEAR_`, the page's code `hr` / `HR_`, the stylesheet section
   hand and one on the server's clock, a leaver), `validate-content.js` (360
   pictures: inside the page, names, a trace scoring 90%+).
 
-## Points for everyone over a line: answered, not built yet (the owner, 2 Oct 2026)
+## Points for everyone over a line: built 2 Oct 2026 (the owner, 2 Oct 2026)
 
 Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
 
@@ -186,6 +186,33 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
   - **+1 to everyone whose drawing scores 50% or more** (the % from `hearScore`).
   - **«اتحسنت» +1 to anyone who beats their own % from the last round** (not in round 1, there is nothing to beat). The two stack: one drawing can earn both.
   - Always on, rooms and the TV.
+
+**How it is built.** The numbers are in `Hear.js` (`HEAR_OVER_PCT` 50, `HEAR_OVER_POINTS` 1,
+`HEAR_BETTER_POINTS` 1). `hearGrade` (RoomHear.js) gives every drawing, beside its `place` and
+`pts`, `prev` (that drawer's last %, or null), `over`, `better` and `bonus` (`over + better`);
+`s.gained` and the scores carry `pts + bonus`, so the round's points, the TV's mark sheet, the
+board and the night's points need nothing new. `shared.lastPct` keeps each drawer's % from the
+last drawing they made (set at every grading, kept through the game, empty at a new game). On the
+page (JS_RoomHear.html) `hrDrawingPts(d)` is a drawing's points before the vote, and
+`hrExtrasHtml(d, st, at, size)` draws the red-pen tags: on my own page at the grading the whole
+line («✓ 50% وأكتر +1», «📈 اتحسنت عن 29% +1»), on a TV notebook «✓ 50%» and «📈 اتحسنت», on a
+phone's small notebook «✓ 50%» and «📈», each with its `+1` (top left of the page, clear of the
+red circle). The red `+N` pops with the place's points and counts up to the total as the tags land
+(`stageReveal`'s `count`, from `pts` to `pts + bonus`); a drawing with no place but an extra shows
+its `+N` without a star. The words are in `HR_TEXT` in the chunk (the shell's budget), the rules in
+`GAME_RULES.hear` (both languages). Tests: `rules.mjs` (round 1 has no «اتحسنت»; 50% or more,
+none under; beating your last %; the two stacking; a worse drawing; last round's describer with
+nothing to beat; the points add up), `play-all.mjs --only=hear` (the traced page's 50% point, a
+drawer who traces the next picture after a weak one gets both).
+
+**Decided here (open to change):**
+- **"The last round" is the last drawing you made.** The describer turns over every round, so a
+  drawer who described last round is compared with the round before that (their own last %); the
+  first drawing anyone makes has nothing to beat. One place: `shared.lastPct` in `hearGrade`.
+- **Beating means strictly more** (the same % is not «اتحسنت»); a blank page (0%) last time is beaten
+  by any drawing that scores.
+- **A blank page or a page under 50% earns neither extra**; a drawing outside the first three can
+  still earn both.
 
 ## History
 

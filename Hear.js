@@ -40,6 +40,9 @@ const HEAR_DESC_STEP = 20;             // the describer: a point for every 20% o
 const HEAR_DESC_MAX = 3;
 const HEAR_WEIRD_POINTS = 1;           // «أغرب رسمة»
 const HEAR_WEIRD_MIN_VOTES = 2;        // the most votes, and at least two of them
+const HEAR_OVER_PCT = 50;              // (the owner, 2 Oct 2026) every drawing at this % or more: +HEAR_OVER_POINTS
+const HEAR_OVER_POINTS = 1;
+const HEAR_BETTER_POINTS = 1;          // «اتحسنت»: a % higher than your own last drawing's (stacks with the above)
 
 /* --- a seeded random -------------------------------------------------------- */
 function hearRng(seed) {

@@ -11926,7 +11926,7 @@ Date.now = duelTestClock;
 {
   console.log('\nThe witness');
   const W = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../Witness.js', import.meta.url), 'utf8') +
-    ';return { gwSignature, witnessLineup, witnessClean, witnessFix, witnessBlank, WITNESS_LOOK_MS, WITNESS_DRAW_MS, WITNESS_VOTE_MS };')();
+    ';return { gwSignature, witnessLineup, witnessClean, witnessFix, witnessBlank, witnessMatch, WITNESS_LOOK_MS, WITNESS_DRAW_MS, WITNESS_VOTE_MS, WITNESS_MATCH_LINE };')();
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
   const witRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'witness' }); return r; };
@@ -11962,6 +11962,32 @@ Date.now = duelTestClock;
     const x = W.witnessClean({ g: 'f', hijab: 3, ear: true, beard: true, cap: 2, top: 'collar', tie: 'tie', skin: 9, hair: 'purple', evil: '<b>', glasses: true, sun: true });
     check(x.g === 'f' && x.hijab === 3 && !x.ear && !x.beard && x.cap === null && x.top === 'tee' && x.tie === '' && x.skin === 0 && x.hair === 'black' && !('evil' in x) && x.sun && !x.glasses,
       'witness: a sketch is cleaned: a hijab takes the earrings, a cap and a collar; bad values fall back');
+  }
+  // «الرسم مطابق»: feature by feature, each the same weight, only what shows on the real face (2 Oct 2026).
+  {
+    let same = true, oneOff = true, hidden = true, n = 0;
+    for (let k = 0; k < 300; k++) {
+      const L = W.witnessLineup(Math.random);
+      const real = L.faces[L.real];
+      const m = W.witnessMatch(real, real);
+      if (m.pct !== 100 || m.ok !== m.of) same = false;
+      const keys = m.feats.map((f) => f.k);
+      const hij = real.hijab !== null && real.hijab !== undefined;
+      if (hij && ['hair', 'style', 'scarf', 'extras'].some((x) => keys.indexOf(x) !== -1)) hidden = false;
+      if (real.sun && keys.indexOf('eyes') !== -1) hidden = false;
+      if (real.g === 'f' && keys.indexOf('beard') !== -1) hidden = false;
+      if (real.top !== 'collar' && keys.indexOf('tie') !== -1) hidden = false;
+      // One feature off: exactly one tick fewer, whatever it was.
+      const x = Object.assign({}, real, { mouth: real.mouth === 'smile' ? 'serious' : 'smile' });
+      const m1 = W.witnessMatch(x, real);
+      if (m1.ok !== m1.of - 1 || m1.feats.find((f) => f.k === 'mouth').ok) oneOff = false;
+      n += m.of;
+    }
+    check(same, 'witness: the real face against itself is 100%');
+    check(oneOff, 'witness: one feature wrong is one tick off, every feature the same weight');
+    check(hidden, 'witness: only features that show count (no hair under a hijab, no eyes behind sunglasses, no beard on a woman, no tie without a collar)');
+    const m0 = W.witnessMatch(null, null);
+    check(m0.pct === 0 && m0.of === 0 && W.WITNESS_MATCH_LINE === 70 && n / 300 >= 12, 'witness: no face, no %; the line is 70%; a dozen features or more a face (' + Math.round(n / 30) / 10 + ')');
   }
   {
     const r = witRoom(['a', 'b']);
@@ -12024,8 +12050,9 @@ Date.now = duelTestClock;
     s = r.shared;
     check(s.phase === 'reveal' && typeof s.realIdx === 'number' && s.right.join() === jury[0] && s.picks[jury[1]] === Number(wrongOpt.slice(1)) - 1,
       'witness: the vote closes when the jury has voted; a vote may be changed until then');
-    check(s.scores[jury[0]] === 1 && !s.scores[jury[1]] && s.scores[w] === 1 && s.scores[art] === 1 && s.gained[w] === 1, 'witness: a point to a juror right, and one each to the witness and the artist for them');
-    check(!r._witness && s.board[0].score === 1, 'witness: the answer is public now and the board is up');
+    check(s.scores[jury[0]] === 1 && !s.scores[jury[1]] && s.scores[w] === 1 + 1 && s.scores[art] === 1 + 1 && s.gained[w] === 2, 'witness: a point to a juror right, and one each to the witness and the artist for them (+1 each for a sketch at 70%+)');
+    check(s.match && s.match.pct === 100 && s.match.won && s.match.feats.every((f) => f.ok), 'witness: the exact sketch matches 100%, every feature ticked');
+    check(!r._witness && s.board[0].score === 2, 'witness: the answer is public now and the board is up');
     applyRoomAction(r, 'a', 'nextRound', { round: 0 });
     check(r.shared.phase === 'reveal', 'witness: a stale next round is dropped');
     applyRoomAction(r, 'a', 'nextRound', { round: 1 });
@@ -12035,10 +12062,11 @@ Date.now = duelTestClock;
     applyRoomAction(r, s.witnessId, 'ready', { round: 2 });
     tick(r); tick(r);
     s = r.shared;
-    check(s.phase === 'vote' && s.early === false, 'witness: the drawing ends by itself after 90 s');
+    check(s.phase === 'vote' && s.early === false && !s.match, 'witness: the drawing ends by itself after 90 s (no match before the reveal)');
     tick(r);
     s = r.shared;
     check(s.phase === 'reveal' && s.right.length === 0 && !s.gained[s.witnessId], 'witness: the vote ends on its clock; nobody right, no points');
+    check(s.match && s.match.blank && !s.match.won && s.match.of > 0, 'witness: a sketch nobody touched is measured, and wins nothing whatever its %');
     applyRoomAction(r, 'a', 'nextRound', { round: 2 });
     // Round 3: the host passes over a quiet witness.
     s = r.shared;
@@ -14184,7 +14212,7 @@ console.log('• the secret mission');
 {
   console.log('\nDraw what you hear');
   const H = new Function(readFileSync(new URL('../../Hear.js', import.meta.url), 'utf8') +
-    ';return { hearPicture, hearScore, hearOutlines, hearDescPoints, hearPictureName, HEAR_THING_IDS, HEAR_THING_NAMES, HEAR_CUT_MS, HEAR_SWAPS, HEAR_SECONDS };')();
+    ';return { hearPicture, hearScore, hearOutlines, hearDescPoints, hearPictureName, HEAR_THING_IDS, HEAR_THING_NAMES, HEAR_CUT_MS, HEAR_SWAPS, HEAR_SECONDS, HEAR_OVER_PCT, HEAR_PLACE_POINTS };')();
   const tick = (r) => { const due = roomDeadline(r); if (due === null) return false; clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
   const hearRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'hear' }); return r; };
   const gone = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id.toUpperCase()); };
@@ -14315,7 +14343,7 @@ console.log('• the secret mission');
     applyRoomAction(r, x, 'vote', { round: 1, option: optOf(z) });
     applyRoomAction(r, y, 'vote', { round: 1, option: optOf(x) });
     applyRoomAction(r, z, 'vote', { round: 1, option: optOf(x) });
-    check(s.phase === 'result' && s.weird.length === 2 && s.scores[z] === 1 && s.scores[x] === 4, 'hear: a tie at the top with two votes: both weirdest, +1 each');
+    check(s.phase === 'result' && s.weird.length === 2 && s.scores[z] === 1 && s.scores[x] === 3 + 1 + 1, 'hear: a tie at the top with two votes: both weirdest, +1 each (on top of 3 and the 50% point)');
     check(s.board[0].id === x && s.board.every((row, i) => !i || s.board[i - 1].score >= row.score), 'hear: the board is best first');
     check(threw(() => applyRoomAction(r, 'b', 'nextRound', { round: 1 })) && r.shared.round === 1, 'hear: a player can\'t move the round on while the host is here');
     r._hostAway = true; applyRoomAction(r, 'b', 'nextRound', { round: 1 }); delete r._hostAway;
@@ -14337,6 +14365,47 @@ console.log('• the secret mission');
     applyRoomAction(r, r.shared.describerId, 'go', { round: 3 });
     for (let k = 0; k < 4; k++) tick(r);
     check(r.shared.phase === 'result' && r.shared.drawings.length === 3 && r.shared.drawings.every((d) => d.pct === 0), 'hear: a round nobody touched ends on the clock alone');
+  }
+
+  // The owner's extras of 2 Oct 2026: +1 to every drawing at 50% or more, «اتحسنت» +1 for beating your
+  // own % from the last drawing you made (not the first time), the two stacking, in the round's points.
+  {
+    const randomWas = Math.random;
+    let seed = 20261002;
+    Math.random = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const r = hearRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'start', { kind: 'shapes', level: 'easy' });
+    const play = (drawOf) => {
+      const st = r.shared;
+      applyRoomAction(r, st.describerId, 'go', { round: st.round });
+      st.drawers.forEach((id) => applyRoomAction(r, id, 'hand', { round: st.round, strokes: drawOf(id, r._hear.pic) }));
+      return st;
+    };
+    const ptsOk = (st) => st.drawings.every((d) => (st.gained[d.id] || 0) === d.pts + d.over + d.better && d.bonus === d.over + d.better);
+    // Round 1: everyone draws one shape of the picture, nobody has a last % yet.
+    const one = play((id, pic) => strokesOf(pic.s.slice(0, 1)));
+    const D1 = one.describerId;
+    const r1 = {}; one.drawings.forEach((d) => { r1[d.id] = d.pct; });
+    check(one.phase === 'grade' && one.drawings.every((d) => d.prev === null && d.better === 0), 'hear: round 1 has no «اتحسنت» (nothing to beat)');
+    check(one.drawings.every((d) => d.over === (d.pct >= H.HEAR_OVER_PCT ? 1 : 0)), 'hear: +1 to every drawing at 50% or more, none under');
+    check(ptsOk(one), 'hear: the extras are in the round\'s points with the places');
+    check(one.drawings.every((d) => one.lastPct[d.id] === d.pct) && one.lastPct[D1] === undefined, 'hear: each drawer\'s % is kept for the next time they draw');
+    applyRoomAction(r, 'a', 'toVote', { round: 1 });
+    applyRoomAction(r, 'a', 'closeVote', { round: 1 });
+    applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+    // Round 2: the one who described in round 1 traces the picture (nothing to beat), one drawer traces it
+    // (better), one leaves the page blank (worse).
+    const D2 = r.shared.describerId;
+    const drew = r.shared.drawers.filter((id) => id !== D1);
+    const up = drew[0], down = drew[1];
+    const two = play((id, pic) => (id === down ? [] : strokesOf(pic.s)));
+    const by = {}; two.drawings.forEach((d) => { by[d.id] = d; });
+    check(by[up].prev === r1[up] && by[up].pct > r1[up] && by[up].better === 1, 'hear: «اتحسنت» +1 for beating your own last % (' + r1[up] + '% → ' + by[up].pct + '%)');
+    check(by[up].over === 1 && (two.gained[up] || 0) === by[up].pts + 2, 'hear: the 50% point and «اتحسنت» stack on one drawing');
+    check(down === undefined || (by[down].better === 0 && by[down].over === 0), 'hear: a worse drawing earns no «اتحسنت»');
+    check(by[D1] && by[D1].prev === null && by[D1].better === 0 && by[D1].over === 1, 'hear: last round\'s describer has no % to beat yet');
+    check(ptsOk(two) && two.lastPct[D1] === by[D1].pct && two.lastPct[D2] === r1[D2], 'hear: the points add up; the describer keeps their last drawing\'s %');
+    Math.random = randomWas;
   }
 
   // The defaults; the mix alternates; the host passes a quiet describer; the end; play again.

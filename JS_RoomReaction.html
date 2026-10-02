@@ -117,6 +117,7 @@ position: absolute; inset-inline-start: 50%; top: 50%; width: 120%; aspect-ratio
 border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--success-on) 35%, transparent) 0 30%, transparent 62%);
 opacity: 0; pointer-events: none;
 }
+.rx-burst-clip { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; }
 .rx-pad--go .rx-burst { animation: rxBurst 0.55s ease-out both; }
 @keyframes rxBurst { from { opacity: 1; transform: scale(0.15); } to { opacity: 0; transform: scale(1.4); } }
 .rx-room { display: flex; flex-direction: column; gap: var(--sp-3); }
@@ -239,7 +240,7 @@ function rxrPadHtml(state, s, o) {
   } else {
     look = 'wait'; big = escapeHTML(L.reaction_wait); sub = escapeHTML(L.rx_wait_sub);
   }
-  const burst = s.phase === 'go' && look === 'go' ? '<i class="rx-burst" aria-hidden="true"></i>' : '';
+  const burst = s.phase === 'go' && look === 'go' ? '<i class="rx-burst-clip" aria-hidden="true"><i class="rx-burst"></i></i>' : '';
   const inner = `${burst}<div class="rx-msg ${extra}"><div class="rx-big">${big}</div>${sub ? `<div class="rx-sub">${sub}</div>` : ''}</div>`;
   if (tv) return `<div class="rx-pad rx-pad--tv rx-half is-${look}" data-rx-pad>${inner}</div>`;
   const live = (s.phase === 'wait' || s.phase === 'go') && !mine;

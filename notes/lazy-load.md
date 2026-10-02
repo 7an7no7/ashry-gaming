@@ -312,3 +312,5 @@ Under *The static site*, replacing the paragraph on the minified page's budget:
 And a trap: *A chunk runs after DOMContentLoaded*: a file that paints at start-up
 has to paint at once when `document.readyState` isn't 'loading'; a registry a
 shell file consumes once (`SOLO_LATE`) has to take late entries.
+
+**The budget was full on 2 Oct 2026.** السلم والتعبان's third round and المشنقة's next round took the shell to 713 KB; the speech bubbles of their board moments (`snk_b_*`, `hm_end_*`) moved out of `TRANSLATIONS` into their chunks (`SNK_BUBBLES` in JS_Snakes.html, `HM_END_TEXT` in JS_HangmanEnd.html, read through `snkT` / `hmT`), back to 710. Text only a game's own chunk reads goes in that chunk the same way; the next real saving is still the CSS, section by section.

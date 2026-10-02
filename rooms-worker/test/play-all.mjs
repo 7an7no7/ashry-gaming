@@ -5673,6 +5673,47 @@ async function hangmanSeg() {
     await all(hmBots.concat([S]), (s) => s.shared.phase === 'gameover' && s.phase === 'gameover', 'hangman: the game ends after the chosen number of words');
     await H.must('backToHub');
     await H.waitFor((s) => s.phase === 'lobby', 'hangman: back in the hub');
+
+    // The next round (2 Oct 2026): Easy and a category in the race, the lifelines, the hints, the streak.
+    await H.must('chooseGame', { game: 'hangman' });
+    await H.must('start', { mode: 'race', rounds: 3, clock: 0, lang: 'ar', level: 'easy', cat: 'animals' });
+    await all(hmBots, (s) => s.shared.phase === 'guessing' && s.shared.max === 8 && s.shared.settings.cat === 'animals' && s.shared.shape.length === 1 && s.shared.len <= 6,
+              'hangman: the race at Easy deals a short word of the category chosen, 8 misses a board');
+    await J.must('reveal', { round: 1 });
+    await J.must('remove', { round: 1 });
+    await J.waitFor((s) => s.you && s.you.lr && s.you.lx && (s.you.x || []).length === 3, 'hangman: the lifelines are on the board that used them');
+    check(!leaks(K, '"lr":true') && !(K.state.you || {}).x, 'hangman: and not on anyone else\'s');
+    check((await J.act('reveal', { round: 1 })).ok && !J.state.you.g.some((l, i, a) => a.indexOf(l) !== i), 'hangman: a lifeline twice is nothing the second time');
+    await H.must('closeWord', { round: 1 });
+    await all(hmBots, (s) => s.shared.phase === 'result', 'hangman: the word closes');
+    await H.must('backToHub');
+
+    // Team against team: the host's split, one writes, the other team's captain taps, the teams swap.
+    await H.must('chooseGame', { game: 'hangman' });
+    await H.must('sides', {});
+    await H.waitFor((s) => s.shared.lobby && Object.keys(s.shared.lobby.sides).length === 3, 'hangman: the host\'s lobby splits two teams');
+    await H.must('start', { mode: 'teams', rounds: 4, clock: 0, lang: 'ar', level: 'hard' });
+    await all(hmBots.concat([S]), (s) => s.shared.phase === 'writing' && s.shared.settings.mode === 'teams' && !!s.shared.captain && s.shared.max === 4,
+              'hangman: team against team - a writer from one team, a captain on the other');
+    let tw = byId(hmBots, H.state.shared.setter);
+    await tw.must('setWord', { word: 'مدرسة', hints: ['مكان', 'فيها فصول', 'جرس'], round: 1 });
+    await all(hmBots.concat([S]), (s) => s.shared.phase === 'guessing' && s.shared.tb && s.shared.cat === 'مكان' && s.shared.hintsN === 3,
+              'hangman: the team\'s board is the table\'s, with the first hint');
+    check(!leaks(S, 'مدرسة') && !leaks(S, 'فيها فصول') && hmBots.filter((b) => b !== tw).every((b) => !leaks(b, 'مدرسة') && !leaks(b, 'جرس')),
+          'hangman: the word and the hints to come stay on the writer\'s phone');
+    const cap = byId(hmBots, H.state.shared.captain);
+    const notCap = hmBots.find((b) => b !== cap && b !== tw);
+    if (notCap) check((await notCap.act('guess', { letter: 'م', round: 1 })).ok === false, 'hangman: only the captain taps');
+    await cap.must('guess', { letter: 'ث', round: 1 });
+    await cap.must('guess', { letter: 'ج', round: 1 });
+    await all(hmBots.concat([S]), (s) => s.shared.tb && (s.shared.tb.hints || []).length === 2, 'hangman: the 2nd hint opens on the team\'s 2nd miss, for everyone');
+    await cap.must('whole', { text: 'مدرسة', round: 1 });
+    await all(hmBots.concat([S]), (s) => s.shared.phase === 'result' && s.shared.result.team === s.shared.gt && s.shared.tb.end !== undefined && s.shared.tpts[s.shared.gt] === 10,
+              'hangman: the team solves it: 10 for the team, and an ending the same on every phone and the TV');
+    const gt1 = H.state.shared.gt;
+    await H.must('nextRound', { round: 1 });
+    await all(hmBots, (s) => s.shared.phase === 'writing' && s.shared.round === 2 && s.shared.gt === 1 - gt1, 'hangman: the teams swap for the next word');
+    await H.must('backToHub');
     hmBots.concat([S]).forEach((b) => b.close());
   }
 

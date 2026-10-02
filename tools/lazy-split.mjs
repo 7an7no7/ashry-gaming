@@ -94,7 +94,7 @@ export const CHUNKS = {
   program: ['JS_RoomProgram'],
   // المهمة السرية: the switch beside every game - the file, the memo, the cork board (the room engine opens it).
   mission: ['JS_RoomMission', 'Missions.js'],
-  hangman: ['JS_Hangman', 'Hangman.js'],
+  hangman: ['JS_Hangman', 'JS_HangmanEnd', 'Hangman.js'],
   solve: ['JS_RoomSolve', 'JS_RoomRace', 'SolveGames.js'],
   bowling: ['JS_Bowling', 'Bowling.js'],
   battleship: ['JS_Battleship', 'Battleship.js'],

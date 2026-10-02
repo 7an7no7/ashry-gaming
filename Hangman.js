@@ -31,6 +31,61 @@
    emoji riddles (not their proverbs, which are sentences).
    ========================================================================= */
 const HM_MISSES = 6;
+
+/* The levels (the owner, 2 Oct 2026): Easy 8 misses, Normal 6 (as it always was), Hard 4, in every
+   way to play. The man is the same six pieces, drawn in more or fewer steps to match (hmManOf). */
+const HM_LEVELS = { easy: 8, normal: 6, hard: 4 };
+const hmLevelOf = (v) => (v === 'easy' || v === 'hard' ? v : 'normal');
+const hmMaxOf = (level) => HM_LEVELS[hmLevelOf(level)];
+
+/* The man's steps, a list of what each miss adds. Six: a piece a miss. Four: bigger pieces (both arms
+   at once, both legs at once). Eight: the arms come without their hands, and each hand is a miss. */
+const HM_MAN_STEPS = {
+  4: [['head'], ['body'], ['armL', 'handL', 'armR', 'handR'], ['legL', 'legR']],
+  6: [['head'], ['body'], ['armL', 'handL'], ['armR', 'handR'], ['legL'], ['legR']],
+  8: [['head'], ['body'], ['armL'], ['handL'], ['armR'], ['handR'], ['legL'], ['legR']]
+};
+const HM_PIECES = ['head', 'body', 'armL', 'armR', 'legL', 'legR'];
+
+/**
+ * How much of the man `misses` draws on a board of `max` misses: `on` the pieces and hands shown,
+ * `fresh` what the last miss added, `n` how many of the six pieces are up (the face and the sway
+ * follow it, hm-s<n>).
+ */
+const hmManOf = (misses, max) => {
+  const steps = HM_MAN_STEPS[max] || HM_MAN_STEPS[HM_MISSES];
+  const k = Math.max(0, Math.min(steps.length, Number(misses) || 0));
+  const on = [];
+  for (let i = 0; i < k; i++) steps[i].forEach(x => on.push(x));
+  return { on: on, fresh: k ? steps[k - 1].slice() : [], n: HM_PIECES.filter(p => on.indexOf(p) !== -1).length };
+};
+
+/* The lifelines (the owner, 2 Oct 2026), each once a word: «اكشف حرف» shows one letter of the word,
+   «شيل ٣ حروف غلط» greys three keys that aren't in it. Each one used takes HM_LIFE_COST off that
+   word's points if it is solved. Decided where the word is (the server, or the phone that holds it). */
+const HM_LIFE_COST = 3;
+const HM_REMOVE_N = 3;
+
+/** The streak (the owner, 2 Oct 2026): the 2nd word solved in a row +2, the 3rd +4 … never more than +10; a fail starts it over. */
+const HM_STREAK_STEP = 2;
+const HM_STREAK_MAX = 10;
+const hmStreakBonus = (run) => Math.min(HM_STREAK_MAX, Math.max(0, (Number(run) || 0) - 1) * HM_STREAK_STEP);
+
+/** The writer's hints (the owner, 2 Oct 2026): up to 3; the first from the start, the 2nd on a board's 2nd miss, the 3rd on its 4th. */
+const HM_HINTS_MAX = 3;
+const HM_HINT_OPENS = [0, 2, 4];
+const hmHintsOpen = (misses) => HM_HINT_OPENS.filter(m => (Number(misses) || 0) >= m).length;
+
+/* The endings (the owner, 2 Oct 2026, all sixteen of notes/hangman-endings-sheet.html): eight for a
+   word solved, eight for a man who ran out of misses. Whoever holds the word picks one per board,
+   never the one picked last of its kind (nor this player's own last). */
+const HM_ENDS = 8;
+const hmPickEnd = (avoid) => {
+  const out = [];
+  for (let i = 0; i < HM_ENDS; i++) if ((avoid || []).indexOf(i) === -1) out.push(i);
+  return out.length ? out[Math.floor(Math.random() * out.length)] : Math.floor(Math.random() * HM_ENDS);
+};
+
 const HM_LETTERS = {
   ar: ['ا', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص', 'ض', 'ط', 'ظ', 'ع', 'غ', 'ف', 'ق', 'ك', 'ل', 'م', 'ن', 'ه', 'و', 'ي'],
   en: 'abcdefghijklmnopqrstuvwxyz'.split('')
@@ -143,19 +198,75 @@ const hmHintGives = (hint, word) => {
 const hmPool = (lang) => {
   const out = [];
   const seen = {};
-  const add = (raw, hint) => {
+  const add = (raw, hint, k) => {
     const w = hmDealable(raw, lang);
     if (!w || hmHintGives(hint, w)) return;
     const key = hmLettersOf(w).map(hmFold).join('');
     if (seen[key]) return;
     seen[key] = true;
-    out.push({ w: w, c: hint });
+    out.push({ w: w, c: hint, k: k });
   };
   const boards = (typeof CHAMELEON_DB !== 'undefined' && CHAMELEON_DB[lang]) || [];
-  boards.forEach(b => (b.words || []).forEach(raw => add(raw, b.category)));
+  const kinds = hmCatOfBoards();
+  boards.forEach((b, i) => (b.words || []).forEach(raw => add(raw, b.category, kinds[i] || '')));
   const riddles = (typeof EMOJI_RIDDLES !== 'undefined' && EMOJI_RIDDLES[lang]) || [];
-  riddles.forEach(r => { if (/أفلام|movie|film/i.test(r.c || '')) add(r.a, r.c + ' 🎬'); });
+  riddles.forEach(r => { if (/أفلام|movie|film/i.test(r.c || '')) add(r.a, r.c + ' 🎬', 'films'); });
   return out;
+};
+
+/*
+ * The race's categories (the owner, 2 Oct 2026: «من كل حاجة» by default, or one of the app's lists,
+ * the host's choice). Each is a group of the Chameleon boards (named by their Arabic titles; the
+ * English boards stand in the same order) or the emoji riddles' films - the lists the race already
+ * deals from, never a new one.
+ */
+const HM_CATS = [
+  { k: 'countries', boards: ['دول 🌍', 'عجائب ومعالم 🗽'] },
+  { k: 'animals', boards: ['حيوانات 🦁', 'طيور وحشرات 🦅', 'حيوانات البحر 🐠', 'زواحف وبرمائيات 🦎', 'حيوانات أليفة 🐶'] },
+  { k: 'food', boards: ['أكلات وأطعمة 🍕', 'أكلات مصرية 🍲', 'أكلات عالمية 🌮', 'فواكه وخضروات 🍎', 'حلويات وتسالي 🧁', 'حلويات شرقية 🍯', 'مشروبات 🍹', 'أنواع جبنة 🧀', 'أنواع عيش 🍞', 'مكسرات وفواكه مجففة 🥜', 'توابل وبهارات 🌶️'] },
+  { k: 'films', boards: [] },
+  { k: 'football', boards: ['لاعبين كورة 👟', 'أندية كورة 🏟️'] },
+  { k: 'singers', boards: ['مطربين عرب 🎤'] },
+  { k: 'actors', boards: ['ممثلين مصريين 🌟'] },
+  { k: 'famous', boards: ['شخصيات تاريخية 📜', 'علماء ومخترعين 🔬', 'أدباء وشعراء ✍️'] },
+  { k: 'cartoons', boards: ['شخصيات كرتونية 🦸', 'كرتون زمان 📺', 'شخصيات ديزني 👑', 'أبطال خارقين 🦸‍♂️'] },
+  { k: 'home', boards: ['في المنزل 🏠', 'أثاث 🛋️', 'مطبخ وأدواته 🍳', 'أدوات ومعدات 🔨', 'أجهزة إلكترونية 📱'] },
+  { k: 'jobs', boards: ['مهن ووظائف 👮'] },
+  { k: 'sports', boards: ['رياضات ⚽', 'رياضات أولمبية 🏅', 'فنون قتالية 🥋'] }
+];
+const hmCatKey = (v) => (HM_CATS.some(c => c.k === v) ? v : 'all');
+
+/** The category of each Chameleon board, by its place in the list (the Arabic and English lists match). */
+const hmCatOfBoards = () => {
+  const ar = (typeof CHAMELEON_DB !== 'undefined' && CHAMELEON_DB.ar) || [];
+  return ar.map(b => { const c = HM_CATS.find(x => x.boards.indexOf(b.category) !== -1); return c ? c.k : ''; });
+};
+
+/**
+ * What a level deals in the race (the owner, 2 Oct 2026: the level picks the words' length too).
+ * Decided here: Easy deals single words of 4 to 6 letters, Hard single words of 6 or more and the
+ * names and titles, Normal everything as it always did.
+ */
+const hmLevelFits = (item, level) => {
+  const shape = hmShape(item.w);
+  const n = shape.reduce((a, b) => a + b, 0);
+  if (level === 'easy') return shape.length === 1 && n <= 6;
+  if (level === 'hard') return shape.length > 1 || n >= 6;
+  return true;
+};
+
+/**
+ * The race's deal filter for a category and a level: the entries of the category that fit the
+ * level, or the whole category when too few do (a list of names at Easy), or null for «من كل حاجة»
+ * at Normal (the whole pool, as before).
+ */
+const hmDealFilter = (pool, cat, level) => {
+  const k = hmCatKey(cat);
+  const inCat = (x) => k === 'all' || x.k === k;
+  const both = (x) => inCat(x) && hmLevelFits(x, level);
+  if (k === 'all' && hmLevelOf(level) === 'normal') return null;
+  if (pool.filter(both).length >= 4) return both;
+  return k === 'all' ? null : inCat;
 };
 
 /** The word with only the guessed letters showing: a letter, '' for a blank, ' ' between two words. */
@@ -200,6 +311,8 @@ const hmApply = (board, word, guess, whole) => {
     const k = hmFold(Array.from(String(guess || '').trim())[0] || '');
     if (!k || HM_LETTERS[alpha].indexOf(k) === -1) return '';
     if (board.g.indexOf(k) !== -1 || board.miss.indexOf(k) !== -1) return '';
+    // A key a lifeline greyed is not in the word: pressing it is nothing, not a miss.
+    if ((board.x || []).indexOf(k) !== -1) return '';
     if (hmLettersOf(word).some(c => hmFold(c) === k)) {
       board.g.push(k);
       if (hmSolved(word, board.g)) { board.state = 'won'; return 'won'; }
@@ -207,9 +320,50 @@ const hmApply = (board, word, guess, whole) => {
     }
     board.miss.push(k);
   }
-  if (board.miss.length >= HM_MISSES) { board.state = 'lost'; return 'lost'; }
+  if (board.miss.length >= (board.max || HM_MISSES)) { board.state = 'lost'; return 'lost'; }
   return 'miss';
 };
 
-/** A fresh board to guess on. */
-const hmNewBoard = () => ({ g: [], miss: [], state: 'play' });
+/** A fresh board to guess on: `max` the misses it takes (the level; 6 when left out). */
+const hmNewBoard = (max) => {
+  const b = { g: [], miss: [], state: 'play' };
+  if (max && max !== HM_MISSES) b.max = max;
+  return b;
+};
+
+/** The lifelines a board has used this word (0, 1 or 2). */
+const hmLifeUsed = (board) => (board && board.lr ? 1 : 0) + (board && board.lx ? 1 : 0);
+
+/**
+ * «اكشف حرف»: one letter of the word that the board hasn't found, shown as if guessed. Once a word,
+ * and never the last letter left (a lifeline helps, it doesn't solve the word for you - decided
+ * here). Returns the letter (as the keyboard has it), or '' when it can't be used.
+ */
+const hmReveal = (board, word) => {
+  if (!board || board.state !== 'play' || board.lr) return '';
+  const left = [];
+  hmLettersOf(word).forEach(c => { const k = hmFold(c); if (board.g.indexOf(k) === -1 && left.indexOf(k) === -1) left.push(k); });
+  if (left.length < 2) return '';
+  const k = left[Math.floor(Math.random() * left.length)];
+  board.g.push(k);
+  board.lr = true;
+  return k;
+};
+
+/**
+ * «شيل ٣ حروف غلط»: three keys of the word's alphabet that aren't in it and haven't been tried,
+ * greyed (board.x). Once a word. Returns the keys greyed, or [] when it can't be used.
+ */
+const hmRemoveWrong = (board, word) => {
+  if (!board || board.state !== 'play' || board.lx) return [];
+  const alpha = hmAlphaOf(word);
+  const inWord = hmLettersOf(word).map(hmFold);
+  const x = board.x || [];
+  const open = (HM_LETTERS[alpha] || []).filter(k => inWord.indexOf(k) === -1 && board.miss.indexOf(k) === -1 && x.indexOf(k) === -1);
+  if (!open.length) return [];
+  const out = [];
+  while (out.length < HM_REMOVE_N && open.length) out.push(open.splice(Math.floor(Math.random() * open.length), 1)[0]);
+  board.x = x.concat(out);
+  board.lx = true;
+  return out;
+};

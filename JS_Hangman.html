@@ -53,8 +53,8 @@ const HM_PARTS = [
       '<g class="hm-sweat"><path class="hm-drop hm-drop--1" d="M67 27 q-1.6 3 0 4.2 q1.6 -1.2 0 -4.2z"/><path class="hm-drop hm-drop--2" d="M94 25 q1.6 3 0 4.2 q-1.6 -1.2 0 -4.2z"/></g>' +
     '</g></g></g>',
   '<g class="hm-part hm-body"><g class="hm-pop"><rect class="hm-shirt hm-ink" x="72" y="45" width="16" height="30" rx="6"/></g></g>',
-  '<g class="hm-part hm-arm hm-arm--l"><g class="hm-pop"><path class="hm-sleeve" d="M74 52 L62 66"/><path class="hm-sleeve hm-sleeve--in" d="M74 52 L62 66"/><circle class="hm-skin hm-ink" cx="61" cy="67.5" r="3.6"/></g></g>',
-  '<g class="hm-part hm-arm hm-arm--r"><g class="hm-pop"><path class="hm-sleeve" d="M86 52 L98 66"/><path class="hm-sleeve hm-sleeve--in" d="M86 52 L98 66"/><circle class="hm-skin hm-ink" cx="99" cy="67.5" r="3.6"/></g></g>',
+  '<g class="hm-part hm-arm hm-arm--l"><g class="hm-pop"><path class="hm-sleeve" d="M74 52 L62 66"/><path class="hm-sleeve hm-sleeve--in" d="M74 52 L62 66"/><circle class="hm-skin hm-ink hm-hand" cx="61" cy="67.5" r="3.6"/></g></g>',
+  '<g class="hm-part hm-arm hm-arm--r"><g class="hm-pop"><path class="hm-sleeve" d="M86 52 L98 66"/><path class="hm-sleeve hm-sleeve--in" d="M86 52 L98 66"/><circle class="hm-skin hm-ink hm-hand" cx="99" cy="67.5" r="3.6"/></g></g>',
   '<g class="hm-part hm-leg hm-leg--l"><g class="hm-pop"><path class="hm-pants hm-ink" d="M74 74 L70 100 L78 100 L81 74z"/><ellipse class="hm-shoe" cx="72" cy="102" rx="6" ry="3"/></g></g>',
   '<g class="hm-part hm-leg hm-leg--r"><g class="hm-pop"><path class="hm-pants hm-ink" d="M80 74 L83 100 L91 100 L87 74z"/><ellipse class="hm-shoe hm-shoe--r" cx="88" cy="102" rx="6" ry="3"/></g></g>'
 ];
@@ -62,19 +62,32 @@ const HM_PARTS = [
 const HM_BUBBLE_STAGES = 5;
 
 /**
- * The gallows and as much of the man as `misses` has drawn. With `drawLast`
- * the newest piece is left undrawn, for hmDrawLast to draw on screen.
+ * The gallows and as much of the man as `misses` has drawn, on a board of
+ * `max` misses (the level: 8, 6 or 4 - hmManOf in Hangman.js says which pieces
+ * each miss adds; at 8 a hand is a miss of its own). With `drawLast` the
+ * newest piece pops in on screen.
  */
-function hmGallowsSvg(misses, drawLast, cls) {
-  const n = Math.max(0, Math.min(HM_MISSES, Number(misses) || 0));
-  const parts = HM_PARTS.map((p, k) => p.replace('class="hm-pop"', 'class="hm-pop ' + (k < n ? (drawLast && k === n - 1 ? 'is-new' : 'is-on') : 'hm-ghost') + '"')).join('');
+function hmGallowsSvg(misses, drawLast, cls, max) {
+  const top = Number(max) || HM_MISSES;
+  const man = hmManOf(Math.max(0, Math.min(top, Number(misses) || 0)), top);
+  const n = man.n;
+  const parts = HM_PARTS.map((p, k) => {
+    const piece = HM_PIECES[k];
+    const hand = piece === 'armL' ? 'handL' : (piece === 'armR' ? 'handR' : '');
+    const on = man.on.indexOf(piece) !== -1;
+    const fresh = drawLast && man.fresh.indexOf(piece) !== -1;
+    let out = p.replace('class="hm-pop"', 'class="hm-pop ' + (on ? (fresh ? 'is-new' : 'is-on') : 'hm-ghost') + (hand && man.on.indexOf(hand) === -1 ? ' hm-nohand' : '') + '"');
+    // A hand that is a miss of its own (Easy) pops in by itself.
+    if (hand && on && !fresh && drawLast && man.fresh.indexOf(hand) !== -1) out = out.replace('hm-hand"', 'hm-hand is-new"');
+    return out;
+  }).join('');
   const mini = /hm-gallows--mini/.test(cls || '');
   // The bubble: a line for this stage, popping now and then (the delay staggers boards on one screen).
   const bub = !mini && n >= 1 && n <= HM_BUBBLE_STAGES
     ? `<g class="hm-bub" style="--hm-bub-delay: ${(n * 1.7) % 4}s"><path class="hm-bub__box" d="M40 4 h36 a4 4 0 0 1 4 4 v11 a4 4 0 0 1 -4 4 h-9 l-4 5 l-1 -5 h-22 a4 4 0 0 1 -4 -4 v-11 a4 4 0 0 1 4 -4z"/><text class="hm-bub__t" x="58" y="16.5" text-anchor="middle">${escapeHTML(hmT('hm_bub_' + n))}</text></g>`
     : '';
   // hm-s<n> is the man's state (the face, the sway, the arms, the legs); is-hanged the end, still.
-  return `<svg class="hm-gallows ${cls || ''} hm-s${n} ${n >= HM_MISSES ? 'is-hanged' : ''}" viewBox="0 0 110 128" aria-hidden="true" focusable="false">
+  return `<svg class="hm-gallows ${cls || ''} hm-s${n} ${(Number(misses) || 0) >= top ? 'is-hanged' : ''}" viewBox="0 0 110 128" aria-hidden="true" focusable="false">
       <path class="hm-gal" d="M12 122 H70"/><path class="hm-gal" d="M26 122 V10 H80"/><path class="hm-gal" d="M26 32 L48 10"/><path class="hm-gal hm-rope" d="M80 10 V24"/>
       <g class="hm-fig"><g class="hm-lean">${parts}<g class="hm-dust"><circle class="hm-dust__p hm-dust__p--1" cx="70" cy="101" r="3"/><circle class="hm-dust__p hm-dust__p--2" cx="66" cy="99" r="2.4"/><circle class="hm-dust__p hm-dust__p--3" cx="74" cy="100" r="2"/></g></g></g>
       <text class="hm-clock" x="80" y="19" text-anchor="middle" font-size="13">⏰</text>
@@ -120,38 +133,92 @@ function hmBlankPattern(s) {
   return out;
 }
 
-/** The keyboard of the word's alphabet: a letter tried is green when it was in, faded when it wasn't. */
-function hmKeysHtml(alpha, g, miss, on, press) {
+/** The keyboard of the word's alphabet: a letter tried is green when it was in, faded when it wasn't; one a lifeline greyed is struck out. */
+function hmKeysHtml(alpha, g, miss, on, press, x) {
   const letters = HM_LETTERS[alpha === 'en' ? 'en' : 'ar'];
   return `<div class="hm-keys" dir="${alpha === 'en' ? 'ltr' : 'rtl'}">${letters.map(l => {
     const hit = (g || []).indexOf(l) !== -1;
     const bad = (miss || []).indexOf(l) !== -1;
-    const cls = hit ? 'key key--correct' : (bad ? 'key key--absent is-miss' : 'key');
-    return `<button type="button" class="${cls}" ${hit || bad || !on ? 'disabled' : `onclick="${press}('${l}')"`}>${escapeHTML(alpha === 'en' ? l.toUpperCase() : l)}</button>`;
+    const off = (x || []).indexOf(l) !== -1;
+    const cls = hit ? 'key key--correct' : (bad ? 'key key--absent is-miss' : (off ? 'key key--absent hm-key--off' : 'key'));
+    return `<button type="button" class="${cls}" ${hit || bad || off || !on ? 'disabled' : `onclick="${press}('${l}')"`}>${escapeHTML(alpha === 'en' ? l.toUpperCase() : l)}</button>`;
   }).join('')}</div>`;
 }
+
+/**
+ * The man of a board: its ending once the word was solved or he ran out of misses (`end`, picked by
+ * whoever holds the word), else the gallows with the pieces he has. o: { misses, max, state, end,
+ * key (an ending's place in hmEndStarts), play (start it now), cls, drawLast, mini }.
+ */
+function hmManHtml(o) {
+  const max = Number(o.max) || HM_MISSES;
+  const misses = Number(o.misses) || 0;
+  const hanged = o.state === 'lost' && misses >= max;
+  const end = Number(o.end);
+  if ((o.state === 'won' || hanged) && o.end !== undefined && o.end !== null && end >= 0 && end < HM_ENDS) {
+    // A solve keeps the pieces he earned (the others stay hidden); a loss has them all.
+    return hmEndSvg(o.state, end, { on: hmManOf(o.state === 'won' ? misses : max, max).on, key: o.key || '', play: !!o.play, mini: !!o.mini, cls: o.cls || '' });
+  }
+  return hmGallowsSvg(misses, !!o.drawLast, o.cls, max);
+}
+
+/** A number with its sign held left to right inside an Arabic line (+4 read as 4+ otherwise): LRI … PDI. */
+const hmLtr = (s) => String.fromCharCode(0x2066) + s + String.fromCharCode(0x2069);
+
+/** The two lifelines under the keys, each once a word, each −3 if the word is solved. */
+function hmLifeHtml(o) {
+  if (!o.on || !o.reveal) return '';
+  const btn = (used, fn, label) => `<button type="button" class="btn btn--secondary btn--sm hm-life__btn" ${used ? 'disabled' : `onclick="${fn}()"`}>${escapeHTML(label)} <span class="hm-life__cost metric">${hmLtr('−' + HM_LIFE_COST)}</span></button>`;
+  return `<div class="hm-life" role="group" aria-label="${escapeHTML(hmT('hm_life_label'))}">
+      ${btn(o.lr, o.reveal, '🔍 ' + hmT('hm_life_reveal'))}
+      ${btn(o.lx, o.remove, '🧹 ' + hmT('hm_life_remove'))}
+    </div>`;
+}
+
+/** The writer's hints above the boxes: those open, and a lock for each still to come (on the 2nd and 4th miss). */
+function hmHintsHtml(o) {
+  const open = (o.hints && o.hints.length ? o.hints : (o.hint ? [o.hint] : [])).filter(Boolean);
+  const total = Math.max(open.length, Number(o.hintsN) || 0);
+  if (!total) return '';
+  // A hint that this very miss opened pops in (the 2nd on the 2nd miss, the 3rd on the 4th).
+  const fresh = !!o.newMiss && open.length > 1 && HM_HINT_OPENS[open.length - 1] === (o.miss || []).length ? open.length - 1 : -1;
+  let html = open.map((h, i) => `<span class="hm-hint ${i ? 'hm-hint--more' : ''} ${i === fresh ? 'is-new' : ''}">💡${i ? '<b class="metric">' + (i + 1) + '</b>' : ''} ${escapeHTML(h)}</span>`).join('');
+  if (o.state === 'play' || !o.state) {
+    for (let i = open.length; i < total; i++) html += `<span class="hm-hint hm-hint--locked">🔒 ${escapeHTML(hmT('hm_hint_locked', { n: HM_HINT_OPENS[i] }))}</span>`;
+  }
+  return `<span class="hm-hints">${html}</span>`;
+}
+
+/** A streak beside a name: 🔥 and the words solved in a row, from the second. */
+const hmFireHtml = (run) => ((Number(run) || 0) >= 2 ? `<span class="hm-fire" title="${escapeHTML(hmT('hm_streak_title', { n: run }))}">🔥<b class="metric">${Number(run)}</b></span>` : '');
 
 /**
  * One board to guess on, the same on one phone and in a room. o: { pattern,
  * alpha, g, miss, state, word (to show at the end), on (can guess now),
  * press (the letter handler's name), whole (the word handler's name),
- * newMiss, open, head (the line above), hint (the writer's, or none) }.
+ * newMiss, open, head (the line above), hint / hints (the writer's, open),
+ * hintsN (how many the writer gave), max (the level's misses), x (keys a
+ * lifeline greyed), lr / lx (the lifelines used), reveal / remove (their
+ * handlers' names), end / endKey / endPlay (the ending), fire (the streak) }.
  */
 function hmBoardHtml(o) {
   const misses = (o.miss || []).length;
+  const max = Number(o.max) || HM_MISSES;
   const wrong = (o.miss || []).map(m => (m.length > 1 ? '✗' + m : m)).map(m => (o.alpha === 'en' ? m.toUpperCase() : m)).join(' ');
   const done = o.state === 'won' || o.state === 'lost';
+  const lives = hmT('hm_misses_of', { n: misses, m: max });
   return `<div class="hm-board ${done ? 'is-' + o.state : ''}">
       <div class="hm-board__head">
-        <span class="hm-board__who">${o.head || ''}${hmHintHtml(o.hint)}</span>
-        <span class="hm-lives" aria-label="${escapeHTML(hmT('hm_misses', { n: misses }))}">${escapeHTML(hmT('hm_misses', { n: misses }))}</span>
+        <span class="hm-board__who">${o.head || ''}${hmHintsHtml(o)}</span>
+        <span class="hm-lives" aria-label="${escapeHTML(lives)}">${hmFireHtml(o.fire)}${escapeHTML(lives)}</span>
       </div>
       <div class="hm-stage">
-        ${hmGallowsSvg(misses, !!o.newMiss)}
+        ${hmManHtml({ misses: misses, max: max, state: o.state, end: o.end, key: o.endKey, play: o.endPlay, drawLast: !!o.newMiss })}
         ${hmTilesHtml(o.pattern, o.alpha, { word: done ? o.word : '', lost: o.state === 'lost', open: o.open })}
         <p class="hm-wrong" dir="${o.alpha === 'en' ? 'ltr' : 'rtl'}">${wrong ? escapeHTML(wrong) : '&nbsp;'}</p>
       </div>
-      ${done ? '' : hmKeysHtml(o.alpha, o.g, o.miss, !!o.on, o.press)}
+      ${done ? '' : hmKeysHtml(o.alpha, o.g, o.miss, !!o.on, o.press, o.x)}
+      ${done ? '' : hmLifeHtml(o)}
       ${done || !o.on ? '' : `<form class="hm-whole" onsubmit="event.preventDefault(); ${o.whole}(this)">
           <input type="text" name="w" maxlength="28" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHTML(hmT('hm_whole_ph'))}" aria-label="${escapeHTML(hmT('hm_whole_ph'))}">
           <button type="submit" class="btn btn--secondary btn--auto">${escapeHTML(hmT('hm_whole_btn'))}</button>
@@ -163,6 +230,8 @@ function hmBoardHtml(o) {
 function hmAfterBoard(root, o) {
   if (!root) return;
   hmDrawLast(root);
+  // An ending on the board (or the small men's last frames) comes to life.
+  if (typeof hmEndPlay === 'function') hmEndPlay(root);
   const svg = root.querySelector('.hm-gallows');
   if (o.newMiss) {
     const stage = root.querySelector('.hm-stage');
@@ -191,43 +260,6 @@ function hmAfterBoard(root, o) {
   }
 }
 
-/**
- * The moments of the table's little men (hmProgressHtml): what changed on each board since this
- * phone last drew the rows - a solve (the escape), the sixth piece (the shoe), the clock ending a
- * board (⏰), a letter found (a hop) - each remembered with when it began, so a row rebuilt while
- * it plays carries on from there (--hm-late). Keyed on the deal and the round; the first sight of
- * a round plays nothing (a reload, a late join, the TV coming on).
- */
-const HM_MOMENT_MS = 4700;
-function hmRowMoments(state, prog) {
-  const s = state.shared || {};
-  const key = [state.code, s.dealId, s.round].join('|');
-  const mem = hmRoom.rows && hmRoom.rows.key === key ? hmRoom.rows : (hmRoom.rows = { key, seen: null, moments: {} });
-  const now = Date.now();
-  const cur = {};
-  Object.keys(prog).forEach(id => { const p = prog[id]; cur[id] = { state: p.state, miss: p.miss, n: p.n }; });
-  if (mem.seen && !motionOff()) {
-    Object.keys(cur).forEach(id => {
-      const was = mem.seen[id], is = cur[id];
-      if (!was) return;
-      let cls = '';
-      if (is.state === 'won' && was.state !== 'won') cls = 'is-free';
-      else if (is.miss >= HM_MISSES && was.miss < HM_MISSES) cls = 'is-dropping';
-      else if (is.state === 'lost' && was.state === 'play' && is.miss === was.miss) cls = 'is-timeup';
-      else if (is.n > was.n && is.state === 'play') cls = 'is-hop';
-      if (cls) mem.moments[id] = { cls, at: now };
-    });
-  }
-  mem.seen = cur;
-  const out = {};
-  Object.keys(mem.moments).forEach(id => {
-    const m = mem.moments[id];
-    if (now - m.at > HM_MOMENT_MS) { delete mem.moments[id]; return; }
-    out[id] = { cls: m.cls, late: now - m.at };
-  });
-  return out;
-}
-
 /** The word a player writes, as it will be refused: '' when it can be played. */
 function hmWriteError(text) {
   const p = hmWordProblem(text);
@@ -246,6 +278,17 @@ function hmWriteError(text) {
  * o.local (two on one phone, 1 Oct 2026): each field under a label, and no
  * button inside - «جاهزة» is in the bar at the foot (form="hm-write-form").
  */
+/**
+ * The 2nd and 3rd hints (the owner, 2 Oct 2026: up to 3, all optional), folded: the 2nd opens on a
+ * guesser's 2nd miss, the 3rd on the 4th. A <details> so the form stays short for one hint or none.
+ */
+function hmMoreHintsHtml() {
+  const field = (n) => `<label class="field__label hm-write__label" for="hm-write-hint${n}">${escapeHTML(hmT('hm_hint_n_label', { n: n, m: HM_HINT_OPENS[n - 1] }))}</label>
+      <input type="text" name="h${n}" id="hm-write-hint${n}" class="hm-write__hint" maxlength="${HM_HINT_MAX}" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done">`;
+  return `<details class="hm-more-hints"><summary>${escapeHTML(hmT('hm_more_hints'))}</summary>
+      <div class="hm-more-hints__body">${field(2)}${field(3)}</div></details>`;
+}
+
 function hmWriteFormHtml(submit, placeholderName, o) {
   const local = !!(o && o.local);
   if (local) {
@@ -259,6 +302,7 @@ function hmWriteFormHtml(submit, placeholderName, o) {
       <label class="field__label hm-write__label" for="hm-write-hint">${escapeHTML(hmT('hm_hint_label'))}</label>
       <input type="text" name="h" id="hm-write-hint" class="hm-write__hint" maxlength="${HM_HINT_MAX}" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"
         placeholder="${escapeHTML(hmT('hm_hint_ph_short'))}">
+      ${hmMoreHintsHtml()}
       <p class="field__hint tx-danger hm-write__err" role="alert"></p>
     </form>`;
   }
@@ -271,6 +315,7 @@ function hmWriteFormHtml(submit, placeholderName, o) {
       <p class="field__hint">${escapeHTML(hmT('hm_write_hint'))}</p>
       <input type="text" name="h" class="hm-write__hint" maxlength="${HM_HINT_MAX}" autocomplete="off" autocorrect="off" spellcheck="false"
         placeholder="${escapeHTML(hmT('hm_hint_ph'))}" aria-label="${escapeHTML(hmT('hm_hint_ph'))}">
+      ${hmMoreHintsHtml()}
       <p class="field__hint tx-danger hm-write__err" role="alert"></p>
       <button type="submit" class="btn btn--primary btn--lg">${escapeHTML(placeholderName)}</button>
     </form>`;
@@ -299,6 +344,9 @@ function hmRestoreTyping(el, kept) {
     const inp = [...el.querySelectorAll('form.hm-whole input, form.hm-write input')].find(i => i.form.className + '|' + i.name === k.key);
     if (!inp) return;
     inp.value = k.value;
+    // A 2nd or 3rd hint half typed: its fold stays open.
+    const fold = k.value && inp.closest('details');
+    if (fold) fold.open = true;
     if (k.shown && inp.name === 'w' && inp.form.classList.contains('hm-write')) inp.classList.remove('is-hidden');
     if (k.focused) {
       inp.focus({ preventScroll: true });
@@ -332,9 +380,10 @@ function hmToggleEye(btn) {
 function hmReadWrite(form) {
   const input = form.querySelector('input[name="w"]');
   const text = hmClean(input ? input.value : '');
-  const hintEl = form.querySelector('input[name="h"]');
-  const hint = hmCleanHint(hintEl ? hintEl.value : '');
-  const err = hmWriteError(text) || (hmHintProblem(hint, text) ? hmT('hm_hint_bad') : '');
+  // Up to three hints, in their order; an empty one is skipped (the next ones move up).
+  const hints = ['h', 'h2', 'h3'].map(n => { const el = form.querySelector(`input[name="${n}"]`); return hmCleanHint(el ? el.value : ''); }).filter(Boolean);
+  const hint = hints[0] || '';
+  const err = hmWriteError(text) || (hints.some(h => hmHintProblem(h, text)) ? hmT('hm_hint_bad') : '');
   const box = form.querySelector('.hm-write__err');
   if (box) box.textContent = err;
   if (err) {
@@ -342,7 +391,7 @@ function hmReadWrite(form) {
     haptic('heavy');
     return null;
   }
-  return { word: text, hint: hint };
+  return { word: text, hint: hint, hints: hints };
 }
 
 /** The writer's hint above the boxes, when there is one. */
@@ -352,12 +401,25 @@ const hmHintHtml = (hint) => (hint ? `<span class="hm-hint">💡 ${escapeHTML(hi
    Two on one phone
    ========================================================================== */
 
+/*
+ * The next round on one phone too (the owner, 2 Oct 2026: levels, lifelines, hints and the streak
+ * "everywhere they fit"): the level is picked on the setup screen and kept for the game; the
+ * lifelines, the writer's hints and the endings are decided here, where the word is. The tally is
+ * points now so a lifeline and a streak can count: a solve is 10 (+ the streak, − 3 a lifeline), a
+ * word not solved is 10 to its writer - the same one to one as the words it counted before, by
+ * default. A tally saved before that is counted in tens once (s.pts).
+ */
 function hmLocalState() {
-  if (!appState.hangman) appState.hangman = { names: ['', ''], tally: [0, 0], setter: 0, step: 'setup', word: '', board: null, words: 0 };
+  if (!appState.hangman) appState.hangman = { names: ['', ''], tally: [0, 0], setter: 0, step: 'setup', word: '', board: null, words: 0, pts: true };
   const s = appState.hangman;
   if (!Array.isArray(s.tally)) s.tally = [0, 0];
+  if (!s.pts) { s.tally = s.tally.map(n => (Number(n) || 0) * HM_SOLVE_POINTS_LOCAL); s.pts = true; }
+  if (!Array.isArray(s.streak)) s.streak = [0, 0];
+  if (!s.endLast) s.endLast = { won: -1, lost: -1 };
+  s.level = hmLevelOf(s.level);
   return s;
 }
+const HM_SOLVE_POINTS_LOCAL = 10;
 
 function hmLocalNames(s) {
   const n = s.names || [];
@@ -369,23 +431,45 @@ function setupHangman() {
   paintHangmanSetup();
 }
 
+/** The level on the setup screen, remembered on the phone (Normal by default, as it always played). */
+const hmLocalOpts = () => recallOptions('hangmanLocal', { level: 'normal' });
+function setHmLocalLevel(v) {
+  rememberOptions('hangmanLocal', { level: hmLevelOf(v) });
+  paintHangmanSetup();
+}
+
+function hmLevelSegHtml(current, onclick) {
+  return `<div class="segmented" role="group">${['easy', 'normal', 'hard'].map(v => `<button type="button" class="segmented__item ${v === current ? 'is-active' : ''}" onclick="${onclick}('${v}')">${escapeHTML(hmT('hm_level_' + v))}</button>`).join('')}</div>`;
+}
+
 function paintHangmanSetup() {
   const s = hmLocalState();
   const cont = document.getElementById('hangman-continue');
   if (cont) cont.classList.toggle('hidden', !(s.step === 'write' || s.step === 'guess' || s.step === 'done'));
+  const box = document.getElementById('hangman-level');
+  if (box) {
+    const lv = hmLevelOf(hmLocalOpts().level);
+    box.innerHTML = `<label class="field__label">${escapeHTML(hmT('hm_level'))}</label>${hmLevelSegHtml(lv, 'setHmLocalLevel')}
+      <p class="field__hint">${escapeHTML(hmT('hm_level_hint_' + lv))}</p>`;
+  }
 }
 
-/** Start: a new tally, the first name writes the first word. */
+/** Start: a new tally, the first name writes the first word, at the level picked. */
 function startHangman() {
   const s = hmLocalState();
   const read = (id) => ((document.getElementById(id) || {}).value || '').trim().slice(0, 16);
   s.names = [read('hangman-name1'), read('hangman-name2')];
   s.tally = [0, 0];
+  s.streak = [0, 0];
+  s.pts = true;
+  s.level = hmLevelOf(hmLocalOpts().level);
   s.setter = 0;
   s.words = 0;
   s.step = 'write';
   s.word = '';
+  s.hints = [];
   s.board = null;
+  s.gain = 0;
   saveToLocal();
   setView('play-hangman');
   paintHangman();
@@ -403,7 +487,8 @@ function hmLocalWrite(form) {
   const s = hmLocalState();
   s.word = got.word;
   s.hint = got.hint;
-  s.board = hmNewBoard();
+  s.hints = got.hints;
+  s.board = hmNewBoard(hmMaxOf(s.level));
   s.step = 'guess';
   saveToLocal();
   haptic('medium');
@@ -426,14 +511,47 @@ function hmLocalWhole(form) {
   hmLocalAfter(hmApply(s.board, s.word, text, true), '');
 }
 
+/** «اكشف حرف»: one of the word's letters shows (decided here, where the word is). */
+function hmLocalReveal() {
+  const s = hmLocalState();
+  if (s.step !== 'guess' || !s.board) return;
+  const k = hmReveal(s.board, s.word);
+  if (!k) return;
+  haptic('light');
+  hmLocalAfter('hit', k);
+}
+
+/** «شيل ٣ حروف غلط»: three keys that aren't in the word go grey. */
+function hmLocalRemove() {
+  const s = hmLocalState();
+  if (s.step !== 'guess' || !s.board) return;
+  if (!hmRemoveWrong(s.board, s.word).length) return;
+  haptic('light');
+  hmLocalAfter('hit', '');
+}
+
 function hmLocalAfter(out, letter) {
   const s = hmLocalState();
   if (!out) return;
-  if (out === 'won') s.tally[1 - s.setter]++;
-  if (out === 'lost') s.tally[s.setter]++;
-  if (out === 'won' || out === 'lost') { s.step = 'done'; s.words++; }
+  const g = 1 - s.setter;
+  if (out === 'won' || out === 'lost') {
+    // The ending, never the one this phone played last of its kind.
+    s.board.end = hmPickEnd([s.endLast[out]]);
+    s.endLast[out] = s.board.end;
+    if (out === 'won') {
+      s.streak[g] = (s.streak[g] || 0) + 1;
+      s.gain = Math.max(0, HM_SOLVE_POINTS_LOCAL + hmStreakBonus(s.streak[g]) - HM_LIFE_COST * hmLifeUsed(s.board));
+      s.tally[g] += s.gain;
+    } else {
+      s.streak[g] = 0;
+      s.gain = HM_SOLVE_POINTS_LOCAL;
+      s.tally[s.setter] += s.gain;
+    }
+    s.step = 'done';
+    s.words++;
+  }
   saveToLocal();
-  paintHangman({ newMiss: out === 'miss' || out === 'lost', open: out === 'hit' ? letter : '', cheer: out === 'won' });
+  paintHangman({ newMiss: out === 'miss' || out === 'lost', open: out === 'hit' ? letter : '', cheer: out === 'won', ended: out === 'won' || out === 'lost' });
 }
 
 /** The next word: the one who guessed writes. */
@@ -443,14 +561,16 @@ function hmLocalNext() {
   s.step = 'write';
   s.word = '';
   s.hint = '';
+  s.hints = [];
   s.board = null;
+  s.gain = 0;
   saveToLocal();
   paintHangman();
   if (typeof scrollToAction === 'function') scrollToAction();
 }
 
-function hmTallyHtml(names, tally, setter) {
-  return `<div class="hm-tally">${[0, 1].map(i => `<span class="hm-tally__one ${i === setter ? 'is-writer' : ''}"><span>${escapeHTML(names[i])}</span><b class="metric">${tally[i] || 0}</b></span>`).join('')}</div>`;
+function hmTallyHtml(names, tally, setter, streak) {
+  return `<div class="hm-tally">${[0, 1].map(i => `<span class="hm-tally__one ${i === setter ? 'is-writer' : ''}"><span>${escapeHTML(names[i])}</span>${hmFireHtml((streak || [])[i])}<b class="metric">${tally[i] || 0}</b></span>`).join('')}</div>`;
 }
 
 function paintHangman(fx) {
@@ -461,7 +581,7 @@ function paintHangman(fx) {
   const names = hmLocalNames(s);
   const writer = names[s.setter];
   const guesser = names[1 - s.setter];
-  const tally = hmTallyHtml(names, s.tally, s.setter);
+  const tally = hmTallyHtml(names, s.tally, s.setter, s.streak);
   if (s.step === 'write' || !s.board) {
     // The writing step in من أنا؟'s look (the owner, 1 Oct 2026): the poster with
     // who writes, a line for the other to look away, the word and the hint under
@@ -485,15 +605,20 @@ function paintHangman(fx) {
   }
   const b = s.board;
   const done = s.step === 'done';
+  const hints = (s.hints && s.hints.length ? s.hints : (s.hint ? [s.hint] : []));
   el.innerHTML = `${tally}
     ${hmBoardHtml({
       pattern: hmPattern(s.word, b.g), alpha: hmAlphaOf(s.word), g: b.g, miss: b.miss, state: b.state, word: s.word,
       on: !done, press: 'hmLocalGuess', whole: 'hmLocalWhole', newMiss: o.newMiss, open: o.open,
-      head: `<span class="hm-cat">${escapeHTML(hmT('hm_guess_title', { name: guesser, setter: writer }))}</span>`, hint: s.hint
+      head: `<span class="hm-cat">${escapeHTML(hmT('hm_guess_title', { name: guesser, setter: writer }))}</span>`,
+      hints: hints.slice(0, hmHintsOpen(b.miss.length)), hintsN: hints.length,
+      max: b.max || HM_MISSES, x: b.x, lr: b.lr, lx: b.lx, reveal: 'hmLocalReveal', remove: 'hmLocalRemove',
+      end: b.end, endKey: 'local|' + s.words + '|' + s.word, endPlay: !!o.ended, fire: s.streak[1 - s.setter]
     })}
     ${done ? `<div class="card card--accent hm-end">
         <p class="sheet__title">${escapeHTML(b.state === 'won' ? hmT('hm_won') : hmT('hm_lost_was'))}</p>
         ${b.state === 'won' ? '' : `<p class="hm-end__word">${escapeHTML(s.word)}</p>`}
+        ${s.gain ? `<p class="field__hint hm-end__pts">${escapeHTML(hmT(b.state === 'won' ? 'hm_local_gain' : 'hm_local_gain_writer', { name: b.state === 'won' ? guesser : writer, n: hmLtr('+' + s.gain) }))}</p>` : ''}
         <button type="button" class="btn btn--primary btn--lg" onclick="hmLocalNext()">${escapeHTML(hmT('hm_next_swap', { name: guesser }))}</button>
       </div>` : ''}`;
   hmAfterBoard(el, o);
@@ -505,6 +630,7 @@ function restoreHangman() {
   paintHangman();
   return true;
 }
+
 
 if (typeof soloRegister === 'function') {
   soloRegister('hangman', {
@@ -519,12 +645,19 @@ if (typeof soloRegister === 'function') {
    ========================================================================== */
 
 // sent: the last letter sent for a word, so a double tap isn't two; seen: what this phone last showed.
-const hmRoom = { seen: {}, clock: null, clockKey: null, sinceKey: '', since: 0 };
+const hmRoom = { seen: {}, clock: null, clockKey: null, sinceKey: '', since: 0, sidesKey: '' };
 
-const hmRoomOpts = () => recallOptions('hangmanRoom', { mode: 'setter', rounds: 5, clock: 0 });
+const hmRoomOpts = () => recallOptions('hangmanRoom', { mode: 'setter', rounds: 5, clock: 0, level: 'normal', cat: 'all' });
 
 function setHmRoomOpt(key, value) {
-  rememberOptions('hangmanRoom', { [key]: value });
+  const patch = { [key]: value };
+  // The team way counts its words in pairs (each team guesses as often): 4, 6 or 10.
+  if (key === 'mode') {
+    const o = hmRoomOpts();
+    const list = value === 'teams' ? HM_ROUNDS_TEAMS_ROOM : HM_ROUNDS_ROOM;
+    if (list.indexOf(Number(o.rounds)) === -1) patch.rounds = value === 'teams' ? 6 : 5;
+  }
+  rememberOptions('hangmanRoom', patch);
   duelLobbyRedraw();
 }
 
@@ -548,12 +681,100 @@ function hmRoomWhole(form) {
   roomAct('whole', { text: text, round: s.round });
 }
 
+/** The lifelines: the server holds the word, so it decides which letter shows and which keys go grey. */
+function hmRoomReveal() {
+  const s = ((Room.state || {}).shared) || {};
+  haptic('light');
+  roomAct('reveal', { round: s.round });
+}
+
+function hmRoomRemove() {
+  const s = ((Room.state || {}).shared) || {};
+  haptic('light');
+  roomAct('remove', { round: s.round });
+}
+
 function hmRoomWrite(form) {
   const s = ((Room.state || {}).shared) || {};
   const got = hmReadWrite(form);
   if (!got) return;
   haptic('medium');
-  roomAct('setWord', { word: got.word, hint: got.hint, round: s.round });
+  roomAct('setWord', { word: got.word, hint: got.hint, hints: got.hints, round: s.round });
+}
+
+/* --- the team way ------------------------------------------------------------------ */
+
+const hmTeamsOn = (s) => !!(s && s.settings && s.settings.mode === 'teams');
+const hmTeamName = (k) => hmT('hm_team_' + (k ? 1 : 0));
+const hmTeamOfMe = (s, pid) => ((s.teams || [])[0] || []).indexOf(pid) !== -1 ? 0 : ((((s.teams || [])[1] || []).indexOf(pid) !== -1) ? 1 : -1);
+const hmNameOf = (state, id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+
+/** The two teams on top: names, points, the streak, who guesses this word and who writes it. */
+function hmTeamsBarHtml(state, tv) {
+  const s = state.shared || {};
+  const pts = s.tpts || [0, 0];
+  const mine = hmTeamOfMe(s, Room.me);
+  return `<div class="hm-teams ${tv ? 'hm-teams--tv' : ''}">${[0, 1].map(k => {
+    const up = s.gt === k && (s.phase === 'writing' || s.phase === 'guessing');
+    const writes = s.gt === 1 - k && (s.phase === 'writing' || s.phase === 'guessing');
+    const members = ((s.teams || [])[k] || []).map(id => hmNameOf(state, id)).filter(Boolean);
+    return `<div class="hm-team hm-team--${k} ${up ? 'is-up' : ''} ${mine === k ? 'is-mine' : ''}" data-pid="t${k}" data-score="${Number(pts[k]) || 0}">
+        <div class="hm-team__top"><span class="hm-team__name">${escapeHTML(hmTeamName(k))}</span>${hmFireHtml((s.streak || {})['t' + k])}<b class="hm-team__pts metric" data-count>${Number(pts[k]) || 0}</b></div>
+        <div class="hm-team__who">${up ? '🔤 ' + escapeHTML(hmT('hm_team_guesses')) : (writes ? '✍️ ' + escapeHTML(hmT('hm_team_writes')) : '')}</div>
+        <div class="hm-team__members">${members.map(n => `<bdi>${escapeHTML(n)}</bdi>`).join('، ')}</div>
+      </div>`;
+  }).join('')}</div>`;
+}
+
+/** The host's split before a game (vote chess's way): two columns, a tap moves one across, 🔀 draws again. */
+function hmSidesHtml(state) {
+  const sides = (((state.shared || {}).lobby) || {}).sides;
+  if (!sides) return '';
+  const host = !!state.youAreHost;
+  const col = (k) => {
+    const chips = (state.players || []).filter(p => sides[p.id] === k).map(p => host
+      ? `<button type="button" class="vc-side__chip" onclick="hmSideTap('${jsStringAttr(p.id)}')">${escapeHTML(p.name)} <span aria-hidden="true">⇄</span></button>`
+      : `<span class="vc-side__chip">${escapeHTML(p.name)}</span>`).join('');
+    return `<div class="vc-side hm-side--${k}"><p class="vc-side__head">${escapeHTML(hmTeamName(k))}</p><div class="vc-side__chips">${chips}</div></div>`;
+  };
+  return `<div class="field vc-sides-field">
+      <div class="dom-seating__head">
+        <span class="field__label">👥 ${escapeHTML(hmT('hm_teams_label'))}</span>
+        ${host ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="haptic('light'); roomAct('sides', { shuffle: true })">🔀 ${escapeHTML(hmT('hm_teams_shuffle'))}</button>` : ''}
+      </div>
+      <div class="vc-sides">${col(0)}${col(1)}</div>
+      ${host ? `<p class="field__hint">${escapeHTML(hmT('hm_teams_hint'))}</p>` : ''}
+    </div>`;
+}
+
+function hmSideTap(pid) {
+  if (!Room.state || !Room.state.youAreHost) return;
+  haptic('light');
+  roomAct('sides', { move: pid });
+}
+
+/** The host's phone keeps the lobby's split in step with who is here (the server draws it). */
+function hmLobbySync(state) {
+  if (!state || !state.youAreHost || state.phase !== 'lobby' || state.game !== 'hangman') return;
+  const ids = (state.players || []).map(p => p.id);
+  const sides = (((state.shared || {}).lobby) || {}).sides || null;
+  const fits = !!sides && ids.every(id => sides[id] === 0 || sides[id] === 1) && Object.keys(sides).every(id => ids.indexOf(id) !== -1);
+  if (fits) { hmRoom.sidesKey = ''; return; }
+  const key = [state.code, ids.join(',')].join('|');
+  if (hmRoom.sidesKey === key) return;
+  hmRoom.sidesKey = key;
+  setTimeout(() => roomAct('sides', {}), 0);
+}
+
+/* --- the table's little men -------------------------------------------------------- */
+
+/** A small man: the ending's last frame once the board was solved or hanged, else the gallows. */
+function hmMiniMan(s, p, cls, late, moment) {
+  const ended = p.end !== undefined && p.end !== null && (p.state === 'won' || (p.state === 'lost' && p.miss >= (s.max || HM_MISSES)));
+  if (ended) return hmManHtml({ misses: p.miss, max: s.max, state: p.state, end: p.end, mini: true, cls: 'hme-svg--' + cls + (moment ? ' hme-pop' : '') })
+    .replace('<svg ', late ? `<svg style="--hm-late: -${late}ms" ` : '<svg ');
+  return hmGallowsSvg(p.miss, false, 'hm-gallows--mini' + (cls === 'res' ? ' hm-gallows--res' : '') + (moment ? ' ' + moment : ''), s.max)
+    .replace('<svg ', late ? `<svg style="--hm-late: -${late}ms" ` : '<svg ');
 }
 
 /** Everyone's man, how far they are and how it ended: what the table may see of each board. */
@@ -562,16 +783,16 @@ function hmProgressHtml(state, tv) {
   const prog = s.progress || {};
   const ids = Object.keys(prog);
   if (!ids.length) return '';
-  const nameOf = (id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+  const max = s.max || HM_MISSES;
   const moments = hmRowMoments(state, prog);
   const rows = ids.map(id => {
     const p = prog[id];
     const st = p.state === 'won' ? ('✅ ' + (typeof p.at === 'number' ? hmT('hm_place', { n: p.at + 1 }) : hmT('hm_state_won')))
-      : (p.state === 'lost' ? (p.miss >= HM_MISSES ? hmT('hm_state_lost') : '⏰ ' + hmT('hm_state_lost')) : hmT('hm_state_play'));
+      : (p.state === 'lost' ? (p.miss >= max ? hmT('hm_state_lost') : '⏰ ' + hmT('hm_state_lost')) : hmT('hm_state_play'));
     const m = moments[id];
     return `<div class="hm-row is-${p.state} ${id === Room.me ? 'is-me' : ''}" data-pid="${escapeHTML(id)}">
-        <span class="hm-row__who">${escapeHTML(nameOf(id))}</span>
-        ${hmGallowsSvg(p.miss, false, 'hm-gallows--mini' + (m ? ' ' + m.cls : '')).replace('<svg ', m ? `<svg style="--hm-late: -${m.late}ms" ` : '<svg ')}
+        <span class="hm-row__who">${escapeHTML(hmNameOf(state, id))}${hmFireHtml((s.streak || {})[id])}</span>
+        ${hmMiniMan(s, p, 'mini', m ? m.late : 0, m ? m.cls : '')}
         <span class="hm-row__prog">${escapeHTML(hmT('hm_found', { n: p.n, m: s.len }))}</span>
         <span class="hm-row__st">${escapeHTML(st)}</span>
       </div>`;
@@ -579,22 +800,64 @@ function hmProgressHtml(state, tv) {
   return `<div class="hm-rows ${tv ? 'hm-rows--tv' : ''}">${rows}</div>`;
 }
 
+/** The writer's hints, all of them, once the word is out. */
+function hmAllHintsHtml(r) {
+  const list = (r.hints || []).filter(Boolean);
+  if (list.length < 2) return '';
+  return `<p class="hm-result__hints">${list.map((h, i) => `💡${i + 1} ${escapeHTML(h)}`).join(' · ')}</p>`;
+}
+
 /** The result of a word: the word, and who took what. */
 function hmResultHtml(state, tv) {
   const s = state.shared;
   const r = s.result || {};
   const alpha = hmAlphaOf(r.word) || 'ar';
-  // Each row shows its player's man as the word ended: escaped (the gallows empty, the rope cut),
-  // hanged, or frozen by the clock with fewer than six pieces. The rows rise in once (motionFirst).
+  const max = s.max || HM_MISSES;
+  // Each row shows its player's man as the word ended: the last frame of their ending (escaped or
+  // the friendly loss), or frozen by the clock with fewer pieces. The rows rise in once (motionFirst).
   const rise = motionFirst('hmres|' + [state.code, s.dealId, s.round].join('|'));
+  const lifeOf = (x) => (x.life ? ` <span class="hm-res__life" dir="ltr" title="${escapeHTML(hmT('hm_life_used', { n: x.life }))}">${hmLtr('−' + x.life * HM_LIFE_COST)}</span>` : '');
+  if (hmTeamsOn(s)) {
+    const x = (r.rows || [])[0] || {};
+    const won = x.state === 'won';
+    return `<div class="card card--accent hm-result ${tv ? 'hm-result--tv' : ''}">
+        <p class="eyebrow">${escapeHTML(r.cat || hmT('hm_the_word'))}</p>
+        ${hmTilesHtml(Array.from(hmClean(r.word || '')), alpha, {})}
+        ${hmAllHintsHtml(r)}
+        <ul class="hm-results"><li class="hm-res is-${x.state} hm-res--team hm-team--${r.team} ${rise ? 'is-rise' : ''}">
+          ${hmMiniMan(s, x, 'res', 0, '')}
+          <span class="hm-res__who">${won ? '✅' : (x.miss >= max ? '😵' : '⏰')} ${escapeHTML(hmTeamName(r.team))}${hmFireHtml(x.run)}${lifeOf(x)}</span><b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li></ul>
+        <p class="field__hint">${escapeHTML(hmT('hm_team_wrote', { name: r.setterName || '', team: hmTeamName(1 - r.team) }))}</p>
+      </div>`;
+  }
   const rows = (r.rows || []).map((x, i) => `<li class="hm-res is-${x.state} ${rise ? 'is-rise' : ''}" style="--at: ${i * 90}ms">
-      ${hmGallowsSvg(x.miss, false, 'hm-gallows--mini hm-gallows--res')}
-      <span class="hm-res__who">${x.state === 'won' ? '✅' : (x.miss >= HM_MISSES ? '💀' : '⏰')} ${escapeHTML(x.name)}</span><b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li>`).join('');
+      ${hmMiniMan(s, x, 'res', 0, '')}
+      <span class="hm-res__who">${x.state === 'won' ? '✅' : (x.miss >= max ? '😵' : '⏰')} ${escapeHTML(x.name)}${hmFireHtml(x.run)}${lifeOf(x)}</span><b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li>`).join('');
   const setter = r.setter && r.setterName ? `<li class="hm-res is-setter"><span>✍️ ${escapeHTML(hmT('hm_setter_pts', { name: r.setterName }))}</span><b class="metric">${r.setterPts ? '+' + r.setterPts : '0'}</b></li>` : '';
   return `<div class="card card--accent hm-result ${tv ? 'hm-result--tv' : ''}">
       <p class="eyebrow">${escapeHTML(r.cat || hmT('hm_the_word'))}</p>
       ${hmTilesHtml(Array.from(hmClean(r.word || '')), alpha, {})}
+      ${hmAllHintsHtml(r)}
       <ul class="hm-results">${rows}${setter}</ul>
+    </div>`;
+}
+
+/** The team way's board as rows for the podium: the team that won first. */
+function hmTeamRows(s) {
+  const pts = s.tpts || [0, 0];
+  return [0, 1].map(k => ({ id: 't' + k, name: hmTeamName(k), score: Number(pts[k]) || 0 })).sort((a, b) => b.score - a.score);
+}
+
+/** The end of a team game: the winners (or a draw) and both teams' points. */
+function hmTeamFinalHtml(state, tv) {
+  const s = state.shared || {};
+  const pts = s.tpts || [0, 0];
+  const win = pts[0] === pts[1] ? -1 : (pts[0] > pts[1] ? 0 : 1);
+  const podium = renderPodium(state, hmTeamRows(s));
+  return `<div class="card card--accent hm-final ${tv ? 'hm-final--tv' : ''}">
+      <p class="sheet__title">${escapeHTML(win === -1 ? hmT('hm_team_draw') : hmT('hm_team_won', { team: hmTeamName(win) }))}</p>
+      ${podium || ''}
+      ${hmTeamsBarHtml(state, tv)}
     </div>`;
 }
 
@@ -633,25 +896,31 @@ function hmTickClock(state) {
 
 /* roomQuietRedraw and roomQuietStop live in JS_Room.html (every room game that waits on a quiet phone uses them). */
 
-/** The host's buttons: close the word early; move on from a writer whose phone went quiet. */
+/** The host's buttons: close the word early; move on from a writer (or, in the team way, a captain) whose phone went quiet. */
 function hmHostButtons(state) {
   const s = state.shared || {};
   if (!roomCanMoveOn(state)) return [];
   // The writer is in the key: skipping one gives the next the whole 40 s.
-  const key = [state.code, s.round, s.phase, s.setter || ''].join('|');
+  const key = [state.code, s.round, s.phase, s.setter || '', s.captain || ''].join('|');
   if (hmRoom.sinceKey !== key) {
     hmRoom.sinceKey = key; hmRoom.since = Date.now();
-    if (s.phase === 'writing') roomQuietRedraw(hmRoom, 'hangman'); else roomQuietStop(hmRoom);
+    if (s.phase === 'writing' || (hmTeamsOn(s) && s.phase === 'guessing')) roomQuietRedraw(hmRoom, 'hangman'); else roomQuietStop(hmRoom);
   }
-  if (s.phase === 'guessing') return [['⏹️ ' + hmT('hm_close_word'), `roomAct('closeWord', { round: ${Number(s.round) || 0} })`]];
+  const out = [];
+  // A captain whose phone is gone: the next on the team taps (the team way).
+  if (hmTeamsOn(s) && s.captain && (s.phase === 'guessing' || s.phase === 'writing') && s.captain !== Room.me) {
+    const c = (state.players || []).find(x => x.id === s.captain);
+    if (!c || !c.online || (s.phase === 'guessing' && Date.now() - hmRoom.since > 40000)) out.push(['🧢 ' + hmT('hm_next_captain'), `roomAct('nextCaptain', { round: ${Number(s.round) || 0}, captain: '${jsStringAttr(s.captain || '')}' })`]);
+  }
+  if (s.phase === 'guessing') return out.concat([['⏹️ ' + hmT('hm_close_word'), `roomAct('closeWord', { round: ${Number(s.round) || 0} })`]]);
   if (s.phase === 'writing' && s.setter !== Room.me) {
     const p = (state.players || []).find(x => x.id === s.setter);
-    if (!p || !p.online || Date.now() - hmRoom.since > 40000) return [['⏭️ ' + hmT('hm_skip_writer'), `roomAct('skipTurn', { round: ${Number(s.round) || 0}, setter: '${jsStringAttr(s.setter || '')}' })`]];
+    if (!p || !p.online || Date.now() - hmRoom.since > 40000) out.push(['⏭️ ' + hmT('hm_skip_writer'), `roomAct('skipTurn', { round: ${Number(s.round) || 0}, setter: '${jsStringAttr(s.setter || '')}' })`]);
   }
-  return [];
+  return out;
 }
 
-/** What changed on this phone's own board since it was last drawn: a miss, a letter found, a solve. */
+/** What changed on a board since this page last drew it: a miss, a letter found, a solve (this phone's own, or the team's). */
 function hmRoomFx(state, you) {
   const s = state.shared;
   const key = [state.code, s.dealId, s.round].join('|');
@@ -670,14 +939,52 @@ function hmRoomFx(state, you) {
 }
 
 /**
+ * The moments of the table's little men (hmProgressHtml): what changed on each board since this
+ * phone last drew the rows - a solve or the last miss (its ending's last frame pops in), the clock
+ * ending a board (⏰), a letter found (a hop) - each remembered with when it began, so a row rebuilt
+ * while it plays carries on from there (--hm-late). Keyed on the deal and the round; the first sight
+ * of a round plays nothing (a reload, a late join, the TV coming on).
+ */
+const HM_MOMENT_MS = 4700;
+function hmRowMoments(state, prog) {
+  const s = state.shared || {};
+  const max = s.max || HM_MISSES;
+  const key = [state.code, s.dealId, s.round].join('|');
+  const mem = hmRoom.rows && hmRoom.rows.key === key ? hmRoom.rows : (hmRoom.rows = { key, seen: null, moments: {} });
+  const now = Date.now();
+  const cur = {};
+  Object.keys(prog).forEach(id => { const p = prog[id]; cur[id] = { state: p.state, miss: p.miss, n: p.n }; });
+  if (mem.seen && !motionOff()) {
+    Object.keys(cur).forEach(id => {
+      const was = mem.seen[id], is = cur[id];
+      if (!was) return;
+      let cls = '';
+      if (is.state === 'won' && was.state !== 'won') cls = 'is-free';
+      else if (is.miss >= max && was.miss < max) cls = 'is-dropping';
+      else if (is.state === 'lost' && was.state === 'play' && is.miss === was.miss) cls = 'is-timeup';
+      else if (is.n > was.n && is.state === 'play') cls = 'is-hop';
+      if (cls) mem.moments[id] = { cls, at: now };
+    });
+  }
+  mem.seen = cur;
+  const out = {};
+  Object.keys(mem.moments).forEach(id => {
+    const m = mem.moments[id];
+    if (now - m.at > HM_MOMENT_MS) { delete mem.moments[id]; return; }
+    out[id] = { cls: m.cls, late: now - m.at };
+  });
+  return out;
+}
+
+/**
  * A word that ends with this phone's own last move (two at the table, or the last board done)
- * used to jump straight to the result card, so the escape, the shoe or the clock was never
- * seen. When the result arrives and this phone's board was still guessing a frame ago, or the
- * table's rows have a moment just begun, the guessing frame is held HM_HOLD_MS with the moment
- * on it, then the result is drawn. The board is rebuilt from the last one seen and the word.
- * The last word of a game goes straight to 'gameover' (with its result), so it is held the same
- * way before the podium. Asked again for the same word it gives the same hold (or none once it is
- * over), so the TV's signature can ask first and its frame after.
+ * used to jump straight to the result card, so the ending was never seen. When the result arrives
+ * and this phone's board (or, in the team way, the team's) was still guessing a frame ago, or the
+ * table's rows have a moment just begun, the guessing frame is held HM_HOLD_MS with the moment on
+ * it, then the result is drawn. The board is rebuilt from the last one seen and the word (the team's
+ * is the table's, kept in shared.tb). The last word of a game goes straight to 'gameover' (with its
+ * result), so it is held the same way before the podium. Asked again for the same word it gives the
+ * same hold (or none once it is over), so the TV's signature can ask first and its frame after.
  */
 const HM_HOLD_MS = 4500;
 function hmRoomHold(state, tv) {
@@ -690,19 +997,30 @@ function hmRoomHold(state, tv) {
   if (cur && cur.key !== key) hmRoom.hold = null;
   const prog = s.progress || {};
   let hold = null;
-  const was = !tv && hmRoom.seen[key];
-  const p = !tv && prog[Room.me];
-  if (was && was.state === 'play' && p && p.state !== 'play' && s.result && s.result.word) {
-    const g = was.g.slice();
-    const miss = was.miss.slice();
-    const newMiss = p.miss > miss.length;
-    if (newMiss) miss.push(hmRoom.lastGuess && miss.indexOf(hmRoom.lastGuess) === -1 && g.indexOf(hmRoom.lastGuess) === -1 ? hmRoom.lastGuess : '?');
-    const pattern = p.state === 'won' ? Array.from(hmClean(s.result.word)) : hmPattern(s.result.word, g);
-    hold = { board: { pattern, g, miss, state: p.state }, fx: { newMiss, cheer: p.state === 'won', timeUp: p.state === 'lost' && !newMiss } };
-    hmRoom.seen[key].state = p.state;
+  const was = hmRoom.seen[key];
+  if (hmTeamsOn(s)) {
+    // The team's board: every phone and the TV saw it guessing, and the result carries it whole.
+    const tb = s.tb;
+    if (was && was.state === 'play' && tb && tb.state !== 'play') {
+      const newMiss = tb.miss.length > was.miss.length;
+      hold = { board: tb, fx: { newMiss, cheer: tb.state === 'won', timeUp: tb.state === 'lost' && !newMiss } };
+      hmRoom.seen[key].state = tb.state;
+    }
+  } else {
+    const mine = !tv && was;
+    const p = !tv && prog[Room.me];
+    if (mine && was.state === 'play' && p && p.state !== 'play' && s.result && s.result.word) {
+      const g = was.g.slice();
+      const miss = was.miss.slice();
+      const newMiss = p.miss > miss.length;
+      if (newMiss) miss.push(hmRoom.lastGuess && miss.indexOf(hmRoom.lastGuess) === -1 && g.indexOf(hmRoom.lastGuess) === -1 ? hmRoom.lastGuess : '?');
+      const pattern = p.state === 'won' ? Array.from(hmClean(s.result.word)) : hmPattern(s.result.word, g);
+      hold = { board: { pattern, g, miss, state: p.state, end: p.end }, fx: { newMiss, cheer: p.state === 'won', timeUp: p.state === 'lost' && !newMiss } };
+      hmRoom.seen[key].state = p.state;
+    }
   }
   // The table's rows: a moment that has just begun on any board (the TV, the writer's phone, a race).
-  const rows = hmRowMoments(state, prog);
+  const rows = hmTeamsOn(s) ? {} : hmRowMoments(state, prog);
   const fresh = Object.keys(rows).some(id => rows[id].late < 400);
   if (!hold && !fresh) return null;
   hold = hold || { board: null, fx: {} };
@@ -721,29 +1039,62 @@ function hmRoomHold(state, tv) {
 
 function hmRoomSig(state) {
   const s = state.shared || {};
-  return [s.dealId || '', s.round, s.phase, s.setter || '', JSON.stringify(s.progress || {}), JSON.stringify(s.result || null),
-    s.endsAt || '', JSON.stringify(s.board || []), JSON.stringify(state.you || null),
+  return [s.dealId || '', s.round, s.phase, s.setter || '', s.captain || '', JSON.stringify(s.progress || {}), JSON.stringify(s.result || null),
+    s.endsAt || '', JSON.stringify(s.board || []), JSON.stringify(state.you || null), JSON.stringify(s.tb || null), JSON.stringify(s.streak || {}),
+    JSON.stringify(s.teams || null), JSON.stringify(s.tpts || null), s.hintsN || 0,
     (state.players || []).map(p => p.id + ':' + p.name).join(','), state.youAreHost, !!state.hostAway, appState.lang, hmRoom.hold && Date.now() < hmRoom.hold.until ? 'hold' : ''].join('|');
 }
+
+/** The ending's place in hmEndStarts: the deal, the word and the board, so a redraw carries it on. */
+const hmEndKey = (state, who) => [state.code, (state.shared || {}).dealId, (state.shared || {}).round, who].join('|');
+
+/** The kind of word above the boxes: the race's category («❓» at Hard), or whose word it is. */
+function hmRoomHead(state) {
+  const s = state.shared || {};
+  if (!s.setter) return `<span class="hm-cat">${escapeHTML(s.cat || '❓ ' + hmT('hm_cat_hidden'))}</span>`;
+  if (hmTeamsOn(s)) {
+    const cap = s.captain === Room.me ? hmT('hm_you_captain') : hmT('hm_captain_is', { name: s.captainName || '' });
+    return `<span class="hm-cat">${escapeHTML(hmT('hm_word_from', { name: s.setterName || '' }))}</span><span class="hm-captain">🧢 ${escapeHTML(cap)}</span>`;
+  }
+  return `<span class="hm-cat">${escapeHTML(hmT('hm_word_from', { name: s.setterName || '' }))}</span>`;
+}
+
+const HM_ROUNDS_ROOM = [3, 5, 10];
+const HM_ROUNDS_TEAMS_ROOM = [4, 6, 10];
+const HM_CLOCKS_ROOM = [0, 60, 90];
 
 ROOM_GAMES.hangman = {
   lobbyOptions(state) {
     const o = hmRoomOpts();
-    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(hmT('hm_lobby_hint'))}</p>`;
+    if (!state.youAreHost) return `<div class="card card--tight">${hmSidesHtml(state)}<p class="field__hint" style="text-align:center">${escapeHTML(hmT('hm_lobby_hint'))}</p></div>`;
     const seg = (label, key, values, current, hint) => `<div class="field">
         <label class="field__label">${escapeHTML(label)}</label>
         <div class="segmented" role="group">${values.map(v => `<button type="button" class="segmented__item ${String(v[0]) === String(current) ? 'is-active' : ''}" onclick="setHmRoomOpt('${key}', ${typeof v[0] === 'string' ? `'${v[0]}'` : v[0]})">${escapeHTML(v[1])}</button>`).join('')}</div>
         ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
       </div>`;
+    const mode = ['setter', 'race', 'teams'].indexOf(o.mode) !== -1 ? o.mode : 'setter';
+    const level = hmLevelOf(o.level);
+    const cat = hmCatKey(o.cat);
+    if (mode === 'teams') hmLobbySync(state);
+    const cats = mode === 'race' ? `<div class="field">
+        <label class="field__label">${escapeHTML(hmT('hm_lobby_cat'))}</label>
+        <div class="chip-set hm-cats">${['all'].concat(HM_CATS.map(c => c.k)).map(k => `<button type="button" class="opt-chip ${k === cat ? 'is-active' : ''}" aria-pressed="${k === cat}" onclick="setHmRoomOpt('cat', '${k}')">${escapeHTML(hmT('hm_cat_' + k))}</button>`).join('')}</div>
+      </div>` : '';
+    const rounds = mode === 'teams' ? HM_ROUNDS_TEAMS_ROOM : HM_ROUNDS_ROOM;
     return `<div class="card card--tight">
-        ${seg(hmT('hm_lobby_mode'), 'mode', [['setter', hmT('hm_mode_setter')], ['race', hmT('hm_mode_race')]], o.mode, o.mode === 'race' ? hmT('hm_mode_race_hint') : hmT('hm_mode_setter_hint'))}
-        ${seg(hmT('hm_lobby_rounds'), 'rounds', HM_ROUNDS_ROOM.map(n => [n, String(n)]), o.rounds)}
+        ${seg(hmT('hm_lobby_mode'), 'mode', [['setter', hmT('hm_mode_setter')], ['race', hmT('hm_mode_race')], ['teams', hmT('hm_mode_teams')]], mode, hmT('hm_mode_' + mode + '_hint'))}
+        ${mode === 'teams' ? hmSidesHtml(state) : ''}
+        ${seg(hmT('hm_level'), 'level', [['easy', hmT('hm_level_easy')], ['normal', hmT('hm_level_normal')], ['hard', hmT('hm_level_hard')]], level, hmT(mode === 'race' ? 'hm_level_race_hint_' + level : 'hm_level_hint_' + level))}
+        ${cats}
+        ${seg(hmT(mode === 'teams' ? 'hm_lobby_rounds_teams' : 'hm_lobby_rounds'), 'rounds', rounds.map(n => [n, String(n)]), rounds.indexOf(Number(o.rounds)) !== -1 ? o.rounds : rounds[1])}
         ${seg('⏱️ ' + hmT('hm_lobby_clock'), 'clock', HM_CLOCKS_ROOM.map(v => [v, v ? v + '″' : hmT('gw_clock_off')]), o.clock, o.clock ? hmT('hm_clock_hint') : '')}
       </div>`;
   },
   startPayload() {
     const o = hmRoomOpts();
-    return { mode: o.mode, rounds: o.rounds, clock: o.clock, lang: contentLang() };
+    const mode = ['setter', 'race', 'teams'].indexOf(o.mode) !== -1 ? o.mode : 'setter';
+    const rounds = mode === 'teams' ? HM_ROUNDS_TEAMS_ROOM : HM_ROUNDS_ROOM;
+    return { mode: mode, rounds: rounds.indexOf(Number(o.rounds)) !== -1 ? Number(o.rounds) : rounds[1], clock: o.clock, lang: contentLang(), level: hmLevelOf(o.level), cat: hmCatKey(o.cat) };
   },
 
   render(state) {
@@ -753,17 +1104,19 @@ ROOM_GAMES.hangman = {
     const s = state.shared;
     if (!s || !s.settings) return;
     const you = state.you || {};
+    const teams = hmTeamsOn(s);
     let fx = {};
     const hold = hmRoomHold(state, false);
     const typing = hmKeepTyping(el);
     const rebuilt = renderRoomFrame(el, hmRoomSig(state), () => {
       const round = `<div class="cn-score"><span class="cn-score__role">🪢 ${escapeHTML(hmT('hm_round', { n: s.round, m: s.rounds }))}</span>
           ${s.endsAt && s.phase === 'guessing' ? '<span class="badge badge--accent" data-hm-clock></span>' : ''}</div>`;
+      const bar = teams ? hmTeamsBarHtml(state) : '';
       if (s.phase === 'gameover' && !hold) {
-        const podium = renderPodium(state, s.board);
+        const podium = teams ? '' : renderPodium(state, s.board);
         return `<div class="hm-room">
             ${s.result && s.result.word ? hmResultHtml(state) : ''}
-            ${podium || renderScoreboard(s.board)}
+            ${teams ? hmTeamFinalHtml(state) : (podium || renderScoreboard(s.board))}
             ${state.youAreHost
               ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(hmT('play_again'))}</button>
                  <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(hmT('room_another_game'))}</button></div>`
@@ -773,9 +1126,9 @@ ROOM_GAMES.hangman = {
           </div>`;
       }
       if (s.phase === 'result' && !hold) {
-        return `<div class="hm-room">${round}
+        return `<div class="hm-room">${round}${bar}
             ${hmResultHtml(state)}
-            ${renderScoreboard(s.board)}
+            ${teams ? '' : renderScoreboard(s.board)}
             ${roomMoveOnHtml(state,
               `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${Number(s.round) || 0} })">${escapeHTML(hmT('hm_next_word'))}</button>`,
               `<div class="waiting-note">${escapeHTML(hmT('room_wait_host'))}</div>`)}
@@ -784,33 +1137,55 @@ ROOM_GAMES.hangman = {
       }
       if (s.phase === 'writing') {
         const mine = s.setter === Room.me && !state.youAreScreen;
-        return `<div class="hm-room">${round}
+        const line = teams ? hmT('hm_team_writing', { name: s.setterName || '', team: hmTeamName(s.gt) }) : hmT('hm_room_writing', { name: s.setterName || '' });
+        return `<div class="hm-room">${round}${bar}
             ${mine
-              ? `<div class="card hm-write-card"><p class="sheet__title">✍️ ${escapeHTML(hmT('hm_room_you_write'))}</p>
+              ? `<div class="card hm-write-card"><p class="sheet__title">✍️ ${escapeHTML(teams ? hmT('hm_team_you_write', { team: hmTeamName(s.gt) }) : hmT('hm_room_you_write'))}</p>
                    ${hmWriteFormHtml('hmRoomWrite', hmT('hm_send_word'))}</div>`
               : `<div class="card hm-wait"><div class="hm-wait__icon" aria-hidden="true">✍️</div>
-                   <p class="sheet__title">${escapeHTML(hmT('hm_room_writing', { name: s.setterName || '' }))}</p></div>`}
+                   <p class="sheet__title">${escapeHTML(line)}</p>
+                   ${teams && s.captainName ? `<p class="field__hint">🧢 ${escapeHTML(s.captain === Room.me ? hmT('hm_you_captain') : hmT('hm_captain_is', { name: s.captainName }))}</p>` : ''}</div>`}
             <div data-hm-host></div>
-            ${(s.board || []).some(p => p.score) ? renderScoreboard(s.board) : ''}
+            ${!teams && (s.board || []).some(p => p.score) ? renderScoreboard(s.board) : ''}
             ${renderRoomPlayerStrip(state)}
           </div>`;
       }
       // Guessing.
-      // The race's hint is the kind of word; a writer's word says whose it is, and their hint if they gave one.
-      const head = !s.setter ? `<span class="hm-cat">${escapeHTML(s.cat)}</span>`
-        : `<span class="hm-cat">${escapeHTML(hmT('hm_word_from', { name: s.setterName || '' }))}</span>`;
-      const hint = s.setter ? s.cat : '';
+      // The race's hint is the kind of word; a writer's word says whose it is, and their hints if they gave any.
+      const head = hmRoomHead(state);
       let mine = '';
-      if (you.word) {
+      if (teams) {
+        // One board, the table's: the captain taps, everyone sees it; the writer also sees the word.
+        const tb = (hold && hold.board) || s.tb || {};
+        fx = hold ? hold.fx : hmRoomFx(state, tb);
+        const myTeam = hmTeamOfMe(s, Room.me);
+        const on = tb.state === 'play' && s.captain === Room.me && !state.youAreScreen;
+        mine = (you.word ? `<div class="card hm-mine-word"><p class="eyebrow">${escapeHTML(hmT('hm_your_word'))}</p>
+            ${hmTilesHtml(Array.from(hmClean(you.word)), hmAlphaOf(you.word), {})}</div>` : '') + hmBoardHtml({
+          pattern: tb.pattern || hmBlankPattern(s), alpha: s.alpha, g: tb.g, miss: tb.miss || [], state: tb.state, word: tb.state === 'won' && s.result ? s.result.word : '',
+          on: on, press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head,
+          hints: (tb.hints && tb.hints.length ? tb.hints : (s.cat ? [s.cat] : [])), hintsN: s.hintsN, max: s.max, x: tb.x, lr: tb.lr, lx: tb.lx,
+          reveal: on ? 'hmRoomReveal' : '', remove: 'hmRoomRemove', end: tb.end, endKey: hmEndKey(state, 'team'), endPlay: !!(fx.cheer || (fx.newMiss && tb.state === 'lost')),
+          fire: (s.streak || {})['t' + s.gt]
+        });
+        if (tb.state === 'play' && !on && myTeam === s.gt) mine += `<p class="field__hint hm-say">${escapeHTML(hmT('hm_team_say', { name: s.captainName || '' }))}</p>`;
+        if (tb.state && tb.state !== 'play') mine += `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(tb.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p></div>`;
+      } else if (you.word) {
         mine = `<div class="card hm-mine-word"><p class="eyebrow">${escapeHTML(hmT('hm_your_word'))}</p>
             ${hmTilesHtml(Array.from(hmClean(you.word)), hmAlphaOf(you.word), {})}
+            ${(you.hints || []).length > 1 ? `<p class="hm-result__hints">${you.hints.map((h, i) => `💡${i + 1} ${escapeHTML(h)}`).join(' · ')}</p>` : ''}
             <p class="field__hint">${escapeHTML(hmT('hm_you_watch'))}</p></div>`;
       } else if (Array.isArray(you.pattern) || (hold && hold.board)) {
         const b = Array.isArray(you.pattern) ? you : hold.board;
         fx = Array.isArray(you.pattern) ? hmRoomFx(state, you) : hold.fx;
+        const on = b.state === 'play';
         mine = hmBoardHtml({
           pattern: b.pattern, alpha: s.alpha, g: b.g, miss: b.miss, state: b.state, word: b.state === 'won' && s.result ? s.result.word : '',
-          on: b.state === 'play', press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head, hint: hint
+          on: on, press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head,
+          hints: s.setter ? ((b.hints && b.hints.length) ? b.hints : (s.cat ? [s.cat] : [])) : [], hintsN: s.setter ? s.hintsN : 0,
+          max: s.max, x: b.x, lr: b.lr, lx: b.lx, reveal: on ? 'hmRoomReveal' : '', remove: 'hmRoomRemove',
+          end: b.end !== undefined ? b.end : ((s.progress || {})[Room.me] || {}).end, endKey: hmEndKey(state, Room.me),
+          endPlay: !!(fx.cheer || (fx.newMiss && b.state === 'lost')), fire: (s.streak || {})[Room.me]
         });
         if (b.state !== 'play') mine += `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(b.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p>
             <p class="field__hint">${escapeHTML(hmT('hm_done_wait'))}</p></div>`;
@@ -818,11 +1193,11 @@ ROOM_GAMES.hangman = {
         mine = `<div class="card hm-wait"><p class="sheet__title">${escapeHTML(hmT('hm_watching'))}</p>
             ${hmTilesHtml(hmBlankPattern(s), s.alpha, {})}${s.cat ? `<p class="field__hint">${escapeHTML(s.cat)}</p>` : ''}</div>`;
       }
-      return `<div class="hm-room">${round}
+      return `<div class="hm-room">${round}${bar}
           <div class="hm-layout">
             <div class="hm-layout__board">${mine}</div>
             <div class="hm-layout__side">
-              ${hmProgressHtml(state)}
+              ${teams ? '' : hmProgressHtml(state)}
               <div data-hm-host></div>
               ${renderRoomPlayerStrip(state)}
             </div>
@@ -836,17 +1211,16 @@ ROOM_GAMES.hangman = {
     hmTickClock(state);
     if (!rebuilt) return;
     hmAfterBoard(el, fx);
-    if (s.phase === 'gameover' && !hold && duelOnce(['hm-over', state.code, s.dealId].join('|')) && (s.board || [])[0] && s.board[0].id === Room.me) {
-      afterReveal(el, () => { playSound('success'); if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 85 }); });
+    if (s.phase === 'gameover' && !hold && duelOnce(['hm-over', state.code, s.dealId].join('|'))) {
+      // The winners' phones cheer: the top of the board, or every member of the winning team.
+      const pts = s.tpts || [0, 0];
+      const won = teams ? (pts[0] !== pts[1] && hmTeamOfMe(s, Room.me) === (pts[0] > pts[1] ? 0 : 1)) : ((s.board || [])[0] && s.board[0].id === Room.me);
+      if (won) afterReveal(el, () => { playSound('success'); if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 85 }); });
     }
   },
   // A letter is not a new step; a new word, its result and the end are.
   actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
 };
-
-// The server's numbers: a lobby choice the phone offers.
-const HM_ROUNDS_ROOM = [3, 5, 10];
-const HM_CLOCKS_ROOM = [0, 60, 90];
 
 onRoomClocksReset(() => { hmStopClock(); roomQuietStop(hmRoom); hmRoom.sinceKey = ''; hmRoom.hold = null; });
 
@@ -856,16 +1230,18 @@ TV_GAMES.hangman = {
   // renderRoomTv works the signature out before it draws the frame, so the hold is decided here
   // first: asked only in frame(), the hold began after the signature had said "no hold", and the
   // redraw when it ended found the same signature and kept the held frame on the TV for good.
-  // The writer's presence too: the host's ⏭️ (hmHostButtons) shows at once for a writer who's away.
+  // The writer's (and the captain's) presence too: the host's ⏭️ / 🧢 show at once for one who's away.
   sig: (state) => {
     hmRoomHold(state, true);
     const s = state.shared || {};
     const w = s.phase === 'writing' && (state.players || []).find(x => x.id === s.setter);
-    return hmRoomSig(state) + '|' + (w && w.online ? 1 : 0);
+    const c = hmTeamsOn(s) && (state.players || []).find(x => x.id === s.captain);
+    return hmRoomSig(state) + '|' + (w && w.online ? 1 : 0) + (c && c.online ? 1 : 0);
   },
   frame(state, t) {
     const s = state.shared || {};
     if (!s.settings) return tvLookAtPhones(t);
+    const teams = hmTeamsOn(s);
     const hold = hmRoomHold(state, true);
     const host = (buttons) => (state.youAreHost && buttons.length ? `<div class="tv-actions">${buttons.map(b => tvBtn(b[0], b[1], b[2] || '')).join('')}</div>` : '');
     // The buttons that only move the game on: anyone's once the host is away (the signature carries it).
@@ -877,26 +1253,52 @@ TV_GAMES.hangman = {
     if (s.phase === 'gameover' && !hold) {
       return `<div class="tv-vote" data-accent="orange">
           <div class="tv-title tv-center-text">🏆</div>
-          ${renderPodium(state, s.board) || `<div class="tv-scale">${renderScoreboard(s.board)}</div>`}
+          ${teams ? `<div class="tv-scale">${hmTeamFinalHtml(state, true)}</div>` : (renderPodium(state, s.board) || `<div class="tv-scale">${renderScoreboard(s.board)}</div>`)}
           ${host([[t.play_again, "roomAct('playAgain')"], [t.room_another_game, "roomAct('backToHub')", 'ghost']])}
         </div>`;
     }
     if (s.phase === 'result' && !hold) {
       return `<div class="tv-trivia" data-accent="orange">${top}
+          ${teams ? hmTeamsBarHtml(state, true) : ''}
           <div class="tv-center hm-tv-result">${hmResultHtml(state, true)}</div>
           ${moveOn([[hmT('hm_next_word'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`]])}
         </div>`;
     }
     if (s.phase === 'writing') {
+      const line = teams ? hmT('hm_team_writing', { name: s.setterName || '', team: hmTeamName(s.gt) }) : hmT('hm_room_writing', { name: s.setterName || '' });
       return `<div class="tv-trivia" data-accent="orange">${top}
-          ${tvWaitStage(state, { who: s.setter, ids: s.order || s.roster, line: hmT('hm_room_writing', { name: s.setterName || '' }),
+          ${teams ? hmTeamsBarHtml(state, true) : ''}
+          ${tvWaitStage(state, { who: s.setter, ids: teams ? [] : (s.order || s.roster), line: line,
+            note: teams && s.captainName ? '🧢 ' + hmT('hm_captain_is', { name: s.captainName }) : '',
             actions: moveOn(hmHostButtons(state).map(b => [b[0], b[1], 'ghost'])) })}
+        </div>`;
+    }
+    if (teams) {
+      // The team's one board, big: the man (his ending plays here), the letters found, the wrong ones.
+      const tb = (hold && hold.board) || s.tb || {};
+      const fx = hold ? hold.fx : hmRoomFx(state, tb);
+      const misses = (tb.miss || []).length;
+      const wrong = (tb.miss || []).map(m => (m.length > 1 ? '✗' + m : m)).map(m => (s.alpha === 'en' ? m.toUpperCase() : m)).join(' ');
+      hmRoom.tvFx = fx;
+      return `<div class="tv-trivia hm-tv hm-tv--team" data-accent="orange">${top}
+          ${hmTeamsBarHtml(state, true)}
+          <div class="hm-tv__board">
+            ${hmManHtml({ misses: misses, max: s.max, state: tb.state, end: tb.end, key: hmEndKey(state, 'team'), play: !!(fx.cheer || (fx.newMiss && tb.state === 'lost')), drawLast: !!fx.newMiss, cls: 'hm-tv__man' })}
+            <div class="hm-tv__head">
+              <div class="tv-title">${escapeHTML(hmT('hm_word_from', { name: s.setterName || '' }))}</div>
+              <div class="tv-note">🧢 ${escapeHTML(hmT('hm_captain_is', { name: s.captainName || '' }))} · ${escapeHTML(hmT('hm_misses_of', { n: misses, m: s.max || HM_MISSES }))}</div>
+              ${hmHintsHtml({ hints: (tb.hints && tb.hints.length ? tb.hints : (s.cat ? [s.cat] : [])), hintsN: s.hintsN, state: tb.state })}
+              ${hmTilesHtml(tb.pattern || hmBlankPattern(s), s.alpha, { word: tb.state === 'won' && s.result ? s.result.word : '', open: fx.open })}
+              <p class="hm-wrong" dir="${s.alpha === 'en' ? 'ltr' : 'rtl'}">${wrong ? escapeHTML(wrong) : '&nbsp;'}</p>
+            </div>
+          </div>
+          ${moveOn(hmHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
         </div>`;
     }
     // The TV's frame is the room's colour; the man and the tiles keep the game's orange.
     return `<div class="tv-trivia hm-tv" data-accent="orange">${top}
         <div class="hm-tv__head">
-          <div class="tv-title">${escapeHTML(!s.setter ? s.cat : hmT('hm_word_from', { name: s.setterName || '' }))}</div>
+          <div class="tv-title">${escapeHTML(!s.setter ? (s.cat || '❓ ' + hmT('hm_cat_hidden')) : hmT('hm_word_from', { name: s.setterName || '' }))}</div>
           ${s.setter && s.cat ? `<div class="tv-note">💡 ${escapeHTML(s.cat)}</div>` : ''}
           ${hmTilesHtml(hmBlankPattern(s), s.alpha, {})}
         </div>
@@ -904,6 +1306,14 @@ TV_GAMES.hangman = {
         ${moveOn(hmHostButtons(state).map(b => [b[0], b[1], 'ghost']))}
       </div>`;
   },
-  after(state) { hmTickClock(state); }
+  after(state, rebuilt) {
+    hmTickClock(state);
+    // The endings: the team's board plays here; the small men show their last frame.
+    const root = document.getElementById('view-room-tv') || document;
+    if (rebuilt !== false) {
+      hmEndPlay(root);
+      hmDrawLast(root);
+    }
+  }
 };
 </script>

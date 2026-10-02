@@ -36,6 +36,10 @@
    ========================================================================= */
 const GW_SIZES = [16, 24, 30];
 const GW_CLOCKS = [0, 30, 60];
+// «فريق ضد فريق» (the owner, 2 Oct 2026): the lobby's switch shows from this many people, and a
+// team's final guess waits this long for a second teammate's «متفقين» (decided here, open to change).
+const GW_TEAMS_MIN = 4;
+const GW_AGREE_SECS = 20;
 
 const GW_NAMES = {
   m: [

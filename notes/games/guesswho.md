@@ -169,7 +169,7 @@ asker taps «خلصت» the answer stands. Every phone and the TV play the take-
 amber bubble («↶ منى رجّع إجابته», `gw_undone`, `.gw-bubble.is-undo`, `gwMoments`); the
 history skips it.
 
-## «فريق ضد فريق» (teams): answered, not built yet (the owner, 2 Oct 2026)
+## «فريق ضد فريق» (teams): built 2 Oct 2026 (the owner's answers of 2 Oct 2026)
 
 Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
 
@@ -179,6 +179,65 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
   - **Anyone on the team answers** the other team's question: the first tap of نعم / لأ counts.
   - **The final guess needs two phones**: one teammate picks the face, a second taps «متفقين» before it is sent.
   - **A lobby switch from 4 people, off by default**; two-player خمّن مين stays as it is.
+
+### How it is built
+
+- **The switch and the sides are the room's**, so every phone sees them: `shared.lobby = { teams, sides { pid: 0 | 1 } }`
+  (`gwLobby` in `RoomGuessWho.js`). The host's `gwTeams { on }` turns it on or off (lobby only); anyone in the room
+  sends `side { side }` from their phone. On the page the host's «مين بيلعب» segment (`gwLobbyModeHtml`, shown from
+  `GW_TEAMS_MIN` people, or while it is on) and everyone's two columns with «انضم» (`gwLobbySidesHtml`, reusing
+  `.vc-sides` / `.hm-side--k`); `startBlock` greys Start until each side has someone; `tourOff` hides the duels'
+  tournament choice (a hook added to `tourLobbyHtml` in `JS_RoomTournament.html`); a TV that isn't the host shows the
+  two sides (`tvLobbyPlayers`). With the switch on, `start` goes to `gwNewTeamGame` *before* `tourAction`, so a
+  tournament flag in the payload is ignored.
+- **A "seat" is a team.** `settings.teams`, `teams [[red], [blue]]`, `down [red's board, blue's]`, `turn` the team up:
+  `gwSeatOf` returns the team in this way, so `flip`, `done`, `answer`, the clock, `skipTurn` and the stages are the
+  two-player code. No `seats`, `line` or `champ`; `nightPlayedIds` reads `teams`.
+- **Secrets**: `room._gw.secret[k]` is team k's face; `gwWriteSecrets` gives it to every member still here
+  (`secrets[pid].face`). Leak probes (`leaks.mjs`): a phone holds only its own team's face; the proposed face is only on
+  the proposing team's phones and never in `shared`.
+- **Asking and answering**: anyone on the team up sends `loud` / `typed` (`q.by`, `q.byName`); anyone on the other
+  team answers - the first tap moves the stage on, so a second is dropped (`q.answerBy`, `answerByName`). «غلطت» is
+  only the one who tapped (`room._gwUndo.by`).
+- **The final guess**: `propose { face, seq }` → `room._gw.propose { team, by, face, n, endsAt }` and `shared.propose`
+  without the face; a second teammate's `agree { n, seq }` makes it `gwGuess` (logged with `by` / `byName`); the
+  proposer's «إلغاء» or a teammate's «لأ، استنى» is `unpropose { n }`; asking instead, the turn passing or the end drops
+  it (`gwDropPropose`). It lapses after `GW_AGREE_SECS` on the server's clock (`gwDeadline` / `gwTimeout` do the
+  proposal and the turn clock in one pass). A team with one member here (`gwTeamHere`) guesses at once; `guess` in
+  one tap is refused in teams. On the page: `gwTeamBarHtml` (the proposer waits with the 20 s ticking, `gwTickAgree`;
+  a teammate sees the face beside «متفق إنه …؟» with «🤝 متفقين» / «لأ، استنى», the `.gw-ask-me` card).
+- **The end**: `gwTeamEnd` - each member of the winning team still here scores a win (`scores`, so the night's board
+  puts them all first: competition ranking, the others after), `tw` counts the teams' wins (the pills),
+  `result { team: true, winner, reason: guess | wrong | left, winners, losers }`, both faces revealed. «الماتش اللي
+  بعده» (`nextRound`) keeps the sides (`gwFitTeams`: a leaver off, a latecomer on the smaller side) and the other team
+  starts (`first`); between games anyone moves themself with «روح الأحمر/الأزرق» (`side` in 'over', `gwTeamOverHtml`).
+- **Leaving** (`gwPlayerLeft`): a team with nobody left here loses by forfeit (`left`); otherwise the game goes on, and
+  a proposal by the leaver is dropped. The host's «عدّي الدور» shows when the whole team waited on is away or 40 s
+  passed (`gwHostRow`).
+- **The page**: `gwIsTeams`, `gwMySeat`, `gwNames` (the team names in sentences: «الفريق الأحمر»), the pills with the
+  short names (`gw_short_k`) and each team's members (`<bdi>`), `gwTeamStatus`, `gwTeamCheer` (confetti on the winning
+  team's phones), the turn alert (`roomTurnOf` in `JS_RoomTurn.html`: your team's turn, or its answer to give). The
+  TV: both boards with the team's colour on its name (`.gw-tv-team--k`) and its members (`.gw-tv__members`), the line
+  «الفريق الأزرق بيتفقوا على تخمين» while a proposal waits, and at the end both faces and a line a side for the next
+  game. The words are in the chunk (`GW_TEXT` in `JS_GuessWho.html`, `gwT` falls back to it); the help in `GAME_RULES`
+  (two lines each language: the shell's budget is full).
+- Tests: `rules.mjs` («guesswho teams: …»), `leaks.mjs` (a five-person team game with proposals, cancels and a lapse,
+  then a side moved and the next game), `play-all.mjs` (segment `guesswho`, «guess who in teams»).
+
+### Decided here (open to change)
+
+- **In teams the secret face is always dealt at random** (one face a team; "each picks" is a two-player switch and
+  is hidden while teams is on).
+- **Someone who didn't pick a side** when Start is pressed joins the smaller side (ties to red); Start still needs
+  someone who picked on each side.
+- **The proposal waits 20 seconds** (`GW_AGREE_SECS` in `GuessWho.js`), then lapses with the turn unchanged; only one
+  at a time; the proposer cancels, and a teammate may also say «لأ، استنى» (which cancels it too).
+- **Which faces a team put down is public, as in two-player** (the TV and anyone watching see both boards); a team's
+  phones draw only their own board. The proposed face is the team's secret until it is agreed.
+- **No winner stays / line in teams**: the sides stay for the next game, the other team starts, anyone moves
+  themself between games, a latecomer joins the smaller side. The duels' tournament is not offered with teams on.
+- Only the one who answered can take it back («غلطت»).
+- A team's wins in a row of games show on its pill (`tw`); each member's wins are the room's board.
 
 ## History
 

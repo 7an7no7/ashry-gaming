@@ -772,6 +772,8 @@ function tourLobbyHtml(state, id) {
   if (people < TOUR_MIN_PEOPLE || !state.youAreHost) return '';
   // A way of the game that replaces both (كونكت ٤'s teams) hides the switch while it is on.
   if (ROOM_GAMES[id] && ROOM_GAMES[id].tourHidden && ROOM_GAMES[id].tourHidden(state)) return '';
+  // A game's own way for the same crowd (خمّن مين's team against team) takes its place.
+  if (ROOM_GAMES[id] && typeof ROOM_GAMES[id].tourOff === 'function' && ROOM_GAMES[id].tourOff(state)) return '';
   const mode = tourModeOf(id);
   const bots = (state.players || []).some(p => p.bot);
   const seg = (v, label) => `<button type="button" class="segmented__item ${mode === v ? 'is-active' : ''}" onclick="setTourMode('${id}', '${v}')">${escapeHTML(label)}</button>`;

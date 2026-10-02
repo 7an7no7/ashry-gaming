@@ -280,7 +280,7 @@ self.addEventListener('activate', (event) => {
 // stylesheet is asked for without CORS, so its status can't be read - and
 // refusing it left the app with no fonts offline.
 const keep = (req, res, pinned) => {
-  if (res && (res.ok || (pinned && res.type === 'opaque'))) { const copy = res.clone(); caches.open(pinned ? CDN : CACHE).then((c) => c.put(req, copy)); }
+  if (res && (res.ok || (pinned && res.type === 'opaque' && req.mode === 'no-cors'))) { const copy = res.clone(); caches.open(pinned ? CDN : CACHE).then((c) => c.put(req, copy)); }
   return res;
 };
 
@@ -290,7 +290,11 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   if (PINNED.indexOf(url.hostname) !== -1) {
-    event.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => keep(req, res, true))));
+    // An opaque copy answers only a no-CORS request: handed to a CORS one (an
+    // extension, a preload) the browser turns it into a network error.
+    const fits = (hit) => hit && (hit.type !== 'opaque' || req.mode === 'no-cors');
+    event.respondWith(caches.match(req).then((hit) => (fits(hit) ? hit :
+      fetch(req).then((res) => keep(req, res, true)).catch(() => hit || Response.error()))));
     return;
   }
   if (url.origin !== self.location.origin) return;

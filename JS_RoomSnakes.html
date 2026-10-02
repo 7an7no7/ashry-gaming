@@ -22,13 +22,18 @@ const SNK_OPTS_KEY = 'snakesRoom';
 const snkRoomLocal = { fed: '', sent: '', clock: null, clockKey: null, hostKey: '', turnSince: 0, hostTimer: null, readyTimer: null, gap: Infinity, turnMine: false };
 
 function snkRoomOpts() {
-  const o = recallOptions(SNK_OPTS_KEY, { turnClock: 0 });
+  const o = recallOptions(SNK_OPTS_KEY, { turnClock: 0, theme: 'classic', surprises: false, moving: false });
   if (SNAKES_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
+  if (SNAKES_THEMES.indexOf(o.theme) === -1 && o.theme !== 'random') o.theme = 'classic';
+  o.surprises = !!o.surprises;
+  o.moving = !!o.moving;
   return o;
 }
 
 function setSnakesRoomOpt(key, value) {
   if (key === 'turnClock') rememberOptions(SNK_OPTS_KEY, { turnClock: Number(value) || 0 });
+  else if (key === 'theme') rememberOptions(SNK_OPTS_KEY, { theme: SNAKES_THEMES.indexOf(value) !== -1 || value === 'random' ? value : 'classic' });
+  else if (key === 'surprises' || key === 'moving') rememberOptions(SNK_OPTS_KEY, { [key]: !!value });
   haptic('light');
   const setup = document.getElementById('room-host-setup');
   if (setup) delete setup.dataset.sig;
@@ -50,6 +55,8 @@ function snkRoomSeated(state) {
   }
   return ids.slice(0, SNAKES_MAX_PLAYERS);
 }
+
+function snkRoomThemeTap(id) { setSnakesRoomOpt('theme', id); }
 
 function snkPickColorTap(color) {
   const state = Room.state;
@@ -107,6 +114,77 @@ function snkSeatsHtml(state) {
       <label class="field__label">🪑 ${escapeHTML(snkT('snk_seats_label', { n: seated.length }))}</label>
       <div class="chip-set">${players.map(chip).join('')}</div>
       <p class="field__hint">${escapeHTML(host ? snkT('snk_seats_hint_host') : snkT('snk_seats_hint'))}</p>
+    </div>`;
+}
+
+/* --- teams (the owner, 2 Oct 2026): 4 at the table → 2 teams of 2; 6 → 3 of 2 or 2 of 3 ------------
+   The host turns them on and picks the size; the teams are drawn at random («وزّع» again any time), and
+   a tap on one name and then on one in another team swaps the two. Everyone sees the teams; they are
+   worked out by snakesTeamGroups (Snakes.js), the very function the server starts the game with. */
+
+const snkTeamPick = { a: '' };
+
+function snkRoomTeams(state) {
+  const lobby = ((state.shared || {}).lobby) || {};
+  const size = Number(lobby.teamSize) || 0;
+  return size ? snakesTeamGroups(snkRoomSeated(state), size, lobby.teams) : null;
+}
+
+function snkTeamModeTap(size) {
+  haptic('light');
+  snkTeamPick.a = '';
+  roomAct('teamMode', { size: Number(size) || 0 });
+}
+
+function snkTeamDealTap() {
+  haptic('medium');
+  snkTeamPick.a = '';
+  roomAct('teamDeal', {});
+}
+
+/** A tap on a name picks it; a tap on a name in another team swaps the two. */
+function snkTeamTap(pid) {
+  const state = Room.state;
+  if (!state || !state.youAreHost) return;
+  const teams = snkRoomTeams(state) || [];
+  const tOf = (id) => teams.findIndex(t => t.indexOf(id) !== -1);
+  if (!snkTeamPick.a || snkTeamPick.a === pid) snkTeamPick.a = snkTeamPick.a === pid ? '' : pid;
+  else if (tOf(snkTeamPick.a) === tOf(pid)) snkTeamPick.a = pid;
+  else { const a = snkTeamPick.a; snkTeamPick.a = ''; haptic('light'); roomAct('teamSwap', { a: a, b: pid }); return; }
+  haptic('light');
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  const tvEl = document.getElementById('view-room-tv');
+  if (tvEl) delete tvEl.dataset.sig;
+  routeRoomState(state);
+}
+
+/** The lobby's teams: the host's choice of size and the teams, each a box of names. */
+function snkTeamsHtml(state) {
+  const seated = snkRoomSeated(state);
+  const lobby = ((state.shared || {}).lobby) || {};
+  const size = Number(lobby.teamSize) || 0;
+  const sizes = snakesTeamSizesFor(seated.length);
+  const host = !!state.youAreHost;
+  if (!sizes.length && !size) return '';
+  const name = (id) => ((state.players || []).find(p => p.id === id) || {}).name || '…';
+  const bot = (id) => !!((state.players || []).find(p => p.id === id) || {}).bot;
+  const opts = [[0, snkT('snk_teams_off')]].concat((sizes.length ? sizes : [size]).map(z => [z, snkT(seated.length / z === 2 ? 'snk_teams_two' : 'snk_teams_size', { n: seated.length / z || '', k: z })]));
+  const seg = host ? `<div class="segmented" role="group">${opts.map(([z, label]) => `<button type="button" class="segmented__item ${size === z ? 'is-active' : ''}" onclick="snkTeamModeTap(${z})">${escapeHTML(label)}</button>`).join('')}</div>` : '';
+  const teams = size ? snakesTeamGroups(seated, size, lobby.teams) : null;
+  let body = '';
+  if (size && !teams) body = `<p class="field__hint">${escapeHTML(snkT('snk_teams_need'))}</p>`;
+  else if (teams) {
+    body = `<div class="snk-lteams">${teams.map((tm, i) => `<div class="snk-lteam"><span class="snk-lteam__label">${escapeHTML(snkT('snk_team_n', { n: i + 1 }))}</span>${tm.map(id => host
+      ? `<button type="button" class="chip ${snkTeamPick.a === id ? 'is-selected' : ''}" onclick="snkTeamTap('${jsStringAttr(id)}')" aria-pressed="${snkTeamPick.a === id}">${bot(id) ? '🤖 ' : ''}${escapeHTML(name(id))}</button>`
+      : `<span class="chip ${id === Room.me ? 'is-selected' : ''}">${bot(id) ? '🤖 ' : ''}${escapeHTML(name(id))}</span>`).join('')}</div>`).join('')}</div>
+      ${host ? `<div class="snk-lteams__row"><button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="snkTeamDealTap()">🎲 ${escapeHTML(snkT('snk_teams_deal'))}</button><p class="field__hint">${escapeHTML(snkT('snk_teams_hint'))}</p></div>` : ''}`;
+  } else if (!host) return '';
+  return `<div class="field">
+      <label class="field__label">👥 ${escapeHTML(snkT('snk_teams_label'))}</label>
+      ${seg}
+      ${body}
+      ${size ? `<p class="field__hint">${escapeHTML(snkT('snk_teams_rule'))}</p>` : ''}
     </div>`;
 }
 
@@ -285,8 +363,11 @@ function snkRoomIdle() {
     if (mine && !snkRoomLocal.turnMine) { playSound('tick'); haptic('medium'); }
     snkRoomLocal.turnMine = mine;
   }
+  if (s.phase === 'gameover') snkAwardsAuto(k);
   if (s.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce(['snk-room-end', tv ? 'tv' : 'ph', k.key].join('|'))) {
-    const won = s.places[0] === Room.me;
+    // In teams, my team won (the owner, 2 Oct 2026: places are per team).
+    const winTeam = Array.isArray(s.teams) && Array.isArray(s.teamPlaces) ? s.teams[s.teamPlaces[0]] : null;
+    const won = winTeam ? winTeam.indexOf(Room.me) !== -1 : s.places[0] === Room.me;
     afterReveal(root, () => {
       if (won || tv) {
         playSound('success');
@@ -300,7 +381,7 @@ function snkRoomIdle() {
 /** The board fed after a frame was drawn (or not): it keeps playing whatever it is playing. */
 function snkRoomFeed(root, state, tv) {
   const k = snkRoomCtx(state, tv);
-  const c = snkShowIn(root.querySelector('[data-snk-host]'));
+  const c = snkShowIn(root.querySelector('[data-snk-host]'), snakesTheme(snkShared(state)));
   k.onIdle = snkRoomIdle;
   k.onStep = () => snkSyncIdle(root, snkRoomCtx(Room.state || state, tv));
   // Dealt while this screen watched the room: the map is built in front of it - once. A deal this
@@ -329,16 +410,33 @@ ROOM_GAMES.snakes = {
           <div class="segmented" role="group">${SNAKES_CLOCKS.map(v => `<button type="button" class="segmented__item ${Number(o.turnClock) === v ? 'is-active' : ''}" onclick="setSnakesRoomOpt('turnClock', ${v})">${v ? v + '″' : escapeHTML(snkT('snk_clock_off'))}</button>`).join('')}</div>
           ${Number(o.turnClock) ? `<p class="field__hint">${escapeHTML(snkT('snk_clock_hint'))}</p>` : ''}
         </div>` : '';
+    // The third round's choices, the host's (remembered on their phone, like the clock).
+    const sw = (key, icon, hint) => `<div class="field">
+        <label class="switch-row" for="snk-room-${key}">
+          <span class="field__label">${icon} ${escapeHTML(snkT('snk_' + (key === 'surprises' ? 'surp' : key) + '_label_room'))}</span>
+          <span class="switch"><input type="checkbox" id="snk-room-${key}" role="switch" ${o[key] ? 'checked' : ''} onchange="setSnakesRoomOpt('${key}', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+        </label>
+        <p class="field__hint">${escapeHTML(hint)}</p>
+      </div>`;
+    const more = state.youAreHost ? `<div class="field">
+          <label class="field__label">${escapeHTML(snkT('snk_theme_label'))}</label>
+          <div class="snk-themes">${snkThemePickerHtml(o.theme, 'snkRoomThemeTap')}</div>
+        </div>
+        ${sw('surprises', '🎁', snkT('snk_surp_hint'))}
+        ${sw('moving', '🐍', snkT('snk_moving_hint'))}` : '';
     return `<div class="card card--tight snk-lobby">
         ${snkColorPickerHtml(state)}
         ${snkSeatsHtml(state)}
+        ${snkTeamsHtml(state)}
+        ${more}
         ${clock}
         <p class="field__hint" style="text-align:center">${escapeHTML(snkT('snk_lobby_hint'))}</p>
       </div>`;
   },
 
   startPayload() {
-    return { turnClock: snkRoomOpts().turnClock };
+    const o = snkRoomOpts();
+    return { turnClock: o.turnClock, theme: o.theme, surprises: o.surprises, moving: o.moving };
   },
 
   render(state) {

@@ -103,7 +103,7 @@ export const CHUNKS = {
   chesspuzzles: ['JS_ChessPuzzles', 'ChessPuzzles.js'],
   chessrooms: ['JS_RoomBughouse', 'JS_RoomChess4', 'JS_RoomVoteChess', 'JS_RoomHandBrain', 'Chess4.js'],
   ludo: ['JS_Ludo', 'JS_RoomLudo', 'Ludo.js'],
-  snakes: ['JS_Snakes', 'JS_RoomSnakes', 'Snakes.js'],
+  snakes: ['JS_Snakes', 'JS_SnakesNile', 'JS_SnakesMetro', 'JS_SnakesDesert', 'JS_SnakesHara', 'JS_RoomSnakes', 'Snakes.js'],
   bank: ['JS_Bank', 'JS_RoomBank', 'BankAlhaz.js'],
   crew: ['JS_Crew'],   // «الشلة»'s page and sheets
   // Word lists more than one chunk deals from.

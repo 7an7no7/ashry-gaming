@@ -71,6 +71,84 @@ const snakesPickColor = (room, playerId, p) => {
   lobby.colors = colors;
 };
 
+/* --- teams (the owner, 2 Oct 2026) ----------------------------------------------------------
+   4 at the table play as 2 teams of 2; 6 as 3 teams of 2 or 2 teams of 3 (the host's pick, `teamSize`
+   in the lobby: 0 for each for themselves). The host arranges the teams in the lobby - a tap on one
+   name and then on one in another team swaps the two (`teamSwap`) - or «وزّع» draws them (`teamDeal`).
+   The arrangement is normalised the same way on the server and every phone (snakesTeamGroups, mirrored
+   by snkRoomTeams in JS_RoomSnakes.html), so a join or a leave never leaves a team short. */
+
+/* snakesTeamSizesFor and snakesTeamGroups are in Snakes.js (the page draws the lobby's teams with them too). */
+
+/** The lobby's teams now: null with teams off or a table they don't fit. */
+const snakesLobbyTeams = (room) => {
+  const lobby = snakesLobby(room);
+  const size = Number(lobby.teamSize) || 0;
+  return size ? snakesTeamGroups(snakesLobbySeated(room), size, lobby.teams) : null;
+};
+
+/** The host turns teams on (2 or 3 a team) or off (0). */
+const snakesTeamMode = (room, playerId, p) => {
+  requireHost(room, playerId);
+  if (room.phase !== 'lobby') return;
+  const size = Number(p.size) || 0;
+  if ([0, 2, 3].indexOf(size) === -1) throw new Error('حجم الفريق غلط');
+  const lobby = snakesLobby(room);
+  lobby.teamSize = size;
+  // Turned on (or to the other size): drawn at random to start with, and the host may swap people.
+  const seated = snakesLobbySeated(room);
+  if (size && snakesTeamSizesFor(seated.length).indexOf(size) !== -1) lobby.teams = snakesDealTeams(seated, size);
+};
+
+/** «وزّع»: the teams drawn at random. */
+const snakesDealTeams = (seated, size) => {
+  const order = snakesShuffle(seated, Math.random);
+  const out = [];
+  for (let k = 0; k < seated.length / size; k++) out.push(order.slice(k * size, k * size + size));
+  return out;
+};
+
+const snakesTeamDeal = (room, playerId) => {
+  requireHost(room, playerId);
+  if (room.phase !== 'lobby') return;
+  const lobby = snakesLobby(room);
+  const size = Number(lobby.teamSize) || 0;
+  const seated = snakesLobbySeated(room);
+  if (!size || snakesTeamSizesFor(seated.length).indexOf(size) === -1) throw new Error('الفرق محتاجة 4 أو 6 في اللعبة');
+  lobby.teams = snakesDealTeams(seated, size);
+};
+
+/** The host swaps two people between teams. */
+const snakesTeamSwap = (room, playerId, p) => {
+  requireHost(room, playerId);
+  if (room.phase !== 'lobby') return;
+  const teams = snakesLobbyTeams(room);
+  if (!teams) return;
+  const a = String(p.a || ''), b = String(p.b || '');
+  const ta = teams.findIndex(t => t.indexOf(a) !== -1), tb = teams.findIndex(t => t.indexOf(b) !== -1);
+  if (ta === -1 || tb === -1 || ta === tb) return;
+  teams[ta][teams[ta].indexOf(a)] = b;
+  teams[tb][teams[tb].indexOf(b)] = a;
+  snakesLobby(room).teams = teams;
+};
+
+/** The order teams play in: the teams drawn in a random order, each team's members too, then one of each team in turn (A1 B1 A2 B2). */
+const snakesTeamOrder = (teams) => {
+  const ts = shuffled(teams.map(t => shuffled(t)));
+  const out = [];
+  const size = Math.max.apply(null, ts.map(t => t.length));
+  for (let k = 0; k < size; k++) ts.forEach(t => { if (t[k]) out.push(t[k]); });
+  return out;
+};
+
+/** The teams in the order they finished, for the night, the program and «مين هيكسب؟»: null without teams or before the end. */
+const snakesTeamResult = (room) => {
+  const s = room.shared || {};
+  if (!Array.isArray(s.teams) || s.phase !== 'gameover' || !Array.isArray(s.teamPlaces)) return null;
+  const out = s.teamPlaces.map(ti => (s.teams[ti] || []).filter(id => (s.seats || []).indexOf(id) !== -1)).filter(t => t.length);
+  return out.length ? out : null;
+};
+
 /** The host seats or benches a player (only with more than six in the room). */
 const snakesSeat = (room, playerId, p) => {
   requireHost(room, playerId);
@@ -99,20 +177,24 @@ const snakesBoard = (room) => {
   const s = room.shared;
   const wins = s.wins || {};
   const places = s.places || [];
-  const placeOf = (id) => (places.indexOf(id) === -1 ? null : places.indexOf(id) + 1);
+  // In teams a player's place is their team's (the owner, 2 Oct 2026: places are per team).
+  const teamAt = (id) => { const ti = snakesTeamOf(s, id); const k = ti === -1 ? -1 : (s.teamPlaces || []).indexOf(ti); return k === -1 ? null : k + 1; };
+  const placeOf = (id) => (Array.isArray(s.teams) ? teamAt(id) : (places.indexOf(id) === -1 ? null : places.indexOf(id) + 1));
   return (s.seats || [])
     .filter(id => room.players.some(p => p.id === id))
     .map(id => ({ id: id, name: roomPlayerName(room, id), score: wins[id] || 0, tie: placeOf(id) }))
     .sort((a, b) => (b.score - a.score) || ((a.tie || 99) - (b.tie || 99)));
 };
 
-/** The game just played, for «مين هيكسب؟»: its places, once it is over. */
+/** The game just played, for «مين هيكسب؟»: its places (in teams, the teams'), once it is over. */
 ROOM_RESULT_BOARDS.snakes = (room) => {
   const s = room.shared || {};
+  const teams = snakesTeamResult(room);
+  if (teams) return roomResultRows(room, teams);
   return s.phase === 'gameover' && Array.isArray(s.places) && s.places.length ? roomResultRows(room, s.places.map(id => [id]).concat([s.seats || []])) : null;
 };
 
-/** After anything that moved the game on: the clock for the new turn, the board, the winner's win. */
+/** After anything that moved the game on: the clock for the new turn, the board, the winner's win (each member's, in teams). */
 const snakesAfter = (room) => {
   const s = room.shared;
   if (s.phase === 'gameover') {
@@ -120,7 +202,8 @@ const snakesAfter = (room) => {
     s.endsAt = null;
     if (!s.counted && s.places && s.places.length && s.seats.length > 1) {
       s.wins = s.wins || {};
-      s.wins[s.places[0]] = (s.wins[s.places[0]] || 0) + 1;
+      const teams = snakesTeamResult(room);
+      (teams ? teams[0] : [s.places[0]]).forEach(id => { s.wins[id] = (s.wins[id] || 0) + 1; });
       s.counted = true;
     }
   } else if (s.clockSeq !== s.turnSeq) {
@@ -156,17 +239,32 @@ const snakesNewRoomGame = (room, playerId, action, p) => {
   const was = prev.settings || {};
   const clock = SNAKES_CLOCKS.indexOf(Number(p.turnClock)) !== -1 ? Number(p.turnClock)
     : (SNAKES_CLOCKS.indexOf(Number(was.turnClock)) !== -1 ? Number(was.turnClock) : 0);
+  // The third round's options (every field optional: an older phone's start has none of them, and plays the classic).
+  const pick = (k) => (k in p ? p[k] : was[k]);
+  const themeOpt = pick('theme');
+  const theme = SNAKES_THEMES.indexOf(themeOpt) !== -1 || themeOpt === 'random' ? themeOpt : 'classic';
+  const surprises = !!pick('surprises');
+  const moving = !!pick('moving');
   const filled = snakesFillColors(ids, colors);
-  // Who starts: drawn at random; the rest follow in a random order.
-  const order = shuffled(ids);   // Fisher-Yates: a random comparator in sort() favours the first seats
-  const g = snakesNewGame(order, filled, snakesNewSeed(Math.random), Date.now(), { teardown: action === 'playAgain' });
+  // Teams: the lobby's (or, on play again, the last game's kept as far as they go).
+  const lobby = (prev.lobby && typeof prev.lobby === 'object') ? prev.lobby : snakesLobby(room);
+  const size = Number(action === 'playAgain' ? (was.teamSize || 0) : (lobby.teamSize || 0)) || 0;
+  const teams = size ? snakesTeamGroups(ids, size, action === 'playAgain' ? prev.teams : lobby.teams) : null;
+  if (size && !teams && action !== 'playAgain') throw new Error('الفرق محتاجة 4 أو 6 في اللعبة: شيل الفرق أو كمّل العدد');
+  // Who starts: drawn at random; the rest follow in a random order (in teams, one of each team in turn).
+  const order = teams ? snakesTeamOrder(teams) : shuffled(ids);   // Fisher-Yates: a random comparator in sort() favours the first seats
+  const g = snakesNewGame(order, filled, snakesNewSeed(Math.random), Date.now(), {
+    teardown: action === 'playAgain',
+    theme: theme === 'random' ? SNAKES_THEMES[Math.floor(Math.random() * SNAKES_THEMES.length)] : theme,
+    surprises: surprises, moving: moving, teams: teams || undefined
+  });
   // Carried over a play again, so a tap or an animation from the last game is never taken for this one.
   g.turnSeq = (prev.turnSeq || 0) + 1;
   const base = prev.eventSeq || 0;
   g.events.forEach(e => { e.seq += base; });
   g.eventSeq = base + g.eventSeq;
   room.shared = Object.assign(g, {
-    settings: { turnClock: clock },
+    settings: { turnClock: clock, theme: theme, surprises: surprises, moving: moving, teamSize: teams ? size : 0 },
     roster: room.players.map(x => x.id),
     lobby: prev.lobby || null,
     wins: prev.wins || {},
@@ -191,6 +289,9 @@ const snakesAction = (room, playerId, action, payload) => {
   const p = payload || {};
   if (action === 'color') { snakesPickColor(room, playerId, p); return; }
   if (action === 'seat') { snakesSeat(room, playerId, p); return; }
+  if (action === 'teamMode') { snakesTeamMode(room, playerId, p); return; }
+  if (action === 'teamDeal') { snakesTeamDeal(room, playerId); return; }
+  if (action === 'teamSwap') { snakesTeamSwap(room, playerId, p); return; }
   if (action === 'start' || action === 'playAgain') { snakesNewRoomGame(room, playerId, action, p); return; }
   const s = room.shared;
   if (!s || !s.phase || !Array.isArray(s.seats)) throw new Error('اللعبة لم تبدأ بعد');
@@ -244,7 +345,15 @@ const snakesPlayerLeft = (room, playerId, name) => {
   const s = room.shared;
   if (!s || !Array.isArray(s.seats) || s.seats.indexOf(playerId) === -1) return;
   if (s.phase === 'gameover') return;
-  if (s.places.indexOf(playerId) !== -1) return;
+  if (s.places.indexOf(playerId) !== -1) {
+    // Home already: they keep their place. In a team they no longer roll for the others.
+    if (Array.isArray(s.teams) && (s.gone || []).indexOf(playerId) === -1) {
+      s.gone = (s.gone || []).concat([playerId]);
+      if (s.turn && s.turn.pid === playerId) { snakesPassTurn(s, playerId); s.turnSeq = (s.turnSeq || 0) + 1; }
+      snakesAfter(room);
+    }
+    return;
+  }
   // The leaver picks up a suitcase and walks off the board (29 Sep 2026): the next roll waits for it.
   snakesEvent(s, 'left', { pid: playerId, name: name || undefined, ms: SNAKES_LEAVE_MS });
   s.readyAt = Math.max(s.readyAt || 0, Date.now() + SNAKES_LEAVE_MS);

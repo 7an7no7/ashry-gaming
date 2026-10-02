@@ -42,6 +42,21 @@ const SNK_LOOK = {
   snakes: ['#ff8a1f', '#9b59d0', '#35b6e6', '#ef4a5a', '#7cc243', '#f4c230', '#ff6fb1', '#2fb59a'],
   rail: '#c98a4a', rung: '#e8b77e', lInk: '#4a2b12'
 };
+/*
+ * The themed maps (the owner, 2 Oct 2026: look أ «على الكلاسيك» of each, notes/snakes-themes/):
+ * النيل, المترو, الصحرا, الحارة. Each is a file of its own (JS_SnakesNile.html…) that registers
+ * SNK_THEMES[id]; the board, the numbers, the pieces and every moment of a roll stay this file's, and
+ * the theme dresses them. A theme gives, in the board's units:
+ *   bg, back() (the frame and anything under the squares), tile(n, x, y, alt) → { fill, svg, num },
+ *   cup()? (inside .snk-cupw), outer()? (the edge props), worker()?, cols (the down pieces' colours),
+ *   way(s, rnd)? (a down piece's curve), width(rnd)?, crawls (can the down piece crawl along the board),
+ *   mountDown(c, s, i, d) → { g, hd, hdi, hole, … }, renderDown(c, sn, t), mountUp(c, l, d) → { g, inner,
+ *   glowL, base?, pt? }, downMoves / upMoves { name: async fn } named as SNAKES_THEME_MOVES in Snakes.js.
+ * The classic is no theme (c.th null): every function here keeps its own drawing for it.
+ */
+const SNK_THEMES = {};
+const snkThemeOf = (id) => (id && id !== 'classic' && SNK_THEMES[id]) || null;
+
 /** The players' colours (SNAKES_COLORS): red, blue, yellow, green, pink, violet. */
 const SNK_HEX = { r: '#e5383b', b: '#1e6fd9', y: '#f2b705', g: '#2a9d4a', p: '#ff4fa3', v: '#7b5cff' };
 const SNK_C = SNAKES_C, SNK_STEP = 4, SNK_NS = 'http://www.w3.org/2000/svg';
@@ -135,7 +150,8 @@ const snkTint = (hex, k) => {
 function snkPersonSvg(col) {
   const I = SNK_INK;
   return `<g class="snk-pb">
-  <ellipse cx="0" cy="17" rx="12" ry="3.6" fill="rgba(0,0,0,.28)"/>
+  <ellipse class="snk-shd" cx="0" cy="17" rx="12" ry="3.6" fill="rgba(0,0,0,.28)"/>
+  <rect class="snk-pillowG" opacity="0" x="-18" y="-26" width="9" height="26" rx="4.5" fill="#f4f1ff" stroke="${I}" stroke-width="1.4"/>
   <g class="snk-armsUp" opacity="0"><path d="M-8 0 L-15 -14 M8 0 L15 -14" stroke="${col}" stroke-width="4.2" stroke-linecap="round" fill="none"/></g>
   <g class="snk-armsFwd" opacity="0"><path d="M-8 1 L-16 5 M8 1 L16 5" stroke="${col}" stroke-width="4.2" stroke-linecap="round" fill="none"/></g>
   <g class="snk-legs"><path class="snk-legL" d="M-5 12 L-5 18" stroke="${I}" stroke-width="3.4" stroke-linecap="round"/><path class="snk-legR" d="M5 12 L5 18" stroke="${I}" stroke-width="3.4" stroke-linecap="round"/></g>
@@ -145,6 +161,7 @@ function snkPersonSvg(col) {
   <circle cy="-13" r="10" fill="#ffd9b3" stroke="${I}" stroke-width="1.6"/>
   <path d="M-10 -15 Q-8 -25 0 -24 Q8 -25 10 -15 Q5 -20 0 -19 Q-5 -20 -10 -15Z" fill="#3b2412"/>
   <g class="snk-eN"><circle cx="-3.6" cy="-13" r="1.8" fill="${I}"/><circle cx="3.6" cy="-13" r="1.8" fill="${I}"/></g>
+  <g class="snk-eC" opacity="0"><path d="M-6 -13 Q-3.6 -11 -1.4 -13 M1.4 -13 Q3.6 -11 6 -13" stroke="${I}" stroke-width="1.4" fill="none" stroke-linecap="round"/></g>
   <g class="snk-eW" opacity="0"><circle cx="-3.8" cy="-13.4" r="2.9" fill="#fff" stroke="${I}" stroke-width=".9"/><circle cx="3.8" cy="-13.4" r="2.9" fill="#fff" stroke="${I}" stroke-width=".9"/><circle cx="-3.8" cy="-13.2" r="1.2" fill="${I}"/><circle cx="3.8" cy="-13.2" r="1.2" fill="${I}"/></g>
   <path class="snk-lids" opacity="0" d="M-6.2 -13.6 H-1.2 M1.2 -13.6 H6.2" stroke="${I}" stroke-width="1.5" stroke-linecap="round"/>
   <g class="snk-eS" opacity="0"><g transform="translate(-3.6 -13)"><path class="snk-spin" d="M0 0 a1 1 0 1 1 1.4 .3 a2 2 0 1 1 -3 -.6" stroke="${I}" stroke-width=".9" fill="none"/></g><g transform="translate(3.6 -13)"><path class="snk-spin" d="M0 0 a1 1 0 1 1 1.4 .3 a2 2 0 1 1 -3 -.6" stroke="${I}" stroke-width=".9" fill="none"/></g></g>
@@ -158,6 +175,7 @@ function snkPersonSvg(col) {
   <ellipse class="snk-yawnM" cx="0" cy="-7.3" rx="2.4" ry="3.4" fill="${I}" opacity="0"/>
   <path class="snk-sweat" d="M11 -20 q3 4 0 6 q-3 -2 0 -6z" fill="#6ec6ff" stroke="${I}" stroke-width=".7" opacity="0"/>
   <g class="snk-dizzy" opacity="0" transform="translate(0 -30)"><g class="snk-spin"><path d="M-13 0 l2 -4.5 l2 4.5 l-4.5 -2.8 h5z" fill="#ffd23f" stroke="${I}" stroke-width=".5"/><path d="M10 -2 l2 -4.5 l2 4.5 l-4.5 -2.8 h5z" fill="#ffd23f" stroke="${I}" stroke-width=".5"/><circle cx="0" cy="6" r="2" fill="#fff"/></g></g>
+  <g class="snk-charmG" opacity="0"><circle class="snk-spin snk-slow" cy="-3" r="23" fill="none" stroke="#9b76e6" stroke-width="2" stroke-dasharray="4 5"/><g transform="translate(13 3) rotate(-30) scale(.55)">${snkSurpIcon('charm')}</g></g>
  </g>`;
 }
 
@@ -170,6 +188,73 @@ function snkWorkerSvg() {
   <path d="M-9.5 -13 Q0 -25 9.5 -13 Z" fill="#ffd23f" stroke="${I}" stroke-width="1.3"/><rect x="-11" y="-14" width="22" height="2.6" rx="1.3" fill="#ffd23f" stroke="${I}" stroke-width="1"/>
   <circle cx="-3" cy="-10" r="1.3" fill="${I}"/><circle cx="3" cy="-10" r="1.3" fill="${I}"/><path d="M-2.5 -6.5 Q0 -5 2.5 -6.5" stroke="${I}" fill="none" stroke-width="1"/>
   <g class="snk-hammer" transform="translate(8 1)"><path d="M0 0 L10 -10" stroke="#7a4a18" stroke-width="2.6" stroke-linecap="round"/><rect x="7" y="-16" width="9" height="6" rx="1.2" fill="#5a5f6a" stroke="${I}" stroke-width=".8" transform="rotate(45 11.5 -13)"/></g></g>`;
+}
+
+/* --- the surprise squares' drawings (look ج «حاجة واقفة», notes/snakes-surprises-sheet.html) ---------
+   An icon for each (flown about when it acts), and the thing standing at the top of its square with its
+   shadow (2.5D), moving a little by itself: the charmer's basket with a little snake and the flute, a
+   two-arrow signpost, a star on a stick, the worker leaning on a ladder, a banana peel, a pillow. */
+function snkSurpIcon(k) {
+  const I = SNK_INK;
+  if (k === 'charm') return `<g><path d="M0 -4 V-12.5" stroke="${I}" stroke-width="4.8" stroke-linecap="round"/><path d="M0 -4 V-12.5" stroke="#c98a4a" stroke-width="2.6" stroke-linecap="round"/>
+   <path d="M-3 6 L-4.6 12.5 M3 6 L4.6 12.5" stroke="${I}" stroke-width="4.8" stroke-linecap="round"/><path d="M-3 6 L-4.6 12.5 M3 6 L4.6 12.5" stroke="#c98a4a" stroke-width="2.6" stroke-linecap="round"/>
+   <ellipse cy="1.5" rx="8" ry="6.8" fill="#e8ad5c" stroke="${I}" stroke-width="1.6"/><path d="M-5 -1 Q-2 -3.4 2 -2.4" stroke="#fff" stroke-opacity=".7" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+   <path d="M-6 3 H6" stroke="#9b4d1c" stroke-width="1.2" stroke-dasharray="1.6 1.6"/></g>`;
+  if (k === 'swap') return `<g fill="none" stroke-linecap="round"><path d="M-9 -2 A9.5 7.5 0 0 1 7 -6" stroke="${I}" stroke-width="5"/><path d="M-9 -2 A9.5 7.5 0 0 1 7 -6" stroke="#2f7fd6" stroke-width="2.8"/>
+   <path d="M9 2 A9.5 7.5 0 0 1 -7 6" stroke="${I}" stroke-width="5"/><path d="M9 2 A9.5 7.5 0 0 1 -7 6" stroke="#ff8a1f" stroke-width="2.8"/>
+   <path d="M3 -11 L10.5 -6 L3.5 -1.5Z" fill="#2f7fd6" stroke="${I}" stroke-width="1.4" stroke-linejoin="round"/><path d="M-3 11 L-10.5 6 L-3.5 1.5Z" fill="#ff8a1f" stroke="${I}" stroke-width="1.4" stroke-linejoin="round"/></g>`;
+  if (k === 'again') return `<g><path d="M0 -12 L3.5 -4.3 L11.9 -3.7 L5.6 1.9 L7.4 10.1 L0 5.8 L-7.4 10.1 L-5.6 1.9 L-11.9 -3.7 L-3.5 -4.3Z" fill="#ffd23f" stroke="${I}" stroke-width="1.7" stroke-linejoin="round"/>
+   <circle cx="-2.4" cy="0" r="1.1" fill="${I}"/><circle cx="2.4" cy="0" r="1.1" fill="${I}"/><path d="M-2 2.6 Q0 4.3 2 2.6" stroke="${I}" stroke-width="1" fill="none"/><path d="M-1 -8 L0 -10.5" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></g>`;
+  if (k === 'worker') return `<g><path d="M9 -7 h5 M10 -2 h6 M9 3 h5" stroke="${I}" stroke-width="1.6" stroke-linecap="round"/>
+   <path d="M-11 4 Q-11 -10 0 -10 Q11 -10 11 4Z" fill="#ffd23f" stroke="${I}" stroke-width="1.7"/><path d="M0 -10 V3.5 M-5.5 -8 Q-7 -3 -6.5 3.5" stroke="#e0a810" stroke-width="2" fill="none"/>
+   <rect x="-14" y="3" width="28" height="4.6" rx="2.3" fill="#ffd23f" stroke="${I}" stroke-width="1.6"/></g>`;
+  if (k === 'peel') return `<g stroke-linejoin="round"><path d="M-2 9 C-6 4 -11 0 -12.5 -7 C-7 -5 -4 -1 -1 4Z" fill="#ffd84a" stroke="${I}" stroke-width="1.5"/>
+   <path d="M2 9 C6 4 11 0 12.5 -7 C7 -5 4 -1 1 4Z" fill="#ffd84a" stroke="${I}" stroke-width="1.5"/>
+   <path d="M-2.4 9 C-3.4 2 -2 -6 0 -11.5 C2 -6 3.4 2 2.4 9Z" fill="#ffe680" stroke="${I}" stroke-width="1.5"/>
+   <path d="M-12.5 -7 l1.8 2 M12.5 -7 l-1.8 2 M0 -11.5 v2.4" stroke="#7a4a18" stroke-width="2" stroke-linecap="round"/>
+   <ellipse cy="9.5" rx="4.6" ry="2.4" fill="#f2c230" stroke="${I}" stroke-width="1.3"/></g>`;
+  return `<g><path d="M-12 -3 Q-12 -9 -6 -8 Q0 -10 6 -8 Q12 -9 12 -3 L12 4 Q12 9.5 6 8.5 Q0 10 -6 8.5 Q-12 9.5 -12 4Z" fill="#f4f1ff" stroke="${I}" stroke-width="1.6"/>
+   <path d="M-7 -4 Q-5 0 -7 4 M7 -4 Q5 0 7 4" stroke="#b9b2dc" stroke-width="1.3" fill="none"/></g>`;
+}
+
+/** The worker standing by his square, his arm the part that waves (look ج's worker leaning on a ladder). */
+function snkStandWorkerSvg() {
+  const I = SNK_INK;
+  return `<g><ellipse cx="0" cy="17" rx="10" ry="3" fill="rgba(0,0,0,.25)"/>
+  <path d="M-4 10 L-5 17 M4 10 L5 17" stroke="#3a3a4a" stroke-width="3.2" stroke-linecap="round"/>
+  <rect x="-8" y="-4" width="16" height="16" rx="6" fill="#ff7a1a" stroke="${I}" stroke-width="1.3"/><rect x="-8" y="2" width="16" height="2.6" fill="#fff3a0"/>
+  <circle cy="-11" r="8" fill="#e8b98c" stroke="${I}" stroke-width="1.3"/>
+  <path d="M-9.5 -13 Q0 -25 9.5 -13 Z" fill="#ffd23f" stroke="${I}" stroke-width="1.3"/><rect x="-11" y="-14" width="22" height="2.6" rx="1.3" fill="#ffd23f" stroke="${I}" stroke-width="1"/>
+  <circle cx="-3" cy="-10" r="1.3" fill="${I}"/><circle cx="3" cy="-10" r="1.3" fill="${I}"/><path d="M-2.5 -6.5 Q0 -5 2.5 -6.5" stroke="${I}" fill="none" stroke-width="1"/>
+  <path class="snk-warm" d="M8 0 L13 -9" stroke="#ff7a1a" stroke-width="3.6" stroke-linecap="round"/></g>`;
+}
+
+/** The thing standing at the top of a surprise square, its base at (0, 0). */
+function snkStandSvg(k) {
+  const I = SNK_INK;
+  const sh = (rx) => `<ellipse cy="1" rx="${rx}" ry="3.4" fill="rgba(0,0,0,.24)"/>`;
+  if (k === 'charm') return sh(14) + `<g><path d="M-11 -15 L-9 0 Q0 3 9 0 L11 -15Z" fill="#c98a4a" stroke="${I}" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M-10.3 -10 Q0 -7 10.3 -10 M-9.6 -5 Q0 -2 9.6 -5" stroke="#8a5a2b" stroke-width="1.3" fill="none"/><path d="M-6 -14 l1 13 M0 -13 v14 M6 -14 l-1 13" stroke="#8a5a2b" stroke-width=".9" opacity=".6"/>
+    <g class="snk-sp-bob"><path d="M-3 -14 Q-5 -20 -1 -23" stroke="${I}" stroke-width="5.4" fill="none" stroke-linecap="round"/><path d="M-3 -14 Q-5 -20 -1 -23" stroke="#7cc243" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+     <ellipse cx="0" cy="-25" rx="4.6" ry="3.8" fill="#7cc243" stroke="${I}" stroke-width="1.3"/><circle cx="-1.6" cy="-26" r=".9" fill="${I}"/><circle cx="1.8" cy="-26" r=".9" fill="${I}"/></g>
+    <ellipse cy="-15" rx="11" ry="3.6" fill="#4a2b12" stroke="${I}" stroke-width="1.5"/>
+    <g transform="translate(8 -19) rotate(28) scale(.66)">${snkSurpIcon('charm')}</g></g>`;
+  if (k === 'swap') return sh(9) + `<rect x="-1.7" y="-30" width="3.4" height="30" rx="1" fill="#8a5a2b" stroke="${I}" stroke-width="1.2"/>
+    <g class="snk-sp-sway"><path d="M-3 -29 H9 L13.5 -25 L9 -21 H-3Z" fill="#2f7fd6" stroke="${I}" stroke-width="1.4" stroke-linejoin="round"/><path d="M0 -25 H8 M6 -27 L8.5 -25 L6 -23" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round"/></g>
+    <path d="M3 -19 H-9 L-13.5 -15 L-9 -11 H3Z" fill="#ff8a1f" stroke="${I}" stroke-width="1.4" stroke-linejoin="round"/><path d="M0 -15 H-8 M-6 -17 L-8.5 -15 L-6 -13" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round"/>`;
+  if (k === 'again') return sh(8) + `<g class="snk-sp-sway"><path d="M0 0 V-17" stroke="${I}" stroke-width="3.6" stroke-linecap="round"/><path d="M0 0 V-17" stroke="#c98a4a" stroke-width="1.8" stroke-linecap="round"/>
+    <g class="snk-sp-star" transform="translate(0 -25) scale(.9)">${snkSurpIcon('again')}</g><path class="snk-sp-glint" d="M10 -32 l1 2.5 2.5 1 -2.5 1 -1 2.5 -1 -2.5 -2.5 -1 2.5 -1Z" fill="#fff" stroke="${I}" stroke-width=".6"/></g>`;
+  if (k === 'worker') return `<g transform="translate(9 0) rotate(14)"><path d="M-3.2 0 V-25 M3.2 0 V-25 M-3.2 -6 H3.2 M-3.2 -12.5 H3.2 M-3.2 -19 H3.2" stroke="${SNK_LOOK.lInk}" stroke-width="3.6" stroke-linecap="round"/><path d="M-3.2 0 V-25 M3.2 0 V-25 M-3.2 -6 H3.2 M-3.2 -12.5 H3.2 M-3.2 -19 H3.2" stroke="${SNK_LOOK.rail}" stroke-width="1.8" stroke-linecap="round"/></g>
+    <g class="snk-sp-man" transform="translate(-3 -9.8) rotate(-6) scale(.58)">${snkStandWorkerSvg()}</g>`;
+  if (k === 'peel') return sh(13) + `<g class="snk-sp-peel"><g transform="translate(0 -4) scale(1.15 .55)">${snkSurpIcon('peel')}</g></g><path d="M-14 -2 q-3 -3 -6 -1 M15 -3 q3 -3 6 0" stroke="${I}" stroke-width="1.2" fill="none" opacity=".5"/>`;
+  return sh(14) + `<g class="snk-sp-pillow"><g transform="translate(0 -8) scale(1.05 .82)">${snkSurpIcon('nap')}</g></g>
+    <g class="snk-sp-zzz" font-family="system-ui,sans-serif" font-weight="800" fill="${I}"><text x="4" y="-16" font-size="8">z</text><text x="6" y="-18" font-size="10">z</text><text x="3" y="-17" font-size="7">z</text></g>`;
+}
+
+/** A music note flying off the flute. */
+function snkNoteSvg(col) {
+  const I = SNK_INK;
+  return `<g><path d="M2 2 V-12 L10 -14 V-1" stroke="${I}" stroke-width="1.6" fill="none"/><ellipse cx="-.5" cy="2.5" rx="3.6" ry="2.7" fill="${col}" stroke="${I}" stroke-width="1.3" transform="rotate(-20 -.5 2.5)"/><ellipse cx="7.5" cy="-.5" rx="3.6" ry="2.7" fill="${col}" stroke="${I}" stroke-width="1.3" transform="rotate(-20 7.5 -.5)"/></g>`;
 }
 
 function snkHeadSvg(col, fez) {
@@ -199,34 +284,41 @@ function snkPipsSvg(v) {
 }
 
 /** The board's fixed parts: the frame, the squares, the numbers, the cup, the mat and the layers the game fills. */
-function snkBoardSvg() {
+function snkBoardSvg(th) {
   const lk = SNK_LOOK;
-  let s = `<svg class="snk-svg" viewBox="${SNK_VB.join(' ')}" dir="ltr" role="img" aria-label="${escapeHTML(snkT('setup_snakes'))}">`;
-  s += `<rect x="${SNK_VB[0]}" y="${SNK_VB[1]}" width="${SNK_VB[2]}" height="${SNK_VB[3]}" fill="${lk.bg}"/>`;
-  s += `<rect x="-22" y="-22" width="644" height="644" rx="18" fill="${lk.frame}"/><rect x="-8" y="-8" width="616" height="616" rx="8" fill="${lk.frame2}"/>`;
+  let s = `<svg class="snk-svg${th ? ' snk-th snk-th--' + th.id : ''}" viewBox="${SNK_VB.join(' ')}" dir="ltr" role="img" aria-label="${escapeHTML(snkT('setup_snakes'))}">`;
+  s += `<rect x="${SNK_VB[0]}" y="${SNK_VB[1]}" width="${SNK_VB[2]}" height="${SNK_VB[3]}" fill="${th ? th.bg : lk.bg}"/>`;
+  s += th ? `<g class="snk-back">${th.back()}</g>` : `<rect x="-22" y="-22" width="644" height="644" rx="18" fill="${lk.frame}"/><rect x="-8" y="-8" width="616" height="616" rx="8" fill="${lk.frame2}"/>`;
   // The start mat under the bottom row, where the pieces wait before their first roll.
-  s += `<g class="snk-mat"><rect x="-6" y="628" width="226" height="34" rx="14" fill="#c98a4a" stroke="${lk.lInk}" stroke-width="2.5"/><rect x="2" y="634" width="210" height="22" rx="10" fill="#e8b77e" opacity=".55"/></g>`;
+  const mat = (th && th.mat) || { a: '#c98a4a', b: '#e8b77e', ink: lk.lInk };
+  s += `<g class="snk-mat"><rect x="-6" y="628" width="226" height="34" rx="14" fill="${mat.a}" stroke="${mat.ink}" stroke-width="2.5"/><rect x="2" y="634" width="210" height="22" rx="10" fill="${mat.b}" opacity=".55"/></g>`;
   let nums = '';
   s += '<g class="snk-tiles">';
   for (let n = 1; n <= 100; n++) {
     const p = snakesCellXY(n), x = p.x - SNK_C / 2, y = p.y - SNK_C / 2, col = Math.round(x / SNK_C), alt = (snakesRowOf(n) + col) % 2;
-    const fill = alt ? lk.tileB : lk.tileA;
-    s += `<g class="snk-tile" data-n="${n}"><rect x="${x}" y="${y}" width="${SNK_C}" height="${SNK_C}" fill="${fill}"/></g>`;
+    const tl = th ? th.tile(n, x, y, alt) : null;
+    const fill = tl ? tl.fill : (alt ? lk.tileB : lk.tileA);
+    const ink = (tl && tl.num) || lk.num;
+    s += `<g class="snk-tile" data-n="${n}">${tl ? tl.svg : `<rect x="${x}" y="${y}" width="${SNK_C}" height="${SNK_C}" fill="${fill}"/>`}</g>`;
     const st = ` stroke="${fill}" stroke-width="4" stroke-linejoin="round" style="paint-order:stroke"`;
     nums += `<g class="snk-num" data-n="${n}">`;
-    if (n === 1) nums += `<text x="${p.x}" y="${p.y + 21}" text-anchor="middle" font-size="11" font-weight="800" fill="${lk.num}" font-family="Noto Kufi Arabic,sans-serif"${st}>${escapeHTML(snkT('snk_start_sq'))}</text>`;
-    if (n !== 100) nums += `<text x="${p.x}" y="${p.y + (n === 1 ? 3 : 8)}" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${n === 1 ? 19 : 21}" fill="${lk.num}"${st}>${n}</text>`;
-    else nums += `<text x="${p.x}" y="${p.y + 24}" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="15" fill="${lk.num}"${st}>100</text>`;
+    if (n === 1) nums += `<text x="${p.x}" y="${p.y + 21}" text-anchor="middle" font-size="11" font-weight="800" fill="${ink}" font-family="Noto Kufi Arabic,sans-serif"${st}>${escapeHTML(snkT('snk_start_sq'))}</text>`;
+    if (n !== 100) nums += `<text x="${p.x}" y="${p.y + (n === 1 ? 3 : 8)}" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${n === 1 ? 19 : 21}" fill="${ink}"${st}>${n}</text>`;
+    else nums += `<text x="${p.x}" y="${p.y + 24}" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="15" fill="${ink}"${st}>100</text>`;
     nums += '</g>';
   }
-  s += `</g><g class="snk-hints" style="pointer-events:none"></g><g class="snk-holes"></g><g class="snk-ladders"></g><g class="snk-snakes"></g><g class="snk-nums" style="pointer-events:none">${nums}</g><g class="snk-heads"></g>`;
+  // The surprise squares' objects stand above the numbers' row (at the top of their square, never over a number) and under the heads.
+  s += `</g><g class="snk-hints" style="pointer-events:none"></g><g class="snk-holes"></g><g class="snk-ladders"></g><g class="snk-snakes"></g><g class="snk-nums" style="pointer-events:none">${nums}</g><g class="snk-surp"></g><g class="snk-heads"></g>`;
   // The TV's night (the light turns slowly over a long game), over the board and under the cup and the pieces.
   s += `<g class="snk-night" style="pointer-events:none"><rect class="snk-dusk" x="-22" y="-22" width="644" height="644" rx="18" fill="#0b1a44" opacity="0"/><g class="snk-stars" opacity="0">${[[210, -15], [300, -12], [390, -16], [480, -13], [565, -15], [615, 60], [615, 300], [-15, 420], [-15, 180], [615, 520]].map(([x, y], i) => `<path class="snk-star" style="animation-delay:${(i * 0.37).toFixed(2)}s" d="M${x} ${y - 4} L${x + 1.2} ${y - 1.2} L${x + 4} ${y} L${x + 1.2} ${y + 1.2} L${x} ${y + 4} L${x - 1.2} ${y + 1.2} L${x - 4} ${y} L${x - 1.2} ${y - 1.2}Z" fill="#fff6c4"/>`).join('')}</g></g>`;
   const cupAt = snakesCellXY(100);
-  s += `<g transform="translate(${cupAt.x} ${cupAt.y - 3})"><g class="snk-cupw"><circle class="snk-cupglow" cy="-4" r="24" fill="#ffe27a"/><g class="snk-cup"><path d="M-12 -16 H12 V-8 Q12 4 0 6 Q-12 4 -12 -8Z" fill="#ffc930" stroke="${SNK_INK}" stroke-width="1.8"/><path d="M-12 -12 Q-20 -12 -18 -4 Q-16 1 -10 0 M12 -12 Q20 -12 18 -4 Q16 1 10 0" stroke="${SNK_INK}" stroke-width="1.8" fill="none"/><rect x="-3" y="5" width="6" height="5" fill="#e0a810" stroke="${SNK_INK}" stroke-width="1.2"/><rect x="-9" y="10" width="18" height="5" rx="2" fill="#8a5a2b" stroke="${SNK_INK}" stroke-width="1.4"/><path d="M-6 -13 Q-6 -3 -1 1" stroke="#fff" stroke-width="2.2" opacity=".6" fill="none" stroke-linecap="round"/></g></g></g>`;
-  s += `<g class="snk-under"></g><g class="snk-pieces"></g>`;
+  const cup = `<g class="snk-cup"><path d="M-12 -16 H12 V-8 Q12 4 0 6 Q-12 4 -12 -8Z" fill="#ffc930" stroke="${SNK_INK}" stroke-width="1.8"/><path d="M-12 -12 Q-20 -12 -18 -4 Q-16 1 -10 0 M12 -12 Q20 -12 18 -4 Q16 1 10 0" stroke="${SNK_INK}" stroke-width="1.8" fill="none"/><rect x="-3" y="5" width="6" height="5" fill="#e0a810" stroke="${SNK_INK}" stroke-width="1.2"/><rect x="-9" y="10" width="18" height="5" rx="2" fill="#8a5a2b" stroke="${SNK_INK}" stroke-width="1.4"/><path d="M-6 -13 Q-6 -3 -1 1" stroke="#fff" stroke-width="2.2" opacity=".6" fill="none" stroke-linecap="round"/></g>`;
+  s += `<g transform="translate(${cupAt.x} ${cupAt.y - 3})"><g class="snk-cupw"><circle class="snk-cupglow" cy="-4" r="24" fill="#ffe27a"/>${th && th.cup ? th.cup(cup) : cup}</g></g>`;
+  // A theme's props round the edge (never over a square), under the pieces walking off and the bubbles.
+  if (th && th.outer) s += `<g class="snk-outer" style="pointer-events:none">${th.outer()}</g>`;
+  s += `<g class="snk-under"></g><g class="snk-pieces"></g><g class="snk-zzL" style="pointer-events:none"></g>`;
   s += `<g class="snk-die" opacity="0"><rect x="-15" y="-15" width="30" height="30" rx="7" fill="#fff" stroke="${SNK_INK}" stroke-width="2"/><g class="snk-pips"></g></g><g class="snk-fx"></g>`;
-  s += ['#ff9ec7', '#9fd3ff'].map((c, i) => `<g class="snk-fly${i ? ' b' : ''}"><path class="snk-wing" d="M0 0 C-12 -14 -16 2 0 2 Z" fill="${c}" stroke="${SNK_INK}" stroke-width=".7"/><path class="snk-wing r" d="M0 0 C12 -14 16 2 0 2 Z" fill="${c}" stroke="${SNK_INK}" stroke-width=".7"/><path d="M0 -5 V5" stroke="${SNK_INK}" stroke-width="1.8"/></g>`).join('');
+  if (!th || !th.noFlies) s += ['#ff9ec7', '#9fd3ff'].map((c, i) => `<g class="snk-fly${i ? ' b' : ''}"><path class="snk-wing" d="M0 0 C-12 -14 -16 2 0 2 Z" fill="${c}" stroke="${SNK_INK}" stroke-width=".7"/><path class="snk-wing r" d="M0 0 C12 -14 16 2 0 2 Z" fill="${c}" stroke="${SNK_INK}" stroke-width=".7"/><path d="M0 -5 V5" stroke="${SNK_INK}" stroke-width="1.8"/></g>`).join('');
   return s + '</svg>';
 }
 
@@ -246,19 +338,30 @@ const snkTR = (e, x, y, s, r) => e.setAttribute('transform', `translate(${x.toFi
  */
 const snkView = { root: null, c: null, raf: 0, lastFrame: 0, lastT: 0 };
 
-function snkEnsure() {
-  if (snkView.root && snkView.c) return snkView.c;
+function snkEnsure(themeId) {
+  const want = snkThemeOf(themeId) ? themeId : 'classic';
+  if (snkView.root && snkView.c) {
+    if (themeId === undefined || snkView.c.themeId === want) return snkView.c;
+    // Another map's dress: a new board in its place (the frame keeps the place: snkShowIn puts it back).
+    const host = snkView.root.parentNode;
+    snkDrop();
+    const c2 = snkEnsure(want);
+    if (host) host.appendChild(snkView.root);
+    return c2;
+  }
+  const th = snkThemeOf(want);
   const root = document.createElement('div');
   root.className = 'snk-board';
-  root.innerHTML = snkBoardSvg();
+  root.innerHTML = snkBoardSvg(th);
   const svg = root.querySelector('svg');
   const q = (sel) => svg.querySelector(sel);
   const c = {
     svg: svg, gen: 0, fast: false, map: null, built: false, key: '', lastSeq: 0, queue: [], playing: false, busyUntil: 0,
+    th: th, themeId: want,
     tiles: [...svg.querySelectorAll('.snk-tile')].map(g => { const n = Number(g.dataset.n); const p = snakesCellXY(n); return { g: g, num: svg.querySelector(`.snk-num[data-n="${n}"]`), cx: p.x, cy: p.y }; }),
     holesL: q('.snk-holes'), headsL: q('.snk-heads'), laddersL: q('.snk-ladders'), snakesL: q('.snk-snakes'), under: q('.snk-under'), fx: q('.snk-fx'),
-    piecesL: q('.snk-pieces'), trophy: q('.snk-cupw'), die: q('.snk-die'),
-    snakes: [], ladders: [], players: {}, time: 0, animating: 0, ctx: null,
+    piecesL: q('.snk-pieces'), trophy: q('.snk-cupw'), die: q('.snk-die'), surpL: q('.snk-surp'), zzL: q('.snk-zzL'),
+    snakes: [], ladders: [], players: {}, surp: {}, time: 0, animating: 0, ctx: null,
     dusk: q('.snk-dusk'), stars: q('.snk-stars'), night: 0
   };
   // A tap during the building skips it on this device.
@@ -289,9 +392,9 @@ function snkDrop() {
   snkView.c = null;
 }
 
-/** Puts the board into `host` (the frame's place for it). */
-function snkShowIn(host) {
-  const c = snkEnsure();
+/** Puts the board into `host` (the frame's place for it), dressed in `themeId` (a game's g.theme; the classic when none). */
+function snkShowIn(host, themeId) {
+  const c = snkEnsure(themeId || 'classic');
   if (host && snkView.root.parentNode !== host) host.appendChild(snkView.root);
   snkKick();
   snkFit();
@@ -342,35 +445,76 @@ window.addEventListener('resize', () => { cancelAnimationFrame(snkFitT); snkFitT
 
 /* --- the map on the board ------------------------------------------------------------ */
 
+/** A map's key on the board: its seed, and how many times a snake has moved on it («الخريطة بتتحرك»). */
+const snkMapKey = (m) => (m ? (m.seed || 0) + ':' + (m.v || 0) : '');
+
+/**
+ * One snake (or a theme's down piece) on the board: `d` its dress (colour, the طربوش, its curve and the
+ * numbers that make it breathe its own way), drawn by the theme's mountDown or the classic below.
+ */
+function snkMountSnake(c, s, i, d) {
+  const th = c.th;
+  const { pts, L } = snkSample(d.P);
+  const base = {
+    col: d.col, fez: d.fez, dress: d, pts: pts, L: L, W: d.W, holeK: 1, s: 0, dir: 1, amp: snkAmpOf(c), ph: d.ph, bulge: null, jaw: 0,
+    lunge: { x: 0, y: 0, s: 1 }, mood: '', tilt: 0, pox: 0, poy: 0, spotStyle: i % 3, tailFlick: 0, sleepAt: d.sleepAt, sleepFor: 0, hx: 0, hy: 0
+  };
+  if (th) return Object.assign({}, s, base, th.mountDown(c, s, i, Object.assign({}, d, { pts: pts, L: L })));
+  const col = d.col;
+  const hole = snkEl('g', {}, c.holesL);
+  const tp = pts[pts.length - 1];
+  snkEl('ellipse', { cx: tp.x, cy: tp.y + 3, rx: 13, ry: 7, fill: '#1a1208', stroke: snkTint(SNK_LOOK.tileA, -0.4), 'stroke-width': 2.5 }, hole);
+  const g = snkEl('g', { class: 'snk-snake' }, c.snakesL);
+  const body = snkEl('path', { fill: col, stroke: SNK_INK, 'stroke-width': 2.3, 'stroke-linejoin': 'round' }, g);
+  const spots = snkEl('path', { fill: snkTint(col, i % 2 ? 0.55 : -0.3), opacity: 0.95 }, g);
+  const shine = snkEl('path', { fill: 'none', stroke: '#fff', 'stroke-opacity': 0.38, 'stroke-width': 3.2, 'stroke-linecap': 'round' }, g);
+  const hd = snkEl('g', {}, c.headsL);
+  hd.innerHTML = snkHeadSvg(col, d.fez);
+  hd.querySelector('.snk-tongue').style.animationDelay = d.tongue.toFixed(2) + 's';
+  hd.querySelectorAll('.snk-lid').forEach((l, k) => { l.style.animationDelay = d.lids[k].toFixed(2) + 's'; });
+  return Object.assign({}, s, base, {
+    g: g, body: body, spots: spots, shine: shine, hd: hd, hole: hole,
+    hdi: hd.querySelector('.snk-hdi'), maw: hd.querySelector('.snk-maw'), smile: hd.querySelector('.snk-smile'), pups: [...hd.querySelectorAll('.snk-pup')]
+  });
+}
+
+/** Takes one snake's drawing off the board. */
+function snkUnmountSnake(sn) {
+  [sn.g, sn.hd, sn.hole].concat(sn.extra || []).forEach(e => { if (e && e.parentNode) e.parentNode.removeChild(e); });
+}
+
+/** A snake's curve: the theme's, or the classic's. */
+const snkWayOf = (c) => (c.th && c.th.way ? c.th.way : snkWay);
+
 function snkMountMap(c, m) {
-  c.map = m;
+  // The board's own copy: a snake that moves («الخريطة بتتحرك») is moved on it as the move is shown.
+  c.map = JSON.parse(JSON.stringify(m));
+  c.mapKey = snkMapKey(m);
   c.snakesL.innerHTML = ''; c.headsL.innerHTML = ''; c.holesL.innerHTML = ''; c.laddersL.innerHTML = '';
+  const th = c.th;
+  // Everything about the look comes from the map's seed, so every phone and the TV draw the same. A seeded
+  // Fisher-Yates (2 Oct 2026): the random comparator it replaced drew the colours, the طربوش and every curve
+  // differently in Safari and in Chrome.
   const rnd = snakesRng((m.seed || 1) ^ 0x5bd1e995);
-  const cols = SNK_LOOK.snakes.slice().sort(() => rnd() - 0.5);
+  const cols = snakesShuffle(th ? th.cols : SNK_LOOK.snakes, rnd);
   const fezAt = Math.floor(rnd() * m.snakes.length);
+  const wayOf = snkWayOf(c);
   c.snakes = m.snakes.map((s, i) => {
-    const col = cols[i % cols.length];
-    const { pts, L } = snkSample(snkWay(s, rnd));
-    const hole = snkEl('g', {}, c.holesL);
-    const tp = pts[pts.length - 1];
-    snkEl('ellipse', { cx: tp.x, cy: tp.y + 3, rx: 13, ry: 7, fill: '#1a1208', stroke: snkTint(SNK_LOOK.tileA, -0.4), 'stroke-width': 2.5 }, hole);
-    const g = snkEl('g', { class: 'snk-snake' }, c.snakesL);
-    const body = snkEl('path', { fill: col, stroke: SNK_INK, 'stroke-width': 2.3, 'stroke-linejoin': 'round' }, g);
-    const spots = snkEl('path', { fill: snkTint(col, i % 2 ? 0.55 : -0.3), opacity: 0.95 }, g);
-    const shine = snkEl('path', { fill: 'none', stroke: '#fff', 'stroke-opacity': 0.38, 'stroke-width': 3.2, 'stroke-linecap': 'round' }, g);
-    const hd = snkEl('g', {}, c.headsL);
-    hd.innerHTML = snkHeadSvg(col, i === fezAt);
-    hd.querySelector('.snk-tongue').style.animationDelay = (rnd() * 3).toFixed(2) + 's';
-    hd.querySelectorAll('.snk-lid').forEach(l => { l.style.animationDelay = (rnd() * 4).toFixed(2) + 's'; });
-    return Object.assign({}, s, {
-      col: col, pts: pts, L: L, W: 15.5 + rnd() * 2, g: g, body: body, spots: spots, shine: shine, hd: hd,
-      hdi: hd.querySelector('.snk-hdi'), maw: hd.querySelector('.snk-maw'), smile: hd.querySelector('.snk-smile'), pups: [...hd.querySelectorAll('.snk-pup')],
-      hole: hole, holeK: 1, s: 0, dir: 1, amp: 2.2, ph: rnd() * 6, bulge: null, jaw: 0, lunge: { x: 0, y: 0, s: 1 }, mood: '', tilt: 0, pox: 0, poy: 0,
-      spotStyle: i % 3, tailFlick: 0, sleepAt: 6 + rnd() * 14, sleepFor: 0, hx: 0, hy: 0
-    });
+    // A snake that moved («الخريطة بتتحرك») has its own curve (`w`); the draws its first one took are
+    // still taken (`was`), so every other snake keeps its own curve.
+    let P;
+    if (s.was && s.w) { wayOf(s.was, rnd); P = wayOf(s, snakesRng(s.w)); }
+    else P = wayOf(s, rnd);
+    const d = { col: cols[i % cols.length], fez: i === fezAt, P: P, tongue: rnd() * 3, lids: [rnd() * 4, rnd() * 4] };
+    d.W = th && th.width ? th.width(rnd) : 15.5 + rnd() * 2;
+    d.ph = rnd() * 6;
+    d.sleepAt = 6 + rnd() * 14;
+    return snkMountSnake(c, s, i, d);
   });
   c.ladders = m.ladders.map(l => {
-    const a = snakesCellXY(l.f), b = snakesCellXY(l.t), dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, vx = -uy * 8, vy = ux * 8;
+    const a = snakesCellXY(l.f), b = snakesCellXY(l.t);
+    if (th) return Object.assign({}, l, { a: a, b: b, side: (a.x + b.x) / 2 < 300 ? -1 : 1 }, th.mountUp(c, Object.assign({}, l, { a: a, b: b, side: (a.x + b.x) / 2 < 300 ? -1 : 1 }), {}));
+    const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, vx = -uy * 8, vy = ux * 8;
     const A = { x: a.x - ux * 6, y: a.y - uy * 6 }, B = { x: b.x + ux * 6, y: b.y + uy * 6 };
     const g = snkEl('g', {}, c.laddersL), inner = snkEl('g', {}, g);
     const rails = `M${A.x - vx} ${A.y - vy} L${B.x - vx} ${B.y - vy} M${A.x + vx} ${A.y + vy} L${B.x + vx} ${B.y + vy}`;
@@ -384,6 +528,20 @@ function snkMountMap(c, m) {
     snkEl('path', { d: rails, stroke: '#fff', 'stroke-opacity': 0.35, 'stroke-width': 1.1, 'stroke-linecap': 'round', fill: 'none', transform: 'translate(-.7 -.7)', class: 'snk-shine' }, inner);
     const glowL = snkEl('path', { d: rails + rungs, stroke: '#ffe27a', 'stroke-width': 9, 'stroke-linecap': 'round', fill: 'none', opacity: 0 }, inner);
     return Object.assign({}, l, { g: g, inner: inner, a: a, b: b, glowL: glowL, side: (a.x + b.x) / 2 < 300 ? -1 : 1 });
+  });
+  snkMountSurprises(c, m);
+}
+
+/** The surprise squares' objects, each standing at the top of its square (none on a map without them). */
+function snkMountSurprises(c, m) {
+  c.surpL.innerHTML = '';
+  c.surp = {};
+  Object.keys((m && m.surp) || {}).forEach(key => {
+    const n = Number(key), k = m.surp[key], q = snakesCellXY(n);
+    const wrap = snkEl('g', { class: 'snk-sp snk-sp--' + k, transform: `translate(${q.x} ${q.y - 12})` }, c.surpL);
+    const mk = snkEl('g', { class: 'snk-mk' }, wrap);
+    mk.innerHTML = `<g transform="scale(1.22)">${snkStandSvg(k)}</g>`;
+    c.surp[n] = { n: n, k: k, cx: q.x, cy: q.y, mk: mk, wrap: wrap, top: { x: q.x, y: q.y - 30 } };
   });
 }
 
@@ -401,23 +559,28 @@ function snkSpineAt(sn, a, t) {
   return { x: b.x + b.nx * o, y: b.y + b.ny * o, nx: b.nx, ny: b.ny };
 }
 
-function snkRenderSnake(c, sn, t) {
+/**
+ * The body's points this frame, for the classic and every theme: from `sn.s` (the part out of its
+ * hole) to the tail, waving, a flick of the tail, a bulge going down, or crawling along its way
+ * (snkCrawlAt). `wFn(b, d, dt)` is the width at a point (d from the visible head, dt to the tail);
+ * each point has x, y, w, its normal nx, ny, its tangent tx, ty and a (its place along the body).
+ * Shows or hides the body, the head and the hole; null when the snake is all in its hole.
+ */
+function snkBodyPts(c, sn, t, wFn) {
   const n = sn.pts.length, i0 = snkClamp(Math.round(sn.s / SNK_STEP), 0, n - 1);
   const hide = i0 >= n - 2;
-  sn.g.setAttribute('opacity', hide ? 0 : 1);
-  sn.hd.setAttribute('opacity', hide ? 0 : 1);
+  if (sn.g) sn.g.setAttribute('opacity', hide ? 0 : 1);
+  if (sn.hd) sn.hd.setAttribute('opacity', hide ? 0 : 1);
   const tp = sn.pts[n - 1];
-  sn.hole.setAttribute('transform', `translate(${tp.x} ${tp.y}) scale(${sn.holeK.toFixed(3)}) translate(${-tp.x} ${-tp.y})`);
-  if (hide) return;
+  if (sn.hole) sn.hole.setAttribute('transform', `translate(${tp.x} ${tp.y}) scale(${sn.holeK.toFixed(3)}) translate(${-tp.x} ${-tp.y})`);
+  if (hide) return null;
   // The sneak (the owner's review): the whole snake crawls along its way out to him and back, the body
   // following the head (snkCrawlAt), the tail leaving its hole; at d = 0 it is exactly its own shape.
   const cr = sn.crawl && sn.crawl.d > 0 ? sn.crawl : null;
-  const Lf = [], Rf = [], P = [];
+  const P = [];
   for (let i = i0; i < n; i++) {
     const b = sn.pts[i], d = b.a - sn.s, dt = sn.L - b.a;
-    let w = sn.W;
-    if (d < 16) w *= 0.72 + 0.28 * d / 16;
-    w *= Math.min(1, 0.1 + dt / (0.42 * sn.L));
+    let w = wFn(b, d, dt);
     if (sn.bulge != null) w += 13 * Math.exp(-Math.pow((b.a - sn.bulge) / 12, 2));
     if (cr) { const q = snkCrawlAt(sn, cr.d - b.a); P.push({ x: q.x, y: q.y, w: w, nx: 0, ny: 0, a: b.a }); continue; }
     let o = snkWave(sn, b, t);
@@ -431,34 +594,26 @@ function snkRenderSnake(c, sn, t) {
       P[k].nx = -dy / l; P[k].ny = dx / l;
     }
   }
+  P.forEach(q => { q.tx = q.ny; q.ty = -q.nx; });
+  return P;
+}
+
+/** The outline of a body of points P (each with its width): a closed path. */
+function snkOutline(P) {
+  const Lf = [], Rf = [];
   P.forEach(q => {
     Lf.push(snkR(q.x + q.nx * q.w / 2) + ' ' + snkR(q.y + q.ny * q.w / 2));
     Rf.push(snkR(q.x - q.nx * q.w / 2) + ' ' + snkR(q.y - q.ny * q.w / 2));
   });
-  sn.body.setAttribute('d', 'M' + Lf.join('L') + 'L' + Rf.reverse().join('L') + 'Z');
-  let sp = '', sh = '';
-  for (let k = 5; k < P.length - 4; k += 5) {
-    const q = P[k], side = (Math.round(q.a / 20) % 2) ? 1 : -1, r = q.w * 0.24;
-    if (sn.spotStyle === 1) {
-      const q2 = P[Math.min(P.length - 1, k + 1)];
-      const a = q.w * 0.44, a2 = q2.w * 0.44;
-      sp += 'M' + snkR(q.x + q.nx * a) + ' ' + snkR(q.y + q.ny * a) + 'L' + snkR(q.x - q.nx * a) + ' ' + snkR(q.y - q.ny * a) +
-        'L' + snkR(q2.x - q2.nx * a2) + ' ' + snkR(q2.y - q2.ny * a2) + 'L' + snkR(q2.x + q2.nx * a2) + ' ' + snkR(q2.y + q2.ny * a2) + 'Z';
-    } else if (r > 1.2) {
-      const cx = q.x + q.nx * q.w * 0.17 * side, cy = q.y + q.ny * q.w * 0.17 * side;
-      const rr = snkR(r);
-      sp += 'M' + snkR(cx - r) + ' ' + snkR(cy) + 'a' + rr + ' ' + rr + ' 0 1 0 ' + snkR(2 * r) + ' 0a' + rr + ' ' + rr + ' 0 1 0 ' + snkR(-2 * r) + ' 0';
-    }
-  }
-  for (let k = 4; k < P.length - 6; k += 2) { const q = P[k]; sh += (sh ? 'L' : 'M') + snkR(q.x + q.nx * q.w * 0.3) + ' ' + snkR(q.y + q.ny * q.w * 0.3); }
-  sn.spots.setAttribute('d', sp);
-  sn.shine.setAttribute('d', sh);
-  // The head: upright, looking about, or at a piece that has come within about three squares.
-  const h = P[0], h2 = P[Math.min(P.length - 1, 4)];
-  let fx = h.x - h2.x, fy = h.y - h2.y;
-  const fl = Math.hypot(fx, fy) || 1;
-  fx /= fl; fy /= fl;
-  const hx = h.x, hy = h.y - 1;
+  return 'M' + Lf.join('L') + 'L' + Rf.reverse().join('L') + 'Z';
+}
+
+/**
+ * The head's life, for the classic and every theme: who is near it (it watches a piece within about
+ * three squares), a doze with nobody near and a yawn awake (sn.jaw, unless a move is playing on it).
+ * Returns { near, nd, still }.
+ */
+function snkHeadLife(c, sn, t, hx, hy) {
   sn.hx = hx; sn.hy = hy;
   let near = null, nd = 1e9;
   Object.keys(c.players).forEach(id => { const p = c.players[id]; if (p.hidden) return; const dd = Math.hypot(p.x - hx, p.y - hy); if (dd < nd) { nd = dd; near = p; } });
@@ -479,18 +634,58 @@ function snkRenderSnake(c, sn, t) {
     if (k >= 1) { sn.yawnAt = 0; if (!c.animatingSnake || c.animatingSnake !== sn) sn.jaw = 0; }
     else if (!c.animatingSnake || c.animatingSnake !== sn) sn.jaw = Math.sin(k * Math.PI) * 0.7;
   }
+  return { near: near, nd: nd, still: still };
+}
+
+/** The head's mood as a class on its inner group (m-sleep, m-wow, m-lick…), written only when it changes. */
+function snkHeadMood(sn, base) {
+  const cls = base + (sn.mood ? ' m-' + sn.mood : '');
+  if (sn.hdi && sn.hdi.getAttribute('class') !== cls) sn.hdi.setAttribute('class', cls);
+}
+
+function snkRenderSnake(c, sn, t) {
+  const P = snkBodyPts(c, sn, t, (b, d, dt) => {
+    let w = sn.W;
+    if (d < 16) w *= 0.72 + 0.28 * d / 16;
+    return w * Math.min(1, 0.1 + dt / (0.42 * sn.L));
+  });
+  if (!P) return;
+  sn.body.setAttribute('d', snkOutline(P));
+  let sp = '', sh = '';
+  for (let k = 5; k < P.length - 4; k += 5) {
+    const q = P[k], side = (Math.round(q.a / 20) % 2) ? 1 : -1, r = q.w * 0.24;
+    if (sn.spotStyle === 1) {
+      const q2 = P[Math.min(P.length - 1, k + 1)];
+      const a = q.w * 0.44, a2 = q2.w * 0.44;
+      sp += 'M' + snkR(q.x + q.nx * a) + ' ' + snkR(q.y + q.ny * a) + 'L' + snkR(q.x - q.nx * a) + ' ' + snkR(q.y - q.ny * a) +
+        'L' + snkR(q2.x - q2.nx * a2) + ' ' + snkR(q2.y - q2.ny * a2) + 'L' + snkR(q2.x + q2.nx * a2) + ' ' + snkR(q2.y + q2.ny * a2) + 'Z';
+    } else if (r > 1.2) {
+      const cx = q.x + q.nx * q.w * 0.17 * side, cy = q.y + q.ny * q.w * 0.17 * side;
+      const rr = snkR(r);
+      sp += 'M' + snkR(cx - r) + ' ' + snkR(cy) + 'a' + rr + ' ' + rr + ' 0 1 0 ' + snkR(2 * r) + ' 0a' + rr + ' ' + rr + ' 0 1 0 ' + snkR(-2 * r) + ' 0';
+    }
+  }
+  for (let k = 4; k < P.length - 6; k += 2) { const q = P[k]; sh += (sh ? 'L' : 'M') + snkR(q.x + q.nx * q.w * 0.3) + ' ' + snkR(q.y + q.ny * q.w * 0.3); }
+  sn.spots.setAttribute('d', sp);
+  sn.shine.setAttribute('d', sh);
+  // The head: upright, looking about, or at a piece that has come within about three squares.
+  const h = P[0], h2 = P[Math.min(P.length - 1, 4)];
+  let fx = h.x - h2.x;
+  const fl = Math.hypot(fx, h.y - h2.y) || 1;
+  fx /= fl;
+  const hx = h.x, hy = h.y - 1;
+  const { near, nd, still } = snkHeadLife(c, sn, t, hx, hy);
   let tt = sn.dir < 0 ? -fx * 25 : fx * 18, px = still ? 0 : Math.sin(t * 0.7 + sn.ph) * 1.2, py = still ? 0 : Math.cos(t * 0.5 + sn.ph) * 0.8;
   if (near && nd < SNK_C * 3 && sn.mood !== 'sleep') { tt = snkClamp((near.x - hx) / nd * 24, -24, 24); px = (near.x - hx) / nd * 2.4; py = (near.y - hy) / nd * 2.2; }
   // A win: the snakes sway together like a crowd.
   if (c.crowd && !still) { tt = Math.sin(t * 5) * 22; py -= Math.abs(Math.sin(t * 5)) * 1.5; }
   sn.tilt = snkLerp(sn.tilt, tt, 0.12); sn.pox = snkLerp(sn.pox, px, 0.25); sn.poy = snkLerp(sn.poy, py, 0.25);
   const br = still ? 1 : 1 + 0.025 * Math.sin(t * 2 + sn.ph);
-  snkTR(sn.hd, hx + sn.lunge.x, hy + sn.lunge.y, sn.lunge.s * br * 0.62, sn.tilt);
+  snkTR(sn.hd, hx + sn.lunge.x, hy + sn.lunge.y, sn.lunge.s * br * 0.62, sn.tilt + (sn.lunge.r || 0));
   sn.pups.forEach(p => p.setAttribute('transform', `translate(${sn.pox.toFixed(2)} ${sn.poy.toFixed(2)})`));
   sn.maw.setAttribute('transform', `translate(0 9) scale(1 ${Math.max(0.01, sn.jaw).toFixed(3)})`);
   sn.smile.setAttribute('opacity', sn.jaw > 0.1 ? 0 : 1);
-  const cls = 'snk-hdi' + (sn.mood ? ' m-' + sn.mood : '');
-  if (sn.hdi.getAttribute('class') !== cls) sn.hdi.setAttribute('class', cls);
+  snkHeadMood(sn, 'snk-hdi');
 }
 
 /**
@@ -607,7 +802,8 @@ function snkFrame(now) {
   const resting = !c.animating && !c.building;
   if (!resting || now - snkView.lastFrame > 78) {
     snkView.lastFrame = now;
-    c.snakes.forEach(sn => snkRenderSnake(c, sn, t));
+    const draw = c.th ? c.th.renderDown : snkRenderSnake;
+    c.snakes.forEach(sn => draw(c, sn, t));
     if (!snkStillNow) snkAmbient(c, t);
   }
   if (snkStillNow && resting) return;          // nothing lives with the motion off: drawn once, then still
@@ -644,7 +840,10 @@ const snkWait = (c, g, ms) => snkTween(c, g, ms, () => {}, snkLin);
 const snkAlive = (c, g) => c.gen === g;
 
 function snkFace(p, m) {
+  // A piece napping on its pillow (a surprise square) keeps its eyes shut when nothing else shows.
+  if (!m && p.nap) m = 'closed';
   const set = (s, v) => { const el = p.e.querySelector(s); if (el) el.setAttribute('opacity', v); };
+  set('.snk-eC', /closed/.test(m) ? 1 : 0);
   set('.snk-smile', /gasp|zombie|sad|grin/.test(m) ? 0 : 1);
   set('.snk-sad', /sad/.test(m) ? 1 : 0);
   set('.snk-gasp', /gasp/.test(m) ? 1 : 0);
@@ -652,7 +851,7 @@ function snkFace(p, m) {
   set('.snk-armsFwd', /fwd/.test(m) ? 1 : 0);
   set('.snk-dizzy', /dizzy/.test(m) ? 1 : 0);
   set('.snk-sweat', /sweat/.test(m) ? 1 : 0);
-  set('.snk-eN', /zombie|wide/.test(m) ? 0 : 1);
+  set('.snk-eN', /zombie|wide|closed/.test(m) ? 0 : 1);
   set('.snk-eS', /zombie/.test(m) ? 1 : 0);
   set('.snk-eW', /wide/.test(m) ? 1 : 0);
   set('.snk-grin', /grin/.test(m) ? 1 : 0);
@@ -662,7 +861,11 @@ function snkFace(p, m) {
   set('.snk-legsSit', /sit/.test(m) ? 1 : 0);
 }
 
-function snkSetP(p, x, y, s, r) { p.x = x; p.y = y; snkTR(p.e, x, y, (s == null ? 1 : s) * (p.k || 1), r); }
+function snkSetP(p, x, y, s, r) {
+  p.x = x; p.y = y;
+  snkTR(p.e, x, y, (s == null ? 1 : s) * (p.k || 1), r);
+  if (p.nap && p.zz) p.zz.setAttribute('transform', `translate(${(x + 4).toFixed(1)} ${(y - 14).toFixed(1)})`);
+}
 
 /** Where a piece stands: in the lower half of its square, set apart from others on it; on the mat before its first roll. */
 function snkSpot(c, p, n) {
@@ -692,7 +895,8 @@ function snkSettleAll(c) {
     if (p.hidden) return;
     const s = snkSpot(c, p);
     p.k = s.k;
-    snkSetP(p, s.x, s.y);
+    // Napping on a surprise square's pillow: lying down until his turn passes him by.
+    snkSetP(p, s.x, s.y + (p.nap ? 3 : 0), 1, p.nap ? -84 : 0);
     // Home: sitting on the frame by the cup, cheering the rest on (each at their own moment).
     const home = p.n >= 100 && !p.dancing;
     if (p.e.classList.contains('is-home') !== home) {
@@ -964,7 +1168,11 @@ const SNK_SNAKE_ANIM = { gulp: snkGulp, slide: snkSlide, chase: snkChase, sneeze
 
 /* --- the ladder's five moves --------------------------------------------------------------- */
 
-function snkLadPt(l, u) { return { x: snkLerp(l.a.x, l.b.x, u), y: snkLerp(l.a.y + 2, l.b.y + 2, u) }; }
+/** Where a climber stands at `u` (0 its foot, 1 its top) of a ladder, or of a theme's up piece (its own `pt`). */
+function snkLadPt(l, u) { return l.pt ? l.pt(u) : { x: snkLerp(l.a.x, l.b.x, u), y: snkLerp(l.a.y + 2, l.b.y + 2, u) }; }
+
+/** A worker in his hard hat (a theme may dress him: the Nile's in a galabiya). */
+const snkWorkerOf = (c) => (c && c.th && c.th.worker ? c.th.worker() : snkWorkerSvg());
 
 function snkStepUp(c, g, p, l, u0, u1, ms, steps) {
   snkFace(p, 'up');
@@ -1028,7 +1236,7 @@ async function snkLift(c, g, p, l) {
 async function snkBoost(c, g, p, l) {
   // A worker runs up and gives him a leg up: two big leaps to the top.
   const w = snkEl('g', {}, c.under);
-  w.innerHTML = snkWorkerSvg();
+  w.innerHTML = snkWorkerOf(c);
   const hm = w.querySelector('.snk-hammer');
   const x0 = p.x, y0 = p.y, wx = x0 - 22 * l.side, far = -l.side * 120;
   await snkTween(c, g, 450, (t, r) => snkTR(w, snkLerp(wx + far, wx, t), y0 + 4 - Math.abs(Math.sin(r * Math.PI * 4)) * 3, 1, 0), snkEaseOut);
@@ -1157,7 +1365,7 @@ function snkMoods(c) {
   c.svg.classList.toggle('is-near100', near100);
   list.forEach(p => {
     let mood = '';
-    if (!busy && m && p.n > 0 && p.n < 100) {
+    if (!busy && m && p.n > 0 && p.n < 100 && !p.nap) {
       if (m.snakes.some(s => s.h > p.n && s.h - p.n <= 6)) mood = 'scared';
       else if (m.ladders.some(l => l.f > p.n && l.f - p.n <= 6)) mood = 'happy';
       else if (lead - p.n >= 30) mood = 'bored';
@@ -1182,7 +1390,7 @@ function snkAmbient(c, t) {
     const up = snkUpPid(c);
     Object.keys(c.players).forEach(id => {
       const p = c.players[id];
-      if (p.hidden || p.n >= 100) return;
+      if (p.hidden || p.n >= 100 || p.nap) return;
       if (p.movedAt == null) p.movedAt = t;
       const sit = id !== up && id !== c.currentPid && t - p.movedAt > SNK_SIT_AFTER;
       if (p.e.classList.contains('is-sat') !== sit) p.e.classList.toggle('is-sat', sit);
@@ -1199,7 +1407,7 @@ function snkAmbient(c, t) {
 /** One waiting player taps a foot, yawns, or watches the snakes (never the one about to roll). */
 function snkIdleOnce(c) {
   const up = snkUpPid(c);
-  const list = Object.keys(c.players).map(id => c.players[id]).filter(p => !p.hidden && p.n < 100 && p.id !== up && !SNK_IDLES.some(k => p.e.classList.contains(k)));
+  const list = Object.keys(c.players).map(id => c.players[id]).filter(p => !p.hidden && !p.nap && p.n < 100 && p.id !== up && !SNK_IDLES.some(k => p.e.classList.contains(k)));
   if (!list.length) return;
   const p = list[Math.floor(Math.random() * list.length)];
   const kinds = p.e.classList.contains('is-sat') ? ['yawn', 'watch'] : ['tap', 'yawn', 'watch', 'tap'];
@@ -1243,11 +1451,11 @@ async function snkBoardLife(c) {
   const pick = (a) => a[Math.floor(Math.random() * a.length)];
   const kind = pick(['yawn', 'stretch', 'fly', 'fly', 'worker', 'worker']);
   const sn = pick(c.snakes.filter(s => s.mood !== 'sleep') .concat([])) || c.snakes[0];
-  const reset = () => { if (c.animatingSnake !== sn) { sn.jaw = 0; sn.lunge = { x: 0, y: 0, s: 1 }; sn.amp = 2.2; if (sn.mood === 'wow') sn.mood = ''; } };
+  const reset = () => { if (c.animatingSnake !== sn) { sn.jaw = 0; sn.lunge = { x: 0, y: 0, s: 1 }; sn.amp = snkAmpOf(c); if (sn.mood === 'wow') sn.mood = ''; } };
   try {
     if (kind === 'yawn') sn.yawnAt = c.time;
     else if (kind === 'stretch') {
-      await snkAmb(c, 1500, (t, r) => { const k = Math.sin(r * Math.PI); sn.amp = 2.2 + 4 * k; sn.lunge = { x: 0, y: -9 * k, s: 1 + 0.12 * k }; sn.jaw = 0.45 * Math.sin(Math.min(1, r * 1.6) * Math.PI); }, snkLin);
+      await snkAmb(c, 1500, (t, r) => { const k = Math.sin(r * Math.PI); sn.amp = snkAmpOf(c) + (c.th && !c.th.crawls ? 0 : 4 * k); sn.lunge = { x: 0, y: -9 * k, s: 1 + 0.12 * k }; sn.jaw = 0.45 * Math.sin(Math.min(1, r * 1.6) * Math.PI); }, snkLin);
       reset();
     } else if (kind === 'fly') await snkButterflySnap(c, sn, reset);
     else await snkWorkerRung(c, pick(c.ladders));
@@ -1285,7 +1493,7 @@ async function snkButterflySnap(c, sn, reset) {
 async function snkWorkerRung(c, l) {
   if (!l) return;
   const w = snkEl('g', {}, c.under);
-  w.innerHTML = snkWorkerSvg();
+  w.innerHTML = snkWorkerOf(c);
   const hm = w.querySelector('.snk-hammer');
   const at = snkLadPt(l, 0.25 + Math.random() * 0.4), side = at.x < 300 ? 1 : -1, off = at.x + 20 * side, far = side > 0 ? 690 : -90;
   const bob = r => -Math.abs(Math.sin(r * Math.PI * 7)) * 3;
@@ -1599,7 +1807,7 @@ async function snkSneak(c, g, p, e) {
   p.k = home.k;
   snkSetP(p, home.x, home.y);
   const done = () => {
-    sn.crawl = null; sn.amp = 2.2; sn.mood = ''; sn.jaw = 0; sn.bulge = null; sn.lunge = { x: 0, y: 0, s: 1 };
+    sn.crawl = null; sn.amp = snkAmpOf(c); sn.mood = ''; sn.jaw = 0; sn.bulge = null; sn.lunge = { x: 0, y: 0, s: 1 };
     c.animatingSnake = null;
   };
   // 1. He stands on his own square: everyone sees where he is (0.7 s).
@@ -1684,6 +1892,53 @@ async function snkSneak(c, g, p, e) {
   snkFace(p, '');
 }
 
+/**
+ * The sneak on a map whose down pieces can't crawl (the metro's slides, the alley's drainpipes): he
+ * stands on his own square, looks round, tiptoes to the ladder and starts up it; the nearest down
+ * piece's top calls him back («على فين؟», its head lunging where it stands) and he tumbles back onto
+ * his square. The same story and the same time as the crawl, without the crawl.
+ */
+async function snkSneakStill(c, g, p, e) {
+  const l = c.ladders.find(x => x.f === e.sneak.f), sn = c.snakes.find(x => x.h === e.sneak.h);
+  if (!l) return;
+  p.n = e.walk;
+  const home = snkSpot(c, p), foot = snkLadPt(l, 0);
+  p.k = home.k;
+  snkSetP(p, home.x, home.y);
+  snkMarkSquare(c, e.walk, p.col, 1150);
+  await snkWait(c, g, 700);
+  if (!snkAlive(c, g)) return;
+  snkFace(p, 'wide');
+  await snkTween(c, g, 500, (t, r) => { const lk = Math.sin(r * Math.PI * 2); snkSetP(p, home.x - lk * 2, home.y, 1, -lk * 7); }, snkLin);
+  if (!snkAlive(c, g)) return;
+  snkFace(p, 'grin');
+  snkBubble(c, home.x, home.y - 24, snkT('snk_b_shh'), 800);
+  await snkTween(c, g, 400, (t, r) => snkSetP(p, snkLerp(home.x, foot.x, t), snkLerp(home.y, foot.y, t) - Math.abs(Math.sin(r * Math.PI * 4)) * 3, 1, Math.sin(r * Math.PI * 4) * 7), snkLin);
+  if (!snkAlive(c, g)) return;
+  snkFace(p, 'up');
+  await snkTween(c, g, 350, (t, r) => { const u = snkLadPt(l, 0.3 * t); snkSetP(p, u.x, u.y, 1, Math.sin(r * Math.PI * 4) * 12); }, snkEaseOut);
+  if (!snkAlive(c, g)) return;
+  if (sn) {
+    c.animatingSnake = sn;
+    sn.mood = 'wow';
+    snkSound(c, 'snkHiss', p.mine);
+    snkBubble(c, sn.hx, sn.hy - 16, snkT('snk_b_notyou'), 900);
+    await snkTween(c, g, 600, (t, r) => { const k = Math.sin(r * Math.PI); sn.jaw = 0.7 * k; sn.lunge = { x: (p.x - sn.hx) * 0.18 * k, y: (p.y - sn.hy) * 0.18 * k, s: 1 + 0.2 * k }; }, snkLin);
+    sn.jaw = 0; sn.lunge = { x: 0, y: 0, s: 1 }; sn.mood = '';
+    c.animatingSnake = null;
+  }
+  if (!snkAlive(c, g)) return;
+  snkFace(p, 'gasp up');
+  snkBubble(c, p.x, p.y - 24, snkT('snk_b_ah'), 800);
+  snkSound(c, 'snkBoing', p.mine);
+  const x1 = p.x, y1 = p.y;
+  await snkTween(c, g, 450, t => snkSetP(p, snkLerp(x1, home.x, t), snkLerp(y1, home.y, t) - Math.sin(t * Math.PI) * 30, 1, t * 300), snkLin);
+  snkSettleAll(c);
+  snkFace(p, 'dizzy');
+  await snkWait(c, g, 300);
+  snkFace(p, '');
+}
+
 /** A player who leaves picks up a little suitcase and walks off the board. */
 async function snkLeave(c, g, p) {
   if (!p || p.hidden) return;
@@ -1694,17 +1949,412 @@ async function snkLeave(c, g, p) {
   await snkTween(c, g, SNAKES_LEAVE_MS - 300, (t, r) => snkSetP(p, snkLerp(x0, to, t), y0 - Math.abs(Math.sin(r * Math.PI * 9)) * 3, 1, Math.sin(r * Math.PI * 9) * 5), snkEaseIn);
 }
 
+/* --- the third round (the owner, 2 Oct 2026): the surprise squares --------------------------------
+   Look ج «حاجة واقفة»: the thing standing on the square acts, as the sheet drew it (the basket's flute
+   flies to his hand, the signpost spins and the two swap in the air, the star flies off its stick and
+   bursts, the worker carries him on his shoulders, the peel spins and he slides back on his back, the
+   pillow and Zzz). Each inside its time in Snakes.js (SNAKES_SURP_MS), what happens decided there. */
+
+/** A surprise object's own squash, spin or lift, about its base. */
+function snkMkSet(sp, o) {
+  if (!sp || !sp.mk) return;
+  if (!o || (!o.dy && !o.r && o.sx == null && o.sy == null)) { sp.mk.removeAttribute('transform'); return; }
+  const sx = o.sx == null ? 1 : o.sx, sy = o.sy == null ? sx : o.sy;
+  sp.mk.setAttribute('transform', `translate(0 ${(o.dy || 0).toFixed(2)}) rotate(${(o.r || 0).toFixed(1)}) scale(${Math.max(0.001, sx).toFixed(3)} ${Math.max(0.001, sy).toFixed(3)})`);
+}
+
+/** The object answers the landing: a squash and a stretch. */
+async function snkMarkPop(c, g, sp, mine) {
+  snkSound(c, 'snkSurp', mine);
+  await snkTween(c, g, 380, (t, r) => { const k = Math.sin(r * Math.PI); snkMkSet(sp, { sx: r < 0.35 ? 1 + k * 0.25 : 1 - k * 0.12, sy: r < 0.35 ? 1 - k * 0.3 : 1 + k * 0.28 }); }, snkLin);
+  snkMkSet(sp, {});
+  return snkAlive(c, g);
+}
+
+/** A music note floating up from the flute. */
+function snkNote(c, x, y) {
+  if (c.fast || snkStill()) return;
+  const cols = ['#ff6fb1', '#9b76e6', '#35b6e6', '#ffd23f'];
+  const e = snkEl('g', {}, c.fx);
+  e.innerHTML = snkNoteSvg(cols[Math.floor(Math.random() * cols.length)]);
+  const t0 = performance.now(), dx = (Math.random() - 0.5) * 30;
+  (function f(now) {
+    const k = snkClamp((now - t0) / 1100, 0, 1);
+    snkTR(e, x + dx * k + Math.sin(k * 9) * 4, y - 40 * k, 0.8 + 0.3 * Math.sin(k * Math.PI), Math.sin(k * 7) * 15);
+    e.setAttribute('opacity', k < 0.7 ? 1 : ((1 - k) / 0.3).toFixed(2));
+    if (k < 1 && e.isConnected) requestAnimationFrame(f); else e.remove();
+  })(t0);
+}
+
+/** The charm on a piece: a violet ring round it and the flute in its hand, until a snake lets it pass. */
+function snkCharmOn(c, p, on) {
+  p.charm = !!on;
+  const el = p.e.querySelector('.snk-charmG');
+  if (el) el.setAttribute('opacity', on ? 1 : 0);
+}
+
+/** A nap: lying on a pillow, eyes shut, Zzz, until its turn passes it by. */
+function snkNapOn(c, p, on) {
+  p.nap = !!on;
+  const pil = p.e.querySelector('.snk-pillowG'), shd = p.e.querySelector('.snk-shd');
+  if (pil) pil.setAttribute('opacity', on ? 1 : 0);
+  if (shd) shd.setAttribute('opacity', on ? 0 : 1);
+  if (on && !p.zz && c.zzL) {
+    p.zz = snkEl('g', { class: 'snk-zzz' }, c.zzL);
+    p.zz.innerHTML = '<text font-size="11">z</text><text x="3" y="-3" font-size="14">Z</text><text x="-2" y="-1" font-size="9">z</text>';
+  }
+  if (p.zz) { p.zz.setAttribute('opacity', on ? 1 : 0); p.zz.setAttribute('transform', `translate(${(p.x + 4).toFixed(1)} ${(p.y - 14).toFixed(1)})`); }
+  if (on) snkCalm(p);
+  snkFace(p, '');
+}
+
+/** Plays the surprise a roll landed on. */
+async function snkSurprise(c, g, p, e) {
+  const s = e.surp, q = snakesCellXY(s.n);
+  const sp = c.surp[s.n] || { n: s.n, k: s.k, cx: q.x, cy: q.y, mk: null, wrap: null, top: { x: q.x, y: q.y - 30 } };
+  const fn = SNK_SURP_FX[s.k];
+  if (fn) await fn(c, g, p, sp, e);
+}
+
+async function snkFxCharm(c, g, p, sp) {
+  if (!await snkMarkPop(c, g, sp, p.mine)) return;
+  for (let i = 0; i < 4; i++) setTimeout(() => { if (snkAlive(c, g)) snkNote(c, sp.top.x, sp.top.y - 8); }, i * 150);
+  snkSound(c, 'snkFlute', p.mine);
+  snkBubble(c, sp.cx, sp.cy - 34, snkT('snk_b_charm_take'), 1300);
+  await snkWait(c, g, 300);
+  if (!snkAlive(c, g)) return;
+  const f = snkEl('g', {}, c.fx);
+  f.innerHTML = snkSurpIcon('charm');
+  const x0 = sp.top.x, y0 = sp.top.y;
+  await snkTween(c, g, 600, t => snkTR(f, snkLerp(x0, p.x + 7, t), snkLerp(y0, p.y + 2, t) - Math.sin(t * Math.PI) * 50, 1.2 - 0.5 * t, t * 400), snkEase);
+  f.remove();
+  if (!snkAlive(c, g)) return;
+  snkCharmOn(c, p, true);
+  snkFace(p, 'up');
+  for (let i = 0; i < 5; i++) snkSparkle(c, p.x, p.y - 10);
+  snkBubble(c, p.x, p.y - 26, snkT('snk_b_charm_have'), 1100);
+  await snkWait(c, g, 700);
+  snkFace(p, '');
+}
+
+/** The charm used: he plays the flute, the snake sways to it and lets him pass (he stays on its head). */
+async function snkCharmSnake(c, g, p, sn) {
+  const x0 = p.x, y0 = p.y;
+  snkFace(p, 'closed up');
+  sn.mood = 'charm';
+  snkBubble(c, p.x, p.y - 26, snkT('snk_b_charm_play'), 1400);
+  snkSound(c, 'snkFlute', p.mine);
+  let last = 0;
+  await snkTween(c, g, 1600, (t, r) => {
+    const sw = Math.sin(r * Math.PI * 6);
+    sn.lunge = { x: sw * 8, y: -7 * Math.min(1, r * 5), s: 1.06, r: sw * 14 };
+    snkSetP(p, x0, y0, 1, Math.sin(r * Math.PI * 12) * 4);
+    if (r - last > 0.12) { last = r; snkNote(c, x0 + 12, y0 - 26); }
+  }, snkLin);
+  if (!snkAlive(c, g)) return;
+  snkBubble(c, sn.hx, sn.hy - 14, snkT('snk_b_charm_pass'), 900);
+  await snkTween(c, g, 300, t => { sn.lunge = { x: 0, y: -7 * (1 - t), s: 1.06 - 0.06 * t, r: 0 }; }, snkEase);
+  sn.mood = ''; sn.lunge = { x: 0, y: 0, s: 1 };
+  snkCharmOn(c, p, false);
+  snkPuff(c, p.x + 10, p.y, 5, '#d9c6ff');
+  snkFace(p, 'up');
+  await snkTween(c, g, 380, t => snkSetP(p, x0, y0 - Math.abs(Math.sin(t * Math.PI * 2)) * 14), snkLin);
+  snkBubble(c, p.x, p.y - 26, snkT('snk_b_charm_done'), 800);
+  snkFace(p, '');
+  snkSettleAll(c);
+  await snkWait(c, g, 150);
+}
+
+async function snkFxSwap(c, g, p, sp, e) {
+  if (!await snkMarkPop(c, g, sp, p.mine)) return;
+  const o = e.surp.with ? c.players[e.surp.with] : null;
+  if (!o) {
+    snkBubble(c, p.x, p.y - 26, snkT('snk_b_swap_none'), 1100);
+    await snkWait(c, g, 650);
+    return;
+  }
+  snkBubble(c, p.x, p.y - 26, snkT('snk_b_swap'), 800);
+  snkSound(c, 'snkBoing', p.mine);
+  if (sp.mk) snkTween(c, g, 500, t => snkMkSet(sp, { r: Math.sin(t * Math.PI * 2) * 25 }), snkLin).then(() => snkMkSet(sp, {}));
+  await snkWait(c, g, 250);
+  if (!snkAlive(c, g)) return;
+  const a = { x: p.x, y: p.y }, b = { x: o.x, y: o.y };
+  p.n = e.surp.to; o.n = e.walk;
+  const sa = snkSpot(c, p), sb = snkSpot(c, o);
+  p.k = sa.k; o.k = sb.k;
+  snkCalm(o);
+  snkFace(p, 'up'); snkFace(o, 'gasp');
+  const sw = snkEl('g', {}, c.fx);
+  sw.innerHTML = snkSurpIcon('swap');
+  await snkTween(c, g, 850, (t, r) => {
+    snkSetP(p, snkLerp(a.x, sa.x, t), snkLerp(a.y, sa.y, t) - Math.sin(t * Math.PI) * 90, 1, t * 360);
+    snkSetP(o, snkLerp(b.x, sb.x, t), snkLerp(b.y, sb.y, t) - Math.sin(t * Math.PI) * 45, 1, -t * 360);
+    snkTR(sw, (a.x + b.x) / 2, Math.min(a.y, b.y) - 40, 0.001 + 1.6 * Math.sin(r * Math.PI), r * 540);
+  }, snkEase);
+  sw.remove();
+  if (!snkAlive(c, g)) return;
+  snkSettleAll(c);
+  snkBubble(c, o.x, o.y - 26, snkT('snk_b_swap_what'), 1000);
+  snkFace(p, '');
+  await snkWait(c, g, 450);
+  snkFace(o, '');
+}
+
+async function snkFxAgain(c, g, p, sp) {
+  if (!await snkMarkPop(c, g, sp, p.mine)) return;
+  const star = sp.mk && sp.mk.querySelector('.snk-sp-star');
+  if (star) star.setAttribute('opacity', 0.2);
+  const st = snkEl('g', {}, c.fx);
+  st.innerHTML = snkSurpIcon('again');
+  const x0 = sp.top.x, y0 = sp.top.y - 4;
+  snkSound(c, 'snkSix', p.mine);
+  await snkTween(c, g, 650, (t, r) => snkTR(st, x0, y0 - t * 70, 1 + t * 1.4, r * 360), snkEaseOut);
+  st.remove();
+  if (!snkAlive(c, g)) { if (star) star.setAttribute('opacity', 1); return; }
+  snkBurst(c, x0, y0 - 70, '#ffd23f');
+  for (let i = 0; i < 6; i++) snkSparkle(c, x0, y0 - 70);
+  if (star) star.setAttribute('opacity', 1);
+  snkBubble(c, p.x, p.y - 26, snkT('snk_b_again'), 900);
+  snkFace(p, 'up');
+  await snkWait(c, g, 350);
+  snkFace(p, '');
+}
+
+async function snkFxWorker(c, g, p, sp, e) {
+  if (!await snkMarkPop(c, g, sp, p.mine)) return;
+  const by = e.surp.by || 0;
+  if (!by) {
+    snkBubble(c, sp.cx, sp.cy - 34, snkT('snk_b_worker_rest'), 1100);
+    await snkWait(c, g, 600);
+    return;
+  }
+  const w = snkEl('g', {}, c.under);
+  w.innerHTML = snkStandWorkerSvg();
+  const arm = w.querySelector('.snk-warm');
+  const from = { x: sp.cx - 3, y: sp.cy - 13 };
+  if (sp.wrap) sp.wrap.setAttribute('opacity', 0.15);
+  const bob = (r) => -Math.abs(Math.sin(r * Math.PI * 6)) * 3;
+  const px = p.x, py = p.y;
+  await snkTween(c, g, 380, (t, r) => snkTR(w, snkLerp(from.x, px, t), snkLerp(from.y, py, t) + bob(r), 1, 0), snkEaseOut);
+  if (!snkAlive(c, g)) { w.remove(); if (sp.wrap) sp.wrap.setAttribute('opacity', 1); return; }
+  snkBubble(c, px, py - 30, snkT('snk_b_worker'), 800);
+  snkFace(p, 'up');
+  await snkTween(c, g, 220, t => snkSetP(p, px, py - 24 * t, 1, 0), snkEaseOut);
+  let wx = px, wy = py;
+  for (let i = 1; i <= by; i++) {
+    const q = snakesCellXY(p.n + 1);
+    p.n++;
+    snkSound(c, 'snkStep', p.mine);
+    const tx = q.x, ty = q.y + 12, x1 = wx, y1 = wy;
+    const ok = await snkTween(c, g, SNAKES_WORKER_STEP_MS - 20, (t, r) => { const x = snkLerp(x1, tx, t), y = snkLerp(y1, ty, t) + bob(r); snkTR(w, x, y, 1, 0); snkSetP(p, x, y - 24, 1, Math.sin(r * Math.PI * 2) * 6); }, snkLin);
+    wx = tx; wy = ty;
+    if (!ok) { w.remove(); if (sp.wrap) sp.wrap.setAttribute('opacity', 1); return; }
+  }
+  const s2 = snkSpot(c, p);
+  p.k = s2.k;
+  await snkTween(c, g, 280, t => snkSetP(p, snkLerp(wx, s2.x, t), snkLerp(wy - 24, s2.y, t) - Math.sin(t * Math.PI) * 14, 1, 0), snkLin);
+  snkSettleAll(c);
+  if (arm) arm.setAttribute('d', 'M8 0 L14 -14');
+  snkBubble(c, wx, wy - 30, snkT('snk_b_worker_bye'), 800);
+  await snkWait(c, g, 200);
+  await snkTween(c, g, 350, (t, r) => snkTR(w, snkLerp(wx, from.x, t), snkLerp(wy, from.y, t) + bob(r), 1, 0), snkEaseIn);
+  w.remove();
+  if (sp.wrap) sp.wrap.setAttribute('opacity', 1);
+  snkFace(p, '');
+}
+
+async function snkFxPeel(c, g, p, sp, e) {
+  const to = e.surp.to;
+  snkFace(p, 'gasp up');
+  snkBubble(c, p.x, p.y - 26, snkT('snk_b_peel'), 1000);
+  snkSound(c, 'snkSlide', p.mine);
+  await snkTween(c, g, 500, t => snkMkSet(sp, { r: t * 360 }), snkEaseOut);
+  snkMkSet(sp, {});
+  if (!snkAlive(c, g)) return;
+  const path = [{ x: p.x, y: p.y }];
+  for (let n = p.n - 1; n >= to; n--) { const q = snakesCellXY(n); path.push({ x: q.x, y: q.y + 12 }); }
+  p.n = to;
+  const L = path.length - 1;
+  let lastP = 0;
+  const ok = await snkTween(c, g, 850, (t, r) => {
+    const f = t * L, i = Math.min(L - 1, Math.floor(f)), u = f - i, a = path[i], b = path[i + 1] || a;
+    snkSetP(p, snkLerp(a.x, b.x, u), snkLerp(a.y, b.y, u) + 2, 1, -75 + Math.sin(r * Math.PI * 8) * 8);
+    if (r - lastP > 0.12) { lastP = r; snkPuff(c, p.x, p.y + 14, 1, '#ffe680', 8); }
+  }, snkEaseOut);
+  if (!ok) return;
+  snkSettleAll(c);
+  await snkDizzy(c, g, p, 500);
+}
+
+async function snkFxNap(c, g, p, sp) {
+  if (!await snkMarkPop(c, g, sp, p.mine)) return;
+  snkBubble(c, p.x, p.y - 26, snkT('snk_b_nap'), 1100);
+  snkFace(p, 'closed');
+  await snkWait(c, g, 450);
+  if (!snkAlive(c, g)) return;
+  const x = p.x, y = p.y;
+  await snkTween(c, g, 450, t => snkSetP(p, x, y + 3 * t, 1, -84 * t), snkEaseOut);
+  snkNapOn(c, p, true);
+  snkSetP(p, x, y + 3, 1, -84);
+  await snkWait(c, g, 400);
+}
+
+/** His turn passes him by: «نايم!», snoring a moment, then he wakes up. */
+async function snkNapSkip(c, g, p) {
+  if (!p || p.hidden) return;
+  snkBubble(c, p.x, p.y - 26, snkT('snk_b_nap_skip'), 1200);
+  snkSound(c, 'snkSnore', false);
+  const x = p.x, y = p.y;
+  await snkTween(c, g, 1100, (t, r) => snkSetP(p, x, y + Math.sin(r * Math.PI * 4) * 1.2, 1 + Math.sin(r * Math.PI * 4) * 0.03, -84), snkLin);
+  if (!snkAlive(c, g)) return;
+  snkNapOn(c, p, false);
+  snkFace(p, 'gasp');
+  await snkTween(c, g, 380, t => snkSetP(p, x, y - 3 - Math.sin(t * Math.PI) * 16, 1, -84 * (1 - t)), snkEaseOut);
+  snkFace(p, 'up');
+  snkBubble(c, p.x, p.y - 26, snkT('snk_b_nap_wake'), 900);
+  await snkWait(c, g, 350);
+  snkFace(p, '');
+  snkSettleAll(c);
+}
+
+const SNK_SURP_FX = { charm: snkFxCharm, swap: snkFxSwap, again: snkFxAgain, worker: snkFxWorker, peel: snkFxPeel, nap: snkFxNap };
+
+/* --- «الخريطة بتتحرك»: a snake moves to a new spot (the server's pick, Snakes.js) ---------------------
+   A snake that can crawl (the classic's, the Nile's crocodiles, the desert's cobras) crawls there along
+   one planned path (snkCrawlAt, the sneak's crawl), its body following its head, and settles into its new
+   curve; a down piece that can't (a slide, a drainpipe) is taken down and put up again. Anyone on its new
+   head is eaten and comes out at its new tail. */
+
+/** The way from a snake's head to a point, the one whose body tangles least (snkCrawlPlan's ways). */
+function snkCrawlTo(pts, to, W) {
+  let best = null;
+  [[0, 0, 15], [0, 0, -15], [0, 0, 0], [1, 55, 12], [-1, 55, 12], [1, 75, 0], [-1, 75, 0]].forEach(([turn, R, amp]) => {
+    const w = snkCrawlWayOf(pts, to, turn, R || 55, amp);
+    const knots = snkCrawlKnots(pts, w.pts, W);
+    const score = knots * 1000 + w.L + (turn ? 10 : 0);
+    if (!best || score < best.score) best = { way: w.pts, D: w.L, score: score };
+  });
+  return best;
+}
+
+/** Points along a polyline, each with its place along it and its normal (a body's resting shape for snkBodyPts). */
+function snkPtsOf(poly) {
+  let a = 0;
+  const out = poly.map((p, i) => { if (i) a += Math.hypot(p.x - poly[i - 1].x, p.y - poly[i - 1].y); return { x: p.x, y: p.y, a: a }; });
+  out.forEach((p, i) => {
+    const q = out[Math.min(out.length - 1, i + 1)], r = out[Math.max(0, i - 1)], dx = q.x - r.x, dy = q.y - r.y, l = Math.hypot(dx, dy) || 1;
+    p.nx = -dy / l; p.ny = dx / l;
+  });
+  return out;
+}
+
+/** Snake `i` drawn again at its new spot `s2` (its own colour and face), and the board's map moved with it. */
+function snkRemountSnake(c, i, s2) {
+  const old = c.snakes[i];
+  const d = Object.assign({}, old.dress, { P: snkWayOf(c)(s2, snakesRng(s2.w)) });
+  snkUnmountSnake(old);
+  const sn = snkMountSnake(c, s2, i, d);
+  c.snakes[i] = sn;
+  c.map.snakes[i] = { h: s2.h, t: s2.t, w: s2.w, was: s2.was };
+  c.map.v = (c.map.v || 0) + 1;
+  c.mapKey = snkMapKey(c.map);
+  return sn;
+}
+
+/** A piece standing where the snake's new head came: eaten, and out at its new tail. */
+async function snkMoveEat(c, g, sn, p) {
+  snkFace(p, 'gasp');
+  snkBubble(c, p.x, p.y - 22, snkT('snk_b_no'), 700);
+  const x0 = p.x, y0 = p.y;
+  await snkTween(c, g, 250, t => { sn.jaw = t; }, snkLin);
+  await snkTween(c, g, 250, t => snkSetP(p, snkLerp(x0, sn.hx, t), snkLerp(y0, sn.hy + 8, t), 1 - t * 0.9, t * 140), snkEaseIn);
+  p.e.setAttribute('opacity', 0); p.hidden = true;
+  snkSound(c, 'snkGulp', p.mine);
+  sn.jaw = 0;
+  await snkTween(c, g, 600, t => { sn.bulge = snkLerp(sn.s + 14, sn.L - 12, t); }, snkEase);
+  sn.bulge = null;
+  if (!snkAlive(c, g)) { p.hidden = false; p.e.setAttribute('opacity', 1); return; }
+  const tp = snkSpineAt(sn, sn.L - 4, c.time || 0);
+  p.n = sn.t; p.hidden = false; p.e.setAttribute('opacity', 1);
+  snkPuff(c, tp.x, tp.y, 5);
+  const s = snkSpot(c, p);
+  p.k = s.k;
+  await snkTween(c, g, 340, t => snkSetP(p, snkLerp(tp.x, s.x, t), snkLerp(tp.y, s.y, t) - Math.sin(t * Math.PI) * 30, 0.3 + 0.7 * t, 0), snkLin);
+  snkSettleAll(c);
+  snkFace(p, 'dizzy');
+}
+
+async function snkMoveSnake(c, g, e) {
+  const i = e.i, old = c.snakes[i];
+  if (!old) return;
+  const s2 = { h: e.to.h, t: e.to.t, w: e.w, was: old.was || { h: e.from.h, t: e.from.t } };
+  snkBubble(c, old.hx || snakesCellXY(e.from.h).x, (old.hy || snakesCellXY(e.from.h).y) - 16, snkT('snk_b_move'), 1000);
+  snkSound(c, 'snkHiss', false);
+  let sn;
+  if (c.fast || snkStill()) sn = snkRemountSnake(c, i, s2);
+  else if (!c.th || c.th.crawls) {
+    // It crawls to its new spot, the body following the head, and settles into its new curve.
+    const nw = snkSample(snkWayOf(c)(s2, snakesRng(s2.w)));
+    const plan = snkCrawlTo(old.pts, nw.pts[0], old.W);
+    c.animatingSnake = old;
+    old.mood = 'wow';
+    old.crawl = { way: plan.way, d: 0 };
+    const D = plan.D, L0 = old.L;
+    await snkTween(c, g, 1500, t => { old.crawl.d = D * t; old.holeK = snkClamp(1 - (D * t - L0 * 0.6) / (L0 * 0.4), 0, 1); }, snkEase);
+    if (!snkAlive(c, g)) return;
+    const N = Math.max(old.pts.length, nw.pts.length), A = [], B = [];
+    for (let k = 0; k < N; k++) {
+      const f = k / (N - 1);
+      A.push(snkCrawlPoint(old.pts, plan.way, D - f * L0));
+      const b = nw.pts[Math.round(f * (nw.pts.length - 1))];
+      B.push({ x: b.x, y: b.y });
+    }
+    old.crawl = null;
+    old.holeK = 0;
+    await snkTween(c, g, 900, t => { old.pts = snkPtsOf(A.map((a, k) => ({ x: snkLerp(a.x, B[k].x, t), y: snkLerp(a.y, B[k].y, t) }))); old.L = old.pts[old.pts.length - 1].a; }, snkEase);
+    c.animatingSnake = null;
+    if (!snkAlive(c, g)) return;
+    sn = snkRemountSnake(c, i, s2);
+    sn.holeK = 0;
+    await snkTween(c, g, 250, t => { sn.holeK = snkBackOut(t); }, snkLin);
+    sn.holeK = 1;
+  } else {
+    // A slide or a drainpipe: taken down where it was, and put up at its new spot.
+    old.amp = 0;
+    await snkTween(c, g, 700, t => { old.s = snkLerp(0, old.L, t); }, snkEaseIn);
+    await snkTween(c, g, 200, t => { old.holeK = 1 - t; }, snkLin);
+    if (!snkAlive(c, g)) return;
+    sn = snkRemountSnake(c, i, s2);
+    sn.s = sn.L; sn.holeK = 0;
+    await snkTween(c, g, 220, t => { sn.holeK = snkBackOut(t); }, snkLin);
+    await snkTween(c, g, 900, t => { sn.s = snkLerp(sn.L, 0, t); }, snkEaseOut);
+    sn.s = 0; sn.holeK = 1;
+    snkSound(c, 'snkKnock', false);
+    snkPuff(c, sn.hx || snakesCellXY(s2.h).x, (sn.hy || snakesCellXY(s2.h).y) + 10, 4, '#e8d8b0', 14);
+  }
+  if (!snkAlive(c, g)) return;
+  const eaten = (e.eat || []).map(id => c.players[id]).filter(p => p && !p.hidden);
+  if (eaten.length) {
+    c.animatingSnake = sn;
+    await Promise.all(eaten.map(p => snkMoveEat(c, g, sn, p)));
+    c.animatingSnake = null;
+    snkSnakeReset(c, sn);
+    eaten.forEach(p => snkFace(p, ''));
+  }
+}
+
 /* --- the map taken apart and built -------------------------------------------------------- */
 
 async function snkCarry(c, g, l, inward, delay) {
   await snkWait(c, g, delay || 0);
   if (!snkAlive(c, g)) return;
   const w = snkEl('g', {}, c.under);
-  w.innerHTML = snkWorkerSvg();
+  w.innerHTML = snkWorkerOf(c);
   const hm = w.querySelector('.snk-hammer');
   const mx = (l.a.x + l.b.x) / 2, my = (l.a.y + l.b.y) / 2, far = l.side * 720;
   const bob = r => -Math.abs(Math.sin(r * Math.PI * 8)) * 3;
   if (inward) {
+    if (l.base) l.base.setAttribute('opacity', 1);
     await snkTween(c, g, 950, (t, r) => { const dx = snkLerp(far, 0, t); l.g.setAttribute('transform', `translate(${dx} ${-10 + bob(r)})`); snkTR(w, mx + dx, my + 18 + bob(r), 1, 0); }, snkEaseOut);
     if (!snkAlive(c, g)) { w.remove(); return; }
     l.g.removeAttribute('transform');
@@ -1725,6 +2375,7 @@ async function snkCarry(c, g, l, inward, delay) {
     if (!snkAlive(c, g)) { w.remove(); return; }
     await snkTween(c, g, 750, (t, r) => { const dx = snkLerp(0, far, t); l.g.setAttribute('transform', `translate(${dx} ${-10 + bob(r)})`); snkTR(w, mx + dx, my + 18 + bob(r), 1, 0); }, snkEaseIn);
     w.remove();
+    if (l.base) l.base.setAttribute('opacity', 0);
   }
 }
 
@@ -1745,7 +2396,8 @@ async function snkTeardown(c, g) {
   await snkWait(c, g, 450);
   if (!snkAlive(c, g)) return;
   await Promise.all(c.snakes.map((sn, i) => snkWait(c, g, i * 80).then(() => { sn.dir = -1; sn.amp = 5; return snkTween(c, g, 900, t => { sn.s = snkLerp(0, sn.L, t); }, snkEaseIn); }).then(() => snkTween(c, g, 220, t => { sn.holeK = 1 - t; })))
-    .concat(c.ladders.map((l, i) => snkCarry(c, g, l, false, i * 100))));
+    .concat(c.ladders.map((l, i) => snkCarry(c, g, l, false, i * 100)))
+    .concat(Object.keys(c.surp).map(n => snkTween(c, g, 300, t => snkMkSet(c.surp[n], { sx: 1 - t, sy: 1 - t }), snkEaseIn))));
   if (!snkAlive(c, g)) return;
   await snkTween(c, g, 700, (t, r) => c.tiles.forEach((tl, i) => snkTileK(tl, 1 - snkEaseIn(snkClamp(r * 2.2 - (99 - i) * 0.012, 0, 1)))), snkLin);
 }
@@ -1756,12 +2408,13 @@ async function snkBuild(c, g, e, m, seats) {
   snkKick();
   if (e.teardown && c.built && c.map) await snkTeardown(c, g);
   if (!snkAlive(c, g)) { c.building = false; return; }
-  if (!c.map || c.map.seed !== m.seed) snkMountMap(c, m);
+  if (!c.map || c.mapKey !== snkMapKey(m)) snkMountMap(c, m);
   c.built = false;
   const order = snkTileOrder(e.v || 0);
   c.tiles.forEach(tl => snkTileK(tl, 0));
   c.snakes.forEach(sn => { sn.s = sn.L; sn.holeK = 0; sn.dir = 1; sn.amp = 5; sn.bulge = null; sn.jaw = 0; sn.mood = ''; sn.lunge = { x: 0, y: 0, s: 1 }; });
-  c.ladders.forEach(l => l.g.setAttribute('transform', `translate(${l.side * 720} 0)`));
+  c.ladders.forEach(l => { l.g.setAttribute('transform', `translate(${l.side * 720} 0)`); if (l.base) l.base.setAttribute('opacity', 0); });
+  Object.keys(c.surp).forEach(n => c.surp[n].wrap.setAttribute('opacity', 0));
   Object.keys(c.players).forEach(id => { const p = c.players[id]; p.n = 0; p.hidden = true; p.e.setAttribute('opacity', 0); snkFace(p, ''); });
   c.trophy.setAttribute('transform', 'scale(0.001)');
   snkSound(c, 'snkBuild', false);
@@ -1770,7 +2423,9 @@ async function snkBuild(c, g, e, m, seats) {
   await snkTween(c, g, 320, t => c.trophy.setAttribute('transform', `scale(${snkBackOut(t).toFixed(3)})`), snkLin);
   c.trophy.removeAttribute('transform');
   await Promise.all(c.ladders.map((l, i) => snkCarry(c, g, l, true, i * 150))
-    .concat(c.snakes.map((sn, i) => snkWait(c, g, 250 + i * 170).then(() => snkTween(c, g, 240, t => { sn.holeK = snkBackOut(t); }, snkLin)).then(() => snkTween(c, g, 1200, t => { sn.s = snkLerp(sn.L, 0, t); }, snkEaseOut)).then(() => { sn.amp = 2.2; sn.s = 0; sn.holeK = 1; }))));
+    .concat(c.snakes.map((sn, i) => snkWait(c, g, 250 + i * 170).then(() => snkTween(c, g, 240, t => { sn.holeK = snkBackOut(t); }, snkLin)).then(() => snkTween(c, g, 1200, t => { sn.s = snkLerp(sn.L, 0, t); }, snkEaseOut)).then(() => { sn.amp = snkAmpOf(c); sn.s = 0; sn.holeK = 1; })))
+    // The surprise squares' objects pop up on their squares while the snakes come out.
+    .concat(Object.keys(c.surp).map((n, i) => snkWait(c, g, 400 + i * 140).then(() => { const sp = c.surp[n]; sp.wrap.setAttribute('opacity', 1); return snkTween(c, g, 320, t => snkMkSet(sp, { sx: snkBackOut(t), sy: snkBackOut(t) }), snkLin); }).then(() => snkMkSet(c.surp[n], {})))));
   if (!snkAlive(c, g)) { c.building = false; return; }
   const ids = (seats || []).filter(id => c.players[id]);
   for (let i = 0; i < ids.length; i++) {
@@ -1797,7 +2452,7 @@ function snkSyncPlayers(c, g, me, keep) {
   const want = g.seats || [];
   Object.keys(c.players).forEach(id => {
     // A leaver whose suitcase walk is still to play stays until it has played (snkLeave).
-    if (want.indexOf(id) === -1 && !(keep && keep[id])) { c.players[id].e.remove(); delete c.players[id]; }
+    if (want.indexOf(id) === -1 && !(keep && keep[id])) { if (c.players[id].zz) c.players[id].zz.remove(); c.players[id].e.remove(); delete c.players[id]; }
   });
   want.forEach((id, i) => {
     const col = SNK_HEX[g.colors[id]] || '#888';
@@ -1828,14 +2483,15 @@ function snkSettleTo(c, g) {
   c.animating = 0;
   c.fx.innerHTML = ''; c.under.innerHTML = '';
   c.die.setAttribute('opacity', 0);
-  if (g.map && (!c.map || c.map.seed !== g.map.seed)) snkMountMap(c, g.map);
-  c.snakes.forEach(sn => { sn.s = 0; sn.holeK = 1; sn.dir = 1; sn.amp = 2.2; sn.bulge = null; sn.jaw = 0; sn.mood = ''; sn.lunge = { x: 0, y: 0, s: 1 }; sn.tailFlick = 0; sn.crawl = null; });
+  if (g.map && (!c.map || c.mapKey !== snkMapKey(g.map))) snkMountMap(c, g.map);
+  c.snakes.forEach(sn => { sn.s = 0; sn.holeK = 1; sn.dir = 1; sn.amp = snkAmpOf(c); sn.bulge = null; sn.jaw = 0; sn.mood = ''; sn.lunge = { x: 0, y: 0, s: 1 }; sn.tailFlick = 0; sn.crawl = null; });
   c.crowd = false; c.life = false; c.animatingSnake = null;
   c.svg.classList.remove('is-drum');
-  c.ladders.forEach(l => { l.g.removeAttribute('transform'); l.inner.removeAttribute('transform'); l.glowL.setAttribute('opacity', 0); });
+  c.ladders.forEach(l => { l.g.removeAttribute('transform'); l.inner.removeAttribute('transform'); l.glowL.setAttribute('opacity', 0); if (l.base) l.base.setAttribute('opacity', 1); if (l.reset) l.reset(); });
+  Object.keys(c.surp).forEach(n => { const sp = c.surp[n]; sp.wrap.setAttribute('opacity', 1); sp.mk.removeAttribute('transform'); sp.mk.setAttribute('opacity', 1); });
   c.tiles.forEach(tl => [tl.g, tl.num].forEach(el => { el.removeAttribute('transform'); el.setAttribute('opacity', 1); }));
   c.trophy.removeAttribute('transform');
-  Object.keys(c.players).forEach(id => { const p = c.players[id]; p.n = (g.pos || {})[id] || 0; p.hidden = false; p.dancing = false; p.e.setAttribute('opacity', 1); snkFace(p, ''); snkCalm(p); });
+  Object.keys(c.players).forEach(id => { const p = c.players[id]; p.n = (g.pos || {})[id] || 0; p.hidden = false; p.dancing = false; p.e.setAttribute('opacity', 1); snkFace(p, ''); snkCalm(p); snkCharmOn(c, p, !!(g.charm && g.charm[id])); snkNapOn(c, p, !!(g.nap && g.nap[id])); });
   snkSettleAll(c);
   c.built = true;
   c.busyUntil = 0;
@@ -1844,12 +2500,23 @@ function snkSettleTo(c, g) {
 
 /* --- playing the events --------------------------------------------------------------------- */
 
+/** The events a board plays (the others are only told in the log). */
+const SNK_PLAYED = { build: true, roll: true, left: true, nap: true, move: true };
+
 /** How long this screen will be busy playing the events it was given (for "wait before rolling"). */
 function snkEventMs(e) {
   if (e.type === 'build') return e.ms || SNAKES_BUILD_MS;
   if (e.type === 'roll') return e.ms || snakesRollMs(e);
-  if (e.type === 'left') return e.ms || 0;
+  if (e.type === 'left' || e.type === 'nap' || e.type === 'move') return e.ms || 0;
   return 0;
+}
+
+/** A snake's resting wave: the theme's (a slide or a pipe doesn't wave), or the classic's. */
+const snkAmpOf = (c) => (c && c.th && c.th.amp != null ? c.th.amp : 2.2);
+
+/** A snake back to rest after a move played on it. */
+function snkSnakeReset(c, sn) {
+  sn.jaw = 0; sn.mood = ''; sn.lunge = { x: 0, y: 0, s: 1 }; sn.bulge = null; sn.tailFlick = 0; sn.amp = snkAmpOf(c);
 }
 
 /** One roll: the die, the walk (bouncing off 100), the snake or ladder, a near miss, a six, a finish. */
@@ -1863,25 +2530,37 @@ async function snkPlayRoll(c, g, e) {
   snkSettleAll(c);
   // The second round: from 95 the drumroll first; the heads walked past on the way; a 1.
   if (e.tense && !await snkTense(c, g, p).then(() => snkAlive(c, g))) return;
+  // In a team, a member already home rolled for him: the roller says so from the frame.
+  if (e.by && c.players[e.by]) {
+    const b = c.players[e.by], names = (c.ctx && c.ctx.names) || {};
+    snkBubble(c, b.x + 64, b.y + 40, snkT('snk_b_for', { name: names[e.pid] || '' }), 1100);
+  }
   if (!await snkRollDie(c, g, p, e.n)) return;
   const passQ = (e.pass || []).slice();
   if (e.over) { if (!await snkBounceBack(c, g, p, e.walk, passQ)) return; }
   else if (!await snkHopTo(c, g, p, e.walk, passQ)) return;
-  if (e.n === 1 && !e.jump && !e.over && !e.place) { await snkOne(c, g, p); if (!snkAlive(c, g)) return; }
+  if (e.n === 1 && !e.jump && !e.over && !e.place && !e.surp && !e.charmed) { await snkOne(c, g, p); if (!snkAlive(c, g)) return; }
   if (e.jump) snkReact(c, e, p, e.jump.k);
+  // A themed map plays its own down and up moves (the server picked one of its theme's).
+  const sAnim = c.th ? c.th.downMoves : SNK_SNAKE_ANIM, lAnim = c.th ? c.th.upMoves : SNK_LADDER_ANIM;
   if (e.jump && e.jump.k === 's') {
     const sn = c.snakes.find(s => s.h === e.walk);
-    const fn = SNK_SNAKE_ANIM[e.jump.v] || snkSlide;
+    const fn = sAnim[e.jump.v] || sAnim[Object.keys(sAnim)[0]];
     if (sn) {
       await snkWait(c, g, 150);
       c.animatingSnake = sn;
       await fn(c, g, p, sn);
       c.animatingSnake = null;
-      if (sn) { sn.jaw = 0; sn.mood = ''; sn.lunge = { x: 0, y: 0, s: 1 }; sn.bulge = null; sn.tailFlick = 0; sn.amp = 2.2; }
+      snkSnakeReset(c, sn);
     }
+  } else if (e.charmed) {
+    const sn = c.snakes.find(s => s.h === e.charmed.h);
+    if (sn) { c.animatingSnake = sn; await snkCharmSnake(c, g, p, sn); c.animatingSnake = null; snkSnakeReset(c, sn); }
+  } else if (e.surp) {
+    await snkSurprise(c, g, p, e);
   } else if (e.jump && e.jump.k === 'l') {
     const l = c.ladders.find(x => x.f === e.walk);
-    const fn = SNK_LADDER_ANIM[e.jump.v] || snkClimb;
+    const fn = lAnim[e.jump.v] || lAnim[Object.keys(lAnim)[0]];
     if (l) await fn(c, g, p, l);
     if (!snkAlive(c, g)) return;
     p.n = e.to;
@@ -1894,7 +2573,9 @@ async function snkPlayRoll(c, g, e) {
     const fn = SNK_TAIL_ANIM[e.tail.v] || snkTickle;
     if (sn) { c.animatingSnake = sn; await fn(c, g, p, sn); c.animatingSnake = null; sn.tailFlick = 0; sn.jaw = 0; }
   } else if (e.sneak) {
-    await snkSneak(c, g, p, e);
+    // A down piece that can't crawl (a slide, a drainpipe) calls him back from where it stands.
+    if (c.th && !c.th.crawls) await snkSneakStill(c, g, p, e);
+    else await snkSneak(c, g, p, e);
   } else if (e.near === 's') {
     const sn = c.snakes.filter(s => Math.abs(s.h - e.walk) === 1)[0];
     if (sn) await snkNearMiss(c, g, p, sn);
@@ -1926,10 +2607,12 @@ async function snkRunQueue(c) {
       else if (e.type === 'left') {
         const p = c.players[e.pid];
         // A player who leaves picks up a little suitcase and walks off the board.
-        if (p) { p.leaving = true; await snkLeave(c, g, p); p.e.remove(); }
+        if (p) { p.leaving = true; if (p.zz) p.zz.remove(); await snkLeave(c, g, p); p.e.remove(); }
         delete c.players[e.pid];
         snkSettleAll(c);
       }
+      else if (e.type === 'nap' && c.players[e.pid]) await snkNapSkip(c, g, c.players[e.pid]);
+      else if (e.type === 'move') await snkMoveSnake(c, g, e);
     } catch (err) { console.error('snakes animation', err); }
     if (!snkAlive(c, g)) return;
     // Shown: the log may tell it now (and whatever came with it: a finish, the end).
@@ -1945,6 +2628,8 @@ async function snkRunQueue(c) {
   if (last) {
     Object.keys(c.players).forEach(id => { const p = c.players[id]; const n = (last.pos || {})[id]; if (typeof n === 'number' && n !== p.n) { p.n = n; } });
     snkSettleAll(c);
+    // The game ended in front of this screen: its awards play (snkAwardsAuto).
+    if (last.phase === 'gameover') c.liveEnd = c.key;
   }
   if (typeof c.onIdle === 'function') c.onIdle();
 }
@@ -1955,7 +2640,7 @@ async function snkRunQueue(c) {
  * time plays its building only when `fresh`, otherwise the board is simply set.
  */
 function snkFeed(g, ctx) {
-  const c = snkEnsure();
+  const c = snkEnsure(snakesTheme(g));
   c.ctx = ctx;
   snkNight(c, g.rolls);
   c.onIdle = ctx.onIdle;
@@ -1972,6 +2657,8 @@ function snkFeed(g, ctx) {
   const quiet = document.hidden || snkStill() || !snkView.root || !snkView.root.isConnected;
   if (c.key !== ctx.key) {
     c.key = ctx.key;
+    c.liveEnd = '';
+    if (snkAw.key !== ctx.key) snkAwClose();
     const build = events.find(e => e.type === 'build');
     if (ctx.fresh && build && !quiet) {
       c.gen++;
@@ -1986,7 +2673,7 @@ function snkFeed(g, ctx) {
       return 0;
     }
   }
-  const fresh = events.filter(e => e && (Number(e.seq) || 0) > c.lastSeq && (e.type === 'build' || e.type === 'roll' || e.type === 'left'));
+  const fresh = events.filter(e => e && (Number(e.seq) || 0) > c.lastSeq && SNK_PLAYED[e.type]);
   c.lastSeq = Math.max(c.lastSeq, maxSeq);
   if (!fresh.length) {
     if (!c.playing) { if (!c.map && g.map) snkSettleTo(c, g); else snkSettleAllTo(c, g); }
@@ -2013,29 +2700,373 @@ function snkSettleAllTo(c, g) {
 
 const snkBusy = () => !!(snkView.c && (snkView.c.playing || snkView.c.building || snkView.c.busyUntil > Date.now()));
 
+/* --- the awards (the owner, 2 Oct 2026; look ج «لقطة», notes/snakes-surprises-sheet.html) -----------
+   Up to three a game (Snakes.js picks them and keeps each moment's squares, so every screen replays the
+   same): like a replay in a match, a dark screen over the board with a red «لقطة» tag, a little board
+   replaying the moment in slow motion (the fall down its snake, the climb rung by rung, the gulps with a
+   tally, the sixes collecting under a crown), then the award's title, the name and a count-up; at the
+   end «أبطال اللعبة», the three side by side, and confetti. Played once when the game ends in front of
+   this screen; the podium's «🎬» plays it again. With the motion off, the recap at once. */
+
+const SNK_AW = {
+  fall: { col: '#ff6b6b', sign: -1, emoji: '😭' },
+  ladder: { col: '#ffb35a', pre: '+', emoji: '🪜' },
+  eaten: { col: '#5fd27f', emoji: '🐍' },
+  sixes: { col: '#b69bff', emoji: '🎲' }
+};
+const snkAw = { el: null, gen: 0, key: '', k: null };
+const SNK_AW_W = 600, SNK_AW_H = 650;
+
+function snkAwIcon(k) {
+  const I = SNK_INK, lk = SNK_LOOK;
+  if (k === 'eaten') return `<g><path d="M-14 12 C-22 4 -6 -2 -12 -10 C-16 -16 -4 -20 2 -16" stroke="${I}" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M-14 12 C-22 4 -6 -2 -12 -10 C-16 -16 -4 -20 2 -16" stroke="#7cc243" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <circle cx="-15" cy="4" r="1.6" fill="#4f8f22"/><circle cx="-11" cy="-9" r="1.6" fill="#4f8f22"/><g transform="translate(8 -12) rotate(-15)"><ellipse rx="10" ry="8.5" fill="#7cc243" stroke="${I}" stroke-width="1.8"/><circle cx="-3.6" cy="-3" r="3" fill="#fff" stroke="${I}" stroke-width="1.1"/><circle cx="3.6" cy="-3" r="3" fill="#fff" stroke="${I}" stroke-width="1.1"/><circle cx="-3.2" cy="-2.6" r="1.4" fill="${I}"/><circle cx="4" cy="-2.6" r="1.4" fill="${I}"/><path d="M-5 3.5 Q0 7.5 5 3.5" stroke="${I}" stroke-width="1.4" fill="#5a0f1c"/></g></g>`;
+  if (k === 'ladder') return `<g transform="rotate(12)"><path d="M-7 18 V-18 M7 18 V-18 M-7 11 H7 M-7 3 H7 M-7 -5 H7 M-7 -13 H7" stroke="${lk.lInk}" stroke-width="5" stroke-linecap="round"/><path d="M-7 18 V-18 M7 18 V-18 M-7 11 H7 M-7 3 H7 M-7 -5 H7 M-7 -13 H7" stroke="${lk.rail}" stroke-width="3" stroke-linecap="round"/>
+    <path d="M14 -6 L18 -14 L22 -6 M18 -14 V2" stroke="#2a9d4a" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+  if (k === 'sixes') return `<g><rect x="-14" y="-10" width="26" height="26" rx="6" fill="#fff" stroke="${I}" stroke-width="2"/>${[[-7, -4], [5, -4], [-7, 3], [5, 3], [-7, 10], [5, 10]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.4" fill="${I}"/>`).join('')}
+    <path d="M-12 -12 L-14 -22 L-7 -16 L-1 -24 L5 -16 L12 -22 L10 -12Z" fill="#ffd23f" stroke="${I}" stroke-width="1.6" stroke-linejoin="round"/><circle cx="-1" cy="-24" r="1.6" fill="#e5383b"/></g>`;
+  return `<g><circle r="16" fill="#ffd23f" stroke="${I}" stroke-width="2"/><path d="M-9 -5 Q-6 -2 -3 -5 M3 -5 Q6 -2 9 -5" stroke="${I}" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M-7 9 Q0 3 7 9" stroke="${I}" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M-7 -1 q-2 8 -1 18 M7 -1 q2 8 1 18" stroke="#6ec6ff" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+    <path d="M-13 -11 L-5 -9 M13 -11 L5 -9" stroke="${I}" stroke-width="1.6" stroke-linecap="round"/></g>`;
+}
+
+/** The line under an award's name: from where to where, or how many times. */
+function snkAwSub(a) {
+  if (a.k === 'fall' || a.k === 'ladder') return snkT('snk_aw_from', { from: a.from, to: a.to });
+  return snkT(a.k === 'eaten' ? 'snk_aw_eaten_sub' : 'snk_aw_sixes_sub', { n: a.val });
+}
+
+function snkAwClose() {
+  snkAw.gen++;
+  if (snkAw.el) snkAw.el.remove();
+  snkAw.el = null;
+}
+
+/** A tween of the replay: stops when it is closed or played again, lands at once with the motion off. */
+function snkAwTween(gen, ms, fn, ez) {
+  const e = ez || snkEase;
+  if (snkAw.gen !== gen) return Promise.resolve(false);
+  if (snkStill() || !ms) { fn(1, 1); return Promise.resolve(snkAw.gen === gen); }
+  return new Promise(res => {
+    const t0 = performance.now();
+    const step = (now) => {
+      if (snkAw.gen !== gen) { res(false); return; }
+      const r = Math.min(1, (now - t0) / ms);
+      fn(e(r), r);
+      if (r < 1 && !document.hidden) requestAnimationFrame(step);
+      else { if (r < 1) fn(1, 1); res(true); }
+    };
+    requestAnimationFrame(step);
+  });
+}
+const snkAwWait = (gen, ms) => snkAwTween(gen, ms, () => {}, snkLin);
+
+/** A little board for the replay: its squares in the map's own colours, the moment's squares' numbers big. */
+function snkAwBoard(c, B, hi) {
+  const th = c && c.th, lk = SNK_LOOK;
+  let s = `<rect x="${B.x - 6}" y="${B.y - 6}" width="${B.cs * 10 + 12}" height="${B.cs * 10 + 12}" rx="8" fill="${(th && th.frame) || lk.frame}"/>`;
+  for (let n = 1; n <= 100; n++) {
+    const q = snkAwCell(B, n), p = snakesCellXY(n), alt = (snakesRowOf(n) + Math.round((p.x - SNK_C / 2) / SNK_C)) % 2;
+    const tl = th ? th.tile(n, p.x - SNK_C / 2, p.y - SNK_C / 2, alt) : null;
+    const fill = tl ? tl.fill : (alt ? lk.tileB : lk.tileA);
+    const h = hi.indexOf(n) !== -1;
+    s += `<rect x="${q.x - B.cs / 2}" y="${q.y - B.cs / 2}" width="${B.cs}" height="${B.cs}" fill="${fill}"/>`;
+    s += `<text x="${q.x}" y="${(q.y + B.cs * 0.16).toFixed(1)}" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="${h ? B.cs * 0.52 : B.cs * 0.34}" fill="${(tl && tl.num) || lk.num}" opacity="${h ? 1 : 0.55}">${n}</text>`;
+  }
+  return s;
+}
+function snkAwCell(B, n) { const i = n - 1, r = Math.floor(i / 10), k = i % 10, col = r % 2 ? 9 - k : k; return { x: B.x + col * B.cs + B.cs / 2, y: B.y + (9 - r) * B.cs + B.cs / 2 }; }
+function snkAwSnake(v, from, to, col) {
+  const B = v.B, H = snkAwCell(B, from), T = snkAwCell(B, to), dx = T.x - H.x, dy = T.y - H.y, L = Math.hypot(dx, dy) || 1, px = -dy / L, py = dx / L;
+  const P = [{ x: H.x, y: H.y }];
+  for (let j = 1; j <= 3; j++) { const f = j / 4, amp = B.cs * 0.9 * (j % 2 ? 1 : -1); P.push({ x: H.x + dx * f + px * amp, y: H.y + dy * f + py * amp }); }
+  P.push(T);
+  const sp = snkSample(P);
+  const d = 'M' + sp.pts.map(p => p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join('L');
+  const g = snkEl('g', {}, v.mb);
+  snkEl('path', { d: d, stroke: SNK_INK, 'stroke-width': B.cs * 0.5 + 3, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
+  snkEl('path', { d: d, stroke: col, 'stroke-width': B.cs * 0.5, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
+  snkEl('path', { d: d, stroke: snkTint(col, -0.3), 'stroke-width': B.cs * 0.2, fill: 'none', 'stroke-dasharray': `${B.cs * 0.25} ${B.cs * 0.45}`, 'stroke-linecap': 'round' }, g);
+  const hd = snkEl('g', {}, g);
+  hd.innerHTML = snkHeadSvg(col, false);
+  snkTR(hd, H.x, H.y, B.cs / 42);
+  return { sp: sp, hd: hd, H: H };
+}
+function snkAwLadder(v, from, to) {
+  const B = v.B, a = snkAwCell(B, from), b = snkAwCell(B, to), dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, w = B.cs * 0.22, vx = -uy * w, vy = ux * w;
+  let rails = `M${a.x - vx} ${a.y - vy} L${b.x - vx} ${b.y - vy} M${a.x + vx} ${a.y + vy} L${b.x + vx} ${b.y + vy}`, rungs = '';
+  for (let s = 6; s < L; s += B.cs * 0.32) { const x = a.x + ux * s, y = a.y + uy * s; rungs += `M${x - vx} ${y - vy} L${x + vx} ${y + vy}`; }
+  const g = snkEl('g', {}, v.mb);
+  snkEl('path', { d: rails + rungs, stroke: SNK_LOOK.lInk, 'stroke-width': 4.5, 'stroke-linecap': 'round', fill: 'none' }, g);
+  snkEl('path', { d: rails + rungs, stroke: SNK_LOOK.rail, 'stroke-width': 2.6, 'stroke-linecap': 'round', fill: 'none' }, g);
+  return { a: a, b: b };
+}
+function snkAwPiece(v, col) { const e = snkEl('g', {}, v.mfx); e.innerHTML = snkPersonSvg(col); return { e: e }; }
+/** A count-up's number, its sign held to its left (an isolate: in an Arabic line a bare −61 shows as 61−). */
+const snkAwFmt = (v) => '⁦' + (v < 0 ? '−' : '') + Math.abs(Math.round(v)) + '⁩';
+
+/** The award's title, the name and the count-up. */
+function snkAwText(v, a) {
+  const T = v.T, A = SNK_AW[a.k], col = v.col(a.pid);
+  v.txt.innerHTML = `<g transform="translate(${T.x} ${T.y})" font-family="Noto Kufi Arabic,sans-serif" font-weight="800" text-anchor="middle">
+    <g class="ti" transform="scale(0)"><g transform="scale(1.5)">${snkAwIcon(a.k)}</g></g>
+    <text class="tt" y="52" font-size="26" fill="#fff" opacity="0" direction="${appState.lang === 'en' ? 'ltr' : 'rtl'}"></text>
+    <g class="tn" opacity="0" transform="translate(0 88)"><rect x="-80" y="-18" width="160" height="32" rx="16" fill="${col}" stroke="#fff" stroke-width="2"/><text y="6" font-size="17" fill="#fff" stroke="${SNK_INK}" stroke-width="2.5" style="paint-order:stroke"></text></g>
+    <text class="tv" y="144" font-size="48" fill="${A.col}" font-family="system-ui,sans-serif" opacity="0" direction="ltr">0</text>
+    <text class="ts" y="172" font-size="15" font-weight="600" fill="#cfc6ea" opacity="0" direction="${appState.lang === 'en' ? 'ltr' : 'rtl'}"></text></g>`;
+  v.txt.querySelector('.tt').textContent = A.emoji + ' ' + snkT('snk_aw_' + a.k);
+  v.txt.querySelector('.tn text').textContent = v.name(a.pid);
+  v.txt.querySelector('.ts').textContent = snkAwSub(a);
+}
+async function snkAwTitle(v, gen, a) {
+  const q = (s) => v.txt.querySelector(s);
+  await snkAwTween(gen, 420, t => q('.ti').setAttribute('transform', `scale(${snkBackOut(t).toFixed(3)})`), snkLin);
+  for (const s of ['.tt', '.tn']) { const e = q(s); await snkAwTween(gen, 260, u => e.setAttribute('opacity', snkR(u)), snkLin); }
+  q('.tv').setAttribute('opacity', 1); q('.ts').setAttribute('opacity', 1);
+  const A = SNK_AW[a.k], to = (A.sign || 1) * a.val;
+  return snkAwTween(gen, 900, t => { q('.tv').textContent = (A.pre || '') + snkAwFmt(to * t); }, snkEaseOut);
+}
+
+/* The four replays. */
+async function snkAwClipFall(v, gen, a) {
+  v.mb.innerHTML = snkAwBoard(v.c, v.B, [a.from, a.to]);
+  const sn = snkAwSnake(v, a.from, a.to, '#9b59d0');
+  const S = v.B.cs / 30, p = snkAwPiece(v, v.col(a.pid));
+  const at = (n) => { const q = snkAwCell(v.B, n); return { x: q.x, y: q.y + v.B.cs * 0.2 }; };
+  let n = Math.max(1, a.from - 3);
+  let q = at(n);
+  snkTR(p.e, q.x, q.y, S);
+  while (n < a.from) {
+    const a0 = at(n), b0 = at(n + 1);
+    n++;
+    if (!await snkAwTween(gen, 260, t => snkTR(p.e, snkLerp(a0.x, b0.x, t), snkLerp(a0.y, b0.y, t) - Math.sin(t * Math.PI) * 8, S), snkLin)) return false;
+  }
+  snkFace(p, 'gasp');
+  v.slo.setAttribute('opacity', 1);
+  const maw = sn.hd.querySelector('.snk-maw');
+  await snkAwTween(gen, 350, t => maw.setAttribute('transform', `translate(0 9) scale(1 ${Math.max(0.01, t).toFixed(2)})`), snkLin);
+  const pts = sn.sp.pts;
+  const lab = snkEl('text', { 'text-anchor': 'middle', 'font-family': 'system-ui,sans-serif', 'font-weight': 800, 'font-size': v.B.cs * 0.7, fill: '#fff', stroke: SNK_INK, 'stroke-width': 3, style: 'paint-order:stroke' }, v.mfx);
+  const ok = await snkAwTween(gen, 2400, t => {
+    const pt = pts[Math.min(pts.length - 1, Math.round(t * (pts.length - 1)))];
+    snkTR(p.e, pt.x, pt.y - v.B.cs * 0.2, S, t * 720);
+    lab.setAttribute('x', (pt.x + v.B.cs).toFixed(1)); lab.setAttribute('y', (pt.y - v.B.cs * 0.6).toFixed(1));
+    lab.textContent = Math.round(snkLerp(a.from, a.to, t));
+  }, snkEase);
+  maw.setAttribute('transform', 'translate(0 9) scale(1 .01)');
+  v.slo.setAttribute('opacity', 0);
+  lab.remove();
+  if (!ok) return false;
+  snkFace(p, 'dizzy');
+  return snkAwTitle(v, gen, a);
+}
+async function snkAwClipLadder(v, gen, a) {
+  v.mb.innerHTML = snkAwBoard(v.c, v.B, [a.from, a.to]);
+  const L = snkAwLadder(v, a.from, a.to), S = v.B.cs / 30;
+  const p = snkAwPiece(v, v.col(a.pid));
+  snkTR(p.e, L.a.x, L.a.y, S);
+  snkFace(p, 'up');
+  if (!await snkAwWait(gen, 400)) return false;
+  v.slo.setAttribute('opacity', 1);
+  const lab = snkEl('text', { 'text-anchor': 'middle', 'font-family': 'system-ui,sans-serif', 'font-weight': 800, 'font-size': v.B.cs * 0.7, fill: '#fff', stroke: SNK_INK, 'stroke-width': 3, style: 'paint-order:stroke' }, v.mfx);
+  const steps = 12;
+  const ok = await snkAwTween(gen, 2300, (t, r) => {
+    const k = Math.floor(r * steps), f = snkEase(snkClamp(r * steps - k, 0, 1)), u = Math.min(1, (k + f) / steps), x = snkLerp(L.a.x, L.b.x, u), y = snkLerp(L.a.y, L.b.y, u);
+    snkTR(p.e, x, y - Math.sin(f * Math.PI) * 3, S, Math.sin(r * steps * Math.PI) * 8);
+    lab.setAttribute('x', (x + v.B.cs * 1.1).toFixed(1)); lab.setAttribute('y', y.toFixed(1));
+    lab.textContent = Math.round(snkLerp(a.from, a.to, u));
+  }, snkLin);
+  v.slo.setAttribute('opacity', 0);
+  lab.remove();
+  if (!ok) return false;
+  return snkAwTitle(v, gen, a);
+}
+async function snkAwClipEaten(v, gen, a) {
+  const eats = (a.eats && a.eats.length ? a.eats : [{ h: 60, t: 20 }]).slice(-Math.min(6, a.val));
+  const heads = eats.filter((e, i) => eats.findIndex(x => x.h === e.h) === i);
+  v.mb.innerHTML = snkAwBoard(v.c, v.B, heads.map(h => h.h));
+  const cols = ['#ff8a1f', '#35b6e6', '#ef4a5a', '#7cc243', '#f4c230', '#ff6fb1'];
+  const sns = {};
+  heads.forEach((h, i) => { sns[h.h] = snkAwSnake(v, h.h, h.t, cols[i % cols.length]); });
+  const S = v.B.cs / 30, p = snkAwPiece(v, v.col(a.pid));
+  const tally = snkEl('g', {}, v.mfx);
+  const shown = Math.min(a.val, 9);
+  for (let i = 0; i < shown; i++) {
+    const sn = sns[eats[i % eats.length].h], ms = Math.max(260, 620 - i * 70);
+    p.e.setAttribute('opacity', 1);
+    snkFace(p, 'gasp');
+    if (!await snkAwTween(gen, ms * 0.5, t => snkTR(p.e, sn.H.x, sn.H.y + v.B.cs * 0.5 - t * v.B.cs * 0.3, S * (1 - t * 0.6)), snkLin)) return false;
+    const maw = sn.hd.querySelector('.snk-maw');
+    if (!await snkAwTween(gen, ms * 0.5, t => { maw.setAttribute('transform', `translate(0 9) scale(1 ${Math.max(0.01, Math.sin(t * Math.PI)).toFixed(2)})`); snkTR(p.e, sn.H.x, sn.H.y, S * 0.4 * (1 - t) + 0.001); }, snkLin)) return false;
+    p.e.setAttribute('opacity', 0);
+    const bx = v.B.x + v.B.cs * 5 - (shown - 1) * 10 + i * 20, by = v.B.y - 16;
+    const m = snkEl('g', {}, tally);
+    m.innerHTML = `<circle r="9" fill="#7cc243" stroke="#fff" stroke-width="1.6"/><text y="4" text-anchor="middle" font-size="11" font-weight="800" fill="${SNK_INK}" font-family="system-ui,sans-serif">${i + 1}</text>`;
+    snkAwTween(gen, 300, t => snkTR(m, bx, by, snkBackOut(t)), snkLin);
+    if (!await snkAwWait(gen, 120)) return false;
+  }
+  return snkAwTitle(v, gen, a);
+}
+async function snkAwClipSixes(v, gen, a) {
+  const B = v.B;
+  v.mb.innerHTML = snkAwBoard(v.c, B, []);
+  snkEl('rect', { x: B.x - 6, y: B.y - 6, width: B.cs * 10 + 12, height: B.cs * 10 + 12, rx: 8, fill: '#141022', opacity: 0.55 }, v.mb);
+  const die = snkEl('g', {}, v.mfx), cx = B.x + B.cs * 5, cy = B.y + B.cs * 4.4;
+  die.innerHTML = `<rect x="-15" y="-15" width="30" height="30" rx="7" fill="#fff" stroke="${SNK_INK}" stroke-width="2"/><g class="pips"></g>`;
+  const pips = die.querySelector('.pips');
+  const p = snkAwPiece(v, v.col(a.pid));
+  snkTR(p.e, cx, B.y + B.cs * 8.8, B.cs / 26);
+  snkFace(p, 'up');
+  const shown = Math.min(a.val, 9);
+  for (let i = 0; i < shown; i++) {
+    const ms = Math.max(280, 650 - i * 60);
+    let last = 0;
+    if (!await snkAwTween(gen, ms, (t, r) => { if (r < 0.75 && r - last > 0.1) { last = r; pips.innerHTML = snkPipsSvg(1 + Math.floor(Math.random() * 5)); } if (r >= 0.75) pips.innerHTML = snkPipsSvg(6); snkTR(die, cx, cy - Math.sin(r * Math.PI) * B.cs * 1.2, 2.1, (1 - t) * 400); }, snkLin)) return false;
+    const k = snkEl('g', {}, v.mfx), ang = -Math.PI / 2 + (i - (shown - 1) / 2) * 0.42, R = B.cs * 3.2;
+    k.innerHTML = `<rect x="-9" y="-9" width="18" height="18" rx="4" fill="#ffd23f" stroke="${SNK_INK}" stroke-width="1.6"/><text y="5" text-anchor="middle" font-size="13" font-weight="800" fill="${SNK_INK}" font-family="system-ui,sans-serif">6</text>`;
+    snkAwTween(gen, 350, t => snkTR(k, snkLerp(cx, cx + Math.cos(ang) * R, t), snkLerp(cy, cy + Math.sin(ang) * R * 0.55 + B.cs * 0.2, t), snkBackOut(t)), snkLin);
+  }
+  const cr = snkEl('g', {}, v.mfx);
+  cr.innerHTML = `<path d="M-12 0 L-14 -12 L-6 -6 L0 -15 L6 -6 L14 -12 L12 0Z" fill="#ffd23f" stroke="${SNK_INK}" stroke-width="1.6" stroke-linejoin="round"/>`;
+  if (!await snkAwTween(gen, 500, t => snkTR(cr, cx, snkLerp(B.y, B.y + B.cs * 8.8 - B.cs * 0.85, t), 1.1), snkEaseIn)) return false;
+  return snkAwTitle(v, gen, a);
+}
+const SNK_AW_CLIPS = { fall: snkAwClipFall, ladder: snkAwClipLadder, eaten: snkAwClipEaten, sixes: snkAwClipSixes };
+
+/** «أبطال اللعبة»: the awards side by side. */
+async function snkAwRecap(v, gen, list) {
+  v.mb.innerHTML = ''; v.mfx.innerHTML = ''; v.prog.innerHTML = '';
+  const dir = appState.lang === 'en' ? 'ltr' : 'rtl';
+  v.txt.innerHTML = `<text x="${SNK_AW_W / 2}" y="104" text-anchor="middle" font-family="Noto Kufi Arabic,sans-serif" font-weight="800" font-size="30" fill="#fff" direction="${dir}"></text>` +
+    list.map((a, i) => `<g class="rc" opacity="0" transform="translate(${SNK_AW_W / 2} ${200 + i * 130})"><g transform="translate(${dir === 'rtl' ? 120 : -120} 0) scale(1.4)">${snkAwIcon(a.k)}</g>
+      <text class="rc-t" y="-4" text-anchor="middle" font-family="Noto Kufi Arabic,sans-serif" font-weight="800" font-size="20" fill="#fff" direction="${dir}"></text>
+      <text class="rc-n" y="26" text-anchor="middle" font-family="Noto Kufi Arabic,sans-serif" font-weight="600" font-size="17" fill="${snkTint(v.col(a.pid), 0.35)}" direction="${dir}"></text></g>`).join('');
+  v.txt.querySelector('text').textContent = snkT('snk_aw_heroes');
+  [...v.txt.querySelectorAll('.rc')].forEach((e, i) => {
+    const a = list[i];
+    e.querySelector('.rc-t').textContent = SNK_AW[a.k].emoji + ' ' + snkT('snk_aw_' + a.k);
+    e.querySelector('.rc-n').textContent = v.name(a.pid) + ' · ' + '⁦' + (SNK_AW[a.k].pre || '') + snkAwFmt((SNK_AW[a.k].sign || 1) * a.val) + '⁩';
+  });
+  for (const e of v.txt.querySelectorAll('.rc')) {
+    const tr = e.getAttribute('transform');
+    await snkAwTween(gen, 380, u => { e.setAttribute('opacity', snkR(u)); e.setAttribute('transform', tr + ` scale(${Math.max(0.001, snkBackOut(u)).toFixed(3)})`); }, snkLin);
+  }
+  if (snkAw.gen === gen && !snkStill() && typeof confetti === 'function') confetti({ particleCount: 110, spread: 80, origin: { y: 0.5 } });
+}
+
+/**
+ * Shows the awards over the board: the replay when `play` (and the motion on), else the recap. The
+ * overlay lives in the board's own root, so a room's frame redrawn underneath doesn't cut it.
+ */
+async function snkAwardsShow(k, play) {
+  const c = snkView.c, root = snkView.root, g = k && k.g;
+  if (!c || !root || !g || !(g.awards || []).length) return;
+  snkAwClose();
+  const gen = snkAw.gen;
+  snkAw.key = k.key; snkAw.k = k;
+  const W = SNK_AW_W, H = SNK_AW_H;
+  const el = document.createElement('div');
+  el.className = 'snk-aw';
+  el.dir = 'ltr';   // the replay is a drawing (its tag on the right): the close button sits at its start, the left
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" dir="ltr" role="img"><rect width="${W}" height="${H}" rx="18" fill="#141022"/>
+      <g transform="translate(${W - 18} 34)"><rect x="-104" y="-17" width="104" height="34" rx="9" fill="#e5383b"/><circle class="snk-aw__dot" cx="-86" cy="0" r="5.5" fill="#fff"/><text class="snk-aw__tag" x="-44" y="7" text-anchor="middle" font-family="Noto Kufi Arabic,sans-serif" font-weight="800" font-size="17" fill="#fff"></text></g>
+      <text class="snk-aw__slo" x="80" y="40" font-family="Noto Kufi Arabic,sans-serif" font-weight="800" font-size="15" fill="#ffd23f" opacity="0" text-anchor="middle"></text>
+      <g class="mb"></g><g class="mfx"></g><g class="txt"></g><g class="prog" transform="translate(${W / 2} ${H - 20})"></g></svg>
+    <button type="button" class="snk-aw__x" onclick="snkAwClose()" aria-label="${escapeHTML(snkT('close'))}">✕</button>`;
+  root.appendChild(el);
+  snkAw.el = el;
+  const svg = el.querySelector('svg');
+  svg.setAttribute('aria-label', snkT('snk_aw_title'));
+  el.querySelector('.snk-aw__tag').textContent = snkT('snk_aw_tag');
+  el.querySelector('.snk-aw__slo').textContent = snkT('snk_aw_slow');
+  const v = {
+    c: c, B: { x: 150, y: 70, cs: 30 }, T: { x: W / 2, y: 410 },
+    mb: svg.querySelector('.mb'), mfx: svg.querySelector('.mfx'), txt: svg.querySelector('.txt'), prog: svg.querySelector('.prog'), slo: svg.querySelector('.snk-aw__slo'),
+    col: (pid) => SNK_HEX[(g.colors || {})[pid]] || '#888',
+    name: (pid) => (k.names || {})[pid] || '…'
+  };
+  const list = g.awards.slice(0, SNAKES_AWARDS_MAX);
+  if (!play || snkStill()) { await snkAwRecap(v, gen, list); return; }
+  const n = list.length;
+  v.prog.innerHTML = list.map((_, i) => `<g transform="translate(${(i - (n - 1) / 2) * 76} 0)"><rect x="-32" y="-3" width="64" height="6" rx="3" fill="#3a3158"/><rect class="pf" x="-32" y="-3" width="64" height="6" rx="3" fill="#ffd23f" transform="scale(0 1)"/></g>`).join('');
+  const bars = [...v.prog.querySelectorAll('.pf')];
+  for (let i = 0; i < n; i++) {
+    const a = list[i];
+    v.mfx.innerHTML = ''; v.txt.innerHTML = '';
+    snkAwText(v, a);
+    const fill = snkAwTween(gen, 5200, u => bars[i].setAttribute('transform', `translate(${snkR(-32 + 32 * u)} 0) scale(${Math.max(0.001, u).toFixed(3)} 1)`), snkLin);
+    snkSound(c, 'snkPop', false);
+    if (!await SNK_AW_CLIPS[a.k](v, gen, a)) return;
+    if (i === n - 1) snkSound(c, 'snkWin', false);
+    await fill;
+    if (!await snkAwWait(gen, 700)) return;
+  }
+  await snkAwRecap(v, gen, list);
+}
+
+/** The podium's «🎬»: the replay again. */
+function snkAwardsReplay() {
+  const k = snkAw.k;
+  if (k && snkView.c && snkView.c.key === k.key) snkAwardsShow(k, true);
+}
+
+/** At the end of a game this screen watched to its end: the awards, once. */
+function snkAwardsAuto(k) {
+  const c = snkView.c;
+  if (!c || !k || !k.g || k.g.phase !== 'gameover' || !(k.g.awards || []).length) return;
+  snkAw.k = Object.assign({}, k);
+  if (c.liveEnd !== k.key || snkAw.key === k.key) return;
+  if (typeof duelOnce === 'function' && !duelOnce('snk-aw|' + k.key)) return;
+  // After the podium has risen; on a phone held upright the board is under the podium: brought into sight.
+  const k2 = snkAw.k;
+  setTimeout(() => {
+    if (!snkView.c || snkView.c.key !== k2.key || snkAw.key === k2.key) return;
+    const r = snkView.root && snkView.root.getBoundingClientRect();
+    if (r && (r.top > window.innerHeight * 0.5 || r.bottom < 0) && typeof scrollToAction === 'function') scrollToAction(snkView.root);
+    snkAwardsShow(k2, true);
+  }, snkStill() ? 0 : 1700);
+}
+
 /* --- the frame around the board (a phone, a room's phone, the TV) ----------------------------- */
 
 /** The strip of players: their colour, name, square and place. */
 function snkStripHtml(k) {
   const g = k.g;
   const up = g.phase === 'play' && g.turn ? g.turn.pid : null;
-  const chips = (g.seats || []).map(pid => {
+  const teams = Array.isArray(g.teams) ? g.teams : null;
+  const chip = (pid) => {
     const col = g.colors[pid];
     const name = k.names[pid] || '…';
     const place = g.places.indexOf(pid);
     const initial = typeof duelInitial === 'function' ? duelInitial(name) : name.charAt(0);
     const sq = g.pos[pid] || 0;
     const away = k.away && k.away[pid];
+    // In teams a member home shows 🏠 (the team's place is on its own label), not a medal of their own.
+    const av = place !== -1 ? (teams ? '🏠' : (['🥇', '🥈', '🥉'][place] || String(place + 1))) : k.bots && k.bots[pid] ? '🤖' : escapeHTML(initial);
+    const sqText = sq >= 100 && teams ? snkT('snk_home') : sq ? snkT('snk_on_sq', { n: sq }) : snkT('snk_on_mat');
     return `<div class="snk-chip ${pid === up ? 'is-turn' : ''} ${place !== -1 ? 'is-done' : ''} ${away ? 'is-away' : ''}" style="--pc:${SNK_HEX[col] || '#888'}" data-snk-chip="${escapeHTML(pid)}">
-        <span class="snk-chip__av" aria-hidden="true">${place !== -1 ? (['🥇', '🥈', '🥉'][place] || String(place + 1)) : k.bots && k.bots[pid] ? '🤖' : escapeHTML(initial)}</span>
+        <span class="snk-chip__av" aria-hidden="true">${av}</span>
         <span class="snk-chip__who">
           <span class="snk-chip__name">${escapeHTML(name)}${pid === k.me && name !== snkT('xo_you') ? ` <small>· ${escapeHTML(snkT('xo_you'))}</small>` : ''}</span>
-          <span class="snk-chip__sq metric">${sq ? escapeHTML(snkT('snk_on_sq', { n: sq })) : escapeHTML(snkT('snk_on_mat'))}</span>
+          <span class="snk-chip__sq metric">${escapeHTML(sqText)}</span>
         </span>
       </div>`;
-  }).join('');
-  return `<div class="snk-strip">${chips}</div>`;
+  };
+  if (!teams) return `<div class="snk-strip">${(g.seats || []).map(chip).join('')}</div>`;
+  // Teams (2 Oct 2026): each team its own box, its place on its label once all its members are home.
+  return `<div class="snk-strip snk-strip--teams">${teams.map((tm, ti) => {
+    const live = tm.filter(id => (g.seats || []).indexOf(id) !== -1);
+    if (!live.length) return '';
+    const tp = (g.teamPlaces || []).indexOf(ti);
+    return `<div class="snk-team ${tp !== -1 ? 'is-done' : ''}">
+        <span class="snk-team__label">${tp !== -1 ? (['🥇', '🥈', '🥉'][tp] || '') + ' ' : ''}${escapeHTML(snkT('snk_team_n', { n: ti + 1 }))}</span>
+        ${live.map(chip).join('')}
+      </div>`;
+  }).join('')}</div>`;
 }
+
+/** A team's name: its members' names joined. */
+const snkTeamName = (k, tm) => (tm || []).filter(id => (k.g.seats || []).indexOf(id) !== -1).map(id => k.names[id] || '…').join(' + ');
 
 /** One event as a line for the log. */
 function snkEventText(k, e) {
@@ -2043,14 +3074,26 @@ function snkEventText(k, e) {
   switch (e.type) {
     case 'build': return '🏗️ ' + (k.me && e.first === k.me ? snkT('snk_ev_first_you') : snkT('snk_ev_first', { name: name(e.first) }));
     case 'roll': {
-      if (e.jump && e.jump.k === 's') return '🐍 ' + snkT('snk_ev_snake', { name: name(e.pid), from: e.walk, to: e.to });
-      if (e.jump && e.jump.k === 'l') return '🪜 ' + snkT('snk_ev_ladder', { name: name(e.pid), from: e.walk, to: e.to });
-      if (e.over) return '↩️ ' + snkT('snk_ev_bounce', { name: name(e.pid), n: e.to });
-      return '🎲 ' + snkT('snk_ev_roll', { name: name(e.pid), n: e.n, to: e.to });
+      // In teams: who rolled for whom, first.
+      const pre = e.by ? snkT('snk_ev_for', { by: name(e.by), name: name(e.pid) }) + ' · ' : '';
+      if (e.jump && e.jump.k === 's') return '🐍 ' + pre + snkT('snk_ev_snake', { name: name(e.pid), from: e.walk, to: e.to });
+      if (e.jump && e.jump.k === 'l') return '🪜 ' + pre + snkT('snk_ev_ladder', { name: name(e.pid), from: e.walk, to: e.to });
+      if (e.charmed) return '🪈 ' + pre + snkT('snk_ev_charmed', { name: name(e.pid), n: e.walk });
+      if (e.surp) {
+        const s = e.surp;
+        const ic = { charm: '🪈', swap: '🔄', again: '⭐', worker: '💨', peel: '🍌', nap: '😴' }[s.k] || '🎁';
+        const key = s.none ? 'snk_ev_s_' + s.k + '_none' : 'snk_ev_s_' + s.k;
+        return ic + ' ' + pre + snkT(key, { name: name(e.pid), with: s.with ? name(s.with) : '', n: s.n, to: s.to || '' });
+      }
+      if (e.over) return '↩️ ' + pre + snkT('snk_ev_bounce', { name: name(e.pid), n: e.to });
+      return '🎲 ' + pre + snkT('snk_ev_roll', { name: name(e.pid), n: e.n, to: e.to });
     }
-    case 'finish': return (e.place === 1 ? '🏆 ' : '🏁 ') + snkT('snk_ev_finish', { name: name(e.pid), place: snkPlaceWord(e.place) });
+    case 'finish': return (e.place === 1 && !k.g.teams ? '🏆 ' : '🏁 ') + snkT(k.g.teams ? 'snk_ev_home' : 'snk_ev_finish', { name: name(e.pid), place: snkPlaceWord(e.place) });
+    case 'teamDone': return (e.place === 1 ? '🏆 ' : '🏁 ') + snkT('snk_ev_team', { name: snkTeamName(k, (k.g.teams || [])[e.team]), place: snkPlaceWord(e.place) });
     case 'auto': return '⏱️ ' + snkT(e.why === 'host' ? 'snk_ev_host' : 'snk_ev_clock', { name: name(e.pid) });
     case 'left': return snkT('snk_ev_left', { name: e.name || name(e.pid) });
+    case 'nap': return '😴 ' + snkT('snk_ev_nap', { name: name(e.pid) });
+    case 'move': return '🐍 ' + snkT(e.eat && e.eat.length ? 'snk_ev_move_eat' : 'snk_ev_move', { from: e.from.h, to: e.to.h, name: (e.eat || []).map(name).join('، ') });
     default: return '';
   }
 }
@@ -2069,8 +3112,11 @@ function snkBarLines(k) {
   const tn = g.turn || {};
   const name = k.names[tn.pid] || '';
   if (g.phase !== 'play') return [snkT('snk_over'), ''];
-  if (tn.pid === k.me) return [snkT('snk_your_turn'), tn.sixes ? snkT('snk_again_six') : snkT('snk_roll_hint')];
-  return [snkT('snk_turn_of', { name: name }), k.bots && k.bots[tn.pid] ? snkT('snk_thinking', { name: name }) : ''];
+  // In teams, a member home rolls for the teammate furthest behind.
+  const forId = tn.pid ? snakesPieceOf(g, tn.pid) : null;
+  const forLine = forId && forId !== tn.pid ? snkT('snk_roll_for', { name: k.names[forId] || '' }) : '';
+  if (tn.pid === k.me) return [snkT('snk_your_turn'), forLine || (tn.sixes ? snkT('snk_again_six') : snkT('snk_roll_hint'))];
+  return [snkT('snk_turn_of', { name: name }), forLine || (k.bots && k.bots[tn.pid] ? snkT('snk_thinking', { name: name }) : '')];
 }
 
 function snkBarHtml(k) {
@@ -2095,21 +3141,25 @@ function snkPodiumHtml(k) {
   const g = k.g;
   const places = g.places || [];
   if (!places.length) return '';
-  const rise = motionFirst(['snk-podium', k.key, places.join(',')].join('|'));
-  const top = places.slice(0, 3);
+  // In teams the podium is the teams' (the owner, 2 Oct 2026): each step a team, its members' colours.
+  const teams = Array.isArray(g.teams) && Array.isArray(g.teamPlaces) && g.teamPlaces.length ? g.teamPlaces.map(ti => (g.teams[ti] || []).filter(id => (g.seats || []).indexOf(id) !== -1)).filter(tm => tm.length) : null;
+  const entries = teams ? teams.map(tm => ({ name: tm.map(id => k.names[id] || '…').join(' + '), cols: tm.map(id => SNK_HEX[g.colors[id]] || '#888'), key: tm.join('+') }))
+    : places.map(pid => ({ name: k.names[pid] || '…', cols: [SNK_HEX[g.colors[pid]] || '#888'], key: pid }));
+  const rise = motionFirst(['snk-podium', k.key, entries.map(x => x.key).join(',')].join('|'));
+  const top = entries.slice(0, 3);
   const medals = ['🥇', '🥈', '🥉'];
   const atOf = (i) => 150 + (top.length - 1 - i) * 520;
   const winMs = atOf(0) + 620;
-  return `<div class="podium${rise ? ' podium--rise" data-reveal-ms="' + winMs : ''}">` + top.map((pid, i) =>
+  return `<div class="podium${rise ? ' podium--rise" data-reveal-ms="' + winMs : ''}">` + top.map((x, i) =>
     `<div class="podium__place podium__place--${i + 1} podium__place--rank${i + 1}" style="--at:${atOf(i)}ms">
       <div class="podium__who">
         <span class="podium__medal" aria-hidden="true">${medals[i]}</span>
-        <span class="podium__name">${escapeHTML(k.names[pid] || '…')}</span>
-        <span class="snk-podium__color" style="background:${SNK_HEX[g.colors[pid]] || '#888'}" aria-hidden="true"></span>
+        <span class="podium__name">${escapeHTML(x.name)}</span>
+        <span class="snk-podium__cols" aria-hidden="true">${x.cols.map(cl => `<span class="snk-podium__color" style="background:${cl}"></span>`).join('')}</span>
       </div>
       <div class="podium__block"><span class="metric">${i + 1}</span></div>
     </div>`).join('') + '</div>' +
-    (places.length > 3 ? `<p class="snk-over__rest">${places.slice(3).map((pid, i) => escapeHTML(snkPlaceWord(i + 4) + ': ' + (k.names[pid] || '…'))).join(' · ')}</p>` : '');
+    (entries.length > 3 ? `<p class="snk-over__rest">${entries.slice(3).map((x, i) => escapeHTML(snkPlaceWord(i + 4) + ': ' + x.name)).join(' · ')}</p>` : '');
 }
 
 /**
@@ -2126,6 +3176,7 @@ function snkFrameHtml(k) {
           ${over ? `<div class="card card--accent snk-over">
               <p class="snk-over__title">🏁 ${escapeHTML(snkT('snk_over'))}</p>
               ${snkPodiumHtml(k)}
+              ${(g.awards || []).length ? `<button type="button" class="btn btn--secondary btn--sm snk-over__aw" onclick="snkAwardsReplay()">🎬 ${escapeHTML(snkT('snk_aw_again'))}</button>` : ''}
               ${k.over || ''}
             </div>` : ''}
           ${snkStripHtml(k)}
@@ -2147,8 +3198,22 @@ function snkState() {
   const s = appState.snakes;
   if ([1, 2, 3, 4, 5].indexOf(Number(s.opp)) === -1) s.opp = 1;
   if (SNAKES_COLORS.indexOf(s.color) === -1) s.color = 'r';
+  // The third round (2 Oct 2026): the map's theme (or 🎲) and the two switches, off by default.
+  if (SNAKES_THEMES.indexOf(s.theme) === -1 && s.theme !== 'random') s.theme = 'classic';
+  s.surprises = !!s.surprises;
+  s.moving = !!s.moving;
   return s;
 }
+
+/** The themes as tiles to pick from (the setup and the room's lobby): the classic, the four maps and 🎲. */
+const SNK_THEME_ICON = { classic: '🐍', nile: '🐊', metro: '🚇', desert: '🏜️', hara: '🏙️', random: '🎲' };
+function snkThemePickerHtml(sel, fn) {
+  return SNAKES_THEMES.concat(['random']).map(id => `<button type="button" class="snk-theme ${sel === id ? 'is-active' : ''}" data-value="${id}" aria-pressed="${sel === id}" onclick="${fn}('${id}')">
+      <span class="snk-theme__ic" aria-hidden="true">${SNK_THEME_ICON[id]}</span><span class="snk-theme__name">${escapeHTML(snkT('snk_theme_' + id))}</span>
+    </button>`).join('');
+}
+/** 🎲: one of the maps, drawn at the start of each game. */
+const snkPickTheme = (t) => (t === 'random' ? SNAKES_THEMES[Math.floor(Math.random() * SNAKES_THEMES.length)] : (SNAKES_THEMES.indexOf(t) !== -1 ? t : 'classic'));
 
 function setupSnakes() {
   snkStopBot();
@@ -2166,12 +3231,21 @@ function paintSnakesSetup() {
   });
   const cont = document.getElementById('snakes-continue');
   if (cont) cont.classList.toggle('hidden', !(s.g && s.g.phase === 'play'));
+  const th = document.getElementById('snakes-theme');
+  if (th) { const html = snkThemePickerHtml(s.theme, 'setSnakesTheme'); if (th._snk !== html) { th.innerHTML = html; th._snk = html; } }
+  const sw = (id, on) => { const el = document.getElementById(id); if (el) el.checked = !!on; };
+  sw('snakes-surprises', s.surprises);
+  sw('snakes-moving', s.moving);
 }
+
+function setSnakesTheme(id) { setSnakesOption('theme', id); }
 
 function setSnakesOption(key, value) {
   const s = snkState();
   if (key === 'opp') s.opp = Number(value);
   else if (key === 'color' && SNAKES_COLORS.indexOf(value) !== -1) s.color = value;
+  else if (key === 'theme' && (SNAKES_THEMES.indexOf(value) !== -1 || value === 'random')) s.theme = value;
+  else if (key === 'surprises' || key === 'moving') s[key] = !!value;
   haptic('light');
   saveToLocal();
   paintSnakesSetup();
@@ -2190,7 +3264,7 @@ function startSnakes() {
   ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = 'easy'; });
   const colors = snakesFillColors(ids, { me: s.color });
   const order = shuffleArray(ids);   // Fisher-Yates: a random comparator in sort() favours the first seats
-  const g = snakesNewGame(order, colors, snakesNewSeed(Math.random), Date.now(), { teardown: again });
+  const g = snakesNewGame(order, colors, snakesNewSeed(Math.random), Date.now(), { teardown: again, theme: snkPickTheme(s.theme), surprises: s.surprises, moving: s.moving });
   s.g = g;
   s.names = names;
   s.bots = bots;
@@ -2271,7 +3345,7 @@ function snkSyncIdle(root, k) {
     const p = snkView.c && snkView.c.players[pid];
     const sq = busy && p ? p.n : (k.g.pos || {})[pid] || 0;
     const sqEl = el.querySelector('.snk-chip__sq');
-    const txt = sq ? snkT('snk_on_sq', { n: sq }) : snkT('snk_on_mat');
+    const txt = sq >= 100 && k.g.teams ? snkT('snk_home') : sq ? snkT('snk_on_sq', { n: sq }) : snkT('snk_on_mat');
     if (sqEl && sqEl.textContent !== txt) sqEl.textContent = txt;
   });
   const over = root.querySelector('.snk-over');
@@ -2313,7 +3387,9 @@ function snkHintSync(k, on) {
   const c = snkView.c;
   if (!c || !c.svg) return;
   const layer = c.svg.querySelector('.snk-hints');
-  const key = on && k ? [k.key, k.g.turnSeq, (k.g.pos || {})[k.me] || 0].join('|') : '';
+  // In teams, a member home rolls for the teammate furthest behind: the hints are for that piece.
+  const piece = k && k.me ? snakesPieceOf(k.g, k.me) : null;
+  const key = on && k ? [k.key, k.g.turnSeq, piece, (k.g.pos || {})[piece] || 0].join('|') : '';
   if (c.hintKey === key && (!c.hintRing || c.hintRing.isConnected)) return;
   c.hintKey = key;
   if (layer) layer.textContent = '';
@@ -2321,12 +3397,12 @@ function snkHintSync(k, on) {
   if (!key || !layer) return;
   const m = k.g.map || {};
   const heads = (m.snakes || []).map(x => x.h), feet = (m.ladders || []).map(x => x.f);
-  snkReachOf(k.g, k.me).forEach(n => {
+  snkReachOf(k.g, piece).forEach(n => {
     const q = snakesCellXY(n);
     const kind = heads.indexOf(n) !== -1 ? 'snake' : feet.indexOf(n) !== -1 ? 'ladder' : 'plain';
     snkEl('rect', { class: 'snk-hint snk-hint--' + kind, x: q.x - SNK_C / 2 + 2.5, y: q.y - SNK_C / 2 + 2.5, width: SNK_C - 5, height: SNK_C - 5, rx: 7 }, layer);
   });
-  const p = c.players[k.me];
+  const p = c.players[piece];
   if (p && !p.hidden) {
     const kk = p.k || 1;
     c.hintRing = snkEl('ellipse', { class: 'snk-myring', cx: p.x.toFixed(1), cy: (p.y + 17 * kk).toFixed(1), rx: (19 * kk).toFixed(1), ry: (7 * kk).toFixed(1), stroke: p.col || '#fff' }, c.under);
@@ -2341,11 +3417,12 @@ function paintSnakes(opts) {
   const k = snkLocalCtx();
   k.showOver = s.g.phase === 'gameover';
   el.innerHTML = snkFrameHtml(k);
-  const c = snkShowIn(el.querySelector('[data-snk-host]'));
+  const c = snkShowIn(el.querySelector('[data-snk-host]'), snakesTheme(s.g));
   k.onStep = () => snkSyncIdle(el, k);
   k.onIdle = () => {
     snkSyncIdle(el, k);
     const g = snkState().g;
+    if (g && g.phase === 'gameover') snkAwardsAuto(Object.assign({}, k, { g: g }));
     if (g && g.phase === 'gameover' && typeof duelOnce === 'function' && duelOnce(['snk-end', s.gameId].join('|'))) {
       const won = g.places[0] === 'me';
       afterReveal(el, () => {
@@ -2411,7 +3488,11 @@ if (typeof FX !== 'undefined') {
     snkDrum(at) { for (let k = 0; k < 12; k++) fxNoise('bandpass', 180, 1.2, [[0, 0], [0.004, 0.14 + k * 0.01], [0.06, 0.001]], at + k * 0.065); fxTone('sine', [[0, 110], [0.1, 70]], [[0, 0], [0.005, 0.25], [0.3, 0.001]], at + 0.8); },
     snkGiggle(at) { [0, 1, 2, 3].forEach(k => fxTone('triangle', [[0, 900 + (k % 2) * 180], [0.06, 760 + (k % 2) * 180]], [[0, 0], [0.01, 0.07], [0.08, 0.001]], at + k * 0.1)); },
     snkPop(at) { fxNoise('highpass', 1800, 0.7, [[0, 0], [0.005, 0.16], [0.25, 0.001]], at); fxTone('sine', [[0, 1400], [0.2, 700]], [[0, 0], [0.01, 0.05], [0.22, 0.001]], at); },
-    snkClap(at) { fxNoise('bandpass', 1500, 1, [[0, 0], [0.003, 0.3], [0.09, 0.001]], at); }
+    snkClap(at) { fxNoise('bandpass', 1500, 1, [[0, 0], [0.003, 0.3], [0.09, 0.001]], at); },
+    // The third round: a surprise square answering, the charmer's flute, a snore.
+    snkSurp(at) { [0, 1].forEach(k => fxTone('triangle', [[0, 780 + k * 260]], [[0, 0], [0.01, 0.08], [0.16, 0.001]], at + k * 0.08)); },
+    snkFlute(at) { [0, 1, 2, 3, 4].forEach(k => fxTone('sine', [[0, [660, 740, 660, 590, 660][k]], [0.12, [700, 760, 640, 600, 700][k]]], [[0, 0], [0.03, 0.06], [0.15, 0.001]], at + k * 0.16)); },
+    snkSnore(at) { [0, 0.55].forEach(d => fxNoise('lowpass', 500, 0.8, [[0, 0], [0.25, 0.08], [0.45, 0.001]], at + d)); }
   });
 }
 </script>

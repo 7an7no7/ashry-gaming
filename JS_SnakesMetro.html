@@ -1,0 +1,336 @@
+<script>
+/* ============================================================================
+   السلم والتعبان — the Metro map (المترو), look أ «على الكلاسيك» (the owner, 2 Oct 2026,
+   notes/snakes-themes/metro.html: "station tiles in the three lines' colours, a platform-edge frame
+   with «آخر محطة» and a train along the bottom, playground slides down, escalators with moving steps up")
+   ----------------------------------------------------------------------------
+   Today's 10 × 10 board in its frame, dressed as a Cairo metro platform: cream station tiles
+   alternating with the red, blue and green lines' light colours, a navy frame with the yellow tactile
+   strip of a platform's edge, the «آخر محطة» sign by 100, the three lines' circles and the م roundels
+   on the frame, tickets dropped on its sides and a little train passing along the bottom of the frame
+   every few seconds. Playground slides for the snakes (a little tower with a flag at the top corner of
+   its square, a blue mattress at the foot) and escalators in their line's colour for the ladders, the
+   steps always moving up (a CSS loop, section 55 of Style.html). The slide's three moves (whoosh, spin,
+   ticket) and the escalator's four (ride, run, broken, wrong) are the sheet's, each shortened to fit its
+   time in SNAKES_THEME_MOVES (Snakes.js). Everything else on the board is JS_Snakes.html's.
+   ========================================================================= */
+(function () {
+  const I = SNK_INK;
+  const MT = {
+    bg: '#dfe6ef', frame: '#26344d', inner: '#1b2638', tile: '#f8f2e4', lines: ['#f7b9b1', '#b4ccf5', '#b7e3c3'],
+    red: '#d8363a', blue: '#2a68d4', green: '#23a055',
+    slides: ['#ff7a1a', '#ffc21a', '#ff4f9a', '#1fbfa2', '#9b5cf0', '#36b5ff', '#7cd13a', '#ff5a4f']
+  };
+  const ESC = [MT.red, MT.blue, MT.green];
+  const KUFI = 'Noto Kufi Arabic,sans-serif';
+
+  /* --- the Metro's props ------------------------------------------------------------------------ */
+  function ticket(x, y, rot, col) {
+    return `<g transform="translate(${x} ${y}) rotate(${rot})"><rect x="-10" y="-5.5" width="20" height="11" rx="1.5" fill="${col}" stroke="${I}" stroke-width="1"/><path d="M4 -5.5V5.5" stroke="${I}" stroke-width=".8" stroke-dasharray="1.4 1.4"/><path d="M-7 -1.5H1M-7 1.8H-1" stroke="${I}" stroke-width=".8" opacity=".6"/></g>`;
+  }
+  function roundel(x, y, r) {
+    return `<g transform="translate(${x} ${y})"><circle r="${r}" fill="${MT.red}" stroke="${I}" stroke-width="1.6"/><circle r="${(r * 0.74).toFixed(1)}" fill="none" stroke="#fff" stroke-width="${(r * 0.14).toFixed(1)}"/><text y="${(r * 0.36).toFixed(1)}" text-anchor="middle" font-family="${KUFI}" font-weight="800" font-size="${(r * 1.05).toFixed(1)}" fill="#fff">${escapeHTML(snkT('snk_b_metro_m'))}</text></g>`;
+  }
+  /** A carriage seen from the side (the last one with the driver's nose). */
+  function car(x, y, w, h, engine) {
+    let s = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h * 0.2}" fill="#e6ebf1" stroke="${I}" stroke-width="1.4"/>`;
+    if (engine) s += `<path d="M${x + w - 4} ${y + h * 0.1} Q${x + w + h * 0.35} ${y + h * 0.2} ${x + w + h * 0.3} ${y + h * 0.9} L${x + w - 4} ${y + h * 0.95}Z" fill="#e6ebf1" stroke="${I}" stroke-width="1.4"/><path d="M${x + w} ${y + h * 0.2} Q${x + w + h * 0.25} ${y + h * 0.28} ${x + w + h * 0.24} ${y + h * 0.5} L${x + w} ${y + h * 0.5}Z" fill="#2d4a6e"/><circle cx="${x + w + h * 0.18}" cy="${y + h * 0.72}" r="1.3" fill="#ffe27a"/>`;
+    s += `<rect x="${x}" y="${y + h * 0.64}" width="${w}" height="${h * 0.11}" fill="${MT.red}"/>`;
+    for (let wx = x + h * 0.25; wx < x + w - h * 0.5; wx += h * 0.62) s += `<rect x="${wx.toFixed(1)}" y="${y + h * 0.18}" width="${h * 0.4}" height="${h * 0.3}" rx="${h * 0.05}" fill="#2d4a6e"/>`;
+    return s + `<circle cx="${x + h * 0.45}" cy="${y + h + 0.6}" r="${h * 0.11}" fill="#2b2b33"/><circle cx="${x + w - h * 0.45}" cy="${y + h + 0.6}" r="${h * 0.11}" fill="#2b2b33"/>`;
+  }
+
+  /** The top of a slide: its little tower with a flag (the flag toward the slide's side), at its head's place. */
+  function slideTop(col, face) {
+    return `<g class="snk-hdi">
+    <ellipse cx="2" cy="11" rx="12" ry="2.6" fill="rgba(0,0,0,.22)"/>
+    <rect x="-12" y="-6" width="24" height="17" rx="4" fill="${snkTint(col, -0.3)}" stroke="${I}" stroke-width="1.8"/>
+    <path d="M-13 -4 Q0 -21 13 -4 Z" fill="${col}" stroke="${I}" stroke-width="1.8" stroke-linejoin="round"/>
+    <g class="snm-door"><ellipse cx="0" cy="3" rx="7" ry="5" fill="#2a1630" stroke="${I}" stroke-width="1.2"/></g>
+    <path d="M-8 -6 Q-4 -12 2 -13.5" stroke="#fff" stroke-opacity=".6" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <g class="snm-pole"><g transform="scale(${face} 1)"><path d="M0 -12 V-25" stroke="${I}" stroke-width="1.6"/><path class="snm-flag" d="M0 -25 L10 -22 L0 -19Z" fill="#fff" stroke="${I}" stroke-width="1"/></g></g>
+    <text class="snm-wow" x="${-14 * face}" y="-10" text-anchor="middle" font-size="12" font-weight="800" fill="${MT.red}" stroke="#fff" stroke-width="2.5" style="paint-order:stroke" font-family="system-ui,sans-serif">!</text>
+    <text class="snk-zz" x="${12 * face}" y="-14" font-size="11" font-weight="800" fill="${I}" font-family="system-ui,sans-serif">z</text>
+   </g>`;
+  }
+
+  /* --- a slide's points, without any wave (a slide doesn't wave) -------------------------------- */
+  function at(sn, a) { return sn.pts[snkClamp(Math.round(a / SNK_STEP), 0, sn.pts.length - 1)]; }
+  /** Where a rider sits at t (0 the top, 1 the foot), lifted off the bed, and the slide's angle there. */
+  function along(sn, t, lift) {
+    const a = snkLerp(4, sn.L - 6, t), q = at(sn, a), q2 = at(sn, a + 8);
+    return { x: q.x, y: q.y - (lift == null ? 8 : lift), ang: Math.atan2(q2.y - q.y, q2.x - q.x) * 180 / Math.PI };
+  }
+  const tiltOf = (q, k) => snkClamp((q.ang - 90) * k, -35, 35);
+
+  /** Off the slide onto the mattress (it gives a little), then to his spot on the tail square. */
+  async function land(c, g, p, sn, col, ms) {
+    p.n = sn.t;
+    const s = snkSpot(c, p), x0 = p.x, y0 = p.y;
+    p.k = s.k;
+    snkPuff(c, x0, y0 + 10, 6, col || '#bfe3ff');
+    snkSound(c, 'snkBoing', p.mine);
+    await snkTween(c, g, ms || 380, t => {
+      snkSetP(p, snkLerp(x0, s.x, t), snkLerp(y0, s.y, t) - Math.abs(Math.sin(t * Math.PI * 2)) * (1 - t) * 20, 1, (1 - t) * 40);
+      sn.holeK = 1 + 0.14 * Math.sin(Math.min(1, t * 2) * Math.PI);
+    }, snkLin);
+    sn.holeK = 1;
+    snkSettleAll(c);
+  }
+
+  /* --- the slide's three moves (each inside its time in SNAKES_THEME_MOVES.metro, less the 150 ms wait) */
+  async function dWhoosh(c, g, p, sn) {
+    snkFace(p, 'gasp up'); snkBubble(c, p.x, p.y - 20, snkT('snk_b_wee'), 1100);
+    snkSound(c, 'snkSlide', p.mine);
+    await snkTween(c, g, 1150, (t, r) => { const q = along(sn, t); snkSetP(p, q.x, q.y, 1, tiltOf(q, 0.35)); sn.jaw = Math.max(0, 1 - r * 5); }, snkEaseIn);
+    sn.jaw = 0;
+    if (!snkAlive(c, g)) return;
+    await land(c, g, p, sn);
+    if (!snkAlive(c, g)) return;
+    await snkDizzy(c, g, p, 400);
+  }
+
+  async function dSpin(c, g, p, sn) {
+    snkFace(p, 'gasp'); snkBubble(c, p.x, p.y - 20, snkT('snk_b_metro_spin'), 1100);
+    snkSound(c, 'snkSlide', p.mine);
+    let last = 0;
+    await snkTween(c, g, 1550, (t, r) => {
+      const q = along(sn, t);
+      snkSetP(p, q.x, q.y, 1, t * 1080);
+      sn.jaw = Math.max(0, 1 - r * 5);
+      if (r - last > 0.12) { last = r; snkPuff(c, q.x, q.y + 8, 1, '#ffffff', 8); }
+    }, snkEaseIn);
+    sn.jaw = 0;
+    if (!snkAlive(c, g)) return;
+    await land(c, g, p, sn);
+    if (!snkAlive(c, g)) return;
+    await snkDizzy(c, g, p, 450);
+  }
+
+  async function dTicket(c, g, p, sn) {
+    snkBubble(c, p.x, p.y - 20, snkT('snk_b_metro_ticket'), 1200);
+    const tk = snkEl('g', {}, c.fx);
+    tk.innerHTML = `<g transform="scale(1.6)">${ticket(0, 0, 0, '#ffcf2e')}</g>`;
+    snkFace(p, 'up');
+    const x0 = p.x, y0 = p.y;
+    await snkTween(c, g, 260, t => snkTR(tk, x0, y0 + 12, Math.max(0.01, snkBackOut(t)), 0), snkLin);
+    if (!snkAlive(c, g)) { tk.remove(); return; }
+    snkSound(c, 'snkSlide', p.mine);
+    await snkTween(c, g, 1400, (t, r) => {
+      const q = along(sn, t, 10), a = tiltOf(q, 0.3);
+      snkSetP(p, q.x, q.y, 1, a);
+      snkTR(tk, q.x, q.y + 12, 1, a);
+      sn.jaw = Math.max(0, 1 - r * 5);
+    }, snkEaseIn);
+    sn.jaw = 0;
+    if (!snkAlive(c, g)) { tk.remove(); return; }
+    // The ticket flies off on its own while he lands.
+    const x1 = p.x, y1 = p.y + 12, dir = sn.pts[sn.pts.length - 1].x > 300 ? -1 : 1;
+    snkTween(c, g, 600, t => { snkTR(tk, x1 + t * 50 * dir, y1 - Math.sin(t * Math.PI) * 55, 1 - t * 0.5, t * 500 * dir); tk.setAttribute('opacity', (1 - t).toFixed(2)); }, snkLin).then(() => tk.remove());
+    await land(c, g, p, sn, '#ffe9a8');
+    if (!snkAlive(c, g)) return;
+    await snkDizzy(c, g, p, 450);
+  }
+
+  /* --- the escalator's four moves (each inside its time, less the hop at the top) ----------------- */
+  /** «بيب!»: his ticket through the gate at the foot. */
+  async function beep(c, g, p, ms) {
+    snkBubble(c, p.x, p.y - 20, snkT('snk_b_metro_beep'), 700);
+    const tk = snkEl('g', {}, c.fx);
+    tk.innerHTML = ticket(0, 0, 0, '#9fd0ff');
+    const x = p.x, y = p.y;
+    await snkTween(c, g, ms, t => { snkTR(tk, x + 14, y - 6 - t * 26, 1, t * 40); tk.setAttribute('opacity', (1 - t * 0.8).toFixed(2)); }, snkEaseOut);
+    tk.remove();
+  }
+
+  async function uRide(c, g, p, l) {
+    await beep(c, g, p, 380);
+    if (!snkAlive(c, g)) return;
+    snkFace(p, '');
+    snkSound(c, 'snkLift', p.mine);
+    let up = false;
+    await snkTween(c, g, 1500, (t, r) => { const q = snkLadPt(l, t); snkSetP(p, q.x, q.y - 2, 1, 0); if (r > 0.7 && !up) { up = true; snkFace(p, 'up'); } }, snkEase);
+  }
+
+  async function uRun(c, g, p, l) {
+    snkBubble(c, p.x, p.y - 20, snkT('snk_b_metro_rush'), 900);
+    snkPuff(c, p.x, p.y + 12, 5, '#e8d8b0');
+    snkFace(p, 'up');
+    snkSound(c, 'snkUp', p.mine);
+    let last = 0;
+    await snkTween(c, g, 850, (t, r) => {
+      const q = snkLadPt(l, t);
+      snkSetP(p, q.x, q.y - Math.abs(Math.sin(r * Math.PI * 8)) * 4, 1, Math.sin(r * Math.PI * 8) * 6);
+      if (r - last > 0.1 && !c.fast && !snkStill()) {
+        last = r;
+        const e = snkEl('path', { d: `M${q.x - 8} ${q.y + 22} l-6 14 M${q.x + 8} ${q.y + 22} l6 14`, stroke: I, 'stroke-width': 1.6, 'stroke-linecap': 'round', opacity: 0.6 }, c.fx);
+        setTimeout(() => e.remove(), 240);
+      }
+    }, snkEase);
+  }
+
+  async function uBroken(c, g, p, l) {
+    await beep(c, g, p, 320);
+    if (!snkAlive(c, g)) return;
+    snkFace(p, '');
+    await snkTween(c, g, 650, t => { const q = snkLadPt(l, t * 0.45); snkSetP(p, q.x, q.y - 2, 1, 0); }, snkEaseOut);
+    if (!snkAlive(c, g)) return;
+    // It stops: the steps stand still, and he climbs the rest on foot, out of breath.
+    l.g.classList.add('snm-stopped');
+    try {
+      snkFace(p, 'gasp'); snkBubble(c, p.x, p.y - 24, snkT('snk_b_metro_broken'), 900);
+      const q = snkLadPt(l, 0.45);
+      await snkTween(c, g, 350, t => snkSetP(p, q.x, q.y - 2, 1, Math.sin(t * Math.PI * 4) * 6), snkLin);
+      if (!snkAlive(c, g)) return;
+      snkFace(p, 'sweat');
+      await snkStepUp(c, g, p, l, 0.45, 1, 900, 6);
+      if (!snkAlive(c, g)) return;
+      snkBubble(c, p.x, p.y - 24, snkT('snk_b_metro_made'), 900);
+    } finally { l.g.classList.remove('snm-stopped'); }
+  }
+
+  async function uWrong(c, g, p, l) {
+    snkBubble(c, p.x, p.y - 20, snkT('snk_b_metro_where'), 1000);
+    snkFace(p, 'gasp');
+    await snkTween(c, g, 1200, (t, r) => {
+      const u = 0.28 * Math.sin(t * Math.PI * 0.5) - 0.1 * Math.sin(r * Math.PI * 6) * (1 - t), q = snkLadPt(l, Math.max(0, u));
+      snkSetP(p, q.x, q.y - 2 - Math.abs(Math.sin(r * Math.PI * 10)) * 3, 1, Math.sin(r * Math.PI * 10) * 10);
+    }, snkLin);
+    if (!snkAlive(c, g)) return;
+    snkBubble(c, p.x, p.y - 24, snkT('snk_b_metro_fine'), 900);
+    snkFace(p, 'up');
+    await snkTween(c, g, 1050, t => { const q = snkLadPt(l, snkLerp(0.28, 1, t)); snkSetP(p, q.x, q.y - 2, 1, 0); }, snkEase);
+  }
+
+  /* --- the drawing ------------------------------------------------------------------------------ */
+  SNK_THEMES.metro = {
+    id: 'metro',
+    bg: MT.bg,
+    frame: MT.frame,
+    cols: MT.slides,
+    amp: 0,
+    crawls: false,
+    noFlies: true,
+    mat: { a: '#f4c21c', b: '#fff6d0', ink: I },
+    back() {
+      // The platform: navy, the yellow tactile strip of its edge, the dark track bed inside; tickets dropped on the sides.
+      return `<defs><pattern id="snm-tac" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#f4c21c"/><circle cx="3.5" cy="3.5" r="1.5" fill="#c99700"/></pattern></defs>
+        <rect x="-22" y="-22" width="644" height="644" rx="16" fill="${MT.frame}" stroke="${I}" stroke-width="2"/>
+        <rect x="-16" y="-16" width="632" height="632" rx="10" fill="url(#snm-tac)" stroke="${I}" stroke-width="1.2"/>
+        <rect x="-7" y="-7" width="614" height="614" rx="4" fill="${MT.inner}"/>` +
+        [[-13, 150, 78, '#f6d36b'], [-13, 420, -64, '#9fd0ff'], [613, 250, 70, '#ffb3a8'], [613, 470, -82, '#f6d36b']].map(t => ticket(t[0], t[1], t[2], t[3])).join('');
+    },
+    tile(n, x, y, alt) {
+      const fill = alt ? MT.lines[snakesRowOf(n) % 3] : MT.tile;
+      const svg = `<rect x="${x}" y="${y}" width="${SNK_C}" height="${SNK_C}" fill="${fill}"/><path d="M${x + 30} ${y}v60M${x} ${y + 30}h60" stroke="rgba(30,40,60,.08)" stroke-width="1.2"/><rect x="${x + 0.5}" y="${y + 0.5}" width="${SNK_C - 1}" height="${SNK_C - 1}" fill="none" stroke="rgba(30,40,60,.12)"/>`;
+      return { fill: fill, svg: svg, num: I };
+    },
+    outer() {
+      // Round the edge only: never over a square, the mat or the pieces home on the top of the frame (x 16..160).
+      let s = '';
+      // The train along the bottom of the frame, clipped to it (parked on the right with the motion off).
+      s += `<defs><clipPath id="snm-trk"><path d="M-22 601 H622 V606 Q622 622 606 622 H-6 Q-22 622 -22 606Z"/></clipPath></defs>`;
+      s += `<g clip-path="url(#snm-trk)"><g class="snm-train" transform="translate(410 0)">${car(0, 605, 56, 14, false)}${car(60, 605, 56, 14, false)}${car(120, 605, 56, 14, true)}</g></g>`;
+      // «آخر محطة» by 100, right of where the pieces that finished stand.
+      s += `<g transform="translate(172 -31)"><path d="M18 21 V24 M78 21 V24" stroke="${I}" stroke-width="1.6"/><rect width="96" height="21" rx="5" fill="#fff" stroke="${I}" stroke-width="1.6"/><rect width="8" height="21" rx="3" fill="${MT.red}"/><text x="52" y="15" text-anchor="middle" font-family="${KUFI}" font-weight="800" font-size="12" fill="${I}">${escapeHTML(snkT('snk_b_metro_last'))}</text></g>`;
+      // The three lines' circles, and the م roundels at two corners.
+      s += `<g transform="translate(420 -17)">${[MT.red, MT.blue, MT.green].map((col, i) => `<g transform="translate(${i * 28} 0)"><circle r="9" fill="${col}" stroke="${I}" stroke-width="1.4"/><text y="4.5" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="12" fill="#fff">${i + 1}</text></g>`).join('')}</g>`;
+      s += roundel(608, -11, 11) + roundel(-11, 611, 10);
+      return s;
+    },
+    /** A slide's curve: the sheet's, gentler than a snake's and with fewer bends. Seeded. */
+    way(s, rnd) {
+      const H0 = snakesCellXY(s.h), T = snakesCellXY(s.t), H = { x: H0.x + (T.x >= H0.x ? 19 : -19), y: H0.y - 19 }, dx = T.x - H.x, dy = T.y - H.y, L = Math.hypot(dx, dy), px = -dy / L, py = dx / L;
+      const m = snkClamp(Math.round(L / 100), 1, 3), sign = rnd() < 0.5 ? 1 : -1, P = [{ x: H.x, y: H.y }];
+      P.push({ x: H.x + dx * 0.08, y: H.y + dy * 0.08 + 8 });
+      for (let j = 1; j <= m; j++) { const f = j / (m + 1), amp = (14 + rnd() * 16) * (j % 2 ? 1 : -1) * sign; P.push({ x: snkClamp(H.x + dx * f + px * amp, 16, 584), y: snkClamp(H.y + dy * f + py * amp, 16, 584) }); }
+      P.push({ x: T.x, y: T.y });
+      return P;
+    },
+    width() { return 13; },
+    mountDown(c, s, i, d) {
+      const col = d.col, tp = d.pts[d.pts.length - 1];
+      // The blue mattress at its foot.
+      const hole = snkEl('g', {}, c.holesL);
+      snkEl('rect', { x: tp.x - 15, y: tp.y - 4, width: 30, height: 15, rx: 5, fill: '#3d8ee8', stroke: I, 'stroke-width': 1.6 }, hole);
+      snkEl('path', { d: `M${tp.x - 11} ${tp.y + 3.5}H${tp.x + 11}M${tp.x} ${tp.y - 1}V${tp.y + 8}`, stroke: '#fff', 'stroke-width': 1, 'stroke-dasharray': '2 2', opacity: 0.8 }, hole);
+      const g = snkEl('g', { class: 'snm-slide' }, c.snakesL);
+      const shadow = snkEl('path', { fill: 'rgba(0,0,0,.16)', transform: 'translate(3 4)' }, g);
+      const rim = snkEl('path', { fill: snkTint(col, -0.18), stroke: I, 'stroke-width': 2, 'stroke-linejoin': 'round' }, g);
+      const bed = snkEl('path', { fill: snkTint(col, 0.45) }, g);
+      const shine = snkEl('path', { fill: 'none', stroke: '#fff', 'stroke-opacity': 0.7, 'stroke-width': 2, 'stroke-linecap': 'round' }, g);
+      const H0 = snakesCellXY(s.h), T = snakesCellXY(s.t), face = T.x >= H0.x ? 1 : -1;
+      const hd = snkEl('g', {}, c.headsL);
+      hd.innerHTML = slideTop(col, face);
+      return {
+        g: g, hd: hd, hole: hole, hdi: hd.querySelector('.snk-hdi'), shadow: shadow, rim: rim, bed: bed, shine: shine,
+        door: hd.querySelector('.snm-door'), pole: hd.querySelector('.snm-pole'), face: face, amp: 0
+      };
+    },
+    renderDown(c, sn, t) {
+      // A slide never waves or swells: whatever the board's moments set, it keeps its shape.
+      sn.amp = 0;
+      const bl = sn.bulge;
+      sn.bulge = null;
+      const P = snkBodyPts(c, sn, t, (b, d, dt) => sn.W * (dt < 20 ? 1 + 0.45 * (1 - dt / 20) : 1));
+      sn.bulge = bl;
+      if (!P) return;
+      const R = snkR, out = snkOutline(P);
+      sn.shadow.setAttribute('d', out); sn.rim.setAttribute('d', out);
+      sn.bed.setAttribute('d', snkOutline(P.map(q => ({ x: q.x, y: q.y, nx: q.nx, ny: q.ny, w: q.w * 0.5 }))));
+      let sh = '';
+      for (let k = 2; k < P.length; k++) { const q = P[k]; sh += (sh ? 'L' : 'M') + R(q.x + q.nx * q.w * 0.1) + ' ' + R(q.y + q.ny * q.w * 0.1); }
+      sn.shine.setAttribute('d', sh);
+      // The tower: leans a hair toward a piece that comes near, sways with the crowd at a win.
+      const h = P[0], hx = h.x, hy = h.y;
+      const life = snkHeadLife(c, sn, t, hx, hy), near = life.near, nd = life.nd, still = snkStillNow;
+      let tt = 0;
+      if (near && nd < SNK_C * 2.6 && sn.mood !== 'sleep') tt = snkClamp((near.x - hx) / nd * 6, -6, 6);
+      if (c.crowd && !still) tt = Math.sin(t * 5) * 9;
+      sn.tilt = snkLerp(sn.tilt, tt, 0.12);
+      const s = sn.lunge.s * 0.74, jaw = snkClamp(sn.jaw, 0, 1);
+      sn.hd.setAttribute('transform', `translate(${R(hx + sn.lunge.x)} ${R(hy + sn.lunge.y)}) rotate(${R(sn.tilt + (sn.lunge.r || 0))}) scale(${s.toFixed(3)})`);
+      // Its "mouth" is the door at the top of the slide (it opens) and its flag (it goes up).
+      sn.door.setAttribute('transform', `translate(0 3) scale(${(1 + jaw * 0.6).toFixed(3)}) translate(0 -3)`);
+      sn.pole.setAttribute('transform', `translate(0 ${(-jaw * 5).toFixed(2)})`);
+      snkHeadMood(sn, 'snk-hdi');
+    },
+    mountUp(c, l) {
+      const a = l.a, b = l.b, dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, vx = -uy, vy = ux, W = 9;
+      const col = ESC[(Number(l.f) + Number(l.t)) % 3];
+      const A = { x: a.x - ux * 7, y: a.y - uy * 7 }, B = { x: b.x + ux * 7, y: b.y + uy * 7 }, LL = L + 14;
+      const line = `M${A.x.toFixed(1)} ${A.y.toFixed(1)}L${B.x.toFixed(1)} ${B.y.toFixed(1)}`;
+      const g = snkEl('g', {}, c.laddersL), inner = snkEl('g', {}, g);
+      const glowL = snkEl('path', { d: line, stroke: '#ffe27a', 'stroke-width': 2 * W + 14, 'stroke-linecap': 'round', opacity: 0 }, inner);
+      snkEl('path', { d: line, stroke: 'rgba(0,0,0,.18)', 'stroke-width': 2 * W + 4, 'stroke-linecap': 'round', transform: 'translate(3 4)' }, inner);
+      snkEl('path', { d: line, stroke: I, 'stroke-width': 2 * W + 5, 'stroke-linecap': 'round' }, inner);
+      snkEl('path', { d: line, stroke: col, 'stroke-width': 2 * W + 1.6, 'stroke-linecap': 'round' }, inner);
+      snkEl('path', { d: line, stroke: '#aab4c2', 'stroke-width': 2 * W - 6 }, inner);
+      // The steps, always moving up: lines across the band in its own frame, slid along by CSS (transform only), clipped to it.
+      const ang = Math.atan2(uy, ux) * 180 / Math.PI, id = `snm-ec-${l.f}-${l.t}`;
+      const band = snkEl('g', { transform: `translate(${A.x.toFixed(1)} ${A.y.toFixed(1)}) rotate(${ang.toFixed(2)})` }, inner);
+      const cp = snkEl('clipPath', { id: id }, band);
+      snkEl('rect', { x: 0, y: -(W - 3), width: LL.toFixed(1), height: 2 * (W - 3) }, cp);
+      const clip = snkEl('g', { 'clip-path': `url(#${id})` }, band);
+      const run = snkEl('g', { class: 'snm-run' }, clip);
+      let dk = '', yl = '';
+      for (let x = -6; x < LL + 6; x += 6) { dk += `M${x} ${-(W - 3)}V${W - 3}`; yl += `M${(x + 1.85).toFixed(2)} ${-(W - 3)}V${W - 3}`; }
+      snkEl('path', { d: dk, stroke: '#4b5262', 'stroke-width': 1.3 }, run);
+      snkEl('path', { d: yl, stroke: '#ffd23f', 'stroke-width': 1.1 }, run);
+      let ch = '';
+      for (let d = 14; d < L - 4; d += 22) { const P = { x: a.x + ux * d, y: a.y + uy * d }; ch += `M${(P.x - ux * 3 + vx * 3.5).toFixed(1)} ${(P.y - uy * 3 + vy * 3.5).toFixed(1)}L${(P.x + ux * 1.5).toFixed(1)} ${(P.y + uy * 1.5).toFixed(1)}L${(P.x - ux * 3 - vx * 3.5).toFixed(1)} ${(P.y - uy * 3 - vy * 3.5).toFixed(1)}`; }
+      snkEl('path', { d: ch, stroke: '#fff', 'stroke-opacity': 0.85, 'stroke-width': 1.6, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, inner);
+      const off = W - 1.6;
+      let hr = '';
+      [-1, 1].forEach(sg => { hr += `M${(A.x + vx * off * sg).toFixed(1)} ${(A.y + vy * off * sg).toFixed(1)}L${(B.x + vx * off * sg).toFixed(1)} ${(B.y + vy * off * sg).toFixed(1)}`; });
+      snkEl('path', { d: hr, stroke: '#121319', 'stroke-width': 2.8, 'stroke-linecap': 'round' }, inner);
+      snkEl('path', { d: hr, stroke: '#fff', 'stroke-opacity': 0.3, 'stroke-width': 0.8, 'stroke-linecap': 'round' }, inner);
+      const comb = (P) => `M${(P.x + vx * (W - 3)).toFixed(1)} ${(P.y + vy * (W - 3)).toFixed(1)}L${(P.x - vx * (W - 3)).toFixed(1)} ${(P.y - vy * (W - 3)).toFixed(1)}`;
+      snkEl('path', { d: comb({ x: A.x + ux * 2, y: A.y + uy * 2 }) + comb({ x: B.x - ux * 2, y: B.y - uy * 2 }), stroke: '#aab3c0', 'stroke-width': 3.2 }, inner);
+      return { g: g, inner: inner, glowL: glowL, run: run, reset() { g.classList.remove('snm-stopped'); } };
+    },
+    downMoves: { whoosh: dWhoosh, spin: dSpin, ticket: dTicket },
+    upMoves: { ride: uRide, run: uRun, broken: uBroken, wrong: uWrong }
+  };
+})();
+</script>

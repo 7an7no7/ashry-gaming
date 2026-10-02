@@ -1904,7 +1904,15 @@ const DRIVERS = {
   uno: () => DRIVERS.withBots('uno', 3, { turnClock: 30 }),
   domino: () => DRIVERS.withBots('domino', 3, { turnClock: 30 }),
   ludo: () => DRIVERS.withBots('ludo', 3, { turnClock: 15 }),
-  snakes: () => DRIVERS.withBots('snakes', 3, { turnClock: 15 }, 8000),
+  // The third round (2 Oct 2026): teams of 2, a themed map, the surprise squares and the moving map, on the clock.
+  snakes() {
+    const T = table('snakes', 1);
+    for (let i = 0; i < 3; i++) must(T, T.host, 'addBot', { level: 'easy', name: 'زيزو' });
+    must(T, T.host, 'teamMode', { size: 2 });
+    must(T, T.host, 'start', { turnClock: 15, theme: 'desert', surprises: true, moving: true });
+    runClock(T, (r) => r.shared.phase === 'gameover', 12000);
+    return S(T).phase === 'gameover' && Array.isArray(S(T).teams) && S(T).theme === 'desert';
+  },
   bank: () => DRIVERS.withBots('bank', 2, { length: 30, turnClock: 60 }, 2500),
   withBots(game, bots, options, steps) {
     const T = table(game, 1);

@@ -347,6 +347,8 @@ const svDeal = (room) => {
   s.pub = null;
   s.maxTries = 0;
   room._solve = { secret: null, boards: {} };
+  // «خماسي السهرة»: this round's puzzle from the line-up, on its own clock (RoomRace.js).
+  if (s.race && typeof svRaceRoundKind === 'function') svRaceRoundKind(room);
   if (s.settings.mode === 'race') {
     s.setter = null;
     s.setterName = '';
@@ -446,6 +448,11 @@ const svNewGame = (room, playerId, kind, payload, again) => {
   if (svTooFew(room)) throw new Error('اللعبة دي محتاجة لاعبين على الأقل');
   const prev = room.shared || {};
   const settings = svOptions(kind, again ? prev.settings : payload, prev.settings, room);
+  // «خماسي السهرة» (RoomRace.js): the line-up every phone saw in the lobby - or, on play again, the
+  // last game's - makes every round a different puzzle; the rounds are its length, round 1 its first.
+  const lineup = SOLVE_KINDS[kind].race && typeof svRaceLineupOk === 'function'
+    ? svRaceLineupOk(again ? (prev.settings || {}).lineup : prev.lineup) : null;
+  if (lineup) { settings.lineup = lineup; settings.rounds = lineup.length; kind = lineup[0]; }
   room.shared = {
     solve: kind,
     race: !!SOLVE_KINDS[kind].race,
@@ -468,6 +475,8 @@ const svNewGame = (room, playerId, kind, payload, again) => {
 const solveAction = (room, playerId, action, payload) => {
   const p = payload || {};
   if (action === 'start') { svNewGame(room, playerId, room.game, p, false); return; }
+  // «خماسي السهرة»: the lobby's line-up, drawn, resized, one puzzle swapped or put away (RoomRace.js).
+  if (action === 'raceLineup') { svRaceLineupAction(room, playerId, p); return; }
   const s = room.shared;
   if (!s || !svKindOf(room)) throw new Error('اللعبة لم تبدأ بعد');
   const K = SOLVE_KINDS[s.solve];

@@ -1883,6 +1883,7 @@ function renderChosenGame(state, game) {
         : ''}
     </div>
     ${firstPlay}
+    ${game && game.lobbyTop ? game.lobbyTop(state, false) : ''}
     ${bots}
     ${lobbyOptionsFold(state, options, t)}`;
 }
@@ -1950,10 +1951,18 @@ function lobbyOptsSummarise(root) {
   });
 }
 
+/** The chunks a room needs: its game's, and every puzzle of a race's line-up (سباق ألغاز, «خماسي السهرة»). */
+function roomChunksOf(state) {
+  const ids = lzChunksOfRoom(state.game).slice();
+  const s = state.shared || {};
+  ((s.settings && s.settings.lineup) || s.lineup || []).forEach(g => lzChunksOfRoom(g).forEach(c => { if (ids.indexOf(c) === -1) ids.push(c); }));
+  return ids;
+}
+
 /** Draws whatever the room is doing now: its lobby, a spectator note, or the game. */
 function routeRoomState(state) {
   if (state && state.game && typeof lzWait === 'function' &&
-      lzWait(lzChunksOfRoom(state.game), () => { if (Room.state) routeRoomState(Room.state); }, 'route')) return;
+      lzWait(roomChunksOf(state), () => { if (Room.state) routeRoomState(Room.state); }, 'route')) return;
   // برنامج السهرة (JS_RoomProgram.html, a chunk of its own): its code before anything of it is drawn.
   if (state && state.program && typeof lzWait === 'function' &&
       lzWait(['program'], () => { if (Room.state) routeRoomState(Room.state); }, 'route-prog')) return;

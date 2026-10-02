@@ -6032,6 +6032,48 @@ async function raceSeg() {
       }
       bots.concat([S]).forEach((b) => b.close());
     }
+    if (!raceOnly || raceOnly === 'mix') {
+      // «خماسي السهرة» (2 Oct 2026): the line-up on every phone and the TV before the start, the host's swap,
+      // every round a different puzzle dealt as its own race, the totals on the board.
+      const H = await Bot.host('نور', null);
+      const J = await Bot.join(H.code, 'Jude');
+      const K = await Bot.join(H.code, 'كريم');
+      const S = await Bot.join(H.code, '', true);
+      const bots = [H, J, K];
+      await H.must('chooseGame', { game: 'queens' });
+      await H.must('raceLineup', { on: true, rounds: 3 });
+      const RACE_CLOCKS = { strands: 120, wordwheel: 120, connections: 120, pinpoint: 120, queens: 180, tango: 180, nonogram: 180, mines: 180, streak: 180, sudoku: 240 };
+      const distinct = (l) => Array.isArray(l) && l.length === 3 && l.every((id, i) => RACE_PLAYS[id] && l.indexOf(id) === i);
+      await all(bots.concat([S]), (s) => s.phase === 'lobby' && distinct(s.shared.lineup) && s.shared.lineup[0] === 'queens',
+        'pentathlon: the lobby\'s line-up (three different puzzles, the one chosen first) reaches every phone and the TV');
+      const was = H.state.shared.lineup[2];
+      await H.must('raceLineup', { at: 2, was });
+      await all(bots.concat([S]), (s) => distinct(s.shared.lineup) && s.shared.lineup[2] !== was, 'pentathlon: the host\'s swap reaches everyone (' + was + ' → ' + H.state.shared.lineup[2] + ')');
+      const lineup = H.state.shared.lineup.slice();
+      check(!(await J.act('raceLineup', { at: 1, was: lineup[1] })).ok, 'pentathlon: only the host changes the line-up');
+      await H.must('start', { finish: 'all', rounds: 5, lang: 'ar' });
+      for (let round = 1; round <= 3; round++) {
+        const id = lineup[round - 1];
+        await all(bots.concat([S]), (s) => s.game === 'queens' && s.shared.round === round && s.shared.phase === 'solving' && s.shared.solve === id && !!s.shared.pub &&
+          s.shared.settings.clock === RACE_CLOCKS[id] && s.shared.endsAt - s.shared.startAt === RACE_CLOCKS[id] * 1000,
+          'pentathlon: round ' + round + ' is ' + id + ' for everyone, on its own clock');
+        check(bots.every((b) => b.state.you && b.state.you.board) && S.state.you === null, 'pentathlon: round ' + round + ': every phone a board, the TV none');
+        const P = RACE_PLAYS[id];
+        // One finishes when a robot can (a guess may lose a mines / streak round); the others give up.
+        if (!P.mayLose && !P.stepwise) for (const m of P.solve(J.state.shared, J.state.you)) { if (J.state.you.state !== 'play') break; await J.must('move', Object.assign({ round }, m)); }
+        await K.must('giveUp', { round });
+        if (J.state.you.state === 'play') await J.must('giveUp', { round });
+        await H.must('giveUp', { round });
+        await all(bots.concat([S]), (s) => s.shared.phase === (round < 3 ? 'result' : 'gameover') && s.shared.solve === id, 'pentathlon: round ' + round + ' over, nothing of the next puzzle dealt');
+        if (round < 3) await H.must('nextRound', { round });
+      }
+      const board = H.state.shared.board;
+      check(H.state.shared.rounds === 3 && board.length === 3 && board.every((r, i) => !i || board[i - 1].score >= r.score), 'pentathlon: three rounds (the line-up\'s length), the totals on the board, best first');
+      await H.must('playAgain', {});
+      await all(bots, (s) => s.shared.round === 1 && s.shared.solve === lineup[0] && s.shared.phase === 'solving', 'pentathlon: play again starts the same line-up over');
+      await H.must('backToHub');
+      bots.concat([S]).forEach((b) => b.close());
+    }
   }
 
 }

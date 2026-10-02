@@ -152,7 +152,7 @@ list (`ROOM_HUB_GROUPS.race`, `ROOM_HUB_FAMILIES.race`, a drawn icon
   ending's rule (`race_finish_all_hint` / `race_finish_fast3_hint`) is the line at
   the foot. The result and the podium frames are as they were.
 
-## «خماسي السهرة» - a different puzzle each round: answered, not built yet (the owner, 2 Oct 2026)
+## «خماسي السهرة» - a different puzzle each round: built 2 Oct 2026 (the owner's answers of 2 Oct 2026)
 
 Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
 
@@ -160,6 +160,59 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
   - **The app draws the line-up, all different, from the ten; the host can tap one to change it**; every phone sees the line-up before Start.
   - **3 or 5 rounds** (the race's own choice); **each round gives the race's usual places and points, the totals make the podium**; the ending rule («الكل يخلّص» / the fast three) applies to every round.
   - 2048 stays out (the 26 Sep decision).
+
+How it is built:
+
+- **The server** (`RoomRace.js`, the end): the lobby's action `raceLineup` (host only, lobby only, routed
+  through `solveAction`): `{ on: true, rounds }` draws `room.shared.lineup` (`svRaceLineupDraw`: what is
+  there kept, else the puzzle the lobby was opened with first, the rest shuffled from the ten), or resizes
+  it keeping the ones there; `{ at, was }` swaps one for a random puzzle not in it (`was` guards a double
+  tap, `staleTap`); `{ on: false }` puts it away. `svRaceOn` leaves out a game switched off for a fix.
+  At the start `svNewGame` (`RoomSolve.js`) takes the lobby's line-up if `svRaceLineupOk` (3 or 5
+  different race ids) into `settings.lineup`; `rounds` is its length and `shared.solve` its first puzzle.
+  Before every deal `svDeal` calls `svRaceRoundKind`: `shared.solve` = the round's puzzle and
+  `settings.clock` its `SV_RACE_CLOCKS`. Everything else is the race as it was - each puzzle dealt by its own
+  plug-in when its round starts, the same places, points, ending, «استسلم», clock and leaving; the scores,
+  seconds and solves add up across the rounds on `shared.board`, so the podium and the night's points are
+  the totals. **`room.game` stays the puzzle the lobby was opened with** (the room's game for the night's
+  table, the crew and the program); only `shared.solve` changes.
+- **The page** (`JS_RoomRace.html`): `raceKindOf(state, kind)` - a line-up's round is drawn by
+  `raceRender` / `raceTvFrame` as a race of `shared.solve`, on that puzzle's own screen `room-<id>`
+  (`soloRaceKind` in `JS_Solo.html` reads `shared.solve` now, not `state.game`). `roomChunksOf` in
+  `JS_Room.html` loads every puzzle of the line-up with the room's chunks (in the lobby already), so the
+  next board is there when its round is dealt. A `ROOM_GAMES` entry may give `lobbyTop(state, tv)`, drawn
+  above the folded options on the phone (`renderChosenGame`) and in the TV's lobby (host or not):
+  the race's is `raceMixLobbyHtml` - the line-up, numbered, each puzzle a button for the host
+  (`raceMixSwap`, 🔄), popping in once (`motionFirst`). The options get «الألغاز: لغز واحد / خماسي
+  السهرة» (`raceMixSet`); the rounds' choice resizes the line-up while it is on. During the game
+  `raceMixStripHtml` (under the head, phone and TV) shows the line-up, the puzzles played dimmed, this
+  round's with its name. Between rounds `raceNextHtml` (phone and TV, after the result card) announces the
+  next puzzle: once the result has turned (`afterReveal`), `raceNextSpin` runs its name through the ten
+  with `spinLetter` and lands it, its icon popping in (`motion-landed`). Words: `RACE_MIX_TEXT` (`rmT`).
+- **The shell's budget**: the race's own words (`race_lobby_*`, `race_finish_*`, `race_you_*`,
+  `race_give_up*`, `race_closing`, `race_watching`, `race_round_over`, `race_clock_hint`) moved out of
+  `TRANSLATIONS` into `RACE_TEXT` in `JS_RoomRace.html`, joined into `TRANSLATIONS` when the chunk loads
+  (only that file read them), which pays for the rest: the first visit is 710.06 KB, as before. The help
+  line is `RACE_MIX_RULE` (JS_Core.html), interpolated into each puzzle's race rules in both languages.
+- Tests: `rules.mjs` (pentathlon: the draw, the resize, the swap and its double tap, only the host, off,
+  the start on the lobby's line-up and its clocks, each round its puzzle, nothing of the next dealt at a
+  result, the points, the totals and the tie, play again, a bad line-up ignored); `leaks.mjs`
+  (`VARIANT_DRIVERS['race:mix']`, `PROBES['race:mix']`: every round held to its puzzle's race probes, the
+  line-up names only, at a result the only puzzle on a phone is the one just played); `play-all.mjs`
+  (`--only=race`, or `--race=mix`: the line-up and the swap on every phone and the TV, three rounds of
+  three puzzles on their clocks, play again).
+- Decided here (open to change, each one place in the code):
+  - **The puzzle the host opened the lobby with is first in the line-up** (`svRaceLineupDraw`); a swap can
+    change it.
+  - **A swap draws at random** from the puzzles not in the line-up (not the next in a list).
+  - **Play again keeps the line-up** (`svNewGame`, the table saw and agreed it); a new line-up is
+    «لعبة تانية» and the lobby.
+  - **The choice isn't remembered on the host's phone** (it is the server's, in the lobby): one tap each
+    time.
+  - **A game switched off for a fix is never drawn** (`svRaceOn`).
+  - **English name**: "Puzzle pentathlon" (also with 3 rounds).
+  - The next puzzle is announced on the result screen (beside «اللي بعده»), not as a splash over the new
+    round, so nobody loses solving time; the header of a TV still names the room's game.
 
 ## History
 

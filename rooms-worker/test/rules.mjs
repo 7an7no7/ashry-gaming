@@ -9688,6 +9688,84 @@ Date.now = duelTestClock;
   check(r.shared.round === 1 && r.shared.settings.finish === 'all' && r.shared.rounds === 3 && r.shared.phase === 'solving', 'race: play again keeps the rounds and the ending');
   const lang = race(['a', 'b'], 'queens', { lang: 'en' });
   check(lang.shared.settings.lang === 'en' && lang.shared.settings.clock === 180, 'race: the language travels with the start');
+  {
+    // «خماسي السهرة» (the owner, 2 Oct 2026): a different puzzle every round, the line-up seen in the lobby.
+    const IDS = ['strands', 'wordwheel', 'connections', 'pinpoint', 'queens', 'tango', 'nonogram', 'mines', 'streak', 'sudoku'];
+    const SV_RACE_CLOCKS = { strands: 120, wordwheel: 120, connections: 120, pinpoint: 120, queens: 180, tango: 180, nonogram: 180, mines: 180, streak: 180, sudoku: 240 };
+    const distinct = (l) => Array.isArray(l) && l.every((id, i) => IDS.indexOf(id) !== -1 && l.indexOf(id) === i);
+    const mx = newRoom(['a', 'b', 'c']);
+    applyRoomAction(mx, 'a', 'chooseGame', { game: 'queens' });
+    check(refused(() => applyRoomAction(mx, 'b', 'raceLineup', { on: true, rounds: 3 })), 'pentathlon: only the host draws the line-up');
+    applyRoomAction(mx, 'a', 'raceLineup', { on: true, rounds: 3 });
+    let lu = mx.shared.lineup;
+    check(lu.length === 3 && distinct(lu) && lu[0] === 'queens' && lu.indexOf('g2048') === -1, 'pentathlon: the lobby draws 3 different puzzles of the ten, the one chosen first (' + lu.join(', ') + ')');
+    applyRoomAction(mx, 'a', 'raceLineup', { on: true, rounds: 5 });
+    check(mx.shared.lineup.length === 5 && distinct(mx.shared.lineup) && mx.shared.lineup.slice(0, 3).join() === lu.join(), 'pentathlon: 5 rounds draws two more, keeping the three');
+    applyRoomAction(mx, 'a', 'raceLineup', { on: true, rounds: 3 });
+    check(mx.shared.lineup.join() === lu.join(), 'pentathlon: back to 3 keeps the first three');
+    const was = mx.shared.lineup[1];
+    applyRoomAction(mx, 'a', 'raceLineup', { at: 1, was });
+    const now = mx.shared.lineup[1];
+    check(now !== was && distinct(mx.shared.lineup) && mx.shared.lineup[0] === 'queens', 'pentathlon: the host\'s tap swaps one puzzle for one not in the line-up (' + was + ' → ' + now + ')');
+    applyRoomAction(mx, 'a', 'raceLineup', { at: 1, was });
+    check(mx.shared.lineup[1] === now, 'pentathlon: a second tap for the puzzle already swapped does nothing');
+    {
+      const off = newRoom(['a', 'b']);
+      applyRoomAction(off, 'a', 'chooseGame', { game: 'sudoku' });
+      for (let k = 0; k < 30; k++) { applyRoomAction(off, 'a', 'raceLineup', { on: false }); applyRoomAction(off, 'a', 'raceLineup', { on: true, rounds: 5 }); if (!distinct(off.shared.lineup)) break; }
+      check(distinct(off.shared.lineup) && off.shared.lineup.length === 5, 'pentathlon: every draw is five different puzzles');
+      applyRoomAction(off, 'a', 'raceLineup', { on: false });
+      check(off.shared.lineup === undefined, 'pentathlon: switched off, the lobby has no line-up');
+      applyRoomAction(off, 'a', 'start', { lang: 'ar', rounds: 3 });
+      check(!off.shared.settings.lineup && off.shared.solve === 'sudoku', 'pentathlon: off, the race is one puzzle as before');
+    }
+    const order = mx.shared.lineup.slice();
+    applyRoomAction(mx, 'a', 'start', { lang: 'ar', finish: 'all', rounds: 5 });
+    let ms = mx.shared;
+    check(ms.settings.lineup.join() === order.join() && ms.rounds === 3 && ms.solve === order[0] && ms.settings.clock === SV_RACE_CLOCKS[order[0]] && ms.endsAt === ms.startAt + SV_RACE_CLOCKS[order[0]] * 1000,
+      'pentathlon: the start plays the line-up seen in the lobby - its length is the rounds, round 1 its first puzzle on that puzzle\'s clock');
+    check(refused(() => applyRoomAction(mx, 'a', 'raceLineup', { on: true, rounds: 5 })) || mx.shared.settings.lineup.length === 3, 'pentathlon: the line-up can\'t change once the race is on');
+    const kinds = [];
+    for (let round = 1; round <= 3; round++) {
+      ms = mx.shared;
+      kinds.push(ms.solve);
+      check(mx.game === 'queens' && ms.round === round && ms.solve === order[round - 1] && !!mx._solve.secret && ms.settings.clock === (SV_RACE_CLOCKS[order[round - 1]] || 120),
+        'pentathlon: round ' + round + ' is ' + order[round - 1] + ', dealt on the server as a race of it');
+      clock += 5000;
+      applyRoomAction(mx, ['a', 'b', 'c'][round - 1], 'giveUp', { round });
+      applyRoomAction(mx, 'a', 'closeRound', { round });
+      check(mx.shared.phase === (round < 3 ? 'result' : 'gameover') && mx.shared.solve === order[round - 1], 'pentathlon: round ' + round + '\'s result keeps its puzzle, the next not dealt yet');
+      if (round < 3) applyRoomAction(mx, 'a', 'nextRound', { round });
+    }
+    check(kinds.join() === order.join(), 'pentathlon: every round a different puzzle, in the line-up\'s order');
+    // Points: one round each solved alone - the totals make the board.
+    const pt = newRoom(['a', 'b']);
+    applyRoomAction(pt, 'a', 'chooseGame', { game: 'queens' });
+    applyRoomAction(pt, 'a', 'raceLineup', { on: true, rounds: 3 });
+    pt.shared.lineup = ['queens', 'sudoku', 'tango'];
+    applyRoomAction(pt, 'a', 'start', { lang: 'ar', finish: 'all' });
+    const crownsOf = (rm) => { const m = new Array(49).fill(0); rm._solve.secret.solution.forEach((c, row) => { m[row * 7 + c] = 2; }); return m; };
+    clock += 10000; applyRoomAction(pt, 'a', 'move', { marks: crownsOf(pt), round: 1 }); applyRoomAction(pt, 'b', 'giveUp', { round: 1 });
+    check(pt.shared.scores.a === 15 && pt.shared.phase === 'result', 'pentathlon: a round pays the race\'s usual points (10 + 5)');
+    applyRoomAction(pt, 'a', 'nextRound', { round: 1 });
+    check(pt.shared.solve === 'sudoku' && pt.shared.pub && typeof pt.shared.pub.puzzle === 'string' && pt.shared.settings.clock === 240, 'pentathlon: round 2 is a sudoku, on its 4 minutes');
+    clock += 30000; applyRoomAction(pt, 'b', 'move', { cells: pt._solve.secret.solution, round: 2 }); applyRoomAction(pt, 'a', 'giveUp', { round: 2 });
+    check(pt.shared.scores.b === 15, 'pentathlon: the sudoku solved pays the same (' + JSON.stringify(pt.shared.scores) + ')');
+    applyRoomAction(pt, 'a', 'nextRound', { round: 2 });
+    check(pt.shared.solve === 'tango' && pt.shared.settings.clock === 180, 'pentathlon: round 3 is شمس وقمر on its 3 minutes');
+    applyRoomAction(pt, 'a', 'closeRound', { round: 3 });
+    check(pt.shared.phase === 'gameover' && pt.shared.board.length === 2 && pt.shared.board[0].id === 'a' && pt.shared.board[0].score === 15 && pt.shared.board[1].score === 15 && pt.shared.board[0].secs < pt.shared.board[1].secs,
+      'pentathlon: the totals over the line-up make the board, a tie to fewer seconds');
+    applyRoomAction(pt, 'a', 'playAgain', {});
+    check(pt.shared.round === 1 && pt.shared.solve === 'queens' && pt.shared.settings.lineup.join() === 'queens,sudoku,tango' && pt.shared.rounds === 3 && !pt.shared.scores.a,
+      'pentathlon: play again plays the same line-up from its first puzzle, the scores from 0');
+    // A bad line-up (an older phone, a hand-made state) falls back to the one puzzle.
+    const bad = newRoom(['a', 'b']);
+    applyRoomAction(bad, 'a', 'chooseGame', { game: 'mines' });
+    bad.shared.lineup = ['mines', 'mines', 'g2048'];
+    applyRoomAction(bad, 'a', 'start', { lang: 'ar' });
+    check(!bad.shared.settings.lineup && bad.shared.solve === 'mines', 'pentathlon: a line-up that isn\'t different puzzles of the ten is ignored');
+  }
 
   // RACE:queens
   {

@@ -421,7 +421,8 @@ function tvLobby(state, t) {
     const people = own ? '' : `<div class="tv-lobby__players">${state.players.map(tile).join('')}</div>`;
     // 🕵️ المهمة السرية on: the cork board - each photo with its pile of closed files - in place of the tiles.
     const board = typeof missionTvBoardHtml === 'function' && state.mission && state.mission.on ? missionTvBoardHtml(state) : '';
-    control = `${chosen}${board || own || people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
+    const top = state.game && ROOM_GAMES[state.game] && ROOM_GAMES[state.game].lobbyTop ? ROOM_GAMES[state.game].lobbyTop(state, true) : '';
+    control = `${chosen}${top ? `<div class="tv-scale">${top}</div>` : ''}${board || own || people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
   } else if (!state.game) {
     const count = state.players.length;
     const tileHtml = (tile) => {
@@ -467,7 +468,7 @@ function tvLobby(state, t) {
         <span class="tv-chosen__name">${entry ? iconHtml(entry.icon) + ' ' + (t[entry.key] || entry.id) : escapeHTML(state.game)}</span>
         ${tvBtn(t.room_change_game, "roomAct('backToHub')", 'ghost')}
       </div>
-      <div class="tv-scale">${game && game.lobbyOptions ? game.lobbyOptions(state) : ''}</div>
+      <div class="tv-scale">${game && game.lobbyTop ? game.lobbyTop(state, true) : ''}${game && game.lobbyOptions ? game.lobbyOptions(state) : ''}</div>
       ${roomBotControlsHtml(state, true)}
       <div class="tv-actions">${tvBtn(t.start, 'roomStartGame()')}</div>`;
   }

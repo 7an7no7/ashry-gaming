@@ -376,7 +376,7 @@ dailies once and draws its list again (`renderDaily.asked`), so a board left hal
 
 Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
 
-- **(415) سودوكو «للصغيرين»**: two kid sizes beside the normal levels, **4x4 and 6x6, with pictures instead of digits** (fruit or animals, the child picks the set; a 1-2-3 switch shows digits). **A mistake glows red at once and costs nothing**, a big 💡 fills one square, no limit; confetti and a star at the end; the time only if the parent turns it on.
+- **(415) سودوكو «للصغيرين» - DROPPED by the owner on 2 Oct 2026 ("drop this new sudoku, don't build it"), after its design sheet; kept here only as what was asked**: two kid sizes beside the normal levels, **4x4 and 6x6, with pictures instead of digits** (fruit or animals, the child picks the set; a 1-2-3 switch shows digits). **A mistake glows red at once and costs nothing**, a big 💡 fills one square, no limit; confetti and a star at the end; the time only if the parent turns it on.
 
 - **(420) 2048 board sizes**: **3x3 (wins at 256), 4x4 (2048, today's game) and 5x5 (4096)**, each with its own best, the size remembered. **Free play only**: no daily changes, and 2048 stays out of the race (the 26 Sep decision). **Built 2 Oct 2026** (below).
 

@@ -10338,6 +10338,179 @@ Date.now = duelTestClock;
     const r = chairsRoom(['a', 'b', 'c'], { fake: false });
     check(r._chairs.fakes.length === 0, 'chairs: the switch off means no fake pauses');
   }
+
+  /* «الدي جي» (the owner, 2 Oct 2026): from round 2 the latest one out runs the music. */
+  const outEarly = (r, id) => applyRoomAction(r, id, 'sit', { round: r.shared.round, at: clock });
+  {
+    // Off (the default): the game exactly as it was - no DJ, the secret stop every round.
+    const r = chairsRoom(['a', 'b', 'c', 'd']);
+    const s = r.shared;
+    check(s.settings.dj === false && s.dj === null, 'chairs/dj: off by default');
+    outEarly(r, 'b');
+    tick(r);
+    check(s.round === 2 && s.dj === null && r._chairs.dj === null && r._chairs.stopAt <= s.startAt + 20000,
+      'chairs/dj: switched off, round 2 is the secret stop as before');
+    clock = s.startAt + 5000;
+    applyRoomAction(r, 'b', 'djStop', { round: 2 });
+    check(s.phase === 'music', 'chairs/dj: switched off, nobody can stop the music');
+  }
+  {
+    const r = chairsRoom(['a', 'b', 'c', 'd'], { dj: true });
+    const s = r.shared;
+    check(s.settings.dj === true && s.dj === null && r._chairs.stopAt <= s.startAt + 20000, 'chairs/dj: round 1 is always the secret stop');
+    outEarly(r, 'b');
+    tick(r);
+    check(s.round === 2 && s.dj === 'b' && s.djName === 'B' && r._chairs.dj === 'b' && r._chairs.fakes.length === 0,
+      'chairs/dj: round 2: the one who just went out is the DJ');
+    check(r._chairs.stopAt === s.startAt + 25000 && roomDeadline(r) === s.startAt + 25000, 'chairs/dj: the server waits 25 s for the DJ, then stops it itself');
+    clock = s.startAt + 3999;
+    applyRoomAction(r, 'b', 'djStop', { round: 2 });
+    check(s.phase === 'music', "chairs/dj: the stop can't come in the music's first 4 s");
+    clock = s.startAt + 6000;
+    applyRoomAction(r, 'a', 'djStop', { round: 2 });
+    check(s.phase === 'music', 'chairs/dj: only the DJ stops the music');
+    applyRoomAction(r, 'b', 'djFake', { round: 2 });
+    check(s.phase === 'music' && !s.pause, 'chairs/dj: no fake stops unless that switch is on');
+    applyRoomAction(r, 'b', 'sit', { round: 2, at: clock });
+    check(s.phase === 'music', "chairs/dj: the DJ can't sit");
+    applyRoomAction(r, 'b', 'djStop', { round: 1 });
+    check(s.phase === 'music', 'chairs/dj: a stop sent for an old round is dropped');
+    applyRoomAction(r, 'b', 'djStop', { round: 2 });
+    check(s.phase === 'sit' && s.stopAt === clock && roomDeadline(r) === clock + 3000, "chairs/dj: the DJ's stop is stamped on the server's clock as it arrives");
+    const stop = s.stopAt;
+    clock = stop + 600;
+    applyRoomAction(r, 'c', 'sit', { round: 2, at: stop + 300 });
+    applyRoomAction(r, 'a', 'sit', { round: 2, at: stop - 2000 });
+    check(s.sits[0].id === 'c' && s.sits[0].ms === 300 && s.sits[1].id === 'a' && s.sits[1].ms === 600, "chairs/dj: the taps are judged against the DJ's stop as against the secret one");
+    tick(r);
+    check(s.phase === 'result' && s.loserId === 'd' && s.why === 'late', 'chairs/dj: no tap is last, as always');
+    tick(r);
+    check(s.round === 3 && s.dj === 'd', 'chairs/dj: the job passes to whoever just went out');
+    tick(r);
+    check(s.phase === 'sit' && s.stopAt === s.startAt + 25000, "chairs/dj: a DJ who never stops it: the server stops it at 25 s");
+    check(!(s.board || []).some(x => x.score), 'chairs/dj: the DJ scores nothing');
+  }
+  {
+    // Fake stops from the DJ, who they catch, and «أحلى دي جي».
+    const r = chairsRoom(['a', 'b', 'c', 'd', 'e'], { dj: true, fake: true });
+    const s = r.shared;
+    outEarly(r, 'b');
+    tick(r);
+    check(s.dj === 'b' && r._chairs.fakes.length === 0, 'chairs/dj: with a DJ the server deals no fake pauses of its own');
+    clock = s.startAt + 3000;
+    applyRoomAction(r, 'b', 'djFake', { round: 2 });
+    check(!s.pause, 'chairs/dj: no fake stop in the first 4 s either');
+    clock = s.startAt + 5000;
+    applyRoomAction(r, 'b', 'djFake', { round: 2 });
+    check(s.phase === 'music' && s.pause && s.pause.at === clock && s.pause.until === clock + 600 && s.djFakes === 1 && roomDeadline(r) === clock + 600,
+      'chairs/dj: the DJ pauses the music for a moment');
+    clock += 100;
+    applyRoomAction(r, 'c', 'sit', { round: 2, at: clock });
+    check(s.phase === 'result' && s.loserId === 'c' && s.why === 'early' && s.trapBy === 'b' && s.djCaught.b === 1,
+      "chairs/dj: a tap in the DJ's fake stop is a false start, and the DJ caught them");
+    tick(r);
+    check(s.round === 3 && s.dj === 'c' && !s.trapBy && s.djFakes === 0, 'chairs/dj: round 3: the new DJ, a fresh count of fakes');
+    clock = s.startAt + 5000;
+    applyRoomAction(r, 'c', 'djFake', { round: 3 });
+    tick(r);
+    check(s.phase === 'music' && !s.pause, 'chairs/dj: the fake ends by itself and the music goes on');
+    applyRoomAction(r, 'c', 'djFake', { round: 3 });
+    check(!s.pause && s.djFakes === 1, 'chairs/dj: fakes come at least 1.5 s apart');
+    clock = s.djLastFake.until + 1500;
+    applyRoomAction(r, 'c', 'djFake', { round: 3 });
+    tick(r);
+    clock = s.djLastFake.until + 1500;
+    applyRoomAction(r, 'c', 'djFake', { round: 3 });
+    check(s.djFakes === 3 && !!s.pause, 'chairs/dj: a third fake');
+    tick(r);
+    clock = s.djLastFake.until + 2000;
+    applyRoomAction(r, 'c', 'djFake', { round: 3 });
+    check(s.djFakes === 3 && !s.pause, 'chairs/dj: three fakes a round, no more');
+    applyRoomAction(r, 'c', 'djStop', { round: 3 });
+    applyRoomAction(r, 'a', 'sit', { round: 3, at: s.stopAt + 150 });
+    applyRoomAction(r, 'd', 'sit', { round: 3, at: s.stopAt + 150 });
+    tick(r);
+    check(s.loserId === 'e' && s.why === 'late' && !s.trapBy && !s.djCaught.c, 'chairs/dj: a fake that caught nobody counts nothing');
+    tick(r);
+    check(s.round === 4 && s.dj === 'e', 'chairs/dj: round 4, the next DJ');
+    clock = s.startAt + 5000;
+    applyRoomAction(r, 'e', 'djFake', { round: 4 });
+    tick(r);
+    clock = s.djLastFake.until + 801;
+    outEarly(r, 'd');
+    check(s.phase === 'gameover' && s.why === 'early' && !s.trapBy && !s.djCaught.e, "chairs/dj: a false start well after the fake isn't the DJ's catch");
+    check(s.winnerId === 'a' && s.bestDj && s.bestDj.n === 1 && s.bestDj.ids.join() === 'b' && s.bestDj.names.join() === 'B' && s.wins.a === 1 && !s.wins.b,
+      '«أحلى دي جي»: whoever caught the most with a fake; a DJ wins nothing');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.settings.dj === true && r.shared.settings.fake === true && !r.shared.bestDj && JSON.stringify(r.shared.djCaught) === '{}' && r.shared.dj === null,
+      'chairs/dj: play again keeps the switches and starts the DJ tally over');
+  }
+  {
+    // Nobody caught anyone: no «أحلى دي جي».
+    const r = chairsRoom(['a', 'b', 'c'], { dj: true });
+    outEarly(r, 'c');
+    tick(r);
+    outEarly(r, 'b');
+    check(r.shared.phase === 'gameover' && r.shared.bestDj === null, 'chairs/dj: no catches, no «أحلى دي جي»');
+  }
+  {
+    // The DJ's phone goes away mid-music: the secret stop takes the round over.
+    const r = chairsRoom(['a', 'b', 'c', 'd'], { dj: true, fake: true });
+    const s = r.shared;
+    outEarly(r, 'b');
+    tick(r);
+    clock = s.startAt + 2000;
+    r.lastSeen = { b: clock };
+    check(roomDeadline(r) === clock + 3000, "chairs/dj: the server looks again 3 s after the DJ's phone went");
+    tick(r);
+    check(s.phase === 'music' && s.dj === null && s.djLost === true && s.djName === 'B' && r._chairs.dj === null &&
+      r._chairs.stopAt >= clock + 2500 && r._chairs.stopAt <= clock + 7000 && r._chairs.stopAt >= s.startAt + 4000,
+      'chairs/dj: a DJ away: the secret stop takes this round over');
+    delete r.lastSeen.b;
+    clock += 1000;
+    applyRoomAction(r, 'b', 'djStop', { round: 2 });
+    check(s.phase === 'music', "chairs/dj: back again, the DJ can't stop a round the server took over");
+    const secretAt = r._chairs.stopAt;
+    tick(r);
+    check(s.phase === 'sit' && s.stopAt === secretAt, "chairs/dj: the server's secret stop ends it");
+  }
+  {
+    // The DJ leaves the room mid-music.
+    const r = chairsRoom(['a', 'b', 'c', 'd'], { dj: true });
+    const s = r.shared;
+    outEarly(r, 'b');
+    tick(r);
+    leave(r, 'b');
+    check(s.phase === 'music' && s.dj === null && s.djLost && !r._chairs.dj && s.chairs === 2, 'chairs/dj: the DJ leaves: the secret stop, the ring untouched');
+  }
+  {
+    // Who is DJ: the latest one out who is here; away or a computer player is skipped; nobody - the secret stop.
+    const r = chairsRoom(['a', 'b', 'c', 'd', 'e'], { dj: true });
+    const s = r.shared;
+    outEarly(r, 'b');
+    tick(r);
+    applyRoomAction(r, 'b', 'djStop', { round: 2 });
+    clock = s.startAt + 5000;
+    outEarly(r, 'c');
+    r.lastSeen = { c: clock };
+    tick(r);
+    check(s.round === 3 && s.dj === 'b', 'chairs/dj: the latest out is away: the one out before them runs it');
+    r.players.push({ id: 'z', name: 'Z', bot: 'easy' });
+    s.outOrder.push('z');
+    clock = s.startAt + 5000;
+    applyRoomAction(r, 'a', 'nextRound', {});
+    check(s.round === 3, 'chairs/dj: (the host moves on only from a result)');
+    outEarly(r, 'd');
+    s.outOrder.push('z');
+    tick(r);
+    check(s.round === 4 && s.dj === 'd', 'chairs/dj: a computer player never DJs - the latest person out does');
+    r.lastSeen = { b: clock, c: clock, d: clock };
+    s.outOrder = ['z', 'b', 'c', 'd'];
+    s.phase = 'result';
+    s.nextAt = clock;
+    tick(r);
+    check(s.dj === null && r._chairs.dj === null && r._chairs.stopAt <= s.startAt + 20000, 'chairs/dj: nobody out is here: the secret stop');
+  }
 }
 
 /* --- بالظبط ٣! (29 Sep 2026): every order judged from the phones' stamps, the glasses, the levels --- */

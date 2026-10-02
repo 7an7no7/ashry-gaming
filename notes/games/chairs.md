@@ -101,7 +101,7 @@ help); the rules are named `chairs` / `CHAIRS_`, the page's code `mch` / `MCH_`.
   false start, taps ranked by their stamps, a quiet phone, the end, play
   again with a latecomer, a leave).
 
-## «الدي جي» - the one out stops the music: answered, not built yet (the owner, 2 Oct 2026)
+## «الدي جي» - the one out stops the music: built 2 Oct 2026 (the owner's answers of 2 Oct 2026)
 
 Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
 
@@ -110,6 +110,62 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
   - **The latest one out is the DJ**: each round the job passes to whoever just went out.
   - **The DJ has «وقّف» and, if the fake-stops switch is on, «وقفة خداعية».** The stop can't come in the first 4 s of the music; **if the DJ hasn't stopped by 25 s, the server stops it** by itself.
   - **No points for the DJ**; the end shows the title «أحلى دي جي» for whoever caught the most people with a fake stop.
+
+### How it is built
+
+- **`RoomChairs.js`**: `settings { fake, dj }` (the start / play again payload's `dj`, kept across play
+  again). `chairsPickDj` at every round start from round 2: the latest one out (`outOrder` read
+  backwards) who is still in the room, not a computer player, and not away (`room.lastSeen`);
+  nobody - `dj: null` and the secret stop. A DJ round keeps `room._chairs = { stopAt: startAt +
+  CHAIRS_DJ_MAX_MS, fakes: [], dj }`: the server deals no fake pauses of its own, and its only stop
+  is the 25 s backstop. Shared: `dj`, `djName`, `djLost`, `djFakes` (this round), `djLastFake { at,
+  until }`, `trapBy` (who caught this round's false start), `djCaught { id: n }` (this game),
+  `bestDj { n, ids, names }` (at the end, or null).
+  - `djStop { round }` / `djFake { round }`: only `s.dj` (and `_chairs.dj`), only while the music
+    plays, refused quietly before `startAt + CHAIRS_DJ_FIRST_MS` (4 s); a stale round is dropped
+    (`staleTap`). The stop is `chairsStop(room, Date.now())` - the press stamped by the server as it
+    arrives - and the taps are judged against it exactly as against the secret stop. A fake is the
+    same `s.pause` as the server's (`dj: true`), `CHAIRS_FAKE_MS` long.
+  - A false start while a DJ's fake pause is on, or up to `CHAIRS_DJ_TRAP_MS` after it ended, is
+    that DJ's catch (`trapBy`, `djCaught`).
+  - `chairsDjLost` hands a round back to a secret stop (2.5-7 s ahead, never before the 4 s): from
+    `chairsPlayerLeft` when the DJ leaves, and from `chairsTimeout` once `room.lastSeen[dj]` is
+    `CHAIRS_DJ_AWAY_MS` (3 s) old - `chairsDeadline` wakes for it (room.js schedules the alarm when a
+    phone's last socket goes). The pause's end falls through into the rest of the timeout (*a timeout
+    does everything due*), since a DJ's fake can end at the backstop.
+  - Off, none of this runs: `dj` is null every round and the round is the one of 27 Sep.
+- **`JS_RoomChairs.html`**: the lobby's second switch (`mchOpts().dj`, its hint), `mchDjHtml` (the
+  DJ's panel in place of the out note: 💿 «إنت الدي جي!», the amber «وقّف» with its line, and «🎭 وقفة
+  خداعية · باقي N» with the fake stops on), `mchDj` (one stop a round, a fake locked a beat), and
+  `mchDjPaint` on the paint tick (the buttons open at 4 s, «جاهز بعد N…» / «هتقف لوحدها بعد N ث»,
+  the fakes left, locked in a pause or the 1.5 s gap). The record turns with the beat on the
+  orbit's animations (so it stops dead in a fake). The head carries «🎧 الدي جي: X» while the music
+  plays (the TV's eyebrow too, and its list has a 🎧 badge on the DJ's row); a result caught by a
+  fake says so («🎧 وقفة X الخداعية وقّعته»); the one out gets «🎧 إنت الدي جي الجولة الجاية»; the
+  end has «أحلى دي جي» at the foot of the places card. `mchDjSig` is in both signatures. The words
+  are `MCH_DJ_TEXT` in the chunk (read through `mchDjT()`), not TRANSLATIONS: the shell is at its
+  710 KB budget (as `SNK_BUBBLES`). `turn_chairs_dj` (JS_RoomTurn.html) is the «دورك!» alert.
+- Tests: `rules.mjs` (41 checks «chairs/dj»: off as before, round 1 secret, the DJ, the 4 s, only
+  the DJ, the stale round, the server's stamp, the taps, the backstop, the fakes - 4 s, the gap,
+  three a round - a catch and the trap window, «أحلى دي جي», play again, the DJ away and gone, who
+  is DJ: away, a computer player, nobody); `leaks.mjs` (a DJ round sends no stop moment to any phone,
+  the DJ's included; a round taken over keeps its secret stop; the game is played with the switch
+  on after the plain one); `play-all.mjs --only=chairs-dj` (a fake that catches, a DJ's phone
+  closing and the server taking over, «أحلى دي جي», the DJ's own stop on every phone).
+
+### Decided here (open to change)
+
+- **Who is DJ when the latest one out can't be**: the one out before them who is here (away phones
+  and computer players are skipped); nobody - the secret stop. (`chairsPickDj`)
+- **A DJ "goes offline"** when their phone has had no socket for 3 s (`CHAIRS_DJ_AWAY_MS`); the
+  server then stops the music at a secret moment 2.5-7 s ahead (`CHAIRS_DJ_TAKEOVER_MS`), and the
+  round stays the server's even if the DJ comes back. Phones read «الدي جي مشي… الموسيقى هتقف لوحدها».
+- **The DJ's fake stops**: the same 0.6 s pause as the server's, also not in the first 4 s, at most
+  three a round (`CHAIRS_DJ_FAKES`), 1.5 s apart (`CHAIRS_DJ_FAKE_GAP_MS`), and none in the last
+  1.1 s before the 25 s backstop. With a DJ the server adds no fakes of its own.
+- **A catch** is a false start during the DJ's fake or within 0.8 s after it ends
+  (`CHAIRS_DJ_TRAP_MS`), counted for this game only; a tie for «أحلى دي جي» names everyone level.
+- **Everyone sees who the DJ is** (🎧 in the head, the TV's eyebrow and list) - nothing of when.
 
 ## History
 

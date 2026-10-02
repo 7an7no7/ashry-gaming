@@ -20,13 +20,62 @@
        it was, measured before the redraw), the loser greys and walks off,
      - the button pops in, the sit window drains, the result card turns,
      - the end is the places, confetti for the winner and the wins tally.
+   «الدي جي» (a lobby switch, 2 Oct 2026): from round 2 the latest one out
+   gets the DJ panel in place of the out note (mchDjHtml): «وقّف», and
+   «وقفة خداعية» with the fake stops on, locked for the music's first 4 s and
+   counting down to the server's own stop at 25 s (painted in place by the
+   paint tick). Everyone sees who the DJ is (🎧 in the head and the TV's
+   list), never anything of when they will press.
    Every name here starts with mch / MCH_. Section 50 of Style.html.
    ========================================================================= */
 const MCH_OPTS_KEY = 'chairs';
-const MCH_OPTS_DEFAULT = { fake: false };
+const MCH_OPTS_DEFAULT = { fake: false, dj: false };
 const MCH_COLORS = ['#6d28d9', '#0ea5a4', '#e5383b', '#f59e0b', '#2563eb', '#db2777', '#16a34a', '#7c3aed', '#ea580c', '#0891b2', '#9333ea', '#65a30d'];
 const MCH_BPM_START = 104, MCH_BPM_END = 150, MCH_BPM_RAMP_MS = 16000;
 const MCH_SIT_MS = 3000;           // CHAIRS_SIT_MS on the server: the window's bar drains over it
+// «الدي جي»: the server's CHAIRS_DJ_* (RoomChairs.js), mirrored only to lock the buttons; the server decides.
+const MCH_DJ_FIRST_MS = 4000, MCH_DJ_MAX_MS = 25000, MCH_DJ_FAKES = 3, MCH_DJ_FAKE_GAP_MS = 1500, MCH_DJ_FAKE_MS = 600;
+// «الدي جي»'s words: only this game's chunk reads them, so they live here and not in
+// TRANSLATIONS (the shell's size budget, as SNK_BUBBLES); read through mchDjT().
+const MCH_DJ_TEXT = {
+  ar: {
+    mch_dj: "دي جي من اللي خرج",
+    mch_dj_hint: "من الجولة التانية، آخر واحد خرج هو اللي يوقّف الموسيقى من موبايله (ولو موقفهاش في 25 ثانية تقف لوحدها).",
+    mch_dj_is: "الدي جي: {name}",
+    mch_dj_short: "دي جي",
+    mch_dj_you: "إنت الدي جي!",
+    mch_dj_stop: "وقّف",
+    mch_dj_fake: "وقفة خداعية",
+    mch_dj_fakes_left: "باقي {n}",
+    mch_dj_ready_in: "جاهز بعد {n}…",
+    mch_dj_auto: "هتقف لوحدها بعد {n} ث",
+    mch_dj_hint_play: "اسمع الموسيقى، ووقّفها في أصعب لحظة",
+    mch_dj_next: "🎧 إنت الدي جي الجولة الجاية",
+    mch_dj_lost: "الدي جي مشي… الموسيقى هتقف لوحدها",
+    mch_dj_caught: "🎧 وقفة {name} الخداعية وقّعته",
+    mch_best_dj: "أحلى دي جي",
+    mch_best_dj_n: "وقّع بالوقفة الخداعية: {n}"
+  },
+  en: {
+    mch_dj: "The one out is the DJ",
+    mch_dj_hint: "From round 2, the latest one out stops the music from their phone (if they don't within 25 seconds, it stops by itself).",
+    mch_dj_is: "DJ: {name}",
+    mch_dj_short: "DJ",
+    mch_dj_you: "You're the DJ!",
+    mch_dj_stop: "Stop",
+    mch_dj_fake: "Fake stop",
+    mch_dj_fakes_left: "{n} left",
+    mch_dj_ready_in: "Ready in {n}…",
+    mch_dj_auto: "Stops by itself in {n}s",
+    mch_dj_hint_play: "Listen, and stop it at the trickiest moment",
+    mch_dj_next: "🎧 You're the DJ next round",
+    mch_dj_lost: "The DJ is gone… the music will stop by itself",
+    mch_dj_caught: "🎧 {name}'s fake stop got them",
+    mch_best_dj: "Best DJ",
+    mch_best_dj_n: "Caught with a fake stop: {n}"
+  }
+};
+const mchDjT = () => MCH_DJ_TEXT[appState.lang] || MCH_DJ_TEXT.ar;
 
 const mch = {
   gap: Infinity,        // the smallest (receivedAt − serverNow) seen: the network's share, so the phone can tell the server's time
@@ -158,13 +207,14 @@ function mchRingHtml(state, s, o) {
   // The middle: the equalizer while the music plays, the moment otherwise.
   let mid;
   if (music) {
-    mid = `<div class="mch-eq" data-mch-eq>${'<i></i>'.repeat(9)}</div><div class="mch-mid__line">${escapeHTML(t.mch_music_on)}</div>`;
+    mid = `<div class="mch-eq" data-mch-eq>${'<i></i>'.repeat(9)}</div><div class="mch-mid__line">${escapeHTML(s.djLost ? mchDjT().mch_dj_lost : t.mch_music_on)}</div>`;
   } else if (s.phase === 'sit') {
     mid = `<div class="mch-mid__big">${escapeHTML(t.mch_stopped)}</div><div class="mch-window"><i data-mch-window></i></div>`;
   } else if (s.phase === 'result') {
     const key = s.why === 'early' ? 'mch_out_early' : s.why === 'late' ? 'mch_out_late' : s.why === 'left' ? 'mch_out_left' : 'mch_out_last';
+    const trap = s.why === 'early' && s.trapBy ? `<div class="mch-mid__line">${escapeHTML(mchFill(mchDjT().mch_dj_caught, { name: mchIso(mchNameOf(state, s.trapBy) || s.djName || '') }))}</div>` : '';
     mid = `<div class="mch-mid__big mch-mid__big--out">${escapeHTML(mchFill(t[key], { name: mchIso(s.loserName || '') }))}</div>
-           <div class="mch-mid__line" data-mch-next></div>`;
+           ${trap}<div class="mch-mid__line" data-mch-next></div>`;
   } else {
     mid = `<div class="mch-mid__big mch-mid__big--win">🏆 ${escapeHTML(mchFill(t.mch_winner, { name: mchIso(s.winnerName || '') }))}</div>`;
   }
@@ -196,7 +246,8 @@ function mchRingListHtml(state, s) {
   const alive = s.alive || [];
   const rows = (state.players || []).filter((p) => (s.roster || []).indexOf(p.id) !== -1).map((p) => {
     const out = alive.indexOf(p.id) === -1;
-    return `<div class="status-row ${out ? 'is-out' : ''}"><span class="mch-order__n" style="${out ? 'background:var(--surface-3);color:var(--text-2)' : mchChipStyle(mchColorOf(s, p.id))}">${escapeHTML(mchInitial(p.name))}</span><div class="status-row__body"><div class="status-row__name">${escapeHTML(p.name)}</div></div>${out ? '<span class="mch-order__ms">✕</span>' : ''}</div>`;
+    const dj = out && s.dj === p.id;
+    return `<div class="status-row ${out && !dj ? 'is-out' : ''}"><span class="mch-order__n" style="${out ? 'background:var(--surface-3);color:var(--text-2)' : mchChipStyle(mchColorOf(s, p.id))}">${escapeHTML(mchInitial(p.name))}</span><div class="status-row__body"><div class="status-row__name">${escapeHTML(p.name)}</div></div>${dj ? `<span class="badge badge--accent">🎧 ${escapeHTML(mchDjT().mch_dj_short)}</span>` : out ? '<span class="mch-order__ms">✕</span>' : ''}</div>`;
   }).join('');
   return `<div class="card card--tight mch-order"><div class="eyebrow">${escapeHTML(t.mch_in_ring)}</div>${rows}</div>`;
 }
@@ -208,9 +259,35 @@ function mchOverHtml(state, s) {
   const medals = ['🥇', '🥈', '🥉'];
   const rise = motionFirst(['mch-over', roomDealKey(state)].join('|'));
   const list = places.map((p, i) => `<div class="mch-place ${rise ? 'mch-place--rise' : ''}" style="--at:${i * 140}ms"><span class="mch-place__medal">${medals[i] || (i + 1)}</span><span class="mch-place__name">${escapeHTML(p.name)}</span></div>`).join('');
+  // «أحلى دي جي»: whoever caught the most with a fake stop (none caught anyone: no title).
+  // A line at the foot of the places card, not a card of its own: the TV's side is tall already.
+  const best = s.bestDj && s.bestDj.n > 0
+    ? `<div class="mch-best-dj ${rise ? 'mch-place--rise' : ''}" style="--at:${places.length * 140 + 200}ms">
+        <span class="mch-best-dj__icon" aria-hidden="true">🎧</span>
+        <div><div class="eyebrow">${escapeHTML(mchDjT().mch_best_dj)}</div>
+        <div class="mch-best-dj__name">${escapeHTML((s.bestDj.names || []).join(' · '))}</div>
+        <div class="mch-best-dj__n">${escapeHTML(mchFill(mchDjT().mch_best_dj_n, { n: s.bestDj.n }))}</div></div></div>` : '';
   return `<div class="card mch-over ${rise ? 'mch-over--rise' : ''}" data-reveal-ms="${rise ? 700 + places.length * 140 : 0}">
-      <div class="eyebrow">${escapeHTML(t.mch_places)}</div>${list}</div>
+      <div class="eyebrow">${escapeHTML(t.mch_places)}</div>${list}${best}</div>
     ${renderScoreboard(s.board, t.mch_wins)}`;
+}
+
+/**
+ * «الدي جي»: the panel the round's DJ gets in place of the out note. «وقّف» (and
+ * «وقفة خداعية» with the fake stops on) are drawn locked; the paint tick opens
+ * them once the music has played MCH_DJ_FIRST_MS and keeps the lines current.
+ */
+function mchDjHtml(state, s) {
+  const t = mchT();
+  const fake = !!(s.settings && s.settings.fake);
+  const enter = motionFirst(['mch-dj', roomDealKey(state), s.round].join('|')) ? ' mch-dj--in' : '';
+  return `<div class="mch-dj${enter}">
+      <div class="mch-dj__head"><span class="mch-dj__disc" data-mch-disc aria-hidden="true">💿</span><span class="mch-dj__title">${escapeHTML(mchDjT().mch_dj_you)}</span></div>
+      <button type="button" class="mch-btn is-go" data-mch-djstop disabled onclick="mchDj('djStop', this)">
+        <span class="mch-btn__label">${escapeHTML(mchDjT().mch_dj_stop)}</span><span class="mch-btn__sub" data-mch-djline></span></button>
+      ${fake ? `<button type="button" class="btn btn--secondary btn--auto" data-mch-djfake disabled onclick="mchDj('djFake', this)">🎭 ${escapeHTML(mchDjT().mch_dj_fake)} · <span data-mch-djleft></span></button>` : ''}
+      <p class="mch-hint">${escapeHTML(mchDjT().mch_dj_hint_play)}</p>
+    </div>`;
 }
 
 /* --- the room game ------------------------------------------------------------- */
@@ -230,9 +307,17 @@ ROOM_GAMES.chairs = {
           </span>
         </label>
         <p class="field__hint" style="text-align:center">${escapeHTML(o.fake ? t.mch_fake_hint : t.mch_lobby_hint)}</p>
+        <label class="switch-row" for="mch-dj">
+          <span class="field__label">🎧 ${escapeHTML(mchDjT().mch_dj)}</span>
+          <span class="switch">
+            <input type="checkbox" id="mch-dj" role="switch" ${o.dj ? 'checked' : ''} onchange="mchSetOpt({ dj: this.checked })">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </label>
+        ${o.dj ? `<p class="field__hint" style="text-align:center">${escapeHTML(mchDjT().mch_dj_hint)}</p>` : ''}
       </div>`;
   },
-  startPayload() { return { fake: !!mchOpts().fake }; },
+  startPayload() { const o = mchOpts(); return { fake: !!o.fake, dj: !!o.dj }; },
 
   render(state) {
     if (appState.currentView !== 'room-chairs') setView('room-chairs');
@@ -251,7 +336,7 @@ ROOM_GAMES.chairs = {
 
     const sig = ['mch', roomDealKey(state), s.phase, s.round, s.chairs, (s.order || []).join(','), alive.join(','),
       sits.map((x) => x.id + ':' + x.ms).join(','), s.loserId, s.why, s.winnerId, JSON.stringify(s.wins || {}),
-      state.youAreHost, voice, screenOn, inRing, appState.lang].join('|');
+      state.youAreHost, voice, screenOn, inRing, appState.lang, mchDjSig(s)].join('|');
 
     const before = mchRects(el);
     renderRoomFrame(el, sig, () => {
@@ -260,10 +345,13 @@ ROOM_GAMES.chairs = {
           <span class="badge">${escapeHTML(t.round)} <span class="metric">${s.round || 1}</span></span>
           <span class="badge badge--accent">🪑 ${escapeHTML(mchChairsWord(s.chairs || 0))}</span>
           <span class="badge">${escapeHTML(mchFill(t.mch_alive, { n: alive.length }))}</span>
+          ${s.dj && s.phase === 'music' ? `<span class="badge badge--accent">🎧 ${escapeHTML(mchFill(mchDjT().mch_dj_is, { name: mchIso(mchNameOf(state, s.dj) || s.djName || '') }))}</span>` : ''}
         </div>`;
       let bar;
       if (s.phase === 'gameover') {
         bar = '';
+      } else if (s.phase === 'music' && s.dj && s.dj === me) {
+        bar = mchDjHtml(state, s);
       } else if (!inRing) {
         bar = `<div class="waiting-note">${escapeHTML((s.outOrder || []).indexOf(me) !== -1 ? t.mch_you_out : t.mch_watching)}</div>`;
       } else if (s.phase === 'music') {
@@ -278,7 +366,7 @@ ROOM_GAMES.chairs = {
           : `<button type="button" class="mch-btn is-go mch-btn--pop" onpointerdown="mchSit(this)" onclick="mchSit(this)"><span class="mch-btn__label">${escapeHTML(t.mch_sit)}</span></button>`;
       } else {
         bar = s.loserId === me
-          ? `<div class="mch-sat is-out"><span class="mch-sat__n">${escapeHTML(t.mch_you_out)}</span></div>`
+          ? `<div class="mch-sat is-out"><span class="mch-sat__n">${escapeHTML(t.mch_you_out)}</span>${s.settings && s.settings.dj ? `<span class="mch-hint">${escapeHTML(mchDjT().mch_dj_next)}</span>` : ''}</div>`
           : `<div class="mch-sat"><span class="mch-sat__n">${escapeHTML(myRank === -1 ? t.mch_safe : mchFill(t.mch_sat, { n: myRank + 1 }))}</span></div>`;
       }
       const host = s.phase === 'result' ? roomMoveOnHtml(state, roomHostRow([[t.mch_next_now, "roomAct('nextRound', {})", 'secondary']]))
@@ -314,6 +402,66 @@ function mchSit(btn) {
   roomAct('sit', { round: s.round, at: mchTapAt() });
 }
 
+/** What of «الدي جي» a frame shows (its signature): who, gone, the fakes used, who a fake caught, the title. */
+function mchDjSig(s) {
+  return [s.dj || '', s.djLost ? 1 : 0, s.djFakes || 0, s.trapBy || '', s.bestDj ? JSON.stringify(s.bestDj) : '', s.settings && s.settings.fake ? 1 : 0].join(':');
+}
+
+/**
+ * The DJ's two buttons. The server is the judge (the 4 s, the count, the gap,
+ * its own stamp of the moment); the phone only keeps a double tap from
+ * sending twice. «وقّف» goes once a round; a fake locks for a beat until the
+ * pause comes back from the server.
+ */
+function mchDj(action, btn) {
+  const state = Room.state;
+  const s = (state && state.shared) || {};
+  if (s.phase !== 'music' || !s.dj || s.dj !== Room.me) return;
+  if (mchServerNow() < (s.startAt || 0) + MCH_DJ_FIRST_MS) return;
+  const key = roomDealKey(state) + '|' + s.round;
+  if (action === 'djStop') {
+    if (mch.djSent === key) return;
+    mch.djSent = key;
+    if (btn) { btn.classList.add('is-pressed'); btn.disabled = true; }
+    haptic('heavy');
+  } else {
+    if (Date.now() - (mch.djFakeTap || 0) < 900) return;
+    mch.djFakeTap = Date.now();
+    if (btn) btn.disabled = true;
+    haptic('light');
+  }
+  roomAct(action, { round: s.round });
+}
+
+/** The DJ's panel, painted in place: the buttons open after the first seconds, the lines count down. */
+function mchDjPaint(el, st, sh) {
+  const stop = el.querySelector('[data-mch-djstop]');
+  if (!stop || sh.dj !== Room.me) return;
+  const t = mchT();
+  const now = mchServerNow();
+  const start = sh.startAt || now;
+  const ready = now >= start + MCH_DJ_FIRST_MS;
+  const sent = mch.djSent === roomDealKey(st) + '|' + sh.round;
+  const lock = !ready || sent;
+  if (stop.disabled !== lock) stop.disabled = lock;
+  const line = el.querySelector('[data-mch-djline]');
+  const txt = ready
+    ? mchFill(mchDjT().mch_dj_auto, { n: Math.max(0, Math.ceil((start + MCH_DJ_MAX_MS - now) / 1000)) })
+    : mchFill(mchDjT().mch_dj_ready_in, { n: Math.max(1, Math.ceil((start + MCH_DJ_FIRST_MS - now) / 1000)) });
+  if (line && line.textContent !== txt) line.textContent = txt;
+  const fake = el.querySelector('[data-mch-djfake]');
+  if (!fake) return;
+  const used = sh.djFakes || 0;
+  const paused = !!sh.pause && now < sh.pause.until;
+  const gap = sh.djLastFake && now < sh.djLastFake.until + MCH_DJ_FAKE_GAP_MS;
+  const late = now + MCH_DJ_FAKE_MS + 500 >= start + MCH_DJ_MAX_MS;
+  const off = lock || paused || gap || late || used >= MCH_DJ_FAKES || Date.now() - (mch.djFakeTap || 0) < 900;
+  if (fake.disabled !== off) fake.disabled = off;
+  const left = fake.querySelector('[data-mch-djleft]');
+  const ltxt = mchFill(mchDjT().mch_dj_fakes_left, { n: Math.max(0, MCH_DJ_FAKES - used) });
+  if (left && left.textContent !== ltxt) left.textContent = ltxt;
+}
+
 /* --- motion, sound and the clocks, after every paint (phone and TV) ------------ */
 function mchRects(el) {
   const map = {};
@@ -337,6 +485,10 @@ function mchAfter(state, el, before) {
       orbitEl.querySelectorAll('.mch-av').forEach((a) => {
         mch.eq.push(a.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(-360deg)' }], { duration: lap, iterations: Infinity }));
       });
+      // The DJ's record turns with the beat (and stands still in a fake stop).
+      el.querySelectorAll('[data-mch-disc]').forEach((disc) => {
+        mch.eq.push(disc.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: 60 / MCH_BPM_START * 4 * 1000, iterations: Infinity }));
+      });
       el.querySelectorAll('[data-mch-eq] > i').forEach((bar, i) => {
         const beat = 60 / MCH_BPM_START * 1000;
         const hi = 0.45 + ((i * 7) % 5) * 0.12;
@@ -348,6 +500,8 @@ function mchAfter(state, el, before) {
   if (!orbitEl) mchStopOrbit();
   // The avatars that moved hop from where they were (a chair, or their spot in the orbit).
   if (before && Object.keys(before).length) mchFlip(el, before, s);
+  // «الدي جي»: the DJ's phone buzzes as their round starts (and the turn alert says so).
+  if (s.phase === 'music' && s.dj && s.dj === Room.me && mchOnce('dj|' + key)) haptic('medium');
   // The stop: every phone buzzes and flashes once; the voice scratches the record.
   if (s.phase === 'sit' && mchOnce('stop|' + key)) {
     haptic('heavy');
@@ -385,6 +539,7 @@ function mchAfter(state, el, before) {
       if (mch.orbit) mch.orbit.playbackRate = rate;
       mch.eq.forEach((a) => { a.playbackRate = rate; });
       if (mch.music) mch.music.paused = paused;
+      mchDjPaint(el, st, sh);
     } else if (sh.phase === 'sit') {
       const bar = el.querySelector('[data-mch-window]');
       if (bar) bar.style.transform = 'scaleX(' + Math.max(0, 1 - (mchServerNow() - (sh.stopAt || 0)) / MCH_SIT_MS).toFixed(3) + ')';
@@ -529,12 +684,13 @@ TV_GAMES.chairs = {
   sig(state) {
     const s = state.shared || {};
     return ['chairs', roomDealKey(state), s.phase, s.round, s.chairs, (s.order || []).join(','), (s.alive || []).join(','),
-      (s.sits || []).map((x) => x.id + ':' + x.ms).join(','), s.loserId, s.why, s.winnerId, JSON.stringify(s.wins || {}), state.youAreHost, appState.lang].join('|');
+      (s.sits || []).map((x) => x.id + ':' + x.ms).join(','), s.loserId, s.why, s.winnerId, JSON.stringify(s.wins || {}), state.youAreHost, appState.lang, mchDjSig(s)].join('|');
   },
   frame(state, t) {
     const s = state.shared || {};
     const alive = s.alive || [];
-    const head = `<div class="tv-eyebrow tv-center-text">${escapeHTML(t.round)} ${s.round || 1} · ${escapeHTML(mchChairsWord(s.chairs || 0))} · ${escapeHTML(mchFill(t.mch_alive, { n: alive.length }))}</div>`;
+    const dj = s.dj && s.phase === 'music' ? ` · 🎧 ${escapeHTML(mchFill(mchDjT().mch_dj_is, { name: mchIso(mchNameOf(state, s.dj) || s.djName || '') }))}` : '';
+    const head = `<div class="tv-eyebrow tv-center-text">${escapeHTML(t.round)} ${s.round || 1} · ${escapeHTML(mchChairsWord(s.chairs || 0))} · ${escapeHTML(mchFill(t.mch_alive, { n: alive.length }))}${dj}</div>`;
     const host = s.phase === 'result' ? roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.mch_next_now, "roomAct('nextRound', {})", 'secondary')}</div>`)
       : !state.youAreHost ? '' : (s.phase === 'result'
       ? ''

@@ -751,6 +751,55 @@ async function chairsRobots() {
   [H, J, K, late, TV].forEach((x) => x.close());
 }
 
+/* --- الكراسي الموسيقية «الدي جي»: the one out runs the music, a fake that catches, a DJ who goes away --- */
+async function chairsDjRobots() {
+  console.log('• الكراسي الموسيقية «الدي جي» (the one out stops the music, a fake stop catches one, a DJ who goes away)');
+  const H = await Bot.host('حسام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const L = await Bot.join(H.code, 'ليلى');
+  const TV = await Bot.join(H.code, '', true);
+  const all4 = [H, J, K, L];
+  await H.must('chooseGame', { game: 'chairs' });
+  await H.must('start', { fake: true, dj: true });
+  await all(all4.concat([TV]), (s) => s.shared.phase === 'music' && s.shared.round === 1 && s.shared.settings.dj === true && !s.shared.dj,
+    'chairs/dj: round 1 is the secret stop, no DJ');
+  await K.must('sit', { round: 1, at: Date.now() });                     // a false start: K is out, and the next DJ
+  await all(all4.concat([TV]), (s) => s.shared.phase === 'music' && s.shared.round === 2 && s.shared.dj === K.pid && !s.shared.stopAt,
+    'chairs/dj: round 2: the one who just went out is the DJ, on every phone and the TV, no stop moment sent', 9000);
+  check(K.state.you === null && TV.state.you === null, 'chairs/dj: the DJ is sent no secret');
+  check((await K.act('djStop', { round: 2 })).ok && K.state.shared.phase === 'music', "chairs/dj: the DJ can't stop it in the first 4 s");
+  check((await J.act('djStop', { round: 2 })).ok && J.state.shared.phase === 'music', 'chairs/dj: nobody else can stop it');
+  // The fake: pressed as soon as the server takes it, and J taps in it.
+  for (let i = 0; i < 30 && !(K.state.shared.pause && K.state.shared.pause.dj); i++) { await K.act('djFake', { round: 2 }); if (!(K.state.shared.pause)) await sleep(250); }
+  check(!!(K.state.shared.pause && K.state.shared.pause.dj) && K.state.shared.pause.at - K.state.shared.startAt >= 4000 && K.state.shared.djFakes === 1,
+    'chairs/dj: after 4 s the DJ pauses the music for a moment');
+  await J.must('sit', { round: 2, at: Date.now() });
+  await all(all4.concat([TV]), (s) => s.shared.phase === 'result' && s.shared.loserId === J.pid && s.shared.why === 'early' && s.shared.trapBy === K.pid,
+    "chairs/dj: a tap in the DJ's fake stop is a false start, caught by the DJ");
+  await all(all4, (s) => s.shared.phase === 'music' && s.shared.round === 3 && s.shared.dj === J.pid, 'chairs/dj: round 3: the job passes to J', 9000);
+  // J's phone goes: after 3 s the server's secret stop takes the round over.
+  J.close();
+  await H.waitFor((s) => s.shared.phase === 'music' && s.shared.djLost === true && !s.shared.dj, "chairs/dj: the DJ's phone gone: the secret stop takes over", 9000);
+  await H.waitFor((s) => s.shared.phase === 'sit' && typeof s.shared.stopAt === 'number', 'chairs/dj: and stops the music itself', 12000);
+  const stop = H.state.shared.stopAt;
+  await sleep(300);
+  await H.must('sit', { round: 3, at: stop + 120 });
+  await all([H, K, L, TV], (s) => s.shared.phase === 'gameover' && s.shared.winnerId === H.pid && s.shared.bestDj && s.shared.bestDj.ids.join() === K.pid &&
+    !s.shared.wins[K.pid] && !s.shared.wins[J.pid], '«أحلى دي جي»: the DJ who caught the most, and a DJ wins nothing', 6000);
+  // Play again: a DJ's own stop, stamped on the server.
+  await J.connect();
+  await H.must('playAgain', {});
+  await L.must('sit', { round: 1, at: Date.now() });
+  await all([H, J, K, L], (s) => s.shared.phase === 'music' && s.shared.round === 2 && s.shared.dj === L.pid, 'chairs/dj: play again keeps the switch: L is the DJ', 9000);
+  for (let i = 0; i < 30 && L.state.shared.phase === 'music'; i++) { await L.act('djStop', { round: 2 }); if (L.state.shared.phase === 'music') await sleep(250); }
+  await all([H, J, K, L, TV], (s) => s.shared.phase === 'sit' && s.shared.stopAt - s.shared.startAt >= 4000 && s.shared.stopAt - s.shared.startAt < 12000,
+    "chairs/dj: the DJ's stop reaches every phone, never before 4 s");
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'chairs/dj: back in the hub');
+  [H, J, K, L, TV].forEach((x) => x.close());
+}
+
 /* --- بالظبط ٣!: the order on every screen, hands live, the server's window, the glasses, the end ------- */
 async function exactRobots() {
   console.log('• بالظبط ٣! (the order on every phone, taps stamped with the server time, the verdict, the glasses, the end)');
@@ -6628,6 +6677,7 @@ const SEGMENTS = [
   { name: 'minigolf', run: minigolfSeg, secs: 9 },
   { name: 'bowling', run: bowlingSeg, secs: 30 },
   { name: 'chairs', run: chairsRobots, secs: 40 },
+  { name: 'chairs-dj', run: chairsDjRobots, secs: 35 },
   { name: 'witness', run: witnessRobots, secs: 17 },
   { name: 'hear', run: hearRobots, secs: 40 },
   { name: 'hum', run: humRobots, secs: 30 },

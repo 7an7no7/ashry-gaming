@@ -179,7 +179,7 @@ section (27):
 
 **The board as it stands reaches the server (the review of 1 Oct 2026).** While placing, the phone sends its fleet as `draft { fleet }` after every move, turn and 🎲 (and once more after a reload that kept a board): checked with `bsFleetProblem`, stored in `room._bs.fleets[seat]` and the phone's own slice, never ready. So when the 90-second placing clock (with a turn clock on) runs out, or the host presses «sail for», everyone sails with the fleet on their own screen, not the server's first random one. A refused draft (ready already, at sea, an older server) is dropped quietly. The host's «play for» / «sail for» row has its own timer (`bsHostRowDue`), so it shows when its 40 seconds are up even if nothing else changes; the help says placing gets a minute and a half when the clock is on.
 
-## «الرادار»: answered, not built yet (the owner, 2 Oct 2026)
+## «الرادار»: built 2 Oct 2026
 
 Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3GhgEvDcSHxz, idea numbers in brackets) and every rule asked.
 
@@ -187,6 +187,60 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
   - **It is your turn**: scanning replaces that turn's shot.
   - **The opponent sees where the sweep went** over their own sea (not the count); the TV shows the sweep and the number.
   - **A lobby switch «الرادار», on by default**, the same on one phone, in rooms and against the computer (the computer uses its radar too).
+
+How it is built:
+
+- **`Battleship.js`** (shared): `bsRadarCentre(cell)` (the area's middle, kept a square off every
+  edge), `bsRadarCells`, `bsRadarCount(fleet, centre)`, `bsRadarLeft(sea, scan)` (the area's open
+  squares and how many ship squares are still to find there), and the phone's radar:
+  `bsAiRadar(sea, level, shots)` (where to sweep, or -1) and `bsAiShotRadar(sea, level, rnd, scan)`
+  (its shot with the count: an emptied area is kept clear of, an area with ships left is hunted
+  first while there is no hit to follow; easy forgets the answer).
+- **`RoomBattleship.js`**: `settings.radar` (`bsOptions`, on unless `radar: false`), the action
+  `radar { cell, seq }` (`bsSweep`: the player whose turn it is, once a game, `staleTap` on `seq`;
+  the turn passes). Public: `shared.radar[seat]` = `{ cell, mv }` (where), `shared.scan` (the newest
+  sweep) and `mv`, which counts every move (a shot's `last.mv` too) so a page knows whether the
+  last thing was a shot or a sweep. Hidden: `room._bs.radar[seat]` = `{ cell, count }`; the
+  sweeper's phone gets its own as `room.secrets[pid].radar`, the screen both as
+  `room.screenOnly.bsRadar` (`bsWriteSecrets`). The leak check has a probe for it (the count on no
+  other phone, nowhere in `shared`), proved by handing the count to the other seat in a scratch
+  build; `rules.mjs` and the robots (`battleship` segment) play it.
+- **`JS_Battleship.html`**: a model's seas carry `radar` (the areas swept on that sea, with `n`, the
+  count, where this screen may know it) and the model `scan` / `scanKey` / `onScan`, played once per
+  phone like a shot. The 3D sea draws an area as a dashed green frame with the count in a badge on
+  the board texture (`drawBoard`), aims an area with a frame of corner brackets (`areaAim`, the
+  model's `aim.area`), and sweeps with a beam turning twice over a pulsing frame (`playScan`,
+  `bsRadarBeamCanvas`, `bsRadarFrameCanvas`), holding the area's count and the camera until the
+  beam is done (and 1.3 s after, so the count is seen on its area); the flat sea does the same in
+  CSS (`.bs-fradar`, a conic beam turned by `transform`). With motion off it is simply drawn.
+  The bar on your turn has «📡 استخدم الرادار» (`bsRadarBarHtml`): in radar mode a tap aims the
+  area, a second tap on it or «📡 امسح حوالين E5» sweeps, «ارجع للضرب» goes back. Under the fleets,
+  `bsRadarLogHtml` says each side's sweep (yours with its count). Against the phone:
+  `appState.battleship.radarPref` (the setup switch), `radarOn`, `scans`, `scan`, `mv`,
+  `radarMode` (`bsPhoneSweep`, `bsPhoneScanned`); the phone sweeps in `bsPhoneMaybeAi`. In a room:
+  `bsRoomLocal.radar` / `sweeping` / `seenScan` (`bsRoomSweep`, `bsRoomNoteShot`, `bsRoomScanned`),
+  the lobby switch `bsRadarSwitchHtml` (remembered in `battleshipRoom`, sent in `startPayload`;
+  `duelLobbyHtml` takes an `extra` block for it), the TV the same log with the counts.
+- **The game's words moved out of the shell's `TRANSLATIONS`** into `BS_TEXT` in
+  JS_Battleship.html (read through `bsT`), as السلم والتعبان's bubbles did: the shell was at its
+  710 KB budget, and with the radar it is 709.9 (master 710.06). Only the setup screen's words
+  (`data-i18n` in Controller.html) stay in `TRANSLATIONS`.
+
+Decided here (open to change):
+
+- **The count is every ship square in the area**, hit or not, sunk or afloat (what a radar sees);
+  the player subtracts what they already found (and so does the phone, `bsRadarLeft`).
+- **The area is the 3x3 round the square tapped, pushed back onto the board at an edge** (a tap on
+  A1 sweeps A1-C3), so it is always nine squares.
+- **A sweep passes the turn like a miss**, even right after a hit.
+- **The watchers' phones see where a sweep went, never its count** (only the sweeper and the TV).
+- **In a tournament the TV shows where the sweeps went, not the counts** (several matches at once;
+  `room.screenOnly` is the room's, not a match's). The sweeper's own phone has its count.
+- **The phone sweeps** only with no hit to follow, after a few of its own shots (hard 4, the others
+  6), with a chance each turn (easy 0.2, medium 0.35, hard 0.6), over the area with the most open
+  water (hard: the most likely squares by `bsDensity`).
+- **The radar button is on your turn only**, and a reload keeps what was swept (both sides) - the
+  radar stays used.
 
 ## History
 

@@ -5915,6 +5915,77 @@ Date.now = duelTestClock;
   roomPlayerLeft(r, leaver, 'X');
   check(s.phase === 'over' && s.result.reason === 'left' && s.result.winnerId !== leaver && Array.isArray(s.reveal), 'battleship room: a seated player who leaves loses by forfeit');
   check(refused(() => bsRoom(['a'], {})), 'battleship room: it takes two (no computer players in rooms)');
+
+  // «الرادار» (2 Oct 2026): once a game, a 3 x 3 sweep instead of a shot; the count to the sweeper and the screen only.
+  const RD = new Function(readFileSync(new URL('../../Battleship.js', import.meta.url), 'utf8') +
+    '\nreturn { bsRadarCentre, bsRadarCells, bsRadarCount, bsRadarLeft, bsAiRadar, bsAiShotRadar, bsNewSea, bsFire, bsRandomFleet, bsOccupancy, bsAllSunk, BS_SEA, BS_MISS };')();
+  check(RD.bsRadarCentre(0) === 11 && RD.bsRadarCentre(99) === 88 && RD.bsRadarCentre(45) === 45 && RD.bsRadarCentre(9) === 18 && RD.bsRadarCentre(-1) === -1,
+    'battleship radar: the area round a square is pushed back onto the board at an edge');
+  check(JSON.stringify(RD.bsRadarCells(0)) === JSON.stringify([0, 1, 2, 10, 11, 12, 20, 21, 22]) && RD.bsRadarCells(55).length === 9,
+    'battleship radar: the area is always nine squares');
+  check(RD.bsRadarCount(rows(), 11) === 6 && RD.bsRadarCount(rows(), 88) === 0 && RD.bsRadarCount(rows(), 13) === 5 && RD.bsRadarCount(rows(), 81) === 2,
+    'battleship radar: the count is every ship square in the area');
+  r = bsRoom(['a', 'b', 'c'], {});
+  s = r.shared;
+  check(s.settings.radar === true && JSON.stringify(s.radar) === '[null,null]', 'battleship radar: on by default, nobody has swept');
+  const [q0, q1] = s.seats;
+  const qw = s.line[0];
+  applyRoomAction(r, q0, 'place', { fleet: rows() });
+  applyRoomAction(r, q1, 'place', { fleet: rows() });
+  check(refused(() => applyRoomAction(r, q1, 'radar', { cell: 11, seq: s.turnSeq })) && refused(() => applyRoomAction(r, qw, 'radar', { cell: 11, seq: s.turnSeq })),
+    'battleship radar: only the player whose turn it is sweeps');
+  const shotsWas = s.shots;
+  applyRoomAction(r, q0, 'radar', { cell: 0, seq: s.turnSeq });
+  check(s.turn === 1 && s.shots === shotsWas && s.radar[0] && s.radar[0].cell === 11 && s.scan.seat === 0 && s.scan.cell === 11 &&
+    s.seas[1].grid.every((v) => v === RD.BS_SEA), 'battleship radar: a sweep is the turn - nothing is fired at, and the turn passes');
+  check(r.secrets[q0].radar && r.secrets[q0].radar.count === 6 && r.secrets[q0].radar.cell === 11 && !r.secrets[q1].radar && !r.secrets[qw] &&
+    JSON.stringify(s).indexOf('count') === -1 && r.screenOnly && r.screenOnly.bsRadar[0].count === 6 && r.screenOnly.bsRadar[1] === null,
+    'battleship radar: the count reaches the sweeper and the screen, never the other player, the watchers or the table');
+  applyRoomAction(r, q1, 'fire', { cell: 99, seq: s.turnSeq });
+  check(refused(() => applyRoomAction(r, q0, 'radar', { cell: 55, seq: s.turnSeq })) && s.turn === 0, 'battleship radar: once a game');
+  applyRoomAction(r, q0, 'fire', { cell: 99, seq: s.turnSeq });
+  applyRoomAction(r, q1, 'radar', { cell: 88, seq: s.turnSeq });
+  check(r.secrets[q1].radar.count === 0 && r.secrets[q0].radar.count === 6 && r.screenOnly.bsRadar[1].count === 0 && s.turn === 0,
+    'battleship radar: each player sweeps once, and each sees only their own count');
+  applyRoomAction(r, q0, 'radar', { cell: 33, seq: s.turnSeq - 1 });
+  check(s.turn === 0, 'battleship radar: a tap drawn for an older turn is dropped');
+  r = bsRoom(['a', 'b'], { radar: false });
+  s = r.shared;
+  applyRoomAction(r, s.seats[0], 'place', { fleet: rows() });
+  applyRoomAction(r, s.seats[1], 'place', { fleet: rows() });
+  check(s.settings.radar === false && refused(() => applyRoomAction(r, s.seats[0], 'radar', { cell: 11, seq: s.turnSeq })),
+    'battleship radar: the host can switch it off');
+  // The phone's radar: never with a hit to follow, never at once, and the answer steers its shots.
+  const empty = RD.bsNewSea();
+  let sweeps = 0;
+  for (let k = 0; k < 40; k++) if (RD.bsAiRadar(empty, 'hard', 10, seeded(k + 1)) >= 0) sweeps++;
+  check(RD.bsAiRadar(empty, 'hard', 0, () => 0) === -1 && sweeps > 10, 'battleship radar: the phone sweeps after a few shots, not on its first');
+  const hitSea = RD.bsNewSea();
+  RD.bsFire(hitSea, rows(), 0);
+  check(RD.bsAiRadar(hitSea, 'hard', 20, () => 0) === -1, 'battleship radar: the phone never sweeps while it has a hit to follow');
+  const zero = { cell: 88, count: RD.bsRadarCount(rows(), 88) };
+  let kept = true;
+  for (let k = 0; k < 60; k++) { const c = RD.bsAiShotRadar(RD.bsNewSea(), 'medium', seeded(k + 7), zero); if (RD.bsRadarCells(88).indexOf(c) !== -1) kept = false; }
+  const some = { cell: 11, count: 6 };
+  let inside = true;
+  for (let k = 0; k < 60; k++) { const c = RD.bsAiShotRadar(RD.bsNewSea(), 'hard', seeded(k + 3), some); if (RD.bsRadarCells(11).indexOf(c) === -1) inside = false; }
+  check(kept && inside, 'battleship radar: the phone keeps off an empty area and hunts in one with ships in it');
+  let sankAll = true;
+  ['easy', 'medium', 'hard'].forEach((lv) => {
+    for (let g = 0; g < 8; g++) {
+      const rnd = seeded(100 + g);
+      const fleet = RD.bsRandomFleet(rnd);
+      const sea = RD.bsNewSea();
+      let scan = null, n = 0;
+      for (; n < 120 && !RD.bsAllSunk(sea); n++) {
+        if (!scan) { const c = RD.bsAiRadar(sea, lv, n, rnd); if (c >= 0) { scan = { cell: c, count: RD.bsRadarCount(fleet, c) }; continue; } }
+        const cell = RD.bsAiShotRadar(sea, lv, rnd, scan);
+        if (cell < 0 || !RD.bsFire(sea, fleet, cell)) { sankAll = false; break; }
+      }
+      if (!RD.bsAllSunk(sea)) sankAll = false;
+    }
+  });
+  check(sankAll, 'battleship radar: with its radar the phone still always sinks the fleet (easy, medium, hard)');
 }
 
 /* --- بولينج: the score sheet, the physics every phone replays, the room's turns --- */

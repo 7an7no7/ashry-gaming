@@ -32,9 +32,130 @@
 const BS_SEA_X = 6.6;             // each sea's centre, left and right of the middle
 const BS_SIDE_COL = ['#3b82f6', '#f97316'];   // side 0 (you / the first seat), side 1
 
+/* The game's words, read only here (through bsT): kept in this chunk, not in the shell's
+   TRANSLATIONS (2 Oct 2026, with «الرادار»: the shell was at its budget, notes/lazy-load.md).
+   The setup screen's few words stay in TRANSLATIONS (data-i18n in Controller.html). */
+const BS_TEXT = {
+  ar: {
+    bs_your_sea: "بحرك",
+    bs_phone_sea: "بحر الموبايل",
+    bs_sea_of: "بحر {name}",
+    bs_peek_mine: "👁 أسطولك",
+    bs_peek_enemy: "🎯 بحر الخصم",
+    bs_peek_other: "👁 البحر التاني",
+    bs_place_title: "حط أسطولك في البحر",
+    bs_place_hint: "اسحب السفينة عشان تحركها، ودوس عليها عشان تلفها. مفيش سفينتين يلمسوا بعض، ولا حتى من الركن.",
+    bs_random: "🎲 عشوائي",
+    bs_ready: "⚓ جاهز",
+    bs_ready_wait: "✅ جاهز. مستنيين أسطول {name}",
+    bs_unready: "✏️ غيّر أماكن السفن",
+    bs_both_placing: "الاتنين بيخبّوا أساطيلهم…",
+    bs_touch: "السفن مايلمسوش بعض، ولا حتى من الركن",
+    bs_turn_refused: "مفيش مكان تلف فيه السفينة هنا",
+    bs_first_you: "انت اللي هتضرب الأول",
+    bs_first_phone: "الموبايل هيضرب الأول",
+    bs_your_turn: "دورك: اختار مربع واضرب",
+    bs_again_you: "إصابة! اضرب تاني",
+    bs_again_other: "إصابة! الدور لسه مع {name}",
+    bs_turn_of: "دور {name} في الضرب",
+    bs_tap_hint: "دوس على مربع عشان تنشّن، ودوس عليه تاني عشان تضرب",
+    bs_aim: "هتضرب على {coord}؟",
+    bs_fire: "🔥 اضرب {coord}",
+    bs_fired: "🎯 طلقة من {name} على {coord}…",
+    bs_you_fired: "🎯 طلقتك رايحة على {coord}…",
+    bs_phone_thinking: "الموبايل بينشّن…",
+    bs_already: "المربع ده اتضرب قبل كده",
+    bs_res_miss: "في المية!",
+    bs_res_hit: "إصابة!",
+    bs_res_sunk: "{ship} في القاع!",
+    bs_you_won: "كسبت! أسطول الموبايل كله في القاع",
+    bs_phone_won: "الموبايل غرّق أسطولك المرة دي",
+    bs_afloat: "🚢 {n} من 5",
+    bs_fleet_you: "أسطولك",
+    bs_tally: "طلقاتك {n}، منها {h} إصابة ({p}%)",
+    bs_lobby_clock: "وقت كل طلقة",
+    bs_lobby_clock_hint: "لو الوقت خلص، الموبايل بيضرب مربع عشوائي بدل اللاعب، ورص السفن بياخد دقيقة ونص.",
+    bs_play_for: "اضرب بالنيابة",
+    bs_sail_for: "ابدأ بالسفن زي ما هي",
+    bs_radar_use: "استخدم الرادار",
+    bs_radar_back: "ارجع للضرب",
+    bs_radar_hint: "اختار مكان: الرادار بيمسح 3×3 حوالين المربع",
+    bs_radar_pick: "الرادار: اختار المنطقة",
+    bs_radar_aim: "الرادار حوالين {coord}: دوس تاني أو امسح",
+    bs_radar_go: "امسح حوالين {coord}",
+    bs_radar_found: "{n} مربعات سفن",
+    bs_radar_found_two: "مربعين سفن",
+    bs_radar_found_one: "مربع سفينة واحد",
+    bs_radar_found_none: "مفيش سفن هنا",
+    bs_radar_they: "{name} مسح بالرادار حوالين {coord}",
+    bs_radar_sweeping: "{name} بيمسح حوالين {coord}…",
+    bs_radar_you_sweeping: "بتمسح حوالين {coord}…",
+    bs_radar_unused: "لسه ما اتستخدمش",
+    bs_radar_log_n: "حوالين {coord}: {n}",
+    bs_radar_log: "حوالين {coord}",
+  },
+  en: {
+    bs_your_sea: "Your sea",
+    bs_phone_sea: "The phone's sea",
+    bs_sea_of: "{name}'s sea",
+    bs_peek_mine: "👁 Your fleet",
+    bs_peek_enemy: "🎯 Their sea",
+    bs_peek_other: "👁 The other sea",
+    bs_place_title: "Place your fleet",
+    bs_place_hint: "Drag a ship to move it, tap it to turn it. No two ships may touch, not even at a corner.",
+    bs_random: "🎲 Random",
+    bs_ready: "⚓ Ready",
+    bs_ready_wait: "✅ Ready. Waiting for {name}'s fleet",
+    bs_unready: "✏️ Move my ships",
+    bs_both_placing: "Both are hiding their fleets…",
+    bs_touch: "Ships can't touch, not even at a corner",
+    bs_turn_refused: "No room to turn that ship here",
+    bs_first_you: "You fire first",
+    bs_first_phone: "The phone fires first",
+    bs_your_turn: "Your turn: pick a square and fire",
+    bs_again_you: "A hit! Fire again",
+    bs_again_other: "A hit! Still {name}'s turn",
+    bs_turn_of: "{name}'s turn to fire",
+    bs_tap_hint: "Tap a square to aim, tap it again to fire",
+    bs_aim: "Fire at {coord}?",
+    bs_fire: "🔥 Fire at {coord}",
+    bs_fired: "🎯 {name} fires at {coord}…",
+    bs_you_fired: "🎯 Your shot is on its way to {coord}…",
+    bs_phone_thinking: "The phone is taking aim…",
+    bs_already: "That square has been fired at",
+    bs_res_miss: "Splash!",
+    bs_res_hit: "Hit!",
+    bs_res_sunk: "{ship} sunk!",
+    bs_you_won: "You win! The phone's whole fleet is sunk",
+    bs_phone_won: "The phone sank your fleet this time",
+    bs_afloat: "🚢 {n} of 5",
+    bs_fleet_you: "Your fleet",
+    bs_tally: "You fired {n} shots, {h} of them hits ({p}%)",
+    bs_lobby_clock: "Time for each shot",
+    bs_lobby_clock_hint: "When it runs out the phone fires at a random square for the player; placing the ships gets a minute and a half.",
+    bs_play_for: "Fire for them",
+    bs_sail_for: "Start with the ships as they are",
+    bs_radar_use: "Use the radar",
+    bs_radar_back: "Back to firing",
+    bs_radar_hint: "Pick a spot: the radar sweeps the 3×3 around it",
+    bs_radar_pick: "Radar: pick the area",
+    bs_radar_aim: "Radar around {coord}: tap again or sweep",
+    bs_radar_go: "Sweep around {coord}",
+    bs_radar_found: "{n} ship squares",
+    bs_radar_found_two: "2 ship squares",
+    bs_radar_found_one: "1 ship square",
+    bs_radar_found_none: "No ships here",
+    bs_radar_they: "{name} swept the radar around {coord}",
+    bs_radar_sweeping: "{name} is sweeping around {coord}…",
+    bs_radar_you_sweeping: "Sweeping around {coord}…",
+    bs_radar_unused: "not used yet",
+    bs_radar_log_n: "around {coord}: {n}",
+    bs_radar_log: "around {coord}",
+  }
+};
 const bsT = (key, vars) => {
   const t = TRANSLATIONS[appState.lang] || {};
-  let s = t[key] || key;
+  let s = t[key] || (BS_TEXT[appState.lang === 'en' ? 'en' : 'ar'] || {})[key] || key;
   Object.keys(vars || {}).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
   return s;
 };
@@ -117,6 +238,10 @@ function bsSound(kind) {
       fxTone('square', [[0, 150]], [[0, 0], [0.005, 0.05], [0.1, 0.001]], at + 0.11);
     } else if (kind === 'aim') {
       fxTone('sine', [[0, 880]], [[0, 0], [0.004, 0.05], [0.06, 0.001]], at);
+    } else if (kind === 'radar') {
+      // «الرادار»: a sonar ping, twice, under a soft sweep.
+      for (let i = 0; i < 2; i++) fxTone('sine', [[0, 1320], [0.5, 1180]], [[0, 0], [0.01, 0.09], [0.55, 0.001]], at + i * 0.7);
+      fxNoise('bandpass', 1800, 2.5, [[0, 0], [0.4, 0.03], [1.5, 0.001]], at);
     }
   } catch (e) {}
 }
@@ -244,6 +369,37 @@ function bsCrossCanvas() {
   g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(14, 14, 100, 100);
   g.fillStyle = 'rgba(255,255,255,0.95)';
   g.beginPath(); g.arc(64, 64, 6, 0, 7); g.fill();
+  return c;
+}
+
+/** «الرادار»: the beam that sweeps an area - a bright edge, a fading wake behind it, the range rings. */
+function bsRadarBeamCanvas() {
+  const [c, g] = bsCanvas(256, 256);
+  const R = 126, cx = 128, cy = 128;
+  g.strokeStyle = 'rgba(110,231,183,0.55)'; g.lineWidth = 2;
+  [R / 3, R * 2 / 3, R - 1].forEach(r => { g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke(); });
+  const steps = 48, wake = Math.PI * 0.6;
+  for (let k = 0; k < steps; k++) {
+    const a0 = -k * wake / steps, a1 = a0 - wake / steps - 0.01;
+    g.fillStyle = `rgba(52,211,153,${0.55 * (1 - k / steps)})`;
+    g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, R, a1, a0); g.closePath(); g.fill();
+  }
+  g.strokeStyle = 'rgba(209,250,229,0.95)'; g.lineWidth = 4;
+  g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + R, cy); g.stroke();
+  return c;
+}
+
+/** «الرادار»: the area's frame - corner brackets round three by three squares, a dashed edge, a green wash. */
+function bsRadarFrameCanvas() {
+  const [c, g] = bsCanvas(256, 256);
+  g.fillStyle = 'rgba(52,211,153,0.16)'; g.fillRect(8, 8, 240, 240);
+  g.strokeStyle = 'rgba(110,231,183,0.95)'; g.lineWidth = 10; g.lineCap = 'round';
+  const k = 56, a = 10, b = 246;
+  [[a, a, 1, 1], [b, a, -1, 1], [a, b, 1, -1], [b, b, -1, -1]].forEach(([x, y, sx, sy]) => {
+    g.beginPath(); g.moveTo(x, y + sy * k); g.lineTo(x, y); g.lineTo(x + sx * k, y); g.stroke();
+  });
+  g.setLineDash([14, 12]); g.lineWidth = 3; g.strokeStyle = 'rgba(110,231,183,0.6)';
+  g.strokeRect(10, 10, 236, 236);
   return c;
 }
 
@@ -664,7 +820,7 @@ function bsMake3D(THREE, root) {
   const cellPos = (side, cell) => new THREE.Vector3((side ? BS_SEA_X : -BS_SEA_X) + (cell % 10) - 4.5, 0, Math.floor(cell / 10) - 4.5);
 
   function drawBoard(b, sea, opts) {
-    const key = JSON.stringify([sea.grid, dark, opts.color, opts.mine]);
+    const key = JSON.stringify([sea.grid, dark, opts.color, opts.mine, opts.radar || []]);
     if (b.drawn === key) return;
     b.drawn = key;
     const g = b.g, S = 1024, u = S / BOARD, o = u;
@@ -716,6 +872,27 @@ function bsMake3D(THREE, root) {
       const w = p.d === 'h' ? len : 1, h = p.d === 'v' ? len : 1;
       g.strokeRect(o + p.x * u + 6, o + p.y * u + 6, w * u - 12, h * u - 12);
     });
+    // «الرادار»: each area swept on this sea - a dashed green frame, and the count where this screen may know it.
+    (opts.radar || []).forEach(rd => {
+      const c0 = bsRadarCells(rd.cell)[0];
+      if (c0 === undefined) return;
+      const x = o + (c0 % 10) * u, y = o + Math.floor(c0 / 10) * u;
+      g.save();
+      g.fillStyle = 'rgba(52,211,153,0.12)';
+      g.fillRect(x + 4, y + 4, 3 * u - 8, 3 * u - 8);
+      g.setLineDash([u * 0.24, u * 0.14]);
+      g.strokeStyle = 'rgba(110,231,183,0.95)'; g.lineWidth = 6;
+      g.strokeRect(x + 5, y + 5, 3 * u - 10, 3 * u - 10);
+      g.restore();
+      if (typeof rd.n === 'number') {
+        const cx = x + 1.5 * u, cy = y + 1.5 * u;
+        g.fillStyle = 'rgba(4,47,36,0.86)'; g.strokeStyle = 'rgba(110,231,183,1)'; g.lineWidth = 5;
+        g.beginPath(); g.arc(cx, cy, u * 0.42, 0, 7); g.fill(); g.stroke();
+        g.fillStyle = '#ecfdf5'; g.font = '800 ' + Math.round(u * 0.56) + 'px "Segoe UI", Roboto, Arial, sans-serif';
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(String(rd.n), cx, cy + 2);
+      }
+    });
     // The letters along the top, the numbers down the side.
     g.font = '700 ' + Math.round(u * 0.44) + 'px "Segoe UI", Roboto, Arial, sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -749,6 +926,26 @@ function bsMake3D(THREE, root) {
   ghost.renderOrder = 3;
   ghost.visible = false;
   scene.add(ghost);
+  // «الرادار»: the area aimed at, and the sweep - a turning beam over a pulsing frame.
+  const radarFrameTex = new THREE.CanvasTexture(bsRadarFrameCanvas());
+  radarFrameTex.colorSpace = THREE.SRGBColorSpace;
+  const areaAim = new THREE.Mesh(new THREE.PlaneGeometry(3.08, 3.08), new THREE.MeshBasicMaterial({ map: radarFrameTex, transparent: true, depthWrite: false, toneMapped: false }));
+  areaAim.rotation.x = -Math.PI / 2;
+  areaAim.renderOrder = 4;
+  areaAim.visible = false;
+  scene.add(areaAim);
+  const sweepFrame = new THREE.Mesh(new THREE.PlaneGeometry(3.08, 3.08), new THREE.MeshBasicMaterial({ map: radarFrameTex, transparent: true, depthWrite: false, toneMapped: false, opacity: 0 }));
+  sweepFrame.rotation.x = -Math.PI / 2;
+  sweepFrame.renderOrder = 4;
+  sweepFrame.visible = false;
+  scene.add(sweepFrame);
+  const beamTex = new THREE.CanvasTexture(bsRadarBeamCanvas());
+  beamTex.colorSpace = THREE.SRGBColorSpace;
+  const beam = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 4.5), new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, opacity: 0 }));
+  beam.rotation.x = -Math.PI / 2;
+  beam.renderOrder = 5;
+  beam.visible = false;
+  scene.add(beam);
   const foamMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bsFoamCanvas()), transparent: true, depthWrite: false, toneMapped: false, opacity: 0.8 });
   const ringGeo = new THREE.RingGeometry(0.2, 0.32, 32);
   ringGeo.rotateX(-Math.PI / 2);
@@ -763,6 +960,7 @@ function bsMake3D(THREE, root) {
   // What is animating: shells in the air, ripples, ships sinking or rising, the camera.
   const anims = [];
   let camFrom = null, camTo = null, camT = 1, camKey = '';
+  let camSide = null;             // the sea the camera is on (or going to): the model's focus may move on before it does
   const camPos = new THREE.Vector3(0, 20, 16), camLook = new THREE.Vector3(0, 0, 0);
   let shake = 0;
   let model = null;
@@ -773,6 +971,8 @@ function bsMake3D(THREE, root) {
   let aim = { side: -1, cell: -1 };
   let dragInfo = null;
   let labels = [];
+  let shownScan = '';
+  let scanHold = null;            // the area being swept right now: its frame and count wait for the beam
 
   // A ship object on a sea: its group, where it lies, how it is doing.
   function placeShipGroup(side, i, p, grp) {
@@ -864,7 +1064,8 @@ function bsMake3D(THREE, root) {
     const b = boards[side];
     const s = model.seas[side];
     const view = shown[side];
-    drawBoard(b, view, { color: model.seas[side].color || BS_SIDE_COL[side], mine: !!s.mine });
+    const radar = (s.radar || []).filter(x => !(scanHold && scanHold.side === side && scanHold.cell === bsRadarCentre(x.cell)));
+    drawBoard(b, view, { color: model.seas[side].color || BS_SIDE_COL[side], mine: !!s.mine, radar: radar });
     // Pegs: a white buoy on a miss; a red one on a hit where no ship is drawn.
     const drawnCells = new Set();
     const ships = [];
@@ -928,6 +1129,7 @@ function bsMake3D(THREE, root) {
     if (key === camKey && !instant) return;
     camKey = key;
     const f = frameFor(model.focus, model.both);
+    camSide = model.both ? -1 : model.focus;
     if (instant || !camTo || typeof motionOff === 'function' && motionOff()) {
       camPos.copy(f.pos); camLook.copy(f.look); camT = 1; camTo = f;
       return;
@@ -1097,6 +1299,44 @@ function bsMake3D(THREE, root) {
     if (typeof model.onLand === 'function') { try { model.onLand(shot); } catch (e) {} }
   }
 
+  /** «الرادار»: the beam turns twice over the area, the frame pulses, then the area is drawn with its count. */
+  function playScan(scan) {
+    const side = scan.side;
+    const centre = bsRadarCentre(scan.cell);
+    const p = cellPos(side, centre);
+    const hold = { side: side, cell: centre };
+    scanHold = hold;
+    paintSea(side);
+    beam.position.set(p.x, 0.06, p.z);
+    sweepFrame.position.set(p.x, 0.04, p.z);
+    beam.visible = sweepFrame.visible = true;
+    const start = performance.now(), dur = 1900;
+    // The camera stays a moment after the beam, so the count is seen on the area it is about.
+    busyUntil = Math.max(busyUntil, Date.now() + dur + 1300);
+    bsSoundLoud('radar');
+    anims.push({
+      until: start + dur + 50,
+      step: (now) => {
+        const t = Math.min(1, (now - start) / dur);
+        beam.rotation.z = -t * Math.PI * 4;
+        beam.material.opacity = t < 0.12 ? t / 0.12 : t > 0.82 ? Math.max(0, (1 - t) / 0.18) : 1;
+        sweepFrame.material.opacity = Math.min(1, t * 5) * (0.6 + 0.4 * Math.sin(t * Math.PI * 8));
+        const k = 0.92 + 0.08 * bsEaseOut(Math.min(1, t * 3));
+        sweepFrame.scale.set(k, k, 1);
+        if (t >= 1) {
+          beam.visible = sweepFrame.visible = false;
+          if (scanHold === hold) scanHold = null;
+          if (model) {
+            paintSea(side);
+            if (typeof model.onScan === 'function') { try { model.onScan(scan); } catch (e) {} }
+          }
+          return false;
+        }
+        return true;
+      }
+    });
+  }
+
   function blastSmall(p) {
     for (let k = 0; k < 26; k++) {
       const a = Math.random() * Math.PI * 2, r = 0.3 + Math.random() * 1.1;
@@ -1122,6 +1362,9 @@ function bsMake3D(THREE, root) {
       smoke.clear(); glow.clear();
       pending = null;
       shownShot = m.shotKey || '';
+      shownScan = m.scanKey || '';
+      scanHold = null;
+      beam.visible = sweepFrame.visible = false;
     }
     // A new shot is played once; any older one missed on the way is simply shown.
     const shot = m.shot;
@@ -1153,6 +1396,14 @@ function bsMake3D(THREE, root) {
       }
       [0, 1].forEach(side => paintSea(side));
     }
+    // «الرادار»: a new sweep is played once; with motion off it is simply drawn, and said at once.
+    const scan = m.scan;
+    if (!fresh && scan && m.scanKey && m.scanKey !== shownScan) {
+      shownScan = m.scanKey;
+      if (typeof motionOff === 'function' && motionOff()) {
+        if (typeof m.onScan === 'function') setTimeout(() => { try { m.onScan(scan); } catch (e) {} }, 0);
+      } else playScan(scan);
+    }
     setAim(m.aim);
     // The camera waits for a shot in the air to land before it moves.
     const wait = Math.max(0, busyUntil - Date.now());
@@ -1164,11 +1415,18 @@ function bsMake3D(THREE, root) {
 
   function setAim(a) {
     aim = a && a.cell >= 0 ? a : { side: -1, cell: -1 };
-    if (aim.cell >= 0) {
-      const p = cellPos(aim.side, aim.cell);
-      cross.position.set(p.x, 0.03, p.z);
-      cross.visible = true;
-    } else cross.visible = false;
+    cross.visible = areaAim.visible = false;
+    if (aim.cell < 0) return;
+    // «الرادار»: the 3 x 3 round the square, not a crosshair on it.
+    if (aim.area) {
+      const p = cellPos(aim.side, bsRadarCentre(aim.cell));
+      areaAim.position.set(p.x, 0.035, p.z);
+      areaAim.visible = true;
+      return;
+    }
+    const p = cellPos(aim.side, aim.cell);
+    cross.position.set(p.x, 0.03, p.z);
+    cross.visible = true;
   }
 
   /** While a ship is dragged: its footprint, green where it fits, red where it doesn't. */
@@ -1229,7 +1487,7 @@ function bsMake3D(THREE, root) {
     labels.forEach(el => {
       const side = Number(el.dataset.bsLabel);
       const p = new THREE.Vector3(side ? BS_SEA_X : -BS_SEA_X, 0, -BOARD / 2 - 0.1).project(cam);
-      const on = model && (model.both || model.focus === side) && p.z < 1;
+      const on = model && (model.both || (camSide === null ? model.focus : camSide) === side) && p.z < 1;
       el.style.transform = `translate(${Math.round((p.x * 0.5 + 0.5) * w)}px, ${Math.round((-p.y * 0.5 + 0.5) * h)}px) translate(-50%, -100%)`;
       el.classList.toggle('is-off', !on);
     });
@@ -1294,7 +1552,7 @@ function bsMake3D(THREE, root) {
     }
     // Framing one sea, the other is put away once the camera has settled (seen while it travels).
     boards.forEach((b, side) => {
-      const v = !model || model.both || camT < 1 || model.focus === side;
+      const v = !model || model.both || camT < 1 || camSide === null || camSide === side;
       if (b.mesh.visible !== v) { b.mesh.visible = v; b.group.visible = v; }
     });
     // Ships: bob on the swell, glide after a drag, sink, rise.
@@ -1355,6 +1613,7 @@ function bsMake3D(THREE, root) {
     glow.update(step);
     if (flash.intensity > 0) flash.intensity = Math.max(0, flash.intensity - step * 140);
     if (cross.visible) { const s = 1 + Math.sin(tt * 6) * 0.05; cross.scale.set(s, s, 1); }
+    if (areaAim.visible) { const s = 1 + Math.sin(tt * 5) * 0.025; areaAim.scale.set(s, s, 1); }
     // The camera glides.
     if (camT < 1 && camFrom && camTo) {
       camT = Math.min(1, camT + step / 0.95);
@@ -1478,6 +1737,16 @@ function bsFlatSeaHtml(s, o) {
     const cls = v === BS_MISS ? 'is-miss' : v === BS_HIT ? 'is-hit' : v === BS_SUNK ? 'is-sunk' : v === BS_CLEAR ? 'is-clear' : '';
     cells += `<span class="bs-fc ${cls}${opt.aim === c ? ' is-aim' : ''}${opt.newest === c ? ' is-new' : ''}"></span>`;
   }
+  // «الرادار»: the areas swept on this sea (with the count where this screen may know it), the area aimed at, the sweep.
+  const area = (cell, cls, inner) => {
+    const c0 = bsRadarCells(cell)[0];
+    return c0 === undefined ? '' : `<span class="bs-fradar ${cls}" style="--x:${c0 % 10};--y:${Math.floor(c0 / 10)}">${inner || ''}</span>`;
+  };
+  const sweeping = opt.sweep && opt.sweep.cell >= 0 ? bsRadarCentre(opt.sweep.cell) : -1;
+  const radarHtml = (s.radar || []).filter(x => bsRadarCentre(x.cell) !== sweeping)
+    .map(x => area(x.cell, '', typeof x.n === 'number' ? `<b>${x.n}</b>` : '')).join('')
+    + (sweeping >= 0 ? area(sweeping, 'is-sweep', '<i></i>') : '')
+    + (typeof opt.area === 'number' && opt.area >= 0 ? area(opt.area, 'is-aim', '') : '');
   const ships = [];
   (s.fleet || []).forEach((p, i) => { if (p) ships.push({ i: i, p: p, sunk: sunkIdx.has(i) }); });
   (s.sunk || []).forEach(x => { if (!ships.some(o2 => o2.i === x.i)) ships.push({ i: x.i, p: x, sunk: true }); });
@@ -1487,7 +1756,7 @@ function bsFlatSeaHtml(s, o) {
   const letters = opt.mini ? '' : `<span class="bs-fsea__cols">${BS_COLS.split('').map(l => `<span>${l}</span>`).join('')}</span>
       <span class="bs-fsea__rows">${Array.from({ length: 10 }, (_, k) => `<span>${k + 1}</span>`).join('')}</span>`;
   return `<div class="bs-fsea ${opt.mini ? 'bs-fsea--mini' : ''}" dir="ltr" style="--bs-c:${s.color || BS_SIDE_COL[opt.side || 0]}" ${opt.mini ? '' : `data-side="${opt.side || 0}"`}>
-      ${letters}<span class="bs-fsea__field" ${opt.mini ? '' : `data-bs-field="${opt.side || 0}"`}>${cells}${shipHtml}${ghost}</span>
+      ${letters}<span class="bs-fsea__field" ${opt.mini ? '' : `data-bs-field="${opt.side || 0}"`}>${cells}${shipHtml}${ghost}${radarHtml}</span>
     </div>`;
 }
 
@@ -1495,14 +1764,16 @@ function bsMakeFlat(root) {
   const box = document.createElement('div');
   box.className = 'bs-flat';
   root.insertBefore(box, root.firstChild);
-  let model = null, aim = null, drag = null, shownShot = '', busy = 0, newest = null;
+  let model = null, aim = null, drag = null, shownShot = '', busy = 0, newest = null, shownScan = '', sweep = null;
   function draw() {
     if (!model) return;
     const sides = model.both ? [0, 1] : [model.focus];
     box.classList.toggle('is-both', !!model.both);
     box.innerHTML = sides.map(side => bsFlatSeaHtml(model.seas[side], {
       side: side,
-      aim: aim && aim.side === side ? aim.cell : -1,
+      aim: aim && aim.side === side && !aim.area ? aim.cell : -1,
+      area: aim && aim.side === side && aim.area ? bsRadarCentre(aim.cell) : -1,
+      sweep: sweep && sweep.side === side ? sweep : null,
       newest: newest && newest.side === side ? newest.cell : -1,
       drag: drag && (drag.side || 0) === side ? drag : null
     })).join('');
@@ -1512,6 +1783,23 @@ function bsMakeFlat(root) {
     model = m;
     aim = m.aim && m.aim.cell >= 0 ? m.aim : null;
     newest = null;
+    if (fresh) { shownScan = m.scanKey || ''; sweep = null; }
+    else if (m.scan && m.scanKey && m.scanKey !== shownScan) {
+      // «الرادار»: the beam turns over the area (a CSS turn), then the count shows.
+      shownScan = m.scanKey;
+      const scan = m.scan;
+      const still = motionOff();
+      if (!still) {
+        sweep = { side: scan.side, cell: scan.cell };
+        bsSoundLoud('radar');
+        busy = Math.max(busy, Date.now() + 1700);
+      }
+      const held = sweep;
+      setTimeout(() => {
+        if (held && sweep === held) { sweep = null; draw(); }
+        if (model && typeof model.onScan === 'function') { try { model.onScan(scan); } catch (e) {} }
+      }, still ? 0 : 1500);
+    }
     if (fresh) shownShot = m.shotKey || '';
     else if (m.shot && m.shotKey && m.shotKey !== shownShot) {
       shownShot = m.shotKey;
@@ -1652,9 +1940,11 @@ function bsViewStart() {
  * page was holding back for (flying) will never land: let it go and paint again.
  */
 function bsViewFresh() {
-  const room = bsRoomLocal.flying, phone = bsPhoneLocal.flying;
+  const room = bsRoomLocal.flying || bsRoomLocal.sweeping, phone = bsPhoneLocal.flying || bsPhoneLocal.sweeping;
   bsRoomLocal.flying = '';
   bsPhoneLocal.flying = '';
+  bsRoomLocal.sweeping = '';
+  bsPhoneLocal.sweeping = '';
   if (room) bsRoomRedraw();
   if (phone && appState.currentView === 'play-battleship') { paintBattleship({ landed: true }); bsPhoneMaybeAi(); }
 }
@@ -1852,23 +2142,70 @@ function bsRefuseHint(why) {
   bsViewToast(escapeHTML(bsT(why === 'turn' ? 'bs_turn_refused' : 'bs_touch')), 'is-note');
 }
 
+/* --- «الرادار»: what the phone game, the room and the TV share ------------------------ */
+
+/** May `seat` still sweep: the radar on in this game, and not used yet. */
+const bsRadarReady = (on, scans, seat) => !!on && !(scans || [])[seat];
+
+/** Was the newest move a shot (not a sweep after it)? A sweep passes the turn, so "shoots again" can't follow it. */
+const bsShotWasLast = (last, scan) => !!last && !(scan && (scan.mv || 0) > (last.mv || 0));
+
+/** The count, big over the sea: how many ship squares the sweep found. */
+function bsRadarToast(n) {
+  const key = n === 0 ? 'bs_radar_found_none' : n === 1 ? 'bs_radar_found_one' : n === 2 ? 'bs_radar_found_two' : 'bs_radar_found';
+  bsViewToast(`📡 ${escapeHTML(bsT(key, { n: n }))}`, 'is-radar');
+  haptic(n ? 'medium' : 'light');
+}
+
+/**
+ * The bar on your turn: aim and fire, or - with the radar still yours - its
+ * button; in radar mode, the area's sweep and a way back to firing.
+ */
+function bsRadarBarHtml(o) {
+  if (o.mode) {
+    const go = o.aim >= 0
+      ? `<button type="button" class="btn btn--primary btn--lg bs-fire bs-sweep" onclick="${o.sweep}">📡 ${escapeHTML(bsT('bs_radar_go', { coord: bsCoordIso(o.aim) }))}</button>`
+      : `<p class="bs-bar__say">${escapeHTML(bsT('bs_radar_hint'))}</p>`;
+    return `${go}<button type="button" class="btn btn--ghost btn--sm" onclick="${o.off}">${escapeHTML(bsT('bs_radar_back'))}</button>`;
+  }
+  const fire = o.aim >= 0
+    ? `<button type="button" class="btn btn--primary btn--lg bs-fire" onclick="${o.fire}">${escapeHTML(bsT('bs_fire', { coord: bsCoordIso(o.aim) }))}</button>`
+    : `<p class="bs-bar__say">${escapeHTML(bsT('bs_tap_hint'))}</p>`;
+  return fire + (o.radar ? `<button type="button" class="btn btn--secondary btn--sm bs-radar-btn" onclick="${o.on}">📡 ${escapeHTML(bsT('bs_radar_use'))}</button>` : '');
+}
+
+/** What each side's sweep said, under the fleets: where, and the count where this screen may know it. */
+function bsRadarLogHtml(rows) {
+  const line = (r) => {
+    const sc = r.scan;
+    const what = !sc ? bsT('bs_radar_unused')
+      : r.count && typeof sc.count === 'number' ? bsT('bs_radar_log_n', { coord: bsCoordIso(sc.cell), n: sc.count })
+      : bsT('bs_radar_log', { coord: bsCoordIso(sc.cell) });
+    return `<li class="bs-radar-log__row${sc ? '' : ' is-unused'}" style="--bs-c:${r.color}"><span class="bs-radar-log__who">${escapeHTML(r.who || '')}</span><span class="bs-radar-log__what">${escapeHTML(what)}</span></li>`;
+  };
+  return `<div class="bs-radar-log"><span class="bs-radar-log__title">📡 ${escapeHTML(bsT('bs_radar'))}</span><ul>${rows.map(line).join('')}</ul></div>`;
+}
+
 /* ============================================================================
    Against the phone
    ========================================================================= */
 
 let bsPhoneTimer = null;
 // peek: the sea the player asked to see this turn (null: the one being fired at);
-// flying: the shot whose shell is still in the air, so the page doesn't tell its result first.
-const bsPhoneLocal = { peek: null, peekKey: '', busyUntil: 0, flying: '' };
+// flying: the shot whose shell is still in the air, so the page doesn't tell its result first;
+// sweeping: the radar sweep still turning over its area (its count waits for it).
+const bsPhoneLocal = { peek: null, peekKey: '', busyUntil: 0, flying: '', sweeping: '' };
 
 function bsPhoneState() {
   if (!appState.battleship) {
     appState.battleship = {
       level: 'medium', phase: 'setup', fleet: null, ai: null, seas: null, turn: 0, shots: 0, last: null,
-      aim: -1, winner: -1, gameId: '', scores: { me: 0, ai: 0 }, tally: [{ shots: 0, hits: 0 }, { shots: 0, hits: 0 }]
+      aim: -1, winner: -1, gameId: '', scores: { me: 0, ai: 0 }, tally: [{ shots: 0, hits: 0 }, { shots: 0, hits: 0 }],
+      radarPref: true, radarOn: false, scans: [null, null], scan: null, mv: 0, radarMode: false
     };
   }
   const s = appState.battleship;
+  if (!s.scans) s.scans = [null, null];
   if (!s.scores) s.scores = { me: 0, ai: 0 };
   if (!s.tally) s.tally = [{ shots: 0, hits: 0 }, { shots: 0, hits: 0 }];
   return s;
@@ -1883,12 +2220,21 @@ function setupBattleship() {
 function paintBattleshipSetup() {
   const s = bsPhoneState();
   duelPaintSegmented('battleship-level', s.level);
+  const radar = document.getElementById('battleship-radar');
+  if (radar) radar.checked = s.radarPref !== false;
   const cont = document.getElementById('battleship-continue');
   if (cont) cont.classList.toggle('hidden', !((s.phase === 'play' || s.phase === 'place') && s.seas));
 }
 
 function setBattleshipLevel(v) {
   bsPhoneState().level = bsLevel(v);
+  saveToLocal();
+  paintBattleshipSetup();
+}
+
+/** «الرادار» on or off for the next game against the phone (on by default, remembered). */
+function setBattleshipRadar(on) {
+  bsPhoneState().radarPref = !!on;
   saveToLocal();
   paintBattleshipSetup();
 }
@@ -1920,8 +2266,14 @@ function bsPhoneNewGame() {
   s.aim = -1;
   s.winner = -1;
   s.tally = [{ shots: 0, hits: 0 }, { shots: 0, hits: 0 }];
+  s.radarOn = s.radarPref !== false;
+  s.scans = [null, null];
+  s.scan = null;
+  s.mv = 0;
+  s.radarMode = false;
   s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   bsPhoneLocal.flying = '';
+  bsPhoneLocal.sweeping = '';
   saveToLocal();
   if (appState.currentView !== 'play-battleship') setView('play-battleship');
   paintBattleship();
@@ -1965,10 +2317,19 @@ function bsPhonePeek(side) {
   paintBattleship();
 }
 
-/** A tap on the phone's sea: aim there, or fire where you aimed. */
+/** A tap on the phone's sea: aim there, or fire where you aimed (with the radar: the area round it, or sweep it). */
 function bsPhoneTap(cell) {
   const s = bsPhoneState();
-  if (s.phase !== 'play' || s.turn !== 0 || Date.now() < bsPhoneLocal.busyUntil || bsPhoneLocal.flying) return;
+  if (s.phase !== 'play' || s.turn !== 0 || Date.now() < bsPhoneLocal.busyUntil || bsPhoneLocal.flying || bsPhoneLocal.sweeping) return;
+  if (s.radarMode && bsRadarReady(s.radarOn, s.scans, 0)) {
+    const centre = bsRadarCentre(cell);
+    if (s.aim === centre) { bsPhoneSweepMine(); return; }
+    s.aim = centre;
+    bsSound('aim');
+    haptic('light');
+    paintBattleship();
+    return;
+  }
   if (s.seas[1].grid[cell] !== BS_SEA) { bsSound('refuse'); bsViewToast(escapeHTML(bsT('bs_already')), 'is-note'); return; }
   if (s.aim === cell) { bsPhoneFire(); return; }
   s.aim = cell;
@@ -1980,9 +2341,70 @@ function bsPhoneTap(cell) {
 function bsPhoneFire() {
   const s = bsPhoneState();
   const cell = s.aim;
-  if (s.phase !== 'play' || s.turn !== 0 || cell < 0 || s.seas[1].grid[cell] !== BS_SEA || bsPhoneLocal.flying) return;
+  if (s.radarMode || s.phase !== 'play' || s.turn !== 0 || cell < 0 || s.seas[1].grid[cell] !== BS_SEA || bsPhoneLocal.flying || bsPhoneLocal.sweeping) return;
   haptic('medium');
   bsPhoneApply(0, cell);
+}
+
+/** «الرادار»: the button that turns this turn into a sweep, and back into a shot. */
+function bsPhoneRadarMode(on) {
+  const s = bsPhoneState();
+  if (s.phase !== 'play' || s.turn !== 0 || !bsRadarReady(s.radarOn, s.scans, 0)) return;
+  s.radarMode = !!on;
+  s.aim = -1;
+  bsSound('aim');
+  haptic('light');
+  saveToLocal();
+  paintBattleship();
+}
+
+function bsPhoneSweepMine() {
+  const s = bsPhoneState();
+  if (!s.radarMode || s.phase !== 'play' || s.turn !== 0 || s.aim < 0 || bsPhoneLocal.flying || bsPhoneLocal.sweeping) return;
+  haptic('medium');
+  bsPhoneSweep(0, s.aim);
+}
+
+/** One sweep, yours (seat 0) or the phone's (seat 1): the count of ship squares in the area, and the turn passes. */
+function bsPhoneSweep(seat, cell) {
+  const s = bsPhoneState();
+  const centre = bsRadarCentre(cell);
+  if (centre < 0 || !bsRadarReady(s.radarOn, s.scans, seat)) return;
+  const target = 1 - seat;
+  s.mv = (s.mv || 0) + 1;
+  s.scans[seat] = { cell: centre, count: bsRadarCount(target === 0 ? s.fleet : s.ai, centre) };
+  s.scan = { seat: seat, cell: centre, mv: s.mv };
+  s.turn = target;
+  s.aim = -1;
+  s.radarMode = false;
+  saveToLocal();
+  const key = s.gameId + '|r' + s.mv;
+  bsPhoneLocal.sweeping = motionOff() || !bsView.r ? '' : key;
+  paintBattleship();
+  bsPhoneLocal.busyUntil = Date.now() + 300;
+  if (!bsPhoneLocal.sweeping) bsPhoneScanSaid(seat);
+  // The sweep's end is said by the sea; a timer says it too, should the sea never get to play it.
+  else setTimeout(() => { if (bsPhoneLocal.sweeping === key) bsPhoneScanned(); }, 3500);
+  bsPhoneMaybeAi();
+}
+
+/** The sweep has turned over its area: the page says what it found (yours) or where the phone looked. */
+function bsPhoneScanned() {
+  const s = bsPhoneState();
+  if (!bsPhoneLocal.sweeping) return;     // said already (motion off, or the timer)
+  bsPhoneLocal.sweeping = '';
+  bsPhoneScanSaid(s.scan ? s.scan.seat : 0);
+  if (appState.currentView === 'play-battleship') paintBattleship({ landed: true });
+  bsPhoneMaybeAi();
+}
+
+function bsPhoneScanSaid(seat) {
+  const s = bsPhoneState();
+  const mine = s.scans[seat];
+  if (!mine) return;
+  if (seat === 0) bsRadarToast(mine.count);
+  else bsViewToast(`📡 ${escapeHTML(bsT('bs_radar_they', { name: duelIso(bsT('xo_phone')), coord: bsCoordIso(mine.cell) }))}`, 'is-note');
+  bsSound('aim');
 }
 
 /** One shot, yours (seat 0) or the phone's (seat 1): a hit shoots again, a miss passes the turn. */
@@ -1994,8 +2416,10 @@ function bsPhoneApply(seat, cell) {
   s.shots++;
   s.tally[seat].shots++;
   if (out.res !== 'miss') s.tally[seat].hits++;
-  s.last = { seat: seat, cell: out.cell, res: out.res, ship: out.res === 'sunk' ? out.ship : null };
+  s.mv = (s.mv || 0) + 1;
+  s.last = { seat: seat, cell: out.cell, res: out.res, ship: out.res === 'sunk' ? out.ship : null, mv: s.mv };
   s.aim = -1;
+  s.radarMode = false;
   if (out.over) {
     s.phase = 'done';
     s.winner = seat;
@@ -2027,8 +2451,13 @@ function bsPhoneMaybeAi() {
     bsPhoneTimer = null;
     const st = bsPhoneState();
     if (st.phase !== 'play' || st.turn !== 1 || appState.currentView !== 'play-battleship') return;
-    if (bsViewBusyLeft() > 0 || bsPhoneLocal.flying) { bsPhoneMaybeAi(); return; }
-    const cell = bsAiShot(st.seas[0], st.level);
+    if (bsViewBusyLeft() > 0 || bsPhoneLocal.flying || bsPhoneLocal.sweeping) { bsPhoneMaybeAi(); return; }
+    // «الرادار»: the phone sweeps once a game, while it has no hit to follow; its count then steers its shots.
+    if (bsRadarReady(st.radarOn, st.scans, 1)) {
+      const area = bsAiRadar(st.seas[0], st.level, st.tally[1].shots);
+      if (area >= 0) { bsPhoneSweep(1, area); return; }
+    }
+    const cell = bsAiShotRadar(st.seas[0], st.level, Math.random, st.scans[1]);
     if (cell >= 0) bsPhoneApply(1, cell);
   }, wait);
 }
@@ -2041,25 +2470,32 @@ function bsPhoneStop() {
 function bsPhoneModel(s, o, flying) {
   const placing = s.phase === 'place', play = s.phase === 'play', done = s.phase === 'done';
   const last = s.last;
-  // A shell in the air: the camera stays on the sea it is falling on until it lands.
-  const auto = flying && last ? (last.seat === 0 ? 1 : 0) : play ? (s.turn === 0 ? 1 : 0) : placing ? 0 : 1;
-  const peekKey = [s.gameId, s.phase, s.turn, flying ? 'f' : ''].join('|');
+  const sweeping = !!bsPhoneLocal.sweeping && s.scan;
+  // A shell in the air (or a sweep turning): the camera stays on the sea it is on until it is done.
+  const auto = flying && last ? (last.seat === 0 ? 1 : 0) : sweeping ? (s.scan.seat === 0 ? 1 : 0)
+    : play ? (s.turn === 0 ? 1 : 0) : placing ? 0 : 1;
+  const peekKey = [s.gameId, s.phase, s.turn, flying ? 'f' : '', sweeping ? 's' : ''].join('|');
   if (bsPhoneLocal.peekKey !== peekKey) { bsPhoneLocal.peekKey = peekKey; bsPhoneLocal.peek = null; }
   const focus = bsPhoneLocal.peek === null ? auto : bsPhoneLocal.peek;
-  const myFire = play && s.turn === 0 && focus === 1;
+  const myFire = play && s.turn === 0 && focus === 1 && !sweeping;
+  // «الرادار»: the area the phone swept shows on your sea (where, never its count); yours on its sea, with your count.
+  const radarOn = (seat) => (s.scans[seat] ? [{ cell: s.scans[seat].cell, n: seat === 0 ? s.scans[seat].count : null }] : []);
   return {
     key: 'phone|' + s.gameId,
     loud: true,
     seas: [
-      { k: 0, grid: s.seas[0].grid, sunk: s.seas[0].sunk, fleet: s.fleet, color: BS_SIDE_COL[0], mine: true, label: bsT('bs_your_sea') },
-      { k: 1, grid: s.seas[1].grid, sunk: s.seas[1].sunk, fleet: done && !flying ? s.ai : null, appear: done && !flying && !o.still && motionFirst('bs-reveal|' + s.gameId), color: BS_SIDE_COL[1], label: bsT('bs_phone_sea') }
+      { k: 0, grid: s.seas[0].grid, sunk: s.seas[0].sunk, fleet: s.fleet, color: BS_SIDE_COL[0], mine: true, label: bsT('bs_your_sea'), radar: radarOn(1) },
+      { k: 1, grid: s.seas[1].grid, sunk: s.seas[1].sunk, fleet: done && !flying ? s.ai : null, appear: done && !flying && !o.still && motionFirst('bs-reveal|' + s.gameId), color: BS_SIDE_COL[1], label: bsT('bs_phone_sea'), radar: radarOn(0) }
     ],
     focus: focus,
     both: false,
     mine: placing || (play && s.turn === 0),
     shot: last ? { side: last.seat === 0 ? 1 : 0, cell: last.cell, res: last.res, ship: last.ship } : null,
     shotKey: last ? s.gameId + '|' + s.shots : '',
-    aim: myFire && s.aim >= 0 ? { side: 1, cell: s.aim } : null,
+    scan: s.scan ? { side: s.scan.seat === 0 ? 1 : 0, cell: s.scan.cell } : null,
+    scanKey: s.scan ? s.gameId + '|r' + s.scan.mv : '',
+    onScan: bsPhoneScanned,
+    aim: myFire && s.aim >= 0 ? { side: 1, cell: s.aim, area: !!s.radarMode } : null,
     peek: play ? { label: focus === 1 ? bsT('bs_peek_mine') : bsT('bs_peek_enemy'), onClick: () => bsPhonePeek(focus === 1 ? 0 : 1) } : null,
     input: placing ? { mode: 'place', side: 0, fleet: s.fleet, onFleet: bsPhoneSetFleet, onRefuse: bsRefuseHint }
       : myFire ? { mode: 'fire', side: 1, onTap: bsPhoneTap } : null,
@@ -2072,11 +2508,15 @@ function bsPhoneStatus(s, flying) {
   if (flying && last) {
     return last.seat === 0 ? bsT('bs_you_fired', { coord: bsCoordIso(last.cell) }) : bsT('bs_fired', { name: duelIso(bsT('xo_phone')), coord: bsCoordIso(last.cell) });
   }
+  if (bsPhoneLocal.sweeping && s.scan) {
+    return '📡 ' + (s.scan.seat === 0 ? bsT('bs_radar_you_sweeping', { coord: bsCoordIso(s.scan.cell) }) : bsT('bs_radar_sweeping', { name: duelIso(bsT('xo_phone')), coord: bsCoordIso(s.scan.cell) }));
+  }
   if (s.phase === 'place') return bsT('bs_place_title');
   if (s.phase === 'done') return s.winner === 0 ? '🏆 ' + bsT('bs_you_won') : bsT('bs_phone_won');
   if (s.turn === 1) return bsT('bs_phone_thinking');
+  if (s.radarMode) return '📡 ' + (s.aim >= 0 ? bsT('bs_radar_aim', { coord: bsCoordIso(s.aim) }) : bsT('bs_radar_pick'));
   if (s.aim >= 0) return bsT('bs_aim', { coord: bsCoordIso(s.aim) });
-  if (last && last.seat === 0 && last.res !== 'miss') return bsT('bs_again_you');
+  if (bsShotWasLast(last, s.scan) && last.seat === 0 && last.res !== 'miss') return bsT('bs_again_you');
   return bsT('bs_your_turn');
 }
 
@@ -2106,11 +2546,11 @@ function bsPhoneBarHtml(s, flying) {
     if (flying) return '';
     return `<button type="button" class="btn btn--primary btn--lg" onclick="bsPhoneNewGame()">${escapeHTML(bsT('duel_next_game'))}</button>`;
   }
-  if (s.turn !== 0 || flying) return '';
-  if (s.aim >= 0) {
-    return `<button type="button" class="btn btn--primary btn--lg bs-fire" onclick="bsPhoneFire()">${escapeHTML(bsT('bs_fire', { coord: bsCoordIso(s.aim) }))}</button>`;
-  }
-  return `<p class="bs-bar__say">${escapeHTML(bsT('bs_tap_hint'))}</p>`;
+  if (s.turn !== 0 || flying || bsPhoneLocal.sweeping) return '';
+  return bsRadarBarHtml({
+    radar: bsRadarReady(s.radarOn, s.scans, 0), mode: !!s.radarMode, aim: s.aim,
+    fire: 'bsPhoneFire()', sweep: 'bsPhoneSweepMine()', on: 'bsPhoneRadarMode(true)', off: 'bsPhoneRadarMode(false)'
+  });
 }
 
 function bsPhoneSideHtml(s, model, flying) {
@@ -2121,6 +2561,14 @@ function bsPhoneSideHtml(s, model, flying) {
     const sea = Object.assign({}, model.seas[other], bsSeaShown(s.seas, model.seas[other].k, s.last, flying));
     parts.push(bsMiniHtml(sea, sea.label));
     parts.push(`<div class="bs-fleets">${bsFleetHtml(bsSeaShown(s.seas, 0, s.last, flying), bsT('bs_fleet_you'), BS_SIDE_COL[0])}${bsFleetHtml(bsSeaShown(s.seas, 1, s.last, flying), bsT('xo_phone'), BS_SIDE_COL[1])}</div>`);
+    // «الرادار»: what each sweep said - your count; only where the phone looked.
+    if (s.radarOn) {
+      const held = bsPhoneLocal.sweeping && s.scan ? s.scan.seat : -1;
+      parts.push(bsRadarLogHtml([
+        { who: bsT('xo_you'), scan: held === 0 ? null : s.scans[0], count: true, color: BS_SIDE_COL[0] },
+        { who: bsT('xo_phone'), scan: held === 1 ? null : s.scans[1], count: false, color: BS_SIDE_COL[1] }
+      ]));
+    }
   }
   if (s.phase === 'done' && !flying) {
     const acc = (k) => (s.tally[k].shots ? Math.round(s.tally[k].hits / s.tally[k].shots * 100) : 0);
@@ -2136,7 +2584,7 @@ function paintBattleship(opts) {
   const el = document.getElementById('battleship-stage');
   if (!el || !s.seas || !s.fleet) return;
   if (!el.querySelector('.bs-game') || el._bsLang !== appState.lang) { el.innerHTML = bsLayoutHtml(); el._bsLang = appState.lang; }
-  if (o.still) bsPhoneLocal.flying = '';
+  if (o.still) { bsPhoneLocal.flying = ''; bsPhoneLocal.sweeping = ''; }
   const shotKey = s.last ? s.gameId + '|' + s.shots : '';
   const flying = !!bsPhoneLocal.flying && bsPhoneLocal.flying === shotKey;
   const model = bsPhoneModel(s, o, flying);
@@ -2162,6 +2610,7 @@ function restoreBattleship() {
   const s = bsPhoneState();
   if ((s.phase !== 'place' && s.phase !== 'play' && s.phase !== 'done') || !s.seas || !s.fleet || !s.ai) return false;
   bsPhoneLocal.flying = '';
+  bsPhoneLocal.sweeping = '';
   paintBattleship({ still: true });
   setTimeout(bsPhoneMaybeAi, 0);
   return true;
@@ -2189,7 +2638,9 @@ if (typeof onLeaveScreen === 'function') {
 // fleet: the fleet this phone is placing (fleetKey: which deal it is for); aim: the square aimed at
 // this turn; peek: the sea asked for this turn; sent: a shot sent and not answered; flying: the shot
 // whose shell is in the air; seen: the newest shot this phone has shown.
-const bsRoomLocal = { fleet: null, fleetKey: '', aim: -1, aimKey: '', peek: null, peekKey: '', sent: '', flying: '', seen: null, turnKey: '', turnSince: 0, clock: null, clockKey: null, hostTimer: null, hostTimerKey: '' };
+// radar: this turn is a sweep (the radar button); sweeping: a sweep still turning over its area; seenScan: the newest sweep shown.
+const bsRoomLocal = { fleet: null, fleetKey: '', aim: -1, aimKey: '', peek: null, peekKey: '', sent: '', flying: '', seen: null, turnKey: '', turnSince: 0, clock: null, clockKey: null, hostTimer: null, hostTimerKey: '',
+  radar: false, sweeping: '', seenScan: null };
 const BS_DRAFT_KEY = 'ashryBsDraft';
 
 const bsRoomSeat = (state) => (state.youAreScreen ? -1 : ((state.shared || {}).seats || []).indexOf(Room.me));
@@ -2261,8 +2712,52 @@ function bsRoomRedraw() {
 function bsRoomAimOf(state) {
   const s = state.shared;
   const key = [state.code, s.round, s.turnSeq].join('|');
-  if (bsRoomLocal.aimKey !== key) { bsRoomLocal.aimKey = key; bsRoomLocal.aim = -1; }
+  if (bsRoomLocal.aimKey !== key) { bsRoomLocal.aimKey = key; bsRoomLocal.aim = -1; bsRoomLocal.radar = false; }
   return bsRoomLocal.aim;
+}
+
+/** «الرادار»: may this seat still sweep in this game? */
+const bsRoomRadarReady = (state, seat) => seat !== -1 && bsRadarReady(((state.shared || {}).settings || {}).radar, (state.shared || {}).radar, seat);
+
+/** The count a sweep by `seat` found, where this screen may know it: the sweeper's own phone, and the TV. */
+function bsRoomCountOf(state, seat) {
+  const mine = state.youAreScreen ? (((state.screen || {}).bsRadar) || [])[seat] : (bsRoomSeat(state) === seat ? (state.you || {}).radar : null);
+  return mine && typeof mine.count === 'number' ? mine.count : null;
+}
+
+/** The radar button: this turn becomes a sweep, or goes back to a shot. */
+function bsRoomRadarMode(on) {
+  const state = duelRoomState();
+  if (!state || state.game !== 'battleship') return;
+  const s = state.shared;
+  const seat = bsRoomSeat(state);
+  if (s.phase !== 'play' || s.turn !== seat || !bsRoomRadarReady(state, seat)) return;
+  bsRoomAimOf(state);
+  bsRoomLocal.radar = !!on;
+  bsRoomLocal.aim = -1;
+  bsSound('aim');
+  haptic('light');
+  bsRoomRedraw();
+}
+
+/** Sweep the area aimed at: the server answers with where (everyone) and the count (this phone and the TV). */
+function bsRoomSweep() {
+  const state = duelRoomState();
+  if (!state || state.game !== 'battleship') return;
+  const s = state.shared;
+  const seat = bsRoomSeat(state);
+  const cell = bsRoomAimOf(state);
+  if (!bsRoomLocal.radar || s.phase !== 'play' || s.turn !== seat || cell < 0 || !bsRoomRadarReady(state, seat)) return;
+  const stamp = [state.code, s.round, s.turnSeq].join('|');
+  if (bsRoomLocal.sent === stamp) return;
+  bsRoomLocal.sent = stamp;
+  bsRoomLocal.aim = -1;
+  haptic('medium');
+  bsRoomRedraw();
+  Promise.resolve(duelAct('radar', { cell: cell, seq: s.turnSeq })).then(() => {
+    if (bsRoomLocal.sent === stamp) bsRoomLocal.sent = '';
+    bsRoomRedraw();
+  });
 }
 
 /** A tap on the other sea: aim there, or fire where you aimed. */
@@ -2271,9 +2766,19 @@ function bsRoomTap(cell) {
   if (!state || state.game !== 'battleship') return;
   const s = state.shared;
   const seat = bsRoomSeat(state);
-  if (s.phase !== 'play' || s.turn !== seat || bsRoomLocal.sent || bsRoomLocal.flying) return;
+  if (s.phase !== 'play' || s.turn !== seat || bsRoomLocal.sent || bsRoomLocal.flying || bsRoomLocal.sweeping) return;
+  const aimed = bsRoomAimOf(state);
+  if (bsRoomLocal.radar && bsRoomRadarReady(state, seat)) {
+    const centre = bsRadarCentre(cell);
+    if (aimed === centre) { bsRoomSweep(); return; }
+    bsRoomLocal.aim = centre;
+    bsSound('aim');
+    haptic('light');
+    bsRoomRedraw();
+    return;
+  }
   if (s.seas[1 - seat].grid[cell] !== BS_SEA) { bsSound('refuse'); bsViewToast(escapeHTML(bsT('bs_already')), 'is-note'); return; }
-  if (bsRoomAimOf(state) === cell) { bsRoomFire(); return; }
+  if (aimed === cell) { bsRoomFire(); return; }
   bsRoomLocal.aim = cell;
   bsSound('aim');
   haptic('light');
@@ -2290,7 +2795,7 @@ function bsRoomFire() {
   const s = state.shared;
   const seat = bsRoomSeat(state);
   const cell = bsRoomAimOf(state);
-  if (s.phase !== 'play' || s.turn !== seat || cell < 0 || s.seas[1 - seat].grid[cell] !== BS_SEA) return;
+  if (bsRoomLocal.radar || s.phase !== 'play' || s.turn !== seat || cell < 0 || s.seas[1 - seat].grid[cell] !== BS_SEA) return;
   const stamp = [state.code, s.round, s.turnSeq].join('|');
   if (bsRoomLocal.sent === stamp) return;
   bsRoomLocal.sent = stamp;
@@ -2321,11 +2826,41 @@ function bsRoomPeek(side) {
 function bsRoomNoteShot(state) {
   const s = state.shared;
   const key = s.last ? [state.code, s.round, s.shots].join('|') : '';
-  if (bsRoomLocal.seen === null) { bsRoomLocal.seen = key; return; }
-  if (key && key !== bsRoomLocal.seen) {
+  if (bsRoomLocal.seen === null) bsRoomLocal.seen = key;
+  else if (key && key !== bsRoomLocal.seen) {
     bsRoomLocal.seen = key;
     if (!motionOff() && bsView.r) bsRoomLocal.flying = key;
   }
+  // «الرادار»: a new sweep turns over its area before anything says what it found.
+  const sk = s.scan ? [state.code, s.round, s.scan.mv].join('|') : '';
+  if (bsRoomLocal.seenScan === null) { bsRoomLocal.seenScan = sk; return; }
+  if (sk && sk !== bsRoomLocal.seenScan) {
+    bsRoomLocal.seenScan = sk;
+    if (!motionOff() && bsView.r) {
+      bsRoomLocal.sweeping = sk;
+      setTimeout(() => { if (bsRoomLocal.sweeping === sk) bsRoomScanned(); }, 3500);
+    } else setTimeout(() => bsRoomScanSay(state), 0);
+  }
+}
+
+/** The sweep has turned: the sweeper and the TV hear the count, everyone else where it went. */
+function bsRoomScanned() {
+  if (!bsRoomLocal.sweeping) return;      // said already (motion off, or the timer)
+  bsRoomLocal.sweeping = '';
+  const st = duelRoomState();
+  if (!st || st.game !== 'battleship') return;
+  bsRoomScanSay(st);
+  if (st.youAreScreen) { const v = document.getElementById('view-room-tv'); if (v) TV_GAMES.battleship.after(Room.state, false); }
+  else bsRoomRedraw();
+}
+
+function bsRoomScanSay(state) {
+  const s = state.shared || {};
+  if (!s.scan) return;
+  const n = bsRoomCountOf(state, s.scan.seat);
+  if (n !== null) { bsRadarToast(n); return; }
+  const names = duelRoomNames(state);
+  bsViewToast(`📡 ${escapeHTML(bsT('bs_radar_they', { name: duelIso(names[s.scan.seat] || ''), coord: bsCoordIso(s.scan.cell) }))}`, 'is-note');
 }
 
 function bsRoomLanded(shot) {
@@ -2351,6 +2886,7 @@ function bsRoomModel(state, tv) {
   const over = s.phase === 'over', placing = s.phase === 'place', play = s.phase === 'play';
   const draft = placing && seat !== -1 && !s.ready[seat] ? bsRoomDraft(state) : null;
   const flying = !!bsRoomLocal.flying;
+  const sweeping = !!bsRoomLocal.sweeping && s.scan;
   const fleetOf = (k) => {
     if (over && !flying && s.reveal && s.reveal[k]) return s.reveal[k];
     if (k === seat) return draft || ((state.you || {}).fleet || null);
@@ -2364,10 +2900,17 @@ function bsRoomModel(state, tv) {
   } else auto = sideOf(1 - s.turn);
   // A shell in the air: the camera stays on the sea it is falling on until it lands.
   if (flying && s.last) auto = sideOf(1 - s.last.seat);
-  const peekKey = [state.code, s.round, s.phase, s.turn, flying ? 'f' : ''].join('|');
+  // A sweep turning: the camera stays on the sea it sweeps until it is done.
+  else if (sweeping) auto = sideOf(1 - s.scan.seat);
+  const peekKey = [state.code, s.round, s.phase, s.turn, flying ? 'f' : '', sweeping ? 's' : ''].join('|');
   if (bsRoomLocal.peekKey !== peekKey) { bsRoomLocal.peekKey = peekKey; bsRoomLocal.peek = null; }
   const focus = tv || bsRoomLocal.peek === null ? auto : bsRoomLocal.peek;
-  const myTurn = play && seat !== -1 && s.turn === seat;
+  const myTurn = play && seat !== -1 && s.turn === seat && !sweeping;
+  // «الرادار»: the areas swept on each sea - by the other seat - with the count where this screen may know it.
+  const radarOf = (k) => {
+    const sw = (s.radar || [])[1 - k];
+    return sw ? [{ cell: sw.cell, n: bsRoomCountOf(state, 1 - k) }] : [];
+  };
   const label = (k) => (seat !== -1 && k === seat ? bsT('bs_your_sea') : bsT('bs_sea_of', { name: duelIso(names[k] || '') }));
   const aim = myTurn ? bsRoomAimOf(state) : -1;
   const revealKey = ['bs-reveal', state.code, s.round, tv ? 'tv' : 'p'].join('|');
@@ -2376,7 +2919,7 @@ function bsRoomModel(state, tv) {
     loud: duelRoomLoud(state),
     seas: sides.map((k) => ({
       k: k,
-      grid: s.seas[k].grid, sunk: s.seas[k].sunk, fleet: fleetOf(k), color: BS_SIDE_COL[k], mine: k === seat, label: label(k),
+      grid: s.seas[k].grid, sunk: s.seas[k].sunk, fleet: fleetOf(k), color: BS_SIDE_COL[k], mine: k === seat, label: label(k), radar: radarOf(k),
       appear: over && !flying && k !== seat && motionFirst(revealKey + '|' + k)
     })),
     focus: focus,
@@ -2384,7 +2927,10 @@ function bsRoomModel(state, tv) {
     mine: !!draft || myTurn,
     shot: s.last ? { side: sideOf(1 - s.last.seat), cell: s.last.cell, res: s.last.res, ship: s.last.ship } : null,
     shotKey: s.last ? [state.code, s.round, s.shots].join('|') : '',
-    aim: myTurn && focus === 1 && aim >= 0 ? { side: 1, cell: aim } : null,
+    scan: s.scan ? { side: sideOf(1 - s.scan.seat), cell: s.scan.cell } : null,
+    scanKey: s.scan ? [state.code, s.round, s.scan.mv].join('|') : '',
+    onScan: bsRoomScanned,
+    aim: myTurn && focus === 1 && aim >= 0 ? { side: 1, cell: aim, area: !!bsRoomLocal.radar } : null,
     peek: play && !tv && seat !== -1 ? { label: focus === 1 ? bsT('bs_peek_mine') : bsT('bs_peek_enemy'), onClick: () => bsRoomPeek(focus === 1 ? 0 : 1) }
       : (play && !tv ? { label: bsT('bs_peek_other'), onClick: () => bsRoomPeek(focus === 1 ? 0 : 1) } : null),
     input: draft ? { mode: 'place', side: 0, fleet: draft, onFleet: bsRoomSetFleet, onRefuse: bsRefuseHint }
@@ -2404,14 +2950,19 @@ function bsRoomStatus(state, flying, tv) {
     return last.seat === seat ? bsT('bs_you_fired', { coord: bsCoordIso(last.cell) }) : bsT('bs_fired', { name: duelIso(names[last.seat] || ''), coord: bsCoordIso(last.cell) });
   }
   if (flying && seat !== -1) return bsT('bs_you_fired', { coord: '…' });
+  if (bsRoomLocal.sweeping && s.scan) {
+    return '📡 ' + (s.scan.seat === seat ? bsT('bs_radar_you_sweeping', { coord: bsCoordIso(s.scan.cell) })
+      : bsT('bs_radar_sweeping', { name: duelIso(names[s.scan.seat] || ''), coord: bsCoordIso(s.scan.cell) }));
+  }
   if (s.phase === 'over') return duelRoomResultLine(state, t);
   if (s.phase === 'place') {
     if (seat === -1) return bsT('bs_both_placing');
     return s.ready[seat] ? bsT('bs_ready_wait', { name: duelIso(names[1 - seat] || '') }) : bsT('bs_place_title');
   }
-  const again = last && last.res !== 'miss' && last.seat === s.turn && s.shots > 0;
+  const again = bsShotWasLast(last, s.scan) && last.res !== 'miss' && last.seat === s.turn && s.shots > 0;
   if (seat === s.turn) {
     const aim = bsRoomAimOf(state);
+    if (bsRoomLocal.radar) return '📡 ' + (aim >= 0 ? bsT('bs_radar_aim', { coord: bsCoordIso(aim) }) : bsT('bs_radar_pick'));
     if (aim >= 0) return bsT('bs_aim', { coord: bsCoordIso(aim) });
     return again ? bsT('bs_again_you') : bsT('bs_your_turn');
   }
@@ -2449,10 +3000,26 @@ function bsRoomBarHtml(state, flying) {
         <button type="button" class="btn btn--primary btn--lg" onclick="bsRoomReady()">${escapeHTML(bsT('bs_ready'))}</button>
       </div>`;
   }
-  if (s.phase !== 'play' || s.turn !== seat || flying || bsRoomLocal.sent) return '';
+  if (s.phase !== 'play' || s.turn !== seat || flying || bsRoomLocal.sent || bsRoomLocal.sweeping) return '';
   const aim = bsRoomAimOf(state);
-  if (aim >= 0) return `<button type="button" class="btn btn--primary btn--lg bs-fire" onclick="bsRoomFire()">${escapeHTML(bsT('bs_fire', { coord: bsCoordIso(aim) }))}</button>`;
-  return `<p class="bs-bar__say">${escapeHTML(bsT('bs_tap_hint'))}</p>`;
+  return bsRadarBarHtml({
+    radar: bsRoomRadarReady(state, seat), mode: !!bsRoomLocal.radar, aim: aim,
+    fire: 'bsRoomFire()', sweep: 'bsRoomSweep()', on: 'bsRoomRadarMode(true)', off: 'bsRoomRadarMode(false)'
+  });
+}
+
+/** «الرادار» under the fleets: each seat's sweep - where, and the count where this screen may know it. */
+function bsRoomRadarLogHtml(state, tv) {
+  const s = state.shared || {};
+  if (!(s.settings || {}).radar) return '';
+  const names = duelRoomNames(state);
+  const seat = tv ? -1 : bsRoomSeat(state);
+  const held = bsRoomLocal.sweeping && s.scan ? s.scan.seat : -1;
+  return bsRadarLogHtml([0, 1].map(k => {
+    const sw = (s.radar || [])[k];
+    const n = bsRoomCountOf(state, k);
+    return { who: (k === seat ? (bsT('xo_you') + ' · ') : '') + (names[k] || ''), scan: sw && held !== k ? { cell: sw.cell, count: n } : null, count: n !== null, color: BS_SIDE_COL[k] };
+  }));
 }
 
 function bsRoomFleetsHtml(state) {
@@ -2540,11 +3107,30 @@ function bsTickClock(state) {
 
 /* --- the lobby: the host's choice, remembered on their phone ---------------------- */
 
-const bsRoomOpts = () => recallOptions('battleshipRoom', { turnClock: 0 });
+const bsRoomOpts = () => recallOptions('battleshipRoom', { turnClock: 0, radar: true });
 
 function setBsRoomClock(v) {
-  rememberOptions('battleshipRoom', { turnClock: BS_CLOCKS.indexOf(Number(v)) !== -1 ? Number(v) : 0 });
+  rememberOptions('battleshipRoom', Object.assign({}, bsRoomOpts(), { turnClock: BS_CLOCKS.indexOf(Number(v)) !== -1 ? Number(v) : 0 }));
   duelLobbyRedraw();
+}
+
+/** «الرادار» on or off for the room's games (on by default, remembered on the host's phone). */
+function setBsRoomRadar(on) {
+  rememberOptions('battleshipRoom', Object.assign({}, bsRoomOpts(), { radar: !!on }));
+  duelLobbyRedraw();
+}
+
+/** The lobby's «الرادار» switch, under the clock. */
+function bsRadarSwitchHtml(state) {
+  if (!state.youAreHost) return '';
+  const on = bsRoomOpts().radar !== false;
+  return `<div class="field">
+      <label class="switch-row" for="bs-room-radar">
+        <span class="field__label">📡 ${escapeHTML(bsT('bs_radar'))}</span>
+        <span class="switch"><input type="checkbox" id="bs-room-radar" role="switch" ${on ? 'checked' : ''} onchange="setBsRoomRadar(this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+      </label>
+      <p class="field__hint">${escapeHTML(bsT('bs_radar_hint_setup'))}</p>
+    </div>`;
 }
 
 ROOM_GAMES.battleship = {
@@ -2554,9 +3140,9 @@ ROOM_GAMES.battleship = {
     const t = TRANSLATIONS[appState.lang] || {};
     const o = bsRoomOpts();
     return duelLobbyHtml(state, t, '⏱️ ' + bsT('bs_lobby_clock'),
-      BS_CLOCKS.map(v => [v, v ? v + '″' : bsT('gw_clock_off')]), o.turnClock, 'setBsRoomClock', o.turnClock ? bsT('bs_lobby_clock_hint') : '');
+      BS_CLOCKS.map(v => [v, v ? v + '″' : bsT('gw_clock_off')]), o.turnClock, 'setBsRoomClock', o.turnClock ? bsT('bs_lobby_clock_hint') : '', bsRadarSwitchHtml(state));
   },
-  startPayload() { return { turnClock: bsRoomOpts().turnClock }; },
+  startPayload() { const o = bsRoomOpts(); return { turnClock: o.turnClock, radar: o.radar !== false }; },
 
   render(state) {
     if (appState.currentView !== 'room-battleship') setView('room-battleship');
@@ -2580,7 +3166,7 @@ ROOM_GAMES.battleship = {
     if (s.phase === 'over' && !flying) side.push(duelRoomOverHtml(state, t));
     if (s.phase !== 'place') {
       const mini = Object.assign({}, model.seas[other], bsSeaShown(s.seas, model.seas[other].k, s.last, flying && s.last));
-      side.push(bsMiniHtml(mini, mini.label), bsRoomFleetsHtml(state));
+      side.push(bsMiniHtml(mini, mini.label), bsRoomFleetsHtml(state), bsRoomRadarLogHtml(state));
     }
     side.push(`<div data-bs-hostrow></div>`, duelRoomLineHtml(state, t));
     // The board already has the last shot's win: it waits for the shell to land like everything else.
@@ -2612,6 +3198,9 @@ onRoomClocksReset(() => {
   bsRoomLocal.sent = '';
   bsRoomLocal.flying = '';
   bsRoomLocal.seen = null;
+  bsRoomLocal.radar = false;
+  bsRoomLocal.sweeping = '';
+  bsRoomLocal.seenScan = null;
   const st = Room.state;
   if (!st || st.game !== 'battleship' || st.phase === 'lobby') bsViewDrop();
 });
@@ -2646,7 +3235,7 @@ TV_GAMES.battleship = {
       <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(bsRoomStatus(state, flying, true))}${clock}</div>
       ${bsHostRow(state, true)}
       ${s.phase === 'over' && !flying ? duelRoomOverHtml(state, t, true) : ''}
-      ${s.phase !== 'place' ? `<div class="tv-scale">${bsRoomFleetsHtml(state)}</div>` : ''}
+      ${s.phase !== 'place' ? `<div class="tv-scale">${bsRoomFleetsHtml(state)}${bsRoomRadarLogHtml(state, true)}</div>` : ''}
       <div class="tv-scale">${duelRoomLineHtml(state, t, true)}</div>`;
     if (side && side._bsHtml !== html) { side.innerHTML = html; side._bsHtml = html; }
     bsTickClock(state);

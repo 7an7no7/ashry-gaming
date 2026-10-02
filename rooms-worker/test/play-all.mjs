@@ -5583,6 +5583,26 @@ async function battleshipSeg() {
     await all(bsBots, (s) => s.shared.phase === 'play', 'battleship: the host\'s "play for" sails both fleets as they are');
     await H.must('skipTurn', { seq: H.state.shared.turnSeq });
     await all(bsBots, (s) => s.shared.shots === 1, 'battleship: and fires one shot at random for the player up');
+    // «الرادار»: whoever is up sweeps a 3 x 3 instead of firing; the count reaches their phone and the TV only.
+    {
+      const s = H.state.shared;
+      const sweeper = byId(bsBots, s.seats[s.turn]);
+      const other = byId(bsBots, s.seats[1 - s.turn]);
+      const bystander = bsBots.find((b) => b !== sweeper && b !== other);
+      check(s.settings.radar === true, 'battleship radar: on by default in a room');
+      await sweeper.must('radar', { cell: 0, seq: s.turnSeq });
+      await all(bsBots.concat([S]), (st) => st.shared.scan && st.shared.scan.cell === 11 && st.shared.turn === 1 - s.turn && st.shared.shots === 1,
+                'battleship radar: where the sweep went reaches every screen, nothing is fired at, and the turn passes');
+      await S.waitFor((st) => st.screen && st.screen.bsRadar && st.screen.bsRadar[s.turn] && typeof st.screen.bsRadar[s.turn].count === 'number',
+                      'battleship radar: the TV gets the count', 3000);
+      await sweeper.waitFor((st) => st.you && st.you.radar && st.you.radar.cell === 11 && st.you.radar.count === S.state.screen.bsRadar[s.turn].count,
+                            'battleship radar: the one who swept gets the count', 3000);
+      check(!(other.state.you || {}).radar && !(bystander.state.you || {}).radar && !other.state.screen && !bystander.state.screen && !leaks(other, '"count"') && !leaks(bystander, '"count"'),
+            'battleship radar: the other player and the watcher never get the count');
+      await other.must('fire', { cell: other.state.shared.seas[s.turn].grid.lastIndexOf(0), seq: other.state.shared.turnSeq });
+      await sweeper.waitFor((st) => st.shared.shots === 2, 'battleship radar: the other fires', 3000);
+      if (sweeper.state.shared.turn === s.turn) check((await sweeper.act('radar', { cell: 55, seq: sweeper.state.shared.turnSeq })).ok === false, 'battleship radar: once a game');
+    }
     await H.must('backToHub');
     bsBots.concat([S]).forEach((b) => b.close());
   }

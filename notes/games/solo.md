@@ -378,7 +378,7 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
 
 - **(415) سودوكو «للصغيرين»**: two kid sizes beside the normal levels, **4x4 and 6x6, with pictures instead of digits** (fruit or animals, the child picks the set; a 1-2-3 switch shows digits). **A mistake glows red at once and costs nothing**, a big 💡 fills one square, no limit; confetti and a star at the end; the time only if the parent turns it on.
 
-- **(420) 2048 board sizes**: **3x3 (wins at 256), 4x4 (2048, today's game) and 5x5 (4096)**, each with its own best, the size remembered. **Free play only**: no daily changes, and 2048 stays out of the race (the 26 Sep decision).
+- **(420) 2048 board sizes**: **3x3 (wins at 256), 4x4 (2048, today's game) and 5x5 (4096)**, each with its own best, the size remembered. **Free play only**: no daily changes, and 2048 stays out of the race (the 26 Sep decision). **Built 2 Oct 2026** (below).
 
 - **(444) خيوط from «كلماتنا»** (built 2 Oct 2026, below): on the setup, «من كلماتنا» lists the packs saved on this phone (or a 6-letter code). **The family's words are the ones to find**, words of 3-8 letters in the grid's alphabet, longer ones skipped; the long «الخيط الملوّن» is the pack's name or its longest word. **If the pack has too few fitting words, the normal خيوط bank tops it up**, those words marked «من عندنا» so the theme still reads right. Never the daily. Arabic and English packs both.
 
@@ -405,6 +405,22 @@ Decided here (open to change):
 - The answer stays up 0.95 s after a right one and 1.6 s after a wrong one before the next flag.
 - The names are in the games' language the run started in, like the other two ways.
 - The daily stays «من العلم»; a tour is never a daily and not in the race.
+
+### 2048 board sizes: built 2 Oct 2026
+
+- **`JS_2048.html`**: `G2048_SIZES` (3, 4, 5) and `G2048_GOAL` (256, 2048, 4096). The setup has
+  «حجم اللوحة» (`#g2048-size`, `set2048Size`), remembered as `appState.g2048.pick`; Start deals
+  that size into `s.size`, which every rule reads (`g2048N(s)`: the spawn, the slide, «can it
+  move», the win), so «كمّل اللعبة» and a reload come back on the board as it was, whatever is
+  picked meanwhile (the button says the other size when they differ). The board is drawn with
+  `--n` (`.g2048-board--3/--5` scale the numbers, `--g2048-fs`; 5x5 has a tighter gap). The win
+  sheet says the size's goal (`g2048_won` takes `{n}`), the hint and the setup say it too
+  (`g2048_goal`).
+- **Bests per size**: `soloBest('g2048', g2048Level(n))` - 4x4 keeps the key it always had (`''`),
+  so nobody's best is lost; 3x3 is `'3'`, 5x5 `'5'`. The stats sheet (JS_Daily.html) lists the three.
+- No daily and no race change (free play only).
+- Decided here (open to change): a new game on the setup takes the size picked there, and a game
+  already on the board keeps its own size until it ends or a new one starts.
 
 ## History
 

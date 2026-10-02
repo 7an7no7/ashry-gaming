@@ -136,11 +136,14 @@ function duelRoomStatus(state, t, again) {
 /** "🏆 the win to X", a draw, or a win by forfeit. */
 function duelRoomResultLine(state, t) {
   const r = (state.shared || {}).result || {};
+  if (r.draw && r.reason === 'boards' && typeof xoBigText === 'function') return xoBigText().end_boards_draw;
   if (r.draw) return state.game === 'dots'
     ? (t.dots_draw || '').replace('{n}', ((state.shared || {}).count || [0])[0])
     : (t.c4_draw || '');
   const line = '🏆 ' + (t.duel_won || '').replace('{name}', duelIso(r.winnerName || ''));
   if (r.reason === 'away') return line + ' · ' + (t.duel_away_lost || '');
+  // «إكس أو الكبير» with no line left: the most boards won (JS_XO.html's text).
+  if (r.reason === 'boards' && typeof xoBigText === 'function') return line + ' · ' + xoBigText().more_boards;
   return r.reason === 'left' ? line + ' · ' + (t.duel_forfeit || '') : line;
 }
 
@@ -178,8 +181,8 @@ function duelRoomOverHtml(state, t, tv) {
     </div>`;
 }
 
-/** The lobby option for a duel: one segmented choice, remembered on the host's phone. */
-function duelLobbyHtml(state, t, label, values, current, setter, hint) {
+/** The lobby option for a duel: one segmented choice, remembered on the host's phone; `more`, a second field after it (إكس أو's rules). */
+function duelLobbyHtml(state, t, label, values, current, setter, hint, more) {
   if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.duel_lobby_hint || '')}</p>`;
   return `<div class="card card--tight">
       <div class="field">
@@ -188,7 +191,7 @@ function duelLobbyHtml(state, t, label, values, current, setter, hint) {
           ${values.map(v => `<button type="button" class="segmented__item ${String(v[0]) === String(current) ? 'is-active' : ''}" onclick="${setter}(${v[0]})">${escapeHTML(v[1])}</button>`).join('')}
         </div>
         ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
-      </div>
+      </div>${more || ''}
       ${typeof tourModeOf === 'function' && tourModeOf(state.game) === 'tour' && tourCanStart(state) ? '' : `<p class="field__hint" style="text-align:center">${escapeHTML(t.duel_lobby_hint || '')}</p>`}
     </div>`;
 }
@@ -273,6 +276,7 @@ function duelRoomOnly(state) {
   const who = s.turn + 1;
   if (state.game === 'connect4' && s.grid) return c4OnlyMove({ cols: s.cols, rows: s.rows, n: s.n, grid: s.grid }, who) >= 0;
   if (state.game === 'dots' && s.lines) return dotsOnlyMove({ n: s.size, lines: s.lines, boxes: s.boxes || [] }, who) >= 0;
+  if (state.game === 'xo' && Array.isArray(s.cells) && s.big) return xoBigOnlyMove({ cells: s.cells, minis: s.minis || [], send: s.send }, s.turn === 0 ? 'X' : 'O') >= 0;
   if (state.game === 'xo' && Array.isArray(s.cells)) return xoOnlyMove(s.cells, !!s.rule3, s.turn === 0 ? 'X' : 'O') >= 0;
   return false;
 }

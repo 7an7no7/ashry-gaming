@@ -46,6 +46,9 @@ const DARKM = new Function(readFileSync(new URL('../../Dark.js', import.meta.url
 // الخزنة's answers, worked out by the robots from the opener's look and the readers' pages (never the server's).
 const VAULTR = new Function(readFileSync(new URL('../../Vault.js', import.meta.url), 'utf8') + ';return { vaultWireAnswer, vaultSymbolOrder, vaultTwistOn };')();
 const CHM = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
+const XOR = new Function(readFileSync(new URL('../../TicTacToe.js', import.meta.url), 'utf8') + ';return { xoBigLegal };')();
+/** The squares a robot may play on an إكس أو board: any empty one, or on the big board the ones it was sent to. */
+const xoFree = (g) => (g.big ? XOR.xoBigLegal({ cells: g.cells, minis: g.minis, send: g.send }) : g.cells.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0));
 
 const ARGS = process.argv.slice(2);
 const BASE = (ARGS.find((a) => !a.startsWith('--')) || 'http://127.0.0.1:8787').replace(/\/$/, '');
@@ -198,7 +201,7 @@ const TOUR_MOVE = {
   },
   xo: (b, g) => {
     if (g.seats[g.turn] !== b.pid) return null;
-    const free = g.cells.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0);
+    const free = xoFree(g);
     return { action: 'move', payload: { cell: free[Math.floor(Math.random() * free.length)], move: g.moves } };
   },
   guesswho: (b, g) => {
@@ -299,6 +302,63 @@ async function duelTourRobots() {
               'xo: the next in line sits down against the winner and plays X');
     await H.must('backToHub');
     xoBots.forEach((b) => b.close());
+  }
+
+  console.log('• «إكس أو الكبير» in a room (winner stays): nine boards, the square played sends the other seat');
+  {
+    const H = await Bot.host('بسمة', null);
+    const J = await Bot.join(H.code, 'جمال');
+    const K = await Bot.join(H.code, 'Karim');
+    const bots = [H, J, K];
+    await H.must('chooseGame', { game: 'xo' });
+    await H.must('start', { size: 'big', three: true });
+    await all(bots, (s) => s.game === 'xo' && s.shared.phase === 'play' && s.shared.big === true && s.shared.cells.length === 81 &&
+                          s.shared.minis.length === 9 && s.shared.send === -1 && s.shared.rule3 === false,
+              'xo big: 81 squares and nine open boards on every phone, 3 marks only off for the big size');
+    const first = byId(bots, H.state.shared.seats[0]);
+    const second = byId(bots, H.state.shared.seats[1]);
+    await first.must('move', { cell: 4 * 9 + 2, move: 0 });
+    await all(bots, (s) => s.shared.send === 2 && s.shared.turn === 1 && s.shared.last.cell === 38,
+              'xo big: the top-right square sends the other seat to the top-right board, on every phone');
+    check((await second.act('move', { cell: 0, move: 1 })).ok === false, 'xo big: a square on another board is refused');
+    let tookOne = false;
+    for (let guard = 0; guard < 120 && H.state.shared.phase === 'play'; guard++) {
+      const s = H.state.shared;
+      const bot = byId(bots, s.seats[s.turn]);
+      const free = xoFree(s);
+      await bot.act('move', { cell: free[Math.floor(Math.random() * free.length)], move: s.moves });
+      if (H.state.shared.minis && H.state.shared.minis.some((v) => v === 'X' || v === 'O')) tookOne = true;
+      await sleep(15);
+    }
+    check(tookOne, 'xo big: a small board taken shows on the boards');
+    await all(bots, (s) => s.shared.phase === 'over' && !!s.shared.result && ['line', 'boards'].indexOf(s.shared.result.reason) !== -1,
+              'xo big: the game ends on three boards in a row or on the most boards, on every phone');
+    const watcher = bots.find((b) => b.pid !== H.state.shared.seats[0] && b.pid !== H.state.shared.seats[1]);
+    await watcher.must('nextRound', { round: H.state.shared.round });
+    await all(bots, (s) => s.shared.phase === 'play' && s.shared.round === 2 && s.shared.big === true && s.shared.cells.every((v) => !v),
+              'xo big: the next game of winner stays is big again');
+    await H.must('backToHub');
+    bots.forEach((b) => b.close());
+  }
+
+  console.log('• «إكس أو الكبير»: a tournament of four on the big board');
+  {
+    const names = ['رنا', 'Omar', 'سلمى', 'Fady'];
+    const H = await Bot.host(names[0], null);
+    const bots = [H];
+    for (const n of names.slice(1)) bots.push(await Bot.join(H.code, n));
+    await H.must('chooseGame', { game: 'xo' });
+    await H.must('start', { tournament: true, size: 'big' });
+    await all(bots, (s) => s.shared.tour && s.shared.tour.size === 4 && s.shared.settings.size === 'big', 'xo big: a tournament of four, every match on the big board');
+    let bigSeen = false;
+    await playTournament('xo', bots, () => {
+      const s = H.state.shared;
+      Object.keys(s.games || {}).forEach((id) => { if (s.games[id] && s.games[id].big && s.games[id].cells.length === 81) bigSeen = true; });
+    });
+    check(bigSeen, 'xo big: the matches are dealt on the big board');
+    await all(bots, (s) => s.shared.tour.phase === 'over' && !!s.shared.tour.champion, 'xo big: the tournament ends with a champion', 20000);
+    await H.must('backToHub');
+    bots.forEach((b) => b.close());
   }
 
   for (const game of ['connect4', 'dots', 'xo', 'guesswho', 'battleship', 'chess']) {

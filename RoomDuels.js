@@ -32,7 +32,11 @@
      connect4:  mode (4 | 5 in a row), cols, rows, n, grid, win (the lit cells), last { seat, col, row }
      dots:      size (4 | 6 | 8), lines, boxes, count [seat 0, seat 1], last { seat, edge, boxes }
      xo:        three (the lobby's switch), rule3 (this game's), cells (the 9 squares: board is the
-                scoreboard here), order { X, O }, win, last { seat, cell, gone }
+                scoreboard here), order { X, O }, win, last { seat, cell, gone }; size ('normal' |
+                'big', the lobby's «المقاس») and big (this game's): a big game's cells are 81,
+                minis the nine boards' results, send the board to play in (-1 anywhere), win the
+                line of boards, last.took the board's result a move decided; result.reason
+                'boards' when no line was left and the most boards won (or a draw)
 
    A room of four people or more may play a knockout tournament instead
    (RoomTournament.js, the owner's decision of 23 Sep 2026): duelAction hands
@@ -108,17 +112,45 @@ const DUEL_KINDS = {
   // إكس أو in rooms (23 Sep 2026): seat 0 is X and moves first; the lobby's
   // "3 marks only" switch (the owner's rule of 22 Sep 2026) is `three`, and a
   // game keeps the rule it was dealt with (`rule3`). The rules are TicTacToe.js.
+  // «إكس أو الكبير» (the owner, 2 Oct 2026): the lobby's «المقاس» is `size`
+  // ('normal' | 'big'), and a game keeps the size it was dealt (`big`): 81
+  // `cells` (board b's square i at b * 9 + i), `minis` (each board's result),
+  // `send` (the board to play in, -1 anywhere), `win` the line of boards. The
+  // 3-marks rule is the normal size's only. The rules are TicTacToe.js.
   xo: {
-    options: (payload, prev) => ({ three: payload && typeof payload.three === 'boolean' ? payload.three : !!(prev || {}).three }),
+    options: (payload, prev) => {
+      const p = payload || {}, q = prev || {};
+      const size = p.size === 'big' || p.size === 'normal' ? p.size : (q.size === 'big' ? 'big' : 'normal');
+      return { three: typeof p.three === 'boolean' ? p.three : !!q.three, size: size };
+    },
     deal: (s) => {
-      s.cells = ['', '', '', '', '', '', '', '', ''];
+      s.big = s.size === 'big';
+      if (s.big) {
+        const g = xoBigNew();
+        s.cells = g.cells; s.minis = g.minis; s.send = g.send;
+      } else {
+        s.cells = ['', '', '', '', '', '', '', '', ''];
+        delete s.minis; delete s.send;
+      }
       s.order = { X: [], O: [] };
-      s.rule3 = !!s.three;
+      s.rule3 = !!s.three && !s.big;
       s.win = [];
     },
     move: (s, payload, seat) => {
       const mark = seat === 0 ? 'X' : 'O';
       const cell = Number(payload && payload.cell);
+      if (s.big) {
+        const g = { cells: s.cells, minis: s.minis, send: s.send };
+        const r = xoBigMark(g, cell, mark);
+        if (!r) throw new Error(s.send >= 0 && Math.floor(cell / 9) !== s.send ? 'العب في اللوحة اللي اتبعتلها' : 'المربع ده مش متاح');
+        s.send = g.send;
+        s.last = { seat: seat, cell: cell, gone: -1, took: r.took };
+        if (!r.took) return { end: false, again: false };
+        const w = xoBigWinner(s.minis);
+        if (!w) return { end: false, again: false };
+        if (w.line) { s.win = w.line; return { end: true, winner: seat, reason: 'line' }; }
+        return { end: true, winner: w.mark === 'D' ? null : (w.mark === 'X' ? 0 : 1), reason: 'boards' };
+      }
       const placed = xoMark(s.cells, s.order, s.rule3, cell, mark);
       if (!placed) throw new Error('المربع ده مش فاضي');
       s.last = { seat: seat, cell: cell, gone: placed.gone };
@@ -128,7 +160,8 @@ const DUEL_KINDS = {
       return { end: false, again: false };
     },
     only: (s, seat) => {
-      const cell = xoOnlyMove(s.cells || [], !!s.rule3, seat === 0 ? 'X' : 'O');
+      const cell = s.big ? xoBigOnlyMove({ cells: s.cells || [], minis: s.minis || [], send: s.send }, seat === 0 ? 'X' : 'O')
+        : xoOnlyMove(s.cells || [], !!s.rule3, seat === 0 ? 'X' : 'O');
       return cell < 0 ? null : { cell: cell };
     }
   }

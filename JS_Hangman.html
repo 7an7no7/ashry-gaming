@@ -157,8 +157,9 @@ function hmManHtml(o) {
   const hanged = o.state === 'lost' && misses >= max;
   const end = Number(o.end);
   if ((o.state === 'won' || hanged) && o.end !== undefined && o.end !== null && end >= 0 && end < HM_ENDS) {
-    // A solve keeps the pieces he earned (the others stay hidden); a loss has them all.
-    return hmEndSvg(o.state, end, { on: hmManOf(o.state === 'won' ? misses : max, max).on, key: o.key || '', play: !!o.play, mini: !!o.mini, cls: o.cls || '' });
+    // Every ending has the whole man, as in the owner's sheet (a solve with one miss used to play
+    // its escape with a head alone, or an empty rope).
+    return hmEndSvg(o.state, end, { key: o.key || '', play: !!o.play, mini: !!o.mini, cls: o.cls || '' });
   }
   return hmGallowsSvg(misses, !!o.drawLast, o.cls, max);
 }
@@ -990,7 +991,7 @@ function hmRowMoments(state, prog) {
 const HM_HOLD_MS = 4500;
 function hmRoomHold(state, tv) {
   const s = state.shared || {};
-  if (!(s.phase === 'result' || (s.phase === 'gameover' && s.result)) || motionOff()) return null;
+  if (!(s.phase === 'result' || (s.phase === 'gameover' && s.result)) || (typeof hmEndsStill === 'function' ? hmEndsStill() : motionOff())) return null;
   const key = [state.code, s.dealId, s.round].join('|');
   const now = Date.now();
   const cur = hmRoom.hold;

@@ -808,11 +808,11 @@ const HM_END = (() => {
       const key = el.getAttribute('data-hme-key') || '';
       const now = Date.now();
       let start = key ? starts[key] : undefined;
-      if (start === undefined && el.getAttribute('data-hme-play') && !motionOff()) {
+      if (start === undefined && el.getAttribute('data-hme-play') && !hmEndsStill()) {
         start = now;
         if (key) starts[key] = now;
       }
-      if (start === undefined || motionOff() || now - start >= c.def.D) { draw(c, c.def.D, false); return; }
+      if (start === undefined || hmEndsStill() || now - start >= c.def.D) { draw(c, c.def.D, false); return; }
       c.start = start;
       draw(c, now - start, true);
       running.push(c);
@@ -827,6 +827,14 @@ const HM_END = (() => {
   const length = (kind, id) => defOf(kind, id).D;
   return { svg, play, begun, length };
 })();
+
+/**
+ * The endings play even when the device asks for less motion (Windows' "Animation effects" off, an
+ * iPhone's Reduce Motion): they are the moment the table watches, as in the owner's sheet, and the
+ * snakes' moves do the same. Only the app's own setting (الحركة → مقفولة) stills them, and a page
+ * that isn't showing (its timer draws the last frame).
+ */
+function hmEndsStill() { return (typeof motionPref === 'function' && motionPref() === 'off') || document.hidden; }
 
 /** An ending's markup: kind 'won' | 'lost', id 0-7; o: { on (the pieces he has), key, play, mini, cls }. */
 function hmEndSvg(kind, id, o) { return HM_END.svg(kind, id, o); }

@@ -40,6 +40,65 @@ const UNO_CLOCK_CHOICES = [0, 30, 60];
 const UNO_FLY_MS = 430;
 const UNO_ROW_MAX = 12;             // cards in one row of your hand before a second row
 
+/* «أونو اتنين اتنين» (teams of two, 2 Oct 2026): its words live here, in the game's own chunk,
+   not in TRANSLATIONS (the shell's size budget); unoT reads them after TRANSLATIONS. */
+const UNO_TEXT = {
+  ar: {
+    uno_teams: 'اتنين اتنين (فرق)',
+    uno_teams_hint: 'كل اتنين فريق وقاعدين قصاد بعض. أول واحد من الفريق يخلّص، الفريق كله يكسب. مينفعش ترمي تخطي أو +2 أو +4 على شريكك.',
+    uno_team_n: 'فريق {n}',
+    uno_team_join: 'ادخل هنا',
+    uno_team_leave: 'اخرج',
+    uno_team_empty: 'مكان فاضي',
+    uno_team_move_bot: 'دوس على فريق عشان تنقل {name}',
+    uno_teams_pick: 'كل واحد يختار فريقه: اتنين في كل فريق. ناقص شريك؟ ضيف لاعب كمبيوتر وهيقعد جنبه.',
+    uno_teams_unplaced: 'لسه مختاروش فريق: {names}',
+    uno_teams_alone: 'لسه ملهمش شريك: {names}',
+    uno_teams_ready: 'الفرق جاهزة ✓',
+    uno_teams_need: 'محتاجين ٤ لاعبين على الأقل (فريقين)',
+    uno_mate: 'شريكك',
+    uno_mate_cant: 'مينفعش: الكارت ده هيقع على شريكك',
+    uno_sig_label: 'إشارة لشريكك (الكل بيشوفها)',
+    uno_sig_r: 'أحمر', uno_sig_y: 'أصفر', uno_sig_g: 'أخضر', uno_sig_b: 'أزرق',
+    uno_sig_help: 'الحقني',
+    uno_sig_mine: 'سيبه ليا',
+    uno_ev_signal: '{name} لشريكه: {sig}',
+    uno_team_won: '{names} كسبوا الجولة!',
+    uno_team_won_one: '🏆 {names} كسبوا!',
+    uno_team_gained: 'أول واحد خلّص: {name}',
+    uno_teams_board: 'الفرق'
+  },
+  en: {
+    uno_teams: 'Pairs (teams of two)',
+    uno_teams_hint: 'Each pair is a team, partners sitting opposite. When one partner goes out, the pair wins. No Skip, +2 or +4 on your own partner.',
+    uno_team_n: 'Team {n}',
+    uno_team_join: 'Join',
+    uno_team_leave: 'Leave',
+    uno_team_empty: 'Free seat',
+    uno_team_move_bot: 'Tap a team to move {name}',
+    uno_teams_pick: 'Everyone picks a team: two in each. Short of a partner? Add a computer player and it sits beside them.',
+    uno_teams_unplaced: 'No team yet: {names}',
+    uno_teams_alone: 'No partner yet: {names}',
+    uno_teams_ready: 'Teams ready ✓',
+    uno_teams_need: 'Pairs need at least 4 players (two teams)',
+    uno_mate: 'Partner',
+    uno_mate_cant: "Can't: that card would land on your partner",
+    uno_sig_label: 'Signal your partner (everyone sees it)',
+    uno_sig_r: 'Red', uno_sig_y: 'Yellow', uno_sig_g: 'Green', uno_sig_b: 'Blue',
+    uno_sig_help: 'Help me',
+    uno_sig_mine: 'Leave it to me',
+    uno_ev_signal: '{name} to their partner: {sig}',
+    uno_team_won: '{names} win the round!',
+    uno_team_won_one: '🏆 {names} win!',
+    uno_team_gained: 'First out: {name}',
+    uno_teams_board: 'Teams'
+  }
+};
+const UNO_TEAM_ICONS = ['🦁', '🐯', '🦊', '🐼', '🐸', '🐵'];
+const UNO_SIG_GLYPH = { r: '🔴', y: '🟡', g: '🟢', b: '🔵', help: '🆘', mine: '✋' };
+const UNO_SIG_KINDS = ['r', 'y', 'g', 'b', 'help', 'mine'];
+const UNO_SIG_MS = 4000;            // the server takes one signal a player every four seconds
+
 /** What only this phone holds: the card waiting for a colour or a partner, the clock, whether it is its turn. */
 const unoLocal = { pick: null, pickKey: '', clock: null, clockKey: null, turnMine: false, handInView: '', shownHand: null, shownKey: '' };
 
@@ -50,7 +109,8 @@ const unoFx = { deal: '', lastSeq: 0, watched: '', prevPhase: '', rects: {}, bus
 /** A string from the translations, with {vars}: a value that isn't a plain number is isolated, so a name keeps its place in a line of the other language. */
 function unoT(key, vars) {
   const t = TRANSLATIONS[appState.lang] || {};
-  let s = t[key] !== undefined ? t[key] : ((TRANSLATIONS.ar || {})[key] || '');
+  const own = UNO_TEXT[appState.lang] || UNO_TEXT.ar;
+  let s = t[key] !== undefined ? t[key] : own[key] !== undefined ? own[key] : ((TRANSLATIONS.ar || {})[key] || UNO_TEXT.ar[key] || '');
   // "+2", "+4", "+{n}" in an Arabic line are held left to right, or they read "2+".
   if (appState.lang !== 'en') s = s.replace(/\+(\d+|\{\w+\})/g, '\u2066+$1\u2069');
   if (vars) Object.keys(vars).forEach(k => {
@@ -164,6 +224,167 @@ function unoNextOf(s, pid, steps) {
   return seats[(((at + k) % n) + n) % n];
 }
 
+/* --- «أونو اتنين اتنين»: the pairs ----------------------------------------------- */
+
+const unoTeamsOn = (state) => !!(((state.shared || {}).settings || {}).teams && Array.isArray((state.shared || {}).teams));
+/** The team a player is in ({ t, ids }), or null. */
+const unoTeamOfPid = (state, pid) => (((state.shared || {}).teams) || []).find(x => x.ids.indexOf(pid) !== -1) || null;
+/** pid's partner still at the table, or null. */
+const unoMateOfPid = (state, pid) => { const s = state.shared || {}; return unoTeamsOn(state) ? unoMateOf(s.teams, s.order, pid) : null; };
+const unoTeamIcon = (t) => UNO_TEAM_ICONS[t] || '👥';
+const unoTeamLabel = (t) => unoTeamIcon(t) + ' ' + unoT('uno_team_n', { n: t + 1 });
+/** A card of this phone that would land on its own partner (refused by the server: unoHitsMate). */
+function unoMateBlocked(state, card) {
+  const s = state.shared || {};
+  return !!card && unoTeamsOn(state) && unoHitsMate(card.k, s.order, s.dir, Room.me, unoMateOfPid(state, Room.me));
+}
+/** Names joined the way the language joins them: «أ و ب», "A & B". */
+/** Each name isolated, so «و» never sticks to a Latin name ("Sara" beside an Arabic one). */
+const unoNames = (state, ids) => ids.map(id => '⁨' + unoName(state, id) + '⁩').join(appState.lang === 'en' ? ' & ' : ' و');
+
+/**
+ * The board as pairs (the owner: board and podium by team): one row a team, its
+ * names joined, its score the pair's (every member carries it), best first.
+ */
+function unoTeamBoard(state) {
+  const s = state.shared || {};
+  const rows = [];
+  (s.board || []).forEach(row => {
+    const tm = unoTeamOfPid(state, row.id);
+    const key = tm ? tm.t : row.id;
+    const had = rows.find(r => r.key === key);
+    if (had) { had.ids.push(row.id); return; }
+    rows.push({ key: key, ids: [row.id], id: row.id, score: row.score, team: tm ? tm.t : null });
+  });
+  rows.forEach(r => { r.name = (r.team !== null ? unoTeamIcon(r.team) + ' ' : '') + unoNames(state, r.ids); });
+  return rows.sort((a, b) => b.score - a.score);
+}
+
+/** The lobby's teams: the host's switch, each team's box with a seat to take or leave, and who is still missing one. */
+const unoLobbyLocal = { bot: null };
+function unoLobbyTeamsHtml(state) {
+  const lobby = ((state.shared || {}).lobby) || {};
+  const host = !!state.youAreHost;
+  const on = !!lobby.on;
+  const sw = host ? `<div class="field">
+        <label class="switch-row" for="uno-teams">
+          <span class="field__label">👥 ${escapeHTML(unoT('uno_teams'))}</span>
+          <span class="switch"><input type="checkbox" id="uno-teams" role="switch" ${on ? 'checked' : ''} onchange="unoTeamsSwitch(this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+        </label>
+        <p class="field__hint">${escapeHTML(unoT('uno_teams_hint'))}</p>
+      </div>` : '';
+  if (!on) return sw ? `<div class="card card--tight uno-lobby">${sw}</div>` : '';
+  const players = state.players || [];
+  const out = unoTeamSlots(players, lobby.pick);
+  const byId = {};
+  players.forEach(p => { byId[p.id] = p; });
+  // The boxes: enough for everyone in pairs, at least two, and any team already holding someone.
+  let shown = Math.max(2, Math.min(UNO_TEAM_MAX, Math.ceil(players.length / 2)));
+  out.slots.forEach((sl, t) => { if (sl.length) shown = Math.max(shown, t + 1); });
+  const me = Room.me;
+  const inGame = !state.youAreScreen && !!byId[me];
+  if (unoLobbyLocal.bot && !(byId[unoLobbyLocal.bot] || {}).bot) unoLobbyLocal.bot = null;
+  const chip = (id) => {
+    const p = byId[id] || {};
+    const picked = unoLobbyLocal.bot === id;
+    if (host && p.bot) return `<button type="button" class="chip ${picked ? 'is-selected' : ''}" aria-pressed="${picked}" onclick="unoLobbyBotTap('${jsStringAttr(id)}')">🤖 ${escapeHTML(p.name || '')}</button>`;
+    return `<span class="chip ${id === me ? 'is-selected' : ''}">${p.bot ? '🤖 ' : ''}${escapeHTML(p.name || '…')}</span>`;
+  };
+  const boxes = out.slots.slice(0, shown).map((sl, t) => {
+    const mine = sl.indexOf(me) !== -1;
+    // A computer player sitting in by itself makes room for someone with no team yet.
+    const placedMe = out.slots.some(x => x.indexOf(me) !== -1);
+    const full = sl.length >= 2 && (placedMe || !sl.some(id => (byId[id] || {}).bot && lobby.pick[id] === undefined));
+    let btn = '';
+    if (unoLobbyLocal.bot && host) btn = sl.indexOf(unoLobbyLocal.bot) === -1 ? `<button type="button" class="btn btn--secondary btn--xs btn--auto" onclick="unoPickTeam(${t})">🤖 ${escapeHTML(unoT('uno_team_join'))}</button>` : '';
+    else if (inGame && mine) btn = `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="unoPickTeam(${t})">${escapeHTML(unoT('uno_team_leave'))}</button>`;
+    else if (inGame && !full) btn = `<button type="button" class="btn btn--secondary btn--xs btn--auto" onclick="unoPickTeam(${t})">${escapeHTML(unoT('uno_team_join'))}</button>`;
+    const empty = sl.length < 2 ? `<span class="field__hint">${escapeHTML(unoT('uno_team_empty'))}</span>` : '';
+    return `<div class="snk-lteam ${mine ? 'uno-lteam--mine' : ''}"><span class="snk-lteam__label">${escapeHTML(unoTeamLabel(t))}</span>${sl.map(chip).join('')}${empty}${btn}</div>`;
+  }).join('');
+  const alone = out.slots.filter(sl => sl.length === 1).map(sl => sl[0]);
+  const nameList = (ids) => ids.map(id => (byId[id] || {}).name || '…').join(appState.lang === 'en' ? ', ' : '، ');
+  let status;
+  if (players.length < 4) status = `<p class="field__hint tx-warning">🤖 ${escapeHTML(unoT('uno_teams_need'))}</p>`;
+  else if (out.unplaced.length) status = `<p class="field__hint tx-warning">${escapeHTML(unoT('uno_teams_unplaced', { names: nameList(out.unplaced) }))}</p>`;
+  else if (alone.length) status = `<p class="field__hint tx-warning">${escapeHTML(unoT('uno_teams_alone', { names: nameList(alone) }))}</p>`;
+  else status = `<p class="field__hint tx-success">${escapeHTML(unoT('uno_teams_ready'))}</p>`;
+  const botLine = host && unoLobbyLocal.bot ? `<p class="field__hint">${escapeHTML(unoT('uno_team_move_bot', { name: (byId[unoLobbyLocal.bot] || {}).name || '' }))}</p>` : '';
+  return `<div class="card card--tight uno-lobby">
+      ${sw}
+      ${!host ? `<p class="field__label">👥 ${escapeHTML(unoT('uno_teams'))}</p>` : ''}
+      <p class="field__hint">${escapeHTML(unoT('uno_teams_pick'))}</p>
+      <div class="snk-lteams">${boxes}</div>
+      ${botLine}
+      ${status}
+    </div>`;
+}
+
+function unoTeamsSwitch(on) {
+  haptic('light');
+  roomAct('teams', { on: !!on });
+}
+
+function unoPickTeam(t) {
+  haptic('light');
+  const bot = unoLobbyLocal.bot;
+  unoLobbyLocal.bot = null;
+  roomAct('team', bot ? { team: t, playerId: bot } : { team: t });
+}
+
+function unoLobbyBotTap(id) {
+  unoLobbyLocal.bot = unoLobbyLocal.bot === id ? null : id;
+  haptic('light');
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/** A quick signal to the partner: everyone sees it on the sender's seat. */
+const unoSigLocal = { at: 0, timer: null };
+function unoSignal(kind) {
+  if (Date.now() - unoSigLocal.at < UNO_SIG_MS) return;
+  unoSigLocal.at = Date.now();
+  haptic('medium');
+  roomAct('signal', { kind: kind });
+  unoSigBarPaint();
+  clearTimeout(unoSigLocal.timer);
+  unoSigLocal.timer = setTimeout(unoSigBarPaint, UNO_SIG_MS + 50);
+}
+/** The signal buttons rest for a few seconds after one is sent (the server's limit), redrawn in place. */
+function unoSigBarPaint() {
+  const wait = Date.now() - unoSigLocal.at < UNO_SIG_MS;
+  document.querySelectorAll('.uno-sigbar button').forEach(b => { b.disabled = wait; });
+}
+const unoSigWord = (kind) => (UNO_SIG_GLYPH[kind] || '') + ' ' + unoT('uno_sig_' + kind);
+
+function unoSigBarHtml(state) {
+  const s = state.shared || {};
+  if (!unoTeamsOn(state) || !unoInGame(state) || s.phase !== 'play' || !unoMateOfPid(state, Room.me)) return '';
+  const wait = Date.now() - unoSigLocal.at < UNO_SIG_MS;
+  return `<div class="uno-sigbar" role="group" aria-label="${escapeHTML(unoT('uno_sig_label'))}">
+      <span class="uno-sigbar__label">🤝 ${escapeHTML(unoT('uno_sig_label'))}</span>
+      ${UNO_SIG_KINDS.map(k => `<button type="button" class="btn btn--neutral btn--xs btn--auto uno-sigbtn" ${wait ? 'disabled' : ''} onclick="unoSignal('${k}')" aria-label="${escapeHTML(unoT('uno_sig_' + k))}">${UNO_SIG_GLYPH[k]}${k === 'help' || k === 'mine' ? ' ' + escapeHTML(unoT('uno_sig_' + k)) : ''}</button>`).join('')}
+    </div>`;
+}
+
+/** A player's last signal, on their seat (and on your own hand's head): the glyph, popping in once. */
+function unoSigChipHtml(state, pid) {
+  const s = state.shared || {};
+  const sig = unoTeamsOn(state) && s.phase === 'play' && s.signals ? s.signals[pid] : null;
+  if (!sig || !UNO_SIG_GLYPH[sig.kind]) return '';
+  const fresh = motionFirst(['uno-sig', roomDealKey(state), pid, sig.seq, state.youAreScreen ? 'tv' : 'phone'].join('|'));
+  return `<span class="uno-sig ${fresh ? 'is-new' : ''}" title="${escapeHTML(unoT('uno_sig_' + sig.kind))}" aria-label="${escapeHTML(unoT('uno_sig_' + sig.kind))}">${UNO_SIG_GLYPH[sig.kind]}</span>`;
+}
+
+/** Above your hand: your partner and how many cards they hold (public anyway, always in sight). */
+function unoMateLineHtml(state) {
+  const mate = unoMateOfPid(state, Room.me);
+  if (!mate) return '';
+  const n = ((state.shared || {}).counts || {})[mate] || 0;
+  return `<span class="badge uno-mate">🤝 ${escapeHTML(unoT('uno_mate'))}: <bdi>${escapeHTML(unoName(state, mate))}</bdi> · <b class="metric">${n}</b></span>`;
+}
+
 const unoMyTurn = (state) => {
   const s = state.shared || {};
   return s.phase === 'play' && !!s.turn && s.turn.pid === Room.me && unoInGame(state);
@@ -176,7 +397,7 @@ function unoPlayable(state, card) {
   if (s.turn.stage === 'color') return false;
   if (s.turn.stage === 'drawn') return String(card.i) === String((state.you || {}).drawn);
   const top = unoTopCard(s);
-  return unoCanPlay(card.k, top ? top.k : null, s.color, s.pending, s.settings || {});
+  return unoCanPlay(card.k, top ? top.k : null, s.color, s.pending, s.settings || {}) && !unoMateBlocked(state, card);
 }
 
 /** Jump in: the very same card as the top one, out of turn. */
@@ -185,7 +406,7 @@ function unoJumpable(state, card) {
   if (!card || !(s.settings || {}).jumpIn || s.phase !== 'play' || !s.turn || s.turn.stage === 'color' || !unoInGame(state)) return false;
   if (s.turn.pid === Room.me) return false;
   const top = unoTopCard(s);
-  return !!top && unoSameCard(card.k, top.k);
+  return !!top && unoSameCard(card.k, top.k) && !unoMateBlocked(state, card);
 }
 
 /* --- this phone's taps ------------------------------------------------------- */
@@ -203,14 +424,14 @@ function unoRedraw() {
 }
 
 /** A card that can't go: it shakes where it is, and nothing is sent. */
-function unoRefuse(id) {
+function unoRefuse(id, why) {
   haptic('heavy');
   const el = document.querySelector('#view-room-uno [data-uno-at="card:' + id + '"]');
   if (el && el.animate && !motionOff()) {
     el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }],
       { duration: 320, easing: 'ease-out' });
   }
-  showToast(unoT('uno_cant'), 'error');
+  showToast(unoT(why || 'uno_cant'), 'error');
 }
 
 /** One tap plays a card; a wild asks for its colour and a 7 (with 7-0) for someone to swap with, in the bar. */
@@ -221,7 +442,7 @@ function unoTapCard(id) {
   if (!card) return;
   const s = st.shared || {};
   const jump = unoJumpable(st, card);
-  if (!jump && !unoPlayable(st, card)) { unoRefuse(id); return; }
+  if (!jump && !unoPlayable(st, card)) { unoRefuse(id, unoMyTurn(st) && unoMateBlocked(st, card) ? 'uno_mate_cant' : ''); return; }
   const settings = s.settings || {};
   const needsTarget = settings.sevenO && unoValueOf(card.k) === '7' && unoHand(st).length > 1;
   if (unoIsWild(card.k)) { unoLocal.pick = { card: card.i, need: 'color', jump: false }; unoRedraw(); haptic('light'); return; }
@@ -295,6 +516,7 @@ function unoHeadHtml(state) {
   const set = s.settings || {};
   const bits = [];
   bits.push(`<span class="badge">${escapeHTML(set.length === 'rounds' ? unoT('uno_round_of', { n: s.round || 1, m: s.rounds || set.rounds || '' }) : unoT('uno_one_round'))}</span>`);
+  if (set.teams) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_teams'))}">👥 ${escapeHTML(unoT('uno_teams_board'))}</span>`);
   if (set.stacking) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_stacking'))}">➕ <bdi dir="ltr">${set.stackMode === 'mixed' ? '+4 / +2' : '+2 · +2'}</bdi></span>`);
   if (set.sevenO) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_seven_o'))}"><bdi dir="ltr">7 · 0</bdi></span>`);
   if (set.jumpIn) bits.push(`<span class="badge" title="${escapeHTML(unoT('uno_jump_in'))}">⚡</span>`);
@@ -328,9 +550,13 @@ function unoSeatHtml(state, pid, tv) {
   const said = (s.said || []).indexOf(pid) !== -1;
   const tag = n === 1 ? `<span class="uno-tag">${escapeHTML(unoT('uno_tag'))}</span>` : said ? '<span class="uno-tag uno-tag--soft">📣</span>' : '';
   const stage = turn && s.turn.stage === 'drawn' ? '✋' : turn && s.turn.stage === 'color' ? '🎨' : '';
+  // In teams: the team's animal, your partner's seat lit, and their last signal on it.
+  const tm = unoTeamOfPid(state, pid);
+  if (tm && !state.youAreScreen && unoMateOfPid(state, Room.me) === pid) cls.push('is-mate');
+  const team = tm ? `<span class="uno-team" title="${escapeHTML(unoT('uno_team_n', { n: tm.t + 1 }))}">${unoTeamIcon(tm.t)}</span>` : '';
   return `<div class="${cls.join(' ')}" data-uno-seat="${escapeHTML(pid)}">
       <span class="uno-avatar" aria-hidden="true">${p && p.bot ? '🤖' : escapeHTML(letter)}</span>
-      <span class="uno-seat__who"><span class="uno-seat__name">${escapeHTML(name)}</span>${tag}${stage ? `<span class="uno-seat__stage">${stage}</span>` : ''}</span>
+      <span class="uno-seat__who">${team}<span class="uno-seat__name">${escapeHTML(name)}</span>${tag}${stage ? `<span class="uno-seat__stage">${stage}</span>` : ''}${unoSigChipHtml(state, pid)}</span>
       <span class="uno-seat__hand" data-uno-at="seat:${escapeHTML(pid)}">${unoFanHtml(n, tv ? 5 : 3)}<b class="uno-seat__n metric">${n}</b></span>
     </div>`;
 }
@@ -398,7 +624,7 @@ function unoMineHtml(state) {
   const n = hand.length;
   const tag = n === 1 ? `<span class="uno-tag">${escapeHTML(unoT('uno_tag'))}</span>` : said ? `<span class="badge badge--success">${escapeHTML(unoT('uno_said'))}</span>` : '';
   return `<div class="${cls.join(' ')}" data-uno-seat="${escapeHTML(Room.me)}">
-      <div class="uno-mine__head"><span class="uno-mine__title">${CARD_GLYPH} ${escapeHTML(unoT('uno_your_cards'))}</span><b class="metric uno-mine__n">${n}</b>${tag}</div>
+      <div class="uno-mine__head"><span class="uno-mine__title">${CARD_GLYPH} ${escapeHTML(unoT('uno_your_cards'))}</span><b class="metric uno-mine__n">${n}</b>${tag}${unoMateLineHtml(state)}${unoSigChipHtml(state, Room.me)}</div>
       <div class="uno-hand" data-uno-at="seat:${escapeHTML(Room.me)}">${body || `<span class="uno-hand__empty">—</span>`}</div>
     </div>`;
 }
@@ -430,7 +656,8 @@ function unoEventText(state, e) {
     case 'rotate': return unoT('uno_ev_rotate');
     case 'reshuffle': return unoT('uno_ev_reshuffle');
     case 'auto': return e.why === 'host' ? unoT('uno_ev_auto_host', { name: name(e.pid) }) : unoT('uno_ev_auto_clock', { name: name(e.pid) });
-    case 'win': return unoT('uno_ev_win', { name: name(e.pid) });
+    case 'win': return Array.isArray(e.team) ? unoT('uno_team_won', { names: unoNames(state, e.team) }) : unoT('uno_ev_win', { name: name(e.pid) });
+    case 'signal': return unoT('uno_ev_signal', { name: name(e.pid), sig: unoSigWord(e.kind) });
     case 'left': return unoT('uno_ev_left', { name: e.name || name(e.pid) });
     default: return '';
   }
@@ -489,6 +716,7 @@ function unoSayHtml(state, big) {
 function unoCatchHtml(state) {
   const s = state.shared || {};
   if (!s.unoCatch || s.unoCatch === Room.me || !unoInGame(state) || s.phase !== 'play') return '';
+  if (unoMateOfPid(state, Room.me) === s.unoCatch) return '';       // nobody catches their own partner
   const name = unoName(state, s.unoCatch);
   return `<div class="uno-catch">
       <button type="button" class="btn btn--danger btn--lg" onclick="unoCatchIt(this, '${jsStringAttr(s.unoCatch)}')">🚨 ${escapeHTML(unoT('uno_catch', { name: name }))}</button>
@@ -615,15 +843,17 @@ function unoRevealHtml(state, tv) {
   // One round is won, not scored: the hands turn over with no points beside them.
   const scored = (s.settings || {}).length === 'rounds';
   const left = (pid) => (scored ? (r.points[pid] || 0) : (r.hands[pid] || []).length);
-  const rows = [r.winner].concat(order.filter(pid => pid !== r.winner).sort((a, b) => left(a) - left(b)))
+  const side = Array.isArray(r.team) ? r.team : [r.winner];
+  const rows = [r.winner].concat(side.filter(pid => pid !== r.winner), order.filter(pid => side.indexOf(pid) === -1).sort((a, b) => left(a) - left(b)))
     .filter(pid => r.hands && r.hands[pid]);
   const animate = motionFirst(['uno-reveal', state.code, s.dealId || '', r.round, tv ? 'tv' : 'phone'].join('|'));
   const size = tv ? 'md' : 'sm';
   let k = 0;
   const html = rows.map(pid => {
     const cards = r.hands[pid] || [];
-    const win = pid === r.winner;
-    const pts = win ? r.gained : (r.points[pid] || 0);
+    const win = side.indexOf(pid) !== -1;
+    const pts = pid === r.winner ? r.gained : (r.points[pid] || 0);
+    const tm = unoTeamOfPid(state, pid);
     const cardsHtml = cards.length
       ? cards.map(c => {
           const at = animate ? 250 + (k++) * 60 : null;
@@ -632,8 +862,8 @@ function unoRevealHtml(state, tv) {
         }).join('')
       : `<span class="uno-rrow__done">${escapeHTML(unoT('uno_no_cards'))}</span>`;
     return `<div class="uno-rrow ${win ? 'is-winner' : ''}">
-        <div class="uno-rrow__who"><span class="uno-rrow__name">${win ? '🏆 ' : ''}${escapeHTML(unoName(state, pid))}</span></div>
-        ${scored ? `<div class="uno-rrow__pts">${win ? '<span class="uno-rrow__plus">+</span>' : ''}<b class="metric" data-uno-count="${pts}">${animate ? 0 : pts}</b></div>` : ''}
+        <div class="uno-rrow__who"><span class="uno-rrow__name">${win ? '🏆 ' : ''}${tm ? unoTeamIcon(tm.t) + ' ' : ''}${escapeHTML(unoName(state, pid))}</span></div>
+        ${scored && (pid === r.winner || !win) ? `<div class="uno-rrow__pts">${win ? '<span class="uno-rrow__plus">+</span>' : ''}<b class="metric" data-uno-count="${pts}">${animate ? 0 : pts}</b></div>` : ''}
         <div class="uno-rrow__cards">${cardsHtml}</div>
       </div>`;
   }).join('');
@@ -654,6 +884,16 @@ function unoRevealCount(root) {
   }, at));
 }
 
+/** The result's title: who went out (a pair, in teams), or the game left with too few. */
+function unoResultTitle(state) {
+  const s = state.shared || {};
+  const r = s.results;
+  const rounds = (s.settings || {}).length === 'rounds';
+  if (!r) return unoT('uno_forfeit');
+  if (Array.isArray(r.team)) return rounds ? unoT('uno_team_won', { names: unoNames(state, r.team) }) : unoT('uno_team_won_one', { names: unoNames(state, r.team) });
+  return unoT(rounds ? 'uno_round_won' : 'uno_won_one', { name: unoName(state, r.winner) });
+}
+
 /** Who won, in words. */
 function unoWinnersLine(state) {
   const s = state.shared || {};
@@ -665,7 +905,7 @@ function unoWinnersLine(state) {
 /** The podium of a game of rounds: the totals, as they are. One round has none - it is won, not scored. */
 function unoPodiumHtml(state) {
   const s = state.shared || {};
-  const board = (s.board || []).slice();
+  const board = unoTeamsOn(state) ? unoTeamBoard(state) : (s.board || []).slice();
   if (board.length < 2 || typeof renderPodium !== 'function') return '';
   return renderPodium(state, board);
 }
@@ -676,7 +916,8 @@ function unoResultFrame(state) {
   const over = s.phase === 'gameover';
   const r = s.results;
   const rounds = (s.settings || {}).length === 'rounds';
-  const title = r ? unoT(rounds ? 'uno_round_won' : 'uno_won_one', { name: unoName(state, r.winner) }) : unoT('uno_forfeit');
+  const title = unoResultTitle(state);
+  const board = unoTeamsOn(state) ? unoTeamBoard(state) : (s.board || []);
   const hostNext = over
     ? `<div class="btn-stack">
          <button type="button" class="btn btn--primary btn--lg" onclick="unoAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
@@ -690,6 +931,7 @@ function unoResultFrame(state) {
       <div class="card card--accent uno-won">
         <div class="card__title">${escapeHTML(title)}</div>
         ${rounds && r && r.gained ? `<p class="uno-hint">${escapeHTML(unoT('uno_gained', { n: '+' + r.gained }))}</p>` : ''}
+        ${r && Array.isArray(r.team) ? `<p class="uno-hint">${escapeHTML(unoT('uno_team_gained', { name: unoName(state, r.winner) }))}</p>` : ''}
       </div>
       ${r ? `<p class="uno-sub">${escapeHTML(unoT('uno_reveal_title'))}</p>${unoRevealHtml(state, false)}` : ''}
       ${rounds && r ? `<p class="uno-rule">${escapeHTML(unoT('uno_points_rule'))}</p>` : ''}
@@ -697,8 +939,8 @@ function unoResultFrame(state) {
           <div class="card__title">🏆 ${escapeHTML(unoT('uno_game_won', { name: unoWinnersLine(state) }))}</div>
           ${unoPodiumHtml(state)}
         </div>` : ''}
-      ${rounds ? renderScoreboard(s.board || []) : ''}
-      ${!rounds && (s.board || []).some(row => row.score > 0) ? renderScoreboard(s.board || [], unoT('uno_wins_board')) : ''}
+      ${rounds ? renderScoreboard(board) : ''}
+      ${!rounds && board.some(row => row.score > 0) ? renderScoreboard(board, unoT('uno_wins_board')) : ''}
       ${over ? roomShareBtnHtml(state, s.board || []) : ''}
       ${over ? (state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)
         : roomMoveOnHtml(state, hostNext, `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
@@ -717,7 +959,7 @@ function unoServerSig(state) {
     (s.pile || []).map(c => c.i + (c.c || '')).join(','), JSON.stringify(s.counts || {}), (s.said || []).join(','), s.unoCatch || '', s.deckCount,
     events.length ? events[events.length - 1].seq : 0, s.endsAt || '',
     done ? JSON.stringify(s.results || null) + JSON.stringify(s.scores || {}) + JSON.stringify(s.winners || null) : '',
-    JSON.stringify(state.you || null), (s.order || []).join(','), JSON.stringify(s.settings || {}),
+    JSON.stringify(state.you || null), (s.order || []).join(','), JSON.stringify(s.settings || {}), JSON.stringify(s.signals || null), JSON.stringify(s.teams || null),
     (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(',')].join('|');
 }
 
@@ -749,7 +991,7 @@ function unoPhoneFrame(state) {
       <div class="uno-layout">
         <div class="uno-layout__center">${unoCenterHtml(state, false)}</div>
         <div class="uno-layout__mine">${inGame ? unoMineHtml(state) : `<div class="waiting-note">${escapeHTML((TRANSLATIONS[appState.lang] || {}).vote_spectating || '')}</div>`}</div>
-        <div class="uno-layout__act">${unoActionsHtml(state)}<div data-uno-host></div></div>
+        <div class="uno-layout__act">${unoActionsHtml(state)}${unoSigBarHtml(state)}<div data-uno-host></div></div>
         <div class="uno-layout__log">${unoLogHtml(state, 3)}</div>
       </div>
       ${renderRoomPlayerStrip(state)}
@@ -780,6 +1022,35 @@ ROOM_GAMES.uno = {
     const s = state.shared || {};
     return s.phase === 'play' ? '' : [state.code, s.dealId, s.phase, s.round].join('|');
   },
+  // «أونو اتنين اتنين»: the switch and the teams, above the folded options, for everyone at the table.
+  lobbyTop(state) {
+    return unoLobbyTeamsHtml(state);
+  },
+  // Teams on and not ready: the Start is greyed and says who still has no team or no partner.
+  startBlock(state) {
+    const lobby = ((state.shared || {}).lobby) || {};
+    if (!lobby.on) return '';
+    const players = state.players || [];
+    if (players.length < 4) return unoT('uno_teams_need');
+    const out = unoTeamSlots(players, lobby.pick);
+    const names = (ids) => ids.map(id => unoName(state, id)).join(appState.lang === 'en' ? ', ' : '، ');
+    if (out.unplaced.length) return unoT('uno_teams_unplaced', { names: names(out.unplaced) });
+    const alone = out.slots.filter(sl => sl.length === 1).map(sl => sl[0]);
+    if (alone.length) return unoT('uno_teams_alone', { names: names(alone) });
+    return '';
+  },
+  // A TV that isn't the host shows the teams being picked, a box each.
+  tvLobbyPlayers(state, tile) {
+    const lobby = ((state.shared || {}).lobby) || {};
+    if (!lobby.on) return '';
+    const players = state.players || [];
+    const byId = {};
+    players.forEach(p => { byId[p.id] = p; });
+    const out = unoTeamSlots(players, lobby.pick);
+    const boxes = out.slots.map((sl, t) => (sl.length ? `<div class="tv-panel"><b>${escapeHTML(unoTeamLabel(t))}</b><div class="tv-lobby__players">${sl.map(id => byId[id] ? tile(byId[id]) : '').join('')}</div></div>` : '')).join('');
+    const rest = players.filter(p => out.unplaced.indexOf(p.id) !== -1);
+    return boxes + (rest.length ? `<div class="tv-lobby__players">${rest.map(tile).join('')}</div>` : '');
+  },
   lobbyOptions(state) {
     const n = (state.players || []).length;
     const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(unoT('uno_lobby_hint'))}</p>`;
@@ -795,7 +1066,8 @@ ROOM_GAMES.uno = {
           </label>
           <p class="field__hint">${escapeHTML(hintText)}</p>
         </div>`;
-    return `<div class="card card--tight uno-lobby">
+    // A TV hosting the room has no lobbyTop: the teams' switch and boxes come with its options.
+    return `${state.youAreScreen ? unoLobbyTeamsHtml(state) : ''}<div class="card card--tight uno-lobby">
         <div class="uno-lobby__cards" aria-hidden="true">${['r7', 'yd', 'gs', 'bv', 'w4'].map(k => unoCardHtml(k, { size: 'sm' })).join('')}</div>
         <p class="field__hint" style="text-align:center">${CARD_GLYPH} ${escapeHTML(typeof unoDecksFor === 'function' && unoDecksFor(n) > 1 ? unoT('uno_deck_two') : unoT('uno_deck_one'))}</p>
         ${few}
@@ -1344,7 +1616,7 @@ function unoEventsToPlay(state) {
   return out;
 }
 
-const UNO_OWN_MOVES = ['play', 'draw', 'take', 'keep', 'pass', 'color', 'uno', 'swap', 'rotate'];
+const UNO_OWN_MOVES = ['play', 'draw', 'take', 'keep', 'pass', 'color', 'uno', 'swap', 'rotate', 'signal'];
 
 /**
  * Among the events this device hasn't shown yet, is there one this phone made
@@ -1528,6 +1800,11 @@ function unoPlay(root, state, list, delay, handWas) {
         at(t + 380, () => unoPop(root, 'deck', '🔀', { big: true }));
         t += 800;
         break;
+      case 'signal':
+        // A signal to the partner: the word rising off the sender's seat, a ring in its colour.
+        at(t, () => { unoPop(root, seatKey(A), unoSigWord(e.kind), { big: true, duration: 1300 }); unoRing(root, seatKey(A), { tone: UNO_COLORS.indexOf(e.kind) !== -1 ? e.kind : 'shout', scale: 1.8 }); });
+        t += 200;
+        break;
       case 'keep':
         at(t, () => unoPop(root, seatKey(A), '✋'));
         t += 250;
@@ -1627,16 +1904,18 @@ TV_GAMES.uno = {
       const r = s.results;
       const rounds = (s.settings || {}).length === 'rounds';
       // One round: the tally of wins across play again, beside "X wins!".
-      const chips = rounds || (s.board || []).some(row => row.score > 0) ? `<div class="tv-strip-inline">${(s.board || []).map((row, i) => `<span class="tv-chip ${i === 0 && row.score > 0 ? 'is-done' : ''}">${i === 0 && row.score > 0 ? '👑 ' : ''}${escapeHTML(row.name || '')} <b class="tv-chip__score">${row.score}</b></span>`).join('')}</div>` : '';
+      const tvBoard = unoTeamsOn(state) ? unoTeamBoard(state) : (s.board || []);
+      const chips = rounds || tvBoard.some(row => row.score > 0) ? `<div class="tv-strip-inline">${tvBoard.map((row, i) => `<span class="tv-chip ${i === 0 && row.score > 0 ? 'is-done' : ''}">${i === 0 && row.score > 0 ? '👑 ' : ''}${escapeHTML(row.name || '')} <b class="tv-chip__score">${row.score}</b></span>`).join('')}</div>` : '';
       return `<div class="uno-tvres ${over ? 'is-over' : ''}">
           <div class="uno-tvres__cards">
-            <div class="tv-title tv-center-text">${escapeHTML(r ? unoT(rounds ? 'uno_round_won' : 'uno_won_one', { name: unoName(state, r.winner) }) : unoT('uno_forfeit'))}</div>
+            <div class="tv-title tv-center-text">${escapeHTML(unoResultTitle(state))}</div>
+            ${r && Array.isArray(r.team) ? `<div class="tv-note">${escapeHTML(unoT('uno_team_gained', { name: unoName(state, r.winner) }))}</div>` : ''}
             ${rounds && r && r.gained ? `<div class="tv-note">${escapeHTML(unoT('uno_gained', { n: '+' + r.gained }))}</div>` : ''}
             ${unoRevealHtml(state, true)}
           </div>
           <div class="uno-tvres__side">
             ${over && rounds ? `<div class="tv-title tv-center-text">🏆 ${escapeHTML(unoT('uno_game_won', { name: unoWinnersLine(state) }))}</div><div class="tv-scale">${unoPodiumHtml(state)}</div>` : ''}
-            ${over && !rounds && (s.board || []).some(row => row.score > 0) ? `<div class="tv-eyebrow">${escapeHTML(unoT('uno_wins_board'))}</div>` : ''}
+            ${over && !rounds && tvBoard.some(row => row.score > 0) ? `<div class="tv-eyebrow">${escapeHTML(unoT('uno_wins_board'))}</div>` : ''}
             ${chips}
             ${over ? host(tvBtn(t.play_again || '', "unoAct(this, 'playAgain')") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost'))
               : roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.next_round || '', `unoAct(this, 'nextRound', { round: ${Number(s.round) || 0} })`)}</div>`)}

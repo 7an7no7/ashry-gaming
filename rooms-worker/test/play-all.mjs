@@ -3757,6 +3757,52 @@ async function unoSeg() {
     await A.must('backToHub');
     check(Object.keys(A.state.night || {}).length > 0, 'uno: the night table banked the game');
 
+    // «أونو اتنين اتنين» (2 Oct 2026): everyone picks a team, partners sit opposite, a signal, a round to the end.
+    await A.must('chooseGame', { game: 'uno' });
+    check((await B.act('teams', { on: true })).ok === false, 'uno teams: only the host turns them on');
+    await A.must('teams', { on: true });
+    await all(players, (s) => s.shared.lobby && s.shared.lobby.on === true, 'uno teams: every phone sees the switch on');
+    await A.must('team', { team: 0 });
+    await C.must('team', { team: 0 });
+    check((await B.act('team', { team: 0 })).ok === false, 'uno teams: a team is two, no more');
+    await B.must('team', { team: 1 });
+    {
+      const res = await A.act('start', {});
+      check(res.ok === false && /مختاروش/.test(res.error || ''), 'uno teams: Start says who has not picked a team: ' + (res.error || ''));
+    }
+    await D.must('team', { team: 1 });
+    await all(players, (s) => Object.keys(s.shared.lobby.pick || {}).length === 4, 'uno teams: every phone sees the four picks');
+    await A.must('start', {});
+    await all(players, (s) => s.shared.phase === 'play' && Array.isArray(s.shared.teams) && s.you && s.you.hand.length >= 7, 'uno teams: dealt in pairs');
+    {
+      const st = A.state.shared;
+      const mate = (id) => st.teams.find((t) => t.ids.indexOf(id) !== -1).ids.find((x) => x !== id);
+      check(st.settings.teams === true && mate(A.pid) === C.pid && mate(B.pid) === D.pid, 'uno teams: the pairs are the ones picked');
+      check(mate(st.order[0]) === st.order[2] && mate(st.order[1]) === st.order[3], 'uno teams: partners sit opposite');
+      check(unoNoLeak(players), "uno teams: partners never get each other's cards");
+      await C.must('signal', { kind: 'help' });
+      await all(players, (s) => s.shared.signals && s.shared.signals[C.pid] && s.shared.signals[C.pid].kind === 'help' &&
+        s.shared.events.some((e) => e.type === 'signal' && e.pid === C.pid), 'uno teams: a signal reaches every phone');
+      await C.must('signal', { kind: 'r' });
+      await unoSettle(players);
+      check(A.state.shared.signals[C.pid].kind === 'help', 'uno teams: one signal every few seconds');
+    }
+    await unoPlayUntil(players, null, 1200);
+    await all(players, (s) => s.shared.phase === 'gameover' && s.shared.results, 'uno teams: a round played to its end');
+    {
+      const st = A.state.shared;
+      const r = st.results;
+      const side = st.teams.find((t) => t.ids.indexOf(r.winner) !== -1).ids;
+      check(st.winners.slice().sort().join() === side.slice().sort().join() && r.team.slice().sort().join() === side.slice().sort().join(),
+        'uno teams: the first partner out wins it for both');
+      check(r.gained === st.order.filter((id) => side.indexOf(id) === -1).reduce((n, id) => n + UNO.unoHandPoints(r.hands[id]), 0),
+        "uno teams: the round is worth the other side's cards, never the partner's");
+      check(side.every((id) => st.board.find((row) => row.id === id).score === 1), 'uno teams: the board counts the win for both');
+    }
+    await A.must('playAgain', {});
+    await all(players, (s) => s.shared.phase === 'play' && Array.isArray(s.shared.teams) && s.you.hand.length >= 7, 'uno teams: play again keeps the pairs');
+    await A.must('backToHub');
+
     // Leaving: the player up leaves and the turn moves on; fewer than two ends the game.
     const U1 = await Bot.host('يونس', null);
     const U2 = await Bot.join(U1.code, 'ياسمين');

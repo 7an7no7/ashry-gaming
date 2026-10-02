@@ -32,6 +32,17 @@
      tally     [{ shots, hits }, { shots, hits }] for the result
      endsAt    the turn clock (and, with a clock on, the placing one)
      reveal    [seat 0's fleet, seat 1's], once over
+     radar     [seat 0's sweep, seat 1's] - where each swept ({ cell, mv }, the
+               area's middle) or null; the count is not here (below)
+     scan      the newest sweep { seat, cell, mv } · mv counts every move (a
+               shot or a sweep), so a page knows which came last
+
+   «الرادار» (the owner, 2 Oct 2026; settings.radar, on unless the host turns
+   it off): once a game each seat may sweep a 3 x 3 area on its turn instead
+   of firing (Battleship.js, bsRadar*), and the turn passes. Where it swept is
+   public; how many ship squares it found reaches only the one who swept
+   (room.secrets[pid].radar, kept in room._bs.radar) and the big screen
+   (room.screenOnly.bsRadar) - never the other player or the watchers.
 
    Decided here: with a turn clock on, placing has BS_PLACE_SECS too, after
    which whoever isn't ready sails with the fleet they have on the board (the
@@ -49,7 +60,9 @@ const bsOptions = (payload, prev) => {
   const was = prev || {};
   const clock = (v) => (BS_CLOCKS.indexOf(Number(v)) !== -1 ? Number(v) : null);
   const c = clock(p.turnClock);
-  return { turnClock: c !== null ? c : (clock(was.turnClock) !== null ? clock(was.turnClock) : 0) };
+  // «الرادار» is on unless the host turns it off.
+  const radar = typeof p.radar === 'boolean' ? p.radar : was.radar !== false;
+  return { turnClock: c !== null ? c : (clock(was.turnClock) !== null ? clock(was.turnClock) : 0), radar: radar };
 };
 
 /** The clock for whoever must act now: the shot, or (with a clock on) the placing. */
@@ -60,21 +73,28 @@ const bsStartClock = (room) => {
   s.endsAt = s.phase === 'play' ? Date.now() + secs * 1000 : s.phase === 'place' ? Date.now() + BS_PLACE_SECS * 1000 : null;
 };
 
-/** Each seated phone holds its own fleet, and only its own. */
+/** Each seated phone holds its own fleet, and only its own - and what its own radar found. The screen sees both counts. */
 const bsWriteSecrets = (room) => {
   const s = room.shared;
   const g = room._bs || { fleets: [null, null] };
+  const radar = g.radar || [null, null];
   room.secrets = {};
   (s.seats || []).forEach((pid, seat) => {
-    if (g.fleets[seat]) room.secrets[pid] = { fleet: g.fleets[seat].map(p => ({ x: p.x, y: p.y, d: p.d })) };
+    if (!g.fleets[seat]) return;
+    room.secrets[pid] = { fleet: g.fleets[seat].map(p => ({ x: p.x, y: p.y, d: p.d })) };
+    if (radar[seat]) room.secrets[pid].radar = { cell: radar[seat].cell, count: radar[seat].count };
   });
+  room.screenOnly = radar[0] || radar[1] ? { bsRadar: radar.map(x => (x ? { cell: x.cell, count: x.count } : null)) } : null;
 };
 
 /** A fresh sea for the seats just set: a random fleet on each board to start from. */
 const bsDeal = (room) => {
   const s = room.shared;
-  room._bs = { fleets: [bsRandomFleet(), bsRandomFleet()] };
+  room._bs = { fleets: [bsRandomFleet(), bsRandomFleet()], radar: [null, null] };
   s.seas = [bsNewSea(), bsNewSea()];
+  s.radar = [null, null];
+  s.scan = null;
+  s.mv = 0;
   s.ready = [false, false];
   s.turn = 0;
   s.shots = 0;
@@ -118,11 +138,32 @@ const bsShoot = (room, seat, cell) => {
   s.shots = (s.shots || 0) + 1;
   s.tally[seat].shots++;
   if (out.res !== 'miss') s.tally[seat].hits++;
-  s.last = { seat: seat, cell: out.cell, res: out.res, ship: out.res === 'sunk' ? out.ship : null, water: out.water ? out.water.length : 0, n: s.shots };
+  s.mv = (s.mv || 0) + 1;
+  s.last = { seat: seat, cell: out.cell, res: out.res, ship: out.res === 'sunk' ? out.ship : null, water: out.water ? out.water.length : 0, n: s.shots, mv: s.mv };
   s.turnSeq = (s.turnSeq || 0) + 1;
   if (out.over) { bsEnd(room, seat, 'fleet'); return; }
   if (out.res === 'miss') s.turn = target;
   bsStartClock(room);
+};
+
+/** «الرادار»: `seat` sweeps the 3 x 3 round `cell` of the other sea, once a game, and the turn passes. */
+const bsSweep = (room, seat, cell) => {
+  const s = room.shared;
+  if (!(s.settings || {}).radar) throw new Error('الرادار مقفول في اللعبة دي');
+  s.radar = s.radar || [null, null];
+  room._bs.radar = room._bs.radar || [null, null];
+  if (s.radar[seat]) throw new Error('استخدمت الرادار قبل كده');
+  const centre = bsRadarCentre(cell);
+  if (centre < 0) throw new Error('اختار مربع على اللوحة');
+  const target = 1 - seat;
+  s.mv = (s.mv || 0) + 1;
+  room._bs.radar[seat] = { cell: centre, count: bsRadarCount(room._bs.fleets[target], centre) };
+  s.radar[seat] = { cell: centre, mv: s.mv };
+  s.scan = { seat: seat, cell: centre, mv: s.mv };
+  s.turn = target;
+  s.turnSeq = (s.turnSeq || 0) + 1;
+  bsStartClock(room);
+  bsWriteSecrets(room);
 };
 
 /** The clock, or the host for a phone that went quiet: placing ends with the fleets on the boards; a shot is fired at random. */
@@ -228,6 +269,14 @@ const battleshipAction = (room, playerId, action, payload) => {
     if (seat === -1) throw new Error('انت بتتفرج دلوقتي، استنى دورك في الطابور');
     if (seat !== s.turn) throw new Error('مش دورك');
     bsShoot(room, seat, Number(p.cell));
+    return;
+  }
+
+  if (action === 'radar') {
+    if (s.phase !== 'play' || staleTap(p, 'seq', s.turnSeq)) return;
+    if (seat === -1) throw new Error('انت بتتفرج دلوقتي، استنى دورك في الطابور');
+    if (seat !== s.turn) throw new Error('مش دورك');
+    bsSweep(room, seat, Number(p.cell));
     return;
   }
 

@@ -11,9 +11,21 @@
    old place to its new one (a transform transition, off the main thread); a
    merged pair slides together, the survivor pops with its new value and the
    other goes. One step can be undone. The board is in appState.g2048.
+
+   Three boards (the owner, 2 Oct 2026): 3x3 wins at 256, 4x4 at 2048 (the
+   game it always was) and 5x5 at 4096, each with its own best. The size
+   picked on the setup is remembered (s.pick); the board being played keeps
+   its own (s.size), so a reload comes back on it. Free play only: no daily,
+   not in the race. The 4x4 best keeps its old key ('') so no best is lost.
    ========================================================================= */
 
-const G2048_SIZE = 4;
+const G2048_SIZES = [3, 4, 5];
+const G2048_GOAL = { 3: 256, 4: 2048, 5: 4096 };
+/** The size of the board being played (4 for a game saved before the sizes). */
+function g2048N(s) { s = s || g2048State(); return G2048_SIZES.indexOf(s.size) >= 0 ? s.size : 4; }
+/** The best's level key for a size: 4x4 keeps the key it always had. */
+function g2048Level(n) { return n === 4 ? '' : String(n); }
+function g2048Pick(s) { s = s || g2048State(); return G2048_SIZES.indexOf(s.pick) >= 0 ? s.pick : 4; }
 const G2048_SLIDE_MS = 120;
 let g2048Busy = false;
 // ideas batch: solo - one swipe made during the slide waits for it instead of being dropped.
@@ -21,7 +33,7 @@ let g2048Queued = null;
 
 function g2048State() {
   if (!appState.g2048) {
-    appState.g2048 = { tiles: [], nextId: 1, score: 0, won: false, keepGoing: false, prev: null, phase: 'setup' };
+    appState.g2048 = { tiles: [], nextId: 1, score: 0, won: false, keepGoing: false, prev: null, phase: 'setup', size: 4, pick: 4 };
   }
   return appState.g2048;
 }
@@ -33,15 +45,29 @@ function setup2048() {
 function paint2048Setup() {
   const s = g2048State();
   const t = TRANSLATIONS[appState.lang];
-  const best = soloBest('g2048', '');
+  const pick = g2048Pick(s);
+  document.querySelectorAll('#g2048-size .segmented__item').forEach(b => b.classList.toggle('is-active', Number(b.dataset.value) === pick));
+  const best = soloBest('g2048', g2048Level(pick));
   const el = document.getElementById('g2048-best');
-  if (el) el.textContent = best ? `${t.solo_best || ''}: ${best.score} · ${best.tile}` : '';
+  if (el) {
+    const goal = (t.g2048_goal || '').replace('{n}', G2048_GOAL[pick]);
+    el.textContent = goal + (best ? ` · ${t.solo_best || ''}: ${best.score} · ${best.tile}` : '');
+  }
   const cont = document.getElementById('g2048-continue');
-  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
-  // With no best and nothing to continue the card is empty (Start is in the
-  // bar): hide it rather than leave a blank rounded box under the hero.
-  const card = el && el.closest('.card');
-  if (card) card.classList.toggle('hidden', !best && s.phase !== 'play');
+  if (cont) {
+    cont.classList.toggle('hidden', s.phase !== 'play');
+    // The game left on the board may be another size than the one picked.
+    const n = g2048N(s);
+    cont.textContent = (t.solo_continue || '') + (n !== pick ? ` (${n}×${n})` : '');
+  }
+}
+
+function set2048Size(n) {
+  const s = g2048State();
+  if (G2048_SIZES.indexOf(n) < 0) return;
+  s.pick = n;
+  saveToLocal();
+  paint2048Setup();
 }
 
 function start2048() {
@@ -54,6 +80,7 @@ function start2048() {
   s.keepGoing = false;
   s.prev = null;
   s.raisedBest = false;
+  s.size = g2048Pick(s);
   s.phase = 'play';
   g2048Spawn(s);
   g2048Spawn(s);
@@ -69,12 +96,13 @@ function continue2048() {
 }
 
 function g2048Spawn(s) {
-  const taken = new Set(s.tiles.map(x => x.r * G2048_SIZE + x.c));
+  const N = g2048N(s);
+  const taken = new Set(s.tiles.map(x => x.r * N + x.c));
   const free = [];
-  for (let i = 0; i < G2048_SIZE * G2048_SIZE; i++) if (!taken.has(i)) free.push(i);
+  for (let i = 0; i < N * N; i++) if (!taken.has(i)) free.push(i);
   if (!free.length) return null;
   const i = free[Math.floor(Math.random() * free.length)];
-  const tile = { id: s.nextId++, v: Math.random() < 0.9 ? 2 : 4, r: Math.floor(i / G2048_SIZE), c: i % G2048_SIZE, fresh: true };
+  const tile = { id: s.nextId++, v: Math.random() < 0.9 ? 2 : 4, r: Math.floor(i / N), c: i % N, fresh: true };
   s.tiles.push(tile);
   return tile;
 }
@@ -84,7 +112,7 @@ function g2048Spawn(s) {
  * rewrites s.tiles; nothing changes when nothing can move.
  */
 function g2048Slide(s, dir) {
-  const N = G2048_SIZE;
+  const N = g2048N(s);
   const grid = Array.from({ length: N }, () => new Array(N).fill(null));
   s.tiles.forEach(x => { x.fresh = false; x.merged = false; grid[x.r][x.c] = x; });
   const lines = [];
@@ -128,7 +156,8 @@ function g2048Slide(s, dir) {
 }
 
 function g2048CanMove(s) {
-  if (s.tiles.length < G2048_SIZE * G2048_SIZE) return true;
+  const N = g2048N(s);
+  if (s.tiles.length < N * N) return true;
   const at = {};
   s.tiles.forEach(x => { at[x.r + ',' + x.c] = x.v; });
   return s.tiles.some(x => at[(x.r + 1) + ',' + x.c] === x.v || at[x.r + ',' + (x.c + 1)] === x.v);
@@ -158,12 +187,13 @@ function move2048(dir) {
   s.score += res.gained;
   // The best follows the score as it grows, not only when a game ends. What it
   // was is kept with the move, so taking the move back takes its best back too.
-  const best = soloBest('g2048', '');
+  const lvl = g2048Level(g2048N(s));
+  const best = soloBest('g2048', lvl);
   if (res.gained && (!best || s.score > best.score)) {
     before.best = best;
     before.raisedBest = true;
     s.raisedBest = true;
-    soloRecord('g2048', '', { score: s.score, tile: Math.max.apply(null, s.tiles.map(x => x.v)) }, () => true);
+    soloRecord('g2048', lvl, { score: s.score, tile: Math.max.apply(null, s.tiles.map(x => x.v)) }, () => true);
     const bestEl = document.getElementById('g2048-bestv');
     if (bestEl) bestEl.textContent = s.score;
   }
@@ -181,7 +211,7 @@ function move2048(dir) {
   if (res.gained) g2048Plus(res.gained);
   if (top > topBefore && top >= 8) g2048TopBurst(top);
   // The sheets wait for the slide, and an undo inside that wait cancels them.
-  if (top >= 2048 && !s.won) {
+  if (top >= G2048_GOAL[g2048N(s)] && !s.won) {
     s.won = true;
     saveToLocal();
     soloLater('g2048', 400, () => { if (s.phase === 'play' && s.won && !s.keepGoing) g2048End(true); });
@@ -201,8 +231,9 @@ function undo2048() {
   const s = g2048State();
   if (!s.prev || s.phase !== 'play') return;
   if (s.prev.raisedBest) {
-    soloSetBest('g2048', '', s.prev.best || null);
-    const best = soloBest('g2048', '');
+    const lvl = g2048Level(g2048N(s));
+    soloSetBest('g2048', lvl, s.prev.best || null);
+    const best = soloBest('g2048', lvl);
     const bestEl = document.getElementById('g2048-bestv');
     if (bestEl) bestEl.textContent = best ? best.score : 0;
   }
@@ -224,8 +255,9 @@ function paint2048(full, gone) {
   const stage = document.getElementById('g2048-stage');
   if (!stage) return;
   let board = document.getElementById('g2048-board');
+  const N = g2048N(s);
   if (full || !board) {
-    const best = soloBest('g2048', '');
+    const best = soloBest('g2048', g2048Level(N));
     const bar = soloBarHtml([
       { label: t.g2048_score || '', value: s.score, id: 'g2048-score' },
       { label: t.solo_best || '', value: best ? best.score : 0, id: 'g2048-bestv' }
@@ -233,14 +265,14 @@ function paint2048(full, gone) {
   stage.innerHTML = `
       <div class="solo-layout">
       <div class="solo-layout__board">
-      <div class="g2048-board" id="g2048-board" dir="ltr">
-        ${Array.from({ length: G2048_SIZE * G2048_SIZE }, () => '<div class="g2048-cell"></div>').join('')}
+      <div class="g2048-board g2048-board--${N}" id="g2048-board" dir="ltr" style="--n: ${N}">
+        ${Array.from({ length: N * N }, () => '<div class="g2048-cell"></div>').join('')}
         <div class="g2048-tiles" id="g2048-tiles"></div>
       </div>
       </div>
       <div class="solo-layout__side">
     ${bar}
-      <p class="field__hint g2048-hint">${escapeHTML(t.g2048_hint || '')}</p>
+      <p class="field__hint g2048-hint">${escapeHTML(t.g2048_hint || '')} · ${N}×${N} · ${escapeHTML((t.g2048_goal || '').replace('{n}', G2048_GOAL[N]))}</p>
       </div>
       </div>
       <div class="view-actions play-foot">
@@ -279,7 +311,7 @@ function paint2048(full, gone) {
       layer.appendChild(el);
       place(el, x);
       el.textContent = x.v;
-      el.dataset.v = x.v > 2048 ? 'big' : x.v;
+      el.dataset.v = g2048Look(x.v);
       if (!still && !full) {
         el.classList.add('is-new');
         el.style.animationDelay = G2048_SLIDE_MS + 'ms';
@@ -291,7 +323,7 @@ function paint2048(full, gone) {
         // The value changes when the pair meets, with a pop.
         const apply = () => {
           el.textContent = x.v;
-          el.dataset.v = x.v > 2048 ? 'big' : x.v;
+          el.dataset.v = g2048Look(x.v);
           if (!still) { el.classList.remove('is-merged'); void el.offsetWidth; el.classList.add('is-merged'); }
         };
         if (still) apply(); else setTimeout(apply, G2048_SLIDE_MS);
@@ -313,6 +345,9 @@ function paint2048(full, gone) {
   }, G2048_SLIDE_MS);
   else g2048Queued = null;
 }
+
+/** The colour step a tile wears: up to 2048 its own number, beyond that 'big'. */
+function g2048Look(v) { return v > 2048 ? 'big' : v; }
 
 /** ideas batch: solo - "+N" rising from the score as a merge lands. */
 function g2048Plus(n) {
@@ -371,7 +406,7 @@ function g2048End(won) {
   const s = g2048State();
   const t = TRANSLATIONS[appState.lang];
   const top = Math.max.apply(null, s.tiles.map(x => x.v).concat([0]));
-  const rec = soloRecord('g2048', '', { score: s.score, tile: top }, (a, b) => a.score > b.score || (a.score === b.score && a.tile > b.tile));
+  const rec = soloRecord('g2048', g2048Level(g2048N(s)), { score: s.score, tile: top }, (a, b) => a.score > b.score || (a.score === b.score && a.tile > b.tile));
   // The best this game already raised move by move is still a new best; an
   // older best it only tied is not (s.raisedBest, set when a move raised it).
   if (!rec.record && rec.prev && rec.prev.score === s.score && s.raisedBest) rec.record = true;
@@ -379,7 +414,7 @@ function g2048End(won) {
   if (bestEl && rec.record) bestEl.textContent = s.score;
   if (won) {
     soloResult({
-      icon: '🏆', title: t.g2048_won || '', value: s.score, valueLabel: t.g2048_score || '',
+      icon: '🏆', title: (t.g2048_won || '').replace('{n}', G2048_GOAL[g2048N(s)]), value: s.score, valueLabel: t.g2048_score || '',
       lines: [escapeHTML(t.g2048_keep_hint || '')], win: true, look: false,
       again: () => { s.keepGoing = true; saveToLocal(); }, againLabel: t.g2048_keep_going || '',
       exit: () => { s.phase = 'done'; saveToLocal(); setup2048(); }
@@ -388,7 +423,8 @@ function g2048End(won) {
   }
   s.phase = 'done';
   saveToLocal();
-  const lines = [`${escapeHTML(t.g2048_top || '')}: <b>${top}</b>`];
+  const n = g2048N(s);
+  const lines = [`${escapeHTML(t.g2048_top || '')}: <b>${top}</b> · ${n}×${n}`];
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.score}`);
   soloResult({
     icon: '🔷', title: rec.record ? (t.solo_new_best || '') : (t.g2048_over || ''),

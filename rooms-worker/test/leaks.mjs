@@ -642,6 +642,16 @@ const PROBES = {
         }
         return null;
       }),
+      // «الرادار»: where a sweep went is public; its count only on the sweeper's phone and the screen.
+      probe("a radar's count reaches the one who swept and the screen only", live && ((room._bs || {}).radar || []).some(Boolean), (view, pid, idx) => {
+        const radar = (room._bs || {}).radar || [];
+        const seat = (s.seats || []).indexOf(pid);
+        if (idx.keys.find((k) => /count/i.test(k) && k.indexOf('shared.') === 0)) return 'shared count';
+        const mine = view.you && view.you.radar;
+        if (mine && (seat === -1 || !radar[seat] || mine.count !== radar[seat].count || mine.cell !== radar[seat].cell)) return 'you.radar';
+        if (view.screen && view.screen.bsRadar && pid !== SCREEN) return 'screen.bsRadar';
+        return null;
+      }),
       probe('a square shows a ship only once it has been hit', live, (view) => {
         const vs = (view.shared || {}).seas || [];
         for (let k = 0; k < 2; k++) {
@@ -1970,6 +1980,8 @@ const DRIVERS = {
           s.seats.forEach((id, k) => { if (!s.ready[k]) must(T, id, 'place', { fleet: T.room.secrets[id].fleet }); });
           continue;
         }
+        // «الرادار»: each sweeps once, somewhere along the way.
+        if (s.settings.radar && !(s.radar || [])[s.turn] && Math.random() < 0.15) { must(T, s.seats[s.turn], 'radar', { cell: Math.floor(Math.random() * 100), seq: s.turnSeq }); continue; }
         const open = s.seas[1 - s.turn].grid.map((v, i) => (v === 0 ? i : -1)).filter((i) => i >= 0);
         must(T, s.seats[s.turn], 'fire', { cell: pick(open), seq: s.turnSeq });
       }
@@ -2744,6 +2756,7 @@ const TOUR_DRIVERS = {
         continue;
       }
       if (g.phase !== 'play') continue;
+      if (g.settings.radar && !(g.radar || [])[g.turn] && Math.random() < 0.15) { act(T, g.seats[g.turn], 'radar', Object.assign({ cell: Math.floor(Math.random() * 100), seq: g.turnSeq }, base)); continue; }
       const open = g.seas[1 - g.turn].grid.map((v, i) => (v === 0 ? i : -1)).filter((i) => i >= 0);
       act(T, g.seats[g.turn], 'fire', Object.assign({ cell: pick(open), seq: g.turnSeq }, base));
     }

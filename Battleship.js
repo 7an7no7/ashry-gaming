@@ -391,3 +391,102 @@ function bsAiShot(sea, level, rnd) {
   const fallback = bsBest(score, open);
   return any(fallback.length ? fallback : open);
 }
+
+/* ============================================================================
+   «الرادار» (the owner, 2 Oct 2026): once a game each side may sweep a 3 x 3
+   area instead of firing. The answer is how many ship squares are in it -
+   every square a ship covers, hit or not, sunk or afloat (what a radar sees) -
+   never where. Scanning is that turn's move: the turn passes, as on a miss.
+   Decided here (open to change): the area is the 3 x 3 round the square
+   tapped, pushed back onto the board at an edge (bsRadarCentre), so it is
+   always nine squares.
+   ========================================================================= */
+
+/** The middle of the area swept round `cell`: kept a square off every edge, so the area is whole. */
+function bsRadarCentre(cell) {
+  const c = Number(cell);
+  if (!(c >= 0 && c < BS_N * BS_N && c === Math.floor(c))) return -1;
+  const x = Math.max(1, Math.min(BS_N - 2, c % BS_N));
+  const y = Math.max(1, Math.min(BS_N - 2, Math.floor(c / BS_N)));
+  return y * BS_N + x;
+}
+
+/** The nine squares of the area round a centre (from bsRadarCentre). */
+function bsRadarCells(centre) {
+  const c = bsRadarCentre(centre);
+  if (c < 0) return [];
+  const x = c % BS_N, y = Math.floor(c / BS_N), out = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) out.push((y + dy) * BS_N + x + dx);
+  return out;
+}
+
+/** How many ship squares of `fleet` are in the area round `centre`. */
+function bsRadarCount(fleet, centre) {
+  const occ = bsOccupancy(fleet);
+  return bsRadarCells(centre).filter(c => occ[c] > 0).length;
+}
+
+/**
+ * What a radar answer still says about a sea: { cells, left } - the area's open
+ * squares, and how many ship squares among them are not found yet (the count
+ * less the hits and sunk squares already in the area). Null without a scan.
+ */
+function bsRadarLeft(sea, scan) {
+  if (!scan || typeof scan.count !== 'number') return null;
+  const cells = bsRadarCells(scan.cell);
+  if (!cells.length) return null;
+  const found = cells.filter(c => sea.grid[c] === BS_HIT || sea.grid[c] === BS_SUNK).length;
+  return { cells: cells.filter(c => sea.grid[c] === BS_SEA), left: Math.max(0, scan.count - found) };
+}
+
+/**
+ * The phone's radar, once a game: where it sweeps, or -1 to fire instead. It
+ * sweeps only while it has no hit to follow, once a few shots have gone
+ * (`shots`, its own so far), over the area most of the ships afloat could
+ * still lie in (hard: by bsDensity; easy and medium: the most open water).
+ */
+function bsAiRadar(sea, level, shots, rnd) {
+  const r = rnd || Math.random;
+  const lv = bsLevel(level);
+  if (sea.grid.some(v => v === BS_HIT)) return -1;
+  if ((shots || 0) < (lv === 'hard' ? 4 : 6)) return -1;
+  if (r() > (lv === 'easy' ? 0.2 : lv === 'medium' ? 0.35 : 0.6)) return -1;
+  const score = lv === 'hard' ? bsDensity(sea) : null;
+  let best = [], top = 0;
+  for (let y = 1; y < BS_N - 1; y++) {
+    for (let x = 1; x < BS_N - 1; x++) {
+      const c = y * BS_N + x;
+      let v = 0;
+      bsRadarCells(c).forEach(k => { if (sea.grid[k] === BS_SEA) v += score ? score[k] : 1; });
+      if (v > top) { top = v; best = [c]; }
+      else if (v === top && v > 0) best.push(c);
+    }
+  }
+  if (!best.length || (!score && top < 6)) return -1;
+  return best[Math.floor(r() * best.length)];
+}
+
+/**
+ * The phone's shot with what its radar told it (scan: { cell, count }): an
+ * area with nothing left in it is water, kept clear of; an area with ships
+ * still to find is where it hunts while it has no hit to follow. Easy forgets.
+ */
+function bsAiShotRadar(sea, level, rnd, scan) {
+  const lv = bsLevel(level);
+  const info = lv === 'easy' ? null : bsRadarLeft(sea, scan);
+  if (!info || !info.cells.length) return bsAiShot(sea, level, rnd);
+  const r = rnd || Math.random;
+  const hunting = !sea.grid.some(v => v === BS_HIT);
+  if (info.left === 0) {
+    // As if the empty area had been fired at: the same choice, kept off it.
+    const view = { grid: sea.grid.map((v, c) => (info.cells.indexOf(c) !== -1 ? BS_MISS : v)), sunk: sea.sunk };
+    const cell = bsAiShot(view, level, r);
+    return cell >= 0 ? cell : bsAiShot(sea, level, r);
+  }
+  if (!hunting) return bsAiShot(sea, level, r);
+  if (lv === 'hard') {
+    const best = bsBest(bsDensity(sea), info.cells);
+    if (best.length) return best[Math.floor(r() * best.length)];
+  }
+  return info.cells[Math.floor(r() * info.cells.length)];
+}

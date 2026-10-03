@@ -142,6 +142,51 @@ function catalogIconFlight(g, fromEl) {
   };
 }
 
+/**
+ * A tapped poster becomes the game's header (the owner's look 4A, made smoother
+ * on 3 Oct 2026): a view transition, so the browser morphs the card - its place,
+ * size and corners - into the setup's art band while the old card fades and the
+ * band comes in, and the icon glides on its own path with a little settle. The
+ * names are on the two cards only for the moment of the change. False where there
+ * is no view transition (iOS before 18) or motion is off: the caller then plays
+ * the box and the icon's flight (catalogIconFlight).
+ */
+function catalogGrowOpen(g, fromEl) {
+  if (!g || !fromEl || !fromEl.isConnected || motionOff() || typeof document.startViewTransition !== 'function') return false;
+  const icon = fromEl.querySelector('.gcard__icon');
+  const name = (el, n) => { if (el) el.style.viewTransitionName = n; };
+  let art = null;
+  let artIcon = null;
+  const done = () => {
+    [fromEl, icon, art, artIcon].forEach((el) => name(el, ''));
+    document.documentElement.classList.remove('vt-grow');
+  };
+  name(fromEl, 'game-card');
+  name(icon, 'game-icon');
+  document.documentElement.classList.add('vt-grow');
+  let vt;
+  try {
+    vt = document.startViewTransition(() => {
+      name(fromEl, '');
+      name(icon, '');
+      const before = appState.currentView;
+      g.open();
+      const view = appState.currentView !== before && document.getElementById('view-' + appState.currentView);
+      art = view ? view.querySelector('.game-hero .game-hero__art') : null;
+      artIcon = art ? art.querySelector('.game-hero__icon') : null;
+      name(art, 'game-card');
+      name(artIcon, 'game-icon');
+    });
+  } catch (e) {
+    done();
+    return false;
+  }
+  vt.finished.then(done, done);
+  // Never only the transition's end (GEMINI.md, animationend is never the only path).
+  setTimeout(done, 2000);
+  return true;
+}
+
 /** The game's colour, from the card tapped to the header's art band: one box
  *  scaled with transform from the card's place and size to the band's, then
  *  faded, so the band is under it when it goes. */
@@ -1185,7 +1230,9 @@ function motionRiseTargets(root, max) {
 function motionRiseIn(root, opts) {
   if (!root || motionOff() || !root.animate) return [];
   const o = Object.assign({}, RISE, opts || {});
-  const anims = motionRiseTargets(root, o.max).map((el, i) => el.animate(
+  // During a poster's morph (catalogGrowOpen) the header is the morph's: it must not move under it.
+  const morphing = document.documentElement.classList.contains('vt-grow');
+  const anims = motionRiseTargets(root, o.max).filter((el) => !(morphing && el.closest('.game-hero'))).map((el, i) => el.animate(
     // One keyframe at the start: the element's own opacity and place are where it ends.
     [{ opacity: 0, translate: '0 ' + o.dist + 'px', offset: 0 }],
     { duration: o.dur, delay: o.delay + Math.min(i, o.max - 1) * o.step, easing: RISE_EASE, fill: 'backwards' }

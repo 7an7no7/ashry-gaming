@@ -201,18 +201,23 @@ function gameOffForView(viewId) {
   return g && catalogOff(g.id) ? g : null;
 }
 
-function catalogOpen(id, fromEl) {
+function catalogOpen(id, fromEl, grow) {
   const g = CATALOG_BY_ID[id];
   if (!g) return;
   if (catalogOff(id)) { gameOffToast(); return; }
   // Its code first (JS_Lazy.html), then this again: the home stays until it has run.
-  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => catalogOpen(id, fromEl))) return;
+  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => catalogOpen(id, fromEl, grow))) return;
   rememberRecent(id);
   if (typeof catalogReturn !== 'undefined') {
     catalogReturn.id = id;
     catalogReturn.kind = fromEl && fromEl.classList.contains('recent-tile') ? 'recent'
       : fromEl && fromEl.classList.contains('start-card') ? 'start' : 'card';
   }
+  // A poster tapped (grow, from the card's own onclick) becomes the game's header
+  // as the screen changes: a view transition where the browser has them (look 4A).
+  // Only a tap: a view transition changes the screen a frame later, and the
+  // callers that read the screen straight after (الليلة دي؟) keep the old way.
+  if (grow && typeof catalogGrowOpen === 'function' && catalogGrowOpen(g, fromEl)) return;
   const fly = typeof catalogIconFlight === 'function' ? catalogIconFlight(g, fromEl) : null;
   const before = appState.currentView;
   g.open();
@@ -252,7 +257,7 @@ function catalogCard(g, t) {
   const off = catalogOff(g.id);
   const players = off ? gameOffBadge(t) : g.players ? `<span class="gcard__badge"><span class="people-glyph" aria-hidden="true">👥</span><span class="metric">${g.players[0] === g.players[1] ? g.players[0] : g.players[0] + '–' + g.players[1]}</span></span>` : '';
   return `
-    <button type="button" class="gcard${off ? ' is-off' : ''}" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)"
+    <button type="button" class="gcard${off ? ' is-off' : ''}" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this, true)"
             title="${escapeHTML(catalogDesc(g, t))}">
       <span class="gcard__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
       ${players}
@@ -279,7 +284,7 @@ function catalogFeatured(t) {
   const fresh = featLastId !== null && featLastId !== g.id && !motionOff();
   featLastId = g.id;
   return `
-    <div class="gcard home-feat${fresh ? ' home-feat--in' : ''}" data-accent="${g.accent}" data-game="${g.id}" role="group" aria-label="${escapeHTML(catalogTitle(g, t))}" onclick="catalogOpen('${g.id}', this)">
+    <div class="gcard home-feat${fresh ? ' home-feat--in' : ''}" data-accent="${g.accent}" data-game="${g.id}" role="group" aria-label="${escapeHTML(catalogTitle(g, t))}" onclick="catalogOpen('${g.id}', this, true)">
       <span class="home-feat__art" aria-hidden="true"><span class="gcard__icon">${iconHtml(g.icon)}</span></span>
       <span class="home-feat__fade" aria-hidden="true"></span>
       <span class="home-feat__text">
@@ -288,7 +293,7 @@ function catalogFeatured(t) {
         <span class="home-feat__desc">${escapeHTML(catalogDesc(g, t))}</span>
         <span class="home-feat__meta">${catalogMeta(g, t, false, false)}${modes.length ? '<span class="home-feat__modes">' + escapeHTML(modes.join(' · ')) + '</span>' : ''}</span>
         <span class="home-feat__btns">
-          <button type="button" class="home-feat__btn home-feat__btn--play" onclick="event.stopPropagation(); catalogOpen('${g.id}', this.closest('.home-feat'))">▶ ${escapeHTML(t.cat_play || '')}</button>
+          <button type="button" class="home-feat__btn home-feat__btn--play" onclick="event.stopPropagation(); catalogOpen('${g.id}', this.closest('.home-feat'), true)">▶ ${escapeHTML(t.cat_play || '')}</button>
           <button type="button" class="home-feat__btn home-feat__btn--other" onclick="event.stopPropagation(); tonightOpen()">🎲 ${escapeHTML(t.home_feat_other || '')}</button>
         </span>
       </span>
@@ -302,7 +307,7 @@ function catalogFeatured(t) {
    flipGrid and both icon flights find it as they find any card. */
 function catalogSpotlight(g, t) {
   return `
-    <button type="button" class="gcard gcard--spotlight" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
+    <button type="button" class="gcard gcard--spotlight" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this, true)">
       <span class="gcard__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
       <span class="gcard__body">
         <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>

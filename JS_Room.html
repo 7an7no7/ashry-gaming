@@ -1056,6 +1056,8 @@ function roomOpenJoin(prefillCode) {
   if (nameEl) nameEl.value = saved;
   roomJoinPaintName(!saved);
   setView('room-join');
+  paintJoinBoxes();
+  roomJoinBackPaint();
   if (saved && codeEl && codeEl.value.length === 4) {
     roomJoinFromForm();
     return;
@@ -1140,9 +1142,78 @@ function extractRoomCode(text) {
 function tidyRoomCodeInput(el) {
   const code = extractRoomCode(el.value);
   if (el.value !== code) el.value = code;
-  // Code complete and no name yet: carry on to the name.
+  paintJoinBoxes();
   const nameEl = document.getElementById('room-join-name');
-  if (code.length === 4 && nameEl && !nameEl.value && document.activeElement === el) nameEl.focus();
+  const wrap = document.getElementById('room-join-name-wrap');
+  if (code.length !== 4) { delete el.dataset.went; return; }
+  // Code complete and no name yet: carry on to the name.
+  if (nameEl && !nameEl.value && document.activeElement === el) { nameEl.focus(); return; }
+  // The phone knows the name: the fourth letter goes in, no button (look 2A). Once per code.
+  if (nameEl && nameEl.value && wrap && wrap.classList.contains('hidden') && el.dataset.went !== code) {
+    el.dataset.went = code;
+    setTimeout(() => { if (extractRoomCode(el.value) === code && appState.currentView === 'room-join') roomJoinFromForm(); }, motionOff() ? 0 : 260);
+  }
+}
+
+/** The four boxes under the code field: a letter each, the next one lit while typing. */
+function paintJoinBoxes() {
+  const el = document.getElementById('room-join-code');
+  const boxes = el && el.parentElement ? el.parentElement.querySelectorAll('.code-boxes__box') : [];
+  if (!boxes.length) return;
+  const code = extractRoomCode(el.value);
+  const focused = document.activeElement === el;
+  boxes.forEach((box, i) => {
+    const ch = code[i] || '';
+    if (box.textContent !== ch) {
+      box.textContent = ch;
+      if (ch && !motionOff()) { box.classList.remove('is-pop'); void box.offsetWidth; box.classList.add('is-pop'); }
+    }
+    box.classList.toggle('is-filled', !!ch);
+    box.classList.toggle('is-on', focused && i === Math.min(code.length, 3) && code.length < 4);
+    box.classList.toggle('is-full', code.length === 4);
+  });
+}
+
+/* «ارجع للغرفة» (look 2A): the last room this phone was in, kept for 6 hours (a room
+   with nobody in it goes after 6 idle hours), shown on the join screen while this
+   phone isn't in it. A tap joins it again under the saved name. */
+const LAST_ROOM_KEY = 'ashryLastRoom_v1';
+const LAST_ROOM_MS = 6 * 3600 * 1000;
+let lastRoomSeen = '';
+
+function rememberLastRoom(code) {
+  if (!code || code === lastRoomSeen) return;
+  lastRoomSeen = code;
+  try { localStorage.setItem(LAST_ROOM_KEY, JSON.stringify({ code: code, at: Date.now() })); } catch (e) {}
+}
+
+function lastRoom() {
+  try {
+    const r = JSON.parse(localStorage.getItem(LAST_ROOM_KEY) || 'null');
+    return r && r.code && Date.now() - (r.at || 0) < LAST_ROOM_MS ? r : null;
+  } catch (e) { return null; }
+}
+
+function roomJoinBackPaint() {
+  const btn = document.getElementById('room-join-back');
+  if (!btn) return;
+  const r = lastRoom();
+  const show = !!r && !(Room.state && Room.state.code === r.code);
+  btn.classList.toggle('hidden', !show);
+  if (!show) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  btn.innerHTML = `<span aria-hidden="true">↩️</span><span class="room-join-back__text">${escapeHTML(t.room_back_to || '')} <b dir="ltr">${escapeHTML(r.code)}</b>` +
+    `<small>${escapeHTML(t.room_back_hint || '')}</small></span><span class="room-join-back__chev" aria-hidden="true">›</span>`;
+}
+
+function roomJoinBack() {
+  const r = lastRoom();
+  const codeEl = document.getElementById('room-join-code');
+  if (!r || !codeEl) return;
+  codeEl.value = r.code;
+  paintJoinBoxes();
+  const nameEl = document.getElementById('room-join-name');
+  if (nameEl && nameEl.value) roomJoinFromForm(); else if (nameEl) nameEl.focus();
 }
 
 /**
@@ -2022,6 +2093,7 @@ function roomChunksOf(state) {
 
 /** Draws whatever the room is doing now: its lobby, a spectator note, or the game. */
 function routeRoomState(state) {
+  if (state && state.code && !state.youAreScreen) rememberLastRoom(state.code);
   if (state && state.game && typeof lzWait === 'function' &&
       lzWait(roomChunksOf(state), () => { if (Room.state) routeRoomState(Room.state); }, 'route')) return;
   // برنامج السهرة (JS_RoomProgram.html, a chunk of its own): its code before anything of it is drawn.

@@ -1412,6 +1412,39 @@ function stageSound(state, name, ms) {
   }, Math.max(0, ms || 0));
 }
 
+/* --- 15. Passing the phone round (the owner's look 3A of sheet three, 3 Oct 2026) ---
+   Under the card of a one-phone game that goes round the table (الجاسوس, الحرباء,
+   الموقع السري): everyone's face in a row - the ones who have looked dimmed with a
+   ✓, whose turn it is ringed - so the table sees who is left. The ring moves to
+   the next face with a pop; a face that has just looked gets its ✓ with one. */
+const PASS_FACE_ACCENTS = ['violet', 'rose', 'teal', 'amber', 'blue', 'green', 'orange', 'indigo'];
+
+function paintPassFaces(viewId, names, index) {
+  const view = document.getElementById('view-' + viewId);
+  const card = view && view.querySelector('.card');
+  if (!card || !Array.isArray(names) || names.length < 2) return;
+  let row = card.querySelector(':scope > .pass-faces');
+  if (!row) {
+    row = document.createElement('div');
+    row.className = 'pass-faces';
+    card.appendChild(row);
+  }
+  const key = names.join('|');
+  const was = row.dataset.key === key ? Number(row.dataset.at) : -1;
+  row.dataset.key = key;
+  row.dataset.at = String(index);
+  const t = TRANSLATIONS[appState.lang] || {};
+  row.setAttribute('role', 'group');
+  row.setAttribute('aria-label', (t.pass_faces_label || '{n} / {m}').replace('{n}', String(Math.min(index, names.length))).replace('{m}', String(names.length)));
+  row.innerHTML = names.map((name, i) => {
+    const state = i < index ? 'is-done' : i === index ? 'is-now' : '';
+    const fresh = !motionOff() && ((i === index && was !== index) || (i === index - 1 && was === index - 1));
+    const first = Array.from(String(name || '?').trim())[0] || '?';
+    return `<span class="pass-face ${state}${fresh ? ' is-fresh' : ''}" data-accent="${PASS_FACE_ACCENTS[i % PASS_FACE_ACCENTS.length]}">
+        <i aria-hidden="true">${escapeHTML(first)}</i><bdi>${escapeHTML(name)}</bdi></span>`;
+  }).join('');
+}
+
 // After the room has drawn itself for this state.
 Room.onChange((state) => { if (state) setTimeout(() => animateScoreboards(state), 0); });
 window.addEventListener('resize', () => requestAnimationFrame(syncNavPill));

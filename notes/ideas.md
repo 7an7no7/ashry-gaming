@@ -86,3 +86,4 @@ https://claude.ai/artifact/2V7KTKB4MiGj9uTE7r1XYR - four more, each as it is and
 2. Joining a room: A four letter boxes, the saved name as a chip, «ارجع للغرفة» for the last room; B scan first (a picture of the camera on the code), boxes second; C the boxes at the top of مع بعض, no separate screen. Joining by itself on the fourth letter.
 3. Passing the phone (the one-phone deduction games): A everyone's faces under the card (looked ✓, whose turn ringed), B a ring «2 من 4», C a full colour hand-over screen «ادّي الموبايل لـ سارة» with «أنا سارة، وَرّيني» before the card.
 4. The tools tab (1,857px): A tiles two a row, B app icons three a row (1,174px), C slim one-line rows.
+The owner picked 1A, 2A, 3A, 4B; built and live 3 Oct 2026. The bar goes in room games too (the owner).

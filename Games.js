@@ -41,7 +41,6 @@ const GAME_LIST = [
   { id: 'fibbage',    icon: 'art:fibbage',   title: 'setup_fibbage',    desc: 'cat_fibbage',    accent: 'rose',   players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', room: { min: 3, rounds: 4, autoNext: true }, crew: 'liar' },
   { id: 'mafia',      icon: 'art:mafia',  title: 'setup_mafia',      desc: 'cat_mafia',      accent: 'rose',   players: [5, 12], mins: 25, modes: ['room', 'tv'], faceToFace: true, group: 'deduce', room: { min: 5 }, crew: 'detective' },
   { id: 'twotruths',  icon: 'art:twotruths',   title: 'setup_twotruths',  desc: 'cat_twotruths',  accent: 'rose',   players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', room: { min: 3, autoNext: true }, crew: 'liar' },
-  { id: 'mind',       icon: 'art:mind',   title: 'setup_mind',       desc: 'cat_mind',       accent: 'teal',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'deduce', room: { min: 2 }, crew: 'brain' },
   { id: 'guesswho',   icon: 'art:guesswho', title: 'setup_guesswho', desc: 'cat_guesswho', accent: 'teal', players: [2, 12], mins: 10, modes: ['room', 'tv'],       group: 'deduce', room: { min: 2 }, crew: 'detective' },
   { id: 'witness',    icon: 'art:witness', title: 'setup_witness', desc: 'cat_witness', accent: 'indigo', players: [3, 12], mins: 20, modes: ['room', 'tv'], faceToFace: true, group: 'deduce', room: { min: 3 }, crew: 'detective' },
   { id: 'box',        icon: 'art:box',     title: 'setup_box',     desc: 'cat_box',     accent: 'rose',   players: [3, 8],  mins: 20, modes: ['room', 'tv'], faceToFace: true, group: 'deduce', room: { min: 3 }, crew: 'liar' },
@@ -61,6 +60,8 @@ const GAME_LIST = [
   { id: 'hear',       icon: 'art:hear',   title: 'setup_hear',       desc: 'cat_hear',       accent: 'green',  players: [3, 12], mins: 20, modes: ['room', 'tv'], faceToFace: true, group: 'words', room: { min: 3 }, crew: 'words' },
   { id: 'telephone',  icon: 'art:telephone',  title: 'setup_telephone',  desc: 'cat_telephone',  accent: 'blue',   players: [3, 8],  mins: 15, modes: ['room', 'tv'],           group: 'words', room: { min: 3 }, crew: 'words' },
   { id: 'monkey',     icon: 'art:monkey',   title: 'setup_monkey',     desc: 'cat_monkey',     accent: 'amber',  players: [2, 10], mins: 15, modes: ['device', 'room', 'tv'], faceToFace: true, group: 'words', setup: 'setup-monkey', room: { min: 2 }, crew: 'words' },
+  { id: 'stop',       icon: 'art:stop',   title: 'setup_stop',       desc: 'cat_stop',       accent: 'green',  players: [2, 10], mins: 15, modes: ['device', 'room', 'tv'], group: 'words', setup: 'setup-stop', room: { min: 2 }, crew: 'words', open: 'setupStop' },
+  { id: 'headsup',    icon: 'art:headsup',   title: 'setup_headsup',    desc: 'cat_headsup',    accent: 'green',  players: [2, 12], mins: 10, modes: ['device'],               group: 'words', setup: 'setup-headsup', open: 'setupHeadsUp' },
 
   /* --- حفلة وضحك --- */
   { id: 'bomb',       icon: 'art:bomb',   title: 'setup_bomb',       desc: 'cat_bomb',       accent: 'orange', players: [2, 12], mins: 5,  modes: ['device', 'room', 'tv'],               group: 'party', setup: 'setup-bomb', room: { min: 2, rounds: 5 }, crew: 'luck', open: 'setupBomb' },
@@ -71,12 +72,12 @@ const GAME_LIST = [
   { id: 'darkroom',   icon: 'art:darkroom', title: 'setup_darkroom', desc: 'cat_darkroom',   accent: 'blue',   players: [2, 8],  mins: 15, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 2 }, crew: 'words' },
   { id: 'hum',        icon: 'art:hum',   title: 'setup_hum',         desc: 'cat_hum',        accent: 'pink',   players: [2, 12], mins: 15, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 2, autoNext: true }, crew: 'words' },
   { id: 'exact',      icon: 'art:exact', title: 'setup_exact',       desc: 'cat_exact',      accent: 'orange', players: [3, 12], mins: 10, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 3 }, crew: 'fast' },
-  { id: 'stop',       icon: 'art:stop',   title: 'setup_stop',       desc: 'cat_stop',       accent: 'green',  players: [2, 10], mins: 15, modes: ['device', 'room', 'tv'], group: 'party', setup: 'setup-stop', room: { min: 2 }, crew: 'words', open: 'setupStop' },
   { id: 'wouldyou',   icon: 'art:wouldyou',  title: 'setup_wouldyou',   desc: 'cat_wouldyou',   accent: 'violet', players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', room: { min: 2, rounds: 5, autoNext: true }, crew: 'words' },
   { id: 'mostlikely', icon: 'art:mostlikely',   title: 'setup_mostlikely', desc: 'cat_mostlikely', accent: 'amber',  players: [3, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', room: { min: 3, rounds: 5, autoNext: true }, crew: 'words' },
   { id: 'herd',       icon: 'art:herd',   title: 'setup_herd',       desc: 'cat_herd',       accent: 'green',  players: [3, 12], mins: 15, modes: ['room', 'tv'],           group: 'party', room: { min: 3, autoNext: true }, crew: 'words' },
-  { id: 'headsup',    icon: 'art:headsup',   title: 'setup_headsup',    desc: 'cat_headsup',    accent: 'green',  players: [2, 12], mins: 10, modes: ['device'],               group: 'party', setup: 'setup-headsup', open: 'setupHeadsUp' },
   { id: 'fiveseconds', icon: 'art:fiveseconds',  title: 'setup_fiveseconds', desc: 'cat_fiveseconds', accent: 'orange', players: [2, 12], mins: 10, modes: ['device', 'room', 'tv'], faceToFace: true, group: 'party', setup: 'setup-fiveseconds', room: { min: 2 }, crew: 'fast', open: 'setupFiveSeconds' },
+  { id: 'mind',       icon: 'art:mind',   title: 'setup_mind',       desc: 'cat_mind',       accent: 'teal',   players: [2, 12], mins: 15, modes: ['room', 'tv'],           group: 'party', room: { min: 2 }, crew: 'brain' },
+  { id: 'reaction',   icon: 'art:reaction',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 12], mins: 2,  modes: ['device', 'room', 'tv'], group: 'party', setup: 'setup-reaction', room: { min: 2 }, crew: 'fast' },
 
   /* --- معلومات --- */
   { id: 'trivia',     icon: 'art:trivia',   title: 'setup_trivia',     desc: 'cat_trivia',     accent: 'indigo', players: [2, 12], mins: 15, modes: ['device', 'room', 'tv'], group: 'quiz', setup: 'setup-trivia', room: { min: 2, autoNext: true }, crew: 'brain', open: 'setupTrivia' },
@@ -93,13 +94,13 @@ const GAME_LIST = [
   { id: 'bank',       icon: 'art:bank',  title: 'setup_bank',       desc: 'cat_bank',       accent: 'green',  players: [1, 6],  mins: 45, modes: ['device', 'room', 'tv'], group: 'table', setup: 'setup-bank', room: { min: 1 }, crew: 'luck', open: 'setupBank' },
   { id: 'doubt',      icon: 'art:doubt', title: 'setup_doubt',      desc: 'cat_doubt',      accent: 'violet', players: [1, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', room: { min: 1 }, crew: 'liar' },
   { id: 'skull',      icon: 'art:skull', title: 'setup_skull',      desc: 'cat_skull',      accent: 'rose',   players: [1, 8],  mins: 20, modes: ['room', 'tv'],           group: 'table', room: { min: 1 }, crew: 'liar' },
-  { id: 'chess4',     icon: 'art:chess4', title: 'setup_chess4',   desc: 'cat_chess4',     accent: 'green',  players: [1, 4],  mins: 30, modes: ['room', 'tv'],           group: 'table', hub: 'shatranj', room: { min: 1 }, crew: 'brain' },
+  { id: 'chess4',     icon: 'art:chess4', title: 'setup_chess4',   desc: 'cat_chess4',     accent: 'green',  players: [1, 4],  mins: 30, modes: ['room', 'tv'],           group: 'duo', hub: 'shatranj', room: { min: 1 }, crew: 'brain' },
   { id: 'estimation', icon: 'art:estimation', title: 'setup_estimation', desc: 'cat_estimation', accent: 'green',  players: [1, 4],  mins: 45, modes: ['room', 'tv'],           group: 'table', room: { min: 1 }, crew: 'cards' },
   { id: 'oldmaid',    icon: 'art:oldmaid', title: 'setup_oldmaid',  desc: 'cat_oldmaid',    accent: 'amber',  players: [2, 8],  mins: 10, modes: ['room', 'tv'],           group: 'table', room: { min: 2 }, crew: 'cards' },
   // Chess for teams: a board game at the table, on everyone's phone (RoomVoteChess.js, RoomHandBrain.js).
-  { id: 'votechess',  icon: 'art:votechess', title: 'setup_votechess', desc: 'cat_votechess', accent: 'indigo', players: [2, 12], mins: 25, modes: ['room', 'tv'],          group: 'table', hub: 'shatranj', room: { min: 2 }, crew: 'brain' },
-  { id: 'handbrain',  icon: 'art:handbrain', title: 'setup_handbrain', desc: 'cat_handbrain', accent: 'teal',   players: [1, 4],  mins: 20, modes: ['room', 'tv'],          group: 'table', hub: 'shatranj', room: { min: 1 }, crew: 'brain' },
-  { id: 'bughouse',   icon: 'art:bughouse', title: 'setup_bughouse', desc: 'cat_bughouse', accent: 'teal', players: [1, 4],  mins: 10, modes: ['room', 'tv'],           group: 'table', hub: 'shatranj', room: { min: 1 }, crew: 'brain' },
+  { id: 'votechess',  icon: 'art:votechess', title: 'setup_votechess', desc: 'cat_votechess', accent: 'indigo', players: [2, 12], mins: 25, modes: ['room', 'tv'],          group: 'duo', hub: 'shatranj', room: { min: 2 }, crew: 'brain' },
+  { id: 'handbrain',  icon: 'art:handbrain', title: 'setup_handbrain', desc: 'cat_handbrain', accent: 'teal',   players: [1, 4],  mins: 20, modes: ['room', 'tv'],          group: 'duo', hub: 'shatranj', room: { min: 1 }, crew: 'brain' },
+  { id: 'bughouse',   icon: 'art:bughouse', title: 'setup_bughouse', desc: 'cat_bughouse', accent: 'teal', players: [1, 4],  mins: 10, modes: ['room', 'tv'],           group: 'duo', hub: 'shatranj', room: { min: 1 }, crew: 'brain' },
 
   /* --- لاتنين على موبايل: two people, one phone --- */
   { id: 'memory',     icon: 'art:memory',   title: 'setup_memory',     desc: 'cat_memory',     accent: 'violet', players: [1, 2],  mins: 5,  modes: ['device'],               group: 'duo', setup: 'setup-memory', open: 'setupMemory' },
@@ -108,19 +109,18 @@ const GAME_LIST = [
   { id: 'dots',       icon: 'art:dots',   title: 'setup_dots',       desc: 'cat_dots',       accent: 'indigo', players: [1, 2],  mins: 10, modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-dots', room: { min: 2 }, crew: 'brain', open: 'setupDots' },
   { id: 'battleship', icon: 'art:battleship',   title: 'setup_battleship', desc: 'cat_battleship', accent: 'teal',   players: [1, 2],  mins: 10, modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-battleship', room: { min: 2 }, crew: 'brain', open: 'setupBattleship' },
   { id: 'shatranj',   icon: 'art:chess', title: 'setup_shatranj', desc: 'cat_shatranj', accent: 'amber',  players: [1, 12],  mins: 20, modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-shatranj', room: { id: 'chess', min: 2 }, crew: 'brain', open: 'setupShatranj' },
-  { id: 'guessnum',   icon: 'art:guessnum',   title: 'setup_guessnum',   desc: 'cat_guessnum',   accent: 'blue',   players: [1, 12], mins: 3,  modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-guessnum', room: { min: 2 }, crew: 'brain', open: 'setupGuessNumber' },
-  { id: 'reaction',   icon: 'art:reaction',   title: 'setup_reaction',   desc: 'cat_reaction',   accent: 'rose',   players: [2, 12], mins: 2,  modes: ['device', 'room', 'tv'], group: 'duo', setup: 'setup-reaction', room: { min: 2 }, crew: 'fast' },
 
   /* --- رياضة: the sports games, in real 3D (three.js, loaded when the game opens) --- */
   { id: 'minigolf',   icon: 'art:minigolf',   title: 'setup_minigolf',   desc: 'cat_minigolf',   accent: 'green',  players: [1, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'sports', setup: 'setup-minigolf', room: { min: 1 }, crew: 'sport', open: 'setupMiniGolf' },
 
-  /* --- ألغاز ومخ --- */
+  /* --- ألغاز لوحدك (named «ألغاز ومخ» until 3 Oct 2026) --- */
   { id: 'sudoku',     icon: 'art:sudoku',   title: 'setup_sudoku',     desc: 'cat_sudoku',     accent: 'indigo', players: [1, 12],  mins: 10, modes: ['device', 'room', 'tv'],               group: 'puzzle', setup: 'setup-sudoku', room: { min: 2 }, crew: 'brain', open: 'setupSudoku' },
   { id: 'g2048',      icon: 'art:g2048',   title: 'setup_g2048',      desc: 'cat_g2048',      accent: 'orange', players: [1, 1],  mins: 5,  modes: ['device'],               group: 'puzzle', setup: 'setup-g2048', open: 'setup2048' },
   { id: 'mines',      icon: 'art:mines',   title: 'setup_mines',      desc: 'cat_mines',      accent: 'teal',   players: [1, 12],  mins: 5,  modes: ['device', 'room', 'tv'],               group: 'puzzle', setup: 'setup-mines', room: { min: 2 }, crew: 'brain', open: 'setupMines' },
   { id: 'queens',     icon: 'art:queens',   title: 'setup_queens',     desc: 'cat_queens',     accent: 'amber',  players: [1, 12],  mins: 5,  modes: ['device', 'room', 'tv'],               group: 'puzzle', setup: 'setup-queens', room: { min: 2 }, crew: 'brain', open: 'setupQueens' },
   { id: 'tango',      icon: 'art:tango',   title: 'setup_tango',      desc: 'cat_tango',      accent: 'blue',   players: [1, 12],  mins: 5,  modes: ['device', 'room', 'tv'],               group: 'puzzle', setup: 'setup-tango', room: { min: 2 }, crew: 'brain', open: 'setupTango' },
   { id: 'nonogram',   icon: 'art:nonogram',   title: 'setup_nonogram',   desc: 'cat_nonogram',   accent: 'green',  players: [1, 12],  mins: 8,  modes: ['device', 'room', 'tv'],               group: 'puzzle', setup: 'setup-nonogram', room: { min: 2 }, crew: 'brain', open: 'setupNonogram' },
+  { id: 'guessnum',   icon: 'art:guessnum',   title: 'setup_guessnum',   desc: 'cat_guessnum',   accent: 'blue',   players: [1, 12], mins: 3,  modes: ['device', 'room', 'tv'], group: 'puzzle', setup: 'setup-guessnum', room: { min: 2 }, crew: 'brain', open: 'setupGuessNumber' },
 
   /* --- كلمات وأسئلة لوحدك: the word games sit together (Wordle and
      Connections used to be under a heading that also said puzzles) --- */
@@ -132,7 +132,7 @@ const GAME_LIST = [
   { id: 'strands',    icon: 'art:strands',   title: 'setup_strands',    desc: 'cat_strands',    accent: 'teal',   players: [1, 12],  mins: 5,  modes: ['device', 'room', 'tv'],               group: 'brain', setup: 'setup-strands', room: { min: 2 }, crew: 'brain', open: 'setupStrands' },
   { id: 'wordwheel',  icon: 'art:wordwheel',   title: 'setup_wordwheel',  desc: 'cat_wordwheel',  accent: 'orange', players: [1, 12],  mins: 5,  modes: ['device', 'room', 'tv'],               group: 'brain', setup: 'setup-wordwheel', room: { min: 2 }, crew: 'brain', open: 'setupWordWheel' },
   { id: 'flags',      icon: 'art:flags',   title: 'setup_flags',      desc: 'cat_flags',      accent: 'blue',   players: [1, 12], mins: 3,  modes: ['device', 'room', 'tv'], group: 'brain', setup: 'setup-flags', room: { min: 2 }, crew: 'brain', open: 'setupFlags' },
-  { id: 'chesspuzzle', icon: 'art:chesspuzzle', title: 'setup_chesspuzzle', desc: 'cat_chesspuzzle', accent: 'amber', players: [1, 1], mins: 5, modes: ['device'], group: 'brain', hub: 'shatranj', setup: 'setup-chesspuzzles', open: 'setupChessPuzzles' },
+  { id: 'chesspuzzle', icon: 'art:chesspuzzle', title: 'setup_chesspuzzle', desc: 'cat_chesspuzzle', accent: 'amber', players: [1, 1], mins: 5, modes: ['device'], group: 'duo', hub: 'shatranj', setup: 'setup-chesspuzzles', open: 'setupChessPuzzles' },
 
   /* --- أدوات --- */
   { id: 'chooser',   icon: 'art:chooser',   title: 'tool_chooser',      desc: 'cat_chooser',    accent: 'orange', group: 'tools', open: 'openChooser' },

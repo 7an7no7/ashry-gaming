@@ -157,3 +157,7 @@ every evening. Left alone on purpose: أوصف لي's length and Wordle's word l
 are Start buttons, not a selection; the general timer's minutes are the
 running timer; the domino single/teams question depends on the table; the
 Codenames custom words are not carried to new rooms.
+
+## The sections, reviewed (3 Oct 2026)
+
+With the owner: every game sits in the section whose name is true of it. العقل (a silent cooperative game, no bluffing) and اختبار السرعة (2-12, reflexes) are in حفلة وضحك; أتوبيس كومبليت and على راسك (word games) in كلمات ورسم وتمثيل; خمّن الرقم in the puzzles, now named «ألغاز لوحدك» ("Solo puzzles") beside «كلمات وأسئلة لوحدك». A way inside a card (`hub`) is filed under its card's section (chess's ways under لاتنين على موبايل), which is where a search shows it. A game moved between sections also moves to its new section's block in Games.js, which is the order the section shows.

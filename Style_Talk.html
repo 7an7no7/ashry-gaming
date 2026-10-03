@@ -1938,8 +1938,8 @@ body.is-tv-view .hm-misses i { width: 1.4vmin; height: 1.4vmin; border-width: 0.
     box-shadow: 0 4px 10px -6px var(--accent-glow);
   }
   body.in-play .nav-item--room { justify-content: center; }
-  body.in-play:not(.is-fullscreen-view):not(.is-tv-view):not(.has-audience) .shell__main { --main-pb: var(--sp-6); }
-  body.in-play:not(.is-fullscreen-view):not(.is-tv-view) .shell__main .view-actions { padding-bottom: var(--sp-3); }
+  body:is(.in-play, .in-room-game):not(.is-fullscreen-view):not(.is-tv-view):not(.has-audience) .shell__main { --main-pb: var(--sp-6); }
+  body:is(.in-play, .in-room-game):not(.is-fullscreen-view):not(.is-tv-view) .shell__main .view-actions { padding-bottom: var(--sp-3); }
 }
 /* On مع بعض the raised button is «ادخل غرفة» (idea 3): its key a little
    smaller than the plus it replaces. */
@@ -2038,4 +2038,59 @@ body.is-tv-view .hm-misses i { width: 1.4vmin; height: 1.4vmin; border-width: 0.
 #view-room-lobby[data-tab="people"] :is(#room-mission, #room-host-setup) { display: none; }
 #view-room-lobby[data-tab="game"] :is(#room-crew, #room-people) { display: none; }
 .room-go-game { margin-top: var(--sp-4); }
+/* While a game is played - one phone or a room - the app's bar goes (the owner's
+   look 1A of sheet three, 3 Oct 2026): a hand reaching for «صح!» landed on 🏠,
+   and the bar took the room the game could use. The header's back arrow (it asks
+   before a game is left) is the way out; the bar is back on the home, the tabs,
+   the setups and a room's lobby. On a laptop or a phone on its side the bar is a
+   rail, so its column closes too. */
+body:is(.in-play, .in-room-game) .shell__nav { display: none; }
+body:is(.in-play, .in-room-game) .shell { --rail-w: 0px; }
+/* The tools tab as a phone's home screen (the owner's look 4B of sheet three,
+   3 Oct 2026): a big icon and the name under it, three a row on a phone and more
+   on a wider screen; the line under a tool's name is left to its screen (it stays
+   in the button for a screen reader). The tab was 1,857px of two-line rows. */
+#view-tools .tools-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.25rem, 1fr)); gap: var(--sp-4) var(--sp-2); }
+#view-tools .tool-item { position: relative; flex-direction: column; justify-content: flex-start; gap: var(--sp-2); min-height: 0; padding: var(--sp-1) 0; border: 0; border-radius: var(--r-lg); background: none; box-shadow: none; text-align: center; }
+#view-tools .tool-item:active { transform: scale(0.94); box-shadow: none; }
+#view-tools .tool-icon { width: 4.25rem; height: 4.25rem; border-radius: 1.375rem; font-size: 2.4rem; box-shadow: var(--poster-shadow, var(--sh-3)); }
+#view-tools .tool-info { align-items: center; }
+#view-tools .tool-name { font-size: var(--fs-sm); line-height: 1.25; text-wrap: balance; }
+#view-tools .tool-desc, #view-tools .tool-chev { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Passing the phone round (look 3A, paintPassFaces in JS_Motion.html): everyone's
+   face under the card, the ones who looked dimmed with a ✓, whose turn ringed. */
+.pass-faces { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2) var(--sp-3); margin-top: var(--sp-4); }
+.pass-face { display: grid; justify-items: center; gap: 4px; min-width: 2.75rem; max-width: 4.5rem; font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); }
+.pass-face bdi { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pass-face i { position: relative; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-family: var(--font-display); font-size: 1.05rem; font-weight: 800; color: var(--accent-on); background: linear-gradient(160deg, var(--accent-hover), var(--accent)); }
+.pass-face.is-done i { opacity: 0.45; }
+.pass-face.is-done i::after { content: '✓'; position: absolute; inset-block-end: -3px; inset-inline-end: -3px; width: 1.1rem; height: 1.1rem; border-radius: 50%; display: grid; place-items: center; font-size: 0.7rem; color: var(--success-on); background: var(--success-btn); box-shadow: 0 0 0 2px var(--surface-solid); }
+.pass-face.is-now { color: var(--accent-ink); }
+.pass-face.is-now i { transform: scale(1.12); box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 6px var(--accent); }
+.pass-face.is-now.is-fresh i { animation: pass-face-ring 520ms var(--ease-spring) both; }
+.pass-face.is-done.is-fresh i::after { animation: pass-face-tick 420ms var(--ease-spring) both; }
+@keyframes pass-face-ring { from { transform: scale(0.8); box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 0 var(--accent); } to { transform: scale(1.12); box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 6px var(--accent); } }
+@keyframes pass-face-tick { from { transform: scale(0); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pass-face.is-fresh i, .pass-face.is-fresh i::after { animation: none; } }
+/* Joining a room (the owner's look 2A of sheet three): four boxes, a letter each,
+   under a see-through field that takes the typing (paintJoinBoxes), and
+   «ارجع للغرفة» for the last room. */
+.code-boxes { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 4rem)); justify-content: center; gap: var(--sp-2); }
+.code-boxes__input.room-code-input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: transparent; caret-color: transparent; -webkit-text-fill-color: transparent; font-size: 16px; letter-spacing: 0; box-shadow: none; outline: none; }
+.code-boxes__input.room-code-input::selection { background: transparent; }
+.code-boxes__box { height: 4.25rem; border-radius: var(--r-lg); border: 2px solid var(--border); background: var(--surface-2); display: grid; place-items: center; font-family: var(--font-display); font-size: 2.1rem; font-weight: 900; line-height: 1; color: var(--accent-ink); transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out); }
+.code-boxes__box.is-filled { background: var(--surface-solid); border-color: var(--accent-border); }
+.code-boxes__box.is-on { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.code-boxes__box.is-on::after { content: ''; width: 2px; height: 2rem; background: var(--accent); animation: code-caret 1s steps(1) infinite; }
+.code-boxes__box.is-full { border-color: var(--success); box-shadow: 0 0 0 4px var(--success-soft); }
+.code-boxes__box.is-pop { animation: code-pop 260ms var(--ease-spring) both; }
+.code-boxes:has(.code-boxes__input[aria-invalid="true"]) .code-boxes__box { border-color: var(--danger); }
+@keyframes code-caret { 50% { opacity: 0; } }
+@keyframes code-pop { from { transform: scale(0.85); } to { transform: none; } }
+.room-join-back { display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: var(--tap); margin-bottom: var(--sp-3); padding: var(--sp-2) var(--sp-4); border: 0; border-radius: var(--r-lg); background: var(--accent-soft); color: var(--accent-ink); font-weight: 800; text-align: start; cursor: pointer; }
+.room-join-back__text { display: flex; flex-direction: column; min-width: 0; }
+.room-join-back__text small { font-weight: 600; color: var(--text-2); }
+.room-join-back__chev { margin-inline-start: auto; font-size: 1.25rem; }
+[dir="rtl"] .room-join-back__chev { transform: scaleX(-1); }
+@media (prefers-reduced-motion: reduce) { .code-boxes__box.is-pop, .code-boxes__box.is-on::after { animation: none; } }
 </style>

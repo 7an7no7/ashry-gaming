@@ -2198,13 +2198,22 @@
             </div>
           </div>
 
+          <!-- «ارجع للغرفة»: the room this phone was last in, a tap from going back (roomJoinBackPaint). -->
+          <button type="button" id="room-join-back" class="room-join-back hidden" onclick="roomJoinBack()"></button>
+
           <div class="field">
           <label class="field__label" for="room-join-code" data-i18n="room_code">كود الغرفة</label>
-          <!-- Long enough to take a whole pasted join link; tidyRoomCodeInput keeps just the code. -->
-          <input type="text" id="room-join-code" class="room-code-input" maxlength="120"
-                 inputmode="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next"
-                 placeholder="ABCD" oninput="tidyRoomCodeInput(this)"
-                 onkeydown="if(event.key==='Enter'){event.preventDefault();roomJoinCodeEnter();}">
+          <!-- Four boxes, a letter each (the owner's look 2A of sheet three, 3 Oct 2026): the
+               real field lies over them, see-through, so typing, pasting a whole link and
+               the phone's own keyboard all work as before (paintJoinBoxes). Long enough to
+               take a pasted join link; tidyRoomCodeInput keeps just the code. -->
+          <div class="code-boxes" dir="ltr">
+            <input type="text" id="room-join-code" class="room-code-input code-boxes__input" maxlength="120"
+                   inputmode="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="next"
+                   oninput="tidyRoomCodeInput(this)" onfocus="paintJoinBoxes()" onblur="paintJoinBoxes()"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();roomJoinCodeEnter();}">
+            <span class="code-boxes__box" aria-hidden="true"></span><span class="code-boxes__box" aria-hidden="true"></span><span class="code-boxes__box" aria-hidden="true"></span><span class="code-boxes__box" aria-hidden="true"></span>
+          </div>
           </div>
 
           <div id="room-join-name-wrap" class="field">

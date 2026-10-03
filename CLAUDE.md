@@ -55,7 +55,7 @@ each game's full spec and how it is built is in `notes/games/<id>.md`, the log i
 ## Every change, in this order
 
 1. **Edit the sources at the project root** (`Controller.html`, `JS_*.html`,
-   `Style.html`, `RoomGames.js`, the word lists). Never edit `docs/` by hand.
+   `Style*.html`, `JS_Translations.html`, `RoomGames.js`, the word lists). Never edit `docs/` by hand.
 2. Added a Tailwind class to the markup? `cd tools && npm run build:css`.
 3. `cd tools && npm run check` — content and translations. Must pass.
 4. Touched anything rooms run (`Games.js`, `RoomGames.js`, any `Room*.js`, any word list the server

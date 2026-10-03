@@ -25,11 +25,14 @@
 - **One list of games (`Games.js`, 2 Oct 2026):** `GAME_LIST` has one entry per game - its card's fields, `room` (min players, the room id when it differs, program `rounds`, `autoNext`), `crew` (الشلة's title) and `open` - shared by the page (first of `SHARED_LISTS`) and the rooms server (first of `FILES`). The home's `GAME_CATALOG`, a room's `ROOM_HUB_GAMES`, the server's `ROOM_GAME_IDS`, `APP_GAME_IDS` (what /count and /report take), `AUTONEXT_ROOM_GAMES`, `PROGRAM_ROUNDS` and `CREW_TITLE_GAMES` are built from it. **Adding or removing a game's card is one entry there**; `ROOM_LIST_ORDER` orders a room's list (a game not in it goes last).
 - **Rooms server (`rooms-worker/`):** one Durable Object per room code. `RoomGames.js` at the root is the room engine (dispatch, votes, clocks, leaving, computer players, «التالي لوحده»); every room game's rules are in its own `Room<Game>.js` (since 2 Oct 2026 the older ones too: `RoomStop.js`, `RoomImposter.js`, `RoomTrivia.js`, `RoomScrew.js`…), bundled after it with the word lists by `rooms-worker/build.mjs`. See *Multiplayer rooms*.
 - **Frontend Entry Point (`Controller.html`):** The main HTML structure that includes styles, scripts, and various game views.
-- **Modular JavaScript (`JS_*.html`):** Game logic is organized into separate HTML files acting as JS modules (e.g., `JS_Core.html`, `JS_Monkey.html`, `JS_Utils.html`), included into the main template.
-- **Styling (`Tailwind.html` + `Style.html`):** `Tailwind.html` is generated - it holds
-  only the Tailwind utilities the markup actually uses. `Style.html` holds the
-  hand-written component CSS (cards, buttons, the animated background, view
-  transitions) and is edited directly.
+- **Modular JavaScript (`JS_*.html`):** Game logic is organized into separate HTML files acting as JS modules (e.g., `JS_Core.html`, `JS_Monkey.html`, `JS_Utils.html`), included into the main template. The app's words are `JS_Translations.html` (`TRANSLATIONS`, loaded first) and every game's rules `JS_GameRules.html` (`GAME_RULES`, right after `JS_Core.html`); `JS_Core.html` is the core's code (3 Oct 2026: the three were one file of 18,000 lines).
+- **Styling (`Tailwind.html` + `Style*.html`):** `Tailwind.html` is generated - it holds
+  only the Tailwind utilities the markup actually uses. The hand-written CSS is
+  `Style.html` (the tokens and sections 1-8, with the map of the rest in its
+  header) and thirteen parts after it, `Style_Screens.html` … `Style_Talk.html`,
+  each naming its sections at its top. They are included in that order and the
+  cascade depends on it; a new section goes at the end of the last part.
+  Edited directly.
 
 ## Index: where the detail lives
 
@@ -85,7 +88,7 @@ file and a new line.
 ### The app around the games
 
 - The log of every batch of work, day by day - `notes/log.md` (search it for a game's name for that game's history).
-- Ideas not built yet - `notes/ideas.md`. The ideas batch of 30 Sep (builders' notes) - `notes/ideas-batch-2026-09-30.md`.
+- Ideas not built yet - `notes/ideas.md`. The ideas batch of 30 Sep (builders' notes) - `notes/archive/plans/ideas-batch-2026-09-30.md`.
 - Decided, and why - the full text of each decision - `notes/decisions.md`.
 - Content decisions (the content audit, the words cut and kept) - `notes/content.md`.
 - Rooms, the long version: the table of files (which Room*.js / JS_Room*.html does what), **computer players** (`ROOM_BOT_GAMES`, forced moves), **a host away** (`requireMoveOn`, the move-on actions), **the voting engine**, **«التالي لوحده»** (the next round dealt by itself, `autoNext`), the «دورك!» alert (`roomTurnOf`), the host's name menu, how a guess is judged, the chat, the live count, the audience and «ليالينا», which browsers run the app (the TV gate), names in a room, the lobby's Start, the share card, getting people in - `notes/rooms.md`.
@@ -98,7 +101,7 @@ file and a new line.
 - The soundboard and sound on iPhones (`wakeAudio`, a stuck audio context) - `notes/sound.md`.
 - The first-play card and the Help sheet (`GAME_RULES`, `HELP_ENTRIES`, `HELP_FOR_VIEW`) - `notes/help.md`.
 - The design system, the long version: the arcade look, one voice, the finish, the intro and the slow-load scenes, filtering, the reveals (the spy, the podium's cheerers), held roles, motion everywhere, the dice, smoothness, the motion helpers (`flyEmoji`, `animateScoreboards`, the nav pill), keys, toasts and popup closing, style-recalc performance, landscape phones and big screens, the iPhone back swipe, drawn icons - `notes/design.md`.
-- Earlier plans and phase reports - `notes/*_RUNBOOK.md`, `notes/phase-reports/`, `notes/IMPROVEMENT_PLAN.md`; what needs a real phone - `notes/TO-TRY-ON-A-PHONE.md`.
+- Earlier plans and phase reports, and the design sheets and screenshots they were picked from - `notes/archive/` (`plans/`: the runbooks, `phase-reports/`, `IMPROVEMENT_PLAN.md`, the review of 25 Sep; `sheets/`: the look sheets and their drivers; `shots/`: screenshots), kept for the history, not read to work; what needs a real phone - `notes/TO-TRY-ON-A-PHONE.md`.
 
 ## Where the app is going: ideas, decisions and the log
 
@@ -272,7 +275,9 @@ npm run check        # content + i18n
 - `check:i18n` compares the `ar` and `en` blocks key by key, fails on a key
   defined **twice** in one block (legal JS, and the last one silently wins — four
   strings were quietly the wrong ones before this check existed), and checks that
-  every `data-i18n` attribute in the markup names a real key.
+  every `data-i18n` attribute in the markup names a real key. It warns (without
+  failing) about a `t.key` read with no translation and no fallback, and a key no
+  code reads (*Traps*: keys built from parts, a `t` that isn't a table).
 - `npm test` in `rooms-worker/` (with `npm run dev` running) plays every room
   game with robot players, in segments side by side: turns, votes, scores, that secrets never reach the
   wrong phone, reconnects, the server's clocks and the shared prompt memory.
@@ -319,7 +324,7 @@ npm run check        # content + i18n
   `ONLY=screens,rooms,fixes,site` runs some parts, `UI_GAMES=uno,domino` some
   room games; `CHROME=` points at Chrome. About 4 minutes whole, in shards.
 - **How long each takes**, and which to run (CLAUDE.md step 5). Both suites run
-  in shards side by side (30 Sep 2026; `notes/builders/tests-docs.md`): `npm test`
+  in shards side by side (30 Sep 2026; `notes/tests-docs.md`): `npm test`
   plays its 38 segments (`--only=` names, listed in `SEGMENTS` at the end of
   `play-all.mjs`) four processes at a time, about 4-5 minutes (it was 16
   one after another; `--jobs=6` about 3, `npm run test:serial` the old way);
@@ -371,7 +376,7 @@ will make that pass lie to you:
 ### Code Structure
 - **No `google.script.run`:** the page talks to nothing but the rooms server, through `Room` in `JS_Room.html`.
 - **Frontend Modularization:** When adding a new game, create a new `JS_GameName.html` file and include it in `Controller.html` using `<?!= include('JS_GameName'); ?>`.
-- **Translations:** All UI text goes through the `TRANSLATIONS` object in `JS_Core.html`, with the same key in `ar` and `en` (`npm run check:i18n` compares them). `data-i18n` fills an element's text, `data-i18n-ph` a field's placeholder, and `data-i18n-title` an icon button's tooltip *and* its `aria-label` - a button whose whole label is a glyph (↶) needs the last one, or it says nothing in either language.
+- **Translations:** All UI text goes through the `TRANSLATIONS` object in `JS_Translations.html`, with the same key in `ar` and `en` (`npm run check:i18n` compares them). `data-i18n` fills an element's text, `data-i18n-ph` a field's placeholder, and `data-i18n-title` an icon button's tooltip *and* its `aria-label` - a button whose whole label is a glyph (↶) needs the last one, or it says nothing in either language.
 
 ### Multiplayer rooms
 
@@ -582,7 +587,7 @@ waiting line - it used to be a heading and a line centred in an empty half of a
 1080p screen (the owner, 26 Sep 2026).
 
 The view is `room-tv`: full screen, with `body.is-tv-view` and sizes from `vmin`
-in the BIG SCREEN block at the end of `Style.html`. Phone components reused there
+in the BIG SCREEN block of `Style_Screens.html`. Phone components reused there
 sit in `.tv-scale`, which zooms them in steps. Phone and TV frames share element
 ids (the canvas, the timers), so drawing one kind clears the other. A new room
 game needs its `TV_GAMES` entry as well.
@@ -629,7 +634,7 @@ alone is the chess clock tool.
 
 The file is shared (`SHARED_LISTS` in the page, `FILES` on the server). On the
 page (`JS_Catalog.html`): `catalogOff(id)`; a switched-off game's card is grey
-with «🛠️ بنصلّحها» (`gameOffBadge`, `.is-off`, section 52 of `Style.html`)
+with «🛠️ بنصلّحها» (`gameOffBadge`, `.is-off`, section 52 of `Style_Rooms.html`)
 on the home, in the recent row (just 🛠️), in chess's ways row and in a room's
 list on the phone and the TV; a tap only says why (`gameOffToast`); it leaves
 «الليلة دي؟», the featured poster and the first-visit cards; `catalogOpen`,
@@ -838,7 +843,7 @@ the chess hub's row, the host's name menu - applied only on a device asking
 for reduced motion. Nothing failed: a headless Chrome reports reduced motion,
 so every screen test and screenshot saw the rules working. Found when a new
 section (38) had no effect in a check run with motion on. After editing
-`Style.html`, count `{` against `}` and `/*` against `*/`, and look with
+a `Style*.html` part, count `{` against `}` and `/*` against `*/`, and look with
 `prefers-reduced-motion: no-preference` emulated.
 
 **A size container gives its grid column no width.** شطرنج الأربعة's board
@@ -890,7 +895,7 @@ logo-first change) would have opened every room link on the home screen
 with no code - caught before it shipped.
 
 **The logo comes first in the page.** Controller.html keeps only the small
-intro styles and the page data in `<head>`; `Tailwind.html`, `Style.html` and
+intro styles and the page data in `<head>`; `Tailwind.html`, the `Style*.html` parts and
 the shared rule files (`SHARED_LISTS`) are in `<body>`, after the intro and
 its two small scripts. A first visit on a slow connection used to be a black
 and then a white screen until 1.4 MB (400 KB compressed) had arrived; the logo
@@ -911,8 +916,11 @@ has the deal in it now).
 warning.** `check:i18n` finds `t.together_how`, not `t['together_step' + n]`,
 so the clean-up of 20 Sep 2026 removed the three «إزاي بتشتغل؟» steps of the
 مع بعض tab as unused, and the tab showed 1, 2, 3 with no words until the
-owner noticed on 24 Sep. Before removing a "never referenced" key, grep for
-its prefix followed by `' +` or `${`.
+owner noticed on 24 Sep. Since 3 Oct 2026 the check counts a key as live when the
+code builds its prefix or suffix (`'mg_h_' + id`, `` `ch_piece_${p}` ``,
+`'together_step' + n`, `key + '_line'`), and its list of unused keys went from
+662 to the few really dead. Still grep a key's prefix before removing it: a key
+assembled any other way is invisible to it.
 
 **A play-once memory is empty after a reload.** `motionFirst` and `duelOnce`
 live in the page, so a reloaded phone, a late joiner and a TV coming on used
@@ -1117,10 +1125,13 @@ agent's driver overwrote this one's `cdp.mjs` mid-run (and pointed it at
 its own preview port). Keep test drivers, Chrome profiles and ports in a
 folder and a port range of your own.
 
-**The i18n check reads every `t.x` as a translation.** `check-i18n.js`
-warns about "unfallback-ed t.<key> reads" for any `t.something` in a page
-file - including a three.js texture called `t` (`t.wrapS`) or a GLSL
-variable (`t.a` in a shader string). Name such things anything but `t`.
+**The i18n check used to read every `t.x` as a translation.** Since 3 Oct 2026
+`check-i18n.js` parses the scripts and follows each `t` to its binding: a table
+made from `TRANSLATIONS` or a game's helper named `…T()`, `…Tr()` or `…Text()`
+(`crewT()`, `xoTr()`, `tbText()`), or a parameter of a function that isn't a
+callback. A texture, a touch or a tile called `t` is left alone, and so is a
+comment; a key a file defines in its own `{ ar: {…}, en: {…} }` passes. A new
+helper that returns the translations is named that way, or the check can't see it.
 
 **Tailwind scans comments too.** A comment with the word "outline" in a
 `JS_*.html` file made `npm run build:css` add a `.outline` utility. Only
@@ -1269,7 +1280,7 @@ apply", compare specificity before adding `!important`.
 **A custom property that doesn't exist is silently nothing.** The first-play
 card used `var(--sp-3-5)` and `var(--sp-2-5)`; the scale has only whole steps
 (`--sp-1` … `--sp-9`), so its padding and gaps were 0 and its text touched
-the edge. No check fails on it. Grep `--name:` in `Style.html` before using a
+the edge. No check fails on it. Grep `--name:` in `Style*.html` before using a
 token.
 
 **A default on the base class beats a modifier on the same element.** سكرو's
@@ -1695,7 +1706,7 @@ And the rules they rely on: key a reveal with `motionFirst(key)` so a redraw
 doesn't replay it; check `motionOff()` before moving anything, and set the end
 state without motion when it is true; transform and opacity only; start
 clocks on the first drawn frame; every end state also set by a timer, never
-only by an animation event. New CSS goes in section 14 of `Style.html`, with
+only by an animation event. New CSS goes in section 14 of `Style_Finish.html`, with
 its `prefers-reduced-motion` line in the block at the end of that section.
 
 **A new way to play an existing game is not a new game** (the owner, 24 Sep

@@ -5,7 +5,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 ## From GEMINI.md: Multiplayer rooms
 
 **القنبلة's bomb is a character** (27 Sep 2026, the living-characters brief;
-the end of `JS_Bomb.html`, section 44 of `Style.html`), in المشنقة's flat
+the end of `JS_Bomb.html`, section 44 of `Style_Living.html`), in المشنقة's flat
 cartoon: `bombCharSvg({ heat, size })` draws a round black bomb with a
 highlight, a cap, a fuse in four pieces and a face, `bm-h0..3` on the svg.
 Calm and grinning at 0, eyes open at 1, wide eyes, a wobbly mouth and sweat at

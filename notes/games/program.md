@@ -18,7 +18,7 @@ own night and «الشلة» alike (the review of 1 Oct 2026).
 - The finale on the TV and the phones: the champion of the night, the podium with the
   cast, playful awards from real play each with its moment («أسرع إيد: منى - ضغطت الجرس
   في 0.18ث», never a mean title), a share card, and it counts for «الشلة» through a hook.
-- Look أ «لوحة المذيع» (`notes/next-level-looks.html`, feature 3): between games the
+- Look أ «لوحة المذيع» (`notes/archive/sheets/next-level-looks.html`, feature 3): between games the
   table in big rows (place, face, name, first places, points with ▲ +N) beside the next
   game's poster and a countdown ring; the finale «بطل الليلة: …», the podium with the
   cast in the middle, a row of award cards under it; a compact version on phones.
@@ -159,7 +159,7 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
 - Help: `GAME_RULES.program` (both languages), `HELP_ENTRIES` (in «ابدأ من هنا» beside
   rooms and the TV), `HELP_FOR_VIEW['room-program']`. The chat says when a program starts
   and who won it (`programStart`, `programEnd` events).
-- CSS: the section «برنامج السهرة» at the end of `Style.html` (the stage sets the page's
+- CSS: the section «برنامج السهرة» in `Style_Night.html` (the stage sets the page's
   tokens again inside it, as كدّاب's stage does; rem on a phone, vmin on the TV).
 
 ## Decided while building (open to change, each one place)

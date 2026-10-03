@@ -5,7 +5,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 ## From GEMINI.md: The owner's specs, as built
 
 - **شطرنج بالتصويت and المخ والإيد (chess for teams)** - the owner's
-  decisions of 24 Sep 2026 (`notes/BATCH4_RUNBOOK.md`, Decisions 1 and 2),
+  decisions of 24 Sep 2026 (`notes/archive/plans/BATCH4_RUNBOOK.md`, Decisions 1 and 2),
   rooms only, the TV optional (*شطرنج بالتصويت*, *المخ والإيد*):
   - **شطرنج بالتصويت**: two teams split by the host in the lobby (at random,
     then moves across), any number from 2 (1 vs 1 is chess by a vote of one).

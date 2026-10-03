@@ -64,7 +64,7 @@ its own rules and board:
   board sized off `--app-h` so it needs no scrolling (a minefield, taller than
   wide, scrolls instead) and on any screen at least 900 wide; the word and
   quiz games' lists and cards take a narrower board. Grids that map to a
-  physical board carry `dir="ltr"`. Styles are section 15 of `Style.html`.
+  physical board carry `dir="ltr"`. Styles are section 15 of `Style_Solo.html`.
 - **Shared small pieces.** `soloCategory("فواكه 🍎")` splits a list's category
   into name and emoji; `soloCellAt(x, y, selector)` finds the cell under a
   dragging finger; `.solo-choices` / `.solo-choice` (`is-right`, `is-wrong`)

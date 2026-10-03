@@ -145,7 +145,7 @@ html = html.replace('</head>', () => RUNTIME);
 const leftover = html.match(/<\?!?=?[\s\S]{0,40}\?>/);
 if (leftover) throw new Error(`unresolved template tag: ${leftover[0]}`);
 
-/* The published page is minified (notes/IMPROVEMENT_PLAN.md, Phase 2: the page
+/* The published page is minified (notes/archive/plans/IMPROVEMENT_PLAN.md, Phase 2: the page
    was 7 MB, most of it comments and indentation), with minifyJs above; the chunks
    were minified the same way as they were made. MINIFY=0 leaves both as written. */
 if (MINIFY) {
@@ -173,7 +173,7 @@ if (MINIFY) {
   console.log(`minified: ${(before / 1e6).toFixed(2)} MB -> ${(html.length / 1e6).toFixed(2)} MB`);
 }
 
-/* The size budget (notes/IMPROVEMENT_PLAN.md, Phase 2). What opening the app
+/* The size budget (notes/archive/plans/IMPROVEMENT_PLAN.md, Phase 2). What opening the app
    downloads is the page (the shell) compressed; a build past the budget fails, so
    the shell can't creep back up a game at a time. The games' chunks are only
    reported: each comes when its game opens. Raise it on purpose, not by accident.

@@ -151,7 +151,7 @@ says it in its own language.
   `#msn-tv-reveal` (the strings, then the champion); `missionTvSig` is in
   `tvLobbySig`.
 - Faces: `missionFaceSvg(name)`, a drawn face from the name (the same on every screen).
-- CSS: section 62 of `Style.html` (the paper, kraft, stamps and cork keep their
+- CSS: section 62 of `Style_Talk.html` (the paper, kraft, stamps and cork keep their
   colours in both themes; the UI around them uses the tokens).
 - Help: `GAME_RULES.mission` (both languages), `HELP_ENTRIES` (📁, in «ابدأ من هنا»).
 

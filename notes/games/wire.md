@@ -5,7 +5,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 ## From GEMINI.md: The owner's specs, as built
 
 - **Five new room games, not built yet** - the owner, 29 Sep 2026, from six
-  ideas another AI suggested, reworked our way (`notes/new-game-ideas.pdf`,
+  ideas another AI suggested, reworked our way (`notes/archive/plans/new-game-ideas.pdf`,
   the Arabic sheet the owner decided from). Build all five; الجاسوس الأبكم
   was declined as a game (it repeats الجاسوس / المختلف / الحرباء; its
   "glitch" may become a switch in كلمة واحدة later). Every rule asked; the

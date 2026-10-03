@@ -16,7 +16,7 @@
  * Called by the Worker (index.js: /crew/create, /crew/join, /crew/peek, /crew/get,
  * /crew/act) and, server to server, by a Room (verify, recordNight, dropNight).
  * Other features call recordNight and the packs methods the same way (see
- * notes/builders/crew.md).
+ * notes/games/crew.md).
  */
 import { DurableObject } from 'cloudflare:workers';
 import {

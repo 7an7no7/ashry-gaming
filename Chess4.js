@@ -7,7 +7,7 @@
    No DOM, nothing that runs at load, every name prefixed chess4 / CHESS4_
    (`c4` is Connect 4's).
 
-   The owner's rules (24 Sep 2026, notes/BATCH5_RUNBOOK.md), with the standard
+   The owner's rules (24 Sep 2026, notes/archive/plans/BATCH5_RUNBOOK.md), with the standard
    four-player rules (as on chess.com) for the rest:
      - A 14 x 14 board without its four 3 x 3 corners (160 squares). Four
        players: red at the bottom, blue on the left, yellow at the top, green on

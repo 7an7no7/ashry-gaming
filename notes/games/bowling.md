@@ -178,7 +178,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     is. The result screen waits for the last ball to be seen
     (`bowlRoomOver`). Host "play for" after 40 s from `readyAt`, or at once
     for a phone that's gone.
-  - **Layout** (section 28 of `Style.html`): the lane gets the screen. A
+  - **Layout** (section 28 of `Style_Boards.html`): the lane gets the screen. A
     phone upright: the lane is the play area's height, everyone's sheet under
     it; on its side and from 900 px: the lane beside a narrow column (names
     and totals only on a phone's side); the TV: the lane big, every sheet

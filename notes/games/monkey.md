@@ -22,7 +22,7 @@ puts them back in someone's place. A turn clock is a server deadline; with
 host. One-phone Monkey keeps its old helpers in `JS_Utils.html` (the reorder,
 the switch, mid-game players, the status edit, the timeout sheet).
 
-**The living monkey** (27 Sep 2026, المشنقة's cast, section 44 of `Style.html`)
+**The living monkey** (27 Sep 2026, المشنقة's cast, section 44 of `Style_Living.html`)
 replaced ◔ ◑ ◕ 🐵. `mkFigSvg(q, { mini, tv, moment })` in `JS_Monkey.html` draws a
 player's quarters as a flat cartoon monkey that builds itself: 1 the tail, 2 the
 body with the belly and the legs, 3 the arms, 4 the head with its big ears. The

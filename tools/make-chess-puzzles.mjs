@@ -4,7 +4,7 @@
  *
  *   cd tools && npm run build:puzzles
  *
- * How (notes/BATCH3_RUNBOOK.md, T3.1):
+ * How (notes/archive/plans/BATCH3_RUNBOOK.md, T3.1):
  *   1. Computer-vs-computer games, from the openings of the explorer
  *      (JS_ChessOpenings.html) and from random Chess960 starts, each side a
  *      rating from 1000 to 1800 (chessBestMove's noise and slips are where the

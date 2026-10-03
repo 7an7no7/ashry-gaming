@@ -55,7 +55,7 @@ off by default, kept in `ashryStopRoomOpts`): an `unknown` word scores 10
 instead of 0, still marked ❓, and the host can tap it down.
 
 **The bus** (the living character, 27 Sep 2026; `JS_StopBus.html`, section
-44 of `Style.html`, prefix `stopBus` / `.sbus-`), on one phone, every phone
+44 of `Style_Living.html`, prefix `stopBus` / `.sbus-`), on one phone, every phone
 in a room and the TV - a drawing and motion layer only, the rules, the
 scoring and the server untouched. A flat cartoon in المشنقة's cast (ink
 outlines `--sbus-ink` that stay dark, the screen's `--accent` for the body):

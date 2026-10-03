@@ -215,7 +215,7 @@ The owner's rules are in *The owner's specs*.
   turn up as it lands), a player safe, the shuffle, a leaver's cards
   flying to the next hand; the end turns الشايب over in the loser's hand.
 
-### كدّاب and الشايب on the stage (section 26b of `Style.html`)
+### كدّاب and الشايب on the stage (section 26b of `Style_Boards.html`)
 
 Look ج «المسرح» (*The owner's specs*). Both games' play frames, on the phone
 and the TV, are a `.pc-stage`: dark in both themes, and it sets the page's
@@ -264,7 +264,7 @@ phone's own hand before and after a batch of events (a `draw` of yours, a
 (`.om-moment`, removed by a timer, a tap, or the room moving on), with a
 light buzz and no sound.
 
-### The playing cards (`JS_Cards.html`, section 26 of `Style.html`)
+### The playing cards (`JS_Cards.html`, section 26 of `Style_Boards.html`)
 
 One card builder for both games, `pcCardHtml(c, { size })` - a face, the
 back (`null`) or الشايب (`'OM'`) - sized by `--pc-w` (1 : 1.42, the

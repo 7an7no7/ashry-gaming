@@ -279,7 +279,7 @@ const programFinish = (room) => {
  *                         the crew: the crew's night recording (room.js sends the night to its crew
  *                         whenever room.night / room.nightx change, after a move and after the alarm)
  *                         reads it from there - crewNightInput (Crew.js) maps each id to its member
- *                         with room.crewLinks, as it does the night's rows (notes/builders/program.md);
+ *                         with room.crewLinks, as it does the night's rows (notes/games/program.md);
  *   room._nightSummary    the last one, for anything else that wants it (kept until the program is
  *                         closed or another starts).
  * Every game of a program is also banked on the room's own night table (bankNightPoints), with the

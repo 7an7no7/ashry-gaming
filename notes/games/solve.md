@@ -159,7 +159,7 @@ emoji room (`room-emoji`), whose third way is the quiz.
   measured against the board it drew earlier in the same deal), the board
   counts up (`animateScoreboards`), and the game ends on the podium with
   confetti for the winner.
-- **Layout** (section 32 of `Style.html`): المشنقة's - upright one column,
+- **Layout** (section 32 of `Style_Chess.html`): المشنقة's - upright one column,
   the board first; a phone on its side puts a Wordle grid beside its keys and
   the other boards' field beside their tries; from 900px the board beside a
   narrow column of the others, and a Wordle grid beside its keys, sized by
@@ -169,7 +169,7 @@ emoji room (`room-emoji`), whose third way is the quiz.
   (`DRIVERS.solveGame`, `PROBES.solve`: all four both ways), `play-all.mjs`
   (a round of each both ways on a live server).
 - **The hot-or-cold man** (خمّن الرقم, the owner, 27 Sep 2026; `gnCharHtml`
-  and friends at the end of `JS_GuessNumber.html`, section 44 of `Style.html`):
+  and friends at the end of `JS_GuessNumber.html`, section 44 of `Style_Living.html`):
   a flat cartoon of المشنقة's cast whose band follows the last guess - `far`
   (a scarf, icicles, blue, chattering «برد… برد…»), `mid` (a hand on his chin),
   `warm` (sweat, red cheeks, a fan, «سخن!»), `hot` (flames, drips, a puddle,
@@ -193,7 +193,7 @@ emoji room (`room-emoji`), whose third way is the quiz.
   guessing, and the TV keeps its progress cards as they were.
 - **The TV while the setter writes (1 Oct 2026)**: the setting phase on the TV is
   the shared waiting stage `tvWaitStage` (JS_RoomTv.html, `.tv-waitstage*` next to
-  `.tv-wait` in Style.html): the setter in a lit chip with their initial and ✍️, the
+  `.tv-wait` in `Style*.html`): the setter in a lit chip with their initial and ✍️, the
   line («مستنيين كلمة …») at 5.5vmin, and a big chip for everyone else in the order
   (a ✓ on any the state says is done). `svTvSig` carries the players while setting.
 

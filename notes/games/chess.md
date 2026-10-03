@@ -593,7 +593,7 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
   between a clock start and hearing of it; the draw offer's card; the host's
   clock in the lobby, remembered. `roomTurnOf` answers for your move or a draw
   offered to you.
-- **Layout** (section 30 of `Style.html`): upright the pills (each with its
+- **Layout** (section 30 of `Style_Chess.html`): upright the pills (each with its
   clock and what it took, wrapping), the status, the board, what to do, the
   coach's word, the moves; on a phone on its side and from 900px the board
   takes the height beside a column; the TV is the board with the pills, the

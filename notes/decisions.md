@@ -26,7 +26,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
   on light, night with amber, cream with sea-green and coral). The owner
   picked د; the colour wasn't named, so it is built in colour ١ as the light
   theme and ٢ as the dark one (my recommendation, said in the reply). Built as
-  section 39 of `Style.html` (*The design system*, "The arcade look"). The
+  section 39 of `Style_Arcade.html` (*The design system*, "The arcade look"). The
   lesson for the next sheet: a "design direction" is a different structure,
   not a palette; put the palettes on a second axis.
 
@@ -50,7 +50,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
   things that would be in our app only"). Before building anything borrowed,
   name its own touch: Egyptian words and sayings, the family at a party, the
   app's drawn art and motion, the TV and phones together. The same for the
-  games already here (proposals in `notes/IMPROVEMENT_PLAN.md`, *Our own touch*).
+  games already here (proposals in `notes/archive/plans/IMPROVEMENT_PLAN.md`, *Our own touch*).
   First done: the audience's Egyptian shouts and the زغروطة.
 
 - **Nothing is waiting on the owner** (23 Sep 2026): the two old questions
@@ -261,7 +261,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
   last two).
 
 - **The owner's app decisions of 26 Sep 2026** (from the night's review,
-  `notes/review-2026-09-25/`), each built the same day:
+  `notes/archive/plans/review-2026-09-25/`), each built the same day:
   - **Chess's handicap is «فرق قوة»** in Arabic everywhere it shows (the
     setup, «مين بيدّي فرق القوة؟», the pill «فرق قوة: بدون …», the rating's
     reason, Help); «الحسبة (هانديكاب)» is gone. English keeps "Handicap".

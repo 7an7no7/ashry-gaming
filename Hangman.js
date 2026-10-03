@@ -76,7 +76,7 @@ const HM_HINTS_MAX = 3;
 const HM_HINT_OPENS = [0, 2, 4];
 const hmHintsOpen = (misses) => HM_HINT_OPENS.filter(m => (Number(misses) || 0) >= m).length;
 
-/* The endings (the owner, 2 Oct 2026, all sixteen of notes/hangman-endings-sheet.html): eight for a
+/* The endings (the owner, 2 Oct 2026, all sixteen of notes/archive/sheets/hangman-endings-sheet.html): eight for a
    word solved, eight for a man who ran out of misses. Whoever holds the word picks one per board,
    never the one picked last of its kind (nor this player's own last). */
 const HM_ENDS = 8;

@@ -30,7 +30,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 more premium look and easy to use"; picked as «د · أركيد» from a sheet of four
 styles - a cover-card feed, iOS-style grouped lists, an icon grid, a game
 store - each shown in three colours; colour ١ is the light theme, ٢ the dark
-one). It is **section 39 of `Style.html`, the last section on purpose**: it
+one). It is **section 39 of `Style_Arcade.html`, the last section on purpose**: it
 re-tokens and restyles the pieces every screen is built from, and the game
 boards keep their own sections untouched. What it is:
 
@@ -134,7 +134,7 @@ posters' badge and the setup hero's rules pill have no `backdrop-filter`
 (a darker solid tint instead): thirty blurred badges over a scrolling grid
 cost a phone frames.
 
-**One voice** is section 17 of `Style.html`, the pass that made a lift to one
+**One voice** is section 17 of `Style_Cards.html`, the pass that made a lift to one
 screen a lift to all of them. Four things were true everywhere, and none of
 them was a bug, which is why they lasted:
 
@@ -171,7 +171,7 @@ Sticky section heads were tried and dropped: the page ground is a
 viewport-fixed gradient, so a sticky band either mismatches it or needs
 `background-attachment: fixed`, which iOS Safari does not honour.
 
-**The finish** is section 11 of `Style.html`: a still glow behind the top of
+**The finish** is section 11 of `Style_Finish.html`: a still glow behind the top of
 the page, a header that turns frosted with a hairline once the page has
 scrolled under it (`.shell.is-scrolled`, set by a scroll listener in
 `initializeApp`), a top light on `.btn--primary`, icon tiles with a soft
@@ -290,7 +290,7 @@ lands with the answer rather than before it. The reveals:
   the game's colour with a question mark and three soft ticks for 1.1s, then
   turns over; the cover goes when the card is edge-on.
   **The living spy** stands behind that card (`spyCastHtml(key, verdict, { kind,
-  tv, loud, cls })` in `JS_Motion.html` 8b, section 44 of `Style.html`, the
+  tv, loud, cls })` in `JS_Motion.html` 8b, section 44 of `Style_Living.html`, the
   cast of المشنقة's man: a trench coat, a hat, dark glasses). While the card
   is down he peeks over its top edge, peering over his glasses («مش أنا…»);
   as it turns he steps out and plays the verdict: `caught` - the cuffs snap
@@ -416,7 +416,7 @@ one value. Both fall back to the result with no motion under
 the tumble cannot be seen there without overriding both the CSS and
 `matchMedia`.
 
-**Smoothness** is section 12 of `Style.html`, with its script in
+**Smoothness** is section 12 of `Style_Finish.html`, with its script in
 `JS_Core.html` and `JS_Catalog.html`. A phone with recents gets the home hero
 folded to one row of the ways in (`home-hero--compact`, *The catalog and the
 home screen*); a game card is one shape
@@ -527,7 +527,7 @@ worth rerunning after a big CSS change):
   run didn't reach.
 
 **Six older screens brought into the look** (the owner, 30 Sep 2026, "apply all
-6" from a before/after sheet of every screen; Style.html's last section, *SIX
+6" from a before/after sheet of every screen; `Style_Talk.html`'s section *SIX
 OLDER SCREENS*):
 
 - **The team results** (`paintTeams`, JS_NewGames.html): a summary line (how
@@ -620,7 +620,7 @@ look at 667×375 as well as 375×667. `docs/manifest.webmanifest` says
 `"orientation": "any"` so an installed app turns too; nothing generates that
 file, so it is the one thing in `docs/` edited by hand.
 
-**Tablets, laptops and TVs.** Every size in `Style.html` is in rem: spacing,
+**Tablets, laptops and TVs.** Every size in `Style*.html` is in rem: spacing,
 radii, button and field heights, widths. So the font size on `<html>` scales the
 whole app, while a phone keeps the default 16px.
 

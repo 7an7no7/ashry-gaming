@@ -1,6 +1,6 @@
 # Batch 5 report - شطرنج الأربعة (four-player chess)
 
-Branch `batch5`, built from `notes/BATCH5_RUNBOOK.md`. Nothing pushed or deployed.
+Branch `batch5`, built from `notes/archive/plans/BATCH5_RUNBOOK.md`. Nothing pushed or deployed.
 Tests, drivers and screenshots are outside the repository, in
 `C:/Users/TPC/agy-tests/ashry-batch5/` (screenshots in `shots/`).
 

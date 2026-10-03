@@ -93,7 +93,7 @@ cd rooms-worker && node build.mjs && node test/rules.mjs && node test/leaks.mjs 
 ```
 And a look in headless Chrome with three phones and a TV through a race of
 the game at 375x812 (Arabic light) and 1280x720 (English dark): the scratch
-driver `race-look.mjs` (a copy is at `notes/race-look.mjs.txt`) takes
+driver `race-look.mjs` (a copy is at `notes/archive/sheets/race-look.mjs.txt`) takes
 `<game> <lang> <dark> <w> <h>`; add a `PLAY.<id>` entry (a tap on the host's
 board, the solution on p2) and point `BASE` at your preview port. Fix what
 you see; no console errors.

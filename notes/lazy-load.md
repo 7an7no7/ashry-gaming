@@ -16,7 +16,7 @@ first visit so every game still works offline.
 ### The build (`tools/lazy-split.mjs`, used by `build-site.mjs` and `build-preview.mjs`)
 
 - `SHELL_FILES` / `SHELL_LISTS`: what stays on the page - Logo, Tailwind, Style,
-  JS_Core (translations, GAME_RULES, ICON_ART, setView…; its error reporter stays the first script), JS_Lazy, JS_Catalog
+  JS_Translations, JS_Core (ICON_ART, setView…; its error reporter is the first script after the translations), JS_GameRules, JS_Lazy, JS_Catalog
   (GAME_CATALOG, the home), JS_Room (the room engine), JS_RoomAutoNext («التالي لوحده», which trivia, the voting games, موجة, زي الكل and صدق ولا كذب share), JS_Utils (help, settings),
   JS_RoomImposter / JS_RoomGames / JS_RoomVoting (the room games whose lobby every
   room needs), JS_RoomTv (the TV frame), JS_Dice (the dice tool, moved out of

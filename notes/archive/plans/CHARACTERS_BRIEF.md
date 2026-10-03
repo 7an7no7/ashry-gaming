@@ -57,7 +57,7 @@ from the worktree root). For a room game start your own rooms server from the wo
 `cd rooms-worker && node build.mjs && npx wrangler dev --port <ROOMS_PORT> --persist-to C:/wrdev-<N>`
 (the ports are assigned in your task; ports 8787, 4321, 8797 and 4341 belong to other
 sessions - never use them). Drive headless Chrome over the DevTools protocol the way
-`notes/hangman-look.mjs.txt` and `notes/hangman-two-look.mjs.txt` do (copy one into your
+`notes/archive/sheets/hangman-look.mjs.txt` and `notes/archive/sheets/hangman-two-look.mjs.txt` do (copy one into your
 scratchpad, change BASE to your preview port, give each phone its own browser context, emulate
 `prefers-reduced-motion: no-preference`, take screenshots mid-animation with waits) and LOOK
 at the screenshots with the Read tool: at 375×812 Arabic light and 1280×720 English dark at

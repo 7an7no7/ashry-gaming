@@ -1,6 +1,6 @@
 # Batch 4, part B - bughouse (باغ هاوس): T4.1, T4.4 and T4.5 for bughouse
 
-Branch `batch4-b4b`. Runbook: `notes/BATCH4_RUNBOOK.md`, Decision 3.
+Branch `batch4-b4b`. Runbook: `notes/archive/plans/BATCH4_RUNBOOK.md`, Decision 3.
 
 | Task | Commit | Files |
 |---|---|---|

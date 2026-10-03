@@ -71,7 +71,7 @@ help); the rules are named `chairs` / `CHAIRS_`, the page's code `mch` / `MCH_`.
   `nextRound` (the host). The clock (`chairsDeadline` / `chairsTimeout`)
   wakes for a fake pause's start and end, the stop, the window's close and
   the next round.
-- **`JS_RoomChairs.html`** (section 50 of `Style.html`): `mchRingHtml` draws
+- **`JS_RoomChairs.html`** (section 50 of `Style_Rooms.html`): `mchRingHtml` draws
   the ring - the rug, the chairs at 31% of the square, the avatars orbiting
   at 43% while the music plays (`.mch-orbit`, a Web Animation whose
   `playbackRate` follows the tempo and is 0 in a fake pause; each avatar

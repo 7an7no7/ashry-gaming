@@ -345,7 +345,7 @@ camera controls. T2C.9 (board styles) is done here, for both boards.
   the page's network in your report as UNVERIFIED if you can't run a browser).
 
 ## Report
-`notes/phase-reports/batch2.md` as in batch 1.
+`notes/archive/plans/phase-reports/batch2.md` as in batch 1.
 
 ## Anchors (from a read of the code on 24 Sep 2026; grep them, lines move)
 

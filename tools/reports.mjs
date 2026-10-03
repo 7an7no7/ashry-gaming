@@ -1,4 +1,4 @@
-// «في غلطة؟» reports (notes/IMPROVEMENT_PLAN.md, Phase 3).
+// «في غلطة؟» reports (notes/archive/plans/IMPROVEMENT_PLAN.md, Phase 3).
 //   ASHRY_ADMIN_KEY=... npm run reports [-- <rooms address>]
 // Prints every reported item by game, most-reported first. Fix them in the
 // bank by hand (npm run check afterwards).

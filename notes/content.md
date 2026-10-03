@@ -54,7 +54,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     `notes/games/trivia.md`); the count stays 577 Arabic, 579 English.
 
 - **The owner's content decisions of 26 Sep 2026** (the review of 25 Sep,
-  `notes/review-2026-09-25/`, asked each question; the owner answered):
+  `notes/archive/plans/review-2026-09-25/`, asked each question; the owner answered):
   - **Cut**: prompts about height («أطول/أقصر واحد في العيلة» in لو خيروك,
     «شخص قصير ↔ طويل جداً» on the موجة dial, both languages) and romance
     («تتفرج على فيلم رومانسي مع أبوك»), each replaced by a family item of the

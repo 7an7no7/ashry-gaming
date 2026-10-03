@@ -24,7 +24,7 @@ site). A quiz's answers are the author's since the review of 1 Oct 2026 (*The an
 | `RoomGames.js` | `roomPackAdopt` (in `applyRoomAction`, before the games) keeps the pack as `room._pack` for the game (play again, the next round) - a code the server didn't load is refused, a `start` with no pack clears it; `roomPackQuiz`, `roomPackWords`, `roomPackDeck` (choices shuffled at the deal). Trivia, the buzzer (`buzzerQuizDeal`, `buzzerQuizSync`, `buzzerQuizReveal`, actions `quizReveal` and `quizNext`), الجاسوس, الحرباء and ارسم وخمّن deal from it. `clearGameState` drops `_pack`. |
 | `JS_PackStore.html` | In the shell: the packs on this phone (`ashryPacks_v1`), the calls to `/pack/*`, and the helpers the lobbies and the word games use (`packRoomPick`, `packSourceFieldHtml`, `packWordsList`, `packWordsCatName`, `packWordsCode`, `spyCategoriesPlus`, `packCatsPlus`, `packWordsLobbyHtml`). |
 | `JS_QuizMaker.html` | A chunk (`quizmaker` in `tools/lazy-split.mjs`): the hub (`setup-quizmaker`), the editor (`play-quizmaker`), the word pack (`setup-wordpack`), the sheet (`#qm-save-modal`). |
-| `Style.html` | The last section: the editor, the rows, the open card, the sheet (at the foot of an upright phone), the word chips, the buzzer's quiz card, the board's quiz answers. |
+| `Style_Night.html` | Its last section: the editor, the rows, the open card, the sheet (at the foot of an upright phone), the word chips, the buzzer's quiz card, the board's quiz answers. |
 
 ## How it works
 

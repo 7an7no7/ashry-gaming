@@ -33,7 +33,7 @@ Three pieces have to stay in step, all keyed by the same string:
 
 | where | what it holds |
 | --- | --- |
-| `GAME_RULES` in `JS_Core.html` | the rules text, `ar` and `en` |
+| `GAME_RULES` in `JS_GameRules.html` | the rules text, `ar` and `en` |
 | `HELP_ENTRIES` in `JS_Utils.html` | title key, icon, accent, games-or-tools (a catalog game's icon, accent and title are copied from `GAME_CATALOG` at load, so they can't drift) |
 | `HELP_FOR_VIEW` in `JS_Utils.html` | which screens map to it |
 

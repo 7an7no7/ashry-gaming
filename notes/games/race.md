@@ -101,7 +101,7 @@ list (`ROOM_HUB_GROUPS.race`, `ROOM_HUB_FAMILIES.race`, a drawn icon
   خيوط's deal records only the theme it plays in the prompt memory (it took
   eight a deal), and كلمات من حروف's bonus takes `WHEEL_BONUS_WORDS` too. A board is done at `b.at` (the server's time) - a plug-in's
   board must not use `at` for anything else (*Traps*).
-- **The page** (`JS_RoomRace.html`, section 42 of `Style.html`): the lobby
+- **The page** (`JS_RoomRace.html`, section 42 of `Style_Chess.html`): the lobby
   (`raceLobbyHtml`: rounds, the ending; `recallOptions('raceRoom')`), the
   screen (`raceRender`: the strip - round, ending, clock - the game's own
   board in its race stage, the progress rows `raceRowsHtml` (a bar a player,

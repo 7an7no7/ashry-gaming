@@ -206,7 +206,7 @@ pick lit, under «في انتظار باقي الأصوات». Any other ballot 
 `renderBallotBar` at the foot: «صوّت: N/M» above the host's «🔒 اقفل التصويت» (anyone's
 while the host is away). `roomPersonChip(name, extra, cls, title)` and
 `roomInitial(name)` (JS_RoomImposter.html) draw a player as the talk's chip in any
-room screen; `.room-bar__pair` is a room bar's main pair (Style.html, beside
+room screen; `.room-bar__pair` is a room bar's main pair (`Style*.html`, beside
 `.room-moveon`).
 
 
@@ -526,7 +526,7 @@ don't load it.
   (`roomServerNow()`). The last 3 seconds bump (`motionBump`).
 - While the count runs the non-host's «مستنيين المضيف…» line is hidden
   (`.an-slot[data-an-on="1"] ~ .room-moveon-not`).
-- CSS: the `/* ===== NEXT BATCH: AUTONEXT ===== */` section at the end of `Style.html`
+- CSS: the `/* ===== NEXT BATCH: AUTONEXT ===== */` section of `Style_Night.html`
   (tokens only; bigger on the TV, `.an-slot--tv`).
 - Keys: `an_switch`, `an_hint_on`, `an_hint_off`, `an_next_in`, `an_final_in`,
   `an_pause`, `an_paused` (one `// next batch: autonext` block per language). Help:

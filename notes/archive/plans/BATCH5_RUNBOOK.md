@@ -114,4 +114,4 @@ room games with bots), the design system, the motion toolkit).
   section, the log).
 
 ## Report
-`notes/phase-reports/batch5.md`.
+`notes/archive/plans/phase-reports/batch5.md`.

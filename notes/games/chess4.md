@@ -5,7 +5,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 ## From GEMINI.md: The owner's specs, as built
 
 - **شطرنج الأربعة (Four-Player Chess)** - the owner's decisions of 24 Sep
-  2026, every rule asked first (`notes/BATCH5_RUNBOOK.md`), look أ «بطولة»
+  2026, every rule asked first (`notes/archive/plans/BATCH5_RUNBOOK.md`), look أ «بطولة»
   picked from a design sheet of three (*شطرنج الأربعة*):
   - **Rooms only**, every player on their own phone, the TV optional.
   - **Two ways, a lobby choice: teams (the default) and everyone for
@@ -120,7 +120,7 @@ rules are named `chess4` / `CHESS4_` and the page's code `ch4`.
   (FFA out; teams: a hard bot under the leaver's name takes the seat,
   `replaced`). Play again turns the table by one. `ROOM_BOT_GAMES.chess4`
   (max 4); no forced moves (a move is always a choice).
-- **`JS_RoomChess4.html`** (section 36 of `Style.html`):
+- **`JS_RoomChess4.html`** (section 36 of `Style_Chess.html`):
   - **The board** is a grid of 14 × 14 spans (the corners empty) with the
     pieces a layer over it, each placed by transform (`--x`, `--y`), turned by
     quarter turns so your colour is at the bottom (`ch4Cell`, `ch4SqAt`: seat

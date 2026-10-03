@@ -1,4 +1,4 @@
-// How often each game is played (notes/IMPROVEMENT_PLAN.md, Phase 0).
+// How often each game is played (notes/archive/plans/IMPROVEMENT_PLAN.md, Phase 0).
 //   ASHRY_ADMIN_KEY=... npm run plays [-- <rooms address>] [--month=2026-09]
 // Prints every game by how often it was started, split into one phone,
 // a room and a room with a TV, for every month or the one asked for.

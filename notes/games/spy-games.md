@@ -114,7 +114,7 @@ password only for the app's own lists).
   `chameleonId`, or the caught one in the guess phase) rising last, lit and tagged
   🕵️ / 🎭 / 🦎 (`tag`, fading in with the light, `.result-row__tag`). It returns
   when that bar starts, and the result card waits for it: `spyRevealParts(key,
-  label, after)` holds the turn back (`--cover-at` on the card, Style.html section
+  label, after)` holds the turn back (`--cover-at` on the card, `Style*.html` section
   14) and `spyCastHtml(..., { after })` holds the living spy (a positive
   `--spc-late`). The guess phase of a caught spy / chameleon gets the same bars
   and a face-down «الجاسوس كان…» card; the result then shows the bars settled

@@ -73,7 +73,7 @@ for another), maps them with `MAP` in `tools/test-changed.mjs`, prints the plan,
 | the party word lists, `JS_Room<party game>.html` | the `core` and `autonext` segments, the party room games |
 | a one-phone page file `JS_<X>.html` | the screens (and the race room games for the solo puzzles) |
 | `site-worker/`, the icons, `make-og.mjs` | the `site` part |
-| the core (`RoomGames.js`, `rooms-worker/src/`, `JS_Core/Room/RoomTv/...`, `Controller.html`, `Style.html`, the build and test scripts) or a file the map doesn't know | everything |
+| the core (`RoomGames.js`, `rooms-worker/src/`, `JS_Core/Room/RoomTv/...`, `Controller.html`, `Style*.html`, the build and test scripts) or a file the map doesn't know | everything |
 
 The sudoku race tile is in `RACE_GAMES` with the other puzzles (it was the one room
 game no line of the map ever sent to the screen test). `--dry` shows the plan only; `--files=RoomUno.js,JS_Sudoku.html` asks what a change to
@@ -85,7 +85,7 @@ those files would run. A new game adds a line to `MAP` and a segment to `SEGMENT
   saw only the first key of a line, so seven `bank_col_*` keys written several to a line
   were invisible to the missing and duplicate checks.
 - `check-css-vars.js` (run at the end of `check-i18n.js`) fails on a `var(--x)` in
-  `Style.html`, `Controller.html` or a `JS_*.html` that no stylesheet, inline style or
+  `Style*.html`, `Controller.html` or a `JS_*.html` that no stylesheet, inline style or
   `setProperty` defines. Its first run found seven (`--font-mono`, `--accent-btn`,
   `--shadow-md`, `--fs-xl`/`lg`/`md`, `--pad-w`); they read the real tokens now (`--sh-3`,
   `--fs-h1`/`h2`/`h3`, `--accent`, the pad's own `--pad`). `ALLOWED` in the file lets a name

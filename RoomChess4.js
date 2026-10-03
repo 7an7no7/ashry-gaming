@@ -8,7 +8,7 @@
    room adds: the lobby (the way to play, the clock, who sits in which colour),
    the moves, the clock, the host's "play for", leaving, the bots, play again.
 
-   The owner's rules (24 Sep 2026, notes/BATCH5_RUNBOOK.md):
+   The owner's rules (24 Sep 2026, notes/archive/plans/BATCH5_RUNBOOK.md):
      - Rooms only, every player on their own phone, the TV optional.
      - Two ways, a lobby choice: teams (the default; red + yellow against blue +
        green) and everyone for themselves (FFA, chess.com's points).

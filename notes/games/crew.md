@@ -11,7 +11,7 @@ accounts, no passwords, like rooms), the month's table (nights won, then points)
 a champion a month on a wall kept for good, playful titles and records from real
 play, and every night's history. A night counts only when its room was opened
 «للشلة»; one-phone games never count. The page is look ج «كارنيه النادي»
-(`notes/next-level-looks.html`).
+(`notes/archive/sheets/next-level-looks.html`).
 
 ## How it works
 

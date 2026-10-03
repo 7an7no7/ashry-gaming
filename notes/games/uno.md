@@ -133,7 +133,7 @@ the cards in `UnoCards.js`), the owner's spec (see *The owner's specs*).
   variant and checks that no bot move is ever refused and no card is lost.
 
 **أونو on the phones and the TV** (`JS_RoomUno.html`, `ROOM_GAMES.uno` and
-`TV_GAMES.uno`; section 20 of `Style.html`).
+`TV_GAMES.uno`; section 20 of `Style_Cards.html`).
 
 - **The cards the owner picked** (option أ "بلوكات", the family of سكرو's): the
   whole card in its colour (`--uno-r` `#e5383b`, `--uno-y` `#f5b400` with dark

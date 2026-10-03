@@ -123,7 +123,7 @@ are named `est` / `EST_` (shared and server), the page's own code `es` / `ES_`.
   { card, seq }`, the host's `skipTurn { seq }`, `start` / `playAgain` with the
   options and `botNames`. `room._est = { hands (by seat), gone }`; each seated
   phone's slice `{ seat, hand }`, sorted by suit, high first.
-- **`JS_RoomEstimation.html`** (section 38 of `Style.html`): the green table
+- **`JS_RoomEstimation.html`** (section 38 of `Style_Chess.html`): the green table
   (`esTableHtml`: a grid of the four seats round `es-mid`, left to right in
   every language, you at the bottom and the next to play on your left; four
   fixed places `slot:k` the cards land in, the trumps in the middle; the words

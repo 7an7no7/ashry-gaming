@@ -5,7 +5,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 ## From GEMINI.md: The owner's specs, as built
 
 - **باغ هاوس (Bughouse)** - the owner's decision of 24 Sep 2026 (batch 4,
-  Decision 3 of `notes/BATCH4_RUNBOOK.md`) (*باغ هاوس*):
+  Decision 3 of `notes/archive/plans/BATCH4_RUNBOOK.md`) (*باغ هاوس*):
   - **4 players on two boards**, partners on different boards with
     opposite colours (A White on board 1, their partner Black on board 2).
   - **What you capture goes to your partner's hand**; on your move you may
@@ -97,7 +97,7 @@ the client's are both **`bughouse`** (`room-bughouse`, `ROOM_GAMES.bughouse`,
   moment comes first - its thinking time (`BUG_THINK_MS`, steady for one
   key) counted from when its turn began - so both boards keep moving; a bot
   with nothing to do waits and is asked again after the next move anywhere.
-- **`JS_RoomBughouse.html`** (section 35 of `Style.html`, prefix `bh`):
+- **`JS_RoomBughouse.html`** (section 35 of `Style_Chess.html`, prefix `bh`):
   - **Your board big** through chess's one board view (`chViewShow`,
     `bhModel`): its `lost` is the two hands, so the 3D board sets them
     beside itself; `input.onPick` drops the piece picked from the hand

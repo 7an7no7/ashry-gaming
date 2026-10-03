@@ -20,7 +20,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
   - **No computer players** (they could only ask from a list): a room needs
     two people (`players: [2, 12]`, the hub's `min: 2`).
   - **Richer faces**, look ب «ألبوم ناعم» picked from a design sheet of three
-    (`notes/guesswho-looks-sheet.html`, https://claude.ai/artifact/SLPXLhRJAg9Tbh2rYRAU6V):
+    (`notes/archive/sheets/guesswho-looks-sheet.html`, https://claude.ai/artifact/SLPXLhRJAg9Tbh2rYRAU6V):
     worn - glasses, sunglasses, a cap, **a hijab**, a scarf, a tie, a bow tie,
     headphones, earrings, a necklace, several on one face; the face - a
     smile, a big laugh or serious, freckles, rosy cheeks, a mole, thick

@@ -246,7 +246,7 @@ default. Seats are shuffled at start and at play again.
   until play again.
 
 **سكرو on the phones and the TV** (`JS_RoomScrew.html`, `ROOM_GAMES.screw`
-and `TV_GAMES.screw`; styles in section 16 of `Style.html`). Every hand is
+and `TV_GAMES.screw`; styles in section 16 of `Style_Cards.html`). Every hand is
 face down in numbered slots on every phone and the TV, drawn by one card
 builder, `skrCardHtml`, sized by `--skr-w`.
 

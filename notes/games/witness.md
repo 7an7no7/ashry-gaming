@@ -163,7 +163,7 @@ On the page `witTallyHtml` (JS_RoomWitness.html, `witMatchOf`: `shared.match`, o
 the % counting up (`stageReveal`'s `count`) to land with the last tick, a bar with the 70% line
 (`.wit-match__fill` grows by `transform`), «الرسام جاب 14/15» under it - then the ✓ / ✗ chips one
 by one, then «🎯 70% وأكتر: +1 للشاهد و+1 للرسام» or «تحت 70%: للضحك بس 😄», on every phone and
-beside the two faces on the TV (section «IDEAS BATCH: ROOMS» of Style.html, `.wit-match*`; the
+beside the two faces on the TV (section «IDEAS BATCH: ROOMS» of `Style_Night.html`, `.wit-match*`; the
 TV's reveal column has smaller faces and tighter gaps so it all fits 16:9). The tally of the
 ideas batch (`witFeatureMatches`, worked out on the page) is replaced by it. The game's words
 are in `WIT_TEXT` in the chunk (all the `wit_*` keys moved out of `TRANSLATIONS`, the shell's

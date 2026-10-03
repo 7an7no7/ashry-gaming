@@ -63,7 +63,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
 
 The owner's decisions are in *The owner's specs*. One engine for every duel,
 on the server (`RoomTournament.js`) and on the page (`JS_RoomTournament.html`,
-section 30 of `Style.html`).
+section 30 of `Style_Chess.html`).
 
 **A match is a small room.** `room.shared` holds the bracket (`tour`: the
 entrants, their names, `matches` with each one's two players `p`, its byes

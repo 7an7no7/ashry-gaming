@@ -107,4 +107,4 @@ Read GEMINI.md "### شطرنج" and "### Solo games" (registration, seeded daili
   one.
 
 ## Report
-`notes/phase-reports/batch3.md`.
+`notes/archive/plans/phase-reports/batch3.md`.

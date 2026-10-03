@@ -104,4 +104,4 @@ Every new room file is added to `FILES` in `rooms-worker/build.mjs` after
   except nothing - but check anyway), robot rounds.
 
 ## Report
-`notes/phase-reports/batch4.md`.
+`notes/archive/plans/phase-reports/batch4.md`.

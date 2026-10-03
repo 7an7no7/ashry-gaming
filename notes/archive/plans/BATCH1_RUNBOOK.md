@@ -182,5 +182,5 @@ each task before editing. This is feature work, not a repair: where a task says
 
 ## Report
 
-Write `notes/phase-reports/batch1.md`: per task, the commit, files, and each
+Write `notes/archive/plans/phase-reports/batch1.md`: per task, the commit, files, and each
 Accept-when marked VERIFIED (how) or UNVERIFIED (why). Commit it alone.

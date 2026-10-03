@@ -43,7 +43,6 @@ const LUDO_START = { G: 0, Y: 13, B: 26, R: 39 };    // each colour's start squa
 const LUDO_TRACK = 52;
 const LUDO_LAST_TRACK = 50;
 const LUDO_HOME = 56;
-const LUDO_PIECES = 4;
 const LUDO_SAFE = [0, 8, 13, 21, 26, 34, 39, 47];   // the four starts and the four stars
 const LUDO_STARS = [8, 21, 34, 47];
 const LUDO_MIN_PLAYERS = 2;

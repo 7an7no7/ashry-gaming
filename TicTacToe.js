@@ -109,12 +109,6 @@ function xoBigMiniAfter(cells, b, i) {
   return 'D';
 }
 
-/** The small board's winning line (its squares 0-8), or null. */
-function xoBigMiniLine(cells, b) {
-  const w = xoWinner(cells.slice(b * 9, b * 9 + 9));
-  return w && w.line ? w.line : null;
-}
-
 /**
  * `mark` at square `at` (0-80) of game `g`, in place: null when it isn't a
  * legal move; otherwise { board, cell, took } - took is the board's new

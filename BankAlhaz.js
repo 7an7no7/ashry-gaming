@@ -81,7 +81,6 @@ const BANK_GROUPS = {
   br: { house: 50 }, lb: { house: 50 }, pk: { house: 100 }, or: { house: 100 },
   rd: { house: 150 }, ye: { house: 150 }, gr: { house: 200 }, db: { house: 200 }
 };
-const BANK_GROUP_ORDER = ['br', 'lb', 'pk', 'or', 'rd', 'ye', 'gr', 'db'];
 
 /**
  * The 40 squares from Start, going round. A place (`p`) has its colour, price
@@ -179,7 +178,6 @@ const BANK_CARDS = {
 
 /* --- small pieces ------------------------------------------------------------------- */
 
-const bankSq = (i) => BANK_SQUARES[i];
 const bankIsOwnable = (i) => { const t = BANK_SQUARES[i].t; return t === 'p' || t === 'st' || t === 'co'; };
 const bankGroupSquares = (grp) => BANK_SQUARES.map((q, i) => (q.g === grp ? i : -1)).filter(i => i !== -1);
 const bankOwnerOf = (g, i) => ((g.own || {})[i] || {}).by || null;

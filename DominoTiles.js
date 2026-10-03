@@ -38,9 +38,6 @@ const DOMINO_TEAM_KEYS = ['A', 'B'];       // shared.teams[0] and [1]: seats 1 &
 
 /* --- one tile ---------------------------------------------------------------- */
 
-/** The id of the tile with these two numbers, low first. */
-const dominoId = (a, b) => Math.min(a, b) + '-' + Math.max(a, b);
-
 /** [low, high], or null for anything that is not a tile of the set. */
 const dominoParse = (id) => {
   const m = /^([0-6])-([0-6])$/.exec(String(id == null ? '' : id));

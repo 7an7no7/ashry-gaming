@@ -21,7 +21,6 @@
    of the time, and otherwise drops near the middle at random.
    ========================================================================= */
 const C4_MODES = { 4: { cols: 7, rows: 6 }, 5: { cols: 9, rows: 6 } };
-const C4_LEVELS = ['easy', 'medium', 'hard'];
 const C4_BUDGET_MS = 250;
 const C4_MAX_NODES = 3000000;     // a ceiling as well as the clock, should the clock ever stand still
 const C4_WIN = 1000000;

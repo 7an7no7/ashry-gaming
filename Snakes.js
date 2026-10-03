@@ -120,7 +120,6 @@ const snakesMoveMs = (theme, k, v) => {
    the player just ahead of you, ⭐ roll again, 💨 a ladder worker carries you 3-5 squares (never onto a
    snake, a ladder or another surprise), 🍌 a banana peel (back 3), 😴 a nap (you miss your next turn). */
 const SNAKES_SURPRISES = ['charm', 'swap', 'again', 'worker', 'peel', 'nap'];
-const SNAKES_SURPRISE_GOOD = { charm: true, swap: true, again: true, worker: true };
 const SNAKES_SURP_MS = { charm: 2200, swap: 2000, again: 1500, worker: 1900, peel: 2200, nap: 1900, none: 1100 };
 const SNAKES_WORKER_STEP_MS = 300;    // the worker carries you a square
 const SNAKES_CHARMED_MS = 2600;       // the snake sways to the flute and lets you pass
@@ -142,7 +141,6 @@ const SNAKES_TEAM_SIZES = { 4: [2], 6: [2, 3] };
 
 /* The awards (look ج «لقطة»): up to three a game, the most dramatic, each measured against the most
    it could reasonably be (SNAKES_AWARD_CAP), revealed one by one, the biggest last. */
-const SNAKES_AWARDS = ['eaten', 'ladder', 'sixes', 'fall'];
 const SNAKES_AWARD_CAP = { fall: 90, ladder: 90, eaten: 6, sixes: 9 };
 const SNAKES_AWARDS_MAX = 3;
 

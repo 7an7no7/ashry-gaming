@@ -2501,18 +2501,6 @@ const SNK_SURP_FX = { charm: snkFxCharm, swap: snkFxSwap, again: snkFxAgain, wor
    curve; a down piece that can't (a slide, a drainpipe) is taken down and put up again. Anyone on its new
    head is eaten and comes out at its new tail. */
 
-/** The way from a snake's head to a point, the one whose body tangles least (snkCrawlPlan's ways). */
-function snkCrawlTo(pts, to, W) {
-  let best = null;
-  [[0, 0, 15], [0, 0, -15], [0, 0, 0], [1, 55, 12], [-1, 55, 12], [1, 75, 0], [-1, 75, 0]].forEach(([turn, R, amp]) => {
-    const w = snkCrawlWayOf(pts, to, turn, R || 55, amp);
-    const knots = snkCrawlKnots(pts, w.pts, W);
-    const score = knots * 1000 + w.L + (turn ? 10 : 0);
-    if (!best || score < best.score) best = { way: w.pts, D: w.L, score: score };
-  });
-  return best;
-}
-
 /** A polyline as points SNK_STEP apart along it (what snkCrawlPoint indexes), with its length. */
 function snkEvenly(poly) {
   const out = [{ x: poly[0].x, y: poly[0].y, a: 0 }];
@@ -2545,17 +2533,6 @@ function snkMoveWay(pts, nwPts, W) {
     if (!best || score < best.score) best = { way: full.pts, D: full.L, score: score };
   });
   return best;
-}
-
-/** Points along a polyline, each with its place along it and its normal (a body's resting shape for snkBodyPts). */
-function snkPtsOf(poly) {
-  let a = 0;
-  const out = poly.map((p, i) => { if (i) a += Math.hypot(p.x - poly[i - 1].x, p.y - poly[i - 1].y); return { x: p.x, y: p.y, a: a }; });
-  out.forEach((p, i) => {
-    const q = out[Math.min(out.length - 1, i + 1)], r = out[Math.max(0, i - 1)], dx = q.x - r.x, dy = q.y - r.y, l = Math.hypot(dx, dy) || 1;
-    p.nx = -dy / l; p.ny = dx / l;
-  });
-  return out;
 }
 
 /** Snake `i` drawn again at its new spot `s2` (its own colour and face), and the board's map moved with it. */

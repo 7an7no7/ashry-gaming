@@ -119,13 +119,6 @@ const hbFitOrder = (room, order) => {
 /** Four seats drawn afresh: people first, at random. */
 const hbDrawSeats = (room) => hbFitOrder(room, null);
 
-/** Does `order` hold everyone who can sit, each once, and nobody gone? */
-const hbOrderFits = (room, order) => {
-  if (!Array.isArray(order) || order.length !== HB_SEATS) return false;
-  const fit = hbFitOrder(room, order);
-  return fit.every((id, i) => id === order[i]);
-};
-
 /** The host's seats: `{ shuffle }` draws again, `{ order }` is the host's own arrangement (two seats swapped), nothing keeps them in step with the room. */
 const hbLobbySeats = (room, playerId, p) => {
   requireHost(room, playerId);

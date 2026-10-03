@@ -28,7 +28,6 @@
             time, and otherwise draws anywhere.
    ========================================================================= */
 const DOTS_SIZES = [4, 6, 8];
-const DOTS_LEVELS = ['easy', 'medium', 'hard'];
 const DOTS_BUDGET_MS = 200;
 const DOTS_SAFE_SEARCH = 12;       // safe lines left when the hard player starts counting them out
 const DOTS_MAX_NODES = 200000;     // a ceiling as well as the clock, should the clock ever stand still

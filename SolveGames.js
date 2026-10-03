@@ -19,7 +19,6 @@
    the race's riddles EMOJI_RIDDLES (EmojiRiddles.js).
    ========================================================================= */
 
-const SV_KINDS = ['wordle', 'guessnum', 'flags', 'emoji'];
 const SV_ROUNDS = [3, 5, 10];
 // The clock of one secret, per game (the owner: off by default, "60 or 90 like
 // Hangman, sensible per game"): five letters six times over takes longer than a number.

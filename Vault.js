@@ -27,7 +27,6 @@ const VAULT_LOCK_NAMES = {
   dial: ['القرص', 'The dial'],
   lights: ['النور', 'Lights']
 };
-const VAULT_LOCK_ICONS = { wires: '✂️', symbols: '🔣', dial: '🎛️', lights: '💡' };
 
 // The numbers, in one place (decided while building, 1 Oct 2026).
 const VAULT_MIN = 2;               // players to start: an opener and a reader

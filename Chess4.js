@@ -50,7 +50,6 @@
 const CHESS4_N = 14;
 const CHESS4_FILES = 'abcdefghijklmn';
 const CHESS4_SEATS = [0, 1, 2, 3];                   // red, blue, yellow, green: the order of play
-const CHESS4_COLORS = ['r', 'b', 'y', 'g'];
 const CHESS4_MODES = ['teams', 'ffa'];
 const CHESS4_CLOCKS = [0, 1, 3, 5];                 // minutes a player, 0 = no clock
 const CHESS4_INC_MS = 5000;                         // added after every move
@@ -69,8 +68,6 @@ const chess4Valid = (x, y) => x >= 0 && x < CHESS4_N && y >= 0 && y < CHESS4_N &
 const chess4XY = (i) => [i % CHESS4_N, Math.floor(i / CHESS4_N)];
 const chess4Sq = (x, y) => y * CHESS4_N + x;
 const chess4SqName = (i) => { const [x, y] = chess4XY(i); return CHESS4_FILES[x] + (y + 1); };
-const chess4Owner = (code) => (code >> 3) & 3;
-const chess4Kind = (code) => code & 7;
 const chess4Team = (seat) => seat % 2;              // 0: red + yellow, 1: blue + green
 
 // Board index <-> mailbox index, and the mailbox's empty board.
@@ -205,9 +202,6 @@ const chess4InCheckPos = (p, seat) => p.kings[seat] >= 0 && !p.out[seat] && ches
 
 // A move is a number: from | to << 9 | flags << 18 (mailbox squares, below 512).
 const CHESS4_F_CAP = 1, CHESS4_F_PROMO = 2, CHESS4_F_CASTLE = 4;
-const chess4MFrom = (mv) => mv & 511;
-const chess4MTo = (mv) => (mv >> 9) & 511;
-const chess4MFlags = (mv) => mv >> 18;
 
 /** Can `seat` take what stands on q? Another player's piece, not a partner's, not a grey one, never a king. */
 function chess4CanTake(p, seat, c) {

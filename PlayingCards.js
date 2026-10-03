@@ -12,7 +12,6 @@
    ========================================================================= */
 const PC_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const PC_SUITS = ['s', 'h', 'd', 'c'];
-const PC_SUIT_GLYPH = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const PC_OLD_MAID = 'OM';
 
 /** The whole deck `decks` times over, unshuffled. */

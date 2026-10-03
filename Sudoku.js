@@ -96,15 +96,6 @@ function sudokuFill(rnd) {
   return g;
 }
 
-/**
- * Whether the two plainest steps alone finish the grid: a cell with one
- * possible number (naked single), or a number with one possible cell in its
- * row, column or box (hidden single).
- */
-function sudokuSinglesSolve(grid) {
-  return sudokuGrade(grid) === 1;
-}
-
 /* --- grading by technique (the review of 1 Oct 2026) ---------------------------------
    Medium used to play like easy (38 of 40 grids solved by singles alone) and hard could
    fall back to singles or need a guess. A grid is now graded the way a person solves

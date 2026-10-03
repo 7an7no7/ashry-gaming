@@ -78,3 +78,11 @@ https://claude.ai/artifact/TybGWnUVHhgWeitq1jPtWC was the first look sheet (1C, 
 4. Opening a game: A the card grows into the header, B the screen rises as a sheet over the dimmed home, C the home zooms through the card.
 
 The owner picked 1B, 2A, 3A, 4A (3 Oct 2026), and answered: the lobby's tabs become «اللاعبين» / «اللعبة: …» once the host picks a game, and the room turns to the game's tab by itself (options and Start there, «تغيير» back to the list); other players' phones get no tabs - the code, the faces and «المضيف بيختار اللعبة…», then the chosen game's card under the faces; the TV's stage is always dark; a soft pop as each face lands on the TV (the app has no sound switch: the TV's own volume). All four built and live 3 Oct 2026.
+
+## Sheet three, 3 Oct 2026 (waiting on the owner)
+
+https://claude.ai/artifact/2V7KTKB4MiGj9uTE7r1XYR - four more, each as it is and three looks rendered from the app:
+1. The bottom bar while a one-phone game is played (a hand reaching for «صح!» can hit 🏠; 75px the game could use): A no bar on play screens, B folded to one ☰ button, C away only while a clock runs.
+2. Joining a room: A four letter boxes, the saved name as a chip, «ارجع للغرفة» for the last room; B scan first (a picture of the camera on the code), boxes second; C the boxes at the top of مع بعض, no separate screen. Joining by itself on the fourth letter.
+3. Passing the phone (the one-phone deduction games): A everyone's faces under the card (looked ✓, whose turn ringed), B a ring «2 من 4», C a full colour hand-over screen «ادّي الموبايل لـ سارة» with «أنا سارة، وَرّيني» before the card.
+4. The tools tab (1,857px): A tiles two a row, B app icons three a row (1,174px), C slim one-line rows.

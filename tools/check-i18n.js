@@ -16,7 +16,7 @@ const path = require('path');
 const acorn = require('acorn');
 
 const ROOT = path.join(__dirname, '..');
-const core = fs.readFileSync(path.join(ROOT, 'JS_Core.html'), 'utf8');
+const core = fs.readFileSync(path.join(ROOT, 'JS_Translations.html'), 'utf8');
 
 // TRANSLATIONS read by a real parser: a line regex saw only the first key of a line, so
 // `bank_col_br: …, bank_col_lb: …` on one line hid the second from both checks below.

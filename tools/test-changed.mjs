@@ -36,8 +36,8 @@ const ROOMS = (ARGS.find((a) => /^https?:/.test(a)) || process.env.ROOMS_URL || 
 const CORE = [
   /^rooms-worker\/src\//, /^rooms-worker\/build\.mjs$/, /^rooms-worker\/fingerprint\.mjs$/, /^rooms-worker\/package/,
   /^rooms-worker\/wrangler/, /^RoomGames\.js$/, /^Room(Stop|Chameleon|Spyfall|Bomb|Buzzer|Imposter|JustOne|WhoAmI|Codenames|WouldYou|MostLikely|Fibbage|Draw|FakeArtist|Trivia|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|Herd|Mind|Timeline)\.js$/, /^Games\.js$/, /^DisabledGames\.js$/,
-  /^Controller\.html$/, /^Style\.html$/, /^Tailwind\.html$/, /^Logo\.html$/,
-  /^JS_(Core|Room|RoomGames|RoomTv|RoomTurn|RoomChat|RoomAudience|RoomVoting|Motion|Utils|Catalog|Sounds|Three|ShareCard|Solo|Daily|TeamRelay)\.html$/,
+  /^Controller\.html$/, /^Style(_\w+)?\.html$/, /^Tailwind\.html$/, /^Logo\.html$/,
+  /^JS_(Core|Translations|Room|RoomGames|RoomTv|RoomTurn|RoomChat|RoomAudience|RoomVoting|Motion|Utils|Catalog|Sounds|Three|ShareCard|Solo|Daily|TeamRelay)\.html$/,
   /^tools\/(build-preview|build-site|test-ui|test-ui-parallel|test-changed)\.mjs$/, /^tools\/package/,
   /^rooms-worker\/test\/play-all\.mjs$/,
 ];
@@ -47,6 +47,8 @@ const CORE_GAMES = ['imposter', 'justone', 'whoami', 'codenames', 'fibbage', 'wo
   'telephone', 'monkey', 'herd', 'mind', 'timeline'];
 const RACE_GAMES = ['strands', 'wordwheel', 'connections', 'pinpoint', 'queens', 'tango', 'nonogram', 'mines', 'streak', 'sudoku'];
 const MAP = [
+  // The rules in Help and the first-play card: the screens only.
+  { files: /^JS_GameRules\.html$/, screens: true },
   // The party games the core segment plays in its one room (and their word lists).
   { files: /^(SpyWords|CodenamesWords|PartyContent|TriviaQuestions|ChameleonWords|SpyfallPlaces|BombPrompts|EmojiRiddles|Proverbs|MonkeyWords|StopWords|TimelineEvents)\.js$/, robots: ['core', 'autonext'], ui: CORE_GAMES, screens: true },
   { files: /^JS_Room(Imposter|Codenames|Buzzer|Stop|Chameleon|Spyfall|Bomb|Draw|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|FakeArtist|Trivia|Herd|Mind|Timeline)\.html$/, robots: ['core', 'autonext'], ui: CORE_GAMES },

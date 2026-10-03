@@ -16,7 +16,7 @@
  * by being a room game in GAME_LIST with a drawn icon (and a removed one loses it):
  *   GAME_LIST (Games.js)           the room games: id, icon, name's i18n key, accent
  *   ICON_ART (JS_Core.html)        the drawn icons (64x64 SVG bodies)
- *   TRANSLATIONS (JS_Core.html)    the games' names
+ *   TRANSLATIONS (JS_Translations.html) the games' names
  *   Style.html                     each accent's colours
  *   Logo.html                      the brand mark
  *
@@ -45,10 +45,11 @@ const evalLiteral = (text) => new Function(`return (${text});`)();
 
 async function sources() {
   const core = await readFile(path.join(root, 'JS_Core.html'), 'utf8');
+  const words = await readFile(path.join(root, 'JS_Translations.html'), 'utf8');
   const gamesJs = await readFile(path.join(root, 'Games.js'), 'utf8');
   const style = await readFile(path.join(root, 'Style.html'), 'utf8');
   const logo = await readFile(path.join(root, 'Logo.html'), 'utf8');
-  const T = evalLiteral(literalAfter(core, 'const TRANSLATIONS = {', '  };'));
+  const T = evalLiteral(literalAfter(words, 'const TRANSLATIONS = {', '  };'));
   const ART = evalLiteral(literalAfter(core, 'const ICON_ART = {', '  };'));
   // A room's list, as ROOM_HUB_GAMES (JS_Room.html) builds it.
   const HUB = new Function(gamesJs + '\nreturn ROOM_GAME_LIST;')()

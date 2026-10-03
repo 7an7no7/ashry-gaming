@@ -1,0 +1,2631 @@
+<style>
+/* Style_Screens.html - sections 9-10 and the sizes: the first games' screens, accessibility, phones on their side, tablets, laptops, TVs, and the big screen (شاشة العرض).
+   Part of the stylesheet that starts in Style.html: the parts are included in
+   Controller.html in this order, and the cascade depends on it. */
+
+/* ==========================================================================
+   9. GAME-SPECIFIC
+   ========================================================================== */
+
+/* --- The intro ------------------------------------------------------------
+   The markup and first-paint styles are the critical CSS in Controller.html,
+   and the flight is introExit in JS_Core.html. Here: the ground in the theme's
+   own colour, the header mark kept out of sight until the flying one lands on
+   it, and the home rising in as the ground fades. */
+#app-loader .intro__ground { background: var(--bg); }
+body.intro-flying #app-title .mark--title { visibility: hidden; }
+body.intro-reveal #view-menu,
+body.intro-reveal .shell__nav { animation: intro-rise 680ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+body.intro-reveal .shell__nav { animation-delay: 60ms; }
+@keyframes intro-rise {
+  from { opacity: 0.4; transform: translateY(1.6rem); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.intro-reveal #view-menu, body.intro-reveal .shell__nav { animation: none; }
+}
+
+/* --- Screw ------------------------------------------------------------- */
+.screw-card {
+  background: var(--surface-solid);
+  color: var(--text);
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-md);
+}
+.screw-name-text { color: var(--text-strong) !important; font-weight: 800; }
+.score-input {
+  flex: none;
+  width: 4.75rem;
+  min-height: var(--tap);
+  padding-inline: var(--sp-2);
+  font-size: 1.15rem;
+  text-align: center;
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+/* --- Teams ------------------------------------------------------------- */
+.team-card-bg { background: var(--surface-solid) !important; border-inline: 1px solid var(--border); border-bottom: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+.team-text-color { color: var(--text-strong) !important; }
+.team-divider { border-bottom: 1px solid var(--hairline) !important; }
+
+/* --- Help / rules ------------------------------------------------------ */
+/* --- Help sheet ---------------------------------------------------------
+   Three parts: the card for the screen you pressed ❓ from, a search field,
+   and the full list. The context card is the point — pressing help during a
+   game should answer the question you have, not hand you the manual.
+   -------------------------------------------------------------------------- */
+
+/* The card for the screen you came from. Filled in that game's own accent so
+   it reads as "this one", not as the first item of the list. */
+.help-hero {
+  position: relative;
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-4);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-lg);
+}
+.help-hero__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.help-hero__icon {
+  flex: none;
+  width: 2.875rem; height: 2.875rem;
+  display: grid; place-items: center;
+  font-size: 1.5rem;
+  background: var(--surface-solid);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-md);
+}
+.help-hero__meta { flex: 1; min-width: 0; }
+.help-hero__eyebrow {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--accent-ink);
+  margin-bottom: 2px;
+}
+.help-hero__title {
+  font-size: var(--fs-h2);
+  font-weight: 900;
+  color: var(--text-strong);
+  line-height: 1.2;
+}
+.help-hero__body { color: var(--text); line-height: var(--lh-body); }
+.help-hero__body ol, .help-hero__body ul { margin: 0; padding-inline-start: var(--sp-5); }
+.help-hero__body li + li { margin-top: var(--sp-2); }
+.help-hero__body b { color: var(--text-strong); }
+
+/* "Also plays on separate phones" and friends — a jump to a related entry. */
+.help-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  min-height: 2.5rem;
+  padding: 0 var(--sp-3);
+  background: var(--surface-solid);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-full);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+}
+.help-jump:active { transform: scale(0.97); }
+
+/* --- Search --- */
+.help-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: var(--sp-3);
+}
+.help-search__icon {
+  position: absolute;
+  inset-inline-start: var(--sp-3);
+  font-size: 0.95rem;
+  opacity: 0.6;
+  pointer-events: none;
+}
+.help-search input {
+  margin: 0;
+  padding-inline-start: var(--sp-8);
+  padding-inline-end: var(--sp-9);
+}
+.help-search__clear {
+  position: absolute;
+  inset-inline-end: 0.25rem;
+  /* The app's tap-target floor is 40px and this sits inside a 48px field. */
+  width: 2.5rem; height: 2.5rem;
+  display: grid; place-items: center;
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* --- The list --- */
+.help-game-card {
+  background: var(--surface-solid) !important;
+  border: 1px solid var(--border) !important;
+  /* A stripe of the game's own accent, so the list is scannable by colour. */
+  border-inline-start: 3px solid var(--accent) !important;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  transition: border-color var(--dur-2) var(--ease-out);
+}
+.help-game-card + .help-game-card { margin-top: var(--sp-2); }
+.help-game-card[open] { border-color: var(--accent-border) !important; }
+
+.help-game-card summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 3.5rem;
+  padding: var(--sp-2) var(--sp-3);
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--text-strong);
+  list-style: none;
+}
+.help-game-card summary::-webkit-details-marker { display: none; }
+.help-game-card summary:active { background: var(--accent-soft); }
+
+.help-game-card__icon {
+  flex: none;
+  width: 2.375rem; height: 2.375rem;
+  display: grid; place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  font-size: 1.1rem;
+}
+.help-game-card__name { flex: 1; min-width: 0; }
+.help-game-card__chev {
+  flex: none;
+  color: var(--text-3);
+  font-size: 0.9rem;
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.help-game-card[open] .help-game-card__chev { transform: rotate(180deg); }
+
+.help-game-text {
+  color: var(--text-2) !important;
+  line-height: var(--lh-body);
+  animation: riseIn var(--dur-2) var(--ease-out) both;
+}
+.help-game-text ol, .help-game-text ul { margin: 0; padding-inline-start: var(--sp-5); }
+.help-game-text li + li { margin-top: var(--sp-1); }
+.help-game-text b { color: var(--text); }
+
+/* Search hit inside a title. */
+.help-game-card mark {
+  background: var(--warning-soft);
+  color: var(--text-strong);
+  border-radius: 0.25rem;
+  padding: 0 2px;
+}
+
+.help-empty {
+  padding: var(--sp-8) var(--sp-4);
+  text-align: center;
+  color: var(--text-2);
+}
+.help-empty__icon { font-size: 2rem; display: block; margin-bottom: var(--sp-2); }
+
+/* --- Imposter / leaderboard -------------------------------------------- */
+.imposter-card, .leaderboard-card {
+  background: var(--surface-solid);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.imposter-card { padding: var(--sp-2) var(--sp-3); font-weight: 800; }
+.leaderboard-card.winner {
+  background: var(--warning-soft);
+  border-color: var(--warning);
+  color: var(--warning-ink);
+}
+
+/* --- Wordle ------------------------------------------------------------ */
+
+/* The view fills the shell's main row and hands the leftover height to the
+   board, so the keyboard is always fully on screen. Previously the layout was
+   h-[90vh] inside a page that also had a fixed nav, and the keyboard's bottom
+   row (Enter / Backspace) was simply unreachable. */
+.wordle-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.wordle-layout__board {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wordle-grid {
+  display: grid;
+  gap: var(--sp-1);
+  /* Sized by height as much as by width. The cells are square, so a short word
+     makes them wide, and six rows of wide cells pushed the Enter key off the
+     bottom — on a game where you press Enter every turn. Giving the grid the
+     board's own aspect ratio lets it take whichever of the two dimensions runs
+     out first, so it fits on an SE as readily as on a tall phone. */
+  --wordle-cols: 5;
+  --wordle-rows: 6;
+  aspect-ratio: var(--wordle-cols) / var(--wordle-rows);
+  height: 100%;
+  width: auto;
+  max-height: 100%;
+  max-width: min(20.625rem, 82vw);
+  margin: auto;
+}
+.wordle-row { display: grid; gap: var(--sp-1); }
+.wordle-cell {
+  aspect-ratio: 1;
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-xs);
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--text-strong);
+  background: var(--surface-3);
+  border: 2px solid transparent;
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.wordle-cell--empty { background: transparent; border-color: var(--border); }
+.wordle-cell--filled { border-color: var(--border-strong); background: var(--surface-solid); }
+/* Same -on tokens the solid buttons use: white on the bright dark-mode warning
+   is 2.15:1, which made the "right letter, wrong place" tile unreadable. */
+.wordle-cell--correct { background: var(--success-btn); border-color: var(--success-btn); color: var(--success-on); }
+.wordle-cell--present { background: var(--warning-btn); border-color: var(--warning-btn); color: var(--warning-on); }
+.wordle-cell--absent  { background: var(--n-500); border-color: var(--n-500); color: #fff; }
+body.dark .wordle-cell--absent { background: var(--n-700); border-color: var(--n-700); color: #cbd5e1; }
+
+/* Keyboard — every key clears the 44px target on a 375px screen because the
+   rows scale with the viewport instead of using fixed widths. */
+/* The Arabic layout is 12 keys wide. 44px keys would need a 560px screen, so
+   the keypad claims the full width back from the main scroller's padding and
+   buys its target area in height instead - which is exactly what the phone's
+   own keyboard does. */
+.keypad {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+  /* No negative margin. Pulling the scroller's padding back gained 2px of key
+     width and cost a clipped first key, because scrollbar-gutter reserves a
+     strip on the inline-end side that the margin then ate into. The target
+     area comes from the key height instead, which is free. */
+}
+.keypad__row { display: flex; gap: 3px; justify-content: center; }
+.key {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 3.375rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  /* White paper with a hairline and a lower edge, like the phone's own keys:
+     --surface-3 is #f7f5f1 on a #f5f3ee page, and the keyboard all but vanished. */
+  background: var(--surface-solid);
+  box-shadow: 0 1px 0 var(--border-strong), inset 0 0 0 1px var(--border);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+/* The dark page is ink, so the lighter surface reads there. :where keeps it
+   weightless, so the right/present/absent colours below still win. */
+:where(body.dark) .key { background: var(--surface-3); }
+.key:active { transform: translateY(1px) scale(0.94); background: var(--accent-soft); }
+.key--wide { flex: 1.6 1 0; font-size: 1.05rem; }
+.key--correct { background: var(--success-btn); color: var(--success-on); }
+.key--present { background: var(--warning-btn); color: var(--warning-on); }
+/* Clearly spent, without competing with the correct/present states — but still
+   readable: dimming this with opacity took the letter to 2.2:1, so you could
+   no longer see which letters you had already ruled out. */
+.key--absent  { background: var(--surface-sunken); color: var(--text-2); }
+
+/* --- Spin wheel -------------------------------------------------------- */
+.wheel-wrap {
+  position: relative;
+  width: min(17.5rem, 74vw);
+  margin: 0 auto var(--sp-5);
+  aspect-ratio: 1;
+}
+.wheel {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 5px solid var(--surface-solid);
+  box-shadow: 0 12px 32px -10px rgba(15, 23, 42, 0.35), inset 0 0 0 1px var(--border);
+  transition: transform 3.6s cubic-bezier(0.16, 1, 0.24, 1);
+  will-change: transform;
+}
+.wheel__hub {
+  position: absolute;
+  /* Centred by auto margins between both edges: inset-inline-start with a
+     translate put it 54px off centre in Arabic, where the start is the right. */
+  inset-inline: 0;
+  margin-inline: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3.375rem; height: 3.375rem;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2), inset 0 0 0 1px var(--border);
+  font-size: 1.35rem;
+  z-index: 2;
+}
+/* The SVG fills the disc; the disc itself carries the border and the spin. */
+.wheel > svg { display: block; border-radius: 50%; }
+
+.wheel__needle {
+  position: absolute;
+  top: -0.375rem;
+  inset-inline: 0;
+  margin-inline: auto;
+  width: 0; height: 0;
+  border-inline: 11px solid transparent;
+  border-top: 20px solid var(--accent);
+  filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.3));
+  z-index: 3;
+}
+
+/* --- Tournament bracket ------------------------------------------------ */
+.tourney-match-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.bracket-btn {
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  background: var(--surface-solid);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.bracket-btn:active { transform: scale(0.98); }
+.bracket-btn.winner { background: var(--success-soft); border-color: var(--success); color: var(--success-ink); }
+.bracket-btn.loser  { opacity: 0.45; text-decoration: line-through; }
+
+/* --- Reorder list ------------------------------------------------------ */
+#reorder-list .reorder-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 3.5rem;
+  padding: var(--sp-2) var(--sp-4);
+  margin-bottom: var(--sp-2);
+  background: var(--surface-solid);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+#reorder-list .reorder-item:active { transform: scale(0.985); }
+#reorder-list .reorder-item.selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+/* The name and the hint follow the accent; the number badge is excluded because
+   it has a background of its own — recolouring it put light ink on a light
+   plate in dark mode (1.85:1). */
+#reorder-list .reorder-item.selected span,
+#reorder-list .reorder-item.selected div:not(.reorder-num) { color: var(--accent-ink) !important; }
+
+.reorder-num {
+  flex: none;
+  width: 2rem; height: 2rem;
+  display: grid; place-items: center;
+  border-radius: var(--r-xs);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-weight: 900;
+  font-size: var(--fs-sm);
+}
+.reorder-item.selected .reorder-num { background: var(--accent); color: var(--accent-on); }
+
+/* --- Misc game bits ---------------------------------------------------- */
+
+.control-btn {
+  min-height: 2.625rem;
+  min-width: 2.625rem;
+  padding: 0 var(--sp-3);
+  background: var(--surface-solid);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  font-family: var(--font);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out);
+}
+.control-btn:active { transform: scale(0.92); background: var(--surface-3); }
+.control-btn--danger { color: var(--danger-ink); border-color: var(--danger); background: var(--danger-soft); }
+
+/* The plate the single-device Imposter reveal sits on. It tints red for the
+   spy, which is the one moment the app wants to feel like a jolt. */
+.reveal-plate {
+  padding: var(--sp-8) var(--sp-5);
+  background: var(--surface-2);
+  border: 2px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.06);
+  transition: background-color var(--dur-2) var(--ease-out),
+              border-color var(--dur-2) var(--ease-out);
+}
+.reveal-plate.is-spy { background: var(--danger-soft); border-color: var(--danger); }
+
+/* A chess clock's idle half still has to be readable across a table - the old
+   slate-600-on-slate-900 pairing was under 2:1. */
+.chess-half {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--surface-sunken);
+  color: var(--text);
+  transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+.chess-half--flip { transform: rotate(180deg); }
+.chess-half.is-active { background: var(--success-btn); color: var(--success-on); box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.28); }
+.chess-half.is-idle   { background: var(--surface-2); color: var(--text-2); }
+.chess-half.is-out    { background: var(--danger); color: #fff; }
+
+/* --- Multiplayer rooms --------------------------------------------------- */
+
+/* The code is read out across a table, so it's the biggest thing on the screen
+   and spaced like a licence plate. Latin glyphs and LTR even in Arabic. */
+.room-code {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-size: 3rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;      /* re-centres text that letter-spacing pushed left */
+  line-height: 1.1;
+  color: var(--accent-ink);
+  margin-bottom: var(--sp-4);
+}
+
+.room-code-input {
+  direction: ltr;
+  text-align: center;
+  font-size: 1.75rem;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  text-transform: uppercase;
+}
+
+.room-qr {
+  width: min(12.5rem, 56vw);
+  margin: 0 auto var(--sp-4);
+  padding: var(--sp-3);
+  background: #fff;         /* scanners want a light quiet zone in either theme */
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-2);
+}
+.room-qr svg { display: block; width: 100%; height: auto; }
+
+.presence-dot {
+  flex: none;
+  width: 0.5625rem; height: 0.5625rem;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: background-color var(--dur-2) var(--ease-out);
+}
+.presence-dot.is-online {
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-soft);
+}
+
+/* Waiting on other people: show who we're waiting for, quietly. */
+.waiting-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+/* --- Role card (imposter) ------------------------------------------------
+   Face-down until tapped, so a glance over your shoulder shows nothing. */
+.role-card {
+  width: 100%;
+  min-height: 11.875rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-6) var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border: 2px solid var(--accent-border);
+  border-radius: var(--r-xl);
+  background: var(--accent-soft);
+  font-family: var(--font);
+  text-align: center;
+}
+.role-card--closed {
+  cursor: pointer;
+  border-style: dashed;
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.role-card--closed:active { transform: scale(0.97); }
+.role-card--spy { background: var(--danger-soft); border-color: var(--danger); }
+.role-card__value {
+  font-size: 2.25rem;
+  font-weight: 900;
+  line-height: 1.15;
+  color: var(--accent-ink);
+  overflow-wrap: anywhere;
+}
+.role-card--spy .role-card__value { color: var(--danger-ink); }
+.role-card__label { font-size: var(--fs-sm); font-weight: 800; color: var(--text-2); }
+.role-card__hint { font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); max-width: 26ch; }
+
+.chip.is-away { opacity: 0.45; }
+
+/* Hub tile for a game the room doesn't have enough players for yet. */
+.game-card.is-disabled { opacity: 0.4; pointer-events: none; }
+.game-card__need {
+  position: absolute;
+  top: 0.25rem;
+  inset-inline-end: 0.375rem;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--text-2);
+}
+
+/* The game the host has selected, above its options. */
+.chosen-game {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-md);
+}
+.chosen-game__icon { font-size: 1.35rem; }
+.chosen-game__name { flex: 1; font-weight: 900; color: var(--accent-ink); }
+
+/* Computer players (the games that seat them): the host's two buttons, and a
+   bot's row in the lobby - a robot where the presence dot would be, since a
+   bot is never away. */
+.room-bots { margin-bottom: var(--sp-3); }
+.room-bots__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.room-bots__head .field__label { margin: 0; display: inline-flex; align-items: center; gap: var(--sp-1); }
+.room-bots__add { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.room-bots .field__hint { margin-top: var(--sp-2); }
+.status-row__bot { flex: none; font-size: 1.05rem; line-height: 1; }
+.status-row--bot .status-row__actions { gap: var(--sp-1); }
+.tv-actions--bots { margin-top: 0; }
+
+/* --- Codenames ------------------------------------------------------------ */
+.cn-dot {
+  display: inline-block;
+  flex: none;
+  width: 0.625rem; height: 0.625rem;
+  border-radius: 50%;
+  margin-inline: 0.25rem;
+}
+.cn-dot--red      { background: #e11d48; }
+.cn-dot--blue     { background: #2563eb; }
+.cn-dot--neutral  { background: var(--n-400); }
+.cn-dot--assassin { background: var(--n-950); box-shadow: 0 0 0 1.5px var(--n-400); }
+
+.cn-score {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.cn-score__side { display: inline-flex; align-items: center; opacity: 0.5; transition: opacity var(--dur-2) var(--ease-out); }
+.cn-score__side.is-turn { opacity: 1; }
+.cn-score__side--red  { color: var(--team-red-ink); }
+.cn-score__side--blue { color: var(--team-blue-ink); }
+.cn-score__role { font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); text-align: center; }
+/* Games each side has won this evening. */
+.cn-score__wins { margin-inline: 0.375rem; font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); }
+
+.cn-banner {
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  border-radius: var(--r-md);
+  text-align: center;
+  border: 1px solid var(--border);
+}
+.cn-banner--red  { background: rgba(225, 29, 72, 0.12);  border-color: rgba(225, 29, 72, 0.35); }
+.cn-banner--blue { background: rgba(37, 99, 235, 0.12);  border-color: rgba(37, 99, 235, 0.35); }
+.cn-banner__title { font-size: var(--fs-h2); font-weight: 900; color: var(--text-strong); overflow-wrap: anywhere; }
+.cn-banner__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-2);
+}
+.cn-timer { font-variant-numeric: tabular-nums; }
+
+/* Portrait: the banner, the board, then everything else. .cn-side is only a
+   box on a phone held sideways (the LANDSCAPE block), where it is the column
+   beside the board. */
+.cn-layout { display: flex; flex-direction: column; }
+.cn-side { display: contents; }
+.cn-side > * { order: 1; }
+.cn-side > .cn-banner { order: -1; }
+
+/* 5 columns have to fit a 320px screen, so the cards scale with the viewport
+   and the words shrink rather than overflow. */
+.cn-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin-bottom: var(--sp-4);
+}
+.cn-card {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  min-width: 0;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-xs);
+  background: var(--surface-solid);
+  font-family: var(--font);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.cn-card:not(:disabled):active { transform: scale(0.94); }
+.cn-card:disabled { cursor: default; }
+.cn-card__word {
+  /* 2.4vw bottomed out at 9px on a phone, which is the smallest type in the
+     app by a wide margin and the one people squint at longest. */
+  font-size: clamp(0.68rem, 3.1vw, 0.9rem);
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* What only the spymaster sees: a tint hinting at the key. */
+.cn-card--peek { border-width: 2px; }
+.cn-peek--red      { border-color: #e11d48; background: rgba(225, 29, 72, 0.10); }
+.cn-peek--blue     { border-color: #2563eb; background: rgba(37, 99, 235, 0.10); }
+.cn-peek--neutral  { border-color: var(--n-500); background: rgba(148, 163, 184, 0.14); }
+.cn-peek--assassin { border-color: var(--n-900); background: rgba(15, 23, 42, 0.75); }
+.cn-peek--assassin .cn-card__word { color: #fff; }
+
+/* Revealed cards are the same for everyone. */
+.cn-card--revealed .cn-card__word { color: #fff; }
+.cn-card--red      { background: #e11d48; border-color: #e11d48; }
+.cn-card--blue     { background: #2563eb; border-color: #2563eb; }
+/* n-400 put white text at 2.1:1; n-500 still reads as the inert card. */
+.cn-card--neutral  { background: var(--n-500); border-color: var(--n-500); }
+.cn-card--assassin { background: var(--n-950); border-color: var(--n-950); }
+
+/* A card turned over: its agent, bystander or assassin, with the word smaller
+   underneath, so the board still reads as words. */
+.cn-card__cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1.1rem, 6vw, 2rem);
+  opacity: 0.3;
+  pointer-events: none;
+}
+.cn-card--revealed .cn-card__word {
+  position: relative;
+  align-self: flex-end;
+  font-size: clamp(0.6rem, 2.6vw, 0.78rem);
+}
+.cn-card.is-flipping { animation: cn-flip 420ms var(--ease-out); }
+@keyframes cn-flip {
+  from { transform: perspective(500px) rotateY(85deg) scale(0.94); opacity: 0.3; }
+  to   { transform: none; opacity: 1; }
+}
+
+/* Marks: this operative's own ring, the card about to be revealed, and how
+   many on the team suspect a card. */
+.cn-card.is-marked  { box-shadow: inset 0 0 0 2px var(--warning); }
+.cn-card.is-pending {
+  box-shadow: inset 0 0 0 3px var(--warning);
+  animation: cn-pending 700ms var(--ease-in-out) infinite alternate;
+}
+@keyframes cn-pending { to { transform: scale(0.93); } }
+.cn-card__marks {
+  position: absolute;
+  top: 2px;
+  inset-inline-end: 2px;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  background: var(--warning-btn);
+  color: var(--warning-on);
+  font-size: 0.625rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.cn-card.is-swappable { border-style: dashed; border-color: var(--accent); }
+/* The rest of the key, laid open once the game is over. */
+.cn-card--ended { opacity: 0.6; }
+
+/* Revealing is its own press, with the word large enough to catch a mis-tap. */
+.cn-confirm {
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  text-align: center;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.cn-confirm__word {
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-h1);
+  font-weight: 900;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.cn-hint { text-align: center; }
+.cn-tools { justify-content: center; margin-top: var(--sp-2); }
+.cn-options > .btn { margin-bottom: var(--sp-3); }
+
+/* Clue history: each clue with the cards its team turned over under it. */
+.cn-log {
+  margin-top: var(--sp-3);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.cn-log__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap);
+  padding: 0 var(--sp-3);
+  font-weight: 800;
+  color: var(--text-strong);
+  cursor: pointer;
+  list-style: none;
+}
+.cn-log__summary::-webkit-details-marker { display: none; }
+.cn-log__list {
+  display: grid;
+  gap: var(--sp-2);
+  max-height: 16.25rem;
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-3);
+  overflow-y: auto;
+  list-style: none;
+}
+.cn-log__item {
+  --cn-team: #e11d48;
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  box-shadow: inset 3px 0 0 var(--cn-team);
+}
+[dir="rtl"] .cn-log__item { box-shadow: inset -3px 0 0 var(--cn-team); }
+.cn-log__item--blue { --cn-team: #2563eb; }
+.cn-log__clue { font-weight: 900; color: var(--text-strong); overflow-wrap: anywhere; }
+.cn-log__guesses { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem; }
+.cn-log__guess {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 0.375rem 2px 2px;
+  border-radius: var(--r-xs);
+  background: var(--surface-solid);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+/* End of a game: words left, clues it took, games won. */
+.cn-stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-4);
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-variant-numeric: tabular-nums;
+}
+.cn-stats__label { font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); }
+.cn-stats__num { min-width: 2.5ch; text-align: center; font-weight: 900; color: var(--text-strong); }
+.cn-stats__num--red  { color: var(--team-red-ink); }
+.cn-stats__num--blue { color: var(--team-blue-ink); }
+
+.cn-team { padding: var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); }
+.cn-team__head { display: flex; align-items: center; gap: var(--sp-1); font-weight: 900; margin-bottom: var(--sp-2); }
+.cn-team--red  { box-shadow: inset 3px 0 0 #e11d48; }
+.cn-team--blue { box-shadow: inset 3px 0 0 #2563eb; }
+[dir="rtl"] .cn-team--red  { box-shadow: inset -3px 0 0 #e11d48; }
+[dir="rtl"] .cn-team--blue { box-shadow: inset -3px 0 0 #2563eb; }
+
+/* --- Prompts & ballots (voting games) ------------------------------------ */
+.prompt-text {
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1.35;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.ballot-option {
+  width: 100%;
+  min-height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 2px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--fs-h3);
+  font-weight: 800;
+  text-align: start;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.ballot-option:active:not(:disabled) { transform: scale(0.98); border-color: var(--accent); }
+.ballot-option.is-own { opacity: 0.5; cursor: default; }
+.ballot-option__label { flex: 1; overflow-wrap: anywhere; }
+
+/* The players as the ballot (مين أكتر واحد, the accusations): a grid of tiles,
+   the initial in its bubble; the one tapped lit in the screen's colour. */
+.ballot-people { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+@media (min-width: 640px) { .ballot-people { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.ballot-person {
+  display: flex; align-items: center; gap: var(--sp-2);
+  min-width: 0; min-height: 3.5rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 2px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font); font-size: 1rem; font-weight: 800;
+  text-align: start;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.ballot-person:active:not(:disabled) { transform: scale(0.97); }
+.ballot-person__av { flex: none; width: 2.25rem; height: 2.25rem; font-size: 1rem; }
+.ballot-person__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ballot-person__own { flex: none; }
+.ballot-person.is-own { opacity: 0.5; cursor: default; }
+.ballot-person.is-picked { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.ballot-person.is-picked .ballot-person__av { background: var(--accent); color: var(--accent-on); }
+.ballot-people.is-done .ballot-person { cursor: default; }
+.ballot-people.is-done .ballot-person:not(.is-picked) { opacity: 0.55; }
+.ballot-bar { display: grid; gap: var(--sp-2); }
+.ballot-bar__count { text-align: center; font-size: var(--fs-sm); font-weight: 800; color: var(--text-2); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .ballot-bar { grid-template-columns: auto minmax(0, 1fr); align-items: center; }
+}
+
+.vote-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  color: var(--text-2);
+}
+
+/* --- Result bars --------------------------------------------------------- */
+.result-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+.result-row {
+  position: relative;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  overflow: hidden;
+}
+.result-row.is-top { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+/* The bar sits behind the text rather than beside it, so a long option still
+   gets the full width to wrap into. */
+.result-row__bar {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  background: var(--accent-soft);
+  transition: width var(--dur-3) var(--ease-out);
+}
+.result-row__body {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-weight: 800;
+  color: var(--text-strong);
+}
+.result-row__label { flex: 1; overflow-wrap: anywhere; }
+.result-row__count { font-variant-numeric: tabular-nums; color: var(--accent-ink); }
+.result-row__voters {
+  position: relative;
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+/* --- Draw & Guess -------------------------------------------------------- */
+.draw-wrap {
+  position: relative;      /* the "خمّن صح!" stamp is placed against this */
+  width: 100%;
+  aspect-ratio: 1;
+  /* Square, but never so tall that the toolbar drops off the screen — the
+     drawer needs the canvas and the tools at the same time, and you cannot
+     scroll while you are drawing. What is subtracted is the score row, the
+     word card and the three toolbar rows; the guess list below may scroll.
+     Measured on a 375x667 phone, which is the one this has to fit. */
+  max-height: calc(100dvh - 28.75rem);
+  max-width: calc(100dvh - 28.75rem);
+  margin-inline: auto;
+  margin-bottom: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: #fff;
+  box-shadow: var(--sh-2);
+}
+#draw-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* The canvas has to own the gesture or the page scrolls while you draw. */
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* Three rows: what you draw with, what colour, how thick. Every control is a
+   single glyph, so they get an explicit floor rather than letting the text
+   decide how tappable they are. */
+.draw-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.draw-tools__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+/* Twelve colours will not fit a phone in one row, and wrapping them costs a
+   whole row of height that the canvas needs more. They scroll instead. */
+.draw-tools__row--scroll {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 2px;
+  margin: -2px;
+}
+.draw-tools__row--scroll::-webkit-scrollbar { display: none; }
+.draw-tools .btn { min-width: 2.75rem; min-height: 2.75rem; }
+
+.draw-tool {
+  flex: none;
+  width: 2.75rem; height: 2.75rem;
+  display: grid; place-items: center;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out),
+              background-color var(--dur-2) var(--ease-out),
+              border-color var(--dur-2) var(--ease-out);
+}
+.draw-tool:active { transform: scale(0.92); }
+.draw-tool.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+}
+.draw-tool--act { color: var(--accent-ink); border-color: var(--accent-border); }
+.draw-tool--danger { color: var(--danger-ink); border-color: var(--danger); background: var(--danger-soft); }
+
+/* Thickness, shown as the dot it will draw. */
+.draw-width {
+  flex: none;
+  width: 2.75rem; height: 2.75rem;
+  display: grid; place-items: center;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.draw-width:active { transform: scale(0.92); }
+.draw-width.is-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.draw-width__dot { display: block; border-radius: 50%; background: var(--text-strong); }
+/* Pushes undo and clear away from the thickness buttons they share a row with. */
+.draw-tools__gap { width: var(--sp-3); }
+.draw-swatch {
+  width: 2.75rem; height: 2.75rem;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.draw-swatch.is-active { border-color: var(--text-strong); transform: scale(1.15); }
+/* White-on-white would be an invisible button. */
+.draw-swatch[aria-label="#ffffff"] { border-color: var(--border-strong); }
+
+.draw-guesses { display: flex; flex-direction: column; gap: 0.25rem; margin-top: var(--sp-2); }
+.draw-guess {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.draw-guess.is-right { background: var(--success-soft); color: var(--success-ink); }
+.draw-guess__who { font-weight: 900; color: var(--text-2); }
+
+/* --- Connections --------------------------------------------------------- */
+.connect-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+.connect-tile {
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  /* 13px on a 375px phone: at 2.6vw a tile's word was under 10px, too small to read at arm's length. */
+  font-size: clamp(0.7rem, 3.5vw, 0.95rem);
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.connect-tile:active { transform: scale(0.94); }
+.connect-tile.is-selected {
+  background: var(--accent);
+  color: var(--accent-on);
+  border-color: var(--accent);
+}
+
+/* Solved groups keep a fixed colour each so the board reads at a glance. */
+.connect-group {
+  padding: var(--sp-3);
+  margin-bottom: 0.375rem;
+  border-radius: var(--r-sm);
+  text-align: center;
+  color: #1a1205;
+}
+.connect-group--0 { background: #fde68a; }
+.connect-group--1 { background: #a7f3d0; }
+.connect-group--2 { background: #bfdbfe; }
+.connect-group--3 { background: #ddd6fe; }
+.connect-group--4 { background: #fbcfe8; }
+.connect-group__name { font-weight: 900; font-size: var(--fs-sm); }
+.connect-group__words { font-size: var(--fs-xs); font-weight: 700; opacity: 0.8; }
+
+.connect-lives {
+  text-align: center;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  color: var(--text-2);
+  letter-spacing: 0.15em;
+}
+
+/* --- Pass-the-phone reveal card ----------------------------------------
+   Deliberately a bright card with near-black text in both themes: it is held
+   up for another player to read across a table, so it stays high-contrast
+   rather than following the app theme. */
+.reveal-card {
+  margin: 0 var(--sp-2) var(--sp-6);
+  padding: var(--sp-7) var(--sp-5);
+  background: #ffffff;
+  border: 3px solid var(--accent);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--sh-3);
+}
+.reveal-card__word {
+  font-size: 2.5rem;
+  font-weight: 900;
+  line-height: 1.15;
+  color: #0b1220;
+  overflow-wrap: anywhere;
+}
+
+
+
+.mix-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.mix-item label { font-size: var(--fs-sm); font-weight: 800; color: var(--text); cursor: pointer; }
+
+/* Monkey countdown — was referenced in the markup but never defined. */
+.timer-display {
+  font-size: 3rem;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink);
+  cursor: pointer;
+  transition: color var(--dur-2) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.timer-display:active { transform: scale(0.94); }
+.timer-display.is-urgent { color: var(--danger); animation: urgentPulse 1s var(--ease-in-out) infinite; }
+@keyframes urgentPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+
+/* Player list labels inside setup screens */
+[id$="-player-list"] label { color: var(--text); }
+[id$="-player-list"] label span { color: var(--text-strong); }
+
+/* ==========================================================================
+   10. ACCESSIBILITY
+   ========================================================================== */
+
+/* --- Arabic typography ----------------------------------------------------
+   Arabic letters join, and letter-spacing pulls those joins apart — the small
+   uppercase labels in the design system would render as disconnected glyphs.
+   text-transform is a no-op in Arabic anyway, so both are dropped and the
+   labels lean on weight and colour instead. Kept for Latin, where the wide
+   small-caps look is doing real work.
+   -------------------------------------------------------------------------- */
+html[lang="ar"] .section__title,
+html[lang="ar"] .field__label,
+html[lang="ar"] .stat__label {
+  letter-spacing: normal;
+  text-transform: none;
+  font-size: var(--fs-sm);
+}
+
+/* Arabic numerals in a Latin-numeral context still need to run LTR. */
+/* .tabular-nums was [class*="tabular"]: an attribute substring is tried on every
+   element; the only class holding that word is tabular-nums (28 Sep 2026). */
+.metric, .stepper__value, .tabular-nums { direction: ltr; unicode-bidi: isolate; }
+
+/* .metric also renders Arabic words (the Just One / Fibbage answers), and its
+   tightened tracking pulls the letter joins apart. Numbers keep it. */
+html[lang="ar"] .metric, html[lang="ar"] .connect-lives { letter-spacing: normal; }
+
+/* --- Semantic text colour ------------------------------------------------
+   For markup built in JS, where a fixed palette class (text-green-600,
+   text-slate-400) cannot follow the theme. These resolve through the same
+   tokens as the rest of the design system, so they stay legible in both.
+   -------------------------------------------------------------------------- */
+.tx-success { color: var(--success-ink); }
+.tx-danger  { color: var(--danger-ink); }
+.tx-warning { color: var(--warning-ink); }
+.tx-accent  { color: var(--accent-ink); }
+.tx-muted   { color: var(--text-2); }
+.tx-strong  { color: var(--text-strong); }
+
+/* Soft tinted plates that go with them. */
+.plate-danger  { background: var(--danger-soft);  color: var(--danger-ink);  border: 1px solid var(--danger); }
+.plate-success { background: var(--success-soft); color: var(--success-ink); border: 1px solid var(--success); }
+
+/* Keyboard focus stays visible; pointer presses don't draw a ring. The ring follows the
+   element's own corners (a radius here squared off every rounded chip and tab). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+:focus:not(:focus-visible) { outline: none; }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::after { animation: none; opacity: 0; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .wheel { transition-duration: 0.01ms !important; }
+
+  /* Not 0.01ms — none. An animation that short never fires animationstart or
+     animationend, so the JS that strips .view-enter afterwards never runs and
+     the fill-mode leaves the view transformed: shifted 26px, scaled to 0.985,
+     and acting as the containing block for its position:fixed children. With
+     no animation there is no keyframe to leave behind. */
+  .view-enter, .view-stagger > *, .animate-pop, .animate-fade-in {
+    animation: none !important;
+  }
+  .active-room-banner, .arb__pulse, .arb__pulse::after { animation: none !important; }
+}
+
+/* --- Fake Artist ---------------------------------------------------------- */
+/* No toolbar to fit, so the canvas can take more of the screen than Draw &
+   Guess gives it. */
+.fa-wrap {
+  max-height: calc(100dvh - 22.5rem);
+  max-width: calc(100dvh - 22.5rem);
+  min-height: 13.75rem;
+  min-width: 13.75rem;
+}
+#fa-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.fa-dot {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  flex: none;
+  vertical-align: middle;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.fa-legend { justify-content: center; margin-bottom: var(--sp-3); }
+.fa-legend .chip { height: 2rem; padding-inline: var(--sp-2); }
+.fa-legend .chip.is-turn { box-shadow: 0 0 0 2px var(--accent); }
+
+/* --- Trivia ----------------------------------------------------------------- */
+.trivia-choice { justify-content: flex-start; }
+.trivia-letter {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-weight: 900;
+}
+.trivia-choice.is-picked { border-color: var(--accent); background: var(--accent-soft); }
+.trivia-choice.is-picked .trivia-letter { background: var(--accent); color: var(--accent-on); }
+.trivia-choice:disabled:not(.is-picked) { opacity: 0.55; }
+.trivia-result.is-correct { border-color: var(--success); box-shadow: 0 0 0 1px var(--success); }
+.trivia-result.is-correct .result-row__bar { background: var(--success-soft); }
+.trivia-result.is-wrong { border-color: var(--danger); }
+
+/* --- دوري المعرفة (the team trivia board) ------------------------------- */
+.tb-team-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.tb-input--a { border-color: var(--danger); }
+.tb-input--b { border-color: #2563eb; }
+.tb-scores {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: stretch;
+  margin-bottom: var(--sp-3);
+}
+.tb-scores--final { margin: var(--sp-4) 0; }
+.tb-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--sp-2);
+  border: 2px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.tb-team--a { border-color: var(--danger); }
+.tb-team--b { border-color: #2563eb; }
+.tb-team__name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); }
+.tb-team__score { font-size: 1.5rem; font-weight: 900; line-height: 1.1; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.tb-team__adjust { display: flex; gap: var(--sp-1); }
+.tb-team__adjust .iconbtn { width: 2.5rem; height: 2.5rem; }
+.tb-round { display: flex; flex-direction: column; align-items: center; justify-content: center; padding-inline: var(--sp-1); }
+.tb-round .eyebrow { margin: 0; }
+.tb-round__value { font-size: var(--fs-h3); font-weight: 900; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.tb-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.375rem; }
+.tb-cat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 3.5rem;
+  padding: 0.25rem 2px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.tb-cat__icon { font-size: 1rem; line-height: 1; }
+.tb-cell {
+  min-height: 3.25rem;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  font-size: 1rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.tb-cell:active { transform: scale(0.94); }
+.tb-cell.is-done { background: var(--surface-3); border-color: var(--border); cursor: default; }
+.tb-dot { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 50%; vertical-align: middle; }
+.tb-dot--a { background: var(--danger); }
+.tb-dot--b { background: #2563eb; }
+.tb-dot--none { background: var(--border-strong); }
+.tb-actions { margin-top: var(--sp-4); }
+.tb-q-meta { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); }
+.tb-q-meta .eyebrow { margin: 0; }
+.tb-answer { padding: var(--sp-4); border: 1px solid var(--accent-border); border-radius: var(--r-lg); background: var(--accent-soft); }
+.tb-award { color: #fff; }
+.tb-award--a { background: var(--danger-btn); color: var(--danger-on); }
+/* A fixed blue: the theme's lighter dark-mode blue is too pale for white text. */
+.tb-award--b { background: #2563eb; }
+
+/* The question's countdown. Tapping it pauses: somebody always needs the
+   question read again. */
+.tb-timer {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family: var(--font);
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.tb-timer__value { flex: none; min-width: 2ch; font-size: 1.5rem; font-weight: 900; line-height: 1; color: inherit; }
+.tb-timer__bar { flex: 1; height: 0.5rem; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
+.tb-timer__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transform-origin: left center;
+  transition: transform 1s linear;
+}
+[dir="rtl"] .tb-timer__fill { transform-origin: right center; }
+.tb-timer__state { flex: none; font-size: var(--fs-sm); }
+.tb-timer.is-paused .tb-timer__fill { opacity: 0.45; }
+.tb-timer.is-urgent, .tb-timer.is-up { border-color: var(--danger); background: var(--danger-soft); color: var(--danger-ink); }
+.tb-timer.is-urgent .tb-timer__fill { background: var(--danger); }
+.tb-timer.is-urgent .tb-timer__value { animation: urgentPulse 1s var(--ease-in-out) infinite; }
+.tb-timer.is-up { cursor: default; }
+
+/* The steal (the owner, 24 Sep 2026). The team up has a ring on the board;
+   on the card, who is answering, then the other team's band. */
+.tb-team.is-turn { box-shadow: 0 0 0 3px color-mix(in srgb, var(--team-red) 35%, transparent); }
+.tb-team--b.is-turn { box-shadow: 0 0 0 3px color-mix(in srgb, var(--team-blue) 35%, transparent); }
+.tb-picker { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-1); }
+.tb-picker .eyebrow { margin: 0; text-align: center; }
+.tb-picker .segmented__item { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-steal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--sp-3);
+  border: 2px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  text-align: center;
+}
+.tb-steal--a { border-color: var(--team-red); background: color-mix(in srgb, var(--team-red) 10%, var(--surface-solid)); }
+.tb-steal--b { border-color: var(--team-blue); background: color-mix(in srgb, var(--team-blue) 10%, var(--surface-solid)); }
+.tb-steal__title { font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; color: var(--text-strong); }
+.tb-steal--a .tb-steal__team { color: var(--team-red-ink); }
+.tb-steal--b .tb-steal__team { color: var(--team-blue-ink); }
+.tb-steal__team { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 900; }
+.tb-steal__pts { font-size: var(--fs-sm); color: var(--text-2); }
+.tb-steal.is-in { animation: tb-steal-in var(--dur-3) var(--ease-out) both; }
+.tb-timer.is-restart { animation: tb-restart 0.5s var(--ease-out); }
+@keyframes tb-restart { 0% { transform: scale(1); } 35% { transform: scale(1.05); } 100% { transform: scale(1); } }
+@keyframes tb-steal-in {
+  from { opacity: 0; transform: translateY(-0.75rem) scale(0.94); }
+  60% { opacity: 1; transform: translateY(0) scale(1.03); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tb-steal.is-in, .tb-timer.is-restart { animation: none; }
+}
+
+/* --- Switch ---------------------------------------------------------------- */
+/* An on/off setting on one row with its label. A real checkbox lies over the
+   track, so it is a form control for the keyboard and screen readers, and the
+   whole row (a <label>) is the tap target. */
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: var(--tap);
+  cursor: pointer;
+}
+.switch-row .field__label { margin: 0 var(--sp-1); }
+.switch { position: relative; flex: none; width: 3.25rem; height: 2rem; }
+.switch input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.switch__track {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  transition: background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.switch__track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  inset-inline-start: 3px;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--sh-1);
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+.switch input:checked + .switch__track { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + .switch__track::after { transform: translateX(20px); }
+[dir="rtl"] .switch input:checked + .switch__track::after { transform: translateX(-20px); }
+.switch input:focus-visible + .switch__track { box-shadow: 0 0 0 3px var(--accent-glow); }
+
+/* --- Play stage ------------------------------------------------------------
+   Charades, Describe It and Who Am I: a card in the middle and big buttons at
+   the bottom, filling the height the main area has. They used to sit in a box
+   85vh tall - taller than the main area on every phone - and on a landscape
+   phone the card shrank below its own text and cut the forbidden words off
+   with nothing to scroll to. The stage fills the main area and only ever grows
+   past it, so the worst case is a scroll, never a clip. */
+.view--stage { display: flex; flex-direction: column; }
+.play-stage { flex: 1 0 auto; display: flex; flex-direction: column; }
+.play-stage > * { flex: 1 0 auto; }
+
+/* Very small phones (SE-class, 320px) — tighten before anything overflows. */
+@media (max-width: 359px) {
+  :root { --sp-4: 0.75rem; --sp-5: 1rem; --fs-h1: 1.25rem; }
+  .game-grid { gap: 0.375rem; }
+  .game-card { min-height: 5.5rem; padding: var(--sp-3) 0.25rem; }
+  .game-icon { font-size: 1.7rem; }
+  .game-title { font-size: var(--fs-xs); }
+}
+
+/* ==========================================================================
+   LANDSCAPE PHONES
+   --------------------------------------------------------------------------
+   A phone on its side is 360-430px tall and 640-930px wide. Laid out like
+   portrait, the app stayed a 520px column in the middle of the screen, the
+   header and the bottom nav took a third of the little height there was, and
+   the screens built for a tall phone cut their own content off (the Describe
+   It card clipped its forbidden words, the Draw & Guess canvas sized itself
+   to a negative height). So on a landscape phone:
+     - the app takes the whole width and the nav becomes a rail at the
+       inline-start edge - a rail costs width, which landscape has to spare;
+     - views sit in a readable column, and the menu gets more tiles per row;
+     - a board and its controls sit side by side instead of stacked;
+     - spacing that only existed to fill a tall screen is tightened.
+   max-height keeps tablets out of this: they have the height for portrait's
+   layout either way.
+   ========================================================================== */
+/* ==========================================================================
+   ANY SCREEN: PHONES ON THEIR SIDE, TABLETS, LAPTOPS, TVS
+   --------------------------------------------------------------------------
+   Every size above is in rem, so the font size on <html> scales the whole app.
+   Phones keep the default 16px. Bigger screens pick a larger one below (the
+   screen-size setting overrides it: html[data-ui-scale], set in JS_Core.html),
+   and the big screen view keeps 16px because it sizes itself from the screen.
+
+   Three layouts on top of the phone one:
+     - a tablet held upright gets a wider column;
+     - a phone on its side AND any screen at least 900 wide gets the nav as a
+       rail, a centred column, and boards beside their controls (the shared
+       block);
+     - a phone on its side also tightens spacing that only existed to fill a
+       tall screen (the short block), and a big screen gets more room instead
+       (the wide block).
+   ========================================================================== */
+@media (min-width: 1024px) and (min-height: 700px)  { html { font-size: 106.25%; } }
+@media (min-width: 1440px) and (min-height: 850px)  { html { font-size: 112.5%; } }
+@media (min-width: 1800px) and (min-height: 1000px) { html { font-size: 125%; } }
+@media (min-width: 2400px) and (min-height: 1300px) { html { font-size: 162.5%; } }
+@media (min-width: 3200px) and (min-height: 1800px) { html { font-size: 200%; } }
+html[data-ui-scale="100"] { font-size: 100%; }
+html[data-ui-scale="125"] { font-size: 125%; }
+html[data-ui-scale="150"] { font-size: 150%; }
+html[data-ui-scale="200"] { font-size: 200%; }
+html:has(> body.is-tv-view) { font-size: 100% !important; }
+
+/* --- Tablet upright --- */
+@media (min-width: 700px) {
+  :root { --shell-max: 45rem; }
+  .game-grid { grid-template-columns: repeat(auto-fill, minmax(9.375rem, 1fr)); }
+  .tools-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* --- Shared: a phone on its side, and every wide screen --- */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  :root { --rail-w: 4.75rem; }
+
+  /* Shell: a rail beside header / banner / main */
+  .shell {
+    max-width: none;
+    grid-template-columns: var(--rail-w) minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+  .shell__header      { grid-column: 2; grid-row: 1; }
+  .active-room-banner { grid-column: 2; grid-row: 2; }
+  .icon-banner        { grid-column: 2; grid-row: 3; }
+  .shell__main        { grid-column: 2; grid-row: 4; --main-pb: var(--sp-4); padding-bottom: var(--main-pb); }
+  .shell__nav {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 0;
+    padding: calc(var(--sp-2) + var(--safe-top)) var(--sp-2) calc(var(--sp-2) + var(--safe-bottom));
+    border-top: 0;
+    border-inline-end: 1px solid var(--border);
+  }
+  .nav-item { flex: 0 0 auto; flex-direction: column; gap: 0.25rem; min-height: 4rem; padding: var(--sp-2) 2px; }
+  .nav-label { font-size: 0.68rem; line-height: 1.2; text-align: center; }
+  .toast, .toast-stack { bottom: calc(var(--safe-bottom) + var(--sp-3)); }
+
+  /* Views: a readable column; the menu spreads out */
+  .shell__main > [id^="view-"]:not(.fixed) { width: 100%; max-width: 47.5rem; margin-inline: auto; }
+  .shell__main > #view-menu, .shell__main > #view-together, .shell__main > #view-tools { max-width: 65rem; }
+  .game-grid { grid-template-columns: repeat(auto-fill, minmax(8.25rem, 1fr)); }
+  .game-card { min-height: 5.5rem; padding: var(--sp-3) var(--sp-2); }
+  .tools-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* Dialogs: wider; a plain pair of buttons sits in a row */
+  .modal-content { max-width: 35rem; }
+  .modal-content:has(> .sheet__body) { max-width: 42.5rem; }
+  .modal-actions:not(:has(> :not(.btn))) { flex-direction: row; flex-wrap: wrap; }
+  .modal-actions:not(:has(> :not(.btn))) > .btn { flex: 1 1 10rem; }
+
+  /* Charades / Describe It: the card beside its two big buttons */
+  .shell__main .play-stage__playing {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(9.375rem, 32%);
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: var(--sp-4);
+  }
+  .shell__main .play-stage__head { grid-column: 1 / -1; margin-bottom: var(--sp-2); }
+  .play-stage__card { grid-column: 1; grid-row: 2; margin-bottom: 0; }
+  .shell__main .play-stage__actions {
+    grid-column: 2;
+    grid-row: 2;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: 1fr;
+    gap: var(--sp-3);
+    margin-top: 0;
+  }
+  .shell__main .play-stage__actions > .btn { height: auto; min-height: 4rem; }
+
+  /* Wordle: the board beside the keyboard */
+  .wordle-layout { flex-direction: row; align-items: stretch; gap: var(--sp-4); }
+  .wordle-layout__board { flex: 1 1 0; min-width: 0; }
+  .wordle-layout > .keypad { flex: 1.35 1 0; min-width: 0; justify-content: center; }
+  /* The grid is sized by its board's box, whichever of the two runs out first.
+     Sized off its own height it came out wider than its column (256px in 229)
+     and a word of eight spilled a hundred pixels into the keyboard. */
+  @supports (width: 1cqh) {
+    .wordle-layout__board { container-type: size; }
+    .wordle-grid {
+      height: auto;
+      max-height: none;
+      max-width: none;
+      width: min(100cqw, 100cqh * var(--wordle-cols) / var(--wordle-rows));
+    }
+    .wordle-cell { font-size: min(1.4rem, min(100cqw, 100cqh * var(--wordle-cols) / var(--wordle-rows)) / var(--wordle-cols) * 0.56); }
+  }
+
+  /* Chess clock and reaction duel: one player at each end */
+  #view-play-chess, #view-play-reaction { flex-direction: row; }
+  #view-play-chess .chess-half--flip, #reaction-p2 { transform: none; }
+  #view-play-chess .chess-bar {
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 5.5rem;
+    height: auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--sp-5);
+    padding: calc(var(--sp-3) + var(--safe-top)) 0 calc(var(--sp-3) + var(--safe-bottom));
+    border-width: 0 4px;
+    transform: translateX(-50%);
+  }
+  #view-play-chess .chess-bar__tools { flex-direction: column; gap: var(--sp-3); }
+  #view-play-reaction .reaction-divider { width: 0.5rem; height: auto; }
+
+  /* Draw & Guess, Fake Artist: the canvas down one side */
+  .draw-layout {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: var(--sp-4);
+    align-items: start;
+  }
+  .draw-layout > .draw-wrap {
+    /* As tall as the main area (header, main padding and the border out),
+       and never more than half the width. */
+    --canvas: min(calc(var(--app-h, 100dvh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - var(--sp-2) - var(--sp-4) - 4px), 50vw);
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: var(--canvas);
+    height: var(--canvas);
+    max-width: none;
+    max-height: none;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+  }
+  .draw-layout__head { grid-column: 2; grid-row: 1; }
+  .draw-layout__side { grid-column: 2; grid-row: 2; }
+  /* The tools wrap in the narrower column (the colours keep scrolling
+     sideways), and the canvas stays in view while the column scrolls down to
+     them - the drawer needs both at once. */
+  .draw-layout .draw-tools__row:not(.draw-tools__row--scroll) { flex-wrap: wrap; }
+  .draw-layout > .draw-wrap { position: sticky; top: 0; }
+
+  /* Codenames: the board beside the clue, the controls and the log */
+  .cn-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+    column-gap: var(--sp-4);
+    align-items: start;
+  }
+  .cn-layout > .cn-board { margin-bottom: 0; }
+  .cn-side { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .cn-side > * { margin: 0; }
+
+  /* دوري المعرفة: the board beside the scores */
+  .tb-play {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(9.375rem, 27%, 12.5rem);
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: var(--sp-3);
+    align-items: start;
+  }
+  .tb-play > .tb-board { grid-column: 1; grid-row: 1 / span 2; }
+  .tb-play > .tb-scores { grid-column: 2; grid-row: 1; grid-template-columns: minmax(0, 1fr); margin: 0; }
+  .tb-play > .tb-actions { grid-column: 2; grid-row: 2; margin-top: var(--sp-2); }
+  .tb-play .tb-round { order: -1; flex-direction: row; gap: var(--sp-2); }
+  .tb-play .tb-team {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name name" "score adjust";
+    align-items: center;
+    gap: 2px var(--sp-2);
+    padding: var(--sp-1) var(--sp-2);
+  }
+  .tb-play .tb-team__name { grid-area: name; }
+  .tb-play .tb-team__score { grid-area: score; justify-self: start; }
+  .tb-play .tb-team__adjust { grid-area: adjust; }
+}
+
+/* --- Short: only a phone on its side, where the height is the scarce thing --- */
+@media (orientation: landscape) and (max-height: 500px) {
+  :root { --header-h: 2.75rem; }
+
+  /* Spacing that was only there to fill a tall screen */
+  .card:not(.card--flush) { padding: var(--sp-3) var(--sp-4); }
+  .card { margin-bottom: var(--sp-3); }
+  .card__subtitle { margin-bottom: var(--sp-3); }
+  .section { margin-bottom: var(--sp-4); }
+  .metric--xl { font-size: 2.25rem; }
+  .metric--lg { font-size: 2rem; }
+  .reveal-plate { padding: var(--sp-4); }
+  .view-actions { margin-top: var(--sp-3); padding: var(--sp-2) 0; }
+  .room-qr { width: min(10rem, 36vh); }
+  .room-code { font-size: 2.25rem; margin-bottom: var(--sp-2); }
+  /* The pass-the-phone screens are written with utilities (py-12, text-7xl,
+     space-y-8); on a 375px-tall screen those alone push the button under the
+     fold. */
+  .shell__main .py-12, .shell__main .py-10 { padding-top: var(--sp-4); padding-bottom: var(--sp-4); }
+  .shell__main .py-8 { padding-top: var(--sp-3); padding-bottom: var(--sp-3); }
+  .shell__main .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: var(--sp-3); }
+  .shell__main .mb-10, .shell__main .mb-8, .shell__main .mb-6 { margin-bottom: var(--sp-3); }
+  .shell__main .text-8xl, .shell__main .text-7xl { font-size: 3rem; }
+  .shell__main .text-6xl { font-size: 2.5rem; }
+  .shell__main .text-5xl { font-size: 2.25rem; }
+  .shell__main .min-h-\[60vh\], .shell__main .min-h-\[300px\] { min-height: 0; }
+  /* A scroller inside the scroller: at 80vh it was a 300px window. */
+  .shell__main .max-h-\[80vh\] { max-height: none; }
+
+  /* Dialogs: flatter */
+  .modal-overlay { padding-block: max(var(--sp-2), var(--safe-top)) max(var(--sp-2), var(--safe-bottom)); }
+  .modal-content--simple { padding: var(--sp-4) var(--sp-5); gap: var(--sp-2); }
+  .modal-content--simple > .modal-actions { margin-top: var(--sp-1); }
+  .modal-icon { font-size: 2rem; }
+  .sheet__header { padding: var(--sp-3) var(--sp-5) var(--sp-2); }
+  .sheet__footer { padding: var(--sp-2) var(--sp-5) var(--sp-3); }
+
+  .key { height: 2.875rem; }
+  /* Wordle: the keys are what is tapped every turn. Beside a board as tall as
+     the screen, twelve Arabic keys were 23px each; the keyboard now takes the
+     width 28px keys need (35px in English) and the height the rows can use,
+     and the board takes what is left. */
+  .wordle-layout { gap: var(--sp-3); }
+  .wordle-layout > .keypad { flex: 0 0 auto; width: min(24rem, 68%); }
+  .wordle-layout > .keypad .key { height: 3.25rem; }
+  .draw-layout__head .card { padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); }
+  .draw-layout__head .metric--md { font-size: 1.35rem; }
+  .cn-card { aspect-ratio: auto; min-height: 3rem; }
+  .tb-cat { min-height: 2.75rem; }
+  .tb-cell { min-height: 2.625rem; }
+}
+
+/* --- Wide: tablets on their side, laptops, monitors, TVs --- */
+@media (min-width: 900px) and (min-height: 501px) {
+  :root { --rail-w: 6rem; }
+  .shell__main { --main-pb: var(--sp-6); padding: var(--sp-4) var(--sp-6) var(--main-pb); }
+  .nav-item { min-height: 4.5rem; }
+  .nav-label { font-size: var(--fs-xs); }
+
+  .shell__main > [id^="view-"]:not(.fixed) { max-width: 52rem; }
+  .shell__main > #view-menu, .shell__main > #view-together, .shell__main > #view-tools { max-width: 78rem; }
+  /* تشابه: square tiles across a wide column made a board taller than the
+     screen. The grid is sized from the height instead (five rows on hard),
+     and the tiles are wider than they are tall. */
+  .connect-grid,
+  #connect-meta { width: min(100%, calc((var(--app-h, 100dvh) - var(--header-h) - 12rem) * 1.2)); margin-inline: auto; }
+  .connect-tile { aspect-ratio: 3 / 2; font-size: clamp(0.8rem, 1.15vw, 1.35rem); }
+
+  /* Screens that are a board, a bracket or a table: give them the width. */
+  .shell__main > #view-play-wordle,
+  .shell__main > #view-play-trivia,
+  .shell__main > #view-play-charades,
+  .shell__main > #view-play-describe,
+  .shell__main > #view-play-tourney,
+  .shell__main > #view-play-screw,
+  .shell__main > #view-play-monkey,
+  .shell__main > #view-play-domino,
+  .shell__main > #view-room-codenames,
+  .shell__main > #view-room-drawguess,
+  .shell__main > #view-room-fakeartist { max-width: 72rem; }
+
+  /* The play area gets the space (the owner, 21 Sep 2026: "always give the
+     space to the game part, not the score or names part"). While a board is
+     being played it takes the screen's height, and its scores, names and
+     tools are a compact column beside it - not a board kept to a phone's size
+     in the middle of a laptop or a TV. */
+  .shell__main > #view-play-xo, .shell__main > #view-play-memory,
+  .shell__main > #view-play-sudoku, .shell__main > #view-play-g2048, .shell__main > #view-play-mines,
+  .shell__main > #view-play-queens, .shell__main > #view-play-tango, .shell__main > #view-play-nonogram,
+  .shell__main > #view-play-strands, .shell__main > #view-play-flags { max-width: 72rem; }
+  /* The solo boards themselves: after section 15's own rules, below. */
+
+  .game-grid { grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: var(--sp-4); }
+  .game-card { min-height: 7.5rem; }
+  .tools-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .modal-content { max-width: 36rem; }
+  .modal-content:has(> .sheet__body) { max-width: 46rem; }
+
+  /* The main area has more padding here than on a phone on its side. */
+  .draw-layout > .draw-wrap {
+    --canvas: min(calc(var(--app-h, 100dvh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - var(--sp-4) - var(--sp-6) - 4px), 46vw);
+  }
+  .cn-card { aspect-ratio: 4 / 3; }
+  .key { height: 3.5rem; }
+  .tb-cat { min-height: 3.5rem; }
+  /* The board takes the screen's height (the play area gets the space). */
+  .tb-cell { min-height: max(4rem, calc((var(--app-h, 100dvh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 10rem) / 5)); font-size: 1.375rem; }
+  .room-qr { width: min(15rem, 32vh); }
+}
+
+/* ==========================================================================
+   THE BIG SCREEN (شاشة العرض)
+   --------------------------------------------------------------------------
+   A room on a TV or a laptop (JS_RoomTv.html). It is read from across a room,
+   so every size here comes from the screen (vmin) rather than the phone type
+   scale, and the one page fits a 55" TV, a laptop, and a phone mirrored to a
+   TV in either orientation. Last in the file so it wins over the landscape
+   phone rail. Phone components reused on it (a scoreboard, a game's lobby
+   options) sit in .tv-scale, which zooms them in steps instead.
+   ========================================================================== */
+body.is-tv-view .shell {
+  display: block;
+  max-width: none;
+  height: var(--app-h, 100dvh);
+  padding: 0;
+}
+body.is-tv-view .shell__header,
+body.is-tv-view .shell__nav,
+body.is-tv-view .active-room-banner { display: none; }
+body.is-tv-view .shell__main {
+  height: 100%;
+  --main-pb: 0px;
+  padding: 0;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+body.is-tv-view #view-room-tv:not(.hidden) { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+/* The landscape-phone block centres views in a 760px column; the screen is all of it. */
+body.is-tv-view .shell__main > #view-room-tv { width: 100%; max-width: none; margin: 0; }
+
+.tv {
+  --tv-gap: clamp(8px, 1.6vmin, 28px);
+  --tv-xs: clamp(0.72rem, 1.7vmin, 1.4rem);
+  --tv-sm: clamp(0.85rem, 2.2vmin, 1.9rem);
+  --tv-md: clamp(1rem, 3vmin, 2.6rem);
+  --tv-lg: clamp(1.25rem, 4.6vmin, 4rem);
+  --tv-xl: clamp(1.8rem, 8vmin, 7.5rem);
+  --tv-r: clamp(10px, 1.6vmin, 26px);
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--tv-gap);
+  padding: calc(var(--tv-gap) + var(--safe-top)) calc(var(--tv-gap) + var(--safe-right))
+           calc(var(--tv-gap) + var(--safe-bottom)) calc(var(--tv-gap) + var(--safe-left));
+  font-size: var(--tv-sm);
+  color: var(--text);
+}
+.tv-stage { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.tv-stage > * { flex: 1 1 auto; min-height: 0; }
+
+.tv-scale { zoom: 1; }
+@media (min-width: 900px) and (min-height: 560px)   { .tv-scale { zoom: 1.2; } }
+@media (min-width: 1280px) and (min-height: 700px)  { .tv-scale { zoom: 1.45; } }
+@media (min-width: 1700px) and (min-height: 950px)  { .tv-scale { zoom: 1.9; } }
+@media (min-width: 2500px) and (min-height: 1400px) { .tv-scale { zoom: 2.6; } }
+
+/* --- bar and strip --- */
+.tv-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--tv-gap);
+}
+.tv-bar__title {
+  overflow: hidden;
+  /* Room above and below for the game's emoji, which is taller than the text's
+     line box and was cut at the top on a 1080p screen. */
+  padding-block: 0.12em;
+  line-height: 1.35;
+  font-size: var(--tv-md);
+  font-weight: 900;
+  color: var(--text-strong);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tv-bar__code {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.2em 0.9em;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+}
+.tv-bar__label { font-size: var(--tv-sm); font-weight: 800; color: var(--text-2); }
+.tv-bar__value {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-size: var(--tv-md);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: var(--accent-ink);
+}
+.tv-bar__actions { display: flex; justify-content: flex-end; gap: calc(var(--tv-gap) / 2); }
+.tv-icon {
+  flex: none;
+  width: clamp(40px, 5.4vmin, 90px);
+  height: clamp(40px, 5.4vmin, 90px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--tv-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-out);
+}
+.tv-icon:hover, .tv-icon:focus-visible { border-color: var(--accent); }
+.tv-icon--leave:hover, .tv-icon--leave:focus-visible { border-color: var(--danger); color: var(--danger); }
+
+.tv-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(var(--tv-gap) / 2);
+  max-height: 22vh;
+  overflow: hidden;
+}
+.tv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.25em 0.8em;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  /* Names and scores read from the sofa: --tv-xs was 12px on a TV fed by a 720p laptop. */
+  font-size: var(--tv-sm);
+  font-weight: 800;
+  color: var(--text-strong);
+}
+.tv-chip.is-away { opacity: 0.45; }
+.tv-chip.is-turn { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.tv-chip.is-done { border-color: var(--success); color: var(--success-ink); }
+.herd-tv .tv-chip { flex-direction: column; gap: 0.1em; padding: 0.4em 1em; font-size: var(--tv-md); }
+.herd-tv { gap: var(--tv-gap); }
+.herd-tv__names { color: var(--text-2); font-size: 0.7em; font-weight: 600; }
+.tv-chip__score {
+  padding: 0 0.45em;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+.tv .presence-dot { width: 0.6em; height: 0.6em; }
+.tv .fa-dot { width: 0.75em; height: 0.75em; }
+
+/* --- type and shared pieces --- */
+.tv-eyebrow { font-size: var(--tv-sm); font-weight: 800; color: var(--text-2); }
+.tv-title {
+  font-size: var(--tv-lg);
+  font-weight: 900;
+  line-height: 1.2;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.tv-note { font-size: var(--tv-sm); font-weight: 700; color: var(--text-2); text-align: center; }
+.tv-center-text { text-align: center; }
+.tv-success { color: var(--success-ink); }
+.tv-danger { color: var(--danger); }
+.tv-big-icon { font-size: calc(var(--tv-xl) * 1.3); line-height: 1; }
+.tv-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tv-gap);
+  text-align: center;
+}
+.tv-panel {
+  padding: var(--tv-gap);
+  border: 1px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  text-align: center;
+}
+.tv-top { display: flex; align-items: center; justify-content: space-between; gap: var(--tv-gap); flex-wrap: wrap; }
+.tv-pill {
+  padding: 0.25em 0.9em;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  font-size: var(--tv-sm);
+  font-weight: 800;
+  color: var(--text-strong);
+}
+.tv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tv-gap);
+}
+.tv-actions--stack { flex-direction: column; align-items: stretch; }
+.tv-actions .btn, .tv-chosen .btn {
+  min-height: clamp(44px, 6.6vmin, 112px);
+  padding-inline: clamp(16px, 2.8vmin, 52px);
+  border-radius: var(--tv-r);
+  font-size: var(--tv-sm);
+}
+.tv-timer { font-weight: 900; font-variant-numeric: tabular-nums; color: var(--accent-ink); }
+.tv-timer--big {
+  min-width: 2.6ch;
+  padding: 0.05em 0.5em;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  font-size: var(--tv-lg);
+  text-align: center;
+}
+.tv-timer.is-low { color: var(--danger); }
+.tv-timer--big.is-low { background: var(--danger-soft); }
+.tv-clock {
+  direction: ltr;
+  text-align: center;
+  font-size: calc(var(--tv-xl) * 1.4);
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink);
+}
+.tv-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--tv-gap) / 2); }
+.tv-question {
+  padding: 0 2vw;
+  font-size: var(--tv-lg);
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.tv-foot { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); }
+
+/* --- lobby --- */
+.tv-lobby {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  /* Both columns from the top: centred, the players' side (a heading and a line
+     when this TV isn't the host) floated in the middle of an empty half on a
+     1080p screen (the owner, 26 Sep 2026). The pair stays in the middle of the
+     stage's height, as long as it fits. */
+  align-items: start;
+  align-content: center;
+  align-content: safe center;
+  gap: calc(var(--tv-gap) * 2);
+}
+/* A TV that isn't the host: the game chosen, and a tile for everyone in. */
+.tv-lobby__game {
+  display: flex;
+  align-items: center;
+  gap: var(--tv-gap);
+  padding: var(--tv-gap);
+  border: 2px solid var(--accent-soft);
+  border-radius: var(--tv-r);
+  background: var(--accent-soft);
+}
+.tv-lobby__game-icon { font-size: var(--tv-xl); line-height: 1; }
+.tv-lobby__game-text { display: flex; flex-direction: column; gap: 0.2em; min-width: 0; }
+.tv-lobby__game-text b { font-size: var(--tv-md); font-weight: 900; color: var(--accent-ink); }
+.tv-lobby__game-text span { font-size: var(--tv-sm); font-weight: 700; color: var(--text-2); }
+.tv-lobby__players {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 17vmin, 280px), 1fr));
+  gap: var(--tv-gap);
+}
+.tv-lobby__player {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-width: 0;
+  padding: calc(var(--tv-gap) * 0.7) var(--tv-gap);
+  border: 2px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+}
+.tv-lobby__player.is-new { animation: tv-player-in 420ms var(--ease-out) both; }
+.tv-lobby__avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.9em;
+  height: 1.9em;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--tv-sm);
+  font-weight: 900;
+}
+.tv-lobby__name { min-width: 0; font-size: var(--tv-sm); font-weight: 800; color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes tv-player-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tv-lobby__player.is-new { animation: none; } }
+.tv-join { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); text-align: center; }
+.tv-qr {
+  width: min(42vmin, 520px);
+  padding: calc(var(--tv-gap) * 0.8);
+  border-radius: var(--tv-r);
+  background: #fff;          /* scanners want a light quiet zone in either theme */
+  box-shadow: var(--sh-2);
+}
+.tv-qr svg { display: block; width: 100%; height: auto; }
+.tv-join__code {
+  direction: ltr;
+  font-size: var(--tv-xl);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  color: var(--accent-ink);
+}
+.tv-join__hint { max-width: 34ch; margin: 0; font-size: var(--tv-sm); font-weight: 700; color: var(--text-2); }
+.tv-join__url { margin: 0; font-size: var(--tv-xs); font-weight: 700; color: var(--text-3); overflow-wrap: anywhere; }
+.tv-lobby__side { display: flex; flex-direction: column; gap: var(--tv-gap); min-width: 0; }
+.tv-h { display: flex; align-items: center; gap: 0.5em; margin: 0; font-size: var(--tv-md); font-weight: 900; color: var(--text-strong); }
+.tv-count {
+  padding: 0 0.55em;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+.tv-hub {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 16vmin, 260px), 1fr));
+  gap: var(--tv-gap);
+}
+.tv-hub__game {
+  position: relative;
+  min-height: clamp(92px, 15vmin, 240px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  padding: var(--tv-gap);
+  border: 2px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.tv-hub__game:hover:not(:disabled), .tv-hub__game:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
+.tv-hub__game:disabled { opacity: 0.4; cursor: default; }
+.tv-hub__icon { font-size: var(--tv-lg); line-height: 1; }
+.tv-hub__name { font-size: var(--tv-xs); font-weight: 800; text-align: center; }
+.tv-hub__need { position: absolute; top: 0.35em; inset-inline-end: 0.5em; font-size: var(--tv-xs); font-weight: 900; color: var(--text-2); }
+.tv-chosen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--tv-gap);
+  padding: 0.4em 0.8em;
+  border-radius: var(--tv-r);
+  background: var(--accent-soft);
+}
+.tv-chosen__name { font-size: var(--tv-md); font-weight: 900; color: var(--accent-ink); }
+
+/* --- Codenames --- */
+.tv-cn { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--tv-gap); }
+.tv-cn__head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: stretch; gap: var(--tv-gap); }
+.tv-team {
+  min-width: clamp(80px, 13vmin, 230px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2em 0.8em;
+  border-radius: var(--tv-r);
+  color: #fff;
+  opacity: 0.5;
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.tv-team.is-turn { opacity: 1; transform: scale(1.04); }
+.tv-team--red  { background: #e11d48; }
+.tv-team--blue { background: #2563eb; }
+.tv-team__num { font-size: var(--tv-xl); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.tv-team__name, .tv-team__wins { font-size: var(--tv-xs); font-weight: 800; }
+.tv-cn__banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2em 1em;
+  border: 2px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  text-align: center;
+}
+.tv-cn__banner--red  { border-color: rgba(225, 29, 72, 0.5); background: rgba(225, 29, 72, 0.1); }
+.tv-cn__banner--blue { border-color: rgba(37, 99, 235, 0.5); background: rgba(37, 99, 235, 0.1); }
+.tv-cn__clue { font-size: var(--tv-lg); font-weight: 900; line-height: 1.15; color: var(--text-strong); overflow-wrap: anywhere; }
+.tv-cn__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  font-size: var(--tv-sm);
+  font-weight: 800;
+  color: var(--text-2);
+}
+.tv-cn__body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(170px, 24vmin, 440px);
+  gap: var(--tv-gap);
+}
+.tv-cn__board {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  gap: clamp(4px, 1vmin, 16px);
+}
+.tv-card {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2em;
+  border: 2px solid var(--border-strong);
+  border-radius: clamp(6px, 1vmin, 16px);
+  background: var(--surface-solid);
+  box-shadow: 0 0.35vmin 0 var(--border-strong);
+  color: var(--text-strong);
+  font-family: var(--font);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.tv-card:disabled { cursor: default; }
+.tv-card:not(:disabled):hover, .tv-card:not(:disabled):focus-visible { border-color: var(--accent); transform: translateY(-2px); }
+.tv-card__word {
+  position: relative;
+  font-size: clamp(0.8rem, 2.3vmin + 0.45vw, 2.9rem);
+  font-weight: 900;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.tv-card.is-revealed { color: #fff; box-shadow: none; }
+.tv-card.is-revealed .tv-card__word { align-self: flex-end; font-size: clamp(0.65rem, 1.5vmin + 0.25vw, 1.7rem); }
+.tv-card--red      { background: #e11d48; border-color: #e11d48; }
+.tv-card--blue     { background: #2563eb; border-color: #2563eb; }
+.tv-card--neutral  { background: var(--n-500); border-color: var(--n-500); }
+.tv-card--assassin { background: var(--n-950); border-color: var(--n-950); }
+.tv-card__cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(1.4rem, 7vmin, 7rem);
+  opacity: 0.3;
+  pointer-events: none;
+}
+.tv-card--ended { opacity: 0.6; }
+.tv-peek--red      { border-color: #e11d48; background: rgba(225, 29, 72, 0.14); }
+.tv-peek--blue     { border-color: #2563eb; background: rgba(37, 99, 235, 0.14); }
+.tv-peek--neutral  { border-color: var(--n-500); background: rgba(148, 163, 184, 0.18); }
+.tv-peek--assassin { border-color: var(--n-900); background: rgba(15, 23, 42, 0.8); color: #fff; }
+.tv-card.is-pending {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 4px var(--warning);
+  animation: cn-pending 700ms var(--ease-in-out) infinite alternate;
+}
+.tv-card.is-flipping { animation: cn-flip 480ms var(--ease-out); }
+.tv-card__marks {
+  position: absolute;
+  top: 0.3em;
+  inset-inline-end: 0.3em;
+  min-width: 1.6em;
+  height: 1.6em;
+  padding: 0 0.35em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  background: var(--warning-btn);
+  color: var(--warning-on);
+  font-size: var(--tv-xs);
+  font-weight: 900;
+}
+.tv-cn__log { min-height: 0; overflow-y: auto; }
+.tv-cn__log .cn-log { margin: 0; }
+.tv-cn__log .cn-log__summary { font-size: var(--tv-sm); }
+.tv-cn__log .cn-log__list { max-height: none; }
+.tv-cn__log .cn-log__clue { font-size: var(--tv-sm); }
+.tv-cn__log .cn-log__guess { font-size: var(--tv-xs); }
+.tv-confirm { font-size: var(--tv-md); font-weight: 900; color: var(--text-strong); }
+
+/* --- trivia, justone, whoami --- */
+.tv-trivia, .tv-wl, .tv-vote {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* "safe": when a frame is taller than the screen (the bomb's strikes with a
+     big table) it grows downward, instead of centring its top - the category
+     and whose turn it is - off the top of the screen where nothing scrolls. */
+  justify-content: safe center;
+  gap: var(--tv-gap);
+}
+/* A long list of names on the TV reads across, not down: a table of six ran
+   off the bottom of a 1080p screen under the player strip. */
+body.is-tv-view .scoreboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  column-gap: var(--sp-3);
+  align-items: start;
+}
+body.is-tv-view .scoreboard > .section__head { grid-column: 1 / -1; }
+.tv-vote .tv-scale > .card > .status-row,
+.tv-vote .tv-scale .scoreboard .status-row { break-inside: avoid; }
+.tv-vote .tv-scale > .card:has(> .status-row:nth-of-type(5)) { column-count: 2; column-gap: var(--sp-4); }
+.tv-vote .tv-scale > .card:has(> .status-row:nth-of-type(5)) > .eyebrow { column-span: all; }
+.tv-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tv-gap); }
+.tv-choice {
+  position: relative;
+  min-height: clamp(64px, 13vmin, 230px);
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.4em 0.8em;
+  border-radius: var(--tv-r);
+  color: #fff;
+  font-size: var(--tv-md);
+  font-weight: 900;
+  transition: opacity var(--dur-3) var(--ease-out), transform var(--dur-3) var(--ease-out);
+}
+.tv-choice--0 { background: #e11d48; }
+.tv-choice--1 { background: #2563eb; }
+.tv-choice--2 { background: #b45309; }
+.tv-choice--3 { background: #047857; }
+.tv-choice__letter {
+  flex: none;
+  width: 1.8em;
+  height: 1.8em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  font-size: 0.85em;
+}
+.tv-choice__text { flex: 1; line-height: 1.2; overflow-wrap: anywhere; }
+/* The question being answered is the whole screen (the owner, 21 Sep 2026:
+   the play area gets the space): the four answers take the height left under
+   it, and read bigger for it, instead of four short tiles over an empty half. */
+.tv-trivia > .tv-question { font-size: clamp(1.4rem, 5.4vmin, 4.8rem); }
+.tv-trivia > .tv-choices { flex: 1 1 auto; grid-auto-rows: minmax(clamp(64px, 13vmin, 230px), 1fr); padding: 2.4vmin; /* room for the right answer's ring, or the stage's scroll edge clips it */ }
+.tv-trivia > .tv-choices .tv-choice { font-size: var(--tv-lg); }
+.tv-choice__count {
+  flex: none;
+  min-width: 1.8em;
+  padding: 0 0.4em;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.25);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.tv-choice.is-dim { opacity: 0.35; transform: scale(0.97); }
+.tv-choice.is-correct { box-shadow: 0 0 0 0.6vmin #fff, 0 0 0 1.2vmin #047857; transform: scale(1.02); }
+.tv-progress {
+  width: min(80%, 900px);
+  height: clamp(8px, 1.4vmin, 22px);
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.tv-progress__fill { height: 100%; background: var(--accent); transition: width var(--dur-3) var(--ease-out); }
+.tv-fastest { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: calc(var(--tv-gap) / 2); }
+.tv-fastest__label { font-size: var(--tv-sm); font-weight: 900; color: var(--text-2); }
+.tv-fast {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.2em 0.7em;
+  border-radius: var(--r-full);
+  background: var(--success-soft);
+  color: var(--success-ink);
+  font-size: var(--tv-sm);
+  font-weight: 800;
+}
+.tv-podium { display: flex; align-items: flex-end; justify-content: center; gap: var(--tv-gap); }
+.tv-podium__place {
+  min-width: clamp(100px, 20vmin, 340px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.2em;
+  padding: var(--tv-gap);
+  border: 1px solid var(--border);
+  border-radius: var(--tv-r) var(--tv-r) 0 0;
+  background: var(--surface-solid);
+}
+.tv-podium__place--1 { order: 2; min-height: 34vmin; background: var(--accent-soft); }
+.tv-podium__place--2 { order: 1; min-height: 26vmin; }
+.tv-podium__place--3 { order: 3; min-height: 20vmin; }
+.tv-podium__medal { font-size: var(--tv-xl); line-height: 1; }
+.tv-podium__name { font-size: var(--tv-md); font-weight: 900; color: var(--text-strong); text-align: center; overflow-wrap: anywhere; }
+.tv-podium__score { font-size: var(--tv-lg); font-weight: 900; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.tv-clues { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--tv-gap); }
+.tv-clue {
+  padding: 0.3em 0.9em;
+  border: 2px solid var(--accent-border, var(--border));
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  font-size: var(--tv-lg);
+  font-weight: 900;
+  color: var(--text-strong);
+}
+.tv-ids {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(160px, 26vmin, 440px), 1fr));
+  gap: var(--tv-gap);
+}
+
+/* --- canvas games --- */
+.tv-split {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(240px, 1fr);
+  align-items: stretch;
+  gap: calc(var(--tv-gap) * 1.5);
+}
+.tv-split__main { min-height: 0; container-type: size; display: flex; align-items: center; justify-content: center; }
+.tv .tv-canvas {
+  width: min(100cqw, 100cqh);
+  height: min(100cqw, 100cqh);
+  max-width: none;
+  max-height: none;
+  margin: 0;
+}
+.tv .tv-canvas canvas { width: 100%; height: 100%; }
+.tv-split__side { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--tv-gap); }
+.tv-guesses .draw-guess { font-size: var(--tv-sm); }
+
+/* --- The votes --- */
+.tv-versus { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: var(--tv-gap); }
+.tv-option {
+  min-height: clamp(90px, 22vmin, 380px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--tv-gap);
+  border-radius: var(--tv-r);
+  color: #fff;
+  font-size: var(--tv-md);
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.tv-option--0 { background: #7c3aed; }
+.tv-option--1 { background: #0e7490; }
+.tv-versus__or { align-self: center; font-size: var(--tv-lg); font-weight: 900; color: var(--text-2); }
+.tv-list { width: min(92%, 1400px); align-self: center; display: grid; gap: calc(var(--tv-gap) / 2); }
+.tv-list__item {
+  padding: 0.4em 0.9em;
+  border: 1px solid var(--border);
+  border-radius: var(--tv-r);
+  background: var(--surface-solid);
+  font-size: var(--tv-md);
+  font-weight: 800;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+.tv-vote > .tv-scale, .tv-trivia > .tv-scale, .tv-split__side > .tv-scale { width: min(92%, 900px); align-self: center; }
+/* كذبة وصدقة on the TV: the answers beside the board, a step smaller, so a table
+   of five lies and the truth fits a 1080p screen instead of running under the
+   player strip. */
+.tv-fib-res { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--tv-gap); width: min(96%, 1700px); align-self: center; align-items: start; }
+.tv-fib-res > .tv-scale { width: 100%; }
+@media (min-width: 1280px) and (min-height: 700px)  { .tv-fib-res > .tv-scale { zoom: 1.15; } }
+@media (min-width: 1700px) and (min-height: 950px)  { .tv-fib-res > .tv-scale { zoom: 1.45; } }
+@media (min-width: 2500px) and (min-height: 1400px) { .tv-fib-res > .tv-scale { zoom: 2; } }
+@media (orientation: portrait) { .tv-fib-res { grid-template-columns: minmax(0, 1fr); } }
+
+/* A phone mirrored upright, or a portrait monitor: one column. */
+@media (orientation: portrait) {
+  .tv-lobby { grid-template-columns: minmax(0, 1fr); align-content: start; }
+  .tv-cn__body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .tv-cn__log { max-height: 24vh; }
+  .tv-choices, .tv-versus { grid-template-columns: minmax(0, 1fr); }
+  .tv-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr); }
+  .tv-bar { grid-template-columns: minmax(0, 1fr) auto; }
+  .tv-bar__code { display: none; }
+}
+
+
+</style>

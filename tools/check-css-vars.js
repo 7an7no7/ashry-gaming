@@ -5,7 +5,7 @@
  * A `var(--x)` with no `--x` anywhere is silently nothing - the property it
  * sits in falls back to its initial value - and no other check sees it (the
  * first-play card's `--sp-3-5`, a step the spacing scale doesn't have, left its
- * text touching the edge). This reads every `var(--name)` in Style.html,
+ * text touching the edge). This reads every `var(--name)` in Style*.html,
  * Controller.html and the JS_*.html files, and fails on a name that is defined
  * nowhere in the page's sources: not in a stylesheet or an inline style
  * (`--name:`), and not set from a script (`setProperty('--name', …)`, or a
@@ -19,7 +19,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const pageFiles = fs.readdirSync(ROOT).filter((f) => /^(JS_.*|Style|Controller|Tailwind|Logo)\.html$/.test(f));
+const pageFiles = fs.readdirSync(ROOT).filter((f) => /^(JS_.*|Style(_\w+)?|Controller|Tailwind|Logo)\.html$/.test(f));
 // The shared lists and rule files are in the page too, and may set a property for it.
 const allFiles = pageFiles.concat(fs.readdirSync(ROOT).filter((f) => /^[A-Z][A-Za-z0-9]*\.js$/.test(f)));
 const READ_FROM = pageFiles.filter((f) => f !== 'Tailwind.html' && f !== 'Logo.html');

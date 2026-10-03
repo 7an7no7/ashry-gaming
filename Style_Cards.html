@@ -1,0 +1,2874 @@
+<style>
+/* Style_Cards.html - sections 16-21: سكرو, one voice (20 Sep 2026), كونكت ٤ and what the duels share, نقط ومربعات, أونو, الدومينو.
+   Part of the stylesheet that starts in Style.html: the parts are included in
+   Controller.html in this order, and the cascade depends on it. */
+
+/* ==========================================================================
+   16. سكرو
+   JS_RoomScrew.html: the table on separate phones and on the TV. Every hand
+   lies face down in numbered slots, and a move flies between exact slots
+   (.skr-ghost, a Web Animation of transform and opacity; .skr-hold keeps the
+   end state hidden until it lands). One card component, .skr-card, sized by
+   --skr-w (its height is 1.42 times that), in the owner's "colour blocks"
+   look: a face is the whole card in its type's colour (the --skr-c-* tokens,
+   the same in both themes) with a big white numeral or line icon; corners and
+   a name band only on the big ones (.is-full); the back is violet and dotted.
+   ========================================================================== */
+
+/* --- The card --- */
+:root {
+  --skr-c-low: #0d9488;     /* 1-3 */
+  --skr-c-mid: #2563eb;     /* 4-6 */
+  --skr-c-look: #7c3aed;    /* 7-10 */
+  --skr-c-act: #4338ca;     /* خد وهات, بصرة, كعب داير */
+  --skr-c-bad: #dc2626;     /* +20, the red screw */
+  --skr-c-good: #15803d;    /* the green screw, -1 */
+  --skr-c-thief: #b45309;   /* الحرامي's three */
+  /* The two below were a cyan beside 1-3's teal and a purple beside 7-10's
+     violet, alike at table size once the colours showed at all (the owner, 21
+     Sep 2026): an olive-lime for the partners, and a Ramadan night with a gold
+     icon for المسحراتي's three. */
+  --skr-c-sahib: #4d7c0f;   /* صاحب صاحبه's three */
+  --skr-c-mesa: #172554;    /* المسحراتي's three */
+  --skr-mesa-ink: #fcd34d;
+  --skr-c-oscar: #db2777;   /* أوسكار's four */
+  --skr-back-1: #7c3aed;
+  --skr-back-2: #4c1d95;
+}
+.skr-c--low { --c: var(--skr-c-low); }
+.skr-c--mid { --c: var(--skr-c-mid); }
+.skr-c--look { --c: var(--skr-c-look); }
+.skr-c--act { --c: var(--skr-c-act); }
+.skr-c--bad { --c: var(--skr-c-bad); }
+.skr-c--good { --c: var(--skr-c-good); }
+.skr-c--thief { --c: var(--skr-c-thief); }
+.skr-c--sahib { --c: var(--skr-c-sahib); }
+.skr-c--mesa { --c: var(--skr-c-mesa); }
+.skr-card--face.skr-c--mesa { color: var(--skr-mesa-ink); }
+.skr-c--oscar { --c: var(--skr-c-oscar); }
+
+/* A face with no colour group is the middle blue. Given with no weight at all
+   (:where), because on .skr-card itself it outranked the .skr-c--* just above,
+   which sit on the same element: from 17 to 21 Sep 2026 every face was blue,
+   the red screw and +20 included. */
+:where(.skr-card) { --c: var(--skr-c-mid); }
+
+.skr-card {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--skr-w, 3rem);
+  height: calc(var(--skr-w, 3rem) * 1.42);
+  border-radius: calc(var(--skr-w, 3rem) * 0.12);
+  color: #fff;
+  font-family: var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.2);
+  line-height: 1;
+  vertical-align: top;
+  overflow: hidden;
+  /* A card narrower than --skr-full hides its corners and band (below), whatever its class says. */
+  container-type: inline-size;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.skr-card--xs { --skr-w: 1.5rem; }
+.skr-card--sm { --skr-w: 1.875rem; }
+.skr-card--md { --skr-w: 2.5rem; }
+.skr-card--lg { --skr-w: 3.75rem; }
+.skr-card--xl { --skr-w: 5rem; }
+.skr-card--fly { width: 100%; height: 100%; }
+.skr-card--face {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 78%, white), var(--c) 60%, color-mix(in srgb, var(--c) 80%, black));
+  box-shadow: 0 calc(var(--skr-w, 3rem) * 0.1) calc(var(--skr-w, 3rem) * 0.24) calc(var(--skr-w, 3rem) * -0.13) color-mix(in srgb, var(--c) 90%, black);
+}
+/* The soft shine in the top corner. */
+.skr-card--face::after { content: ''; position: absolute; inset-block-start: -30%; inset-inline-end: -40%; width: 90%; height: 70%; border-radius: 50%; background: rgba(255, 255, 255, 0.12); pointer-events: none; }
+.skr-card__art { position: relative; z-index: 1; display: grid; place-items: center; }
+.skr-card__big {
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.6);
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.skr-card__big--long { font-size: calc(var(--skr-w, 3rem) * 0.42); }
+.skr-icon { display: block; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.skr-card .skr-card__art .skr-icon { width: calc(var(--skr-w, 3rem) * 0.66); height: calc(var(--skr-w, 3rem) * 0.66); stroke-width: 2.2; }
+/* The big cards: the value in the corners, the art lifted over the name band. */
+.skr-card.is-full .skr-card__big { font-size: calc(var(--skr-w, 3rem) * 0.52); }
+.skr-card.is-full .skr-card__big--long { font-size: calc(var(--skr-w, 3rem) * 0.38); }
+.skr-card.is-full .skr-card__big--two { font-size: calc(var(--skr-w, 3rem) * 0.44); }
+/* A 6 or a 9 in a corner, underlined: the bottom corner is upside down. */
+.skr-card__u { text-decoration: underline; text-decoration-thickness: 0.12em; text-underline-offset: 0.12em; }
+.skr-card.is-full .skr-card__art .skr-icon { width: calc(var(--skr-w, 3rem) * 0.5); height: calc(var(--skr-w, 3rem) * 0.5); stroke-width: 1.8; }
+.skr-card.is-full.has-name .skr-card__art { transform: translateY(calc(var(--skr-w, 3rem) * -0.1)); }
+.skr-card__mini {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: calc(var(--skr-w, 3rem) * 0.07);
+  inset-inline-start: calc(var(--skr-w, 3rem) * 0.09);
+  display: grid;
+  justify-items: center;
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.17);
+  font-weight: 800;
+  line-height: 1;
+  opacity: 0.9;
+  direction: ltr;
+}
+.skr-card__mini .skr-icon { width: calc(var(--skr-w, 3rem) * 0.16); height: calc(var(--skr-w, 3rem) * 0.16); margin-top: 2px; stroke-width: 2.4; }
+.skr-card__mini--end { inset-block: auto calc(var(--skr-w, 3rem) * 0.07); inset-inline: auto calc(var(--skr-w, 3rem) * 0.09); transform: rotate(180deg); }
+/* A card with its name on the band: the bottom corner sits above the band, not on the name. */
+.skr-card.has-name .skr-card__mini--end { inset-block-end: calc(var(--skr-w, 3rem) * 0.3); }
+.skr-card__name {
+  position: absolute;
+  z-index: 1;
+  inset-inline: 0;
+  bottom: 0;
+  padding: calc(var(--skr-w, 3rem) * 0.035) 2px calc(var(--skr-w, 3rem) * 0.05);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.22);
+  font-family: 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.14);
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container (max-width: 55px) {
+  .skr-card__mini, .skr-card__name { display: none; }
+  .skr-card.is-full .skr-card__art { transform: none; }
+}
+/* The back: violet, dotted, the Ashry mark on the big ones and "A." on the small. */
+.skr-card--back {
+  background: linear-gradient(160deg, var(--skr-back-1), var(--skr-back-2));
+  box-shadow: 0 calc(var(--skr-w, 3rem) * 0.1) calc(var(--skr-w, 3rem) * 0.24) calc(var(--skr-w, 3rem) * -0.13) #2e1065;
+  color: #fcd34d;
+}
+.skr-card--back::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.2px, transparent 1.4px);
+  background-size: 9px 9px;
+  pointer-events: none;
+}
+.skr-card__mark { position: relative; z-index: 1; width: 68%; height: auto; aspect-ratio: 1; border-radius: 22%; box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.5); }
+.skr-card__a { position: relative; z-index: 1; color: #fff; font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font); font-size: calc(var(--skr-w, 3rem) * 0.3); font-weight: 800; line-height: 1; direction: ltr; }
+.skr-card__a i { color: #f5c451; font-style: normal; }
+/* The memory helper's value known from the pile: a white chip on the back, in that card's colour. */
+.skr-card__known {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: 62%;
+  padding: calc(var(--skr-w, 3rem) * 0.04) calc(var(--skr-w, 3rem) * 0.06);
+  border-radius: calc(var(--skr-w, 3rem) * 0.1);
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  color: var(--c);
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-size: calc(var(--skr-w, 3rem) * 0.32);
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.skr-card__known .skr-icon { width: calc(var(--skr-w, 3rem) * 0.34); height: calc(var(--skr-w, 3rem) * 0.34); stroke-width: 2.6; }
+.skr-card--empty { border: 2px dashed var(--border-strong); background: transparent; box-shadow: none; }
+/* A power's line icon in its card's colour, in the bars (the power, the vote, بوم). */
+.skr-chip { display: inline-grid; place-items: center; flex: none; width: 1.6em; height: 1.6em; margin-inline-end: 0.35em; border-radius: 0.45em; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 78%, white), var(--c) 60%, color-mix(in srgb, var(--c) 80%, black)); color: #fff; vertical-align: middle; }
+.skr-chip .skr-icon { width: 70%; height: 70%; stroke-width: 2.2; }
+
+/* --- The frame --- */
+.skr-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-1); margin-bottom: var(--sp-3); }
+.skr-layout { display: flex; flex-direction: column; }
+.skr-layout__table, .skr-layout__side { min-width: 0; }
+
+/* --- Slots: a numbered place for one card --- */
+.skr-slots { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 3px; min-width: 0; }
+.skr-slot {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 3px 2px 2px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  font-family: var(--font);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.skr-slot__card { position: relative; display: block; transition: transform var(--dur-2) var(--ease-out); }
+/* Seat layout أ: the slot's number printed under its card, centred. */
+.skr-slot__n {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: 0.625rem;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+.skr-slot__badge {
+  position: absolute;
+  inset-block-start: -2px;
+  inset-inline-end: -3px;
+  padding: 0 3px;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  font-size: 0.625rem;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.skr-slot.is-target .skr-card { box-shadow: 0 0 0 2px var(--accent), var(--sh-2); }
+.skr-slot.is-picked .skr-slot__card { transform: translateY(-4px); }
+.skr-slot.is-picked .skr-card { box-shadow: 0 0 0 3px var(--accent), 0 8px 16px -6px var(--accent-glow); }
+.skr-slot.is-dim { opacity: 0.45; }
+.skr-slot.is-memo .skr-card { box-shadow: 0 0 0 2px var(--warning), var(--sh-2); }
+.skr-slot.is-looking .skr-card { box-shadow: 0 0 0 3px var(--warning), 0 8px 16px -6px var(--accent-glow); }
+.skr-slot__eye { position: absolute; inset-block-start: -0.55rem; inset-inline: 0; width: max-content; margin-inline: auto; font-size: 0.9rem; line-height: 1; }
+
+/* --- The other players: compact seats, a grid of two from three of them --- */
+.skr-opps { display: grid; grid-template-columns: repeat(var(--skr-cols, 1), minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.skr-opps--grid { --skr-cols: 2; }
+/* Two seats a row leave each seat just enough for four cards: the slots give
+   up their side padding, or rounding pushed the fourth card onto a line of
+   its own. */
+.skr-opps--grid .skr-slots { gap: 2px; }
+.skr-opps--grid .skr-slot { padding-inline: 1px; }
+/* A hand that doesn't fit one row (skrStackHands): even rows, 2 over 2 or 3
+   over 3, and an odd card beside them, centred. */
+.skr-slots.is-stacked { display: grid; grid-template-columns: repeat(var(--skr-stack-cols, 2), auto); justify-content: center; align-items: start; }
+.skr-slots.is-stacked.is-odd { grid-template-columns: repeat(var(--skr-stack-cols, 2), auto) auto; }
+.skr-slots.is-stacked.is-odd > .skr-slot:last-child { grid-column: -2 / -1; grid-row: 1 / span 2; align-self: center; }
+.skr-seat {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+}
+.skr-seat__who {
+  min-width: 0;
+  min-height: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-strong);
+  font-family: var(--font);
+  text-align: start;
+  cursor: default;
+}
+.skr-seat__name { flex: 1 1 auto; min-width: 0; overflow: hidden; font-size: var(--fs-sm); font-weight: 800; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.skr-seat__tags { flex: none; font-size: var(--fs-xs); line-height: 1.2; white-space: nowrap; }
+.skr-seat__empty { padding: var(--sp-2); color: var(--text-3); }
+.skr-seat__head { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+/* The last move under a name, with the memory helper: one line, cut short rather than wrapped. */
+.skr-seat__last { display: block; min-width: 0; overflow: hidden; color: var(--text-2); font-size: 0.6875rem; font-weight: 700; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.skr-seat .skr-slots { justify-content: center; }
+.skr-seat__tags { margin-inline-start: auto; }
+.skr-avatar {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f5c451;
+  color: #3b2a05;
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.skr-avatar--0 { background: var(--team-blue); color: #fff; }
+.skr-avatar--1 { background: var(--team-red); color: #fff; }
+.skr-seat.is-turn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 6px 18px -10px var(--accent-glow); }
+.skr-seat.is-away { opacity: 0.6; }
+.skr-seat.is-target, .skr-seat.is-picked { border-color: var(--accent); }
+.skr-seat.is-picked { box-shadow: 0 0 0 2px var(--accent); }
+.skr-seat.is-target .skr-seat__who, .skr-seat.is-picked .skr-seat__who {
+  min-height: var(--tap);
+  padding-inline: var(--sp-2);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.skr-seat.skr-team--0, .skr-mine.skr-team--0, .skr-rrow.skr-team--0 { border-inline-start: 4px solid var(--team-blue); }
+.skr-seat.skr-team--1, .skr-mine.skr-team--1, .skr-rrow.skr-team--1 { border-inline-start: 4px solid var(--team-red); }
+.skr-dot { display: inline-block; flex: none; width: 0.55rem; height: 0.55rem; margin-inline-end: 0.3rem; border-radius: 50%; vertical-align: 0.05em; }
+.skr-dot--0 { background: var(--team-blue); }
+.skr-dot--1 { background: var(--team-red); }
+
+/* --- The middle: the deck, the pile, the card in the turn's hand --- */
+.skr-center {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-xl);
+  background: var(--accent-soft);
+}
+.skr-zone { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.skr-zone__card { position: relative; display: block; }
+.skr-zone__label { max-width: 6.5rem; overflow: hidden; color: var(--text-2); font-size: var(--fs-xs); font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.skr-count {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: -0.4rem;
+  width: max-content;
+  min-width: 1.5rem;
+  margin-inline: auto;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  color: var(--text-strong);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+.skr-pile { position: relative; display: block; }
+.skr-pile__under { position: absolute; inset: 0; opacity: 0.85; transform: rotate(-9deg) translateX(-12%); }
+.skr-pile__top { position: relative; display: block; }
+.skr-zone--held.is-mine .skr-card { box-shadow: 0 0 0 3px var(--accent), 0 10px 24px -8px var(--accent-glow); }
+
+/* --- Your hand --- */
+.skr-mine {
+  position: relative;
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+}
+.skr-mine.is-turn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 28px -14px var(--accent-glow); }
+.skr-mine__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.skr-mine__title { color: var(--text-strong); font-size: var(--fs-sm); font-weight: 900; }
+.skr-slots--mine {
+  --skr-mine-w: clamp(2.75rem, calc((min(100vw, var(--shell-max)) - 4.5rem) / var(--count, 4) - 0.5rem), 4.5rem);
+  justify-content: center;
+  gap: 6px;
+}
+.skr-slots--mine .skr-card { --skr-w: var(--skr-mine-w); }
+/* A slot is as wide as its card: a mark under it ("🔄 اتبدّل مع …") wraps to
+   two lines rather than widening the slot, which pushed the fourth card of a
+   375px phone onto a row of its own. */
+.skr-slots--mine .skr-slot { min-width: var(--tap); width: calc(var(--skr-mine-w) + 0.25rem); padding-top: var(--sp-1); }
+.skr-slots--mine .skr-slot__n { margin-top: 4px; font-size: var(--fs-xs); font-weight: 800; }
+.skr-slot__mark {
+  display: -webkit-box;
+  max-width: 100%;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* --- What to do now: a bar that stays at the foot of the screen on your move --- */
+.skr-actbar {
+  position: sticky;
+  bottom: var(--sp-2);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-4);
+  /* Twelve names and a hand to pick from can outgrow a phone: the bar scrolls inside itself. */
+  max-height: calc(var(--app-h, 100dvh) - 10rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.skr-note { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); margin-bottom: var(--sp-3); padding: var(--sp-2) var(--sp-3); text-align: center; }
+.skr-note .btn { width: auto; }
+.skr-prompt { margin: 0; color: var(--text-strong); font-size: var(--fs-h3); font-weight: 900; line-height: 1.35; text-align: center; }
+.skr-prompt.is-mine { color: var(--accent-ink); }
+.skr-power { display: flex; align-items: center; justify-content: center; margin-bottom: 2px; color: var(--text-strong); font-size: var(--fs-h2); }
+.skr-prompt > .skr-power { display: inline-flex; margin: 0; vertical-align: middle; font-size: 1em; }
+.skr-hint--power { display: flex; align-items: center; justify-content: center; }
+.skr-choices .btn .skr-chip { font-size: 1rem; }
+.skr-hint { margin: 0; color: var(--text-2); font-size: var(--fs-sm); font-weight: 700; line-height: 1.4; text-align: center; }
+.skr-summary { margin: 0; padding: var(--sp-2); border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-ink); font-weight: 800; text-align: center; overflow-wrap: anywhere; }
+.skr-rule { width: 100%; height: 1px; margin: 0; border: 0; background: var(--hairline); }
+.skr-actgrid, .skr-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.skr-actgrid .btn, .skr-choices .btn { padding-inline: var(--sp-2); line-height: 1.2; }
+.skr-pong { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2); border-radius: var(--r-md); background: var(--warning-soft); }
+.skr-seen { display: flex; flex-direction: column; gap: var(--sp-2); }
+.skr-seen__cards { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-3); }
+.skr-seen__item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-2); font-size: var(--fs-xs); font-weight: 800; text-align: center; }
+.skr-khoshaf { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.skr-pickcard {
+  min-width: var(--tap);
+  padding: 3px;
+  border: 2px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  cursor: pointer;
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.skr-pickcard.is-picked { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-3px); }
+
+/* --- The log --- */
+.skr-logbox { margin-bottom: var(--sp-3); }
+.skr-log { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.skr-log li { padding: 0.4rem 0.7rem; border-radius: var(--r-sm); background: var(--surface-2); color: var(--text); font-size: var(--fs-sm); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+
+/* --- Flights, signs, landings --- */
+.skr-ghost { position: fixed; left: 0; top: 0; z-index: var(--z-fx-ghost); pointer-events: none; transform-origin: center; will-change: transform; }
+.skr-ghost__flip { position: relative; width: 100%; height: 100%; will-change: transform; }
+.skr-ghost__face { position: absolute; inset: 0; }
+.skr-ghost__face--b { opacity: 0; }
+.skr-ghost__shake { position: relative; width: 100%; height: 100%; }
+.skr-ghost .skr-card { box-shadow: var(--sh-3); }
+.skr-hold { visibility: hidden; }
+.skr-landed { animation: skr-land 380ms cubic-bezier(0.2, 1.4, 0.35, 1); }
+@keyframes skr-land { 0% { transform: scale(0.9); } 60% { transform: scale(1.06); } 100% { transform: none; } }
+.skr-pop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-fx-pop);
+  padding: 0.1em 0.45em;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-3);
+  color: var(--text-strong);
+  font-size: 1.25rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.skr-pop--big { background: transparent; box-shadow: none; font-size: 2.25rem; }
+body.is-tv-view .skr-pop { font-size: 5vmin; }
+body.is-tv-view .skr-pop--big { font-size: 9vmin; }
+
+/* --- The lobby --- */
+.skr-editions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.skr-edition {
+  min-width: 0;
+  min-height: 4.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-family: var(--font);
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.skr-edition.is-active { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent); }
+.skr-edition__head { display: flex; align-items: center; gap: var(--sp-2); color: var(--text-strong); font-size: var(--fs-sm); font-weight: 900; }
+.skr-edition__icon { font-size: 1.35rem; line-height: 1; }
+.skr-edition__line { color: var(--text-2); font-size: var(--fs-xs); font-weight: 600; line-height: 1.35; }
+.skr-addons .field__label { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.skr-addon__cards { color: var(--text-3); font-size: var(--fs-xs); font-weight: 600; }
+
+/* --- The reveal --- */
+.skr-reveal { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.skr-rrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "who total" "cards cards";
+  align-items: center;
+  gap: 4px var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.skr-rrow.is-lowest { border-color: var(--success); box-shadow: 0 0 0 1px var(--success); }
+.skr-rrow__who { grid-area: who; min-width: 0; display: flex; align-items: center; gap: var(--sp-1); }
+.skr-rrow__name { min-width: 0; overflow: hidden; color: var(--text-strong); font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.skr-rrow__tags { flex: none; }
+.skr-rrow__total { grid-area: total; display: flex; align-items: center; gap: var(--sp-1); }
+.skr-rrow__total .metric { font-size: 1.35rem; }
+.skr-rrow__cards { grid-area: cards; display: flex; flex-wrap: wrap; gap: 4px; }
+.skr-lines { display: flex; flex-direction: column; gap: 4px; margin-bottom: var(--sp-3); }
+.skr-lines p { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); color: var(--text); font-size: var(--fs-sm); font-weight: 700; text-align: center; }
+.skr-flip { position: relative; display: inline-block; }
+.skr-flip__face { display: block; }
+.skr-flip__back { position: absolute; inset: 0; }
+.is-revealing .skr-flip__back { animation: skr-flip-back 420ms linear both; animation-delay: var(--at, 0ms); }
+.is-revealing .skr-flip__face { animation: skr-flip-face 420ms var(--ease-out) both; animation-delay: var(--at, 0ms); }
+.is-revealing .skr-late, .skr-lines.skr-late { animation: skr-late 320ms var(--ease-out) both; animation-delay: var(--late, 0ms); }
+@keyframes skr-flip-back { 0% { transform: scaleX(1); } 45% { transform: scaleX(0); } 100% { transform: scaleX(0); visibility: hidden; } }
+@keyframes skr-flip-face { 0%, 45% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+@keyframes skr-late { from { opacity: 0; transform: scale(0.6); } }
+.skr-over .podium { margin-top: var(--sp-2); }
+.skr--result > .skr-prompt { margin-bottom: var(--sp-3); }
+.skr-lastround { margin-bottom: var(--sp-3); }
+.skr-lastround > summary { min-height: var(--tap); display: flex; align-items: center; justify-content: center; color: var(--text-2); font-weight: 800; cursor: pointer; }
+
+/* --- The thief vote: every seated phone points at a player or at "no thief" --- */
+.skr-vote__choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr)); gap: var(--sp-2); }
+.skr-vote__choices .btn { min-width: 0; padding: var(--sp-1) var(--sp-2); line-height: 1.2; overflow-wrap: anywhere; }
+.skr-vote.is-sent > .btn { width: auto; align-self: center; }
+.skr-vote__who { overflow-wrap: anywhere; }
+
+/* --- The reveal starts with the thief: the votes as bars, then a card that
+   lies face down (.spy-reveal) until the accused's bar has risen:
+   --skr-cover-at holds the whole turn back by that long --- */
+.skr-thief { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.skr-thief__card { min-height: 6.5rem; display: flex; flex-direction: column; justify-content: center; gap: 4px; text-align: center; }
+.skr-thief__card.spy-reveal { animation-delay: calc(var(--skr-cover-at, 0ms) + 1100ms); }
+.skr-thief__card .spy-reveal__cover, .skr-thief__card .spy-reveal__q { animation-delay: var(--skr-cover-at, 0ms); }
+.skr-thief__head { margin: 0; font-size: var(--fs-h3); font-weight: 900; line-height: 1.35; overflow-wrap: anywhere; }
+/* A life jacket shows what it counted as under it; an emptied hand says so. */
+.skr-rcard { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; }
+.skr-rcard__val { color: var(--accent-ink); font-size: var(--fs-xs); font-weight: 900; line-height: 1; white-space: nowrap; }
+.skr-rrow__none { padding-block: var(--sp-1); color: var(--text-2); font-size: var(--fs-sm); font-weight: 800; }
+
+/* --- What just happened: the latest move at the top of the table --- */
+.skr-latest {
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.skr-latest.is-new { animation: skr-latest-in 380ms var(--ease-out) both; }
+@keyframes skr-latest-in { from { opacity: 0; transform: translateY(-0.4rem) scale(0.98); } }
+
+/* --- A move's glow: the slots, seats and pile it touched, for a few seconds,
+   with a sign (🔄, ⬆️ 2, 👁️ and the looker). The animation carries on where it
+   was when a redraw draws it again (--skr-flash-at, a negative delay). --- */
+.skr-slot.is-flash .skr-slot__card::after,
+.skr-seat.is-flash::after,
+.skr-mine.is-flash::after,
+.skr-zone--pile.is-flash .skr-pile__top::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 2px var(--warning), 0 0 14px 2px color-mix(in srgb, var(--warning) 55%, transparent);
+  pointer-events: none;
+  opacity: 0;
+  animation: skr-flash-glow 3000ms ease-out both;
+  animation-delay: var(--skr-flash-at, 0ms);
+}
+.skr-seat.is-flash::after, .skr-mine.is-flash::after { border-radius: inherit; box-shadow: 0 0 0 2px var(--warning); }
+@keyframes skr-flash-glow { 0% { opacity: 0; } 8% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+.skr-flash {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: -0.55rem;
+  inset-inline: 0;
+  width: max-content;
+  max-width: 8rem;
+  margin-inline: auto;
+  padding: 0.05rem 0.4rem;
+  overflow: hidden;
+  border: 1px solid var(--warning);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+  color: var(--text-strong);
+  font-size: 0.625rem;
+  font-weight: 900;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: skr-flash-sign 3000ms ease-out both;
+  animation-delay: var(--skr-flash-at, 0ms);
+}
+@keyframes skr-flash-sign { 0% { opacity: 0; transform: translateY(0.3rem) scale(0.7); } 8% { opacity: 1; transform: none; } 75% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
+.skr-slots--mine .skr-flash { max-width: 100%; }
+
+/* --- The vote: a soft spotlight sweeps over the seats while the votes come in --- */
+.skr-opps, .skr-tv__side { position: relative; }
+.skr.is-voting .skr-opps::after, .skr-tv.is-voting .skr-tv__side::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 45%;
+  border-radius: var(--r-xl);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--warning) 24%, transparent), transparent);
+  pointer-events: none;
+  animation: skr-spotlight 3.4s ease-in-out infinite alternate;
+}
+[dir="rtl"] .skr.is-voting .skr-opps::after, [dir="rtl"] .skr-tv.is-voting .skr-tv__side::after { animation-name: skr-spotlight-rtl; }
+@keyframes skr-spotlight { from { transform: translateX(0); } to { transform: translateX(122%); } }
+@keyframes skr-spotlight-rtl { from { transform: translateX(0); } to { transform: translateX(-122%); } }
+.skr-voted { color: var(--success-ink); font-weight: 900; }
+/* بوم: the phones picking a card of their own get the bar in the danger colour. */
+.skr-actbar.skr-boom { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger), var(--sh-4); }
+
+/* --- Picking someone else's card, in the bar: the names, then that player's cards big --- */
+.skr-pickrow { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.skr-pickrow__label { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); color: var(--text-2); font-size: var(--fs-xs); font-weight: 800; }
+.skr-targets { display: flex; gap: var(--sp-2); padding: 2px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none; }
+.skr-targets::-webkit-scrollbar { display: none; }
+.skr-target {
+  flex: none;
+  max-width: 10rem;
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+  scroll-snap-align: start;
+}
+.skr-target__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skr-target__sign { flex: none; color: var(--text-2); font-size: var(--fs-xs); }
+.skr-target.is-focus { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); box-shadow: 0 0 0 1px var(--accent); }
+.skr-target.is-done .skr-target__sign { color: var(--success-ink); font-weight: 900; }
+.skr-target:disabled { opacity: 0.45; cursor: default; }
+.skr-pickslots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.skr-pickslots .skr-slot { min-width: var(--tap); min-height: var(--tap); padding: 0.45rem 3px 2px; }
+.skr-pickslots .skr-slot__n { margin-top: 3px; }
+
+/* --- The countdown over your two cards, when the look is timed --- */
+.skr-memo-timer { position: absolute; z-index: 2; inset-block-start: -0.9rem; inset-inline-end: 0.5rem; width: 2.5rem; height: 2.5rem; display: grid; place-items: center; border-radius: 50%; background: var(--surface-solid); box-shadow: var(--sh-2); pointer-events: none; }
+.skr-memo-timer__ring { position: absolute; inset: 2px; border: 3px solid var(--warning); border-inline-end-color: transparent; border-radius: 50%; animation: skr-spin 1s linear infinite; }
+.skr-memo-timer .metric { color: var(--warning-ink); font-size: 1.05rem; }
+.skr-memo-bar { display: block; height: 4px; margin-top: var(--sp-2); border-radius: 2px; background: var(--warning); transform-origin: left center; animation-name: skr-memo-bar; animation-timing-function: linear; animation-fill-mode: both; }
+[dir="rtl"] .skr-memo-bar { transform-origin: right center; }
+@keyframes skr-memo-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes skr-spin { to { transform: rotate(1turn); } }
+
+/* --- The layers the moves draw over the page (JS_RoomScrew.html, the flights) --- */
+.skr-sign { position: fixed; left: 0; top: 0; z-index: var(--z-fx-pop); font-size: 1.6rem; line-height: 1; pointer-events: none; will-change: transform; }
+.skr-sign--big { font-size: 2.4rem; }
+.skr-ring { position: fixed; z-index: var(--z-fx-ghost); border: 3px solid var(--accent); border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
+.skr-ring--danger { border-color: var(--danger); }
+.skr-ring--success { border-color: var(--success); }
+.skr-spark { position: fixed; left: 0; top: 0; z-index: var(--z-fx-pop); color: var(--warning); font-size: 0.9rem; line-height: 1; pointer-events: none; }
+.skr-spark--danger { color: var(--danger); }
+.skr-stamp {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-fx-stamp);
+  padding: 0 0.3em;
+  border: 3px solid currentColor;
+  border-radius: 0.3em;
+  background: var(--surface-solid);
+  color: var(--accent-ink);
+  font-size: 1.8rem;
+  font-weight: 900;
+  line-height: 1.15;
+  white-space: nowrap;
+  pointer-events: none;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.skr-stamp--danger { color: var(--danger-ink); }
+.skr-band {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-fx-stamp);
+  padding: 0.5rem 1.2rem;
+  overflow: hidden;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  box-shadow: var(--sh-4);
+  color: var(--accent-on);
+  font-size: var(--fs-h3);
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.skr-band--danger { background: var(--danger-btn); color: var(--danger-on); }
+.skr-band--success { background: var(--success-btn); color: var(--success-on); }
+.skr-sweep {
+  position: fixed;
+  z-index: var(--z-fx-ghost);
+  border-radius: var(--r-md);
+  background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--warning) 45%, transparent) 50%, transparent 80%);
+  pointer-events: none;
+}
+.skr-sweep--lock { background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--accent) 40%, transparent) 50%, transparent 75%); }
+.skr-link { position: fixed; z-index: var(--z-fx-pop); border-radius: 2px; background: var(--success); transform-origin: left center; pointer-events: none; }
+.skr-sign.is-tv { font-size: 5vmin; }
+.skr-sign--big.is-tv { font-size: 8vmin; }
+.skr-spark.is-tv { font-size: 2.6vmin; }
+.skr-ring.is-tv { border-width: 0.6vmin; }
+.skr-stamp.is-tv { font-size: 7vmin; }
+.skr-band.is-tv { padding: 1.2vmin 3vmin; font-size: var(--tv-md); }
+
+/* --- The reveal's moments: a life jacket's value, the 0 of the round's winner --- */
+.skr-rcard.is-copy .skr-rcard__val { display: inline-flex; align-items: baseline; gap: 3px; }
+.skr-rcard__was { color: var(--text-3); text-decoration: line-through; }
+.is-revealing .skr-rcard__was { animation: skr-was 360ms ease-out both; animation-delay: calc(var(--late, 0ms) + 450ms); }
+.is-revealing .skr-rcard__now { display: inline-block; animation: skr-now 380ms cubic-bezier(0.2, 1.4, 0.35, 1) both; animation-delay: calc(var(--late, 0ms) + 450ms); }
+@keyframes skr-was { to { opacity: 0.35; } }
+@keyframes skr-now { from { opacity: 0; transform: scale(1.8); } }
+.is-revealing .skr-rrow__total .badge--success.skr-late { animation: skr-stamp-in 460ms cubic-bezier(0.2, 1.4, 0.35, 1) both; animation-delay: var(--late, 0ms); }
+@keyframes skr-stamp-in { from { opacity: 0; transform: scale(2.4) rotate(-10deg); } }
+
+/* --- A phone held upright: the middle and the bar tighter, so the table, your
+   hand and the bar fit a 375×812 screen with nothing under the bar --- */
+@media (orientation: portrait) and (max-width: 599px) {
+  .skr-center { gap: var(--sp-4); margin-bottom: var(--sp-2); padding-block: var(--sp-1); }
+  /* 58px: just over the size where a card keeps its corners and name band, so the pile says what it is. */
+  .skr-center .skr-card--lg { --skr-w: 3.625rem; }
+  .skr-mine { margin-bottom: var(--sp-2); }
+  .skr-actbar { gap: var(--sp-1); padding: var(--sp-2) var(--sp-3); }
+  .skr-actbar .skr-prompt { font-size: var(--fs-body); }
+}
+
+/* --- A phone on its side, and every wide screen: the table beside your hand --- */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .skr-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: var(--sp-3); align-items: start; }
+  .skr-slots--mine { --skr-mine-w: clamp(2.75rem, calc((42vw - 4rem) / var(--count, 4) - 0.5rem), 4.5rem); }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .skr-head { margin-bottom: var(--sp-2); }
+  .skr-opps { gap: 6px; margin-bottom: var(--sp-2); }
+  .skr-center { gap: var(--sp-3); margin-bottom: var(--sp-2); padding-block: var(--sp-1); }
+  .skr-center .skr-card--lg { --skr-w: 2.75rem; }
+  .skr-center .skr-card--md { --skr-w: 2.125rem; }
+  .skr-mine { margin-bottom: var(--sp-2); padding: var(--sp-1) var(--sp-2) var(--sp-2); }
+  .skr-mine__head { margin-bottom: 2px; }
+  .skr-slots--mine { --skr-mine-w: clamp(2.75rem, min(calc((42vw - 4rem) / var(--count, 4) - 0.5rem), calc((var(--app-h, 100vh) - 17rem) / 1.4)), 4rem); }
+  .skr-actbar { gap: var(--sp-1); padding: var(--sp-2); }
+  .skr-seen .skr-card--lg, .skr-khoshaf .skr-card--lg { --skr-w: 2.75rem; }
+  .skr-vote .skr-vote__rule { display: none; }
+  .skr-latest { margin-bottom: var(--sp-1); padding-block: var(--sp-1); }
+  .skr-actbar { max-height: calc(var(--app-h, 100dvh) - 4rem); }
+  .skr-thief__card { min-height: 5.5rem; }
+  /* The table's column is narrow on its side: up to four opponents take a row
+     each, so a hand of four stays on one line; five or more keep two columns
+     with the smallest cards. */
+  .skr-opps--grid:not(:has(> .skr-seat:nth-child(5))) { --skr-cols: 1; }
+  .skr-opps--grid:has(> .skr-seat:nth-child(5)) .skr-card--sm { --skr-w: 1.5rem; }
+  /* The bar over a hand only 331px tall: one line of prompt, smaller buttons,
+     no hint, so the hand stays in sight above it. */
+  .skr-actbar .skr-prompt { font-size: var(--fs-sm); line-height: 1.3; }
+  .skr-actbar .skr-hint { display: none; }
+  .skr-actbar .btn { min-height: 2.5rem; font-size: var(--fs-sm); }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-room-screw { max-width: 72rem; }
+  .skr-layout { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: var(--sp-5); }
+  .skr-opps .skr-card--sm { --skr-w: 2.375rem; }
+  .skr-opps .skr-card--md { --skr-w: 3rem; }
+  .skr-slots--mine { --skr-mine-w: clamp(3rem, calc((min(100vw, 72rem) * 0.4 - 4rem) / var(--count, 4) - 0.6rem), 5rem); }
+  .skr--result .skr-reveal { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* --- The TV: seats down both sides, the middle of the table between them --- */
+.skr-tv {
+  /* A seat's height: the name line and the number line (about 10vmin with padding) plus a card 1.42 wide. */
+  --skr-tv-w: min(8.5vmin, calc(((var(--app-h, 100vh) - 20vmin) / var(--rows, 3) - 10vmin) / 1.45), 5.2vw);
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr);
+  gap: var(--tv-gap);
+}
+.skr-tv__side { min-height: 0; display: grid; grid-template-rows: repeat(var(--rows, 3), minmax(0, 1fr)); gap: var(--tv-gap); }
+.skr-tv .skr-seat { justify-content: center; gap: 0.6vmin; padding: 0.8vmin 1.2vmin; border-radius: var(--tv-r); }
+.skr-tv .skr-seat--pad { visibility: hidden; }
+.skr-tv .skr-seat__who { min-height: 0; }
+.skr-tv .skr-seat__name { font-size: var(--tv-sm); }
+.skr-tv .skr-seat__tags { font-size: var(--tv-xs); }
+.skr-tv .skr-slots { flex-wrap: nowrap; gap: 0.8vmin; }
+.skr-tv .skr-slot { padding: 0.3vmin 0.2vmin 0; cursor: default; }
+.skr-tv .skr-seat .skr-card { --skr-w: var(--skr-tv-w); }
+.skr-tv .skr-seat--many .skr-card { --skr-w: calc(var(--skr-tv-w) * 0.78); }
+.skr-tv .skr-slot__n { margin-top: 0.2vmin; font-size: 1.5vmin; }
+.skr-tv .skr-avatar { width: 2.8vmin; height: 2.8vmin; font-size: 1.5vmin; }
+.skr-tv .skr-slot__badge { font-size: 1.6vmin; }
+.skr-tv__mid { min-height: 0; display: flex; flex-direction: column; justify-content: safe center; gap: var(--tv-gap); overflow: hidden; text-align: center; }
+.skr-tv .skr-head { margin: 0; }
+.skr-tv .badge, .skr-tvres .badge { height: auto; padding: 0.25em 0.7em; font-size: var(--tv-xs); }
+.skr-tv__turn { color: var(--text-strong); font-size: var(--tv-md); font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
+.skr-tv .skr-center { margin: 0; gap: 2.4vmin; padding: 1.6vmin; border-radius: var(--tv-r); }
+.skr-tv .skr-center .skr-card--md { --skr-w: 8vmin; }
+.skr-tv .skr-center .skr-card--lg { --skr-w: 10.5vmin; }
+.skr-tv .skr-zone__label { max-width: 16vmin; font-size: var(--tv-xs); }
+.skr-tv .skr-count { font-size: var(--tv-xs); }
+.skr-tv__host:empty { display: none; }
+.skr-tv .tv-actions:not(:has(.btn)) { display: none; }
+.skr-tv .skr-logbox { min-height: 0; margin: 0; overflow: hidden; text-align: start; }
+.skr-tv .skr-logbox .eyebrow { font-size: var(--tv-xs); }
+.skr-tv .skr-log li { padding: 0.5vmin 1vmin; font-size: var(--tv-xs); }
+.skr-tvres { min-height: 100%; display: flex; flex-direction: column; justify-content: safe center; gap: var(--tv-gap); }
+.skr-reveal--tv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tv-gap); margin: 0; }
+.skr-reveal--tv:has(> :nth-child(7)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.skr-reveal--tv .skr-rrow { padding: 1vmin 1.6vmin; border-radius: var(--tv-r); }
+.skr-reveal--tv .skr-rrow__name { font-size: var(--tv-sm); }
+.skr-reveal--tv .skr-rrow__total .metric { font-size: var(--tv-md); }
+.skr-reveal--tv .skr-card { --skr-w: 6vmin; }
+.skr-reveal--tv:has(> :nth-child(7)) .skr-card { --skr-w: 4.6vmin; }
+.skr-tvres .skr-lines { margin: 0; }
+.skr-tvres .skr-lines p { padding: 0.6vmin 1.2vmin; font-size: var(--tv-xs); }
+.skr-tvover { min-height: 100%; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: center; gap: calc(var(--tv-gap) * 2); }
+.skr-tvover__cards { min-width: 0; }
+.skr-tvover__side { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap); }
+.skr-tvover__side > .tv-scale { width: 100%; }
+.skr-tvover .skr-lines { margin-top: var(--tv-gap); }
+.skr-tvover .skr-lines p { padding: 0.6vmin 1.2vmin; font-size: var(--tv-xs); }
+.skr-board__teams { margin-bottom: var(--sp-2); }
+.skr-thief--tv { gap: var(--tv-gap); margin: 0; }
+.skr-thief--tv .skr-thief__card { min-height: 13vmin; gap: 0.6vmin; padding: 1vmin 1.6vmin; border-radius: var(--tv-r); }
+.skr-thief--tv .skr-thief__head { font-size: var(--tv-sm); }
+.skr-thief--tv .skr-hint { font-size: var(--tv-xs); }
+.skr-thief--tv .spy-reveal__q { font-size: 6vmin; }
+.skr-thief--tv .spy-reveal__label { font-size: var(--tv-sm); }
+.skr-thief__pairs { margin: 0.4vmin 0 0; }
+.skr-reveal--tv .skr-rcard__val { font-size: var(--tv-xs); }
+.skr-reveal--tv .skr-rrow__none { font-size: var(--tv-xs); }
+.skr-tv .skr-latest { margin: 0; padding: 0.8vmin 1.6vmin; border-radius: var(--tv-r); font-size: var(--tv-sm); }
+.skr-tv .skr-seat__who { gap: 0.8vmin; }
+.skr-tv .skr-seat__last { flex: 0 1 auto; max-width: 55%; font-size: var(--tv-xs); }
+.skr-tv .skr-flash { max-width: 18vmin; font-size: 1.6vmin; border-width: 0.2vmin; }
+.skr-tv__count { color: var(--warning-ink); font-size: 12vmin; line-height: 1; }
+/* Twelve seats down two sides of 1280×720: smaller cards and tighter seats, the signs still readable. */
+.skr-tv--many { --skr-tv-w: min(8.5vmin, calc(((var(--app-h, 100vh) - 20vmin) / var(--rows, 3) - 8vmin) / 1.45), 4.4vw); }
+.skr-tv--many .skr-seat { gap: 0.3vmin; padding: 0.4vmin 1vmin; }
+.skr-tv--many .skr-slot__n { font-size: 1.3vmin; }
+.skr-tv--many .skr-avatar { width: 2.4vmin; height: 2.4vmin; font-size: 1.3vmin; }
+.skr-tv--many .skr-tv__mid { gap: calc(var(--tv-gap) * 0.6); }
+.skr-tv--many .tv-strip-inline .tv-chip { padding: 0.15em 0.6em; }
+/* A phone mirrored upright: one column, and the stage scrolls. */
+@media (orientation: portrait) {
+  .skr-tv { height: auto; grid-template-columns: minmax(0, 1fr); }
+  .skr-tv__side { grid-template-rows: none; }
+  .skr-tv .skr-seat--pad { display: none; }
+  .skr-reveal--tv, .skr-reveal--tv:has(> :nth-child(7)) { grid-template-columns: minmax(0, 1fr); }
+  .skr-tvover { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skr-landed, .is-revealing .skr-flip__face, .is-revealing .skr-late, .skr-lines.skr-late { animation: none; }
+  .is-revealing .skr-flip__back { display: none; }
+  .skr-slot, .skr-slot__card, .skr-seat, .skr-edition, .skr-pickcard { transition: none; }
+  .skr-latest.is-new, .skr-flash, .is-revealing .skr-rcard__was, .is-revealing .skr-rcard__now, .is-revealing .skr-rrow__total .badge--success.skr-late { animation: none; }
+  .skr-slot.is-flash .skr-slot__card::after, .skr-seat.is-flash::after, .skr-mine.is-flash::after, .skr-zone--pile.is-flash .skr-pile__top::after { animation: none; opacity: 1; }
+  .skr.is-voting .skr-opps::after, .skr-tv.is-voting .skr-tv__side::after, .skr-memo-timer__ring { animation: none; }
+  .skr-memo-bar { display: none; }
+}
+
+/* ==========================================================================
+   17. ONE VOICE (20 Sep 2026)
+   --------------------------------------------------------------------------
+   A pass over the pieces every screen is built from, so lifting one screen
+   lifts all of them. Four things were true everywhere and none of them was
+   a bug, which is why they survived: the app had no type weight under 600,
+   so nothing could read as emphatic; the only colour on a card was its
+   emoji, so nine sections of white boxes looked like one long list; the
+   selected state was near-black in light and pure white in dark, a third
+   colour system answering to nothing; and every surface pressed with the
+   same scale whether it was a 44px chip or a 150px card.
+
+   Everything here is a refinement of a component defined earlier in this
+   file - no new markup, no new class on any element that did not already
+   carry it. Sizes, spacing and tap targets are untouched.
+   ========================================================================== */
+
+/* --- The display face --------------------------------------------------------
+   Baloo Bhaijaan 2 carries the things that name a screen. It was already
+   loaded for سكرو's card numerals, it sets Arabic and Latin from one file,
+   and its rounded warmth is what a party app should sound like next to
+   Cairo's neutral reading voice. Deliberately NOT on .metric: clocks and
+   scores need Cairo's tabular figures, or a counting timer jitters. */
+.shell__title,
+.section__title,
+.sheet__title,
+.tab-hero__title,
+.game-hero__title,
+.gcard__title,
+.tool-name,
+.podium__name,
+.modal-content .sheet__title {
+  font-family: var(--font-display);
+  /* Baloo's 800 has the colour Cairo's 900 had; 900 in a rounded face fills
+     its own counters at title sizes. */
+  font-weight: var(--fw-bold);
+}
+/* Arabic in a rounded display face sits a little tight by default. */
+html[lang="ar"] .gcard__title,
+html[lang="ar"] .section__title,
+html[lang="ar"] .tool-name { line-height: 1.35; }
+
+/* --- A floor as well as a ceiling ---------------------------------------------
+   Secondary text steps down to 400/500 so the titles above it can be read as
+   titles. Colours are left exactly as they were - each one was measured
+   against its background - so nothing here moves a contrast ratio. */
+.gcard__desc,
+.tool-desc,
+.game-hero__desc,
+.tab-hero__sub { font-weight: var(--fw-body); }
+.gcard__meta,
+.game-hero__meta,
+.setting-row__hint { font-weight: var(--fw-med); }
+.empty { font-weight: var(--fw-body); }
+
+/* --- A card carries its game's colour, in one corner ---------------------------
+   The note on .gcard is right that thirty tinted cards made the home a
+   rainbow. The answer is not "no colour at all" but the corner wash the
+   setup heroes have used all along: a low-percentage bloom behind the icon
+   and nowhere else, so a section reads as a family at a glance and a card
+   still reads as white paper. color-mix keeps one strength across all eight
+   palettes and both themes; where it is missing the card is simply plain. */
+:root      { --wash-x: 0%; }
+[dir="rtl"] { --wash-x: 100%; }
+.gcard, .tool-item {
+  background-image: radial-gradient(10rem 6.5rem at var(--wash-x) 0%,
+                    color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%);
+}
+body.dark .gcard, body.dark .tool-item {
+  background-image: radial-gradient(10rem 6.5rem at var(--wash-x) 0%,
+                    color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
+}
+/* The halo behind an icon was --accent-soft, which in light is within two
+   values of white and read as nothing at all. */
+.gcard__icon, .tool-icon, .game-hero__icon, .tab-hero__icon,
+.help-game-card__icon, .help-hero__icon {
+  background: radial-gradient(circle at 50% 55%,
+              color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 68%);
+}
+
+/* --- One selected colour ------------------------------------------------------
+   The active chip was --text-strong: a black pill in light, a white pill in
+   dark - the brightest thing on a night screen, brighter than the brand, and
+   answering to no other colour in the app. Selection is the screen's accent
+   now, which is the violet of the home, the teal of مع بعض and the indigo of
+   الأدوات - the same system every other component already obeys. */
+.filter-chip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+  box-shadow: 0 6px 14px -8px var(--accent-glow);
+}
+
+/* --- The game's own icon owns the card ----------------------------------------
+   The three mode glyphs are the same on nearly every card, so they carry
+   almost no information per card - and in full colour at the opposite corner
+   they were the loudest thing on it after the icon, with 📱 and 📲
+   indistinguishable at 0.8rem anyway. Quiet ink; the meaning is unchanged and
+   the tooltip and aria-label were always the real answer. */
+.gcard__modes { filter: grayscale(1); opacity: 0.4; }
+body.dark .gcard__modes { opacity: 0.5; }
+
+/* --- A press is proportional to what is pressed -------------------------------
+   Every surface shrank by the same 4-5%, which on a 150px card is a lurch and
+   on a 44px chip is barely there. Big surfaces move less. */
+.gcard:active, .game-card:active, .tool-item:active, .setting-row:active,
+.daily-strip:active { transform: scale(0.98); }
+.together__tile:active { transform: scale(0.955); }
+.filter-chip:active, .recent-tile:active, .home-hero__pick:active { transform: scale(0.93); }
+
+/* --- Section heads read as headings, not as table rows ------------------------
+   A flat hairline running to the edge of the screen is the most templated
+   mark in the file. It fades away from the title instead, which reads as air
+   rather than as a border. */
+.section__rule { background: linear-gradient(to right, var(--hairline), transparent); }
+[dir="rtl"] .section__rule { background: linear-gradient(to left, var(--hairline), transparent); }
+.section__emoji { font-size: 1.1rem; }
+
+/* --- Nothing found -------------------------------------------------------------
+   One grey line was all a search with no results got. */
+.empty__icon { font-size: 2rem; opacity: 0.5; }
+
+/* --- Filtering rearranges; it does not redraw ----------------------------------
+   flipGrid in JS_Motion.html measures, lets the filter hide and show what it
+   likes, then runs the survivors from where they were to where they are and
+   fades the newcomers in - transform and opacity, on the compositor. The only
+   thing it needs from the stylesheet is that a card is not mid-transition
+   while it is being animated. */
+.is-flipping .gcard, .is-flipping .tool-item, .is-flipping .recent-tile,
+.is-flipping .section__head { transition: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gcard:active, .game-card:active, .tool-item:active, .setting-row:active,
+  .daily-strip:active, .together__tile:active, .filter-chip:active,
+  .recent-tile:active, .home-hero__pick:active { transform: none; }
+}
+
+/* --- The first screen is for the games ----------------------------------------
+   Measured before this: the first game card began 570px into a 690px scroll
+   area, so 83% of what you saw on opening the app was chrome. Two things gave
+   way, neither of them a control and neither of them a tap target.
+
+   1. A phone that has played before has been told what the app is, and the
+      mark and the name are in the header on this screen anyway - so its hero
+      is the ways in and nothing else, with اختارلنا as the fourth, since a
+      returner is exactly who wants it. A first visit still gets the whole
+      hero. */
+.home-hero--compact { padding: var(--sp-3); }
+.home-hero--compact .together { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); }
+.home-hero--compact .together__tile {
+  flex-direction: column;
+  justify-content: center;
+  min-height: var(--tap);
+  gap: 1px;
+  padding: var(--sp-1) 2px;
+}
+.home-hero--compact .together__icon { font-size: 1.05rem; margin: 0; }
+.home-hero--compact .together__name { font-size: 0.68rem; line-height: 1.15; text-wrap: balance; }
+.home-hero--compact .together__desc { display: none; }
+
+/* 2. together/apart and the eight player counts were a second scrolling row
+      stacked straight on the first, and neither row announces that it
+      scrolls. They fold behind one chip at the end of the first row, which
+      costs no height at all when closed. The chip says what it is hiding, so
+      a filter left on from last time is never a mystery.
+      .filter-row sets display:flex, which beats [hidden] - so say it. */
+.filter-row[hidden] { display: none; }
+/* The chip has to stay put: at the end of a row that scrolls it was simply
+   off the screen, which is worse than the row it replaced. The modes keep
+   scrolling and bleeding to the start edge; the chip is pinned at the end. */
+.filter-bar { display: flex; align-items: center; gap: var(--sp-2); }
+.filter-bar .filter-row { flex: 1; min-width: 0; margin-inline-end: 0; }
+.filter-bar .filter-chip--more { flex: none; }
+.filter-chip--more::after {
+  content: '▾';
+  font-size: 0.85em;
+  line-height: 1;
+  opacity: 0.75;
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.filter-chip--more[aria-expanded="true"]::after { transform: rotate(180deg); }
+.filter-chip--more .metric { font-size: inherit; color: inherit; letter-spacing: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-chip--more::after { transition: none; }
+}
+
+/* --- Every size, not just the phone ---------------------------------------------
+   The returning hero was built and checked on a phone, where it is right, and
+   broke everywhere wider. The wide layout makes .home-hero a two-column grid
+   (head | ways in); with the head gone for a returner the ways in fell into
+   the first column and the second - 1.25fr, most of the bar on a laptop - sat
+   empty. A survey of all 133 views at six sizes found it, along with the other
+   phone shapes stretched onto big screens below. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .home-hero--compact { display: block; }
+}
+/* How much the four ways in can say depends on the hero's own width, not the
+   screen's - a tablet upright and a laptop both pass a 700px media query, and
+   only one of them has room for a line under each name (the first try used
+   the screen and wrapped every tile to three lines at 768px). So the hero is
+   a container and the tiles read its width:
+     - a phone upright: the icon over the name, as the owner has it;
+     - from 34rem (a phone on its side, a tablet upright): the icon beside the
+       name, one line, the same height;
+     - from 52rem (a laptop, a TV): the icon beside the name and its line.
+   Where container queries are missing the phone's tiles fill the width,
+   which is where this started and still reads fine. */
+.home-hero--compact .together { container-type: inline-size; }
+@container (min-width: 34rem) {
+  .home-hero--compact .together__tile {
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-3);
+  }
+  .home-hero--compact .together__icon { font-size: 1.25rem; }
+  .home-hero--compact .together__name { font-size: var(--fs-sm); }
+}
+@container (min-width: 52rem) {
+  .home-hero--compact .together__tile {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "icon name" "icon desc";
+    align-items: center;
+    justify-items: start;
+    column-gap: var(--sp-3);
+    row-gap: 1px;
+    min-height: 4.25rem;
+    padding: var(--sp-2) var(--sp-4);
+    text-align: start;
+  }
+  .home-hero--compact .together__icon { grid-area: icon; font-size: 1.75rem; }
+  .home-hero--compact .together__name { grid-area: name; align-self: end; font-size: var(--fs-body); line-height: 1.2; }
+  .home-hero--compact .together__desc { grid-area: desc; align-self: start; display: block; font-size: var(--fs-xs); line-height: 1.3; }
+}
+
+/* The ▾ chip belongs to the row it opens. Pinned to the far end it was
+   right on a phone, where the modes scroll and the end is a thumb away, and a
+   600px hole on a laptop, where they all fit. Taking its content's width and
+   only shrinking when it has to, the row is the same on a phone and the chip
+   sits beside the last mode everywhere else. */
+.filter-bar .filter-row { flex: 0 1 auto; }
+
+/* The share link was a fourth button in a three-column grid, so on anything
+   wide it sat alone under the first. It is the quiet action; it gets its own
+   centred line. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .together-actions > .btn--ghost { grid-column: 1 / -1; justify-self: center; width: auto; padding-inline: var(--sp-5); }
+}
+
+/* --- A section of one game is a spotlight --------------------------------------
+   ورق وطاولة holds سكرو alone since the card scorers became tools: one card
+   and, on a TV, five empty places beside it. The owner calls سكرو the core of
+   the app, so the lone card becomes the widest thing on the home - the icon
+   big, its line, players and minutes and the ways it plays, and a play pill.
+   Any section left with one game gets the same (catalogSpotlight). */
+.gcard-grid > .gcard--spotlight { grid-column: 1 / -1; }
+.gcard--spotlight {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-4);
+  min-height: 0;
+  padding: var(--sp-4);
+  background-image: radial-gradient(26rem 10rem at var(--wash-x) 0%,
+                    color-mix(in srgb, var(--accent) 13%, transparent), transparent 72%);
+}
+body.dark .gcard--spotlight {
+  background-image: radial-gradient(26rem 10rem at var(--wash-x) 0%,
+                    color-mix(in srgb, var(--accent) 22%, transparent), transparent 72%);
+}
+.gcard--spotlight .gcard__icon { flex: none; width: 4.25rem; height: 4.25rem; font-size: 2.75rem; }
+.gcard--spotlight .gcard__body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.gcard--spotlight .gcard__title { font-size: var(--fs-h2); }
+.gcard--spotlight .gcard__desc { min-height: 0; }
+.gcard--spotlight .gcard__meta { padding-top: var(--sp-1); flex-wrap: wrap; }
+.gcard--spotlight .meta-bit--mode { filter: grayscale(1); opacity: 0.5; }
+.gcard__cta {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: var(--tap);
+  padding-inline: var(--sp-5);
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  box-shadow: 0 8px 18px -10px var(--accent-glow);
+}
+.gcard__cta-arrow { font-size: 1.25em; line-height: 1; }
+[dir="rtl"] .gcard__cta-arrow { transform: scaleX(-1); }
+/* On a phone upright the pill would squeeze the line to three: it keeps its
+   arrow and gives the words back to the description. */
+@media (max-width: 699px) {
+  .gcard--spotlight { gap: var(--sp-3); padding: var(--sp-3); }
+  .gcard--spotlight .gcard__icon { width: 3.25rem; height: 3.25rem; font-size: 2.1rem; }
+  .gcard--spotlight .gcard__cta { width: var(--tap); padding: 0; justify-content: center; font-size: 0; }
+  .gcard--spotlight .gcard__cta-arrow { font-size: 1.35rem; }
+}
+
+/* --- A setup screen is a form, and a form has a width --------------------------
+   On a laptop or TV every setup screen was the phone's form stretched to
+   47.5rem: a switch 660px from its label, the player counter a long bar
+   around one digit. They take a form's width there now (the owner's choice,
+   21 Sep 2026), centred; the three tabs keep their wide grids. */
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > [id^="view-setup-"]:not(.fixed) { max-width: 40rem; }
+}
+
+/* ==========================================================================
+   18. كونكت ٤, AND WHAT THE DUELS SHARE
+   JS_Connect4.html (one phone) and JS_RoomConnect4.html (rooms, the TV). The
+   board is the owner's "كلاسيك أزرق" (21 Sep 2026, option أ of a design
+   sheet): a blue board whose round holes show the page ground (so they go
+   dark with the theme and the board stays the same blue), red and yellow
+   discs with an inner ring, the winning line ringed white with a glow, a
+   faint ghost disc over the column under the finger. The board is a
+   physical axis, so it carries dir="ltr" and its pieces are placed in its
+   own left-to-right terms.
+
+   The duel pieces (.duel-*) are shared with section 19: the layout that puts
+   the board beside its pills and buttons on a phone held sideways and on a
+   laptop or TV (the board sized off --app-h and the board's own
+   --duel-aspect, width over height, so it never needs scrolling), the two
+   player pills with the one ring that slides to whoever is to move, the
+   status line, the result card and the line of who plays next. A game sets
+   --duel-c1 / --duel-c2, its two players' colours, on its .duel.
+   ========================================================================== */
+:root {
+  --c4-red: radial-gradient(circle at 40% 35%, #ff6b6b, #e5383b 55%, #b0282b);
+  --c4-yellow: radial-gradient(circle at 40% 35%, #ffe066, #f5b400 55%, #c48e00);
+  --c4-board: linear-gradient(180deg, #2f6fe0, #1a4fb5);
+}
+
+/* --- The duels: board and side --- */
+.duel { --duel-c1: #e5383b; --duel-c2: #e0a800; }
+.duel-layout { display: flex; flex-direction: column; gap: var(--sp-3); }
+.duel-layout__side { display: contents; }
+/* Upright, the pills and a result come above the board; the rest follows it. */
+.duel-layout__side > .duel-head { order: -2; }
+.duel-layout__side > .duel-result { order: -1; }
+/* Centred with auto margins in a flex column, so it needs its width too (Traps). */
+.duel-layout__board { width: 100%; max-width: 32rem; margin-inline: auto; }
+.duel-actions { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+.duel-pills {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "p0 p1";
+  gap: var(--sp-2);
+}
+.duel-pills.has-mid { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: "p0 mid p1"; }
+.duel-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  min-height: 3.25rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  transition: background-color var(--dur-2) var(--ease-out);
+}
+.duel-pill[data-duel-pill="0"] { grid-area: p0; }
+.duel-pill[data-duel-pill="1"] { grid-area: p1; }
+.duel-pill.is-turn { background: var(--surface-2); }
+.duel-pill__mark { flex: none; display: inline-grid; place-items: center; }
+.duel-pill__who { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.duel-pill__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-body); font-weight: var(--fw-bold); color: var(--text-strong); }
+.duel-pill__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: var(--fw-med); color: var(--text-3); }
+.duel-pill__score { flex: none; min-width: 1.5ch; font-size: 1.35rem; font-weight: var(--fw-black); color: var(--text-strong); text-align: center; }
+.duel-pills__mid {
+  grid-area: mid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-inline: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-med);
+  color: var(--text-3);
+}
+.duel-pills__mid .metric { font-size: var(--fs-h3); color: var(--text-2); }
+/* The turn: one ring, drawn over whichever pill it belongs to, that slides between them (duelPillsAfter). */
+.duel-pills__turn {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+  border: 2px solid var(--duel-turn, var(--accent));
+  border-radius: var(--r-full);
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--duel-turn, var(--accent)) 24%, transparent);
+}
+.duel-pills[data-turn="0"] .duel-pills__turn { grid-area: p0; --duel-turn: var(--duel-c1); }
+.duel-pills[data-turn="1"] .duel-pills__turn { grid-area: p1; --duel-turn: var(--duel-c2); }
+.duel-pills[data-turn="-1"] .duel-pills__turn { display: none; }
+
+.duel-status { margin: var(--sp-3) 0 0; min-height: 1.5em; text-align: center; font-weight: var(--fw-bold); color: var(--text-2); }
+.duel-status.is-done { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--accent-ink); }
+.duel-status.is-mine, .duel-status.is-again { color: var(--accent-ink); }
+.duel-status.is-thinking { animation: duelThinking 1.3s var(--ease-in-out) infinite; }
+@keyframes duelThinking { 50% { opacity: 0.45; } }
+.duel-next { margin: var(--sp-1) 0 0; text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-med); color: var(--text-3); }
+.duel-hint { margin: 0; text-align: center; }
+/* «خسران غياب»: the seat to move is gone, counted down on every other screen (the review of 1 Oct 2026). */
+.duel-away {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25em;
+  width: fit-content; max-width: 100%; height: auto; min-height: 1.5rem;
+  margin: var(--sp-2) auto 0; padding-block: var(--sp-1);
+  white-space: normal; text-align: center;
+  animation: duelAwayIn 0.35s var(--ease-spring) both;
+}
+.duel-tv__away { display: flex; justify-content: center; }
+@keyframes duelAwayIn { from { opacity: 0; transform: scale(0.9); } }
+@media (prefers-reduced-motion: reduce) { .duel-away { animation: none; } }
+.duel-continue { margin-bottom: var(--sp-3); }
+
+.duel-result { margin: 0; text-align: center; }
+.duel-result__streak { margin: 0 0 var(--sp-2); font-weight: var(--fw-bold); color: var(--warning-ink); }
+.duel-result__next { margin: 0 0 var(--sp-3); font-weight: var(--fw-semi); color: var(--text-strong); }
+
+.duel-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-1) var(--sp-2); }
+.duel-line__label { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-3); }
+.duel-line__who {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2rem;
+  padding-block: 0.125rem;
+  padding-inline: 0.25rem var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semi);
+  color: var(--text);
+}
+.duel-line__who .metric { display: inline-grid; place-items: center; min-width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--surface-3); font-size: var(--fs-xs); color: var(--text-2); }
+.duel-line__who.is-me { border-color: var(--accent); color: var(--accent-ink); }
+
+/* --- The Connect 4 board --- */
+.c4-game { --duel-c1: #e5383b; --duel-c2: #e0a800; }
+.c4-disc--1 { --c4-disc-bg: var(--c4-red); }
+.c4-disc--2 { --c4-disc-bg: var(--c4-yellow); }
+.c4 {
+  --c4-pad: 2.2%;
+  position: relative;
+  width: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* A vertical swipe still scrolls the page (and cancels the drop); across, the ghost follows. */
+.c4.is-playable { touch-action: pan-y; cursor: pointer; }
+.c4-ghostrow { padding-inline: var(--c4-pad); }
+.c4-ghostrow__track { position: relative; aspect-ratio: var(--c4-cols) / 1; }
+.c4-ghost {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: calc(100% / var(--c4-cols));
+  opacity: 0;
+  transform: translateX(calc(var(--c4-aim, 3) * 100%));
+  transition: transform 140ms var(--ease-out), opacity var(--dur-2) var(--ease-out);
+}
+.c4.is-aiming .c4-ghost { opacity: 0.45; }
+.c4-ghost__disc, .c4-disc {
+  position: absolute;
+  inset: 9%;
+  border-radius: 50%;
+  background: var(--c4-disc-bg);
+  box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.28);
+}
+.c4-board {
+  position: relative;
+  padding: var(--c4-pad);
+  border-radius: var(--r-xl);
+  background: var(--c4-board);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.2), 0 10px 26px -12px rgba(26, 79, 181, 0.6), 0 2px 6px rgba(26, 79, 181, 0.22);
+}
+.c4-grid { position: relative; display: grid; grid-template-columns: repeat(var(--c4-cols), minmax(0, 1fr)); }
+.c4-cell { position: relative; aspect-ratio: 1; }
+.c4-hole { position: absolute; inset: 9%; border-radius: 50%; background: var(--bg); box-shadow: inset 0 3px 4px rgba(0, 0, 0, 0.35); }
+.c4-disc { z-index: 1; }
+/* The columns as buttons laid over the grid: a keyboard reaches them, a finger is read from where it is. */
+.c4-cols { position: absolute; inset: 0; z-index: 3; display: grid; grid-template-columns: repeat(var(--c4-cols), minmax(0, 1fr)); }
+.c4-col { padding: 0; border: 0; border-radius: var(--r-md); background: transparent; font: inherit; cursor: pointer; }
+.c4-col:disabled { cursor: default; }
+.c4-col:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
+.c4:not(.is-playable) .c4-cols { pointer-events: none; }
+@media (hover: hover) and (pointer: fine) {
+  .c4.is-playable .c4-col:not(:disabled):hover { background: rgba(255, 255, 255, 0.08); }
+}
+/* The winning line: ringed white and glowing, lit one disc at a time the first time it is shown. */
+.c4-disc.is-win::after {
+  content: '';
+  position: absolute;
+  inset: -9%;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px #fff, 0 0 16px 5px rgba(255, 255, 255, 0.75);
+}
+.c4.is-lighting .c4-disc.is-win { animation: c4WinPop 520ms var(--ease-spring) both; animation-delay: calc(var(--c4-win-at, 0ms) + var(--k, 0) * 160ms); }
+.c4.is-lighting .c4-disc.is-win::after { animation: c4WinRing 520ms var(--ease-out) both; animation-delay: calc(var(--c4-win-at, 0ms) + var(--k, 0) * 160ms); }
+@keyframes c4WinPop { 0% { transform: scale(1); } 45% { transform: scale(1.14); } 100% { transform: scale(1); } }
+@keyframes c4WinRing { from { opacity: 0; transform: scale(1.5); } to { opacity: 1; transform: scale(1); } }
+/* A pill's piece. */
+.c4-chip { display: block; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--c4-disc-bg); box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.12); }
+
+/* --- A phone on its side, and every wide screen: the board beside its pills and buttons --- */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  /* The board is what everyone is looking at (the owner, 21 Sep 2026): it
+     takes the height, and the names and scores are a compact column beside
+     it, not half the screen. */
+  .duel-layout { display: grid; grid-template-columns: auto minmax(12rem, 20rem); justify-content: center; gap: var(--sp-4); align-items: start; }
+  .duel-layout__side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  /* Sticky, so a long side (a room's line and board of wins) scrolls past a board that stays in view. */
+  .duel-layout__board {
+    position: sticky;
+    top: 0;
+    width: min(calc((var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 2.5rem) * var(--duel-aspect, 1)), 56vw);
+    max-width: none;
+    margin: 0;
+  }
+  .duel-pills, .duel-pills.has-mid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "p0" "p1" "mid"; }
+  .duel-pills__mid { flex-direction: row; gap: var(--sp-2); }
+  .duel-layout__side > .view-actions { position: static; margin: 0; padding: 0; background: none; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .duel-pill { min-height: 2.75rem; padding-block: var(--sp-1); }
+  .duel-status { margin-top: var(--sp-2); }
+}
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-play-connect4, .shell__main > #view-room-connect4,
+  .shell__main > #view-play-dots, .shell__main > #view-room-dots { max-width: 72rem; }
+  .duel-layout { gap: var(--sp-6); grid-template-columns: auto minmax(14rem, 22rem); }
+  .duel-layout__board { width: min(calc((var(--app-h, 100vh) - var(--header-h) - 2.5rem) * var(--duel-aspect, 1)), 62vw); }
+}
+
+/* --- The TV: the board big on one side, the players and the line on the other --- */
+.duel-tv {
+  min-height: 0;
+  display: grid;
+  /* The board takes the stage's whole height (the bar and the strip are
+     about 17vmin), the players a column beside it. */
+  grid-template-columns: auto minmax(0, 30rem);
+  justify-content: center;
+  align-items: center;
+  gap: calc(var(--tv-gap) * 2.5);
+}
+.duel-tv__board { width: min(calc((var(--app-h, 100vh) - 17vmin) * var(--duel-aspect, 1)), 64vw); justify-self: center; }
+.duel-tv__side { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: var(--tv-gap); }
+.duel-tv__side > .tv-scale { width: 100%; }
+.duel-tv__status { font-size: var(--tv-md); }
+.duel-tv__status.is-again { color: var(--accent-ink); }
+.duel-tv .duel-status { margin: 0; }
+.duel-tv .c4-board { border-radius: var(--tv-r); }
+/* A phone mirrored upright: one column, and the stage scrolls. */
+@media (orientation: portrait) {
+  .duel-tv { grid-template-columns: minmax(0, 1fr); }
+  .duel-tv__board { width: min(100%, 62vh); }
+}
+
+/* --- كونكت ٤ in teams (2 Oct 2026): the sides, the relay (JS_RoomConnect4.html) --- */
+.c4t-lobby .c4-chip, .c4t-side .c4-chip { display: inline-block; width: 1rem; height: 1rem; }
+.c4t-side { --c4t-c: var(--team-red); display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-inline-start: 4px solid var(--c4t-c); border-radius: var(--r-lg); background: var(--surface-solid); }
+.c4t-side--1 { --c4t-c: var(--warning); }
+.c4t-side--none { --c4t-c: var(--border-strong); grid-column: 1 / -1; }
+.c4t-side.is-turn { background: var(--surface-2); }
+.c4t-side__label { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-body); font-weight: var(--fw-bold); color: var(--text-strong); }
+.c4t-relay { margin: 0; padding: 0; list-style: none; }
+.c4t-relay__who { display: flex; gap: var(--sp-2); padding: 2px var(--sp-2); border-radius: var(--r-full); font-size: var(--fs-sm); color: var(--text-2); overflow: hidden; white-space: nowrap; }
+.c4t-relay__who.is-up { background: color-mix(in srgb, var(--c4t-c) 22%, transparent); color: var(--text-strong); font-weight: var(--fw-bold); }
+.c4t-auto { height: auto; margin: var(--sp-2) auto 0; padding-block: var(--sp-1); white-space: normal; }
+.c4t-tvclock { display: grid; justify-items: center; gap: var(--sp-1); }
+.c4t-tvclock .c4t-clock { height: auto; font-size: var(--tv-md); }
+.tv-lobby .c4t-side__label { font-size: var(--tv-md); }
+
+@media (prefers-reduced-motion: reduce) {
+  .duel-status.is-thinking { animation: none; }
+  .c4-ghost { transition: none; }
+  .c4.is-lighting .c4-disc.is-win, .c4.is-lighting .c4-disc.is-win::after { animation: none; }
+}
+
+/* ==========================================================================
+   19. نقط ومربعات
+   JS_Dots.html (one phone) and JS_RoomDots.html (rooms, the TV), laid out by
+   the duel pieces of section 18. The board is the owner's "نضيف، زي Plato"
+   (21 Sep 2026, option أ): a clean card, slate dots (light ink in the dark
+   theme), lines 6px with round ends in each player's colour - blue and rose,
+   the same in both themes - faint guides where a line can still go, and a
+   box taken tinted 16% with its owner's colour and their initial on it in
+   Baloo Bhaijaan 2. It is an SVG: the strokes keep their 6px whatever the
+   board's size (vector-effect), and a line draws itself by scaling from its
+   first dot (transform-box: fill-box). dir="ltr", like every board.
+   ========================================================================== */
+:root {
+  --dots-c1: #2563eb;
+  --dots-c2: #e11d48;
+  --dots-dot: #334155;
+  --dots-guide: rgba(15, 23, 42, 0.08);
+}
+body.dark {
+  --dots-dot: #e8eef7;
+  --dots-guide: rgba(255, 255, 255, 0.07);
+}
+.dots-game { --duel-c1: var(--dots-c1); --duel-c2: var(--dots-c2); }
+.dots {
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* A line is aimed by sliding in any direction, so the board keeps the finger. */
+.dots.is-playable { touch-action: none; cursor: pointer; }
+.dots-svg { display: block; width: 100%; height: auto; aspect-ratio: 1; overflow: visible; }
+.dots-guide, .dots-line, .dots-glow, .dots-aim { fill: none; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.dots-guide { stroke: var(--dots-guide); stroke-width: 6px; }
+.dots-line { stroke-width: 6px; transform-box: fill-box; }
+.dots-line.is-h { transform-origin: 0% 50%; }
+.dots-line.is-v { transform-origin: 50% 0%; }
+.dots-line--1 { stroke: var(--dots-c1); }
+.dots-line--2 { stroke: var(--dots-c2); }
+.dots-glow { stroke-width: 16px; opacity: 0; }
+.dots-aim { stroke-width: 6px; opacity: 0; pointer-events: none; transition: opacity var(--dur-1) var(--ease-out); }
+.dots-aim.is-on { opacity: 0.4; }
+.dots-dots circle { fill: var(--dots-dot); }
+.dots-box { transform-box: fill-box; transform-origin: 50% 50%; }
+.dots-box rect { stroke: none; fill-opacity: 0.16; }
+.dots-box--1 rect { fill: var(--dots-c1); }
+.dots-box--2 rect { fill: var(--dots-c2); }
+.dots-box text { font-family: var(--font-display); font-weight: 800; text-anchor: middle; dominant-baseline: central; }
+.dots-box--1 text { fill: var(--dots-c1); }
+.dots-box--2 text { fill: var(--dots-c2); }
+/* A pill's mark: the player's colour and their letter. */
+.dots-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: 0.4rem;
+  background: var(--dots-c1);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.dots-chip--2 { background: var(--dots-c2); }
+.duel-tv .dots { padding: 1vmin; border-radius: var(--tv-r); }
+.duel-tv .dots-guide, .duel-tv .dots-line, .duel-tv .dots-aim { stroke-width: clamp(6px, 0.9vmin, 14px); }
+.duel-tv .dots-glow { stroke-width: clamp(16px, 2.2vmin, 32px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dots-aim { transition: none; }
+}
+
+/* ==========================================================================
+   20. أونو
+   JS_RoomUno.html: the table on separate phones and on the TV. One card
+   component, .uno-card, sized by --uno-w (its height is 1.5 times that), in
+   the look the owner picked (21 Sep 2026, "بلوكات", the family of سكرو's
+   cards): the whole card in its colour (the --uno-* tokens, the same in both
+   themes) with a soft shine, a big Baloo numeral or a line icon, the value
+   small at the inline-start top and turned at the inline-end bottom (so a
+   card overlapped in a hand still shows it); the wilds near black with a
+   four-colour wheel; the back violet and dotted with "A.". Moves fly between
+   exact places (.uno-ghost, a Web Animation of transform and opacity;
+   .uno-hold keeps a place hidden until what flies to it lands).
+   ========================================================================== */
+
+/* --- The card --- */
+:root {
+  --uno-r: #e5383b;
+  --uno-y: #f5b400;
+  --uno-g: #1f9d55;
+  --uno-b: #1e6fd9;
+  --uno-k: #1d1b26;
+  --uno-y-ink: #3a2a00;      /* white on yellow fails; the yellow cards carry dark ink */
+  --uno-tag: #c62828;        /* the "أونو" tag and the UNO button: a red white text reads on */
+  --uno-amber: #f5c451;
+  --uno-back-1: #7c3aed;
+  --uno-back-2: #4c1d95;
+  --uno-wheel: conic-gradient(var(--uno-r) 0 25%, var(--uno-y) 0 50%, var(--uno-g) 0 75%, var(--uno-b) 0);
+}
+.uno-c--r { --c: var(--uno-r); --ink: #fff; }
+.uno-c--y { --c: var(--uno-y); --ink: var(--uno-y-ink); }
+.uno-c--g { --c: var(--uno-g); --ink: #fff; }
+.uno-c--b { --c: var(--uno-b); --ink: #fff; }
+.uno-c--k { --c: var(--uno-k); --ink: #fff; }
+
+.uno-card {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--uno-w, 3.4rem);
+  height: calc(var(--uno-w, 3.4rem) * 1.5);
+  border-radius: calc(var(--uno-w, 3.4rem) * 0.13);
+  color: var(--ink, #fff);
+  font-family: 'Baloo Bhaijaan 2', 'Cairo', var(--font);
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: top;
+  overflow: hidden;
+  /* A card too narrow for its corners hides them (below), whatever its size class says. */
+  container-type: inline-size;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.uno-card--xs { --uno-w: 1.05rem; }
+.uno-card--sm { --uno-w: 1.9rem; }
+.uno-card--md { --uno-w: 3.4rem; }
+.uno-card--lg { --uno-w: 4.4rem; }
+.uno-card--xl { --uno-w: 5.5rem; }
+.uno-card--fly { width: 100%; height: 100%; }
+.uno-card--face {
+  background: var(--c);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 78%, white), var(--c) 60%, color-mix(in srgb, var(--c) 80%, black));
+  box-shadow: 0 calc(var(--uno-w, 3.4rem) * 0.1) calc(var(--uno-w, 3.4rem) * 0.24) calc(var(--uno-w, 3.4rem) * -0.13) rgba(15, 12, 24, 0.55);
+}
+.uno-card--face.uno-c--k { background: linear-gradient(160deg, #3b3650, #1d1b26 60%, #0e0d14); }
+/* On the dark ground a near-black wild had no edge at all: a faint rim draws it. */
+body.dark .uno-card--face.uno-c--k { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 calc(var(--uno-w, 3.4rem) * 0.1) calc(var(--uno-w, 3.4rem) * 0.24) calc(var(--uno-w, 3.4rem) * -0.13) rgba(0, 0, 0, 0.7); }
+/* The soft shine in the top corner. */
+.uno-card--face::after {
+  content: '';
+  position: absolute;
+  inset-block-start: -30%;
+  inset-inline-end: -40%;
+  width: 90%;
+  height: 70%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+}
+.uno-card__art { position: relative; z-index: 1; display: grid; place-items: center; }
+.uno-card__art > * { grid-area: 1 / 1; }
+/* Settings → رموز للألوان (colorShapesOn in JS_Core.html): a shape in each colour's corner. */
+.cb-shapes .uno-card--face .uno-card__art::after {
+  position: absolute;
+  top: -0.9em;
+  inset-inline-end: -0.9em;
+  font-size: calc(var(--uno-w, 4rem) * 0.16);
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.cb-shapes .uno-c--r .uno-card__art::after, .cb-shapes .uno-chosen--r .uno-card__art::after { content: '●'; }
+.cb-shapes .uno-c--y .uno-card__art::after, .cb-shapes .uno-chosen--y .uno-card__art::after { content: '▲'; color: #3a2a00; text-shadow: none; }
+.cb-shapes .uno-c--g .uno-card__art::after, .cb-shapes .uno-chosen--g .uno-card__art::after { content: '■'; }
+.cb-shapes .uno-c--b .uno-card__art::after, .cb-shapes .uno-chosen--b .uno-card__art::after { content: '◆'; }
+.cb-shapes .uno-colorbtn.uno-c--r .uno-colorbtn__dot::after { content: '●'; }
+.cb-shapes .uno-colorbtn.uno-c--y .uno-colorbtn__dot::after { content: '▲'; }
+.cb-shapes .uno-colorbtn.uno-c--g .uno-colorbtn__dot::after { content: '■'; }
+.cb-shapes .uno-colorbtn.uno-c--b .uno-colorbtn__dot::after { content: '◆'; }
+.cb-shapes .uno-colorbtn__dot { width: auto; height: auto; background: none; opacity: 1; font-size: 0.9rem; line-height: 1; }
+/* خمن الكلمة under the same switch: ● right place, ▲ in the word, in the tile's corner and
+   the key's, so green and yellow are told apart without the colour (on one phone and in rooms). */
+.cb-shapes :is(.wordle-cell--correct, .wordle-cell--present, .key--correct, .key--present) { position: relative; }
+.cb-shapes :is(.wordle-cell--correct, .wordle-cell--present, .key--correct, .key--present)::after {
+  position: absolute;
+  inset-block-start: 0.12em;
+  inset-inline-end: 0.2em;
+  font-size: max(0.55rem, 0.4em);
+  line-height: 1;
+  pointer-events: none;
+}
+.cb-shapes :is(.wordle-cell--correct, .key--correct)::after { content: '●'; font-size: max(0.8rem, 0.6em); inset-block-start: 0.02em; }
+.cb-shapes :is(.wordle-cell--present, .key--present)::after { content: '▲'; }
+.uno-card__big {
+  font-size: calc(var(--uno-w, 3.4rem) * 0.62);
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.uno-card__big--long { font-size: calc(var(--uno-w, 3.4rem) * 0.44); }
+/* A 6 and a 9, underlined as on the real cards: the bottom corner is upside down. */
+.uno-u { text-decoration: underline; text-decoration-thickness: 0.12em; text-underline-offset: 0.12em; }
+.uno-c--y .uno-card__big { text-shadow: 0 2px 0 rgba(255, 255, 255, 0.35); }
+.uno-card__over {
+  color: #fff;
+  font-size: calc(var(--uno-w, 3.4rem) * 0.34);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 6px rgba(0, 0, 0, 0.35);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.uno-icon { display: block; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.uno-card__ic .uno-icon { width: calc(var(--uno-w, 3.4rem) * 0.62); height: calc(var(--uno-w, 3.4rem) * 0.62); }
+.uno-card__wheel {
+  display: block;
+  width: calc(var(--uno-w, 3.4rem) * 0.62);
+  height: calc(var(--uno-w, 3.4rem) * 0.62);
+  border-radius: 50%;
+  background: var(--uno-wheel);
+  box-shadow: 0 0 0 calc(var(--uno-w, 3.4rem) * 0.03) #fff;
+}
+.uno-card__wheel--sm { width: calc(var(--uno-w, 3.4rem) * 0.56); height: calc(var(--uno-w, 3.4rem) * 0.56); }
+/* The value in two corners: inline-start at the top, turned at the inline-end bottom. */
+.uno-card__mini {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: calc(var(--uno-w, 3.4rem) * 0.07);
+  inset-inline-start: calc(var(--uno-w, 3.4rem) * 0.09);
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--uno-w, 3.4rem) * 0.2);
+  line-height: 1;
+}
+/* The corner sits at the start of the reading direction (a hand overlapping in
+   Arabic shows its cards' right edges); the value inside it reads left to right. */
+.uno-card__v { direction: ltr; unicode-bidi: isolate; }
+.uno-card__mini .uno-icon { width: calc(var(--uno-w, 3.4rem) * 0.2); height: calc(var(--uno-w, 3.4rem) * 0.2); stroke-width: 3; }
+.uno-card__mini--end { inset-block: auto calc(var(--uno-w, 3.4rem) * 0.07); inset-inline: auto calc(var(--uno-w, 3.4rem) * 0.09); transform: rotate(180deg); }
+.uno-card__mw { display: block; width: calc(var(--uno-w, 3.4rem) * 0.18); height: calc(var(--uno-w, 3.4rem) * 0.18); border-radius: 50%; background: var(--uno-wheel); }
+@container (max-width: 40px) {
+  .uno-card__mini { display: none; }
+}
+/* A wild on the pile wears the colour it named, as a ring. */
+.uno-card--chosen { outline: calc(var(--uno-w, 3.4rem) * 0.05) solid var(--ring, #fff); outline-offset: 2px; overflow: visible; }
+.uno-card--chosen::after { display: none; }
+.uno-chosen--r { --ring: var(--uno-r); }
+.uno-chosen--y { --ring: var(--uno-y); }
+.uno-chosen--g { --ring: var(--uno-g); }
+.uno-chosen--b { --ring: var(--uno-b); }
+/* The back: violet, dotted, "A." with its amber full stop. */
+.uno-card--back {
+  background: linear-gradient(160deg, var(--uno-back-1), var(--uno-back-2));
+  box-shadow: 0 calc(var(--uno-w, 3.4rem) * 0.1) calc(var(--uno-w, 3.4rem) * 0.22) calc(var(--uno-w, 3.4rem) * -0.12) rgba(46, 16, 101, 0.6);
+}
+.uno-card--back::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1.2px, transparent 1.4px);
+  background-size: 9px 9px;
+  pointer-events: none;
+}
+.uno-card__a { position: relative; z-index: 1; color: #fff; font-size: calc(var(--uno-w, 3.4rem) * 0.34); line-height: 1; direction: ltr; }
+.uno-card__a i { color: var(--uno-amber); font-style: normal; }
+@container (max-width: 22px) {
+  .uno-card__a { display: none; }
+}
+
+/* --- The frame --- */
+.uno-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-1); margin-bottom: var(--sp-2); }
+/* The play area first (the owner, 21 Sep 2026): the pile, then your hand, then what to do;
+   the other players are a compact strip above it. Wider screens rearrange the same four. */
+.uno-layout { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "center" "mine" "act" "log"; }
+.uno-layout > * { min-width: 0; }
+.uno-layout__center { grid-area: center; }
+.uno-layout__mine { grid-area: mine; }
+.uno-layout__act { grid-area: act; }
+.uno-layout__log { grid-area: log; }
+.uno-latest {
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.uno-latest.is-new { animation: uno-latest-in 380ms var(--ease-out) both; }
+@keyframes uno-latest-in { from { opacity: 0; transform: translateY(-0.4rem) scale(0.98); } }
+.uno-log { display: flex; flex-direction: column; gap: 4px; margin: 0 0 var(--sp-3); padding: 0; list-style: none; }
+.uno-log li { padding: 0.35rem 0.7rem; border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-2); font-size: var(--fs-xs); font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+
+/* --- The other players: one strip of compact chips (a sideways scroll on a phone
+   when they don't fit; auto margins centre a strip that does) --- */
+.uno-opps {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 var(--sp-2);
+  padding: 3px 2px 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.uno-opps::-webkit-scrollbar { display: none; }
+.uno-opps > :first-child { margin-inline-start: auto; }
+.uno-opps > :last-child { margin-inline-end: auto; }
+.uno-seat {
+  position: relative;
+  flex: none;
+  min-width: 0;
+  max-width: 11rem;
+  min-height: 2.6rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px var(--sp-2) 3px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+}
+.uno-avatar {
+  flex: none;
+  width: 1.45rem;
+  height: 1.45rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--uno-amber);
+  color: #3b2a05;
+  font-size: 0.75rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.uno-seat__who { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.uno-seat__name { min-width: 0; max-width: 4.75rem; overflow: hidden; color: var(--text-strong); font-size: var(--fs-sm); font-weight: 800; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.uno-seat__stage { flex: none; font-size: var(--fs-xs); }
+/* The count sits on the fan as a badge. */
+.uno-seat__hand { position: relative; flex: none; display: block; padding-inline-end: 0.55rem; }
+.uno-seat__n {
+  position: absolute;
+  z-index: 2;
+  inset-block-end: -0.3rem;
+  inset-inline-end: -0.2rem;
+  min-width: 1.3rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: 0 0 0 1px var(--border), var(--sh-1);
+  color: var(--text-strong);
+  font-size: 0.8125rem;
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: center;
+}
+.uno-fan { position: relative; display: block; width: max(1.05rem, calc(1.05rem + (var(--of, 1) - 1) * 0.42rem)); height: calc(1.05rem * 1.5); }
+.uno-fan__card {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: calc(var(--k) * 0.42rem);
+  transform: rotate(calc((var(--k) - (var(--of) - 1) / 2) * 7deg));
+  transform-origin: 50% 110%;
+}
+.uno-seat.is-turn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 6px 18px -10px var(--accent-glow); }
+.uno-seat.is-next { border-style: dashed; border-color: var(--accent); }
+.uno-seat.is-away { opacity: 0.6; }
+.uno-seat.is-catch { border-color: var(--danger); }
+.uno-seat.is-catch::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px var(--danger), 0 0 16px 2px color-mix(in srgb, var(--danger) 45%, transparent);
+  pointer-events: none;
+  animation: uno-catch-glow 0.9s ease-in-out infinite alternate;
+}
+@keyframes uno-catch-glow { from { opacity: 0.35; } to { opacity: 1; } }
+.uno-tag {
+  flex: none;
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  background: var(--uno-tag);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 900;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.uno-tag--soft { padding: 0; background: transparent; }
+
+/* --- The middle: the deck, the pile, the colour in play and the direction --- */
+.uno-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  border-radius: var(--r-xl);
+  background: var(--accent-soft);
+}
+.uno-zone { position: relative; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.uno-zone__label { max-width: 7rem; overflow: hidden; color: var(--text-2); font-size: var(--fs-xs); font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.uno-deck { position: relative; display: block; }
+.uno-deck__under { position: absolute; inset: 0; opacity: 0.7; transform: translate(3px, -3px); }
+.uno-deck__under--2 { opacity: 0.45; transform: translate(6px, -6px); }
+.uno-count {
+  min-width: 1.6rem;
+  margin-top: -0.55rem;
+  position: relative;
+  z-index: 2;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  color: var(--text-strong);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+.uno-pile { position: relative; display: block; }
+.uno-pile__under { position: absolute; inset: 0; opacity: 0.9; transform: rotate(var(--tilt, 0deg)); }
+.uno-pile__top { position: relative; display: block; transform: rotate(var(--tilt, 0deg)); }
+.uno-pending {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: -0.85rem;
+  inset-inline-end: -1.6rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--r-full);
+  background: var(--danger-btn);
+  box-shadow: var(--sh-2);
+  color: var(--danger-on);
+  font-size: 1rem;
+  font-weight: 900;
+}
+.uno-zone--state { gap: 5px; }
+.uno-dot { display: block; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 28%, transparent); }
+.uno-dot.is-none { background: var(--uno-wheel); box-shadow: none; }
+.uno-state__color { color: var(--text-strong); font-size: var(--fs-sm); font-weight: 900; }
+.uno-dir { display: grid; place-items: center; }
+.uno-dir svg { width: 1.6rem; height: 1.6rem; fill: none; stroke: var(--accent-ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.uno-dir.is-back svg { transform: scaleX(-1); }
+
+/* --- Your hand: a row that overlaps when it has to (unoFitHand), what you can play raised --- */
+.uno-mine {
+  position: relative;
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+}
+.uno-mine.is-turn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 28px -14px var(--accent-glow); }
+.uno-mine.is-catch { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger); }
+.uno-mine__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-2); }
+.uno-mine__title { color: var(--text-strong); font-size: var(--fs-sm); font-weight: 900; }
+.uno-mine__n { color: var(--accent-ink); font-size: 1rem; }
+.uno-hand { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-3); padding-top: 0.85rem; }
+.uno-hand__row { min-width: 0; display: flex; justify-content: center; }
+.uno-hand__empty { color: var(--text-3); text-align: center; }
+.uno-hand .uno-card { --uno-w: 3.4rem; }
+.uno-hcard {
+  position: relative;
+  flex: none;
+  display: block;
+  line-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--uno-w, 3.4rem) * 0.13);
+  background: transparent;
+  cursor: pointer;
+  transition: transform var(--dur-2) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.uno-hcard + .uno-hcard { margin-inline-start: var(--uno-gap, 0.25rem); }
+.uno-hcard .uno-card { transition: filter var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out); }
+.uno-hcard.is-play { transform: translateY(-0.6rem); }
+.uno-hcard.is-dim .uno-card { filter: saturate(0.35) brightness(0.9); }
+.uno-hcard.is-jump { transform: translateY(-0.6rem); }
+.uno-hcard.is-jump .uno-card { box-shadow: 0 0 0 3px var(--warning), 0 8px 18px -6px color-mix(in srgb, var(--warning) 70%, transparent); }
+.uno-hcard.is-drawn { transform: translateY(-0.85rem); }
+.uno-hcard.is-drawn .uno-card { box-shadow: 0 0 0 3px var(--accent), 0 10px 22px -8px var(--accent-glow); filter: none; }
+.uno-hcard.is-picked { transform: translateY(-1rem); }
+.uno-hcard.is-picked .uno-card { box-shadow: 0 0 0 3px var(--accent), 0 10px 22px -8px var(--accent-glow); }
+/* Tapped, on its way to the server: it rises a little further at once (on top of
+   whatever lift this screen gives a playable card) and flies from there. */
+.uno-hand .uno-hcard.is-sent { translate: 0 -0.4rem; transition: transform var(--dur-2) var(--ease-out), translate 120ms var(--ease-out); }
+.uno-hand .uno-hcard.is-sent .uno-card { box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.5); filter: brightness(1.06); }
+.uno-hcard:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+/* --- What to do now: a bar that stays at the foot of the screen --- */
+.uno-actbar {
+  position: sticky;
+  bottom: var(--sp-2);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-4);
+  max-height: calc(var(--app-h, 100dvh) - 10rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.uno-actbar--catch, .uno-actbar--facing { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger), var(--sh-4); }
+.uno-note { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); margin-bottom: var(--sp-3); padding: var(--sp-2) var(--sp-3); text-align: center; }
+.uno-prompt { margin: 0; color: var(--text-strong); font-size: var(--fs-h3); font-weight: 900; line-height: 1.35; text-align: center; }
+.uno-prompt.is-mine { color: var(--accent-ink); }
+.uno-hint { margin: 0; color: var(--text-2); font-size: var(--fs-sm); font-weight: 700; line-height: 1.4; text-align: center; }
+.uno-hint--auto { color: var(--accent-ink); }
+.uno-hint--jump { color: var(--warning-ink); font-weight: 800; }
+.uno-actrow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.uno-actrow .btn { padding-inline: var(--sp-2); }
+.uno-colors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.uno-colorbtn {
+  min-height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--c);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 82%, white), var(--c) 70%);
+  box-shadow: 0 6px 14px -8px var(--c);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.uno-colorbtn__dot { width: 0.75rem; height: 0.75rem; border-radius: 50%; background: currentColor; opacity: 0.85; }
+.uno-targets { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.uno-target {
+  max-width: 11rem;
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+}
+.uno-target__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uno-target .metric { color: var(--accent-ink); }
+.uno-say { display: flex; flex-direction: column; gap: 4px; }
+.uno-saybtn { background: var(--uno-tag); color: #fff; font-family: var(--font-display); font-size: 1.2rem; font-weight: 800; box-shadow: 0 8px 18px -10px var(--uno-tag); }
+.uno-say.is-urgent .uno-saybtn { animation: uno-say-pulse 0.8s ease-in-out infinite alternate; }
+@keyframes uno-say-pulse { from { transform: scale(1); } to { transform: scale(1.045); } }
+.uno-catch { display: flex; flex-direction: column; gap: 4px; }
+
+/* --- The end of a round, and of the game --- */
+.uno-won { margin-bottom: var(--sp-3); text-align: center; }
+.uno-won .card__title { overflow-wrap: anywhere; }
+.uno-sub { margin: 0 0 var(--sp-2); color: var(--text-2); font-size: var(--fs-sm); font-weight: 800; text-align: center; }
+.uno-rule { margin: 0 0 var(--sp-3); color: var(--text-2); font-size: var(--fs-xs); font-weight: 600; line-height: 1.5; text-align: center; }
+.uno-over { margin-bottom: var(--sp-3); text-align: center; }
+.uno-over .podium { margin-top: var(--sp-2); }
+.uno-reveal { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.uno-rrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "who pts" "cards cards";
+  align-content: start;
+  align-items: center;
+  gap: 4px var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.uno-rrow.is-winner { border-color: var(--success); box-shadow: 0 0 0 1px var(--success); }
+.uno-rrow__who { grid-area: who; min-width: 0; }
+.uno-rrow__name { display: block; overflow: hidden; color: var(--text-strong); font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.uno-rrow__pts { grid-area: pts; display: flex; align-items: baseline; gap: 1px; color: var(--text-strong); font-size: 1.3rem; direction: ltr; }
+.uno-rrow.is-winner .uno-rrow__pts { color: var(--success-ink); }
+.uno-rrow__plus { font-weight: 900; }
+.uno-rrow__cards { grid-area: cards; display: flex; flex-wrap: wrap; gap: 3px; }
+.uno-rrow__done { color: var(--success-ink); font-size: var(--fs-sm); font-weight: 900; }
+.uno-flip { position: relative; display: inline-block; }
+.uno-flip__face { display: block; }
+.uno-flip__back { position: absolute; inset: 0; }
+.is-revealing .uno-flip__back { animation: uno-flip-back 420ms linear both; animation-delay: var(--at, 0ms); }
+.is-revealing .uno-flip__face { animation: uno-flip-face 420ms var(--ease-out) both; animation-delay: var(--at, 0ms); }
+@keyframes uno-flip-back { 0% { transform: scaleX(1); } 45% { transform: scaleX(0); } 100% { transform: scaleX(0); visibility: hidden; } }
+@keyframes uno-flip-face { 0%, 45% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+
+/* --- The lobby: a fan of five cards over the options --- */
+.uno-lobby__cards { display: flex; justify-content: center; gap: 4px; margin: var(--sp-1) 0 var(--sp-2); }
+.uno-lobby__cards .uno-card:nth-child(1) { transform: rotate(-12deg) translateY(4px); }
+.uno-lobby__cards .uno-card:nth-child(2) { transform: rotate(-6deg); }
+.uno-lobby__cards .uno-card:nth-child(4) { transform: rotate(6deg); }
+.uno-lobby__cards .uno-card:nth-child(5) { transform: rotate(12deg) translateY(4px); }
+.uno-lobby__sub { margin-top: calc(var(--sp-2) * -1); }
+
+/* --- Flights, signs, landings --- */
+.uno-ghost { position: fixed; left: 0; top: 0; z-index: var(--z-fx-ghost); pointer-events: none; transform-origin: center; will-change: transform; }
+.uno-ghost__flip { position: relative; width: 100%; height: 100%; will-change: transform; }
+.uno-ghost__face { position: absolute; inset: 0; }
+.uno-ghost__face--b { opacity: 0; }
+.uno-ghost .uno-card { box-shadow: var(--sh-3); }
+.uno-hold { visibility: hidden; }
+.uno-landed > .uno-card { animation: uno-land 380ms cubic-bezier(0.2, 1.4, 0.35, 1); }
+@keyframes uno-land { 0% { transform: scale(0.9); } 60% { transform: scale(1.06); } 100% { transform: none; } }
+.uno-pop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-fx-pop);
+  padding: 0.1em 0.45em;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-3);
+  color: var(--text-strong);
+  font-size: 1.25rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.uno-pop--big { background: transparent; box-shadow: none; font-size: 2.2rem; }
+.uno-ring { position: fixed; z-index: var(--z-fx-ghost); border: 3px solid var(--accent); border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
+.uno-ring--r { border-color: var(--uno-r); border-width: 5px; }
+.uno-ring--y { border-color: var(--uno-y); border-width: 5px; }
+.uno-ring--g { border-color: var(--uno-g); border-width: 5px; }
+.uno-ring--b { border-color: var(--uno-b); border-width: 5px; }
+.uno-ring--shout, .uno-ring--danger { border-color: var(--uno-tag); }
+.uno-stamp {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-fx-stamp);
+  display: grid;
+  place-items: center;
+  padding: 0.1em 0.35em;
+  border: 3px solid currentColor;
+  border-radius: 0.4em;
+  background: var(--surface-solid);
+  color: var(--accent-ink);
+  font-size: 1.6rem;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.uno-stamp .uno-icon { width: 2.2rem; height: 2.2rem; stroke-width: 2.8; }
+.uno-stamp--danger { color: var(--danger-ink); }
+.uno-spark { position: fixed; left: 0; top: 0; z-index: var(--z-fx-pop); color: var(--warning); font-size: 0.9rem; line-height: 1; pointer-events: none; }
+.uno-spark--shout { color: var(--uno-tag); }
+.uno-shout {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-fx-top);
+  padding: 0.15em 0.55em;
+  border-radius: var(--r-full);
+  background: var(--uno-tag);
+  box-shadow: 0 10px 26px -8px rgba(198, 40, 40, 0.7);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.uno-pop.is-tv { font-size: 5vmin; }
+.uno-pop--big.is-tv { font-size: 8vmin; }
+.uno-ring.is-tv { border-width: 0.7vmin; }
+.uno-stamp.is-tv { font-size: 6vmin; }
+.uno-stamp.is-tv .uno-icon { width: 8vmin; height: 8vmin; }
+.uno-spark.is-tv { font-size: 2.6vmin; }
+.uno-shout.is-tv { font-size: 7vmin; }
+
+/* --- A phone on its side: the pile beside your hand and the bar, the seats a strip above --- */
+@media (orientation: landscape) and (max-height: 500px) {
+  .uno-layout { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); grid-template-areas: "center mine" "center act" "log act"; column-gap: var(--sp-3); align-items: start; }
+  .uno-head { margin-bottom: var(--sp-1); }
+  .uno-latest { margin-bottom: var(--sp-1); padding-block: var(--sp-1); }
+  .uno-opps { margin-bottom: var(--sp-1); padding-block: 2px 4px; }
+  .uno-seat { min-height: 2.3rem; padding-block: 2px; }
+  .uno-center { gap: var(--sp-4); margin-bottom: var(--sp-2); padding: var(--sp-2) var(--sp-2) var(--sp-1); }
+  .uno-center .uno-card--lg { --uno-w: 3.6rem; }
+  .uno-center .uno-card--md { --uno-w: 2.5rem; }
+  .uno-mine { margin-bottom: var(--sp-2); padding: var(--sp-1) var(--sp-2) var(--sp-2); }
+  .uno-hand { gap: var(--sp-2); padding-top: 0.7rem; }
+  .uno-hand .uno-card { --uno-w: 2.8rem; }
+  .uno-hcard.is-play, .uno-hcard.is-jump { transform: translateY(-0.45rem); }
+  .uno-actbar { gap: var(--sp-1); padding: var(--sp-2); max-height: calc(var(--app-h, 100dvh) - 4rem); }
+  .uno-actbar .uno-prompt { font-size: var(--fs-sm); line-height: 1.3; }
+  .uno-actbar .btn { min-height: 2.5rem; font-size: var(--fs-sm); }
+  .uno-colorbtn { min-height: 2.5rem; font-size: 1.05rem; }
+  .uno-colors { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .uno-log { display: none; }
+}
+/* --- A laptop, a big screen as a player's own: the pile across the width, your hand
+   under it beside the bar, the cards sized by the screen's height --- */
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-room-uno { max-width: 78rem; }
+  .uno-opps { flex-wrap: wrap; justify-content: center; overflow: visible; }
+  .uno-opps > :first-child, .uno-opps > :last-child { margin-inline: 0; }
+  .uno-seat { max-width: 14rem; }
+  .uno-seat__name { max-width: 8rem; }
+  .uno-layout { grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); grid-template-areas: "center center" "mine act" "log act"; column-gap: var(--sp-5); align-items: start; }
+  .uno-center { gap: clamp(2rem, 6vw, 5rem); padding: var(--sp-5) var(--sp-5) var(--sp-4); }
+  .uno-center .uno-card--lg { --uno-w: clamp(8rem, 17.5vh, 15rem); }
+  .uno-center .uno-card--md { --uno-w: clamp(5.25rem, 11.5vh, 10rem); }
+  .uno-dot { width: 2.5rem; height: 2.5rem; }
+  .uno-dir svg { width: 2.25rem; height: 2.25rem; }
+  .uno-state__color { font-size: var(--fs-h3); }
+  .uno-pending { font-size: 1.4rem; }
+  .uno-mine { margin-bottom: 0; }
+  .uno-hand .uno-card { --uno-w: clamp(4.4rem, 11vh, 8rem); }
+  .uno-hcard.is-play, .uno-hcard.is-jump { transform: translateY(-0.8rem); }
+  .uno-hand { padding-top: 1.1rem; }
+  .uno-actbar { position: static; margin-bottom: 0; }
+  .uno--result .uno-reveal { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* --- The TV: the seats a ring of compact chips (along the top, back along the bottom),
+   the pile in the middle taking the screen, the turn and the moves beside it --- */
+.uno-tv { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--tv-gap); --uno-fan-w: 3.6vmin; }
+.uno-tv__ring { min-width: 0; display: flex; justify-content: center; gap: var(--tv-gap); }
+.uno-tv .uno-seat { flex: 0 1 auto; max-width: 30vw; min-height: 0; gap: 1.2vmin; padding: 0.8vmin 2vmin 0.8vmin 0.8vmin; border-width: 0.2vmin; }
+.uno-tv .uno-avatar { width: 5vmin; height: 5vmin; font-size: 2.4vmin; }
+.uno-tv .uno-seat__name { max-width: 18vw; font-size: var(--tv-sm); }
+.uno-tv .uno-seat__hand { display: flex; align-items: center; gap: 1.4vmin; margin: 0; padding: 0; }
+.uno-tv .uno-seat__n { position: static; min-width: 3.6vmin; padding: 0; background: none; box-shadow: none; font-size: var(--tv-md); line-height: 1; }
+.uno-tv .uno-tag { padding: 0.2vmin 1vmin; font-size: var(--tv-xs); }
+.uno-tv .uno-seat__stage { font-size: var(--tv-xs); }
+.uno-tv .uno-fan { width: max(var(--uno-fan-w), calc(var(--uno-fan-w) + (var(--of, 1) - 1) * var(--uno-fan-w) * 0.42)); height: calc(var(--uno-fan-w) * 1.5); }
+.uno-tv .uno-fan__card { inset-inline-start: calc(var(--k) * var(--uno-fan-w) * 0.42); }
+.uno-tv .uno-fan .uno-card { --uno-w: var(--uno-fan-w); }
+.uno-tv__mid { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: calc(var(--tv-gap) * 1.5); align-items: stretch; }
+.uno-tv__info { min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: safe center; gap: var(--tv-gap); overflow: hidden; text-align: center; }
+.uno-tv__table { min-width: 0; min-height: 0; display: flex; }
+.uno-tv .uno-head { margin: 0; }
+.uno-tv .badge, .uno-tvres .badge { height: auto; padding: 0.25em 0.7em; font-size: var(--tv-xs); }
+.uno-tv__turn { color: var(--text-strong); font-size: var(--tv-lg); font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
+.uno-tv__catch { color: var(--danger-ink); font-size: var(--tv-sm); font-weight: 900; }
+.uno-tv .uno-latest { margin: 0; padding: 0.8vmin 1.6vmin; border-radius: var(--tv-r); font-size: var(--tv-sm); }
+.uno-tv .uno-center { flex: 1; min-height: 0; margin: 0; gap: 6vmin; padding: 3vmin; border-radius: var(--tv-r); }
+.uno-tv .uno-center .uno-card--lg { --uno-w: min(25vmin, 16vw); }
+.uno-tv .uno-center .uno-card--md { --uno-w: min(16vmin, 10vw); }
+.uno-tv .uno-zone__label { max-width: 24vmin; font-size: var(--tv-sm); }
+.uno-tv .uno-count { font-size: var(--tv-sm); }
+.uno-tv .uno-pending { inset-block-start: -1.5vmin; inset-inline-end: -3vmin; padding: 0.4vmin 1.6vmin; font-size: var(--tv-lg); }
+.uno-tv .uno-dot { width: 8vmin; height: 8vmin; box-shadow: 0 0 0 1.2vmin color-mix(in srgb, var(--c) 28%, transparent); }
+.uno-tv .uno-dir svg { width: 7vmin; height: 7vmin; }
+.uno-tv .uno-state__color { font-size: var(--tv-md); }
+.uno-tv .uno-zone--state { gap: 1.4vmin; }
+.uno-tv .uno-log { margin: 0; }
+.uno-tv .uno-log li { padding: 0.5vmin 1vmin; font-size: var(--tv-xs); }
+.uno-tv .tv-actions { margin: 0; }
+.uno-tv .tv-actions:not(:has(.btn)) { display: none; }
+.uno-tv__host:empty { display: none; }
+/* Five or six a row: smaller chips, the names shorter. */
+.uno-tv--many { --uno-fan-w: 3vmin; }
+.uno-tv--many .uno-seat { gap: 0.8vmin; padding: 0.6vmin 1.4vmin 0.6vmin 0.6vmin; }
+.uno-tv--many .uno-avatar { width: 4vmin; height: 4vmin; font-size: 2vmin; }
+.uno-tv--many .uno-seat__name { max-width: 11vw; }
+.uno-tv--many .uno-seat__n { min-width: 3vmin; font-size: var(--tv-sm); }
+.uno-tvres { min-height: 100%; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: center; gap: calc(var(--tv-gap) * 2); }
+.uno-tvres__cards, .uno-tvres__side { min-width: 0; display: flex; flex-direction: column; gap: var(--tv-gap); }
+.uno-tvres__side { align-items: center; }
+.uno-tvres__side > .tv-scale { width: 100%; }
+.uno-reveal--tv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tv-gap); margin: 0; }
+.uno-reveal--tv:has(> :nth-child(7)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.uno-reveal--tv .uno-rrow { padding: 1vmin 1.6vmin; border-radius: var(--tv-r); }
+.uno-reveal--tv .uno-rrow__name { font-size: var(--tv-sm); }
+.uno-reveal--tv .uno-rrow__pts { font-size: var(--tv-md); }
+.uno-reveal--tv .uno-card { --uno-w: 4.4vmin; }
+.uno-reveal--tv:has(> :nth-child(7)) .uno-card { --uno-w: 3.4vmin; }
+.uno-reveal--tv .uno-rrow__done { font-size: var(--tv-xs); }
+/* A phone mirrored upright: one column, and the stage scrolls. */
+@media (orientation: portrait) {
+  .uno-tv { height: auto; }
+  .uno-tv__ring { flex-wrap: wrap; }
+  .uno-tv__mid { grid-template-columns: minmax(0, 1fr); }
+  .uno-tvres, .uno-reveal--tv, .uno-reveal--tv:has(> :nth-child(7)) { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --- «أونو اتنين اتنين» (2 Oct 2026): a seat's team, your partner's seat, a signal, the signals' row --- */
+.uno-team, .uno-sig { flex: none; font-size: 0.8125rem; line-height: 1; }
+.uno-seat.is-mate { background: color-mix(in srgb, var(--success) 14%, var(--surface-solid)); }
+.uno-sig.is-new { animation: uno-sig-pop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes uno-sig-pop { from { transform: scale(0.3); opacity: 0; } }
+.uno-sigbar { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-block-end: var(--sp-3); }
+.uno-sigbar__label { width: 100%; color: var(--text-2); font-size: var(--fs-xs); text-align: center; }
+.uno-lteam--mine { box-shadow: 0 0 0 2px var(--accent); }
+.uno-tv .uno-team, .uno-tv .uno-sig { font-size: var(--tv-sm); }
+
+@media (prefers-reduced-motion: reduce) {
+  .uno-sig.is-new { animation: none; }
+  .uno-landed > .uno-card, .uno-latest.is-new, .is-revealing .uno-flip__face, .uno-say.is-urgent .uno-saybtn, .uno-seat.is-catch::after { animation: none; }
+  .is-revealing .uno-flip__back { display: none; }
+  .uno-hcard, .uno-hcard .uno-card, .uno-seat { transition: none; }
+}
+
+/* ==========================================================================
+   21. الدومينو
+   JS_RoomDomino.html: the table on separate phones and on the TV. One tile,
+   .dt, sized by --u (its short side; standing it is --u × 2--u, lying 2--u ×
+   --u), in the look the owner picked (أ, "عاجي"): ivory with black pips on a
+   3 × 3 grid per half, a thin dark bar and a brass pin, the same in both
+   themes. The table (.dom-table) is a box the layout is scaled into; every
+   tile on it is placed absolutely by the script, left to right in every
+   language. A move flies as a ghost over the page (.dom-ghost), and the tile
+   it lands as stays hidden until then (.dom-hold).
+   ========================================================================== */
+:root {
+  --dom-ivory-1: #fffdf7;
+  --dom-ivory-2: #f3ead6;
+  --dom-edge: #d8ccb2;
+  --dom-pip: #1b1b1f;
+  --dom-pin-1: #fbe7a0;
+  --dom-pin-2: #b8892a;
+  --dom-back-1: #fbf3df;
+  --dom-back-2: #e7d9b8;
+  --dom-frame: rgba(120, 90, 40, 0.28);
+  --dom-shade: rgba(15, 23, 42, 0.4);
+}
+
+/* --- The tile. The default size is on :where(), so any context that sizes a tile wins. --- */
+:where(.dt) { --u: 1.5rem; }
+.dt {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  box-sizing: border-box;
+  border-radius: calc(var(--u) * 0.22);
+  background: linear-gradient(160deg, var(--dom-ivory-1), var(--dom-ivory-2));
+  box-shadow: inset 0 -2px 0 rgba(120, 90, 40, 0.18), 0 calc(var(--u) * 0.1) 0 var(--dom-edge),
+              0 calc(var(--u) * 0.2) calc(var(--u) * 0.4) calc(var(--u) * -0.2) var(--dom-shade);
+  direction: ltr;
+  vertical-align: top;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.dt--v { width: var(--u); height: calc(var(--u) * 2); grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr); }
+.dt--h { width: calc(var(--u) * 2); height: var(--u); grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.dt__half { display: grid; grid-template: repeat(3, minmax(0, 1fr)) / repeat(3, minmax(0, 1fr)); min-width: 0; min-height: 0; padding: calc(var(--u) * 0.16); }
+.dt__half i {
+  display: block;
+  width: calc(var(--u) * 0.17);
+  height: calc(var(--u) * 0.17);
+  border-radius: 50%;
+  place-self: center;
+  background: var(--dom-pip);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.25);
+}
+.dt--v .dt__bar { height: max(1px, calc(var(--u) * 0.06)); margin: 0 calc(var(--u) * 0.14); background: var(--dom-pip); opacity: 0.75; }
+.dt--h .dt__bar { width: max(1px, calc(var(--u) * 0.06)); margin: calc(var(--u) * 0.14) 0; background: var(--dom-pip); opacity: 0.75; }
+.dt__pin {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: calc(var(--u) * 0.14);
+  height: calc(var(--u) * 0.14);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--dom-pin-1), var(--dom-pin-2));
+}
+/* Face down: ivory with an engraved frame. */
+.dt--back { background: linear-gradient(160deg, var(--dom-back-1), var(--dom-back-2)); }
+.dt--back::after {
+  content: '';
+  position: absolute;
+  inset: 22%;
+  border: max(1px, calc(var(--u) * 0.07)) solid var(--dom-frame);
+  border-radius: calc(var(--u) * 0.1);
+}
+
+/* --- The screen: who is at the table (a compact strip), the table, your hand.
+   While a round is played the table gets most of the screen at every size
+   (the owner, 21 Sep 2026); upright the three stack, on a phone's side the
+   table takes one column, on a laptop it takes the width. --- */
+.dom-layout { display: flex; flex-direction: column; gap: 0.4rem; }
+.dom-top { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.dom-layout__table { min-width: 0; }
+.dom-play { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+.dom-host:empty { display: none; }
+.dom-head, .dom-strip { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.25rem; }
+.dom-strip .badge { height: auto; padding: 0.15em 0.6em; line-height: 1.4; }
+.dom-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.15em 0.65em;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+.dom-chip b { color: var(--accent-ink); }
+.dom-chip.is-me { border-color: var(--accent-border); }
+.dom-chip--team0 { border-inline-start: 3px solid var(--team-blue); }
+.dom-chip--team1 { border-inline-start: 3px solid var(--team-red); }
+.dom-chip--target { background: var(--surface-2); }
+.dom-team-dot { display: inline-block; flex: none; width: 0.6em; height: 0.6em; margin-inline-end: 0.3em; border-radius: 50%; vertical-align: middle; }
+.dom-team-dot--0 { background: var(--team-blue); }
+.dom-team-dot--1 { background: var(--team-red); }
+
+/* --- The felt and the table --- */
+.dom-felt {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: radial-gradient(120% 90% at 50% 40%, color-mix(in srgb, var(--accent) 14%, var(--surface-2)), color-mix(in srgb, var(--accent) 6%, var(--surface-2)));
+  box-shadow: inset 0 1px 8px rgba(0, 0, 0, 0.1);
+}
+body.dark .dom-felt { background: radial-gradient(120% 90% at 50% 40%, color-mix(in srgb, var(--accent) 22%, var(--surface-2)), color-mix(in srgb, var(--accent) 9%, var(--surface-2))); }
+.dom-felt__top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 1.6rem; }
+.dom-table {
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* Upright, the head, the seats, your hand and the bar fit a 375 × 812 screen under it. */
+  height: clamp(10rem, calc(var(--app-h, 100dvh) - 31.5rem), 28rem);
+  overflow: hidden;
+}
+.dom-felt--small .dom-table { height: clamp(8rem, calc(var(--app-h, 100dvh) * 0.26), 14rem); }
+.dom-table__empty { color: var(--text-2); font-size: var(--fs-sm); font-weight: var(--fw-bold); text-align: center; }
+.dom-line { position: relative; }
+.dom-ttile { position: absolute; }
+.dom-ttile.is-spinner { box-shadow: inset 0 -2px 0 rgba(120, 90, 40, 0.18), 0 calc(var(--u) * 0.1) 0 var(--dom-edge), 0 0 0 2px var(--accent), 0 0 calc(var(--u) * 0.5) var(--accent-glow); }
+.dom-ttile.is-new-spinner { animation: dom-spin-in 700ms cubic-bezier(0.2, 1.4, 0.35, 1); }
+@keyframes dom-spin-in { 0% { transform: rotate(-25deg) scale(1.25); } 100% { transform: none; } }
+.dom-end {
+  position: absolute;
+  width: var(--u);
+  height: var(--u);
+  padding: 0;
+  border: 2px dashed transparent;
+  border-radius: 50%;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+}
+/* A bigger place to tap than the ring it draws. */
+.dom-end::before { content: ''; position: absolute; inset: -0.6rem; border-radius: 50%; }
+.dom-end.is-live {
+  opacity: 1;
+  pointer-events: auto;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  animation: dom-glow 1.1s ease-in-out infinite;
+}
+@keyframes dom-glow { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); } 50% { box-shadow: 0 0 0 0.35rem transparent; transform: scale(1.12); } }
+.dom-end__pts {
+  position: absolute;
+  inset-block-start: -1.1rem;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  padding: 0 0.35em;
+  border-radius: var(--r-full);
+  background: var(--success-btn);
+  color: var(--success-on);
+  font-size: 0.75rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.dom-latest { margin: 0; min-height: 1.3em; color: var(--text-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); line-height: 1.3; text-align: center; overflow-wrap: anywhere; }
+.dom-bone { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--text-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
+.dom-bone__stack { position: relative; display: inline-grid; }
+.dom-bone__stack .dt { --u: 0.55rem; grid-area: 1 / 1; }
+.dom-bone__stack .dt + .dt { transform: translate(2px, -3px); }
+.dom-bone__n { color: var(--text-strong); font-size: var(--fs-sm); }
+.dom-sum {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+  margin-inline-start: auto;
+  padding: 0.15em 0.7em;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  white-space: nowrap;
+}
+.dom-sum b { color: var(--text-strong); font-size: var(--fs-sm); }
+.dom-sum.is-scoring { background: var(--success-btn); color: var(--success-on); }
+.dom-sum.is-scoring b { color: inherit; }
+
+/* --- The others round the table: one short row each --- */
+.dom-seats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.3rem; }
+.dom-seat {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out);
+}
+.dom-seat.is-turn { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft), 0 6px 16px -10px var(--accent-glow); }
+.dom-seat.is-away { opacity: 0.55; }
+.dom-seat--team0 { border-inline-start: 3px solid var(--team-blue); }
+.dom-seat--team1 { border-inline-start: 3px solid var(--team-red); }
+.dom-seat__who { flex: 1; display: flex; align-items: center; gap: 0.3rem; min-width: 0; }
+.dom-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 0.8rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.dom-seat.is-turn .dom-avatar { background: var(--accent); color: var(--accent-on); }
+.dom-seat__name { flex: 1; min-width: 0; overflow: hidden; color: var(--text-strong); font-size: var(--fs-sm); font-weight: var(--fw-bold); text-overflow: ellipsis; white-space: nowrap; }
+.dom-seat__tiles { flex: none; display: flex; align-items: center; gap: 0.25rem; direction: ltr; }
+.dom-seat__tiles .dt { --u: 0.55rem; }
+.dom-seat__tiles .dt + .dt { margin-inline-start: -0.4rem; }
+.dom-seat__more { color: var(--text-3); font-size: 0.7rem; font-weight: var(--fw-bold); }
+.dom-seat__count { min-width: 1.2rem; padding: 0 0.3em; border-radius: var(--r-full); background: var(--surface-2); color: var(--text-strong); font-size: var(--fs-xs); font-weight: 900; text-align: center; }
+/* Three across an upright phone: the name and the count, the backs left out. */
+.dom-seats--3 .dom-seat__tiles .dt, .dom-seats--3 .dom-seat__more { display: none; }
+.dom-seats--3 .dom-seat { gap: 0.2rem; padding-inline: 0.3rem; }
+.dom-seats--3 .dom-seat__name { font-size: var(--fs-xs); }
+.dom-seats--3 .dom-avatar { width: 1.2rem; height: 1.2rem; font-size: 0.65rem; }
+
+/* --- Your hand --- */
+.dom-mine {
+  padding: 0.4rem var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  transition: border-color var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out);
+}
+.dom-mine.is-turn { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dom-mine--team0 { border-inline-start: 3px solid var(--team-blue); }
+.dom-mine--team1 { border-inline-start: 3px solid var(--team-red); }
+.dom-mine__head { display: flex; align-items: center; gap: var(--sp-2); color: var(--text-strong); font-size: var(--fs-sm); font-weight: var(--fw-bold); line-height: 1.3; }
+.dom-mine__name { flex: 1; min-width: 0; }
+.dom-mine__count { color: var(--text-2); font-size: var(--fs-xs); font-weight: 900; }
+.dom-hand { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 0.3rem; min-height: 4.25rem; padding-top: 0.45rem; direction: ltr; }
+.dom-hand .dt { --u: 2.125rem; }
+.dom-hand--many .dt { --u: 1.75rem; }
+.dom-hand__none { align-self: center; color: var(--text-3); font-size: var(--fs-sm); }
+.dom-htile {
+  position: relative;
+  padding: 3px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  cursor: pointer;
+  transition: transform var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out), filter var(--dur-2) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.dom-htile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dom-htile.is-fit { transform: translateY(-0.4rem); }
+.dom-htile.is-fit .dt { box-shadow: inset 0 -2px 0 rgba(120, 90, 40, 0.18), 0 calc(var(--u) * 0.1) 0 var(--dom-edge), 0 0 0 2px var(--accent), 0 0.6rem 1rem -0.5rem var(--accent-glow); }
+.dom-htile.is-dim { opacity: 0.45; filter: saturate(0.6); }
+.dom-htile.is-picked { transform: translateY(-0.65rem); }
+.dom-htile.is-picked .dt { box-shadow: inset 0 -2px 0 rgba(120, 90, 40, 0.18), 0 calc(var(--u) * 0.1) 0 var(--dom-edge), 0 0 0 3px var(--accent), 0 0.8rem 1.2rem -0.5rem var(--accent-glow); }
+.dom-htile__pts {
+  position: absolute;
+  inset-block-start: -0.55rem;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  padding: 0 0.35em;
+  border-radius: var(--r-full);
+  background: var(--success-btn);
+  color: var(--success-on);
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* --- What to do now: the bar under your hand on your move (the page keeps it in sight: domHandInView) --- */
+.dom-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: 0.4rem var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-4);
+}
+.dom-bar--note { padding-block: var(--sp-1); border-color: var(--border); background: var(--surface-2); box-shadow: none; }
+.dom-bar--inline { flex-direction: row; align-items: center; }
+.dom-bar--inline .dom-prompt { flex: 1; min-width: 0; text-align: start; }
+.dom-bar--inline .btn { flex: none; }
+.dom-prompt { margin: 0; color: var(--text-strong); font-size: var(--fs-body); font-weight: 900; line-height: 1.35; text-align: center; }
+.dom-prompt.is-mine { color: var(--accent-ink); }
+.dom-bar--note .dom-prompt { color: var(--text-2); font-size: var(--fs-sm); }
+/* A move the server makes for you in a moment: said, not a button. */
+.dom-bar--inline .dom-prompt--auto { flex: 1.3; color: var(--text-2); font-size: var(--fs-sm); font-weight: 700; }
+.dom-bar__ends { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: var(--sp-2); }
+.dom-bar__ends .btn { padding-inline: var(--sp-2); }
+.dom-bar__v { opacity: 0.8; }
+.dom-bar__pts { padding: 0 0.35em; border-radius: var(--r-full); background: var(--success-btn); color: var(--success-on); font-size: 0.8em; }
+.dom-bar > .btn--sm { align-self: center; width: auto; }
+
+/* --- The lobby: the seats of a game of teams --- */
+.dom-seating__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.dom-seating__head .field__label { margin: 0; }
+.dom-seating__chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); margin-block: var(--sp-2); }
+.dom-seatchip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 var(--sp-3);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  text-align: start;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+button.dom-seatchip { cursor: pointer; transition: transform var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out); }
+.dom-seatchip--team0 { border-inline-start: 3px solid var(--team-blue); }
+.dom-seatchip--team1 { border-inline-start: 3px solid var(--team-red); }
+.dom-seatchip.is-picked { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); transform: translateY(-2px); }
+.dom-seatchip__n { color: var(--text-3); font-size: var(--fs-xs); }
+
+/* --- Flights, signs, landings --- */
+.dom-ghost { position: fixed; z-index: var(--z-fx-ghost); pointer-events: none; transform-origin: center; will-change: transform; }
+.dom-ghost > .dt { box-shadow: inset 0 -2px 0 rgba(120, 90, 40, 0.18), 0 calc(var(--u, 1.5rem) * 0.1) 0 var(--dom-edge), 0 0.6rem 1.2rem -0.4rem var(--dom-shade); }
+.dom-hold { visibility: hidden; }
+.dom-pop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-fx-pop);
+  padding: 0.1em 0.55em;
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-3);
+  color: var(--text-strong);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.dom-pop--pts { background: var(--success-btn); color: var(--success-on); font-size: 1.35rem; }
+.dom-pop--spinner { background: var(--accent); color: var(--accent-on); }
+.dom-pop--knock { background: var(--warning-btn); color: var(--warning-on); }
+.dom-pop--big { background: transparent; box-shadow: none; font-size: 2rem; }
+.dom-ring { position: fixed; z-index: var(--z-fx-ghost); border: 3px solid var(--accent); border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
+.dom-band {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-fx-pop);
+  padding: 0.45rem 1.3rem;
+  border-radius: var(--r-full);
+  box-shadow: var(--sh-4);
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.dom-band--accent { background: var(--accent); color: var(--accent-on); }
+.dom-band--success { background: var(--success-btn); color: var(--success-on); }
+.dom-band--danger { background: var(--danger-btn); color: var(--danger-on); }
+.dom-pop.is-tv { font-size: 3.2vmin; }
+.dom-pop--pts.is-tv { font-size: 5vmin; }
+.dom-pop--big.is-tv { font-size: 7vmin; }
+.dom-band.is-tv { padding: 1.2vmin 3.5vmin; font-size: var(--tv-lg, 3rem); }
+.dom-ring.is-tv { border-width: 0.6vmin; }
+
+/* --- The end of a round: the hands turn over, the pips count, who took what --- */
+.dom--result { display: flex; flex-direction: column; gap: var(--sp-3); }
+.dom-reveal { display: flex; flex-direction: column; gap: var(--sp-2); }
+.dom-reveal__title { margin: 0; color: var(--text-strong); font-family: var(--font-display); font-size: var(--fs-h3); font-weight: 900; text-align: center; }
+.dom-reveal__rows { display: flex; flex-direction: column; gap: var(--sp-1); }
+.dom-rrow {
+  display: grid;
+  grid-template-columns: minmax(0, 6.5rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.dom-rrow.is-won { border-color: var(--success); background: color-mix(in srgb, var(--success) 8%, var(--surface)); }
+.dom-rrow__who { min-width: 0; overflow: hidden; color: var(--text-strong); font-size: var(--fs-sm); font-weight: var(--fw-bold); text-overflow: ellipsis; white-space: nowrap; }
+.dom-rrow__tiles { display: flex; flex-wrap: wrap; gap: 3px; min-width: 0; direction: ltr; }
+.dom-rrow__none { color: var(--text-3); font-size: var(--fs-xs); }
+.dom-rtile { position: relative; display: inline-grid; }
+.dom-rtile .dt { --u: 0.85rem; }
+.dom-rtile__back { position: absolute; inset: 0; }
+.dom-rrow.is-down .dom-rtile__face { visibility: hidden; }
+.dom-rrow.is-shown .dom-rtile__back { display: none; }
+.dom-rrow.is-turning .dom-rtile { animation: dom-turn 380ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+@keyframes dom-turn { 0% { transform: scaleX(0.05); } 100% { transform: none; } }
+.dom-rrow__pips { color: var(--text-2); font-size: var(--fs-xs); text-align: end; white-space: nowrap; }
+.dom-rrow__pips b { color: var(--text-strong); font-size: var(--fs-h3); }
+.dom-reveal__line {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: var(--fw-bold);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.dom-reveal__line:empty { display: none; }
+.dom-reveal__line.is-down { opacity: 0; transform: translateY(0.4rem); }
+.dom-reveal__line.is-shown { opacity: 1; transform: none; transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); }
+.dom-totals .status-row.is-me { border-color: var(--accent-border); }
+.dom-totals__gain { font-variant-numeric: tabular-nums; }
+.dom-over { text-align: center; }
+.dom-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); margin-top: var(--sp-3); }
+.dom-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: var(--sp-3) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  animation: dom-side-in 600ms cubic-bezier(0.2, 1.2, 0.3, 1) both;
+}
+.dom-side--0 { border-top: 4px solid var(--team-blue); }
+.dom-side--1 { border-top: 4px solid var(--team-red); animation-delay: 150ms; }
+.dom-side.is-won { box-shadow: 0 0 0 3px var(--success), var(--sh-3); animation-delay: 350ms; }
+.dom-side__crown { min-height: 1.5rem; font-size: 1.5rem; line-height: 1; }
+.dom-side__names { color: var(--text-strong); font-size: var(--fs-sm); font-weight: var(--fw-bold); overflow-wrap: anywhere; }
+.dom-side__score { color: var(--accent-ink); font-size: var(--fs-h2); }
+@keyframes dom-side-in { 0% { opacity: 0; transform: translateY(1rem) scale(0.9); } 100% { opacity: 1; transform: none; } }
+
+/* --- A phone on its side: the table beside everything else --- */
+@media (orientation: landscape) and (max-height: 500px) {
+  .shell__main > #view-room-domino { max-width: none; }
+  .dom-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "table top" "table play";
+    align-items: start;
+    column-gap: var(--sp-3);
+    row-gap: 0.35rem;
+  }
+  .dom-top { grid-area: top; gap: 0.25rem; }
+  .dom-layout__table { grid-area: table; }
+  .dom-play { grid-area: play; gap: 0.35rem; }
+  .dom-table { height: max(10rem, calc(var(--app-h, 100dvh) - 7.5rem)); }
+  /* The others beside the table, one short line each: a name and how many they
+     hold, two to a row so three seats don't push what to do off the screen. */
+  .dom-seats { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: 0.2rem; }
+  .dom-seat { padding: 0.15rem 0.35rem; }
+  .dom-strip { gap: 0.2rem; }
+  .dom-strip .badge, .dom-strip .dom-chip { padding: 0.05em 0.5em; font-size: 0.7rem; }
+  .dom-avatar { width: 1.2rem; height: 1.2rem; font-size: 0.65rem; }
+  .dom-seat__name { font-size: var(--fs-xs); }
+  .dom-seat__tiles .dt, .dom-seat__more { display: none; }
+  .dom-hand { min-height: 3.6rem; padding-top: 0.35rem; }
+  /* Six to a row in the column beside the table. */
+  .dom-hand .dt { --u: 1.45rem; }
+  .dom-hand--many .dt { --u: 1.25rem; }
+  .dom-mine { padding: 0.35rem var(--sp-2); }
+  /* What to do stays in reach at the foot of the screen, over a hand of two rows. */
+  .dom-bar { position: sticky; bottom: 0; z-index: 2; padding: 0.35rem var(--sp-2); }
+  .dom-felt--small .dom-table { height: max(8rem, calc(var(--app-h, 100dvh) - 14rem)); }
+}
+
+/* --- Laptops and big screens showing the phone view: the table across the
+   whole width and most of the height, the strip of names above it, your hand
+   and what to do in one row under it --- */
+@media (min-width: 900px) and (min-height: 501px) {
+  .shell__main > #view-room-domino { max-width: none; }
+  .dom-top { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.4rem 0.75rem; }
+  .dom-seats { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; }
+  .dom-seat { flex: none; min-width: 9rem; }
+  .dom-seats--3 .dom-seat__tiles .dt, .dom-seats--3 .dom-seat__more { display: inline-grid; }
+  .dom-seats--3 .dom-seat__more { display: inline; }
+  .dom-seat__tiles .dt { --u: 0.7rem; }
+  .dom-table { height: max(16rem, calc(var(--app-h, 100dvh) - 19rem)); }
+  .dom-play { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15rem, auto); align-items: stretch; gap: var(--sp-3); }
+  .dom-play .dom-host { grid-column: 1 / -1; }
+  .dom-play .dom-bar { justify-content: center; }
+  .dom-hand .dt { --u: 2.25rem; }
+  .dom-hand--many .dt { --u: 1.9rem; }
+  .dom--result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+  .dom--result > .dom-head, .dom--result > .dom-over, .dom--result > [data-room-strip] { grid-column: 1 / -1; }
+  .dom-rtile .dt { --u: 1rem; }
+}
+
+/* --- The TV: the table takes the screen; who sits where is one strip above it --- */
+.dom-tv { height: 100%; min-height: 0; display: flex; flex-direction: column; gap: calc(var(--tv-gap) * 0.7); }
+.dom-tv__top { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 1vmin 1.6vmin; }
+.dom-tv__seats { display: flex; flex-wrap: wrap; justify-content: center; gap: 1vmin; }
+.dom-tv .dom-head { gap: 0.8vmin; }
+.dom-tv .badge { height: auto; padding: 0.25em 0.7em; font-size: var(--tv-xs); }
+.dom-tv .dom-felt { flex: 1 1 auto; min-height: 0; padding: 1.2vmin; border-radius: var(--tv-r); }
+.dom-tv .dom-felt__top { min-height: 0; }
+.dom-tv .dom-table { flex: 1 1 auto; height: auto; min-height: 0; }
+.dom-tv .dom-latest, .dom-tvres .dom-latest { font-size: var(--tv-sm); }
+.dom-tv .dom-sum, .dom-tv .dom-bone, .dom-tvres .dom-sum, .dom-tvres .dom-bone { font-size: var(--tv-xs); }
+.dom-tv .dom-sum b, .dom-tv .dom-bone__n, .dom-tvres .dom-sum b, .dom-tvres .dom-bone__n { font-size: var(--tv-sm); }
+.dom-tv .dom-bone__stack .dt, .dom-tvres .dom-bone__stack .dt { --u: 1.2vmin; }
+.dom-tv__turn { padding: 0.2em 0.8em; border-radius: var(--r-full); background: var(--accent); color: var(--accent-on); font-size: var(--tv-sm); font-weight: 900; line-height: 1.3; white-space: nowrap; }
+.dom-tv__host { display: inline-flex; gap: 1vmin; }
+.dom-tv__host:empty { display: none; }
+.dom-tv .dom-seat { flex: none; min-width: 15vmin; gap: 0.8vmin; padding: 0.6vmin 1.2vmin; border-radius: var(--tv-r); }
+.dom-tv .dom-seat__name { font-size: var(--tv-sm); }
+.dom-tv .dom-seat__count { font-size: var(--tv-xs); }
+.dom-tv .dom-avatar { width: 3.6vmin; height: 3.6vmin; font-size: 1.8vmin; }
+.dom-tv .dom-seat__tiles .dt { --u: 1.5vmin; }
+.dom-tv .dom-seat__tiles .dt + .dt { margin-inline-start: -0.9vmin; }
+.dom-tvres { height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: calc(var(--tv-gap) * 1.5); }
+.dom-tvres__table { min-height: 0; display: flex; }
+.dom-tvres__table .dom-felt { flex: 1; min-height: 0; border-radius: var(--tv-r); }
+.dom-tvres__table .dom-table { flex: 1 1 auto; height: auto; min-height: 0; }
+.dom-tvres__side { min-height: 0; display: flex; flex-direction: column; justify-content: safe center; gap: var(--tv-gap); overflow: hidden; }
+.dom-tvres .dom-reveal__title { font-size: var(--tv-md); }
+.dom-tvres .dom-rrow { padding: 0.8vmin 1.2vmin; border-radius: var(--tv-r); grid-template-columns: minmax(0, 14vmin) minmax(0, 1fr) auto; }
+.dom-tvres .dom-rrow__who { font-size: var(--tv-sm); }
+.dom-tvres .dom-rrow__pips { font-size: var(--tv-xs); }
+.dom-tvres .dom-rrow__pips b { font-size: var(--tv-md); }
+.dom-tvres .dom-rtile .dt { --u: 2.4vmin; }
+.dom-tvres .dom-reveal__line { padding: 0.8vmin 1.4vmin; font-size: var(--tv-sm); border-radius: var(--tv-r); }
+.dom-over--tv { padding: 1.2vmin 2vmin; border-radius: var(--tv-r); }
+.dom-over--tv .card__title { font-size: var(--tv-md); }
+.dom-tvres .dom-totals .section__head { margin-bottom: 0.6vmin; }
+.dom-tvres .dom-totals .section__title { font-size: var(--tv-sm); }
+.dom-tvres .dom-totals .status-row { min-height: 0; margin-bottom: 0.6vmin; padding: 0.7vmin 1.4vmin; border-radius: var(--tv-r); }
+.dom-tvres .dom-totals .status-row__name { font-size: var(--tv-sm); }
+.dom-tvres .dom-totals .badge { height: auto; padding: 0.2em 0.7em; font-size: var(--tv-sm); }
+.dom-tvres .dom-sides { gap: 1.2vmin; margin-top: 1vmin; }
+.dom-tvres .dom-side { padding: 1.2vmin; border-radius: var(--tv-r); }
+.dom-tvres .dom-side__names { font-size: var(--tv-sm); }
+.dom-tvres .dom-side__score { font-size: var(--tv-lg); }
+/* A phone mirrored upright: one column, and the stage scrolls. */
+@media (orientation: portrait) {
+  .dom-tv { height: auto; }
+  .dom-tv .dom-table { height: 60vw; flex: none; }
+  .dom-tvres { height: auto; grid-template-columns: minmax(0, 1fr); }
+  .dom-tvres__table .dom-table { height: 50vw; flex: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dom-end.is-live, .dom-ttile.is-new-spinner, .dom-rrow.is-turning .dom-rtile, .dom-side { animation: none; }
+  .dom-reveal__line.is-shown, .dom-htile, .dom-seat, .dom-mine, button.dom-seatchip { transition: none; }
+}
+
+</style>

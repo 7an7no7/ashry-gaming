@@ -1,0 +1,849 @@
+<style>
+/* Style_Party.html - section 12: القنبلة, أتوبيس كومبليت, الذاكرة, إكس أو and the party games of mid-Sep 2026.
+   Part of the stylesheet that starts in Style.html: the parts are included in
+   Controller.html in this order, and the cascade depends on it. */
+
+/* ==========================================================================
+   12. NEW GAMES: القنبلة · أتوبيس كومبليت · الذاكرة · إكس أو · مين يبدأ · الجرس
+   ========================================================================== */
+
+/* --- Option chips: a set of toggles (the Stop categories) --- */
+.opt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: var(--tap);
+  padding-inline: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out),
+              border-color var(--dur-2) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.opt-chip:active { transform: scale(0.95); }
+.opt-chip.is-active { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
+
+/* --- القنبلة --- */
+.bomb-card {
+  text-align: center;
+  padding: var(--sp-6) var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border: 2px solid var(--accent-border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-3);
+  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.bomb-card.is-tick { animation: bombTick 180ms var(--ease-out); }
+@keyframes bombTick { 0% { transform: scale(1); } 40% { transform: scale(1.03); } 100% { transform: scale(1); } }
+.bomb-card.is-urgent { border-color: var(--danger); background: var(--danger-soft); }
+.bomb-fuse { font-size: 4rem; line-height: 1; margin-bottom: var(--sp-3); }
+.bomb-card__prompt {
+  margin: var(--sp-2) 0;
+  font-size: 1.75rem;
+  font-weight: 900;
+  line-height: 1.3;
+  color: var(--text-strong);
+  text-wrap: balance;
+}
+.bomb-card__prompt--letter { font-size: 5rem; line-height: 1.1; color: var(--accent-ink); }
+.bomb-card__sub { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
+.bomb-card--boom { border-color: var(--danger); background: var(--danger-soft); animation: bombShake 0.5s var(--ease-out); }
+@keyframes bombShake {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-8px); } 40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); } 80% { transform: translateX(5px); }
+}
+.bomb-boom { font-size: 5rem; line-height: 1; }
+.bomb-card__title { font-size: var(--fs-display); font-weight: 900; color: var(--danger-ink); }
+.bomb-card__prompt-small { margin-top: var(--sp-3); font-size: var(--fs-sm); color: var(--text-2); }
+
+/* --- أتوبيس كومبليت --- */
+.stop-letter-card {
+  text-align: center;
+  padding: var(--sp-5) var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+}
+.stop-letter { font-size: 6rem; font-weight: 900; line-height: 1.1; color: var(--accent-ink); }
+.stop-cats-row { justify-content: center; margin: var(--sp-3) 0; }
+#stop-clock.is-low { color: var(--danger); }
+.stop-table-wrap { overflow-x: auto; margin-inline: calc(-1 * var(--sp-4)); padding-inline: var(--sp-4); }
+.stop-table { border-collapse: separate; border-spacing: 0.25rem; min-width: 100%; }
+.stop-th { padding: 0.25rem; font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); text-align: center; white-space: nowrap; }
+.stop-th--name, .stop-td--name {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  text-align: start;
+  background: var(--surface-solid);
+}
+.stop-td { padding: 0; text-align: center; }
+/* The round's total, «المجموع» (it was a Σ, which a family doesn't read - the
+   owner, 26 Sep 2026): pinned to the far edge like the names to the near one,
+   so on a phone the categories scroll between them and the total stays in sight. */
+.stop-th--total, .stop-td--total {
+  position: sticky;
+  /* the wrap reaches into the card's padding (its negative margin), and a
+     sticky cell stops at the wrap's padding: pinned there, a column slid past
+     it in the strip beyond */
+  inset-inline-end: calc(-1 * var(--sp-4));
+  z-index: 1;
+  padding-inline: var(--sp-2);
+  border-inline-start: 0.25rem solid var(--surface-solid);
+  background: var(--surface-solid);
+}
+.stop-td--name {
+  max-width: 7rem;
+  padding-inline-end: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stop-cell {
+  width: var(--tap);
+  height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.stop-cell:active { transform: scale(0.92); }
+.stop-cell.is-10 { background: var(--success-btn); color: var(--success-on); border-color: transparent; }
+.stop-cell.is-5 { background: var(--warning-btn); color: var(--warning-on); border-color: transparent; }
+.stop-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-2);
+}
+.stop-dot {
+  display: inline-block;
+  width: 0.75rem; height: 0.75rem;
+  margin-inline-end: 4px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-3);
+  vertical-align: middle;
+}
+.stop-dot.is-10 { background: var(--success-btn); }
+.stop-dot.is-5 { background: var(--warning-btn); }
+
+/* --- الذاكرة --- */
+.mem-bar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.mem-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  transition: border-color var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.mem-player.is-turn { border-color: var(--accent); background: var(--accent-soft); }
+.mem-player__name { font-size: var(--fs-sm); font-weight: 800; color: var(--text-2); }
+.mem-player .metric { font-size: 1.25rem; }
+.mem-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--mem-cols, 4), minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.mem-card { position: relative; aspect-ratio: 1; padding: 0; border: 0; background: transparent; cursor: pointer; perspective: 600px; }
+.mem-card__inner { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform 0.35s var(--ease-out); }
+.mem-card.is-flipped .mem-card__inner, .mem-card.is-matched .mem-card__inner { transform: rotateY(180deg); }
+.mem-card__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  font-size: clamp(1.4rem, 8vw, 2.4rem);
+  line-height: 1;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.mem-card__face--back {
+  background: linear-gradient(145deg, var(--accent), var(--accent-hover));
+  color: var(--accent-on);
+  font-size: 1.5rem;
+  font-weight: 900;
+  box-shadow: var(--sh-2);
+}
+.mem-card__face--front { background: var(--surface-solid); border: 2px solid var(--accent-border); transform: rotateY(180deg); }
+.mem-card.is-matched .mem-card__face--front { border-color: var(--success); background: var(--success-soft); }
+.mem-card.is-matched { pointer-events: none; }
+
+/* --- إكس أو --- */
+.xo-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); width: min(100%, 22rem); margin: 0 auto var(--sp-4); }
+.xo-cell {
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  font-family: var(--font);
+  font-size: 3rem;
+  font-weight: 900;
+  color: var(--text-strong);
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.xo-cell:active:not(:disabled) { transform: scale(0.94); }
+.xo-cell:disabled { cursor: default; }
+.xo-cell.is-x { color: var(--accent-ink); }
+.xo-cell.is-o { color: var(--danger-ink); }
+.xo-cell.is-win { background: var(--success-soft); border-color: var(--success); }
+/* 3 marks only: a side's oldest waits faded, and the one a move took off fades out where it stood. */
+.xo-cell { position: relative; }
+.xo-cell.is-leaving { opacity: 0.4; }
+.xo-cell__gone {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;                 /* the end state: gone, with or without the motion */
+  pointer-events: none;
+  animation: xo-gone 460ms var(--ease-in) both;
+}
+.xo-cell__gone.is-x { color: var(--accent-ink); }
+.xo-cell__gone.is-o { color: var(--danger-ink); }
+@keyframes xo-gone {
+  from { opacity: 0.4; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.55); }
+}
+.xo-rule { margin: calc(-1 * var(--sp-2)) 0 var(--sp-3); text-align: center; font-size: var(--fs-sm, 0.8125rem); font-weight: var(--fw-body); color: var(--text-3); }
+
+/* إكس أو on one phone (paintXO, 1 Oct 2026): one card - the duel pills on top
+   (✕ blue, ◯ red, the draws between), a 3×3 grid of thin lines, whose turn
+   under it - and «رجّع» / «خروج» as a quiet pair in the bar. The room's board
+   (.duel .xo-board) is left as it was. */
+.xo-solo { --duel-c1: var(--team-blue); --duel-c2: var(--team-red); }
+.xo-solo__card { display: flex; flex-direction: column; gap: var(--sp-4); }
+.xo-solo__side { display: contents; }
+.xo-solo__side > .duel-pills { order: -1; }
+.xo-solo__status { order: 1; margin: 0; min-height: 1.5em; text-align: center; font-weight: var(--fw-bold); color: var(--accent-ink); }
+.xo-solo__status.is-done { font-family: var(--font-display); font-size: var(--fs-h2); }
+.xo-solo__status.is-thinking { color: var(--text-2); animation: duelThinking 1.3s var(--ease-in-out) infinite; }
+.xo-solo .xo-rule { order: 2; margin: 0; }
+.xo-glyph { display: inline-block; font-family: var(--font-display); font-weight: var(--fw-black); line-height: 1; }
+.xo-glyph.is-x { color: var(--team-blue-ink); }
+.xo-glyph.is-o { color: var(--team-red-ink); }
+.xo-solo .duel-pill { gap: var(--sp-1); padding-inline: var(--sp-2) var(--sp-3); }
+.duel-pill__mark .xo-glyph { width: 1.3rem; font-size: 1.25rem; text-align: center; }
+@media (max-width: 420px) { .card.xo-solo__card { padding: var(--sp-4); } }
+.xo-board.xo-board--lines { gap: 0; width: min(100%, 20rem); margin: 0 auto; container-type: inline-size; }
+.xo-board--lines .xo-cell {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--font-display);
+  font-size: 22cqw;
+  line-height: 1;
+  transition: background-color var(--dur-2) var(--ease-out);
+}
+/* The lines: each cell draws the one after it and the one under it. */
+.xo-board--lines .xo-cell:not(:nth-child(3n)) { border-inline-end: 2px solid var(--border-strong); }
+.xo-board--lines .xo-cell:nth-child(-n+6) { border-block-end: 2px solid var(--border-strong); }
+.xo-board--lines .xo-cell:active:not(:disabled) { transform: none; background: var(--surface-2); }
+.xo-board--lines .xo-cell.is-x, .xo-board--lines .xo-cell__gone.is-x { color: var(--team-blue-ink); }
+.xo-board--lines .xo-cell.is-o, .xo-board--lines .xo-cell__gone.is-o { color: var(--team-red-ink); }
+.xo-board--lines .xo-cell.is-win { background: var(--success-soft); }
+/* A side's oldest mark (3 marks only) fades on its own; the lines stay. */
+.xo-board--lines .xo-cell.is-leaving { opacity: 1; }
+.xo-board--lines .xo-cell.is-leaving .xo-cell__mark { opacity: 0.35; }
+.xo-cell__mark { display: inline-block; }
+/* The mark lands and the line lights on the mark, not the square, so the lines hold still. */
+.xo-board.xo-board--lines .xo-cell.is-new, .xo-board.xo-board--lines.is-lighting .xo-cell.is-win { animation: none; }
+.xo-board--lines .xo-cell.is-new .xo-cell__mark { animation: xo-land 420ms var(--ease-spring) both; }
+.xo-board.xo-board--lines.is-lighting .xo-cell.is-win .xo-cell__mark { animation: xo-win 520ms var(--ease-spring) both; animation-delay: calc(var(--k, 0) * 160ms); }
+@media (hover: hover) {
+  .xo-board--lines .xo-cell:not(:disabled):hover { background: var(--surface-2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xo-solo__status.is-thinking,
+  .xo-board--lines .xo-cell.is-new .xo-cell__mark,
+  .xo-board.xo-board--lines.is-lighting .xo-cell.is-win .xo-cell__mark { animation: none; }
+}
+
+/* «إكس أو الكبير» (2 Oct 2026, look أ «تسع كروت» of the owner's sheet; xoBigBoardHtml
+   in JS_XO.html, on one phone, in a room, on the TV and in the tournament's cards):
+   nine small boards as cards. The board the side to move was sent to grows a little
+   and lights in the screen's accent while the rest fade; «play anywhere» gives every
+   open board a dashed outline whose glow pulses; a won board is stamped with its mark;
+   a mark is drawn with a pen (its dash, from nothing, only while it lands). */
+.xob { --xo-cx: var(--team-blue-ink); --xo-co: var(--team-red-ink); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); width: min(100%, 26rem); margin: 0 auto; }
+.xo-game .xob { --xo-cx: var(--accent-ink); --xo-co: var(--danger-ink); }
+.xob-b { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: var(--sp-1); border: 2px solid transparent; border-radius: var(--r-md); background: var(--surface-3); transition: opacity var(--dur-3), transform var(--dur-3) var(--ease-out); }
+.xob.has-target .xob-b { opacity: 0.45; }
+.xob.has-target .xob-b.is-target { opacity: 1; transform: scale(1.04); z-index: 1; border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-soft), var(--sh-2); }
+.xob.is-any .xob-b.is-open { border: 2px dashed var(--accent); isolation: isolate; }
+.xob.is-any .xob-b.is-open::before { content: ''; position: absolute; inset: -5px; z-index: -1; border-radius: var(--r-lg); background: var(--accent-soft); animation: xob-any 1.2s var(--ease-in-out) infinite; }
+@keyframes xob-any { 50% { opacity: 0.25; } }
+.xob-cell { aspect-ratio: 1; min-width: 0; display: grid; padding: 12%; border: 0; border-radius: var(--r-xs); background: var(--surface-solid); }
+.xob-cell.is-last { background: var(--accent-soft); }
+.xob-b.is-won .xob-cell, .xob-b.is-drawn .xob-cell { opacity: 0.3; }
+.xob-b.is-win { border-color: var(--success); }
+.xob-g { width: 100%; height: 100%; overflow: visible; fill: none; stroke-linecap: round; stroke-width: 13; stroke: var(--xo-cx); }
+.xob-g.is-o { stroke: var(--xo-co); }
+.xob-cell.is-new .xob-g > * { animation: xob-pen 320ms var(--ease-out) both; }
+.xob-cell.is-new .xob-g > * + * { animation-delay: 140ms; }
+@keyframes xob-pen { from { stroke-dasharray: 100; stroke-dashoffset: 100; } to { stroke-dasharray: 100; stroke-dashoffset: 0; } }
+.xob-stamp { position: absolute; inset: 8%; display: grid; pointer-events: none; }
+.xob-stamp.is-new { animation: xob-stamp 550ms var(--ease-spring) both; }
+@keyframes xob-stamp { from { transform: scale(1.8) rotate(-12deg); opacity: 0; } }
+.xob.is-lighting .xob-b.is-win { animation: xo-win 520ms var(--ease-spring) both; animation-delay: calc(var(--k, 0) * 160ms); }
+/* Where the side to move was sent, by the place's name. */
+.xob-where { order: 1; margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+.xob-where.is-any { background: var(--accent-soft); color: var(--accent-ink); }
+.xob-where > * { width: auto; font-size: 1em; }
+.duel-head .xob-where { margin-top: var(--sp-2); }
+.duel .xob, .duel-tv .xob, .tour-mini__board .xob { width: 100%; }
+/* The TV (the sheet's): the pills on one side, the boards in the middle, what is happening on the other. */
+.duel-tv.xob-tv { grid-template-columns: minmax(0, 22rem) auto minmax(0, 26rem); }
+.xob-tv__pills { display: grid; gap: var(--tv-gap); }
+.xob-tv .duel-pills { grid-template-columns: minmax(0, 1fr); grid-template-areas: "p0" "p1"; }
+.xob-tv__tag { margin: 0; text-align: center; font-size: var(--tv-sm); color: var(--text-3); }
+.duel-tv.xob-tv .duel-tv__board { width: min(calc(var(--app-h, 100vh) - 22vmin), 46vw); }
+.duel-tv .xob, .tour-mini__board .xob { gap: 1vmin; }
+.duel-tv .xob-b, .tour-mini__board .xob-b { gap: 0.4vmin; padding: 0.6vmin; border-radius: 1.4vmin; }
+@media (orientation: portrait) { .duel-tv.xob-tv { grid-template-columns: minmax(0, 1fr); } }
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  #xo-stage .xob { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 4.5rem), 60vw); }
+  #xo-stage .xob-where { order: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xob-b::before, .xob-cell.is-new .xob-g > *, .xob-stamp.is-new, .xob.is-lighting .xob-b.is-win { animation: none !important; }
+}
+/* A phone on its side, and every wide screen: the board takes the height and
+   the tally, the turn and the buttons sit in a column beside it (the owner,
+   21 Sep 2026: the play area gets the space). */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  #memory-stage {
+    display: grid;
+    grid-template-columns: auto minmax(12rem, 20rem);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    justify-content: center;
+    column-gap: var(--sp-6);
+    align-items: start;
+  }
+  /* إكس أو: the card opens up - the board in a card of its own, the pills, the
+     turn and the bar in a column beside it. */
+  #xo-stage .xo-solo {
+    display: grid;
+    grid-template-columns: auto minmax(12rem, 20rem);
+    grid-template-rows: auto minmax(0, 1fr);
+    justify-content: center;
+    column-gap: var(--sp-6);
+    row-gap: var(--sp-3);
+    align-items: start;
+  }
+  #xo-stage .xo-solo__card { display: contents; }
+  #xo-stage .xo-solo__board {
+    grid-column: 1; grid-row: 1 / span 2;
+    padding: var(--sp-3);
+    border: 1px solid var(--hairline, var(--border));
+    border-radius: var(--r-xl);
+    background: var(--surface);
+    box-shadow: var(--sh-2);
+  }
+  #xo-stage .xo-solo__side { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  #xo-stage .xo-board--lines { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 4.5rem), 60vw); }
+  #memory-stage { grid-template-areas: "grid bar" "grid actions" "grid ." "grid ."; }
+  #memory-stage .mem-bar { grid-area: bar; }
+  #memory-stage .mem-grid { grid-area: grid; width: min(calc((var(--app-h, 100vh) - var(--header-h) - 3.25rem) * var(--mem-cols, 4) / var(--mem-rows, 4)), 62vw); margin: 0; container-type: inline-size; }
+  #memory-stage .mem-card__face--front { font-size: calc(46cqw / var(--mem-cols, 4)); }
+  #memory-stage .view-actions { grid-area: actions; position: static; margin: 0; padding: 0; background: none; }
+  #xo-stage .xo-solo__actions { grid-column: 2; grid-row: 2; position: static; margin: 0; padding: 0; background: none; }
+  #xo-stage .xo-solo__actions { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+  #xo-stage .xo-solo__actions > * { flex: none; margin: 0; }
+}
+
+/* --- مين يبدأ (full screen) --- */
+#view-play-chooser {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-full-top);
+  display: flex;
+  flex-direction: column;
+  background: var(--night);
+  color: #ffffff;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#view-play-chooser.hidden { display: none; }
+/* The full-screen tools take the whole screen on a phone on its side and on a
+   laptop too: the column rule for views (ANY SCREEN) otherwise narrowed them to
+   a centred strip with the light page showing beside the stage. */
+#view-play-chooser, #view-play-headsup { width: auto; max-width: none; margin: 0; }
+.chooser__bar { display: flex; align-items: center; gap: var(--sp-2); padding: calc(var(--safe-top) + var(--sp-2)) max(var(--sp-3), var(--safe-right)) var(--sp-2) max(var(--sp-3), var(--safe-left)); }
+.chooser__bar .segmented { flex: 1; background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.12); }
+.chooser__bar .segmented__item { color: rgba(255, 255, 255, 0.7); }
+.chooser__bar .segmented__item.is-active { background: rgba(255, 255, 255, 0.16); color: #ffffff; }
+/* The sliding thumb is white in the light theme; on this dark stage it is a
+   tint, so the white label on it stays readable. */
+.chooser__bar .segmented::before { background: rgba(255, 255, 255, 0.18); box-shadow: none; }
+.chooser__bar .segmented.has-thumb .segmented__item.is-active { color: #ffffff; }
+.chooser__bar .iconbtn { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.15); color: #ffffff; }
+.chooser__stage {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, var(--night-3), var(--night) 70%);
+  touch-action: none;
+}
+.chooser__hint {
+  position: absolute;
+  inset-inline: 0;
+  bottom: calc(var(--safe-bottom) + var(--sp-6));
+  padding: 0 var(--sp-4);
+  text-align: center;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.75);
+  pointer-events: none;
+}
+.chooser__again { position: absolute; top: var(--sp-3); left: 50%; transform: translateX(-50%); z-index: 5; }
+.finger { position: absolute; width: 6rem; height: 6rem; margin: -3rem 0 0 -3rem; pointer-events: none; --finger: #f43f5e; }
+.finger__dot { position: absolute; inset: 20%; border-radius: 50%; background: var(--finger); box-shadow: 0 0 30px var(--finger); opacity: 0.95; }
+.finger__ring { position: absolute; inset: 0; border: 4px solid var(--finger); border-radius: 50%; opacity: 0.7; }
+.finger.is-counting .finger__ring { animation: fingerCount 2.4s linear forwards; }
+@keyframes fingerCount { from { transform: scale(1.35); opacity: 0.4; } to { transform: scale(0.75); opacity: 1; } }
+.finger__label {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+}
+.finger.is-chosen { z-index: 3; animation: fingerWin 0.6s var(--ease-spring) forwards; }
+.finger.is-chosen .finger__dot { inset: 5%; }
+.finger.is-chosen .finger__ring { animation: fingerPulse 1.2s ease-out infinite; }
+@keyframes fingerWin { from { transform: scale(1); } to { transform: scale(1.6); } }
+@keyframes fingerPulse { 0% { transform: scale(0.8); opacity: 0.9; } 100% { transform: scale(1.8); opacity: 0; } }
+.finger.is-out { opacity: 0.18; }
+.finger.is-team-a { --finger: #3b82f6; }
+.finger.is-team-b { --finger: #f59e0b; }
+.finger.is-team-a .finger__dot, .finger.is-team-b .finger__dot, .finger.is-ordered .finger__dot { inset: 10%; }
+.finger.is-ordered .finger__label { font-size: 1.6rem; }
+
+/* --- الجرس --- */
+.bz-stage { display: flex; align-items: center; justify-content: center; min-height: 15rem; margin-bottom: var(--sp-3); }
+.bz-button {
+  position: relative;      /* the press ring is placed against this */
+  width: min(70vw, 15rem);
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--accent-hover), var(--accent) 60%, var(--accent-hover));
+  color: var(--accent-on);
+  box-shadow: 0 14px 0 rgba(0, 0, 0, 0.28), 0 24px 40px -12px var(--accent-glow);
+  font-family: var(--font);
+  cursor: pointer;
+  animation: bzPulse 1.8s ease-in-out infinite;
+  transition: transform 80ms var(--ease-out), box-shadow 80ms var(--ease-out);
+}
+.bz-button:active, .bz-button.is-pressed {
+  transform: translateY(10px);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28), 0 10px 20px -10px var(--accent-glow);
+  animation: none;
+}
+/* A ring off the buzzer when it is hit, so the press reads across the table. */
+.bz-ring {
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: bz-ring 640ms var(--ease-out) forwards;
+}
+@keyframes bz-ring { from { opacity: 0.55; transform: scale(1); } to { opacity: 0; transform: scale(1.65); } }
+.bz-button__icon { font-size: 3.5rem; line-height: 1; }
+.bz-button__label { font-size: var(--fs-h2); font-weight: 900; }
+@keyframes bzPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+.bz-locked, .bz-rank { text-align: center; font-weight: 700; color: var(--text-2); }
+.bz-locked span { display: block; margin-bottom: var(--sp-2); font-size: 3rem; }
+.bz-rank__medal { display: block; font-size: 4rem; line-height: 1; }
+.bz-rank__n { display: block; margin: var(--sp-2) 0; font-size: var(--fs-h1); font-weight: 900; color: var(--text-strong); }
+.bz-rank.is-first .bz-rank__n { color: var(--success-ink); }
+.bz-last { margin-bottom: var(--sp-3); text-align: center; font-size: var(--fs-h3); font-weight: 900; }
+/* «ترتيب الضغط» as chips, the first lit; resetting the scores small by the scores. */
+.bz-order { margin-bottom: var(--sp-3); text-align: center; }
+.bz-order > .eyebrow { margin-bottom: var(--sp-2); }
+.bz-order .waiting-note { padding-block: var(--sp-2); }
+.bz-order__tag { font-size: var(--fs-xs); font-weight: 800; opacity: 0.85; }
+.bz-order .talk-person .bz-gap { height: 1.25rem; }
+.bz-reset { display: flex; justify-content: center; margin-top: var(--sp-2); }
+.tv-pulse { animation: bzPulse 1.5s ease-in-out infinite; }
+.tv-strip-inline { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6vmin; margin: 1vmin 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bz-button, .tv-pulse, .bomb-pass, .finger.is-chosen .finger__ring, .bz-ring { animation: none; }
+}
+
+
+/* --- The Together and Tools tabs ------------------------------------------ */
+.tab-hero {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+}
+.tab-hero__icon {
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  line-height: 1;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+}
+.tab-hero__title { font-size: var(--fs-h1); font-weight: 900; line-height: 1.15; color: var(--text-strong); }
+.tab-hero__sub { margin-top: 3px; font-size: var(--fs-sm); font-weight: 600; line-height: var(--lh-snug); color: var(--text-2); }
+
+.together-actions { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-5); }
+/* Who is playing right now: a still dot and a line, under the tab's pitch. */
+.together-live { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); font-size: var(--fs-sm); font-weight: 800; color: var(--success-ink); }
+.together-live[hidden] { display: none; }
+.together-steps { display: grid; gap: var(--sp-2); }
+.together-step { display: flex; align-items: flex-start; gap: var(--sp-3); font-size: var(--fs-sm); font-weight: 600; color: var(--text); line-height: var(--lh-snug); }
+.together-step__n {
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 900;
+  font-size: var(--fs-xs);
+}
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .together-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+
+/* --- أتوبيس كومبليت on separate phones, and the ask director --------------- */
+.stop-room-form .field { margin-bottom: var(--sp-3); }
+.stop-rcell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 4.5rem;
+  max-width: 7rem;
+  min-height: var(--tap);
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-family: var(--font);
+}
+button.stop-rcell { cursor: pointer; transition: transform var(--dur-1) var(--ease-out); }
+button.stop-rcell:active { transform: scale(0.95); }
+.stop-rcell.is-manual { border-style: dashed; border-color: var(--accent); }
+.stop-rcell.is-check { border-color: var(--warning); background: var(--warning-soft); }
+.stop-cell-foot { display: inline-flex; align-items: center; gap: 3px; }
+.stop-mark { font-size: 0.7rem; font-weight: 900; line-height: 1; }
+.stop-mark.is-ok { color: var(--success); }
+.stop-check-hint { text-align: center; font-weight: 700; color: var(--warning-ink); }
+
+/* A box goes green once it holds a word on the letter; وقف unlocks when all do. */
+.stop-field { position: relative; }
+.stop-field.is-ok .stop-room-input { border-color: var(--success); }
+.stop-field.is-bad .stop-room-input { border-color: var(--danger); }
+.stop-field.is-ok::after {
+  content: '✓';
+  position: absolute;
+  inset-inline-end: 0.9rem;
+  bottom: 0.8rem;
+  font-weight: 900;
+  color: var(--success);
+  pointer-events: none;
+}
+.stop-room-form .btn.is-locked { opacity: 0.45; filter: saturate(0.5); box-shadow: none; }
+#stop-room-gate.is-ready { color: var(--success); font-weight: 700; }
+.bomb-sound-hint { text-align: center; font-weight: 700; color: var(--warning-ink); }
+.stop-ans { max-width: 100%; font-size: var(--fs-xs); font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stop-ans.is-bad { color: var(--text-3); text-decoration: line-through; }
+.stop-pts { padding: 0 0.4rem; border-radius: var(--r-full); background: var(--surface-3); color: var(--text-3); font-size: 0.7rem; font-weight: 900; }
+.stop-pts.is-10 { background: var(--success-btn); color: var(--success-on); }
+.stop-pts.is-5 { background: var(--warning-btn); color: var(--warning-on); }
+.stop-table tr.is-me .stop-td--name { color: var(--accent-ink); }
+.tv-stop-letter { font-size: 22vmin; font-weight: 900; line-height: 1; color: var(--accent-ink); }
+.tv-chip.is-done { background: var(--success-soft); }
+body.is-tv-view .stop-rcell { min-width: 8vmin; font-size: 2vmin; }
+
+.director {
+  text-align: center;
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+}
+.director__label { margin-bottom: 4px; font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); }
+.director__pair { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: var(--sp-2); }
+.director__name { font-size: var(--fs-h2); font-weight: 900; color: var(--text-strong); }
+.director__name--target { color: var(--accent-ink); }
+.director__verb { font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); }
+.director__hint { margin: 2px 0 var(--sp-2); font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); }
+
+
+/* --- الحرباء and الموقع السري on separate phones, القنبلة on the TV, team relay --- */
+.cham-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.cham-cell {
+  min-height: 3.25rem;
+  display: grid;
+  place-items: center;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-solid);
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  /* The word is an anonymous grid item: without a shrinkable track a long
+     English word ("Motherboard") kept its full width and spilled out. */
+  grid-template-columns: minmax(0, 1fr);
+}
+button.cham-cell { cursor: pointer; }
+button.cham-cell:active { transform: scale(0.95); }
+.cham-cell.is-mine { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 2px var(--accent-soft); }
+.cham-cell.is-secret { background: var(--success-soft); border-color: var(--success); color: var(--success-ink); }
+.cham-cell.is-wrong { background: var(--danger-soft); border-color: var(--danger); color: var(--danger-ink); }
+.tv-cham .cham-cell { min-height: 9vmin; font-size: 2.6vmin; }
+
+.spy-places { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.spy-place {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text);
+}
+button.spy-place { cursor: pointer; }
+button.spy-place:active { transform: scale(0.95); }
+.spy-place.is-crossed { text-decoration: line-through; opacity: 0.4; }
+.spy-place.is-secret { background: var(--success-soft); border-color: var(--success); color: var(--success-ink); opacity: 1; text-decoration: none; }
+.spy-place.is-wrong { background: var(--danger-soft); border-color: var(--danger); color: var(--danger-ink); }
+.tv-spy-places { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.8vmin; margin: 2vmin auto; max-width: 90vw; }
+.tv-bomb .bomb-card { max-width: 70vmin; margin-inline: auto; }
+
+.relay { display: grid; gap: var(--sp-3); text-align: center; }
+.relay__scores { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-2); }
+.relay__score {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+}
+.relay__score.is-turn { border-color: var(--accent); background: var(--accent-soft); }
+.relay__score-name { font-size: var(--fs-sm); font-weight: 800; color: var(--text-2); }
+.relay__score .metric { font-size: 1.35rem; }
+.relay__pass, .relay__result {
+  padding: var(--sp-5) var(--sp-4);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-xl);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+}
+.relay__team { font-size: var(--fs-display); font-weight: 900; line-height: 1.15; color: var(--accent-ink); }
+.relay__team--1, .relay__score--1.is-turn { color: var(--info); }
+
+
+/* --- Help sheet: sections, the lead line, sub-heads and the meta line --- */
+.help-section { margin-bottom: var(--sp-5); }
+.help-section .section__head { margin-bottom: var(--sp-2); }
+.help-game-card__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.help-meta { display: flex; flex-wrap: wrap; gap: 0.2rem 0.5rem; font-size: var(--fs-xs); font-weight: 700; color: var(--text-3); }
+.help-meta .meta-bit .metric { font-size: inherit; color: inherit; }
+.help-lead { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: 800; line-height: var(--lh-snug); color: var(--text-strong); }
+.help-sub { margin: var(--sp-3) 0 var(--sp-1); font-size: var(--fs-sm); font-weight: 800; color: var(--text-strong); }
+.help-hero__body .help-lead { color: var(--accent-ink); }
+.help-hero__meta .help-meta { margin-top: 2px; }
+/* A game with many rules (سكرو) folds each part under its own heading. */
+.help-more { margin-top: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); }
+.help-more + .help-more { margin-top: var(--sp-1); }
+.help-more > summary {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  list-style: none;
+  cursor: pointer;
+}
+.help-more > summary::-webkit-details-marker { display: none; }
+.help-more > summary::after { content: '▾'; margin-inline-start: auto; color: var(--text-3); transition: transform var(--dur-2) var(--ease-out); }
+.help-more[open] > summary::after { transform: rotate(180deg); }
+.help-more > :not(summary) { margin-inline: var(--sp-3); }
+.help-more > :last-child { margin-bottom: var(--sp-3); }
+.help-more .help-sub { margin-top: var(--sp-2); }
+
+
+/* --- The icon banner (an iPhone copy on the home screen with an older icon) --- */
+.icon-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: 0 var(--sp-3) var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  animation: slideDownFade 0.25s var(--ease-out);
+}
+.icon-banner__text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: var(--fs-xs); font-weight: 600; line-height: 1.35; color: var(--text); }
+.icon-banner__text b { font-size: var(--fs-sm); color: var(--text-strong); }
+.icon-banner__actions { flex: none; display: flex; flex-direction: column; gap: 4px; }
+.mark--banner { width: 2.25rem; height: 2.25rem; border-radius: 0.6rem; }
+.icon-steps { margin: 0; padding-inline-start: var(--sp-5); text-align: start; font-size: var(--fs-sm); color: var(--text); }
+.icon-steps li + li { margin-top: var(--sp-2); }
+
+/* Put it on the home screen (the install sheet, JS_Utils.html). */
+.install-sheet__icon {
+  width: 4rem;
+  height: 4rem;
+  margin: 0 auto;
+  border-radius: 1.1rem;
+  box-shadow: 0 12px 24px -10px rgba(46, 16, 101, 0.6);
+}
+.install-perks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); text-align: start; }
+.install-perks li { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-sm); font-weight: 600; line-height: 1.35; color: var(--text); }
+.install-perks__icon {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  font-size: 1rem;
+}
+.install-how {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-3);
+  text-align: start;
+}
+.install-steps { margin: 0; padding: 0; list-style: none; counter-reset: install-step; display: flex; flex-direction: column; gap: var(--sp-2); }
+.install-steps li {
+  counter-increment: install-step;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--text);
+}
+.install-steps li::before {
+  content: counter(install-step);
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-top: 0.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: var(--fs-xs);
+  font-weight: 900;
+  line-height: 1;
+}
+.install-steps b { color: var(--text-strong); }
+.install-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6em;
+  height: 1.6em;
+  padding: 0 0.3em;
+  margin-inline: 0.15em;
+  border: 1px solid var(--border);
+  border-radius: 0.45em;
+  background: var(--surface-solid);
+  color: var(--accent-ink);
+  font-weight: 900;
+  line-height: 1;
+  vertical-align: -0.4em;
+}
+.install-key svg { width: 1.05em; height: 1.05em; }
+
+
+/* ربع قرد's status sheet: a quarter, a half and three quarters of a monkey, warmer each step. */
+.monkey-status--1 { background: var(--warning-soft); color: var(--warning-ink); }
+.monkey-status--2 { background: var(--warning-soft); color: var(--warning-ink); border-color: var(--warning); }
+.monkey-status--3 { background: color-mix(in srgb, var(--warning) 24%, transparent); color: var(--warning-ink); border-color: var(--warning); }
+
+/* --- القنبلة in rooms: the holder --- */
+.bomb-order { justify-content: center; margin: var(--sp-3) 0; }
+.bomb-order__holder { background: var(--danger-soft); color: var(--danger-ink); border-color: var(--danger); }
+.bomb-pass { animation: bzPulse 1.2s ease-in-out infinite; }
+.bomb-pass:active { animation: none; }
+.tv-order .chip { font-size: 2.2vmin; height: auto; padding: 0.6vmin 1.6vmin; }
+.relay__result--last { padding: var(--sp-3) var(--sp-4); }
+
+
+.role-card--done { background: var(--success-soft); border-color: var(--success); }
+
+
+</style>

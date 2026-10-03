@@ -23,8 +23,8 @@ import * as walk from 'acorn-walk';
    the home and Help read (the catalog, the translations, GAME_RULES, ICON_ART).
    ------------------------------------------------------------------------- */
 export const SHELL_FILES = [
-  'Logo', 'Tailwind', 'Style',
-  'JS_Lazy', 'JS_Core', 'JS_Catalog', 'JS_Room', 'JS_Utils',
+  'Logo', 'Tailwind', 'Style', 'Style_Screens', 'Style_Home', 'Style_Party', 'Style_Finish', 'Style_Solo', 'Style_Cards', 'Style_Boards', 'Style_Chess', 'Style_Arcade', 'Style_Living', 'Style_Rooms', 'Style_Night', 'Style_Talk',
+  'JS_Lazy', 'JS_Translations', 'JS_Core', 'JS_GameRules', 'JS_Catalog', 'JS_Room', 'JS_Utils',
   'JS_PackStore',      // «اعمل مسابقتك» / «كلماتنا» on the phone: the lobbies and the word games' lists read it
   'JS_RoomAutoNext',   // «التالي لوحده»: trivia, the voting games, زي الكل, صدق ولا كذب
   'JS_RoomImposter',   // renderRoomFrame, roomAct, roomHostRow: every room screen's helpers
@@ -266,7 +266,7 @@ export function plan({ sources, order, controller, roomGameIds }) {
   const info = new Map();
   const declaredBy = new Map();
   for (const f of order) {
-    if (f === 'Style' || f === 'Tailwind' || f === 'Logo') continue;
+    if (/^Style(_|$)/.test(f) || f === 'Tailwind' || f === 'Logo') continue;
     const a = { decl: new Set(), run: new Set(), load: new Set() };
     code.get(f).forEach((c, i) => {
       const r = analyse(c, `${f}#${i}`);
@@ -504,7 +504,7 @@ function registryFacts(scripts, file) {
 export function checkRegistryOrder({ order, code, fileChunk, shellSet, sorted, deps }) {
   const facts = new Map();
   for (const f of order) {
-    if (f === 'Style' || f === 'Tailwind' || f === 'Logo' || /\.js$/.test(f)) continue;
+    if (/^Style(_|$)/.test(f) || f === 'Tailwind' || f === 'Logo' || /\.js$/.test(f)) continue;
     facts.set(f, registryFacts(code.get(f), f));
   }
   const arrays = {}, objects = {}, wrapperFile = {};

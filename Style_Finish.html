@@ -1,0 +1,1518 @@
+<style>
+/* Style_Finish.html - sections 11-14: the finish, smoothness, the dice and the coin, and MOTION (section 14: new motion CSS goes here, its reduced-motion line in the block at its end).
+   Part of the stylesheet that starts in Style.html: the parts are included in
+   Controller.html in this order, and the cascade depends on it. */
+
+/* ==========================================================================
+   11. FINISH
+   --------------------------------------------------------------------------
+   The details that read as "made with care", all of them still: a soft glow
+   behind the top of the page, a header that gains a frosted hairline once
+   the page has scrolled under it (JS_Core.html sets .is-scrolled on the
+   shell), a top light on the primary button, icon tiles with a soft gradient
+   and a hairline of the game's colour, grain on the home hero, cards that
+   lift under a mouse, and the home's cards rising in sequence. Nothing here
+   moves on its own, and phones keep the press feedback they had.
+   ========================================================================== */
+body::before {
+  background:
+    radial-gradient(60rem 26rem at 50% -10rem, rgba(124, 58, 237, 0.10), transparent 62%),
+    linear-gradient(170deg, #f7f4f0 0%, #f5f3ee 42%, #f3f0e9 100%);
+}
+body.dark::before {
+  background:
+    radial-gradient(60rem 26rem at 50% -10rem, rgba(139, 92, 246, 0.16), transparent 62%),
+    linear-gradient(170deg, #1a1628 0%, #14121e 48%, #110f1a 100%);
+}
+
+/* The header: bare at the top of a page, frosted once content has run under it. */
+.shell__header {
+  transition: background-color var(--dur-2) var(--ease-out);
+}
+.shell__header::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: var(--hairline);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.shell.is-scrolled .shell__header {
+  background: var(--surface);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+.shell.is-scrolled .shell__header::after { opacity: 1; }
+body.is-fullscreen-view .shell__header::after { display: none; }
+
+/* The primary button: lit along the top, a shade deeper at the foot. */
+.btn--primary {
+  background: var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff) 0%, var(--accent) 48%, color-mix(in srgb, var(--accent) 90%, #000000) 100%);
+  box-shadow: 0 8px 20px -8px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.06);
+}
+.btn--primary:active { box-shadow: 0 2px 8px -4px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.1); }
+
+/* Icons stand on their own: no tile, no frame. A little bigger, a soft shadow
+   for depth, and a faint halo of the game's colour behind them (a radial
+   gradient with no edge) so they still sit on the card rather than float. */
+.gcard__icon, .tool-icon, .game-hero__icon, .tab-hero__icon {
+  background: radial-gradient(circle at 50% 55%, var(--accent-soft) 0%, transparent 68%);
+  border: 0;
+  border-radius: 50%;
+  box-shadow: none;
+  filter: drop-shadow(0 4px 7px rgba(15, 23, 42, 0.16));
+}
+body.dark .gcard__icon, body.dark .tool-icon, body.dark .game-hero__icon, body.dark .tab-hero__icon {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+}
+.gcard__icon { width: 3.25rem; height: 3.25rem; font-size: 2rem; margin-bottom: 0; }
+.tool-icon { width: 3rem; height: 3rem; font-size: 1.7rem; }
+.game-hero__icon { width: 3.5rem; height: 3.5rem; font-size: 2.2rem; }
+.tab-hero__icon { width: 3.75rem; height: 3.75rem; font-size: 2.4rem; }
+
+/* The home hero: grain, a glow in the corner, a highlight along the top edge. */
+.home-hero {
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.055 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+    radial-gradient(120% 100% at 100% 0%, rgba(255, 255, 255, 0.16), transparent 55%),
+    linear-gradient(135deg, #6c5ce7 0%, #5b4bd6 52%, #4a48c2 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 16px 36px -18px rgba(76, 29, 149, 0.6);
+}
+body.dark .home-hero {
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.055 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+    radial-gradient(120% 100% at 100% 0%, rgba(255, 255, 255, 0.12), transparent 55%),
+    linear-gradient(135deg, #5847c4 0%, #4a3fb0 52%, #3b3a9c 100%);
+}
+
+/* A setup screen's hero: a faint wash of the game's colour behind its icon. */
+.game-hero { background: radial-gradient(16rem 7rem at 0% 0%, var(--accent-soft), transparent 70%), var(--surface-solid); }
+[dir="rtl"] .game-hero { background: radial-gradient(16rem 7rem at 100% 0%, var(--accent-soft), transparent 70%), var(--surface-solid); }
+
+/* The active tab: a lit pill, and its icon lifts a little. */
+.nav-icon { transition: transform var(--dur-2) var(--ease-spring); }
+.nav-item.is-active { box-shadow: inset 0 0 0 1px var(--accent-border); }
+.nav-item.is-active .nav-icon { transform: translateY(-1px) scale(1.08); }
+
+/* Dialogs catch the light along their top edge too. */
+.modal-content { box-shadow: var(--sh-4), var(--sh-inset); }
+
+/* Under a mouse, cards and rows lift; phones keep the press. */
+@media (hover: hover) and (pointer: fine) {
+  .gcard:hover, .tool-item:hover, .game-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--sh-3);
+    border-color: var(--accent-border);
+  }
+  .recent-tile:hover { transform: translateY(-1px); }
+  .filter-chip:hover:not(.is-active) { border-color: var(--border-strong); color: var(--text); }
+  .btn--primary:hover { box-shadow: 0 12px 26px -10px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.26); filter: brightness(1.03); }
+  .btn--ghost:hover, .btn--neutral:hover, .iconbtn:hover { background: var(--surface-3); }
+  .nav-item:hover:not(.is-active) { background: var(--surface-3); color: var(--text); }
+}
+
+/* The home's cards and the tool rows rise in sequence when a tab is drawn. */
+@media (prefers-reduced-motion: no-preference) {
+  .gcard-grid > .gcard, .tools-list > .tool-item { animation: riseIn var(--dur-3) var(--ease-out) both; }
+  .gcard-grid > .gcard:nth-child(1), .tools-list > .tool-item:nth-child(1) { animation-delay: 30ms; }
+  .gcard-grid > .gcard:nth-child(2), .tools-list > .tool-item:nth-child(2) { animation-delay: 70ms; }
+  .gcard-grid > .gcard:nth-child(3), .tools-list > .tool-item:nth-child(3) { animation-delay: 110ms; }
+  .gcard-grid > .gcard:nth-child(4), .tools-list > .tool-item:nth-child(4) { animation-delay: 150ms; }
+  .gcard-grid > .gcard:nth-child(n+5), .tools-list > .tool-item:nth-child(n+5) { animation-delay: 180ms; }
+}
+
+
+/* On a phone held upright the bottom nav floats as a pill inside its row: it
+   is still a grid row (nothing can hide under it), just drawn detached. The
+   landscape rail and the wide layouts are left as they are. */
+@media (max-width: 899px) and (min-height: 501px) {
+  .shell__nav {
+    margin: 0 var(--sp-3) calc(var(--sp-2) + var(--safe-bottom));
+    padding: var(--sp-1) var(--sp-2);
+    min-height: calc(var(--nav-h) - 0.25rem);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2xl);
+    box-shadow: var(--sh-3), var(--sh-inset);
+  }
+  .nav-item { border-radius: var(--r-lg); }
+}
+
+
+/* The help sheet's icons, the same way: no frame, a halo. */
+.help-game-card__icon, .help-hero__icon {
+  background: radial-gradient(circle at 50% 55%, var(--accent-soft) 0%, transparent 68%);
+  border: 0;
+  border-radius: 50%;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.16));
+}
+
+
+/* --- فوازير إيموجي · كمّل المثل ------------------------------------------------ */
+.emoji-card { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-3) 0; }
+.emoji-card__e { font-size: 3rem; line-height: 1.3; letter-spacing: 0.08em; text-align: center; overflow-wrap: anywhere; }
+/* On the TV the riddle is the whole screen (the owner, 21 Sep 2026: the play
+   area gets the space): a fifth of its height, where it was a line of emoji
+   in the middle of an empty stage. */
+.emoji-card--big .emoji-card__e { font-size: clamp(3rem, 20vmin, 15rem); letter-spacing: 0.1em; line-height: 1.15; }
+.prov-card { font-size: var(--fs-h1); font-weight: 900; line-height: 1.7; color: var(--text-strong); text-align: center; padding: var(--sp-2) 0; }
+.prov-card--big { font-size: clamp(1.8rem, 9vmin, 8.5rem); line-height: 1.5; text-wrap: balance; }
+.prov-blank { display: inline-block; min-width: 4ch; padding: 0 0.3em; margin: 0 0.15em; border-bottom: 3px solid var(--accent); color: var(--accent-ink); }
+.prov-blank.is-shown { background: var(--accent-soft); border-radius: var(--r-xs); }
+/* One phone (paintEmoji, paintProverb; the owner's before/after sheet of 1 Oct 2026):
+   the card takes the screen with the category and the round as chips on it, the
+   round's dots under it (.wa-write__prog), and the bar at the foot (.talk__actions):
+   the main action full width, the quiet pair under it. */
+#view-play-emoji:not(.hidden), #view-play-proverbs:not(.hidden) { display: flex; flex-direction: column; }
+.quiz1-stage { flex: 1 0 auto; display: flex; flex-direction: column; }
+.quiz1-card {
+  flex: 1 0 auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--sp-3);
+  min-height: 15rem;
+  margin-bottom: var(--sp-3);
+  text-align: center;
+}
+.quiz1-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.quiz1-card__body.emoji-card { padding: 0; }
+.quiz1-card .emoji-card__e { font-size: clamp(3.4rem, 14vmin, 5.5rem); line-height: 1.2; }
+.quiz1-card__body.prov-card { padding: 0; }
+.quiz1-hint { margin: 0; font-size: var(--fs-sm); color: var(--text-3); }
+.quiz1-answer { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); }
+.wa-write__prog.quiz1-dots { margin-block: 0 var(--sp-3); }
+.quiz1-bar { margin-top: auto; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .quiz1-card { min-height: 0; gap: var(--sp-2); }
+  .quiz1-card .emoji-card__e { font-size: 2.75rem; }
+  .wa-write__prog.quiz1-dots { margin-block-end: var(--sp-2); }
+}
+.quiz-feed { display: flex; flex-direction: column; gap: 4px; margin-top: var(--sp-3); }
+.quiz-feed__row { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); padding: 6px 10px; background: var(--surface-2); border-radius: var(--r-sm); text-align: start; }
+.quiz-feed__row.is-right { color: var(--success-ink); background: var(--success-soft); }
+.tv-pill--clock { background: var(--accent); color: var(--accent-on); }
+
+/* --- خمس ثواني ------------------------------------------------------------------ */
+.five-prompt { margin: var(--sp-2) 0 var(--sp-3); }
+.five-prompt__text { font-size: var(--fs-h1); font-weight: 900; line-height: 1.3; color: var(--text-strong); }
+.five-prompt--big .five-prompt__text { font-size: var(--tv-xl); }
+.five-ring {
+  --five-p: 1;
+  position: relative;
+  width: 8.5rem; height: 8.5rem;
+  margin: var(--sp-3) auto;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: conic-gradient(var(--accent) calc(var(--five-p) * 360deg), var(--surface-3) 0);
+}
+.five-ring::before { content: ''; position: absolute; inset: 0.6rem; border-radius: 50%; background: var(--surface-solid); }
+.five-ring .metric { position: relative; font-size: 3rem; color: var(--accent-ink); }
+.five-ring--big { width: 30vmin; height: 30vmin; }
+.five-ring--big::before { inset: 2.2vmin; }
+.five-ring--big .metric { font-size: 12vmin; }
+/* Between turns: who is up, the standings as a compact grid, the start in the bar. */
+.five-up { text-align: center; }
+.five-up__name { font-size: 2.2rem; font-weight: 900; line-height: 1.2; color: var(--accent-ink); overflow-wrap: anywhere; }
+.five-up__hint { margin: var(--sp-1) 0 0; font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); }
+.scoreboard--grid .scoreboard__tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+@media (min-width: 640px) { .scoreboard--grid .scoreboard__tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.score-tile {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
+  min-width: 0; padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 800;
+}
+.score-tile__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-tile__n { flex: none; color: var(--accent-ink); font-size: 1.1rem; }
+.score-tile.is-top { background: var(--accent-soft); color: var(--accent-ink); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .five-up__name { font-size: 1.75rem; }
+}
+
+/* --- العقل ------------------------------------------------------------------------ */
+/* The cards are the whole game, so they are big enough to read across a table
+   and to tap without looking. Only the lowest card of a hand is a button. */
+/* Spaced with a gap, not letter-spacing: the app never spaces letters, and a
+   rule that has to be undone for Arabic is a rule waiting to be forgotten. */
+.mind-lives { display: inline-flex; gap: 0.1rem; font-size: 1.1rem; }
+.mind-pile { margin-block: var(--sp-2); }
+.mind-card {
+  display: grid;
+  place-items: center;
+  min-width: 4.5rem;
+  min-height: 6rem;
+  padding: var(--sp-2);
+  border: 2px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  font-variant-numeric: tabular-nums;
+}
+.mind-card .metric { font-size: 2.25rem; font-weight: 900; color: var(--text-strong); }
+.mind-card--pile {
+  min-width: 6.5rem;
+  min-height: 8.5rem;
+  margin-inline: auto;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.mind-card--pile .metric { font-size: 3.25rem; color: var(--accent-ink); }
+.mind-cards { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: center; margin-block: var(--sp-2); }
+.mind-card--mine { opacity: 0.55; }
+.mind-card--mine.is-next {
+  opacity: 1;
+  border-color: var(--accent);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14);
+  cursor: pointer;
+}
+.mind-card--mine.is-next:active { transform: scale(0.96); }
+.mind-hand-mine { text-align: center; }
+.mind-discard { display: flex; flex-wrap: wrap; gap: var(--sp-1); align-items: center; justify-content: center; margin-block: var(--sp-2); }
+.mind-chip {
+  padding: 0.1rem var(--sp-2);
+  border-radius: var(--r-full);
+  background: var(--danger-soft);
+  color: var(--danger-ink);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.mind-hands { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: center; margin-block: var(--sp-2); }
+.mind-hand {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  padding: 0.2rem var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.mind-hand.is-empty { opacity: 0.5; }
+.mind-hand b { color: var(--accent-ink); }
+.mind-big { font-size: 3rem; line-height: 1; }
+
+/* --- قبل ولا بعد ------------------------------------------------------------------ */
+/* The line reads left to right in either language, because it is a physical
+   axis: earlier is one end and later is the other, and mirroring it in Arabic
+   would put 1869 after 2015. The markup carries dir="ltr" for that reason. */
+.tl-line {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow-x: auto;
+  padding-block: var(--sp-2);
+}
+.tl-card {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  width: 7.5rem;
+  min-height: 5.5rem;
+  padding: var(--sp-2);
+  border: 2px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  text-align: center;
+}
+.tl-card__text { font-size: var(--fs-sm); font-weight: 700; line-height: 1.25; color: var(--text-strong); }
+.tl-card__year { font-weight: 900; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.tl-gap { flex: none; width: 1.25rem; align-self: center; height: 2px; border: 0; background: var(--border); padding: 0; color: transparent; }
+/* On the TV the line is the board: centred while it is short (it began as one
+   card against the left edge of an empty screen) and a size up. The auto
+   margins centre it and still let a long line scroll from its first card. */
+body.is-tv-view .tl-line > :first-child { margin-inline-start: auto; }
+body.is-tv-view .tl-line > :last-child { margin-inline-end: auto; }
+body.is-tv-view .tl-line .tl-card { width: 9.5rem; min-height: 7rem; }
+.tl-gap.is-live {
+  width: 2.5rem;
+  height: 3rem;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 1.5rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+.tl-gap.is-live:active { transform: scale(0.94); }
+.tl-hand__cards { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: center; margin-block: var(--sp-2); }
+.tl-card--mine { width: 8.5rem; }
+.tl-card--mine.is-picked { border-color: var(--accent); background: var(--accent-soft); }
+.tl-card--mine.is-waiting { opacity: 0.6; }
+.tl-last__text { font-weight: 800; color: var(--text-strong); }
+.tl-last.is-right { border-color: var(--success); }
+.tl-last.is-wrong { border-color: var(--danger); }
+.tl-last.is-wrong .metric { color: var(--danger-ink); }
+.mind-hand.is-up { border-color: var(--accent); background: var(--accent-soft); }
+
+/* --- صدق ولا كذب ------------------------------------------------------------------ */
+.tt-row { display: flex; gap: var(--sp-2); align-items: stretch; }
+.tt-row input { flex: 1; min-width: 0; margin: 0; }
+.tt-lie {
+  flex: none; min-height: 3rem; padding: 0 var(--sp-3);
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface-solid); color: var(--text-2);
+  font-family: var(--font); font-size: var(--fs-xs); font-weight: 800; cursor: pointer;
+  transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.tt-lie.is-on { background: var(--danger-soft); border-color: var(--danger); color: var(--danger-ink); }
+.tt-item {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3); margin-bottom: var(--sp-2);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface-solid); text-align: start; font-weight: 700; color: var(--text-strong);
+}
+.tt-item__n { flex: none; width: 1.75rem; height: 1.75rem; display: grid; place-items: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-size: var(--fs-sm); font-weight: 900; }
+.tt-item.is-lie { background: var(--danger-soft); border-color: var(--danger); }
+.tt-item.is-true { background: var(--success-soft); border-color: var(--success); }
+/* The TV's three statements: three columns across the middle (auto-fill left them
+   in the right half of a 1080p screen, beside empty tracks). */
+.tv-tt-items { grid-template-columns: repeat(3, minmax(0, 1fr)); width: min(96%, 1500px); align-self: center; }
+@media (orientation: portrait) { .tv-tt-items { grid-template-columns: minmax(0, 1fr); } }
+.tv-panel.is-lie { border-color: var(--danger); background: var(--danger-soft); }
+
+/* --- ارسم واكتب ------------------------------------------------------------------ */
+.tele-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text-2); }
+.tv-canvas { width: min(60vmin, 92%); margin: 1vmin auto; }
+.tv-canvas canvas { display: block; width: 100%; height: auto; background: #ffffff; border-radius: 1.5vmin; box-shadow: var(--sh-3); }
+
+
+/* --- The soundboard --------------------------------------------------------- */
+.fx-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.fx-btn {
+  min-height: 4.5rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface-solid); color: var(--text);
+  font-family: var(--font); cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out);
+}
+.fx-btn:active { transform: scale(0.94); background: var(--accent-soft); border-color: var(--accent-border); }
+.fx-btn__emoji { font-size: 1.6rem; line-height: 1; }
+.fx-btn__name { font-size: var(--fs-xs); font-weight: 800; color: var(--text-2); }
+/* The 🔊 button: on play and room screens only, out of the way of the nav. */
+/* The sound and chat buttons sit in the header beside the gear (they used to
+   float over the page, where they covered the drawing tools). */
+.fx-fab, .chat-fab { display: none; position: relative; width: 2.5rem; font-size: 1.05rem; }
+body.has-fx:not(.is-tv-view) .fx-fab { display: inline-flex; }
+body.has-fx.has-chat:not(.is-tv-view) .chat-fab { display: inline-flex; }
+
+
+/* --- ربع قرد ------------------------------------------------------------------- */
+.mk-word__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.mk-word { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.35rem; min-height: 3.5rem; margin-bottom: var(--sp-3); }
+.mk-letter {
+  width: 2.6rem; height: 3.2rem;
+  display: grid; place-items: center;
+  border: 1px solid var(--accent-border); border-radius: var(--r-sm);
+  background: var(--accent-soft); color: var(--accent-ink);
+  font-size: 1.6rem; font-weight: 900; line-height: 1;
+}
+.mk-word__empty { font-size: var(--fs-sm); font-weight: 700; color: var(--text-3); }
+.mk-keypad { margin-top: var(--sp-2); }
+/* Arabic letters as one grid of 11 columns (32 letters: 11, 11, 10), so the keyboard
+   fits its card at every width; the rows are only the English one's. Room phones only (.mk-keypad--room). */
+.mk-keypad--grid { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 3px; }
+.mk-keypad--room .key { height: 2.75rem; font-size: 1.05rem; }
+.mk-keypad--room .key.key { min-width: 0; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .mk-keypad--room .key { height: 2.5rem; }
+}
+/* «حالة اللاعبين» as one strip of chips: whose turn lit, the state a small badge. */
+.mk-people { margin-bottom: var(--sp-3); }
+.mk-person__q {
+  display: inline-grid; place-items: center;
+  min-width: 1.5rem; height: 1.5rem; padding-inline: 0.4rem;
+  border-radius: var(--r-full);
+  font-size: var(--fs-xs); font-weight: 900; line-height: 1;
+}
+.mk-person__q--safe { background: var(--success-soft); color: var(--success-ink); }
+.mk-person__q--q { background: var(--warning-soft); color: var(--warning-ink); font-size: var(--fs-sm); }
+.mk-person__q--out { background: var(--danger-soft); color: var(--danger-ink); }
+.mk-person.is-out { opacity: 0.6; }
+.mk-swaps { justify-content: center; margin-top: var(--sp-2); }
+.mk-required { font-size: 3rem; font-weight: 900; line-height: 1.1; color: var(--accent-ink); }
+.mk-verdict {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3);
+  border-radius: var(--r-md); background: var(--warning-soft); color: var(--warning-ink);
+  font-size: var(--fs-sm); font-weight: 800; text-align: start;
+}
+.mk-verdict--monkey { background: var(--danger-soft); color: var(--danger-ink); }
+.mk-used { justify-content: center; margin-top: var(--sp-3); }
+.mk-word--tv { gap: 1vmin; margin: 2vmin 0; min-height: 12vmin; }
+.mk-word--tv .mk-letter { width: 9vmin; height: 11vmin; font-size: 6vmin; border-radius: 1.5vmin; }
+
+
+/* --- Drawing tools, the palette and the near-miss --------------------------- */
+.draw-tools__row--palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(2.3rem, 1fr)); gap: 3px; }
+.draw-tools__row--palette .draw-swatch { width: auto; height: auto; aspect-ratio: 1; max-width: 3rem; }
+.draw-tools__row--palette .draw-swatch.is-active { transform: scale(1.1); }
+/* Thicknesses, then undo, redo and clear: seven buttons in one row on a phone. */
+.draw-tools__row--acts { gap: 0.3rem; }
+.draw-tools__row--acts .draw-width, .draw-tools__row--acts .draw-tool { width: 2.5rem; height: 2.5rem; }
+.draw-swatch--custom {
+  position: relative; overflow: hidden;
+  background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444);
+}
+.draw-swatch--custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.draw-hint { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); margin-bottom: var(--sp-2); }
+.draw-hint__slots { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem; }
+.draw-hint__slot { display: block; width: 0.9rem; height: 0.9rem; border-bottom: 3px solid var(--accent); }
+.draw-hint__gap { display: block; width: 0.75rem; }
+.tv-panel .draw-hint { margin-top: 1.5vmin; }
+.tv-panel .draw-hint__slot { width: 2.2vmin; height: 2.2vmin; border-bottom-width: 0.5vmin; }
+.tv-panel .draw-hint__gap { width: 1.8vmin; }
+.draw-guess.is-close { background: var(--warning-soft); }
+.draw-guess__close { font-size: var(--fs-xs); font-weight: 800; color: var(--warning-ink); }
+
+/* --- Room chat -------------------------------------------------------------- */
+.chat-fab__badge {
+  position: absolute; top: 2px; inset-inline-end: 0;
+  min-width: 1.05rem; height: 1.05rem; padding: 0 3px;
+  display: grid; place-items: center;
+  border-radius: var(--r-full);
+  background: var(--danger-btn); color: var(--danger-on);
+  font-size: 0.6rem; font-weight: 900; line-height: 1;
+}
+.chat-fab__badge[hidden] { display: none; }
+#chat-list { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); min-height: min(14rem, 35vh); }
+.chat-msg { max-width: 85%; align-self: flex-start; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); text-align: start; }
+.chat-msg.is-mine { align-self: flex-end; background: var(--accent-soft); }
+.chat-msg__meta { margin-bottom: 2px; font-size: var(--fs-xs); font-weight: 700; color: var(--text-3); }
+.chat-msg__text { font-size: var(--fs-sm); font-weight: 600; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+#chat-modal .sheet__footer { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+/* A room event: a small line in the middle, not a message from anyone. */
+.chat-sys {
+  align-self: center;
+  max-width: 92%;
+  padding: 2px var(--sp-3);
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text-3);
+  text-align: center;
+}
+.chat-msg__text--big { font-size: 2rem; line-height: 1.2; }
+/* The team channel carries the team's own colour, as أسماء الرموز does. */
+.chat-msg--team { box-shadow: inset 3px 0 0 var(--chat-team, transparent); }
+[dir="rtl"] .chat-msg--team { box-shadow: inset -3px 0 0 var(--chat-team, transparent); }
+.chat-msg--red  { --chat-team: #e11d48; }
+.chat-msg--blue { --chat-team: #2563eb; }
+.chat-msg__team { font-weight: 900; color: var(--text-2); }
+
+/* One-tap reactions, a row that scrolls. */
+.chat-quick {
+  display: flex;
+  gap: var(--sp-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+.chat-quick::-webkit-scrollbar { display: none; }
+.chat-quick__chip {
+  flex: none;
+  min-width: 2.75rem;
+  height: 2.5rem;
+  padding-inline: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.chat-quick__chip:active { transform: scale(0.92); }
+.chat-channel[hidden], .chat-channel-note[hidden] { display: none; }
+.chat-channel-note { margin: 0; }
+
+/* --- "دورك!" ---------------------------------------------------------------- */
+.turn-banner {
+  position: fixed;
+  z-index: var(--z-float);
+  top: calc(var(--safe-top) + var(--header-h) + var(--sp-2));
+  inset-inline: var(--sp-4);
+  max-width: 26rem;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1.5px solid var(--success);
+  border-radius: var(--r-lg);
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: var(--sh-3);
+  font-family: var(--font);
+  text-align: start;
+  cursor: pointer;
+}
+.turn-banner[hidden] { display: none; }
+
+/* --- the host away: anyone can move the game on (roomMoveOnHtml, JS_Room.html) --- */
+/* Drawn for everyone, shown to non-hosts only while the host is away, so a frame
+   never has to be rebuilt (and lose what is typed) when that changes. */
+.room-moveon { display: none; }
+.room-moveon-not { display: contents; }
+body.room-host-away .room-moveon { display: contents; }
+body.room-host-away .room-moveon-not { display: none; }
+
+/* --- a room screen's bottom bar (ربع قرد, الجرس, خمس ثواني, مين أكتر واحد): the
+   two main actions side by side in .talk__actions, the quiet ones in .talk__pair
+   under them; on a phone on its side it is one line (section SIX OLDER SCREENS). --- */
+.room-bar__pair { display: flex; gap: var(--sp-2); }
+.room-bar__pair > .btn { flex: 1 1 0; min-width: 0; padding-inline: var(--sp-2); }
+@media (orientation: landscape) and (max-height: 500px) {
+  .talk__actions > .room-bar__pair { flex: 1.5 1 0; min-width: 0; }
+  /* The bar stands over a short screen: the main buttons at the default height. */
+  .room-bar__pair > .btn--lg, .five-bar > .btn--lg, .ballot-bar .btn--lg { --btn-h: 3rem; }
+}
+.room-host-away-note {
+  position: fixed;
+  z-index: var(--z-float);
+  top: calc(var(--safe-top) + var(--header-h) + var(--sp-2));
+  inset-inline: var(--sp-4);
+  width: fit-content;
+  max-width: 26rem;
+  margin-inline: auto;
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--warning);
+  border-radius: 999px;
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: var(--sh-2);
+  font: 600 var(--fs-sm) / 1.4 var(--font);
+  text-align: center;
+  pointer-events: none;
+  display: none;
+}
+body.room-host-away.in-room-game .room-host-away-note:not([hidden]),
+body.room-host-away.is-tv-view .room-host-away-note:not([hidden]) { display: block; animation: turnIn var(--dur-3) var(--ease-spring); }
+body.is-tv-view .room-host-away-note { top: calc(var(--safe-top) + 4.5vmin); font-size: 2.2vmin; }
+@media (prefers-reduced-motion: reduce) { .room-host-away-note { animation: none !important; } }
+/* The room can't be reached (roomNetNotice, JS_Room.html): the same pill, on every room screen
+   and the TV, and it takes the host-away note's place while it lasts (that can't be known offline). */
+body.room-offline .room-net-note:not([hidden]) { display: block; animation: turnIn var(--dur-3) var(--ease-spring); border-color: var(--danger); }
+body.room-offline .room-host-away-note:not(.room-net-note) { display: none !important; }
+.turn-banner.is-in { animation: turnIn var(--dur-3) var(--ease-spring); }
+.turn-banner__bell { font-size: 1.6rem; line-height: 1; }
+.turn-banner__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.turn-banner__text b { font-size: var(--fs-h3); font-weight: 900; color: var(--success-ink); }
+.turn-banner__text span { font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); }
+@keyframes turnIn {
+  from { opacity: 0; transform: translateY(-0.75rem); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .turn-banner.is-in { animation: none; } }
+
+
+/* ==========================================================================
+   12. SMOOTHNESS (16 Sep 2026)
+   The home for a phone that has played before, cards of one shape, a Start
+   that is always a thumb away, rows that fade where they scroll, a thumb that
+   slides, counts you tap, and a lobby that shows its shape while it loads.
+   ========================================================================== */
+
+/* The hero for a returning player: the same three ways in, as one row of pills. */
+.home-hero--compact { padding: var(--sp-3) var(--sp-4); }
+.home-hero--compact .home-hero__head { margin-bottom: var(--sp-2); }
+.home-hero--compact .mark--hero { width: 2.75rem; height: 2.75rem; border-radius: 0.8rem; }
+.home-hero--compact .together__tile { flex-direction: row; min-height: 2.5rem; gap: 0.35rem; padding: var(--sp-1) var(--sp-2); }
+.home-hero--compact .together__icon { font-size: 1rem; margin: 0; }
+.home-hero--compact .together__desc { display: none; }
+
+/* Cards: the icon row carries the mode icons, the text is two lines at most,
+   players and minutes sit on one line - so every card in a row is one shape. */
+.gcard { min-height: 0; gap: 3px; }
+.gcard__modes { display: inline-flex; gap: 1px; padding-top: 2px; font-size: 0.8rem; line-height: 1; opacity: 0.85; }
+.gcard__desc { -webkit-line-clamp: 2; min-height: 2.175rem; }
+.gcard__meta { padding-top: var(--sp-1); flex-wrap: nowrap; }
+
+/* A press answers at once; the release springs back at leisure. */
+.gcard:active, .game-card:active, .tool-item:active, .recent-tile:active,
+.filter-chip:active, .together__tile:active, .setting-row:active { transition-duration: var(--dur-1); }
+
+/* Player count filter row on the home (T2.1) */
+.filter-row--players {
+  margin-top: var(--sp-2);
+  align-items: center;
+}
+.filter-row__label {
+  flex: none;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--text-3);
+  padding-inline: var(--sp-2) var(--sp-1);
+  white-space: nowrap;
+}
+.filter-chip--sm {
+  height: 2.5rem;                 /* 40px: the floor for anything a thumb taps */
+  padding-inline: var(--sp-3);
+  font-size: var(--fs-xs);
+  min-width: 2.5rem;
+  justify-content: center;
+}
+.filter-sep {
+  flex: none;
+  width: 1px;
+  height: 1.5rem;
+  background: var(--hairline);
+  margin-inline: var(--sp-1);
+}
+
+/* "Pick for us" button on the home hero (T2.2) */
+.home-hero__pick {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 2.5rem;                 /* 40px: the floor for anything a thumb taps */
+  margin-inline-start: auto;
+  padding-inline: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  color: var(--text-strong);
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--sh-1);
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-2) var(--ease-out);
+}
+.home-hero__pick:active {
+  transform: scale(0.95);
+}
+.home-hero--compact .home-hero__pick {
+  height: 2.5rem;                 /* the compact hero tightens everything else, never a tap target */
+  padding-inline: var(--sp-2) var(--sp-3);
+}
+
+/* The count sits by its title, as a small pill. */
+.section__count { padding: 1px 0.5rem; border-radius: var(--r-full); background: var(--surface-3); border: 1px solid var(--hairline); }
+
+/* Recents: one line, nothing more. */
+.recent-tile { height: 2.75rem; padding-inline: var(--sp-2) var(--sp-3); font-size: var(--fs-xs); }
+.recent-tile__icon { font-size: 1rem; }
+
+/* The hero's facts as one row of chips across the card, not four stacked lines. */
+.game-hero { flex-wrap: wrap; }
+.game-hero__meta { flex: 1 0 100%; gap: 0.3rem; margin-top: 0; }
+.game-hero__meta .meta-bit { padding: 2px 0.55rem; border-radius: var(--r-full); background: var(--surface-3); border: 1px solid var(--hairline); }
+
+/* A horizontal row fades at the edge it can still scroll toward. The two
+   lengths animate where @property is understood; elsewhere they just switch. */
+@property --fade-l { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --fade-r { syntax: '<length>'; inherits: false; initial-value: 0px; }
+.hscroll-fade {
+  --fade-l: 0px; --fade-r: 0px;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+          mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+  transition: --fade-l var(--dur-2) var(--ease-out), --fade-r var(--dur-2) var(--ease-out);
+}
+.hscroll-fade.fade-start:not(.is-rtl), .hscroll-fade.fade-end.is-rtl { --fade-l: 2.75rem; }
+.hscroll-fade.fade-end:not(.is-rtl), .hscroll-fade.fade-start.is-rtl { --fade-r: 2.75rem; }
+
+/* The cards rise in sequence the first time a tab is drawn, not on every visit. */
+.view-stagger.is-settled > *,
+.view-stagger.is-settled .gcard-grid > .gcard,
+.view-stagger.is-settled .tools-list > .tool-item { animation: none; }
+
+/* The segmented control's thumb slides between the options. Until the script
+   has measured (has-thumb), the active option paints itself as before. */
+.segmented { position: relative; }
+.segmented::before {
+  content: '';
+  position: absolute;
+  top: 3px; bottom: 3px; left: 0;
+  width: var(--seg-w, 0px);
+  transform: translateX(var(--seg-x, 0px));
+  border-radius: calc(var(--r-md) - 0.25rem);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--dur-3) var(--ease-spring), width var(--dur-2) var(--ease-out);
+}
+.segmented.has-thumb::before { opacity: 1; }
+.segmented__item { position: relative; z-index: 1; }
+.segmented.has-thumb .segmented__item.is-active { background: transparent; box-shadow: none; }
+
+/* A count you tap up or down, in place of a field or a drop-down. */
+.stepper--field { margin: 0; }
+input.stepper__value { min-height: var(--tap); height: var(--tap); padding: 0; margin: 0; border: 0; background: transparent; box-shadow: none; }
+input.stepper__value:focus { border: 0; box-shadow: none; }
+
+/* A Start bar inside a card fades to the card, not to the page. */
+.card .view-actions--start {
+  margin-bottom: calc(-1 * var(--sp-5));
+  padding-bottom: var(--sp-4);
+  background: linear-gradient(to top, var(--surface-solid) 42%, transparent);
+}
+
+/* Settings rows: a hint under each label. */
+.setting-row { font-size: var(--fs-body); }
+.setting-row__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.setting-row__value { flex: none; white-space: nowrap; }
+.setting-row__hint { font-size: var(--fs-xs); font-weight: 600; line-height: 1.3; color: var(--text-3); }
+
+/* The lobby while the room is being made or joined: the shape of what is coming. */
+@keyframes skelShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skel {
+  background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-2) 50%, var(--surface-3) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--r-md);
+  animation: skelShimmer 1.4s linear infinite;
+}
+.skel--code { height: 3.3rem; width: 11rem; margin: 0 auto var(--sp-4); }
+.skel--qr { aspect-ratio: 1; }
+.skel--row { height: 3.5rem; margin-bottom: var(--sp-2); }
+.skel--hub { height: 10rem; }
+#view-room-lobby.is-loading .btn-stack, #view-room-lobby.is-loading #room-share-btn { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } .segmented::before { transition: none; } }
+
+
+/* ==========================================================================
+   13. THE DICE AND THE COIN
+   Real objects rather than two emoji: a cube with pips that tumbles and lands
+   on the face it rolled, and a coin that is tossed, spins on its edge and
+   comes down on one side. Both are drawn in 3D by the browser - no images.
+   ========================================================================== */
+.dice-tray {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-5);
+  min-height: 9rem;
+  margin-bottom: var(--sp-4);
+  perspective: 900px;
+}
+.die-slot { animation: dieHop var(--dur-4, 520ms) var(--ease-out); }
+.die {
+  --die: 5rem;
+  position: relative;
+  width: var(--die); height: var(--die);
+  transform-style: preserve-3d;
+  transform: rotateX(-20deg) rotateY(22deg);
+  transition: transform 1.05s cubic-bezier(0.18, 0.72, 0.24, 1);
+}
+.die__face {
+  position: absolute;
+  inset: 0;
+  direction: ltr;              /* a die's pips are not mirrored in Arabic */
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  gap: 8%;
+  padding: 13%;
+  border-radius: 0.85rem;
+  background: linear-gradient(150deg, #ffffff 0%, #f3f4f6 55%, #e5e7eb 100%);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.10), inset 0 -0.5rem 1rem rgba(15, 23, 42, 0.07);
+}
+.die__pip {
+  align-self: center;
+  justify-self: center;
+  width: 78%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #4b5563, #0f172a 70%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+/* Opposite faces add up to seven, as on a real die. */
+.die__face--1 { transform: translateZ(calc(var(--die) / 2)); }
+.die__face--6 { transform: rotateY(180deg) translateZ(calc(var(--die) / 2)); }
+.die__face--2 { transform: rotateY(90deg)   translateZ(calc(var(--die) / 2)); }
+.die__face--5 { transform: rotateY(-90deg)  translateZ(calc(var(--die) / 2)); }
+.die__face--3 { transform: rotateX(90deg)   translateZ(calc(var(--die) / 2)); }
+.die__face--4 { transform: rotateX(-90deg)  translateZ(calc(var(--die) / 2)); }
+@keyframes dieHop {
+  0%   { transform: translateY(0) }
+  35%  { transform: translateY(-1.6rem) }
+  70%  { transform: translateY(0.15rem) }
+  100% { transform: translateY(0) }
+}
+
+/* --- The coin ------------------------------------------------------------- */
+.coin-stage {
+  position: relative;
+  height: 13rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--sp-4);
+  perspective: 1000px;
+}
+.coin-shadow {
+  position: absolute;
+  bottom: 0.75rem;
+  width: 6rem; height: 0.85rem;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(15, 23, 42, 0.28), transparent 70%);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.coin-shadow.is-up { opacity: 0.35; transform: scale(0.6); }
+.coin-toss { transform-style: preserve-3d; }
+.coin-toss.is-tossing { animation: coinToss 1.15s cubic-bezier(0.34, 0, 0.32, 1); }
+.coin {
+  position: relative;
+  width: 7.5rem; height: 7.5rem;
+  transform-style: preserve-3d;
+  transition: transform 1.15s cubic-bezier(0.18, 0.72, 0.24, 1);
+}
+.coin__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 2.6rem;
+  backface-visibility: hidden;
+  background:
+    radial-gradient(circle at 32% 28%, #fde68a 0%, #f5c33b 42%, #d99e15 72%, #b4780c 100%);
+  box-shadow:
+    inset 0 0 0 0.42rem rgba(180, 120, 12, 0.55),
+    inset 0 0 0 0.5rem rgba(255, 232, 160, 0.5),
+    0 0.6rem 1.4rem -0.5rem rgba(120, 75, 5, 0.6);
+}
+.coin__face--heads { transform: translateZ(0.18rem); }
+.coin__face--tails { transform: rotateX(180deg) translateZ(0.18rem); }
+/* The rim, so the coin has a thickness while it turns edge-on. */
+.coin__edge {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #a56e08, #e7b73a 30%, #fbe08a 50%, #e7b73a 70%, #a56e08);
+  transform: rotateX(90deg) scaleY(0.05);
+}
+@keyframes coinToss {
+  0%   { transform: translateY(0) }
+  45%  { transform: translateY(-4.5rem) }
+  100% { transform: translateY(0) }
+}
+
+/* A phone on its side has no room for a full-sized throw. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .dice-tray { min-height: 6.5rem; gap: var(--sp-4); }
+  .die { --die: 3.75rem; }
+  .coin-stage { height: 8.5rem; }
+  .coin { width: 5.5rem; height: 5.5rem; }
+  .coin__face { font-size: 2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .die, .coin { transition: none; }
+  .die-slot, .coin-toss.is-tossing { animation: none; }
+}
+
+
+/* ==========================================================================
+   14. MOTION
+   The intro's idea used where the player has just done something: things fly
+   to where they live, highlights slide, numbers count, rows find their place.
+   The script is JS_Motion.html. Nothing here moves by itself.
+   ========================================================================== */
+
+/* An emoji on its way from one element to another. */
+.motion-ghost {
+  position: fixed;
+  left: 0; top: 0;
+  z-index: var(--z-fx);
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  will-change: transform;
+}
+.motion-ghost__glyph {
+  display: block;
+  will-change: transform;
+  filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.22));
+}
+.motion-waiting { visibility: hidden; }
+.motion-landed { animation: motion-land 480ms cubic-bezier(0.2, 1.4, 0.35, 1); }
+@keyframes motion-land {
+  0%   { transform: scale(0.8); }
+  55%  { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* A room deals a game: the game, big, on every phone at once. */
+.game-splash {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-splash);
+  display: grid;
+  place-items: center;
+  /* No backdrop blur: under the splash the room's screen is being rebuilt and
+     slides in, and a full-screen blur over a changing page is redrawn on every
+     frame, the most expensive thing a phone can be asked to animate. */
+  background: rgba(248, 250, 252, 0.94);
+  cursor: pointer;
+  animation: splash-in 200ms var(--ease-out) both;
+}
+body.dark .game-splash { background: rgba(15, 23, 42, 0.94); }
+.game-splash.is-leaving { pointer-events: none; animation: splash-out 400ms var(--ease-out) forwards; }
+.game-splash__card { display: grid; justify-items: center; gap: var(--sp-3); padding-inline: var(--sp-4); text-align: center; }
+.game-splash__icon {
+  display: grid;
+  place-items: center;
+  width: 9rem; height: 9rem;
+  border-radius: 50%;
+  font-size: 5.5rem;
+  line-height: 1;
+  background: radial-gradient(circle at 50% 55%, var(--accent-soft) 0%, transparent 70%);
+  filter: drop-shadow(0 14px 22px rgba(15, 23, 42, 0.25));
+  animation: splash-pop 520ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+}
+.game-splash__name {
+  font-size: var(--fs-h1);
+  font-weight: 900;
+  color: var(--text-strong);
+  animation: splash-name 400ms var(--ease-out) 180ms both;
+}
+.game-splash.is-leaving .game-splash__name { animation: splash-fade 220ms ease-out forwards; }
+.game-splash--tv .game-splash__icon { width: 36vmin; height: 36vmin; font-size: 22vmin; }
+.game-splash--tv .game-splash__name { font-size: 7vmin; }
+@keyframes splash-in   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes splash-out  { to { opacity: 0; } }
+@keyframes splash-pop  { from { opacity: 0; transform: scale(0.5) rotate(-10deg); } to { opacity: 1; transform: none; } }
+@keyframes splash-name { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+@keyframes splash-fade { to { opacity: 0; } }
+
+/* The bottom bar's highlight slides to the tab you picked (syncNavPill). */
+.shell__nav { position: relative; }
+.shell__nav::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0;
+  width: var(--pill-w, 0px);
+  height: var(--pill-h, 0px);
+  transform: translate(var(--pill-x, 0px), var(--pill-y, 0px));
+  border-radius: var(--pill-r, var(--r-md));
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.shell__nav.has-pill::before {
+  transition: transform 420ms cubic-bezier(0.3, 1.25, 0.4, 1),
+              width 320ms var(--ease-out), height 320ms var(--ease-out),
+              opacity var(--dur-2) var(--ease-out);
+}
+.shell__nav.has-pill-on::before { opacity: 1; }
+.shell__nav .nav-item { position: relative; z-index: 1; }
+.shell__nav.has-pill .nav-item.is-active { background: transparent; box-shadow: none; }
+
+/* A new room's code drops in; whoever joins after you pops in. */
+.room-code span {
+  display: inline-block;
+  animation: code-drop 480ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+  animation-delay: calc(var(--i, 0) * 80ms + 80ms);
+}
+@keyframes code-drop {
+  from { opacity: 0; transform: translateY(-0.6em) scale(0.8); }
+  to   { opacity: 1; transform: none; }
+}
+.status-row--new { animation: row-join 620ms cubic-bezier(0.2, 1.2, 0.35, 1); }
+@keyframes row-join {
+  0%   { opacity: 0; transform: translateY(-0.5rem) scale(0.96); border-color: var(--success); }
+  60%  { opacity: 1; transform: none; border-color: var(--success); }
+  100% { border-color: var(--border); }
+}
+.scoreboard [data-count] { font-variant-numeric: tabular-nums; }
+/* A vote's result list is followed straight by the board: give the board's title room. */
+.result-list + .scoreboard { margin-top: var(--sp-6); }
+
+/* A vote's result: the bars grow one at a time from the bottom of the list up,
+   and the winner's comes last, after a beat (voteRevealTimes sets --at). */
+.result-list--reveal .result-row__bar {
+  transform-origin: left center;
+  animation: vote-bar 640ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--at, 0ms);
+}
+[dir="rtl"] .result-list--reveal .result-row__bar { transform-origin: right center; }
+.result-list--reveal .result-row__count,
+.result-list--reveal .result-row__voters {
+  animation: vote-fade 320ms var(--ease-out) both;
+  animation-delay: calc(var(--at, 0ms) + 420ms);
+}
+.result-list--reveal .result-row.is-top {
+  animation: vote-win 620ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+  animation-delay: calc(var(--at, 0ms) + 520ms);
+}
+/* The spy's mark on his own bar (roomSpyVoteBars) comes with the bar's light, not before. */
+.result-list--reveal .result-row__tag {
+  display: inline-block;
+  animation: vote-fade 320ms var(--ease-out) both;
+  animation-delay: calc(var(--at, 0ms) + 520ms);
+}
+/* The vote above a spy game's result card, which waits for it. */
+.spy-votes { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+/* transform, not width: a width animation lays the row out on every frame, on
+   the main thread, while the results screen is still drawing. */
+@keyframes vote-bar  { from { transform: scaleX(0); } }
+@keyframes vote-fade { from { opacity: 0; transform: translateY(0.25rem); } }
+@keyframes vote-win {
+  0%   { transform: none; border-color: var(--border); box-shadow: 0 0 0 0 transparent; }
+  45%  { transform: scale(1.035); }
+  100% { transform: none; }
+}
+
+/* A round's result card lies face down for a beat, then turns over
+   (spyRevealParts: 1100ms face down, a 560ms turn, edge-on at 1380ms).
+   --cover-at on the card holds the whole of it back (spyRevealParts' `after`:
+   the vote's bars rise first, roomSpyVoteBars). */
+.spy-reveal {
+  position: relative;
+  animation: spy-turn 560ms cubic-bezier(0.45, 0, 0.55, 1) 1100ms both;
+  animation-delay: calc(var(--cover-at, 0ms) + 1100ms);
+}
+.spy-reveal__cover {
+  position: absolute;
+  inset: -1px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0 0.6rem, transparent 0.6rem 1.2rem),
+    var(--accent);
+  color: var(--accent-on);
+  animation: spy-cover 1380ms linear both;
+  animation-delay: var(--cover-at, 0ms);
+}
+.spy-reveal__q { font-size: 3rem; font-weight: 900; line-height: 1; animation: spy-q 380ms ease-in-out 3 alternate both; animation-delay: var(--cover-at, 0ms); }
+.spy-reveal__label { font-size: var(--fs-h3); font-weight: 900; }
+/* The same card on the big screen (a result line held under its cover). */
+.tv-spy-reveal { border-radius: 2vmin; padding: 1.2vmin 2vmin; }
+.tv-spy-reveal .spy-reveal__q { font-size: 6vmin; }
+.tv-spy-reveal .spy-reveal__label { font-size: var(--tv-sm); }
+@keyframes spy-turn {
+  0%   { transform: perspective(60rem) rotateY(0); }
+  50%  { transform: perspective(60rem) rotateY(90deg); }
+  100% { transform: perspective(60rem) rotateY(0); }
+}
+@keyframes spy-cover { from { visibility: visible; } to { visibility: hidden; } }
+@keyframes spy-q { from { transform: scale(0.88); opacity: 0.7; } to { transform: scale(1.12); opacity: 1; } }
+
+/* The top three on a podium at the end of a game (renderPodium): second,
+   the winner, third. The first time, they rise 3-2-1. */
+.podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+}
+.podium__place {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.podium__place--1 { order: 2; }
+.podium__place--2 { order: 1; }
+.podium__place--3 { order: 3; }
+.podium__who { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.podium__medal { font-size: 1.75rem; line-height: 1; }
+.podium__place--rank1 .podium__medal { font-size: 2.25rem; }
+.podium__name {
+  max-width: 100%;
+  font-weight: 900;
+  line-height: 1.25;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.podium__score { font-weight: 900; color: var(--accent-ink); }
+.podium__block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background: var(--surface-solid);
+  color: var(--text-2);
+  font-size: var(--fs-h3);
+  font-weight: 900;
+  transform-origin: bottom;
+}
+.podium__place--rank1 .podium__block { height: 5.5rem; border-color: transparent; background: var(--accent); color: var(--accent-on); }
+.podium__place--rank2 .podium__block { height: 4rem; }
+.podium__place--rank3 .podium__block { height: 2.75rem; }
+.podium--rise .podium__block {
+  animation: podium-rise 560ms cubic-bezier(0.2, 1.15, 0.35, 1) both;
+  animation-delay: var(--at, 0ms);
+}
+.podium--rise .podium__who {
+  animation: podium-who 480ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+  animation-delay: calc(var(--at, 0ms) + 300ms);
+}
+@keyframes podium-rise { from { transform: scaleY(0); } }
+@keyframes podium-who  { from { opacity: 0; transform: translateY(0.75rem) scale(0.7); } }
+.tv-podium--rise .tv-podium__place {
+  animation: tv-podium-rise 640ms cubic-bezier(0.2, 1.15, 0.35, 1) both;
+  animation-delay: var(--at, 0ms);
+}
+@keyframes tv-podium-rise { from { opacity: 0; transform: translateY(40%); } }
+
+/* A letter spinning in (spinLetter). */
+.stop-letter.is-spinning, .tv-stop-letter.is-spinning { color: var(--text-3); }
+
+/* A pass-the-phone role behind a card you hold (JS_Motion.html, section 11).
+   The faces swap visibility halfway through the turn, so the role is never
+   left showing even where backface-visibility misbehaves. */
+/* The card is the same size face down whatever is written on its back: the back
+   is laid over it, out of the layout. When the back took space, a spy's short
+   line made a shorter card than everyone else's, so the table could tell the
+   spy before anyone held it. The height fits the longest role (الموقع السري:
+   the place, the job and the hint). */
+.hold-card {
+  position: relative;
+  display: grid;
+  min-height: 16rem;
+  perspective: 60rem;
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.hold-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.hold-card > * {
+  grid-area: 1 / 1;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transition: transform 340ms cubic-bezier(0.3, 1.15, 0.4, 1), visibility 0s linear 170ms;
+}
+.hold-card__front {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 10rem;
+  padding: var(--sp-5) var(--sp-4);
+  border: 2px dashed var(--accent-border);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.hold-card.is-seen .hold-card__front { border-style: solid; }
+.hold-card__icon { font-size: 2.5rem; line-height: 1; }
+.hold-card__label { font-size: var(--fs-h3); font-weight: 900; }
+.hold-card__hint { font-size: var(--fs-sm); font-weight: 700; color: var(--text-2); }
+.hold-card__back {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-3);
+  transform: rotateY(180deg);
+  visibility: hidden;
+}
+.hold-card.is-holding .hold-card__front { transform: rotateY(-180deg); visibility: hidden; }
+.hold-card.is-holding .hold-card__back { transform: none; visibility: visible; }
+.hold-next { transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
+.hold-next.is-waiting { opacity: 0; transform: translateY(0.5rem); visibility: hidden; pointer-events: none; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .hold-card { min-height: 14.5rem; }
+  .hold-card__front { min-height: 7rem; padding-block: var(--sp-3); }
+  .hold-card__back { gap: var(--sp-2); }
+  /* A phone on its side: whose turn it is and the next button beside the card,
+     so the button isn't below the fold of a 375px-tall screen. */
+  .card.space-y-6:has(> .hold-card) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    grid-template-areas: "who card" "next card";
+    align-items: center;
+    column-gap: var(--sp-4);
+    row-gap: var(--sp-3);
+    padding-block: var(--sp-4);
+  }
+  .card.space-y-6:has(> .hold-card) > :not([hidden]) { margin-top: 0; }
+  .card.space-y-6:has(> .hold-card) > :first-child { grid-area: who; align-self: end; }
+  .card.space-y-6:has(> .hold-card) > .hold-card { grid-area: card; }
+  .card.space-y-6:has(> .hold-card) > .hold-next { grid-area: next; align-self: start; }
+}
+
+/* Flying pieces: a Connections tile on its way into its row, a name dealt into its team. */
+.connect-ghost {
+  position: fixed;
+  z-index: var(--z-float);
+  margin: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.deal-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-float);
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
+  color: var(--text-strong);
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* The points you just won, floating onto your row of the board. */
+.fly-points {
+  position: fixed;
+  z-index: var(--z-points);
+  padding: 0.1em 0.5em;
+  border-radius: var(--r-sm);
+  background: var(--success-btn);
+  color: var(--success-on);
+  font-size: var(--fs-h2);
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* A word slammed over the whole screen for a beat, then gone: the moment
+   someone shouts وقف in أتوبيس كومبليت. Near-opaque rather than blurred - the
+   screen underneath is rebuilding, and a backdrop-filter over that stutters.
+   Nothing here takes a tap. */
+.slam {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-slam);
+  display: grid;
+  place-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  text-align: center;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--surface-solid) 86%, transparent);
+  animation: slam-fade 1.2s var(--ease-out) both;
+}
+.slam__word {
+  font-size: clamp(2rem, 13vw, 5rem);
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--danger-ink);
+  animation: slam-in 420ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+}
+.slam__sub { color: var(--text-2); font-size: var(--fs-h2); font-weight: 800; }
+@keyframes slam-in { from { opacity: 0; transform: scale(1.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes slam-fade { 0%, 68% { opacity: 1; } 100% { opacity: 0; } }
+
+/* "خمّن صح!" stamped across the drawing when someone cracks it. */
+.draw-stamp {
+  position: absolute;
+  /* Centred with auto margins, not with inset-inline-start: 50% and a
+     translate: under RTL that start edge is the right one, and the translate
+     then pushes the stamp off the middle. This centres the same either way. */
+  inset-inline: 0;
+  top: 50%;
+  z-index: 3;
+  width: fit-content;
+  margin-inline: auto;
+  padding: var(--sp-2) var(--sp-4);
+  border: 3px solid var(--success);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--success-btn) 18%, transparent);
+  color: var(--success-ink);
+  font-size: var(--fs-h2);
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%) rotate(-11deg);
+  animation: draw-stamp-in 460ms cubic-bezier(0.2, 1.4, 0.35, 1) both;
+}
+@keyframes draw-stamp-in {
+  from { opacity: 0; transform: translateY(-50%) rotate(-11deg) scale(2.4); }
+  to { opacity: 1; transform: translateY(-50%) rotate(-11deg) scale(1); }
+}
+
+/* مافيا: night falls and morning comes over about a second, on a layer of its
+   own so nothing else repaints. */
+#view-room-mafia, #view-room-tv { position: relative; }
+.mafia-sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 900ms var(--ease-in-out);
+  background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%);
+}
+.mafia-sky.is-on { opacity: 1; }
+.mafia-sky--day { background: radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--warning) 26%, transparent), transparent 70%); }
+
+/* The last three seconds of a round. The number pops once at 3, at 2 and at 1:
+   the pop lasts the whole second, so it wins over the slow pulse those clocks
+   already run rather than flickering against it. And a warning rim breathes at
+   the edge of the screen the clock is on - one element at that screen's root,
+   taking no taps and drawing nothing but an inset glow, so no button under it
+   is covered or blocked. */
+@keyframes count-pop { 0% { transform: scale(1); } 22% { transform: scale(1.25); } 55%, 100% { transform: scale(1); } }
+.is-count-pop,
+.tb-timer.is-urgent .tb-timer__value.is-count-pop,
+.timer-display.is-urgent.is-count-pop { animation: count-pop 1s var(--ease-out) both; }
+
+.has-count-edge { position: relative; }
+.count-edge {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: var(--r-lg);
+  pointer-events: none;
+  box-shadow: inset 0 0 0 0.3rem color-mix(in srgb, var(--danger) 45%, transparent),
+              inset 0 0 0.9rem 0.3rem color-mix(in srgb, var(--danger) 20%, transparent);
+  animation: count-edge 1s var(--ease-in-out) infinite;
+}
+@keyframes count-edge { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+/* A title at the end of a game, under the podium: one row, the game's colour,
+   the count as a plain number so no language has to agree with it. */
+.award {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.award__icon { font-size: 1.25rem; line-height: 1; }
+.award__label { font-size: var(--fs-sm); font-weight: 800; color: var(--text-2); }
+.award__name { font-weight: 900; color: var(--accent-ink); }
+.award__n {
+  min-width: 1.75rem;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-full);
+  background: var(--surface-solid);
+  font-weight: 900;
+}
+.award__n--words { min-width: 0; font-size: var(--fs-sm); font-weight: 800; color: var(--text-2); }
+.award--in { animation: award-in 520ms var(--ease-out) both; animation-delay: var(--at, 0ms); }
+@keyframes award-in {
+  from { opacity: 0; transform: scale(0.88); }
+  60% { transform: scale(1.06); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* --- The first-play card on setup and room lobby ------------------------ */
+.first-play-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  width: 100%;
+  max-width: 100%;
+  padding: var(--sp-4);
+  margin-top: var(--sp-3);
+  margin-bottom: var(--sp-2);
+  border: 1px solid var(--accent-border, var(--border));
+  border-inline-start: 4px solid var(--accent);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  box-shadow: var(--sh-1);
+  box-sizing: border-box;
+}
+.first-play-card__eyebrow {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  color: var(--accent-ink, var(--text-2));
+  text-transform: uppercase;
+}
+.first-play-card__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.first-play-card__step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  color: var(--text);
+}
+.first-play-card__n {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 900;
+  font-size: var(--fs-xs);
+  line-height: 1;
+}
+.first-play-card__text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+.first-play-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+.first-play-card.is-dismissing {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slam, .slam__word, .draw-stamp { animation: none; }
+  .award--in { animation: none; }
+  .is-count-pop { animation: none; }
+  .count-edge { display: none; }
+  .fly-points { display: none; }
+  .slam { display: none; }
+  .mafia-sky { transition: none; }
+  .game-splash, .game-splash__icon, .game-splash__name, .room-code span, .status-row--new, .motion-landed { animation: none; }
+  .shell__nav.has-pill::before { transition: none; }
+  .result-list--reveal *, .spy-reveal, .spy-reveal__q, .podium--rise *, .tv-podium--rise * { animation: none; }
+  .spy-reveal__cover { display: none; }
+  .hold-card > *, .hold-next { transition: none; }
+  .xo-cell__gone { animation: none; }
+  .first-play-card.is-dismissing { transition: none; }
+}
+
+
+</style>

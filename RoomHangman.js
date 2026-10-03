@@ -111,7 +111,7 @@ const hmBoardView = (room, b) => {
   const h = room._hm || {};
   const v = { g: b.g.slice(), miss: b.miss.slice(), state: b.state, pattern: hmPattern(h.word, b.g) };
   if (b.x && b.x.length) v.x = b.x.slice();
-  if (b.lr) v.lr = true;
+  if (b.lr) v.lr = typeof b.lr === 'string' ? b.lr : true;   // the letter it showed: already on the board, nothing new
   if (b.lx) v.lx = true;
   if (b.end !== undefined) v.end = b.end;
   const hints = hmOpenHints(room, b);

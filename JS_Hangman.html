@@ -119,7 +119,7 @@ function hmTilesHtml(pattern, alpha, o) {
     const raw = c || (full ? full[i] : '');
     const shown = alpha === 'en' ? raw.toUpperCase() : raw;
     const cls = ['hm-tile', c ? 'is-open' : '', !c && full ? (opt.lost ? 'is-lost' : 'is-open') : '',
-      c && open && hmFold(c) === open ? 'is-new' : ''].join(' ');
+      c && open && hmFold(c) === open ? 'is-new' : '', c && typeof opt.lr === 'string' && hmFold(c) === opt.lr ? 'is-bought' : ''].join(' ');
     words[words.length - 1].push(`<span class="${cls}">${escapeHTML(shown)}</span>`);
   });
   const letters = pattern.filter(c => c !== ' ').length;
@@ -135,13 +135,14 @@ function hmBlankPattern(s) {
 }
 
 /** The keyboard of the word's alphabet: a letter tried is green when it was in, faded when it wasn't; one a lifeline greyed is struck out. */
-function hmKeysHtml(alpha, g, miss, on, press, x) {
+function hmKeysHtml(alpha, g, miss, on, press, x, lr) {
   const letters = HM_LETTERS[alpha === 'en' ? 'en' : 'ar'];
   return `<div class="hm-keys" dir="${alpha === 'en' ? 'ltr' : 'rtl'}">${letters.map(l => {
     const hit = (g || []).indexOf(l) !== -1;
     const bad = (miss || []).indexOf(l) !== -1;
     const off = (x || []).indexOf(l) !== -1;
-    const cls = hit ? 'key key--correct' : (bad ? 'key key--absent is-miss' : (off ? 'key key--absent hm-key--off' : 'key'));
+    // The letter «اكشف حرف» bought is marked apart from the ones guessed (the owner, 3 Oct 2026).
+    const cls = hit ? (l === lr ? 'key key--correct hm-key--bought' : 'key key--correct') : (bad ? 'key key--absent is-miss' : (off ? 'key key--absent hm-key--off' : 'key'));
     return `<button type="button" class="${cls}" ${hit || bad || off || !on ? 'disabled' : `onclick="${press}('${l}')"`}>${escapeHTML(alpha === 'en' ? l.toUpperCase() : l)}</button>`;
   }).join('')}</div>`;
 }
@@ -159,7 +160,9 @@ function hmManHtml(o) {
   if ((o.state === 'won' || hanged) && o.end !== undefined && o.end !== null && end >= 0 && end < HM_ENDS) {
     // Every ending has the whole man, as in the owner's sheet (a solve with one miss used to play
     // its escape with a head alone, or an empty rope).
-    return hmEndSvg(o.state, end, { key: o.key || '', play: !!o.play, mini: !!o.mini, cls: o.cls || '' });
+    // 🔁 beside a full-size ending plays it again on this device (the owner, 3 Oct 2026).
+    const replay = o.mini || (typeof hmEndsStill === 'function' && hmEndsStill()) ? '' : `<button type="button" class="hme-replay" onclick="hmEndReplay(this)" aria-label="${escapeHTML(hmT('hm_end_replay'))}" title="${escapeHTML(hmT('hm_end_replay'))}">🔁</button>`;
+    return hmEndSvg(o.state, end, { key: o.key || '', play: !!o.play, mini: !!o.mini, cls: o.cls || '' }) + replay;
   }
   return hmGallowsSvg(misses, !!o.drawLast, o.cls, max);
 }
@@ -185,9 +188,15 @@ function hmHintsHtml(o) {
   if (!total) return '';
   // A hint that this very miss opened pops in (the 2nd on the 2nd miss, the 3rd on the 4th).
   const fresh = !!o.newMiss && open.length > 1 && HM_HINT_OPENS[open.length - 1] === (o.miss || []).length ? open.length - 1 : -1;
-  let html = open.map((h, i) => `<span class="hm-hint ${i ? 'hm-hint--more' : ''} ${i === fresh ? 'is-new' : ''}">💡${i ? '<b class="metric">' + (i + 1) + '</b>' : ''} ${escapeHTML(h)}</span>`).join('');
+  // No number in a pill (the owner, 3 Oct 2026: «💡2 فيها فصول» read as part of the hint); a lock says
+  // how many misses are left before it opens, not which miss it is.
+  let html = open.map((h, i) => `<span class="hm-hint ${i ? 'hm-hint--more' : ''} ${i === fresh ? 'is-new' : ''}">💡 ${escapeHTML(h)}</span>`).join('');
   if (o.state === 'play' || !o.state) {
-    for (let i = open.length; i < total; i++) html += `<span class="hm-hint hm-hint--locked">🔒 ${escapeHTML(hmT('hm_hint_locked', { n: HM_HINT_OPENS[i] }))}</span>`;
+    const made = (o.miss || []).length;
+    for (let i = open.length; i < total; i++) {
+      const n = Math.max(1, HM_HINT_OPENS[i] - made);
+      html += `<span class="hm-hint hm-hint--locked">🔒 ${escapeHTML(hmT(n === 1 ? 'hm_hint_in_1' : n === 2 ? 'hm_hint_in_2' : 'hm_hint_in', { n: n }))}</span>`;
+    }
   }
   return `<span class="hm-hints">${html}</span>`;
 }
@@ -210,17 +219,21 @@ function hmBoardHtml(o) {
   const wrong = (o.miss || []).map(m => (m.length > 1 ? '✗' + m : m)).map(m => (o.alpha === 'en' ? m.toUpperCase() : m)).join(' ');
   const done = o.state === 'won' || o.state === 'lost';
   const lives = hmT('hm_misses_of', { n: misses, m: max });
+  // The misses as dots in the stage's corner, the wrong letters under them (the owner, 3 Oct 2026: the
+  // board fits on a phone); a newly filled dot pops.
+  const pips = `<span class="hm-pips" role="img" aria-label="${escapeHTML(lives)}">${Array.from({ length: max }, (_, i) => `<i class="${i < misses ? 'is-on' : ''} ${o.newMiss && i === misses - 1 ? 'is-new' : ''}"></i>`).join('')}</span>`;
   return `<div class="hm-board ${done ? 'is-' + o.state : ''}">
       <div class="hm-board__head">
         <span class="hm-board__who">${o.head || ''}${hmHintsHtml(o)}</span>
-        <span class="hm-lives" aria-label="${escapeHTML(lives)}">${hmFireHtml(o.fire)}${escapeHTML(lives)}</span>
+        ${o.fire >= 2 ? `<span class="hm-lives">${hmFireHtml(o.fire)}</span>` : ''}
       </div>
       <div class="hm-stage">
+        <div class="hm-stage__miss">${pips}<p class="hm-wrong" dir="${o.alpha === 'en' ? 'ltr' : 'rtl'}">${wrong ? escapeHTML(wrong) : ''}</p></div>
         ${hmManHtml({ misses: misses, max: max, state: o.state, end: o.end, key: o.endKey, play: o.endPlay, drawLast: !!o.newMiss })}
-        ${hmTilesHtml(o.pattern, o.alpha, { word: done ? o.word : '', lost: o.state === 'lost', open: o.open })}
-        <p class="hm-wrong" dir="${o.alpha === 'en' ? 'ltr' : 'rtl'}">${wrong ? escapeHTML(wrong) : '&nbsp;'}</p>
+        ${hmTilesHtml(o.pattern, o.alpha, { word: done ? o.word : '', lost: o.state === 'lost', open: o.open, lr: o.lr })}
       </div>
-      ${done ? '' : hmKeysHtml(o.alpha, o.g, o.miss, !!o.on, o.press, o.x)}
+      ${done && o.after ? `<div class="hm-after">${o.after}</div>` : ''}
+      ${done ? '' : hmKeysHtml(o.alpha, o.g, o.miss, !!o.on, o.press, o.x, o.lr)}
       ${done ? '' : hmLifeHtml(o)}
       ${done || !o.on ? '' : `<form class="hm-whole" onsubmit="event.preventDefault(); ${o.whole}(this)">
           <input type="text" name="w" maxlength="28" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHTML(hmT('hm_whole_ph'))}" aria-label="${escapeHTML(hmT('hm_whole_ph'))}">
@@ -606,21 +619,26 @@ function paintHangman(fx) {
   const b = s.board;
   const done = s.step === 'done';
   const hints = (s.hints && s.hints.length ? s.hints : (s.hint ? [s.hint] : []));
-  el.innerHTML = `${tally}
-    ${hmBoardHtml({
-      pattern: hmPattern(s.word, b.g), alpha: hmAlphaOf(s.word), g: b.g, miss: b.miss, state: b.state, word: s.word,
-      on: !done, press: 'hmLocalGuess', whole: 'hmLocalWhole', newMiss: o.newMiss, open: o.open,
-      head: `<span class="hm-cat">${escapeHTML(hmT('hm_guess_title', { name: guesser, setter: writer }))}</span>`,
-      hints: hints.slice(0, hmHintsOpen(b.miss.length)), hintsN: hints.length,
-      max: b.max || HM_MISSES, x: b.x, lr: b.lr, lx: b.lx, reveal: 'hmLocalReveal', remove: 'hmLocalRemove',
-      end: b.end, endKey: 'local|' + s.words + '|' + s.word, endPlay: !!o.ended, fire: s.streak[1 - s.setter]
-    })}
-    ${done ? `<div class="card card--accent hm-end">
+  // The result card is part of the board (o.after): on a phone on its side it takes the keys' empty
+  // column, so «الكلمة الجاية» is on the screen (the owner, 3 Oct 2026); upright it sits under the drawing.
+  const endCard = done ? `<div class="card card--accent hm-end">
         <p class="sheet__title">${escapeHTML(b.state === 'won' ? hmT('hm_won') : hmT('hm_lost_was'))}</p>
         ${b.state === 'won' ? '' : `<p class="hm-end__word">${escapeHTML(s.word)}</p>`}
         ${s.gain ? `<p class="field__hint hm-end__pts">${escapeHTML(hmT(b.state === 'won' ? 'hm_local_gain' : 'hm_local_gain_writer', { name: b.state === 'won' ? guesser : writer, n: hmLtr('+' + s.gain) }))}</p>` : ''}
         <button type="button" class="btn btn--primary btn--lg" onclick="hmLocalNext()">${escapeHTML(hmT('hm_next_swap', { name: guesser }))}</button>
-      </div>` : ''}`;
+      </div>` : '';
+  // The tally on the title's line, shown instead of the tally row on a phone on its side.
+  const scoreLine = `<span class="hm-score-line">${[0, 1].map(i => `<span><bdi>${escapeHTML(names[i])}</bdi> <b class="metric">${s.tally[i] || 0}</b></span>`).join('<span aria-hidden="true">·</span>')}</span>`;
+  el.innerHTML = `${tally}
+    ${hmBoardHtml({
+      pattern: hmPattern(s.word, b.g), alpha: hmAlphaOf(s.word), g: b.g, miss: b.miss, state: b.state, word: s.word,
+      on: !done, press: 'hmLocalGuess', whole: 'hmLocalWhole', newMiss: o.newMiss, open: o.open,
+      head: `<span class="hm-cat">${escapeHTML(hmT('hm_guess_title', { name: guesser, setter: writer }))}</span>${scoreLine}`,
+      hints: hints.slice(0, hmHintsOpen(b.miss.length)), hintsN: hints.length,
+      max: b.max || HM_MISSES, x: b.x, lr: b.lr, lx: b.lx, reveal: 'hmLocalReveal', remove: 'hmLocalRemove',
+      end: b.end, endKey: 'local|' + s.words + '|' + s.word, endPlay: !!o.ended, fire: s.streak[1 - s.setter],
+      after: endCard
+    })}`;
   hmAfterBoard(el, o);
 }
 
@@ -777,6 +795,15 @@ function hmMiniMan(s, p, cls, late, moment) {
     .replace('<svg ', late ? `<svg style="--hm-late: -${late}ms" ` : '<svg ');
 }
 
+/**
+ * How many misses a board made, as small dots (filled one a miss): an ending draws the whole man, so
+ * the man alone no longer tells (the owner, 3 Oct 2026). On the table's rows and the result's rows.
+ */
+function hmMissDots(miss, max) {
+  const n = Math.max(0, Number(miss) || 0), m = Math.max(n, Number(max) || HM_MISSES);
+  return `<span class="hm-misses" role="img" aria-label="${escapeHTML(hmT('hm_misses_of', { n: n, m: m }))}">${Array.from({ length: m }, (_, i) => `<i class="${i < n ? 'is-on' : ''}"></i>`).join('')}</span>`;
+}
+
 /** Everyone's man, how far they are and how it ended: what the table may see of each board. */
 function hmProgressHtml(state, tv) {
   const s = state.shared;
@@ -794,6 +821,7 @@ function hmProgressHtml(state, tv) {
         <span class="hm-row__who">${escapeHTML(hmNameOf(state, id))}${hmFireHtml((s.streak || {})[id])}</span>
         ${hmMiniMan(s, p, 'mini', m ? m.late : 0, m ? m.cls : '')}
         <span class="hm-row__prog">${escapeHTML(hmT('hm_found', { n: p.n, m: s.len }))}</span>
+        ${hmMissDots(p.miss, max)}
         <span class="hm-row__st">${escapeHTML(st)}</span>
       </div>`;
   }).join('');
@@ -826,13 +854,13 @@ function hmResultHtml(state, tv) {
         ${hmAllHintsHtml(r)}
         <ul class="hm-results"><li class="hm-res is-${x.state} hm-res--team hm-team--${r.team} ${rise ? 'is-rise' : ''}">
           ${hmMiniMan(s, x, 'res', 0, '')}
-          <span class="hm-res__who">${won ? '✅' : (x.miss >= max ? '😵' : '⏰')} ${escapeHTML(hmTeamName(r.team))}${hmFireHtml(x.run)}${lifeOf(x)}</span><b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li></ul>
+          <span class="hm-res__who">${won ? '✅' : (x.miss >= max ? '😵' : '⏰')} ${escapeHTML(hmTeamName(r.team))}${hmFireHtml(x.run)}${lifeOf(x)}${hmMissDots(x.miss, max)}</span><b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li></ul>
         <p class="field__hint">${escapeHTML(hmT('hm_team_wrote', { name: r.setterName || '', team: hmTeamName(1 - r.team) }))}</p>
       </div>`;
   }
   const rows = (r.rows || []).map((x, i) => `<li class="hm-res is-${x.state} ${rise ? 'is-rise' : ''}" style="--at: ${i * 90}ms">
       ${hmMiniMan(s, x, 'res', 0, '')}
-      <span class="hm-res__who">${x.state === 'won' ? '✅' : (x.miss >= max ? '😵' : '⏰')} ${escapeHTML(x.name)}${hmFireHtml(x.run)}${lifeOf(x)}</span><b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li>`).join('');
+      <span class="hm-res__who">${x.state === 'won' ? '✅' : (x.miss >= max ? '😵' : '⏰')} ${escapeHTML(x.name)}${hmFireHtml(x.run)}${lifeOf(x)}${hmMissDots(x.miss, max)}</span><b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li>`).join('');
   const setter = r.setter && r.setterName ? `<li class="hm-res is-setter"><span>✍️ ${escapeHTML(hmT('hm_setter_pts', { name: r.setterName }))}</span><b class="metric">${r.setterPts ? '+' + r.setterPts : '0'}</b></li>` : '';
   return `<div class="card card--accent hm-result ${tv ? 'hm-result--tv' : ''}">
       <p class="eyebrow">${escapeHTML(r.cat || hmT('hm_the_word'))}</p>
@@ -1166,10 +1194,10 @@ ROOM_GAMES.hangman = {
           on: on, press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head,
           hints: (tb.hints && tb.hints.length ? tb.hints : (s.cat ? [s.cat] : [])), hintsN: s.hintsN, max: s.max, x: tb.x, lr: tb.lr, lx: tb.lx,
           reveal: on ? 'hmRoomReveal' : '', remove: 'hmRoomRemove', end: tb.end, endKey: hmEndKey(state, 'team'), endPlay: !!(fx.cheer || (fx.newMiss && tb.state === 'lost')),
-          fire: (s.streak || {})['t' + s.gt]
+          fire: (s.streak || {})['t' + s.gt],
+          after: tb.state && tb.state !== 'play' ? `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(tb.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p></div>` : ''
         });
         if (tb.state === 'play' && !on && myTeam === s.gt) mine += `<p class="field__hint hm-say">${escapeHTML(hmT('hm_team_say', { name: s.captainName || '' }))}</p>`;
-        if (tb.state && tb.state !== 'play') mine += `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(tb.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p></div>`;
       } else if (you.word) {
         mine = `<div class="card hm-mine-word"><p class="eyebrow">${escapeHTML(hmT('hm_your_word'))}</p>
             ${hmTilesHtml(Array.from(hmClean(you.word)), hmAlphaOf(you.word), {})}
@@ -1185,10 +1213,10 @@ ROOM_GAMES.hangman = {
           hints: s.setter ? ((b.hints && b.hints.length) ? b.hints : (s.cat ? [s.cat] : [])) : [], hintsN: s.setter ? s.hintsN : 0,
           max: s.max, x: b.x, lr: b.lr, lx: b.lx, reveal: on ? 'hmRoomReveal' : '', remove: 'hmRoomRemove',
           end: b.end !== undefined ? b.end : ((s.progress || {})[Room.me] || {}).end, endKey: hmEndKey(state, Room.me),
-          endPlay: !!(fx.cheer || (fx.newMiss && b.state === 'lost')), fire: (s.streak || {})[Room.me]
+          endPlay: !!(fx.cheer || (fx.newMiss && b.state === 'lost')), fire: (s.streak || {})[Room.me],
+          after: b.state !== 'play' ? `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(b.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p>
+            <p class="field__hint">${escapeHTML(hmT('hm_done_wait'))}</p></div>` : ''
         });
-        if (b.state !== 'play') mine += `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(b.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p>
-            <p class="field__hint">${escapeHTML(hmT('hm_done_wait'))}</p></div>`;
       } else {
         mine = `<div class="card hm-wait"><p class="sheet__title">${escapeHTML(hmT('hm_watching'))}</p>
             ${hmTilesHtml(hmBlankPattern(s), s.alpha, {})}${s.cat ? `<p class="field__hint">${escapeHTML(s.cat)}</p>` : ''}</div>`;
@@ -1287,7 +1315,7 @@ TV_GAMES.hangman = {
             <div class="hm-tv__head">
               <div class="tv-title">${escapeHTML(hmT('hm_word_from', { name: s.setterName || '' }))}</div>
               <div class="tv-note">🧢 ${escapeHTML(hmT('hm_captain_is', { name: s.captainName || '' }))} · ${escapeHTML(hmT('hm_misses_of', { n: misses, m: s.max || HM_MISSES }))}</div>
-              ${hmHintsHtml({ hints: (tb.hints && tb.hints.length ? tb.hints : (s.cat ? [s.cat] : [])), hintsN: s.hintsN, state: tb.state })}
+              ${hmHintsHtml({ hints: (tb.hints && tb.hints.length ? tb.hints : (s.cat ? [s.cat] : [])), hintsN: s.hintsN, state: tb.state, miss: tb.miss || [] })}
               ${hmTilesHtml(tb.pattern || hmBlankPattern(s), s.alpha, { word: tb.state === 'won' && s.result ? s.result.word : '', open: fx.open })}
               <p class="hm-wrong" dir="${s.alpha === 'en' ? 'ltr' : 'rtl'}">${wrong ? escapeHTML(wrong) : '&nbsp;'}</p>
             </div>

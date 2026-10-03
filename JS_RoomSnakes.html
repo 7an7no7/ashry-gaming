@@ -439,12 +439,22 @@ ROOM_GAMES.snakes = {
         </div>
         ${sw('surprises', '🎁', snkT('snk_surp_hint'))}
         ${sw('moving', '🐍', snkT('snk_moving_hint'))}` : '';
+    // The colours stay open (that's where the table sits down); the map, the switches and the clock fold
+    // into one row with a line of what is picked (the owner's sheet, 3 Oct 2026), opened by a tap.
+    const open = !!lobbyOptsOpen['snakes-rules'];
+    const rules = state.youAreHost ? `<details class="lobby-opts snk-rules" ${open ? 'open' : ''} data-r="${open ? 1 : 0}" ontoggle="lobbyOptsToggled(this, 'snakes-rules')">
+          <summary class="lobby-opts__head">
+            <span class="lobby-opts__title">🗺️ ${escapeHTML(snkT('snk_rules_fold'))}</span>
+            <span class="lobby-opts__sum"></span>
+            <span class="lobby-opts__chev" aria-hidden="true">▾</span>
+          </summary>
+          <div class="lobby-opts__body">${more}${clock}</div>
+        </details>` : '';
     return `<div class="card card--tight snk-lobby">
         ${snkColorPickerHtml(state)}
         ${snkSeatsHtml(state)}
         ${snkTeamsHtml(state)}
-        ${more}
-        ${clock}
+        ${rules}
         <p class="field__hint" style="text-align:center">${escapeHTML(snkT('snk_lobby_hint'))}</p>
       </div>`;
   },

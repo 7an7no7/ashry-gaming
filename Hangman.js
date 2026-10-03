@@ -346,7 +346,7 @@ const hmReveal = (board, word) => {
   if (left.length < 2) return '';
   const k = left[Math.floor(Math.random() * left.length)];
   board.g.push(k);
-  board.lr = true;
+  board.lr = k;           // the letter it showed, so the board can mark it apart (truthy, as `true` was)
   return k;
 };
 

@@ -71,6 +71,11 @@ const SNK_BOT_MS = [650, 1100];             // the phone "thinking" before a com
 // so they live here and not in TRANSLATIONS (the shell's size budget).
 const SNK_BUBBLES = {
   ar: {
+    // The polish of 3 Oct 2026: the reach key, the folded lobby, the game in progress, the TV's last roll.
+    snk_reach_key: "المربعات المعلّمة: فين ممكن تقف بالرمية دي. الأخضر سلّم والأحمر تعبان",
+    snk_rules_fold: "الخريطة والقواعد",
+    snk_cont_line: "أنت على {n} · الدور على {name}",
+    snk_rolled: "{name} جاب {n}",
     // The log, in each themed map's own words (snkEvKey).
     snk_ev_snake_nile: "التمساح نزّل {name} من {from} لـ {to}",
     snk_ev_ladder_nile: "{name} طلع النخلة من {from} لـ {to}",
@@ -205,6 +210,10 @@ const SNK_BUBBLES = {
     snk_b_hara_ful: "فول",
   },
   en: {
+    snk_reach_key: "The marked squares: where this roll could land you. Green is a ladder, red a snake",
+    snk_rules_fold: "Map and rules",
+    snk_cont_line: "You are on {n} · {name} to roll",
+    snk_rolled: "{name} rolled {n}",
     // The log, in each themed map's own words (snkEvKey).
     snk_ev_snake_nile: "A crocodile took {name} down from {from} to {to}",
     snk_ev_ladder_nile: "{name} climbed a palm from {from} to {to}",
@@ -708,8 +717,10 @@ function snkFit() {
   const gap = parseFloat(cs.columnGap) || 0;
   const sideMin = side ? parseFloat(getComputedStyle(side).minWidth) || 0 : 0;
   const availW = lay.clientWidth - gap - sideMin;
-  const h = Math.max(180, Math.floor(Math.min(availH, availW / SNK_RATIO)));
-  const bw = Math.floor(h * SNK_RATIO) + 'px', fh = Math.floor(Math.max(availH, h)) + 'px';
+  const vb = root.querySelector('.snk-svg') && root.querySelector('.snk-svg').viewBox.baseVal;
+  const ratio = vb && vb.height ? vb.width / vb.height : SNK_RATIO;
+  const h = Math.max(180, Math.floor(Math.min(availH, availW / ratio)));
+  const bw = Math.floor(h * ratio) + 'px', fh = Math.floor(Math.max(availH, h)) + 'px';
   if (lay.style.getPropertyValue('--snk-bw') !== bw) lay.style.setProperty('--snk-bw', bw);
   if (lay.style.getPropertyValue('--snk-fh') !== fh) lay.style.setProperty('--snk-fh', fh);
 }
@@ -2744,7 +2755,10 @@ function snkSyncPlayers(c, g, me, keep) {
     if (p && p.col !== col) { p.e.remove(); p = null; }
     if (!p) {
       const e = snkEl('g', { class: 'snk-piece' }, c.piecesL);
-      e.innerHTML = snkPersonSvg(col);
+      // The disc under whoever's turn it is, and «أنت» on a plate under your own feet (the owner's sheet,
+      // 3 Oct 2026): under the feet, so it never covers a square's number. CSS shows each when it applies.
+      e.innerHTML = `<ellipse class="snk-updisc" cx="0" cy="17" rx="22" ry="7.5" fill="${col}"/>` + snkPersonSvg(col) +
+        `<g class="snk-metag" transform="translate(0 31)"><rect x="-16" y="-7.5" width="32" height="15" rx="7.5" fill="${col}" stroke="${SNK_INK}" stroke-width="1.6"/><text y="4" text-anchor="middle" font-size="10.5" font-weight="800" fill="#fff" font-family="Noto Kufi Arabic,system-ui,sans-serif">${escapeHTML(snkT('xo_you'))}</text></g>`;
       p = c.players[id] = { e: e, id: id, col: col, n: 0, x: 0, y: 0, k: 1, hidden: false };
     }
     p.order = i;
@@ -3427,7 +3441,7 @@ function snkBarHtml(k) {
         <div class="snk-bar__t2">${escapeHTML(lines[1] || '')}</div>
       </div>
       ${k.clock ? `<span class="badge badge--accent metric snk-bar__clock" data-snk-clock></span>` : ''}
-      ${canRoll ? `<button type="button" class="btn btn--primary btn--auto snk-bar__roll" data-snk-roll onclick="${k.rollJs}" disabled>🎲 ${escapeHTML(snkT('snk_roll'))}</button>` : ''}
+      ${canRoll ? `<button type="button" class="btn btn--primary btn--auto btn--lg snk-bar__roll" data-snk-roll onclick="${k.rollJs}" disabled>🎲 ${escapeHTML(snkT('snk_roll'))}</button>` : ''}
     </div>`;
 }
 
@@ -3476,6 +3490,8 @@ function snkFrameHtml(k) {
             </div>` : ''}
           ${snkStripHtml(k)}
           ${g.phase === 'play' ? snkBarHtml(k) : ''}
+          ${g.phase === 'play' && !k.tv ? `<p class="snk-reach-key hidden" data-snk-reach><span class="snk-reach-key__sw snk-reach-key__sw--plain" aria-hidden="true"></span><span class="snk-reach-key__sw snk-reach-key__sw--ladder" aria-hidden="true"></span><span class="snk-reach-key__sw snk-reach-key__sw--snake" aria-hidden="true"></span>${escapeHTML(snkT('snk_reach_key'))}</p>` : ''}
+          ${g.phase === 'play' && k.tv ? '<div class="snk-lastroll hidden" data-snk-lastroll></div>' : ''}
           <div class="snk-log" data-snk-log>${snkLogHtml(k)}</div>
           ${k.host || ''}
           ${k.strip || ''}
@@ -3503,9 +3519,31 @@ function snkState() {
 /** The themes as tiles to pick from (the setup and the room's lobby): the classic, the four maps and 🎲. */
 const SNK_THEME_ICON = { classic: '🐍', nile: '🐊', metro: '🚇', desert: '🏜️', hara: '🏙️', random: '🎲' };
 function snkThemePickerHtml(sel, fn) {
-  return SNAKES_THEMES.concat(['random']).map(id => `<button type="button" class="snk-theme ${sel === id ? 'is-active' : ''}" data-value="${id}" aria-pressed="${sel === id}" onclick="${fn}('${id}')">
-      <span class="snk-theme__ic" aria-hidden="true">${SNK_THEME_ICON[id]}</span><span class="snk-theme__name">${escapeHTML(snkT('snk_theme_' + id))}</span>
+  return SNAKES_THEMES.concat(['random']).map(id => `<button type="button" class="snk-theme ${sel === id ? 'is-active' : ''}" data-value="${id}" data-sum-pick aria-pressed="${sel === id}" onclick="${fn}('${id}')">
+      ${snkThemeMiniSvg(id) || `<span class="snk-theme__ic" aria-hidden="true">${SNK_THEME_ICON[id]}</span>`}<span class="snk-theme__name">${escapeHTML(snkT('snk_theme_' + id))}</span>
     </button>`).join('');
+}
+/**
+ * A map's tile shows a corner of its own board (the owner's sheet, 3 Oct 2026): six by three of its
+ * real squares in its frame, with its icon on a badge. Drawn once a map and kept.
+ */
+const snkThemeMiniCache = {};
+function snkThemeMiniSvg(id) {
+  if (id === 'random') return '';
+  if (snkThemeMiniCache[id]) return snkThemeMiniCache[id];
+  const th = id === 'classic' ? null : (typeof SNK_THEMES !== 'undefined' && SNK_THEMES[id]);
+  if (id !== 'classic' && !th) return '';
+  const lk = SNK_LOOK;
+  let sq = '';
+  for (let r = 0; r < 3; r++) for (let col = 0; col < 6; col++) {
+    const x = col * SNK_C, y = r * SNK_C, alt = (r + col) % 2;
+    let tl = null;
+    try { tl = th ? th.tile(91 + col - r * 10, x, y, alt) : null; } catch (e) { tl = null; }
+    sq += tl && tl.svg ? tl.svg : `<rect x="${x}" y="${y}" width="${SNK_C}" height="${SNK_C}" fill="${tl ? tl.fill : (alt ? lk.tileB : lk.tileA)}"/>`;
+  }
+  const frame = th ? th.frame : lk.frame;
+  const w = 6 * SNK_C, h = 3 * SNK_C;
+  return (snkThemeMiniCache[id] = `<span class="snk-theme__mini" aria-hidden="true"><svg viewBox="-14 -14 ${w + 28} ${h + 28}" preserveAspectRatio="xMidYMid slice"><rect x="-14" y="-14" width="${w + 28}" height="${h + 28}" rx="16" fill="${frame}"/><g>${sq}</g></svg><span class="snk-theme__badge">${SNK_THEME_ICON[id]}</span></span>`);
 }
 /** 🎲: one of the maps, drawn at the start of each game. */
 const snkPickTheme = (t) => (t === 'random' ? SNAKES_THEMES[Math.floor(Math.random() * SNAKES_THEMES.length)] : (SNAKES_THEMES.indexOf(t) !== -1 ? t : 'classic'));
@@ -3525,7 +3563,19 @@ function paintSnakesSetup() {
     el.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
   const cont = document.getElementById('snakes-continue');
-  if (cont) cont.classList.toggle('hidden', !(s.g && s.g.phase === 'play'));
+  const live = !!(s.g && s.g.phase === 'play');
+  if (cont) cont.classList.toggle('hidden', !live);
+  const card = document.getElementById('snakes-continue-card');
+  if (card) {
+    card.classList.toggle('hidden', !live);
+    const line = document.getElementById('snakes-continue-line');
+    if (live && line) {
+      const names = Object.assign({}, s.names || {}, { me: snkT('xo_you') });
+      const up = s.g.turn && s.g.turn.pid;
+      const txt = snkT('snk_cont_line', { n: (s.g.pos || {}).me || 0, name: up === 'me' ? snkT('xo_you') : (names[up] || '') });
+      if (line.textContent !== txt) line.textContent = txt;
+    }
+  }
   const th = document.getElementById('snakes-theme');
   if (th) { const html = snkThemePickerHtml(s.theme, 'setSnakesTheme'); if (th._snk !== html) { th.innerHTML = html; th._snk = html; } }
   const sw = (id, on) => { const el = document.getElementById(id); if (el) el.checked = !!on; };
@@ -3649,6 +3699,9 @@ function snkSyncIdle(root, k) {
   const playing = busy && c && c.currentPid;
   const up = playing ? c.currentPid : (k.g.phase === 'play' && k.g.turn ? k.g.turn.pid : null);
   root.querySelectorAll('[data-snk-chip]').forEach(el => el.classList.toggle('is-turn', el.getAttribute('data-snk-chip') === up));
+  if (c) Object.keys(c.players).forEach(id => c.players[id].e.classList.toggle('is-up', id === up && !c.players[id].hidden));
+  snkMatSync(c, k, busy);
+  if (k.tv) snkLastRollSync(root, k);
   if (bar) {
     const lines = playing ? [up === k.me ? snkT('snk_your_turn') : snkT('snk_turn_of', { name: k.names[up] || '' }), ''] : snkBarLines(k);
     const t1 = bar.querySelector('.snk-bar__t1'), t2 = bar.querySelector('.snk-bar__t2'), dot = bar.querySelector('.snk-bar__dot');
@@ -3658,7 +3711,49 @@ function snkSyncIdle(root, k) {
     // Your roll button waits out of sight while someone else's roll is still being shown.
     if (btn) btn.classList.toggle('hidden', !!playing && up !== k.me);
   }
-  snkHintSync(k, !k.tv && !!btn && ready && !playing && k.g.phase === 'play' && !!k.g.turn && k.g.turn.pid === k.me);
+  const reach = !k.tv && !!btn && ready && !playing && k.g.phase === 'play' && !!k.g.turn && k.g.turn.pid === k.me;
+  snkHintSync(k, reach);
+  const key = root.querySelector('[data-snk-reach]');
+  if (key) key.classList.toggle('hidden', !reach);
+}
+
+/**
+ * The mat under the board folds away once every piece is on the board (the owner's sheet, 3 Oct 2026),
+ * and the space goes to the bar. On the maps whose strip under the frame is only the mat (the classic,
+ * النيل, المترو) the drawing loses that strip; الصحرا and الحارة keep theirs (camels, the road) and only
+ * the mat fades. A new game puts it back (its pieces start on it).
+ */
+const SNK_MAT_STRIP = 40;
+const SNK_MAT_CROP = { classic: 1, nile: 1, metro: 1 };
+function snkMatSync(c, k, busy) {
+  if (!c || !c.svg || busy) return;
+  const ids = (k.g.seats || []);
+  const off = ids.length > 0 && ids.every(id => ((k.g.pos || {})[id] || 0) > 0) && k.g.phase === 'play';
+  const was = c.svg.classList.contains('is-matless');
+  if (was === off) return;
+  c.svg.classList.toggle('is-matless', off);
+  const crop = off && SNK_MAT_CROP[(c.th && c.th.id) || 'classic'];
+  c.svg.setAttribute('viewBox', [SNK_VB[0], SNK_VB[1], SNK_VB[2], SNK_VB[3] - (crop ? SNK_MAT_STRIP : 0)].join(' '));
+  c.svg.classList.toggle('is-short', !!crop);
+  if (typeof snkFit === 'function') snkFit();
+}
+
+/** The TV shows the last roll it has played big, with whose it was (the owner's sheet, 3 Oct 2026). */
+function snkLastRollSync(root, k) {
+  const box = root.querySelector('[data-snk-lastroll]');
+  if (!box) return;
+  const c = snkView.c;
+  const seen = c && snkBusy() && typeof c.shownSeq === 'number' ? c.shownSeq : Infinity;
+  const e = (k.g.events || []).filter(x => x.type === 'roll' && (Number(x.seq) || 0) <= seen).pop();
+  const key = e ? e.seq + '|' + appState.lang : '';
+  if (box._snk === key) return;
+  box._snk = key;
+  if (!e) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  const name = k.names[e.by || e.pid] || '';
+  box.innerHTML = `<svg class="snk-lastroll__die" viewBox="-17 -17 34 34" aria-hidden="true"><rect x="-15" y="-15" width="30" height="30" rx="7" fill="#fff" stroke="${SNK_INK}" stroke-width="2"/>${snkPipsSvg(e.n)}</svg>
+      <span class="snk-lastroll__txt">${escapeHTML(snkT('snk_rolled', { name: name, n: e.n }))}</span>`;
+  if (motionFirst(['snk-lastroll', k.key, e.seq].join('|')) && !snkStill()) box.animate([{ transform: 'scale(0.7) rotate(-12deg)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 360, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1.3)' });
 }
 
 /*

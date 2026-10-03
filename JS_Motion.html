@@ -129,11 +129,49 @@ function catalogIconFlight(g, fromEl) {
   if (!icon) return null;
   const from = icon.getBoundingClientRect();
   const fromFont = parseFloat(getComputedStyle(icon).fontSize);
+  // A poster or a first-visit card grows into the game's header as its icon
+  // flies there (the owner's look 4A, 3 Oct 2026); a recent tile or a tool row
+  // is too small to grow from, and only its icon flies.
+  const card = fromEl.matches('.gcard, .start-card') ? fromEl.getBoundingClientRect() : null;
+  const radius = card ? getComputedStyle(fromEl).borderTopLeftRadius : '';
   return () => {
     const view = document.getElementById('view-' + appState.currentView);
     const target = view && view.querySelector('.game-hero .game-hero__icon');
+    if (card) catalogCardGrow(g, card, radius, view && view.querySelector('.game-hero .game-hero__art'));
     if (target) flyEmoji(g.icon, from, fromFont, target, { duration: 560, arc: 28 });
   };
+}
+
+/** The game's colour, from the card tapped to the header's art band: one box
+ *  scaled with transform from the card's place and size to the band's, then
+ *  faded, so the band is under it when it goes. */
+function catalogCardGrow(g, from, radius, art) {
+  if (!art || !from || motionOff() || !document.body.animate) return;
+  const to = restingRect(art);
+  if (!to.width || !to.height) return;
+  const box = document.createElement('div');
+  box.className = 'card-grow';
+  box.setAttribute('data-accent', g.accent || 'violet');
+  box.style.left = to.left + 'px';
+  box.style.top = to.top + 'px';
+  box.style.width = to.width + 'px';
+  box.style.height = to.height + 'px';
+  box.style.borderRadius = radius || '20px';
+  document.body.appendChild(box);
+  const sx = from.width / to.width;
+  const sy = from.height / to.height;
+  const dx = from.left - to.left;
+  const dy = from.top - to.top;
+  const grow = box.animate([
+    { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + sx + ', ' + sy + ')', opacity: 1 },
+    { transform: 'none', opacity: 1, offset: 0.78 },
+    { transform: 'none', opacity: 0 }
+  ], { duration: 440, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'both' });
+  let gone = false;
+  const done = () => { if (gone) return; gone = true; box.remove(); };
+  grow.onfinish = done;
+  // Never only the animation's end (GEMINI.md, animationend is never the only path).
+  setTimeout(done, 800);
 }
 
 /* --- 2. A room deals a game -------------------------------------------------- */

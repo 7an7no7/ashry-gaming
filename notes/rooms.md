@@ -587,3 +587,10 @@ forgotten with the room (`roomHubSearch` cleared with `roomHubGroup`). Both list
 laid out under the home's section heads now (`roomGameSectionsHtml`), «تنفع دلوقتي» too,
 where it used to be one long grid. The TV host's list has no search (no keyboard).
 
+## The lobby: the people first (3 Oct 2026)
+
+The owner's look 1B. The player list sits right under the code (`#room-people`, moved up in Controller.html), and the host's phone has two tabs (`#room-lobby-tabs`): «👥 اللاعبين (n)» - «الشلة» and the people, with «🎮 اختار لعبة» under them while no game is picked - and the game's tab: «اختار لعبة» (the hub, المهمة السرية, برنامج السهرة) or, once a game is chosen, «اللعبة: …» with its options. Picking a game turns the lobby to that tab by itself; «تغيير» goes back to the list there; a room opens on the people. `roomLobbyTabsSync(state, spectator)` keeps the tab per room code on this phone (`roomLobbyTabState`) and sets `#view-room-lobby[data-tab]`, which hides the other panel. Players who aren't the host, and a mid-round joiner, get no tabs: the people, then the game chosen. Start stays on screen on both tabs.
+
+## The TV's lobby as a stage (3 Oct 2026)
+
+The owner's look 2A. Every TV lobby is always dark: `#view-room-tv.tv-showtime` shares مافيا's night tokens (Style_Arcade.html), whatever the theme. A TV that isn't the host, with nothing of a game's own to draw there (teams, المهمة السرية's board), draws `tv-lobby--stage` (tvLobby, JS_RoomTv.html): «يلا نلعب!», the code in four colours beside the QR, the night's line under it (`tvNightLine`), the game chosen, and everyone as a big face along the foot - a colour per person all evening (`tvFaceAccent`), dimmed when away. A new face drops in with a bounce and a glow and a soft pop (`playSound('pop')`, once per draw, never on the TV's first draw of a room: `tvStageSeen`). The strip goes on the stage. A host TV keeps its columns (the QR, the game list) on the dark stage.

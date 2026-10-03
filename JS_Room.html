@@ -1442,6 +1442,8 @@ function renderRoomLobby(state, opts) {
     }
   }
 
+  roomLobbyTabsSync(state, !!(opts && opts.spectator));
+
   // A mid-round joiner's panel is the spectator note (renderRoomSpectator): the hub written here
   // first and the note straight after was two rewrites on every state, the hub flashing between.
   if (setup && !(opts && opts.spectator)) {
@@ -1470,6 +1472,61 @@ function renderRoomLobby(state, opts) {
       setup.addEventListener('click', later);
     }
   }
+}
+
+/* The lobby's two tabs for the host (the owner's look 1B, 3 Oct 2026): «اللاعبين (n)»
+   and the game - «اختار لعبة», then «اللعبة: …» once one is picked, and the lobby
+   turns to it by itself; «تغيير» goes back to the list there. A room opens on the
+   people. Everyone else (and a mid-round joiner) gets no tabs: the people, then
+   the game chosen. The tab is this phone's, kept per room code. */
+const roomLobbyTabState = { code: '', game: null, tab: 'people' };
+
+function roomLobbyTabsSync(state, spectator) {
+  const view = document.getElementById('view-room-lobby');
+  const tabs = document.getElementById('room-lobby-tabs');
+  const go = document.getElementById('room-go-game');
+  if (!view || !tabs) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const host = !!state.youAreHost && !spectator;
+  tabs.classList.toggle('hidden', !host);
+  if (!host) {
+    delete view.dataset.tab;
+    if (go) go.classList.add('hidden');
+    return;
+  }
+  const s = roomLobbyTabState;
+  const game = state.game || null;
+  if (s.code !== state.code) { s.code = state.code; s.game = game; s.tab = game ? 'game' : 'people'; }
+  else if (game !== s.game) { s.game = game; if (game) s.tab = 'game'; }
+  view.dataset.tab = s.tab;
+  const entry = game && ROOM_HUB_GAMES.find(g => g.id === game);
+  const label = {
+    people: `<span aria-hidden="true">👥</span> ${escapeHTML(t.room_players || '')} <span class="metric">(${state.players.length})</span>`,
+    game: entry
+      ? `<span aria-hidden="true">${iconHtml(entry.icon)}</span> ${escapeHTML((t.room_tab_game || '{g}').replace('{g}', t[entry.key] || entry.id))}`
+      : `<span aria-hidden="true">🎮</span> ${escapeHTML(t.room_pick_game || '')}`
+  };
+  tabs.querySelectorAll('[data-tab]').forEach(b => {
+    const on = b.dataset.tab === s.tab;
+    if (b.dataset.sig !== label[b.dataset.tab]) { b.innerHTML = label[b.dataset.tab]; b.dataset.sig = label[b.dataset.tab]; }
+    if (b.classList.contains('is-active') !== on) b.classList.toggle('is-active', on);
+    b.setAttribute('aria-selected', String(on));
+  });
+  if (go) {
+    go.classList.toggle('hidden', s.tab !== 'people' || !!game);
+    const html = `<span aria-hidden="true">🎮</span> ${escapeHTML(t.room_pick_game || '')}`;
+    if (go.dataset.sig !== html) { go.innerHTML = html; go.dataset.sig = html; }
+  }
+}
+
+/** A tap on a lobby tab (or the people's «اختار لعبة»). */
+function roomLobbyTab(tab) {
+  const next = tab === 'game' ? 'game' : 'people';
+  if (roomLobbyTabState.tab === next) return;
+  roomLobbyTabState.tab = next;
+  haptic('light');
+  if (Room.state && appState.currentView === 'room-lobby') renderRoomLobby(Room.state);
+  if (typeof scrollToAction === 'function') scrollToAction();
 }
 
 /** A text box, a word list or an open picker inside `root` has the focus. */

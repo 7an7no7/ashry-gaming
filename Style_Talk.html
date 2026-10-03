@@ -1982,4 +1982,60 @@ body.is-tv-view .hm-misses i { width: 1.4vmin; height: 1.4vmin; border-width: 0.
   .game-hero__text { margin-top: -1.25rem; }
   .game-hero__title { font-size: 1.5rem; }
 }
+/* A phone's shelves (look 3A): three posters and the edge of a fourth in sight. */
+@media (max-width: 899px), (max-height: 500px) {
+  .gcard-grid.gcard-grid--shelf { grid-auto-columns: 7.25rem; gap: var(--sp-2); }
+  .section.is-open > .gcard-grid--shelf, .is-searching .gcard-grid--shelf { grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); }
+}
+/* Opening a game (look 4A): the card tapped grows into the header's art band
+   (catalogCardGrow, JS_Motion.html), under the icon's own flight. */
+.card-grow { position: fixed; z-index: var(--z-float-hi); transform-origin: 0 0; background: linear-gradient(150deg, var(--accent), var(--accent-hover)); box-shadow: var(--poster-shadow, var(--sh-3)); pointer-events: none; will-change: transform, opacity; }
+/* The TV's lobby as a stage (the owner's look 2A, 3 Oct 2026; tvLobby's
+   tv-lobby--stage for a TV that isn't the host): «يلا نلعب!», the code beside
+   the QR, everyone as a big face along the foot, each new one dropping in with a
+   bounce. Always dark (.tv-showtime shares مافيا's night tokens). The strip is
+   the faces here, so it goes. */
+.tv-lobby.tv-lobby--stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto auto auto; justify-items: center; align-items: center; align-content: stretch; height: 100%; gap: calc(var(--tv-gap) * 1.2); }
+.tv-show__hello { margin: 0; font-family: var(--font-display); font-size: calc(var(--tv-xl) * 1.05); font-weight: 900; line-height: 1.1; color: var(--text-strong); text-shadow: 0 0.6vmin 0 rgba(0, 0, 0, 0.35); }
+.tv-show__mid { display: flex; align-items: center; justify-content: center; gap: 6vmin; min-height: 0; }
+.tv-lobby--stage .tv-qr { width: min(28vmin, 420px); padding: 1.4vmin; border-radius: 2.4vmin; background: #ffffff; box-shadow: 0 0 0 1vmin rgba(255, 255, 255, 0.08), 0 3vmin 6vmin -2vmin rgba(0, 0, 0, 0.6); }
+.tv-show__join { display: grid; justify-items: center; gap: 1.2vmin; }
+.tv-join__code.tv-show__code { display: flex; gap: 1.4vmin; font-size: 14vmin; font-weight: 900; line-height: 1; letter-spacing: 0; background: none; -webkit-text-fill-color: currentColor; color: #ffffff; filter: drop-shadow(0 1vmin 0 rgba(0, 0, 0, 0.35)); }
+.tv-show__code > span:nth-child(4n+1) { color: #fbbf24; }
+.tv-show__code > span:nth-child(4n+2) { color: #fb7185; }
+.tv-show__code > span:nth-child(4n+3) { color: #f472b6; }
+.tv-show__code > span:nth-child(4n+4) { color: #a78bfa; }
+.tv-show__join .tv-join__hint { max-width: 36ch; text-align: center; color: var(--text-2); }
+.tv-show__faces { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 2vmin 3vmin; max-width: 94%; }
+.tv-lobby--stage .tv-lobby__player { display: grid; justify-items: center; gap: 1vmin; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.tv-lobby--stage .tv-lobby__avatar { width: 10.5vmin; height: 10.5vmin; border-radius: 50%; font-size: 4.8vmin; box-shadow: 0 0 0 0.6vmin rgba(255, 255, 255, 0.9), 0 2vmin 4vmin -1vmin rgba(0, 0, 0, 0.6); }
+.tv-lobby--stage .tv-lobby__name { max-width: 16vmin; font-size: var(--tv-sm); }
+.tv-show__faces:has(> :nth-child(9)) .tv-lobby__avatar { width: 8vmin; height: 8vmin; font-size: 3.6vmin; }
+.tv-lobby--stage .tv-lobby__player.is-away { opacity: 0.45; }
+.tv-lobby--stage .tv-lobby__player.is-new { animation: tv-face-drop 720ms cubic-bezier(0.3, 0.7, 0.3, 1) both; }
+.tv-lobby--stage .tv-lobby__player.is-new .tv-lobby__avatar { animation: tv-face-glow 1400ms ease-out both; }
+@keyframes tv-face-drop {
+  0%   { opacity: 0; transform: translateY(-36vmin) scale(0.6); }
+  45%  { opacity: 1; transform: translateY(1.5vmin) scale(1.12, 0.88); }
+  68%  { transform: translateY(-2.5vmin) scale(0.96, 1.05); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes tv-face-glow {
+  0%, 40% { box-shadow: 0 0 0 0.6vmin rgba(255, 255, 255, 0.9), 0 0 0 2vmin rgba(251, 191, 36, 0.55); }
+  100%    { box-shadow: 0 0 0 0.6vmin rgba(255, 255, 255, 0.9), 0 2vmin 4vmin -1vmin rgba(0, 0, 0, 0.6); }
+}
+.tv-lobby--stage .tv-lobby__game { max-width: min(90%, 60rem); }
+.tv-show__wait { margin: 0; font-size: var(--tv-sm); font-weight: 700; color: var(--text-2); }
+#view-room-tv:has(.tv-lobby--stage) .tv-strip { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tv-lobby--stage .tv-lobby__player.is-new, .tv-lobby--stage .tv-lobby__player.is-new .tv-lobby__avatar { animation: none; }
+}
+/* The room lobby's tabs for the host (look 1B): the people or the game, one at a
+   time (roomLobbyTabsSync). */
+.room-tabs { display: flex; margin: 0 0 var(--sp-4); }
+.room-tabs > .segmented__item { flex: 1 1 0; min-width: 0; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px; padding-inline: var(--sp-2); white-space: nowrap; overflow: hidden; }
+.room-tabs .art-icon { width: 1.2em; height: 1.2em; vertical-align: -0.2em; }
+#view-room-lobby[data-tab="people"] :is(#room-mission, #room-host-setup) { display: none; }
+#view-room-lobby[data-tab="game"] :is(#room-crew, #room-people) { display: none; }
+.room-go-game { margin-top: var(--sp-4); }
 </style>

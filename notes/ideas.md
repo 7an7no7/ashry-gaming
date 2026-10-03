@@ -76,3 +76,5 @@ https://claude.ai/artifact/TybGWnUVHhgWeitq1jPtWC was the first look sheet (1C, 
 2. The TV lobby as a stage: A dark show (big code beside the QR, faces along the bottom), B eight seats that fill, C a colour poster with the QR and «الليلة معانا» as a big guest list. A new face drops in and bounces.
 3. A shorter home for a returning player (5,372px on a phone): A shelves as on a laptop (2,806px), B four small tiles a row (3,043px), C folded sections with their icons in a row (1,626px).
 4. Opening a game: A the card grows into the header, B the screen rises as a sheet over the dimmed home, C the home zooms through the card.
+
+The owner picked 1B, 2A, 3A, 4A (3 Oct 2026), and answered: the lobby's tabs become «اللاعبين» / «اللعبة: …» once the host picks a game, and the room turns to the game's tab by itself (options and Start there, «تغيير» back to the list); other players' phones get no tabs - the code, the faces and «المضيف بيختار اللعبة…», then the chosen game's card under the faces; the TV's stage is always dark; a soft pop as each face lands on the TV (the app has no sound switch: the TV's own volume). All four built and live 3 Oct 2026.

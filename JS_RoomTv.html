@@ -221,6 +221,15 @@ function renderRoomTv(state) {
   // مافيا's night is played in the night palette on the TV (section 42): the
   // screen's own tokens go dark while the town sleeps; the app's theme is untouched.
   el.classList.toggle('tv-night', !lobby && state.game === 'mafia' && !!state.shared && state.shared.phase === 'night');
+  // The lobby is a stage, always dark whatever the theme (the owner, 3 Oct 2026),
+  // on the screen's own tokens like مافيا's night; a face landing pops softly.
+  el.classList.toggle('tv-showtime', lobby);
+  if (lobby && rebuilt) {
+    const first = !tvStageSeen[state.code];
+    tvStageSeen[state.code] = true;
+    if (tvStageNew && !first) setTimeout(() => playSound('pop'), motionOff() ? 0 : 380);
+  }
+  tvStageNew = 0;
 
   if (prog) {
     tvClock(null);
@@ -385,6 +394,38 @@ function tvLobbyEmptyHtml(state, t, url, entry) {
     </div>`;
 }
 
+/** The night's top three as one line under the code (or nothing yet). */
+function tvNightLine(state, t) {
+  // The night's table goes in this short column, not beside the game
+  // picker: with 25 games that side runs past the bottom of a 720p TV,
+  // and a TV does not scroll.
+  const night = state.night || {};
+  if (!Object.keys(night).length) return '';
+  const board = state.players.map(p => ({ id: p.id, name: p.name, score: night[p.id] || 0 }))
+    .sort((a, b) => b.score - a.score);
+  if (!board.some(r => r.score > 0)) return '';
+  // One line, not a table: under the QR there is about a line and a
+  // half left on a 720p screen, and a TV cannot scroll to the rest.
+  // The full table is on everyone's phone.
+  const medals = ['🥇', '🥈', '🥉'];
+  const top = board.filter(r => r.score > 0).slice(0, 3)
+    .map((r, i) => `${medals[i]} ${escapeHTML(r.name)} ${r.score}`).join(' · ');
+  return `<h2 class="tv-h">🌙 ${escapeHTML(t.room_night_title || 'ليلتنا')}</h2>
+          <p class="tv-join__hint">${top}</p>`;
+}
+
+/** A face's colour on the TV: the same for the same person all evening. */
+const TV_FACE_ACCENTS = ['violet', 'rose', 'teal', 'amber', 'blue', 'green', 'orange', 'indigo'];
+function tvFaceAccent(id) {
+  let h = 0;
+  for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return TV_FACE_ACCENTS[h % TV_FACE_ACCENTS.length];
+}
+/* Faces new in this draw (tvLobby counts them, renderRoomTv pops once for them),
+   and the rooms this TV has drawn a lobby for: the first draw pops nothing. */
+let tvStageNew = 0;
+const tvStageSeen = {};
+
 function tvLobby(state, t) {
   const url = roomJoinUrl(state.code);
   const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
@@ -411,11 +452,15 @@ function tvLobby(state, t) {
           ${cat && t[cat.desc] ? `<span>${escapeHTML(t[cat.desc])}</span>` : ''}
         </span>
       </div>` : '';
-    const tile = (p) => `
-        <div class="tv-lobby__player${typeof motionFirst === 'function' && motionFirst('tvlp|' + state.code + '|' + p.id) ? ' is-new' : ''}">
+    const tile = (p) => {
+      const fresh = typeof motionFirst === 'function' && motionFirst('tvlp|' + state.code + '|' + p.id);
+      if (fresh) tvStageNew++;
+      return `
+        <div class="tv-lobby__player${fresh ? ' is-new' : ''}${p.online === false ? ' is-away' : ''}" data-accent="${tvFaceAccent(p.id)}">
           <span class="tv-lobby__avatar" aria-hidden="true">${p.bot ? '🤖' : escapeHTML(Array.from(String(p.name || '?').trim())[0] || '?')}</span>
           <span class="tv-lobby__name"><bdi>${escapeHTML(p.name)}</bdi></span>
         </div>`;
+    };
     // A game whose lobby splits people up (السلم والتعبان's teams) draws them its own way here.
     const own = state.game && ROOM_GAMES[state.game] && typeof ROOM_GAMES[state.game].tvLobbyPlayers === 'function' ? ROOM_GAMES[state.game].tvLobbyPlayers(state, tile) : '';
     const people = own ? '' : `<div class="tv-lobby__players">${state.players.map(tile).join('')}</div>`;
@@ -423,6 +468,26 @@ function tvLobby(state, t) {
     const board = typeof missionTvBoardHtml === 'function' && state.mission && state.mission.on ? missionTvBoardHtml(state) : '';
     const top = state.game && ROOM_GAMES[state.game] && ROOM_GAMES[state.game].lobbyTop ? ROOM_GAMES[state.game].lobbyTop(state, true) : '';
     control = `${chosen}${top ? `<div class="tv-scale">${top}</div>` : ''}${board || own || people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
+    // The stage (the owner's look 2A, 3 Oct 2026): «يلا نلعب!», the code beside
+    // the QR, and everyone as a big face along the foot, each new one dropping in.
+    // A game that draws its own lobby (teams, المهمة السرية's board) keeps the columns.
+    if (!board && !own && !top) {
+      return `
+    <div class="tv-lobby tv-lobby--stage">
+      <h2 class="tv-show__hello">${escapeHTML(t.home_start_title || '')} <span aria-hidden="true">🎉</span></h2>
+      <div class="tv-show__mid">
+        <div id="tv-qr" class="tv-qr" aria-hidden="true"></div>
+        <div class="tv-show__join">
+          <div class="tv-join__code tv-show__code" dir="ltr">${Array.from(String(state.code || '')).map(c => `<span>${escapeHTML(c)}</span>`).join('')}</div>
+          <p class="tv-join__hint">${t.tv_join_hint || ''}</p>
+          ${tvNightLine(state, t)}
+        </div>
+      </div>
+      ${chosen}
+      <div class="tv-show__faces">${state.players.map(tile).join('')}</div>
+      <p class="tv-show__wait">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</p>
+    </div>`;
+    }
   } else if (!state.game) {
     const count = state.players.length;
     const tileHtml = (tile) => {
@@ -480,24 +545,7 @@ function tvLobby(state, t) {
         <div class="tv-join__code">${escapeHTML(state.code || '')}</div>
         <p class="tv-join__hint">${t.tv_join_hint || ''}</p>
         ${url ? `<p class="tv-join__url" dir="ltr">${escapeHTML(url.replace(/^https?:\/\//, ''))}</p>` : ''}
-        ${(() => {
-          // The night's table goes in this short column, not beside the game
-          // picker: with 25 games that side runs past the bottom of a 720p TV,
-          // and a TV does not scroll.
-          const night = state.night || {};
-          if (!Object.keys(night).length) return '';
-          const board = state.players.map(p => ({ id: p.id, name: p.name, score: night[p.id] || 0 }))
-            .sort((a, b) => b.score - a.score);
-          if (!board.some(r => r.score > 0)) return '';
-          // One line, not a table: under the QR there is about a line and a
-          // half left on a 720p screen, and a TV cannot scroll to the rest.
-          // The full table is on everyone's phone.
-          const medals = ['🥇', '🥈', '🥉'];
-          const top = board.filter(r => r.score > 0).slice(0, 3)
-            .map((r, i) => `${medals[i]} ${escapeHTML(r.name)} ${r.score}`).join(' · ');
-          return `<h2 class="tv-h">🌙 ${escapeHTML(t.room_night_title || 'ليلتنا')}</h2>
-                  <p class="tv-join__hint">${top}</p>`;
-        })()}
+        ${tvNightLine(state, t)}
       </section>
       <section class="tv-lobby__side">
         <h2 class="tv-h">${t.room_players || ''} <span class="tv-count">${state.players.length}</span></h2>

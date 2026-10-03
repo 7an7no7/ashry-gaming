@@ -1800,6 +1800,7 @@
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(appState.currentView) !== -1);
     document.body.classList.toggle('is-tv-view', appState.currentView === 'room-tv');
     document.body.classList.toggle('in-room-game', /^room-/.test(appState.currentView || '') && ['room-lobby', 'room-join', 'room-tv'].indexOf(appState.currentView) === -1);
+    syncNavRoom(appState.currentView);
     // A room screen restored after a reload is not reached through setView.
     if (typeof syncFxButton === 'function') syncFxButton(appState.currentView);
     
@@ -3231,6 +3232,30 @@
     document.head.appendChild(link);
   }
 
+  /* The raised centre button for the screen on show (the owner, 3 Oct 2026):
+     on مع بعض, whose page already opens a room, it is «ادخل غرفة»; while a
+     one-phone game is played it lowers into an ordinary tab, as in a room game
+     (body.in-play, section 67), so it never stands in the game's foot. */
+  function syncNavRoom(viewId) {
+    const v = viewId || '';
+    document.body.classList.toggle('in-play', /^(play|reveal|input)-/.test(v) || v === 'imposter-reveal' || v === 'results-teams');
+    const btn = document.getElementById('nav-room');
+    if (!btn) return;
+    const join = v === 'together';
+    if (btn.dataset.join === String(join)) return;
+    btn.dataset.join = String(join);
+    const glyph = btn.querySelector('.nav-room__btn');
+    const label = btn.querySelector('.nav-label');
+    if (glyph) glyph.textContent = join ? '🔑' : '+';
+    if (label) {
+      label.setAttribute('data-i18n', join ? 'join_room_menu' : 'room_open');
+      const t = TRANSLATIONS[appState.lang] || {};
+      label.textContent = (join ? t.join_room_menu : t.room_open) || label.textContent;
+    }
+    btn.setAttribute('onclick', join ? "roomOpenJoin('')" : 'roomCreateEmpty()');
+    btn.classList.toggle('nav-item--join', join);
+  }
+
   function setView(viewId) {
     // A game switched off for a fix (DisabledGames.js): its screens send you home with a word why.
     if (typeof gameOffForView === 'function' && gameOffForView(viewId)) {
@@ -3248,6 +3273,7 @@
     // A room game on screen (not its lobby): the raised «افتح غرفة» lowers into
     // an ordinary tab, so it never hangs over the game's own foot (section 42).
     document.body.classList.toggle('in-room-game', /^room-/.test(viewId || '') && ['room-lobby', 'room-join', 'room-tv'].indexOf(viewId) === -1);
+    syncNavRoom(viewId);
     const goingBack = viewDepth(viewId) < viewDepth(previous);
     // Remembered before the views are hidden: hiding them shrinks the scroll
     // height, and the position would be read back clamped.

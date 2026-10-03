@@ -107,7 +107,8 @@ target, and the first card sits at 445px now, a whole row above the fold:
   اختارلنا among them, on one row (`home-hero--compact`, 67px against 141).
   The mark and the name are in the header on this screen, so nothing is lost;
   a first visit gets the simple start instead (since 26 Sep 2026, above),
-  with the three ways in folded under «كل الألعاب». How
+  with the three ways in folded under «كل الألعاب» (on a screen 1280px wide
+  and up it opens by itself, `homeAllOpen`, the owner, 3 Oct 2026). How
   much a tile says follows **the hero's own width** (it is a container,
   `container-type: inline-size`), not the screen's: icon over name on a phone
   upright, icon beside name from 34rem (a phone on its side, a tablet

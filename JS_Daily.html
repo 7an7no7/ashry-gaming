@@ -71,31 +71,14 @@ function renderDaily() {
   const hours = Math.max(1, Math.ceil((midnight - now) / 3600000));
   const all = done.length === DAILY_GAMES.length;
   const first = motionFirst('daily-hub:' + soloToday() + ':' + done.length);
-  el.innerHTML = `
-    <div class="daily-head card">
-      <div class="daily-head__streak">
-        <span class="daily-head__fire" aria-hidden="true">${streak ? '🔥' : '🌱'}</span>
-        <span><b class="metric" id="daily-streak">${streak}</b> <span>${escapeHTML(streak === 1 ? (t.daily_day || '') : (t.daily_days || ''))}</span></span>
-        <span class="field__hint">${escapeHTML(t.daily_streak_hint || '')}</span>
-      </div>
-      <div class="daily-head__progress">
-        <span>${escapeHTML((t.daily_progress || '').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length))}</span>
-        <span class="daily-bar" aria-hidden="true"><i style="--p:${done.length / DAILY_GAMES.length}"${first ? ' class="is-new"' : ''}></i></span>
-        <span class="field__hint">${escapeHTML(all ? (t.daily_all_done || '') : (t.daily_renews || '').replace('{h}', hours))}</span>
-      </div>
-      <button type="button" class="btn btn--primary" onclick="shareDaily()" ${done.length ? '' : 'disabled'}>📤 ${escapeHTML(t.daily_share_all || '')}</button>
-      <div class="daily-head__actions">
-        <button type="button" class="btn btn--ghost btn--sm" onclick="shareDailyText()" ${done.length ? '' : 'disabled'}>${escapeHTML(t.share_card_text || '')}</button>
-        <button type="button" class="btn btn--secondary" onclick="openDailyArchive()">📅 ${escapeHTML(t.daily_archive || 'الأرشيف')}</button>
-        <button type="button" class="btn btn--secondary" onclick="openStats()">📊 ${escapeHTML(t.stats_title || 'أرقامي')}</button>
-      </div>
-    </div>
-    <div class="daily-list">
-      ${DAILY_GAMES.map(g => {
-        const cat = CATALOG_BY_ID[g.id];
-        const result = soloDailyResult(g.id);
-        const going = !result && soloDailyInProgress(g.id);
-        return `
+  // Today's puzzles come first (the owner, 3 Oct 2026): how far the day is, then
+  // the list; the streak, sharing and the archive under it. «شارك» shows once
+  // every puzzle of the day is done - before that it was a grey button on top.
+  const list = DAILY_GAMES.map(g => {
+    const cat = CATALOG_BY_ID[g.id];
+    const result = soloDailyResult(g.id);
+    const going = !result && soloDailyInProgress(g.id);
+    return `
           <button type="button" class="tool-item daily-row${result ? ' is-done' : ''}" data-accent="${cat.accent}" data-game="${g.id}" onclick="playDaily('${g.id}')" ${result ? 'disabled' : ''}>
             <span class="tool-icon" aria-hidden="true">${typeof iconHtml === 'function' ? iconHtml(cat.icon) : cat.icon}</span>
             <span class="tool-info">
@@ -104,7 +87,29 @@ function renderDaily() {
             </span>
             <span class="daily-row__status">${result ? escapeHTML(g.line(result)) : `<span class="badge">${escapeHTML(going ? (t.daily_continue || 'كمّل') : (t.daily_play || ''))}</span>`}</span>
           </button>`;
-      }).join('')}
+  }).join('');
+  el.innerHTML = `
+    <div class="daily-head daily-head--progress card">
+      <div class="daily-head__progress">
+        <span>${escapeHTML((t.daily_progress || '').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length))}</span>
+        <span class="daily-bar" aria-hidden="true"><i style="--p:${done.length / DAILY_GAMES.length}"${first ? ' class="is-new"' : ''}></i></span>
+        <span class="field__hint">${escapeHTML(all ? (t.daily_all_done || '') : (t.daily_renews || '').replace('{h}', hours))}</span>
+      </div>
+      ${all ? `<button type="button" class="btn btn--primary" onclick="shareDaily()">📤 ${escapeHTML(t.daily_share_all || '')}</button>
+      <button type="button" class="btn btn--ghost btn--sm" onclick="shareDailyText()">${escapeHTML(t.share_card_text || '')}</button>` : ''}
+    </div>
+    <div class="daily-list">${list}
+    </div>
+    <div class="daily-head card">
+      <div class="daily-head__streak">
+        <span class="daily-head__fire" aria-hidden="true">${streak ? '🔥' : '🌱'}</span>
+        <span><b class="metric" id="daily-streak">${streak}</b> <span>${escapeHTML(streak === 1 ? (t.daily_day || '') : (t.daily_days || ''))}</span></span>
+        <span class="field__hint">${escapeHTML(t.daily_streak_hint || '')}</span>
+      </div>
+      <div class="daily-head__actions">
+        <button type="button" class="btn btn--secondary" onclick="openDailyArchive()">📅 ${escapeHTML(t.daily_archive || 'الأرشيف')}</button>
+        <button type="button" class="btn btn--secondary" onclick="openStats()">📊 ${escapeHTML(t.stats_title || 'أرقامي')}</button>
+      </div>
     </div>`;
   const streakEl = document.getElementById('daily-streak');
   if (first && streak > 1 && streakEl && typeof countUp === 'function' && !motionOff()) countUp(streakEl, 0, streak);

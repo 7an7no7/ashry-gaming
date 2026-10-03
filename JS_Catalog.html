@@ -595,7 +595,10 @@ function tonightPaint() {
    was. STARTER_SHELF's first three are the cards. */
 const STARTER_SHELF = ['imposter', 'bomb', 'charades', 'trivia', 'uno', 'headsup', 'codenames', 'screw'];
 const START_CARDS = STARTER_SHELF.slice(0, 3);
-let homeAllOpen = false;
+// null until the home is first drawn: a laptop or a TV (1280px wide and up) opens
+// «كل الألعاب» under the three cards by itself, where a phone keeps it folded
+// (the owner, 3 Oct 2026: the big screen's first visit was half empty).
+let homeAllOpen = null;
 
 /* A game that can start from one tap, with whatever this phone chose last time
    (the setup screen is drawn first, so its remembered options are on it). A
@@ -994,6 +997,7 @@ function renderHome() {
         </span>
         <span class="start-card__go" aria-hidden="true">▶</span>
       </button>`).join('');
+    if (homeAllOpen === null) homeAllOpen = window.innerWidth >= 1280;
     const start = `
       <section class="home-start" data-accent="violet">
         <div class="home-start__head">
@@ -1357,11 +1361,6 @@ function catalogHeroHtml(g, t, switchId) {
   const card = firstPlayCardHtml(helpKey);
   return `
     <span class="game-hero__art" aria-hidden="true"><span class="game-hero__icon">${iconHtml(g.icon)}</span></span>
-    <button type="button" class="game-hero__rules" onclick="openHelpModal()"
-            title="${escapeHTML(t.hero_rules || '')}" aria-label="${escapeHTML(t.hero_rules || '')}">
-      <span aria-hidden="true">📘</span>
-      <span class="game-hero__rules-label">${escapeHTML(t.hero_rules || '')}</span>
-    </button>
     <span class="game-hero__text">
       <span class="game-hero__title">${escapeHTML(catalogTitle(g, t))}</span>
       <span class="game-hero__desc">${escapeHTML(catalogDesc(g, t))}</span>

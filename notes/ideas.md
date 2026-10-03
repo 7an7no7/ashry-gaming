@@ -51,7 +51,7 @@ new game*): reveals and podiums for the group games, `spinLetter` for anything
 drawn at random, `flyEmoji` or a ghost flight for placing things (Timeline,
 the word search), `countUp` for streaks and scores.
 
-## The whole-app UI pass, 3 Oct 2026 (waiting on the owner's picks)
+## The whole-app UI pass, 3 Oct 2026 (the owner picked 1-10)
 
 The page with screenshots: https://claude.ai/artifact/LKcti6ojxsaopYT7eYoMUw
 1. A shorter setup header on phones under ~700px tall (one row: icon, name, chips).
@@ -65,3 +65,5 @@ The page with screenshots: https://claude.ai/artifact/LKcti6ojxsaopYT7eYoMUw
 9. A laptop or TV's first visit opens «كل الألعاب» under the three cards.
 10. Chess sideways: the buttons as one row of icons, the board the full height.
 11. Puzzle cells named for VoiceOver (row, column, contents).
+
+The owner's answers (3 Oct 2026): 2 - drop the header's «القوانين», keep the «أول مرة؟» drawer; 3 - on مع بعض the raised button is «ادخل غرفة», the page keeps its big «افتح غرفة»; 4 - as in a room game, the raised button lowers into an ordinary tab on one-phone play screens; 5 - «شارك نتيجة النهارده» only once every puzzle of the day is done; 9 - from 1280px wide the first visit shows «كل الألعاب» open under the three cards. 1, 7, 8, 10 change looks: a before/after sheet of three first (https://claude.ai/artifact/TybGWnUVHhgWeitq1jPtWC). 2, 3, 4, 5, 6, 9 built and live 3 Oct 2026.

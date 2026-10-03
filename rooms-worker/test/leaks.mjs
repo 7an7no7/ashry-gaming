@@ -44,7 +44,9 @@ Date.now = () => clock;
 
 const SCREEN = 'the-screen';   // not 'tv': that is Tuvalu, a country خمّن الدولة can deal
 const ONLINE = { has: () => true };        // every phone connected
-const NAMES = ['نور', 'Adam', 'سلمى', 'Omar', 'هنا', 'Karim', 'ليلى', 'Sam'];
+// Each name carries its seat's number, so no name is ever a word a game deals: a word wheel's answers
+// come from every bank (the Stop names included), and هنا in players.4.name once read as its solution.
+const NAMES = ['نور 1', 'Adam 2', 'سلمى 3', 'Omar 4', 'هنا 5', 'Karim 6', 'ليلى 7', 'Sam 8'];
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
 /* --- finding a value in a view --------------------------------------------------- */
@@ -1732,7 +1734,7 @@ const DRIVERS = {
     plays.partly(T, 'p2');
     plays.solve(T, 'p1');
     T.room.players = T.room.players.filter((p) => p.id !== 'p4');
-    roomPlayerLeft(T.room, 'p4', 'Omar');
+    roomPlayerLeft(T.room, 'p4', NAMES[3]);
     scan(T, 'leave');
     plays.solve(T, 'p2');
     must(T, 'p3', 'giveUp', { round: 1 });

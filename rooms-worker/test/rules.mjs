@@ -5741,8 +5741,10 @@ Date.now = duelTestClock;
   check(s.phase === 'result' && s.scores.c === 15 && s.result.rows.find((x) => x.id === 'b').state === 'lost' && s.result.reveal.code === code && !s.result.setterPts,
     'solve: when the clock runs out whoever hasn\'t solved it has failed; the race has no setter');
   // The TV's map (idea 450) once it is over: each wrong guess's country and its colour step, all at once; the right one, standing on the answer, never.
+  // The closest of all five guesses: a move replaces the board, so `fa` above holds the first three only, and
+  // `best` read from it failed whenever the fourth or fifth guess (a fixed list, a random deal) came closer.
   check(s.progress.a.pins.length === 5 && s.progress.a.pins.every((p, i) => p.c === wrong[i] && p.s === SV.flagsStep(SV.flagsDistance(SV.flagCountry(wrong[i]), target))) &&
-    s.progress.c.pins.length === 0 && s.progress.b.pins.length === 0 && s.progress.a.best === Math.max(...fa.g.map((g) => g.p)),
+    s.progress.c.pins.length === 0 && s.progress.b.pins.length === 0 && s.progress.a.best === Math.max(...r.secrets.a.board.g.map((g) => g.p)),
     'solve/flags: when the round is over the table\'s map gets every wrong guess as a country and a colour, together; the right one\'s pin never');
   applyRoomAction(r, 'a', 'nextRound', { round: 1 });
   applyRoomAction(r, 'a', 'closeRound', { round: 2 });

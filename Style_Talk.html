@@ -2099,27 +2099,33 @@ body:is(.in-play, .in-room-game) .shell { --rail-w: 0px; }
    words never smear, the band fading in under it; the icon takes its own path
    with a small settle at the end. The rest of the page cross-fades, and the
    setup's panel still rises in after it (the screen's own slide is held). */
-:root.vt-grow .view-enter { animation: none; }
-:root.vt-grow::view-transition-group(game-card) { animation-duration: 540ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); border-radius: var(--r-xl); box-shadow: 0 24px 48px -16px rgba(20, 10, 40, 0.45); }
-:root.vt-grow::view-transition-image-pair(game-card) { overflow: clip; border-radius: var(--r-xl); }
+:root:is(.vt-grow, .vt-back) .view-enter { animation: none; }
+:root:is(.vt-grow, .vt-back)::view-transition-group(game-card) { animation-duration: 540ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); border-radius: var(--r-xl); box-shadow: 0 24px 48px -16px rgba(20, 10, 40, 0.45); }
+:root:is(.vt-grow, .vt-back)::view-transition-image-pair(game-card) { overflow: clip; border-radius: var(--r-xl); }
 /* One solid card all the way: the poster and the band cross-fade over the same time
    (the default plus-lighter blend keeps their sum opaque). */
-:root.vt-grow::view-transition-old(game-card),
-:root.vt-grow::view-transition-new(game-card) { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; animation-duration: 300ms; animation-timing-function: ease-out; }
-:root.vt-grow::view-transition-group(game-icon) { animation-duration: 580ms; animation-timing-function: cubic-bezier(0.34, 1.32, 0.48, 1); z-index: 2; }
-:root.vt-grow::view-transition-old(game-icon),
-:root.vt-grow::view-transition-new(game-icon) { animation-duration: 260ms; }
+:root:is(.vt-grow, .vt-back)::view-transition-old(game-card),
+:root:is(.vt-grow, .vt-back)::view-transition-new(game-card) { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; animation-duration: 300ms; animation-timing-function: ease-out; }
+:root:is(.vt-grow, .vt-back)::view-transition-group(game-icon) { animation-duration: 580ms; animation-timing-function: cubic-bezier(0.34, 1.32, 0.48, 1); z-index: 2; }
+:root:is(.vt-grow, .vt-back)::view-transition-old(game-icon),
+:root:is(.vt-grow, .vt-back)::view-transition-new(game-icon) { animation-duration: 260ms; }
 /* The home sinks back and fades under the growing card; the game's screen comes in after. */
 :root.vt-grow::view-transition-old(root) { animation: vt-sink 380ms cubic-bezier(0.3, 0, 0.2, 1) both; transform-origin: 50% 40%; }
 :root.vt-grow::view-transition-new(root) { animation: vt-fade-in 300ms ease-out 200ms both; }
+/* The way back (catalogShrinkBack): the game's screen fades at once and the home
+   comes forward from where it sank, under the card shrinking home. */
+:root.vt-back::view-transition-old(root) { animation: vt-fade-out 200ms ease-out both; }
+:root.vt-back::view-transition-new(root) { animation: vt-rise-back 420ms cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: 50% 40%; }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-rise-back { from { opacity: 0; transform: scale(0.94); } }
 @keyframes vt-sink { to { opacity: 0; transform: scale(0.94); } }
 /* The header and the bar stay put through it (only the title cross-fades). */
-:root.vt-grow .shell__header { view-transition-name: app-header; }
-:root.vt-grow .shell__nav { view-transition-name: app-nav; }
-:root.vt-grow::view-transition-old(app-header),
-:root.vt-grow::view-transition-new(app-header) { animation-duration: 260ms; }
-:root.vt-grow::view-transition-group(app-nav) { animation: none; }
-:root.vt-grow::view-transition-old(app-nav) { animation: none; opacity: 0; }
-:root.vt-grow::view-transition-new(app-nav) { animation: none; }
+:root:is(.vt-grow, .vt-back) .shell__header { view-transition-name: app-header; }
+:root:is(.vt-grow, .vt-back) .shell__nav { view-transition-name: app-nav; }
+:root:is(.vt-grow, .vt-back)::view-transition-old(app-header),
+:root:is(.vt-grow, .vt-back)::view-transition-new(app-header) { animation-duration: 260ms; }
+:root:is(.vt-grow, .vt-back)::view-transition-group(app-nav) { animation: none; }
+:root:is(.vt-grow, .vt-back)::view-transition-old(app-nav) { animation: none; opacity: 0; }
+:root:is(.vt-grow, .vt-back)::view-transition-new(app-nav) { animation: none; }
 @keyframes vt-fade-in { from { opacity: 0; } }
 </style>

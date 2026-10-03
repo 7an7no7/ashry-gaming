@@ -2762,7 +2762,10 @@
     // table actually wants: another game (openExitSheet in JS_Utils.html).
     if (typeof openExitSheet === 'function' && openExitSheet()) return;
     const meta = VIEW_META[appState.currentView];
-    setView(meta && meta.up ? meta.up : 'menu');
+    const target = meta && meta.up ? meta.up : 'menu';
+    // A game's header shrinks back into its card on the way home (catalogShrinkBack).
+    if (typeof catalogShrinkBack === 'function' && catalogShrinkBack(appState.currentView, target, () => setView(target))) return;
+    setView(target);
   }
 
   /* The bottom bar's tabs. Mid-round on a passed phone, a stray tap on 🏠 used
@@ -2773,6 +2776,7 @@
   }
   function navGo(target) {
     if (target === 'together' && typeof goTogether === 'function') goTogether();
+    else if (typeof catalogShrinkBack === 'function' && catalogShrinkBack(appState.currentView, target, () => setView(target))) return;
     else setView(target);
   }
 

@@ -187,6 +187,68 @@ function catalogGrowOpen(g, fromEl) {
   return true;
 }
 
+/**
+ * The way back (the owner, 3 Oct 2026: "the same smooth animation when going
+ * back"): the setup's art band shrinks back into the card it came from - the
+ * poster, the recent tile or the first visit's card it was opened from, wherever
+ * it is on screen - its icon gliding home with it, while the home comes forward
+ * from behind. The header's arrow and the bar's tabs come here; the phone's own
+ * back swipe does not (Safari slides its own picture for it). False where it
+ * can't run (no view transition, motion off, no header on the screen being left):
+ * the caller then changes the screen as before, with heroHomeFlight's icon.
+ */
+function catalogShrinkBack(previous, next, run) {
+  if (motionOff() || typeof document.startViewTransition !== 'function') return false;
+  if (['menu', 'together', 'tools'].indexOf(next) === -1) return false;
+  const leaving = document.getElementById('view-' + previous);
+  const art = leaving && leaving.querySelector('.game-hero .game-hero__art');
+  if (!art || !art.getClientRects().length) return false;
+  const g = (typeof GAME_CATALOG !== 'undefined' ? GAME_CATALOG : []).find((x) => x.setup === previous);
+  if (!g) return false;
+  const artIcon = art.querySelector('.game-hero__icon');
+  const name = (el, n) => { if (el) el.style.viewTransitionName = n; };
+  let card = null;
+  let cardIcon = null;
+  const done = () => {
+    [art, artIcon, card, cardIcon].forEach((el) => name(el, ''));
+    document.documentElement.classList.remove('vt-back');
+  };
+  name(art, 'game-card');
+  name(artIcon, 'game-icon');
+  document.documentElement.classList.add('vt-back');
+  let vt;
+  try {
+    vt = document.startViewTransition(() => {
+      name(art, '');
+      name(artIcon, '');
+      run();
+      const home = document.getElementById('view-' + appState.currentView);
+      if (!home || appState.currentView !== next) return;
+      const kind = catalogReturn.id === g.id ? catalogReturn.kind : '';
+      const recent = '.recent-tile[data-game="' + g.id + '"]';
+      const poster = '.gcard[data-game="' + g.id + '"], .tool-item[data-game="' + g.id + '"]';
+      const sels = kind === 'recent' ? [recent, poster]
+        : kind === 'start' ? ['.start-card[data-start="' + g.id + '"]', recent, poster]
+        : [poster, recent];
+      const onScreen = (el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight;
+      };
+      for (const sel of sels) { card = [...home.querySelectorAll(sel)].find(onScreen) || null; if (card) break; }
+      cardIcon = card ? card.querySelector('.gcard__icon, .recent-tile__icon, .start-card__icon, .tool-icon') : null;
+      name(card, 'game-card');
+      name(cardIcon, 'game-icon');
+    });
+  } catch (e) {
+    done();
+    return false;
+  }
+  vt.finished.then(done, done);
+  // Never only the transition's end (GEMINI.md, animationend is never the only path).
+  setTimeout(done, 2000);
+  return true;
+}
+
 /** The game's colour, from the card tapped to the header's art band: one box
  *  scaled with transform from the card's place and size to the band's, then
  *  faded, so the band is under it when it goes. */
@@ -997,6 +1059,7 @@ const catalogReturn = { id: '', kind: '' };
  */
 function heroHomeFlight(previous, next) {
   if (motionOff() || ['menu', 'together', 'tools'].indexOf(next) === -1) return null;
+  if (document.documentElement.classList.contains('vt-back')) return null;   // catalogShrinkBack has it
   const view = document.getElementById('view-' + previous);
   const icon = view && view.querySelector('.game-hero .game-hero__icon');
   if (!icon || !icon.getClientRects().length) return null;
@@ -1230,9 +1293,11 @@ function motionRiseTargets(root, max) {
 function motionRiseIn(root, opts) {
   if (!root || motionOff() || !root.animate) return [];
   const o = Object.assign({}, RISE, opts || {});
-  // During a poster's morph (catalogGrowOpen) the header is the morph's: it must not move under it.
-  const morphing = document.documentElement.classList.contains('vt-grow');
-  const anims = motionRiseTargets(root, o.max).filter((el) => !(morphing && el.closest('.game-hero'))).map((el, i) => el.animate(
+  // During a card's morph (catalogGrowOpen, catalogShrinkBack) what the morph carries must not
+  // move under it: the header on the way in, the card on the way home.
+  const morphing = document.documentElement.classList.contains('vt-grow') || document.documentElement.classList.contains('vt-back');
+  const carried = (el) => el.closest('.game-hero') || el.style.viewTransitionName || el.querySelector('[style*="view-transition-name"]');
+  const anims = motionRiseTargets(root, o.max).filter((el) => !(morphing && carried(el))).map((el, i) => el.animate(
     // One keyframe at the start: the element's own opacity and place are where it ends.
     [{ opacity: 0, translate: '0 ' + o.dist + 'px', offset: 0 }],
     { duration: o.dur, delay: o.delay + Math.min(i, o.max - 1) * o.step, easing: RISE_EASE, fill: 'backwards' }

@@ -649,3 +649,5 @@ a position once even when Continue or a new game call it twice.
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.
+
+**On a phone on its side (3 Oct 2026, the owner's look 10C):** 2D/3D, ⚙ and ✏️ stand in a column beside the board, شطرنج's names column is 10rem, and تلميح / تراجع / استسلام (the puzzles' 💡 / 👀) are icons in one row - `.ch-btn-label` hidden, `chIconLabel` keeping the words as aria-label and title. The board is 291px on 667x375 (245 before). Section 67 of `Style_Talk.html`.

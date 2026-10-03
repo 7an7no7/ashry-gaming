@@ -137,3 +137,5 @@ Decided while building (open to change, each in one place):
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.
+
+**The board's heads (3 Oct 2026, the owner's look 7A):** a bigger icon and a short name on one line (`short: { ar, en }` on the long categories in `JS_TriviaBoardBank.html`, read by `tbColHead`); the question card keeps the full name.

@@ -322,7 +322,10 @@ function tbColHead(s, col) {
     return { icon: s.quiz.emoji || '✍️', name: (t.qm_col || '{t} {n}').replace('{t}', s.quiz.title).replace('{n}', n) };
   }
   const cat = tbCategory(col.cat) || {};
-  return { icon: cat.icon || '', name: cat[tbLang()] || '' };
+  // `short` is the column's head (the owner's look 7A, 3 Oct 2026: «سينما», not
+  // «سينما وتلفزيون» on two lines); the question card keeps the full name.
+  const name = cat[tbLang()] || '';
+  return { icon: cat.icon || '', name: name, short: (cat.short && cat.short[tbLang()]) || name };
 }
 /** A card's question and answer: [q, answer, choices or null]. */
 function tbCardItem(s, col, cell) {
@@ -407,7 +410,7 @@ function renderTriviaBoard() {
   if (typeof flagsEnsureFont === 'function') flagsEnsureFont();
   const headers = s.board.map(col => {
     const head = tbColHead(s, col);
-    return `<div class="tb-cat"><span class="tb-cat__icon flag-emoji" aria-hidden="true">${escapeHTML(head.icon)}</span>${escapeHTML(head.name)}</div>`;
+    return `<div class="tb-cat" title="${escapeHTML(head.name)}"><span class="tb-cat__icon flag-emoji" aria-hidden="true">${escapeHTML(head.icon)}</span><span class="tb-cat__name">${escapeHTML(head.short || head.name)}</span></div>`;
   }).join('');
 
   let cells = '';

@@ -3722,6 +3722,14 @@ function chLocalStatus(s, names) {
   return chT('duel_turn_of', { name: duelIso(names[s.g.turn]) }) + check;
 }
 
+/* A chess button's name for when only its icon shows (a phone on its side, the
+   owner's look 10C of 3 Oct 2026): .ch-btn-label hides there, so the button
+   carries the words as its aria-label and tooltip. */
+function chIconLabel(label) {
+  const l = escapeHTML(label || '');
+  return `aria-label="${l}" title="${l}"`;
+}
+
 function chLocalBarHtml(s, hint) {
   if (s.phase === 'done') {
     return `<div class="btn-row">
@@ -3740,12 +3748,12 @@ function chLocalBarHtml(s, hint) {
     // Each shows what is left in this game (nothing when unlimited).
     const count = (kind) => { const n = chHelpLeft(s, kind); return n === Infinity ? '' : ` <b class="ch-help-n metric">${n}</b>`; };
     const hintOn = chHumanTurn(s) && !chLocal.pending && (chHelpLeft(s, 'hint') > 0 || !!hint);
-    parts.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chHint()" ${hintOn ? '' : 'disabled'}>💡 ${escapeHTML(chT('ch_hint'))}${count('hint')}</button>`);
-    parts.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chUndoLocal()" ${chCanUndo(s) ? '' : 'disabled'}>↶ ${escapeHTML(chT('ch_undo'))}${count('undo')}</button>`);
+    parts.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chHint()" ${hintOn ? '' : 'disabled'} ${chIconLabel(chT('ch_hint'))}>💡 <span class="ch-btn-label">${escapeHTML(chT('ch_hint'))}</span>${count('hint')}</button>`);
+    parts.push(`<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="chUndoLocal()" ${chCanUndo(s) ? '' : 'disabled'} ${chIconLabel(chT('ch_undo'))}>↶ <span class="ch-btn-label">${escapeHTML(chT('ch_undo'))}</span>${count('undo')}</button>`);
   }
-  if (s.vs === 'friend') parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chFlipLocal()" aria-label="${escapeHTML(chT('ch_flip'))}">↻ ${escapeHTML(chT('ch_flip'))}</button>`);
-  if (s.vs === 'friend') parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chDrawLocal()">½ ${escapeHTML(chT('ch_draw_agree'))}</button>`);
-  parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chResignLocal()">🏳️ ${escapeHTML(chT('ch_resign'))}</button>`);
+  if (s.vs === 'friend') parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chFlipLocal()" ${chIconLabel(chT('ch_flip'))}>↻ <span class="ch-btn-label">${escapeHTML(chT('ch_flip'))}</span></button>`);
+  if (s.vs === 'friend') parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chDrawLocal()" ${chIconLabel(chT('ch_draw_agree'))}>½ <span class="ch-btn-label">${escapeHTML(chT('ch_draw_agree'))}</span></button>`);
+  parts.push(`<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="chResignLocal()" ${chIconLabel(chT('ch_resign'))}>🏳️ <span class="ch-btn-label">${escapeHTML(chT('ch_resign'))}</span></button>`);
   const best = chBestNow(s);
   const bestLine = best && best.lines.length ? `<p class="ch-bestline">🎯 ${escapeHTML(chT('ch_best_line'))} ${best.lines.map((b, k) => `<span class="ch-bestline__mv ch-bestline__mv--${k}"><b dir="ltr">${escapeHTML(chFigurine(b.san))}</b> <span dir="ltr">${b.pct}%</span></span>`).join('')}</p>` : '';
   const hintLine = hint ? `<p class="ch-hintline">💡 <b dir="ltr">${escapeHTML(chFigurine(hint.san))}</b> · ${escapeHTML(chReasonsLine(hint.reasons, 1))}</p>` : '';

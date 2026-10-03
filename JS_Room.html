@@ -1600,6 +1600,72 @@ function roomLobbyTab(tab) {
   if (typeof scrollToAction === 'function') scrollToAction();
 }
 
+/* The room's game picker morphs too (the owner, 3 Oct 2026: "the same morph to the
+   room game picker"): the poster the host taps grows into the chosen game's card,
+   and «تغيير» shrinks that card back into its poster in the list. The pick is a
+   round trip to the server, so the view transition holds the old picture while
+   it goes (a view transition's update may wait) and morphs once the lobby has
+   drawn the new one. Where it can't run, the pick is made as before. */
+function roomPickGame(id, el) {
+  const act = () => roomAct('chooseGame', { game: id });
+  if (roomPickMorph(el, act, () => document.querySelector('#room-host-setup .chosen-game'))) return;
+  act();
+}
+
+function roomChangeGame(btn) {
+  const id = Room.state && Room.state.game;
+  const act = () => roomAct('backToHub');
+  const back = () => {
+    const el = id && document.querySelector('#room-host-setup .room-poster[data-game="' + id + '"]');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight ? el : null;
+  };
+  if (roomPickMorph(btn && btn.closest('.chosen-game'), act, back)) return;
+  act();
+}
+
+/** The morph: `fromEl` (a poster or the chosen card) into whatever `findTarget` finds once `act` has gone. */
+function roomPickMorph(fromEl, act, findTarget) {
+  if (!fromEl || !fromEl.isConnected || motionOff() || typeof document.startViewTransition !== 'function') return false;
+  const iconOf = (el) => el && el.querySelector('.game-icon, .chosen-game__icon');
+  const name = (el, n) => { if (el) el.style.viewTransitionName = n; };
+  const fromIcon = iconOf(fromEl);
+  let target = null;
+  let targetIcon = null;
+  const done = () => {
+    [fromEl, fromIcon, target, targetIcon].forEach((el) => name(el, ''));
+    document.documentElement.classList.remove('vt-pick');
+  };
+  name(fromEl, 'game-card');
+  name(fromIcon, 'game-icon');
+  document.documentElement.classList.add('vt-pick');
+  let vt;
+  try {
+    vt = document.startViewTransition(async () => {
+      name(fromEl, '');
+      name(fromIcon, '');
+      await act();
+      // The lobby draws the pick once the game's code is here (routeRoomState): wait for it, a moment at most.
+      for (let i = 0; i < 90 && !target; i++) {
+        target = findTarget();
+        if (!target) await new Promise((r) => setTimeout(r, 16));
+      }
+      if (!target) return;
+      targetIcon = iconOf(target);
+      name(target, 'game-card');
+      name(targetIcon, 'game-icon');
+    });
+  } catch (e) {
+    done();
+    return false;
+  }
+  vt.finished.then(done, done);
+  // Never only the transition's end (GEMINI.md, animationend is never the only path).
+  setTimeout(done, 5000);
+  return true;
+}
+
 /** A text box, a word list or an open picker inside `root` has the focus. */
 function roomFieldInUse(root) {
   const el = document.activeElement;
@@ -1831,8 +1897,8 @@ function roomHubPosterHtml(tile, state, t) {
   const badge = off ? gameOffBadge(t) : need ? `<div class="game-card__need">${escapeHTML(need)}</div>` : '';
   const hintEl = hint ? `<div class="game-card__hint">${escapeHTML(hint)}</div>` : '';
   return `
-            <button type="button" class="game-card room-poster ${enough ? '' : 'is-disabled'} ${off ? 'is-off' : ''} ${tile.open ? 'room-poster--family' : ''}" data-accent="${g.accent}"
-                 ${off ? 'onclick="gameOffToast()" aria-disabled="true"' : enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomAct('chooseGame', { game: '${g.id}' })"`) : 'aria-disabled="true"'}>
+            <button type="button" class="game-card room-poster ${enough ? '' : 'is-disabled'} ${off ? 'is-off' : ''} ${tile.open ? 'room-poster--family' : ''}" data-accent="${g.accent}" data-game="${g.id}"
+                 ${off ? 'onclick="gameOffToast()" aria-disabled="true"' : enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomPickGame('${g.id}', this)"`) : 'aria-disabled="true"'}>
               <span class="game-icon" aria-hidden="true">${iconHtml(g.icon)}</span>
               <span class="game-title">${escapeHTML(roomHubTileName(tile, t))}</span>
               ${hintEl}
@@ -2008,7 +2074,7 @@ function renderChosenGame(state, game) {
       <span class="chosen-game__icon" aria-hidden="true">${entry ? iconHtml(entry.icon) : '🎮'}</span>
       <span class="chosen-game__name">${name}</span>
       ${state.youAreHost
-        ? `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('backToHub')">${t.room_change_game || 'تغيير'}</button>`
+        ? `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomChangeGame(this)">${t.room_change_game || 'تغيير'}</button>`
         : ''}
     </div>
     ${firstPlay}

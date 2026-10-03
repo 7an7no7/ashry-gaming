@@ -77,17 +77,61 @@ if (unknownAttrs.length) {
 }
 
 // --- 3. t.key reads with no fallback --------------------------------------
+// Read with a parser, not a regex: `t` is also a texture, a touch, a tile or a
+// number in places (forEach(t => t.dispose())), and a comment can say "t.xo_*".
+// A read counts when the nearest `t` it refers to is a translation table: a
+// variable made from TRANSLATIONS or a game's own helper (crewT(), xoTr(),
+// tbText()), or a parameter of a function that isn't a callback. A key passes if
+// TRANSLATIONS has it, or the file's own { ar: {…}, en: {…} } block does.
+const walk = require('acorn-walk');
+const isFn = (n) => /Function/.test(n.type);
+const declares = (decl, name) => decl && decl.type === 'VariableDeclaration' &&
+  decl.declarations.find((d) => d.id.type === 'Identifier' && d.id.name === name);
+const paramNamed = (fn, name) => fn.params.some((p) => (p.type === 'Identifier' && p.name === name) ||
+  (p.type === 'AssignmentPattern' && p.left.type === 'Identifier' && p.left.name === name));
+const tableInit = (init, src) => !!init && (/TRANSLATIONS/.test(src.slice(init.start, init.end)) ||
+  (init.type === 'CallExpression' && init.callee.type === 'Identifier' && /(T|Tr|Text)$/.test(init.callee.name)));
+
+/** Whether the `t` read at the end of `anc` is a translation table. */
+function tIsTable(anc, src) {
+  for (let i = anc.length - 2; i >= 0; i--) {
+    const a = anc[i];
+    if (isFn(a) && paramNamed(a, 't')) {
+      const outer = anc[i - 1];
+      return !(outer && /CallExpression|NewExpression/.test(outer.type) && outer.arguments.includes(a));
+    }
+    if (a.type === 'CatchClause' && a.param && a.param.name === 't') return false;
+    if (/^For(Of|In)?Statement$/.test(a.type) && declares(a.left || a.init, 't')) return false;
+    const body = a.type === 'BlockStatement' || a.type === 'Program' ? a.body : a.type === 'SwitchCase' ? a.consequent : null;
+    if (body) for (const s of body) { const d = declares(s, 't'); if (d) return tableInit(d.init, src); }
+  }
+  return true;   // no binding found: read as the translations, as before
+}
+
 const files = fs.readdirSync(ROOT).filter(f => /^JS_.*\.html$/.test(f));
 const bare = new Map();
 for (const f of files) {
-  const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
-  const re = /\bt\.([A-Za-z_][A-Za-z0-9_]*)(\s*\|\|)?/g;
-  let hit;
-  while ((hit = re.exec(src))) {
-    const key = hit[1];
-    if (hit[2]) continue;                 // has a fallback
-    if (ar.has(key) && en.has(key)) continue;
-    if (!bare.has(key)) bare.set(key, f);
+  const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  for (const [, src] of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)) {
+    let ast;
+    try { ast = acorn.parse(src, { ecmaVersion: 'latest' }); }
+    catch (e) { errors++; console.log('%s: a script does not parse (%s)', f, e.message); continue; }
+    const local = new Set();
+    walk.simple(ast, { Property(p) {
+      const k = !p.computed && propName(p);
+      if ((k === 'ar' || k === 'en') && p.value.type === 'ObjectExpression') {
+        for (const q of p.value.properties) if (q.type === 'Property' && !q.computed) local.add(propName(q));
+      }
+    } });
+    walk.ancestor(ast, { MemberExpression(n, _, anc) {
+      if (n.computed || n.object.type !== 'Identifier' || n.object.name !== 't') return;
+      const key = n.property.name;
+      const parent = anc[anc.length - 2];
+      if (parent && parent.type === 'LogicalExpression' && /\|\||\?\?/.test(parent.operator) && parent.left === n) return;
+      if ((ar.has(key) && en.has(key)) || local.has(key)) return;
+      if (!tIsTable(anc, src)) return;
+      if (!bare.has(key)) bare.set(key, f);
+    } });
   }
 }
 if (bare.size) {
@@ -98,15 +142,25 @@ if (bare.size) {
 // --- 4. keys defined but never used ---------------------------------------
 // Dead strings are harmless but they read as live ones, so a translator keeps
 // them in step for nothing — and one of them (sync_cloud) named a button that
-// does not exist.
+// does not exist. Many keys are built from parts ('mg_h_' + id, `ch_piece_${p}`,
+// key + '_line'): a key whose prefix or suffix the code builds with is live.
 let hay = '';
 for (const f of fs.readdirSync(ROOT)) {
-  if (/\.(html|js)$/.test(f) && f !== 'Tailwind.html') hay += fs.readFileSync(path.join(ROOT, f), 'utf8');
+  if (/\.(html|js)$/.test(f) && f !== 'Tailwind.html' && f !== 'JS_Translations.html') hay += fs.readFileSync(path.join(ROOT, f), 'utf8');
 }
-const unused = [...ar].filter(k => ![
-  `data-i18n="${k}"`, `data-i18n-ph="${k}"`, `data-i18n-aria="${k}"`,
-  `t.${k}`, `].${k}`, `'${k}'`, `"${k}"`
-].some(r => hay.includes(r)));
+const prefixes = new Set(), suffixes = new Set();
+for (const [, p] of hay.matchAll(/['"`]([a-z][a-z0-9]*(?:_[a-z0-9]+)*_?)['"]\s*\+/g)) prefixes.add(p);
+for (const [, p] of hay.matchAll(/[`}]([a-z][a-z0-9]*(?:_[a-z0-9]+)*_?)\$\{/g)) prefixes.add(p);
+for (const [, s] of hay.matchAll(/\+\s*['"](_[a-z0-9_]+)['"]/g)) suffixes.add(s);
+for (const [, s] of hay.matchAll(/\}(_[a-z0-9_]+)[`'"]/g)) suffixes.add(s);
+// Read as a member anywhere (t.k, exT().k, (TRANSLATIONS[lang] || {}).k), or named in a string.
+const members = new Set([...hay.matchAll(/\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]));
+const strings = new Set([...hay.matchAll(/(['"`])([A-Za-z_][A-Za-z0-9_]*)\1/g)].map((m) => m[2]));
+const literal = (k) => members.has(k) || strings.has(k);
+const built = (k) => [...prefixes].some((p) => k.startsWith(p) && k.length > p.length && (p.endsWith('_') || (p.length >= 5 && /^([0-9_]|[a-z0-9]{1,2}$)/.test(k.slice(p.length)))));
+const live = (k) => literal(k) || built(k) ||
+  [...suffixes].some((s) => k.endsWith(s) && k.length > s.length && (literal(k.slice(0, -s.length)) || built(k.slice(0, -s.length))));
+const unused = [...ar].filter(k => !live(k));
 if (unused.length) {
   console.log('warning: %d key(s) defined but never referenced: %s', unused.length, unused.join(', '));
 }

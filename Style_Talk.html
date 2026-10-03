@@ -1885,4 +1885,45 @@ body.is-tv-view .hm-misses i { width: 1.4vmin; height: 1.4vmin; border-width: 0.
 @media (prefers-reduced-motion: reduce) {
   .hm-pips i.is-new { animation: none; }
 }
+
+/* =====================================================================
+   67. THE WHOLE-APP UI PASS (3 Oct 2026): fixes a sweep of every screen at
+   375x667, 667x375, 1280x720 and 1920x1080 found. Each says what it was.
+   ===================================================================== */
+/* A setup's Start bar sticks inside its card's panel (.mode-device-panel /
+   .mode-online-panel), and a sticky box can't rise above the top of the box it
+   lives in. On a phone 667px tall (and on most iPhones once Safari's bars take
+   their share) the hero and the switch put that panel's top so low that Start
+   sat half under the bar and «افتح غرفة» until the page was scrolled. The
+   panels are only a way to show one side or the other; laid out as their
+   children (contents) the bar lives in the card, which starts high enough. */
+.mode-device-panel:not(.hidden), .mode-online-panel:not(.hidden) { display: contents; }
+/* Every stuck action bar clears the raised «افتح غرفة», not just Start: a
+   one-phone game's «خروج» (كاسحة الألغام, the puzzles) and دوري المعرفة's
+   «الجولة التالية» sat right under it. */
+@media (max-width: 899px) and (min-height: 501px) {
+  body:not(.is-fullscreen-view):not(.is-tv-view) .shell__main .view-actions { padding-bottom: calc(var(--sp-3) + 1.75rem); }
+}
+/* The solo stats' labels (level, time, mistakes) read 3.6:1 on their tint at
+   80%; the full ink is 5:1 and still the game's colour. */
+.solo-stat__label { opacity: 1; }
+/* Text a family reads at arm's length is at least the scale's smallest step
+   (--fs-xs, 11px): the players badge on every card and the line under a
+   choice («5 حروف») were 10.6px, and the second at 80%. */
+.gcard > .gcard__badge { font-size: var(--fs-xs); }
+.segmented__sub { font-size: var(--fs-xs); opacity: 0.9; }
+/* لودو on a phone on its side: the die, «دورك!» and «ارمي» share a column
+   13rem wide, and the button sat over the words. The button takes a line of
+   its own there. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .ludo-bar { flex-wrap: wrap; }
+  .ludo-bar__roll { flex: 1 0 100%; }
+}
+/* A one-phone game's bar that holds only the quiet «خروج» doesn't stick: on a
+   phone 667px tall كاسحة الألغام's board and its «علّم / جديدة» row are taller
+   than the screen, and the stuck bar sat over that row. It ends the page now
+   (still pushed to the foot when the game is shorter than the screen). */
+@media (orientation: portrait) and (max-width: 899px) {
+  .view-actions.play-foot:has(> .play-exit:only-child) { position: static; background: none; }
+}
 </style>

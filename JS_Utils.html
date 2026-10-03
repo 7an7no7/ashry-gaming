@@ -1231,15 +1231,14 @@ function setupMoreToggled(el) {
     const stagesMap = [t.safe, t.quarter_monkey, t.half_monkey, t.three_quarters_monkey, t.monkey_loser];
 
     if(targets.length === 0) {
-        const noSafeMsg = appState.lang === 'ar' ? 'لا يوجد لاعبين آمنين' : 'No safe players';
-        list.innerHTML = `<p class="tx-danger">${noSafeMsg}</p>`;
+        list.innerHTML = `<p class="empty tx-danger">${escapeHTML(t.swap_none || 'No safe players')}</p>`;
     } else {
         // `target`, not `t`: the old loop variable shadowed the translations
         // object, so the `|| t.safe` fallback read a property off the player and
         // printed "undefined" as the stage name.
         targets.forEach(target => {
             const stageName = stagesMap[target.col - 1] || t.safe;
-            list.innerHTML += `<button onclick="confirmSwitch('${jsStringAttr(target.row)}', '${jsStringAttr(target.col)}', '${jsStringAttr(target.name)}')" class="btn btn--ghost flex justify-between items-center w-full mb-2 h-12 mt-0">
+            list.innerHTML += `<button onclick="confirmSwitch('${jsStringAttr(target.row)}', '${jsStringAttr(target.col)}', '${jsStringAttr(target.name)}')" class="btn btn--ghost justify-between">
                 <span class="font-bold tx-strong">${escapeHTML(target.name)}</span>
                 <span class="badge">${escapeHTML(stageName)}</span>
             </button>`;
@@ -1254,15 +1253,6 @@ function setupMoreToggled(el) {
     document.getElementById('confirm-monkey-name').innerText = switchData.monkeyName;
     document.getElementById('confirm-target-name').innerText = targetName;
     
-    // Switch confirm modal text needs localization too but it's hardcoded in HTML
-    // We can update it here
-    const msgEl = document.querySelector('#switch-confirm-modal p');
-    if(appState.lang === 'en') {
-        msgEl.innerHTML = `Are you sure you want to switch places between <br> <b id="confirm-monkey-name" class="text-red-500">${escapeHTML(switchData.monkeyName)}</b> and <b id="confirm-target-name" class="text-blue-500">${escapeHTML(targetName)}</b>?`;
-    } else {
-        msgEl.innerHTML = `هل أنت متأكد من تبديل أماكن <br> <b id="confirm-monkey-name" class="text-red-500">${escapeHTML(switchData.monkeyName)}</b> مع <b id="confirm-target-name" class="text-blue-500">${escapeHTML(targetName)}</b>؟`;
-    }
-
     document.getElementById('switch-confirm-modal').classList.remove('hidden');
   }
   function executeSwitch() {

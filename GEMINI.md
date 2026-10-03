@@ -1234,6 +1234,14 @@ The two CDN scripts are `async` now, and an ES5 stub in the head takes
 whichever is there, and wraps again on the library's `load`). Anything else
 loaded from outside: `async`, a stub, and a page that works without it.
 
+**A sticky bar can't rise above the box it lives in.** Every setup with the
+«موبايل واحد / كل واحد بموبايله» switch kept its Start bar inside its panel
+(`.mode-device-panel`); on a phone 667px tall the hero put that panel's top so
+low that Start could only stick 55px under the visible edge, half under the bar
+and «افتح غرفة», until the page was scrolled (3 Oct 2026). The panels are
+`display: contents` now, so the bar lives in the card. A sticky bar's parent
+must start high enough on the shortest phone; measure its button at scroll 0.
+
 **A sticky box stops at the scroll area's padding, not at its edge.** The
 Start bar of every setup screen (`.view-actions`, sticky at the foot of
 `.shell__main`) reached down a fixed 8px while the scroll area's foot padding

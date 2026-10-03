@@ -50,3 +50,18 @@ Each of these would use the motion toolkit (*Using the motion toolkit in a
 new game*): reveals and podiums for the group games, `spinLetter` for anything
 drawn at random, `flyEmoji` or a ghost flight for placing things (Timeline,
 the word search), `countUp` for streaks and scores.
+
+## The whole-app UI pass, 3 Oct 2026 (waiting on the owner's picks)
+
+The page with screenshots: https://claude.ai/artifact/LKcti6ojxsaopYT7eYoMUw
+1. A shorter setup header on phones under ~700px tall (one row: icon, name, chips).
+2. One way to the rules on a setup («القوانين» chip and «أول مرة؟» drawer both lead there).
+3. «افتح غرفة» twice on مع بعض: the raised button becomes «ادخل غرفة» there, or the page drops its own.
+4. The raised «افتح غرفة» steps down into the bar while a one-phone game is played.
+5. تحدي اليوم: "0 of 14" and the list first; «شارك» only once there is a result.
+6. The first visit's «نلعب كل واحد بموبايله» on one line («كل واحد بموبايله»).
+7. دوري المعرفة: category heads as a bigger icon and a short name, the full name on the card.
+8. Settings show their choices (a segmented row) instead of cycling on each tap.
+9. A laptop or TV's first visit opens «كل الألعاب» under the three cards.
+10. Chess sideways: the buttons as one row of icons, the board the full height.
+11. Puzzle cells named for VoiceOver (row, column, contents).

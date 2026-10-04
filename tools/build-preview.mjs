@@ -76,5 +76,8 @@ if (built.chunks.length) {
   for (const c of built.chunks) await writeFile(path.join(outDir, 'g', c.file), c.code, 'utf8');
   console.log(`g/: ${built.chunks.length} chunks`);
 }
+// Stockfish, the chess coach's engine (vendor/stockfish/README.md), beside the chunks.
+await mkdir(path.join(outDir, 'g'), { recursive: true });
+for (const f of ['sf19-lite.js', 'sf19-lite.wasm']) await writeFile(path.join(outDir, 'g', f), await readFile(path.join(root, 'vendor', 'stockfish', f)));
 
 console.log(`.preview/index.html written (${(html.length / 1024).toFixed(0)} KB), rooms via ${ROOMS_URL}`);

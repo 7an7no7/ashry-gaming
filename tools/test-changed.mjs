@@ -75,7 +75,7 @@ const MAP = [
   { files: /^(Hangman\.js|RoomHangman\.js|JS_Hangman\.html|JS_HangmanEnd\.html)$/, robots: ['hangman'], ui: ['hangman'], screens: true },
   { files: /^(Battleship\.js|RoomBattleship\.js|JS_Battleship\.html)$/, robots: ['battleship', 'duels'], ui: ['battleship'], screens: true },
   { files: /^(Chess\.js|RoomChess\.js)$/, robots: ['chess', 'teamchess', 'hq', 'bughouse', 'duels'], ui: ['chess', 'votechess', 'handbrain', 'bughouse'], screens: true },
-  { files: /^JS_(Chess|ChessOpenings|ChessPosition|ChessPuzzles|ChessReview|RoomChess)\.html$/, robots: [], ui: ['chess', 'votechess', 'handbrain', 'bughouse'], screens: true },
+  { files: /^JS_(Chess|ChessOpenings|ChessPosition|ChessPuzzles|ChessReview|ChessStockfish|RoomChess)\.html$|^vendor\/stockfish\//, robots: [], ui: ['chess', 'votechess', 'handbrain', 'bughouse'], screens: true },
   { files: /^ChessPuzzles\.js$/, screens: true },
   { files: /^(RoomVoteChess\.js|RoomHandBrain\.js|JS_RoomVoteChess\.html|JS_RoomHandBrain\.html)$/, robots: ['teamchess'], ui: ['votechess', 'handbrain'] },
   { files: /^(RoomBughouse\.js|JS_RoomBughouse\.html)$/, robots: ['bughouse'], ui: ['bughouse'] },

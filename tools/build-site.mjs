@@ -10,7 +10,7 @@
  *   npm run build:site
  *   ROOMS_URL=http://127.0.0.1:8787 npm run build:site    # against wrangler dev
  */
-import { readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, rm, copyFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { existsSync } from 'node:fs';
@@ -211,6 +211,14 @@ for (const c of built.chunks) {
   const p = path.join(gDir, c.file);
   if (!existsSync(p)) await writeFile(p, c.code, 'utf8');
 }
+// Stockfish, the chess coach's engine (vendor/stockfish/README.md): two files beside the
+// chunks, kept and saved for offline like one - the name changes only with its version.
+const ENGINE_FILES = ['sf19-lite.js', 'sf19-lite.wasm'];
+for (const f of ENGINE_FILES) {
+  const p = path.join(gDir, f);
+  if (!existsSync(p)) await copyFile(path.join(root, 'vendor', 'stockfish', f), p);
+  nowFiles.push(f);
+}
 const keepFiles = new Set([...nowFiles, ...before, 'files.json']);
 for (const f of await readdir(gDir)) if (!keepFiles.has(f)) await rm(path.join(gDir, f), { force: true });
 await writeFile(listPath, JSON.stringify({ build: buildId, files: nowFiles, history }) + '\n', 'utf8');
@@ -302,8 +310,8 @@ self.addEventListener('fetch', (event) => {
   // for it to learn whether a newer build is out, and offline that has to fail.
   if (url.pathname.endsWith('/sw.js')) return;
 
-  // A game's chunk: its name changes whenever its code does, so the copy kept is the answer.
-  if (/\\/g\\/[^/]+\\.js$/.test(url.pathname)) {
+  // A game's chunk (or the chess engine's two files): its name changes whenever its code does, so the copy kept is the answer.
+  if (/\\/g\\/[^/]+\\.(js|wasm)$/.test(url.pathname)) {
     event.respondWith(caches.open(CHUNKS).then((g) => g.match(req, { ignoreSearch: true }).then((hit) => hit ||
       fetch(req).then((res) => { if (res.ok) g.put(req, res.clone()); return res; }))));
     return;

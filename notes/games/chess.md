@@ -335,6 +335,29 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
     `chessEloSettings(elo)`: depth, nodes, ms, the wobble on each root move
     (`noise`), the chance of a random move (`blunder`) and how far the
     captures at the leaves are followed (`qdepth`, 0 at 400).
+  - **Stockfish does the coach's and the review's looks** (the owner, 4 Oct
+    2026: "build it with stockfish for the coach and review"). Stockfish 19
+    lite, single-threaded (`vendor/stockfish/`, GPLv3, 1.8 MB; `g/sf19-lite.*`,
+    downloaded with the offline copy) in a Web Worker: `JS_ChessStockfish.html`,
+    `chSfAnalyse(g, { nodes, lines, hq })` → a promise of chessAnalyse's shape
+    with `sf: true`, or null (then the app's own engine). One worker, one
+    question at a time; `go nodes` (`CH_SF`: coach 150k, best arrows 200k with
+    three lines, review 120k per position - on this PC depth 12-17, a 50-move
+    game in 1.4 s, Stockfish reusing its hash from position to position); a
+    small memo by FEN. Not for الوزير المستخبي or Chess960 (`chSfFits`), and
+    off for the visit after any failure (`chSfFail`: no Worker, no
+    WebAssembly, the file, 30 s without an answer). The coach is now async:
+    `chCoachAnalyse`, `chCoachPrepare` (`coachAsking`), `chCoachJudge` → both
+    looks → `chCoachVerdict` (the computer waits for the verdict; a board left
+    or a move taken back meanwhile drops it), `chHint` (`hintAsking`),
+    `chBestPrepare` (three lines in one search, sorted best first). The review
+    (`chReviewRun`, a run token `chRv.run`) asks Stockfish for every position,
+    then judges; `chessJudge` takes Stockfish's looks as they are (no
+    side-by-side re-check). A kept review says `engine: 'sf' | 'app'`; one by
+    the app's engine is worked out again once Stockfish can (`chReviewFresh`),
+    and the review shows «🐟 حلّلها Stockfish 19». **The computer you play
+    against stays the app's own engine** (its ratings 400-2000), so do the
+    puzzles made from mistakes and the rooms server.
   - **The coach's analysis**: `chessAnalyse(g, { nodes })` (the best move, the
     score for the side to move, mate in n, the line it expects), `chessJudge`
     (one move against the analyses before and after it: the verdict from the

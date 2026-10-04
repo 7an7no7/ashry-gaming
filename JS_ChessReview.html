@@ -393,7 +393,7 @@ function chReviewShow(rec) {
   chRv.id = rec.id;
   chRv.shown = null;
   chRv.rec = rec;
-  chRv.res = rec.review && rec.review.v === CHESS_REVIEW_V ? rec.review : null;
+  chRv.res = chReviewFresh(rec) ? rec.review : null;
   chRv.rv = chessReviewBegin(rec);
   chRv.better = false;
   // What each move took, to set the taken pieces beside the board at every step.
@@ -415,32 +415,70 @@ function chReviewShow(rec) {
   if (!chRv.res) chReviewRun();
 }
 
-/** Works the review out a position a tick, the progress bar filling, then keeps it with the game. */
+/** Can Stockfish review this kept game (standard chess, and Stockfish running on this phone)? */
+const chReviewSfFits = (rec) => !!rec && rec.variant !== 'hq' && rec.variant !== '960' && chSfFits(rec.start ? chessFromFen(rec.start) : chessNew(), false);
+
+/** A kept review that is still good: this version of the judging, and Stockfish's whenever Stockfish could do it. */
+const chReviewFresh = (rec) => !!(rec && rec.review && rec.review.v === CHESS_REVIEW_V && (rec.review.engine === 'sf' || !chReviewSfFits(rec)));
+
+/**
+ * Works the review out, the progress bar filling, then keeps it with the game: Stockfish
+ * looks at every position in its worker (JS_ChessStockfish.html), then the moves are
+ * judged; the app's own engine, a position a tick, for a game Stockfish can't play or
+ * from wherever Stockfish stopped answering.
+ */
 function chReviewRun() {
   const rv = chRv.rv;
   const id = chRv.id;
+  const run = chRv.run = (chRv.run || 0) + 1;
+  const live = () => chRv.run === run && chRv.id === id && appState.currentView === 'review-shatranj';
+  let sfAll = chReviewSfFits(chRv.rec);
+  const finish = () => {
+    chRv.res = chessReviewResult(rv);
+    chRv.res.engine = sfAll ? 'sf' : 'app';
+    const list = chLoadGames();
+    const at = list.findIndex(g => g.id === id);
+    if (at !== -1) { list[at].review = chRv.res; chSaveGames(list); }
+    chReviewPaint(false, true);
+  };
   const step = () => {
     chRv.timer = null;
-    if (chRv.id !== id || appState.currentView !== 'review-shatranj') return;
+    if (!live()) return;
     const t0 = Date.now();
     let done = false;
     // A slice of about 60ms, then the page breathes.
     while (!done && Date.now() - t0 < 60) done = chessReviewStep(rv, { nodes: CH_REVIEW_NODES, ms: 1500 });
     chReviewProgress(chessReviewDone(rv));
     if (!done) { chRv.timer = setTimeout(step, 16); return; }
-    chRv.res = chessReviewResult(rv);
-    const list = chLoadGames();
-    const at = list.findIndex(g => g.id === id);
-    if (at !== -1) { list[at].review = chRv.res; chSaveGames(list); }
-    chReviewPaint(false, true);
+    finish();
+  };
+  const sfNext = () => {
+    if (!live()) return;
+    if (rv.i >= rv.positions.length) {
+      // Every position looked at: judging the moves is quick (Stockfish's looks are taken as they are).
+      while (!chessReviewStep(rv, {})) { /* the next move */ }
+      finish();
+      return;
+    }
+    chSfAnalyse(rv.positions[rv.i], { nodes: CH_SF.review }).then(a => {
+      if (!live()) return;
+      if (!a) { sfAll = false; chRv.timer = setTimeout(step, 16); return; }
+      rv.analyses[rv.i] = a;
+      rv.i++;
+      chReviewProgress(rv.i / (rv.positions.length + 1));
+      sfNext();
+    });
   };
   chReviewProgress(0);
-  chRv.timer = setTimeout(step, 60);
+  if (sfAll) sfNext();
+  else chRv.timer = setTimeout(step, 60);
 }
 
 function chReviewStop() {
   if (chRv.timer) clearTimeout(chRv.timer);
   chRv.timer = null;
+  // A Stockfish review waiting on an answer lets it go.
+  chRv.run = (chRv.run || 0) + 1;
 }
 
 function chReviewProgress(f) {
@@ -581,6 +619,7 @@ function chReviewPaint(fresh, justDone) {
       </div>`).join('')}</div>
     <p class="duel-status is-done">${escapeHTML(chResultLine(rec.result, rec.reason, names))}</p>
     ${rec.rating ? `<p class="ch-rating-result ${rec.rating.delta > 0 ? 'is-up' : rec.rating.delta < 0 ? 'is-down' : ''}">⭐ ${escapeHTML(chT('ch_rating_now', { r: rec.rating.after }))} <b dir="ltr">${chDeltaText(rec.rating.delta)}</b></p>` : ''}
+    ${res && res.engine === 'sf' ? `<p class="field__hint ch-rv-engine">${escapeHTML(chT('ch_rv_engine_sf'))}</p>` : ''}
     ${res ? '' : `<div class="ch-progress"><span class="ch-progress__bar" data-ch-progress style="--p:0%"></span></div><p class="field__hint ch-progress__txt" data-ch-progress-txt>${escapeHTML(chT('ch_reviewing', { p: 0 }))}</p>`}`;
   chSetHtml(el, '[data-ch-rvhead]', head);
   const at = el.querySelector('[data-ch-rvat]');

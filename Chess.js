@@ -1768,7 +1768,8 @@ function chessJudge(gBefore, played, before, after, opts) {
   // in one search to one depth, and that comparison is the verdict.
   let theyMate = after.mate > 0, weMate = before.mate > 0, lostAnyway = before.mate < 0;
   const looksWorse = chessClampCp(bestScore) - chessClampCp(playedScore) > CHESS_CLASS_LIMITS.good || (theyMate && !lostAnyway) || (weMate && !(playedScore > CHESS_MATE - 1000));
-  if (!same && !played.hq && before.move && !after.over && looksWorse) {
+  // Stockfish's analyses (the page's chess coach, `sf: true`) see far deeper than a move: taken as they are.
+  if (!same && !played.hq && before.move && !after.over && looksWorse && !before.sf) {
     // Twice the analysis' count of positions: measured against a search forty times as deep
     // (251 doubtful moves), verdicts two steps off went from 42 to 16 (the same count: 27).
     const o = opts || {};

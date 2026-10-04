@@ -102,7 +102,7 @@ export const CHUNKS = {
   bowling: ['JS_Bowling', 'Bowling.js'],
   battleship: ['JS_Battleship', 'Battleship.js'],
   minigolf: ['JS_MiniGolf', 'MiniGolf.js'],
-  chess: ['JS_Chess', 'JS_ChessOpenings', 'JS_ChessReview', 'JS_ChessPosition', 'JS_RoomChess', 'Chess.js'],
+  chess: ['JS_Chess', 'JS_ChessOpenings', 'JS_ChessStockfish', 'JS_ChessReview', 'JS_ChessPosition', 'JS_RoomChess', 'Chess.js'],
   chesspuzzles: ['JS_ChessPuzzles', 'ChessPuzzles.js'],
   chessrooms: ['JS_RoomBughouse', 'JS_RoomChess4', 'JS_RoomVoteChess', 'JS_RoomHandBrain', 'Chess4.js'],
   ludo: ['JS_Ludo', 'JS_RoomLudo', 'Ludo.js'],

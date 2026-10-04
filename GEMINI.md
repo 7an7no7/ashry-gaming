@@ -66,7 +66,7 @@ file and a new line.
 - 🔴 كونكت ٤, 🔲 نقط ومربعات, ⭕ إكس أو and «إكس أو الكبير» (the duels, winner stays on; كونكت ٤ team against team) - `notes/games/duels.md`.
 - 🏆 The duels' tournament - `notes/games/tournament.md`.
 - خمّن مين (one against one, winner stays; or team against team from 4, the guess agreed by two) - `notes/games/guesswho.md`. المشنقة (one writes, the race by category, team against team; levels, lifelines, hints, the streak, 16 endings in `JS_HangmanEnd.html`) - `notes/games/hangman.md`. 🚢 حرب السفن - `notes/games/battleship.md`.
-- ♞ شطرنج (and الوزير المستخبي, 960, the coach, the review) - `notes/games/chess.md`.
+- ♞ شطرنج (and الوزير المستخبي, 960, the coach and the review on Stockfish 19 in a worker, `JS_ChessStockfish.html`, `vendor/stockfish/`) - `notes/games/chess.md`.
 - ألغاز شطرنج - `notes/games/chesspuzzle.md`. باغ هاوس - `notes/games/bughouse.md`. شطرنج الأربعة - `notes/games/chess4.md`.
 - شطرنج بالتصويت and المخ والإيد - `notes/games/chess-teams.md`.
 - 🎳 بولينج - `notes/games/bowling.md`. ⛳ ميني جولف - `notes/games/minigolf.md`.

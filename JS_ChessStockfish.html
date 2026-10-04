@@ -1,0 +1,160 @@
+<script>
+/* ============================================================================
+   Stockfish for the chess coach and the review (the owner, 4 Oct 2026)
+   ----------------------------------------------------------------------------
+   The app's own engine (Chess.js) sees four or five moves ahead, so the coach
+   now and then called a good move a blunder. The coach's looks - the warning,
+   the word after each move, the hint, the best-move arrows - and the review
+   after a game ask Stockfish 19 instead: the "lite single-threaded" build of
+   Stockfish.js (vendor/stockfish/README.md, GPLv3), 1.8 MB, copied into g/
+   beside the games' chunks and kept for offline like one. It runs in a Web
+   Worker, so the page never stands still while it thinks (the app's own engine
+   ran on the page).
+
+   The computer you play against stays the app's own engine, with its ratings
+   from 400 to 2000. So do the games Stockfish doesn't know: الوزير المستخبي (a
+   pawn that is secretly a queen) and Chess960 (its castling). Anything that
+   goes wrong - no Worker, no WebAssembly, the file not loading, no answer in
+   time - leaves Stockfish off for the rest of the visit and every look falls
+   back to the app's own engine, as before.
+
+   One worker answers one question at a time (a queue). Each question is a
+   position (FEN), a count of positions to search (`go nodes`: on one phone the
+   same position gives the same answer) and how many lines; the answer has the
+   shape chessAnalyse gives (move, san, score for the side to move with a mate
+   as CHESS_MATE less its plies, mate, pv, lines), with `sf: true`, so
+   chessJudge, the reasons and the review read it unchanged.
+   ========================================================================= */
+
+// Positions searched per look: on this PC 120,000 is about depth 14 in 0.15 s, on a phone
+// about three times as long. The review asks once for every position of the game.
+const CH_SF = { file: 'g/sf19-lite.js', coach: 150000, best: 200000, review: 120000, timeout: 30000 };
+const chSf = { w: null, ready: null, failed: false, busy: null, queue: [], onLine: null, memo: new Map() };
+
+/** Can Stockfish look at this game? Standard chess on a phone that runs it (not الوزير المستخبي, not Chess960). */
+function chSfFits(g, hq) {
+  if (chSf.failed || hq || typeof Worker === 'undefined' || typeof WebAssembly !== 'object') return false;
+  const r = g && g.rooks;
+  return !r || (r[0] === 7 && r[1] === 0 && r[2] === 7 && r[3] === 0);
+}
+
+/** Stockfish off for this visit: the worker gone, every question waiting answered with null (the app's own engine). */
+function chSfFail() {
+  chSf.failed = true;
+  try { if (chSf.w) chSf.w.terminate(); } catch (e) { /* gone already */ }
+  chSf.w = null;
+  const waiting = (chSf.busy ? [chSf.busy] : []).concat(chSf.queue.splice(0));
+  chSf.busy = null;
+  waiting.forEach(job => { clearTimeout(job.timer); job.done(null); });
+}
+
+/** Starts the worker once: true when it has said readyok. */
+function chSfStart() {
+  if (chSf.ready) return chSf.ready;
+  chSf.ready = new Promise((resolve) => {
+    let w;
+    try { w = new Worker(CH_SF.file); } catch (e) { chSfFail(); resolve(false); return; }
+    chSf.w = w;
+    const t = setTimeout(() => { chSf.onLine = null; chSfFail(); resolve(false); }, CH_SF.timeout);
+    chSf.onLine = (line) => { if (line === 'readyok') { clearTimeout(t); chSf.onLine = null; resolve(true); } };
+    w.onmessage = (e) => chSfLine(String(e.data));
+    w.onerror = () => { clearTimeout(t); chSf.onLine = null; chSfFail(); resolve(false); };
+    w.postMessage('uci');
+    w.postMessage('setoption name Hash value 16');
+    w.postMessage('isready');
+  });
+  return chSf.ready;
+}
+
+/**
+ * Stockfish's look at a position, or null when it can't (the caller then asks the
+ * app's own engine). opts: { nodes, lines, hq (الوزير المستخبي: never Stockfish) }.
+ */
+function chSfAnalyse(g, opts) {
+  const o = opts || {};
+  if (!chSfFits(g, o.hq)) return Promise.resolve(null);
+  const lines = Math.max(1, Number(o.lines) || 1);
+  // A game over needs no search: the app's own answer (mated, or a draw), at once.
+  if (chessStatus(g).over) return Promise.resolve(Object.assign(chessAnalyse(g, { lines: lines }), { sf: true }));
+  const fen = chessFen(g);
+  const nodes = o.nodes || CH_SF.coach;
+  const key = fen + '|' + nodes + '|' + lines;
+  if (chSf.memo.has(key)) return Promise.resolve(chSf.memo.get(key));
+  return chSfStart().then(ok => (!ok ? null : new Promise((done) => {
+    chSf.queue.push({ g: chessCloneGame(g), fen: fen, nodes: nodes, lines: lines, key: key, info: {}, timer: 0, done: done });
+    chSfNext();
+  })));
+}
+
+function chSfNext() {
+  if (chSf.busy || !chSf.queue.length || !chSf.w) return;
+  const job = chSf.busy = chSf.queue.shift();
+  job.timer = setTimeout(chSfFail, CH_SF.timeout);
+  chSf.w.postMessage('setoption name MultiPV value ' + job.lines);
+  chSf.w.postMessage('position fen ' + job.fen);
+  chSf.w.postMessage('go nodes ' + job.nodes);
+}
+
+/** A line from the worker: the start's readyok, a search's progress (the last line of each multipv kept), its bestmove. */
+function chSfLine(line) {
+  if (chSf.onLine) chSf.onLine(line);
+  const job = chSf.busy;
+  if (!job) return;
+  if (line.indexOf('info ') === 0 && line.indexOf(' pv ') !== -1 && !/ (lower|upper)bound /.test(line)) {
+    const num = (k) => { const m = line.match(new RegExp(' ' + k + ' (-?\\d+)')); return m ? Number(m[1]) : null; };
+    const mate = num('score mate'), cp = num('score cp');
+    if (mate === null && cp === null) return;
+    job.info[num('multipv') || 1] = { depth: num('depth') || 0, mate: mate, cp: cp, pv: line.slice(line.indexOf(' pv ') + 4).trim().split(/\s+/) };
+    return;
+  }
+  if (line.indexOf('bestmove') !== 0) return;
+  clearTimeout(job.timer);
+  chSf.busy = null;
+  let res = null;
+  try { res = chSfResult(job); } catch (e) { res = null; }
+  if (res) {
+    if (chSf.memo.size > 200) chSf.memo.delete(chSf.memo.keys().next().value);
+    chSf.memo.set(job.key, res);
+  }
+  job.done(res);
+  chSfNext();
+}
+
+/** Stockfish's score as the app's: centipawns, or a mate as CHESS_MATE less its plies (+ for the side to move). */
+const chSfScore = (x) => (x.mate !== null ? (x.mate > 0 ? CHESS_MATE - (2 * x.mate - 1) : -(CHESS_MATE - 2 * -x.mate)) : x.cp);
+
+/** A line of moves in UCI as the app's moves with their SAN, as far as they are legal. */
+function chSfPv(g, ucis, max) {
+  const q = chessCloneGame(g);
+  const out = [];
+  for (let i = 0; i < ucis.length && out.length < (max || 12); i++) {
+    const info = chessPlay(q, chessFromUci(ucis[i]));
+    if (!info) break;
+    out.push({ from: info.from, to: info.to, promo: info.promo || '', san: info.san });
+  }
+  return out;
+}
+
+/** The answer, in chessAnalyse's shape, from what the search said last. */
+function chSfResult(job) {
+  const top = job.info[1];
+  if (!top) return null;
+  const pv = chSfPv(job.g, top.pv);
+  if (!pv.length) return null;
+  const score = chSfScore(top);
+  const out = {
+    over: false, move: { from: pv[0].from, to: pv[0].to, promo: pv[0].promo }, san: pv[0].san,
+    score: score, mate: chessMateIn(score), pv: pv, depth: top.depth, sf: true
+  };
+  if (job.lines > 1) {
+    out.lines = Object.keys(job.info).map(Number).sort((a, b) => a - b).map(k => {
+      const x = job.info[k];
+      const m = chSfPv(job.g, x.pv, 1)[0];
+      if (!m) return null;
+      const sc = chSfScore(x);
+      return { move: { from: m.from, to: m.to, promo: m.promo }, from: m.from, to: m.to, promo: m.promo, san: m.san, score: sc, mate: chessMateIn(sc) };
+    }).filter(Boolean);
+  }
+  return out;
+}
+</script>

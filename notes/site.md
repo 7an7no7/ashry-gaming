@@ -41,6 +41,14 @@ the button under its revealed answer too.
 
 ### The static site (docs/)
 
+**The chess coach's engine (4 Oct 2026).** Stockfish 19 (lite, single-threaded:
+`vendor/stockfish/`, GPLv3, 1.8 MB, 1.2 MB compressed) is copied into `g/` as
+`sf19-lite.js` + `sf19-lite.wasm` by both builds, listed with the chunks (so the
+worker downloads it at install, keeps it in `g-chunks` across builds and answers
+it cache-first: `/g/*.js|wasm`). The owner chose the background download (chess
+analysis offline from the first visit) over fetching it on the first look. A new
+Stockfish gets a new name (`sf20-lite.*`, `CH_SF.file`), so phones fetch it once.
+
 The app ships as a static site: `npm run build:site` (tools/build-site.mjs)
 writes `docs/`, and GitHub Pages publishes it. It is the top-level page, so the
 home-screen icon, the manifest, `?room=` links and the offline service worker

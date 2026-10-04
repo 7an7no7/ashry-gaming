@@ -2381,7 +2381,7 @@ function chResultLine(result, reason, names) {
 // busy: a second tap too soon; thinking: the computer's timer; tick: the clock's.
 // pre / presel: a premove queued against the computer, and the piece picked up for one;
 // best / bestKey: the best-move arrows worked out for a position (and the one being worked out).
-const chLocal = { hqSel: '', sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', hint: null, hintKey: '', pending: null, commentKey: '', pre: null, presel: '', best: null, bestKey: '' };
+const chLocal = { hqSel: '', sel: '', busy: 0, thinking: null, tick: null, coachBefore: null, coachKey: '', coachAsking: '', hint: null, hintKey: '', hintAsking: '', pending: null, commentKey: '', pre: null, presel: '', best: null, bestKey: '' };
 
 function chState() {
   if (!appState.shatranj) {
@@ -3024,8 +3024,8 @@ function chNewGame(opts) {
   s.gameVs = s.vs;
   s.gameId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   chLocal.sel = '';
-  chLocal.coachBefore = null; chLocal.coachKey = '';
-  chLocal.hint = null; chLocal.hintKey = '';
+  chLocal.coachBefore = null; chLocal.coachKey = ''; chLocal.coachAsking = '';
+  chLocal.hint = null; chLocal.hintKey = ''; chLocal.hintAsking = '';
   chLocal.pending = null;
   chLocal.pre = null; chLocal.presel = '';
   saveToLocal();
@@ -3368,6 +3368,12 @@ function chPaintClocks() {
 
 const CH_COACH_NODES = 25000;
 
+/** The coach's look at a position: Stockfish (JS_ChessStockfish.html) when it can, the app's own engine otherwise. */
+function chCoachAnalyse(g, hq, lines) {
+  return chSfAnalyse(g, { nodes: CH_SF.coach, hq: hq, lines: lines })
+    .then(a => a || chessAnalyse(g, { nodes: CH_COACH_NODES, ms: 900, lines: lines }));
+}
+
 /** On your turn the coach looks at the position once: the hint and the warning read it. */
 function chCoachPrepare() {
   const s = chState();
@@ -3377,19 +3383,36 @@ function chCoachPrepare() {
     const st = chState();
     if (st.phase !== 'play' || st.gameId + '|' + st.hist.length !== key || appState.currentView !== 'play-shatranj') return;
     // Continue and a new game reach here twice (setView's hook and their own call): one look is enough.
-    if (chLocal.coachKey === key) return;
-    chLocal.coachBefore = chessAnalyse(st.g, { nodes: CH_COACH_NODES, ms: 900 });
-    chLocal.coachKey = key;
-    chPaint();
+    if (chLocal.coachKey === key || chLocal.coachAsking === key) return;
+    chLocal.coachAsking = key;
+    chCoachAnalyse(chessCloneGame(st.g), !!chHqOf(st)).then(a => {
+      if (chLocal.coachAsking === key) chLocal.coachAsking = '';
+      const s2 = chState();
+      if (s2.gameId + '|' + s2.hist.length !== key || chLocal.coachKey === key) return;
+      chLocal.coachBefore = a;
+      chLocal.coachKey = key;
+      if (appState.currentView === 'play-shatranj') chPaint();
+    });
   }, chViewBusyLeft() + 80);
 }
 
 /** Your move against the computer, judged: a blunder waits for you to take it back or play it anyway. */
 function chCoachJudge(before, beforeLost, info, beforeClk, beforeHq) {
-  const s = chState();
-  const key = s.gameId + '|' + (s.hist.length - 1);
-  const pre = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : chessAnalyse(before, { nodes: CH_COACH_NODES, ms: 900 });
-  const after = chessAnalyse(s.g, { nodes: CH_COACH_NODES, ms: 900 });
+  const s0 = chState();
+  const key = s0.gameId + '|' + (s0.hist.length - 1);
+  const n = s0.hist.length, gid = s0.gameId;
+  const hq = !!beforeHq;
+  const pre0 = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : null;
+  // Stockfish thinks in its worker: the computer waits for the verdict, the page doesn't.
+  Promise.all([pre0 ? Promise.resolve(pre0) : chCoachAnalyse(before, hq), chCoachAnalyse(chessCloneGame(s0.g), hq)]).then(([pre, after]) => {
+    const s = chState();
+    // Not if the board was left meanwhile (coming back moves the game on), or the move taken back.
+    if (appState.currentView !== 'play-shatranj' || s.gameId !== gid || s.phase !== 'play' || s.hist.length !== n) return;
+    chCoachVerdict(s, before, beforeLost, info, beforeClk, beforeHq, pre, after);
+  });
+}
+
+function chCoachVerdict(s, before, beforeLost, info, beforeClk, beforeHq, pre, after) {
   const mv = { from: info.from, to: info.to, promo: info.promo || '' };
   if (info.hq && info.hq.reveal) mv.hq = true;
   const verdict = chessJudge(before, mv, pre, after, { nodes: CH_COACH_NODES, ms: 900 });
@@ -3540,7 +3563,20 @@ function chBestPrepare() {
     if (s2.help && !s2.help.best) { s2.help.best = true; saveToLocal(); }
     chPaint();
   };
-  setTimeout(step, chViewBusyLeft() + 60);
+  // Stockfish gives the three best moves and their scores in one search (three lines), in its
+  // worker; the app's own engine, a candidate a tick, when it can't.
+  chSfAnalyse(g0, { lines: 3, nodes: CH_SF.best, hq: !!chHqOf(s) }).then(a => {
+    if (!a) { if (alive()) setTimeout(step, chViewBusyLeft() + 60); else if (chLocal.bestKey === key) chLocal.bestKey = ''; return; }
+    if (!alive()) { if (chLocal.bestKey === key) chLocal.bestKey = ''; return; }
+    const lines = (a.lines || []).slice(0, 3);
+    if (!lines.length) return;
+    // Best first (the lines' last depths can differ by one); a tie keeps Stockfish's own order.
+    chLocal.best = { key: key, lines: lines.map((l, i) => ({ from: l.from, to: l.to, san: l.san, score: l.score, pct: Math.round(chessWinPct(l.score)), order: i }))
+      .sort((x, y) => y.score - x.score || x.order - y.order) };
+    const s2 = chState();
+    if (s2.help && !s2.help.best) { s2.help.best = true; saveToLocal(); }
+    chPaint();
+  });
 }
 
 /** The best moves showing now (this position's), or null. */
@@ -3557,8 +3593,20 @@ function chHint() {
   // The hint on the board already is not asked for twice.
   if (chLocal.hint && chLocal.hint.key === key) return;
   if (chHelpLeft(s, 'hint') <= 0) return;
-  const a = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : chessAnalyse(s.g, { nodes: CH_COACH_NODES, ms: 900 });
-  chLocal.coachBefore = a; chLocal.coachKey = key;
+  if (!(chLocal.coachKey === key && chLocal.coachBefore)) {
+    // The coach hasn't finished its look yet: the hint comes when it has (a second tap meanwhile asks nothing).
+    if (chLocal.hintAsking === key) return;
+    chLocal.hintAsking = key;
+    chCoachAnalyse(chessCloneGame(s.g), !!chHqOf(s)).then(a => {
+      if (chLocal.hintAsking === key) chLocal.hintAsking = '';
+      const st = chState();
+      if (st.gameId + '|' + st.hist.length !== key || appState.currentView !== 'play-shatranj') return;
+      chLocal.coachBefore = a; chLocal.coachKey = key;
+      chHint();
+    });
+    return;
+  }
+  const a = chLocal.coachBefore;
   if (!a.move) return;
   chLocal.hint = { move: a.move, san: a.san, reasons: chessMoveGood(s.g, a.move, a), key: key };
   s.help.hint++;

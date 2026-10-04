@@ -355,9 +355,38 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
     then judges; `chessJudge` takes Stockfish's looks as they are (no
     side-by-side re-check). A kept review says `engine: 'sf' | 'app'`; one by
     the app's engine is worked out again once Stockfish can (`chReviewFresh`),
-    and the review shows «🐟 حلّلها Stockfish 19». **The computer you play
-    against stays the app's own engine** (its ratings 400-2000), so do the
-    puzzles made from mistakes and the rooms server.
+    and the review shows «🐟 حلّلها Stockfish 19». The rooms server keeps the
+    app's own engine.
+  - **The second batch, the same day** (the owner picked five of my ideas):
+    - **Stockfish plays الأستاذ, الجنرال and any rating from 1700**
+      (`CH_SF_PLAY_MIN`, `chSfPlay`): held to the rating by its own
+      `UCI_LimitStrength` / `UCI_Elo` (1320-3190), thinking the rating's
+      `ms` (capped by the clock as before), given the whole game from its
+      start (`position startpos moves …`, so it knows a repetition). Below
+      1700, الوزير المستخبي, or Stockfish not running: the app's own engine.
+      Every worker question sets the limit (on for a move, off for an
+      analysis), so the two never mix.
+    - **Book moves**: the moves that still lead into a known opening
+      (`chOpeningMatch(...).lastPly`, the page's opening book) are `book`
+      («من الافتتاح», ≡ on brown) - not graded, accuracy 100, no "better
+      move", no warning; the review sets `rv.book` before
+      `chessReviewResult`, the live coach checks `s.sans`. `CHESS_REVIEW_V`
+      3, so kept reviews are worked out again.
+    - **«🎬 ليه؟»** in the review: an inaccuracy, mistake or blunder keeps
+      `reply`, the line that punishes it (the analysis after the move, four
+      plies), and the button plays it on the board a move every 1.1 s
+      (`chReviewWhy`, `chRv.why`; the move on the board red in the line
+      under it, the taken pieces with it; another step, «رجوع» or leaving
+      stops it).
+    - **Puzzles from mistakes judged by Stockfish**: when one is dealt, eight
+      lines list every move within 50 cp of the best (`p.sfOk`,
+      `chPzSfPrepare`, asked for from `chPzPaint`); a move is judged from
+      that list at once, the app's engine only while it isn't in yet or when
+      all eight were within 50 cp. Stockfish's lines are one a move, the
+      deepest (a search stopped by its count can leave an older line naming
+      a move another line has).
+    - **The review's two players** stack in a narrow column (`auto-fit`,
+      10rem): on a phone on its side «الكمبيوتر» broke a letter a line.
   - **The coach's analysis**: `chessAnalyse(g, { nodes })` (the best move, the
     score for the side to move, mate in n, the line it expects), `chessJudge`
     (one move against the analyses before and after it: the verdict from the

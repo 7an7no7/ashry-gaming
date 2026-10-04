@@ -7575,6 +7575,14 @@ Date.now = duelTestClock;
     while (!CH.chessReviewStep(steps, same)) { /* a step at a time, as the page does */ }
     check(JSON.stringify(CH.chessReviewResult(steps)) === JSON.stringify(qh4) && qh4.v === CH.CHESS_REVIEW_V && CH.chessReviewDone(steps) === 1,
       'chess coach: a review a step at a time comes out as the whole review, marked with its version');
+    check(qh4.moves[3].reply && qh4.moves[3].reply[0] === 'f3h4' && qh4.moves[4].reply === undefined,
+      'chess coach: a blunder keeps the line that punishes it (the knight takes the queen) for «ليه؟»; the best move keeps none');
+    const booked = CH.chessReviewBegin({ start: '', moves: ['e2e4', 'e7e5', 'g1f3', 'd8h4', 'f3h4'] });
+    while (!CH.chessReviewStep(booked, same)) { /* every step */ }
+    booked.book = 3;
+    const br = CH.chessReviewResult(booked);
+    check(br.moves.slice(0, 3).every((m) => m.cls === 'book' && m.accuracy === 100 && m.reasons[0].k === 'book') && br.moves[3].cls === 'blunder',
+      'chess coach: the moves of a known opening are book (not graded, full accuracy); the first move out of it is judged');
     const th = CH.chessThreats(CH.chessFromFen('rnb1kbnr/pppp1ppp/8/4p3/4P2q/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3'));
     check(th.w.join() === 'e4' && th.b.sort().join() === 'e5,h4', 'chess coach: the pieces in danger, each side (attacked and not defended, or by something cheaper)');
     const pins = CH.chessPins(CH.chessFromFen('4k3/8/8/8/1b6/8/3N4/4K3 w - - 0 1').board, 0);

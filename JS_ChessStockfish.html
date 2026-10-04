@@ -11,9 +11,11 @@
    Worker, so the page never stands still while it thinks (the app's own engine
    ran on the page).
 
-   The computer you play against stays the app's own engine, with its ratings
-   from 400 to 2000. So do the games Stockfish doesn't know: الوزير المستخبي (a
-   pawn that is secretly a queen) and Chess960 (its castling). Anything that
+   The computer you play against stays the app's own engine below 1700 (it
+   plays like a beginner the way Stockfish can't); from 1700 - الأستاذ, الجنرال -
+   Stockfish plays, held to the rating (chSfPlay). The games Stockfish doesn't
+   know stay the app's own: الوزير المستخبي (a pawn that is secretly a queen)
+   and Chess960 (its castling). Anything that
    goes wrong - no Worker, no WebAssembly, the file not loading, no answer in
    time - leaves Stockfish off for the rest of the visit and every look falls
    back to the app's own engine, as before.
@@ -86,13 +88,36 @@ function chSfAnalyse(g, opts) {
   })));
 }
 
+/**
+ * The computer's move at the top ratings (the owner, 4 Oct 2026: الأستاذ, الجنرال and a chosen
+ * rating from CH_SF_PLAY_MIN): Stockfish held to that rating by its own UCI_LimitStrength, thinking
+ * `ms`. opts: { elo, ms, hq, start (FEN, '' for the usual start), moves (the game's, UCI) }.
+ * A promise of { from, to, promo }, or null (then the app's own engine plays).
+ */
+const CH_SF_PLAY_MIN = 1700;
+function chSfPlay(g, opts) {
+  const o = opts || {};
+  if (!chSfFits(g, o.hq) || chessStatus(g).over) return Promise.resolve(null);
+  const elo = Math.max(1320, Math.min(3190, Math.round(Number(o.elo) || 2000)));
+  return chSfStart().then(ok => (!ok ? null : new Promise((done) => {
+    // The whole game from its start, so Stockfish knows the positions met before (a repetition is a draw).
+    const hist = (o.moves || []).filter(u => /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(u));
+    const pos = hist.length && hist.length === o.moves.length ? (o.start ? 'fen ' + o.start : 'startpos') + ' moves ' + hist.join(' ') : 'fen ' + chessFen(g);
+    chSf.queue.push({ g: chessCloneGame(g), fen: chessFen(g), pos: pos, lines: 1, elo: elo, ms: Math.max(100, Math.round(o.ms || 800)), info: {}, timer: 0, done: done });
+    chSfNext();
+  })));
+}
+
 function chSfNext() {
   if (chSf.busy || !chSf.queue.length || !chSf.w) return;
   const job = chSf.busy = chSf.queue.shift();
   job.timer = setTimeout(chSfFail, CH_SF.timeout);
+  // Every question says how strong to be: a move at a rating is held down, an analysis never is.
+  chSf.w.postMessage('setoption name UCI_LimitStrength value ' + (job.elo ? 'true' : 'false'));
+  if (job.elo) chSf.w.postMessage('setoption name UCI_Elo value ' + job.elo);
   chSf.w.postMessage('setoption name MultiPV value ' + job.lines);
-  chSf.w.postMessage('position fen ' + job.fen);
-  chSf.w.postMessage('go nodes ' + job.nodes);
+  chSf.w.postMessage('position ' + (job.pos || 'fen ' + job.fen));
+  chSf.w.postMessage(job.elo ? 'go movetime ' + job.ms : 'go nodes ' + job.nodes);
 }
 
 /** A line from the worker: the start's readyok, a search's progress (the last line of each multipv kept), its bestmove. */
@@ -111,8 +136,8 @@ function chSfLine(line) {
   clearTimeout(job.timer);
   chSf.busy = null;
   let res = null;
-  try { res = chSfResult(job); } catch (e) { res = null; }
-  if (res) {
+  try { res = job.elo ? chSfMove(job, line) : chSfResult(job); } catch (e) { res = null; }
+  if (res && !job.elo) {
     if (chSf.memo.size > 200) chSf.memo.delete(chSf.memo.keys().next().value);
     chSf.memo.set(job.key, res);
   }
@@ -135,6 +160,15 @@ function chSfPv(g, ucis, max) {
   return out;
 }
 
+/** A move to play, from `bestmove e2e4` - only if it is legal here. */
+function chSfMove(job, line) {
+  const u = (line.split(/\s+/)[1] || '');
+  if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(u)) return null;
+  const mv = chessFromUci(u);
+  const info = chessPlay(chessCloneGame(job.g), mv);
+  return info ? { from: info.from, to: info.to, promo: info.promo || '' } : null;
+}
+
 /** The answer, in chessAnalyse's shape, from what the search said last. */
 function chSfResult(job) {
   const top = job.info[1];
@@ -147,13 +181,20 @@ function chSfResult(job) {
     score: score, mate: chessMateIn(score), pv: pv, depth: top.depth, sf: true
   };
   if (job.lines > 1) {
-    out.lines = Object.keys(job.info).map(Number).sort((a, b) => a - b).map(k => {
+    // A search stopped by its count of positions may not have redone every line at its last depth:
+    // a line left from a shallower one can name a move another line has now. One line a move, the deepest.
+    const byMove = new Map();
+    Object.keys(job.info).map(Number).sort((a, b) => a - b).forEach(k => {
       const x = job.info[k];
       const m = chSfPv(job.g, x.pv, 1)[0];
-      if (!m) return null;
+      if (!m) return;
+      const u = m.from + m.to + (m.promo || '');
+      const had = byMove.get(u);
+      if (had && had.depth >= x.depth) return;
       const sc = chSfScore(x);
-      return { move: { from: m.from, to: m.to, promo: m.promo }, from: m.from, to: m.to, promo: m.promo, san: m.san, score: sc, mate: chessMateIn(sc) };
-    }).filter(Boolean);
+      byMove.set(u, { move: { from: m.from, to: m.to, promo: m.promo }, from: m.from, to: m.to, promo: m.promo, san: m.san, score: sc, mate: chessMateIn(sc), depth: x.depth, k: k });
+    });
+    out.lines = [...byMove.values()].sort((a, b) => b.score - a.score || a.k - b.k);
   }
   return out;
 }

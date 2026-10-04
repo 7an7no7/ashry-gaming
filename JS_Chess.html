@@ -2349,7 +2349,7 @@ function chMovesHtml(sans, opts) {
   return `${opLine}<div class="ch-moves" dir="ltr">${rows}</div>`;
 }
 
-const CH_CLASS_ICON = { brilliant: '!!', best: '★', good: '✓', inaccuracy: '?!', mistake: '?', blunder: '??' };
+const CH_CLASS_ICON = { book: '≡', brilliant: '!!', best: '★', good: '✓', inaccuracy: '?!', mistake: '?', blunder: '??' };
 const chClassDot = (cls) => `<i class="ch-cls ch-cls--${cls}" aria-hidden="true">${CH_CLASS_ICON[cls] || ''}</i>`;
 
 /** One reason, as a sentence: "your queen on h4 can be taken (Nxh4)". */
@@ -3206,7 +3206,14 @@ function chComputerSoon() {
     const ask = chEngine.seq;
     const plies = st.hist.length;
     chLocal.thinking = 'search';
-    chEngineThink(st.g, { elo: chOppElo(st), ms: ms, style: (st.opp && st.opp.style) || undefined, hq: hqs ? hqs.sq[st.g.turn] : -1 }).then((mv) => {
+    const own = () => chEngineThink(st.g, { elo: chOppElo(st), ms: ms, style: (st.opp && st.opp.style) || undefined, hq: hqs ? hqs.sq[st.g.turn] : -1 });
+    // From 1700 (الأستاذ, الجنرال, a rating chosen that high) Stockfish plays, held to the rating
+    // (JS_ChessStockfish.html, chSfPlay); below it, and whenever Stockfish can't, the app's own engine.
+    const elo = chOppElo(st);
+    const think = elo >= CH_SF_PLAY_MIN && !hqs
+      ? chSfPlay(st.g, { elo: elo, ms: ms, start: st.start || '', moves: st.hist.slice() }).then(mv => mv || own())
+      : own();
+    think.then((mv) => {
       if (ask !== chEngine.seq) return;
       if (chState() !== st || st.hist.length !== plies) {
         // The position moved on without the timers stopping (they move chEngine.seq): think again for the new one.
@@ -3416,6 +3423,9 @@ function chCoachVerdict(s, before, beforeLost, info, beforeClk, beforeHq, pre, a
   const mv = { from: info.from, to: info.to, promo: info.promo || '' };
   if (info.hq && info.hq.reveal) mv.hq = true;
   const verdict = chessJudge(before, mv, pre, after, { nodes: CH_COACH_NODES, ms: 900 });
+  // Still in a known opening: "book", as the review says it (no warning, nothing graded).
+  const theory = typeof chOpeningMatch === 'function' && !chHqOf(s) ? chOpeningMatch(s.sans, { start: s.start || (s.practice ? 'practice' : ''), variant: s.gameVariant }) : null;
+  if (theory && theory.lastPly === s.sans.length) { verdict.cls = 'book'; verdict.reasons = [{ k: 'book' }]; }
   if (s.coachOpts.warn !== false && verdict.cls === 'blunder' && s.phase !== 'done') {
     chLocal.pending = { before: before, lost: beforeLost, verdict: verdict, hist: s.hist.length, clk: beforeClk || null, hq: beforeHq || null };
     if (s.help) s.help.warn = true;
@@ -3829,7 +3839,7 @@ function chLocalSideHtml(s, names) {
 /** The coach's word on your last move: the verdict, why, and the better move. */
 function chCommentHtml(c) {
   const why = chReasonsLine(c.reasons, 2);
-  const better = c.best && c.cls !== 'best' && c.cls !== 'brilliant' ? `<span class="ch-comment__better">${escapeHTML(chT('ch_better'))} <b dir="ltr">${escapeHTML(chFigurine(c.best.san))}</b></span>` : '';
+  const better = c.best && c.cls !== 'best' && c.cls !== 'brilliant' && c.cls !== 'book' ? `<span class="ch-comment__better">${escapeHTML(chT('ch_better'))} <b dir="ltr">${escapeHTML(chFigurine(c.best.san))}</b></span>` : '';
   return `<div class="ch-comment ch-comment--${c.cls}">
       <span class="ch-comment__head">${chClassDot(c.cls)} ${escapeHTML(chT('ch_cls_' + c.cls))}</span>
       ${why ? `<span class="ch-comment__why">${escapeHTML(why)}</span>` : ''}${better}

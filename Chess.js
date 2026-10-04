@@ -1858,7 +1858,7 @@ const chessReviewDone = (rv) => (rv.i + (rv.judged ? rv.judged.length : 0)) / Ma
 
 // A review kept with a game says how it was worked out: one from before the moves were
 // weighed again side by side (4 Oct 2026) is worked out again when it is opened.
-const CHESS_REVIEW_V = 2;
+const CHESS_REVIEW_V = 3;   // 3: opening moves marked book (4 Oct 2026)
 
 /**
  * The review: { moves: [{ san, color, cls, loss, accuracy, best, reasons,
@@ -1875,6 +1875,13 @@ function chessReviewResult(rv) {
   for (let i = 0; i < rv.moves.length; i++) {
     const gb = rv.positions[i];
     const j = (rv.judged && rv.judged[i]) || chessJudge(gb, rv.moves[i], rv.analyses[i], rv.analyses[i + 1]);
+    // A move of a known opening (the page's opening book, `rv.book` plies from the start) is
+    // "book", not graded - as chess.com and Lichess do (the owner, 4 Oct 2026) - and costs no accuracy.
+    if (i < (rv.book || 0)) { j.cls = 'book'; j.accuracy = 100; j.reasons = [{ k: 'book' }]; }
+    // A move that cost something keeps the line that punishes it (the other side's best answer and
+    // what follows, four plies at most), for the review's «ليه؟», which plays it out on the board.
+    const nextPv = rv.analyses[i + 1] && rv.analyses[i + 1].pv;
+    if ((j.cls === 'inaccuracy' || j.cls === 'mistake' || j.cls === 'blunder') && nextPv && nextPv.length) j.reply = nextPv.slice(0, 4).map(chessUci);
     const color = gb.turn;
     j.san = rv.sans[i];
     j.color = color;

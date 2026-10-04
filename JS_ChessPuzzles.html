@@ -29,7 +29,7 @@ const CHPZ_LOCK_MS = 650;      // no move while a wrong one shakes back (a doubl
 
 // sel: the piece picked up; lockUntil: the board takes no move before this; flash: a square lit
 // for a moment ({ sq, kind: 'good' | 'bad' }); timer: the reply or the solution's next move.
-const chPzLocal = { sel: '', lockUntil: 0, flash: null, flashTimer: null, timer: null, unlockTimer: null };
+const chPzLocal = { sel: '', lockUntil: 0, flash: null, flashTimer: null, timer: null, unlockTimer: null, sfAsking: '' };
 
 function chPzState() {
   if (!appState.chesspuzzle) {
@@ -406,6 +406,7 @@ function chPzPaint(opts) {
   const s = chPzState();
   const el = document.getElementById('chesspuzzle-stage');
   if (!el || !s.p) return;
+  chPzSfPrepare(s);
   if (!el.querySelector('.ch-game') || el._chLang !== appState.lang) { el.innerHTML = chLayoutHtml(); el._chLang = appState.lang; el.querySelector('.ch-game').classList.add('chpz'); }
   const pos = chPzGame(s);
   const side = chPzSide(s);
@@ -873,10 +874,37 @@ function chPzScoreAfter(gAfter) {
   return a.over ? (a.mated ? CHESS_MATE - 1 : 0) : -a.score;
 }
 
+/**
+ * Stockfish's ruling on a puzzle from a mistake (4 Oct 2026): when it is dealt, one search of
+ * eight lines lists every move within 50 cp of the best (`p.sfOk`), so a move is judged at once
+ * and as deep as the review found the mistake. Until it answers, or when it can't, the app's own
+ * engine judges as before. Asked for by the paint, so a reload or «كمّل» asks too.
+ */
+const CHPZ_SF_LINES = 8;
+function chPzSfPrepare(s) {
+  const p = s && s.p;
+  if (!p || !p.alt || p.sfOk || typeof chSfAnalyse !== 'function' || chPzLocal.sfAsking === p.id) return;
+  chPzLocal.sfAsking = p.id;
+  chSfAnalyse(chessFromFen(p.fen), { lines: CHPZ_SF_LINES, nodes: 300000 }).then(a => {
+    if (chPzLocal.sfAsking === p.id) chPzLocal.sfAsking = '';
+    const st = chPzState();
+    if (!a || !a.lines || !a.lines.length || !st.p || st.p.id !== p.id) return;
+    const top = chessClampCp(a.lines[0].score);
+    const ok = a.lines.filter(l => chessClampCp(l.score) >= top - CHPZ_ALT_CP);
+    // all: every move within 50 cp is in the list (a line after them was further off, or the position has no more moves).
+    st.p.sfOk = { moves: ok.map(l => l.from + l.to + (l.promo || '')), all: ok.length < a.lines.length || a.lines.length >= chessLegalMoves(chessFromFen(p.fen)).length };
+    saveToLocal();
+  });
+}
+
 /** Another move as good as the best (within 50 cp), never the move played in the game. */
 function chPzAltOk(s, g, info, mine) {
   const uci = info.uci || info.from + info.to + (info.promo || '');
   if (uci === s.p.played) return false;
+  if (s.p.sfOk) {
+    if (s.p.sfOk.moves.indexOf(uci) !== -1) return true;
+    if (s.p.sfOk.all) return false;
+  }
   if (typeof s.p.bestRef !== 'number') {
     const b = chessCloneGame(g);
     if (!chessPlay(b, chessFromUci(s.p.moves[0]))) return false;

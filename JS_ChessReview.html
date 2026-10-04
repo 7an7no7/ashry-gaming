@@ -359,7 +359,7 @@ function chShareRowHtml(key) {
 
 // rec: the game; rv: the engine's step-by-step review; res: the finished review;
 // infos: each move as played (for what was taken); ply: 0 = the start, k = after move k.
-const chRv = { id: '', rec: null, rv: null, res: null, infos: [], lost: [], ply: 0, better: false, timer: null, from: '', shown: null };
+const chRv = { id: '', rec: null, rv: null, res: null, infos: [], lost: [], ply: 0, better: false, timer: null, from: '', shown: null, why: null, whyTimer: null };
 
 /** Opens a kept game's review. */
 function chOpenReview(id) {
@@ -434,6 +434,9 @@ function chReviewRun() {
   const live = () => chRv.run === run && chRv.id === id && appState.currentView === 'review-shatranj';
   let sfAll = chReviewSfFits(chRv.rec);
   const finish = () => {
+    // The opening book: the moves that still lead into a known opening are "book", not graded.
+    const theory = typeof chOpeningMatch === 'function' && chRv.rec.variant !== 'hq' ? chOpeningMatch(rv.sans, { start: chRv.rec.start, variant: chRv.rec.variant }) : null;
+    rv.book = theory ? theory.lastPly : 0;
     chRv.res = chessReviewResult(rv);
     chRv.res.engine = sfAll ? 'sf' : 'app';
     const list = chLoadGames();
@@ -475,6 +478,7 @@ function chReviewRun() {
 }
 
 function chReviewStop() {
+  chReviewWhyStop();
   if (chRv.timer) clearTimeout(chRv.timer);
   chRv.timer = null;
   // A Stockfish review waiting on an answer lets it go.
@@ -491,18 +495,68 @@ function chReviewProgress(f) {
 function chReviewGo(ply) {
   const n = chRv.rv ? chRv.rv.moves.length : 0;
   const p = Math.max(0, Math.min(n, ply));
-  if (p === chRv.ply && !chRv.better) return;
+  if (p === chRv.ply && !chRv.better && !chRv.why) return;
   chRv.ply = p;
   chRv.better = false;
+  chReviewWhyStop();
   if (appState.shatranjReview) appState.shatranjReview.ply = p;
   haptic('light');
   chReviewPaint();
 }
 
 function chReviewBetter() {
+  chReviewWhyStop();
   chRv.better = !chRv.better;
   haptic('light');
   chReviewPaint();
+}
+
+/* «ليه؟» (the owner, 4 Oct 2026): on a move that cost something, the line that punishes it - the
+   other side's best answer and what follows, kept with the review (`reply`) - played out on the
+   board a move at a time, the moves listed under it; the step's arrows and «رجوع» go back. */
+const CH_WHY_STEP_MS = 1100;
+
+function chReviewWhyStop() {
+  clearTimeout(chRv.whyTimer);
+  chRv.whyTimer = null;
+  chRv.why = null;
+}
+
+function chReviewWhy() {
+  const k = chRv.ply - 1;
+  const m = chRv.res && k >= 0 ? chRv.res.moves[k] : null;
+  const was = chRv.why && chRv.why.k === k;
+  chReviewWhyStop();
+  if (was || !m || !m.reply || !m.reply.length) { chReviewPaint(); return; }
+  chRv.better = false;
+  const g = chessCloneGame(chRv.rv.positions[k + 1]);
+  const lost = (chRv.lost[chRv.ply] || [[], []]).map(a => a.slice());
+  const steps = [];
+  m.reply.forEach(u => {
+    const mover = g.turn;
+    const info = chessPlay(g, chessFromUci(u));
+    if (!info) return;
+    if (info.capture) lost[1 - mover].push(info.capture);
+    steps.push({ g: chessCloneGame(g), info: info, lost: lost.map(a => a.slice()) });
+  });
+  if (!steps.length) { chReviewPaint(); return; }
+  chRv.why = { k: k, n: 0, steps: steps };
+  haptic('light');
+  chReviewPaint();
+  const tick = () => {
+    const w = chRv.why;
+    if (!w || w.k !== k || appState.currentView !== 'review-shatranj' || w.n >= w.steps.length) return;
+    w.n++;
+    chReviewPaint();
+    if (w.n < w.steps.length) chRv.whyTimer = setTimeout(tick, CH_WHY_STEP_MS);
+  };
+  chRv.whyTimer = setTimeout(tick, 600);
+}
+
+/** The line under the board while «ليه؟» plays: each move, the one on the board marked. */
+function chReviewWhyHtml(w) {
+  const moves = w.steps.map((st, i) => `<span class="ch-why__mv ${i < w.n ? 'is-played' : ''} ${i === w.n - 1 ? 'is-now' : ''}">${escapeHTML(chFigurine(st.info.san))}</span>`).join('');
+  return `<div class="ch-why"><span class="ch-why__lbl">${escapeHTML(chT('ch_rv_why_line'))}</span><span class="ch-why__moves" dir="ltr">${moves}</span></div>`;
 }
 
 /** From this moment, against the computer: the better move played for you, then it's the computer's turn. */
@@ -588,7 +642,10 @@ function chReviewPaint(fresh, justDone) {
   const stepped = typeof chRv.shown === 'number' ? chRv.ply - chRv.shown : 1;
   chRv.shown = chRv.ply;
   const showBefore = chRv.better && k >= 0;
-  const pos = rv.positions[showBefore ? k : chRv.ply];
+  // «ليه؟» playing: the board is the line's step (the move after this one's position first).
+  const whyRun = chRv.why && chRv.why.k === k ? chRv.why : null;
+  const whyStep = whyRun && whyRun.n > 0 ? whyRun.steps[whyRun.n - 1] : null;
+  const pos = whyStep ? whyStep.g : rv.positions[showBefore ? k : chRv.ply];
   const info = k >= 0 ? chRv.infos[k] : null;
   const verdict = res && k >= 0 ? res.moves[k] : null;
   const arrows = [];
@@ -600,12 +657,13 @@ function chReviewPaint(fresh, justDone) {
   const orient = rec.me === 1 ? 1 : 0;
   const model = {
     key: 'review|' + rec.id, board: pos.board, orient: orient, loud: true,
-    last: !showBefore && info ? { from: info.from, to: info.to } : null,
+    last: whyStep ? { from: whyStep.info.from, to: whyStep.info.to } : !showBefore && info ? { from: info.from, to: info.to } : null,
     // A move slides only when the step is that move, one forward; stepping back or jumping just shows the position.
-    anim: info && !showBefore ? Object.assign({ key: 'rv|' + rec.id + '|' + chRv.ply, still: !!fresh || stepped !== 1 }, info) : { key: 'rv|' + rec.id + '|b' + chRv.ply, still: true },
+    anim: whyStep ? Object.assign({ key: 'rvwhy|' + rec.id + '|' + k + '|' + whyRun.n, still: false }, whyStep.info)
+      : info && !showBefore ? Object.assign({ key: 'rv|' + rec.id + '|' + chRv.ply, still: !!fresh || stepped !== 1 }, info) : { key: 'rv|' + rec.id + '|b' + chRv.ply, still: true },
     check: chessCheckSq(pos), mate: '',
     sel: '', targets: [], marks: [], arrows: arrows,
-    lost: chRv.lost[showBefore ? k : chRv.ply] || [[], []],
+    lost: whyStep ? whyStep.lost : chRv.lost[showBefore ? k : chRv.ply] || [[], []],
     input: null
   };
   chViewShow(el.querySelector('[data-ch-host]'), model);
@@ -630,16 +688,18 @@ function chReviewPaint(fresh, justDone) {
   else if (!verdict) note = `<div class="ch-comment"><span class="ch-comment__head"><b dir="ltr">${Math.floor(k / 2) + 1}${k % 2 ? '…' : '.'} ${escapeHTML(chFigurine(rv.sans[k]))}</b></span></div>`;
   else {
     const why = chReasonsLine(verdict.reasons, 2);
-    const worse = verdict.cls !== 'best' && verdict.cls !== 'brilliant';
+    const worse = verdict.cls !== 'best' && verdict.cls !== 'brilliant' && verdict.cls !== 'book';
     note = `<div class="ch-comment ch-comment--${verdict.cls}">
         <span class="ch-comment__head"><b dir="ltr">${Math.floor(k / 2) + 1}${k % 2 ? '…' : '.'} ${escapeHTML(chFigurine(rv.sans[k]))}</b> ${chClassDot(verdict.cls)} ${escapeHTML(chT('ch_cls_' + verdict.cls))}</span>
         ${why ? `<span class="ch-comment__why">${escapeHTML(why)}</span>` : ''}
         ${worse && verdict.best ? `<span class="ch-comment__better">${escapeHTML(chT('ch_better'))} <b dir="ltr">${escapeHTML(chFigurine(verdict.best.san))}</b></span>` : ''}
         ${worse && verdict.best ? `<span class="ch-comment__btns">
             <button type="button" class="btn btn--secondary btn--xs btn--auto" onclick="chReviewBetter()">👁 ${escapeHTML(chRv.better ? chT('ch_rv_back') : chT('ch_rv_show_better'))}</button>
+            ${verdict.reply && verdict.reply.length ? `<button type="button" class="btn btn--secondary btn--xs btn--auto" onclick="chReviewWhy()">🎬 ${escapeHTML(whyRun ? chT('ch_rv_back') : chT('ch_rv_why'))}</button>` : ''}
             <button type="button" class="btn btn--primary btn--xs btn--auto" onclick="chReviewTry()">🎯 ${escapeHTML(chT('ch_rv_try'))}</button>
             ${(verdict.cls === 'mistake' || verdict.cls === 'blunder') ? `<button type="button" class="btn btn--secondary btn--xs btn--auto" onclick="lzRun('chesspuzzles', function () { chPzFromReview(${k}); })">🧩 ${escapeHTML(chT('chpz_try_as_puzzle'))}</button>` : ''}
           </span>` : ''}
+        ${whyRun ? chReviewWhyHtml(whyRun) : ''}
       </div>`;
   }
   if (typeof chOpeningMatch === 'function' && !rv.variant && (!rv.start || rv.start === CHESS_START_FEN)) {
@@ -657,7 +717,7 @@ function chReviewPaint(fresh, justDone) {
         `<button type="button" class="chip ch-key ch-key--${x.kind} ${chRv.ply === x.i + 1 ? 'is-active' : ''}" onclick="chReviewGo(${x.i + 1})">${escapeHTML(chT('ch_key_' + x.kind))} · <b dir="ltr">${Math.floor(x.i / 2) + 1}${x.i % 2 ? '…' : '.'} ${escapeHTML(chFigurine(rv.sans[x.i]))}</b></button>`).join('')}</div></div>`;
     }
     body += chGraphHtml(res.graph, chRv.ply, res.moves);
-    const kinds = ['brilliant', 'best', 'good', 'inaccuracy', 'mistake', 'blunder'];
+    const kinds = ['book', 'brilliant', 'best', 'good', 'inaccuracy', 'mistake', 'blunder'];
     const count = (c, kind) => res.moves.filter(m => m.color === c && m.cls === kind).length;
     body += `<div class="ch-counts"><span></span><span class="ch-counts__who"><bdi>${escapeHTML(names[0])}</bdi></span><span class="ch-counts__who"><bdi>${escapeHTML(names[1])}</bdi></span>${kinds.map(kind =>
       `<span class="ch-counts__k">${chClassDot(kind)} ${escapeHTML(chT('ch_cls_' + kind))}</span><b class="metric">${count(0, kind)}</b><b class="metric">${count(1, kind)}</b>`).join('')}</div>`;

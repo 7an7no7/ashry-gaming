@@ -1063,7 +1063,7 @@ function chMake3D(THREE, root) {
     view.zoom = Math.max(0.6, Math.min(1.45, view.zoom));
   };
   function aimCamera() {
-    const w = root.clientWidth, h = root.clientHeight;
+    const w = canvas.clientWidth || root.clientWidth, h = canvas.clientHeight || root.clientHeight;
     if (!w || !h) return;
     aspect = w / h;
     cam.aspect = aspect;
@@ -1250,8 +1250,9 @@ function chMake3D(THREE, root) {
     running = true;
   }
 
+  // The canvas's own size (CSS may leave room beside it for the buttons: a phone on its side), else the root's.
   function resize() {
-    const w = root.clientWidth, h = root.clientHeight;
+    const w = canvas.clientWidth || root.clientWidth, h = canvas.clientHeight || root.clientHeight;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
     aimCamera();
@@ -1259,6 +1260,7 @@ function chMake3D(THREE, root) {
   }
   const ro = new ResizeObserver(resize);
   ro.observe(root);
+  ro.observe(canvas);
   resize();
 
   /** The player's camera: turn (a drag's pixels), zoom (a factor), from above (a toggle), back to the start. */

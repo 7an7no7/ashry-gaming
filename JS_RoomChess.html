@@ -320,7 +320,7 @@ function chRoomPills(state, tv) {
   const scores = [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0];
   const subs = [0, 1].map(k => (k === seat ? escapeHTML(chT('xo_you')) : ''));
   const view = chRoomBoard(state);
-  return duelPillsHtml({
+  const html = duelPillsHtml({
     players: [0, 1].map(k => ({
       name: names[k], score: scores[k],
       mark: `<span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>`,
@@ -328,6 +328,8 @@ function chRoomPills(state, tv) {
     })),
     turn: s.phase === 'play' && !bd.result ? view.g.turn : -1, draws: null
   });
+  // The wins only once someone has won one (as on one phone, chPillsHtml).
+  return scores[0] || scores[1] ? html : html.replace('class="duel-pills', 'class="duel-pills is-nil');
 }
 
 function chRoomStatus(state, tv) {

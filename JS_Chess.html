@@ -86,7 +86,9 @@ const CH2_SHAPES = {
 /** The <symbol>s of both colours, their shading, Black's rims and the shadow, as markup (one hidden <svg> holds them). */
 function chPieceSymbols() {
   let defs = ['w', 'b'].map(c => `<linearGradient id="ch2g-${c}" x1="0" y1="0" x2="1" y2="0.45"><stop offset="0" style="stop-color:var(--ch2-${c}-hi)"/><stop offset="0.5" style="stop-color:var(--ch2-${c}-mid)"/><stop offset="1" style="stop-color:var(--ch2-${c}-lo)"/></linearGradient>`).join('') +
-    '<radialGradient id="ch2sh"><stop offset="0" stop-color="#000" stop-opacity="0.34"/><stop offset="0.6" stop-color="#000" stop-opacity="0.14"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>';
+    '<radialGradient id="ch2sh"><stop offset="0" stop-color="#000" stop-opacity="0.34"/><stop offset="0.6" stop-color="#000" stop-opacity="0.14"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>' +
+    // The wood's grain (the «خشب» pieces): long wavy lines up the piece, as on a turned piece of boxwood.
+    '<pattern id="ch2grain" patternUnits="userSpaceOnUse" width="45" height="45"><path d="M5 0 Q3.5 11 6 22 T5 45 M11.5 0 Q13 12 10.5 23 T12 45 M18 0 Q16.5 10 19 21 T17.5 45 M24.5 0 Q26 11 23.5 22 T25 45 M31 0 Q29.5 12 32 23 T30.5 45 M37.5 0 Q39 10 36.5 21 T38 45 M43 0 Q41.5 11 44 22 T42.5 45" fill="none" style="stroke:var(--ch2-grain-ink, #000)" stroke-width="0.55" stroke-linecap="round"/></pattern>';
   let syms = '';
   ['w', 'b'].forEach(c => {
     const fill = `style="fill:url(#ch2g-${c});stroke:none"`;
@@ -101,11 +103,13 @@ function chPieceSymbols() {
         const shape = (st) => (round ? `<circle cx="${p[0]}" cy="${p[1]}" r="${p[2]}" ${st}/>` : `<path d="${d}" ${st}/>`);
         if (t === 'l') return shape(line);
         if (t === 'd' || t === 'dc') return shape(dot);
-        if (c === 'w') return shape(body);
+        // The grain over the body, under the outline: seen only with the wood pieces (--ch2-grain).
+        const grain = shape('style="fill:url(#ch2grain);stroke:none;opacity:var(--ch2-grain, 0)"');
+        if (c === 'w') return shape(fill) + grain + shape(edge);
         // Black: the fill, a lighter rim inside the outline (the shape clips it), then the outline over it.
         const id = `ch2k-${k}-${j}`;
         defs += `<clipPath id="${id}">${shape('')}</clipPath>`;
-        return shape(fill) + shape(`style="fill:none;stroke:var(--ch2-b-rim);stroke-width:3.4" clip-path="url(#${id})"`) + shape(edge);
+        return shape(fill) + grain + shape(`style="fill:none;stroke:var(--ch2-b-rim);stroke-width:3.4" clip-path="url(#${id})"`) + shape(edge);
       }).join('') + '</symbol>';
     }
   });
@@ -113,8 +117,13 @@ function chPieceSymbols() {
 }
 
 /** The symbols in the page, once (before the first piece is drawn). */
+/** The piece set on the page, read once and then changed only by chLookSet. */
+let chPiecesOn = null;
 function chPieceDefs() {
-  if (typeof document === 'undefined' || document.getElementById('ch2-defs')) return;
+  if (typeof document === 'undefined') return;
+  // The piece set chosen (look 8C) colours every piece on the page, the position editor and the share card's too.
+  if (chPiecesOn === null) { chPiecesOn = chLook().pieces; document.documentElement.setAttribute('data-ch2-pieces', chPiecesOn); }
+  if (document.getElementById('ch2-defs')) return;
   const holder = document.createElement('div');
   holder.innerHTML = `<svg id="ch2-defs" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">${chPieceSymbols()}</svg>`;
   (document.body || document.documentElement).appendChild(holder.firstChild);
@@ -703,8 +712,10 @@ function chMake3D(THREE, root) {
   }
 
   function placeYard() {
+    const hide = !(model && model.tv) && chPhoneUpright();
     [0, 1].forEach(side => yard[side].forEach((grp, n) => {
       if (grp.userData.flying) return;
+      grp.visible = !hide;
       const p = yardPos(side, n);
       grp.position.set(p.x, -0.43, p.z);
       grp.rotation.set(0, grp.userData.spin || 0, 0);
@@ -880,7 +891,7 @@ function chMake3D(THREE, root) {
         victim.position.y += 1.1 * 4 * e * (1 - e);
         victim.quaternion.slerpQuaternions(qs, new THREE.Quaternion().setFromEuler(new THREE.Euler(0, victim.userData.spin, 0)), e);
         victim.scale.setScalar(CH_PIECE_SCALE * (1 - 0.38 * e));
-      }, flyAt, () => { victim.userData.flying = false; victim.userData.from2 = null; victim.userData.q2 = null; });
+      }, flyAt, () => { victim.userData.flying = false; victim.userData.from2 = null; victim.userData.q2 = null; if (!(model && model.tv) && chPhoneUpright()) victim.visible = false; });
       camFocus(vFrom, flyAt + 300);
     }
     if (rookMove) {
@@ -1068,17 +1079,23 @@ function chMake3D(THREE, root) {
     aspect = w / h;
     cam.aspect = aspect;
     const tv = !!(model && model.tv);
-    const base = (tv ? 46 : aspect >= 1.15 ? 47 : 53) * DEG;
+    // A phone held upright (the owner's look 2B, 4 Oct 2026): 14° steeper, and no room kept round the
+    // board for the pieces taken - they're in the players' bars there - so the board comes closer and
+    // the far ranks read nearly as well as yours.
+    const phone = !tv && chPhoneUpright();
+    const base = ((tv ? 46 : aspect >= 1.15 ? 47 : 53) + (phone ? 14 : 0)) * DEG;
     const el = Math.min(88.5 * DEG, Math.max(22 * DEG, base + view.dEl) * (1 - view.top) + 88.5 * DEG * view.top);
     const az = view.az * (1 - view.top);
     const back = orient ? -1 : 1;
     const wide = aspect >= 1.15;
     // What must be seen: the frame's corners, the tops of the far pieces, the pieces beside the board.
     const pts = [];
-    [-5, 5].forEach(x => [-5, 5].forEach(z => pts.push(new THREE.Vector3(x, 0, z))));
+    // On a phone held upright the frame's outer border may go off the edge: the squares take the width.
+    const rim = phone ? 4.7 : 5;
+    [-rim, rim].forEach(x => [-rim, rim].forEach(z => pts.push(new THREE.Vector3(x, 0, z))));
     if (view.top < 0.5) [-4, 4].forEach(x => pts.push(new THREE.Vector3(x, 1.4, -3.5 * back)));
     const side = wide ? [[-6.1, -3.3], [-6.1, 3.3], [6.1, -3.3], [6.1, 3.3]] : [[-3.3, -6.1], [3.3, -6.1], [-3.3, 6.1], [3.3, 6.1]];
-    side.forEach(([x, z]) => pts.push(new THREE.Vector3(x, 0, z)));
+    if (!phone) side.forEach(([x, z]) => pts.push(new THREE.Vector3(x, 0, z)));
     const look = new THREE.Vector3(0, 0, wide ? 0 : 0.25 * back * (1 - view.top));
     const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el) * back, Math.sin(el), Math.cos(az) * Math.cos(el) * back);
     // Straight down, "up" on the screen is the far side of the board.
@@ -1354,13 +1371,14 @@ const CH2_STYLES = ['green', 'wood', 'blue', 'marble'];
  * phone in a room). Remembered on the phone, one place for the setup, the board's ⚙ and the rooms.
  */
 function chLook() {
-  const o = typeof recallOptions === 'function' ? recallOptions('chessLook', { view: '2d', style: 'green', premove: true }) : { view: '2d', style: 'green', premove: true };
-  return { view: o.view === '3d' ? '3d' : '2d', style: CH2_STYLES.indexOf(o.style) === -1 ? 'green' : o.style, premove: o.premove !== false };
+  const o = typeof recallOptions === 'function' ? recallOptions('chessLook', { view: '2d', style: 'green', premove: true, pieces: 'classic' }) : { view: '2d', style: 'green', premove: true, pieces: 'classic' };
+  return { view: o.view === '3d' ? '3d' : '2d', style: CH2_STYLES.indexOf(o.style) === -1 ? 'green' : o.style, premove: o.premove !== false, pieces: CH2_PIECE_SETS.indexOf(o.pieces) === -1 ? 'classic' : o.pieces };
 }
 
 /** Remembers a change of the look and shows it on the board and the setup screen at once. */
 function chLookSet(patch) {
   if (typeof rememberOptions === 'function') rememberOptions('chessLook', patch);
+  if (patch && patch.pieces) { chPiecesOn = chLook().pieces; document.documentElement.setAttribute('data-ch2-pieces', chPiecesOn); }
   if (patch && 'premove' in patch) {
     // Switched off: a move already queued goes, and the screen is drawn again (whether a tap queues one).
     if (!patch.premove) { chLocal.pre = null; chLocal.presel = ''; if (typeof chRoomLocal !== 'undefined') { chRoomLocal.pre = null; chRoomLocal.presel = ''; } }
@@ -1693,6 +1711,10 @@ function chViewShow(host, model) {
   if (promo && !promo.hidden && !(model.input && model.input.canMove)) { promo.hidden = true; promo.innerHTML = ''; }
   root.classList.toggle('is-tv', !!model.tv);
   root.setAttribute('data-ch2-style', chLook().style);
+  // Which colour sits at the bottom: on a phone held upright its player's bar goes under the board.
+  const game = host.closest('.ch-game');
+  if (game && game.getAttribute('data-ch-orient') !== String(model.orient ? 1 : 0)) game.setAttribute('data-ch-orient', model.orient ? 1 : 0);
+  if (game) requestAnimationFrame(() => chBrowseScrollList(game));
   const want = chViewWant(model);
   if (!chView.r || (want === 'flat' && chView.r.kind !== 'flat')) chViewMake('flat');
   else chView.r.setModel(chAnnoMerge(model));
@@ -1826,6 +1848,19 @@ function chAnnoClear() {
 const chViewBusyLeft = () => (chView.r ? Math.max(0, chView.r.busyUntil() - Date.now()) : 0);
 
 /** The four styles as swatches (the board's ⚙ and the setup screen): two squares of each in its colours. */
+/**
+ * The 2D pieces (the owner's look 8C, 4 Oct 2026): «كلاسيك», the set as it was, and «خشب», the
+ * same drawings carved in boxwood and ebony with a grain - the 3D set's wood on the flat board. One
+ * set of symbols, coloured by the custom properties of `[data-ch2-pieces]` (section 68 of
+ * Style_Talk.html); the grain is a layer of each symbol that only the wood shows.
+ */
+const CH2_PIECE_SETS = ['classic', 'wood'];
+function chPiecesPickerHtml() {
+  const cur = chLook().pieces;
+  return `<p class="ch-lookpop__sub">${escapeHTML(chT('ch_pieces_label'))}</p><div class="ch-pieceset">` + CH2_PIECE_SETS.map(p =>
+    `<button type="button" class="ch-pieceset__opt ${cur === p ? 'is-active' : ''}" data-ch2-pieces="${p}" onclick="chLookSet({ pieces: '${p}' })" aria-pressed="${cur === p}"><span class="ch-pieceset__sw" aria-hidden="true"><i></i><i></i></span><span>${escapeHTML(chT('ch_pieces_' + p))}</span></button>`).join('') + '</div>';
+}
+
 function chLookPickerHtml(cls) {
   const cur = chLook().style;
   return CH2_STYLES.map(st => `<button type="button" class="ch-swatch ${cls || ''} ${cur === st ? 'is-active' : ''}" data-ch2-style="${st}" onclick="chLookSet({ style: '${st}' }); chToolsPop(false)" aria-pressed="${cur === st}">
@@ -1834,18 +1869,30 @@ function chLookPickerHtml(cls) {
 }
 
 /** The small buttons on the board: its look (⚙). None on the TV. */
-function chViewTools(root, model) {
-  const box = root.querySelector('[data-ch-tools]');
-  if (!box) return;
+/** A phone held upright, where every chess board is laid out board first (look 1A). */
+const chPhoneUpright = () => typeof matchMedia === 'function' && matchMedia('(orientation: portrait) and (max-width: 699px)').matches;
+
+/**
+ * The board's own buttons: 2D|3D, ✏️ (and 🧹 once something is drawn), and in 3D the camera
+ * («من فوق», ↺ once it was moved). `inPop`: the ⚙ menu's copy, which closes the menu on a tap.
+ */
+function chToolButtonsHtml(model, inPop) {
+  const close = inPop ? 'chToolsPop(false); ' : '';
   const view = chViewSegHtml();
   // In 3D: from above (a toggle) and, once the camera has been turned or zoomed, back to the start.
   const r3 = chView.r && chView.r.kind === '3d' && chView.r.camera ? chView.r : null;
-  const cam = !r3 ? '' : `<button type="button" class="ch-tool ${r3.camTop() ? 'is-on' : ''}" onclick="chViewCam('top')" aria-pressed="${r3.camTop()}" aria-label="${escapeHTML(chT('ch_cam_top'))}">⬇ ${escapeHTML(chT('ch_cam_top'))}</button>` +
-    (r3.camMoved() ? `<button type="button" class="ch-tool" onclick="chViewCam('reset')" aria-label="${escapeHTML(chT('ch_cam_reset'))}" title="${escapeHTML(chT('ch_cam_reset'))}">↺</button>` : '');
+  const cam = !r3 ? '' : `<button type="button" class="ch-tool ${r3.camTop() ? 'is-on' : ''}" onclick="${close}chViewCam('top')" aria-pressed="${r3.camTop()}" aria-label="${escapeHTML(chT('ch_cam_top'))}">⬇ ${escapeHTML(chT('ch_cam_top'))}</button>` +
+    (r3.camMoved() ? `<button type="button" class="ch-tool" onclick="${close}chViewCam('reset')" aria-label="${escapeHTML(chT('ch_cam_reset'))}" title="${escapeHTML(chT('ch_cam_reset'))}">↺</button>` : '');
   const drawn = chView.anno.arrows.length + chView.anno.marks.length > 0;
-  const pen = `<button type="button" class="ch-tool ${chView.pen ? 'is-on' : ''}" onclick="chPenToggle()" aria-pressed="${chView.pen}" aria-label="${escapeHTML(chT('ch_pen'))}" title="${escapeHTML(chT('ch_pen'))}">✏️</button>` +
-    (drawn ? `<button type="button" class="ch-tool" onclick="chAnnoClear()" aria-label="${escapeHTML(chT('ch_pen_clear'))}" title="${escapeHTML(chT('ch_pen_clear'))}">🧹</button>` : '');
-  const html = model.tv ? '' : view + `<button type="button" class="ch-tool" onclick="chToolsPop()" aria-label="${escapeHTML(chT('ch_look_label'))}" title="${escapeHTML(chT('ch_look_label'))}">⚙</button>` + pen + cam;
+  const pen = `<button type="button" class="ch-tool ${chView.pen ? 'is-on' : ''}" onclick="${close}chPenToggle()" aria-pressed="${chView.pen}" aria-label="${escapeHTML(chT('ch_pen'))}" title="${escapeHTML(chT('ch_pen'))}">✏️</button>` +
+    (drawn ? `<button type="button" class="ch-tool" onclick="${close}chAnnoClear()" aria-label="${escapeHTML(chT('ch_pen_clear'))}" title="${escapeHTML(chT('ch_pen_clear'))}">🧹</button>` : '');
+  return view + (inPop ? '' : `<button type="button" class="ch-tool" onclick="chToolsPop()" aria-label="${escapeHTML(chT('ch_look_label'))}" title="${escapeHTML(chT('ch_look_label'))}">⚙</button>`) + pen + cam;
+}
+
+function chViewTools(root, model) {
+  const box = root.querySelector('[data-ch-tools]');
+  if (!box) return;
+  const html = model.tv ? '' : chToolButtonsHtml(model, false);
   if (box._chHtml !== html) { box.innerHTML = html; box._chHtml = html; }
 }
 
@@ -1858,7 +1905,9 @@ function chToolsPop(open, redraw) {
   if (show) {
     const pre = chView.model && chView.model.preable
       ? `<label class="switch-row ch-lookpop__switch"><span>⏩ ${escapeHTML(chT('ch_premove_label'))}</span><span class="switch"><input type="checkbox" role="switch" ${chLook().premove ? 'checked' : ''} onchange="chLookSet({ premove: this.checked })"><span class="switch__track" aria-hidden="true"></span></span></label>` : '';
-    pop.innerHTML = `<p class="ch-lookpop__title">${escapeHTML(chT('ch_look_label'))}</p><div class="ch-swatches">${chLookPickerHtml()}</div>${pre}`;
+    // On a phone held upright the row over the board is gone (look 1A): 2D|3D, ✏️ and the camera live here.
+    const tools = chPhoneUpright() ? `<div class="ch-lookpop__tools">${chToolButtonsHtml(chView.model || {}, true)}</div>` : '';
+    pop.innerHTML = `<p class="ch-lookpop__title">${escapeHTML(chT('ch_look_label'))}</p>${tools}<div class="ch-swatches">${chLookPickerHtml()}</div>${chPiecesPickerHtml()}${pre}`;
   }
   pop.hidden = !show;
 }
@@ -2285,6 +2334,14 @@ function chBrowseScrollList(root) {
   const list = root && root.querySelector('.ch-moves');
   if (!list) return;
   const cur = list.querySelector('.ch-mv.is-current');
+  // The moves as one line (a phone held upright): the move looked at, or the last, kept in view sideways.
+  if (list.scrollWidth > list.clientWidth + 2 && list.scrollHeight <= list.clientHeight + 2) {
+    const mv = (chBrowse.ply >= 0 && cur) || list.querySelector('.ch-mv:last-of-type');
+    if (!mv) return;
+    const a = mv.offsetLeft - list.offsetLeft, b = a + mv.offsetWidth;
+    if (a < list.scrollLeft || b > list.scrollLeft + list.clientWidth) list.scrollLeft = Math.max(0, b - list.clientWidth + 24);
+    return;
+  }
   if (chBrowse.ply < 0 || !cur) { list.scrollTop = list.scrollHeight; return; }
   const top = cur.offsetTop - list.offsetTop;
   if (top < list.scrollTop || top > list.scrollTop + list.clientHeight - cur.offsetHeight) list.scrollTop = Math.max(0, top - list.clientHeight / 2);
@@ -2931,6 +2988,8 @@ function paintShatranjSetup() {
   show('shatranj-premove-field', phone);
   const looks = document.getElementById('shatranj-looks');
   if (looks) { const html = chLookPickerHtml(); if (looks._chHtml !== html) { looks.innerHTML = html; looks._chHtml = html; } }
+  const sets = document.getElementById('shatranj-pieces');
+  if (sets) { const html = chPiecesPickerHtml(); if (sets._chHtml !== html) { sets.innerHTML = html; sets._chHtml = html; } }
   if (typeof chPaintHistory === 'function') chPaintHistory();
 }
 
@@ -3630,14 +3689,37 @@ function chHint() {
 
 /* --- drawing the one-phone screen -------------------------------------------------- */
 
+/* The board UI pass (the owner's looks 1A and 6A, 4 Oct 2026). On a phone held upright every chess
+   board is laid out board first (section 68 of Style_Talk.html): the opponent's slim bar above a
+   full-width board, yours below it, the moves as one sliding line, then one bar of buttons - ⚙
+   (chGearHtml: 2D|3D, the style, the pieces, ✏️ and the camera, which stood in a row over the board),
+   ◀ ▶ and the screen's own buttons. `.ch-acts` holds that bar; anywhere wider it is only a wrapper
+   (display: contents) and the screen is as it was. On a phone on its side the app's bar goes during
+   a game on one phone, a puzzle and the review, and its ‹ 🔊 ⚙ stand at the top of the column
+   (chMiniHtml). */
+function chGearHtml() {
+  return `<button type="button" class="ch-gear" onclick="chToolsPop()" aria-label="${escapeHTML(chT('ch_look_label'))}"><span class="ch-gear__i" aria-hidden="true">⚙</span><span class="ch-gear__w">${escapeHTML(chT('ch_gear'))}</span></button>`;
+}
+function chMiniHtml() {
+  return `<div class="ch-mini">
+      <button type="button" class="iconbtn iconbtn--back iconbtn--plain" onclick="goBack()" aria-label="${escapeHTML(chT('back'))}" title="${escapeHTML(chT('back'))}"><span class="chev" aria-hidden="true">‹</span></button>
+      <button type="button" class="iconbtn iconbtn--plain" onclick="openSoundboard()" aria-label="${escapeHTML(chT('sounds'))}" title="${escapeHTML(chT('sounds'))}">🔊</button>
+      <button type="button" class="iconbtn iconbtn--plain" onclick="openSettings()" aria-label="${escapeHTML(chT('settings'))}" title="${escapeHTML(chT('settings'))}">⚙</button>
+    </div>`;
+}
+
 function chLayoutHtml(prefix) {
   return `<div class="ch-game duel">
       <div class="ch-layout">
         <div class="ch-layout__stage"><div class="ch-stage" data-ch-host></div></div>
         <div class="ch-layout__side">
+          ${chMiniHtml()}
           <div class="duel-head ch-head" data-ch-head></div>
-          <div class="ch-browse-slot" data-ch-browse></div>
-          <div class="ch-bar" data-ch-bar></div>
+          <div class="ch-acts">
+            ${chGearHtml()}
+            <div class="ch-browse-slot" data-ch-browse></div>
+            <div class="ch-bar" data-ch-bar></div>
+          </div>
           <div class="ch-side" data-ch-side></div>
         </div>
       </div>
@@ -3663,7 +3745,9 @@ function chPillsHtml(names, turn, scores, clk, lost, subs, faces) {
       : `<span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>`,
     sub: (subs && subs[k] ? subs[k] + ' ' : '') + (clk ? `<b class="ch-clock metric" data-ch-clock="${k}"></b>` : '') + chTakenHtml(lost ? lost[1 - k] : [], lost ? chLead(lost, k) : 0)
   });
-  return duelPillsHtml({ players: [pill(0), pill(1)], turn: turn, draws: null });
+  const html = duelPillsHtml({ players: [pill(0), pill(1)], turn: turn, draws: null });
+  // The wins in this sitting only once someone has won one (the owner, 4 Oct 2026: a big 0 from the first move drew the eye from the clock).
+  return scores && (scores[0] || scores[1]) ? html : html.replace('class="duel-pills', 'class="duel-pills is-nil');
 }
 
 function chPaint(opts) {

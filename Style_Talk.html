@@ -2141,4 +2141,139 @@ body:is(.in-play, .in-room-game) .shell { --rail-w: 0px; }
 :root:is(.vt-grow, .vt-back, .vt-pick)::view-transition-old(app-nav) { animation: none; opacity: 0; }
 :root:is(.vt-grow, .vt-back, .vt-pick)::view-transition-new(app-nav) { animation: none; }
 @keyframes vt-fade-in { from { opacity: 0; } }
+
+/* ==========================================================================
+   68. THE CHESS BOARD UI PASS (4 Oct 2026, the owner's looks 1A, 2B, 5A, 6A, 8C)
+   ----------------------------------------------------------------------------
+   Measured: on a 375x667 phone the game was 961px in a 611px view, the board
+   319px wide 220px down, استسلام off the bottom. Every chess board on a phone
+   held upright is now board first: the opponent's slim bar above a board the
+   phone's whole width, yours below it, the moves as one sliding line, one bar
+   of buttons (⚙ holds what stood in a row over the board). Wider screens are
+   as they were (.ch-acts and .ch-gear exist only for this). On a phone on its
+   side the app's bar goes during a game on one phone, a puzzle and the review
+   (body.in-chess-own), its ‹ 🔊 ⚙ at the top of the column (.ch-mini). The
+   square names grow on a small board, and a second piece set, wood. The 3D
+   camera's part (2B) is in chMake3D.
+   ========================================================================== */
+.ch-acts { display: contents; }
+.ch-gear, .ch-mini { display: none; }
+/* 7: the wins in this sitting only once someone has won one (chPillsHtml, chRoomPills mark .is-nil). */
+.duel-pills.is-nil .duel-pill__score { display: none; }
+
+/* 5A: the square names 13.5px on a phone's board (2.9% of its width was 9px); a big board keeps 2.9%. */
+.ch2-co { font-size: max(2.9cqw, min(3.6cqw, 13.5px)); }
+
+/* 8C: the wood pieces - boxwood and ebony, a warm brown outline, the grain (a layer of each symbol). */
+:root { --ch2-grain: 0; --ch2-grain-ink: #3b210f; }
+:root[data-ch2-pieces="wood"] {
+  --ch2-w-hi: #fbe7c2; --ch2-w-mid: #ecc98f; --ch2-w-lo: #c8975a; --ch2-w-edge: #4a2c16; --ch2-w-line: #6b4426;
+  --ch2-b-hi: #7a4a2c; --ch2-b-mid: #4a2a17; --ch2-b-lo: #23130a; --ch2-b-edge: #160b05; --ch2-b-line: #e2bf8e;
+  --ch2-b-rim: rgba(255, 214, 160, 0.32); --ch2-grain: 0.24;
+}
+.ch-lookpop__sub { margin: var(--sp-3) 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+.ch-pieceset { display: flex; gap: var(--sp-2); }
+.ch-pieceset__opt { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 2.75rem; padding: var(--sp-1) var(--sp-3); border-radius: var(--r-md, 12px); border: 2px solid var(--border); background: var(--surface-solid); color: var(--text); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold); }
+.ch-pieceset__opt.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.ch-pieceset__sw { display: inline-flex; }
+.ch-pieceset__sw i { width: 1rem; height: 1rem; border-radius: 50%; border: 1.5px solid #262421; margin-inline-end: -0.3rem; }
+.ch-pieceset__opt[data-ch2-pieces="classic"] .ch-pieceset__sw i:first-child { background: #f6f4ef; }
+.ch-pieceset__opt[data-ch2-pieces="classic"] .ch-pieceset__sw i:last-child { background: #2f2c29; }
+.ch-pieceset__opt[data-ch2-pieces="wood"] .ch-pieceset__sw i { border-color: #4a2c16; }
+.ch-pieceset__opt[data-ch2-pieces="wood"] .ch-pieceset__sw i:first-child { background: #ecc98f; }
+.ch-pieceset__opt[data-ch2-pieces="wood"] .ch-pieceset__sw i:last-child { background: #4a2a17; }
+.ch-pieces-setup { margin-top: var(--sp-2); }
+.ch-pieces-setup .ch-lookpop__sub { margin-top: 0; }
+.ch-lookpop__tools { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.ch-lookpop__tools .ch-tool { position: static; }
+
+/* 1A: a phone held upright. Orders: the opponent -6, the board -5, you -4, the moves -3, the status
+   -2, the buttons 0, the coach's word 1, the rest 2. */
+@media (orientation: portrait) and (max-width: 699px) {
+  .ch-layout { gap: 0; }
+  .ch-layout__stage { order: -5; margin-inline: calc(-1 * var(--sp-4)); }
+  .ch-stage {
+    /* The scroll area's own side padding is bled (100vw counted a scrollbar and scrolled sideways). */
+    width: min(100%, calc(var(--app-h, 100vh) - var(--header-h) - var(--safe-top) - var(--safe-bottom) - 13rem));
+    aspect-ratio: 1 / 1; min-height: 0; max-height: none; margin-inline: auto; border-radius: 0; box-shadow: none;
+  }
+  .ch-view:not(.is-tv) { --ch-tools-h: 0rem; border-radius: 0; }
+  .ch-view:not(.is-tv) .ch-tools { display: none; }
+  .ch2-board { border-radius: 0; box-shadow: none; }
+  .ch-lookpop { top: 0.4rem; max-width: calc(100% - 0.8rem); }
+
+  /* The players: a slim bar each, the clock at the far end, lit on the player's turn. */
+  .ch-head, .ch-head > .duel-pills { display: contents; }
+  .ch-head > .duel-pills > .duel-pills__turn, .ch-head .duel-pills__mid { display: none; }
+  .ch-head > * { order: -6; }
+  .ch-head > .duel-status, .ch-head > .ch-browse-note { order: -2; margin: 0; padding: var(--sp-1) var(--sp-4) 0; font-size: var(--fs-sm); text-align: center; }
+  .ch-game[data-ch-orient="0"] .duel-pills > .duel-pill:nth-of-type(1), .ch-game[data-ch-orient="1"] .duel-pills > .duel-pill:nth-of-type(2) { order: -4; }
+  .ch-game[data-ch-orient="0"] .duel-pills > .duel-pill:nth-of-type(2), .ch-game[data-ch-orient="1"] .duel-pills > .duel-pill:nth-of-type(1) { order: -6; }
+  .ch-head .duel-pill, .ch-head .duel-pill.is-turn {
+    gap: var(--sp-2); min-height: 3rem; padding: var(--sp-1) var(--sp-4); margin: 0;
+    border: 0; border-radius: 0; background: none; box-shadow: none; outline: 0;
+  }
+  .ch-head .duel-pill__who, .ch-head .duel-pill__sub { display: contents; }
+  .ch-head .duel-pill__name { flex: 0 1 auto; font-size: var(--fs-body); }
+  .ch-head .duel-pill .ch-pill-elo { order: 1; font-size: var(--fs-xs); color: var(--text-3); }
+  .ch-head .duel-pill .ch-taken { order: 2; }
+  .ch-head .duel-pill__score { order: 3; font-size: var(--fs-sm); color: var(--text-3); }
+  .ch-head .duel-pill__score::before { content: '🏆 '; }
+  .ch-head .duel-pill .ch-clock {
+    order: 9; margin-inline-start: auto; min-width: 4.6rem; padding: var(--sp-1) var(--sp-3);
+    border-radius: var(--r-sm, 10px); background: var(--surface-2); color: var(--text-2); font-size: 1.15rem; text-align: center;
+  }
+  .ch-head .duel-pill.is-turn .ch-clock { background: var(--accent); color: var(--accent-on); }
+
+  /* The moves: one line under your bar, sliding sideways, the move on the board kept in view. */
+  .ch-side { display: contents; }
+  .ch-side > * { order: 2; }
+  /* The coach's word under the buttons, so they never move off the screen when it comes. */
+  .ch-side > .ch-comment { order: 1; margin: var(--sp-1) 0 0; }
+  .ch-side > .ch-moves {
+    order: -3; display: flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-1);
+    max-height: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none;
+    margin-inline: calc(-1 * var(--sp-4)); padding: var(--sp-1) var(--sp-3); border-inline: 0; border-radius: 0; font-size: var(--fs-body);
+  }
+  .ch-side > .ch-moves::-webkit-scrollbar { display: none; }
+  .ch-side > .ch-moves .ch-mvn { flex: none; padding-inline-start: var(--sp-1); font-size: var(--fs-sm); }
+  .ch-side > .ch-moves .ch-mv { flex: none; min-height: 2.25rem; padding: 0 var(--sp-2); border-radius: var(--r-sm, 8px); font-weight: var(--fw-bold); }
+  .ch-side > .ch-moves .ch-moves__empty { flex: 1; }
+
+  /* One bar of buttons: ⚙, ◀ ▶ and the screen's own, each an icon with its word under it. */
+  .ch-acts { order: 0; display: flex; flex-wrap: wrap; align-items: stretch; gap: 2px; padding: var(--sp-1) 0; }
+  .ch-acts > .ch-gear { display: flex; }
+  .ch-acts > .ch-browse-slot, .ch-acts .ch-browse, .ch-acts > .ch-bar, .ch-acts .ch-bar > .ch-bar__row { display: contents; }
+  .ch-acts .ch-browse__btn:first-child, .ch-acts .ch-browse__btn:last-child { display: none; }
+  .ch-acts .ch-bar > :not(.ch-bar__row) { order: -1; flex: 1 0 100%; margin: 0 0 var(--sp-1); }
+  .ch-acts .ch-bar > .btn-row { order: 2; margin: var(--sp-1) 0 0; }
+  .ch-acts > .ch-gear, .ch-acts .ch-browse__btn, .ch-acts .ch-bar__row > .btn {
+    position: relative; flex: 1 1 0; min-width: 0; min-height: 3.25rem; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; padding: var(--sp-1) 0; border: 0; border-radius: var(--r-md, 12px); background: none; box-shadow: none; color: var(--text); font-size: 1.25rem; line-height: 1;
+  }
+  .ch-acts .ch-bar__row > .btn:disabled, .ch-acts .ch-browse__btn:disabled { opacity: 0.4; }
+  .ch-acts .ch-bar__row > .btn .ch-btn-label, .ch-gear__w { display: block; font-size: 0.68rem; font-weight: var(--fw-bold); line-height: 1.15; color: var(--text-2); text-align: center; overflow-wrap: anywhere; max-width: 100%; }
+  .ch-acts .ch-bar__row > .btn .ch-help-n { position: absolute; top: 3px; inset-inline-end: 16%; min-width: 1.05rem; height: 1.05rem; border-radius: 0.6rem; background: var(--accent); color: var(--accent-on); font-size: 0.66rem; line-height: 1.05rem; text-align: center; }
+  .ch-gear__i { font-size: 1.25rem; }
+
+  /* The review: its two players either side of the board, the steps under them. */
+  .ch-rv-head, .ch-rv-players { display: contents; }
+  .ch-rv-head > * { order: -1; }
+  .ch-game[data-ch-orient="0"] .ch-rv-player:nth-child(1), .ch-game[data-ch-orient="1"] .ch-rv-player:nth-child(2) { order: -4; }
+  .ch-game[data-ch-orient="0"] .ch-rv-player:nth-child(2), .ch-game[data-ch-orient="1"] .ch-rv-player:nth-child(1) { order: -6; }
+  .ch-rv-player { min-height: 3rem; padding: var(--sp-1) var(--sp-4); border: 0; border-radius: 0; background: none; }
+  .ch-review .ch-rv-nav { order: -3; margin-top: var(--sp-2); }
+  .ch-review .ch-rv-nav > .ch-gear { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 2.75rem; min-height: 2.75rem; border: 0; background: none; color: var(--text); }
+  .ch-review .ch-rv-nav > .ch-gear .ch-gear__w { display: none; }
+  .ch-review [data-ch-rvnote] { order: -2; }
+  .ch-review [data-ch-rvbody] { order: 2; }
+}
+
+/* 6A: a phone on its side, chess on one phone, a puzzle or the review: the app's bar gives the board its height. */
+@media (orientation: landscape) and (max-height: 500px) {
+  body.in-chess-own .shell__header { display: none; }
+  body.in-chess-own { --header-h: 0px; }
+  body.in-chess-own .ch-mini { display: flex; order: -3; justify-content: space-between; gap: var(--sp-1); }
+  body.in-chess-own .ch-mini .iconbtn { width: 2.75rem; height: 2.75rem; }
+}
 </style>

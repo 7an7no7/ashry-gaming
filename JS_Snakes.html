@@ -1234,8 +1234,19 @@ function snkSparkle(c, x, y) {
 /** A sound of the table: heard on the device that plays the table's sounds, or for your own move. */
 function snkSound(c, name, mine) {
   if (!c.ctx || !(c.ctx.loud || mine)) return;
+  const own = c.th && SNK_THEME_SOUNDS[c.th.id];
+  if (own && own[name]) name = own[name];
   try { if (typeof FX !== 'undefined' && FX[name] && typeof playFx === 'function') playFx(name); } catch (e) {}
 }
+
+/** Each map's own voice for the engine's sounds: a crocodile snaps and splashes, a cat meows, a pipe clangs,
+ *  a slide whooshes, an escalator hums. A sound a map doesn't name stays the classic's. */
+const SNK_THEME_SOUNDS = {
+  nile: { snkHiss: 'snkCrocSnap', snkGulp: 'snkCrocGulp', snkSlide: 'snkSplash', snkUp: 'snkPalm' },
+  desert: { snkHiss: 'snkCobra', snkSlide: 'snkSand', snkUp: 'snkPalm' },
+  metro: { snkSlide: 'snkWhee', snkUp: 'snkEscal', snkHiss: 'snkChime' },
+  hara: { snkHiss: 'snkMeow', snkGulp: 'snkClang', snkSlide: 'snkPipe' }
+};
 
 /* --- moving ------------------------------------------------------------------------------ */
 
@@ -3882,7 +3893,46 @@ if (typeof FX !== 'undefined') {
     // The third round: a surprise square answering, the charmer's flute, a snore.
     snkSurp(at) { [0, 1].forEach(k => fxTone('triangle', [[0, 780 + k * 260]], [[0, 0], [0.01, 0.08], [0.16, 0.001]], at + k * 0.08)); },
     snkFlute(at) { [0, 1, 2, 3, 4].forEach(k => fxTone('sine', [[0, [660, 740, 660, 590, 660][k]], [0.12, [700, 760, 640, 600, 700][k]]], [[0, 0], [0.03, 0.06], [0.15, 0.001]], at + k * 0.16)); },
-    snkSnore(at) { [0, 0.55].forEach(d => fxNoise('lowpass', 500, 0.8, [[0, 0], [0.25, 0.08], [0.45, 0.001]], at + d)); }
+    snkSnore(at) { [0, 0.55].forEach(d => fxNoise('lowpass', 500, 0.8, [[0, 0], [0.25, 0.08], [0.45, 0.001]], at + d)); },
+    // The maps' own voices (SNK_THEME_SOUNDS).
+    snkCrocSnap(at) {
+      fxTone('sawtooth', [[0, 85], [0.3, 60]], [[0, 0], [0.04, 0.09], [0.32, 0.001]], at);
+      [0.12, 0.3].forEach(d => { fxNoise('bandpass', 2600, 2, [[0, 0], [0.002, 0.35], [0.05, 0.001]], at + d); fxTone('sine', [[0, 180], [0.05, 90]], [[0, 0], [0.002, 0.25], [0.07, 0.001]], at + d); });
+    },
+    snkCrocGulp(at) {
+      fxNoise('bandpass', 2400, 2, [[0, 0], [0.002, 0.35], [0.06, 0.001]], at);
+      fxTone('sine', [[0, 150], [0.18, 60]], [[0, 0], [0.01, 0.32], [0.22, 0.001]], at + 0.05);
+      fxNoise('lowpass', 900, 0.7, [[0, 0], [0.03, 0.14], [0.4, 0.001]], at + 0.2);
+    },
+    snkSplash(at) {
+      fxNoise('lowpass', 1200, 0.8, [[0, 0], [0.04, 0.16], [0.5, 0.001]], at);
+      [0, 1, 2].forEach(k => fxTone('sine', [[0, 500 + k * 220], [0.08, 1100 + k * 260]], [[0, 0], [0.005, 0.05], [0.1, 0.001]], at + 0.12 + k * 0.13));
+    },
+    snkPalm(at) { [0, 1, 2, 3].forEach(k => { fxTone('sine', [[0, 300 + k * 70], [0.05, 200 + k * 60]], [[0, 0], [0.003, 0.18], [0.08, 0.001]], at + k * 0.14); fxNoise('bandpass', 1800, 3, [[0, 0], [0.002, 0.08], [0.03, 0.001]], at + k * 0.14); }); },
+    snkCobra(at) {
+      fxNoise('bandpass', 3200, 1.5, [[0, 0], [0.02, 0.14], [0.55, 0.1], [0.8, 0.001]], at);
+      for (let k = 0; k < 6; k++) fxNoise('highpass', 6000, 0.7, [[0, 0], [0.004, 0.06], [0.04, 0.001]], at + 0.1 + k * 0.09);
+    },
+    snkSand(at) { fxNoise('bandpass', 900, 0.6, [[0, 0], [0.15, 0.12], [0.8, 0.06], [1.1, 0.001]], at); fxNoise('highpass', 5000, 0.5, [[0, 0], [0.2, 0.04], [1.1, 0.001]], at); },
+    snkWhee(at) {
+      fxNoise('bandpass', 1600, 1.2, [[0, 0], [0.1, 0.09], [0.7, 0.001]], at);
+      fxTone('sine', [[0, 600], [0.2, 1250], [0.75, 500]], [[0, 0], [0.04, 0.08], [0.8, 0.001]], at);
+    },
+    snkEscal(at) {
+      fxTone('triangle', [[0, 110], [1.1, 125]], [[0, 0], [0.1, 0.07], [1, 0.06], [1.2, 0.001]], at);
+      for (let k = 0; k < 7; k++) fxNoise('bandpass', 2600 + k * 120, 4, [[0, 0], [0.002, 0.07], [0.03, 0.001]], at + 0.08 + k * 0.15);
+    },
+    snkChime(at) { [[659, 0], [523, 0.32]].forEach(([hz, d]) => fxTone('sine', [[0, hz]], [[0, 0], [0.01, 0.12], [0.6, 0.001]], at + d)); },
+    snkMeow(at) {
+      fxTone('triangle', [[0, 520], [0.14, 880], [0.5, 470]], [[0, 0], [0.05, 0.13], [0.35, 0.1], [0.55, 0.001]], at);
+      fxTone('sine', [[0, 1040], [0.14, 1760], [0.5, 940]], [[0, 0], [0.05, 0.04], [0.35, 0.03], [0.55, 0.001]], at);
+      fxNoise('highpass', 3500, 0.8, [[0, 0], [0.03, 0.07], [0.3, 0.001]], at + 0.55);
+    },
+    snkClang(at) { [[420, 0.16], [1130, 0.08], [1870, 0.05], [2690, 0.03]].forEach(([hz, lv]) => fxTone('sine', [[0, hz]], [[0, 0], [0.003, lv], [0.7, 0.001]], at)); },
+    snkPipe(at) {
+      fxTone('triangle', [[0, 900], [0.8, 300]], [[0, 0], [0.03, 0.06], [0.85, 0.001]], at);
+      for (let k = 0; k < 8; k++) fxTone('sine', [[0, 1300 - k * 90]], [[0, 0], [0.002, 0.05], [0.06, 0.001]], at + k * 0.1);
+    }
   });
 }
 </script>

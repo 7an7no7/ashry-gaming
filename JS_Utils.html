@@ -2515,6 +2515,53 @@ function exitSheetAsks(view) {
   return !!exitGameOf(view || '');
 }
 
+/**
+ * «خروج» on a one-phone game's own screen (the owner, 4 Oct 2026: every game has one, and
+ * mid-game it asks like the header's back arrow - the same sheet, so a stray tap can't drop
+ * a round). A button drawn once the game is over calls its game's way out directly instead;
+ * so does this one on a screen that has nothing to lose (a tool, a score keeper).
+ */
+function playExit(leave) {
+  if (exitSheetAsks(appState.currentView) && openExitSheet()) return;
+  leave();
+}
+
+/**
+ * The games whose own screen had no «خروج» (4 Oct 2026, 11 of them) get this shared row at
+ * the foot of the screen, outside the stage their game redraws. Each says when its game is
+ * over, so the button leaves at once then and asks first mid-game, like playExit.
+ */
+const PLAY_EXIT_OVER = {
+  'play-wordle': () => (appState.wordle || {}).phase === 'done',
+  'play-guessnum': () => (appState.guessnum || {}).status === 'won',
+  'play-connections': () => (typeof connState === 'function' ? connState() : {}).phase === 'done',
+  'play-whoami': () => { const r = document.getElementById('whoami-result-ui'); return !!r && !r.classList.contains('hidden'); },
+  'play-trivia': () => !!(appState.triviaBoard || {}).finished,
+  'play-hangman': () => (appState.hangman || {}).step === 'done',
+  'play-ludo': () => !((appState.ludo || {}).g && appState.ludo.g.phase === 'play'),
+  'play-snakes': () => !((appState.snakes || {}).g && appState.snakes.g.phase === 'play'),
+  'play-bank': () => !((appState.bank || {}).g && appState.bank.g.phase === 'play'),
+  'play-bowling': () => (appState.bowling || {}).phase === 'over',
+  'play-minigolf': () => (appState.minigolf || {}).phase === 'done'
+};
+
+function playExitRows() {
+  Object.keys(PLAY_EXIT_OVER).forEach(view => {
+    const el = document.getElementById('view-' + view);
+    if (!el || el.querySelector(':scope > .play-exit-row')) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    el.insertAdjacentHTML('beforeend', `<div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" data-i18n="exit" onclick="playExitShared()">${escapeHTML(t.exit || '')}</button></div>`);
+  });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', playExitRows); else playExitRows();
+
+function playExitShared() {
+  const view = appState.currentView || '';
+  const leave = () => setView(((typeof VIEW_META !== 'undefined' && VIEW_META[view]) || {}).up || 'menu');
+  const over = PLAY_EXIT_OVER[view];
+  if (over && over()) leave(); else playExit(leave);
+}
+
 const exitSheetRow = (label, onclick, kind) =>
   `<button class="btn ${kind || 'btn--neutral'}" onclick="${onclick}">${escapeHTML(label)}</button>`;
 

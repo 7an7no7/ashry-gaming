@@ -387,6 +387,20 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
       a move another line has).
     - **The review's two players** stack in a narrow column (`auto-fit`,
       10rem): on a phone on its side «الكمبيوتر» broke a letter a line.
+  - **The third step, the same day** (the owner: "why not use it in all?",
+    then "apply both"): **الكابتن (1400) on Stockfish too** (`CH_SF_PLAY_MIN`
+    1400), and **Chess960 on Stockfish** - the coach, the review, the arrows
+    and the computer from 1400 (`chSf960`: a castling rook off a/h or a king
+    that may castle off e → `UCI_Chess960` for that question; our X-FEN read
+    as it is, its moves as the king taking its rook, which `chessFind`
+    takes; a 960 game is sent as its position, not its moves). Checked
+    against our rules over ten 960 games: the same legal moves, castling
+    included. **What stays the app's own engine, and why**: نونو, عم حسن and
+    ميرا (Stockfish can't go under ~1320, and its weakened play is a machine
+    that drops pieces at random, not a beginner; the characters' styles are
+    ours); الوزير المستخبي (a secret queen isn't chess to Stockfish);
+    شطرنج الأربعة and باغ هاوس (other games); the rooms server's computer
+    players (the free plan's milliseconds of CPU a request).
   - **The coach's analysis**: `chessAnalyse(g, { nodes })` (the best move, the
     score for the side to move, mate in n, the line it expects), `chessJudge`
     (one move against the analyses before and after it: the verdict from the

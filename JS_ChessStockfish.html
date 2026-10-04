@@ -11,11 +11,12 @@
    Worker, so the page never stands still while it thinks (the app's own engine
    ran on the page).
 
-   The computer you play against stays the app's own engine below 1700 (it
-   plays like a beginner the way Stockfish can't); from 1700 - الأستاذ, الجنرال -
-   Stockfish plays, held to the rating (chSfPlay). The games Stockfish doesn't
-   know stay the app's own: الوزير المستخبي (a pawn that is secretly a queen)
-   and Chess960 (its castling). Anything that
+   The computer you play against stays the app's own engine below 1400 (it
+   plays like a beginner the way Stockfish can't, and keeps the characters'
+   styles); from 1400 - الكابتن, الأستاذ, الجنرال - Stockfish plays, held to
+   the rating (chSfPlay). Chess960 is Stockfish's too (its UCI_Chess960,
+   chSf960). The one game Stockfish doesn't know stays the app's own:
+   الوزير المستخبي (a pawn that is secretly a queen). Anything that
    goes wrong - no Worker, no WebAssembly, the file not loading, no answer in
    time - leaves Stockfish off for the rest of the visit and every look falls
    back to the app's own engine, as before.
@@ -33,11 +34,22 @@
 const CH_SF = { file: 'g/sf19-lite.js', coach: 150000, best: 200000, review: 120000, timeout: 30000 };
 const chSf = { w: null, ready: null, failed: false, busy: null, queue: [], onLine: null, memo: new Map() };
 
-/** Can Stockfish look at this game? Standard chess on a phone that runs it (not الوزير المستخبي, not Chess960). */
+/** Can Stockfish look at this game? Any chess but الوزير المستخبي, on a phone that runs it. */
 function chSfFits(g, hq) {
-  if (chSf.failed || hq || typeof Worker === 'undefined' || typeof WebAssembly !== 'object') return false;
-  const r = g && g.rooks;
-  return !r || (r[0] === 7 && r[1] === 0 && r[2] === 7 && r[3] === 0);
+  return !(chSf.failed || hq || !g || typeof Worker === 'undefined' || typeof WebAssembly !== 'object');
+}
+
+/**
+ * Is this a Chess960 position for Stockfish (its UCI_Chess960, castling written as the king
+ * taking its own rook)? A castling rook off the a- or h-file, or a king that may castle off
+ * the e-file. Our FEN (X-FEN) is read as it is: checked against our own rules, ten 960 games,
+ * the same legal moves, castling included (4 Oct 2026).
+ */
+function chSf960(g) {
+  const r = g.rooks || [7, 0, 7, 0];
+  if (r[0] !== 7 || r[1] !== 0 || r[2] !== 7 || r[3] !== 0) return true;
+  const c = g.castle || 0;
+  return !!(((c & 3) && g.board[4] !== 6) || ((c & 12) && g.board[60] !== 14));
 }
 
 /** Stockfish off for this visit: the worker gone, every question waiting answered with null (the app's own engine). */
@@ -83,18 +95,18 @@ function chSfAnalyse(g, opts) {
   const key = fen + '|' + nodes + '|' + lines;
   if (chSf.memo.has(key)) return Promise.resolve(chSf.memo.get(key));
   return chSfStart().then(ok => (!ok ? null : new Promise((done) => {
-    chSf.queue.push({ g: chessCloneGame(g), fen: fen, nodes: nodes, lines: lines, key: key, info: {}, timer: 0, done: done });
+    chSf.queue.push({ g: chessCloneGame(g), c960: chSf960(g), fen: fen, nodes: nodes, lines: lines, key: key, info: {}, timer: 0, done: done });
     chSfNext();
   })));
 }
 
 /**
- * The computer's move at the top ratings (the owner, 4 Oct 2026: الأستاذ, الجنرال and a chosen
- * rating from CH_SF_PLAY_MIN): Stockfish held to that rating by its own UCI_LimitStrength, thinking
+ * The computer's move at the top ratings (the owner, 4 Oct 2026: الكابتن, الأستاذ, الجنرال
+ * and a chosen rating from CH_SF_PLAY_MIN): Stockfish held to that rating by its own UCI_LimitStrength, thinking
  * `ms`. opts: { elo, ms, hq, start (FEN, '' for the usual start), moves (the game's, UCI) }.
  * A promise of { from, to, promo }, or null (then the app's own engine plays).
  */
-const CH_SF_PLAY_MIN = 1700;
+const CH_SF_PLAY_MIN = 1400;
 function chSfPlay(g, opts) {
   const o = opts || {};
   if (!chSfFits(g, o.hq) || chessStatus(g).over) return Promise.resolve(null);
@@ -102,8 +114,10 @@ function chSfPlay(g, opts) {
   return chSfStart().then(ok => (!ok ? null : new Promise((done) => {
     // The whole game from its start, so Stockfish knows the positions met before (a repetition is a draw).
     const hist = (o.moves || []).filter(u => /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(u));
-    const pos = hist.length && hist.length === o.moves.length ? (o.start ? 'fen ' + o.start : 'startpos') + ' moves ' + hist.join(' ') : 'fen ' + chessFen(g);
-    chSf.queue.push({ g: chessCloneGame(g), fen: chessFen(g), pos: pos, lines: 1, elo: elo, ms: Math.max(100, Math.round(o.ms || 800)), info: {}, timer: 0, done: done });
+    // A Chess960 game is sent as its position only: our record writes castling as the king's own move.
+    const c960 = chSf960(g);
+    const pos = !c960 && hist.length && hist.length === o.moves.length ? (o.start ? 'fen ' + o.start : 'startpos') + ' moves ' + hist.join(' ') : 'fen ' + chessFen(g);
+    chSf.queue.push({ g: chessCloneGame(g), c960: c960, fen: chessFen(g), pos: pos, lines: 1, elo: elo, ms: Math.max(100, Math.round(o.ms || 800)), info: {}, timer: 0, done: done });
     chSfNext();
   })));
 }
@@ -113,6 +127,7 @@ function chSfNext() {
   const job = chSf.busy = chSf.queue.shift();
   job.timer = setTimeout(chSfFail, CH_SF.timeout);
   // Every question says how strong to be: a move at a rating is held down, an analysis never is.
+  chSf.w.postMessage('setoption name UCI_Chess960 value ' + (job.c960 ? 'true' : 'false'));
   chSf.w.postMessage('setoption name UCI_LimitStrength value ' + (job.elo ? 'true' : 'false'));
   if (job.elo) chSf.w.postMessage('setoption name UCI_Elo value ' + job.elo);
   chSf.w.postMessage('setoption name MultiPV value ' + job.lines);

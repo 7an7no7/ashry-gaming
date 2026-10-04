@@ -342,7 +342,22 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
     best ≤ 15, good < 50, inaccuracy < 100, mistake < 300, blunder from 300; a
     mate let slip is at least a mistake, one walked into a blunder; a best
     move that leaves a piece to be taken for less is **brilliant** - and the
-    accuracy by Lichess's formula from the winning chances lost),
+    accuracy by Lichess's formula from the winning chances lost). **A move that
+    looks worse is weighed again** (4 Oct 2026, the owner: "it says blunder on
+    moves that aren't"): the analyses before and after a move are two separate
+    searches, and the one after sees a move further, so a threat the engine's
+    own move ran into too read as the played move's fault (and a mate coming
+    whatever was played made any move a "blunder"). When a move loses more than
+    `good`, or lets a mate in or slips one, `chessCompareMoves(g, [best,
+    played], { nodes: 2 × the analysis' })` scores both at the root of one
+    search to one depth, full window each, and that is the verdict. Measured
+    over 251 doubtful moves against a search forty times as deep: verdicts two
+    steps off went from 42 to 16, exact ones from 127 to 153 (the same count of
+    nodes only 27 / 140; four times 15 / 152). The review judges a move as a
+    step of its own (`chessReviewStep`, `rv.judged`, `chessReviewDone` for the
+    bar), and a kept review carries `v: CHESS_REVIEW_V` (2): an older one is
+    worked out again when it is opened. The live coach passes its own budget
+    (`CH_COACH_NODES`, 900 ms),
     `chessMoveGood` / `chessMoveBad` (the reasons, as keys and facts: `hang`,
     `fork_allowed`, `pin_allowed`, `mate_allowed`, `loses`, `mate_missed`,
     `win_missed`, `king_walk`, `queen_early`, `castle_better`,

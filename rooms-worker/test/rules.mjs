@@ -7241,7 +7241,7 @@ Date.now = duelTestClock;
     '\nreturn { chessNew, chessFromFen, chessFen, chessPerft, chessPlay, chessStatus, chessLegalMoves, chessBestMove, chessInsufficient, chessCanMate,' +
     ' chessClockNew, chessClockPress, chessClockFlagged, chessClockLeft, chessFlagResult, chessMatchNext, chessArmageddonResult, chessKey, chessCheckSq,' +
     ' chessEloSettings, chessEloBand, chessElo, chessClassify, chessMoveAccuracy, chessAnalyse, chessMoveGood, chessReview, chessThreats, chessPins, chessUci, chessFromUci, chess960Start, chess960Random,' +
-    ' chessHandicapFen, CHESS_CLOCK_IDS, CHESS_CLOCK_SPEC };')();
+    ' chessHandicapFen, chessCompareMoves, chessReviewBegin, chessReviewStep, chessReviewResult, chessReviewDone, CHESS_REVIEW_V, CHESS_CLOCK_IDS, CHESS_CLOCK_SPEC };')();
   const threwC = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const perft = (fen, depth) => CH.chessPerft(CH.chessFromFen(fen), depth);
   // The standard perft positions (chessprogramming.org): every legal move counted, deep.
@@ -7566,6 +7566,15 @@ Date.now = duelTestClock;
     check(pr.moves.every((m) => m.cls === 'best' || m.cls === 'brilliant') && pr.accuracy[0] > 99 && pr.accuracy[1] > 99, `chess coach: a game of the engine's own moves is ~100% accurate (${pr.accuracy.join(' / ')})`);
     const again = CH.chessReview({ start: '', moves: ['e2e4', 'e7e5', 'd1h5', 'b8c6', 'f1c4', 'g8f6', 'h5f7'] }, same);
     check(JSON.stringify(again) === JSON.stringify(scholar), 'chess coach: the review of a stored game comes out the same every time');
+    // A move that looks worse is weighed again beside the engine's, both in one search to one depth.
+    const cmpG = CH.chessFromFen('rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2');
+    const cmp = CH.chessCompareMoves(cmpG, [{ from: 'b8', to: 'c6' }, { from: 'd8', to: 'h4' }, { from: 'e1', to: 'e2' }], same);
+    check(cmp.depth >= 3 && cmp.scores[0] - cmp.scores[1] >= 600 && cmp.scores[2] === null,
+      `chess coach: two moves scored side by side - the queen thrown away loses about a queen; an illegal move has no score (${cmp.scores.join(' / ')}, depth ${cmp.depth})`);
+    const steps = CH.chessReviewBegin({ start: '', moves: ['e2e4', 'e7e5', 'g1f3', 'd8h4', 'f3h4'] });
+    while (!CH.chessReviewStep(steps, same)) { /* a step at a time, as the page does */ }
+    check(JSON.stringify(CH.chessReviewResult(steps)) === JSON.stringify(qh4) && qh4.v === CH.CHESS_REVIEW_V && CH.chessReviewDone(steps) === 1,
+      'chess coach: a review a step at a time comes out as the whole review, marked with its version');
     const th = CH.chessThreats(CH.chessFromFen('rnb1kbnr/pppp1ppp/8/4p3/4P2q/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3'));
     check(th.w.join() === 'e4' && th.b.sort().join() === 'e5,h4', 'chess coach: the pieces in danger, each side (attacked and not defended, or by something cheaper)');
     const pins = CH.chessPins(CH.chessFromFen('4k3/8/8/8/1b6/8/3N4/4K3 w - - 0 1').board, 0);

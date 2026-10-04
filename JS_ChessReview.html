@@ -393,7 +393,7 @@ function chReviewShow(rec) {
   chRv.id = rec.id;
   chRv.shown = null;
   chRv.rec = rec;
-  chRv.res = rec.review || null;
+  chRv.res = rec.review && rec.review.v === CHESS_REVIEW_V ? rec.review : null;
   chRv.rv = chessReviewBegin(rec);
   chRv.better = false;
   // What each move took, to set the taken pieces beside the board at every step.
@@ -426,7 +426,7 @@ function chReviewRun() {
     let done = false;
     // A slice of about 60ms, then the page breathes.
     while (!done && Date.now() - t0 < 60) done = chessReviewStep(rv, { nodes: CH_REVIEW_NODES, ms: 1500 });
-    chReviewProgress(rv.i / rv.positions.length);
+    chReviewProgress(chessReviewDone(rv));
     if (!done) { chRv.timer = setTimeout(step, 16); return; }
     chRv.res = chessReviewResult(rv);
     const list = chLoadGames();

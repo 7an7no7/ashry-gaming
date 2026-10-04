@@ -1298,8 +1298,8 @@ function chessSearch(p, g, o) {
     return best;
   };
 
-  // The root: every legal move, in the order the last depth ranked them.
-  let rootMoves = order(chessLegalPos(p).concat(o.extra || []), 0, 0);
+  // The root: every legal move (or only the ones asked about: chessCompareMoves), in the order the last depth ranked them.
+  let rootMoves = order(o.only ? o.only.slice() : chessLegalPos(p).concat(o.extra || []), 0, 0);
   // A hidden queen's move at the root: the pawn becomes a queen first (and back after), the hash with it.
   const doRoot = (m) => {
     if (!(m & CHESS_HQ_BIT)) { chessDo(p, m); return; }
@@ -1485,6 +1485,29 @@ function chessAnalyse(g, opts) {
     });
   }
   return out;
+}
+
+/**
+ * A few moves of one position scored side by side, by one search to one depth with
+ * a full window for each: [score for the side to move after each move, or null for
+ * one that isn't legal]. Only those moves at the root, so the same count of
+ * positions looks several moves deeper than a whole analysis. opts: chessAnalyse's.
+ */
+function chessCompareMoves(g, moves, opts) {
+  const o = opts || {};
+  const p = chessPos(g);
+  const legal = chessLegalPos(p);
+  const ms = moves.map(mv => (mv && !mv.hq ? chessFind(p, mv, legal) : 0));
+  const only = ms.filter((m, i) => m && ms.indexOf(m) === i);
+  if (!only.length) return { depth: 0, scores: ms.map(() => null) };
+  const res = chessSearch(p, g, {
+    depth: o.depth || 30, ms: o.ms || 60000, nodes: o.nodes || CHESS_ANALYSE_NODES, noise: 0, qdepth: 8,
+    rnd: () => 0.5, now: typeof o.now === 'function' ? o.now : () => Date.now(), lines: only.length, only: only
+  });
+  return {
+    depth: res.depth,
+    scores: ms.map(m => { const e = m ? res.ranked.find(x => x[1] === m) : null; return e && e[0] > -CHESS_INF ? e[0] : null; })
+  };
 }
 
 /* --- what the board shows: attacks, hanging pieces, forks, pins ----------------------- */
@@ -1732,21 +1755,41 @@ function chessIsSacrifice(gBefore, mv, scoreAfter) {
  * { cls, loss, accuracy, best: { from, to, promo, san }, reasons, scoreBefore,
  * scoreAfter (for the side that moved), mate }.
  */
-function chessJudge(gBefore, played, before, after) {
+function chessJudge(gBefore, played, before, after, opts) {
   const same = before.move && before.move.from === played.from && before.move.to === played.to && (before.move.promo || '') === (played.promo || '');
-  const bestScore = before.score;
+  let bestScore = before.score;
   // After the move it is the other side's turn: their score, turned round.
   let playedScore = after.over ? (after.mated ? CHESS_MATE - 1 : 0) : -after.score;
   if (same) playedScore = Math.max(playedScore, bestScore);
+  // The two searches above are separate, and the one after the move sees a move further: a
+  // threat the engine's own move ran into too, seen only after the move played, read as that
+  // move's fault - a "blunder" in a position where every move loses the same (the owner, 4 Oct
+  // 2026). So a move that looks worse than the engine's is weighed again beside it, both moves
+  // in one search to one depth, and that comparison is the verdict.
+  let theyMate = after.mate > 0, weMate = before.mate > 0, lostAnyway = before.mate < 0;
+  const looksWorse = chessClampCp(bestScore) - chessClampCp(playedScore) > CHESS_CLASS_LIMITS.good || (theyMate && !lostAnyway) || (weMate && !(playedScore > CHESS_MATE - 1000));
+  if (!same && !played.hq && before.move && !after.over && looksWorse) {
+    // Twice the analysis' count of positions: measured against a search forty times as deep
+    // (251 doubtful moves), verdicts two steps off went from 42 to 16 (the same count: 27).
+    const o = opts || {};
+    const cmp = chessCompareMoves(gBefore, [before.move, played], Object.assign({}, o, { nodes: 2 * (o.nodes || CHESS_ANALYSE_NODES) }));
+    if (cmp.scores[0] !== null && cmp.scores[1] !== null) {
+      bestScore = Math.max(cmp.scores[0], cmp.scores[1]);
+      playedScore = cmp.scores[1];
+      theyMate = playedScore < -(CHESS_MATE - 1000);
+      weMate = bestScore > CHESS_MATE - 1000;
+      lostAnyway = bestScore < -(CHESS_MATE - 1000);
+    }
+  }
   const loss = same ? 0 : Math.max(0, chessClampCp(bestScore) - chessClampCp(playedScore));
   let cls = same ? 'best' : chessClassify(loss);
   // Letting a mate slip, or walking into one, is never better than a mistake.
-  if (!same && before.mate > 0 && !(playedScore > CHESS_MATE - 1000) && (cls === 'best' || cls === 'good' || cls === 'inaccuracy')) cls = 'mistake';
-  if (!same && after.mate > 0 && !(before.mate < 0)) cls = 'blunder';
+  if (!same && weMate && !(playedScore > CHESS_MATE - 1000) && (cls === 'best' || cls === 'good' || cls === 'inaccuracy')) cls = 'mistake';
+  if (!same && theyMate && !lostAnyway) cls = 'blunder';
   if ((cls === 'best') && chessIsSacrifice(gBefore, played, chessClampCp(playedScore))) cls = 'brilliant';
   const reasons = cls === 'best' || cls === 'brilliant' || cls === 'good'
     ? chessMoveGood(gBefore, played, same ? before : null)
-    : chessMoveBad(gBefore, played, before.move, before, after);
+    : chessMoveBad(gBefore, played, before.move, before, after.mate > 0 && (!theyMate || lostAnyway) ? Object.assign({}, after, { mate: 0 }) : after);
   if (cls === 'brilliant') reasons.unshift({ k: 'sacrifice' });
   return {
     cls: cls, loss: Math.round(loss),
@@ -1791,13 +1834,30 @@ function chessReviewBegin(record) {
   return { positions: positions, moves: moves, sans: sans, analyses: [], i: 0 };
 }
 
-/** Analyses the next position; true once every position is done. opts: chessAnalyse's. */
+/**
+ * One step of the work: judges the next move once the positions either side of it
+ * are analysed (a move that looks worse than the engine's is weighed again beside
+ * it, a search of its own), or else analyses the next position. True once every
+ * position is analysed and every move judged. opts: chessAnalyse's.
+ */
 function chessReviewStep(rv, opts) {
-  if (rv.i >= rv.positions.length) return true;
-  rv.analyses[rv.i] = chessAnalyse(rv.positions[rv.i], opts);
-  rv.i++;
-  return rv.i >= rv.positions.length;
+  rv.judged = rv.judged || [];
+  const j = rv.judged.length;
+  if (j < rv.moves.length && rv.analyses[j + 1]) {
+    rv.judged.push(chessJudge(rv.positions[j], rv.moves[j], rv.analyses[j], rv.analyses[j + 1], opts));
+  } else if (rv.i < rv.positions.length) {
+    rv.analyses[rv.i] = chessAnalyse(rv.positions[rv.i], opts);
+    rv.i++;
+  }
+  return rv.i >= rv.positions.length && rv.judged.length >= rv.moves.length;
 }
+
+/** How far a review has got, 0 to 1 (a position analysed and a move judged count alike). */
+const chessReviewDone = (rv) => (rv.i + (rv.judged ? rv.judged.length : 0)) / Math.max(1, rv.positions.length + rv.moves.length);
+
+// A review kept with a game says how it was worked out: one from before the moves were
+// weighed again side by side (4 Oct 2026) is worked out again when it is opened.
+const CHESS_REVIEW_V = 2;
 
 /**
  * The review: { moves: [{ san, color, cls, loss, accuracy, best, reasons,
@@ -1806,14 +1866,14 @@ function chessReviewStep(rv, opts) {
  * after each], key: [{ i, kind: 'turn' | 'missed' | 'brilliant' }] }.
  */
 function chessReviewResult(rv) {
-  const out = { moves: [], accuracy: [null, null], graph: [], key: [] };
+  const out = { v: CHESS_REVIEW_V, moves: [], accuracy: [null, null], graph: [], key: [] };
   const white = (score, turn) => (turn === 0 ? score : -score);
   const a0 = rv.analyses[0];
   out.graph.push(chessClampCp(white(a0.over ? (a0.mated ? -CHESS_MATE : 0) : a0.score, rv.positions[0].turn)));
   const acc = [[], []];
   for (let i = 0; i < rv.moves.length; i++) {
     const gb = rv.positions[i];
-    const j = chessJudge(gb, rv.moves[i], rv.analyses[i], rv.analyses[i + 1]);
+    const j = (rv.judged && rv.judged[i]) || chessJudge(gb, rv.moves[i], rv.analyses[i], rv.analyses[i + 1]);
     const color = gb.turn;
     j.san = rv.sans[i];
     j.color = color;

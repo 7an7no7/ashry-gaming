@@ -49,7 +49,7 @@ export const CHUNKS = {
   guessnum: ['JS_GuessNumber'],
   tourney: ['JS_Tournament'],
   wordle: ['JS_Wordle'],
-  newgames: ['JS_NewGames'],
+  newgames: ['JS_Teams', 'JS_JustOne', 'JS_Reaction'],   // the team maker, كلمة واحدة and رد الفعل on one phone
   screwcalc: ['JS_Screw'],
   screw: ['JS_RoomScrew', 'SkrewCards.js'],
   monkey: ['JS_Monkey', 'JS_RoomMonkey'],
@@ -576,11 +576,14 @@ export const SHARED_LISTS = ['Games.js', 'DisabledGames.js', 'Dice.js', 'Packs.j
 
 /** Reads Controller.html, every file it includes and the shared lists. */
 export async function readPage(root, readFile, path) {
-  const controller = await readFile(srcPath('Controller.html'), 'utf8');
+  // Line endings as git stores them (LF), whatever the checkout wrote: a Windows
+  // checkout's CRLF would otherwise reach the page, a byte per line.
+  const read = async (name) => (await readFile(srcPath(name), 'utf8')).replace(/\r\n/g, '\n');
+  const controller = await read('Controller.html');
   const includes = [...controller.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g)].map((m) => m[1]);
   const sources = new Map();
-  for (const n of includes) sources.set(n, await readFile(srcPath(`${n}.html`), 'utf8'));
-  for (const n of SHARED_LISTS) sources.set(n, await readFile(srcPath(n), 'utf8'));
+  for (const n of includes) sources.set(n, await read(`${n}.html`));
+  for (const n of SHARED_LISTS) sources.set(n, await read(n));
   // On the page the lists come after the styles and before the scripts.
   const styles = includes.filter((n) => !/^JS_/.test(n));
   const order = [...styles, ...SHARED_LISTS, ...includes.filter((n) => /^JS_/.test(n))];

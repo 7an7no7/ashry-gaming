@@ -16,7 +16,7 @@ module.exports = {
   content: ['../app/**/*.html', '../rooms/**/*.html', '../games/**/*.html'],
 
   /**
-   * renderTeams() in JS_NewGames.html builds class names by interpolation
+   * renderTeams() in JS_Teams.html builds class names by interpolation
    * (`border-${color}-500`), which the content scanner cannot see. These are the
    * four colours it cycles through.
    */

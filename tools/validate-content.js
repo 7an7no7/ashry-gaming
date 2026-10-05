@@ -367,7 +367,7 @@ for (const [lang, cats] of Object.entries(CHAR)) {
 }
 
 for (const name of ['JO_WORDS_AR', 'JO_WORDS_EN']) {
-  const list = load(srcPath('JS_NewGames.html'), name);
+  const list = load(srcPath('JS_JustOne.html'), name);
   const dup = repeats(list);
   if (dup.length) note(`${name}: duplicates ${JSON.stringify(dup)}`);
   console.log(`${name}: ${list.length} words`);

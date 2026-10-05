@@ -1,0 +1,259 @@
+<script>
+/* ================= REACTION TEST LOGIC =================
+   Two halves of one phone; red until a random moment, then green, and the first
+   finger down wins. «خدعة» (2 Oct 2026, the owner; the setup's switch, on by
+   default, shared with the room lobby through recallOptions('reaction')): about
+   one round in three a fake signal comes first - a yellow flash, a 🐱, the word
+   «استنى!» - and a tap once it has shown loses the round («اتضحك عليك!»). The
+   fake rounds come out of a bag of three (one fake, two not), so a table sees
+   one in three without a long run of none. The colours are the theme's tokens
+   (.rx-half). The room game, this game's own words (RX_TEXT, read through
+   rxText) and its styles (RX_CSS, put in by rxStyleOn) are in JS_RoomReaction.html,
+   the chunk this one loads with it. */
+
+const RX_OPTS_DEFAULT = { fakes: true };
+const RX_FAKE_KINDS = ['yellow', 'cat', 'word'];
+const RX_FAKE_MS = 700;           // REACTION_FAKE_MS on the server
+let rxFakeBag = [];
+
+function rxOpts() { return recallOptions('reaction', RX_OPTS_DEFAULT); }
+function rxSetFakes(on) { rememberOptions('reaction', { fakes: !!on }); }
+/** The setup's switch shows what was chosen last (here or in a room's lobby). */
+function paintReactionSetup() {
+    const box = document.getElementById('rx-fakes');
+    if (box) box.checked = !!rxOpts().fakes;
+}
+
+/** The next round has a fake? One in three, from a bag. */
+function rxDrawFake() {
+    if (!rxOpts().fakes) return false;
+    if (!rxFakeBag.length) rxFakeBag = shuffleArray([true, false, false]);
+    return rxFakeBag.pop();
+}
+
+/** A half's look: idle (the night), wait (red), go (green), fake (yellow), win, bad, tie. */
+function rxPaintHalf(el, state) {
+    if (!el) return;
+    el.className = 'rx-half' + (el.id === 'reaction-p2' ? ' rx-half--flip' : '') + ' is-' + state;
+}
+const rxMsg = (big, sub, extra) => `<div class="rx-msg ${extra || ''}"><div class="rx-big">${big}</div>${sub ? `<div class="rx-sub">${sub}</div>` : ''}</div>`;
+
+function startReactionRound() {
+    setView('play-reaction');
+    rxStyleOn();
+
+    const p1 = document.getElementById('reaction-p1');
+    const p2 = document.getElementById('reaction-p2');
+    const msg1 = document.getElementById('reaction-msg1');
+    const msg2 = document.getElementById('reaction-msg2');
+    const exitBtn = document.getElementById('reaction-exit-btn');
+    const L = rxText();
+    const r = appState.reaction;
+
+    // Gameplay counts the press, not the release: on click, the time a finger
+    // stayed down was added to the reaction, and a tie was decided on letting go.
+    const press = (player) => (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        handleReactionTap(player);
+    };
+    p1.onclick = null;
+    p2.onclick = null;
+    p1.onpointerdown = press(1);
+    p2.onpointerdown = press(2);
+
+    const paintWait = () => {
+        rxPaintHalf(p1, 'wait');
+        rxPaintHalf(p2, 'wait');
+        msg1.innerHTML = rxMsg(L.reaction_wait);
+        msg2.innerHTML = rxMsg(L.reaction_wait);
+    };
+    paintWait();
+    exitBtn.classList.add('hidden');
+
+    r.status = 'waiting';
+    r.firstTapInfo = null; // 👈 Reset the tie-breaker memory
+    r.fakeSeen = false;
+    clearTimeout(r.fakeId);
+    clearTimeout(r.fakeEndId);
+
+    const withFake = rxDrawFake();
+    const delay = withFake ? 3200 + Math.floor(Math.random() * 3300) : Math.floor(Math.random() * 4000) + 2000;
+    if (r.timeoutId) clearTimeout(r.timeoutId);
+
+    if (withFake) {
+        // The fake: well inside the red, never in the last second before the green.
+        const at = 1400 + Math.floor(Math.random() * (delay - 2500));
+        const kind = RX_FAKE_KINDS[Math.floor(Math.random() * RX_FAKE_KINDS.length)];
+        r.fakeId = setTimeout(() => {
+            if (r.status !== 'waiting') return;
+            r.fakeSeen = true;
+            if (kind === 'yellow') {
+                rxPaintHalf(p1, 'fake'); rxPaintHalf(p2, 'fake');
+                msg1.innerHTML = rxMsg('⚡', '', 'rx-msg--icon'); msg2.innerHTML = rxMsg('⚡', '', 'rx-msg--icon');
+            } else {
+                const pop = motionOff() ? '' : 'rx-msg--pop';
+                const html = kind === 'cat' ? rxMsg('🐱', '', 'rx-msg--icon ' + pop) : rxMsg(escapeHTML(L.rx_fake_word), '', pop);
+                msg1.innerHTML = html; msg2.innerHTML = html;
+            }
+            r.fakeEndId = setTimeout(() => { if (r.status === 'waiting') paintWait(); }, RX_FAKE_MS);
+        }, at);
+    }
+
+    r.timeoutId = setTimeout(() => {
+        if (r.status === 'waiting') {
+            clearTimeout(r.fakeEndId);
+            r.status = 'ready';
+            r.startTime = performance.now();
+
+            // Turn GREEN!
+            rxPaintHalf(p1, 'go');
+            rxPaintHalf(p2, 'go');
+            msg1.innerHTML = rxMsg(L.reaction_tap, '', 'rx-msg--go');
+            msg2.innerHTML = rxMsg(L.reaction_tap, '', 'rx-msg--go');
+            if (typeof motionBump === 'function') { motionBump(msg1.firstElementChild, 1.18); motionBump(msg2.firstElementChild, 1.18); }
+            playSound('success');
+        }
+    }, delay);
+}
+
+function handleReactionTap(player) {
+    const r = appState.reaction;
+    if (r.status === 'ended') return;
+
+    if (r.status === 'waiting') {
+        // FALSE START (tapped on red), or fooled by the fake
+        r.status = 'ended';
+        clearTimeout(r.timeoutId);
+        clearTimeout(r.fakeId);
+        clearTimeout(r.fakeEndId);
+        showReactionResult(player === 1 ? 2 : 1, 0, true, player, false, r.fakeSeen);
+        return;
+    }
+
+    if (r.status === 'ready') {
+        // THE FIRST PERSON TAPPED!
+        r.status = 'resolving';
+        r.firstTapInfo = { player: player, time: performance.now() };
+
+        // Wait 60 milliseconds to see if the other player taps for a TIE!
+        setTimeout(() => {
+            if (r.status === 'resolving') {
+                // No one else tapped, we have a clear winner!
+                r.status = 'ended';
+                const reactionTime = Math.round(r.firstTapInfo.time - r.startTime);
+                showReactionResult(r.firstTapInfo.player, reactionTime, false, null, false);
+            }
+        }, 60);
+        return;
+    }
+
+    if (r.status === 'resolving') {
+        // THE SECOND PERSON TAPPED WITHIN THE WINDOW! IT'S A TIE!
+        if (player !== r.firstTapInfo.player) {
+            r.status = 'ended';
+            const reactionTime = Math.round(r.firstTapInfo.time - r.startTime);
+            showReactionResult(null, reactionTime, false, null, true);
+        }
+    }
+}
+
+function showReactionResult(winner, timeMs, isFalseStart, falseStartPlayer, isTie = false, fooled = false) {
+    playSound(isFalseStart ? 'alarm' : 'click');
+    const p1 = document.getElementById('reaction-p1');
+    const p2 = document.getElementById('reaction-p2');
+    const msg1 = document.getElementById('reaction-msg1');
+    const msg2 = document.getElementById('reaction-msg2');
+    const L = rxText();
+
+    rxPaintHalf(p1, 'idle');
+    rxPaintHalf(p2, 'idle');
+
+    const restartText = L.rx_again_tap;
+    const timeStr = `<span dir="ltr"><span class="metric" data-rx-ms>${timeMs}</span> ${L.reaction_ms}</span>`;
+
+    if (isTie) {
+        // 🤝 Both halves turn the warning colour
+        playSound('success');
+        const tieHTML = rxMsg(escapeHTML(L.rx_tie), timeStr);
+        rxPaintHalf(p1, 'tie');
+        rxPaintHalf(p2, 'tie');
+        msg1.innerHTML = tieHTML;
+        msg2.innerHTML = tieHTML;
+
+    } else if (isFalseStart) {
+        const badHTML = rxMsg(fooled ? escapeHTML(L.rx_fooled) : L.reaction_too_soon);
+        const goodHTML = rxMsg(L.reaction_winner);
+        const bad = falseStartPlayer === 1 ? [p1, msg1] : [p2, msg2];
+        const good = falseStartPlayer === 1 ? [p2, msg2] : [p1, msg1];
+        rxPaintHalf(bad[0], 'bad');
+        rxPaintHalf(good[0], 'win');
+        bad[1].innerHTML = badHTML;
+        good[1].innerHTML = goodHTML;
+    } else {
+        const winHTML = rxMsg(L.reaction_winner, timeStr);
+        const loseHTML = rxMsg('❌', '', 'rx-msg--dim rx-msg--icon');
+        const win = winner === 1 ? [p1, msg1] : [p2, msg2];
+        const lose = winner === 1 ? [p2, msg2] : [p1, msg1];
+        rxPaintHalf(win[0], 'win');
+        win[1].innerHTML = winHTML;
+        lose[1].innerHTML = loseHTML;
+    }
+    // The verdict pops on both halves (JS_Motion.html section 13), and the time counts up.
+    if (typeof motionBump === 'function') { motionBump(msg1.firstElementChild, 1.12); motionBump(msg2.firstElementChild, 1.12); }
+    if (timeMs && typeof countUp === 'function' && !motionOff()) {
+        [msg1, msg2].forEach((m) => { const n = m.querySelector('[data-rx-ms]'); if (n) countUp(n, 0, timeMs); });
+    }
+
+    clearTimeout(appState.reaction.resultTimeoutId);
+    appState.reaction.resultTimeoutId = setTimeout(() => {
+        // Leaving during this second used to re-arm the panels behind the menu.
+        if (appState.reaction.status !== 'ended') return;
+        document.getElementById('reaction-exit-btn').classList.remove('hidden');
+
+        const restartHTML = `<div class="rx-again ${motionOff() ? '' : 'rx-again--pulse'}">${escapeHTML(restartText)}</div>`;
+        if (msg1.children[0]) msg1.children[0].insertAdjacentHTML('beforeend', restartHTML);
+        if (msg2.children[0]) msg2.children[0].insertAdjacentHTML('beforeend', restartHTML);
+
+        // Starting again is an ordinary tap.
+        p1.onpointerdown = null;
+        p2.onpointerdown = null;
+        p1.onclick = () => startReactionRound();
+        p2.onclick = () => startReactionRound();
+    }, 1000);
+}
+
+/** Stops every timer of the round and disarms the halves. */
+function rxStopRound() {
+    const r = appState.reaction;
+    clearTimeout(r.timeoutId);
+    clearTimeout(r.resultTimeoutId);
+    clearTimeout(r.fakeId);
+    clearTimeout(r.fakeEndId);
+    r.status = 'idle';
+    ['reaction-p1', 'reaction-p2'].forEach(id => {
+        const panel = document.getElementById(id);
+        if (!panel) return;
+        panel.onclick = null;
+        panel.onpointerdown = null;
+    });
+}
+
+// Leaving by any way but the exit button (the back button, another game):
+// the wait for green would still turn it green, with its sound, on the next screen.
+if (typeof onLeaveScreen === 'function') onLeaveScreen((from) => {
+    if (from !== 'play-reaction') return;
+    rxStopRound();
+});
+
+function exitReactionGame(event) {
+    // 🛡️ THE SHIELD: This stops the click from going through the button to the screen underneath!
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    rxStopRound();
+    // Safely return to the setup menu
+    setView('setup-reaction');
+}
+
+</script>

@@ -1,0 +1,294 @@
+<script>
+/* ================= TEAM GENERATOR LOGIC ================= */
+
+function setTeamCount(n) {
+    appState.teams.count = [2, 3, 4].indexOf(Number(n)) !== -1 ? Number(n) : 2;
+    if (typeof saveToLocal === 'function') saveToLocal();
+    paintTeamsSetup();
+}
+
+/** The setup screen as it was left: the saved number of teams lit (SETUP_PAINTERS). */
+function paintTeamsSetup() {
+    const n = [2, 3, 4].indexOf(Number(appState.teams.count)) !== -1 ? Number(appState.teams.count) : 2;
+    [2,3,4].forEach(i => {
+        const btn = document.getElementById(`team-btn-${i}`);
+        if (!btn) return;
+        // A segmented item: its thumb slides on the class change (syncSegmented).
+        if (btn.classList.contains('is-active') !== (i === n)) btn.classList.toggle('is-active', i === n);
+        btn.setAttribute('aria-pressed', String(i === n));
+    });
+    paintTeamsSplit();
+}
+
+/** The teams' sizes for `players` in `count` teams, biggest first: 7 in 2 is [4, 3]. */
+function teamSizes(players, count) {
+    const k = Math.max(1, count);
+    return Array.from({ length: k }, (_, i) => Math.floor(players / k) + (i < players % k ? 1 : 0));
+}
+
+/** «٧ لاعبين ← فريق من ٤ وفريق من ٣» under the count, or how many more are needed. */
+function paintTeamsSplit() {
+    const el = document.getElementById('teams-split');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const k = Number(appState.teams.count) || 2;
+    const n = getSelectedPlayers().length;
+    if (n < k) {
+        el.textContent = (t.teams_split_need || '').replace('{k}', k);
+        return;
+    }
+    const sizes = teamSizes(n, k);
+    const even = sizes[0] === sizes[sizes.length - 1];
+    el.textContent = (even ? (t.teams_split_even || '') : (t.teams_split || ''))
+        .replace('{n}', n).replace('{k}', k).replace('{each}', sizes[0])
+        .replace('{sizes}', sizes.join(appState.lang === 'ar' ? ' و' : ', '));
+}
+
+function getSelectedPlayers() {
+    return appState.activePlayers ? [...appState.activePlayers] : [];
+}
+
+function generateTeams() {
+    let selected = getSelectedPlayers();
+    
+    if (selected.length < appState.teams.count) {
+        const msg = appState.lang === 'ar' ? "عدد اللاعبين غير كافٍ للفرق المختارة" : "Not enough players for selected teams";
+        showToast(msg);
+        return;
+    }
+
+    playSound('click');
+    
+    // Shuffle
+    for (let i = selected.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [selected[i], selected[j]] = [selected[j], selected[i]];
+    }
+
+    // Distribute
+    const teams = Array.from({ length: appState.teams.count }, () => []);
+    selected.forEach((player, index) => {
+        teams[index % appState.teams.count].push(player);
+    });
+
+    renderTeams(teams, 'random');
+}
+
+/** «وزّع تاني» deals again the way the teams on screen were made: by lot, or by the stars. */
+function teamsDrawAgain() {
+    if (appState.teams.resultHow === 'fair') generateFairTeams();
+    else generateTeams();
+}
+
+/** The teams as text for the family's chat: the share sheet, or copied. */
+function shareTeams() {
+    const teams = appState.teams.result;
+    if (!teams || !teams.length) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const text = teams.map((team, i) => `${teamLabel(i)}: ${team.join('، ')}`).join('\n');
+    const url = (window.SERVER_DATA && window.SERVER_DATA.webAppUrl) || (location.origin + location.pathname);
+    shareOrCopy(url, text, t.teams_copied || t.link_copied || '');
+}
+
+function openSkillBalancer() {
+    const selected = getSelectedPlayers();
+    if (selected.length < appState.teams.count) {
+        const msg = appState.lang === 'ar' ? "عدد اللاعبين غير كافٍ!" : "Not enough players!";
+        showToast(msg);
+        return;
+    }
+
+    const list = document.getElementById('skill-list');
+    list.innerHTML = '';
+
+    selected.forEach(p => {
+        const currentSkill = appState.teams.playerSkills ? (appState.teams.playerSkills[p] || 3) : 3;
+        let starsHtml = '';
+        for(let i=1; i<=5; i++) {
+            const opacity = i <= currentSkill ? 'opacity-100' : 'opacity-20 grayscale';
+            starsHtml += `<button onclick="setSkill('${jsStringAttr(p)}', ${i})" class="text-2xl transition-all ${opacity} hover:scale-125">⭐</button>`;
+        }
+
+        list.innerHTML += `
+        <div class="flex justify-between items-center plate-well">
+            <span class="font-bold tx-strong truncate w-24">${escapeHTML(p)}</span>
+            <div class="flex gap-1" id="stars-${escapeHTML(p)}">${starsHtml}</div>
+        </div>`;
+    });
+
+    document.getElementById('skill-modal').classList.remove('hidden');
+}
+
+function setSkill(player, level) {
+    if(!appState.teams.playerSkills) appState.teams.playerSkills = {};
+    appState.teams.playerSkills[player] = level;
+    // A rating is kept for next time as soon as it is tapped, not only when teams are made.
+    if (typeof saveToLocal === 'function') saveToLocal();
+    const container = document.getElementById(`stars-${player}`);
+    let starsHtml = '';
+    for(let i=1; i<=5; i++) {
+        const opacity = i <= level ? 'opacity-100' : 'opacity-20 grayscale';
+        starsHtml += `<button onclick="setSkill('${jsStringAttr(player)}', ${i})" class="text-2xl transition-all ${opacity} hover:scale-125">⭐</button>`;
+    }
+    container.innerHTML = starsHtml;
+    playSound('click');
+}
+
+/**
+ * Teams as close in skill as the stars allow, and as close in size as the
+ * count allows (never more than one apart). The old greedy fill handed each
+ * player to the weakest team so far, which put a star alone against five.
+ * Now: a snake draft by skill (1-2-3-3-2-1…), then swaps between teams while
+ * one narrows the gap between the strongest and weakest total. Sizes never
+ * change in a swap.
+ */
+function balancedTeams(names, count, skillOf) {
+    const k = Math.max(1, count);
+    // A little noise so equal stars don't always land the same way.
+    const players = shuffleArray(names).map(name => ({ name: name, skill: skillOf(name) + Math.random() * 0.1 }))
+        .sort((a, b) => b.skill - a.skill);
+    const teams = Array.from({ length: k }, () => []);
+    players.forEach((p, i) => {
+        const lap = Math.floor(i / k), seat = i % k;
+        teams[lap % 2 === 0 ? seat : k - 1 - seat].push(p);
+    });
+    const total = (team) => team.reduce((sum, p) => sum + p.skill, 0);
+    const spread = () => {
+        const sums = teams.map(total);
+        return Math.max(...sums) - Math.min(...sums);
+    };
+    for (let pass = 0; pass < 60; pass++) {
+        let best = spread(), move = null;
+        for (let a = 0; a < k; a++) for (let b = a + 1; b < k; b++) {
+            for (let i = 0; i < teams[a].length; i++) for (let j = 0; j < teams[b].length; j++) {
+                const x = teams[a][i], y = teams[b][j];
+                teams[a][i] = y; teams[b][j] = x;
+                const now = spread();
+                teams[a][i] = x; teams[b][j] = y;
+                if (now < best - 1e-9) { best = now; move = [a, i, b, j]; }
+            }
+        }
+        if (!move) break;
+        const [a, i, b, j] = move;
+        const x = teams[a][i];
+        teams[a][i] = teams[b][j];
+        teams[b][j] = x;
+    }
+    // The first team shouldn't always be the one the best player was drafted to.
+    return shuffleArray(teams).map(team => team.map(p => p.name));
+}
+
+function generateFairTeams() {
+    const selected = getSelectedPlayers();
+    const skills = appState.teams.playerSkills || {};
+    closeModal('skill-modal');
+    renderTeams(balancedTeams(selected, appState.teams.count, (name) => skills[name] || 3), 'fair');
+}
+
+function renderTeams(teams, how) {
+    // Remembered so the screen can be rebuilt after a reload without
+    // re-rolling the teams - the whole point of the screen is that this is the
+    // draw everyone already agreed to. `how` (by lot / by the stars) is what
+    // «وزّع تاني» does again and what the summary says.
+    appState.teams.result = teams;
+    appState.teams.resultHow = how === 'fair' ? 'fair' : 'random';
+    saveToLocal();
+    paintTeams(teams);
+    setView('results-teams');
+    const dealing = dealTeams(document.getElementById('teams-container'));
+    const cheer = () => confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    if (dealing) setTimeout(cheer, dealing); else cheer();
+}
+
+/**
+ * The names are dealt into their teams one at a time, in the order they were
+ * drawn, from the middle of the screen. Each name flies as a ghost above the
+ * page (the team cards clip their contents) and its row shows when it lands.
+ * Returns how long the deal takes, or 0 when nothing moves.
+ */
+function dealTeams(container) {
+    if (!container || typeof motionOff !== 'function' || motionOff()) return 0;
+    const rows = [...container.querySelectorAll('[data-deal]')].sort((a, b) => a.dataset.deal - b.dataset.deal);
+    if (!rows.length || !document.body.animate) return 0;
+    const start = 360;                       // after the screen has slid in, so the places are final
+    const step = Math.min(120, Math.round(1500 / rows.length));
+    const fly = 540;
+    rows.forEach(row => { row.style.visibility = 'hidden'; });
+    rows.forEach((row, i) => {
+        setTimeout(() => {
+            if (!row.isConnected) return;
+            // Lands on the name itself, not the middle of its tile.
+            const nameEl = row.querySelector('.teamres-name');
+            let r = row.getBoundingClientRect();
+            if (nameEl) {
+                const range = document.createRange();
+                range.selectNodeContents(nameEl);
+                const nr = range.getBoundingClientRect();
+                if (nr.width) r = nr;
+            }
+            const ghost = document.createElement('div');
+            ghost.className = 'deal-ghost';
+            ghost.textContent = row.dataset.name || row.textContent.trim();
+            document.body.appendChild(ghost);
+            const g = ghost.getBoundingClientRect();
+            const toX = r.left + r.width / 2 - g.width / 2;
+            const toY = r.top + r.height / 2 - g.height / 2;
+            const fromX = window.innerWidth / 2 - g.width / 2;
+            const fromY = window.innerHeight * 0.55 - g.height / 2;
+            const land = () => { ghost.remove(); row.style.visibility = ''; };
+            const anim = ghost.animate([
+                { transform: 'translate(' + fromX + 'px, ' + fromY + 'px) scale(0.6)', opacity: 0 },
+                { opacity: 1, offset: 0.25 },
+                { transform: 'translate(' + toX + 'px, ' + toY + 'px) scale(1)', opacity: 1 }
+            ], { duration: fly, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'both' });
+            anim.onfinish = land;
+            setTimeout(land, fly + 300);
+        }, start + i * step);
+    });
+    return start + (rows.length - 1) * step + fly;
+}
+
+/** Draws the team cards. Split out so a reload can redraw without re-rolling. */
+/** «فريق أ» / "Team 1". */
+function teamLabel(idx) {
+    const prefix = (TRANSLATIONS[appState.lang] || {}).team_name_prefix || 'Team';
+    return appState.lang === 'ar' ? `${prefix} ${['أ', 'ب', 'ج', 'د'][idx]}` : `${prefix} ${idx + 1}`;
+}
+
+/**
+ * The summary (how many, the split, by lot or by the stars) and a card per team in
+ * its colour (.teamres-team--0..3: red, blue, green, amber), the names in tiles of two
+ * with an initial. data-deal is the order the names were drawn in, for dealTeams.
+ */
+function paintTeams(teams) {
+    const container = document.getElementById('teams-container');
+    if (!container || !teams || !teams.length) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const total = teams.reduce((n, team) => n + team.length, 0);
+    const sizes = teams.map(team => team.length);
+    const vs = sizes.map(n => `<bdi class="metric">${n}</bdi>`).join(` ${escapeHTML(t.teams_vs || '·')} `);
+    const summary = document.getElementById('teams-summary');
+    if (summary) {
+        summary.innerHTML = `
+            <span class="chip chip--plain">👥 ${escapeHTML((t.teams_players_n || '{n}').replace('{n}', total))}</span>
+            <span class="chip chip--plain">⚖️ ${vs}</span>
+            <span class="chip chip--plain">${appState.teams.resultHow === 'fair' ? '⭐ ' + escapeHTML(t.teams_by_skill || '') : '🎲 ' + escapeHTML(t.teams_by_lot || '')}</span>`;
+    }
+    const initial = (name) => escapeHTML(Array.from(String(name).trim())[0] || '?');
+    container.innerHTML = teams.map((team, idx) => `
+        <section class="teamres-team teamres-team--${idx}">
+            <header class="teamres-team__head">
+                <h3 class="teamres-team__name">${escapeHTML(teamLabel(idx))}</h3>
+                <span class="teamres-team__n">${escapeHTML((t.teams_players_n || '{n}').replace('{n}', team.length))}</span>
+            </header>
+            <div class="teamres-team__list">
+                ${team.map((p, j) => `
+                <div class="teamres-mem" data-deal="${j * teams.length + idx}" data-name="${escapeHTML(p)}">
+                    <span class="teamres-av" aria-hidden="true">${initial(p)}</span>
+                    <span class="teamres-name">${escapeHTML(p)}</span>
+                </div>`).join('')}
+            </div>
+        </section>`).join('');
+}
+
+</script>

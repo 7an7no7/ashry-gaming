@@ -9,8 +9,9 @@
 
    Only values and pure functions: nothing here may read the page (document,
    appState, Room) or change a room. A game's own shared code goes in its
-   folder's shared file (Chess4.js, games/duels/Duels.js); this file is for
-   what several games, or the whole app, need on both sides.
+   folder's shared file (Chess4.js, games/duels/Duels.js), and what a few games
+   share in rooms/RoomShared.js, which loads with those games, not the page;
+   this file is for what the whole app needs on both sides.
    ========================================================================== */
 
 /* --- One fold for typed text (GEMINI.md, *One fold for typed text*) -------- */
@@ -44,12 +45,7 @@ const normaliseClue = (text) => {
   return out.replace(/\s+/g, '');
 };
 
-/* --- Rooms: values the phone shows and the server enforces ------------------ */
-
-const TRIVIA_COUNTS = [5, 10, 15, 20];           // تحدي المعلومات: the questions the host can pick
-const CODENAMES_TIMERS = [0, 60, 90, 120, 180];  // أسماء الرموز: the clue clock's choices, in seconds (0: none)
-const BZ_SETTLE_MS = 150;                        // الجرس: a press settles this long after it arrived
-const DUEL_AWAY_MS = 60000;                      // the duels: the seat to move loses after this long away
+/* --- Rooms: is the game over -------------------------------------------- */
 
 /**
  * Is the room's game over? The audience's «مين هيكسب؟» closes on it on the
@@ -65,22 +61,4 @@ function roomGameIsOver(r) {
   if (phases.some(p => p === 'gameover' || p === 'over')) return true;
   if (s.tour && s.tour.phase === 'over') return true;
   return !!AUDIENCE_ONE_ROUND[r.game] && phases.some(p => p === 'result' || p === 'results');
-}
-
-/**
- * Who would play if the game started now, in a lobby with seats (لودو, السلم
- * والتعبان, بنك الحظ): the seats the host set, less anyone gone, topped up from
- * the room in order (not the benched), up to `max`; with no seats set, the
- * first `max` in the room.
- */
-function lobbySeatedOf(players, lobby, max) {
-  const ids = (players || []).map(p => p.id);
-  lobby = lobby || {};
-  if (Array.isArray(lobby.seated)) {
-    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
-    // Someone left and a seat is free: the next in the room sits down.
-    ids.forEach(id => { if (kept.length < max && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
-    return kept.slice(0, max);
-  }
-  return ids.slice(0, max);
 }

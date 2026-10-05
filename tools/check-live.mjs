@@ -19,6 +19,9 @@ import { readFile, stat, readdir } from 'node:fs/promises';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import srcMod from './sources.cjs';
+
+const { srcPath, srcFiles } = srcMod;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -74,9 +77,9 @@ else if (ahead !== '0') fail(`${ahead} commit(s) not pushed yet: git push origin
 else ok('everything is pushed');
 
 const built = (await stat(path.join(root, 'docs', 'index.html'))).mtimeMs;
-const sources = (await readdir(root)).filter((f) => /\.(html|js)$/.test(f));
+const sources = srcFiles();
 const newer = [];
-for (const f of sources) if ((await stat(path.join(root, f))).mtimeMs > built + 1000) newer.push(f);
+for (const f of sources) if ((await stat(srcPath(f))).mtimeMs > built + 1000) newer.push(f);
 if (newer.length) fail(`changed after the last build:site (cd tools && npm run build:site, then commit and push): ${newer.join(', ')}`);
 else ok('docs/ was built after the last source edit');
 

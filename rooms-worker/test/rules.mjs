@@ -10,6 +10,8 @@ import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, ro
 
 import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION_CATCH_WAIT_MS } from '../generated/rules.js';
 import { nextPrompts, programPlaces } from '../generated/rules.js';
+import srcMod from '../../tools/sources.cjs';
+const { srcPath } = srcMod;
 let failed = 0;
 const check = (ok, label) => {
   console.log((ok ? '  ✓ ' : '  ✗ ') + label);
@@ -365,7 +367,7 @@ check(v('طماطماااا', 'طماطم') === 'close' && v('إسعاف', 'عر
 check(v('ترابيزة', 'كرسي') === '' && v('', 'كرسي') === '' && v('كرسي', ['ترابيزة', 'كرسي']) === 'right', 'guess: a different word is wrong, an alternative answer counts');
 {
   // Another word on the game's own list is a different thing, not a spelling of the answer (audit, 22 Sep 2026).
-  const DW = new Function(readFileSync(new URL('../../PartyContent.js', import.meta.url), 'utf8') + '\nreturn DRAW_WORDS;')();
+  const DW = new Function(readFileSync(srcPath('PartyContent.js'), 'utf8') + '\nreturn DRAW_WORDS;')();
   const vb = (guess, answer, lang) => guessVerdict(guess, [answer], DW[lang]);
   check(vb('House', 'Horse', 'en') === 'close' && vb('Monkey', 'Donkey', 'en') === 'close' && vb('Carrot', 'Parrot', 'en') === 'close',
     'guess: House for Horse, Monkey for Donkey, Carrot for Parrot are close, not right');
@@ -2530,7 +2532,7 @@ const leave = (r, id, hook = true) => {
 /* --- الدومينو: the tiles, the ends, the points, the round, and what stays hidden --- */
 {
   const { readFileSync } = await import('node:fs');
-  const DT = new Function(readFileSync(new URL('../../DominoTiles.js', import.meta.url), 'utf8') +
+  const DT = new Function(readFileSync(srcPath('DominoTiles.js'), 'utf8') +
     '\nreturn { dominoSet, dominoParse, dominoFits, dominoEnds, dominoPlace, dominoEndsSum, dominoPointsOf, dominoRounded, dominoMoveScore,' +
     ' dominoStarter, dominoRoundResult, dominoGameWinner, dominoLayout, dominoFitLayout, dominoNewTable, dominoArmsOpen, dominoHandPips, dominoCanPlay };')();
   const lineOf = (tiles, mode) => tiles.reduce((t, [id, end]) => DT.dominoPlace(t, id, end, mode || 'normal').table, DT.dominoNewTable());
@@ -2844,7 +2846,7 @@ const leave = (r, id, hook = true) => {
 const duelTestClock = Date.now;
 Date.now = realNow;
 {
-  const src = (name) => readFileSync(new URL('../../' + name, import.meta.url), 'utf8');
+  const src = (name) => readFileSync(srcPath(name), 'utf8');
   const C4 = new Function(src('Connect4.js') + '\nreturn { c4NewBoard, c4Play, c4DropRow, c4LegalCols, c4Winner, c4BestMove, c4Clone, c4WinningCol };')();
   const DB = new Function(src('DotsBoxes.js') + '\nreturn { dotsNewBoard, dotsPlay, dotsGeom, dotsBestMove, dotsSafe, dotsCaptures, dotsFree, dotsCounts, dotsSides, dotsComponents, dotsDoubleDeal };')();
   // A seeded source, so a failure can be played again.
@@ -3314,7 +3316,7 @@ Date.now = duelTestClock;
 
 /* --- أونو: the cards, every move, the bots, and what never leaves the server ------ */
 {
-  const UNO = new Function(readFileSync(new URL('../../UnoCards.js', import.meta.url), 'utf8') +
+  const UNO = new Function(readFileSync(srcPath('UnoCards.js'), 'utf8') +
     '\nreturn { unoDeck, unoCanPlay, unoPoints, unoHandPoints, unoSameCard, unoDecksFor, unoSorted, unoDrawOf, unoColorOf, unoValueOf, unoTeamSlots, unoMateOf, unoHitsMate };')();
   const same = { stacking: true, stackMode: 'same' };
   const mixed = { stacking: true, stackMode: 'mixed' };
@@ -4208,7 +4210,7 @@ Date.now = duelTestClock;
 /* --- لودو: the board, every rule, the room, and whole games of computer players ------ */
 {
   const { readFileSync } = await import('node:fs');
-  const L = new Function(readFileSync(new URL('../../Ludo.js', import.meta.url), 'utf8') +
+  const L = new Function(readFileSync(srcPath('Ludo.js'), 'utf8') +
     '\nreturn { LUDO_TRACK_CELLS, LUDO_HOME_CELLS, LUDO_START, LUDO_SAFE, LUDO_STARS, LUDO_HOME, ludoGlobal, ludoCellOf, ludoNewGame, ludoFillColors,' +
     ' ludoRollOff, ludoTarget, ludoMovable, ludoDistinct, ludoRoll, ludoMove, ludoOnlyMove, ludoBotPick, ludoRemovePlayer, ludoWallAt };')();
   const cells = L.LUDO_TRACK_CELLS;
@@ -4436,7 +4438,7 @@ Date.now = duelTestClock;
 /* --- بنك الحظ: the board, every rule, the room, and whole games of computer players ------ */
 {
   const { readFileSync } = await import('node:fs');
-  const B = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+  const B = new Function(readFileSync(srcPath('Dice.js'), 'utf8') + '\n' + readFileSync(srcPath('BankAlhaz.js'), 'utf8') +
     '\nreturn { BANK_SQUARES, BANK_CARDS, BANK_GROUPS, BANK_STATIONS, BANK_COMPANIES, bankNewGame, bankRoll, bankBuy, bankEndTurn, bankBuild, bankSell, bankMortgage,' +
     ' bankUnmortgage, bankPayJail, bankUseCard, bankPayDebt, bankBankrupt, bankOffer, bankAnswer, bankRentOf, bankWorth, bankCanBuild, bankStepCost, bankAuto,' +
     ' bankBotMove, bankOnlyMove, bankRemovePlayer, bankFillTokens, bankRollOff, bankGroupSquares, bankLiquid, bankRents, bankDice };')();
@@ -4810,7 +4812,7 @@ Date.now = duelTestClock;
 
   // الفنان المزيف: the fake is told the word's category, never the word (the review of 1 Oct 2026).
   {
-    const DC = new Function(readFileSync(new URL('../../PartyContent.js', import.meta.url), 'utf8') + '\nreturn DRAW_WORD_CATS;')();
+    const DC = new Function(readFileSync(srcPath('PartyContent.js'), 'utf8') + '\nreturn DRAW_WORD_CATS;')();
     for (const lang of ['ar', 'en']) {
       const r = newRoom(['a', 'b', 'c', 'd']);
       applyRoomAction(r, 'a', 'chooseGame', { game: 'fakeartist' });
@@ -4866,7 +4868,7 @@ Date.now = duelTestClock;
 
   // بنك الحظ: a debt to a player who leaves is cancelled; a "pay everyone" debt loses their share.
   {
-    const BB = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+    const BB = new Function(readFileSync(srcPath('Dice.js'), 'utf8') + '\n' + readFileSync(srcPath('BankAlhaz.js'), 'utf8') +
       '\nreturn { bankNewGame, bankFillTokens, bankRemovePlayer };')();
     const mk = () => BB.bankNewGame(['a', 'b', 'c'], BB.bankFillTokens(['a', 'b', 'c'], {}), 'a', { length: 0, firstLap: false }, 0, Math.random);
     let { g, priv } = mk();
@@ -4916,7 +4918,7 @@ Date.now = duelTestClock;
 
 /* --- خمّن مين: the faces, no list, nothing automatic, winner stays on ------------ */
 {
-  const GW = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') +
+  const GW = new Function(readFileSync(srcPath('GuessWho.js'), 'utf8') +
     '\nreturn { gwDealBoard, gwSignature, gwUp, GW_NAMES, GW_COLOURS, gwName };')();
   let distinct = true, sized = true, named = true, capsOk = true, hijabOk = true, clothesOk = true, rich = true;
   const seen = {};
@@ -5217,7 +5219,7 @@ Date.now = duelTestClock;
 
 /* --- المشنقة: the letters, the fold, the two ways a room plays ---------------- */
 {
-  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const src = (f) => readFileSync(srcPath(f), 'utf8');
   const HM = new Function(src('ChameleonWords.js') + src('EmojiRiddles.js') + src('Hangman.js') +
     '\nreturn { hmFold, hmPool, hmPattern, hmApply, hmNewBoard, hmWordProblem, hmAlphaOf, hmSolved, hmShape, hmFound };')();
   const ar = HM.hmPool('ar'), en = HM.hmPool('en');
@@ -5368,7 +5370,7 @@ Date.now = duelTestClock;
 /* --- المشنقة, the next round (the owner, 2 Oct 2026): levels, categories, lifelines, hints, the
    streak, the endings and team against team ---------------------------------------------------- */
 {
-  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const src = (f) => readFileSync(srcPath(f), 'utf8');
   const HM = new Function(src('ChameleonWords.js') + src('EmojiRiddles.js') + src('Hangman.js') +
     '\nreturn { hmApply, hmNewBoard, hmManOf, hmMaxOf, hmPool, HM_CATS, CHAMELEON_DB, hmLevelFits, hmShape, hmReveal, hmRemoveWrong, hmStreakBonus, hmHintsOpen, hmPickEnd, hmFold, hmLettersOf };')();
   const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
@@ -5583,7 +5585,7 @@ Date.now = duelTestClock;
 
 /* --- one sets, everyone solves (RoomSolve.js): the engine and its four games ---- */
 {
-  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const src = (f) => readFileSync(srcPath(f), 'utf8');
   const SV = new Function(src('WordleWords.js') + src('Countries.js') + src('SolveGames.js') +
     '\nreturn { svWordleColours, svWordleProblem, svWordleFold, svWordleTries, svNumTries, svNumVerdict, svNumProblem, svEmojiClueProblem, svEmojiAnswerProblem, svCountryLetter, svFlagHintsAt, flagCountry, flagsDistance, flagsBearing, flagsProximity, flagsStep, WORDLE_DB, COUNTRIES };')();
   const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
@@ -5786,7 +5788,7 @@ Date.now = duelTestClock;
 
 /* --- ميني جولف: the course, the physics, the two ways a room plays ------------ */
 {
-  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const src = (f) => readFileSync(srcPath(f), 'utf8');
   const MG = new Function(src('MiniGolf.js') +
     '\nreturn { GOLF, GOLF_HOLES, GOLF_HOLE_COUNTS, GOLF_LEVELS, golfHoleById, golfLevelIds, golfCourseSplit, golfDealCourse, golfStart, golfStep, golfRun, golfPutt, golfField, golfDistance, golfAutoShot, golfClearLine, golfSpeedFor, golfMillShut, golfSliderSeg, golfSpinnerSeg, golfSinCos, golfParOf, golfMaxOf, golfWetSpot };')();
   const H = (id) => MG.GOLF_HOLES.find((h) => h.id === id);
@@ -6314,7 +6316,7 @@ Date.now = duelTestClock;
 
 /* --- حرب السفن: the fleets, the shots, the phone's admiral, winner stays on ------- */
 {
-  const BS = new Function(readFileSync(new URL('../../Battleship.js', import.meta.url), 'utf8') +
+  const BS = new Function(readFileSync(srcPath('Battleship.js'), 'utf8') +
     '\nreturn { BS_SHIPS, BS_SEA, BS_MISS, BS_HIT, BS_SUNK, BS_CLEAR, bsFleetProblem, bsCanPlace, bsRandomFleet, bsNewSea, bsFire, bsAiShot, bsAllSunk, bsShipCells, bsCoord, bsOccupancy, bsRandomCell };')();
   const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
   // A fleet along the top-left, every ship a row apart: it sails.
@@ -6493,7 +6495,7 @@ Date.now = duelTestClock;
   check(refused(() => bsRoom(['a'], {})), 'battleship room: it takes two (no computer players in rooms)');
 
   // «الرادار» (2 Oct 2026): once a game, a 3 x 3 sweep instead of a shot; the count to the sweeper and the screen only.
-  const RD = new Function(readFileSync(new URL('../../Battleship.js', import.meta.url), 'utf8') +
+  const RD = new Function(readFileSync(srcPath('Battleship.js'), 'utf8') +
     '\nreturn { bsRadarCentre, bsRadarCells, bsRadarCount, bsRadarLeft, bsAiRadar, bsAiShotRadar, bsNewSea, bsFire, bsRandomFleet, bsOccupancy, bsAllSunk, BS_SEA, BS_MISS };')();
   check(RD.bsRadarCentre(0) === 11 && RD.bsRadarCentre(99) === 88 && RD.bsRadarCentre(45) === 45 && RD.bsRadarCentre(9) === 18 && RD.bsRadarCentre(-1) === -1,
     'battleship radar: the area round a square is pushed back onto the board at an edge');
@@ -6566,7 +6568,7 @@ Date.now = duelTestClock;
 
 /* --- بولينج: the score sheet, the physics every phone replays, the room's turns --- */
 {
-  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const src = (f) => readFileSync(srcPath(f), 'utf8');
   const BW = new Function(src('Bowling.js') +
     '\nreturn { BOWL, bowlScore, bowlFrameNext, bowlMarks, bowlBallKind, bowlStart, bowlStep, bowlRun, bowlThrow, bowlStanding, bowlCleanShot, bowlGentleShot, bowlNewCard, bowlApply, bowlTotal };')();
   // A second copy, built apart, stands in for another phone: the same numbers must give the same pins.
@@ -6706,7 +6708,7 @@ Date.now = duelTestClock;
   }
   {
     // The swing (JS_Bowling.html): the line is the backswing's, steady while the push arcs; a bow hooks.
-    const html = readFileSync(new URL('../../JS_Bowling.html', import.meta.url), 'utf8');
+    const html = readFileSync(srcPath('JS_Bowling.html'), 'utf8');
     const fn = (name) => { const i = html.indexOf('function ' + name + '('); let d = 0; for (let k = html.indexOf('{', i); k < html.length; k++) { if (html[k] === '{') d++; else if (html[k] === '}' && --d === 0) return html.slice(i, k + 1); } return ''; };
     const consts = html.match(/const BOWL_PULL_MIN[\s\S]*?const BOWL_HOOK_K = \d+;/)[0];
     const SW = new Function(src('Bowling.js') + consts + fn('bowlFitSlope') + fn('bowlSwingShot') + '\nreturn { bowlSwingShot };')();
@@ -6808,7 +6810,7 @@ Date.now = duelTestClock;
 
 /* --- كدّاب and الشايب: the playing cards, every rule, whole games of computer players ------ */
 {
-  const PC = new Function(readFileSync(new URL('../../PlayingCards.js', import.meta.url), 'utf8') +
+  const PC = new Function(readFileSync(srcPath('PlayingCards.js'), 'utf8') +
     '\nreturn { PC_RANKS, pcDeck, pcRank, pcRed, pcPairs, pcSorted, PC_OLD_MAID };')();
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   check(PC.pcDeck(1).length === 52 && new Set(PC.pcDeck(1)).size === 52 && PC.pcDeck(2).length === 104, 'cards: a deck is 52 different cards, two decks 104');
@@ -7237,7 +7239,7 @@ Date.now = duelTestClock;
 
 /* --- شطرنج: every rule (perft), the draws, the clock, Armageddon, the phone's player, winner stays on --- */
 {
-  const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
+  const CH = new Function(readFileSync(srcPath('Chess.js'), 'utf8') +
     '\nreturn { chessNew, chessFromFen, chessFen, chessPerft, chessPlay, chessStatus, chessLegalMoves, chessBestMove, chessInsufficient, chessCanMate,' +
     ' chessClockNew, chessClockPress, chessClockFlagged, chessClockLeft, chessFlagResult, chessMatchNext, chessArmageddonResult, chessKey, chessCheckSq,' +
     ' chessEloSettings, chessEloBand, chessElo, chessClassify, chessMoveAccuracy, chessAnalyse, chessMoveGood, chessReview, chessThreats, chessPins, chessUci, chessFromUci, chess960Start, chess960Random,' +
@@ -7727,7 +7729,7 @@ Date.now = duelTestClock;
 
 /* --- باغ هاوس: drops, the hands, promoted pieces, the computer's drops (Chess.js, 24 Sep 2026) --- */
 {
-  const BG = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
+  const BG = new Function(readFileSync(srcPath('Chess.js'), 'utf8') +
     '\nreturn { chessBugNew, chessBugClone, chessBugDrops, chessBugLegal, chessBugStatus, chessBugPlay, chessBugGive, chessBugBotMove, chessBugHandCount, chessFromFen, chessPerft, chessPlay, chessLegalMoves };')();
   const bug = (fen, hands) => {
     const g = BG.chessBugNew(fen);
@@ -8041,7 +8043,7 @@ Date.now = duelTestClock;
 
   // «إكس أو الكبير» (the owner, 2 Oct 2026): nine boards in one, the square played sends the other side.
   {
-    const XB = new Function(readFileSync(new URL('../../TicTacToe.js', import.meta.url), 'utf8') +
+    const XB = new Function(readFileSync(srcPath('TicTacToe.js'), 'utf8') +
       '\nreturn { xoBigNew, xoBigMark, xoBigLegal, xoBigWinner, xoBigOnlyMove, xoBigBestMove };')();
     const seededB = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
     const g = XB.xoBigNew();
@@ -8419,7 +8421,7 @@ Date.now = duelTestClock;
 
 /* --- شطرنج in the duels' tournament (TOUR_KINDS.chess, 23 Sep 2026) ------------------------ */
 {
-  const CHT = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + '\nreturn { chessLegalMoves };')();
+  const CHT = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + '\nreturn { chessLegalMoves };')();
   const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const people = (n) => 'abcdefghijkl'.split('').slice(0, n);
   const room = (ids, payload) => {
@@ -8576,7 +8578,7 @@ Date.now = duelTestClock;
 /* The audit of 23 Sep 2026: the rules fixed after it. */
 {
   const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
-  const src = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const src = (f) => readFileSync(srcPath(f), 'utf8');
   const leave = (r, id) => {
     r.players = r.players.filter((p) => p.id !== id);
     if (r.hostId === id) r.hostId = r.players[0].id;
@@ -8697,7 +8699,7 @@ Date.now = duelTestClock;
 
 /* --- شطرنج بالتصويت: teams, secret votes, the tally, a tie, the clock, resigning by vote, leaving --- */
 {
-  const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + '\nreturn { chessFromFen, chessLegalMoves };')();
+  const CH = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + '\nreturn { chessFromFen, chessLegalMoves };')();
   const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const vcRoom = (ids, payload) => {
     const r = newRoom(ids);
@@ -8848,7 +8850,7 @@ Date.now = duelTestClock;
 
 /* --- المخ والإيد: the seats, the Brain names, the Hand moves, computer players, the clock, play again --- */
 {
-  const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + '\nreturn { chessFromFen, chessLegalMoves };')();
+  const CH = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + '\nreturn { chessFromFen, chessLegalMoves };')();
   const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const botsOf = (r) => r.players.filter((p) => p.bot).map((p) => p.id);
   const hbRoom = (ids, order, payload) => {
@@ -9041,7 +9043,7 @@ Date.now = duelTestClock;
 
 /* --- شطرنج الأربعة (Chess4.js): the board, every rule, the points, whole games of computer players --- */
 {
-  const C = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') +
+  const C = new Function(readFileSync(srcPath('Chess4.js'), 'utf8') +
     '\nreturn { chess4NewGame, chess4Legal, chess4Play, chess4BotMove, chess4InCheck, chess4Eliminate, chess4Sq, chess4Valid, chess4SqName, CHESS4_MAX_PLIES };')();
   const sq = C.chess4Sq;
   const P = 1, N = 2, B = 3, R = 4, Q = 5, K = 6;
@@ -9231,7 +9233,7 @@ Date.now = duelTestClock;
 /* --- شطرنج الأربعة in rooms (RoomChess4.js): the lobby, turns, the clock, play for, leaving, bots --- */
 {
   const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
-  const C = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') + '\nreturn { chess4Legal };')();
+  const C = new Function(readFileSync(srcPath('Chess4.js'), 'utf8') + '\nreturn { chess4Legal };')();
   const first = (s) => C.chess4Legal(s.g)[0];
   const isBot = (room, id) => room.players.some((x) => x.id === id && x.bot);
   const up = (r) => r.shared.seats[r.shared.g.turn];
@@ -9412,7 +9414,7 @@ Date.now = duelTestClock;
 
   // بنك الحظ: no bankruptcy while selling and mortgaging would cover the debt.
   {
-    const B = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+    const B = new Function(readFileSync(srcPath('Dice.js'), 'utf8') + '\n' + readFileSync(srcPath('BankAlhaz.js'), 'utf8') +
       '\nreturn { bankNewGame, bankFillTokens, bankRoll, bankBankrupt, bankAuto, bankLiquid };')();
     const made = B.bankNewGame(['a', 'b'], B.bankFillTokens(['a', 'b'], {}), 'a', { length: 0, firstLap: false }, 0, Math.random);
     const g = made.g, priv = made.priv;
@@ -9428,7 +9430,7 @@ Date.now = duelTestClock;
 
   // لودو: a leaver's wall no longer in the way - what can move is worked out again.
   {
-    const L = new Function(readFileSync(new URL('../../Ludo.js', import.meta.url), 'utf8') +
+    const L = new Function(readFileSync(srcPath('Ludo.js'), 'utf8') +
       '\nreturn { ludoNewGame, ludoMovable, ludoRemovePlayer, ludoWallAt };')();
     const g = L.ludoNewGame(['a', 'b', 'c'], { a: 'G', b: 'Y', c: 'B' }, 'a');
     g.pieces.a = [20, 5, -1, -1];
@@ -9442,7 +9444,7 @@ Date.now = duelTestClock;
 
   // شطرنج: a handicap on a 960 room takes the piece off that game's 960 row.
   {
-    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
+    const CH = new Function(readFileSync(srcPath('Chess.js'), 'utf8') +
       '\nreturn { chessOddsFen, chessHandicapFen, chess960Start, chessFromFen, CHESS_START_FEN };')();
     check(['pawn', 'knight', 'rook', 'queen'].every((k) => ['w', 'b'].every((sd) => CH.chessOddsFen(CH.CHESS_START_FEN, k, sd) === CH.chessHandicapFen(k, sd))),
       'audit/chess odds: on the standard start, chessOddsFen is the handicap as before');
@@ -9470,7 +9472,7 @@ Date.now = duelTestClock;
 
   // شطرنج الأربعة FFA: someone going out off-turn gives the player up no time back, and their move still counts.
   {
-    const C4 = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') + '\nreturn { chess4Legal };')();
+    const C4 = new Function(readFileSync(srcPath('Chess4.js'), 'utf8') + '\nreturn { chess4Legal };')();
     const r = newRoom(['h', 'p', 'q', 'w']);
     applyRoomAction(r, 'h', 'chooseGame', { game: 'chess4' });
     applyRoomAction(r, 'h', 'options', { mode: 'ffa', clock: 1 });
@@ -9663,7 +9665,7 @@ Date.now = duelTestClock;
 
 // Hidden queen, 24 Sep 2026: الوزير المستخبي - the rules (Chess.js) and the room (RoomChess.js).
 {
-  const HQ = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') +
+  const HQ = new Function(readFileSync(srcPath('Chess.js'), 'utf8') +
     '\nreturn { chessNew, chessFromFen, chessPlay, chessPerft, chessLegalMoves, chessStatus, chessHqNew, chessHqPick, chessHqMoves, chessHqPlay, chessHqReplay, chessHqLegal, chessBestMove, chessReview, chessFromUci, chessUci };')();
   const sq = (n) => 'abcdefgh'.indexOf(n[0]) + (Number(n[1]) - 1) * 8;
   const tos = (list) => list.map((m) => m.to).sort().join(',');
@@ -10016,11 +10018,11 @@ Date.now = duelTestClock;
 
 /* --- إستميشن: the auction, the calls, the tricks, the score keeper's arithmetic, whole games ------ */
 {
-  const EST = new Function(readFileSync(new URL('../../PlayingCards.js', import.meta.url), 'utf8') + '\n' +
-    readFileSync(new URL('../../Estimation.js', import.meta.url), 'utf8') +
+  const EST = new Function(readFileSync(srcPath('PlayingCards.js'), 'utf8') + '\n' +
+    readFileSync(srcPath('Estimation.js'), 'utf8') +
     '\nreturn { estBidOk, estBidBeats, estLowestBid, estCallChoices, estLegal, estTrickWinner, estScoreRound, estMult, estLevels, estSpeedTrump, estHandTricks, estBotCard, pcDeck };')();
   // The score keeper, as the page runs it: CS_GAMES.estimation from JS_CardRules.html.
-  const rulesHtml = readFileSync(new URL('../../JS_CardRules.html', import.meta.url), 'utf8').replace(/<\/?script>/g, '');
+  const rulesHtml = readFileSync(srcPath('JS_CardRules.html'), 'utf8').replace(/<\/?script>/g, '');
   const CS = new Function('const CS_GAMES = {}; const csSum = (arr) => arr.reduce((a, b) => a + (Number(b) || 0), 0);\n' + rulesHtml + '\nreturn CS_GAMES;')();
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
 
@@ -10556,7 +10558,7 @@ Date.now = duelTestClock;
 
   // RACE:queens
   {
-    const SRC = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+    const SRC = (f) => readFileSync(srcPath(f), 'utf8');
     const Q = new Function(SRC('SoloShared.js') + SRC('Queens.js') + '\nreturn { queensMake, queensSolve, queensSolved, queensConflicts, QUEENS_RACE, soloRng };')();
     const soloRngOf = (seed) => Q.soloRng(seed);
     const made = Q.queensMake('medium', soloRngOf(7));
@@ -10598,7 +10600,7 @@ Date.now = duelTestClock;
     check(en.shared.pub.lang === 'en' && /^[A-Z]+$/.test(en._solve.secret.words[0].w), 'race/strands: an English room deals English words');
     {
       // A deal records a theme at a time, the last of them the one played (it used to record eight to use one).
-      const C = new Function(['SoloShared.js', 'ChameleonWords.js'].map((f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8')).join('\n') + '\nreturn { CHAMELEON_DB, soloCategory };')();
+      const C = new Function(['SoloShared.js', 'ChameleonWords.js'].map((f) => readFileSync(srcPath(f), 'utf8')).join('\n') + '\nreturn { CHAMELEON_DB, soloCategory };')();
       let ok = true;
       for (let k = 0; k < 6; k++) {
         const rm = race(['a', 'b'], 'strands', { lang: k % 2 ? 'en' : 'ar' });
@@ -10612,7 +10614,7 @@ Date.now = duelTestClock;
   }
 
   // The other eight, each through the same door: the puzzle public, the solution hidden, a move, the win.
-  const SRC8 = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+  const SRC8 = (f) => readFileSync(srcPath(f), 'utf8');
   const shownOf = (rm) => JSON.stringify(rm.shared) + JSON.stringify(rm.secrets);
 
   // RACE:wordwheel
@@ -10633,7 +10635,7 @@ Date.now = duelTestClock;
     {
       // The review of 1 Oct 2026: everyday verbs and adjectives count as bonus words (never grid words).
       const fits = (w) => { const m = {}; for (const ch of x.pub.letters) m[ch] = (m[ch] || 0) + 1; for (const ch of w) { if (!m[ch]) return false; m[ch]--; } return true; };
-      const W = new Function(['SoloShared.js', 'WordWheel.js'].map((f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8')).join('\n') + '\nreturn { WHEEL_BONUS_WORDS };')();
+      const W = new Function(['SoloShared.js', 'WordWheel.js'].map((f) => readFileSync(srcPath(f), 'utf8')).join('\n') + '\nreturn { WHEEL_BONUS_WORDS };')();
       const everyday = W.WHEEL_BONUS_WORDS.ar.filter((w) => w.length >= 3 && fits(w) && x.words.indexOf(w) === -1);
       check(W.WHEEL_BONUS_WORDS.ar.indexOf('كتب') !== -1 && W.WHEEL_BONUS_WORDS.en.indexOf('SWIM') === -1 && W.WHEEL_BONUS_WORDS.en.indexOf('swim') !== -1,
         'review/race/wordwheel: the everyday list has verbs (كتب, swim)');
@@ -10682,7 +10684,7 @@ Date.now = duelTestClock;
   // إيه اللي يجمعهم؟'s choices (the review of 1 Oct 2026): a category sharing 4 or more words with
   // the answer is never offered beside it - every category of both languages, several deals each.
   {
-    const SRCP = (f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+    const SRCP = (f) => readFileSync(srcPath(f), 'utf8');
     const P = new Function(SRCP('SoloShared.js') + SRCP('ChameleonWords.js') + SRCP('Pinpoint.js') +
       '\nreturn { pinMakeRound, pinFold, soloRng, soloCategory, CHAMELEON_DB, PIN_OPTIONS, PIN_DECOY_MAX_SHARED };')();
     let rounds = 0, bad = '', heavy = 0;
@@ -12359,7 +12361,7 @@ Date.now = duelTestClock;
 
 /* --- السلم والتعبان (28 Sep 2026): the map, the rules, the room ------------------------------ */
 {
-  const S = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8') +
+  const S = new Function(readFileSync(srcPath('Dice.js'), 'utf8') + '\n' + readFileSync(srcPath('Snakes.js'), 'utf8') +
     '\nreturn { snakesGenMap, snakesCellXY, snakesRowOf, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesSegCross, snakesDie, SNAKES_SNAKE_BANDS, SNAKES_LADDER_BANDS, SNAKES_SNAKE_EXTRA, SNAKES_LADDER_EXTRA, SNAKES_COUNT, SNAKES_BALANCE, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_MOVE_MS, SNAKES_BUILD_MS, SNAKES_TEARDOWN_MS, SNAKES_TAIL_MOVES, SNAKES_TAIL_MS, SNAKES_TAIL_CHANCE, SNAKES_SNEAK_MS, SNAKES_SNEAK_CHANCE, SNAKES_PASS_JUMP, SNAKES_PASS_SNAP, SNAKES_PASS_MS, SNAKES_MEET_MS, SNAKES_ONE_MS, SNAKES_TENSE_MS, SNAKES_SIXES_MS, SNAKES_LEAVE_MS, SNAKES_NEAR_MS, snakesRollMs, snakesPathOf };')();
   const throws = (fn) => { try { fn(); return false; } catch (e) { return true; } };
 
@@ -12384,7 +12386,7 @@ Date.now = duelTestClock;
   // can't fail them by chance (a chi-square at 99.9% fails one run in a thousand per check: 1 Oct 2026).
   // What they test is how the bytes become a die (1-6, the bytes of 252 and up drawn again) and that every
   // real roll goes through it. The real source gets one check with a bound a fair die never reaches.
-  const diceSrc = readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8');
+  const diceSrc = readFileSync(srcPath('Dice.js'), 'utf8');
   const seededCrypto = (seed) => {
     let a = seed >>> 0;
     const next = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0); };
@@ -12393,7 +12395,7 @@ Date.now = duelTestClock;
   const withCrypto = (crypto, more, names) => new Function('__crypto', 'const globalThis = { crypto: __crypto };\n' + diceSrc + '\n' + more + '\nreturn { ' + names + ' };')(crypto);
   const spread = (roll, n) => { const f = [0, 0, 0, 0, 0, 0, 0, 0]; for (let k = 0; k < n; k++) { const v = roll(); f[v >= 1 && v <= 6 ? v : 7]++; } const e = n / 6; return { bad: f[0] + f[7], chi: f.slice(1, 7).reduce((x, o) => x + (o - e) * (o - e) / e, 0) }; };
   {
-    const snakesSrc = readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8');
+    const snakesSrc = readFileSync(srcPath('Snakes.js'), 'utf8');
     const sd = spread(withCrypto(seededCrypto(20261001), snakesSrc, 'snakesDie').snakesDie, 600000);
     check(!sd.bad && sd.chi < 20.5, `snakes: the die is 1-6 and even over 600,000 rolls (chi-square ${sd.chi.toFixed(1)}, under 20.5 at 99.9%)`);
     const a = withCrypto(seededCrypto(5), snakesSrc, 'snakesDie'), b = withCrypto(seededCrypto(5), '', 'fairDie');
@@ -12401,7 +12403,7 @@ Date.now = duelTestClock;
   }
   {
     // Every real roll in the app is Dice.js's fairDie: the shared die, in لودو's room, بنك الحظ with the real random source.
-    const bankSrc = readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8');
+    const bankSrc = readFileSync(srcPath('BankAlhaz.js'), 'utf8');
     const D = withCrypto(seededCrypto(77), bankSrc, 'fairDie, bankRoll6, bankDice');
     const fd = spread(D.fairDie, 600000), bk = spread(() => D.bankRoll6(Math.random), 120000), bk2 = spread(() => D.bankRoll6(), 120000);
     check(!fd.bad && fd.chi < 20.5, `dice: the app's one die is 1-6 and even over 600,000 rolls (chi-square ${fd.chi.toFixed(1)})`);
@@ -12419,7 +12421,7 @@ Date.now = duelTestClock;
     const seeded = (seed) => { let a = seed; return () => { a = (a * 16807) % 2147483647; return a / 2147483647; }; };
     const r1 = seeded(42), r2 = seeded(42);
     check(Array.from({ length: 50 }, () => D.bankRoll6(r1)).join() === Array.from({ length: 50 }, () => D.bankRoll6(r2)).join(), 'dice: a seeded source still gives the بنك الحظ tests the same rolls');
-    check(/const ludoRoll6 = \(\) => fairDie\(\);/.test(readFileSync(new URL('../../RoomLudo.js', import.meta.url), 'utf8')), 'dice: the لودو room rolls the shared die');
+    check(/const ludoRoll6 = \(\) => fairDie\(\);/.test(readFileSync(srcPath('RoomLudo.js'), 'utf8')), 'dice: the لودو room rolls the shared die');
   }
   check(maps.every((m) => {
     const ends = m.snakes.flatMap((s) => [s.h, s.t]).concat(m.ladders.flatMap((l) => [l.f, l.t]));
@@ -12660,7 +12662,7 @@ Date.now = duelTestClock;
 /* --- السلم والتعبان, the third round (2 Oct 2026): themes, surprise squares, the moving map, teams, awards --- */
 {
   console.log('\nSnakes & Ladders, the third round');
-  const S = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../Snakes.js', import.meta.url), 'utf8') +
+  const S = new Function(readFileSync(srcPath('Dice.js'), 'utf8') + '\n' + readFileSync(srcPath('Snakes.js'), 'utf8') +
     '\nreturn { snakesGenMap, snakesNewGame, snakesRoll, snakesRng, snakesFairness, snakesRemovePlayer, snakesRollMs, snakesCellXY, snakesRowOf, snakesSpecial, snakesPieceOf, snakesMoveSpot, snakesMaybeMove, snakesAwards, snakesTeamGroups, snakesShuffle, ' +
     'SNAKES_THEMES, SNAKES_THEME_MOVES, SNAKES_SNAKE_MOVES, SNAKES_LADDER_MOVES, SNAKES_SURPRISES, SNAKES_SURP_MS, SNAKES_WORKER_STEP_MS, SNAKES_CHARMED_MS, SNAKES_NAP_MS, SNAKES_PEEL_BACK, SNAKES_MOVE_EVERY, SNAKES_MOVE_SNAKE_MS, SNAKES_MOVE_EAT_MS, ' +
     'SNAKES_SNAKE_BANDS, SNAKES_SNAKE_EXTRA, SNAKES_FAIR_TURNS, SNAKES_BALANCE, SNAKES_AWARD_CAP, SNAKES_AWARDS_MAX, SNAKES_TEAM_SIZES };')();
@@ -13031,7 +13033,7 @@ Date.now = duelTestClock;
 /* --- الشاهد (29 Sep 2026): a face seen 8 s, a sketch, a lineup of six very alike, the jury's vote --- */
 {
   console.log('\nThe witness');
-  const W = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../Witness.js', import.meta.url), 'utf8') +
+  const W = new Function(readFileSync(srcPath('GuessWho.js'), 'utf8') + '\n' + readFileSync(srcPath('Witness.js'), 'utf8') +
     ';return { gwSignature, witnessLineup, witnessClean, witnessFix, witnessBlank, witnessMatch, WITNESS_LOOK_MS, WITNESS_DRAW_MS, WITNESS_VOTE_MS, WITNESS_MATCH_LINE };')();
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
@@ -13102,7 +13104,7 @@ Date.now = duelTestClock;
   {
     // The crimes (the review of 1 Oct 2026: 8 came round too often): 24, none twice in a game, and a
     // room's next games deal the ones not seen yet before any comes back.
-    const W2 = new Function(readFileSync(new URL('../../Witness.js', import.meta.url), 'utf8') + ';return { WITNESS_CRIMES };')();
+    const W2 = new Function(readFileSync(srcPath('Witness.js'), 'utf8') + ';return { WITNESS_CRIMES };')();
     const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
     const r = witRoom(ids);
     const seen = [];
@@ -13228,7 +13230,7 @@ Date.now = duelTestClock;
 {
   console.log('\nCut wire');
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
-  const WIRE = new Function(readFileSync(new URL('../../Wire.js', import.meta.url), 'utf8') + ';return { WIRE_CONTROLS, WIRE_PLACES, wireLevel, wirePanelSize, wireOrderText, WIRE_DMG_MAX, WIRE_LEVEL_MS, WIRE_READY_MS, WIRE_GRACE_MS, WIRE_SHAKE_MS, WIRE_WIPES, WIRE_MASH_EVERY, WIRE_MASH_DMG };')();
+  const WIRE = new Function(readFileSync(srcPath('Wire.js'), 'utf8') + ';return { WIRE_CONTROLS, WIRE_PLACES, wireLevel, wirePanelSize, wireOrderText, WIRE_DMG_MAX, WIRE_LEVEL_MS, WIRE_READY_MS, WIRE_GRACE_MS, WIRE_SHAKE_MS, WIRE_WIPES, WIRE_MASH_EVERY, WIRE_MASH_DMG };')();
   const wireRoom = (ids, payload) => {
     const r = newRoom(ids);
     applyRoomAction(r, ids[0], 'chooseGame', { game: 'wire' });
@@ -13676,7 +13678,7 @@ Date.now = duelTestClock;
 /* --- الأوضة المضلمة (29 Sep 2026): one walks blind, the rest guide with the map under a lens --- */
 {
   console.log('\nThe dark room');
-  const D = new Function(readFileSync(new URL('../../Dark.js', import.meta.url), 'utf8') +
+  const D = new Function(readFileSync(srcPath('Dark.js'), 'utf8') +
     ';return { darkMap, darkSolve, darkBlocked, darkDynCell, darkDynCells, darkReach, darkEcho, darkAdvance, darkLensR, darkNextHit, DARK_TICK, DARK_DIRS, DARK_TRAPS, DARK_LEVELS, DARK_BODY };')();
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const shape = (m) => JSON.stringify({ r: m.rooms, d: m.doors, b: m.blocks, t: m.traps, y: m.dyn, s: m.start, g: m.goal });
@@ -15162,7 +15164,7 @@ Date.now = duelTestClock;
 /* --- المهمة السرية (RoomMission.js): a switch beside every game ---------------------------- */
 console.log('• the secret mission');
 {
-  const MS = new Function(readFileSync(new URL('../../Missions.js', import.meta.url), 'utf8') + ';return { missionById, missionFits, missionPool, missionText, missionQuote, MISSIONS };')();
+  const MS = new Function(readFileSync(srcPath('Missions.js'), 'utf8') + ';return { missionById, missionFits, missionPool, missionText, missionQuote, MISSIONS };')();
   // هو / هي (the review of 1 Oct 2026): every mission has a girl's Arabic, the English needs none.
   check(MS.MISSIONS.every((m) => m.length === 6 && m[5] !== m[3]) && MS.missionText('h01', 'ar', 'منى', true) === 'خلّي منى تجيبلك كوباية مية'
     && MS.missionText('h01', 'ar', 'حسن') === 'خلّي حسن يجيبلك كوباية مية' && MS.missionText('h01', 'en', 'Mona', true) === MS.missionText('h01', 'en', 'Mona')
@@ -15317,7 +15319,7 @@ console.log('• the secret mission');
 /* --- ارسم اللي بتسمعه (1 Oct 2026): one describes a picture only their phone shows, the rest draw it --- */
 {
   console.log('\nDraw what you hear');
-  const H = new Function(readFileSync(new URL('../../Hear.js', import.meta.url), 'utf8') +
+  const H = new Function(readFileSync(srcPath('Hear.js'), 'utf8') +
     ';return { hearPicture, hearScore, hearOutlines, hearDescPoints, hearPictureName, HEAR_THING_IDS, HEAR_THING_NAMES, HEAR_CUT_MS, HEAR_SWAPS, HEAR_SECONDS, HEAR_OVER_PCT, HEAR_PLACE_POINTS };')();
   const tick = (r) => { const due = roomDeadline(r); if (due === null) return false; clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
   const hearRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'hear' }); return r; };
@@ -15591,7 +15593,7 @@ console.log('• the secret mission');
 {
   console.log('\nThe vault');
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
-  const V = new Function(readFileSync(new URL('../../Vault.js', import.meta.url), 'utf8') + ';return { vaultLevel, vaultUnits, vaultDealUnits, vaultManual, vaultMakeSafe, vaultWireAnswer, vaultSymbolOrder, vaultDialCode, vaultTwistOn, vaultLightAnswer, VAULT_LOCKS, VAULT_PENALTY_MS, vaultPenaltyMs, VAULT_READY_MS, VAULT_BETWEEN_MS };')();
+  const V = new Function(readFileSync(srcPath('Vault.js'), 'utf8') + ';return { vaultLevel, vaultUnits, vaultDealUnits, vaultManual, vaultMakeSafe, vaultWireAnswer, vaultSymbolOrder, vaultDialCode, vaultTwistOn, vaultLightAnswer, VAULT_LOCKS, VAULT_PENALTY_MS, vaultPenaltyMs, VAULT_READY_MS, VAULT_BETWEEN_MS };')();
   const vaultRoom = (ids, payload, screens) => {
     const r = newRoom(ids);
     if (screens) r.screens = screens.map((id) => ({ id }));
@@ -15848,7 +15850,7 @@ console.log('• the secret mission');
 /* --- دندنها (1 Oct 2026): a song hummed or heard, its name typed, four choices after 15 s --- */
 {
   console.log('\nHum it');
-  const HS = new Function(readFileSync(new URL('../../Songs.js', import.meta.url), 'utf8') + ';return HUM_SONGS;')();
+  const HS = new Function(readFileSync(srcPath('Songs.js'), 'utf8') + ';return HUM_SONGS;')();
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
   const humRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'hum' }); return r; };

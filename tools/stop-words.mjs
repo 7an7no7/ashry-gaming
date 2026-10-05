@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import srcMod from './sources.cjs';
+const { srcPath } = srcMod;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -27,7 +29,7 @@ address = address.replace(/\/+$/, '');
 
 // Load StopWords dictionary helper
 const dictSrc = ['SpyWords.js', 'MonkeyWords.js', 'StopWords.js']
-  .map((f) => readFileSync(path.join(root, f), 'utf8'))
+  .map((f) => readFileSync(srcPath(f), 'utf8'))
   .join('\n;\n');
 const { stopWordKnown } = new Function(dictSrc + '\nreturn { stopWordKnown };')();
 

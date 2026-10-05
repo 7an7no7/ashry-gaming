@@ -130,7 +130,10 @@ const changed = FILES_ARG ? FILES_ARG.slice(8).split(',').filter(Boolean) : [...
 const plan = { check: false, rules: false, all: false, robots: new Set(), ui: new Set(), screens: false, fixes: false, program: false, mission: false, site: false, why: [] };
 // What test:rules has to run for: a file the server bundles, or the rules tests and leak check themselves.
 const BUNDLED = /^(rooms-worker\/src\/|rooms-worker\/test\/(rules|leaks)\.mjs$|[A-Z][A-Za-z0-9]*\.js$)/;
-for (const f of changed) {
+// A source file is mapped by its name (MAP and CORE name files, wherever their folder is).
+const SOURCE = /^(app|styles|rooms|content|games)\//;
+for (const path0 of changed) {
+  const f = SOURCE.test(path0) ? path0.split('/').pop() : path0;
   if (IGNORE.some((r) => r.test(f))) continue;
   plan.check = true;
   if (BUNDLED.test(f)) plan.rules = true;

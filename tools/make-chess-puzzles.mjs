@@ -44,6 +44,8 @@ import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import srcMod from './sources.cjs';
+const { srcPath } = srcMod;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, '..');
@@ -84,13 +86,13 @@ function workerSource() {
   const src = readFileSync(fileURLToPath(import.meta.url), 'utf8');
   return src.slice(src.indexOf('/* === worker'), src.indexOf('/* === main'));
 }
-const CFG_HASH = createHash('sha1').update(JSON.stringify(Object.fromEntries(Object.entries(CFG).filter(([k]) => !MAIN_ONLY.includes(k)))) + readFileSync(path.join(ROOT, 'Chess.js'), 'utf8') + workerSource()).digest('hex').slice(0, 10);
+const CFG_HASH = createHash('sha1').update(JSON.stringify(Object.fromEntries(Object.entries(CFG).filter(([k]) => !MAIN_ONLY.includes(k)))) + readFileSync(srcPath('Chess.js'), 'utf8') + workerSource()).digest('hex').slice(0, 10);
 
 /* ---- the engine, loaded the way rooms-worker/test/rules.mjs does ---- */
 function loadEngine() {
-  const src = readFileSync(path.join(ROOT, 'Chess.js'), 'utf8');
+  const src = readFileSync(srcPath('Chess.js'), 'utf8');
   const CH = new Function(src + '\nreturn { chessNew, chessFromFen, chessFen, chessPlay, chessStatus, chessLegalMoves, chessBestMove, chessAnalyse, chess960Random, chessIsSacrifice, chessHanging, chessMaterialDiff, chessCloneGame, chessPos, chessLegalPos, chessSanPos, chessSqName, chessMFrom, chessMTo, chessMPromo, chessPromoLetter, chessMoveGood, chessForked, chessPins, chessAttacksFrom, chessSq, CHESS_MATE, CHESS_VALUE };')();
-  const op = readFileSync(path.join(ROOT, 'JS_ChessOpenings.html'), 'utf8').replace(/^\s*<script>/, '').replace(/<\/script>\s*$/, '');
+  const op = readFileSync(srcPath('JS_ChessOpenings.html'), 'utf8').replace(/^\s*<script>/, '').replace(/<\/script>\s*$/, '');
   const OPEN = new Function(op + '; return CH_OPENINGS;')();
   return { CH, OPEN };
 }
@@ -558,7 +560,7 @@ async function main() {
     size = Math.floor(size * 0.97);
   }
   for (const L of [1, 2, 3]) { const n = bank.filter(p => p.level === L).length; if (n < CFG.minPer) console.log(`  WARNING: level ${L} has ${n} < ${CFG.minPer}`); }
-  const out = process.env.PUZZLE_OUT ? path.resolve(process.env.PUZZLE_OUT) : path.join(ROOT, 'ChessPuzzles.js');
+  const out = process.env.PUZZLE_OUT ? path.resolve(process.env.PUZZLE_OUT) : srcPath('ChessPuzzles.js');
   writeFileSync(out, text, 'utf8');
   const counts = [1, 2, 3].map(L => bank.filter(p => p.level === L).length);
   console.log(`wrote ChessPuzzles.js: ${bank.length} puzzles (level 1 ${counts[0]}, level 2 ${counts[1]}, level 3 ${counts[2]}), ${statSync(out).size} bytes`);

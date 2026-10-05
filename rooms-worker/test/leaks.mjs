@@ -20,23 +20,25 @@
 import { readFileSync } from 'node:fs';
 import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, ROOM_GAME_IDS, roomPlayerLeft, missionJoined, missionPlayerLeft } from '../generated/rules.js';
 import { roomView } from '../src/view.js';
+import srcMod from '../../tools/sources.cjs';
+const { srcPath } = srcMod;
 
 // The countries, for the engine's خمّن الدولة driver to guess with (one sets, everyone solves).
-const SOLVE_LISTS = new Function(readFileSync(new URL('../../Countries.js', import.meta.url), 'utf8') + '\nreturn { COUNTRIES };')();
+const SOLVE_LISTS = new Function(readFileSync(srcPath('Countries.js'), 'utf8') + '\nreturn { COUNTRIES };')();
 
 // الأوضة المضلمة's maps, for its driver to find a way through a level.
-const DARK = new Function(readFileSync(new URL('../../Dark.js', import.meta.url), 'utf8') + ';return { darkMap, darkBlocked, darkDynCell, DARK_DIRS, DARK_TICK };')();
+const DARK = new Function(readFileSync(srcPath('Dark.js'), 'utf8') + ';return { darkMap, darkBlocked, darkDynCell, DARK_DIRS, DARK_TICK };')();
 
 // دندنها's songs: the answer key for the probes, and the right title for the driver to type.
-const HUM = new Function(readFileSync(new URL('../../Songs.js', import.meta.url), 'utf8') + ';return { HUM_SONGS };')();
+const HUM = new Function(readFileSync(srcPath('Songs.js'), 'utf8') + ';return { HUM_SONGS };')();
 
 // خمّن مين's faces, to know the real face of الشاهد by what can be seen of it.
-const WIT = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') + ';return { gwSignature };')();
+const WIT = new Function(readFileSync(srcPath('GuessWho.js'), 'utf8') + ';return { gwSignature };')();
 
 // ارسم اللي بتسمعه's pictures, for its driver to trace one.
-const HEAR = new Function(readFileSync(new URL('../../Hear.js', import.meta.url), 'utf8') + ';return { hearOutlines };')();
+const HEAR = new Function(readFileSync(srcPath('Hear.js'), 'utf8') + ';return { hearOutlines };')();
 // الخزنة's notebook, to know a page's words when they are found on a phone.
-const VAULT = new Function(readFileSync(new URL('../../Vault.js', import.meta.url), 'utf8') + ';return { vaultPageData, vaultLightAnswer };')();
+const VAULT = new Function(readFileSync(srcPath('Vault.js'), 'utf8') + ';return { vaultPageData, vaultLightAnswer };')();
 
 const realNow = Date.now;
 let clock = realNow();
@@ -2702,7 +2704,7 @@ const DRIVERS = {
   chess4() {
     // Two people and computer players, both ways: random moves for the people, the host playing
     // for someone now and then, a resignation (FFA), the clock running out.
-    const C4 = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') + ';return { chess4Legal };')();
+    const C4 = new Function(readFileSync(srcPath('Chess4.js'), 'utf8') + ';return { chess4Legal };')();
     const game = (mode) => {
       const T = table('chess4', 2);
       must(T, T.host, 'options', { mode: mode, clock: 1 });
@@ -2724,7 +2726,7 @@ const DRIVERS = {
   },
   chess() {
     // Moves at random until the game ends (mate, a draw, or a resignation after 200), then the next game on a clock that runs out.
-    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+    const CH = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + ';return { chessLegalMoves };')();
     const T = table('chess', 3);
     const play = () => {
       for (let guard = 0; guard < 200 && S(T).phase === 'play'; guard++) {
@@ -2752,7 +2754,7 @@ const DRIVERS = {
   },
   votechess() {
     // Random votes (changed now and then), the clock closing a vote nobody finished, the host closing one, then a team resigning by vote.
-    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+    const CH = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + ';return { chessLegalMoves };')();
     const T = table('votechess', 5);
     must(T, T.host, 'sides', { shuffle: true });
     must(T, T.host, 'start', { secs: 20 });
@@ -2784,7 +2786,7 @@ const DRIVERS = {
   },
   handbrain() {
     // Three people and a computer player: the Brains name, the Hands move, the computer on the clock, the host's "play for".
-    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+    const CH = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + ';return { chessLegalMoves };')();
     const T = table('handbrain', 3);
     must(T, T.host, 'seats', {});
     must(T, T.host, 'start', { clock: '10+0', botNames: ['زيزو'] });
@@ -2811,7 +2813,7 @@ const DRIVERS = {
   bughouse() {
     // Two people and two computer players: random moves and drops on both boards, the host playing for
     // someone, the game to its end (a mate or a flag), and play again on a clock that runs out.
-    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
+    const CH = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
     const T = table('bughouse', 2);
     must(T, T.host, 'start', { clock: '2+0', botNames: ['زيزو', 'بندق'] });
     const people = () => T.ids.filter((id) => S(T).seats.indexOf(id) !== -1);
@@ -2987,7 +2989,7 @@ const TOUR_DRIVERS = {
   'tour:chess'() {
     // Nothing hidden, but every match on its own board: random moves, a draw agreed now and then (the
     // replay and Armageddon), the host playing for someone, a resignation after 30 moves, a clock that runs out.
-    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves };')();
+    const CH = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + ';return { chessLegalMoves };')();
     const T = table('tour:chess', 5, { tourOf: 'chess' });
     must(T, T.host, 'start', { tournament: true, clock: '3+2' });
     for (let guard = 0; guard < 6000 && S(T).tour.phase === 'play'; guard++) {
@@ -3106,7 +3108,7 @@ const VARIANT_DRIVERS = {
   'xo:big'() {
     // «إكس أو الكبير»: nothing is secret on the nine boards; the generic probes (no `_` key, nobody else's
     // slice) are held over a whole game and the next, every move on the board the robot was sent to.
-    const XB = new Function(readFileSync(new URL('../../TicTacToe.js', import.meta.url), 'utf8') + ';return { xoBigLegal };')();
+    const XB = new Function(readFileSync(srcPath('TicTacToe.js'), 'utf8') + ';return { xoBigLegal };')();
     const T = table('xo:big', 3, { gameId: 'xo' });
     const play = () => {
       for (let guard = 0; guard < 120 && S(T).phase === 'play'; guard++) {
@@ -3299,7 +3301,7 @@ const VARIANT_DRIVERS = {
   'chess:hq'() {
     // Two games: one on a clock (White picks, Black's pick by the clock), one where the host picks for both;
     // moves at random, a hidden queen moved like a pawn now and then and like a queen a third of the time.
-    const CH = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves, chessHqMoves };')();
+    const CH = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + ';return { chessLegalMoves, chessHqMoves };')();
     const T = table('chess:hq', 3, { gameId: 'chess' });
     const play = () => {
       for (let guard = 0; guard < 160 && S(T).phase === 'play'; guard++) {

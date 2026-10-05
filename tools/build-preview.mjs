@@ -10,6 +10,8 @@
 import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { assemble } from './lazy-split.mjs';
+import srcMod from './sources.cjs';
+const { srcPath } = srcMod;
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -22,15 +24,15 @@ const ROOMS_URL = process.env.ROOMS_URL || 'http://127.0.0.1:8787';
 
 // The real spy words, the same ones the published site carries.
 const SPY_WORDS = new Function(
-  (await readFile(path.join(root, 'SpyWords.js'), 'utf8')) + '\nreturn SPY_WORDS;'
+  (await readFile(srcPath('SpyWords.js'), 'utf8')) + '\nreturn SPY_WORDS;'
 )();
 // المختلف's close pairs: the one-phone game deals them too (JS_Imposter.html).
 const SPY_PAIRS = new Function(
-  (await readFile(path.join(root, 'SpyWords.js'), 'utf8')) + '\nreturn SPY_PAIRS;'
+  (await readFile(srcPath('SpyWords.js'), 'utf8')) + '\nreturn SPY_PAIRS;'
 )();
 // The English game's words and pairs, dealt when the games' language is English.
 const [SPY_WORDS_EN, SPY_PAIRS_EN] = new Function(
-  (await readFile(path.join(root, 'SpyWords.js'), 'utf8')) + '\nreturn [SPY_WORDS_EN, SPY_PAIRS_EN];'
+  (await readFile(srcPath('SpyWords.js'), 'utf8')) + '\nreturn [SPY_WORDS_EN, SPY_PAIRS_EN];'
 )();
 
 const STUB = `<script>window.ROOMS_URL = ${JSON.stringify(ROOMS_URL)};</script>`;

@@ -18,35 +18,37 @@ import { readFileSync } from 'node:fs';
 import { stopDictionary, stopAnswerFits, stopWordKnown, foldStopAnswer } from '../generated/rules.js';
 // دندنها's sound, the Worker's own code: a real preview from each source.
 import { songStream } from '../src/songs.js';
+import srcMod from '../../tools/sources.cjs';
+const { srcPath } = srcMod;
 
 // سكرو's cards, read by the robots to decide what to do with what they drew and
 // to check the score at the reveal. They only ever learn a card the way a
 // player does: their own slice, or a card the table sees.
-const SKREW = new Function(readFileSync(new URL('../../SkrewCards.js', import.meta.url), 'utf8') +
+const SKREW = new Function(readFileSync(srcPath('SkrewCards.js'), 'utf8') +
   '\nreturn { SKREW_CARDS, skrewMatches, skrewValue, skrewHandValues, skrewPileCommands };')();
 
 // أونو's cards, for the robots to know what fits. They only learn a card the way a phone does: their own hand, or the pile.
-const UNO = new Function(readFileSync(new URL('../../UnoCards.js', import.meta.url), 'utf8') +
+const UNO = new Function(readFileSync(srcPath('UnoCards.js'), 'utf8') +
   '\nreturn { unoCanPlay, unoSameCard, unoIsWild, unoValueOf, unoColorOf, unoHandPoints, unoDrawOf };')();
 // The domino tiles, read by the robots to find a tile that fits and to check a
 // round's score from the hands it shows at the end - never another hand before that.
-const DOMINO = new Function(readFileSync(new URL('../../DominoTiles.js', import.meta.url), 'utf8') +
+const DOMINO = new Function(readFileSync(srcPath('DominoTiles.js'), 'utf8') +
   '\nreturn { dominoParse, dominoFits, dominoEnds, dominoCanPlay, dominoHandPips };')();
 // بنك الحظ's board, for the robots to see what a place costs before they buy it, as a player reads the card.
-const BANK = new Function(readFileSync(new URL('../../Dice.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('../../BankAlhaz.js', import.meta.url), 'utf8') +
+const BANK = new Function(readFileSync(srcPath('Dice.js'), 'utf8') + '\n' + readFileSync(srcPath('BankAlhaz.js'), 'utf8') +
   '\nreturn { BANK_SQUARES };')();
 
 // خمّن مين's faces: the robots work out what is left up on their own board.
-const GW = new Function(readFileSync(new URL('../../GuessWho.js', import.meta.url), 'utf8') +
+const GW = new Function(readFileSync(srcPath('GuessWho.js'), 'utf8') +
   ';return { gwUp };')();
 
 // شطرنج's legal moves (and باغ هاوس's drops), for the robots of a chess tournament and of bughouse.
 // الأوضة المضلمة's map, rebuilt from the seed the guides and the TV are sent (never the mover).
-const DARKM = new Function(readFileSync(new URL('../../Dark.js', import.meta.url), 'utf8') + ';return { darkMap, darkBlocked, darkPath, DARK_DIRS };')();
+const DARKM = new Function(readFileSync(srcPath('Dark.js'), 'utf8') + ';return { darkMap, darkBlocked, darkPath, DARK_DIRS };')();
 // الخزنة's answers, worked out by the robots from the opener's look and the readers' pages (never the server's).
-const VAULTR = new Function(readFileSync(new URL('../../Vault.js', import.meta.url), 'utf8') + ';return { vaultWireAnswer, vaultSymbolOrder, vaultTwistOn };')();
-const CHM = new Function(readFileSync(new URL('../../Chess.js', import.meta.url), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
-const XOR = new Function(readFileSync(new URL('../../TicTacToe.js', import.meta.url), 'utf8') + ';return { xoBigLegal };')();
+const VAULTR = new Function(readFileSync(srcPath('Vault.js'), 'utf8') + ';return { vaultWireAnswer, vaultSymbolOrder, vaultTwistOn };')();
+const CHM = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
+const XOR = new Function(readFileSync(srcPath('TicTacToe.js'), 'utf8') + ';return { xoBigLegal };')();
 /** The squares a robot may play on an إكس أو board: any empty one, or on the big board the ones it was sent to. */
 const xoFree = (g) => (g.big ? XOR.xoBigLegal({ cells: g.cells, minis: g.minis, send: g.send }) : g.cells.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0));
 
@@ -546,7 +548,7 @@ async function teamChessRobots() {
 async function chess4Robots() {
   console.log('• chess4 (teams: two people and two computer players, the TV, turns, a stale and an illegal move, the bots on the server clock, a player leaving, resigning, play again; FFA: one person and three bots, the clock, out as grey walls)');
   {
-    const C4 = new Function(readFileSync(new URL('../../Chess4.js', import.meta.url), 'utf8') + ';return { chess4Legal };')();
+    const C4 = new Function(readFileSync(srcPath('Chess4.js'), 'utf8') + ';return { chess4Legal };')();
     const cS = (b) => b.state.shared || {};
     const upOf = (s) => s.seats[s.g.turn];
     // Plays whoever of `people` is up, a legal move, until `done` (the bots move on the server's clock).
@@ -671,8 +673,8 @@ async function hiddenQueenRobots() {
 /* --- إستميشن: one person and three computer players, a whole round on the server (run alone with --only=estimation) --- */
 async function estimationRobots() {
   console.log('• estimation (one person, three computer players and the TV: the hand on its own phone, the dash, the auction, the calls, 13 tricks on the server clock, the round scored, the next round, leaving)');
-  const EST = new Function(readFileSync(new URL('../../PlayingCards.js', import.meta.url), 'utf8') + '\n' +
-    readFileSync(new URL('../../Estimation.js', import.meta.url), 'utf8') + ';return { estLegal, estCallChoices, estSum };')();
+  const EST = new Function(readFileSync(srcPath('PlayingCards.js'), 'utf8') + '\n' +
+    readFileSync(srcPath('Estimation.js'), 'utf8') + ';return { estLegal, estCallChoices, estSum };')();
   const H = await Bot.host('ريم', null);
   const TV = await Bot.join(H.code, '', true);
   await H.must('chooseGame', { game: 'estimation' });
@@ -1194,7 +1196,7 @@ async function humRobots() {
   console.log('• دندنها (the song and its sound on the hummer\'s phone only, typed answers, the choices, «سمّع»)');
   // Each source on its own, through the Worker's own code (src/songs.js): Apple's AAC, Deezer's mp3, and a
   // song whose first pin is gone playing from its second.
-  const HS = new Function(readFileSync(new URL('../../Songs.js', import.meta.url), 'utf8') + ';return HUM_SONGS;')();
+  const HS = new Function(readFileSync(srcPath('Songs.js'), 'utf8') + ';return HUM_SONGS;')();
   for (const src of ['itunes', 'deezer']) {
     const x = HS.find((y) => y.src === src);
     const got = await songStream(x).catch(() => null);
@@ -6271,7 +6273,7 @@ async function raceSeg() {
     // dictionary is the banks; تشابه's tiles pick out their puzzle; إيه اللي يجمعهم؟'s clue names its category; كاسحة الألغام and
     // سلسلة الإجابات are guessed (a robot knows no mine and no answer) and may lose - which the round takes as it comes.
     const RQ = new Function(['SoloShared.js', 'ChameleonWords.js', 'WordleWords.js', 'StopWords.js', 'MonkeyWords.js', 'SpyWords.js', 'ConnectionsWords.js',
-      'Queens.js', 'Strands.js', 'Tango.js', 'Nonogram.js', 'Sudoku.js', 'WordWheel.js'].map((f) => readFileSync(new URL('../../' + f, import.meta.url), 'utf8')).join('\n') + `
+      'Queens.js', 'Strands.js', 'Tango.js', 'Nonogram.js', 'Sudoku.js', 'WordWheel.js'].map((f) => readFileSync(srcPath(f), 'utf8')).join('\n') + `
       const tangoSolveFor = (givens, signs) => {
         const g = givens.slice();
         const bySign = {};
@@ -6497,7 +6499,7 @@ async function minigolfSeg() {
   /* --- ميني جولف: all at once, then in turns ------------------------------------------ */
   console.log('• minigolf (a mixed game drawn on the server, every ball on the hole at once, the putt on every phone, what the hole asks for + 3 strokes then picked up; nine hard holes in turns with the balls knocking each other, the next hole on the server\'s clock)');
   {
-    const MG = new Function(readFileSync(new URL('../../MiniGolf.js', import.meta.url), 'utf8') + '\nreturn { golfHoleById, golfMaxOf };')();
+    const MG = new Function(readFileSync(srcPath('MiniGolf.js'), 'utf8') + '\nreturn { golfHoleById, golfMaxOf };')();
     const G1 = await Bot.host('جميلة', null);
     const G2 = await Bot.join(G1.code, 'Gus');
     const G3 = await Bot.join(G1.code, 'غادة');
@@ -6604,7 +6606,7 @@ async function bowlingSeg() {
   /* --- بولينج: turns, the same pins on every phone, the clock's ball, the end ------------ */
   console.log('• bowling (turns, the server\'s pins equal a replay of the shot, the clock throws a gentle ball, a leave, the end)');
   {
-    const BW = new Function(readFileSync(new URL('../../Bowling.js', import.meta.url), 'utf8') +
+    const BW = new Function(readFileSync(srcPath('Bowling.js'), 'utf8') +
       '\nreturn { bowlThrow, bowlGentleShot, bowlTotal };')();
     const H = await Bot.host('باسم', null);
     const J = await Bot.join(H.code, 'Jana');

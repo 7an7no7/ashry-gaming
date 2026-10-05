@@ -7,6 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { srcPath, srcFiles } = require('./sources.cjs');
 
 // The project root: the content files sit next to tools/.
 const ROOT = path.join(__dirname, '..') + path.sep;
@@ -25,7 +26,7 @@ const note = (msg) => problems.push(msg);
 /* ---------------------------------------------------------- Connections */
 // Three difficulties, one shape: every group is 4 words, and a word appears once per board.
 for (const [dbName, groupCount] of [['CONNECTIONS_EASY', 3], ['CONNECTIONS_DB', 4], ['CONNECTIONS_HARD', 5]]) {
-  const CONN = load(ROOT + 'ConnectionsWords.js', dbName);
+  const CONN = load(srcPath('ConnectionsWords.js'), dbName);
   for (const [lang, puzzles] of Object.entries(CONN)) {
     puzzles.forEach((p, pi) => {
       const tag = `${dbName}.${lang}[${pi}]`;
@@ -60,7 +61,7 @@ for (const [dbName, groupCount] of [['CONNECTIONS_EASY', 3], ['CONNECTIONS_DB', 
   const foldName = (s) => String(s).toLowerCase().replace(/[\u064B-\u0652\u0640]/g, '').replace(/[أإآٱ]/g, 'ا')
     .replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[^a-z0-9\u0621-\u064A]/g, '').replace(/^(ال|the)/, '');
   for (const dbName of ['CONNECTIONS_EASY', 'CONNECTIONS_DB', 'CONNECTIONS_HARD']) {
-    const CONN = load(ROOT + 'ConnectionsWords.js', dbName);
+    const CONN = load(srcPath('ConnectionsWords.js'), dbName);
     for (const [lang, puzzles] of Object.entries(CONN)) {
       const names = puzzles.map(p => p.groups.map(g => foldName(g.name)));
       const sets = puzzles.map(p => p.groups.map(g => g.words.map(foldName).sort().join('|')));
@@ -79,7 +80,7 @@ for (const [dbName, groupCount] of [['CONNECTIONS_EASY', 3], ['CONNECTIONS_DB', 
 }
 
 /* -------------------------------------------------------- Party content */
-const PC = ROOT + 'PartyContent.js';
+const PC = srcPath('PartyContent.js');
 const WYR = load(PC, 'WOULD_YOU_RATHER');
 const MLT = load(PC, 'MOST_LIKELY_TO');
 const FIB = load(PC, 'FIBBAGE');
@@ -115,7 +116,7 @@ for (const [lang, list] of Object.entries(FIB)) {
 
 /* --------------------------------------------------- Word banks (server) */
 const DRAW = load(PC, 'DRAW_WORDS');
-const CN = load(ROOT + 'CodenamesWords.js', 'CODENAMES_WORDS');
+const CN = load(srcPath('CodenamesWords.js'), 'CODENAMES_WORDS');
 
 // Draw & Guess needs enough words that a long session never repeats, and every
 // entry has to be something you can actually draw — the reason it stopped
@@ -167,10 +168,10 @@ for (const [lang, list] of Object.entries(CN)) {
 }
 
 /* ------------------------------------------------ Trivia */
-const TRIV = load(ROOT + 'TriviaQuestions.js', 'TRIVIA_QUESTIONS');
+const TRIV = load(srcPath('TriviaQuestions.js'), 'TRIVIA_QUESTIONS');
 // The server's categories, and the lobby's (JS_RoomTrivia.html), which adds 'all'.
 const listIn = (file, name) => {
-  const m = fs.readFileSync(ROOT + file, 'utf8').match(new RegExp('const ' + name + ' = (\\[[^\\]]*\\])'));
+  const m = fs.readFileSync(srcPath(file), 'utf8').match(new RegExp('const ' + name + ' = (\\[[^\\]]*\\])'));
   if (!m) throw new Error(name + ' not found in ' + file);
   return JSON.parse(m[1].replace(/'/g, '"'));
 };
@@ -201,7 +202,7 @@ for (const [lang, list] of Object.entries(TRIV)) {
 // listed twice could be dealt twice in one game. Two cards may share a year:
 // timelineFits (RoomGames.js) takes a card beside one of its own year on
 // either side (the review of 1 Oct 2026).
-const TL = load(ROOT + 'TimelineEvents.js', 'TIMELINE_EVENTS');
+const TL = load(srcPath('TimelineEvents.js'), 'TIMELINE_EVENTS');
 {
   const seen = {};
   TL.forEach((e, i) => {
@@ -222,7 +223,7 @@ const TL = load(ROOT + 'TimelineEvents.js', 'TIMELINE_EVENTS');
 // every item is [question ar, answer ar, question en, answer en], no question
 // is asked twice, and no answer gives itself away inside its question.
 {
-  const BOARD = load(ROOT + 'JS_TriviaBoardBank.html', 'TRIVIA_BOARD_BANK');
+  const BOARD = load(srcPath('JS_TriviaBoardBank.html'), 'TRIVIA_BOARD_BANK');
   const fold = (s) => String(s || '').toLowerCase()
     .replace(/[\u064B-\u0652\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
     .replace(/^the\s+/, '').replace(/[^a-z0-9\u0621-\u064A]/g, '');
@@ -263,7 +264,7 @@ const G = ROOT;
 // The Chameleon's board is a 4×4 grid: exactly 16 words, and a repeat would
 // make the chameleon's final guess ambiguous. The two languages are listed in
 // the same order, which is what lets a category pick survive a language switch.
-const CHAM = load(G + 'ChameleonWords.js', 'CHAMELEON_DB');
+const CHAM = load(srcPath('ChameleonWords.js'), 'CHAMELEON_DB');
 for (const [lang, cats] of Object.entries(CHAM)) {
   cats.forEach((c, i) => {
     if (c.words.length !== 16) note(`chameleon.${lang}[${i}] ${c.category}: ${c.words.length} words, the grid needs 16`);
@@ -276,7 +277,7 @@ if (CHAM.ar.length !== CHAM.en.length) note(`chameleon: ${CHAM.ar.length} ar cat
 // إيه اللي يجمعهم؟ offers six of these side by side as an icon and a name, so in one language
 // no two categories share either (the review of 1 Oct 2026: two "Sports", two 🌳).
 {
-  const head = load(G + 'SoloShared.js', 'soloCategory');
+  const head = load(srcPath('SoloShared.js'), 'soloCategory');
   for (const [lang, cats] of Object.entries(CHAM)) {
     const heads = cats.map(c => head(c.category));
     const twice = (key) => [...new Set(heads.map(key).filter((v, i, a) => !v || a.indexOf(v) !== i))];
@@ -287,7 +288,7 @@ if (CHAM.ar.length !== CHAM.en.length) note(`chameleon: ${CHAM.ar.length} ar cat
 }
 
 // The spy's guess is matched on the location's name, so names must be unique.
-const SPY = load(G + 'SpyfallPlaces.js', 'SPYFALL_DB');
+const SPY = load(srcPath('SpyfallPlaces.js'), 'SPYFALL_DB');
 for (const [lang, locs] of Object.entries(SPY)) {
   const names = locs.map(l => l.location);
   const dup = names.filter((w, k, a) => a.indexOf(w) !== k);
@@ -297,7 +298,7 @@ for (const [lang, locs] of Object.entries(SPY)) {
 }
 
 // A repeated card goes into the deck twice.
-const TU = load(G + 'JS_TimesUp.html', 'TIMESUP_DB');
+const TU = load(srcPath('JS_TimesUp.html'), 'TIMESUP_DB');
 for (const [lang, list] of Object.entries(TU)) {
   const dup = list.filter((w, k, a) => a.indexOf(w) !== k);
   if (dup.length) note(`timesup.${lang}: duplicates ${JSON.stringify([...new Set(dup)])}`);
@@ -319,7 +320,7 @@ const repeats = (list, key = fold) => [...new Set(list.map(key).filter((v, i, a)
 
 // Wordle only works if every word is exactly its length and typeable on the
 // keypad (hamza-on-alef is folded to plain alef when a word is dealt).
-const WORD = load(G + 'WordleWords.js', 'WORDLE_DB');
+const WORD = load(srcPath('WordleWords.js'), 'WORDLE_DB');
 for (const [lang, byLen] of Object.entries(WORD)) {
   for (const [len, list] of Object.entries(byLen)) {
     const bad = list.filter(w => [...w].length !== Number(len)
@@ -333,8 +334,8 @@ for (const [lang, byLen] of Object.entries(WORD)) {
 // The daily's skip list names words the 5-letter list has (a typo there would skip nothing),
 // and leaves the daily a list long enough to go round for months.
 {
-  const SKIP = load(G + 'WordleWords.js', 'WORDLE_DAILY_SKIP');
-  const safe = load(G + 'WordleWords.js', 'wordleDailySafe');
+  const SKIP = load(srcPath('WordleWords.js'), 'WORDLE_DAILY_SKIP');
+  const safe = load(srcPath('WordleWords.js'), 'wordleDailySafe');
   for (const [lang, list] of Object.entries(SKIP)) {
     const five = (WORD[lang] || {})[5] || [];
     const missing = list.filter(w => five.indexOf(w) === -1);
@@ -346,7 +347,7 @@ for (const [lang, byLen] of Object.entries(WORD)) {
 }
 
 // Describe It: three forbidden words, and no card twice.
-const DESC = load(G + 'JS_DescribeIt.html', 'DESCRIBE_DB');
+const DESC = load(srcPath('JS_DescribeIt.html'), 'DESCRIBE_DB');
 for (const [lang, cards] of Object.entries(DESC)) {
   cards.forEach(c => {
     if (!Array.isArray(c.forbidden) || c.forbidden.length !== 3) note(`describe.${lang} "${c.word}": ${c.forbidden && c.forbidden.length} forbidden words, expected 3`);
@@ -357,7 +358,7 @@ for (const [lang, cards] of Object.entries(DESC)) {
 }
 
 // Charades: a card appears in one category only.
-const CHAR = load(G + 'JS_Charades.html', 'CHARADES_DB');
+const CHAR = load(srcPath('JS_Charades.html'), 'CHARADES_DB');
 for (const [lang, cats] of Object.entries(CHAR)) {
   const all = Object.values(cats).flat();
   const dup = repeats(all);
@@ -366,7 +367,7 @@ for (const [lang, cats] of Object.entries(CHAR)) {
 }
 
 for (const name of ['JO_WORDS_AR', 'JO_WORDS_EN']) {
-  const list = load(G + 'JS_NewGames.html', name);
+  const list = load(srcPath('JS_NewGames.html'), name);
   const dup = repeats(list);
   if (dup.length) note(`${name}: duplicates ${JSON.stringify(dup)}`);
   console.log(`${name}: ${list.length} words`);
@@ -382,7 +383,7 @@ for (const [lang, list] of Object.entries(TRIV)) {
 }
 
 // الجاسوس: every category has words, and none twice.
-const SPY_WORDS = load(G + 'SpyWords.js', 'SPY_WORDS');
+const SPY_WORDS = load(srcPath('SpyWords.js'), 'SPY_WORDS');
 for (const [cat, words] of Object.entries(SPY_WORDS)) {
   if (!Array.isArray(words) || words.length < 10) note(`spy "${cat}": ${words && words.length} words, wants 10+`);
   const dup = repeats(words || []);
@@ -393,7 +394,7 @@ console.log(`spy: ${Object.keys(SPY_WORDS).length} categories, ${Object.values(S
 // The English game (SPY_WORDS_EN): the same checks, a category for every
 // Arabic one, no name shared with an Arabic category (the rooms server finds a
 // category in either list by its name), and no Arabic letters in it.
-const SPY_WORDS_EN = load(G + 'SpyWords.js', 'SPY_WORDS_EN');
+const SPY_WORDS_EN = load(srcPath('SpyWords.js'), 'SPY_WORDS_EN');
 for (const [cat, words] of Object.entries(SPY_WORDS_EN)) {
   if (!Array.isArray(words) || words.length < 10) note(`spy.en "${cat}": ${words && words.length} words, wants 10+`);
   const dup = repeats(words || []);
@@ -408,7 +409,7 @@ if (Object.keys(SPY_WORDS_EN).length !== Object.keys(SPY_WORDS).filter(k => k.in
 console.log(`spy.en: ${Object.keys(SPY_WORDS_EN).length} categories, ${Object.values(SPY_WORDS_EN).reduce((n, w) => n + w.length, 0)} words`);
 
 // المختلف: two different words a pair, no pair twice, in both languages.
-for (const [name, pairs] of [['SPY_PAIRS', load(G + 'SpyWords.js', 'SPY_PAIRS')], ['SPY_PAIRS_EN', load(G + 'SpyWords.js', 'SPY_PAIRS_EN')]]) {
+for (const [name, pairs] of [['SPY_PAIRS', load(srcPath('SpyWords.js'), 'SPY_PAIRS')], ['SPY_PAIRS_EN', load(srcPath('SpyWords.js'), 'SPY_PAIRS_EN')]]) {
   pairs.forEach((p, i) => {
     if (!Array.isArray(p) || p.length !== 2 || !p[0] || !p[1] || fold(p[0]) === fold(p[1])) note(`${name}[${i}]: not two different words`);
   });
@@ -418,7 +419,7 @@ for (const [name, pairs] of [['SPY_PAIRS', load(G + 'SpyWords.js', 'SPY_PAIRS')]
 }
 
 // القنبلة: a category is listed once, and there are enough to last an evening.
-const BOMB = load(G + 'BombPrompts.js', 'BOMB_PROMPTS');
+const BOMB = load(srcPath('BombPrompts.js'), 'BOMB_PROMPTS');
 for (const [lang, list] of Object.entries(BOMB)) {
   const dup = repeats(list);
   if (dup.length) note(`bomb.${lang}: duplicates ${JSON.stringify(dup)}`);
@@ -429,7 +430,7 @@ for (const [lang, list] of Object.entries(BOMB)) {
 
 // أتوبيس كومبليت: every category has an id and both names, none twice.
 // Emoji riddles: emoji, an answer, a kind; no answer twice in a language.
-const EMOJI = load(G + 'EmojiRiddles.js', 'EMOJI_RIDDLES');
+const EMOJI = load(srcPath('EmojiRiddles.js'), 'EMOJI_RIDDLES');
 for (const [lang, list] of Object.entries(EMOJI)) {
   list.forEach((r, i) => {
     if (!r.e || !r.a || !r.c) note(`emoji.${lang} #${i}: missing emoji, answer or kind ${JSON.stringify(r)}`);
@@ -444,7 +445,7 @@ for (const [lang, list] of Object.entries(EMOJI)) {
 }
 
 // Proverbs: one blank, a word that isn't already written in the proverb, no proverb twice.
-const PROV = load(G + 'Proverbs.js', 'PROVERBS');
+const PROV = load(srcPath('Proverbs.js'), 'PROVERBS');
 for (const [lang, list] of Object.entries(PROV)) {
   list.forEach((r, i) => {
     if ((r.p || '').split('___').length !== 2) note(`proverbs.${lang} #${i}: needs exactly one ___ ${JSON.stringify(r.p)}`);
@@ -457,7 +458,7 @@ for (const [lang, list] of Object.entries(PROV)) {
 }
 
 // The monkey's dictionaries: nothing empty, nothing twice once the letters are folded.
-const MONKEY = load(G + 'MonkeyWords.js', 'MONKEY_LISTS');
+const MONKEY = load(srcPath('MonkeyWords.js'), 'MONKEY_LISTS');
 const mfold = (t) => String(t).toLowerCase().replace(/[\u064B-\u0652\u0670\u0640]/g, '')
   .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/[^\p{L}\p{N}]/gu, '');
 for (const [lang, lists] of Object.entries(MONKEY)) {
@@ -473,7 +474,7 @@ for (const [lang, lists] of Object.entries(MONKEY)) {
 // how many letters each category can answer (a gap is a note, not a failure:
 // no country starts with ث).
 {
-  const src = ['SpyWords.js', 'MonkeyWords.js', 'StopWords.js'].map(f => fs.readFileSync(G + f, 'utf8')).join('\n;\n');
+  const src = ['SpyWords.js', 'MonkeyWords.js', 'StopWords.js'].map(f => fs.readFileSync(srcPath(f), 'utf8')).join('\n;\n');
   const S = new Function(src + '; return { STOP_WORDS, stopDictFold, stopDictionary, stopLetterFold };')();
   for (const [lang, lists] of Object.entries(S.STOP_WORDS)) {
     for (const [kind, list] of Object.entries(lists)) {
@@ -496,7 +497,7 @@ for (const [lang, lists] of Object.entries(MONKEY)) {
 // Nonogram pictures: the right size, and solvable line by line (one solution, no guessing).
 {
   // The pictures live in Nonogram.js (shared with the rooms server since سباق ألغاز, 26 Sep 2026).
-  const src = fs.readFileSync(G + 'SoloShared.js', 'utf8') + fs.readFileSync(G + 'Nonogram.js', 'utf8');
+  const src = fs.readFileSync(srcPath('SoloShared.js'), 'utf8') + fs.readFileSync(srcPath('Nonogram.js'), 'utf8');
   const N = new Function(src + '; return { NONO_PICTURES, nonoFromPicture, nonoClues, nonoSolvable };')();
   let count = 0;
   for (const [size, pics] of Object.entries(N.NONO_PICTURES)) {
@@ -513,7 +514,7 @@ for (const [lang, lists] of Object.entries(MONKEY)) {
   console.log(`nonogram: ${count} pictures`);
 }
 
-const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
+const STOP_CATS = load(srcPath('JS_Stop.html'), 'STOP_CATEGORIES');
 {
   const ids = STOP_CATS.map(c => c.id);
   const dup = repeats(ids);
@@ -524,7 +525,7 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 
 /* -------------------------------------------------------- Chess openings */
 {
-  const chessSrc = fs.readFileSync(ROOT + 'Chess.js', 'utf8');
+  const chessSrc = fs.readFileSync(srcPath('Chess.js'), 'utf8');
   const CH = new Function(chessSrc + '; return { chessNew, chessPlay, chessPlacement, chessPos, chessLegalPos, chessSanPos, chessSqName, chessMFrom, chessMTo, chessMPromo, chessPromoLetter };')();
 
   function chFindSan(g, san) {
@@ -544,7 +545,7 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
     return null;
   }
 
-  const OPENINGS = load(ROOT + 'JS_ChessOpenings.html', 'CH_OPENINGS');
+  const OPENINGS = load(srcPath('JS_ChessOpenings.html'), 'CH_OPENINGS');
   if (!Array.isArray(OPENINGS) || OPENINGS.length < 120 || OPENINGS.length > 160) {
     note(`chess openings: expected 120-160 entries, got ${OPENINGS ? OPENINGS.length : 0}`);
   }
@@ -580,8 +581,8 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 // ChessPuzzles.js, made by tools/make-chess-puzzles.mjs: every position real, every
 // move legal in order, a mate that mates, no id or position twice, enough of each level.
 {
-  const CH = new Function(fs.readFileSync(ROOT + 'Chess.js', 'utf8') + '; return { chessFromFen, chessFen, chessPlay, chessStatus };')();
-  const PUZ = load(ROOT + 'ChessPuzzles.js', 'CHESS_PUZZLES');
+  const CH = new Function(fs.readFileSync(srcPath('Chess.js'), 'utf8') + '; return { chessFromFen, chessFen, chessPlay, chessStatus };')();
+  const PUZ = load(srcPath('ChessPuzzles.js'), 'CHESS_PUZZLES');
   const ids = new Set();
   const spots = new Set();
   const levels = { 1: 0, 2: 0, 3: 0 };
@@ -628,12 +629,12 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 // games, the ids /count and /report take (the audit of 28 Sep 2026), «التالي لوحده», the
 // program's rounds and الشلة's titles are all built from it (2 Oct 2026).
 {
-  const gamesJs = fs.readFileSync(ROOT + 'Games.js', 'utf8');
+  const gamesJs = fs.readFileSync(srcPath('Games.js'), 'utf8');
   const G = new Function(gamesJs + '\nreturn { GAME_LIST, ROOM_LIST_ORDER, APP_REPORT_IDS, ROOM_GAME_IDS };')();
   const block = (/const GAME_LIST = \[([\s\S]*?)\r?\n\];/.exec(gamesJs) || [])[1] || '';
   const catIds = G.GAME_LIST.map(g => g.id);
   const reportIds = G.APP_REPORT_IDS;
-  const titles = load(ROOT + 'Crew.js', 'CREW_TITLES');
+  const titles = load(srcPath('Crew.js'), 'CREW_TITLES');
   if (!catIds.length) note('Games.js: GAME_LIST is empty');
   // A merge once left two half-lines side by side: an id listed twice is a bad merge.
   catIds.filter((id, k) => catIds.indexOf(id) !== k).forEach(id => note(`Games.js: '${id}' is in GAME_LIST twice`));
@@ -648,15 +649,15 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
   });
   G.ROOM_LIST_ORDER.filter(id => G.ROOM_GAME_IDS.indexOf(id) === -1).forEach(id => note(`Games.js: ROOM_LIST_ORDER names '${id}', not a room game`));
   // Every «في غلطة؟» button names an id the server takes.
-  fs.readdirSync(ROOT).filter(f => /^JS_.*\.html$/.test(f)).forEach(f => {
-    const src = fs.readFileSync(ROOT + f, 'utf8');
+  srcFiles(/^JS_.*\.html$/).forEach(f => {
+    const src = fs.readFileSync(srcPath(f), 'utf8');
     (src.match(/reportBtnHtml\('([^']+)'/g) || []).forEach(m => {
       const id = /'([^']+)'/.exec(m)[1];
       if (reportIds.indexOf(id) === -1) note(`${f}: reportBtnHtml('${id}') is not in APP_REPORT_IDS (Games.js)`);
     });
   });
   console.log(`games: ${catIds.length} (room games ${G.ROOM_GAME_IDS.length})`);
-  const cat = fs.readFileSync(ROOT + 'JS_Catalog.html', 'utf8');
+  const cat = fs.readFileSync(srcPath('JS_Catalog.html'), 'utf8');
   // «الليلة دي؟» ranks games by TONIGHT_ORDER, and a game missing from it always came last
   // (the review of 1 Oct 2026: every game from 27 Sep on). Every game with its own card has a place.
   const order = ((/const TONIGHT_ORDER = \[([\s\S]*?)\];/.exec(cat) || [])[1] || '').match(/'[^']+'/g) || [];
@@ -674,7 +675,7 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 // Hear.js makes every picture from a seed: each thing at each level, and shapes, must stay inside the
 // page, have its name in both languages, and a trace of its own lines must score full marks.
 {
-  const H = load(ROOT + 'Hear.js', '{ hearPicture, hearOutlines, hearScore, HEAR_THING_IDS, HEAR_THING_NAMES }');
+  const H = load(srcPath('Hear.js'), '{ hearPicture, hearOutlines, hearScore, HEAR_THING_IDS, HEAR_THING_NAMES }');
   let n = 0;
   H.HEAR_THING_IDS.forEach(id => {
     const nm = H.HEAR_THING_NAMES[id];
@@ -700,9 +701,9 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 // snake nearest to it, the way snkCrawlPlan picks keeps the body from crossing or overlapping itself at
 // every moment of the crawl, and on the board. (The straight way it replaced tangled in about 4 of 10.)
 {
-  const strip = (f) => fs.readFileSync(ROOT + f, 'utf8').replace(/^\s*<script>/, '').replace(/<\/script>\s*$/, '');
+  const strip = (f) => fs.readFileSync(srcPath(f), 'utf8').replace(/^\s*<script>/, '').replace(/<\/script>\s*$/, '');
   const stub = 'const window = { addEventListener() {} }, document = { addEventListener() {} }; const requestAnimationFrame = () => 0, cancelAnimationFrame = () => {};\n';
-  const K = new Function(stub + fs.readFileSync(ROOT + 'Snakes.js', 'utf8') + '\n' + strip('JS_Snakes.html') +
+  const K = new Function(stub + fs.readFileSync(srcPath('Snakes.js'), 'utf8') + '\n' + strip('JS_Snakes.html') +
     '\n; return { snakesGenMap, snakesCellXY, snakesNearestSnake, snkWay, snkSample, snkCrawlPlan };')();
   let cases = 0, tangled = 0, turned = 0, worst = '';
   for (let seed = 1; seed <= 150; seed++) {
@@ -736,7 +737,7 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 // no id or wording twice (Arabic spelling folded), and at least MISSION_MIN_POOL to deal from in
 // every place × company the host can pick (the owner: plenty for each, 40 or more).
 {
-  const MS = new Function(fs.readFileSync(ROOT + 'Missions.js', 'utf8') +
+  const MS = new Function(fs.readFileSync(srcPath('Missions.js'), 'utf8') +
     '; return { MISSIONS, MISSION_PLACES, MISSION_COMPANIES, MISSION_MIN_POOL, missionPool, missionQuote };')();
   const fold = (s) => String(s).toLowerCase().replace(/[ً-ٰٟـ]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[«»"'.,!?؟،()]/g, '').replace(/\s+/g, ' ').trim();
   const ids = {}, ar = {}, en = {};
@@ -782,7 +783,7 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 // every notebook is sound (codes distinct, read backwards a different code, the light rows never
 // press a colour itself) and every safe has one answer the notebook gives (one column of symbols).
 {
-  const V = new Function(fs.readFileSync(ROOT + 'Vault.js', 'utf8') + '; return { VAULT_SYMBOLS, VAULT_SYMBOL_IDS, VAULT_SHAPES, VAULT_SHAPE_IDS, VAULT_LOCKS, VAULT_LIGHT_COLORS, VAULT_COLS, VAULT_COL_LEN, vaultManual, vaultMakeSafe, vaultLevel, vaultSymbolCol, vaultWireAnswer, vaultUnits, vaultPageData };')();
+  const V = new Function(fs.readFileSync(srcPath('Vault.js'), 'utf8') + '; return { VAULT_SYMBOLS, VAULT_SYMBOL_IDS, VAULT_SHAPES, VAULT_SHAPE_IDS, VAULT_LOCKS, VAULT_LIGHT_COLORS, VAULT_COLS, VAULT_COL_LEN, vaultManual, vaultMakeSafe, vaultLevel, vaultSymbolCol, vaultWireAnswer, vaultUnits, vaultPageData };')();
   const paths = V.VAULT_SYMBOL_IDS.map((id) => V.VAULT_SYMBOLS[id]);
   if (new Set(paths).size !== paths.length) note('vault: two symbols drawn the same');
   if (V.VAULT_SYMBOL_IDS.length < V.VAULT_COLS * 3) note(`vault: ${V.VAULT_SYMBOL_IDS.length} symbols is too few for ${V.VAULT_COLS} columns`);
@@ -818,7 +819,7 @@ const STOP_CATS = load(G + 'JS_Stop.html', 'STOP_CATEGORIES');
 // its English title must name one song only), and enough in every era for the four choices to come from it.
 // `npm run check:songs` (check-songs.mjs) asks Apple and Deezer that every pin still has its preview.
 {
-  const SONGS = load(ROOT + 'Songs.js', 'HUM_SONGS');
+  const SONGS = load(srcPath('Songs.js'), 'HUM_SONGS');
   const ERAS = ['classic', 'pop', 'new'];
   const owner = {};
   const ids = {};

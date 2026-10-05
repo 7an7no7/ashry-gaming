@@ -7,11 +7,13 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { LAND, SEAS } from './flags-world.mjs';
+import srcMod from './sources.cjs';
+const { srcPath } = srcMod;
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const ctx = {};
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(root + 'Countries.js', 'utf8') + '\nthis.COUNTRIES = COUNTRIES;', ctx);
+vm.runInContext(fs.readFileSync(srcPath('Countries.js'), 'utf8') + '\nthis.COUNTRIES = COUNTRIES;', ctx);
 
 const P = ([lon, lat]) => [Math.round((lon + 180) * 2), Math.round((84 - lat) * 2)];
 const path = (rings) => rings.map((ring) => {
@@ -39,7 +41,7 @@ for (const c of ctx.COUNTRIES) {
   if (!own || other.length) console.log(`${c.code} ${c.en}${own ? '' : ' (not on its land)'}${other.length ? ' (on ' + other + ')' : ''}`);
 }
 
-const file = root + 'JS_FlagsMap.html';
+const file = srcPath('JS_FlagsMap.html');
 const land = '{\n' + Object.keys(LAND).map((k) => `  ${k}: '${path(LAND[k])}'`).join(',\n') + '\n}';
 const src = fs.readFileSync(file, 'utf8');
 const out = src.replace(/const FMAP_LAND = [\s\S]*?;\nconst FMAP_SEA = [^\n]*;/, () => `const FMAP_LAND = ${land};\nconst FMAP_SEA = '${path(SEAS)}';`);

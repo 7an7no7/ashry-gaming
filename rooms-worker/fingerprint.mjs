@@ -10,6 +10,9 @@ import { readFile, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import srcMod from '../tools/sources.cjs';
+
+const { srcPath } = srcMod;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -27,7 +30,7 @@ export async function rulesFingerprint(files) {
     hash.update(label + '\n');
     hash.update((await readFile(file, 'utf8')).replace(/\r\n/g, '\n'));
   };
-  for (const f of files || await serverFiles()) await add(f, path.join(root, f));
+  for (const f of files || await serverFiles()) await add(f, srcPath(f));
   for (const f of (await readdir(path.join(here, 'src'))).filter((x) => x.endsWith('.js')).sort()) {
     await add('src/' + f, path.join(here, 'src', f));
   }

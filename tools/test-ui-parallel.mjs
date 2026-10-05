@@ -18,6 +18,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import srcMod from './sources.cjs';
+const { srcPath } = srcMod;
 
 const here = fileURLToPath(new URL('./', import.meta.url));
 const root = path.join(here, '..');
@@ -35,7 +37,7 @@ if (unknownParts.length) {
   process.exit(1);
 }
 if (process.env.UI_GAMES) {
-  const ids = new Set(new Function(fs.readFileSync(path.join(root, 'Games.js'), 'utf8') + '\nreturn ROOM_GAME_IDS;')());
+  const ids = new Set(new Function(fs.readFileSync(srcPath('Games.js'), 'utf8') + '\nreturn ROOM_GAME_IDS;')());
   const unknownGames = process.env.UI_GAMES.split(',').filter((g) => !ids.has(g));
   if (unknownGames.length) {
     console.error(`UI_GAMES=${unknownGames.join(',')} names no room game (ROOM_GAME_IDS, Games.js)`);

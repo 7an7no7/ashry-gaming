@@ -16,6 +16,9 @@
  */
 import * as acorn from 'acorn';
 import * as walk from 'acorn-walk';
+import srcMod from './sources.cjs';
+
+const { srcPath } = srcMod;
 
 /* ---------------------------------------------------------------------------
    The shell: loaded with the page. The home, the nav, settings, help, the room
@@ -573,11 +576,11 @@ export const SHARED_LISTS = ['Games.js', 'DisabledGames.js', 'Dice.js', 'Packs.j
 
 /** Reads Controller.html, every file it includes and the shared lists. */
 export async function readPage(root, readFile, path) {
-  const controller = await readFile(path.join(root, 'Controller.html'), 'utf8');
+  const controller = await readFile(srcPath('Controller.html'), 'utf8');
   const includes = [...controller.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g)].map((m) => m[1]);
   const sources = new Map();
-  for (const n of includes) sources.set(n, await readFile(path.join(root, `${n}.html`), 'utf8'));
-  for (const n of SHARED_LISTS) sources.set(n, await readFile(path.join(root, n), 'utf8'));
+  for (const n of includes) sources.set(n, await readFile(srcPath(`${n}.html`), 'utf8'));
+  for (const n of SHARED_LISTS) sources.set(n, await readFile(srcPath(n), 'utf8'));
   // On the page the lists come after the styles and before the scripts.
   const styles = includes.filter((n) => !/^JS_/.test(n));
   const order = [...styles, ...SHARED_LISTS, ...includes.filter((n) => /^JS_/.test(n))];

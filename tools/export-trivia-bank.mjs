@@ -7,11 +7,13 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import srcMod from './sources.cjs';
+const { srcPath } = srcMod;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = process.argv[2] || path.join(here, '..', 'trivia_bank.js');
 
-const source = await readFile(path.join(here, '..', 'JS_TriviaBoardBank.html'), 'utf8');
+const source = await readFile(srcPath('JS_TriviaBoardBank.html'), 'utf8');
 const BANK = new Function(source.replace(/^\s*<script>/, '').replace(/<\/script>\s*$/, '') + '\nreturn TRIVIA_BOARD_BANK;')();
 
 const categories = BANK.map((cat) => ({

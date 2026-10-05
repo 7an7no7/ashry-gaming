@@ -18,6 +18,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { transform } from 'esbuild';
 import { assemble } from './lazy-split.mjs';
+import srcMod from './sources.cjs';
+const { srcPath } = srcMod;
 import { makeOg } from './make-og.mjs';
 
 const here = fileURLToPath(new URL('./', import.meta.url));
@@ -40,7 +42,7 @@ if (!/^https?:\/\/[^\s"'<>]+$/.test(roomsUrl)) {
 }
 
 // The spy words are code (SpyWords.js), shared with the room server.
-const spySource = await readFile(path.join(root, 'SpyWords.js'), 'utf8');
+const spySource = await readFile(srcPath('SpyWords.js'), 'utf8');
 const SPY_WORDS = new Function(spySource + '\nreturn SPY_WORDS;')();
 // المختلف's close pairs: the one-phone game deals them too (JS_Imposter.html).
 const SPY_PAIRS = new Function(spySource + '\nreturn SPY_PAIRS;')();

@@ -19,9 +19,10 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const pageFiles = fs.readdirSync(ROOT).filter((f) => /^(JS_.*|Style(_\w+)?|Controller|Tailwind|Logo)\.html$/.test(f));
+const { srcPath, srcFiles } = require('./sources.cjs');
+const pageFiles = srcFiles(/^(JS_.*|Style(_\w+)?|Controller|Tailwind|Logo)\.html$/);
 // The shared lists and rule files are in the page too, and may set a property for it.
-const allFiles = pageFiles.concat(fs.readdirSync(ROOT).filter((f) => /^[A-Z][A-Za-z0-9]*\.js$/.test(f)));
+const allFiles = pageFiles.concat(srcFiles(/^[A-Z][A-Za-z0-9]*\.js$/));
 const READ_FROM = pageFiles.filter((f) => f !== 'Tailwind.html' && f !== 'Logo.html');
 
 // Names read but declared nowhere, each with the reason it is let through. Keep it empty:
@@ -31,7 +32,7 @@ const ALLOWED = new Map([]);
 const defined = new Set();
 const used = new Map(); // name -> first "file:line"
 for (const f of allFiles) {
-  const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const src = fs.readFileSync(srcPath(f), 'utf8');
   for (const m of src.matchAll(/(--[A-Za-z0-9_-]+)\s*:/g)) defined.add(m[1]);
   for (const m of src.matchAll(/['"`](--[A-Za-z0-9_-]+)['"`]/g)) defined.add(m[1]);
   if (!READ_FROM.includes(f)) continue;

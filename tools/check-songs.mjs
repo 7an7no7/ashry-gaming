@@ -32,8 +32,10 @@
  * one, and --fix writes the current ones in (then build and deploy the rooms server).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
+import srcMod from './sources.cjs';
+const { srcPath } = srcMod;
 
-const SONGS_FILE = new URL('../Songs.js', import.meta.url);
+const SONGS_FILE = srcPath('Songs.js');
 const SONGS = new Function(readFileSync(SONGS_FILE, 'utf8') + ';return HUM_SONGS;')();
 const PLAY = process.argv.includes('--play');
 const ARTISTS = process.argv.includes('--artists');

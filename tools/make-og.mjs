@@ -27,6 +27,8 @@ import { readFile, writeFile, mkdir, readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import srcMod from './sources.cjs';
+const { srcPath } = srcMod;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
@@ -44,11 +46,11 @@ function literalAfter(src, start, close) {
 const evalLiteral = (text) => new Function(`return (${text});`)();
 
 async function sources() {
-  const core = await readFile(path.join(root, 'JS_Core.html'), 'utf8');
-  const words = await readFile(path.join(root, 'JS_Translations.html'), 'utf8');
-  const gamesJs = await readFile(path.join(root, 'Games.js'), 'utf8');
-  const style = await readFile(path.join(root, 'Style.html'), 'utf8');
-  const logo = await readFile(path.join(root, 'Logo.html'), 'utf8');
+  const core = await readFile(srcPath('JS_Core.html'), 'utf8');
+  const words = await readFile(srcPath('JS_Translations.html'), 'utf8');
+  const gamesJs = await readFile(srcPath('Games.js'), 'utf8');
+  const style = await readFile(srcPath('Style.html'), 'utf8');
+  const logo = await readFile(srcPath('Logo.html'), 'utf8');
   const T = evalLiteral(literalAfter(words, 'const TRANSLATIONS = {', '  };'));
   const ART = evalLiteral(literalAfter(core, 'const ICON_ART = {', '  };'));
   // A room's list, as ROOM_HUB_GAMES (JS_Room.html) builds it.

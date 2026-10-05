@@ -14,9 +14,10 @@
 const fs = require('fs');
 const path = require('path');
 const acorn = require('acorn');
+const { srcPath, srcFiles } = require('./sources.cjs');
 
 const ROOT = path.join(__dirname, '..');
-const core = fs.readFileSync(path.join(ROOT, 'JS_Translations.html'), 'utf8');
+const core = fs.readFileSync(srcPath('JS_Translations.html'), 'utf8');
 
 // TRANSLATIONS read by a real parser: a line regex saw only the first key of a line, so
 // `bank_col_br: …, bank_col_lb: …` on one line hid the second from both checks below.
@@ -61,12 +62,12 @@ if (onlyEn.length) { errors++; console.log('missing from ar (%d): %s', onlyEn.le
 // Every attribute applyTranslations reads (-title fills a tooltip and aria-label),
 // in the page and in the markup the JS files build. A key built at runtime
 // ("${...}") can't be checked here and is skipped.
-const markupFiles = ['Controller.html'].concat(fs.readdirSync(ROOT).filter(f => /^JS_.*\.html$/.test(f)));
+const markupFiles = ['Controller.html'].concat(srcFiles(/^JS_.*\.html$/));
 const attrKeys = new Set();
 let m;
 const attrRe = /data-i18n(?:-ph|-aria|-title)?="([^"$]+)"/g;
 for (const f of markupFiles) {
-  const markup = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const markup = fs.readFileSync(srcPath(f), 'utf8');
   while ((m = attrRe.exec(markup))) attrKeys.add(m[1]);
 }
 const unknownAttrs = [...attrKeys].filter(k => !ar.has(k) || !en.has(k));
@@ -108,10 +109,10 @@ function tIsTable(anc, src) {
   return true;   // no binding found: read as the translations, as before
 }
 
-const files = fs.readdirSync(ROOT).filter(f => /^JS_.*\.html$/.test(f));
+const files = srcFiles(/^JS_.*\.html$/);
 const bare = new Map();
 for (const f of files) {
-  const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const html = fs.readFileSync(srcPath(f), 'utf8');
   for (const [, src] of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)) {
     let ast;
     try { ast = acorn.parse(src, { ecmaVersion: 'latest' }); }
@@ -145,8 +146,8 @@ if (bare.size) {
 // does not exist. Many keys are built from parts ('mg_h_' + id, `ch_piece_${p}`,
 // key + '_line'): a key whose prefix or suffix the code builds with is live.
 let hay = '';
-for (const f of fs.readdirSync(ROOT)) {
-  if (/\.(html|js)$/.test(f) && f !== 'Tailwind.html' && f !== 'JS_Translations.html') hay += fs.readFileSync(path.join(ROOT, f), 'utf8');
+for (const f of srcFiles()) {
+  if (/\.(html|js)$/.test(f) && f !== 'Tailwind.html' && f !== 'JS_Translations.html') hay += fs.readFileSync(srcPath(f), 'utf8');
 }
 const prefixes = new Set(), suffixes = new Set();
 for (const [, p] of hay.matchAll(/['"`]([a-z][a-z0-9]*(?:_[a-z0-9]+)*_?)['"]\s*\+/g)) prefixes.add(p);

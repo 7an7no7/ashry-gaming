@@ -161,11 +161,9 @@ const words = {
     [`${id}_wait`]: 'مستنيين الباقيين…',
     [`${id}_finish`]: 'خلّص الجولة',
     [`${id}_result`]: 'النتيجة',
-    [`${id}_of`]: 'من',
     [`${id}_lobby_hint`]: 'كل واحد هيجيله رقم سري على موبايله. دوس +1 لحد ما توصله، وبعدين خلصت.',
     [`${id}_tv_wait`]: 'كل واحد بيعدّ على موبايله',
     [`${id}_turn_of`]: 'الدور على',
-    [`${id}_pass`]: 'ادّي الموبايل لـ',
     [`${id}_show`]: 'وريني رقمي'
   },
   en: {
@@ -177,11 +175,9 @@ const words = {
     [`${id}_wait`]: 'Waiting for the others…',
     [`${id}_finish`]: 'End the round',
     [`${id}_result`]: 'The result',
-    [`${id}_of`]: 'of',
     [`${id}_lobby_hint`]: 'Everyone gets a secret number on their phone. Tap +1 until you reach it, then Done.',
     [`${id}_tv_wait`]: 'Everyone is counting on their phone',
     [`${id}_turn_of`]: 'Turn of',
-    [`${id}_pass`]: 'Pass the phone to',
     [`${id}_show`]: 'Show my number'
   }
 };
@@ -424,7 +420,7 @@ const deviceClient = `<script>
    (VIEW_RESTORE, JS_Core.html). Replace it with the real game.
    ========================================================================= */
 
-const ${id}T = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+const ${id}OneT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
 
 function ${id}State() {
   if (!appState.${id}) appState.${id} = null;
@@ -446,7 +442,7 @@ function start${P}() {
 }
 
 function ${id}Show() { appState.${id}.shown = true; saveToLocal(); render${P}(); }
-function ${id}Tap() { haptic('light'); appState.${id}.players[appState.${id}.at].count++; saveToLocal(); render${P}(); }
+function ${id}OneTap() { haptic('light'); appState.${id}.players[appState.${id}.at].count++; saveToLocal(); render${P}(); }
 function ${id}Next() {
   const g = appState.${id};
   g.at++;
@@ -461,7 +457,7 @@ function render${P}() {
   const el = document.getElementById('${id}-stage');
   const g = ${id}State();
   if (!el || !g) return;
-  const t = ${id}T();
+  const t = ${id}OneT();
   if (g.phase === 'over') {
     const board = g.players.map(p => ({ name: p.name, score: Math.max(0, 10 - Math.abs(p.target - p.count)), count: p.count, target: p.target }))
       .sort((a, b) => b.score - a.score);
@@ -482,7 +478,7 @@ function render${P}() {
         <div class="metric metric--lg">\${p.target}</div>
         <div class="metric metric--md">\${p.count}</div>
         <div class="btn-stack">
-          <button class="btn btn--primary btn--lg" onclick="${id}Tap()">\${escapeHTML(t.${id}_tap)}</button>
+          <button class="btn btn--primary btn--lg" onclick="${id}OneTap()">\${escapeHTML(t.${id}_tap)}</button>
           <button class="btn btn--secondary" onclick="${id}Next()">\${escapeHTML(t.${id}_done)}</button>
         </div>\` : \`<button class="btn btn--primary btn--lg" onclick="${id}Show()">\${escapeHTML(t.${id}_show)}</button>\`}
     </div>

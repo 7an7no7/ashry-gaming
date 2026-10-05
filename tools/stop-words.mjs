@@ -28,7 +28,7 @@ if (!address) {
 address = address.replace(/\/+$/, '');
 
 // Load StopWords dictionary helper
-const dictSrc = ['SpyWords.js', 'MonkeyWords.js', 'StopWords.js']
+const dictSrc = ['Common.js', 'SpyWords.js', 'MonkeyWords.js', 'StopWords.js']
   .map((f) => readFileSync(srcPath(f), 'utf8'))
   .join('\n;\n');
 const { stopWordKnown } = new Function(dictSrc + '\nreturn { stopWordKnown };')();

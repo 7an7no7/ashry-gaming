@@ -713,3 +713,23 @@ function chess4BotMove(g, level, opts) {
   }
   return chess4MoveObj(bestMove);
 }
+
+/**
+ * Who would sit where if the game started now, seats 0-3: the seats the host
+ * set (less anyone gone), the empty ones filled from the room - people before
+ * computer players - but never with someone watching. The server seats the
+ * game with it (RoomChess4.js) and the lobby shows it (JS_RoomChess4.html).
+ */
+function chess4OrderOf(players, lobby) {
+  players = players || [];
+  lobby = lobby || {};
+  const ids = players.map(p => p.id);
+  const order = [0, 1, 2, 3].map(k => {
+    const id = Array.isArray(lobby.order) ? lobby.order[k] : null;
+    return id && ids.indexOf(id) !== -1 ? id : null;
+  });
+  const waiting = players.filter(p => !p.bot).concat(players.filter(p => p.bot)).map(p => p.id)
+    .filter(id => order.indexOf(id) === -1 && (lobby.watch || []).indexOf(id) === -1);
+  for (let k = 0; k < 4; k++) if (!order[k] && waiting.length) order[k] = waiting.shift();
+  return order;
+}

@@ -28,16 +28,7 @@ const STOP_POINT_STEPS = [10, 5, 0];
 const STOP_COLLECT_MS = 4000;     // after وقف, the other phones send what they typed
 const STOP_GRACE_MS = 1500;       // the clock ran out: how late a submit still counts
 
-/**
- * The letters people spell the same word with. Every comparison of typed text
- * goes through this: أسد and اسد, مكتبة and مكتبه, مصطفى and مصطفي, with or
- * without diacritics or a tatweel. The client has the same list in
- * foldWord (JS_Core.html); keep the two identical.
- */
-const foldArabicLetters = (text) => String(text || '').toLowerCase()
-  .replace(/[\u064B-\u0652\u0670\u0640]/g, '')
-  .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي')
-  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/ک/g, 'ك');
+// foldArabicLetters, the letters people spell one word with, is in app/Common.js (the phones run it too).
 
 // foldStopAnswer, stopAnswerFits and stopWordKnown are in StopWords.js, shared with the page.
 

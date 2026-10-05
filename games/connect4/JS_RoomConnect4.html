@@ -67,26 +67,12 @@ function duelRoomPlayerName(state, id) {
  * Who is waiting, in order: the line as the server left it, then anyone who
  * has joined since, less `exclude`. Mirrors duelWaiting in RoomDuels.js.
  */
-function duelRoomWaiting(state, exclude) {
-  const s = state.shared || {};
-  const here = (state.players || []).map(p => p.id);
-  const skip = exclude || [];
-  const out = (s.line || []).filter(id => here.indexOf(id) !== -1 && skip.indexOf(id) === -1);
-  here.forEach(id => { if (out.indexOf(id) === -1 && skip.indexOf(id) === -1) out.push(id); });
-  return out;
-}
+function duelRoomWaiting(state, exclude) { return duelWaitingOf(state.players, state.shared, exclude); }
 
-/** Who sits down next, [first to move, second], or null. Mirrors duelSeatNext in RoomDuels.js - keep the two in step. */
+/** Who sits down next, [first to move, second], or null: the server's own duelNextOf (Duels.js). */
 function duelRoomNext(state) {
-  const s = state.shared || {};
-  const here = (state.players || []).map(p => p.id);
-  const last = s.seats || [];
-  const champ = s.champ && here.indexOf(s.champ) !== -1 ? s.champ : null;
-  const waiting = duelRoomWaiting(state, champ ? [champ] : []);
-  if (champ && waiting.length === 1 && here.length === 2 && last.indexOf(waiting[0]) !== -1 && last.indexOf(champ) !== -1) return [last[1], last[0]];
-  if (champ && waiting.length) return [waiting[0], champ];
-  if (!champ && waiting.length >= 2) return [waiting[0], waiting[1]];
-  return null;
+  const next = duelNextOf(state.players, state.shared);
+  return next ? next.seats : null;
 }
 
 /** The line, as chips: "the next game" first once a game is over, then the rest in order. */
@@ -285,7 +271,6 @@ function duelRoomOnly(state) {
 /** The line that says so, in place of "your turn". */
 const duelRoomOnlyText = (state, t) => (state.game === 'dots' ? t.duel_auto_dots : state.game === 'xo' ? t.duel_auto_xo : t.duel_auto_c4) || '';
 
-const DUEL_AWAY_MS = 60000;     // as in RoomDuels.js
 const duelAwayLocal = { clock: null, at: 0 };
 
 /** When the seat to move loses by being away (the server's clock), or 0 while their phone is here. */

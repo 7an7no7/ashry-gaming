@@ -49,17 +49,9 @@ function audienceWatching(state) {
 
 /* Is the game over - its result on the screens? Then the bar goes and «مين
    هيكسب؟» is closed (the owner, 26 Sep 2026), not only after its 90 seconds.
-   roomGameIsOver in RoomGames.js is the server's same test (it refuses a late
-   pick): keep the two in step. */
-const AUDIENCE_ONE_ROUND = { imposter: true, chameleon: true, spyfall: true, fakeartist: true };
-function audienceGameOver(state) {
-  if (!state) return false;
-  const s = state.shared || {};
-  const phases = [state.phase, s.phase];
-  if (phases.some(p => p === 'gameover' || p === 'over')) return true;
-  if (s.tour && s.tour.phase === 'over') return true;
-  return !!AUDIENCE_ONE_ROUND[state.game] && phases.some(p => p === 'result' || p === 'results');
-}
+   It is roomGameIsOver (app/Common.js), the very test the server refuses a
+   late pick with. */
+function audienceGameOver(state) { return !!state && roomGameIsOver(state); }
 
 function audiencePredictOpen(state) {
   const p = state && state.predict;

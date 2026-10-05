@@ -6,7 +6,7 @@
    ========================================================================== */
 const CODENAMES_LAYOUT = { first: 9, second: 8, neutral: 7, assassin: 1 };  // 25
 // Seconds a spymaster has for the clue, and the team again for its guesses. 0: no clock.
-const CODENAMES_TIMERS = [0, 60, 90, 120, 180];
+// CODENAMES_TIMERS is in app/Common.js (the lobby offers them).
 const CODENAMES_MAX_CUSTOM = 60;
 // guessesLeft after a clue of 0 or ∞: the team goes on until it misses or passes.
 const CODENAMES_UNLIMITED = -1;

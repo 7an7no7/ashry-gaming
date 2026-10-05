@@ -6272,7 +6272,7 @@ async function raceSeg() {
     // الملكات, شمس وقمر, نونوجرام and سودوكو can be solved from what is public; خيوط's theme names a Chameleon board; كلمات من حروف's
     // dictionary is the banks; تشابه's tiles pick out their puzzle; إيه اللي يجمعهم؟'s clue names its category; كاسحة الألغام and
     // سلسلة الإجابات are guessed (a robot knows no mine and no answer) and may lose - which the round takes as it comes.
-    const RQ = new Function(['SoloShared.js', 'ChameleonWords.js', 'WordleWords.js', 'StopWords.js', 'MonkeyWords.js', 'SpyWords.js', 'ConnectionsWords.js',
+    const RQ = new Function(['Common.js', 'SoloShared.js', 'ChameleonWords.js', 'WordleWords.js', 'StopWords.js', 'MonkeyWords.js', 'SpyWords.js', 'ConnectionsWords.js',
       'Queens.js', 'Strands.js', 'Tango.js', 'Nonogram.js', 'Sudoku.js', 'WordWheel.js'].map((f) => readFileSync(srcPath(f), 'utf8')).join('\n') + `
       const tangoSolveFor = (givens, signs) => {
         const g = givens.slice();

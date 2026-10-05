@@ -57,18 +57,7 @@ const chess4RoomLobby = (room) => {
  * missing replaced by the next in the room (people first, then computer
  * players). Mirrored by chess4RoomOrder in JS_RoomChess4.html - keep the two in step.
  */
-const chess4LobbyOrder = (room) => {
-  const lobby = ((room.shared || {}).lobby) || {};
-  const ids = room.players.map(p => p.id);
-  const order = [0, 1, 2, 3].map(k => {
-    const id = Array.isArray(lobby.order) ? lobby.order[k] : null;
-    return id && ids.indexOf(id) !== -1 ? id : null;
-  });
-  const waiting = room.players.filter(p => !p.bot).concat(room.players.filter(p => p.bot)).map(p => p.id)
-    .filter(id => order.indexOf(id) === -1 && (lobby.watch || []).indexOf(id) === -1);
-  for (let k = 0; k < 4; k++) if (!order[k] && waiting.length) order[k] = waiting.shift();
-  return order;
-};
+const chess4LobbyOrder = (room) => chess4OrderOf(room.players, (room.shared || {}).lobby);   // Chess4.js
 
 /** The host sets the way to play and the clock (everyone sees them in the lobby). */
 const chess4RoomOptions = (room, playerId, p) => {

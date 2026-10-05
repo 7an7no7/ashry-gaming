@@ -51,7 +51,7 @@ function cnApplyRemembered(state) {
   cnLocal.appliedFor = state.code;
   const saved = recallOptions('codenames', {});
   const patch = {};
-  if (CN_TIMERS.indexOf(saved.timer) !== -1 && saved.timer !== 0) patch.timer = saved.timer;
+  if (CODENAMES_TIMERS.indexOf(saved.timer) !== -1 && saved.timer !== 0) patch.timer = saved.timer;
   if (saved.rotate === false) patch.rotate = false;
   if (!Object.keys(patch).length) return;
   setTimeout(() => {
@@ -65,7 +65,6 @@ const CN_TEAM_LABEL = {
   ar: { red: 'الأحمر', blue: 'الأزرق' },
   en: { red: 'Red', blue: 'Blue' }
 };
-const CN_TIMERS = [0, 60, 90, 120, 180];   // must match CODENAMES_TIMERS in RoomGames.js
 const CN_UNLIMITED = -1;                   // guessesLeft after a clue of 0 or ∞
 const CN_COVER = { red: '🕵️', blue: '🕵️', neutral: '🚶', assassin: '☠️' };
 const CN_CONFETTI = { red: ['#e11d48', '#fda4af', '#facc15'], blue: ['#2563eb', '#93c5fd', '#facc15'] };
@@ -93,7 +92,7 @@ const cnFold = (text) => foldWord(text);
 function cnSettings(s) {
   const raw = (s && s.settings) || {};
   return {
-    timer: CN_TIMERS.indexOf(raw.timer) !== -1 ? raw.timer : 0,
+    timer: CODENAMES_TIMERS.indexOf(raw.timer) !== -1 ? raw.timer : 0,
     rotate: raw.rotate !== false,
     custom: Array.isArray(raw.custom) ? raw.custom : []
   };
@@ -637,7 +636,7 @@ function cnHostOptions(t, settings) {
       <div class="field">
         <span class="field__label">${t.cn_timer || ''}</span>
         <div class="segmented" role="group">
-          ${CN_TIMERS.map(n => `
+          ${CODENAMES_TIMERS.map(n => `
             <button type="button" class="segmented__item ${settings.timer === n ? 'is-active' : ''}"
                     onclick="cnSetOption({ timer: ${n} })">${n || (t.cn_timer_off || '—')}</button>`).join('')}
         </div>

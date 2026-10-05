@@ -32,17 +32,7 @@ const LUDO_ROLLOFF_TAIL_MS = 1500;
 const ludoRoll6 = () => fairDie();
 
 /** The players who would play if the game started now: the host's choice, or the first four. */
-const ludoLobbySeated = (room) => {
-  const ids = room.players.map(p => p.id);
-  const lobby = (room.shared && room.shared.lobby) || {};
-  if (Array.isArray(lobby.seated)) {
-    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
-    // Someone left and a seat is free: the next in the room sits down.
-    ids.forEach(id => { if (kept.length < LUDO_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
-    return kept.slice(0, LUDO_MAX_PLAYERS);
-  }
-  return ids.slice(0, LUDO_MAX_PLAYERS);
-};
+const ludoLobbySeated = (room) => lobbySeatedOf(room.players, room.shared && room.shared.lobby, LUDO_MAX_PLAYERS);
 
 const ludoLobby = (room) => {
   room.shared = room.shared || {};

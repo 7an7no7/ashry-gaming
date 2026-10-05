@@ -241,11 +241,8 @@ const STOP_WORDS = {
 
 /* --- A filled box ---------------------------------------------------------- */
 
-/** The letters people spell the same word with (the rooms' foldArabicLetters, repeated here for the page). */
-const stopLetterFold = (text) => String(text || '').toLowerCase()
-  .replace(/[ً-ْٰـ]/g, '')
-  .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي')
-  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/ک/g, 'ك');
+/** The letters people spell the same word with (foldArabicLetters, app/Common.js). */
+const stopLetterFold = (text) => foldArabicLetters(text);
 
 /** One spelling for comparing answers: case, diacritics, hamza forms, the article. */
 const foldStopAnswer = (text, lang, letter) => {

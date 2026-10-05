@@ -27,16 +27,7 @@ const SNAKES_EARLY_MS = 400;           // a roll this close to readyAt is taken 
 const snakesRoll6 = () => snakesDie();
 
 /** The players who would play if the game started now: the host's choice, or the first six. */
-const snakesLobbySeated = (room) => {
-  const ids = room.players.map(p => p.id);
-  const lobby = (room.shared && room.shared.lobby) || {};
-  if (Array.isArray(lobby.seated)) {
-    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
-    ids.forEach(id => { if (kept.length < SNAKES_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
-    return kept.slice(0, SNAKES_MAX_PLAYERS);
-  }
-  return ids.slice(0, SNAKES_MAX_PLAYERS);
-};
+const snakesLobbySeated = (room) => lobbySeatedOf(room.players, room.shared && room.shared.lobby, SNAKES_MAX_PLAYERS);
 
 const snakesLobby = (room) => {
   room.shared = room.shared || {};

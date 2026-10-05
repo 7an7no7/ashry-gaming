@@ -931,17 +931,8 @@ const scoreboardOf = (room) =>
 
 /* Is the game in the room over - its result on the screens? The audience's bar
    goes and «مين هيكسب؟» closes then, not only after PREDICT_OPEN_MS (the owner,
-   26 Sep 2026). The same test is audienceGameOver in JS_RoomAudience.html: keep
-   the two in step. A game of one round ends on its result (الجاسوس, الحرباء,
-   الموقع السري, الفنان المزيف); every other game on 'gameover' / 'over'. */
-const AUDIENCE_ONE_ROUND = { imposter: true, chameleon: true, spyfall: true, fakeartist: true };
-function roomGameIsOver(room) {
-  const s = room.shared || {};
-  const phases = [room.phase, s.phase];
-  if (phases.some(p => p === 'gameover' || p === 'over')) return true;
-  if (s.tour && s.tour.phase === 'over') return true;
-  return !!AUDIENCE_ONE_ROUND[room.game] && phases.some(p => p === 'result' || p === 'results');
-}
+   26 Sep 2026). The test, roomGameIsOver, is in app/Common.js: the phones close
+   the bar on the very same one. */
 
 /** The audience's guesses, checked against the board the game ended on (the first row's
     score, ties all count). A board is best-first, and some games win low (القنبلة's strikes,

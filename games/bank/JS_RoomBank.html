@@ -45,17 +45,8 @@ function setBankRoomOpt(key, value) {
 
 /* --- the lobby ------------------------------------------------------------------------------ */
 
-/** Who would play if the game started now. Mirrors bankLobbySeated in RoomBank.js - keep the two in step. */
-function bankRoomSeated(state) {
-  const ids = (state.players || []).map(p => p.id);
-  const lobby = ((state.shared || {}).lobby) || {};
-  if (Array.isArray(lobby.seated)) {
-    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
-    ids.forEach(id => { if (kept.length < BANK_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
-    return kept.slice(0, BANK_MAX_PLAYERS);
-  }
-  return ids.slice(0, BANK_MAX_PLAYERS);
-}
+/** Who would play if the game started now: the server's own lobbySeatedOf (app/Common.js). */
+function bankRoomSeated(state) { return lobbySeatedOf(state.players, (state.shared || {}).lobby, BANK_MAX_PLAYERS); }
 
 function bankTokenTap(token) { haptic('light'); roomAct('token', { token: token }); }
 function bankSeatTap(pid, on) { haptic('light'); roomAct('seat', { playerId: pid, on: !!on }); }

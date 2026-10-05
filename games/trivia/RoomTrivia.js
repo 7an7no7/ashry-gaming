@@ -5,7 +5,7 @@
    once. A right answer is 10 points, and the fastest right answers get more:
    +5 for the first, +4 for the second, down to +1 for the fifth.
    ========================================================================== */
-const TRIVIA_COUNTS = [5, 10, 15, 20];   // what the host can pick
+// TRIVIA_COUNTS, what the host can pick, is in app/Common.js (the lobby offers them).
 const TRIVIA_PER_GAME = 10;               // when they don't
 // Points for a right answer, and the bonus for being among the fastest right
 // answers: the first gets all of it, each next one a point less.

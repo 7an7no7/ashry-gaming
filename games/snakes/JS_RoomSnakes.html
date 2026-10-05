@@ -44,17 +44,8 @@ function setSnakesRoomOpt(key, value) {
 
 /* --- the lobby: colours and seats ---------------------------------------------------------- */
 
-/** Who would play if the game started now. Mirrors snakesLobbySeated in RoomSnakes.js - keep the two in step. */
-function snkRoomSeated(state) {
-  const ids = (state.players || []).map(p => p.id);
-  const lobby = ((state.shared || {}).lobby) || {};
-  if (Array.isArray(lobby.seated)) {
-    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
-    ids.forEach(id => { if (kept.length < SNAKES_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
-    return kept.slice(0, SNAKES_MAX_PLAYERS);
-  }
-  return ids.slice(0, SNAKES_MAX_PLAYERS);
-}
+/** Who would play if the game started now: the server's own lobbySeatedOf (app/Common.js). */
+function snkRoomSeated(state) { return lobbySeatedOf(state.players, (state.shared || {}).lobby, SNAKES_MAX_PLAYERS); }
 
 function snkRoomThemeTap(id) { setSnakesRoomOpt('theme', id); }
 

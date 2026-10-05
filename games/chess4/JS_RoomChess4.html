@@ -842,17 +842,8 @@ function ch4Refresh(state) {
 
 /* --- the lobby: the way to play, the clock, who sits in which colour -------------------- */
 
-/** Who would sit where if the game started now. Mirrors chess4LobbyOrder in RoomChess4.js - keep the two in step. */
-function ch4RoomOrder(state) {
-  const lobby = (ch4S(state).lobby) || {};
-  const players = state.players || [];
-  const ids = players.map(p => p.id);
-  const order = [0, 1, 2, 3].map(k => { const id = Array.isArray(lobby.order) ? lobby.order[k] : null; return id && ids.indexOf(id) !== -1 ? id : null; });
-  const waiting = players.filter(p => !p.bot).concat(players.filter(p => p.bot)).map(p => p.id)
-    .filter(id => order.indexOf(id) === -1 && (lobby.watch || []).indexOf(id) === -1);
-  for (let k = 0; k < 4; k++) if (!order[k] && waiting.length) order[k] = waiting.shift();
-  return order;
-}
+/** Who would sit where if the game started now: the server's own chess4OrderOf (Chess4.js). */
+function ch4RoomOrder(state) { return chess4OrderOf(state.players, ch4S(state).lobby); }
 
 function ch4LobbyRedraw() {
   const setup = document.getElementById('room-host-setup');

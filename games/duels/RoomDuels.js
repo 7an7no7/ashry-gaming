@@ -62,7 +62,7 @@
      has to be awake; every other phone and the TV count it down.
    ========================================================================== */
 const DUEL_MIN_PLAYERS = 2;
-const DUEL_AWAY_MS = 60000;
+// DUEL_AWAY_MS is in app/Common.js; who sits down next, duelNextOf, in Duels.js (both read by the phones too).
 
 /** What each duel does differently: its options, a fresh board, and one move. */
 const DUEL_KINDS = {
@@ -173,13 +173,7 @@ const duelHere = (room) => room.players.map(p => p.id);
  * Who is waiting, in order: the line as it was, then anyone in the room who
  * is on it nowhere yet (they joined since), less `exclude` and anyone gone.
  */
-const duelWaiting = (room, exclude) => {
-  const here = duelHere(room);
-  const skip = exclude || [];
-  const out = (room.shared.line || []).filter(id => here.indexOf(id) !== -1 && skip.indexOf(id) === -1);
-  here.forEach(id => { if (out.indexOf(id) === -1 && skip.indexOf(id) === -1) out.push(id); });
-  return out;
-};
+const duelWaiting = (room, exclude) => duelWaitingOf(room.players, room.shared, exclude);   // Duels.js
 
 /** A game is over: the winner scores, the loser goes to the back of the line. `winner` is a seat or null (a draw). */
 const duelEnd = (room, winner, reason) => {
@@ -223,23 +217,9 @@ const duelEnd = (room, winner, reason) => {
  */
 const duelSeatNext = (room) => {
   const s = room.shared;
-  const here = duelHere(room);
-  const last = s.seats || [];
-  const champ = s.champ && here.indexOf(s.champ) !== -1 ? s.champ : null;
-  const waiting = duelWaiting(room, champ ? [champ] : []);
-  let seats, line;
-  if (champ && waiting.length === 1 && here.length === 2 && last.indexOf(waiting[0]) !== -1 && last.indexOf(champ) !== -1) {
-    seats = [last[1], last[0]];
-    line = [];
-  } else if (champ && waiting.length) {
-    seats = [waiting[0], champ];
-    line = waiting.slice(1);
-  } else if (!champ && waiting.length >= 2) {
-    seats = [waiting[0], waiting[1]];
-    line = waiting.slice(2);
-  } else {
-    throw new Error('تحتاج لاعبين على الأقل');
-  }
+  const next = duelNextOf(room.players, s);   // Duels.js: the phones show the same
+  if (!next) throw new Error('تحتاج لاعبين على الأقل');
+  const seats = next.seats, line = next.line;
   s.seats = seats;
   s.seatNames = seats.map(id => roomPlayerName(room, id));
   s.line = line;

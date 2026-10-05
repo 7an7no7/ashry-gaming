@@ -843,10 +843,11 @@
   /**
    * The spellings of one word, folded: أسد and اسد, مكتبة and مكتبه, مصطفى and
    * مصطفي, diacritics, the tatweel, punctuation, spaces, and a leading "ال" or
-   * "the". Mirrors normaliseClue in RoomGames.js - keep the two identical - so a
-   * phone refuses the same Codenames clue the server would, and the one-phone
-   * Just One removes the same duplicate clues a room does.
+   * "the". It is normaliseClue (app/Common.js), the very function the rooms
+   * server judges with, so a phone refuses the same Codenames clue the server
+   * would, and the one-phone Just One removes the same duplicate clues a room does.
    */
+  function foldWord(text) { return normaliseClue(text); }
   /**
    * The language the games' content comes in. Settings → "لغة الألعاب" can pin
    * it to Arabic or English regardless of the app's own language, for a table
@@ -870,18 +871,6 @@
     haptic('light');
   }
 
-  function foldWord(text) {
-    let out = String(text || '').toLowerCase()
-      .replace(/[\u064B-\u0652\u0670\u0640]/g, '')
-      .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/[ىی]/g, 'ي')
-      .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/ک/g, 'ك')
-      .replace(/[^\p{L}\p{N} ]/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (out.indexOf('the ') === 0) out = out.slice(4);
-    for (let i = 0; i < 2 && out.length > 3 && out.indexOf('ال') === 0; i++) out = out.slice(2);
-    return out.replace(/\s+/g, '');
-  }
 
   function loadPlayerLibrary() {
     try {

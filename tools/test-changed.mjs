@@ -35,7 +35,7 @@ const ROOMS = (ARGS.find((a) => /^https?:/.test(a)) || process.env.ROOMS_URL || 
  */
 const CORE = [
   /^rooms-worker\/src\//, /^rooms-worker\/build\.mjs$/, /^rooms-worker\/fingerprint\.mjs$/, /^rooms-worker\/package/,
-  /^rooms-worker\/wrangler/, /^RoomGames\.js$/, /^Room(Stop|Chameleon|Spyfall|Bomb|Buzzer|Imposter|JustOne|WhoAmI|Codenames|WouldYou|MostLikely|Fibbage|Draw|FakeArtist|Trivia|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|Herd|Mind|Timeline)\.js$/, /^Games\.js$/, /^DisabledGames\.js$/,
+  /^rooms-worker\/wrangler/, /^RoomGames\.js$/, /^Room(Stop|Chameleon|Spyfall|Bomb|Buzzer|Imposter|JustOne|WhoAmI|Codenames|WouldYou|MostLikely|Fibbage|Draw|FakeArtist|Trivia|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|Herd|Mind|Timeline)\.js$/, /^Games\.js$/, /^DisabledGames\.js$/, /^Common\.js$/,
   /^Controller\.html$/, /^Style(_\w+)?\.html$/, /^Tailwind\.html$/, /^Logo\.html$/,
   /^JS_(Core|Translations|Room|RoomGames|RoomTv|RoomTurn|RoomChat|RoomAudience|RoomVoting|Motion|Utils|Catalog|Sounds|Three|ShareCard|Solo|Daily|TeamRelay)\.html$/,
   /^tools\/(build-preview|build-site|test-ui|test-ui-parallel|test-changed)\.mjs$/, /^tools\/package/,
@@ -63,7 +63,7 @@ const MAP = [
   { files: /^(SkrewCards\.js|RoomScrew\.js|JS_RoomScrew\.html|JS_Screw\.html)$/, robots: ['screw'], ui: ['screw'], screens: true },
   { files: /^(UnoCards\.js|RoomUno\.js|JS_RoomUno\.html)$/, robots: ['uno'], ui: ['uno'] },
   { files: /^(DominoTiles\.js|RoomDomino\.js|JS_RoomDomino\.html|JS_Domino\.html)$/, robots: ['domino'], ui: ['domino'], screens: true },
-  { files: /^(RoomDuels\.js)$/, robots: ['connect4', 'c4teams', 'dots', 'duels', 'guesswho', 'battleship', 'chess'], ui: ['connect4', 'dots', 'xo', 'guesswho', 'battleship', 'chess'] },
+  { files: /^(RoomDuels\.js|Duels\.js)$/, robots: ['connect4', 'c4teams', 'dots', 'duels', 'guesswho', 'battleship', 'chess'], ui: ['connect4', 'dots', 'xo', 'guesswho', 'battleship', 'chess'] },
   { files: /^(Connect4\.js|DotsBoxes\.js|TicTacToe\.js|JS_RoomConnect4\.html|JS_RoomDots\.html|JS_RoomXO\.html|JS_Connect4\.html|JS_Dots\.html|JS_XO\.html)$/, robots: ['connect4', 'c4teams', 'dots', 'duels'], ui: ['connect4', 'dots', 'xo'], screens: true },
   { files: /^(RoomTournament\.js|JS_RoomTournament\.html|JS_Tournament\.html)$/, robots: ['duels'], ui: ['connect4', 'xo'], screens: true },
   { files: /^Dice\.js$/, robots: ['ludo', 'snakes', 'bank'], ui: ['ludo', 'snakes', 'bank'], screens: true },

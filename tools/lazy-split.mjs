@@ -37,7 +37,7 @@ export const SHELL_FILES = [
   'JS_Sounds', 'JS_RoomChat', 'JS_RoomAudience', 'JS_RoomTurn', 'JS_Motion', 'JS_ShareCard', 'JS_Three',
   'JS_CrewCore'        // «الشلة»: which crews this phone is in, the room's pick, the doors (the page is the chunk 'crew')
 ];
-export const SHELL_LISTS = ['Games.js', 'DisabledGames.js', 'Dice.js', 'SoloShared.js', 'Packs.js'];
+export const SHELL_LISTS = ['Common.js', 'Games.js', 'DisabledGames.js', 'Dice.js', 'SoloShared.js', 'Packs.js'];
 
 /* The chunks: a game, or a family of games that share their code. The order of
    files inside a chunk is always the page's own order. */
@@ -84,7 +84,7 @@ export const CHUNKS = {
   uno: ['JS_RoomUno', 'UnoCards.js'],
   cardslib: ['JS_Cards', 'PlayingCards.js'],
   cards: ['JS_RoomDoubt', 'JS_RoomSkull', 'JS_RoomOldMaid', 'JS_RoomEstimation', 'Skull.js', 'Estimation.js'],
-  duels: ['JS_Connect4', 'JS_RoomConnect4', 'JS_RoomTournament', 'Connect4.js'],
+  duels: ['JS_Connect4', 'JS_RoomConnect4', 'JS_RoomTournament', 'Connect4.js', 'Duels.js'],
   dots: ['JS_Dots', 'JS_RoomDots', 'DotsBoxes.js'],
   guesswho: ['JS_GuessWho', 'GuessWho.js'],
   witness: ['JS_RoomWitness', 'Witness.js'],
@@ -572,7 +572,7 @@ export function checkRegistryOrder({ order, code, fileChunk, shellSet, sorted, d
 
 /* Word lists the page shares with the rooms server: one file, both sides
    (and ChessPuzzles.js, which only the page has). */
-export const SHARED_LISTS = ['Games.js', 'DisabledGames.js', 'Dice.js', 'Packs.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Vault.js', 'Hear.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js', 'Missions.js'];
+export const SHARED_LISTS = ['Common.js', 'Games.js', 'DisabledGames.js', 'Dice.js', 'Packs.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'Duels.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Vault.js', 'Hear.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js', 'Missions.js'];
 
 /** Reads Controller.html, every file it includes and the shared lists. */
 export async function readPage(root, readFile, path) {

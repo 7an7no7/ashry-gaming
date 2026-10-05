@@ -188,20 +188,4 @@ const skipJustOneRound = (room) => {
   room.phase = 'result';
 };
 
-/**
- * One typed word against another: a Just One clue against the others, a
- * Codenames clue against the board, a Fibbage lie against the truth, a
- * Draw & Guess or Fake Artist guess against the word. Spelling, punctuation,
- * spaces and a leading "ال" or "the" are all folded away, so الأسد, أسد and
- * اسد are one word. (Stop the Bus has its own fold: there the first letter matters.)
- */
-const normaliseClue = (text) => {
-  let out = foldArabicLetters(text)
-    .replace(/[^\p{L}\p{N} ]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (out.indexOf('the ') === 0) out = out.slice(4);
-  // Twice, because "الألعاب" folds to "الالعاب" and has to meet "ألعاب" and "العاب".
-  for (let i = 0; i < 2 && out.length > 3 && out.indexOf('ال') === 0; i++) out = out.slice(2);
-  return out.replace(/\s+/g, '');
-};
+// normaliseClue, one typed word against another, is in app/Common.js (the phones run it too).

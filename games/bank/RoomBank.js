@@ -28,16 +28,7 @@ const BANK_GRACE_MS = 1500;
 const BANK_QUIET_MS = 60000;      // a turn held this long with nothing happening may be played for (JS_RoomBank.html)
 
 /** The players who would play if the game started now: the host's choice, or the first six. */
-const bankLobbySeated = (room) => {
-  const ids = room.players.map(p => p.id);
-  const lobby = (room.shared && room.shared.lobby) || {};
-  if (Array.isArray(lobby.seated)) {
-    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
-    ids.forEach(id => { if (kept.length < BANK_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
-    return kept.slice(0, BANK_MAX_PLAYERS);
-  }
-  return ids.slice(0, BANK_MAX_PLAYERS);
-};
+const bankLobbySeated = (room) => lobbySeatedOf(room.players, room.shared && room.shared.lobby, BANK_MAX_PLAYERS);
 
 const bankLobby = (room) => {
   room.shared = room.shared || {};

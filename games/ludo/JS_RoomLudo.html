@@ -42,17 +42,8 @@ function ludoLobbyRedraw() {
 
 /* --- the lobby: colours and seats ---------------------------------------------------------- */
 
-/** Who would play if the game started now. Mirrors ludoLobbySeated in RoomLudo.js - keep the two in step. */
-function ludoRoomSeated(state) {
-  const ids = (state.players || []).map(p => p.id);
-  const lobby = ((state.shared || {}).lobby) || {};
-  if (Array.isArray(lobby.seated)) {
-    const kept = lobby.seated.filter(id => ids.indexOf(id) !== -1);
-    ids.forEach(id => { if (kept.length < LUDO_MAX_PLAYERS && kept.indexOf(id) === -1 && (lobby.benched || []).indexOf(id) === -1) kept.push(id); });
-    return kept.slice(0, LUDO_MAX_PLAYERS);
-  }
-  return ids.slice(0, LUDO_MAX_PLAYERS);
-}
+/** Who would play if the game started now: the server's own lobbySeatedOf (app/Common.js). */
+function ludoRoomSeated(state) { return lobbySeatedOf(state.players, (state.shared || {}).lobby, LUDO_MAX_PLAYERS); }
 
 function ludoPickColorTap(color) {
   const state = Room.state;

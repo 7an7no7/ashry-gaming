@@ -121,18 +121,11 @@ const CN = load(srcPath('CodenamesWords.js'), 'CODENAMES_WORDS');
 // Draw & Guess needs enough words that a long session never repeats, and every
 // entry has to be something you can actually draw — the reason it stopped
 // sharing the Codenames bank, which is full of abstractions like "time".
-// The fold the rooms compare words with (normaliseClue in RoomGames.js): two
+// The fold the rooms compare words with (normaliseClue, app/Common.js): two
 // spellings of one word are one card - بئر and بير, مغرب and المغرب - so a list
 // may not hold both. A raw-string check let four such pairs into Codenames,
 // where both could land on one board as two identical cards.
-const clueKey = (t) => {
-  let out = String(t).toLowerCase().replace(/[ً-ْٰـ]/g, '')
-    .replace(/[أإآٱ]/g, 'ا').replace(/[ىی]/g, 'ي').replace(/ة/g, 'ه').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
-    .replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
-  if (out.indexOf('the ') === 0) out = out.slice(4);
-  for (let i = 0; i < 2 && out.length > 3 && out.indexOf('ال') === 0; i++) out = out.slice(2);
-  return out.replace(/\s+/g, '');
-};
+const clueKey = new Function(fs.readFileSync(srcPath('Common.js'), 'utf8') + '\nreturn normaliseClue;')();
 const clueRepeats = (list) => {
   const seen = new Map();
   const out = [];
@@ -474,7 +467,7 @@ for (const [lang, lists] of Object.entries(MONKEY)) {
 // how many letters each category can answer (a gap is a note, not a failure:
 // no country starts with ث).
 {
-  const src = ['SpyWords.js', 'MonkeyWords.js', 'StopWords.js'].map(f => fs.readFileSync(srcPath(f), 'utf8')).join('\n;\n');
+  const src = ['Common.js', 'SpyWords.js', 'MonkeyWords.js', 'StopWords.js'].map(f => fs.readFileSync(srcPath(f), 'utf8')).join('\n;\n');
   const S = new Function(src + '; return { STOP_WORDS, stopDictFold, stopDictionary, stopLetterFold };')();
   for (const [lang, lists] of Object.entries(S.STOP_WORDS)) {
     for (const [kind, list] of Object.entries(lists)) {

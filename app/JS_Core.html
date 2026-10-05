@@ -1677,6 +1677,9 @@
         'setup-stats'
     ];
 
+    // A game's own screens (VIEW_RESTORE, its file) come back too.
+    validViews.push(...Object.keys(VIEW_RESTORE));
+
     if (saved) {
         try {
             const parsed = JSON.parse(saved);
@@ -1770,6 +1773,12 @@
       saveToLocal();
   }
 
+  /* A game that brings its own screens back after a reload (5 Oct 2026): its file
+     says VIEW_RESTORE['play-mygame'] = () => { … } for each of its screens (tools/
+     new-game.mjs writes them), and those screens are kept on a reload (validViews)
+     and handed to it here. The games written before have their branch below. */
+  const VIEW_RESTORE = {};
+
   /* A save from an older build, or a bug in one game's redraw, must not leave a
      blank screen (and on a full-screen view, no header or nav to get out
      with): a restore that throws lands on that game's setup screen instead. */
@@ -1811,6 +1820,7 @@
         if (appState.currentView === 'together' && typeof renderTogether === 'function') renderTogether();
         else if (appState.currentView === 'crew' && typeof renderCrew === 'function') renderCrew();
         else if (appState.currentView === 'tools' && typeof renderTools === 'function') renderTools();
+        else if (typeof VIEW_RESTORE[appState.currentView] === 'function') VIEW_RESTORE[appState.currentView]();
         else if (appState.currentView === 'play-screw') renderScrewBoard();
         else if (appState.currentView === 'play-monkey') {
             renderMonkeyBoard(); updateTimerUI();

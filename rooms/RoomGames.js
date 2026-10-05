@@ -501,6 +501,22 @@ const runRoomBot = (room) => {
   return true;
 };
 
+/**
+ * A room game that registers itself (5 Oct 2026). Its Room<Game>.js says, once:
+ *
+ *   ROOM_RULES.mygame = {
+ *     action(room, playerId, action, payload) { … },   // every move (start, nextRound, playAgain, its own)
+ *     deadline(room) { return ms or null; },           // optional: when its clock next needs the server
+ *     timeout(room, now) { return true if it acted; }, // optional: what happens then
+ *     left(room, playerId, name) { … },                // what happens when someone leaves mid-round
+ *   };
+ *
+ * and this engine calls them: no case to add to applyRoomAction, gameDeadline,
+ * gameTimeout or gamePlayerLeft (tools/new-game.mjs writes such a file). The
+ * games written before keep their cases below.
+ */
+const ROOM_RULES = {};
+
 const applyRoomAction = (room, playerId, action, payload) => {
   // Room-level actions come first: they're about the group, not the game.
 
@@ -749,7 +765,9 @@ const applyRoomAction = (room, playerId, action, payload) => {
     case 'strands': case 'wordwheel': case 'connections': case 'pinpoint': case 'queens':
     case 'tango': case 'nonogram': case 'mines': case 'streak': case 'sudoku':
       solveAction(room, playerId, action, payload); break;
-    default: throw new Error('لعبة غير معروفة');
+    default:
+      if (!ROOM_RULES[room.game]) throw new Error('لعبة غير معروفة');
+      ROOM_RULES[room.game].action(room, playerId, action, payload);
   }
 
   if (action === 'start' && room.phase !== 'lobby') {
@@ -1388,6 +1406,8 @@ const gameDeadline = (room) => {
   // «التالي لوحده»: the next round deals itself at nextAt.
   const autoAt = autoNextDeadline(room);
   if (autoAt !== null) return autoAt;
+  // A game that registered itself (ROOM_RULES): its own clock.
+  if (ROOM_RULES[room.game]) return ROOM_RULES[room.game].deadline ? ROOM_RULES[room.game].deadline(room) : null;
   if (room.game === 'trivia' && s.phase === 'answering' && s.endsAt) {
     return s.endsAt + TRIVIA_GRACE_MS;
   }
@@ -1487,6 +1507,7 @@ const gameTimeout = (room, now) => {
   if (isTourRoom(room)) return tourTimeout(room, now);
   const autoAt = autoNextDeadline(room);
   if (autoAt !== null && now >= autoAt) return autoNextFire(room);
+  if (ROOM_RULES[room.game]) return ROOM_RULES[room.game].timeout ? !!ROOM_RULES[room.game].timeout(room, now) : false;
   if (room.game === 'trivia') {
     closeTriviaQuestion(room);
     return true;
@@ -1915,6 +1936,7 @@ const gamePlayerLeft = (room, playerId, name) => {
       duelPlayerLeft(room, playerId);
       return;
     default:
+      if (ROOM_RULES[room.game] && ROOM_RULES[room.game].left) ROOM_RULES[room.game].left(room, playerId, name);
       return;
   }
 };

@@ -49,6 +49,8 @@ const RACE_GAMES = ['strands', 'wordwheel', 'connections', 'pinpoint', 'queens',
 const MAP = [
   // The rules in Help and the first-play card: the screens only.
   { files: /^JS_GameRules\.html$/, screens: true },
+  // A game's own words and rules (games/<id>/<id>.text.js): its screens.
+  { files: /\.text\.js$/, screens: true },
   // The party games the core segment plays in its one room (and their word lists).
   { files: /^(SpyWords|CodenamesWords|PartyContent|TriviaQuestions|ChameleonWords|SpyfallPlaces|BombPrompts|EmojiRiddles|Proverbs|MonkeyWords|StopWords|TimelineEvents)\.js$/, robots: ['core', 'autonext'], ui: CORE_GAMES, screens: true },
   { files: /^JS_Room(Imposter|Codenames|Buzzer|Stop|Chameleon|Spyfall|Bomb|Draw|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|FakeArtist|Trivia|Herd|Mind|Timeline)\.html$/, robots: ['core', 'autonext'], ui: CORE_GAMES },

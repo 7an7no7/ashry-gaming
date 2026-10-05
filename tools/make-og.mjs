@@ -28,6 +28,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import srcMod from './sources.cjs';
+import gameText from './game-text.cjs';
 const { srcPath } = srcMod;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -47,7 +48,7 @@ const evalLiteral = (text) => new Function(`return (${text});`)();
 
 async function sources() {
   const core = await readFile(srcPath('JS_Core.html'), 'utf8');
-  const words = await readFile(srcPath('JS_Translations.html'), 'utf8');
+  const words = gameText.readMerged('JS_Translations.html');   // with every game's own words
   const gamesJs = await readFile(srcPath('Games.js'), 'utf8');
   const style = await readFile(srcPath('Style.html'), 'utf8');
   const logo = await readFile(srcPath('Logo.html'), 'utf8');

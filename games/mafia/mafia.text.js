@@ -1,0 +1,187 @@
+/* mafia: the words only this game's screens show, and its rules (Help, the
+   first-play card). The build puts them into TRANSLATIONS and GAME_RULES (tools/game-text.cjs):
+   read them as t.<key> and GAME_RULES[lang].<id>, as everywhere. */
+gameText({
+  translations: {
+    ar: {
+      mafia_lobby_hint: "كل واحد يعرف دوره على موبايله. التطبيق هو الراوي: بيحكي الليل والنهار ويعدّ الأصوات.",
+      mafia_need_five: "المافيا محتاجة 5 لاعبين على الأقل.",
+      mafia_mode: "طريقة اللعب",
+      mafia_mode_classic: "كلاسيك",
+      mafia_mode_roles: "بأدوار",
+      mafia_mode_classic_hint: "مافيا ومواطنين بس.",
+      mafia_mode_roles_hint: "فيها دكتور ومحقق، ومن 6 لاعبين محامي.",
+      mafia_reveal: "اكشف دور اللي يخرج",
+      mafia_reveal_hint: "لو مقفولة: اللي يخرج يظهر مواطن، إلا المافيا بتظهر مافيا دايماً.",
+      mafia_discuss: "وقت النقاش",
+      mafia_night_time: "وقت الليل",
+      mafia_role_mafia: "مافيا",
+      mafia_role_citizen: "مواطن",
+      mafia_role_doctor: "دكتور",
+      mafia_role_detective: "محقق",
+      mafia_role_lawyer: "محامي",
+      mafia_desc_mafia: "بالليل اختاروا مع بعض مين يخرج. بالنهار اتصرف كأنك مواطن.",
+      mafia_desc_citizen: "اسمع كويس وناقش، ولاقي المافيا قبل ما يكسبوا.",
+      mafia_desc_doctor: "كل ليلة احمي حد (حتى نفسك)، بس مش نفس الشخص ليلتين ورا بعض.",
+      mafia_desc_detective: "كل ليلة اكشف حد: هتعرف لوحدك هو مافيا ولا لأ.",
+      mafia_desc_lawyer: "إنت مع المافيا وهم مايعرفوكش. دافع عنهم كأنك مواطن وتوّه المدينة.",
+      mafia_your_team: "المافيا معاك",
+      mafia_alone: "إنت المافيا لوحدك.",
+      mafia_lawyer_knows: "المافيا",
+      mafia_roles_intro: "كل واحد يدوس مطوّل على الكارت ويشوف دوره من غير ما حد يشوف.",
+      mafia_start_night: "ابدأ الليل",
+      mafia_next_night: "الليلة الجاية",
+      mafia_night_n: "الليلة {n}",
+      mafia_night_everyone: "الكل يختار حد على موبايله عشان محدش يعرف مين بيعمل إيه",
+      mafia_city_sleeps: "المدينة نايمة… 🤫",
+      mafia_task_mafia: "اختاروا مين يخرج من اللعبة الليلة دي",
+      mafia_task_doctor: "اختار حد تحميه الليلة دي",
+      mafia_task_detective: "اختار حد تكشفه",
+      mafia_task_suspect: "اختار حد بتشك فيه (محدش هيشوف اختيارك)",
+      mafia_check_yes: "{name} من المافيا!",
+      mafia_check_no: "{name} مش مافيا.",
+      mafia_end_night: "خلّص الليل دلوقتي",
+      mafia_reveal_night: "الصبح طلع… مين خرج؟",
+      mafia_reveal_voted: "المدينة قررت…",
+      mafia_narrate: "الراوي يقرأ بصوت عالي",
+      mafia_narrate_hint: "شاشة العرض (أو موبايل المضيف لو مفيش شاشة) تقرا سطر قصير أول كل مرحلة. محتاج صوت بلغتك على الجهاز ده.",
+      mafia_say_roles: "كل واحد يبص على دوره في السر.",
+      mafia_say_night: "المدينة نامت. اقفلوا عينيكم.",
+      mafia_say_day: "الصبح طلع. اتكلموا.",
+      mafia_say_vote: "وقت التصويت. مين؟",
+      mafia_say_over: "اللعبة خلصت.",
+      mafia_out_night: "المافيا خرّجت {name} من اللعبة",
+      mafia_out_voted: "المدينة خرّجت {name} من اللعبة",
+      mafia_was: "الدور",
+      mafia_news_saved: "صباح الخير! المافيا حاولوا بس الدكتور لحق. محدش خرج.",
+      mafia_news_quiet: "ليلة هادية. محدش خرج من اللعبة.",
+      mafia_news_tie: "الأصوات اتعادلت، محدش خرج.",
+      mafia_news_nobody: "المدينة قررت محدش يخرج النهارده.",
+      mafia_discuss_now: "وقت النقاش",
+      mafia_discuss_hint: "اتكلموا واتهموا ودافعوا. لما الوقت يخلص التصويت بيبدأ لوحده.",
+      mafia_vote_now: "ابدأ التصويت",
+      mafia_vote_soon: "التصويت هيبدأ لما وقت النقاش يخلص",
+      mafia_who_leaves: "مين يخرج من اللعبة؟",
+      mafia_nobody: "محدش",
+      mafia_still_in: "لسه في اللعبة",
+      mafia_out: "خرجوا",
+      mafia_you_out: "إنت خرجت من اللعبة. تابع وماتقولش حاجة!",
+      mafia_town_wins: "المدينة كسبت! مفيش مافيا تاني",
+      mafia_mafia_wins: "المافيا كسبت!",
+      mafia_you_won: "فريقك كسب 🎉",
+      mafia_you_lost: "فريقك خسر المرة دي",
+      mafia_everyone_was: "الأدوار كلها",
+      room_action_failed: "ماوصلش، جرّب تاني",
+      mafia_night_pick: "اختار اسم. اللي بيعمله اختيارك مكتوب في كارتك.",
+      mafia_night_picked: "اختيارك اتسجل.",
+      mafia_last_save: "مش {name} تاني الليلة دي",
+    },
+    en: {
+      mafia_lobby_hint: "Everyone sees their role on their own phone. The app narrates: night, day and the votes.",
+      mafia_need_five: "Mafia needs at least 5 players.",
+      mafia_mode: "How to play",
+      mafia_mode_classic: "Classic",
+      mafia_mode_roles: "Roles",
+      mafia_mode_classic_hint: "Mafia and citizens only.",
+      mafia_mode_roles_hint: "Adds a Doctor and a Detective, and a Lawyer from 6 players.",
+      mafia_reveal: "Show the role of whoever leaves",
+      mafia_reveal_hint: "When off, anyone who leaves shows as a Citizen, except the Mafia, who always show as Mafia.",
+      mafia_discuss: "Discussion time",
+      mafia_night_time: "Night time",
+      mafia_role_mafia: "Mafia",
+      mafia_role_citizen: "Citizen",
+      mafia_role_doctor: "Doctor",
+      mafia_role_detective: "Detective",
+      mafia_role_lawyer: "Lawyer",
+      mafia_desc_mafia: "At night, choose together who leaves the game. By day, act like a citizen.",
+      mafia_desc_citizen: "Listen, argue, and find the Mafia before they take over the town.",
+      mafia_desc_doctor: "Each night protect someone (yourself too), but not the same person two nights running.",
+      mafia_desc_detective: "Each night check someone: only you learn whether they are Mafia.",
+      mafia_desc_lawyer: "You're on the Mafia's side and they don't know you. Defend them as if you were a citizen.",
+      mafia_your_team: "Your fellow Mafia",
+      mafia_alone: "You are the only Mafia.",
+      mafia_lawyer_knows: "The Mafia",
+      mafia_roles_intro: "Everyone presses and holds the card to see their role without anyone else seeing.",
+      mafia_start_night: "Start the night",
+      mafia_next_night: "Next night",
+      mafia_night_n: "Night {n}",
+      mafia_night_everyone: "Everyone picks someone on their phone, so nobody can tell who is doing what",
+      mafia_city_sleeps: "The town is asleep… 🤫",
+      mafia_task_mafia: "Choose who leaves the game tonight",
+      mafia_task_doctor: "Choose someone to protect tonight",
+      mafia_task_detective: "Choose someone to check",
+      mafia_task_suspect: "Pick someone you suspect (nobody will see it)",
+      mafia_check_yes: "{name} is Mafia!",
+      mafia_check_no: "{name} is not Mafia.",
+      mafia_end_night: "End the night now",
+      mafia_reveal_night: "Morning comes… who left?",
+      mafia_reveal_voted: "The town has decided…",
+      mafia_narrate: "A narrator reads out loud",
+      mafia_narrate_hint: "The big screen (or the host's phone when there is none) reads a short line at each phase. Needs a voice for your language on that device.",
+      mafia_say_roles: "Everyone look at your role in secret.",
+      mafia_say_night: "The town has gone to sleep. Close your eyes.",
+      mafia_say_day: "Morning has come. Talk it over.",
+      mafia_say_vote: "Time to vote. Who is it?",
+      mafia_say_over: "The game is over.",
+      mafia_out_night: "The Mafia took {name} out of the game",
+      mafia_out_voted: "The town voted {name} out of the game",
+      mafia_was: "Role",
+      mafia_news_saved: "Good morning! The Mafia tried, but the Doctor got there first. Nobody left.",
+      mafia_news_quiet: "A quiet night. Nobody left the game.",
+      mafia_news_tie: "The vote was a tie, so nobody leaves.",
+      mafia_news_nobody: "The town decided nobody leaves today.",
+      mafia_discuss_now: "Discussion",
+      mafia_discuss_hint: "Talk, accuse and defend. When time runs out the vote starts by itself.",
+      mafia_vote_now: "Start the vote",
+      mafia_vote_soon: "The vote starts when the discussion time is up",
+      mafia_who_leaves: "Who leaves the game?",
+      mafia_nobody: "Nobody",
+      mafia_still_in: "Still in the game",
+      mafia_out: "Out",
+      mafia_you_out: "You're out of the game. Watch, and don't give anything away!",
+      mafia_town_wins: "The town wins! No Mafia left",
+      mafia_mafia_wins: "The Mafia win!",
+      mafia_you_won: "Your side won 🎉",
+      mafia_you_lost: "Your side lost this time",
+      mafia_everyone_was: "Everyone's roles",
+      room_action_failed: "That didn't go through, try again",
+      mafia_night_pick: "Tap a name. What it does is on your card.",
+      mafia_night_picked: "Your pick is in.",
+      mafia_last_save: "Not {name} again tonight",
+    }
+  },
+  rules: {
+    ar: {
+      mafia: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>كل واحد يدوس مطوّل على الكارت ويعرف دوره. التطبيق بيختار عدد المافيا حسب عدد اللاعبين (من 5 لاعبين).</li>
+                <li><b>بالليل</b> كل الموبايلات بتختار حد، عشان محدش يعرف مين بيعمل إيه: المافيا يختاروا مين يخرج، والباقي يختار حد بيشك فيه.</li>
+                <li><b>الصبح</b> التطبيق يقول مين خرج من اللعبة، وبعدها <b>وقت نقاش</b> للاتهام والدفاع.</li>
+                <li>لما الوقت يخلص <b>التصويت</b> يبدأ: الأكتر أصوات يخرج. التعادل أو «محدش» يعني محدش يخرج.</li>
+                <li>المدينة تكسب لما المافيا كلهم يخرجوا. المافيا تكسب لما يبقوا قد الباقيين.</li>
+            </ol>
+            <p class="help-sub">🎭 طريقتين</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li><b>كلاسيك</b>: مافيا ومواطنين.</li>
+                <li><b>بأدوار</b>: <b>🩺 الدكتور</b> يحمي حد كل ليلة (مش نفس الشخص ليلتين ورا بعض). <b>🔍 المحقق</b> يكشف حد ويعرف لوحده هو مافيا ولا لأ. <b>💼 المحامي</b> (من 6 لاعبين) مع المافيا: يعرفهم وهم مايعرفوهوش، ويدافع عنهم كأنه مواطن. المحقق بيشوفه مش مافيا.</li>
+                <li>اللي بيخرج يظهر <b>مواطن</b>، إلا المافيا بتظهر مافيا. المضيف يقدر يفعّل كشف الدور الحقيقي.</li>
+            </ul>`,
+    },
+    en: {
+      mafia: `
+            <ol class="list-decimal list-inside space-y-1 text-xs">
+                <li>Everyone presses and holds their card to see their role. The app picks how many Mafia from the number of players (5 or more).</li>
+                <li><b>At night</b> every phone picks someone, so nobody can tell who is doing what: the Mafia choose who leaves, everyone else marks a suspect.</li>
+                <li><b>In the morning</b> the app says who left the game, then there is <b>discussion time</b> to accuse and defend.</li>
+                <li>When time runs out <b>the vote</b> opens: most votes leaves. A tie, or "nobody" on top, means nobody leaves.</li>
+                <li>The town wins when every Mafia member is out. The Mafia win when they are as many as everyone else.</li>
+            </ol>
+            <p class="help-sub">🎭 Two modes</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li><b>Classic</b>: Mafia and citizens.</li>
+                <li><b>Roles</b>: <b>🩺 the Doctor</b> protects someone each night (not the same person twice running). <b>🔍 the Detective</b> checks someone and alone learns if they are Mafia. <b>💼 the Lawyer</b> (from 6 players) is on the Mafia's side: knows them, unknown to them, and defends them as a citizen would. The Detective sees the Lawyer as not Mafia.</li>
+                <li>Whoever leaves shows as a <b>Citizen</b>, except the Mafia, who show as Mafia. The host can switch on showing real roles.</li>
+            </ul>`,
+    }
+  }
+});

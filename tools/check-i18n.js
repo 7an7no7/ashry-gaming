@@ -17,7 +17,8 @@ const acorn = require('acorn');
 const { srcPath, srcFiles } = require('./sources.cjs');
 
 const ROOT = path.join(__dirname, '..');
-const core = fs.readFileSync(srcPath('JS_Translations.html'), 'utf8');
+// With every game's own words put in (games/<id>/<id>.text.js, tools/game-text.cjs).
+const core = require('./game-text.cjs').readMerged('JS_Translations.html');
 
 // TRANSLATIONS read by a real parser: a line regex saw only the first key of a line, so
 // `bank_col_br: …, bank_col_lb: …` on one line hid the second from both checks below.
@@ -147,7 +148,7 @@ if (bare.size) {
 // key + '_line'): a key whose prefix or suffix the code builds with is live.
 let hay = '';
 for (const f of srcFiles()) {
-  if (/\.(html|js)$/.test(f) && f !== 'Tailwind.html' && f !== 'JS_Translations.html') hay += fs.readFileSync(srcPath(f), 'utf8');
+  if (/\.(html|js)$/.test(f) && f !== 'Tailwind.html' && f !== 'JS_Translations.html' && !/\.text\.js$/.test(f)) hay += fs.readFileSync(srcPath(f), 'utf8');
 }
 const prefixes = new Set(), suffixes = new Set();
 for (const [, p] of hay.matchAll(/['"`]([a-z][a-z0-9]*(?:_[a-z0-9]+)*_?)['"]\s*\+/g)) prefixes.add(p);

@@ -17,6 +17,7 @@
 import * as acorn from 'acorn';
 import * as walk from 'acorn-walk';
 import srcMod from './sources.cjs';
+import gameText from './game-text.cjs';
 
 const { srcPath } = srcMod;
 
@@ -578,7 +579,8 @@ export const SHARED_LISTS = ['Common.js', 'Games.js', 'DisabledGames.js', 'Dice.
 export async function readPage(root, readFile, path) {
   // Line endings as git stores them (LF), whatever the checkout wrote: a Windows
   // checkout's CRLF would otherwise reach the page, a byte per line.
-  const read = async (name) => (await readFile(srcPath(name), 'utf8')).replace(/\r\n/g, '\n');
+  // JS_Translations.html and JS_GameRules.html come with every game's own entries put in (game-text.cjs).
+  const read = async (name) => gameText.mergeGameText(name, (await readFile(srcPath(name), 'utf8')).replace(/\r\n/g, '\n'));
   const controller = await read('Controller.html');
   const includes = [...controller.matchAll(/<\?!=\s*include\('([^']+)'\);?\s*\?>/g)].map((m) => m[1]);
   const sources = new Map();

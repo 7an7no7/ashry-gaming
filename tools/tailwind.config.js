@@ -13,7 +13,7 @@
  */
 module.exports = {
   darkMode: 'class',
-  content: ['../app/**/*.html', '../rooms/**/*.html', '../games/**/*.html'],
+  content: ['../app/**/*.html', '../rooms/**/*.html', '../games/**/*.html', '../games/**/*.text.js'],
 
   /**
    * renderTeams() in JS_Teams.html builds class names by interpolation

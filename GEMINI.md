@@ -392,7 +392,7 @@ will make that pass lie to you:
 
 ### Code Structure
 - **No `google.script.run`:** the page talks to nothing but the rooms server, through `Room` in `JS_Room.html`.
-- **Frontend Modularization:** When adding a new game, create a new `JS_GameName.html` file and include it in `Controller.html` using `<?!= include('JS_GameName'); ?>`.
+- **Frontend Modularization:** A new game starts with `npm run new:game` (*A new game, start to finish*): its files go in `games/<id>/` (`JS_<Game>.html`, `JS_Room<Game>.html`, `Room<Game>.js`, `<id>.text.js`), each `.html` included in `Controller.html` with `<?!= include('JS_<Game>'); ?>` and placed in a chunk (`CHUNKS`, `tools/lazy-split.mjs`).
 - **Translations:** All UI text goes through the `TRANSLATIONS` object in `JS_Translations.html`, with the same key in `ar` and `en` (`npm run check:i18n` compares them). `data-i18n` fills an element's text, `data-i18n-ph` a field's placeholder, and `data-i18n-title` an icon button's tooltip *and* its `aria-label` - a button whose whole label is a glyph (↶) needs the last one, or it says nothing in either language.
 
 ### Multiplayer rooms

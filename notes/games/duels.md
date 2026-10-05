@@ -64,7 +64,7 @@ Two games for two, each played three ways - two on one phone, one against the
 phone, or a room where two play and everyone else watches - to the owner's
 decisions of 21 Sep 2026 (*The owner's specs*).
 
-**One copy of the rules.** `Connect4.js` and `DotsBoxes.js` at the root hold a
+**One copy of the rules.** `Connect4.js` and `DotsBoxes.js` (in `games/connect4/`, `games/dots/`) hold a
 board model, the legal moves, a move applied, the line or box it made, and the
 phone's player, with no DOM and nothing that runs at load. The page inlines
 both (`SHARED_LISTS` in `tools/build-*.mjs`) and the Worker bundles both

@@ -55,7 +55,7 @@ const chess4RoomLobby = (room) => {
 /**
  * Who sits in which colour if the game started now: the host's order, anyone
  * missing replaced by the next in the room (people first, then computer
- * players). Mirrored by chess4RoomOrder in JS_RoomChess4.html - keep the two in step.
+ * players). The lobby shows the same seats: both call chess4OrderOf (Chess4.js).
  */
 const chess4LobbyOrder = (room) => chess4OrderOf(room.players, (room.shared || {}).lobby);   // Chess4.js
 

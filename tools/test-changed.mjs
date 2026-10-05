@@ -18,6 +18,7 @@
  * The robots and the screen test need the rooms server running (cd rooms-worker && npm run dev).
  */
 import path from 'node:path';
+import fs from 'node:fs';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -128,6 +129,16 @@ const changed = FILES_ARG ? FILES_ARG.slice(8).split(',').filter(Boolean) : [...
   ...git('diff', '--name-only', base).split('\n'),
   ...git('ls-files', '--others', '--exclude-standard').split('\n'),
 ].filter(Boolean))];
+
+// A game's words and rules (games/<id>/<id>.text.js) are its screens' text: they test as its
+// screens do. Before 5 Oct 2026 they were in JS_Translations.html, which ran everything.
+for (const p of changed.slice()) {
+  const m = /^games\/([^/]+)\/[^/]+\.text\.js$/.exec(p);
+  if (!m || !fs.existsSync(path.join(root, 'games', m[1]))) continue;
+  for (const f of fs.readdirSync(path.join(root, 'games', m[1]))) {
+    if (/\.html$/.test(f) && !changed.includes(`games/${m[1]}/${f}`)) changed.push(`games/${m[1]}/${f}`);
+  }
+}
 
 const plan = { check: false, rules: false, all: false, robots: new Set(), ui: new Set(), screens: false, fixes: false, program: false, mission: false, site: false, why: [] };
 // What test:rules has to run for: a file the server bundles, or the rules tests and leak check themselves.

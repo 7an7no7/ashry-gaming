@@ -560,7 +560,8 @@ for (const lang of ['ar', 'en']) {
 // Its chunk.
 appendTo('tools/lazy-split.mjs', 'CHUNKS', [`  ${id}: [${[DEVICE && `'JS_${P}'`, ROOM && `'JS_Room${P}'`].filter(Boolean).join(', ')}],   // tools/new-game.mjs, ${today}`]);
 // test:changed: its files run its own tests.
-appendTo('tools/test-changed.mjs', 'MAP', [`  { files: /^(${[DEVICE && `JS_${P}\\.html`, ROOM && `JS_Room${P}\\.html`, ROOM && `Room${P}\\.js`, `${id}\\.text\\.js`].filter(Boolean).join('|')})$/, ${ROOM ? `robots: ['${id}'], ui: ['${id}']` : 'screens: true'} },`]);
+// Before the general entries at the end of MAP: the first entry that matches is the one used.
+insertBefore('tools/test-changed.mjs', "  // The page's own screens and the offline copy.\n", [`  { files: /^(${[DEVICE && `JS_${P}\\.html`, ROOM && `JS_Room${P}\\.html`, ROOM && `Room${P}\\.js`].filter(Boolean).join('|')})$/, ${[ROOM && `robots: ['${id}'], ui: ['${id}']`, DEVICE && 'screens: true'].filter(Boolean).join(', ')} },   // ${nameEn} (tools/new-game.mjs)`]);
 
 if (ROOM) {
   { const { node, at } = literalOf('rooms-worker/build.mjs', 'FILES'); appendInline('rooms-worker/build.mjs', node, at, `'Room${P}.js'`); }

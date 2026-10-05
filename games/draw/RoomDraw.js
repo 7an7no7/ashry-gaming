@@ -47,7 +47,7 @@ const stringSimilarity = (a, b) => {
      or all but one word of a longer answer. A nudge on the screen, never a
      point.
    Draw & Guess, the fake artist's guess and the quiz cards judge through it.
-   The fold stays normaliseClue (keep foldWord in JS_Core.html identical). */
+   The fold stays normaliseClue (app/Common.js; the page's foldWord is the same function). */
 const GUESS_MEASURE_WORDS = new Set([
   'حبه', 'حبايه', 'كوب', 'كوبايه', 'فنجان', 'طبق', 'عربيه', 'سياره', 'كاس', 'علبه', 'كيس', 'قطعه', 'حته',
   'عنقود', 'زجاجه', 'قزازه', 'برطمان', 'لوح', 'كوز', 'قرن', 'فص', 'كورنيه', 'صينيه', 'سله', 'رغيف', 'مج', 'كانز',

@@ -62,7 +62,7 @@
      has to be awake; every other phone and the TV count it down.
    ========================================================================== */
 const DUEL_MIN_PLAYERS = 2;
-// DUEL_AWAY_MS is in app/Common.js; who sits down next, duelNextOf, in Duels.js (both read by the phones too).
+// DUEL_AWAY_MS is in rooms/RoomShared.js; who sits down next, duelNextOf, in Duels.js (both read by the phones too).
 
 /** What each duel does differently: its options, a fresh board, and one move. */
 const DUEL_KINDS = {

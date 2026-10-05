@@ -16,7 +16,7 @@
    its arrival is its press. Each buzz keeps `at` (its press, which the gaps
    on the screens read) and `arr` (its arrival, when it settles).
    ========================================================================== */
-// BZ_SETTLE_MS (a press settles this long after it arrived) is in app/Common.js, read by the phones too.
+// BZ_SETTLE_MS (a press settles this long after it arrived) is in rooms/RoomShared.js, read by the phones too.
 const BZ_CLAIM_MAX_MS = 400;    // a phone's press time is believed at most this long before its arrival
 
 /** Where a press goes in the line: ahead of every unsettled press it beat, behind the rest. */

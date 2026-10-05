@@ -1,5 +1,5 @@
 /**
- * The chess puzzle bank: ChessPuzzles.js at the project root, made by the app's
+ * The chess puzzle bank: ChessPuzzles.js (games/chesspuzzle/), made by the app's
  * own engine (Chess.js). Run by hand, not part of build:site:
  *
  *   cd tools && npm run build:puzzles

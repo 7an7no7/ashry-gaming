@@ -2,8 +2,9 @@
 
 Arabic-first (RTL, ar/en) party-games web app for phones.
 
-- **App:** static site in `docs/`, built from the root `*.html` / `*.js` sources
-  by `tools/build-site.mjs`. **The main address is Cloudflare**:
+- **App:** static site in `docs/`, built from the sources in `app/`, `styles/`,
+  `rooms/`, `content/` and `games/<id>/` (one folder per game) by
+  `tools/build-site.mjs`. **The main address is Cloudflare**:
   https://play.3ashry.workers.dev (`site-worker/`, `npm run deploy:site`) - every
   link the app shares points there. The same build stays on GitHub Pages
   (`master` → `/docs`), https://7an7no7.github.io/ashry-gaming/, so old icons,
@@ -54,10 +55,16 @@ each game's full spec and how it is built is in `notes/games/<id>.md`, the log i
 
 ## Every change, in this order
 
-1. **Edit the sources at the project root** (`Controller.html`, `JS_*.html`,
-   `Style*.html`, `JS_Translations.html`, `RoomGames.js`, the word lists). Never edit `docs/` by hand.
+1. **Edit the sources**: a game's in its folder `games/<id>/` (its `JS_*.html`,
+   `Room*.js`, lists, and its words and rules in `<id>.text.js`); the app's in
+   `app/` (`Controller.html`, `JS_Core.html`, `JS_Translations.html` for words
+   more than one game uses, `Games.js`, `Common.js`), `styles/`, `rooms/`
+   (`RoomGames.js`), `content/` (the shared word lists). Never edit `docs/` by
+   hand. A new game starts with `cd tools && npm run new:game -- <id> --ar "…"
+   --en "…"` (GEMINI.md, *A new game, start to finish*).
 2. Added a Tailwind class to the markup? `cd tools && npm run build:css`.
-3. `cd tools && npm run check` — content and translations. Must pass.
+3. `cd tools && npm run check` — content, translations and names (a name
+   declared twice, or used and never declared). Must pass.
 4. Touched anything rooms run (`Games.js`, `RoomGames.js`, any `Room*.js`, any word list the server
    bundles - the `FILES` in `rooms-worker/build.mjs` - or `rooms-worker/src/`)?
    `cd rooms-worker && npm run test:rules`, then, with `npm run dev` running,
@@ -102,7 +109,8 @@ each game's full spec and how it is built is in `notes/games/<id>.md`, the log i
 ## Everyday commands
 
 ```bash
-cd tools && npm run check           # content + translations
+cd tools && npm run check           # content + translations + names
+cd tools && npm run new:game -- <id> --ar "…" --en "…" [--modes room,device] [--dry]  # a new game, wired in everywhere
 cd tools && npm run build:preview   # the app in .preview/, rooms on :8787
 cd tools && npm run build:site      # rebuild docs/ (commit it)
 cd tools && npm run check:live      # are both addresses serving this build?

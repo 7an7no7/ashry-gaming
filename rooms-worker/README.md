@@ -17,12 +17,12 @@ the other phones in well under a tenth of a second, from any network.
 | `src/memory.js` | `PromptMemory`: which prompts all rooms dealt lately |
 | `src/live.js` | `LiveStats`: how many players are online across every room, for `GET /live` |
 | `src/page.js` | the `/test` page |
-| `build.mjs` | bundles the rules and word lists from the project root into `generated/rules.js` |
+| `build.mjs` | bundles the rules and word lists (its `FILES`, found in `app/`, `rooms/`, `content/` and `games/<id>/` by `tools/sources.cjs`) into `generated/rules.js` |
 | `test/play-all.mjs` | robot players for every game |
 
-The game rules are **not** in this folder: they are `RoomGames.js` at the
-project root, with the word lists in `SpyWords.js`, `CodenamesWords.js` and
-`PartyContent.js`. `build.mjs` runs by itself before `dev` and `deploy`.
+The game rules are **not** in this folder: the engine is `rooms/RoomGames.js`, each
+game's rules are its `games/<id>/Room<Game>.js`, and the word lists are in `content/` and
+the games' folders. `build.mjs` runs by itself before `dev` and `deploy`.
 
 - **Secrets stay here.** A phone is only ever sent its own slice of
   `room.secrets`, and proves who it is with a key only it was given.

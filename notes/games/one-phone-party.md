@@ -63,7 +63,7 @@ scored press can be taken back (the audit of 17 Sep 2026):
   across languages - a stale list had dealt "Error" to every player.
 
 **Content checks load some game files alone.** `tools/validate-content.js`
-runs `JS_Charades.html`, `JS_DescribeIt.html`, `JS_NewGames.html`,
+runs `JS_Charades.html`, `JS_DescribeIt.html`, `JS_JustOne.html`,
 `JS_Stop.html` and `JS_TimesUp.html` by themselves to read their word lists,
 without JS_Core: a top-level `onLeaveScreen` or `onLanguageChange` call in
 those files has to be guarded with `typeof`.

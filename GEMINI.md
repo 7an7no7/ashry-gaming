@@ -21,9 +21,13 @@
 - **External Libraries:** `canvas-confetti` and a QR code generator, pinned on jsDelivr with SRI hashes and loaded `async` (a stub in the head takes confetti calls until the library arrives)
 
 ### Architecture
-- **Source files at the root** are still written the Apps Script way: `Controller.html` pulls the other `.html` files in with `<?!= include('X'); ?>` and has a few `<?!= … ?>` template values. Nothing runs them on Apps Script any more; `tools/build-site.mjs` (and `build-preview.mjs`) inline the includes and fill the values in.
+- **Where the sources are (5 Oct 2026):** `app/` the shell (`Controller.html`, `JS_Core`, `JS_Translations`, `JS_GameRules`, `JS_Utils`, `JS_Catalog`, `Games.js`, `Common.js`…), `styles/` (`Tailwind.html`, `Style*.html`), `rooms/` the room engine (`RoomGames.js`, `JS_Room*.html` of the engine, `RoomShared.js`), `content/` the word lists several games deal from (`SpyWords.js`, `PartyContent.js`, `TriviaQuestions.js`…), and **`games/<id>/` one folder per game**: its phone file (`JS_<Game>.html`), its room screens (`JS_Room<Game>.html`), its server rules (`Room<Game>.js`), its own lists (`Chess.js`, `UnoCards.js`), and its words and rules (`<id>.text.js`). Every file keeps a name no other file has, so everything still names a file the way it always did; `tools/sources.cjs` finds it (`srcPath('JS_Core.html')`, `srcFiles(/^JS_/)`) for the build, the checks and the tests, and fails on a name in two folders. A game's notes stay in `notes/games/<id>.md`.
+- **The sources are still written the Apps Script way:** `Controller.html` pulls the other `.html` files in with `<?!= include('X'); ?>` and has a few `<?!= … ?>` template values. Nothing runs them on Apps Script any more; `tools/build-site.mjs` (and `build-preview.mjs`) inline the includes and fill the values in (`readPage` in `tools/lazy-split.mjs`, which also reads every file with LF line endings).
+- **Each game's own words and rules are in its folder** (`games/<id>/<id>.text.js`, one `gameText({ translations: { ar, en }, rules: { ar, en } })` call): the keys only that game reads, and its Help rules. The build puts them back into `TRANSLATIONS` and `GAME_RULES` where `/* @game-text ar <id> */` stands in `JS_Translations.html` / `JS_GameRules.html` (`tools/game-text.cjs`), so the page reads `t.<key>` as always; words more than one game uses stay in `JS_Translations.html`. Every tool reads the two files merged (`readMerged`), and `check:i18n` fails on a key in two places. The markers keep each game's entries where they were: all of them at the end made the first screen 6 KB heavier.
+- **One copy of what both sides run:** `app/Common.js` (the word fold `normaliseClue` / `foldArabicLetters` - the page's `foldWord` is it -, `roomGameIsOver`) is a shared list in the shell and first in the server's `FILES`; `rooms/RoomShared.js` (values the lobby offers and the server enforces: `TRIVIA_COUNTS`, `CODENAMES_TIMERS`, `BZ_SETTLE_MS`, `DUEL_AWAY_MS`, `lobbySeatedOf`) is a chunk of its own; a game's own goes in its shared file (`Duels.js`' `duelNextOf`, `Chess4.js`' `chess4OrderOf`). Never write a phone copy of a server function "kept in step": put it in one of these.
+- **`npm run new:game -- <id> --ar … --en …`** (`tools/new-game.mjs`) makes a new game's folder and puts its line in every list (*A new game, start to finish*). A room game it writes registers its rules itself (`ROOM_RULES.<id> = { action, deadline, timeout, left }` in its `Room<Game>.js`; `RoomGames.js` calls them, no case to add), and a one-phone game its way back after a reload (`VIEW_RESTORE['play-<id>']`, `JS_Core.html`).
 - **One list of games (`Games.js`, 2 Oct 2026):** `GAME_LIST` has one entry per game - its card's fields, `room` (min players, the room id when it differs, program `rounds`, `autoNext`), `crew` (الشلة's title) and `open` - shared by the page (first of `SHARED_LISTS`) and the rooms server (first of `FILES`). The home's `GAME_CATALOG`, a room's `ROOM_HUB_GAMES`, the server's `ROOM_GAME_IDS`, `APP_GAME_IDS` (what /count and /report take), `AUTONEXT_ROOM_GAMES`, `PROGRAM_ROUNDS` and `CREW_TITLE_GAMES` are built from it. **Adding or removing a game's card is one entry there**; `ROOM_LIST_ORDER` orders a room's list (a game not in it goes last).
-- **Rooms server (`rooms-worker/`):** one Durable Object per room code. `RoomGames.js` at the root is the room engine (dispatch, votes, clocks, leaving, computer players, «التالي لوحده»); every room game's rules are in its own `Room<Game>.js` (since 2 Oct 2026 the older ones too: `RoomStop.js`, `RoomImposter.js`, `RoomTrivia.js`, `RoomScrew.js`…), bundled after it with the word lists by `rooms-worker/build.mjs`. See *Multiplayer rooms*.
+- **Rooms server (`rooms-worker/`):** one Durable Object per room code. `rooms/RoomGames.js` is the room engine (dispatch, votes, clocks, leaving, computer players, «التالي لوحده»); every room game's rules are in its own `Room<Game>.js` (since 2 Oct 2026 the older ones too: `RoomStop.js`, `RoomImposter.js`, `RoomTrivia.js`, `RoomScrew.js`…), bundled after it with the word lists by `rooms-worker/build.mjs`. See *Multiplayer rooms*.
 - **Frontend Entry Point (`Controller.html`):** The main HTML structure that includes styles, scripts, and various game views.
 - **Modular JavaScript (`JS_*.html`):** Game logic is organized into separate HTML files acting as JS modules (e.g., `JS_Core.html`, `JS_Monkey.html`, `JS_Utils.html`), included into the main template. The app's words are `JS_Translations.html` (`TRANSLATIONS`, loaded first) and every game's rules `JS_GameRules.html` (`GAME_RULES`, right after `JS_Core.html`); `JS_Core.html` is the core's code (3 Oct 2026: the three were one file of 18,000 lines).
 - **Styling (`Tailwind.html` + `Style*.html`):** `Tailwind.html` is generated - it holds
@@ -127,6 +131,7 @@ content decisions (words cut, kept, spelled) in `notes/content.md`.
 - **An idea from another app is rebuilt our way, never copied** (25 Sep 2026): name its own touch first - Egyptian words, the family at a party, the app's drawn art and motion, the TV and phones together.
 - **Everything built stays, and motion is everywhere** (26 Sep 2026): a simplification folds, hides or reorders (behind «كل الألعاب», «خيارات أكتر», a shelf's «الكل») and never removes a game, tool, option or way in; every screen and popup enters with motion, transform and opacity only, still under reduced motion.
 - **Nothing is waiting on the owner** (23 Sep 2026): سكرو deals 62 cards for Classic + الحرامي, and طرنيب ٤١ scores a failed 13 as 0 and lets team 1 win when both qualify in one round - closed as built.
+- **The structure** (5 Oct 2026): one folder per game, its words in it, one copy of what both sides run, the names check, `npm run new:game` (*Architecture*); the scripts stay `.html` and the CSS stays in `styles/` for now.
 - Rooms stay on Cloudflare; WebRTC was rejected. Firebase, if ever, on a different Google account from the one already tried.
 - **على نفس الموجة (Wavelength) was removed** (2 Oct 2026, the owner: not needed): its room game, TV screen, list and tests are gone; don't bring it back.
 - Not built, on purpose: صراحة أو جرأة (too tame when family-clean), تخمين السعر (prices go stale), Hot Takes-style opinion games (for adults), Web Push (not worth it yet), an "open in the app" banner for room links (impossible on iPhone).
@@ -245,7 +250,7 @@ a room's state; `lzWait`, `lzRun`, `lzEnsure`); a reload onto a game gets its
 chunk written in before start-up (`lzBootWrite`). The worker keeps chunks in
 `g-chunks` across builds and fetches them all when a build installs, so one
 visit still plays every game offline; `docs/g/` keeps the last four builds'
-files. The budget is the shell's (720 KB gzipped; raised from 710 by the owner on 2 Oct 2026); `LAZY=0` builds one page.
+files. The budget is the shell's (720 KB gzipped; raised from 710 by the owner on 2 Oct 2026); `LAZY=0` builds one page. On 5 Oct 2026 the shell was 719.8 KB: a new game's words, Help and screens (about 1 KB, every game's words are in the shell) won't fit, so the next game asks the owner to raise it.
 
 - **A new game file goes into `CHUNKS` in `tools/lazy-split.mjs`** (or
   `SHELL_FILES` when every screen needs it); a screen it can't place goes into
@@ -280,7 +285,16 @@ npm run check        # content + i18n
   strings were quietly the wrong ones before this check existed), and checks that
   every `data-i18n` attribute in the markup names a real key. It warns (without
   failing) about a `t.key` read with no translation and no fallback, and a key no
-  code reads (*Traps*: keys built from parts, a `t` that isn't a table).
+  code reads (*Traps*: keys built from parts, a `t` that isn't a table). It reads
+  `JS_Translations.html` with every game's `<id>.text.js` put in.
+- `check:names` (`tools/check-names.mjs`, 5 Oct 2026) reads the page's one
+  global scope (every page script and shared list, through `readPage`) and the
+  rooms server's bundle (`FILES`), and fails on a top-level name declared in two
+  files (the later one wins silently: *One scope means one name*) and on a name
+  used that nothing declares (ESLint's `no-undef`; a name the file checks with
+  `typeof` first is fine). Its first run found the Connections daily throwing at
+  its start (`rnd` gone in a rewrite); it caught a template of `new:game`
+  declaring one name in two files the day it was written.
 - `npm test` in `rooms-worker/` (with `npm run dev` running) plays every room
   game with robot players, in segments side by side: turns, votes, scores, that secrets never reach the
   wrong phone, reconnects, the server's clocks and the shared prompt memory.
@@ -500,15 +514,15 @@ shown 40 seconds too many. Measure from the arrival, never from the drawing: a
 screen that isn't showing draws its update seconds later.
 
 **One fold for typed text.** Every place one typed word meets another goes
-through `normaliseClue` in `RoomGames.js`: a Just One clue against the other
+through `normaliseClue` in `app/Common.js`: a Just One clue against the other
 clues, a Codenames clue against the board (and a room's own words against
 the bank), a Fibbage lie against the truth and the other lies, a Draw & Guess
 or Fake Artist guess against the word. It folds case, diacritics, the
 tatweel, أ/إ/آ/ٱ to ا, ة to ه, ى to ي, ؤ to و, ئ to ي, punctuation, spaces,
-and a leading "ال" or "the", so الأسد, أسد and اسد are one word. The client
-has the same function as `foldWord` in `JS_Core.html` (the Codenames clue
-check on the phone, the one-phone Just One) - keep the two identical - and
-`tools/validate-content.js` folds the banks the same way, so a list cannot
+and a leading "ال" or "the", so الأسد, أسد and اسد are one word. The page
+runs the very same function (`Common.js` is in the shell; `foldWord` in
+`JS_Core.html` calls it: the Codenames clue check on the phone, the one-phone
+Just One), and `tools/validate-content.js` folds the banks with it, so a list cannot
 hold one word in two spellings. `foldStopAnswer` is the exception because in
 Stop the Bus the first letter matters (see *أتوبيس كومبليت on separate
 phones*). Player names fold through `samePlayer` on the phone and the same
@@ -595,12 +609,15 @@ sit in `.tv-scale`, which zooms them in steps. Phone and TV frames share element
 ids (the canvas, the timers), so drawing one kind clears the other. A new room
 game needs its `TV_GAMES` entry as well.
 
-**Adding a game to the room layer**
+**Adding a game to the room layer** (`npm run new:game` does the wiring of
+every step below and writes a working game to start from; the list is what
+it did, and what to keep true as the game grows)
 
-1. Write its rules in a `Room<Game>.js` of its own, add it to `FILES` in
-   `rooms-worker/build.mjs` (after `RoomGames.js`) and its branch to
-   `applyRoomAction` in `RoomGames.js`. Put anything private in
-   `room.secrets[playerId]`, anything shared in `room.shared`.
+1. Write its rules in a `Room<Game>.js` of its own in `games/<id>/`, add it to
+   `FILES` in `rooms-worker/build.mjs` (after `RoomGames.js`), and register
+   them: `ROOM_RULES.<id> = { action, deadline, timeout, left }` (the games
+   before 5 Oct 2026 have a branch in `applyRoomAction` instead). Put anything
+   private in `room.secrets[playerId]`, anything shared in `room.shared`.
 2. Register `ROOM_GAMES.<id>` on the client with `lobbyOptions(state)`,
    `startPayload()` and `render(state)`.
 3. Add a `view-room-<id>` container and a `VIEW_META` entry.
@@ -608,7 +625,8 @@ game needs its `TV_GAMES` entry as well.
    to start it; it greys out its tile below that): that puts it in a room's list
    (`ROOM_HUB_GAMES`) and the server's `ROOM_GAME_IDS`, and its `crew` title.
 
-5. If it has a clock, add it to `roomDeadline` / `roomTimeout`. If it deals from
+5. If it has a clock, give `ROOM_RULES.<id>` its `deadline` / `timeout` (an older
+   game's are in `gameDeadline` / `gameTimeout`). If it deals from
    a list, deal through `nextPrompts` from an action named `start`, `nextRound`
    or `playAgain` (`DEAL_ACTIONS` in `room.js`), so the shared prompt memory is
    loaded for it.
@@ -619,15 +637,15 @@ game needs its `TV_GAMES` entry as well.
    uploads `docs/`.
 7. Its `GAME_LIST` entry (`Games.js`; see *The catalog and the home screen*) has
    `modes: ['room', 'tv']`, or it is not on the menu; and a `TV_GAMES` entry.
-8. Give it a case in `roomPlayerLeft` (what happens when someone leaves
-   mid-round), guard its per-round host actions with `staleTap` on what the
+8. Give `ROOM_RULES.<id>` its `left` (what happens when someone leaves
+   mid-round; an older game's case is in `gamePlayerLeft`), guard its per-round host actions with `staleTap` on what the
    phone saw, register its phone clocks with `onRoomClocksReset`, and give the
    host a way forward (on the phone and the TV) wherever the round waits on
    one phone.
 
 ### Switching a game off for a fix
 
-`DisabledGames.js` at the root (the owner, 28 Sep 2026: "disable any game
+`app/DisabledGames.js` (the owner, 28 Sep 2026: "disable any game
 while it is being upgraded or fixed ... later a one-word change"). **To switch
 a game off, put its id in `DISABLED_GAMES`; to switch it back on, take it out;
 then release as usual** (build the site, deploy the rooms server and the site).
@@ -1319,17 +1337,11 @@ the badge on every phone and the big number on the TV - sat at the question's
 full length and never counted down, on the live site, for as long as both
 existed. The room's is `paintRoomTriviaTimer` now, game-qualified like
 `paintStopRoomTimer` and `paintSpyfallRoomTimer` beside it. **Name anything
-per-game after its game**, and before adding a top-level name, check the whole
-tree for it:
-
-```bash
-grep -rlE "^(\s*(async\s+)?function NAME\s*\(|const NAME\s*=)"   --include="JS_*.html" --include="*.js" . | grep -v docs/
-```
-
-A sweep on 20 Sep 2026 found only that one. `TRIVIA_COUNTS` and
-`startCodenamesClock` are each declared twice, but one copy is in
-`RoomGames.js`, which is **not** part of the page - those are a client copy
-and a server copy, in separate scopes, and are fine.
+per-game after its game**. `npm run check` fails on a name declared twice in
+the page or in the server's bundle (`check:names`, 5 Oct 2026). A name on both
+sides - `startCodenamesClock` on the phone and on the server - is two scopes
+and fine; a value both sides need is written once, in `app/Common.js` or
+`rooms/RoomShared.js` (*Architecture*).
 
 **A webfont swapping in moves everything measured against the fallback, and
 it fires no event anyone listens to.** The segmented control's thumb and the
@@ -1731,14 +1743,19 @@ own rules in the help sheet and answers a search by name. Chess is the model
 (*Chess is one card, with its ways inside*, in *Decided, and why*). A game
 with its own name that people ask for gets its own card.
 
-**A new game, start to finish.** The pieces a game needs to be whole, each
-described in its own section of this guide: a `GAME_LIST` entry in `Games.js`
+**A new game, start to finish.** Start with `npm run new:game -- <id> --ar
+"…" --en "…" [--modes room,device]` (`tools/new-game.mjs`, `--dry` to see
+what it writes): it makes `games/<id>/` and the pieces below, with a small
+working game in them that every check and test passes, to replace with the
+real one once the owner has answered its rules and picked its look. The
+pieces a game needs to be whole, each described in its own section of this
+guide: a `GAME_LIST` entry in `Games.js`
 (or it is not on the menu; with `room` and `crew` for a room game); `VIEW_META` for every view (title, `up`, accent); its text in
-both `TRANSLATIONS` blocks; its rules in `GAME_RULES`, `HELP_ENTRIES` and
-`HELP_FOR_VIEW`; `validViews` and a `restoreView` branch for its play views;
+its `<id>.text.js` (with its `@game-text` markers); its rules there too, and its `HELP_ENTRIES` and
+`HELP_FOR_VIEW` lines; `VIEW_RESTORE` for its screens (an older game: `validViews` and a `restoreView` branch);
 dealing through `freshPick` (one phone) or `nextPrompts` (rooms); its content
 checked by `tools/validate-content.js`; the motion toolkit above; and in rooms
-also its `Room<Game>.js` and a branch in `applyRoomAction`, `ROOM_GAMES` and
+also its `Room<Game>.js` with `ROOM_RULES.<id>`, `ROOM_GAMES` and
 `TV_GAMES` renderers, a `roomTurnOf` case if a turn waits on one phone, a round in
 `rooms-worker/test/play-all.mjs`, and a deploy. Every game with its own card also takes a place in
 `TONIGHT_ORDER` («الليلة دي؟», `npm run check` fails without it), and a room game a

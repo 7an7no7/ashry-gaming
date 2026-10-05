@@ -530,7 +530,7 @@ worth rerunning after a big CSS change):
 6" from a before/after sheet of every screen; `Style_Talk.html`'s section *SIX
 OLDER SCREENS*):
 
-- **The team results** (`paintTeams`, JS_NewGames.html): a summary line (how
+- **The team results** (`paintTeams`, JS_Teams.html): a summary line (how
   many, «4 ضد 3», «قرعة» or «بالمهارة» from `appState.teams.resultHow`), a card
   per team in `--team-red`, `--team-blue`, `--success-btn`, `--warning-btn`
   with its count, the names in tiles of two with an initial, side by side from

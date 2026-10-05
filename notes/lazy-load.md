@@ -180,7 +180,7 @@ win room.
 | charades | JS_Charades | 20.3 | whoami |
 | describe | JS_DescribeIt | 28.8 |  |
 | wordle | JS_Wordle | 3.5 | w-wordle |
-| newgames | JS_NewGames | 22.5 |  |
+| newgames | JS_Teams, JS_JustOne, JS_Reaction (one file until 5 Oct 2026) | 22.5 |  |
 | screwcalc | JS_Screw | 9.3 |  |
 | monkey | JS_Monkey, JS_RoomMonkey | 12.1 | w-monkey |
 | spy | JS_Imposter | 4.9 | w-monkey, w-countries |

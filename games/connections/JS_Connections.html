@@ -144,7 +144,9 @@ function startConnections(daily, sure) {
   // Group index travels with each word so a guess can be checked without
   // searching the puzzle every time.
   const tiles = puzzle.groups.flatMap((g, gi) => g.words.map(w => ({ word: w, group: gi })));
-  connections.tiles = daily ? soloShuffle(tiles, rnd) : shuffleArray(tiles);
+  // The daily's tiles in the date's order (its `rnd` went with the move to soloDailyCycle,
+  // and the daily threw here until the names check found it, 5 Oct 2026).
+  connections.tiles = daily ? soloShuffle(tiles, soloRng(soloDaySeed('connections'))) : shuffleArray(tiles);
 
   setView('play-connections');
   renderConnections();

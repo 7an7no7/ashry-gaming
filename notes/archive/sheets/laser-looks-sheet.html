@@ -193,6 +193,7 @@
 
 <script>
 (() => {
+  if (!CanvasRenderingContext2D.prototype.roundRect) CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); this.moveTo(x + r, y); this.arcTo(x + w, y, x + w, y + h, r); this.arcTo(x + w, y + h, x, y + h, r); this.arcTo(x, y + h, x, y, r); this.arcTo(x, y, x + w, y, r); this.closePath(); };
   const PLAYERS = [
     { n: 'سارة', x: -0.45, y: -0.32, a: 24, t: 0, c: '#38e8ff' },
     { n: 'عمر', x: 0.52, y: 0.12, a: 204, t: 1, c: '#ff5c8a' },
@@ -251,7 +252,7 @@
   function caption(t, teams) {
     const out = [...hitsOf(teams)];
     let c = '';
-    for (const [at, s] of CAPS) if (t >= at) c = s ?? (at < 4 ? 'خرج: ' + out.join(' و ') : 'الجولة ٢: ' + (6 - out.length) + ' باقيين والحلبة أصغر');
+    for (const [at, s] of CAPS) if (t >= at) c = (s != null ? s : null) || (at < 4 ? 'خرج: ' + out.join(' و ') : 'الجولة ٢: ' + (6 - out.length) + ' باقيين والحلبة أصغر');
     return c;
   }
 
@@ -463,7 +464,8 @@
     }
   }
 
-  const DRAW = { A: drawA, B: drawB, C: drawC };
+  const safe = f => (...a) => { try { f(...a); } catch (e) { console.error(e); } };
+  const DRAW = { A: safe(drawA), B: safe(drawB), C: safe(drawC) };
 
   function fit(cv) {
     const r = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);

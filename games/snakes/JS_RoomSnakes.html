@@ -464,7 +464,12 @@ ROOM_GAMES.snakes = {
     const k = snkRoomCtx(state, false);
     const local = [state.youAreHost, appState.lang, Room.me].join('|');
     // The room's strip of people sits in the column beside the board, so the page never scrolls.
-    renderRoomFrame(el, snkServerSig(state) + '#' + local, () => snkFrameHtml(Object.assign({}, k, { strip: renderRoomPlayerStrip(state) })));
+    // The whole frame is rebuilt only when its shape changes (the end, the host, the language): a turn
+    // redraws the side column alone, so the board stays put and its map's loops play on.
+    const sig = snkServerSig(state) + '#' + local;
+    const build = () => snkFrameHtml(Object.assign({}, k, { strip: renderRoomPlayerStrip(state) }));
+    if (renderRoomFrame(el, [s.phase === 'gameover' ? 'over' : 'play', local].join('#'), build)) el._snkSide = sig;
+    else if (el._snkSide !== sig) { const html = build(); if (!snkSideSwap(el, html)) el.innerHTML = html; el._snkSide = sig; }
     snkRefreshInPlace(el, state, false);
     snkTickClock(state);
     snkRoomFeed(el, state, false);
@@ -491,17 +496,27 @@ Room.onChange((state) => {
 /* --- the TV: the board takes the height, the players beside it --------------------------------- */
 
 TV_GAMES.snakes = {
+  // The frame's shape only: a turn redraws the side column in after(), so the board isn't re-inserted.
   sig(state) {
-    return snkServerSig(state) + '|' + state.youAreHost + '|' + appState.lang;
+    const s = snkShared(state);
+    return [Array.isArray(s.seats), s.phase === 'gameover', state.youAreHost, appState.lang].join('|');
   },
   frame(state) {
     const s = snkShared(state);
     if (!Array.isArray(s.seats)) return '';
     return snkFrameHtml(snkRoomCtx(state, true));
   },
-  after(state) {
+  after(state, rebuilt) {
     const view = document.getElementById('view-room-tv');
     if (!view) return;
+    const s = snkShared(state);
+    const sig = snkServerSig(state) + '|' + state.youAreHost + '|' + appState.lang;
+    if (rebuilt) view._snkSide = sig;
+    else if (Array.isArray(s.seats) && view._snkSide !== sig) {
+      const html = snkFrameHtml(snkRoomCtx(state, true));
+      if (!snkSideSwap(view, html)) { const stage = view.querySelector('.tv-stage'); if (stage) stage.innerHTML = html; }
+      view._snkSide = sig;
+    }
     snkTickClock(state);
     snkRefreshInPlace(view, state, true);
     snkRoomFeed(view, state, true);

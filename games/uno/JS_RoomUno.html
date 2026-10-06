@@ -395,7 +395,7 @@ function unoPlayable(state, card) {
   const s = state.shared || {};
   if (!unoMyTurn(state) || !card) return false;
   if (s.turn.stage === 'color') return false;
-  if (s.turn.stage === 'drawn') return String(card.i) === String((state.you || {}).drawn);
+  if (s.turn.stage === 'drawn') return String(card.i) === String((state.you || {}).drawn) && !unoMateBlocked(state, card);
   const top = unoTopCard(s);
   return unoCanPlay(card.k, top ? top.k : null, s.color, s.pending, s.settings || {}) && !unoMateBlocked(state, card);
 }
@@ -1066,8 +1066,8 @@ ROOM_GAMES.uno = {
           </label>
           <p class="field__hint">${escapeHTML(hintText)}</p>
         </div>`;
-    // A TV hosting the room has no lobbyTop: the teams' switch and boxes come with its options.
-    return `${state.youAreScreen ? unoLobbyTeamsHtml(state) : ''}<div class="card card--tight uno-lobby">
+    // The teams' switch and boxes come from lobbyTop on every screen (a hosting TV's too).
+    return `<div class="card card--tight uno-lobby">
         <div class="uno-lobby__cards" aria-hidden="true">${['r7', 'yd', 'gs', 'bv', 'w4'].map(k => unoCardHtml(k, { size: 'sm' })).join('')}</div>
         <p class="field__hint" style="text-align:center">${CARD_GLYPH} ${escapeHTML(typeof unoDecksFor === 'function' && unoDecksFor(n) > 1 ? unoT('uno_deck_two') : unoT('uno_deck_one'))}</p>
         ${few}

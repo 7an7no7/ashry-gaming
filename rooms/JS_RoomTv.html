@@ -466,7 +466,8 @@ function tvLobby(state, t) {
     const people = own ? '' : `<div class="tv-lobby__players">${state.players.map(tile).join('')}</div>`;
     // 🕵️ المهمة السرية on: the cork board - each photo with its pile of closed files - in place of the tiles.
     const board = typeof missionTvBoardHtml === 'function' && state.mission && state.mission.on ? missionTvBoardHtml(state) : '';
-    const top = state.game && ROOM_GAMES[state.game] && ROOM_GAMES[state.game].lobbyTop ? ROOM_GAMES[state.game].lobbyTop(state, true) : '';
+    // One panel: a game that draws its own people (tvLobbyPlayers) already shows its teams there.
+    const top = !own && state.game && ROOM_GAMES[state.game] && ROOM_GAMES[state.game].lobbyTop ? ROOM_GAMES[state.game].lobbyTop(state, true) : '';
     control = `${chosen}${top ? `<div class="tv-scale">${top}</div>` : ''}${board || own || people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
     // The stage (the owner's look 2A, 3 Oct 2026): «يلا نلعب!», the code beside
     // the QR, and everyone as a big face along the foot, each new one dropping in.

@@ -186,7 +186,7 @@ const witnessLineup = (rnd) => {
 };
 
 /* --- «الرسم مطابق 78%»: the sketch held against the real face (the owner, 2 Oct 2026) ---
-   Feature by feature, each the same weight: the builder's own categories (the
+   Feature by feature (weighted, see below): the builder's own categories (the
    page's WIT_CATS keys), only those that show on the real face (no hair colour
    under a hijab or on a bald head, no hair style under a hijab, no eye colour
    behind sunglasses, a beard only on a man, a scarf and the extras only without
@@ -221,13 +221,16 @@ const WITNESS_FEATURES = [
   { k: 'pattern', get: x => x.pattern }
 ];
 
-/** { feats: [{ k, ok }], ok, of, pct }: the sketch against the real face, over the features the real face shows. */
+/** { feats: [{ k, ok }], ok, of, pct }: the sketch against the real face, over the features the real face shows.
+   ok / of count the ticks; pct is weighted by each feature's `w` (default 1). */
 const witnessMatch = (sketch, real) => {
   if (!real) return { feats: [], ok: 0, of: 0, pct: 0 };
   const a = witnessClean(sketch || witnessBlank('m'));
   const b = witnessClean(real);
-  const feats = WITNESS_FEATURES.filter(f => !f.when || f.when(b))
-    .map(f => ({ k: f.k, ok: String(f.get(a, b)) === String(f.get(b, b)) }));
+  const shown = WITNESS_FEATURES.filter(f => !f.when || f.when(b));
+  const feats = shown.map(f => ({ k: f.k, ok: String(f.get(a, b)) === String(f.get(b, b)) }));
   const ok = feats.filter(f => f.ok).length;
-  return { feats, ok, of: feats.length, pct: feats.length ? Math.round(ok * 100 / feats.length) : 0 };
+  let sum = 0, got = 0;
+  shown.forEach((f, i) => { const w = f.w || 1; sum += w; if (feats[i].ok) got += w; });
+  return { feats, ok, of: feats.length, pct: sum ? Math.round(got * 100 / sum) : 0 };
 };

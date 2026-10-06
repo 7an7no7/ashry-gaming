@@ -623,11 +623,14 @@ const snkView = { root: null, c: null, raf: 0, lastFrame: 0, lastT: 0 };
 function snkEnsure(themeId) {
   const want = snkThemeOf(themeId) ? themeId : 'classic';
   if (snkView.root && snkView.c) {
-    if (themeId === undefined || snkView.c.themeId === want) return snkView.c;
+    // The board's own words (ابدأ, أنت, the signs) are drawn once: another language is a new board too.
+    const sameLang = snkView.c.lang === appState.lang;
+    if (sameLang && (themeId === undefined || snkView.c.themeId === want)) return snkView.c;
     // Another map's dress: a new board in its place (the frame keeps the place: snkShowIn puts it back).
     const host = snkView.root.parentNode;
+    const keepTheme = themeId === undefined ? snkView.c.themeId : want;
     snkDrop();
-    const c2 = snkEnsure(want);
+    const c2 = snkEnsure(keepTheme);
     if (host) host.appendChild(snkView.root);
     return c2;
   }
@@ -639,7 +642,7 @@ function snkEnsure(themeId) {
   const q = (sel) => svg.querySelector(sel);
   const c = {
     svg: svg, gen: 0, fast: false, map: null, built: false, key: '', lastSeq: 0, queue: [], playing: false, busyUntil: 0,
-    th: th, themeId: want,
+    th: th, themeId: want, lang: appState.lang,
     tiles: [...svg.querySelectorAll('.snk-tile')].map(g => { const n = Number(g.dataset.n); const p = snakesCellXY(n); return { g: g, num: svg.querySelector(`.snk-num[data-n="${n}"]`), cx: p.x, cy: p.y }; }),
     holesL: q('.snk-holes'), headsL: q('.snk-heads'), laddersL: q('.snk-ladders'), snakesL: q('.snk-snakes'), under: q('.snk-under'), fx: q('.snk-fx'),
     piecesL: q('.snk-pieces'), trophy: q('.snk-cupw'), die: q('.snk-die'), surpL: q('.snk-surp'), zzL: q('.snk-zzL'),
@@ -665,6 +668,7 @@ function snkEnsure(themeId) {
 
 /** Throws the board away (no screen shows it any more). */
 function snkDrop() {
+  snkAwClose();   // the awards replay lives on this board: its sounds and confetti stop with it
   const c = snkView.c;
   if (c) { c.gen++; c.queue = []; c.playing = false; }
   if (snkView.raf) cancelAnimationFrame(snkView.raf);
@@ -2721,7 +2725,8 @@ async function snkBuild(c, g, e, m, seats) {
   c.snakes.forEach(sn => { sn.s = sn.L; sn.holeK = 0; sn.dir = 1; sn.amp = 5; sn.bulge = null; sn.jaw = 0; sn.mood = ''; sn.lunge = { x: 0, y: 0, s: 1 }; });
   c.ladders.forEach(l => { l.g.setAttribute('transform', `translate(${l.side * 720} 0)`); if (l.base) l.base.setAttribute('opacity', 0); });
   Object.keys(c.surp).forEach(n => c.surp[n].wrap.setAttribute('opacity', 0));
-  Object.keys(c.players).forEach(id => { const p = c.players[id]; p.n = 0; p.hidden = true; p.e.setAttribute('opacity', 0); snkFace(p, ''); });
+  // A piece kept from the last game starts this one clean: no charm ring, no pillow or Zzz, no dance.
+  Object.keys(c.players).forEach(id => { const p = c.players[id]; p.n = 0; p.hidden = true; p.dancing = false; p.e.setAttribute('opacity', 0); snkCharmOn(c, p, false); snkNapOn(c, p, false); snkCalm(p); snkFace(p, ''); });
   c.trophy.setAttribute('transform', 'scale(0.001)');
   snkSound(c, 'snkBuild', false);
   await snkTween(c, g, 1300, (t, r) => c.tiles.forEach((tl, i) => snkTileK(tl, snkBackOut(snkClamp(r * 2.3 - order(i) * 0.013, 0, 1)))), snkLin);
@@ -2763,7 +2768,7 @@ function snkSyncPlayers(c, g, me, keep) {
   want.forEach((id, i) => {
     const col = SNK_HEX[g.colors[id]] || '#888';
     let p = c.players[id];
-    if (p && p.col !== col) { p.e.remove(); p = null; }
+    if (p && p.col !== col) { if (p.zz) p.zz.remove(); p.e.remove(); p = null; }
     if (!p) {
       const e = snkEl('g', { class: 'snk-piece' }, c.piecesL);
       // The disc under whoever's turn it is, and «أنت» on a plate under your own feet (the owner's sheet,
@@ -2783,7 +2788,7 @@ function snkSyncPlayers(c, g, me, keep) {
 /** The board set where the game is, with nothing to play. */
 function snkSettleTo(c, g) {
   // Nothing is played: a leaver's piece simply goes.
-  Object.keys(c.players).forEach(id => { if ((g.seats || []).indexOf(id) === -1) { c.players[id].e.remove(); delete c.players[id]; } });
+  Object.keys(c.players).forEach(id => { if ((g.seats || []).indexOf(id) === -1) { if (c.players[id].zz) c.players[id].zz.remove(); c.players[id].e.remove(); delete c.players[id]; } });
   c.gen++;
   c.queue = [];
   c.playing = false;
@@ -3511,6 +3516,25 @@ function snkFrameHtml(k) {
     </div>`;
 }
 
+/**
+ * A redraw that leaves the board where it is: only the side column of `html` (a whole snkFrameHtml)
+ * replaces the one in `el`. Taking the board out and putting it back restarts the maps' CSS loops
+ * (the metro's train, the camel, the tuk-tuk), so a roll must not. False when it can't (no frame
+ * yet, the board not in its place, the frame's own classes changed: the end, the TV): the caller
+ * then rebuilds the whole frame.
+ */
+function snkSideSwap(el, html) {
+  const host = el && el.querySelector('[data-snk-host]'), frame = el && el.querySelector('.snk');
+  if (!host || !frame || !snkView.root || snkView.root.parentNode !== host) return false;
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  const neu = t.content.firstElementChild;
+  const side = frame.querySelector('.snk-layout__side'), nside = neu && neu.classList.contains('snk') ? neu.querySelector('.snk-layout__side') : null;
+  if (!side || !nside || neu.className !== frame.className) return false;
+  side.replaceWith(nside);
+  return true;
+}
+
 /* --- against the phone ------------------------------------------------------------------------- */
 
 let snkBotTimer = null;
@@ -3817,7 +3841,8 @@ function paintSnakes(opts) {
   if (!el || !s.g) return;
   const k = snkLocalCtx();
   k.showOver = s.g.phase === 'gameover';
-  el.innerHTML = snkFrameHtml(k);
+  const html = snkFrameHtml(k);
+  if (!snkSideSwap(el, html)) el.innerHTML = html;
   const c = snkShowIn(el.querySelector('[data-snk-host]'), snakesTheme(s.g));
   k.onStep = () => snkSyncIdle(el, k);
   k.onIdle = () => {

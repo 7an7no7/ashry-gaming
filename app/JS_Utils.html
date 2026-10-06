@@ -2591,6 +2591,8 @@ function openExitSheet(navTarget) {
     const rows = [];
     if (playing && state.youAreHost) rows.push(exitSheetRow(t.exit_room_change || '', 'exitSheetBackToHub()', 'btn--primary btn--lg'));
     if (playing && !state.youAreHost) rows.push(exitSheetRow(t.exit_room_ask || '', 'exitSheetAsk()', 'btn--secondary btn--lg'));
+    // The bar (Help's door) is hidden while a game is played: the rules are here.
+    rows.push(exitSheetRow(t.exit_rules || '', "closeModal('exit-modal'); openHelpModal()"));
     rows.push(exitSheetRow(t.exit_room_menu || '', "closeModal('exit-modal'); setView('menu')"));
     rows.push(exitSheetRow(t.exit_room_leave || '', "closeModal('exit-modal'); roomLeave()", 'btn--danger-soft'));
     body.innerHTML = `
@@ -2619,6 +2621,7 @@ function openExitSheet(navTarget) {
       <div class="btn-stack">
         ${leave}
         ${exitSheetRow(t.exit_settings || '', `closeModal('exit-modal'); setView('${jsStringAttr(up)}')`)}
+        ${exitSheetRow(t.exit_rules || '', "closeModal('exit-modal'); openHelpModal()")}
       </div>`;
     // The round waits while the table reads this.
     pauseClocksForSheet();

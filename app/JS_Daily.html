@@ -59,17 +59,25 @@ function dailyDone() {
   return DAILY_GAMES.filter(g => soloDailyResult(g.id));
 }
 
+/** Today's dailies that can be played: one switched off (DISABLED_GAMES) can't be, so it
+    doesn't hold back «خلصت كل حاجة», the count and the bar while it is off. */
+function dailyLive() {
+  return DAILY_GAMES.filter(g => !(typeof catalogOff === 'function' && catalogOff(g.id)));
+}
+
 function renderDaily() {
   const el = document.getElementById('daily-stage');
   if (!el) return;
   soloHubReturn = false;
   const t = TRANSLATIONS[appState.lang];
   const done = dailyDone();
+  const live = dailyLive();
+  const liveDone = live.filter(g => soloDailyResult(g.id)).length;
   const streak = soloStreak();
   const now = new Date();
   const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
   const hours = Math.max(1, Math.ceil((midnight - now) / 3600000));
-  const all = done.length === DAILY_GAMES.length;
+  const all = live.length > 0 && liveDone === live.length;
   const first = motionFirst('daily-hub:' + soloToday() + ':' + done.length);
   // Today's puzzles come first (the owner, 3 Oct 2026): how far the day is, then
   // the list; the streak, sharing and the archive under it. «شارك» shows once
@@ -91,8 +99,8 @@ function renderDaily() {
   el.innerHTML = `
     <div class="daily-head daily-head--progress card">
       <div class="daily-head__progress">
-        <span>${escapeHTML((t.daily_progress || '').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length))}</span>
-        <span class="daily-bar" aria-hidden="true"><i style="--p:${done.length / DAILY_GAMES.length}"${first ? ' class="is-new"' : ''}></i></span>
+        <span>${escapeHTML((t.daily_progress || '').replace('{n}', liveDone).replace('{m}', live.length))}</span>
+        <span class="daily-bar" aria-hidden="true"><i style="--p:${live.length ? liveDone / live.length : 0}"${first ? ' class="is-new"' : ''}></i></span>
         <span class="field__hint">${escapeHTML(all ? (t.daily_all_done || '') : (t.daily_renews || '').replace('{h}', hours))}</span>
       </div>
       ${all ? `<button type="button" class="btn btn--primary" onclick="shareDaily()">📤 ${escapeHTML(t.daily_share_all || '')}</button>
@@ -147,7 +155,7 @@ function shareDaily() {
     return `${dailyIconText(cat.icon)}${t[cat.title] || g.id}: ${g.line(soloDailyResult(g.id))}`;
   });
   // "3 من 11" rather than "3/11", which reads as a date next to the day's date.
-  const count = (t.daily_progress || '{n} من {m}').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length);
+  const count = (t.daily_progress || '{n} من {m}').replace('{n}', done.length).replace('{m}', Math.max(done.length, dailyLive().length));
   const text = `${soloShareHeader(t)} · ${count}\n${streak > 1 ? `🔥 ${streak} ${t.daily_days || ''}\n` : ''}${lines.join('\n')}`;
   // The same day as a picture: a game to a row, its result beside it. The
   // words still travel with it, for anyone reading on a phone that shows text.
@@ -174,7 +182,7 @@ function shareDailyText() {
     const cat = CATALOG_BY_ID[g.id];
     return `${dailyIconText(cat.icon)}${t[cat.title] || g.id}: ${g.line(soloDailyResult(g.id))}`;
   });
-  const count = (t.daily_progress || '{n} من {m}').replace('{n}', done.length).replace('{m}', DAILY_GAMES.length);
+  const count = (t.daily_progress || '{n} من {m}').replace('{n}', done.length).replace('{m}', Math.max(done.length, dailyLive().length));
   shareOrCopy(appLink(), `${soloShareHeader(t)} · ${count}\n${streak > 1 ? `🔥 ${streak} ${t.daily_days || ''}\n` : ''}${lines.join('\n')}`, t.solo_copied || '');
 }
 

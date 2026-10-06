@@ -298,9 +298,9 @@ function hmWriteError(text) {
  * The 2nd and 3rd hints (the owner, 2 Oct 2026: up to 3, all optional), folded: the 2nd opens on a
  * guesser's 2nd miss, the 3rd on the 4th. A <details> so the form stays short for one hint or none.
  */
-function hmMoreHintsHtml() {
-  const field = (n) => `<label class="field__label hm-write__label" for="hm-write-hint${n}">${escapeHTML(hmT('hm_hint_n_label', { n: n, m: HM_HINT_OPENS[n - 1] }))}</label>
-      <input type="text" name="h${n}" id="hm-write-hint${n}" class="hm-write__hint" maxlength="${HM_HINT_MAX}" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done">`;
+function hmMoreHintsHtml(pre) {
+  const field = (n) => `<label class="field__label hm-write__label" for="${pre}-hint${n}">${escapeHTML(hmT('hm_hint_n_label', { n: n, m: HM_HINT_OPENS[n - 1] }))}</label>
+      <input type="text" name="h${n}" id="${pre}-hint${n}" class="hm-write__hint" maxlength="${HM_HINT_MAX}" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done">`;
   return `<details class="hm-more-hints"><summary>${escapeHTML(hmT('hm_more_hints'))}</summary>
       <div class="hm-more-hints__body">${field(2)}${field(3)}</div></details>`;
 }
@@ -318,20 +318,20 @@ function hmWriteFormHtml(submit, placeholderName, o) {
       <label class="field__label hm-write__label" for="hm-write-hint">${escapeHTML(hmT('hm_hint_label'))}</label>
       <input type="text" name="h" id="hm-write-hint" class="hm-write__hint" maxlength="${HM_HINT_MAX}" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"
         placeholder="${escapeHTML(hmT('hm_hint_ph_short'))}">
-      ${hmMoreHintsHtml()}
+      ${hmMoreHintsHtml('hm-write')}
       <p class="field__hint tx-danger hm-write__err" role="alert"></p>
     </form>`;
   }
   return `<form class="hm-write" onsubmit="event.preventDefault(); ${submit}(this)">
       <div class="hm-write__row">
-        <span class="secret-field"><input type="text" class="is-hidden" name="w" id="hm-write-input" maxlength="28" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        <span class="secret-field"><input type="text" class="is-hidden" name="w" id="hm-rwrite-input" maxlength="28" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
           placeholder="${escapeHTML(hmT('hm_write_ph'))}" aria-label="${escapeHTML(hmT('hm_write_ph'))}"><span class="secret-field__dots" aria-hidden="true"></span></span>
         <button type="button" class="btn btn--ghost btn--auto hm-write__eye" onclick="hmToggleEye(this)" aria-label="${escapeHTML(hmT('hm_show_word'))}" title="${escapeHTML(hmT('hm_show_word'))}">👁️</button>
       </div>
       <p class="field__hint">${escapeHTML(hmT('hm_write_hint'))}</p>
       <input type="text" name="h" class="hm-write__hint" maxlength="${HM_HINT_MAX}" autocomplete="off" autocorrect="off" spellcheck="false"
         placeholder="${escapeHTML(hmT('hm_hint_ph'))}" aria-label="${escapeHTML(hmT('hm_hint_ph'))}">
-      ${hmMoreHintsHtml()}
+      ${hmMoreHintsHtml('hm-rwrite')}
       <p class="field__hint tx-danger hm-write__err" role="alert"></p>
       <button type="submit" class="btn btn--primary btn--lg">${escapeHTML(placeholderName)}</button>
     </form>`;
@@ -676,6 +676,8 @@ function setHmRoomOpt(key, value) {
     if (list.indexOf(Number(o.rounds)) === -1) patch.rounds = value === 'teams' ? 6 : 5;
   }
   rememberOptions('hangmanRoom', patch);
+  // Out of the team way: take the split off the other phones' lobbies too.
+  if (key === 'mode' && value !== 'teams' && Room.state && Room.state.youAreHost && Room.state.phase === 'lobby' && ((Room.state.shared || {}).lobby || {}).sides) roomAct('sides', { clear: true });
   duelLobbyRedraw();
 }
 
@@ -1051,6 +1053,12 @@ function hmRoomHold(state, tv) {
   const rows = hmTeamsOn(s) ? {} : hmRowMoments(state, prog);
   const fresh = Object.keys(rows).some(id => rows[id].late < 400);
   if (!hold && !fresh) return null;
+  // A guesser who finished earlier keeps their own finished board through the hold (their secret
+  // is gone once the word is over), not «انت بتتفرج» over blank tiles.
+  if (!hold && !tv && !hmTeamsOn(s) && was && (was.state === 'won' || was.state === 'lost') && Array.isArray(was.pattern) && was.pattern.length && s.result && s.result.word) {
+    const pattern = was.state === 'won' ? Array.from(hmClean(s.result.word)) : was.pattern.slice();
+    hold = { board: { pattern, g: was.g.slice(), miss: was.miss.slice(), state: was.state, end: (prog[Room.me] || {}).end }, fx: {} };
+  }
   hold = hold || { board: null, fx: {} };
   hold.key = key;
   hold.until = now + HM_HOLD_MS;
@@ -1198,10 +1206,13 @@ ROOM_GAMES.hangman = {
           after: tb.state && tb.state !== 'play' ? `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(tb.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p></div>` : ''
         });
         if (tb.state === 'play' && !on && myTeam === s.gt) mine += `<p class="field__hint hm-say">${escapeHTML(hmT('hm_team_say', { name: s.captainName || '' }))}</p>`;
-      } else if (you.word) {
+      } else if (you.word || (hold && s.setter === Room.me && s.result && s.result.word)) {
+        // The writer's word; through the hold (the secret is gone once the word is over) from the result.
+        const w = you.word || s.result.word;
+        const wHints = you.word ? (you.hints || []) : (s.result.hints || []);
         mine = `<div class="card hm-mine-word"><p class="eyebrow">${escapeHTML(hmT('hm_your_word'))}</p>
-            ${hmTilesHtml(Array.from(hmClean(you.word)), hmAlphaOf(you.word), {})}
-            ${(you.hints || []).length > 1 ? `<p class="hm-result__hints">${you.hints.map((h, i) => `💡${i + 1} ${escapeHTML(h)}`).join(' · ')}</p>` : ''}
+            ${hmTilesHtml(Array.from(hmClean(w)), hmAlphaOf(w), {})}
+            ${wHints.length > 1 ? `<p class="hm-result__hints">${wHints.map((h, i) => `💡${i + 1} ${escapeHTML(h)}`).join(' · ')}</p>` : ''}
             <p class="field__hint">${escapeHTML(hmT('hm_you_watch'))}</p></div>`;
       } else if (Array.isArray(you.pattern) || (hold && hold.board)) {
         const b = Array.isArray(you.pattern) ? you : hold.board;

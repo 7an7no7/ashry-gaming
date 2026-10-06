@@ -108,7 +108,7 @@ const svRaceOn = (id) => SV_RACE_IDS.indexOf(id) !== -1 && !(typeof roomGameIsOf
 const svRaceLineupOk = (list) => {
   if (!Array.isArray(list) || SV_RACE_ROUNDS.indexOf(list.length) === -1) return null;
   const out = list.map(String);
-  return out.every((id, i) => SV_RACE_IDS.indexOf(id) !== -1 && out.indexOf(id) === i) ? out : null;
+  return out.every((id, i) => svRaceOn(id) && out.indexOf(id) === i) ? out : null; // a puzzle switched off since the draw is never dealt
 };
 
 /** `n` puzzles: what is kept first (else the one the lobby was opened with), the rest drawn. */

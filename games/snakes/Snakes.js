@@ -443,7 +443,7 @@ const snakesNewGame = (seats, colors, seed, now, opts) => {
     g.teamPlaces = [];
   }
   // What the awards are made of: who was eaten most, the longest ladder, the most sixes, the worst fall.
-  g.stats = { eaten: {}, sixes: {}, eats: {}, lead: {}, fall: null, ladder: null };
+  g.stats = { eaten: {}, sixes: {}, eats: {}, lead: {}, fall: null, ladder: null, falls: {}, ladders: {} };
   const buildMs = SNAKES_BUILD_MS + (o.teardown ? SNAKES_TEARDOWN_MS : 0);
   snakesEvent(g, 'build', { v: Math.floor((o.rnd || Math.random)() * SNAKES_BUILD_VARIANTS), teardown: !!o.teardown, ms: buildMs, first: seats[0] });
   g.readyAt = (now || 0) + buildMs;
@@ -520,9 +520,11 @@ const snakesNearestSnake = (map, n) => {
 /** The team `id` is on (its index in g.teams), or -1 (no teams). */
 const snakesTeamOf = (g, id) => (Array.isArray(g.teams) ? g.teams.findIndex(t => t.indexOf(id) !== -1) : -1);
 
-/** A team is done when it still has someone at the table and all of them are home. */
+/** A team is done when it still has someone at the table and all of them are home (one who left
+    home stays in seats but is in g.gone: not at the table, so a team of only them is not done). */
 const snakesTeamDone = (g, ti) => {
-  const live = ((g.teams || [])[ti] || []).filter(id => g.seats.indexOf(id) !== -1);
+  const gone = g.gone || [];
+  const live = ((g.teams || [])[ti] || []).filter(id => g.seats.indexOf(id) !== -1 && gone.indexOf(id) === -1);
   return live.length > 0 && live.every(id => g.places.indexOf(id) !== -1);
 };
 
@@ -606,6 +608,9 @@ const snakesFallen = (g, pid, from, to) => {
   const st = g.stats;
   if (!st || !(from > to)) return;
   if (!st.fall || from - to > st.fall.val) st.fall = { pid: pid, from: from, to: to, val: from - to };
+  // Each one's own worst too, so the award passes on when its holder leaves.
+  st.falls = st.falls || {};
+  if (!st.falls[pid] || from - to > st.falls[pid].val) st.falls[pid] = { from: from, to: to, val: from - to };
 };
 /** Eaten by a snake (it lands on its head, or the snake moves onto it): counted, and its squares kept for the replay. */
 const snakesEaten = (g, pid, h, t) => {
@@ -627,10 +632,21 @@ const snakesAwards = (g) => {
   if (!st) return [];
   const out = [];
   const lead = st.lead || {};
-  if (lead.eaten && lead.eaten.val >= 1) out.push({ k: 'eaten', pid: lead.eaten.pid, val: lead.eaten.val, eats: (st.eats[lead.eaten.pid] || []).slice() });
-  if (st.ladder) out.push({ k: 'ladder', pid: st.ladder.pid, val: st.ladder.val, from: st.ladder.from, to: st.ladder.to });
-  if (lead.sixes && lead.sixes.val >= 2) out.push({ k: 'sixes', pid: lead.sixes.pid, val: lead.sixes.val });
-  if (st.fall) out.push({ k: 'fall', pid: st.fall.pid, val: st.fall.val, from: st.fall.from, to: st.fall.to });
+  // The record if its holder is still seated; when they left, the best of those still seated (each
+  // one's own record), so an award goes to the next player instead of vanishing.
+  const best = (top, per) => {
+    if (!top || g.seats.indexOf(top.pid) !== -1) return top || null;
+    let b = null;
+    g.seats.forEach(id => { const r = (per || {})[id]; if (r && (!b || r.val > b.val)) b = Object.assign({ pid: id }, r); });
+    return b;
+  };
+  const counts = (key) => { const o = {}; Object.keys(st[key] || {}).forEach(id => { o[id] = { val: st[key][id] }; }); return o; };
+  const eaten = best(lead.eaten, counts('eaten')), sixes = best(lead.sixes, counts('sixes'));
+  const ladder = best(st.ladder, st.ladders), fall = best(st.fall, st.falls);
+  if (eaten && eaten.val >= 1) out.push({ k: 'eaten', pid: eaten.pid, val: eaten.val, eats: (st.eats[eaten.pid] || []).slice() });
+  if (ladder) out.push({ k: 'ladder', pid: ladder.pid, val: ladder.val, from: ladder.from, to: ladder.to });
+  if (sixes && sixes.val >= 2) out.push({ k: 'sixes', pid: sixes.pid, val: sixes.val });
+  if (fall) out.push({ k: 'fall', pid: fall.pid, val: fall.val, from: fall.from, to: fall.to });
   const score = (a) => a.val / SNAKES_AWARD_CAP[a.k];
   return out.filter(a => g.seats.indexOf(a.pid) !== -1)
     .sort((a, b) => score(b) - score(a)).slice(0, SNAKES_AWARDS_MAX).reverse();
@@ -657,7 +673,8 @@ const snakesCheckOver = (g) => {
         snakesEvent(g, 'teamDone', { team: ti, place: g.teamPlaces.length });
       }
     });
-    const left = g.teams.map((t, ti) => ti).filter(ti => g.teamPlaces.indexOf(ti) === -1 && g.teams[ti].some(id => g.seats.indexOf(id) !== -1));
+    // A team still in it has someone at the table: one whose members have all left takes no place.
+    const left = g.teams.map((t, ti) => ti).filter(ti => g.teamPlaces.indexOf(ti) === -1 && g.teams[ti].some(id => g.seats.indexOf(id) !== -1 && (g.gone || []).indexOf(id) === -1));
     if (left.length > 1) return false;
     if (left.length === 1) {
       g.teamPlaces.push(left[0]);
@@ -697,7 +714,8 @@ const snakesMoveSpot = (g, rnd) => {
     const used = new Set([1, 100]);
     others.forEach(s => { used.add(s.h); used.add(s.t); });
     m.ladders.forEach(l => { used.add(l.f); used.add(l.t); });
-    Object.keys(m.surp || {}).forEach(n => used.add(Number(n)));
+    // The peel's square 3 back stays free too (as at the deal): a piece that slips there is never on a head.
+    Object.keys(m.surp || {}).forEach(n => { used.add(Number(n)); if (m.surp[n] === 'peel') used.add(Number(n) - SNAKES_PEEL_BACK); });
     const band = bandOf(snakesRowOf(old.h));
     for (let t = 0; t < 60; t++) {
       const h = band[0] * 10 + 1 + Math.floor(rnd() * (band[1] - band[0] + 1) * 10);
@@ -753,18 +771,23 @@ const snakesMaybeMove = (g, rnd) => {
  * the turn that would move it: «نايم!», its nap is used up and the turn goes on (`nap` event, waited
  * for in readyAt).
  */
-const snakesPassTurn = (g, pid) => {
+const snakesPassTurn = (g, pid, now) => {
   if (g.took) g.took[pid] = (g.took[pid] || 0) + 1;
-  let next = snakesNextSeat(g, pid);
+  g.turn = { pid: snakesNapSkip(g, snakesNextSeat(g, pid), now), sixes: 0 };
+};
+
+/** The nap rule from `next` on: each napper's turn is used up and the turn goes to the first awake.
+    The hold counts from `now` when readyAt is older (a turn passed by a leave, not by a roll). */
+const snakesNapSkip = (g, next, now) => {
   for (let guard = 0; next && g.nap && g.nap[snakesPieceOf(g, next)] && guard < 12; guard++) {
     const who = snakesPieceOf(g, next);
     delete g.nap[who];
     snakesEvent(g, 'nap', { pid: who, by: who !== next ? next : undefined, ms: SNAKES_NAP_MS });
-    g.readyAt = (g.readyAt || 0) + SNAKES_NAP_MS;
+    g.readyAt = Math.max(g.readyAt || 0, now || 0) + SNAKES_NAP_MS;
     if (g.took) g.took[next] = (g.took[next] || 0) + 1;
     next = snakesNextSeat(g, next);
   }
-  g.turn = { pid: next, sixes: 0 };
+  return next;
 };
 
 /**
@@ -865,6 +888,10 @@ const snakesRoll = (g, pid, v, rnd, now) => {
   // The moments the awards are made of.
   if (jump && jump.k === 's') snakesEaten(g, mover, walk, to);
   if (jump && jump.k === 'l' && g.stats && (!g.stats.ladder || to - walk > g.stats.ladder.val)) g.stats.ladder = { pid: mover, from: walk, to: to, val: to - walk };
+  if (jump && jump.k === 'l' && g.stats) {
+    const lds = g.stats.ladders = g.stats.ladders || {};
+    if (!lds[mover] || to - walk > lds[mover].val) lds[mover] = { from: walk, to: to, val: to - walk };
+  }
   if (v === 6) snakesCount(g, 'sixes', pid);
   let place = 0;
   if (to === 100) {
@@ -906,7 +933,8 @@ const snakesRemovePlayer = (g, pid) => {
     const n = g.seats.length;
     let next = null;
     for (let k = 0; k < n && !next; k++) { const id = g.seats[(at + k) % n]; if (snakesActive(g, id)) next = id; }
-    g.turn = { pid: next || snakesLeft(g)[0] || null, sixes: 0 };
+    // A napper the turn falls to sleeps through it, as on any pass (snakesPassTurn).
+    g.turn = { pid: snakesNapSkip(g, next || snakesLeft(g)[0] || null, Date.now()), sixes: 0 };
     g.turnSeq = (g.turnSeq || 0) + 1;
   }
 };

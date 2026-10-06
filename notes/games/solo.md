@@ -220,7 +220,8 @@ line), the streak
 they renew, and one message with every result (`shareDaily`). A daily started
 from the hub sets `soloHubReturn`, so `soloResult` turns its "again" and
 "exit" into a way back to the hub. A new game with a daily needs a line in
-`DAILY_GAMES`.
+`DAILY_GAMES`. A daily switched off (`DISABLED_GAMES`) is left out of the count, the
+bar and «خلصت كل حاجة» while it is off (`dailyLive`), so sharing still opens.
 
 The word and quiz games (group `brain`, "كلمات وأسئلة لوحدك", which since
 21 Sep 2026 also holds Wordle and Connections, after تحدي اليوم). None of the
@@ -462,13 +463,13 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
 
 Decided here (open to change):
 - The grid's language is the alphabet most of the pack's words are written in (an English pack plays in capitals, an Arabic one in Arabic), whatever the app's language.
-- The thread is the pack's name when it is one word of 3-8 letters (its words with a space don't count), shown as written (`label`); otherwise the longest fitting word. When the thread is the name, the theme line reads «كلمات العيلة», so the header doesn't give the thread away; otherwise it is the pack's name.
+- The thread is the pack's name when it is one word of 3-8 letters (its words with a space don't count), shown as written (`label`, `title: true`); otherwise the longest fitting word. Every family word, once found, is listed as the family wrote it (`label`: أحمد, not the grid's folded احمد). When the thread is the name, the theme line reads «كلمات العيلة», so the header doesn't give the thread away; otherwise it is the pack's name.
 - The thread is one of the level's words (easy 5, medium 6, hard 8), not an extra; the grid grows to 8 when a family word has 8 letters (easy is 7).
 - A pack needs two fitting family words, the thread among them, or Start says «مفيش كلمات كفاية تنفع في الشبكة دي».
 - No best is kept for a family grid (each pack is its own puzzle), and the race (سباق ألغاز) still deals the app's words.
 - A pack played by its code tells the server it was played (`packPlayed`), so its year starts again.
 
-**«جولة حول العالم»** (`JS_FlagsTour.html`, in the flags chunk). The third segment of «طريقة اللعب» (`setFlagsMode('tour')`, `s.mode`); with it the level field hides (`#flags-level-field`) and a line says the rules and the best run (`#flags-tour-hint`, `#flags-tour-best`, `flagTourBestText`). It lives in `appState.flags` with `playMode: 'tour'` and `s.tour = { hearts, score, asked, cur, choices, picked }`; `startFlags`, `paintFlags`, `restoreFlags` and `flagsHasWork` hand a tour to `startFlagTour`, `paintFlagTour`, `restoreFlagTour`. `flagTourDeal` picks the next flag through `freshPick('flags:tour:<tier>')` from the tier the run is in (`FLAG_TOUR_TIER_AT`: flags 1-10 tier 1, 11-20 tier 2, then tier 3; a tier used up in the run hands over to the next) and `flagTourDecoys` three names from the same continent, nearest tier first. The card is the flags card (`.flg-card` + `.flt-card`): the hearts (the streak's `.stk-hearts`), the stage and the score as chips, the big flag, «علم أنهي دولة ده؟» and four `.solo-choice` tiles. A right answer: the tile pops, the flag flies into the score (`flyEmoji`) and it counts up (`countUp`); a wrong one: the tile red and the right one green, the tiles shake (`soloShake`), the heart turns 💔, jumps and falls. The next flag pops in after `FLAG_TOUR_NEXT_MS` (`soloLater`). The end (`flagTourFinish`): the result sheet with the flags right, the stage reached and the best (`soloRecord('flags', 'tour', { score })`); «لفّيت العالم كله!» if every country was seen. A reload comes back on the same flag; one between an answer and the next flag deals the next (or ends the run) at once. The run's words are `FLT_TEXT` / `fltT()` in its file.
+**«جولة حول العالم»** (`JS_FlagsTour.html`, in the flags chunk). The third segment of «طريقة اللعب» (`setFlagsMode('tour')`, `s.mode`); with it the level field hides (`#flags-level-field`) and a line says the rules and the best run (`#flags-tour-hint`, `#flags-tour-best`, `flagTourBestText`). It lives in `appState.flags` with `playMode: 'tour'` and `s.tour = { hearts, score, asked, cur, choices, picked }`; `startFlags`, `paintFlags`, `restoreFlags` and `flagsHasWork` hand a tour to `startFlagTour`, `paintFlagTour`, `restoreFlagTour`. `flagTourDeal` picks the next flag through `freshPick('flags:tour:<tier>')` from the tier the run is in (`FLAG_TOUR_TIER_AT`: flags 1-10 tier 1, 11-20 tier 2, then tier 3; a tier used up in the run hands over to the next) and `flagTourDecoys` three names from the same continent, nearest tier first. The card is the flags card (`.flg-card` + `.flt-card`): the hearts (the streak's `.stk-hearts`), the stage and the score as chips, the big flag, «علم أنهي دولة ده؟» and four `.solo-choice` tiles. A right answer: the tile pops, the flag flies into the score (`flyEmoji`) and it counts up (`countUp`); a wrong one: the tile red and the right one green, the tiles shake (`soloShake`), the heart turns 💔, jumps and falls. The next flag pops in after `FLAG_TOUR_NEXT_MS` (`soloLater`). The end (`flagTourFinish`): the result sheet with the flags right, the stage reached and the best (`soloRecord('flags', 'tour', { score })`); «لفّيت العالم كله!» if every country was seen. A reload comes back on the same flag; one between an answer and the next flag deals the next (or ends the run) at once, and so does «كمّل اللعبة» after leaving in that pause (`continueFlags` → `restoreFlagTour`). The run's words are `FLT_TEXT` / `fltT()` in its file.
 
 Decided here (open to change):
 - Stage lengths: 10 flags of tier 1, 10 of tier 2, then tier 3 to the end of the run; the stage shows as a chip («دول مشهورة», «أصعب شوية», «بعيدة وصغيرة»).
@@ -490,7 +491,9 @@ Decided here (open to change):
   so nobody's best is lost; 3x3 is `'3'`, 5x5 `'5'`. The stats sheet (JS_Daily.html) lists the three.
 - No daily and no race change (free play only).
 - Decided here (open to change): a new game on the setup takes the size picked there, and a game
-  already on the board keeps its own size until it ends or a new one starts.
+  already on the board keeps its own size until it ends or a new one starts. «لعبة جديدة» and «العب تاني»
+  from inside a game keep that game's size (the owner, 6 Oct 2026: `start2048(n)`); only the setup's Start
+  deals the setup's pick.
 
 ## History
 

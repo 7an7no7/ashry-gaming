@@ -162,7 +162,10 @@ function xoBigOnlyMove(g, mark) {
   if (legal.length !== 1) return -1;
   const c = { cells: g.cells.slice(), minis: g.minis.slice(), send: g.send };
   const r = xoBigMark(c, legal[0], mark);
-  return r && (r.took === 'X' || r.took === 'O') ? -1 : legal[0];
+  if (!r || r.took === 'X' || r.took === 'O') return -1;
+  // A drawn board can end the game on boards won: that stays a tap too.
+  if (r.took && xoBigWinner(c.minis)) return -1;
+  return legal[0];
 }
 
 /* --- the phone as a player on the big board ---------------------------------

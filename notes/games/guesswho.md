@@ -210,9 +210,12 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
   puts them all first: competition ranking, the others after), `tw` counts the teams' wins (the pills),
   `result { team: true, winner, reason: guess | wrong | left, winners, losers }`, both faces revealed. «الماتش اللي
   بعده» (`nextRound`) keeps the sides (`gwFitTeams`: a leaver off, a latecomer on the smaller side) and the other team
-  starts (`first`); between games anyone moves themself with «روح الأحمر/الأزرق» (`side` in 'over', `gwTeamOverHtml`).
+  starts (`first`); between games anyone moves themself with «روح الأحمر/الأزرق» (`side` in 'over', `gwTeamOverHtml`),
+  written to `nextTeams` (what `nextRound` deals and the over screen draws), never to `teams`, which stays who played
+  this game (the night's points read it, so a latecomer moving sides banks nothing).
 - **Leaving** (`gwPlayerLeft`): a team with nobody left here loses by forfeit (`left`); otherwise the game goes on, and
-  a proposal by the leaver is dropped. The host's «عدّي الدور» shows when the whole team waited on is away or 40 s
+  a proposal by the leaver, or one whose team has fewer than two here, is dropped. With teams on, the host's lobby
+  options are never folded (`lobbyUnfolded`). The host's «عدّي الدور» shows when the whole team waited on is away or 40 s
   passed (`gwHostRow`).
 - **The page**: `gwIsTeams`, `gwMySeat`, `gwNames` (the team names in sentences: «الفريق الأحمر»), the pills with the
   short names (`gw_short_k`) and each team's members (`<bdi>`), `gwTeamStatus`, `gwTeamCheer` (confetti on the winning

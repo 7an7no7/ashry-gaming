@@ -854,22 +854,25 @@ const HM_END = (() => {
     if (c.P.peek) tf(c.P.peek, `translate(80 120) scale(1 ${(t % 2600) > 2470 ? 0.1 : 1}) translate(-80 -120)`);
   }
 
+  // Gone, or on a screen that was left (setView only hides it): the loop lets go. Dropping the
+  // on-air mark lets the next hmEndPlay on that screen bring the last frame back to life.
+  const away = (c) => !c.el.isConnected || !!c.el.closest('[id^="view-"].hidden');
   function tick() {
     raf = 0;
     const now = Date.now();
     for (let i = running.length - 1; i >= 0; i--) {
       const c = running[i];
       const t = now - c.start;
-      if (!c.el.isConnected || t >= c.def.D) {
+      if (away(c) || t >= c.def.D) {
         running.splice(i, 1);
-        if (c.el.isConnected) { draw(c, c.def.D, false); idleStart(c); }
+        if (c.el.isConnected) { draw(c, c.def.D, false); if (!away(c)) idleStart(c); else c.el.removeAttribute('data-hme-on-air'); }
         continue;
       }
       draw(c, t, true);
     }
     for (let i = idling.length - 1; i >= 0; i--) {
       const c = idling[i];
-      if (!c.el.isConnected || hmEndsStill()) { idling.splice(i, 1); continue; }
+      if (away(c) || hmEndsStill()) { idling.splice(i, 1); if (c.el.isConnected && away(c)) c.el.removeAttribute('data-hme-on-air'); continue; }
       idle(c, now);
     }
     if (running.length || idling.length) raf = requestAnimationFrame(tick);

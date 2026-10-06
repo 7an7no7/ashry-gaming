@@ -152,6 +152,8 @@ function roomTurnOf(state) {
     case 'hangman':
       // The word to write, or your own board still being guessed.
       if (s.phase === 'writing') return s.setter === me ? 'turn_up' : null;
+      // The team way: the board is the team's (shared.tb), and only its captain taps.
+      if (s.settings && s.settings.mode === 'teams') return s.phase === 'guessing' && s.captain === me && (s.tb || {}).state === 'play' ? 'turn_up' : null;
       return s.phase === 'guessing' && (state.you || {}).state === 'play' ? 'turn_up' : null;
     case 'minigolf':
       // In turns: the player up. All at once: anyone whose ball is still out.

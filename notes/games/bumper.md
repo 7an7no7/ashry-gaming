@@ -172,7 +172,10 @@ horn; a «جوووول!» toast on every phone at a goal.
   stands (`shared.cut`, no golden goal). `finish` is ignored for the ball: the score is the server's.
   `bumperBallEnd` writes the rows (each driver's goals, own goals apart), every member of the winning
   side place 1 and the rest 2, a draw all 1; wins go to the winning side's members; latecomers who
-  played join the roster; the board through the same `bumperBoard`. Someone who joins mid-match is put on the side with
+  played join the roster; the board through the same `bumperBoard`. The night and the program place
+  the match as a team game (`bumperBallTeams`, `PROGRAM_TEAMS.bumper`; 6 Oct 2026): the winning side
+  first, the losing side second (3 points, not 1 behind every winner), a draw everyone first; the
+  other ways place by the board as before. Someone who joins mid-match is put on the side with
   fewer cars there now, for good (`bumperJoined`, called by `room.js` on a join; `bumperSideOf` /
   `bmpSideOf` work one out the same way for a join the hook didn't see); `bumperPlayerLeft` gives a
   side left empty a filler, and a leaver's side stays written down.

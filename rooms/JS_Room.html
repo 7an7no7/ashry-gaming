@@ -1133,7 +1133,8 @@ async function roomRenameMe() {
  * someone sent ("…/?room=ABCD" or "…/r/ABCD"), in any case and with stray spaces.
  */
 function extractRoomCode(text) {
-  const raw = String(text || '');
+  // An Arabic keyboard's number layer types ٢-٩ (or the Persian ۲-۹): read them as 2-9.
+  const raw = String(text || '').replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6F0));
   const fromLink = /[?&]room=([A-Za-z0-9]{4,8})/.exec(raw) || /\/r\/([A-Za-z0-9]{4,8})/.exec(raw);
   return (fromLink ? fromLink[1] : raw.replace(/[^A-Za-z0-9]/g, '')).toUpperCase().slice(0, 4);
 }
@@ -1645,9 +1646,11 @@ function roomPickMorph(fromEl, act, findTarget) {
     vt = document.startViewTransition(async () => {
       name(fromEl, '');
       name(fromIcon, '');
-      await act();
+      // Hold the old picture a moment at most (a slow ack or a refused pick must not freeze the lobby):
+      // past that the morph runs, and the lobby simply redraws when the ack arrives.
+      await Promise.race([act(), new Promise((r) => setTimeout(r, 350))]);
       // The lobby draws the pick once the game's code is here (routeRoomState): wait for it, a moment at most.
-      for (let i = 0; i < 90 && !target; i++) {
+      for (let i = 0; i < 15 && !target; i++) {
         target = findTarget();
         if (!target) await new Promise((r) => setTimeout(r, 16));
       }
@@ -2080,7 +2083,6 @@ function renderChosenGame(state, game) {
     ${firstPlay}
     ${game && game.lobbyTop ? game.lobbyTop(state, false) : ''}
     ${bots}
-    ${game && game.lobbyTop ? game.lobbyTop(state) : ''}
     ${lobbyOptionsFold(state, options, t)}
     ${(game && game.lobbySeats) ? game.lobbySeats(state) : ''}`;
 }
@@ -2304,9 +2306,15 @@ function roomReturnToActive() {
   if (!Room.isIn || !state) return;
   // The hidden view still holds the frame from when they left. Drop its
   // signature so it is rebuilt from the current state rather than trusted.
+  // «خماسي السهرة» draws each round on the screen of that round's puzzle, not the room's game.
   if (state.phase !== 'lobby' && state.game) {
-    const view = document.getElementById('view-room-' + state.game);
-    if (view) delete view.dataset.sig;
+    const ids = [state.game];
+    const solve = state.shared && state.shared.race && state.shared.solve;
+    if (solve && ids.indexOf(solve) === -1) ids.push(solve);
+    ids.forEach((id) => {
+      const view = document.getElementById('view-room-' + id);
+      if (view) delete view.dataset.sig;
+    });
   }
   routeRoomState(state);
   updateRoomBanner();

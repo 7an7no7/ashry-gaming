@@ -17,7 +17,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>كل محلّف عرف الوش الصح ياخد <b>نقطة</b>.</li>
                 <li>الشاهد والرسام ياخدوا <b>نقطة لكل محلّف عرفه</b>: وصف حلو ورسم حلو يكسّبوا الاتنين.</li>
-                <li>🎯 <b>الرسم مطابق كام في المية؟</b> في الكشف التطبيق يقارن الرسم بالوش الحقيقي حتة حتة (الشعر، العينين، النضارة، الدقن، اللبس…، كل حاجة بنفس الوزن). <b>٧٠٪ أو أكتر</b>: <b>+١ للشاهد و+١ للرسام</b> فوق نقطهم. أقل من كده النسبة للضحك بس.</li>
+                <li>🎯 <b>الرسم مطابق كام في المية؟</b> في الكشف التطبيق يقارن الرسم بالوش الحقيقي حتة حتة (الشعر، العينين، النضارة، الدقن، اللبس…؛ راجل ولا ست ونوع الشعر ولونه بضعف الوزن). <b>٧٠٪ أو أكتر</b>: <b>+١ للشاهد و+١ للرسام</b> فوق نقطهم. أقل من كده النسبة للضحك بس.</li>
                 <li>كل واحد يبقى الشاهد <b>مرة واحدة</b>، وبعدها النتيجة النهائية.</li>
             </ul>
             <p class="help-sub">📱 كل واحد من موبايله</p>
@@ -44,7 +44,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Every juror who picks the real face scores <b>a point</b>.</li>
                 <li>The witness and the artist score <b>a point for every juror who got it</b>: a good description and a good drawing win together.</li>
-                <li>🎯 <b>How close is the sketch?</b> At the reveal the app holds the sketch against the real face feature by feature (hair, eyes, glasses, beard, clothes…, each the same weight). <b>70% or more</b>: <b>+1 to the witness and +1 to the artist</b> on top of their points. Under that, the % is just for the laugh.</li>
+                <li>🎯 <b>How close is the sketch?</b> At the reveal the app holds the sketch against the real face feature by feature (hair, eyes, glasses, beard, clothes…; man or woman and the hair's style and colour count double). <b>70% or more</b>: <b>+1 to the witness and +1 to the artist</b> on top of their points. Under that, the % is just for the laugh.</li>
                 <li>Everyone is the witness <b>once</b>, then the final result.</li>
             </ul>
             <p class="help-sub">📱 Everyone on their own phone</p>

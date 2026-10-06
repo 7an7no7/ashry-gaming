@@ -123,6 +123,8 @@ const laserSpawnPickups = (room) => {
     if (s.opts.pieces) { const t = laserTileAt(s.map, x, y); if (!t || s.fallen.indexOf(t.i) !== -1 || s.cracked.indexOf(t.i) !== -1) continue; }
     if (s.pillars.some(pl => Math.hypot(pl.x - x, pl.y - y) < LASER_PILLAR_R + 0.08)) continue;
     if (s.pickups.some(p => Math.hypot(p.x - x, p.y - y) < 0.3)) continue;
+    // Never under a spot someone carries into this round (a pickup there would be theirs for nothing).
+    if (s.alive.some(id => { const m = room.secrets[id]; return m && !m.ghost && Math.hypot(m.x - x, m.y - y) < LASER_PICK_REACH + 0.05; })) continue;
     s.pickups.push({ id: s.round * 10 + s.pickups.length, x: laserR3(x), y: laserR3(y), kind: LASER_PICKUPS[Math.floor(Math.random() * LASER_PICKUPS.length)] });
   }
 };
@@ -383,11 +385,19 @@ const laserAfterReveal = (room) => {
   s.pillars = (s.pillars || []).filter(onFloor);
   Object.keys(s.held).forEach(id => { if (after.indexOf(id) === -1) delete s.held[id]; });
   s.lastKills = s.roundKills || [];
-  s.lastBeams = (s.beams || []).filter(b => (s.lastKills || []).some(k => k.from === b.id && k.by === 'beam'));
+  // The beams that took someone out go to each one hit, in their own slice («ضربك:»): on the table they
+  // would show every shooter's spot, which carries into the hiding (it is secret again).
+  const lastBeams = (s.beams || []).filter(b => s.lastKills.some(k => k.from === b.id && k.by === 'beam'));
+  delete s.lastBeams;
   s.phase = 'between';
   if (laserSettle(room)) return;
   s.round += 1;
   laserHide(room);
+  s.lastKills.forEach(k => {
+    if (s.alive.indexOf(k.to) !== -1) return;
+    const m = room.secrets[k.to] || (room.secrets[k.to] = {});
+    if (!m.gotBy) m.gotBy = lastBeams.filter(b => s.lastKills.some(q => q.to === k.to && q.from === b.id && q.by === 'beam'));
+  });
 };
 
 /** Everyone still standing is ready: the reveal now (ghosts never hold the round up). */
@@ -429,7 +439,10 @@ ROOM_RULES.laser = {
     if (action === 'shuffle') {
       requireHost(room, playerId);
       if (s.phase !== 'teams') return;
-      s.teams = laserDealTeams(s.roster, s.nTeams);
+      // Dealt over who is still here; anyone gone keeps their old team (they play no part).
+      const t = laserDealTeams(activeRoster(room, s.roster), s.nTeams);
+      s.roster.forEach(id => { if (t[id] === undefined) t[id] = s.teams[id]; });
+      s.teams = t;
       return;
     }
     if (action === 'go') {

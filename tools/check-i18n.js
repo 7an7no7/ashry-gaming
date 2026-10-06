@@ -59,6 +59,32 @@ const onlyEn = [...en].filter(k => !ar.has(k));
 if (onlyAr.length) { errors++; console.log('missing from en (%d): %s', onlyAr.length, onlyAr.join(', ')); }
 if (onlyEn.length) { errors++; console.log('missing from ar (%d): %s', onlyEn.length, onlyEn.join(', ')); }
 
+// GAME_RULES the same way (the Help rules, with every game's text file put in): a rule
+// written twice - in two games' files, or a file and JS_GameRules.html - silently shows
+// the later one, and a rule only in ar leaves English with none.
+const rulesSrc = require('./game-text.cjs').readMerged('JS_GameRules.html');
+const R = acorn.parseExpressionAt(rulesSrc, rulesSrc.indexOf('{', rulesSrc.indexOf('const GAME_RULES')), { ecmaVersion: 'latest' });
+function ruleKeysOf(lang) {
+  const block = R.properties.find((p) => p.type === 'Property' && propName(p) === lang);
+  if (!block || block.value.type !== 'ObjectExpression') throw new Error('no ' + lang + ' block in GAME_RULES');
+  const counts = new Map();
+  for (const p of block.value.properties) {
+    if (p.type !== 'Property' || p.computed) throw new Error(lang + ': a spread or computed key in GAME_RULES can\'t be checked');
+    counts.set(propName(p), (counts.get(propName(p)) || 0) + 1);
+  }
+  return counts;
+}
+const rulesAr = ruleKeysOf('ar');
+const rulesEn = ruleKeysOf('en');
+for (const [lang, counts] of [['ar', rulesAr], ['en', rulesEn]]) {
+  const twice = [...counts].filter(([, n]) => n > 1).map(([k, n]) => `${k} ×${n}`);
+  if (twice.length) { errors++; console.log('GAME_RULES.%s defines %d rule(s) twice: %s', lang, twice.length, twice.join(', ')); }
+}
+const rulesOnlyAr = [...rulesAr.keys()].filter((k) => !rulesEn.has(k));
+const rulesOnlyEn = [...rulesEn.keys()].filter((k) => !rulesAr.has(k));
+if (rulesOnlyAr.length) { errors++; console.log('GAME_RULES missing from en (%d): %s', rulesOnlyAr.length, rulesOnlyAr.join(', ')); }
+if (rulesOnlyEn.length) { errors++; console.log('GAME_RULES missing from ar (%d): %s', rulesOnlyEn.length, rulesOnlyEn.join(', ')); }
+
 // --- 2. every data-i18n attribute must name a real key ---------------------
 // Every attribute applyTranslations reads (-title fills a tooltip and aria-label),
 // in the page and in the markup the JS files build. A key built at runtime

@@ -340,7 +340,8 @@ const snakesPlayerLeft = (room, playerId, name) => {
     // Home already: they keep their place. In a team they no longer roll for the others.
     if (Array.isArray(s.teams) && (s.gone || []).indexOf(playerId) === -1) {
       s.gone = (s.gone || []).concat([playerId]);
-      if (s.turn && s.turn.pid === playerId) { snakesPassTurn(s, playerId); s.turnSeq = (s.turnSeq || 0) + 1; }
+      // A nap the pass meets is held from now, not from an old roll's readyAt.
+      if (s.turn && s.turn.pid === playerId) { snakesPassTurn(s, playerId, Date.now()); s.turnSeq = (s.turnSeq || 0) + 1; }
       snakesAfter(room);
     }
     return;

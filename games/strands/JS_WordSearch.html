@@ -206,7 +206,7 @@ async function strandsOpenCode() {
 }
 
 /**
- * A grid from a word pack: { size, lang, grid, words: [{ w, cells, span?, ours?, label? }] } or null.
+ * A grid from a word pack: { size, lang, grid, words: [{ w, cells, span?, title?, ours?, label? }] } or null.
  * The thread (span) goes in first, then the family's words, then the bank's (ours) for the rest.
  */
 function strandsPackMake(pack, level, rnd) {
@@ -220,20 +220,22 @@ function strandsPackMake(pack, level, rnd) {
   const fits = (w) => re.test(w) && w.length >= STRANDS_PACK_MIN && w.length <= STRANDS_PACK_MAX;
   const seen = new Set();
   let mine = [];
+  // A found word is listed as the family wrote it (أحمد, not the grid's folded احمد).
+  const shown = {};
   words.forEach(w => {
     const f = strandsFold(w, lang);
-    if (fits(f) && !seen.has(f)) { seen.add(f); mine.push(f); }
+    if (fits(f) && !seen.has(f)) { seen.add(f); mine.push(f); shown[f] = w; }
   });
   // «الخيط الملوّن»: the pack's name when it is one word that fits, else its longest word.
   const title = strandsFold(String(pack.title || '').trim(), lang);
   let thread = null;
   if (fits(title)) {
-    thread = { w: title, span: true, label: String(pack.title).trim() };
+    thread = { w: title, span: true, title: true, label: String(pack.title).trim() };
     seen.add(title);
     mine = mine.filter(w => w !== title);
   } else if (mine.length) {
     const longest = mine.reduce((a, b) => (b.length > a.length ? b : a));
-    thread = { w: longest, span: true };
+    thread = { w: longest, span: true, label: shown[longest] };
     mine = mine.filter(w => w !== longest);
   }
   if (!thread || mine.length + 1 < STRANDS_PACK_OWN) return null;
@@ -251,7 +253,7 @@ function strandsPackMake(pack, level, rnd) {
     : [[0, -1], [1, 0], [1, -1]].concat(L.reverse ? [[0, 1], [-1, 0], [1, 1]] : []);
   let fallback = null;
   for (let attempt = 0; attempt < 40; attempt++) {
-    const order = [thread].concat(soloShuffle(mine, rnd).map(w => ({ w: w })), bank);
+    const order = [thread].concat(soloShuffle(mine, rnd).map(w => ({ w: w, label: shown[w] })), bank);
     const grid = new Array(size * size).fill('');
     const placed = [];
     for (const item of order) {
@@ -312,7 +314,7 @@ function startStrandsPack(sure) {
   Object.assign(s, {
     // The theme names the pack, unless the pack's name is the thread itself: then it would give it away.
     daily: '', playLevel: s.level, lang: made.lang, size: made.size, icon: '✍️',
-    theme: made.words[0].label ? (strandsT().theme || '') : (pack.title || t.wp_title_default || ''),
+    theme: made.words[0].title ? (strandsT().theme || '') : (pack.title || t.wp_title_default || ''),
     grid: made.grid, words: made.words, found: [], hints: [], startedAt: Date.now(), pausedAt: 0, seconds: 0, phase: 'play',
     pack: { code: pack.code || '', title: pack.title || '' }
   });

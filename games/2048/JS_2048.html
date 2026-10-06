@@ -70,7 +70,8 @@ function set2048Size(n) {
   paint2048Setup();
 }
 
-function start2048() {
+/** `n`: the size to deal; none (the setup's Start) deals the setup's pick. */
+function start2048(n) {
   soloNewGame('g2048');
   const s = g2048State();
   s.tiles = [];
@@ -80,7 +81,7 @@ function start2048() {
   s.keepGoing = false;
   s.prev = null;
   s.raisedBest = false;
-  s.size = g2048Pick(s);
+  s.size = G2048_SIZES.indexOf(n) >= 0 ? n : g2048Pick(s);
   s.phase = 'play';
   g2048Spawn(s);
   g2048Spawn(s);
@@ -220,11 +221,12 @@ function move2048(dir) {
   if (!g2048CanMove(s)) soloLater('g2048', 400, () => { if (s.phase === 'play' && !g2048CanMove(s)) g2048End(false); });
 }
 
-/** A new game throws the board away, so a game with points on it asks first. */
+/** A new game throws the board away, so a game with points on it asks first. It keeps the board's size (the owner). */
 function confirmNew2048() {
   const s = g2048State();
-  if (s.phase === 'play' && s.score > 0) showConfirmModal((TRANSLATIONS[appState.lang] || {}).g2048_new_confirm || '', start2048);
-  else start2048();
+  const again = () => start2048(g2048N(g2048State()));
+  if (s.phase === 'play' && s.score > 0) showConfirmModal((TRANSLATIONS[appState.lang] || {}).g2048_new_confirm || '', again);
+  else again();
 }
 
 function undo2048() {
@@ -429,7 +431,7 @@ function g2048End(won) {
   soloResult({
     icon: '🔷', title: rec.record ? (t.solo_new_best || '') : (t.g2048_over || ''),
     value: s.score, valueLabel: t.g2048_score || '', lines: lines, win: rec.record,
-    again: start2048, exit: setup2048
+    again: () => start2048(g2048N(g2048State())), exit: setup2048
   });
 }
 

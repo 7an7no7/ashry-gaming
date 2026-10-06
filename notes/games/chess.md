@@ -395,7 +395,17 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
     as it is, its moves as the king taking its rook, which `chessFind`
     takes; a 960 game is sent as its position, not its moves). Checked
     against our rules over ten 960 games: the same legal moves, castling
-    included. **What stays the app's own engine, and why**: نونو, عم حسن and
+    included. **The audit of 6 Oct 2026**: a game from a 960 start stays a
+    960 question once both sides' rights are gone (the start's FEN is
+    checked too, or its king-takes-rook castles were refused and the computer
+    stood 30 s); Stockfish's move and its lines keep the record's `uci`, so a
+    castle where the king moves one square (Stockfish's `b1a1`) is played and
+    replayed as a castle, not `Kc1`; `info string CRITICAL ERROR` ends that
+    question at once (the engine stays on), a phone without WebAssembly SIMD
+    (iOS before 16.4) or an `Aborted(` line skips Stockfish at once; one
+    position asked twice at once is one search (`chSf.inflight`); and the
+    coach's verdict is dropped after ↶ and another move (`chTakeBackKey`).
+    **What stays the app's own engine, and why**: نونو, عم حسن and
     ميرا (Stockfish can't go under ~1320, and its weakened play is a machine
     that drops pieces at random, not a beginner; the characters' styles are
     ours); الوزير المستخبي (a secret queen isn't chess to Stockfish);

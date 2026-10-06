@@ -1053,7 +1053,10 @@ async function witnessRobots() {
     const right = sh.right.length;
     const m = sh.match || {};
     const extra = m.won ? 1 : 0;
-    check(Array.isArray(m.feats) && m.feats.length === m.of && m.of > 0 && m.pct === Math.round(m.ok * 100 / m.of) && m.won === (m.pct >= 70 && !m.blank),
+    // Gender, hair style and hair colour weigh double in the % (the owner, 2 Oct 2026); ok/of count ticks.
+    const wOf = (f) => ({ g: 2, style: 2, hair: 2 }[f.k] || 1);
+    const wSum = (m.feats || []).reduce((n, f) => n + wOf(f), 0), wGot = (m.feats || []).reduce((n, f) => n + (f.ok ? wOf(f) : 0), 0);
+    check(Array.isArray(m.feats) && m.feats.length === m.of && m.of > 0 && m.pct === Math.round(wGot * 100 / wSum) && m.won === (m.pct >= 70 && !m.blank),
       `witness ${round}: the sketch is measured against the real face, feature by feature (${m.ok}/${m.of}, ${m.pct}%)`);
     check((sh.gained[W.pid] || 0) === right + extra && (sh.gained[A.pid] || 0) === right + extra && jury.every((b) => (sh.gained[b.pid] || 0) === (sh.right.indexOf(b.pid) !== -1 ? 1 : 0)),
       `witness ${round}: a juror right scores 1; the witness and the artist 1 for each (and +1 each at 70%+)`);

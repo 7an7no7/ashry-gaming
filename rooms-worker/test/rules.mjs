@@ -13034,7 +13034,7 @@ Date.now = duelTestClock;
 {
   console.log('\nThe witness');
   const W = new Function(readFileSync(srcPath('GuessWho.js'), 'utf8') + '\n' + readFileSync(srcPath('Witness.js'), 'utf8') +
-    ';return { gwSignature, witnessLineup, witnessClean, witnessFix, witnessBlank, witnessMatch, WITNESS_LOOK_MS, WITNESS_DRAW_MS, WITNESS_VOTE_MS, WITNESS_MATCH_LINE };')();
+    ';return { gwSignature, witnessLineup, witnessClean, witnessFix, witnessBlank, witnessMatch, WITNESS_FEATURES, WITNESS_LOOK_MS, WITNESS_DRAW_MS, WITNESS_VOTE_MS, WITNESS_MATCH_LINE };')();
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
   const witRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'witness' }); return r; };
@@ -13071,9 +13071,9 @@ Date.now = duelTestClock;
     check(x.g === 'f' && x.hijab === 3 && !x.ear && !x.beard && x.cap === null && x.top === 'tee' && x.tie === '' && x.skin === 0 && x.hair === 'black' && !('evil' in x) && x.sun && !x.glasses,
       'witness: a sketch is cleaned: a hijab takes the earrings, a cap and a collar; bad values fall back');
   }
-  // «الرسم مطابق»: feature by feature, each the same weight, only what shows on the real face (2 Oct 2026).
+  // «الرسم مطابق»: feature by feature, only what shows on the real face; man/woman and the hair's style and colour weigh 2 in the % (2 Oct 2026).
   {
-    let same = true, oneOff = true, hidden = true, n = 0;
+    let same = true, oneOff = true, weighted = true, hairSeen = 0, hidden = true, n = 0;
     for (let k = 0; k < 300; k++) {
       const L = W.witnessLineup(Math.random);
       const real = L.faces[L.real];
@@ -13089,10 +13089,19 @@ Date.now = duelTestClock;
       const x = Object.assign({}, real, { mouth: real.mouth === 'smile' ? 'serious' : 'smile' });
       const m1 = W.witnessMatch(x, real);
       if (m1.ok !== m1.of - 1 || m1.feats.find((f) => f.k === 'mouth').ok) oneOff = false;
+      // The % is weighted: a wrong mouth costs 1 of the weights' sum, a wrong hair colour 2.
+      const sum = W.WITNESS_FEATURES.filter((f) => keys.indexOf(f.k) !== -1).reduce((a, f) => a + (f.w || 1), 0);
+      if (m1.pct !== Math.round((sum - 1) * 100 / sum)) weighted = false;
+      if (keys.indexOf('hair') !== -1) {
+        hairSeen++;
+        const m2 = W.witnessMatch(Object.assign({}, real, { hair: real.hair === 'black' ? 'red' : 'black' }), real);
+        if (m2.ok !== m2.of - 1 || m2.pct !== Math.round((sum - 2) * 100 / sum) || m2.pct >= m1.pct) weighted = false;
+      }
       n += m.of;
     }
     check(same, 'witness: the real face against itself is 100%');
-    check(oneOff, 'witness: one feature wrong is one tick off, every feature the same weight');
+    check(oneOff, 'witness: one feature wrong is one tick off');
+    check(weighted && hairSeen > 0, 'witness: the % is weighted: a wrong hair colour costs twice what a wrong mouth does');
     check(hidden, 'witness: only features that show count (no hair under a hijab, no eyes behind sunglasses, no beard on a woman, no tie without a collar)');
     const m0 = W.witnessMatch(null, null);
     check(m0.pct === 0 && m0.of === 0 && W.WITNESS_MATCH_LINE === 70 && n / 300 >= 12, 'witness: no face, no %; the line is 70%; a dozen features or more a face (' + Math.round(n / 30) / 10 + ')');

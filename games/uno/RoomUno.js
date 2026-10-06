@@ -249,7 +249,10 @@ const unoTeamsToDeal = (room, action, prev) => {
     if (broken.length || fresh.length) {
       throw new Error((broken.length ? 'ملهمش شريك دلوقتي: ' + names(broken) : 'لسه ملهمش فريق: ' + names(fresh)) + '. ارجعوا للقائمة واختاروا أونو تاني عشان الفرق');
     }
-    return was.filter(t => t.ids.length === 2).map(t => ({ t: t.t, ids: t.ids.slice() }));
+    // A team gone whole adds nothing to `broken`: never deal it, and one pair alone is no teams game.
+    const kept = was.filter(t => t.ids.length === 2 && t.ids.every(id => unoHere(room, id)));
+    if (kept.length < 2) throw new Error('أونو اتنين اتنين محتاج فريقين على الأقل: ٤ لاعبين. ارجعوا للقائمة واختاروا أونو تاني عشان الفرق');
+    return kept.map(t => ({ t: t.t, ids: t.ids.slice() }));
   }
   const lobby = unoLobby(room);
   const out = unoTeamSlots(room.players, lobby.pick);
@@ -543,7 +546,7 @@ const unoPlay = (room, me, p, jump) => {
   if (draw) {
     if (s.settings.stacking) {
       // The draw waits on the next player, who may stack on it or take it all.
-      s.pending = { n: (s.pending ? s.pending.n : 0) + draw, kind: card.k === 'w4' ? 'w4' : 'd' };
+      s.pending = { n: (s.pending ? s.pending.n : 0) + draw, kind: card.k === 'w4' ? 'w4' : 'd', by: me };
       unoStartTurn(room, unoNext(room, me));
     } else {
       const victim = unoNext(room, me);
@@ -908,6 +911,8 @@ const unoPlayerLeft = (room, playerId, name) => {
       unoGameOver(room);
       return;
     }
+    // A stack never lands on the stacker's own partner (the partner rule): it goes.
+    if (wasUp && s.pending && s.pending.by && s.settings && s.settings.teams && unoMateOf(s.teams, s.order, s.pending.by) === next) s.pending = null;
     if (wasUp) unoStartTurn(room, next);
   });
 };

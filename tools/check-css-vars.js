@@ -22,8 +22,10 @@ const ROOT = path.join(__dirname, '..');
 const { srcPath, srcFiles } = require('./sources.cjs');
 const pageFiles = srcFiles(/^(JS_.*|Style(_\w+)?|Controller|Tailwind|Logo)\.html$/);
 // The shared lists and rule files are in the page too, and may set a property for it.
-const allFiles = pageFiles.concat(srcFiles(/^[A-Z][A-Za-z0-9]*\.js$/));
-const READ_FROM = pageFiles.filter((f) => f !== 'Tailwind.html' && f !== 'Logo.html');
+// Each game's words and Help rules (games/<id>/<id>.text.js) are put into the page too.
+const textFiles = srcFiles(/\.text\.js$/);
+const allFiles = pageFiles.concat(srcFiles(/^[A-Z][A-Za-z0-9]*\.js$/), textFiles);
+const READ_FROM = pageFiles.filter((f) => f !== 'Tailwind.html' && f !== 'Logo.html').concat(textFiles);
 
 // Names read but declared nowhere, each with the reason it is let through. Keep it empty:
 // an entry that is now defined or no longer read is reported, so it can be taken out.

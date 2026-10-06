@@ -186,7 +186,7 @@ the jury points).
 - **The witness and the artist get the +1 even if they have left the room** by the reveal, as the
   jury points already were.
 
-- **Weights (the owner, 2 Oct 2026, after the first build)**: man/woman, the hair's style and its colour weigh 2, every other feature 1 (`w` in `WITNESS_FEATURES`, Witness.js); the line stays 70%. At equal weights a sketch with the wrong gender, hair colour and glasses still scored 81%.
+- **Weights (the owner, 2 Oct 2026, after the first build)**: man/woman, the hair's style and its colour weigh 2, every other feature 1 (`w` in `WITNESS_FEATURES`, Witness.js); the line stays 70%. At equal weights a sketch with the wrong gender, hair colour and glasses still scored 81%. The weights only reached the % on 6 Oct 2026 (the audit: `witnessMatch` had never read `w`): `pct` is weighted, `ok` / `of` (the ticks, «الرسام جاب 12/17») stay counts; `rules.mjs` checks a wrong hair colour costs twice a wrong mouth.
 
 ## History
 

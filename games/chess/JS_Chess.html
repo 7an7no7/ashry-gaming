@@ -3138,8 +3138,8 @@ function chPlayLocal(from, to, promo) {
   if (s.vs === 'phone' && s.coach && s.phase === 'play' && (s.coachOpts.warn !== false || s.coachOpts.comment !== false)) {
     chPaint();
     // Not if the board was left meanwhile (a warning would open over another screen), or the move taken back.
-    const n = s.hist.length;
-    setTimeout(() => { if (appState.currentView === 'play-shatranj' && chState().phase === 'play' && chState().hist.length === n) chCoachJudge(before, beforeLost, info, beforeClk, beforeHq); }, 40);
+    const n = s.hist.length, tk = chTakeBackKey(s);
+    setTimeout(() => { if (appState.currentView === 'play-shatranj' && chState().phase === 'play' && chState().hist.length === n && chTakeBackKey(chState()) === tk) chCoachJudge(before, beforeLost, info, beforeClk, beforeHq); }, 40);
     return;
   }
   chPaint();
@@ -3468,14 +3468,15 @@ function chCoachPrepare() {
 function chCoachJudge(before, beforeLost, info, beforeClk, beforeHq) {
   const s0 = chState();
   const key = s0.gameId + '|' + (s0.hist.length - 1);
-  const n = s0.hist.length, gid = s0.gameId;
+  const n = s0.hist.length, gid = s0.gameId, tk = chTakeBackKey(s0);
   const hq = !!beforeHq;
   const pre0 = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : null;
   // Stockfish thinks in its worker: the computer waits for the verdict, the page doesn't.
   Promise.all([pre0 ? Promise.resolve(pre0) : chCoachAnalyse(before, hq), chCoachAnalyse(chessCloneGame(s0.g), hq)]).then(([pre, after]) => {
     const s = chState();
-    // Not if the board was left meanwhile (coming back moves the game on), or the move taken back.
-    if (appState.currentView !== 'play-shatranj' || s.gameId !== gid || s.phase !== 'play' || s.hist.length !== n) return;
+    // Not if the board was left meanwhile (coming back moves the game on), or the move taken back
+    // (↶ and another move make the same count: chTakeBackKey tells them apart).
+    if (appState.currentView !== 'play-shatranj' || s.gameId !== gid || s.phase !== 'play' || s.hist.length !== n || chTakeBackKey(s) !== tk) return;
     chCoachVerdict(s, before, beforeLost, info, beforeClk, beforeHq, pre, after);
   });
 }

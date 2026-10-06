@@ -32,12 +32,26 @@
 // Positions searched per look: on this PC 120,000 is about depth 14 in 0.15 s, on a phone
 // about three times as long. The review asks once for every position of the game.
 const CH_SF = { file: 'g/sf19-lite.js', coach: 150000, best: 200000, review: 120000, timeout: 30000 };
-const chSf = { w: null, ready: null, failed: false, busy: null, queue: [], onLine: null, memo: new Map() };
+const chSf = { w: null, ready: null, failed: false, busy: null, queue: [], onLine: null, memo: new Map(), inflight: new Map(), simd: null };
 
 /** Can Stockfish look at this game? Any chess but الوزير المستخبي, on a phone that runs it. */
 function chSfFits(g, hq) {
-  return !(chSf.failed || hq || !g || typeof Worker === 'undefined' || typeof WebAssembly !== 'object');
+  return !(chSf.failed || hq || !g || typeof Worker === 'undefined' || typeof WebAssembly !== 'object' || !chSfSimd());
 }
+
+/**
+ * The build needs WebAssembly SIMD (iOS 16.4+, Chrome 91+); without it the worker aborts quietly and
+ * every first look of a visit waited the 30 s timeout. A tiny SIMD module is validated once instead.
+ */
+function chSfSimd() {
+  if (chSf.simd === null) {
+    try { chSf.simd = !!WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11])); } catch (e) { chSf.simd = false; }
+  }
+  return chSf.simd;
+}
+
+/** A line saying the engine itself has died (the wasm failed to load or aborted): no answer will come. */
+const chSfDead = (line) => line.indexOf('Aborted(') === 0 || line.indexOf('failed to asynchronously prepare wasm') !== -1;
 
 /**
  * Is this a Chess960 position for Stockfish (its UCI_Chess960, castling written as the king
@@ -70,7 +84,10 @@ function chSfStart() {
     try { w = new Worker(CH_SF.file); } catch (e) { chSfFail(); resolve(false); return; }
     chSf.w = w;
     const t = setTimeout(() => { chSf.onLine = null; chSfFail(); resolve(false); }, CH_SF.timeout);
-    chSf.onLine = (line) => { if (line === 'readyok') { clearTimeout(t); chSf.onLine = null; resolve(true); } };
+    chSf.onLine = (line) => {
+      if (line === 'readyok') { clearTimeout(t); chSf.onLine = null; resolve(true); }
+      else if (chSfDead(line)) { clearTimeout(t); chSf.onLine = null; chSfFail(); resolve(false); }
+    };
     w.onmessage = (e) => chSfLine(String(e.data));
     w.onerror = () => { clearTimeout(t); chSf.onLine = null; chSfFail(); resolve(false); };
     w.postMessage('uci');
@@ -94,10 +111,16 @@ function chSfAnalyse(g, opts) {
   const nodes = o.nodes || CH_SF.coach;
   const key = fen + '|' + nodes + '|' + lines;
   if (chSf.memo.has(key)) return Promise.resolve(chSf.memo.get(key));
-  return chSfStart().then(ok => (!ok ? null : new Promise((done) => {
+  // The same position asked again while it is still queued or searched (the coach's look on your turn,
+  // then its verdict after a quick move) shares that search instead of queueing a second one.
+  if (chSf.inflight.has(key)) return chSf.inflight.get(key);
+  const p = chSfStart().then(ok => (!ok ? null : new Promise((done) => {
     chSf.queue.push({ g: chessCloneGame(g), c960: chSf960(g), fen: fen, nodes: nodes, lines: lines, key: key, info: {}, timer: 0, done: done });
     chSfNext();
   })));
+  chSf.inflight.set(key, p);
+  p.then(() => { if (chSf.inflight.get(key) === p) chSf.inflight.delete(key); });
+  return p;
 }
 
 /**
@@ -115,7 +138,8 @@ function chSfPlay(g, opts) {
     // The whole game from its start, so Stockfish knows the positions met before (a repetition is a draw).
     const hist = (o.moves || []).filter(u => /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(u));
     // A Chess960 game is sent as its position only: our record writes castling as the king's own move.
-    const c960 = chSf960(g);
+    // A 960 start counts even once both sides' rights are gone (the record still holds its king-takes-rook castles).
+    const c960 = chSf960(g) || (!!o.start && chSf960(chessFromFen(o.start)));
     const pos = !c960 && hist.length && hist.length === o.moves.length ? (o.start ? 'fen ' + o.start : 'startpos') + ' moves ' + hist.join(' ') : 'fen ' + chessFen(g);
     chSf.queue.push({ g: chessCloneGame(g), c960: c960, fen: chessFen(g), pos: pos, lines: 1, elo: elo, ms: Math.max(100, Math.round(o.ms || 800)), info: {}, timer: 0, done: done });
     chSfNext();
@@ -138,8 +162,18 @@ function chSfNext() {
 /** A line from the worker: the start's readyok, a search's progress (the last line of each multipv kept), its bestmove. */
 function chSfLine(line) {
   if (chSf.onLine) chSf.onLine(line);
+  if (chSfDead(line)) { if (chSf.w) chSfFail(); return; }
   const job = chSf.busy;
   if (!job) return;
+  // A position Stockfish refused (an illegal move in it): no bestmove will come, but the engine lives on -
+  // this question gets the app's own engine at once and the next one is asked.
+  if (line.indexOf('info string CRITICAL ERROR') === 0) {
+    clearTimeout(job.timer);
+    chSf.busy = null;
+    job.done(null);
+    chSfNext();
+    return;
+  }
   if (line.indexOf('info ') === 0 && line.indexOf(' pv ') !== -1 && !/ (lower|upper)bound /.test(line)) {
     const num = (k) => { const m = line.match(new RegExp(' ' + k + ' (-?\\d+)')); return m ? Number(m[1]) : null; };
     const mate = num('score mate'), cp = num('score cp');
@@ -170,7 +204,9 @@ function chSfPv(g, ucis, max) {
   for (let i = 0; i < ucis.length && out.length < (max || 12); i++) {
     const info = chessPlay(q, chessFromUci(ucis[i]));
     if (!info) break;
-    out.push({ from: info.from, to: info.to, promo: info.promo || '', san: info.san });
+    // uci keeps a 960 castle as Stockfish wrote it (the king taking its rook): replayed through chessFromUci
+    // it castles, where from/to (the king's square) can be read as a plain king step.
+    out.push({ from: info.from, to: info.to, promo: info.promo || '', san: info.san, uci: info.uci });
   }
   return out;
 }
@@ -181,7 +217,8 @@ function chSfMove(job, line) {
   if (!/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(u)) return null;
   const mv = chessFromUci(u);
   const info = chessPlay(chessCloneGame(job.g), mv);
-  return info ? { from: info.from, to: info.to, promo: info.promo || '' } : null;
+  // As the record writes it: a 960 castle where the king moves one square stays a castle (not a king step).
+  return info ? Object.assign(chessFromUci(info.uci), { promo: info.promo || '' }) : null;
 }
 
 /** The answer, in chessAnalyse's shape, from what the search said last. */
@@ -192,7 +229,7 @@ function chSfResult(job) {
   if (!pv.length) return null;
   const score = chSfScore(top);
   const out = {
-    over: false, move: { from: pv[0].from, to: pv[0].to, promo: pv[0].promo }, san: pv[0].san,
+    over: false, move: { from: pv[0].from, to: pv[0].to, promo: pv[0].promo, uci: pv[0].uci }, san: pv[0].san,
     score: score, mate: chessMateIn(score), pv: pv, depth: top.depth, sf: true
   };
   if (job.lines > 1) {

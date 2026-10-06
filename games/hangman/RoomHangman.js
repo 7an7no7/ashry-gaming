@@ -388,6 +388,8 @@ const hmTooFew = (room) => room.players.length < 2 || (hmTeamsWay(room.shared) &
 const hmLobbySides = (room, playerId, p) => {
   requireHost(room, playerId);
   if (room.phase !== 'lobby') return;
+  // { clear }: the host left the team way - no split on anyone's lobby.
+  if (p.clear) { if (room.shared) delete room.shared.lobby; return; }
   const ids = hmHere(room);
   room.shared = room.shared || {};
   const was = (room.shared.lobby && room.shared.lobby.sides) || null;

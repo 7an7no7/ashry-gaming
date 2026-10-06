@@ -110,6 +110,8 @@ const PROGRAM_TEAMS = {
   // المشنقة's team way (RoomHangman.js); its other ways place by the board (null here).
   hangman: (room) => hmProgramTeams(room),
   handbrain: (room) => programTwoTeams(room),
+  // «كورة التصادم»: the winning side, then the losing one (null in the other ways; RoomBumper.js).
+  bumper: (room) => bumperBallTeams(room),
   bughouse: (room) => {
     const s = room.shared || {};
     const r = s.result;

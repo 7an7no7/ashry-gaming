@@ -353,6 +353,20 @@ const bumperBoard = (room, rows) => {
     .sort((a, b) => (b.score - a.score) || ((a.tie || 99) - (b.tie || 99)));
 };
 
+/** «كورة التصادم» as a team game for the night and the program (PROGRAM_TEAMS.bumper in
+    RoomProgram.js): [winners, losers] of the match just ended, [everyone] for a draw, null
+    for the other ways or a match not ended - so the losing side is second (3 points), not
+    behind every winner. The room's own players only (the page's 🤖 fill-ins aren't people). */
+const bumperBallTeams = (room) => {
+  const s = room.shared || {};
+  if (!s.settings || s.settings.mode !== 'ball' || !s.reported || !Array.isArray(s.results)) return null;
+  const ids = s.results.map(r => r.id).filter(id => (room.players || []).some(p => p.id === id));
+  if (!ids.length) return null;
+  if (!s.winner) return [ids];
+  const side = (id) => (s.results.find(r => r.id === id) || {}).side;
+  return [ids.filter(id => side(id) === s.winner), ids.filter(id => side(id) !== s.winner)];
+};
+
 /** «كورة التصادم»: when the match is next looked at - the whistle, or the golden goal's last moment. */
 const bumperBallDue = (s) => s.endsAt + (s.golden ? BUMPER_GOLDEN_MS : 0) + BUMPER_BALL_GRACE_MS;
 

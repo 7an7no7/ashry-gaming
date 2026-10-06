@@ -75,6 +75,16 @@ for (const f of [`JS_${P}.html`, `JS_Room${P}.html`, `Room${P}.js`]) if (srcHas(
 const taken = [['app/JS_Utils.html', `key: '${id}'`], ['app/JS_Core.html', `'setup-${id}'`], ['app/JS_Core.html', `'room-${id}'`],
   ['app/Controller.html', `view-room-${id}"`], ['app/Controller.html', `view-setup-${id}"`]];
 for (const [f, needle] of taken) if (read(f).includes(needle)) fail(`'${id}' is already used in ${f} (${needle})`);
+// A chunk's name too (spy, draw, cardslib…): a second key in CHUNKS would leave the first chunk's files in none.
+const chunkSrc = read('tools/lazy-split.mjs');
+const chunkAt = chunkSrc.indexOf('const CHUNKS');
+const chunkKeys = [...chunkSrc.slice(chunkAt, chunkSrc.indexOf('\n};', chunkAt)).matchAll(/^  '?([A-Za-z0-9_]+)'?:/gm)].map((m) => m[1]);
+if (!chunkKeys.length) fail('found no CHUNKS in tools/lazy-split.mjs');
+if (chunkKeys.includes(id)) fail(`'${id}' is already a chunk in tools/lazy-split.mjs`);
+// And a section the home has, or the card sits on no shelf.
+const catalogSrc = read('app/JS_Catalog.html');
+const groups = [...catalogSrc.slice(catalogSrc.indexOf('const CATALOG_GROUPS')).split('];')[0].matchAll(/id:\s*'(\w+)'/g)].map((m) => m[1]);
+if (!groups.includes(group)) fail(`--group ${group}: one of ${groups.join(', ')}`);
 
 /* --- editing a list in place ------------------------------------------------------- */
 

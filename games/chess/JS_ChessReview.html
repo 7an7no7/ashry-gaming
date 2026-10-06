@@ -573,7 +573,8 @@ function chReviewTry() {
     chNewGame({ fen: chessFen(before), me: before.turn, practice: true, lost: (chRv.lost || [])[k] });
     const st = chState();
     const best = res.moves[k].best;
-    chApplyMove(st, { from: best.from, to: best.to, promo: best.promo });
+    // Stockfish's best keeps its uci: a 960 castle where the king moves one square stays a castle.
+    chApplyMove(st, best.uci ? chessFromUci(best.uci) : { from: best.from, to: best.to, promo: best.promo });
     chPaint();
     chAfterMove();
   };

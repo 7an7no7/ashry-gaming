@@ -42,9 +42,13 @@ const laserInside = (map, k, x, y, m) => {
   return Math.abs(y) <= Math.sqrt(3) / 2 * k - m && Math.sqrt(3) * Math.abs(x) + Math.abs(y) <= Math.sqrt(3) * k - 2 * m;
 };
 
+/** A number from a phone: anything not a finite number is 0 (1e999 arrives as Infinity, and a spot of
+    Infinity / Infinity is NaN, which no beam ever touches). */
+const laserNum = (v) => { const n = Number(v); return isFinite(n) ? n : 0; };
+
 /** A spot pulled in toward the middle until the whole body is on the hexagon of size k. */
 const laserClamp = (x, y, k) => {
-  x = Number(x) || 0; y = Number(y) || 0;
+  x = laserNum(x); y = laserNum(y);
   const m = LASER_BODY;
   const r1 = Math.abs(y) / (Math.sqrt(3) / 2 * k - m);
   const r2 = (Math.sqrt(3) * Math.abs(x) + Math.abs(y)) / (Math.sqrt(3) * k - 2 * m);
@@ -54,7 +58,7 @@ const laserClamp = (x, y, k) => {
 
 /** A spot moved onto the map (size k) with the whole body on it: the nearest such place. */
 const laserClampMap = (map, k, x, y) => {
-  x = Number(x) || 0; y = Number(y) || 0;
+  x = laserNum(x); y = laserNum(y);
   const B = LASER_BODY, d = laserDims(map, k), h = Math.hypot(x, y);
   if (map === 'circle') { const f = h > d.R - B ? (d.R - B) / h : 1; return { x: laserR3(x * f), y: laserR3(y * f) }; }
   if (map === 'donut') {
@@ -74,22 +78,24 @@ const laserClampMap = (map, k, x, y) => {
 
 /* --- the falling floor ------------------------------------------------------------------- */
 const LASER_TILE_CACHE = {};
-/** The tiles of a map (at size 1): flat-topped hexagons whose middle is on the map. */
+/** The tiles of a map (at size 1): flat-topped hexagons that cover the map, the strip by the wall
+    included (a tile whose middle is just off the map still holds the floor drawn inside it), so every
+    spot stands on a tile that can fall. */
 const laserTiles = (map) => {
   if (LASER_TILE_CACHE[map]) return LASER_TILE_CACHE[map];
   const out = [], T = LASER_TILE;
   for (let q = -6; q <= 6; q++) for (let r = -7; r <= 7; r++) {
     const x = 1.5 * T * q, y = Math.sqrt(3) * T * (r + q / 2);
-    if (laserInside(map, 1, x, y, 0.02)) out.push({ i: out.length, x: laserR3(x), y: laserR3(y) });
+    if (laserInside(map, 1, x, y, -T * 0.85)) out.push({ i: out.length, x: laserR3(x), y: laserR3(y) });
   }
   LASER_TILE_CACHE[map] = out;
   return out;
 };
-/** The tile under a point (the nearest middle), or null off the floor. */
+/** The tile under a point on the map (the nearest middle: the tiles cover the whole map). */
 const laserTileAt = (map, x, y) => {
   let best = null, bd = Infinity;
   laserTiles(map).forEach(t => { const dd = Math.hypot(t.x - x, t.y - y); if (dd < bd) { bd = dd; best = t; } });
-  return best && bd <= LASER_TILE ? best : null;
+  return best;
 };
 
 /** A spot moved onto the arena: on the map, out of every pillar, and off any tile that fell. */
@@ -116,8 +122,21 @@ const laserFit = (A, x, y) => {
     (A.pillars || []).forEach(pl => {
       const vx = p.x - pl.x, vy = p.y - pl.y, l = Math.hypot(vx, vy), need = LASER_PILLAR_R + LASER_BODY;
       if (l < need) {
-        const ux = l > 1e-6 ? vx / l : 1, uy = l > 1e-6 ? vy / l : 0;
-        p = laserClampMap(map, k, pl.x + ux * (need + 0.002), pl.y + uy * (need + 0.002));
+        // The nearest place round the pillar that is still on the map and clear of every pillar (straight
+        // out alone could be pulled back into it by the wall of a shrunk arena).
+        let best = null, bd = Infinity;
+        for (let i = 0; i < 24; i++) {
+          const an = i * Math.PI / 12;
+          const q = laserClampMap(map, k, pl.x + Math.cos(an) * (need + 0.002), pl.y + Math.sin(an) * (need + 0.002));
+          if (!(A.pillars || []).every(o => Math.hypot(q.x - o.x, q.y - o.y) >= need)) continue;
+          const dd = Math.hypot(q.x - p.x, q.y - p.y);
+          if (dd < bd) { bd = dd; best = q; }
+        }
+        if (best) p = best;
+        else {
+          const ux = l > 1e-6 ? vx / l : 1, uy = l > 1e-6 ? vy / l : 0;
+          p = laserClampMap(map, k, pl.x + ux * (need + 0.002), pl.y + uy * (need + 0.002));
+        }
       }
     });
   }
@@ -125,7 +144,7 @@ const laserFit = (A, x, y) => {
 };
 
 /** An aim in degrees, 0 to 360, one decimal. */
-const laserAngle = (a) => { a = Number(a) || 0; a = ((a % 360) + 360) % 360; return Math.round(a * 10) / 10; };
+const laserAngle = (a) => { a = laserNum(a); a = ((a % 360) + 360) % 360; return Math.round(a * 10) / 10; };
 
 /** Where a ray from x,y along dx,dy first meets a wall of the arena: { t, nx, ny (the wall's normal,
     toward the ray), stop (a pillar: the beam ends, it never bounces off one) }, or t 0. */
@@ -202,7 +221,9 @@ const laserTrace = (shots, o) => {
           const vx = q.x - x, vy = q.y - y;
           const along = vx * dx + vy * dy, perp = Math.abs(vx * dy - vy * dx);
           if (along <= 0 || along > wall.t + B) return;
-          if (perp < (q.shield ? B : reach)) on.push({ q, along, perp });
+          // Past the beam's end (a pillar, the donut's hole, a corner) only a body round its tip is touched.
+          const r = q.shield ? B : reach, past = along - wall.t;
+          if (past > 0 ? Math.hypot(past, perp) < r : perp < r) on.push({ q, along, perp });
           else miss.push({ q, along, gap: laserR3(perp - reach) });
         });
         on.sort((p, q) => p.along - q.along);

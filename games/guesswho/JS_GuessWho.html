@@ -460,7 +460,7 @@ function gwPills(state) {
     const team = (i) => ({
       name: gwT('gw_short_' + i),
       score: (s.tw || [])[i] || 0,
-      mark: `<span class="gw-dot gw-dot--t${i}">${s.teams[i].length}</span>`,
+      mark: `<span class="gw-dot gw-dot--t${i}">${gwTeamHereIds(state, i).length}</span>`,
       // The members wrap onto as many lines as they need (a pill is a third of a 375px phone): every name shows.
       sub: `<span class="gw-team-sub"><bdi>${escapeHTML(gwTeamNames(state, i).join(gwListSep()))}</bdi>` +
         `<span>${(mine === i ? escapeHTML(gwT('gw_you')) + ' · ' : '') + escapeHTML(gwT('gw_left', { n: gwUp(s.faces, s.down[i]).length }))}</span></span>`
@@ -694,9 +694,11 @@ function gwTeamOverHtml(state, t, tv) {
   const s = state.shared || {};
   const names = gwNames(state);
   const here = (id) => (state.players || []).some(p => p.id === id);
-  const seat = gwMySeat(state);
+  // The next game's sides (s.nextTeams once someone moved; s.teams is who played this one).
+  const next = s.nextTeams || s.teams;
+  const seat = (next[0] || []).indexOf(Room.me) !== -1 ? 0 : ((next[1] || []).indexOf(Room.me) !== -1 ? 1 : -1);
   const inRoom = (state.players || []).some(p => p.id === Room.me);
-  const ids = [0, 1].map(k => (s.teams[k] || []).filter(here));
+  const ids = [0, 1].map(k => (next[k] || []).filter(here));
   // Whoever is here on no side (a latecomer) joins the smaller one, as the server will (gwFitTeams).
   (state.players || []).forEach(p => { if (ids[0].indexOf(p.id) === -1 && ids[1].indexOf(p.id) === -1) ids[ids[0].length <= ids[1].length ? 0 : 1].push(p.id); });
   const canDeal = ids[0].length > 0 && ids[1].length > 0 && (state.youAreHost || inRoom);
@@ -1132,7 +1134,7 @@ function gwSig(state) {
     JSON.stringify(s.q || null), JSON.stringify(s.picked || null), JSON.stringify(s.line || []), s.champ, JSON.stringify(s.scores || {}),
     (state.players || []).map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','), s.endsAt || '',
     JSON.stringify(state.you || null), state.youAreHost, appState.lang,
-    JSON.stringify(s.teams || null), JSON.stringify(s.propose || null), JSON.stringify(s.tw || null)].join('|');
+    JSON.stringify(s.teams || null), JSON.stringify(s.nextTeams || null), JSON.stringify(s.propose || null), JSON.stringify(s.tw || null)].join('|');
 }
 
 ROOM_GAMES.guesswho = {
@@ -1172,6 +1174,8 @@ ROOM_GAMES.guesswho = {
   },
   // With the teams' way on, the duels' tournament isn't offered (JS_RoomTournament.html's lobby asks).
   tourOff: (state) => gwLobbyTeamsOn(state),
+  // Seating is never folded: the host's own sides and «انضم» stay in sight (as كونكت ٤'s teams).
+  lobbyUnfolded: (state) => gwLobbyTeamsOn(state),
   // A TV that isn't the host shows the two sides as people pick them.
   tvLobbyPlayers(state, tile) {
     if (!gwLobbyTeamsOn(state)) return '';

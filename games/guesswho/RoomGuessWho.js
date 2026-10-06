@@ -386,11 +386,13 @@ const guessWhoAction = (room, playerId, action, payload) => {
       gwLobby(room).sides[playerId] = k;
       return;
     }
-    // Between games in the teams' way: you move for the next one.
+    // Between games in the teams' way: you move for the next one. Kept apart from
+    // s.teams, which says who played this one (the night's points read it).
     const sv = room.shared || {};
     if (!gwTeamsOn(sv) || sv.phase !== 'over') return;
-    sv.teams = [0, 1].map(j => sv.teams[j].filter(id => id !== playerId));
-    sv.teams[k].push(playerId);
+    const base = sv.nextTeams || sv.teams;
+    sv.nextTeams = [0, 1].map(j => (base[j] || []).filter(id => id !== playerId));
+    sv.nextTeams[k].push(playerId);
     return;
   }
   if (action === 'start' && room.phase === 'lobby' && gwLobby(room).teams) { gwNewTeamGame(room, playerId, p); return; }
@@ -406,9 +408,10 @@ const guessWhoAction = (room, playerId, action, payload) => {
     if (!room.players.some(x => x.id === playerId) && room.hostId !== playerId) throw new Error('لست في الغرفة');
     if (gwTeamsOn(s)) {
       // The same sides (a latecomer on the smaller one, a leaver off), the other team starting.
-      const teams = gwFitTeams(room, s.teams);
+      const teams = gwFitTeams(room, s.nextTeams || s.teams);
       if (!teams[0].length || !teams[1].length) throw new Error('محتاجين واحد على الأقل في كل فريق');
       s.teams = teams;
+      delete s.nextTeams;
       s.first = 1 - (s.first || 0);
       s.prev = s.result;
       s.round = (s.round || 1) + 1;
@@ -565,7 +568,9 @@ const gwPlayerLeft = (room, playerId) => {
   if (gwTeamsOn(s)) {
     // The teams' way: a team left with nobody here loses by forfeit; else the game goes on without them.
     const live = s.phase === 'play' || s.phase === 'pick';
-    if (room._gw && room._gw.propose && room._gw.propose.by === playerId) gwDropPropose(room);
+    // Their own proposal goes, and so does one their team can no longer agree to (one left here).
+    const pr = room._gw && room._gw.propose;
+    if (pr && (pr.by === playerId || gwTeamHere(room, pr.team).length < 2)) gwDropPropose(room);
     if (live) {
       const empty = [0, 1].find(k => gwTeamHere(room, k).length === 0);
       if (empty !== undefined) { gwEnd(room, 1 - empty, 'left'); return; }

@@ -209,7 +209,7 @@ How it is built:
     «لعبة تانية» and the lobby.
   - **The choice isn't remembered on the host's phone** (it is the server's, in the lobby): one tap each
     time.
-  - **A game switched off for a fix is never drawn** (`svRaceOn`).
+  - **A game switched off for a fix is never drawn** (`svRaceOn`), nor dealt from a line-up drawn before it was switched off: `svRaceLineupOk` refuses such a line-up at Start and play again, and the game falls back to one puzzle every round (6 Oct 2026, the audit).
   - **English name**: "Puzzle pentathlon" (also with 3 rounds).
   - The next puzzle is announced on the result screen (beside «اللي بعده»), not as a splash over the new
     round, so nobody loses solving time; the header of a TV still names the room's game.

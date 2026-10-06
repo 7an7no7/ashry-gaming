@@ -38,7 +38,7 @@ const CORE = [
   /^rooms-worker\/src\//, /^rooms-worker\/build\.mjs$/, /^rooms-worker\/fingerprint\.mjs$/, /^rooms-worker\/package/,
   /^rooms-worker\/wrangler/, /^RoomGames\.js$/, /^Room(Stop|Chameleon|Spyfall|Bomb|Buzzer|Imposter|JustOne|WhoAmI|Codenames|WouldYou|MostLikely|Fibbage|Draw|FakeArtist|Trivia|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|Herd|Mind|Timeline)\.js$/, /^Games\.js$/, /^DisabledGames\.js$/, /^Common\.js$/, /^RoomShared\.js$/,
   /^Controller\.html$/, /^Style(_\w+)?\.html$/, /^Tailwind\.html$/, /^Logo\.html$/,
-  /^JS_(Core|Translations|Room|RoomGames|RoomTv|RoomTurn|RoomChat|RoomAudience|RoomVoting|Motion|Utils|Catalog|Sounds|Three|ShareCard|Solo|Daily|TeamRelay)\.html$/,
+  /^JS_(Core|Translations|Room|RoomGames|RoomTv|RoomTurn|RoomChat|RoomAudience|RoomVoting|Motion|Utils|Catalog|Sounds|Three|ShareCard|Solo|Daily|TeamRelay|Lazy|RoomImposter)\.html$/,   // JS_Lazy: every door; JS_RoomImposter: renderRoomFrame, roomAct
   /^tools\/(build-preview|build-site|test-ui|test-ui-parallel|test-changed)\.mjs$/, /^tools\/package/,
   /^rooms-worker\/test\/play-all\.mjs$/,
 ];
@@ -52,8 +52,9 @@ const MAP = [
   { files: /^JS_GameRules\.html$/, screens: true },
   // A game's own words and rules (games/<id>/<id>.text.js): its screens.
   { files: /\.text\.js$/, screens: true },
-  // The party games the core segment plays in its one room (and their word lists).
-  { files: /^(SpyWords|CodenamesWords|PartyContent|TriviaQuestions|ChameleonWords|SpyfallPlaces|BombPrompts|EmojiRiddles|Proverbs|MonkeyWords|StopWords|TimelineEvents)\.js$/, robots: ['core', 'autonext'], ui: CORE_GAMES, screens: true },
+  // The party games the core segment plays in its one room (and their word lists, which المشنقة,
+  // the solve games, the race and the packs' rooms deal from too).
+  { files: /^(SpyWords|CodenamesWords|PartyContent|TriviaQuestions|ChameleonWords|SpyfallPlaces|BombPrompts|EmojiRiddles|Proverbs|MonkeyWords|StopWords|TimelineEvents)\.js$/, robots: ['core', 'autonext', 'hangman', 'solve', 'race', 'quiz'], ui: CORE_GAMES.concat(['hangman', 'wordle'], RACE_GAMES), screens: true },
   { files: /^JS_Room(Imposter|Codenames|Buzzer|Stop|Chameleon|Spyfall|Bomb|Draw|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|FakeArtist|Trivia|Herd|Mind|Timeline)\.html$/, robots: ['core', 'autonext'], ui: CORE_GAMES },
   // «التالي لوحده»: the next round by itself in the vote and quiz games.
   { files: /^JS_RoomAutoNext\.html$/, robots: ['autonext'], ui: ['trivia', 'wouldyou', 'mostlikely', 'fibbage', 'herd', 'twotruths'] },

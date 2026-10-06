@@ -222,8 +222,8 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
 
 **Decided here (open to change):**
 - With partners opposite, the partner rule can only bite once someone has left (A1 A2 side by side); it is checked always, one rule (`unoHitsMate`). A last card that would hit the partner is refused too (no exception for the last card).
-- A partner who leaves leaves the other playing alone (no partner rule for them); one team left at the table ends the game, that team winning (a one-round game left this way is not counted as a win).
-- Play again keeps the pairs; with a pair broken or someone new in the room it is refused with a word («ارجعوا للقائمة واختاروا أونو تاني عشان الفرق») - the teams are picked again in the lobby.
+- A partner who leaves leaves the other playing alone (no partner rule for them); one team left at the table ends the game, that team winning (a one-round game left this way is not counted as a win). A waiting +2/+4 stack whose next seat, after a leave, is the stacker's own partner is dropped (`pending.by`, `unoPlayerLeft`), and a drawn card that would now hit the partner isn't lit.
+- Play again keeps the pairs; with a pair broken, someone new in the room, or fewer than two whole pairs still here (a pair gone whole is never dealt) it is refused with a word («ارجعوا للقائمة واختاروا أونو تاني عشان الفرق») - the teams are picked again in the lobby.
 - The switch isn't remembered on the host's phone: it is the lobby's, off each time أونو is chosen (play again keeps it).
 - One round: the winning pair first and every other pair second on the night; rounds: the pairs by points, tied pairs sharing a place.
 - Nobody may catch their own partner (the server refuses, the button is hidden for them).

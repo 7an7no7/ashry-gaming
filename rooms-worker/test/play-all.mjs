@@ -1731,6 +1731,8 @@ async function darkroomRobots() {
   ({ s, M, guides } = roles());
   await M.waitFor((st) => st.you && st.you.mover && !st.you.g, 'darkroom: the new mover loses the map');
   await all(guides, (st) => st.you && st.you.g && st.you.g.level === 2, 'darkroom: the old mover is a guide with the new map');
+  // mapOf() reads the TV's map: wait for the TV to have level 2's, or over the internet it can still hold level 1's.
+  await TV.waitFor((st) => st.screen && st.screen.g && st.screen.g.level === 2, 'darkroom: the TV has the level 2 map');
   const m2 = mapOf();
   check(m2 && m2.w * m2.h > m1.w * m1.h, 'darkroom: level 2 is bigger');
   // The host moves a quiet mover on: from the start, no heart lost.

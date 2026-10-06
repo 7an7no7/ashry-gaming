@@ -1285,7 +1285,30 @@ const PROBES = {
         return null;
       })
     ];
-  }
+  },
+  // الليزر: while hiding, a phone has its own spot and aim only; nobody's spot is on the table
+  // (nor who is ready) until the reveal.
+  laser(room) {
+    const s = room.shared || {};
+    const hiding = s.phase === 'hide';
+    return [
+      probe("a phone's spot is its own, exactly", hiding, (view, pid) => {
+        if (pid === SCREEN) return view.you ? 'you' : null;
+        const want = room.secrets[pid];
+        if (!want) return null;
+        const you = view.you || {};
+        return you.x === want.x && you.y === want.y && you.a === want.a ? null : 'you';
+      }),
+      probe('no spot on the table while hiding', hiding, (view) => (hasKey(view.shared, 'shots') || hasKey(view.shared, 'hit') ? 'shared.shots' : null)),
+      probe("nobody's spot but your own anywhere in your view", hiding, (view, pid) => {
+        const text = JSON.stringify(view.shared || {});
+        const other = Object.keys(room.secrets).find(id => id !== pid && room.secrets[id] && (s.alive || []).indexOf(id) !== -1 &&
+          text.indexOf('"x":' + room.secrets[id].x + ',"y":' + room.secrets[id].y) !== -1);
+        return other ? 'spot of ' + other : null;
+      })
+    ];
+  },
+
 };
 
 /*
@@ -2923,7 +2946,42 @@ const DRIVERS = {
     act(L, L.ids[1], 'arm', {});
     act(L, L.ids[2], 'arm', {});
     return S(L).phase === 'count' && S(L).round === 1;
-  }
+  },
+  laser() {
+    // Places everyone standing as given ([x, y, a] by player), all ready: the reveal, then its end.
+    const round = (T, spots) => {
+      const s = S(T);
+      if (s.phase !== 'hide') return false;
+      s.alive.forEach((pid) => { const [x, y, a] = spots[pid] || [0, 0, 270]; must(T, pid, 'place', { round: s.round, x, y, a }); });
+      s.alive.forEach((pid) => must(T, pid, 'ready', { round: s.round }));
+      if (S(T).phase !== 'reveal') return false;
+      return runClock(T, (r) => r.shared.phase === 'hide' || r.shared.phase === 'gameover');
+    };
+    // Three: all out together (a tie: all three play on), then one hit, then the last two.
+    const T = table('laser', 3);
+    const [a, b, c] = T.ids;
+    must(T, T.host, 'start', { teams: 0 });
+    if (!round(T, { [a]: [-0.4, 0, 0], [b]: [0, 0, 180], [c]: [0.4, 0, 180] })) return false;
+    if (!S(T).tie || S(T).alive.length !== 3 || S(T).round !== 2) return false;
+    if (!round(T, { [a]: [-0.3, 0, 0], [b]: [0.3, 0, 90], [c]: [0, 0.4, 90] })) return false;
+    if (S(T).alive.length !== 2) return false;
+    // A round the clock ends: nobody presses ready.
+    runClock(T, (r) => r.shared.phase === 'reveal');
+    runClock(T, (r) => r.shared.phase === 'hide' || r.shared.phase === 'gameover');
+    if (S(T).phase === 'hide' && !round(T, { [a]: [-0.2, 0, 0], [c]: [0.2, 0, 90] })) return false;
+    if (S(T).phase !== 'gameover') return false;
+    // Four in two teams: the first in the line fires along it, sparing its teammate.
+    const U = table('laser', 4);
+    must(U, U.host, 'start', { teams: 2 });
+    if (S(U).phase !== 'teams') return false;
+    must(U, U.host, 'shuffle', {});
+    must(U, U.host, 'go', {});
+    const line = {};
+    U.ids.forEach((pid, i) => { line[pid] = [-0.5 + 0.3 * i, 0, i === 0 ? 0 : 270]; });
+    if (!round(U, line)) return false;
+    return S(U).phase === 'gameover' && S(U).winnerTeam === S(U).teams[U.ids[0]];
+  },
+
 };
 
 /*

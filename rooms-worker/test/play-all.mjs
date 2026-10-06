@@ -7063,6 +7063,44 @@ async function programRobots() {
   everyone.forEach((x) => x.close());
 }
 
+async function laserRobots() {
+  console.log('• الليزر (hide and aim, everyone fires at once, the shrinking arena, teams)');
+  const H = await Bot.host('حسام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K];
+  await H.must('chooseGame', { game: 'laser' });
+  check((await J.act('start', {})).ok === false, 'laser: only the host starts');
+  await H.must('start', { teams: 0 });
+  await all(people.concat([TV]), (s) => s.game === 'laser' && s.shared.phase === 'hide', 'laser: the hiding reaches every phone and the TV');
+  check(TV.state.you === null, 'laser: the TV has no spot');
+  check(people.every((p) => p.state.you && typeof p.state.you.x === 'number') && !('shots' in H.state.shared), "laser: each phone has its own spot, the table none");
+  // A line: حسام fires along it at the other two, who aim up.
+  await H.must('place', { round: 1, x: -0.4, y: 0, a: 0 });
+  await J.must('place', { round: 1, x: 0, y: 0, a: 270 });
+  await K.must('place', { round: 1, x: 0.4, y: 0, a: 270 });
+  check(J.state.you.x === 0 && J.state.you.a === 270, 'laser: a spot is kept as placed');
+  await H.must('ready', { round: 1 });
+  await J.must('ready', { round: 1 });
+  check(H.state.shared.phase === 'hide', 'laser: the reveal waits for everyone standing');
+  await K.must('ready', { round: 1 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'reveal' && s.shared.shots.length === 3, 'laser: everyone ready: the reveal on every screen');
+  check(H.state.shared.hit.length === 2 && H.state.shared.hit.indexOf(H.pid) === -1, 'laser: one beam goes through both in its line');
+  await H.must('next', { round: 1 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.board[0].id === H.pid, 'laser: the last one standing wins, on every screen');
+  await H.must('playAgain', {});
+  await H.waitFor((s) => s.shared.phase === 'hide' && s.shared.round === 1 && s.shared.alive.length === 3, 'laser: play again deals a new game');
+  await H.must('backToHub');
+  await H.waitFor((x) => x.phase === 'lobby', 'laser: back in the hub');
+  await H.must('chooseGame', { game: 'laser' });
+  await H.must('start', { teams: 2 });
+  await all(people, (s) => s.shared.phase === 'teams' && Object.keys(s.shared.teams).length === 3, 'laser: teams are dealt and shown first');
+  await H.must('go', {});
+  await all(people, (s) => s.shared.phase === 'hide', 'laser: the host starts the teams game');
+  [H, J, K, TV].forEach((x) => x.close());
+}
+
 const SEGMENTS = [
   { name: 'err', run: errRobots, secs: 5 },
   { name: 'core', run: coreSeg, secs: 47 },
@@ -7113,6 +7151,7 @@ const SEGMENTS = [
   { name: 'mission', run: missionRobots, secs: 12 },
   { name: 'crew', run: crewRobots, secs: 6 },
   { name: 'crewlink', run: crewLinkRobots, secs: 12 },
+  { name: 'laser', run: laserRobots, secs: 8 },
 ];
 const EXCLUSIVE = new Set([]);
 

@@ -33,9 +33,39 @@ teams.
   anyone standing wins.
 - **At least 3 players.**
 
-## Still to do before building
+## The look
 
-- The look: the sheet below, waiting on the owner. (The shell budget was
-  raised to 730 KB for this game on 6 Oct 2026.)
+The looks sheet (6 Oct 2026): https://claude.ai/artifact/J2oFSGWpBjLbDbQdaDtZ3W (source `notes/archive/sheets/laser-looks-sheet.html`): أ الحلبة من فوق (my pick), ب الرادار, ج مسرح الروبوتات. **The owner picked أ «الحلبة من فوق» (6 Oct 2026).**
 
-The looks sheet (6 Oct 2026): https://claude.ai/artifact/J2oFSGWpBjLbDbQdaDtZ3W (source `notes/archive/sheets/laser-looks-sheet.html`): أ الحلبة من فوق (my pick), ب الرادار, ج مسرح الروبوتات. Waiting on the owner.
+## How it is built (6 Oct 2026)
+
+- **Files** (`games/laser/`): `Laser.js` the geometry both sides use (`LASER_BODY` 0.075, `laserK` the
+  arena's size by round: 1, then 0.1 smaller a round down to 0.35, `laserClamp`, `laserAngle`,
+  `laserHits`, `laserToWall`; in `SHARED_LISTS`, the `laser` chunk and the server's `FILES`);
+  `RoomLaser.js` the rules (`ROOM_RULES.laser`, `PROGRAM_TEAMS.laser`); `JS_RoomLaser.html` the
+  phone and TV screens and the canvas (its styles are `LASER_CSS`, put in the page when its chunk
+  runs: none in the shell); `laser.text.js` the words and Help. The icon is drawn (`art:laser`).
+- **The arena** is a flat-topped hexagon of circumradius k, middle at 0,0, players circles of
+  LASER_BODY. Phases: `teams` (only with teams: the deal shown, the host's 🔀 and «يلا نبدأ»,
+  `requireMoveOn`), `hide` (15 s, `endsAt`), `reveal` (7 s from `revealAt`), `gameover`.
+- **Secrets**: a spot is `room.secrets[pid] = { x, y, a, ready, round }`; `place` and `ready` carry
+  the round. Who is ready is a secret too (nothing is seen while hiding). A spot not moved stays from
+  the last round, pulled inside the smaller arena; round one deals a random spot and aim.
+- **The reveal**: `shared.shots` (everyone standing), `shared.hit`, `k` and `kNext` (the next
+  round's arena; the same when this round ends the game), `tieNext`. Every phone and the TV play the
+  same 7 s from `revealAt` on the server's clock (`roomServerNow`): pop in 0.5 s, charge 1.8, all
+  fire 2.4 (flash, a zap), the hit fizzle 3.2, the ring falls 4.3-5.6. Motion off draws the end.
+  The host (or anyone with the host away) has «التالي» to skip it.
+- **After it**: the hit go out (`outRound`); one left (or one team) ends the game; nobody left is a
+  tie: everyone who was standing plays on (`shared.tie`), the arena smaller.
+- **The board**: score = the round you went out in, the winners one past the last round; in teams
+  each player has their team's best. `PROGRAM_TEAMS.laser` places the teams for the night.
+- **The phone view zooms in** as the arena shrinks (up to 1.6×, `lsrFrame`), so a small arena is
+  still easy to touch; within a round it holds, so the shrink is seen in the reveal.
+- **Leaving** mid-round: dropped from who is standing, the ready check runs again, the game ends if
+  one is left; during the reveal it plays out and its end counts who is still here.
+- **Tests**: `leaks.mjs` (a spot only on its own phone while hiding, no shots before the reveal; a
+  driver with a three-way tie, the clock ending a round, and teams sparing a teammate),
+  `play-all.mjs --only=laser` (26 checks), `test:ui` deals it to five phones and a TV.
+- A test game of 5 random robot players took 10 rounds (about 4 minutes): the arena stops shrinking
+  after round 7.

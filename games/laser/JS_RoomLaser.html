@@ -1,0 +1,553 @@
+<script>
+/* ============================================================================
+   الليزر — Laser in rooms: the phones and the TV (look أ «الحلبة من فوق», the
+   owner's pick of 6 Oct 2026). The rules are ROOM_RULES.laser in RoomLaser.js,
+   the geometry both sides use in Laser.js.
+
+   - hide: a phone still standing draws the empty hexagon and only its own spot
+     and aim (state.you); a touch moves the spot, a drag turns the aim, and the
+     spot goes to the server as it changes ('place'). Nobody else is drawn, and
+     nothing says who is ready (the owner: nothing at all is seen).
+   - reveal: every phone and the TV play the same seven seconds from
+     shared.revealAt, read on the server's clock (roomServerNow): everyone pops
+     in, the beams charge, all fire at once, whoever was hit fizzles out, and the
+     outer ring falls away to the next round's size. A phone that reloads in the
+     middle comes in at the same moment; with motion off it draws the end.
+   - gameover: the podium (renderPodium) and everyone's round, the host's buttons.
+   This game's styles are LASER_CSS, put in the page when its chunk runs.
+   ========================================================================= */
+
+const LASER_COLOURS = ['#38e8ff', '#ff5c8a', '#ffd64d', '#7cff6b', '#c08bff', '#ff9a3d', '#5b9dff', '#ff6bd6', '#3ff0b0', '#e9e9f2', '#b8ff3a', '#ff7b6b'];
+const LASER_TEAM_COLOURS = ['#38e8ff', '#ff5c8a', '#ffd64d', '#7cff6b'];
+const LASER_REVEAL_S = 7;   // LASER_REVEAL_MS on the server, in seconds
+// The reveal's beats, in seconds from shared.revealAt.
+const LSR_T = { pop: 0.5, charge: 1.8, fire: 2.4, fade: 3.3, gone: 4.3, hit: 3.2, hitEnd: 4.1, shrink: 4.3, shrinkEnd: 5.6 };
+
+const LASER_CSS = `
+.laser { display: grid; gap: var(--sp-3); justify-items: center; }
+.laser-bar { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); flex-wrap: wrap; }
+.laser-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-weight: 700; font-size: .9rem;
+  background: var(--surface-2); color: var(--text); }
+.laser-chip__dot { width: 10px; height: 10px; border-radius: 50%; background: var(--laser-c, #38e8ff); box-shadow: 0 0 8px var(--laser-c, #38e8ff); }
+.laser-clock { font-variant-numeric: tabular-nums; min-width: 3.4em; justify-content: center; background: #0c1430; color: #7af3ff; box-shadow: 0 0 0 1px rgba(56,232,255,.5); }
+.laser-clock.is-low { color: #ff8fab; box-shadow: 0 0 0 1px rgba(255,92,138,.6); }
+.laser-stage { position: relative; width: min(100%, calc(var(--app-h, 100vh) - 300px)); min-width: min(100%, 240px); aspect-ratio: 1; }
+.laser-arena { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 22px; background: #070b1a; touch-action: none; }
+.laser-arena.is-mine { cursor: crosshair; }
+.laser-cap { position: absolute; inset-inline: 0; bottom: 8px; text-align: center; font-weight: 800; font-size: 1.05rem; color: #fff;
+  text-shadow: 0 1px 8px rgba(0,0,0,.85); pointer-events: none; padding-inline: var(--sp-2); }
+.laser-hint { margin: 0; text-align: center; color: var(--text-2); font-size: .9rem; }
+.laser-actions { width: 100%; max-width: 26rem; display: grid; gap: var(--sp-2); }
+.laser-teams { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: var(--sp-2); }
+.laser-team { border-radius: 16px; padding: var(--sp-3); background: var(--surface-2); border-top: 4px solid var(--laser-c); display: grid; gap: 4px; align-content: start; }
+.laser-team__name { font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.laser-team__who { color: var(--text-2); font-size: .92rem; }
+.laser-rows { width: 100%; display: grid; gap: 6px; }
+.laser-row { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 12px; border-radius: 12px; background: var(--surface-2); }
+.laser-row.is-win { background: var(--accent-soft); }
+.laser-row__name { flex: 1; min-width: 0; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.laser-row__note { color: var(--text-2); font-size: .85rem; }
+.laser-tv { display: grid; grid-template-columns: auto minmax(0, 22rem); gap: 3vmin; align-items: center; justify-content: center; width: 100%; }
+.laser-tv .laser-stage { width: min(80vmin, 62vw); min-width: 0; }
+.laser-tv__side { display: grid; gap: 2vmin; align-content: center; }
+.laser-tv__side > .laser-chip { justify-self: start; }
+.laser-tv__teams { width: min(92vw, 110vmin); }
+.laser-tv__teams .laser-team { padding: 2vmin; gap: 1vmin; }
+.laser-tv__teams .laser-team__name { font-size: 3.4vmin; }
+.laser-tv__teams .laser-team__who { font-size: 2.8vmin; }
+.laser-tv__teams .laser-chip__dot { width: 1.6vmin; height: 1.6vmin; }
+.laser-tv__side .laser-chip { font-size: 2.4vmin; padding: .6vmin 1.8vmin; }
+.laser-tv .laser-cap { font-size: 3.4vmin; bottom: 2vmin; }
+.laser-tv__title { font-weight: 800; font-size: 3.6vmin; color: var(--text); }
+.laser-tv__names { display: flex; flex-wrap: wrap; gap: 1vmin; }
+.laser-tv__names .laser-chip.is-out { opacity: .4; text-decoration: line-through; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .laser--play { grid-template-columns: auto minmax(0, 1fr); align-items: center; justify-items: stretch; column-gap: var(--sp-4); }
+  .laser--play .laser-stage { grid-column: 1; grid-row: 1 / span 4; width: calc(var(--app-h, 100vh) - 110px); min-width: 0; }
+  .laser--play .laser-bar, .laser--play .laser-hint, .laser--play .laser-actions { grid-column: 2; }
+  .laser--play .laser-bar { grid-row: 1; }
+}
+@media (max-width: 899px) and (orientation: portrait) { .laser-tv { grid-template-columns: minmax(0, 1fr); } .laser-tv .laser-stage { width: min(100%, 60vh); } }
+`;
+function laserStyleOn() {
+  if (document.getElementById('laser-style')) return;
+  const st = document.createElement('style');
+  st.id = 'laser-style';
+  st.textContent = LASER_CSS;
+  document.body.appendChild(st);
+}
+laserStyleOn();
+
+/** The words, in the language of the app. */
+const laserT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+
+/** A player's colour: their team's, else their seat's. */
+function laserColour(s, id) {
+  if (s.teams && s.teams[id] !== undefined) return LASER_TEAM_COLOURS[s.teams[id]] || LASER_TEAM_COLOURS[0];
+  const i = (s.roster || []).indexOf(id);
+  return LASER_COLOURS[(i < 0 ? 0 : i) % LASER_COLOURS.length];
+}
+const laserName = (state, id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+const laserTeamName = (t, k) => t['laser_team_' + k] || '';
+
+/* --- the lobby ---------------------------------------------------------------- */
+const LASER_OPTS_KEY = 'laser';
+function laserOpts() { return recallOptions(LASER_OPTS_KEY, { teams: 0 }); }
+function setLaserTeams(n) {
+  rememberOptions(LASER_OPTS_KEY, { teams: Number(n) || 0 });
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+  haptic('light');
+}
+
+/* --- this phone's spot while hiding ------------------------------------------------ */
+const lsr = { key: '', x: 0, y: 0, a: 0, raf: 0, ticker: 0, sentAt: 0, sendTimer: 0, played: new Set() };
+
+function laserMineFor(state) {
+  const s = state.shared || {};
+  const key = roomDealKey(state, s.round);
+  if (lsr.key !== key) {
+    const you = state.you || {};
+    lsr.key = key;
+    lsr.x = Number(you.x) || 0; lsr.y = Number(you.y) || 0; lsr.a = Number(you.a) || 0;
+  }
+  return lsr;
+}
+
+function laserSendPlace(now) {
+  const s = (Room.state && Room.state.shared) || {};
+  clearTimeout(lsr.sendTimer);
+  const go = () => { lsr.sentAt = Date.now(); roomAct('place', { round: s.round, x: lsr.x, y: lsr.y, a: lsr.a }); };
+  if (now || Date.now() - lsr.sentAt > 400) go(); else lsr.sendTimer = setTimeout(go, 400);
+}
+
+async function laserReady(on) {
+  const s = (Room.state && Room.state.shared) || {};
+  haptic(on ? 'medium' : 'light');
+  clearTimeout(lsr.sendTimer);
+  if (on) await Room.act('place', { round: s.round, x: lsr.x, y: lsr.y, a: lsr.a }).catch(() => {});
+  roomAct('ready', { round: s.round, on: !!on });
+}
+
+/* --- drawing the arena --------------------------------------------------------------- */
+const lsrClamp01 = (v) => Math.max(0, Math.min(1, v));
+const lsrSeg = (t, a, b) => lsrClamp01((t - a) / (b - a));
+const lsrEase = (u) => 1 - Math.pow(1 - lsrClamp01(u), 3);
+
+function lsrFit(cv) {
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [ctx, r.width, r.height];
+}
+function lsrHex(ctx, cx, cy, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; ctx[i ? 'lineTo' : 'moveTo'](cx + r * Math.cos(a), cy + r * Math.sin(a)); }
+  ctx.closePath();
+}
+/** Where the arena sits in a canvas w × h: its middle and the pixels of one unit. The view zooms in
+    as the arena shrinks (up to 1.6×), so a small arena is still easy to touch; within a round it holds. */
+const lsrFrame = (w, h, k) => ({ cx: w / 2, cy: h / 2, s: Math.min(w, h) * 0.47 * Math.min(1.6, 1 / (k || 1)) });
+
+/**
+ * Draws the arena. o: { k, kNext, t (seconds into the reveal, or null), people: [{ id, x, y, a, col,
+ * label, letter }], hit: [ids], mine: true when the one person is this phone's own spot while hiding }.
+ */
+function laserDraw(cv, o) {
+  if (!cv || !cv.isConnected) return;
+  const [ctx, w, h] = lsrFit(cv);
+  const { cx, cy, s } = lsrFrame(w, h, o.k);
+  const t = o.t === null || o.t === undefined ? null : o.t;
+  const k = t === null ? o.k : o.k + ((o.kNext || o.k) - o.k) * lsrEase(lsrSeg(t, LSR_T.shrink, LSR_T.shrinkEnd));
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#070b1a'; ctx.fillRect(0, 0, w, h);
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 1.3);
+  g.addColorStop(0, 'rgba(40,80,160,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  // The ring falling away.
+  if (t !== null && o.kNext < o.k) {
+    const fall = lsrSeg(t, LSR_T.shrink, LSR_T.shrinkEnd);
+    if (fall > 0 && fall < 1) {
+      ctx.save(); lsrHex(ctx, cx, cy, s * o.k); lsrHex(ctx, cx, cy, s * k);
+      ctx.fillStyle = `rgba(56,232,255,${0.2 * (1 - fall)})`; ctx.fill('evenodd'); ctx.restore();
+    }
+  }
+  // The floor: small hexagon tiles inside the wall.
+  ctx.save(); lsrHex(ctx, cx, cy, s * k); ctx.fillStyle = '#0c1430'; ctx.fill(); ctx.clip();
+  ctx.strokeStyle = 'rgba(80,200,255,.13)'; ctx.lineWidth = 1;
+  const tr = s * 0.09;
+  for (let q = -14; q <= 14; q++) for (let r = -14; r <= 14; r++) {
+    const x = cx + tr * 1.5 * q, y = cy + tr * Math.sqrt(3) * (r + q / 2);
+    if (Math.abs(x - cx) > s * 1.1 || Math.abs(y - cy) > s * 1.1) continue;
+    lsrHex(ctx, x, y, tr * 0.92); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save(); lsrHex(ctx, cx, cy, s * k);
+  ctx.strokeStyle = '#38e8ff'; ctx.lineWidth = Math.max(2, s * 0.018); ctx.shadowColor = '#38e8ff'; ctx.shadowBlur = s * 0.08; ctx.stroke(); ctx.restore();
+
+  const people = o.people || [];
+  const hit = new Set(o.hit || []);
+  const at = (p) => [cx + p.x * s, cy + p.y * s];
+  // The beams: a dashed aim while hiding or charging, then all of them at once.
+  if (t === null || t >= LSR_T.charge) {
+    people.forEach(p => {
+      const len = laserToWall(p.x, p.y, p.a, t === null ? o.k : o.k);
+      const dx = Math.cos(p.a * Math.PI / 180), dy = Math.sin(p.a * Math.PI / 180);
+      const [x, y] = at(p);
+      const charge = t === null ? 1 : lsrEase(lsrSeg(t, LSR_T.charge, LSR_T.fire));
+      const fire = t === null ? 0 : lsrSeg(t, LSR_T.fire, LSR_T.fire + 0.2) * (1 - lsrSeg(t, LSR_T.fade, LSR_T.gone));
+      ctx.save(); ctx.lineCap = 'round';
+      if (fire > 0) {
+        ctx.strokeStyle = p.col; ctx.globalAlpha = fire; ctx.lineWidth = s * 0.03; ctx.shadowColor = p.col; ctx.shadowBlur = s * 0.1;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * len * s, y + dy * len * s); ctx.stroke();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = s * 0.009; ctx.shadowBlur = 0; ctx.stroke();
+      } else if (t === null || t < LSR_T.fire) {
+        ctx.strokeStyle = p.col; ctx.globalAlpha = t === null ? 0.9 : 0.55; ctx.lineWidth = Math.max(1.5, s * 0.008); ctx.setLineDash([s * 0.03, s * 0.03]);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * len * s * charge, y + dy * len * s * charge); ctx.stroke();
+      }
+      ctx.restore();
+    });
+    const flash = t === null ? 0 : lsrSeg(t, LSR_T.fire, LSR_T.fire + 0.05) * (1 - lsrSeg(t, LSR_T.fire + 0.05, LSR_T.fire + 0.4));
+    if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${0.5 * flash})`; ctx.fillRect(0, 0, w, h); }
+  }
+  // The people: a pulse in, a gun nub on their aim, a fizzle if hit.
+  const step = Math.min(0.18, 1.1 / Math.max(1, people.length));
+  people.forEach((p, i) => {
+    const pop = t === null ? 1 : lsrEase(lsrSeg(t, LSR_T.pop + i * step, LSR_T.pop + i * step + 0.35));
+    if (pop <= 0) return;
+    const [x, y] = at(p);
+    const r = LASER_BODY * s * (0.6 + 0.4 * pop) * (pop < 1 ? 1 + 0.3 * Math.sin(pop * Math.PI) : 1);
+    const d = t !== null && hit.has(p.id) ? lsrSeg(t, LSR_T.hit, LSR_T.hitEnd) : 0;
+    ctx.save();
+    if (d > 0 && d < 1) {
+      for (let j = 0; j < 10; j++) {
+        const a = (j * 2.39996 + i) % (Math.PI * 2), m = 0.5 + ((j * 7 + i * 3) % 5) / 8;
+        ctx.fillStyle = p.col; ctx.globalAlpha = 1 - d;
+        ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * (1 + 3 * d * m), y + Math.sin(a) * r * (1 + 3 * d * m), r * 0.12, 0, 7); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    const fill = d > 0 ? '#3a3f55' : p.col;
+    ctx.shadowColor = fill; ctx.shadowBlur = d > 0 ? 0 : r * 0.9;
+    ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = fill; ctx.lineWidth = r * 0.45; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(p.a * Math.PI / 180) * r * 1.55, y + Math.sin(p.a * Math.PI / 180) * r * 1.55); ctx.stroke();
+    ctx.fillStyle = d > 0 ? '#9aa0b8' : '#07101f'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `700 ${Math.max(9, r * 1.05)}px "Noto Kufi Arabic", "IBM Plex Sans Arabic", sans-serif`;
+    ctx.fillText(d > 0 ? '✕' : (p.letter || ''), x, y + r * 0.05);
+    ctx.fillStyle = d > 0 ? 'rgba(200,205,225,.55)' : '#fff';
+    ctx.font = `700 ${Math.max(11, r * 0.8)}px "IBM Plex Sans Arabic", sans-serif`;
+    const lw = ctx.measureText(p.label || '').width / 2 + 4;
+    ctx.fillText(p.label || '', Math.max(lw, Math.min(w - lw, x)), Math.min(h - r * 0.6, y + r * 2));
+    ctx.restore();
+  });
+}
+
+/** Everyone of the reveal, as the drawing wants them. */
+function laserRevealPeople(state) {
+  const s = state.shared || {};
+  return (s.shots || []).map(p => {
+    const name = laserName(state, p.id);
+    return { id: p.id, x: p.x, y: p.y, a: p.a, col: laserColour(s, p.id), label: p.id === Room.me ? laserT().laser_you : name, letter: Array.from(name)[0] || '' };
+  });
+}
+
+/** The line under the reveal at second t. */
+function laserCaption(state, t) {
+  const s = state.shared || {};
+  const L = laserT();
+  if (t < LSR_T.pop) return L.laser_show;
+  if (t < LSR_T.charge) return L.laser_show;
+  if (t < LSR_T.fire) return L.laser_charge;
+  if (t < LSR_T.hit) return L.laser_fire;
+  if (t < LSR_T.shrink) {
+    const names = (s.hit || []).map(id => laserName(state, id)).filter(Boolean);
+    return names.length ? L.laser_out + ' ' + names.join(appState.lang === 'en' ? ', ' : '، ') : L.laser_nobody;
+  }
+  if (s.tieNext) return L.laser_tie;
+  if (s.kNext < s.k) return L.laser_shrink;
+  return '';
+}
+
+function laserStop() {
+  if (lsr.raf) cancelAnimationFrame(lsr.raf);
+  lsr.raf = 0;
+  if (lsr.ticker) clearInterval(lsr.ticker);
+  lsr.ticker = 0;
+}
+onLeaveScreen((from) => { if (from === 'room-laser' || from === 'room-tv') laserStop(); });
+onRoomClocksReset(() => { laserStop(); lsr.key = ''; });
+
+/** A short zap for the shots and a fizzle for the hit, on the app's audio context. */
+function laserZap(kind) {
+  try {
+    const ctx = fxCtx(), at = ctx.currentTime + 0.01;
+    const o = ctx.createOscillator(), gn = ctx.createGain();
+    o.type = kind === 'hit' ? 'square' : 'sawtooth';
+    o.frequency.setValueAtTime(kind === 'hit' ? 420 : 1900, at);
+    o.frequency.exponentialRampToValueAtTime(kind === 'hit' ? 60 : 180, at + (kind === 'hit' ? 0.45 : 0.32));
+    gn.gain.setValueAtTime(0.0001, at);
+    gn.gain.exponentialRampToValueAtTime(kind === 'hit' ? 0.12 : 0.16, at + 0.01);
+    gn.gain.exponentialRampToValueAtTime(0.0001, at + (kind === 'hit' ? 0.5 : 0.36));
+    o.connect(gn); gn.connect(ctx.destination); o.start(at); o.stop(at + 0.55);
+  } catch (e) {}
+}
+
+/** Runs the screen's arena: the clock while hiding, the reveal's frames, the spot under a finger. */
+function laserRun(state, el, tv) {
+  laserStop();
+  const s = state.shared || {};
+  const cv = el.querySelector('[data-laser-arena]');
+  if (!cv) return;
+  const L = laserT();
+  if (s.phase === 'hide') {
+    const mine = !tv && (s.alive || []).indexOf(Room.me) !== -1;
+    const me = mine ? laserMineFor(state) : null;
+    const paint = () => laserDraw(cv, {
+      k: s.k, t: null, hit: [],
+      people: me ? [{ id: Room.me, x: me.x, y: me.y, a: me.a, col: laserColour(s, Room.me), label: L.laser_you, letter: Array.from(laserName(state, Room.me))[0] || '' }] : []
+    });
+    paint();
+    const clock = el.querySelector('[data-laser-clock]');
+    const tick = () => {
+      if (!clock) return;
+      const left = Math.max(0, Math.ceil(((s.endsAt || 0) - roomServerNow()) / 1000));
+      const txt = '0:' + String(left).padStart(2, '0');
+      if (clock.textContent !== txt) clock.textContent = txt;
+      clock.classList.toggle('is-low', left <= 5);
+    };
+    tick();
+    lsr.ticker = setInterval(tick, 250);
+    if (mine && !cv.dataset.wired) laserWire(cv, s, paint);
+    return;
+  }
+  if (s.phase === 'reveal') {
+    const people = laserRevealPeople(state);
+    const cap = el.querySelector('[data-laser-cap]');
+    const key = roomDealKey(state, 'reveal' + s.round + (tv ? 'tv' : ''));
+    const frame = () => {
+      const t = motionOff() ? LASER_REVEAL_S : Math.max(0, (roomServerNow() - (s.revealAt || 0)) / 1000);
+      laserDraw(cv, { k: s.k, kNext: s.kNext, t, people, hit: s.hit || [] });
+      if (cap) { const c = laserCaption(state, t); if (cap.textContent !== c) cap.textContent = c; }
+      if (!motionOff() && t >= LSR_T.fire && t < LSR_T.fire + 0.5 && !lsr.played.has(key + 'f')) { lsr.played.add(key + 'f'); laserZap('fire'); haptic('medium'); }
+      if (!motionOff() && t >= LSR_T.hit && t < LSR_T.hit + 0.5 && (s.hit || []).length && !lsr.played.has(key + 'h')) { lsr.played.add(key + 'h'); laserZap('hit'); }
+      if (t < LASER_REVEAL_S + 0.3 && !motionOff()) lsr.raf = requestAnimationFrame(frame);
+    };
+    frame();
+    return;
+  }
+  laserDraw(cv, { k: s.k || 1, t: null, people: [], hit: [] });
+}
+
+/** A touch moves this phone's spot; a drag turns its aim. */
+function laserWire(cv, s, paint) {
+  cv.dataset.wired = '1';
+  let down = null;
+  const toUnit = (e) => {
+    const r = cv.getBoundingClientRect();
+    const f = lsrFrame(r.width, r.height, s.k);
+    return { x: (e.clientX - r.left - f.cx) / f.s, y: (e.clientY - r.top - f.cy) / f.s, px: e.clientX, py: e.clientY };
+  };
+  cv.addEventListener('pointerdown', (e) => {
+    const p = toUnit(e);
+    down = p;
+    if (Math.hypot(p.x - lsr.x, p.y - lsr.y) > LASER_BODY * 1.8) {
+      const c = laserClamp(p.x, p.y, s.k);
+      lsr.x = c.x; lsr.y = c.y;
+      haptic('light');
+      paint();
+    }
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!down) return;
+    const p = toUnit(e);
+    if (Math.hypot(p.px - down.px, p.py - down.py) < 8 && Math.hypot(p.x - lsr.x, p.y - lsr.y) < LASER_BODY) return;
+    lsr.a = laserAngle(Math.atan2(p.y - lsr.y, p.x - lsr.x) * 180 / Math.PI);
+    paint();
+    laserSendPlace(false);
+  });
+  const up = () => { if (!down) return; down = null; laserSendPlace(true); };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+}
+
+/* --- the screens ---------------------------------------------------------------------- */
+function laserTeamsHtml(state, s, L) {
+  return `<div class="laser-teams">${Array.from({ length: s.nTeams }, (_, k) => {
+    const who = (s.roster || []).filter(id => s.teams[id] === k).map(id => escapeHTML(laserName(state, id)));
+    return `<div class="laser-team" style="--laser-c:${LASER_TEAM_COLOURS[k]}">
+      <div class="laser-team__name"><span class="laser-chip__dot"></span>${escapeHTML(laserTeamName(L, k))}</div>
+      <div class="laser-team__who">${who.join('، ')}</div></div>`;
+  }).join('')}</div>`;
+}
+
+function laserRowsHtml(state, s, L) {
+  const won = new Set(s.winners || []);
+  return `<div class="laser-rows">${(s.board || []).map(r => `
+    <div class="laser-row ${won.has(r.id) ? 'is-win' : ''}" style="--laser-c:${laserColour(s, r.id)}">
+      <span class="laser-chip__dot"></span>
+      <span class="laser-row__name">${escapeHTML(r.name)}</span>
+      <span class="laser-row__note">${won.has(r.id) ? escapeHTML(L.laser_last) : escapeHTML(L.laser_out_in) + ' <span class="metric">' + (r.out || 0) + '</span>'}</span>
+    </div>`).join('')}</div>`;
+}
+
+function laserOverTitle(s, L) {
+  if (s.teams && s.winnerTeam !== null && s.winnerTeam !== undefined) {
+    return `<span class="laser-chip" style="--laser-c:${LASER_TEAM_COLOURS[s.winnerTeam]}"><span class="laser-chip__dot"></span>${escapeHTML(L.laser_team_won)}: ${escapeHTML(laserTeamName(L, s.winnerTeam))}</span>`;
+  }
+  return `🏆 ${escapeHTML(L.laser_won)}`;
+}
+
+ROOM_GAMES.laser = {
+  lobbyOptions(state) {
+    const t = laserT();
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(t.laser_lobby_hint)}</p>`;
+    if (!state.youAreHost) return hint;
+    const cur = Number(laserOpts().teams) || 0;
+    const opts = [[0, t.laser_teams_off], [2, t.laser_t2], [3, t.laser_t3], [4, t.laser_t4]];
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(t.laser_teams_label)}</label>
+          <div class="segmented" role="group">
+            ${opts.map(([v, label]) => `<button type="button" class="segmented__item ${v === cur ? 'is-active' : ''}" onclick="setLaserTeams(${v})">${escapeHTML(label)}</button>`).join('')}
+          </div>
+        </div>
+        ${hint}
+      </div>`;
+  },
+  startPayload() { return { teams: Number(laserOpts().teams) || 0 }; },
+  actionKey(state) {
+    const s = state.shared || {};
+    return [state.code, roomDealKey(state), s.phase, s.round].join('|');
+  },
+
+  render(state) {
+    if (appState.currentView !== 'room-laser') setView('room-laser');
+    const el = document.getElementById('view-room-laser');
+    if (!el) return;
+    const t = laserT();
+    const s = state.shared || {};
+
+    if (s.phase === 'gameover') {
+      const fresh = renderRoomFrame(el, ['laser-over', state.youAreHost, appState.lang].join('|'), () => `
+        <div class="laser">
+          <div class="card" style="text-align:center;width:100%">
+            <div class="card__title">${laserOverTitle(s, t)}</div>
+            ${renderPodium(state, s.board) || ''}
+            ${laserRowsHtml(state, s, t)}
+          </div>
+          ${state.youAreHost
+            ? `<div class="laser-actions">
+                 <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(t.play_again || '')}</button>
+                 <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+               </div>`
+            : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        </div>
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && (s.winners || []).indexOf(Room.me) !== -1) afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 80, spread: 70 }); });
+      refreshRoomPlayerStrip(el, state);
+      laserStop();
+      return;
+    }
+
+    if (s.phase === 'teams') {
+      const mine = s.teams && s.teams[Room.me] !== undefined ? s.teams[Room.me] : null;
+      renderRoomFrame(el, ['laser-teams', JSON.stringify(s.teams), state.youAreHost, state.hostAway, appState.lang].join('|'), () => `
+        <div class="laser">
+          <div class="card" style="width:100%">
+            <div class="card__title">${escapeHTML(t.laser_teams_title)}</div>
+            ${mine !== null ? `<p class="laser-hint">${escapeHTML(t.laser_your_team)}: <b>${escapeHTML(laserTeamName(t, mine))}</b></p>` : ''}
+            ${laserTeamsHtml(state, s, t)}
+          </div>
+          <div class="laser-actions">
+            ${state.youAreHost ? `<button class="btn btn--secondary" onclick="roomAct('shuffle')">${escapeHTML(t.laser_shuffle)}</button>` : ''}
+            ${roomMoveOnHtml(state, `<button class="btn btn--primary btn--lg" onclick="roomAct('go')">${escapeHTML(t.laser_go)}</button>`, `<div class="waiting-note">${escapeHTML(t.laser_teams_wait)}</div>`)}
+          </div>
+        </div>
+        ${renderRoomPlayerStrip(state)}`);
+      refreshRoomPlayerStrip(el, state);
+      laserStop();
+      return;
+    }
+
+    const inGame = (s.roster || []).indexOf(Room.me) !== -1;
+    const standing = (s.alive || []).indexOf(Room.me) !== -1;
+    const ready = !!(state.you && state.you.ready);
+    const team = s.teams && s.teams[Room.me] !== undefined ? s.teams[Room.me] : null;
+    const bar = `<div class="laser-bar">
+        <span class="laser-chip">${escapeHTML(t.round || '')} <span class="metric">${s.round || 1}</span></span>
+        ${team !== null ? `<span class="laser-chip" style="--laser-c:${LASER_TEAM_COLOURS[team]}"><span class="laser-chip__dot"></span>${escapeHTML(laserTeamName(t, team))}</span>` : ''}
+        ${s.phase === 'hide' ? '<span class="laser-chip laser-clock" data-laser-clock>0:15</span>' : `<span class="laser-chip"><span class="metric">${(s.alive || []).length}</span> ${escapeHTML(t.laser_left)}</span>`}
+      </div>`;
+    const stage = `<div class="laser-stage"><canvas class="laser-arena ${s.phase === 'hide' && standing ? 'is-mine' : ''}" data-laser-arena aria-label="${escapeHTML(t.setup_laser)}"></canvas><div class="laser-cap" data-laser-cap></div></div>`;
+    let below = '';
+    if (s.phase === 'hide' && standing) {
+      below = `<p class="laser-hint">${escapeHTML(ready ? t.laser_ready_wait : t.laser_hide_hint)}</p>
+        <div class="laser-actions">${ready
+          ? `<button class="btn btn--ghost" onclick="laserReady(false)">${escapeHTML(t.laser_unready)}</button>`
+          : `<button class="btn btn--primary btn--lg" onclick="laserReady(true)">${escapeHTML(t.laser_ready)}</button>`}</div>`;
+    } else if (s.phase === 'hide') {
+      below = `<p class="laser-hint">${escapeHTML(inGame ? t.laser_out_watch : t.laser_watch)}</p>`;
+    } else if (s.phase === 'reveal') {
+      below = roomMoveOnHtml(state, `<div class="laser-actions"><button class="btn btn--ghost btn--sm" onclick="roomAct('next', { round: ${Number(s.round) || 0} })">${escapeHTML(t.laser_next)}</button></div>`);
+    }
+    const fresh = renderRoomFrame(el, ['laser-play', s.phase, s.round, standing, ready, team, state.youAreHost, state.hostAway, appState.lang].join('|'), () => `
+      <div class="laser laser--play">${bar}${stage}${below}</div>
+      ${renderRoomPlayerStrip(state)}`);
+    refreshRoomPlayerStrip(el, state);
+    if (fresh || !lsr.raf && !lsr.ticker) laserRun(state, el, false);
+  }
+};
+
+TV_GAMES.laser = {
+  sig: (state) => {
+    const s = state.shared || {};
+    return ['laser', roomDealKey(state), s.phase, s.round, JSON.stringify(s.teams || null), (s.alive || []).join(','), state.youAreHost, state.hostAway, appState.lang].join('|');
+  },
+  frame(state) {
+    const s = state.shared || {};
+    const t = laserT();
+    if (s.phase === 'gameover') {
+      return `
+        <div class="tv-vote">
+          <div class="tv-title tv-center-text">${laserOverTitle(s, t)}</div>
+          ${renderPodium(state, s.board)}
+          <div class="tv-scale">${laserRowsHtml(state, s, t)}</div>
+          ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.play_again, "roomAct('playAgain')")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}
+        </div>`;
+    }
+    if (s.phase === 'teams') {
+      return `
+        <div class="tv-center">
+          <div class="tv-title">${escapeHTML(t.laser_teams_title)}</div>
+          <div class="laser-tv__teams">${laserTeamsHtml(state, s, t)}</div>
+          ${roomMoveOnHtml(state, `<div class="tv-actions">${state.youAreHost ? tvBtn(t.laser_shuffle, "roomAct('shuffle')", 'secondary') : ''}${tvBtn(t.laser_go, "roomAct('go')")}</div>`)}
+        </div>`;
+    }
+    const alive = new Set(s.alive || []);
+    const names = (s.roster || []).map(id => `<span class="laser-chip ${alive.has(id) ? '' : 'is-out'}" style="--laser-c:${laserColour(s, id)}"><span class="laser-chip__dot"></span>${escapeHTML(laserName(state, id))}</span>`).join('');
+    return `
+      <div class="laser-tv">
+        <div class="laser-stage"><canvas class="laser-arena" data-laser-arena></canvas><div class="laser-cap" data-laser-cap>${s.phase === 'hide' ? escapeHTML(t.laser_tv_hide) : ''}</div></div>
+        <div class="laser-tv__side">
+          <div class="laser-tv__title">${escapeHTML(t.round || '')} <span class="metric">${s.round || 1}</span></div>
+          ${s.phase === 'hide' ? '<span class="laser-chip laser-clock" data-laser-clock>0:15</span>' : ''}
+          <div class="laser-tv__names">${names}</div>
+          ${s.phase === 'reveal' ? roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.laser_next, `roomAct('next', { round: ${Number(s.round) || 0} })`, 'ghost')}</div>`) : ''}
+        </div>
+      </div>`;
+  },
+  after(state) {
+    const el = document.getElementById('view-room-tv');
+    const s = state.shared || {};
+    if (el && (s.phase === 'hide' || s.phase === 'reveal')) laserRun(state, el, true);
+    else laserStop();
+  }
+};
+</script>

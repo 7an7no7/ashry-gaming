@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, stopLettersFor, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, bumperJoined, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
 import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION_CATCH_WAIT_MS } from '../generated/rules.js';
-import { nextPrompts, programPlaces } from '../generated/rules.js';
+import { nextPrompts, programPlaces, laserTrace } from '../generated/rules.js';
 import srcMod from '../../tools/sources.cjs';
 const { srcPath } = srcMod;
 let failed = 0;
@@ -16020,6 +16020,149 @@ console.log('• the secret mission');
     g.slice(1).forEach((id) => applyRoomAction(r2, id, 'pick', { deal: r2.shared.deal, i: 0 }));
     check(r2.shared.phase === 'reveal' && !r2.shared.gained[H] && (r2.shared.scores[H] || 0) === before && r2.shared.gained[g[0]] === 3,
       'hum (review): a hummer who left scores nothing for the song; the typed answer keeps its points');
+  }
+
+  // الليزر, round two (the owner, 6 Oct 2026): the beams, hearts, the shield, ghosts and swaps,
+  // sudden death, the hiding time, the short reveal, hits and the awards.
+  {
+    const lzRoom = (ids, opts) => {
+      const r = newRoom(ids);
+      applyRoomAction(r, ids[0], 'chooseGame', { game: 'laser' });
+      applyRoomAction(r, ids[0], 'start', Object.assign({ teams: 0 }, opts || {}));
+      return r;
+    };
+    // Everyone standing placed (and maybe shielded), all ready: the reveal.
+    const lzRound = (r, spots, extra) => {
+      const s = r.shared;
+      s.alive.forEach((pid) => {
+        const [x, y, a] = spots[pid] || [0, 0.6, 90];
+        applyRoomAction(r, pid, 'place', { round: s.round, x, y, a });
+      });
+      if (extra) extra(r);
+      s.alive.slice().forEach((pid) => applyRoomAction(r, pid, 'ready', { round: s.round }));
+    };
+    const lzNext = (r) => applyRoomAction(r, r.hostId, 'next', { round: r.shared.round });
+
+    // The geometry: a bounce, a beam that stops, a shield, a teammate passed through.
+    const shots = [{ id: 'a', x: -0.3, y: 0, a: 90 }, { id: 'b', x: -0.3, y: -0.5, a: 0 }];
+    check(laserTrace(shots, { k: 1 }).beams[0].hits.length === 0 && laserTrace(shots, { k: 1, bounce: true }).beams[0].hits[0] === 'b',
+      'laser: a beam bounces off the wall once, and only with bouncing on');
+    check(laserTrace(shots, { k: 1, bounce: true }).beams[0].segs.length === 2, 'laser: a bounced beam is drawn in two pieces');
+    const line = [{ id: 'a', x: -0.5, y: 0, a: 0 }, { id: 'b', x: 0, y: 0, a: 90 }, { id: 'c', x: 0.4, y: 0, a: 90 }];
+    check(laserTrace(line, { k: 1 }).beams[0].hits.join() === 'b,c' && laserTrace(line, { k: 1, block: true }).beams[0].hits.join() === 'b',
+      'laser: a beam goes through everyone in its line; with blocking on it stops at the first');
+    const shielded = line.map((p) => (p.id === 'b' ? Object.assign({}, p, { shield: true }) : p));
+    const sh = laserTrace(shielded, { k: 1 });
+    check(sh.beams.length === 2 && sh.beams[0].hits.length === 0, 'laser: a shield fires nothing and stops the beam that reaches it (nobody behind it is hit)');
+    check(laserTrace(line, { k: 1, teams: { a: 0, b: 0, c: 1 } }).beams[0].hits.join() === 'c', 'laser: a beam passes through a teammate harmlessly and goes on');
+    const nearMiss = laserTrace([{ id: 'a', x: -0.5, y: 0, a: 0 }, { id: 'b', x: 0, y: 0.1, a: 90 }], { k: 1 });
+    check(Math.abs(nearMiss.near.b - (0.1 - 0.075)) < 0.002, 'laser: the closest a beam passed someone is kept (نجا بأعجوبة)');
+
+    // The options and their defaults.
+    {
+      const r = lzRoom(['a', 'b', 'c']);
+      const o = r.shared.opts;
+      check(o.hearts === 1 && o.time === 15 && o.ghosts === true && o.swap === false && o.bounce === false && o.block === false && o.sight === true,
+        'laser: the defaults are the owner\'s (one heart, 15 s, ghosts on, swap, bounce and blocking off, team sight on)');
+      check(r.shared.hideMs === 15000, 'laser: round one hides for the chosen time');
+      lzRound(r, { a: [-0.6, 0.4, 270], b: [0, 0.4, 270], c: [0.6, 0.4, 270] });
+      check(r.shared.phase === 'reveal' && r.shared.hit.length === 0 && r.shared.revealMs === 4000, 'laser: a round with nobody hit has the short reveal (4 s)');
+      lzNext(r);
+      check(r.shared.round === 2 && r.shared.hideMs === 14000, 'laser: the hiding time is a second shorter every round');
+      const r2 = lzRoom(['a', 'b', 'c'], { time: 10 });
+      r2.shared.round = 5;
+      lzRound(r2, { a: [-0.6, 0.4, 270], b: [0, 0.4, 270], c: [0.6, 0.4, 270] });
+      lzNext(r2);
+      check(r2.shared.hideMs === 8000, 'laser: never under 8 seconds');
+    }
+
+    // Hearts: a hit costs one heart; out with none left; two beams in one round still cost one.
+    {
+      const r = lzRoom(['a', 'b', 'c'], { hearts: 2 });
+      lzRound(r, { a: [-0.5, 0, 0], b: [0, 0, 90], c: [0, -0.5, 90] });
+      check(r.shared.revealMs === 7000 && r.shared.hit.join() === 'b' && r.shared.out.length === 0, 'laser: with two hearts a hit is not out (the full reveal)');
+      lzNext(r);
+      check(r.shared.hearts.b === 1 && r.shared.alive.length === 3, 'laser: the hit loses one heart and stays');
+      lzRound(r, { a: [-0.5, 0, 0], b: [0, 0, 90], c: [0, -0.5, 90] });
+      check(r.shared.kills.length === 2 && r.shared.roundKills.length === 2 && r.shared.out.join() === 'b', 'laser: two beams on one person in a round: one heart (and out with none left)');
+      lzNext(r);
+      check(r.shared.alive.indexOf('b') === -1 && r.shared.hitsBy.a === 2 && r.shared.hitsBy.c === 2, 'laser: hits are counted for whoever made them');
+    }
+
+    // The shield: once a game; it blocks and doesn't fire.
+    {
+      const r = lzRoom(['a', 'b', 'c']);
+      lzRound(r, { a: [-0.5, 0, 0], b: [0, 0, 180], c: [0.5, 0.5, 270] }, (x) => applyRoomAction(x, 'b', 'shield', { round: 1, on: true }));
+      check(r.shared.hit.length === 0 && r.shared.shots.find((p) => p.id === 'b').shield && r.shared.shieldUsed.b, 'laser: a raised shield takes no hit and fires no beam');
+      lzNext(r);
+      applyRoomAction(r, 'b', 'shield', { round: 2, on: true });
+      check(!r.secrets.b.shield, 'laser: the shield is once a game');
+    }
+
+    // Ghosts: a mine is a hit, credited to the ghost; with the swap the ghost comes back.
+    {
+      const r = lzRoom(['a', 'b', 'c', 'd'], { swap: true });
+      lzRound(r, { a: [-0.5, 0, 0], b: [0, 0, 270], c: [0.4, 0.5, 270], d: [-0.4, 0.5, 270] });
+      lzNext(r);
+      check(r.shared.alive.indexOf('b') === -1 && r.secrets.b.ghost, 'laser: whoever is out is a ghost');
+      applyRoomAction(r, 'b', 'mine', { round: 2, x: 0.4, y: 0.5 });
+      check(r.secrets.b.mine && r.shared.phase === 'hide', 'laser: a ghost puts its mine; ghosts never hold the round up');
+      lzRound(r, { a: [-0.6, -0.3, 270], c: [0.4, 0.5, 270], d: [-0.4, 0.5, 270] });
+      check(r.shared.mines.length === 1 && r.shared.mines[0].hits.join() === 'c' && r.shared.back.join() === 'b', 'laser: the mine catches whoever stands on it; with the swap its ghost comes back');
+      lzNext(r);
+      check(r.shared.alive.indexOf('b') !== -1 && r.shared.alive.indexOf('c') === -1 && r.shared.hearts.b === 1 && r.shared.hitsBy.b === 1 && !r.shared.outRound.b,
+        'laser: the ghost stands again with one heart, the victim is out, the mine counts as a hit');
+      const r2 = lzRoom(['a', 'b', 'c', 'd']);
+      lzRound(r2, { a: [-0.5, 0, 0], b: [0, 0, 270], c: [0.4, 0.5, 270], d: [-0.4, 0.5, 270] });
+      lzNext(r2);
+      applyRoomAction(r2, 'b', 'mine', { round: 2, x: 0.4, y: 0.5 });
+      lzRound(r2, { a: [-0.6, -0.3, 270], c: [0.4, 0.5, 270], d: [-0.4, 0.5, 270] });
+      lzNext(r2);
+      check(r2.shared.alive.indexOf('b') === -1 && r2.shared.alive.indexOf('c') === -1, 'laser: without the swap the ghost stays out');
+      const r3 = lzRoom(['a', 'b', 'c', 'd'], { ghosts: false });
+      lzRound(r3, { a: [-0.5, 0, 0], b: [0, 0, 270], c: [0.4, 0.5, 270], d: [-0.4, 0.5, 270] });
+      lzNext(r3);
+      applyRoomAction(r3, 'b', 'mine', { round: 2, x: 0.4, y: 0.5 });
+      check(!(r3.secrets.b || {}).mine, 'laser: with ghosts off nobody puts a mine');
+      const r4 = lzRoom(['a', 'b', 'c', 'd'], { teams: 2 });
+      r4.shared.teams = { a: 0, b: 1, c: 1, d: 0 };
+      applyRoomAction(r4, 'a', 'go', {});
+      lzRound(r4, { a: [-0.5, 0, 0], b: [0, 0, 270], c: [0.4, 0.5, 270], d: [-0.4, 0.5, 270] });
+      lzNext(r4);
+      applyRoomAction(r4, 'b', 'mine', { round: 2, x: 0.4, y: 0.5 });
+      lzRound(r4, { a: [-0.6, -0.3, 270], c: [0.4, 0.5, 270], d: [-0.4, 0.5, 270] });
+      check(r4.shared.mines[0].hits.length === 0, 'laser: in teams a mine spares its ghost\'s team');
+    }
+
+    // Sudden death: past the floor, two rounds with nobody hit shrink it further.
+    {
+      const r = lzRoom(['a', 'b', 'c']);
+      r.shared.round = 9; r.shared.k = 0.35;
+      ['a', 'b', 'c'].forEach((id) => { r.secrets[id].round = 9; });
+      const apart = { a: [-0.15, 0.2, 270], b: [0.15, 0.2, 270], c: [0, -0.2, 90] };
+      lzRound(r, apart);
+      check(r.shared.kNext === 0.35 && !r.shared.suddenNext, 'laser: one quiet round at the floor: the arena holds');
+      lzNext(r);
+      lzRound(r, { a: [-0.15, 0.15, 270], b: [0.15, 0.15, 270], c: [0, -0.15, 90] });
+      check(r.shared.suddenNext && r.shared.kNext === 0.3, 'laser: the second quiet round: sudden death, the arena shrinks again');
+    }
+
+    // The end: places by survival, more hits first among those out in the same round; the awards.
+    {
+      const r = lzRoom(['a', 'b', 'c', 'd']);
+      lzRound(r, { a: [-0.5, 0, 0], b: [0, 0, 270], c: [0.4, 0, 270], d: [0, 0.6, 90] });
+      lzNext(r);
+      check(r.shared.alive.join() === 'a,d', 'laser: (one beam takes two)');
+      lzRound(r, { a: [-0.5, -0.2, 270], d: [0.5, 0.5, 180] });
+      lzNext(r);
+      lzRound(r, { a: [-0.5, 0, 0], d: [0.3, 0, 90] });
+      lzNext(r);
+      const s = r.shared;
+      check(s.phase === 'gameover' && s.board[0].id === 'a' && s.board[0].tie === 3, 'laser: the last one standing first, with their hits as the tie-break');
+      const keys = (s.awards || []).map((x) => x.key);
+      check(keys.indexOf('sniper') !== -1 && s.awards.find((x) => x.key === 'sniper').ids.join() === 'a', 'laser: «القناص» goes to the most hits');
+      check(keys.indexOf('ghost') !== -1 && s.awards.find((x) => x.key === 'ghost').ids.join() === 'd', '«الشبح» goes to who lasted longest without hitting anyone');
+    }
   }
 }
 

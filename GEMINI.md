@@ -88,7 +88,7 @@ file and a new line.
 - 🎵 دندنها (Egyptian songs: one hums in turn or every phone hears the same clip, the names typed, four choices after 15 s; `Songs.js` pinned to Apple or Deezer previews, looked up at play time, `/song/CODE/TOKEN`) - `notes/games/hum.md`.
 - The five of 29 Sep: الحقوا! - `notes/games/wire.md`; الأوضة المضلمة - `notes/games/darkroom.md`; حط إيدك! - `notes/games/exact.md`; الشاهد - `notes/games/witness.md`; المزاد - `notes/games/box.md`.
 - 🔐 الخزنة («صندوق جدّو», rooms: one sees the locks, the others read grandpa's notebook; three ways, 3 strikes or time, endless levels or a set; `Vault.js`, `RoomVault.js`, `JS_RoomVault.html`) - `notes/games/vault.md`.
-- الليزر (Laser, rooms: everyone hides and aims in secret, all appear and fire at once, a beam goes through everyone in its line, the hexagon shrinks every round, last one or last team standing; `Laser.js`, `RoomLaser.js`, `JS_RoomLaser.html`, its styles in its chunk) - `notes/games/laser.md`.
+- الليزر (Laser, rooms: everyone hides and aims in secret, all appear and fire at once, a beam goes through everyone in its line, the hexagon shrinks every round, last one or last team standing; hearts, a shield, ghosts' mines, bouncing beams, sudden death, awards; `Laser.js`, `RoomLaser.js`, `JS_RoomLaser.html`, its styles in its chunk) - `notes/games/laser.md`.
 
 ### The app around the games
 

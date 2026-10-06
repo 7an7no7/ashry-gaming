@@ -1,4 +1,4 @@
-# الليزر / Laser (id `laser`) - not built yet
+# الليزر / Laser (id `laser`)
 
 The owner's idea of 6 Oct 2026, from a Roblox clip (a six-sided cage seen from
 above, its floor falling away): everyone hides and aims in secret, then all
@@ -69,3 +69,78 @@ The looks sheet (6 Oct 2026): https://claude.ai/artifact/J2oFSGWpBjLbDbQdaDtZ3W 
   `play-all.mjs --only=laser` (26 checks), `test:ui` deals it to five phones and a TV.
 - A test game of 5 random robot players took 10 rounds (about 4 minutes): the arena stops shrinking
   after round 7.
+
+## Round two (22 ideas): answered (the owner, 6 Oct 2026); built and live 6 Oct except pickups (6), pillars (7), maps (8), falling pieces (9) and the best shot's replay (16), which wait for a design sheet
+
+The owner took all 22 ideas, and my recommendation for every rule of the pickups.
+
+**The lobby**
+- Three presets and every switch under «خيارات أكتر»: «كلاسيك» (the defaults below), «فوضى» (pickups, bouncing, pillars, the ghosts' swap and the falling pieces on), «طويلة» (2 hearts, 20 s).
+
+**Two people on one spot** (the game today, kept): allowed; nothing happens, they stand overlapped and a beam through them hits both.
+
+**Ghosts (1)** - a switch, on by default
+- Whoever is out drops one hidden mine a round (blind: positions are still secret). Standing on a mine at the reveal is a hit.
+- A second switch, «تبديل الأماكن», off by default. Off: the mine counts as a ⚡ hit for the ghost (awards, tie-breaks) and the ghost stays out. On: the ghost comes back next round with one heart and the victim becomes a ghost.
+- The mines are shown at the reveal, then cleared; new ones next round.
+- In teams a mine spares the ghost's own team (no friendly fire anywhere).
+- A ghost can't take a pickup but may put its mine on one (a trap).
+
+**The shield (2)** - always on
+- Once a game each player may raise a shield instead of firing: it blocks every beam that round; they don't fire. Chosen while hiding, hidden until the reveal.
+
+**Bouncing beams (3)** - a switch, off by default: a beam bounces off the arena wall once.
+
+**Hearts (4)** - 1 / 2 / 3, default 1
+- A round costs at most one heart, however many beams hit. A ghost back by a swap has one heart. The 🛡️ saves a heart.
+
+**Piercing or blocking (5)** - a switch, piercing by default (the owner's rule); the other way a beam stops at the first person it hits.
+
+**Pickups (6)** - a switch, on by default; my recommendations, all taken
+- One shared map: everyone sees the same pickups in the same places, on every phone and the TV, from the start of hiding. A random place each time, never the player's own, never in the ring that falls this round nor right by the wall.
+- From round 2: one a round, two with 6+ players.
+- Taken by standing on it at the reveal (the body touches it, as a beam must) and **only if you survive that round**; hit on it, you are out and it is gone. It is bait: everyone knows someone may stand there.
+- Kept, and used by pressing «استخدمها» while hiding in any later round; one held at a time, a new one replaces the old. Lost when you go out. Everyone sees who holds what (beside the name on the TV and the phones); whether it is used this round is secret until the reveal.
+- Two or more on one pickup: nobody gets it, it breaks with a spark («اتخانقوا عليه!»), teammates too.
+- Nobody takes it: it goes at the round's end and a new one appears elsewhere. A beam crossing it does nothing.
+- The powers: ⚡ double beam (forward and back), 🔄 a second beam at its own aim (drag twice), 🛡️ one extra shield (the shield's rules: block, don't fire), 🎯 a beam twice as wide for one round.
+- Can't pass one to a teammate. A tie that plays on keeps them. A held one is safe from the shrink; one on the floor in the falling ring falls with it.
+- The TV: a taken pickup flies to its new owner's name (`flyEmoji`), a hit holder's fizzles, a shared one sparks.
+
+**Pillars (7)** - a switch, off by default: 1-3 (more with more players) at random places each game, seen by all; they stop beams; nobody stands in one; a pillar in the falling ring falls with it.
+
+**Maps (8)** - random each game: the hexagon, a circle, a ring with a hole («دونات»), a cross.
+
+**Shrinking (9)** - a switch, the ring by default; the other way random tiles fall each round, cracking one round before they fall so they are seen coming; a spot on a fallen tile is moved to the nearest floor.
+
+**Sudden death (10)** - always on: two rounds in a row with nobody hit and the arena shrinks a step below today's floor every round until someone is hit; the TV says «موت مفاجئ!».
+
+**Hiding time (11, 13)** - the host picks 10 / 15 / 20 s (default 15), one second less each round, never under 8 s.
+
+**The reveal (12)** - 4 s when nobody is hit, 7 s with hits.
+
+**Hits (14)** - each player's ⚡ count is on the board; places stay by survival, and among those out in the same round more hits ranks higher.
+
+**Awards (15)** - all four: «القناص» (most hits), «الشبح» (longest without hitting anyone), «نجا بأعجوبة» (a beam passed closest without hitting), «ضرب وخرج» (hit someone in the round they went out). With the podium (`renderPodium`, `afterReveal`).
+
+**Always on, no rule to ask** - (16) the best shot (the beam that took out the most) replayed slowly at the end; (17) who shot whom on the TV after each round («أحمد ⚡ منى»); (18) «مين ضربك؟»: the beam that got you, drawn on your phone with its shooter's name; (19) sounds: the charge's rising hum, beeps in the last 5 s, a buzz when hit; (20) fine aim: ⟲ ⟳ buttons and the beam's line drawn to the wall; (21) the ready button grows in the last 5 s, with a buzz.
+
+**Teams see teammates (22)** - a switch, on by default: your teammates' spots and aims show on your phone while hiding (never the other side's).
+
+**Needs a design sheet of three before building**: the pickups, mines and pillars on the arena; the maps; the falling pieces; the awards' podium and the best shot's replay.
+
+## How round two is built (6 Oct 2026)
+
+- **Options** (`laserOptsOf` in `RoomLaser.js`, the lobby's `LASER_DEFAULTS` / `LASER_PRESETS` in `JS_RoomLaser.html`): `teams, hearts, time, ghosts, swap, bounce, block, sight`, in `shared.opts`. The lobby shows the presets and the teams, and folds the rest under its own «خيارات أكتر» (`lobbyUnfolded`, a `details` keyed `laser-more`). A preset is lit when every field it sets matches; teams and team sight are outside the presets.
+- **Beams are the server's** (`laserTrace` in `Laser.js`): each beam is `segs` (one, or two with a bounce off the wall, reflected on that wall's normal), its `hits`, and the closest miss per player (`near`, for «نجا بأعجوبة»). A shield fires nothing and ends any beam that reaches it; a teammate is passed and blocks nothing; a beam never hits its own shooter, bounced or not (my call); `block` ends a beam at the first person. `shared.beams` is what every screen draws; while hiding a phone draws its own aim with the same function (the bounce included).
+- **Hearts**: `shared.hearts`; a round costs at most one heart (`shared.hit` is everyone hit, `shared.out` whoever that leaves at 0). A tie (everyone left out together) plays on with one heart each.
+- **The shield**: `shield { round, on }` while hiding, once a game (`shared.shieldUsed`, spent at the reveal). It blocks beams, not mines (my call: you stood on the mine).
+- **Ghosts**: whoever is out and still in the room, with ghosts on, has `secrets[pid] = { ghost, mine }`; `mine { round, x, y }` (x null takes it back). Ghosts never hold the round up: the reveal comes when everyone standing is ready (my call: phones that are out are often put down). A mine catches anyone standing whose body covers it, not the ghost's team. With the swap, a ghost whose mine takes someone's last heart stands again next round with one heart, at a random spot (`shared.back`); a mine that only takes a heart doesn't bring it back (my call).
+- **Kills**: `shared.roundKills` `[{ r, from, to, by: 'beam' | 'mine' }]` at the reveal, added to `shared.kills` and `shared.hitsBy` after it; `lastKills` / `lastBeams` keep the last round's for the TV's «مين ضرب مين» and the out phone's «ضربك:» (its killing beam drawn faintly, clipped to the arena).
+- **The arena** is `shared.k`, carried round to round (no longer `laserK(round)`): smaller each round to `LASER_K_MIN`; then two rounds in a row with nobody hit (`shared.quiet`) shrink it by `LASER_K_SUDDEN_STEP` every round down to `LASER_K_SUDDEN_MIN` (0.17) until someone is hit (`suddenNext`, the caption «موت مفاجئ!»). The phone zooms in further below the floor.
+- **Time**: `shared.hideMs` = the host's 10/15/20 s less a second a round, never under 8; the reveal is `revealMs` 7 s with a hit, 4 s without (`LSR_T_QUIET` on the phones).
+- **The board**: places by survival as before; each row's `tie` is its hits, so `boardRowKey` ranks more hits first among those out in the same round. `shared.awards` (`laserAwards`): sniper (most hits), ghost «الشبح» (best place among those with no hits), close (smallest `near`), both (hit someone in the round they went out); the end screen lists them under the podium.
+- **Team sight**: with teams and `sight`, every standing player's slice carries `mates` (their standing teammates' spots, aims and shields), rebuilt on every `place`, `shield`, leave and new round (`laserShareMates`); drawn faint on the phone.
+- **The phone**: ⟲ ⟳ turn the aim 3°, the shield button between them; the ready button grows in the last five seconds with a beep a second (the TV beeps too) and one buzz at 5; the charge hums as it rises; a phone that is hit buzzes hard.
+- **Tests**: `rules.mjs` (the geometry, defaults, hearts, shield, ghosts and swap, team mines, sudden death, the hiding time, the short reveal, hits and awards), `leaks.mjs` (8 probes: also mines, mates, shields and no beams while hiding), `play-all.mjs --only=laser` (48 checks).
+

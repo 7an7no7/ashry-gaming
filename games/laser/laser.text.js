@@ -42,6 +42,45 @@ gameText({
       laser_out_in: "خرج في الجولة",
       laser_last: "فضل لحد الآخر",
       laser_left: "باقيين",
+      laser_preset_label: "طريقة اللعب",
+      laser_p_classic: "كلاسيك",
+      laser_p_chaos: "فوضى",
+      laser_p_long: "طويلة",
+      laser_more: "خيارات أكتر",
+      laser_hearts_label: "❤️ القلوب",
+      laser_time_label: "⏱️ وقت الاستخبا",
+      laser_time_hint: "بيقل ثانية كل جولة، ومش أقل من ٨",
+      laser_o_ghosts: "👻 الأشباح",
+      laser_o_ghosts_hint: "اللي يخرج يحط لغم مستخبي كل جولة",
+      laser_o_swap: "🔁 تبديل الأماكن",
+      laser_o_swap_hint: "الشبح اللي لغمه يخرّج حد يرجع مكانه",
+      laser_o_bounce: "↩️ الليزر بيرتد",
+      laser_o_bounce_hint: "الليزر يخبط في الحيطة ويرتد مرة",
+      laser_o_block: "🧍 الليزر يقف عند أول واحد",
+      laser_o_block_hint: "اللي قدام يحمي اللي وراه",
+      laser_o_sight: "👀 الفريق شايف بعضه",
+      laser_o_sight_hint: "وانت مستخبي تشوف زمايلك بس",
+      laser_shield: "🛡️ الدرع (مرة واحدة)",
+      laser_shield_on: "🛡️ الدرع شغّال",
+      laser_shield_on_hint: "الدرع شغّال: مفيش ليزر هيعدّي منك، بس مش هتضرب الجولة دي",
+      laser_shield_used: "🛡️ الدرع اتستخدم",
+      laser_turn_l: "لف لفة صغيرة عكس عقارب الساعة",
+      laser_turn_r: "لف لفة صغيرة مع عقارب الساعة",
+      laser_ghost_hint: "👻 انت شبح: المس مكان تحط فيه لغم. اللي يقف عليه يتضرب",
+      laser_ghost_set: "💣 اللغم في مكانه · تقدر تحركه",
+      laser_mine_clear: "شيل اللغم",
+      laser_got_you: "ضربك:",
+      laser_feed_title: "مين ضرب مين",
+      laser_sudden: "⚠️ موت مفاجئ! الحلبة بتصغر",
+      laser_back: "👻 رجع:",
+      laser_lost_heart: "خسر قلب:",
+      laser_hits: "ضربات",
+      laser_awards: "الجوايز",
+      laser_aw_sniper: "🎯 القناص",
+      laser_aw_ghost: "🕊️ الشبح",
+      laser_aw_close: "😮‍💨 نجا بأعجوبة",
+      laser_aw_both: "💥 ضرب وخرج",
+      laser_hearts_left: "قلوبك",
     },
     en: {
       setup_laser: "Laser",
@@ -82,27 +121,70 @@ gameText({
       laser_out_in: "Out in round",
       laser_last: "Stood to the end",
       laser_left: "left",
+      laser_preset_label: "Style",
+      laser_p_classic: "Classic",
+      laser_p_chaos: "Chaos",
+      laser_p_long: "Long",
+      laser_more: "More options",
+      laser_hearts_label: "❤️ Hearts",
+      laser_time_label: "⏱️ Hiding time",
+      laser_time_hint: "One second less each round, never under 8",
+      laser_o_ghosts: "👻 Ghosts",
+      laser_o_ghosts_hint: "Whoever is out drops a hidden mine each round",
+      laser_o_swap: "🔁 Swap places",
+      laser_o_swap_hint: "A ghost whose mine takes someone out comes back in their place",
+      laser_o_bounce: "↩️ Bouncing beams",
+      laser_o_bounce_hint: "A beam bounces off the wall once",
+      laser_o_block: "🧍 Beams stop at the first",
+      laser_o_block_hint: "Whoever is in front shields whoever is behind",
+      laser_o_sight: "👀 Teams see each other",
+      laser_o_sight_hint: "While hiding you see your teammates only",
+      laser_shield: "🛡️ Shield (once)",
+      laser_shield_on: "🛡️ Shield up",
+      laser_shield_on_hint: "Shield up: no laser gets through you, but you won't fire this round",
+      laser_shield_used: "🛡️ Shield used",
+      laser_turn_l: "Turn a little anticlockwise",
+      laser_turn_r: "Turn a little clockwise",
+      laser_ghost_hint: "👻 You're a ghost: touch a spot to drop a mine. Whoever stands on it is hit",
+      laser_ghost_set: "💣 Mine set · you can move it",
+      laser_mine_clear: "Remove the mine",
+      laser_got_you: "Got you:",
+      laser_feed_title: "Who hit whom",
+      laser_sudden: "⚠️ Sudden death! The arena shrinks",
+      laser_back: "👻 Back:",
+      laser_lost_heart: "Lost a heart:",
+      laser_hits: "hits",
+      laser_awards: "Awards",
+      laser_aw_sniper: "🎯 The sniper",
+      laser_aw_ghost: "🕊️ The phantom",
+      laser_aw_close: "😮‍💨 Close call",
+      laser_aw_both: "💥 Took one with them",
+      laser_hearts_left: "Your hearts",
     }
   },
   rules: {
     ar: {
       laser: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>كل جولة: المس مكانك على الحلبة واسحب لاتجاهك، في <b>15 ثانية</b> أو لحد ما الكل يجهز. محدش شايف حد.</li>
-                <li>بعدين الكل يظهر و<b>الكل يضرب مرة واحدة</b>. الليزر بيعدّي من كل اللي في خطه، واللي يتضرب يخرج.</li>
-                <li>الحلبة بتصغر كل جولة. آخر واحد واقف يكسب.</li>
-                <li>لو اللي فاضلين خرجوا كلهم مع بعض، هم بس يكمّلوا لحد ما يفضل واحد.</li>
-                <li>بالفرق: الليزر بيعدّي من زميلك من غير ما يأذيه، وآخر فريق فيه حد واقف يكسب.</li>
+                <li>كل جولة: المس مكانك على الحلبة واسحب لاتجاهك (أو ⟲ ⟳ للظبط). محدش شايف حد. الوقت بيقل ثانية كل جولة.</li>
+                <li>بعدين الكل يظهر و<b>الكل يضرب مرة واحدة</b>. الليزر بيعدّي من كل اللي في خطه، واللي يتضرب يخسر قلب، ولو مالوش قلوب يخرج.</li>
+                <li><b>🛡️ الدرع</b> مرة واحدة في اللعبة: بيوقف أي ليزر، بس مش هتضرب الجولة دي.</li>
+                <li><b>👻 الأشباح</b>: اللي خرج يحط لغم مستخبي كل جولة، واللي يقف عليه يتضرب.</li>
+                <li>الحلبة بتصغر كل جولة، ولو عدّت جولتين من غير ما حد يتضرب: <b>موت مفاجئ</b>، تصغر أكتر.</li>
+                <li>آخر واحد واقف يكسب. لو اللي فاضلين خرجوا كلهم مع بعض، هم بس يكمّلوا. في نفس الجولة، اللي ضرب أكتر يتقدّم.</li>
+                <li>بالفرق: الليزر واللغم بيعدّوا من زميلك من غير ما يأذوه، وآخر فريق فيه حد واقف يكسب.</li>
             </ol>`,
     },
     en: {
       laser: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>Each round: touch your spot on the arena and drag to aim, within <b>15 seconds</b> or until everyone is ready. Nobody sees anyone.</li>
-                <li>Then everyone appears and <b>everyone fires at once</b>. A laser goes through everyone in its line, and whoever is hit is out.</li>
-                <li>The arena shrinks every round. The last one standing wins.</li>
-                <li>If the last ones all go out together, only they play on until one is left.</li>
-                <li>In teams: a laser passes through your teammates harmlessly, and the last team with anyone standing wins.</li>
+                <li>Each round: touch your spot on the arena and drag to aim (or ⟲ ⟳ to fine-tune). Nobody sees anyone. The clock is a second shorter each round.</li>
+                <li>Then everyone appears and <b>everyone fires at once</b>. A laser goes through everyone in its line; whoever is hit loses a heart, and with none left is out.</li>
+                <li><b>🛡️ The shield</b>, once a game: it stops every laser, but you don't fire that round.</li>
+                <li><b>👻 Ghosts</b>: whoever is out drops a hidden mine each round; whoever stands on it is hit.</li>
+                <li>The arena shrinks every round; after two rounds with nobody hit, <b>sudden death</b> shrinks it further.</li>
+                <li>The last one standing wins. If the last ones all go out together, only they play on. Among those out in the same round, more hits ranks higher.</li>
+                <li>In teams: lasers and mines pass your teammates harmlessly, and the last team with anyone standing wins.</li>
             </ol>`,
     }
   }

@@ -1299,7 +1299,27 @@ const PROBES = {
         const you = view.you || {};
         return you.x === want.x && you.y === want.y && you.a === want.a ? null : 'you';
       }),
-      probe('no spot on the table while hiding', hiding, (view) => (hasKey(view.shared, 'shots') || hasKey(view.shared, 'hit') ? 'shared.shots' : null)),
+      probe('no spot, beam or mine on the table while hiding', hiding, (view) => (['shots', 'hit', 'beams', 'mines', 'out'].find(k => hasKey(view.shared, k)) ? 'shared' : null)),
+      // A teammate's spot only to its own team, and only with team sight on (round two, 6 Oct 2026).
+      probe("a teammate's spot only to its team, with team sight", hiding && !!s.teams, (view, pid) => {
+        const mates = (view.you || {}).mates;
+        if (!mates) return null;
+        if (!s.opts.sight) return 'you.mates (sight off)';
+        const bad = Object.keys(mates).find(id => s.teams[id] !== s.teams[pid] || (s.alive || []).indexOf(id) === -1);
+        return bad ? 'you.mates.' + bad : null;
+      }),
+      // A ghost's mine is its own: nobody else's view carries it.
+      probe("a ghost's mine only on its own phone", hiding && Object.keys(room.secrets).some(id => (room.secrets[id] || {}).mine), (view, pid) => {
+        const text = JSON.stringify(view);
+        const other = Object.keys(room.secrets).find(id => id !== pid && room.secrets[id] && room.secrets[id].mine &&
+          text.indexOf('"x":' + room.secrets[id].mine.x + ',"y":' + room.secrets[id].mine.y) !== -1);
+        return other ? 'mine of ' + other : null;
+      }),
+      // A raised shield is a secret until the reveal (its own phone, and with sight its teammates).
+      probe('a shield is not seen while hiding', hiding, (view, pid) => {
+        const text = JSON.stringify(view.shared || {});
+        return text.indexOf('"shield":true') !== -1 ? 'shared shield' : null;
+      }),
       probe("nobody's spot but your own anywhere in your view", hiding, (view, pid) => {
         const text = JSON.stringify(view.shared || {});
         const other = Object.keys(room.secrets).find(id => id !== pid && room.secrets[id] && (s.alive || []).indexOf(id) !== -1 &&
@@ -2979,7 +2999,31 @@ const DRIVERS = {
     const line = {};
     U.ids.forEach((pid, i) => { line[pid] = [-0.5 + 0.3 * i, 0, i === 0 ? 0 : 270]; });
     if (!round(U, line)) return false;
-    return S(U).phase === 'gameover' && S(U).winnerTeam === S(U).teams[U.ids[0]];
+    if (!(S(U).phase === 'gameover' && S(U).winnerTeam === S(U).teams[U.ids[0]])) return false;
+    // Round two: hearts, a shield, a ghost's mine and its swap, bouncing, teams that see each other.
+    const V = table('laser', 4);
+    const [p, q, r, w] = V.ids;
+    must(V, V.host, 'start', { teams: 0, hearts: 2, swap: true, bounce: true });
+    must(V, q, 'shield', { round: 1, on: true });
+    if (!round(V, { [p]: [-0.5, 0, 0], [q]: [0, 0, 90], [r]: [0.4, 0.5, 270], [w]: [-0.4, 0.5, 270] })) return false;
+    if (S(V).hearts[q] !== 2 || !S(V).shieldUsed[q]) return false;
+    // Two rounds hit q twice: out, a ghost; its mine catches r.
+    for (let i = 0; i < 2 && S(V).alive.indexOf(q) !== -1; i++) {
+      if (!round(V, { [p]: [-0.5, 0, 0], [q]: [0, 0, 90], [r]: [0.4, 0.5, 270], [w]: [-0.4, 0.5, 270] })) return false;
+    }
+    if (S(V).alive.indexOf(q) !== -1 || !V.room.secrets[q].ghost) return false;
+    // r has two hearts: the mine takes both, and with the swap q stands again.
+    for (let i = 0; i < 2 && S(V).alive.indexOf(q) === -1; i++) {
+      must(V, q, 'mine', { round: S(V).round, x: 0.3, y: 0.31 });
+      if (!round(V, { [p]: [-0.6, -0.3, 270], [r]: [0.3, 0.3, 270], [w]: [-0.4, 0.5, 270] })) return false;
+    }
+    if (S(V).alive.indexOf(q) === -1 || S(V).alive.indexOf(r) !== -1) return false;
+    const X = table('laser', 4);
+    must(X, X.host, 'start', { teams: 2, sight: true });
+    must(X, X.host, 'go', {});
+    X.ids.forEach((pid, i) => must(X, pid, 'place', { round: 1, x: -0.4 + 0.25 * i, y: 0.3, a: 270 }));
+    must(X, X.ids[0], 'shield', { round: 1, on: true });
+    return runClock(X, (rm) => rm.shared.phase === 'reveal') && runClock(X, (rm) => rm.shared.phase !== 'reveal');
   },
 
 };

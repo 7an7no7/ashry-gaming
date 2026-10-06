@@ -7100,6 +7100,30 @@ async function laserRobots() {
   await all(people, (s) => s.shared.phase === 'teams' && Object.keys(s.shared.teams).length === 3, 'laser: teams are dealt and shown first');
   await H.must('go', {});
   await all(people, (s) => s.shared.phase === 'hide', 'laser: the host starts the teams game');
+  // Round two (6 Oct 2026): two hearts, a shield, hits counted, the short reveal.
+  await H.must('backToHub');
+  await H.waitFor((x) => x.phase === 'lobby', 'laser: back in the hub again');
+  await H.must('chooseGame', { game: 'laser' });
+  await H.must('start', { teams: 0, hearts: 2, time: 20 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'hide' && s.shared.opts.hearts === 2 && s.shared.hideMs === 20000, 'laser: the options reach every screen');
+  await J.must('shield', { round: 1, on: true });
+  check(J.state.you.shield === true && !JSON.stringify(H.state).includes('"shield":true'), "laser: a raised shield is its own phone's secret");
+  await H.must('place', { round: 1, x: -0.5, y: 0, a: 0 });
+  await J.must('place', { round: 1, x: 0, y: 0, a: 90 });
+  await K.must('place', { round: 1, x: 0.4, y: 0, a: 90 });
+  for (const p of people) await p.must('ready', { round: 1 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'reveal', 'laser: the reveal with a shield');
+  check(H.state.shared.hit.length === 0 && H.state.shared.revealMs === 4000 && H.state.shared.shieldUsed[J.pid], 'laser: the shield stops the beam (nobody behind it is hit), the short reveal');
+  await H.must('next', { round: 1 });
+  await all(people, (s) => s.shared.phase === 'hide' && s.shared.round === 2 && s.shared.hideMs === 19000, 'laser: round two hides a second shorter');
+  await H.must('place', { round: 2, x: -0.5, y: 0, a: 0 });
+  await J.must('place', { round: 2, x: 0, y: 0, a: 90 });
+  await K.must('place', { round: 2, x: 0.4, y: 0.4, a: 90 });
+  for (const p of people) await p.must('ready', { round: 2 });
+  await all(people, (s) => s.shared.phase === 'reveal', 'laser: the second reveal');
+  check(H.state.shared.hit.join() === J.pid && H.state.shared.out.length === 0, 'laser: with two hearts a hit loses one and stays');
+  await H.must('next', { round: 2 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'hide' && s.shared.hearts[J.pid] === 1 && s.shared.hitsBy[H.pid] === 1, 'laser: the hearts and hits on every screen');
   [H, J, K, TV].forEach((x) => x.close());
 }
 

@@ -144,3 +144,6 @@ The owner took all 22 ideas, and my recommendation for every rule of the pickups
 - **The phone**: ⟲ ⟳ turn the aim 3°, the shield button between them; the ready button grows in the last five seconds with a beep a second (the TV beeps too) and one buzz at 5; the charge hums as it rises; a phone that is hit buzzes hard.
 - **Tests**: `rules.mjs` (the geometry, defaults, hearts, shield, ghosts and swap, team mines, sudden death, the hiding time, the short reveal, hits and awards), `leaks.mjs` (8 probes: also mines, mates, shields and no beams while hiding), `play-all.mjs --only=laser` (48 checks).
 
+## Round two's looks sheet (6 Oct 2026)
+
+https://claude.ai/artifact/UmuQcbh8YWUmBrCXy6FcXx (source `notes/archive/sheets/laser-round2-sheet.html`, built from the game's own drawing code): 1 the things on the arena (أ كبسولات نيون, ب هولوجرام, ج مرسوم على الأرض), 2 how a map is announced (أ الخريطة بترسم نفسها, ب عجلة الخرايط, ج بتنزل من فوق), 3 the falling floor (أ تشقق وبعدين يقع, ب بيرمش, ج شريط تحذير), 4 the end (أ إعادة بطيئة قبل المنصة, ب بلاطات الجوايز, ج المنصة على الحلبة); my pick أ in each. Part 5: 14 UI/UX ideas, before and after (my picks 1, 2, 3, 5, 6, 8, 9, 11, 12). Waiting for the owner's picks.

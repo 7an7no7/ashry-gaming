@@ -1,0 +1,1136 @@
+<title>الليزر: الجولة التانية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Noto+Kufi+Arabic:wght@700;900&display=swap">
+<style>
+  /* layout: one column; four looks sections (three looks each: a phone and the TV, animated, then stills), then the UI/UX list as before/after pairs */
+  :root {
+    --bg: #f3f2f8; --card: #ffffff; --ink: #1d1b2c; --ink-2: #5b5874; --line: #e2e0ee; --accent: #6d28d9; --pick: #059669; --pick-ink: #ffffff;
+    --app: #f4f2fb; --app-ink: #211d33; --app-ink-2: #6a6585; --chip: #e9e6f5; --go: #0f766e; --go-ink: #ffffff; --warn: #b45309;
+    --font: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    --display: "Noto Kufi Arabic", "IBM Plex Sans Arabic", Tahoma, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #0d0c15; --card: #181624; --ink: #ecebf5; --ink-2: #a9a6c0; --line: #2b2840; --accent: #a78bfa; --pick: #34d399; --pick-ink: #06281c;
+      --app: #14121f; --app-ink: #ecebf5; --app-ink-2: #a9a6c0; --chip: #25223a; --go: #2dd4bf; --go-ink: #04221f; --warn: #fbbf24; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #0d0c15; --card: #181624; --ink: #ecebf5; --ink-2: #a9a6c0; --line: #2b2840; --accent: #a78bfa; --pick: #34d399; --pick-ink: #06281c;
+    --app: #14121f; --app-ink: #ecebf5; --app-ink-2: #a9a6c0; --chip: #25223a; --go: #2dd4bf; --go-ink: #04221f; --warn: #fbbf24; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font); padding-block: 20px 56px; padding-inline: 16px; }
+  .wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 22px; }
+  h1 { font-family: var(--display); font-size: 28px; margin: 0; text-wrap: balance; }
+  h2 { font-family: var(--display); font-size: 20px; margin: 0; text-wrap: balance; }
+  h3 { font-family: var(--display); font-size: 17px; margin: 0; text-wrap: balance; }
+  .lead { margin: 8px 0 0; color: var(--ink-2); font-size: 15px; line-height: 1.8; max-width: 72ch; }
+  .lead b { color: var(--ink); }
+  .how { margin-top: 12px; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--line); background: var(--card); color: var(--ink-2); font-size: 14px; line-height: 1.8; }
+  .how b { color: var(--ink); }
+  .part { display: grid; gap: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .part__head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .part__no { font-family: var(--display); font-size: 30px; color: var(--accent); line-height: 1; }
+  .part p.note { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.8; max-width: 80ch; }
+  .look { background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 18px; display: grid; gap: 14px; }
+  .look.is-pick { border-color: var(--pick); box-shadow: 0 0 0 1px var(--pick); }
+  .look__head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .look__tag { font-family: var(--display); font-size: 28px; color: var(--accent); line-height: 1; }
+  .pick { font-size: 12px; font-weight: 700; background: var(--pick); color: var(--pick-ink); padding: 3px 10px; border-radius: 999px; }
+  .look > p { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.8; max-width: 80ch; }
+  .look > p b { color: var(--ink); }
+  .row { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 820px) { .row { grid-template-columns: minmax(0, 1fr); } .row > .ph { margin-inline: auto; } }
+  .sub { font-size: 12px; font-weight: 700; color: var(--ink-2); }
+  .tv-box { min-width: 0; display: grid; gap: 8px; align-content: start; }
+  .tv { position: relative; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 9; max-width: 100%; background: #070b1a; border: 6px solid #15131f; }
+  .tv canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .ctl { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ctl button { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; min-height: 36px; }
+  .ctl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .stills { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  @media (max-width: 560px) { .stills { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .still { display: grid; gap: 4px; font-size: 11.5px; color: var(--ink-2); text-align: center; min-width: 0; }
+  .still canvas { width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; display: block; background: #070b1a; }
+  .verdict { background: var(--card); border: 1px solid var(--pick); border-radius: 18px; padding: 14px 16px; color: var(--ink-2); font-size: 14px; line-height: 1.8; }
+  .verdict b { color: var(--ink); }
+
+  /* the phone: the app's own screen, light or dark with the page */
+  .ph { width: 250px; max-width: 100%; border-radius: 32px; padding: 9px; background: #15131f; box-shadow: 0 10px 28px rgba(20,10,60,.22); }
+  .ph__scr { position: relative; border-radius: 24px; overflow: hidden; background: var(--app); color: var(--app-ink); display: grid; gap: 8px; padding: 10px 10px 12px; }
+  .ph__top { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 13px; padding-inline: 4px; }
+  .ph__bar { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; background: var(--chip); font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+  .chip--clock { background: #0c1430; color: #7af3ff; box-shadow: 0 0 0 1px rgba(56,232,255,.5); font-variant-numeric: tabular-nums; }
+  .chip--hearts { color: #ff5c8a; }
+  .ph__stage { position: relative; aspect-ratio: 1; max-width: 100%; }
+  .ph__stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: 16px; }
+  .ph__cap { position: absolute; inset-inline: 0; bottom: 6px; text-align: center; font-weight: 800; font-size: 12px; color: #fff; text-shadow: 0 1px 6px rgba(0,0,0,.85); pointer-events: none; }
+  .ph__hint { margin: 0; text-align: center; font-size: 11.5px; color: var(--app-ink-2); line-height: 1.6; }
+  .ph__tools { display: flex; justify-content: center; gap: 6px; }
+  .ph__tools span { display: inline-grid; place-items: center; min-width: 34px; height: 32px; padding-inline: 8px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); font-size: 12px; font-weight: 700; color: var(--app-ink); white-space: nowrap; }
+  .ph__go { height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--go); color: var(--go-ink); font-weight: 800; font-size: 15px; }
+  .ph__go--ghost { background: transparent; border: 1px solid var(--line); color: var(--app-ink); }
+  .ph__feed { font-size: 11.5px; text-align: center; color: var(--app-ink); }
+  .ph__feed b { unicode-bidi: isolate; }
+
+  /* section 5: the UI/UX list */
+  .ux { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 16px; display: grid; gap: 12px; }
+  .ux__head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .ux__no { font-family: var(--display); font-size: 22px; color: var(--accent); min-width: 1.6em; }
+  .ux__size { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2); }
+  .ux > p { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.8; max-width: 80ch; }
+  .ux > p b { color: var(--ink); }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 250px)); gap: 18px; justify-content: start; align-items: start; }
+  .pair--wide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 580px) { .pair, .pair--wide { grid-template-columns: minmax(0, 1fr); justify-items: center; } .pair--wide { justify-items: stretch; } }
+  .pair figure { margin: 0; display: grid; gap: 6px; min-width: 0; width: 100%; }
+  .pair figcaption { font-size: 12px; font-weight: 700; color: var(--ink-2); }
+  .pair figure.after figcaption { color: var(--pick); }
+  .mine-pick { font-size: 13px; color: var(--ink); }
+  .mine-pick b { color: var(--pick); }
+
+  /* overlays on a phone's arena (UX 3, 6, 7) */
+  .ov { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; border-radius: 16px; }
+  .ov__verdict { font-family: var(--display); font-weight: 900; font-size: 26px; color: #fff; padding: 6px 18px; border-radius: 14px; background: rgba(214,40,70,.88); box-shadow: 0 0 30px rgba(255,92,138,.6); animation: pop 2.6s ease-out infinite; }
+  .ov__card { text-align: center; color: #fff; background: rgba(7,11,26,.82); border: 1px solid rgba(56,232,255,.5); padding: 10px 14px; border-radius: 14px; font-weight: 700; font-size: 13px; line-height: 1.7; animation: card 3s ease-out infinite; }
+  .ov__card b { font-family: var(--display); font-size: 17px; display: block; }
+  .ov--dim { background: rgba(7,11,26,.5); }
+  .ov__lock { color: #fff; font-weight: 800; font-size: 14px; padding: 5px 12px; border-radius: 999px; background: rgba(15,118,110,.92); align-self: end; margin-bottom: 14px; }
+  @keyframes pop { 0%, 30% { opacity: 0; transform: scale(.6); } 40% { opacity: 1; transform: scale(1.08); } 48%, 85% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1); } }
+  @keyframes card { 0% { opacity: 0; transform: translateY(10px); } 12%, 70% { opacity: 1; transform: none; } 85%, 100% { opacity: 0; transform: translateY(-6px); } }
+
+  /* the lobby mock (UX 8) */
+  .lob { border-radius: 16px; background: var(--app); padding: 12px; display: grid; gap: 8px; color: var(--app-ink); }
+  .lob__label { font-size: 12px; font-weight: 700; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--chip); padding: 4px; border-radius: 12px; }
+  .seg span { text-align: center; padding: 6px 4px; border-radius: 9px; font-size: 12.5px; font-weight: 700; color: var(--app-ink-2); }
+  .seg span.on { background: var(--card); color: var(--app-ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .lob__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .lob__chips .chip { font-size: 11px; }
+
+  /* the end mock (part 4) */
+  .endm { border-radius: 16px; padding: 14px; background: var(--app); color: var(--app-ink); display: grid; gap: 10px; }
+  .pod { display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 6px; max-width: 320px; margin-inline: auto; width: 100%; }
+  .pod div { display: grid; gap: 4px; text-align: center; font-weight: 700; font-size: 13px; }
+  .pod i { display: block; border-radius: 10px 10px 4px 4px; background: var(--go); color: var(--go-ink); font-style: normal; font-weight: 800; padding-block: 6px; }
+  .pod .p1 i { height: 70px; } .pod .p2 i { height: 50px; opacity: .8; } .pod .p3 i { height: 36px; opacity: .65; }
+  .aw { display: grid; gap: 6px; }
+  .aw div { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--chip); font-size: 13px; font-weight: 700; }
+  .aw div span:last-child { color: var(--app-ink-2); }
+  .aw--flip div { animation: flip 6s ease-out infinite; animation-delay: calc(var(--i) * .25s); transform-origin: 50% 0; }
+  @keyframes flip { 0%, 8% { opacity: 0; transform: rotateX(-80deg); } 16%, 90% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+  .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tile { border-radius: 14px; background: var(--chip); padding: 10px; display: grid; gap: 4px; text-align: center; font-weight: 700; font-size: 13px; }
+  .tile b { font-family: var(--display); font-size: 15px; }
+  .tile canvas { width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; display: block; }
+  .tile span { color: var(--app-ink-2); font-size: 12px; }
+  .fold { font-size: 13px; font-weight: 700; color: var(--app-ink-2); padding: 8px 10px; border-radius: 12px; border: 1px dashed var(--line); text-align: center; }
+  @media (prefers-reduced-motion: reduce) { .ov__verdict, .ov__card, .aw--flip div { animation: none; } }
+</style>
+
+<div class="wrap" dir="rtl">
+  <header>
+    <h1>الليزر: الجولة التانية</h1>
+    <p class="lead">اللي اتفقنا عليه ولسه محتاج شكل: <b>الحاجات اللي على الأرض</b> (الكبسولات، الألغام، العواميد)، <b>الخرايط الأربعة</b> وإزاي كل لعبة بتعلن خريطتها، <b>البلاط اللي بيقع</b>، و<b>آخر اللعبة</b> (أحلى ضربة، المنصة والجوايز). كل جزء فيه تلات أشكال، وعلى كل شكل الموبايل والتلفزيون بيتحركوا بجد. الحلبة والناس والليزر مرسومين بكود اللعبة نفسه، والضربات محسوبة من الأماكن مش مرسومة باليد. بعدها <b>الجزء ٥</b>: تحسينات في شكل اللعبة واستعمالها، كل واحدة قبل وبعد.</p>
+    <div class="how">ابعتلي اختيارك كده: <b>١ أ · ٢ أ · ٣ أ · ٤ أ</b> وأرقام التحسينات اللي عايزها من الجزء ٥ (مثلاً <b>٥: 1، 3، 4، 9</b>). الشكل اللي عليه علامة «اختياري» هو ترشيحي، ومكتوب ليه.</div>
+  </header>
+
+  <!-- ===================== 1: things on the floor ===================== -->
+  <section class="part">
+    <div class="part__head"><span class="part__no">١</span><h2>الحاجات اللي على الأرض: الكبسولات، العواميد، الألغام</h2></div>
+    <p class="note">نفس الجولة في التلاتة: ليلى واقفة على كبسولة ⚡ ونجت فبتاخدها (تطير لاسمها)، يوسف وعمر واقفين على كبسولة 🛡️ واحدة فبتتكسر («اتخانقوا عليه!»)، ليزر سارة وليزر كريم بيقفوا عند العمود، ولغم شبح بيظهر مع الضرب. على الموبايل: انت سارة وانت مستخبي، شايف الكبسولات والعمود (كله مكشوف للكل) ومحدش غيرك.</p>
+    <div data-looks="floor"></div>
+  </section>
+
+  <!-- ===================== 2: maps ===================== -->
+  <section class="part">
+    <div class="part__head"><span class="part__no">٢</span><h2>الخرايط: إزاي اللعبة بتعلن خريطتها</h2></div>
+    <p class="note">الخرايط الأربعة اتقررت (سداسي، دايرة، دونات، صليب) وبتتختار عشوائي كل لعبة. هنا إزاي الخريطة بتظهر على التلفزيون والموبايلات أول اللعبة، تلت طرق. التلفزيون بيلف على الأربعة. وتحت: الأربعة في الجولة الأولى، والخط المتقطع حجمها في الجولة السادسة.</p>
+    <div class="stills" data-maps-gallery></div>
+    <div data-looks="maps"></div>
+  </section>
+
+  <!-- ===================== 3: falling floor ===================== -->
+  <section class="part">
+    <div class="part__head"><span class="part__no">٣</span><h2>البلاط اللي بيقع (لما «الأرض تقع حتت» تكون شغّالة)</h2></div>
+    <p class="note">اتفقنا إن البلاطات اللي هتقع بتبان جولة قبل ما تقع، عشان الكل يشوفها جاية. هنا: وانت مستخبي (البلاط معلّم)، الكشف، وبعدين البلاط يقع ويبقى حفرة. اللي واقف على بلاطة وقعت بيتنقل لأقرب أرض في الجولة الجاية.</p>
+    <div data-looks="pieces"></div>
+  </section>
+
+  <!-- ===================== 4: the end ===================== -->
+  <section class="part">
+    <div class="part__head"><span class="part__no">٤</span><h2>آخر اللعبة: أحلى ضربة، المنصة، الجوايز</h2></div>
+    <p class="note">«أحلى ضربة» هي الليزر اللي خرّج أكتر ناس في ضربة واحدة (هنا ليلى خرّجت ٣). المنصة نفسها اللي في التطبيق بشخصياتها بتفضل زي ما هي في الأشكال التلاتة؛ الفرق في إزاي الإعادة والجوايز بيظهروا.</p>
+    <div data-looks="end"></div>
+  </section>
+
+  <!-- ===================== 5: UI/UX ===================== -->
+  <section class="part">
+    <div class="part__head"><span class="part__no">٥</span><h2>تحسينات في الشكل والاستعمال</h2></div>
+    <p class="note">لفّيت على كل شاشة في اللعبة (الغرفة، الاستخبا، الكشف، اللي خرج، اللي بيتفرج، التلفزيون، الآخر) ولقيت الحاجات دي. كل واحدة قبل (زي ما هي النهارده) وبعد. الحجم: S ساعة، M يوم. اختار الأرقام اللي عايزها.</p>
+    <div data-ux></div>
+  </section>
+
+  <section class="verdict" data-verdict></section>
+</div>
+
+<script>
+// ---- games/laser/Laser.js ----
+/* الليزر — what the phone and the rooms server both need (one copy: SHARED_LISTS on the page,
+   FILES on the server, before RoomLaser.js). The arena is a flat-topped hexagon of circumradius
+   k, its middle at 0,0 (k is 1 in round one); a player is a circle of LASER_BODY. */
+const LASER_BODY = 0.075;
+const LASER_K_STEP = 0.1;
+const LASER_K_MIN = 0.35;
+// Sudden death (the owner, 6 Oct 2026): past the floor the arena goes on shrinking by this step,
+// down to this size (a body still fits a few times across).
+const LASER_K_SUDDEN_STEP = 0.05;
+const LASER_K_SUDDEN_MIN = 0.17;
+
+/** The arena's size in a round: a ring smaller every round, down to a floor. */
+const laserK = (round) => Math.max(LASER_K_MIN, Math.round((1 - (round - 1) * LASER_K_STEP) * 1000) / 1000);
+const laserR3 = (v) => Math.round(v * 1000) / 1000;
+
+/** A spot pulled in toward the middle until the whole body is on the hexagon of size k. */
+const laserClamp = (x, y, k) => {
+  x = Number(x) || 0; y = Number(y) || 0;
+  const m = LASER_BODY;
+  const r1 = Math.abs(y) / (Math.sqrt(3) / 2 * k - m);
+  const r2 = (Math.sqrt(3) * Math.abs(x) + Math.abs(y)) / (Math.sqrt(3) * k - 2 * m);
+  const f = Math.max(r1, r2, 1);
+  return { x: laserR3(x / f), y: laserR3(y / f) };
+};
+
+/** An aim in degrees, 0 to 360, one decimal. */
+const laserAngle = (a) => { a = Number(a) || 0; a = ((a % 360) + 360) % 360; return Math.round(a * 10) / 10; };
+
+/** Where a ray from x,y along dx,dy meets the hexagon's wall (size k): { t, nx, ny } (the wall's
+    inward normal), or t 0 when it doesn't. */
+const laserWallHit = (x, y, dx, dy, k) => {
+  let best = { t: Infinity, nx: 0, ny: 0 };
+  for (let i = 0; i < 6; i++) {
+    const a1 = Math.PI / 3 * i, a2 = Math.PI / 3 * (i + 1);
+    const x1 = k * Math.cos(a1), y1 = k * Math.sin(a1), ex = k * Math.cos(a2) - x1, ey = k * Math.sin(a2) - y1;
+    const den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-9) continue;
+    const t = ((x1 - x) * ey - (y1 - y) * ex) / den, u = ((x1 - x) * dy - (y1 - y) * dx) / den;
+    if (t > 1e-9 && u >= -1e-9 && u <= 1 + 1e-9 && t < best.t) {
+      const mid = Math.PI / 3 * (i + 0.5);
+      best = { t, nx: -Math.cos(mid), ny: -Math.sin(mid) };
+    }
+  }
+  return best.t === Infinity ? { t: 0, nx: 0, ny: 0 } : best;
+};
+
+/** How far a ray from x,y at angle a runs before it meets the hexagon's wall (size k). */
+const laserToWall = (x, y, a, k) => laserWallHit(x, y, Math.cos(a * Math.PI / 180), Math.sin(a * Math.PI / 180), k).t;
+
+/**
+ * Every beam of a round. shots: [{ id, x, y, a, shield }]; o: { k, teams (id → team, or null),
+ * bounce (a beam bounces off the wall once), block (a beam stops at the first person it hits) }.
+ * A shield fires nothing and stops every beam that reaches it; a teammate is passed through
+ * harmlessly and blocks nothing; a beam never hits its own shooter, bounced or not.
+ * Returns { beams: [{ id, segs: [[x0, y0, x1, y1]…], hits: [ids] }], near: { id: the closest a
+ * beam passed without hitting (the gap between beam and body) } }.
+ */
+const laserTrace = (shots, o) => {
+  o = o || {};
+  const B = LASER_BODY;
+  const mate = (p, q) => !!(o.teams && o.teams[p.id] !== undefined && o.teams[p.id] === o.teams[q.id]);
+  const near = {};
+  const beams = [];
+  shots.forEach(s => {
+    if (s.shield) return;
+    const beam = { id: s.id, segs: [], hits: [] };
+    let x = s.x, y = s.y;
+    let dx = Math.cos(s.a * Math.PI / 180), dy = Math.sin(s.a * Math.PI / 180);
+    let bounces = o.bounce ? 1 : 0;
+    for (let leg = 0; leg < 2; leg++) {
+      const wall = laserWallHit(x, y, dx, dy, o.k || 1);
+      let end = wall.t;
+      let stop = false;
+      const on = [], miss = [];
+      shots.forEach(q => {
+        if (q === s || mate(s, q)) return;
+        const vx = q.x - x, vy = q.y - y;
+        const along = vx * dx + vy * dy, perp = Math.abs(vx * dy - vy * dx);
+        if (along <= 0 || along > wall.t + B) return;
+        if (perp < B) on.push({ q, along, perp });
+        else miss.push({ q, along, gap: laserR3(perp - B) });
+      });
+      on.sort((p, q) => p.along - q.along);
+      for (let i = 0; i < on.length; i++) {
+        const c = on[i];
+        if (c.q.shield) { end = Math.max(0, c.along - Math.sqrt(Math.max(0, B * B - c.perp * c.perp))); stop = true; break; }
+        if (beam.hits.indexOf(c.q.id) === -1) beam.hits.push(c.q.id);
+        if (o.block) { end = c.along; stop = true; break; }
+      }
+      miss.forEach(m => { if (m.along < end) near[m.q.id] = Math.min(near[m.q.id] === undefined ? Infinity : near[m.q.id], m.gap); });
+      beam.segs.push([laserR3(x), laserR3(y), laserR3(x + dx * end), laserR3(y + dy * end)]);
+      if (stop || !bounces || !wall.t) break;
+      bounces -= 1;
+      x += dx * wall.t; y += dy * wall.t;
+      const d = dx * wall.nx + dy * wall.ny;
+      dx -= 2 * d * wall.nx; dy -= 2 * d * wall.ny;
+      x += dx * 1e-6; y += dy * 1e-6;
+    }
+    beams.push(beam);
+  });
+  // A near miss is only one that never hit.
+  beams.forEach(b => b.hits.forEach(id => { delete near[id]; }));
+  return { beams, near };
+};
+
+/** Who a set of shots hits (the plain game: through everyone, no bounce); `teams` spares teammates. */
+const laserHits = (shots, teams) => {
+  const out = [];
+  laserTrace(shots, { k: 10, teams }).beams.forEach(b => b.hits.forEach(id => { if (out.indexOf(id) === -1) out.push(id); }));
+  return out;
+};
+
+/** Who a ghost's mine at x,y catches: anyone standing whose body covers it (not the ghost's team). */
+const laserMineHits = (mine, shots, teams) => shots
+  .filter(q => !(teams && teams[q.id] !== undefined && teams[q.id] === teams[mine.id]))
+  .filter(q => Math.hypot(q.x - mine.x, q.y - mine.y) < LASER_BODY)
+  .map(q => q.id);
+
+// ---- games/laser/JS_RoomLaser.html (the drawing) ----
+const LASER_COLOURS = ['#38e8ff', '#ff5c8a', '#ffd64d', '#7cff6b', '#c08bff', '#ff9a3d', '#5b9dff', '#ff6bd6', '#3ff0b0', '#e9e9f2', '#b8ff3a', '#ff7b6b'];
+const LASER_TEAM_COLOURS = ['#38e8ff', '#ff5c8a', '#ffd64d', '#7cff6b'];
+const LASER_REVEAL_S = 7;   // LASER_REVEAL_MS on the server, in seconds
+// The reveal's beats, in seconds from shared.revealAt.
+const LSR_T = { pop: 0.5, charge: 1.8, fire: 2.4, fade: 3.3, gone: 4.3, hit: 3.2, hitEnd: 4.1, shrink: 4.3, shrinkEnd: 5.6 };
+// The short reveal of a round where nobody is hit (LASER_REVEAL_QUIET_MS, four seconds).
+const LSR_T_QUIET = { pop: 0.3, charge: 1.0, fire: 1.5, fade: 2.2, gone: 2.9, hit: 2.0, hitEnd: 2.6, shrink: 2.6, shrinkEnd: 3.6 };
+
+const lsrClamp01 = (v) => Math.max(0, Math.min(1, v));
+const lsrSeg = (t, a, b) => lsrClamp01((t - a) / (b - a));
+const lsrEase = (u) => 1 - Math.pow(1 - lsrClamp01(u), 3);
+/** The reveal's beats: the full seven seconds, or the short four when nobody is hit. */
+const lsrBeats = (s) => (s && s.revealMs && s.revealMs < 6000 ? LSR_T_QUIET : LSR_T);
+const lsrRevealS = (s) => ((s && s.revealMs) || LASER_REVEAL_S * 1000) / 1000;
+
+function lsrFit(cv) {
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [ctx, r.width, r.height];
+}
+function lsrHex(ctx, cx, cy, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; ctx[i ? 'lineTo' : 'moveTo'](cx + r * Math.cos(a), cy + r * Math.sin(a)); }
+  ctx.closePath();
+}
+/** Where the arena sits in a canvas w × h: its middle and the pixels of one unit. The view zooms in
+    as the arena shrinks (up to 1.6×, more in sudden death), so a small arena is still easy to touch;
+    within a round it holds, so the shrink is seen in the reveal. */
+const lsrFrame = (w, h, k) => {
+  k = k || 1;
+  const zoom = Math.min(1.6, 1 / k) * (k < LASER_K_MIN ? Math.sqrt(LASER_K_MIN / k) : 1);
+  return { cx: w / 2, cy: h / 2, s: Math.min(w, h) * 0.47 * zoom };
+};
+
+/** A beam's path drawn up to a share of its length (the charge). */
+function lsrPath(ctx, segs, s, cx, cy, share) {
+  const len = segs.reduce((n, g) => n + Math.hypot(g[2] - g[0], g[3] - g[1]), 0);
+  let left = len * (share === undefined ? 1 : share);
+  ctx.beginPath();
+  segs.forEach((g, i) => {
+    if (left <= 0) return;
+    const l = Math.hypot(g[2] - g[0], g[3] - g[1]) || 1e-9, u = Math.min(1, left / l);
+    if (i === 0) ctx.moveTo(cx + g[0] * s, cy + g[1] * s);
+    ctx.lineTo(cx + (g[0] + (g[2] - g[0]) * u) * s, cy + (g[1] + (g[3] - g[1]) * u) * s);
+    left -= l;
+  });
+}
+
+/** A mine: a dark disc ringed in red, a red core, four spikes. */
+function lsrMine(ctx, x, y, r, glow) {
+  ctx.save();
+  ctx.strokeStyle = '#ff5c5c'; ctx.lineWidth = r * 0.28; ctx.lineCap = 'round';
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + i * Math.PI / 2;
+    ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r * 0.7, y + Math.sin(a) * r * 0.7); ctx.lineTo(x + Math.cos(a) * r * 1.35, y + Math.sin(a) * r * 1.35); ctx.stroke();
+  }
+  ctx.fillStyle = '#1a1020'; ctx.strokeStyle = '#ff5c5c'; ctx.lineWidth = r * 0.18;
+  ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = r * (glow || 0.8);
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.fillStyle = '#ff5c5c';
+  ctx.beginPath(); ctx.arc(x, y, r * 0.32, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Draws the arena. o: { k, kNext, t (seconds into the reveal, or null), T (the reveal's beats),
+ * people: [{ id, x, y, a, col, label, letter, shield, faint }], beams: { id: segs } (none while
+ * hiding: each person's own aim, to the wall and its bounce), bounce, out: [ids] (fizzle out),
+ * hurt: [ids] (lose a heart), mines: [{ x, y, hits }] (shown from the fire), myMine: { x, y } (a
+ * ghost's own, while hiding), old: [{ segs, col }] (last round's beams, faint) }.
+ */
+function laserDraw(cv, o) {
+  if (!cv || !cv.isConnected) return;
+  const [ctx, w, h] = lsrFit(cv);
+  const T = o.T || LSR_T;
+  const { cx, cy, s } = lsrFrame(w, h, o.k);
+  const t = o.t === null || o.t === undefined ? null : o.t;
+  const k = t === null ? o.k : o.k + ((o.kNext || o.k) - o.k) * lsrEase(lsrSeg(t, T.shrink, T.shrinkEnd));
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#070b1a'; ctx.fillRect(0, 0, w, h);
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 1.3);
+  g.addColorStop(0, 'rgba(40,80,160,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  // The ring falling away.
+  if (t !== null && o.kNext < o.k) {
+    const fall = lsrSeg(t, T.shrink, T.shrinkEnd);
+    if (fall > 0 && fall < 1) {
+      ctx.save(); lsrHex(ctx, cx, cy, s * o.k); lsrHex(ctx, cx, cy, s * k);
+      ctx.fillStyle = `rgba(56,232,255,${0.2 * (1 - fall)})`; ctx.fill('evenodd'); ctx.restore();
+    }
+  }
+  // The floor: small hexagon tiles inside the wall.
+  ctx.save(); lsrHex(ctx, cx, cy, s * k); ctx.fillStyle = '#0c1430'; ctx.fill(); ctx.clip();
+  ctx.strokeStyle = 'rgba(80,200,255,.13)'; ctx.lineWidth = 1;
+  const tr = s * 0.09;
+  for (let q = -14; q <= 14; q++) for (let r = -14; r <= 14; r++) {
+    const x = cx + tr * 1.5 * q, y = cy + tr * Math.sqrt(3) * (r + q / 2);
+    if (Math.abs(x - cx) > s * 1.1 || Math.abs(y - cy) > s * 1.1) continue;
+    lsrHex(ctx, x, y, tr * 0.92); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.save(); lsrHex(ctx, cx, cy, s * k);
+  ctx.strokeStyle = '#38e8ff'; ctx.lineWidth = Math.max(2, s * 0.018); ctx.shadowColor = '#38e8ff'; ctx.shadowBlur = s * 0.08; ctx.stroke(); ctx.restore();
+
+  if (o.under) o.under(ctx, { cx, cy, s, k, t, w, h });
+  // Last round's beams, faint (who got you).
+  (o.old || []).forEach(b => {
+    ctx.save(); lsrHex(ctx, cx, cy, s * k); ctx.clip(); ctx.strokeStyle = b.col; ctx.globalAlpha = 0.3; ctx.lineWidth = Math.max(2, s * 0.012); ctx.lineCap = 'round';
+    lsrPath(ctx, b.segs, s, cx, cy, 1); ctx.stroke(); ctx.restore();
+  });
+
+  const people = o.people || [];
+  const out = new Set(o.out || []);
+  const hurt = new Set(o.hurt || []);
+  const at = (p) => [cx + p.x * s, cy + p.y * s];
+  // The mines: a ghost's own while hiding; everyone's from the fire, a blast where one caught someone.
+  if (o.myMine) lsrMine(ctx, cx + o.myMine.x * s, cy + o.myMine.y * s, LASER_BODY * s * 0.55, 1.2);
+  if (t !== null && t >= T.fire) {
+    (o.mines || []).forEach(m => {
+      const show = lsrEase(lsrSeg(t, T.fire, T.fire + 0.3));
+      const mx = cx + m.x * s, my = cy + m.y * s, mr = LASER_BODY * s * 0.55 * show;
+      if ((m.hits || []).length) {
+        const b = lsrSeg(t, T.hit, T.hitEnd);
+        if (b > 0 && b < 1) {
+          ctx.save(); ctx.strokeStyle = '#ffb44d'; ctx.globalAlpha = 1 - b; ctx.lineWidth = s * 0.02;
+          ctx.beginPath(); ctx.arc(mx, my, LASER_BODY * s * (0.8 + 2.4 * b), 0, 7); ctx.stroke(); ctx.restore();
+        }
+      }
+      if (mr > 0) lsrMine(ctx, mx, my, mr);
+    });
+  }
+  // The beams: a dashed aim while hiding or charging, then all of them at once.
+  if (t === null || t >= T.charge) {
+    people.forEach(p => {
+      if (p.shield) return;
+      const segs = (o.beams && o.beams[p.id]) || laserTrace([{ id: p.id, x: p.x, y: p.y, a: p.a }], { k: o.k, bounce: o.bounce }).beams[0].segs;
+      const charge = t === null ? 1 : lsrEase(lsrSeg(t, T.charge, T.fire));
+      const fire = t === null ? 0 : lsrSeg(t, T.fire, T.fire + 0.2) * (1 - lsrSeg(t, T.fade, T.gone));
+      ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (fire > 0) {
+        ctx.strokeStyle = p.col; ctx.globalAlpha = fire; ctx.lineWidth = s * 0.03; ctx.shadowColor = p.col; ctx.shadowBlur = s * 0.1;
+        lsrPath(ctx, segs, s, cx, cy, 1); ctx.stroke();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = s * 0.009; ctx.shadowBlur = 0; ctx.stroke();
+      } else if (t === null || t < T.fire) {
+        ctx.strokeStyle = p.col; ctx.globalAlpha = (t === null ? 0.9 : 0.55) * (p.faint ? 0.6 : 1); ctx.lineWidth = Math.max(1.5, s * 0.008); ctx.setLineDash([s * 0.03, s * 0.03]);
+        lsrPath(ctx, segs, s, cx, cy, charge); ctx.stroke();
+      }
+      ctx.restore();
+    });
+    const flash = t === null ? 0 : lsrSeg(t, T.fire, T.fire + 0.05) * (1 - lsrSeg(t, T.fire + 0.05, T.fire + 0.4));
+    if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${0.5 * flash})`; ctx.fillRect(0, 0, w, h); }
+  }
+  // The people: a pulse in, a gun nub on their aim (a ring for a shield), a fizzle if out, a flash
+  // and a heart flying off if they lose one.
+  const step = Math.min(0.18, 1.1 / Math.max(1, people.length));
+  people.forEach((p, i) => {
+    const pop = t === null ? 1 : lsrEase(lsrSeg(t, T.pop + i * step, T.pop + i * step + 0.35));
+    if (pop <= 0) return;
+    const [x, y] = at(p);
+    const r = LASER_BODY * s * (0.6 + 0.4 * pop) * (pop < 1 ? 1 + 0.3 * Math.sin(pop * Math.PI) : 1);
+    const d = t !== null && out.has(p.id) ? lsrSeg(t, T.hit, T.hitEnd) : 0;
+    const hu = t !== null && hurt.has(p.id) ? lsrSeg(t, T.hit, T.hitEnd + 0.4) : 0;
+    const base = p.faint ? 0.6 : 1;
+    ctx.save();
+    ctx.globalAlpha = base;
+    if (d > 0 && d < 1) {
+      for (let j = 0; j < 10; j++) {
+        const a = (j * 2.39996 + i) % (Math.PI * 2), m = 0.5 + ((j * 7 + i * 3) % 5) / 8;
+        ctx.fillStyle = p.col; ctx.globalAlpha = 1 - d;
+        ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * (1 + 3 * d * m), y + Math.sin(a) * r * (1 + 3 * d * m), r * 0.12, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = base;
+    }
+    const fill = d > 0 ? '#3a3f55' : p.col;
+    ctx.shadowColor = fill; ctx.shadowBlur = d > 0 ? 0 : r * 0.9;
+    ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+    if (p.shield && d === 0) {
+      ctx.save(); ctx.strokeStyle = '#bff6ff'; ctx.lineWidth = Math.max(2, r * 0.22); ctx.shadowColor = '#7af3ff'; ctx.shadowBlur = r;
+      ctx.globalAlpha = base * (0.75 + 0.25 * Math.sin((t || 0) * 6));
+      ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, 7); ctx.stroke(); ctx.restore();
+    } else {
+      ctx.strokeStyle = fill; ctx.lineWidth = r * 0.45; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(p.a * Math.PI / 180) * r * 1.55, y + Math.sin(p.a * Math.PI / 180) * r * 1.55); ctx.stroke();
+    }
+    if (hu > 0 && hu < 1) {
+      ctx.save(); ctx.strokeStyle = '#fff'; ctx.globalAlpha = 1 - hu; ctx.lineWidth = r * 0.3;
+      ctx.beginPath(); ctx.arc(x, y, r * (1 + hu), 0, 7); ctx.stroke();
+      ctx.fillStyle = '#ff5c8a'; ctx.font = `700 ${Math.max(12, r * 1.1)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('−❤', x, y - r * (1.6 + 2 * hu)); ctx.restore();
+    }
+    ctx.fillStyle = d > 0 ? '#9aa0b8' : '#07101f'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `700 ${Math.max(9, r * 1.05)}px "Noto Kufi Arabic", "IBM Plex Sans Arabic", sans-serif`;
+    ctx.fillText(d > 0 ? '✕' : (p.letter || ''), x, y + r * 0.05);
+    ctx.fillStyle = d > 0 ? 'rgba(200,205,225,.55)' : '#fff';
+    ctx.font = `700 ${Math.max(11, r * 0.8)}px "IBM Plex Sans Arabic", sans-serif`;
+    const lw = ctx.measureText(p.label || '').width / 2 + 4;
+    ctx.fillText(p.label || '', Math.max(lw, Math.min(w - lw, x)), Math.min(h - r * 0.6, y + r * 2));
+    ctx.restore();
+  });
+  if (o.over) o.over(ctx, { cx, cy, s, k, t, w, h });
+}
+
+
+</script>
+<script>
+/* ======================================================================
+   The sheet's own drawing, on top of the game's (laserDraw's two hooks:
+   under = on the floor, under people and beams; over = on top of all).
+   ====================================================================== */
+const NAMES = ['سارة', 'ليلى', 'منى', 'يوسف', 'عمر', 'كريم'];
+const P = (i, x, y, a, extra) => Object.assign({ id: 'p' + i, x, y, a, col: LASER_COLOURS[i], label: i === 0 ? 'انت' : NAMES[i], letter: Array.from(NAMES[i])[0] }, extra || {});
+const ang = (x1, y1, x2, y2) => laserAngle(Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI);
+const seg = lsrSeg, ease = lsrEase, clamp01 = lsrClamp01;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const FONT = '"IBM Plex Sans Arabic", "Noto Kufi Arabic", sans-serif';
+let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+
+/* --- the pickups' drawn signs (no emoji on the arena) --- */
+const PK = { double: '#ffd64d', second: '#c08bff', shield: '#7af3ff', wide: '#ff9a3d' };
+const PK_NAME = { double: 'دبل', second: 'شعاع تاني', shield: 'درع', wide: 'عريض' };
+function glyph(ctx, kind, x, y, r, col) {
+  ctx.save(); ctx.translate(x, y); ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = r * 0.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  if (kind === 'double') {
+    ctx.moveTo(r * 0.18, -r * 0.8); ctx.lineTo(-r * 0.38, r * 0.1); ctx.lineTo(r * 0.02, r * 0.1); ctx.lineTo(-r * 0.18, r * 0.8); ctx.lineTo(r * 0.42, -r * 0.14); ctx.lineTo(r * 0.02, -r * 0.14); ctx.closePath(); ctx.fill();
+  } else if (kind === 'second') {
+    ctx.moveTo(-r * 0.5, r * 0.5); ctx.lineTo(r * 0.6, -r * 0.05); ctx.moveTo(-r * 0.5, r * 0.5); ctx.lineTo(r * 0.1, -r * 0.65); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-r * 0.5, r * 0.5, r * 0.2, 0, 7); ctx.fill();
+  } else if (kind === 'shield') {
+    ctx.moveTo(0, -r * 0.75); ctx.lineTo(r * 0.6, -r * 0.48); ctx.lineTo(r * 0.5, r * 0.2); ctx.quadraticCurveTo(r * 0.28, r * 0.62, 0, r * 0.8); ctx.quadraticCurveTo(-r * 0.28, r * 0.62, -r * 0.5, r * 0.2); ctx.lineTo(-r * 0.6, -r * 0.48); ctx.closePath(); ctx.fill();
+  } else {
+    ctx.lineWidth = r * 0.34; ctx.moveTo(-r * 0.62, 0); ctx.lineTo(r * 0.62, 0); ctx.stroke();
+    ctx.lineWidth = r * 0.11; ctx.beginPath(); ctx.moveTo(-r * 0.62, -r * 0.45); ctx.lineTo(r * 0.62, -r * 0.45); ctx.moveTo(-r * 0.62, r * 0.45); ctx.lineTo(r * 0.62, r * 0.45); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* --- three looks of the things on the floor --- */
+const FLOOR = {
+  A: { // neon tokens: a glowing hexagon with its sign, a ring that pulses out; a hex column; the game's mine
+    pick(ctx, x, y, r, kind, t) {
+      const c = PK[kind], p = (t % 1.4) / 1.4;
+      ctx.save();
+      ctx.strokeStyle = c; ctx.globalAlpha = 0.6 * (1 - p); ctx.lineWidth = r * 0.12; lsrHex(ctx, x, y, r * (1 + 0.9 * p)); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(7,11,26,.88)'; ctx.shadowColor = c; ctx.shadowBlur = r * 0.9; ctx.lineWidth = r * 0.16;
+      lsrHex(ctx, x, y, r); ctx.fill(); ctx.stroke(); ctx.restore();
+      glyph(ctx, kind, x, y, r * 0.6, c);
+    },
+    pillar(ctx, x, y, r) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,.5)'; lsrHex(ctx, x + r * 0.3, y + r * 0.42, r); ctx.fill();
+      ctx.fillStyle = '#1b2550'; lsrHex(ctx, x, y + r * 0.26, r); ctx.fill();
+      ctx.fillStyle = '#2b3c7c'; ctx.strokeStyle = '#a9bbff'; ctx.lineWidth = Math.max(1.5, r * 0.1); ctx.shadowColor = '#a9bbff'; ctx.shadowBlur = r * 0.5;
+      lsrHex(ctx, x, y, r); ctx.fill(); ctx.stroke(); ctx.restore();
+    },
+    mine(ctx, x, y, r) { lsrMine(ctx, x, y, r); }
+  },
+  B: { // holograms: a turning diamond over a cone of light; a glass crystal; a blinking dot with a sonar ring
+    pick(ctx, x, y, r, kind, t) {
+      const c = PK[kind], bob = Math.sin(t * 3) * r * 0.16, sx = Math.abs(Math.cos(t * 1.7)) * 0.8 + 0.2;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.ellipse(x, y + r * 0.5, r * 0.7, r * 0.22, 0, 0, 7); ctx.fill();
+      const g = ctx.createLinearGradient(x, y + r * 0.5, x, y - r * 1.5); g.addColorStop(0, c + '77'); g.addColorStop(1, c + '00');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - r * 0.6, y + r * 0.5); ctx.lineTo(x + r * 0.6, y + r * 0.5); ctx.lineTo(x + r * 0.22, y - r * 1.5); ctx.lineTo(x - r * 0.22, y - r * 1.5); ctx.closePath(); ctx.fill();
+      ctx.translate(x, y - r * 0.55 + bob); ctx.scale(sx, 1);
+      ctx.fillStyle = c; ctx.strokeStyle = '#fff'; ctx.lineWidth = r * 0.08; ctx.shadowColor = c; ctx.shadowBlur = r;
+      ctx.beginPath(); ctx.moveTo(0, -r * 0.85); ctx.lineTo(r * 0.62, 0); ctx.lineTo(0, r * 0.85); ctx.lineTo(-r * 0.62, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      if (sx > 0.55) glyph(ctx, kind, x, y - r * 0.55 + bob, r * 0.4, '#0b1030');
+    },
+    pillar(ctx, x, y, r) {
+      ctx.save(); ctx.fillStyle = 'rgba(150,220,255,.2)'; ctx.strokeStyle = 'rgba(200,245,255,.9)'; ctx.lineWidth = Math.max(1.5, r * 0.08); ctx.shadowColor = '#bff6ff'; ctx.shadowBlur = r * 0.7;
+      const pts = [[0, -1.1], [0.82, -0.4], [0.66, 0.76], [-0.2, 1.02], [-0.86, 0.3], [-0.6, -0.62]];
+      ctx.beginPath(); pts.forEach(([a, b], i) => ctx[i ? 'lineTo' : 'moveTo'](x + a * r, y + b * r)); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.shadowBlur = 0; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.moveTo(x - 0.3 * r, y - 0.6 * r); ctx.lineTo(x + 0.1 * r, y + 0.5 * r); ctx.moveTo(x + 0.32 * r, y - 0.5 * r); ctx.lineTo(x + 0.46 * r, y + 0.3 * r); ctx.stroke(); ctx.restore();
+    },
+    mine(ctx, x, y, r, t) {
+      const p = (t % 1.2) / 1.2;
+      ctx.save(); ctx.strokeStyle = '#ff5c5c'; ctx.globalAlpha = 1 - p; ctx.lineWidth = r * 0.16; ctx.beginPath(); ctx.arc(x, y, r * (0.5 + 1.6 * p), 0, 7); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.fillStyle = (t % 0.6) < 0.3 ? '#ff3b3b' : '#8a1426'; ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = r;
+      ctx.beginPath(); ctx.arc(x, y, r * 0.48, 0, 7); ctx.fill(); ctx.restore();
+    }
+  },
+  C: { // painted on the floor: a lit tile with its sign; a solid block; a striped warning tile
+    pick(ctx, x, y, r, kind, t) {
+      const c = PK[kind];
+      ctx.save(); ctx.globalAlpha = 0.6 + 0.25 * Math.sin(t * 4); ctx.fillStyle = c; lsrHex(ctx, x, y, r * 1.12); ctx.fill();
+      ctx.globalAlpha = 1; ctx.strokeStyle = '#fff'; ctx.lineWidth = r * 0.1; lsrHex(ctx, x, y, r * 1.12); ctx.stroke(); ctx.restore();
+      glyph(ctx, kind, x, y, r * 0.68, '#0b1030');
+    },
+    pillar(ctx, x, y, r) {
+      ctx.save(); const d = r * 0.4;
+      ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(x - r + d * 0.8, y - r + d * 1.1, 2 * r, 2 * r);
+      ctx.fillStyle = '#3b2f6b'; ctx.fillRect(x - r, y - r + d, 2 * r, 2 * r);
+      ctx.fillStyle = '#6b5bd6'; ctx.strokeStyle = '#d9d2ff'; ctx.lineWidth = Math.max(1.5, r * 0.08); ctx.fillRect(x - r, y - r, 2 * r, 2 * r); ctx.strokeRect(x - r, y - r, 2 * r, 2 * r);
+      ctx.restore();
+    },
+    mine(ctx, x, y, r) {
+      ctx.save(); lsrHex(ctx, x, y, r * 1.15); ctx.clip(); ctx.fillStyle = '#ffd23f'; ctx.fillRect(x - r * 1.3, y - r * 1.3, r * 2.6, r * 2.6);
+      ctx.strokeStyle = '#1a1020'; ctx.lineWidth = r * 0.28;
+      for (let i = -4; i <= 4; i++) { ctx.beginPath(); ctx.moveTo(x + i * r * 0.55 - r * 1.3, y - r * 1.3); ctx.lineTo(x + i * r * 0.55 + r * 1.3, y + r * 1.3); ctx.stroke(); }
+      ctx.restore();
+    }
+  }
+};
+
+/** Beams as the game traces them, then cut where a pillar stands (and whoever is behind it spared). */
+function trace(people, k, pillars) {
+  const res = laserTrace(people.map(p => ({ id: p.id, x: p.x, y: p.y, a: p.a, shield: p.shield })), { k });
+  const beams = {}, out = new Set(), stops = [];
+  res.beams.forEach(b => {
+    const p = people.find(q => q.id === b.id), g = b.segs[0];
+    const dx = Math.cos(p.a * Math.PI / 180), dy = Math.sin(p.a * Math.PI / 180);
+    const full = Math.hypot(g[2] - g[0], g[3] - g[1]);
+    let end = full;
+    (pillars || []).forEach(pl => {
+      const vx = pl.x - g[0], vy = pl.y - g[1], along = vx * dx + vy * dy, perp = Math.abs(vx * dy - vy * dx);
+      if (along > 0 && perp < pl.r) end = Math.min(end, along - Math.sqrt(pl.r * pl.r - perp * perp));
+    });
+    beams[b.id] = [[g[0], g[1], g[0] + dx * end, g[1] + dy * end]];
+    if (end < full - 1e-6) stops.push({ x: g[0] + dx * end, y: g[1] + dy * end, col: p.col });
+    b.hits.forEach(id => { const q = people.find(z => z.id === id); if ((q.x - g[0]) * dx + (q.y - g[1]) * dy < end + LASER_BODY) out.add(id); });
+  });
+  return { beams, out: [...out], stops };
+}
+
+/** A canvas text label on a dark pill. */
+function pill(ctx, text, x, y, size, col) {
+  ctx.save(); ctx.font = `700 ${size}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+  const w = ctx.measureText(text).width + size * 1.2, h = size * 1.7;
+  ctx.fillStyle = 'rgba(7,11,26,.85)'; ctx.strokeStyle = col || 'rgba(56,232,255,.6)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.fillText(text, x, y + size * 0.05); ctx.restore();
+}
+function burst(ctx, x, y, r, u, col, n) {
+  ctx.save(); ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.globalAlpha = 1 - u; ctx.lineWidth = Math.max(1.5, r * 0.12);
+  for (let i = 0; i < (n || 10); i++) { const a = i * 2.4 + 0.3; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r * (0.3 + u), y + Math.sin(a) * r * (0.3 + u)); ctx.lineTo(x + Math.cos(a) * r * (0.7 + 2.2 * u), y + Math.sin(a) * r * (0.7 + 2.2 * u)); ctx.stroke(); }
+  ctx.restore();
+}
+
+/* --- part 1: the scene --- */
+const S1 = (() => {
+  const people = [P(0, -0.45, 0.25, 0), P(1, 0.1, -0.35, 180), P(2, 0.45, 0.2, 0), P(3, -0.17, 0.52, 90), P(4, -0.06, 0.5, 55), P(5, 0.5, -0.1, 150)];
+  people[0].a = ang(-0.45, 0.25, 0.05, 0.1); people[2].a = ang(0.45, 0.2, 0.5, -0.1);
+  const pillars = [{ x: 0.05, y: 0.1, r: 0.08 }];
+  const pickups = [{ x: 0.1, y: -0.35, kind: 'double', fate: 'taken', by: 1 }, { x: -0.115, y: 0.51, kind: 'shield', fate: 'broken' }, { x: -0.5, y: -0.32, kind: 'wide', fate: 'left' }];
+  const mines = [{ x: 0.3, y: 0.52, hits: [] }];
+  return { k: 0.9, people, pillars, pickups, mines, tr: trace(people, 0.9, pillars) };
+})();
+const PICK_R = 0.06;
+
+function drawFloorScene(cv, L, t, phone) {
+  const sc = S1, look = FLOOR[L], T = LSR_T;
+  const me = sc.people[0];
+  const people = phone ? [me] : sc.people;
+  const taken = sc.pickups.find(p => p.fate === 'taken');
+  laserDraw(cv, {
+    k: sc.k, kNext: sc.k, t: phone ? null : t, T, people, beams: phone ? { [me.id]: sc.tr.beams[me.id] } : sc.tr.beams,
+    out: sc.tr.out, hurt: [], mines: !phone && L === 'A' ? sc.mines : [],
+    under(ctx, f) {
+      sc.pillars.forEach(pl => look.pillar(ctx, f.cx + pl.x * f.s, f.cy + pl.y * f.s, pl.r * f.s, t));
+      sc.pickups.forEach(p => {
+        if (!phone && t >= T.hit + 0.2 && p.fate !== 'left') return;
+        look.pick(ctx, f.cx + p.x * f.s, f.cy + p.y * f.s, PICK_R * f.s, p.kind, t);
+      });
+    },
+    over(ctx, f) {
+      if (phone) return;
+      if (L !== 'A' && t >= T.fire) sc.mines.forEach(m => look.mine(ctx, f.cx + m.x * f.s, f.cy + m.y * f.s, LASER_BODY * f.s * 0.55, t));
+      const sp = seg(t, T.fire, T.fire + 0.7);
+      if (sp > 0 && sp < 1) sc.tr.stops.forEach(st => burst(ctx, f.cx + st.x * f.s, f.cy + st.y * f.s, f.s * 0.04, sp, st.col, 8));
+      // The pickup ليلى survived on flies to her name; the shared one breaks.
+      const u = seg(t, T.hit + 0.2, T.hit + 1.1);
+      const corner = { x: f.w - 70, y: 26 };
+      if (u > 0 && u < 1) {
+        const x0 = f.cx + taken.x * f.s, y0 = f.cy + taken.y * f.s, e = ease(u);
+        const x = x0 + (corner.x - x0) * e, y = y0 + (corner.y - y0) * e - Math.sin(u * Math.PI) * 40;
+        look.pick(ctx, x, y, PICK_R * f.s * (1 - 0.45 * e), taken.kind, t);
+      }
+      if (t >= T.hit + 1.1 && t < 6.8) pill(ctx, 'ليلى · ' + PK_NAME.double, corner.x, corner.y, Math.max(11, f.s * 0.04), PK.double);
+      const br = sc.pickups.find(p => p.fate === 'broken'), b = seg(t, T.hit + 0.2, T.hit + 1.4);
+      if (b > 0 && b < 1) {
+        const x = f.cx + br.x * f.s, y = f.cy + br.y * f.s;
+        burst(ctx, x, y, f.s * 0.06, b, PK.shield, 12);
+        ctx.save(); ctx.globalAlpha = 1 - seg(b, 0.6, 1); pill(ctx, 'اتخانقوا عليه!', x, y - f.s * 0.16, Math.max(11, f.s * 0.04), PK.shield); ctx.restore();
+      }
+    }
+  });
+}
+
+/* --- part 2: maps --- */
+const SHAPES = [['hex', 'السداسي'], ['circle', 'الدايرة'], ['donut', 'الدونات'], ['cross', 'الصليب']];
+function shapePath(ctx, shape, cx, cy, R) {
+  ctx.beginPath();
+  if (shape === 'hex') { for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; ctx[i ? 'lineTo' : 'moveTo'](cx + R * Math.cos(a), cy + R * Math.sin(a)); } ctx.closePath(); }
+  else if (shape === 'circle') ctx.arc(cx, cy, R * 0.93, 0, Math.PI * 2);
+  else if (shape === 'donut') { ctx.arc(cx, cy, R * 0.95, 0, Math.PI * 2); ctx.moveTo(cx + R * 0.34, cy); ctx.arc(cx, cy, R * 0.34, 0, Math.PI * 2, true); }
+  else { const a = R * 0.34, b = R * 0.95; [[-a, -b], [a, -b], [a, -a], [b, -a], [b, a], [a, a], [a, b], [-a, b], [-a, a], [-b, a], [-b, -a], [-a, -a]].forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](cx + x, cy + y)); ctx.closePath(); }
+}
+const PERIM = { hex: 6, circle: 2 * Math.PI * 0.93, donut: 2 * Math.PI * 1.29, cross: 7.6 };
+/** An arena of any shape in the game's floor style. o: { k, wall (0-1 traced), floor (0-1 revealed from the middle), scale, alpha, ghost (a smaller dashed outline) } */
+function drawArena(cv, shape, o) {
+  const [ctx, w, h] = lsrFit(cv);
+  const f = lsrFrame(w, h, 1), cx = f.cx, cy = f.cy, R = f.s * (o.k || 1) * (o.scale || 1);
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#070b1a'; ctx.fillRect(0, 0, w, h);
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, f.s * 1.3); g.addColorStop(0, 'rgba(40,80,160,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  ctx.save(); ctx.globalAlpha = o.alpha === undefined ? 1 : o.alpha;
+  const fl = o.floor === undefined ? 1 : o.floor;
+  if (fl > 0) {
+    ctx.save(); shapePath(ctx, shape, cx, cy, R); ctx.clip('evenodd');
+    if (fl < 1) { ctx.beginPath(); ctx.arc(cx, cy, R * 1.1 * ease(fl), 0, 7); ctx.clip(); }
+    ctx.fillStyle = '#0c1430'; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(80,200,255,.13)'; ctx.lineWidth = 1; const tr = f.s * 0.09;
+    for (let q = -14; q <= 14; q++) for (let r = -14; r <= 14; r++) { const x = cx + tr * 1.5 * q, y = cy + tr * Math.sqrt(3) * (r + q / 2); if (Math.abs(x - cx) > f.s * 1.1 || Math.abs(y - cy) > f.s * 1.1) continue; lsrHex(ctx, x, y, tr * 0.92); ctx.stroke(); }
+    ctx.restore();
+  }
+  const wl = o.wall === undefined ? 1 : o.wall;
+  if (wl > 0) {
+    ctx.save(); shapePath(ctx, shape, cx, cy, R); ctx.strokeStyle = '#38e8ff'; ctx.lineWidth = Math.max(2, f.s * 0.018); ctx.shadowColor = '#38e8ff'; ctx.shadowBlur = f.s * 0.08;
+    if (wl < 1) { const L = PERIM[shape] * R; ctx.setLineDash([L * wl, L * 2]); }
+    ctx.stroke(); ctx.restore();
+  }
+  if (o.ghost) { ctx.save(); shapePath(ctx, shape, cx, cy, f.s * o.ghost); ctx.setLineDash([6, 6]); ctx.strokeStyle = 'rgba(122,243,255,.55)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore(); }
+  ctx.restore();
+  return { ctx, w, h, cx, cy, R, s: f.s };
+}
+function nameCard(a, text, u, size) {
+  const { ctx, w, h } = a; if (u <= 0) return;
+  ctx.save(); ctx.globalAlpha = clamp01(u); ctx.translate(0, (1 - ease(u)) * 20);
+  pill(ctx, text, w / 2, h - size * 2.2, size, '#38e8ff'); ctx.restore();
+}
+const MAPS = {
+  A: (cv, t, small) => { // the wall traces itself, the floor lights from the middle, the name rises
+    const i = Math.floor(t / 4.5) % 4, lt = t % 4.5, [shape, name] = SHAPES[i];
+    const a = drawArena(cv, shape, { wall: ease(seg(lt, 0, 1.2)), floor: seg(lt, 0.6, 1.8) });
+    nameCard(a, 'الخريطة: ' + name, seg(lt, 1.6, 2.2), Math.max(12, a.s * 0.06));
+  },
+  B: (cv, t) => { // a wheel of the four, slowing down, landing with a flash
+    const i = Math.floor(t / 4.5) % 4, lt = t % 4.5, [shape, name] = SHAPES[i];
+    if (lt < 2.2) {
+      const steps = 14, u = lt / 2.2, k = Math.floor(steps * (1 - Math.pow(1 - u, 2.2)));
+      const sh = SHAPES[(i + k + 2) % 4][0];
+      drawArena(cv, k >= steps - 1 ? shape : sh, { floor: 0, alpha: 0.75 });
+    } else {
+      const a = drawArena(cv, shape, { floor: seg(lt, 2.2, 2.6) });
+      const fl = seg(lt, 2.2, 2.5); if (fl < 1) { a.ctx.fillStyle = `rgba(255,255,255,${0.45 * (1 - fl)})`; a.ctx.fillRect(0, 0, a.w, a.h); }
+      nameCard(a, 'الخريطة: ' + name, seg(lt, 2.4, 2.9), Math.max(12, a.s * 0.06));
+    }
+  },
+  C: (cv, t) => { // it drops in from above, a shockwave, a stamp
+    const i = Math.floor(t / 4.5) % 4, lt = t % 4.5, [shape, name] = SHAPES[i];
+    const u = seg(lt, 0, 0.7), back = 1 + 2.4 * Math.pow(u - 1, 3) + 1.4 * Math.pow(u - 1, 2);
+    const a = drawArena(cv, shape, { scale: 1.5 - 0.5 * back, alpha: u });
+    const sw = seg(lt, 0.7, 1.3);
+    if (sw > 0 && sw < 1) { a.ctx.save(); a.ctx.strokeStyle = `rgba(56,232,255,${1 - sw})`; a.ctx.lineWidth = 3; a.ctx.beginPath(); a.ctx.arc(a.cx, a.cy, a.R * (1 + sw * 0.5), 0, 7); a.ctx.stroke(); a.ctx.restore(); }
+    const st = seg(lt, 1.1, 1.4);
+    if (st > 0) {
+      const { ctx } = a; ctx.save(); ctx.translate(a.cx, a.cy); ctx.rotate(-0.14); const sc = 1.6 - 0.6 * ease(st); ctx.scale(sc, sc); ctx.globalAlpha = st;
+      ctx.font = `900 ${Math.max(16, a.s * 0.12)}px "Noto Kufi Arabic", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl';
+      ctx.lineWidth = 4; ctx.strokeStyle = '#ff5c8a'; ctx.strokeText(name, 0, 0); ctx.fillStyle = '#fff'; ctx.fillText(name, 0, 0); ctx.restore();
+    }
+  }
+};
+
+/* --- part 3: falling pieces --- */
+const CHUNK = 0.2;
+const CHUNKS = (() => {
+  const out = [];
+  for (let q = -4; q <= 4; q++) for (let r = -5; r <= 5; r++) {
+    const x = CHUNK * 1.5 * q, y = CHUNK * Math.sqrt(3) * (r + q / 2);
+    if (Math.abs(y) <= 0.866 - 0.12 && Math.sqrt(3) * Math.abs(x) + Math.abs(y) <= Math.sqrt(3) - 0.2) out.push({ q, r, x, y });
+  }
+  return out;
+})();
+const DOOM = [[1, 0], [-1, -1], [2, -2], [-2, 1]].map(([q, r]) => {
+  const c = CHUNKS.find(z => z.q === q && z.r === r) || { x: CHUNK * 1.5 * q, y: CHUNK * Math.sqrt(3) * (r + q / 2) };
+  seed = 11 + q * 7 + r * 13;
+  const cracks = Array.from({ length: 3 }, () => { const pts = []; let a = rnd() * 6.28, x = 0, y = 0; for (let i = 0; i < 4; i++) { pts.push([x, y]); a += (rnd() - 0.5) * 1.2; x += Math.cos(a) * 0.3; y += Math.sin(a) * 0.3; } return pts; });
+  return { x: c.x, y: c.y, cracks };
+});
+const S3 = { k: 1, people: [P(0, 0.05, 0.45, 300), P(1, -0.55, -0.1, 20), P(2, 0.45, 0.42, 250)] };
+function chunkPath(ctx, f, c, sc, dy) { lsrHex(ctx, f.cx + c.x * f.s, f.cy + c.y * f.s + (dy || 0), CHUNK * f.s * 0.97 * (sc || 1)); }
+const PIECES = {
+  A: { // cracks glowing red, a shake, it falls into the dark with dust
+    warn(ctx, f, c, t) {
+      ctx.save(); chunkPath(ctx, f, c); ctx.clip();
+      ctx.strokeStyle = `rgba(255,92,92,${0.55 + 0.35 * Math.sin(t * 5)})`; ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 8; ctx.lineWidth = Math.max(1.5, f.s * 0.008);
+      c.cracks.forEach(pts => { ctx.beginPath(); pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](f.cx + (c.x + x * CHUNK) * f.s, f.cy + (c.y + y * CHUNK) * f.s)); ctx.stroke(); });
+      ctx.restore();
+    },
+    fall(ctx, f, c, u, t) {
+      ctx.save(); chunkPath(ctx, f, c); ctx.fillStyle = '#02040b'; ctx.fill(); ctx.restore();
+      if (u < 1) {
+        ctx.save(); const sh = u < 0.2 ? Math.sin(t * 60) * f.s * 0.006 : 0; ctx.translate(sh, 0);
+        ctx.globalAlpha = 1 - u; chunkPath(ctx, f, c, 1 - 0.5 * ease(u)); ctx.fillStyle = '#0c1430'; ctx.fill(); ctx.strokeStyle = 'rgba(255,92,92,.7)'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+        ctx.save(); ctx.fillStyle = `rgba(180,200,255,${0.5 * (1 - u)})`;
+        for (let i = 0; i < 9; i++) { const a = i * 0.7, d = CHUNK * f.s * (0.7 + u * 0.9); ctx.beginPath(); ctx.arc(f.cx + c.x * f.s + Math.cos(a) * d, f.cy + c.y * f.s + Math.sin(a) * d, f.s * 0.008, 0, 7); ctx.fill(); }
+        ctx.restore();
+      }
+    }
+  },
+  B: { // blinks orange, faster and faster, a white flash, a hole
+    warn(ctx, f, c, t) { ctx.save(); chunkPath(ctx, f, c); ctx.fillStyle = `rgba(255,154,61,${0.18 + 0.22 * (Math.sin(t * 6) > 0 ? 1 : 0)})`; ctx.fill(); ctx.strokeStyle = 'rgba(255,154,61,.8)'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore(); },
+    fall(ctx, f, c, u, t) {
+      ctx.save(); chunkPath(ctx, f, c); ctx.fillStyle = '#02040b'; ctx.fill();
+      if (u < 0.25) { ctx.fillStyle = `rgba(255,255,255,${0.8 * (1 - u / 0.25)})`; ctx.fill(); }
+      ctx.restore();
+    }
+  },
+  C: { // yellow and black stripes, then it slides down and away
+    warn(ctx, f, c) {
+      ctx.save(); chunkPath(ctx, f, c); ctx.clip(); const x = f.cx + c.x * f.s, y = f.cy + c.y * f.s, R = CHUNK * f.s;
+      ctx.fillStyle = 'rgba(255,210,63,.55)'; ctx.fillRect(x - R, y - R, 2 * R, 2 * R); ctx.strokeStyle = 'rgba(26,16,32,.75)'; ctx.lineWidth = R * 0.22;
+      for (let i = -5; i <= 5; i++) { ctx.beginPath(); ctx.moveTo(x + i * R * 0.45 - R, y - R); ctx.lineTo(x + i * R * 0.45 + R, y + R); ctx.stroke(); }
+      ctx.restore();
+    },
+    fall(ctx, f, c, u) {
+      ctx.save(); chunkPath(ctx, f, c); ctx.fillStyle = '#02040b'; ctx.fill(); ctx.restore();
+      if (u < 1) { ctx.save(); chunkPath(ctx, f, c); ctx.clip(); ctx.globalAlpha = 1 - u; ctx.translate(0, ease(u) * CHUNK * f.s * 1.6); PIECES.C.warn(ctx, f, c); ctx.restore(); }
+    }
+  }
+};
+function drawPieces(cv, L, t, phone) {
+  const P3 = PIECES[L];
+  laserDraw(cv, {
+    k: 1, kNext: 1, t: phone ? null : (t < 3 ? 0 : (t - 3) * 1.1), T: LSR_T_QUIET,
+    people: phone ? [S3.people[0]] : S3.people,
+    under(ctx, f) {
+      DOOM.forEach(c => {
+        if (phone || t < 4.2) P3.warn(ctx, f, c, t);
+        else P3.fall(ctx, f, c, seg(t, 4.2, 5.4), t);
+      });
+    },
+    over(ctx, f) {
+      if (phone) return;
+      const cap = t < 3 ? 'وانتو مستخبيين: البلاط ده هيقع آخر الجولة' : t < 4.2 ? 'اظهروا!' : 'الأرض بتقع';
+      pill(ctx, cap, f.w / 2, f.h - 20, Math.max(11, f.s * 0.045));
+    }
+  });
+}
+
+/* --- part 4: the end --- */
+const S4 = (() => {
+  const people = [P(1, -0.55, 0.05, 5), P(2, -0.1, 0.09, 100), P(4, 0.25, 0.12, 260), P(5, 0.6, 0.15, 300), P(0, 0.1, -0.42, 200), P(3, -0.3, 0.5, 280)];
+  const tr = laserTrace(people.map(p => ({ id: p.id, x: p.x, y: p.y, a: p.a })), { k: 0.8 });
+  const best = tr.beams.find(b => b.id === 'p1');
+  return { k: 0.8, people, tr, best, victims: best.hits };
+})();
+function replaySlow(cv, t, mini) {
+  const sc = S4, sh = sc.people[0], seg0 = sc.best.segs[0];
+  const len = Math.hypot(seg0[2] - seg0[0], seg0[3] - seg0[1]);
+  const dx = (seg0[2] - seg0[0]) / len, dy = (seg0[3] - seg0[1]) / len;
+  const head = len * ease(seg(t, 0.8, 3.6)) ;
+  const hitAt = {}; sc.victims.forEach(id => { const q = sc.people.find(p => p.id === id); hitAt[id] = (q.x - sh.x) * dx + (q.y - sh.y) * dy; });
+  laserDraw(cv, {
+    k: sc.k, t: 1.2, T: LSR_T, people: sc.people.filter(p => !(hitAt[p.id] !== undefined && head > hitAt[p.id] + 0.02)),
+    over(ctx, f) {
+      const X = (x) => f.cx + x * f.s, Y = (y) => f.cy + y * f.s;
+      // the bars and the badge
+      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.55)'; const bar = f.h * 0.09 * ease(seg(t, 0, 0.5)); ctx.fillRect(0, 0, f.w, bar); ctx.fillRect(0, f.h - bar, f.w, bar); ctx.restore();
+      if (t > 0.3 && t < 6.6) pill(ctx, '⏪ إعادة · أحلى ضربة', f.w / 2, Math.max(16, f.h * 0.06), Math.max(11, f.s * 0.045), '#ffd64d');
+      if (head > 0) {
+        ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = sh.col; ctx.lineWidth = f.s * 0.03; ctx.shadowColor = sh.col; ctx.shadowBlur = f.s * 0.12;
+        ctx.globalAlpha = 1 - seg(t, 5.2, 6.4);
+        ctx.beginPath(); ctx.moveTo(X(sh.x), Y(sh.y)); ctx.lineTo(X(sh.x + dx * head), Y(sh.y + dy * head)); ctx.stroke();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = f.s * 0.009; ctx.shadowBlur = 0; ctx.stroke();
+        if (t < 3.7) { ctx.fillStyle = '#fff'; ctx.shadowColor = sh.col; ctx.shadowBlur = 20; ctx.beginPath(); ctx.arc(X(sh.x + dx * head), Y(sh.y + dy * head), f.s * 0.022, 0, 7); ctx.fill(); }
+        ctx.restore();
+      }
+      sc.victims.forEach(id => {
+        if (!(head > hitAt[id] + 0.02)) return;
+        const q = sc.people.find(p => p.id === id), x = X(q.x), y = Y(q.y), r = LASER_BODY * f.s;
+        const u = clamp01((head - hitAt[id]) / 0.25);
+        burst(ctx, x, y, r, u, q.col, 10);
+        ctx.save(); ctx.fillStyle = '#3a3f55'; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.fillStyle = '#9aa0b8'; ctx.font = `700 ${r * 1.05}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✕', x, y); ctx.restore();
+      });
+      if (!mini && t > 3.8) { ctx.save(); ctx.globalAlpha = seg(t, 3.8, 4.2) * (1 - seg(t, 6.4, 6.9)); pill(ctx, 'ليلى خرّجت ٣ في ضربة واحدة · الجولة ٤', f.w / 2, f.h - Math.max(22, f.h * 0.14), Math.max(12, f.s * 0.05), '#ffd64d'); ctx.restore(); }
+      if (!mini && t < 3.7 && t > 0.8) { ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.font = `700 ${Math.max(10, f.s * 0.04)}px sans-serif`; ctx.fillText('×¼', 14, f.h - 14); ctx.restore(); }
+    }
+  });
+}
+function replayFast(cv, t) {
+  const sc = S4, beams = {};
+  sc.tr.beams.forEach(b => { if (b.id === 'p1') beams[b.id] = b.segs; });
+  sc.people.forEach(p => { if (!beams[p.id]) beams[p.id] = [[p.x, p.y, p.x, p.y]]; });
+  laserDraw(cv, { k: sc.k, t: t % 6, T: LSR_T, people: sc.people, beams, out: sc.victims });
+}
+function arenaPodium(cv, t) {
+  const order = [2, 1, 3, 0, 4, 5]; // منى wins
+  laserDraw(cv, {
+    k: 0.8, t: null, people: [],
+    over(ctx, f) {
+      const X = (x) => f.cx + x * f.s, Y = (y) => f.cy + y * f.s;
+      order.forEach((i, rank) => {
+        const r = LASER_BODY * f.s * (rank === 0 ? 1.5 : 1);
+        const a = rank === 0 ? 0 : (-Math.PI / 2 + (rank - 1) * (Math.PI * 2 / 5)), d = rank === 0 ? 0 : 0.52;
+        const x = X(Math.cos(a) * d), y = Y(Math.sin(a) * d), col = LASER_COLOURS[i];
+        const pop = ease(seg(t, 0.3 + (5 - rank) * 0.25, 0.6 + (5 - rank) * 0.25));
+        if (pop <= 0) return;
+        if (rank === 0) {
+          for (let j = 0; j < 6; j++) {
+            const u = ((t * 0.9 + j / 6) % 1), aa = j * 1.047 + t * 0.4;
+            ctx.save(); ctx.strokeStyle = LASER_COLOURS[order[j]]; ctx.globalAlpha = (1 - u) * pop; ctx.lineWidth = f.s * 0.012; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 12;
+            ctx.beginPath(); ctx.moveTo(x + Math.cos(aa) * r * 1.4, y + Math.sin(aa) * r * 1.4); ctx.lineTo(x + Math.cos(aa) * (r * 1.4 + f.s * 0.6 * u), y + Math.sin(aa) * (r * 1.4 + f.s * 0.6 * u)); ctx.stroke(); ctx.restore();
+          }
+        }
+        ctx.save(); ctx.globalAlpha = pop; ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = r; ctx.beginPath(); ctx.arc(x, y, r * pop, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+        ctx.fillStyle = '#07101f'; ctx.font = `800 ${r * 1}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(rank + 1), x, y);
+        ctx.restore();
+        pill(ctx, NAMES[i], x, y + r * 1.9, Math.max(10, f.s * 0.035), col);
+        if (rank === 0) { ctx.save(); ctx.globalAlpha = pop; ctx.fillStyle = '#ffd64d'; ctx.beginPath(); const cy = y - r * 1.55; ctx.moveTo(x - r * 0.7, cy + r * 0.35); ctx.lineTo(x - r * 0.7, cy - r * 0.2); ctx.lineTo(x - r * 0.35, cy + r * 0.05); ctx.lineTo(x, cy - r * 0.4); ctx.lineTo(x + r * 0.35, cy + r * 0.05); ctx.lineTo(x + r * 0.7, cy - r * 0.2); ctx.lineTo(x + r * 0.7, cy + r * 0.35); ctx.closePath(); ctx.fill(); ctx.restore(); }
+      });
+      pill(ctx, '🏆 منى آخر واحدة واقفة', f.w / 2, Math.max(16, f.h * 0.07), Math.max(12, f.s * 0.05), '#ffd64d');
+    }
+  });
+}
+
+/* ======================================================================
+   The page: looks, stills, the UX pairs; one animation loop for what is on screen.
+   ====================================================================== */
+const scenes = [];
+function reg(cv, draw, loop, still) { const sc = { cv, draw, loop: loop || 7, t0: performance.now(), still: still === undefined ? (loop || 7) * 0.5 : still, seen: false }; scenes.push(sc); return sc; }
+const io = new IntersectionObserver((es) => es.forEach(e => { const s = scenes.find(x => x.cv === e.target); if (s) s.seen = e.isIntersecting; }), { rootMargin: '100px' });
+function loop(now) {
+  scenes.forEach(sc => { if (!sc.seen || sc.fixed !== undefined) return; try { sc.draw(sc.cv, ((now - sc.t0) / 1000) % sc.loop); } catch (e) { console.error(e); } });
+  if (!reduced) requestAnimationFrame(loop);
+}
+function start() {
+  scenes.forEach(sc => { io.observe(sc.cv); if (reduced || sc.fixed !== undefined) sc.draw(sc.cv, sc.fixed !== undefined ? sc.fixed : sc.still); });
+  if (!reduced) requestAnimationFrame(loop);
+}
+const el = (html) => { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstElementChild; };
+const phoneHtml = (o) => `
+  <div class="ph"><div class="ph__scr">
+    <div class="ph__top"><span>›</span><span>الليزر</span><span>🔊</span></div>
+    <div class="ph__bar"><span class="chip">جولة ${o.round || 3}</span>${o.hearts ? `<span class="chip chip--hearts">${o.hearts}</span>` : ''}${o.clock === false ? '' : `<span class="chip chip--clock">${o.clock || '0:09'}</span>`}</div>
+    <div class="ph__stage"><canvas aria-label="${o.label || 'الحلبة على الموبايل'}"></canvas>${o.cap ? `<div class="ph__cap">${o.cap}</div>` : ''}${o.overlay || ''}</div>
+    ${o.feed ? `<div class="ph__feed">${o.feed}</div>` : ''}
+    ${o.hint ? `<p class="ph__hint">${o.hint}</p>` : ''}
+    ${o.tools === false ? '' : `<div class="ph__tools"><span>⟲</span><span>🛡️ الدرع (مرة واحدة)</span><span>⟳</span></div>`}
+    ${o.go === false ? '' : `<div class="ph__go ${o.goGhost ? 'ph__go--ghost' : ''}">${o.go || 'جاهز ✓'}</div>`}
+  </div></div>`;
+
+const LOOKS = {
+  floor: [
+    ['A', 'كبسولات نيون', true, 'كل كبسولة <b>سداسية منوّرة بلونها وعلامتها</b> (⚡ دبل أصفر، 🔄 شعاع تاني بنفسجي، 🛡️ درع سماوي، 🎯 عريض برتقالي) وحلقة بتنبض منها، فتتشاف من بعيد على التلفزيون ومتتلخبطش مع الناس. العمود سداسي تقيل بضل، واللغم هو اللي في اللعبة دلوقتي.'],
+    ['B', 'هولوجرام', false, 'الكبسولة <b>ماسة بتلف وتطير فوق عمود نور</b>، العمود كريستالة زجاج، واللغم نقطة بترمش وحواليها موجة رادار. شكلها حلو بس بتتحرك طول الوقت، وعلى موبايل صغير الماسة بتغطي على اللي واقف جنبها.'],
+    ['C', 'مرسوم على الأرض', false, 'الكبسولة <b>بلاطة من الأرض منوّرة بلونها</b> وعليها العلامة، العمود مكعب، واللغم بلاطة مخططة أصفر وأسود. أوضح حاجة للأطفال، بس البلاطة الكبيرة بتاكل مساحة من الحلبة وهي أصلاً بتصغر.']
+  ],
+  maps: [
+    ['A', 'الخريطة بترسم نفسها', true, '<b>السور بيترسم بخط نيون</b>، الأرض تنوّر من النص لبرّه، واسم الخريطة يطلع تحت. ثانيتين وخلاص، ونفس لغة الحلبة (الحلقة اللي بتقع آخر كل جولة).'],
+    ['B', 'عجلة الخرايط', false, '<b>الأشكال الأربعة بتلف ورا بعض</b> وبتهدى لحد ما تقف على واحدة، فلاش، والاسم. فيها تشويق، بس بتاخد وقت أطول في أول كل لعبة.'],
+    ['C', 'بتنزل من فوق', false, '<b>الحلبة بتقع من فوق</b> بنطة وموجة، والاسم مختوم عليها بالأحمر. قوية على التلفزيون، بس الختم بيغطي الحلبة لحظة والموبايلات عايزة تبدأ.']
+  ],
+  pieces: [
+    ['A', 'تشقق وبعدين يقع', true, 'البلاطة اللي هتقع عليها <b>شقوق حمرا بتنوّر</b> طول الجولة، وفي الآخر تتهز وتقع في الضلمة وتسيب تراب. واضحة من غير ما تغطي الأرض، وبتحكي «الأرض بتقع» من غير كلام.'],
+    ['B', 'بيرمش', false, 'البلاطة <b>بترمش برتقالي</b>، وفي الآخر فلاش أبيض وتبقى حفرة. سريعة وواضحة، بس الرمش طول الـ١٥ ثانية متعب للعين ومفيهوش وقعة تتشاف.'],
+    ['C', 'شريط تحذير', false, 'البلاطة <b>مخططة أصفر وأسود</b> زي شريط التحذير، وفي الآخر تنزلق لتحت وتختفي. مفهومة لأي حد، بس التخطيط تقيل على الحلبة السودا ومش من لغة النيون.']
+  ],
+  end: [
+    ['A', 'إعادة بطيئة قبل المنصة', true, 'قبل المنصة، <b>التلفزيون والموبايلات بيعيدوا أحلى ضربة بالبطيء</b> (×¼): شريطين سود، الليزر بيمشي على مهله ويخرّجهم واحد ورا التاني، وتحت «ليلى خرّجت ٣ في ضربة واحدة». بعدها المنصة، والجوايز بتتقلب واحدة ورا التانية. اللحظة دي هي اللي الناس هتتكلم عنها.'],
+    ['B', 'بلاطات الجوايز', false, 'مفيش إعادة لوحدها: <b>الجوايز بلاطات</b>، وبلاطة «القناص» جواها الضربة بتتعاد صغيرة على طول. أسرع، بس الضربة صغيرة ومحدش هيبص لها على التلفزيون.'],
+    ['C', 'المنصة على الحلبة', false, '<b>المنصة على الحلبة نفسها</b>: الكسبان في النص بتاج وليزر بيطلع منه زي الصواريخ، والباقيين حواليه بأرقامهم. شكل جديد، بس بيسيب المنصة اللي في كل ألعاب التطبيق (بشخصياتها) فاللعبة تبان غريبة عن الباقي.']
+  ]
+};
+const DRAW = {
+  floor: (L) => ({ tv: (cv, t) => drawFloorScene(cv, L, t, false), phone: (cv, t) => drawFloorScene(cv, L, t, true), loop: 7.2, stills: [[1.2, 'الكل يظهر'], [2.7, 'الضرب: العمود بيوقف ليزرين'], [3.8, 'ليلى بتاخد ⚡ · ⚔ الدرع اتكسر'], [5.2, 'بعدها']], phoneHint: 'الكبسولات والعمود مكشوفين للكل · محدش شايفك', phoneCap: '' }),
+  maps: (L) => ({ tv: (cv, t) => MAPS[L](cv, t), phone: (cv, t) => MAPS[L](cv, t), loop: 18, stills: [[0.6, 'بداية'], [1.5, 'نص'], [2.6, 'الاسم'], [11.6, 'خريطة تانية']], phoneHint: 'نفس اللحظة على كل موبايل، وبعدها الاستخبا', phoneCap: '' }),
+  pieces: (L) => ({ tv: (cv, t) => drawPieces(cv, L, t, false), phone: (cv, t) => drawPieces(cv, L, t, true), loop: 6.6, stills: [[1.5, 'وانتو مستخبيين'], [3.8, 'الكشف'], [4.6, 'بتقع'], [6, 'حفر']], phoneHint: 'البلاط المعلّم هيقع آخر الجولة', phoneCap: '' }),
+  end: (L) => L === 'A' ? { tv: replaySlow, phone: replaySlow, loop: 7, stills: [[1.6, 'الإعادة تبدأ'], [2.6, 'التاني يخرج'], [3.5, 'التالت'], [4.6, 'الجملة']], phoneHint: 'نفس الإعادة على كل موبايل', phoneCap: '' }
+    : L === 'B' ? { tv: (cv, t) => replayFast(cv, t), phone: (cv, t) => replayFast(cv, t), loop: 6, stills: [], phoneHint: '', phoneCap: '' }
+    : { tv: arenaPodium, phone: arenaPodium, loop: 6, stills: [[0.8, 'من الآخر للأول'], [1.8, 'الكسبانة'], [3, 'الصواريخ'], [5, 'كله']], phoneHint: '', phoneCap: '' }
+};
+const ENDMOCK = {
+  A: `<div class="endm"><div class="pod"><div class="p2">ليلى<i>2</i></div><div class="p1">منى<i>1</i></div><div class="p3">يوسف<i>3</i></div></div>
+      <div class="aw aw--flip"><div style="--i:0"><span>🎯 القناص</span><span>ليلى · ⚡5</span></div><div style="--i:1"><span>🕊️ الشبح</span><span>منى</span></div><div style="--i:2"><span>😮‍💨 نجا بأعجوبة</span><span>يوسف</span></div><div style="--i:3"><span>💥 ضرب وخرج</span><span>كريم</span></div></div></div>`,
+  B: `<div class="endm"><div class="pod"><div class="p2">ليلى<i>2</i></div><div class="p1">منى<i>1</i></div><div class="p3">يوسف<i>3</i></div></div>
+      <div class="tiles"><div class="tile"><b>🎯 القناص</b><canvas data-mini></canvas><span>ليلى · ⚡5</span></div><div class="tile"><b>🕊️ الشبح</b><span>منى</span></div><div class="tile"><b>😮‍💨 نجا بأعجوبة</b><span>يوسف</span></div><div class="tile"><b>💥 ضرب وخرج</b><span>كريم</span></div></div></div>`,
+  C: `<div class="endm"><div class="aw"><div><span>🎯 القناص</span><span>ليلى · ⚡5</span></div><div><span>🕊️ الشبح</span><span>منى</span></div><div><span>😮‍💨 نجا بأعجوبة</span><span>يوسف</span></div><div><span>💥 ضرب وخرج</span><span>كريم</span></div></div></div>`
+};
+document.querySelectorAll('[data-looks]').forEach(box => {
+  const part = box.dataset.looks;
+  LOOKS[part].forEach(([L, name, isPick, text]) => {
+    const d = DRAW[part](L), tag = { A: 'أ', B: 'ب', C: 'ج' }[L];
+    const sec = el(`<section class="look ${isPick ? 'is-pick' : ''}">
+      <div class="look__head"><span class="look__tag">${tag}</span><h3>${name}</h3>${isPick ? '<span class="pick">اختياري</span>' : ''}</div>
+      <p>${text}</p>
+      <div class="row">
+        ${phoneHtml({ hint: d.phoneHint, tools: part === 'floor' || part === 'pieces', go: part === 'floor' || part === 'pieces' ? undefined : false, clock: part === 'end' ? false : undefined, round: part === 'maps' ? 1 : 3 })}
+        <div class="tv-box"><div class="sub">التلفزيون</div><div class="tv"><canvas aria-label="${name} على التلفزيون"></canvas></div>
+          <div class="ctl"><button type="button" data-replay>↻ من الأول</button></div>
+          ${d.stills.length ? '<div class="stills"></div>' : ''}
+          ${part === 'end' ? ENDMOCK[L] : ''}
+        </div>
+      </div></section>`);
+    box.appendChild(sec);
+    const pcv = sec.querySelector('.ph canvas'), tcv = sec.querySelector('.tv canvas');
+    const a = reg(pcv, d.phone, d.loop), b = reg(tcv, d.tv, d.loop);
+    sec.querySelector('[data-replay]').addEventListener('click', () => { a.t0 = b.t0 = performance.now(); if (reduced) { a.draw(a.cv, a.still); } });
+    const stills = sec.querySelector('.stills');
+    d.stills.forEach(([tt, label]) => {
+      const f = el(`<div class="still"><canvas aria-label="${label}"></canvas><span>${label}</span></div>`);
+      stills.appendChild(f); const s = reg(f.querySelector('canvas'), d.tv, d.loop); s.fixed = tt;
+    });
+    const mini = sec.querySelector('[data-mini]');
+    if (mini) reg(mini, (cv, t) => replayFast(cv, t), 6);
+  });
+});
+// the four maps, round one and (dashed) round six
+const gal = document.querySelector('[data-maps-gallery]');
+SHAPES.forEach(([shape, name]) => {
+  const f = el(`<div class="still"><canvas aria-label="${name}"></canvas><span>${name}</span></div>`);
+  gal.appendChild(f); const s = reg(f.querySelector('canvas'), (cv) => drawArena(cv, shape, { ghost: 0.5 }), 1); s.fixed = 0;
+});
+
+/* --- part 5: UI/UX, before and after --- */
+const UXS = [];
+const ux = (no, title, size, pick, why, before, after) => UXS.push({ no, title, size, pick, why, before, after });
+const meReveal = [P(0, -0.1, 0.1, 30), P(1, -0.6, 0.12, 0), P(2, 0.45, -0.3, 160), P(5, 0.35, 0.5, 250)];
+const meTrace = (() => { const r = laserTrace(meReveal.map(p => ({ id: p.id, x: p.x, y: p.y, a: p.a })), { k: 0.9 }); const b = {}; r.beams.forEach(x => { b[x.id] = x.segs; }); return { beams: b, hits: [...new Set(r.beams.flatMap(x => x.hits))] }; })();
+const hideMe = (extra) => (cv, t) => laserDraw(cv, Object.assign({ k: 0.9, t: null, people: [P(0, 0.15, 0.2, 230)] }, extra ? extra(t) : {}));
+const revealMe = (extra) => (cv, t) => laserDraw(cv, Object.assign({ k: 0.9, kNext: 0.8, t: Math.min(t, 6.9), T: LSR_T, people: meReveal, beams: meTrace.beams, out: meTrace.hits }, extra ? extra(t) : {}));
+
+ux(1, 'إيد بتعلّم أول جولة', 'S', true, 'النهارده أول ما حد يفتح اللعبة بيقرا سطر «المس مكانك واسحب لاتجاهك» وكتير بيلمسوا ومش بيسحبوا. <b>في الجولة الأولى بس</b>، لحد ما تلمس، إيد بتلمس وتسحب على الحلبة نفسها.',
+  { ph: { hint: 'المس مكانك واسحب لاتجاهك · محدش شايفك', round: 1 }, draw: hideMe() },
+  { ph: { hint: 'المس مكانك واسحب لاتجاهك · محدش شايفك', round: 1 }, draw: (cv, t) => {
+      const u = (t % 3) / 3, mx = u < 0.35 ? 0.15 : 0.15, tapped = u > 0.25;
+      const pos = tapped ? { x: -0.25, y: -0.1 } : { x: 0.15, y: 0.2 };
+      const aim = u < 0.45 ? 230 : 230 - 160 * ease(seg(u, 0.45, 0.85));
+      laserDraw(cv, { k: 0.9, t: null, people: [P(0, pos.x, pos.y, aim)], over(ctx, f) {
+        const fx = u < 0.25 ? -0.25 + 0.4 * (1 - ease(u / 0.25)) : -0.25 + 0.35 * Math.cos((aim) * Math.PI / 180) * seg(u, 0.4, 0.85);
+        const fy = u < 0.25 ? -0.1 + 0.5 * (1 - ease(u / 0.25)) : -0.1 + 0.35 * Math.sin(aim * Math.PI / 180) * seg(u, 0.4, 0.85);
+        const X = f.cx + fx * f.s, Y = f.cy + fy * f.s;
+        if (u > 0.22 && u < 0.4) { const r = seg(u, 0.22, 0.4); ctx.save(); ctx.strokeStyle = `rgba(255,255,255,${1 - r})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(f.cx - 0.25 * f.s, f.cy - 0.1 * f.s, f.s * (0.04 + 0.1 * r), 0, 7); ctx.stroke(); ctx.restore(); }
+        ctx.save(); ctx.globalAlpha = u > 0.9 ? 1 - seg(u, 0.9, 1) : 1; ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.strokeStyle = '#0c1430'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X, Y + f.s * 0.05, f.s * 0.05, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.fillRect(X - f.s * 0.018, Y + f.s * 0.05, f.s * 0.036, f.s * 0.13); ctx.restore();
+        pill(ctx, u < 0.4 ? 'المس هنا' : 'واسحب كده', f.w / 2, 18, Math.max(11, f.s * 0.05), '#ffd64d');
+      } });
+    } });
+
+ux(2, 'تحريك وتصويب بإيدين منفصلين', 'M', true, 'النهارده لمسة بعيد عن جسمك بتنقلك، والسحب بيلف الاتجاه، ولو سحبت من جسمك نفسه بيلف برضه. ناس كتير بتحاول تسحب نفسها لمكان تاني فتلف بدل ما تتحرك. <b>اسحب جسمك = تتحرك، اسحب النقطة اللي في آخر الماسورة = تلف.</b> اللمسة البعيدة لسه بتنقلك.',
+  { ph: { hint: 'المس مكانك واسحب لاتجاهك' }, draw: hideMe() },
+  { ph: { hint: 'اسحب نفسك تتحرك · اسحب النقطة تلف' }, draw: hideMe((t) => ({ people: [P(0, 0.15, 0.2, 230 + Math.sin(t * 1.5) * 25)], over(ctx, f) {
+      const a = (230 + Math.sin(t * 1.5) * 25) * Math.PI / 180, x = f.cx + 0.15 * f.s, y = f.cy + 0.2 * f.s, d = 0.24 * f.s;
+      ctx.save(); ctx.strokeStyle = 'rgba(124,255,107,.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = '#7cff6b'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, f.s * 0.04, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, LASER_BODY * f.s * 1.6, 0, 7); ctx.stroke(); ctx.restore();
+    } })) });
+
+ux(3, 'النتيجة بتاعتك على موبايلك', 'S', true, 'في الكشف الموبايل بيكتب أسامي اللي خرجوا تحت الحلبة بخط صغير، وانت لازم تدوّر على اسمك. <b>كلمة كبيرة على موبايلك انت</b>: «اتضربت!» (أحمر)، «نجيت!» (أخضر) أو «−❤ فاضلك قلب».',
+  { ph: { cap: 'خرج: سارة', tools: false, go: false, clock: false }, draw: revealMe(), still: 4 },
+  { ph: { cap: '', tools: false, go: false, clock: false, overlay: '<div class="ov"><div class="ov__verdict">اتضربت!</div></div>' }, draw: revealMe(), still: 4 });
+
+ux(4, 'الوقت حلقة حوالين الحلبة', 'S', false, 'العدّاد دلوقتي حتة صغيرة فوق، وانت عينك على الحلبة. <b>حلقة حوالين الحلبة بتخلص</b> وتحمر في آخر ٥ ثواني، فتشوف الوقت من غير ما تبص بعيد. (الرقم الصغير يفضل.)',
+  { ph: {}, draw: hideMe() },
+  { ph: {}, draw: hideMe((t) => ({ over(ctx, f) {
+      const left = 1 - (t % 8) / 8, R = f.s * 0.9 + Math.max(5, f.s * 0.03), L = 6 * R;
+      ctx.save(); ctx.lineWidth = Math.max(3, f.s * 0.02); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,.1)'; lsrHex(ctx, f.cx, f.cy, R); ctx.stroke();
+      ctx.strokeStyle = left < 0.33 ? '#ff5c8a' : '#ffffff'; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10;
+      ctx.setLineDash([L * left, L * 2]); lsrHex(ctx, f.cx, f.cy, R); ctx.stroke(); ctx.restore();
+    } })), loop: 8 });
+
+ux(5, 'التلفزيون وهما مستخبيين', 'S', true, 'التلفزيون دلوقتي بيعرض حلبة فاضية و«استخبّوا وصوّبوا على موبايلاتكم» ١٥ ثانية في كل جولة. <b>رادار بيلف على الحلبة</b> (من غير ما يكشف حد)، العدّاد كبير، وجنب كل اسم «بيستخبى…». مش بيقول مين جاهز (زي ما قررت).',
+  { tv: true, draw: (cv) => laserDraw(cv, { k: 0.9, t: null, people: [], over(ctx, f) { pill(ctx, 'استخبّوا وصوّبوا على موبايلاتكم', f.w / 2, f.h - 22, Math.max(11, f.s * 0.05)); } }) },
+  { tv: true, draw: (cv, t) => laserDraw(cv, { k: 0.9, t: null, people: [], over(ctx, f) {
+      const a = t * 1.6; ctx.save(); lsrHex(ctx, f.cx, f.cy, f.s * 0.9); ctx.clip();
+      for (let i = 0; i < 20; i++) { ctx.fillStyle = `rgba(122,243,255,${0.012 * (20 - i)})`; ctx.beginPath(); ctx.moveTo(f.cx, f.cy); ctx.arc(f.cx, f.cy, f.s, a - i * 0.04, a - i * 0.04 + 0.05); ctx.closePath(); ctx.fill(); }
+      ctx.strokeStyle = 'rgba(122,243,255,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(f.cx, f.cy); ctx.lineTo(f.cx + Math.cos(a) * f.s, f.cy + Math.sin(a) * f.s); ctx.stroke(); ctx.restore();
+      const left = Math.max(0, 15 - Math.floor(t * 2) % 16);
+      ctx.save(); ctx.font = `800 ${f.s * 0.2}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fillText('0:' + String(left).padStart(2, '0'), f.cx, f.cy); ctx.restore();
+      NAMES.forEach((n, i) => pill(ctx, n + ' · بيستخبى…', f.w * (i < 3 ? 0.13 : 0.87), f.h * (0.3 + (i % 3) * 0.17), Math.max(10, f.s * 0.035), LASER_COLOURS[i]));
+    } }), loop: 8 });
+
+ux(6, 'كارت صغير بين الجولات', 'S', true, 'بعد الكشف الموبايل بيرجع للاستخبا مرة واحدة، والحلبة أصغر من غير ما حد يلاحظ. <b>كارت ثانية واحدة</b>: «الجولة ٤ · فاضل ٤ · الحلبة صغرت»، ولو موت مفاجئ يقول كده.',
+  { ph: { round: 4, clock: '0:12' }, draw: hideMe((t) => ({ k: 0.8 })) },
+  { ph: { round: 4, clock: '0:12', overlay: '<div class="ov"><div class="ov__card"><b>الجولة ٤</b>فاضل ٤ · الحلبة صغرت</div></div>' }, draw: hideMe((t) => ({ k: 0.8 })) });
+
+ux(7, 'جاهز = الحلبة تهدى', 'S', false, 'لما تدوس «جاهز» السطر بس بيتغير، وممكن تلمس الحلبة بالغلط وتحرك مكانك. <b>الحلبة تغمق ويظهر «جاهز 🔒»</b>، ومكانك باين، واللمس عليها مش بيحرك حاجة لحد ما تدوس «استنى، هغيّر».',
+  { ph: { hint: 'جاهز. مستنيين الباقيين أو الوقت…', go: 'استنى، هغيّر', goGhost: true }, draw: hideMe() },
+  { ph: { hint: 'جاهز. مستنيين الباقيين أو الوقت…', go: 'استنى، هغيّر', goGhost: true, overlay: '<div class="ov ov--dim"><div class="ov__lock">جاهز 🔒</div></div>' }, draw: hideMe() });
+
+ux(8, 'الطرق الجاهزة بتقول فيها إيه', 'S', true, '«كلاسيك / فوضى / طويلة» أسامي من غير ما تقول بتعمل إيه، والمضيف لازم يفتح «خيارات أكتر» عشان يعرف. <b>تحت الطريقة المختارة سطر حاجات صغيرة</b> بيقول فيها إيه.',
+  { lobby: '<div class="lob"><div class="lob__label">طريقة اللعب</div><div class="seg"><span class="on">كلاسيك</span><span>فوضى</span><span>طويلة</span></div></div>' },
+  { lobby: '<div class="lob"><div class="lob__label">طريقة اللعب</div><div class="seg"><span>كلاسيك</span><span class="on">فوضى</span><span>طويلة</span></div><div class="lob__chips"><span class="chip">❤️ ١</span><span class="chip">⏱️ ١٥″</span><span class="chip">👻 أشباح</span><span class="chip">🔁 تبديل</span><span class="chip">↩️ بيرتد</span></div></div>' });
+
+ux(9, 'الأسامي على الحلبة في كبسولة', 'S', true, 'الأسامي مكتوبة على الحلبة على طول، ولما ليزر يعدّي عليها أو اسم يقرب من الحيطة بتتقري بالعافية (وعلى التلفزيون من بعيد). <b>كل اسم في كبسولة غامقة صغيرة</b> بحرف أبيض.',
+  { ph: { tools: false, go: false, clock: false }, draw: revealMe(), still: 3 },
+  { ph: { tools: false, go: false, clock: false }, draw: (cv, t) => revealMe((tt) => ({ people: meReveal.map(p => Object.assign({}, p, { label: '' })), over(ctx, f) { if (tt < 0.9) return; meReveal.forEach(p => { if (meTrace.hits.indexOf(p.id) !== -1 && tt > 3.6) return; pill(ctx, p.id === 'p0' ? 'انت' : NAMES[+p.id.slice(1)], f.cx + p.x * f.s, f.cy + p.y * f.s + LASER_BODY * f.s * 2.1, Math.max(10, f.s * 0.04), p.col); }); } }))(cv, t), still: 3 });
+
+ux(10, 'القلوب على الجسم', 'S', false, 'في اللعب بقلبين أو تلاتة القلوب مكتوبة فوق جنب اسمك بس، وعلى الحلبة محدش عارف مين معاه كام. <b>نقط قلوب صغيرة تحت كل جسم</b> في الكشف، واللي يخسر قلب نقطته تطير.',
+  { ph: { tools: false, go: false, clock: false, hearts: '❤❤' }, draw: revealMe((t) => ({ out: [], hurt: meTrace.hits })), still: 3 },
+  { ph: { tools: false, go: false, clock: false, hearts: '❤❤' }, draw: (cv, t) => revealMe((tt) => ({ out: [], hurt: meTrace.hits, over(ctx, f) { meReveal.forEach((p, i) => { const n = meTrace.hits.indexOf(p.id) !== -1 && tt > 3.4 ? 1 : 2; for (let j = 0; j < 2; j++) { ctx.save(); ctx.fillStyle = j < n ? '#ff5c8a' : 'rgba(255,255,255,.25)'; ctx.beginPath(); ctx.arc(f.cx + p.x * f.s + (j - 0.5) * f.s * 0.035, f.cy + p.y * f.s - LASER_BODY * f.s * 1.5, f.s * 0.012, 0, 7); ctx.fill(); ctx.restore(); } }); } }))(cv, t), still: 4 });
+
+ux(11, '«مين ضرب مين» على الموبايلات كمان', 'S', true, 'قايمة مين ضرب مين بتظهر على التلفزيون بس، واللي مفيش عندهم تلفزيون مش بيشوفوها. <b>سطر صغير تحت الحلبة</b> بعد الضرب.',
+  { ph: { tools: false, go: false, clock: false, cap: 'خرج: سارة، منى' }, draw: revealMe(), still: 4.2 },
+  { ph: { tools: false, go: false, clock: false, cap: 'خرج: سارة، منى', feed: '<b style="color:#ff5c8a">ليلى</b> ⚡ <b style="color:#38e8ff">سارة</b> · <b style="color:#38e8ff">سارة</b> ⚡ <b style="color:#ffd64d">منى</b>' }, draw: revealMe(), still: 4.2 });
+
+ux(12, 'آخر اللعبة أقصر على الموبايل', 'S', true, 'على الموبايل: المنصة، وبعدها ٤ جوايز، وبعدها ترتيب كل واحد، والزرار تحت خالص. <b>الجوايز تفضل، والترتيب الكامل يتطوي</b> تحت «كل الترتيب ▾» عشان «لعبة جديدة» يبان.',
+  { end: '<div class="endm"><div class="pod"><div class="p2">ليلى<i>2</i></div><div class="p1">منى<i>1</i></div><div class="p3">يوسف<i>3</i></div></div><div class="aw"><div><span>🎯 القناص</span><span>ليلى</span></div><div><span>🕊️ الشبح</span><span>منى</span></div></div><div class="aw"><div><span>منى</span><span>فضلت لحد الآخر</span></div><div><span>ليلى</span><span>خرجت في الجولة ٥</span></div><div><span>يوسف</span><span>خرج في الجولة ٤</span></div><div><span>عمر</span><span>خرج في الجولة ٢</span></div></div><div class="ph__go">لعبة جديدة</div></div>' },
+  { end: '<div class="endm"><div class="pod"><div class="p2">ليلى<i>2</i></div><div class="p1">منى<i>1</i></div><div class="p3">يوسف<i>3</i></div></div><div class="aw"><div><span>🎯 القناص</span><span>ليلى</span></div><div><span>🕊️ الشبح</span><span>منى</span></div></div><div class="fold">كل الترتيب ▾</div><div class="ph__go">لعبة جديدة</div></div>' });
+
+ux(13, 'اللي دخل في النص يشوف حاجة', 'S', false, 'حد دخل الغرفة واللعبة شغالة بيشوف حلبة فاضية و«بتتفرج: هتلعب الجاية». <b>يشوف اللي التلفزيون بيشوفه</b>: الأسامي، العدّاد، والكشف كامل، عشان يتعلم قبل ما يلعب.',
+  { ph: { tools: false, go: false, hint: 'بتتفرج: هتلعب الجاية' }, draw: (cv) => laserDraw(cv, { k: 0.9, t: null, people: [] }) },
+  { ph: { tools: false, go: false, hint: 'بتتفرج: هتلعب الجاية', feed: 'سارة · ليلى · منى · يوسف بيستخبوا…' }, draw: (cv, t) => laserDraw(cv, { k: 0.9, t: null, people: [], over(ctx, f) { const a = t * 1.6; ctx.save(); ctx.strokeStyle = 'rgba(122,243,255,.8)'; ctx.lineWidth = 2; lsrHex(ctx, f.cx, f.cy, f.s * 0.9); ctx.clip(); ctx.beginPath(); ctx.moveTo(f.cx, f.cy); ctx.lineTo(f.cx + Math.cos(a) * f.s, f.cy + Math.sin(a) * f.s); ctx.stroke(); ctx.restore(); } }), loop: 6 });
+
+ux(14, 'الحيطة بتقول لك', 'S', false, 'لما تلمس برّه الحلبة أو قريب أوي من السور، مكانك بيتشد لجوه من غير أي إشارة، فتحس إن اللمسة متسمعتش. <b>حتة السور اللي جنبك تنوّر لحظة</b> مع هزة خفيفة.',
+  { ph: {}, draw: hideMe(() => ({ people: [P(0, 0.6, 0.0, 200)] })) },
+  { ph: {}, draw: (cv, t) => { const u = (t % 2.4) / 2.4; laserDraw(cv, { k: 0.9, t: null, people: [P(0, 0.6, 0, 200)], over(ctx, f) {
+      const fl = u < 0.5 ? 1 - u / 0.5 : 0; if (fl <= 0) return; ctx.save(); ctx.strokeStyle = `rgba(255,255,255,${fl})`; ctx.shadowColor = '#fff'; ctx.shadowBlur = 16; ctx.lineWidth = f.s * 0.03; ctx.lineCap = 'round';
+      const R = f.s * 0.9; ctx.beginPath(); ctx.moveTo(f.cx + R * Math.cos(-Math.PI / 3), f.cy + R * Math.sin(-Math.PI / 3)); ctx.lineTo(f.cx + R, f.cy); ctx.lineTo(f.cx + R * Math.cos(Math.PI / 3), f.cy + R * Math.sin(Math.PI / 3)); ctx.stroke(); ctx.restore(); } }); }, loop: 2.4 });
+
+const uxBox = document.querySelector('[data-ux]');
+UXS.forEach(u => {
+  const side = (o, which) => {
+    if (o.lobby || o.end) return `<figure class="${which}"><figcaption>${which === 'after' ? 'بعد' : 'قبل (النهارده)'}</figcaption>${o.lobby || o.end}</figure>`;
+    if (o.tv) return `<figure class="${which}"><figcaption>${which === 'after' ? 'بعد' : 'قبل (النهارده)'}</figcaption><div class="tv"><canvas aria-label="${u.title}"></canvas></div></figure>`;
+    return `<figure class="${which}"><figcaption>${which === 'after' ? 'بعد' : 'قبل (النهارده)'}</figcaption>${phoneHtml(Object.assign({ label: u.title }, o.ph))}</figure>`;
+  };
+  const card = el(`<article class="ux">
+    <div class="ux__head"><span class="ux__no">${u.no}</span><h3>${u.title}</h3><span class="ux__size">${u.size}</span></div>
+    <p>${u.why}</p>
+    <div class="pair ${u.before.tv || u.before.end ? 'pair--wide' : ''}">${side(u.before, 'before')}${side(u.after, 'after')}</div>
+    <div class="mine-pick">${u.pick ? '<b>رأيي: اعملها.</b>' : 'رأيي: كويسة، بس مش ضرورية دلوقتي.'}</div>
+  </article>`);
+  uxBox.appendChild(card);
+  const cvs = card.querySelectorAll('canvas');
+  [u.before, u.after].forEach((o, i) => { const cv = cvs[o === u.before ? 0 : (u.before.lobby || u.before.end ? 0 : 1)]; if (o.draw && cv) reg(cv, o.draw, o.loop || 7, o.still); });
+});
+
+document.querySelector('[data-verdict]').innerHTML = `<h2>اختياري</h2>
+  <p><b>١ أ «كبسولات نيون»</b>: من نفس لغة الحلبة، بتتقري من على التلفزيون، ومتتلخبطش مع الناس. <b>٢ أ «الخريطة بترسم نفسها»</b>: ثانيتين ونفس حركة الحلقة اللي بتقع. <b>٣ أ «تشقق وبعدين يقع»</b>: الوحيدة اللي الوقعة فيها بتتشاف. <b>٤ أ «إعادة بطيئة قبل المنصة»</b>: دي اللحظة اللي الناس هتتكلم عنها، والمنصة تفضل زي باقي التطبيق.</p>
+  <p>من الجزء ٥ أنا مع: <b>1، 2، 3، 5، 6، 8، 9، 11، 12</b>. الباقي (4، 7، 10، 13، 14) كويس بس مش ضروري دلوقتي.</p>`;
+
+let rz = 0;
+addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => scenes.forEach(sc => { if (reduced || sc.fixed !== undefined) sc.draw(sc.cv, sc.fixed !== undefined ? sc.fixed : sc.still); }), 150); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(start); else start();
+</script>

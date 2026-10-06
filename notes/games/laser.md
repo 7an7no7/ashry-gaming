@@ -35,9 +35,7 @@ teams.
 
 ## Still to do before building
 
-- A design sheet of three looks (structure, not palette) for the hiding screen
-  on a phone, the reveal on the TV, and the end.
-- The shell budget is full (719.8 / 720 KB on 5 Oct 2026): a new game's words
-  and Help need the owner to raise it.
+- The look: the sheet below, waiting on the owner. (The shell budget was
+  raised to 730 KB for this game on 6 Oct 2026.)
 
 The looks sheet (6 Oct 2026): https://claude.ai/artifact/J2oFSGWpBjLbDbQdaDtZ3W (source `notes/archive/sheets/laser-looks-sheet.html`): أ الحلبة من فوق (my pick), ب الرادار, ج مسرح الروبوتات. Waiting on the owner.

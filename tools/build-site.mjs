@@ -181,7 +181,7 @@ if (MINIFY) {
    reported: each comes when its game opens. Raise it on purpose, not by accident.
    (The whole page, before the split: 1,800 KB, 1,751 used.) */
 {
-  const BUDGET_KB = whole ? 1800 : 720;
+  const BUDGET_KB = whole ? 1800 : 730;
   const gz = (s) => gzipSync(Buffer.from(s, 'utf8'), { level: 9 }).length / 1024;
   const kb = Math.round(gz(html));
   const chunksKb = Math.round(built.chunks.reduce((n, c) => n + gz(c.code), 0));

@@ -1,0 +1,537 @@
+<title>الليزر: ثلاث أشكال</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Noto+Kufi+Arabic:wght@700;900&display=swap">
+<style>
+  /* layout: one column of three looks; each look = phone (hiding) beside the TV (reveal, animated), stills, then the end */
+  :root {
+    --bg: #f3f2f8; --card: #ffffff; --ink: #1d1b2c; --ink-2: #5b5874; --line: #e2e0ee; --accent: #6d28d9; --pick: #059669; --pick-ink: #ffffff;
+    --font: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    --display: "Noto Kufi Arabic", "IBM Plex Sans Arabic", Tahoma, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #0d0c15; --card: #181624; --ink: #ecebf5; --ink-2: #a9a6c0; --line: #2b2840; --accent: #a78bfa; --pick: #34d399; --pick-ink: #06281c; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #0d0c15; --card: #181624; --ink: #ecebf5; --ink-2: #a9a6c0; --line: #2b2840; --accent: #a78bfa; --pick: #34d399; --pick-ink: #06281c; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--font); padding-block: 20px 48px; padding-inline: 16px; }
+  .wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 22px; }
+  h1 { font-family: var(--display); font-size: 28px; margin: 0; text-wrap: balance; }
+  h2 { font-family: var(--display); font-size: 20px; margin: 0; text-wrap: balance; }
+  .lead { margin: 8px 0 0; color: var(--ink-2); font-size: 15px; line-height: 1.75; max-width: 70ch; }
+  .rules { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .rules span { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink-2); }
+  .look { background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 18px; display: grid; gap: 16px; }
+  .look.is-pick { border-color: var(--pick); box-shadow: 0 0 0 1px var(--pick); }
+  .look__head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .look__tag { font-family: var(--display); font-size: 32px; color: var(--accent); line-height: 1; }
+  .pick { font-size: 12px; font-weight: 700; background: var(--pick); color: var(--pick-ink); padding: 3px 10px; border-radius: 999px; }
+  .look p { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.75; max-width: 75ch; }
+  .look p b { color: var(--ink); }
+  .row { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 820px) { .row { grid-template-columns: minmax(0, 1fr); } .phone { margin-inline: auto; } }
+  .sub { font-size: 12px; font-weight: 700; color: var(--ink-2); margin-bottom: 6px; }
+  .tv-box { min-width: 0; display: grid; gap: 8px; }
+  .tv { position: relative; border-radius: 14px; overflow: hidden; aspect-ratio: 16 / 9; max-width: 100%; background: #000; border: 6px solid #15131f; }
+  .tv canvas { width: 100%; height: 100%; display: block; }
+  .tv__cap { position: absolute; inset-inline: 0; bottom: 0; padding: 8px 12px; font-family: var(--display); font-weight: 700; font-size: clamp(12px, 2vw, 17px); color: #fff; text-align: center; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+  .tv__bar { position: absolute; top: 8px; inset-inline: 10px; display: flex; justify-content: space-between; font-size: clamp(10px, 1.5vw, 13px); font-weight: 700; color: rgba(255,255,255,.85); }
+  .ctl { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ctl button { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; min-height: 36px; }
+  .ctl button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .ctl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .stills { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  @media (max-width: 520px) { .stills { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .still { display: grid; gap: 4px; font-size: 11.5px; color: var(--ink-2); text-align: center; }
+  .still canvas { width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; display: block; background: #000; }
+  /* the phone */
+  .phone { width: 300px; max-width: 100%; border-radius: 34px; padding: 10px; background: #15131f; box-shadow: 0 10px 30px rgba(20,10,60,.25); }
+  .scr { border-radius: 26px; overflow: hidden; display: grid; grid-template-rows: auto auto 1fr auto auto; height: 580px; color: #fff; }
+  .scr__top { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 4px; font-weight: 700; font-size: 14px; }
+  .scr__round { padding: 0 14px 6px; display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; opacity: .9; }
+  .scr canvas { width: 100%; height: 100%; display: block; min-height: 0; touch-action: none; cursor: crosshair; }
+  .scr__hint { font-size: 12px; text-align: center; padding: 6px 14px; opacity: .85; }
+  .scr__go { margin: 4px 14px 14px; height: 48px; border-radius: 14px; border: 0; font: inherit; font-weight: 700; font-size: 16px; cursor: pointer; }
+  .clock { font-variant-numeric: tabular-nums; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+  /* the end */
+  .end { border-radius: 16px; padding: 16px; display: grid; gap: 10px; color: #fff; }
+  .end h3 { margin: 0; font-family: var(--display); font-size: 20px; }
+  .end ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; }
+  .end li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: 10px; }
+  .end li span:last-child { opacity: .75; font-size: 12.5px; }
+  .pros { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .pros div { font-size: 13.5px; line-height: 1.7; color: var(--ink-2); padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+  .pros b { color: var(--ink); display: block; margin-bottom: 2px; }
+  .verdict { background: var(--card); border: 1px solid var(--pick); border-radius: 20px; padding: 18px; display: grid; gap: 8px; }
+  .verdict p { margin: 0; color: var(--ink-2); line-height: 1.8; font-size: 14.5px; max-width: 80ch; }
+  .verdict b { color: var(--ink); }
+
+  /* look A: the neon arena */
+  .A .scr { background: radial-gradient(120% 80% at 50% 0%, #142048, #070b1a 70%); }
+  .A .clock { background: rgba(56,232,255,.15); color: #7af3ff; box-shadow: 0 0 0 1px rgba(56,232,255,.5); }
+  .A .scr__go { background: linear-gradient(180deg, #38e8ff, #1aa6d6); color: #04222e; box-shadow: 0 0 18px rgba(56,232,255,.45); }
+  .A .end { background: radial-gradient(120% 120% at 50% 0%, #142048, #070b1a 75%); }
+  .A .end li { background: rgba(56,232,255,.07); border: 1px solid rgba(56,232,255,.18); }
+  .A .end li.win { background: rgba(255,214,77,.14); border-color: rgba(255,214,77,.6); }
+  /* look B: the radar */
+  .B .scr { background: #03140f; color: #b8ffd9; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace, var(--font); }
+  .B .clock { background: rgba(57,255,156,.12); color: #39ff9c; box-shadow: 0 0 0 1px rgba(57,255,156,.45); }
+  .B .scr__go { background: #39ff9c; color: #022014; }
+  .B .end { background: #03140f; color: #b8ffd9; }
+  .B .end li { border: 1px dashed rgba(57,255,156,.35); }
+  .B .end li.win { border-style: solid; border-color: #ffb347; color: #ffd9a3; }
+  /* look C: the robot stage */
+  .C .scr { background: linear-gradient(180deg, #2a1950, #120b26 65%); }
+  .C .clock { background: rgba(255,120,200,.16); color: #ff9ad5; box-shadow: 0 0 0 1px rgba(255,120,200,.45); }
+  .C .scr__go { background: linear-gradient(180deg, #ff7ac6, #d9468f); color: #fff; }
+  .C .end { background: linear-gradient(180deg, #2a1950, #120b26); }
+  .C .end li { background: rgba(255,255,255,.06); }
+  .C .end li.win { background: rgba(255,122,198,.2); }
+  .podium { width: 100%; aspect-ratio: 16 / 7; display: block; }
+</style>
+
+<div class="wrap" dir="rtl">
+  <header>
+    <h1>الليزر: ثلاث أشكال</h1>
+    <p class="lead">نفس الجولة في التلاتة: ستة لاعبين، كل واحد اختار مكانه واتجاهه وهو مش شايف حد. على الموبايل انت «سارة» في وقت الاستخباء (اسحب على الشاشة تجرّب). على التلفزيون الكشف بيتعاد لوحده: الكل يظهر، الليزر يضرب مرة واحدة، اللي في الخط يخرج، والحلبة تصغر. زرار «فرق» بيعيد نفس الجولة بفريقين: الليزر بيعدّي من زميلك. الضربات محسوبة بجد من الأماكن مش مرسومة باليد.</p>
+    <div class="rules">
+      <span>١٥ ثانية أو لما الكل يجهز</span><span>مش شايف حد</span><span>مكان في أي حتة واتجاه ٣٦٠°</span><span>الكل يضرب مرة واحدة</span><span>الشعاع بيعدّي من كل اللي في خطه</span><span>الحلبة تصغر كل جولة</span><span>تعادل في الآخر؟ يعيدوا لوحدهم</span><span>فرق ٢-٤، بدون نيران صديقة</span><span>من ٣ لاعبين</span>
+    </div>
+  </header>
+
+  <!-- A -->
+  <section class="look A is-pick" data-look="A">
+    <div class="look__head"><span class="look__tag">أ</span><h2>الحلبة من فوق</h2><span class="pick">اختياري</span></div>
+    <p>زي الفيديو: الحلبة سداسية تحت منك ومشوفة من فوق، أرضيتها بلاط سداسي صغير وحوالينها سور نيون. <b>تلمس مكانك وتسحب لاتجاهك على الأرض نفسها</b>، والخط بيوصل لحد السور فانت عارف بالظبط هيعدّي منين. في الكشف كل واحد يطلع بنبضة، الخطوط تتملي، فلاش، واللي اتضرب يطفي ويتفتفت. بعدها الحلقة اللي برّه تتشقق وتقع.</p>
+    <div class="row">
+      <div class="phone"><div class="scr">
+        <div class="scr__top"><span>→</span><span>الليزر</span><span>🔊</span></div>
+        <div class="scr__round"><span>الجولة ١ · استخبى وصوّب</span><span class="clock">0:09</span></div>
+        <canvas data-phone="A" aria-label="الحلبة على موبايلك: اسحب لتغيّر الاتجاه"></canvas>
+        <div class="scr__hint">المس مكانك واسحب لاتجاهك · محدش شايفك</div>
+        <button class="scr__go" type="button">جاهز ✓</button>
+      </div></div>
+      <div class="tv-box">
+        <div class="sub">التلفزيون: الكشف</div>
+        <div class="tv"><canvas data-tv="A"></canvas><div class="tv__bar"><span>الجولة ١</span><span>٦ لاعبين</span></div><div class="tv__cap"></div></div>
+        <div class="ctl"><button type="button" data-replay>↻ من الأول</button><button type="button" data-teams aria-pressed="false">فرق</button></div>
+        <div class="stills"></div>
+        <div class="end">
+          <h3>🏆 ليلى آخر واحدة واقفة</h3>
+          <ol><li class="win"><span>١ · ليلى</span><span>فضلت لحد الآخر</span></li><li><span>٢ · منى، يوسف</span><span>خرجوا في الجولة ٢</span></li><li><span>٤ · سارة، عمر، كريم</span><span>خرجوا في الجولة ١</span></li></ol>
+        </div>
+      </div>
+    </div>
+    <div class="pros">
+      <div><b>الحلو</b>التصويب أوضح حاجة: الزاوية على الشاشة هي الزاوية في اللعبة، والخط لحد السور بيقول هيعدّي منين. شكل الفيديو اللي الناس عارفاه.</div>
+      <div><b>اللي بيكلّفه</b>الكشف كله بيحصل في ثانية، فالتشويق في النبضة والفلاش مش في ترتيب الظهور.</div>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="look B" data-look="B">
+    <div class="look__head"><span class="look__tag">ب</span><h2>الرادار</h2></div>
+    <p>الحلبة شاشة رادار مدوّرة بحلقات وخطوط. <b>تحط نقطتك بلمسة، وتصوّب بلفّ الحلقة اللي حوالين الرادار</b> زي البوصلة (عليها الدرجات). في الكشف إبرة الرادار تلف وكل لاعب يظهر لما الإبرة تعدّي عليه، واحد واحد، وبعدها الكل يضرب. الحلبة بتصغر بحلقة حمرا «ممنوع».</p>
+    <div class="row">
+      <div class="phone"><div class="scr">
+        <div class="scr__top"><span>→</span><span>الليزر</span><span>🔊</span></div>
+        <div class="scr__round"><span>ج١ · حدّد موقعك</span><span class="clock">0:09</span></div>
+        <canvas data-phone="B" aria-label="الرادار على موبايلك: لفّ الحلقة لتغيّر الاتجاه"></canvas>
+        <div class="scr__hint">المس الرادار لمكانك · لفّ الحلقة للاتجاه</div>
+        <button class="scr__go" type="button">قفّل الإحداثيات</button>
+      </div></div>
+      <div class="tv-box">
+        <div class="sub">التلفزيون: الكشف</div>
+        <div class="tv"><canvas data-tv="B"></canvas><div class="tv__bar"><span>ج١</span><span>٦ إشارات</span></div><div class="tv__cap"></div></div>
+        <div class="ctl"><button type="button" data-replay>↻ من الأول</button><button type="button" data-teams aria-pressed="false">فرق</button></div>
+        <div class="stills"></div>
+        <div class="end">
+          <h3>إشارة واحدة باقية: ليلى</h3>
+          <ol><li class="win"><span>◉ ليلى</span><span>آخر إشارة</span></li><li><span>ج٢ · منى، يوسف</span><span>اختفوا</span></li><li><span>ج١ · سارة، عمر، كريم</span><span>اختفوا</span></li></ol>
+        </div>
+      </div>
+    </div>
+    <div class="pros">
+      <div><b>الحلو</b>الكشف فيه تشويق: الإبرة بتلف والناس بتستنى تشوف مين ظهر جنب مين قبل الضرب. شكل مختلف عن أي لعبة في التطبيق.</div>
+      <div><b>اللي بيكلّفه</b>التصويب بالحلقة أبطأ من السحب في ١٥ ثانية، والأخضر على أسود بيبقى باهت على تلفزيون في أوضة منوّرة. الحلبة دايرة مش سداسية زي الفيديو.</div>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="look C" data-look="C">
+    <div class="look__head"><span class="look__tag">ج</span><h2>مسرح الروبوتات</h2></div>
+    <p>الحلبة مايلة (زاوية تلات أبعاد) وبلاطها سداسي تخين، وكل لاعب روبوت صغير بلونه وفي إيده مسدس ليزر. <b>تلمس البلاطة اللي هتقف عليها وتصوّب بعصا التحكم تحت</b>. في الكشف الروبوتات تنزل من فوق، تلف للاتجاه، وتضرب، واللي اتضرب يقع وينطفي. البلاط اللي برّه بيقع لتحت.</p>
+    <div class="row">
+      <div class="phone"><div class="scr">
+        <div class="scr__top"><span>→</span><span>الليزر</span><span>🔊</span></div>
+        <div class="scr__round"><span>الجولة ١ · اختار مكانك</span><span class="clock">0:09</span></div>
+        <canvas data-phone="C" aria-label="المسرح على موبايلك: حرّك عصا التحكم لتغيّر الاتجاه"></canvas>
+        <div class="scr__hint">المس البلاطة · عصا التحكم للاتجاه</div>
+        <button class="scr__go" type="button">جاهز ✓</button>
+      </div></div>
+      <div class="tv-box">
+        <div class="sub">التلفزيون: الكشف</div>
+        <div class="tv"><canvas data-tv="C"></canvas><div class="tv__bar"><span>الجولة ١</span><span>٦ روبوتات</span></div><div class="tv__cap"></div></div>
+        <div class="ctl"><button type="button" data-replay>↻ من الأول</button><button type="button" data-teams aria-pressed="false">فرق</button></div>
+        <div class="stills"></div>
+        <div class="end">
+          <canvas class="podium" aria-label="منصة الفايزين"></canvas>
+          <ol><li class="win"><span>١ · ليلى</span><span>آخر روبوت واقف</span></li><li><span>٢ · منى، يوسف</span><span>وقعوا في الجولة ٢</span></li><li><span>٤ · سارة، عمر، كريم</span><span>وقعوا في الجولة ١</span></li></ol>
+        </div>
+      </div>
+    </div>
+    <div class="pros">
+      <div><b>الحلو</b>أجمل حاجة على التلفزيون: شخصيات بتقع وبلاط بيقع، فيها ضحك. منصة الفوز بالروبوتات.</div>
+      <div><b>اللي بيكلّفه</b>الأرض المايلة بتلخبط الزوايا: اللي شايفه مستقيم على الموبايل مش بالظبط اللي هيضرب، والناس هتقول «ده كان ماشي جنبه!». وأتقل في الرسم على الموبايلات القديمة.</div>
+    </div>
+  </section>
+
+  <section class="verdict">
+    <h2>اختياري: أ «الحلبة من فوق»</h2>
+    <p>اللعبة كلها قايمة على سؤال واحد: <b>الخط ده هيعدّي مني ولا لأ؟</b> ولازم الإجابة تبان على الموبايل وعلى التلفزيون بنفس الشكل، وده بيحصل بس لما الحلبة مشوفة من فوق. <b>ب</b> بيكلّف سرعة في التصويب (الحلقة في ١٥ ثانية) ولون باهت على التلفزيون، و<b>ج</b> بيكلّف دقة الزاوية، وده أخطر حاجة في لعبة بتخرّج الناس. ممكن ناخد من ب إبرة الرادار وهي بتكشف الناس واحد واحد ونحطها في أ، ومن ج إن البلاط اللي برّه يقع بجد. قولّي أ أو ب أو ج أو خليط.</p>
+  </section>
+</div>
+
+<script>
+(() => {
+  const PLAYERS = [
+    { n: 'سارة', x: -0.45, y: -0.32, a: 24, t: 0, c: '#38e8ff' },
+    { n: 'عمر', x: 0.52, y: 0.12, a: 204, t: 1, c: '#ff5c8a' },
+    { n: 'منى', x: 0.12, y: 0.58, a: -95, t: 1, c: '#ffd64d' },
+    { n: 'كريم', x: -0.22, y: 0.32, a: -28, t: 0, c: '#7cff6b' },
+    { n: 'ليلى', x: 0.36, y: -0.52, a: 128, t: 0, c: '#c08bff' },
+    { n: 'يوسف', x: -0.62, y: 0.22, a: -70, t: 1, c: '#ff9a3d' },
+  ];
+  const TEAM = ['#38e8ff', '#ff5c8a'];
+  const BODY = 0.075, SHRINK = 0.8, LOOP = 8;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const rad = d => d * Math.PI / 180;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ease = u => 1 - Math.pow(1 - clamp(u, 0, 1), 3);
+  const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+
+  function hitsOf(teams) {
+    const out = new Set();
+    for (const s of PLAYERS) {
+      const dx = Math.cos(rad(s.a)), dy = Math.sin(rad(s.a));
+      for (const o of PLAYERS) {
+        if (o === s || (teams && o.t === s.t)) continue;
+        const vx = o.x - s.x, vy = o.y - s.y, along = vx * dx + vy * dy;
+        if (along > 0 && Math.abs(vx * dy - vy * dx) < BODY) out.add(o.n);
+      }
+    }
+    return out;
+  }
+  // distance along a ray to the hexagon (flat top, radius k) or a circle
+  function rayHex(px, py, dx, dy, k) {
+    let best = Infinity;
+    for (let i = 0; i < 6; i++) {
+      const a1 = rad(60 * i), a2 = rad(60 * (i + 1));
+      const x1 = k * Math.cos(a1), y1 = k * Math.sin(a1), x2 = k * Math.cos(a2), y2 = k * Math.sin(a2);
+      const ex = x2 - x1, ey = y2 - y1, den = dx * ey - dy * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const t = ((x1 - px) * ey - (y1 - py) * ex) / den, u = ((x1 - px) * dy - (y1 - py) * dx) / den;
+      if (t > 0 && u >= 0 && u <= 1) best = Math.min(best, t);
+    }
+    return best;
+  }
+  function rayCircle(px, py, dx, dy, k) {
+    const b = px * dx + py * dy, c = px * px + py * py - k * k;
+    return -b + Math.sqrt(Math.max(0, b * b - c));
+  }
+  const colourOf = (p, teams) => teams ? TEAM[p.t] : p.c;
+  function hexPath(ctx, cx, cy, r, sy = 1) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) { const a = rad(60 * i); ctx[i ? 'lineTo' : 'moveTo'](cx + r * Math.cos(a), cy + r * Math.sin(a) * sy); }
+    ctx.closePath();
+  }
+  // seeded sparks
+  function sparks(seed) { const s = []; let v = seed * 9301 + 49297; for (let i = 0; i < 10; i++) { v = (v * 9301 + 49297) % 233280; const a = v / 233280 * 6.28; v = (v * 9301 + 49297) % 233280; s.push([a, 0.4 + v / 233280]); } return s; }
+
+  const CAPS = [[0, 'خلص الوقت… اظهروا!'], [0.6, 'اظهروا!'], [2.0, 'بيشحنوا…'], [2.7, '⚡ ضرب!'], [3.5, null], [4.8, 'الحلبة بتصغر'], [6.4, null]];
+  function caption(t, teams) {
+    const out = [...hitsOf(teams)];
+    let c = '';
+    for (const [at, s] of CAPS) if (t >= at) c = s ?? (at < 4 ? 'خرج: ' + out.join(' و ') : 'الجولة ٢: ' + (6 - out.length) + ' باقيين والحلبة أصغر');
+    return c;
+  }
+
+  /* ---------- look A: top-down neon ---------- */
+  function drawA(ctx, w, h, t, o) {
+    const cx = w / 2, cy = h / 2 + (o.phone ? 0 : h * 0.02), s = Math.min(w, h) * (o.phone ? 0.46 : 0.43);
+    const k = 1 - (1 - SHRINK) * ease(seg(t, 4.8, 6.4));
+    ctx.fillStyle = '#070b1a'; ctx.fillRect(0, 0, w, h);
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, s * 1.3); g.addColorStop(0, 'rgba(40,80,160,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    // falling ring
+    const fall = seg(t, 4.8, 6.4);
+    if (fall > 0 && fall < 1) {
+      ctx.save(); hexPath(ctx, cx, cy, s); hexPath(ctx, cx, cy, s * k); ctx.fillStyle = `rgba(56,232,255,${0.18 * (1 - fall)})`; ctx.fill('evenodd');
+      ctx.strokeStyle = `rgba(255,255,255,${0.5 * (1 - fall)})`; ctx.setLineDash([3, 5]); hexPath(ctx, cx, cy, s * (k + (1 - k) * 0.5)); ctx.stroke(); ctx.restore();
+    }
+    // floor
+    ctx.save(); hexPath(ctx, cx, cy, s * k); ctx.fillStyle = '#0c1430'; ctx.fill(); ctx.clip();
+    ctx.strokeStyle = 'rgba(80,200,255,.13)'; ctx.lineWidth = 1;
+    const tr = s * 0.09;
+    for (let q = -14; q <= 14; q++) for (let r = -14; r <= 14; r++) {
+      const x = cx + tr * 1.5 * q, y = cy + tr * Math.sqrt(3) * (r + q / 2);
+      hexPath(ctx, x, y, tr * 0.92); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.save(); hexPath(ctx, cx, cy, s * k); ctx.strokeStyle = '#38e8ff'; ctx.lineWidth = Math.max(2, s * 0.018); ctx.shadowColor = '#38e8ff'; ctx.shadowBlur = s * 0.08; ctx.stroke(); ctx.restore();
+
+    const P = o.only ? PLAYERS.filter(p => p.n === o.only) : PLAYERS;
+    const out = o.phone ? new Set() : hitsOf(o.teams);
+    const at = p => [cx + p.x * s, cy + p.y * s];
+    // beams
+    if (o.phone || t >= 2.0) {
+      for (const p of P) {
+        const ap = o.phone ? o.aim : p.a;
+        const dx = Math.cos(rad(ap)), dy = Math.sin(rad(ap)), len = rayHex(p.x, p.y, dx, dy, k > SHRINK ? 1 : k);
+        const [x, y] = at(p), col = colourOf(p, o.teams);
+        const charge = o.phone ? 1 : ease(seg(t, 2.0, 2.7));
+        const fire = o.phone ? 0 : seg(t, 2.7, 2.9) * (1 - seg(t, 3.6, 4.6));
+        ctx.save(); ctx.lineCap = 'round';
+        if (fire > 0) {
+          ctx.strokeStyle = col; ctx.globalAlpha = fire; ctx.lineWidth = s * 0.03; ctx.shadowColor = col; ctx.shadowBlur = s * 0.1;
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * len * s, y + dy * len * s); ctx.stroke();
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = s * 0.009; ctx.shadowBlur = 0; ctx.stroke();
+        } else if (t < 3.5 || o.phone) {
+          ctx.strokeStyle = col; ctx.globalAlpha = o.phone ? 0.9 : 0.55; ctx.lineWidth = s * 0.008; ctx.setLineDash([s * 0.03, s * 0.03]);
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * len * s * charge, y + dy * len * s * charge); ctx.stroke();
+        }
+        ctx.restore();
+      }
+      const flash = o.phone ? 0 : seg(t, 2.7, 2.75) * (1 - seg(t, 2.75, 3.1));
+      if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${0.55 * flash})`; ctx.fillRect(0, 0, w, h); }
+    }
+    // players
+    P.forEach((p, i) => {
+      const pop = o.phone ? 1 : ease(seg(t, 0.6 + i * 0.18, 0.95 + i * 0.18));
+      if (pop <= 0) return;
+      const [x, y] = at(p), r = BODY * s * (0.6 + 0.4 * pop) * (pop < 1 ? 1 + 0.3 * Math.sin(pop * Math.PI) : 1);
+      const dead = out.has(p.n), d = dead ? seg(t, 3.5, 4.4) : 0;
+      const col = colourOf(p, o.teams), ap = o.phone ? o.aim : p.a;
+      ctx.save();
+      if (d > 0) for (const [a, m] of sparks(i + 1)) { ctx.fillStyle = col; ctx.globalAlpha = 1 - d; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * (1 + 3 * d * m), y + Math.sin(a) * r * (1 + 3 * d * m), r * 0.12, 0, 7); ctx.fill(); }
+      ctx.globalAlpha = 1;
+      const fill = d > 0 ? '#3a3f55' : col;
+      ctx.shadowColor = fill; ctx.shadowBlur = d > 0 ? 0 : r * 0.9;
+      ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+      // gun nub
+      ctx.strokeStyle = fill; ctx.lineWidth = r * 0.45; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(rad(ap)) * r * 1.55, y + Math.sin(rad(ap)) * r * 1.55); ctx.stroke();
+      ctx.fillStyle = d > 0 ? '#9aa0b8' : '#07101f'; ctx.font = `700 ${r * 1.05}px "Noto Kufi Arabic", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(d > 0 ? '✕' : p.n[0], x, y + r * 0.05);
+      ctx.fillStyle = d > 0 ? 'rgba(200,205,225,.5)' : '#fff'; ctx.font = `700 ${Math.max(10, r * 0.75)}px "IBM Plex Sans Arabic", sans-serif`;
+      ctx.fillText(o.phone ? 'انت' : p.n, x, y + r * 1.9);
+      ctx.restore();
+    });
+  }
+
+  /* ---------- look B: the radar ---------- */
+  function drawB(ctx, w, h, t, o) {
+    const cx = w / 2, cy = h / 2 + (o.phone ? -h * 0.02 : h * 0.02), s = Math.min(w, h) * (o.phone ? 0.36 : 0.42);
+    const k = 1 - (1 - SHRINK) * ease(seg(t, 4.8, 6.4));
+    const G = '#39ff9c', A = '#ffb347';
+    ctx.fillStyle = '#03140f'; ctx.fillRect(0, 0, w, h);
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, s * 1.06, 0, 7); ctx.fillStyle = '#052a1d'; ctx.fill(); ctx.restore();
+    // forbidden ring
+    if (k < 1) { ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, s, 0, 7); ctx.arc(cx, cy, s * k, 0, 7, true); ctx.fillStyle = 'rgba(255,70,70,.22)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,90,90,.6)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(cx, cy, s * k, 0, 7); ctx.stroke(); ctx.restore(); }
+    ctx.strokeStyle = 'rgba(57,255,156,.22)'; ctx.lineWidth = 1;
+    for (let i = 1; i <= 4; i++) { ctx.beginPath(); ctx.arc(cx, cy, s * i / 4, 0, 7); ctx.stroke(); }
+    for (let i = 0; i < 12; i++) { const a = rad(30 * i); ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * s, cy + Math.sin(a) * s); ctx.stroke(); }
+    ctx.strokeStyle = G; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, s, 0, 7); ctx.stroke();
+    // bezel with degrees
+    ctx.save(); ctx.fillStyle = 'rgba(57,255,156,.7)'; ctx.font = `600 ${Math.max(8, s * 0.06)}px ui-monospace, Consolas, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = 0; i < 36; i++) { const a = rad(10 * i), r1 = s * 1.03, r2 = s * (i % 3 ? 1.06 : 1.09);
+      ctx.strokeStyle = 'rgba(57,255,156,.5)'; ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); ctx.stroke();
+      if (i % 9 === 0 && o.phone) ctx.fillText(String((i * 10 + 90) % 360), cx + Math.cos(a) * s * 1.17, cy + Math.sin(a) * s * 1.17); }
+    ctx.restore();
+    const P = o.only ? PLAYERS.filter(p => p.n === o.only) : PLAYERS;
+    const out = o.phone ? new Set() : hitsOf(o.teams);
+    // sweep
+    const sweepA = o.phone ? (t * 1.4) % 6.283 : -Math.PI / 2 + seg(t, 0.6, 2.0) * 6.283;
+    if (o.phone || (t > 0.6 && t < 2.1)) {
+      ctx.save(); ctx.translate(cx, cy);
+      for (let i = 0; i < 24; i++) { ctx.fillStyle = `rgba(57,255,156,${0.16 * (1 - i / 24)})`; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, s, sweepA - (i + 1) * 0.03, sweepA - i * 0.03); ctx.fill(); }
+      ctx.strokeStyle = G; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(sweepA) * s, Math.sin(sweepA) * s); ctx.stroke(); ctx.restore();
+    }
+    const seen = p => { if (o.phone) return 1; let pa = Math.atan2(p.y, p.x) + Math.PI / 2; if (pa < 0) pa += 6.283; const at = 0.6 + pa / 6.283 * 1.4; return t >= 2.0 ? 1 : ease(seg(t, at, at + 0.25)); };
+    if (o.phone || t >= 2.0) for (const p of P) {
+      const ap = o.phone ? o.aim : p.a, dx = Math.cos(rad(ap)), dy = Math.sin(rad(ap)), len = rayCircle(p.x, p.y, dx, dy, k > SHRINK ? 1 : k);
+      const x = cx + p.x * s, y = cy + p.y * s, col = o.teams ? colourOf(p, true) : A;
+      const charge = o.phone ? 1 : ease(seg(t, 2.0, 2.7)), fire = o.phone ? 0 : seg(t, 2.7, 2.9) * (1 - seg(t, 3.6, 4.6));
+      ctx.save(); ctx.lineCap = 'round';
+      if (fire > 0) { ctx.strokeStyle = col; ctx.globalAlpha = fire; ctx.lineWidth = s * 0.022; ctx.shadowColor = col; ctx.shadowBlur = s * 0.06; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * len * s, y + dy * len * s); ctx.stroke(); }
+      else if (t < 3.5 || o.phone) { ctx.strokeStyle = col; ctx.globalAlpha = 0.7; ctx.lineWidth = 1.5; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * len * s * charge, y + dy * len * s * charge); ctx.stroke(); }
+      ctx.restore();
+    }
+    P.forEach((p, i) => {
+      const v = seen(p); if (v <= 0) return;
+      const x = cx + p.x * s, y = cy + p.y * s, dead = out.has(p.n), d = dead ? seg(t, 3.5, 4.4) : 0;
+      const col = d > 0 ? '#ff5050' : (o.teams ? colourOf(p, true) : G);
+      ctx.save(); ctx.globalAlpha = d > 0 ? 1 - 0.7 * d : v;
+      ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(x, y, s * 0.04, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, s * (0.06 + 0.05 * (1 - v) + 0.08 * d), 0, 7); ctx.stroke();
+      const ap = o.phone ? o.aim : p.a; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(rad(ap)) * s * 0.1, y + Math.sin(rad(ap)) * s * 0.1); ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.fillStyle = col; ctx.font = `600 ${Math.max(10, s * 0.065)}px ui-monospace, Consolas, "IBM Plex Sans Arabic", monospace`; ctx.textAlign = 'center';
+      ctx.fillText(o.phone ? 'انت' : (d > 0 ? '✕ ' : '') + p.n, x, y - s * 0.09);
+      ctx.restore();
+    });
+    if (o.phone) { // the dial handle on the bezel
+      const a = rad(o.aim), x = cx + Math.cos(a) * s * 1.06, y = cy + Math.sin(a) * s * 1.06;
+      ctx.fillStyle = A; ctx.shadowColor = A; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(x, y, s * 0.07, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+    }
+  }
+
+  /* ---------- look C: isometric robots ---------- */
+  const ISO = 0.55;
+  function drawRobot(ctx, x, y, r, col, ang, state, label) {
+    // state: 0 alive .. 1 fallen
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(0, 0, r * 1.1, r * 0.5, 0, 0, 7); ctx.fill();
+    ctx.rotate(state * 1.35 * (ang > 90 && ang < 270 ? -1 : 1)); ctx.globalAlpha = 1 - 0.55 * state;
+    const body = state > 0.05 ? '#555a70' : col;
+    const H = r * 2.4;
+    const gx = Math.cos(rad(ang)) * r * 1.5, gy = Math.sin(rad(ang)) * r * 1.5 * ISO;
+    const gunBehind = Math.sin(rad(ang)) < 0;
+    const gun = () => { ctx.strokeStyle = '#d9dcf0'; ctx.lineWidth = r * 0.35; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, -H * 0.5); ctx.lineTo(gx, -H * 0.5 + gy); ctx.stroke(); };
+    if (gunBehind) gun();
+    ctx.fillStyle = body; ctx.beginPath(); ctx.roundRect(-r * 0.8, -H, r * 1.6, H, r * 0.7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.roundRect(-r * 0.8, -H, r * 0.6, H, r * 0.6); ctx.fill();
+    ctx.fillStyle = '#10142a'; ctx.beginPath(); ctx.roundRect(-r * 0.55, -H * 0.86, r * 1.1, r * 0.55, r * 0.25); ctx.fill();
+    ctx.fillStyle = state > 0.05 ? '#ff5050' : '#9ff'; ctx.fillRect(-r * 0.35, -H * 0.8, r * 0.7, r * 0.14);
+    if (!gunBehind) gun();
+    ctx.restore();
+    if (label) { ctx.fillStyle = state > 0.05 ? 'rgba(220,220,235,.5)' : '#fff'; ctx.font = `700 ${Math.max(10, r * 0.75)}px "IBM Plex Sans Arabic", sans-serif`; ctx.textAlign = 'center'; ctx.fillText(label, x, y + r * 1.25); }
+  }
+  function drawC(ctx, w, h, t, o) {
+    const cx = w / 2, cy = h / 2 + (o.phone ? -h * 0.05 : h * 0.1), s = Math.min(w, h / ISO * 0.85) * (o.phone ? 0.44 : 0.4);
+    const fall = ease(seg(t, 4.8, 6.4)), k = 1 - (1 - SHRINK) * fall;
+    const bg = ctx.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#2a1950'); bg.addColorStop(1, '#120b26'); ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    const tr = s * 0.13, th = tr * 0.45;
+    const tiles = [];
+    for (let q = -9; q <= 9; q++) for (let r = -9; r <= 9; r++) {
+      const ux = 1.5 * q * tr / s, uy = Math.sqrt(3) * (r + q / 2) * tr / s;
+      const d = Math.max(Math.abs(uy) / 0.866, (Math.abs(ux) + Math.abs(uy) / Math.sqrt(3)));
+      if (d > 0.98) continue;
+      tiles.push({ ux, uy, outer: d > SHRINK * 0.98, seed: (q * 7 + r * 13 + 99) % 10 / 10 });
+    }
+    tiles.sort((a, b) => a.uy - b.uy);
+    for (const tl of tiles) {
+      let drop = 0, al = 1;
+      if (tl.outer && fall > 0) { const f = clamp((fall - tl.seed * 0.5) / 0.5, 0, 1); drop = f * f * s * 0.8; al = 1 - f; }
+      if (al <= 0) continue;
+      const x = cx + tl.ux * s, y = cy + tl.uy * s * ISO + drop;
+      ctx.save(); ctx.globalAlpha = al;
+      ctx.fillStyle = '#2d2350'; hexPath(ctx, x, y + th, tr * 0.95, ISO); ctx.fill();
+      ctx.fillRect(x - tr * 0.95, y, tr * 1.9, th);
+      ctx.fillStyle = tl.outer && fall > 0 ? '#7a4a8f' : ((Math.round(tl.ux * 9) + Math.round(tl.uy * 9)) % 2 ? '#5b48a8' : '#6a56bb');
+      hexPath(ctx, x, y, tr * 0.95, ISO); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.stroke(); ctx.restore();
+    }
+    const P = o.only ? PLAYERS.filter(p => p.n === o.only) : PLAYERS;
+    const out = o.phone ? new Set() : hitsOf(o.teams);
+    const r = s * BODY * 0.95, gunH = r * 2.4 * 0.5;
+    const pos = p => [cx + p.x * s, cy + p.y * s * ISO];
+    if (!o.phone && t >= 2.0) for (const p of P) {
+      const dx = Math.cos(rad(p.a)), dy = Math.sin(rad(p.a)), len = rayHex(p.x, p.y, dx, dy, k > SHRINK ? 1 : k);
+      const [x, y] = pos(p), col = colourOf(p, o.teams), fire = seg(t, 2.7, 2.9) * (1 - seg(t, 3.6, 4.6)), charge = ease(seg(t, 2.0, 2.7));
+      ctx.save(); ctx.lineCap = 'round';
+      const ex = x + dx * len * s, ey = y + dy * len * s * ISO;
+      if (fire > 0) { ctx.globalAlpha = fire; ctx.strokeStyle = col; ctx.lineWidth = s * 0.025; ctx.shadowColor = col; ctx.shadowBlur = s * 0.08; ctx.beginPath(); ctx.moveTo(x, y - gunH); ctx.lineTo(ex, ey - gunH); ctx.stroke(); ctx.strokeStyle = '#fff'; ctx.lineWidth = s * 0.008; ctx.shadowBlur = 0; ctx.stroke(); }
+      else if (t < 3.5) { ctx.globalAlpha = 0.5; ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (ex - x) * charge, y + (ey - y) * charge); ctx.stroke(); }
+      ctx.restore();
+    }
+    if (o.phone) { const p = P[0], [x, y] = pos(p), dx = Math.cos(rad(o.aim)), dy = Math.sin(rad(o.aim));
+      ctx.save(); ctx.strokeStyle = '#ff7ac6'; ctx.fillStyle = '#ff7ac6'; ctx.lineWidth = 3; ctx.globalAlpha = 0.9;
+      const L = s * 0.35, ex = x + dx * L, ey = y + dy * L * ISO; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke();
+      const ang = Math.atan2(ey - y, ex - x); ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex - Math.cos(ang - 0.5) * 12, ey - Math.sin(ang - 0.5) * 12); ctx.lineTo(ex - Math.cos(ang + 0.5) * 12, ey - Math.sin(ang + 0.5) * 12); ctx.fill(); ctx.restore(); }
+    [...P].sort((a, b) => a.y - b.y).forEach(p => {
+      const i = PLAYERS.indexOf(p), land = o.phone ? 1 : ease(seg(t, 0.6 + i * 0.15, 1.0 + i * 0.15));
+      if (land <= 0) return;
+      const [x, y] = pos(p), dead = out.has(p.n), d = dead ? ease(seg(t, 3.5, 4.3)) : 0;
+      drawRobot(ctx, x, y - (1 - land) * h * 0.5, r, colourOf(p, o.teams), o.phone ? o.aim : p.a, d, o.phone ? 'انت' : p.n);
+    });
+    if (o.phone) { // joystick
+      const jx = w / 2, jy = h - Math.min(w, h) * 0.17, jr = Math.min(w, h) * 0.12;
+      ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.strokeStyle = 'rgba(255,122,198,.6)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(jx, jy, jr, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ff7ac6'; ctx.shadowColor = '#ff7ac6'; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.arc(jx + Math.cos(rad(o.aim)) * jr * 0.55, jy + Math.sin(rad(o.aim)) * jr * 0.55, jr * 0.38, 0, 7); ctx.fill(); ctx.restore();
+    }
+  }
+
+  const DRAW = { A: drawA, B: drawB, C: drawC };
+
+  function fit(cv) {
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+    const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return [ctx, r.width, r.height];
+  }
+
+  const STILLS = [[1.8, 'يظهروا'], [2.9, 'الكل يضرب'], [4.3, 'اللي اتضرب يخرج'], [7, 'الحلبة تصغر']];
+  document.querySelectorAll('.look').forEach(sec => {
+    const L = sec.dataset.look, tv = sec.querySelector('[data-tv]'), cap = sec.querySelector('.tv__cap');
+    const st = { teams: false, t0: performance.now(), visible: true };
+    const stillBox = sec.querySelector('.stills');
+    stillBox.innerHTML = STILLS.map(([, n]) => `<div class="still"><canvas></canvas><span>${n}</span></div>`).join('');
+    const paintStills = () => stillBox.querySelectorAll('canvas').forEach((c, i) => { const [ctx, w, h] = fit(c); DRAW[L](ctx, w, h, STILLS[i][0], { teams: st.teams }); });
+    const frame = now => {
+      const t = reduce ? 7 : ((now - st.t0) / 1000) % LOOP;
+      const [ctx, w, h] = fit(tv); DRAW[L](ctx, w, h, t, { teams: st.teams });
+      cap.textContent = caption(t, st.teams);
+    };
+    const loop = now => { if (st.visible) frame(now); if (!reduce) requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+    if (reduce) frame(performance.now());
+    new IntersectionObserver(es => { st.visible = es[0].isIntersecting; }).observe(tv);
+    sec.querySelector('[data-replay]').addEventListener('click', () => { st.t0 = performance.now(); if (reduce) frame(st.t0); });
+    const tb = sec.querySelector('[data-teams]');
+    tb.addEventListener('click', () => { st.teams = !st.teams; tb.setAttribute('aria-pressed', String(st.teams)); st.t0 = performance.now(); paintStills(); if (reduce) frame(st.t0); });
+    paintStills();
+    addEventListener('resize', paintStills);
+
+    // the phone: drag to aim
+    const ph = sec.querySelector('[data-phone]'), ps = { aim: 24 };
+    const paintPhone = now => { const [ctx, w, h] = fit(ph); DRAW[L](ctx, w, h, (now || 0) / 1000, { phone: true, only: 'سارة', aim: ps.aim }); };
+    const phoneLoop = now => { paintPhone(now); if (L === 'B' && !reduce) requestAnimationFrame(phoneLoop); };
+    requestAnimationFrame(phoneLoop);
+    addEventListener('resize', () => paintPhone(performance.now()));
+    const aimAt = e => {
+      const r = ph.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, w = r.width, h = r.height;
+      let ox = w / 2, oy = h / 2, sy = 1;
+      if (L === 'A') { const s = Math.min(w, h) * 0.46; ox += -0.45 * s; oy += -0.32 * s; }
+      if (L === 'B') { oy += -h * 0.02; }
+      if (L === 'C') { ox = w / 2; oy = h - Math.min(w, h) * 0.17; }
+      ps.aim = Math.atan2((y - oy) / sy, x - ox) * 180 / Math.PI;
+      if (L !== 'B') paintPhone(performance.now());
+    };
+    let down = false;
+    ph.addEventListener('pointerdown', e => { down = true; ph.setPointerCapture(e.pointerId); aimAt(e); });
+    ph.addEventListener('pointermove', e => { if (down) aimAt(e); });
+    ph.addEventListener('pointerup', () => { down = false; });
+  });
+
+  // the podium of look C
+  const pod = document.querySelector('.podium');
+  const paintPodium = () => {
+    const [ctx, w, h] = fit(pod);
+    ctx.clearRect(0, 0, w, h);
+    const cols = [['منى', 0.25, 0.55, '#ffd64d', '٢'], ['ليلى', 0.5, 0.75, '#c08bff', '١'], ['يوسف', 0.75, 0.55, '#ff9a3d', '٢']];
+    const base = h * 0.98, bw = w * 0.2, r = Math.min(w, h) * 0.07;
+    for (const [n, fx, fh, c, place] of cols) {
+      const x = w * fx, top = base - h * 0.42 * fh;
+      ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.fillRect(x - bw / 2, top, bw, base - top);
+      ctx.fillStyle = '#fff'; ctx.font = `900 ${r * 1.1}px "Noto Kufi Arabic", sans-serif`; ctx.textAlign = 'center'; ctx.fillText(place, x, top + (base - top) * 0.6);
+      drawRobot(ctx, x, top, r, c, 90, 0, '');
+      ctx.fillStyle = '#fff'; ctx.font = `700 ${r * 0.7}px "IBM Plex Sans Arabic", sans-serif`; ctx.fillText(n, x, top - r * 2.8);
+    }
+  };
+  paintPodium(); addEventListener('resize', paintPodium);
+  document.fonts && document.fonts.ready.then(paintPodium);
+})();
+</script>

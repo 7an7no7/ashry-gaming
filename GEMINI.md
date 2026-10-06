@@ -250,7 +250,7 @@ a room's state; `lzWait`, `lzRun`, `lzEnsure`); a reload onto a game gets its
 chunk written in before start-up (`lzBootWrite`). The worker keeps chunks in
 `g-chunks` across builds and fetches them all when a build installs, so one
 visit still plays every game offline; `docs/g/` keeps the last four builds'
-files. The budget is the shell's (720 KB gzipped; raised from 710 by the owner on 2 Oct 2026); `LAZY=0` builds one page. On 5 Oct 2026 the shell was 719.8 KB: a new game's words, Help and screens (about 1 KB, every game's words are in the shell) won't fit, so the next game asks the owner to raise it.
+files. The budget is the shell's (730 KB gzipped; raised from 710 to 720 by the owner on 2 Oct 2026 and to 730 on 6 Oct 2026, for الليزر, when the shell was 719.8 KB); `LAZY=0` builds one page. A new game adds about 1 KB to the shell (every game's words are in it).
 
 - **A new game file goes into `CHUNKS` in `tools/lazy-split.mjs`** (or
   `SHELL_FILES` when every screen needs it); a screen it can't place goes into

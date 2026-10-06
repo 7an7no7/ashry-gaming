@@ -7074,7 +7074,7 @@ async function laserRobots() {
   const people = [H, J, K];
   await H.must('chooseGame', { game: 'laser' });
   check((await J.act('start', {})).ok === false, 'laser: only the host starts');
-  await H.must('start', { teams: 0 });
+  await H.must('start', { teams: 0, map: 'hex' });
   await all(people.concat([TV]), (s) => s.game === 'laser' && s.shared.phase === 'hide', 'laser: the hiding reaches every phone and the TV');
   check(TV.state.you === null, 'laser: the TV has no spot');
   check(people.every((p) => p.state.you && typeof p.state.you.x === 'number') && !('shots' in H.state.shared), "laser: each phone has its own spot, the table none");
@@ -7096,7 +7096,7 @@ async function laserRobots() {
   await H.must('backToHub');
   await H.waitFor((x) => x.phase === 'lobby', 'laser: back in the hub');
   await H.must('chooseGame', { game: 'laser' });
-  await H.must('start', { teams: 2 });
+  await H.must('start', { teams: 2, map: 'hex' });
   await all(people, (s) => s.shared.phase === 'teams' && Object.keys(s.shared.teams).length === 3, 'laser: teams are dealt and shown first');
   await H.must('go', {});
   await all(people, (s) => s.shared.phase === 'hide', 'laser: the host starts the teams game');
@@ -7104,7 +7104,7 @@ async function laserRobots() {
   await H.must('backToHub');
   await H.waitFor((x) => x.phase === 'lobby', 'laser: back in the hub again');
   await H.must('chooseGame', { game: 'laser' });
-  await H.must('start', { teams: 0, hearts: 2, time: 20 });
+  await H.must('start', { teams: 0, hearts: 2, time: 20, map: 'hex', pickups: false });
   await all(people.concat([TV]), (s) => s.shared.phase === 'hide' && s.shared.opts.hearts === 2 && s.shared.hideMs === 20000, 'laser: the options reach every screen');
   await J.must('shield', { round: 1, on: true });
   check(J.state.you.shield === true && !JSON.stringify(H.state).includes('"shield":true'), "laser: a raised shield is its own phone's secret");

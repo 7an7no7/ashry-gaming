@@ -17,8 +17,15 @@
    hiding time a second shorter each round, a short reveal when nobody is hit,
    hits counted (the tie-break) and the awards, teams seeing their teammates.
 
-   The arena is a flat-topped hexagon of circumradius k (1 in round one), its
-   middle at 0,0; a player is a circle of LASER_BODY. Spots, aims, shields and
+   Round two's looks sheet (the owner's picks, 6 Oct 2026): four maps, one at
+   random each game (Laser.js); pickups on the floor that everyone sees (taken by
+   standing on one and surviving, kept and used in a later round: a double beam, a
+   second beam, a shield, a wide beam; two on one break it); pillars that stop
+   beams; the floor falling in tiles (cracked a round before they fall, about the
+   ring's worth a round) instead of the ring; the best shot kept for the replay.
+
+   The arena is a map of size k (1 in round one), its middle at 0,0
+   (shared.map, .k, .pillars, .fallen); a player is a circle of LASER_BODY. Spots, aims, shields and
    mines are room.secrets[pid] until the reveal (nothing about the others is
    seen while hiding, not even who is ready: the owner; a teammate's spot is,
    when the host leaves team sight on). The reveal is shared.shots, .beams and
@@ -28,7 +35,8 @@ const LASER_MIN_PLAYERS = 3;
 const LASER_REVEAL_MS = 7000;        // a round with a hit
 const LASER_REVEAL_QUIET_MS = 4000;  // nobody hit
 const LASER_HIDE_MIN_S = 8;
-// LASER_BODY, laserK, laserClamp, laserAngle, laserTrace and laserMineHits are in Laser.js.
+const LASER_INTRO_MS = 2000;         // round one: the map draws itself before the clock starts
+// LASER_BODY, laserK, the maps, laserFit, laserTiles, laserAngle, laserTrace and laserMineHits are in Laser.js.
 
 /** The game's options from a start payload, every one with its default (the owner's). */
 const laserOptsOf = (p) => {
@@ -43,7 +51,10 @@ const laserOptsOf = (p) => {
     swap: on(p.swap, false),
     bounce: on(p.bounce, false),
     block: on(p.block, false),
-    sight: on(p.sight, true)
+    sight: on(p.sight, true),
+    pickups: on(p.pickups, true),
+    pillars: on(p.pillars, false),
+    pieces: on(p.pieces, false)
   };
 };
 
@@ -57,10 +68,63 @@ const laserGhosts = (room) => {
   return activeRoster(room, s.roster).filter(id => s.alive.indexOf(id) === -1);
 };
 
-/** A random spot inside the arena and a random aim. */
-const laserRandomSpot = (k) => {
-  const p = laserClamp((Math.random() * 2 - 1) * k, (Math.random() * 2 - 1) * k, k);
+/** The arena as Laser.js reads it. */
+const laserArena = (s) => ({ map: s.map || 'hex', k: s.k || 1, pillars: s.pillars || [], fallen: s.fallen || [] });
+
+/** A random spot on the arena (on the map, off the pillars and the fallen floor) and a random aim. */
+const laserRandomSpot = (A) => {
+  const k = A.k || 1;
+  let x = 0, y = 0;
+  for (let i = 0; i < 60; i++) {
+    x = (Math.random() * 2 - 1) * k; y = (Math.random() * 2 - 1) * k;
+    if (laserInside(A.map || 'hex', k, x, y, LASER_BODY)) break;
+  }
+  const p = laserFit(A, x, y);
   return { x: p.x, y: p.y, a: laserAngle(Math.random() * 360) };
+};
+
+/** The pillars of a game (with pillars on): 1, 2 with 5+ players, 3 with 8+; apart, off the wall. */
+const laserPlacePillars = (map, players) => {
+  const n = players >= 8 ? 3 : players >= 5 ? 2 : 1, out = [];
+  for (let i = 0; i < 400 && out.length < n; i++) {
+    const x = Math.random() * 1.6 - 0.8, y = Math.random() * 1.6 - 0.8;
+    if (!laserInside(map, 1, x, y, 0.28)) continue;
+    if (out.some(p => Math.hypot(p.x - x, p.y - y) < 0.45)) continue;
+    out.push({ x: laserR3(x), y: laserR3(y) });
+  }
+  return out;
+};
+
+/** The falling floor: the tiles that crack this round (and fall at its end), about as much floor as
+    the ring would have taken; two more in sudden death; never the last three. */
+const laserCrack = (room) => {
+  const s = room.shared;
+  s.cracked = [];
+  s.suddenCrack = false;
+  if (!s.opts.pieces) return;
+  const tiles = laserTiles(s.map), standing = tiles.filter(t => s.fallen.indexOf(t.i) === -1);
+  const ringK = laserK(s.round + 1);
+  let n = Math.max(0, standing.length - Math.round(tiles.length * ringK * ringK));
+  if ((s.quiet || 0) >= 2 && n === 0) { n = 2; s.suddenCrack = true; }
+  n = Math.max(0, Math.min(n, standing.length - 3));
+  s.cracked = shuffled(standing.slice()).slice(0, n).map(t => t.i).sort((a, b) => a - b);
+};
+
+/** The pickups of a round (from round two): one, two with 6+ players, on floor that stays. */
+const laserSpawnPickups = (room) => {
+  const s = room.shared;
+  s.pickups = [];
+  if (!s.opts.pickups || s.round < 2) return;
+  const n = s.roster.length >= 6 ? 2 : 1;
+  const kNext = s.opts.pieces ? s.k : Math.min(s.k, laserK(s.round + 1));
+  for (let i = 0; i < 300 && s.pickups.length < n; i++) {
+    const x = (Math.random() * 2 - 1) * kNext, y = (Math.random() * 2 - 1) * kNext;
+    if (!laserInside(s.map, kNext, x, y, 0.12)) continue;
+    if (s.opts.pieces) { const t = laserTileAt(s.map, x, y); if (!t || s.fallen.indexOf(t.i) !== -1 || s.cracked.indexOf(t.i) !== -1) continue; }
+    if (s.pillars.some(pl => Math.hypot(pl.x - x, pl.y - y) < LASER_PILLAR_R + 0.08)) continue;
+    if (s.pickups.some(p => Math.hypot(p.x - x, p.y - y) < 0.3)) continue;
+    s.pickups.push({ id: s.round * 10 + s.pickups.length, x: laserR3(x), y: laserR3(y), kind: LASER_PICKUPS[Math.floor(Math.random() * LASER_PICKUPS.length)] });
+  }
 };
 
 /** Teams dealt at random, as even as the table allows. */
@@ -89,18 +153,21 @@ const laserShareMates = (room) => {
 /** A hiding phase: everyone's last spot kept (pulled in by the smaller arena), nobody ready. */
 const laserHide = (room) => {
   const s = room.shared;
+  const A = laserArena(s);
   s.alive.forEach(pid => {
     const old = room.secrets[pid];
-    const mine = old && !old.ghost ? old : laserRandomSpot(s.k);
-    const p = laserClamp(mine.x, mine.y, s.k);
-    room.secrets[pid] = { x: p.x, y: p.y, a: laserAngle(mine.a), ready: false, shield: false, round: s.round };
+    const mine = old && !old.ghost ? old : laserRandomSpot(A);
+    const p = laserFit(A, mine.x, mine.y);
+    room.secrets[pid] = { x: p.x, y: p.y, a: laserAngle(mine.a), a2: laserAngle(mine.a2 === undefined ? mine.a + 90 : mine.a2), ready: false, shield: false, use: false, round: s.round };
   });
+  laserCrack(room);
+  laserSpawnPickups(room);
   laserGhosts(room).forEach(pid => { room.secrets[pid] = { ghost: true, mine: null, round: s.round }; });
   laserShareMates(room);
   s.phase = 'hide';
   s.hideMs = Math.max(LASER_HIDE_MIN_S, s.opts.time - (s.round - 1)) * 1000;
-  s.endsAt = Date.now() + s.hideMs;
-  ['shots', 'beams', 'mines', 'hit', 'out', 'back', 'revealAt', 'revealMs', 'kNext', 'tieNext', 'suddenNext', 'roundKills'].forEach(f => { delete s[f]; });
+  s.endsAt = Date.now() + s.hideMs + (s.introUntil && s.introUntil > Date.now() ? s.introUntil - Date.now() : 0);
+  ['shots', 'beams', 'mines', 'hit', 'out', 'back', 'revealAt', 'revealMs', 'kNext', 'tieNext', 'suddenNext', 'roundKills', 'fates', 'falling'].forEach(f => { delete s[f]; });
 };
 
 /** A new game: options from the start payload (or the last game's). */
@@ -108,17 +175,22 @@ const laserDeal = (room, payload) => {
   const roster = room.players.map(p => p.id);
   const opts = laserOptsOf(payload);
   const nTeams = opts.teams ? Math.min(opts.teams, roster.length - 1) : 0;
+  // A map at random every game (the owner); a test may name one (the lobby never does).
+  const map = LASER_MAPS.indexOf(payload && payload.map) !== -1 ? payload.map : LASER_MAPS[Math.floor(Math.random() * LASER_MAPS.length)];
+  const pillars = opts.pillars ? laserPlacePillars(map, roster.length) : [];
   room.secrets = {};
-  roster.forEach(pid => { room.secrets[pid] = laserRandomSpot(1); });
+  room._laserBest = null;
+  roster.forEach(pid => { room.secrets[pid] = laserRandomSpot({ map, k: 1, pillars, fallen: [] }); });
   const hearts = {};
   roster.forEach(pid => { hearts[pid] = opts.hearts; });
   room.shared = {
     phase: 'hide', round: 1, roster, alive: roster.slice(), outRound: {}, opts,
     nTeams: nTeams >= 2 ? nTeams : 0, teams: nTeams >= 2 ? laserDealTeams(roster, nTeams) : null, tie: false,
-    k: laserK(1), hearts, shieldUsed: {}, hitsBy: {}, near: {}, kills: [], quiet: 0
+    k: laserK(1), hearts, shieldUsed: {}, hitsBy: {}, near: {}, kills: [], quiet: 0,
+    map, pillars, fallen: [], cracked: [], pickups: [], held: {}, introUntil: Date.now() + LASER_INTRO_MS
   };
   room.phase = 'play';
-  if (room.shared.teams) { room.shared.phase = 'teams'; room.shared.endsAt = null; return; }
+  if (room.shared.teams) { room.shared.phase = 'teams'; room.shared.endsAt = null; room.shared.introUntil = null; return; }
   laserHide(room);
 };
 
@@ -168,6 +240,7 @@ const laserOver = (room) => {
       .sort((a, b) => b.score - a.score || b.tie - a.tie);
   }
   s.awards = laserAwards(s, scoreOf);
+  s.best = room._laserBest || null;
   s.winners = alive;
   s.phase = 'gameover';
   s.endsAt = null;
@@ -190,12 +263,21 @@ const laserReveal = (room) => {
   if (s.phase !== 'hide') return;
   const alive = laserAlive(room);
   s.alive = alive;
+  const A = laserArena(s);
   s.shots = alive.map(pid => {
-    const m = room.secrets[pid] && !room.secrets[pid].ghost ? room.secrets[pid] : laserRandomSpot(s.k);
-    const shield = !!m.shield && !s.shieldUsed[pid];
-    return { id: pid, x: m.x, y: m.y, a: m.a, shield };
+    const m = room.secrets[pid] && !room.secrets[pid].ghost ? room.secrets[pid] : laserRandomSpot(A);
+    // A pickup this phone chose to use: a second ray, a wider one, or its shield.
+    const use = m.use && s.held[pid] ? s.held[pid] : null;
+    const shield = use === 'shield' || (!!m.shield && !s.shieldUsed[pid]);
+    const shot = { id: pid, x: m.x, y: m.y, a: m.a, shield };
+    if (use) { shot.use = use; delete s.held[pid]; }
+    if (use === 'double') shot.rays = [{ a: m.a }, { a: laserAngle(m.a + 180) }];
+    if (use === 'second') shot.rays = [{ a: m.a }, { a: laserAngle(m.a2 === undefined ? m.a + 90 : m.a2) }];
+    if (use === 'wide') shot.rays = [{ a: m.a, wide: true }];
+    if (!!m.shield && !s.shieldUsed[pid] && use !== 'shield') shot.ownShield = true;
+    return shot;
   });
-  const trace = laserTrace(s.shots, { k: s.k, teams: s.teams, bounce: s.opts.bounce, block: s.opts.block });
+  const trace = laserTrace(s.shots, { k: s.k, map: s.map, pillars: s.pillars, teams: s.teams, bounce: s.opts.bounce, block: s.opts.block });
   s.beams = trace.beams;
   Object.keys(trace.near).forEach(id => {
     s.near[id] = typeof s.near[id] === 'number' ? Math.min(s.near[id], trace.near[id]) : trace.near[id];
@@ -204,11 +286,19 @@ const laserReveal = (room) => {
     const m = (room.secrets[g] || {}).mine;
     return m ? { id: g, x: m.x, y: m.y, hits: laserMineHits({ id: g, x: m.x, y: m.y }, s.shots, s.teams) } : null;
   }).filter(Boolean);
-  s.shots.forEach(p => { if (p.shield) s.shieldUsed[p.id] = true; });
+  s.shots.forEach(p => { if (p.ownShield) s.shieldUsed[p.id] = true; delete p.ownShield; });
   // Who hit whom: one heart a round, however many beams or mines.
   const kills = [];
-  s.beams.forEach(b => b.hits.forEach(to => kills.push({ r: s.round, from: b.id, to, by: 'beam' })));
-  s.mines.forEach(m => m.hits.forEach(to => kills.push({ r: s.round, from: m.id, to, by: 'mine' })));
+  const once = (k) => { if (!kills.some(x => x.from === k.from && x.to === k.to)) kills.push(k); };
+  s.beams.forEach(b => b.hits.forEach(to => once({ r: s.round, from: b.id, to, by: 'beam' })));
+  s.mines.forEach(m => m.hits.forEach(to => once({ r: s.round, from: m.id, to, by: 'mine' })));
+  // The best shot of the game: the one beam that hit the most people, kept for the replay at the end
+  // (on the server only until then: it holds last spots, and nothing is on the table while hiding).
+  s.beams.forEach(b => {
+    if (!b.hits.length || (room._laserBest && room._laserBest.n >= b.hits.length)) return;
+    room._laserBest = { n: b.hits.length, round: s.round, map: s.map, k: s.k, pillars: s.pillars.slice(), fallen: s.fallen.slice(), shooter: b.id, segs: b.segs, wide: b.wide,
+      victims: b.hits.slice(), people: s.shots.map(p => ({ id: p.id, x: p.x, y: p.y, a: p.a, shield: !!p.shield })) };
+  });
   s.roundKills = kills;
   s.hit = kills.map(k => k.to).filter((id, i, a) => a.indexOf(id) === i);
   s.out = s.hit.filter(id => (s.hearts[id] || 1) <= 1);
@@ -220,11 +310,27 @@ const laserReveal = (room) => {
   // The next round's arena: smaller each round to the floor; past it, after two rounds with
   // nobody hit, smaller again every round until someone is (sudden death).
   const quiet = s.hit.length ? 0 : (s.quiet || 0) + 1;
-  const normal = Math.min(s.k, laserK(s.round + 1));
-  const sudden = quiet >= 2 && normal >= s.k - 1e-9 && s.k > LASER_K_SUDDEN_MIN + 1e-9;
-  s.kNext = left === 1 ? s.k : (sudden ? laserR3(Math.max(LASER_K_SUDDEN_MIN, s.k - LASER_K_SUDDEN_STEP)) : normal);
-  s.suddenNext = left !== 1 && sudden;
+  const floorK = LASER_K_SUDDEN_MIN_OF[s.map] || LASER_K_SUDDEN_MIN;
+  if (s.opts.pieces) {
+    // The falling floor: the arena keeps its size; the cracked tiles fall at the end of the reveal.
+    s.kNext = s.k;
+    s.falling = left === 1 ? [] : s.cracked.slice();
+    s.suddenNext = left !== 1 && !!s.suddenCrack;
+  } else {
+    const normal = Math.min(s.k, laserK(s.round + 1));
+    const sudden = quiet >= 2 && normal >= s.k - 1e-9 && s.k > floorK + 1e-9;
+    s.kNext = left === 1 ? s.k : (sudden ? laserR3(Math.max(floorK, s.k - LASER_K_SUDDEN_STEP)) : normal);
+    s.suddenNext = left !== 1 && sudden;
+  }
   s.tieNext = left === 0;
+  // The pickups: taken by whoever stood on one alone and is still standing; two or more break it.
+  s.fates = (s.pickups || []).map(p => {
+    const on = s.shots.filter(q => Math.hypot(q.x - p.x, q.y - p.y) < LASER_PICK_REACH).map(q => q.id);
+    if (!on.length) return { id: p.id, fate: 'left' };
+    if (on.length > 1) return { id: p.id, fate: 'broken', by: on };
+    const kept = !s.tieNext && s.out.indexOf(on[0]) === -1;
+    return { id: p.id, fate: kept ? 'taken' : 'lost', by: on[0] };
+  });
   s.phase = 'reveal';
   s.revealAt = Date.now();
   s.revealMs = s.hit.length ? LASER_REVEAL_MS : LASER_REVEAL_QUIET_MS;
@@ -258,7 +364,24 @@ const laserAfterReveal = (room) => {
   }
   s.quiet = (s.hit || []).length ? 0 : (s.quiet || 0) + 1;
   s.alive = after;
+  // What changed, for the phones' card between rounds.
+  s.lastRound = { k: s.k, sudden: !!s.suddenNext, fell: (s.falling || []).length, tie: s.tie };
   s.k = s.kNext || s.k;
+  (s.fates || []).forEach(f => {
+    const p = (s.pickups || []).find(q => q.id === f.id);
+    if (f.fate === 'taken' && p && after.indexOf(f.by) !== -1) s.held[f.by] = p.kind;
+  });
+  s.pickups = [];
+  if (s.opts.pieces) { s.fallen = s.fallen.concat(s.falling || []).sort((a, b) => a - b); s.cracked = []; }
+  // A pillar on floor that fell (the ring or a tile) falls with it.
+  const onFloor = (pl) => {
+    if (!laserInside(s.map, s.k, pl.x, pl.y, LASER_PILLAR_R * 0.5)) return false;
+    if (!s.opts.pieces) return true;
+    const t = laserTileAt(s.map, pl.x, pl.y);
+    return !!t && s.fallen.indexOf(t.i) === -1;
+  };
+  s.pillars = (s.pillars || []).filter(onFloor);
+  Object.keys(s.held).forEach(id => { if (after.indexOf(id) === -1) delete s.held[id]; });
   s.lastKills = s.roundKills || [];
   s.lastBeams = (s.beams || []).filter(b => (s.lastKills || []).some(k => k.from === b.id && k.by === 'beam'));
   s.phase = 'between';
@@ -313,6 +436,7 @@ ROOM_RULES.laser = {
       requireMoveOn(room, playerId);
       if (s.phase !== 'teams') return;
       if (laserSettle(room)) return;
+      s.introUntil = Date.now() + LASER_INTRO_MS;
       laserHide(room);
       return;
     }
@@ -320,9 +444,15 @@ ROOM_RULES.laser = {
     const mine = room.secrets[playerId];
     if (action === 'place') {
       if (s.phase !== 'hide' || staleTap(payload, 'round', s.round) || !standing || !mine || mine.ghost) return;
-      const p = laserClamp(payload.x, payload.y, s.k);
+      const p = laserFit(laserArena(s), payload.x, payload.y);
       mine.x = p.x; mine.y = p.y; mine.a = laserAngle(payload.a);
+      if (payload.a2 !== undefined && payload.a2 !== null) mine.a2 = laserAngle(payload.a2);
       laserShareMates(room);
+      return;
+    }
+    if (action === 'use') {
+      if (s.phase !== 'hide' || staleTap(payload, 'round', s.round) || !standing || !mine || mine.ghost || !s.held[playerId]) return;
+      mine.use = payload.on !== false;
       return;
     }
     if (action === 'shield') {
@@ -334,7 +464,7 @@ ROOM_RULES.laser = {
     if (action === 'mine') {
       if (s.phase !== 'hide' || staleTap(payload, 'round', s.round) || !mine || !mine.ghost) return;
       if (payload.x === undefined || payload.x === null) { mine.mine = null; return; }
-      const p = laserClamp(payload.x, payload.y, s.k);
+      const p = laserClampMap(s.map, s.k, payload.x, payload.y);
       mine.mine = { x: p.x, y: p.y };
       return;
     }

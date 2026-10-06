@@ -1315,6 +1315,12 @@ const PROBES = {
           text.indexOf('"x":' + room.secrets[id].mine.x + ',"y":' + room.secrets[id].mine.y) !== -1);
         return other ? 'mine of ' + other : null;
       }),
+      // A pickup chosen for this round, and a second beam's aim, are secrets until the reveal.
+      probe('a pickup used and a second aim are secret while hiding', hiding && Object.keys(room.secrets).some(id => (room.secrets[id] || {}).use), (view, pid) => {
+        if (JSON.stringify(view.shared || {}).indexOf('"use":') !== -1) return 'shared use';
+        const mates = JSON.stringify((view.you || {}).mates || {});
+        return mates.indexOf('"use"') !== -1 || mates.indexOf('"a2"') !== -1 ? 'you.mates' : null;
+      }),
       // A raised shield is a secret until the reveal (its own phone, and with sight its teammates).
       probe('a shield is not seen while hiding', hiding, (view, pid) => {
         const text = JSON.stringify(view.shared || {});
@@ -2980,7 +2986,7 @@ const DRIVERS = {
     // Three: all out together (a tie: all three play on), then one hit, then the last two.
     const T = table('laser', 3);
     const [a, b, c] = T.ids;
-    must(T, T.host, 'start', { teams: 0 });
+    must(T, T.host, 'start', { teams: 0, map: 'hex' });
     if (!round(T, { [a]: [-0.4, 0, 0], [b]: [0, 0, 180], [c]: [0.4, 0, 180] })) return false;
     if (!S(T).tie || S(T).alive.length !== 3 || S(T).round !== 2) return false;
     if (!round(T, { [a]: [-0.3, 0, 0], [b]: [0.3, 0, 90], [c]: [0, 0.4, 90] })) return false;
@@ -2992,7 +2998,7 @@ const DRIVERS = {
     if (S(T).phase !== 'gameover') return false;
     // Four in two teams: the first in the line fires along it, sparing its teammate.
     const U = table('laser', 4);
-    must(U, U.host, 'start', { teams: 2 });
+    must(U, U.host, 'start', { teams: 2, map: 'hex' });
     if (S(U).phase !== 'teams') return false;
     must(U, U.host, 'shuffle', {});
     must(U, U.host, 'go', {});
@@ -3003,7 +3009,7 @@ const DRIVERS = {
     // Round two: hearts, a shield, a ghost's mine and its swap, bouncing, teams that see each other.
     const V = table('laser', 4);
     const [p, q, r, w] = V.ids;
-    must(V, V.host, 'start', { teams: 0, hearts: 2, swap: true, bounce: true });
+    must(V, V.host, 'start', { teams: 0, hearts: 2, swap: true, bounce: true, map: 'hex', pickups: false });
     must(V, q, 'shield', { round: 1, on: true });
     if (!round(V, { [p]: [-0.5, 0, 0], [q]: [0, 0, 90], [r]: [0.4, 0.5, 270], [w]: [-0.4, 0.5, 270] })) return false;
     if (S(V).hearts[q] !== 2 || !S(V).shieldUsed[q]) return false;
@@ -3019,10 +3025,13 @@ const DRIVERS = {
     }
     if (S(V).alive.indexOf(q) === -1 || S(V).alive.indexOf(r) !== -1) return false;
     const X = table('laser', 4);
-    must(X, X.host, 'start', { teams: 2, sight: true });
+    must(X, X.host, 'start', { teams: 2, sight: true, map: 'circle', pillars: true, pieces: true });
     must(X, X.host, 'go', {});
     X.ids.forEach((pid, i) => must(X, pid, 'place', { round: 1, x: -0.4 + 0.25 * i, y: 0.3, a: 270 }));
     must(X, X.ids[0], 'shield', { round: 1, on: true });
+    X.room.shared.held = { [X.ids[1]]: 'second' };
+    must(X, X.ids[1], 'place', { round: 1, x: -0.15, y: 0.3, a: 270, a2: 45 });
+    must(X, X.ids[1], 'use', { round: 1, on: true });
     return runClock(X, (rm) => rm.shared.phase === 'reveal') && runClock(X, (rm) => rm.shared.phase !== 'reveal');
   },
 

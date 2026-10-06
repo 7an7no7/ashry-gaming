@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, stopLettersFor, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, bumperJoined, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
 import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION_CATCH_WAIT_MS } from '../generated/rules.js';
-import { nextPrompts, programPlaces, laserTrace } from '../generated/rules.js';
+import { nextPrompts, programPlaces, laserTrace, laserFit, laserInside, laserTiles, laserTileAt, LASER_MAPS, LASER_BODY, LASER_PILLAR_R } from '../generated/rules.js';
 import srcMod from '../../tools/sources.cjs';
 const { srcPath } = srcMod;
 let failed = 0;
@@ -16028,7 +16028,7 @@ console.log('• the secret mission');
     const lzRoom = (ids, opts) => {
       const r = newRoom(ids);
       applyRoomAction(r, ids[0], 'chooseGame', { game: 'laser' });
-      applyRoomAction(r, ids[0], 'start', Object.assign({ teams: 0 }, opts || {}));
+      applyRoomAction(r, ids[0], 'start', Object.assign({ teams: 0, map: 'hex', pickups: false }, opts || {}));
       return r;
     };
     // Everyone standing placed (and maybe shielded), all ready: the reveal.
@@ -16162,6 +16162,113 @@ console.log('• the secret mission');
       const keys = (s.awards || []).map((x) => x.key);
       check(keys.indexOf('sniper') !== -1 && s.awards.find((x) => x.key === 'sniper').ids.join() === 'a', 'laser: «القناص» goes to the most hits');
       check(keys.indexOf('ghost') !== -1 && s.awards.find((x) => x.key === 'ghost').ids.join() === 'd', '«الشبح» goes to who lasted longest without hitting anyone');
+    }
+  }
+
+  // الليزر, round two's looks (the owner's picks, 6 Oct 2026): the four maps, pickups, pillars, the
+  // falling floor, the best shot.
+  {
+    const lzRoom = (ids, opts) => {
+      const r = newRoom(ids);
+      applyRoomAction(r, ids[0], 'chooseGame', { game: 'laser' });
+      applyRoomAction(r, ids[0], 'start', Object.assign({ teams: 0, map: 'hex', pickups: false }, opts || {}));
+      return r;
+    };
+    const lzRound = (r, spots, extra) => {
+      const s = r.shared;
+      s.alive.forEach((pid) => { const [x, y, a] = spots[pid] || [0, 0.6, 90]; applyRoomAction(r, pid, 'place', { round: s.round, x, y, a }); });
+      if (extra) extra(r);
+      s.alive.slice().forEach((pid) => applyRoomAction(r, pid, 'ready', { round: s.round }));
+    };
+    const lzNext = (r) => applyRoomAction(r, r.hostId, 'next', { round: r.shared.round });
+    const B = LASER_BODY;
+
+    // The maps: a spot stays on the floor, a beam ends at each map's wall.
+    {
+      const c = laserFit({ map: 'circle', k: 1 }, 2, 0);
+      check(Math.abs(c.x - (0.93 - B)) < 0.002 && c.y === 0, 'laser maps: the circle keeps a body inside its wall');
+      const d = laserFit({ map: 'donut', k: 1 }, 0.05, 0);
+      check(Math.abs(Math.hypot(d.x, d.y) - (0.34 + B)) < 0.002, 'laser maps: nobody stands in the donut\'s hole');
+      const x = laserFit({ map: 'cross', k: 1 }, 0.8, 0.8);
+      check(laserInside('cross', 1, x.x, x.y, B - 0.001), 'laser maps: a spot between the cross\'s arms is moved onto an arm');
+      const hole = laserTrace([{ id: 'a', x: -0.6, y: 0, a: 0 }, { id: 'b', x: 0.6, y: 0, a: 90 }], { k: 1, map: 'donut' });
+      check(hole.beams[0].hits.length === 0 && Math.abs(hole.beams[0].segs[0][2] + 0.34) < 0.002, 'laser maps: the donut\'s hole stops a beam (the owner)');
+      const cr = laserTrace([{ id: 'a', x: 0, y: -0.7, a: 90 }, { id: 'b', x: 0, y: 0.7, a: 0 }], { k: 1, map: 'cross' });
+      check(cr.beams[0].hits.join() === 'b', 'laser maps: a beam runs the length of the cross\'s arm');
+      const circ = laserTrace([{ id: 'a', x: 0, y: 0, a: 0 }, { id: 'b', x: 0.3, y: -0.5, a: 90 }], { k: 1, map: 'circle', bounce: true });
+      check(circ.beams[0].segs.length === 2, 'laser maps: a beam bounces off the circle\'s wall too');
+      const r = lzRoom(['a', 'b', 'c'], { map: undefined });
+      check(LASER_MAPS.indexOf(r.shared.map) !== -1, 'laser maps: every game gets a map (at random)');
+      check(r.shared.endsAt - Date.now() >= r.shared.hideMs + 1900, 'laser maps: round one\'s clock starts after the map has drawn itself');
+    }
+
+    // Pillars: they stop a beam (never bounce one), nobody stands in one, and they fall with the floor.
+    {
+      const pl = [{ x: 0, y: 0 }];
+      const t = laserTrace([{ id: 'a', x: -0.5, y: 0, a: 0 }, { id: 'b', x: 0.5, y: 0, a: 90 }], { k: 1, pillars: pl, bounce: true });
+      check(t.beams[0].hits.length === 0 && t.beams[0].segs.length === 1, 'laser pillars: a pillar stops a beam, bouncing or not');
+      const f = laserFit({ map: 'hex', k: 1, pillars: pl }, 0.01, 0);
+      check(Math.hypot(f.x, f.y) >= LASER_PILLAR_R + B - 0.002, 'laser pillars: a spot in a pillar is moved out of it');
+      const r = lzRoom(['a', 'b', 'c', 'd', 'e'], { pillars: true });
+      check(r.shared.pillars.length === 2, 'laser pillars: two pillars with five players');
+      r.shared.pillars = [{ x: 0.88, y: 0 }];
+      lzRound(r, { a: [-0.6, 0.4, 270], b: [0, 0.4, 270], c: [0.5, 0.4, 270], d: [-0.3, -0.3, 270], e: [0.2, -0.3, 270] });
+      lzNext(r);
+      check(r.shared.pillars.length === 0, 'laser pillars: a pillar in the ring that falls falls with it');
+    }
+
+    // Pickups: everyone sees them; taken by surviving on one alone; two on one break it; used later.
+    {
+      const r = lzRoom(['a', 'b', 'c', 'd'], { pickups: true });
+      check(r.shared.pickups.length === 0, 'laser pickups: none in round one');
+      lzRound(r, { a: [-0.6, 0.4, 270], b: [0, 0.4, 270], c: [0.5, 0.4, 270], d: [-0.3, -0.3, 270] });
+      lzNext(r);
+      check(r.shared.round === 2 && r.shared.pickups.length === 1, 'laser pickups: one on the floor from round two (four players)');
+      r.shared.pickups = [{ id: 21, x: 0.2, y: 0.2, kind: 'double' }, { id: 22, x: -0.4, y: -0.3, kind: 'wide' }];
+      lzRound(r, { a: [0.2, 0.2, 270], b: [-0.42, -0.3, 180], c: [-0.38, -0.3, 0], d: [0.5, -0.5, 270] });
+      const fates = r.shared.fates;
+      check(fates[0].fate === 'taken' && fates[0].by === 'a' && fates[1].fate === 'broken', 'laser pickups: one alone on it takes it; two on one break it');
+      lzNext(r);
+      check(r.shared.held.a === 'double' && r.shared.pickups.length <= 1, 'laser pickups: the taker holds it; the floor\'s are new each round');
+      // The double beam: forward and back.
+      lzRound(r, { a: [0, 0, 0], b: [0.5, 0, 90], c: [-0.5, 0, 90], d: [0, 0.6, 180] }, (x) => applyRoomAction(x, 'a', 'use', { round: x.shared.round, on: true }));
+      check(r.shared.shots.find((p) => p.id === 'a').use === 'double' && r.shared.hit.indexOf('b') !== -1 && r.shared.hit.indexOf('c') !== -1, 'laser pickups: ⚡ fires forward and back');
+      check(!r.shared.held.a, 'laser pickups: a used pickup is gone');
+      // The second beam, its own aim; the wide beam.
+      const two = laserTrace([{ id: 'a', x: 0, y: 0, a: 0, rays: [{ a: 0 }, { a: 90 }] }, { id: 'b', x: 0.5, y: 0, a: 270 }, { id: 'c', x: 0, y: 0.5, a: 270 }], { k: 1 });
+      check(two.beams.filter((b) => b.id === 'a').length === 2 && two.beams[0].hits[0] === 'b' && two.beams[1].hits[0] === 'c', 'laser pickups: 🔄 a second beam at its own aim');
+      const wide = laserTrace([{ id: 'a', x: 0, y: 0, a: 0, rays: [{ a: 0, wide: true }] }, { id: 'b', x: 0.5, y: 0.12, a: 270 }], { k: 1 });
+      const thin = laserTrace([{ id: 'a', x: 0, y: 0, a: 0 }, { id: 'b', x: 0.5, y: 0.12, a: 270 }], { k: 1 });
+      check(wide.beams[0].hits[0] === 'b' && thin.beams[0].hits.length === 0, 'laser pickups: 🎯 a wide beam hits who a thin one misses');
+      const r2 = lzRoom(['a', 'b', 'c'], { pickups: true });
+      r2.shared.held = { b: 'shield' };
+      lzRound(r2, { a: [-0.5, 0, 0], b: [0, 0, 270], c: [0.5, 0.5, 270] }, (x) => applyRoomAction(x, 'b', 'use', { round: 1, on: true }));
+      check(r2.shared.hit.length === 0 && !r2.shared.shieldUsed.b, 'laser pickups: 🛡️ an extra shield, the game\'s own one kept');
+    }
+
+    // The falling floor: about the ring's worth cracks each round, falls at its end, a spot on it moves.
+    {
+      const r = lzRoom(['a', 'b', 'c'], { pieces: true, map: 'hex' });
+      const tiles = laserTiles('hex');
+      check(r.shared.cracked.length === tiles.length - Math.round(tiles.length * 0.81) && r.shared.k === 1, 'laser floor: round one cracks about the ring\'s worth (19%), the arena keeps its size');
+      const cracked = r.shared.cracked.slice();
+      const t0 = tiles[cracked.find((i) => tiles[i].y < 0.3 && Math.abs(tiles[i].x) < 0.3) || cracked[0]];
+      lzRound(r, { a: [t0.x, t0.y, 270], b: [-0.4, 0.65, 90], c: [0.4, 0.65, 90] });
+      check(r.shared.falling.join() === cracked.join() && r.shared.kNext === 1, 'laser floor: the cracked tiles fall at the end of the reveal');
+      lzNext(r);
+      const me = r.secrets.a, under = laserTileAt('hex', me.x, me.y);
+      check(r.shared.fallen.join() === cracked.join() && under && r.shared.fallen.indexOf(under.i) === -1, 'laser floor: a spot on a tile that fell is moved onto the floor');
+    }
+
+    // The best shot: on the server while the game goes on, on the table at its end.
+    {
+      const r = lzRoom(['a', 'b', 'c', 'd']);
+      lzRound(r, { a: [-0.5, 0, 0], b: [0, 0, 90], c: [0.4, 0, 90], d: [0, 0.6, 180] });
+      check(!('best' in r.shared) || !r.shared.best, 'laser best: not on the table while the game goes on');
+      lzNext(r);
+      lzRound(r, { a: [-0.5, 0, 0], d: [0.4, 0, 90] });
+      lzNext(r);
+      check(r.shared.phase === 'gameover' && r.shared.best && r.shared.best.shooter === 'a' && r.shared.best.n === 2, 'laser best: the beam that hit the most, for the replay');
     }
   }
 }

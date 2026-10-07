@@ -1,0 +1,49 @@
+const __lzOnce_tourney=1;lzStyle("tourney",".bracket-btn:active{transform:scale(.98)}"),lzMarkup([["view-setup-tourney",`<div id="view-setup-tourney" class="hidden">
+<div class="card">
+<p class="field__hint" data-i18n="tourney_hint">من 3 لـ 16 لاعب. اللي مالوش خصم يعدّي على طول.</p>
+<div class="group-picker">
+<select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختار مجموعة محفوظة" data-i18n-title="a11y_pick_group">
+<option value="">-- اختار مجموعة --</option>
+</select>
+<button onclick="saveCurrentGroup()" class="iconbtn" title="إدارة المجموعات" aria-label="إدارة المجموعات" data-i18n-title="group_manage_title">📂</button>
+</div>
+<label class="field__label" data-i18n="players">اللاعبين</label>
+<div class="input-group" style="margin-bottom: var(--sp-4)">
+<input type="text" data-i18n-ph="placeholder_name" placeholder="الاسم" autocomplete="off">
+<button onclick="addPlayerFromSetup(this)" class="btn btn--primary" aria-label="إضافة لاعب" data-i18n-title="add_player_title">+</button>
+</div>
+<div id="tourney-player-list" class="mb-6"></div>
+<button onclick="startTournament()" class="btn btn--primary" data-i18n="start">ابدأ البطولة</button>
+</div>
+</div>`],["view-play-tourney",`<div id="view-play-tourney" class="hidden">
+<div class="flex justify-between items-center mb-4">
+<h2 class="card__title"><span data-i18n="setup_tourney">منظم البطولات</span> <span aria-hidden="true">🏆</span></h2>
+<button onclick="setView('setup-tourney')" class="btn btn--ghost btn--sm btn--auto" data-i18n="exit">خروج</button>
+</div>
+<div id="tourney-bracket"></div>
+</div>`]]);const TOURNEY_MIN=3,TOURNEY_MAX=16,tourneyT=()=>TRANSLATIONS[appState.lang]||{},tourneyEmpty=p=>p==null||p==="---",tourneyMatch=id=>(appState.tourney.matches||[]).find(m=>m.id===id),tourneySlotOf=m=>m.nextSlot||(m.id%2===0?1:2);function setupTournament(){setView("setup-tourney")}function startTournament(){const inputs=document.querySelectorAll(".tourney-player-input");let players=Array.from(inputs).map(i=>i.value.trim()).filter(n=>n!=="");players.length||(players=(appState.activePlayers||[]).slice());const t=tourneyT();if(players.length<TOURNEY_MIN&&!Array.from(inputs).some(i=>i.value.trim())){askPlayers(TOURNEY_MIN,()=>startTournament(),{max:TOURNEY_MAX});return}if(players.length<TOURNEY_MIN||players.length>TOURNEY_MAX){showToast((t.tourney_need||"اختار من {min} لـ {max} لاعب").replace("{min}",TOURNEY_MIN).replace("{max}",TOURNEY_MAX),"error");return}tourneyDraw(players),setView("play-tourney"),renderBracket()}function restartTournament(){const players=(appState.tourney.players||[]).slice();if(players.length<TOURNEY_MIN){setView("setup-tourney");return}tourneyDraw(players),renderBracket();const main=document.getElementById("shell-main");main&&(main.scrollTop=0)}function tourneyDraw(players){for(let i=players.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[players[i],players[j]]=[players[j],players[i]]}appState.tourney.players=players,appState.tourney.matches=generateBracket(players),appState.tourney.history=[],appState.tourney.startedAt=Date.now(),saveToLocal()}function tourneySeedOrder(size){let order=[1];for(;order.length<size;){const n=order.length*2;order=order.reduce((out,x)=>out.concat([x,n+1-x]),[])}return order}function generateBracket(players){const n=players.length;let size=2;for(;size<n;)size*=2;const rounds=Math.round(Math.log2(size)),matches=[];let id=0,firstOfRound=0;for(let r=1;r<=rounds;r++){const count=size>>r,firstOfNext=firstOfRound+count;for(let k=0;k<count;k++)matches.push({id:id++,round:r,p1:null,p2:null,winnerSlot:null,nextMatchId:r<rounds?firstOfNext+Math.floor(k/2):null,nextSlot:k%2===0?1:2});firstOfRound=firstOfNext}const order=tourneySeedOrder(size);for(let k=0;k<size/2;k++){const m=matches[k],a=order[2*k],b=order[2*k+1];m.p1=a<=n?players[a-1]:null,m.p2=b<=n?players[b-1]:null,tourneyEmpty(m.p1)!==tourneyEmpty(m.p2)&&(m.bye=!0,m.winnerSlot=tourneyEmpty(m.p1)?2:1)}return matches.filter(m=>m.bye).forEach(m=>{const next=matches.find(x=>x.id===m.nextMatchId);next&&(next["p"+m.nextSlot]=m.winnerSlot===1?m.p1:m.p2)}),matches}function tourneyRounds(){return Math.max(0,...(appState.tourney.matches||[]).map(m=>m.round))}function tourneyChampion(){const final=(appState.tourney.matches||[]).find(m=>m.nextMatchId===null&&m.round===tourneyRounds());return!final||final.winnerSlot===null?null:final.winnerSlot===1?final.p1:final.p2}function renderBracket(){const container=document.getElementById("tourney-bracket");if(!container)return;const T=appState.tourney,t=tourneyT(),rounds=tourneyRounds(),champion=tourneyChampion();let html="";champion!==null&&(html+=tourneyChampionHtml(champion,t)),(T.history||[]).length&&(html+=`<div class="mb-6">
+            <button type="button" class="btn btn--ghost btn--sm" onclick="undoTourneyResult()">↶ ${escapeHTML(t.tourney_undo||"رجّع آخر نتيجة")}</button>
+        </div>`);for(let r=1;r<=rounds;r++){const roundMatches=T.matches.filter(m=>m.round===r);html+=`<div class="mb-6"><h4 class="section__title" style="text-align:center; margin-bottom: var(--sp-3)">${escapeHTML(getRoundName(r,rounds))}</h4>`,roundMatches.forEach(m=>{if(m.bye){const name=m.winnerSlot===1?m.p1:m.p2;html+=`
+                <div class="tourney-match-card">
+                    <button type="button" class="bracket-btn winner" disabled>
+                        <span>${escapeHTML(name)}</span>
+                        <span class="badge badge--success">${escapeHTML(t.tourney_bye||"عدّى على طول")}</span>
+                    </button>
+                </div>`;return}const isReady=!tourneyEmpty(m.p1)&&!tourneyEmpty(m.p2)&&m.winnerSlot===null,cls=slot=>"bracket-btn"+(m.winnerSlot===slot?" winner":m.winnerSlot!==null?" loser":""),side=slot=>{const p=m["p"+slot];return`<button type="button" ${isReady?`onclick="setWinner(${m.id}, ${slot})"`:"disabled"} class="${cls(slot)}">
+                        <span>${tourneyEmpty(p)?"—":escapeHTML(p)}</span>
+                        ${m.winnerSlot===slot?"🏆":""}
+                    </button>`};html+=`
+            <div class="tourney-match-card">
+                ${side(1)}
+                <div class="eyebrow text-center my-1">${escapeHTML(appState.lang==="ar"?"ضد":"vs")}</div>
+                ${side(2)}
+            </div>`}),html+="</div>"}container.innerHTML=html}function tourneyChampionHtml(champion,t){const T=appState.tourney,rounds=tourneyRounds(),loserOf=m=>m.winnerSlot===1?m.p2:m.p1,final=T.matches.find(m=>m.round===rounds),semis=T.matches.filter(m=>m.round===rounds-1&&!m.bye&&m.winnerSlot!==null).map(loserOf).filter(p=>!tourneyEmpty(p)),board=[{pid:"c",name:champion,score:3},{pid:"r",name:loserOf(final),score:2}];semis.length&&board.push({pid:"s",name:semis.join(" · "),score:1});const podium=typeof renderPodium=="function"?renderPodium({code:"tourney",game:String(T.startedAt||"")},board).replace(/<span class="podium__score metric">\d+<\/span>/g,""):"";return`
+        <div class="card card--accent" style="text-align:center">
+            <div class="metric metric--md">🏆</div>
+            <div class="card__title">${escapeHTML(champion)}</div>
+            <p class="sheet__subtitle">${escapeHTML(t.tourney_champion||"البطل")}</p>
+            ${podium}
+            <div class="btn-stack" style="margin-top: var(--sp-4)">
+                <button type="button" class="btn btn--primary btn--lg" onclick="restartTournament()">${escapeHTML(t.tourney_again||"قرعة جديدة بنفس اللاعبين")}</button>
+            </div>
+        </div>`}function getRoundName(r,total){const t=tourneyT(),fromEnd=total-r;return fromEnd===0?t.tourney_final||"النهائي 🏆":fromEnd===1?t.tourney_semi||"نصف النهائي":fromEnd===2?t.tourney_quarter||"ربع النهائي":t.tourney_r16||"دور الـ16"}function setWinner(matchId,slot){const T=appState.tourney,match=tourneyMatch(matchId);if(!match||match.winnerSlot!==null||tourneyEmpty(match.p1)||tourneyEmpty(match.p2))return;match.winnerSlot=slot;const winnerName=slot===1?match.p1:match.p2;T.history=T.history||[],T.history.push(match.id);const nextMatch=match.nextMatchId!==null?tourneyMatch(match.nextMatchId):null;if(nextMatch&&(nextMatch["p"+tourneySlotOf(match)]=winnerName),saveToLocal(),renderBracket(),nextMatch)haptic("light");else{playSound("success"),haptic("heavy");const main=document.getElementById("shell-main");main&&(main.scrollTop=0);const cheer=()=>{typeof confetti=="function"&&!motionOff()&&confetti({particleCount:200,spread:100,origin:{y:.6}})},container=document.getElementById("tourney-bracket");typeof afterReveal=="function"?afterReveal(container,cheer):cheer()}}function undoTourneyResult(){const T=appState.tourney,id=(T.history||[]).pop();if(id===void 0)return;const match=tourneyMatch(id);if(!match){saveToLocal(),renderBracket();return}const next=match.nextMatchId!==null?tourneyMatch(match.nextMatchId):null;if(next){if(next.winnerSlot!==null){T.history.push(id);return}next["p"+tourneySlotOf(match)]=null}match.winnerSlot=null,saveToLocal(),haptic("medium"),renderBracket()}typeof onLanguageChange=="function"&&onLanguageChange(view=>{view==="play-tourney"&&(appState.tourney.matches||[]).length&&renderBracket()});

@@ -221,7 +221,10 @@ function domFeltHtml(state, opts) {
     </span>` : '';
   const empty = !table.line.length && s.phase === 'play'
     ? `<div class="dom-table__empty">${escapeHTML(s.turn ? domT('dom_waiting_lead', { name: domName(state, s.turn) }) : '')}</div>` : '';
+  // The chalk slate (900) lies on a free corner of the felt where the felt shows it (the TV, a laptop).
+  const slate = o.slate ? domSlateHtml(domSlateId(state), domSlateCols(state), 'felt', domCanMove()) : '';
   return `<div class="dom-felt ${o.small ? 'dom-felt--small' : ''}">
+      ${slate}
       ${bone || pill ? `<div class="dom-felt__top">${bone}${pill}</div>` : ''}
       <div class="dom-table" data-dom-table dir="ltr">${empty}</div>
       ${o.noLatest ? '' : domLatestHtml(state)}
@@ -390,21 +393,6 @@ function domOthers(state) {
   return [prev, across, next];
 }
 
-/* --- the scores ------------------------------------------------------------------ */
-
-/** The running totals in one line: every player, or the two sides; the target at the end. */
-function domScoreChips(state) {
-  const s = domShared(state);
-  const target = (s.settings || {}).target;
-  let units;
-  if (Array.isArray(s.teams)) {
-    units = s.teams.map((t, i) => `<span class="dom-chip dom-chip--team${i}">${escapeHTML(domTeamName(state, i))} <b class="metric">${(s.scores || {})[DOMINO_TEAM_KEYS[i]] || 0}</b></span>`);
-  } else {
-    units = domOrder(state).map(pid => `<span class="dom-chip ${pid === Room.me ? 'is-me' : ''}">${escapeHTML(domName(state, pid))} <b class="metric">${domScoreOf(s, pid)}</b></span>`);
-  }
-  return units.join('') + `<span class="dom-chip dom-chip--target">🎯 <b class="metric">${target || ''}</b></span>`;
-}
-
 /* --- the head ---------------------------------------------------------------------- */
 
 /** The round, the mode, teams and the clock, as badges; `target` adds the target (where no score chip says it). */
@@ -426,7 +414,9 @@ function domHeadHtml(state, target) {
 
 /** While a round is played the names and scores are one compact strip: the table gets the room (the owner, 21 Sep 2026). */
 function domStripHtml(state) {
-  return `<div class="dom-strip">${domHeadBits(state, false)}${domScoreChips(state)}</div>`;
+  // The scores are the chalk slate's now (900): the strip keeps the target.
+  const target = (domShared(state).settings || {}).target;
+  return `<div class="dom-strip">${domHeadBits(state, false)}<span class="dom-chip dom-chip--target">🎯 <b class="metric">${target || ''}</b></span></div>`;
 }
 
 /* --- this phone's hand and the bar -------------------------------------------------- */
@@ -696,9 +686,10 @@ function domPhoneFrame(state) {
       <div class="dom-layout">
         <div class="dom-top">
           ${domStripHtml(state)}
+          ${domSlateHtml(domSlateId(state), domSlateCols(state), 'strip', domCanMove())}
           <div class="dom-seats dom-seats--${others.length}" dir="ltr">${others.map(pid => domSeatHtml(state, pid)).join('')}</div>
         </div>
-        <div class="dom-layout__table">${domFeltHtml(state)}</div>
+        <div class="dom-layout__table">${domFeltHtml(state, { slate: true })}</div>
         <div class="dom-play">
           ${domMineHtml(state)}
           ${domBarHtml(state)}
@@ -826,7 +817,7 @@ function domResultFrame(state, tv) {
         <p class="dom-reveal__line is-shown">${escapeHTML(domResultLine(state))}</p>
       </div>` : reveal;
     return `<div class="dom-tvres ${over ? 'dom-tvres--over' : ''}">
-        <div class="dom-tvres__table">${r ? domFeltHtml(state, { noLatest: true }) : ''}</div>
+        <div class="dom-tvres__table">${r ? domFeltHtml(state, { noLatest: true, slate: true }) : ''}</div>
         <div class="dom-tvres__side">
           ${over ? domGameOverHtml(state, true) : ''}
           ${tvReveal}
@@ -840,8 +831,9 @@ function domResultFrame(state, tv) {
   return `<div class="dom dom--result">
       ${domHeadHtml(state, true)}
       ${over ? domGameOverHtml(state, false) : ''}
-      ${r ? domFeltHtml(state, { small: true, noLatest: true }) : ''}
+      ${r ? domFeltHtml(state, { small: true, noLatest: true, slate: true }) : ''}
       ${reveal}
+      ${domSlateHtml(domSlateId(state), domSlateCols(state), 'strip', domCanMove())}
       ${domTotalsHtml(state, animate)}
       ${over ? roomShareBtnHtml(state, s.board) : ''}
       ${over ? (state.youAreHost ? hostNext : wait) : roomMoveOnHtml(state, hostNext, wait)}
@@ -1335,6 +1327,7 @@ function domAfterDraw(root, state) {
   const held = new Set();
   if (moving) evs.forEach(e => { if (e.type === 'play' && e.tile) held.add(e.tile); });
   domLayoutTable(root, state, held);
+  domSlatePlace(root);
   const hand = ((state.you || {}).hand || []).slice();
   const handKey = state.code + '|' + (s.dealId || '');
   const handWas = domLocal.handKey === handKey ? domLocal.handWas : [];
@@ -1343,12 +1336,16 @@ function domAfterDraw(root, state) {
   let end = 0;
   if (moving && evs.length) end = domPlayEvents(root, state, evs, handWas);
   else if (evs.length && !quiet) domEventSounds(evs);
+  let slateAt = end;
   if (s.phase === 'roundOver' || s.phase === 'gameover') {
     const done = domRunReveal(root, state, end);
+    // The chalk draws the round's points as the totals count up.
+    slateAt = done ? done - 900 : 0;
     if (s.phase === 'gameover' && typeof confetti === 'function' && motionFirst(['dom-over', state.code, s.dealId || '', JSON.stringify(s.scores || {})].join('|'))) {
       domFx.timers.push(setTimeout(() => afterReveal(root, () => confetti({ particleCount: 160, spread: 90 })), Math.max(0, done)));
     }
   }
+  domSlateRun(root, slateAt, { quiet, sound: () => domSound('domChalk') });
 }
 
 /** With motion off: the sounds of what happened, once. */
@@ -1511,6 +1508,7 @@ window.addEventListener('resize', () => {
     if (!root || !root.querySelector('[data-dom-table]')) return;
     domSnapshot(root);
     domLayoutTable(root, st, null);
+    domSlatePlace(root);
   }, 140);
 });
 
@@ -1539,6 +1537,269 @@ if (typeof FX !== 'undefined') {
   });
 }
 
+/* --- «سبورة على الترابيزة» (the looks of 7 Oct 2026, second sheet: 900 أ) -------------------------
+   The points as a café keeps them: a small framed chalk slate, one column per side (a team or a
+   player), tally strokes in fives (four and a slash), the big number under each column. Points
+   added are drawn in stroke by stroke with a scratch of chalk, the number rising with them. On
+   the TV and a laptop the slate lies on a corner of the felt the tiles leave free (the table keeps
+   its size); on a phone it is the strip's score line; on one phone («على الطاولة») it stands over
+   the rows. What a slate has shown is kept per page (domSlate.seen), so a reload, a second look or
+   a late joiner draws it whole; motion off draws it whole too.
+   ------------------------------------------------------------------------------------------ */
+const DOM_SLATE_CAP = 300;              // strokes drawn at most a column (the number says the rest)
+const domSlate = { seen: {}, timers: [], fid: 0 };
+const DOM_SLATE_CSS = `
+.dom-slate { --slate-wood: #9a6b3f; --slate-wood-2: #5e3d20; --slate-board: #26302c; --slate-chalk: #f4f1e6; --slate-new: #fff3a6; pointer-events: none; }
+.dom-slate svg { display: block; width: 100%; height: 100%; overflow: visible; direction: ltr; }
+.dom-slate__frame { fill: var(--slate-wood); stroke: var(--slate-wood-2); stroke-width: 3; }
+.dom-slate__board { fill: var(--slate-board); }
+.dom-slate__smudge { fill: #fff; opacity: 0.07; }
+.dom-slate__rule { stroke: var(--slate-chalk); stroke-width: 2.4; opacity: 0.65; fill: none; }
+.dom-slate__name { fill: var(--slate-chalk); font-family: var(--font-display); font-weight: 800; }
+.dom-slate__name.is-me { text-decoration: underline; }
+.dom-slate__n { fill: var(--slate-chalk); font-family: var(--font-display); font-weight: 900; font-variant-numeric: tabular-nums; }
+.dom-slate__gain { fill: var(--slate-new); font-family: var(--font-display); font-weight: 900; }
+.dom-slate__s { stroke: var(--slate-chalk); stroke-linecap: round; fill: none; }
+.dom-slate__s.is-new { stroke: var(--slate-new); }
+.dom-slate__s.is-wait { opacity: 0; }
+.dom-slate__stick { fill: #ece7d4; stroke: #c9c1a6; stroke-width: 1; }
+/* On the felt (the TV, a laptop): a corner the tiles leave free. */
+.dom-slate--felt { display: none; position: absolute; z-index: 3; height: calc(min(46%, 20rem) * var(--slate-k, 1)); filter: drop-shadow(0 0.5rem 0.7rem rgba(0, 0, 0, 0.35)); transition: opacity 0.3s; }
+.dom-slate--felt.is-bl { left: 2.5%; bottom: 4%; rotate: -4deg; }
+.dom-slate--felt.is-br { right: 2.5%; bottom: 4%; rotate: 4deg; }
+.dom-slate--felt.is-tl { left: 2.5%; top: 4%; rotate: 3deg; }
+.dom-slate--felt.is-tr { right: 2.5%; top: 4%; rotate: -3deg; }
+.dom-slate--felt.is-crowded { opacity: 0.4; }
+.dom-tvres .dom-slate--felt.is-crowded { opacity: 0; }
+.dom-tv .dom-slate--felt, .dom-tvres .dom-slate--felt { display: block; height: calc(min(54%, 42vmin) * var(--slate-k, 1)); }
+.dom-tvres .dom-slate--felt { height: calc(min(46%, 36vmin) * var(--slate-k, 1)); }
+/* On a phone: the score line of the strip. */
+.dom-slate--strip { width: min(100%, var(--slate-w, 22rem)); margin-inline: auto; filter: drop-shadow(0 0.25rem 0.4rem rgba(0, 0, 0, 0.3)); }
+.dom--result > .dom-slate--strip { margin-block: var(--sp-1); }
+/* One phone («على الطاولة»): over the rows. */
+.dom-slate--table { width: min(100%, var(--slate-w, 17rem)); margin: 0 auto var(--sp-3); rotate: -1.5deg; filter: drop-shadow(0 0.5rem 0.7rem rgba(0, 0, 0, 0.3)); }
+@media (min-width: 900px) and (min-height: 501px) {
+  #view-room-domino .dom-layout .dom-slate--felt { display: block; }
+  #view-room-domino .dom-layout .dom-slate--strip { display: none; }
+}
+`;
+function domSlateStyleOn() {
+  if (document.getElementById('dom-slate-style')) return;
+  const st = document.createElement('style');
+  st.id = 'dom-slate-style';
+  st.textContent = DOM_SLATE_CSS;
+  document.body.appendChild(st);
+  if (typeof applyMotionPref === 'function') applyMotionPref();
+}
+domSlateStyleOn();
+
+/** The room's columns: the two sides, or every player in seat order. */
+function domSlateCols(state) {
+  const s = domShared(state);
+  if (Array.isArray(s.teams)) {
+    return s.teams.map((tm, i) => ({ key: DOMINO_TEAM_KEYS[i], name: domTeamName(state, i), score: (s.scores || {})[DOMINO_TEAM_KEYS[i]] || 0, team: i, me: tm.indexOf(Room.me) !== -1 }));
+  }
+  return domOrder(state).map(pid => ({ key: pid, name: domName(state, pid), score: domScoreOf(s, pid), team: -1, me: pid === Room.me }));
+}
+/** The room's slate: its id on this device (a TV and a phone keep their own memory). */
+const domSlateId = (state) => 'room:' + state.code + (state.youAreScreen ? ':tv' : ':ph');
+
+/** How the strokes of n points fill a box aw × ah: groups a row and their size, as big as fits. */
+function domSlateFit(n, aw, ah, maxGap) {
+  const g = Math.max(1, Math.ceil(n / 5));
+  let best = null;
+  for (let p = 1; p <= 14; p++) {
+    let gap = Math.min(maxGap, aw / p / 4.9);
+    const rows = Math.ceil(g / p);
+    const s = Math.min(1, ah / (rows * gap * 4.2));
+    gap *= s;
+    if (!best || gap > best.gap + 0.01) best = { p, gap };
+  }
+  return { p: best.p, gap: best.gap, h: best.gap * 2.9, rowH: best.gap * 4.2 };
+}
+
+/**
+ * The slate's markup. `cols` [{ key, name, score, team, me }] in seat order; `kind` 'felt'
+ * (the TV, a laptop), 'strip' (a phone) or 'table' (one phone). Points this slate hasn't shown
+ * yet (more than domSlate.seen[id] remembers) are drawn waiting, for domSlateRun to chalk in.
+ */
+function domSlateHtml(id, cols, kind, anim) {
+  const n = cols.length || 1;
+  const strip = kind === 'strip';
+  const colW = strip ? (n <= 2 ? 160 : n === 3 ? 112 : 88) : (n <= 2 ? 120 : n === 3 ? 104 : 92);
+  const H = strip ? 124 : kind === 'table' ? 300 : 330;
+  const pad = 12;
+  const W = pad * 2 + colW * n;
+  const nameY = strip ? 30 : 40, nameF = strip ? 14 : 17;
+  const ruleY = strip ? 38 : 52;
+  const y0 = ruleY + (strip ? 6 : 10), y1 = H - (strip ? 40 : 62);
+  const numY = H - (strip ? 14 : 24), numF = strip ? 24 : 34;
+  const seen = domSlate.seen[id] || {};
+  const rtl = appState.lang !== 'en';
+  const fid = 'domChalk' + (++domSlate.fid);
+  let body = '';
+  let waiting = 0;
+  cols.forEach((c, i) => {
+    const x = pad + (rtl ? n - 1 - i : i) * colW;
+    const score = Math.max(0, Number(c.score) || 0);
+    const was = seen[c.key];
+    const from = anim && was !== undefined ? Math.min(Math.max(0, was), score) : score;
+    const drawn = Math.min(score, DOM_SLATE_CAP);
+    const fit = domSlateFit(Math.max(drawn, 5), colW - 16, y1 - y0, strip ? 6 : 9);
+    const sw = Math.max(1.3, fit.gap * 0.42).toFixed(2);
+    let strokes = '';
+    for (let k = 0; k < drawn; k++) {
+      const g = Math.floor(k / 5), q = k % 5;
+      const gx = x + 8 + fit.gap * 0.6 + (g % fit.p) * fit.gap * 4.9;
+      const gy = y0 + Math.floor(g / fit.p) * fit.rowH;
+      const wob = (((k * 37) % 7) - 3) * 0.12 * fit.gap;
+      let ax, ay, bx, by;
+      if (q < 4) { ax = gx + q * fit.gap + wob * 0.3; ay = gy + wob * 0.3; bx = ax + wob * 0.5; by = gy + fit.h; }
+      else { ax = gx - fit.gap * 0.45; ay = gy + fit.h * 0.78; bx = gx + fit.gap * 3.45; by = gy + fit.h * 0.18; }
+      const len = Math.hypot(bx - ax, by - ay);
+      const deg = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
+      const fresh = k >= from;
+      if (fresh) waiting++;
+      strokes += `<g transform="translate(${ax.toFixed(1)} ${ay.toFixed(1)}) rotate(${deg.toFixed(1)})"><line x2="${len.toFixed(1)}" class="dom-slate__s${fresh ? ' is-new is-wait' : ''}" data-col="${i}" stroke-width="${sw}"/></g>`;
+    }
+    const cx = x + colW / 2;
+    const maxCh = Math.max(4, Math.floor((colW - 10) / (nameF * (rtl ? 0.56 : 0.68))));
+    const name = String(c.name || '').length > maxCh ? String(c.name).slice(0, maxCh - 1) + '…' : String(c.name || '');
+    body += `<text x="${cx}" y="${nameY}" text-anchor="middle" direction="${rtl ? 'rtl' : 'ltr'}" font-size="${nameF}" class="dom-slate__name${c.me ? ' is-me' : ''}">${escapeHTML(name)}</text>
+      ${strokes}
+      <text x="${cx}" y="${numY}" text-anchor="middle" font-size="${numF}" class="dom-slate__n" data-slate-n="${i}" data-from="${from}" data-to="${score}">${from}</text>
+      ${score > from ? `<text x="${cx + numF * 1.25}" y="${numY - numF * 0.55}" text-anchor="middle" font-size="${numF * 0.46}" class="dom-slate__gain">+${score - from}</text>` : ''}`;
+    if (i > 0) {
+      const lx = pad + (rtl ? n - i : i) * colW;
+      body += `<path d="M${lx} ${pad + 10}V${H - pad - (strip ? 8 : 40)}" class="dom-slate__rule"/>`;
+    }
+  });
+  const scores = {};
+  cols.forEach(c => { scores[c.key] = Math.max(0, Number(c.score) || 0); });
+  const label = cols.map(c => `${c.name}: ${c.score}`).join('، ');
+  return `<div class="dom-slate dom-slate--${kind}" data-dom-slate="${escapeHTML(id)}" data-scores="${escapeHTML(JSON.stringify(scores))}" data-waiting="${waiting}" style="aspect-ratio:${W} / ${H};--slate-w:${(W / 16 * (kind === 'table' ? 0.78 : 1)).toFixed(1)}rem" role="img" aria-label="${escapeHTML(label)}">
+    <svg viewBox="0 0 ${W} ${H}" aria-hidden="true" focusable="false" dir="ltr">
+      <defs><filter id="${fid}" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="1.8"/></filter></defs>
+      <rect x="1.5" y="1.5" width="${W - 3}" height="${H - 3}" rx="${strip ? 10 : 14}" class="dom-slate__frame"/>
+      <rect x="${pad}" y="${pad}" width="${W - pad * 2}" height="${H - pad * 2}" rx="6" class="dom-slate__board"/>
+      <ellipse cx="${W * 0.3}" cy="${H * 0.45}" rx="${W * 0.2}" ry="${H * 0.08}" class="dom-slate__smudge"/><ellipse cx="${W * 0.72}" cy="${H * 0.7}" rx="${W * 0.16}" ry="${H * 0.06}" class="dom-slate__smudge"/>
+      <g filter="url(#${fid})">
+        <path d="M${pad + 8} ${ruleY}H${W - pad - 8}" class="dom-slate__rule"/>
+        ${body}
+      </g>
+      <rect x="${W * 0.62}" y="${H - 10}" width="${strip ? 26 : 38}" height="${strip ? 7 : 10}" rx="3" class="dom-slate__stick" transform="rotate(-6 ${W * 0.62} ${H - 10})"/>
+    </svg></div>`;
+}
+
+/** Every slate in `root` gets to where it ends: all strokes, the numbers; and is remembered. */
+function domSlateSettle(box) {
+  box.querySelectorAll('.dom-slate__s.is-wait').forEach(l => l.classList.remove('is-wait'));
+  box.querySelectorAll('[data-slate-n]').forEach(t => { t.textContent = t.getAttribute('data-to'); });
+}
+
+/**
+ * The new strokes chalked in, one by one after `delay` ms, each with its scratch, the number
+ * under its column counting with them. Quiet (a reload, the lock screen, motion off, a hidden
+ * slate): all at once. `sound` plays the scratch (the voice of the room, or the one phone).
+ */
+function domSlateRun(root, delay, opts) {
+  const o = opts || {};
+  domSlate.timers.forEach(clearTimeout);
+  domSlate.timers = [];
+  if (!root) return 0;
+  let longest = 0;
+  root.querySelectorAll('[data-dom-slate]').forEach(box => {
+    const id = box.getAttribute('data-dom-slate');
+    try { domSlate.seen[id] = JSON.parse(box.getAttribute('data-scores') || '{}'); } catch (e) { /* keeps the last */ }
+    const lines = Array.from(box.querySelectorAll('.dom-slate__s.is-wait'));
+    if (!lines.length) return;
+    const visible = box.getClientRects().length > 0;
+    if (o.quiet || !visible || motionOff() || !document.body.animate) { domSlateSettle(box); return; }
+    const dt = Math.max(40, Math.min(120, Math.round(1500 / lines.length)));
+    const counts = {};
+    const later = (ms, fn) => domSlate.timers.push(setTimeout(() => { try { fn(); } catch (e) { console.warn('domino slate', e); } }, ms));
+    lines.forEach((l, j) => {
+      const col = l.getAttribute('data-col');
+      later((delay || 0) + j * dt, () => {
+        l.classList.remove('is-wait');
+        l.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: Math.max(80, Math.round(dt * 1.4)), easing: 'ease-out' });
+        counts[col] = (counts[col] || 0) + 1;
+        const num = box.querySelector(`[data-slate-n="${col}"]`);
+        if (num) num.textContent = String(Math.min(Number(num.getAttribute('data-to')), Number(num.getAttribute('data-from')) + counts[col]));
+        if (o.sound && (dt >= 70 || j % 2 === 0)) o.sound();
+      });
+    });
+    const end = (delay || 0) + lines.length * dt + 200;
+    later(end, () => domSlateSettle(box));
+    longest = Math.max(longest, end);
+  });
+  return longest;
+}
+
+/**
+ * A slate on the felt takes the first corner no tile, pile or line is under: the bottom one
+ * on the reading side's far end first (where the sheet put it), then the others; with no
+ * corner free, the least covered, faded so the tiles show through.
+ */
+function domSlatePlace(root) {
+  if (!root) return;
+  root.querySelectorAll('.dom-slate--felt').forEach(sl => {
+    if (!sl.getClientRects().length) return;
+    const felt = sl.closest('.dom-felt');
+    if (!felt) return;
+    const boxes = [];
+    const line = felt.querySelector('.dom-line');
+    if (line) {
+      const lr = line.getBoundingClientRect();
+      line.querySelectorAll('.dom-ttile').forEach(t => {
+        const l = lr.left + t.offsetLeft, tp = lr.top + t.offsetTop;
+        boxes.push({ left: l, top: tp, right: l + t.offsetWidth, bottom: tp + t.offsetHeight });
+      });
+    }
+    felt.querySelectorAll('.dom-felt__top > *, .dom-table__empty').forEach(x => boxes.push(x.getBoundingClientRect()));
+    const latest = felt.querySelector('.dom-latest');
+    if (latest && latest.textContent.trim()) {
+      const range = document.createRange();
+      range.selectNodeContents(latest);
+      boxes.push(range.getBoundingClientRect());
+    }
+    // The TV's join corner (the code and its QR) sits over the felt's foot on the reading side's far end.
+    document.querySelectorAll('#view-room-tv .tv-corner').forEach(x => { if (x.getClientRects().length) boxes.push(x.getBoundingClientRect()); });
+    const corners = appState.lang === 'en' ? ['is-bl', 'is-br', 'is-tl', 'is-tr'] : ['is-br', 'is-bl', 'is-tr', 'is-tl'];
+    const overlap = () => {
+      const r = sl.getBoundingClientRect();
+      return boxes.reduce((sum, b) => {
+        const w = Math.min(r.right, b.right + 4) - Math.max(r.left, b.left - 4);
+        const h = Math.min(r.bottom, b.bottom + 4) - Math.max(r.top, b.top - 4);
+        return sum + (w > 0 && h > 0 ? w * h : 0);
+      }, 0);
+    };
+    // Its full size first at every corner, then smaller (a crowded table at a round's end).
+    let pick = null, least = Infinity;
+    search: for (const k of [1, 0.8, 0.62]) {
+      sl.style.setProperty('--slate-k', k);
+      for (const c of corners) {
+        sl.classList.remove('is-bl', 'is-br', 'is-tl', 'is-tr');
+        sl.classList.add(c);
+        const o = overlap();
+        if (o === 0) { pick = [c, k]; least = 0; break search; }
+        if (o < least) { least = o; pick = [c, k]; }
+      }
+    }
+    sl.classList.remove('is-bl', 'is-br', 'is-tl', 'is-tr');
+    sl.classList.add(pick ? pick[0] : corners[0]);
+    sl.style.setProperty('--slate-k', pick ? pick[1] : 1);
+    sl.classList.toggle('is-crowded', least > 0);
+  });
+}
+
+/** The chalk's scratch: a short bright hiss. */
+if (typeof FX !== 'undefined') {
+  FX.domChalk = (at) => {
+    fxNoise('bandpass', 3600 + Math.random() * 1200, 2.2, [[0, 0], [0.004, 0.05], [0.05, 0.001]], at);
+  };
+}
+
 /* --- the TV ---------------------------------------------------------------------------------- */
 
 /**
@@ -1558,7 +1819,7 @@ function domTvTable(state, t) {
         ${turn ? `<div class="dom-tv__turn">${escapeHTML(turn)}</div>` : ''}
         <span data-dom-host class="dom-tv__host"></span>
       </div>
-      ${domFeltHtml(state)}
+      ${domFeltHtml(state, { slate: true })}
     </div>`;
 }
 

@@ -20,7 +20,7 @@ const TURN_AWAY_MS = 8000;     // a glance at another app is not being away
 const TURN_WAIT_MS = 8000;     // how long to wait for the room to catch up
 const TURN_BANNER_MS = 5000;
 
-const roomTurn = { hiddenAt: 0, wakeAt: 0, timer: null, bannerTimer: null, title: '', titled: false };
+const roomTurn = { hiddenAt: 0, wakeAt: 0, timer: null, bannerTimer: null, title: '', titled: false, shown: '', clock: null };
 
 /**
  * What the game is waiting for this phone to do, as a translation key, or null.
@@ -257,6 +257,17 @@ function roomTurnOf(state) {
   return null;
 }
 
+/* «دورك!» with its clock (the ideas of 7 Oct 2026, 1305): when the move waited for has a deadline
+   (shared.endsAt, or the vote's own endsAt), the banner says «فاضل ١٢ث», drains a thin bar (one
+   linear transform animation to the deadline) and stays until the turn passes or the time is up,
+   instead of its fixed 5 s. Read by the server's clock (roomServerNow). A turn with no clock keeps
+   the 5 s; either way the banner goes as soon as the room no longer waits on this phone. */
+function roomTurnEndsAt(state, key) {
+  const s = (state && state.shared) || {};
+  const at = Number(key === 'turn_vote' && s.vote && s.vote.endsAt ? s.vote.endsAt : s.endsAt) || 0;
+  return at && typeof roomServerNow === 'function' && at - roomServerNow() > 1000 ? at : 0;
+}
+
 function showTurnBanner(key) {
   const el = document.getElementById('turn-banner');
   if (!el) return;
@@ -272,14 +283,45 @@ function showTurnBanner(key) {
   playSound('success');
   haptic('medium');
   clearTimeout(roomTurn.bannerTimer);
-  roomTurn.bannerTimer = setTimeout(hideTurnBanner, TURN_BANNER_MS);
+  turnBannerClockStop();
+  roomTurn.shown = key;
+  const endsAt = roomTurnEndsAt(Room.state, key);
+  el.classList.toggle('has-clock', !!endsAt);
+  if (!endsAt) { roomTurn.bannerTimer = setTimeout(hideTurnBanner, TURN_BANNER_MS); return; }
+  const ms = endsAt - roomServerNow();
+  const left = document.getElementById('turn-banner-left');
+  roomTurn.clock = createClock({
+    ms: ms,
+    keepRunning: true,                    // the banner floats over whatever screen this phone is on
+    onTick: (v) => { if (left) left.textContent = (t.turn_left || '{n}').replace('{n}', String(v)); },
+    onEnd: hideTurnBanner
+  });
+  const bar = document.getElementById('turn-banner-bar');
+  if (bar && bar.animate) {
+    if (roomTurn.barAnim) roomTurn.barAnim.cancel();
+    roomTurn.barAnim = bar.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
+      { duration: Math.max(0, ms), easing: 'linear', fill: 'forwards' });
+  }
+}
+
+function turnBannerClockStop() {
+  if (roomTurn.clock) roomTurn.clock.stop();
+  roomTurn.clock = null;
+  if (roomTurn.barAnim) { roomTurn.barAnim.cancel(); roomTurn.barAnim = null; }
 }
 
 function hideTurnBanner() {
   clearTimeout(roomTurn.bannerTimer);
+  turnBannerClockStop();
+  roomTurn.shown = '';
   const el = document.getElementById('turn-banner');
   if (el) el.hidden = true;
 }
+
+// The turn passed (played, timed out, the game moved on, the room left): the banner goes with it.
+if (typeof Room !== 'undefined' && Room.onChange) Room.onChange((state) => {
+  if (roomTurn.shown && (!state || roomTurnOf(state) !== roomTurn.shown)) hideTurnBanner();
+});
 
 /** The banner takes you to the room if you had wandered off to another screen. */
 function turnBannerTap() {

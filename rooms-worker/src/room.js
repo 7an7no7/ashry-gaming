@@ -306,12 +306,14 @@ export class Room extends DurableObject {
     if (!room || !room.code || !stub) return;
     const online = this.onlineIds(except);
     const players = room.players.filter((p) => online.has(p.id)).length;
+    // The game being played (not one waiting in the lobby), for «أكتر لعبة شغالة» (1275): its id only.
+    const game = room.game && room.phase !== 'lobby' ? String(room.game) : '';
     const now = Date.now();
     const last = this.lastLive;
-    if (last && last.players === players && now - last.at < LIVE_REFRESH_MS) return;
-    this.lastLive = { players, at: now };
+    if (last && last.players === players && last.game === game && now - last.at < LIVE_REFRESH_MS) return;
+    this.lastLive = { players, game, at: now };
     try {
-      await stub.report(room.code, players);
+      await stub.report(room.code, players, game);
     } catch (e) {
       this.lastLive = null;   // try again on the next change
     }

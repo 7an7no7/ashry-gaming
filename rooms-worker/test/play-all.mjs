@@ -2477,8 +2477,22 @@ async function coreSeg() {
   /* --- الجاسوس ------------------------------------------------------------ */
   console.log('• imposter');
   await all(bots, (s) => s.game === 'imposter', 'imposter chosen');
+  // The host's folded options as one line on every phone (1283).
+  check((await B.act('lobbySum', { game: 'imposter', text: 'x' })).ok === false, 'only the host sends the options line');
+  await A.must('lobbySum', { game: 'imposter', text: 'جاسوس واحد · حيوانات' });
+  await all(bots, (s) => s.lobbySum === 'جاسوس واحد · حيوانات', 'every phone reads the host\'s options line');
   await A.must('start', { category: 'حيوانات', spies: 1 });
   await all(bots, (s) => s.phase === 'reveal' && s.you, 'imposter dealt');
+  check(bots.every((b) => b.state.lobbySum === ''), 'the options line is gone once the game is dealt');
+  // «أكتر لعبة شغالة» (1275): the live count names the game played most, by its id only.
+  let liveTop = null;
+  for (const until = Date.now() + 20000; Date.now() < until;) {
+    liveTop = await fetch(BASE + '/live').then((r) => r.json()).catch(() => null);
+    if (liveTop && liveTop.ok && liveTop.top) break;
+    await sleep(1000);
+  }
+  check(liveTop && liveTop.top && /^[a-z0-9-]+$/.test(liveTop.top.game) && liveTop.top.players >= 1 &&
+    !JSON.stringify(liveTop).includes(A.code), 'the live count says which game is played most, by id, naming no room');
   const spies = bots.filter((b) => b.state.you.role === 'spy');
   const players = bots.filter((b) => b.state.you.role === 'player');
   check(spies.length === 1 && players.length === 3, 'one spy, three players');

@@ -518,6 +518,9 @@ const runRoomBot = (room) => {
  */
 const ROOM_RULES = {};
 
+/** The longest line of the host's options a room keeps (lobbySum, 1283). */
+const LOBBY_SUM_MAX = 120;
+
 /** How many of the night's games a room remembers for «لعبناها» (room.played, sent to every phone). */
 const ROOM_PLAYED_KEEP = 60;
 
@@ -628,6 +631,20 @@ const applyRoomAction = (room, playerId, action, payload) => {
     return;
   }
 
+  // The host's folded options as one line for everyone else (the ideas of 7 Oct 2026, 1283): what the
+  // host's phone shows over its options, kept for the game chosen and sent to every phone (lobbySum).
+  // Only text, and only while that game waits in the lobby; a line for a game no longer chosen is dropped.
+  if (action === 'lobbySum') {
+    requireHost(room, playerId);
+    const game = String((payload && payload.game) || '');
+    if (room.phase !== 'lobby' || !room.game || game !== room.game) return;
+    const raw = String((payload && payload.text) || '');
+    const text = Array.from(raw).map(ch => (ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127 ? ' ' : ch)).join('')
+      .replace(/\s+/g, ' ').trim().slice(0, LOBBY_SUM_MAX);
+    room.lobbySum = text ? { game: game, text: text } : null;
+    return;
+  }
+
   // The host sits a computer player down, takes one out, or changes its level.
   if (roomBotAction(room, playerId, action, payload)) return;
 
@@ -644,6 +661,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     clearGameState(room);
     room.game = game;
     room.phase = 'lobby';
+    room.lobbySum = null;   // the host's phone sends the new game's line (1283)
     // Bots play only the games that know how; the ones parked come back for those.
     if (ROOM_BOT_GAMES[game]) unparkRoomBots(room); else parkRoomBots(room);
 

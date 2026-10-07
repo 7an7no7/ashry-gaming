@@ -242,8 +242,13 @@ function renderRoomTv(state) {
   } else if (game && game.after) {
     game.after(state, rebuilt);
   }
+  // A non-host stage left alone in the hub takes turns at the QR, the table and the faces (1293).
+  tvIdleSync(el, state, lobby);
 }
 
+/* The theme button is off the lobby's bar (the ideas of 7 Oct 2026, 1291): the lobby is a stage that
+   is always dark (the owner, 3 Oct 2026), so 🌓 there changed nothing anyone could see; it is back on
+   the bar for every game. The bar is part of the frame, whose signature carries the phase. */
 function tvBar(state, t) {
   const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
   const title = entry
@@ -263,7 +268,7 @@ function tvBar(state, t) {
         ${state.phase !== 'lobby' && state.game && state.youAreHost ? icon('🏠', t.room_another_game || t.exit_room_change, 'tvBackToHub()') : ''}
         ${icon('❔', t.help || 'Help', 'openHelpModal()')}
         ${icon('🌐', t.tv_language, 'toggleLanguage()')}
-        ${icon('🌓', t.tv_theme, 'toggleDarkMode()')}
+        ${state.phase === 'lobby' ? '' : icon('🌓', t.tv_theme, 'toggleDarkMode()')}
         ${icon('⛶', t.tv_fullscreen, 'toggleTvFullscreen()')}
         ${icon('✕', t.room_leave, 'roomLeave()', 'tv-icon--leave')}
       </div>
@@ -499,6 +504,72 @@ function tvHowToHtml(state, t) {
       </section>`;
 }
 
+/* An idle stage cycles (the ideas of 7 Oct 2026, 1293): when the hub has sat TV_IDLE_MS with nothing
+   happening (nobody in or out, no game picked, no points banked), the stage of a TV that isn't the
+   host slowly takes turns at the big QR, the night's full table (when anyone has points) and the faces,
+   TV_IDLE_STEP_MS each, so the TV in the corner keeps saying something. Any change starts the wait
+   again; presence alone doesn't count. Opacity and transform only (data-idle on the stage, section
+   of Style_Talk.html), held across the frame's rebuilds. */
+const TV_IDLE_MS = 120000;
+const TV_IDLE_STEP_MS = 12000;
+const tvIdle = { key: '', at: 0, timer: 0, step: -1 };
+
+function tvIdleTableHtml(state, t) {
+  const rows = (typeof roomNightRows === 'function' ? roomNightRows(state) : []).filter(r => r.score > 0).slice(0, 10);
+  if (!rows.length) return '';
+  const medals = ['🥇', '🥈', '🥉'];
+  return `
+      <section class="tv-show__table" aria-hidden="true">
+        <h2 class="tv-h">🌙 ${escapeHTML(t.room_night_title || '')}</h2>
+        <ol class="tv-show__rank">${rows.map((r, i) => `
+          <li class="tv-show__row${r.left ? ' is-left' : ''}"><span class="tv-show__place" aria-hidden="true">${medals[i] || `<span class="metric">${i + 1}</span>`}</span><bdi class="tv-show__who">${escapeHTML(r.name)}${r.left ? ` (${escapeHTML(t.room_night_left || '')})` : ''}</bdi><b class="tv-show__pts metric">${r.score}</b></li>`).join('')}</ol>
+      </section>`;
+}
+
+function tvIdleStop() {
+  clearTimeout(tvIdle.timer);
+  tvIdle.timer = 0;
+  tvIdle.key = '';
+  tvIdle.step = -1;
+}
+
+function tvIdleSync(view, state, lobby) {
+  const stage = view && view.querySelector('.tv-lobby--stage');
+  const on = lobby && !!stage && !state.youAreHost && !state.game;
+  if (!on) { tvIdleStop(); return; }
+  const key = [state.code, state.phase, (state.players || []).map(p => p.id + ':' + p.name).join(','),
+    JSON.stringify(state.night || {}), (state.played || []).length].join('|');
+  if (key !== tvIdle.key) {
+    tvIdleStop();
+    tvIdle.key = key;
+    tvIdle.at = Date.now();
+    delete stage.dataset.idle;
+    tvIdle.timer = setTimeout(tvIdleTick, TV_IDLE_MS);
+    return;
+  }
+  tvIdlePaint(stage);                     // a rebuilt frame keeps the step it was on
+}
+
+function tvIdleSteps(stage) {
+  return stage.querySelector('.tv-show__table') ? ['qr', 'table', 'faces'] : ['qr', 'faces'];
+}
+
+function tvIdlePaint(stage) {
+  if (tvIdle.step < 0) { delete stage.dataset.idle; return; }
+  const steps = tvIdleSteps(stage);
+  const want = steps[tvIdle.step % steps.length];
+  if (stage.dataset.idle !== want) stage.dataset.idle = want;
+}
+
+function tvIdleTick() {
+  tvIdle.timer = 0;
+  const stage = appState.currentView === 'room-tv' && document.querySelector('#view-room-tv .tv-lobby--stage');
+  if (!stage || !tvIdle.key) { tvIdleStop(); return; }
+  tvIdle.step++;
+  tvIdlePaint(stage);
+  tvIdle.timer = setTimeout(tvIdleTick, TV_IDLE_STEP_MS);
+}
+
 function tvLobby(state, t) {
   const url = roomJoinUrl(state.code);
   const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
@@ -561,6 +632,7 @@ function tvLobby(state, t) {
       ${how ? `<div class="tv-show__pair">${chosen}${how}</div>` : chosen}
       <div class="tv-show__faces">${state.players.map(tile).join('')}</div>
       <p class="tv-show__wait">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</p>
+      ${state.game ? '' : tvIdleTableHtml(state, t)}
     </div>`;
     }
   } else if (!state.game) {

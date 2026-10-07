@@ -2080,6 +2080,27 @@ body.is-tv-view .hm-misses i { width: 1.4vmin; height: 1.4vmin; border-width: 0.
 .tv-lobby--stage .tv-lobby__game { max-width: min(90%, 60rem); }
 .tv-show__wait { margin: 0; font-size: var(--tv-sm); font-weight: 700; color: var(--text-2); }
 #view-room-tv:has(.tv-lobby--stage) .tv-strip { display: none; }
+/* An idle stage cycles (1293, tvIdleSync in JS_RoomTv.html): the big QR, the night's full table, the
+   faces, one at a time, the rest faded back. Opacity and transform only. */
+.tv-lobby.tv-lobby--stage { position: relative; }
+.tv-lobby--stage > * { transition: opacity 900ms var(--ease-out), transform 900ms var(--ease-out); }
+.tv-lobby--stage[data-idle] > :not(.tv-show__table) { opacity: 0.08; }
+.tv-lobby--stage[data-idle="qr"] > .tv-show__mid { opacity: 1; transform: scale(1.3); }
+.tv-lobby--stage[data-idle="faces"] > .tv-show__faces { opacity: 1; transform: translateY(-22vmin) scale(1.25); }
+.tv-show__table {
+  position: absolute; inset: 0; margin: auto; width: min(72%, 64rem); height: fit-content; max-height: 92%;
+  display: grid; justify-items: center; gap: 2vmin; padding: 3vmin 4vmin; border-radius: var(--tv-r);
+  background: var(--surface-solid); box-shadow: 0 3vmin 6vmin -2vmin rgba(0, 0, 0, 0.6);
+  opacity: 0; transform: scale(0.94); pointer-events: none; overflow: hidden;
+}
+.tv-lobby--stage[data-idle="table"] > .tv-show__table { opacity: 1; transform: none; }
+.tv-show__rank { width: 100%; margin: 0; padding: 0; list-style: none; display: grid; gap: 1.2vmin; }
+.tv-show__row { display: flex; align-items: center; gap: 2vmin; font-size: var(--tv-md); font-weight: 800; color: var(--text-strong); }
+.tv-show__row.is-left { opacity: 0.55; }
+.tv-show__place { width: 6vmin; text-align: center; flex-shrink: 0; }
+.tv-show__who { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-show__pts { flex-shrink: 0; color: var(--accent-ink); }
+@media (prefers-reduced-motion: reduce) { .tv-lobby--stage > * { transition: none; } }
 @media (prefers-reduced-motion: reduce) {
   .tv-lobby--stage .tv-lobby__player.is-new, .tv-lobby--stage .tv-lobby__player.is-new .tv-lobby__avatar { animation: none; }
 }

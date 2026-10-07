@@ -79,6 +79,22 @@ room moving on (`onRoomClocksReset`), cancels whatever is being said.
 **The TV at night shows a count, not names** (the review of 1 Oct 2026): «✓ 3/5»
 instead of a chip per player - the names still waiting were the roles still deciding.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **538 The out players see everything** - the owner: a lobby switch, **on by default**. «اللي يخرج يتفرج على كل
+  حاجة» (`mafia_outsee`, remembered on the host's phone in `ashryMafiaOpts.outSee`, sent as `outSee` in the start
+  payload; the server's `shared.outSee`, an older phone that sends nothing keeps the last game's, else on).
+  While it is on, a player of the roster who is out (not in `alive`, game not over) gets `you.spectate` in their
+  own slice (`mafiaSpectating`, `mafiaSpectateView` in `RoomMafia.js`, written by `mafiaWriteSecrets`, so it is
+  fresh after every night tap): every real role `{ id, name, role, alive }`, and at night the picks so far
+  (the Mafia's `by ← name`, the Doctor's save, the Detective's check and its answer, every suspect). Silent: the
+  ballot was already the living only; `chat` throws and `cheer` is dropped for them (`mafiaSilenced`, one line in
+  each in `rooms/RoomGames.js`). The phone (`JS_RoomMafia.html`): the out note says «… شايف كل حاجة. خليك ساكت»
+  and a «أدوار الكل» card with the night's picks (`mafiaSpectateHtml`), refreshed in place
+  (`refreshMafiaSpectate`), so a pick at night is no rebuild; on the night, the day, the vote and the result.
+  The TV is unchanged. Help rule added. Tests: `rules.mjs` (both switch states: who watches, roles, picks, chat,
+  vote), a leak probe (`leaks.mjs`: only an out player of the roster, with the switch on, holds `you.spectate`).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

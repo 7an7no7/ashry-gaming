@@ -47,9 +47,9 @@ gameText({
       fakeartist: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>الكل بيرسم نفس الحاجة على لوحة واحدة، كل واحد بلونه، إلا <b>الفنان المزيف</b> اللي مش عارف الكلمة. هو بيعرف <b>الفئة</b> بس (حيوانات، أكل، مواصلات…).</li>
-                <li>كل واحد بالدور يرسم <b>خط واحد متصل</b> بس، وبعدين اللي بعده. جولتين لكل واحد.</li>
+                <li>كل واحد بالدور يرسم <b>خط واحد متصل</b> بس، والباقيين بيتفرجوا عليه وهو بيترسم، وبعدين اللي بعده. جولتين لكل واحد.</li>
                 <li>ارسم جزء يوضّح إنك عارف، من غير ما توضّح الرسمة كلها للمزيف.</li>
-                <li>صوّتوا على المزيف. لو اتمسك، عنده فرصة يخمّن الكلمة ويسرق الفوز. لو الأصوات اتعادلت، بيهرب.</li>
+                <li>صوّتوا على المزيف. لو اتمسك، عنده فرصة يخمّن الكلمة ويسرق الفوز. لو الأصوات اتعادلت، بيهرب. ومحدش يصوّت لنفسه.</li>
                 <li>المضيف يقدر يتخطى دور حد النت فصل عنده.</li>
             </ol>`,
     },
@@ -57,9 +57,9 @@ gameText({
       fakeartist: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Everyone draws the same thing on one canvas, each in their own colour, except the <b>fake artist</b>, who doesn't know the word: only its <b>category</b> (animals, food, transport…).</li>
-                <li>In turn, each player draws <b>one continuous line</b>, then the next. Two rounds each.</li>
+                <li>In turn, each player draws <b>one continuous line</b> while the others watch it grow, then the next. Two rounds each.</li>
                 <li>Draw enough to show you know, not enough to show the fake the whole picture.</li>
-                <li>Vote on the fake. If caught, they get a chance to guess the word and steal the win. A tied vote lets them escape.</li>
+                <li>Vote on the fake. If caught, they get a chance to guess the word and steal the win. A tied vote lets them escape. Nobody votes for themselves.</li>
                 <li>The host can skip the turn of anyone who has dropped off.</li>
             </ol>`,
     }

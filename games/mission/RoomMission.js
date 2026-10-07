@@ -72,6 +72,14 @@ const missionPickTarget = (room, pid, avoid) => {
 /** A mission id for this room's place and company, fresh across rooms, not `avoid`. */
 const missionPickId = (room, avoid) => {
   const m = room.mission;
+  // «قول الكلمة» (idea 557): now and then a word from the drawing words, fresh across rooms too.
+  const words = typeof DRAW_WORDS !== 'undefined' && DRAW_WORDS[m.lang === 'en' ? 'en' : 'ar'];
+  if (words && words.length && Math.random() < MISSION_WORD_SHARE) {
+    const key = 'mission_word_' + (m.lang === 'en' ? 'en' : 'ar');
+    let w = nextPrompt(room, words, key);
+    if (MISSION_WORD_PREFIX + w === avoid) w = nextPrompt(room, words, key);
+    if (w) return MISSION_WORD_PREFIX + w;
+  }
   const pool = missionPool(m.place, m.co);
   if (!pool.length) throw new Error('مفيش مهمات للمكان ده');
   const taken = {};
@@ -190,15 +198,17 @@ const missionAction = (room, pid, action, payload) => {
     const swap = p.swap === undefined ? !(room.mission && room.mission.swap === false) : !!p.swap;
     const catchOn = p.catch === undefined ? !(room.mission && room.mission.catch === false) : !!p.catch;
     const on = p.on === undefined ? !!(room.mission && room.mission.on) : !!p.on;
+    // The language the word missions are dealt in (idea 557): the host's games' language; an older phone sends none.
+    const lang = p.lang === 'en' || p.lang === 'ar' ? p.lang : ((room.mission && room.mission.lang) || 'ar');
     const was = room.mission && room.mission.on && room.mission.phase === 'on';
     if (!on) {
       if (was) missionEnd(room);
-      else if (room.mission) { room.mission.place = place; room.mission.co = co; room.mission.swap = swap; room.mission.catch = catchOn; }
+      else if (room.mission) { room.mission.place = place; room.mission.co = co; room.mission.swap = swap; room.mission.catch = catchOn; room.mission.lang = lang; }
       return true;
     }
     if (!was) {
       // A fresh evening's file (after a reveal too): scores start at nothing.
-      room.mission = { on: true, phase: 'on', place: place, co: co, swap: swap, catch: catchOn, paused: false,
+      room.mission = { on: true, phase: 'on', place: place, co: co, swap: swap, catch: catchOn, lang: lang, paused: false,
         score: {}, names: {}, feed: [], feedSeq: 0, fileSeq: 0, startedAt: now, banked: false, reveal: null };
       room._mission = null;
       missionHidden(room);
@@ -208,7 +218,7 @@ const missionAction = (room, pid, action, payload) => {
     }
     // Already on: a new place or company redeals only the missions that no longer fit (targets kept).
     const m = room.mission;
-    m.place = place; m.co = co; m.swap = swap; m.catch = catchOn;
+    m.place = place; m.co = co; m.swap = swap; m.catch = catchOn; m.lang = lang;
     const h = missionHidden(room);
     Object.keys(h.of).forEach(id => {
       if (!missionFits(missionById(h.of[id].m), place, co)) missionDeal(room, id, { keepTo: true });
@@ -221,7 +231,7 @@ const missionAction = (room, pid, action, payload) => {
     requireHost(room, pid);
     const m = room.mission;
     if (!m || m.phase !== 'reveal') return true;
-    room.mission = { on: false, phase: 'off', place: m.place, co: m.co, swap: m.swap, catch: m.catch };
+    room.mission = { on: false, phase: 'off', place: m.place, co: m.co, swap: m.swap, catch: m.catch, lang: m.lang };
     room._mission = null;
     return true;
   }

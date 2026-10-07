@@ -174,6 +174,21 @@ says it in its own language.
   shut, the memo over a game on the target alone, the ticker, a reload, the story on
   every phone, the strings, closed, no console errors); `ONLY=screens` 44 pass.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **557 «قول الكلمة» from the big lists** (as described). About one file in four (`MISSION_WORD_SHARE`, 0.25) is
+  «خلّي {target} يقول كلمة «{word}»» / "Get {target} to say the word "{word}"" (the girl's Arabic «تقول»), the
+  word dealt by `missionPickId` (`RoomMission.js`) from the drawing words, `DRAW_WORDS` (PartyContent.js), through
+  `nextPrompt` (`mission_word_ar` / `_en`, fresh across rooms). The id carries the word (`w:أسد`,
+  `MISSION_WORD_PREFIX`), and `missionById` (`Missions.js`) makes the entry from it - a talking mission, `'*'`
+  and `'a'`, so it fits every place and company and is never redealt by a change of place - so every phone,
+  the memo, the ticker and the story say it with no list on the page. The language: chosen while building
+  (not answered), the host's games' language, sent as `lang` with `missionSet` (`room.mission.lang`; an older
+  phone sends none: the last one, else Arabic). The drawing words, not the spy categories: one flat list in both
+  languages, things anyone can name. `missionText` now puts the name in with a function (a name with `$` in it).
+  Help rule added. Rules tests: a word mission comes up in Arabic and English, from the list, fits everywhere,
+  says itself in both languages, reaches its doer only.
+
 ## Files
 
 `Missions.js`, `RoomMission.js`, `JS_RoomMission.html`; hooks in `RoomGames.js`

@@ -66,6 +66,11 @@ gameText({
       mafia_still_in: "لسه في اللعبة",
       mafia_out: "خرجوا",
       mafia_you_out: "إنت خرجت من اللعبة. تابع وماتقولش حاجة!",
+      mafia_you_out_see: "إنت خرجت من اللعبة، ودلوقتي شايف كل حاجة. خليك ساكت لحد الآخر!",
+      mafia_outsee: "اللي يخرج يتفرج على كل حاجة",
+      mafia_outsee_hint: "اللي يخرج يشوف دور كل واحد واختيارات الليل وهي بتحصل، من غير تصويت ولا شات.",
+      mafia_spec_roles: "أدوار الكل",
+      mafia_spec_picks: "اختيارات الليلة",
       mafia_town_wins: "المدينة كسبت! مفيش مافيا تاني",
       mafia_mafia_wins: "المافيا كسبت!",
       mafia_you_won: "فريقك كسب 🎉",
@@ -139,6 +144,11 @@ gameText({
       mafia_still_in: "Still in the game",
       mafia_out: "Out",
       mafia_you_out: "You're out of the game. Watch, and don't give anything away!",
+      mafia_you_out_see: "You're out, and now you see everything. Stay silent to the end!",
+      mafia_outsee: "The out see everything",
+      mafia_outsee_hint: "Whoever is out sees every role and the night's picks as they happen, with no vote and no chat.",
+      mafia_spec_roles: "Everyone's role",
+      mafia_spec_picks: "Tonight's picks",
       mafia_town_wins: "The town wins! No Mafia left",
       mafia_mafia_wins: "The Mafia win!",
       mafia_you_won: "Your side won 🎉",
@@ -165,6 +175,7 @@ gameText({
                 <li><b>كلاسيك</b>: مافيا ومواطنين.</li>
                 <li><b>بأدوار</b>: <b>🩺 الدكتور</b> يحمي حد كل ليلة (مش نفس الشخص ليلتين ورا بعض). <b>🔍 المحقق</b> يكشف حد ويعرف لوحده هو مافيا ولا لأ. <b>💼 المحامي</b> (من 6 لاعبين) مع المافيا: يعرفهم وهم مايعرفوهوش، ويدافع عنهم كأنه مواطن. المحقق بيشوفه مش مافيا.</li>
                 <li>اللي بيخرج يظهر <b>مواطن</b>، إلا المافيا بتظهر مافيا. المضيف يقدر يفعّل كشف الدور الحقيقي.</li>
+                <li>اللي بيخرج <b>يتفرج على كل حاجة</b>: دور كل واحد واختيارات الليل وهي بتحصل، وهو ساكت (مايصوّتش ومايكتبش في الشات). المضيف يقدر يقفلها.</li>
             </ul>`,
     },
     en: {
@@ -181,6 +192,7 @@ gameText({
                 <li><b>Classic</b>: Mafia and citizens.</li>
                 <li><b>Roles</b>: <b>🩺 the Doctor</b> protects someone each night (not the same person twice running). <b>🔍 the Detective</b> checks someone and alone learns if they are Mafia. <b>💼 the Lawyer</b> (from 6 players) is on the Mafia's side: knows them, unknown to them, and defends them as a citizen would. The Detective sees the Lawyer as not Mafia.</li>
                 <li>Whoever leaves shows as a <b>Citizen</b>, except the Mafia, who show as Mafia. The host can switch on showing real roles.</li>
+                <li>Whoever is out <b>sees everything</b>: every role and the night's picks as they happen, silent (no vote, no chat). The host can switch it off.</li>
             </ul>`,
     }
   }

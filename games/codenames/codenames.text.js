@@ -19,7 +19,7 @@ gameText({
       cn_show_key: "إظهار المفتاح",
       cn_swap_word: "تبديل كلمة",
       cn_swap_hint: "اضغط الكلمة اللي عايز تبدلها. التبديل قبل أول تلميح بس.",
-      cn_clue_on_board: "التلميح ما ينفعش يكون كلمة على اللوحة",
+      cn_clue_on_board: "التلميح ما ينفعش يكون كلمة على اللوحة أو جزء منها",
       cn_clue_count: "عدد الكلمات",
       cn_clue_hint: "كلمة واحدة ورقم. ∞ أو 0: الفريق يخمّن لحد ما يغلط.",
       cn_no_guesses: "بدون تخمين",
@@ -58,7 +58,7 @@ gameText({
       cn_show_key: "Show key",
       cn_swap_word: "Swap a word",
       cn_swap_hint: "Tap the word to replace. Only before the first clue.",
-      cn_clue_on_board: "A word on the board can't be the clue",
+      cn_clue_on_board: "The clue can't be a word on the board, or part of one",
       cn_clue_count: "How many words",
       cn_clue_hint: "One word and a number. ∞ or 0: the team guesses until it misses.",
       cn_no_guesses: "No guesses",
@@ -88,7 +88,7 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>فريقين، كل فريق فيه <b>قائد</b> واحد و<b>لاعب</b> أو أكتر. «قسّم الفرق عشوائياً» يوزعكم في ثانية.</li>
                 <li>على الطاولة 25 كلمة. القائد بس اللي يشوف ألوانها.</li>
-                <li>القائد يقول <b>كلمة واحدة ورقم</b>: الكلمة تربط كلمات فريقه، والرقم عددها. ممنوع كلمة من اللي على اللوحة، ولا هي بإملاء تاني أو بأل التعريف. <b>∞</b> أو <b>0</b> = خمّنوا لحد ما تغلطوا.</li>
+                <li>القائد يقول <b>كلمة واحدة ورقم</b>: الكلمة تربط كلمات فريقه، والرقم عددها. ممنوع كلمة من اللي على اللوحة، ولا هي بإملاء تاني أو بأل التعريف، ولا كلمة جواها أو جوا كلمة منها («شجر» و«شجرة»). <b>∞</b> أو <b>0</b> = خمّنوا لحد ما تغلطوا.</li>
                 <li>اللاعب يضغط كلمة عشان يعلّمها لفريقه، وبعدين «اكشف الكلمة». كلمة فريقكم = كمّلوا. محايدة أو للخصم = خلص دوركم.</li>
                 <li>فيه كلمة <b>قاتلة</b> واحدة: اللي يكشفها يخسر فوراً.</li>
                 <li>المضيف يقدر يحط وقت لكل دور وكلماتكم الخاصة. مرات الفوز بتتجمع طول السهرة.</li>
@@ -103,7 +103,7 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Two teams, each with one <b>spymaster</b> and one or more <b>operatives</b>. "Split teams randomly" does it in a second.</li>
                 <li>25 words on the table. Only the spymasters see their colours.</li>
-                <li>The spymaster gives <b>one word and a number</b>: the word links their team's words, the number says how many. Not a word on the board, nor one of them spelled differently or with "the". <b>∞</b> or <b>0</b> = guess until you miss.</li>
+                <li>The spymaster gives <b>one word and a number</b>: the word links their team's words, the number says how many. Not a word on the board, nor one of them spelled differently or with "the", nor a word inside one or around one ("tree" and "treehouse"). <b>∞</b> or <b>0</b> = guess until you miss.</li>
                 <li>An operative taps a word to mark it for the team, then "Reveal". Your team's word = keep going. Neutral or the other team's = your turn ends.</li>
                 <li>There is one <b>assassin</b>: whoever reveals it loses at once.</li>
                 <li>The host can set a turn clock and add your own words. Wins add up all evening.</li>

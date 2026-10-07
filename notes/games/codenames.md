@@ -29,6 +29,16 @@ so `nightBoardOf` (RoomGames.js) ranks the sides through `PROGRAM_TEAMS.codename
 winning team first - for the room's night, a crew's night and «مين هيكسب؟», as the
 program always did.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **547 Clue inside a word** (as described). `codenamesClueClash(clue, word)` in `app/Common.js` (shared, so the
+  phone and the server run the same test): the two folded with `normaliseClue`; equal, or the shorter one (3
+  letters or more) inside the longer - «شجر» can't point at «شجرة», and «شجرة» can't be given when «شجر» is on
+  the board. `giveClue` refuses it against every unturned card («… أو جزء منها»), and `submitCodenamesClue`
+  says so before sending (`cn_clue_on_board`, both languages; `cnFold` went, unused). Help rule updated. Rules
+  tests: a clue inside a board word, a clue with one inside it. The robots' TV clue was `screenclue`, which
+  holds the English word Screen: it is `qxtvclue` now.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

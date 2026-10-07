@@ -25,12 +25,14 @@ const mafiaLocal = { clock: null, clockKey: null };
 
 function mafiaOpts() {
   // narrate is off until the owner has heard it on a real phone.
-  const base = { mode: 'classic', revealRoles: false, narrate: false, discuss: 3, night: 45 };
+  // outSee: the out watch everything, silent (idea 538, on by default).
+  const base = { mode: 'classic', revealRoles: false, narrate: false, outSee: true, discuss: 3, night: 45 };
   try {
     const saved = JSON.parse(localStorage.getItem(MAFIA_OPTS_KEY) || 'null') || {};
     if (saved.mode === 'roles' || saved.mode === 'classic') base.mode = saved.mode;
     if (typeof saved.revealRoles === 'boolean') base.revealRoles = saved.revealRoles;
     if (typeof saved.narrate === 'boolean') base.narrate = saved.narrate;
+    if (typeof saved.outSee === 'boolean') base.outSee = saved.outSee;
     if ([2, 3, 5].indexOf(saved.discuss) !== -1) base.discuss = saved.discuss;
     if ([30, 45, 60].indexOf(saved.night) !== -1) base.night = saved.night;
   } catch (e) {}
@@ -39,7 +41,7 @@ function mafiaOpts() {
 
 function setMafiaOpt(key, value) {
   const o = mafiaOpts();
-  o[key] = key === 'mode' ? value : (key === 'revealRoles' || key === 'narrate' ? !!value : Number(value));
+  o[key] = key === 'mode' ? value : (key === 'revealRoles' || key === 'narrate' || key === 'outSee' ? !!value : Number(value));
   try { localStorage.setItem(MAFIA_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
   const setup = document.getElementById('room-host-setup');
   if (setup) delete setup.dataset.sig;
@@ -182,6 +184,49 @@ function mafiaSecretHtml(state, t) {
     <b class="mafia-role__name">${escapeHTML(t['mafia_role_' + role] || '')}</b>
     <span class="mafia-role__desc">${escapeHTML(text)}</span>
     ${lines.map(l => `<span class="mafia-role__extra">${l}</span>`).join('')}`;
+}
+
+/* --- the front row (idea 538, 7 Oct 2026) -------------------------------------
+   Whoever is out (with the lobby's switch on, the default) sees every role and,
+   at night, every pick as it is made. The server sends it in their own slice
+   only (mafiaSpectateView); it is refreshed in place, like the hold card, so a
+   pick at night is no rebuild. Their phone can't vote, chat or shout. */
+
+/** The box a spectator's view lives in; empty for everyone else. */
+function mafiaSpectateBoxHtml(state, t) {
+  const you = state.you || {};
+  return you.spectate ? `<div data-mafia-spectate>${mafiaSpectateHtml(state, t)}</div>` : '';
+}
+
+function mafiaSpectateHtml(state, t) {
+  const v = (state.you || {}).spectate;
+  if (!v) return '';
+  const roles = (v.roles || []).map(r => `<span class="chip chip--plain ${r.alive ? '' : 'is-away'}">${MAFIA_ICONS[r.role] || ''} ${escapeHTML(r.name)}</span>`).join('');
+  const n = v.night;
+  let picks = '';
+  if (n) {
+    const rows = [];
+    const pair = (p) => `${escapeHTML(p.by)} ← ${escapeHTML(p.name)}`;
+    if ((n.mafia || []).length) rows.push(`${MAFIA_ICONS.mafia} ${n.mafia.map(pair).join(' · ')}`);
+    if (n.save) rows.push(`${MAFIA_ICONS.doctor} ${escapeHTML(n.save)}`);
+    if (n.check) rows.push(`${MAFIA_ICONS.detective} ${escapeHTML(n.check.name)} ${n.check.mafia ? MAFIA_ICONS.mafia : '✅'}`);
+    if ((n.suspects || []).length) rows.push(`🤔 ${n.suspects.map(pair).join(' · ')}`);
+    picks = `<div class="eyebrow" style="margin-top: var(--sp-3)">🌙 ${escapeHTML(t.mafia_spec_picks || '')}</div>
+      ${rows.length ? rows.map(r => `<p class="field__hint" style="margin:0">${r}</p>`).join('') : `<p class="field__hint" style="margin:0">…</p>`}`;
+  }
+  return `<div class="card card--tight mafia-spectate">
+      <div class="eyebrow">👀 ${escapeHTML(t.mafia_spec_roles || '')}</div>
+      <div class="chip-set">${roles}</div>
+      ${picks}
+    </div>`;
+}
+
+/** The spectator's view, brought up to date without rebuilding the screen. */
+function refreshMafiaSpectate(root, state, t) {
+  const box = root && root.querySelector('[data-mafia-spectate]');
+  if (!box) return;
+  const html = mafiaSpectateHtml(state, t);
+  if (box._mafiaHtml !== html) { box.innerHTML = html; box._mafiaHtml = html; }
 }
 
 /** Puts the latest private information on the card without rebuilding the screen. */
@@ -373,6 +418,13 @@ ROOM_GAMES.mafia = {
           <p class="field__hint">${escapeHTML(t.mafia_reveal_hint || '')}</p>
         </div>
         <div class="field">
+          <label class="switch-row" for="mafia-outsee">
+            <span class="field__label">${escapeHTML(t.mafia_outsee || '')}</span>
+            <span class="switch"><input type="checkbox" id="mafia-outsee" role="switch" ${o.outSee ? 'checked' : ''} onchange="setMafiaOpt('outSee', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(t.mafia_outsee_hint || '')}</p>
+        </div>
+        <div class="field">
           <label class="switch-row" for="mafia-narrate">
             <span class="field__label">${escapeHTML(t.mafia_narrate || '')}</span>
             <span class="switch"><input type="checkbox" id="mafia-narrate" role="switch" ${o.narrate ? 'checked' : ''} onchange="setMafiaOpt('narrate', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
@@ -392,7 +444,7 @@ ROOM_GAMES.mafia = {
   },
   startPayload() {
     const o = mafiaOpts();
-    return { mode: o.mode, revealRoles: o.revealRoles, narrate: o.narrate, discuss: o.discuss, night: o.night };
+    return { mode: o.mode, revealRoles: o.revealRoles, narrate: o.narrate, outSee: o.outSee, discuss: o.discuss, night: o.night };
   },
 
   render(state) {
@@ -417,7 +469,9 @@ ROOM_GAMES.mafia = {
           ${(s.phase === 'night' || s.phase === 'day') && s.endsAt ? `<span id="mafia-clock" class="badge badge--accent metric">${mafiaClockText(s.endsAt)}</span>` : ''}
           <span class="badge">${escapeHTML(t['mafia_mode_' + s.mode] || '')}</span>
         </div>`;
-      const outNote = inGame && !alive && s.phase !== 'gameover' ? `<div class="waiting-note">🤐 ${escapeHTML(t.mafia_you_out || '')}</div>` : '';
+      const outNote = inGame && !alive && s.phase !== 'gameover'
+        ? `<div class="waiting-note">🤐 ${escapeHTML((you.spectate ? t.mafia_you_out_see : '') || t.mafia_you_out || '')}</div>` + mafiaSpectateBoxHtml(state, t)
+        : '';
       const role = inGame ? mafiaRoleCardHtml(state, t) : `<div class="waiting-note">${escapeHTML(t.vote_spectating || '')}</div>`;
 
       if (s.phase === 'roles') {
@@ -464,7 +518,7 @@ ROOM_GAMES.mafia = {
           ${renderRoomPlayerStrip(state)}`;
       }
       if (s.phase === 'dayResult') {
-        return head + mafiaNewsHtml(state, t) + `
+        return head + mafiaNewsHtml(state, t) + outNote + `
           <div class="card card--tight">${s.vote && s.vote.results ? renderVoteResults(mafiaVoteState(state)) : ''}</div>
           ${mafiaPeopleHtml(state, t)}
           ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('startNight')">🌙 ${escapeHTML(t.mafia_next_night || '')}</button></div>`, `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
@@ -497,6 +551,7 @@ ROOM_GAMES.mafia = {
     mafiaNarrate(state, t, el);
     refreshRoomPlayerStrip(el, state);
     refreshMafiaSecret(el, state, t);
+    refreshMafiaSpectate(el, state, t);
     if (s.phase === 'gameover' && rebuilt) mafiaEndRun(el, state);
     const acted = el.querySelector('[data-mafia-acted]');
     if (acted) acted.textContent = `${mafiaActedCount(s)}/${(s.alive || []).length}`;

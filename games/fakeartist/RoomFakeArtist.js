@@ -155,7 +155,8 @@ const advanceFakeArtistTurn = (room) => {
   s.phase = 'voting';
   const options = s.drawerOrder
     .filter(id => present.indexOf(id) !== -1)
-    .map(id => ({ id: id, label: (room.players.find(p => p.id === id) || {}).name || id }));
+    // ownerId: nobody votes for themselves (castVote refuses it, the ballot hides it).
+    .map(id => ({ id: id, label: (room.players.find(p => p.id === id) || {}).name || id, ownerId: id }));
   openVote(room, options, activeRoster(room, s.roster));
 };
 

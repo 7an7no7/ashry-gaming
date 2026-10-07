@@ -1072,6 +1072,16 @@ export class Room extends DurableObject {
       // The line still under the drawer's finger. Relayed, never stored, and
       // only from whoever is drawing right now.
       const s = this.room.shared || {};
+      // الفنان المزيف's line as it is drawn (idea 530, 7 Oct 2026): from the artist whose turn it is.
+      if (this.room.game === 'fakeartist') {
+        if (s.phase !== 'drawing' || s.currentDrawerId !== pid || message.length > MAX_LIVE) return;
+        const faText = JSON.stringify({ t: 'live', d: msg.d });
+        for (const other of this.openSockets()) {
+          if (this.playerOf(other) === pid) continue;
+          try { other.send(faText); } catch (e) {}
+        }
+        return;
+      }
       const drawing = this.room.game === 'drawguess' && this.room.phase === 'drawing' && !s.word;
       if (!drawing || s.drawerId !== pid || message.length > MAX_LIVE) return;
       const text = JSON.stringify({ t: 'live', d: msg.d });

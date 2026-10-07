@@ -2542,7 +2542,7 @@ async function coreSeg() {
   check(TV.state.you === null && !leaks(TV, 'assassin'), 'the screen never receives the key');
   const tvTurn = TV.state.shared.turn;
   const tvMaster = bots.find((b) => (b.state.shared.teams[b.pid] || {}).team === tvTurn && b.state.shared.teams[b.pid].role === 'spymaster');
-  await tvMaster.must('giveClue', { word: 'screenclue', count: 1 });
+  await tvMaster.must('giveClue', { word: 'qxtvclue', count: 1 });
   const tvPick = tvMaster.state.you.key.findIndex((colour) => colour === tvTurn);
   await TV.must('guess', { index: tvPick });
   await all([A, TV], (s) => s.shared.board[tvPick].revealed, 'the team can guess from the big screen');
@@ -3035,6 +3035,16 @@ async function coreSeg() {
   await A.must('skipTurn', { turn: 0, round: 1 });
   await A.must('skipTurn', { turn: 0, round: 1 });
   await all(bots, (s) => s.shared.turnIndex === 1 && s.shared.strokes.length === 0, 'the host skips a silent artist once, however often it is tapped');
+  {
+    // Idea 530 (7 Oct 2026): the artist's line goes to the others while it is drawn, and only the artist's.
+    const artist = byId(bots, A.state.shared.currentDrawerId);
+    const others = bots.filter((b) => b !== artist);
+    bots.forEach((b) => { b.live = []; });
+    artist.ws.send(JSON.stringify({ t: 'live', d: { k: 'fa', u: '1.1', s: 1, i: 0, p: [1, 2, 3, 4] } }));
+    others[0].ws.send(JSON.stringify({ t: 'live', d: { k: 'fa', u: '1.1', s: 1, i: 0, p: [9, 9] } }));
+    await sleep(600);
+    check(others.every((b) => b.live.length === 1 && b.live[0].k === 'fa') && artist.live.length === 0, 'fake artist: the live line goes to the others, and only from the artist');
+  }
   for (let turnNo = 0; turnNo < 7; turnNo++) {
     const artist = byId(bots, A.state.shared.currentDrawerId);
     await artist.must('sendStroke', { stroke: { p: [turnNo * 10, 5, turnNo * 10 + 30, 60] } });

@@ -212,6 +212,14 @@ check(roomTimeout(cn, clock) === true && cn.shared.turn !== firstTurn && cn.shar
 const second = cn.shared.turn;
 check(threw(() => applyRoomAction(cn, masterOf(second), 'giveClue', { word: cn.shared.board[3].word.toUpperCase(), count: 1 })),
       'codenames: a word on the board is not a clue, in any case');
+{
+  // Idea 547 (7 Oct 2026): a clue inside a board word, or around one, is refused too; 3 letters or more.
+  const w = normaliseClue(cn.shared.board.find((c) => !c.revealed && normaliseClue(c.word).length >= 5).word);
+  check(threw(() => applyRoomAction(cn, masterOf(second), 'giveClue', { word: w.slice(0, 3), count: 1 })) && !cn.shared.clue,
+        'codenames: a clue inside a board word is refused');
+  check(threw(() => applyRoomAction(cn, masterOf(second), 'giveClue', { word: w + 'zz', count: 1 })) && !cn.shared.clue,
+        'codenames: a clue with a board word inside it is refused');
+}
 applyRoomAction(cn, masterOf(second), 'giveClue', { word: 'zzqq', count: 2 });
 check(cn.shared.guessesLeft === 3 && cn.shared.endsAt === clock + 60000,
       'codenames: a clue of 2 gives 3 guesses and starts the guessing clock');
@@ -717,6 +725,37 @@ const leave = (r, id, hook = true) => {
   check(r.shared.actedN === 1 && !('acted' in r.shared) && r._mafiaActed.length === 1, 'mafia: the night shows how many tapped, never who');
   r.shared.roster.filter((id) => id !== boss).forEach((id) => applyRoomAction(r, id, 'nightPick', { target: boss }));
   check(r.shared.phase === 'day' && r.shared.actedN === 0, 'mafia: and the night still ends when everyone has tapped');
+}
+for (const outSee of [undefined, false]) {
+  // مافيا, idea 538 (7 Oct 2026): the out watch everything (a lobby switch, on by default), silent.
+  const r = newRoom(['h', 'p2', 'p3', 'p4', 'p5', 'p6']);
+  applyRoomAction(r, 'h', 'chooseGame', { game: 'mafia' });
+  applyRoomAction(r, 'h', 'start', outSee === undefined ? { mode: 'classic' } : { mode: 'classic', outSee });
+  const on = outSee !== false;
+  const tag = on ? 'mafia (front row on)' : 'mafia (front row off)';
+  check(r.shared.outSee === on, `${tag}: the switch is a room setting, on unless the host turned it off`);
+  const boss = Object.keys(r._mafia.roles).find((id) => r._mafia.roles[id] === 'mafia');
+  const town = r.shared.roster.filter((id) => id !== boss);
+  applyRoomAction(r, r.hostId, 'startNight', {});
+  check(Object.keys(r.secrets).every((id) => !r.secrets[id].spectate), `${tag}: nobody is out yet, nobody watches`);
+  applyRoomAction(r, boss, 'nightPick', { target: town[0] });
+  town.forEach((id) => applyRoomAction(r, id, 'nightPick', { target: boss }));
+  check(r.shared.phase === 'day' && r.shared.alive.indexOf(town[0]) === -1, `${tag}: the mafia's pick is out in the morning`);
+  const sp = r.secrets[town[0]].spectate;
+  check(on ? (!!sp && sp.roles.length === 6 && sp.roles.find((x) => x.id === boss).role === 'mafia' && sp.night === null) : !sp,
+    `${tag}: the one out ${on ? 'sees every real role' : 'sees nothing more'}`);
+  check(Object.keys(r.secrets).filter((id) => id !== town[0]).every((id) => !r.secrets[id].spectate), `${tag}: nobody still in gets the front row`);
+  check(on ? threw(() => applyRoomAction(r, town[0], 'chat', { text: 'هو ده!' })) : !threw(() => applyRoomAction(r, town[0], 'chat', { text: 'هاي' })),
+    `${tag}: the one out ${on ? "can't" : 'can'} write in the chat`);
+  check(!threw(() => applyRoomAction(r, town[1], 'chat', { text: 'صباح الخير' })), `${tag}: the living still talk`);
+  applyRoomAction(r, r.hostId, 'startVote', {});
+  check(threw(() => applyRoomAction(r, town[0], 'vote', { option: boss })), `${tag}: the one out doesn't vote`);
+  applyRoomAction(r, r.hostId, 'closeVote', {});
+  applyRoomAction(r, r.hostId, 'startNight', {});
+  applyRoomAction(r, boss, 'nightPick', { target: town[1] });
+  const sp2 = r.secrets[town[0]].spectate;
+  check(on ? (!!sp2 && sp2.night && sp2.night.mafia.length === 1 && sp2.night.mafia[0].name === town[1].toUpperCase()) : !sp2,
+    `${tag}: ${on ? "at night the one out sees the mafia's pick as it is made" : 'and sees no pick at night'}`);
 }
 {
   // مافيا, a room from before the hook: a player gone but still on the living list is not counted.
@@ -4810,6 +4849,16 @@ Date.now = duelTestClock;
     if (r.shared.drawerOrder[0] === r._fakeId) fakeFirst = true;
   }
   check(fakeFirst, 'fake artist: the fake can be the first to draw');
+
+  // الفنان المزيف: nobody votes for themselves (idea 529, 7 Oct 2026).
+  {
+    const r = newRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'fakeartist' });
+    applyRoomAction(r, 'a', 'start', {});
+    for (let k = 0; k < 6 && r.shared.phase === 'drawing'; k++) applyRoomAction(r, r.shared.currentDrawerId, 'sendStroke', { stroke: { p: [k, 5, k + 30, 60] } });
+    check(r.shared.phase === 'voting' && r.shared.vote.options.every((o) => o.ownerId === o.id), 'fake artist: every option on the ballot names its owner');
+    check(threw(() => applyRoomAction(r, 'b', 'vote', { option: 'b' })) && r.shared.vote.voted.indexOf('b') === -1, 'fake artist: a vote for yourself is refused');
+  }
 
   // الفنان المزيف: the fake is told the word's category, never the word (the review of 1 Oct 2026).
   {
@@ -15324,6 +15373,28 @@ console.log('• the secret mission');
   const seen = [];
   for (let i = 0; i < 8; i++) { clock += MISSION_SWAP_MS + 1; act('h', 'missionSwap', { n: r._mission.of.h.n }); seen.push(r._mission.of.h.m); }
   check(seen.every((m, i) => i === 0 || m !== seen[i - 1]), 'mission: a swap never deals the same mission again');
+  // «قول الكلمة» (idea 557, 7 Oct 2026): now and then a word from the drawing words, in the host's games' language.
+  {
+    const DW = new Function(readFileSync(srcPath('PartyContent.js'), 'utf8') + ';return DRAW_WORDS;')();
+    for (const lang of ['ar', 'en']) {
+      act('h', 'missionSet', { on: true, lang });
+      check(r.mission.lang === lang, `mission (${lang}): the word missions' language is the host's`);
+      let word = null;
+      for (let i = 0; i < 200 && !word; i++) {
+        clock += MISSION_SWAP_MS + 1;
+        act('h', 'missionSwap', { n: r._mission.of.h.n });
+        const id = r._mission.of.h.m;
+        if (id.indexOf('w:') === 0) word = id.slice(2);
+      }
+      check(!!word && DW[lang].indexOf(word) !== -1, `mission (${lang}): a «say the word» mission deals a drawing word`);
+      const id = 'w:' + word;
+      check(MS.missionFits(MS.missionById(id), 'cafe', 'family') && MS.missionFits(MS.missionById(id), 'any', 'family')
+        && MS.missionText(id, 'ar', 'منى', true) === 'خلّي منى تقول كلمة «' + word + '»' && MS.missionText(id, 'ar', 'حسن') === 'خلّي حسن يقول كلمة «' + word + '»'
+        && MS.missionText(id, 'en', 'Mona') === 'Get Mona to say the word "' + word + '"',
+        `mission (${lang}): it fits every place and company, and every phone can say it`);
+      check(missionView(r, 'h').me.m === id && !JSON.stringify(missionView(r, 'k')).includes(id), `mission (${lang}): the word is on its doer's file only`);
+    }
+  }
 }
 
 /* --- ارسم اللي بتسمعه (1 Oct 2026): one describes a picture only their phone shows, the rest draw it --- */

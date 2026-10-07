@@ -184,8 +184,22 @@ const MISSIONS = [
   ['o21', 'o', 'f', 'خلّي {target} يقلّد مذيع النشرة الجوية', 'Get {target} to do a weather-forecast impression', 'خلّي {target} تقلّد مذيع النشرة الجوية']
 ];
 
+/*
+   «قول الكلمة» (idea 557, 7 Oct 2026): a kind of mission made at deal time, «خلّي {target} يقول
+   كلمة «أسد»», the word dealt by the server from the drawing words (DRAW_WORDS, PartyContent.js)
+   in the language the host plays in. Its id carries the word ('w:أسد'), so every phone says it
+   without the list; it is a talking mission, so it fits every place and company.
+*/
+const MISSION_WORD_PREFIX = 'w:';
+const MISSION_WORD_SHARE = 0.25;    // about one file in four is a word to get said
+
 /** The mission with this id, or null. */
 const missionById = (id) => {
+  if (typeof id === 'string' && id.indexOf(MISSION_WORD_PREFIX) === 0) {
+    const w = id.slice(MISSION_WORD_PREFIX.length);
+    if (!w) return null;
+    return [id, '*', 'a', 'خلّي {target} يقول كلمة «' + w + '»', 'Get {target} to say the word "' + w + '"', 'خلّي {target} تقول كلمة «' + w + '»'];
+  }
   for (let i = 0; i < MISSIONS.length; i++) if (MISSIONS[i][0] === id) return MISSIONS[i];
   return null;
 };
@@ -205,7 +219,7 @@ const missionPool = (place, company) => MISSIONS.filter((m) => missionFits(m, pl
 const missionText = (id, lang, target, she) => {
   const m = missionById(id);
   if (!m) return '';
-  return (lang === 'en' ? m[4] : (she && m[5]) || m[3]).replace('{target}', target || '');
+  return (lang === 'en' ? m[4] : (she && m[5]) || m[3]).replace('{target}', () => target || '');
 };
 
 /** What the table reads once it is done: whose file it was, and the file as it said it. */

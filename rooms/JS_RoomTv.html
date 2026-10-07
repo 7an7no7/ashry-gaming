@@ -880,23 +880,36 @@ TV_GAMES.fakeartist = {
         <div class="tv-note">${t.vote_count || ''}: ${ltrFrac(s.vote.voted.length, s.vote.eligible.length)}</div>
         ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_end_vote, "roomAct('closeVote')", 'ghost')}</div>`)}`;
     } else if (s.phase === 'guessing') {
-      panel = `
-        <div class="tv-eyebrow">${t.fa_caught || ''}</div>
-        <div class="tv-title">${who(s.fakeId)}</div>
+      // The vote's bars first, the caught fake's rising last; the name under its cover until then
+      // (idea 534, 7 Oct 2026, as الحرباء's TV). The bars keep their key into the result, so they rise once.
+      const bars = roomSpyVoteBars(state, [s.fakeId], 'tv');
+      const cover = spyRevealParts(['fa-guess-tv', roomDealKey(state, s.round), s.fakeId].join('|'), t.reveal_fake_was, bars.ms);
+      panel = `${bars.html ? `<div class="tv-scale">${bars.html}</div>` : ''}
+        <div class="tv-spy-reveal ${cover.cls}" ${cover.attrs} style="--cover-at:${cover.at}ms">${cover.cover}
+          <div class="tv-eyebrow">${t.fa_caught || ''}</div>
+          <div class="tv-title">${who(s.fakeId)}</div>
+        </div>
         <div class="tv-note">🤔 ${t.fa_guessing_wait || ''}</div>
         ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>`)}`;
     } else {
       const fakeWon = s.winner === 'fake';
       const left = !!s.impostorLeft;   // the fake left mid-round: nobody scores
       const line = faResultLine(state, t);
+      const revealKey = ['fa', roomDealKey(state, s.round), s.fakeId, s.secretWord].join('|');
+      // The vote as bars, the fake's own rising last; then «الفنان المزيف كان…» turns over,
+      // and the living spy plays the verdict after it (idea 534, 7 Oct 2026, as the spy games' TVs).
+      const bars = roomSpyVoteBars(state, [s.fakeId], 'tv');
+      const cover = spyRevealParts(revealKey + '|tv', t.reveal_fake_was, bars.ms);
       const cast = typeof spyCastHtml === 'function'
-        ? spyCastHtml(['fa', roomDealKey(state, s.round), s.fakeId, s.secretWord].join('|'), left ? '' : s.fakeCaught && !fakeWon ? 'caught' : 'escaped', { kind: 'fake', tv: true, cls: 'spc--side' })
+        ? spyCastHtml(revealKey, left ? '' : s.fakeCaught && !fakeWon ? 'caught' : 'escaped', { kind: 'fake', tv: true, cls: 'spc--side', after: cover.at })
         : '';
-      panel = `${cast}
-        <div class="tv-eyebrow">${t.fa_word_was || ''}</div>
-        <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
-        <div class="tv-note">${left ? '🚪' : fakeWon ? '🦹' : '🎉'} ${escapeHTML(line || '')}</div>
-        <div class="tv-note">${t.fa_fake_was || ''} ${faDot(state, s.fakeId)} ${escapeHTML(faFakeName(state))}${s.fakeGuessWord ? ` · ${t.fa_guessed || ''} «${escapeHTML(s.fakeGuessWord)}»` : ''}</div>
+      panel = `${bars.html ? `<div class="tv-scale">${bars.html}</div>` : ''}${cast}
+        <div class="tv-spy-reveal ${cover.cls}" ${cover.attrs} style="--cover-at:${cover.at}ms">${cover.cover}
+          <div class="tv-eyebrow">${t.fa_word_was || ''}</div>
+          <div class="tv-title">${escapeHTML(s.secretWord || '')}</div>
+          <div class="tv-note">${left ? '🚪' : fakeWon ? '🦹' : '🎉'} ${escapeHTML(line || '')}</div>
+          <div class="tv-note">${t.fa_fake_was || ''} ${faDot(state, s.fakeId)} ${escapeHTML(faFakeName(state))}${s.fakeGuessWord ? ` · ${t.fa_guessed || ''} «${escapeHTML(s.fakeGuessWord)}»` : ''}</div>
+        </div>
         <div class="tv-scale">${renderScoreboard(s.board)}</div>
         ${tvNextFooter(state, t, t.next_round)}`;
     }

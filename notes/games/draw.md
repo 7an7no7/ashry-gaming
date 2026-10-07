@@ -107,6 +107,27 @@ has 5+ words and that no word is spelled inside its own category's name (مكت�
 in «مدرسة ومكتب» and moved to the house), and `rules.mjs` that the fake's slice
 has the category and never the word.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built - الفنان المزيف
+
+- **529 No voting for yourself** (as described). `advanceFakeArtistTurn` (`RoomFakeArtist.js`) opens the vote
+  with `ownerId: id` on every option, as الجاسوس, الحرباء and الموقع السري do: `castVote` refuses a vote for
+  yourself and `renderBallot` marks your own name instead of offering it. Rules test in `rules.mjs`; the Help
+  rule says «ومحدش يصوّت لنفسه».
+- **530 The line drawn live** (as described). The artist's line goes to the other phones and the TV while it is
+  drawn, as ارسم وخمّن's does: `faShareLive` (every `FA_LIVE_MS` = 80 ms, at the finger's lift at once) sends
+  `{ k: 'fa', u: 'round.turnIndex', s: lineSeq, i: from, p }` through `Room.sendLive`; «ارسم تاني» and a tap
+  that never moved send `{ x: 1 }`, which takes it back. A watcher (`faOnLive`, `Room.onLive`) draws each piece
+  in the artist's colour from the room (never the message's), drops a piece of another turn or one whose start
+  it missed, and `paintFakeArtist` repaints a line still under the finger after a rebuild (`faLiveNow`). The
+  rooms server relays it only from `currentDrawerId` during `drawing` (`rooms-worker/src/room.js`, the `live`
+  message, a branch of its own before ارسم وخمّن's), never stores it. Robots: «the live line goes to the others,
+  and only from the artist» (`play-all.mjs`, core).
+- **534 TV result with the vote bars** (as described). `TV_GAMES.fakeartist` (`rooms/JS_RoomTv.html`): in the
+  result, `roomSpyVoteBars(state, [s.fakeId], 'tv')` (the fake's bar rising last), then the word / verdict /
+  «الفنان المزيف كان…» panel lies under `spyRevealParts`'s cover (`--cover-at` after the bars) and the living
+  spy (`spyCastHtml`, `after: cover.at`) plays after it; the caught fake's guessing frame shows the same bars and
+  the name under its cover (keyed the same, so the bars rise once). The sig already has the phase.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

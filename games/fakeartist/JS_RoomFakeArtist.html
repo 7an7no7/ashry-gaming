@@ -14,6 +14,7 @@
 
 const FA_GRID = 255;
 const FA_MAX_POINTS = 150;      // same cap as FAKE_ARTIST_MAX_POINTS on the server
+const FA_LIVE_MS = 80;          // how often the line under the artist's finger is shared (idea 530)
 
 const fakeArt = {
   canvas: null,
@@ -21,7 +22,11 @@ const fakeArt = {
   drawing: false,
   line: null,          // [x, y, x, y, …] of the line not sent yet
   colour: '#111827',
-  sending: false
+  sending: false,
+  liveSeq: 0,          // the drawer's side: which line this is, and how much of it is shared
+  liveSent: 0,
+  liveAt: 0,
+  live: null           // a watcher's side: { u, s, p } of the line being drawn now
 };
 
 ROOM_GAMES.fakeartist = {
@@ -230,6 +235,9 @@ function bindFakeArtistCanvas(canDraw, colour) {
     c.setPointerCapture(e.pointerId);
     fakeArt.drawing = true;
     fakeArt.line = pos(e);
+    fakeArt.liveSeq++;
+    fakeArt.liveSent = 0;
+    fakeArt.liveAt = 0;
   };
 
   c.onpointermove = (e) => {
@@ -242,6 +250,7 @@ function bindFakeArtistCanvas(canDraw, colour) {
     if (p.length >= FA_MAX_POINTS * 2) return;
     p.push(x, y);
     faStroke(fakeArt.ctx, fakeArt.colour, p.slice(-4));
+    faShareLive(false);
   };
 
   const finish = () => {
@@ -250,9 +259,11 @@ function bindFakeArtistCanvas(canDraw, colour) {
     // A tap that never moved is not a line.
     if (!fakeArt.line || fakeArt.line.length < 4) {
       fakeArt.line = null;
+      faShareLive(false, true);
       repaintFakeArtist();
       return;
     }
+    faShareLive(true);
     const btn = document.getElementById('fa-send');
     if (btn) btn.disabled = false;
   };
@@ -281,7 +292,76 @@ function paintFakeArtist(strokes) {
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   (strokes || []).forEach(st => faStroke(ctx, st.c, st.p));
   if (fakeArt.line) faStroke(ctx, fakeArt.colour, fakeArt.line);
+  // Someone else's line still under their finger survives a rebuild of the frame.
+  const live = faLiveNow();
+  if (live) faStroke(ctx, live.c, live.p);
 }
+
+/* --- the line as it is drawn (idea 530, 7 Oct 2026) ---------------------------
+   The artist's line goes to the other phones and the TV while it is drawn, as
+   ارسم وخمّن's does: relayed by the room, never stored. Each piece starts with
+   the last point of the one before; `u` names the turn, so a piece of an old
+   turn is dropped; `x` takes the line back (أعد, or a tap that never moved). */
+
+/** The turn a live piece belongs to. */
+function faLiveTurn(s) {
+  return (s && s.phase === 'drawing') ? s.round + '.' + s.turnIndex : '';
+}
+
+/** The drawer's side: shares what is new of the line, at most every FA_LIVE_MS (or now, `force`). */
+function faShareLive(force, clear) {
+  const s = Room.state && Room.state.shared;
+  if (!Room.isIn || !s || Room.state.game !== 'fakeartist' || s.currentDrawerId !== Room.me) return;
+  const u = faLiveTurn(s);
+  if (!u) return;
+  if (clear) { Room.sendLive({ k: 'fa', u: u, s: fakeArt.liveSeq, x: 1 }); fakeArt.liveSent = 0; return; }
+  const line = fakeArt.line;
+  if (!line || line.length <= fakeArt.liveSent) return;
+  const now = Date.now();
+  if (!force && now - fakeArt.liveAt < FA_LIVE_MS) return;
+  const from = Math.max(0, fakeArt.liveSent - 2);
+  if (Room.sendLive({ k: 'fa', u: u, s: fakeArt.liveSeq, i: from, p: line.slice(from) })) {
+    fakeArt.liveSent = line.length;
+    fakeArt.liveAt = now;
+  }
+}
+
+/** A watcher's live line, while it is still this turn's. */
+function faLiveNow() {
+  const state = Room.state;
+  const s = state && state.shared;
+  const live = fakeArt.live;
+  if (!live || !s || state.game !== 'fakeartist' || live.u !== faLiveTurn(s) || s.currentDrawerId === Room.me) return null;
+  return live;
+}
+
+/** A watcher's side (a phone or the TV): draws each piece of the artist's line as it arrives. */
+function faOnLive(d) {
+  const state = Room.state;
+  if (!d || d.k !== 'fa' || !state || state.game !== 'fakeartist') return;
+  const watching = appState.currentView === 'room-fakeartist' || appState.currentView === 'room-tv';
+  const s = state.shared || {};
+  const u = faLiveTurn(s);
+  if (!watching || !u || d.u !== u || s.currentDrawerId === Room.me || !fakeArt.ctx) return;
+  if (d.x) {
+    if (fakeArt.live && fakeArt.live.s === d.s) { fakeArt.live = null; repaintFakeArtist(); }
+    return;
+  }
+  if (!Array.isArray(d.p) || d.p.length < 2 || d.p.length > FA_MAX_POINTS * 2) return;
+  let live = fakeArt.live;
+  if (!live || live.u !== u || live.s !== d.s) {
+    if (d.i !== 0) return;       // missed its start; the line sent will show it
+    // The artist's colour from the room, never from the message.
+    live = fakeArt.live = { u: u, s: d.s, c: (s.colors || {})[s.currentDrawerId] || '#111827', p: [] };
+  }
+  const start = Math.max(0, live.p.length - 2);
+  if (d.i !== start) return;
+  const pts = d.p.map(v => Math.max(0, Math.min(FA_GRID, Math.round(Number(v) || 0))));
+  live.p = live.p.slice(0, start).concat(pts);
+  faStroke(fakeArt.ctx, live.c, live.p.slice(start));
+}
+
+Room.onLive(faOnLive);
 
 function repaintFakeArtist() {
   paintFakeArtist((Room.state && Room.state.shared && Room.state.shared.strokes) || []);
@@ -290,6 +370,7 @@ function repaintFakeArtist() {
 function clearFakeArtistLine() {
   fakeArt.line = null;
   fakeArt.drawing = false;
+  faShareLive(false, true);
   const btn = document.getElementById('fa-send');
   if (btn) btn.disabled = true;
   repaintFakeArtist();

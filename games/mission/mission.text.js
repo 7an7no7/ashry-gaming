@@ -185,6 +185,7 @@ gameText({
                 <li>مش لعبة من القايمة: <b>زرار في الغرفة</b>. المضيف يشغّل <b>🕵️ المهمة السرية</b> من الغرفة، يختار <b>المكان</b> (البيت، كافيه أو مطعم، بره، أي حتة) و<b>الصحبة</b> (العيلة أو الصحاب)، وتفضل شغّالة جنب كل لعبة لحد ما يقفلها.</li>
                 <li>كل واحد معاه في السر <b>هدف</b> (حد تاني في الغرفة) و<b>مهمة</b>: «خلّي منى تقول كلمة بجد». الملف 📁 فوق في أي شاشة؛ <b>دوس وامسك</b> عشان تقراه، ولما تسيبه يتقفل.</li>
                 <li>عملتها؟ دوس <b>«خلصت»</b>. موبايل الهدف يسأله في هدوء: «حصل معاك فعلًا؟». <b>نعم</b>: نقطة ليك وملف جديد بهدف جديد. <b>لأ</b>: ولا حاجة، كمّل في نفس المهمة. محدش بيخرج أبدًا.</li>
+                <li>ساعات المهمة تبقى <b>«قول الكلمة»</b>: «خلّي منى تقول كلمة «زرافة»». كلمة من كلمات الرسم، تنفع في أي مكان ومع أي صحبة.</li>
                 <li><b>«غيّرها»</b>: مهمة تانية لنفس الهدف، مرة كل ١٠ دقايق.</li>
                 <li><b>«كشفتك!»</b>: لو شاكك إن حد بيشتغل عليك، قول اسمه. صح: نقطة ليك وهو ياخد ملف جديد. غلط: اللي اتّهمته ياخد نقطة، وتستنى ٥ دقايق قبل ما تكشف حد تاني. اللي سألك «حصل؟» كشف نفسه بنفسه، مينفعش تكشفه، وتتحسب عليك غلط.</li>
                 <li>اللي ييجي متأخر بياخد ملف على طول، واللي يمشي ملفه بيتقفل ومين كان بيشتغل عليه ياخد هدف جديد. أقل من ٣: المهمة تستنى.</li>
@@ -198,6 +199,7 @@ gameText({
                 <li>Not a game from the list: <b>a switch on the room</b>. The host turns on <b>🕵️ The secret mission</b> in the room, picks the <b>place</b> (home, a café or restaurant, out, anywhere) and the <b>company</b> (family or friends), and it runs beside every game until the host turns it off.</li>
                 <li>Everyone secretly has a <b>target</b> (someone else in the room) and a <b>mission</b>: "Get Mona to say seriously". The 📁 at the top of any screen opens your file; <b>press and hold</b> to read it, let go and it closes.</li>
                 <li>Done it? Press <b>«Done»</b>. The target's phone quietly asks: "Did it really happen?". <b>Yes</b>: a point for you and a new file with a new target. <b>No</b>: nothing happens, keep at the same mission. Nobody is ever out.</li>
+                <li>Sometimes the mission is <b>«Say the word»</b>: "Get Mona to say the word giraffe". A word from the drawing words, good for any place and any company.</li>
                 <li><b>«Change it»</b>: another mission for the same target, once every 10 minutes.</li>
                 <li><b>«Caught you!»</b>: if you think someone is working on you, name them. Right: a point for you and they get a new file. Wrong: the one you named gets a point, and you wait 5 minutes before guessing again. Someone who asked you "did it happen?" gave themselves away - that one can't be caught, and it counts as a wrong guess.</li>
                 <li>Someone who comes late gets a file at once; someone who leaves drops out and whoever was working on them gets a new target. Fewer than 3: it waits.</li>

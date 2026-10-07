@@ -535,6 +535,15 @@ const PROBES = {
         // A mafia phone may name the lawyer as its pick; it must never list them as one of its own.
         if (role === 'mafia' && lawyer && (you.mafia || []).some((x) => x.id === lawyer)) return 'you.mafia (lists the lawyer)';
         return null;
+      }),
+      // Idea 538: the front row (every role, the night's picks) is an out player's alone.
+      probe('only a player who is out watches everything', live && (s.out || []).length > 0, (view, pid) => {
+        const you = view.you;
+        if (!you || !you.spectate) return null;
+        if ((s.alive || []).indexOf(pid) !== -1) return 'you.spectate (still in)';
+        if (s.outSee === false) return 'you.spectate (switch off)';
+        if ((s.roster || []).indexOf(pid) === -1) return 'you.spectate (not in the game)';
+        return null;
       })
     ];
   },

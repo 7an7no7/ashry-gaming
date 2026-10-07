@@ -45,6 +45,22 @@ const normaliseClue = (text) => {
   return out.replace(/\s+/g, '');
 };
 
+/**
+ * أسماء الرموز: a clue that is a board word, contains one or is contained in one
+ * (folded as above, the shorter of the two 3 letters or more), so «شجر» can't
+ * point at «شجرة» (idea 547, 7 Oct 2026). The server refuses it (giveClue) and
+ * the spymaster's phone says so before sending.
+ */
+const codenamesClueClash = (clue, word) => {
+  const a = normaliseClue(clue);
+  const b = normaliseClue(word);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const short = a.length <= b.length ? a : b;
+  const long = short === a ? b : a;
+  return short.length >= 3 && long.indexOf(short) !== -1;
+};
+
 /* --- Rooms: is the game over -------------------------------------------- */
 
 /**

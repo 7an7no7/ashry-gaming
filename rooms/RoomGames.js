@@ -572,6 +572,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     if (!text) throw new Error('اكتب رسالة');
     const who = room.players.find(p => p.id === playerId) || (room.screens || []).find(x => x.id === playerId);
     if (!who) throw new Error('لست في الغرفة');
+    if (mafiaSilenced(room, playerId)) throw new Error('إنت خرجت من اللعبة: بتتفرج وساكت لحد آخرها 🤐');
     const now = Date.now();
     // Five in five seconds is a person; more is a stuck key.
     if ((room.chat || []).filter(m => m.from === playerId && now - m.at < 5000).length >= 5) throw new Error('على مهلك شوية');
@@ -593,7 +594,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     const e = String((payload && payload.e) || '');
     if (AUDIENCE_CHEERS.indexOf(e) === -1) throw new Error('مش موجودة');   // one of the six shouts
     const who = room.players.find(p => p.id === playerId && !p.bot);
-    if (!who || !room.game || room.phase === 'lobby') return;
+    if (!who || !room.game || room.phase === 'lobby' || mafiaSilenced(room, playerId)) return;
     const now = Date.now();
     room._cheers = (room._cheers || []).filter(c => now - c.at < CHEER_WINDOW_MS);
     if (room._cheers.filter(c => c.from === playerId).length >= CHEER_BURST) return;

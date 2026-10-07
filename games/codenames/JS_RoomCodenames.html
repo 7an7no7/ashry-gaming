@@ -86,9 +86,6 @@ const cnLocal = {
   turnKey: null       // the turn and clue `pending` was picked for
 };
 
-/** Folds the spellings the server counts as one word: foldWord is normaliseClue (app/Common.js), the server's own. */
-const cnFold = (text) => foldWord(text);
-
 function cnSettings(s) {
   const raw = (s && s.settings) || {};
   return {
@@ -604,8 +601,8 @@ async function submitCodenamesClue() {
   const count = document.getElementById('cn-clue-count').value;
   if (!word) return showToast(t.cn_clue_needed || 'اكتب التلميح', 'error');
   const s = Room.state && Room.state.shared;
-  const folded = cnFold(word);
-  if (s && (s.board || []).some(c => !c.revealed && cnFold(c.word) === folded)) {
+  // The server's own test (app/Common.js): a board word, or one inside or around a board word.
+  if (s && (s.board || []).some(c => !c.revealed && codenamesClueClash(word, c.word))) {
     return showToast(t.cn_clue_on_board || '', 'error');
   }
   await roomAct('giveClue', { word: word, count: count === 'inf' ? 'inf' : Number(count) });

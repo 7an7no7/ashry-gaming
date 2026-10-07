@@ -68,6 +68,9 @@ const mafiaAction = (room, playerId, action, payload) => {
     // whether the evening has a voice. Which device speaks is the phone's own
     // business (JS_RoomMafia.html).
     const narrate = opts.narrate === undefined ? !!prev.narrate : !!opts.narrate;
+    // Idea 538 (7 Oct 2026): whoever is out watches everything, silent. On unless the host
+    // turned it off; an older phone that sends nothing keeps the last game's, else on.
+    const outSee = opts.outSee === undefined ? prev.outSee !== false : !!opts.outSee;
     const roster = room.players.map(p => p.id);
     const roles = shuffled(mafiaRoles(n, mode));
     room._mafia = { roles: {}, lastSave: null, night: null };
@@ -78,6 +81,7 @@ const mafiaAction = (room, playerId, action, payload) => {
       nightSeconds: night,
       revealRoles: revealRoles,
       narrate: narrate,
+      outSee: outSee,
       mafiaCount: mafiaCount(n),
       roleList: mafiaRoles(n, mode).filter((r, i, a) => a.indexOf(r) === i),
       roster: roster,
@@ -192,8 +196,40 @@ const mafiaWriteSecrets = (room) => {
     if (role === 'detective') { slice.checks = m.checks || []; if (night && night.checked) slice.pick = night.checked; }
     if ((role === 'citizen' || role === 'lawyer') && night && night.suspects[id]) slice.pick = night.suspects[id];
     if (role === 'mafia' && night && night.kills[id]) slice.pick = night.kills[id];
+    if (mafiaSpectating(room, id)) slice.spectate = mafiaSpectateView(room);
     room.secrets[id] = slice;
   });
+};
+
+/**
+ * Idea 538 (the owner, 7 Oct 2026, a lobby switch, on by default): a player who is out
+ * watches from the front row - every role and, at night, every pick as it is made -
+ * and is silent: no vote (the ballot is the living), no chat and no shouts (mafiaSilenced).
+ */
+const mafiaSpectating = (room, id) => {
+  const s = room.shared || {};
+  return !!room._mafia && s.outSee !== false && s.phase !== 'gameover' && Array.isArray(s.alive) &&
+    (s.roster || []).indexOf(id) !== -1 && s.alive.indexOf(id) === -1;
+};
+
+/** A spectator's phone may not talk while the game is on. */
+const mafiaSilenced = (room, id) => room.game === 'mafia' && mafiaSpectating(room, id);
+
+/** What the out see: everyone's real role, and tonight's picks so far. */
+const mafiaSpectateView = (room) => {
+  const s = room.shared;
+  const m = room._mafia;
+  const nameOf = (id) => roomPlayerName(room, id) || ((s.out || []).find(o => o.id === id) || {}).name || '';
+  const night = m.night;
+  return {
+    roles: s.roster.map(id => ({ id: id, name: nameOf(id), role: m.roles[id], alive: s.alive.indexOf(id) !== -1 })),
+    night: night ? {
+      mafia: Object.keys(night.kills).map(by => ({ by: nameOf(by), name: nameOf(night.kills[by]) })),
+      save: night.save ? nameOf(night.save) : null,
+      check: night.checked ? { name: nameOf(night.checked), mafia: m.roles[night.checked] === 'mafia' } : null,
+      suspects: Object.keys(night.suspects).map(by => ({ by: nameOf(by), name: nameOf(night.suspects[by]) }))
+    } : null
+  };
 };
 
 const mafiaStartNight = (room) => {

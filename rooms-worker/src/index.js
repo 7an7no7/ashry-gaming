@@ -73,6 +73,17 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), {
   headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...CORS }
 });
 
+/* The address the per-address brakes below count by. A rooms server answering on this
+   machine (wrangler dev: the robots and the screen test, on the PC and on GitHub's runners)
+   has none: on the PC wrangler leaves CF-Connecting-IP empty, on a GitHub runner it fills it
+   in, and the tests' hundred-odd rooms from one address hit the brakes there (7 Oct 2026, the
+   first run of the tests on GitHub). The live server's address is never a local one, so no
+   phone can get past a brake this way. */
+const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+const clientIp = (request) => {
+  try { if (LOCAL_HOSTS.has(new URL(request.url).hostname)) return ''; } catch (e) {}
+  return request.headers.get('CF-Connecting-IP') || '';
+};
 const cleanCode = (raw) => String(raw || '').trim().toUpperCase();
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code));
 
@@ -84,7 +95,7 @@ const CREATE_LIMIT = 60;
 const CREATE_WINDOW_MS = 10 * 60 * 1000;
 const createdBy = new Map();   // address -> { n, since }
 const createAllowed = (request) => {
-  const ip = request.headers.get('CF-Connecting-IP') || '';
+  const ip = clientIp(request);
   if (!ip) return true;
   const now = Date.now();
   if (createdBy.size > 5000) {
@@ -102,7 +113,7 @@ const CREW_LIMIT = 30;
 const CREW_WINDOW_MS = 10 * 60 * 1000;
 const crewedBy = new Map();
 const crewAllowed = (request) => {
-  const ip = request.headers.get('CF-Connecting-IP') || '';
+  const ip = clientIp(request);
   if (!ip) return true;
   const now = Date.now();
   if (crewedBy.size > 5000) {
@@ -147,7 +158,7 @@ const COUNT_LIMIT = 120;
 const COUNT_WINDOW_MS = 60 * 60 * 1000;
 const countedBy = new Map();
 const countAllowed = (request) => {
-  const ip = request.headers.get('CF-Connecting-IP') || '';
+  const ip = clientIp(request);
   if (!ip) return true;
   const now = Date.now();
   if (countedBy.size > 5000) {
@@ -165,7 +176,7 @@ const ERR_LIMIT = 40;
 const ERR_WINDOW_MS = 60 * 60 * 1000;
 const erredBy = new Map();
 const errAllowed = (request) => {
-  const ip = request.headers.get('CF-Connecting-IP') || '';
+  const ip = clientIp(request);
   if (!ip) return true;
   const now = Date.now();
   if (erredBy.size > 5000) {
@@ -215,7 +226,7 @@ const limiter = (limit, windowMs) => {
   const by = new Map();
   let swept = 0;
   return (request) => {
-    const ip = request.headers.get('CF-Connecting-IP') || '';
+    const ip = clientIp(request);
     if (!ip) return true;
     const now = Date.now();
     // Old entries go at most once a minute: a map kept full of fresh addresses used to be walked
@@ -293,7 +304,7 @@ async function handlePack(env, request, path, body) {
     // quiz changed since the phone opened it answers for the right question, or not at all.
     if (!packGetAllowed(request)) return { ok: false, error: 'busy' };
     // At most one answer per address every few seconds (PackStore.answer): the board never asks faster.
-    const who = await keyHash('ip:' + (request.headers.get('CF-Connecting-IP') || ''));
+    const who = await keyHash('ip:' + (clientIp(request)));
     const got = await packStub(env, code).answer(Number(body.i), body.q, who);
     if (!got) return { ok: false, error: 'not_found' };
     if (got.wait) return { ok: false, error: 'wait', in: got.wait };

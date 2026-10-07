@@ -97,7 +97,7 @@ jobs:
           say() { tr -d '\r' | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
           f="$RUNNER_TEMP/out/robots.log"
           [ -f "$f" ] || exit 0
-          echo "::error title=robots: what failed::$(grep -E '✗|crashed|^failed|needed a second run' "$f" | head -40 | cut -c1-300 | say)"
+          echo "::error title=robots: what failed::$(grep -A2 -E '✗|crashed|^failed|needed a second run' "$f" | head -60 | cut -c1-300 | say)"
           echo "::warning title=robots: the end of the log::$(tail -30 "$f" | cut -c1-300 | say)"
           echo "::warning title=robots: the rooms server's log::$(tail -20 "$RUNNER_TEMP/out/rooms-server.log" 2>/dev/null | cut -c1-300 | say)"
 
@@ -172,7 +172,7 @@ jobs:
           say() { tr -d '\r' | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
           f="$RUNNER_TEMP/out/screens.log"
           [ -f "$f" ] || exit 0
-          echo "::error title=screens ${{ matrix.name }}: what failed::$(grep -E '✗|crashed|^failed|needed a second run' "$f" | head -40 | cut -c1-300 | say)"
+          echo "::error title=screens ${{ matrix.name }}: what failed::$(grep -A2 -E '✗|crashed|^failed|needed a second run' "$f" | head -60 | cut -c1-300 | say)"
           echo "::warning title=screens ${{ matrix.name }}: the end of the log::$(tail -30 "$f" | cut -c1-300 | say)"
           echo "::warning title=screens ${{ matrix.name }}: the rooms server's log::$(tail -20 "$RUNNER_TEMP/out/rooms-server.log" 2>/dev/null | cut -c1-300 | say)"
 

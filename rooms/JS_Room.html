@@ -2924,7 +2924,19 @@ function roomHasScreenOn(state) {
 }
 
 /** The strip under the header while you are in a room but looking at something else. */
+/** «غرفتك» in the bar (syncNavRoom): back to the room, or on its own screens to the top of it. */
+function roomNavTap() {
+  if (onRoomView()) {
+    const main = document.querySelector('.shell__main');
+    if (main) main.scrollTo({ top: 0, behavior: motionOff() ? 'auto' : 'smooth' });
+    return;
+  }
+  roomReturnToActive();
+}
+
 function updateRoomBanner() {
+  // The raised button follows the room too: «غرفتك» while this phone is in one.
+  if (typeof syncNavRoom === 'function' && typeof appState !== 'undefined') syncNavRoom(appState.currentView);
   const banner = document.getElementById('active-room-banner');
   if (!banner) return;
   const session = Room.session;

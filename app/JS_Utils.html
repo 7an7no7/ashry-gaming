@@ -2369,6 +2369,8 @@ document.addEventListener('toggle', (e) => {
   if (helpSearchTerm && card && card.classList && card.classList.contains('help-game-card') && card.open) helpScrollToMark(card);
 }, true);
 
+const HELP_WELCOME_KEY = 'ashryHelpWelcome_v1';
+
 /** The card for the screen help was opened from. */
 function renderHelpContext(key, rules, t, searching) {
   const slot = document.getElementById('help-context');
@@ -2383,16 +2385,31 @@ function renderHelpContext(key, rules, t, searching) {
   if (!entry || !rules[entry.key]) {
     // No particular screen — the menu, or a search in progress. On the menu,
     // say what the app is for rather than leaving a gap where the answer goes.
-    slot.innerHTML = (appState.currentView === 'menu' || appState.currentView === 'tools') ? `
-      <div class="help-hero" data-accent="violet">
+    if (appState.currentView !== 'menu' && appState.currentView !== 'tools') { slot.innerHTML = ''; return; }
+    // Read once, the welcome folds to one line that opens it again (the owner's pick 5 of
+    // the app polish, 7 Oct 2026). "Read" is a minute after it was first shown, so a
+    // redraw while someone is reading it (a search cleared) never folds it under them;
+    // «حذف جميع البيانات» shows it whole again.
+    let seenAt = 0;
+    try { seenAt = Number(localStorage.getItem(HELP_WELCOME_KEY)) || 0; } catch (e) {}
+    if (!seenAt) { try { localStorage.setItem(HELP_WELCOME_KEY, String(Date.now())); } catch (e) {} }
+    const folded = seenAt && Date.now() - seenAt > 60 * 1000;
+    const head = (title) => `
         <div class="help-hero__head">
           <span class="help-hero__icon" aria-hidden="true">👋</span>
           <div class="help-hero__meta">
-            <div class="help-hero__title">${escapeHTML(t.help_welcome || '')}</div>
+            <div class="help-hero__title">${escapeHTML(title)}</div>
           </div>
-        </div>
+          ${folded ? '<span class="help-hero__chev" aria-hidden="true">▾</span>' : ''}
+        </div>`;
+    slot.innerHTML = folded ? `
+      <details class="help-hero help-hero--fold" data-accent="violet">
+        <summary>${head(t.help_welcome_fold || t.help_welcome || '')}</summary>
         <div class="help-hero__body">${t.help_intro || ''}</div>
-      </div>` : '';
+      </details>` : `
+      <div class="help-hero" data-accent="violet">${head(t.help_welcome || '')}
+        <div class="help-hero__body">${t.help_intro || ''}</div>
+      </div>`;
     return;
   }
 

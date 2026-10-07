@@ -2538,14 +2538,7 @@
       }
     }
     if (backEl) backEl.classList.toggle('is-hidden', !meta.up);
-    const tab = navTabFor(viewId);
-    ['home', 'together', 'tools'].forEach(name => {
-      const el = document.getElementById('nav-' + name);
-      if (!el) return;
-      el.classList.toggle('is-active', name === tab);
-      if (name === tab) { if (el.getAttribute('aria-current') !== 'page') el.setAttribute('aria-current', 'page'); }
-      else if (el.hasAttribute('aria-current')) el.removeAttribute('aria-current');
-    });
+    syncNavTabs(viewId);
     // The screen's own icon beside its name; the home shows the mark instead.
     const iconEl = document.getElementById('app-title-icon');
     const icon = viewId === 'menu' ? '' : screenIcon(viewId);
@@ -2553,9 +2546,24 @@
     if (typeof updateRoomBanner === 'function') updateRoomBanner();
   }
 
+  /** Lights the bar's tab for a screen. Run again when a room starts or ends (syncNavRoom),
+      since a room's screens light «غرفتك» only once this phone is in one. */
+  function syncNavTabs(viewId) {
+    const tab = navTabFor(viewId);
+    ['home', 'together', 'room', 'tools'].forEach(name => {
+      const el = document.getElementById('nav-' + name);
+      if (!el) return;
+      if (el.classList.contains('is-active') !== (name === tab)) el.classList.toggle('is-active', name === tab);
+      if (name === tab) { if (el.getAttribute('aria-current') !== 'page') el.setAttribute('aria-current', 'page'); }
+      else if (el.hasAttribute('aria-current')) el.removeAttribute('aria-current');
+    });
+  }
+
   /** Which bottom tab a screen sits under: the rooms, the tools, or the games. */
   function navTabFor(viewId) {
     const id = String(viewId || '');
+    // In a room, its own screens light «غرفتك» (the raised button) rather than مع بعض (the owner, 7 Oct 2026).
+    if (id.indexOf('room-') === 0 && id !== 'room-join' && typeof Room !== 'undefined' && Room.session) return 'room';
     if (id === 'together' || id === 'crew' || id.indexOf('room-') === 0 || id === 'setup-codenames') return 'together';
     if (id === 'tools') return 'tools';
     const key = (typeof HELP_FOR_VIEW !== 'undefined') ? HELP_FOR_VIEW[id] : null;
@@ -3632,19 +3640,27 @@
     document.body.classList.toggle('in-play', (/^(play|reveal|input)-/.test(v) || v === 'imposter-reveal') && navTabFor(v) !== 'tools');
     const btn = document.getElementById('nav-room');
     if (!btn) return;
-    const join = v === 'together';
-    if (btn.dataset.join === String(join)) return;
-    btn.dataset.join = String(join);
+    // While this phone is in a room the button is «غرفتك» (the owner's pick 3 of the app
+    // polish, 7 Oct 2026): it takes you back to the room, and on the room's own screens it is
+    // the tab you're on and a tap scrolls to the top (roomNavTap). «افتح غرفة» comes back
+    // when you leave; a second room is still opened from مع بعض, which asks first.
+    const mode = (typeof Room !== 'undefined' && Room.session) ? 'room' : v === 'together' ? 'join' : 'open';
+    syncNavTabs(v);
+    if (btn.dataset.mode === mode && btn.dataset.lang === appState.lang) return;
+    btn.dataset.mode = mode;
+    btn.dataset.lang = appState.lang;
     const glyph = btn.querySelector('.nav-room__btn');
     const label = btn.querySelector('.nav-label');
-    if (glyph) glyph.textContent = join ? '🔑' : '+';
+    const key = mode === 'room' ? 'nav_your_room' : mode === 'join' ? 'join_room_menu' : 'room_open';
+    if (glyph) glyph.textContent = mode === 'room' ? '🚪' : mode === 'join' ? '🔑' : '+';
     if (label) {
-      label.setAttribute('data-i18n', join ? 'join_room_menu' : 'room_open');
+      label.setAttribute('data-i18n', key);
       const t = TRANSLATIONS[appState.lang] || {};
-      label.textContent = (join ? t.join_room_menu : t.room_open) || label.textContent;
+      label.textContent = t[key] || label.textContent;
     }
-    btn.setAttribute('onclick', join ? "roomOpenJoin('')" : 'roomCreateEmpty()');
-    btn.classList.toggle('nav-item--join', join);
+    btn.setAttribute('onclick', mode === 'room' ? 'roomNavTap()' : mode === 'join' ? "roomOpenJoin('')" : 'roomCreateEmpty()');
+    btn.classList.toggle('nav-item--join', mode === 'join');
+    btn.classList.toggle('nav-item--inroom', mode === 'room');
   }
 
   function setView(viewId) {

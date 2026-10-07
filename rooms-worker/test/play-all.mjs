@@ -1260,7 +1260,8 @@ async function humRobots() {
   check((await G[0].act('envelope', { deal: s1.deal, i: 0 })).ok && H.state.shared.envelope === true, 'hum: only the hummer opens an envelope');
   await M.must('envelope', { deal: s1.deal, i: 2 });
   await M.waitFor((s) => s.you && s.you.song && s.you.song.t && typeof s.you.token === 'string', 'hum: the song and its token reach the hummer');
-  check(M.state.you.song.t === envTitles[2] && H.state.shared.envelope === false, 'hum: the song is the envelope the hummer picked');
+  await H.waitFor((s) => s.shared.envelope === false, 'hum: the envelopes are put away on the host\'s phone too');
+  check(M.state.you.song.t === envTitles[2], 'hum: the song is the envelope the hummer picked');
   const title = M.state.you.song.t;
   const token = M.state.you.token;
   check(G.concat([TV, late]).every((b) => !b.state.you && JSON.stringify(b.state).indexOf(title) === -1 && JSON.stringify(b.state).indexOf(token) === -1),

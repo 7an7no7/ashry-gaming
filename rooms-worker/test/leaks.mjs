@@ -940,7 +940,14 @@ const PROBES = {
       secret('the green moment stays on the server until it comes', red ? h.greenAt : null, []),
       secret("a fake's moment stays on the server until it comes", fakeAhead ? h.fake.at : null, []),
       probe('no fake is on the screens before it comes', fakeAhead, (view) => (hasKey(view.shared, 'fake') ? 'shared.fake' : null)),
-      probe('the rounds with a fake are never sent', !!h, (view) => (hasKey(view.shared, 'plan') ? 'shared.plan' : null))
+      probe('the rounds with a fake are never sent', !!h, (view) => (hasKey(view.shared, 'plan') ? 'shared.plan' : null)),
+      // «ركّز!» (875): the words still to come, and the one that agrees, stay on the server.
+      probe('the words to come are never sent', red && !!(h.words || []).length, (view) => (hasKey(view.shared, 'words') ? 'shared.words' : null)),
+      probe('the word that agrees is not on the screens before its moment', red && !!h.match, (view) => {
+        const w = (view.shared || {}).word;
+        if (hasKey(view.shared, 'match')) return 'shared.match';
+        return w && w.w === w.ink ? 'shared.word' : null;
+      })
     ];
   },
   // بالظبط ٣!: a phone's secret (a colour, a shape, a number, a word) on its own phone only, and on no
@@ -2785,7 +2792,27 @@ const DRIVERS = {
         else runClock(T, (r) => r.shared.phase !== 'result', 6);
       }
     }
-    return S(T).phase === 'gameover' && sawFake && fooled && S(T).board.length === 4;
+    if (!(S(T).phase === 'gameover' && sawFake && fooled && S(T).board.length === 4)) return false;
+    // «ركّز!» in «خروج المغلوب» (875, 877): someone taps a word that doesn't agree; the rest tap the
+    // match; one goes out a round until the final's best of three.
+    const U = table('reaction', 4);
+    must(U, U.host, 'start', { focus: true, mode: 'knockout' });
+    let fell = false;
+    for (let guard = 0; guard < 400 && S(U).phase !== 'gameover'; guard++) {
+      const s = S(U);
+      if (s.phase === 'wait') {
+        if (!fell && s.word) { must(U, s.alive[0], 'tap', { round: s.round, at: clock }); fell = true; continue; }
+        runClock(U, (r) => r.shared.phase !== 'wait' || (r.shared.word && r.shared.word.n !== s.word.n), 12);
+        continue;
+      }
+      if (s.phase === 'go') {
+        s.alive.forEach((id, i) => { if (!s.taps.some((x) => x.id === id)) act(U, id, 'tap', { round: s.round, at: s.greenAt + 150 + i * 40 }); });
+        runClock(U, (r) => r.shared.phase !== 'go', 6);
+        continue;
+      }
+      if (s.phase === 'result') runClock(U, (r) => r.shared.phase !== 'result', 6);
+    }
+    return S(U).phase === 'gameover' && fell && !!S(U).final && !!S(U).final.winner;
   },
   wire() {
     // Four at the kitchen with the surprises on: most orders done by whoever holds them, some let
@@ -3071,8 +3098,12 @@ const DRIVERS = {
     // Three: all out together (a tie: all three play on), then one hit, then the last two.
     const T = table('laser', 3);
     const [a, b, c] = T.ids;
-    must(T, T.host, 'start', { teams: 0, map: 'hex' });
-    if (!round(T, { [a]: [-0.4, 0, 0], [b]: [0, 0, 180], [c]: [0.4, 0, 180] })) return false;
+    must(T, T.host, 'start', { teams: 0, map: 'hex', turret: true });
+    // The room's first laser game: the practice round first (866), with the turret (867) on.
+    if (!S(T).practice || !round(T, { [a]: [-0.4, 0.3, 0], [b]: [0, 0.3, 180], [c]: [0.4, -0.3, 180] })) return false;
+    if (S(T).practice || S(T).round !== 1 || S(T).alive.length !== 3) return false;
+    T.room.shared.turret = null;
+    if (!round(T,{ [a]: [-0.4, 0, 0], [b]: [0, 0, 180], [c]: [0.4, 0, 180] })) return false;
     if (!S(T).tie || S(T).alive.length !== 3 || S(T).round !== 2) return false;
     if (!round(T, { [a]: [-0.3, 0, 0], [b]: [0.3, 0, 90], [c]: [0, 0.4, 90] })) return false;
     if (S(T).alive.length !== 2) return false;
@@ -3083,7 +3114,7 @@ const DRIVERS = {
     if (S(T).phase !== 'gameover') return false;
     // Four in two teams: the first in the line fires along it, sparing its teammate.
     const U = table('laser', 4);
-    must(U, U.host, 'start', { teams: 2, map: 'hex' });
+    must(U, U.host, 'start', { teams: 2, map: 'hex', practice: false });
     if (S(U).phase !== 'teams') return false;
     must(U, U.host, 'shuffle', {});
     must(U, U.host, 'go', {});
@@ -3094,7 +3125,7 @@ const DRIVERS = {
     // Round two: hearts, a shield, a ghost's mine and its swap, bouncing, teams that see each other.
     const V = table('laser', 4);
     const [p, q, r, w] = V.ids;
-    must(V, V.host, 'start', { teams: 0, hearts: 2, swap: true, bounce: true, map: 'hex', pickups: false });
+    must(V, V.host, 'start', { teams: 0, hearts: 2, swap: true, bounce: true, map: 'hex', pickups: false, practice: false });
     must(V, q, 'shield', { round: 1, on: true });
     if (!round(V, { [p]: [-0.5, 0, 0], [q]: [0, 0, 90], [r]: [0.4, 0.5, 270], [w]: [-0.4, 0.5, 270] })) return false;
     if (S(V).hearts[q] !== 2 || !S(V).shieldUsed[q]) return false;
@@ -3110,7 +3141,7 @@ const DRIVERS = {
     }
     if (S(V).alive.indexOf(q) === -1 || S(V).alive.indexOf(r) !== -1) return false;
     const X = table('laser', 4);
-    must(X, X.host, 'start', { teams: 2, sight: true, map: 'circle', pillars: true, pieces: true });
+    must(X, X.host, 'start', { teams: 2, sight: true, map: 'circle', pillars: true, pieces: true, mirrors: true, turret: true, practice: false });
     must(X, X.host, 'go', {});
     X.ids.forEach((pid, i) => must(X, pid, 'place', { round: 1, x: -0.4 + 0.25 * i, y: 0.3, a: 270 }));
     must(X, X.ids[0], 'shield', { round: 1, on: true });

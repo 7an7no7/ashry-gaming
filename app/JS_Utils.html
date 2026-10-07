@@ -926,6 +926,18 @@ function setupMoreToggled(el) {
               dial.classList.toggle('is-low', !!appState.timers.general.running && t <= 10 && t > 0);
           }
       }
+      if (typeof timerPillSync === 'function') timerPillSync();   // the pill under the header (1232)
+      genTimerBtnKey();
+  }
+
+  /* The start button's text is the script's (ابدأ / إيقاف), and its data-i18n
+     key has to say the same: applyTranslations (every setView) rewrote a running
+     timer's «إيقاف» back to «ابدأ» whenever its screen was opened (found with 1236). */
+  function genTimerBtnKey() {
+      const b = document.getElementById('gen-start-btn');
+      if (!b) return;
+      const key = appState.timers.general.running ? 'pause_btn' : 'start_btn';
+      if (b.getAttribute('data-i18n') !== key) b.setAttribute('data-i18n', key);
   }
 
   /** ideas batch: solo - a preset starts the timer at once at that length (whatever was running). */
@@ -998,6 +1010,8 @@ function setupMoreToggled(el) {
           });
       }
       syncWakeLock(appState.currentView);   // the screen stays on while it runs (1231)
+      if (typeof timerPillSync === 'function') timerPillSync();
+      genTimerBtnKey();
   }
 
   function resetGenTimer() {

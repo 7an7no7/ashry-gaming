@@ -2376,4 +2376,136 @@ body:is(.in-play, .in-room-game) .shell { --rail-w: 0px; }
   .code-boxes.code-boxes--six { grid-template-columns: repeat(6, minmax(0, 2.75rem)); }
   .code-boxes--six .code-boxes__box { height: 3.25rem; font-size: 1.5rem; }
 }
+
+/* ==========================================================================
+   72. THE HOME, THE HEADER, A SETUP'S SWITCH AND THE TIMER (7 Oct 2026, the
+   owner's picks 1207, 1209, 1210, 1216, 1222, 1232, 1236; JS_Catalog.html,
+   JS_Core.html). The chess clock's own rules (1237) sit beside .chess-half in
+   Style_Screens.html.
+   ========================================================================== */
+/* 1207: an empty search offers «الليلة دي؟» and the rules. */
+.home-empty__ways { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-top: var(--sp-3); }
+
+/* 1209: «كمّل» with more boards: a «+2» pill, and the others folded under the card. */
+.home-cont { flex-wrap: wrap; }
+.home-cont__more {
+  flex: none;
+  min-width: var(--tap);
+  padding-inline: var(--sp-2);
+  border: 1.5px solid var(--accent-border);
+  border-radius: var(--r-lg);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+.home-cont__more:active { transform: scale(0.94); }
+.home-cont__more[aria-expanded="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+.home-cont__list { flex: 1 1 100%; display: flex; flex-direction: column; gap: var(--sp-1); }
+.home-cont__list[hidden] { display: none; }
+.home-cont__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--tap);
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-solid);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.home-cont__row:active { transform: scale(0.98); }
+.home-cont__icon.home-cont__icon--sm { width: 2rem; height: 2rem; border-radius: var(--r-sm); font-size: 1.1rem; }
+.home-cont__name { font-size: var(--fs-sm); font-weight: 800; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-cont__chev { flex: none; color: var(--accent-ink); font-size: 0.7rem; }
+
+/* 1210: how many games each chip leaves; one that leaves none is dimmed. */
+.filter-chip__n { font-size: 0.78em; font-weight: 700; opacity: 0.72; margin-inline-start: 0.125rem; }
+.filter-chip__n:empty { display: none; }
+.filter-chip.is-none:not(.is-active) { opacity: 0.45; }
+/* On a phone the chips are two wrapped rows at most (section 39): the count is a
+   small bubble on the chip's corner, taking no width, or «مين وكام؟» went to a
+   third row at 375px. */
+@media (max-width: 899px) {
+  .home-tools .filter-bar .filter-chip .filter-chip__n {
+    position: absolute;
+    top: -0.4rem;
+    inset-inline-end: -0.25rem;
+    z-index: 1;
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.05rem;
+    height: 1.05rem;
+    margin: 0;
+    padding-inline: 0.2rem;
+    border: 1px solid var(--surface-solid);
+    border-radius: var(--r-full);
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 0.6rem;
+    line-height: 1;
+    opacity: 1;
+  }
+  .home-tools .filter-bar .filter-chip .filter-chip__n:empty { display: none; }
+}
+
+/* 1216: a crowded header under 400px (📁 and 💬 showing) folds 🔊 and ⚙️ into «⋯». */
+.hdr-more { display: none; width: 2.5rem; font-size: 1.2rem; }
+@media (max-width: 399.98px) {
+  body.has-fx.has-chat.has-mission:not(.is-tv-view) .hdr-more { display: inline-flex; }
+  body.has-fx.has-chat.has-mission:not(.is-tv-view) :is(.fx-fab, #nav-settings) { display: none; }
+}
+
+/* 1222: under the one phone / own phones switch, what each side needs. */
+.mode-needs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-4);
+  padding-inline: var(--sp-1);
+}
+.mode-needs__line { font-size: 0.7rem; font-weight: 600; line-height: 1.35; color: var(--text-3); text-align: center; }
+.mode-needs__line.is-off { color: var(--warning-ink); font-weight: 700; }
+.mode-switch .segmented__item.is-offline, .game-hero .meta-bit--pick.is-offline { opacity: 0.5; }
+
+/* 1232: the general timer counting while you're elsewhere, a rose pill under the
+   header's row (a second row of its grid, so nothing is covered). */
+.shell__header { grid-template-rows: minmax(max(var(--tap), calc(var(--header-h) - var(--safe-top))), auto); }
+.timer-pill {
+  grid-column: 1 / -1;
+  justify-self: center;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 2.25rem;
+  margin-bottom: var(--sp-2);
+  padding: 0.25rem var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+.timer-pill::before { content: ''; position: absolute; inset: -0.25rem 0; }
+.timer-pill[hidden] { display: none; }
+.timer-pill:active { transform: scale(0.95); }
+.timer-pill .metric { font-size: inherit; color: inherit; }
+.timer-pill.is-low { background: var(--danger-btn); border-color: var(--danger-btn); color: var(--danger-on); }
+
+/* 1236: the timer screen on the setup's own spacing. */
+.gtm-card { text-align: center; }
+.gtm-adjust { justify-content: center; margin-bottom: var(--sp-4); }
 </style>

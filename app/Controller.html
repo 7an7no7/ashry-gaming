@@ -469,7 +469,12 @@
           <button id="nav-settings" class="iconbtn iconbtn--plain" onclick="openSettings()" aria-label="الإعدادات" data-i18n-title="settings">
             <span aria-hidden="true">⚙️</span>
           </button>
+          <!-- Under 400px with 📁 and 💬 showing, 🔊 and ⚙️ fold into this (1216). -->
+          <button type="button" id="hdr-more" class="iconbtn iconbtn--plain hdr-more" onclick="openHeaderMore()" aria-label="أكتر" data-i18n-title="hdr_more" title="أكتر">⋯</button>
         </div>
+        <!-- The general timer counting while you're elsewhere: tap to go back to it (1232). -->
+        <button type="button" id="timer-pill" class="timer-pill" data-accent="rose" onclick="timerPillGo()" hidden
+                aria-label="المؤقت شغال: ارجع له" data-i18n-title="timer_pill_go"><span aria-hidden="true">⏱</span><span class="metric" id="timer-pill-time">0:00</span></button>
       </header>
 
       <!-- ACTIVE ROOM BANNER -->
@@ -2596,8 +2601,8 @@
          </div>
       </div>
 
-      <div id="view-timers" class="hidden space-y-4">
-          <div class="card text-center py-10">
+      <div id="view-timers" class="hidden">
+          <div class="card gtm-card">
               <h3 class="eyebrow" data-i18n="gen_timer">مؤقت عام</h3>
               <div class="gtm-dial" id="gtm-dial">
                   <svg class="gtm-ring" viewBox="0 0 120 120" aria-hidden="true">
@@ -2613,25 +2618,25 @@
                   <button type="button" class="chip" onclick="genTimerPreset(300)" data-i18n="tmr_p_5m">5 د</button>
                   <button type="button" class="chip" onclick="genTimerPreset(600)" data-i18n="tmr_p_10m">10 د</button>
               </div>
-              <div class="flex justify-center gap-4 mb-6">
+              <div class="btn-row gtm-adjust">
                   <button onclick="adjustGenTimer(-1)" class="btn btn--ghost btn--sm btn--auto" data-i18n="tmr_minus1">-1د</button>
                   <button onclick="adjustGenTimer(1)" class="btn btn--secondary btn--sm btn--auto" data-i18n="tmr_plus1">+1د</button>
                   <button onclick="adjustGenTimer(5)" class="btn btn--secondary btn--sm btn--auto" data-i18n="tmr_plus5">+5د</button>
               </div>
-              <div class="flex gap-2">
+              <div class="btn-row">
                   <button onclick="toggleGenTimer()" id="gen-start-btn" class="btn btn--primary" data-i18n="start_btn">ابدأ</button>
-                  <button onclick="resetGenTimer()" class="btn btn--danger" data-i18n="reset_btn">تصفير</button>
+                  <button onclick="resetGenTimer()" class="btn btn--ghost" data-i18n="reset_btn">تصفير</button>
               </div>
           </div>
-          <button onclick="setView('tools')" class="btn btn--ghost mt-4" data-i18n="exit">خروج</button>
+          <button onclick="setView('tools')" class="btn btn--ghost" data-i18n="exit">خروج</button>
       </div>
 
-      <div id="view-play-chess" class="hidden fixed top-0 left-0 w-full h-full flex flex-col bg-gray-900 overflow-hidden select-none touch-none" style="z-index: 99999;">
+      <div id="view-play-chess" class="hidden">
           
-          <div class="chess-bar absolute top-1/2 left-0 w-full h-16 bg-gray-900 flex items-center justify-between px-4 transform -translate-y-1/2 border-t-4 border-b-4 border-gray-800 shadow-2xl" style="z-index: 100000;">
+          <div class="chess-bar">
               <button onclick="exitChessTimer(event)" class="btn btn--danger-soft btn--sm btn--auto" data-i18n="exit">خروج</button>
               
-              <div class="chess-bar__tools flex gap-4">
+              <div class="chess-bar__tools">
                   <button onclick="pauseChess(event)" class="iconbtn" aria-label="إيقاف مؤقت" data-i18n-title="a11y_pause">⏸️</button>
                   <button onclick="resetChess(event)" class="iconbtn" aria-label="إعادة" data-i18n-title="a11y_redo">🔄</button>
               </div>
@@ -2641,12 +2646,12 @@
 
           <div id="chess-btn-2" onclick="chessClick(2)" class="chess-half chess-half--flip is-idle">
               <div id="chess-label-2" class="eyebrow">اللاعب 2</div>
-              <div id="chess-time-2" class="text-7xl md:text-8xl font-black tabular-nums">05:00</div>
+              <div id="chess-time-2" class="chess-half__time">05:00</div>
           </div>
 
           <div id="chess-btn-1" onclick="chessClick(1)" class="chess-half is-idle">
               <div id="chess-label-1" class="eyebrow">اللاعب 1</div>
-              <div id="chess-time-1" class="text-7xl md:text-8xl font-black tabular-nums">05:00</div>
+              <div id="chess-time-1" class="chess-half__time">05:00</div>
           </div>
       </div>
 
@@ -3115,6 +3120,16 @@
         <div class="fx-grid" id="soundboard-grid"></div>
         <div class="modal-actions">
           <button onclick="closeModal('soundboard-modal')" class="btn btn--ghost" data-i18n="close">إغلاق</button>
+        </div>
+      </div>
+    </div>
+    <!-- The header's «⋯» on a crowded narrow header (1216): the two buttons it folds. -->
+    <div id="hdr-more-modal" class="modal-overlay hidden" onclick="if(event.target===this) closeModal('hdr-more-modal')">
+      <div class="modal-content modal-content--simple">
+        <div class="modal-actions">
+          <button type="button" class="btn btn--secondary btn--lg" onclick="closeModal('hdr-more-modal'); openSoundboard()"><span aria-hidden="true">🔊</span> <span data-i18n="sounds">لوحة الأصوات</span></button>
+          <button type="button" class="btn btn--secondary btn--lg" onclick="closeModal('hdr-more-modal'); openSettings()"><span aria-hidden="true">⚙️</span> <span data-i18n="settings">الإعدادات</span></button>
+          <button type="button" class="btn btn--ghost" onclick="closeModal('hdr-more-modal')" data-i18n="close">إغلاق</button>
         </div>
       </div>
     </div>

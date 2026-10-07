@@ -30,7 +30,7 @@
    ========================================================================= */
 const DK_LENS = ['#ffd54a', '#7cd3ff', '#ff8fb8', '#8ef0a0', '#c9a0ff', '#ffb070', '#6ee7e7'];
 const DK_OPTS_KEY = 'darkRoom';
-const DK_OPTS_DEFAULT = { story: 'home', mode: 'steps' };
+const DK_OPTS_DEFAULT = { story: 'home', mode: 'steps', mic: false };
 const DK_FLOOR = { kids: 'carpet', kitchen: 'check', grandpa: 'tiles', salon: 'wood', hall: 'wood2', dining: 'wood', entry: 'slab', treasure: 'slab2', sarco: 'slab', pillars: 'slab2', sand: 'sand', jars: 'slab' };
 const DK_TAU = Math.PI * 2;
 const DK_REST_AFTER = 10000;        // a phone untouched this long, with nothing moving, draws 6 frames a second
@@ -799,6 +799,7 @@ function dkFrame(ts) {
         if (role === 'mover' && dk.stick.on) dkStickSend(false);
         dkPaintIntro(document.getElementById('view-room-darkroom'), st);
       }
+      dkDizzyPaint(document.getElementById(role === 'screen' ? 'view-room-tv' : 'view-room-darkroom'), st);
     } catch (e) { /* a frame that fails is skipped */ }
   }
   if (resting) { dk.loop = -1; dk.sleepTimer = setTimeout(() => { dk.sleepTimer = null; dk.loop = requestAnimationFrame(dkFrame); }, gap); }
@@ -823,6 +824,11 @@ function dkLobbyHtml(state) {
         ${seg([['steps', dkT('dk_mode_steps')], ['stick', dkT('dk_mode_stick')]], o.mode, 'dkPickMode')}
       </div>
       <p class="field__hint">${escapeHTML(dkT(o.story === 'tomb' ? 'dk_lobby_tomb' : 'dk_lobby_home'))} ${escapeHTML(dkT(o.mode === 'stick' ? 'dk_lobby_stick' : 'dk_lobby_steps'))}</p>
+      <label class="switch-row" for="dk-mic">
+        <span class="field__label">🎤 ${escapeHTML(dkT('dk_mic'))}</span>
+        <span class="switch"><input type="checkbox" id="dk-mic" role="switch" ${o.mic ? 'checked' : ''} onchange="dkSetOpt({ mic: this.checked })"><span class="switch__track" aria-hidden="true"></span></span>
+      </label>
+      <p class="field__hint">${escapeHTML(dkT(o.mic ? 'dk_mic_hint' : 'dk_mic_off_hint'))}</p>
     </div>`;
 }
 function dkPickStory(v) { dkSetOpt({ story: v }); }
@@ -891,7 +897,7 @@ function dkPhoneBody(state) {
   const lone = m && !darkLensR(m, (s.guides || []).length);
   return `<div class="dk-guide">
       <div class="dk-gtitle"><b>${escapeHTML(dkT(lone ? 'dk_lens_all' : 'dk_lens_title'))}</b></div>
-      <div class="dk-map" data-dk-map><canvas data-dk-canvas aria-label="${escapeHTML(dkT('dk_map_label'))}"></canvas><div class="dk-toast" data-dk-toast aria-live="polite"></div><div class="dk-intro" data-dk-intro></div></div>
+      <div class="dk-map" data-dk-map><canvas data-dk-canvas aria-label="${escapeHTML(dkT('dk_map_label'))}"></canvas><div class="dk-toast" data-dk-toast aria-live="polite"></div><div class="dk-intro" data-dk-intro></div><div class="dk-dizzy" data-dk-dizzy aria-live="polite" hidden></div></div>
       ${lone ? '' : dkChipsHtml(state)}
       <p class="dk-small">${escapeHTML(dkT(lone ? 'dk_lens_hint_all' : 'dk_lens_hint'))}</p>
     </div>`;
@@ -905,7 +911,7 @@ function dkSig(state) {
 ROOM_GAMES.darkroom = {
   lateJoin: true,
   lobbyOptions(state) { return dkLobbyHtml(state); },
-  startPayload() { const o = dkOpts(); return { story: o.story, mode: o.mode }; },
+  startPayload() { const o = dkOpts(); return { story: o.story, mode: o.mode, mic: !!o.mic }; },
   actionKey(state) {
     const s = state.shared || {};
     return [roomDealKey(state), s.level, s.moverId, s.phase === 'gameover'].join('|');
@@ -920,6 +926,7 @@ ROOM_GAMES.darkroom = {
     renderRoomFrame(el, dkSig(state), () => `
       <div class="dk dk--${role} dk--${s.story || 'home'} ${s.phase === 'gameover' ? 'dk--over' : ''}">
         ${s.phase === 'gameover' ? '' : dkHeadHtml(state)}
+        ${s.phase === 'gameover' || role === 'watch' ? '' : '<div class="dk-mic" data-dk-mic hidden></div>'}
         ${dkPhoneBody(state)}
         ${role !== 'mover' ? dkHostHtml(state) : ''}
         ${role !== 'mover' ? renderRoomPlayerStrip(state) : ''}
@@ -960,6 +967,8 @@ function dkAfter(state, el) {
       }
     }
   });
+  dkMicPaint(el, state);
+  dkDizzyPaint(el, state);
   const lk = dkLevelKey(state);
   const voice = dkVoice(state);
   // The public events: first sight of a deal (a reload, joining late) plays nothing.
@@ -973,6 +982,12 @@ function dkAfter(state, el) {
   const pev = (state.you && state.you.pev) || (state.screen && state.screen.pev) || [];
   const plast = pev.length ? pev[pev.length - 1].n : 0;
   if (dk.pev[lk] === undefined) dk.pev[lk] = plast;
+  // «دايخ!»: told to the guides and the TV, never the mover.
+  pev.filter(e => e.n > dk.pev[lk] && e.type === 'dizzy').forEach(e => {
+    if (role === 'guide' || role === 'screen') dkBanner(el, dkT('dk_dizzy_now', { name: dkIso(dkName(state, s.moverId)) }), 'bad');
+    if (role === 'guide') haptic('medium');
+    if (voice) dkSound('dizzy');
+  });
   pev.filter(e => e.n > dk.pev[lk] && e.type === 'near').forEach(e => {
     dk.nearAt = Date.now(); dk.nearN = e.n;
     if (role === 'guide') { dkToast(el, dkT(e.k === 'sleeper' ? (s.story === 'tomb' ? 'dk_near_sarco' : 'dk_near_grandpa') : 'dk_near', { trap: dkT('dk_tn_' + e.k) })); haptic('light'); }
@@ -1016,6 +1031,11 @@ function dkOnEvent(state, el, e, role, voice) {
       else dkBanner(el, dkT('dk_next_level', { n: e.lv, name: who }), 'info');
     }
     if (voice) dkSound('level');
+  } else if (e.type === 'mic') {
+    if (e.to === Room.me) { dkToast(el, dkT('dk_mic_your_turn')); haptic('double'); }
+    if (voice) dkSound('mic');
+    const strip = el.querySelector('[data-dk-mic]');
+    if (strip && !motionOff() && strip.animate) strip.animate([{ transform: 'scale(1.06)' }, { transform: 'none' }], { duration: 320, easing: 'ease-out' });
   } else if (e.type === 'mover') {
     if (role === 'mover') { dkFeedback(el, dkT('dk_your_turn'), false); haptic('double'); }
     else dkToast(el, dkT('dk_new_mover', { name: dkIso(dkName(state, s.moverId)) }));
@@ -1058,6 +1078,52 @@ function dkBannerPaint(el, fresh) {
   dk.bannerTimer = setTimeout(() => { b.style.transition = ''; b.classList.remove('is-on'); }, Math.max(0, bn.until - Date.now()));
 }
 
+/* --- «الميكروفون» (the ideas of 7 Oct 2026, 810): one guide talks at a time ----------------
+   A lobby switch. The holder is shown big on every phone and the TV; the holder passes it to the
+   next guide, the mover calls a guide by name (passMic { to }), each sent with the holder the
+   phone saw (`from`). With one guide there is nothing to pass, and nothing is shown. */
+function dkMicPaint(el, state) {
+  const box = el && el.querySelector('[data-dk-mic]');
+  if (!box) return;
+  const s = state.shared || {};
+  const g = s.guides || [];
+  const role = dkRole(state);
+  const on = !!s.mic && g.length > 1 && !!s.micId && s.phase !== 'gameover';
+  const key = [on, s.micId, g.join(','), role, Room.me, appState.lang].join('|');
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  box.hidden = !on;
+  if (!on) { box.innerHTML = ''; return; }
+  const who = `<bdi>${escapeHTML(dkName(state, s.micId))}</bdi>`;
+  const from = jsStringAttr(s.micId);
+  const colour = DK_LENS[Math.max(0, g.indexOf(s.micId)) % DK_LENS.length];
+  let html;
+  if (role === 'screen') html = `<span class="dk-mic__icon" aria-hidden="true">🎤</span><span class="dk-mic__who">${who}</span>`;
+  else if (role === 'mover') {
+    html = `<div class="dk-mic__line"><span class="dk-mic__icon" aria-hidden="true">🎤</span><span>${dkT('dk_mic_other', { name: who })}</span></div>
+      <div class="dk-mic__call"><small>${escapeHTML(dkT('dk_mic_call'))}</small>${g.filter(id => id !== s.micId).map(id => `<button type="button" class="chip" style="--dk-c:${DK_LENS[g.indexOf(id) % DK_LENS.length]}" onclick="roomAct('passMic', { to: '${jsStringAttr(id)}', from: '${from}' })"><bdi>${escapeHTML(dkName(state, id))}</bdi></button>`).join('')}</div>`;
+  } else if (s.micId === Room.me) {
+    html = `<div class="dk-mic__line"><span class="dk-mic__icon" aria-hidden="true">🎤</span><b>${escapeHTML(dkT('dk_mic_yours'))}</b></div>
+      <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="roomAct('passMic', { from: '${from}' })">${escapeHTML(dkT('dk_mic_pass'))}</button>`;
+  } else html = `<div class="dk-mic__line"><span class="dk-mic__icon" aria-hidden="true">🎤</span><span>${dkT('dk_mic_other', { name: who })}</span></div><small>${escapeHTML(dkT('dk_mic_wait'))}</small>`;
+  box.innerHTML = html;
+  box.style.setProperty('--dk-c', colour);
+  box.classList.toggle('is-mine', s.micId === Room.me);
+}
+
+/* --- «دايخ!» (813): the guides and the TV see the mover dizzy, with the seconds left --------- */
+function dkDizzyPaint(el, state) {
+  const box = el && el.querySelector('[data-dk-dizzy]');
+  if (!box || !state) return;
+  const s = state.shared || {};
+  const dz = Number(((state.you || {}).dz) || ((state.screen || {}).dz) || 0);
+  const left = dz - dkNow();
+  const on = s.phase === 'play' && left > 0;
+  const txt = on ? dkT('dk_dizzy', { name: dkIso(dkName(state, s.moverId)), n: Math.ceil(left / 1000) }) : '';
+  if (box.textContent !== txt) box.textContent = txt;
+  if (box.hidden === on) box.hidden = !on;
+}
+
 /* --- the sounds ---------------------------------------------------------------------- */
 function dkSound(kind) {
   try {
@@ -1071,6 +1137,8 @@ function dkSound(kind) {
       case 'heart': fxTone('triangle', [[0, 660], [0.35, 330]], [[0, 0.2], [0.4, 0.001]], at); break;
       case 'level': [523, 659, 784].forEach((hz, i) => fxTone('triangle', [[0, hz]], [[0, 0.16], [0.3, 0.001]], at + i * 0.1)); break;
       case 'win': playFx('tada'); break;
+      case 'dizzy': fxTone('sine', [[0, 520], [0.2, 380], [0.4, 560], [0.6, 360], [0.8, 500]], [[0, 0.001], [0.05, 0.14], [0.85, 0.001]], at); break;
+      case 'mic': fxTone('triangle', [[0, 880], [0.08, 1320]], [[0, 0.12], [0.18, 0.001]], at); break;
       case 'over': playFx('sad'); break;
       case 'trap_lego': fxNoise('highpass', 2200, 1, [[0, 0.35], [0.08, 0.001]], at); fxTone('sawtooth', [[0, 900], [0.3, 1400], [0.6, 700]], [[0, 0.001], [0.05, 0.14], [0.6, 0.001]], at + 0.05); break;
       case 'trap_duck': fxTone('square', [[0, 1400], [0.12, 2200], [0.3, 900]], [[0, 0.16], [0.32, 0.001]], at); fxTone('square', [[0, 1300], [0.1, 2000], [0.25, 800]], [[0, 0.12], [0.26, 0.001]], at + 0.34); break;
@@ -1114,7 +1182,9 @@ TV_GAMES.darkroom = {
             <span class="dk-pill"><b>${escapeHTML(dkT('dk_level', { n: s.level || 1 }))}</b> · ${escapeHTML(dkT(s.story === 'tomb' ? 'dk_story_tomb' : 'dk_story_home'))}</span>
             <span class="dk-pill">🚶 <bdi>${escapeHTML(dkName(state, s.moverId))}</bdi></span>
           </div>
+          <div class="dk-mic dk-mic--tv" data-dk-mic hidden></div>
           <div class="dk-intro dk-intro--tv" data-dk-intro></div>
+          <div class="dk-dizzy dk-dizzy--tv" data-dk-dizzy hidden></div>
           <div class="dk-tv__foot">
             ${can3d ? `<div class="dk-seg" dir="ltr" role="group" aria-label="${escapeHTML(dkT('dk_tv_view'))}">
               <button type="button" data-dk-view="3d" class="${want === '3d' ? 'is-active' : ''}" onclick="dkTvSet('3d')">3D</button>

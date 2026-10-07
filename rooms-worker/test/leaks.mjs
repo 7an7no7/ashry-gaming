@@ -1126,6 +1126,8 @@ const PROBES = {
         const y = view.you || {};
         if (y.g) return 'you.g';
         if (y.pev) return 'you.pev';
+        // «دايخ!» (7 Oct 2026): the guides are told the mover is dizzy; the mover never.
+        if (y.dz !== undefined || JSON.stringify(view.shared || {}).indexOf('dizzy') !== -1) return "dizzy on the mover's phone";
         if (view.screen) return 'screen';
         return null;
       }),

@@ -13969,6 +13969,69 @@ Date.now = duelTestClock;
     gone(r, r.shared.guides[0]);
     check(r.shared.phase === 'gameover' && r.shared.ended === 'left', 'darkroom: one left, and the game is over');
   }
+  // «الميكروفون» (the ideas of 7 Oct 2026, 810): one guide holds the mic; it is passed on, or the mover calls someone.
+  {
+    const r = dkRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'start', { mic: true });
+    const s = r.shared;
+    const holder = s.micId;
+    check(s.mic === true && holder === s.guides[0], 'darkroom (810): the mic switch on: the first guide holds it');
+    const quiet = s.guides.find((id) => id !== holder && id !== 'a');
+    if (quiet) check(threw(() => applyRoomAction(r, quiet, 'passMic', { from: holder })) && r.shared.micId === holder, 'darkroom (810): a guide without the mic can\'t take it');
+    applyRoomAction(r, holder, 'passMic', { from: holder });
+    const next = r.shared.micId;
+    check(next === s.guides[1] && r.shared.ev[r.shared.ev.length - 1].type === 'mic', 'darkroom (810): the holder passes it to the next guide');
+    applyRoomAction(r, holder, 'passMic', { from: holder });
+    check(r.shared.micId === next, 'darkroom (810): a double tap (sent for the old holder) is dropped');
+    applyRoomAction(r, s.moverId, 'passMic', { to: holder, from: next });
+    check(r.shared.micId === holder, 'darkroom (810): the mover calls a guide by name');
+    check(threw(() => applyRoomAction(r, s.moverId, 'passMic', { to: s.moverId, from: holder })), 'darkroom (810): the mic goes to a guide, never the mover');
+    gone(r, holder);
+    check(r.shared.guides.indexOf(r.shared.micId) !== -1, 'darkroom (810): its holder gone, the mic stays with a guide');
+    const off = dkRoom(['a', 'b', 'c']);
+    applyRoomAction(off, 'a', 'start', {});
+    applyRoomAction(off, off.shared.guides[0], 'passMic', {});
+    check(off.shared.mic === false && off.shared.micId === null, 'darkroom (810): off by default: nobody holds a mic');
+  }
+  // «دايخ!» (813): from level 3 a bump into a pillar swaps the mover's left and right for 5 s; only the guides are told.
+  {
+    const dizzyAt = (level) => {
+      const r = dkRoom(['a', 'b', 'c']);
+      applyRoomAction(r, 'a', 'start', { story: 'tomb', mode: 'steps' });
+      let m = null, spot = null;
+      for (let seed = 1; seed < 600 && !spot; seed++) {
+        r._dark.seed = seed; r.shared.level = level; m = mapOf(r);
+        for (let c = 0; c < m.w * m.h && !spot; c++) {
+          const x = c % m.w, y = Math.floor(c / m.w);
+          if (m.cellBlock[c] >= 0 || m.trapAt.has(c) || (m.dyn || []).some((z) => [0, 1, 2, 3, 4].some((k) => D.darkDynCell(m, z, k) === c))) continue;
+          for (const k of Object.keys(D.DARK_DIRS)) {
+            const d = D.DARK_DIRS[k];
+            if (D.darkBlocked(m, x, y, d[0], d[1]) === 'pillar') { spot = { c, k }; break; }
+          }
+        }
+      }
+      r.shared.pos = { x: spot.c % m.w + 0.5, y: Math.floor(spot.c / m.w) + 0.5 };
+      at(r, 1);
+      r._dark.checkCell = spot.c; r._dark.checkK = 1;
+      applyRoomAction(r, r.shared.moverId, 'step', { d: spot.k, run: r.shared.run });
+      return r;
+    };
+    const r = dizzyAt(3);
+    const s = r.shared, mover = s.moverId, guide = s.guides[0];
+    const ev = s.ev[s.ev.length - 1];
+    check(ev.type === 'bump' && ev.k === 'pillar' && r._dark.dizzyUntil === clock + 5000, 'darkroom (813): level 3, a bump into a pillar: dizzy for 5 s');
+    check(r.secrets[guide].dz === r._dark.dizzyUntil && r.screenOnly.dz === r._dark.dizzyUntil && r.secrets[guide].pev.some((e) => e.type === 'dizzy'),
+      'darkroom (813): the guides and the screen are told');
+    check(!('dz' in r.secrets[mover]) && JSON.stringify(s).indexOf('dizzy') === -1 && JSON.stringify(r.secrets[mover]).indexOf('dizzy') === -1, 'darkroom (813): the mover is never told');
+    clock += 200;
+    applyRoomAction(r, mover, 'step', { d: 'L', run: r.shared.run });
+    check(r.shared.face === 'R' || r.shared.phase !== 'play', 'darkroom (813): dizzy, the left arrow walks right');
+    clock += 5000;
+    applyRoomAction(r, mover, 'step', { d: 'L', run: r.shared.run });
+    check(r.shared.face === 'L' || r.shared.phase !== 'play', 'darkroom (813): five seconds later, left is left again');
+    const r2 = dizzyAt(2);
+    check(!r2._dark.dizzyUntil, 'darkroom (813): before level 3, a pillar is only a bump');
+  }
   // The audit of 30 Sep 2026: a trap that passes a still mover between two alarms (the alarm can't come sooner than a second).
   {
     const r = dkRoom(['a', 'b']);

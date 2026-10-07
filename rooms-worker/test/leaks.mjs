@@ -1271,6 +1271,11 @@ const PROBES = {
         return idx.find(song.id) || (song.also ? idx.find(song.also.id) : null) || ['apple.com', 'dzcdn', 'deezer', 'itunes'].find((w) => text.indexOf(w) !== -1) || null;
       }),
       probe("in «دندنة» the round's token is the hummer's alone", open && s.mode === 'hum', (view, pid, idx) => (pid === s.hummerId ? null : idx.find(h.token))),
+      // «الظرف التلاتة»: the three sealed envelopes' titles are on the hummer's phone alone.
+      ...[0, 1, 2].map((k) => {
+        const env = s.envelope && h && h.offer ? HUM.HUM_SONGS[h.offer[k]] : null;
+        return secret(`envelope ${k + 1}'s title is on the hummer's phone alone`, env && env.t, allowed);
+      }),
       probe('which choice is right, and the picks, stay hidden until the reveal', open && s.phase === 'choices', (view) => {
         const sv = view.shared || {};
         if (typeof sv.correct === 'number') return 'shared.correct';
@@ -2918,8 +2923,10 @@ const DRIVERS = {
       const h = T.room._hum;
       const song = HUM.HUM_SONGS[h.cur];
       if (s.phase === 'listen') {
-        if (round === 2 && !s.redeals) { must(T, s.hummerId, 'broken', { deal: s.deal }); return; }
         if (round === 3) { runClock(T, (r) => r.shared.phase !== 'listen', 3); return; }
+        // «الظرف التلاتة»: the hummer picks the envelope they know.
+        if (s.envelope) { must(T, s.hummerId, 'envelope', { deal: s.deal, i: round % 3 }); return; }
+        if (round === 2 && !s.redeals) { must(T, s.hummerId, 'broken', { deal: s.deal }); return; }
         must(T, s.hummerId, 'heard', { deal: s.deal });
         return;
       }
@@ -2954,11 +2961,16 @@ const DRIVERS = {
     };
     const T = table('hum', 4);
     must(T, T.host, 'start', { mode: 'hum', count: 5 });
-    // The second round's song (dealt after the one that "won't load") has a name it goes by: swapped in,
-    // so no song is dealt twice.
+    // The first round's picked envelope (the second of deck[0..2], i = round % 3) has a name it goes by:
+    // swapped in, so no song is dealt twice. The envelopes were dealt at the start, so the hummer's are put right too.
     const deck = T.room._hum.deck, at = deck.indexOf(withAlt);
-    if (at > 0) deck[at] = deck[2];
-    if (at !== 0) deck[2] = withAlt;
+    if (at !== 1) {
+      if (at >= 0) deck[at] = deck[1];
+      deck[1] = withAlt;
+      T.room._hum.offer = deck.slice(0, 3);
+      const H0 = S(T).hummerId, E = (i) => ({ t: HUM.HUM_SONGS[i].t, s: HUM.HUM_SONGS[i].s, en: HUM.HUM_SONGS[i].en, se: HUM.HUM_SONGS[i].se });
+      T.room.secrets[H0] = { deal: S(T).deal, envelopes: T.room._hum.offer.map(E) };
+    }
     for (let guard = 0; guard < 120 && S(T).phase !== 'gameover'; guard++) playHum(T, S(T).round);
     if (S(T).phase !== 'gameover') return false;
     const L = table('hum', 3);

@@ -6,7 +6,10 @@
    letter is drawn, everyone writes a name, an animal, a plant, an object and a
    country starting with it, and the first one done shouts وقف. Then the phone
    goes round the table once more to score: 10 for an answer nobody else had,
-   5 for one somebody shared, 0 for a blank.
+   5 for one somebody shared, 0 for a blank. With 3 players or more, the only
+   answer above 0 in a category is worth 20 (stopCellPts), and whoever said
+   وقف (picked on the table, s.stopper) loses 10 when their sheet has a 0
+   («وقف غلط», stopBadStop) - the owner's picks of 7 Oct 2026, as in rooms.
 
    Everything lives in appState.stop, with the round's deadline as a timestamp,
    so a reload mid-round comes back mid-round.
@@ -141,7 +144,7 @@ function armStopClock() {
   stopClock = null;
   if (!s.endsAt) return;
   const left = Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000));
-  if (left <= 0) { stopRound(); return; }
+  if (left <= 0) { stopRound(true); return; }
   stopClock = createClock({
     seconds: left,
     onTick: (v) => {
@@ -154,18 +157,20 @@ function armStopClock() {
       if (el) { el.textContent = v; el.classList.toggle('is-low', v <= 10); countdownUrgency(el, v); }
       if (v <= 5 && v > 0) playSound('tick');
     },
-    onEnd: () => { stopClock = null; stopRound(); }
+    onEnd: () => { stopClock = null; stopRound(true); }
   });
 }
 
-/** وقف! - or the clock ran out. On to the scoring. */
-function stopRound() {
+/** وقف! - or the clock ran out (byClock: nobody stopped, so nobody can stop wrongly). On to the scoring. */
+function stopRound(byClock) {
   const s = stopState();
   if (s.phase !== 'play') return;
-  if (Date.now() - stopDealtAt < 600) return;
+  if (Date.now() - stopDealtAt < 600 && byClock !== true) return;
   if (stopClock) stopClock.stop();
   stopClock = null;
   s.phase = 'score';
+  s.stopBy = byClock === true ? 'clock' : 'shout';
+  s.stopper = '';
   s.scoreCat = 0;
   s.roundScores = {};
   s.players.forEach(p => {
@@ -227,21 +232,73 @@ function cycleStopCell(pi, cat) {
   const next = STOP_POINTS[(STOP_POINTS.indexOf(cur) + 1) % STOP_POINTS.length];
   s.roundScores[p][cat] = next;
   saveToLocal();
-  const cell = document.getElementById(`stop-cell-${pi}-${cat}`);
-  if (cell) {
-    cell.textContent = next;
-    cell.className = 'stop-cell ' + (next === 10 ? 'is-10' : next === 5 ? 'is-5' : '');
-  }
-  const total = document.getElementById(`stop-rowtotal-${pi}`);
-  if (total) total.textContent = stopRoundTotal(p);
+  stopSyncTable();
   haptic('light');
+}
+
+/** A cell as the table counts it: the only answer above 0 in its category, with 3 players or more, is 20. */
+function stopCellPts(p, cat) {
+  const s = stopState();
+  const v = (s.roundScores[p] || {})[cat] || 0;
+  if (v > 0 && s.players.length >= 3 && s.players.every(q => q === p || !(((s.roundScores[q] || {})[cat] || 0) > 0))) return 20;
+  return v;
+}
+
+/** وقف غلط: the one who said وقف has a 0 on their sheet (blank, wrong or not accepted). */
+function stopBadStop() {
+  const s = stopState();
+  if (!s.stopper || s.players.indexOf(s.stopper) === -1) return false;
+  return s.cats.some(c => !(((s.roundScores[s.stopper] || {})[c] || 0) > 0));
 }
 
 const stopRoundTotal = (p) => {
   const s = stopState();
-  const row = s.roundScores[p] || {};
-  return s.cats.reduce((sum, c) => sum + (row[c] || 0), 0);
+  const sum = s.cats.reduce((acc, c) => acc + stopCellPts(p, c), 0);
+  return sum - (p === s.stopper && stopBadStop() ? 10 : 0);
 };
+
+/** The whole table after a tap: one cell can make or end another's 20, and the stopper's −10. */
+function stopSyncTable() {
+  const s = stopState();
+  s.players.forEach((p, pi) => {
+    s.cats.forEach(c => {
+      const cell = document.getElementById(`stop-cell-${pi}-${c}`);
+      if (!cell) return;
+      const v = stopCellPts(p, c);
+      cell.textContent = v;
+      cell.className = 'stop-cell ' + (v >= 10 ? 'is-10' : v === 5 ? 'is-5' : '');
+    });
+    const total = document.getElementById(`stop-rowtotal-${pi}`);
+    if (total) total.textContent = stopRoundTotal(p);
+  });
+  const box = document.getElementById('stop1-stopper');
+  if (box) box.outerHTML = stop1StopperHtml(TRANSLATIONS[appState.lang]);
+}
+
+/** Who said وقف? Asked on the table (not when the clock ran out); their sheet with a 0 costs them 10. */
+function stop1StopperHtml(t) {
+  const s = stopState();
+  if (s.stopBy !== 'shout' || s.phase !== 'score') return '<div id="stop1-stopper" hidden></div>';
+  const bad = stopBadStop();
+  return `<div class="field" id="stop1-stopper">
+      <span class="field__label">${escapeHTML(t.stop1_who_stopped || '')}</span>
+      <div class="chip-set">
+        ${s.players.map((p, pi) => `<button type="button" class="opt-chip ${s.stopper === p ? 'is-active' : ''}" aria-pressed="${s.stopper === p}" onclick="stop1SetStopper(${pi})">✋ ${escapeHTML(p)}</button>`).join('')}
+      </div>
+      ${bad ? `<p class="field__hint tx-danger">🛞 <b>${escapeHTML(t.stop_bad_stop || '')}</b> · ${escapeHTML(s.stopper)} <span class="metric">−10</span></p>`
+            : `<p class="field__hint">${escapeHTML(t.stop1_who_stopped_hint || '')}</p>`}
+    </div>`;
+}
+
+function stop1SetStopper(pi) {
+  const s = stopState();
+  const p = s.players[pi];
+  if (!p || s.phase !== 'score') return;
+  s.stopper = s.stopper === p ? '' : p;
+  saveToLocal();
+  stopSyncTable();
+  haptic('light');
+}
 
 /* ---- Scoring one category at a time (ideas batch: party2) ---------------------
    The table read a whole grid of 0-10-5 cycles, up to 48 taps, sideways on a
@@ -284,7 +341,7 @@ function stop1PaintCat() {
         ${s.players.map((p, pi) => {
           const v = (s.roundScores[p] || {})[cat] || 0;
           return `<div class="stop1-row">
-            <span class="stop1-row__name">${escapeHTML(p)}</span>
+            <span class="stop1-row__name">${escapeHTML(p)} <span class="badge badge--accent" id="stop1-solo-${pi}" ${stopCellPts(p, cat) === 20 ? '' : 'hidden'}>⭐ 20</span></span>
             <div class="segmented stop1-seg" role="group" aria-label="${escapeHTML(p)}" id="stop1-seg-${pi}">
               ${STOP1_CHOICES.map(ch => `<button type="button" class="segmented__item stop1-seg__item stop1-v${ch.v} ${v === ch.v ? 'is-active' : ''}" data-value="${ch.v}" aria-pressed="${v === ch.v}" onclick="stop1Set(${pi}, ${ch.v})"><span>${escapeHTML(t[ch.key] || '')}</span><b class="metric">${ch.v}</b></button>`).join('')}
             </div>
@@ -318,6 +375,11 @@ function stop1Set(pi, v) {
     const on = Number(b.dataset.value) === v;
     b.classList.toggle('is-active', on);
     b.setAttribute('aria-pressed', on);
+  });
+  // One answer left above 0 in this category (3 players or more): its star says 20.
+  s.players.forEach((q, qi) => {
+    const star = document.getElementById('stop1-solo-' + qi);
+    if (star) star.hidden = stopCellPts(q, cat) !== 20;
   });
   haptic('light');
 }
@@ -363,9 +425,9 @@ function stop1PaintTable() {
               <tr>
                 <td class="stop-td stop-td--name">${escapeHTML(p)}</td>
                 ${s.cats.map(c => {
-                  const v = (s.roundScores[p] || {})[c] || 0;
+                  const v = stopCellPts(p, c);
                   return `<td class="stop-td"><button type="button" id="stop-cell-${pi}-${c}"
-                    class="stop-cell ${v === 10 ? 'is-10' : v === 5 ? 'is-5' : ''}"
+                    class="stop-cell ${v >= 10 ? 'is-10' : v === 5 ? 'is-5' : ''}"
                     onclick="cycleStopCell(${pi}, '${c}')">${v}</button></td>`;
                 }).join('')}
                 <td class="stop-td stop-td--total"><b class="metric" id="stop-rowtotal-${pi}">${stopRoundTotal(p)}</b></td>
@@ -377,7 +439,9 @@ function stop1PaintTable() {
         <span><span class="stop-dot is-10"></span> 10 ${escapeHTML(t.stop_pts_unique || '')}</span>
         <span><span class="stop-dot is-5"></span> 5 ${escapeHTML(t.stop_pts_shared || '')}</span>
         <span><span class="stop-dot"></span> 0 ${escapeHTML(t.stop_pts_none || '')}</span>
+        ${s.players.length >= 3 ? `<span><span class="stop-dot is-10"></span> 20 ${escapeHTML(t.stop_pts_solo || '')}</span>` : ''}
       </div>
+      ${stop1StopperHtml(t)}
     </div>
     ${stopStandingsHtml(t)}
     <div class="view-actions">
@@ -468,7 +532,7 @@ function restoreStop() {
   if (!s.players || !s.players.length) return false;
   if (s.phase === 'play') {
     paintStopPlay();
-    if (s.endsAt && s.endsAt <= Date.now()) stopRound(); else armStopClock();
+    if (s.endsAt && s.endsAt <= Date.now()) stopRound(true); else armStopClock();
     return true;
   }
   if (s.phase === 'score') { paintStopScore(); return true; }

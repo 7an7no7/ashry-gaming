@@ -800,7 +800,8 @@ function roomError(text) {
 }
 
 function roomNameHtml(state, p, inner) {
-  const text = inner === undefined ? escapeHTML(p.name) : inner;
+  // «تاج البطل» (games/crew/JS_CrewCore.html): the crew's champion wears a 👑 after the name.
+  const text = (inner === undefined ? escapeHTML(p.name) : inner) + (typeof crewCrownHtml === 'function' ? crewCrownHtml(state, p.id) : '');
   if (!roomCanMenu(state, p)) return text;
   return `<button type="button" class="room-name-btn" onclick="event.stopPropagation(); roomPlayerMenu('${jsStringAttr(p.id)}')">${text}</button>`;
 }

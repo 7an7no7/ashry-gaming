@@ -30,6 +30,13 @@
    streams the preview: rooms-worker/src/index.js, Room.songOf), so the title,
    the singer, the trackId and Apple's address never reach a guesser's phone.
 
+   «الظرف التلاتة» (the owner's pick of 7 Oct 2026): in «دندنة» the hummer is
+   first handed three sealed envelopes - three songs, the titles in their slice
+   only (you.envelopes) - and picks the one they know (envelope { deal, i });
+   the other two go back to the end of the deck. shared.envelope is true while
+   they choose (envEndsAt; the clock takes the first one), and only then is the
+   song dealt with its token, as before. No more rounds of a song nobody knows.
+
    Phases (shared.phase):
      arm      «سمّع» before the first song: every phone taps ▶ once (iPhones play
               sound only after a tap), or the host starts (go), or the clock
@@ -66,6 +73,8 @@ const HUM_TRIES = 40;              // typed tries a phone may send for one song
 const HUM_REDEALS = 3;             // songs a round may skip by itself (a preview that won't load)
 const HUM_SPARE = 8;               // songs dealt beyond the game's count, for those skips
 const HUM_BROKEN_PHONES = 2;       // «سمّع» once it plays: phones that must report a clip broken before it is dealt again
+const HUM_ENVELOPES = 3;           // «دندنة»: the sealed envelopes the hummer picks from
+const HUM_ENVELOPE_MS = 20000;     // the hummer's time to pick one (then the first is taken)
 
 /** Every title, alternative and English title: the bank a guess is held against (another song's name is never "close enough"). */
 const HUM_TITLES = HUM_SONGS.reduce((all, x) => all.concat([x.t], x.alt || [], [x.en]), []);
@@ -103,7 +112,9 @@ const humAction = (room, playerId, action, payload) => {
     const rounds = HUM_COUNTS.indexOf(Number(p.count)) !== -1 ? Number(p.count) : (prev.rounds || 10);
     const roster = people.slice(0, HUM_MAX);
     room.secrets = {};
-    room._hum = { deck: nextPrompts(room, HUM_INDEX, 'hum_songs', rounds + HUM_SPARE), at: 0, cur: null, token: null, correct: null, picks: {}, tries: {} };
+    // «دندنة» deals three envelopes a song (the two left go back to the deck).
+    const dealt = (mode === 'hum' ? rounds * HUM_ENVELOPES : rounds) + HUM_SPARE;
+    room._hum = { deck: nextPrompts(room, HUM_INDEX, 'hum_songs', dealt), at: 0, cur: null, offer: null, token: null, correct: null, picks: {}, tries: {} };
     room.shared = {
       roster,
       mode,
@@ -143,10 +154,19 @@ const humAction = (room, playerId, action, payload) => {
     if (s.phase === 'arm') humStartRound(room);
     return;
   }
+  if (action === 'envelope') {
+    // «الظرف التلاتة»: the hummer picks the song they know; the other two go back to the deck.
+    if (staleTap(payload, 'deal', s.deal)) return;
+    if (s.phase !== 'listen' || !s.envelope || playerId !== s.hummerId || !h || !h.offer) return;
+    const i = Math.floor(Number(payload && payload.i));
+    if (!(i >= 0 && i < h.offer.length)) return;
+    humTakeEnvelope(room, i);
+    return;
+  }
   if (action === 'heard') {
     // The hummer has heard enough: the humming (and the typing) starts.
     if (staleTap(payload, 'deal', s.deal)) return;
-    if (s.phase !== 'listen' || playerId !== s.hummerId) return;
+    if (s.phase !== 'listen' || s.envelope || playerId !== s.hummerId) return;
     humOpenTyping(room, Date.now());
     return;
   }
@@ -196,7 +216,7 @@ const humAction = (room, playerId, action, payload) => {
     // dealt again only when a second phone says so too (the review of 1 Oct 2026); during the
     // count-in, before anyone has heard it, one report is enough. The phone says which on its own.
     if (staleTap(payload, 'deal', s.deal)) return;
-    if (['listen', 'count', 'type'].indexOf(s.phase) === -1 || (s.right || []).length) return;
+    if (['listen', 'count', 'type'].indexOf(s.phase) === -1 || (s.right || []).length || s.envelope) return;
     if (s.mode === 'hum' ? playerId !== s.hummerId : (s.roster || []).indexOf(playerId) === -1) return;
     if ((s.redeals || 0) >= HUM_REDEALS) return;
     if (s.mode === 'listen' && s.phase !== 'count' && h) {
@@ -213,6 +233,8 @@ const humAction = (room, playerId, action, payload) => {
     requireMoveOn(room, playerId);
     if (staleTap(payload, 'deal', s.deal)) return;
     if (['listen', 'count', 'type', 'choices'].indexOf(s.phase) === -1) return;
+    // Skipped while the envelopes are still sealed: the first one is the song shown.
+    if (s.envelope) humTakeEnvelope(room, 0);
     s.skipped = true;
     humReveal(room);
     return;
@@ -253,18 +275,47 @@ const humNextHummer = (room, from) => {
   return null;
 };
 
+/** The next song off the deck, never one of `avoid` (the envelopes already in hand). */
+const humDraw = (room, avoid) => {
+  const h = room._hum;
+  while (h.at < h.deck.length) {
+    const i = h.deck[h.at++];
+    if (avoid.indexOf(i) === -1) return i;
+  }
+  const used = h.deck.concat(avoid, h.cur === null ? [] : [h.cur]);
+  const open = HUM_INDEX.filter(i => used.indexOf(i) === -1);
+  const any = HUM_INDEX.filter(i => avoid.indexOf(i) === -1);
+  const pool = open.length ? open : any;
+  const idx = pool[Math.floor(Math.random() * pool.length)];
+  h.deck.push(idx);
+  h.at = h.deck.length;
+  return idx;
+};
+
+/** The envelope the hummer picked (or the clock, or a skip, took): the song and its token, the rest back in the deck. */
+const humTakeEnvelope = (room, i) => {
+  const s = room.shared;
+  const h = room._hum;
+  const k = Math.max(0, Math.min(h.offer.length - 1, i));
+  h.cur = h.offer[k];
+  h.offer.forEach((x, j) => { if (j !== k) h.deck.push(x); });
+  h.offer = null;
+  h.token = humToken();
+  s.envelope = false;
+  s.envEndsAt = null;
+  s.listenEndsAt = Date.now() + HUM_LISTEN_MS;
+  const song = HUM_SONGS[h.cur];
+  room.secrets = {};
+  room.secrets[s.hummerId] = { deal: s.deal, song: { t: song.t, s: song.s, en: song.en, se: song.se }, token: h.token };
+};
+
 /** A song for this round (a fresh one when a preview failed): its own token, nothing of the last one left. */
 const humDeal = (room) => {
   const s = room.shared;
   const h = room._hum;
-  let idx = h.at < h.deck.length ? h.deck[h.at++] : null;
-  if (idx === null) {
-    const used = h.deck.concat(h.cur === null ? [] : [h.cur]);
-    const open = HUM_INDEX.filter(i => used.indexOf(i) === -1);
-    idx = open.length ? open[Math.floor(Math.random() * open.length)] : Math.floor(Math.random() * HUM_SONGS.length);
-    h.deck.push(idx);
-    h.at = h.deck.length;
-  }
+  // Envelopes never opened (the hummer left, a redeal) go back to the deck.
+  if (h.offer) { h.offer.forEach(x => h.deck.push(x)); h.offer = null; }
+  const idx = humDraw(room, []);
   h.cur = idx;
   h.token = humToken();
   h.correct = null;
@@ -283,12 +334,20 @@ const humDeal = (room) => {
   s.skipped = false;
   s.token = null;
   s.listenEndsAt = s.playAt = s.typeStartAt = s.typeEndsAt = s.choiceEndsAt = null;
+  s.envelope = false;
+  s.envEndsAt = null;
   const now = Date.now();
   if (s.mode === 'hum') {
+    // «الظرف التلاتة»: three sealed envelopes on the hummer's phone; no song (and no token) until one is picked.
     s.phase = 'listen';
-    s.listenEndsAt = now + HUM_LISTEN_MS;
-    const song = HUM_SONGS[idx];
-    room.secrets[s.hummerId] = { deal: s.deal, song: { t: song.t, s: song.s, en: song.en, se: song.se }, token: h.token };
+    const offer = [idx];
+    while (offer.length < HUM_ENVELOPES) offer.push(humDraw(room, offer));
+    h.offer = offer;
+    h.cur = null;
+    h.token = null;
+    s.envelope = true;
+    s.envEndsAt = now + HUM_ENVELOPE_MS;
+    room.secrets[s.hummerId] = { deal: s.deal, envelopes: offer.map(i => ({ t: HUM_SONGS[i].t, s: HUM_SONGS[i].s, en: HUM_SONGS[i].en, se: HUM_SONGS[i].se })) };
   } else {
     s.phase = 'count';
     s.playAt = now + HUM_COUNT_MS;
@@ -356,6 +415,8 @@ const humReveal = (room) => {
   if (!h || h.cur === null || ['listen', 'count', 'type', 'choices'].indexOf(s.phase) === -1) return;
   const song = HUM_SONGS[h.cur];
   s.phase = 'reveal';
+  s.envelope = false;
+  s.envEndsAt = null;
   s.song = { t: song.t, s: song.s, en: song.en, se: song.se, era: song.era };
   s.token = h.token;      // the song is out: everyone may hear it now
   s.correct = h.correct;
@@ -375,8 +436,10 @@ const humReveal = (room) => {
 const humGameOver = (room) => {
   const s = room.shared;
   room.secrets = {};
-  if (room._hum) { room._hum.token = null; room._hum.cur = null; }
+  if (room._hum) { room._hum.token = null; room._hum.cur = null; room._hum.offer = null; }
   s.phase = 'gameover';
+  s.envelope = false;
+  s.envEndsAt = null;
   s.token = null;
   s.armed = null;
   s.listenEndsAt = s.playAt = s.typeEndsAt = s.choiceEndsAt = s.armEndsAt = null;
@@ -397,6 +460,7 @@ const humDeadline = (room) => {
   const s = room.shared || {};
   if (room.phase !== 'play') return null;
   if (s.phase === 'arm' && s.armEndsAt) return s.armEndsAt;
+  if (s.phase === 'listen' && s.envelope && s.envEndsAt) return s.envEndsAt;
   if (s.phase === 'listen' && s.listenEndsAt) return s.listenEndsAt;
   if (s.phase === 'count' && s.playAt) return s.playAt;
   if (s.phase === 'type' && s.typeEndsAt) return s.typeEndsAt + HUM_GRACE_MS;
@@ -408,7 +472,9 @@ const humTimeout = (room, now) => {
   const s = room.shared || {};
   if (room.phase !== 'play') return false;
   if (s.phase === 'arm' && s.armEndsAt && now >= s.armEndsAt) { humStartRound(room); return true; }
-  if (s.phase === 'listen' && s.listenEndsAt && now >= s.listenEndsAt) { humOpenTyping(room, now); return true; }
+  // The hummer didn't pick an envelope in time: the first one is theirs.
+  if (s.phase === 'listen' && s.envelope && s.envEndsAt && now >= s.envEndsAt && room._hum && room._hum.offer) { humTakeEnvelope(room, 0); return true; }
+  if (s.phase === 'listen' && !s.envelope && s.listenEndsAt && now >= s.listenEndsAt) { humOpenTyping(room, now); return true; }
   if (s.phase === 'count' && s.playAt && now >= s.playAt) { humOpenTyping(room, s.playAt); return true; }
   if (s.phase === 'type' && s.typeEndsAt && now >= s.typeEndsAt + HUM_GRACE_MS) {
     if (humGuessers(room).every(id => humIsRight(s, id))) humReveal(room);

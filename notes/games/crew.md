@@ -383,3 +383,25 @@ itself.
   1280x720 in Arabic light and English dark.
 - `tools/test-changed.mjs`: Crew.js / the crew's pages, the packs and the program map to the
   `crewlink` segment too.
+
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **785 «تاج البطل»** (no extra rule asked). The crew's reigning champion wears a 👑 on their chip in
+  every room opened for the crew - the lobby rows, the player strip, the TV's strip and its lobby
+  faces - and if someone beats them that night, the TV says «👑 التاج اتنقل!» («X عدّى Y الليلة»).
+  Chosen: the reigning champion is this month's leader once a night of the month has been won
+  (ties all crowned), else the last month's champion (`crown()` on the `Crew` object,
+  `rooms-worker/src/crew.js`, from `crewView`'s table and wall; members still in the crew only).
+  `setCrew` (room.js) asks it once and keeps the member ids private in `room._crewChamp`;
+  `crewCrownSync` puts only player ids on `room.crew.crown` (the phone that proved the member,
+  else an unlinked player of the same name, `sameRoomName`), again when a member's phone says who
+  it is (`crewMe`, broadcast when the crown moves). "Beaten tonight": someone alone on top of the
+  room's night board (`state.night`) while the champion has played this night - the crown is drawn
+  on them instead (`crewCrownState`, `crewCrownHtml` in `JS_CrewCore.html`, called from
+  `roomNameHtml` and the TV lobby's tile), and the TV (only a screen) slams «التاج اتنقل!» once
+  (`slamBanner`, a toast with motion off), never for what it found on first sight (a reload).
+  Tests: `play-all.mjs` (`crew`: a new room for the crew crowns the night's winner by name, still
+  after their `crewMe`, no member id in any state).
+- Shared files touched for it: `rooms/JS_Room.html` (`roomNameHtml` appends the crown),
+  `rooms/JS_RoomTv.html` (the lobby tile's name and `tvLobbySig`), `rooms-worker/src/room.js`
+  (`setCrew`, `crewCrownSync`, `crewMe`).

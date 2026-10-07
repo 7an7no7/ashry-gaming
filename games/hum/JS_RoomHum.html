@@ -412,7 +412,7 @@ function dndSig(state) {
     (s.choices || []).length, s.mode, s.replay, state.youAreHost, appState.lang,
     s.phase === 'arm' ? (s.armed || []).indexOf(Room.me) !== -1 : '',
     s.phase === 'reveal' || s.phase === 'gameover' ? JSON.stringify(s.board || []) : '',
-    !!you.song, (s.roster || []).filter(id => (state.players || []).some(p => p.id === id)).join(',')].join('|');
+    !!you.song, !!s.envelope, (you.envelopes || []).length, (s.roster || []).filter(id => (state.players || []).some(p => p.id === id)).join(',')].join('|');
 }
 
 function dndHostBtns(state) {
@@ -455,6 +455,11 @@ function dndStageHtml(state) {
       <p class="dnd-status" data-dnd-listen-status>${escapeHTML(dndT(s.phase === 'choices' ? (role === 'guess' && !dndRightOf(s, Room.me) && !(state.you && typeof state.you.pick === 'number') ? 'dnd_choices_h' : 'dnd_choices_wait') : 'dnd_listen_type'))}</p>
       ${grow}${again}
       <button type="button" class="dnd-tap" data-dnd-tap onclick="dndTapSound()">${escapeHTML(dndT('dnd_tap_sound'))}</button>`;
+  } else if (role === 'hummer' && s.phase === 'listen' && s.envelope) {
+    // «الظرف التلاتة»: three sealed envelopes in the hummer's hand (the bottom), the one they know is the song.
+    body = `<div class="dnd-big" aria-hidden="true">✉️✉️✉️</div><p class="dnd-status">${escapeHTML(dndT('dnd_env3_title'))}</p>`;
+  } else if (s.mode === 'hum' && s.phase === 'listen' && s.envelope) {
+    body = `${singer(hummer)}<p class="dnd-status">${escapeHTML(dndT('dnd_g_env', { h: hummer }))}</p>`;
   } else if (role === 'hummer' && (s.phase === 'listen' || s.phase === 'type' || s.phase === 'choices')) {
     const listening = s.phase === 'listen';
     body = `${dndEnvelopeHtml(state)}
@@ -486,6 +491,11 @@ function dndBottomHtml(state) {
   }
   if (role === 'watch') return `<div class="dnd-note-box">${escapeHTML(dndT('dnd_watch'))}</div>`;
   if (role === 'hummer') {
+    if (s.phase === 'listen' && s.envelope) {
+      const envs = you.envelopes || [];
+      return `<div class="dnd-chs dnd-envs">${envs.map((c, i) => `<button type="button" class="dnd-ch" onclick="dndEnvelope(${i})"><b>${escapeHTML(c.t)}</b><small>${escapeHTML(c.s)}</small>${dndLatin(c)}</button>`).join('')}</div>
+        <p class="dnd-hint">${escapeHTML(dndT('dnd_env3_hint'))}</p>`;
+    }
     if (s.phase === 'listen') {
       return `<button type="button" class="dnd-raise" onclick="dndHeard()">${escapeHTML(dndT('dnd_heard_btn'))}</button>
         <div class="dnd-ear">${DND_EAR}<span>${escapeHTML(dndT('dnd_ear'))}</span></div>`;
@@ -565,6 +575,15 @@ function dndArm() {
   dndUnlock();
   haptic('medium');
   roomAct('arm', {});
+}
+
+/** «الظرف التلاتة»: the hummer opens the envelope with the song they know. */
+function dndEnvelope(i) {
+  const st = Room.state;
+  if (!st || (st.shared || {}).phase !== 'listen' || !st.shared.envelope) return;
+  haptic('medium');
+  document.querySelectorAll('#view-room-hum .dnd-envs .dnd-ch').forEach((b, k) => { b.disabled = true; b.classList.toggle('is-picked', k === i); });
+  roomAct('envelope', { deal: st.shared.deal, i });
 }
 
 function dndHeard() {
@@ -653,6 +672,8 @@ function dndPaint(state, el) {
     hurry = frac < 0.34;
   } else if (s.phase === 'choices' && s.choiceEndsAt) {
     frac = 0; secs = Math.max(0, Math.ceil((s.choiceEndsAt - now) / 1000)); hurry = secs <= 3;
+  } else if (s.phase === 'listen' && s.envelope && s.envEndsAt) {
+    secs = Math.max(0, Math.ceil((s.envEndsAt - now) / 1000));
   } else if (s.phase === 'listen' && s.listenEndsAt) {
     secs = Math.max(0, Math.ceil((s.listenEndsAt - now) / 1000));
   } else if (s.phase === 'count' && s.playAt) {
@@ -870,7 +891,7 @@ function dndTvPodiumHtml(state, rise) {
 TV_GAMES.hum = {
   sig(state) {
     const s = state.shared || {};
-    return ['hum', roomDealKey(state), s.phase, s.round, s.deal, s.hummerId, s.mode, (s.choices || []).length,
+    return ['hum', roomDealKey(state), s.phase, s.round, s.deal, s.hummerId, s.mode, (s.choices || []).length, !!s.envelope,
       state.youAreHost, appState.lang, s.phase === 'reveal' || s.phase === 'gameover' ? JSON.stringify(s.board || []) : '',
       (s.roster || []).filter(id => (state.players || []).some(p => p.id === id)).join(',')].join('|');
   },
@@ -898,6 +919,7 @@ TV_GAMES.hum = {
     let mid = '';
     const marq = (big) => `<div class="dnd-marq"><small>${escapeHTML(dndSongOf(s))} — ${escapeHTML(dndT(s.mode === 'listen' ? 'dnd_mode_listen' : 'dnd_mode_hum'))}</small><b>${big}</b></div>`;
     if (s.phase === 'arm') mid = marq(escapeHTML(dndT('dnd_tv_arm'))) + `<p class="dnd-tv__cap">${escapeHTML(dndT('dnd_arm_hint'))}</p>`;
+    else if (s.phase === 'listen' && s.envelope) mid = marq(escapeHTML(dndT('dnd_tv_card', { h: hummer }))) + `<p class="dnd-tv__cap">${escapeHTML(dndT('dnd_g_env', { h: hummer }))}</p>`;
     else if (s.phase === 'listen') mid = marq(escapeHTML(dndT('dnd_tv_card', { h: hummer }))) + `<p class="dnd-tv__cap">${escapeHTML(dndT('dnd_tv_listen_hum', { h: hummer }))}</p>`;
     else if (s.phase === 'count') mid = `<div class="dnd-tv__count"><b>${escapeHTML(dndT('dnd_tv_count'))}</b><span class="dnd-cnt metric" data-dnd-cnt>3</span><p class="dnd-tv__cap">${escapeHTML(dndT('dnd_count_line'))}</p></div>`;
     else if (s.phase === 'type') mid = `<p class="dnd-tv__cap dnd-tv__cap--top">${escapeHTML(dndT(s.mode === 'hum' ? 'dnd_tv_hum' : 'dnd_tv_type_listen', { h: hummer }))}</p>`;

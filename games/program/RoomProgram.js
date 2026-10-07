@@ -448,6 +448,42 @@ const programAction = (room, playerId, action, payload) => {
     return true;
   }
 
+  if (action === 'programEdit') {
+    // «عدّل البرنامج وانت ماشي» (the owner's pick of 7 Oct 2026): between two games (or on the
+    // line-up) the host re-sets what is still to come - added, removed, reordered - without
+    // ending the program. Each coming game is { keep: i } (one of the program's own, i past the
+    // games already dealt, its saved options kept: the options never leave the server) or
+    // { id, opts } (a new one, or one whose options the host changed). The games played stay.
+    requireHost(room, playerId);
+    if (programStale(room, pl)) throw new Error('البرنامج اتحرك: افتح التعديل تاني');
+    if (p.phase !== 'between') throw new Error('التعديل بين لعبتين بس');
+    const played = p.at + 1;
+    const list = Array.isArray(pl.games) ? pl.games : [];
+    if (played + list.length > PROGRAM_MAX_GAMES) throw new Error('البرنامج لحد 8 ألعاب');
+    if (played + list.length < PROGRAM_MIN_GAMES) throw new Error('البرنامج محتاج 3 ألعاب على الأقل');
+    const games = [];
+    const opts = [];
+    list.forEach(g => {
+      const keep = g && g.keep;
+      if (typeof keep === 'number') {
+        if (!(Number.isInteger(keep) && keep >= played && keep < p.games.length)) throw new Error('لعبة غير معروفة');
+        games.push({ id: p.games[keep].id });
+        opts.push(Object.assign({}, (room._progOpts || [])[keep] || {}));
+        return;
+      }
+      const id = String((g && g.id) || '');
+      if (ROOM_GAME_IDS.indexOf(id) === -1) throw new Error('لعبة غير معروفة');
+      if (roomGameIsOff(id)) throw new Error('اللعبة دي واقفة شوية عشان بنصلّحها، وهترجع قريب');
+      games.push({ id });
+      opts.push(programCleanOpts(g && g.opts));
+    });
+    p.games = p.games.slice(0, played).concat(games);
+    room._progOpts = (room._progOpts || []).slice(0, played).concat(opts);
+    // The countdown starts again with the new next game (and the pause the editor took is over).
+    programBump(room, 'between', played ? PROGRAM_BETWEEN_MS : PROGRAM_FIRST_MS);
+    return true;
+  }
+
   if (action === 'programPause') {
     requireMoveOn(room, playerId);
     if (programStale(room, pl)) return true;

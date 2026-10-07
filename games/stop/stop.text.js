@@ -48,6 +48,10 @@ gameText({
       stop1_to_table: "📋 الجدول كله",
       stop1_cat_hint: "كل واحد يقرا كلمته: لوحده 10، مكررة 5، فاضية أو غلط 0",
       stop1_check: "راجعوا الجدول",
+      stop_pts_solo: "لوحدك في الخانة",
+      stop_bad_stop: "وقف غلط",
+      stop1_who_stopped: "مين قال وقف؟",
+      stop1_who_stopped_hint: "اللي وقف وفي ورقته خانة بصفر بيخسر 10 (وقف غلط)",
     },
     en: {
       stop_room_hint: "Everyone writes on their own phone. The first one done presses Stop, and the app scores: 10 for a unique answer, 5 for a shared one, 0 for blank or not starting with the letter.",
@@ -94,6 +98,10 @@ gameText({
       stop1_to_table: "📋 Whole table",
       stop1_cat_hint: "Each reads their word: unique 10, shared 5, blank or wrong 0",
       stop1_check: "Check the table",
+      stop_pts_solo: "the only one in the category",
+      stop_bad_stop: "Wrong stop",
+      stop1_who_stopped: "Who said Stop?",
+      stop1_who_stopped_hint: "Whoever stopped with a 0 on their sheet loses 10 (wrong stop)",
     }
   },
   rules: {
@@ -104,6 +112,8 @@ gameText({
                 <li>اكتب كلمة تبدأ بالحرف في كل فئة: اسم، حيوان، نبات، جماد، بلد… (اختار الفئات قبل ما تبدأ).</li>
                 <li>أول واحد يخلص يضغط <b>وقف!</b> والكل يرفع القلم. أو الوقت بيخلص لوحده.</li>
                 <li>الحساب: <b>10</b> لإجابة محدش غيرك كتبها، <b>5</b> لإجابة اتكررت، <b>0</b> لو فاضية أو غلط. فئة فئة: كل واحد يقرا كلمته وتختاروا له <b>لوحده</b> أو <b>مكررة</b> أو <b>فاضي</b> (وفيه «الكل لوحده»)، وفي الآخر الجدول كله لو حبيتوا تعدّلوا خانة.</li>
+                <li><b>لوحدك في الخانة = 20</b>: لو انتو 3 أو أكتر، وإجابتك هي الوحيدة الصح في الفئة (الباقي فاضي أو غلط)، تاخد 20 ⭐.</li>
+                <li><b>وقف غلط</b>: اللي قال وقف وفي ورقته خانة خدت صفر (فاضية أو غلط) بيخسر 10 من الجولة. اختاروا مين وقف في الجدول.</li>
                 <li>بعد الجولات كلها، أعلى مجموع يكسب.</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
@@ -112,6 +122,7 @@ gameText({
                 <li><b>وقف</b> مش بيشتغل غير لما كل خاناتك تبقى فيها كلمة بتبدأ بالحرف: الخانة بتخضر لما تبقى تمام.</li>
                 <li>كل كلمة بتتراجع على قاموس الفئة بتاعتها. اللي القاموس يعرفها ✓ بتتحسب، واللي ميعرفهاش ❓ بتاخد صفر لحد ما المضيف يدوس عليها لو صح، إلا لو لاعب تاني كتب نفس الكلمة.</li>
                 <li>ولو المضيف شغّل <b>متسامح</b>: الكلمة اللي مش في القاموس تاخد 10 وعليها ❓، والمضيف يقدر ينزّلها لصفر.</li>
+                <li>نفس القاعدتين: الإجابة الوحيدة الصح في فئتها تاخد 20 ⭐ (من 3 لاعبين)، واللي داس وقف وفي ورقته كلمة فضلت بصفر (غلط، أو ❓ المضيف ما قبلهاش) بيخسر 10: <b>وقف غلط</b> 🛞.</li>
                 <li>الإملاء مش فارقة: أسد واسد، مكتبة ومكتبه، مصطفى ومصطفي، والتشكيل، كلهم نفس الإجابة. وأل التعريف مش بتتحسب حرف أول (السمك كلمة بحرف س).</li>
             </ul>`,
     },
@@ -122,6 +133,8 @@ gameText({
                 <li>Write a word starting with it in every category: a name, an animal, a plant, an object, a country… (pick the categories before you start).</li>
                 <li>The first one finished presses <b>Stop!</b> and everyone puts their pen down. Or the clock runs out.</li>
                 <li>Scoring: <b>10</b> for an answer nobody else had, <b>5</b> for a shared one, <b>0</b> for blank or wrong. One category at a time: each reads their word and you pick <b>Unique</b>, <b>Shared</b> or <b>Blank</b> for them («All unique» for the usual case); at the end, the whole table if you want to fix a cell.</li>
+                <li><b>The only one in the category = 20</b>: with 3 players or more, if yours is the only right answer in a category (everyone else blank or wrong), it scores 20 ⭐.</li>
+                <li><b>Wrong stop</b>: whoever said Stop with a 0 on their sheet (blank or wrong) loses 10 on the round. Pick who stopped on the table.</li>
                 <li>After all the rounds, the highest total wins.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>
@@ -130,6 +143,7 @@ gameText({
                 <li><b>Stop</b> only works once every box holds a word starting with the letter: a box turns green when it does.</li>
                 <li>Every word is checked against a dictionary for its category. Words it knows ✓ count; words it doesn't ❓ score 0 until the host taps them as right, unless another player wrote the same word.</li>
                 <li>With the host's <b>Lenient</b> switch on, a word the dictionary doesn't know keeps its 10, still marked ❓, and the host can tap it down to 0.</li>
+                <li>The same two rules: the only right answer in its category scores 20 ⭐ (3 players or more), and whoever pressed Stop with a word left at 0 (wrong, or a ❓ the host didn't accept) loses 10: <b>wrong stop</b> 🛞.</li>
                 <li>Spelling doesn't matter: أسد and اسد, مكتبة and مكتبه, capitals, diacritics, all count as the same answer. "The" and "ال" are not the first letter ("the sea" is an S word).</li>
             </ul>`,
     }

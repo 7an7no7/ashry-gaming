@@ -26,7 +26,9 @@
    the count again; so does a new level. Judged here only: a phone can't skip it.
 
    Surprises (a lobby switch, on by default): new panels every level, a
-   control breaking (smoke to wipe, or turned upside down for a while), and
+   control breaking (the place's own cover to wipe - sand on the microbus,
+   steam in the kitchen, a power cut at the wedding: 'smoke' here, the look
+   is the phone's - or turned upside down for a while), and
    «الكل يهز الموبايل!» - an order for everyone at once.
 
    Phases (shared.phase):
@@ -354,6 +356,15 @@ const wireWrite = (room) => {
   const s = room.shared, w = room._wire;
   room.secrets = {};
   if (!w) return;
+  // The place's surprise on a panel (792: sand, steam, a power cut - the smoke of before), counted
+  // per phone for the TV's «لوحة منى»: whose panel, never which control (the break event said so already).
+  const cover = {};
+  Object.keys(w.broken).forEach(cid => {
+    if (w.broken[cid].k !== 'smoke') return;
+    const pid = wireHolder(room, cid);
+    if (pid) cover[pid] = (cover[pid] || 0) + 1;
+  });
+  if (s) s.cover = cover;
   wireAlive(room).forEach(pid => {
     room.secrets[pid] = {
       lv: s.level,

@@ -66,7 +66,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     - **The surprises** (a lobby switch, on): new panels at every level from
       level 2; a control breaks from level 1, 12-20 s in and then every 18 s
       (0.9 s less a level, never under 8 s), half the time a control an order
-      is waiting on, two at once from level 4 - smoke (60%, wiped with 4 taps)
+      is waiting on, two at once from level 4 - smoke (60%, wiped with 4 taps; since 7 Oct 2026 drawn as the place's own surprise, 792 below)
       or upside down (9 s, still works, drawn and read upside down); «الكل يهز
       الموبايل!» from level 2, seven times in ten, once 25-50 s into the level:
       7 s to shake (a hard jolt three times, or three taps where the phone has
@@ -115,7 +115,8 @@ catalog, the help); the rules are named `wire` / `WIRE_`, the page's code
   (the last 30: `level`, `done { to, by, c, v | n }`, `miss`, `break { c, pid,
   k }`, `fixed`, `mash { pid }`, `shake`, `shakeOk`, `shakeFail`, `won`, `lost`), `phase`
   ('ready' → 'play' → 'won' → … → 'gameover'), `why` ('damage' | 'time' |
-  'left'), `startAt`, `endsAt`, `nextAt`. Moves: `ctl { c, v, lv }`, `press {
+  'left'), `startAt`, `endsAt`, `nextAt`, `cover { pid: n }` (whose panel is
+  under the place's surprise, 792). Moves: `ctl { c, v, lv }`, `press {
   c, lv }`, `wipe { c, lv }` (from the phone holding the control only; a
   stale level is dropped; a control in smoke takes nothing but wipes), `shake
   { id }`, the host's `start` / `playAgain { place, surprises }` and
@@ -148,7 +149,7 @@ catalog, the help); the rules are named `wire` / `WIRE_`, the page's code
   heat, the LED ticker the last order); the kitchen with its fridge of every
   phone's order, plates filling the table, smoke rising; the wedding's stage
   lights coming on, the guests' faces falling, the clock ring, the uncle's
-  bubble; the level's card, the level won and the end over the scene.
+  bubble; the level's card and the level won over the scene; the end is a frame of its own, the scene playing on to its ending (796, below).
 - `roomTurnOf`: an order on this phone while a level is played. The catalog:
   the party section, orange, `players: [3, 8]`, `faceToFace`, a drawn icon
   (`art:wire`: a panel with a red button and two cables and a spark).
@@ -177,6 +178,64 @@ catalog, the help); the rules are named `wire` / `WIRE_`, the page's code
   the server's time; the shake's pause is honoured as on the TV's fridge); the
   TV already shows every order. No server change. Styles `.wr-call*` in
   section 55; words `wr_caller_*`; the rules' list has a line for it.
+- **792 «مفاجأة كل مكان», look أ «على لوحة واحدة»** (the owner's pick from the
+  looks sheet of 7 Oct 2026). The rule is unchanged: a control breaks 'smoke'
+  (60%, from 12-20 s into a level, then every 18 s less 0.9 s a level, two at
+  once from level 4), only its holder clears it, `WIRE_WIPES` (4) wipes. What
+  changed is how it looks and is wiped: the generic smoke on one control is
+  gone, and each place has its own surprise over the panel (`wrFx*` in
+  `JS_RoomWire.html`, a canvas the finger clears, built in `wrFxPaint` from
+  `you.panel[].b` on every paint):
+  - **the microbus: a sandstorm over the half of the panel the broken control
+    is in** (`wrFxZones`: 'top' or 'bottom' by the control's middle; two
+    breaks in both halves cover it all); swipe it: the finger leaves a clean
+    trail in the sand;
+  - **the kitchen: steam fogging the whole panel**, mum's note kept readable
+    above it (`z-index`); rub it: the finger leaves a wiped streak;
+  - **the wedding: a power cut, the whole mixer dark**; the finger is the
+    torch (a round of light under it while it is down) and the lights come
+    back a step with every wipe (`--left` on the canvas's opacity).
+  Every `WR_FX_STEP` (56 px, or a fifth of a wide layer) of the finger's
+  travel is one wipe, and so is a tap, so the old four taps still clear it
+  (Enter / Space too, the layer is a button). The layer takes the touches
+  over what it covers - in the sand, the other controls of that half are
+  under it too until it is cleared (decided while building: a cover you can
+  tap through would not read as a cover). Wiped clean: the cover fades
+  (0.4 s) and the phone stamps «برافو! كمّل» (the `fixed` event). A phone with
+  motion off (`motionOff`): the cover is there at once and gone at once (no
+  blow-in, steam rising or flicker); the finger's trail and the torch are the
+  finger's own, so they are drawn there too. **The TV says on whose panel**:
+  the toast «🌪️ لوحة كريم: عاصفة رملية — اسحبها!» (♨️ steam, 🔌 the power
+  cut; `wr_tv_fx_*`), and while it lasts a veil over the scene (sand
+  streaks, a steam haze, the stage dimmed; `.wr-tvfx`) with a tag «لوحة كريم».
+  The server now says whose panel is covered: `shared.cover { pid: n }`
+  (`wireWrite`, a count per phone, never the control; the break event already
+  named the panel). Rules test: "the table is told whose panel is covered,
+  not which control".
+- **796 «نهاية الحكاية», look أ «المشهد بيكمّل»**. At the game's end the TV no
+  longer lays a card over the scene: its frame is the ending (`wrTvEndHtml`;
+  `TV_GAMES.wire.sig` carries the levels, why, the best), the place's scene
+  full screen, played once per deal and only just after the game ended (a
+  `lost` event under 6 s old and `motionFirst`), the count rising (`countUp`)
+  in a corner badge with the ending's line, and after the scene (2.9 s) why it
+  ended, the room's best and the host's buttons. **The tiers, decided while
+  building** (the sheet said "the oasis from 6, the middle 2-4" and showed the
+  kitchen's good ending at 5): under 2 levels the bad ending, 2-4 the middle,
+  5 and more the good one (`WR_END_MID`, `WR_END_GOOD`, `wrEndTier`):
+  - the microbus drives in from the road's start and stops past the sign,
+    broken down and steaming (bad), a little short of the oasis, steaming
+    (middle), or rolls into the oasis; the sign reads «الواحة N كم» or
+    «وصلنا!»;
+  - the kitchen: the plates fill one by one (all, half, none), the guests eat
+    their fill, half of them are still hungry, or all walk off to the door;
+  - the wedding: the lanterns come on one by one over the zaffa (all, half),
+    or the lights flicker and die and the guests hold up their phones.
+  Confetti after a good ending or a new best (`afterReveal`). Every end state
+  is the element's own value and the animations only run from the start
+  (`.is-play`), so a TV with motion off, reloaded or joining later draws the
+  ending as it ends. The badge sits top right in both languages (the scenes
+  are drawn left to right; the kitchen's door is on the left). The phones'
+  end card shows the ending's line too (`wrEndLine`). Words `wr_end_*`.
 
 ## History
 

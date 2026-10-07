@@ -14074,8 +14074,11 @@ Date.now = duelTestClock;
     w.broken[cid] = { k: 'smoke', left: WIRE.WIRE_WIPES };
     for (let k = 0; k < WIRE.WIRE_WIPES - 1; k++) applyRoomAction(r, 'b', 'wipe', { c: cid, lv: 1 });
     check(w.broken[cid] && w.broken[cid].left === 1, 'wire: every wipe clears a little of the smoke');
+    // 792: the TV says whose panel is under the place's surprise - a count per phone, never the control.
+    check(r.shared.cover && r.shared.cover.b === 1 && Object.keys(r.shared.cover).length === 1 && JSON.stringify(r.shared.cover).indexOf(cid) === -1, "wire: the table is told whose panel is covered, not which control");
     applyRoomAction(r, 'b', 'wipe', { c: cid, lv: 1 });
     check(!w.broken[cid] && s.events.some((e) => e.type === 'fixed' && e.c === cid), 'wire: wiped clean, it works again');
+    check(r.shared.cover && !r.shared.cover.b, 'wire: wiped clean, the panel is no longer covered');
     // The shake.
     w.shakeAt = clock + 10;
     tickTo(r, w.shakeAt);

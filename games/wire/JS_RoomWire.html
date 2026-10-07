@@ -150,7 +150,12 @@ function wrPhoneHtml(state) {
   if (s.phase === 'gameover') {
     body = '';          // the end card takes the panel's place
   } else if (!inTable) {
-    body = `<div class="wr-watch">${escapeHTML(t.wr_watching)}</div>`;
+    // «المنادي» (the ideas of 7 Oct 2026, 793): a watcher reads every open order out to the table,
+    // the one about to burn first. Orders are public (shared.orders); the panels never come here.
+    body = `<div class="wr-caller" data-wr-caller>
+      <div class="wr-caller__head"><b>📣 ${escapeHTML(t.wr_caller_title)}</b><small>${escapeHTML(t.wr_caller_hint)}</small></div>
+      <div class="wr-caller__list" data-wr-calls aria-live="polite"></div>
+      <div class="wr-caller__foot">${escapeHTML(t.wr_watching)}</div></div>`;
   } else if (place === 'kitchen') {
     const first = panel.filter((x) => (wireControl(x.c) || {}).t !== 'slide').slice(0, 2);
     const rest = panel.filter((x) => first.indexOf(x) === -1);
@@ -414,6 +419,9 @@ function wrPaint(state, el) {
     }
     if (note && note.textContent !== small) note.textContent = small;
   }
+  // «المنادي»: a watcher's list of every open order.
+  const calls = root.querySelector('[data-wr-calls]');
+  if (calls) wrCallerPaint(state, calls);
   // The shake: everyone at once.
   const sh = root.querySelector('[data-wr-shake]');
   if (sh) {
@@ -442,6 +450,40 @@ function wrPaint(state, el) {
   wrFrame();
 }
 
+/** «المنادي» (793): the open orders, soonest to burn first, each with whose phone it is on (never whose panel). */
+function wrCallerPaint(state, calls) {
+  const t = wrT();
+  const s = state.shared || {};
+  const live = s.phase === 'play';
+  const list = live ? (s.alive || []).filter((pid) => (s.orders || {})[pid]).sort((a, b) => s.orders[a].ends - s.orders[b].ends) : [];
+  const key = list.map((pid) => pid + ':' + s.orders[pid].id).join(',') + '|' + s.phase + '|' + !!s.shake + '|' + wrL() + '|' + appState.lang;
+  if (calls.dataset.key === key) return;
+  calls.dataset.key = key;
+  if (!list.length) {
+    const msg = !live ? (s.phase === 'ready' ? t.wr_caller_soon : '…') : s.shake ? t.wr_shake_title : '…';
+    calls.innerHTML = `<div class="wr-call is-idle">${escapeHTML(msg)}</div>`;
+    return;
+  }
+  calls.innerHTML = list.map((pid) => `<div class="wr-call" data-wr-call="${escapeHTML(pid)}"><small>${escapeHTML(wrFill(t.wr_tv_phone_of, { name: wrIso(wrName(state, pid)) }))}</small><span>${escapeHTML(s.shake ? t.wr_shake_title : wireOrderText(s.orders[pid], wrL()))}</span><i></i></div>`).join('');
+}
+/** Every frame: each called order's bar drains, and the one about to burn is lit. */
+function wrCallerFrame(root, s, now) {
+  const rows = root.querySelectorAll('[data-wr-call]');
+  let soon = null; let least = Infinity;
+  rows.forEach((n) => {
+    const o = (s.orders || {})[n.dataset.wrCall];
+    const i = n.querySelector('i');
+    const f = o && s.phase === 'play' ? Math.max(0, Math.min(1, ((s.shake ? o.ends - (s.shake.ends - now) : o.ends) - now) / Math.max(1, o.ends - o.at))) : 0;
+    if (i) i.style.transform = 'scaleX(' + f.toFixed(3) + ')';
+    if (o && f < least) { least = f; soon = n; }
+  });
+  rows.forEach((n) => {
+    if (n.classList.contains('is-next') !== (n === soon)) n.classList.toggle('is-next', n === soon);
+    const hurry = n === soon && least < 0.35 && !s.shake;
+    if (n.classList.contains('is-hurry') !== hurry) n.classList.toggle('is-hurry', hurry);
+  });
+}
+
 /** Every frame while the room is on screen: the order's bar, the clock, the countdowns. */
 function wrFrame() {
   const st = Room.state;
@@ -458,6 +500,7 @@ function wrFrame() {
   if (wr.tv) { wrTvFrame(st, el, now); return true; }
   const root = el.querySelector('[data-wr-root]');
   if (!root) return true;
+  if (root.querySelector('[data-wr-caller]')) wrCallerFrame(root, s, now);
   const o = (s.orders || {})[Room.me];
   let tt = 0;
   if (s.phase === 'play' && o && !s.shake) tt = Math.max(0, Math.min(1, (o.ends - now) / Math.max(1, o.ends - o.at)));

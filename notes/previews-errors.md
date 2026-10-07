@@ -109,6 +109,23 @@ Two things, both free on the Cloudflare plan and with nothing to look after.
   `/errors` under the build and `room-lobby`; the same error again in the same load was
   not sent again; an error with only console frames was not sent.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **1319, a share message that invites.** `roomShareLink` sends `roomShareText(state, t)`
+  (JS_Room.html), built on the phone: «تعالى العب مع {host}: غرفة 🕵️ الجاسوس - ادخل بالكود ABCD»
+  and, on a second line, the game's one line from the catalog (`cat_<id>`). The owner's words were
+  «منى فتحت غرفة …»; «فتحت» / «فتح» depends on whether the host is a woman or a man, which the app
+  doesn't know, so the line is the neutral «تعالى العب مع منى» (open to change). No game chosen:
+  «تعالى العب مع منى - ادخل بالكود ABCD»; a room hosted by a TV (no name): the old words with the
+  game. Nothing new on the server; the link (and its WhatsApp preview) is as before.
+- **1320, a closed room says so kindly.** A room link (`?room=` / `/r/CODE`, `initRooms` notes it
+  in `roomFromLink`) whose room is gone no longer gets a red line under the code: `roomJoinFromForm`
+  opens `roomClosedCard(code)` in `#room-sheet-modal` - 🌙, «الغرفة دي قفلت 🌙», a line on why,
+  and, when this phone was in that room, the night's last table as ليالينا kept it (`readNights()`,
+  that code's last entry: the day and up to six rows). Then «🎮 افتح غرفة جديدة» first
+  (`roomCreateEmpty`), «📱 ادخل بكود تاني» (the join screen, emptied) and «للرئيسية». A code typed
+  by hand still gets the line under the field.
+
 ## To deploy (the owner or the lead)
 
 1. `cd tools && npm run build:site` (writes `docs/og/` too) and commit `docs/`.

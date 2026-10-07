@@ -363,11 +363,10 @@ function shareRoomNight() {
   const state = Room && Room.state;
   if (!state) return;
   const t = TRANSLATIONS[appState.lang] || {};
-  const night = state.night || {};
-  const rows = state.players
-    .map(p => ({ name: p.name, value: Number(night[p.id]) || 0 }))
-    .filter(r => r.value > 0)
-    .sort((a, b) => b.value - a.value);
+  // Those who left keep their points (the ideas of 7 Oct 2026, 1306): their name says «مشي».
+  const rows = (typeof roomNightRows === 'function' ? roomNightRows(state) : [])
+    .filter(r => r.score > 0)
+    .map(r => ({ name: r.left ? r.name + ' (' + (t.room_night_left || '') + ')' : r.name, value: r.score }));
   if (!rows.length) return;
   const top = rows[0];
   const title = '🌙 ' + (t.room_night_title || '');

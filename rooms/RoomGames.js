@@ -518,6 +518,9 @@ const runRoomBot = (room) => {
  */
 const ROOM_RULES = {};
 
+/** How many of the night's games a room remembers for «لعبناها» (room.played, sent to every phone). */
+const ROOM_PLAYED_KEEP = 60;
+
 const applyRoomAction = (room, playerId, action, payload) => {
   // Room-level actions come first: they're about the group, not the game.
 
@@ -616,6 +619,14 @@ const applyRoomAction = (room, playerId, action, payload) => {
 
   // المهمة السرية (RoomMission.js): the room's switch and each person's file, beside any game.
   if (missionAction(room, playerId, action, payload)) return;
+
+  // «ادخل» on the big screen (the ideas of 7 Oct 2026, 1287): the host's phone asks the TV to
+  // show its corner QR big for a few seconds, for someone who has just come in. Only the moment.
+  if (action === 'tvQr') {
+    requireHost(room, playerId);
+    room.tvQrAt = Date.now();
+    return;
+  }
 
   // The host sits a computer player down, takes one out, or changes its level.
   if (roomBotAction(room, playerId, action, payload)) return;
@@ -784,6 +795,8 @@ const applyRoomAction = (room, playerId, action, payload) => {
 
   if (action === 'start' && room.phase !== 'lobby') {
     roomEvent(room, 'started', { game: room.game });
+    // «لعبناها» (the ideas of 7 Oct 2026, 1314): the games dealt tonight, for the ✓ on the room's tiles.
+    room.played = (Array.isArray(room.played) ? room.played : []).concat([room.game]).slice(-ROOM_PLAYED_KEEP);
     room.predict = { game: room.game, until: Date.now() + PREDICT_OPEN_MS, picks: {} };
     // The last cheer goes, its number stays: a phone only floats a cheer newer than
     // the last it saw, so a count starting over hid every cheer from game 2 on.

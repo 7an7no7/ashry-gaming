@@ -177,8 +177,11 @@ function paintAudience(state) {
     if (c.e && (onTv || (appState.currentView || '').indexOf('room-') === 0)) audienceFloat(c.e, onTv ? c.name : '', onTv);
   }
   if (!bar) return;
-  const inRoomGame = (appState.currentView || '').indexOf('room-') === 0 &&
-    ['room-lobby', 'room-join', 'room-tv'].indexOf(appState.currentView) === -1;
+  // The lobby too for someone who joined mid-round (the ideas of 7 Oct 2026, 1307): that is where
+  // renderRoomSpectator draws them, watching the game the bar is about.
+  const latecomer = !!state && state.inGame === false && state.phase !== 'lobby' && !!state.game && appState.currentView === 'room-lobby';
+  const inRoomGame = latecomer || ((appState.currentView || '').indexOf('room-') === 0 &&
+    ['room-lobby', 'room-join', 'room-tv'].indexOf(appState.currentView) === -1);
   const show = inRoomGame && audienceWatching(state) && !audienceGameOver(state);
   bar.hidden = !show;
   document.body.classList.toggle('has-audience', show);

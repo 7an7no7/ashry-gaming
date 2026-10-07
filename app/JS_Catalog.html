@@ -1491,7 +1491,7 @@ function renderTogether() {
         <span class="section__rule"></span>
         ${shelfButtonHtml(t, !!shelfOpen.together)}
       </div>
-      <div class="gcard-grid gcard-grid--shelf hscroll-fade">${games.map(g => catalogCard(g, t)).join('')}</div>
+      <div class="gcard-grid gcard-grid--shelf hscroll-fade">${games.map(g => togetherCard(g, t)).join('')}</div>
     </section>
     <section class="card card--tight">
       <div class="eyebrow">${escapeHTML(t.together_how || '')}</div>
@@ -1511,6 +1511,49 @@ function renderTogether() {
   wireShelfResize();
   if (togetherLiveLast) paintTogetherLive();
   refreshTogetherLive();
+}
+
+/* A game's poster on مع بعض (the ideas of 7 Oct 2026, 1273): the same poster, but a tap opens a
+   small centred sheet - «افتح غرفة لـ …» (roomCreateFor with the game chosen) first, then the one-phone
+   way (its setup) or, for a room-only game, its rules and options - one tap less than the setup.
+   A game with no room of its own (none on مع بعض today) opens as before. */
+function togetherCard(g, t) {
+  return catalogCard(g, t).replace(`onclick="catalogOpen('${g.id}', this, true)"`, `onclick="togetherGameSheet('${g.id}', this)"`);
+}
+
+function togetherGameSheet(id, fromEl) {
+  const g = CATALOG_BY_ID[id];
+  if (!g) return;
+  if (catalogOff(id)) { gameOffToast(); return; }
+  const r = typeof ROOM_GAME_LIST !== 'undefined' ? ROOM_GAME_LIST.find(x => x.game && x.game.id === id) : null;
+  const body = document.getElementById('room-sheet-body');
+  const modal = document.getElementById('room-sheet-modal');
+  if (!r || !body || !modal) { catalogOpen(id, fromEl, true); return; }
+  const t = TRANSLATIONS[appState.lang] || {};
+  const name = catalogTitle(g, t);
+  const desc = catalogDesc(g, t);
+  const device = (g.modes || []).indexOf('device') !== -1;
+  body.setAttribute('data-accent', g.accent || 'violet');
+  body.removeAttribute('data-accent-auto');
+  body.innerHTML = `
+    <div class="modal-icon together-sheet__icon" aria-hidden="true">${iconHtml(g.icon)}</div>
+    <div class="sheet__title">${escapeHTML(name)}</div>
+    ${desc ? `<p class="sheet__subtitle">${escapeHTML(desc)}</p>` : ''}
+    <p class="together-sheet__meta">${catalogMeta(g, t, false, false)}</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" onclick="togetherSheetRoom('${r.id}')">🎮 ${escapeHTML(String(t.tg_open_for || '').replace('{g}', name))}</button>
+      <button type="button" class="btn btn--secondary" onclick="togetherSheetOpen('${g.id}')">${device ? '📱 ' + escapeHTML(t.tg_one_phone || '') : '📘 ' + escapeHTML(t.tg_more || '')}</button>
+      <button type="button" class="btn btn--ghost" onclick="closeModal('room-sheet-modal')">${escapeHTML(t.cancel || '')}</button>
+    </div>`;
+  modal.classList.remove('hidden');
+}
+function togetherSheetRoom(roomId) {
+  closeModal('room-sheet-modal');
+  if (typeof roomCreateFor === 'function') roomCreateFor(roomId);
+}
+function togetherSheetOpen(id) {
+  closeModal('room-sheet-modal');
+  catalogOpen(id, document.querySelector('#view-together .gcard[data-game="' + id + '"]'), false);
 }
 
 /* --- Who is playing right now ---------------------------------------------

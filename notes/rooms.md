@@ -594,3 +594,66 @@ The owner's look 1B. The player list sits right under the code (`#room-people`, 
 ## The TV's lobby as a stage (3 Oct 2026)
 
 The owner's look 2A. Every TV lobby is always dark: `#view-room-tv.tv-showtime` shares مافيا's night tokens (Style_Arcade.html), whatever the theme. A TV that isn't the host, with nothing of a game's own to draw there (teams, المهمة السرية's board), draws `tv-lobby--stage` (tvLobby, JS_RoomTv.html): «يلا نلعب!», the code in four colours beside the QR, the night's line under it (`tvNightLine`), the game chosen, and everyone as a big face along the foot - a colour per person all evening (`tvFaceAccent`), dimmed when away. A new face drops in with a bounce and a glow and a soft pop (`playSound('pop')`, once per draw, never on the TV's first draw of a room: `tvStageSeen`). The strip goes on the stage. A host TV keeps its columns (the QR, the game list) on the dark stage.
+
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+Nine room ideas from the ideas page, each answered "build as described"; the details below were
+chosen for a family table and are open to change. Styles: the section «ROOMS, THE IDEAS OF 7 OCT
+2026» at the end of `Style_Night.html`. Words: `JS_Translations.html` (shared room words).
+
+- **1215 = 1294, «دورك!» on the banner** (built once). While the phone is on another screen of the
+  app and `roomTurnOf` names it, `updateRoomBanner` (JS_Room.html) turns `#active-room-banner`
+  the pop colour (`.is-turn`) and writes «🔔 دورك! · ارسم» (`turn_title` + the turn's own key);
+  `roomBannerTurnCue` buzzes once (`haptic('medium')`, a small scale bump with motion on) per
+  moment - the code, `shared.dealId`, the game and the kind of turn; the key empties when the turn
+  passes, so the next turn buzzes again. Nothing buzzes when the banner has just appeared (you
+  stepped off the room screen on your own turn) or while the page is hidden (the title and the
+  wake banner still say it there). A tap on the banner goes back, as before.
+- **1273, a game on مع بعض opens a room for it.** The tab's posters are `togetherCard` (the
+  catalog poster with another onclick); a tap opens `togetherGameSheet` (JS_Catalog.html) in the
+  room's small popup `#room-sheet-modal` (Controller.html, in the shell): the game's icon, name,
+  line and players, «🎮 افتح غرفة لـ …» first (`roomCreateFor(<its room id>)`, from
+  `ROOM_GAME_LIST`), then «📱 العبوها على موبايل واحد» (its setup) - or, for a room-only game,
+  «📘 القوانين والاختيارات» (its setup too) - and «إلغاء». The sheet takes the game's colour.
+- **1280, the night on the people tab.** Every lobby row (`paintLobbyRows` in `renderRoomLobby`)
+  carries the person's night points once they have any (`lobbyNightBadgeHtml`): 👑 for whoever
+  leads (a tie crowns both), 🌙 for the rest; a number that rose since this phone last drew the
+  lobby counts up (`lobbyNightCount`, `countUp`). The full table stays under the list.
+- **1287, the TV's corner QR.** All through a game (not the lobby) `tvCornerSync` (JS_RoomTv.html)
+  keeps a small QR, «ادخل» and the code fixed in the corner at the strip's end (`.tv-corner`,
+  built once per code and language and moved back into each rebuilt frame, so the QR is drawn
+  once). The host's phone asks for it big from the back arrow's sheet mid-game - «📺 كبّر الكود
+  على الشاشة», shown only while a screen of the room is online (`roomHasScreenOn`, `roomTvQrAsk`;
+  the row is in `openExitSheet`, JS_Utils.html) - room action **`tvQr`** (host only, before the
+  game's dispatch in `applyRoomAction`) stamps `room.tvQrAt`, projected as `tvQrAt`; the TV grows
+  the corner (transform only) for `TV_QR_BIG_MS` (10 s) counted on the server's clock.
+- **1288, «إزاي نلعبها» on the TV's stage.** A TV that isn't the host, with a game chosen, shows
+  the first three lines of its rules beside the game (`tvHowToHtml`: `firstPlaySteps(firstPlayKey(
+  game, true))`, the same lines as the first-play card), in the stage (`.tv-show__pair`, the QR and
+  code a little smaller then) and in the columns layout; the lines pop in one after another once
+  per game chosen (`motionFirst`).
+- **1306, those who left stay on the night.** The server projects `nightNames` (view.js,
+  `nightLeftNames`): pid → name for every id with night points who is no longer a player, from
+  `room.nightx.names` (never a computer player, `nightx.bots`; nothing else of nightx). The page's
+  one list is `roomNightRows(state)` (JS_Room.html): everyone in, plus each leaver as `{ left:
+  true }`; someone who left and came back under the same name (`samePlayer`) is one row with both
+  their points. The board (`roomNightBoardHtml` → `renderScoreboard`, whose rows now take `left`:
+  greyed, «مشي»), the TV's line (`tvNightLine`: «(مشي)»), the night's share card (`shareRoomNight`:
+  the name with «(مشي)»; rows only) and ليالينا (`rememberNight`) all read it. Leak check: a
+  GENERIC probe holds `nightNames` to names of people on the night and gone (and `played`,
+  `tvQrAt` to their shapes).
+- **1307, the audience bar for latecomers.** `paintAudience` shows the bar on `room-lobby` too when
+  the state says this phone joined mid-round (`inGame === false`, a game on). The spectator's note
+  is a small live card (`roomSpectatorCardHtml`): the game's icon and name, the round (and of how
+  many, when the game says), the top three of its board when it keeps one, and the old line under
+  a pulsing dot; redrawn as the round moves.
+- **1314, «لعبناها» on the tiles.** `start` from the lobby appends the game to **`room.played`**
+  (the last `ROOM_PLAYED_KEEP` = 60, RoomGames.js), projected as `played`. Every hub tile on the
+  phone and the TV carries ✓ (✓×2 …) for the times tonight (`roomPlayedCount`; a family tile
+  counts all its games, `roomPlayedBadgeHtml`), and the last game played, when it can start now,
+  sits first under «🔁 تاني؟» and not again below (`roomPlayedLastTile`).
+- **Shared functions changed:** `updateRoomBanner`, `renderRoomSpectator`, `roomNightBoardHtml`,
+  `rememberNight`, `renderRoomLobby`, `roomHubPosterHtml`, `roomHubListHtml`, `roomShareLink`,
+  `roomJoinFromForm`, `initRooms` (JS_Room.html); `renderScoreboard` (JS_RoomVoting.html);
+  `renderRoomTv`, `tvNightLine`, `tvLobby` (JS_RoomTv.html); `paintAudience`; `renderTogether`;
+  `shareRoomNight`; `openExitSheet`; `applyRoomAction`; `roomView`.

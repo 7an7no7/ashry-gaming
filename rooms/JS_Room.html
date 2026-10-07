@@ -1263,8 +1263,22 @@ async function roomShareLink() {
   if (!state || !base) return;
   const t = TRANSLATIONS[appState.lang] || {};
   const url = roomInviteUrl(state.code, { game: state.game, lang: appState.lang });
-  const text = (t.room_share_text || '') + ' ' + state.code;
-  return shareOrCopy(url, text, t.room_link_copied || '');
+  return shareOrCopy(url, roomShareText(state, t), t.room_link_copied || '');
+}
+
+/* The words that go with the link (the ideas of 7 Oct 2026, 1319): who opened the room, the game
+   chosen and its one line from the catalog, the code - all from the phone, nothing new on the server.
+   A room hosted by a TV (no name) or a game not chosen yet keeps the parts it has. */
+function roomShareText(state, t) {
+  const host = (state.players || []).find(p => p.id === state.hostId && !p.bot);
+  const entry = state.game ? ROOM_HUB_GAMES.find(g => g.id === state.game) : null;
+  const cat = entry && typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[state.game === 'chess' ? 'shatranj' : state.game] : null;
+  const game = entry ? ((iconText(entry.icon) ? iconText(entry.icon) + ' ' : '') + (t[entry.key] || entry.id)) : '';
+  if (!host) return (t.room_share_text || '') + ' ' + state.code + (game ? ' · ' + game : '');
+  const line = String((game ? t.room_share_invite : t.room_share_invite_nogame) || '')
+    .replace('{name}', host.name).replace('{game}', game).replace('{code}', state.code);
+  const desc = cat && t[cat.desc] ? t[cat.desc] : '';
+  return line + (desc ? '\n' + desc : '');
 }
 
 /**
@@ -1368,9 +1382,50 @@ async function roomJoinFromForm() {
     const msg = String(err.message || '');
     // Someone in the room has this phone's name: the field comes back to change it.
     if (String(err.raw || msg).indexOf('الاسم') !== -1) { roomJoinEditName(); roomJoinFieldError('room-join-name', msg); }
+    else if (msg.indexOf('ROOM_NOT_FOUND') !== -1 && roomFromLink === code) { roomFromLink = ''; roomClosedCard(code); }
     else if (msg.indexOf('ROOM_NOT_FOUND') !== -1) roomJoinFieldError('room-join-code', roomErrText('notfound'));
     else showToast(msg, 'error');
   }
+}
+
+/* A link whose room is gone (the ideas of 7 Oct 2026, 1320): not a red line under the code but a
+   kind card - «الغرفة دي قفلت 🌙», «افتح غرفة جديدة» first, another code, and when this phone was
+   in that room, the night's last table as ليالينا kept it. `roomFromLink` is the code a link
+   brought (initRooms); a code typed by hand still gets the line under the field. */
+let roomFromLink = '';
+function roomClosedCard(code) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const body = document.getElementById('room-sheet-body');
+  const modal = document.getElementById('room-sheet-modal');
+  if (!body || !modal) { roomJoinFieldError('room-join-code', roomErrText('notfound')); return; }
+  // The screen's own colour (tintModal), not a game's left from the مع بعض sheet.
+  body.removeAttribute('data-accent');
+  body.removeAttribute('data-accent-auto');
+  const mine = readNights().filter(n => n.code === code).pop();
+  const medals = ['🥇', '🥈', '🥉'];
+  const table = mine && (mine.board || []).length ? `
+      <div class="room-closed__table">
+        <div class="eyebrow">🌙 ${escapeHTML(String(t.room_closed_table || '').replace('{day}', mine.day || ''))}</div>
+        ${mine.board.slice(0, 6).map((r, i) => `
+          <div class="room-closed__row"><span aria-hidden="true">${medals[i] || '·'}</span> <bdi>${escapeHTML(r.name)}</bdi> <b class="metric">${Number(r.score) || 0}</b></div>`).join('')}
+      </div>` : '';
+  body.innerHTML = `
+    <div class="modal-icon" aria-hidden="true">🌙</div>
+    <div class="sheet__title">${escapeHTML(t.room_closed_title || '')}</div>
+    <p class="sheet__subtitle">${escapeHTML(t.room_closed_sub || '')}</p>
+    ${table}
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" onclick="closeModal('room-sheet-modal'); roomCreateEmpty()">🎮 ${escapeHTML(t.room_closed_new || '')}</button>
+      <button type="button" class="btn btn--secondary" onclick="roomClosedOtherCode()">📱 ${escapeHTML(t.room_closed_code || '')}</button>
+      <button type="button" class="btn btn--ghost" onclick="closeModal('room-sheet-modal'); setView('menu')">${escapeHTML(t.room_closed_home || '')}</button>
+    </div>`;
+  modal.classList.remove('hidden');
+  haptic('light');
+}
+function roomClosedOtherCode() {
+  closeModal('room-sheet-modal');
+  const codeEl = document.getElementById('room-join-code');
+  if (codeEl) { codeEl.value = ''; paintJoinBoxes(); delete codeEl.dataset.went; setTimeout(() => codeEl.focus(), 300); }
 }
 
 async function roomLeave() {
@@ -1432,6 +1487,9 @@ function renderRoomLobby(state, opts) {
   const list = document.getElementById('room-player-list');
   const count = document.getElementById('room-player-count');
   if (count) count.innerText = state.players.length;
+  // The night on each row (1280): its points, 👑 on whoever leads; a rise counts up once drawn.
+  const nightPts = state.night || {};
+  const nightTop = Math.max(0, ...state.players.map(p => Number(nightPts[p.id]) || 0));
   // Whoever stays slides, whoever left fades where they stood (JS_Motion.html section 13).
   const paintLobbyRows = () => {
   if (list) {
@@ -1444,6 +1502,7 @@ function renderRoomLobby(state, opts) {
           <div class="status-row__name">${roomNameHtml(state, p)}</div>
         </div>
         <div class="status-row__actions">
+          ${lobbyNightBadgeHtml(p, nightPts, nightTop)}
           ${p.id === Room.me ? `<span class="badge badge--accent">${youLabel}</span>` : ''}
           ${p.id === state.hostId ? `<span class="badge lobby-row__host"><span aria-hidden="true">👑</span> ${hostLabel}</span>` : ''}
           ${p.online ? '' : `<span class="badge">${escapeHTML((TRANSLATIONS[appState.lang] || {}).room_away || '')}</span>`}
@@ -1468,6 +1527,7 @@ function renderRoomLobby(state, opts) {
   }
   };
   if (list && typeof motionRowsSwap === 'function') motionRowsSwap(list, paintLobbyRows); else paintLobbyRows();
+  lobbyNightCount(list, state);
 
   const startBtn = document.getElementById('room-start-btn');
   const waitNote = document.getElementById('room-wait-note');
@@ -1562,6 +1622,32 @@ function renderRoomLobby(state, opts) {
       setup.addEventListener('click', later);
     }
   }
+}
+
+/* The night's points on a lobby row (the ideas of 7 Oct 2026, 1280): a badge once the person has
+   any, 👑 for whoever leads (a tie crowns both), 🌙 for the rest. The full table stays under the list. */
+const lobbyNightSeen = { code: '', pts: {} };
+function lobbyNightBadgeHtml(p, night, top) {
+  const n = Number(night[p.id]) || 0;
+  if (!n) return '';
+  const lead = n === top;
+  const label = escapeHTML(((TRANSLATIONS[appState.lang] || {}).room_night_title || '') + ': ' + n);
+  return `<span class="badge lobby-row__night${lead ? ' is-lead' : ''}" title="${label}" aria-label="${label}">` +
+    `<span aria-hidden="true">${lead ? '👑' : '🌙'}</span> <b class="metric" data-night-pid="${escapeHTML(p.id)}">${n}</b></span>`;
+}
+/** After the rows are drawn: a number that rose since this phone last drew it counts up (countUp). */
+function lobbyNightCount(list, state) {
+  if (lobbyNightSeen.code !== state.code) { lobbyNightSeen.code = state.code; lobbyNightSeen.pts = null; }
+  const night = state.night || {};
+  const was = lobbyNightSeen.pts;
+  lobbyNightSeen.pts = Object.assign({}, night);
+  if (!was || !list || motionOff() || typeof countUp !== 'function') return;
+  list.querySelectorAll('[data-night-pid]').forEach(el => {
+    const id = el.dataset.nightPid;
+    const now = Number(night[id]) || 0;
+    const before = Number(was[id]) || 0;
+    if (now > before) countUp(el, before, now);
+  });
 }
 
 /* The lobby's two tabs for the host (the owner's look 1B, 3 Oct 2026): «اللاعبين (n)»
@@ -1787,9 +1873,7 @@ function setRoomHubLocation(loc) {
 function roomNightBoardHtml(state, t) {
   const night = state.night || {};
   if (!Object.keys(night).length) return '';
-  const board = state.players
-    .map(p => ({ id: p.id, name: p.name, score: night[p.id] || 0 }))
-    .sort((a, b) => b.score - a.score);
+  const board = roomNightRows(state);
   if (!board.some(r => r.score > 0)) return '';
   return `
     <div class="section">
@@ -1805,6 +1889,26 @@ function roomNightBoardHtml(state, t) {
     </div>`;
 }
 
+/**
+ * The night's rows, best first: everyone in the room, and whoever was banked on the night and has
+ * left since (state.nightNames, the ideas of 7 Oct 2026, 1306), as { left: true } - drawn greyed
+ * with «مشي» on the board, the TV's line and the share card. Someone who left and came back under
+ * the same name is one row with both their points.
+ */
+function roomNightRows(state) {
+  const night = (state && state.night) || {};
+  const rows = ((state && state.players) || []).map(p => ({ id: p.id, name: p.name, score: Number(night[p.id]) || 0, bot: !!p.bot }));
+  const gone = (state && state.nightNames) || {};
+  Object.keys(gone).forEach(id => {
+    const pts = Number(night[id]) || 0;
+    if (!pts || !gone[id]) return;
+    const back = rows.find(r => !r.bot && !r.left && samePlayer(r.name, gone[id]));
+    if (back) back.score += pts;
+    else rows.push({ id: id, name: String(gone[id]), score: pts, left: true });
+  });
+  return rows.sort((a, b) => b.score - a.score);
+}
+
 /* «ليالينا» (the improvement plan, Phase 6 - Plato's groups, with no accounts):
    every phone in a room keeps that evening's leaderboard of the night, one
    entry per room and day, updated as the night goes on. أرقامي adds them up by
@@ -1818,11 +1922,10 @@ function readNights() {
 
 function rememberNight(state) {
   if (!state || state.youAreScreen || !state.night) return;
-  const board = state.players
-    .filter(p => !p.bot)
-    .map(p => ({ name: p.name, score: Number(state.night[p.id]) || 0 }))
-    .filter(r => r.score > 0)
-    .sort((a, b) => b.score - a.score);
+  // Those who left keep their points here too (1306): ليالينا is the night as it was.
+  const board = roomNightRows(state)
+    .filter(r => !r.bot && r.score > 0)
+    .map(r => ({ name: r.name, score: r.score }));
   if (!board.length) return;
   const d = new Date();
   const day = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -1917,6 +2020,7 @@ function roomHubPosterHtml(tile, state, t) {
   const need = !enough ? (t.room_need_more ? t.room_need_more.replace('{n}', String(tile.min - count)) : `${tile.min}+`) : '';
   const badge = off ? gameOffBadge(t) : need ? `<div class="game-card__need">${escapeHTML(need)}</div>` : '';
   const hintEl = hint ? `<div class="game-card__hint">${escapeHTML(hint)}</div>` : '';
+  const played = roomPlayedBadgeHtml(roomPlayedCount(state, tile), t);
   return `
             <button type="button" class="game-card room-poster ${enough ? '' : 'is-disabled'} ${off ? 'is-off' : ''} ${tile.open ? 'room-poster--family' : ''}" data-accent="${g.accent}" data-game="${g.id}"
                  ${off ? 'onclick="gameOffToast()" aria-disabled="true"' : enough ? (tile.open ? `onclick="roomHubOpen('${tile.open}')"` : `onclick="roomPickGame('${g.id}', this)"`) : 'aria-disabled="true"'}>
@@ -1924,7 +2028,30 @@ function roomHubPosterHtml(tile, state, t) {
               <span class="game-title">${escapeHTML(roomHubTileName(tile, t))}</span>
               ${hintEl}
               ${badge}
+              ${played}
             </button>`;
+}
+
+/* «لعبناها» (the ideas of 7 Oct 2026, 1314): how many times tonight a tile's game was dealt (a
+   family's tile: all its games), from state.played (RoomGames.js keeps it on the room). */
+function roomPlayedCount(state, tile) {
+  const played = (state && state.played) || [];
+  if (!played.length || !tile || !tile.g) return 0;
+  const ids = tile.open && ROOM_HUB_GROUPS[tile.open] ? ROOM_HUB_GROUPS[tile.open] : [tile.g.id];
+  return played.filter(id => ids.indexOf(id) !== -1).length;
+}
+function roomPlayedBadgeHtml(n, t) {
+  if (!n) return '';
+  const label = escapeHTML(String(t.room_played_n || '').replace('{n}', String(n)));
+  return `<span class="room-played" title="${label}" aria-label="${label}">✓${n > 1 ? '<span class="metric">×' + n + '</span>' : ''}</span>`;
+}
+/** The tile of the last game dealt tonight, among `tiles` (a game of a family is its family's tile). */
+function roomPlayedLastTile(state, tiles) {
+  const played = (state && state.played) || [];
+  const last = played[played.length - 1];
+  if (!last) return null;
+  const fam = roomHubGroup ? '' : roomHubGroupOf(last);
+  return tiles.find(x => (fam && x.open === fam) || (!x.open && x.g.id === last)) || null;
 }
 
 function roomHubListHtml(state, t) {
@@ -1936,8 +2063,14 @@ function roomHubListHtml(state, t) {
   const tiles = roomHubTiles();
   if (roomHubGroup) return grid(tiles);
   const count = state.players.length;
-  const ready = tiles.filter(x => count >= x.min && !(!x.open && typeof roomGameIsOff === 'function' && roomGameIsOff(x.g.id)));
+  let ready = tiles.filter(x => count >= x.min && !(!x.open && typeof roomGameIsOff === 'function' && roomGameIsOff(x.g.id)));
   const rest = tiles.filter(x => ready.indexOf(x) === -1);
+  // The last game played tonight sits first, under «تاني؟» (1314), and not again below.
+  const lastTile = roomPlayedLastTile(state, ready);
+  if (lastTile) ready = ready.filter(x => x !== lastTile);
+  const again = lastTile ? `
+      <h3 class="room-hub-now room-hub-again"><span aria-hidden="true">🔁</span> ${escapeHTML(t.room_played_again || '')}</h3>
+      ${grid([lastTile])}` : '';
   let more = '';
   if (rest.length) {
     // Nothing playable yet (one person, every game needs two): the rest is the list, open.
@@ -1955,7 +2088,7 @@ function roomHubListHtml(state, t) {
   const now = ready.length ? `
       <h3 class="room-hub-now"><span aria-hidden="true">✅</span> ${escapeHTML(t.room_hub_now || '')} <span class="room-hub-count metric">(${ready.length})</span></h3>
       ${roomGameSectionsHtml(ready, grid, t)}` : '';
-  return now + more;
+  return again + now + more;
 }
 
 function roomHubMoreToggled(el) {
@@ -2340,6 +2473,18 @@ function roomReturnToActive() {
   updateRoomBanner();
 }
 
+/* «كبّر الكود على الشاشة» (the ideas of 7 Oct 2026, 1287): the host's phone, mid-game, asks the
+   big screen to show its corner QR big for TV_QR_BIG_MS (room action tvQr; JS_RoomTv.html grows it). */
+function roomTvQrAsk() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  roomAct('tvQr');
+  showToast(t.room_tv_qr_done || '', 'success');
+}
+/** A screen of this room is on (a TV to ask): the host's way to it shows only then. */
+function roomHasScreenOn(state) {
+  return !!state && (state.screens || []).some(sc => sc.online);
+}
+
 /** The strip under the header while you are in a room but looking at something else. */
 function updateRoomBanner() {
   const banner = document.getElementById('active-room-banner');
@@ -2352,6 +2497,7 @@ function updateRoomBanner() {
 
   const t = TRANSLATIONS[appState.lang] || {};
   const s = Room.state;
+  const appeared = banner.classList.contains('hidden');
   banner.classList.remove('hidden');
   banner.setAttribute('aria-label', t.active_room_label || '');
 
@@ -2365,6 +2511,13 @@ function updateRoomBanner() {
     const entry = ROOM_HUB_GAMES.find(g => g.id === s.game);
     desc = (t.room_playing_status || '') + ': ' + (entry ? (iconText(entry.icon) ? iconText(entry.icon) + ' ' : '') + (t[entry.key] || entry.id) : s.game);
   }
+  // «دورك!» (the ideas of 7 Oct 2026, 1215 = 1294): the game waits on this phone while it is
+  // on another screen of the app - the banner turns the pop colour, says what to do, and buzzes
+  // once for that moment; a tap goes back (arb__content).
+  const turn = s && typeof roomTurnOf === 'function' ? roomTurnOf(s) : null;
+  if (turn) desc = '\ud83d\udd14 ' + (t.turn_title || '') + (t[turn] ? ' \u00b7 ' + t[turn] : '');
+  banner.classList.toggle('is-turn', !!turn);
+  roomBannerTurnCue(banner, s, turn, appeared);
   const descEl = document.getElementById('arb-desc');
   if (descEl) descEl.textContent = desc;
 
@@ -2374,6 +2527,22 @@ function updateRoomBanner() {
   if (leave) {
     leave.title = t.room_leave || '';
     leave.setAttribute('aria-label', leave.title);
+  }
+}
+
+/* The banner's «دورك!»: one buzz per moment (this deal, this game, this kind of turn), never
+   for a turn that was already there when this phone stepped off the room's screen. */
+const roomBannerTurn = { key: '' };
+function roomBannerTurnCue(banner, state, turn, appeared) {
+  if (!turn || !state) { roomBannerTurn.key = ''; return; }
+  const key = [state.code, (state.shared && state.shared.dealId) || '', state.game || '', turn].join('|');
+  if (roomBannerTurn.key === key) return;
+  roomBannerTurn.key = key;
+  if (appeared || document.hidden) return;
+  haptic('medium');
+  if (!motionOff() && banner.animate) {
+    banner.animate([{ transform: 'scale(0.97)' }, { transform: 'scale(1.025)' }, { transform: 'none' }],
+      { duration: 420, easing: 'cubic-bezier(.2,.9,.3,1.3)' });
   }
 }
 
@@ -2398,11 +2567,31 @@ function renderRoomSpectator(state) {
   if (startBtn) startBtn.classList.add('hidden');
   if (waitNote) waitNote.classList.add('hidden');
   if (setup) {
-    const html = `<div class="waiting-note">
-        <span class="animate-pulse">⏳</span> ${t.room_spectating || 'جولة جارية — ستنضم في الجولة القادمة'}
-      </div>`;
+    const html = roomSpectatorCardHtml(state, t);
     if (setup.dataset.sig !== html) { setup.innerHTML = html; setup.dataset.sig = html; }
   }
+}
+
+/* A mid-round joiner's note is a small live card (the ideas of 7 Oct 2026, 1307): the game, the
+   round when it counts them, and the top of its board when it keeps one - redrawn as it moves. */
+function roomSpectatorCardHtml(state, t) {
+  const s = state.shared || {};
+  const entry = ROOM_HUB_GAMES.find(g => g.id === state.game);
+  const round = Number(s.round) > 0 ? `<span class="badge">${escapeHTML(t.round || '')} <span class="metric">${Number(s.round)}${Number(s.rounds) > 0 ? '/' + Number(s.rounds) : ''}</span></span>` : '';
+  const board = (Array.isArray(s.board) ? s.board : []).filter(r => r && r.name && r.score !== undefined).slice(0, 3);
+  const medals = ['🥇', '🥈', '🥉'];
+  const rows = board.length ? `<div class="room-spec__board">${board.map((r, i) => `
+        <span class="room-spec__row"><span aria-hidden="true">${medals[i]}</span> <bdi>${escapeHTML(r.name)}</bdi> <b class="metric">${escapeHTML(String(r.score))}</b></span>`).join('')}</div>` : '';
+  return `
+    <div class="card room-spec" data-accent="${entry && entry.accent ? entry.accent : 'violet'}">
+      <div class="room-spec__head">
+        <span class="room-spec__icon" aria-hidden="true">${entry ? iconHtml(entry.icon) : '🎮'}</span>
+        <span class="room-spec__name">${escapeHTML(entry ? (t[entry.key] || entry.id) : (state.game || ''))}</span>
+        ${round}
+      </div>
+      ${rows}
+      <p class="room-spec__note"><span class="room-spec__live" aria-hidden="true"></span> ${escapeHTML(t.room_spectating || '')}</p>
+    </div>`;
 }
 
 /**
@@ -2475,6 +2664,7 @@ async function initRooms() {
       // forgotten at once; the request itself needn't hold up the join screen.
       Room.leaveSaved();
     }
+    roomFromLink = extractRoomCode(injected);
     roomOpenJoin(injected);
     return;
   }

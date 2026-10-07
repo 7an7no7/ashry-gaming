@@ -102,6 +102,21 @@ const GENERIC = (room) => {
   return [
     probe('no server-only field reaches a phone', true, (view, pid, idx) => idx.keys.find((k) => /(^|\.)_/.test(k)) || null),
     probe('a screen is sent no secret', true, (view, pid) => (pid === SCREEN && view.you !== null ? 'you' : null)),
+    // The ideas of 7 Oct 2026 (view.js): the night's leavers are names only, of people banked on the night
+    // and gone from the room (never a computer player); «لعبناها» is room game ids; the TV's QR a time.
+    probe('the night names only who has left it, and only their names', true, (view) => {
+      const nn = view.nightNames || {};
+      const bots = (room.nightx && room.nightx.bots) || [];
+      for (const id of Object.keys(nn)) {
+        if (typeof nn[id] !== 'string') return 'nightNames.' + id + ' (not a name)';
+        if (!(room.night || {})[id]) return 'nightNames.' + id + ' (not on the night)';
+        if (room.players.some((p) => p.id === id)) return 'nightNames.' + id + ' (still in the room)';
+        if (bots.indexOf(id) !== -1) return 'nightNames.' + id + ' (a computer player)';
+      }
+      if (!Array.isArray(view.played) || view.played.some((g) => ROOM_GAME_IDS.indexOf(g) === -1)) return 'played (not room game ids)';
+      if (typeof view.tvQrAt !== 'number') return 'tvQrAt';
+      return null;
+    }),
     probe('a vote shows who voted, not what, until it closes', v && v.phase === 'voting', (view, pid) => {
       const sv = view.shared.vote || {};
       if (hasKey(sv, 'results') || hasKey(sv, 'totalVotes')) return 'shared.vote.results';

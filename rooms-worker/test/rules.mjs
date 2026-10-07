@@ -8754,7 +8754,8 @@ Date.now = duelTestClock;
     const g2 = r2.shared.games[m2.id];
     applyRoomAction(r2, g2.seats[0], 'move', { col: 0, move: g2.moves, match: m2.id, mg: m2.games });
     // The rest of the semi, won by whoever:
-    for (let guard = 0; guard < 200 && m2.state === 'play'; guard++) {
+    for (let guard = 0; guard < 600 && m2.state !== 'done'; guard++) {
+      if (m2.state !== 'play') { toClock(r2); continue; } // a drawn game is replayed after a pause
       const g = r2.shared.games[m2.id];
       try { applyRoomAction(r2, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * 7), move: g.moves, match: m2.id, mg: m2.games }); } catch (e) {}
     }

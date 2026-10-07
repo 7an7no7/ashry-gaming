@@ -76,7 +76,7 @@ file and a new line.
 - 🎳 بولينج - `notes/games/bowling.md`. ⛳ ميني جولف - `notes/games/minigolf.md`.
 - Solo games (Sudoku, 2048, Minesweeper, Queens, Tango, Nonogram, خيوط, كلمات من حروف, إيه اللي يجمعهم؟, سلسلة الإجابات, خمّن الدولة, على راسك), تحدي اليوم and the dailies (Wordle, Connections) - `notes/games/solo.md`.
 - One sets, everyone solves (Wordle, the number, the country, the emoji riddle in rooms) - `notes/games/solve.md`.
-- رد الفعل (the reaction test on one phone, «خدعة» its fake signals, and «أسرع إيد» in rooms: one green on every screen by the server's clock, 5 rounds of 3/2/1; `RoomReaction.js`, `JS_RoomReaction.html`, its words and styles in its chunk) - `notes/games/reaction.md`.
+- رد الفعل (the reaction test on one phone, «خدعة» its fake signals, «ركّز!» the colour words, and «أسرع إيد» in rooms: one green on every screen by the server's clock, 5 rounds of 3/2/1 or «خروج المغلوب»; `RoomReaction.js`, `JS_RoomReaction.html`, its words and styles in its chunk) - `notes/games/reaction.md`.
 - سباق ألغاز (the ten puzzles as a race; «خماسي السهرة», a different puzzle each round) - `notes/games/race.md`.
 - الكراسي الموسيقية - `notes/games/chairs.md`. عربيات التصادم (the TV as the console: بالونات, نقط, الحلبة, «كورة التصادم») - `notes/games/bumper.md`.
 - 🎉 «الشلة» (the crew: a family's or friends' monthly table, champions, titles, its quizzes and words; a room opened for it - asked «للشلة؟» every time - records its night once; `Crew.js`, `rooms-worker/src/crew.js`, `JS_CrewCore.html`, `JS_Crew.html`, `/crew/*`, `/s/CODE`) - `notes/games/crew.md`.
@@ -88,7 +88,7 @@ file and a new line.
 - 🎵 دندنها (Egyptian songs: one hums in turn or every phone hears the same clip, the names typed, four choices after 15 s; `Songs.js` pinned to Apple or Deezer previews, looked up at play time, `/song/CODE/TOKEN`) - `notes/games/hum.md`.
 - The five of 29 Sep: الحقوا! - `notes/games/wire.md`; الأوضة المضلمة - `notes/games/darkroom.md`; حط إيدك! - `notes/games/exact.md`; الشاهد - `notes/games/witness.md`; المزاد - `notes/games/box.md`.
 - 🔐 الخزنة («صندوق جدّو», rooms: one sees the locks, the others read grandpa's notebook; three ways, 3 strikes or time, endless levels or a set; `Vault.js`, `RoomVault.js`, `JS_RoomVault.html`) - `notes/games/vault.md`.
-- الليزر (Laser, rooms: everyone hides and aims in secret, all appear and fire at once, a beam goes through everyone in its line, the hexagon shrinks every round, last one or last team standing; hearts, a shield, ghosts' mines, bouncing beams, sudden death, awards, four maps, pickups, pillars, a falling floor, the best shot's replay; `Laser.js`, `RoomLaser.js`, `JS_RoomLaser.html`, its styles in its chunk) - `notes/games/laser.md`.
+- الليزر (Laser, rooms: everyone hides and aims in secret, all appear and fire at once, a beam goes through everyone in its line, the hexagon shrinks every round, last one or last team standing; hearts, a shield, ghosts' mines, bouncing beams, sudden death, awards, four maps, pickups, pillars and mirror pillars, a turret, a practice round, a falling floor, the best shot's replay; `Laser.js`, `RoomLaser.js`, `JS_RoomLaser.html`, its styles in its chunk) - `notes/games/laser.md`.
 
 ### The app around the games
 

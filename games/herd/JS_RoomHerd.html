@@ -77,6 +77,22 @@ function herdTapGroup(key) {
   routeRoomState(Room.state);
 }
 
+/** 708: ↶ undoes the last merge; an older server (no `merges`) still undoes them all. */
+function herdCanUnmerge(s) {
+  return typeof s.merges === 'number' ? s.merges > 0 : (s.groups || []).some(g => (g.parts || []).length > 1);
+}
+function herdUnmergeCall(s) {
+  return typeof s.merges === 'number' ? `roomAct('unmerge', { n: ${Number(s.merges) || 0} })` : "roomAct('unmerge')";
+}
+
+/** 710: the sheep's pick, with the round it was for (a late tap is ignored). */
+function herdPickPrompt(i) {
+  const s = Room.state && Room.state.shared;
+  if (!s || s.phase !== 'pick') return;
+  haptic('light');
+  roomAct('pickPrompt', { i: i, round: s.round });
+}
+
 ROOM_GAMES.herd = {
   lobbyOptions(state) {
     const t = TRANSLATIONS[appState.lang];
@@ -113,7 +129,38 @@ ROOM_GAMES.herd = {
       <div class="card card--accent herd-prompt">
         <span class="eyebrow">${escapeHTML(t.herd_write_one || '')}</span>
         <div class="herd-prompt__text">${escapeHTML(s.prompt || '')}</div>
+        ${s.pickedBy && s.phase === 'writing' ? `<p class="field__hint">🐑 ${escapeHTML((t.herd_picked_by || '').replace('{name}', s.pickedBy))}</p>` : ''}
       </div>`;
+
+    if (s.phase === 'pick') {
+      // 710 «اختار يا خروف»: the sheep's holder picks the question; everyone sees the three.
+      herdLocal.mergeFrom = null;
+      const picker = s.picker === Room.me;
+      const sig = ['herd-pick', s.round, picker, state.youAreHost, appState.lang, (s.choices || []).join('~')].join('|');
+      const fresh = renderRoomFrame(el, sig, () => `
+        <div class="play-head">
+          <span class="badge">${escapeHTML(t.round || '')} <span class="metric">${s.round}</span></span>
+          <span class="badge badge--accent">🎯 ${s.target}</span>
+        </div>
+        <div class="card card--accent herd-prompt" style="text-align:center">
+          <div class="metric metric--md" aria-hidden="true">🐑</div>
+          <div class="herd-prompt__text">${escapeHTML(picker ? (t.herd_pick_you || '') : (t.herd_pick_wait || '').replace('{name}', s.pickerName || ''))}</div>
+          <p class="field__hint">${escapeHTML(t.herd_pick_hint || '')}</p>
+        </div>
+        <div class="btn-stack herd-choices">${(s.choices || []).map((c, i) => picker
+          ? `<button type="button" class="btn btn--secondary btn--lg herd-choice" onclick="herdPickPrompt(${i})">${escapeHTML(c)}</button>`
+          : `<div class="card card--tight herd-choice" style="text-align:center">${escapeHTML(c)}</div>`).join('')}</div>
+        ${picker ? '' : roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('pickPrompt', { i: -1, round: ${Number(s.round) || 0} })">${escapeHTML(t.herd_pick_for || '')}</button></div>`)}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh && !motionOff() && motionFirst('herd-pick:' + roomDealKey(state, s.round))) {
+        [...el.querySelectorAll('.herd-choice')].forEach((row, k) => {
+          if (row.animate) row.animate([{ transform: 'translateY(14px) scale(0.96)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 300, delay: 120 + k * 110, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards' });
+        });
+      }
+      if (fresh && picker) haptic('medium');
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
 
     if (s.phase === 'writing') {
       herdLocal.mergeFrom = null;
@@ -141,14 +188,14 @@ ROOM_GAMES.herd = {
     }
 
     if (s.phase === 'reveal') {
-      const sig = ['herd-reveal', s.round, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), herdLocal.mergeFrom, state.youAreHost, appState.lang].join('|');
+      const sig = ['herd-reveal', s.round, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), s.merges || 0, herdLocal.mergeFrom, state.youAreHost, appState.lang].join('|');
       const fresh = renderRoomFrame(el, sig, () => head + `
         <p class="field__hint" style="text-align:center">${escapeHTML(state.youAreHost ? (herdLocal.mergeFrom ? (t.herd_merge_into || '') : (t.herd_merge_hint || '')) : (t.herd_host_checks || ''))}</p>
         ${herdGroupsHtml(s, t, { merge: state.youAreHost })}
         ${roomMoveOnHtml(state, `
           <div class="btn-stack">
             <button class="btn btn--primary btn--lg" onclick="roomAct('score')">${escapeHTML(t.herd_score || '')}</button>
-            ${state.youAreHost && (s.groups || []).some(g => (g.parts || []).length > 1) ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('unmerge')">${escapeHTML(t.herd_unmerge || '')}</button>` : ''}
+            ${state.youAreHost && herdCanUnmerge(s) ? `<button class="btn btn--ghost btn--sm" onclick="${herdUnmergeCall(s)}">↶ ${escapeHTML(t.herd_unmerge || '')}</button>` : ''}
           </div>`, `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
         ${renderRoomPlayerStrip(state)}`);
       if (fresh && !motionOff()) herdStagger(el);
@@ -241,7 +288,7 @@ function herdTvGroupsHtml(s, merge) {
 TV_GAMES.herd = {
   sig: (state) => {
     const s = state.shared;
-    return [s.phase, s.round, (s.submitted || []).length, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), s.sheepId, JSON.stringify(s.scores || {}),
+    return [s.phase, s.round, s.prompt || '', (s.choices || []).join('~'), s.merges || 0, (s.submitted || []).length, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), s.sheepId, JSON.stringify(s.scores || {}),
             s.phase === 'reveal' ? herdLocal.mergeFrom || '' : ''].join('|');
   },
   frame(state, t) {
@@ -250,6 +297,13 @@ TV_GAMES.herd = {
     const moveOn = (html) => roomMoveOnHtml(state, `<div class="tv-actions">${html}</div>`);
     const prompt = `<div class="tv-eyebrow tv-center-text">${escapeHTML(t.round || '')} ${s.round} · 🎯 ${s.target}</div>
       <div class="tv-title tv-center-text">${escapeHTML(t.herd_write_one || '')}: ${escapeHTML(s.prompt || '')}</div>`;
+    if (s.phase === 'pick') {
+      return `<div class="tv-center">
+        <div class="tv-eyebrow tv-center-text">${escapeHTML(t.round || '')} ${s.round} · 🎯 ${s.target}</div>
+        <div class="tv-title tv-center-text">🐑 ${escapeHTML((t.herd_pick_wait || '').replace('{name}', s.pickerName || ''))}</div>
+        <div class="tv-legend herd-tv">${(s.choices || []).map(c => `<span class="tv-chip">${escapeHTML(c)}</span>`).join('')}</div>
+        ${moveOn(tvBtn(t.herd_pick_for, `roomAct('pickPrompt', { i: -1, round: ${Number(s.round) || 0} })`, 'ghost'))}</div>`;
+    }
     if (s.phase === 'writing') {
       return `<div class="tv-center">${prompt}
         <div class="tv-big-icon" aria-hidden="true">🐄</div>
@@ -257,11 +311,10 @@ TV_GAMES.herd = {
         ${moveOn(tvBtn(t.herd_reveal_now, "roomAct('closeWriting')", 'ghost'))}</div>`;
     }
     if (s.phase === 'reveal') {
-      const merged = (s.groups || []).some(g => (g.parts || []).length > 1);
       return `<div class="tv-vote">${prompt}
         ${state.youAreHost ? `<div class="tv-note">${escapeHTML(herdLocal.mergeFrom ? (t.herd_merge_into || '') : (t.herd_merge_hint || ''))}</div>` : ''}
         ${herdTvGroupsHtml(s, state.youAreHost)}
-        ${moveOn(tvBtn(t.herd_score, "roomAct('score')") + (merged && state.youAreHost ? tvBtn(t.herd_unmerge, "roomAct('unmerge')", 'ghost') : ''))}</div>`;
+        ${moveOn(tvBtn(t.herd_score, "roomAct('score')") + (herdCanUnmerge(s) && state.youAreHost ? tvBtn('↶ ' + (t.herd_unmerge || ''), herdUnmergeCall(s), 'ghost') : ''))}</div>`;
     }
     if (s.phase === 'result') {
       return `<div class="tv-vote">${prompt}

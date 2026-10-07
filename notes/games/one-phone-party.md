@@ -84,6 +84,16 @@ those files has to be guarded with `typeof`.
   `partyTurnChipHtml` in `JS_TeamRelay.html`). One tap scores it, like any card in the list;
   in team mode it counts for the team when the turn is banked. أوصف لي is unchanged.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **676 كلمة واحدة: an exact guess judges itself** (rooms). `submitGuess` (`RoomJustOne.js`):
+  when `normaliseClue(guess) === normaliseClue(word)` the round goes straight to `result`,
+  `lastResult: 'correct'`, a point, `shared.exact: true`, with the reveal of the word and the
+  removed clues; the host's صح / غلط are only for a near miss. The result card (phone,
+  `rooms/JS_RoomGames.html`, and TV, `rooms/JS_RoomTv.html`) adds «✨ الكلمة بالظبط: اتحسبت لوحدها»
+  (`jo_exact`) and the phone a confetti cheer through `afterReveal` (keyed by `motionFirst`). Help
+  rule added. The robot plays the exact guess; the leak driver guesses a non-word.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -73,6 +73,15 @@ was pressed**:
   The host's ✓ / ✗ still name the first (`staleTap` on `id`), so a verdict aimed at someone
   a fairer press just passed is dropped; `undoVerdict` is unchanged.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **728 عدّل النقط بإيدك.** The host's standings (phone and TV) carry − / + on every row
+  (`bzBoardHtml`, `bzAdjust`; the same rows as `renderScoreboard`, with data-pid / data-score /
+  data-count for `animateScoreboards`), sending `adjust { id, delta, was }`. The server
+  (`RoomBuzzer.js`, host only as before) ignores a `delta` past ±5 and, when `was` is sent, a tap
+  made on a score that has since changed (a double tap counts once). Everyone else sees the plain
+  board. Help rule added; the robot and a rules test.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

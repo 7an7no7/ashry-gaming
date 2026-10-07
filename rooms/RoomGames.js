@@ -1865,6 +1865,7 @@ const gamePlayerLeft = (room, playerId, name) => {
       return;
     case 'herd':
       if (s.sheepId === playerId) { s.sheepId = null; s.sheepName = ''; }
+      if (s.phase === 'pick' && s.picker === playerId) herdPick(room, -1);   // 710: the picker left, the app picks
       if (s.phase === 'writing' && allIn(s.submitted)) revealHerd(room);
       else if (s.phase === 'reveal') s.groups = herdPresentGroups(room, s.groups);
       return;

@@ -112,6 +112,8 @@ function startBombRound() {
   b.kind = prompt.kind;
   b.total = seconds;
   b.endsAt = Date.now() + seconds * 1000;
+  // 699: this round's heat steps move at random, as a room's do (kept, so a reload ticks the same).
+  b.heatAt = bombHeatSteps();
   b.phase = 'ticking';
   b.rounds = (b.rounds || 0) + 1;
   saveToLocal();
@@ -158,8 +160,8 @@ function bombTick() {
     void card.offsetWidth;
     card.classList.add('is-tick');
     card.classList.toggle('is-urgent', remaining < 8000);
-    bombCharHeat(card, bombHeatOf(total, remaining));
-    bombCharHeat(document.getElementById('bomb-one-order'), bombHeatOf(total, remaining));
+    bombCharHeat(card, bombHeatOf(total, remaining, b.heatAt));
+    bombCharHeat(document.getElementById('bomb-one-order'), bombHeatOf(total, remaining, b.heatAt));
     bombCharTick(card);
   }
   // A second between ticks at the start, a quarter of one at the end.
@@ -226,7 +228,7 @@ function bombOnePaintOrder() {
   const b = bombState();
   const box = document.getElementById('bomb-one-order');
   if (!box) return;
-  box.innerHTML = bombOneOrderHtml(b, bombHeatOf(b.total * 1000, Math.max(0, b.endsAt - Date.now())));
+  box.innerHTML = bombOneOrderHtml(b, bombHeatOf(b.total * 1000, Math.max(0, b.endsAt - Date.now()), b.heatAt));
   const who = document.getElementById('bomb-one-holder');
   if (who) who.textContent = ((TRANSLATIONS[appState.lang] || {}).bm1_holding || '').replace('{name}', b.players[b.holder] || '');
 }
@@ -380,7 +382,7 @@ function paintBomb() {
   }
 
   if (b.phase === 'ticking') bombFxSaw(bombOneKey(b));
-  const heat = bombHeatOf(b.total * 1000, Math.max(0, b.endsAt - Date.now()));
+  const heat = bombHeatOf(b.total * 1000, Math.max(0, b.endsAt - Date.now()), b.heatAt);
   // With names the phone keeps who holds it (ideas batch: party1): a tap on the bomb passes it.
   const order = scoring ? `<div class="chip-set bomb-order" id="bomb-one-order">${bombOneOrderHtml(b, heat)}</div>` : '';
   const holding = scoring ? `<p class="bm1-holding" id="bomb-one-holder">${escapeHTML((t.bm1_holding || '').replace('{name}', b.players[b.holder] || ''))}</p>` : '';
@@ -455,12 +457,12 @@ onLanguageChange((view) => { if (view === 'play-bomb') paintBomb(); });
 
 const BOMB_BOOM_MS = 2600;                 // the whole explosion, to the remains
 const BOMB_BURST_MS = 620;                 // the shell bursts (the flash, the pieces, the strike)
-const BOMB_HEAT_AT_PAGE = [0.4, 0.65, 0.85];   // the server's BOMB_HEAT_AT, for the one-phone fuse
-
-/** The one-phone fuse's heat from the time it has burnt, the way the server steps a room's. */
-function bombHeatOf(total, remaining) {
+/** The one-phone fuse's heat from the time it has burnt, the way the server steps a room's:
+ *  on this round's own steps (appState.bomb.heatAt, 699; a round saved before them: BOMB_HEAT_AT). */
+function bombHeatOf(total, remaining, steps) {
   const burnt = total > 0 ? 1 - remaining / total : 0;
-  return BOMB_HEAT_AT_PAGE.filter(at => burnt >= at).length;
+  const at = Array.isArray(steps) && steps.length === BOMB_HEAT_AT.length ? steps : BOMB_HEAT_AT;
+  return at.filter(f => burnt >= f).length;
 }
 
 /* The fuse in four pieces, from the cap outward; a heat step takes the outermost one left. */

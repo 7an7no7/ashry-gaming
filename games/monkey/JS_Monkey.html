@@ -322,7 +322,8 @@
     if (v.kind === 'closed') text = (t.mk_v_closed || '').replace('{name}', v.loser).replace('{word}', v.word);
     else if (v.kind === 'liar-right') text = (t.mk_v_liar_right || '').replace('{name}', v.loser).replace('{word}', v.word);
     else if (v.kind === 'liar-wrong') text = (t.mk_v_liar_wrong || '').replace('{name}', v.loser).replace('{word}', v.word).replace('{examples}', (v.examples || []).join(appState.lang === 'en' ? ', ' : '، '));
-    else if (v.kind === 'giveup') text = (t.mk_v_giveup || '').replace('{name}', v.loser);
+    else if (v.kind === 'giveup') text = (t.mk_v_giveup || '').replace('{name}', v.loser) + ((v.examples || []).length ? ' · ' + (t.mk_v_could || '').replace('{examples}', v.examples.join(appState.lang === 'en' ? ', ' : '، ')) : '');
+    else if (v.kind === 'nothing') text = (t.mk_v_nothing || '').replace('{name}', v.loser);
     else if (v.kind === 'timeout') text = (t.mk_v_timeout || '').replace('{name}', v.loser);
     else if (v.kind === 'monkey') text = (t.mk_v_monkey || '').replace('{name}', v.loser);
     else if (v.kind === 'flipped') text = (t.mk_v_flipped || '').replace('{name}', v.loser);
@@ -575,7 +576,7 @@
       showToast((t.mk_used || '').replace('{name}', hit), 'error');
       return;
     }
-    if (m.config.mode === 'chain' && m.required && monkeyFold(hit).charAt(0) !== m.required) {
+    if (m.config.mode === 'chain' && m.required && monkeyChainFirst(monkeyFold(hit)) !== m.required) {
       playSound('alarm');
       showToast((t.mk_wrong_letter || '').replace('{letter}', m.required), 'error');
       return;
@@ -644,8 +645,24 @@
     const p = monkeyPlayer();
     if (!p) return;
     monkeySnapshot();
+    // 692: in the chain and names «مفيش عندي» is checked against the list (as a room's).
+    let examples = [];
+    if (m.config.mode !== 'letters') {
+      const fits = monkeyFitting(monkeyLang(), monkeyCat(), m.usedCountries, m.config.mode === 'chain' ? m.required : '');
+      if (!fits.length) {
+        m.verdict = { kind: 'nothing', loser: p.name };
+        m.history.unshift({ kind: 'nothing', text: m.required || '', by: p.name });
+        if (m.config.mode === 'chain') m.required = ''; else m.usedCountries = [];
+        playSound('success');
+        haptic('light');
+        renderMonkeyBoard();
+        startTimer();
+        return;
+      }
+      examples = fits.slice().sort(() => Math.random() - 0.5).slice(0, 3);
+    }
     monkeyGiveQuarter(p);
-    m.verdict = { kind: 'giveup', loser: p.name };
+    m.verdict = { kind: 'giveup', loser: p.name, examples: examples };
     m.history.unshift({ kind: 'giveup', text: m.config.mode === 'letters' ? monkeyWordKey() : (m.required || ''), by: p.name });
     if (m.config.mode === 'letters') m.letters = [];
     playSound('alarm');

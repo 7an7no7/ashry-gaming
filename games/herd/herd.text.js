@@ -16,7 +16,13 @@ gameText({
       herd_merge_into: "دلوقتي المس الإجابة اللي تتجمع معاها (أو نفس الإجابة عشان تلغي).",
       herd_host_checks: "المضيف بيراجع الإجابات قبل النقط.",
       herd_score: "احسب النقط",
-      herd_unmerge: "رجّع التجميع زي ما كان",
+      herd_unmerge: "رجّع آخر تجميع",
+      herd_pick_you: "اختار يا خروف!",
+      herd_pick_wait: "{name} معاه الخروف وبيختار السؤال…",
+      herd_pick_hint: "اللي معاه الخروف بيختار سؤال الجولة من التلاتة دول.",
+      herd_pick_for: "اختار بداله",
+      herd_picked_by: "{name} اختار السؤال ده",
+      herd_turn_pick: "اختار السؤال يا خروف",
       herd_majority: "الأغلبية خدت نقطة!",
       herd_no_majority: "مفيش أغلبية المرة دي، محدش خد نقط.",
       herd_sheep_has: "الخروف مع {name}",
@@ -34,7 +40,13 @@ gameText({
       herd_merge_into: "Now tap the answer it belongs with (or the same one to cancel).",
       herd_host_checks: "The host is checking the answers before the points.",
       herd_score: "Score the round",
-      herd_unmerge: "Undo the grouping",
+      herd_unmerge: "Undo the last grouping",
+      herd_pick_you: "Pick one, sheep!",
+      herd_pick_wait: "{name} has the sheep and is picking the question…",
+      herd_pick_hint: "Whoever has the sheep picks this round's question from these three.",
+      herd_pick_for: "Pick for them",
+      herd_picked_by: "{name} picked this one",
+      herd_turn_pick: "Pick the question, sheep",
       herd_majority: "The herd scores a point!",
       herd_no_majority: "No majority this time, no points.",
       herd_sheep_has: "{name} has the sheep",
@@ -46,9 +58,9 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>سؤال واحد على كل الموبايلات: «اكتب حاجة واحدة من: فواكه». كل واحد يكتب على موبايله من غير ما حد يشوف.</li>
                 <li>الهدف مش إجابة ذكية: اكتب <b>اللي هيكتبه أغلب الناس</b>.</li>
-                <li>الإجابات تظهر متجمعة (الإملاء مش فارقة). المضيف يقدر يجمع إجابتين بنفس المعنى.</li>
+                <li>الإجابات تظهر متجمعة (الإملاء مش فارقة). المضيف يقدر يجمع إجابتين بنفس المعنى، و«↶ رجّع آخر تجميع» يلغي آخر تجميع بس.</li>
                 <li><b>أكبر مجموعة</b> تاخد نقطة لكل واحد فيها. لو مجموعتين أكبر وقد بعض، محدش ياخد.</li>
-                <li>لو <b>واحد بس</b> كتب حاجة محدش كتبها، ياخد <b>الخروف 🐑</b> لحد ما حد تاني يطلع لوحده. اللي معاه الخروف مايقدرش يكسب.</li>
+                <li>لو <b>واحد بس</b> كتب حاجة محدش كتبها، ياخد <b>الخروف 🐑</b> لحد ما حد تاني يطلع لوحده. اللي معاه الخروف مايقدرش يكسب، بس هو اللي <b>بيختار سؤال الجولة الجاية من تلاتة</b> («اختار يا خروف»).</li>
                 <li>أول واحد يوصل للنقط المطلوبة من غير الخروف يكسب.</li>
             </ol>
             <p class="help-sub">📺 على التلفزيون</p>
@@ -65,9 +77,9 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>One question on every phone: "write one thing from: fruit". Everyone writes on their own phone, unseen.</li>
                 <li>The aim isn't a clever answer: write <b>what most people will write</b>.</li>
-                <li>The answers show grouped (spelling doesn't matter). The host can join two answers that mean the same thing.</li>
+                <li>The answers show grouped (spelling doesn't matter). The host can join two answers that mean the same thing, and «↶ Undo the last grouping» takes back the last one only.</li>
                 <li>The <b>biggest group</b> scores a point each. If two groups tie for biggest, nobody scores.</li>
-                <li>If <b>exactly one</b> player wrote something nobody else did, they take <b>the sheep 🐑</b> until someone else stands alone. Whoever holds the sheep can't win.</li>
+                <li>If <b>exactly one</b> player wrote something nobody else did, they take <b>the sheep 🐑</b> until someone else stands alone. Whoever holds the sheep can't win, but they <b>pick the next round's question from three</b>.</li>
                 <li>The first to the target points without the sheep wins.</li>
             </ol>
             <p class="help-sub">📺 On the TV</p>

@@ -98,6 +98,16 @@ const justOneAction = (room, playerId, action, payload) => {
     // that the guess is locked in.
     s.secretWord = justOneWord(room);
     publishJustOneClues(room);
+    // 676: the word itself, as the table would say it (normaliseClue: hamza, ة/ه,
+    // the article), judges itself: right at once, with the reveal. The host
+    // only judges a near miss.
+    if (s.guess && s.secretWord && normaliseClue(s.guess) === normaliseClue(s.secretWord)) {
+      s.score = (s.score || 0) + 1;
+      s.lastResult = 'correct';
+      s.exact = true;
+      s.phase = 'result';
+      room.phase = 'result';
+    }
     return;
   }
 

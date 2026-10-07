@@ -200,6 +200,22 @@ const monkeyPrefixWords = (lang, category, letters) =>
 const monkeyExact = (lang, category, letters) =>
   monkeyPool(lang, category).find(name => monkeyFold(name) === letters) || null;
 
+/** 691: a folded name's first letter as the table says it in the chain: a
+ *  leading ال is skipped (الهند starts with ه, not ا). */
+const monkeyChainFirst = (folded) => {
+  const f = String(folded || '');
+  return f.length > 3 && f.indexOf('ال') === 0 ? f.charAt(2) : f.charAt(0);
+};
+
+/** 692: the unused names that would do for this turn (the chain: from `required`). */
+const monkeyFitting = (lang, category, used, required) => {
+  const said = new Set((used || []).map(monkeyFold));
+  return monkeyPool(lang, category).filter(n => {
+    const f = monkeyFold(n);
+    return f && !said.has(f) && (!required || monkeyChainFirst(f) === required);
+  });
+};
+
 /** The keypad rows for spelling. */
 const MONKEY_KEYS = {
   ar: ['ضصثقفغعهخحجد', 'شسيبلاتنمكط', 'ءؤرذىةوزظ'],

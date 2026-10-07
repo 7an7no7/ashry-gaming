@@ -2496,9 +2496,10 @@ async function coreSeg() {
   check(A.state.shared.removedCount === 2, 'duplicate clues are removed (قطة = قطه)');
   check(guesser.state.shared.clues.filter((c) => c.removed).every((c) => c.text === '') && !leaks(guesser, 'قطة') && !leaks(guesser, 'قطه'),
     "a removed clue's text never reaches the guesser's phone");
+  // 676: the word itself judges itself (right at once, with the reveal).
   await guesser.must('submitGuess', { guess: secretJO });
-  await all(bots, (s) => s.phase === 'judging' && s.shared.clues.some((c) => c.removed && c.text === 'قطة'), 'the removed clues are shown once the guess is in');
-  await A.must('judge', { correct: true });
+  await all(bots, (s) => s.phase === 'result' && s.shared.exact === true && s.shared.lastResult === 'correct' && s.shared.clues.some((c) => c.removed && c.text === 'قطة'), 'an exact guess is right at once, the removed clues shown');
+  check((await A.act('judge', { correct: true })).ok === false, 'an exact guess leaves nothing to judge');
   await all(bots, (s) => s.phase === 'result' && s.shared.score === 1, 'just one scores');
   const joDeal = A.state.shared.dealId;
   await A.must('nextRound', { round: 1 });
@@ -2764,6 +2765,11 @@ async function coreSeg() {
   await all(bots, (s) => s.shared.phase === 'armed', 'and open them again');
   await A.must('adjust', { id: D.pid, delta: 2 });
   await all(bots, (s) => s.shared.scores[D.pid] === 2 && s.shared.board[0].id === D.pid, 'the host can adjust a score by hand');
+  // 728: the host's − on a standings row carries the score it showed; a double tap counts once.
+  await A.must('adjust', { id: D.pid, delta: -1, was: 2 });
+  await A.must('adjust', { id: D.pid, delta: -1, was: 2 });
+  await all(bots, (s) => s.shared.scores[D.pid] === 1, 'the host\'s − takes one point off, once however often it is tapped (728)');
+  check((await B.act('adjust', { id: D.pid, delta: 1, was: 1 })).ok === false, 'only the host adjusts a score');
   const buzzLate = await Bot.join(A.code, 'متأخر');
   check(buzzLate.state.inGame === false, 'someone who joins mid-game watches the buzzer first');
   await A.must('playAgain');
@@ -3166,9 +3172,10 @@ async function coreSeg() {
   check((await up().act('name', { text: 'مصر' })).ok === false, 'a name said before is refused');
   await up().must('name', { text: 'روسيا' });
   await all(bots, (s) => s.shared.required === 'ا' && s.shared.used.length === 2, 'روسيا: the next name must start with ا');
+  check((await up().act('name', { text: 'الهند' })).ok === false, 'the chain skips a leading ال: الهند starts with ه, not ا (691)');
   const giver = up();
   await giver.must('giveUp', {});
-  await all(bots, (s) => s.shared.quarters[giver.pid] === 1 && s.shared.verdict.kind === 'giveup', 'giving up is a quarter');
+  await all(bots, (s) => s.shared.quarters[giver.pid] === 1 && s.shared.verdict.kind === 'giveup' && (s.shared.verdict.examples || []).length > 0, 'giving up while a name fits is a quarter, with what could have been (692)');
   await A.must('backToHub');
 
   /* --- الفنان المزيف -------------------------------------------------------- */
@@ -3257,9 +3264,18 @@ async function coreSeg() {
   const herdDog = A.state.shared.groups.find((g) => g.label === 'كلب');
   const herdLion = A.state.shared.groups.find((g) => g.label === 'أسد');
   await A.must('merge', { from: herdDog.key, into: herdLion.key });
-  await all(bots, (s) => s.shared.groups.length === 2 && s.shared.groups.every((g) => g.ids.length === 2), 'the host joins two answers that mean the same');
-  await A.must('unmerge');
-  await all(bots, (s) => s.shared.groups.length === 3, 'and can put them back');
+  await all(bots, (s) => s.shared.groups.length === 2 && s.shared.groups.every((g) => g.ids.length === 2) && s.shared.merges === 1, 'the host joins two answers that mean the same');
+  {
+    // 708: a second merge, then ↶ undoes the last one only; a double tap undoes one.
+    const g = A.state.shared.groups;
+    await A.must('merge', { from: g[1].key, into: g[0].key });
+    await all(bots, (s) => s.shared.groups.length === 1 && s.shared.merges === 2, 'a second merge');
+    await A.must('unmerge', { n: 2 });
+    await A.must('unmerge', { n: 2 });
+    await all(bots, (s) => s.shared.groups.length === 2 && s.shared.merges === 1, '↶ undoes the last merge only, once however often it is tapped (708)');
+  }
+  await A.must('unmerge', { n: 1 });
+  await all(bots, (s) => s.shared.groups.length === 3 && s.shared.merges === 0, 'and can put them back');
   await A.must('score');
   await all(bots, (s) => s.shared.phase === 'result' && !!s.shared.majorityKey && !s.shared.sheepId, 'the biggest group scores; two alone means no sheep');
   check(A.state.shared.scores[A.pid] === 1 && A.state.shared.scores[B.pid] === 1 && !A.state.shared.scores[C.pid], 'a point each for the herd');
@@ -3272,6 +3288,13 @@ async function coreSeg() {
   await all(bots, (s) => s.shared.phase === 'reveal', 'round two is revealed');
   await A.must('score');
   await all(bots, (s) => s.shared.phase === 'result' && s.shared.sheepId === D.pid && s.shared.scores[C.pid] === 1, 'the only one alone takes the sheep');
+  // 710 «اختار يا خروف»: the sheep's holder picks the next question from three.
+  await A.must('nextRound', { round: 2 });
+  await all(bots, (s) => s.shared.phase === 'pick' && s.shared.picker === D.pid && (s.shared.choices || []).length === 3 && !s.shared.prompt, 'the sheep picks the next question from three (710)');
+  check((await B.act('pickPrompt', { i: 0, round: 3 })).ok === false, 'only the sheep (or the host, for them) picks');
+  const herdChoice = D.state.shared.choices[2];
+  await D.must('pickPrompt', { i: 2, round: 3 });
+  await all(bots, (s) => s.shared.phase === 'writing' && s.shared.prompt === herdChoice && s.shared.pickedBy === D.name, 'the picked question is everyone\'s');
   await A.must('backToHub');
 
   /* --- العقل ------------------------------------------------------------------- */

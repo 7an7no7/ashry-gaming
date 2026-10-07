@@ -5,7 +5,7 @@ gameText({
   translations: {
     ar: {
       mk_mode_letters_hint: "كل واحد يضيف حرف. اللي يقفل اسم حقيقي ياخد ربع، واللي يخترع يتمسك بـ«كذاب».",
-      mk_mode_chain_hint: "كل اسم لازم يبدأ بآخر حرف في الاسم اللي قبله.",
+      mk_mode_chain_hint: "كل اسم لازم يبدأ بآخر حرف في الاسم اللي قبله («ال» مش بتتحسب: الهند بتبدأ بالهاء).",
       mk_mode_names_hint: "اسم واحد في الدور، حقيقي ومتقالش قبل كده.",
       mk_lobby_hint: "الموبايل هو الحكم: بيعرف الأسماء كلها، وبيحكم في «كذاب» لوحده.",
       mk_switch: "تبديل",
@@ -31,6 +31,8 @@ gameText({
       mk_v_liar_right: "🤥 كذاب فعلاً! مفيش اسم يبدأ بـ«{word}». ربع قرد لـ {name}",
       mk_v_liar_wrong: "✅ في: {examples}. ربع قرد لـ {name} اللي اتهم غلط",
       mk_v_giveup: "🐵 {name} مفيش عنده، ربع قرد",
+      mk_v_could: "كان ممكن: {examples}",
+      mk_v_nothing: "✅ فعلاً مفيش! {name} يبدأ سلسلة جديدة من غير ربع",
       mk_v_timeout: "⏰ خلص وقت {name}، ربع قرد",
       mk_v_monkey: "🐵 {name} بقى قرد! ممنوع حد يكلمه",
       mk_v_swap: "🔄 {other} رجع يلعب، و{name} بقى القرد",
@@ -77,6 +79,8 @@ gameText({
       mk_v_liar_right: "🤥 Liar indeed! Nothing starts with \"{word}\". A quarter to {name}",
       mk_v_liar_wrong: "✅ There is: {examples}. A quarter to {name} for the wrong call",
       mk_v_giveup: "🐵 {name} had nothing, a quarter",
+      mk_v_could: "It could have been: {examples}",
+      mk_v_nothing: "✅ Really nothing left! {name} starts a new chain, no quarter",
       mk_v_timeout: "⏰ {name} ran out of time, a quarter",
       mk_v_monkey: "🐵 {name} is a monkey! Nobody talk to them",
       mk_v_swap: "🔄 {other} is back in, {name} is the monkey now",
@@ -109,11 +113,12 @@ gameText({
             </ol>
             <p class="help-sub">🔗 آخر حرف</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>كل واحد يكتب اسم (دولة، مدينة، حيوان، أكلة) يبدأ بآخر حرف في الاسم اللي قبله. الموبايل يرفض اللي مش في القايمة أو اللي اتقال قبل كده أو اللي بحرف غلط. مفيش عندك؟ ربع قرد.</li>
+                <li>كل واحد يكتب اسم (دولة، مدينة، حيوان، أكلة) يبدأ بآخر حرف في الاسم اللي قبله. الموبايل يرفض اللي مش في القايمة أو اللي اتقال قبل كده أو اللي بحرف غلط. «ال» في الأول مش بتتحسب: الهند بتبدأ بالهاء.</li>
+                <li><b>مفيش عندي</b>: الموبايل يدوّر في القايمة. لو في اسم ينفع، ربع قرد ويقولك كان ممكن إيه. لو فعلاً مفيش، مفيش ربع وتبدأ سلسلة جديدة.</li>
             </ul>
             <p class="help-sub">📋 اسم اسم</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>نفس الفكرة من غير شرط الحرف: اسم في كل دور، حقيقي ومتقالش.</li>
+                <li>نفس الفكرة من غير شرط الحرف: اسم في كل دور، حقيقي ومتقالش. لو القايمة خلصت فعلاً، «مفيش عندي» من غير ربع والقايمة تبدأ من الأول.</li>
             </ul>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -132,11 +137,12 @@ gameText({
             </ol>
             <p class="help-sub">🔗 Last letter</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>Each player types a name (a country, a city, an animal, a food) that starts with the last letter of the one before. The phone refuses anything not in the list, already said, or on the wrong letter. Nothing? A quarter.</li>
+                <li>Each player types a name (a country, a city, an animal, a food) that starts with the last letter of the one before. The phone refuses anything not in the list, already said, or on the wrong letter. (In Arabic a leading «ال» doesn't count.)</li>
+                <li><b>I've got nothing</b>: the phone checks the list. If a name would have done, a quarter and it shows what. If there really is nothing, no quarter and a new chain starts.</li>
             </ul>
             <p class="help-sub">📋 One name each</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>The same without the letter rule: one real, unused name a turn.</li>
+                <li>The same without the letter rule: one real, unused name a turn. If the list really has run out, «I've got nothing» costs no quarter and the list starts over.</li>
             </ul>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

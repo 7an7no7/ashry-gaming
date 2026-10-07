@@ -59,3 +59,17 @@ const BOMB_LETTERS = {
   ar: 'ا ب ت ث ج ح خ د ر ز س ش ص ض ط ع غ ف ق ك ل م ن ه و ي'.split(' '),
   en: 'A B C D E F G H I J K L M N O P R S T W'.split(' ')
 };
+
+/* The fuse's heat steps (0-3), shared by the rooms server and the one-phone game
+   (699): about 40%, 65% and 85% of the fuse, each moved a little at random every
+   round, so timing one round's ticking doesn't tell the table when the next goes off. */
+const BOMB_HEAT_AT = [0.4, 0.65, 0.85];
+// How far each heat step may move from BOMB_HEAT_AT, either way, each round.
+const BOMB_HEAT_JITTER = 0.08;
+
+/** This round's heat steps: BOMB_HEAT_AT, each moved at random, still in order. A room keeps them in room._bombHeatAt, one phone in appState.bomb.heatAt. */
+const bombHeatSteps = () => {
+  const out = BOMB_HEAT_AT.map(f => f + (Math.random() * 2 - 1) * BOMB_HEAT_JITTER);
+  for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1] + 0.05);
+  return out.map(f => Math.min(0.95, Math.max(0.2, f)));
+};

@@ -27,6 +27,9 @@ gameText({
       qm_src_none_bz: "من غير أسئلة: المضيف بيسأل بصوته",
       bz_quiz_host_only: "الإجابة عندك إنت بس",
       bz_quiz_done: "خلصت أسئلة «{t}» 🎉",
+      bz_adj_hint: "− و + جنب كل اسم: صلّح النقط بإيدك لو في حكم اتراجعتوا فيه.",
+      bz_adj_plus: "نقطة زيادة لـ {name}",
+      bz_adj_minus: "نقطة أقل لـ {name}",
     },
     en: {
       bz_penalty: "A wrong answer costs a point",
@@ -35,6 +38,9 @@ gameText({
       bz_locked: "Locked",
       bz_locked_hint: "Wait… the host is reading the question",
       bz_press: "Buzz!",
+      bz_adj_hint: "− and + by each name: put the points right by hand if a call is taken back later.",
+      bz_adj_plus: "One more point for {name}",
+      bz_adj_minus: "One point less for {name}",
       bz_pressed: "Buzzed!",
       bz_settling: "One moment… checking who was first",
       bz_you_are: "You're number",
@@ -62,6 +68,7 @@ gameText({
                 <li>كل واحد معاه <b>جرس</b> على موبايله. أول واحد يضغط يجاوب. الترتيب بيتحسب بلحظة الضغط على موبايلك مش بسرعة النت، فمحدش بيخسر عشان شبكته أبطأ.</li>
                 <li>المضيف يضغط <b>صح</b> (نقطة وسؤال جديد) أو <b>غلط</b> (الدور ينتقل للي بعده، وبتخصم نقطة لو المضيف شغّل الخصم).</li>
                 <li><b>قفل الجرس</b> وأنت بتقرأ السؤال، وافتحه لما تخلص. على التلفزيون بيظهر مين ضغط الأول والترتيب والنقاط.</li>
+                <li><b>عدّل النقط بإيدك</b>: عند المضيف − و + جنب كل اسم في الترتيب (على الموبايل والتلفزيون)، عشان حكم اتراجعتوا فيه من ساعة يتصلّح.</li>
                 <li><b>✍️ بمسابقتك</b>: في الأوضة اختار مسابقة عملتها. السؤال وإجاباته الأربعة بيظهروا للكل، والإجابة الصح على موبايل المضيف بس، لحد ما حد يجاوب صح أو المضيف يدوس «اكشف الإجابة»، وبعدين «السؤال التالي».</li>
             </ol>`,
     },
@@ -72,6 +79,7 @@ gameText({
                 <li>Every phone is a <b>buzzer</b>. The first to press answers. The order is by the moment each phone was pressed, not by how fast its network is, so nobody loses on a slower connection.</li>
                 <li>The host presses <b>Right</b> (a point and a new question) or <b>Wrong</b> (the next in line gets a go, and a point is deducted if the host turned that on).</li>
                 <li><b>Lock the buzzers</b> while you read the question, and open them when you're done. The TV shows who buzzed first, the order and the scores.</li>
+                <li><b>Fix the points by hand</b>: the host has − and + by each name in the standings (phone and TV), so a call the table took back an hour ago can still be put right.</li>
                 <li><b>✍️ With your quiz</b>: pick a quiz you made in the lobby. The question and its four answers show on every phone and the TV; the right one is on the host's phone only, until someone gets it or the host taps «Show the answer», then «Next question».</li>
             </ol>`,
     }

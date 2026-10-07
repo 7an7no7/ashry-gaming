@@ -95,9 +95,12 @@ function roomTurnOf(state) {
     case 'justone':
       if (s.phase === 'writing') return me !== s.guesserId && inRound && !has(s.submitted) ? 'turn_write' : null;
       return s.phase === 'guessing' && s.guesserId === me ? 'turn_guess' : null;
+    case 'herd':
+      // 710 «اختار يا خروف»: the sheep's holder picks the question.
+      if (s.phase === 'pick') return s.picker === me ? 'herd_turn_pick' : null;
+      return s.phase === 'writing' && inRound && !has(s.submitted) ? 'turn_write' : null;
     case 'fibbage':
     case 'twotruths':
-    case 'herd':
     case 'stop':
       return s.phase === 'writing' && inRound && !has(s.submitted) ? 'turn_write' : null;
     case 'whoami':

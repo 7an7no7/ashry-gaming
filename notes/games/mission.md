@@ -189,6 +189,17 @@ says it in its own language.
   Help rule added. Rules tests: a word mission comes up in Arabic and English, from the list, fits everywhere,
   says itself in both languages, reaches its doer only.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **562 «كشفتك!» in two taps.** `missionCatch(id)` no longer sends: the first tap lifts the face
+  (`msn.catchPick`, `.msn-chip.is-lifted`, `aria-pressed`), and a stamp drops in under the row
+  (`missionCatchConfirmHtml`, `.msn-catch-confirm`): «كشفتك يا منى!» (`mission_catch_confirm`,
+  `missionCatchSend` sends `missionCatch { who }` as before) and «لأ، استنى»
+  (`mission_catch_wait_no`, `missionCatchUnpick`). The same face again puts it down; opening the
+  file or the «كشفتك!» row clears the pick; `catchPick` is in `missionFileSig`. Motion: `msnLift`,
+  `msnStampIn` (transform and opacity), off under reduced motion (`Style_Talk.html`). Nothing
+  changed on the server. Help rule updated.
+
 ## Files
 
 `Missions.js`, `RoomMission.js`, `JS_RoomMission.html`; hooks in `RoomGames.js`

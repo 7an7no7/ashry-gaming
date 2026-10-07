@@ -19,7 +19,7 @@
 const msn = {
   code: '', feedSeen: null, noSeen: {}, wonSeen: 0, bustSeen: 0, catchSeen: 0, giftSeen: 0,
   asking: null, askQueue: [], askTimer: null, calmRuns: 0,
-  mode: '', sig: '', hold: false, typeTimer: null, catchOpen: false, tick: null,
+  mode: '', sig: '', hold: false, typeTimer: null, catchOpen: false, catchPick: '', tick: null,
   setup: null, revealShown: '', tvTickerTimer: null, tvRevealKey: '', tvRevealClosed: ''
 };
 const MISSION_PLACE_ICON = { home: '🏠', cafe: '☕', out: '🚗', any: '💬' };
@@ -253,6 +253,7 @@ function missionOpenFile() {
   if (!missionOn(st) || !st.mission.me) return;
   msn.mode = 'file';
   msn.catchOpen = false;
+  msn.catchPick = '';
   missionPaintModal(true);
   missionShowModal();
   haptic('light');
@@ -269,7 +270,7 @@ function missionFileSig(state) {
   const m = state.mission || {};
   const me = m.me || {};
   return [state.code, m.phase, m.paused, me.n, me.to, me.waiting, me.swapAt, me.catchAt, (m.score || {})[Room.me] || 0,
-    m.swap, m.catch, msn.catchOpen, (state.players || []).map(p => p.id + p.name).join(','), appState.lang].join('|');
+    m.swap, m.catch, msn.catchOpen, msn.catchPick, (state.players || []).map(p => p.id + p.name).join(','), appState.lang].join('|');
 }
 
 function missionFileHtml(state) {
@@ -326,7 +327,7 @@ function missionFileHtml(state) {
         <button type="button" class="msn-catch" onclick="missionCatchToggle()" aria-expanded="${msn.catchOpen}">${escapeHTML(t.mission_catch_q || '')} <b>${escapeHTML(t.mission_catch_btn || '')}</b></button>
         ${msn.catchOpen ? (catchLeft > 0
           ? `<p class="msn-catch-wait"><span class="msn-cool" data-until="${me.catchAt}" data-key="mission_catch_wait">${escapeHTML(missionFmt(t.mission_catch_wait || '', { t: missionClockText(catchLeft) }))}</span></p>`
-          : `<div class="msn-catch-row" role="group" aria-label="${escapeHTML(t.mission_catch_pick || '')}">${others.map(p => `<button type="button" class="msn-chip" onclick="missionCatch('${jsStringAttr(p.id)}')"><span class="msn-chip__face">${missionFaceSvg(p.name)}</span><bdi>${escapeHTML(p.name)}</bdi></button>`).join('')}</div>`) : ''}` : ''}
+          : `<div class="msn-catch-row" role="group" aria-label="${escapeHTML(t.mission_catch_pick || '')}">${others.map(p => `<button type="button" class="msn-chip${msn.catchPick === p.id ? ' is-lifted' : ''}" aria-pressed="${msn.catchPick === p.id}" onclick="missionCatch('${jsStringAttr(p.id)}')"><span class="msn-chip__face">${missionFaceSvg(p.name)}</span><bdi>${escapeHTML(p.name)}</bdi></button>`).join('')}</div>${missionCatchConfirmHtml(state, others, t)}`) : ''}` : ''}
     </div>`;
 }
 
@@ -391,8 +392,27 @@ async function missionSwap() {
     missionFreshFile();
   } catch (err) { showToast(err.message || '', 'error'); }
 }
-function missionCatchToggle() { msn.catchOpen = !msn.catchOpen; missionPaintModal(true); }
+function missionCatchToggle() { msn.catchOpen = !msn.catchOpen; msn.catchPick = ''; missionPaintModal(true); }
+/* 562 «كشفتك!» in two taps: the first tap lifts the face, a stamp «كشفتك يا منى!» confirms
+   with «لأ، استنى» beside it (as أسماء الرموز's second press). The same face again puts it down. */
 function missionCatch(id) {
+  msn.catchPick = msn.catchPick === id ? '' : id;
+  haptic('light');
+  missionPaintModal(false);
+}
+function missionCatchConfirmHtml(state, others, t) {
+  const p = others.find(o => o.id === msn.catchPick);
+  if (!p) return '';
+  return `<div class="msn-catch-confirm" role="group">
+      <button type="button" class="msn-stamp" onclick="missionCatchSend()">${escapeHTML(missionFmt(t.mission_catch_confirm || '', { name: p.name }))}</button>
+      <button type="button" class="msn-stamp msn-stamp--paper" onclick="missionCatchUnpick()">${escapeHTML(t.mission_catch_wait_no || '')}</button>
+    </div>`;
+}
+function missionCatchUnpick() { msn.catchPick = ''; missionPaintModal(false); }
+function missionCatchSend() {
+  const id = msn.catchPick;
+  if (!id) return;
+  msn.catchPick = '';
   msn.catchOpen = false;
   roomAct('missionCatch', { who: id });
 }

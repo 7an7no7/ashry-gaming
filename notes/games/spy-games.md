@@ -184,6 +184,25 @@ optional; an older phone's list is keyed on its length).
   `chameleonBlame`): another name moves the point, the same name takes it back
   (`chameleonState.blamed`).
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **520 الموقع السري «جرأة الجاسوس»** (rooms and one phone). A spy who guesses the place while
+  nobody has accused them (the room's `play` phase; on one phone «أنا الجاسوس» before any
+  accusation) scores **3** if right; a caught spy who then guesses right gets only **1**; escaping
+  stays 2; a wrong guess is still a point to every agent. Rooms: `spyGuess` stamps `shared.bold`
+  (the phase it came in), `finishSpyfall` scores `SPYFALL_STOLE_BOLD` / `SPYFALL_STOLE_CAUGHT` /
+  `SPYFALL_ESCAPED` and publishes `shared.spyPts`; the result card (phone and TV) says which
+  (`spyfallPtsLine`, `spy_pts_bold` / `spy_pts_late`). One phone: `spySubmitLocationGuess` reads
+  `spyfallState.caught` and passes the points to `finishSpyfallGame(…, spyPts)`. Chosen while
+  building: with two spies each spy scores the same (as escaping already did). This replaces
+  «escaped or guessed, two to each spy» above. Help rule updated; rules tests in `rules.mjs`.
+- **525 الموقع السري: the spy's guess mode looks different** (rooms; one phone already guesses in
+  its own sheet). On the spy's phone only, «🕵️ أنا الجاسوس» turns the places card into
+  `.card.spy-guess-card` (a `--danger` edge and ring, `Style_Party.html` next to `.spy-place`), the
+  eyebrow goes `tx-danger`, a hint says a tap is the final guess and what it is worth
+  (`spy_bold_hint`), and «✕ إلغاء» is pinned in a sticky `.view-actions.spy-guess-bar` instead of
+  the ghost toggle in the stack. Every other phone's button and card stay exactly as before.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

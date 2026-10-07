@@ -51,6 +51,14 @@ the heat steps are no longer fixed at 40/65/85% of the fuse: each round draws it
 (`bombHeatSteps`, each moved up to ±8% and kept in order, in `room._bombHeatAt` on
 the server), so timing the first step no longer tells the table when it goes off.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **699 One phone's fuse can't be timed.** `BOMB_HEAT_AT`, `BOMB_HEAT_JITTER` and `bombHeatSteps`
+  moved from `RoomBomb.js` into `BombPrompts.js` (shared by the page and the server, one copy).
+  `startBombRound` deals `appState.bomb.heatAt = bombHeatSteps()` each round (saved, so a reload
+  ticks the same steps), and `bombHeatOf(total, remaining, steps)` reads it (a round saved before
+  it: the fixed steps). `BOMB_HEAT_AT_PAGE` is gone.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

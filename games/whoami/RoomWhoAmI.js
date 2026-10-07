@@ -11,14 +11,20 @@ const whoAmIAction = (room, playerId, action, payload) => {
     requireHost(room, playerId);
     if (room.players.length < 2) throw new Error('تحتاج لاعبين على الأقل');
 
-    const words = Array.isArray(payload.words) ? payload.words.slice(0, 2000) : [];
-    if (words.length < room.players.length) throw new Error('الكلمات أقل من عدد اللاعبين');
+    const words = (Array.isArray(payload.words) ? payload.words.slice(0, 2000) : [])
+      .filter(w => typeof w === 'string' && w.trim());
+    if (!words.length) throw new Error('اختار مجموعة فيها كلمات');
 
     // Through the shared prompt memory (keyed on the category when the phone names it), so
     // the same characters don't come back night after night.
     const lang = payload.lang === 'en' ? 'en' : payload.lang === 'ar' ? 'ar' : 'x';
     const key = 'whoami_' + lang + '_' + (payload.cat ? String(payload.cat).slice(0, 40) : 'n' + words.length);
-    const pool = nextPrompts(room, words, key, room.players.length);
+    const n = room.players.length;
+    let pool = nextPrompts(room, words, key, Math.min(n, words.length));
+    // 671 (7 Oct 2026): a category smaller than the table deals some twice, as the one
+    // phone does, instead of refusing to start.
+    while (pool.length < n) pool = pool.concat(shuffled(words));
+    pool = pool.slice(0, n);
     const assignments = {};
     room.players.forEach((p, i) => { assignments[p.id] = pool[i]; });
 

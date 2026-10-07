@@ -747,6 +747,18 @@ const leave = (r, id, hook = true) => {
   }
   check(spyFirst && everyone.size === 4, 'imposter: anyone may ask first, the spy included');
 
+  // 506: last round's spy is half as likely to be dealt it again (1/3.5 against 1/1.75), never impossible.
+  const dealt = { a: 0, b: 0, c: 0, d: 0 };
+  for (let i = 0; i < 2000; i++) {
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'imposter' });
+    r._impSpies = ['a'];
+    applyRoomAction(r, 'a', 'start', { category: 'حيوانات', spies: 1 });
+    dealt[r._impSpies[0]]++;
+  }
+  check(dealt.a > 150 && dealt.a < 430 && ['b', 'c', 'd'].every(id => dealt[id] > 470),
+    'imposter (506): last round\'s spy is dealt it about half as often, and still sometimes (' + JSON.stringify(dealt) + ')');
+
   const r = newRoom(['a', 'b', 'c', 'd']);
   applyRoomAction(r, 'a', 'chooseGame', { game: 'imposter' });
   applyRoomAction(r, 'a', 'start', { category: 'حيوانات', spies: 1 });
@@ -1024,6 +1036,13 @@ const leave = (r, id, hook = true) => {
   applyRoomAction(wa, 'a', 'start', { words: cast, cat: 'ناس', lang: 'ar' });
   const second = Object.values(wa._assignments);
   check(new Set(first.concat(second)).size === 6, 'whoami: a second game in the room deals none of the first one\'s characters');
+  // 671: a category smaller than the table deals some twice instead of refusing.
+  const wa2 = newRoom(['a', 'b', 'c', 'd', 'e']);
+  applyRoomAction(wa2, 'a', 'chooseGame', { game: 'whoami' });
+  applyRoomAction(wa2, 'a', 'start', { words: ['ص1', 'ص2'], cat: 'صغيرة', lang: 'ar' });
+  const small = Object.values(wa2._assignments);
+  check(wa2.phase === 'playing' && small.length === 5 && small.every(w => w === 'ص1' || w === 'ص2'),
+    'whoami (671): a category of 2 deals all 5 players, some twice');
 }
 
 {
@@ -17366,6 +17385,26 @@ console.log('• the secret mission');
       lzRound(r2, { a: [-0.6, 0.4, 270], b: [0, 0.4, 270], c: [0.6, 0.4, 270] });
       lzNext(r2);
       check(r2.shared.hideMs === 8000, 'laser: never under 8 seconds');
+    }
+
+    // 871: a phone left on the table (nothing touched two rounds running) is moved to a random spot.
+    {
+      const r = lzRoom(['a', 'b', 'c'], { hearts: 3 });
+      const idleRound = (cToo) => {
+        const s = r.shared;
+        applyRoomAction(r, 'a', 'place', { round: s.round, x: -0.6, y: 0.4, a: 270 });
+        applyRoomAction(r, 'b', 'place', { round: s.round, x: 0.6, y: 0.4, a: 270 });
+        if (cToo) applyRoomAction(r, 'c', 'place', { round: s.round, x: 0, y: 0.4, a: 270 });
+        clock = s.endsAt + 50;
+        roomTimeout(r, clock);
+        lzNext(r);
+      };
+      idleRound(false);
+      check(r.shared.phase === 'hide' && !r.shared.moved, 'laser (871): one round untouched stays where it was');
+      idleRound(false);
+      check(r.shared.phase === 'hide' && (r.shared.moved || []).join() === 'c', 'laser (871): two rounds untouched and the player is moved (shared.moved names them for the TV)');
+      idleRound(true);
+      check(r.shared.phase === 'hide' && !r.shared.moved, 'laser (871): touching the phone again starts the count over');
     }
 
     // Hearts: a hit costs one heart; out with none left; two beams in one round still cost one.

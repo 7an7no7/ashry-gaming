@@ -615,6 +615,17 @@ function renderCharadesDropdown() {
     catSelect.onchange = () => { appState.charades.category = catSelect.value; saveToLocal(); };
 }
 
+/** «العب تاني» after the games' language changed: the category kept (matched by its
+    icon, as the setup's list does) and its words dealt from the new language's list. */
+function charadesRetakeCategory() {
+    const db = packCatsPlus(CHARADES_DB[contentLang()] || CHARADES_DB.ar);
+    const keys = Object.keys(db);
+    const catKey = matchCategoryKey(keys, appState.charades.category) || keys[0];
+    appState.charades.category = catKey;
+    appState.charades.currentCategory = [...db[catKey]];
+    appState.charades.catLang = contentLang();
+}
+
 // --- 2. SETUP FUNCTION (Triggered by Button) ---
 // setView fills the list and paints the options on the way in.
 function setupCharades() {
@@ -630,6 +641,7 @@ function charadesTakeSetup() {
     const catKey = matchCategoryKey(keys, catSelect ? catSelect.value : appState.charades.category) || keys[0];
     appState.charades.category = catKey;
     appState.charades.currentCategory = [...db[catKey]];
+    appState.charades.catLang = contentLang();
     const seconds = parseInt((document.getElementById('charades-timer-input') || {}).value, 10);
     appState.charades.timer = seconds > 0 ? seconds : (appState.charades.timer || 60);
 }
@@ -638,6 +650,8 @@ function startCharades(time) {
     if (appState.charades.currentCategory.length > 0 && time) {
          // Replay mode: the same category and length.
          appState.charades.timer = time;
+         // Settings → لغة الألعاب changed since: the same category, in the new language.
+         if (appState.charades.catLang !== contentLang()) charadesRetakeCategory();
     } else {
         charadesTakeSetup();
     }

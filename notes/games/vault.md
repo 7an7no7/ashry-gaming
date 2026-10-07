@@ -195,6 +195,10 @@ brass padlock).
   none on the card, only the lock's worker, stale dropped, opens and is gone,
   none left; two teams' keys), `leaks.mjs` (no explanation during play).
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **806 the watcher's line**: `vt_watching` said «تلعب في الجولة الجاية» / «you play next round», but a latecomer is dealt in only by play again: «بتتفرج · تلعب في اللعبة الجاية» / «Watching · you play next game».
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

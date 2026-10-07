@@ -146,6 +146,10 @@ the word only there; a close text on its guesser's phone only; who is sure stays
 own phone while voting; a late sheet in صدق ولا كذب), `play-all.mjs` core (the sure votes,
 the choices coming down).
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **607 «الإيموجي بتلف»** (فوازير إيموجي): a new riddle's emoji land one after another like a slot machine, on the one-phone card (`paintEmoji`, once per riddle dealt) and on the TV (the quiz way's `quizTv('emoji').after`, once per card). `emojiSpinIn(host, text)` splits the riddle into graphemes (`Intl.Segmenter`; an old browser spins nothing), and each emoji is a reel (`emojiSlotRoll`) flickering through emoji from the bank (`emojiSpinPool`, up to 160) and stopping on its own, 0.6 s for the first and 0.3 s more for each after it, a tick as each lands (`.motion-landed`). Transform and opacity only, the clock from the first frame drawn, the real emoji set by a timer whatever happens; with motion off the riddle is simply there. `.emoji-slot` in `Style_Finish.html`.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

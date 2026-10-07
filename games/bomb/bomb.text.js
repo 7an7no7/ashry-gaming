@@ -28,6 +28,7 @@ gameText({
       bomb_room_with: "القنبلة عند {name}",
       bomb_room_fix: "مش هو؟ صحّح",
       bomb_room_loser: "💥 كانت في إيد {name}",
+      bomb_replay: "الإعادة",
       bomb_room_strikes: "الضربات (الأقل أحسن)",
       bomb_room_who: "مين كانت في إيده؟",
       bomb_safest: "مين نجا أكتر؟",
@@ -62,6 +63,7 @@ gameText({
       bomb_room_with: "{name} has the bomb",
       bomb_room_fix: "Not them? Correct it",
       bomb_room_loser: "💥 {name} was holding it",
+      bomb_replay: "Replay",
       bomb_room_strikes: "Strikes (fewer is better)",
       bomb_room_who: "Who was holding it?",
       bomb_safest: "Who survived most",
@@ -84,7 +86,7 @@ gameText({
             </ol>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>افتح غرفة: الفئة تظهر على الشاشة وعلى كل موبايل، والقنبلة على موبايل واحد منكم. اللي معاه يقول كلمة ويضغط <b>مرّرها</b>، وتنط للي بعده بالترتيب اللي على الشاشة. لما تفرقع، اللي كانت في إيده ياخد ضربة لوحده، والأقل ضربات يكسب. الخسران يبدأ الجولة اللي بعدها.</li>
+                <li>افتح غرفة: الفئة تظهر على الشاشة وعلى كل موبايل، والقنبلة على موبايل واحد منكم. اللي معاه يقول كلمة ويضغط <b>مرّرها</b>، وتنط للي بعده بالترتيب اللي على الشاشة. لما تفرقع، اللي كانت في إيده ياخد ضربة لوحده، والأقل ضربات يكسب. الخسران يبدأ الجولة اللي بعدها. بعد ما تفرقع، التلفزيون يعيد آخر تمريرات الجولة بسرعة، ويبطّأ على آخر واحدة.</li>
             </ul>`,
     },
     en: {
@@ -98,7 +100,7 @@ gameText({
             </ol>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>Open a room: the category shows on the screen and on every phone, and the bomb is on one of your phones. Whoever has it says a word and presses <b>Pass it</b>, and it jumps to the next player in the order on the screen. When it goes off, the holder takes a strike, and fewest strikes wins. The loser starts the next round.</li>
+                <li>Open a room: the category shows on the screen and on every phone, and the bomb is on one of your phones. Whoever has it says a word and presses <b>Pass it</b>, and it jumps to the next player in the order on the screen. When it goes off, the holder takes a strike, and fewest strikes wins. The loser starts the next round. After the boom, the TV replays the round's last passes fast, slowing down on the last one.</li>
             </ul>`,
     }
   }

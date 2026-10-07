@@ -57,6 +57,10 @@ on a win the confetti once the number lands (`afterReveal`); the TV through its 
   card you tap flies onto its own number (`mindFlyToPile(n)`, flyEmoji). The missed chips stay on the level-done
   card. Styles: `MIND_CSS` (tokens only), put in by `mindStyleOn`.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **745 «كانت مع مين؟»** (the owner picked it knowing it touches «Never a mean title»; the words are about learning, not blame). When a heart is lost, `play` records who held each missed card: `shared.lost.who = [{ n, name }]` (the cards are face up by then, so nothing secret). Under the red line the phones and the TV add a kind one: «23 كانت مع سارة، 31 كانت مع أحمد · عادي، كده بنتعلّم إيقاع بعض 💜» (`mindRulerNote` returns `who`; `mind_miss_with`, `mind_miss_who`).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

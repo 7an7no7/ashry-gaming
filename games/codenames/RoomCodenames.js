@@ -317,9 +317,14 @@ const codenamesAction = (room, playerId, action, payload) => {
     const { cell } = cardAt(payload.index);
     const onBoard = {};
     s.board.forEach(c => { onBoard[normaliseClue(c.word)] = true; });
-    const choices = (CODENAMES_WORDS[s.lang] || CODENAMES_WORDS.ar).filter(w => !onBoard[normaliseClue(w)]);
+    const lang = s.lang === 'en' ? 'en' : 'ar';
+    const list = CODENAMES_WORDS[lang] || CODENAMES_WORDS.ar;
+    const choices = list.filter(w => !onBoard[normaliseClue(w)]);
     if (!choices.length) throw new Error('لا توجد كلمات أخرى');
-    cell.word = choices[Math.floor(Math.random() * choices.length)];
+    // 552 (7 Oct 2026): from what the prompt memory hasn't dealt lately (the same memory
+    // the board was dealt from), so a word from the last board doesn't come straight back.
+    const fresh = nextPrompts(room, list, 'codenames_' + lang, 1, w => !onBoard[normaliseClue(w)])[0];
+    cell.word = fresh && !onBoard[normaliseClue(fresh)] ? fresh : choices[Math.floor(Math.random() * choices.length)];
     return;
   }
 

@@ -1163,6 +1163,7 @@ function laserRun(state, el, tv) {
       laserDraw(cv, Object.assign({}, AD, { k: s.k, kNext: s.kNext, t, T, now: (performance.now() - t0) / 1000, people, beams: s.beams || [], out, hurt, mines: s.mines || [],
         pickups: s.pickups || [], fates: s.fates || [], falling: s.falling || [], heartsOn: laserHeartsOn(s),
         cam: tv ? cam : null, sudden: !!s.suddenNext, suddenText: L.laser_card_sudden, held: s.held || null }));
+      if (tv) laserTvTilt(cv, t, T);
       if (cap) { const c = laserCaption(state, t); if (cap.textContent !== c) cap.textContent = c; }
       if (feed && feed.hidden && t >= T.hit) feed.hidden = false;
       if (verdict && verdict.hidden && t >= T.hit + 0.15) verdict.hidden = false;
@@ -1181,6 +1182,23 @@ function laserRun(state, el, tv) {
     return;
   }
   laserDraw(cv, Object.assign({}, AD, { k: s.k || 1, t: null, people: [] }));
+}
+
+/*
+ * 870 (7 Oct 2026): الحلبة بتتمايل. At the reveal the TV leans the arena back into depth (a CSS
+ * transform on the canvas, no three.js) while the guns charge, and lays it flat again as they
+ * fire, so the hits land on a flat board. Transform only; flat with motion off.
+ */
+function laserTvTilt(cv, t, T) {
+  if (!cv) return;
+  let v = '';
+  if (!motionOff()) {
+    const up = lsrEase(lsrSeg(t, T.pop, T.charge));
+    const down = lsrEase(lsrSeg(t, T.fire - 0.12, T.fire + 0.28));
+    const u = up * (1 - down);
+    if (u > 0.002) v = `perspective(1400px) rotateX(${(28 * u).toFixed(2)}deg) scale(${(1 - 0.06 * u).toFixed(3)})`;
+  }
+  if (cv.style.transform !== v) cv.style.transform = v;
 }
 
 /** The ghosts in the room: everyone of the game who is out and still here (FX 12). */
@@ -1636,7 +1654,9 @@ ROOM_GAMES.laser = {
       const useBtn = held ? `<button type="button" class="btn btn--sm btn--auto laser-use ${useOn ? 'is-on' : ''}" style="--laser-c:${LASER_PK_COL[held]}" aria-pressed="${useOn}" onclick="laserUse(${!useOn})" ${ready ? 'disabled' : ''}>${escapeHTML((useOn ? t.laser_using : t.laser_use) + ' ' + laserPkName(t, held))}</button>` : '';
       const hint = ready ? t.laser_ready_wait : (useOn && held === 'second' ? t.laser_pk_hint_second : shieldOn ? t.laser_shield_on_hint : (s.cracked || []).length ? t.laser_hide_hint + ' · ' + t.laser_floor_cracked : t.laser_hide_hint)
         + (!ready && s.turret ? ' · ' + t.laser_turret_hint : '');
-      below = `${feed}<p class="laser-hint">${escapeHTML(hint)}</p>
+      // 871: this phone stood still two rounds and was moved; it says so, kindly.
+      const movedLine = (s.moved || []).indexOf(Room.me) !== -1 ? `<p class="laser-hint laser-moved">🫥 <b>${escapeHTML(t.laser_moved_you)}</b></p>` : '';
+      below = `${movedLine}${feed}<p class="laser-hint">${escapeHTML(hint)}</p>
         <div class="laser-tools" dir="ltr">
           <button type="button" class="btn btn--neutral btn--sm btn--auto laser-turn" aria-label="${escapeHTML(t.laser_turn_l)}" title="${escapeHTML(t.laser_turn_l)}" onclick="laserNudge(-3)" ${shieldOn || ready ? 'disabled' : ''}>⟲</button>
           ${shieldBtn}
@@ -1717,6 +1737,7 @@ TV_GAMES.laser = {
         <div class="laser-tv__side">
           <div class="laser-tv__title">${s.practice ? '🎯 ' + escapeHTML(t.laser_practice) : `${escapeHTML(t.round || '')} <span class="metric">${s.round || 1}</span>`} · ${escapeHTML(laserMapName(t, s.map))}</div>
           ${hiding ? `<div class="laser-tv__sub">${escapeHTML(t.laser_tv_hide)}</div>` : ''}
+          ${hiding && (s.moved || []).length ? `<div class="laser-tv__sub laser-moved">🫥 ${escapeHTML((t.laser_moved_tv || '').replace('{names}', laserNames(state, s.moved)))}</div>` : ''}
           ${s.practice ? `<div class="laser-tv__sub">${escapeHTML(t.laser_pr_hint)}</div>` : ''}
           ${s.turret && hiding ? `<div class="laser-tv__sub" style="color:${LSR_TURRET_COL}">${escapeHTML(t.laser_turret_tv)}</div>` : ''}
           ${s.practice && hiding && state.youAreHost ? `<div class="tv-actions">${tvBtn(t.laser_pr_skip, `roomAct('skipPractice', { round: ${Number(s.round) || 0} })`, 'ghost')}</div>` : ''}

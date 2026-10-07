@@ -1371,7 +1371,9 @@ TV_GAMES.buzzer = {
         ${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}
       </div>`;
     return `<div class="tv-vote">${head}${typeof bzQuizHtml === 'function' ? bzQuizHtml(state, t) : ''}${status}${queue ? `<div class="tv-strip-inline">${queue}</div>` : ''}${last}<div class="tv-scale">${typeof bzBoardHtml === 'function' ? bzBoardHtml(state, t) : renderScoreboard(s.board)}</div>${host}</div>`;
-  }
+  },
+  // 731: the first press of a question floods the TV with the buzzer's colour (JS_RoomBuzzer.html).
+  after(state) { if (typeof bzTvFlood === 'function') bzTvFlood(state); }
 };
 
 /* --- أتوبيس كومبليت --------------------------------------------------------- */

@@ -94,6 +94,14 @@ those files has to be guarded with `typeof`.
   (`jo_exact`) and the phone a confetti cheer through `afterReveal` (keyed by `motionFirst`). Help
   rule added. The robot plays the exact guess; the leak driver guesses a non-word.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **645 بدون كلام: «العب تاني» in the new language**: `startCharades(time)` reused the last category's words after Settings → لغة الألعاب changed. The deal now remembers its language (`appState.charades.catLang`, set in `charadesTakeSetup`); a replay in another language calls `charadesRetakeCategory()`: the same category matched by its icon (`matchCategoryKey`) in `CHARADES_DB[contentLang()]`.
+- **653 أوصف لي: «مع الجرس»** (as بدون كلام's 640): when time runs out (`finishDescribeGame(true)` from the clock; «إنهاء» isn't the bell), the card on the screen ends the turn's list untagged, «🔔 كان على الشاشة», and one tap scores it (`describeBellCard`, the shared `partyTurnListHtml` / `partyTurnToggle`). Help says it.
+- **658 ثلاث جولات: the turn's list after the bell**: when a turn's time runs out (`endTimesUpTurn`), the turn's cards come up as بدون كلام's fix-it list (`timesUpTurnCards`: each card once with its last verdict, the card up at the bell last with 🔔 and no verdict; `timesUpShowSum` in `#timesup-turn-sum`, a card added to `Controller.html`'s `view-play-timesup`). A ✅ taken back puts its card back in the bowl (at a random place) and its point goes; a ⏭ or the bell's card turned to ✅ leaves the bowl and scores (`timesUpSumToggle`). Every tap changes the game at once and is saved (`turnSum` in `appState.timesup`; a reload comes back to the list). «الدور اللي بعده» (`timesUpSumDone`) goes to the next team's ready card - or ends the round (round 3: the finale) when the list emptied the bowl. The turn rotates as before; a turn with no cards skips the list. A round emptied mid-turn by a ✅ has no list (its ↶ is `roundUndo`, as before). `endTimesUpTurn` now ignores a second call for the same turn (`turnEnded`). Help says it.
+- **671 من أنا؟ in rooms: a small category deals twice**: `start` no longer throws «الكلمات أقل من عدد اللاعبين»: it deals what the prompt memory gives (up to the category's size) and then repeats from the category, shuffled, as the one phone does (`RoomWhoAmI.js`). Only an empty list is refused. My call: repeats from the same category, not a top-up from the mix (simpler, and the phone game does the same). Test: `rules.mjs`.
+- **680 كلمة واحدة: joined words**: «كرة-قدم», «كرة_قدم» (and – —) are refused like a space, on the one phone (`joSubmitClue`), the room phone (`submitJustOneClue`'s check in `JS_RoomGames.html`) and the server (`submitClue` in `RoomJustOne.js`): `/[\s_\-–—]/`.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

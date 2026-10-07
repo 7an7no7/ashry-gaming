@@ -1822,7 +1822,7 @@ function startDescribeTimer() {
         },
         onEnd: () => {
             appState.describe.interval = null;
-            finishDescribeGame();
+            finishDescribeGame(true);
         }
     });
 }
@@ -1904,7 +1904,23 @@ function undoDescribeCard() {
     showToast(t.undo_done || '', 'success');
 }
 
-function finishDescribeGame() {
+/**
+ * «مع الجرس» (idea 653, 7 Oct 2026, as بدون كلام's 640): when time runs out, the card on
+ * the screen ends the turn's list, marked «كان على الشاشة» and untagged - one tap
+ * scores it if the team said it with the bell. Only a card no verdict was given for.
+ */
+function describeBellCard() {
+    const card = appState.describe.currentCard;
+    if (!card || !card.word) return null;
+    const judged = appState.describe.judged || [];
+    if (judged.length && judged[judged.length - 1].card === card) return null;
+    const el = document.getElementById('desc-main-word');
+    if (!el || el.innerText.trim() !== String(card.word).trim()) return null;
+    return { w: card.word, ok: false, bell: true };
+}
+
+function finishDescribeGame(timeUp) {
+    const bell = timeUp === true ? describeBellCard() : null;
     // 1. Stop Timer
     partyCountdownStop();
     countdownClear();
@@ -1912,8 +1928,10 @@ function finishDescribeGame() {
     appState.describe.interval = null;
 
     // Every card of the turn, for the list where a verdict can be put right
-    // (ideas batch: party1). The card on screen was never judged: it isn't in it.
+    // (ideas batch: party1). The card on screen was never judged: it comes last,
+    // as the bell's card, when the time ran out on it.
     const cards = (appState.describe.judged || []).map(j => ({ w: (j.card && j.card.word) || '', ok: j.action === 'correct' }));
+    if (bell) cards.push(bell);
     appState.describe.judged = [];
     appState.describe.score = cards.filter(c => c.ok).length;
     appState.describe.sum = { cards: cards, relay: relayPlaying(appState.describe), at: Date.now() };

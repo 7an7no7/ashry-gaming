@@ -719,6 +719,8 @@ const timesUpState = {
   currentCard: "",
   turnProcessing: false,
   judged: [],
+  // The list of the turn that just ended (658), open until «الدور اللي بعده».
+  turnSum: null,
   // The ✅ that emptied a round's deck, kept until the next turn judges a card:
   // the round ends at once on it, so the turn's own stack can't take it back.
   roundUndo: null
@@ -743,7 +745,8 @@ function timesUpSave() {
     deck: s.deck.slice(), currentRoundDeck: s.currentRoundDeck.slice(), round: s.round,
     scores: { 1: s.scores[1], 2: s.scores[2] }, teams: { 1: s.teams[1].slice(), 2: s.teams[2].slice() },
     activeTeam: s.activeTeam, activePlayerIndex: { 1: s.activePlayerIndex[1], 2: s.activePlayerIndex[2] },
-    turnTimerSeconds: s.turnTimerSeconds, carrySeconds: s.readyCarry || 0
+    turnTimerSeconds: s.turnTimerSeconds, carrySeconds: s.readyCarry || 0,
+    turnSum: s.turnSum || null
   };
   if (typeof saveToLocal === 'function') saveToLocal();
 }
@@ -757,7 +760,8 @@ function timesUpClearSave() {
 /** Called by restoreView for play-timesup: back to the current turn's ready card, or false. */
 function restoreTimesUp() {
   const g = typeof appState !== 'undefined' ? appState.timesup : null;
-  if (!g || !Array.isArray(g.deck) || !g.deck.length || !Array.isArray(g.currentRoundDeck) || !g.currentRoundDeck.length
+  if (!g || !Array.isArray(g.deck) || !g.deck.length || !Array.isArray(g.currentRoundDeck)
+    || (!g.currentRoundDeck.length && !(g.turnSum && Array.isArray(g.turnSum.cards)))
     || !g.teams || !Array.isArray(g.teams[1]) || !Array.isArray(g.teams[2]) || !g.teams[1].length || !g.teams[2].length
     || !(g.round >= 1 && g.round <= 3)) return false;
   if (timesUpState.turnClock) timesUpState.turnClock.stop();
@@ -766,10 +770,12 @@ function restoreTimesUp() {
     scores: { 1: g.scores[1] || 0, 2: g.scores[2] || 0 }, teams: { 1: g.teams[1].slice(), 2: g.teams[2].slice() },
     activeTeam: g.activeTeam === 2 ? 2 : 1, activePlayerIndex: { 1: g.activePlayerIndex[1] || 0, 2: g.activePlayerIndex[2] || 0 },
     turnTimerSeconds: g.turnTimerSeconds || 40, carrySeconds: g.carrySeconds || 0,
-    turnClock: null, currentCard: '', turnProcessing: false, judged: [], roundUndo: null
+    turnClock: null, currentCard: '', turnProcessing: false, judged: [], roundUndo: null,
+    turnSum: g.turnSum && Array.isArray(g.turnSum.cards) ? g.turnSum : null
   });
   setView('play-timesup');
-  prepareTimesUpTurn();
+  if (timesUpState.turnSum) timesUpShowSum();
+  else prepareTimesUpTurn();
   return true;
 }
 
@@ -806,6 +812,7 @@ function startTimesUpGame() {
   timesUpState.turnProcessing = false;
   timesUpState.judged = [];
   timesUpState.roundUndo = null;
+  timesUpState.turnSum = null;
 
   playSound('click');
   startTimesUpRound(1);
@@ -831,6 +838,9 @@ function prepareTimesUpTurn() {
   timesUpState.judged = [];
   timesUpState.currentCard = '';
   timesUpState.readyCarry = timesUpState.carrySeconds || 0;
+  timesUpState.turnSum = null;
+  const sumBox = document.getElementById('timesup-turn-sum');
+  if (sumBox) sumBox.classList.add('hidden');
   const team = timesUpState.activeTeam;
   const playerList = timesUpState.teams[team];
   const pIdx = timesUpState.activePlayerIndex[team] % playerList.length;
@@ -914,6 +924,7 @@ function undoTimesUpRoundEnd() {
 }
 
 function beginTimesUpLiveTurn() {
+  timesUpState.turnEnded = false;
   document.getElementById('timesup-turn-ready-card').classList.add('hidden');
   document.getElementById('timesup-turn-live-card').classList.remove('hidden');
   timesUpState.judged = [];
@@ -1051,17 +1062,126 @@ function undoTimesUpCard() {
 }
 
 function endTimesUpTurn(timeRanOut) {
+  if (timesUpState.turnEnded) return;
+  timesUpState.turnEnded = true;
   if (timesUpState.turnClock) timesUpState.turnClock.stop();
+  const team = timesUpState.activeTeam;
+  const cards = timesUpTurnCards(timeRanOut === true);
   timesUpState.judged = [];
   timesUpState.roundUndo = null;
+  // The card on screen is not scored by a ✅ behind the list.
+  timesUpState.currentCard = '';
 
   // Rotate player and switch team
   timesUpState.activePlayerIndex[timesUpState.activeTeam]++;
   timesUpState.activeTeam = (timesUpState.activeTeam === 1) ? 2 : 1;
 
+  if (cards.length) {
+    timesUpState.turnSum = { cards: cards, team: team, round: timesUpState.round, at: Date.now() };
+    timesUpSave();
+    timesUpShowSum();
+    return;
+  }
   if (timesUpState.currentRoundDeck.length > 0) {
     prepareTimesUpTurn();
   }
+}
+
+/*
+   658 (7 Oct 2026): the turn's list after the bell, as بدون كلام's
+   (partyTurnListHtml). Each card of the turn once, with its last verdict, and
+   the card that was up at the bell last («🔔 كان على الشاشة», no verdict). A
+   ✅ taken back puts its card back in the bowl and its point goes; a ⏭ (or the
+   bell's card) turned to ✅ takes it out of the bowl and scores it. Every tap
+   changes the game at once (saved, so a reload keeps it); «الدور اللي بعده»
+   goes on - or ends the round when the list emptied the bowl.
+*/
+function timesUpTurnCards(bellToo) {
+  const out = [];
+  const at = {};
+  timesUpState.judged.forEach((j) => {
+    const ok = j.action === 'correct';
+    if (at[j.card] != null) { if (ok) out[at[j.card]].ok = true; return; }
+    at[j.card] = out.length;
+    out.push({ w: j.card, ok: ok });
+  });
+  const up = timesUpState.currentCard;
+  if (bellToo && up && timesUpState.currentRoundDeck[0] === up) {
+    if (at[up] != null) {
+      if (!out[at[up]].ok) { out.splice(at[up], 1); out.push({ w: up, ok: false, bell: true }); }
+    } else {
+      out.push({ w: up, ok: false, bell: true });
+    }
+  }
+  return out;
+}
+
+function timesUpShowSum() {
+  const sum = timesUpState.turnSum;
+  const box = document.getElementById('timesup-turn-sum');
+  if (!sum || !box) { prepareTimesUpTurn(); return; }
+  const t = TRANSLATIONS[appState.lang] || {};
+  document.getElementById('timesup-turn-ready-card').classList.add('hidden');
+  document.getElementById('timesup-turn-live-card').classList.add('hidden');
+  const got = sum.cards.filter(c => c.ok).length;
+  box.innerHTML = `<div class="relay pt-sum">
+      <div class="eyebrow">${escapeHTML(t.relay_turn_done || '')} · ${escapeHTML(timesUpTeamLabel(sum.team))}</div>
+      <div class="relay__result">
+        <div class="eyebrow">${escapeHTML(t.correct_words || '')}</div>
+        <div class="metric metric--xl tx-success" id="timesup-sum-got">${got}</div>
+      </div>
+      ${partyTurnListHtml(sum.cards, t, 'timesUpSumToggle')}
+      <button type="button" class="btn btn--primary btn--go btn--lg" onclick="timesUpSumDone()">${escapeHTML(t.timesup_sum_next || '')}</button>
+    </div>`;
+  box.classList.remove('hidden');
+  timesUpPaintBoard();
+  const el = document.getElementById('timesup-sum-got');
+  if (el && got > 0 && !motionOff() && motionFirst('timesup-sum:' + sum.at)) countUp(el, 0, got);
+}
+
+/** The scores and the cards left in the bowl, as they stand. */
+function timesUpPaintBoard() {
+  [1, 2].forEach((n) => {
+    const el = document.getElementById('timesup-score-team' + n);
+    if (el) el.innerText = timesUpState.scores[n];
+  });
+  const left = document.getElementById('timesup-cards-left');
+  if (left) left.innerText = timesUpState.currentRoundDeck.length;
+}
+
+function timesUpSumToggle(i) {
+  const sum = timesUpState.turnSum;
+  if (!sum || !sum.cards[i]) return;
+  const c = sum.cards[i];
+  const deck = timesUpState.currentRoundDeck;
+  if (c.ok) {
+    // Back in the bowl, somewhere in it, and the point goes.
+    deck.splice(Math.floor(Math.random() * (deck.length + 1)), 0, c.w);
+    timesUpState.scores[sum.team] = Math.max(0, (timesUpState.scores[sum.team] || 0) - 1);
+  } else {
+    const at = deck.lastIndexOf(c.w);
+    if (at === -1) return;
+    deck.splice(at, 1);
+    timesUpState.scores[sum.team] = (timesUpState.scores[sum.team] || 0) + 1;
+  }
+  partyTurnToggle(sum, i, 'timesUpSumToggle', 'timesup-sum-got');
+  timesUpPaintBoard();
+  timesUpSave();
+}
+
+/** «الدور اللي بعده»: the next team's ready card, or the round's end when the bowl is empty. */
+function timesUpSumDone() {
+  if (!timesUpState.turnSum) return;
+  timesUpState.turnSum = null;
+  const box = document.getElementById('timesup-turn-sum');
+  if (box) box.classList.add('hidden');
+  if (timesUpState.currentRoundDeck.length > 0) { prepareTimesUpTurn(); return; }
+  playSound('success');
+  if (timesUpState.round >= 3) { finishTimesUpGrandFinale(); return; }
+  confetti({ particleCount: 100 });
+  const t = TRANSLATIONS[appState.lang] || {};
+  showToast((t.timesup_round_done || '').replace('{n}', timesUpState.round), 'success');
+  startTimesUpRound(timesUpState.round + 1, 0);
 }
 
 function endTimesUpRound() {

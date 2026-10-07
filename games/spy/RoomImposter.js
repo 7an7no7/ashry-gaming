@@ -83,6 +83,24 @@ const imposterOpenGuess = (room, id, name, claim) => {
   room.phase = 'guess';
 };
 
+/**
+ * 506 (7 Oct 2026): a fairer draw. One spy at a time by weight: a spy of the last round
+ * weighs half, everyone else one - never impossible, so nobody can be ruled out.
+ */
+const imposterPickSpies = (ids, count, last) => {
+  const pool = ids.slice();
+  const out = [];
+  const before = Array.isArray(last) ? last : [];
+  while (out.length < count && pool.length) {
+    const w = pool.map(id => (before.indexOf(id) !== -1 ? 0.5 : 1));
+    let r = Math.random() * w.reduce((a, b) => a + b, 0);
+    let i = 0;
+    while (i < pool.length - 1 && r >= w[i]) { r -= w[i]; i++; }
+    out.push(pool.splice(i, 1)[0]);
+  }
+  return out;
+};
+
 /** The vote on who the spy is: everyone in the round, nobody on themselves. */
 const openImposterVote = (room) => {
   const s = room.shared;
@@ -114,8 +132,8 @@ const imposterAction = (room, playerId, action, payload) => {
     const secret = undercover ? pair[0] : nextPrompt(room, words, familyWords ? 'imp_pack_' + room._pack.code : 'imp_' + category);
     const pairOther = undercover ? pair[1] : null;
     const spyCount = Math.max(1, Math.min(Number(payload.spies) || 1, room.players.length - 2));
-    const order = shuffled(room.players.map(p => p.id));
-    const spies = order.slice(0, spyCount);
+    // 506: last round's spies are half as likely to be dealt it again (never impossible).
+    const spies = imposterPickSpies(room.players.map(p => p.id), spyCount, room._impSpies);
 
     room.secrets = {};
     room.players.forEach(p => {

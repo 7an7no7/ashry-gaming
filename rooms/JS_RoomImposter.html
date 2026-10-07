@@ -10,9 +10,6 @@
    a player their own role.
    ========================================================================= */
 
-let imposterCardOpen = false;   // has this player flipped their card this round
-let imposterCardDeal = null;    // the deal (shared.dealId) that card belongs to
-
 /* The host's choices, remembered on their phone: the lobby is rewritten when
    someone joins (the spy count depends on the table), and a rewrite used to
    put both pickers back on their first option. */
@@ -156,13 +153,7 @@ ROOM_GAMES.imposter = {
   },
 
   render(state) {
-    if (appState.currentView !== 'room-imposter') {
-      imposterCardOpen = false;
-      setView('room-imposter');
-    }
-    // "Play again" from the result lands on the same screen: a new deal starts face down.
-    const deal = state.shared && state.shared.dealId;
-    if (deal && imposterCardDeal !== deal) { imposterCardDeal = deal; imposterCardOpen = false; }
+    if (appState.currentView !== 'room-imposter') setView('room-imposter');
     const el = document.getElementById('view-room-imposter');
     if (!el) return;
     const t = TRANSLATIONS[appState.lang];
@@ -176,32 +167,55 @@ ROOM_GAMES.imposter = {
   }
 };
 
-/** Your card, face down until you tap it. */
+/**
+ * Your card shows only while it is held (507, 7 Oct 2026, as مافيا's): a phone lying on the
+ * table shows nothing, and it can be checked again at any time. One poster, the same colour
+ * for every role (as in الحرباء and الموقع السري): a red one, or the spy's big drawing, told
+ * the table who it was from across the room. Only the words on its back differ.
+ */
+function imposterRoleBackHtml(state, t) {
+  const you = state.you || {};
+  const undercover = !!(state.shared && state.shared.undercover);
+  const isSpy = !undercover && you.role === 'spy';
+  if (undercover) return `<div class="role-card"><div class="role-card__value">${escapeHTML(you.word || '')}</div></div>`;
+  return `<div class="role-card">
+      <div class="role-card__label">${isSpy ? '🕵️ ' + escapeHTML(t.you_are_spy || 'أنت الجاسوس') : escapeHTML(t.secret_word || 'الكلمة السرية')}</div>
+      <div class="role-card__value">${isSpy ? '❓' : escapeHTML(you.word || '')}</div>
+      ${isSpy ? `<div class="role-card__hint">${escapeHTML(t.spy_hint || 'حاول أن تعرف الكلمة دون أن ينكشف أمرك')}</div>` : ''}
+    </div>`;
+}
+
+/** 507: «👁️ كلمتي», a small hold chip on the discussion and the vote: the word (or the spy's line) while pressed. */
+function imposterPeekHtml(state, t) {
+  const you = state.you || {};
+  const s = state.shared || {};
+  if (!you.role || (s.roster || []).indexOf(Room.me) === -1) return '';
+  const undercover = !!s.undercover;
+  const isSpy = !undercover && you.role === 'spy';
+  const back = isSpy ? '🕵️ ' + escapeHTML(t.you_are_spy || '') : escapeHTML(you.word || '');
+  return `<div class="imp-peek-row">
+      <div class="hold-card imp-peek" role="button" tabindex="0" aria-label="${escapeHTML(t.imp_peek || '')}">
+        <div class="hold-card__front"><span aria-hidden="true">👁️</span> ${escapeHTML(t.imp_peek || '')}</div>
+        <div class="hold-card__back" aria-hidden="true">${back}</div>
+      </div>
+    </div>`;
+}
+
 function renderImposterReveal(el, state, t) {
   const you = state.you || {};
   const undercover = !!(state.shared && state.shared.undercover);
   const isSpy = !undercover && you.role === 'spy';
 
-  const face = imposterCardOpen
-    ? (undercover
-        ? `<div class="role-card animate-pop">
-             <div class="role-card__value">${escapeHTML(you.word || '')}</div>
-           </div>`
-        // One poster, the same colour for every role (as in الحرباء and
-        // الموقع السري): the card stays open until the discussion starts, and
-        // a red one, or the spy's big drawing, told the table who it was from
-        // across the room. Only the words differ.
-        : `<div class="role-card animate-pop">
-             <div class="role-card__label">${isSpy ? '🕵️ ' + (t.you_are_spy || 'أنت الجاسوس') : (t.secret_word || 'الكلمة السرية')}</div>
-             <div class="role-card__value">${isSpy ? '❓' : escapeHTML(you.word || '')}</div>
-             ${isSpy ? `<div class="role-card__hint">${t.spy_hint || 'حاول أن تعرف الكلمة دون أن ينكشف أمرك'}</div>` : ''}
-           </div>`)
-    : `<button class="role-card role-card--closed" onclick="imposterFlipCard()">
-         <div class="role-card__art" aria-hidden="true">${iconHtml('art:imposter')}</div>
-         <div class="role-card__label">${t.tap_to_reveal || 'اضغط لكشف دورك'}</div>
-       </button>`;
+  const face = `<div class="hold-card hold-card--poster imp-hold" role="button" tabindex="0">
+      <div class="hold-card__front">
+        <span class="hold-card__icon" aria-hidden="true">${iconHtml('art:imposter')}</span>
+        <span class="hold-card__label">${escapeHTML(t.hold_to_reveal || '')}</span>
+        <span class="hold-card__hint">${escapeHTML(t.hold_hint || '')}</span>
+      </div>
+      <div class="hold-card__back" aria-hidden="true">${imposterRoleBackHtml(state, t)}</div>
+    </div>`;
 
-  renderRoomFrame(el, 'reveal|' + imposterCardOpen + '|' + isSpy + '|' + undercover + '|' + state.youAreHost + '|' + state.shared.firstId + '|' + appState.lang, () => `
+  renderRoomFrame(el, 'reveal|' + isSpy + '|' + undercover + '|' + state.youAreHost + '|' + state.shared.firstId + '|' + appState.lang, () => `
     <div class="card room-role" style="text-align:center">
       ${state.shared.category ? `<div class="eyebrow">${escapeHTML(state.shared.category)}</div>` : ''}
       ${face}
@@ -211,13 +225,6 @@ function renderImposterReveal(el, state, t) {
       `<button onclick="roomAct('beginDiscussion')" class="btn btn--primary btn--lg">${t.start_discussion || 'ابدأ النقاش'}</button>`,
       `<div class="waiting-note"><span class="animate-pulse">⏳</span> ${escapeHTML(t.imp_wait_discuss || t.room_wait_host || '')}</div>`)}
     ${renderRoomPlayerStrip(state)}`);
-}
-
-function imposterFlipCard() {
-  imposterCardOpen = true;
-  playSound('success');
-  haptic('medium');
-  if (Room.state) ROOM_GAMES.imposter.render(Room.state);
 }
 
 function renderImposterDiscuss(el, state, t) {
@@ -230,6 +237,7 @@ function renderImposterDiscuss(el, state, t) {
       <div id="room-imp-timer" class="metric metric--xl metric--accent">${endsAt ? imposterClockText(endsAt) : '00:00'}</div>
       <p class="card__subtitle" style="margin-bottom:0">${escapeHTML(undercover ? (t.imp_und_discuss_hint || '') : (t.imposter_discuss_hint || 'اسألوا بعضكم واكتشفوا الجاسوس'))}</p>
     </div>
+    ${imposterPeekHtml(state, t)}
     ${state.shared.dir ? imposterDirHtml(state, t) : imposterFirstHtml(state, t)}
     ${roomMoveOnHtml(state,
       `<div class="btn-stack">
@@ -253,6 +261,7 @@ function renderImposterVoting(el, state, t) {
       <div class="eyebrow">${escapeHTML(undercover ? (t.imp_und_accuse || '') : (t.accuse_player || ''))}</div>
       ${renderBallot(state, { ownLabel: t.vote_you })}
     </div>
+    ${imposterPeekHtml(state, t)}
     ${renderRoomPlayerStrip(state)}`);
 }
 

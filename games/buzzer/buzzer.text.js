@@ -66,6 +66,7 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>المضيف بيسأل بصوته أي سؤال، من كتاب أو من دماغه.</li>
                 <li>كل واحد معاه <b>جرس</b> على موبايله. أول واحد يضغط يجاوب. الترتيب بيتحسب بلحظة الضغط على موبايلك مش بسرعة النت، فمحدش بيخسر عشان شبكته أبطأ.</li>
+                <li>جرس كل واحد بلونه (نفس لون وشّه على التلفزيون)، وأول ضغطة في السؤال بتنوّر التلفزيون كله بلون اللي ضغط نص ثانية.</li>
                 <li>المضيف يضغط <b>صح</b> (نقطة وسؤال جديد) أو <b>غلط</b> (الدور ينتقل للي بعده، وبتخصم نقطة لو المضيف شغّل الخصم).</li>
                 <li><b>قفل الجرس</b> وأنت بتقرأ السؤال، وافتحه لما تخلص. على التلفزيون بيظهر مين ضغط الأول والترتيب والنقاط.</li>
                 <li><b>عدّل النقط بإيدك</b>: عند المضيف − و + جنب كل اسم في الترتيب (على الموبايل والتلفزيون)، عشان حكم اتراجعتوا فيه من ساعة يتصلّح.</li>
@@ -77,6 +78,7 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>The host asks questions out loud, from a book or from memory.</li>
                 <li>Every phone is a <b>buzzer</b>. The first to press answers. The order is by the moment each phone was pressed, not by how fast its network is, so nobody loses on a slower connection.</li>
+                <li>Each buzzer is its player's colour (the colour of their face on the TV), and the first press of a question floods the TV with that colour for half a second.</li>
                 <li>The host presses <b>Right</b> (a point and a new question) or <b>Wrong</b> (the next in line gets a go, and a point is deducted if the host turned that on).</li>
                 <li><b>Lock the buzzers</b> while you read the question, and open them when you're done. The TV shows who buzzed first, the order and the scores.</li>
                 <li><b>Fix the points by hand</b>: the host has − and + by each name in the standings (phone and TV), so a call the table took back an hour ago can still be put right.</li>

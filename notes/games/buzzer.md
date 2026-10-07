@@ -82,6 +82,10 @@ was pressed**:
   made on a score that has since changed (a double tap counts once). Everyone else sees the plain
   board. Help rule added; the robot and a rules test.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **731 «لون الجرس»**: each phone's bell takes its player's colour - the colour of their face on the TV (`tvFaceAccent(id)`, the same person the same colour all evening) - as `data-accent` on the bell's stage (`bzColourOf`), and the press order's chips too (`bzPersonChip`). On the TV the first press of each question floods the screen with that colour for half a second (`bzTvFlood`, called from `TV_GAMES.buzzer.after` in `JS_RoomTv.html`; `.bz-flood` in `Style_Party.html`): once per question (`motionFirst` on the round), the colour of the settled first (it waits out `BZ_SETTLE_MS`), never with motion off. `bzTvFlood` is in `SHELL_USES_OK`. Help says it.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

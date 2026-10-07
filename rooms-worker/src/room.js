@@ -71,7 +71,7 @@ const MOVE_LIMIT_QUICK = 1000;
 const QUICK_WITH_ALARM = new Set(['stick']);
 // The actions that deal prompts, which need the shared prompt memory.
 // المهمة السرية deals a mission on these too (RoomMission.js), so the shared memory keeps them fresh.
-const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap', 'programSkip', 'missionSet', 'missionAnswer', 'missionSwap', 'missionCatch', 'becomePlayer']);
+const DEAL_ACTIONS = new Set(['start', 'nextRound', 'playAgain', 'swap', 'programSkip', 'missionSet', 'missionAnswer', 'missionSwap', 'missionCatch', 'becomePlayer', 'swapWord']);
 const MAX_MESSAGE = 64 * 1024;
 const MAX_LIVE = 8 * 1024;
 // A controller's message (a stick, a ping): a few numbers.

@@ -143,9 +143,11 @@ const mindAction = (room, playerId, action, payload) => {
     // cards go face up, so the table can see what it lost, and the level goes
     // on from here.
     const missed = [];
+    // 745: who held each missed card («23 كانت مع سارة»), told once the card is face up.
+    const holders = [];
     mindSeated(room).forEach(pid => {
       const cards = (room.secrets[pid] || {}).cards || [];
-      cards.forEach(n => { if (n < card) missed.push(n); });
+      cards.forEach(n => { if (n < card) { missed.push(n); holders.push({ n: n, name: roomPlayerName(room, pid) }); } });
       room.secrets[pid] = { cards: cards.filter(n => n > card) };
     });
     if (missed.length) {
@@ -153,7 +155,8 @@ const mindAction = (room, playerId, action, payload) => {
       s.discarded = s.discarded.concat(missed);
       s.lives = Math.max(0, s.lives - 1);
       s.lostSeq = (s.lostSeq || 0) + 1;
-      s.lost = { seq: s.lostSeq, card: card, missed: missed };
+      holders.sort((a, b) => a.n - b.n);
+      s.lost = { seq: s.lostSeq, card: card, missed: missed, who: holders };
     } else {
       s.lost = null;
     }

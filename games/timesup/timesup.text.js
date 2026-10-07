@@ -9,6 +9,7 @@ gameText({
       timesup_r3: "الجولة 3: تمثيل من غير ولا صوت!",
       timesup_carry: "مكمّل بـ {n} ثانية",
       timesup_round_done: "خلصت الجولة {n}! 🎉",
+      timesup_sum_next: "الدور اللي بعده ⏭️",
     },
     en: {
       timesup_r1: "Round 1: describe it any way you like (not the word itself)",
@@ -16,6 +17,7 @@ gameText({
       timesup_r3: "Round 3: act it out, no sound at all!",
       timesup_carry: "carrying on with {n}s",
       timesup_round_done: "Round {n} done! 🎉",
+      timesup_sum_next: "Next turn ⏭️",
     }
   },
   rules: {
@@ -27,6 +29,7 @@ gameText({
                 <li>كل دور له وقت. لو الكروت خلصت في نص دورك، تكمل في الجولة اللي بعدها بالوقت الفاضل.</li>
                 <li>الفريق اللي جمع كروت أكتر في التلات جولات يكسب.</li>
                 <li>ضغطت صح أو تجاوز بالغلط؟ <b>↶</b> جنب الساعة يرجّع آخر كارت ونقطته.</li>
+                <li>لما الوقت يخلص تشوف كروت الدور: المس أي كارت لو اتحسب غلط. صح رجعته؟ يرجع للكروت ونقطته تروح. تجاوز خليته صح؟ يتحسب ويطلع من الكروت. الكارت اللي كان على الشاشة مع الجرس <b>🔔</b> بييجي في الآخر من غير حكم.</li>
             </ol>`,
     },
     en: {
@@ -37,6 +40,7 @@ gameText({
                 <li>Every turn is timed. If the deck runs out mid-turn, you carry on into the next round with the time you have left.</li>
                 <li>The team with more cards over the three rounds wins.</li>
                 <li>Tapped correct or pass by mistake? <b>↶</b> next to the clock brings the last card and its point back.</li>
+                <li>When time is up you see the turn's cards: tap any that was counted wrong. A correct taken back goes back in the bowl and its point goes; a pass made correct scores and leaves the bowl. The card that was up at the bell <b>🔔</b> comes last, with no verdict.</li>
             </ol>`,
     }
   }

@@ -19,7 +19,8 @@ teams.
   Spots and aims are server secrets until the reveal.
 - **The clock:** 15 s of hiding, or less once everyone has pressed ready. A
   player who chose nothing stays where they were with their last aim (round 1:
-  a random spot and aim).
+  a random spot and aim) - since 7 Oct 2026 (871) only for two rounds: then a
+  random spot.
 - **The arena shrinks every round**: its outer ring falls away, so there is less
   room each time and the game always ends.
 - **A tie at the end** (the last two or more all out in one round): only they
@@ -180,3 +181,8 @@ All sixteen, each marked `FX n` in `JS_RoomLaser.html`, all in the drawing (no r
 - **867 «البرج»** (its own lobby switch, off by default, outside the presets). `shared.turret { x: 0, y: 0, a }` in the middle, a new random aim every hiding (`laserHide`), public: every phone and the TV draw it (`lsrTurret`, a neon capsule in its own colour `LSR_TURRET_COL`) and its aim as a red dashed line traced to where it ends (bounce, pillars and mirrors included); the TV says «البرج هيضرب على الخط الأحمر», the phones' hint too. At the reveal it fires with everyone (`LASER_TURRET_ID` 'turret', a shot with `turret: true`: no body, on nobody's team; `laserTrace`). It is a solid like a pillar (`laserSolids` in Laser.js: beams stop at it, `laserFit` keeps spots out of it); pillars and pickups keep clear of it, and its tile never cracks. Its hits count like anyone's (the feed «البرج ⚡ …», «ضربك: البرج»); it is never the best shot. My calls: the turret is solid, and it fires in the practice round too.
 - **868 «مرايات»** (its own switch, off by default, shown and sent only with the pillars on; the server ands it with them). With it the game has one more pillar and half of them, rounded up, are mirrors (`{ mirror: true }`, `laserPlacePillars`). `laserWallHit` reports a mirror and `laserTrace` always reflects off one (bouncing on or off; the wall still bounces once, and only with bouncing on), up to `LASER_MAX_LEGS` (6) pieces. Drawn silver with a drifting shine (`lsrMirrorPillar`), a flash at every reflection (FX 7 at every joint).
 - Help (`laser.text.js`) has all three. Tests: `rules.mjs` (practice, turret, mirrors), `leaks.mjs` (the first table plays a practice with the turret; the circle table has mirrors and the turret), `play-all.mjs --only=laser` (70 checks: the practice on every screen, the turret and mirrors).
+
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **871 standing still is no longer free** (the owner picked it knowing it changes their rule «a player who chose nothing stays where they were»): a standing player who touched nothing (no spot, aim, pickup, shield or ready: `mine.touched`, set by `place`, `use`, `shield`, `ready`) is counted at each reveal (`room._laserIdle`, server only, reset by `laserDeal`; the practice round counts nothing). After two rounds untouched (`LASER_IDLE_ROUNDS`), the next hiding puts them on a random spot with a random aim (`laserHide`), and `shared.moved` names them: the TV's side says «🫥 مش هنا؟ فلان اتنقل لمكان عشوائي», and the player's own phone «مش هنا؟ فضلت مكانك جولتين، فاتنقلت لمكان عشوائي». Touching the phone again starts the count over. Help says it. Test: `rules.mjs`.
+- **870 «الحلبة بتتمايل»**: at the reveal the TV leans the arena back (`laserTvTilt(cv, t, T)`: `perspective(1400px) rotateX(≤28°) scale(≤0.94)` on the canvas, a CSS transform, no three.js) from the pop to the charge, holds it while the guns charge, and lays it flat again just before they fire (fire −0.12 s to +0.28 s), so the hits land flat. Every frame of the reveal loop sets it; flat with motion off.

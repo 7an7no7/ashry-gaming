@@ -138,6 +138,25 @@
       finalizeImposterGame(selected);
   }
 
+  /**
+   * 506 (7 Oct 2026): a fairer draw. Each name is drawn by weight, one spy at a time: a
+   * spy of the last round weighs half, everyone else one - so nobody is the spy three
+   * times running by chance alone, and nobody can be ruled out either.
+   */
+  function imp1PickSpies(names, count, last) {
+      const pool = names.slice();
+      const out = [];
+      const before = Array.isArray(last) ? last : [];
+      while (out.length < count && pool.length) {
+          const w = pool.map(n => (before.indexOf(n) !== -1 ? 0.5 : 1));
+          let r = Math.random() * w.reduce((a, b) => a + b, 0);
+          let i = 0;
+          while (i < pool.length - 1 && r >= w[i]) { r -= w[i]; i++; }
+          out.push(pool.splice(i, 1)[0]);
+      }
+      return out;
+  }
+
   function finalizeImposterGame(orderedNames) {
       lastSelectedPlayers = orderedNames;
       const undercover = !!(appState.imposter.config && appState.imposter.config.undercover);
@@ -176,10 +195,10 @@
           }
       }
       const count = appState.imposter.config.impostersCount;
-      const total = orderedNames.length;
-      let roles = Array(count).fill('Imposter').concat(Array(total - count).fill('Civilian'));
-      roles = shuffleArray(roles);
-      appState.imposter.players = orderedNames.map((name, idx) => ({ name: name, role: roles[idx] }));
+      // 506: last round's spies are half as likely to be dealt it again (never impossible).
+      const lastSpies = (appState.imposter.players || []).filter(p => p && p.role === 'Imposter').map(p => p.name);
+      const spies = imp1PickSpies(orderedNames, count, lastSpies);
+      appState.imposter.players = orderedNames.map((name) => ({ name: name, role: spies.indexOf(name) !== -1 ? 'Imposter' : 'Civilian' }));
       // The room's round (JS_RoomImposter.html): the table accuses one, a caught spy
       // picks the word from six, and a running score like the room's.
       const im = appState.imposter;

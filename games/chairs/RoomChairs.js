@@ -88,6 +88,8 @@ const chairsAction = (room, playerId, action, payload) => {
       dj: null,                       // «الدي جي»: who runs this round's music (null: the server's secret stop)
       djCaught: {},                   // a DJ's fake stops that caught somebody, this game
       bestDj: null,
+      best: chairsBestOf(room),        // «الأرقام القياسية»: the room's fastest sit of the evening (across games)
+      record: null,                    // set on the round that broke it
       board: []
     };
     room.shared.board = chairsBoard(room);
@@ -223,6 +225,7 @@ const chairsStartRound = (room) => {
   s.loserId = null;
   s.loserName = '';
   s.why = null;
+  s.record = null;
   s.nextAt = null;
   s.chairs = alive.length - 1;
   s.order = shuffled(alive);          // the order the avatars circle in on every screen
@@ -245,7 +248,27 @@ const chairsCloseSit = (room) => {
   // Whoever didn't tap is last; among several, the order they are drawn in decides.
   missing.forEach(id => s.sits.push({ id, name: roomPlayerName(room, id), ms: null }));
   const loser = s.sits[s.sits.length - 1];
+  chairsNoteRecord(room);
   chairsEndRound(room, loser ? loser.id : null, missing.indexOf(loser && loser.id) !== -1 ? 'late' : 'last');
+};
+
+/**
+ * «الأرقام القياسية» (the owner's pick of 7 Oct 2026, 854): the room keeps its fastest sit
+ * of the evening across play again and new games from the hub (room._chairsBest, like
+ * الحقوا!'s _wireBest), public as shared.best. A round whose quickest sit beats it sets
+ * shared.record for the result («رقم جديد للأوضة!» with the name). The evening's first
+ * sit only sets the record quietly: a slam on every first round would mean nothing.
+ */
+const chairsBestOf = (room) => (room._chairsBest ? Object.assign({}, room._chairsBest) : null);
+const chairsNoteRecord = (room) => {
+  const s = room.shared;
+  const first = (s.sits || []).find(x => typeof x.ms === 'number');
+  if (!first || !first.id) return;
+  const was = room._chairsBest || null;
+  if (was && first.ms >= was.ms) return;
+  room._chairsBest = { ms: first.ms, id: first.id, name: first.name || roomPlayerName(room, first.id) || '' };
+  if (was) s.record = { ms: first.ms, id: first.id, name: room._chairsBest.name, was: was.ms, wasName: was.name || '' };
+  s.best = chairsBestOf(room);
 };
 
 /**

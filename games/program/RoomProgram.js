@@ -286,7 +286,8 @@ const programFinish = (room) => {
   const top = table.length ? table[0].pts : 0;
   const champions = top > 0 ? table.filter(r => r.pts === top).map(r => r.id) : [];
   p.final = { table, champions, awards: programAwards(room, table), games: p.done.filter(g => !g.skipped).length,
-    minutes: Math.max(1, Math.round((Date.now() - (p.startedAt || Date.now())) / 60000)) };
+    minutes: Math.max(1, Math.round((Date.now() - (p.startedAt || Date.now())) / 60000)),
+    stats: programStatsOf(room) };
   p.at = p.games.length;
   programBump(room, 'final', 0);
   roomEvent(room, 'programEnd', { names: champions.map(id => p.names[id] || '').filter(Boolean).join('، ') });
@@ -419,7 +420,7 @@ const programAction = (room, playerId, action, payload) => {
     room.program = { id: newDealId(), games, at: -1, seq: 0, phase: 'between', table, names, order: Object.keys(table),
       orders: [], done: [], gained: null, banked: null, startedAt: Date.now(), final: null, waitWhy: null, present: null };
     room._progOpts = opts;
-    room._progLog = { buzz: [], trivia: [], chairs: [], liar: {}, caught: {}, lies: {}, detective: {}, sly: {}, strikes: {}, prophet: {}, seen: {}, dseq: 0 };
+    room._progLog = { buzz: [], trivia: [], chairs: [], liar: {}, caught: {}, lies: {}, detective: {}, sly: {}, strikes: {}, prophet: {}, seen: {}, dseq: 0, n: programCountsNew() };
     room._nightSummary = null;
     programBump(room, 'between', PROGRAM_FIRST_MS);
     roomEvent(room, 'programStart', { n: games.length });
@@ -559,11 +560,27 @@ const programLogKey = (room, k) => {
   return true;
 };
 
+/*
+ * «السهرة بالأرقام» (the owner's pick of 7 Oct 2026, 780): the finale counts the night up before
+ * the champion - the games and the time (final.games, final.minutes, as before) and what the log
+ * saw on the way (final.stats): questions asked (room trivia's and the buzzer's judged ones), presses
+ * on the buzzer, lies told in كدّاب, strikes at bowling. Only what really happened; a zero isn't shown.
+ */
+const programCountsNew = () => ({ questions: 0, presses: 0, fibs: 0, knocks: 0 });
+const programCount = (room, k, by) => {
+  const log = room._progLog;
+  if (!log) return;
+  log.n = log.n || programCountsNew();
+  log.n[k] = (log.n[k] || 0) + (by === undefined ? 1 : by);
+};
+const programStatsOf = (room) => Object.assign(programCountsNew(), ((room._progLog || {}).n) || {});
+
 /** Before a move is applied: what the move is about to wipe (the buzzer's line). */
 const programBeforeMove = (room, playerId, action, payload) => {
   const p = room.program;
   const log = room._progLog;
   if (!p || p.phase !== 'playing' || !log || !room.shared) return;
+  if (room.game === 'buzzer' && action === 'correct' && room.hostId === playerId && (room.shared.buzzes || []).length) programCount(room, 'questions');
   if (room.game === 'buzzer' && action === 'correct' && room.hostId === playerId) {
     const b = room.shared.buzzes || [];
     if (b.length >= 2 && b[0].id && b[1].id && typeof b[0].at === 'number' && typeof b[1].at === 'number') {
@@ -579,6 +596,10 @@ const programObserve = (room) => {
   if (!log || !s || typeof s !== 'object') return;
   const deal = s.dealId || '';
   const g = room.game;
+  if (g === 'trivia' && s.phase === 'results' && programLogKey(room, 'tqn' + deal + ':' + s.qIndex)) programCount(room, 'questions');
+  if (g === 'buzzer' && Array.isArray(s.buzzes)) {
+    s.buzzes.forEach(b => { if (b && b.id && programLogKey(room, 'bp' + deal + ':' + s.round + ':' + b.id)) programCount(room, 'presses'); });
+  }
   if (g === 'trivia' && s.phase === 'results' && Array.isArray(s.order) && s.order.length && programLogKey(room, 'tq' + deal + ':' + s.qIndex)) {
     const id = s.order[0];
     const a = (room._answers || {})[id];
@@ -630,6 +651,8 @@ const programLogEnd = (room, res) => {
     Object.keys(log.lies).forEach(k => {
       const x = log.lies[k];
       if (x.lie && !x.called) log.liar[x.pid] = (log.liar[x.pid] || 0) + 1;
+      // Counted once the game is over: until then a lie nobody called is still a secret.
+      if (x.lie) programCount(room, 'fibs');
     });
     log.lies = {};
     log.dseq = 0;
@@ -638,6 +661,7 @@ const programLogEnd = (room, res) => {
     Object.keys(s.cards).forEach(id => {
       const n = programStrikes(s.cards[id]);
       if (n > (log.strikes[id] || 0)) log.strikes[id] = n;
+      programCount(room, 'knocks', n);
     });
   }
   // «مين هيكسب؟»: a right guess on the game's winner (the first place).

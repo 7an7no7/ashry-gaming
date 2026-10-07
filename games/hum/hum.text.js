@@ -77,6 +77,9 @@ gameText({
       dnd_res_h_got: "{h} خد +٢ عشان حد عرفها",
       dnd_res_h_none: "{h} ما خدش حاجة",
       dnd_over_title: "🎤 ختام الفرح",
+      dnd_pl_title: "قايمة أغاني السهرة",
+      dnd_pl_share: "ابعت القايمة",
+      dnd_pl_play: "اسمع {t}",
       dnd_tv_card: "🎤 الدور على {h} يدندن!",
       dnd_tv_listen_hum: "{h} بيسمعها في ودنه دلوقتي 🎧",
       dnd_tv_hum: "{h} بيدندن… واللي يعرفها يرفع لافتة",
@@ -159,6 +162,9 @@ gameText({
       dnd_res_h_got: "{h} got +2 because someone knew it",
       dnd_res_h_none: "{h} got nothing",
       dnd_over_title: "🎤 The wedding's over",
+      dnd_pl_title: "Tonight's playlist",
+      dnd_pl_share: "Send the playlist",
+      dnd_pl_play: "Play {t}",
       dnd_tv_card: "🎤 {h}'s turn to hum!",
       dnd_tv_listen_hum: "{h} is hearing it in their ear now 🎧",
       dnd_tv_hum: "{h} is humming… raise a sign if you know it",
@@ -185,6 +191,7 @@ gameText({
                 <li>اللي بيدندن ياخد <b>٢</b> لو حد واحد على الأقل كتبها صح في الوقت، وطبعًا مايجاوبش على أغنيته.</li>
                 <li>في «بتطول»: اللي يعرفها على حتة الـ٢ ثانية ياخد <b>+٢ زيادة</b>، وعلى حتة الـ٥ ثواني <b>+١</b>.</li>
                 <li>المضيف يختار ٥ أو ١٠ أو ١٥ أغنية، وفي الآخر المنصة.</li>
+                <li>🎶 وفي الآخر <b>قايمة أغاني السهرة</b>: كل أغنية اتلعبت ومطربها، وجنب كل واحدة ▶ تسمعها تاني على موبايلك، و«📸 ابعت القايمة» لجروب العيلة.</li>
             </ul>
             <p class="help-sub">📱 كل واحد من موبايله</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -213,6 +220,7 @@ gameText({
                 <li>The hummer scores <b>2</b> when at least one typed answer was right in time, and can't answer their own song.</li>
                 <li>In "Growing": naming it on the 2-second clip is <b>+2 more</b>, on the 5-second clip <b>+1</b>.</li>
                 <li>The host picks 5, 10 or 15 songs; the podium at the end.</li>
+                <li>🎶 Then <b>Tonight's playlist</b>: every song played and its singer, each with a ▶ to hear it again on your phone, and «📸 Send the playlist» for the family group.</li>
             </ul>
             <p class="help-sub">📱 Everyone on their own phone</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

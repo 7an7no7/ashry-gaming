@@ -31,7 +31,7 @@
    ========================================================================= */
 
 const OM_OPTS_KEY = 'oldmaid';
-const OM_OPTS_DEFAULT = { mode: 'drag', turnClock: 0 };
+const OM_OPTS_DEFAULT = { mode: 'drag', turnClock: 0, word: true };
 const OM_CLOCK_CHOICES = [0, 15, 30];
 
 const omLocal = { clock: null, clockKey: null, turnMine: false, handInView: '', shownHand: null, shownKey: '', moveSeq: 0, moveKey: '', pending: 0, drag: null, lifting: null };
@@ -43,13 +43,14 @@ function omOpts() {
   const o = recallOptions(OM_OPTS_KEY, OM_OPTS_DEFAULT);
   return {
     mode: o.mode === 'shuffle' ? 'shuffle' : 'drag',
-    turnClock: OM_CLOCK_CHOICES.indexOf(Number(o.turnClock)) !== -1 ? Number(o.turnClock) : 0
+    turnClock: OM_CLOCK_CHOICES.indexOf(Number(o.turnClock)) !== -1 ? Number(o.turnClock) : 0,
+    word: o.word !== false
   };
 }
 
 function setOmOpt(key, value) {
   const patch = {};
-  patch[key] = key === 'turnClock' ? Number(value) : value;
+  patch[key] = key === 'turnClock' ? Number(value) : key === 'word' ? !!value : value;
   rememberOptions(OM_OPTS_KEY, patch);
   const setup = document.getElementById('room-host-setup');
   if (setup) delete setup.dataset.sig;
@@ -226,6 +227,52 @@ function omSeatHtml(state, pid, tv) {
       <span class="pc-tile__who"><span class="om-avatar" aria-hidden="true">${pcInitial(state, pid)}</span><span class="om-seat__name">${escapeHTML(p ? p.name : '—')}</span></span>
       <b class="pc-tile__led metric" data-pc-at="seat:${escapeHTML(pid)}">${n}</b>
       <span class="pc-tile__st ${hot}">${escapeHTML(st)}</span>
+      ${omWordHtml(state, pid)}
+    </div>`;
+}
+
+/*
+ * «ش-ا-ي-ب: ماتش السهرة» (the owner's pick of 7 Oct 2026, 917): each loss earns one letter of
+ * the word on your seat (shared.letters, the server's); whoever spells all four loses the evening
+ * and is crowned «شايب السهرة» (shared.shayeb) with the old man's fez. A lobby switch, on by
+ * default; the letters start over from the hub, and after a crowning.
+ */
+const omWordOn = (s) => !!(s && s.settings && s.settings.word);
+const omWordLetters = () => Array.from(pcT('om_word_letters') || 'شايب').slice(0, 4);
+
+function omWordHtml(state, pid, o) {
+  const s = omShared(state);
+  if (!omWordOn(s)) return '';
+  const n = Math.min(4, Number((s.letters || {})[pid]) || 0);
+  const fresh = s.phase === 'gameover' && s.newLetter === pid && n > 0 &&
+    motionFirst(['om-letter', state.code, s.dealId || '', pid, (o && o.tv) ? 'tv' : 'phone', (o && o.big) ? 'big' : ''].join('|'));
+  const word = omWordLetters();
+  return `<span class="om-word ${(o && o.big) ? 'om-word--big' : ''} ${n >= 4 ? 'is-full' : ''}" dir="${appState.lang === 'ar' ? 'rtl' : 'ltr'}" aria-label="${escapeHTML(word.slice(0, n).join(''))}">${word.map((l, i) =>
+    `<i class="${i < n ? 'is-on' : ''} ${fresh && i === n - 1 ? 'is-new' : ''}">${i < n ? escapeHTML(l) : ''}</i>`).join('')}</span>`;
+}
+
+/** The old man's fez, drawn: a red truncated cone, its black tassel. */
+const OM_FEZ_SVG = `<svg class="om-fez" viewBox="0 0 64 56" aria-hidden="true"><path d="M14 52 L20 10 Q32 4 44 10 L50 52 Q32 58 14 52 Z" fill="#b91c1c"/><path d="M20 10 Q32 4 44 10 Q32 15 20 10 Z" fill="#7f1d1d"/><path d="M32 8 Q38 20 40 34" stroke="#111827" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M38 32 l4 10 l-6 -1 Z" fill="#111827"/></svg>`;
+
+/** The end of a game with the switch on: who got a letter, or «شايب السهرة» crowned. */
+function omWordResultHtml(state, tv) {
+  const s = omShared(state);
+  if (!omWordOn(s)) return '';
+  if (s.shayeb) {
+    const crown = motionFirst(['om-shayeb', state.code, s.dealId || '', tv ? 'tv' : 'phone'].join('|'));
+    return `<div class="om-shayeb ${crown ? 'is-crowning' : ''} ${tv ? 'om-shayeb--tv' : ''}">
+        <div class="om-shayeb__face"><span class="om-shayeb__fez">${OM_FEZ_SVG}</span><span class="om-shayeb__old" aria-hidden="true">🧓</span></div>
+        <div class="om-shayeb__t">${escapeHTML(pcT('om_shayeb_title'))}</div>
+        <div class="om-shayeb__name"><bdi>${escapeHTML(pcName(state, s.shayeb.pid) || s.shayeb.name || '')}</bdi></div>
+        ${omWordHtml(state, s.shayeb.pid, { big: true, tv })}
+        <p class="om-shayeb__hint">${escapeHTML(pcT('om_word_reset'))}</p>
+      </div>`;
+  }
+  if (!s.loser) return '';
+  const n = Number((s.letters || {})[s.loser]) || 0;
+  return `<div class="om-letter-got ${tv ? 'om-letter-got--tv' : ''}">
+      <span>${escapeHTML(pcT('om_word_got', { name: pcName(state, s.loser), l: omWordLetters()[Math.max(0, n - 1)] || '', n: 4 - n }))}</span>
+      ${omWordHtml(state, s.loser, { big: true, tv })}
     </div>`;
 }
 
@@ -474,6 +521,7 @@ function omTallyHtml(state, tv) {
       <div class="section__head"><h2 class="section__title">${escapeHTML(pcT('om_tally'))}</h2><span class="section__rule"></span></div>
       ${board.map((row, i) => `<div class="status-row ${i === 0 ? 'status-row--turn' : ''}" data-pid="${escapeHTML(String(row.id))}">
           <div class="status-row__body"><div class="status-row__name">${i === 0 ? '👑 ' : ''}${escapeHTML(row.name)}</div></div>
+          ${omWordHtml(state, row.id)}
           <span class="badge ${row.score ? 'badge--warning' : 'badge--success'}">🧓 ${row.score}</span>
         </div>`).join('')}
     </div>`;
@@ -492,6 +540,7 @@ function omResultFrame(state) {
       <div class="card card--accent om-over">
         ${s.loser ? omRevealHtml(state, false) : `<div class="card__title">${escapeHTML(pcT('om_over_left'))}</div>`}
       </div>
+      ${omWordResultHtml(state, false)}
       ${out.length > 1 ? `<p class="om-sub">${escapeHTML(pcT('om_out_order'))}</p>${pcPlacesPodium(state, out, s.dealId)}` : ''}
       ${omTallyHtml(state, false)}
       ${state.youAreHost ? hostNext : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
@@ -508,7 +557,8 @@ function omServerSig(state) {
   const hand = omHand(state).map(c => c.i).sort((a, b) => a - b).join(',');
   return [s.dealId || '', s.phase, s.turnSeq, JSON.stringify(s.turn || null), JSON.stringify(s.counts || {}), (s.out || []).join(','),
     (s.thrown || []).length, events.length ? events[events.length - 1].seq : 0, s.endsAt || '', s.loser || '', JSON.stringify(s.board || []),
-    hand, (s.order || []).join(','), JSON.stringify(s.settings || {}), (state.players || []).map(p => p.id + ':' + p.name).join(',')].join('|');
+    hand, (s.order || []).join(','), JSON.stringify(s.settings || {}), (state.players || []).map(p => p.id + ':' + p.name).join(','),
+    JSON.stringify(s.letters || {}), s.shayeb ? s.shayeb.pid : ''].join('|');
 }
 
 function omPhoneFrame(state) {
@@ -562,6 +612,14 @@ ROOM_GAMES.oldmaid = {
           ${seg('turnClock', OM_CLOCK_CHOICES, v => (v ? v + '″' : escapeHTML(pcT('db_clock_off'))))}
           ${o.turnClock ? `<p class="field__hint">${escapeHTML(pcT('om_clock_hint'))}</p>` : ''}
         </div>
+        <label class="switch-row" for="om-word">
+          <span class="field__label">🧓 ${escapeHTML(pcT('om_word'))}</span>
+          <span class="switch">
+            <input type="checkbox" id="om-word" role="switch" ${o.word ? 'checked' : ''} onchange="setOmOpt('word', this.checked)">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </label>
+        <p class="field__hint">${escapeHTML(pcT(o.word ? 'om_word_hint' : 'om_word_off'))}</p>
         ${hint}
       </div>`;
   },
@@ -923,7 +981,7 @@ TV_GAMES.oldmaid = {
       const out = s.out || [];
       const host = state.youAreHost ? `<div class="tv-actions">${tvBtn(t.play_again || '', "omAct(this, 'playAgain')")}${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>` : '';
       return `<div class="om-tvres">
-          <div class="om-tvres__loser">${s.loser ? omRevealHtml(state, true) : `<div class="tv-title tv-center-text">${escapeHTML(pcT('om_over_left'))}</div>`}</div>
+          <div class="om-tvres__loser">${s.shayeb && omWordOn(s) ? omWordResultHtml(state, true) : (s.loser ? omRevealHtml(state, true) + omWordResultHtml(state, true) : `<div class="tv-title tv-center-text">${escapeHTML(pcT('om_over_left'))}</div>`)}</div>
           <div class="om-tvres__side">
             ${out.length > 1 ? `<div class="tv-eyebrow">${escapeHTML(pcT('om_out_order'))}</div><div class="tv-scale">${pcPlacesPodium(state, out, 'tv' + (s.dealId || ''))}</div>` : ''}
             ${omTallyHtml(state, true)}

@@ -114,7 +114,7 @@ const humAction = (room, playerId, action, payload) => {
     room.secrets = {};
     // «دندنة» deals three envelopes a song (the two left go back to the deck).
     const dealt = (mode === 'hum' ? rounds * HUM_ENVELOPES : rounds) + HUM_SPARE;
-    room._hum = { deck: nextPrompts(room, HUM_INDEX, 'hum_songs', dealt), at: 0, cur: null, offer: null, token: null, correct: null, picks: {}, tries: {} };
+    room._hum = { deck: nextPrompts(room, HUM_INDEX, 'hum_songs', dealt), at: 0, cur: null, offer: null, token: null, correct: null, picks: {}, tries: {}, played: [] };
     room.shared = {
       roster,
       mode,
@@ -429,8 +429,36 @@ const humReveal = (room) => {
   // A hummer who has left scores nothing (the review of 1 Oct 2026).
   if (s.mode === 'hum' && s.hummerId && humHere(room, s.hummerId) && (s.right || []).length) gain(s.hummerId, HUM_HUMMER_PTS);
   s.history = (s.history || []).concat([{ round: s.round, hummerId: s.hummerId || null, right: (s.right || []).length, t: song.t }]);
+  // «قايمة أغاني السهرة»: the song is out now, and its token (already on every phone) plays it again at the end.
+  h.played = (h.played || []).concat([{ i: h.cur, token: h.token }]).slice(-HUM_PLAYLIST_MAX);
   s.board = humBoard(room);
   room.secrets = {};
+};
+
+/*
+ * «قايمة أغاني السهرة» (the owner's pick of 7 Oct 2026, 761): at the end the game's songs, in the
+ * order they were played, with their singers (shared.playlist [{ t, s, en, se, token }]), each with
+ * a ▶ on the phones and on the share card for the family group. Only songs already revealed are on
+ * it, so nothing is told early; a token is the one its reveal already sent, and /song (room.js
+ * Room.songOf → humSongIndexOf) answers it for as long as the game's end is on the screen.
+ */
+const HUM_PLAYLIST_MAX = 20;
+const humPlaylistOf = (room) => ((room._hum && room._hum.played) || []).map(x => {
+  const song = HUM_SONGS[x.i];
+  return song ? { t: song.t, s: song.s, en: song.en, se: song.se, token: x.token } : null;
+}).filter(Boolean);
+
+/** The song a token stands for: the one on now, or (at the end) one of the game's played songs; -1 for none. */
+const humSongIndexOf = (room, token) => {
+  const h = room && room.game === 'hum' && room._hum;
+  const tk = String(token || '');
+  if (!h || !tk) return -1;
+  if (h.token && h.cur !== null && h.cur !== undefined && tk === h.token) return h.cur;
+  if (room.shared && room.shared.phase === 'gameover') {
+    const x = (h.played || []).find(p => p.token === tk);
+    if (x && typeof x.i === 'number') return x.i;
+  }
+  return -1;
 };
 
 const humGameOver = (room) => {
@@ -443,6 +471,7 @@ const humGameOver = (room) => {
   s.token = null;
   s.armed = null;
   s.listenEndsAt = s.playAt = s.typeEndsAt = s.choiceEndsAt = s.armEndsAt = null;
+  s.playlist = humPlaylistOf(room);
   s.board = humBoard(room);
 };
 

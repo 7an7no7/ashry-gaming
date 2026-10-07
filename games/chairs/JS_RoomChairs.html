@@ -238,7 +238,30 @@ function mchOrderHtml(state, s) {
   }).join('');
   const early = s.phase === 'result' && s.why === 'early'
     ? `<div class="status-row is-out"><span class="mch-order__n">✕</span><div class="status-row__body"><div class="status-row__name">${escapeHTML(s.loserName || '')}</div></div><span class="mch-order__ms">${escapeHTML(t.mch_early_short)}</span></div>` : '';
-  return `<div class="card card--tight mch-order"><div class="eyebrow">${escapeHTML(t.mch_order)}</div>${rows}${early}</div>`;
+  return `<div class="card card--tight mch-order"><div class="eyebrow">${escapeHTML(t.mch_order)}</div>${mchRecordHtml(state, s)}${rows}${early}${mchBestLineHtml(s)}</div>`;
+}
+
+/**
+ * «الأرقام القياسية» (854): the round that broke the room's fastest sit slams «رقم جديد
+ * للأوضة!» with the name and the time (played once, mchAfter); otherwise the room's record
+ * sits at the foot of the order. The server keeps it (shared.best, shared.record).
+ */
+function mchRecordHtml(state, s) {
+  const r = s.record;
+  if (!r || (s.phase !== 'result' && s.phase !== 'gameover')) return '';
+  const t = mchT();
+  const name = mchNameOf(state, r.id) || r.name || '';
+  const slam = motionFirst(['mch-rec', roomDealKey(state), s.round].join('|')) && !motionOff();
+  return `<div class="mch-rec ${slam ? 'is-slam' : ''}" data-mch-rec>
+      <b class="mch-rec__t">${escapeHTML(t.mch_rec_new)}</b>
+      <span class="mch-rec__line">${escapeHTML(mchFill(t.mch_rec_line, { name: mchIso(name), ms: r.ms }))}</span>
+      ${typeof r.was === 'number' ? `<span class="mch-rec__was">${escapeHTML(mchFill(t.mch_rec_was, { ms: r.was }))}</span>` : ''}
+    </div>`;
+}
+function mchBestLineHtml(s) {
+  const b = s.best;
+  if (!b || typeof b.ms !== 'number' || s.record) return '';
+  return `<p class="mch-rec-room">${escapeHTML(mchFill(mchT().mch_rec_room, { name: mchIso(b.name || ''), ms: b.ms }))}</p>`;
 }
 
 /** The TV's side while the music plays: who is in the ring, and who is out already. */
@@ -344,7 +367,7 @@ ROOM_GAMES.chairs = {
 
     const sig = ['mch', roomDealKey(state), s.phase, s.round, s.chairs, (s.order || []).join(','), alive.join(','),
       sits.map((x) => x.id + ':' + x.ms).join(','), s.loserId, s.why, s.winnerId, JSON.stringify(s.wins || {}),
-      state.youAreHost, voice, screenOn, inRing, appState.lang, mchDjSig(s)].join('|');
+      state.youAreHost, voice, screenOn, inRing, appState.lang, mchDjSig(s), mchRecSig(s)].join('|');
 
     const before = mchRects(el);
     renderRoomFrame(el, sig, () => {
@@ -411,6 +434,10 @@ function mchSit(btn) {
 }
 
 /** What of «الدي جي» a frame shows (its signature): who, gone, the fakes used, who a fake caught, the title. */
+function mchRecSig(s) {
+  return [s.best ? s.best.ms + ':' + s.best.id : '', s.record ? s.record.ms : ''].join(':');
+}
+
 function mchDjSig(s) {
   return [s.dj || '', s.djLost ? 1 : 0, s.djFakes || 0, s.trapBy || '', s.bestDj ? JSON.stringify(s.bestDj) : '', s.settings && s.settings.fake ? 1 : 0].join(':');
 }
@@ -520,6 +547,11 @@ function mchAfter(state, el, before) {
   }
   // A sit landing: a short note on the voice, higher the earlier.
   (s.sits || []).forEach((x, i) => { if (mchOnce('sat|' + key + '|' + x.id) && mchIsVoice(state) && s.phase === 'sit') mchSound('sat', i); });
+  // «رقم جديد للأوضة!»: the stamp slams once on every screen, a fanfare on the voice, a buzz for its holder.
+  if (s.record && (s.phase === 'result' || s.phase === 'gameover') && mchOnce('rec|' + key)) {
+    if (mchIsVoice(state)) setTimeout(() => playSound('success'), 250);
+    if (s.record.id === Room.me && !state.youAreScreen) haptic('heavy');
+  }
   if (s.phase === 'result' && mchOnce('out|' + key)) {
     if (mchIsVoice(state)) mchSound(s.why === 'early' ? 'early' : 'out');
     if (s.loserId === Room.me) haptic('medium');
@@ -916,6 +948,15 @@ const MCH_FIN_CSS = `
 .mch-fin--tv .mch-fin__gap { font-size: 2.6cqw; }
 .mch-fin--tv .mch-fin__replay { font-size: 1.9cqw; }
 .mch-fin--tv .mch-fin__vs { font-size: 5cqw; }
+/* «الأرقام القياسية» (854): the room's record - a stamp that slams once, and a line at the order's foot. */
+.mch-rec { display: grid; justify-items: center; gap: 0.15rem; margin: var(--sp-1) 0 var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--warning-btn); color: var(--warning-on); text-align: center; }
+.mch-rec__t { font: 900 1.15rem / 1.2 var(--font-display); }
+.mch-rec__line { font-weight: 800; }
+.mch-rec__was { font-size: 0.8rem; opacity: 0.85; }
+.mch-rec.is-slam { animation: mchRecSlam 620ms cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes mchRecSlam { 0% { opacity: 0; transform: scale(2.2) rotate(-6deg); } 55% { opacity: 1; transform: scale(0.94) rotate(1deg); } 100% { opacity: 1; transform: none; } }
+.mch-rec-room { margin: var(--sp-2) 0 0; font-size: 0.8rem; color: var(--text-2); text-align: center; }
+@media (prefers-reduced-motion: reduce) { .mch-rec.is-slam { animation: none; } }
 .mch-tv.is-final { grid-template-columns: minmax(0, 1fr); }
 .mch-tv.is-final-over { grid-template-columns: minmax(0, 2fr) minmax(24vmin, 1fr); }
 .mch-tv.is-final .mch-tv__stage, .mch-tv.is-final-over .mch-tv__stage { height: 100%; width: 100%; align-items: stretch; }
@@ -935,7 +976,7 @@ TV_GAMES.chairs = {
   sig(state) {
     const s = state.shared || {};
     return ['chairs', roomDealKey(state), s.phase, s.round, s.chairs, (s.order || []).join(','), (s.alive || []).join(','),
-      (s.sits || []).map((x) => x.id + ':' + x.ms).join(','), s.loserId, s.why, s.winnerId, JSON.stringify(s.wins || {}), state.youAreHost, appState.lang, mchDjSig(s)].join('|');
+      (s.sits || []).map((x) => x.id + ':' + x.ms).join(','), s.loserId, s.why, s.winnerId, JSON.stringify(s.wins || {}), state.youAreHost, appState.lang, mchDjSig(s), mchRecSig(s)].join('|');
   },
   frame(state, t) {
     const s = state.shared || {};

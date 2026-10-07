@@ -1040,6 +1040,11 @@ if (typeof FX !== 'undefined') {
     },
     sklBet(at) {
       fxTone('triangle', [[0, 523], [0.08, 659]], [[0, 0], [0.01, 0.1], [0.16, 0.001]], at);
+    },
+    sklBeat(at) {
+      // A heartbeat: lub - dub, low and soft (925).
+      fxTone('sine', [[0, 78], [0.12, 46]], [[0, 0], [0.012, 0.42], [0.16, 0.001]], at);
+      fxTone('sine', [[0.2, 70], [0.3, 44]], [[0.2, 0], [0.212, 0.3], [0.34, 0.001]], at);
     }
   });
 }
@@ -1123,7 +1128,7 @@ function sklTvFrame(state, t) {
   } else {
     // While discs are added the bubble already names whose turn it is.
     const words = s.phase === 'add' ? '' : sklTurnWords(state);
-    line = `${words ? `<div class="skl-ring__turn">${escapeHTML(words)}</div>` : ''}${s.phase === 'result' ? '' : sklBetHtml(state, true)}`;
+    line = `${words ? `<div class="skl-ring__turn">${escapeHTML(words)}</div>` : ''}${sklBeatLeftHtml(s)}${s.phase === 'result' ? '' : sklBetHtml(state, true)}`;
   }
   const host = `<span data-skl-host class="skl-tv__host"></span>`;
   return `<div class="skl-tv skl-ring skl-ring--n${Math.min(n, 8)}">
@@ -1157,6 +1162,74 @@ function sklOwnMoveWaiting(state) {
   return (s.events || []).some(e => e && (Number(e.seq) || 0) > sklFx.lastSeq && e.pid === Room.me && own.indexOf(e.type) !== -1);
 }
 
+/*
+ * Heartbeat flips (the owner's pick of 7 Oct 2026, 925), on the TV: while the bidder flips, the
+ * piles that can be turned next zoom in a little (the bidder's own first, then every other pile
+ * with a disc still down) and a heartbeat plays, faster as the flowers still needed shrink
+ * («فاضل ٣… فاضل ٢»); with one flower left the beat stops - a beat of silence before the last
+ * flip. Nothing new on the server: s.flip { n, got, own } and the piles say it all.
+ */
+const SKL_BEAT_MS = { 3: 900, 2: 680 };           // the beat's gap by flowers left (4 and more: 1100)
+const sklBeat = { timer: null, key: '' };
+
+function sklBeatLeft(s) {
+  if (s.phase !== 'flip' || !s.flip) return 0;
+  return Math.max(0, (Number(s.flip.n) || 0) - sklGot(s));
+}
+
+function sklBeatLeftHtml(s) {
+  const left = sklBeatLeft(s);
+  if (!left) return '';
+  return `<div class="skl-beatleft ${left === 1 ? 'is-last' : ''}" aria-live="polite"><span aria-hidden="true">${left === 1 ? '🤫' : '💓'}</span> ${escapeHTML(pcT('skl_left_n', { n: left }))}</div>`;
+}
+
+/** The piles the bidder may turn next. */
+function sklBeatTargets(s) {
+  const bidder = sklBidder(s);
+  if (!s.flip || !bidder) return [];
+  if (!s.flip.own) return [bidder];
+  return (s.order || []).filter(pid => pid !== bidder && sklAlive(s, pid) && sklPileParts(s, pid).down > 0);
+}
+
+function sklBeatStop() {
+  if (sklBeat.timer) clearTimeout(sklBeat.timer);
+  sklBeat.timer = null;
+  sklBeat.key = '';
+}
+
+/** Marks the next piles and keeps the heartbeat going at the pace the flowers left set. */
+function sklBeatSync(view, state) {
+  const s = sklS(state);
+  const left = sklBeatLeft(s);
+  const targets = left ? sklBeatTargets(s) : [];
+  if (view) {
+    view.querySelectorAll('.skl-seat[data-pc-seat]').forEach(el => el.classList.toggle('is-next', targets.indexOf(el.getAttribute('data-pc-seat')) !== -1));
+    const ring = view.querySelector('.skl-ring');
+    if (ring) {
+      ring.style.setProperty('--skl-beat', (left >= 4 ? 1100 : SKL_BEAT_MS[left] || 1100) + 'ms');
+      ring.classList.toggle('is-beating', left >= 2);
+    }
+  }
+  const key = left >= 2 ? [state.code, s.dealId || '', s.round, left].join('|') : '';
+  if (key === sklBeat.key) return;
+  sklBeatStop();
+  if (!key) return;
+  sklBeat.key = key;
+  const gap = left >= 4 ? 1100 : SKL_BEAT_MS[left] || 1100;
+  const tick = () => {
+    const st = Room.state;
+    const ss = st && sklS(st);
+    if (!st || st.game !== 'skull' || !st.youAreScreen || appState.currentView !== 'room-tv' || sklBeatLeft(ss) !== left) { sklBeatStop(); return; }
+    if (!document.hidden && typeof playFx === 'function' && FX.sklBeat) playFx('sklBeat');
+    sklBeat.timer = setTimeout(tick, gap);
+  };
+  // The first beat after the flip's own moment has played.
+  sklBeat.timer = setTimeout(tick, Math.max(400, sklLocal.wait || 0));
+}
+
+onRoomClocksReset(() => sklBeatStop());
+onLeaveScreen((from) => { if (from === 'room-tv') sklBeatStop(); });
+
 TV_GAMES.skull = {
   sig(state) {
     const cur = sklServerSig(Object.assign({}, state, { you: null }));
@@ -1177,6 +1250,7 @@ TV_GAMES.skull = {
     const view = document.getElementById('view-room-tv');
     sklTick(state);
     sklRefreshInPlace(view, state, true);
+    sklBeatSync(view, state);
     if (!rebuilt || !view) return;
     const evs = sklFx.tvEvents || [];
     sklFx.tvEvents = null;

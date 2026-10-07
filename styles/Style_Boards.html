@@ -727,6 +727,34 @@ html[lang="en"] .bank-corner__t { direction: ltr; }
 .gw-card.is-down::after { opacity: 0.85; transform: scale(1); }
 .gw-card.is-picked { box-shadow: 0 0 0 3px var(--accent), 0 6px 16px var(--accent-glow); transform: translateY(-2px); }
 .gw-card.is-aim { box-shadow: 0 0 0 1.5px var(--accent-border); }
+/* «علامة استفهام» (7 Oct 2026, 843): your own «؟» sticker on a face, tilted; it still counts as up. */
+.gw-card__q {
+  position: absolute; top: 0.15rem; inset-inline-end: 0.15rem; z-index: 2;
+  display: grid; place-items: center; width: 1.45rem; height: 1.45rem; border-radius: 50%;
+  background: var(--warning-btn); color: var(--warning-on); font: 900 1rem / 1 var(--font-display);
+  box-shadow: 0 2px 4px rgba(40, 30, 20, 0.25); transform: rotate(-14deg) scale(0); opacity: 0; pointer-events: none;
+  transition: transform 260ms var(--ease-spring), opacity 160ms var(--ease-out);
+}
+.gw-card.is-q:not(.is-down) .gw-card__q { opacity: 1; transform: rotate(-14deg); }
+.gw-card.is-q:not(.is-down) { box-shadow: 0 0 0 2px var(--warning-btn); }
+.gw-card.is-q-new .gw-card__q { animation: gw-q-stick 520ms var(--ease-spring) both; }
+@keyframes gw-q-stick { 0% { opacity: 0; transform: rotate(-40deg) scale(2); } 70% { opacity: 1; transform: rotate(-8deg) scale(0.92); } 100% { opacity: 1; transform: rotate(-14deg); } }
+.gw-board--small .gw-card__q { width: 0.95rem; height: 0.95rem; font-size: 0.65rem; }
+.gw-card--zoom .gw-card__q { width: 3rem; height: 3rem; font-size: 2rem; top: 0.5rem; inset-inline-end: 0.5rem; }
+/* «أحسن سؤال» (845): the winner's questions replayed on the TV, the best crowned; a line on the phones. */
+.gw-best-line { margin: var(--sp-2) 0; text-align: center; font-weight: 800; color: var(--text); }
+.gw-best { width: 100%; display: grid; gap: calc(var(--tv-gap, 0.5rem) * 0.6); }
+.gw-best__list { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--tv-gap, 0.5rem) * 0.5); }
+.gw-best__row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 0.6em; padding: 0.45em 0.8em; border-radius: var(--r-md); background: var(--surface-2); font-size: var(--tv-sm, 0.9rem); }
+.gw-best__q { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--text); }
+.gw-best__a { font-weight: 800; }
+.gw-best__n { font-weight: 900; color: var(--text-strong, var(--text)); white-space: nowrap; }
+.gw-best__row.is-best { background: color-mix(in srgb, var(--warning) 22%, var(--surface-2)); box-shadow: 0 0 0 2px var(--warning-btn); }
+.gw-best__crown { grid-column: 1 / -1; justify-self: center; padding: 0.1em 0.8em; border-radius: var(--r-full); background: var(--warning-btn); color: var(--warning-on); font-weight: 900; }
+.gw-best.is-playing .gw-best__row { animation: gw-best-in 420ms var(--ease-out) var(--at, 0ms) both; }
+.gw-best.is-playing .gw-best__crown { animation: gw-q-stick 620ms var(--ease-spring) var(--at, 0ms) both; }
+@keyframes gw-best-in { from { opacity: 0; transform: translateY(0.6rem); } }
+@media (prefers-reduced-motion: reduce) { .gw-best.is-playing .gw-best__row, .gw-best.is-playing .gw-best__crown, .gw-card.is-q-new .gw-card__q { animation: none; } }
 @media (hover: hover) and (pointer: fine) {
   .gw-card:not(:disabled):not(.is-down):hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(40, 30, 20, 0.12); }
 }
@@ -2898,6 +2926,37 @@ span.om-back { cursor: default; }
 .om-reveal .pc-card { --pc-w: 6rem; }
 .om-reveal__who { margin: 0; color: var(--text-strong); font-family: var(--font-display); font-size: 1.5rem; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
 .om-tally { margin-bottom: var(--sp-3); }
+/* «ش-ا-ي-ب: ماتش السهرة» (7 Oct 2026, 917): the letters on a seat, the letter won, «شايب السهرة» crowned with the fez. */
+.om-word { display: inline-flex; gap: 0.15rem; justify-content: center; }
+.om-word > i { display: inline-grid; place-items: center; width: 1.05rem; height: 1.15rem; border-radius: var(--r-xs); border: 1px dashed var(--border); font: 900 0.7rem / 1 var(--font-display); font-style: normal; color: var(--text-3); }
+.om-word > i.is-on { border-style: solid; border-color: transparent; background: var(--danger-btn); color: var(--danger-on); }
+.om-word > i.is-new { animation: om-letter-in 700ms cubic-bezier(0.2, 1.4, 0.4, 1) 900ms both; }
+.om-word--big > i { width: 2.4rem; height: 2.6rem; font-size: 1.4rem; border-radius: var(--r-sm); }
+.om-word.is-full > i.is-on { background: var(--danger-btn); box-shadow: 0 0 0 2px var(--warning-btn); }
+@keyframes om-letter-in { 0% { opacity: 0; transform: scale(2.4) rotate(-12deg); } 60% { opacity: 1; transform: scale(0.9); } 100% { opacity: 1; transform: none; } }
+.om-seat .om-word { margin-top: 0.2rem; }
+.om-tally .om-word { margin-inline-end: var(--sp-2); }
+.om-letter-got { display: grid; justify-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-3); text-align: center; font-weight: 800; color: var(--text); }
+.om-shayeb { display: grid; justify-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-3); padding: var(--sp-4) var(--sp-3); border-radius: var(--r-lg); background: var(--surface); box-shadow: 0 0 0 2px var(--danger-btn), var(--sh-2); text-align: center; }
+.om-shayeb__face { position: relative; width: 5.5rem; height: 6rem; display: grid; place-items: end center; }
+.om-shayeb__old { font-size: 4.2rem; line-height: 1; }
+.om-shayeb__fez { position: absolute; top: 0; left: 50%; width: 2.8rem; transform: translateX(-50%) rotate(-8deg); z-index: 1; }
+.om-shayeb__fez .om-fez { width: 100%; height: auto; display: block; }
+.om-shayeb__t { font: 900 var(--fs-h2, 1.4rem) / 1.2 var(--font-display); color: var(--danger); }
+.om-shayeb__name { font: 900 1.5rem / 1.2 var(--font-display); color: var(--text-strong, var(--text)); }
+.om-shayeb__hint { margin: 0; font-size: 0.8rem; color: var(--text-2); }
+.om-shayeb.is-crowning .om-shayeb__fez { animation: om-fez-drop 900ms cubic-bezier(0.3, 1.5, 0.5, 1) 600ms both; }
+.om-shayeb.is-crowning .om-shayeb__t, .om-shayeb.is-crowning .om-shayeb__name { animation: om-letter-in 700ms cubic-bezier(0.2, 1.4, 0.4, 1) 1300ms both; }
+@keyframes om-fez-drop { 0% { opacity: 0; transform: translate(-50%, -4rem) rotate(-30deg); } 70% { opacity: 1; transform: translate(-50%, 0.3rem) rotate(-4deg); } 100% { opacity: 1; transform: translateX(-50%) rotate(-8deg); } }
+.om-shayeb--tv { padding: calc(var(--tv-gap) * 2); }
+.om-shayeb--tv .om-shayeb__face { width: 22vmin; height: 24vmin; }
+.om-shayeb--tv .om-shayeb__old { font-size: 17vmin; }
+.om-shayeb--tv .om-shayeb__fez { width: 11vmin; }
+.om-shayeb--tv .om-shayeb__t { font-size: var(--tv-xl); }
+.om-shayeb--tv .om-shayeb__name { font-size: var(--tv-lg); }
+.om-shayeb--tv .om-shayeb__hint, .om-letter-got--tv { font-size: var(--tv-sm); }
+.om-shayeb--tv .om-word--big > i, .om-letter-got--tv .om-word--big > i { width: 6vmin; height: 6.6vmin; font-size: 4vmin; }
+@media (prefers-reduced-motion: reduce) { .om-word > i.is-new, .om-shayeb.is-crowning .om-shayeb__fez, .om-shayeb.is-crowning .om-shayeb__t, .om-shayeb.is-crowning .om-shayeb__name { animation: none; } }
 
 /* --- A phone on its side: the table beside your hand and the bar --- */
 @media (orientation: landscape) and (max-height: 500px) {

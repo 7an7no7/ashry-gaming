@@ -50,6 +50,7 @@ gameText({
       skl_lose_btn: "خلاص، ده يروح",
       skl_flipping: "{name} بيقلب: {got} من {n}",
       skl_flipping_hint: "وردة؟ ولا جمجمة؟",
+      skl_left_n: "فاضل {n}",
       skl_flip_own: "اقلب أقراصك انت الأول",
       skl_flip_own_hint: "كلها مرة واحدة.",
       skl_flip_own_btn: "اقلب أقراصي",
@@ -162,6 +163,7 @@ gameText({
       skl_lose_btn: "That one goes",
       skl_flipping: "{name} is flipping: {got} of {n}",
       skl_flipping_hint: "A flower? Or a skull?",
+      skl_left_n: "{n} to go",
       skl_flip_own: "Flip your own discs first",
       skl_flip_own_hint: "All of them at once.",
       skl_flip_own_btn: "Flip my discs",
@@ -254,6 +256,7 @@ gameText({
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>كل الأكوام مقلوبة، والرهان، ومين خمّن في «هيعملها؟» (من غير إجابته)، وكل قرص وهو بيتقلب قدام الكل.</li>
+                <li>💓 وقت القلب: الأكوام اللي ممكن تتقلب بتقرّب شوية، ونبضات قلب بتسرع كل ما الورود اللي فاضلة تقل (فاضل ٣… فاضل ٢)، وقبل آخر قلبة سكوت.</li>
             </ul>
             <p class="help-sub">💡 نصايح</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -286,6 +289,7 @@ gameText({
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Every pile face down, the bet, who has answered «Will they?» (never what), and every disc as it turns over.</li>
+                <li>💓 During the flips the piles that can be turned next zoom in, and a heartbeat speeds up as the flowers still needed shrink (3 to go… 2 to go); before the last flip, silence.</li>
             </ul>
             <p class="help-sub">💡 Tips</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

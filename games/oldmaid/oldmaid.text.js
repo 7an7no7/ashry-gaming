@@ -53,6 +53,13 @@ gameText({
       om_out_order: "مين خلّص الأول",
       om_tally: "مرات الشايب",
       om_skip_turn: "اسحب بدل {name}",
+      om_word: "ش-ا-ي-ب: ماتش السهرة",
+      om_word_hint: "كل خسارة بحرف من «شايب» على كرسيك، واللي يكمّل الأربع حروف يبقى شايب السهرة. الحروف بتتمسح لما ترجعوا لقايمة الألعاب.",
+      om_word_off: "كل لعبة لوحدها، من غير حروف.",
+      om_word_letters: "شايب",
+      om_word_got: "{name} خد حرف «{l}» · فاضل {n}",
+      om_shayeb_title: "شايب السهرة!",
+      om_word_reset: "الماتش اللي جاي بيبدأ من الأول",
     },
     en: {
       om_st_from: "Drawn from",
@@ -104,6 +111,13 @@ gameText({
       om_out_order: "Who got out first",
       om_tally: "Times left with the Old Maid",
       om_skip_turn: "Draw for {name}",
+      om_word: "M-A-I-D: the evening's match",
+      om_word_hint: "Every loss puts a letter of MAID on your seat; whoever spells all four is the Old Maid of the evening. The letters are wiped when you go back to the games list.",
+      om_word_off: "Every game on its own, no letters.",
+      om_word_letters: "MAID",
+      om_word_got: "{name} gets the letter «{l}» · {n} to go",
+      om_shayeb_title: "Old Maid of the evening!",
+      om_word_reset: "The next match starts from scratch",
     }
   },
   rules: {
@@ -134,6 +148,7 @@ gameText({
             <p class="help-sub">🏆 العدّاد</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>كل دور له خسران واحد. ولو لعبتوا تاني بتتعد مرات الشايب، والأقل هو الأول.</li>
+                <li>🧓 <b>ش-ا-ي-ب: ماتش السهرة</b> (شغّال من الأول): كل خسارة بحرف من «شايب» على كرسيك. اللي يكمّل الأربع حروف يبقى <b>شايب السهرة</b> بالطربوش، والماتش اللي بعده يبدأ من الأول. الحروف بتتمسح لما ترجعوا لقايمة الألعاب.</li>
             </ul>`,
     },
     en: {
@@ -163,6 +178,7 @@ gameText({
             <p class="help-sub">🏆 The tally</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>One loser a game. Play again and the times each was left with the Old Maid are counted, fewest first.</li>
+                <li>🧓 <b>M-A-I-D: the evening's match</b> (on by default): every loss puts a letter of MAID on your seat. Whoever spells all four is the <b>Old Maid of the evening</b>, fez and all, and the next match starts from scratch. The letters are wiped when you go back to the games list.</li>
             </ul>`,
     }
   }

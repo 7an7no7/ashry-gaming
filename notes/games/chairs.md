@@ -224,6 +224,24 @@ the TV block of الكراسي; `TV_GAMES.chairs.frame`, `mchOverHtml(state, s, 
   - Shots: `scratchpad/sheet7/built/850-*.png` (1280x720 music, replay, end; 1920x1080 end; phone 375 music
     and end in English, light).
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **854 «الأرقام القياسية»** (no extra rule asked). The room keeps its fastest sit of the evening and slams
+  «🏆 رقم جديد للأوضة!» with the name when it is beaten.
+  - Server (`RoomChairs.js`): `chairsNoteRecord` (when a round's sits close, `chairsCloseSit`) compares the
+    round's quickest sit with `room._chairsBest` (like الحقوا!'s `_wireBest`, kept by the room across play again
+    and new games from the hub); `shared.best` `{ ms, id, name }` is the record, `shared.record` `{ ms, id, name,
+    was, wasName }` is set on the round that broke it (cleared by the next round). A false start's round has no
+    sits and counts nothing.
+  - Chosen: the evening's very first sit sets the record quietly (a slam on everyone's first round would mean
+    nothing); afterwards only a strictly faster sit is a record.
+  - Page (`JS_RoomChairs.html`): `mchRecordHtml` at the top of «مين قعد الأول؟» (the stamp slams once,
+    `motionFirst`), `mchBestLineHtml` at its foot («⏱️ رقم الأوضة: … · … ms»), phone and TV; the voice plays the
+    success sound and the holder's phone buzzes (`mchAfter`); `mchRecSig` in both signatures. Styles in
+    `MCH_FIN_CSS` (the chunk's own); words `mch_rec_*`; a line in the rules.
+  - Tests: `rules.mjs` («chairs record»: quiet first, broken with the name and the old time, no record for a
+    slower sit, kept by play again and by a new game from the hub).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

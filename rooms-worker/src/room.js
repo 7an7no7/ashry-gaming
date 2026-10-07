@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS, roomGameIsOff } from '../generated/rules.js';
+import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS, humSongIndexOf, roomGameIsOff } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -904,9 +904,10 @@ export class Room extends DurableObject {
    */
   async songOf(token) {
     await this.load();
-    const h = this.room && this.room.game === 'hum' && this.room._hum;
-    if (!h || !h.token || h.cur === null || h.cur === undefined || String(token) !== h.token) return null;
-    const song = HUM_SONGS[h.cur];
+    // The song on now, or at the end one of the game's played songs (RoomHum.js, «قايمة أغاني السهرة»).
+    const at = humSongIndexOf(this.room, token);
+    if (at === -1) return null;
+    const song = HUM_SONGS[at];
     return song ? { src: song.src, id: song.id, u: song.u || null, also: song.also || null } : null;
   }
 

@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, bankNightPoints, stopAnswerFits, stopWordKnown, stopLettersFor, roomPlayerLeft, roomForcedMove, ROOM_FORCED_DELAY_MS, chatFor, bumperRelaying, bumperJoined, darkRelaying, DISABLED_GAMES } from '../generated/rules.js';
 
 import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION_CATCH_WAIT_MS } from '../generated/rules.js';
+import { humSongIndexOf, AUTONEXT_GAMES } from '../generated/rules.js';
 import { nextPrompts, programPlaces, laserTrace, laserFit, laserInside, laserTiles, laserTileAt, LASER_MAPS, LASER_BODY, LASER_PILLAR_R } from '../generated/rules.js';
 import { moveMerge, moveCollect, moveFit, moveExpired, MOVE_TTL_MS, MOVE_MAX_BYTES, MOVE_KEYS } from '../generated/rules.js';
 import srcMod from '../../tools/sources.cjs';
@@ -7542,6 +7543,41 @@ Date.now = duelTestClock;
     r.shared.settings.mode = mode;
   };
   {
+    // «ش-ا-ي-ب» (the owner's pick of 7 Oct 2026, 917): a letter a loss, the fourth crowns شايب السهرة.
+    const lose = (r, who) => {
+      const [A, B] = r.shared.order;
+      const loser = who === 0 ? A : B;
+      oTable(r, who === 0 ? [['OM', '7d'], ['7h']] : [['7h'], ['OM', '7d']], who === 0 ? 0 : 1);
+      o(r, loser, 'take', { pos: 0 });
+      return loser;
+    };
+    const r = omStart(['a', 'b']);
+    check(r.shared.settings.word === true && JSON.stringify(r.shared.letters) === '{}' && r.shared.shayeb === null, 'oldmaid word: on by default, no letters yet');
+    const L = lose(r, 0);
+    check(r.shared.phase === 'gameover' && r.shared.loser === L && r.shared.letters[L] === 1 && r.shared.newLetter === L && !r.shared.shayeb,
+      'oldmaid word: a loss earns one letter');
+    for (let n = 2; n <= 4; n++) {
+      applyRoomAction(r, 'a', 'playAgain', {});
+      check(r.shared.letters[L] === n - 1 && r.shared.settings.word === true, 'oldmaid word: play again keeps the letters (' + (n - 1) + ')');
+      const k = r.shared.order.indexOf(L);
+      lose(r, k);
+    }
+    check(r.shared.letters[L] === 4 && r.shared.shayeb && r.shared.shayeb.pid === L && r.shared.shayeb.name === L.toUpperCase(),
+      'oldmaid word: the fourth letter spells the word: شايب السهرة is crowned');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(JSON.stringify(r.shared.letters) === '{}' && r.shared.shayeb === null, 'oldmaid word: after a crowning the next match starts from scratch');
+    lose(r, r.shared.order.indexOf('b'));
+    applyRoomAction(r, 'a', 'backToHub', {});
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'oldmaid' });
+    applyRoomAction(r, 'a', 'start', {});
+    check(JSON.stringify(r.shared.letters) === '{}', 'oldmaid word: the letters reset when the room goes back to the hub');
+    const off = omStart(['a', 'b'], { word: false });
+    lose(off, 0);
+    check(off.shared.settings.word === false && JSON.stringify(off.shared.letters) === '{}' && !off.shared.shayeb, 'oldmaid word: off, a loss earns no letter');
+    applyRoomAction(off, 'a', 'playAgain', {});
+    check(off.shared.settings.word === false, 'oldmaid word: play again keeps the switch off');
+  }
+  {
     const sizes = [2, 3, 4, 8].map((n) => omStart(Array.from({ length: n }, (_, i) => 'p' + i)));
     check(sizes.map((r) => r.shared.deckSize).join() === '33,49,53,53' && sizes.map((r) => r.shared.pairs).join() === '16,24,26,26',
       'oldmaid: the deck grows with the table: 8 pairs a player, at most 26, and الشايب');
@@ -10641,6 +10677,31 @@ Date.now = duelTestClock;
     }
   };
   {
+    // «التالي لوحده» (the owner's pick of 7 Oct 2026, 933): a lobby switch, off by default.
+    const off = estStart(['a', 'b', 'c', 'd'], { rounds: 13 });
+    playRound(off);
+    check(off.shared.phase === 'roundOver' && !('nextAt' in off.shared) && roomDeadline(off) === null,
+      'estimation next by itself: off by default - a round\'s result waits for the host\'s tap');
+    const r = estStart(['a', 'b', 'c', 'd'], { rounds: 13, autoNext: true });
+    const s = r.shared;
+    check(!!AUTONEXT_GAMES.estimation && s.phase === 'dash' && !('nextAt' in s), 'estimation next by itself: no count while a round is played');
+    playRound(r);
+    check(s.phase === 'roundOver' && s.nextAt === clock + 12000 && s.nextFor === 'r1.' + s.deal && roomDeadline(r) === s.nextAt,
+      'estimation next by itself: the result starts a 12-second count on the server\'s clock');
+    clock = s.nextAt + 1;
+    roomTimeout(r, clock);
+    check(r.shared.round === 2 && r.shared.phase === 'dash' && !('nextAt' in r.shared), 'estimation next by itself: the count runs out and the next round is dealt, as the host\'s «التالي» would');
+    playRound(r);
+    const notHost = threw(() => applyRoomAction(r, r.shared.seats.find((id) => id !== 'a'), 'autoPause', { key: r.shared.nextFor }));
+    check(notHost && typeof r.shared.nextAt === 'number', 'estimation next by itself: «استنى» is the host\'s while the host is here');
+    applyRoomAction(r, 'a', 'autoPause', { key: 'r1.0' });
+    check(typeof r.shared.nextAt === 'number', 'estimation next by itself: a pause pressed on an older result is dropped');
+    applyRoomAction(r, 'a', 'autoPause', { key: r.shared.nextFor });
+    check(r.shared.nextAt === null && r.shared.nextPaused === true && roomDeadline(r) === null, 'estimation next by itself: «⏸ استنى» stops the count; the host\'s tap decides');
+    applyRoomAction(r, 'a', 'nextRound', { round: r.shared.round });
+    check(r.shared.round === 3 && r.shared.phase === 'dash', 'estimation next by itself: the host\'s «التالي» still deals at any time');
+  }
+  {
     const r = estStart(['a', 'b', 'c', 'd'], { rounds: 13, base: 13, dash: 'egypt' });
     const s = r.shared;
     const dealer = s.dealer;
@@ -11687,6 +11748,41 @@ Date.now = duelTestClock;
     return r;
   };
   const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); roomTimeout(r, clock); };
+  {
+    // «الأرقام القياسية» (the owner's pick of 7 Oct 2026, 854): the room's fastest sit of the evening.
+    const r = chairsRoom(['a', 'b', 'c', 'd']);
+    tick(r);
+    let st = r.shared.stopAt;
+    clock = st + 1000;
+    applyRoomAction(r, 'a', 'sit', { round: 1, at: st + 400 });
+    applyRoomAction(r, 'b', 'sit', { round: 1, at: st + 500 });
+    applyRoomAction(r, 'c', 'sit', { round: 1, at: st + 600 });
+    applyRoomAction(r, 'd', 'sit', { round: 1, at: st + 900 });
+    check(r.shared.phase === 'result' && r._chairsBest.ms === 400 && r._chairsBest.id === 'a' && r.shared.best.ms === 400 && r.shared.record === null,
+      'chairs record: the evening\'s first sit sets the room\'s record quietly');
+    tick(r); tick(r);
+    st = r.shared.stopAt;
+    clock = st + 1000;
+    applyRoomAction(r, 'c', 'sit', { round: 2, at: st + 250 });
+    applyRoomAction(r, 'a', 'sit', { round: 2, at: st + 300 });
+    applyRoomAction(r, 'b', 'sit', { round: 2, at: st + 700 });
+    check(r.shared.record && r.shared.record.id === 'c' && r.shared.record.ms === 250 && r.shared.record.was === 400 && r.shared.best.ms === 250 && r.shared.best.name === 'C',
+      'chairs record: a faster sit breaks it: «رقم جديد للأوضة!» with the name, the time and the last record');
+    tick(r);
+    check(r.shared.phase === 'music' && r.shared.record === null && r.shared.best.ms === 250, 'chairs record: the next round starts with no new record, the room\'s still shown');
+    tick(r);
+    st = r.shared.stopAt;
+    clock = st + 1000;
+    applyRoomAction(r, 'a', 'sit', { round: 3, at: st + 260 });
+    applyRoomAction(r, 'c', 'sit', { round: 3, at: st + 800 });
+    check(r.shared.phase === 'gameover' && r.shared.record === null && r.shared.best.ms === 250, 'chairs record: a sit slower than the record is no record');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.best && r.shared.best.ms === 250 && r.shared.best.id === 'c' && r.shared.record === null, 'chairs record: play again keeps the room\'s record');
+    applyRoomAction(r, 'a', 'backToHub', {});
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'chairs' });
+    applyRoomAction(r, 'a', 'start', {});
+    check(r.shared.best && r.shared.best.ms === 250, 'chairs record: a new game from the hub keeps the evening\'s record');
+  }
   {
     const r = newRoom(['a', 'b']);
     applyRoomAction(r, 'a', 'chooseGame', { game: 'chairs' });
@@ -15407,6 +15503,9 @@ Date.now = duelTestClock;
   const fin2 = r2.program.final;
   check(fin2.champions.length >= 1 && fin2.champions.every((id) => fin2.table.find((x) => x.id === id).pts === fin2.table[0].pts) &&
     fin2.table.filter((x) => x.pts === fin2.table[0].pts).length === fin2.champions.length, 'program: the champions after a duel and the buzzer: everyone level on top', JSON.stringify(fin2.table));
+  // «السهرة بالأرقام» (7 Oct 2026, 780): the finale's numbers, from what the log saw.
+  check(fin2.stats && fin2.stats.questions === 10 && fin2.stats.presses === 20 && fin2.stats.fibs === 0 && fin2.stats.knocks === 0 && fin2.minutes >= 1,
+    'program numbers: the buzzer\'s 10 judged questions and its 20 presses are counted for the finale', JSON.stringify(fin2.stats));
 
   // The same game twice in a row: the table counts both.
   const r3 = P(['a', 'b', 'c']);
@@ -17433,6 +17532,73 @@ console.log('• the secret mission');
   check(moveFit({ ashryName: 'x'.repeat(5000) }, 1024).error === 'too_big', 'move: what can\'t be trimmed under the cap says too_big');
   check(moveExpired(clock - MOVE_TTL_MS - 1, clock) && !moveExpired(clock - MOVE_TTL_MS + 60000, clock) && MOVE_TTL_MS === 24 * 3600 * 1000, 'move: a code lasts 24 hours');
   check(MOVE_MAX_BYTES >= 256 * 1024 && Object.keys(MOVE_KEYS).every((k) => /^(ashry|gameTrackerState_v1$)/.test(k)), 'move: the cap and the list of keys');
+}
+
+/* --- The ideas of 7 Oct 2026, second batch (the owner's picks): خمّن مين's «أحسن سؤال», دندنها's playlist --- */
+{
+  console.log('\nThe picks of 7 Oct 2026, second batch');
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  // خمّن مين «أحسن سؤال» (845): each answered question and the faces its asker put down, published at the end.
+  {
+    const r = newRoom(['a', 'b']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'guesswho' });
+    applyRoomAction(r, 'a', 'start', {});
+    const s = r.shared;
+    const [p0, p1] = s.seats;
+    applyRoomAction(r, p0, 'typed', { text: 'لابس نضارة؟', seq: s.turnSeq });
+    applyRoomAction(r, p1, 'answer', { yes: true, seq: s.turnSeq });
+    const free = (seat) => s.faces.map((x, i) => i).filter((i) => i !== r._gw.secret[1 - seat] && s.down[seat].indexOf(i) === -1);
+    const f0 = free(0);
+    [f0[0], f0[1], f0[2]].forEach((face) => applyRoomAction(r, p0, 'flip', { face, down: true }));
+    applyRoomAction(r, p0, 'flip', { face: f0[2], down: false });
+    applyRoomAction(r, p0, 'done', { seq: s.turnSeq });
+    check(!s.asks && r._gw.asks[0].length === 1 && r._gw.asks[0][0].n === 2, 'guesswho best question: the faces put down on an answer are counted when the turn moves on (one put back up taken off), kept on the server while the game is on');
+    applyRoomAction(r, p1, 'loud', { seq: s.turnSeq });
+    applyRoomAction(r, p0, 'answer', { yes: false, seq: s.turnSeq });
+    const f1 = free(1);
+    [f1[0], f1[1], f1[2], f1[3]].forEach((face) => applyRoomAction(r, p1, 'flip', { face, down: true }));
+    applyRoomAction(r, p0, 'unanswer', { seq: s.turnSeq, log: s.logSeq });
+    check(s.stage === 'answer' && r._gw.asks[1].length === 0, 'guesswho best question: «غلطت» takes its question out too');
+    applyRoomAction(r, p0, 'answer', { yes: true, seq: s.turnSeq });
+    applyRoomAction(r, p1, 'flip', { face: f1[0], down: true });
+    applyRoomAction(r, p1, 'done', { seq: s.turnSeq });
+    applyRoomAction(r, p0, 'guess', { face: r._gw.secret[1], seq: s.turnSeq });
+    const asks = r.shared.asks;
+    check(r.shared.phase === 'over' && r.shared.result.winner === 0 && Array.isArray(asks) &&
+      JSON.stringify(asks[0]) === JSON.stringify([{ kind: 'typed', text: 'لابس نضارة؟', answer: true, n: 2 }]) &&
+      JSON.stringify(asks[1]) === JSON.stringify([{ kind: 'loud', text: '', answer: true, n: 1 }]),
+      'guesswho best question: at the end every question, its answer and the faces it put down are on the table', JSON.stringify(asks));
+    applyRoomAction(r, 'a', 'nextRound', { round: r.shared.round });
+    check(!r.shared.asks && r._gw.asks[0].length === 0, 'guesswho best question: the next game starts with none');
+  }
+  // دندنها «قايمة أغاني السهرة» (761): the game's songs at the end, each playable by the token its reveal sent.
+  {
+    const HS = new Function(readFileSync(srcPath('Songs.js'), 'utf8') + ';return HUM_SONGS;')();
+    const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
+    const r = newRoom(['a', 'b', 'c']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'hum' });
+    applyRoomAction(r, 'a', 'start', { mode: 'listen', count: 5 });
+    let firstToken = null, staleOk = true;
+    for (let i = 0; i < 300 && r.shared.phase !== 'gameover'; i++) {
+      if (r.shared.phase === 'reveal') {
+        if (!firstToken) firstToken = r.shared.token;
+        applyRoomAction(r, 'a', 'nextRound', { round: r.shared.round });
+        if (r.shared.phase !== 'gameover' && humSongIndexOf(r, firstToken) !== -1) staleOk = false;
+        continue;
+      }
+      if (tick(r) === false && roomDeadline(r) === null) break;
+    }
+    const pl = r.shared.playlist || [];
+    check(r.shared.phase === 'gameover' && pl.length === 5 && new Set(pl.map((x) => x.token)).size === 5 && pl.every((x) => x.t && x.s && x.token),
+      'hum playlist: the end lists the game\'s five songs with their singers, each with its own token');
+    check(pl.map((x) => x.t).join() === r.shared.history.map((x) => x.t).join(), 'hum playlist: in the order they were played');
+    check(pl.every((x) => HS[humSongIndexOf(r, x.token)] && HS[humSongIndexOf(r, x.token)].t === x.t), 'hum playlist: /song answers each token with its own song at the end');
+    check(staleOk, 'hum playlist: an older song\'s token answers nothing while the game is on');
+    check(humSongIndexOf(r, 'nope') === -1 && humSongIndexOf(r, '') === -1, 'hum playlist: a token not on the list answers nothing');
+    check(!JSON.stringify(r.shared.playlist).match(/"(id|src|also|u)":/), 'hum playlist: no pin (source or id) on the table');
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(humSongIndexOf(r, pl[0].token) === -1 && !r.shared.playlist, 'hum playlist: play again: the last game\'s tokens answer nothing');
+  }
 }
 
 Date.now = realNow;

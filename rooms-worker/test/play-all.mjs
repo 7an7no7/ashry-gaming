@@ -1329,6 +1329,24 @@ async function humRobots() {
   check(racers.every((b) => JSON.stringify(b.state).indexOf('apple.com') === -1), 'listen: no Apple address on any phone');
   await H.must('skipSong', { deal: H.state.shared.deal });
   await all(racers.concat([TV]), (s) => s.shared.phase === 'reveal' && s.shared.song && s.shared.song.t, 'listen: the song shown to all');
+  // «قايمة أغاني السهرة» (7 Oct 2026, 761): the rest skipped through to the end, then the playlist plays.
+  for (let round = 1; round < 5; round++) {
+    await H.must('nextRound', { round });
+    await H.waitFor((s) => s.shared.round === round + 1 && ['listen', 'count', 'type', 'choices'].indexOf(s.shared.phase) !== -1, 'playlist: song ' + (round + 1) + ' is dealt', 8000);
+    await H.must('skipSong', { deal: H.state.shared.deal });
+    await H.waitFor((s) => s.shared.phase === 'reveal' && s.shared.round === round + 1, 'playlist: song ' + (round + 1) + ' shown');
+  }
+  await H.must('nextRound', { round: 5 });
+  await all(racers.concat([TV]), (s) => s.shared.phase === 'gameover' && (s.shared.playlist || []).length === 5, 'playlist: the end lists the game\'s five songs on every phone and the TV');
+  const pl = H.state.shared.playlist;
+  check(pl.map((x) => x.t).join() === H.state.shared.history.map((x) => x.t).join() && pl.every((x) => x.s && typeof x.token === 'string') &&
+    !/"(id|src|also|u)":/.test(JSON.stringify(pl)), 'playlist: in the order played, each with its singer and a token, no pin');
+  try {
+    const res = await fetch(BASE + '/song/' + H.code + '/' + pl[0].token);
+    check(res.ok && (await res.arrayBuffer()).byteLength > 50000, 'playlist: a song of the night plays again by its token at the end');
+    const bad = await fetch(BASE + '/song/' + H.code + '/' + pl[0].token.split('').reverse().join(''));
+    check(bad.status === 404, 'playlist: a token not on the list gets nothing');
+  } catch (e) { check(false, 'playlist: /song answered at the end (' + e.message + ')'); }
   await H.must('backToHub');
   await H.waitFor((s) => s.phase === 'lobby', 'listen: back in the hub');
   people.concat([TV, late]).forEach((x) => x.close());

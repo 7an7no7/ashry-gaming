@@ -214,7 +214,14 @@ const GW_TEXT = {
     gw_next_teams: 'الفرق في اللعبة الجاية',
     gw_move_to: 'روح {name}',
     gw_team_watch: '👀 بتتفرج: هتدخل فريق في اللعبة الجاية.',
-    gw_you: 'انت'
+    gw_you: 'انت',
+    gw_qm_on: '؟ علامة على {name}',
+    gw_qm_off: 'شلت العلامة من {name}',
+    gw_best_title: 'أسئلة {name}',
+    gw_best_crown: '👑 أحسن سؤال',
+    gw_best_n_long: 'وقّع {n}',
+    gw_best_loud: '🗣️ سؤال بصوت عالي',
+    gw_best_line: '👑 أحسن سؤال: «{q}» وقّع {n} وشوش'
   },
   en: {
     gw_team_0: 'Red team',
@@ -254,7 +261,14 @@ const GW_TEXT = {
     gw_next_teams: 'The sides for the next game',
     gw_move_to: 'Go to {name}',
     gw_team_watch: '👀 Watching: you join a side in the next game.',
-    gw_you: 'you'
+    gw_you: 'you',
+    gw_qm_on: '? on {name}',
+    gw_qm_off: 'Took the ? off {name}',
+    gw_best_title: '{name}\'s questions',
+    gw_best_crown: '👑 Best question',
+    gw_best_n_long: '{n} down',
+    gw_best_loud: '🗣️ Asked out loud',
+    gw_best_line: '👑 Best question: "{q}" put {n} faces down'
   }
 };
 
@@ -310,13 +324,15 @@ function gwBoardHtml(s, down, o) {
   const colsNarrow = gwColsNarrow(s.faces.length);
   const cards = s.faces.map((x, i) => {
     const isDown = d.indexOf(i) !== -1;
+    const isQ = !isDown && (opt.qm || []).indexOf(i) !== -1;
     const cls = ['gw-card',
       isDown && fall.indexOf(i) === -1 ? 'is-down' : '',
+      isQ ? 'is-q' : '',
       opt.picked === i ? 'is-picked' : '',
       opt.guessing && !isDown ? 'is-aim' : ''].join(' ');
     // Not a player's board (watching, the TV): a tap does nothing, a hold still zooms.
     const attrs = opt.tap ? `type="button" data-gw-face="${i}"` : `type="button" tabindex="-1" data-gw-zoom="${i}"`;
-    return `<button ${attrs} class="${cls}" aria-label="${escapeHTML(gwFaceName(x))}${isDown ? ' ✕' : ''}">${gwCardInner(x)}</button>`;
+    return `<button ${attrs} class="${cls}" aria-label="${escapeHTML(gwFaceName(x))}${isDown ? ' ✕' : isQ ? ' ؟' : ''}">${gwCardInner(x)}${GW_QM_STICKER}</button>`;
   }).join('');
   return `<div class="gw-board ${opt.small ? 'gw-board--small' : ''}" style="--gw-cols:${cols};--gw-cols-n:${colsNarrow}">${cards}</div>`;
 }
@@ -338,7 +354,54 @@ const gwAspect = (n) => {
 
 /* --- a face held down opens big: every detail, to ask about it or answer ------ */
 
-const gwHold = { timer: null, x: 0, y: 0, open: false, until: 0 };
+const gwHold = { timer: null, qTimer: null, x: 0, y: 0, open: false, until: 0 };
+
+/*
+ * «علامة استفهام» (the owner's pick of 7 Oct 2026, 843): a third state for a face on your own
+ * board - held on (past the big face, GW_QM_HOLD_MS in all) it gets a «؟» sticker, tilted, for an
+ * answer the table argues about. Your own note only: it never leaves this phone, it counts as up
+ * (a tap still puts the face down, and takes the sticker off), and it is kept per deal and board
+ * (gwLocal.qm, and localStorage so a reload keeps it). Held again, the sticker comes off.
+ */
+const GW_QM_HOLD_MS = 1100;
+const GW_QM_STICKER = '<span class="gw-card__q" aria-hidden="true">؟</span>';
+const GW_QM_STORE = 'ashryGwQm';
+
+function gwQmKey(state) {
+  const s = (state && state.shared) || {};
+  return [state && state.code, s.dealId || '', gwMySeat(state)].join('|');
+}
+function gwQmList(state) {
+  const key = gwQmKey(state);
+  if (!gwLocal.qm) {
+    gwLocal.qm = {};
+    try { const saved = JSON.parse(localStorage.getItem(GW_QM_STORE) || 'null'); if (saved && saved.key && Array.isArray(saved.list)) gwLocal.qm[saved.key] = saved.list; } catch (e) {}
+  }
+  return gwLocal.qm[key] || [];
+}
+function gwQmSet(state, list) {
+  const key = gwQmKey(state);
+  gwLocal.qm = gwLocal.qm || {};
+  gwLocal.qm[key] = list;
+  try { localStorage.setItem(GW_QM_STORE, JSON.stringify({ key, list })); } catch (e) {}
+}
+
+/** The long hold on a face of your own board, in play and still up: the sticker on, or off. */
+function gwQmToggle(i) {
+  const state = duelRoomState();
+  const s = state && state.shared;
+  if (!s || s.phase !== 'play' || gwMySeat(state) === -1) return;
+  const card = document.querySelector('#view-room-guesswho [data-gw-face="' + i + '"]');
+  if (!card || card.classList.contains('is-down')) return;
+  const list = gwQmList(state);
+  const on = list.indexOf(i) === -1;
+  gwQmSet(state, on ? list.concat([i]) : list.filter(x => x !== i));
+  card.classList.toggle('is-q', on);
+  if (on && !motionOff()) { card.classList.remove('is-q-new'); void card.offsetWidth; card.classList.add('is-q-new'); }
+  document.querySelectorAll('.gw-zoom .gw-card').forEach(z => z.classList.toggle('is-q', on));
+  haptic('medium');
+  if (typeof showToast === 'function') showToast(gwT(on ? 'gw_qm_on' : 'gw_qm_off', { name: gwFaceName(s.faces[i]) }), 'info');
+}
 
 /** The face at `i` on the board, big over the screen, until the finger lifts. */
 function gwZoomOpen(i) {
@@ -349,7 +412,8 @@ function gwZoomOpen(i) {
   gwZoomClose();
   const el = document.createElement('div');
   el.className = 'gw-zoom';
-  el.innerHTML = `<span class="gw-card gw-card--zoom">${gwCardInner(x)}</span>`;
+  const marked = gwMySeat(state) !== -1 && gwQmList(state).indexOf(i) !== -1;
+  el.innerHTML = `<span class="gw-card gw-card--zoom ${marked ? 'is-q' : ''}">${gwCardInner(x)}${GW_QM_STICKER}</span>`;
   el.addEventListener('click', gwZoomClose);
   document.body.appendChild(el);
   gwHold.open = true;
@@ -366,7 +430,7 @@ function gwZoomClose() {
 function gwWireHold(root) {
   if (!root || root._gwHold) return;
   root._gwHold = true;
-  const stop = () => { clearTimeout(gwHold.timer); gwHold.timer = null; };
+  const stop = () => { clearTimeout(gwHold.timer); gwHold.timer = null; clearTimeout(gwHold.qTimer); gwHold.qTimer = null; };
   root.addEventListener('pointerdown', (e) => {
     const card = e.target.closest('[data-gw-face], [data-gw-zoom]');
     if (!card || !root.contains(card)) return;
@@ -374,9 +438,11 @@ function gwWireHold(root) {
     gwHold.x = e.clientX; gwHold.y = e.clientY;
     const i = Number(card.getAttribute('data-gw-face') !== null ? card.getAttribute('data-gw-face') : card.getAttribute('data-gw-zoom'));
     gwHold.timer = setTimeout(() => { gwHold.timer = null; gwZoomOpen(i); }, 380);
+    // Held on past the big face, on your own board: the «؟» sticker (843).
+    if (card.getAttribute('data-gw-face') !== null) gwHold.qTimer = setTimeout(() => { gwHold.qTimer = null; gwQmToggle(i); }, GW_QM_HOLD_MS);
   });
   root.addEventListener('pointermove', (e) => {
-    if (gwHold.timer && Math.hypot(e.clientX - gwHold.x, e.clientY - gwHold.y) > 10) stop();
+    if ((gwHold.timer || gwHold.qTimer) && Math.hypot(e.clientX - gwHold.x, e.clientY - gwHold.y) > 10) stop();
   });
   const end = () => { stop(); if (gwHold.open) gwZoomClose(); };
   root.addEventListener('pointerup', end);
@@ -741,7 +807,53 @@ function gwTeamCheer(el, state, key) {
 }
 
 /* The duels' pieces, or the teams' own in their way: no line, no champion, the teams' wins. */
-const gwOverHtml = (state, t, tv) => (gwIsTeams(state.shared) ? gwTeamOverHtml(state, t, tv) : duelRoomOverHtml(state, t, tv));
+const gwOverHtml = (state, t, tv) => (gwIsTeams(state.shared) ? gwTeamOverHtml(state, t, tv) : duelRoomOverHtml(state, t, tv)) + gwBestHtml(state, tv);
+
+/*
+ * «أحسن سؤال» (the owner's pick of 7 Oct 2026, 845): at the end the TV replays the winner's
+ * questions, each with how many faces it put down (shared.asks, the server's count), and crowns
+ * the one that put down the most - the table learns what a good question is. A phone shows the
+ * crowned one in a line. Up to GW_BEST_ROWS on the TV (the most telling ones, in the order asked).
+ */
+const GW_BEST_ROWS = 6;
+function gwBestOf(s) {
+  const r = s.result || {};
+  const w = typeof r.winner === 'number' ? r.winner : null;
+  const list = w === null ? [] : (((s.asks || [])[w]) || []);
+  let best = -1;
+  list.forEach((a, i) => { if ((a.n || 0) > 0 && (best === -1 || a.n > list[best].n)) best = i; });
+  return { w, list, best };
+}
+function gwBestQ(a) {
+  return a.kind === 'typed' && a.text ? a.text : gwT('gw_best_loud');
+}
+function gwBestHtml(state, tv) {
+  const s = state.shared || {};
+  if (s.phase !== 'over') return '';
+  const b = gwBestOf(s);
+  if (!b.list.length || b.best === -1) return '';
+  if (!tv) {
+    const a = b.list[b.best];
+    return `<p class="gw-best-line" dir="auto">${escapeHTML(gwT('gw_best_line', { q: gwBestQ(a), n: a.n }))}</p>`;
+  }
+  // The rows shown: the best and the most telling others, in the order they were asked.
+  const keep = b.list.map((a, i) => i).sort((x, y) => (b.list[y].n - b.list[x].n) || (x - y)).slice(0, GW_BEST_ROWS).sort((x, y) => x - y);
+  const play = motionFirst(['gw-best', roomDealKey(state), s.round].join('|')) && !motionOff();
+  const rows = keep.map((i, k) => {
+    const a = b.list[i];
+    const top = i === b.best;
+    return `<li class="gw-best__row ${top ? 'is-best' : ''}" style="--at:${1400 + k * 380}ms">
+        <span class="gw-best__q" dir="auto">${escapeHTML(gwBestQ(a))}</span>
+        <span class="gw-best__a ${a.answer ? 'tx-success' : 'tx-danger'}">${escapeHTML(a.answer ? gwT('gw_yes') : gwT('gw_no'))}</span>
+        <b class="gw-best__n" aria-label="${escapeHTML(gwT('gw_best_n_long', { n: a.n || 0 }))}"><span aria-hidden="true">⬇️</span> <span class="metric" data-gw-best-n="${a.n || 0}" style="--at:${1400 + k * 380}ms">${play ? 0 : (a.n || 0)}</span></b>
+        ${top ? `<span class="gw-best__crown" style="--at:${1400 + keep.length * 380 + 300}ms">${escapeHTML(gwT('gw_best_crown'))}</span>` : ''}
+      </li>`;
+  }).join('');
+  return `<div class="gw-best ${play ? 'is-playing' : ''}">
+      <div class="tv-eyebrow">${escapeHTML(gwT('gw_best_title', { name: gwNames(state)[b.w] || '' }))}</div>
+      <ol class="gw-best__list">${rows}</ol>
+    </div>`;
+}
 const gwLineHtml = (state, t, tv) => (gwIsTeams(state.shared) ? '' : duelRoomLineHtml(state, t, tv));
 const gwWatchNote = (state, t) => (gwIsTeams(state.shared)
   ? ((state.players || []).some(p => p.id === Room.me) && !state.youAreScreen ? `<p class="field__hint duel-hint">${escapeHTML(gwT('gw_team_watch'))}</p>` : '')
@@ -971,6 +1083,7 @@ function gwTapFace(card) {
   }
   // By hand: drawn at once, and the room's board confirms it (already known here, so it doesn't fall again).
   card.classList.toggle('is-down', !isDown);
+  if (!isDown && card.classList.contains('is-q')) { card.classList.remove('is-q'); gwQmSet(state, gwQmList(state).filter(x => x !== i)); }
   const key = [state.code, s.dealId, seat].join('|');
   const known = (gwLocal.down[key] || s.down[seat]).filter(x => x !== i);
   gwLocal.down[key] = isDown ? known : known.concat([i]);
@@ -1228,7 +1341,7 @@ ROOM_GAMES.guesswho = {
         return `<div class="gw gw--seated">
             <div class="gw-layout">
               <div class="gw-layout__board" style="--gw-aspect:${gwAspect(s.faces.length)}">
-                ${gwBoardHtml(s, myDown, { tap: true, fall: fall, picked: s.phase === 'pick' ? gwLocal.pick : gwLocal.guess, guessing: gwLocal.panel === 'guess' })}
+                ${gwBoardHtml(s, myDown, { tap: true, fall: fall, picked: s.phase === 'pick' ? gwLocal.pick : gwLocal.guess, guessing: gwLocal.panel === 'guess', qm: s.phase === 'play' ? gwQmList(state) : [] })}
                 <p class="gw-hold-hint">🔍 ${escapeHTML(gwT('gw_hold_hint'))}</p>
               </div>
               <div class="gw-layout__side">
@@ -1359,6 +1472,14 @@ TV_GAMES.guesswho = {
     });
     // Keyed on the deal: a new game from the hub starts at round 1 again.
     if (state.shared.phase === 'over') gwCheer(view, state, ['gw', roomDealKey(state), state.shared.round].join('|'));
+    // «أحسن سؤال»: each row's count counts up as the row comes in.
+    if (view.querySelector('.gw-best.is-playing')) {
+      view.querySelectorAll('[data-gw-best-n]').forEach(el => {
+        const n = Number(el.getAttribute('data-gw-best-n')) || 0;
+        const at = parseInt(el.style.getPropertyValue('--at'), 10) || 0;
+        setTimeout(() => { if (el.isConnected) { if (typeof countUp === 'function' && n) countUp(el, 0, n); else el.textContent = String(n); } }, at + 250);
+      });
+    }
   }
 };
 // The tournament wraps its renderers (JS_RoomTournament.html). Its chunk, duels,

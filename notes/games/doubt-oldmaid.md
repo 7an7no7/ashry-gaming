@@ -303,6 +303,25 @@ the host's phone (`recallOptions('doubt' | 'oldmaid')`).
   by leaving), الشايب's holder last. With the tally 6 players banked 5/3/3/3/3/3, and in الشايب every
   non-loser 5.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **917 الشايب: «ش-ا-ي-ب: ماتش السهرة»** (the owner: a lobby switch, on by default; the letters reset when the
+  room goes back to the hub). Play again keeps a word: each loss earns one letter of «شايب» on your seat; whoever
+  spells all four loses the evening and is crowned «شايب السهرة» with the old man's fez.
+  - Server (`RoomOldMaid.js`): `settings.word` (`start`'s `word`, default on; play again keeps it; an older phone
+    sending none is on), `shared.letters { pid: 0-4 }` (`OM_WORD_LEN`), `shared.newLetter` (who got one this
+    game), `shared.shayeb { pid, name }` at four. Letters carry over play again; `start` (from the hub) begins
+    them again, and so does the next game after a crowning (the match is over).
+  - Page (`JS_RoomOldMaid.html`): the host's switch (`om_word`, remembered with the game's options, `omOpts`),
+    the letters on every seat and in the tally (`omWordHtml`: four boxes, the new letter stamped in), the
+    result's «{name} خد حرف «ي» · فاضل 1» or the crowning (`omWordResultHtml`: the fez drawn in SVG,
+    `OM_FEZ_SVG`, dropping onto 🧓) on the phones and the TV (the TV shows the crowning in place of the loser's
+    hand). English spells M-A-I-D (`om_word_letters`). Styles `.om-word`, `.om-shayeb` (Style_Boards, beside
+    `.om-tally`); the rules got a line.
+  - Chosen: the night's points still count each game as before (the match is the table's fun, not a scoring rule).
+  - Tests: `rules.mjs` («oldmaid word»: a letter a loss, kept by play again, crowned at four, reset after it and
+    from the hub, off earns none).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

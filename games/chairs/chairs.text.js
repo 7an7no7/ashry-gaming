@@ -17,6 +17,10 @@ gameText({
       mch_early_short: "قعد بدري",
       mch_winner: "{name} كسب!",
       mch_order: "مين قعد الأول؟",
+      mch_rec_new: "🏆 رقم جديد للأوضة!",
+      mch_rec_line: "{name} قعد في {ms} ms",
+      mch_rec_was: "الرقم اللي فات: {ms} ms",
+      mch_rec_room: "⏱️ رقم الأوضة: {name} · {ms} ms",
       mch_places: "الترتيب",
       mch_wins: "مرات الفوز",
       mch_fake: "وقفات خداعية",
@@ -57,6 +61,10 @@ gameText({
       mch_early_short: "too early",
       mch_winner: "{name} wins!",
       mch_order: "Who sat first?",
+      mch_rec_new: "🏆 New room record!",
+      mch_rec_line: "{name} sat in {ms} ms",
+      mch_rec_was: "The last record: {ms} ms",
+      mch_rec_room: "⏱️ Room record: {name} · {ms} ms",
       mch_places: "The places",
       mch_wins: "Wins",
       mch_fake: "Fake stops",
@@ -94,6 +102,7 @@ gameText({
                 <li>كل جولة كرسي أقل، لحد ما يفضل واحد وهو الكسبان. الترتيب بيتحسب بلحظة الضغط على موبايلك مش بسرعة النت، فمحدش بيخسر كرسي عشان شبكته بطيئة.</li>
                 <li>🎧 <b>دي جي من اللي خرج</b>: من الجولة التانية آخر واحد خرج يوقّف الموسيقى من موبايله (بعد أول 4 ثواني، وإلا تقف لوحدها عند 25)، ومعاه «وقفة خداعية» لو الوقفات شغّالة. مالوش نقط، واللي وقّع أكتر ياخد <b>«أحلى دي جي»</b>.</li>
                 <li>🥁 <b>النهائي</b>: لما يفضل اتنين وكرسي واحد، اللعب بيبقى على مسرح بالزفة. وبعد الوقفة إعادة بالبطيء للاتنين وهما بيجروا على الكرسي، والفرق بينهم بالثواني.</li>
+                <li>⏱️ <b>رقم الأوضة</b>: الأوضة فاكرة أسرع قعدة في السهرة كلها (حتى لو لعبتوا تاني)، واللي يكسره يطلع له «رقم جديد للأوضة!» باسمه.</li>
             </ol>
             <p class="help-sub">📺 التلفزيون</p>
             <p class="text-xs">الحلبة كبيرة والموسيقى منه، وبيظهر مين قعد الأول وبكام مللي ثانية.</p>`,
@@ -107,6 +116,7 @@ gameText({
                 <li>One chair fewer each round, until one is left: the winner. Taps are ranked by the moment you tapped on your phone, not by your connection, so a slow network costs nobody a chair.</li>
                 <li>🎧 <b>The one out is the DJ</b>: from round 2 the latest one out stops the music from their phone (after the first 4 seconds; at 25 it stops by itself), with a «Fake stop» when fake stops are on. The DJ scores nothing; whoever caught the most is <b>«Best DJ»</b>.</li>
                 <li>🥁 <b>The final</b>: when two are left with one chair, it's played on a stage to the zaffa. After the stop, a slow-motion replay shows both racing for the chair, and the gap between them in seconds.</li>
+                <li>⏱️ <b>Room record</b>: the room remembers the fastest sit of the whole evening (play again too); whoever beats it gets «New room record!» with their name.</li>
             </ol>
             <p class="help-sub">📺 The TV</p>
             <p class="text-xs">The ring is big, the music plays from it, and it shows who sat first and in how many milliseconds.</p>`,

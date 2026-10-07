@@ -248,6 +248,31 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
 - Only the one who answered can take it back («غلطت»).
 - A team's wins in a row of games show on its pill (`tw`); each member's wins are the room's board.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **843 «علامة استفهام»** (no extra rule asked). A third state for a face on your own board: a «؟» sticker,
+  tilted, for an answer the table argues about. Your own note: it never leaves the phone and counts as up.
+  - The hold already opened the face big (380 ms), so the sticker is the same hold kept on: at `GW_QM_HOLD_MS`
+    (1.1 s) the face gets «؟» (or loses it), with a buzz and a toast, the big face showing it too
+    (`gwWireHold`'s `qTimer`, `gwQmToggle`). Only on your own board while playing, only on a face still up; a tap
+    still puts it down (and takes the sticker off). Kept in `gwLocal.qm` per room, deal and board
+    (`gwQmKey`), and in `localStorage` (`ashryGwQm`) so a reload keeps it. `gwBoardHtml`'s `qm` option draws
+    `.is-q` and the sticker (`GW_QM_STICKER`, `.gw-card__q`, Style_Boards). The hold hint and the rules say so.
+- **845 «أحسن سؤال»** (no extra rule asked). At the end the TV replays the winner's questions, each with how
+  many faces it put down, and crowns «👑 أحسن سؤال» (the one that put down the most).
+  - Server (`RoomGuessWho.js`): `gwAskOpen` (in `gwTakeAnswer`) notes the question, its answer and the asker's
+    board in `room._gw.asks[seat]`; `gwAskClose` (when the turn moves on from `flip`, `gwNextTurn`, and at the end)
+    counts the faces down now that weren't then; «غلطت» (`gwUnanswer`) takes the question out; `gwEnd` publishes
+    `shared.asks` [seat 0's, seat 1's]: `[{ kind, text, answer, n }]` (all public already). A new deal clears it.
+    Teams: a seat is a team, so it is the winning team's questions.
+  - Page (`JS_GuessWho.html`): `gwBestHtml` after the result (`gwOverHtml`): on the TV the list (at most
+    `GW_BEST_ROWS` 6 - the most telling, in the order asked), rows rising one by one, each count counting up
+    (`countUp` in the TV's `after`), the best row gold and crowned; on a phone one line «👑 أحسن سؤال: «…» وقّع N
+    وشوش». Nothing when no question put a face down. Words in the chunk's `GW_TEXT` (the shell's budget), styles
+    `.gw-best*`.
+  - Tests: `rules.mjs` («guesswho best question»: counted on the turn's end with a face put back up taken off,
+    «غلطت», published at the end, cleared for the next game).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

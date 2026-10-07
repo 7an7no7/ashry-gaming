@@ -22,7 +22,7 @@ const MEMORY_THEMES = {
 const MEMORY_SIZES = {
   s: { cols: 4, pairs: 6 },     // 12 cards
   m: { cols: 4, pairs: 8 },     // 16
-  l: { cols: 5, pairs: 15 }     // 30
+  l: { cols: 5, pairs: 15, wide: 6 }  // 30: 5 × 6 upright, 6 × 5 on a phone on its side and wide screens (1079)
 };
 const MEMORY_BEST_KEY = 'ashryMemoryBest_v1';
 
@@ -125,21 +125,23 @@ function paintMemory() {
   if (!el) return;
   const size = MEMORY_SIZES[m.size] || MEMORY_SIZES.m;
   const two = m.mode === 'duo';
+  const wide = size.wide || size.cols;
   el.innerHTML = `
-    <div class="mem-bar">
+    <div class="mem-bar" ${two ? `data-turn="${m.turn}"` : ''}>
       ${two ? `
+        <span class="mem-turn" aria-hidden="true"></span>
         <div class="mem-player ${m.turn === 0 ? 'is-turn' : ''}" id="mem-p0">
-          <span class="mem-player__name">${escapeHTML(t.mem_player1 || '')}</span>
+          <span class="mem-player__name"><i class="mem-player__dot" aria-hidden="true"></i>${escapeHTML(t.mem_player1 || '')}</span>
           <b class="metric" id="mem-s0">${m.scores[0]}</b>
         </div>
         <div class="mem-player ${m.turn === 1 ? 'is-turn' : ''}" id="mem-p1">
-          <span class="mem-player__name">${escapeHTML(t.mem_player2 || '')}</span>
+          <span class="mem-player__name"><i class="mem-player__dot" aria-hidden="true"></i>${escapeHTML(t.mem_player2 || '')}</span>
           <b class="metric" id="mem-s1">${m.scores[1]}</b>
         </div>` : `
         <div class="mem-player"><span class="mem-player__name">${escapeHTML(t.mem_moves || '')}</span><b class="metric" id="mem-moves">${m.moves}</b></div>
         <div class="mem-player"><span class="mem-player__name">${escapeHTML(t.mem_time || '')}</span><b class="metric" id="mem-time">${memoryClockText(m.phase === 'play' ? (Date.now() - m.startedAt) / 1000 : m.elapsed)}</b></div>`}
     </div>
-    <div class="mem-grid" style="--mem-cols: ${size.cols}; --mem-rows: ${Math.ceil(size.pairs * 2 / size.cols)}">
+    <div class="mem-grid ${two ? 'mem-grid--duo' : ''}" ${two ? `data-turn="${m.turn}"` : ''} style="--mem-cols: ${size.cols}; --mem-rows: ${Math.ceil(size.pairs * 2 / size.cols)}; --mem-wcols: ${wide}; --mem-wrows: ${Math.ceil(size.pairs * 2 / wide)}">
       ${m.cards.map((c, i) => `
         <button type="button" class="mem-card ${c.m ? 'is-matched' : ''} ${m.flipped.indexOf(i) !== -1 ? 'is-flipped' : ''}"
                 id="mem-card-${i}" onclick="flipMemory(${i})" aria-label="${escapeHTML(t.mem_card || '')} ${i + 1}${c.m || m.flipped.indexOf(i) !== -1 ? ' ' + c.e : ''}">
@@ -244,6 +246,31 @@ function memoryPaintBar() {
   const p0 = document.getElementById('mem-p0'), p1 = document.getElementById('mem-p1');
   if (p0) p0.classList.toggle('is-turn', m.turn === 0);
   if (p1) p1.classList.toggle('is-turn', m.turn === 1);
+  memoryTurnSlide(m);
+}
+
+/**
+ * 1080 (the owner's picks, 7 Oct 2026): with two players the turn is a ring in
+ * the player's colour that slides from one chip to the other (as duelPillsAfter's
+ * does), and the board's edge takes the same colour.
+ */
+function memoryTurnSlide(m) {
+  const bar = document.querySelector('#memory-stage .mem-bar');
+  const grid = document.querySelector('#memory-stage .mem-grid');
+  if (!bar || m.mode !== 'duo') return;
+  const turn = String(m.turn);
+  if (bar.dataset.turn === turn) return;
+  const ring = bar.querySelector('.mem-turn');
+  const from = ring && ring.getBoundingClientRect();
+  bar.dataset.turn = turn;
+  if (grid) grid.dataset.turn = turn;
+  if (!ring || !from || !ring.animate || (typeof motionOff === 'function' && motionOff())) return;
+  const to = ring.getBoundingClientRect();
+  if (!to.width) return;
+  ring.animate([
+    { transform: 'translate(' + (from.left - to.left) + 'px, ' + (from.top - to.top) + 'px)' },
+    { transform: 'translate(0px, 0px)' }
+  ], { duration: 380, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
 }
 
 function memoryFinish() {

@@ -657,6 +657,33 @@ Shared files touched: `styles/Style_Screens.html` (تشابه's rules: the dots,
 landscape rules, خيوط's band, bubble and boxes, the word wheel's typed word, flight, 🚪 and bonus
 chips; `#view-play-wordwheel .view-actions` removed).
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **1079 الذاكرة: the big board laid out for a wide screen.** `MEMORY_SIZES.l` has
+  `wide: 6`: the 30 cards are 5 × 6 on an upright phone and 6 × 5 on a phone on its side
+  and every wide screen (`--mem-wcols` / `--mem-wrows` on `.mem-grid`, read by the wide
+  layout's rule in `Style_Party.html`), so they are about a fifth bigger there (53px
+  instead of 44 at 667×375). 6 rather than 10: 10 × 3 measured smaller at every size,
+  since the board's width is capped at 62vw. The small and middle boards are unchanged.
+- **1080 الذاكرة: whose turn, impossible to miss.** With two players each chip has a colour
+  dot (player 1 blue, player 2 orange, `--mem-c1` / `--mem-c2`), one ring in the player's
+  colour slides from chip to chip when the turn passes (`.mem-turn`, moved by
+  `memoryTurnSlide` from `memoryPaintBar`, a Web Animation from the old place,
+  transform only, set at once when motion is off), and the board's edge takes that colour
+  (`.mem-grid--duo[data-turn]`).
+- **1095 تحدي اليوم: three states at a glance.** Each row is one of three: «العب» a badge in
+  the game's own colour (`.daily-row__go`), «كمّل» amber with a half ring
+  (`.daily-row__go.is-going`, `.daily-ring`) and an amber edge on the row, done: the row
+  dimmed (`surface-2`, the icon faded) and its result in green. Chosen: the ring is a fixed
+  half ring meaning «started» - the games keep no common measure of progress to fill it
+  with.
+- **1097 تحدي اليوم: the done-all moment.** The first time this phone shows the day's dailies
+  all done (`dailyGreetOnce`, `ashryDailyGreet_v1` = the day, so a reload doesn't greet
+  again) the top card shows the streak (`.daily-allstreak`, 🔥 n days), which pops in and
+  counts up to today's number, the page scrolls to the top, the share buttons pop in after
+  it (`.daily-pop`), and confetti with the success sound follow (`afterReveal`). Later
+  visits that day show the same card, still.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

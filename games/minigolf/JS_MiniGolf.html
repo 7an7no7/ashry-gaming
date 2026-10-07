@@ -3202,14 +3202,18 @@ function mgMountIn(root, onReady, onFail) {
 /** «المطلوب 3 · أقصى 6» ("Target 3 · max 6"): what the hole asks for and the most strokes it allows. */
 const mgParMax = (h) => mgT('mg_par_max', { n: h.par, m: golfMaxOf(h) });
 
-/** The strip at the top: the hole, its par and most strokes, the strokes; "last stroke" on the final one; `extra` on the end (a clock, whose turn). */
+/**
+ * The strip at the top: the hole, its par and most strokes, the strokes; "last stroke" on the final one; `extra` on the end (a clock, whose turn).
+ * 1072 (7 Oct 2026): on an upright phone only the hole's number and «٢/٦ ضربات» stay
+ * (`.mg-hud__wide` is hidden there); the name, the level and the par are the name card's.
+ */
 function mgHudHtml(o) {
   const chips = [
-    `<span class="mg-chip mg-chip--hole">⛳ <b>${escapeHTML(mgT('mg_hole', { n: o.hole + 1, m: o.holes }))}</b><span class="mg-chip__name">${escapeHTML(mgHoleName(o.h))}</span></span>`,
-    `<span class="mg-chip mg-chip--lvl mg-lvl--${o.h.lvl}">${escapeHTML(mgT('mg_level_' + GOLF_LEVELS[o.h.lvl - 1]))}</span>`,
-    `<span class="mg-chip">${escapeHTML(mgParMax(o.h))}</span>`
+    `<span class="mg-chip mg-chip--hole">⛳ <b>${escapeHTML(mgT('mg_hole', { n: o.hole + 1, m: o.holes }))}</b><span class="mg-chip__name mg-hud__wide">${escapeHTML(mgHoleName(o.h))}</span></span>`,
+    `<span class="mg-chip mg-chip--lvl mg-lvl--${o.h.lvl} mg-hud__wide">${escapeHTML(mgT('mg_level_' + GOLF_LEVELS[o.h.lvl - 1]))}</span>`,
+    `<span class="mg-chip mg-hud__wide">${escapeHTML(mgParMax(o.h))}</span>`
   ];
-  if (typeof o.strokes === 'number') chips.push(`<span class="mg-chip mg-chip--strokes">${escapeHTML(mgT('mg_strokes', { n: o.strokes }))}</span>`);
+  if (typeof o.strokes === 'number') chips.push(`<span class="mg-chip mg-chip--strokes">${escapeHTML(mgT('mg_strokes_of', { n: o.strokes, m: golfMaxOf(o.h) }))}</span>`);
   if (o.last) chips.push(`<span class="mg-chip mg-chip--last">${escapeHTML(mgT('mg_last_stroke'))}</span>`);
   if (typeof o.vsPar === 'number') chips.push(`<span class="mg-chip mg-chip--par">${escapeHTML(mgDelta(o.vsPar))}</span>`);
   if (o.extra) chips.push(o.extra);

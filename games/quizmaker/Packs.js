@@ -15,7 +15,8 @@
 
    packCleanQuiz(raw)  -> { pack } or { error, at }   (at: the question's index)
    packCleanWords(raw) -> { pack } or { error }
-   A clean quiz:  { title, emoji, questions: [{ q, e, c: [4 strings], a: 0..3 }] }
+   A clean quiz:  { title, emoji, questions: [{ q, e, c: [4 strings], a: 0..3, s? }] }
+                  (s: a section heading that starts at this question, «أسئلة عن جدو» - 769, 7 Oct 2026)
    A clean words: { title, words: [string] }
    Errors are codes (the page words them: pk_err_<code> in TRANSLATIONS).
    ========================================================================= */
@@ -29,6 +30,7 @@ const PACK_LIMITS = {
   q: 140,           // one question
   choice: 60,       // one choice
   emoji: 16,        // a question's emoji (one emoji, a flag or a family is several code units)
+  section: 30,      // a section's heading (769: «أفلام», «أسئلة عن جدو»)
   words: 300,       // words in a word pack
   word: 40,         // one word, name or inside joke
   minWords: 6       // a word pack worth offering as a category
@@ -90,7 +92,8 @@ function packCleanQuiz(raw, blind) {
       if (!blind) return { error: 'no_right', at: i };
       a = -1;
     }
-    questions.push({ q, e: packEmoji(item.e), c, a });
+    const sec = packText(item.s, PACK_LIMITS.section);
+    questions.push(sec ? { q, e: packEmoji(item.e), c, a, s: sec } : { q, e: packEmoji(item.e), c, a });
   }
   return { pack: { title, emoji: packEmoji(src.emoji), questions } };
 }
@@ -102,7 +105,7 @@ function packCleanQuiz(raw, blind) {
  * question's answer as it is played (/pack/answer, packAnswerOf).
  */
 const packHideAnswers = (pack) => Object.assign({}, pack, {
-  questions: ((pack && pack.questions) || []).map((x) => ({ q: x.q, e: x.e || '', c: (x.c || []).slice(), a: -1 }))
+  questions: ((pack && pack.questions) || []).map((x) => Object.assign({ q: x.q, e: x.e || '', c: (x.c || []).slice(), a: -1 }, x.s ? { s: x.s } : {}))
 });
 
 /** Question `i`'s right choice when its text is still `q` (else the one question with that text): 0..3, or -1. */

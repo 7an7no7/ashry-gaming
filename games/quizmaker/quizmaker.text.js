@@ -27,6 +27,9 @@ gameText({
       qm_emoji: "إيموجي",
       qm_no_emoji: "من غير إيموجي",
       qm_dup: "نسخة",
+      qm_sec_add: "قسم من هنا",
+      qm_sec_ph: "اسم القسم: أفلام، أسئلة عن جدو…",
+      qm_sec_remove: "شيل القسم",
       qm_del: "امسح",
       qm_done: "تمام",
       qm_up: "لفوق",
@@ -122,6 +125,9 @@ gameText({
       qm_emoji: "Emoji",
       qm_no_emoji: "No emoji",
       qm_dup: "Copy",
+      qm_sec_add: "Section from here",
+      qm_sec_ph: "Section name: Films, About Grandpa…",
+      qm_sec_remove: "Remove the section",
       qm_del: "Delete",
       qm_done: "Done",
       qm_up: "Up",
@@ -200,6 +206,7 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>من <b>الأدوات ← اعمل مسابقتك</b> (أو من كارت تحدي المعلومات): <b>＋ مسابقة جديدة</b>، اكتب اسمها، وكل سؤال: السؤال، <b>أربع إجابات</b>، ودوس ✓ جنب الصح. كلام وإيموجي بس.</li>
                 <li>دوسة على أي سؤال في القايمة تفتحه وتعدّله مكانه: ⧉ نسخة، 🗑️ امسح، ▲▼ أو اسحب ⋮⋮ عشان ترتّب. لحد 60 سؤال.</li>
+                <li><b>📂 قسم من هنا</b> يحط عنوان قسم قبل السؤال («أفلام»، «أسئلة عن جدو»): في لوحة الفرق كل قسم بيبقى عمود باسمه، وفي الغرفة والجرس اسم القسم بيظهر فوق السؤال.</li>
                 <li>كل حاجة بتتحفظ على الموبايل وإنت بتكتب. <b>احفظ وخد الكود</b> بيبعتها للسيرفر وبيديك كود من 6 حروف تبعته للعيلة.</li>
                 <li>بعد الحفظ تختار: <b>📱 غرفة</b> (كل واحد يجاوب من موبايله، أسرع إجابة صح بتاخد أكتر)، <b>🏆 لوحة الفرق</b> (فريقين على شاشة واحدة: الأسئلة بترتيبها، 5 في كل عمود من 100 لـ 500)، أو <b>🔔 الجرس</b> (إنت بتقرا، والإجابة الصح على موبايلك إنت بس).</li>
                 <li>اللي معاه الكود يفتحها من <b>عندك كود مسابقة؟</b> ويلعبها؛ التعديل عند اللي عملها بس، والباقي يقدر يعمل نسخة ليه.</li>
@@ -218,6 +225,7 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>From <b>Tools → Make your quiz</b> (or the Trivia card): <b>＋ New quiz</b>, name it, and for each question write it, <b>four answers</b>, and tap ✓ beside the right one. Words and emoji only.</li>
                 <li>Tap any question in the list to edit it in place: ⧉ copy, 🗑️ delete, ▲▼ or drag ⋮⋮ to reorder. Up to 60 questions.</li>
+                <li><b>📂 Section from here</b> puts a section heading before a question («Films», «About Grandpa»): on the team board each section is a column with its name, and in a room and on the buzzer its name shows over the question.</li>
                 <li>Everything is kept on the phone as you type. <b>Save and get the code</b> sends it to the server and gives you a 6-letter code to send the family.</li>
                 <li>Then pick: <b>📱 A room</b> (everyone answers on their phone, the fastest right answer scores most), <b>🏆 Team board</b> (two teams on one screen: the questions in order, 5 a column from 100 to 500) or <b>🔔 The buzzer</b> (you read; the right answer is on your phone only).</li>
                 <li>Anyone with the code opens it from <b>Got a quiz code?</b> and plays it; only its author can change it, the rest can make their own copy.</li>

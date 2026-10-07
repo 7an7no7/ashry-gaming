@@ -193,6 +193,22 @@
 .mem-card__face--front { background: var(--surface-solid); border: 2px solid var(--accent-border); transform: rotateY(180deg); }
 .mem-card.is-matched .mem-card__face--front { border-color: var(--success); background: var(--success-soft); }
 .mem-card.is-matched { pointer-events: none; }
+/* 1080 (7 Oct 2026): two players - each chip has its colour, one ring slides to
+   whoever is to play (memoryTurnSlide) and the board's edge takes their colour. */
+#memory-stage { --mem-c1: #3b82f6; --mem-c2: #f97316; }
+.mem-bar[data-turn] { position: relative; }
+.mem-player__dot { display: inline-block; width: 0.6rem; height: 0.6rem; margin-inline-end: var(--sp-1); border-radius: 50%; background: var(--mem-c1); vertical-align: middle; }
+#mem-p1 .mem-player__dot { background: var(--mem-c2); }
+.mem-turn { grid-row: 1; grid-column: 1; z-index: 2; pointer-events: none; border: 3px solid var(--mem-turn-c, var(--accent)); border-radius: var(--r-md); }
+.mem-bar[data-turn] .mem-player { grid-row: 1; }
+.mem-bar[data-turn] #mem-p0 { grid-column: 1; }
+.mem-bar[data-turn] #mem-p1 { grid-column: 2; }
+.mem-bar[data-turn="0"] .mem-turn { grid-column: 1; --mem-turn-c: var(--mem-c1); }
+.mem-bar[data-turn="1"] .mem-turn { grid-column: 2; --mem-turn-c: var(--mem-c2); }
+.mem-bar[data-turn] .mem-player.is-turn { border-color: transparent; }
+.mem-grid--duo { padding: var(--sp-2); border-radius: var(--r-lg); box-shadow: 0 0 0 3px var(--mem-edge, transparent); transition: box-shadow var(--dur-2) var(--ease-out); }
+.mem-grid--duo[data-turn="0"] { --mem-edge: var(--mem-c1); }
+.mem-grid--duo[data-turn="1"] { --mem-edge: var(--mem-c2); }
 
 /* --- إكس أو --- */
 .xo-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); width: min(100%, 22rem); margin: 0 auto var(--sp-4); }
@@ -379,8 +395,9 @@
   #xo-stage .xo-board--lines { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 4.5rem), 60vw); }
   #memory-stage { grid-template-areas: "grid bar" "grid actions" "grid ." "grid ."; }
   #memory-stage .mem-bar { grid-area: bar; }
-  #memory-stage .mem-grid { grid-area: grid; width: min(calc((var(--app-h, 100vh) - var(--header-h) - 3.25rem) * var(--mem-cols, 4) / var(--mem-rows, 4)), 62vw); margin: 0; container-type: inline-size; }
-  #memory-stage .mem-card__face--front { font-size: calc(46cqw / var(--mem-cols, 4)); }
+  /* 1079: the wide layout's own columns (--mem-wcols: the 30 cards 6 × 5, not 5 × 6), so the cards stay big. */
+  #memory-stage .mem-grid { grid-area: grid; grid-template-columns: repeat(var(--mem-wcols, var(--mem-cols, 4)), minmax(0, 1fr)); width: min(calc((var(--app-h, 100vh) - var(--header-h) - 3.25rem) * var(--mem-wcols, var(--mem-cols, 4)) / var(--mem-wrows, var(--mem-rows, 4))), 62vw); margin: 0; container-type: inline-size; }
+  #memory-stage .mem-card__face--front { font-size: calc(46cqw / var(--mem-wcols, var(--mem-cols, 4))); }
   #memory-stage .view-actions { grid-area: actions; position: static; margin: 0; padding: 0; background: none; }
   #xo-stage .xo-solo__actions { grid-column: 2; grid-row: 2; position: static; margin: 0; padding: 0; background: none; }
   #xo-stage .xo-solo__actions { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-2); }

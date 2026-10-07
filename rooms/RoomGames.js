@@ -234,11 +234,18 @@ const roomPackAdopt = (room, action, payload) => {
 const roomPackQuiz = (room) => (room._pack && room._pack.kind === 'quiz' ? room._pack : null);
 /** The family's words this game deals from, or null. */
 const roomPackWords = (room) => (room._pack && room._pack.kind === 'words' ? room._pack.pack.words : null);
-/** A quiz's questions as a deck: the choices shuffled (the author often writes the right one first). */
-const roomPackDeck = (quiz) => quiz.pack.questions.map(q => {
-  const order = shuffled([0, 1, 2, 3]);
-  return { q: (q.e ? q.e + ' ' : '') + q.q, choices: order.map(k => q.c[k]), answer: order.indexOf(q.a) };
-});
+/**
+ * A quiz's questions as a deck: the choices shuffled (the author often writes the right one first).
+ * `sec`: the section the question is in (769: the last heading at or before it), '' before any.
+ */
+const roomPackDeck = (quiz) => {
+  let sec = '';
+  return quiz.pack.questions.map(q => {
+    if (q.s) sec = String(q.s);
+    const order = shuffled([0, 1, 2, 3]);
+    return { q: (q.e ? q.e + ' ' : '') + q.q, choices: order.map(k => q.c[k]), answer: order.indexOf(q.a), sec: sec };
+  });
+};
 
 const staleTap = (payload, field, current) => {
   if (!payload || payload[field] === undefined || payload[field] === null) return false;

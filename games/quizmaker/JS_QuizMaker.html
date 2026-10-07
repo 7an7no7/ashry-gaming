@@ -218,6 +218,41 @@ function qmMissing(q) {
   return !!packCleanQuiz({ title: 'x', questions: [q] }).error;
 }
 
+/**
+ * 769 (7 Oct 2026): a section heading starts at a question (q.s): a row of its own over
+ * it in the list, typed in place, ✕ to take it away; «📂 قسم من هنا» adds one.
+ */
+function qmSecHtml(q, i) {
+  if (typeof q.s !== 'string') return '';
+  const t = qmT();
+  return `
+    <div class="qsec" data-qm-sec="${i}">
+      <span class="qsec__ic" aria-hidden="true">📂</span>
+      <input type="text" class="qsec__in" maxlength="${PACK_LIMITS.section}" autocomplete="off" value="${escapeHTML(q.s)}"
+             placeholder="${escapeHTML(t.qm_sec_ph || '')}" aria-label="${escapeHTML(t.qm_sec_ph || '')}" oninput="qmSetSec(${i}, this.value)">
+      <button type="button" class="qsec__x" onclick="qmDropSec(${i})" aria-label="${escapeHTML(t.qm_sec_remove || '')}">✕</button>
+    </div>`;
+}
+function qmAddSec(i) {
+  const quiz = qmQuiz(); if (!quiz || !quiz.questions[i]) return;
+  if (typeof quiz.questions[i].s !== 'string') quiz.questions[i].s = '';
+  qmKeep(quiz);
+  qmRender();
+  const el = document.querySelector(`#qm-list [data-qm-sec="${i}"]`);
+  if (el) { if (!motionOff()) el.classList.add('is-new'); const f = el.querySelector('input'); if (f) f.focus(); }
+}
+function qmSetSec(i, v) {
+  const quiz = qmQuiz(); if (!quiz || !quiz.questions[i]) return;
+  quiz.questions[i].s = String(v || '').slice(0, PACK_LIMITS.section);
+  qmKeep(quiz);
+}
+function qmDropSec(i) {
+  const quiz = qmQuiz(); if (!quiz || !quiz.questions[i]) return;
+  delete quiz.questions[i].s;
+  qmKeep(quiz);
+  qmKeepTyping(() => qmRender());
+}
+
 function qmRowHtml(q, i) {
   const t = qmT();
   const right = q.a >= 0 && q.c[q.a] ? '✓ ' + q.c[q.a] : '';
@@ -265,6 +300,7 @@ function qmOpenHtml(q, i, n) {
         <button type="button" class="qopen__tool" onclick="qmMove(${i}, -1)" ${i === 0 ? 'disabled' : ''} aria-label="${escapeHTML(t.qm_up || '')}">▲</button>
         <button type="button" class="qopen__tool" onclick="qmMove(${i}, 1)" ${i === n - 1 ? 'disabled' : ''} aria-label="${escapeHTML(t.qm_down || '')}">▼</button>
         <button type="button" class="qopen__tool" onclick="qmDuplicate(${i})" ${n >= PACK_LIMITS.questions ? 'disabled' : ''}>⧉ ${escapeHTML(t.qm_dup || '')}</button>
+        ${typeof q.s === 'string' ? '' : `<button type="button" class="qopen__tool" onclick="qmAddSec(${i})">📂 ${escapeHTML(t.qm_sec_add || '')}</button>`}
         <button type="button" class="qopen__tool" onclick="qmDelete(${i})">🗑️ ${escapeHTML(t.qm_del || '')}</button>
         <button type="button" class="qopen__tool qopen__done" onclick="qmCloseQ()">${escapeHTML(t.qm_done || '')} ✓</button>
       </div>
@@ -279,7 +315,7 @@ function qmRender() {
   const t = qmT();
   const qs = quiz.questions || [];
   if (qmEdit.open >= qs.length) qmEdit.open = -1;
-  const rows = qs.map((q, i) => (i === qmEdit.open ? qmOpenHtml(q, i, qs.length) : qmRowHtml(q, i))).join('');
+  const rows = qs.map((q, i) => qmSecHtml(q, i) + (i === qmEdit.open ? qmOpenHtml(q, i, qs.length) : qmRowHtml(q, i))).join('');
   const full = qs.length >= PACK_LIMITS.questions;
   box.innerHTML = `
     <div class="qz-title">
@@ -433,7 +469,9 @@ function qmAddQ() {
 function qmDuplicate(i) {
   const quiz = qmQuiz(); if (!quiz || !quiz.questions[i]) return;
   if (quiz.questions.length >= PACK_LIMITS.questions) return;
-  quiz.questions.splice(i + 1, 0, JSON.parse(JSON.stringify(quiz.questions[i])));
+  const copy = JSON.parse(JSON.stringify(quiz.questions[i]));
+  delete copy.s;   // the copy goes on in the same section
+  quiz.questions.splice(i + 1, 0, copy);
   qmKeep(quiz);
   qmOpenQ(i + 1);
   const card = document.getElementById('qm-open');

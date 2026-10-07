@@ -228,6 +228,10 @@ const COLLECT = (chain) => `(() => {
       const cs = getComputedStyle(el);
       out[k] = PROPS.map(p => cs.getPropertyValue(p));
       // ::before and ::after, which most of the arcade look is drawn with.
+      // Its own words too (its text, placeholder, tooltip, label): what the words split moves (8 Oct 2026).
+      const own = [...el.childNodes].filter(n => n.nodeType === 3).map(n => n.data).join('').replace(/\\s+/g, ' ').trim() +
+        ['placeholder', 'title', 'aria-label'].map(a => el.getAttribute(a) ? ' |' + a + '=' + el.getAttribute(a) : '').join('');
+      if (own) out[k + ' #text'] = PROPS.map(() => '').concat(own);
       ['::before', '::after'].forEach(ps => { const c = getComputedStyle(el, ps); if (c.content && c.content !== 'none') out[k + ps] = PROPS.map(p => c.getPropertyValue(p)).concat(c.content); });
     });
   };
@@ -270,10 +274,20 @@ async function checkMisses(before, after) {
 }
 
 /* --- every screen ---------------------------------------------------------------------- */
+/* Every screen, in the page's order: the ones in the page and the ones a game's chunk brings
+   (their place is a <!--[lz:view-…]--> comment until it comes, lazy-split.mjs). Reading only
+   [id^="view-"] saw just the shell's 32 once both builds had B1 (8 Oct 2026), as test-ui.mjs's
+   ALL_VIEWS does. */
+const ALL_VIEWS = `(() => { const out = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    const id = n.nodeType === 8 ? ((/^\\[lz:view-([\\w-]+)\\]$/.exec(n.data) || [])[1]) : (n.id && n.id.indexOf('view-') === 0 ? n.id.slice(5) : null);
+    if (id && out.indexOf(id) === -1) out.push(id);
+  }
+  return out; })()`;
 async function screens(w, h, looks, motion) {
   const before = await newTab('before', w, h), after = await newTab('after', w, h);
   await open(before, BASE + '/before/', motion); await open(after, BASE + '/after/', motion);
-  const views = await ev(before, `[...document.querySelectorAll('[id^="view-"]')].map(v => v.id.slice(5)).filter(id => id.indexOf('room-') !== 0)`);
+  const views = (await ev(before, ALL_VIEWS)).filter((id) => id.indexOf('room-') !== 0);
   let n = 0, bad = 0;
   for (const [lang, dark] of looks) {
     await setLook(before, lang, dark); await setLook(after, lang, dark);
@@ -297,7 +311,7 @@ async function screens(w, h, looks, motion) {
 async function games(w, h) {
   const before = await newTab('before', w, h), after = await newTab('after', w, h);
   await open(before, BASE + '/before/'); await open(after, BASE + '/after/');
-  const setups = await ev(before, `[...document.querySelectorAll('[id^="view-setup-"]')].map(v => v.id.slice(5))`);
+  const setups = (await ev(before, ALL_VIEWS)).filter((id) => id.indexOf('setup-') === 0);
   let n = 0, bad = 0;
   const START = (id) => `(() => {
     const v = document.getElementById('view-${id}');

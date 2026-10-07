@@ -89,13 +89,16 @@ const built = await assemble({
   // A game's own rules (css-split.mjs) minified as the page's styles are below.
   prepareCss: async (css) => (MINIFY ? minifyCss(css) : css),
   splitCss: process.env.CSS_SPLIT !== '0',
+  // A game's own words (text-split.mjs) go with it; TEXT_SPLIT=0 keeps every word in the page.
+  splitText: process.env.TEXT_SPLIT !== '0',
   name: (c, code) => `${c.id}.${hashOf(code)}.js`
 });
 let html = built.html;
 if (built.plan) {
   const st = built.styles;
   console.log(`markup: ${built.plan.markup.views} screens and ${built.plan.markup.popups} popups come with their chunks` +
-    (st ? `; styles: ${st.rules} rules and ${st.keyframes} keyframes of ${st.owned} that are one game's (css-split.mjs) come with theirs` : ''));
+    (st ? `; styles: ${st.rules} rules and ${st.keyframes} keyframes of ${st.owned} that are one game's (css-split.mjs) come with theirs` : '') +
+    (built.words ? `; words: ${built.words.moved} of ${built.words.keys} keys, each read by one game only (text-split.mjs), come with ${built.words.chunks} chunks` : ''));
 }
 
 const HEAD =`<title>عشرى جيمينج</title>

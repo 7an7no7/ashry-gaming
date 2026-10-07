@@ -193,6 +193,19 @@ window.addEventListener('online', function () {
   lzRetry();
 });
 
+/* --- a game's words come with its code ---------------------------------------
+   8 Oct 2026: the TRANSLATIONS keys the build can prove only one chunk reads
+   (tools/text-split.mjs: named nowhere in the shell, another chunk or the rooms
+   server) are taken out of the page's TRANSLATIONS and put back by the chunk,
+   first of all - before its styles, its screens (whose data-i18n they fill) and
+   its code - so the code reads t.<key> as it always did. */
+function lzWords(tr) {
+  for (var l in tr) {
+    var to = TRANSLATIONS[l] || (TRANSLATIONS[l] = {});
+    for (var k in tr[l]) to[k] = tr[l][k];
+  }
+}
+
 /* --- a game's screens come with its code ------------------------------------
    The owner's B1, 7 Oct 2026: the page used to carry every game's screens (208
    of them, 5,200 elements behind the home); now a chunk starts by putting its

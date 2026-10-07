@@ -459,3 +459,138 @@ change.
   failed - 131 screens at each of the three sizes in both looks (the list now walks the
   comments too), 54 games started, every room game on five phones and a TV, the fixes, the
   program, the mission, the offline copy and its updates.
+
+## Each game's words travel with its code (8 Oct 2026: making room under 760 KB)
+
+The owner raised the budget 730 -> 760 KB on 7 Oct 2026 ("now, and make room later"); the
+first visit was then 757 KB on 7ef8f02. This is the making room.
+
+### What the shell was made of (measured first, 7ef8f02)
+
+Each part of the page minified as the site build does, gzipped at level 9 alone, and its share
+of the whole (the page gzipped with and without it); the page here is 735 KB without the spy
+words that build-site.mjs writes into `SERVER_DATA` afterwards (22 KB more: 757).
+
+| part | alone | share | raw (minified) |
+| --- | ---: | ---: | ---: |
+| JS_Translations (TRANSLATIONS, ar + en, 5,921 keys) | 176.7 | 175.6 | 466 KB |
+| JS_GameRules (GAME_RULES: Help, the first-play card, the home's search) | 127.6 | 128.2 | 429 KB |
+| JS_Core | 45.8 | 46.0 | 189 KB |
+| Style_Rooms | 28.5 | 27.6 | 137 KB |
+| Style_Boards | 28.1 | 27.4 | 146 KB |
+| JS_Room | 26.6 | 25.6 | 91 KB |
+| Style_Talk | 24.2 | 23.6 | 115 KB |
+| JS_Utils | 23.6 | 22.5 | 84 KB |
+| the spy words in SERVER_DATA (SpyWords.js, both languages) | | 22 | |
+| Style_Chess | 19.9 | 19.1 | 108 KB |
+| JS_Catalog | 18.3 | 17.8 | 67 KB |
+| Style_Cards | 17.8 | 16.6 | 98 KB |
+| JS_RoomTv, JS_Motion | 15.5 each | 14.9 each | 57, 48 KB |
+| the page's markup | 15.0 | 14.2 | 61 KB |
+| Style_Night, Style_Arcade, Style_Living, Style_Screens | 14.0, 13.2, 11.7, 12.1 | 12.6, 11.8, 11.1, 10.8 | |
+| Controller.html's inline scripts (the intro, SERVER_DATA's code) | 10.7 | 9.9 | 27 KB |
+| Style_Solo, Style_Finish, Style, JS_Daily, JS_Solo, Style_Party | 5-10 each | 5-8 each | |
+| the other 25 shell files and lists | under 5 each | 46 together | |
+
+So the words were a quarter of the first visit, and most of them were games' words: 3,947 of
+the 5,921 keys (113 KB gzipped of 176) are read by one game's chunk and nothing else.
+
+### What moved: the words only one game reads (tools/text-split.mjs)
+
+The build takes out of the page's TRANSLATIONS every key it proves only one chunk reads, and
+gives it to that chunk: a chunk now starts `lzWords({ar:{…},en:{…}})` (JS_Lazy.html), which
+puts its keys back into TRANSLATIONS before its styles, its screens (whose data-i18n they fill,
+adoptMarkup) and its code - so the code reads `t.<key>` as always. Sources unchanged:
+JS_Translations.html and the games' `<id>.text.js` stay as written (check:i18n, check:names,
+make-og and every tool read them as before); `TEXT_SPLIT=0` keeps every word in the page. The
+build prints `words: N of M keys … come with K chunks`.
+
+A key moves to chunk C only when all hold (text-split.mjs):
+
+1. **Its name is written only in C** (as a word: `t.key`, `'key'`, `data-i18n="key"`, a list
+   of keys) - in C's files, its screens' markup, or chunks that all load C. Not in a shell file
+   (the shell's scripts and lists, the page's markup, GAME_RULES, the stylesheets), not in
+   another chunk, and **not in anything the rooms server runs** (every file of `FILES` in
+   rooms-worker/build.mjs and rooms-worker/src/): a key the server sends can be drawn by the
+   shell from a room's history (the chat's events) with that game's chunk never loaded.
+2. **No file outside C builds it from parts**: a quoted prefix of 3+ characters before `+` or
+   `${` (`'setup_' + id`, `` `ch_piece_${p}` ``), any quoted string ending in `_` or `-` (a
+   prefix kept for startsWith or later), a quoted suffix starting with `_` after `+` or `}`
+   (`key + '_line'`). Each such piece outside C keeps every key it could build (`setup_*`,
+   `room_err_*`, `stop_*`, `mission_*`, `bomb_*`… stay).
+3. **No chunk defines it itself** (an object key in a chunk's code: RACE_TEXT, XO_TR and the
+   like), so which of the two runs first can't matter.
+
+Why that is enough: shell code can only come to hold a moved key's name from C's code while it
+runs (C has run, its words are in), or from what C saved on the phone. The shell's lookups by a
+key in a variable (`t[x]`, 77 lines on 8 Oct 2026) were read one by one: each reads the shell's
+own lists (GAME_LIST, HELP_ENTRIES, VIEW_META, HOME_FILTERS, DAILY_GAMES, AUDIENCE_SHOUTS,
+POD_CAST_LINES…, all naming their keys in the shell, so those keys stay), a caller's argument,
+a key built from a prefix the shell writes (kept by rule 2), or a room's state, which reaches
+no listener before its game's chunk is in (Room's emit waits for it). Why each kept key stays:
+`chunkWords(page, plan, root).reasons` (lazy-split.mjs) - on 8 Oct 2026 1,072 named by the
+shell or the server, 405 built from a prefix or suffix outside, 465 read by two chunks neither
+of which loads the other, 32 defined by a chunk too.
+
+Moved, by chunk (keys a language, KB gzipped): cards 297 7.3, chess 243 6.7, smallrooms 197
+5.8, screw 208 5.8, bank 164 4.4, chessrooms 132 3.7, minigolf 133 3.7, cardscore 115 3.5,
+crew 102 3.4, box 105 3.4, exact 134 3.4, hangman 114 3.2, laser 118 3.1, snakes 103 3.0, duels
+89 2.9, dark 92 2.9, uno 97 2.8, domino 93 2.7, hum 76 2.7, and 48 more chunks under 2.5 each.
+
+### Considered and left
+
+- **GAME_RULES (128 KB)**, the biggest part left. Help, the home's search (from three letters
+  it searches the rules), the first-play card, the TV's rules card and the dots' first frames
+  read it, and Help opens on any screen with no game loaded. It could be a chunk of its own,
+  fetched right after start-up with doors at Help, the search and the first-play card - but a
+  Help or search tapped in the first moments of a first visit would then wait on it, which is a
+  change people could see. Left for the owner to decide; it would take the first visit to
+  about 530 KB.
+- **The spy words in SERVER_DATA (22 KB)**: the shell's room lobbies read them (الجاسوس's
+  categories, كلمة واحدة's words, «كلماتنا» before the app's categories), and several lists
+  read `window.SPY_WORDS` when their chunk runs. Moving them needs doors in the lobby; not
+  needed for the target.
+- **The stylesheets (about 250 KB)**: css-split.mjs already moves what it can prove; the rest
+  ties with later generic restyles (above, B2). Unchanged.
+- **Shell functions only one chunk calls**: the shell's own code is 190 KB gzipped; the few
+  candidates are small, and each would need a door. Not worth the risk next to the words.
+
+### The rule from now on
+
+A game's words go in its `<id>.text.js` as before; the build moves every key only that game's
+chunk names, by itself, every build. So a key costs the shell nothing unless the shell (or
+the rooms server, or another game) names it. To keep a word out of the shell: read it only in
+the game's own files, by its full name, and don't build its name from a prefix the shell also
+writes. A key that is shared (more than one game, the lobby, the server) stays - that is
+correct, not a leak to fix.
+
+### Measurements (8 Oct 2026, gzip 9, minified, on 7ef8f02 + this)
+
+| | before | after |
+| --- | ---: | ---: |
+| the page, what the first open downloads | 757 KB | **653 KB** |
+| TRANSLATIONS in the page | 176.7 KB (5,921 keys) | 73.9 KB (1,974 keys) |
+| the 75 chunks together | 1,685 KB | 1,798 KB |
+| everything | 2,442 KB | 2,451 KB |
+
+### Checks run (8 Oct 2026)
+
+- `npm run check`: passes (content, i18n on the merged sources, css vars, names).
+  `cd rooms-worker && npm run test:rules`: 4,055 checks, 0 failed, no secret reached a wrong
+  phone (the server is untouched).
+- **tools/compare-styles.mjs had stopped seeing the games' screens**: it listed screens with
+  `[id^="view-"]` from the "before" page, which since B1 holds only the shell's 32 - so once
+  both builds had B1 it compared 26 screens and 2 games. It now walks the `[lz:view-…]`
+  comments too (as test-ui.mjs's `ALL_VIEWS`), and compares each element's own words (its
+  text, placeholder, title, aria-label) besides its 70 properties. Run 7ef8f02 against this:
+  262/262 screens the same at 375x812 and at 1280x720 (Arabic light, English dark), 131/131
+  with the motion setting on and off, 37/54 and 36/54 games once started, 70/73 room games.
+  The games that differ are the same games, with the same counts, comparing this build with
+  itself (the control: the clocks' seconds, the dealt words, connections' tiles, the trivia
+  board's categories, the dice, the snakes' board, the countdown before a charades or أوصف لي
+  turn); the room games' are the room link's address, the ping, a vote clock's ring and the
+  snakes' moving pieces. No id missed only after, no console error only after.
+- The negative control: the same build with `lzWords` made to do nothing differs on 97 of the
+  262 screens at 375x812 (labels gone) - the words check sees a missing word.
+- `node test-ui-parallel.mjs http://localhost:8880 --retry` (own rooms server): 186 passed,
+  0 failed. `node test/play-all.mjs http://localhost:8880 --retry`: 4,399 passed, 0 failed.

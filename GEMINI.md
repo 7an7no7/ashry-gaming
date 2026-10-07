@@ -253,7 +253,16 @@ a room's state; `lzWait`, `lzRun`, `lzEnsure`); a reload onto a game gets its
 chunk written in before start-up (`lzBootWrite`). The worker keeps chunks in
 `g-chunks` across builds and fetches them all when a build installs, so one
 visit still plays every game offline; `docs/g/` keeps the last four builds'
-files. The budget is the shell's (760 KB gzipped since 7 Oct 2026, when the shell was 729 KB - the owner: raise it now, make room later; raised from 710 to 720 by the owner on 2 Oct 2026 and to 730 on 6 Oct 2026, for الليزر, when the shell was 719.8 KB); `LAZY=0` builds one page. A new game adds about 1 KB to the shell (every game's words are in it).
+files. The budget is the shell's (760 KB gzipped since 7 Oct 2026, when the shell was 729 KB - the owner: raise it now, make room later; raised from 710 to 720 by the owner on 2 Oct 2026 and to 730 on 6 Oct 2026, for الليزر, when the shell was 719.8 KB); on 8 Oct 2026 the shell measured 653 KB, after the words only one game reads went into that game's chunk (757 before). `LAZY=0` builds one page.
+
+- **A game's words travel with it** (8 Oct 2026, `tools/text-split.mjs`): the build takes
+  out of the page's `TRANSLATIONS` every key only one chunk names (not the shell, another
+  game, or the rooms server; not built from a prefix or suffix written outside it) and the
+  chunk puts it back first thing (`lzWords`, JS_Lazy.html), so code still reads `t.<key>`.
+  Sources and checks unchanged; `TEXT_SPLIT=0` keeps them all. A word costs the shell only
+  if the shell, the server or a second game names it: read a game's words in its own files,
+  by their full name. `GAME_RULES` (128 KB) stays in the shell for Help and the search
+  (`notes/lazy-load.md`, the section of 8 Oct 2026).
 
 - **A new game file goes into `CHUNKS` in `tools/lazy-split.mjs`** (or
   `SHELL_FILES` when every screen needs it); a screen it can't place goes into

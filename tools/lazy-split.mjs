@@ -19,6 +19,9 @@ import * as walk from 'acorn-walk';
 import srcMod from './sources.cjs';
 import gameText from './game-text.cjs';
 import { splitStyles } from './css-split.mjs';
+import { splitWords } from './text-split.mjs';
+import { readFileSync, readdirSync } from 'node:fs';
+import nodePath from 'node:path';
 
 const { srcPath } = srcMod;
 
@@ -660,12 +663,14 @@ export function splitMarkup({ controller, views, sources, fileChunk, shellSet, c
 }
 
 /** The code of a chunk: its files' scripts, one after another, in the page's order. */
-export function chunkCode(chunk, sources, banner, markup = null, css = '') {
+export function chunkCode(chunk, sources, banner, markup = null, css = '', words = '') {
   // First a name of the chunk's own: a second copy of the file (a retry after a timeout,
   // JS_Lazy.html lzLoadOne, racing the first) declares it again, and the browser refuses
   // the whole script before running any of it - so a chunk never runs twice.
-  // Then its styles (lzStyle) and its screens and popups (lzMarkup), into the page before any of its code runs.
+  // Then its words (lzWords: the TRANSLATIONS keys only it reads, text-split.mjs), its styles (lzStyle)
+  // and its screens and popups (lzMarkup, whose data-i18n its words fill), into the page before any of its code runs.
   return `const __lzOnce_${chunk.id.replace(/[^\w$]/g, '_')} = 1;\n` +
+    (words ? `lzWords(${words});\n` : '') +
     (css ? `lzStyle(${JSON.stringify(chunk.id)}, ${JSON.stringify(css)});\n` : '') +
     (markup && markup.length ? `lzMarkup(${JSON.stringify(markup)});\n` : '') + chunk.files.map((f) => {
     const src = sources.get(f);
@@ -882,7 +887,7 @@ const LISTS_MARK = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline th
 const MAP_MARK = /<!-- tools\/build-site\.mjs and build-preview\.mjs write the map of the chunks here[^\n]*-->/;
 const BOOT_MARK = /<!-- tools\/build-site\.mjs and build-preview\.mjs write the boot line here[^\n]*-->/;
 
-export async function assemble({ root, readFile, path, whole = false, name = (c) => `${c.id}.js`, banner = false, base = 'g/', prepare = async (code) => code, prepareMarkup = (h) => h, prepareCss = async (css) => css, splitCss = true }) {
+export async function assemble({ root, readFile, path, whole = false, name = (c) => `${c.id}.js`, banner = false, base = 'g/', prepare = async (code) => code, prepareMarkup = (h) => h, prepareCss = async (css) => css, splitCss = true, splitText = true }) {
   const page = await readPage(root, readFile, path);
   let html = page.controller;
   for (const m of [LISTS_MARK, MAP_MARK, BOOT_MARK]) {
@@ -904,7 +909,10 @@ export async function assemble({ root, readFile, path, whole = false, name = (c)
   html = p.markup.html;
   // And without the rules that are one game's alone (css-split.mjs; CSS_SPLIT=0 keeps them all).
   const styles = splitCss ? chunkStyles(page, p) : null;
-  const part = (n) => (styles && styles.parts.has(n) ? styles.parts.get(n) : page.sources.get(n));
+  // And without the words only one chunk reads (text-split.mjs; TEXT_SPLIT=0 keeps them all).
+  const words = splitText ? chunkWords(page, p, root) : null;
+  const part = (n) => (words && n === 'JS_Translations' ? words.source
+    : styles && styles.parts.has(n) ? styles.parts.get(n) : page.sources.get(n));
   for (const [tag, n] of tags) html = html.replace(tag, () => (shell.has(n) ? part(n) : ''));
   html = html.replace(LISTS_MARK, () => SHARED_LISTS.filter((n) => shell.has(n)).map((n) => script(page.sources.get(n))).join('\n    '));
 
@@ -912,7 +920,7 @@ export async function assemble({ root, readFile, path, whole = false, name = (c)
   for (const c of p.chunks) {
     const markup = (p.markup.byChunk[c.id] || []).map(([id, h]) => [id, prepareMarkup(h)]);
     const css = styles && styles.byChunk[c.id] ? await prepareCss(styles.byChunk[c.id]) : '';
-    const code = await prepare(chunkCode(c, page.sources, banner, markup, css), c);
+    const code = await prepare(chunkCode(c, page.sources, banner, markup, css, words && words.byChunk[c.id]), c);
     chunks.push({ id: c.id, deps: c.deps, code, file: name(c, code), css: css.length });
   }
   const manifest = {
@@ -923,7 +931,41 @@ export async function assemble({ root, readFile, path, whole = false, name = (c)
   };
   html = html.replace(MAP_MARK, () => script(`window.LZ_MANIFEST = ${JSON.stringify(manifest).replace(/</g, '\\u003c')};`));
   html = html.replace(BOOT_MARK, () => script('if (window.lzBootWrite) lzBootWrite();'));
-  return { html, chunks, manifest, plan: p, styles: styles && styles.stats };
+  return { html, chunks, manifest, plan: p, styles: styles && styles.stats, words: words && words.stats };
+}
+
+/** The TRANSLATIONS keys that are one chunk's alone (text-split.mjs), out of the shell's JS_Translations. */
+export function chunkWords(page, p, root) {
+  const fileChunk = new Map();
+  for (const [id, files] of Object.entries(CHUNKS)) for (const f of files) fileChunk.set(f, id);
+  // Who can name a key: every page file and list but the translations themselves, the page's
+  // markup and each chunk's screens, and everything the rooms server runs (the shell's, always).
+  const owners = [], chunkFiles = [];
+  for (const [f, src] of page.sources) {
+    if (f === 'JS_Translations') continue;
+    const c = fileChunk.get(f) || 'shell';
+    owners.push([c, src]);
+    if (c !== 'shell') (/\.js$/.test(f) ? [src] : [...src.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1])).forEach((code) => chunkFiles.push([c, code]));
+  }
+  owners.push(['shell', p.markup.html]);
+  for (const [c, list] of Object.entries(p.markup.byChunk)) owners.push([c, list.map(([, h]) => h).join('\n')]);
+  const build = readFileSync(nodePath.join(root, 'rooms-worker', 'build.mjs'), 'utf8');
+  const files = /const FILES = \[([^\]]*)\]/.exec(build);
+  if (!files) throw new Error('lazy-split: no FILES in rooms-worker/build.mjs (text-split reads what the rooms server runs)');
+  for (const m of files[1].matchAll(/'([^']+)'/g)) owners.push(['shell', readFileSync(srcPath(m[1]), 'utf8')]);
+  const srcDir = nodePath.join(root, 'rooms-worker', 'src');
+  for (const f of readdirSync(srcDir)) if (/\.m?js$/.test(f)) owners.push(['shell', readFileSync(nodePath.join(srcDir, f), 'utf8')]);
+  const deps = Object.fromEntries(p.chunks.map((c) => [c.id, c.deps]));
+  const closures = new Map();
+  const closure = (id) => {
+    if (!closures.has(id)) {
+      const seen = new Set(), stack = [id];
+      while (stack.length) { const x = stack.pop(); if (seen.has(x)) continue; seen.add(x); (deps[x] || []).forEach((d) => stack.push(d)); }
+      closures.set(id, seen);
+    }
+    return closures.get(id);
+  };
+  return splitWords({ translations: page.sources.get('JS_Translations'), owners, closure, chunkFiles });
 }
 
 /** The rules of the stylesheet that are one chunk's alone (css-split.mjs), out of the shell's parts. */

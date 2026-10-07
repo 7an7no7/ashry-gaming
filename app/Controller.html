@@ -783,6 +783,13 @@
             </div>
             <p class="field__hint" id="queens-best"></p>
           </div>
+          <div class="field">
+            <label class="switch-row" for="queens-patterns">
+              <span class="field__label" data-i18n="queens_patterns">🔣 نقشة لكل لون</span>
+              <span class="switch"><input type="checkbox" id="queens-patterns" role="switch" onchange="setQueensPatterns(this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+            </label>
+            <p class="field__hint" data-i18n="queens_patterns_hint">كل منطقة ليها نقشة خفيفة (نقط، خطوط…) فوق لونها، عشان تفرّق بينهم لو الألوان شبه بعض.</p>
+          </div>
           <div class="btn-stack">
             <div id="queens-daily"></div>
             <button type="button" id="queens-continue" class="btn btn--secondary hidden" onclick="continueQueens()" data-i18n="solo_continue">كمّل اللعبة</button>
@@ -819,6 +826,9 @@
           <div class="btn-stack">
             <div id="tango-daily"></div>
             <button type="button" id="tango-continue" class="btn btn--secondary hidden" onclick="continueTango()" data-i18n="solo_continue">كمّل اللعبة</button>
+            <!-- 1142: as many easy boards as you can in three minutes (startTangoRun, JS_Tango.html) -->
+            <button type="button" class="btn btn--secondary" onclick="startTangoRun()" data-i18n="tango_run_btn">⏱️ تحدي التلات دقايق</button>
+            <p class="field__hint" style="margin:0;text-align:center"><span data-i18n="tango_run_hint">أكتر عدد لوحات سهلة تحلّها في 3 دقايق لعب.</span> <span id="tango-run-best"></span></p>
           </div>
           <button onclick="startTango(false)" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
         </div>
@@ -3597,6 +3607,21 @@
             </div>
             <div class="mode-device-panel">
             <div id="wordle-daily" class="btn-stack" style="margin-bottom: var(--sp-4)"></div>
+            <!-- 1099: one writes a word as dots, the phone goes to the other, who guesses it (JS_Wordle.html, wordleFriend*) -->
+            <div class="btn-stack" style="margin-bottom: var(--sp-4)">
+              <button type="button" id="wordle-friend-open" class="btn btn--secondary" onclick="wordleFriendOpen()" data-i18n="wordle_friend_btn">✍️ اكتبها لصاحبك</button>
+              <form id="wordle-friend-form" class="btn-stack hidden" onsubmit="event.preventDefault(); wordleFriendStart();" autocomplete="off">
+                <label for="wordle-friend-input" class="field__label" data-i18n="wordle_friend_label">اكتب كلمة وادّي الموبايل لصاحبك يخمّنها</label>
+                <div class="flex gap-2">
+                  <span class="secret-field"><input type="text" id="wordle-friend-input" class="is-hidden" maxlength="12"
+                         autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
+                         oninput="wordleFriendDots()" data-i18n-ph="wordle_friend_ph" placeholder="الكلمة"><span class="secret-field__dots" aria-hidden="true"></span></span>
+                  <button type="button" class="btn btn--ghost btn--auto" onclick="wordleFriendEye()" data-i18n-title="wordle_friend_show" aria-label="ورّيني الكلمة" title="ورّيني الكلمة">👁️</button>
+                </div>
+                <p class="field__hint" id="wordle-friend-hint" data-i18n="wordle_friend_hint">كلمة من 5 لـ 8 حروف، حروف بس. الحروف مستخبية وانت بتكتب.</p>
+                <button type="submit" class="btn btn--primary" data-i18n="wordle_friend_go">تمام، ادّي الموبايل</button>
+              </form>
+            </div>
             <p class="field__hint" data-i18n="word_length">اختر عدد أحرف الكلمة</p>
             
             <!-- The length is this screen's Start: four amber buttons side by side in the Start bar. -->
@@ -3940,7 +3965,13 @@
 
             <div id="setup-human-ui" class="hidden">
                 <p class="field__hint mb-4" data-i18n="enter_secret">أدخل الرقم السري (لا تخبر أحداً!)</p>
-                <input type="number" id="gn-secret" class="text-center mb-4 tracking-widest" placeholder="***" inputmode="numeric">
+                <!-- 1082: the friend's number as dots (.secret-field, as المشنقة's word), the eye to check it -->
+                <div class="flex gap-2 mb-4">
+                  <span class="secret-field"><input type="text" id="gn-secret" class="is-hidden" placeholder="***" inputmode="numeric" maxlength="9"
+                         autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
+                         oninput="gnSecretDots()" onkeydown="if (event.key === 'Enter') { event.preventDefault(); startGuessNumber(); }"><span class="secret-field__dots" aria-hidden="true"></span></span>
+                  <button type="button" class="btn btn--ghost btn--auto" onclick="gnSecretEye()" data-i18n-title="gn_show_secret" aria-label="ورّيني الرقم" title="ورّيني الرقم">👁️</button>
+                </div>
             </div>
             
             <button onclick="startGuessNumber()" class="btn btn--primary" data-i18n="start">ابدأ اللعبة</button>
@@ -4318,18 +4349,6 @@
             <button id="solo-result-look" onclick="soloResultLook()" class="btn btn--ghost hidden" data-i18n="solo_look">شوف اللوحة</button>
             <button onclick="soloResultExit()" class="btn btn--ghost" data-i18n="exit">خروج</button>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <div id="memory-result-modal" class="modal-overlay hidden">
-      <div class="modal-content modal-content--simple">
-        <div class="modal-icon" aria-hidden="true">🎴</div>
-        <div id="memory-result-title" class="sheet__title">---</div>
-        <div id="memory-result-detail"></div>
-        <div class="modal-actions">
-          <button onclick="replayMemory()" class="btn btn--primary btn--lg" data-i18n="play_again">العب مرة أخرى</button>
-          <button onclick="closeModal('memory-result-modal'); setupMemory()" class="btn btn--ghost" data-i18n="exit">خروج</button>
         </div>
       </div>
     </div>

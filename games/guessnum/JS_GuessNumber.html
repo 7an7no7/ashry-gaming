@@ -30,6 +30,27 @@ function setGuessMode(mode, painting) {
     divHuman.classList.toggle('hidden', isComputer);
 }
 
+/* 1082 (the owner's picks, 7 Oct 2026): the friend's secret is typed as dots, a
+   .secret-field like المشنقة's word (a text field whose letters are transparent,
+   one dot a digit drawn over them; never a password field), with an eye to check it. */
+function gnSecretDots() {
+    const input = document.getElementById('gn-secret');
+    const dots = input && input.parentNode.querySelector('.secret-field__dots');
+    if (dots) dots.textContent = '•'.repeat(Array.from(input.value || '').length);
+}
+function gnSecretEye() {
+    const input = document.getElementById('gn-secret');
+    if (!input) return;
+    input.classList.toggle('is-hidden');
+    input.focus();
+}
+/** The typed secret as a number: Arabic-Indic digits read as 0-9 (a text field keeps what the keyboard typed). */
+function gnSecretValue(raw) {
+    const s = String(raw || '').replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+        .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06F0)).replace(/[^\d-]/g, '');
+    return /^-?\d+$/.test(s) ? parseInt(s, 10) : NaN;
+}
+
 function startGuessNumber() {
     let min, max, target;
     
@@ -51,15 +72,17 @@ function startGuessNumber() {
         // --- HUMAN MODE ---
         min = null; max = null;      // the range is the secret here
         const secretInput = document.getElementById('gn-secret');
-        target = parseInt(secretInput.value);
-        
+        target = gnSecretValue(secretInput.value);
+
         if (isNaN(target)) {
             showToast((TRANSLATIONS[appState.lang] || {}).gn_need_secret || '');
             return;
         }
-        
-        // Clear input immediately for security
-        secretInput.value = ''; 
+
+        // Clear input immediately for security, and hide it again for the next one
+        secretInput.value = '';
+        secretInput.classList.add('is-hidden');
+        gnSecretDots();
         
         // Hide range (it's a secret!)
         document.getElementById('gn-range-display').innerText = "???";

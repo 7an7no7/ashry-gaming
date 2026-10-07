@@ -10,6 +10,17 @@ gameText({
       wordle_tries_of: "محاولة من {max}",
       wordle_too_short: "الكلمة لسه ناقصة حروف",
       wordle_not_in_dict: "مش في قاموسنا — دوس تاني لو متأكد",
+      wordle_friend_btn: "✍️ اكتبها لصاحبك",
+      wordle_friend_label: "اكتب كلمة وادّي الموبايل لصاحبك يخمّنها",
+      wordle_friend_ph: "الكلمة",
+      wordle_friend_show: "ورّيني الكلمة",
+      wordle_friend_hint: "كلمة من 5 لـ 8 حروف، حروف بس. الحروف مستخبية وانت بتكتب.",
+      wordle_friend_go: "تمام، ادّي الموبايل",
+      wordle_friend_empty: "اكتب الكلمة الأول.",
+      wordle_friend_bad_len: "الكلمة من 5 لـ 8 حروف.",
+      wordle_friend_bad_letters: "حروف لغة واحدة بس، من غير أرقام ولا مسافات.",
+      wordle_friend_badge: "كلمة من صاحبك",
+      wordle_friend_again: "اكتب واحدة تانية",
     },
     en: {
       wordle_won: "🎉 You got it!",
@@ -18,6 +29,17 @@ gameText({
       wordle_tries_of: "tries out of {max}",
       wordle_too_short: "Not enough letters yet",
       wordle_not_in_dict: "Not in our dictionary — press again if you're sure",
+      wordle_friend_btn: "✍️ Write one for a friend",
+      wordle_friend_label: "Type a word and hand the phone to your friend to guess",
+      wordle_friend_ph: "The word",
+      wordle_friend_show: "Show the word",
+      wordle_friend_hint: "A word of 5 to 8 letters, letters only. It's hidden as you type.",
+      wordle_friend_go: "Done, hand the phone over",
+      wordle_friend_empty: "Type the word first.",
+      wordle_friend_bad_len: "A word of 5 to 8 letters.",
+      wordle_friend_bad_letters: "One alphabet only, no digits or spaces.",
+      wordle_friend_badge: "A friend's word",
+      wordle_friend_again: "Write another one",
     }
   },
   rules: {
@@ -27,6 +49,7 @@ gameText({
                 <li>خمّن الكلمة في 6 محاولات (7 لو الكلمة 7 أو 8 حروف).</li>
                 <li><span class="tx-success font-bold">أخضر</span>: حرف صح في مكانه. <span class="tx-warning font-bold">أصفر</span>: حرف صح في مكان غلط. <span class="tx-muted font-bold">رمادي</span>: مش في الكلمة.</li>
                 <li>الكلمات مش بتتكرر على نفس الموبايل لحد ما تخلص كلها.</li>
+                <li><b>✍️ اكتبها لصاحبك</b>: واحد يكتب كلمة من 5 لـ 8 حروف (بتبان نقط)، ويدّي الموبايل للتاني يخمّنها في نفس الشبكة. أي تخمين الكيبورد يكتبه ينفع.</li>
             </ol>
             <p class="help-sub">📅 تحدي اليوم</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -51,6 +74,7 @@ gameText({
                 <li>Guess the word in 6 tries (7 for a word of 7 or 8 letters).</li>
                 <li><span class="tx-success font-bold">Green</span>: right letter, right place. <span class="tx-warning font-bold">Yellow</span>: right letter, wrong place. <span class="tx-muted font-bold">Grey</span>: not in the word.</li>
                 <li>Words don't repeat on the same phone until they have all been played.</li>
+                <li><b>✍️ Write one for a friend</b>: one types a word of 5 to 8 letters (shown as dots) and hands the phone over; the other guesses it on the same board. Any guess the keypad can type counts.</li>
             </ol>
             <p class="help-sub">📅 Puzzle of the day</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

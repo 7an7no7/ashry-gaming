@@ -245,6 +245,19 @@ body.dark .mines-cell.is-open { background: var(--surface-sunken); }
 .queens-cell.q8 { background: #fca5a5; }
 .queens-cell.q9 { background: #a5f3fc; }
 .queens-cell.is-bad { box-shadow: inset 0 0 0 3px #dc2626; }
+/* 1134: «نقشة لكل لون» - a faint pattern over each region's pastel (the ink of the
+   board's own lines, at low strength), so regions stay apart without their colour. */
+.queens-grid.is-patterned { --q-pat: rgba(30, 41, 59, 0.24); }
+.queens-grid.is-patterned .queens-cell.q0 { background-image: radial-gradient(circle, var(--q-pat) 1.6px, transparent 2px); background-size: 9px 9px; }
+.queens-grid.is-patterned .queens-cell.q1 { background-image: repeating-linear-gradient(45deg, var(--q-pat) 0 2px, transparent 2px 8px); }
+.queens-grid.is-patterned .queens-cell.q2 { background-image: repeating-linear-gradient(0deg, var(--q-pat) 0 2px, transparent 2px 8px); }
+.queens-grid.is-patterned .queens-cell.q3 { background-image: repeating-linear-gradient(90deg, var(--q-pat) 0 2px, transparent 2px 8px); }
+.queens-grid.is-patterned .queens-cell.q4 { background-image: repeating-linear-gradient(-45deg, var(--q-pat) 0 2px, transparent 2px 8px); }
+.queens-grid.is-patterned .queens-cell.q5 { background-image: linear-gradient(var(--q-pat) 1.5px, transparent 1.5px), linear-gradient(90deg, var(--q-pat) 1.5px, transparent 1.5px); background-size: 10px 10px; }
+.queens-grid.is-patterned .queens-cell.q6 { background-image: repeating-linear-gradient(45deg, var(--q-pat) 0 1.5px, transparent 1.5px 9px), repeating-linear-gradient(-45deg, var(--q-pat) 0 1.5px, transparent 1.5px 9px); }
+.queens-grid.is-patterned .queens-cell.q7 { background-image: radial-gradient(circle, transparent 2.5px, var(--q-pat) 3px 4.2px, transparent 4.7px); background-size: 14px 14px; }
+.queens-grid.is-patterned .queens-cell.q8 { background-image: conic-gradient(var(--q-pat) 25%, transparent 0 50%, var(--q-pat) 0 75%, transparent 0); background-size: 12px 12px; }
+.queens-grid.is-patterned .queens-cell.q9 { background-image: linear-gradient(135deg, var(--q-pat) 25%, transparent 25%), linear-gradient(225deg, var(--q-pat) 25%, transparent 25%); background-size: 12px 12px; }
 
 /* --- Tango --- */
 .tango-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; max-width: 24rem; margin: 0 auto; }
@@ -283,6 +296,13 @@ body.dark .mines-cell.is-open { background: var(--surface-sunken); }
 }
 .tango-sign--right { top: 50%; right: calc(-3px - 0.65rem); transform: translateY(-50%); }
 .tango-sign--down { left: 50%; bottom: calc(-3px - 0.65rem); transform: translateX(-50%); }
+/* 1140: a solved board becomes a little sky (tangoSky, JS_Tango.html): a layer under
+   each mark, a sun's warm glow or a moon's night, faded in by the script. Pictures of
+   day and night, the same in both themes. */
+.tango-sky { position: absolute; inset: 0; z-index: 0; border-radius: inherit; pointer-events: none; opacity: 0; }
+.tango-sky--day { background: radial-gradient(circle at 50% 55%, rgba(253, 224, 71, 0.95), rgba(251, 191, 36, 0.45) 55%, rgba(251, 191, 36, 0) 78%); }
+.tango-sky--night { background: radial-gradient(circle at 70% 25%, rgba(165, 180, 252, 0.35) 0 6%, transparent 7%), linear-gradient(160deg, #1e1b4b, #312e81); }
+.tango-cell .tango-mark { position: relative; z-index: 1; }
 
 /* --- Nonogram --- */
 .nono-grid {
@@ -319,6 +339,15 @@ body.dark .mines-cell.is-open { background: var(--surface-sunken); }
 .nono-cell.is-sep-b { margin-bottom: 2px; }
 .nono-grid.is-solved .nono-cell:not(.is-fill) { background: transparent; box-shadow: none; }
 .nono-mode { margin: var(--sp-2) 0; }
+/* 1148: how many cells a drag has painted, in a bubble over the finger (nonoBubble). */
+.nono-bubble {
+  position: fixed; top: 0; left: 0; z-index: var(--z-float-hi);
+  min-width: 2.6rem; padding: var(--sp-1) var(--sp-3);
+  border-radius: 999px; background: var(--text); color: var(--surface-solid);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  font-family: var(--font); font-size: 1.35rem; font-weight: 900; line-height: 1.1; text-align: center;
+  font-variant-numeric: tabular-nums; pointer-events: none; will-change: transform;
+}
 
 /* --- Answer buttons shared by the quiz-style games (إيه اللي يجمعهم؟, سلسلة الإجابات) --- */
 .solo-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-3); }

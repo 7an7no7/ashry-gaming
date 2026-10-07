@@ -5,9 +5,23 @@ gameText({
   translations: {
     ar: {
       tango_hint: "= يعني الخانتين زي بعض، × يعني مختلفين",
+      tango_run_btn: "⏱️ تحدي التلات دقايق",
+      tango_run_hint: "أكتر عدد لوحات سهلة تحلّها في 3 دقايق لعب.",
+      tango_run_title: "التحدي",
+      tango_run_left: "فاضل",
+      tango_run_label: "لوحة اتحلّت",
+      tango_run_unit: "لوحات",
+      tango_run_done: "⏱️ الوقت خلص!",
     },
     en: {
       tango_hint: "= means the two cells match, × means they differ",
+      tango_run_btn: "⏱️ The three-minute challenge",
+      tango_run_hint: "As many easy boards as you can solve in three minutes of play.",
+      tango_run_title: "Challenge",
+      tango_run_left: "Left",
+      tango_run_label: "boards solved",
+      tango_run_unit: "boards",
+      tango_run_done: "⏱️ Time's up!",
     }
   },
   rules: {
@@ -18,6 +32,7 @@ gameText({
                 <li>مفيش 3 زي بعض ورا بعض، لا أفقي ولا رأسي.</li>
                 <li>العلامة <b>=</b> بين خانتين يعني زي بعض، و<b>×</b> يعني مختلفين.</li>
                 <li>لمسة ☀️، لمستين 🌙، تالتة تمسح. الغلط بيتعلم بالأحمر، وكل لوحة ليها حل واحد.</li>
+                <li><b>⏱️ تحدي التلات دقايق</b>: حل أكتر عدد لوحات سهلة في 3 دقايق لعب (الوقت بيقف لو سبت اللوحة). كل لوحة تتحل تيجي اللي بعدها على طول، ومن غير تلميحات. الموبايل بيحفظ أحسن عدد.</li>
             </ol>
             <p class="help-sub">📱 سباق ألغاز (في غرفة)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -35,6 +50,7 @@ gameText({
                 <li>Never three of the same side by side, across or down.</li>
                 <li>An <b>=</b> between two cells means they match; <b>×</b> means they differ.</li>
                 <li>Tap once for ☀️, twice for 🌙, a third time to clear. Mistakes turn red; every board has one solution.</li>
+                <li><b>⏱️ The three-minute challenge</b>: solve as many easy boards as you can in three minutes of play (the clock stops when you leave the board). Each solved board brings the next at once, with no hints. The phone keeps your best count.</li>
             </ol>
             <p class="help-sub">📱 Puzzle race (in a room)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

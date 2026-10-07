@@ -17,6 +17,7 @@ gameText({
       conn_wrong: "مش صح",
       conn_level_hint: "{cards} كلمة · {groups} مجموعات",
       conn_already_tried: "جرّبت الأربعة دول قبل كده",
+      conn_tally: "{level}: حلّيت {n} · {p} من غير غلطة",
     },
     en: {
       race_unit_groups: "groups",
@@ -32,6 +33,7 @@ gameText({
       conn_wrong: "Not quite",
       conn_level_hint: "{cards} words · {groups} groups",
       conn_already_tried: "You already tried these four",
+      conn_tally: "{level}: {n} solved · {p} with no mistake",
     }
   },
   rules: {

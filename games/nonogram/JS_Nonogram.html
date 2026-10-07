@@ -190,6 +190,32 @@ function setNonoMode(mode) {
 /* A press sets a cell to the mode's mark (or clears it if it already has it); dragging copies that to every cell crossed. */
 let nonoDrag = null;   // the drag painting now ({ end }): one finger at a time
 
+/*
+ * 1148 (the owner's picks, 7 Oct 2026): while a drag paints, a bubble over the
+ * finger says how many cells it has painted (from the second cell on), so a run
+ * of 7 is never miscounted as 6. One element under <body> (fixed, placed with
+ * transform), popped on each new count; gone when the finger lifts.
+ */
+let nonoBubbleEl = null;
+function nonoBubble(x, y, count) {
+  if (count < 2) { nonoBubbleHide(); return; }
+  if (!nonoBubbleEl) {
+    nonoBubbleEl = document.createElement('div');
+    nonoBubbleEl.className = 'nono-bubble';
+    nonoBubbleEl.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(nonoBubbleEl);
+  }
+  const el = nonoBubbleEl;
+  el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, calc(-100% - 2.4rem))`;
+  if (el.textContent !== String(count)) {
+    el.textContent = String(count);
+    soloPop(el, 1.18);
+  }
+}
+function nonoBubbleHide() {
+  if (nonoBubbleEl) { nonoBubbleEl.remove(); nonoBubbleEl = null; }
+}
+
 function nonoDown(e, i) {
   const s = nonoState();
   if (s.phase !== 'play') return;
@@ -219,6 +245,7 @@ function nonoDown(e, i) {
     if (ev.pointerId !== pid) return;
     const cell = soloCellAt(ev.clientX, ev.clientY, '.nono-cell');
     if (cell) apply(Number(cell.dataset.i));
+    nonoBubble(ev.clientX, ev.clientY, painted.size);
   };
   const up = (ev) => {
     if (ev && ev.pointerId !== pid) return;
@@ -233,6 +260,7 @@ function nonoDown(e, i) {
   document.addEventListener('pointercancel', up);
   nonoDrag = {
     end: () => {
+      nonoBubbleHide();
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', up);
       document.removeEventListener('pointercancel', up);

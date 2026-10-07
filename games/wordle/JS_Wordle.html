@@ -60,6 +60,7 @@ function startWordleGame(length, daily, sure) {
     // What the dailies read (JS_Solo.html): a board in play, and whose day it is.
     appState.wordle.phase = 'play';
     appState.wordle.daily = daily ? soloToday() : '';
+    appState.wordle.friend = false;
     delete appState.wordle.archive;
 
     wordleUnsure = '';
@@ -71,6 +72,103 @@ function startWordleGame(length, daily, sure) {
 }
 
 const WORDLE_DAILY_LEN = 5;
+
+/*
+ * 1099 (the owner's picks, 7 Oct 2026): «اكتبها لصاحبك» - the room's "one sets,
+ * everyone solves" on one phone, for two on a sofa. One writes a word of 5 to 8
+ * letters as dots (a .secret-field, an eye to check it), hands the phone over,
+ * and the other guesses it on the usual board. The keypad is the word's own
+ * alphabet (an English word under the Arabic app gets the English keypad). No
+ * dictionary, as in the room: a word the keypad can type is a word to guess.
+ * Not dealt, not a daily, no list memory; `friend` marks the board (its badge,
+ * and «اكتب واحدة تانية» for again).
+ */
+function wordleFriendOpen() {
+    const form = document.getElementById('wordle-friend-form');
+    const btn = document.getElementById('wordle-friend-open');
+    if (!form) return;
+    form.classList.remove('hidden');
+    if (btn) btn.classList.add('hidden');
+    wordleFriendHint('');
+    const input = document.getElementById('wordle-friend-input');
+    if (input) { input.classList.add('is-hidden'); try { input.focus({ preventScroll: false }); } catch (e) {} }
+}
+
+/** Back to the plain button (the setup painted again, a board started). */
+function wordleFriendClose() {
+    const form = document.getElementById('wordle-friend-form');
+    const btn = document.getElementById('wordle-friend-open');
+    const input = document.getElementById('wordle-friend-input');
+    if (input) { input.value = ''; input.classList.add('is-hidden'); }
+    wordleFriendDots();
+    if (form) form.classList.add('hidden');
+    if (btn) btn.classList.remove('hidden');
+}
+
+function wordleFriendDots() {
+    const input = document.getElementById('wordle-friend-input');
+    const dots = input && input.parentNode.querySelector('.secret-field__dots');
+    if (dots) dots.textContent = '•'.repeat(Array.from(input.value || '').length);
+    if (input && input.value) wordleFriendHint('');
+}
+
+function wordleFriendEye() {
+    const input = document.getElementById('wordle-friend-input');
+    if (!input) return;
+    input.classList.toggle('is-hidden');
+    input.focus();
+}
+
+/** The line under the field: the rule, or what's wrong with the word. */
+function wordleFriendHint(err) {
+    const el = document.getElementById('wordle-friend-hint');
+    if (!el) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    el.textContent = err ? (t[err] || '') : (t.wordle_friend_hint || '');
+    el.classList.toggle('tx-danger', !!err);
+}
+
+/** The word as the keypad types it (marks and tatweel off, أ إ آ ٱ as ا, capitals), and its keypad: { word, lang } or { err }. */
+function wordleFriendWord(text) {
+    const w = foldWordleWord(String(text || '').normalize('NFC').replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/ٱ/g, 'ا'))
+        .replace(/\s+/g, '').toUpperCase();
+    if (!w) return { err: 'wordle_friend_empty' };
+    const chars = Array.from(w);
+    const lang = ['ar', 'en'].find(l => chars.every(c => WORDLE_LAYOUTS[l].join('').indexOf(c) !== -1));
+    if (!lang) return { err: 'wordle_friend_bad_letters' };
+    if (chars.length < 5 || chars.length > 8) return { err: 'wordle_friend_bad_len' };
+    return { word: w, lang: lang };
+}
+
+function wordleFriendStart(sure) {
+    const input = document.getElementById('wordle-friend-input');
+    const typed = input ? input.value.trim() : '';
+    const got = wordleFriendWord(typed);
+    if (got.err) { wordleFriendHint(got.err); playSound('thud'); if (input) soloShake(input.parentNode); return; }
+    if (!sure && soloConfirmNew('wordle', wordleHasWork, () => wordleFriendStart(true))) return;
+    soloDailySetAside('wordle');
+    soloNewGame('wordle');
+    const s = appState.wordle;
+    s.lang = got.lang;
+    s.wordLength = Array.from(got.word).length;
+    s.maxTries = s.wordLength > 6 ? 7 : 6;
+    s.displayWord = typed;
+    s.targetWord = got.word;
+    s.currentGuess = '';
+    s.guesses = [];
+    s.status = 'playing';
+    s.phase = 'play';
+    s.daily = '';
+    s.friend = true;
+    delete s.archive;
+    wordleUnsure = '';
+    wordleFriendClose();
+    haptic('medium');
+    renderWordleBoard();
+    renderKeyboard();
+    saveToLocal();
+    setView('play-wordle');
+}
 
 /*
  * The daily's list: the 5-letter words a family spells one way (wordleDailySafe,
@@ -133,6 +231,9 @@ function wordleKnownWord(guess) {
     const lang = wordleLang();
     const dict = wordleDictionary(lang);
     if (!dict) return true;
+    // A friend's word may be a name or dialect our lists lack: their guesses aren't
+    // held to the lists either, as in the room (1099).
+    if (appState.wordle.friend) return true;
     const k = wordleDictKey(guess);
     if (k === wordleDictKey(appState.wordle.targetWord) || dict.has(k)) return true;
     if (lang === 'en') return (/S$/.test(k) && dict.has(k.slice(0, -1))) || (/ES$/.test(k) && dict.has(k.slice(0, -2)));
@@ -157,6 +258,7 @@ function continueWordle() {
 function paintWordleSetup() {
     const el = document.getElementById('wordle-daily');
     if (el) el.innerHTML = soloDailyButtonHtml('wordle', 'startWordleGame(5, true)');
+    wordleFriendHint('');
 }
 
 /** "📅 تحدي اليوم" (or the archive's day) over a daily's board. */
@@ -167,7 +269,8 @@ function paintWordleBadge() {
     const t = TRANSLATIONS[appState.lang] || {};
     const html = s.archive
         ? `<span class="badge badge--warning">📅 ${escapeHTML(t.daily_archive_badge || '')} ${escapeHTML(s.archive)}</span>`
-        : (s.daily ? `<span class="badge">📅 ${escapeHTML(t.daily_title || '')}</span>` : '');
+        : (s.daily ? `<span class="badge">📅 ${escapeHTML(t.daily_title || '')}</span>`
+            : (s.friend ? `<span class="badge">✍️ ${escapeHTML(t.wordle_friend_badge || '')}</span>` : ''));
     el.innerHTML = html;
     el.classList.toggle('hidden', !html);
 }
@@ -478,7 +581,9 @@ function wordleResultSoon(win) {
         lines: [`${escapeHTML(t.wordle_word_was || '')} <b class="tx-accent">${escapeHTML(String(word || ''))}</b>`],
         shareLines: [],   // the picture never says the word
         win: win, share: share,
-        again: () => startWordleGame(s.wordLength || 5, false), exit: setupWordle
+        again: s.friend ? () => { setupWordle(); wordleFriendOpen(); } : () => startWordleGame(s.wordLength || 5, false),
+        againLabel: s.friend ? '✍️ ' + (t.wordle_friend_again || '') : undefined,
+        exit: setupWordle
     }));
 }
 
@@ -533,6 +638,10 @@ if (typeof document !== 'undefined') {
 }
 if (typeof onLanguageChange === 'function') {
     onLanguageChange(view => { if (view === 'play-wordle') { renderKeyboard(); paintWordleBadge(); } });
+}
+// A friend's word half typed doesn't wait in the setup for whoever opens it next (1099).
+if (typeof onLeaveScreen === 'function') {
+    onLeaveScreen((from) => { if (from === 'setup-wordle') wordleFriendClose(); });
 }
 // JS_Solo.html loads after this file: it registers the game once it is there.
 if (typeof window !== 'undefined') {

@@ -503,6 +503,32 @@ Every part is optional on a game and decided on the server (or, on one phone, by
 - **The setup and the lobby**: one phone keeps the theme and the two switches in `appState.snakes` (`snkThemePickerHtml`, three tiles a row: كلاسيك, the four maps, 🎲; the switches in Controller.html); a room's host keeps them in `recallOptions('snakesRoom')` and sends them in the start payload (`theme`, `surprises`, `moving`, beside `turnClock`), and the teams are the lobby's shared state (`snkTeamsHtml`). The TV draws all of it in the game (the theme, the surprise squares, the moves, the teams' strip, the awards); its lobby shows the players as before.
 - Tests: `rules.mjs` («Snakes & Ladders, the third round»: the classic unchanged; every theme's moves, never twice in a row, timed; the surprise squares' placement and fairness over 60 maps; each surprise's rule and time; the moving map over 40 games - when, where, fair, the eat; teams of 2, 3 teams of 2, 2 teams of 3, the furthest behind and the tie, a whole game; the lobby's teams; the awards' choice and order; the room: options, teams in the lobby, team wins, the night by team for 2 and 3 teams, play again, a teammate leaving, 5 refused, an old phone's start), `leaks.mjs` (teams of 2, the desert map and both switches, on the clock), `play-all.mjs --only=snakes` (teams arranged in the lobby on every phone and the TV, swapped, the alley map with both switches, people rolling in turn).
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **959 «📌 خرايطنا»** (no rule asked; built as described). A board the family
+  liked is kept by name **on the phone that keeps it**
+  (`localStorage['ashrySnakesMaps_v1']`, twelve at most, newest first, one map
+  kept once): its seed (`g.map.seed`) and its look (`g.theme`, the classic when
+  none). «💾 احفظ الخريطة دي» sits under the log on every phone (not the TV),
+  in the game and at its end (`snkMapSaveOpen`): a centred sheet
+  (`#snk-save-modal`, made by `snkMapModalEl`) with the name filled in (the
+  look's name and a number, 24 letters at most); a map already kept says its
+  name instead. The map pickers - one phone's setup and the room's lobby, both
+  `snkThemePickerHtml` - list the kept maps after 🎲 under «📌 خرايطنا», each a
+  tile with its look's corner and its name, its value `map:<id>`
+  (`snkMapChoiceOk` lets the pickers and `recallOptions` hold it); the picked
+  one has «🗑️ امسحها من خرايطنا» (`snkMapForget`, back to the classic). A
+  start deals from `snkMapResolve`: one phone passes the seed to
+  `snakesNewGame`; a room's `startPayload` sends `{ theme, seed }` (seed 0: a
+  new map) and the server (`snakesNewRoomGame`) takes a seed only when it is a
+  whole number 1..2147483646, keeping it in `settings.seed`, so play again
+  deals the same board as it keeps the look. Decided here: the surprises and
+  the moving map stay their own switches (a kept map with surprises on gets its
+  surprise squares placed as for that seed); the board's key (`snkMapKey`) now
+  carries the surprise squares, so the same seed with and without them is drawn
+  again. Tests: `rules.mjs` (a kept seed deals the same snakes and ladders in
+  its look; bad seeds and an older phone's start make a new map).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -417,31 +417,10 @@
     if (modal) modal.classList.remove('hidden');
   }
 
-  /**
-   * The top three on a podium, lowest total first. renderPodium ranks the
-   * highest score and wants it above zero; in سكرو 0 is the best there is, so
-   * this draws the same markup (and the same rise, once) from the real totals.
-   */
+  /** The top three on a podium, lowest total first (renderPodium's «low wins», 7 Oct 2026: 0 is the best there is). */
   function skPodiumHtml(order, s) {
-    if (order.length < 2) return '';
-    const top = order.slice(0, 3);
-    const rankOf = (p) => 1 + order.filter(x => x.score < p.score).length;
-    const rise = typeof motionFirst === 'function' &&
-                 motionFirst('screw-podium|' + (s.startedAt || '') + '|' + JSON.stringify(top.map(x => [x.name, x.score])));
-    const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
-    const atOf = (i) => 150 + (top.length - 1 - i) * 520;
-    return `<div class="podium${rise ? ` podium--rise" data-reveal-ms="${atOf(0) + 620}"` : '"'}>` +
-      top.map((p, i) => {
-        const rank = Math.min(3, rankOf(p));
-        return `<div class="podium__place podium__place--${i + 1} podium__place--rank${rank}" style="--at:${atOf(i)}ms">
-            <div class="podium__who">
-              <span class="podium__medal" aria-hidden="true">${medals[rank]}</span>
-              <span class="podium__name">${escapeHTML(p.name)}</span>
-              <span class="podium__score metric">${p.score}</span>
-            </div>
-            <div class="podium__block"><span class="metric">${rank}</span></div>
-          </div>`;
-      }).join('') + '</div>';
+    if (order.length < 2 || typeof renderPodium !== 'function') return '';
+    return renderPodium({ code: 'screw-podium', game: String(s.startedAt || '') }, order, { low: true });
   }
 
   function skShowWinner(celebrate) {

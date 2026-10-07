@@ -244,7 +244,11 @@ const snakesNewRoomGame = (room, playerId, action, p) => {
   if (size && !teams && action !== 'playAgain') throw new Error('الفرق محتاجة 4 أو 6 في اللعبة: شيل الفرق أو كمّل العدد');
   // Who starts: drawn at random; the rest follow in a random order (in teams, one of each team in turn).
   const order = teams ? snakesTeamOrder(teams) : shuffled(ids);   // Fisher-Yates: a random comparator in sort() favours the first seats
-  const g = snakesNewGame(order, filled, snakesNewSeed(Math.random), Date.now(), {
+  // «خرايطنا» (959, 7 Oct 2026): a kept map comes as its seed (optional; 0 or anything else is a new map).
+  // Kept in the settings, so play again deals the same board, as it keeps the look.
+  const seedOpt = Number(pick('seed'));
+  const seed = Number.isInteger(seedOpt) && seedOpt >= 1 && seedOpt <= 2147483646 ? seedOpt : 0;
+  const g = snakesNewGame(order, filled, seed || snakesNewSeed(Math.random), Date.now(), {
     teardown: action === 'playAgain',
     theme: theme === 'random' ? SNAKES_THEMES[Math.floor(Math.random() * SNAKES_THEMES.length)] : theme,
     surprises: surprises, moving: moving, teams: teams || undefined
@@ -255,7 +259,7 @@ const snakesNewRoomGame = (room, playerId, action, p) => {
   g.events.forEach(e => { e.seq += base; });
   g.eventSeq = base + g.eventSeq;
   room.shared = Object.assign(g, {
-    settings: { turnClock: clock, theme: theme, surprises: surprises, moving: moving, teamSize: teams ? size : 0 },
+    settings: { turnClock: clock, theme: theme, surprises: surprises, moving: moving, teamSize: teams ? size : 0, seed: seed },
     roster: room.players.map(x => x.id),
     lobby: prev.lobby || null,
     wins: prev.wins || {},

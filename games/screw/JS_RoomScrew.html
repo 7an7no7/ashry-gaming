@@ -2083,21 +2083,11 @@ function skrStandingsHtml(state) {
     </div>`;
 }
 
-/**
- * The podium, lowest first. renderPodium (JS_Motion.html) ranks the highest
- * first, so it is given a mirrored board (best = biggest) and the real totals
- * are written back over the numbers it prints, in the same order - the same
- * classes, the same rise.
- */
+/** The podium, lowest first: renderPodium's «low wins» (JS_Motion.html, 7 Oct 2026). */
 function skrPodiumHtml(state) {
   const rows = skrPodiumRows(state);
   if (rows.length < 2 || typeof renderPodium !== 'function') return '';
-  const worst = Math.max.apply(null, rows.map(r => r.score));
-  const html = renderPodium(state, rows.map(r => ({ id: r.id, name: r.name, score: worst - r.score + 1 })));
-  if (!html) return '';
-  const real = rows.slice(0, 3).map(r => r.score);
-  let i = 0;
-  return html.replace(/(<span class="podium__score metric">)(-?\d+)(<\/span>)/g, (m, a, n, b) => a + (i < real.length ? real[i++] : n) + b);
+  return renderPodium(state, rows, { low: true });
 }
 
 /** Who won, in words: the lowest total, or the side with it. */

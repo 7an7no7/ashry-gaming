@@ -238,6 +238,66 @@ function bankStripHtml(c) {
   return `<div class="bank-strip bank-strip--n${g.seats.length}">${chips}</div>`;
 }
 
+/**
+ * «💰 الثروة» on the TV (the owner's pick 965, 7 Oct 2026): a bar a player still in, at their whole
+ * worth as the end counts it (bankWorth: cash, places - half if mortgaged - and what the buildings
+ * cost), the richest at full width. Drawn at what this screen showed before (bankFx.race), and
+ * bankRaceAfter slides each bar (scaleX) and counts its number to the new worth as the money lands;
+ * on the last lap the bars grow taller. The seats keep their order, so a bar never jumps rows.
+ */
+function bankRaceHtml(c) {
+  const g = c.g;
+  if (!c.tv || g.phase !== 'play') return '';
+  const ids = bankActive(g);
+  if (ids.length < 2) return '';
+  const worth = {};
+  ids.forEach(pid => { worth[pid] = Math.max(0, bankWorth(g, pid)); });
+  const max = Math.max(1, ...ids.map(pid => worth[pid]));
+  const was = bankFx.race && bankFx.race.key === c.key ? bankFx.race : null;
+  const lead = Math.max(...ids.map(pid => worth[pid]));
+  const rows = ids.map(pid => {
+    const to = Math.max(0.03, worth[pid] / max);
+    const from = was && typeof was.w[pid] === 'number' ? was.w[pid] : to;
+    const n0 = was && typeof was.n[pid] === 'number' ? was.n[pid] : worth[pid];
+    return `<div class="bank-race__row${worth[pid] === lead ? ' is-lead' : ''}" style="--pc:${bankSeatHex(g, pid)}" data-bank-race="${escapeHTML(pid)}" data-w="${to.toFixed(4)}" data-n="${worth[pid]}">
+        <span class="bank-race__who">${bankTokenOf(g, pid)} ${escapeHTML(c.names[pid] || '…')}</span>
+        <span class="bank-race__track"><span class="bank-race__fill" style="--w:${from.toFixed(4)}"></span></span>
+        <b class="bank-race__num metric" dir="ltr">${bankFmt(n0)}</b>
+      </div>`;
+  }).join('');
+  return `<div class="bank-race${g.lastLap ? ' is-last' : ''}" aria-label="${escapeHTML(bankT('bank_race_title'))}">
+      <div class="bank-race__head"><span>${escapeHTML(bankT('bank_race_title'))}</span>${g.lastLap ? `<span class="badge badge--danger">${escapeHTML(bankT('bank_race_last'))}</span>` : ''}</div>
+      ${rows}
+    </div>`;
+}
+
+/** The bars to their new worth, `delay` ms on (when the money has flown); at once with no motion. */
+function bankRaceAfter(root, key, delay, moving) {
+  const rows = root ? [...root.querySelectorAll('[data-bank-race]')] : [];
+  const mem = { key: key, w: {}, n: {} };
+  rows.forEach(row => {
+    const pid = row.getAttribute('data-bank-race');
+    const to = Number(row.dataset.w) || 0;
+    const n = Number(row.dataset.n) || 0;
+    mem.w[pid] = to;
+    mem.n[pid] = n;
+    const fill = row.querySelector('.bank-race__fill');
+    const num = row.querySelector('.bank-race__num');
+    const was = bankFx.race && bankFx.race.key === key ? bankFx.race.n[pid] : n;
+    const land = () => {
+      if (fill) fill.style.setProperty('--w', to.toFixed(4));
+      if (num && moving && typeof countUp === 'function' && typeof was === 'number' && was !== n) {
+        countUp(num, was, n);
+        bankFx.timers.push(setTimeout(() => { if (num.isConnected) num.textContent = bankFmt(n); }, 1100));
+      } else if (num) num.textContent = bankFmt(n);
+    };
+    // The first frame is drawn at the old width before the new one is set, or the transition has nothing to run from.
+    if (moving) bankFx.timers.push(setTimeout(() => requestAnimationFrame(land), Math.max(30, delay || 0)));
+    else land();
+  });
+  bankFx.race = rows.length ? mem : (bankFx.race && bankFx.race.key === key ? bankFx.race : null);
+}
+
 /** The game's own clock: how long is left, and the last lap. */
 function bankTimeHtml(c) {
   const g = c.g;
@@ -302,8 +362,8 @@ function bankBarHtml(c) {
     const short = (g.cash[c.me] || 0) < g.debt.amount;
     const canRaise = short && bankLiquid(g, c.me) >= g.debt.amount;
     if (canRaise) sub = bankT('bank_raise_can');
-    // «🪄 دبّرها»: selling back and mortgaging can cover it - one tap raises it and pays.
-    buttons = (canRaise ? btn(bankT('bank_raise_btn'), 'raise', null, 'primary') : btn(bankT('bank_pay'), 'payDebt', null, 'primary', short)) +
+    // «🪄 غطّي الدين» (970): selling back and mortgaging can cover it - the plan in a sheet, «تمام» does it and pays.
+    buttons = (canRaise ? `<button type="button" class="btn btn--primary btn--auto" onclick="bankPlanOpen()">${escapeHTML(bankT('bank_raise_btn'))}</button>` :btn(bankT('bank_pay'), 'payDebt', null, 'primary', short)) +
       (bankLiquid(g, c.me) < g.debt.amount ? btn(bankT('bank_bankrupt'), 'bankrupt', null, 'danger') : '');
   } else if (tn.stage === 'act') {
     line = bankT('bank_your_turn');
@@ -503,6 +563,7 @@ function bankFrameHtml(c) {
           ${over ? bankOverHtml(c) : ''}
           <div class="bank-top">${bankStripHtml(c)}${bankTimeHtml(c)}</div>
           ${over ? '' : bankOfferHtml(c)}
+          ${over ? '' : bankRaceHtml(c)}
           ${over ? '' : bankBarHtml(c)}
           ${panel}
           <div class="bank-log">${bankLogHtml(c)}</div>
@@ -626,6 +687,82 @@ function bankDo(action, payload) {
   if (typeof bankRoomDo === 'function') return bankRoomDo(action, payload || {});
 }
 
+/* --- «🪄 غطّي الدين» (the owner's pick 970, 7 Oct 2026) ------------------------------------------
+   The plan the computer would use to cover a debt - bankRaise, the very function the server runs on
+   «raise» - played on a copy of the table, so the sheet lists exactly what «تمام» will do: each
+   building sold back and each place mortgaged, with the money it brings, and what is left after
+   paying. The 🏗️ panel stays for doing it by hand («هعملها بإيدي» opens it). */
+function bankRaisePlan(g, pid) {
+  const d = g && g.debt;
+  if (!d || d.pid !== pid) return null;
+  const copy = JSON.parse(JSON.stringify(g));
+  const from = copy.eventSeq || 0;
+  const ok = bankRaise(copy, pid, d.amount);
+  const steps = (copy.events || []).filter(e => e.seq > from && e.pid === pid && (e.type === 'sell' || e.type === 'mortgage'));
+  return { ok: ok, steps: steps, owe: d.amount, cash: g.cash[pid] || 0, left: (copy.cash[pid] || 0) - d.amount, key: [g.turnSeq, g.eventSeq].join('|') };
+}
+
+function bankPlanModalEl() {
+  let el = document.getElementById('bank-plan-modal');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'bank-plan-modal';
+  el.className = 'modal-overlay hidden';
+  el.setAttribute('data-accent', 'green');
+  el.innerHTML = '<div class="modal-content modal-content--simple bank-plan" id="bank-plan-body"></div>';
+  el.addEventListener('click', (e) => { if (e.target === el) closeModal('bank-plan-modal'); });
+  document.body.appendChild(el);
+  if (typeof adoptModal === 'function') adoptModal(el);
+  return el;
+}
+
+function bankPlanOpen(changed) {
+  const g = bankCurrentGame();
+  const me = bankCurrentMe();
+  const plan = g && me ? bankRaisePlan(g, me) : null;
+  if (!plan || !plan.ok) { showToast(bankT('bank_raise_hint'), 'error'); return; }
+  const el = bankPlanModalEl();
+  const rows = plan.steps.map(e => {
+    const what = e.type === 'sell'
+      ? bankT('bank_plan_sell', { lvl: bankLevelWord((Number(e.lvl) || 0) + 1), place: bankSqName(e.sq) })
+      : bankT('bank_plan_mort', { place: bankSqName(e.sq) });
+    const q = BANK_SQUARES[e.sq] || {};
+    return `<li class="bank-plan__row"><span class="bank-plan__dot" style="--gc:${BANK_GROUP_HEX[q.g] || 'var(--text-3)'}" aria-hidden="true"></span>
+        <span class="bank-plan__what">${e.type === 'sell' ? '🏚️' : '📜'} ${escapeHTML(what)}</span>
+        <b class="bank-plan__amt metric" dir="ltr">+${bankFmt(e.amount)}</b></li>`;
+  }).join('');
+  el.dataset.key = plan.key;
+  document.getElementById('bank-plan-body').innerHTML = `
+      <div class="modal-icon" aria-hidden="true">🪄</div>
+      <div class="sheet__title">${escapeHTML(bankT('bank_plan_title'))}</div>
+      <p class="sheet__subtitle">${escapeHTML(changed ? bankT('bank_plan_changed') : bankT('bank_plan_sub', { n: bankFmt(plan.owe), cash: bankFmt(plan.cash) }))}</p>
+      <ol class="modal-list bank-plan__list">${rows}</ol>
+      <p class="bank-plan__after">${escapeHTML(bankT('bank_plan_after', { n: bankFmt(plan.owe), left: bankFmt(plan.left) }))}</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--primary btn--lg" onclick="bankPlanOk()">${escapeHTML(bankT('bank_plan_ok'))}</button>
+        <button type="button" class="btn btn--ghost" onclick="bankPlanByHand()">${escapeHTML(bankT('bank_plan_hand'))}</button>
+      </div>`;
+  el.classList.remove('hidden');
+  haptic('light');
+}
+
+/** «تمام»: the plan is done by the rules (the server's in a room) - unless the table moved while the sheet was open. */
+function bankPlanOk() {
+  const el = document.getElementById('bank-plan-modal');
+  const g = bankCurrentGame();
+  const me = bankCurrentMe();
+  const plan = g && me ? bankRaisePlan(g, me) : null;
+  if (!plan || !plan.ok) { closeModal('bank-plan-modal'); return; }
+  if (el && el.dataset.key !== plan.key) { bankPlanOpen(true); return; }
+  closeModal('bank-plan-modal');
+  bankDo('raise');
+}
+
+function bankPlanByHand() {
+  closeModal('bank-plan-modal');
+  if (bankUi.panel !== 'manage') bankPanel('manage');
+}
+
 /* --- the motion ------------------------------------------------------------------------------------ */
 
 const bankCanMove = () => !motionOff() && !!(document.body && document.body.animate);
@@ -747,8 +884,9 @@ function bankAfterPaint(root, c) {
   g.seats.forEach(pid => { bankFx.cash[pid] = g.cash[pid] || 0; });
   const rollNow = moving ? evs.find(e => e.type === 'roll' && !e.forRent) : null;
   if (lastRoll && !rollNow) bankDiceShow(root, lastRoll.d, false);
-  if (!evs.length) return 0;
+  if (!evs.length) { bankRaceAfter(root, c.key, 0, false); return 0; }
   if (!moving) {
+    bankRaceAfter(root, c.key, 0, false);
     if (!quiet) bankEventSounds(evs, c);
     return 0;
   }
@@ -802,6 +940,7 @@ function bankAfterPaint(root, c) {
     }
   });
   countCash(cashAt || t);
+  bankRaceAfter(root, c.key, cashAt || t, true);
   bankFx.busyUntil = Math.max(bankFx.busyUntil, Date.now() + t);
   return t;
 }

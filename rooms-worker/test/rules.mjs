@@ -13195,6 +13195,26 @@ Date.now = duelTestClock;
   S.snakesRemovePlayer(g, 'c');
   check(g.phase === 'gameover' && g.places.join() === 'b', 'snakes: one left: the game is over');
 
+  // «خرايطنا» (959, 7 Oct 2026): a kept map's seed deals that very map in its look; anything else is a new map.
+  {
+    const rk = newRoom(['h', 'p']);
+    applyRoomAction(rk, 'h', 'chooseGame', { game: 'snakes' });
+    applyRoomAction(rk, 'h', 'start', { theme: 'nile', seed: 424242 });
+    check(rk.shared.map.seed === 424242 && JSON.stringify(rk.shared.map.snakes) === JSON.stringify(S.snakesGenMap(424242).snakes) &&
+      JSON.stringify(rk.shared.map.ladders) === JSON.stringify(S.snakesGenMap(424242).ladders) && rk.shared.theme === 'nile' && rk.shared.settings.seed === 424242,
+      'snakes room: a kept map (its seed) deals the very same snakes and ladders, in its look');
+    ['x', 3.5, -4, 0, 2147483647, null].forEach((bad) => {
+      const rb = newRoom(['h', 'p']);
+      applyRoomAction(rb, 'h', 'chooseGame', { game: 'snakes' });
+      applyRoomAction(rb, 'h', 'start', { seed: bad });
+      check(rb.shared.settings.seed === 0 && Number.isInteger(rb.shared.map.seed) && rb.shared.map.seed >= 1, `snakes room: a seed of ${JSON.stringify(bad)} is refused for a new map`);
+    });
+    const ro = newRoom(['h', 'p']);
+    applyRoomAction(ro, 'h', 'chooseGame', { game: 'snakes' });
+    applyRoomAction(ro, 'h', 'start', {});
+    check(ro.shared.settings.seed === 0, 'snakes room: an older phone\'s start (no seed) makes a new map');
+  }
+
   // The room.
   const r = newRoom(['h', 'p', 'q']);
   applyRoomAction(r, 'h', 'chooseGame', { game: 'snakes' });

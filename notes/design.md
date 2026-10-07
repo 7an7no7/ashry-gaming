@@ -318,6 +318,16 @@ lands with the answer rather than before it. The reveals:
   Ties share a place and its height. Fewer than two players or nobody scoring,
   and it returns '' so the screen keeps its plain champion line. The TV
   trivia podium rises the same way (`tv-podium--rise`).
+  **Its options** (`renderPodium(state, board, { low, unit, noScore })`, the
+  owner's picks 939 + 1225 of 7 Oct 2026): `low` ranks the lowest score first
+  whatever order the board comes in, prints the real numbers (0 and below
+  stand on a step too: nobody is dropped for "not scoring"), so a game that
+  wins low never mirrors its board and patches the numbers back (سكرو's
+  `skrPodiumHtml` and `skPodiumHtml`, ميني جولف's `mgPodiumHtml`, the card
+  score keepers' كونكان); `unit` writes a small word under each number
+  (`.podium__unit`); `noScore` leaves the numbers out when the places are the
+  ranking (the bracket's champion, `tourneyChampionHtml`). Never write a
+  regex over its markup again: give it the option.
   **A figure of the cast stands on every step** (the owner, 27 Sep 2026, the
   living characters; `podCastDress` in `JS_Motion.html`, section 44 of
   `Style.html`): the winner jumps with both arms up, a crown landing on its

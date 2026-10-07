@@ -24,7 +24,7 @@ const snkRoomLocal = { fed: '', sent: '', clock: null, clockKey: null, hostKey: 
 function snkRoomOpts() {
   const o = recallOptions(SNK_OPTS_KEY, { turnClock: 0, theme: 'classic', surprises: false, moving: false });
   if (SNAKES_CLOCKS.indexOf(Number(o.turnClock)) === -1) o.turnClock = 0;
-  if (SNAKES_THEMES.indexOf(o.theme) === -1 && o.theme !== 'random') o.theme = 'classic';
+  if (!snkMapChoiceOk(o.theme)) o.theme = 'classic';   // a look, 🎲, or one of «خرايطنا» still kept (959)
   o.surprises = !!o.surprises;
   o.moving = !!o.moving;
   return o;
@@ -32,7 +32,7 @@ function snkRoomOpts() {
 
 function setSnakesRoomOpt(key, value) {
   if (key === 'turnClock') rememberOptions(SNK_OPTS_KEY, { turnClock: Number(value) || 0 });
-  else if (key === 'theme') rememberOptions(SNK_OPTS_KEY, { theme: SNAKES_THEMES.indexOf(value) !== -1 || value === 'random' ? value : 'classic' });
+  else if (key === 'theme') rememberOptions(SNK_OPTS_KEY, { theme: snkMapChoiceOk(value) ? value : 'classic' });
   else if (key === 'surprises' || key === 'moving') rememberOptions(SNK_OPTS_KEY, { [key]: !!value });
   haptic('light');
   const setup = document.getElementById('room-host-setup');
@@ -454,7 +454,9 @@ ROOM_GAMES.snakes = {
 
   startPayload() {
     const o = snkRoomOpts();
-    return { turnClock: o.turnClock, theme: o.theme, surprises: o.surprises, moving: o.moving };
+    // A kept map (959) goes as its look and its seed; seed 0 is a new map (the server checks both).
+    const m = snkMapOf(o.theme);
+    return { turnClock: o.turnClock, theme: m ? m.theme : o.theme, seed: m ? m.seed : 0, surprises: o.surprises, moving: o.moving };
   },
 
   render(state) {

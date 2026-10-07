@@ -453,9 +453,12 @@ function csFinalHtml(id, order, t) {
   const s = csState(id);
   const team = g.winners && g.winners(s, order);
   const winners = csWinnersOf(g, s, order);
-  const board = order.filter(r => !r.out).map(r => ({ pid: String(r.i), name: r.name, score: g.low ? -r.score : r.score }));
-  // A team that won (طرنيب 41) is not a ranking of its players.
-  const podium = !team && !g.low && board.length > 1 ? renderPodium({ code: 'cs', game: id + ':' + s.startedAt }, board) : '';
+  const board = order.filter(r => !r.out).map(r => ({ pid: String(r.i), name: r.name, score: r.score }));
+  // Two teams end on their two sides, the winners crowned (939); everyone on
+  // their own on a podium, lowest first where low wins (كونكان: 1225).
+  const teams = !!(g.teamMode && g.teamMode(s.opts));
+  const podium = teams ? csCrownHtml(id, s, order, team, winners)
+    : (board.length > 1 && typeof renderPodium === 'function' ? renderPodium({ code: 'cs', game: id + ':' + s.startedAt }, board, { low: !!g.low }) : '');
   return `
     <div class="card card--accent" style="text-align:center">
       <div class="metric metric--md">🏆</div>
@@ -463,6 +466,48 @@ function csFinalHtml(id, order, t) {
       <p class="sheet__subtitle">${escapeHTML(!team && winners.length > 1 ? (t.cs_tie || '') : (t.cs_winner || ''))}</p>
       ${podium}
     </div>`;
+}
+
+/**
+ * Two teams' end (the owner's pick 939, 7 Oct 2026): the two sides next to each
+ * other, each with its partners' names, the winners' side crowned and risen
+ * (both crowned on a tie). A side is a team row of the board (تريكس, كونكان,
+ * باصرة in pairs, طرنيب), or two seats of one team each with its own total
+ * (طرنيب ٤١, where a team wins whatever its players' numbers). The rise plays
+ * once (motionFirst) and carries data-reveal-ms, so the confetti that
+ * saveCardScoreRound hands to afterReveal waits for the crown.
+ */
+function csCrownHtml(id, s, order, team, winners) {
+  const t = csT();
+  const rowOf = (i) => order.find(r => r.i === i);
+  const won = (pred) => winners.some(pred);
+  let sides;
+  if (s.seats.length === 2 && s.seats.every(x => Array.isArray(x.members))) {
+    // csTeams seats: a seat is a team.
+    sides = s.seats.map((seat, k) => ({ no: k, names: seat.members, score: (rowOf(k) || {}).score, won: won(w => w.i === k) }));
+  } else if (s.seats.length === 4 && s.seats.every(x => x.team === 0 || x.team === 1)) {
+    const perSeat = order.length === 4;
+    sides = [0, 1].map(k => {
+      const idx = s.seats.map((x, i) => i).filter(i => s.seats[i].team === k);
+      return {
+        no: k,
+        names: idx.map(i => s.seats[i].name),
+        scores: perSeat ? idx.map(i => (rowOf(i) || {}).score) : null,
+        score: perSeat ? undefined : (rowOf(k) || {}).score,
+        won: perSeat ? won(w => s.seats[w.i] && s.seats[w.i].team === k) : won(w => w.i === k)
+      };
+    });
+  } else return '';
+  if (!sides.some(x => x.won)) return '';
+  const rise = typeof motionFirst === 'function' && motionFirst('cs-crown|' + id + '|' + s.startedAt + '|' + s.rounds.length);
+  const crownMs = 900;
+  return `<div class="cs-crown${rise ? ' cs-crown--rise' : ''}"${rise ? ` data-reveal-ms="${crownMs}"` : ''}>` + sides.map(side => `
+      <div class="cs-crown__side${side.won ? ' is-won' : ''}" data-accent="${side.no === 0 ? 'blue' : 'rose'}">
+        <span class="cs-crown__mark" aria-hidden="true">${side.won ? '👑' : ''}</span>
+        <span class="eyebrow">${escapeHTML((t.cs_team_short || 'فريق {n}').replace('{n}', side.no + 1))}</span>
+        <span class="cs-crown__names">${side.names.map((n, k) => `<span class="cs-crown__name"><bdi>${escapeHTML(n)}</bdi>${side.scores ? ` <span class="metric">${Number(side.scores[k]) || 0}</span>` : ''}</span>`).join('')}</span>
+        ${side.score !== undefined && side.score !== null ? `<b class="cs-crown__score metric">${Number(side.score) || 0}</b>` : ''}
+      </div>`).join('') + '</div>';
 }
 
 /**

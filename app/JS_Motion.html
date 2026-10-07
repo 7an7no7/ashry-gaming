@@ -781,17 +781,29 @@ FX.spyWhoosh = (at) => {
  * the winner and third on the other. The first time it is drawn, third rises,
  * then second, then the winner. Empty with fewer than two players or nobody
  * scoring, and the caller keeps its plain champion line.
+ *
+ * opts (the owner's picks of 7 Oct 2026, 939 + 1225):
+ * - low: the lowest score wins (سكرو, ميني جولف, كونكان): the rows are ranked
+ *   lowest first, whatever order they come in, and 0 or below stands on a step
+ *   like any other number - the real numbers are printed, no mirrored board;
+ * - unit: a word under each number (ضربة), in small type;
+ * - noScore: the places are the ranking (the bracket), so no number at all.
  */
-function renderPodium(state, board) {
-  const all = board || [];
-  // Nobody stands on a step with 0 once somebody scored.
-  const top = (all[0] && Number(all[0].score) > 0 ? all.filter((p) => Number(p.score) > 0) : all).slice(0, 3);
-  if (top.length < 2 || !(Number(top[0].score) > 0)) return '';
-  const rankOf = (p) => 1 + all.filter((x) => Number(x.score) > Number(p.score)).length;
+function renderPodium(state, board, opts) {
+  const o = opts || {};
+  const low = !!o.low;
+  const num = (p) => Number(p.score) || 0;
+  let all = (board || []).slice();
+  if (low) all = all.filter((p) => p && Number.isFinite(Number(p.score))).sort((a, b) => num(a) - num(b));
+  // Nobody stands on a step with 0 once somebody scored (a high-wins board only).
+  const top = (low ? all : (all[0] && num(all[0]) > 0 ? all.filter((p) => num(p) > 0) : all)).slice(0, 3);
+  if (top.length < 2 || (!low && !(num(top[0]) > 0))) return '';
+  const rankOf = (p) => 1 + all.filter((x) => (low ? num(x) < num(p) : num(x) > num(p))).length;
   const rise = motionFirst(['podium', roomDealKey(state), state && state.game, JSON.stringify(top)].join('|'));
   const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
   const atOf = (i) => 150 + (top.length - 1 - i) * 520;
   const winMs = atOf(0) + 620;
+  const unit = o.unit ? '<small class="podium__unit">' + escapeHTML(String(o.unit)) + '</small>' : '';
   return '<div class="podium' + (rise ? ' podium--rise" data-reveal-ms="' + winMs + '"' : '"') + '>' +
     top.map((p, i) => {
       const rank = Math.min(3, rankOf(p));
@@ -799,7 +811,7 @@ function renderPodium(state, board) {
                '<div class="podium__who">' +
                  '<span class="podium__medal" aria-hidden="true">' + medals[rank] + '</span>' +
                  '<span class="podium__name">' + escapeHTML(p.name) + '</span>' +
-                 '<span class="podium__score metric">' + (Number(p.score) || 0) + '</span>' +
+                 (o.noScore ? '' : '<span class="podium__score metric">' + num(p) + '</span>' + unit) +
                '</div>' +
                '<div class="podium__block"><span class="metric">' + rank + '</span></div>' +
              '</div>';

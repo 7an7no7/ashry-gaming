@@ -139,8 +139,18 @@ gameText({
       bank_lobby_hint: "مين يبدأ بيتحدد بالزهر: الأعلى يبدأ.",
       bank_play_for: "العب بدل {name}",
       bank_wait_host: "المضيف هيختار اللي بعده.",
-      bank_raise_btn: "🪄 دبّرها",
-      bank_raise_can: "الفلوس مش مكفية، بس أملاكك تكفي: «دبّرها» تبيع وترهن الأرخص وتدفع",
+      bank_raise_btn: "🪄 غطّي الدين",
+      bank_raise_can: "الفلوس مش مكفية، بس أملاكك تكفي: «غطّي الدين» توريك هتبيع وترهن إيه وتدفع",
+      bank_plan_title: "🪄 غطّي الدين",
+      bank_plan_sub: "عليك {n} ومعاك {cash}. ده اللي هيتعمل:",
+      bank_plan_sell: "بيع {lvl} في {place}",
+      bank_plan_mort: "رهن {place}",
+      bank_plan_after: "بعدها تدفع {n} ويفضل معاك {left}",
+      bank_plan_ok: "تمام",
+      bank_plan_hand: "🏗️ هعملها بإيدي",
+      bank_plan_changed: "اللعبة اتغيّرت، دي الخطة الجديدة",
+      bank_race_title: "💰 الثروة",
+      bank_race_last: "🏁 اللفة الأخيرة",
       bank_buy_means: "هيبقى معاك {have} من {of} {grp} · يفضل معاك {left}",
       bank_buy_full: "هتكمّل {grp} كله! · يفضل معاك {left}",
       bank_build_nudge: "🏗️ عندك لون كامل، تبني؟",
@@ -281,8 +291,18 @@ gameText({
       bank_lobby_hint: "The dice decide who starts: highest first.",
       bank_play_for: "Play for {name}",
       bank_wait_host: "The host picks what's next.",
-      bank_raise_btn: "🪄 Raise it",
-      bank_raise_can: "Not enough cash, but your places cover it: “Raise it” sells and mortgages the cheapest and pays",
+      bank_raise_btn: "🪄 Cover the debt",
+      bank_raise_can: "Not enough cash, but your places cover it: “Cover the debt” shows what it sells and mortgages, then pays",
+      bank_plan_title: "🪄 Cover the debt",
+      bank_plan_sub: "You owe {n} and have {cash}. Here's the plan:",
+      bank_plan_sell: "Sell the {lvl} on {place}",
+      bank_plan_mort: "Mortgage {place}",
+      bank_plan_after: "Then pay {n}, leaving you {left}",
+      bank_plan_ok: "OK",
+      bank_plan_hand: "🏗️ I'll do it myself",
+      bank_plan_changed: "The game moved on: here's the new plan",
+      bank_race_title: "💰 Wealth",
+      bank_race_last: "🏁 Last lap",
       bank_buy_means: "You'll have {have} of {of} {grp} · {left} left",
       bank_buy_full: "Completes the {grp} set! · {left} left",
       bank_build_nudge: "🏗️ You have a whole colour: build?",
@@ -310,6 +330,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>دوس على أي خانة تشوف كارتها في نص اللوحة: السعر والإيجار في كل مرحلة وصاحبها.</li>
                 <li>🏗️ أملاكي: ابني وبيع وارهن وفك الرهن من مكان واحد. 🤝 بدّل: اختار لاعب واللي هتدّيه واللي هتاخده.</li>
+                <li>عليك دين وفلوسك مش مكفية؟ <b>🪄 غطّي الدين</b> بيوريك هيبيع بنا إيه ويرهن إيه (الأرخص الأول، زي الكمبيوتر)، و«تمام» تعملها وتدفع. أو اعملها بإيدك من 🏗️.</li>
             </ul>
             <p class="help-sub">🤖 ضد الموبايل</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -324,6 +345,7 @@ gameText({
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>اللوحة كبيرة بأسامي المدن وأسعارها، والفلوس والكروت وكل حركة قدام الكل.</li>
+                <li><b>💰 الثروة</b>: عمود لكل لاعب بقيمته كلها (الفلوس والأماكن والبنا، زي آخر اللعبة)، بيتحرك مع كل إيجار وشرا، وفي اللفة الأخيرة بيكبر.</li>
             </ul>`,
     },
     en: {
@@ -347,6 +369,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Tap any square to see its card in the middle of the board: the price, the rent at every step, and who owns it.</li>
                 <li>🏗️ My places: build, sell, mortgage and redeem in one place. 🤝 Trade: pick a player, what you give and what you want.</li>
+                <li>A debt your cash can't cover? <b>🪄 Cover the debt</b> shows which buildings it would sell and which places it would mortgage (the cheapest first, as the computer does), and "OK" does it and pays. Or do it yourself from 🏗️.</li>
             </ul>
             <p class="help-sub">🤖 Against the phone</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -361,6 +384,7 @@ gameText({
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The board big, with every city and its price, and the money, the cards and every move in front of everyone.</li>
+                <li><b>💰 Wealth</b>: a bar for each player at their whole worth (cash, places and buildings, as the end counts it), moving with every rent and purchase, and taller on the last lap.</li>
             </ul>`,
     }
   }

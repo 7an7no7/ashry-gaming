@@ -734,7 +734,8 @@ window.addEventListener('resize', () => { cancelAnimationFrame(snkFitT); snkFitT
 /* --- the map on the board ------------------------------------------------------------ */
 
 /** A map's key on the board: its seed, and how many times a snake has moved on it («الخريطة بتتحرك»). */
-const snkMapKey = (m) => (m ? (m.seed || 0) + ':' + (m.v || 0) : '');
+// A kept map (959) can come back with or without its surprise squares, so they are part of the key.
+const snkMapKey = (m) => (m ? (m.seed || 0) + ':' + (m.v || 0) + (m.surp ? ':s' + Object.keys(m.surp).join('.') : '') : '');
 
 /**
  * One snake (or a theme's down piece) on the board: `d` its dress (colour, the طربوش, its curve and the
@@ -3533,6 +3534,7 @@ function snkFrameHtml(k) {
           ${g.phase === 'play' && !k.tv ? `<p class="snk-reach-key hidden" data-snk-reach><span class="snk-reach-key__sw snk-reach-key__sw--plain" aria-hidden="true"></span><span class="snk-reach-key__sw snk-reach-key__sw--ladder" aria-hidden="true"></span><span class="snk-reach-key__sw snk-reach-key__sw--snake" aria-hidden="true"></span>${escapeHTML(snkT('snk_reach_key'))}</p>` : ''}
           ${g.phase === 'play' && k.tv ? '<div class="snk-lastroll hidden" data-snk-lastroll></div>' : ''}
           <div class="snk-log" data-snk-log>${snkLogHtml(k)}</div>
+          ${!k.tv && g.map && g.map.seed ? `<button type="button" class="btn btn--ghost btn--xs btn--auto snk-mapsave" onclick="snkMapSaveOpen()">${escapeHTML(snkT('snk_map_save'))}</button>` : ''}
           ${k.host || ''}
           ${k.strip || ''}
         </div>
@@ -3569,7 +3571,7 @@ function snkState() {
   if ([1, 2, 3, 4, 5].indexOf(Number(s.opp)) === -1) s.opp = 1;
   if (SNAKES_COLORS.indexOf(s.color) === -1) s.color = 'r';
   // The third round (2 Oct 2026): the map's theme (or 🎲) and the two switches, off by default.
-  if (SNAKES_THEMES.indexOf(s.theme) === -1 && s.theme !== 'random') s.theme = 'classic';
+  if (!snkMapChoiceOk(s.theme)) s.theme = 'classic';
   s.surprises = !!s.surprises;
   s.moving = !!s.moving;
   return s;
@@ -3578,9 +3580,129 @@ function snkState() {
 /** The themes as tiles to pick from (the setup and the room's lobby): the classic, the four maps and 🎲. */
 const SNK_THEME_ICON = { classic: '🐍', nile: '🐊', metro: '🚇', desert: '🏜️', hara: '🏙️', random: '🎲' };
 function snkThemePickerHtml(sel, fn) {
+  const maps = snkMapsSaved();
+  const saved = maps.length ? `<span class="snk-saved__label">${escapeHTML(snkT('snk_maps_label'))}</span>` + maps.map(m => {
+    const v = 'map:' + m.id;
+    return `<button type="button" class="snk-theme snk-theme--saved ${sel === v ? 'is-active' : ''}" data-value="${escapeHTML(v)}" data-sum-pick aria-pressed="${sel === v}" onclick="${fn}('${jsStringAttr(v)}')">
+      ${snkThemeMiniSvg(m.theme) || `<span class="snk-theme__ic" aria-hidden="true">${SNK_THEME_ICON[m.theme] || '🗺️'}</span>`}<span class="snk-theme__name">📌 ${escapeHTML(m.name)}</span>
+    </button>`;
+  }).join('') + (snkMapOf(sel) ? `<button type="button" class="btn btn--ghost btn--xs btn--auto snk-saved__del" onclick="snkMapForget('${jsStringAttr(snkMapOf(sel).id)}', '${fn}')">${escapeHTML(snkT('snk_map_forget'))}</button>` : '') : '';
   return SNAKES_THEMES.concat(['random']).map(id => `<button type="button" class="snk-theme ${sel === id ? 'is-active' : ''}" data-value="${id}" data-sum-pick aria-pressed="${sel === id}" onclick="${fn}('${id}')">
       ${snkThemeMiniSvg(id) || `<span class="snk-theme__ic" aria-hidden="true">${SNK_THEME_ICON[id]}</span>`}<span class="snk-theme__name">${escapeHTML(snkT('snk_theme_' + id))}</span>
-    </button>`).join('');
+    </button>`).join('') + saved;
+}
+
+/* --- «خرايطنا» (the owner's pick 959, 7 Oct 2026) ------------------------------------------------
+   A board the family liked is kept by name on this phone: its seed (the server already stores
+   it, g.map.seed, and the same seed draws the same snakes and ladders everywhere) and its look
+   (g.theme). The map pickers (one phone's setup, the room's lobby) list them after 🎲 as
+   'map:<id>'; a start sends the seed with the look (snkMapResolve), the server checks it. Twelve
+   at most, the newest first; one map is kept once (the same seed and look). */
+const SNK_MAPS_KEY = 'ashrySnakesMaps_v1';
+const SNK_MAPS_MAX = 12;
+const snkSeedOk = (n) => Number.isInteger(n) && n >= 1 && n <= 2147483646;
+
+function snkMapsSaved() {
+  let list = [];
+  try { list = JSON.parse(localStorage.getItem(SNK_MAPS_KEY) || '[]'); } catch (e) { list = []; }
+  return (Array.isArray(list) ? list : []).filter(m => m && typeof m.id === 'string' && snkSeedOk(Number(m.seed)) && typeof m.name === 'string')
+    .map(m => ({ id: m.id, name: m.name.slice(0, 24), seed: Number(m.seed), theme: SNAKES_THEMES.indexOf(m.theme) !== -1 ? m.theme : 'classic' }));
+}
+function snkMapsWrite(list) {
+  try { localStorage.setItem(SNK_MAPS_KEY, JSON.stringify(list.slice(0, SNK_MAPS_MAX))); } catch (e) { /* private window: kept for nothing */ }
+}
+/** The saved map an option names ('map:<id>'), or null. */
+const snkMapOf = (opt) => (typeof opt === 'string' && opt.indexOf('map:') === 0 ? snkMapsSaved().find(m => m.id === opt.slice(4)) || null : null);
+/** Is `opt` a map choice a picker may hold: a look, 🎲, or a saved map still here. */
+const snkMapChoiceOk = (opt) => SNAKES_THEMES.indexOf(opt) !== -1 || opt === 'random' || !!snkMapOf(opt);
+/** What a start deals from an option: { theme, seed } (seed 0: a new map). */
+function snkMapResolve(opt) {
+  const m = snkMapOf(opt);
+  return m ? { theme: m.theme, seed: m.seed } : { theme: snkPickTheme(opt), seed: 0 };
+}
+
+/** The game on screen: against the phone, or the room's. */
+function snkMapGameNow() {
+  if (appState.currentView === 'play-snakes') return (snkState().g) || null;
+  return typeof Room !== 'undefined' && Room.state && Room.state.game === 'snakes' ? Room.state.shared : null;
+}
+
+function snkMapModalEl() {
+  let el = document.getElementById('snk-save-modal');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'snk-save-modal';
+  el.className = 'modal-overlay hidden';
+  el.setAttribute('data-accent', 'teal');
+  el.innerHTML = '<div class="modal-content modal-content--simple" id="snk-save-body"></div>';
+  el.addEventListener('click', (e) => { if (e.target === el) closeModal('snk-save-modal'); });
+  document.body.appendChild(el);
+  if (typeof adoptModal === 'function') adoptModal(el);
+  return el;
+}
+
+/** «💾 احفظ الخريطة دي»: the name sheet, the field filled with the look's name and a number. */
+function snkMapSaveOpen() {
+  const g = snkMapGameNow();
+  const seed = Number(g && g.map && g.map.seed);
+  if (!snkSeedOk(seed)) return;
+  const theme = g.theme && SNAKES_THEMES.indexOf(g.theme) !== -1 ? g.theme : 'classic';
+  const have = snkMapsSaved().find(m => m.seed === seed && m.theme === theme);
+  if (have) { showToast(snkT('snk_map_already', { name: have.name })); return; }
+  const el = snkMapModalEl();
+  el.dataset.seed = String(seed);
+  el.dataset.theme = theme;
+  const def = snkT('snk_theme_' + theme) + ' ' + (snkMapsSaved().length + 1);
+  document.getElementById('snk-save-body').innerHTML = `
+      <div class="modal-icon" aria-hidden="true">${SNK_THEME_ICON[theme] || '🗺️'}</div>
+      <div class="sheet__title">${escapeHTML(snkT('snk_map_save_title'))}</div>
+      <p class="sheet__subtitle">${escapeHTML(snkT('snk_map_save_sub'))}</p>
+      <div class="field">
+        <label class="field__label" for="snk-save-name">${escapeHTML(snkT('snk_map_name_label'))}</label>
+        <input type="text" id="snk-save-name" maxlength="24" autocomplete="off" value="${escapeHTML(def)}" onkeydown="if(event.key==='Enter'){event.preventDefault();snkMapSaveOk();}">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--primary btn--lg" onclick="snkMapSaveOk()">${escapeHTML(snkT('snk_map_save_ok'))}</button>
+        <button type="button" class="btn btn--ghost" onclick="closeModal('snk-save-modal')">${escapeHTML(snkT('cancel'))}</button>
+      </div>`;
+  el.classList.remove('hidden');
+  haptic('light');
+}
+
+function snkMapSaveOk() {
+  const el = document.getElementById('snk-save-modal');
+  const input = document.getElementById('snk-save-name');
+  if (!el || !input) return;
+  const seed = Number(el.dataset.seed);
+  const theme = el.dataset.theme || 'classic';
+  if (!snkSeedOk(seed)) { closeModal('snk-save-modal'); return; }
+  const name = (input.value || '').replace(/\s+/g, ' ').trim().slice(0, 24) || (snkT('snk_theme_' + theme) + ' ' + (snkMapsSaved().length + 1));
+  const list = snkMapsSaved().filter(m => !(m.seed === seed && m.theme === theme));
+  list.unshift({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: name, seed: seed, theme: theme });
+  snkMapsWrite(list);
+  closeModal('snk-save-modal');
+  playSound('success');
+  showToast(snkT('snk_map_saved', { name: name }), 'success');
+  snkMapPickersRepaint();
+}
+
+/** 🗑️ on the picked saved map: forgotten, and the picker goes back to the classic. */
+function snkMapForget(id, fn) {
+  snkMapsWrite(snkMapsSaved().filter(m => m.id !== id));
+  haptic('light');
+  showToast(snkT('snk_map_forgot'));
+  if (typeof window[fn] === 'function') window[fn]('classic');
+  else snkMapPickersRepaint();
+}
+
+/** The pickers on show drawn again (a map kept or forgotten). */
+function snkMapPickersRepaint() {
+  if (appState.currentView === 'setup-snakes') paintSnakesSetup();
+  if (typeof Room !== 'undefined' && Room.state && Room.state.game === 'snakes' && Room.state.phase === 'lobby' && typeof setSnakesRoomOpt === 'function') {
+    const setup = document.getElementById('room-host-setup');
+    if (setup) delete setup.dataset.sig;
+    routeRoomState(Room.state);
+  }
 }
 /**
  * A map's tile shows a corner of its own board (the owner's sheet, 3 Oct 2026): six by three of its
@@ -3648,7 +3770,7 @@ function setSnakesOption(key, value) {
   const s = snkState();
   if (key === 'opp') s.opp = Number(value);
   else if (key === 'color' && SNAKES_COLORS.indexOf(value) !== -1) s.color = value;
-  else if (key === 'theme' && (SNAKES_THEMES.indexOf(value) !== -1 || value === 'random')) s.theme = value;
+  else if (key === 'theme' && snkMapChoiceOk(value)) s.theme = value;
   else if (key === 'surprises' || key === 'moving') s[key] = !!value;
   haptic('light');
   saveToLocal();
@@ -3668,7 +3790,8 @@ function startSnakes() {
   ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = 'easy'; });
   const colors = snakesFillColors(ids, { me: s.color });
   const order = shuffleArray(ids);   // Fisher-Yates: a random comparator in sort() favours the first seats
-  const g = snakesNewGame(order, colors, snakesNewSeed(Math.random), Date.now(), { teardown: again, theme: snkPickTheme(s.theme), surprises: s.surprises, moving: s.moving });
+  const pick = snkMapResolve(s.theme);   // «خرايطنا» (959): a kept map deals its own seed
+  const g = snakesNewGame(order, colors, pick.seed || snakesNewSeed(Math.random), Date.now(), { teardown: again, theme: pick.theme, surprises: s.surprises, moving: s.moving });
   s.g = g;
   s.names = names;
   s.bots = bots;

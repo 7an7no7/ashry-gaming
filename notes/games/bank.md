@@ -170,6 +170,37 @@ frame waits for the token to land marks `bankFx.pending` and greys the last fram
 
 **Trades (the audit of 6 Oct 2026)**: each jail-card chip is its own (`bankTradeCard(side, k)`), so both decks' cards can go in one offer; in a room an offer the server refuses reopens the panel as it was composed (the table's `offerSeq` didn't move).
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **965 «💰 الثروة» on the TV** (no rule asked; built as described): while a
+  game is played, the TV's side column starts with a bar a player still in
+  (`bankRaceHtml`, `JS_Bank.html`), at their whole worth as the end counts it
+  (`bankWorth`: cash, places - half if mortgaged - and what the buildings
+  cost), the richest at full width; the seats keep their order (a bar never
+  jumps rows), the leader's number in the accent. The bars are drawn at what
+  the screen showed before (`bankFx.race`, keyed on the game) and
+  `bankRaceAfter`, called from `bankAfterPaint`, slides each one (`scaleX`
+  from the inline-start edge, a CSS transition on `--w`) and counts its number
+  up (`countUp`) when the money lands (the same moment the chips' cash counts);
+  with motion off, or a quiet screen, they are set at once. On the last lap
+  the bars are twice as tall with «🏁 اللفة الأخيرة» on the head. Decided here:
+  the TV only (the phones keep their cash chips), players out are left off,
+  a bar never narrower than 3% so a broke player still shows. CSS `.bank-race*`
+  at the end of section 23 of `Style_Boards.html`.
+- **970 «🪄 غطّي الدين»**: CHANGED - the one tap already existed («🪄 دبّرها»,
+  `bankRaiseDebt`, the ideas batch of 30 Sep), raising and paying straight
+  away. Now the button is «🪄 غطّي الدين» and opens a centred sheet first
+  (`bankPlanOpen`, the popup `#bank-plan-modal` made by `bankPlanModalEl` and
+  adopted like the page's own, `adoptModal`) with the plan: `bankRaisePlan`
+  runs the very `bankRaise` the server runs on a copy of the table, so the
+  list is exactly what will happen - each building sold back (🏚️, which and
+  where) and each place mortgaged (📜), the money each brings - and what is
+  left after paying. «تمام» (`bankPlanOk`) sends `raise` as before (the server
+  and the rules are unchanged), unless the table moved while the sheet was
+  open (its key, `turnSeq|eventSeq`): then the sheet shows the new plan
+  instead. «🏗️ هعملها بإيدي» (`bankPlanByHand`) closes it and opens the 🏗️
+  panel. Help: a line in «الموبايل بيساعدك» and one in «على التلفزيون».
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -144,6 +144,31 @@ number held to its stepper's min..max (as − and + are), so a bid of 7.5 can't 
 leftover of 999 counts as 400. The field itself isn't rewritten (it runs on every key); the
 preview shows what counts.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **939 + 1225, one podium change** (the owner: build together). `renderPodium`
+  (`app/JS_Motion.html`) takes options, `renderPodium(state, board, { low, unit,
+  noScore })`: `low` ranks lowest first and prints the real numbers (0 and
+  negatives stand on a step), `unit` a small word under each number, `noScore`
+  no numbers (notes/design.md, *The podium*). Its callers that patched its markup
+  now pass the option: سكرو in rooms (`skrPodiumHtml`) and on the table
+  (`skPodiumHtml`, which drew its own copy of the markup), ميني جولف
+  (`mgPodiumHtml`), the bracket (`tourneyChampionHtml`, `noScore`).
+- **The card score keepers' end** (`csFinalHtml`, `JS_CardScore.html`):
+  everyone on their own ends on a podium, lowest first where low wins (كونكان
+  finally gets one: `{ low: !!g.low }`, the real totals, no more negated board);
+  **a team game ends on its two sides** (`csCrownHtml`, whenever the rule set's
+  `teamMode` is on: تريكس, كونكان and باصرة in pairs, every طرنيب): two cards
+  side by side in the teams' colours (blue / rose, as the seating strip), each
+  with «فريق N», the partners' names and the team's total - or, in طرنيب ٤١,
+  each partner's own total, since there a team wins whatever its players'
+  numbers - and the winners' side risen and crowned 👑 (both crowned on a tie).
+  The rise plays once (`motionFirst('cs-crown|…')`) and carries
+  `data-reveal-ms`, so the confetti `saveCardScoreRound` hands to `afterReveal`
+  waits for the crown. CSS: `.cs-crown*` in `Style_Solo.html` (after
+  `.cs-total`), transform and opacity only, off under reduced motion.
+  Decided here: no new words (the sides reuse `cs_team_short`).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

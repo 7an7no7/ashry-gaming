@@ -4,6 +4,16 @@
 gameText({
   translations: {
     ar: {
+      snk_map_save: "💾 احفظ الخريطة دي",
+      snk_map_save_title: "احفظ الخريطة دي",
+      snk_map_save_sub: "اديها اسم، وتلاقيها في «خرايطنا» جنب 🎲 المرة الجاية: نفس التعابين ونفس السلالم.",
+      snk_map_name_label: "اسمها",
+      snk_map_save_ok: "احفظ",
+      snk_map_saved: "اتحفظت في خرايطنا: {name}",
+      snk_map_already: "متحفظة قبل كده باسم {name}",
+      snk_maps_label: "📌 خرايطنا",
+      snk_map_forget: "🗑️ امسحها من خرايطنا",
+      snk_map_forgot: "اتمسحت من خرايطنا",
       snk_color_free: "فاضي",
       snk_color_yours: "ده لونك. دوس تاني لو عايز تسيبه.",
       snk_color_pick: "اختار لونك، واللي مايختارش هياخد لون.",
@@ -85,6 +95,16 @@ gameText({
       snk_aw_sixes_sub: "جاب ستة {n} مرات",
     },
     en: {
+      snk_map_save: "💾 Keep this map",
+      snk_map_save_title: "Keep this map",
+      snk_map_save_sub: "Give it a name, and find it in «Our maps» next to 🎲 next time: the same snakes, the same ladders.",
+      snk_map_name_label: "Its name",
+      snk_map_save_ok: "Save",
+      snk_map_saved: "Kept in our maps: {name}",
+      snk_map_already: "Already kept as {name}",
+      snk_maps_label: "📌 Our maps",
+      snk_map_forget: "🗑️ Remove it from our maps",
+      snk_map_forgot: "Removed from our maps",
       snk_color_free: "Free",
       snk_color_yours: "That's yours. Tap again to let it go.",
       snk_color_pick: "Pick your colour; anyone who doesn't gets one.",
@@ -185,6 +205,7 @@ gameText({
             <p class="help-sub">🗺️ الخرايط</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>نفس القواعد بس الخريطة لابسة: <b>🐊 النيل</b> (تماسيح ونخل)، <b>🚇 المترو</b> (زحاليق وسلالم كهربا)، <b>🏜️ الصحرا</b> (كوبرا ونخل وهرم عند 100)، <b>🏙️ الحارة</b> (مواسير وقطط، وحبال وبلكونات والسبت)، أو الكلاسيك. 🎲 بتختار واحدة كل لعبة. كل خريطة ليها حركاتها.</li>
+                <li><b>📌 خرايطنا</b>: عجبتكم خريطة؟ «💾 احفظ الخريطة دي» واديها اسم، وتلاقوها جنب 🎲: نفس التعابين ونفس السلالم ونفس الشكل. بتتحفظ على الموبايل ده.</li>
             </ul>
             <p class="help-sub">🎁 مربعات المفاجآت (مفتاح، مقفول من الأول)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -237,6 +258,7 @@ gameText({
             <p class="help-sub">🗺️ The maps</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The same rules, the board dressed: <b>🐊 the Nile</b> (crocodiles and palms), <b>🚇 the Metro</b> (slides and escalators), <b>🏜️ the Desert</b> (cobras, palms and a pyramid at 100), <b>🏙️ the Alley</b> (drainpipes and cats, ropes, balconies and the basket), or the classic. 🎲 picks one each game. Every map has its own moves.</li>
+                <li><b>📌 Our maps</b>: liked a board? «💾 Keep this map», give it a name, and it waits next to 🎲: the same snakes, the same ladders, the same look. Kept on this phone.</li>
             </ul>
             <p class="help-sub">🎁 Surprise squares (a switch, off to start with)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

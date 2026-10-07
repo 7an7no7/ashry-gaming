@@ -20,6 +20,8 @@ gameText({
       c4_mode_5_hint: "لوحة أعرض: 9 عمدان و6 صفوف، ومحتاج 5 في صف.",
       c4_col: "عمود {n}",
       c4_draw: "تعادل، اللوحة اتملت",
+      c4_block: "صدّة!",
+      c4_best_blocker: "أحسن صدّاد",
     },
     en: {
       xo_draws: "Draws",
@@ -38,6 +40,8 @@ gameText({
       c4_mode_5_hint: "A wider board: 9 columns, 6 rows, and five to win.",
       c4_col: "Column {n}",
       c4_draw: "A draw: the board is full",
+      c4_block: "Blocked!",
+      c4_best_blocker: "Best blocker",
     }
   },
   rules: {
@@ -67,6 +71,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>العمود اللي في النص بيدخل في صفوف أكتر من أي عمود، ابدأ بيه.</li>
                 <li>قبل ما تنزّل، بص إنت هتفتح لصاحبك مكان فوق قطعتك ولا لأ.</li>
+                <li>🧤 <b>صدّة!</b> لما تنزّل في المكان اللي كان صاحبك هيكسب بيه، الجوانتي بيطير على قطعتك. في الغرفة الصدّات بتتعد، وأحسن صدّاد بيتقال في آخر كل ماتش.</li>
             </ul>
             ${TOUR_RULES_HELP.ar}`,
     },
@@ -96,6 +101,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The middle column is part of more lines than any other: start there.</li>
                 <li>Before you drop, check whether you are opening the cell above for your rival.</li>
+                <li>🧤 <b>Blocked!</b> Drop where your rival was about to win and a glove flies to your disc. In a room the blocks are counted, and the best blocker is named after every game.</li>
             </ul>
             ${TOUR_RULES_HELP.en}`,
     }

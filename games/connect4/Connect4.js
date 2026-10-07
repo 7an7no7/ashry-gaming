@@ -223,6 +223,24 @@ function c4MiddleOut(cols, rnd) {
   return list.map(x => x.c);
 }
 
+/**
+ * «صدّة!» (the owner's pick of 7 Oct 2026): would player p's disc in column c
+ * land where the other side would have made its line next? True only for a
+ * disc that doesn't win itself (a win is the bigger moment). Read before the
+ * disc is played.
+ */
+function c4BlocksAt(board, c, p) {
+  const r = c4DropRow(board, c);
+  if (r < 0 || (p !== 1 && p !== 2)) return false;
+  const at = r * board.cols + c;
+  board.grid[at] = p;
+  const wins = c4RunAt(board.grid, board.cols, board.rows, board.n, r, c, p);
+  board.grid[at] = 3 - p;
+  const theirs = c4RunAt(board.grid, board.cols, board.rows, board.n, r, c, 3 - p);
+  board.grid[at] = 0;
+  return !wins && theirs;
+}
+
 /** A column where player p would complete a line right now, or -1. */
 function c4WinningCol(board, p) {
   const cols = c4LegalCols(board);

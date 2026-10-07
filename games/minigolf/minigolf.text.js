@@ -126,6 +126,13 @@ gameText({
       mg_level_hint_hard: "طرق ضيقة، وحاجات كتير، وحاجات بتتحرك محتاجة توقيت.",
       mg_level_hint_mix: "من التلاتة: السهل الأول، وبعدين المتوسط، وبعدين الصعب.",
       mg_target_row: "المطلوب",
+      mg_scoring: "طريقة الحساب",
+      mg_scoring_stroke: "مجموع الضربات",
+      mg_scoring_match: "ماتش بلاي",
+      mg_scoring_stroke_hint: "اللي مجموع ضرباته في كل الحفر أقل يكسب.",
+      mg_scoring_match_hint: "كل حفرة بنقطة: اللي يدخّلها بأقل ضربات ياخدها، والتعادل نص نقطة لكل واحد. الأكتر نقط يكسب، والحفرة الوحشة بتخسّرك نقطة بس.",
+      mg_match_title: "النقط، حفرة حفرة",
+      mg_match_you: "نقطك {n}",
     },
     en: {
       mg_best: "Best over {hh}: {n} ({d})",
@@ -250,13 +257,20 @@ gameText({
       mg_level_hint_hard: "Narrow lines, more pieces, and moving ones to time.",
       mg_level_hint_mix: "Some of each: the easy ones first, then medium, then hard.",
       mg_target_row: "Target",
+      mg_scoring: "Scoring",
+      mg_scoring_stroke: "Total strokes",
+      mg_scoring_match: "Match play",
+      mg_scoring_stroke_hint: "The lowest total of strokes over all the holes wins.",
+      mg_scoring_match_hint: "A point a hole: the fewest strokes takes it, a tie half a point each. Most points wins, and a bad hole costs you one point, not the game.",
+      mg_match_title: "Points, hole by hole",
+      mg_match_you: "Your points {n}",
     }
   },
   rules: {
     ar: {
       minigolf: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li><b>اسحب لورا</b> من الكورة زي النبلة، والسهم بيوريك الاتجاه والقوة، و<b>سيب</b>: الكورة بتمشي عكس سحبتك.</li>
+                <li><b>اسحب لورا</b> من الكورة زي النبلة، والسهم بيوريك الاتجاه والقوة (بيبقى أحمر كل ما تشد، والرقم جنب الكورة بيقولك كام %، والدايرة الباهتة هي آخر الشدة)، و<b>سيب</b>: الكورة بتمشي عكس سحبتك.</li>
                 <li>دخّل الكورة الحفرة في أقل عدد ضربات. كل حفرة مكتوب فوق عليها <b>المطلوب</b>: عدد الضربات اللي المفروض تدخل فيها.</li>
                 <li><b>أقصى عدد ضربات = المطلوب + 3</b> (المطلوب 3 يعني 6 ضربات، ومكتوب جنبه). لو الكورة ما دخلتش فيهم بتتشال، والحفرة بتتحسب الأقصى + 1. قبل آخر ضربة بيظهر <b>آخر ضربة!</b></li>
                 <li><b>المية</b>: الكورة بترجع المكان اللي اتضربت منه، وبتتحسب ضربة زيادة. لو فيه كورة تانية واقفة في المكان ده، بترجع لنقطة البداية.</li>
@@ -293,6 +307,7 @@ gameText({
                 <li><b>بالدور</b>: ضربة لكل واحد والكل بيتفرج. في الحفرة الجاية، اللي جاب أحسن نتيجة يبدأ.</li>
                 <li>بالدور <b>الكور بتخبط في بعض</b>: كورتك بتنزل الملعب من أول ما تضربها من البداية، ولحد ما تدخل. لو حد <b>خبط كورتك ودخّلها</b> الحفرة، بتتحسب بضرباتك لحد ساعتها. لو <b>وقّعها في المية</b>، بترجع مكانها من غير ضربة زيادة (ولو مكانها مشغول، لنقطة البداية).</li>
                 <li>المضيف بيختار الصعوبة، وعدد الحفر، ومساعدة التصويب، ووقت للضربة لو حابب (20 أو 40 ثانية): لما يخلص، الموبايل بيضرب ضربة هادية ناحية الحفرة.</li>
+                <li><b>طريقة الحساب</b>: <b>مجموع الضربات</b> (الأقل يكسب) أو <b>ماتش بلاي</b>: كل حفرة بنقطة لأقل ضربات، والتعادل نص نقطة لكل واحد، والأكتر نقط يكسب. حفرة وحشة بتخسّرك نقطة بس، مش اللعبة.</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -302,7 +317,7 @@ gameText({
     en: {
       minigolf: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li><b>Pull back</b> from the ball like a slingshot - the arrow shows the direction and the power - and <b>let go</b>: the ball goes the other way from your pull.</li>
+                <li><b>Pull back</b> from the ball like a slingshot - the arrow shows the direction and the power (redder the harder you pull, the number by the ball says how many %, and the faint ring is full power) - and <b>let go</b>: the ball goes the other way from your pull.</li>
                 <li>Sink the ball in as few strokes as you can. Every hole shows its <b>target</b> at the top: the strokes it should take.</li>
                 <li><b>At most target + 3 strokes</b> (a target of 3 allows 6; it's shown beside it). Not in by then, the ball is picked up and the hole counts that most + 1. Before the final one, <b>Last stroke!</b> shows.</li>
                 <li><b>Water</b>: the ball goes back to where you hit it from, and it costs a stroke. If another ball lies on that spot now, it goes back to the tee.</li>
@@ -339,6 +354,7 @@ gameText({
                 <li><b>In turns</b>: one putt each, everyone watching. On the next hole, the best score goes first.</li>
                 <li>In turns <b>the balls hit each other</b>: your ball is on the course from the moment you hit it from the tee until it drops. If someone <b>knocks your ball into the cup</b>, it counts with your strokes so far. If they <b>knock it into the water</b>, it goes back to its spot with no stroke added (to the tee if the spot is taken).</li>
                 <li>The host picks the difficulty, the holes, the aim guide, and a putt clock if they like (20 or 40 seconds): when it runs out, the phone putts gently toward the hole.</li>
+                <li><b>Scoring</b>: <b>total strokes</b> (the lowest wins) or <b>match play</b>: a point a hole for the fewest strokes, half a point each on a tie, most points wins. A bad hole costs you one point, not the game.</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

@@ -24,6 +24,9 @@
    committed. A tap in the middle of a box reaches no side and draws nothing.
    ========================================================================= */
 
+/** The shortest run of boxes that gets the «سلسلة N!» stamp when it ends (7 Oct 2026). */
+const DOTS_CHAIN_STAMP = 3;
+
 /** Where line e runs, in dots: [x1, y1, x2, y2]. */
 function dotsEdgeXY(n, e) {
   const g = dotsGeom(n).edges[e];
@@ -41,6 +44,12 @@ function dotsBoardHtml(b, o) {
   const initials = opt.initials || ['1', '2'];
   const last = opt.last || null;
   const fresh = (last && last.boxes) || [];
+  // A run of boxes (7 Oct 2026): ×2, ×3… on the board while it goes on; the stamp when it ends (dotsAfterPaint).
+  const run = last ? Number(last.run) || 0 : 0;
+  const runEnd = last ? Number(last.runEnd) || 0 : 0;
+  const runSeat = last ? (last.seat === 1 || last.p === 2 ? 2 : 1) : 1;
+  const combo = run >= 2
+    ? `<span class="dots-combo dots-combo--${runSeat}" data-dots-combo data-run="${run}" data-from="${Math.max(0, run - fresh.length)}" aria-hidden="true">×<b class="metric">${run}</b></span>` : '';
   let boxes = '', guides = '', lines = '', glow = '', dots = '';
   b.boxes.forEach((v, i) => {
     if (!v) return;
@@ -63,7 +72,8 @@ function dotsBoardHtml(b, o) {
   const counts = dotsCounts(b);
   const label = (t.dots_board_label || '').replace('{a}', counts[1]).replace('{b}', counts[2]);
   // dir="ltr": the board is a physical grid, the same way round in Arabic.
-  return `<div class="dots ${opt.playable ? 'is-playable' : ''}" dir="ltr" data-n="${n}">
+  return `<div class="dots ${opt.playable ? 'is-playable' : ''}" dir="ltr" data-n="${n}" data-run-end="${runEnd}" data-run-seat="${runSeat}">
+      ${combo}
       <svg class="dots-svg" viewBox="-0.5 -0.5 ${n + 1} ${n + 1}" role="img" aria-label="${escapeHTML(label)}">
         <g class="dots-boxes">${boxes}</g>
         <g class="dots-guides">${guides}</g>
@@ -170,9 +180,34 @@ function dotsAfterPaint(root, b, o) {
     if (early) anims.forEach(a => { try { a.currentTime = early; } catch (e) {} });
     ms = Math.max(0, (took.length ? 620 + took.length * 90 : 240) - early);
   }
+  // A run of boxes (the owner's pick of 7 Oct 2026): the counter counts up and pops, each box a step higher.
+  const combo = wrap.querySelector('[data-dots-combo]');
+  const run = combo ? Number(combo.dataset.run) || 0 : 0;
+  if (moving && combo && !motionOff()) {
+    const num = combo.querySelector('b');
+    if (num && typeof countUp === 'function') countUp(num, Number(combo.dataset.from) || 0, run);
+    if (combo.animate) combo.animate([{ transform: 'scale(0.6)', opacity: 0.4 }, { transform: 'scale(1.25)', opacity: 1, offset: 0.55 }, { transform: 'scale(1)', opacity: 1 }],
+      { duration: 380, delay: early ? 0 : 200, easing: 'cubic-bezier(0.34, 1.45, 0.5, 1)', fill: 'backwards' });
+  }
   if (o.lineKey && line && duelOnce('snd|' + o.lineKey) && !o.still && o.sound !== false) {
     duelSound('line');
-    if (took.length) setTimeout(() => duelSound('box'), moving ? 220 : 60);
+    if (took.length) setTimeout(() => duelSound(run >= 2 ? 'combo' : 'box', run - 1), moving ? 220 : 60);
+  }
+  // The run is over: «سلسلة ٥!» stamped over the board, once.
+  const runEnd = Number(wrap.dataset.runEnd) || 0;
+  if (runEnd >= DOTS_CHAIN_STAMP && o.lineKey && !o.still && duelOnce('run|' + o.lineKey)) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    const seat = wrap.dataset.runSeat === '2' ? 2 : 1;
+    const loud = o.sound !== false;
+    setTimeout(() => {
+      if (!wrap.isConnected && !document.querySelector('.dots')) return;
+      const board = wrap.isConnected ? wrap : ((root.closest && root.closest('[id^="view-"]')) || document).querySelector('.dots');
+      const r = board && board.getBoundingClientRect();
+      if (!r || !r.width) return;
+      duelPop(r, `🔗 <b>${escapeHTML((t.dots_chain || '{n}').replace('{n}', runEnd))}</b>`, 'dots-chain dots-chain--' + seat, { hold: 1300 });
+      if (loud) duelSound('combo', 12);
+    }, Math.max(ms, 240));
+    if (o.ending) ms = Math.max(ms, 240) + 900;
   }
   if (ms && o.ending) wrap.dataset.revealMs = String(ms + 200);
   return ms;
@@ -260,6 +295,7 @@ function dotsNewGame() {
   s.turn = s.first;
   s.moves = 0;
   s.last = null;
+  s.chain = null;
   s.winner = 0;
   s.draw = false;
   s.phase = 'play';
@@ -286,7 +322,10 @@ function dotsPlace(e) {
   const res = dotsPlay(s.board, e, p);
   if (!res) return;
   s.moves++;
-  s.last = { edge: e, boxes: res.boxes, p: p };
+  // A run of boxes (7 Oct 2026): the counter on the board, the stamp when it ends.
+  const step = dotsChainStep(s.chain, p, res.boxes.length, res.over);
+  s.chain = step.chain;
+  s.last = { edge: e, boxes: res.boxes, p: p, run: step.n, runEnd: step.ended };
   dotsLocal.busyUntil = Date.now() + 220;
   if (res.over) {
     const c = dotsCounts(s.board);
@@ -374,6 +413,7 @@ function paintDots(opts) {
             ${nextLine}
           </div>
           ${s.phase === 'play' && s.moves === 0 && playable ? `<p class="field__hint duel-hint">${escapeHTML(t.dots_line_hint || '')}</p>` : ''}
+          ${dotsTipDue(s) ? dotsTipCardHtml() : ''}
           <div class="view-actions duel-actions play-foot">
             ${s.phase === 'done' ? `<button class="btn btn--primary btn--go btn--lg" onclick="dotsNewGame()">${escapeHTML(t.duel_next_game || '')}</button>` : ''}
             <button class="btn btn--ghost btn--sm btn--auto play-exit" onclick="${s.phase === 'play' ? 'playExit(setupDots)' : 'setupDots()'}">${escapeHTML(t.exit || '')}</button>
@@ -404,6 +444,48 @@ function paintDots(opts) {
       }
     });
   }
+}
+
+/* --- «سر اللعبة» (the owner's pick of 7 Oct 2026): the chain rule, once after a loss to the hard phone --- */
+
+/**
+ * The card shows after the first game the hard phone wins on this phone, and
+ * stays with that game (a reload, a language) until «فهمت» or the next game;
+ * never again after that. The same frames are in 📘 (GAME_RULES.dots).
+ */
+function dotsTipDue(s) {
+  if (s.phase !== 'done') return false;
+  if (s.tipGame) return s.tipGame === s.gameId;
+  if (s.tipSeen || s.vs !== 'phone' || s.level !== 'hard' || s.winner !== 2) return false;
+  s.tipSeen = true;
+  s.tipGame = s.gameId;
+  saveToLocal();
+  return true;
+}
+
+/** The frames, read from the game's Help (one copy of the drawing), with the card's own heading and button. */
+function dotsTipCardHtml() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  let tip = '';
+  try {
+    const rules = ((typeof GAME_RULES !== 'undefined' && GAME_RULES[appState.lang]) || {}).dots || '';
+    const el = new DOMParser().parseFromString(rules, 'text/html').querySelector('.dots-tip');
+    tip = el ? el.outerHTML : '';
+  } catch (e) {}
+  if (!tip) return '';
+  return `<div class="card dots-tip-card" data-reveal-ms="300">
+      <p class="eyebrow">${escapeHTML(t.dots_tip_title || '')}</p>
+      <p class="field__hint">${escapeHTML(t.dots_tip_after || '')}</p>
+      ${tip}
+      <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="dotsTipClose()">${escapeHTML(t.dots_tip_ok || '')}</button>
+    </div>`;
+}
+
+function dotsTipClose() {
+  const s = dotsState();
+  s.tipGame = 'seen';
+  saveToLocal();
+  paintDots({ still: true });
 }
 
 function restoreDots() {

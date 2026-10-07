@@ -29,6 +29,11 @@ gameText({
       bowl_throw_plain: "ارمي كورة عادية",
       bowl_watching: "انت بتتفرج الجيم ده، وهتلعب اللي بعده.",
       bowl_options: "الاختيارات",
+      bowl_quick: "⚡ جولة سريعة",
+      bowl_quick_hint: "3 كور لكل واحد، كل كورة على 10 بينز جديدة، والمجموع يكسب. بتخلص في دقايق.",
+      bowl_ball_n: "كورة {n} من {m}",
+      bowl_demo: "اسحب لورا، وارمي لقدام",
+      bowl_callup: "دورك يا {name}! 🎳",
     },
     en: {
       bowl_clock: "Throw clock",
@@ -56,6 +61,11 @@ gameText({
       bowl_throw_plain: "Roll a plain ball",
       bowl_watching: "You're watching this game; you'll bowl the next one.",
       bowl_options: "Options",
+      bowl_quick: "⚡ Quick round",
+      bowl_quick_hint: "Three balls each, every ball on ten fresh pins, the most pins wins. Done in a few minutes.",
+      bowl_ball_n: "Ball {n} of {m}",
+      bowl_demo: "Pull back, then swing forward",
+      bowl_callup: "Your turn, {name}! 🎳",
     }
   },
   rules: {
@@ -80,6 +90,8 @@ gameText({
                 <li>الكل بيرمي بالدور، وكل رمية بتتشاف على كل الموبايلات والتلفزيون: نفس الكورة ونفس البينز اللي وقعت.</li>
                 <li>المضيف بيختار 5 أو 10 إطارات، ومساعدة التصويب، ووقت للرمية (مفيش، 20 أو 40 ثانية): لما يخلص الموبايل بيرمي كورة هادية على طول للاعب. والمضيف يقدر يرمي بدل موبايل سكت.</li>
                 <li>اللي نتيجته أعلى في الآخر يكسب.</li>
+                <li><b>⚡ جولة سريعة</b> (اختيار المضيف): 3 كور لكل واحد بالدور، كل كورة على 10 بينز جديدة، والبينز بتتجمع. الأكتر يكسب، وبتخلص في دقايق بين الألعاب الطويلة.</li>
+                <li>لما الدور ييجي عليك، كارت «دورك!» بيظهر على موبايلك والممر بينوّر.</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -107,6 +119,8 @@ gameText({
                 <li>Everyone bowls in turn, and every throw is seen on every phone and the TV: the same ball, the same pins falling.</li>
                 <li>The host picks 5 or 10 frames, the aim guide and a throw clock (off, 20 or 40 seconds): when it runs out the phone rolls a gentle straight ball for the player. The host can also throw for a phone that went quiet.</li>
                 <li>The highest score at the end wins.</li>
+                <li><b>⚡ Quick round</b> (the host's choice): three balls each in turn, every ball on ten fresh pins, the pins adding up. Most pins wins, done in a few minutes between longer games.</li>
+                <li>When your turn comes, a «Your turn!» card shows on your phone and the lane lights up.</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

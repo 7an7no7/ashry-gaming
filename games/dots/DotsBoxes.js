@@ -136,6 +136,23 @@ function dotsPlay(board, e, p) {
   return { edge: e, boxes: took, again: took.length > 0 && !over, over: over };
 }
 
+/**
+ * A run of boxes (the owner's pick of 7 Oct 2026, «×٥»): the boxes one player
+ * takes move after move, since a box keeps the turn. `chain` is the run so far
+ * ({ seat, n } or null), `took` how many boxes this move of `seat` took.
+ * Returns { chain (to keep), n (the run's boxes after this move; 0 when it took
+ * none), ended (a run that this move closed - a line that took nothing, or the
+ * last box of the game - its boxes; else 0) }.
+ */
+function dotsChainStep(chain, seat, took, over) {
+  const was = chain && chain.seat === seat ? Number(chain.n) || 0 : 0;
+  if (took > 0) {
+    const n = was + took;
+    return { chain: over ? null : { seat: seat, n: n }, n: n, ended: over ? n : 0 };
+  }
+  return { chain: null, n: 0, ended: was };
+}
+
 /* --- the phone as a player ------------------------------------------------- */
 
 /** Lines that take a box right now: the missing side of every box with three. */

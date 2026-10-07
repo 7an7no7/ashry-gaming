@@ -185,6 +185,14 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     beside it. The sheet over the lane is light on dark at every theme (it
     sits on the hall) and left to right in every language, like a real card.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **(1058) «جولة سريعة», three balls each.** A host's lobby switch (`settings.quick`, remembered with the game's options; off by default; the frames choice hides while it is on): every card is `bowlNewCard(total, true)` - `quick: true`, `total` `BOWL_QUICK_BALLS` (3) - and `bowlApply` gives each ball its own box on a full rack, the turn passing after every ball; `bowlQuickScore` / `bowlTotal` add the pins up (a strike is just 10). The most pins wins, with the podium and the night as any game. The sheet draws one ball a box (`.bowl-sheet--quick`), the strip says «كورة 2 من 3». Server: `bowlRoomOptions` validates `quick` as a boolean. Help updated.
+- **(1061) The first throw's demo hand.** The first time this phone may throw (solo, or its turn in a room; never the TV), a drawn hand (SVG) at the ball pulls back, swings forward and lets go in a loop, the ball flying on, with «اسحب لورا، وارمي لقدام» (`bowlDemoShow`, `.bowl-demo`, Web Animations on transform and opacity; still with the motion off). The first touch on the lane ends it for good (`bowlDemoDone` from `bowlPointerDown`, `localStorage.ashryBowlDemoDone`); the usual hint takes over after that.
+- **(1062) «دورك يا منى! 🎳», the call-up card.** In a room, when the turn comes to this phone from someone else (or it bowls the game's first ball), a centred card slides in over the lane and away (`bowlCallUp`, `.bowl-callup`, about 2 s), the lane's lights flare (`bowlGfxPulse`), a double buzz and a tick. Only on the thrower's phone, not for the second ball of a frame (`bowlRoom.lastUp`, `callKey`).
+
+Tests: `rules.mjs` («bowling quick:»), `play-all.mjs` (bowling: a quick round of two, turns `HJHJHJ`, the pins adding up).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

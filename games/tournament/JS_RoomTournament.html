@@ -341,6 +341,41 @@ function tourLiveChipsHtml(state, current) {
     </div>`;
 }
 
+/**
+ * A phone out of the tournament (knocked out, or come in after the draw): one
+ * card on top saying so, with the matches being played as big buttons - the
+ * next thing to do is one tap (the owner's pick of 7 Oct 2026). `exclude`: the
+ * match already on this screen.
+ */
+function tourWatchCardHtml(state, line, exclude, bare) {
+  const s = state.shared;
+  const tr = s.tour;
+  const live = tr.matches.filter(m => m.id !== exclude && (m.state === 'play' || (m.state === 'ready' && m.games)) && s.games[m.id]);
+  const chips = live.map(m => `<button type="button" class="btn btn--secondary btn--lg tour-watch__chip" onclick="tourShow('${m.id}')">
+      <span class="tour-watch__round">${m.state === 'play' ? '<i class="tour-dot" aria-hidden="true"></i>' : ''}${escapeHTML(tourRoundName(tr, m.r))}</span>
+      <span class="tour-watch__vs">${tourNameHtml(state, m.p[0])} <em>×</em> ${tourNameHtml(state, m.p[1])}</span>
+    </button>`).join('');
+  return `<div class="${bare ? 'tour-watch tour-watch--bare' : 'card card--accent tour-watch'}">
+      <p class="tour-watch__line">${line}${live.length ? ' · ' + escapeHTML(tourT('tour_watch_on')) : ''}</p>
+      ${live.length ? `<div class="tour-watch__chips">${chips}</div>` : `<p class="field__hint tour-watch__none">${escapeHTML(tourT('tour_watch_none'))}</p>`}
+    </div>`;
+}
+
+/** The round this phone went out in, by its name («الدور الأول» for a first round with no other name). */
+function tourOutRound(tr, m) {
+  if (m.r === 1 && (tr.rounds || 1) > 4) return tourT('tour_round_first');
+  return tourRoundName(tr, m.r);
+}
+
+/** Is this phone only watching now (knocked out, or come in after the draw)? */
+function tourOnlyWatching(state) {
+  const tr = state.shared.tour;
+  if (tr.phase === 'over' || state.youAreScreen) return false;
+  if (tr.entrants.indexOf(Room.me) === -1) return true;
+  const mine = tourMine(tr);
+  return !!mine && mine.state === 'done' && mine.loser === Room.me;
+}
+
 /** Where this phone stands: its next match and its countdown, waiting, out, or watching. */
 function tourMeHtml(state) {
   const s = state.shared;
@@ -348,7 +383,7 @@ function tourMeHtml(state) {
   if (tr.phase === 'over') return '';
   if (state.youAreScreen) return '';
   const inIt = tr.entrants.indexOf(Room.me) !== -1;
-  if (!inIt) return `<div class="tour-me tour-me--watch">👀 ${escapeHTML(tourT('tour_latecomer'))}</div>`;
+  if (!inIt) return tourWatchCardHtml(state, `👀 ${escapeHTML(tourT('tour_latecomer'))}`, null);
   const mine = tourMine(tr);
   if (!mine) return '';
   if (mine.state === 'ready' || mine.state === 'play') {
@@ -372,7 +407,8 @@ function tourMeHtml(state) {
     }
     return `<div class="tour-me tour-me--wait">⏳ ${escapeHTML(tourT(bye ? 'tour_bye_wait_one' : 'tour_you_wait_one'))}</div>`;
   }
-  if (mine.loser === Room.me || tr.gone[Room.me]) return `<div class="tour-me tour-me--out">🙌 ${escapeHTML(tourT('tour_you_out'))}</div>`;
+  if (mine.loser === Room.me) return tourWatchCardHtml(state, `🙌 ${escapeHTML(tourT('tour_out_in', { round: tourOutRound(tr, mine) }))}`, null);
+  if (tr.gone[Room.me]) return `<div class="tour-me tour-me--out">🙌 ${escapeHTML(tourT('tour_you_out'))}</div>`;
   return '';
 }
 
@@ -448,7 +484,7 @@ function tourScreenHtml(state) {
         <span class="tour-head__title">${escapeHTML(tourT('tour_title_of', { game: entry ? (tt[entry.key] || '') : '' }))}</span>
         <span class="badge badge--accent tour-head__stage">${escapeHTML(tourStageLine(tr))}</span>
       </div>
-      ${tr.phase === 'over' ? tourOverHtml(state, false) : tourMeHtml(state) + tourLiveChipsHtml(state, null)}
+      ${tr.phase === 'over' ? tourOverHtml(state, false) : tourMeHtml(state) + (tourOnlyWatching(state) ? '' : tourLiveChipsHtml(state, null))}
       <div class="tour-bracket-wrap">${tourBracketHtml(state, false)}</div>
       ${board ? `${board}<p class="field__hint tour-points-hint">${escapeHTML(tourT('tour_points_hint'))}</p>${roomShareBtnHtml(state, s.board)}` : ''}
       ${renderRoomPlayerStrip(state)}
@@ -476,7 +512,7 @@ function tourStripHtml(state, id, tv) {
         <span class="tour-strip__round">🏆 ${escapeHTML(tourRoundName(tr, m.r))}</span>
         ${watching ? `<span class="tour-strip__watch">👀 ${vs}</span>` : ''}
       </div>
-      ${tourLiveChipsHtml(state, id)}
+      ${m.loser === Room.me && m.state === 'done' ? '' : tourLiveChipsHtml(state, id)}
       <div class="tour-strip__btns">
         <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="tourShow('bracket')">🏆 ${escapeHTML(tourT('tour_bracket'))}</button>
         ${state.youAreHost && roomHasScreen() && tr.featured !== id ? `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="roomAct('tourFeature', { match: '${id}' })">📺 ${escapeHTML(tourT('tour_host_feature'))}</button>` : ''}
@@ -517,7 +553,7 @@ function tourMatchOverCardHtml(state, id, tv) {
             : `<p class="tour-over-card__next">⏳ ${escapeHTML(tourT('tour_you_wait_one'))}</p>`;
         }
       } else if (m.loser === Room.me) {
-        next = `<p class="tour-over-card__next">🙌 ${escapeHTML(tourT('tour_you_out'))}</p>`;
+        next = tourWatchCardHtml(state, `🙌 ${escapeHTML(tourT('tour_out_in', { round: tourOutRound(tr, m) }))}`, m.id, true);
       }
     }
   } else {

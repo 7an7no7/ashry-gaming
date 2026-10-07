@@ -244,6 +244,10 @@ Decided here (open to change):
 
 **The server checks «play for» too (the audit of 6 Oct 2026).** `skipTurn` is refused («استنى شوية») while everyone it would play for is connected and their step began under 40 s ago (`BS_QUIET_MS`, `room._bs.quietAt`, stamped by `bsMarkQuiet` after every move and timeout), as بنك الحظ does.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **(1055) The fire button: one fixed place, big.** On your turn the bar under the sea always holds one `.btn--primary .btn--lg`: greyed «🎯 اختار مربع» until a square is aimed at, then «🔥 اضرب B7» (the second tap on the square still fires). In radar mode the same place is «📡 اختار مكان الرادار» greyed, then the sweep. While your own shell is flying (or sent) the greyed button stays, so the thumb's place never empties mid-turn (`bsRadarBarHtml` with `wait`, `bsPhoneBarHtml`, `bsRoomBarHtml`). The words are in the chunk's `BS_TEXT` (`bs_pick`, `bs_radar_pick_btn`), as the game's others; the old «اضغط على مربع…» line under the bar is gone (the status line says it).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

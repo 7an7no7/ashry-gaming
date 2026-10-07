@@ -75,9 +75,13 @@ const DUEL_KINDS = {
     },
     move: (s, payload, seat) => {
       const board = { cols: s.cols, rows: s.rows, n: s.n, grid: s.grid };
-      const res = c4Play(board, Number(payload && payload.col), seat + 1);
+      const col = Number(payload && payload.col);
+      // «صدّة!» (7 Oct 2026): the disc lands where the other side would have won next.
+      const block = c4DropRow(board, col) >= 0 && c4BlocksAt(board, col, seat + 1);
+      const res = c4Play(board, col, seat + 1);
       if (!res) throw new Error('العمود ده مليان');
       s.last = { seat: seat, col: res.col, row: res.row };
+      if (block) s.last.block = true;
       if (res.win) { s.win = res.cells; return { end: true, winner: seat, reason: 'line' }; }
       if (res.draw) return { end: true, winner: null, reason: 'full' };
       return { end: false, again: false };
@@ -93,6 +97,7 @@ const DUEL_KINDS = {
       const b = dotsNewBoard(s.size);
       s.lines = b.lines; s.boxes = b.boxes;
       s.count = [0, 0];
+      s.chain = null;
     },
     move: (s, payload, seat) => {
       const board = { n: s.size, lines: s.lines, boxes: s.boxes };
@@ -100,7 +105,10 @@ const DUEL_KINDS = {
       if (!res) throw new Error('الخط ده اترسم خلاص');
       const c = dotsCounts(board);
       s.count = [c[1], c[2]];
-      s.last = { seat: seat, edge: res.edge, boxes: res.boxes };
+      // «سلسلة» (7 Oct 2026): the run of boxes, counted on every phone (run) and closed with a stamp (runEnd).
+      const step = dotsChainStep(s.chain, seat, res.boxes.length, res.over);
+      s.chain = step.chain;
+      s.last = { seat: seat, edge: res.edge, boxes: res.boxes, run: step.n, runEnd: step.ended };
       if (res.over) return { end: true, winner: c[1] > c[2] ? 0 : (c[2] > c[1] ? 1 : null), reason: 'boxes' };
       return { end: false, again: res.again };
     },
@@ -279,6 +287,7 @@ const duelAction = (room, playerId, action, payload, kind) => {
     if (seat === -1) throw new Error('انت بتتفرج دلوقتي، استنى دورك في الطابور');
     if (seat !== s.turn) throw new Error('مش دورك');
     const out = k.move(s, payload, seat);
+    duelCountBlock(s, playerId);
     s.moves++;
     if (out.end) { duelEnd(room, out.winner, out.reason); return; }
     if (!out.again) s.turn = 1 - s.turn;
@@ -298,6 +307,17 @@ const duelAction = (room, playerId, action, payload, kind) => {
   }
 
   throw new Error('إجراء غير معروف');
+};
+
+/**
+ * «صدّة!» (كونكت ٤, the owner's pick of 7 Oct 2026): a disc that took the other
+ * side's winning square counts a block for whoever dropped it, kept across the
+ * room's games (`blocks`, { pid: n }); the result card names the best blocker.
+ */
+const duelCountBlock = (s, pid) => {
+  if (!pid || !s.last || !s.last.block) return;
+  s.blocks = s.blocks || {};
+  s.blocks[pid] = (Number(s.blocks[pid]) || 0) + 1;
 };
 
 const connect4Action = (room, playerId, action, payload) => duelAction(room, playerId, action, payload, 'connect4');
@@ -525,6 +545,9 @@ const c4tDrop = (room, col, auto) => {
   const pid = s.upId;
   const out = DUEL_KINDS.connect4.move(s, { col: col }, team);
   s.last.pid = pid;
+  // A block the clock's disc made is nobody's.
+  if (!auto) duelCountBlock(s, pid);
+  else if (s.last.block) delete s.last.block;
   s.moves++;
   s.relay[team] = (Number(s.relay[team]) || 0) + 1;
   s.auto = auto ? { team: team, pid: pid, col: col, moves: s.moves } : null;

@@ -153,12 +153,13 @@ function duelRoomOverHtml(state, t, tv) {
   const press = `roomAct('nextRound', { round: ${Number(s.round) || 0} })`;
   // Four people or more: the host can turn the room into a knockout (RoomTournament.js).
   const tour = typeof tourCanStart === 'function' && tourCanStart(state) ? `roomAct('tourNew', { mode: 'tour', round: ${Number(s.round) || 0} })` : '';
+  const blocker = c4BestBlockerHtml(state, tv);
   if (tv) {
-    return `${streak ? `<div class="tv-note">${streak}</div>` : ''}<div class="tv-note">${who}</div>
+    return `${streak ? `<div class="tv-note">${streak}</div>` : ''}${blocker}<div class="tv-note">${who}</div>
       ${state.youAreHost ? `<div class="tv-actions">${canDeal ? tvBtn(t.duel_next_btn, press) : ''}${tour ? tvBtn('🏆 ' + (t.tour_to_tour || ''), tour, 'secondary') : ''}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
   }
   return `<div class="card card--accent duel-result">
-      ${streak}${who}
+      ${streak}${blocker}${who}
       <div class="btn-stack">
         ${canDeal ? `<button class="btn btn--primary btn--lg" onclick="${press}">${escapeHTML(t.duel_next_btn || '')}</button>` : ''}
         ${tour ? `<button class="btn btn--secondary" onclick="${tour}">🏆 ${escapeHTML(t.tour_to_tour || '')}</button>` : ''}
@@ -345,11 +346,15 @@ function c4RoomDropEarly(state, col) {
   const s = state.shared;
   const seat = (s.seats || []).indexOf(Room.me);
   const board = c4Clone(c4RoomBoard(s));
+  const block = c4BlocksAt(c4Clone(board), col, seat + 1);
   const res = c4Play(board, col, seat + 1);
   if (!res) return;
   const key = ['c4', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
   duelRoomDrawEarly('connect4', key, c4BoardHtml(board, { last: { row: res.row, col: res.col }, playable: false, next: 2 - seat }),
-    (box) => c4AfterPaint(box, { dropKey: key, sound: duelRoomLoud(state) }));
+    (box) => {
+      const fx = c4AfterPaint(box, { dropKey: key, sound: duelRoomLoud(state) });
+      if (block) c4BlockFx(box, key, { delay: fx.dropMs, seat: seat, sound: duelRoomLoud(state) });
+    });
 }
 
 /** The two pills in a room: the seats, the room's wins, and "you" on your own. */
@@ -396,7 +401,7 @@ ROOM_GAMES.connect4 = {
     const seat = (s.seats || []).indexOf(Room.me);
     const myTurn = s.phase === 'play' && seat === s.turn;
     const sig = ['c4r', s.round, s.phase, s.moves, s.turn, seat, JSON.stringify(s.line || []), s.champ,
-                 JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name).join(','),
+                 JSON.stringify(s.scores || {}), JSON.stringify(s.blocks || {}), (state.players || []).map(p => p.id + p.name).join(','),
                  state.youAreHost, appState.lang, duelRoomAwayAt(state)].join('|');
     const board = c4RoomBoard(s);
     const rebuilt = renderRoomFrame(el, sig, () => `
@@ -424,9 +429,9 @@ ROOM_GAMES.connect4 = {
     // (Never over this phone's own move drawn early: that one is still falling. A look, not
     // duelRoomEarlyFor, which would take it from c4AfterPaint.)
     const earlyHere = !!(dropKey && duelRoomLocal.early && duelRoomLocal.early.key === dropKey);
-    if (!earlyHere) duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey] });
+    if (!earlyHere) duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey, dropKey && 'blk|' + dropKey] });
     if (rebuilt) {
-      c4AfterPaint(el, {
+      const fx = c4AfterPaint(el, {
         onDrop: c4RoomDrop,
         dropKey: dropKey,
         early: duelRoomEarlyFor(dropKey),
@@ -434,6 +439,7 @@ ROOM_GAMES.connect4 = {
         endKey: endKey,
         sound: duelRoomLoud(state)
       });
+      if (s.last && s.last.block) c4BlockFx(el, dropKey, { delay: fx.dropMs, seat: s.last.seat, sound: duelRoomLoud(state) });
       duelPillsAfter(el, duelRoomPillKey('c4r', state), {
         turn: s.phase === 'play' ? s.turn : -1,
         scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
@@ -517,7 +523,7 @@ TV_GAMES.connect4 = {
   sig: (state) => {
     const s = state.shared || {};
     if (s.teamMode) return c4tSig(state, true);
-    return ['c4', s.round, s.phase, s.moves, JSON.stringify(s.line || []), s.champ, JSON.stringify(s.scores || {}),
+    return ['c4', s.round, s.phase, s.moves, JSON.stringify(s.line || []), s.champ, JSON.stringify(s.scores || {}), JSON.stringify(s.blocks || {}),
             (state.players || []).map(p => p.id + p.name).join(','), state.youAreHost, duelRoomAwayAt(state)].join('|');
   },
   frame(state, t) {
@@ -543,13 +549,14 @@ TV_GAMES.connect4 = {
     const key = ['c4', roomDealKey(state), s.round].join('|');
     const dropKey = s.last ? key + '|' + s.moves : '';
     const endKey = s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '';
-    duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey] });
-    c4AfterPaint(el, {
+    duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey, dropKey && 'blk|' + dropKey] });
+    const fx = c4AfterPaint(el, {
       dropKey: dropKey,
       win: s.win, draw: !!(s.result && s.result.draw),
       endKey: endKey,
       sound: true
     });
+    if (s.last && s.last.block) c4BlockFx(el, dropKey, { delay: fx.dropMs, seat: s.last.seat, sound: true });
     duelPillsAfter(el, duelRoomPillKey('c4tv', state), {
       turn: s.phase === 'play' ? s.turn : -1,
       scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
@@ -858,12 +865,13 @@ function c4tOverHtml(state, t, tv) {
   const press = `roomAct('nextRound', { round: ${Number(s.round) || 0} })`;
   const canDeal = state.youAreHost || (state.players || []).some(p => p.id === Room.me);
   const next = `<p class="duel-result__next">${escapeHTML(c4tT('next_starts', { team: c4tTeamName(s.starts === 1 ? 0 : 1) }))}</p>`;
+  const blocker = c4BestBlockerHtml(state, tv);
   if (tv) {
-    return `<div class="tv-note">${c4tMembersLine(state)}${next}</div>
+    return `${blocker}<div class="tv-note">${c4tMembersLine(state)}${next}</div>
       ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.duel_next_game, press)}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
   }
   return `<div class="card card--accent duel-result c4t-result">
-      ${c4tPodiumHtml(state)}${c4tMembersLine(state)}${next}
+      ${c4tPodiumHtml(state)}${c4tMembersLine(state)}${blocker}${next}
       <div class="btn-stack">
         ${canDeal ? `<button class="btn btn--primary btn--lg" onclick="${press}">${escapeHTML(t.duel_next_game || '')}</button>` : ''}
         ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>` : ''}
@@ -873,7 +881,7 @@ function c4tOverHtml(state, t, tv) {
 
 function c4tSig(state, tv) {
   const s = state.shared || {};
-  return ['c4t', tv ? 'tv' : '', s.round, s.phase, s.moves, s.turn, s.upId, s.endsAt, JSON.stringify(s.teams || []), JSON.stringify(s.teamWins || []),
+  return ['c4t', tv ? 'tv' : '', s.round, s.phase, s.moves, s.turn, s.upId, s.endsAt, JSON.stringify(s.teams || []), JSON.stringify(s.teamWins || []), JSON.stringify(s.blocks || {}),
           (state.players || []).map(p => p.id + p.name).join(','), state.youAreHost, appState.lang, s.auto ? s.auto.moves : ''].join('|');
 }
 
@@ -886,11 +894,15 @@ function c4tDrop(col) {
   if (c4DropRow(c4RoomBoard(s), col) < 0) { c4Refuse(document.querySelector('#view-room-connect4 .c4')); return; }
   duelRoomSend(state, { col: col }, () => {
     const board = c4Clone(c4RoomBoard(s));
+    const block = c4BlocksAt(c4Clone(board), col, s.turn + 1);
     const res = c4Play(board, col, s.turn + 1);
     if (!res) return;
     const key = ['c4', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
     duelRoomDrawEarly('connect4', key, c4BoardHtml(board, { last: { row: res.row, col: res.col }, playable: false, next: 2 - s.turn }),
-      (box) => c4AfterPaint(box, { dropKey: key, sound: duelRoomLoud(state) }));
+      (box) => {
+        const fx = c4AfterPaint(box, { dropKey: key, sound: duelRoomLoud(state) });
+        if (block) c4BlockFx(box, key, { delay: fx.dropMs, seat: s.turn, sound: duelRoomLoud(state) });
+      });
   });
 }
 
@@ -921,8 +933,8 @@ function c4tAfter(el, state, rebuilt, tv) {
   const dropKey = s.last ? key + '|' + s.moves : '';
   const endKey = s.phase === 'over' && s.result && s.result.reason !== 'left' ? key + '|end' : '';
   const earlyHere = !tv && !!(dropKey && duelRoomLocal.early && duelRoomLocal.early.key === dropKey);
-  if (!earlyHere) duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey] });
-  c4AfterPaint(el, {
+  if (!earlyHere) duelRoomFirstSight(state, key, { motion: [dropKey, endKey], once: [dropKey && 'snd|' + dropKey, dropKey && 'blk|' + dropKey] });
+  const fx = c4AfterPaint(el, {
     onDrop: tv ? undefined : c4tDrop,
     dropKey: dropKey,
     early: tv ? null : duelRoomEarlyFor(dropKey),
@@ -930,6 +942,7 @@ function c4tAfter(el, state, rebuilt, tv) {
     endKey: endKey,
     sound: tv ? true : duelRoomLoud(state)
   });
+  if (s.last && s.last.block) c4BlockFx(el, dropKey, { delay: fx.dropMs, seat: s.last.seat, sound: tv ? true : duelRoomLoud(state) });
   duelPillsAfter(el, ['c4t', tv ? 'tv' : '', state.code, roomDealKey(state)].join('|'), {
     turn: s.phase === 'play' ? s.turn : -1,
     scores: [(s.teamWins || [])[0] || 0, (s.teamWins || [])[1] || 0]

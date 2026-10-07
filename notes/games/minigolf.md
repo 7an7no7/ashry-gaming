@@ -344,6 +344,13 @@ The owner's rules are in *The owner's specs*.
 
 **The review of 1 Oct 2026: «ضربة هادية».** A phone that can't draw the course (no WebGL, or three.js never arrived) shows a «⛳ ضربة هادية» button when it may putt (`mgRoomPlain`, shown by `mgRoomChrome` while `mgNo3d`, which `mgMountIn` sets through its new `onFail`); it sends `putt { hole, n, auto: true }` and the server plays the clock's gentle putt for that phone's own ball (`golfAutoShot`, `auto` on the shot), in turn as any putt - as bowling's plain throw does.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **(1065) «ماتش بلاي», hole by hole.** A lobby choice «طريقة الحساب: مجموع الضربات / ماتش بلاي» (`settings.scoring` 'stroke' | 'match', default stroke, remembered with the room's options). In match play each hole is a point for the fewest strokes, **half a point each on a tie** (two or more), and counts once every player still in the game has finished it (`golfMatchPoints(card, order, holes)` in `MiniGolf.js`). `mgBoard` makes the score the points, most first (strokes only order a tie; level points share the place on the night), keeps `shared.won` (who took each hole), and the winners are the most points. The page: the card between holes marks who took it (+1 / +½), a line of everyone's points (`mgMatchLineHtml`, also on the TV's side and the end), «نقطك 2½» in the strip, and the end's podium ranks the points (`mgMatchPodiumHtml`, a plain `renderPodium` call - the strokes' mirrored podium, `mgPodiumHtml`, is left as it was). Rooms only (solo has one ball). Help updated.
+- **(1070) The pull's power as a number and a ring.** The arrow already went green to red; now a small «%» rides beside the ball in the arrow's colour (`mg3PowerShow`, `.mg-power`, the ball projected to the screen), and a faint ring is drawn round where the finger started, as far as a full pull reaches (`MG3.powerRing`, radius `MG_FULL_PULL`), brighter once reached; both go when the pull ends (`mg3PowerHide`). Solo and rooms. Help's first line says so.
+
+Tests: `rules.mjs` («match play:»), `play-all.mjs` (minigolf: a match-play hole on three phones and the TV).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

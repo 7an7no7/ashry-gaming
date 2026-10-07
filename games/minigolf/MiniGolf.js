@@ -864,6 +864,28 @@ function golfParOf(list) {
   return p;
 }
 
+/**
+ * «ماتش بلاي» (the owner's pick of 7 Oct 2026): each hole is a point for the
+ * fewest strokes, half a point each when two or more tie; a hole counts once
+ * every player in `order` has finished it. card: { pid: [strokes per hole] }.
+ * Returns { pts: { pid: points }, won: [the ids that took each hole, or null] }.
+ */
+function golfMatchPoints(card, order, holes) {
+  const pts = {}, won = [];
+  (order || []).forEach(id => { pts[id] = 0; });
+  for (let i = 0; i < holes; i++) {
+    const done = (order || []).filter(id => typeof ((card[id] || [])[i]) === 'number');
+    if (!done.length || done.length !== order.length) { won.push(null); continue; }
+    let best = Infinity;
+    done.forEach(id => { if (card[id][i] < best) best = card[id][i]; });
+    const ids = done.filter(id => card[id][i] === best);
+    const p = ids.length === 1 ? 1 : 0.5;
+    ids.forEach(id => { pts[id] += p; });
+    won.push(ids);
+  }
+  return { pts: pts, won: won };
+}
+
 /** The most strokes a hole allows: par + 3 (or the hole's own `max`). One more and the ball is picked up, the hole counting max + 1. */
 function golfMaxOf(h) {
   return h && h.max ? h.max : ((h && h.par) || 3) + GOLF.OVER_PAR;

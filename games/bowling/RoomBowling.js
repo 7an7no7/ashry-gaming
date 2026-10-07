@@ -7,6 +7,11 @@
    whole numbers, and the physics is plain arithmetic, so the server and every
    phone get the same pins down from the same numbers.
 
+   «جولة سريعة» (the owner's pick of 7 Oct 2026, settings.quick, the host's lobby
+   switch): a way for a big table between longer games - three balls each
+   (BOWL_QUICK_BALLS), every ball on a full rack, the turn passing after every
+   ball, the pins adding up; the most pins wins, with the podium as ever.
+
    The owner's rules for a room (23 Sep 2026): everyone in the room bowls, in
    turn, and everyone watches every throw on their phone and the TV. 5 or 10
    frames (5 by default), real ten-pin scoring with the last frame's bonus
@@ -53,7 +58,9 @@ const bowlRoomOptions = (payload, prev) => {
   return {
     frames: pick(BOWL_FRAME_CHOICES, p.frames, was.frames, 5),
     clock: pick(BOWL_CLOCKS, p.clock, was.clock, 0),
-    guide: typeof p.guide === 'boolean' ? p.guide : !!was.guide
+    guide: typeof p.guide === 'boolean' ? p.guide : !!was.guide,
+    // «جولة سريعة» (7 Oct 2026): three balls each on a full rack, the pins add up. Off unless asked.
+    quick: typeof p.quick === 'boolean' ? p.quick : !!was.quick
   };
 };
 
@@ -115,7 +122,7 @@ const bowlNewRoomGame = (room, playerId, action, payload) => {
   const kept = action === 'playAgain' ? (prev.order || []).filter(id => here.indexOf(id) !== -1) : [];
   here.forEach(id => { if (kept.indexOf(id) === -1) kept.push(id); });
   const cards = {};
-  kept.forEach(id => { cards[id] = bowlNewCard(settings.frames); });
+  kept.forEach(id => { cards[id] = bowlNewCard(settings.frames, settings.quick); });
   room.shared = {
     phase: 'play',
     settings: settings,

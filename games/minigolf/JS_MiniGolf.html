@@ -293,6 +293,13 @@ function mg3Create() {
   scene.add(guide);
   MG3.guide = guide;
   MG3.guidePts = gpos;
+  // The pull's full-power ring (7 Oct 2026): round where the finger started, as far as a full pull reaches.
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.965, 1, 72), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.visible = false;
+  ring.renderOrder = 4;
+  scene.add(ring);
+  MG3.powerRing = ring;
 
   canvas.addEventListener('pointerdown', mg3Down);
   canvas.addEventListener('pointermove', mg3Move);
@@ -384,8 +391,9 @@ function mg3Dispose() {
   Object.assign(MG3, {
     renderer: null, canvas: null, host: null, scene: null, cam: null, sun: null, env: null, tex: {}, geo: {},
     hole: null, holeKey: '', group: null, trash: [], movers: [], flag: null, waters: [], bobbers: [],
-    arrow: null, band: null, guide: null, guidePts: null, input: null, pull: null, fx: [], fitKey: '', onFrame: null
+    arrow: null, band: null, guide: null, guidePts: null, input: null, pull: null, fx: [], fitKey: '', onFrame: null, powerRing: null
   });
+  if (MG3.powerEl) { MG3.powerEl.remove(); MG3.powerEl = null; }
 }
 
 /* --- textures, made on a canvas once per engine --------------------------------------- */
@@ -2932,6 +2940,39 @@ function mg3Cancel() {
   if (MG3.arrow) MG3.arrow.group.visible = false;
   if (MG3.band) MG3.band.visible = false;
   if (MG3.guide) MG3.guide.visible = false;
+  mg3PowerHide();
+}
+
+/* --- The pull's power as a number and a ring (the owner's pick of 7 Oct 2026) ------------------
+   The arrow already goes green to red; a small «%» rides beside the ball, and a faint ring round
+   where the finger started marks how far a full pull reaches (it lights up once reached), so a
+   player learns their strength and can repeat a good putt. */
+function mg3PowerHide() {
+  if (MG3.powerRing) MG3.powerRing.visible = false;
+  if (MG3.powerEl) MG3.powerEl.classList.remove('is-on');
+}
+
+function mg3PowerShow(from, z, k) {
+  const p = MG3.pull;
+  if (MG3.powerRing && p) {
+    MG3.powerRing.position.set(p.start[0], z, -p.start[1]);
+    MG3.powerRing.scale.set(MG_FULL_PULL, MG_FULL_PULL, 1);
+    MG3.powerRing.material.opacity = k >= 1 ? 0.55 : 0.22;
+    MG3.powerRing.visible = true;
+  }
+  const host = MG3.canvas && MG3.canvas.parentNode;
+  if (!host || !MG3.cam) return;
+  let el = MG3.powerEl;
+  if (!el) { el = document.createElement('div'); el.className = 'mg-power'; el.setAttribute('aria-hidden', 'true'); MG3.powerEl = el; }
+  if (el.parentNode !== host) host.appendChild(el);
+  const v = new MG3.T.Vector3(from[0], z, -from[1]).project(MG3.cam);
+  const r = host.getBoundingClientRect();
+  const x = (v.x + 1) / 2 * r.width, y = (1 - v.y) / 2 * r.height;
+  const pct = Math.round(k * 100) + '%';
+  if (el.textContent !== pct) el.textContent = pct;
+  el.style.setProperty('--mg-power-c', 'hsl(' + Math.round((0.33 - k * 0.33) * 360) + ', 85%, 45%)');
+  el.style.transform = 'translate(' + Math.round(x + 18) + 'px, ' + Math.round(y - 34) + 'px)';
+  el.classList.add('is-on');
 }
 /** The putt the pull stands for: the direction away from the pull, its strength by how far. Null for a tap. */
 function mg3PullShot() {
@@ -2946,7 +2987,7 @@ function mg3PullShot() {
 function mg3DrawAim() {
   const s = mg3PullShot();
   const A = MG3.arrow;
-  if (!s || !MG3.input) { A.group.visible = false; MG3.band.visible = false; MG3.guide.visible = false; return; }
+  if (!s || !MG3.input) { A.group.visible = false; MG3.band.visible = false; MG3.guide.visible = false; mg3PowerHide(); return; }
   const from = MG3.input.from();
   const z = MG3.pull.z + 0.03;
   const k = s.power / 1000;
@@ -2958,6 +2999,7 @@ function mg3DrawAim() {
   A.shaft.position.z = -L / 2 - 0.28;
   A.head.position.z = -L - 0.26;
   A.mat.color.setHSL(0.33 - k * 0.33, 0.9, 0.55);
+  mg3PowerShow(from, z, k);
   // the rubber band, back to where the finger is
   const back = Math.min(MG_FULL_PULL, Math.hypot(MG3.pull.start[0] - MG3.pull.now[0], MG3.pull.start[1] - MG3.pull.now[1]));
   const bx = from[0] - s.dx / 1000 * back, by = from[1] - s.dy / 1000 * back;
@@ -3581,7 +3623,31 @@ const mgRoom = {
   key: '', seen: {}, offset: null, pending: null, words: {}, clock: null, clockKey: '',
   since: {}, redraw: 0, hostKey: ''
 };
-const mgRoomOpts = () => recallOptions('minigolfRoom', { mode: 'together', holes: 6, level: 'mix', guide: false, clock: 0 });
+const mgRoomOpts = () => recallOptions('minigolfRoom', { mode: 'together', holes: 6, level: 'mix', guide: false, clock: 0, scoring: 'stroke' });
+/** «ماتش بلاي» (7 Oct 2026): is this room game scored a point a hole? */
+const mgMatchOn = (s) => ((s && s.settings) || {}).scoring === 'match';
+/** Points with a half as ½ (2½, ½). */
+const mgPts = (n) => { const v = Number(n) || 0, w = Math.floor(v); return v - w >= 0.5 ? (w ? w + '½' : '½') : String(w); };
+
+/** «ماتش بلاي»: everyone's points so far, best first, as one line of chips. */
+function mgMatchLineHtml(state, tv) {
+  const s = state.shared;
+  if (!mgMatchOn(s)) return '';
+  const rows = (s.board || []).filter(r => (s.order || []).indexOf(r.id) !== -1);
+  if (!rows.length) return '';
+  return `<div class="mg-match ${tv ? 'mg-match--tv' : ''}">
+      <span class="mg-match__title">🤝 ${escapeHTML(mgT('mg_match_title'))}</span>
+      ${rows.map(r => `<span class="mg-match__who ${r.id === Room.me && !tv ? 'is-me' : ''}"><span class="mg-dot" style="--c:${mgRoomColor(s, r.id)}"></span><bdi>${escapeHTML(r.name)}</bdi> <b class="metric">${mgPts(r.score)}</b></span>`).join('')}
+    </div>`;
+}
+
+/** «ماتش بلاي»'s podium: the most points first, the board as it is (renderPodium ranks the highest). */
+function mgMatchPodiumHtml(state) {
+  const s = state.shared;
+  const rows = (s.board || []).filter(r => (s.order || []).indexOf(r.id) !== -1);
+  if (rows.length < 2 || typeof renderPodium !== 'function') return '';
+  return renderPodium(state, rows.map(r => ({ id: r.id, name: r.name, score: r.score })));
+}
 /** The room game's holes, as objects, and the one being played. */
 const mgRoomHoles = (s) => mgCourseOf(s.holes, (s.settings || {}).holes);
 const mgRoomHole = (s) => mgRoomHoles(s)[s.hole] || GOLF_HOLES[0];
@@ -3877,14 +3943,18 @@ function mgBetweenHtml(state, tv) {
   const h = mgRoomHole(s);
   const rows = mgRoomRows(state, tv);
   const left = s.nextAt ? Math.max(0, Math.ceil((s.nextAt + (mgRoom.offset || 0) - Date.now()) / 1000)) : 0;
+  // «ماتش بلاي»: who took this hole, +1 (or +½ each on a tie).
+  const took = mgMatchOn(s) ? ((s.won || [])[s.hole] || []) : [];
   const words = rows.map(r => {
     const v = r.card[s.hole];
+    const pt = took.indexOf(r.id) !== -1 ? `<span class="mg-res__pt">+${mgPts(took.length === 1 ? 1 : 0.5)}</span>` : '';
     return `<li class="mg-res ${r.me ? 'is-me' : ''}"><span class="mg-dot" style="--c:${r.color}"></span><span class="mg-res__name">${escapeHTML(r.name)}</span>
-        <span class="mg-res__word">${typeof v === 'number' ? escapeHTML(v > golfMaxOf(h) ? mgT('mg_picked', { n: v }) : mgWordOf(v, h.par)) : ''}</span><b class="metric">${typeof v === 'number' ? v : '·'}</b></li>`;
+        <span class="mg-res__word">${typeof v === 'number' ? escapeHTML(v > golfMaxOf(h) ? mgT('mg_picked', { n: v }) : mgWordOf(v, h.par)) : ''}</span>${pt}<b class="metric">${typeof v === 'number' ? v : '·'}</b></li>`;
   }).join('');
   return `<div class="mg-panel__card card">
       <p class="eyebrow">${escapeHTML(mgT('mg_hole_big', { n: s.hole + 1 }))} · ${escapeHTML(mgHoleName(h))}</p>
       <ul class="mg-results">${words}</ul>
+      ${mgMatchLineHtml(state, tv)}
       ${mgCardHtml(rows, mgRoomHoles(s), { upto: s.hole + 1, countHole: s.hole })}
       <p class="field__hint mg-next" data-mg-next>${escapeHTML(mgT('mg_next_in', { n: left }))}</p>
       ${roomMoveOnHtml(state, tv ? `<div class="tv-actions">${tvBtn(mgT('mg_next_hole') + ' ⏭️', `roomAct('nextHole', { hole: ${Number(s.hole) || 0} })`)}</div>`
@@ -3895,7 +3965,7 @@ function mgBetweenHtml(state, tv) {
 function mgOverHtml(state, tv) {
   const s = state.shared;
   const rows = mgRoomRows(state, tv);
-  const podium = mgPodiumHtml(state);
+  const podium = mgMatchOn(s) ? mgMatchPodiumHtml(state) : mgPodiumHtml(state);
   const host = state.youAreHost
     ? (tv ? `<div class="tv-actions">${tvBtn(mgT('play_again'), "roomAct('playAgain')")}${tvBtn(mgT('room_another_game'), "roomAct('backToHub')", 'ghost')}</div>`
       : `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(mgT('play_again'))}</button>
@@ -3907,6 +3977,7 @@ function mgOverHtml(state, tv) {
       <p class="eyebrow">${escapeHTML(mgT('mg_result_title', { hh: mgHolesText(mgRoomHoles(s).length) }))}</p>
       ${line}
       ${podium}
+      ${mgMatchLineHtml(state, tv)}
       ${mgCardHtml(rows, mgRoomHoles(s), { upto: mgRoomHoles(s).length })}
       ${host}
       ${!tv && typeof roomShareBtnHtml === 'function' ? roomShareBtnHtml(state, (s.board || []).map(r => ({ id: r.id, name: r.name, score: r.score }))) : ''}
@@ -3922,7 +3993,9 @@ function mgRoomChrome(state, root, tv) {
   const clock = s.settings.clock && s.phase === 'play' ? '<span class="mg-chip mg-chip--clock" data-mg-clock></span>' : '';
   const up = s.settings.mode === 'turns' && s.turn ? `<span class="mg-chip mg-chip--turn">${escapeHTML(s.turn === Room.me && !tv ? mgT('mg_your_turn').split('!')[0] + '!' : mgT('mg_turn_of', { name: mgName(state, s.turn) }))}</span>` : '';
   const last = mine && s.phase === 'play' && !me.done && me.n === golfMaxOf(mgRoomHole(s)) - 1;
-  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole: s.hole, h: mgRoomHole(s), holes: mgRoomHoles(s).length, strokes: mine ? me.n : undefined, last, extra: up + clock }));
+  // «ماتش بلاي»: this phone's points so far, beside its strokes.
+  const pts = mine && mgMatchOn(s) ? `<span class="mg-chip mg-chip--pts">🤝 ${escapeHTML(mgT('mg_match_you', { n: mgPts((s.scores || {})[Room.me]) }))}</span>` : '';
+  mgSet(mgPart(root, 'hud'), mgHudHtml({ hole: s.hole, h: mgRoomHole(s), holes: mgRoomHoles(s).length, strokes: mine ? me.n : undefined, last, extra: pts + up + clock }));
   mgSet(mgPart(root, 'players'), tv ? '' : mgPlayersHtml(state, tv));
   const hint = mgPart(root, 'hint');
   if (hint) {
@@ -3964,7 +4037,7 @@ function mgRoomChrome(state, root, tv) {
     }
   }
   const side = mgPart(root, 'side');
-  if (side) mgSet(side, `<div class="mg-side__players">${mgPlayersHtml(state, true)}</div>${mgCardHtml(mgRoomRows(state, true), mgRoomHoles(s), { upto: Math.max(1, s.phase === 'play' ? s.hole : s.hole + 1) })}`);
+  if (side) mgSet(side, `<div class="mg-side__players">${mgPlayersHtml(state, true)}</div>${mgMatchLineHtml(state, true)}${mgCardHtml(mgRoomRows(state, true), mgRoomHoles(s), { upto: Math.max(1, s.phase === 'play' ? s.hole : s.hole + 1) })}`);
   mgTickClock(state);
 }
 
@@ -4006,6 +4079,7 @@ ROOM_GAMES.minigolf = {
         ${seg(mgT('mg_lobby_mode'), 'mode', [['together', mgT('mg_mode_together')], ['turns', mgT('mg_mode_turns')]], o.mode, o.mode === 'turns' ? mgT('mg_mode_turns_hint') : mgT('mg_mode_together_hint'))}
         ${seg(mgT('mg_level_label'), 'level', GOLF_LEVELS.map(v => [v, mgT('mg_level_' + v)]), o.level, mgT('mg_level_hint_' + (GOLF_LEVELS.indexOf(o.level) !== -1 ? o.level : 'mix')))}
         ${seg(mgT('mg_holes_label'), 'holes', GOLF_HOLE_COUNTS.map(n => [n, String(n)]), o.holes)}
+        ${seg(mgT('mg_scoring'), 'scoring', [['stroke', mgT('mg_scoring_stroke')], ['match', mgT('mg_scoring_match')]], o.scoring === 'match' ? 'match' : 'stroke', mgT(o.scoring === 'match' ? 'mg_scoring_match_hint' : 'mg_scoring_stroke_hint'))}
         <div class="field">
           <label class="switch-row" for="mg-room-guide">
             <span class="field__label">${escapeHTML(mgT('mg_guide'))}</span>
@@ -4018,7 +4092,7 @@ ROOM_GAMES.minigolf = {
   },
   startPayload() {
     const o = mgRoomOpts();
-    return { mode: o.mode, holes: o.holes, level: GOLF_LEVELS.indexOf(o.level) !== -1 ? o.level : 'mix', guide: !!o.guide, clock: o.clock };
+    return { mode: o.mode, holes: o.holes, level: GOLF_LEVELS.indexOf(o.level) !== -1 ? o.level : 'mix', guide: !!o.guide, clock: o.clock, scoring: o.scoring === 'match' ? 'match' : 'stroke' };
   },
   render(state) {
     if (appState.currentView !== 'room-minigolf') setView('room-minigolf');

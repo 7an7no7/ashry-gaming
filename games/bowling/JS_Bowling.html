@@ -44,10 +44,10 @@ const BOWL_CLOCK_OPTIONS = [0, 20, 40];
 
 /** The choices this phone made last: frames and the aim guide (solo and the host's lobby), the clock (the lobby). */
 function bowlOpts() {
-  const o = recallOptions(BOWL_OPTS_KEY, { frames: 5, guide: false, clock: 0 });
+  const o = recallOptions(BOWL_OPTS_KEY, { frames: 5, guide: false, clock: 0, quick: false });
   if (BOWL_FRAME_OPTIONS.indexOf(Number(o.frames)) === -1) o.frames = 5;
   if (BOWL_CLOCK_OPTIONS.indexOf(Number(o.clock)) === -1) o.clock = 0;
-  o.frames = Number(o.frames); o.clock = Number(o.clock); o.guide = !!o.guide;
+  o.frames = Number(o.frames); o.clock = Number(o.clock); o.guide = !!o.guide; o.quick = !!o.quick;
   return o;
 }
 
@@ -1093,7 +1093,8 @@ function bowlPointerDown(e) {
   const g = bowlGfx;
   if (!g.input.on || g.mode !== 'idle' || g.input.trail) return;
   e.preventDefault();
-  g.input.trail = { id: e.pointerId, pts: [bowlTrailPoint(e)], x: bowlLaneXAt(e.clientX), ball: null, back: null };
+  bowlDemoDone();
+  g.input.trail ={ id: e.pointerId, pts: [bowlTrailPoint(e)], x: bowlLaneXAt(e.clientX), ball: null, back: null };
   bowlSwingBall(g.input.trail, e.clientX, e.clientY);
   if (!g.input.trail.ball) bowlPlaceBall(g.input.trail.x / 100);
   try { g.canvas.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1296,6 +1297,8 @@ function bowlStageHtml(o) {
       </div>
       <div class="bowl-banner" data-bowl-banner aria-live="polite"></div>
       <div class="bowl-hint" data-bowl-hint></div>
+      <div class="bowl-demo" data-bowl-demo hidden></div>
+      <div class="bowl-callup" data-bowl-callup aria-live="polite"></div>
       <div class="bowl-msg" data-bowl-msg hidden></div>
       <div class="bowl-over-slot" data-bowl-over></div>
     </div>`;
@@ -1305,14 +1308,16 @@ function bowlStageHtml(o) {
 function bowlSheetHtml(card, o) {
   const opt = o || {};
   const total = card.total;
-  const sc = bowlScore(card.frames, total);
+  const quick = !!card.quick;
+  const sc = quick ? bowlQuickScore(card.frames, total) : bowlScore(card.frames, total);
   const cur = card.over ? -1 : card.frames.length - 1;
   let boxes = '';
   for (let f = 0; f < total; f++) {
     const fr = card.frames[f] || [];
-    const last = f === total - 1;
-    const marks = bowlMarks(fr, last);
-    const slots = last ? 3 : 2;
+    const last = f === total - 1 && !quick;
+    // «جولة سريعة»: one ball a box, always on a full rack (X, -, or the count).
+    const marks = quick ? fr.map(v => (v === 10 ? 'X' : v === 0 ? '-' : String(v))) : bowlMarks(fr, last);
+    const slots = quick ? 1 : last ? 3 : 2;
     let balls = '';
     for (let k = 0; k < slots; k++) {
       const m = marks[k] || '';
@@ -1324,7 +1329,7 @@ function bowlSheetHtml(card, o) {
         <div class="bowl-fr__sum metric">${sc[f] === null ? '' : sc[f]}</div>
       </div>`;
   }
-  return `<div class="bowl-sheet ${opt.compact ? 'bowl-sheet--compact' : ''}" dir="ltr" style="--bowl-n:${total}">${boxes}
+  return `<div class="bowl-sheet ${opt.compact ? 'bowl-sheet--compact' : ''} ${quick ? 'bowl-sheet--quick' : ''}" dir="ltr" style="--bowl-n:${total}">${boxes}
       <div class="bowl-fr bowl-fr--tot"><div class="bowl-fr__n">${escapeHTML((TRANSLATIONS[appState.lang] || {}).score_total || 'Σ')}</div><div class="bowl-fr__sum bowl-fr__sum--tot metric">${bowlTotal(card)}</div></div>
     </div>`;
 }
@@ -1366,6 +1371,93 @@ function bowlCelebrate(stage, kind, loud) {
   } else if (kind === 'gutter' || kind === 'miss') {
     if (loud && typeof duelSound === 'function') duelSound('lose');
   }
+}
+
+/* --- The first throw's demo hand (the owner's pick of 7 Oct 2026) ------------------------------
+   The first time this phone may throw, a drawn hand shows the gesture on the lane - pull back,
+   swing forward, let go - in a loop, with one line, until the first touch on the lane; never
+   again after that (BOWL_DEMO_KEY). Transform and opacity only; with the motion off the hand
+   just stands at the ball with the line. */
+const BOWL_DEMO_KEY = 'ashryBowlDemoDone';
+const BOWL_HAND_SVG = '<svg class="bowl-demo__hand" viewBox="0 0 48 64" aria-hidden="true"><path d="M19 30V9a4 4 0 0 1 8 0v17l2-1.2a4 4 0 0 1 4.4.3l.6.4 1.6-.9a4 4 0 0 1 4.6.6l.4.4 1-.5a4 4 0 0 1 5.4 3.7V44c0 9.4-7.6 17-17 17h-1.6c-5.6 0-10.8-3-13.6-7.8L6.6 42.4a4.2 4.2 0 0 1 6.6-5.1L19 43z" fill="#fff" stroke="#1b1b1f" stroke-width="2.4" stroke-linejoin="round"/><path d="M27 30v8M34.4 30.6V38M41 32v6" stroke="#1b1b1f" stroke-width="2" stroke-linecap="round" opacity=".55"/></svg>';
+
+function bowlDemoSeen() {
+  try { return localStorage.getItem(BOWL_DEMO_KEY) === '1'; } catch (e) { return false; }
+}
+
+/** The hand over the lane while this phone may throw and has never thrown; off once it has. */
+function bowlDemoShow(stage, on) {
+  const el = stage && stage.querySelector('[data-bowl-demo]');
+  if (!el) return;
+  const want = !!on && !bowlDemoSeen();
+  if (!want) {
+    if (!el.hidden) { el.hidden = true; el.innerHTML = ''; if (el._anim) el._anim.forEach(a => a.cancel()); el._anim = null; }
+    return;
+  }
+  if (!el.hidden && el.firstChild) return;
+  el.hidden = false;
+  el.innerHTML = `<span class="bowl-demo__track">${BOWL_HAND_SVG}<span class="bowl-demo__ball"></span></span><span class="bowl-demo__line">${escapeHTML(bowlT('bowl_demo'))}</span>`;
+  const track = el.querySelector('.bowl-demo__track');
+  if (motionOff() || !track.animate) return;
+  // Pull back (down the screen), a beat, swing forward (up) fast, let go: the ball goes on, the hand fades.
+  const hand = track.querySelector('.bowl-demo__hand');
+  const ball = track.querySelector('.bowl-demo__ball');
+  const o = { duration: 2600, iterations: Infinity, easing: 'linear' };
+  el._anim = [
+    hand.animate([
+      { transform: 'translateY(0)', opacity: 0, offset: 0 },
+      { transform: 'translateY(0)', opacity: 1, offset: 0.08 },
+      { transform: 'translateY(2.4rem)', opacity: 1, offset: 0.38, easing: 'ease-in' },
+      { transform: 'translateY(2.4rem)', opacity: 1, offset: 0.46, easing: 'cubic-bezier(0.5, 0, 0.9, 0.5)' },
+      { transform: 'translateY(-2.6rem)', opacity: 1, offset: 0.64 },
+      { transform: 'translateY(-3.4rem)', opacity: 0, offset: 0.78 },
+      { transform: 'translateY(0)', opacity: 0, offset: 1 }
+    ], o),
+    ball.animate([
+      { transform: 'translateY(0) scale(1)', opacity: 0, offset: 0 },
+      { transform: 'translateY(0) scale(1)', opacity: 1, offset: 0.08 },
+      { transform: 'translateY(2.4rem) scale(1)', opacity: 1, offset: 0.38, easing: 'ease-in' },
+      { transform: 'translateY(2.4rem) scale(1)', opacity: 1, offset: 0.46, easing: 'cubic-bezier(0.5, 0, 0.9, 0.5)' },
+      { transform: 'translateY(-2.6rem) scale(0.9)', opacity: 1, offset: 0.64, easing: 'ease-out' },
+      { transform: 'translateY(-9rem) scale(0.45)', opacity: 0, offset: 0.9 },
+      { transform: 'translateY(0) scale(1)', opacity: 0, offset: 1 }
+    ], o)
+  ];
+}
+
+/** The first touch on the lane: the hand goes, for good. */
+function bowlDemoDone() {
+  if (bowlDemoSeen()) return;
+  try { localStorage.setItem(BOWL_DEMO_KEY, '1'); } catch (e) {}
+  document.querySelectorAll('[data-bowl-stage]').forEach(st => bowlDemoShow(st, false));
+}
+
+/* --- «دورك يا منى! 🎳» (the owner's pick of 7 Oct 2026) ------------------------------------
+   In a room the turn used to pass quietly: when it comes to this phone (from someone else, or
+   the game's first ball), a short card slides in over the lane and away, the lane's lights flare
+   and the phone buzzes - so a phone lying on the table gets noticed. The thrower's phone only. */
+function bowlCallUp(stage, name) {
+  const el = stage && stage.querySelector('[data-bowl-callup]');
+  if (!el) return;
+  el.innerHTML = `<span class="bowl-callup__card">${escapeHTML(bowlT('bowl_callup', { name: name || '' }))}</span>`;
+  el.classList.remove('is-on');
+  void el.offsetWidth;
+  el.classList.add('is-on');
+  const card = el.firstChild;
+  if (!motionOff() && card.animate) {
+    card.animate([
+      { transform: 'translateY(-120%) scale(0.9)', opacity: 0 },
+      { transform: 'translateY(0) scale(1.04)', opacity: 1, offset: 0.14, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+      { transform: 'translateY(0) scale(1)', opacity: 1, offset: 0.22 },
+      { transform: 'translateY(0) scale(1)', opacity: 1, offset: 0.82 },
+      { transform: 'translateY(-60%) scale(0.95)', opacity: 0 }
+    ], { duration: 2200, easing: 'ease-in', fill: 'both' });
+  }
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.classList.remove('is-on'); el.innerHTML = ''; }, 2300);
+  bowlGfxPulse();
+  if (typeof haptic === 'function') haptic('double');
+  if (typeof playSound === 'function') playSound('tick');
 }
 
 function bowlHint(stage, text) {
@@ -1469,7 +1561,9 @@ function bowlSoloHud() {
     const html3 = html2 || plain;
     if (over._html !== html3) { over.innerHTML = html3; over._html = html3; }
   }
-  bowlHint(stage, s.phase === 'play' && !bowlSolo.busy && bowlGfx.st === 'ready' ? bowlT('bowl_swipe') : '');
+  const live = s.phase === 'play' && !bowlSolo.busy && bowlGfx.st === 'ready';
+  bowlDemoShow(stage, live);
+  bowlHint(stage, live && bowlDemoSeen() ? bowlT('bowl_swipe') : '');
 }
 
 function paintBowling(o) {
@@ -1617,6 +1711,7 @@ function bowlRoomOptsSet(key, value) {
   if (key === 'frames') rememberOptions(BOWL_OPTS_KEY, { frames: Number(value) });
   if (key === 'clock') rememberOptions(BOWL_OPTS_KEY, { clock: Number(value) });
   if (key === 'guide') rememberOptions(BOWL_OPTS_KEY, { guide: !!value });
+  if (key === 'quick') rememberOptions(BOWL_OPTS_KEY, { quick: !!value });
   if (typeof duelLobbyRedraw === 'function') duelLobbyRedraw();
 }
 
@@ -1660,6 +1755,8 @@ function bowlRoomRemember(state) {
     bowlRoom.busy = false;
     bowlRoom.playing = null;
     bowlRoom.mine = null;
+    bowlRoom.lastUp = null;
+    bowlRoom.callKey = '';
     bowlGfxCancel();
   }
   const seq = s.throwSeq || 0;
@@ -1696,14 +1793,24 @@ function bowlRoomPaint(state) {
     let line = '';
     if (card && subject) {
       const f = Math.min(card.frames.length, card.total);
-      line = (subject === Room.me && !state.youAreScreen ? bowlT('bowl_you') : bowlRoomName(state, subject)) + ' · ' + bowlT('bowl_frame', { n: f, m: card.total });
+      line = (subject === Room.me && !state.youAreScreen ? bowlT('bowl_you') : bowlRoomName(state, subject)) + ' · ' + bowlT(card.quick ? 'bowl_ball_n' : 'bowl_frame', { n: f, m: card.total });
     }
     if (who && who.textContent !== line) who.textContent = line;
     let hint = '';
-    if (!bowlRoom.busy && !done && s.phase === 'play' && bowlGfx.st === 'ready') {
-      hint = bowlRoomMyTurn(state) ? bowlT('bowl_your_turn') : bowlT('bowl_turn_of', { name: bowlRoomName(state, s.turn.pid) });
+    const ready = !bowlRoom.busy && !done && s.phase === 'play' && bowlGfx.st === 'ready';
+    const mineNow = ready && bowlRoomMyTurn(state) && bowlRoom.shownSeq === (s.throwSeq || 0);
+    if (ready) {
+      hint = bowlRoomMyTurn(state) ? (bowlDemoSeen() ? bowlT('bowl_your_turn') : '') : bowlT('bowl_turn_of', { name: bowlRoomName(state, s.turn.pid) });
     }
     bowlHint(stage, hint);
+    bowlDemoShow(stage, mineNow && !bowlRoom.tv);
+    // The turn has come to this phone (from someone else, or the first ball): the call-up card, once.
+    const upKey = mineNow && !bowlRoom.tv ? bowlRoom.key + '|' + (s.turnSeq || 0) : '';
+    if (upKey && bowlRoom.lastUp !== Room.me && bowlRoom.callKey !== upKey) {
+      bowlRoom.callKey = upKey;
+      bowlCallUp(stage, bowlRoomName(state, Room.me));
+    }
+    if (ready) bowlRoom.lastUp = s.turn && s.turn.pid ? s.turn.pid : null;
     const plain = stage.querySelector('[data-bowl-over]');
     if (plain) {
       // A phone that can't draw the lane still bowls: a plain ball down the middle.
@@ -2074,7 +2181,14 @@ ROOM_GAMES.bowling = {
         ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
       </div>`;
     return `<div class="card card--tight">
-        ${seg(bowlT('bowl_frames'), 'frames', BOWL_FRAME_OPTIONS.map(n => [n, String(n)]), o.frames)}
+        <div class="field">
+          <label class="switch-row" for="bowl-room-quick">
+            <span class="field__label">${escapeHTML(bowlT('bowl_quick'))}</span>
+            <span class="switch"><input type="checkbox" id="bowl-room-quick" role="switch" ${o.quick ? 'checked' : ''} onchange="bowlRoomOptsSet('quick', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(bowlT('bowl_quick_hint'))}</p>
+        </div>
+        ${o.quick ? '' : seg(bowlT('bowl_frames'), 'frames', BOWL_FRAME_OPTIONS.map(n => [n, String(n)]), o.frames)}
         <div class="field">
           <label class="switch-row" for="bowl-room-guide">
             <span class="field__label">${escapeHTML(bowlT('bowl_guide'))}</span>
@@ -2088,7 +2202,7 @@ ROOM_GAMES.bowling = {
 
   startPayload() {
     const o = bowlOpts();
-    return { frames: o.frames, guide: o.guide, clock: o.clock };
+    return { frames: o.frames, guide: o.guide, clock: o.clock, quick: o.quick };
   },
 
   render(state) {

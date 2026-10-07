@@ -52,6 +52,9 @@
      shotSeq   putts so far this game · turn  whose putt it is (turns)
      card      { pid: [strokes of each hole, null until done] }
      board     [{ id, name, score }] lowest total first · scores  { pid: total }
+               «ماتش بلاي» (settings.scoring 'match', 7 Oct 2026): score is the holes won
+               (a point each, half on a tie: golfMatchPoints), most first; won  the ids that
+               took each finished hole
      nextAt    when 'between' moves on · result  { winners, par (what the course asks for) }
      wins      games won this evening, kept by play again
    ========================================================================= */
@@ -72,7 +75,9 @@ const mgRoomOptions = (payload, prev) => {
     holes: pickN(MG_HOLE_COUNTS, p.holes, was.holes, 6),
     level: GOLF_LEVELS.indexOf(p.level) !== -1 ? p.level : (GOLF_LEVELS.indexOf(was.level) !== -1 ? was.level : 'mix'),
     guide: p.guide === undefined ? !!was.guide : !!p.guide,
-    clock: pickN(MG_CLOCKS, p.clock, was.clock, 0)
+    clock: pickN(MG_CLOCKS, p.clock, was.clock, 0),
+    // «ماتش بلاي» (7 Oct 2026): 'stroke' (the lowest total wins) or 'match' (a point a hole; golfMatchPoints).
+    scoring: p.scoring === 'match' || p.scoring === 'stroke' ? p.scoring : (was.scoring === 'match' ? 'match' : 'stroke')
   };
 };
 
@@ -83,19 +88,28 @@ const mgCourse = (s) => (Array.isArray(s.holes) ? s.holes : golfLegacyCourse(s.h
 /** The hole being played. */
 const mgHole = (s) => golfHoleById(mgCourse(s)[s.hole]);
 
-/** Totals so far, lowest first: the holes each player has finished. */
+/**
+ * Totals so far, lowest first: the holes each player has finished. In «ماتش بلاي»
+ * (settings.scoring 'match') the score is the holes won instead, most first (the
+ * strokes break a tie in the order only; level points share the place).
+ */
 const mgBoard = (room) => {
   const s = room.shared;
   s.scores = {};
+  const match = (s.settings || {}).scoring === 'match';
+  const mp = match ? golfMatchPoints(s.card || {}, (s.order || []).filter(id => (s.card || {})[id]), mgCourse(s).length) : null;
   const rows = room.players.map((p, k) => {
     const card = (s.card || {})[p.id] || [];
     let total = 0;
     card.forEach(v => { if (typeof v === 'number') total += v; });
-    s.scores[p.id] = total;
-    return { id: p.id, name: p.name, score: total, k: k };
+    const score = match ? (mp.pts[p.id] || 0) : total;
+    s.scores[p.id] = score;
+    return { id: p.id, name: p.name, score: score, strokes: total, k: k };
   }).filter(r => (s.card || {})[r.id]);
-  rows.sort((a, b) => a.score - b.score || a.k - b.k);
+  if (match) rows.sort((a, b) => b.score - a.score || a.strokes - b.strokes || a.k - b.k);
+  else rows.sort((a, b) => a.score - b.score || a.k - b.k);
   s.board = rows.map(r => ({ id: r.id, name: r.name, score: r.score }));
+  if (match) s.won = mp.won; else delete s.won;
 };
 
 /** The hole's clock for a ball: from when it came to rest (or the hole's name card). */

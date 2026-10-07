@@ -152,6 +152,7 @@ function stopBusPaxSvg(pax, rtl) {
     const shirt = STOP_BUS_SHIRT[(h >> 3) % STOP_BUS_SHIRT.length];
     const fs = Math.max(4.5, Math.min(7.5, r * 0.9));
     return `<g class="sbus-pax ${isNew ? 'is-new' : ''} ${p.done ? 'is-done' : ''}" data-id="${escapeHTML(String(p.id))}" style="--sbus-pax-late: ${-(isNew ? bornLate : 0)}ms">
+        ${stopBusRingSvg(cx, cy, r, p.fill, p.of)}
         <path class="sbus-shirt sbus-ink" style="fill: ${shirt}" d="M${cx - sw} 81 V${top + r * 0.5} Q${cx - sw} ${top} ${cx - sw + r * 0.6} ${top} H${cx + sw - r * 0.6} Q${cx + sw} ${top} ${cx + sw} ${top + r * 0.5} V81 Z"/>
         <text class="sbus-initial" x="${cx}" y="${Math.min(80, top + (81 - top) * 0.62 + fs * 0.35)}" text-anchor="middle" font-size="${fs.toFixed(1)}">${escapeHTML(stopBusInitial(p.name))}</text>
         <circle class="sbus-skin sbus-ink" cx="${cx}" cy="${cy}" r="${r}"/>
@@ -261,11 +262,119 @@ function stopBusSceneHtml(o) {
     </div>`;
 }
 
-/** A room's passengers: a face per person in the room (not the computer players), smiling once their sheet is in. */
+/**
+ * A room's passengers: a face per person in the room (not the computer players), smiling once
+ * their sheet is in. While the round is written each carries its ring (755): `fill` green boxes
+ * of `of` (the server's shared.fill, a count only), for whoever is in this round.
+ */
 function stopBusRoomPax(state) {
   const s = (state && state.shared) || {};
   const done = s.submitted || [];
-  return ((state && state.players) || []).filter(p => !p.bot).map(p => ({ id: p.id, name: p.name, done: done.indexOf(p.id) !== -1 }));
+  const ringOn = (s.phase === 'writing' || s.phase === 'collecting') && s.fill && typeof s.fill === 'object';
+  const of = (s.cats || []).length;
+  const roster = s.roster || [];
+  return ((state && state.players) || []).filter(p => !p.bot).map(p => {
+    const o = { id: p.id, name: p.name, done: done.indexOf(p.id) !== -1 };
+    if (ringOn && of && roster.indexOf(p.id) !== -1) { o.fill = Math.max(0, Math.min(of, Number(s.fill[p.id]) || 0)); o.of = of; }
+    return o;
+  });
+}
+
+/* --- 755 «حلقة حوالين الراس»: a ring of N pieces round each head, one a box ----------------
+   In rooms, each passenger wears a ring cut into as many pieces as the round has categories;
+   a piece turns green as a box on that person's sheet turns green (stopAnswerFits), and a full
+   ring glows - the table feels who is about to shout وقف. The server sends the count only
+   (shared.fill, the stopFill action), never a word. Each piece is a dark track with a green
+   arc over it faded in (opacity), so a piece lighting is a fade, and the full ring's glow a
+   pulse of opacity. The styles are put in the page by this chunk. */
+const STOP_RING_CSS = `
+.sbus-ring__track { fill: none; stroke: rgba(14, 12, 30, .5); }
+.sbus-ring__on { fill: none; stroke: #22c55e; opacity: 0; transition: opacity .35s ease; }
+.sbus-ring__on.is-on { opacity: 1; }
+.sbus-ring__glow { fill: none; stroke: #86efac; opacity: 0; transition: opacity .4s ease; }
+.sbus-ring.is-full .sbus-ring__glow { opacity: .9; animation: sbusRingGlow 1.6s ease-in-out .4s infinite; }
+@keyframes sbusRingGlow { 50% { opacity: .35; } }
+.sbus-fill-note { margin: var(--sp-2) auto 0; width: max-content; max-width: 92%; padding: 4px 14px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text); font-weight: 800; font-size: .88rem; text-align: center; }
+.sbus-fill-note[hidden] { display: none; }
+.sbus-fill-note.is-pop { animation: sbusNotePop .35s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes sbusNotePop { from { opacity: 0; transform: translateY(6px) scale(.96); } to { opacity: 1; transform: none; } }
+.sbus-fill-anchor { position: relative; height: 0; width: 100%; align-self: stretch; }
+.sbus-fill-anchor > .sbus-fill-note { position: absolute; inset-inline: 0; bottom: 1.4vmin; margin: 0 auto; font-size: 2.4vmin; padding: .6vmin 2.2vmin;
+  background: rgba(12, 10, 28, .78); color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.16); }
+@media (prefers-reduced-motion: reduce) {
+  .sbus-ring__on, .sbus-ring__glow { transition: none; }
+  .sbus-ring.is-full .sbus-ring__glow, .sbus-fill-note.is-pop { animation: none; }
+}
+`;
+function stopRingStyleOn() {
+  if (document.getElementById('stop-ring-style')) return;
+  const st = document.createElement('style');
+  st.id = 'stop-ring-style';
+  st.textContent = STOP_RING_CSS;
+  document.body.appendChild(st);
+  // The motion setting reads every stylesheet: this one came after it looked.
+  if (typeof applyMotionPref === 'function') applyMotionPref();
+}
+stopRingStyleOn();
+
+/** The ring round one head at (cx, cy) of radius r: `of` pieces, the first `fill` green. '' outside a room's round. */
+function stopBusRingSvg(cx, cy, r, fill, of) {
+  if (typeof fill !== 'number' || !(of > 0)) return '';
+  const R = r * 1.42, w = r * 0.36;
+  const gap = Math.min(0.24, (Math.PI * 2 / of) * 0.3);
+  const arc = (a0, a1) => {
+    const x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0), x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
+    return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${R.toFixed(2)} ${R.toFixed(2)} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  };
+  let segs = '';
+  for (let k = 0; k < of; k++) {
+    const a0 = -Math.PI / 2 + k * Math.PI * 2 / of + gap / 2, a1 = a0 + Math.PI * 2 / of - gap;
+    const d = arc(a0, a1);
+    segs += `<path class="sbus-ring__track" d="${d}" style="stroke-width: ${w.toFixed(2)}"/><path class="sbus-ring__on ${k < fill ? 'is-on' : ''}" data-k="${k}" d="${d}" style="stroke-width: ${w.toFixed(2)}"/>`;
+  }
+  return `<g class="sbus-ring ${fill >= of ? 'is-full' : ''}"><circle class="sbus-ring__glow" cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${(R + w * 0.95).toFixed(2)}" style="stroke-width: ${(r * 0.13).toFixed(2)}"/>${segs}</g>`;
+}
+
+/** A ring as it is now, in place (the pieces fade on by themselves). False when the seat needs a redraw (a ring came, went or changed size). */
+function stopBusRingSync(g, p) {
+  const ring = g && g.querySelector('.sbus-ring');
+  const want = typeof p.fill === 'number';
+  if (!ring || !want) return !ring && !want;
+  const on = ring.querySelectorAll('.sbus-ring__on');
+  if (on.length !== p.of) return false;
+  on.forEach(el => el.classList.toggle('is-on', Number(el.dataset.k) < p.fill));
+  ring.classList.toggle('is-full', p.fill >= p.of);
+  return true;
+}
+
+/**
+ * The line under the bus: «🔥 كريم فاضله خانة!» while someone has one box left, «✋ كريم خلّص،
+ * يقدر يقول وقف» once someone's ring is full (the fullest first; this phone's own player is
+ * left out - their own sheet says it). '' when nobody is close.
+ */
+function stopBusFillNote(state, me) {
+  const pax = stopBusRoomPax(state).filter(p => typeof p.fill === 'number' && !p.done && p.id !== me && p.of >= 2);
+  if (!pax.length || (state.shared || {}).phase !== 'writing') return '';
+  const best = pax.reduce((a, b) => (b.fill > a.fill ? b : a));
+  if (best.fill >= best.of) return '✋ ' + stopBusT('stop_ring_full').replace('{name}', best.name);
+  if (best.fill === best.of - 1) return '🔥 ' + stopBusT('stop_ring_one').replace('{name}', best.name);
+  return '';
+}
+function stopBusFillNoteHtml(state, me) {
+  const text = stopBusFillNote(state, me);
+  return `<div class="sbus-fill-note" ${text ? '' : 'hidden'}>${escapeHTML(text)}</div>`;
+}
+/** The line in place: a new line pops in (transform and opacity). */
+function stopBusFillNoteSync(root, state, me) {
+  const el = root && root.querySelector('.sbus-fill-note');
+  if (!el) return;
+  const text = stopBusFillNote(state, me);
+  if (el.textContent === text) return;
+  el.textContent = text;
+  el.hidden = !text;
+  el.classList.remove('is-pop');
+  if (text && !motionOff()) { void el.offsetWidth; el.classList.add('is-pop'); }
 }
 
 /** Whoever of this round's table sent nothing before the round was scored: left at the stop. */
@@ -291,10 +400,14 @@ function stopBusSyncPax(root, pax) {
     if (grew && !motionOff()) stopBusFx('stopBusPop', true);
     return;
   }
+  let redraw = false;
   (pax || []).forEach(p => {
     const g = layer.querySelector(`.sbus-pax[data-id="${CSS.escape(String(p.id))}"]`);
     if (g) g.classList.toggle('is-done', !!p.done);
+    // 755: the ring's pieces light in place; a ring that came or went redraws the seats.
+    if (g && !stopBusRingSync(g, p)) redraw = true;
   });
+  if (redraw) layer.innerHTML = stopBusPaxSvg(pax, stopBusRtl());
 }
 
 /**

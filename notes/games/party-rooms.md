@@ -150,6 +150,29 @@ the choices coming down).
 
 - **607 «الإيموجي بتلف»** (فوازير إيموجي): a new riddle's emoji land one after another like a slot machine, on the one-phone card (`paintEmoji`, once per riddle dealt) and on the TV (the quiz way's `quizTv('emoji').after`, once per card). `emojiSpinIn(host, text)` splits the riddle into graphemes (`Intl.Segmenter`; an old browser spins nothing), and each emoji is a reel (`emojiSlotRoll`) flickering through emoji from the bank (`emojiSpinPool`, up to 160) and stopping on its own, 0.6 s for the first and 0.3 s more for each after it, a tick as each lands (`.motion-landed`). Transform and opacity only, the clock from the first frame drawn, the real emoji set by a timer whatever happens; with motion off the riddle is simply there. `.emoji-slot` in `Style_Finish.html`.
 
+## The looks of 7 Oct 2026, second sheet (the owner's picks): built
+
+- **613 ب «يافطة الخطاط»** (كمّل المثل's reveal: the TV, every phone in a room, and one phone after «كشف»).
+  The whole proverb is a painted wooden shop sign over a street; the brush writes it in the reading
+  direction - Arabic letters join, so it is a wipe, not loose letters: each line is a window opening
+  along it (`.pvs__ink` and `.pvs__ink-in` moving in opposite directions by the same amount, transforms
+  only), the 🖌️ riding its edge; then the missing word, painted on a small red board, comes down on two
+  ropes with a swing and hangs in its place, and the names hang under the sign as tags (medal, name,
+  +points; on one phone «✅ name +1» once a name is chosen). `provSignHtml(p, word, tags, kind)` cuts the
+  line into up to three balanced lines (26 letters a line on the TV, 15 on a phone), `provSignFit` shrinks
+  the letters once when the widest line is wider than its place, `provSignPlay` runs the Web Animations
+  (each line's share of 1.3-2.8 s by its length, the board at the end, the tags after; end states are the
+  elements' own styles, so nothing waits on an event; with motion off it is simply there). Played once per
+  card: `motionFirst(['prov-sign', roomDealKey(state, qIndex)])` on a phone, `'prov-sign-tv'` on the TV
+  (with a knock, `playSound('pop')`, as the word lands), and on one phone on the «كشف» tap only
+  (`provJustRevealed`), a tag chosen afterwards hanging by itself (`provSignTagShown`). The text's own
+  direction (Arabic letters or not) sets the wipe's, not the app's language. The TV's results for كمّل
+  المثل are the sign alone with the host's button (chosen, as on the sheet: the scores are on the strip at
+  the foot; فوازير إيموجي's TV is unchanged); the room phone keeps the list of who got it, the wrong
+  answers and the board under the sign. The sky and ground follow the theme (light: day), the wood and the
+  red board are the same in both. Code and styles in `JS_Proverbs.html` (`PROV_SIGN_CSS`, put in the page
+  by `provSignStyleOn`; the quiz chunk); `quizSignTags` in `JS_RoomQuiz.html`.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

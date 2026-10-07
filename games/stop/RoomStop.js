@@ -102,6 +102,9 @@ const stopAction = (room, playerId, action, payload) => {
     room._answers = room._answers || {};
     room._answers[playerId] = answers;
     s.submitted.push(playerId);
+    // 755: the ring round their head shows the sheet as it went in (a count, never a word).
+    s.fill = s.fill || {};
+    s.fill[playerId] = s.cats.filter(c => stopAnswerFits(answers[c], s.lang, s.letter)).length;
     if (s.phase === 'writing' && payload && payload.stop) {
       s.stopperId = playerId;
       s.stopperName = (room.players.find(p => p.id === playerId) || {}).name || '';
@@ -109,6 +112,20 @@ const stopAction = (room, playerId, action, payload) => {
       s.collectEndsAt = Date.now() + STOP_COLLECT_MS;
     }
     if (activeRoster(room, s.roster).every(id => s.submitted.indexOf(id) !== -1)) scoreStopRound(room);
+    return;
+  }
+
+  if (action === 'stopFill') {
+    // 755 «حلقة حوالين الراس»: how many of this phone's boxes are green, for the ring
+    // round its passenger's head on every screen. A count only: the words stay on the
+    // phone until the sheet is sent. The phone's own claim (a ring is a picture, not a score).
+    if (staleTap(payload, 'round', s.round)) return;
+    if (s.phase !== 'writing' && s.phase !== 'collecting') return;
+    if ((s.roster || []).indexOf(playerId) === -1 || s.submitted.indexOf(playerId) !== -1) return;
+    const n = Math.floor(Number(payload && payload.n));
+    if (!Number.isFinite(n)) return;
+    s.fill = s.fill || {};
+    s.fill[playerId] = Math.max(0, Math.min(s.cats.length, n));
     return;
   }
 
@@ -176,6 +193,7 @@ const dealStopLetter = (room) => {
     endsAt: o.timer ? Date.now() + o.timer * 1000 : 0,
     collectEndsAt: 0,
     submitted: [],
+    fill: {},                         // 755: green boxes per player, a count only
     stopperId: null,
     stopperName: '',
     badStop: false,

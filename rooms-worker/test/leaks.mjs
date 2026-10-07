@@ -352,6 +352,13 @@ const PROBES = {
     if (open) for (const id of Object.keys(room._answers || {})) {
       for (const text of Object.values(room._answers[id] || {})) if (String(text || '').trim()) out.push(secret('a sheet stays on the server until the round is scored', text, [id]));
     }
+    // 755 «حلقة حوالين الراس»: the rings carry how many boxes are green, a number per player and nothing else.
+    out.push(probe('the rings are counts only while the round is written', open && Object.keys(s.fill || {}).length > 0, (view) => {
+      const f = view.shared && view.shared.fill;
+      if (!f) return null;
+      const bad = Object.keys(f).find((k) => typeof f[k] !== 'number' || f[k] < 0 || f[k] > (s.cats || []).length);
+      return bad ? 'shared.fill.' + bad : null;
+    }));
     return out;
   },
   chameleon(room) {
@@ -1759,6 +1766,10 @@ const DRIVERS = {
     const T = table('stop', 3);
     must(T, T.host, 'start', { lang: 'ar', cats: ['name', 'animal', 'food'], timer: 0, rounds: 2 });
     const L = S(T).letter;
+    // The rings (755): counts while typing, a word sent as a count is dropped.
+    must(T, 'p1', 'stopFill', { round: S(T).round, n: 2 });
+    must(T, 'p2', 'stopFill', { round: S(T).round, n: L + 'ثاء' });
+    must(T, 'p3', 'stopFill', { round: S(T).round, n: 9 });
     must(T, 'p1', 'submit', { answers: { name: L + 'ألف', animal: L + 'باء', food: L + 'تاء' } });
     must(T, 'p2', 'submit', { answers: { name: L + 'ثاء', animal: L + 'جيم', food: '' } });
     must(T, 'p3', 'submit', { answers: { name: L + 'حاء', animal: L + 'خاء', food: L + 'دال' } });

@@ -42,6 +42,16 @@ function quizCardHtml(game, card, big) {
   return `<div class="prov-card ${big ? 'prov-card--big' : ''}">${escapeHTML(parts[0] || '')}<span class="prov-blank">......</span>${escapeHTML(parts[1] || '')}</div>`;
 }
 
+/** 613: who got the proverb, as the sign's tags: the first three's medals and their points. */
+function quizSignTags(state) {
+  const s = state.shared || {};
+  return (s.order || []).map((id, i) => ({
+    m: ['🥇', '🥈', '🥉'][i] || '✅',
+    name: ((state.players.find(p => p.id === id)) || {}).name || '',
+    pts: (s.gained || {})[id] || 0
+  }));
+}
+
 /** This phone's own note of the card on the table (RoomQuiz.js quizSlice): its close guesses, its second try. */
 function quizMine(state) {
   const q = state && state.you && state.you.quiz;
@@ -198,11 +208,14 @@ function quizGame(game) {
         const gotIt = (s.order || []).indexOf(Room.me) !== -1;
         const fresh = renderRoomFrame(el, ['quiz-res', s.qIndex, state.youAreHost, appState.lang].join('|'), () => `
           ${head.replace('id="quiz-clock"', 'hidden')}
-          <div class="card ${gotIt ? 'card--accent' : ''}" style="text-align:center">
-            ${quizCardHtml(game, s.card)}
-            <div class="eyebrow" style="margin-top: var(--sp-3)">${escapeHTML(t.quiz_answer || '')}</div>
-            <div class="metric metric--md metric--accent">${escapeHTML(s.answer || '')}</div>
-          </div>
+          ${game === 'proverbs'
+            // 613: the proverb painted as a shop sign, the word on its red board, the names as tags.
+            ? `<div class="card pvs-card ${gotIt ? 'card--accent' : ''}">${provSignHtml((s.card || {}).p, s.answer, quizSignTags(state), 'room')}</div>`
+            : `<div class="card ${gotIt ? 'card--accent' : ''}" style="text-align:center">
+                 ${quizCardHtml(game, s.card)}
+                 <div class="eyebrow" style="margin-top: var(--sp-3)">${escapeHTML(t.quiz_answer || '')}</div>
+                 <div class="metric metric--md metric--accent">${escapeHTML(s.answer || '')}</div>
+               </div>`}
           ${(s.order || []).length
             ? `<div class="card card--tight">${(s.order || []).map((pid, i) => `<div class="status-row"><div class="status-row__body"><div class="status-row__name">${['🥇', '🥈', '🥉'][i] || '✅'} ${escapeHTML(((state.players.find(p => p.id === pid)) || {}).name || '')}</div><div class="tx-success"><b>+${(s.gained || {})[pid] || 0}</b></div></div></div>`).join('')}</div>`
             : `<div class="waiting-note">${escapeHTML(t.quiz_nobody || '')}</div>`}
@@ -213,6 +226,10 @@ function quizGame(game) {
             `<div class="waiting-note">${t.room_wait_host}</div>`)}
           ${renderRoomPlayerStrip(state)}`);
         if (fresh && gotIt) playSound('success');
+        if (fresh && game === 'proverbs') {
+          provSignFit(el);
+          if (motionFirst(['prov-sign', roomDealKey(state, s.qIndex)].join('|'))) provSignPlay(el);
+        }
         // The points you just won float from the answer card onto your own row.
         // Only this phone's own win: a number leaving someone else's answer
         // means nothing. The gain is what the server says this card gave
@@ -282,6 +299,15 @@ function quizTv(game) {
             ${host(tvBtn(t.quiz_close, "roomAct('closeQuestion')", 'ghost'))}
           </div>`;
       }
+      if (s.phase === 'results' && game === 'proverbs') {
+        // 613: the sign takes the stage (the scores are on the strip at the foot, as on the sheet); the host's button under it.
+        return `
+          <div class="tv-trivia tv-trivia--sign">${top}
+            ${provSignHtml((s.card || {}).p, s.answer, quizSignTags(state), 'tv')}
+            ${(s.order || []).length ? '' : `<div class="tv-note">${escapeHTML(t.quiz_nobody || '')}</div>`}
+            ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(s.qIndex + 1 >= s.total ? t.quiz_last : t.quiz_next, "roomAct('nextQuestion')")}</div>`)}
+          </div>`;
+      }
       if (s.phase === 'results') {
         return `
           <div class="tv-trivia">${top}
@@ -305,6 +331,15 @@ function quizTv(game) {
     after(state, rebuilt) {
       const s = state.shared;
       if (s.phase === 'answering') armQuizClock(s.endsAt); else stopQuizClock();
+      // 613: the sign is painted once per card on the TV, the word's board landing with a knock.
+      if (game === 'proverbs' && rebuilt && s.phase === 'results') {
+        const tv = document.getElementById('view-room-tv');
+        provSignFit(tv);
+        if (motionFirst(['prov-sign-tv', roomDealKey(state, s.qIndex)].join('|'))) {
+          const at = provSignPlay(tv);
+          if (at) setTimeout(() => { const st = Room.state && Room.state.shared; if (st && st.phase === 'results' && st.qIndex === s.qIndex) playSound('pop'); }, at);
+        }
+      }
       // 607: a new riddle's emoji land one by one on the TV, once per card.
       if (game === 'emoji' && rebuilt && s.phase === 'answering' && s.card && typeof emojiSpinIn === 'function'
           && motionFirst(['emoji-tv', roomDealKey(state, s.qIndex)].join('|'))) {

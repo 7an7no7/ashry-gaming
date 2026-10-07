@@ -296,7 +296,15 @@ check(stopWordKnown('ar', 'name', 'مححمود') && !stopWordKnown('ar', 'anima
   let refused = false;
   try { applyRoomAction(r, 'a', 'submit', { answers: { name: 'باسم', animal: '' }, stop: true }); } catch (e) { refused = true; }
   check(refused && r.shared.phase === 'writing' && r.shared.submitted.length === 0, 'stop: وقف with an empty box is refused');
+  // 755: the rings - a count per player, kept between 0 and the boxes, a word or an old round dropped.
+  applyRoomAction(r, 'b', 'stopFill', { round: 1, n: 1 });
+  applyRoomAction(r, 'c', 'stopFill', { round: 1, n: 7 });
+  applyRoomAction(r, 'a', 'stopFill', { round: 1, n: 'باسم' });
+  applyRoomAction(r, 'b', 'stopFill', { round: 0, n: 2 });
+  check(r.shared.fill.b === 1 && r.shared.fill.c === 2 && !('a' in r.shared.fill),
+        'stop: stopFill keeps a count between 0 and the boxes, and drops a word or another round');
   applyRoomAction(r, 'a', 'submit', { answers: { name: 'باسم', animal: 'بزززظ' }, stop: true });
+  check(r.shared.fill.a === 2, "stop: a sheet sent sets its ring from the boxes that fit");
   applyRoomAction(r, 'b', 'submit', { answers: { name: 'بسمة', animal: 'بزززظ' } });
   applyRoomAction(r, 'c', 'submit', { answers: { name: 'بلبلخ', animal: 'بطة' } });
   const res = r.shared.results;

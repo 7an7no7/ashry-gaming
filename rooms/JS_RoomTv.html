@@ -1474,6 +1474,7 @@ TV_GAMES.stop = {
             clockHtml: s.phase === 'writing' && s.endsAt ? `<div class="tv-timer tv-timer--big" id="tv-stop-timer">${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</div>` : '',
             pax: stopBusRoomPax(state)
           })}
+          <div class="sbus-fill-anchor">${stopBusFillNoteHtml(state, null)}</div>
           ${s.phase === 'collecting' ? `<div class="tv-note">⏳ ${t.stop_room_collecting || ''}${s.stopperName ? ' · ✋ ' + escapeHTML(s.stopperName) : ''}</div>` : ''}
           <div class="tv-strip-inline">${chips}</div>
         </div>`;
@@ -1505,6 +1506,8 @@ TV_GAMES.stop = {
     const s = state.shared || {};
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
     stopBusSyncPax(document.getElementById('view-room-tv'), stopBusRoomPax(state));
+    // 755: who is about to call stop, by the rings (in place: the line pops when it changes).
+    stopBusFillNoteSync(document.getElementById('view-room-tv'), state, null);
     if (s.phase === 'writing' && motionFirst(['tvstop', roomDealKey(state), s.round, s.letter].join('|'))) {
       stopBusWhenDriving(stopRoundKey(state), () => spinLetter(document.querySelector('#view-room-tv .tv-stop-letter'), s.letter, stopLetterPool(s.letter), () => playSound('success')));
     }

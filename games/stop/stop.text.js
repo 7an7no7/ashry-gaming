@@ -11,6 +11,8 @@ gameText({
       stop_room_left_1: "باقي خانة واحدة بكلمة بتبدأ بحرف {letter} عشان تقدر توقف",
       stop_room_left_2: "باقي خانتين بكلمة بتبدأ بحرف {letter} عشان تقدر توقف",
       stop_room_fill_all: "املأ كل الخانات بكلمات بتبدأ بحرف {letter} الأول",
+      stop_ring_one: "{name} فاضله خانة!",
+      stop_ring_full: "{name} خلّص، يقدر يقول وقف",
       stop_room_check_host_lenient: "كلمات مش في القاموس خدت نقاطها: دوس على الخانة لو الكلمة غلط عشان تنزل لصفر",
       stop_room_check_wait: "كلمات مش في القاموس خدت صفر لحد ما المضيف يراجعها",
       stop_room_check_wait_lenient: "كلمات مش في القاموس خدت نقاطها لحد ما المضيف يراجعها",
@@ -61,6 +63,8 @@ gameText({
       stop_room_left_1: "1 box still needs a word starting with {letter} before you can stop",
       stop_room_left_2: "2 boxes still need a word starting with {letter} before you can stop",
       stop_room_fill_all: "Fill every box with a word starting with {letter} first",
+      stop_ring_one: "{name} has one box left!",
+      stop_ring_full: "{name} is done and can call stop",
       stop_room_check_host_lenient: "Words not in the dictionary kept their points: tap a cell if the word is wrong to set it to 0",
       stop_room_check_wait: "Words the dictionary doesn't know scored 0 until the host checks them",
       stop_room_check_wait_lenient: "Words not in the dictionary kept their points until the host checks them",
@@ -120,6 +124,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>نفس الحرف يظهر لكل واحد، اكتب إجاباتك في الخانات، وأول واحد يخلص يضغط وقف. التطبيق يقارن الإجابات ويحسب لوحده، والمضيف يقدر يعدّل أي خانة قبل ما تتحسب.</li>
                 <li><b>وقف</b> مش بيشتغل غير لما كل خاناتك تبقى فيها كلمة بتبدأ بالحرف: الخانة بتخضر لما تبقى تمام.</li>
+                <li>في الأتوبيس كل راكب حوالين راسه <b>حلقة</b> متقسمة على قد الخانات، وكل حتة بتخضر لما خانة عنده تخضر (العدد بس، كلامك محدش بيشوفه)، ولما تكمل بتنوّر: كده تعرفوا مين قرب يقول وقف.</li>
                 <li>كل كلمة بتتراجع على قاموس الفئة بتاعتها. اللي القاموس يعرفها ✓ بتتحسب، واللي ميعرفهاش ❓ بتاخد صفر لحد ما المضيف يدوس عليها لو صح، إلا لو لاعب تاني كتب نفس الكلمة.</li>
                 <li>ولو المضيف شغّل <b>متسامح</b>: الكلمة اللي مش في القاموس تاخد 10 وعليها ❓، والمضيف يقدر ينزّلها لصفر.</li>
                 <li>نفس القاعدتين: الإجابة الوحيدة الصح في فئتها تاخد 20 ⭐ (من 3 لاعبين)، واللي داس وقف وفي ورقته كلمة فضلت بصفر (غلط، أو ❓ المضيف ما قبلهاش) بيخسر 10: <b>وقف غلط</b> 🛞.</li>
@@ -141,6 +146,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The same letter shows to everyone, you type your answers in the boxes, and the first one done presses Stop. The app compares the answers and scores them, and the host can change any cell before the points count.</li>
                 <li><b>Stop</b> only works once every box holds a word starting with the letter: a box turns green when it does.</li>
+                <li>On the bus each passenger wears a <b>ring</b> cut into as many pieces as there are boxes; a piece turns green as one of their boxes does (just the count: nobody sees your words), and a full ring glows, so the table sees who is about to call stop.</li>
                 <li>Every word is checked against a dictionary for its category. Words it knows ✓ count; words it doesn't ❓ score 0 until the host taps them as right, unless another player wrote the same word.</li>
                 <li>With the host's <b>Lenient</b> switch on, a word the dictionary doesn't know keeps its 10, still marked ❓, and the host can tap it down to 0.</li>
                 <li>The same two rules: the only right answer in its category scores 20 ⭐ (3 players or more), and whoever pressed Stop with a word left at 0 (wrong, or a ❓ the host didn't accept) loses 10: <b>wrong stop</b> 🛞.</li>

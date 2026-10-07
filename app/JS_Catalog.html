@@ -182,8 +182,38 @@ function reportItem(btn, game, text) {
 if (typeof onLeaveScreen === 'function') onLeaveScreen((from, to) => {
   if (!from || from.indexOf('setup-') !== 0 || typeof exitGameOf !== 'function') return;
   const g = exitGameOf(to || '');
-  if (g && g.id) countPlay(g.id);
+  if (g && g.id) { countPlay(g.id); markPlayed(g.id); }
 });
+
+/* Games this phone has started (the owner's pick D1, look B, 7 Oct 2026): the home's
+   «جرّبوا دي» poster deals from the ones it hasn't, «✨ لسه ما جربتوهاش». A game
+   counts once it was started - a setup's Start (the same moment countPlay
+   counts it) or a room dealing it (markRoomPlayed, from routeRoomState) - not
+   when its setup was only looked at. Kept by home card (a chess way is chess). A
+   phone that had no list yet starts from its recent row, so the first poster after
+   this shipped isn't one of the games played last night. */
+const PLAYED_KEY = 'ashryPlayed_v1';
+function readPlayed() {
+  try {
+    const raw = localStorage.getItem(PLAYED_KEY);
+    if (raw === null) return readRecent();
+    return (JSON.parse(raw) || []).filter(id => CATALOG_BY_ID[id]);
+  } catch (e) { return []; }
+}
+function markPlayed(id) {
+  const home = catalogHomeId(id);
+  if (!CATALOG_BY_ID[home]) return;
+  const list = readPlayed();
+  if (list.indexOf(home) !== -1 && localStorage.getItem(PLAYED_KEY) !== null) return;
+  if (list.indexOf(home) === -1) list.push(home);
+  try { localStorage.setItem(PLAYED_KEY, JSON.stringify(list)); } catch (e) {}
+}
+/** A room game being played on this phone (a room game's id can differ from its card's: chess is shatranj). */
+function markRoomPlayed(state) {
+  if (!state || !state.game || state.phase === 'lobby' || state.youAreScreen) return;
+  const g = GAME_CATALOG.find(x => x.room && (x.room.id || x.id) === state.game);
+  if (g) markPlayed(g.id);
+}
 
 /* --- Games switched off for a fix (DisabledGames.js) ------------------------ */
 const catalogOff = (id) => typeof gameIsOff === 'function' && gameIsOff(id);
@@ -282,9 +312,15 @@ function catalogFeatured(t) {
   if (!shelf.length) return '';
   // A different one each time the home opens (the owner, 26 Sep 2026), dealt
   // through freshPick so all eight come round before one comes back.
-  const ids = shelf.map(x => x.id);
-  const picked = typeof freshPick === 'function' ? freshPick('home_feat', ids, 1)[0] : ids[Math.floor(Math.random() * ids.length)];
+  // Someone who has played before gets a game this phone has never started (D1,
+  // 7 Oct 2026): the first twelve of those in «الليلة دي؟»'s order, the party games
+  // first, dealt through freshPick like the starters. Played everything: the starters.
+  const played = readRecent().length ? readPlayed() : null;
+  const untried = played ? TONIGHT_ORDER.filter(id => CATALOG_BY_ID[id] && !catalogOff(id) && played.indexOf(id) === -1).slice(0, 12) : [];
+  const ids = untried.length ? untried : shelf.map(x => x.id);
+  const picked = typeof freshPick === 'function' ? freshPick(untried.length ? 'home_feat_new' : 'home_feat', ids, 1)[0] : ids[Math.floor(Math.random() * ids.length)];
   const g = CATALOG_BY_ID[picked] || shelf[0];
+  const tag = untried.length ? '✨ ' + (t.home_feat_new || '') : '★ ' + (t.home_feat_tag || t.home_pick_btn || '');
   const modes = (g.modes || []).map(m => PLAY_MODES[m]).filter(Boolean).map(m => t[m.short] || t[m.label] || '').filter(Boolean);
   // A new day's game fades and rises in when the home is drawn again - never on
   // the first paint of a visit, and not with motion off.
@@ -295,7 +331,7 @@ function catalogFeatured(t) {
       <span class="home-feat__art" aria-hidden="true"><span class="gcard__icon">${iconHtml(g.icon)}</span></span>
       <span class="home-feat__fade" aria-hidden="true"></span>
       <span class="home-feat__text">
-        <span class="home-feat__tag">★ ${escapeHTML(t.home_feat_tag || t.home_pick_btn || '')}</span>
+        <span class="home-feat__tag">${escapeHTML(tag)}</span>
         <span class="home-feat__title">${escapeHTML(catalogTitle(g, t))}</span>
         <span class="home-feat__desc">${escapeHTML(catalogDesc(g, t))}</span>
         <span class="home-feat__meta">${catalogMeta(g, t, false, false)}${modes.length ? '<span class="home-feat__modes">' + escapeHTML(modes.join(' · ')) + '</span>' : ''}</span>

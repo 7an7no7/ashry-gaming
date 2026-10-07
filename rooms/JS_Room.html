@@ -2179,6 +2179,8 @@ function roomChunksOf(state) {
 /** Draws whatever the room is doing now: its lobby, a spectator note, or the game. */
 function routeRoomState(state) {
   if (state && state.code && !state.youAreScreen) rememberLastRoom(state.code);
+  // A game dealt in the room counts as played on this phone (the home's poster, D1).
+  if (typeof markRoomPlayed === 'function') markRoomPlayed(state);
   if (state && state.game && typeof lzWait === 'function' &&
       lzWait(roomChunksOf(state), () => { if (Room.state) routeRoomState(Room.state); }, 'route')) return;
   // برنامج السهرة (JS_RoomProgram.html, a chunk of its own): its code before anything of it is drawn.

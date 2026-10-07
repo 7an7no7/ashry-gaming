@@ -60,6 +60,8 @@ gameText({
       ch4_finish: "خلّصها",
       ch4_bots_only: "الكمبيوتر بس اللي فاضل: بيلعب بسرعة",
       ch4_first_left: "أول نقلة",
+      ch4_speed: "دور سريع",
+      ch4_speed_hint: "10 ثواني لكل نقلة: لو خلصوا، الموبايل بيلعب نقلة سهلة مكانك. محدش بيخرج بالوقت.",
       ch4_again: "العب تاني",
       ch4_wait_host: "مستنيين المضيف…",
       ch4_moves: "الحركات",
@@ -121,6 +123,8 @@ gameText({
       ch4_finish: "Finish it",
       ch4_bots_only: "Only computer players left: they play fast",
       ch4_first_left: "First move",
+      ch4_speed: "Speed round",
+      ch4_speed_hint: "10 seconds a move: when they run out, the phone plays an easy move for you. Nobody is out on time.",
       ch4_again: "Play again",
       ch4_wait_host: "Waiting for the host…",
       ch4_moves: "Moves",
@@ -152,6 +156,8 @@ gameText({
                 <li>دوس على قطعة تشوف حركاتها (نقطة، ودايرة على اللي تاكله)، وبعدين على الخانة؛ أو اسحب القطعة. وانت ماسك القطعة أو بتنشّن، <b>عدسة مكبّرة</b> فوق صباعك بتوريك الخانة اللي تحته.</li>
                 <li>الساعة اختيارية: 1 أو 3 أو 5 دقايق لكل واحد و5 ثواني مع كل حركة. والمضيف يقدر يلعب حركة بدل حد موبايله سكت.</li>
                 <li>مع الساعة، أول نقلة لكل واحد ساعتها مش بتمشي، بس ليها <b>45 ثانية</b>: لو خلصوا، الموبايل بيلعب نقلة سهلة مكانه.</li>
+                <li>⚡ <b>دور سريع</b> (من اختيارات الساعة): كل نقلة ليها <b>10 ثواني</b> بس؛ لو خلصوا، الموبايل بيلعب نقلة سهلة مكانك، ومحدش بيخرج بالوقت. لفة الأربعة أقل من دقيقة.</li>
+                <li>الدور على مين؟ برواز الرقعة بيتلوّن بلون اللي عليه الدور، وفي دورك بينبض و«دورك!» مكتوبة بلونك.</li>
                 <li>حد خرج من الغرفة؟ في كل واحد لنفسه بيخرج من اللعبة، وفي الفرق الكمبيوتر بيكمّل مكانه.</li>
                 <li>لو مافضلش غير الكمبيوتر بيلعب، بيلعب بسرعة، وفي كل واحد لنفسه المضيف عنده <b>⏩ خلّصها</b>: اللعبة تخلص على طول والترتيب بالنقط.</li>
                 <li>العب تاني: نفس القعدة والرقعة بتلف لفة، فحد تاني يبقى الأحمر ويبدأ.</li>
@@ -186,6 +192,8 @@ gameText({
                 <li>Tap a piece to see its moves (a dot, a ring round what it can take), then tap the square; or drag the piece. While you carry a piece or aim, a <b>magnifier</b> above your finger shows the square under it.</li>
                 <li>The clock is optional: 1, 3 or 5 minutes each plus 5 seconds a move. The host can play a move for a phone that went quiet.</li>
                 <li>With a clock, everyone's first move doesn't run their clock but has <b>45 seconds</b>: then the phone plays an easy move for them.</li>
+                <li>⚡ <b>Speed round</b> (one of the clock's choices): every move has just <b>10 seconds</b>; when they run out the phone plays an easy move for you, and nobody is out on time. A round of four takes under a minute.</li>
+                <li>Whose turn? The board's frame takes the colour to move; on your move it pulses and «Your move!» is written in your colour.</li>
                 <li>Someone leaves the room? Everyone for themselves: they're out. Teams: the computer plays on for them.</li>
                 <li>Once only computer players are still playing, they play fast, and in everyone for themselves the host has <b>⏩ Finish it</b>: the game ends at once, ranked by points.</li>
                 <li>Play again: the same table, turned once, so someone else is red and starts.</li>

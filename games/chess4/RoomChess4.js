@@ -28,6 +28,11 @@
        «⏩ خلّصها» ('finish'): the game ends now, ranked by the points. With a
        clock, a seat's first move (whose clock doesn't run yet) has
        CHESS4_FIRST_MS; then an easy move is played for them (auto 'time').
+     - «دور سريع» (the owner's pick of 7 Oct 2026): a clock choice of
+       CHESS4_SPEED_MS a move (CHESS4_SPEED, Chess4.js). Every move, the first
+       too, has 10 s by the server's clock, then an easy computer move is played
+       for the player (auto 'time', as the first move's 45 s); nobody is ever out
+       on time. `clock.speed` is true and the per-move wait is `clock.first`.
 
    Nothing is hidden: the whole game is in `shared`. Every move carries `seq`
    (shared.turnSeq, raised whenever the turn moves), so a tap that arrives
@@ -120,6 +125,8 @@ const chess4ClockTurn = (s, now) => {
   const c = s.clock;
   if (!c) return;
   const g = s.g;
+  // «دور سريع»: every move is timed like a first move (no bank of minutes).
+  if (c.speed) { c.at = null; c.first = !g.over ? now : null; return; }
   c.at = !g.over && c.moved[g.turn] ? now : null;
   c.first = !g.over && !c.moved[g.turn] ? now : null;
 };
@@ -169,7 +176,7 @@ const chess4ApplyMove = (room, move, auto) => {
   const info = chess4Play(g, move);
   if (!info) throw new Error('الحركة دي مش مسموحة');
   if (c) {
-    if (c.moved[seat]) c.left[seat] = Math.max(0, c.left[seat] - spent) + CHESS4_INC_MS;
+    if (c.moved[seat] && !c.speed) c.left[seat] = Math.max(0, c.left[seat] - spent) + CHESS4_INC_MS;
     c.moved[seat] = true;
   }
   const entry = { k: 'mv', seat: seat, san: info.san, from: info.from, to: info.to };
@@ -214,6 +221,7 @@ const chess4NewRoomGame = (room, playerId, action, p) => {
   }
   const g = chess4NewGame(mode);
   const minutes = CHESS4_CLOCKS.indexOf(Number(clock)) !== -1 ? Number(clock) : 0;
+  const speed = minutes === CHESS4_SPEED;
   room.shared = {
     phase: 'play',
     settings: { mode: g.mode, clock: minutes },
@@ -221,7 +229,8 @@ const chess4NewRoomGame = (room, playerId, action, p) => {
     names: order.map(id => roomPlayerName(room, id)),
     replaced: [false, false, false, false],
     g: g,
-    clock: minutes ? { left: [0, 1, 2, 3].map(() => minutes * 60000), at: null, moved: [false, false, false, false] } : null,
+    clock: speed ? { speed: true, left: [0, 0, 0, 0], at: null, first: null, moved: [false, false, false, false] }
+      : minutes ? { left: [0, 1, 2, 3].map(() => minutes * 60000), at: null, moved: [false, false, false, false] } : null,
     last: null,
     log: [],
     eventSeq: prev.eventSeq || 0,
@@ -318,7 +327,7 @@ const chess4Deadline = (room) => {
   const c = s.clock;
   if (s.phase !== 'play' || !c || !s.g || s.g.over) return null;
   // The first move of a seat: its clock doesn't run yet, but the table doesn't wait for ever.
-  if ((c.at === null || c.at === undefined) && typeof c.first === 'number') return c.first + CHESS4_FIRST_MS + CHESS4_GRACE_MS + 1;
+  if ((c.at === null || c.at === undefined) && typeof c.first === 'number') return c.first + (c.speed ? CHESS4_SPEED_MS : CHESS4_FIRST_MS) + CHESS4_GRACE_MS + 1;
   if (c.at === null || c.at === undefined) return null;
   return c.at + c.left[s.g.turn] + CHESS4_GRACE_MS + 1;
 };
@@ -328,7 +337,7 @@ const chess4Timeout = (room, now) => {
   if (d === null || now < d) return false;
   const s = room.shared;
   if (s.clock.at === null || s.clock.at === undefined) {
-    // The first move's time is up: an easy move is played for them, marked as such.
+    // The first move's time is up (or, «دور سريع», any move's 10 s): an easy move is played for them, marked as such.
     const mv = chess4BotMove(s.g, 'easy') || chess4Legal(s.g)[0];
     if (!mv) return false;
     chess4ApplyMove(room, mv, 'time');

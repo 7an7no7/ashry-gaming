@@ -459,7 +459,12 @@ async function teamChessRobots() {
     for (const b of [J, K]) if (H.state.shared.lobby.sides[b.pid] !== 1) await H.must('sides', { move: b.pid });
     await H.waitFor((s) => s.shared.lobby.sides[H.pid] === 0 && s.shared.lobby.sides[J.pid] === 1 && s.shared.lobby.sides[K.pid] === 1, 'votechess: a tap moves a player to the other side');
     check((await J.act('sides', { shuffle: true })).ok === false, 'votechess: only the host splits the teams');
+    // «الكابتن» (7 Oct 2026): the host taps Karim as Black's captain.
+    check((await J.act('captain', { pid: J.pid })).ok === false, 'votechess captain: only the host picks a captain');
+    await H.must('captain', { pid: K.pid });
+    await all(three.concat([S]), (s) => s.shared.lobby.caps && s.shared.lobby.caps[1] === K.pid, 'votechess captain: every phone and the TV see Black\'s captain');
     await H.must('start', { secs: 20 });
+    await all(three.concat([S]), (s) => s.shared.captains && s.shared.captains[0] === H.pid && s.shared.captains[1] === K.pid, 'votechess captain: the host\'s pick captains Black; White\'s only member captains White');
     await all(three.concat([S]), (s) => s.game === 'votechess' && s.shared.phase === 'play' && s.shared.vote && s.shared.vote.team === 0 && s.shared.teams[0].join() === H.pid,
       'votechess: 1 against 2 - White\'s team votes first, on every phone and the TV');
     const n0 = H.state.shared.chess.moves;
@@ -468,14 +473,19 @@ async function teamChessRobots() {
     await H.must('vote', { from: 'f2', to: 'f3', n: 0 });
     await all(three.concat([S]), (s) => s.shared.chess.moves === 1 && s.shared.tallies.length === 1 && s.shared.tallies[0].list[0].san === 'f3' && s.shared.vote.team === 1,
       'votechess: a team of one has all voted - the move is played and its tally reaches everyone');
-    // Black: two vote apart, a tie drawn at random between them.
+    // Black: two vote apart - a tie, which the captain's vote decides.
     await J.must('vote', { from: 'e7', to: 'e5', n: 1 });
     await H.waitFor((s) => s.shared.vote.voted.indexOf(J.pid) !== -1, 'votechess: who voted reaches every phone');
     check(!leaks(H, '"e5"') && !leaks(K, '"e5"') && !leaks(S, '"e5"') && J.state.you && J.state.you.vote && J.state.you.vote.to === 'e5',
       'votechess: what Jana voted is on her phone only - not her teammate\'s, not the other team\'s, not the TV');
+    // «صوتك ✕»: Jana takes her vote back, then votes again.
+    await J.must('unvote', { n: 1 });
+    await all([H, J, S], (s) => s.shared.vote.voted.indexOf(J.pid) === -1, 'votechess unvote: Jana takes her vote back - her dot goes on every screen');
+    check(!(J.state.you && J.state.you.vote), 'votechess unvote: …and her arrow from her own phone');
+    await J.must('vote', { from: 'e7', to: 'e5', n: 1 });
     await K.must('vote', { from: 'e7', to: 'e6', n: 1 });
-    await all(three.concat([S]), (s) => s.shared.chess.moves === 2 && s.shared.tallies[1].how === 'tie' && s.shared.tallies[1].list.length === 2,
-      'votechess: a tie - one of the two drawn at random, and the table told so');
+    await all(three.concat([S]), (s) => s.shared.chess.moves === 2 && s.shared.tallies[1].how === 'captain' && s.shared.tallies[1].captain === K.pid && s.shared.tallies[1].pick === 'e7e6' && s.shared.tallies[1].list.length === 2,
+      'votechess captain: a tie - the captain\'s move is played, and the table told so');
     // White's vote runs out with nobody voting: a random legal move.
     await all(three, (s) => s.shared.vote && s.shared.vote.team === 0, 'votechess: White\'s turn again');
     await H.waitFor((s) => s.shared.chess.moves === 3, 'votechess: the 20-second clock runs out on the server', 30000);
@@ -614,6 +624,17 @@ async function chess4Robots() {
     await H.waitFor((s) => s.shared.g.out[0] && s.shared.log.some((e) => e.k === 'out' && e.seat === 0 && e.why === 'resign'), 'chess4 FFA: resigning is out, the pieces grey walls');
     const after = cS(H).g.ply;
     await H.waitFor((s) => s.shared.g.ply >= after + 3 || s.shared.phase === 'over', 'chess4 FFA: the computer players play on without red', 12000);
+
+    // «دور سريع» (7 Oct 2026): 10 seconds a move; a quiet phone gets an easy move played for it, and stays in.
+    await H.must('backToHub', {});
+    await H.must('chooseGame', { game: 'chess4' });
+    await H.must('options', { mode: 'ffa', clock: -1 });
+    await H.must('seats', { order: [H.pid, null, null, null] });
+    await H.must('start', {});
+    await all([H, TV], (s) => s.phase === 'play' && s.shared.clock && s.shared.clock.speed && typeof s.shared.clock.first === 'number', 'chess4 speed: a game of 10 s a move, on every phone and the TV');
+    await H.waitFor((s) => s.shared.log.some((e) => e.k === 'mv' && e.seat === 0 && e.auto === 'time') && !s.shared.g.out[0],
+      'chess4 speed: red sits still - after 10 s the server plays an easy move for red, who stays in', 16000);
+    await H.must('backToHub', {});
     H.close();
     TV.close();
   }

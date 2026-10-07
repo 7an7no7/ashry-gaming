@@ -262,6 +262,7 @@ function chPzAutoMove(showing) {
 function chPzSolved(s) {
   s.result = 'solved';
   if (s.mode === 'free' && s.p.level) s.done[s.p.level] = (s.done[s.p.level] || 0) + 1;
+  chPzPileNote(s, s.wrong ? 'miss' : s.hint >= 0 ? 'hint' : 'clean');
   chPzMarkDaily(s, true);
   chPzMistakeMark(s);
   if (typeof chPzSolvedMode === 'function') chPzSolvedMode(s);
@@ -317,6 +318,7 @@ function chPzGiveUp(s) {
   s.showing = true;
   chPzLocal.sel = '';
   chPzMarkDaily(s, false);
+  chPzPileNote(s, 'miss');
   if (typeof chPzFailedMode === 'function') chPzFailedMode(s);
   saveToLocal();
   chPzPaint();
@@ -338,11 +340,8 @@ function chPzNext() {
 
 /* --- drawing ----------------------------------------------------------------------- */
 
-const chPzSideName = (side) => chT(side ? 'ch_color_b' : 'ch_color_w');
-
-/** The line on top: whose move and what to find, then how it is going. */
+/** The line under «انت الأبيض»: how it is going. */
 function chPzStatus(s, pos) {
-  const side = chPzSideName(chPzSide(s));
   if (s.result === 'solved') return (chPzMotif(s) ? chPzMotifName(chPzMotif(s)) + '! ' : '') + chT(s.wrong || s.hint >= 0 ? 'chpz_solved' : 'chpz_solved_clean');
   if (s.mode === 'streak' && s.result === 'failed') return chT('chpz_failed');
   if (s.showing) return chT('chpz_showing');
@@ -351,9 +350,25 @@ function chPzStatus(s, pos) {
   if (Date.now() < chPzLocal.lockUntil) return chT('chpz_wrong');
   if (s.hist.length % 2 === 1) return chT('chpz_right');
   if (s.hist.length > 0) return chT('chpz_again');
-  if (s.p.theme === 'mate' && s.p.mateIn) return chT(s.p.mateIn === 1 ? 'chpz_turn_mate1' : 'chpz_turn_mate', { side: side, n: s.p.mateIn });
-  if (s.mode === 'mistake') return chT('chpz_turn_better', { side: side });
-  return chT('chpz_turn_win', { side: side });
+  // Who you play and what to find is the line above (chPzYouHtml).
+  return chT('chpz_your_move');
+}
+
+/** What the puzzle asks: play and win, mate in n, the best move (a puzzle from your mistakes). */
+function chPzTask(s) {
+  if (s.p.theme === 'mate' && s.p.mateIn) return chT(s.p.mateIn === 1 ? 'chpz_turn_mate1' : 'chpz_turn_mate', { n: s.p.mateIn });
+  if (s.mode === 'mistake') return chT('chpz_turn_better');
+  return chT('chpz_turn_win');
+}
+
+/**
+ * Who you play, big, as the first line (the owner's pick of 7 Oct 2026): «♔ انت الأبيض - العب
+ * واكسب». The board is already turned so your side is at the bottom (orient: chPzSide).
+ */
+function chPzYouHtml(s) {
+  const side = chPzSide(s);
+  return `<p class="chpz-you"><span class="ch-mark ${side ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (side ? 8 : 0))}</span>` +
+    `<b class="chpz-you__side">${escapeHTML(chT(side ? 'chpz_you_b' : 'chpz_you_w'))}</b><span class="chpz-you__task">${escapeHTML(chPzTask(s))}</span></p>`;
 }
 
 /** The chips over the board: which kind of puzzle, its level and rating. */
@@ -362,6 +377,11 @@ function chPzTagsHtml(s) {
   if (s.mode === 'mistake') tags.push(`<span class="chpz-tag chpz-tag--mode">📝 ${escapeHTML(chT('chpz_mistakes_title'))}</span>`);
   if (s.mode === 'streak') tags.push(`<span class="chpz-tag chpz-tag--mode">🔥 ${escapeHTML(chT('chpz_streak_title'))}</span>`);
   if (s.mode === 'daily') tags.push(`<span class="chpz-tag chpz-tag--mode">📅 ${escapeHTML(s.archive ? s.archive : chT('chpz_daily_title'))}</span>`);
+  if (s.mode === 'retry') {
+    // How far it is from leaving the pile: solved clean n of 2 times in a row.
+    const e = (s.pile || []).find(x => x.id === s.p.id);
+    tags.push(`<span class="chpz-tag chpz-tag--mode">🔁 ${escapeHTML(chT('chpz_pile_title'))}${e ? ` · <b class="metric" dir="ltr">${e.ok || 0}/${CHPZ_PILE_CLEAR}</b>` : ' ✓'}</span>`);
+  }
   if (typeof chPzModeTag === 'function') { const x = chPzModeTag(s); if (x) tags.push(x); }
   if (s.p.level) tags.push(`<span class="chpz-tag">${escapeHTML(chT(['', 'solo_lvl_easy', 'solo_lvl_medium', 'solo_lvl_hard'][s.p.level]))}</span>`);
   if (s.p.rating) tags.push(`<span class="chpz-tag chpz-tag--rating"><span aria-hidden="true">⭐</span> <b class="metric" dir="ltr">${s.p.rating}</b></span>`);
@@ -447,7 +467,7 @@ function chPzPaint(opts) {
   chViewShow(el.querySelector('[data-ch-host]'), model);
   const wrongNow = Date.now() < chPzLocal.lockUntil;
   const cls = s.result === 'solved' ? 'is-good' : (wrongNow || s.result === 'failed') ? 'is-bad' : '';
-  chSetHtml(el, '[data-ch-head]', (typeof chPzHeadExtraHtml === 'function' ? chPzHeadExtraHtml(s) : '') + chPzTagsHtml(s) +
+  chSetHtml(el, '[data-ch-head]', chPzYouHtml(s) + (typeof chPzHeadExtraHtml === 'function' ? chPzHeadExtraHtml(s) : '') + chPzTagsHtml(s) +
     `<p class="duel-status chpz-status ${cls}">${escapeHTML(chPzStatus(s, pos))}</p>`);
   chSetHtml(el, '[data-ch-bar]', chPzBarHtml(s));
   chSetHtml(el, '[data-ch-side]', chPzLineHtml(s, pos) + (typeof chPzSideExtraHtml === 'function' ? chPzSideExtraHtml(s) : '') +
@@ -683,6 +703,7 @@ function chPzWrongMode(s) {
   if (s.mode !== 'streak' || !s.streak) return;
   s.streak.lives = Math.max(0, s.streak.lives - 1);
   s.streak.marks.push('❌');
+  chPzPileNote(s, 'miss');
   s.result = 'failed';
   s.shown = true;
   s.showing = true;
@@ -706,6 +727,7 @@ function chPzShowDoneMode(s) {
 /** «اللغز اللي بعده» in the streak. */
 function chPzNextMode(s) {
   if (s.mode === 'mistake') { chPzMistakeNext(s); return true; }
+  if (s.mode === 'retry') { chPzPileNext(s); return true; }
   if (s.mode !== 'streak' || !s.streak) return false;
   if (s.streak.lives <= 0 || s.streak.over) chPzStreakFinish(s);
   else chPzStreakDeal(s);
@@ -756,6 +778,7 @@ function chPzDoneBarHtml(s) {
     return `<button type="button" class="btn btn--primary btn--lg" onclick="chPzNext()">📝 ${escapeHTML(chT('chpz_mistakes_next'))}</button>` +
       (s.from ? `<button type="button" class="btn btn--secondary" onclick="chPzBackToReview()">📊 ${escapeHTML(chT('chpz_back_review'))}</button>` : '');
   }
+  if (s.mode === 'retry') return `<button type="button" class="btn btn--primary btn--lg" onclick="chPzNext()">🔁 ${escapeHTML(chT('chpz_pile_next'))}</button>`;
   if (s.mode !== 'streak' || !s.streak) return '';
   if (s.streak.lives <= 0 || s.streak.over) return `<button type="button" class="btn btn--primary btn--lg" onclick="chPzStreakFinish(chPzState())">🏁 ${escapeHTML(chT('solo_look_result'))}</button>`;
   return `<button type="button" class="btn btn--primary btn--lg" onclick="chPzNext()">➡️ ${escapeHTML(chT('chpz_streak_next'))}</button>`;
@@ -768,6 +791,7 @@ function chPzMoreWaysHtml(s) {
   const status = live ? `<span class="badge">${escapeHTML(chT('daily_continue'))}</span>`
     : best ? `<span class="badge badge--success">🏆 <b class="metric">${best.score}</b></span>` : `<span class="badge">${escapeHTML(chT('daily_play'))}</span>`;
   let out = chPzWayHtml('🔥', chT('chpz_streak_title'), chT('chpz_streak_desc'), status, 'chPzStartStreak()', false);
+  out += chPzPileWayHtml(s);
   if (typeof chPzMistakeWayHtml === 'function') out += chPzMistakeWayHtml(s);
   return out;
 }
@@ -960,10 +984,87 @@ function chPzMistakeWayHtml(s) {
   return chPzWayHtml('📝', name, desc, status, list.length ? 'chPzStartMistakes()' : '', !list.length);
 }
 
+/* ============================================================================
+   «اللي غلبوني» - the retry pile (the owner's pick of 7 Oct 2026)
+   ----------------------------------------------------------------------------
+   Every puzzle of the bank you got wrong or gave up on - free, the daily, the
+   streak - goes into a pile kept on the phone (s.pile: { id, ok, at }), and
+   the setup screen offers it back, the one missed longest ago first. Solved
+   with no wrong move and no hint counts one (ok); two in a row and it leaves
+   the pile. Missed again, its count starts over and it goes to the back; a
+   hint keeps it but starts the count over. The puzzles from your own mistakes
+   have their own list and stay out of it.
+   ========================================================================= */
+
+const CHPZ_PILE_CLEAR = 2;       // solved clean this many times in a row and it leaves the pile
+const CHPZ_PILE_MAX = 60;        // the newest misses kept
+
+/** A bank puzzle by its id (a puzzle no longer in the bank - a new build - is dropped from the pile). */
+const chPzById = (id) => (typeof CHESS_PUZZLES !== 'undefined' ? CHESS_PUZZLES : []).find(p => String(p.id) === String(id)) || null;
+
+/** The pile as it stands: only puzzles the bank still has, the one missed longest ago first. */
+function chPzPile(s) {
+  if (!Array.isArray(s.pile)) s.pile = [];
+  s.pile = s.pile.filter(x => x && chPzById(x.id));
+  return s.pile.slice().sort((a, b) => (a.at || 0) - (b.at || 0));
+}
+
+/** What a finished puzzle means for the pile: 'miss' (a wrong move, given up), 'hint', or 'clean'. */
+function chPzPileNote(s, how) {
+  if (!s.p || !s.p.level || s.mode === 'mistake') return;
+  if (!Array.isArray(s.pile)) s.pile = [];
+  const i = s.pile.findIndex(x => String(x.id) === String(s.p.id));
+  if (how === 'miss') {
+    if (i === -1) s.pile.push({ id: s.p.id, ok: 0, at: Date.now() });
+    else Object.assign(s.pile[i], { ok: 0, at: Date.now() });
+    if (s.pile.length > CHPZ_PILE_MAX) s.pile.splice(0, s.pile.length - CHPZ_PILE_MAX);
+    return;
+  }
+  if (i === -1) return;
+  if (how === 'hint') { s.pile[i].ok = 0; return; }
+  s.pile[i].ok = (s.pile[i].ok || 0) + 1;
+  if (s.pile[i].ok >= CHPZ_PILE_CLEAR) {
+    s.pile.splice(i, 1);
+    const uid = s.uid;
+    setTimeout(() => { if (chPzState().uid === uid) showToast('🎉 ' + chT('chpz_pile_cleared'), 'success'); }, 900);
+  }
+}
+
+/** The next puzzle of the pile (not the one just played, which waits for later). */
+function chPzPileNextPuzzle(s, skipId) {
+  const e = chPzPile(s).find(x => String(x.id) !== String(skipId || ''));
+  return e ? chPzById(e.id) : null;
+}
+
+/** «اللي غلبوني» on the setup screen: the one missed longest ago. */
+function chPzStartPile() {
+  const s = chPzState();
+  const p = chPzPileNextPuzzle(s, '');
+  if (!p) { showToast(chT('chpz_pile_empty'), 'info'); return; }
+  const go = () => chPzBegin({ mode: 'retry', p: chPzCopy(p) });
+  if (chPzAsk(go)) return;
+  go();
+}
+
+/** «اللي بعده» in the pile; nothing else in it: back to the setup, saying so. */
+function chPzPileNext(s) {
+  const p = chPzPileNextPuzzle(s, s.p ? s.p.id : '');
+  if (p) { chPzBegin({ mode: 'retry', p: chPzCopy(p) }); return; }
+  showToast(chT(chPzPile(s).length ? 'chpz_pile_later' : 'chpz_pile_done'), chPzPile(s).length ? 'info' : 'success');
+  setupChessPuzzles();
+}
+
+/** Its way in on the setup screen, with how many are waiting. */
+function chPzPileWayHtml(s) {
+  const n = chPzPile(s).length;
+  const status = n ? `<span class="badge">${escapeHTML(chT('daily_play'))}</span>` : '';
+  return chPzWayHtml('🔁', chT('chpz_pile_title') + (n ? ` (${n})` : ''), chT(n ? 'chpz_pile_desc' : 'chpz_pile_none'), status, n ? 'chPzStartPile()' : '', !n);
+}
+
 soloRegister('chesspuzzle', {
   setup: 'setup-chesspuzzles', play: 'play-chesspuzzle',
   paintSetup: paintChessPuzzlesSetup, restore: restoreChessPuzzle,
-  state: chPzState, resume: chPzContinue, prefs: ['level', 'done', 'nonce', 'streak', 'streakRecent', 'mSolved'],
+  state: chPzState, resume: chPzContinue, prefs: ['level', 'done', 'nonce', 'streak', 'streakRecent', 'mSolved', 'pile'],
   // (the streak run, its recent puzzles and the solved mistakes are kept too: a daily
   // brought back must not roll back what was played while it was set aside)
   repaint: () => chPzPaint({ still: true })

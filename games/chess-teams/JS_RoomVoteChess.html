@@ -131,6 +131,24 @@ function vcVote(v) {
   });
 }
 
+/** ✕ on «صوتك» (996): this phone's vote taken back at once, and on the server; put back if refused. */
+function vcUnvote() {
+  const state = Room.state;
+  if (!state || state.game !== 'votechess' || !vcCanVote(state) || !vcMyVote(state)) return;
+  const s = vcShared(state);
+  const key = vcVoteKey(state);
+  const was = vcLocal.mine;
+  vcLocal.mine = { key: key, v: null };
+  vcLocal.sel = '';
+  haptic('light');
+  vcRedraw();
+  Promise.resolve(Room.act('unvote', { n: s.chess.moves })).catch((err) => {
+    if (vcLocal.mine && vcLocal.mine.key === key && !vcLocal.mine.v) vcLocal.mine = was && was.key === key ? was : null;
+    showToast((err && err.message) || '', 'error');
+    vcRedraw();
+  });
+}
+
 function vcVoteResign() {
   const state = Room.state;
   if (!state || !vcCanVote(state)) return;
@@ -198,10 +216,13 @@ function vcPills(state, tv) {
   const bd = s.chess;
   const v = s.vote;
   const pill = (k) => {
+    const cap = (s.captains || [])[k];
     const members = ((s.teams || [])[k] || []).map(pid => {
       const voted = v && v.team === k && v.voted.indexOf(pid) !== -1;
       const cls = v && v.team === k ? (voted ? 'vc-mem is-in' : 'vc-mem is-wait') : 'vc-mem';
-      return `<span class="${cls}${pid === Room.me && !tv ? ' is-me' : ''}"><i class="vc-mem__dot" aria-hidden="true"></i>${escapeHTML(vcName(state, pid))}</span>`;
+      // The captain's chip wears a band (991): a tie goes their way.
+      const band = pid === cap ? `<i class="vc-mem__cap" title="${escapeHTML(chT('vc_captain'))}">🎖️</i>` : '';
+      return `<span class="${cls}${pid === cap ? ' is-cap' : ''}${pid === Room.me && !tv ? ' is-me' : ''}"><i class="vc-mem__dot" aria-hidden="true"></i>${band}${escapeHTML(vcName(state, pid))}</span>`;
     }).join('');
     return {
       name: chT(k ? 'vc_side_b' : 'vc_side_w'),
@@ -238,7 +259,8 @@ function vcStatus(state, tv) {
   if (!v) return '';
   if (!tv && vcCanVote(state)) {
     const my = vcMyVote(state);
-    return (my ? chT('vc_voted_you', { move: vcVoteText(bd.g, my) }) : chT('vc_vote_now')) + check;
+    // Voted: the move itself is on the chip under the board (vcMyVoteHtml).
+    return (my ? chT('vc_voted_wait') : chT('vc_vote_now')) + check;
   }
   return chT('vc_team_voting', { team: vcTeamLabel(v.team) }) + check;
 }
@@ -260,11 +282,25 @@ function vcTallyHtml(state, tv) {
         <span class="vc-tally__bar" aria-hidden="true"></span>
         <b class="vc-tally__n metric">×${x.count}</b>
       </div>`).join('');
-  const how = tl.how === 'tie' ? chT('vc_how_tie') : tl.how === 'random' ? chT('vc_how_random') : tl.how === 'host' ? chT('vc_how_host') : '';
+  const how = tl.how === 'tie' ? chT('vc_how_tie') : tl.how === 'random' ? chT('vc_how_random') : tl.how === 'host' ? chT('vc_how_host')
+    : tl.how === 'captain' ? chT('vc_how_captain', { name: vcName(state, tl.captain) }) : '';
   return `<div class="vc-tally ${fresh ? 'is-fresh' : ''}" ${fresh ? 'data-reveal-ms="900"' : ''}>
       <p class="vc-tally__head">${tl.pick === 'resign' ? `🏳️ ${escapeHTML(chT('vc_tally_resign', { team: vcTeamLabel(tl.team) }))}` : `🗳️ ${escapeHTML(chT('vc_tally_head', { team: vcTeamLabel(tl.team) }))} <b dir="ltr">${escapeHTML(played)}</b>`}</p>
       ${rows}
       ${how ? `<p class="vc-tally__how">${escapeHTML(how)}</p>` : ''}
+    </div>`;
+}
+
+/**
+ * The voter's own vote, under the board (the owner's pick of 7 Oct 2026): «صوتك: ♞f3 · تقدر تغيّره»
+ * and ✕ to take it back - the thin blue arrow alone was easy to miss on a phone.
+ */
+function vcMyVoteHtml(state, my) {
+  if (!my) return '';
+  const move = vcVoteText(vcShared(state).chess.g, my);
+  return `<div class="vc-myvote" role="status">
+      <span>🗳️ ${escapeHTML(chT('vc_your_vote'))}: <b class="vc-myvote__move" dir="ltr">${escapeHTML(move)}</b><span class="vc-myvote__can"> · ${escapeHTML(chT('vc_can_change'))}</span></span>
+      <button type="button" class="vc-myvote__x" onclick="vcUnvote()" aria-label="${escapeHTML(chT('vc_unvote'))}" title="${escapeHTML(chT('vc_unvote'))}">✕</button>
     </div>`;
 }
 
@@ -275,6 +311,7 @@ function vcBarHtml(state) {
   const parts = [];
   if (vcCanVote(state)) {
     const my = vcMyVote(state);
+    parts.push(vcMyVoteHtml(state, my));
     parts.push(`<div class="ch-bar__row">
         <button type="button" class="btn btn--ghost btn--sm btn--auto" ${my && my.resign ? 'disabled' : ''} onclick="vcVoteResign()">🏳️ ${escapeHTML(chT('vc_resign_vote'))}</button>
       </div>`);
@@ -303,7 +340,8 @@ function vcRender(state, still) {
   vcFirstSight(state);
   // The echo of this phone's vote has come back (or the move was played): the local copy goes.
   const echo = state.you && state.you.vote;
-  if (vcLocal.mine && (vcLocal.mine.key !== vcVoteKey(state) || (echo && vcKeyOfVote(echo) === vcKeyOfVote(vcLocal.mine.v)))) vcLocal.mine = null;
+  // (A vote taken back - mine.v null - is echoed by the slice having no vote.)
+  if (vcLocal.mine && (vcLocal.mine.key !== vcVoteKey(state) || (echo && vcKeyOfVote(echo) === vcKeyOfVote(vcLocal.mine.v)) || (!echo && !vcLocal.mine.v))) vcLocal.mine = null;
   chViewShow(el.querySelector('[data-ch-host]'), vcModel(state, false, still));
   const bd = s.chess;
   const over = s.phase === 'over';
@@ -389,10 +427,18 @@ function vcSidesHtml(state) {
   const sides = (vcShared(state).lobby || {}).sides;
   if (!sides) return '';
   const host = !!state.youAreHost;
+  const caps = (vcShared(state).lobby || {}).caps || [];
   const col = (k) => {
-    const chips = (state.players || []).filter(p => sides[p.id] === k).map(p => host
-      ? `<button type="button" class="vc-side__chip" onclick="vcSideTap('${jsStringAttr(p.id)}')">${escapeHTML(p.name)} <span aria-hidden="true">⇄</span></button>`
-      : `<span class="vc-side__chip">${escapeHTML(p.name)}</span>`).join('');
+    // «الكابتن» (991): the host's 🎖️ beside each name; the captain's chip wears the band.
+    const chips = (state.players || []).filter(p => sides[p.id] === k).map(p => {
+      const cap = caps[k] === p.id;
+      const band = cap ? '<span aria-hidden="true">🎖️</span> ' : '';
+      if (!host) return `<span class="vc-side__chip ${cap ? 'is-cap' : ''}">${band}${escapeHTML(p.name)}</span>`;
+      return `<span class="vc-side__item">
+          <button type="button" class="vc-side__chip ${cap ? 'is-cap' : ''}" onclick="vcSideTap('${jsStringAttr(p.id)}')">${band}${escapeHTML(p.name)} <span aria-hidden="true">⇄</span></button>
+          <button type="button" class="vc-side__cap ${cap ? 'is-on' : ''}" onclick="vcCaptainTap('${jsStringAttr(p.id)}')" aria-pressed="${cap}" aria-label="${escapeHTML(chT('vc_captain_pick', { name: p.name }))}" title="${escapeHTML(chT('vc_captain'))}">🎖️</button>
+        </span>`;
+    }).join('');
     return `<div class="vc-side vc-side--${k ? 'b' : 'w'}">
         <p class="vc-side__head"><span class="ch-mark ${k ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (k ? 8 : 0))}</span>${escapeHTML(vcTeamLabel(k))}</p>
         <div class="vc-side__chips">${chips}</div>
@@ -404,8 +450,16 @@ function vcSidesHtml(state) {
         ${host ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="haptic('light'); roomAct('sides', { shuffle: true })">🔀 ${escapeHTML(chT('vc_shuffle'))}</button>` : ''}
       </div>
       <div class="vc-sides">${col(0)}${col(1)}</div>
-      ${host ? `<p class="field__hint">${escapeHTML(chT('vc_sides_hint'))}</p>` : ''}
+      <p class="field__hint">${escapeHTML(chT(host ? 'vc_sides_hint' : 'vc_captain_hint'))}</p>
     </div>`;
+}
+
+/** The host's 🎖️: this player captains their team (a second tap takes it off; none: drawn at the start). */
+function vcCaptainTap(pid) {
+  const state = Room.state;
+  if (!state || !state.youAreHost) return;
+  haptic('light');
+  roomAct('captain', { pid: pid });
 }
 
 ROOM_GAMES.votechess = {

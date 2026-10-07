@@ -8,6 +8,8 @@ gameText({
       bh_partner: "شريكك",
       bh_mine_board: "لوحتك",
       bh_partner_board: "لوحة شريكك",
+      bh_gap_ahead: "متقدم {n} ث",
+      bh_gap_behind: "متأخر {n} ث",
       bh_swap: "دوس عشان تكبّرها",
       bh_hand_empty: "الإيد فاضية",
       bh_your_move: "دورك! حرّك قطعة أو نزّل واحدة من إيدك",
@@ -36,6 +38,8 @@ gameText({
       bh_partner: "partner",
       bh_mine_board: "yours",
       bh_partner_board: "your partner's",
+      bh_gap_ahead: "{n}s up",
+      bh_gap_behind: "{n}s down",
       bh_swap: "Tap to make it big",
       bh_hand_empty: "Empty hand",
       bh_your_move: "Your move: play a piece or drop one from your hand",
@@ -79,6 +83,7 @@ gameText({
                 <li>لوحتك كبيرة، واللي قدامك فوقها وانت تحتها، وكل واحد جنبه ساعته وإيده.</li>
                 <li>دوس على قطعة في إيدك والمربعات اللي تنفع تنور، ودوس على مربع. أو اسحبها وحطها على اللوحة.</li>
                 <li>لوحة شريكك صغيرة جنبها، بإيدينهم وساعاتهم. دوس عليها عشان تكبّرها، ودوس تاني ترجّع.</li>
+                <li>جنب ساعتك وساعة شريكك: <b>«متقدم 20 ث»</b> بالأخضر أو <b>«متأخر 15 ث»</b> بالأحمر - وقتك ناقص وقت اللي قدامك. متقدم؟ تقدر تستنى قطعة من شريكك. متأخر؟ اتحرك بسرعة.</li>
                 <li>ناقصين؟ الأماكن الفاضية بياخدها <b>كمبيوتر</b> (سهل أو صعب). ولو حد خرج في النص، الكمبيوتر يكمّل لوحته لحد آخر اللعبة.</li>
                 <li>«نلعب تاني» بتغيّر الشركاء. ولو أكتر من أربعة، اللي اتفرج يلعب الجاية.</li>
             </ul>
@@ -110,6 +115,7 @@ gameText({
                 <li>Your board is big, your opponent above it and you below, each with a clock and a hand.</li>
                 <li>Tap a piece in your hand and the squares it can go to light up, then tap one. Or drag it onto the board.</li>
                 <li>Your partner's board is small beside it, with its hands and clocks. Tap it to make it big, tap again to swap back.</li>
+                <li>Beside your clock and your partner's: <b>«20s up»</b> in green or <b>«15s down»</b> in red - your time minus your opponent's. Up? You can wait for a piece from your partner. Down? Move fast.</li>
                 <li>Short of four? <b>Computer players</b> (easy or hard) take the empty seats. If someone leaves mid-game, the computer plays on for them until the end.</li>
                 <li>"Play again" changes the partners. With more than four, whoever watched plays next.</li>
             </ul>

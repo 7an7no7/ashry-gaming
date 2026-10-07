@@ -87,6 +87,36 @@ function bhPaintClocks(state) {
     el.classList.toggle('is-running', s.phase === 'play' && bd.g.turn === side && !!(bd.clock && bd.clock.at));
     el.classList.toggle('is-low', left < 20000);
   });
+  bhPaintGaps(state);
+}
+
+/**
+ * The time gap (the owner's pick of 7 Oct 2026): beside your clock, your time minus your
+ * opponent's - «متقدم 20 ث» in green, «متأخر 15 ث» in red - and the same on your partner's line,
+ * so the bughouse question (stall or move?) is on the screen. A watcher and the TV see who is
+ * ahead on each board. Under a second it says nothing.
+ */
+function bhPaintGaps(state) {
+  const s = bhShared(state);
+  const seat = bhSeat(state);
+  const on = s.phase === 'play' && bhStarted(state);
+  document.querySelectorAll('[data-bh-gap]').forEach(el => {
+    const [b, side] = el.dataset.bhGap.split(':').map(Number);
+    const k = bhSeatAt(b, side);
+    const bd = s.boards && s.boards[b];
+    let secs = 0;
+    if (on && bd && bd.clock) secs = Math.round((bhClockLeft(state, b, side) - bhClockLeft(state, b, 1 - side)) / 1000);
+    const ours = seat >= 0 && (k === seat || k === 3 - seat);
+    let text = '', cls = '';
+    if (secs && (ours || (seat < 0 && secs > 0))) {
+      text = secs > 0 ? chT('bh_gap_ahead', { n: secs }) : chT('bh_gap_behind', { n: -secs });
+      cls = secs > 0 ? 'is-ahead' : 'is-behind';
+    }
+    if (el.textContent !== text) el.textContent = text;
+    if (el.hidden !== !text) el.hidden = !text;
+    el.classList.toggle('is-ahead', cls === 'is-ahead');
+    el.classList.toggle('is-behind', cls === 'is-behind');
+  });
 }
 
 function bhTickStart() {
@@ -160,6 +190,7 @@ function bhPlayerHtml(state, b, side, opts) {
         <span class="ch-mark ${side ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (side ? 8 : 0))}</span>
         <span class="bh-player__name">${bot && !sub ? '<span aria-hidden="true">🤖</span> ' : ''}${escapeHTML(s.names[k] || '')}${you}</span>
         ${sub ? `<span class="bh-sub" title="${escapeHTML(chT('bh_sub', { name: s.subs[k] }))}">🤖</span>` : ''}
+        <b class="bh-gap" data-bh-gap="${b}:${side}" hidden></b>
         <b class="ch-clock metric bh-clock" data-bh-clock="${b}:${side}"></b>
       </div>
       ${bhHandHtml(view.g, b, side, !!o.live)}

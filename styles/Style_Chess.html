@@ -969,6 +969,12 @@ input.ch-elo[type="range"]:focus-visible { outline: 3px solid var(--accent); out
 }
 .chpz-tag--mode { background: var(--accent-soft); color: var(--accent-ink); font-weight: var(--fw-bold); }
 .chpz-tag--rating b { font-weight: var(--fw-bold); color: var(--text); }
+/* Who you play, big, as the first line (the owner's pick of 7 Oct 2026, chPzYouHtml): the king, «انت الأبيض», the task. */
+.chpz-you { margin: 0 0 var(--sp-2); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.2rem var(--sp-2); text-align: center; }
+.chpz-you .ch-mark { width: 2.25rem; height: 2.25rem; flex: none; }
+.chpz-you__side { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: var(--fw-black); color: var(--text-strong); }
+.chpz-you__task { font-size: var(--fs-body); font-weight: var(--fw-bold); color: var(--accent-ink); }
+.chpz-you__task::before { content: '·'; margin-inline-end: var(--sp-2); color: var(--text-3); }
 .chpz .ch-head .chpz-status { font-family: var(--font-display); font-size: var(--fs-h2); color: var(--text); }
 .chpz .ch-head .chpz-status.is-good { color: var(--success-ink); }
 .chpz .ch-head .chpz-status.is-bad { color: var(--danger-ink); }
@@ -1402,6 +1408,40 @@ button.tour-live { cursor: pointer; }
 }
 button.vc-side__chip { cursor: pointer; }
 button.vc-side__chip span { color: var(--text-3); }
+/* «الكابتن» (the owner's pick of 7 Oct 2026): a name and its 🎖️ toggle in the lobby; the captain's chip
+   wears a gold band, in the lobby and under each team's pill. */
+.vc-side__item { display: inline-flex; align-items: center; gap: 0.15rem; max-width: 100%; min-width: 0; }
+.vc-side__item .vc-side__chip { min-width: 0; }
+.vc-side__cap {
+  display: inline-grid; place-items: center; flex: none; width: var(--tap); height: var(--tap);
+  border-radius: var(--r-full); border: 1px dashed var(--border-strong); background: none;
+  font-size: 1rem; cursor: pointer; opacity: 0.5; transition: opacity var(--dur-2), transform var(--dur-1) var(--ease-out);
+}
+.vc-side__cap:active { transform: scale(0.92); }
+.vc-side__cap.is-on { opacity: 1; border: 2px solid var(--vc-band); background: color-mix(in srgb, var(--vc-band) 18%, transparent); }
+.vc-side__chip.is-cap, .vc-mem.is-cap { box-shadow: inset 0 -3px 0 var(--vc-band); }
+.vc-mem.is-cap { padding-bottom: 0.1rem; color: var(--text-strong); font-weight: var(--fw-bold); }
+.vc-mem__cap { font-size: 0.9em; line-height: 1; }
+:root { --vc-band: #d9a300; --vc-pre: #3b82f6; }
+:where(body.dark) { --vc-band: #f5c542; }
+/* The voter's own vote under the board (996): what counted, and ✕ to take it back. */
+.vc-myvote {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2); align-self: center; max-width: 100%;
+  padding-inline: var(--sp-3) var(--sp-1); min-height: var(--tap); border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--vc-pre) 14%, var(--surface-solid)); border: 2px solid var(--vc-pre);
+  color: var(--text-strong); font-size: var(--fs-sm); font-weight: var(--fw-semi);
+  animation: vcVoteChipIn var(--dur-3) var(--ease-spring) both;
+}
+.vc-myvote__move { font-family: var(--font-display); font-weight: var(--fw-black); font-size: 1.1em; }
+.vc-myvote__can { color: var(--text-2); font-weight: var(--fw-med); }
+.vc-myvote__x {
+  display: inline-grid; place-items: center; flex: none; width: 2.25rem; height: 2.25rem; border-radius: var(--r-full);
+  border: 0; background: var(--surface-2); color: var(--text-strong); font: inherit; font-weight: var(--fw-bold); cursor: pointer;
+}
+@keyframes vcVoteChipIn { from { opacity: 0; transform: scale(0.85); } }
+/* المخ والإيد: your role, always the first line (1004): lit when it's your job now, dimmed while you wait. */
+.hb-role { margin: 0 0 var(--sp-2); text-align: center; font-family: var(--font-display); font-size: 1.05rem; font-weight: var(--fw-black); color: var(--accent-ink); transition: opacity var(--dur-2); }
+.hb-role.is-wait { color: var(--text-2); font-weight: var(--fw-bold); opacity: 0.7; }
 
 /* المخ والإيد: the Brain's six pieces (only those that can move lit). */
 /* Six in a row where they fit, else as many as keep each name whole (a phone on its side: a narrow column). */
@@ -1466,7 +1506,7 @@ button.hb-seat { cursor: pointer; }
 
 @media (prefers-reduced-motion: reduce) {
   .vc-mem.is-in .vc-mem__dot, .vc-tally.is-fresh, .vc-tally.is-fresh .vc-tally__row, .vc-tally.is-fresh .vc-tally__bar,
-  .hb-call.is-fresh, .hb-call.is-fresh .hb-call__pc { animation: none; }
+  .hb-call.is-fresh, .hb-call.is-fresh .hb-call__pc, .vc-myvote { animation: none; }
 }
 
 /* ==========================================================================
@@ -1508,6 +1548,12 @@ button.hb-seat { cursor: pointer; }
 .bh-you--partner { background: var(--surface-2); color: var(--bh-team-ink, var(--text-2)); }
 .bh-sub { flex: none; font-size: var(--fs-sm); }
 .bh-clock { flex: none; }
+/* The time gap beside a clock (the owner's pick of 7 Oct 2026, bhPaintGaps): ahead green, behind red. */
+.bh-gap { flex: none; padding: 0.05rem 0.45rem; border-radius: var(--r-full); font-size: var(--fs-xs); font-weight: 800; line-height: 1.4; white-space: nowrap; }
+.bh-gap[hidden] { display: none; }
+.bh-gap.is-ahead { background: var(--success-soft); color: var(--success-ink); }
+.bh-gap.is-behind { background: var(--danger-soft); color: var(--danger-ink); }
+.bh-tv__board .bh-gap { font-size: var(--tv-xs); padding: 0.2vmin 1vmin; }
 
 /* The hand: a row of pieces with their counts, left to right in every language. */
 .bh-hand { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; min-height: 2rem; }
@@ -1700,6 +1746,33 @@ button.hb-seat { cursor: pointer; }
 }
 /* On your move a finger on the board moves pieces, it doesn't scroll the page. */
 .ch4b.is-live { touch-action: none; cursor: pointer; }
+/* Whose turn, round the whole board (the owner's pick of 7 Oct 2026, ch4PaintTurnFrame): a frame
+   just outside the board in the colour to move; on your own move it breathes. Outside the squares,
+   so it never covers one. */
+.ch4b[data-turn="r"] { --ch4-turn: var(--ch4-r); }
+.ch4b[data-turn="b"] { --ch4-turn: var(--ch4-b); }
+.ch4b[data-turn="y"] { --ch4-turn: var(--ch4-y); }
+.ch4b[data-turn="g"] { --ch4-turn: var(--ch4-g); }
+.ch4b::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * max(6px, 0.8vmin));
+  border: max(3px, 0.45vmin) solid var(--ch4-turn, transparent);
+  border-radius: max(8px, 1vmin);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.ch4b[data-turn="r"]::after, .ch4b[data-turn="b"]::after, .ch4b[data-turn="y"]::after, .ch4b[data-turn="g"]::after { opacity: 0.85; }
+.ch4b.is-live::after { opacity: 1; animation: ch4TurnFrame 1.6s ease-in-out infinite; }
+@keyframes ch4TurnFrame { 50% { opacity: 0.45; } }
+/* The status's first word in the colour to move: the dark edge on a light page, the light tint on a dark one. */
+.ch4-status__lead { font-weight: var(--fw-black); font-size: 1.12em; margin-inline-end: 0.3em; }
+.ch4-status__dot { margin-inline-end: 0.35em; vertical-align: 0.05em; }
+.ch4-tx--r { color: var(--ch4-r-edge); } .ch4-tx--b { color: var(--ch4-b-edge); }
+.ch4-tx--y { color: var(--ch4-y-edge); } .ch4-tx--g { color: var(--ch4-g-edge); }
+:where(body.dark) .ch4-tx--r { color: var(--ch4-r-hi); } :where(body.dark) .ch4-tx--b { color: var(--ch4-b-hi); }
+:where(body.dark) .ch4-tx--y { color: var(--ch4-y-hi); } :where(body.dark) .ch4-tx--g { color: var(--ch4-g-hi); }
 .ch4b__sqs {
   display: grid;
   grid-template: repeat(14, minmax(0, 1fr)) / repeat(14, minmax(0, 1fr));
@@ -1949,7 +2022,8 @@ button.ch4-seat__btn { cursor: pointer; }
 
 @media (prefers-reduced-motion: reduce) {
   .ch4-pc > .ch4-svg, .ch4-pc.is-mated > .ch4-svg, .ch4-chip { transition: none; }
-  .ch4-chip.is-turn, .ch4-banner { animation: none; }
+  .ch4-chip.is-turn, .ch4-banner, .ch4b.is-live::after { animation: none; }
+  .ch4b::after { transition: none; }
 }
 
 /* ==========================================================================

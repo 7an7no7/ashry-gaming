@@ -178,14 +178,15 @@ function ch4PaintClocks() {
     if (el.textContent !== text) el.textContent = text;
     el.classList.toggle('is-low', left < 20000 && !ch4S(state).g.out[seat]);
   });
-  // The first move's 45 s (ch4FirstHtml).
+  // The first move's 45 s, or «دور سريع»'s 10 s a move (ch4FirstHtml).
   const first = ch4FirstLeft(state);
+  const low = ch4FirstLow(state);
   document.querySelectorAll('[data-ch4-first]').forEach(el => {
     if (first === null) return;
-    const text = '⏱️ ' + chT('ch4_first_left') + ' ' + Math.ceil(first / 1000);
+    const text = ch4FirstText(state, first);
     if (el.textContent !== text) el.textContent = text;
-    el.classList.toggle('badge--danger', first <= 10000);
-    el.classList.toggle('badge--accent', first > 10000);
+    el.classList.toggle('badge--danger', first <= low);
+    el.classList.toggle('badge--accent', first > low);
   });
 }
 
@@ -377,7 +378,7 @@ function ch4ChipHtml(state, seat, rot) {
   else if (s.settings.mode === 'teams' && me >= 0 && seat === (me + 2) % 4) tag = chT('ch4_partner');
   const initial = bot ? '🤖' : escapeHTML(String(name).trim().charAt(0) || '?');
   const pts = s.settings.mode === 'ffa' ? `<b class="ch4-chip__pts metric" data-ch4-pts="${seat}">${g.points[seat]}</b>` : '';
-  const clock = s.clock ? `<span class="ch4-chip__clock metric" data-ch4-clock="${seat}">${ch4ClockText(ch4ClockLeft(state, seat))}</span>` : '';
+  const clock = s.clock && !s.clock.speed ? `<span class="ch4-chip__clock metric" data-ch4-clock="${seat}">${ch4ClockText(ch4ClockLeft(state, seat))}</span>` : '';
   return `<div class="ch4-chip ch4-chip--${CH4_TINTS[seat]} ${turn ? 'is-turn' : ''} ${out ? 'is-out' : ''} ${won ? 'is-won' : ''} ${seat === me ? 'is-me' : ''}" data-ch4-chip="${seat}" aria-label="${escapeHTML(ch4ColorName(seat) + ': ' + name)}">
       <span class="ch4-chip__av" aria-hidden="true">${won ? '🏆' : initial}</span>
       <span class="ch4-chip__name"><bdi>${escapeHTML(name)}</bdi></span>
@@ -416,6 +417,31 @@ function ch4StatusText(state) {
   return text;
 }
 
+/**
+ * The status as markup (the owner's pick of 7 Oct 2026): while a game is on, its first word is in
+ * the colour to move - «دورك!» in your own colour on your turn, a dot of that colour before
+ * anyone else's - so the turn reads without hunting the corner chip.
+ */
+function ch4StatusHtml(state) {
+  const s = ch4S(state);
+  const g = s.g;
+  const text = ch4StatusText(state);
+  if (s.phase !== 'play' || !g || g.over) return escapeHTML(text);
+  const tint = CH4_TINTS[g.turn];
+  const lead = chT('ch4_your_turn');
+  if (ch4Seat(state) === g.turn && text.indexOf(lead) === 0) {
+    return `<b class="ch4-status__lead ch4-tx--${tint}">${escapeHTML(lead)}</b>${escapeHTML(text.slice(lead.length))}`;
+  }
+  return `<i class="ch4-dot ch4-dot--${tint} ch4-status__dot" aria-hidden="true"></i>${escapeHTML(text)}`;
+}
+
+/** The board's frame in the colour to move (`data-turn`), pulsing on your own move (`is-live`). */
+function ch4PaintTurnFrame(boardEl, state) {
+  const s = ch4S(state);
+  const turn = s.phase === 'play' && s.g && !s.g.over ? CH4_TINTS[s.g.turn] : '';
+  if ((boardEl.dataset.turn || '') !== turn) boardEl.dataset.turn = turn;
+}
+
 /** Nobody playing any more but computer players. Mirrors chess4BotsOnly in RoomChess4.js. */
 function ch4BotsOnly(state) {
   const s = ch4S(state);
@@ -424,19 +450,24 @@ function ch4BotsOnly(state) {
 }
 
 const CH4_FIRST_MS = 45000;     // as in RoomChess4.js
-/** With a clock, the first move of the seat up (its clock doesn't run yet) has 45 s: ms left, or null. */
+/** With a clock, the first move of the seat up (its clock doesn't run yet) has 45 s - and with
+ *  «دور سريع» every move has CHESS4_SPEED_MS (Chess4.js): ms left, or null. */
 function ch4FirstLeft(state) {
   const s = ch4S(state);
   const c = s.clock;
   if (!c || s.phase !== 'play' || !s.g || s.g.over || (c.at !== null && c.at !== undefined) || typeof c.first !== 'number') return null;
-  return Math.max(0, c.first + CH4_FIRST_MS - (Date.now() - (ch4Local.offset || 0)));
+  return Math.max(0, c.first + (c.speed ? CHESS4_SPEED_MS : CH4_FIRST_MS) - (Date.now() - (ch4Local.offset || 0)));
 }
+const ch4IsSpeed = (state) => !!(ch4S(state).clock && ch4S(state).clock.speed);
+/** Below this the count turns red: the last 10 s of the 45, the last 3 of a speed move. */
+const ch4FirstLow = (state) => (ch4IsSpeed(state) ? 3000 : 10000);
+const ch4FirstText = (state, left) => (ch4IsSpeed(state) ? '⚡ ' : '⏱️ ' + chT('ch4_first_left') + ' ') + Math.ceil(left / 1000);
 
 /** That count, beside the status: everyone sees it, the player up most of all. */
 function ch4FirstHtml(state) {
   const left = ch4FirstLeft(state);
   if (left === null) return '';
-  return ` <span class="badge badge--accent metric ch4-first" data-ch4-first>⏱️ ${escapeHTML(chT('ch4_first_left'))} ${Math.ceil(left / 1000)}</span>`;
+  return ` <span class="badge ${left <= ch4FirstLow(state) ? 'badge--danger' : 'badge--accent'} metric ch4-first" data-ch4-first>${escapeHTML(ch4FirstText(state, left))}</span>`;
 }
 
 function ch4ResultText(state) {
@@ -717,7 +748,8 @@ function ch4FrameHtml(state, tv) {
   const s = ch4S(state);
   // Teams: the two sides as their colours, red and yellow against blue and green.
   const sides = s.settings.mode === 'teams' ? `<span class="ch4-vs" aria-hidden="true"><i class="ch4-dot ch4-dot--r"></i><i class="ch4-dot ch4-dot--y"></i><b>×</b><i class="ch4-dot ch4-dot--b"></i><i class="ch4-dot ch4-dot--g"></i></span>` : '';
-  const mode = `<span class="badge badge--accent">${escapeHTML(chT(s.settings.mode === 'ffa' ? 'ch4_mode_ffa' : 'ch4_mode_teams'))}</span>${sides}`;
+  const speed = s.clock && s.clock.speed ? `<span class="badge badge--warning">⚡ ${escapeHTML(chT('ch4_speed'))}</span>` : '';
+  const mode = `<span class="badge badge--accent">${escapeHTML(chT(s.settings.mode === 'ffa' ? 'ch4_mode_ffa' : 'ch4_mode_teams'))}</span>${speed}${sides}`;
   if (tv) {
     return `<div class="ch4-tv">
         <div class="ch4-tv__stage"><div class="ch4-stage" data-rot="0">${ch4BoardHtml(0)}</div></div>
@@ -805,9 +837,10 @@ function ch4Update(root, state, tv) {
     ch4Reconcile(root, g, rot, animate);
   }
   ch4PaintSquares(root, state, g);
+  ch4PaintTurnFrame(boardEl, state);
   ch4PaintChips(root, state, rot);
   const set = (sel, html) => { const el = root.querySelector(sel); if (el && el._html !== html) { el.innerHTML = html; el._html = html; return el; } return null; };
-  set('[data-ch4-status]', escapeHTML(ch4StatusText(state)) + ch4FirstHtml(state));
+  set('[data-ch4-status]', ch4StatusHtml(state) + ch4FirstHtml(state));
   set('[data-ch4-bar]', ch4BarHtml(state, tv));
   set('[data-ch4-over]', ch4OverHtml(state, tv));
   const logEl = set('[data-ch4-log]', ch4LogHtml(state));
@@ -965,8 +998,8 @@ ROOM_GAMES.chess4 = {
         </div>
         <div class="field">
           <label class="field__label">⏱️ ${escapeHTML(chT('ch4_clock_label'))}</label>
-          ${seg(CHESS4_CLOCKS.map(v => [v, v ? chT('ch4_minutes', { n: v }) : chT('ch4_clock_off')]), clock, 'clock')}
-          ${clock ? `<p class="field__hint">${escapeHTML(chT('ch4_clock_hint'))}</p>` : ''}
+          ${seg(CHESS4_CLOCKS.map(v => [v, v === CHESS4_SPEED ? '⚡ ' + chT('ch4_speed') : v ? chT('ch4_minutes', { n: v }) : chT('ch4_clock_off')]), clock, 'clock')}
+          ${clock ? `<p class="field__hint">${escapeHTML(chT(clock === CHESS4_SPEED ? 'ch4_speed_hint' : 'ch4_clock_hint'))}</p>` : ''}
         </div>
         ${ch4SeatsHtml(state)}
         <p class="field__hint" style="text-align:center">${escapeHTML(chT('ch4_lobby_hint'))}</p>

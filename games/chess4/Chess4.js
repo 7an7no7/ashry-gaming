@@ -51,7 +51,9 @@ const CHESS4_N = 14;
 const CHESS4_FILES = 'abcdefghijklmn';
 const CHESS4_SEATS = [0, 1, 2, 3];                   // red, blue, yellow, green: the order of play
 const CHESS4_MODES = ['teams', 'ffa'];
-const CHESS4_CLOCKS = [0, 1, 3, 5];                 // minutes a player, 0 = no clock
+const CHESS4_SPEED = -1;                            // «دور سريع» (7 Oct 2026): a clock choice of CHESS4_SPEED_MS a move
+const CHESS4_SPEED_MS = 10000;                      // each move has this long, then an easy move is played for the player
+const CHESS4_CLOCKS = [0, 1, 3, 5, CHESS4_SPEED];   // minutes a player, 0 = no clock, CHESS4_SPEED = 10 s a move
 const CHESS4_INC_MS = 5000;                         // added after every move
 const CHESS4_POINTS = [0, 1, 3, 5, 5, 9, 0];        // FFA: what taking a piece scores (a promoted queen 1)
 const CHESS4_MATE_POINTS = 20;

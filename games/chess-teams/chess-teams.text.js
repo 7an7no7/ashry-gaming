@@ -13,7 +13,14 @@ gameText({
       vc_resign_confirm: "تصوّت إن فريقك يستسلم؟ لازم الاستسلام ياخد أصوات أكتر من أي نقلة.",
       vc_voted_count: "صوّتوا {n} من {of}",
       vc_won: "{team} كسب!",
-      vc_voted_you: "✅ صوتك: {move} (تقدر تغيّره)",
+      vc_voted_wait: "✅ صوتك اتحسب، مستنيين الباقيين",
+      vc_your_vote: "صوتك",
+      vc_can_change: "تقدر تغيّره",
+      vc_unvote: "شيل صوتك",
+      vc_captain: "الكابتن",
+      vc_captain_pick: "خلّي {name} كابتن فريقه",
+      vc_captain_hint: "🎖️ كابتن كل فريق بيحسم التعادل في الأصوات.",
+      vc_how_captain: "🎖️ تعادل في الأصوات: الكابتن ({name}) حسمها",
       vc_vote_now: "🗳️ دور فريقك: صوّت على نقلة",
       vc_team_voting: "🗳️ {team} بيصوّت…",
       vc_how_tie: "🎲 تعادل في الأصوات: القرعة اختارت",
@@ -28,7 +35,7 @@ gameText({
       vc_wait_host: "استنى المضيف يبدأ دور جديد.",
       vc_teams: "الفرق",
       vc_shuffle: "وزّع تاني",
-      vc_sides_hint: "دوس على اسم عشان تنقله للفريق التاني.",
+      vc_sides_hint: "دوس على اسم عشان تنقله للفريق التاني، وعلى 🎖️ عشان تختار كابتن الفريق: بيحسم التعادل (لو مااخترتش، القرعة بتختار).",
       vc_lobby_hint: "كل فريق بيصوّت على نقلته، والنقلة اللي تاخد أصوات أكتر هي اللي تتلعب.",
       vc_clock_label: "وقت التصويت",
       vc_clock_hint: "لو الفريق كله صوّت قبل الوقت، النقلة بتتلعب على طول.",
@@ -36,10 +43,15 @@ gameText({
       hb_said: "🧠 المخ ({name}) قال:",
       hb_you_brain: "🧠 انت المخ: قول قطعة",
       hb_brain_thinking: "🧠 المخ ({name}) بيختار قطعة…",
-      hb_you_hand: "✋ انت الإيد: حرّك {piece}",
       hb_hand_moving: "✋ الإيد ({name}) هتحرّك {piece}…",
       hb_watching: "انت بتتفرج: المخ بيقول القطعة، والإيد بتحرّكها.",
-      hb_brain_wait: "✋ الإيد بتاعتك بتحرّك… استنى",
+      hb_role_brain: "🧠 انت المخ",
+      hb_role_hand: "✋ انت الإيد",
+      hb_task_name: "سمّي قطعة",
+      hb_task_move: "حرّك {piece}",
+      hb_task_wait_brain: "استنى المخ",
+      hb_task_wait_hand: "الإيد بتحرّك",
+      hb_task_wait_team: "استنى دور فريقك",
       hb_change_hint: "↺ غلطت؟ دوس على قطعة تانية",
       hb_changed: "غيّر رأيه",
       hb_play_for: "العب بدل {name}",
@@ -65,7 +77,14 @@ gameText({
       vc_resign_confirm: "Vote for your team to resign? Resigning needs more votes than any move.",
       vc_voted_count: "{n} of {of} voted",
       vc_won: "{team} wins!",
-      vc_voted_you: "✅ Your vote: {move} (you can change it)",
+      vc_voted_wait: "✅ Your vote counted - waiting for the others",
+      vc_your_vote: "Your vote",
+      vc_can_change: "you can change it",
+      vc_unvote: "Take your vote back",
+      vc_captain: "Captain",
+      vc_captain_pick: "Make {name} their team's captain",
+      vc_captain_hint: "🎖️ Each team's captain breaks a tie in the vote.",
+      vc_how_captain: "🎖️ A tie: the captain ({name}) decided",
       vc_vote_now: "🗳️ Your team's move: vote for one",
       vc_team_voting: "🗳️ {team} is voting…",
       vc_how_tie: "🎲 A tie: drawn at random",
@@ -80,7 +99,7 @@ gameText({
       vc_wait_host: "Waiting for the host to start another game.",
       vc_teams: "Teams",
       vc_shuffle: "Shuffle",
-      vc_sides_hint: "Tap a name to move them to the other team.",
+      vc_sides_hint: "Tap a name to move them to the other team, and 🎖️ to pick the team's captain: they break a tie (none picked: drawn at the start).",
       vc_lobby_hint: "Each team votes on its move; the move with the most votes is played.",
       vc_clock_label: "Voting time",
       vc_clock_hint: "If the whole team votes sooner, the move is played at once.",
@@ -88,10 +107,15 @@ gameText({
       hb_said: "🧠 The Brain ({name}) says:",
       hb_you_brain: "🧠 You're the Brain: name a piece",
       hb_brain_thinking: "🧠 The Brain ({name}) is picking a piece…",
-      hb_you_hand: "✋ You're the Hand: move a {piece}",
       hb_hand_moving: "✋ The Hand ({name}) moves a {piece}…",
       hb_watching: "You're watching: the Brain names the piece, the Hand moves it.",
-      hb_brain_wait: "✋ Your Hand is moving… wait",
+      hb_role_brain: "🧠 You're the Brain",
+      hb_role_hand: "✋ You're the Hand",
+      hb_task_name: "name a piece",
+      hb_task_move: "move a {piece}",
+      hb_task_wait_brain: "wait for the Brain",
+      hb_task_wait_hand: "your Hand is moving",
+      hb_task_wait_team: "wait for your team's move",
       hb_change_hint: "↺ Wrong one? Tap another piece",
       hb_changed: "changed",
       hb_play_for: "Play for {name}",
@@ -115,7 +139,8 @@ gameText({
                 <li>المضيف بيقسّمكم <b>فريقين</b>: الأبيض والأسود (بالقرعة، ويقدر ينقل أي حد للفريق التاني). من 2 لاعبين: واحد ضد واحد يبقى شطرنج عادي.</li>
                 <li>في دور فريقك، <b>كل واحد يصوّت على نقلة</b> من موبايله: دوس على قطعة وبعدين المكان (أو اسحبها). القطعة مابتتحركش، سهم أزرق بيوريك صوتك، وتقدر تغيّره لحد ما التصويت يقفل.</li>
                 <li>النقلة اللي تاخد <b>أصوات أكتر</b> بتتلعب لما وقت التصويت يخلص (30 ثانية من الأول، أو 20 أو 60)، أو على طول لو الفريق كله صوّت.</li>
-                <li><b>تعادل في الأصوات؟</b> القرعة بتختار واحدة من النقلات المتعادلة. <b>محدش صوّت؟</b> نقلة عشوائية، والكل بيعرف.</li>
+                <li><b>تعادل في الأصوات؟</b> 🎖️ <b>الكابتن</b> بيحسم: النقلة اللي هو صوّت لها من المتعادلين بتتلعب. لو الكابتن مصوّتش لواحدة منهم، القرعة بتختار. المضيف بيختار كابتن كل فريق قبل البداية (لو مااختارش، القرعة)، والكابتن عليه شريطة. <b>محدش صوّت؟</b> نقلة عشوائية، والكل بيعرف.</li>
+                <li>صوتك بيبان تحت الرقعة («صوتك: ♞f3»): تقدر تغيّره بنقلة تانية، أو تشيله بـ ✕.</li>
                 <li>الأصوات <b>سرية</b> لحد ما النقلة تتلعب: الكل شايف مين صوّت، بس مش على إيه. بعدها الكل بيشوف الفريق صوّت إزاي (♞f3 ×3، e4 ×1).</li>
                 <li>الكش مات بيكسب زي الشطرنج العادي، وكل واحد في الفريق الكسبان ياخد نقطة.</li>
             </ol>
@@ -136,7 +161,7 @@ gameText({
             </ul>`,
       handbrain: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li><b>2 ضد 2</b>: كل فريق فيه <b>مخ</b> و<b>إيد</b>. الأماكن الفاضية ياخدها الكمبيوتر.</li>
+                <li><b>2 ضد 2</b>: كل فريق فيه <b>مخ</b> و<b>إيد</b>. الأماكن الفاضية ياخدها الكمبيوتر. أول سطر على موبايلك دايمًا بيقولك دورك: «انت المخ - سمّي قطعة» أو «انت الإيد - استنى المخ».</li>
                 <li>في دور فريقك، <b>المخ يقول قطعة</b>: الملك، الوزير، الطابية، الفيل، الحصان أو العسكري (القطع اللي مالهاش نقلة بتبقى باهتة). الكل بيسمع اللي قاله.</li>
                 <li><b>الإيد تحرّك أي قطعة من النوع ده</b>: القطع دي بتنوّر على الرقعة، والإيد تختار النقلة. المخ مايقدرش يحرّك.</li>
                 <li>المخ داس غلط؟ يقدر <b>يغيّر القطعة في خلال 3 ثواني</b>، طول ما الإيد لسه مامسكتش قطعة.</li>
@@ -165,7 +190,8 @@ gameText({
                 <li>The host splits you into <b>two teams</b>, White and Black (at random, and can move anyone across). From 2 players: one against one is plain chess.</li>
                 <li>On your team's move <b>everyone votes for a move</b> on their own phone: tap a piece, then a square (or drag it). The piece stays put; a blue arrow shows your vote, and you can change it until the vote closes.</li>
                 <li>The move with <b>the most votes</b> is played when the voting time is up (30 seconds by default, or 20 or 60), or at once when the whole team has voted.</li>
-                <li><b>A tie?</b> One of the tied moves is drawn at random. <b>Nobody voted?</b> A random move, and everyone is told.</li>
+                <li><b>A tie?</b> 🎖️ <b>The captain</b> decides: the tied move the captain voted for is played. If the captain voted for none of them, one is drawn at random. The host picks each team's captain before the start (none picked: drawn), and the captain wears a band. <b>Nobody voted?</b> A random move, and everyone is told.</li>
+                <li>Your vote shows under the board («Your vote: ♞f3»): change it with another move, or take it back with ✕.</li>
                 <li>Votes are <b>secret</b> until the move is played: everyone sees who has voted, not for what. Then everyone sees how the team voted (♞f3 ×3, e4 ×1).</li>
                 <li>Checkmate wins as in plain chess, and each member of the winning team scores a point.</li>
             </ol>
@@ -186,7 +212,7 @@ gameText({
             </ul>`,
       handbrain: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li><b>2 against 2</b>: each team has a <b>Brain</b> and a <b>Hand</b>. Computer players take the empty seats.</li>
+                <li><b>2 against 2</b>: each team has a <b>Brain</b> and a <b>Hand</b>. Computer players take the empty seats. The first line on your phone always says your job: «You're the Brain - name a piece» or «You're the Hand - wait for the Brain».</li>
                 <li>On your team's move <b>the Brain names a piece</b>: king, queen, rook, bishop, knight or pawn (the ones with no move are faded). The whole table hears it.</li>
                 <li><b>The Hand moves any piece of that kind</b>: those pieces light up on the board, and the Hand picks the move. The Brain can't move.</li>
                 <li>A wrong tap by the Brain? It can <b>change the piece within 3 seconds</b>, as long as the Hand hasn't picked one up.</li>

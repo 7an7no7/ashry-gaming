@@ -139,6 +139,19 @@ the client's are both **`bughouse`** (`room-bughouse`, `ROOM_GAMES.bughouse`,
 
 **The review of 1 Oct 2026.** The first time a page sees a game (a reload, a late joiner, a TV coming on), each board's last move is taken as shown - no piece flies to a hand, no tick - and a game already over doesn't throw its confetti again (`bhPlayMotion`'s first sight, through `duelRoomFirstSight`).
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **1006 the time-gap chip** - beside a clock, your time minus your opponent's: «متقدم 20 ث»
+  green, «متأخر 15 ث» red (`bhPaintGaps`, run with the clocks every 200 ms; `.bh-gap`, empty
+  and hidden under a second or before the clocks start). Shown on your own line and your
+  partner's (both boards); a watcher and the TV see a green chip on whoever is ahead on each
+  board. Display only: nothing on the server.
+- **1010 partner board live and named** - already there, not built again: the small board
+  (`bhMiniHtml`) has had since 24 Sep its last move's squares (`last` → `.is-last`, the chess
+  board's yellow), both players' lines with their clocks (`data-bh-clock`, ticking) and hands
+  (each kind drawn with its count), and its name («لوحة 2 · لوحة شريكك»). The idea's premise
+  ("a static flat board") didn't hold; the new gap chip (1006) shows on the partner's line too.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -9222,17 +9222,86 @@ Date.now = duelTestClock;
     check(r.shared.vote.team === 1 && r.shared.vote.n === 1 && !Object.keys(r.secrets).length && !Object.keys(r._vc.votes).length,
       'votechess: Black\'s team votes next, with a clean ballot');
   }
-  // A tie is drawn at random among the tied moves.
+  // A tie: the captain's move (7 Oct 2026); a captain who voted for none of the tied moves leaves it to the draw.
   {
-    const seen = {};
-    for (let i = 0; i < 40; i++) {
+    let capOk = true;
+    for (let i = 0; i < 10; i++) {
       const r = vcRoom(['a', 'b', 'c', 'd']);
       const W = r.shared.teams[0];
+      const cap = r.shared.captains[0];
+      capOk = capOk && W.indexOf(cap) !== -1 && r.shared.teams[1].indexOf(r.shared.captains[1]) !== -1;
       applyRoomAction(r, W[0], 'vote', { from: 'e2', to: 'e4', n: 0 });
       applyRoomAction(r, W[1], 'vote', { from: 'd2', to: 'd4', n: 0 });
-      seen[r.shared.tallies[0].pick + ':' + r.shared.tallies[0].how] = true;
+      const t = r.shared.tallies[0];
+      capOk = capOk && t.how === 'captain' && t.captain === cap && t.pick === (cap === W[0] ? 'e2e4' : 'd2d4');
     }
-    check(seen['e2e4:tie'] && seen['d2d4:tie'] && Object.keys(seen).length === 2, 'votechess: a tie is drawn at random between the tied moves (both came up in 40)');
+    check(capOk, 'votechess captain: each team has a captain drawn at the start, and a tie goes to the move the captain voted for');
+    const seen = {};
+    let tries = 0;
+    for (let i = 0; i < 200 && Object.keys(seen).length < 2; i++) {
+      const r = vcRoom(['a', 'b', 'c', 'd', 'e', 'f']);
+      const W = r.shared.teams[0];
+      if (W.length !== 3) continue;
+      tries++;
+      const others = W.filter((id) => id !== r.shared.captains[0]);
+      applyRoomAction(r, others[0], 'vote', { from: 'e2', to: 'e4', n: 0 });
+      applyRoomAction(r, others[1], 'vote', { from: 'd2', to: 'd4', n: 0 });
+      applyRoomAction(r, r.shared.captains[0], 'vote', { from: 'g1', to: 'f3', n: 0 });
+      // Three moves of one vote each: the captain's Nf3 is one of the tied - so the captain decides.
+      if (r.shared.tallies[0].how === 'captain' && r.shared.tallies[0].pick === 'g1f3') seen.capInTie = true;
+      const r2 = vcRoom(['a', 'b', 'c', 'd', 'e', 'f']);
+      const W2 = r2.shared.teams[0];
+      if (W2.length !== 3) continue;
+      const o2 = W2.filter((id) => id !== r2.shared.captains[0]);
+      applyRoomAction(r2, o2[0], 'vote', { from: 'e2', to: 'e4', n: 0 });
+      applyRoomAction(r2, o2[1], 'vote', { from: 'd2', to: 'd4', n: 0 });
+      clock = roomDeadline(r2) + 1;
+      roomTimeout(r2, clock);
+      const t2 = r2.shared.tallies[0];
+      if (t2.how === 'tie' && (t2.pick === 'e2e4' || t2.pick === 'd2d4')) seen['tie:' + t2.pick] = true;
+    }
+    check(seen.capInTie && (seen['tie:e2e4'] || seen['tie:d2d4']), 'votechess captain: the captain\'s vote counts as a vote and breaks the tie it is in; a captain who didn\'t vote leaves the tie to the draw (' + tries + ' games)');
+    // The lobby: the host taps a captain, a second tap takes it off, a captain moved across is no captain.
+    const r = newRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'votechess' });
+    applyRoomAction(r, 'a', 'sides', { shuffle: true });
+    const sides = r.shared.lobby.sides;
+    const w = Object.keys(sides).filter((id) => sides[id] === 0);
+    applyRoomAction(r, 'a', 'captain', { pid: w[1] });
+    check(r.shared.lobby.caps[0] === w[1] && !r.shared.lobby.caps[1], 'votechess captain: the host taps a captain for a team in the lobby');
+    check(refused(() => applyRoomAction(r, 'b', 'captain', { pid: 'b' })) && refused(() => applyRoomAction(r, 'a', 'captain', { pid: 'zz' })), 'votechess captain: only the host, and only someone on a team');
+    applyRoomAction(r, 'a', 'captain', { pid: w[1] });
+    check(!r.shared.lobby.caps[0], 'votechess captain: a second tap takes it off');
+    applyRoomAction(r, 'a', 'captain', { pid: w[0] });
+    applyRoomAction(r, 'a', 'sides', { move: w[0] });
+    check(!r.shared.lobby.caps[0], 'votechess captain: moved to the other team, no longer the captain');
+    applyRoomAction(r, 'a', 'sides', { move: w[0] });
+    const wc = w.find((id) => id !== 'a');     // the captain who will leave (not the host)
+    applyRoomAction(r, 'a', 'captain', { pid: wc });
+    applyRoomAction(r, 'a', 'start', {});
+    check(r.shared.captains[0] === wc && r.shared.teams[0].indexOf(wc) !== -1, 'votechess captain: the host\'s captain captains the game');
+    const capB = r.shared.captains[1];
+    r.players = r.players.filter((p) => p.id !== wc);
+    roomPlayerLeft(r, wc, 'X');
+    check(r.shared.captains[0] && r.shared.captains[0] !== wc && r.shared.teams[0].indexOf(r.shared.captains[0]) !== -1, 'votechess captain: the captain leaves - another member is drawn');
+    applyRoomAction(r, r.shared.teams[0][0], 'vote', { resign: true, n: 0 });
+    if (r.shared.phase === 'play') applyRoomAction(r, r.shared.teams[0][1] || r.shared.teams[0][0], 'vote', { resign: true, n: 0 });
+    const capW = r.shared.captains[0];
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.captains[1] === capW && r.shared.captains[0] === capB, 'votechess captain: play again - the captains stay with their teams');
+  }
+  // «صوتك ✕» (7 Oct 2026): a vote taken back while the vote is open.
+  {
+    const r = vcRoom(['a', 'b', 'c', 'd']);
+    const W = r.shared.teams[0];
+    applyRoomAction(r, W[0], 'vote', { from: 'e2', to: 'e4', n: 0 });
+    applyRoomAction(r, W[0], 'unvote', { n: 0 });
+    check(!r._vc.votes[W[0]] && !r.secrets[W[0]] && r.shared.vote.voted.indexOf(W[0]) === -1 && r.shared.chess.moves === 0, 'votechess unvote: the vote, its arrow and the dot go; the vote stays open');
+    applyRoomAction(r, W[0], 'vote', { from: 'd2', to: 'd4', n: 0 });
+    applyRoomAction(r, W[0], 'unvote', { n: 7 });
+    check(r._vc.votes[W[0]].to === 'd4', 'votechess unvote: a stale ✕ is dropped');
+    applyRoomAction(r, r.shared.teams[1][0], 'unvote', { n: 0 });
+    check(r._vc.votes[W[0]].to === 'd4', 'votechess unvote: the other team\'s ✕ touches nothing');
   }
   // The clock: some votes decide it; none, a random legal move.
   {
@@ -9694,7 +9763,7 @@ Date.now = duelTestClock;
 /* --- شطرنج الأربعة in rooms (RoomChess4.js): the lobby, turns, the clock, play for, leaving, bots --- */
 {
   const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
-  const C = new Function(readFileSync(srcPath('Chess4.js'), 'utf8') + '\nreturn { chess4Legal };')();
+  const C = new Function(readFileSync(srcPath('Chess4.js'), 'utf8') + '\nreturn { chess4Legal, CHESS4_SPEED, CHESS4_SPEED_MS };')();
   const first = (s) => C.chess4Legal(s.g)[0];
   const isBot = (room, id) => room.players.some((x) => x.id === id && x.bot);
   const up = (r) => r.shared.seats[r.shared.g.turn];
@@ -9821,6 +9890,25 @@ Date.now = duelTestClock;
     check(fc.shared.clock.first === clock && roomDeadline(fc) === clock + 45000 + 601, 'chess4 first move: the next seat\'s first move has its own 45 s');
     applyRoomAction(fc, 'p', 'move', Object.assign({}, first(fc.shared), { seq: fc.shared.turnSeq }));
     check(fc.shared.clock.moved[1] && fc.shared.g.turn === 2, 'chess4 first move: a move in time is just a move');
+  }
+
+  // «دور سريع» (7 Oct 2026): 10 s a move, every move; then an easy move is played for them, nobody out.
+  {
+    const sp = newRoom(['h', 'p', 'q', 'r']);
+    applyRoomAction(sp, 'h', 'chooseGame', { game: 'chess4' });
+    applyRoomAction(sp, 'h', 'options', { mode: 'ffa', clock: C.CHESS4_SPEED });
+    check(sp.shared.lobby.clock === C.CHESS4_SPEED, 'chess4 speed: a clock choice in the lobby');
+    const t0 = clock;
+    applyRoomAction(sp, 'h', 'start', {});
+    check(sp.shared.settings.clock === C.CHESS4_SPEED && sp.shared.clock.speed && sp.shared.clock.at === null && sp.shared.clock.first === t0 &&
+          roomDeadline(sp) === t0 + C.CHESS4_SPEED_MS + 600 + 1, 'chess4 speed: the first move has 10 s too');
+    const up = sp.shared.seats[sp.shared.g.turn];
+    applyRoomAction(sp, up, 'move', Object.assign({}, first(sp.shared), { seq: sp.shared.turnSeq }));
+    check(sp.shared.g.ply === 1 && sp.shared.clock.first === clock && sp.shared.clock.left.every((x) => x === 0), 'chess4 speed: a move in time - the next one has its own 10 s, no bank of minutes');
+    check(!roomTimeout(sp, clock + C.CHESS4_SPEED_MS) && sp.shared.g.ply === 1, 'chess4 speed: not a moment early');
+    for (let k = 0; k < 6; k++) { clock = roomDeadline(sp) + 1; roomTimeout(sp, clock); }
+    check(sp.shared.g.ply === 7 && !sp.shared.g.out.some(Boolean) && sp.shared.log.filter((e) => e.k === 'mv' && e.auto === 'time').length === 6 && sp.shared.clock.first === clock,
+      'chess4 speed: time up on each move - an easy move played for them, marked, and nobody is out on time');
   }
 
   // Whole games of computer players through the room's own door: both ways, easy and hard.

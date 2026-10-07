@@ -329,13 +329,33 @@ function hbStatus(state, tv) {
   const view = hbBoard(state);
   const check = chessCheckSq(view.g) ? ' · ' + chT('ch_check') : '';
   const up = hbActorOf(state);
-  if (s.stage === 'name') {
-    if (!tv && up === Room.me) return chT('hb_you_brain') + check;
-    return chT('hb_brain_thinking', { name: duelIso(hbName(state, up)) }) + check;
-  }
+  // Your own job is the role line's (hbRoleHtml): the status only adds a check.
+  if (!tv && up === Room.me) return check ? chT('ch_check') : '';
+  if (s.stage === 'name') return chT('hb_brain_thinking', { name: duelIso(hbName(state, up)) }) + check;
   const piece = s.named ? hbPieceName(s.named.kind) : '';
-  if (!tv && up === Room.me) return chT('hb_you_hand', { piece: piece }) + check;
   return chT('hb_hand_moving', { name: duelIso(hbName(state, up)), piece: piece }) + check;
+}
+
+/**
+ * The seated player's role, always the first line (the owner's pick of 7 Oct 2026): «🧠 انت المخ -
+ * سمّي قطعة», «✋ انت الإيد - استنى المخ»… in the accent when it is your job now, dimmed while you
+ * wait, so a first-timer knows what to do.
+ */
+function hbRoleHtml(state) {
+  const s = hbShared(state);
+  const mine = hbMine(state);
+  if (!mine || s.phase !== 'play' || !s.chess || s.chess.result) return '';
+  const ours = hbBoard(state).g.turn === mine.team;
+  let task = chT('hb_task_wait_team');
+  let up = false;
+  if (ours && mine.role === 0) {
+    up = s.stage === 'name';
+    task = chT(up ? 'hb_task_name' : 'hb_task_wait_hand');
+  } else if (ours) {
+    up = s.stage === 'move' && !!s.named;
+    task = up ? chT('hb_task_move', { piece: hbPieceName(s.named.kind) }) : chT('hb_task_wait_brain');
+  }
+  return `<p class="hb-role ${up ? 'is-up' : 'is-wait'}">${escapeHTML(chT(mine.role ? 'hb_role_hand' : 'hb_role_brain'))} - ${escapeHTML(task)}</p>`;
 }
 
 /** The Brain's six buttons (the kinds that can't move faded), or the Hand's line, and resigning. */
@@ -367,9 +387,8 @@ function hbBarHtml(state) {
         </button>`;
     }).join('')}</div>
       <p class="field__hint hb-change">${escapeHTML(chT('hb_change_hint'))} · <b class="metric" data-hb-recall>${Math.ceil(hbRecallLeft(state) / 1000)}</b></p>`);
-  } else if (mine.role === 0 && mine.team === bd.g.turn && s.stage === 'move') {
-    parts.push(`<p class="field__hint" style="text-align:center">${escapeHTML(chT('hb_brain_wait'))}</p>`);
   }
+  // (A Brain waiting on its Hand is said by the role line on top, hbRoleHtml.)
   if (mine) parts.push(`<div class="ch-bar__row"><button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="hbResign()">🏳️ ${escapeHTML(chT('ch_resign'))}</button></div>`);
   return parts.join('') + hbHostRow(state);
 }
@@ -430,7 +449,8 @@ function hbRender(state, still) {
   const bd = s.chess;
   const over = s.phase === 'over';
   const myUp = hbActorOf(state) === Room.me;
-  chSetHtml(el, '[data-ch-head]', `${hbPills(state)}${hbCallHtml(state)}<p class="duel-status ${over ? 'is-done' : ''} ${myUp ? 'is-mine' : ''}">${escapeHTML(hbStatus(state))}</p>`);
+  const status = hbStatus(state);
+  chSetHtml(el, '[data-ch-head]', `${hbRoleHtml(state)}${hbPills(state)}${hbCallHtml(state)}${status ? `<p class="duel-status ${over ? 'is-done' : ''} ${myUp ? 'is-mine' : ''}">${escapeHTML(status)}</p>` : ''}`);
   chSetHtml(el, '[data-ch-bar]', hbBarHtml(state));
   hbRecallTick(state);
   const view = hbBoard(state);

@@ -8,9 +8,20 @@ gameText({
       chpz_level_hint_2: "نقلتين، أو نقلة هادية تحضّر لحاجة.",
       chpz_level_hint_3: "تلات نقلات، أو تضحية لازم تشوف بعدها.",
       chpz_solved_n: "حليت {n}",
-      chpz_turn_win: "دورك: {side} يلعب ويكسب",
-      chpz_turn_mate: "دورك: {side} يلعب ويموّت في {n}",
-      chpz_turn_mate1: "دورك: {side} يلعب ويموّت في نقلة",
+      chpz_turn_win: "العب واكسب",
+      chpz_turn_mate: "موّت في {n} نقلات",
+      chpz_turn_mate1: "موّت في نقلة واحدة",
+      chpz_you_w: "انت الأبيض",
+      chpz_you_b: "انت الأسود",
+      chpz_your_move: "دورك!",
+      chpz_pile_title: "اللي غلبوني",
+      chpz_pile_desc: "الألغاز اللي غلطت فيها أو شفت حلها: حلّ كل واحد مرتين ورا بعض ويخرج.",
+      chpz_pile_none: "لسه مفيش: أي لغز تغلط فيه أو تشوف حله بييجي هنا تجرّبه تاني.",
+      chpz_pile_empty: "مفيش ألغاز غلبتك دلوقتي!",
+      chpz_pile_next: "اللي بعده",
+      chpz_pile_later: "ده الوحيد اللي فاضل: تعالاله بعدين.",
+      chpz_pile_done: "خلّصت كل اللي غلبوك!",
+      chpz_pile_cleared: "حليته مرتين ورا بعض: خرج من «اللي غلبوني»",
       chpz_right: "✅ صح! استنى ردّه…",
       chpz_again: "✅ صح! كمّل",
       chpz_wrong: "❌ مش دي",
@@ -48,7 +59,7 @@ gameText({
       chpz_mistakes_all: "حليتهم كلهم! تقدر تلفّ عليهم تاني.",
       chpz_mistakes_next: "الغلطة اللي بعدها",
       chpz_mistakes_done: "خلّصت ألغاز أخطائك!",
-      chpz_turn_better: "دورك: {side} يلعب، لاقي أحسن نقلة",
+      chpz_turn_better: "لاقي أحسن نقلة",
       chpz_you_played: "في الدور لعبت هنا {san} ({cls}).",
       chpz_back_review: "ارجع للمراجعة",
       chpz_streak_title: "سلسلة الألغاز",
@@ -72,9 +83,20 @@ gameText({
       chpz_level_hint_2: "Two moves, or a quiet move that sets something up.",
       chpz_level_hint_3: "Three moves, or a sacrifice you have to see past.",
       chpz_solved_n: "{n} solved",
-      chpz_turn_win: "Your move: {side} to play and win",
-      chpz_turn_mate: "Your move: {side} to play and mate in {n}",
-      chpz_turn_mate1: "Your move: {side} to play and mate in one",
+      chpz_turn_win: "play and win",
+      chpz_turn_mate: "mate in {n}",
+      chpz_turn_mate1: "mate in one",
+      chpz_you_w: "You're White",
+      chpz_you_b: "You're Black",
+      chpz_your_move: "Your move!",
+      chpz_pile_title: "The ones that beat me",
+      chpz_pile_desc: "Puzzles you got wrong or gave up on: solve each twice in a row and it leaves.",
+      chpz_pile_none: "None yet: any puzzle you get wrong or give up on comes here to try again.",
+      chpz_pile_empty: "No puzzles have beaten you right now!",
+      chpz_pile_next: "Next one",
+      chpz_pile_later: "That's the only one left: come back to it later.",
+      chpz_pile_done: "You've beaten every one that beat you!",
+      chpz_pile_cleared: "Solved twice in a row: it left the pile",
       chpz_right: "✅ Right! Wait for the reply…",
       chpz_again: "✅ Right! Keep going",
       chpz_wrong: "❌ Not that one",
@@ -112,7 +134,7 @@ gameText({
       chpz_mistakes_all: "All solved! You can go round them again.",
       chpz_mistakes_next: "Next mistake",
       chpz_mistakes_done: "No mistakes left to solve!",
-      chpz_turn_better: "Your move: {side} to play, find the best move",
+      chpz_turn_better: "find the best move",
       chpz_you_played: "In the game you played {san} here ({cls}).",
       chpz_back_review: "Back to the review",
       chpz_streak_title: "Puzzle streak",
@@ -136,7 +158,7 @@ gameText({
     ar: {
       chesspuzzle: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>الرقعة فيها وضع من دور، وفوقها مكتوب <b>مين عليه الدور والمطلوب</b>: يكسب (حجر أو أكتر)، أو يموّت في نقلة أو اتنين أو تلاتة. حجارتك دايماً تحت.</li>
+                <li>الرقعة فيها وضع من دور، وفوقها مكتوب <b>مين عليه الدور والمطلوب</b>: يكسب (حجر أو أكتر)، أو يموّت في نقلة أو اتنين أو تلاتة. أول سطر بيقولك بالخط الكبير «انت الأبيض» أو «انت الأسود»، وحجارتك دايماً تحت.</li>
                 <li>لاقي <b>النقلة اللي بتكسب</b>: دوس على الحجر وبعدين على المربع، أو اسحبه بصباعك.</li>
                 <li><b>صح</b>: المربع بينوّر أخضر، والتاني <b>بيرد لوحده</b> بعد نص ثانية، وتكمّل لحد آخر النقلة. كش مات بأي طريقة بيتحسب صح.</li>
                 <li><b>غلط</b>: الحجر بيرجع مكانه ويتهز والمربع ينوّر أحمر، ومكتوب «مش دي». جرّب تاني.</li>
@@ -165,12 +187,17 @@ gameText({
                 <li>بعد ما <b>تراجع دور</b> (ضد الكمبيوتر، أو في غرفة، أو اتنين على موبايل)، كل نقلة المراجعة قالت عليها <b>غلطة أو غلطة كبيرة</b> بتاعتك بتبقى لغز: نفس الوضع، والمطلوب تلاقي النقلة الأحسن.</li>
                 <li>أي نقلة قريبة من أحسن نقلة بتتحسب صح، بس النقلة اللي لعبتها في الدور لأ. الأحدث الأول، واللي حليته بيروح في الآخر.</li>
                 <li>من المراجعة كمان: على الغلطة دوس <b>🧩 جرّبها كلغز</b>، ولما تخلص ترجع للمراجعة.</li>
+            </ul>
+            <p class="help-sub">🔁 اللي غلبوني</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>أي لغز <b>غلطت فيه أو شفت حله</b> (لغز عادي، لغز اليوم، أو في السلسلة) بيتحفظ على موبايلك في «اللي غلبوني»، وتجرّبه تاني بعدين من صفحة الألغاز. الأقدم الأول.</li>
+                <li>لما <b>تحله مرتين ورا بعض</b> من غير غلط ولا تلميح، بيخرج. غلطت فيه تاني؟ العد بيبدأ من الأول.</li>
             </ul>`,
     },
     en: {
       chesspuzzle: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>The board shows a position from a game, and above it <b>whose move it is and what to find</b>: to win (a piece or more), or to mate in one, two or three. Your pieces are always at the bottom.</li>
+                <li>The board shows a position from a game, and above it <b>whose move it is and what to find</b>: to win (a piece or more), or to mate in one, two or three. The first line says big «You're White» or «You're Black», and your pieces are always at the bottom.</li>
                 <li>Find <b>the winning move</b>: tap the piece, then the square, or drag it.</li>
                 <li><b>Right</b>: the square lights green, the other side <b>replies by itself</b> half a second later, and you carry on to the end of the line. Any mate counts as right.</li>
                 <li><b>Wrong</b>: the piece shakes back to its square, the square lights red and it says "Not that one". Try again.</li>
@@ -199,6 +226,11 @@ gameText({
                 <li>Once you <b>review a game</b> (against the computer, in a room, or two on one phone), every move of yours the review called <b>a mistake or a blunder</b> becomes a puzzle: the same position, and you find the better move.</li>
                 <li>Any move close to the best counts as right, but never the move you played in the game. The newest come first, and one you solved goes to the end.</li>
                 <li>From the review too: on a mistake tap <b>🧩 Try it as a puzzle</b>, and come back to the review when you are done.</li>
+            </ul>
+            <p class="help-sub">🔁 The ones that beat me</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Every puzzle <b>you got wrong or gave up on</b> (a free one, the daily, or in the streak) is kept on your phone in «The ones that beat me», to try again later from the puzzles' page. The oldest first.</li>
+                <li>Solve it <b>twice in a row</b> with no wrong move and no hint and it leaves. Wrong again? The count starts over.</li>
             </ul>`,
     }
   }

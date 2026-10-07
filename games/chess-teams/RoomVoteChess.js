@@ -30,16 +30,28 @@
      spot); a team with nobody left loses ('left').
    - Someone who joins mid-game watches (lateJoin) and plays the next game.
 
+   The owner's picks of 7 Oct 2026:
+   - «الكابتن» (991): each team has a captain - the host's tap in the lobby
+     (`captain { pid }`, a second tap takes it off), else drawn at random at the
+     start. A tie goes to the move the captain voted for; a captain who voted
+     for none of the tied moves (or didn't vote) leaves it to the draw as
+     before. Resigning still needs a clear majority (a captain's 🏳️ never wins
+     a tie). A captain who leaves: another member is drawn. Play again: the
+     captains stay with their teams.
+   - A vote taken back (996): `unvote { n }` drops this phone's vote (the ✕ on
+     its «صوتك» chip); it never closes the vote.
+
    shared:
      phase     'play' | 'over'
      settings  { secs: 20 | 30 | 60 }
-     lobby     { sides: { pid: 0 | 1 } }       the host's split, before a game
+     lobby     { sides: { pid: 0 | 1 }, caps: [pid | null, pid | null] }   the host's split and captains, before a game
      teams     [[white ids], [black ids]]       team k plays colour k (0 White)
+     captains  [White's captain, Black's]       public (the chip wears a band)
      names     { pid: name }                    kept for a member who left
      chess     ONE BOARD (chessBoardNew), no chess clock
      vote      { team, n, endsAt, voted: [pid] } the open vote: who, never what
      tallies   [{ n, team, list: [{ k, san, from, to, promo, resign, count }],
-                  pick, how: 'votes' | 'tie' | 'random' | 'host' }]  the last few
+                  pick, how: 'votes' | 'tie' | 'captain' | 'random' | 'host', captain? }]  the last few
      result    { result 'w'|'b'|'d', reason, winner: 0 | 1 | null }
      tw        [white team's wins, black team's] - the games each team has won
      scores, board, round
@@ -114,8 +126,31 @@ const vcLobbySides = (room, playerId, p) => {
     if (ids.indexOf(who) !== -1 && (sides[who] === 0 || sides[who] === 1)) sides[who] = 1 - sides[who];
     sides = vcFitSides(ids, sides);
   }
-  room.shared.lobby = { sides: sides };
+  room.shared.lobby = { sides: sides, caps: vcFitCaps(sides, (room.shared.lobby || {}).caps) };
 };
+
+/** The lobby's captains as they still stand: a captain moved to the other side (or gone) is no captain. */
+const vcFitCaps = (sides, caps) => [0, 1].map(k => {
+  const id = Array.isArray(caps) ? caps[k] : null;
+  return id && sides && sides[id] === k ? id : null;
+});
+
+/** The host taps a captain for a team in the lobby (991); a second tap on the captain takes it off. */
+const vcLobbyCaptain = (room, playerId, p) => {
+  requireHost(room, playerId);
+  if (room.phase !== 'lobby') return;
+  const lobby = (room.shared || {}).lobby;
+  if (!lobby || !lobby.sides) return;
+  const who = String(p.pid || '');
+  const k = lobby.sides[who];
+  if ((k !== 0 && k !== 1) || vcHere(room).indexOf(who) === -1) throw new Error('اللاعب ده مش في فريق');
+  const caps = vcFitCaps(lobby.sides, lobby.caps);
+  caps[k] = caps[k] === who ? null : who;
+  lobby.caps = caps;
+};
+
+/** A team's captain at the start: the one asked for if they are on it, else one of its members drawn. */
+const vcPickCaptain = (team, wanted) => (wanted && team.indexOf(wanted) !== -1 ? wanted : (team.length ? team[Math.floor(Math.random() * team.length)] : null));
 
 const vcSettings = (p, was) => {
   const secs = VC_SECS.indexOf(Number(p.secs)) !== -1 ? Number(p.secs)
@@ -141,12 +176,17 @@ const vcNewGame = (room, playerId, action, p) => {
     sides = vcFitSides(ids, (prev.lobby && prev.lobby.sides) || vcRandomSides(ids));
   }
   const teams = [ids.filter(id => sides[id] === 0), ids.filter(id => sides[id] === 1)];
+  // The captains: play again keeps each team's (its colour swapped); a start takes the lobby's taps.
+  const wantCaps = action === 'playAgain' && Array.isArray(prev.captains) ? [prev.captains[1], prev.captains[0]]
+    : ((prev.lobby && prev.lobby.caps) || [null, null]);
+  const captains = [0, 1].map(k => vcPickCaptain(teams[k], wantCaps[k]));
   const names = {};
   ids.forEach(id => { names[id] = roomPlayerName(room, id); });
   room.shared = {
     phase: 'play',
     settings: vcSettings(p, action === 'playAgain' ? (prev.settings || {}) : {}),
     teams: teams,
+    captains: captains,
     names: names,
     roster: ids.slice(),
     round: (action === 'playAgain' ? (prev.round || 1) : 0) + 1,
@@ -232,9 +272,17 @@ const vcClose = (room, how) => {
     const leaders = list.filter(x => x.count === top);
     const moves = leaders.filter(x => !x.resign);
     if (leaders.length === 1) pick = leaders[0];
-    else { pick = moves[Math.floor(Math.random() * moves.length)]; way = 'tie'; }
+    else {
+      // «الكابتن» (991): the tied move the captain voted for; otherwise drawn as before.
+      const cap = (s.captains || [])[team];
+      const cv = cap && votes[cap];
+      const capPick = cv && !cv.resign ? moves.find(x => x.k === vcKeyOf(cv)) : null;
+      if (capPick) { pick = capPick; way = 'captain'; }
+      else { pick = moves[Math.floor(Math.random() * moves.length)]; way = 'tie'; }
+    }
   }
   const tally = { n: bd.moves, team: team, list: list, pick: pick.k, how: way };
+  if (way === 'captain') tally.captain = s.captains[team];
   if (way === 'random') {
     const info = chessPlay(chessCloneGame(bd.g), { from: pick.from, to: pick.to, promo: pick.promo });
     tally.san = info ? info.san : '';
@@ -274,6 +322,7 @@ const vcEnd = (room, res) => {
 const voteChessAction = (room, playerId, action, payload) => {
   const p = payload || {};
   if (action === 'sides') { vcLobbySides(room, playerId, p); return; }
+  if (action === 'captain') { vcLobbyCaptain(room, playerId, p); return; }
   if (action === 'start' || action === 'playAgain') { vcNewGame(room, playerId, action, p); return; }
   const s = room.shared;
   if (!s || !s.phase || !s.chess) throw new Error('اللعبة لم تبدأ بعد');
@@ -301,6 +350,16 @@ const voteChessAction = (room, playerId, action, payload) => {
     room.secrets[playerId] = { vote: v, n: bd.moves };
     if (s.vote.voted.indexOf(playerId) === -1) s.vote.voted.push(playerId);
     if (vcAllVoted(room)) vcClose(room, 'all');
+    return;
+  }
+
+  if (action === 'unvote') {
+    // «صوتك: ♞f3 ✕» (996): this phone's vote taken back, while the vote is still open.
+    if (s.phase !== 'play' || !s.vote || bd.result || staleTap(p, 'n', bd.moves)) return;
+    if (vcTeamOf(s, playerId) !== s.vote.team) return;
+    if (room._vc && room._vc.votes) delete room._vc.votes[playerId];
+    if (room.secrets) delete room.secrets[playerId];
+    s.vote.voted = s.vote.voted.filter(id => id !== playerId);
     return;
   }
 
@@ -337,6 +396,7 @@ const vcPlayerLeft = (room, playerId) => {
     if (s.lobby && s.lobby.sides) {
       delete s.lobby.sides[playerId];
       s.lobby.sides = vcFitSides(vcHere(room), s.lobby.sides);
+      s.lobby.caps = vcFitCaps(s.lobby.sides, s.lobby.caps);
     }
     return;
   }
@@ -348,6 +408,8 @@ const vcPlayerLeft = (room, playerId) => {
   if (room._vc && room._vc.votes) delete room._vc.votes[playerId];
   if (room.secrets) delete room.secrets[playerId];
   if (s.vote) s.vote.voted = s.vote.voted.filter(id => id !== playerId);
+  // The captain left: another member of the team is drawn (991).
+  if (Array.isArray(s.captains) && s.captains[k] === playerId) s.captains[k] = vcPickCaptain(vcPresent(room, k), null);
   if (!vcPresent(room, k).length) {
     const bd = s.chess;
     bd.endedAt = Date.now();

@@ -17,16 +17,30 @@
    crossword play the room's puzzle: the words stay on the server, so every
    word made is sent (`move { word }`), a grid word comes back and turns its
    cells over, a bonus word is counted, anything else shakes. No hint.
+
+   The owner's picks of 7 Oct 2026: (1171) a word of all the letters - the
+   base word - lights a 🏆 and its cells turn gold, and in «بالدور» it scores
+   double; (1172) «بالدور» on one phone: two players take turns, every try
+   passes the turn (a word already found doesn't), a grid word fills in in its
+   finder's colour and scores its letters, and most letters wins once the grid
+   is full. s.playWay 'duo' and s.duo = { names, cur, pts, owner: { wi: p } }.
    ========================================================================= */
 
 let wheelDrag = null;
 let wheelTimer = null;
+const WHEEL_WAYS = ['solo', 'duo'];
+
+/** 1171: the big word is one of all the letters (the base word, or an anagram of it in the grid). */
+const wheelIsBig = (s, p) => !!p && wheelLen(p) === s.letters.length;
+
+/** 1172: a word's points in «بالدور»: its letters, the big word's double. */
+const wheelWordPts = (s, p) => wheelLen(p) * (wheelIsBig(s, p) ? 2 : 1);
 
 function wheelState() {
   const race = soloRaceState('wordwheel');
   if (race) return race;
   if (!appState.wordwheel) {
-    appState.wordwheel = { level: 'easy', daily: '', lang: 'ar', letters: [], words: [], bonus: [], found: [], bonusFound: [], shown: [], typed: [], rows: 0, cols: 0, startedAt: 0, pausedAt: 0, phase: 'setup' };
+    appState.wordwheel = { level: 'easy', way: 'solo', daily: '', lang: 'ar', letters: [], words: [], bonus: [], found: [], bonusFound: [], shown: [], typed: [], rows: 0, cols: 0, startedAt: 0, pausedAt: 0, phase: 'setup' };
   }
   return appState.wordwheel;
 }
@@ -43,6 +57,10 @@ function paintWordWheelSetup() {
   const s = wheelState();
   const t = TRANSLATIONS[appState.lang];
   document.querySelectorAll('#wordwheel-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const way = WHEEL_WAYS.indexOf(s.way) !== -1 ? s.way : 'solo';
+  document.querySelectorAll('#wordwheel-way .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === way));
+  const wayHint = document.getElementById('wordwheel-way-hint');
+  if (wayHint) wayHint.textContent = t[way === 'duo' ? 'wheel_way_duo_hint' : 'wheel_way_solo_hint'] || '';
   const best = soloBest('wordwheel', s.level);
   const el = document.getElementById('wordwheel-best');
   if (el) el.textContent = best ? `${t.solo_best || ''}: ${soloTime(best.seconds)}` : '';
@@ -50,6 +68,20 @@ function paintWordWheelSetup() {
   if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
   const daily = document.getElementById('wordwheel-daily');
   if (daily) daily.innerHTML = soloDailyButtonHtml('wordwheel', 'startWordWheel(true)');
+}
+
+function setWordWheelWay(way) {
+  wheelState().way = WHEEL_WAYS.indexOf(way) !== -1 ? way : 'solo';
+  saveToLocal();
+  paintWordWheelSetup();
+}
+
+/** 1172: «بالدور» needs two names: the players sheet, two rows, whoever was in the round first. */
+function wheelAskDuo(go) {
+  const keep = appState.activePlayers;
+  appState.activePlayers = (keep || []).slice(0, 2);
+  askPlayers(2, (stored) => go(stored.slice(0, 2)), { max: 2 });
+  appState.activePlayers = keep;
 }
 
 function setWordWheelLevel(level) {
@@ -61,10 +93,13 @@ function setWordWheelLevel(level) {
 // A wheel with a word found: a new one asks first (soloConfirmNew).
 const wheelHasWork = (s) => (s.found || []).length > 0 || (s.bonusFound || []).length > 0;
 
-function startWordWheel(daily, sure) {
+function startWordWheel(daily, sure, duoNames) {
   if (!sure && soloConfirmNew('wordwheel', wheelHasWork, () => startWordWheel(daily, true))) return;
   if (daily && soloDailyResume('wordwheel')) return;
   const s = wheelState();
+  // 1172: «بالدور» (never the daily): the two names first.
+  const duo = !daily && s.way === 'duo';
+  if (duo && !(Array.isArray(duoNames) && duoNames.length === 2)) { wheelAskDuo((names) => startWordWheel(false, true, names)); return; }
   const level = daily ? 'medium' : s.level;
   const lang = contentLang() === 'en' ? 'en' : 'ar';
   let made = wheelMake(level, lang, soloRandom(daily ? soloDaySeed('wordwheel:' + lang) : null));
@@ -76,7 +111,9 @@ function startWordWheel(daily, sure) {
   Object.assign(s, {
     daily: daily ? soloToday() : '', playLevel: level, lang: lang,
     letters: made.letters, words: made.words, bonus: made.bonus, rows: made.rows, cols: made.cols,
-    found: [], bonusFound: [], shown: [], typed: [], hints: 0, startedAt: Date.now(), pausedAt: 0, seconds: 0, phase: 'play'
+    found: [], bonusFound: [], shown: [], typed: [], hints: 0, startedAt: Date.now(), pausedAt: 0, seconds: 0, phase: 'play',
+    playWay: duo ? 'duo' : 'solo', bigFound: false,
+    duo: duo ? { names: duoNames.map(String), cur: 0, pts: [0, 0], owner: {} } : null
   });
   saveToLocal();
   setView('play-wordwheel');
@@ -117,22 +154,37 @@ function paintWordWheel() {
     }
   });
   const open = (cell) => cell.words.some(wi => s.found.indexOf(wi) !== -1) || s.shown.indexOf(wheelCellKey(cell.r, cell.c)) !== -1;
+  // A cell's colour: the big word's gold (1171), else in «بالدور» the colour of whoever found its first word (1172).
+  const cellCls = (cell) => {
+    const found = s.found.filter(wi => cell.words.indexOf(wi) !== -1);
+    if (!found.length) return '';
+    if (found.some(wi => wheelIsBig(s, s.words[wi]))) return ' is-big';
+    if (s.duo) { const p = s.duo.owner[found[0]]; return p === 0 || p === 1 ? ' is-p' + p : ''; }
+    return '';
+  };
   const n = s.letters.length;
-  const bar = soloBarHtml([
+  const duo = s.duo;
+  const bar = duo ? soloBarHtml([
+    { label: duo.names[0], value: duo.pts[0], id: 'wheel-p0', cls: 'wheel-duo is-p0' + (duo.cur === 0 && s.phase === 'play' ? ' is-turn' : '') },
+    { label: t.wheel_words || '', value: `${s.found.length}/${s.words.length}`, id: 'wheel-count' },
+    { label: duo.names[1], value: duo.pts[1], id: 'wheel-p1', cls: 'wheel-duo is-p1' + (duo.cur === 1 && s.phase === 'play' ? ' is-turn' : '') }
+  ]) : soloBarHtml([
     { label: t.wheel_words || '', value: `${s.found.length}/${s.words.length}`, id: 'wheel-count' },
     { label: '⭐', value: s.bonusFound.length, id: 'wheel-bonus' },
     { label: t.solo_time || '', value: soloTime(s.phase === 'play' ? (Date.now() - s.startedAt) / 1000 : s.seconds), id: 'wheel-time' }
-  ]);
+  ].concat(s.bigFound ? [{ label: t.wheel_big || '', value: '🏆', cls: 'wheel-big-stat' }] : []));
+  const turnLine = duo && s.phase === 'play'
+    ? `<p class="wheel-turn is-p${duo.cur}" id="wheel-turn" role="status">${escapeHTML((t.wheel_duo_turn || '{name}').replace('{name}', duo.names[duo.cur]))}</p>` : '';
   el.innerHTML = `
     <div class="solo-layout">
       <div class="solo-layout__board">
         <div class="wheel-grid" id="wheel-grid" dir="${s.lang === 'en' ? 'ltr' : 'rtl'}" style="--ww-cols:${s.cols}; --ww-rows:${s.rows}">
           ${Object.values(cells).map(cell => `
-            <div class="wheel-cell${open(cell) ? ' is-open' : ''}" data-key="${wheelCellKey(cell.r, cell.c)}" style="grid-row:${cell.r + 1}; grid-column:${cell.c + 1}">${open(cell) ? escapeHTML(cell.ch) : ''}</div>`).join('')}
+            <div class="wheel-cell${open(cell) ? ' is-open' + cellCls(cell) : ''}" data-key="${wheelCellKey(cell.r, cell.c)}" style="grid-row:${cell.r + 1}; grid-column:${cell.c + 1}">${open(cell) ? escapeHTML(cell.ch) : ''}</div>`).join('')}
         </div>
       </div>
       <div class="solo-layout__side">
-        ${bar}
+        ${bar}${turnLine}
         <div class="wheel-typed" id="wheel-typed" dir="${s.lang === 'en' ? 'ltr' : 'rtl'}">${escapeHTML(s.typed.map(i => s.letters[i]).join(''))}</div>
         <div class="wheel-ring" id="wheel-ring">
           <svg class="wheel-lines" id="wheel-lines" viewBox="0 0 100 100" aria-hidden="true"><polyline points="" /></svg>
@@ -145,7 +197,7 @@ function paintWordWheel() {
         <div class="sdk-tools wheel-tools">
           <button type="button" class="btn btn--neutral btn--sm" onclick="wheelBackspace()" aria-label="${escapeHTML(t.wheel_erase || '')}" title="${escapeHTML(t.wheel_erase || '')}">⌫</button>
           <button type="button" class="btn btn--neutral btn--sm" onclick="shuffleWordWheel()">🔀 ${escapeHTML(t.wheel_shuffle || '')}</button>
-          ${s.race ? '' : `<button type="button" class="btn btn--neutral btn--sm" onclick="hintWordWheel()">💡 ${escapeHTML(t.solo_hint || '')}</button>`}
+          ${s.race || s.duo ? '' : `<button type="button" class="btn btn--neutral btn--sm" onclick="hintWordWheel()">💡 ${escapeHTML(t.solo_hint || '')}</button>`}
           <button type="button" class="btn btn--primary btn--sm" onclick="wheelSubmit()" aria-label="${escapeHTML(t.wheel_submit || '')}" title="${escapeHTML(t.wheel_submit || '')}" ${s.typed.length >= 2 ? '' : 'disabled'}>✓</button>
         </div>
       </div>
@@ -261,29 +313,64 @@ function wheelSubmit() {
     return;
   }
   const wi = s.words.findIndex(p => p.w === word);
+  // 1172: whoever's turn it is; every try passes it, except a word already found.
+  const duo = s.duo;
+  const who = duo ? duo.cur : -1;
+  const pass = () => { if (duo) duo.cur = 1 - duo.cur; };
   if (wi !== -1 && s.found.indexOf(wi) === -1) {
     s.found.push(wi);
+    const big = wheelIsBig(s, s.words[wi]);
+    if (big) s.bigFound = true;
+    let pts = 0;
+    if (duo) { duo.owner[wi] = who; pts = wheelWordPts(s, s.words[wi]); duo.pts[who] += pts; pass(); }
     saveToLocal();
     playSound('success');
-    haptic('light');
+    haptic(big ? 'double' : 'light');
     paintWordWheel();
     wheelFlipWord(s, wi);
+    if (duo) wheelDuoGain(who, pts, big);
+    if (big) wheelBigMoment(s, wi);
     if (s.found.length === s.words.length) wheelFinish();
     return;
   }
   if (s.bonus.indexOf(word) !== -1 && s.bonusFound.indexOf(word) === -1) {
     s.bonusFound.push(word);
+    pass();
     saveToLocal();
     playSound('click');
     paintWordWheel();
     showToast(`⭐ ${t.wheel_bonus || ''}: ${word}`, 'success');
     return;
   }
+  const again = wi !== -1 || s.bonusFound.indexOf(word) !== -1;
+  if (!again) pass();
   saveToLocal();
   paintWordWheel();
-  if (wi !== -1 || s.bonusFound.indexOf(word) !== -1) showToast(t.wheel_already || '', 'info');
+  if (again) showToast(t.wheel_already || '', 'info');
   wheelShake('wheel-typed');
   wheelShake('wheel-ring');
+}
+
+/** 1171: the big word - a 🏆 toast, its gold cells pop after they turn over. */
+function wheelBigMoment(s, wi) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  showToast(`🏆 ${t.wheel_big_found || ''}${s.duo ? ' ×2' : ''}`, 'success');
+  if (motionOff()) return;
+  const p = s.words[wi];
+  for (let k = 0; k < wheelLen(p); k++) {
+    const r = p.dir === 'a' ? p.r : p.r + k, c = p.dir === 'a' ? p.c + k : p.c;
+    const cell = document.querySelector(`#wheel-grid [data-key="${wheelCellKey(r, c)}"]`);
+    if (cell) setTimeout(() => soloPop(cell, 1.25), 300 + k * 70);
+  }
+}
+
+/** 1172: the points count up on the finder's chip. */
+function wheelDuoGain(who, pts, big) {
+  const el = document.getElementById('wheel-p' + who);
+  if (!el || !pts) return;
+  const to = Number(el.textContent) || 0;
+  if (typeof countUp === 'function' && !motionOff()) countUp(el, Math.max(0, to - pts), to);
+  soloPop(el.closest('.solo-stat'), big ? 1.3 : 1.15);
 }
 
 function shuffleWordWheel() {
@@ -332,6 +419,7 @@ function wheelFinish() {
   s.seconds = seconds;
   saveToLocal();
   const level = s.playLevel || s.level;
+  if (s.duo) { wheelDuoFinish(s, seconds); return; }
   const rec = s.hints || s.archive ? { record: false, prev: soloBest('wordwheel', level) }
     : soloRecord('wordwheel', level, { seconds: seconds }, (a, b) => a.seconds < b.seconds);
   let share = '';
@@ -340,12 +428,29 @@ function wheelFinish() {
     share = `${soloShareHeader(t, s.daily)}\n🔡 ${t.setup_wordwheel || ''} ✅ ${soloTime(seconds)}${s.bonusFound.length ? ' · ⭐ ' + s.bonusFound.length : ''}${s.hints ? ' · 💡 ' + s.hints : ''}`;
   }
   const lines = [`⭐ ${escapeHTML(t.wheel_bonus || '')}: ${s.bonusFound.length}/${s.bonus.length}`];
+  if (s.bigFound) lines.push(`🏆 ${escapeHTML(t.wheel_big_found || '')}`);
   if (s.hints) lines.push(`💡 ${escapeHTML(t.solo_hint || '')}: ${s.hints}`);
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
   soloLater('wordwheel', motionOff() ? 0 : 800, () => soloResult({
     icon: '🔡', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
     valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
     again: () => startWordWheel(false), exit: setupWordWheel
+  }));
+}
+
+/** 1172: «بالدور» ends with the grid full: most letters wins (no record; a draw can happen). */
+function wheelDuoFinish(s, seconds) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const d = s.duo;
+  const win = d.pts[0] === d.pts[1] ? -1 : (d.pts[0] > d.pts[1] ? 0 : 1);
+  const lines = d.names.map((n, i) => `<span class="wheel-duo-line is-p${i}">${i === win ? '👑 ' : ''}<bdi>${escapeHTML(n)}</bdi>: <b class="metric">${d.pts[i]}</b></span>`);
+  lines.push(`⏱️ ${soloTime(seconds)}`);
+  const names = d.names.slice();
+  soloLater('wordwheel', motionOff() ? 0 : 800, () => soloResult({
+    icon: win === -1 ? '🤝' : '👑',
+    title: win === -1 ? (t.wheel_duo_draw || '') : (t.wheel_duo_won || '{name}').replace('{name}', d.names[win]),
+    valueText: win === -1 ? `${d.pts[0]} - ${d.pts[1]}` : String(d.pts[win]), valueLabel: t.wheel_duo_letters || '',
+    lines: lines, win: win !== -1, again: () => startWordWheel(false, true, names), exit: setupWordWheel
   }));
 }
 
@@ -360,7 +465,7 @@ function restoreWordWheel() {
 
 soloRegister('wordwheel', {
   setup: 'setup-wordwheel', play: 'play-wordwheel', paintSetup: paintWordWheelSetup, restore: restoreWordWheel,
-  state: wheelState, resume: continueWordWheel, repaint: paintWordWheel, timed: true, prefs: ['level']
+  state: wheelState, resume: continueWordWheel, repaint: paintWordWheel, timed: true, prefs: ['level', 'way']
 });
 
 /* --- سباق ألغاز: the same wheel, raced (JS_RoomRace.html) ------------------------------ */
@@ -380,7 +485,12 @@ RACE_UI.wordwheel = {
     bonusFresh.forEach(w => s.bonusFound.push(w));
     if (fresh.length || bonusFresh.length) paintWordWheel();
     if (fx && fx.first) return;
-    if (fresh.length) { playSound('success'); haptic('light'); fresh.forEach(f => wheelFlipWord(s, f.wi)); }
+    if (fresh.length) {
+      playSound('success'); haptic('light'); fresh.forEach(f => wheelFlipWord(s, f.wi));
+      // 1171: the big word lights its 🏆 on the racer's phone too.
+      const big = fresh.find(f => wheelIsBig(s, s.words[f.wi]));
+      if (big) { s.bigFound = true; wheelBigMoment(s, big.wi); }
+    }
     else if (bonusFresh.length) { playSound('click'); showToast(`⭐ ${t.wheel_bonus || ''}: ${bonusFresh[0]}`, 'success'); }
   },
   snapshot: (s) => s.found.length * 100 + s.bonusFound.length,

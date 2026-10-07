@@ -27,9 +27,18 @@
    result turns over (the engine's svTurn), the points fly to the row
    (flyPoints), the board counts up (animateScoreboards), the podium rises
    with confetti.
+
+   The owner's picks of 7 Oct 2026: (1184) «استسلم» is held 3 seconds on the
+   phone with «رجّعني» before it is sent (raceGiveUp, raceGiveUpHtml): the
+   server still counts a give-up as final once it arrives; (1185) the last
+   round counts double - a lobby switch, on by default (settings.double,
+   svRaceDouble in RoomSolve.js) - announced between the rounds with ×2
+   spinning in (raceDoubleHtml, raceDoubleSpin) on the phones and the TV, a
+   «×2» badge on the last round's head and its result.
    ========================================================================= */
 
-const raceRoom = { seen: {}, scoreKey: '', myScore: 0, liveHtml: {} };
+const raceRoom = { seen: {}, scoreKey: '', myScore: 0, liveHtml: {}, giving: null };
+const RACE_GIVE_UP_HOLD_MS = 3000;
 
 /* The race's own words, in its chunk (2 Oct 2026: moved out of TRANSLATIONS for the shell's budget, when
    «خماسي السهرة» came): only this file reads them, through t.race_* and svT() as before - they join
@@ -48,7 +57,14 @@ const RACE_TEXT = {
     race_you_lost: "💀 خسرت الجولة دي",
     race_you_gave: "🏳️ استسلمت الجولة دي",
     race_give_up: "استسلم",
-    race_give_up_confirm: "تستسلم في اللغز ده؟ هتاخد 0 الجولة دي عشان الباقي يكمّلوا.",
+    race_giving_up: "بتستسلم… هتاخد 0 الجولة دي",
+    race_take_back: "رجّعني",
+    race_double: "الجولة الأخيرة بالدبل",
+    race_double_on: "بالدبل ×2",
+    race_double_off: "عادي",
+    race_double_hint: "نقط آخر جولة ×2، فمحدش بيخرج من السباق لحد الآخر.",
+    race_double_next: "الجولة الجاية الأخيرة، ونقطها بالدبل!",
+    race_double_now: "الجولة الأخيرة ×2",
     race_closing: "10 ثواني وتقفل!",
     race_watching: "انت بتتفرج السباق ده",
     race_round_over: "خلصت الجولة",
@@ -66,7 +82,14 @@ const RACE_TEXT = {
     race_you_lost: "💀 You lost this round",
     race_you_gave: "🏳️ You gave up this round",
     race_give_up: "Give up",
-    race_give_up_confirm: "Give up this puzzle? You score 0 this round so the others can finish.",
+    race_giving_up: "Giving up… 0 for this round",
+    race_take_back: "Take it back",
+    race_double: "The last round counts double",
+    race_double_on: "Double ×2",
+    race_double_off: "Normal",
+    race_double_hint: "The last round's points ×2, so nobody is out of it until the end.",
+    race_double_next: "The next round is the last, and it counts double!",
+    race_double_now: "Last round ×2",
     race_closing: "10 seconds and it closes!",
     race_watching: "You are watching this race",
     race_round_over: "Round over",
@@ -80,8 +103,11 @@ const raceName = (kind) => { const t = TRANSLATIONS[appState.lang] || {}; return
 /* --- the lobby: three things - the puzzle chosen, the rounds, the ending -------------- */
 
 function raceOpts() {
-  return recallOptions('raceRoom', { rounds: 3, finish: '' });
+  return recallOptions('raceRoom', { rounds: 3, finish: '', double: true });
 }
+
+/** 1185: the host's «الجولة الأخيرة بالدبل», on unless switched off. */
+const raceDoubleOpt = () => raceOpts().double !== false;
 
 /** The ending in force: the host's choice, else Fast 3 from five people (the owner). */
 function raceFinishOf(state) {
@@ -121,13 +147,18 @@ function raceLobbyHtml(kind, state) {
       ${mixSeg}
       ${seg(t.race_lobby_rounds || '', 'rounds', SV_RACE_ROUNDS.map(n => [n, String(n)]), SV_RACE_ROUNDS.indexOf(Number(o.rounds)) !== -1 ? o.rounds : 3)}
       ${seg(t.race_lobby_finish || '', 'finish', [['all', t.race_finish_all || ''], ['fast3', t.race_finish_fast3 || '']], finish, t[finish === 'fast3' ? 'race_finish_fast3_hint' : 'race_finish_all_hint'] || '')}
+      <div class="field">
+        <label class="field__label">${escapeHTML(svT('race_double'))}</label>
+        <div class="segmented" role="group">${[[true, svT('race_double_on')], [false, svT('race_double_off')]].map(v => `<button type="button" class="segmented__item ${v[0] === raceDoubleOpt() ? 'is-active' : ''}" onclick="setRaceOpt('double', ${v[0]})">${escapeHTML(v[1])}</button>`).join('')}</div>
+        <p class="field__hint">${escapeHTML(svT('race_double_hint'))}</p>
+      </div>
       ${clockLine}
     </div>`;
 }
 
 function raceStartPayload(kind) {
   const o = raceOpts();
-  return { rounds: SV_RACE_ROUNDS.indexOf(Number(o.rounds)) !== -1 ? o.rounds : 3, finish: raceFinishOf(Room.state), lang: contentLang() };
+  return { rounds: SV_RACE_ROUNDS.indexOf(Number(o.rounds)) !== -1 ? o.rounds : 3, finish: raceFinishOf(Room.state), lang: contentLang(), double: raceDoubleOpt() };
 }
 
 /* --- «خماسي السهرة»: a different puzzle every round (the owner, 2 Oct 2026) ------------------
@@ -264,6 +295,38 @@ function raceNextSpin(el) {
   spinLetter(name, raceName(id), SV_RACE_IDS.map(raceName), land);
 }
 
+/* --- 1185: the last round counts double ------------------------------------------------ */
+
+/** The race's last round with the switch on: as the server decides it (svRaceDouble, RoomSolve.js). */
+const raceIsDouble = (s) => typeof svRaceDouble === 'function' ? svRaceDouble(s) : !!(s && s.race && s.settings && s.settings.double !== false && s.rounds > 1 && s.round >= s.rounds);
+
+/** The «×2» badge on the last round's head (a phone's, or the TV's pill). */
+function raceDoubleBadge(s, tv) {
+  if (!raceIsDouble(s)) return '';
+  return tv ? `<span class="tv-pill race-double-pill">🔥 ${escapeHTML(svT('race_double_now'))}</span>` : `<span class="badge badge--warning">🔥 ×2</span>`;
+}
+
+/** Between the last round but one and the last: «الجولة الجاية الأخيرة، ونقطها بالدبل!», ×2 spinning in once. */
+function raceDoubleHtml(state, tv) {
+  const s = state.shared || {};
+  if (s.phase !== 'result' || !s.race || !s.settings || s.settings.double === false || s.round !== s.rounds - 1) return '';
+  const spin = motionFirst(['race-double', state.code, s.dealId, s.round, tv ? 'tv' : 'p'].join('|')) && !motionOff();
+  const html = `<div class="card race-double ${spin ? 'is-in' : ''}" ${spin ? 'data-race-double="1"' : ''}>
+      <b class="race-double__x metric" dir="ltr">${spin ? '&nbsp;' : '×2'}</b>
+      <span class="race-double__line">🔥 ${escapeHTML(svT('race_double_next'))}</span>
+    </div>`;
+  return tv ? `<div class="tv-scale">${html}</div>` : html;
+}
+
+/** The ×2 runs through the multipliers and lands, with a buzz. */
+function raceDoubleSpin(el) {
+  const card = el && el.querySelector('[data-race-double]');
+  if (!card) return;
+  delete card.dataset.raceDouble;
+  const x = card.querySelector('.race-double__x');
+  spinLetter(x, '×2', ['×1', '×2', '×3', '×4', '×5', '×10'], () => { haptic('double'); playSound('success'); });
+}
+
 /* --- a move, and giving up ------------------------------------------------------------ */
 
 /**
@@ -290,14 +353,63 @@ async function raceMove(kind, payload) {
   return true;
 }
 
-function raceGiveUp(sure) {
+/**
+ * «استسلم» (1184, the owner's picks of 7 Oct 2026): a button stands for something said, so it can be
+ * taken back - the give-up is held here for 3 seconds with «رجّعني» before it goes to the server
+ * (which counts it at once when it arrives). A new round, a deal or the board finishing drops it.
+ */
+const raceGiveKey = (st) => [st.code, (st.shared || {}).dealId || '', (st.shared || {}).round].join('|');
+
+function raceGiveUp() {
   const st = Room.state;
   const s = (st && st.shared) || {};
-  if (!st || !s.race || s.phase !== 'solving' || !st.you || st.you.state !== 'play') return;
-  const t = TRANSLATIONS[appState.lang] || {};
-  if (!sure) { showConfirmModal(t.race_give_up_confirm || '', () => raceGiveUp(true)); return; }
+  if (!st || !s.race || s.phase !== 'solving' || !st.you || st.you.state !== 'play' || raceRoom.giving) return;
   haptic('medium');
-  roomAct('giveUp', { round: Number(s.round) || 0 });
+  const key = raceGiveKey(st);
+  const round = Number(s.round) || 0;
+  raceRoom.giving = {
+    key: key,
+    timer: setTimeout(() => {
+      const g = raceRoom.giving;
+      raceRoom.giving = null;
+      const now = Room.state;
+      raceGiveUpPaint();
+      if (!g || g.key !== key || !now || raceGiveKey(now) !== key || (now.shared || {}).phase !== 'solving' || !now.you || now.you.state !== 'play') return;
+      roomAct('giveUp', { round: round });
+    }, RACE_GIVE_UP_HOLD_MS)
+  };
+  raceGiveUpPaint();
+}
+
+/** «رجّعني»: the give-up being held is dropped, and the board plays on. */
+function raceGiveUpCancel() {
+  if (!raceRoom.giving) return;
+  clearTimeout(raceRoom.giving.timer);
+  raceRoom.giving = null;
+  haptic('light');
+  raceGiveUpPaint();
+}
+
+/** The button, or while a give-up is held the line with its 3-second bar and «رجّعني». */
+function raceGiveUpHtml(state) {
+  const you = state.you || {};
+  const s = state.shared || {};
+  if (!you.board || you.state !== 'play' || s.phase !== 'solving') return '';
+  const t = TRANSLATIONS[appState.lang] || {};
+  if (raceRoom.giving && raceRoom.giving.key === raceGiveKey(state)) {
+    return `<div class="race-giving" role="status">
+        <span class="race-giving__line">🏳️ ${escapeHTML(svT('race_giving_up'))}</span>
+        <span class="race-giving__bar" aria-hidden="true"><i style="--hold:${RACE_GIVE_UP_HOLD_MS}ms"></i></span>
+        <button type="button" class="btn btn--primary btn--sm btn--auto" onclick="raceGiveUpCancel()">↩️ ${escapeHTML(svT('race_take_back'))}</button>
+      </div>`;
+  }
+  return `<button type="button" class="btn btn--ghost btn--sm btn--auto race-giveup" onclick="raceGiveUp()">🏳️ ${escapeHTML(t.race_give_up || '')}</button>`;
+}
+
+function raceGiveUpPaint() {
+  const st = Room.state;
+  const html = st ? raceGiveUpHtml(st) : '';
+  document.querySelectorAll('[data-race-giveup]').forEach(box => { if (box._html !== html) { box.innerHTML = html; box._html = html; } });
 }
 
 /* --- the strip: everyone's progress, one row each ----------------------------------------- */
@@ -355,7 +467,7 @@ function raceResultHtml(kind, state, tv) {
         ${typeof x.score === 'number' && x.score > 0 && ui.scoreLabel ? `<small class="tx-muted">${escapeHTML(ui.scoreLabel(x.score, t))}</small>` : ''}</span>
       <b class="metric">${x.pts ? '+' + x.pts : '0'}</b></li>`).join('');
   return `<div class="card card--accent sv-result race-result ${tv ? 'sv-result--tv' : ''} ${turn ? 'is-turning' : ''}" ${turn ? `data-reveal-ms="${reveal ? 700 : 100}"` : ''}>
-      <p class="eyebrow">${raceIcon(kind)} ${escapeHTML(t.race_round_over || '')}</p>
+      <p class="eyebrow">${raceIcon(kind)} ${escapeHTML(t.race_round_over || '')}${r.double ? ' · 🔥 ×2' : ''}</p>
       ${reveal ? `<div class="sv-result__secret">${reveal}</div>` : ''}
       <ul class="sv-results">${rows}</ul>
     </div>`;
@@ -377,6 +489,9 @@ function racePaintLive(el, kind, state) {
   put('[data-race-progress]', raceRowsHtml(kind, state, false));
   put('[data-race-closing]', raceClosingHtml(state));
   put('[data-sv-host]', roomHostRow(raceHostButtons(state)));
+  // 1184: a give-up held for another round (or a board that finished meanwhile) goes.
+  if (raceRoom.giving && (raceRoom.giving.key !== raceGiveKey(state) || (state.you || {}).state !== 'play')) { clearTimeout(raceRoom.giving.timer); raceRoom.giving = null; }
+  put('[data-race-giveup]', raceGiveUpHtml(state));
   refreshRoomPlayerStrip(el, state);
   svTickClock(state);
 }
@@ -404,6 +519,7 @@ function raceRender(kind, state) {
   const ui = RACE_UI[kind];
   const head = `<div class="cn-score race-head"><span class="cn-score__role">${raceIcon(kind)} ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
       <span class="badge">${escapeHTML(t[s.settings && s.settings.finish === 'fast3' ? 'race_finish_fast3' : 'race_finish_all'] || '')}</span>
+      ${raceDoubleBadge(s, false)}
       ${s.endsAt && s.phase === 'solving' ? '<span class="badge badge--accent" data-sv-clock></span>' : ''}</div>${raceMixStripHtml(state)}`;
   const rebuilt = renderRoomFrame(el, raceSig(state), () => {
     if (s.phase === 'gameover') {
@@ -423,6 +539,7 @@ function raceRender(kind, state) {
     if (s.phase === 'result') {
       return `<div class="sv-room race-room">${head}
           ${raceResultHtml(kind, state)}
+          ${raceDoubleHtml(state)}
           ${raceNextHtml(state)}
           ${renderScoreboard(s.board)}
           ${roomMoveOnHtml(state,
@@ -451,7 +568,7 @@ function raceRender(kind, state) {
           <div class="sv-layout__side">
             <div data-race-progress></div>
             <div data-sv-host></div>
-            ${you.board && you.state === 'play' ? `<button type="button" class="btn btn--ghost btn--sm btn--auto race-giveup" onclick="raceGiveUp()">🏳️ ${escapeHTML(t.race_give_up || '')}</button>` : ''}
+            <div class="race-giveup-box" data-race-giveup></div>
             ${renderRoomPlayerStrip(state)}
           </div>
         </div>
@@ -507,6 +624,7 @@ function raceAfter(el, kind, state) {
   if (s.phase === 'result' || s.phase === 'gameover') {
     // «خماسي السهرة»: the next puzzle is announced once the result has turned over.
     if (el.querySelector('[data-race-spin]')) afterReveal(el, () => raceNextSpin(el));
+    if (el.querySelector('[data-race-double]')) afterReveal(el, () => raceDoubleSpin(el));
     const card = el.querySelector('.race-result');
     const row = el.querySelector(`[data-pid="${CSS.escape(Room.me || '')}"]`);
     if (gain > 0 && card && row && typeof flyPoints === 'function') afterReveal(el, () => flyPoints('+' + gain, card.getBoundingClientRect(), row));
@@ -520,7 +638,10 @@ function raceAfter(el, kind, state) {
 function raceStageClear() {
   document.querySelectorAll('[data-race-stage]').forEach(el => { el.innerHTML = ''; });
 }
-onRoomClocksReset(() => { raceStageClear(); raceRoom.seen = {}; });
+onRoomClocksReset(() => {
+  raceStageClear(); raceRoom.seen = {};
+  if (raceRoom.giving) { clearTimeout(raceRoom.giving.timer); raceRoom.giving = null; }
+});
 if (typeof onLeaveScreen === 'function') {
   onLeaveScreen((from) => { if (String(from).indexOf('room-') === 0 && SV_RACE_IDS.indexOf(from.slice(5)) !== -1) raceStageClear(); });
 }
@@ -583,6 +704,7 @@ function raceTvFrame(kind, state, t) {
       <span class="race-tv__chips">
         <span class="tv-pill">${raceIcon(kind)} ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>
         <span class="tv-pill">${escapeHTML(t[fast3 ? 'race_finish_fast3' : 'race_finish_all'] || '')}</span>
+        ${raceDoubleBadge(s, true)}
       </span>
       ${s.endsAt && s.phase === 'solving' ? '<span class="race-tv__clock metric" dir="ltr" data-sv-clock="mmss"></span>' : ''}
     </div>${raceMixStripHtml(state, true)}`;
@@ -595,7 +717,7 @@ function raceTvFrame(kind, state, t) {
   }
   if (s.phase === 'result') {
     return `<div class="tv-trivia" data-accent="${accent}">${top}
-        <div class="tv-center sv-tv-result">${raceResultHtml(kind, state, true)}${raceNextHtml(state, true)}</div>
+        <div class="tv-center sv-tv-result">${raceResultHtml(kind, state, true)}${raceDoubleHtml(state, true)}${raceNextHtml(state, true)}</div>
         ${moveOn([[svT('sv_next_round'), `roomAct('nextRound', { round: ${Number(s.round) || 0} })`]])}
       </div>`;
   }
@@ -623,6 +745,7 @@ function raceTvAfter(state, rebuilt) {
   svTickClock(state);
   const el = document.getElementById('view-room-tv');
   if (rebuilt && el && el.querySelector('[data-race-spin]')) afterReveal(el, () => raceNextSpin(el));
+  if (rebuilt && el && el.querySelector('[data-race-double]')) afterReveal(el, () => raceDoubleSpin(el));
 }
 
 SV_RACE_IDS.forEach(kind => {

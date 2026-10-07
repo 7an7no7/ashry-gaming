@@ -61,6 +61,7 @@ gameText({
                 <li><b>واحد يختار</b> رقم من المدى اللي اختاره المضيف (1-50 أو 1-100 أو 1-1000)، والباقي كل واحد يخمّنه على موبايله: أعلى ولا أقل. محدش بيشوف تخمينات التاني.</li>
                 <li><b>سباق</b>: التطبيق بيختار رقم للكل.</li>
                 <li>المحاولات على قد المدى (8، 9، أو 12). اللي يوصله ياخد 10، والأول +5، التاني +4… واللي اختاره ياخد 5 عن كل واحد ماوصلوش. لو متعادلين، المحاولات الأقل تسبق.</li>
+                <li>🏆 <b>أصعب لغز الليلة</b>: في الآخر، اللغز اللي أخد أكتر محاولات بيرجع يظهر، واللي حطّه بيتتوّج.</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -79,6 +80,7 @@ gameText({
                 <li><b>One sets</b> a number in the host's range (1-50, 1-100 or 1-1000) and everyone else finds it on their own phone: higher or lower. Nobody sees anyone else's guesses.</li>
                 <li><b>Race</b>: the app picks a number for everyone.</li>
                 <li>The tries fit the range (8, 9 or 12). Finding it is 10 points, +5 for the first, +4 for the second…; the setter scores 5 for everyone who misses it. On a tie, fewer tries ranks higher.</li>
+                <li>🏆 <b>The hardest one tonight</b>: at the end, the secret that took the most tries is shown again and its setter crowned.</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

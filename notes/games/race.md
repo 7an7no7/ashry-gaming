@@ -214,6 +214,11 @@ How it is built:
   - The next puzzle is announced on the result screen (beside «اللي بعده»), not as a splash over the new
     round, so nobody loses solving time; the header of a TV still names the room's game.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built - part two
+
+- **(1184) «استسلم» can be taken back.** A tap holds the give-up on the phone for 3 seconds (`RACE_GIVE_UP_HOLD_MS`) with «🏳️ بتستسلم… هتاخد 0 الجولة دي», a bar emptying (scaleX) and «↩️ رجّعني» (`raceGiveUp`, `raceGiveUpCancel`, `raceGiveUpHtml`, painted in place in `[data-race-giveup]` by `racePaintLive`); only then is `giveUp` sent. The old confirm is gone (the hold replaces it). A new round or deal, a board that finished, or the room moving on drops the hold (`raceRoom.giving`, keyed on code|deal|round). The server is unchanged: a give-up that arrives still counts at once.
+- **(1185) The last round counts double** - the owner: a lobby switch, ON by default. «الجولة الأخيرة بالدبل» (بالدبل ×2 / عادي) in the host's race options, remembered with the others (`raceOpts().double`, sent as `double` in the start payload). The server's `settings.double` (RoomSolve.js `svOptions`: anything but `false` keeps it on, play again keeps it) and `svRaceDouble(s)`: in the race's last round every finisher's points ×2 - «الكل يخلّص»'s 10 + bonus and Fast 3's 10/7/5 and the grace's 2 alike - and `result.double`. Between the last round but one and the last, the phones and the TV show «الجولة الجاية الأخيرة، ونقطها بالدبل!» with ×2 spinning in through ×1…×10 (`raceDoubleHtml`, `raceDoubleSpin` via `spinLetter`, after the result turns); the last round's head carries «🔥 ×2» (the TV a pill), its result «🔥 ×2». The rules line is in `RACE_MIX_RULE` (app/JS_GameRules.html), shown in each puzzle's race rules. Tests: rules.mjs «race/double».
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

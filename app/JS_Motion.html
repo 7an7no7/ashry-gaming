@@ -294,10 +294,15 @@ function playRoomGameStart(state) {
   const el = document.createElement('div');
   el.className = 'game-splash' + (state.youAreScreen ? ' game-splash--tv' : '');
   el.setAttribute('data-accent', hub.accent || 'violet');
+  // The game's one line from the catalog under its name (the ideas of 7 Oct 2026, 1318), so the
+  // round starts with everyone knowing the aim; the splash then holds 1.5 s longer to read it.
+  const cat = typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[state.game === 'chess' ? 'shatranj' : state.game] : null;
+  const line = cat && cat.desc ? (t[cat.desc] || '') : '';
   el.innerHTML =
     '<div class="game-splash__card">' +
       '<span class="game-splash__icon" aria-hidden="true">' + iconHtml(hub.icon) + '</span>' +
       '<span class="game-splash__name">' + escapeHTML(t[hub.key] || '') + '</span>' +
+      (line ? '<span class="game-splash__line">' + escapeHTML(line) + '</span>' : '') +
     '</div>';
   document.body.appendChild(el);
   const icon = el.querySelector('.game-splash__icon');
@@ -319,8 +324,10 @@ function playRoomGameStart(state) {
     setTimeout(() => el.remove(), fast ? 180 : 420);
   };
   el.addEventListener('click', () => leave(true));
-  setTimeout(() => leave(false), 950);
+  setTimeout(() => leave(false), line ? GAME_SPLASH_LINE_MS : 950);
 }
+// How long the splash stays with its line (950 ms as before, and 1.5 s to read the line).
+const GAME_SPLASH_LINE_MS = 2450;
 
 /* --- 2b. A list rearranges; it does not redraw ------------------------------
    Every catalog in the app filters by toggling .hidden, which is display:none:
@@ -939,6 +946,56 @@ function podCastDress(root) {
     });
   });
 }
+/* «🔮 توقعوها» on the podium (the ideas of 7 Oct 2026, 1308): in a room, the people whose «مين
+   هيكسب؟» named the winner stand under the podium as small 🔮 chips, on the phones and the TV;
+   the first time, each 🔮 flies from the winner's step to its chip (flyEmoji) once the podium has
+   risen. Read from the room's own state (state.predict: who picked whom, public), against the
+   names on the podium's first step, so every game's podium gets it with no change of its own;
+   the chat's line stays. A redraw shows them settled (motionFirst). */
+function podCalledDress(root) {
+  const state = typeof Room !== 'undefined' ? Room.state : null;
+  const p = state && state.predict;
+  if (!p || p.game !== state.game || !p.picks || typeof onRoomView !== 'function' || !onRoomView()) return;
+  const list = [];
+  if (root.matches && root.matches('.podium, .tv-podium')) list.push(root);
+  list.push(...root.querySelectorAll('.podium, .tv-podium'));
+  list.forEach((pod) => {
+    if (pod.dataset.called) return;
+    pod.dataset.called = '1';
+    const small = pod.classList.contains('podium');
+    const firsts = [...pod.querySelectorAll(small ? ':scope > .podium__place--rank1' : ':scope > .tv-podium__place--1')];
+    const names = firsts.map((x) => ((x.querySelector(small ? '.podium__name' : '.tv-podium__name') || {}).textContent || '').replace(/[⁦-⁩‎‏]/g, '').trim()).filter(Boolean);
+    if (!names.length) return;
+    const nameOf = (id) => ((state.players || []).find((x) => x.id === id) || {}).name || '';
+    const right = Object.keys(p.picks).filter((v) => {
+      const won = nameOf(p.picks[v]);
+      return won && nameOf(v) && names.some((n) => samePlayer(n, won));
+    });
+    if (!right.length) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const box = document.createElement('div');
+    box.className = 'pod-called' + (small ? '' : ' pod-called--tv');
+    box.innerHTML = `<span class="pod-called__lbl">🔮 ${escapeHTML(t.pod_called || '')}</span>` +
+      right.map((v) => `<span class="pod-called__chip"><span class="pod-called__orb" aria-hidden="true">🔮</span><bdi>${escapeHTML(nameOf(v))}</bdi></span>`).join('');
+    pod.insertAdjacentElement('afterend', box);
+    const fly = motionFirst(['called', roomDealKey(state), state.game, right.join(',')].join('|')) && !motionOff();
+    if (!fly) return;
+    const chips = [...box.querySelectorAll('.pod-called__chip')];
+    chips.forEach((c) => c.classList.add('is-pending'));
+    const wait = (Number(pod.dataset.revealMs) || 0) + 250;
+    chips.forEach((c, i) => {
+      setTimeout(() => {
+        if (!c.isConnected) return;
+        const from = firsts[0].getBoundingClientRect();
+        const orb = c.querySelector('.pod-called__orb');
+        const flew = from.width > 0 && flyEmoji('🔮', from, Math.max(24, Math.min(64, from.width / 3)), orb, { duration: 620, arc: 36 });
+        // Shown as it lands, and by a timer whatever happens (GEMINI.md: never only the animation's end).
+        setTimeout(() => c.classList.remove('is-pending'), flew ? 560 : 0);
+      }, wait + i * 200);
+    });
+  });
+}
+
 // Any podium put into the page is dressed before it is painted (a MutationObserver runs as a microtask).
 function podCastWatch() {
   if (typeof MutationObserver !== 'function' || !document.body) return;
@@ -947,7 +1004,10 @@ function podCastWatch() {
       for (const n of r.addedNodes) {
         if (n.nodeType !== 1) continue;
         if (n.classList.contains('podium') || n.classList.contains('tv-podium') ||
-            n.getElementsByClassName('podium').length || n.getElementsByClassName('tv-podium').length) podCastDress(n);
+            n.getElementsByClassName('podium').length || n.getElementsByClassName('tv-podium').length) {
+          podCastDress(n);
+          try { podCalledDress(n); } catch (e) {}
+        }
       }
     }
   }).observe(document.body, { childList: true, subtree: true });

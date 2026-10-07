@@ -307,6 +307,20 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
     watches - other games add nothing yet.
   - Tests: `rules.mjs` («program numbers»: the buzzer's 10 judged questions and 20 presses).
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **1328, the share card shows the night** (no extra rule asked). «ابعت صورة السهرة» (`progShare`)
+  passes the line-up as `games: [{ icon, name }]`: every game played (skipped ones left out), in
+  order, its icon with its winner's name under it (`progLineupWinners`: the first places of
+  `program.done[].places`, named from `program.names`; two at most when tied; a co-op game 🤝).
+  The share card (`drawShareNightStrip`, app/JS_ShareCard.html) draws an item that is an object
+  as its icon (up to 96px) and the name under it, fitted to its column; an item that is a string
+  (the room's night card, 1268) is drawn as before. The plain-text fallback gets the line-up as
+  «🕵️ منى · 🧠 كريم».
+- **1323**: a room running the program shares `/r/CODE?p=<games>`, whose preview says «سهرة الليلة:
+  ٥ ألعاب» (`notes/previews-errors.md`). **1313** (the night's table after every game) is not shown
+  while a program runs: its own table between games is the same moment.
+
 ## Not done
 
 - The program's awards as crew titles (the crew reads and shows them; they don't count

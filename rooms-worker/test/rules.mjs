@@ -12,6 +12,7 @@ import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION
 import { humSongIndexOf, AUTONEXT_GAMES } from '../generated/rules.js';
 import { nextPrompts, programPlaces, laserTrace, laserFit, laserInside, laserTiles, laserTileAt, LASER_MAPS, LASER_BODY, LASER_PILLAR_R } from '../generated/rules.js';
 import { moveMerge, moveCollect, moveFit, moveExpired, MOVE_TTL_MS, MOVE_MAX_BYTES, MOVE_KEYS } from '../generated/rules.js';
+import { roomSeatAway, roomClaimsPrune, roomClaimsView, roomClaimAsk, roomClaimAnswer, roomClaimTake, SEAT_CLAIM_AWAY_MS, SEAT_CLAIM_MS } from '../generated/rules.js';
 import srcMod from '../../tools/sources.cjs';
 const { srcPath } = srcMod;
 let failed = 0;
@@ -18217,6 +18218,74 @@ console.log('• the secret mission');
   applyRoomAction(r, 'a', 'start', { lang: 'ar', count: 5 });
   applyRoomAction(r, 'a', 'lobbySum', { game: 'trivia', text: 'mid-game' });
   check(r.lobbySum.text === '5', 'lobbySum: nothing changes once the game is dealt');
+}
+
+/* «ده أنا» (the ideas of 7 Oct 2026, 1272 + 1278): a seat asked back, answered by the host
+   (or anyone seated once the host is away 20 s), given with a fresh key. */
+{
+  console.log('\nTaking your own seat back («ده أنا»)');
+  const throws = (fn) => { try { fn(); return ''; } catch (e) { return String(e.message || e); } };
+  const r = newRoom(['h', 'mona', 'b']);
+  r.players[1].name = 'مُنى';
+  r.players.push({ id: 'bot1', name: 'روبوت', bot: 1 });
+  r.keys = { h: 'kh', mona: 'km', b: 'kb' };
+  const now = clock;
+  const online = new Set(['h', 'b']);
+  r.lastSeen = { mona: now - 30000 };
+  check(!roomSeatAway(r, 'mona', online, now), 'a seat gone 30 s is not asked for yet');
+  check(/متصل/.test(throws(() => roomClaimAsk(r, 'منى', online, now, 'c1', 'tok1'))), 'asking for it then is refused');
+  r.lastSeen.mona = now - SEAT_CLAIM_AWAY_MS - 1000;
+  check(roomSeatAway(r, 'mona', online, now), 'a seat gone over a minute can be asked for');
+  check(!roomSeatAway(r, 'h', online, now) && !roomSeatAway(r, 'bot1', online, now), 'never a seat whose phone is here, never a computer player');
+  check(throws(() => roomClaimAsk(r, 'سامي', online, now, 'cx', 'tx')) === 'CLAIM_NONE', 'a name nobody has: nothing to ask (the phone joins as anyone)');
+  const c = roomClaimAsk(r, 'منى', online, now, 'c1', 'tok1');
+  check(c.seat === 'mona' && c.name === 'مُنى' && c.status === 'pending', 'the name is matched as a join folds it (منى = مُنى)');
+  const view = roomClaimsView(r, now);
+  check(view.length === 1 && view[0].seat === 'mona' && view[0].name === 'مُنى' &&
+    JSON.stringify(view).indexOf('tok1') === -1 && Object.keys(view[0]).sort().join() === 'at,id,name,seat',
+    'every phone sees whose seat and the name - never the token');
+  roomClaimAsk(r, 'منى', online, now + 10, 'c2', 'tok2');
+  check(roomClaimsView(r, now + 10).length === 1 && roomClaimsView(r, now + 10)[0].id === 'c2', 'asking again for the same seat replaces the first ask');
+  check(roomClaimTake(r, 'c2', 'wrong', now + 20) === null, 'the answer goes only to the phone with the ask\'s token');
+  check(roomClaimTake(r, 'c2', 'tok2', now + 20).status === 'pending', 'unanswered: the phone keeps waiting');
+  check(/للمضيف/.test(throws(() => roomClaimAnswer(r, 'b', 'c2', true, online, now + 30, 5000, 'NEWKEY'))), 'someone else can\'t answer while the host is here');
+  check(/للمضيف/.test(throws(() => roomClaimAnswer(r, 'bot1', 'c2', true, online, now + 30, 60000, 'NEWKEY'))), 'a computer player never answers');
+  const chatBefore = (r.chat || []).length;
+  const yes = roomClaimAnswer(r, 'h', 'c2', true, online, now + 40, 0, 'NEWKEY');
+  check(yes && yes.status === 'yes' && r.keys.mona === 'NEWKEY', 'the host says yes: the seat gets a fresh key (the old one stops working)');
+  check((r.chat || []).length === chatBefore + 1 && r.chat[r.chat.length - 1].sys === 'back', 'the chat says it');
+  check(roomClaimsView(r, now + 40).length === 0, 'the question goes from every phone');
+  check(roomClaimAnswer(r, 'h', 'c2', true, online, now + 50, 0, 'OTHER') === null && r.keys.mona === 'NEWKEY', 'a second tap does nothing');
+  const got = roomClaimTake(r, 'c2', 'tok2', now + 60);
+  check(got && got.status === 'yes' && got.key === 'NEWKEY' && got.seat === 'mona', 'the asking phone gets the seat and its key');
+  check(roomClaimTake(r, 'c2', 'tok2', now + 70) === null, 'and only once');
+
+  // The host's own phone died: anyone seated may answer once the host has been away 20 s.
+  r.lastSeen.h = now - 90000;
+  const online2 = new Set(['b', 'mona']);
+  const c3 = roomClaimAsk(r, 'H', online2, now + 100, 'c3', 'tok3');
+  check(c3.seat === 'h', 'the host\'s own seat can be asked for');
+  check(/للمضيف/.test(throws(() => roomClaimAnswer(r, 'b', 'c3', true, online2, now + 110, 10000, 'K3'))), 'the host away 10 s: not yet');
+  const no = roomClaimAnswer(r, 'b', 'c3', false, online2, now + 120, 90000, 'K3');
+  check(no && no.status === 'no' && r.keys.h === 'kh', 'the host away 20 s: anyone seated may answer - «لأ» changes nothing');
+  check(roomClaimTake(r, 'c3', 'tok3', now + 130).status === 'no', 'and the asking phone hears no');
+
+  // The seat's own phone came back before the answer: the seat isn't given away.
+  const c4 = roomClaimAsk(r, 'H', online2, now + 200, 'c4', 'tok4');
+  const back = new Set(['b', 'mona', 'h']);
+  const ans = roomClaimAnswer(r, 'b', c4.id, true, back, now + 210, 90000, 'K4');
+  check(ans.status === 'no' && r.keys.h === 'kh', 'its own phone back meanwhile: the answer is no, whatever was pressed');
+
+  // An ask nobody answers lapses.
+  r.lastSeen.h = now - 90000;
+  roomClaimAsk(r, 'H', online2, now + 300, 'c5', 'tok5');
+  check(roomClaimsView(r, now + 300 + SEAT_CLAIM_MS + 1).length === 0, 'an unanswered ask disappears after 3 minutes');
+  check(roomClaimsPrune(r, now + 300 + SEAT_CLAIM_MS + 1) && roomClaimTake(r, 'c5', 'tok5', now + 300 + SEAT_CLAIM_MS + 2) === null, 'and is gone for its phone too');
+  // Four asks at once at most.
+  ['a1', 'a2', 'a3', 'a4', 'a5'].forEach((id) => { r.players.push({ id, name: 'N' + id }); r.lastSeen[id] = now - 90000; });
+  const t2 = now + 400000;
+  ['a1', 'a2', 'a3', 'a4'].forEach((id, i) => roomClaimAsk(r, 'N' + id, online2, t2, 'k' + i, 't' + i));
+  check(/استنى/.test(throws(() => roomClaimAsk(r, 'Na5', online2, t2, 'k9', 't9'))), 'no more than four asks waiting in one room');
 }
 
 Date.now = realNow;

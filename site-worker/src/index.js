@@ -11,12 +11,16 @@
  *                           og/app.jpg, then straight on to /?room=ABCD
  *   /r/ABCD?g=imposter   -> «تعالى نلعب الجاسوس - الغرفة ABCD» and og/imposter.jpg
  *   /r/ABCD?l=en         -> the same in English (the sharer's phone was in English)
+ *   /r/ABCD?p=5          -> a room running برنامج السهرة: «سهرة الليلة: ٥ ألعاب - الغرفة ABCD»
+ *   /r/ABCD?c=1&n=<name> -> a room opened «للشلة»: «سهرة الشلة «<name>» - الغرفة ABCD»
+ *                           (both from the sharer's phone, in the link; the ideas of 7 Oct 2026, 1323)
  *
  *   /s/ABCDEF?n=<name>   -> «الشلة»'s link: «انضم لشلة <name> على عشرى جيمينج», then /?crew=ABCDEF
  *                           (the name comes from the sharer's phone, in the link; nothing is looked up)
  *
  * A browser goes on at once (a meta refresh, and location.replace so /r/ABCD
- * isn't left in its history). A phone that has the app is sent on by the app's
+ * isn't left in its history); a webview that blocks both still shows the code big
+ * and a button that goes in (1322). A phone that has the app is sent on by the app's
  * own service worker before it even asks (sw.js). The names come from
  * docs/og/games.json (tools/make-og.mjs), read through the assets binding: a
  * new room game needs no change here. Nothing is stored and nothing is logged.
@@ -43,9 +47,14 @@ async function games(env, origin) {
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function page({ lang, title, desc, image, alt, url, target, site }) {
+function page({ lang, title, desc, image, alt, url, target, site, code, cta }) {
   const t = esc(title), d = esc(desc), i = esc(image), u = esc(url), g = esc(target);
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
+  // What a person sees if the redirect is blocked (an in-app browser that ignores the refresh):
+  // the code big, and a button as tall as the app's own (48px) that goes in.
+  const body = code
+    ? `<main><p class="c" dir="ltr">${esc(code)}</p><a class="b" href="${g}">${esc(cta || title)}</a><p class="t">${t}</p></main>`
+    : `<p><a href="${g}">${t}</a></p>`;
   return `<!doctype html>
 <html lang="${lang}" dir="${dir}">
 <head>
@@ -73,9 +82,9 @@ function page({ lang, title, desc, image, alt, url, target, site }) {
 <meta name="theme-color" content="#4c1d95">
 <meta http-equiv="refresh" content="0;url=${g}">
 <script>location.replace(${JSON.stringify(target)});</script>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#2e1065;color:#fff;font:600 18px system-ui,sans-serif}a{color:#fbbf24}</style>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#2e1065;color:#fff;font:600 18px system-ui,sans-serif;padding:16px;box-sizing:border-box}a{color:#fbbf24}main{display:grid;justify-items:center;gap:16px;text-align:center;max-width:28rem}.c{margin:0;font:800 64px/1 system-ui,sans-serif;letter-spacing:.12em}.b{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 28px;border-radius:14px;background:#fbbf24;color:#2e1065;font-weight:800;font-size:20px;text-decoration:none}.t{margin:0;color:rgba(255,255,255,.8);font-size:16px}</style>
 </head>
-<body><p><a href="${g}">${t}</a></p></body>
+<body>${body}</body>
 </html>`;
 }
 
@@ -97,19 +106,31 @@ async function roomPage(request, env, url) {
   const game = GAME.test(gameId) ? data.games[gameId] : null;
   const site = data.app[lang] || data.app.ar;
   const gameName = game && (game[lang] || game.ar);
+  // A night rather than one game (1323): برنامج السهرة's number of games (?p=), or «الشلة» (?c=1, its name in ?n=).
+  const progN = Math.floor(Number(url.searchParams.get('p')));
+  const prog = progN >= 1 && progN <= 12 ? progN : 0;
+  const crew = url.searchParams.get('c') === '1';
+  const crewName = crew ? String(url.searchParams.get('n') || '').replace(/[\u0000-\u001f\u007f<>«»"]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 30) : '';
+  const arNum = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
 
   let title, desc;
   if (lang === 'en') {
-    title = gameName ? `Come play ${gameName} - room ${code}` : `Join room ${code} on ${site}`;
+    title = prog ? `Tonight's show: ${prog} game${prog === 1 ? '' : 's'} - room ${code}`
+      : crew ? `The crew's night${crewName ? ` “${crewName}”` : ''} - room ${code}`
+      : gameName ? `Come play ${gameName} - room ${code}` : `Join room ${code} on ${site}`;
     desc = `Open the link, type your name and you're in. Party games on your phones, free, nothing to install.`;
   } else {
-    title = gameName ? `تعالى نلعب ${gameName} - الغرفة ${code}` : `ادخل الغرفة ${code} على ${site}`;
+    title = prog ? `سهرة الليلة: ${arNum(prog)} ${prog >= 3 && prog <= 10 ? 'ألعاب' : 'لعبة'} - الغرفة ${code}`
+      : crew ? `سهرة الشلة${crewName ? ` «${crewName}»` : ''} - الغرفة ${code}`
+      : gameName ? `تعالى نلعب ${gameName} - الغرفة ${code}` : `ادخل الغرفة ${code} على ${site}`;
     desc = `افتح اللينك واكتب اسمك وتبقى معانا. ألعاب جماعية على الموبايلات، ببلاش ومن غير تحميل.`;
   }
-  const image = url.origin + '/og/' + (game && game.img ? game.img : 'app.jpg');
+  // A night's preview is the app's picture: no one game stands for it.
+  const image = url.origin + '/og/' + (game && game.img && !prog && !crew ? game.img : 'app.jpg');
   const target = url.origin + '/?room=' + code;
   const self = url.origin + '/r/' + code + (url.search || '');
-  return new Response(page({ lang, title, desc, image, alt: gameName || site, url: self, target, site }), {
+  const cta = lang === 'en' ? 'Join the room' : 'ادخل الغرفة';
+  return new Response(page({ lang, title, desc, image, alt: (!prog && !crew && gameName) || site, url: self, target, site, code, cta }), {
     headers: {
       'content-type': 'text/html; charset=utf-8',
       // The same for everyone who opens this link; a short while, since a room lives for hours.
@@ -143,7 +164,7 @@ async function crewPage(request, env, url) {
   }
   const target = url.origin + '/?crew=' + code;
   const self = url.origin + '/s/' + code + (url.search || '');
-  return new Response(page({ lang, title, desc, image: url.origin + '/og/app.jpg', alt: site, url: self, target, site }), {
+  return new Response(page({ lang, title, desc, image: url.origin + '/og/app.jpg', alt: site, url: self, target, site, code, cta: lang === 'en' ? 'Open the crew' : 'ادخل الشلة' }), {
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300', 'x-robots-tag': 'noindex' }
   });
 }

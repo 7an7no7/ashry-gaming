@@ -8,7 +8,7 @@
  * Hidden information stays behind: `secrets` leaves only as `you`, and only
  * for the player it belongs to; a screen is never sent one.
  */
-import { chatFor, missionView } from '../generated/rules.js';
+import { chatFor, missionView, roomClaimsView } from '../generated/rules.js';
 
 /** The night's leavers: pid -> name, for every id with night points who is no longer a player. */
 const nightLeftNames = (room) => {
@@ -43,6 +43,9 @@ export const roomView = (room, pid, online, extra) => {
         ? { id: p.id, name: p.name, online: online.has(p.id) }
         // Gone since when (the server's clock), for a clock that counts from it (the duels' «خسران غياب»).
         : { id: p.id, name: p.name, online: false, away: room.lastSeen[p.id] }))),
+    // «ده أنا» (1272): the asks for a seat back, waiting on the host (or anyone, the host away):
+    // whose seat, the name, since when - never the asking phone's token or the seat's new key.
+    claims: roomClaimsView(room, Date.now()),
     // Big screens showing the room. Not players: dealt nothing, counted nowhere.
     screens: screens.map((s) => ({ id: s.id, online: online.has(s.id) })),
     youAreScreen: isScreen,

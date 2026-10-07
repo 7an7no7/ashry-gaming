@@ -670,7 +670,8 @@ function statsNightsHtml(t) {
     });
   });
   const rows = Object.values(table).sort((a, b) => b.won - a.won || b.score - a.score).slice(0, 10);
-  const recent = nights.slice(-5).reverse();
+  // A past night opens its table and the games it played (1311): its place in the list is its key.
+  const recent = nights.map((n, i) => ({ n: n, i: i })).slice(-5).reverse();
   return `
     <div class="section__head" style="margin-bottom:var(--sp-2);margin-top:var(--sp-4)">
       <span class="section__emoji" aria-hidden="true">🌙</span>
@@ -682,9 +683,47 @@ function statsNightsHtml(t) {
         <span><b>${escapeHTML((t.stats_nights_won || '{n}').replace('{n}', r.won))}</b> · ${escapeHTML((t.stats_nights_pts || '{n}').replace('{n}', r.score))}</span></div>`).join('')}
     </div>
     <div class="card" style="margin-top:var(--sp-2)">
-      ${recent.map(n => `<div class="status-row"><span class="metric">${escapeHTML(statsNightDay(n.day))}</span>
-        <span>🏆 <bdi>${escapeHTML(n.board[0].name)}</bdi></span></div>`).join('')}
+      ${recent.map(({ n, i }) => `<button type="button" class="status-row stats-night-btn" onclick="statsNightOpen(${i})">
+        <span class="metric">${escapeHTML(statsNightDay(n.day))}</span>
+        <span>${statsNightIcons(n, 4)}🏆 <bdi>${escapeHTML(n.board[0].name)}</bdi> <span class="stats-night-btn__chev" aria-hidden="true">›</span></span></button>`).join('')}
     </div>`;
+}
+
+/** A night's games as their icons (the room's own icons), the first `max` of them; '' for a night kept before 1311. */
+function statsNightIcons(n, max) {
+  const games = (n && Array.isArray(n.games) ? n.games : []).filter((g, i, all) => all.indexOf(g) === i);
+  const hub = typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES : [];
+  const t = TRANSLATIONS[appState.lang] || {};
+  const icons = games.map(id => hub.find(g => g.id === id)).filter(Boolean).slice(0, max || 99)
+    .map(g => `<span class="stats-night-icon" title="${escapeHTML(t[g.key] || g.id)}">${iconHtml(g.icon)}</span>`);
+  return icons.length ? `<span class="stats-night-icons" aria-hidden="${max ? 'true' : 'false'}">${icons.join('')}</span>` : '';
+}
+
+/** «ليالينا»: a past night, tapped - its table and the games it played, in the room's small sheet. */
+function statsNightOpen(i) {
+  const n = (typeof readNights === 'function' ? readNights() : [])[i];
+  const body = document.getElementById('room-sheet-body');
+  const modal = document.getElementById('room-sheet-modal');
+  if (!n || !body || !modal) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const medals = ['🥇', '🥈', '🥉'];
+  const top = n.board[0] ? n.board[0].score : 0;
+  body.setAttribute('data-accent', 'indigo');
+  body.removeAttribute('data-accent-auto');
+  const games = statsNightIcons(n, 0);
+  body.innerHTML = `
+    <div class="modal-icon" aria-hidden="true">🌙</div>
+    <div class="sheet__title">${escapeHTML(String(t.stats_night_title || '').replace('{day}', statsNightDay(n.day)))}</div>
+    <div class="room-closed__table">
+      ${n.board.slice(0, 12).map((r, k) => `
+        <div class="room-closed__row"><span aria-hidden="true">${r.score === top ? '👑' : (medals[k] || '·')}</span> <bdi>${escapeHTML(r.name)}</bdi> <b class="metric">${Number(r.score) || 0}</b></div>`).join('')}
+    </div>
+    ${games ? `<div class="stats-night-games"><div class="eyebrow">${escapeHTML(t.stats_night_games || '')}</div>${games}</div>` : ''}
+    <div class="modal-actions">
+      <button type="button" class="btn btn--ghost" onclick="closeModal('room-sheet-modal')">${escapeHTML(t.close || t.cancel || '')}</button>
+    </div>`;
+  modal.classList.remove('hidden');
+  haptic('light');
 }
 
 soloRegister('stats', { setup: 'setup-stats', paintSetup: renderStats });

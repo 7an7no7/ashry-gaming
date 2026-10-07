@@ -205,6 +205,92 @@ const pushChat = (room, entry) => {
 const sameRoomName = (a, b) =>
   foldArabicLetters(a).replace(/\s+/g, ' ').trim() === foldArabicLetters(b).replace(/\s+/g, ' ').trim();
 
+/* --- «ده أنا»: taking your own seat back (the ideas of 7 Oct 2026, 1272 + 1278) ----------
+   A phone whose battery died or whose browser was cleared comes back with no key, and its
+   name is taken - by itself. Joining with that name, when that seat's phone has been gone
+   over a minute, may ask for the seat back: the asking phone waits, the host (or, the host
+   away 20 s, anyone seated who isn't a computer player) answers «منى رجعت؟ رجّعها مكانها»,
+   and on yes the phone is given that seat - its id, so its night points and place in the
+   game - with a fresh key: the old key stops working. room.js does the waiting and the keys
+   (claim, claimSeat); these decide. room._claims: [{ id, seat, name, at, token, status:
+   'pending' | 'yes' | 'no', key?, doneAt? }]; only the pending ones' id, seat, name and time
+   reach a phone (roomClaimsView), never a token or a key. */
+const SEAT_CLAIM_AWAY_MS = 60000;      // the seat's phone gone this long before it can be asked for
+const SEAT_CLAIM_MS = 3 * 60 * 1000;   // an ask unanswered this long lapses; an answer is kept this long for its phone
+const SEAT_CLAIM_MAX = 4;              // asks waiting at once in one room
+const SEAT_CLAIM_STAND_IN_MS = 20000;  // the host away this long: anyone seated may answer (HOST_STAND_IN_MS)
+
+/** Whether a seat's phone has been away long enough to be asked for. `online`: a Set of the ids connected. */
+const roomSeatAway = (room, pid, online, now) => {
+  const p = (room.players || []).find(x => x.id === pid);
+  if (!p || p.bot || (online && online.has(pid))) return false;
+  const seen = room.lastSeen && room.lastSeen[pid];
+  return !!seen && now - seen >= SEAT_CLAIM_AWAY_MS;
+};
+
+/** Drops the asks that lapsed and the answers nobody came for. True when anything went. */
+const roomClaimsPrune = (room, now) => {
+  const list = Array.isArray(room._claims) ? room._claims : [];
+  const keep = list.filter(c => (c.status === 'pending' ? now - c.at < SEAT_CLAIM_MS : now - (c.doneAt || c.at) < SEAT_CLAIM_MS));
+  if (keep.length === list.length) return false;
+  room._claims = keep;
+  return true;
+};
+
+/** What every phone is shown: the asks waiting (whose seat, the name, since when). */
+const roomClaimsView = (room, now) => (Array.isArray(room._claims) ? room._claims : [])
+  .filter(c => c.status === 'pending' && now - c.at < SEAT_CLAIM_MS && (room.players || []).some(p => p.id === c.seat))
+  .map(c => ({ id: c.id, seat: c.seat, name: c.name, at: c.at }));
+
+/** A phone asks for the seat named `rawName`. Returns the ask (its id and token go to that phone only) or throws. */
+const roomClaimAsk = (room, rawName, online, now, id, token) => {
+  const name = String(rawName || '').trim().slice(0, 24);
+  const p = (room.players || []).find(x => !x.bot && sameRoomName(x.name, name));
+  if (!p) throw new Error('CLAIM_NONE');
+  if (!roomSeatAway(room, p.id, online, now)) throw new Error('الاسم ده لسه متصل في الغرفة، اختار اسم تاني');
+  roomClaimsPrune(room, now);
+  // A second ask for the same seat (its phone tried again) replaces the first.
+  room._claims = (room._claims || []).filter(c => !(c.status === 'pending' && c.seat === p.id));
+  if (room._claims.filter(c => c.status === 'pending').length >= SEAT_CLAIM_MAX) throw new Error('استنى شوية وجرب تاني');
+  const c = { id: String(id), seat: p.id, name: p.name, at: now, token: String(token), status: 'pending' };
+  room._claims.push(c);
+  return c;
+};
+
+/**
+ * Someone answers an ask. `hostAwayFor`: how long the host has been away (ms, 0 when here).
+ * On yes the seat gets `newKey` (room.keys) and the chat says it. Returns the ask, or null when
+ * it was already answered or lapsed (a double tap: nothing to do).
+ */
+const roomClaimAnswer = (room, pid, claimId, yes, online, now, hostAwayFor, newKey) => {
+  roomClaimsPrune(room, now);
+  const c = (room._claims || []).find(x => x.id === String(claimId || '') && x.status === 'pending');
+  if (!c) return null;
+  const seated = (room.players || []).some(p => p.id === pid && !p.bot);
+  if (room.hostId !== pid && !(seated && hostAwayFor >= SEAT_CLAIM_STAND_IN_MS)) throw new Error('دي للمضيف بس');
+  if (pid === c.seat) throw new Error('دي للمضيف بس');
+  c.doneAt = now;
+  const p = (room.players || []).find(x => x.id === c.seat);
+  // Its own phone came back meanwhile (or it left): the seat is not for asking any more.
+  if (!yes || !p || !roomSeatAway(room, c.seat, online, now)) { c.status = 'no'; return c; }
+  c.status = 'yes';
+  c.key = String(newKey);
+  room.keys = room.keys || {};
+  room.keys[c.seat] = c.key;
+  roomEvent(room, 'back', { name: p.name });
+  return c;
+};
+
+/** The asking phone comes for its answer: the ask, taken off the list once answered (null: no such ask). */
+const roomClaimTake = (room, claimId, token, now) => {
+  roomClaimsPrune(room, now);
+  const list = room._claims || [];
+  const c = list.find(x => x.id === String(claimId || '') && x.token === String(token || ''));
+  if (!c) return null;
+  if (c.status !== 'pending') room._claims = list.filter(x => x !== c);
+  return c;
+};
+
 /**
  * A tap aimed at a state that has since moved on - the second of a double
  * tap, or a slow phone - carries what its phone saw (the round, the player

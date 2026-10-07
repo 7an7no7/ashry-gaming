@@ -101,7 +101,9 @@ async function drawShareCard(o) {
   // The night's card: a row of the evening's games and the date under the champion's line
   // (o.games, o.date; the owner's pick 1268) take some of the plate's room.
   const strip = (o.games || []).filter(Boolean).slice(0, 12);
-  const extra = strip.length || o.date ? 160 : 0;
+  // برنامج السهرة's card (1328): each game a { icon, name } with its winner's name under the icon.
+  const named = strip.some(x => x && typeof x === 'object' && x.name);
+  const extra = strip.length || o.date ? (named ? 220 : 160) : 0;
   // A chat-sized card (the owner's pick 1270, 7 Oct 2026): five rows or fewer make a
   // 1080x1350 (4:5) card, which WhatsApp shows whole in the chat; a longer board, or the
   // night's card with its games and date under the rows, keeps the tall 9:16 one.
@@ -242,24 +244,34 @@ function shareCardLayout(short) {
  * row («🕵️ 🎨 💣 🃏»), and the day in words («الجمعة ٩ أكتوبر») under it (the owner's
  * pick 1268, 7 Oct 2026). A drawn icon (أونو, الدومينو) is drawn as its picture.
  */
-async function drawShareNightStrip(ctx, icons, date, y, font) {
+async function drawShareNightStrip(ctx, items, date, y, font) {
   const mid = SHARE_CARD.w / 2;
+  // An item is an icon, or { icon, name }: برنامج السهرة's line-up with each game's winner under it (1328).
+  const icons = items.map(x => (x && typeof x === 'object' ? x.icon : x));
+  const names = items.map(x => (x && typeof x === 'object' ? String(x.name || '') : ''));
+  const named = names.some(Boolean);
   if (icons.length) {
-    const size = Math.min(72, Math.floor((SHARE_CARD.w - 200) / icons.length) - 14);
-    const step = size + 14;
+    const size = Math.min(named ? 96 : 72, Math.floor((SHARE_CARD.w - 200) / icons.length) - 14);
+    const step = named ? Math.min(220, Math.floor((SHARE_CARD.w - 160) / icons.length)) : size + 14;
     const rtl = (appState.lang || 'ar') === 'ar';
     // In the order they were played, from the line's start: right to left in Arabic.
     const x0 = mid + (rtl ? 1 : -1) * (icons.length - 1) * step / 2;
     const arts = await Promise.all(icons.map(i => artIconImage(i, 256)));
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
-    font('400', size);
     icons.forEach((icon, k) => {
       const x = x0 + (rtl ? -1 : 1) * k * step;
+      font('400', size);
       if (arts[k]) ctx.drawImage(arts[k], x - size / 2, y - size / 2, size, size);
       else ctx.fillText(String(icon), x, y);
+      if (names[k]) {
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        font('700', Math.max(22, Math.min(30, Math.round(step / 6))));
+        ctx.fillText(shareCardFit(ctx, names[k], step - 12), x, y + size / 2 + 30);
+        ctx.fillStyle = '#ffffff';
+      }
     });
-    y += size / 2 + 56;
+    y += size / 2 + (named ? 106 : 56);
   }
   if (date) {
     ctx.fillStyle = 'rgba(255,255,255,0.78)';

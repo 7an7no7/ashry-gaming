@@ -433,12 +433,13 @@ async function handle(env, path, body) {
   }
   const room = roomStub(env, code);
   if (path === '/join') return room.join(body.name, !!body.screen);
+  if (path === '/claim') return room.claim(body);
   if (path === '/act') return room.act(pid, key, body.action, body.payload);
   if (path === '/poll') return room.poll(pid, key, body.v);
   return room.leave(pid, key);
 }
 
-const API = new Set(['/create', '/join', '/act', '/poll', '/leave']);
+const API = new Set(['/create', '/join', '/claim', '/act', '/poll', '/leave']);
 
 export default {
   async fetch(request, env) {
@@ -468,7 +469,8 @@ export default {
       if (url.pathname === '/create' && !createAllowed(request)) {
         return json({ ok: false, error: 'فتحت غرف كتير في وقت قصير، استنى شوية وجرب تاني' }, 429);
       }
-      if (url.pathname === '/join' && !joinAllowed(request)) {
+      // «ده أنا»: asking for a seat counts as a join; coming back for the answer doesn't.
+      if ((url.pathname === '/join' || (url.pathname === '/claim' && !body.claim)) && !joinAllowed(request)) {
         return json({ ok: false, error: 'جرّبت أكواد كتير، استنى شوية وجرب تاني' }, 429);
       }
       try {

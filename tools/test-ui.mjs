@@ -774,7 +774,7 @@ if (ONLY.includes('program')) {
   all.forEach(takeErrors);
   const modalCheck = async () => { await ev(host, SWEEP); return ev(host, `__uiCheck(document.getElementById('prog-modal'))`); };
   // The builder: its door in the room's list, the picker, a game's options, the list.
-  const door = await ev(host, `!!document.querySelector('#view-room-lobby .prog-door')`);
+  const door = await ev(host, `!!document.querySelector('#view-room-lobby .prog-door, #view-room-lobby .lobby-door[onclick^="roomOpenProgram"]')`);   // 1281: a chip in the doors' row
   check(door, 'program: the host sees its door at the top of the room\'s list');
   await ev(host, `(() => { localStorage.setItem('ashryProgramDraft_v1', '[]'); prog && (prog.draft = null); return 1; })()`).catch(() => {});
   await ev(host, `roomOpenProgram(); 1`);
@@ -856,9 +856,9 @@ if (ONLY.includes('mission')) {
   await wait(500);
   all.forEach(takeErrors);
   const modalCheck = async (p, id) => { await ev(p, SWEEP); return ev(p, `__uiCheck(document.getElementById(${JSON.stringify(id)}))`); };
-  const door = await ev(host, `!!document.querySelector('#room-mission .msn-door')`);
+  const door = await ev(host, `!!document.querySelector('#room-mission .msn-door, #view-room-lobby .lobby-door[onclick^="roomOpenMission"]')`);   // 1281: a chip in the doors' row
   check(door, 'mission: the host sees its switch in the room');
-  const noDoor = await ev(phones[1], `!document.querySelector('#room-mission .msn-door')`);
+  const noDoor = await ev(phones[1], `!document.querySelector('#room-mission .msn-door, #view-room-lobby .lobby-door[onclick^="roomOpenMission"]')`);
   check(noDoor, 'mission: a player sees no switch while it is off');
   await ev(host, `roomOpenMission(); 1`);
   await chunkIn(host, 8000);

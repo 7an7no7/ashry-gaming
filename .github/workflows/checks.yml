@@ -61,7 +61,19 @@ jobs:
 
       - name: Room rules and the leak check
         working-directory: rooms-worker
-        run: npm run test:rules
+        run: |
+          set -o pipefail
+          npm run test:rules 2>&1 | tee "$RUNNER_TEMP/rules.log"
+
+      # As the robots' and the screen test's: a failure readable without signing in.
+      - name: Say what failed
+        if: ${{ failure() }}
+        run: |
+          say() { tr -d '\r' | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          f="$RUNNER_TEMP/rules.log"
+          [ -f "$f" ] || exit 0
+          echo "::error title=rules: what failed::$(grep -B2 -A6 -E '✗|Error|failed' "$f" | head -60 | cut -c1-300 | say)"
+          echo "::warning title=rules: the end of the log::$(tail -25 "$f" | cut -c1-300 | say)"
 
       - name: The site builds under its size budget
         working-directory: tools

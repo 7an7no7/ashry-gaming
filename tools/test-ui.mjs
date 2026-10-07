@@ -147,7 +147,9 @@ ws.onmessage = (e) => {
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); return; }
   const phone = m.sessionId && sessions.get(m.sessionId);
   if (!phone) return;
-  const skip = (text) => /fonts\.g(oogleapis|static)\.com|cdn\.jsdelivr\.net|favicon|ERR_INTERNET_DISCONNECTED/.test(text || '');
+  // Chrome on Linux (GitHub's runners) logs a vibration refused before a real tap as an error
+  // (7 Oct 2026): the test taps by script, so haptic() is always refused there. Not the app.
+  const skip = (text) => /fonts\.g(oogleapis|static)\.com|cdn\.jsdelivr\.net|favicon|ERR_INTERNET_DISCONNECTED|Blocked call to navigator\.vibrate/.test(text || '');
   if (m.method === 'Runtime.exceptionThrown') {
     const d = m.params.exceptionDetails;
     phone.errors.push('exception: ' + ((d.exception && d.exception.description) || d.text || '').split('\n')[0]);

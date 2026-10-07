@@ -10,6 +10,7 @@ import { packClean, packCode, PACK_CODE_RE, roomHostChanged, applyRoomAction, ro
 
 import { missionView, missionPlayerLeft, missionJoined, MISSION_SWAP_MS, MISSION_CATCH_WAIT_MS } from '../generated/rules.js';
 import { nextPrompts, programPlaces, laserTrace, laserFit, laserInside, laserTiles, laserTileAt, LASER_MAPS, LASER_BODY, LASER_PILLAR_R } from '../generated/rules.js';
+import { moveMerge, moveCollect, moveFit, moveExpired, MOVE_TTL_MS, MOVE_MAX_BYTES, MOVE_KEYS } from '../generated/rules.js';
 import srcMod from '../../tools/sources.cjs';
 const { srcPath } = srcMod;
 let failed = 0;
@@ -16280,6 +16281,112 @@ console.log('• the secret mission');
       check(r.shared.phase === 'gameover' && r.shared.best && r.shared.best.shooter === 'a' && r.shared.best.n === 2, 'laser best: the beam that hit the most, for the replay');
     }
   }
+}
+
+/* --- «انقل بياناتي»: the merge (app/MoveData.js, 7 Oct 2026) --- */
+{
+  console.log('\n• moving to another phone (the merge)');
+  const J = (v) => JSON.stringify(v);
+  const P = (s) => JSON.parse(s);
+  const dayOf = (back) => new Date(realNow() - back * 86400000).toISOString().slice(0, 10);
+
+  // A phone with nothing: everything comes, as it was.
+  const old = {
+    ashryName: 'أحمد',
+    ashryPlayers_v1: J(['أحمد', 'منى', 'Sara']),
+    ashry_saved_groups: J({ 'العيلة': ['أحمد', 'منى'], 'الشغل': ['Sara'] }),
+    ashryCrews_v1: J({ list: [{ code: 'ABCDEF', name: 'شلة الخميس', memberId: 'm1', key: 'k1', me: 'أحمد', at: 5 }] }),
+    ashryPacks_v1: J({ quizzes: [{ id: 'p1', code: 'QQQQQQ', key: 'qk', title: 'مسابقة', questions: [], updated: 10 }], words: { id: 'w1', code: 'WWWWWW', key: 'wk', title: 'كلماتنا', words: ['a', 'b'], updated: 3 } }),
+    ashryDaily_v1: J({ [dayOf(0)]: { sudoku: { seconds: 300 } }, [dayOf(1)]: { queens: 1 }, [dayOf(2)]: { tango: { seconds: 90 } } }),
+    ashrySoloBest_v1: J({ 'sudoku:easy': { seconds: 200 }, 'streak:ar': { score: 9 }, 'minigolf:x': { total: 40, par: 36 } }),
+    ashryMemoryBest_v1: J({ m: { moves: 20, seconds: 60 } }),
+    ashryChessGames_v1: J([{ id: 'g1', key: 'K1', at: 100, moves: ['e4'], names: ['a', 'b'], review: { accuracy: [90, 80] } }]),
+    ashryNights_v1: J([{ code: 'ROOM', day: '2026-10-01', board: [{ name: 'أحمد', score: 5 }] }]),
+    ashrySeen_v1: J({ 'charades:ar': ['قطة', 'كلب'] }),
+    ashryFirstPlay_v1: J(['uno']),
+    ashryPlayed_v1: J(['uno', 'sudoku']),
+    ashryRecent_v1: J(['uno', 'domino']),
+    ashryOptions_v1: J({ fields: { 'screw-rounds': '7' }, chooser: { mode: 'two' } }),
+    gameTrackerState_v1: J({ lang: 'en', gameLang: 'ar', isDarkMode: true }),
+    ashryMotion: 'on'
+  };
+  const empty = {};
+  const m1 = moveMerge(empty, old, { defaults: { isDarkMode: false } });
+  check(m1.write.ashryName === 'أحمد' && P(m1.write.ashryPlayers_v1).length === 3 && P(m1.write.ashryCrews_v1).list[0].key === 'k1', 'move: a new phone gets the name, the saved names and the crew with its key');
+  check(P(m1.write.ashryPacks_v1).quizzes[0].key === 'qk' && P(m1.write.ashryPacks_v1).words.code === 'WWWWWW', 'move: a new phone gets the quizzes with their edit keys and the family words');
+  check(m1.got.names === 3 && m1.got.groups === 2 && m1.got.crews === 1 && m1.got.quizzes === 1 && m1.got.words === 1 && m1.got.days === 3 && m1.got.chess === 1 && m1.got.nights === 1 && m1.got.bests === 4, 'move: «جه:» counts what came (3 names, 2 groups, a crew, a quiz, the words, 3 days, a game, a night, 4 bests)');
+  check(P(m1.write.gameTrackerState_v1).lang === 'en' && P(m1.write.gameTrackerState_v1).isDarkMode === true && m1.write.ashryMotion === 'on', 'move: a new phone takes the settings (language, theme, motion)');
+
+  // A phone with its own data: merged, never wiped.
+  const mine = {
+    ashryName: 'حمادة',
+    ashryPlayers_v1: J(['احمد', 'Yousef']),
+    ashry_saved_groups: J({ 'العيله': ['Yousef'] }),
+    ashryCrews_v1: J({ list: [{ code: 'ABCDEF', name: 'شلة الخميس', memberId: 'm9', key: 'k9', me: 'Yousef', at: 9 }, { code: 'ZZZZZZ', name: 'الصحاب', key: 'kz', at: 1 }] }),
+    ashryPacks_v1: J({ quizzes: [{ id: 'mine1', code: 'QQQQQQ', title: 'قديمة', questions: [], updated: 4 }], words: { id: 'w9', code: 'XXXXXX', key: 'xk', title: 'بتاعتنا', words: ['c'], updated: 99 } }),
+    ashryDaily_v1: J({ [dayOf(1)]: { sudoku: { seconds: 100 } }, [dayOf(3)]: { tango: 1 } }),
+    ashrySoloBest_v1: J({ 'sudoku:easy': { seconds: 150 }, 'streak:ar': { score: 4 }, 'minigolf:x': { total: 45, par: 36 } }),
+    ashryMemoryBest_v1: J({ m: { moves: 20, seconds: 50 } }),
+    ashryChessGames_v1: J([{ id: 'g1', key: 'K1', at: 100, moves: ['e4'], names: ['a', 'b'] }, { id: 'g2', at: 200, moves: ['d4'], names: ['c', 'd'] }]),
+    ashryNights_v1: J([{ code: 'ROOM', day: '2026-10-01', board: [{ name: 'Yousef', score: 1 }] }]),
+    ashrySeen_v1: J({ 'charades:ar': ['كلب', 'أسد'], 'bomb:ar': ['x'] }),
+    ashryFirstPlay_v1: J(['domino']),
+    ashryPlayed_v1: J(['sudoku', 'ludo']),
+    ashryRecent_v1: J(['ludo']),
+    ashryOptions_v1: J({ fields: { 'screw-rounds': '3' } }),
+    gameTrackerState_v1: J({ lang: 'ar', gameLang: 'en', isDarkMode: false, currentView: 'play-uno', screw: { rounds: 9 } }),
+    ashryMotion: 'off'
+  };
+  const m2 = moveMerge(mine, old, { defaults: { isDarkMode: false } });
+  const w = (k) => (k in m2.write ? P(m2.write[k]) : P(mine[k]));
+  check(!('ashryName' in m2.write), 'move: this phone\'s own name stays');
+  check(w('ashryPlayers_v1').join() === 'احمد,Yousef,منى,Sara' && m2.got.names === 2, 'move: names are both lists, أحمد and احمد once, this phone\'s spelling');
+  const groups = w('ashry_saved_groups');
+  check(Object.keys(groups).join() === 'العيله,الشغل' && groups['العيله'].join() === 'Yousef,أحمد,منى' && m2.got.groups === 1, 'move: a group on both phones (العيلة / العيله) keeps everyone; a new group comes');
+  const crews = w('ashryCrews_v1').list;
+  check(crews.length === 2 && crews.find((c) => c.code === 'ABCDEF').key === 'k9' && m2.got.crews === 0, 'move: a crew on both keeps this phone\'s key, none added twice');
+  const packs = w('ashryPacks_v1');
+  check(packs.quizzes.length === 1 && packs.quizzes[0].id === 'mine1' && packs.quizzes[0].key === 'qk' && packs.quizzes[0].title === 'مسابقة', 'move: one quiz code on both: the later change, this phone\'s record, the edit key from either');
+  check(packs.words.code === 'XXXXXX' && m2.got.words === 0, 'move: this phone\'s own family words stay (one pack a phone)');
+  const daily = w('ashryDaily_v1');
+  check(Object.keys(daily).length === 4 && daily[dayOf(1)].sudoku.seconds === 100 && daily[dayOf(1)].queens === 1 && m2.got.days === 2, 'move: the daily history by date: both phones\' days and games, this phone\'s result kept');
+  const bests = w('ashrySoloBest_v1');
+  check(bests['sudoku:easy'].seconds === 150 && bests['streak:ar'].score === 9 && bests['minigolf:x'].total === 40 && m2.got.bests === 2, 'move: bests take the better: a time low, a score high, golf strokes low');
+  check(!('ashryMemoryBest_v1' in m2.write), 'move: الذاكرة keeps the fewer seconds on the same moves');
+  const games = w('ashryChessGames_v1');
+  check(games.length === 2 && !('ashryChessGames_v1' in m2.write) && m2.got.chess === 0, 'move: a chess game on both phones is kept once');
+  const g3 = moveMerge(mine, { ashryChessGames_v1: J([{ id: 'g3', at: 150, moves: ['c4'], names: ['e', 'f'] }]) }).write.ashryChessGames_v1;
+  check(g3 && P(g3).map((g) => g.id).join() === 'g2,g3,g1', 'move: a new chess game joins the others, newest first');
+  check(w('ashryNights_v1').length === 1,'move: one room\'s night on both phones is kept once');
+  check(w('ashrySeen_v1')['charades:ar'].join() === 'كلب,أسد,قطة' && w('ashrySeen_v1')['bomb:ar'].length === 1, 'move: what each list dealt is both phones\'');
+  check(w('ashryPlayed_v1').join() === 'sudoku,ludo,uno' && P(m1.write.ashryPlayed_v1).join() === 'uno,sudoku', 'move: the games started (ashryPlayed_v1) are both phones\' ids, each once');
+  check(w('ashryFirstPlay_v1').join() === 'domino,uno' &&w('ashryRecent_v1').join() === 'ludo,uno,domino', 'move: the first-play cards both, the recent row this phone\'s first');
+  check(w('ashryOptions_v1').fields['screw-rounds'] === '3' && w('ashryOptions_v1').chooser.mode === 'two', 'move: a remembered choice stays; one this phone never made comes');
+  const app = w('gameTrackerState_v1');
+  check(app.lang === 'en' && app.gameLang === 'en' && app.isDarkMode === true && app.currentView === 'play-uno' && app.screw.rounds === 9, 'move: settings only where this phone has its default; the game on its screen untouched');
+  check(!('ashryMotion' in m2.write), 'move: a setting this phone chose stays');
+
+  // A phone that sees its own payload again (a tablet reading the code twice) changes nothing.
+  const again = Object.assign({}, mine, m2.write);
+  check(Object.keys(moveMerge(again, old, { defaults: { isDarkMode: false } }).write).length === 0, 'move: merging the same data twice changes nothing');
+  // The theme's default is the device's own.
+  check(!('gameTrackerState_v1' in moveMerge({ gameTrackerState_v1: J({ isDarkMode: false }) }, { gameTrackerState_v1: J({ isDarkMode: true }) }, { defaults: { isDarkMode: true } }).write), "move: the theme's default is the device's own: a light theme chosen on a dark phone stays");
+
+  // What is collected: only what moves, and of the app's state only the settings.
+  const store = Object.assign({}, old, { ashryRoom_v1: J({ pid: 'x', key: 'secret' }), ashryUiScale: '150', gameTrackerState_v1: J({ lang: 'en', currentView: 'play-uno', screw: {} }) });
+  const got = moveCollect((k) => (k in store ? store[k] : null)).keys;
+  check(!('ashryRoom_v1' in got) && !('ashryUiScale' in got) && got.ashryName === 'أحمد' && J(Object.keys(P(got.gameTrackerState_v1))) === J(['lang']), 'move: collected is what moves - not a room\'s seat or the screen size, of the app\'s state only the settings');
+  const light = moveCollect((k) => (k === 'gameTrackerState_v1' ? J({ lang: 'ar', gameLang: 'auto', isDarkMode: false }) : null), { defaults: { isDarkMode: false } }).keys;
+  const chose = moveCollect((k) => (k === 'gameTrackerState_v1' ? J({ lang: 'ar', isDarkMode: true }) : null), { defaults: { isDarkMode: false } }).keys;
+  check(!('gameTrackerState_v1' in light) && J(P(chose.gameTrackerState_v1)) === J({ isDarkMode: true }), 'move: only settings chosen are sent - a light phone\'s default light never turns a dark phone light');
+
+  // Too big: the reviews go, then the dealt lists, then the oldest games.
+  const big = { ashrySeen_v1: J({ x: Array.from({ length: 6000 }, (_, i) => 'كلمة رقم ' + i) }), ashryChessGames_v1: J([{ id: 'g', moves: ['e4'], review: { a: 'x'.repeat(2000) } }]), ashryName: 'أحمد' };
+  const fit = moveFit(big, 60 * 1024);
+  check(!fit.error && fit.trimmed.join() === 'reviews,seen' && fit.keys.ashryName === 'أحمد' && P(fit.keys.ashryChessGames_v1)[0].review === null, 'move: over the cap, the chess reviews and the dealt lists go first');
+  check(moveFit({ ashryName: 'x'.repeat(5000) }, 1024).error === 'too_big', 'move: what can\'t be trimmed under the cap says too_big');
+  check(moveExpired(clock - MOVE_TTL_MS - 1, clock) && !moveExpired(clock - MOVE_TTL_MS + 60000, clock) && MOVE_TTL_MS === 24 * 3600 * 1000, 'move: a code lasts 24 hours');
+  check(MOVE_MAX_BYTES >= 256 * 1024 && Object.keys(MOVE_KEYS).every((k) => /^(ashry|gameTrackerState_v1$)/.test(k)), 'move: the cap and the list of keys');
 }
 
 Date.now = realNow;

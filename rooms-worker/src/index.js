@@ -25,6 +25,9 @@
  *   POST /pack/answer { code, i, q }               -> { a }: one question's right choice, as it is played (the team board)
  *   POST /pack/save   { code, key, kind, pack }    the author's change (the key the create gave)
  *   POST /pack/played { code }                     a pack played on one phone: its year starts again
+ *   POST /move/put    { data }                     «انقل بياناتي»: -> { code, key, until } kept 24 hours
+ *   POST /move/get    { code }                     -> { data, until }: as often as wanted in its 24 hours
+ *   POST /move/drop   { code, key }                the sender ends it early (the key the put gave)
  *   GET  /test                                    connection test page
  *
  * Bodies are JSON sent as text/plain, which browsers send without a CORS
@@ -34,17 +37,18 @@
  * Anything else is looked up in the built app (docs/, see [assets] in
  * wrangler.toml) before it reaches this code.
  */
-import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS, CREW_CODE_RE, crewNewCode, PACK_ALPHABET, PACK_CODE_LEN, PACK_CODE_RE, packClean, packCode, packHideAnswers } from '../generated/rules.js';
+import { RULES_HASH, APP_GAME_IDS, APP_REPORT_IDS, CREW_CODE_RE, crewNewCode, PACK_ALPHABET, PACK_CODE_LEN, PACK_CODE_RE, packClean, packCode, packHideAnswers, MOVE_MAX_BYTES, MOVE_KEYS } from '../generated/rules.js';
 import { Room } from './room.js';
 import { PromptMemory } from './memory.js';
 import { LiveStats } from './live.js';
 import { WordLog } from './words.js';
 import { Crew } from './crew.js';
 import { PackStore } from './packs.js';
+import { MoveStore } from './move.js';
 import TEST_PAGE from './page.js';
 import { songStream, songPins } from './songs.js';
 
-export { Room, PromptMemory, LiveStats, WordLog, Crew, PackStore };
+export { Room, PromptMemory, LiveStats, WordLog, Crew, PackStore, MoveStore };
 
 // Every phone looking at the مع بعض tab asks for the count; this Worker asks
 // LiveStats at most this often and answers the rest from what it last heard.
@@ -307,6 +311,58 @@ async function handlePack(env, request, path, body) {
 }
 const PACK_API = new Set(['/pack/create', '/pack/get', '/pack/answer', '/pack/save', '/pack/played']);
 
+/* --- «انقل بياناتي»: one phone's data to another (7 Oct 2026) ---------------------
+   The owner: everything moves, the code works for 24 hours and can be used more than
+   once in that time (a phone and a tablet). The payload is the phone's own data
+   (app/MoveData.js says what is in it); it is checked for size and shape only, kept
+   in one MoveStore (move.js) and never logged - an error log here names the path,
+   never the body. Limited per address like /create: a person sends a few times and
+   reads a few times; a script trying codes (32^6 of them) gets nowhere at 60 tries
+   in 10 minutes. */
+const movePutAllowed = limiter(12, 10 * 60 * 1000);
+const moveGetAllowed = limiter(60, 10 * 60 * 1000);
+const moveStub = (env, code) => env.MOVES.get(env.MOVES.idFromName('move:' + code));
+const MOVE_API = new Set(['/move/put', '/move/get', '/move/drop']);
+
+/** The payload as the page builds it (moveCollect): { v, at, keys: { key: text } }, only keys that move. */
+const moveShapeOk = (data) => {
+  if (!data || typeof data !== 'object' || Array.isArray(data) || !data.keys || typeof data.keys !== 'object' || Array.isArray(data.keys)) return false;
+  return Object.keys(data.keys).every((k) => Object.prototype.hasOwnProperty.call(MOVE_KEYS, k) && typeof data.keys[k] === 'string');
+};
+
+async function handleMove(env, request, path, body) {
+  if (!env.MOVES) return { ok: false, error: 'server' };
+  if (path === '/move/put') {
+    if (!movePutAllowed(request)) return { ok: false, error: 'busy' };
+    if (!moveShapeOk(body.data)) return { ok: false, error: 'bad' };
+    const text = JSON.stringify(body.data);
+    if (new TextEncoder().encode(text).length > MOVE_MAX_BYTES) return { ok: false, error: 'too_big' };
+    const key = randomOf('abcdefghijkmnopqrstuvwxyz23456789', 24);
+    const hash = await keyHash(key);
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const code = randomOf(PACK_ALPHABET, PACK_CODE_LEN);
+      const res = await moveStub(env, code).put(text, hash);
+      if (!res.taken) return { ok: true, code, key, until: res.until };
+    }
+    return { ok: false, error: 'busy' };
+  }
+  if (!moveGetAllowed(request)) return { ok: false, error: 'busy' };
+  const code = packCode(body.code);
+  if (!PACK_CODE_RE.test(code)) return { ok: false, error: 'not_found' };
+  if (path === '/move/get') {
+    const got = await moveStub(env, code).get();
+    if (!got) return { ok: false, error: 'not_found' };
+    let data = null;
+    try { data = JSON.parse(got.text); } catch (e) { return { ok: false, error: 'not_found' }; }
+    return { ok: true, code, data, until: got.until };
+  }
+  // '/move/drop'
+  const res = await moveStub(env, code).drop(await keyHash(body.key));
+  if (res.gone) return { ok: false, error: 'not_found' };
+  if (res.denied) return { ok: false, error: 'denied' };
+  return { ok: true };
+}
+
 /* --- دندنها: a round's song by its opaque token (1 Oct 2026) ----------------------
    GET /song/CODE/TOKEN: the room (Room.songOf) says which song the token stands for -
    only the song on now, only to its own token - and this streams its 30-second
@@ -426,6 +482,26 @@ export default {
         return json(await handlePack(env, request, url.pathname, body));
       } catch (err) {
         console.error(url.pathname, err && err.stack || err);
+        return json({ ok: false, error: 'server' }, 500);
+      }
+    }
+
+    if (MOVE_API.has(url.pathname)) {
+      if (request.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405);
+      // Over the cap before it is read: the length the phone declared, then what came.
+      if (Number(request.headers.get('content-length') || 0) > MOVE_MAX_BYTES + 4096) return json({ ok: false, error: 'too_big' }, 413);
+      let body;
+      try {
+        const text = await request.text();
+        if (text.length > MOVE_MAX_BYTES + 4096) return json({ ok: false, error: 'too_big' }, 413);
+        body = JSON.parse(text || '{}') || {};
+      } catch (e) {
+        return json({ ok: false, error: 'bad' }, 400);
+      }
+      try {
+        return json(await handleMove(env, request, url.pathname, body));
+      } catch (err) {
+        console.error(url.pathname, 'failed');   // never the body: it is someone's data
         return json({ ok: false, error: 'server' }, 500);
       }
     }

@@ -24,6 +24,13 @@
    beams; the floor falling in tiles (cracked a round before they fall, about the
    ring's worth a round) instead of the ring; the best shot kept for the replay.
 
+   The ideas of 7 Oct 2026 (the owner's picks): a practice round before the
+   room's first laser game (866: round 0, shared.practice; nobody out, nothing
+   counted; the host's «نبدأ علطول» is skipPractice); the turret (867, a switch:
+   shared.turret in the middle, its aim public while hiding, a new one each round,
+   firing with everyone); mirror pillars (868, «مرايات», only with pillars on:
+   pillars with mirror: true reflect a beam, Laser.js).
+
    The arena is a map of size k (1 in round one), its middle at 0,0
    (shared.map, .k, .pillars, .fallen); a player is a circle of LASER_BODY. Spots, aims, shields and
    mines are room.secrets[pid] until the reveal (nothing about the others is
@@ -54,7 +61,10 @@ const laserOptsOf = (p) => {
     sight: on(p.sight, true),
     pickups: on(p.pickups, true),
     pillars: on(p.pillars, false),
-    pieces: on(p.pieces, false)
+    pieces: on(p.pieces, false),
+    // The ideas of 7 Oct 2026: the turret (867) and mirror pillars (868, only among the pillars).
+    turret: on(p.turret, false),
+    mirrors: on(p.mirrors, false) && on(p.pillars, false)
   };
 };
 
@@ -68,8 +78,9 @@ const laserGhosts = (room) => {
   return activeRoster(room, s.roster).filter(id => s.alive.indexOf(id) === -1);
 };
 
-/** The arena as Laser.js reads it. */
-const laserArena = (s) => ({ map: s.map || 'hex', k: s.k || 1, pillars: s.pillars || [], fallen: s.fallen || [] });
+/** The arena as Laser.js reads it (the turret is a solid in the middle). */
+const laserArena = (s) => ({ map: s.map || 'hex', k: s.k || 1, pillars: s.pillars || [], fallen: s.fallen || [],
+  turret: s.turret ? { x: s.turret.x, y: s.turret.y } : null });
 
 /** A random spot on the arena (on the map, off the pillars and the fallen floor) and a random aim. */
 const laserRandomSpot = (A) => {
@@ -83,15 +94,20 @@ const laserRandomSpot = (A) => {
   return { x: p.x, y: p.y, a: laserAngle(Math.random() * 360) };
 };
 
-/** The pillars of a game (with pillars on): 1, 2 with 5+ players, 3 with 8+; apart, off the wall. */
-const laserPlacePillars = (map, players) => {
-  const n = players >= 8 ? 3 : players >= 5 ? 2 : 1, out = [];
-  for (let i = 0; i < 400 && out.length < n; i++) {
+/** The pillars of a game (with pillars on): 1, 2 with 5+ players, 3 with 8+; apart, off the wall, and
+    clear of the turret in the middle. With «مرايات» (868) one more, and half of them (rounded up) are
+    mirror pillars ({ mirror: true }), which reflect a beam instead of stopping it. */
+const laserPlacePillars = (map, players, o) => {
+  o = o || {};
+  const n = (players >= 8 ? 3 : players >= 5 ? 2 : 1) + (o.mirrors ? 1 : 0), out = [];
+  for (let i = 0; i < 600 && out.length < n; i++) {
     const x = Math.random() * 1.6 - 0.8, y = Math.random() * 1.6 - 0.8;
     if (!laserInside(map, 1, x, y, 0.28)) continue;
+    if (o.turret && Math.hypot(x, y) < 0.36) continue;
     if (out.some(p => Math.hypot(p.x - x, p.y - y) < 0.45)) continue;
     out.push({ x: laserR3(x), y: laserR3(y) });
   }
+  if (o.mirrors) shuffled(out.map((_, i) => i)).slice(0, Math.ceil(out.length / 2)).forEach(i => { out[i].mirror = true; });
   return out;
 };
 
@@ -101,8 +117,10 @@ const laserCrack = (room) => {
   const s = room.shared;
   s.cracked = [];
   s.suddenCrack = false;
-  if (!s.opts.pieces) return;
-  const tiles = laserTiles(s.map), standing = tiles.filter(t => s.fallen.indexOf(t.i) === -1);
+  if (!s.opts.pieces || s.practice) return;
+  // The turret's tile never falls (the turret stands in the middle for the whole game).
+  const under = s.turret ? laserTileAt(s.map, s.turret.x, s.turret.y) : null;
+  const tiles = laserTiles(s.map), standing = tiles.filter(t => s.fallen.indexOf(t.i) === -1 && !(under && t.i === under.i));
   const ringK = laserK(s.round + 1);
   let n = Math.max(0, standing.length - Math.round(tiles.length * ringK * ringK));
   if ((s.quiet || 0) >= 2 && n === 0) { n = 2; s.suddenCrack = true; }
@@ -121,7 +139,7 @@ const laserSpawnPickups = (room) => {
     const x = (Math.random() * 2 - 1) * kNext, y = (Math.random() * 2 - 1) * kNext;
     if (!laserInside(s.map, kNext, x, y, 0.12)) continue;
     if (s.opts.pieces) { const t = laserTileAt(s.map, x, y); if (!t || s.fallen.indexOf(t.i) !== -1 || s.cracked.indexOf(t.i) !== -1) continue; }
-    if (s.pillars.some(pl => Math.hypot(pl.x - x, pl.y - y) < LASER_PILLAR_R + 0.08)) continue;
+    if (laserSolids(laserArena(s)).some(pl => Math.hypot(pl.x - x, pl.y - y) < LASER_PILLAR_R + 0.08)) continue;
     if (s.pickups.some(p => Math.hypot(p.x - x, p.y - y) < 0.3)) continue;
     // Never under a spot someone carries into this round (a pickup there would be theirs for nothing).
     if (s.alive.some(id => { const m = room.secrets[id]; return m && !m.ghost && Math.hypot(m.x - x, m.y - y) < LASER_PICK_REACH + 0.05; })) continue;
@@ -166,8 +184,11 @@ const laserHide = (room) => {
   laserSpawnPickups(room);
   laserGhosts(room).forEach(pid => { room.secrets[pid] = { ghost: true, mine: null, round: s.round }; });
   laserShareMates(room);
+  // The turret (867): a new aim every round, on the table for everyone to read while hiding.
+  if (s.turret) s.turret = { x: s.turret.x, y: s.turret.y, a: laserAngle(Math.random() * 360) };
   s.phase = 'hide';
-  s.hideMs = Math.max(LASER_HIDE_MIN_S, s.opts.time - (s.round - 1)) * 1000;
+  // The practice round (866) is round 0: the full time, like round one.
+  s.hideMs = Math.max(LASER_HIDE_MIN_S, s.opts.time - Math.max(0, s.round - 1)) * 1000;
   s.endsAt = Date.now() + s.hideMs + (s.introUntil && s.introUntil > Date.now() ? s.introUntil - Date.now() : 0);
   ['shots', 'beams', 'mines', 'hit', 'out', 'back', 'revealAt', 'revealMs', 'kNext', 'tieNext', 'suddenNext', 'roundKills', 'fates', 'falling'].forEach(f => { delete s[f]; });
 };
@@ -179,14 +200,20 @@ const laserDeal = (room, payload) => {
   const nTeams = opts.teams ? Math.min(opts.teams, roster.length - 1) : 0;
   // A map at random every game (the owner); a test may name one (the lobby never does).
   const map = LASER_MAPS.indexOf(payload && payload.map) !== -1 ? payload.map : LASER_MAPS[Math.floor(Math.random() * LASER_MAPS.length)];
-  const pillars = opts.pillars ? laserPlacePillars(map, roster.length) : [];
+  const pillars = opts.pillars ? laserPlacePillars(map, roster.length, opts) : [];
+  const turret = opts.turret ? { x: 0, y: 0, a: 0 } : null;
+  // The practice round (866, the owner: only the room's first laser game; the host can skip it). The
+  // room remembers it across games (clearGameState leaves room._laserPracticed). A test may say
+  // practice: false, as it may name a map; the lobby never does.
+  const practice = !room._laserPracticed && !(payload && payload.practice === false);
+  room._laserPracticed = true;
   room.secrets = {};
   room._laserBest = null;
-  roster.forEach(pid => { room.secrets[pid] = laserRandomSpot({ map, k: 1, pillars, fallen: [] }); });
+  roster.forEach(pid => { room.secrets[pid] = laserRandomSpot({ map, k: 1, pillars, fallen: [], turret }); });
   const hearts = {};
   roster.forEach(pid => { hearts[pid] = opts.hearts; });
   room.shared = {
-    phase: 'hide', round: 1, roster, alive: roster.slice(), outRound: {}, opts,
+    phase: 'hide', round: practice ? 0 : 1, practice, turret, roster, alive: roster.slice(), outRound: {}, opts,
     nTeams: nTeams >= 2 ? nTeams : 0, teams: nTeams >= 2 ? laserDealTeams(roster, nTeams) : null, tie: false,
     k: laserK(1), hearts, shieldUsed: {}, hitsBy: {}, near: {}, kills: [], quiet: 0,
     map, pillars, fallen: [], cracked: [], pickups: [], held: {}, introUntil: Date.now() + LASER_INTRO_MS
@@ -279,16 +306,19 @@ const laserReveal = (room) => {
     if (!!m.shield && !s.shieldUsed[pid] && use !== 'shield') shot.ownShield = true;
     return shot;
   });
-  const trace = laserTrace(s.shots, { k: s.k, map: s.map, pillars: s.pillars, teams: s.teams, bounce: s.opts.bounce, block: s.opts.block });
+  // The turret fires along the aim everyone saw (867): a shot with no body, on nobody's team.
+  const turretShot = s.turret ? [{ id: LASER_TURRET_ID, x: s.turret.x, y: s.turret.y, a: s.turret.a, shield: false, turret: true }] : [];
+  const trace = laserTrace(s.shots.concat(turretShot), { k: s.k, map: s.map, pillars: s.pillars, turret: laserArena(s).turret, teams: s.teams, bounce: s.opts.bounce, block: s.opts.block });
   s.beams = trace.beams;
-  Object.keys(trace.near).forEach(id => {
+  // The practice round (866) counts nothing: no near misses, no best shot, no shield spent, nobody out.
+  if (!s.practice) Object.keys(trace.near).forEach(id => {
     s.near[id] = typeof s.near[id] === 'number' ? Math.min(s.near[id], trace.near[id]) : trace.near[id];
   });
   s.mines = laserGhosts(room).map(g => {
     const m = (room.secrets[g] || {}).mine;
     return m ? { id: g, x: m.x, y: m.y, hits: laserMineHits({ id: g, x: m.x, y: m.y }, s.shots, s.teams) } : null;
   }).filter(Boolean);
-  s.shots.forEach(p => { if (p.ownShield) s.shieldUsed[p.id] = true; delete p.ownShield; });
+  s.shots.forEach(p => { if (p.ownShield && !s.practice) s.shieldUsed[p.id] = true; delete p.ownShield; });
   // Who hit whom: one heart a round, however many beams or mines.
   const kills = [];
   const once = (k) => { if (!kills.some(x => x.from === k.from && x.to === k.to)) kills.push(k); };
@@ -296,14 +326,18 @@ const laserReveal = (room) => {
   s.mines.forEach(m => m.hits.forEach(to => once({ r: s.round, from: m.id, to, by: 'mine' })));
   // The best shot of the game: the one beam that hit the most people, kept for the replay at the end
   // (on the server only until then: it holds last spots, and nothing is on the table while hiding).
+  // (Only a player's shot: the turret is nobody's best shot.)
   s.beams.forEach(b => {
+    if (s.practice || b.id === LASER_TURRET_ID) return;
     if (!b.hits.length || (room._laserBest && room._laserBest.n >= b.hits.length)) return;
     room._laserBest = { n: b.hits.length, round: s.round, map: s.map, k: s.k, pillars: s.pillars.slice(), fallen: s.fallen.slice(), shooter: b.id, segs: b.segs, wide: b.wide,
+      turret: s.turret ? Object.assign({}, s.turret) : null,
       victims: b.hits.slice(), people: s.shots.map(p => ({ id: p.id, x: p.x, y: p.y, a: p.a, shield: !!p.shield })) };
   });
   s.roundKills = kills;
   s.hit = kills.map(k => k.to).filter((id, i, a) => a.indexOf(id) === i);
-  s.out = s.hit.filter(id => (s.hearts[id] || 1) <= 1);
+  // In the practice round nobody goes out and no heart is lost: the hits are only told to each phone.
+  s.out = s.practice ? [] : s.hit.filter(id => (s.hearts[id] || 1) <= 1);
   // A ghost whose mine takes someone out comes back, with «تبديل الأماكن» on.
   s.back = s.opts.swap ? kills.filter(k => k.by === 'mine' && s.out.indexOf(k.to) !== -1).map(k => k.from)
     .filter((id, i, a) => a.indexOf(id) === i) : [];
@@ -325,6 +359,7 @@ const laserReveal = (room) => {
     s.suddenNext = left !== 1 && sudden;
   }
   s.tieNext = left === 0;
+  if (s.practice) { s.kNext = s.k; s.falling = []; s.suddenNext = false; s.tieNext = false; s.back = []; }
   // The pickups: taken by whoever stood on one alone and is still standing; two or more break it.
   s.fates = (s.pickups || []).map(p => {
     const on = s.shots.filter(q => Math.hypot(q.x - p.x, q.y - p.y) < LASER_PICK_REACH).map(q => q.id);
@@ -344,6 +379,7 @@ const laserReveal = (room) => {
 const laserAfterReveal = (room) => {
   const s = room.shared;
   if (s.phase !== 'reveal') return;
+  if (s.practice) { laserEndPractice(room); return; }
   const present = laserAlive(room);
   const inRoom = activeRoster(room, s.roster);
   const back = (s.back || []).filter(id => inRoom.indexOf(id) !== -1);
@@ -400,6 +436,22 @@ const laserAfterReveal = (room) => {
   });
 };
 
+/** The practice round is over (its reveal ended, or the host skipped it, «نبدأ علطول»): the real game
+    starts at round one with everything as it was - nobody out, every heart, every shield. The spots
+    carry over as any round's do; the map has drawn itself already. */
+const laserEndPractice = (room) => {
+  const s = room.shared;
+  s.practice = false;
+  s.round = 1;
+  s.introUntil = null;
+  s.lastKills = [];
+  s.lastRound = { k: s.k, practice: true };
+  s.alive = laserAlive(room);
+  s.phase = 'between';
+  if (laserSettle(room)) return;
+  laserHide(room);
+};
+
 /** Everyone still standing is ready: the reveal now (ghosts never hold the round up). */
 const laserCheckReady = (room) => {
   const s = room.shared;
@@ -453,6 +505,15 @@ ROOM_RULES.laser = {
       if (laserSettle(room)) return;
       s.introUntil = Date.now() + LASER_INTRO_MS;
       laserHide(room);
+      return;
+    }
+    if (action === 'skipPractice') {
+      // «نبدأ علطول» (866): the host's, from the teams screen, the practice's hiding or its reveal.
+      requireHost(room, playerId);
+      if (!s.practice || staleTap(payload, 'round', s.round)) return;
+      if (s.phase === 'teams') { s.practice = false; s.round = 1; return; }
+      if (s.phase !== 'hide' && s.phase !== 'reveal') return;
+      laserEndPractice(room);
       return;
     }
     const standing = laserAlive(room).indexOf(playerId) !== -1;

@@ -19,6 +19,11 @@
    (renderPodium) and confetti (afterReveal). Colours are the tokens'
    (--danger-btn red, --pop the yellow fake and a tie, --success-btn green;
    RX_CSS below, shared with the one-phone halves, .rx-half).
+   The ideas of 7 Oct 2026: «ركّز!» (875, the lobby's switch and the one-phone
+   setup's: the pad on the night with a colour word in another colour, the
+   match is the green, drawn by rxrWordHtml; no burst, sound or buzz at the
+   match) and «خروج المغلوب» (877, the lobby's «طريقة اللعب»: the worst one out a
+   round, then a best-of-three final; rxrKoHtml, rxrPlaying, no points).
    Every name here starts with rxr / RXR_ (the one-phone test is rx*, JS_Reaction.html).
    ========================================================================= */
 /* --- the game's words and its look, which come with its code ---------------------
@@ -55,6 +60,23 @@ const RX_TEXT = {
     rx_play_again: "العب تاني",
     rx_winner: "{name} أسرع إيد!",
     rx_tv_tap: "دوس على موبايلك!",
+    rx_c_red: "أحمر",
+    rx_c_green: "أخضر",
+    rx_c_blue: "أزرق",
+    rx_c_yellow: "أصفر",
+    rx_focus_sub: "دوس لما الكلمة ولونها يتفقوا",
+    rx_mode: "طريقة اللعب",
+    rx_mode_points: "نقط · ٥ جولات",
+    rx_mode_ko: "خروج المغلوب",
+    rx_ko_hint: "كل جولة الأبطأ (أو اللي ✖) يخرج، لحد ما يفضل اتنين: نهائي أحسن من ٣.",
+    rx_ko_left: "باقيين: {n}",
+    rx_ko_out: "خرج",
+    rx_ko_out_line: "{name} خرج 👋",
+    rx_ko_you_out: "خرجت! بتتفرّج على الباقيين",
+    rx_ko_final: "النهائي",
+    rx_ko_best3: "أحسن من ٣",
+    rx_ko_took: "{name} خد الجولة",
+    rx_ko_nobody: "محدش خد الجولة دي: تتعاد",
   },
   en: {
     reaction_wait: "Wait...",
@@ -81,6 +103,23 @@ const RX_TEXT = {
     rx_play_again: "Play again",
     rx_winner: "{name} has the fastest hand!",
     rx_tv_tap: "Tap on your phone!",
+    rx_c_red: "RED",
+    rx_c_green: "GREEN",
+    rx_c_blue: "BLUE",
+    rx_c_yellow: "YELLOW",
+    rx_focus_sub: "Tap when the word and its colour agree",
+    rx_mode: "Way to play",
+    rx_mode_points: "Points · 5 rounds",
+    rx_mode_ko: "Knockout",
+    rx_ko_hint: "Each round the slowest (or ✖) is out, until two are left: a best-of-three final.",
+    rx_ko_left: "Left: {n}",
+    rx_ko_out: "Out",
+    rx_ko_out_line: "{name} is out 👋",
+    rx_ko_you_out: "You're out! Watching the rest",
+    rx_ko_final: "The final",
+    rx_ko_best3: "best of three",
+    rx_ko_took: "{name} takes the round",
+    rx_ko_nobody: "Nobody took this round: it's played again",
   }
 };
 
@@ -99,6 +138,21 @@ transition: background-color 80ms linear;
 .rx-half.is-go, .rx-half.is-win { background: var(--success-btn); color: var(--success-on); }
 .rx-half.is-fake, .rx-half.is-tie { background: var(--pop); color: var(--pop-on); }
 .rx-half.is-idle { background: var(--night); color: var(--night-ink); }
+/* «ركّز!» (875): the word on the night, in the colour it is written in (the night is dark in both
+   themes, so these four inks read the same in light and dark). */
+.rx-half.is-focus { background: var(--night); color: var(--night-ink); }
+.rx-ink { font-family: var(--font-display); font-weight: 900; text-shadow: 0 0 0.6em color-mix(in srgb, currentColor 45%, transparent); }
+.rx-ink--red { color: #ff5c5c; }
+.rx-ink--green { color: #4ade80; }
+.rx-ink--blue { color: #60a5fa; }
+.rx-ink--yellow { color: #facc15; }
+.rx-ko { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-2); text-align: center; }
+.rx-ko__line { width: 100%; font-weight: 800; color: var(--text); }
+.rx-ko__vs { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); width: 100%; font-weight: 800; color: var(--text); }
+.rx-ko__dots { display: inline-flex; gap: 4px; }
+.rx-ko__dot { width: 0.7rem; height: 0.7rem; border-radius: var(--r-full); background: var(--surface-3); }
+.rx-ko__dot.is-on { background: var(--accent); }
+.rx-chip.is-out { opacity: 0.55; text-decoration: line-through; }
 .reaction-divider { flex: none; height: 0.5rem; width: 100%; background: var(--night); }
 #view-play-reaction { background: var(--night); }
 .rx-msg { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); text-align: center; width: 100%; }
@@ -197,13 +251,23 @@ const rxrOnce = (key) => { if (!key || rxr.seen.has(key)) return false; if (rxr.
 const rxrRoundKey = (state) => roomDealKey(state) + '|' + ((state.shared || {}).round || 0);
 const rxrNameOf = (state, id) => ((state.players || []).find((p) => p.id === id) || {}).name || '';
 
-function rxrOpts() { return recallOptions('reaction', { fakes: true }); }
-function rxrSetFakes(on) {
-  rememberOptions('reaction', { fakes: !!on });
+function rxrOpts() { return recallOptions('reaction', { fakes: true, focus: false, mode: 'points' }); }
+/** A lobby option remembered on the host's phone (the one-phone setup shares fakes and focus). */
+function rxrSetOpt(key, v) {
+  rememberOptions('reaction', { [key]: v });
   const setup = document.getElementById('room-host-setup');
   if (setup) delete setup.dataset.sig;
   if (Room.state) routeRoomState(Room.state);
 }
+function rxrSetFakes(on) { rxrSetOpt('fakes', !!on); }
+const rxrKo = (s) => !!(s && s.settings && s.settings.mode === 'knockout');
+/** Is this phone playing this round (in the game, and in «خروج المغلوب» still standing)? */
+const rxrPlaying = (state) => {
+  const s = state.shared || {};
+  return (s.roster || []).indexOf(Room.me) !== -1 && (!rxrKo(s) || (s.alive || []).indexOf(Room.me) !== -1);
+};
+/** «ركّز!»: a colour word in its ink. */
+const rxrWordHtml = (L, word) => `<span class="rx-ink rx-ink--${escapeHTML(word.ink)}">${escapeHTML(L['rx_c_' + word.w] || '')}</span>`;
 
 /** My tap this round: the server's, else the one this phone has just sent. */
 function rxrMine(state) {
@@ -227,6 +291,10 @@ function rxrPadHtml(state, s, o) {
     look = 'bad'; big = escapeHTML(mine.foul === 'fake' ? L.rx_fooled : L.rx_early);
   } else if (mine) {
     look = 'win'; big = `<span class="metric" dir="ltr"><span data-rx-ms="${mine.ms}">${mine.ms}</span> ms</span>`; sub = escapeHTML(L.rx_your_time);
+  } else if (s.settings && s.settings.focus && (s.phase === 'wait' || s.phase === 'go') && s.word) {
+    // «ركّز!»: the word in its ink on the night, the same line under every word (the match gives
+    // nothing away: no green, no burst, no sound).
+    look = 'focus'; big = rxrWordHtml(L, s.word); sub = escapeHTML(L.rx_focus_sub); extra = motionOff() ? '' : 'rx-msg--pop';
   } else if (s.phase === 'go') {
     look = 'go'; big = escapeHTML(L.reaction_tap); sub = tv ? escapeHTML(L.rx_tv_tap) : ''; extra = 'rx-msg--go';
   } else if (s.phase === 'result') {
@@ -259,16 +327,41 @@ function rxrRowsHtml(state, s) {
     const out = r.ms === null;
     const rank = r.foul ? '✖' : out ? '—' : (r.pts && RXR_MEDALS[i]) || String(i + 1);
     const what = r.foul === 'fake' ? L.rx_fooled : r.foul ? L.rx_early : out ? L.rx_no_tap : '';
+    // «خروج المغلوب»: who went out this round, who took a round of the final.
+    const ko = r.out ? `<span class="badge badge--danger">👋 ${escapeHTML(L.rx_ko_out)}</span>` : r.win ? '<span class="badge badge--accent" dir="ltr">🏆 +1</span>' : '';
     // Rise from the bottom up: the fastest lands last.
-    return `<div class="status-row rx-row ${out ? 'is-out' : ''} ${r.id === me ? 'is-me' : ''} ${rise ? 'rx-row--rise' : ''}" style="--at:${(n - 1 - i) * 140}ms">
+    return `<div class="status-row rx-row ${out || r.out ? 'is-out' : ''} ${r.id === me ? 'is-me' : ''} ${rise ? 'rx-row--rise' : ''}" style="--at:${(n - 1 - i) * 140}ms">
       <span class="rx-rank">${rank}</span>
       <div class="status-row__body"><div class="status-row__name">${escapeHTML(r.name || rxrNameOf(state, r.id))}</div></div>
       ${out ? `<span class="rx-ms">${escapeHTML(what)}</span>` : `<span class="rx-ms metric" dir="ltr"><span data-rx-ms="${r.ms}">${r.ms}</span> ms</span>`}
-      ${r.pts ? `<span class="badge badge--accent" dir="ltr">+${r.pts}</span>` : ''}
+      ${r.pts ? `<span class="badge badge--accent" dir="ltr">+${r.pts}</span>` : ''}${ko}
     </div>`;
   }).join('');
   return `<div class="card card--tight rx-rows" ${rise ? `data-reveal-ms="${n * 140 + 300}"` : ''}>
-    <div class="eyebrow">${escapeHTML(L.rx_round_of)} <span class="metric">${s.round}/${s.rounds || 5}</span> · ${escapeHTML(L.rx_round_rows)}</div>${html}</div>`;
+    <div class="eyebrow">${escapeHTML(L.rx_round_of)} <span class="metric">${rxrRoundText(s)}</span> · ${escapeHTML(L.rx_round_rows)}</div>${html}</div>`;
+}
+
+/** The round as shown: «2/5», or in «خروج المغلوب» just the round (nobody knows how many there'll be). */
+const rxrRoundText = (s) => (rxrKo(s) ? String(s.round || 1) : `${s.round || 1}/${s.rounds || 5}`);
+
+/** «خروج المغلوب»'s card (877): who went out this round and who is left, or the final's score
+    (best of three, a dot a round won). */
+function rxrKoHtml(state, s) {
+  if (!rxrKo(s)) return '';
+  const L = rxrT();
+  const name = (id) => escapeHTML(rxrNameOf(state, id));
+  const f = s.final;
+  if (f) {
+    const side = (id) => `<span>${name(id)}</span><span class="rx-ko__dots" aria-label="${(f.wins || {})[id] || 0}">${Array.from({ length: 2 }, (_, i) => `<i class="rx-ko__dot ${i < ((f.wins || {})[id] || 0) ? 'is-on' : ''}"></i>`).join('')}</span>`;
+    const line = s.phase === 'result' ? (s.lastWin ? rxrFill(L.rx_ko_took, { name: '⁨' + rxrNameOf(state, s.lastWin) + '⁩' }) : (s.rows || []).length ? L.rx_ko_nobody : '') : '';
+    return `<div class="card card--tight rx-ko"><div class="eyebrow" style="width:100%">🏁 ${escapeHTML(L.rx_ko_final)} · ${escapeHTML(L.rx_ko_best3)}</div>
+      <div class="rx-ko__vs">${side(f.ids[0])}<span class="tx-muted">×</span>${side(f.ids[1])}</div>${line ? `<div class="rx-ko__line">${escapeHTML(line)}</div>` : ''}</div>`;
+  }
+  const alive = (s.roster || []).filter(id => (s.alive || []).indexOf(id) !== -1);
+  const outs = (s.roster || []).filter(id => (s.outRound || {})[id]).sort((a, b) => s.outRound[b] - s.outRound[a]);
+  const line = s.phase === 'result' && s.lastOut ? `<div class="rx-ko__line">${escapeHTML(rxrFill(L.rx_ko_out_line, { name: '⁨' + rxrNameOf(state, s.lastOut) + '⁩' }))}</div>` : '';
+  return `<div class="card card--tight rx-ko">${line}<div class="eyebrow" style="width:100%">${escapeHTML(rxrFill(L.rx_ko_left, { n: alive.length }))}</div>
+    ${alive.map(id => `<span class="chip rx-chip">${name(id)}</span>`).join('')}${outs.map(id => `<span class="chip rx-chip is-out">${name(id)}</span>`).join('')}</div>`;
 }
 
 /** The end: the winner, the podium, the totals with each one's best time. */
@@ -284,7 +377,7 @@ function rxrOverHtml(state, s) {
 /** Who has tapped this round, painted in place (so others' taps don't rebuild the pad under a finger). */
 function rxrCountText(state) {
   const s = state.shared || {};
-  const roster = (s.roster || []).filter((id) => (state.players || []).some((p) => p.id === id));
+  const roster = (s.roster || []).filter((id) => (state.players || []).some((p) => p.id === id) && (!rxrKo(s) || (s.alive || []).indexOf(id) !== -1));
   return rxrFill(rxrT().rx_tapped, { n: (s.taps || []).length, m: roster.length });
 }
 
@@ -295,19 +388,37 @@ ROOM_GAMES.reaction = {
     if (!state.youAreHost) return '';
     const L = rxrT();
     const o = rxrOpts();
-    return `
-      <div class="card card--tight">
-        <label class="switch-row" for="rxr-fakes">
-          <span class="field__label">${escapeHTML(L.rx_fakes)}</span>
+    const ko = o.mode === 'knockout';
+    const sw = (id, label, on, call, hint) => `<div class="field">
+        <label class="switch-row" for="${id}">
+          <span class="field__label">${escapeHTML(label)}</span>
           <span class="switch">
-            <input type="checkbox" id="rxr-fakes" role="switch" ${o.fakes ? 'checked' : ''} onchange="rxrSetFakes(this.checked)">
+            <input type="checkbox" id="${id}" role="switch" ${on ? 'checked' : ''} onchange="${call}">
             <span class="switch__track" aria-hidden="true"></span>
           </span>
         </label>
-        <p class="field__hint" style="text-align:center">${escapeHTML(o.fakes ? L.rx_fakes_hint : L.rx_lobby_hint)}</p>
+        <p class="field__hint">${escapeHTML(hint)}</p>
+      </div>`;
+    // «خروج المغلوب» (877) is a way of the room game; «ركّز!» (875) a switch, with its own fakes (so
+    // the classic «خدعة» switch shows only without it).
+    return `
+      <div class="card card--tight">
+        <div class="field">
+          <label class="field__label">${escapeHTML(L.rx_mode)}</label>
+          <div class="segmented" role="group">
+            <button type="button" class="segmented__item ${ko ? '' : 'is-active'}" onclick="rxrSetOpt('mode', 'points')">${escapeHTML(L.rx_mode_points)}</button>
+            <button type="button" class="segmented__item ${ko ? 'is-active' : ''}" onclick="rxrSetOpt('mode', 'knockout')">${escapeHTML(L.rx_mode_ko)}</button>
+          </div>
+          <p class="field__hint">${escapeHTML(ko ? L.rx_ko_hint : L.rx_lobby_hint)}</p>
+        </div>
+        ${sw('rxr-focus', L.rx_focus, !!o.focus, "rxrSetOpt('focus', this.checked)", L.rx_focus_hint)}
+        ${o.focus ? '' : sw('rxr-fakes', L.rx_fakes, !!o.fakes, 'rxrSetFakes(this.checked)', L.rx_fakes_hint)}
       </div>`;
   },
-  startPayload() { return { fakes: !!rxrOpts().fakes }; },
+  startPayload() {
+    const o = rxrOpts();
+    return { fakes: !o.focus && !!o.fakes, focus: !!o.focus, mode: o.mode === 'knockout' ? 'knockout' : 'points' };
+  },
 
   render(state) {
     if (appState.currentView !== 'room-reaction') setView('room-reaction');
@@ -318,25 +429,32 @@ ROOM_GAMES.reaction = {
     const s = state.shared || {};
     const me = Room.me;
     const inGame = (s.roster || []).indexOf(me) !== -1;
+    const playing = rxrPlaying(state);
+    const ko = rxrKo(s);
     const mine = rxrMine(state);
     const myPts = (s.points || {})[me] || 0;
 
-    const sig = ['rxr', roomDealKey(state), s.phase, s.round, s.fake ? s.fake.kind : '', mine ? (mine.ms + ':' + mine.foul + ':' + !!mine.sure) : '',
+    const sig = ['rxr', roomDealKey(state), s.phase, s.round, s.fake ? s.fake.kind : '', s.word ? s.word.w + s.word.ink + s.word.n : '',
+      mine ? (mine.ms + ':' + mine.foul + ':' + !!mine.sure) : '',
       (s.rows || []).map((r) => r.id + ':' + r.ms + ':' + r.pts).join(','), JSON.stringify(s.board || []),
-      state.youAreHost, inGame, appState.lang].join('|');
+      ko ? JSON.stringify([s.alive, s.final, s.lastOut, s.lastWin]) : '',
+      state.youAreHost, inGame, playing, appState.lang].join('|');
 
     renderRoomFrame(el, sig, () => {
       const head = `
         <div class="play-head rx-head">
-          <span class="badge">${escapeHTML(L.round)} <span class="metric">${s.round || 1}/${s.rounds || 5}</span></span>
-          ${inGame ? `<span class="badge badge--accent">${escapeHTML(L.rx_points)} <span class="metric">${myPts}</span></span>` : ''}
+          <span class="badge">${escapeHTML(L.round)} <span class="metric">${rxrRoundText(s)}</span></span>
+          ${inGame && !ko ? `<span class="badge badge--accent">${escapeHTML(L.rx_points)} <span class="metric">${myPts}</span></span>` : ''}
+          ${ko ? `<span class="badge badge--accent">${escapeHTML(s.final ? L.rx_ko_final : L.rx_mode_ko)}</span>` : ''}
+          ${s.settings && s.settings.focus ? `<span class="badge">🎨 ${escapeHTML(L.rx_focus)}</span>` : ''}
           ${s.settings && s.settings.fakes ? `<span class="badge">🐱 ${escapeHTML(L.rx_fakes)}</span>` : ''}
         </div>`;
       let main = '';
       if (s.phase === 'gameover') {
         main = rxrOverHtml(state, s);
-      } else if (!inGame) {
-        main = `${s.phase === 'result' ? '' : rxrPadHtml(state, s, { tv: true })}<div class="waiting-note">${escapeHTML(L.rx_watching)}</div>`;
+      } else if (!playing) {
+        // Watching: in next game, or out of «خروج المغلوب».
+        main = `${s.phase === 'result' ? '' : rxrPadHtml(state, s, { tv: true })}<div class="waiting-note">${escapeHTML(inGame && ko ? L.rx_ko_you_out : L.rx_watching)}</div>`;
       } else {
         main = rxrPadHtml(state, s);
       }
@@ -349,7 +467,9 @@ ROOM_GAMES.reaction = {
           : '';
       const share = s.phase === 'gameover' && typeof roomShareBtnHtml === 'function' ? roomShareBtnHtml(state, s.board) : '';
       const rows = s.phase === 'result' || s.phase === 'gameover' ? rxrRowsHtml(state, s) : '';
-      const board = (s.phase === 'result' || s.phase === 'gameover') ? renderScoreboard(s.board, L.rx_points) : '';
+      // «خروج المغلوب» has no points: its card (who went out, who is left, the final) instead of the totals.
+      const board = ko ? (s.phase === 'gameover' ? '' : rxrKoHtml(state, s))
+        : (s.phase === 'result' || s.phase === 'gameover') ? renderScoreboard(s.board, L.rx_points) : '';
       return `<div class="rx-room">${head}${main}${count}${next}${host}${share}${rows}${board}${renderRoomPlayerStrip(state)}</div>`;
     });
     refreshRoomPlayerStrip(el, state);
@@ -367,7 +487,7 @@ function rxrTap(ev) {
   const state = Room.state;
   const s = (state && state.shared) || {};
   if (!state || state.game !== 'reaction' || (s.phase !== 'wait' && s.phase !== 'go')) return;
-  if ((s.roster || []).indexOf(Room.me) === -1) return;
+  if (!rxrPlaying(state)) return;
   const key = rxrRoundKey(state);
   if (rxr.sent === key) return;
   rxr.sent = key;
@@ -390,7 +510,9 @@ function rxrAfter(state, el, tv) {
   rxrNoteTime(state);
   const pad = el.querySelector('[data-rx-pad]');
   // The green: a burst from the pad's middle, «دوس!» pops, the sound and a buzz - once a round.
-  if (s.phase === 'go' && rxrOnce('go|' + (tv ? 'tv|' : '') + key)) {
+  // Not in «ركّز!»: there the match must be read, never heard or felt.
+  const focus = !!(s.settings && s.settings.focus);
+  if (s.phase === 'go' && !focus && rxrOnce('go|' + (tv ? 'tv|' : '') + key)) {
     if (!motionOff() && pad) {
       pad.classList.add('rx-pad--go');
       const big = pad.querySelector('.rx-msg--go .rx-big');
@@ -455,38 +577,44 @@ onRoomClocksReset(() => { rxrStop(); rxr.mine = null; });
 /** The TV's side while a round is on: everyone in, ✓ once they tapped (✖ for a tap on red). */
 function rxrTvListHtml(state, s) {
   const L = rxrT();
-  const rows = (state.players || []).filter((p) => (s.roster || []).indexOf(p.id) !== -1).map((p) => {
+  const ko = rxrKo(s);
+  // «خروج المغلوب»: only who is still standing plays; the final shows its score instead of points.
+  const rows = (state.players || []).filter((p) => (s.roster || []).indexOf(p.id) !== -1 && (!ko || (s.alive || []).indexOf(p.id) !== -1)).map((p) => {
     const tap = (s.taps || []).find((x) => x.id === p.id);
     const mark = !tap ? '' : tap.foul ? '✖' : '✓';
+    const right = ko ? (s.final ? `<span class="badge">${(s.final.wins || {})[p.id] || 0}</span>` : '') : `<span class="badge">${(s.points || {})[p.id] || 0}</span>`;
     return `<div class="status-row ${tap && tap.foul ? 'is-out' : ''}"><div class="status-row__body"><div class="status-row__name">${escapeHTML(p.name)}</div></div><span class="rx-ms">${mark}</span>
-      <span class="badge">${(s.points || {})[p.id] || 0}</span></div>`;
+      ${right}</div>`;
   }).join('');
-  return `<div class="card card--tight rx-rows"><div class="eyebrow">${escapeHTML(L.rx_points)}</div>${rows}</div>`;
+  const title = ko ? (s.final ? L.rx_ko_final + ' · ' + L.rx_ko_best3 : rxrFill(L.rx_ko_left, { n: (s.alive || []).length })) : L.rx_points;
+  return `<div class="card card--tight rx-rows"><div class="eyebrow">${escapeHTML(title)}</div>${rows}</div>`;
 }
 
 TV_GAMES.reaction = {
   sig(state) {
     const s = state.shared || {};
-    return ['reaction', roomDealKey(state), s.phase, s.round, s.fake ? s.fake.kind : '',
+    return ['reaction', roomDealKey(state), s.phase, s.round, s.fake ? s.fake.kind : '', s.word ? s.word.w + s.word.ink + s.word.n : '',
       (s.taps || []).map((x) => x.id + ':' + (x.foul || '')).join(','), (s.rows || []).map((r) => r.id + ':' + r.ms).join(','),
+      rxrKo(s) ? JSON.stringify([s.alive, s.final, s.lastOut, s.lastWin]) : '',
       JSON.stringify(s.board || []), state.youAreHost, appState.lang].join('|');
   },
   frame(state) {
     const L = rxrT();
     const s = state.shared || {};
-    const head = `<div class="tv-eyebrow tv-center-text">${escapeHTML(L.round)} <span class="metric">${s.round || 1}/${s.rounds || 5}</span>${s.settings && s.settings.fakes ? ' · 🐱 ' + escapeHTML(L.rx_fakes) : ''}</div>`;
+    const ko = rxrKo(s);
+    const head = `<div class="tv-eyebrow tv-center-text">${escapeHTML(L.round)} <span class="metric">${rxrRoundText(s)}</span>${ko ? ' · ' + escapeHTML(s.final ? L.rx_ko_final : L.rx_mode_ko) : ''}${s.settings && s.settings.focus ? ' · 🎨 ' + escapeHTML(L.rx_focus) : ''}${s.settings && s.settings.fakes ? ' · 🐱 ' + escapeHTML(L.rx_fakes) : ''}</div>`;
     const host = s.phase === 'result' ? roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(L.rx_next_now, `roomAct('nextRound', { round: ${Number(s.round) || 0} })`, 'secondary')}</div>`)
       : !state.youAreHost ? '' : s.phase === 'gameover' ? `<div class="tv-actions">${tvBtn('▶ ' + L.rx_play_again, "roomAct('playAgain', {})")}${tvBtn(L.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : '';
     if (s.phase === 'gameover') {
       return `<div class="rx-tv">
         <div class="rx-tv__stage tv-scale">${head}${rxrOverHtml(state, s)}</div>
-        <div class="rx-tv__side tv-scale">${renderScoreboard(s.board, L.rx_points)}${host}</div>
+        <div class="rx-tv__side tv-scale">${ko ? rxrRowsHtml(state, s) : renderScoreboard(s.board, L.rx_points)}${host}</div>
       </div>`;
     }
     const stage = s.phase === 'result'
       ? `${rxrRowsHtml(state, s)}<p class="tv-note" data-rx-next></p>`
       : `${rxrPadHtml(state, s, { tv: true })}<p class="tv-note" data-rx-count>${escapeHTML(rxrCountText(state))}</p>`;
-    const side = s.phase === 'result' ? renderScoreboard(s.board, L.rx_points) : rxrTvListHtml(state, s);
+    const side = s.phase === 'result' ? (ko ? rxrKoHtml(state, s) : renderScoreboard(s.board, L.rx_points)) : rxrTvListHtml(state, s);
     return `<div class="rx-tv">
       <div class="rx-tv__stage ${s.phase === 'result' ? 'tv-scale' : ''}">${head}${stage}</div>
       <div class="rx-tv__side tv-scale">${side}${host}</div>

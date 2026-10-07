@@ -933,6 +933,24 @@ async function reactionRobots() {
   K.close();
   await H.must('backToHub');
   await H.waitFor((s) => s.phase === 'lobby', 'reaction: back in the hub');
+  // «ركّز!» in «خروج المغلوب» (the ideas of 7 Oct 2026): colour words in other colours until the one
+  // that agrees; whoever didn't tap goes out; two left: the final.
+  const three = [H, J, late];
+  await H.must('chooseGame', { game: 'reaction' });
+  await H.must('start', { focus: true, mode: 'knockout' });
+  await all(three.concat([TV]), (s) => s.shared.phase === 'wait' && s.shared.settings.focus && s.shared.settings.mode === 'knockout' && !s.shared.settings.fakes &&
+    s.shared.word && s.shared.word.w !== s.shared.word.ink && s.shared.alive.length === 3 && !('words' in s.shared),
+    'reaction focus: a colour word in another colour on every screen, the rest of them on the server');
+  await all(three.concat([TV]), (s) => s.shared.phase === 'go' && s.shared.word && s.shared.word.w === s.shared.word.ink, 'reaction focus: the word that agrees is the green, on every screen', 9000);
+  const g2 = H.state.shared.greenAt;
+  await sleep(400);
+  await H.must('tap', { round: 1, at: g2 + 200 });
+  await J.must('tap', { round: 1, at: g2 + 260 });
+  await all(three.concat([TV]), (s) => s.shared.phase === 'result' && s.shared.lastOut === late.pid && s.shared.alive.length === 2 && s.shared.final &&
+    s.shared.rows.every((r) => !r.pts), 'reaction knockout: whoever didn\'t tap is out, no points; two left: the final', 5000);
+  check((await late.act('nextRound', { round: 1 })).ok === false, 'reaction knockout: only the host moves a round on');
+  await H.must('backToHub');
+  await H.waitFor((s) => s.phase === 'lobby', 'reaction: back in the hub after the knockout');
   [H, J, late, TV].forEach((x) => x.close());
 }
 
@@ -7095,6 +7113,18 @@ async function laserRobots() {
   await all(people.concat([TV]), (s) => s.game === 'laser' && s.shared.phase === 'hide', 'laser: the hiding reaches every phone and the TV');
   check(TV.state.you === null, 'laser: the TV has no spot');
   check(people.every((p) => p.state.you && typeof p.state.you.x === 'number') && !('shots' in H.state.shared), "laser: each phone has its own spot, the table none");
+  // The room's first laser game starts with a practice round (866): played, nobody goes out.
+  await all(people.concat([TV]), (s) => s.shared.practice === true && s.shared.round === 0, 'laser practice: the room\'s first laser game starts with a practice round on every screen');
+  await H.must('place', { round: 0, x: -0.4, y: 0, a: 0 });
+  await J.must('place', { round: 0, x: 0, y: 0, a: 270 });
+  await K.must('place', { round: 0, x: 0.4, y: 0, a: 270 });
+  for (const p of people) await p.must('ready', { round: 0 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'reveal' && s.shared.practice && s.shared.hit.length === 2 && s.shared.out.length === 0,
+    'laser practice: the practice reveal shows who would be hit; nobody goes out');
+  check((await J.act('skipPractice', { round: 0 })).ok === false, 'laser practice: only the host skips it');
+  await H.must('next', { round: 0 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'hide' && !s.shared.practice && s.shared.round === 1 && s.shared.alive.length === 3,
+    'laser practice: then round one for real, everyone still in');
   // A line: حسام fires along it at the other two, who aim up.
   await H.must('place', { round: 1, x: -0.4, y: 0, a: 0 });
   await J.must('place', { round: 1, x: 0, y: 0, a: 270 });
@@ -7141,6 +7171,18 @@ async function laserRobots() {
   check(H.state.shared.hit.join() === J.pid && H.state.shared.out.length === 0, 'laser: with two hearts a hit loses one and stays');
   await H.must('next', { round: 2 });
   await all(people.concat([TV]), (s) => s.shared.phase === 'hide' && s.shared.hearts[J.pid] === 1 && s.shared.hitsBy[H.pid] === 1, 'laser: the hearts and hits on every screen');
+  // The turret (867) and mirror pillars (868): on every screen while hiding; no practice again.
+  await H.must('backToHub');
+  await H.waitFor((x) => x.phase === 'lobby', 'laser: back in the hub for the turret');
+  await H.must('chooseGame', { game: 'laser' });
+  await H.must('start', { teams: 0, map: 'hex', pickups: false, turret: true, pillars: true, mirrors: true });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'hide' && !s.shared.practice && s.shared.round === 1 && s.shared.turret && typeof s.shared.turret.a === 'number' &&
+    s.shared.pillars.some((p) => p.mirror), 'laser turret: the turret and its aim and the mirror pillars reach every screen (and only the first game practises)');
+  await H.must('place', { round: 1, x: -0.6, y: 0.4, a: 270 });
+  await J.must('place', { round: 1, x: 0.6, y: 0.4, a: 270 });
+  await K.must('place', { round: 1, x: 0, y: -0.6, a: 0 });
+  for (const p of people) await p.must('ready', { round: 1 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'reveal' && s.shared.beams.some((b) => b.id === 'turret'), 'laser turret: it fires with everyone at the reveal');
   [H, J, K, TV].forEach((x) => x.close());
 }
 

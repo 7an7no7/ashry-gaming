@@ -9,24 +9,36 @@
    one in three without a long run of none. The colours are the theme's tokens
    (.rx-half). The room game, this game's own words (RX_TEXT, read through
    rxText) and its styles (RX_CSS, put in by rxStyleOn) are in JS_RoomReaction.html,
-   the chunk this one loads with it. */
+   the chunk this one loads with it. «ركّز!» (875, 7 Oct 2026, the setup's switch,
+   shared with the lobby's): colour words in other colours, the match is the
+   green (rxFocusRound). */
 
-const RX_OPTS_DEFAULT = { fakes: true };
+const RX_OPTS_DEFAULT = { fakes: true, focus: false };
 const RX_FAKE_KINDS = ['yellow', 'cat', 'word'];
 const RX_FAKE_MS = 700;           // REACTION_FAKE_MS on the server
+// «ركّز!» (875, 7 Oct 2026): the server's REACTION_FOCUS_* - the colours, a word's time, the words
+// that don't agree before the one that does.
+const RX_FOCUS_COLOURS = ['red', 'green', 'blue', 'yellow'];
+const RX_FOCUS_STEP_MS = [700, 1100];
+const RX_FOCUS_MISSES = [2, 5];
 let rxFakeBag = [];
 
 function rxOpts() { return recallOptions('reaction', RX_OPTS_DEFAULT); }
 function rxSetFakes(on) { rememberOptions('reaction', { fakes: !!on }); }
-/** The setup's switch shows what was chosen last (here or in a room's lobby). */
+function rxSetFocus(on) { rememberOptions('reaction', { focus: !!on }); paintReactionSetup(); }
+/** The setup's switches show what was chosen last (here or in a room's lobby); «ركّز!» has its own
+    fakes (the words that don't agree), so «خدعة» rests while it is on. */
 function paintReactionSetup() {
+    const o = rxOpts();
     const box = document.getElementById('rx-fakes');
-    if (box) box.checked = !!rxOpts().fakes;
+    if (box) { box.checked = !!o.fakes; box.disabled = !!o.focus; }
+    const focus = document.getElementById('rx-focus');
+    if (focus) focus.checked = !!o.focus;
 }
 
-/** The next round has a fake? One in three, from a bag. */
+/** The next round has a fake? One in three, from a bag (none with «ركّز!»). */
 function rxDrawFake() {
-    if (!rxOpts().fakes) return false;
+    if (!rxOpts().fakes || rxOpts().focus) return false;
     if (!rxFakeBag.length) rxFakeBag = shuffleArray([true, false, false]);
     return rxFakeBag.pop();
 }
@@ -75,6 +87,9 @@ function startReactionRound() {
     r.fakeSeen = false;
     clearTimeout(r.fakeId);
     clearTimeout(r.fakeEndId);
+    if (r.timeoutId) clearTimeout(r.timeoutId);
+
+    if (rxOpts().focus) { rxFocusRound(p1, p2, msg1, msg2, L); return; }
 
     const withFake = rxDrawFake();
     const delay = withFake ? 3200 + Math.floor(Math.random() * 3300) : Math.floor(Math.random() * 4000) + 2000;
@@ -114,6 +129,41 @@ function startReactionRound() {
             playSound('success');
         }
     }, delay);
+}
+
+/**
+ * «ركّز!» on one phone (875): both halves on the night, a colour word in another colour, a new one
+ * every 0.7-1.1 s (two to five of them), then the word in its own colour: that is the green, read and
+ * not heard (no sound, no green). A tap on a word that doesn't agree is «اتضحك عليك!».
+ */
+function rxFocusRound(p1, p2, msg1, msg2, L) {
+    const r = appState.reaction;
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const show = (w, ink) => {
+        const html = rxMsg(`<span class="rx-ink rx-ink--${ink}">${escapeHTML(L['rx_c_' + w] || '')}</span>`, escapeHTML(L.rx_focus_sub), motionOff() ? '' : 'rx-msg--pop');
+        rxPaintHalf(p1, 'focus'); rxPaintHalf(p2, 'focus');
+        msg1.innerHTML = html; msg2.innerHTML = html;
+    };
+    let left = RX_FOCUS_MISSES[0] + Math.floor(Math.random() * (RX_FOCUS_MISSES[1] - RX_FOCUS_MISSES[0] + 1));
+    let last = '';
+    r.fakeSeen = true;   // from the first word, any tap before the match is fooled
+    const step = () => {
+        if (r.status !== 'waiting') return;
+        if (left <= 0) {
+            const c = pick(RX_FOCUS_COLOURS);
+            show(c, c);
+            r.status = 'ready';
+            r.startTime = performance.now();
+            return;
+        }
+        left -= 1;
+        let w, ink;
+        do { w = pick(RX_FOCUS_COLOURS); ink = pick(RX_FOCUS_COLOURS.filter(c => c !== w)); } while (w + ink === last);
+        last = w + ink;
+        show(w, ink);
+        r.timeoutId = setTimeout(step, RX_FOCUS_STEP_MS[0] + Math.floor(Math.random() * (RX_FOCUS_STEP_MS[1] - RX_FOCUS_STEP_MS[0])));
+    };
+    step();
 }
 
 function handleReactionTap(player) {

@@ -78,7 +78,9 @@ function roomTurnOf(state) {
       if (s.phase === 'music' && s.dj && s.dj === me) return 'turn_chairs_dj';     // «الدي جي»: the stop is theirs
       return s.phase === 'sit' && (s.alive || []).indexOf(me) !== -1 && !(s.sits || []).some(x => x.id === me) ? 'turn_chairs' : null;
     case 'reaction':
-      return s.phase === 'go' && (s.roster || []).indexOf(me) !== -1 && !(s.taps || []).some(x => x.id === me) ? 'turn_reaction' : null;
+      // «ركّز!»'s match is read, never announced; in «خروج المغلوب» only who is still standing plays.
+      if (s.settings && s.settings.focus) return null;
+      return s.phase === 'go' && (s.roster || []).indexOf(me) !== -1 && (!s.alive || s.alive.indexOf(me) !== -1) && !(s.taps || []).some(x => x.id === me) ? 'turn_reaction' : null;
     case 'drawguess':
       return state.phase === 'drawing' && s.drawerId === me && !s.word ? 'turn_draw' : null;
     case 'fakeartist':

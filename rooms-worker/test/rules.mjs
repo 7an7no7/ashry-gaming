@@ -11620,6 +11620,97 @@ Date.now = duelTestClock;
     applyRoomAction(r, 'z', 'tap', { round: 1, at: r.shared.greenAt + 150 });
     check(r.shared.taps.length === 0, 'reaction: someone who joined mid-game watches');
   }
+  // The ideas of 7 Oct 2026: «ركّز!» (875) and «خروج المغلوب» (877).
+  const toMatch = (r) => { for (let k = 0; k < 12 && r.shared.phase === 'wait'; k++) { clock = Math.max(clock + 1, roomDeadline(r)); roomTimeout(r, clock); } };
+  {
+    const ok = { first: true, misses: true, secret: true, steps: true, match: true, fooled: true, noFakes: true };
+    for (let n = 0; n < 30; n++) {
+      const r = rxRoom(['a', 'b', 'c'], { focus: true, fakes: true });
+      const s = r.shared, h = r._reaction;
+      ok.noFakes = ok.noFakes && s.settings.focus === true && s.settings.fakes === false && !h.plan.length;
+      ok.first = ok.first && s.phase === 'wait' && !!s.word && s.word.w !== s.word.ink && s.fakeSeen === true;
+      ok.secret = ok.secret && !!h.match && h.match.w === h.match.ink && !('match' in s) && !('words' in s);
+      const seen = [s.word.w + s.word.ink];
+      const total = h.words.length + 1;
+      ok.steps = ok.steps && total >= 2 && total <= 5;
+      while (s.phase === 'wait') {
+        const before = s.word;
+        clock = Math.max(clock + 1, roomDeadline(r)); roomTimeout(r, clock);
+        if (s.phase === 'wait') {
+          ok.misses = ok.misses && s.word.w !== s.word.ink && s.word.n === before.n + 1;
+          seen.push(s.word.w + s.word.ink);
+        }
+      }
+      ok.match = ok.match && s.phase === 'go' && s.word.w === s.word.ink && s.greenAt === clock && seen.length === total;
+      if (n === 0) {
+        // A tap on a word that doesn't agree is ✖ «اتضحك عليك!».
+        const r2 = rxRoom(['a', 'b', 'c'], { focus: true });
+        applyRoomAction(r2, 'b', 'tap', { round: 1, at: clock });
+        ok.fooled = r2.shared.taps[0].foul === 'fake';
+      }
+    }
+    check(ok.noFakes, 'reaction focus: «ركّز!» is a switch, with its own fakes (the classic ones are off)');
+    check(ok.first, 'reaction focus: a round opens on a colour word in another colour');
+    check(ok.secret, 'reaction focus: the words to come and the one that agrees stay on the server');
+    check(ok.steps, 'reaction focus: two to five words that don\'t agree, then the one that does');
+    check(ok.misses, 'reaction focus: each new word reaches the screens as its moment comes, never one that agrees');
+    check(ok.match, 'reaction focus: the word that agrees is the green, at one server moment');
+    check(ok.fooled, 'reaction focus: a tap on a word that doesn\'t agree is ✖ (fooled)');
+    const r = rxRoom(['a', 'b'], { focus: true });
+    toMatch(r);
+    applyRoomAction(r, 'a', 'tap', { round: 1, at: r.shared.greenAt + 250 });
+    applyRoomAction(r, 'b', 'tap', { round: 1, at: r.shared.greenAt + 300 });
+    check(r.shared.phase === 'result' && r.shared.rows[0].id === 'a' && r.shared.rows[0].pts === 3, 'reaction focus: the match is timed and scored as the green is');
+    applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+    check(r.shared.phase === 'wait' && r.shared.word && r.shared.word.w !== r.shared.word.ink && r.shared.settings.focus, 'reaction focus: the next round starts on a new word');
+  }
+  {
+    // «خروج المغلوب»: the worst one out a round, then a best-of-three final.
+    const r = rxRoom(['a', 'b', 'c', 'd'], { fakes: false, mode: 'knockout' });
+    const s = r.shared;
+    check(s.settings.mode === 'knockout' && s.rounds === null && s.alive.length === 4 && !s.final, 'reaction knockout: a way of the room game; everyone standing, no set number of rounds');
+    toGreen(r);
+    ['a', 'b', 'c', 'd'].forEach((id, i) => applyRoomAction(r, id, 'tap', { round: 1, at: s.greenAt + 200 + i * 50 }));
+    check(s.lastOut === 'd' && s.alive.join() === 'a,b,c' && s.outRound.d === 1 && s.rows.every((x) => !x.pts) && s.rows.find((x) => x.id === 'd').out,
+      'reaction knockout: the slowest is out, nobody scores points');
+    applyRoomAction(r, 'a', 'nextRound', { round: 1 });
+    applyRoomAction(r, 'd', 'tap', { round: 2, at: clock });
+    check(!s.taps.length, 'reaction knockout: whoever is out watches');
+    applyRoomAction(r, 'c', 'tap', { round: 2, at: clock });                // on red
+    toGreen(r);
+    applyRoomAction(r, 'a', 'tap', { round: 2, at: s.greenAt + 400 });
+    applyRoomAction(r, 'b', 'tap', { round: 2, at: s.greenAt + 300 });
+    check(s.lastOut === 'c' && s.alive.join() === 'a,b' && s.final && s.final.ids.join() === 'a,b',
+      'reaction knockout: a ✖ goes out before the slowest; two left: the final');
+    applyRoomAction(r, 'a', 'nextRound', { round: 2 });
+    toGreen(r);
+    clock = s.greenAt + 2500; roomTimeout(r, clock);
+    check(s.phase === 'result' && !s.lastWin && !Object.keys(s.final.wins).length, 'reaction knockout: a final round with no time doesn\'t count');
+    const play = (fast, slow) => {
+      applyRoomAction(r, 'a', 'nextRound', { round: s.round });
+      toGreen(r);
+      applyRoomAction(r, fast, 'tap', { round: s.round, at: s.greenAt + 200 });
+      applyRoomAction(r, slow, 'tap', { round: s.round, at: s.greenAt + 260 });
+    };
+    play('b', 'a');
+    check(s.final.wins.b === 1 && s.lastWin === 'b' && s.phase === 'result', 'reaction knockout: the faster takes a round of the final');
+    play('a', 'b');
+    play('b', 'a');
+    check(s.phase === 'gameover' && s.final.winner === 'b' && s.board.map((x) => x.id).join() === 'b,a,c,d',
+      'reaction knockout: two rounds of three win it; the board: the winner, the runner-up, then who lasted longest');
+    bankNightPoints(r, s.board);
+    check(r.night.b === 5 && r.night.a === 3 && r.night.c === 2, "reaction knockout: the night's places come from it");
+    applyRoomAction(r, 'a', 'playAgain', {});
+    check(r.shared.settings.mode === 'knockout' && r.shared.alive.length === 4, 'reaction knockout: play again keeps the way');
+    // A finalist who leaves hands the final to the other; with three left a leave starts the final.
+    const q = rxRoom(['a', 'b', 'c'], { fakes: false, mode: 'knockout' });
+    leave(q, 'c');
+    check(q.shared.final && q.shared.final.ids.join() === 'a,b' && q.shared.phase !== 'gameover', 'reaction knockout: down to two by a leave, the final');
+    leave(q, 'a');
+    check(q.shared.phase === 'gameover' && q.shared.final.winner === 'b' && q.shared.board[0].id === 'b', 'reaction knockout: a finalist who leaves hands it to the other');
+    const two = rxRoom(['a', 'b'], { mode: 'knockout' });
+    check(two.shared.final && two.shared.final.ids.length === 2, 'reaction knockout: two players go straight to the final');
+  }
 }
 
 /* --- بالظبط ٣! (29 Sep 2026): every order judged from the phones' stamps, the glasses, the levels --- */
@@ -16038,7 +16129,7 @@ console.log('• the secret mission');
     const lzRoom = (ids, opts) => {
       const r = newRoom(ids);
       applyRoomAction(r, ids[0], 'chooseGame', { game: 'laser' });
-      applyRoomAction(r, ids[0], 'start', Object.assign({ teams: 0, map: 'hex', pickups: false }, opts || {}));
+      applyRoomAction(r, ids[0], 'start', Object.assign({ teams: 0, map: 'hex', pickups: false, practice: false }, opts || {}));
       return r;
     };
     // Everyone standing placed (and maybe shielded), all ready: the reveal.
@@ -16181,7 +16272,7 @@ console.log('• the secret mission');
     const lzRoom = (ids, opts) => {
       const r = newRoom(ids);
       applyRoomAction(r, ids[0], 'chooseGame', { game: 'laser' });
-      applyRoomAction(r, ids[0], 'start', Object.assign({ teams: 0, map: 'hex', pickups: false }, opts || {}));
+      applyRoomAction(r, ids[0], 'start', Object.assign({ teams: 0, map: 'hex', pickups: false, practice: false }, opts || {}));
       return r;
     };
     const lzRound = (r, spots, extra) => {
@@ -16279,6 +16370,73 @@ console.log('• the secret mission');
       lzRound(r, { a: [-0.5, 0, 0], d: [0.4, 0, 90] });
       lzNext(r);
       check(r.shared.phase === 'gameover' && r.shared.best && r.shared.best.shooter === 'a' && r.shared.best.n === 2, 'laser best: the beam that hit the most, for the replay');
+    }
+
+    // The ideas of 7 Oct 2026 (the owner's picks 866, 867, 868).
+    // 866: the room's first laser game starts with a practice round: nobody out, nothing counted.
+    {
+      const r = newRoom(['a', 'b', 'c']);
+      applyRoomAction(r, 'a', 'chooseGame', { game: 'laser' });
+      applyRoomAction(r, 'a', 'start', { teams: 0, map: 'hex', pickups: false });
+      check(r.shared.practice === true && r.shared.round === 0 && r.shared.phase === 'hide' && r.shared.hideMs === 15000,
+        'laser practice: the room\'s first laser game starts with a practice round (round 0, the full time)');
+      applyRoomAction(r, 'b', 'shield', { round: 0, on: true });
+      lzRound(r, { a: [-0.5, 0, 0], b: [0.5, 0.4, 90], c: [0, 0, 90] });
+      check(r.shared.phase === 'reveal' && r.shared.hit.join() === 'c' && r.shared.out.length === 0 && r.shared.roundKills.length === 1,
+        'laser practice: the reveal shows who would have been hit, and nobody goes out');
+      check(!r.shared.shieldUsed.b, 'laser practice: a shield raised in practice is not spent');
+      lzNext(r);
+      const s = r.shared;
+      check(!s.practice && s.round === 1 && s.phase === 'hide' && s.alive.length === 3 && s.hearts.c === 1 && !s.hitsBy.a && !s.kills.length && s.lastRound.practice,
+        'laser practice: then round one for real, everyone in, every heart, no hit counted');
+      check(s.hideMs === 15000 && (!s.introUntil || s.introUntil <= Date.now()), 'laser practice: round one has the full time and no map intro again');
+      applyRoomAction(r, 'a', 'backToHub', {});
+      applyRoomAction(r, 'a', 'chooseGame', { game: 'laser' });
+      applyRoomAction(r, 'a', 'start', { teams: 0, map: 'hex', pickups: false });
+      check(!r.shared.practice && r.shared.round === 1, 'laser practice: only the room\'s first laser game has one');
+      const q = newRoom(['a', 'b', 'c']);
+      applyRoomAction(q, 'a', 'chooseGame', { game: 'laser' });
+      applyRoomAction(q, 'a', 'start', { teams: 0, map: 'hex' });
+      let threw = false;
+      try { applyRoomAction(q, 'b', 'skipPractice', { round: 0 }); } catch (e) { threw = true; }
+      check(threw && q.shared.practice, 'laser practice: only the host skips it');
+      applyRoomAction(q, 'a', 'skipPractice', { round: 0 });
+      check(!q.shared.practice && q.shared.round === 1 && q.shared.phase === 'hide', 'laser practice: «نبدأ علطول» starts round one at once');
+      applyRoomAction(q, 'a', 'skipPractice', { round: 0 });
+      check(q.shared.round === 1 && q.shared.phase === 'hide', 'laser practice: a stale skip does nothing');
+    }
+
+    // 867: the turret in the middle: a solid, its aim on the table, it fires with everyone.
+    {
+      const tt = laserTrace([{ id: 'a', x: -0.5, y: 0, a: 0 }, { id: 'turret', x: 0, y: 0, a: 90, turret: true }, { id: 'b', x: 0, y: 0.5, a: 180 }],
+        { k: 1, turret: { x: 0, y: 0 } });
+      const ta = tt.beams.find((b) => b.id === 'a'), tb = tt.beams.find((b) => b.id === 'turret');
+      check(ta.hits.length === 0 && Math.abs(ta.segs[0][2] + LASER_PILLAR_R) < 0.002, 'laser turret: a beam stops at the turret');
+      check(tb.hits.join() === 'b', 'laser turret: the turret\'s beam hits whoever is in its line (and has no body to hit)');
+      const f = laserFit({ map: 'hex', k: 1, turret: { x: 0, y: 0 } }, 0.01, 0);
+      check(Math.hypot(f.x, f.y) >= LASER_PILLAR_R + B - 0.002, 'laser turret: nobody stands in it');
+      const r = lzRoom(['a', 'b', 'c'], { turret: true });
+      check(r.shared.turret && r.shared.turret.x === 0 && typeof r.shared.turret.a === 'number', 'laser turret: with the switch on, the turret and its aim are on the table while hiding');
+      check(!lzRoom(['a', 'b', 'c']).shared.turret, 'laser turret: off by default');
+      r.shared.turret.a = 90;
+      lzRound(r, { a: [-0.6, -0.4, 180], b: [0, 0.5, 0], c: [0.6, -0.4, 0] });
+      check(r.shared.hit.join() === 'b' && r.shared.roundKills[0].from === 'turret', 'laser turret: at the reveal it fires along that aim');
+      lzNext(r);
+      check(r.shared.alive.indexOf('b') === -1 && r.shared.turret && r.shared.phase === 'hide' && !r.shared.hitsBy.a, 'laser turret: its hit counts like any, and it stays for the next round');
+    }
+
+    // 868: mirror pillars reflect a beam (with bouncing off, the only bounce); only with pillars on.
+    {
+      const m = 0.08 * Math.SQRT1_2;
+      const shots = [{ id: 'a', x: -0.6, y: -m, a: 0 }, { id: 'b', x: -m, y: -0.5, a: 0 }];
+      const mir = laserTrace(shots, { k: 1, pillars: [{ x: 0, y: 0, mirror: true }] });
+      check(mir.beams[0].hits.join() === 'b' && mir.beams[0].segs.length === 2, 'laser mirrors: a mirror pillar reflects a beam round the corner');
+      const stone = laserTrace(shots, { k: 1, pillars: [{ x: 0, y: 0 }] });
+      check(stone.beams[0].hits.length === 0 && stone.beams[0].segs.length === 1, 'laser mirrors: a stone pillar still stops it');
+      const r = lzRoom(['a', 'b', 'c', 'd', 'e'], { pillars: true, mirrors: true });
+      check(r.shared.pillars.length === 3 && r.shared.pillars.filter((p) => p.mirror).length === 2, 'laser mirrors: one more pillar, and half of them (rounded up) are mirrors');
+      const r2 = lzRoom(['a', 'b', 'c'], { mirrors: true });
+      check(!r2.shared.opts.mirrors && !r2.shared.pillars.length, 'laser mirrors: only among the pillars (off without them)');
     }
   }
 }

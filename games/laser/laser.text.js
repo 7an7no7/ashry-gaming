@@ -119,6 +119,26 @@ gameText({
       laser_aw_close: "😮‍💨 نجا بأعجوبة",
       laser_aw_both: "💥 ضرب وخرج",
       laser_hearts_left: "قلوبك",
+      laser_turret: "البرج",
+      laser_turret_tv: "🗼 البرج هيضرب على الخط الأحمر",
+      laser_turret_hint: "البرج هيضرب على الخط الأحمر",
+      laser_o_turret: "🗼 البرج",
+      laser_o_turret_hint: "برج في النص بيصوّب على خط الكل شايفه، ويضرب مع الكل",
+      laser_o_mirrors: "🪞 مرايات",
+      laser_o_mirrors_hint: "شوية من العواميد فضي: بتعكس الليزر بدل ما توقفه",
+      laser_practice: "جولة تجربة",
+      laser_pr_hint: "جولة تجربة: محدش هيخرج ولا هيخسر قلب",
+      laser_pr_first: "أول لعبة: هنبدأ بجولة تجربة",
+      laser_pr_skip: "نبدأ علطول",
+      laser_pr_would: "كانوا هيتضربوا:",
+      laser_pr_next: "الجولة الجاية بجد!",
+      laser_pr_v_hit: "كنت هتتضرب!",
+      laser_pr_by: "كان هيضربك",
+      laser_pr_safe: "محدش كان هيضربك",
+      laser_pr_mine: "انت كنت هتضرب",
+      laser_pr_missed: "وليزرك ماجاش في حد",
+      laser_pr_shield: "ودرعك كان شغّال",
+      laser_pr_real: "بجد دلوقتي!",
     },
     en: {
       setup_laser: "Laser",
@@ -236,6 +256,26 @@ gameText({
       laser_aw_close: "😮‍💨 Close call",
       laser_aw_both: "💥 Took one with them",
       laser_hearts_left: "Your hearts",
+      laser_turret: "The turret",
+      laser_turret_tv: "🗼 The turret fires along the red line",
+      laser_turret_hint: "the turret fires along the red line",
+      laser_o_turret: "🗼 Turret",
+      laser_o_turret_hint: "A turret in the middle aims along a line everyone sees, and fires with everyone",
+      laser_o_mirrors: "🪞 Mirrors",
+      laser_o_mirrors_hint: "Some pillars are silver: they reflect a laser instead of stopping it",
+      laser_practice: "Practice round",
+      laser_pr_hint: "Practice round: nobody goes out or loses a heart",
+      laser_pr_first: "First game: we start with a practice round",
+      laser_pr_skip: "Start for real now",
+      laser_pr_would: "Would have been hit:",
+      laser_pr_next: "The next round is for real!",
+      laser_pr_v_hit: "You'd have been hit!",
+      laser_pr_by: "Would have hit you:",
+      laser_pr_safe: "Nobody would have hit you",
+      laser_pr_mine: "You'd have hit",
+      laser_pr_missed: "your laser missed everyone",
+      laser_pr_shield: "your shield was up",
+      laser_pr_real: "For real now!",
     }
   },
   rules: {
@@ -251,6 +291,9 @@ gameText({
                 <li>بالفرق: الليزر واللغم بيعدّوا من زميلك من غير ما يأذوه، وآخر فريق فيه حد واقف يكسب.</li>
                 <li><b>🎁 الكبسولات</b> (من الجولة التانية): اللي يقف على كبسولة لوحده وينجى ياخدها، ويستعملها في جولة بعدها (⚡ دبل قدام وورا، 🔄 شعاع تاني، 🛡️ درع، 🎯 ليزر عريض). اتنين عليها؟ بتتكسر.</li>
                 <li>كل لعبة بخريطة: سداسي، دايرة، دونات (الحفرة اللي في النص بتوقف الليزر)، أو صليب. <b>🧱 العواميد</b> بتوقف الليزر، و<b>🕳️ الأرض تقع حتت</b> بدل الحلقة: البلاط المشقوق بيقع آخر الجولة.</li>
+                <li><b>🪞 مرايات</b> (مع العواميد): العمود الفضي بيعكس الليزر بدل ما يوقفه، فضربة شاطرة تلف حوالين ركن.</li>
+                <li><b>🗼 البرج</b>: برج في نص الحلبة، اتجاهه باين للكل وانتوا مستخبيين (الخط الأحمر)، ويضرب عليه مع الكل. اتجاه جديد كل جولة.</li>
+                <li>أول لعبة ليزر في الغرفة بتبدأ بـ<b>جولة تجربة</b>: الكل يستخبى ويضرب، بس محدش بيخرج ولا بيخسر قلب، وكل موبايل يقول حصل له إيه. المضيف يقدر يدوس «نبدأ علطول».</li>
             </ol>`,
     },
     en: {
@@ -265,6 +308,9 @@ gameText({
                 <li>In teams: lasers and mines pass your teammates harmlessly, and the last team with anyone standing wins.</li>
                 <li><b>🎁 Pickups</b> (from round two): stand on one alone and survive to take it, then use it in a later round (⚡ double, forward and back; 🔄 a second beam; 🛡️ a shield; 🎯 a wide laser). Two on one? It breaks.</li>
                 <li>Every game has a map: a hexagon, a circle, a donut (its hole stops lasers) or a cross. <b>🧱 Pillars</b> stop lasers, and <b>🕳️ Falling floor</b> replaces the ring: cracked tiles fall at the end of the round.</li>
+                <li><b>🪞 Mirrors</b> (with pillars): a silver pillar reflects a laser instead of stopping it, so a clever shot goes round a corner.</li>
+                <li><b>🗼 The turret</b>: a turret in the middle of the arena; everyone sees its aim while hiding (the red line), and it fires along it with everyone. A new aim every round.</li>
+                <li>A room's first laser game starts with a <b>practice round</b>: everyone hides and fires, but nobody goes out or loses a heart, and each phone says what happened to it. The host can press «Start for real now».</li>
             </ol>`,
     }
   }

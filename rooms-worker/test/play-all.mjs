@@ -2846,14 +2846,25 @@ async function coreSeg() {
     // Three letters on the end: too far to count (a letter off would be right now), near enough for a nudge.
     await viewers[0].must('guess', { guess: drawWord + 'ااا' });
     await all(viewers, (s) => s.shared.guesses.length === 2 && !s.shared.guesses[1].right && s.shared.guesses[1].close === true, 'a near miss is marked close, not right');
+    // 565 (7 Oct 2026): its spelling stays on the guesser's phone; the others read «قرّب».
+    check(viewers.every((b) => b.state.shared.guesses[1].text === '') &&
+          ((viewers[0].state.you || {}).guesses || []).some((g) => g.text === drawWord + 'ااا'), "a near miss is spelled only on the guesser's phone");
   }
   await viewers[0].must('guess', { guess: drawWord });
   await all(bots, (s) => s.phase === 'result' && s.shared.word === drawWord, 'a right guess ends the round');
-  check(A.state.shared.scores[viewers[0].pid] === 2 && A.state.shared.scores[drawer.pid] === 1, 'guesser and drawer score');
+  // Guessed well inside the first third of 30 s: the quick hit's point more each (566).
+  const quick = A.state.shared.quick === true;
+  check(A.state.shared.scores[viewers[0].pid] === (quick ? 3 : 2) && A.state.shared.scores[drawer.pid] === (quick ? 2 : 1), 'guesser and drawer score (a quick hit one more each)');
   await A.must('nextRound', { lang: 'ar', round: 1 });
   await A.must('nextRound', { lang: 'ar', round: 1 });
   await A.must('nextRound', { lang: 'ar' });
   await all(bots, (s) => s.phase === 'drawing' && s.shared.round === 2 && !s.shared.word, "next round: one new drawer, however often it is tapped");
+  // «قول الفئة» (567): the drawer tells the kind of thing; every phone sees it.
+  const drawer2 = byId(bots, A.state.shared.drawerId);
+  if (drawer2.state.shared.catOk) {
+    await drawer2.must('tellCategory', {});
+    await all(bots, (s) => typeof s.shared.category === 'string' && s.shared.category.length > 0, 'the drawer tells the category to every phone');
+  }
   await A.must('backToHub');
 
   /* --- صدق ولا كذب ------------------------------------------------------------- */

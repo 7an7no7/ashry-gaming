@@ -107,6 +107,56 @@ has 5+ words and that no word is spelled inside its own category's name (مكت�
 in «مدرسة ومكتب» and moved to the house), and `rules.mjs` that the fake's slice
 has the category and never the word.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+ارسم وخمّن (`games/draw/RoomDraw.js`, `JS_RoomDraw.html`, the TV in `rooms/JS_RoomTv.html`):
+
+- **565 «قرّب» من غير ما يتقري.** A close guess goes into `shared.guesses` with no
+  text (`{ n, name, text: '', close: true }`); its spelling goes to the guesser's own
+  slice, `secrets[pid].guesses = [{ n, text }]`, matched by the guess's number
+  (`shared.guessSeq`). `paintGuessList(guesses, state)` shows the guesser their own
+  text with 🔥 قريب, and everyone else (and the TV) «🔥 خالد قرّب» (`draw_came_close`).
+  The leak check has a rule for it ("a close guess is spelled only on its guesser's
+  phone") and its driver makes a close guess every round.
+- **566 ضربة سريعة.** A right guess in the first third of the round's clock
+  (`endsAt - roundSeconds` to a third of the way) sets `shared.quick`: the guesser 3,
+  the drawer 2 (instead of 2 and 1). The stamp reads «⚡ خمّن صح!», and the result
+  card (and the TV's panel) carries «⚡ ضربة سريعة…» (`draw_quick_line`), so it shows
+  with motion off too.
+- **567 «قول الفئة».** The drawer's button (`drawTellCategory`, with a confirm) sends
+  `tellCategory`; the server sets `shared.category` from `drawWordCategory(lang,
+  word)` (DRAW_WORD_CATS) and the drawer gets no point that round - the quick bonus
+  included (my call: "gives up their point for the round" read as nothing at all);
+  the guesser still scores 2 (3 when quick). `shared.catOk` says whether the word
+  has a category (false for «كلماتنا» words, whose button is not shown; the server
+  refuses them too). Painted in place (`drawPaintCategory`, `#draw-cat`) on the
+  phones and the TV, so telling it doesn't rebuild the frame under a guess being typed.
+- **569 تخمين المتفرجين.** `ROOM_GAMES.drawguess.lateJoin = true`: a latecomer sees
+  the drawing with a guess box and a line saying it's for fun (`draw_watch_hint`).
+  Their guesses carry `watcher: true` (👀 on the list and the TV) and never score;
+  a watcher's right guess doesn't end the round and is printed only on their own
+  phone («👀 سارة ✅ عرفها» for the rest), like a close one. They're on the roster
+  from the next round (`nextRound` takes `room.players`).
+
+ارسم واكتب (`games/telephone/`):
+
+- **573 لفّة كمان.** A lobby switch for the host while the room has 3 or 4 people
+  (`teleTwiceOn` / `teleSetTwice`, remembered with `recallOptions('teleRoom')`),
+  sent as `twice: true`; the server (`TELE_TWICE_MAX` 4) makes the chain
+  `min(2 × players, 6)` steps long, so 3 or 4 players get six steps and meet their
+  own chain again at step 3 or 4. Any other value, or 5+ players, is one lap
+  (`shared.twice` says which).
+- **574 كل واحد يكشف سلسلته.** `shared.chain.ownerId`; `revealNext` / `revealBack`
+  are accepted from the current chain's owner (still a player in the room) as well
+  as the host (or anyone, with the host away: `requireMoveOn`), and keep their
+  `staleTap` on `at`. The owner's phone shows the buttons and «🎤 دي سلسلتك: احكيها»;
+  the rest see «🎤 سارة بيحكي سلسلته» (or the host's buttons). The TV's pill was
+  already «سلسلة سارة»; it has a 🎤 now.
+
+Tests: `rules.mjs` (each number), `leaks.mjs` (the close-guess rule), `play-all.mjs`
+core (the close guess hidden from the others, the quick hit's score, «قول الفئة» on
+every phone).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

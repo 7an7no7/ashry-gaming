@@ -298,8 +298,24 @@ function catalogCard(g, t) {
             title="${escapeHTML(catalogDesc(g, t))}">
       <span class="gcard__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
       ${players}
+      ${!off && catalogIsNew(g) ? catalogNewTag(t) : ''}
       <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
     </button>`;
+}
+
+/* «جديد» on a new game's poster and its recent tile (the owner's pick 1208, 7 Oct
+   2026): a game whose GAME_LIST entry has `added` carries it for 14 days from that
+   date, and no longer once this phone has played it (readPlayed). It simply
+   expires: nothing to take off after a release. */
+const CATALOG_NEW_DAYS = 14;
+function catalogIsNew(g) {
+  if (!g || !g.added) return false;
+  const at = Date.parse(g.added + 'T00:00:00');
+  if (!isFinite(at) || Date.now() - at > CATALOG_NEW_DAYS * 864e5 || Date.now() < at) return false;
+  return readPlayed().indexOf(g.id) === -1;
+}
+function catalogNewTag(t, small) {
+  return `<span class="gcard-new${small ? ' gcard-new--sm' : ''}">${escapeHTML(t.cat_new || '')}</span>`;
 }
 
 /* The home's featured game («★ الليلة دي»): one of the starter shelf, a
@@ -364,13 +380,16 @@ function catalogSpotlight(g, t) {
 function catalogToolRow(g, t) {
   // A tool switched off for a fix is greyed with «🛠️ بنصلّحها», as a game's card is.
   const off = catalogOff(g.id);
+  // A score keeper with a game going (1233): «كمّل · الجولة ٤» under its name, ▶ on its icon, and a tap goes back to the sheet.
+  const cs = !off && g.kind === 'score' && /^cs-/.test(g.id) ? g.id.slice(3) : '';
+  const cont = !!cs && csHomeLive(cs);
   return `
-    <button type="button" class="tool-item${off ? ' is-off' : ''}" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">
+    <button type="button" class="tool-item${off ? ' is-off' : ''}${cont ? ' has-cont' : ''}" data-accent="${g.accent}" data-game="${g.id}" onclick="${cont ? `homeContGo('cs-${cs}')` : `catalogOpen('${g.id}', this)`}">
       ${off ? gameOffBadge(t) : ''}
-      <span class="tool-icon" aria-hidden="true">${iconHtml(g.icon)}</span>
+      <span class="tool-icon" aria-hidden="true">${iconHtml(g.icon)}${cont ? '<span class="tool-icon__cont">▶</span>' : ''}</span>
       <span class="tool-info">
         <span class="tool-name">${escapeHTML(catalogTitle(g, t))}</span>
-        <span class="tool-desc">${escapeHTML(catalogDesc(g, t))}</span>
+        ${cont ? `<span class="tool-cont">${escapeHTML((t.daily_continue || '') + ' · ' + csHomeRoundLine(cs, t))}</span>` : `<span class="tool-desc">${escapeHTML(catalogDesc(g, t))}</span>`}
       </span>
       <span class="tool-chev" aria-hidden="true">›</span>
     </button>`;
@@ -534,8 +553,9 @@ function tonightCandidates(count, how) {
     .sort((a, b) => rank(a.id) - rank(b.id));
 }
 
-function tonightOpen() {
-  tonightPaint();
+/** `ids`: the three games to show again (back from a setup opened from here, 1217). */
+function tonightOpen(ids) {
+  tonightPaint(Array.isArray(ids) ? ids : null);
   const el = document.getElementById('tonight-modal');
   if (el) el.classList.remove('hidden');
   haptic('light');
@@ -583,17 +603,38 @@ function tonightGo(id) {
     return;
   }
   if (setupId && document.querySelector('#view-' + g.setup + ' .mode-switch')) playModeOnce = { id: setupId, mode: 'device' };
+  const picks = tonightShown.slice();
   if (QUICK_START[id]) catalogQuickStart(id, card);
   else catalogOpen(id, card);
   if (playModeOnce && playModeOnce.id === setupId) playModeOnce = null;
+  // A setup it stopped on remembers the sheet: back comes to it again (1217).
+  if (g.setup && appState.currentView === g.setup) tonightBack = { view: g.setup, ids: picks };
 }
+
+/* Back to «الليلة دي؟» where it came from (the owner's pick 1217, 7 Oct 2026): a
+   setup opened from the sheet remembers it, and going back from that setup - the
+   header's arrow or the phone's own back, both of which land on the home - opens
+   the sheet again with the same answers (tonightPrefs, kept anyway) and the same
+   three games, not a new deal. Any other way off the setup (Start, a tab, a room)
+   forgets it; the bottom bar's 🏠 is a tab, so it goes home and stays there. */
+let tonightShown = [];     // the three games the sheet shows now
+let tonightBack = null;    // { view, ids }: the setup opened from the sheet
+function tonightForget() { tonightBack = null; }
+if (typeof onLeaveScreen === 'function') onLeaveScreen((from, to) => {
+  const back = tonightBack;
+  if (!back) return;
+  tonightBack = null;
+  if (from !== back.view || to !== 'menu') return;
+  // After setView has closed every popup, and the home is drawn.
+  setTimeout(() => { if (appState.currentView === 'menu') tonightOpen(back.ids); }, 0);
+});
 
 /** A laptop or a TV rather than a phone: wide and tall, with a real pointer. */
 function tonightIsBigScreen() {
   return !!(window.matchMedia && window.matchMedia('(min-width: 900px) and (min-height: 540px) and (pointer: fine)').matches);
 }
 
-function tonightPaint() {
+function tonightPaint(keepIds) {
   const body = document.getElementById('tonight-body');
   if (!body) return;
   const t = TRANSLATIONS[appState.lang] || {};
@@ -608,7 +649,9 @@ function tonightPaint() {
   let picks = '';
   if (ready) {
     const all = tonightCandidates(count, how).map(g => g.id);
-    const ids = all.length > 3 ? freshPick(`tonight_${count}_${needHow ? how : 'device'}`, all.slice(0, 9), 3) : all;
+    const kept = keepIds && keepIds.filter(id => all.indexOf(id) !== -1);
+    const ids = kept && kept.length ? kept : all.length > 3 ? freshPick(`tonight_${count}_${needHow ? how : 'device'}`, all.slice(0, 9), 3) : all;
+    tonightShown = ids.slice();
     picks = ids.length
       ? `<div class="eyebrow">${escapeHTML(t.tonight_picks || '')}</div><div class="tonight-picks">${ids.map(id => {
           const g = CATALOG_BY_ID[id];
@@ -695,6 +738,23 @@ function catalogQuickStart(id, fromEl) {
   if (fly && appState.currentView === g.setup) fly();
 }
 
+/* A laptop or a TV says «اعرضها على الشاشة» (the owner's pick 1211, 7 Oct 2026): a
+   first visit 1280px wide and up is almost always the screen for a room, so a big
+   «📺 دي الشاشة؟ اعرض غرفة» card stands beside the three start cards and opens the
+   room as a screen (roomOpenScreen). A phone's first visit is unchanged. */
+function homeStartScreenCard(t) {
+  if (window.innerWidth < 1280) return '';
+  return `
+      <button type="button" class="start-card start-card--screen" data-accent="indigo" style="--i:3" onclick="roomOpenScreen()">
+        <span class="start-card__icon" aria-hidden="true">📺</span>
+        <span class="start-card__text">
+          <span class="start-card__title">${escapeHTML(t.home_start_screen || '')}</span>
+          <span class="start-card__desc">${escapeHTML(t.home_start_screen_desc || '')}</span>
+        </span>
+        <span class="start-card__go" aria-hidden="true">▶</span>
+      </button>`;
+}
+
 /** «كل الألعاب (N) ▾» on a first visit: the whole home, opened in place. */
 function toggleHomeAll() {
   const box = document.getElementById('home-all');
@@ -740,6 +800,22 @@ const homeContSolo = (id) => ({
   live: () => { const g = SOLO_GAMES[id]; const st = g && g.state ? g.state() : null; return !!(st && st.phase === 'play'); },
   go: () => SOLO_GAMES[id].resume()
 });
+/* The card score keepers (the owner's pick 1233, 7 Oct 2026): a طرنيب sheet with
+   rounds scored and no winner yet is a game left in the middle, so a phone call
+   doesn't lose it. Read from appState.cardscore itself (always loaded), so the
+   الأدوات tab can say «كمّل · الجولة ٤» without the keeper's chunk. */
+const csHomeLive = (id) => {
+  const s = appState.cardscore && appState.cardscore[id];
+  return !!(s && s.phase === 'play' && Array.isArray(s.rounds) && s.rounds.length > 0 && Array.isArray(s.seats) && s.seats.length);
+};
+const csHomeRoundLine = (id, t) => (t.tb_round || '') + ' ' + (appState.cardscore[id].rounds.length + 1);
+const homeContCardScore = (id) => ({
+  key: 'cs-' + id, game: 'cs-' + id,
+  view: () => 'play-cs-' + id,
+  live: () => csHomeLive(id),
+  line: (t) => csHomeRoundLine(id, t),
+  go: () => continueCardScore(id)
+});
 const HOME_CONT = [
   { key: 'charades', game: 'charades', view: () => 'play-charades', live: () => relayInProgress(appState.charades),
     line: (t) => (t.relay_turn_of || '') + ' · ' + ltrFrac(Math.floor(appState.charades.relay.i / 2) + 1, appState.charades.relay.turns),
@@ -768,6 +844,7 @@ const HOME_CONT = [
   homeContSolo('sudoku'), homeContSolo('mines'), homeContSolo('queens'), homeContSolo('tango'), homeContSolo('nonogram'),
   homeContSolo('strands'), homeContSolo('wordwheel'), homeContSolo('pinpoint'), homeContSolo('streak'), homeContSolo('flags'),
   homeContSolo('wordle'), homeContSolo('connections'), homeContSolo('chesspuzzle'),
+  homeContCardScore('estimation'), homeContCardScore('tarneeb'), homeContCardScore('trix'), homeContCardScore('konkan'), homeContCardScore('basra'),
   // A daily started and set aside for a free game: back to تحدي اليوم, whose row says «كمّل».
   { key: 'daily', game: 'daily', view: () => 'setup-daily',
     live: () => typeof DAILY_GAMES !== 'undefined' && DAILY_GAMES.some(d => { const id = d.id || d; return SOLO_GAMES[id] && soloDailyInProgress(id) && !soloDailyLive(SOLO_GAMES[id]); }),
@@ -996,7 +1073,7 @@ function renderHome() {
             : '';
           return `<span class="recent-item${again ? ' has-play' : ''}"><button type="button" class="recent-tile${off ? ' is-off' : ''}" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this)">${off ? '<span class="game-off-badge game-off-badge--icon" aria-hidden="true">🛠️</span>' : ''}
                     <span class="recent-tile__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
-                    <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>
+                    <span class="recent-tile__name">${escapeHTML(catalogTitle(g, t))}</span>${!off && catalogIsNew(g) ? catalogNewTag(t, true) : ''}
                   </button>${again}</span>`;
         }).join('')}
       </div>
@@ -1044,7 +1121,7 @@ function renderHome() {
           <span class="start-card__meta">${catalogMeta(g, t, false, false)}</span>
         </span>
         <span class="start-card__go" aria-hidden="true">▶</span>
-      </button>`).join('');
+      </button>`).join('') + homeStartScreenCard(t);
     if (homeAllOpen === null) homeAllOpen = window.innerWidth >= 1280;
     const start = `
       <section class="home-start" data-accent="violet">
@@ -1052,7 +1129,7 @@ function renderHome() {
           <h2 class="home-start__title">${escapeHTML(t.home_start_title || '')}</h2>
           <p class="home-start__sub">${escapeHTML(t.home_start_sub || '')}</p>
         </div>
-        <div class="home-start__cards">${cards}</div>
+        <div class="home-start__cards${cards.indexOf('start-card--screen') !== -1 ? ' home-start__cards--four' : ''}">${cards}</div>
         <div class="home-start__ways">
           <button type="button" class="btn btn--primary btn--lg home-start__room" onclick="roomCreateEmpty()">
             <span aria-hidden="true">📲</span> ${escapeHTML(t.home_start_room || '')}
@@ -1207,10 +1284,7 @@ function applyHomeFilter(opts) {
       if (ok && homeLocation !== 'together') {
         ok = catalogMatchesLocation(g, homeLocation);
       }
-      if (ok && searching) {
-        const hay = helpNormalise([catalogTitle(g, t), catalogDesc(g, t), catalogTitle(g, other), catalogDesc(g, other)].join(' '));
-        ok = hay.indexOf(term) !== -1;
-      }
+      if (ok && searching) ok = catalogSearchHit(g, term, t, other);
       el.classList.toggle('hidden', !ok);
       // Only results count: a recent tile is a shortcut, hidden while searching.
       if (ok && el.closest('section[data-group]')) shown++;
@@ -1236,6 +1310,31 @@ function applyHomeFilter(opts) {
   if ((opts && opts.animate === false) || typeof flipGrid !== 'function') shelves();
   else flipGrid(view, shelves);
   syncShelves(view);
+}
+
+/* Search that knows how people ask (the owner's pick 1206, 7 Oct 2026): a game
+   answers to its name and line in both languages, as always, and to the title of
+   its home section («ورق» finds what is in «ورق وطاولة»). From three letters it
+   answers to its rules too (GAME_RULES, as the Help search does), so «رسم» finds
+   every drawing game; one or two letters would match half the rules. The rules
+   are normalised once per language (catalogSearchCache). */
+const catalogSearchCache = {};
+function catalogSearchText(g, lang, t) {
+  const key = lang + ':' + g.id;
+  if (catalogSearchCache[key]) return catalogSearchCache[key];
+  const grp = CATALOG_GROUPS.find(x => x.id === g.group);
+  const words = helpNormalise([catalogTitle(g, t), catalogDesc(g, t), grp ? (t[grp.title] || '') : ''].join(' '));
+  const rulesOf = (typeof GAME_RULES !== 'undefined' && GAME_RULES[lang]) || {};
+  const helpKey = rulesOf[g.id] ? g.id : (typeof HELP_FOR_VIEW !== 'undefined' && g.setup ? HELP_FOR_VIEW[g.setup] : '');
+  const rules = helpNormalise(String((helpKey && rulesOf[helpKey]) || '').replace(/<[^>]+>/g, ' '));
+  return (catalogSearchCache[key] = { words, rules });
+}
+function catalogSearchHit(g, term, t, other) {
+  const langs = [[appState.lang, t], [appState.lang === 'ar' ? 'en' : 'ar', other]];
+  return langs.some(([lang, tr]) => {
+    const x = catalogSearchText(g, lang, tr || {});
+    return x.words.indexOf(term) !== -1 || (term.length >= 3 && x.rules.indexOf(term) !== -1);
+  });
 }
 
 /* --- The hero on a setup screen ---------------------------------------------

@@ -28,6 +28,9 @@
               lobby's «التالي لوحده» switch; AUTONEXT_GAMES in RoomGames.js
               runs it, and rules.mjs checks the two agree)
      crew     the title of الشلة a first place in it counts toward (CREW_TITLES)
+     added    'YYYY-MM-DD' a new game reached the app: its poster (and its recent
+              tile) carries «جديد» for 14 days, until this phone has played it
+              (catalogIsNew, JS_Catalog.html); nothing to take off afterwards
      open     what the card does, when it isn't the default: a function's name,
               or [name, argument]. The default opens its setup screen, or, with
               no setup, a room for it (catalogRunOpen, JS_Catalog.html)
@@ -57,7 +60,7 @@ const GAME_LIST = [
   /* --- رياضة --- */
   { id: 'bowling',    icon: 'art:bowling',   title: 'setup_bowling',    desc: 'cat_bowling',    accent: 'violet', players: [1, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'sports', setup: 'setup-bowling', room: { min: 1 }, crew: 'sport', open: 'setupBowling' },
   { id: 'drawguess',  icon: 'art:drawguess',   title: 'setup_drawguess',  desc: 'cat_drawguess',  accent: 'blue',   players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'words', room: { min: 2, rounds: 6 }, crew: 'words' },
-  { id: 'hear',       icon: 'art:hear',   title: 'setup_hear',       desc: 'cat_hear',       accent: 'green',  players: [3, 12], mins: 20, modes: ['room', 'tv'], faceToFace: true, group: 'words', room: { min: 3 }, crew: 'words' },
+  { id: 'hear',       icon: 'art:hear',   title: 'setup_hear',       desc: 'cat_hear',       accent: 'green',  players: [3, 12], mins: 20, modes: ['room', 'tv'], faceToFace: true, group: 'words', room: { min: 3 }, crew: 'words', added: '2026-10-01' },
   { id: 'telephone',  icon: 'art:telephone',  title: 'setup_telephone',  desc: 'cat_telephone',  accent: 'blue',   players: [3, 8],  mins: 15, modes: ['room', 'tv'],           group: 'words', room: { min: 3 }, crew: 'words' },
   { id: 'monkey',     icon: 'art:monkey',   title: 'setup_monkey',     desc: 'cat_monkey',     accent: 'amber',  players: [2, 10], mins: 15, modes: ['device', 'room', 'tv'], faceToFace: true, group: 'words', setup: 'setup-monkey', room: { min: 2 }, crew: 'words' },
   { id: 'stop',       icon: 'art:stop',   title: 'setup_stop',       desc: 'cat_stop',       accent: 'green',  players: [2, 10], mins: 15, modes: ['device', 'room', 'tv'], group: 'words', setup: 'setup-stop', room: { min: 2 }, crew: 'words', open: 'setupStop' },
@@ -68,10 +71,10 @@ const GAME_LIST = [
   { id: 'bumper',     icon: 'art:bumper', title: 'setup_bumper',     desc: 'cat_bumper',     accent: 'teal',   players: [1, 8],  mins: 5,  modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 1 }, crew: 'fast' },
   { id: 'chairs',     icon: 'art:chairs', title: 'setup_chairs',     desc: 'cat_chairs',     accent: 'amber',  players: [3, 12], mins: 5,  modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 3 }, crew: 'fast' },
   { id: 'wire',       icon: 'art:wire',   title: 'setup_wire',       desc: 'cat_wire',       accent: 'orange', players: [3, 8],  mins: 10, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 3 }, crew: 'fast' },
-  { id: 'laser',      icon: 'art:laser',  title: 'setup_laser',      desc: 'cat_laser',      accent: 'teal',   players: [3, 12], mins: 10, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 3 }, crew: 'fast' },
-  { id: 'vault',      icon: 'art:vault',  title: 'setup_vault',      desc: 'cat_vault',      accent: 'amber',  players: [2, 10], mins: 15, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 2 }, crew: 'brain' },
+  { id: 'laser',      icon: 'art:laser',  title: 'setup_laser',      desc: 'cat_laser',      accent: 'teal',   players: [3, 12], mins: 10, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 3 }, crew: 'fast', added: '2026-10-06' },
+  { id: 'vault',      icon: 'art:vault',  title: 'setup_vault',      desc: 'cat_vault',      accent: 'amber',  players: [2, 10], mins: 15, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 2 }, crew: 'brain', added: '2026-10-01' },
   { id: 'darkroom',   icon: 'art:darkroom', title: 'setup_darkroom', desc: 'cat_darkroom',   accent: 'blue',   players: [2, 8],  mins: 15, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 2 }, crew: 'words' },
-  { id: 'hum',        icon: 'art:hum',   title: 'setup_hum',         desc: 'cat_hum',        accent: 'pink',   players: [2, 12], mins: 15, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 2, autoNext: true }, crew: 'words' },
+  { id: 'hum',        icon: 'art:hum',   title: 'setup_hum',         desc: 'cat_hum',        accent: 'pink',   players: [2, 12], mins: 15, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 2, autoNext: true }, crew: 'words', added: '2026-10-01' },
   { id: 'exact',      icon: 'art:exact', title: 'setup_exact',       desc: 'cat_exact',      accent: 'orange', players: [3, 12], mins: 10, modes: ['room', 'tv'], faceToFace: true,        group: 'party', room: { min: 3 }, crew: 'fast' },
   { id: 'wouldyou',   icon: 'art:wouldyou',  title: 'setup_wouldyou',   desc: 'cat_wouldyou',   accent: 'violet', players: [2, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', room: { min: 2, rounds: 5, autoNext: true }, crew: 'words' },
   { id: 'mostlikely', icon: 'art:mostlikely',   title: 'setup_mostlikely', desc: 'cat_mostlikely', accent: 'amber',  players: [3, 12], mins: 10, modes: ['room', 'tv'],           group: 'party', room: { min: 3, rounds: 5, autoNext: true }, crew: 'words' },

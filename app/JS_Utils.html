@@ -989,6 +989,7 @@ function setupMoreToggled(el) {
                   haptic('heavy');
                   const b = document.getElementById('gen-start-btn');
                   if (b) b.innerText = TRANSLATIONS[appState.lang].start_btn;
+                  syncWakeLock(appState.currentView);
                   if (appState.currentView !== 'timers') {
                       const t = TRANSLATIONS[appState.lang] || {};
                       showToast('⏰ ' + (t.timer_done || 'خلص وقت المؤقت'), 'success');
@@ -996,6 +997,7 @@ function setupMoreToggled(el) {
               }
           });
       }
+      syncWakeLock(appState.currentView);   // the screen stays on while it runs (1231)
   }
 
   function resetGenTimer() {
@@ -1008,6 +1010,7 @@ function setupMoreToggled(el) {
       tm.total = 0;
       updateGenDisplay();
       document.getElementById('gen-start-btn').innerText = TRANSLATIONS[appState.lang].start_btn;
+      syncWakeLock(appState.currentView);
   }
 
   /** After a reload: a timer that was running goes on with the time really left, or says it finished meanwhile. */
@@ -2260,7 +2263,12 @@ let wakeLockWatching = false;
 /* The screen stays on while a game is being played - a passed phone going
    dark mid-round is worse than a battery - and sleeps as usual on the home,
    the tabs and the setup screens. setView calls syncWakeLock on every change. */
-const wantsWakeLock = (view) => /^(play-|room-|reveal-|imposter-reveal$|input-|results-)/.test(view || '') && view !== 'room-join';
+/* The tools too (the owner's pick 1231, 7 Oct 2026): the dice on the table, and the
+   timer while it runs - a phone that sleeps lets iOS freeze the page, and the
+   alarm never rings. The timer asks again when it starts and stops (toggleGenTimer). */
+const wantsWakeLock = (view) => (/^(play-|room-|reveal-|imposter-reveal$|input-|results-)/.test(view || '') && view !== 'room-join')
+  || view === 'tool-dice'
+  || (view === 'timers' && !!(appState.timers && appState.timers.general && appState.timers.general.running));
 
 // A request still on its way: a second call in that moment would ask again,
 // and the first lock would be overwritten and never released.

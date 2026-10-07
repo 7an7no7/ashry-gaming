@@ -306,6 +306,7 @@ export const SHELL_USES_OK = {
   JS_Move: 'moveOpen',   // openMoveData: lzRun('move', …) (7 Oct 2026)
   JS_Screw: 'renderScrewBoard runStartScrew',
   JS_Domino: 'renderDominoBoard dominoOrderReturn paintDominoTeamsLine finalizeDominoTeams dominoPlayAgain',
+  JS_CardScore: 'continueCardScore',   // «كمّل» on a score keeper (HOME_CONT, homeContGo waits for its chunk)
   JS_Tournament: 'renderBracket',
   JS_Teams: 'paintTeams paintTeamsSplit getSelectedPlayers',
   JS_Wordle: 'renderWordleBoard renderKeyboard startWordleGame',

@@ -594,7 +594,9 @@
 
   /** Puts one field back as it was last left; false when there is nothing to put back. */
   function recallField(el) {
-    if (!el || !el.id || el === document.activeElement) return false;
+    if (!el || !el.id) return false;
+    setupDefaultSnapshot(el);
+    if (el === document.activeElement) return false;
     const saved = recallOptions('fields', {});
     if (!(el.id in saved)) return false;
     const v = saved[el.id];
@@ -613,6 +615,16 @@
     }
     el.value = text;
     return true;
+  }
+
+  /* What a field shows before anything remembered is put back is the game's own
+     default (1220, «رجّع الأصلي»): kept on the field the first time it is recalled,
+     before the recall. A list filled in JS is still empty then, so an empty
+     default of a <select> is taken again once its options exist. */
+  function setupDefaultSnapshot(el) {
+    const have = el.dataset.def !== undefined;
+    if (have && !(el.tagName === 'SELECT' && el.dataset.def === '')) return;
+    el.dataset.def = el.type === 'checkbox' ? (el.checked ? '1' : '') : String(el.value == null ? '' : el.value);
   }
 
   function recallFields(root) {
@@ -2379,6 +2391,22 @@
   let titleSwapTimer = null;
   let pendingTitle = '';
 
+  /* A tap on the header's title glides the screen back to its top (the owner's
+     pick 1213, 7 Oct 2026), the way an iPhone's status bar does for an ordinary
+     page - which can't work here, because the page itself never scrolls, only
+     .shell__main does. scrollToAction does the gliding (instant with motion off). */
+  function titleTapToTop() {
+    const main = document.getElementById('shell-main');
+    if (!main || main.scrollTop <= 0) return;
+    const active = document.activeElement;
+    if (active && main.contains(active) && typeof active.blur === 'function') active.blur();
+    scrollToAction();
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('app-title');
+    if (el) el.addEventListener('click', titleTapToTop);
+  });
+
   /** Header title, back button and nav state for the view now on screen. */
   function syncChrome(viewId) {
     const meta = VIEW_META[viewId] || {};
@@ -2906,6 +2934,8 @@
   /* The bottom bar's tabs. Mid-round on a passed phone, a stray tap on 🏠 used
      to drop the round without a word; it asks first, like the back arrow. */
   function navTo(target) {
+    // A tab is not "back": a setup opened from «الليلة دي؟» doesn't reopen it (tonightForget, 1217).
+    if (typeof tonightForget === 'function') tonightForget();
     if (typeof openExitSheet === 'function' && openExitSheet(target)) return;
     navGo(target);
   }
@@ -3324,7 +3354,88 @@
     // «خيارات أكتر ▾»: its line says what the folded options are set to.
     if (view && typeof setupMoreSummarise === 'function') setupMoreSummarise(view);
     if (view) syncSteppers(view);
+    if (view) setupResetSync(view);
   }
+
+  /* «رجّع الأصلي» and a dot on what changed (the owner's pick 1220, 7 Oct 2026).
+     A remembered option (data-remember: a stepper, a switch, a list, a time
+     pick's field) that differs from the game's own default (setupDefaultSnapshot)
+     carries a small accent dot on its label, and while any does, «↺ رجّع الأصلي»
+     sits under the last of them and puts every one back - remembered as the
+     default, so the next visit opens the same way. Names typed in a box are not
+     options and are left alone. Choices kept in a game's own state (the segmented
+     rows painted from appState) are that game's, and aren't covered. */
+  const setupResetFields = (view) => [...view.querySelectorAll('[data-remember]')].filter(el =>
+    el.id && el.dataset.def !== undefined && !/^(text|search)$/i.test(el.type || '') && !el.closest('.mode-online-panel'));
+  function setupFieldDefault(el) {
+    const def = el.dataset.def;
+    if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === def)) return el.options.length ? el.options[0].value : def;
+    return def;
+  }
+  function setupFieldChanged(el) {
+    if (el.type === 'checkbox') return el.checked !== (el.dataset.def === '1');
+    if (el.tagName === 'SELECT' && !el.options.length) return false;
+    return String(el.value) !== String(setupFieldDefault(el));
+  }
+  /** The label a field's dot goes on: its row's, or the time pick's, or the one just before it. */
+  function setupFieldLabel(el) {
+    const pick = el.id && document.querySelector('.time-pick[data-for="' + el.id + '"]');
+    const at = pick || el;
+    const box = at.closest('.stepper-row, .switch-row, .field');
+    let label = box && box.querySelector('.field__label');
+    if (label) return label;
+    for (let n = at, i = 0; n && i < 3 && !label; i++) {
+      for (let p = n.previousElementSibling; p && !label; p = p.previousElementSibling) {
+        if (p.matches('.field__label, .field__hint')) label = p;
+        else if (p.matches('input, select, .stepper, .segmented')) break;
+      }
+      n = n.parentElement;
+      if (n && n.matches('[id^="view-"], .card, .mode-device-panel')) break;
+    }
+    return label;
+  }
+  function setupResetSync(view) {
+    if (!view || !/^view-setup-/.test(view.id)) return;
+    const fields = setupResetFields(view);
+    let last = null;
+    fields.forEach(el => {
+      const changed = setupFieldChanged(el);
+      const label = setupFieldLabel(el);
+      if (label && label.classList.contains('is-changed') !== changed) label.classList.toggle('is-changed', changed);
+      // A time pick's own field is a hidden input: the pick is what shows.
+      const shown = document.querySelector('.time-pick[data-for="' + el.id + '"]') || el;
+      if (changed && !shown.closest('.hidden')) last = el;
+    });
+    const old = view.querySelector('.setup-reset');
+    if (!last) { if (old) old.remove(); return; }
+    // Under the block that holds the last changed option (a stepper's grid, a switch's field).
+    let block = document.querySelector('.time-pick[data-for="' + last.id + '"]') || last;
+    block = block.closest('.field, .stepper-row, .switch-row') || block;
+    while (block.parentElement && !block.parentElement.matches('[id^="view-"], .card, .mode-device-panel, .setup-more__body, .space-y-4')) block = block.parentElement;
+    if (old && old.previousElementSibling === block) return;
+    if (old) old.remove();
+    const t = TRANSLATIONS[appState.lang] || {};
+    block.insertAdjacentHTML('afterend', `<div class="setup-reset"><button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="setupResetAll(this)">↺ ${escapeHTML(t.setup_reset || '')}</button></div>`);
+  }
+  function setupResetAll(btn) {
+    const view = btn && btn.closest('[id^="view-setup-"]');
+    if (!view) return;
+    setupResetFields(view).forEach(el => {
+      if (!setupFieldChanged(el)) return;
+      if (el.type === 'checkbox') el.checked = el.dataset.def === '1';
+      else el.value = setupFieldDefault(el);
+      // The game hears it as a choice (onchange handlers), and it is remembered.
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    haptic('light');
+    paintSetupOptions(view.id.slice('view-'.length));
+  }
+  // A choice made: the dots and the link follow (after the game's own handlers).
+  ['input', 'change', 'click'].forEach(type => document.addEventListener(type, (e) => {
+    const view = e.target && e.target.closest && e.target.closest('[id^="view-setup-"]');
+    if (view && view.querySelector('[data-remember]')) setTimeout(() => setupResetSync(view), 0);
+  }));
 
   /** A stepper at its end dims the button that can't go further (− at the least, + at the
       most), so a tap that does nothing isn't a mystery. Run after a value changes. */

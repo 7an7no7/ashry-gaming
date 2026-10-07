@@ -154,6 +154,7 @@ ROOM_GAMES.stop = {
     refreshRoomPlayerStrip(el, state);
     // The bus's passengers as the room is now (a join, a sheet sent), without a rebuild (JS_StopBus.html).
     if (!rebuilt) stopBusSyncPax(el, stopBusRoomPax(state));
+    stopBusFillNoteSync(el, state, Room.me);
 
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
     if (rebuilt && s.phase === 'writing' && !iSubmitted) {
@@ -193,6 +194,7 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
         clockHtml: s.phase === 'writing' && s.endsAt ? `<span id="stop-room-timer" class="badge badge--accent metric">${Math.max(0, Math.ceil((s.endsAt - roomServerNow()) / 1000))}</span>` : '',
         pax: stopBusRoomPax(state)
       })}
+      ${s.phase === 'writing' || s.phase === 'collecting' ? stopBusFillNoteHtml(state, Room.me) : ''}
       ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
     </div>`;
 
@@ -364,7 +366,27 @@ function stopRoomTyped() {
     gate.classList.toggle('is-ready', left === 0);
   }
   stopRoom.firstLeft = firstLeft;
+  stopRoomSendFill(key, s, stopRoomInputs(key).length - left);
   return left;
+}
+
+/**
+ * 755 «حلقة حوالين الراس»: tells the room how many of this sheet's boxes are green (the count,
+ * never a word), a moment after it changes, for the ring round this player's head on every screen.
+ */
+function stopRoomSendFill(key, s, n) {
+  if (!Room.state || Room.state.game !== 'stop' || s.phase !== 'writing') return;
+  if ((s.roster || []).indexOf(Room.me) === -1 || (s.submitted || []).indexOf(Room.me) !== -1) return;
+  if (!(n >= 0)) return;
+  stopRoom.fillWant = { key: key, n: n };
+  clearTimeout(stopRoom.fillTimer);
+  stopRoom.fillTimer = setTimeout(() => {
+    const st = Room.state && Room.state.shared;
+    const want = stopRoom.fillWant;
+    if (!st || !want || Room.state.game !== 'stop' || st.phase !== 'writing' || stopRoundKey(Room.state) !== want.key) return;
+    if ((st.fill || {})[Room.me] === want.n) return;
+    Room.act('stopFill', { round: st.round, n: want.n }).catch(() => {});
+  }, 450);
 }
 
 /** Enter moves down the list; on the last box it is وقف. */

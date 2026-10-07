@@ -103,7 +103,10 @@ function paintProverb() {
   stage.innerHTML = `
     <div class="card quiz1-card">
       ${quizCardChips('', t.prov_n, p.n)}
-      <div class="prov-card quiz1-card__body">${escapeHTML(parts[0] || '')}${blank}${escapeHTML(parts[1] || '')}</div>
+      ${p.revealed
+        // 613: the revealed proverb is the painted shop sign, the word hanging on its own red board.
+        ? `<div class="quiz1-card__body pvs-host">${provSignHtml(p.item.p, p.item.a, scoring && p.got >= 0 ? [{ m: '✅', name: p.players[p.got], pts: 1 }] : [], 'one')}</div>`
+        : `<div class="prov-card quiz1-card__body">${escapeHTML(parts[0] || '')}${blank}${escapeHTML(parts[1] || '')}</div>`}
       ${p.revealed ? (typeof reportBtnHtml === 'function' ? reportBtnHtml('proverbs', p.item.p) : '') : `<p class="quiz1-hint">${escapeHTML(t.prov_device_hint || '')}</p>`}
     </div>
     ${quizRoundDots(p.n)}
@@ -113,7 +116,16 @@ function paintProverb() {
       p.revealed ? [t.prov_next, 'nextProverb()'] : ['👀 ' + (t.prov_reveal || ''), 'revealProverb()'],
       p.revealed ? '' : 'nextProverb()', scoring, 'finishProverbsGame()', 'setupProverbs()')}`;
   if (scoring) quizSettleBoard(p, 'proverbs');
+  if (p.revealed) {
+    provSignFit(stage);
+    // Painted on the «كشف» tap only (not a redraw or a reload); a name chosen after it hangs its tag.
+    const tagKey = p.n + '|' + p.got;
+    if (pop) provSignPlay(stage);
+    else if (p.got >= 0 && provSignTagShown && provSignTagShown !== tagKey && provSignTagShown.split('|')[0] === String(p.n)) provSignPlay(stage, { tagsOnly: true });
+    provSignTagShown = tagKey;
+  }
 }
+let provSignTagShown = '';
 
 let provJustRevealed = false;   // the word pops once, on the tap - not on a redraw or a reload
 
@@ -126,4 +138,169 @@ function restoreProverbs() {
 }
 
 onLanguageChange((view) => { if (view === 'play-proverbs') paintProverb(); });
+
+/* ============================================================================
+   613 «يافطة الخطاط» (the owner's pick, 7 Oct 2026): at the reveal the whole
+   proverb is a painted wooden shop sign. The brush writes it in the reading
+   direction - Arabic letters join, so "letter by letter" is a wipe, not loose
+   letters: a window that opens along the line (two transforms that cancel,
+   provSignPlay) - then the missing word, painted on a small red board, comes
+   down on two ropes and hangs in its place, and the names hang under it as
+   tags. On the TV and every phone of a room (the results), and on one phone
+   after «كشف». Transform and opacity only, by Web Animations whose end is the
+   element's own style, so nothing waits on an event; with motion off it is all
+   simply there. The styles are this chunk's (PROV_SIGN_CSS).
+   ========================================================================= */
+const PROV_SIGN_CSS = `
+.pvs { --pvs-fs: 1.5rem; --pvs-sky: #2a3550; --pvs-sky2: #3b2f4a; --pvs-ground: #6b4f3a; --pvs-ground2: #5a412f;
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--pvs-fs) * .55);
+  padding: calc(var(--pvs-fs) * 1.5) var(--sp-3) calc(var(--pvs-fs) * .9); border-radius: inherit; overflow: hidden;
+  background: linear-gradient(var(--pvs-sky), var(--pvs-sky2) 58%, var(--pvs-ground) 58.4%, var(--pvs-ground2)); font-family: var(--font-display); }
+body:not(.dark) .pvs { --pvs-sky: #bcd3ea; --pvs-sky2: #e2d6c6; --pvs-ground: #b8946c; --pvs-ground2: #a07c55; }
+.pvs > * { position: relative; }
+.pvs__board { font-size: var(--pvs-fs); font-weight: 900; line-height: 1.55; max-width: 100%;
+  padding: .45em .9em .6em; border-radius: .16em; background: linear-gradient(#f6e7c4, #ecd6a6); border: .16em solid #7a4b25;
+  box-shadow: inset 0 0 0 .07em #c9a465, 0 .22em .5em rgba(0,0,0,.45); transform: rotate(-1deg); }
+.pvs__nail { position: absolute; top: .14em; width: .2em; height: .2em; border-radius: 50%; background: #8b8b8b; box-shadow: inset -.03em -.03em 0 #444; }
+.pvs__nail--a { inset-inline-start: .16em; } .pvs__nail--b { inset-inline-end: .16em; }
+.pvs__lines { display: flex; flex-direction: column; align-items: center; }
+.pvs__line { position: relative; white-space: nowrap; }
+.pvs__ghost, .pvs__ink-in { display: block; padding: 0 .08em; }
+.pvs__ghost { color: rgba(20, 83, 45, .1); }
+.pvs__clip { position: absolute; inset: 0; overflow: hidden; }
+.pvs__ink, .pvs__ink-in, .pvs__track { position: absolute; inset: 0; }
+.pvs__ink-in { color: #14532d; text-shadow: .03em .03em 0 rgba(255,255,255,.35); }
+.pvs__track { pointer-events: none; }
+.pvs__brush { position: absolute; inset-inline-end: 0; top: 50%; font-style: normal; font-size: .9em; line-height: 1; opacity: 0;
+  transform: translate(40%, -70%) rotate(-28deg); }
+.pvs__board[dir="rtl"] .pvs__brush { transform: translate(-40%, -70%) scaleX(-1) rotate(-28deg); }
+.pvs__slot { position: relative; display: inline-block; min-width: 2.6em; margin: 0 .12em; text-align: center; border-bottom: .07em dotted transparent; }
+.pvs__ghost .pvs__slot { border-bottom: .07em dotted rgba(20, 83, 45, .38); }
+.pvs__blank { visibility: hidden; }
+.pvs__drop { position: absolute; z-index: 2; left: -.22em; right: -.22em; bottom: -.3em; transform-origin: 50% -1.4em; }
+.pvs__word { position: relative; display: block; padding: .02em .22em; border-radius: .14em; background: #b91c1c; color: #fff6dd;
+  border: .07em solid #7a4b25; box-shadow: 0 .18em .32em rgba(0,0,0,.4); transform: rotate(3deg); white-space: nowrap; }
+.pvs__word::before, .pvs__word::after { content: ''; position: absolute; bottom: 100%; width: .05em; height: .42em; background: #c9b28a;
+  border-top: .09em solid #8b8b8b; border-radius: .05em .05em 0 0; }
+.pvs__word::before { left: 18%; } .pvs__word::after { right: 18%; }
+.pvs__tags { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--pvs-fs) * .3) calc(var(--pvs-fs) * .4); font-size: calc(var(--pvs-fs) * .5); }
+.pvs__tagdrop { display: inline-block; padding-top: .55em; }
+.pvs__tag { position: relative; display: inline-flex; align-items: center; gap: .35em; padding: .25em .7em; border-radius: .3em;
+  background: #f6e7c4; color: #3a2414; font-weight: 800; border: .13em solid #7a4b25; transform: rotate(calc((var(--i, 1) - 1) * 3deg)); }
+.pvs__tag::before { content: ''; position: absolute; bottom: 100%; left: 50%; width: .08em; height: .6em; background: #c9b28a; }
+.pvs__tag b { color: #b91c1c; unicode-bidi: isolate; direction: ltr; }
+.pvs__tag bdi { unicode-bidi: isolate; }
+.card.pvs-card { padding: 0; overflow: hidden; }
+.pvs--tv { --pvs-fs: 6.6vmin; width: 100%; flex: 1 1 auto; min-height: 0; border-radius: 2vmin; }
+.tv-trivia--sign { height: 100%; }
+.pvs-host { width: 100%; align-self: stretch; }
+.pvs--one { width: 100%; border-radius: var(--r-md, 14px); }
+@media (prefers-reduced-motion: reduce) { .pvs__brush { opacity: 0 !important; } }
+`;
+function provSignStyleOn() {
+  if (document.getElementById('prov-sign-style')) return;
+  const st = document.createElement('style');
+  st.id = 'prov-sign-style';
+  st.textContent = PROV_SIGN_CSS;
+  document.body.appendChild(st);
+  // The motion setting reads every stylesheet: this one came after it looked.
+  if (typeof applyMotionPref === 'function') applyMotionPref();
+}
+provSignStyleOn();
+
+/**
+ * The sign: `p` the proverb with its ___, `word` the missing word, `tags` [{ m (a medal or ✅), name, pts }],
+ * `kind` 'tv' | 'room' | 'one'. The line is cut into up to three balanced lines of about `max` letters.
+ */
+function provSignHtml(p, word, tags, kind) {
+  const parts = String(p || '').split('___');
+  const rtl = /[؀-ۿ]/.test(String(p || '') + String(word || ''));
+  const toks = [];
+  String(parts[0] || '').split(/\s+/).filter(Boolean).forEach(w => toks.push({ w: w }));
+  toks.push({ slot: true, w: String(word || '') });
+  String(parts.slice(1).join(' ') || '').split(/\s+/).filter(Boolean).forEach(w => toks.push({ w: w }));
+  const len = (x) => Math.max(x.slot ? 4 : 0, Array.from(x.w).length) + 1;
+  const total = toks.reduce((a, x) => a + len(x), 0);
+  const max = kind === 'tv' ? 26 : 15;
+  const n = Math.min(3, Math.max(1, Math.ceil(total / max)));
+  const lines = [[]];
+  let acc = 0;
+  toks.forEach(x => {
+    const cur = lines[lines.length - 1];
+    if (cur.length && lines.length < n && acc + len(x) / 2 > (total / n) * lines.length) lines.push([]);
+    lines[lines.length - 1].push(x);
+    acc += len(x);
+  });
+  const run = (line, ghost) => line.map(x => x.slot
+    ? `<span class="pvs__slot"><span class="pvs__blank">${escapeHTML(x.w)}</span>${ghost ? `<span class="pvs__drop"><span class="pvs__word">${escapeHTML(x.w)}</span></span>` : ''}</span>`
+    : escapeHTML(x.w)).join(' ');
+  const lineHtml = (line) => `<div class="pvs__line" data-len="${line.reduce((a, x) => a + len(x), 0)}">
+      <span class="pvs__ghost">${run(line, true)}</span>
+      <span class="pvs__clip" aria-hidden="true"><span class="pvs__ink"><span class="pvs__ink-in">${run(line, false)}</span></span></span>
+      <span class="pvs__track" aria-hidden="true"><i class="pvs__brush">🖌️</i></span>
+    </div>`;
+  const whole = String(p || '').replace('___', String(word || ''));
+  return `<div class="pvs pvs--${kind}" role="img" aria-label="${escapeHTML(whole)}">
+      <div class="pvs__board" dir="${rtl ? 'rtl' : 'ltr'}" aria-hidden="true"><i class="pvs__nail pvs__nail--a"></i><i class="pvs__nail pvs__nail--b"></i>
+        <div class="pvs__lines">${lines.map(lineHtml).join('')}</div>
+      </div>
+      ${(tags || []).length ? `<div class="pvs__tags" aria-hidden="true">${tags.map((g, i) => `<span class="pvs__tagdrop"><span class="pvs__tag" style="--i:${i % 3}">${escapeHTML(g.m || '')} <bdi>${escapeHTML(g.name || '')}</bdi>${g.pts ? ` <b>+${Number(g.pts) || 0}</b>` : ''}</span></span>`).join('')}</div>` : ''}
+    </div>`;
+}
+
+/** Shrinks the sign's letters once (not an animation) when its widest line is wider than its place. */
+function provSignFit(root) {
+  const sign = root && root.querySelector('.pvs');
+  const board = sign && sign.querySelector('.pvs__board');
+  if (!board) return;
+  const room = sign.clientWidth - 24;
+  const w = board.getBoundingClientRect().width;
+  if (room > 0 && w > room) {
+    const fs = parseFloat(getComputedStyle(board).fontSize) || 16;
+    sign.style.setProperty('--pvs-fs', Math.max(9, fs * room / w * 0.98).toFixed(1) + 'px');
+  }
+}
+
+/**
+ * The painting: each line wiped in the reading direction (its share of the time by its length), the
+ * brush riding the edge, then the word's board down on its ropes with a swing, then the tags. `tagsOnly`:
+ * only the tags (a name chosen after the reveal on one phone). Returns when the word lands (ms).
+ */
+function provSignPlay(root, opts) {
+  const sign = root && root.querySelector('.pvs');
+  if (!sign || motionOff() || typeof sign.animate !== 'function') return 0;
+  const o = opts || {};
+  const tagsAt = (t0) => sign.querySelectorAll('.pvs__tagdrop').forEach((el, i) => el.animate([
+    { opacity: 0, transform: 'translateY(-.7em) rotate(-8deg)' }, { opacity: 1, transform: 'none' }
+  ], { duration: 450, delay: t0 + i * 160, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' }));
+  if (o.tagsOnly) { tagsAt(0); return 0; }
+  const board = sign.querySelector('.pvs__board');
+  const s = board && board.getAttribute('dir') === 'rtl' ? -1 : 1;
+  const lines = [...sign.querySelectorAll('.pvs__line')];
+  const chars = lines.reduce((a, l) => a + (Number(l.dataset.len) || 1), 0);
+  const total = Math.max(1300, Math.min(2800, 700 + chars * 45));
+  let t = 250;
+  lines.forEach(l => {
+    const d = total * (Number(l.dataset.len) || 1) / chars;
+    const opt = { duration: d, delay: t, easing: 'linear', fill: 'backwards' };
+    const from = `translateX(${-s * 100}%)`;
+    l.querySelector('.pvs__ink').animate([{ transform: from }, { transform: 'none' }], opt);
+    l.querySelector('.pvs__ink-in').animate([{ transform: `translateX(${s * 100}%)` }, { transform: 'none' }], opt);
+    l.querySelector('.pvs__track').animate([{ transform: from }, { transform: 'none' }], opt);
+    l.querySelector('.pvs__brush').animate([{ opacity: 0 }, { opacity: 1, offset: 0.06 }, { opacity: 1, offset: 0.9 }, { opacity: 0 }], { duration: d, delay: t, fill: 'none' });
+    t += d;
+  });
+  const drop = sign.querySelector('.pvs__drop');
+  const at = t + 200;
+  if (drop) drop.animate([
+    { opacity: 0, transform: 'translateY(-2.4em) rotate(-14deg)' },
+    { opacity: 1, offset: 0.3 },
+    { transform: 'translateY(.12em) rotate(7deg)', offset: 0.55 },
+    { transform: 'rotate(-3.5deg)', offset: 0.74 },
+    { transform: 'rotate(1.5deg)', offset: 0.9 },
+    { opacity: 1, transform: 'none' }
+  ], { duration: 1000, delay: at, easing: 'ease-out', fill: 'backwards' });
+  tagsAt(at + 900);
+  return at + 550;
+}
 </script>

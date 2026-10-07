@@ -142,6 +142,30 @@ back filled and a round closing sends them (the audit of 6 Oct 2026).
   never, bad stop, the host's tap lifting both, an older phone's 20, banking), `play-all.mjs`
   (`core`: the stopper with an unknown word -10, accepted, a solo 20 made by two taps, banked).
 
+## The looks of 7 Oct 2026, second sheet (the owner's picks): built
+
+- **755 ب «حلقة حوالين الراس»** (rooms, every phone and the TV). Each passenger in the bus window wears a
+  ring cut into as many pieces as the round has categories; a piece turns green as a box on that person's
+  sheet turns green (`stopAnswerFits`, the phone's own green), and a full ring glows (a pulse of opacity) -
+  the table feels who is about to shout وقف. **The server only ever holds a count**: action
+  `stopFill { round, n }` (RoomStop.js; writing or collecting, a roster member who hasn't sent, `n` a number
+  clamped to 0..cats, a stale round or a non-number dropped) sets `shared.fill[pid]`; `submit` sets it from
+  the sheet that went in; every deal starts `fill: {}`. The words stay on the phone until the sheet is
+  sent, as before. The phone sends its count 450 ms after it changes (`stopRoomSendFill`, from
+  `stopRoomTyped`; skipped when the server already has it, so a reload restoring the draft sends it once).
+  Drawing (JS_StopBus.html): `stopBusRoomPax` carries `fill` / `of` for this round's roster while writing or
+  collecting (never on one phone); `stopBusRingSvg` draws the pieces round the head (a dark track and a
+  green arc over it, faded in with opacity) behind the shirt; `stopBusSyncPax` lights them in place
+  (`stopBusRingSync`), so no frame rebuild and the bus's motion is untouched. Under the bus a line (from
+  the sheet's frames): «🔥 كريم فاضله خانة!» when someone has one box left, «✋ كريم خلّص، يقدر يقول
+  وقف» when a ring is full (the fullest; a phone leaves its own player out); `stopBusFillNote`, drawn in
+  the letter card on a phone and over the road on the TV (`.sbus-fill-anchor`), updated in place with a
+  pop (`stopBusFillNoteSync`). Styles are the chunk's (`STOP_RING_CSS`, put in the page by
+  `stopRingStyleOn`). Words `stop_ring_one`, `stop_ring_full`; Help (`GAME_RULES.stop`) has a line.
+  Tests: `rules.mjs` (clamped count, a word and an old round dropped, a sent sheet's count), `leaks.mjs`
+  (a new probe: `shared.fill` holds numbers only, 0..cats, while the round is written; the driver sends
+  a word as `n`), `play-all.mjs` core (a count reaches every phone; a sent sheet sets its ring).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

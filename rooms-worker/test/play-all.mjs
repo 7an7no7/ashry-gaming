@@ -2896,7 +2896,11 @@ async function coreSeg() {
   const madeUp = L + 'ززظظ';
   check(!!(name2 && animal2 && food1), 'the dictionary has names, animals and food on the letter');
   check(stopWordKnown('ar', 'animal', madeUp) === false, 'a made-up word is not in the dictionary');
+  // 755: the rings round the heads - a count reaches every phone, never a word.
+  await C.must('stopFill', { round: 1, n: 2 });
+  await all(bots, (s) => (s.shared.fill || {})[C.pid] === 2, 'stop: a phone\'s green boxes reach every phone as a count (the ring)');
   await A.must('submit', { answers: { name: name1, animal: animal1, food: 'xx' }, stop: false });
+  await all(bots, (s) => (s.shared.fill || {})[A.pid] === 2, 'stop: a sheet sent sets its ring from the boxes that fit');
   await B.must('submit', { answers: { name: name1, animal: animal2, food: '' } });
   await all(bots, (s) => s.shared.phase === 'writing' && s.shared.submitted.length === 2, 'two sheets in, the round is still open');
   check(!leaks(C, name1), 'answers stay on the server until the round closes');

@@ -322,6 +322,34 @@ the host's phone (`recallOptions('doubt' | 'oldmaid')`).
   - Tests: `rules.mjs` («oldmaid word»: a letter a loss, kept by play again, crowned at four, reset after it and
     from the hub, off earns none).
 
+## The looks of 7 Oct 2026, second sheet (the owner's picks): built
+
+- **909 كدّاب: the pile as «كومة مكركبة» (look ب)**. The spotlit pile, on the phones and in the middle of the TV
+  stage, is a heap of the game's real card backs (`pcCardHtml(null, { size: 'fly' })`): each card a little higher
+  than the one under it, shifted and tilted, the heap taller and leaning further with each play.
+  - `dbTowerSlots(n)` (JS_RoomDoubt.html): where card j of a pile of n sits - `x` in card widths, `f` a share of
+    the heap's height, `r` degrees; a steady jitter per card (`dbTowerJit`, so a card keeps its place as the heap
+    grows), the lean growing to its full at 25 cards. At most 24 cards are drawn (`DB_TOWER_MAX`). `dbTowerHtml(n)`
+    replaces the old stack of five backs; each card is `.db-tw` with `data-pc-at="pile:j"`.
+  - **Never into the claim line** (the sheet's note): the heap's height is capped, `--db-rise` (0.9 of a card's
+    width; 0.55 on a phone on its side and the laptop layout), reached at 10 cards (more cards pack closer), and
+    the pile reserves it as its own `margin-top` (plus 0.18 of a card for the tilt), so the claim line above is
+    pushed up, never overlapped. On the TV the heap's cards are smaller (`min(12vmin, 8vw)`), the pile zone doesn't
+    shrink, and the table is `safe center` (a crowded table loses its bottom chips, not the claim). Measured
+    between the claim's bottom and the heap's top: 22-45px at 375x740, 667x375, 1280x720 and 1920x1080 (phone and
+    TV), with 6, 14 and 46 cards. The cost: the phone frame is about 50-75px taller (more scrolling on an upright
+    phone and the laptop layout, which already scrolled).
+  - Motion (`dbPlay`): a play's cards fly from the seat (yours from your hand) each onto its own place in the heap,
+    tilted as they will lie (`pcFly` to `pile:j`, held until they land); the older cards slide to the heap's new
+    lean as they land (`dbTowerSettle`, a FLIP from the snapshot). A call: the heap (a stand-in over the pile's
+    place, `dbTowerGhost`, since the redraw has already emptied it) sways on its foot with the shout
+    (`dbTowerWobble`), stands through the reveal and the stamp, then falls in an arc toward whoever takes it, the
+    top cards first (`dbTowerFall`; on the taker's own phone, toward the hand). Everyone passed: the heap lifts off
+    and fades card by card (`dbTowerLift`). Transform and opacity only; with motion off the heap is just drawn;
+    events play once (`pcEventsToPlay`), and every stand-in is removed by a timer too (`pcFxCancel` clears them).
+  - Styles: `DB_TOWER_CSS`, injected from the game's chunk (`dbTowerStyleOn`), nothing added to the shell.
+  - Chosen: the heap leans the same way in both languages (it is a picture, not text).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

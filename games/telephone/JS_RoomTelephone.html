@@ -18,6 +18,23 @@ const tele = {
   draft: { key: '', text: '' }  // the words typed for this step, kept outside the screen
 };
 
+/* «لفّة كمان» (573): the host's switch, remembered on their phone like the other lobby options. */
+const TELE_TWICE_KEY = 'teleRoom';
+const TELE_TWICE_MAX_PHONE = 4;   // the server's TELE_TWICE_MAX
+function teleTwiceOn() { return !!recallOptions(TELE_TWICE_KEY, { twice: false }).twice; }
+function teleSetTwice(on) {
+  rememberOptions(TELE_TWICE_KEY, { twice: !!on });
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/** May this phone move the reveal on? The chain's owner tells it (574); the host, or anyone with the host away, can take over. */
+function teleCanDrive(state) {
+  const chain = (state.shared && state.shared.chain) || {};
+  return !!(chain.ownerId && chain.ownerId === Room.me && !state.youAreScreen);
+}
+
 /** This phone's step: the deal id when the server sends one, so a restarted game never matches an old step. */
 function teleStepKey(state) {
   const task = state && state.you && state.you.task;
@@ -130,9 +147,28 @@ function teleStepHtml(step, t, big, first) {
 ROOM_GAMES.telephone = {
   lobbyOptions(state) {
     const t = TRANSLATIONS[appState.lang];
-    return `<p class="field__hint" style="text-align:center">${escapeHTML(t.tele_lobby_hint || '')}</p>`;
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(t.tele_lobby_hint || '')}</p>`;
+    // «لفّة كمان» (573): for a table of 3 or 4, round the table twice. Shown
+    // while the room is that small; the server ignores it from 5.
+    if (!state.youAreHost || (state.players || []).length > TELE_TWICE_MAX_PHONE) return hint;
+    const twice = teleTwiceOn();
+    return `
+      <div class="card card--tight">
+        <label class="switch-row" for="tele-twice">
+          <span class="field__label">🔁 ${escapeHTML(t.tele_twice || '')}</span>
+          <span class="switch">
+            <input type="checkbox" id="tele-twice" role="switch" ${twice ? 'checked' : ''} onchange="teleSetTwice(this.checked)">
+            <span class="switch__track" aria-hidden="true"></span>
+          </span>
+        </label>
+        <p class="field__hint" style="text-align:center">${escapeHTML(twice ? (t.tele_twice_hint || '') : (t.tele_lobby_hint || ''))}</p>
+      </div>`;
   },
-  startPayload() { return { lang: contentLang() }; },
+  startPayload() {
+    const out = { lang: contentLang() };
+    if (teleTwiceOn()) out.twice = true;
+    return out;
+  },
 
   render(state) {
     if (appState.currentView !== 'room-telephone') setView('room-telephone');
@@ -224,19 +260,21 @@ ROOM_GAMES.telephone = {
       const r = s.reveal || { chain: 0, step: 0 };
       const chain = s.chain || { steps: [] };
       const step = chain.steps[r.step];
-      const fresh = renderRoomFrame(el, ['tele-reveal', r.chain, r.step, state.youAreHost, appState.lang].join('|'), () => `
+      const mine = teleCanDrive(state);
+      const buttons = `<div class="btn-row" style="margin-top: var(--sp-3)">
+               <button class="btn btn--ghost" onclick="roomAct('revealBack', { at: '${r.chain}:${r.step}' })" ${r.chain === 0 && r.step === 0 ? 'disabled' : ''}>${escapeHTML(t.tele_back || '')}</button>
+               <button class="btn btn--primary" onclick="roomAct('revealNext', { at: '${r.chain}:${r.step}' })">${escapeHTML(t.tele_next || '')}</button>
+             </div>`;
+      const fresh = renderRoomFrame(el, ['tele-reveal', roomDealKey(state, r.chain), r.step, state.youAreHost, mine, appState.lang].join('|'), () => `
+        ${mine ? `<p class="field__hint" style="text-align:center">🎤 ${escapeHTML(t.tele_your_turn_tell || '')}</p>` : ''}
         <div class="cn-score">
           <span class="cn-score__role">${escapeHTML((t.tele_chain_of || '').replace('{name}', chain.ownerName || ''))}</span>
           <span class="badge badge--accent">🔗 ${ltrFrac(r.chain + 1, s.chainCount || 1)} · ${escapeHTML(t.tele_step || '')} ${ltrFrac(r.step + 1, chain.steps.length)}</span>
         </div>
         ${r.step > 0 && chain.steps[0] ? `<p class="field__hint" style="text-align:center">${escapeHTML(t.tele_started_with || '')}: <b>${escapeHTML(chain.steps[0].text || '')}</b></p>` : ''}
         ${teleStepHtml(step, t, false, r.step === 0)}
-        ${roomMoveOnHtml(state,
-          `<div class="btn-row" style="margin-top: var(--sp-3)">
-               <button class="btn btn--ghost" onclick="roomAct('revealBack', { at: '${r.chain}:${r.step}' })" ${r.chain === 0 && r.step === 0 ? 'disabled' : ''}>${escapeHTML(t.tele_back || '')}</button>
-               <button class="btn btn--primary" onclick="roomAct('revealNext', { at: '${r.chain}:${r.step}' })">${escapeHTML(t.tele_next || '')}</button>
-             </div>`,
-          `<div class="waiting-note">${t.room_wait_host}</div>`)}
+        ${mine ? buttons : roomMoveOnHtml(state, buttons,
+          `<div class="waiting-note">🎤 ${escapeHTML((t.tele_telling || '').replace('{name}', chain.ownerName || ''))}</div>`)}
         ${renderRoomPlayerStrip(state)}`);
       if (fresh && step && step.kind === 'draw') {
         resetDrawSurface();
@@ -293,7 +331,7 @@ TV_GAMES.telephone = {
       const step = chain.steps[r.step] || {};
       return `
         <div class="tv-trivia">
-          <div class="tv-top"><span class="tv-pill">${escapeHTML((t.tele_chain_of || '').replace('{name}', chain.ownerName || ''))}</span><span class="tv-pill">🔗 ${ltrFrac(r.chain + 1, s.chainCount || 1)} · ${escapeHTML(t.tele_step || '')} ${ltrFrac(r.step + 1, chain.steps.length)}</span></div>
+          <div class="tv-top"><span class="tv-pill">🎤 ${escapeHTML((t.tele_chain_of || '').replace('{name}', chain.ownerName || ''))}</span><span class="tv-pill">🔗 ${ltrFrac(r.chain + 1, s.chainCount || 1)} · ${escapeHTML(t.tele_step || '')} ${ltrFrac(r.step + 1, chain.steps.length)}</span></div>
           ${step.kind === 'text'
             ? `<div class="tv-center"><div class="tv-eyebrow">${escapeHTML(step.byName && r.step > 0 ? (t.tele_wrote || '').replace('{name}', step.byName) : (t.tele_started_with || ''))}</div><div class="tv-title">${escapeHTML(step.text || '') || '—'}</div></div>`
             : `<div class="tv-eyebrow tv-center-text">${escapeHTML((t.tele_drew || '').replace('{name}', step.byName || '…'))}</div><div class="tv-canvas"><canvas id="draw-canvas" width="512" height="512"></canvas></div>`}

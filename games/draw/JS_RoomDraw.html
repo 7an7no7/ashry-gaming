@@ -83,6 +83,8 @@ function setDrawRoomSeconds(value) {
 }
 
 ROOM_GAMES.drawguess = {
+  // Someone who joins mid-round sees the drawing and guesses for fun (👀, no points; 569).
+  lateJoin: true,
   lobbyOptions(state) {
     if (!state.youAreHost) return '';
     const t = TRANSLATIONS[appState.lang];
@@ -132,7 +134,7 @@ ROOM_GAMES.drawguess = {
     // so an in-progress stroke isn't wiped by a poll. The host is in it (a new
     // host needs "next round"), and so is the language.
     // The deal is in it: a new game dealt after the hub is round 1 again with the same drawer.
-    const sig = [roundKey, amDrawer, over, s.winnerId || '', state.youAreHost, appState.lang].join('|');
+    const sig = [roundKey, amDrawer, over, s.winnerId || '', state.youAreHost, appState.lang, state.inGame !== false].join('|');
     if (el.dataset.sig !== sig) {
       const typed = document.getElementById('draw-guess');
       const guessText = typed ? typed.value : '';
@@ -147,19 +149,21 @@ ROOM_GAMES.drawguess = {
     }
 
     paintStrokes(s.strokes || []);
-    paintGuessList(s.guesses || []);
+    paintGuessList(s.guesses || [], state);
+    drawPaintCategory(state, t);
     refreshRoomPlayerStrip(el, state);
 
     // خمّن صح! stamped across the drawing the moment someone cracks it — only
     // when a guess won it, never when the host gave up (a round ends by
     // shared.word being set, with or without a winner). Once per round per phone.
+    // A quick hit (566) carries a ⚡.
     if (s.word && s.winnerId && !motionOff() &&
         typeof motionFirst === 'function' && motionFirst('draw-stamp|' + roomDealKey(state) + '|' + s.round)) {
       const wrap = el.querySelector('.draw-wrap');
       if (wrap && !wrap.querySelector('.draw-stamp')) {
         const stamp = document.createElement('div');
         stamp.className = 'draw-stamp';
-        stamp.textContent = t.draw_stamp_right || 'خمّن صح!';
+        stamp.textContent = (s.quick ? '⚡ ' : '') + (t.draw_stamp_right || 'خمّن صح!');
         wrap.appendChild(stamp);
       }
     }
@@ -180,6 +184,8 @@ function drawFrame(state, amDrawer, over, t) {
     ? `<div class="card card--accent" style="text-align:center">
          <div class="eyebrow">${s.winnerId ? (t.draw_guessed_by || 'خمّنها') : (t.draw_nobody || 'محدش عرفها')}</div>
          <div class="metric metric--md metric--accent">${escapeHTML(s.word || '')}</div>
+         ${s.winnerId && s.quick ? `<p class="field__hint">⚡ ${escapeHTML(t.draw_quick_line || '')}</p>` : ''}
+         ${s.winnerId && s.category ? `<p class="field__hint">🏷️ ${escapeHTML(t.draw_cat_no_point || '')}</p>` : ''}
        </div>`
     : `<div class="cn-score">
          <span class="cn-score__role">${amDrawer
@@ -188,6 +194,7 @@ function drawFrame(state, amDrawer, over, t) {
          <span id="draw-timer" class="badge badge--accent">--</span>
        </div>
        ${!amDrawer && s.hint ? drawHintHtml(s.hint, t) : ''}
+       <div id="draw-cat" class="draw-cat"></div>
        ${amDrawer
           ? `<div class="card card--accent" style="text-align:center; margin-bottom: var(--sp-2)">
                <div class="eyebrow">${t.draw_your_word || 'ارسم هذه الكلمة'}</div>
@@ -197,7 +204,9 @@ function drawFrame(state, amDrawer, over, t) {
 
   const tools = (amDrawer && !over) ? drawToolsHtml(t, { undo: 'undoDrawStroke()', redo: 'redoDrawStroke()', clear: 'clearDrawCanvas()' }) : '';
 
+  const watching = state.inGame === false;
   const guessBox = (!amDrawer && !over) ? `
+      ${watching ? `<p class="field__hint" style="text-align:center; margin-top: var(--sp-3)">👀 ${escapeHTML(t.draw_watch_hint || '')}</p>` : ''}
       <div class="input-group" style="margin-top: var(--sp-3)">
         <input type="text" id="draw-guess" autocomplete="off" maxlength="40"
                placeholder="${t.draw_guess_ph || 'اكتب تخمينك'}"
@@ -803,16 +812,65 @@ async function submitDrawGuess() {
   await roomAct('guess', { guess: guess });
 }
 
-function paintGuessList(guesses) {
+/**
+ * The last guesses, newest first. A close guess (and a watcher's right one)
+ * comes with no text (565): the guesser's own phone finds it in its slice
+ * (`state.you.guesses`, by the guess's number); everyone else and the TV read
+ * «🔥 خالد قرّب». A watcher's guess (569) carries a 👀.
+ */
+function paintGuessList(guesses, state) {
   const el = document.getElementById('draw-guesses');
   if (!el) return;
-  const html = guesses.slice(-6).reverse().map(g => `
-      <div class="draw-guess ${g.right ? 'is-right' : ''} ${g.close ? 'is-close' : ''}">
-        <span class="draw-guess__who">${escapeHTML(g.name)}</span>
-        <span>${escapeHTML(g.text)}</span>
-        ${g.right ? '<span aria-hidden="true">✅</span>' : g.close ? `<span class="draw-guess__close">🔥 ${escapeHTML((TRANSLATIONS[appState.lang] || {}).draw_close || '')}</span>` : ''}
-      </div>`).join('');
+  const t = TRANSLATIONS[appState.lang] || {};
+  const mine = (state && state.you && state.you.guesses) || [];
+  const own = (g) => { const m = g.n ? mine.find(x => x.n === g.n) : null; return m ? m.text : ''; };
+  const html = guesses.slice(-6).reverse().map(g => {
+    const text = g.text || own(g);
+    const who = `${g.watcher ? '<span aria-hidden="true">👀</span> ' : ''}${escapeHTML(g.name)}`;
+    let body, mark = '';
+    if (text) {
+      body = `<span>${escapeHTML(text)}</span>`;
+      if (g.right) mark = '<span aria-hidden="true">✅</span>';
+      else if (g.close) mark = `<span class="draw-guess__close">🔥 ${escapeHTML(t.draw_close || '')}</span>`;
+    } else {
+      // Someone else's near miss, or a watcher who got it: said, never spelled.
+      body = `<span class="draw-guess__close">${g.right ? '✅ ' + escapeHTML(t.draw_watcher_got || '') : '🔥 ' + escapeHTML(t.draw_came_close || '')}</span>`;
+    }
+    return `
+      <div class="draw-guess ${g.right ? 'is-right' : ''} ${g.close ? 'is-close' : ''} ${g.watcher ? 'is-watcher' : ''}">
+        <span class="draw-guess__who">${who}</span>
+        ${body}
+        ${mark}
+      </div>`;
+  }).join('');
   if (el.dataset.sig !== html) { el.innerHTML = html; el.dataset.sig = html; }
+}
+
+/**
+ * «قول الفئة» (567): the drawer's button while the round runs, and the
+ * category on every screen once told. Painted in place, so telling it
+ * doesn't rebuild the frame under a guess being typed.
+ */
+function drawPaintCategory(state, t) {
+  const el = document.getElementById('draw-cat');
+  if (!el) return;
+  const s = state.shared || {};
+  const amDrawer = s.drawerId === Room.me;
+  let html = '';
+  if (s.category && !s.word) {
+    html = `<div class="badge badge--accent">🏷️ ${escapeHTML(t.draw_cat_label || '')}: ${escapeHTML(s.category)}</div>`;
+  } else if (amDrawer && !s.word && !s.category && s.catOk) {
+    // catOk: the word has a category to tell («كلماتنا» words have none).
+    html = `<button class="btn btn--neutral btn--sm btn--auto" onclick="drawTellCategory()">🏷️ ${escapeHTML(t.draw_tell_cat || '')}</button>`;
+  }
+  if (html) html = `<div style="text-align:center; margin-block: var(--sp-2)">${html}</div>`;
+  if (el.dataset.sig !== html) { el.innerHTML = html; el.dataset.sig = html; }
+}
+
+/** Asks first: telling the category costs the drawer their point. */
+function drawTellCategory() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  showConfirmModal(t.draw_tell_cat_confirm || '', () => roomAct('tellCategory'));
 }
 
 /* --- round clock, anchored to the shared deadline ------------------------ */

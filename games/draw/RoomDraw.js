@@ -175,7 +175,9 @@ const drawGuessAction = (room, playerId, action, payload) => {
       endsAt: Date.now() + seconds * 1000,
       scores: scores,
       roster: room.players.map(p => p.id),
-      hint: drawHint(word)
+      hint: drawHint(word),
+      // The word has a kind the drawer may tell («قول الفئة», 567); the family's own words have none.
+      catOk: !family && !!drawWordCategory(lang, word)
     };
     room.phase = 'drawing';
     return;
@@ -247,29 +249,60 @@ const drawGuessAction = (room, playerId, action, payload) => {
     // was only checking winnerId, so after a reveal the answer was on screen
     // and could still be typed back in for the points.
     if (s.word) throw new Error('انتهت الجولة');
-    if (s.roster.indexOf(playerId) === -1) throw new Error('ستدخل من الجولة القادمة');
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) throw new Error('ستدخل من الجولة القادمة');
+    // Off the roster (joined mid-round): guesses for fun, marked 👀, no points,
+    // and a right one doesn't end the round (the owner's 569, 7 Oct 2026).
+    const watcher = (s.roster || []).indexOf(playerId) === -1;
 
     const text = String(payload.guess || '').trim().slice(0, 40);
     if (!text) return;
-    const player = room.players.find(p => p.id === playerId);
     // Judged the way the table hears it (guessVerdict): طماطم is طماطماية, a
     // letter off in a long word still counts, and a near miss gets a nudge.
     const verdict = guessVerdict(text, [room._word], roomPackWords(room) || DRAW_WORDS[s.lang] || DRAW_WORDS.ar);
     const right = verdict === 'right';
     const close = verdict === 'close';
 
-    s.guesses.push({ name: player ? player.name : '', text: text, right: right, close: close });
+    // A close guess (and a watcher's right one) is printed only on the
+    // guesser's own phone (the owner's 565): everyone else reads «🔥 خالد
+    // قرّب», so nobody copies the near spelling for the points. The text sits
+    // in the guesser's own slice under the guess's number.
+    const hidden = close || (watcher && right);
+    s.guessSeq = (s.guessSeq || 0) + 1;
+    const entry = { n: s.guessSeq, name: player.name, text: hidden ? '' : text, right: right, close: close };
+    if (watcher) entry.watcher = true;
+    s.guesses.push(entry);
     if (s.guesses.length > 30) s.guesses = s.guesses.slice(-30);
+    if (hidden) {
+      const mine = room.secrets[playerId] = room.secrets[playerId] || {};
+      mine.guesses = (mine.guesses || []).concat([{ n: s.guessSeq, text: text }]).slice(-30);
+    }
 
-    if (right) {
+    if (right && !watcher) {
       s.winnerId = playerId;
       s.word = room._word;          // safe to publish now
       // The guesser and the drawer both score; drawing well is half the game.
-      addScore(room, playerId, 2);
-      addScore(room, s.drawerId, 1);
+      // Guessed in the first third of the clock: +1 more to each (566, the ⚡
+      // on the stamp). A drawer who told the category gave their point up (567).
+      const len = (s.roundSeconds || DRAW_ROUND_SECONDS) * 1000;
+      s.quick = !!s.endsAt && Date.now() - (s.endsAt - len) <= len / 3;
+      addScore(room, playerId, s.quick ? 3 : 2);
+      if (!s.category) addScore(room, s.drawerId, s.quick ? 2 : 1);
       s.board = scoreboardOf(room);
       room.phase = 'result';
     }
+    return;
+  }
+
+  if (action === 'tellCategory') {
+    // «قول الفئة» (567): the drawer tells the guessers what kind of thing the
+    // word is, and gives up their point for the round.
+    const s = room.shared;
+    if (playerId !== s.drawerId) throw new Error('الرسام فقط');
+    if (s.word || s.category) return;
+    const cat = roomPackWords(room) ? '' : drawWordCategory(s.lang, room._word);
+    if (!cat) throw new Error('الكلمة دي ملهاش فئة');
+    s.category = cat;
     return;
   }
 

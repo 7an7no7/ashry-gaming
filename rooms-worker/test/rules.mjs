@@ -2880,6 +2880,128 @@ for (const outSee of [undefined, false]) {
   check(!JSON.stringify(mf.shared).includes('"roles":{'), 'mafia: the narrator setting carries no roles with it');
 }
 
+/* --- ارسم وخمّن and ارسم واكتب: the owner's picks of 7 Oct 2026 ------------- */
+{
+  const fails = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const dg = (ids) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'drawguess' });
+    applyRoomAction(r, ids[0], 'start', { lang: 'ar', seconds: 90 });
+    return r;
+  };
+  const guesserOf = (r) => r.players.map((p) => p.id).find((id) => id !== r.shared.drawerId && r.shared.roster.indexOf(id) !== -1);
+
+  // 565: a close guess is printed on the guesser's phone only.
+  {
+    const r = dg(['a', 'b', 'c']);
+    r._word = 'طماطم';
+    const g = guesserOf(r);
+    applyRoomAction(r, g, 'guess', { guess: 'طماطمقق' });
+    const last = r.shared.guesses[r.shared.guesses.length - 1];
+    check(last.close === true && last.text === '' && !JSON.stringify(r.shared).includes('طماطمقق'),
+      'drawguess 565: a close guess reaches the table as «قرّب», never its spelling');
+    const mine = (r.secrets[g] || {}).guesses || [];
+    check(mine.length === 1 && mine[0].text === 'طماطمقق' && mine[0].n === last.n, "drawguess 565: the guesser's own slice keeps the text, by the guess's number");
+    applyRoomAction(r, g, 'guess', { guess: 'غلط خالص' });
+    check(r.shared.guesses[r.shared.guesses.length - 1].text === 'غلط خالص', 'drawguess 565: a wrong guess is still shown to all');
+  }
+
+  // 566: a quick hit pays the guesser and the drawer one more each.
+  {
+    const r = dg(['a', 'b', 'c']);
+    r._word = 'طماطم';
+    const g = guesserOf(r), d = r.shared.drawerId;
+    clock += 20000;   // 20 s of 90: in the first third
+    applyRoomAction(r, g, 'guess', { guess: 'طماطم' });
+    check(r.shared.quick === true && r.shared.scores[g] === 3 && r.shared.scores[d] === 2, 'drawguess 566: guessed in the first third, 3 and 2 with the ⚡');
+    applyRoomAction(r, 'a', 'nextRound', { lang: 'ar' });
+    r._word = 'طماطم';
+    const g2 = guesserOf(r), d2 = r.shared.drawerId;
+    const before = { g: r.shared.scores[g2] || 0, d: r.shared.scores[d2] || 0 };
+    clock += 31000;   // past the third
+    applyRoomAction(r, g2, 'guess', { guess: 'طماطم' });
+    check(r.shared.quick === false && r.shared.scores[g2] - before.g === 2 && r.shared.scores[d2] - before.d === 1, 'drawguess 566: after the first third, 2 and 1 as before');
+  }
+
+  // 567: «قول الفئة» tells the kind, and the drawer gives up their point.
+  {
+    const r = dg(['a', 'b', 'c']);
+    const g = guesserOf(r), d = r.shared.drawerId;
+    check(r.shared.catOk === true, 'drawguess 567: a word from the list has a category to tell');
+    check(fails(() => applyRoomAction(r, g, 'tellCategory', {})), 'drawguess 567: only the drawer tells the category');
+    applyRoomAction(r, d, 'tellCategory', {});
+    check(typeof r.shared.category === 'string' && r.shared.category.length > 0 && r.shared.category.indexOf(r._word) === -1, 'drawguess 567: the category is on the table, not the word');
+    clock += 40000;
+    applyRoomAction(r, g, 'guess', { guess: r._word });
+    check(r.shared.winnerId === g && r.shared.scores[g] === 2 && !r.shared.scores[d], 'drawguess 567: the guesser scores, the drawer who told it does not');
+  }
+
+  // 569: a latecomer guesses for fun - 👀, no points, and the round goes on.
+  {
+    const r = dg(['a', 'b', 'c']);
+    r.players.push({ id: 'w', name: 'W' });
+    applyRoomAction(r, 'w', 'guess', { guess: 'غلط خالص' });
+    check(r.shared.guesses[0].watcher === true && r.shared.guesses[0].text === 'غلط خالص', "drawguess 569: a watcher's guess is on the list, marked");
+    applyRoomAction(r, 'w', 'guess', { guess: r._word });
+    const last = r.shared.guesses[r.shared.guesses.length - 1];
+    check(!r.shared.word && !r.shared.winnerId && !(r.shared.scores || {}).w && last.right && last.text === '',
+      'drawguess 569: a watcher who gets it scores nothing, the round goes on, and the word is not printed');
+    clock += 40000;
+    applyRoomAction(r, guesserOf(r), 'guess', { guess: r._word });
+    check(!!r.shared.word && !!r.shared.winnerId && r.shared.winnerId !== 'w', 'drawguess 569: a player still wins the round');
+    applyRoomAction(r, 'a', 'nextRound', { lang: 'ar' });
+    check(r.shared.roster.indexOf('w') !== -1, 'drawguess 569: and the watcher plays from the next round');
+  }
+
+  const tele = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'telephone' });
+    applyRoomAction(r, ids[0], 'start', Object.assign({ lang: 'ar' }, payload || {}));
+    return r;
+  };
+  const playSteps = (r, onStep) => {
+    for (let k = 0; k < 8 && r.shared.phase !== 'reveal'; k++) {
+      const step = r.shared.step;
+      if (onStep) onStep(r, step);
+      r.players.forEach(({ id }) => {
+        const task = (r.secrets[id] || {}).task;
+        if (!task || r.shared.submitted.indexOf(id) !== -1) return;
+        applyRoomAction(r, id, 'submit', task.kind === 'draw' ? { strokes: [{ c: '#111', w: 4, p: [1, 1, 9, 9] }], step } : { text: 'x' + id + step, step });
+      });
+    }
+  };
+
+  // 573: «لفّة كمان» for 3-4 players.
+  {
+    check(tele(['a', 'b', 'c']).shared.steps === 3, 'telephone 573: one lap for 3 by default');
+    check(tele(['a', 'b', 'c'], { twice: true }).shared.steps === 6 && tele(['a', 'b', 'c', 'd'], { twice: true }).shared.steps === 6,
+      'telephone 573: twice round for 3 or 4 is six steps');
+    check(tele(['a', 'b', 'c', 'd', 'e'], { twice: true }).shared.steps === 5, 'telephone 573: ignored from 5 players');
+    check(tele(['a', 'b', 'c'], { twice: 'yes' }).shared.steps === 3, 'telephone 573: only a real true turns it on');
+    const r = tele(['a', 'b', 'c'], { twice: true });
+    let metOwn = false;
+    playSteps(r, (rr, step) => {
+      if (step === 3) metOwn = ['a', 'b', 'c'].every((id) => rr._chains[rr.secrets[id].task.chain].owner === id);
+    });
+    check(metOwn && r.shared.phase === 'reveal' && r._chains.every((ch) => ch.steps.length === 6), 'telephone 573: everyone meets their own chain again, and every chain has six steps');
+  }
+
+  // 574: the chain's owner steps through it; the host can take over.
+  {
+    const r = tele(['a', 'b', 'c']);
+    playSteps(r);
+    ['0:0', '0:1', '0:2'].forEach((at) => applyRoomAction(r, 'a', 'revealNext', { at }));
+    const owner = r.shared.chain.ownerId;
+    check(r.shared.reveal.chain === 1 && owner === r._chains[1].owner && owner !== 'a', "telephone 574: the reveal names the chain's owner");
+    applyRoomAction(r, owner, 'revealNext', { at: '1:0' });
+    check(r.shared.reveal.step === 1, 'telephone 574: the owner moves their chain on');
+    const other = ['b', 'c'].find((id) => id !== owner);
+    check(fails(() => applyRoomAction(r, other, 'revealNext', { at: '1:1' })) && r.shared.reveal.step === 1, 'telephone 574: someone else cannot');
+    applyRoomAction(r, 'a', 'revealNext', { at: '1:1' });
+    check(r.shared.reveal.step === 2, 'telephone 574: the host can still take over');
+  }
+}
+
 /* --- كونكت ٤ and نقط ومربعات: the shared rules and the phone's player ------- */
 // The phone's player thinks against the real clock: its time budget is a
 // deadline. The test clock is put back after this block, for what follows.

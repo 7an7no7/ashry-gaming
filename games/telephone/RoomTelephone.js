@@ -12,6 +12,7 @@ const TELE_DRAW_SECONDS = 75;
 const TELE_WRITE_SECONDS = 35;
 const TELE_GRACE_MS = 1500;
 const TELE_COLLECT_MS = 3000;
+const TELE_TWICE_MAX = 4;          // «لفّة كمان»: for a table of 3 or 4
 
 /** The same limits Draw & Guess puts on a stroke list, for a whole drawing at once. */
 const cleanStrokes = (batch) => {
@@ -46,9 +47,13 @@ const telephoneAction = (room, playerId, action, payload) => {
     const roster = room.players.map(p => p.id);
     const phrases = nextPrompts(room, DRAW_WORDS[lang] || DRAW_WORDS.ar, 'tele_' + lang, roster.length);
     room._chains = roster.map((pid, i) => ({ owner: pid, steps: [{ kind: 'text', by: pid, text: phrases[i] }] }));
+    // «لفّة كمان» (the owner's 573): 3 or 4 players may go round the table
+    // twice, so the chain still gets its six steps; a player meets their own
+    // chain again near the end. Ignored from 5 players, where one lap is long enough.
+    const twice = payload.twice === true && roster.length <= TELE_TWICE_MAX;
     room.shared = {
-      phase: 'working', lang: lang, roster: roster,
-      steps: Math.min(roster.length, TELE_MAX_STEPS),
+      phase: 'working', lang: lang, roster: roster, twice: twice,
+      steps: Math.min(roster.length * (twice ? 2 : 1), TELE_MAX_STEPS),
       step: 0, kind: null, submitted: [], endsAt: null, seconds: 0
     };
     room.phase = 'play';
@@ -80,9 +85,12 @@ const telephoneAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'revealNext' || action === 'revealBack') {
-    requireMoveOn(room, playerId);
     if (s.phase !== 'reveal') return;
     const r = s.reveal;
+    // The chain's owner tells its story from their own phone (the owner's 574);
+    // the host (or anyone, once the host is away) can still take over.
+    const owner = room._chains[r.chain] && room._chains[r.chain].owner;
+    if (!(owner && owner === playerId && room.players.some(p => p.id === playerId))) requireMoveOn(room, playerId);
     // The step the host was looking at: a double tap must not flash a drawing
     // past every screen (or end the reveal) with its second press.
     if (staleTap(payload, 'at', r.chain + ':' + r.step)) return;
@@ -160,6 +168,7 @@ const publishTelephoneChain = (room) => {
   const ch = room._chains[s.reveal.chain];
   s.chainCount = room._chains.length;
   s.chain = {
+    ownerId: ch.owner,
     ownerName: roomPlayerName(room, ch.owner),
     steps: ch.steps.map(st => ({ kind: st.kind, byName: st.by ? roomPlayerName(room, st.by) : '', text: st.text, strokes: st.strokes }))
   };

@@ -806,7 +806,8 @@ TV_GAMES.trivia = {
 TV_GAMES.drawguess = {
   sig(state) {
     const s = state.shared;
-    return [s.round, !!s.word, s.winnerId || ''].join('|');
+    // The deal is in it (a new game from the hub is round 1 again); the quick hit is decided with the winner.
+    return [roomDealKey(state, s.round), !!s.word, s.winnerId || '', !!s.quick].join('|');
   },
 
   frame(state, t) {
@@ -815,11 +816,13 @@ TV_GAMES.drawguess = {
     const winner = over && s.winnerId ? state.players.find(p => p.id === s.winnerId) : null;
     const head = over
       ? `<div class="tv-eyebrow">${s.winnerId ? (t.draw_guessed_by || '') + (winner ? ' · ' + escapeHTML(winner.name) : '') : (t.draw_nobody || '')}</div>
-         <div class="tv-title">${escapeHTML(s.word || '')}</div>`
+         <div class="tv-title">${escapeHTML(s.word || '')}</div>
+         ${s.winnerId && s.quick ? `<div class="tv-note">⚡ ${escapeHTML(t.draw_quick_line || '')}</div>` : ''}`
       : `<div class="tv-eyebrow">✏️ ${t.draw_drawer || ''}</div>
          <div class="tv-title">${escapeHTML(s.drawerName || '')}</div>
          <div id="draw-timer" class="tv-timer tv-timer--big">--</div>
-         ${s.hint ? drawHintHtml(s.hint, t) : ''}`;
+         ${s.hint ? drawHintHtml(s.hint, t) : ''}
+         <div id="draw-cat" class="draw-cat"></div>`;
     const actions = over
       ? roomMoveOnHtml(state, tvBtn(t.draw_next, `roomAct('nextRound', ${roomNextArgs(state)})`)) + (state.youAreHost ? tvBtn(t.room_another_game, "tvBackToHub()", 'ghost') : '')
       : (state.youAreHost ? tvBtn(t.draw_reveal, "roomAct('giveUp')", 'ghost') : '');
@@ -842,7 +845,8 @@ TV_GAMES.drawguess = {
       bindDrawSurface(false);
     }
     paintStrokes(s.strokes || []);
-    paintGuessList(s.guesses || []);
+    paintGuessList(s.guesses || [], state);
+    drawPaintCategory(state, TRANSLATIONS[appState.lang] || {});
     if (!s.word) startDrawClock(s.endsAt);
     else stopDrawClock();
     if (s.word) {

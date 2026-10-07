@@ -18,7 +18,7 @@
  * the run too, so a probe can't pass by never looking.
  */
 import { readFileSync } from 'node:fs';
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, ROOM_GAME_IDS, roomPlayerLeft, missionJoined, missionPlayerLeft } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, ROOM_GAME_IDS, roomPlayerLeft, missionJoined, missionPlayerLeft } from '../generated/rules.js';
 import { roomView } from '../src/view.js';
 import srcMod from '../../tools/sources.cjs';
 const { srcPath } = srcMod;
@@ -290,7 +290,12 @@ const PROBES = {
   },
   drawguess(room) {
     const s = room.shared || {};
-    return [secret('only the drawer is told the word', s.word ? null : room._word, [s.drawerId])];
+    const out = [secret('only the drawer is told the word', s.word ? null : room._word, [s.drawerId])];
+    // A close guess's spelling stays on its guesser's phone (the owner's 565, 7 Oct 2026).
+    for (const p of room.players) {
+      for (const g of ((room.secrets || {})[p.id] || {}).guesses || []) out.push(secret("a close guess is spelled only on its guesser's phone", g.text, [p.id]));
+    }
+    return out;
   },
   fakeartist(room) {
     const s = room.shared || {};
@@ -1625,6 +1630,10 @@ const DRIVERS = {
       must(T, s.drawerId, 'addStrokes', { strokes: [{ c: '#111111', w: 4, p: [1, 2, 30, 40] }] });
       const guesser = T.ids.find((id) => id !== s.drawerId);
       must(T, guesser, 'guess', { guess: 'مش هي خالص' });
+      // A near miss (565): its spelling must stay on this phone. One that doesn't spell the word inside it.
+      const w = T.room._word;
+      const near = [w.slice(0, -1) + 'ققق', 'ق' + w.slice(1) + 'ق', w.slice(0, 4) + 'ققققق'].find((c) => c.indexOf(w) === -1 && guessVerdict(c, [w]) === 'close');
+      if (near) must(T, guesser, 'guess', { guess: near });
       if (round === 0) must(T, guesser, 'guess', { guess: T.room._word });
       else if (round === 1) must(T, T.host, 'giveUp');
       else runClock(T, (r) => !!r.shared.word);

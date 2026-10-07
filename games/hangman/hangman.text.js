@@ -91,6 +91,12 @@ gameText({
       hm_captain_is: "الكابتن: {name}",
       hm_you_captain: "انت الكابتن: اسمع فريقك ودوس",
       hm_team_say: "اتشاوروا بصوت عالي وقولوا الحرف لـ{name}",
+      hm_cap_banner: "إنت الكابتن — دوس الحرف",
+      hm_cap_only: "الكابتن بس اللي بيدوس — قولوا الحرف لـ{name}",
+      hm_cap_only_toast: "الكابتن بس اللي بيدوس",
+      hm_take_back: "اتكتبت غلط؟ رجّعها",
+      hm_take_back_late: "فات الوقت، الكلمة اتلعبت",
+      hm_word_coming: "الكلمة جاية…",
       hm_next_captain: "كابتن تاني",
       hm_team_wrote: "كتبها {name} من {team}",
       hm_team_draw: "تعادل! الفريقين نفس النقط",
@@ -200,6 +206,12 @@ gameText({
       hm_captain_is: "Captain: {name}",
       hm_you_captain: "You're the captain: listen to your team and tap",
       hm_team_say: "Talk it over out loud and tell {name} the letter",
+      hm_cap_banner: "You're the captain — tap the letter",
+      hm_cap_only: "Only the captain taps — tell {name} the letter",
+      hm_cap_only_toast: "Only the captain taps",
+      hm_take_back: "Typo? Take it back",
+      hm_take_back_late: "Too late, the word is in play",
+      hm_word_coming: "The word is coming…",
       hm_next_captain: "Next captain",
       hm_team_wrote: "Written by {name} of the {team}",
       hm_team_draw: "A draw! Both teams level",
@@ -232,6 +244,7 @@ gameText({
                 <li>تقدر تخمّن <b>الكلمة كلها</b> مرة واحدة: لو غلط بتتحسب حتة زي الحرف الغلط.</li>
                 <li><b>مساعدات</b>، كل واحدة مرة في الكلمة: «اكشف حرف» بيوريك حرف من الكلمة، و«شيل ٣ حروف غلط» بيطفّي 3 زراير مش في الكلمة. كل مساعدة بتشيل <b>3 نقط</b> من الكلمة لو حلّيتها.</li>
                 <li>اللي بيكتب يقدر يدّي لحد <b>3 تلميحات</b>: الأول باين من الأول، التاني بيفتح عند الغلطة التانية، والتالت عند الرابعة.</li>
+                <li><b>اتكتبت غلط؟</b> بعد «جاهزة» اللي كتب عنده <b>5 ثواني</b> يرجّع الكلمة ويصلّحها، قبل ما حد يخمّن. في الغرفة التخمين بيبدأ بعد الـ5 ثواني دول.</li>
                 <li><b>🔥 ورا بعض</b>: الكلمة التانية اللي تحلها ورا بعض +2، التالتة +4… لحد +10. أول كلمة ماتحلهاش العدّ يرجع من الأول.</li>
                 <li>لما الكلمة تتحل الراجل بيهرب بطريقة من 8 (منطاد، توكتوك، العيلة تشدّه…)، ولما الغلطات تخلص بيحصل له حاجة تضحّك من 8 (طبق فول، جردل مية، طماطم من الجمهور…). عمرها ما بتتكرر مرتين ورا بعض.</li>
                 <li>في العربي كل حرف زرار واحد: <b>ا</b> بتفتح أ إ آ، و<b>ه</b> بتفتح ة، و<b>ي</b> بتفتح ى، والعكس كمان: لو الكلمة كلها اتكتبت بـ أ أو ا، الاتنين واحد. الكلمة بتبان زي ما اتكتبت بالظبط.</li>
@@ -244,7 +257,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>واحد يكتب</b>: كل واحد يخمّن الكلمة على لوحته، واللي بيكتب بيتغيّر كل كلمة. اللي يحلّها ياخد 10، والأول +5، التاني +4… واللي كتبها ياخد 5 عن كل واحد ماحلّهاش — بس لو واحد على الأقل حلّها، ومش أكتر من أعلى واحد حلّها. كلمة محدش عرفها ملهاش نقط.</li>
                 <li><b>سباق</b>: التطبيق بيدّي الكل نفس الكلمة (أو اسم ممثل أو لاعب أو فيلم) ونوعها. اللي يحلّها ياخد 10، والأول +5، التاني +4… وهكذا. المضيف بيختار <b>النوع</b>: «من كل حاجة» أو قايمة (دول، حيوانات، أكل، أفلام، كورة، مطربين، ممثلين…). في السهل الكلمة قصيرة، وفي الصعب طويلة ومن غير ما نقول نوعها.</li>
-                <li><b>فريق ضد فريق</b>: المضيف بيقسّم فريقين. واحد من فريق يكتب الكلمة (بالدور)، والفريق التاني يتشاور بصوت عالي و<b>الكابتن</b> بتاعه (بيتغيّر كل كلمة) هو اللي يدوس. الفريقين بيتبدّلوا كل كلمة. الحل بـ10 (والـ🔥 والمساعدات) لكل واحد في الفريق، والكلمة اللي ماتتحلش محدش ياخد فيها حاجة.</li>
+                <li><b>فريق ضد فريق</b>: المضيف بيقسّم فريقين. واحد من فريق يكتب الكلمة (بالدور)، والفريق التاني يتشاور بصوت عالي و<b>الكابتن</b> بتاعه (بيتغيّر كل كلمة) هو اللي يدوس. الفريقين بيتبدّلوا كل كلمة. الحل بـ10 (والـ🔥 والمساعدات) لكل واحد في الفريق، والكلمة اللي ماتتحلش محدش ياخد فيها حاجة. موبايل الكابتن مكتوب عليه 🧢 «إنت الكابتن»، والباقيين زراير الحروف عندهم مطفية.</li>
                 <li>المضيف بيختار المستوى، و3 أو 5 أو 10 كلمات (4 أو 6 أو 10 للفرق)، ووقت للكلمة لو حابب (60 أو 90 ثانية).</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
@@ -261,6 +274,7 @@ gameText({
                 <li>You can guess <b>the whole word</b> at once: wrong, it costs a piece like a wrong letter.</li>
                 <li><b>Lifelines</b>, each once a word: «Show a letter» shows one letter of the word, and «Remove 3 wrong» greys out 3 keys that aren't in it. Each one used takes <b>3 points</b> off that word if you solve it.</li>
                 <li>The writer can give up to <b>3 hints</b>: the first shows from the start, the second opens on your 2nd miss and the third on your 4th.</li>
+                <li><b>A typo?</b> After «Ready» the writer has <b>5 seconds</b> to take the word back and fix it, before anyone guesses. In a room the guessing starts once those 5 seconds are up.</li>
                 <li><b>🔥 In a row</b>: your 2nd word solved in a row +2, the 3rd +4… up to +10. A word you don't solve starts it over.</li>
                 <li>When the word is solved the man escapes one of 8 ways (a balloon, a tuk-tuk, the family pulls him free…); when the misses run out something funny happens to him, one of 8 (a plate of beans, a bucket of water, tomatoes from the crowd…). Never the same one twice in a row.</li>
                 <li>In Arabic each letter is one key: <b>ا</b> opens أ إ آ, <b>ه</b> opens ة and <b>ي</b> opens ى, and the other way round: a whole word typed with أ or with ا is the same word. The word shows exactly as it was typed.</li>
@@ -273,7 +287,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>One writes</b>: everyone guesses the word on their own board, and the writer changes every word. A solve scores 10, the first +5, the second +4, and so on; the writer scores 5 for everyone who doesn't solve it — only if at least one person solved it, and never more than the best solver took. A word nobody gets scores nothing.</li>
                 <li><b>A race</b>: the app gives everyone the same word (or an actor, a footballer, a film) and its kind. A solve scores 10, the first +5, the second +4, and so on. The host picks <b>the category</b>: «A bit of everything» or one list (countries, animals, food, films, football, singers, actors…). At Easy the word is short; at Hard it is long and its kind isn't shown.</li>
-                <li><b>Team v team</b>: the host splits two teams. One of a team writes the word (in turn); the other team talks it over out loud and its <b>captain</b> (a new one every word) taps. The teams swap every word. A solve is 10 (with the 🔥 and the lifelines) for everyone on the team; a word not solved scores nobody.</li>
+                <li><b>Team v team</b>: the host splits two teams. One of a team writes the word (in turn); the other team talks it over out loud and its <b>captain</b> (a new one every word) taps. The teams swap every word. A solve is 10 (with the 🔥 and the lifelines) for everyone on the team; a word not solved scores nobody. The captain's phone says 🧢 «You're the captain»; the others' letter keys are off.</li>
                 <li>The host picks the level, 3, 5 or 10 words (4, 6 or 10 for teams), and a clock for each word if they like (60 or 90 seconds).</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>

@@ -60,6 +60,7 @@
      progress  { pid: { n, miss, state, at, end } } · solved  [pid, …] in order
      streak    { pid | 't0' | 't1': words solved in a row }
      endsAt    the word's clock
+     openAt    1200: a written word's guessing opens here (5 s after «جاهزة», while its writer may take it back)
      teams     [[ids], [ids]] · gt the team guessing this word · captain, captainName
      tpts      [team 0's points, team 1's] · tb the team's board { pattern, g, miss, x, state, lr, lx, hints, end }
      result    { word, cat, setter, setterName, setterPts, rows: [{ id, name, state, miss, pts, end, run, life }], team }
@@ -72,6 +73,12 @@ const HM_CLOCKS = [0, 60, 90];
 const HM_SOLVE_POINTS = 10;
 const HM_SPEED_BONUS = [5, 4, 3, 2, 1];
 const HM_SETTER_POINTS = 5;
+// 1200 (the owner's picks of 7 Oct 2026): «اتكتبت غلط؟» - after «جاهزة» the writer has 5 s to take the
+// word back and fix it, and nobody guesses before then. The hold is asked for by the page (`hold` on
+// setWord), so a phone on an older page (and the robots) plays on as before. A second's grace for the
+// writer's tap on its way.
+const HM_TAKE_BACK_MS = 5000;
+const HM_TAKE_BACK_GRACE_MS = 1000;
 
 const hmRoomOptions = (payload, prev) => {
   const p = payload || {};
@@ -156,8 +163,8 @@ const hmGiveEnd = (room, id, b) => {
   mine[kind] = b.end;
 };
 
-/** The word is out: every guesser gets a board (the team one board), the clock starts. */
-const hmBeginGuessing = (room, word, hints) => {
+/** The word is out: every guesser gets a board (the team one board), the clock starts (after the hold, 1200). */
+const hmBeginGuessing = (room, word, hints, hold) => {
   const s = room.shared;
   const list = (hints || []).filter(Boolean);
   room._hm = { word: word, boards: {}, hints: list };
@@ -175,8 +182,35 @@ const hmBeginGuessing = (room, word, hints) => {
   s.hintsN = list.length;
   s.phase = 'guessing';
   s.roster = hmHere(room);
-  s.endsAt = s.settings.clock ? Date.now() + s.settings.clock * 1000 : null;
+  s.openAt = hold ? Date.now() + HM_TAKE_BACK_MS : null;
+  s.endsAt = s.settings.clock ? (s.openAt || Date.now()) + s.settings.clock * 1000 : null;
   hmWriteSecrets(room);
+};
+
+/** 1200: the word is still on hold - nobody guesses yet. */
+const hmOnHold = (s) => !!(s.openAt && Date.now() < s.openAt);
+
+/** 1200: nothing has been played on any board of this word yet. */
+const hmWordUntouched = (room) => Object.values((room._hm || {}).boards || {})
+  .every(b => !b.g.length && !b.miss.length && !b.lr && !b.lx && !(b.x && b.x.length));
+
+/** 1200: «رجّعها» - the word goes back to its writer's form, written as it was (the writer's slice only). */
+const hmTakeBack = (room) => {
+  const s = room.shared;
+  const h = room._hm || {};
+  const draft = { word: h.word || '', hints: (h.hints || []).slice() };
+  room._hm = { word: '', boards: {}, hints: [] };
+  s.phase = 'writing';
+  s.progress = {};
+  s.solved = [];
+  s.endsAt = null;
+  s.openAt = null;
+  s.cat = '';
+  s.hintsN = 0;
+  s.len = 0;
+  s.shape = [];
+  if (hmTeamsWay(s)) s.tb = null;
+  room.secrets = { [s.setter]: { draft: draft } };
 };
 
 /** The writer of this word: the next in the order who is still here (latecomers join the end). */
@@ -266,6 +300,7 @@ const hmDeal = (room) => {
   s.progress = {};
   s.solved = [];
   s.endsAt = null;
+  s.openAt = null;
   s.cat = '';
   s.hintsN = 0;
   s.len = 0;
@@ -375,6 +410,7 @@ const hmEndTeamWord = (room) => {
 const hmFinishWord = (room) => {
   const s = room.shared;
   s.endsAt = null;
+  s.openAt = null;
   s.board = scoreboardOf(room);
   s.phase = s.round >= s.rounds ? 'gameover' : 'result';
   room.phase = s.phase === 'gameover' ? 'gameover' : 'play';
@@ -490,12 +526,21 @@ const hangmanAction = (room, playerId, action, payload) => {
     const raw = Array.isArray(p.hints) ? p.hints.slice(0, HM_HINTS_MAX) : [p.hint];
     const hints = raw.map(hmCleanHint).filter(Boolean);
     if (hints.some(x => hmHintProblem(x, p.word))) throw new Error('التلميح فيه الكلمة نفسها');
-    hmBeginGuessing(room, hmClean(p.word), hints);
+    hmBeginGuessing(room, hmClean(p.word), hints, p.hold === true);
+    return;
+  }
+
+  if (action === 'takeBack') {
+    // 1200: the writer's «رجّعها», within the 5 s and before any board has moved.
+    if (s.phase !== 'guessing' || staleTap(p, 'round', s.round)) return;
+    if (playerId !== s.setter) throw new Error('مش انت اللي كاتب الكلمة');
+    if (!s.openAt || Date.now() > s.openAt + HM_TAKE_BACK_GRACE_MS || !hmWordUntouched(room)) throw new Error('فات الوقت، الكلمة اتلعبت');
+    hmTakeBack(room);
     return;
   }
 
   if (action === 'guess' || action === 'whole') {
-    if (s.phase !== 'guessing' || staleTap(p, 'round', s.round)) return;
+    if (s.phase !== 'guessing' || staleTap(p, 'round', s.round) || hmOnHold(s)) return;
     const who = hmBoardFor(room, playerId);
     if (!who.b) return;
     const out = hmApply(who.b, room._hm.word, action === 'whole' ? p.text : p.letter, action === 'whole');
@@ -506,7 +551,7 @@ const hangmanAction = (room, playerId, action, payload) => {
 
   if (action === 'reveal' || action === 'remove') {
     // A lifeline: decided here, where the word is.
-    if (s.phase !== 'guessing' || staleTap(p, 'round', s.round)) return;
+    if (s.phase !== 'guessing' || staleTap(p, 'round', s.round) || hmOnHold(s)) return;
     const who = hmBoardFor(room, playerId);
     if (!who.b) return;
     if (action === 'reveal') {

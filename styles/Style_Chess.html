@@ -100,6 +100,24 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 .sv-hardest { border-color: var(--warning-btn); }
 .sv-hardest.is-in { animation: raceIn 380ms var(--ease-out) 900ms both; }
 .sv-hardest__who { margin: 0; color: var(--text-strong); font-size: 1.125rem; font-weight: 900; }
+/* 1196 / 1197 (the owner's picks, 7 Oct 2026): the setter's phone watches small boards that pop as
+   they move, with the time left; the result names who sets next (phone and TV). */
+.sv-mine__left { margin: 0; color: var(--text-2); font-weight: 700; }
+.sv-mine__left b { color: var(--text-strong); font-size: 1.25rem; }
+.sv-mine__left b.is-low { color: var(--danger); }
+.sv-rows--watch { grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); }
+.sv-rows--watch .sv-mini { grid-template-columns: repeat(var(--cols, 5), 0.875rem); }
+.sv-rows--watch .sv-mini i { width: 0.875rem; height: 0.875rem; }
+.sv-mini i.is-e { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.sv-pips { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; max-width: 100%; }
+.sv-pips i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--surface-3); }
+.sv-pips i.is-on { background: var(--accent); }
+.sv-pips i.is-won { background: var(--success-btn, var(--success)); }
+.sv-row.is-moved { animation: racePop 480ms var(--ease-out); }
+.sv-next { width: fit-content; max-width: 100%; margin: 0 auto; padding: 0.375rem 1rem; border: 1px solid var(--accent-border); border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent-ink); font-weight: 800; text-align: center; }
+.sv-next.is-me { background: var(--accent); color: var(--accent-on); }
+.sv-next.is-in { animation: raceIn 380ms var(--ease-out) 900ms both; }
+.sv-next--tv { padding: 1vmin 3vmin; font-size: 3vmin; }
 @keyframes svTurn { 0% { transform: perspective(600px) rotateX(90deg); opacity: 0; } 60% { transform: perspective(600px) rotateX(-12deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
 @keyframes svRow { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 .sv-results { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 0.25rem; }
@@ -173,6 +191,22 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 .race-done { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); text-align: center; }
 .race-done.is-in { animation: raceIn 420ms var(--ease-out) both; }
 .race-done__time { margin: 0; font-size: 1.75rem; color: var(--text-strong); }
+/* 1189 / 1190 (the owner's picks, 7 Oct 2026): the place big on the done card with the time left;
+   on a phone on its side the progress rows fold into one line of initials and mini bars. */
+.race-done__place { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: var(--sp-2); margin: 0; font-size: 2rem; font-weight: 900; line-height: 1.15; color: var(--success-ink, var(--text-strong)); }
+.race-done__left { margin: 0; color: var(--text-2); font-weight: 700; }
+.race-done__left:empty { display: none; }
+.race-done__clock { color: var(--text-strong); font-size: 1.25rem; }
+.race-done__clock.is-low { color: var(--danger); }
+.race-mini { display: none; }
+.race-mini__one { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 2.25rem; }
+.race-mini__one b { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--surface-2); color: var(--text-strong); font-size: 0.75rem; font-weight: 900; line-height: 1; }
+.race-mini__one.is-me b { box-shadow: 0 0 0 2px var(--accent-border); }
+.race-mini__one.is-won b { background: var(--success-btn, var(--success)); color: var(--success-on, #fff); }
+.race-mini__one.is-lost { opacity: 0.55; }
+.race-mini__one.is-new b { animation: racePop 480ms var(--ease-out); }
+.race-mini__one .race-row__bar { width: 100%; height: 0.25rem; }
+.race-mini__one.is-won .race-row__bar i { background: var(--success-btn, var(--success)); }
 .race-rows { display: flex; flex-direction: column; gap: 0.375rem; }
 .race-row { display: grid; grid-template-columns: minmax(3.5rem, 1fr) minmax(3rem, 2fr) auto auto; align-items: center; gap: var(--sp-2); padding: 0.375rem 0.625rem; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
 .race-row.is-me { box-shadow: 0 0 0 2px var(--accent-border); }
@@ -217,6 +251,8 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
    whose first column is auto, so a percentage width there collapses to
    nothing), sized off the height like the solo board. */
 @media (orientation: landscape) and (max-height: 500px) {
+  .race-mini { display: flex; flex-wrap: nowrap; gap: var(--sp-2); overflow-x: auto; padding: 0.125rem 0.25rem; scrollbar-width: none; }
+  .race-layout [data-race-progress] { display: none; }
   .race-stage .solo-layout__board { width: min(calc(var(--app-h, 100vh) - var(--header-h) - 2.5rem), 52vw); max-width: none; margin: 0; }
   .race-stage .solo-layout__board:has(.mines-grid) { width: min(52vw, 20rem); }
   .race-stage .solo-layout__board:has(.pin-clues) { width: min(36vw, 20rem); }
@@ -309,7 +345,8 @@ body.dark .sv-mini i.is-a { background: var(--n-700); }
 .race-next__name { display: inline-block; font-size: 1.375rem; font-weight: 900; color: var(--accent-ink); }
 @media (prefers-reduced-motion: reduce) {
   .race-mix__item.is-new { animation: none; }
-  .race-done.is-in, .race-row.is-new, .race-card.is-new, .race-closing.is-in, .race-row__dots i, .race-double.is-in, .sv-hardest.is-in { animation: none; }
+  .race-mini__one.is-new b { animation: none; }
+  .race-done.is-in, .race-row.is-new, .race-card.is-new, .race-closing.is-in, .race-row__dots i, .race-double.is-in, .sv-hardest.is-in, .sv-row.is-moved, .sv-next.is-in { animation: none; }
   .race-row__bar i { transition: none; }
 }
 

@@ -68,6 +68,10 @@ const RACE_TEXT = {
     race_closing: "10 ثواني وتقفل!",
     race_watching: "انت بتتفرج السباق ده",
     race_round_over: "خلصت الجولة",
+    race_places: "الأول|التاني|التالت|الرابع|الخامس|السادس|السابع|التامن|التاسع|العاشر",
+    race_ends_in: "الجولة تخلص في",
+    race_closes_in: "الجولة بتقفل في",
+    race_progress: "مين وصل لفين",
   },
   en: {
     race_lobby_hint: "The host picks the rounds and the ending. The same puzzle for everyone, each solving on their own phone.",
@@ -93,6 +97,10 @@ const RACE_TEXT = {
     race_closing: "10 seconds and it closes!",
     race_watching: "You are watching this race",
     race_round_over: "Round over",
+    race_places: "1st|2nd|3rd|4th|5th|6th|7th|8th|9th|10th",
+    race_ends_in: "The round ends in",
+    race_closes_in: "The round closes in",
+    race_progress: "Where everyone is",
   }
 };
 ['ar', 'en'].forEach(l => { Object.keys(RACE_TEXT[l]).forEach(k => { if (!(k in TRANSLATIONS[l])) TRANSLATIONS[l][k] = RACE_TEXT[l][k]; }); });
@@ -444,6 +452,47 @@ function raceRowsHtml(kind, state, tv) {
   return `<div class="race-rows ${tv ? 'race-rows--tv' : ''}">${rows}</div>`;
 }
 
+/** 1189: a place as a word - «التاني», "2nd" - or «المركز 11» past the tenth. */
+function raceOrdinal(n) {
+  const list = String(svT('race_places') || '').split('|');
+  return list[n - 1] || svT('hm_place', { n: n });
+}
+
+/**
+ * 1189 (the owner's picks of 7 Oct 2026): a phone that is done knows where it stands - the time
+ * left in the round, read from the server's clock (svTickClock paints the [data-sv-clock]), «بتقفل
+ * في» once Fast 3's third is in. Painted in place, so a closing band arriving changes only this.
+ */
+function raceDoneLeftHtml(state) {
+  const s = state.shared || {};
+  const you = state.you || {};
+  if (s.phase !== 'solving' || !s.endsAt || !you.board || you.state === 'play') return '';
+  return `${escapeHTML(svT(s.closeAt ? 'race_closes_in' : 'race_ends_in'))} <b class="metric race-done__clock" data-sv-clock="mmss"></b>`;
+}
+
+/**
+ * 1190: on a phone on its side the rows took the board's height; there they fold into one line
+ * across the top - each player's initial over a mini bar (scaleX), green with the place once done.
+ * Drawn everywhere, shown only on a phone on its side (the rows are hidden there instead).
+ */
+function raceMiniHtml(kind, state) {
+  const s = state.shared;
+  const prog = s.progress || {};
+  const ids = Object.keys(prog);
+  if (!ids.length) return '';
+  return `<div class="race-mini" role="list" aria-label="${escapeHTML(svT('race_progress'))}">${ids.map(id => {
+    const p = prog[id];
+    const total = Math.max(1, Number(p.total) || 1);
+    const won = p.state === 'won';
+    const done = won ? total : Math.max(0, Math.min(total, Number(p.done) || 0));
+    const name = svName(state, id) || '?';
+    const pop = won && motionFirst(['race-mini', state.code, s.dealId, s.round, id].join('|'));
+    return `<span class="race-mini__one is-${p.state} ${id === Room.me ? 'is-me' : ''} ${pop ? 'is-new' : ''}" role="listitem" title="${escapeHTML(name)}">
+        <b>${won ? escapeHTML(String((p.at || 0) + 1)) : escapeHTML(Array.from(String(name).trim())[0] || '?')}</b>
+        <span class="race-row__bar" aria-hidden="true"><i style="--p:${done / total}"></i></span></span>`;
+  }).join('')}</div>`;
+}
+
 /** Fast 3: the third finished, the round closes in ten seconds. */
 function raceClosingHtml(state) {
   const s = state.shared;
@@ -487,6 +536,8 @@ function racePaintLive(el, kind, state) {
     if (box && box._html !== html) { box.innerHTML = html; box._html = html; }
   };
   put('[data-race-progress]', raceRowsHtml(kind, state, false));
+  put('[data-race-mini]', raceMiniHtml(kind, state));
+  put('[data-race-left]', raceDoneLeftHtml(state));
   put('[data-race-closing]', raceClosingHtml(state));
   put('[data-sv-host]', roomHostRow(raceHostButtons(state)));
   // 1184: a give-up held for another round (or a board that finished meanwhile) goes.
@@ -553,15 +604,19 @@ function raceRender(kind, state) {
     if (you.board && ui) {
       const won = you.state === 'won';
       const p = (s.progress || {})[Room.me] || {};
+      // 1189: the place big as a word with its time («التاني ✅ 1:42»), and the round's time left under it.
       const doneCard = you.state === 'play' ? '' : `<div class="card card--accent hm-end race-done ${motionFirst(['race-done', state.code, s.dealId, s.round].join('|')) ? 'is-in' : ''}">
-          <p class="sheet__title">${escapeHTML(won ? svT('race_you_done', { n: (p.at || 0) + 1 }) : (you.gave ? (t.race_you_gave || '') : (t.race_you_lost || '')))}</p>
-          ${won && typeof p.secs === 'number' ? `<p class="metric race-done__time">${escapeHTML(soloTime(p.secs))}</p>` : ''}
+          ${won
+            ? `<p class="race-done__place"><span>${escapeHTML(raceOrdinal((p.at || 0) + 1))}</span> <span aria-hidden="true">✅</span>${typeof p.secs === 'number' ? ` <span class="metric race-done__time" dir="ltr">${escapeHTML(soloTime(p.secs))}</span>` : ''}</p>`
+            : `<p class="sheet__title">${escapeHTML(you.gave ? (t.race_you_gave || '') : (t.race_you_lost || ''))}</p>`}
+          <p class="race-done__left" data-race-left></p>
           <p class="field__hint">${escapeHTML(t.hm_done_wait || '')}</p></div>`;
       mine = `${doneCard}<div class="race-stage ${you.state !== 'play' ? 'is-done' : ''}" data-race-stage="${ui.stage}"></div>`;
     } else {
       mine = `<div class="card hm-wait"><div class="hm-wait__icon" aria-hidden="true">${raceIcon(kind)}</div><p class="sheet__title">${escapeHTML(t.race_watching || '')}</p></div>`;
     }
     return `<div class="sv-room race-room">${head}
+        <div data-race-mini></div>
         <div data-race-closing></div>
         <div class="sv-layout race-layout">
           <div class="sv-layout__board">${mine}</div>

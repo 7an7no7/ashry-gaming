@@ -134,8 +134,11 @@ function hmBlankPattern(s) {
   return out;
 }
 
-/** The keyboard of the word's alphabet: a letter tried is green when it was in, faded when it wasn't; one a lifeline greyed is struck out. */
-function hmKeysHtml(alpha, g, miss, on, press, x, lr) {
+/**
+ * The keyboard of the word's alphabet: a letter tried is green when it was in, faded when it wasn't; one a lifeline greyed is struck out.
+ * `lock` (1205): a teammate's keys in the team way look off, and a tap only says who taps (the function named).
+ */
+function hmKeysHtml(alpha, g, miss, on, press, x, lr, lock) {
   const letters = HM_LETTERS[alpha === 'en' ? 'en' : 'ar'];
   return `<div class="hm-keys" dir="${alpha === 'en' ? 'ltr' : 'rtl'}">${letters.map(l => {
     const hit = (g || []).indexOf(l) !== -1;
@@ -143,6 +146,7 @@ function hmKeysHtml(alpha, g, miss, on, press, x, lr) {
     const off = (x || []).indexOf(l) !== -1;
     // The letter «اكشف حرف» bought is marked apart from the ones guessed (the owner, 3 Oct 2026).
     const cls = hit ? (l === lr ? 'key key--correct hm-key--bought' : 'key key--correct') : (bad ? 'key key--absent is-miss' : (off ? 'key key--absent hm-key--off' : 'key'));
+    if (!on && lock && !hit && !bad && !off) return `<button type="button" class="key hm-key--locked" aria-disabled="true" onclick="${lock}(this)">${escapeHTML(alpha === 'en' ? l.toUpperCase() : l)}</button>`;
     return `<button type="button" class="${cls}" ${hit || bad || off || !on ? 'disabled' : `onclick="${press}('${l}')"`}>${escapeHTML(alpha === 'en' ? l.toUpperCase() : l)}</button>`;
   }).join('')}</div>`;
 }
@@ -233,7 +237,7 @@ function hmBoardHtml(o) {
         ${hmTilesHtml(o.pattern, o.alpha, { word: done ? o.word : '', lost: o.state === 'lost', open: o.open, lr: o.lr })}
       </div>
       ${done && o.after ? `<div class="hm-after">${o.after}</div>` : ''}
-      ${done ? '' : hmKeysHtml(o.alpha, o.g, o.miss, !!o.on, o.press, o.x, o.lr)}
+      ${done ? '' : hmKeysHtml(o.alpha, o.g, o.miss, !!o.on, o.press, o.x, o.lr, o.lock)}
       ${done ? '' : hmLifeHtml(o)}
       ${done || !o.on ? '' : `<form class="hm-whole" onsubmit="event.preventDefault(); ${o.whole}(this)">
           <input type="text" name="w" maxlength="28" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHTML(hmT('hm_whole_ph'))}" aria-label="${escapeHTML(hmT('hm_whole_ph'))}">
@@ -506,10 +510,47 @@ function hmLocalWrite(form) {
   s.hints = got.hints;
   s.board = hmNewBoard(hmMaxOf(s.level));
   s.step = 'guess';
+  s.wroteAt = Date.now();
   saveToLocal();
   haptic('medium');
   paintHangman({ fresh: true });
   if (typeof scrollToAction === 'function') scrollToAction();
+}
+
+/* 1200 (the owner's picks of 7 Oct 2026): «اتكتبت غلط؟» - for 5 s after «جاهزة», before the first guess,
+   the writer can take the word back to the form, written as it was, and fix it. */
+const HM_LOCAL_TAKE_BACK_MS = 5000;
+const hmLocalCanTakeBack = (s) => s.step === 'guess' && !!s.board && !s.board.g.length && !s.board.miss.length
+  && !s.board.lr && !s.board.lx && !(s.board.x || []).length && Date.now() - (s.wroteAt || 0) < HM_LOCAL_TAKE_BACK_MS;
+
+function hmLocalTakeBack() {
+  const s = hmLocalState();
+  if (!hmLocalCanTakeBack(s)) { paintHangman(); return; }
+  s.draft = { word: s.word, hints: (s.hints || []).slice() };
+  s.step = 'write';
+  s.board = null;
+  s.word = '';
+  s.hint = '';
+  s.hints = [];
+  s.wroteAt = 0;
+  saveToLocal();
+  haptic('light');
+  paintHangman();
+}
+
+/** The word and the hints taken back, put back in the form (one phone and a room). */
+function hmFillDraft(root, draft) {
+  const form = root && root.querySelector('form.hm-write');
+  if (!form || !draft) return;
+  const set = (name, v) => { const el = form.querySelector(`input[name="${name}"]`); if (el && !el.value && v) el.value = v; };
+  set('w', draft.word);
+  const hints = draft.hints || [];
+  set('h', hints[0]);
+  set('h2', hints[1]);
+  set('h3', hints[2]);
+  const fold = form.querySelector('details.hm-more-hints');
+  if (fold && (hints[1] || hints[2])) fold.open = true;
+  secretDotsPaint(form);
 }
 
 function hmLocalGuess(letter) {
@@ -617,6 +658,7 @@ function paintHangman(fx) {
         <p class="field__hint hm-write-actions__then">${escapeHTML(hmT('hm_write_then', { name: guesser }))}</p>
         <button type="submit" form="hm-write-form" class="btn btn--primary btn--lg">${escapeHTML(hmT('hm_write_ready'))}</button>
       </div>`;
+    if (s.draft) { hmFillDraft(el, s.draft); s.draft = null; saveToLocal(); }
     return;
   }
   const b = s.board;
@@ -632,7 +674,14 @@ function paintHangman(fx) {
       </div>` : '';
   // The tally on the title's line, shown instead of the tally row on a phone on its side.
   const scoreLine = `<span class="hm-score-line">${[0, 1].map(i => `<span><bdi>${escapeHTML(names[i])}</bdi> <b class="metric">${s.tally[i] || 0}</b></span>`).join('<span aria-hidden="true">·</span>')}</span>`;
-  el.innerHTML = `${tally}
+  // 1200: the writer's «اتكتبت غلط؟» while it may still be pressed; it goes by itself after the 5 s.
+  const backLeft = hmLocalCanTakeBack(s) ? HM_LOCAL_TAKE_BACK_MS - (Date.now() - (s.wroteAt || 0)) : 0;
+  const takeBack = backLeft > 0 ? `<div class="hm-takeback">
+      <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="hmLocalTakeBack()">✏️ ${escapeHTML(hmT('hm_take_back'))}</button>
+      <span class="hm-takeback__bar" aria-hidden="true"><i style="--hold:${backLeft}ms"></i></span></div>` : '';
+  clearTimeout(hmLocalTakeBack.timer);
+  if (backLeft > 0) hmLocalTakeBack.timer = setTimeout(() => { if (appState.currentView === 'play-hangman' && document.querySelector('#hangman-stage .hm-takeback')) paintHangman(); }, backLeft + 50);
+  el.innerHTML = `${tally}${takeBack}
     ${hmBoardHtml({
       pattern: hmPattern(s.word, b.g), alpha: hmAlphaOf(s.word), g: b.g, miss: b.miss, state: b.state, word: s.word,
       on: !done, press: 'hmLocalGuess', whole: 'hmLocalWhole', newMiss: o.newMiss, open: o.open,
@@ -722,7 +771,55 @@ function hmRoomWrite(form) {
   const got = hmReadWrite(form);
   if (!got) return;
   haptic('medium');
-  roomAct('setWord', { word: got.word, hint: got.hint, hints: got.hints, round: s.round });
+  // 1200: `hold` - guessing opens 5 s later, while the writer may take the word back.
+  roomAct('setWord', { word: got.word, hint: got.hint, hints: got.hints, round: s.round, hold: true });
+}
+
+/* 1200: the writer's «اتكتبت غلط؟ رجّعها» in a room (the server's 5 s, and only before anyone has played). */
+const hmRoomOnHold = (s) => !!(s && s.phase === 'guessing' && s.openAt && roomServerNow() < s.openAt);
+
+function hmRoomTakeBack() {
+  const s = ((Room.state || {}).shared) || {};
+  if (!(s.openAt && roomServerNow() < s.openAt + 1000)) { showToast(hmT('hm_take_back_late')); return; }
+  haptic('light');
+  roomAct('takeBack', { round: s.round });
+}
+
+/** The hold's countdown on every phone ([data-hm-open]); when it ends the screen is drawn again, the keys on. */
+function hmHoldStop() {
+  if (hmRoom.holdClock) hmRoom.holdClock.stop();
+  hmRoom.holdClock = null;
+  hmRoom.holdKey = null;
+}
+
+function hmHoldTick(state) {
+  const s = state.shared || {};
+  if (!hmRoomOnHold(s)) { hmHoldStop(); return; }
+  const paint = () => {
+    const left = Math.max(0, Math.ceil((s.openAt - roomServerNow()) / 1000));
+    document.querySelectorAll('[data-hm-open]').forEach(el => { el.textContent = String(left); });
+  };
+  paint();
+  if (hmRoom.holdKey === s.openAt && hmRoom.holdClock && hmRoom.holdClock.isRunning()) return;
+  hmHoldStop();
+  hmRoom.holdKey = s.openAt;
+  hmRoom.holdClock = createClock({
+    ms: Math.max(0, s.openAt - roomServerNow()),
+    onTick: paint,
+    onEnd: () => {
+      hmRoom.holdClock = null;
+      const st = Room.state;
+      if (st && st.game === 'hangman' && appState.currentView === 'room-hangman' && ROOM_GAMES.hangman) ROOM_GAMES.hangman.render(st);
+    }
+  });
+}
+
+/** 1205: a teammate's tap on the captain's keys: who taps, said at once (the server would refuse it). */
+function hmNotCaptain(btn) {
+  showToast(hmT('hm_cap_only_toast'));
+  haptic('heavy');
+  const keys = btn && btn.closest('.hm-keys');
+  if (keys && !motionOff()) { keys.classList.remove('is-refused'); void keys.offsetWidth; keys.classList.add('is-refused'); setTimeout(() => keys.classList.remove('is-refused'), 400); }
 }
 
 /* --- the team way ------------------------------------------------------------------ */
@@ -1082,12 +1179,26 @@ function hmRoomSig(state) {
   const s = state.shared || {};
   return [s.dealId || '', s.round, s.phase, s.setter || '', s.captain || '', JSON.stringify(s.progress || {}), JSON.stringify(s.result || null),
     s.endsAt || '', JSON.stringify(s.board || []), JSON.stringify(state.you || null), JSON.stringify(s.tb || null), JSON.stringify(s.streak || {}),
-    JSON.stringify(s.teams || null), JSON.stringify(s.tpts || null), s.hintsN || 0,
+    JSON.stringify(s.teams || null), JSON.stringify(s.tpts || null), s.hintsN || 0, hmRoomOnHold(s) ? 'open-wait' : '',
     (state.players || []).map(p => p.id + ':' + p.name).join(','), state.youAreHost, !!state.hostAway, appState.lang, hmRoom.hold && Date.now() < hmRoom.hold.until ? 'hold' : ''].join('|');
 }
 
 /** The ending's place in hmEndStarts: the deal, the word and the board, so a redraw carries it on. */
 const hmEndKey = (state, who) => [state.code, (state.shared || {}).dealId, (state.shared || {}).round, who].join('|');
+
+/** 1200: the writer's take-back while the word is on hold, the bar emptying with the server's 5 s. */
+function hmTakeBackHtml(s) {
+  if (!hmRoomOnHold(s)) return '';
+  const left = Math.max(0, s.openAt - roomServerNow());
+  return `<div class="hm-takeback">
+      <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="hmRoomTakeBack()">✏️ ${escapeHTML(hmT('hm_take_back'))} · <b class="metric" data-hm-open></b></button>
+      <span class="hm-takeback__bar" aria-hidden="true"><i style="--hold:${Math.round(left)}ms"></i></span></div>`;
+}
+
+/** 1200: on the guessers' boards while the word is on hold: «الكلمة جاية… 4». */
+function hmHoldHtml() {
+  return `<p class="hm-hold" role="status">⏳ ${escapeHTML(hmT('hm_word_coming'))} <b class="metric" data-hm-open></b></p>`;
+}
 
 /** The kind of word above the boxes: the race's category («❓» at Hard), or whose word it is. */
 function hmRoomHead(state) {
@@ -1200,17 +1311,25 @@ ROOM_GAMES.hangman = {
         const tb = (hold && hold.board) || s.tb || {};
         fx = hold ? hold.fx : hmRoomFx(state, tb);
         const myTeam = hmTeamOfMe(s, Room.me);
-        const on = tb.state === 'play' && s.captain === Room.me && !state.youAreScreen;
+        const onHold = hmRoomOnHold(s);
+        const captainMe = tb.state === 'play' && s.captain === Room.me && !state.youAreScreen;
+        const on = captainMe && !onHold;
+        // 1205: the captain's phone says so in a banner; a teammate's keys look off and say who taps.
+        const mate = tb.state === 'play' && !captainMe && myTeam === s.gt && !state.youAreScreen;
+        const capPop = motionFirst(['hm-cap', state.code, s.dealId, s.round, s.captain].join('|'));
+        const banner = captainMe ? `<p class="hm-cap-banner is-me ${capPop ? 'is-in' : ''}">🧢 ${escapeHTML(hmT('hm_cap_banner'))}</p>`
+          : (mate ? `<p class="hm-cap-banner ${capPop ? 'is-in' : ''}">🧢 ${escapeHTML(hmT('hm_cap_only', { name: s.captainName || '' }))}</p>` : '');
         mine = (you.word ? `<div class="card hm-mine-word"><p class="eyebrow">${escapeHTML(hmT('hm_your_word'))}</p>
-            ${hmTilesHtml(Array.from(hmClean(you.word)), hmAlphaOf(you.word), {})}</div>` : '') + hmBoardHtml({
+            ${hmTilesHtml(Array.from(hmClean(you.word)), hmAlphaOf(you.word), {})}${hmTakeBackHtml(s)}</div>` : '')
+          + (onHold && !you.word ? hmHoldHtml() : '') + banner + hmBoardHtml({
           pattern: tb.pattern || hmBlankPattern(s), alpha: s.alpha, g: tb.g, miss: tb.miss || [], state: tb.state, word: tb.state === 'won' && s.result ? s.result.word : '',
-          on: on, press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head,
+          on: on, press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head, lock: mate ? 'hmNotCaptain' : '',
           hints: (tb.hints && tb.hints.length ? tb.hints : (s.cat ? [s.cat] : [])), hintsN: s.hintsN, max: s.max, x: tb.x, lr: tb.lr, lx: tb.lx,
           reveal: on ? 'hmRoomReveal' : '', remove: 'hmRoomRemove', end: tb.end, endKey: hmEndKey(state, 'team'), endPlay: !!(fx.cheer || (fx.newMiss && tb.state === 'lost')),
           fire: (s.streak || {})['t' + s.gt],
           after: tb.state && tb.state !== 'play' ? `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(tb.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p></div>` : ''
         });
-        if (tb.state === 'play' && !on && myTeam === s.gt) mine += `<p class="field__hint hm-say">${escapeHTML(hmT('hm_team_say', { name: s.captainName || '' }))}</p>`;
+        if (mate) mine += `<p class="field__hint hm-say">${escapeHTML(hmT('hm_team_say', { name: s.captainName || '' }))}</p>`;
       } else if (you.word || (hold && s.setter === Room.me && s.result && s.result.word)) {
         // The writer's word; through the hold (the secret is gone once the word is over) from the result.
         const w = you.word || s.result.word;
@@ -1218,12 +1337,13 @@ ROOM_GAMES.hangman = {
         mine = `<div class="card hm-mine-word"><p class="eyebrow">${escapeHTML(hmT('hm_your_word'))}</p>
             ${hmTilesHtml(Array.from(hmClean(w)), hmAlphaOf(w), {})}
             ${wHints.length > 1 ? `<p class="hm-result__hints">${wHints.map((h, i) => `💡${i + 1} ${escapeHTML(h)}`).join(' · ')}</p>` : ''}
-            <p class="field__hint">${escapeHTML(hmT('hm_you_watch'))}</p></div>`;
+            <p class="field__hint">${escapeHTML(hmT('hm_you_watch'))}</p>${you.word ? hmTakeBackHtml(s) : ''}</div>`;
       } else if (Array.isArray(you.pattern) || (hold && hold.board)) {
         const b = Array.isArray(you.pattern) ? you : hold.board;
         fx = Array.isArray(you.pattern) ? hmRoomFx(state, you) : hold.fx;
-        const on = b.state === 'play';
-        mine = hmBoardHtml({
+        const onHold = hmRoomOnHold(s);
+        const on = b.state === 'play' && !onHold;
+        mine = (onHold ? hmHoldHtml() : '') + hmBoardHtml({
           pattern: b.pattern, alpha: s.alpha, g: b.g, miss: b.miss, state: b.state, word: b.state === 'won' && s.result ? s.result.word : '',
           on: on, press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head,
           hints: s.setter ? ((b.hints && b.hints.length) ? b.hints : (s.cat ? [s.cat] : [])) : [], hintsN: s.setter ? s.hintsN : 0,
@@ -1249,6 +1369,11 @@ ROOM_GAMES.hangman = {
         </div>`;
     });
     if (rebuilt && typing.length) hmRestoreTyping(el, typing);
+    // 1200: a word taken back comes back into the writer's form, as it was written.
+    // Once per take-back: a later redraw (someone joining) keeps what the writer has changed since.
+    const draftKey = you.draft ? [state.code, s.dealId, s.round, you.draft.word].join('|') : '';
+    if (rebuilt && s.phase === 'writing' && you.draft && hmRoom.draftKey !== draftKey) { hmRoom.draftKey = draftKey; hmFillDraft(el, you.draft); }
+    hmHoldTick(state);
     refreshRoomPlayerStrip(el, state);
     const host = el.querySelector('[data-hm-host]');
     if (host) { const html = roomHostRow(hmHostButtons(state)); if (host._html !== html) { host.innerHTML = html; host._html = html; } }
@@ -1266,7 +1391,7 @@ ROOM_GAMES.hangman = {
   actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
 };
 
-onRoomClocksReset(() => { hmStopClock(); roomQuietStop(hmRoom); hmRoom.sinceKey = ''; hmRoom.hold = null; });
+onRoomClocksReset(() => { hmStopClock(); hmHoldStop(); roomQuietStop(hmRoom); hmRoom.sinceKey = ''; hmRoom.hold = null; });
 
 /* --- the TV: everyone's man, the word and the points ------------------------------ */
 

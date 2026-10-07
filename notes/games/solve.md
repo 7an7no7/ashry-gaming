@@ -218,6 +218,13 @@ emoji room (`room-emoji`), whose third way is the quiz.
   every word goes. A guess equal to the setter's own unknown word is nudged once too (the phone
   doesn't know the secret). Its line is in the room rules.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **(1195) A soft check for the setter's word** (خمن الكلمة): built twice the same day, by two builders; at the merge it was folded into 1102's check above (`svWordleKnown(text, alpha)` over `wordleKnownIn`), which already asks about the setter's word and every guess with «مش في قاموسنا — دوس تاني لو متأكد». The second copy (`wordleDictKnows`, `svWordleWarmDict`, `sv_wordle_not_dict`) was dropped.
+- **(1196) The setter's screen while the others solve.** Under the secret: «هيخلصوا في 1:12» from the round's clock (when there is one, `[data-sv-clock="mmss"]`) and everyone's progress as bigger cards right there in the board column (`svProgressHtml(kind, state, false, watch)`, `.sv-rows--watch`): a Wordle card is a small grid - the colour rows played and the rows still to go as empty cells (`.sv-mini i.is-e`); the number, the country and the riddle a dot a try (`.sv-pips`, green on the solving one); a card pops (`.sv-row.is-moved`, racePop) when its board moves (`svRoom.watchSeen`, per deal). Only what `shared.progress` already carries - nothing new from the server.
+- **(1197) Whose turn to set, ahead.** The result card is followed by «✍️ اللي عليه الدور يكتب: سارة» (يختار for the number and the country; «الدور عليك تكتب المرة الجاية» lit on that phone) before «اللي بعده», on the phone and the TV (`svNextSetterOf`: the server's `svNextSetter` worked out on the page from `shared.order`, `setterAt` and the players - anyone new joins the order's end; `svNextSetterHtml`, `.sv-next`, popping in after the reveal). Nothing on the last round or in a race. Both signatures carry it, so someone leaving redraws it.
+
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

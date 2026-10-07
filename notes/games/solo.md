@@ -684,6 +684,13 @@ chips; `#view-play-wordwheel .view-actions` removed).
   it (`.daily-pop`), and confetti with the success sound follow (`afterReveal`). Later
   visits that day show the same card, still.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built - part two
+
+- **(1181) خمّن الدولة: the next hint, announced.** Under the guesses on the map card a small line says what comes next and when: «💡 بعد غلطة كمان: القارة», «بعد غلطتين: …», «بعد 3 غلطات: …», then the first letter («أول حرف») - from the first miss, while a hint is still to come before the last guess; it pops in with a fresh guess. `fmapNextHintHtml(misses, { cont, letter }, max, fresh)` in `JS_FlagsMap.html` (its words in `FMAP_TEXT`, the chunk's own), read by `paintFlags` (`flagsContAt`, the new `flagsLetterAt`) and by a solver's board in a room (`svBoardHtml`, `svFlagHintsAt`). Chosen: shown only from the first miss; nothing once the last hint is out.
+- **(1182) خمّن الدولة: the field above the keyboard.** On a touch screen the country field's focus scrolls the screen so the field and its label start at the top, now and again once the keyboard has opened (the visual viewport's resize; a timer as a backstop): `fmapFieldUp(input)` in `JS_FlagsMap.html`, on the one-phone field (`#flags-query`) and every room country search (`svCountrySearchHtml`: the solver's and the setter's). `scrollToAction` itself leaves a focused field alone, so this is its own small scroll of `#shell-main`. A mouse computer is left as it was.
+- **(1183) خمّن الدولة: the TV's pins at the end of a round.** The premise was partly off: the TV's map has no callouts (only a phone's does), and its pins were already sized in vmin with each player's first letter. What was wrong on the TV is that everyone who guessed the same country stood on one spot, so only the top letter showed. Now `fmapFanPins` (JS_FlagsMap.html, called by `svFlagsEndMapHtml`) fans up to eight pins on one country round it (`--fx` / `--fy` in vmin), and more than eight become one pin «×9» with a gold ring, coloured by the closest step among them (`.fmap__pin--many`). Callouts, if a TV map ever draws them, are vmin-sized too (`.svf-tv .fmap__call`).
+
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

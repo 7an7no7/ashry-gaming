@@ -152,11 +152,14 @@ function continueFlags() {
 // The continent (it glows on the map, JS_FlagsMap.html, with its chip) after 3 misses from the flag, 4 by distance.
 const flagsContAt = (s) => (s.playMode === 'flag' ? 3 : 4);
 
+// The first letter after 5 misses from the flag, 6 by distance.
+const flagsLetterAt = (s) => (s.playMode === 'flag' ? 5 : 6);
+
 function flagsHints(s, t) {
   const target = flagCountry(s.answer);
   const misses = s.guesses.length;
   const hints = [];
-  const letterAt = s.playMode === 'flag' ? 5 : 6;
+  const letterAt = flagsLetterAt(s);
   if (misses >= letterAt) hints.push(`🔤 ${escapeHTML(flagName(target, s.lang).replace(/^ال/, '').charAt(0))}…`);
   return hints;
 }
@@ -215,12 +218,12 @@ function paintFlags(freshIndex) {
             <div class="gn-entry">
               <input type="text" id="flags-query" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go"
                 dir="auto" placeholder="${escapeHTML(t.flags_name_label || '')}" aria-controls="flags-suggest" value="${escapeHTML(s.query || '')}"
-                oninput="flagsSuggest(this.value)" onkeydown="flagsKey(event)">
+                oninput="flagsSuggest(this.value)" onkeydown="flagsKey(event)" onfocus="fmapFieldUp(this)">
               <button type="button" class="btn btn--primary btn--auto gn-entry__go" onclick="flagsPickFirst()">${escapeHTML(t.gn_guess_btn || '')}</button>
             </div>
             <div class="flags-suggest" id="flags-suggest" onkeydown="flagsKey(event)"></div>
           </div>`}
-        <div class="flg-guesses fmap-card" id="flags-guesses" aria-label="${escapeHTML(t.gn_your_guesses || '')}">${map}</div>
+        <div class="flg-guesses fmap-card" id="flags-guesses" aria-label="${escapeHTML(t.gn_your_guesses || '')}">${map}${over ? '' : fmapNextHintHtml(s.guesses.length, { cont: contAt, letter: flagsLetterAt(s) }, max, fresh >= 0)}</div>
       </div>
       <div class="view-actions talk__actions flg-actions">
         ${over ? `<button type="button" class="btn btn--primary btn--lg" onclick="startFlags(false)">${escapeHTML(t.play_again || '')}</button>` : ''}
